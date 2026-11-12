@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View} from 'react-native';
-import {artworkLimitText, openSubtitlesSummary, type MetadataSettings} from '../../../../../../packages/client-core/src/metadata-settings';
+import {artworkLimitText, openSubtitlesSummary, type MetadataAnimeTitles, type MetadataFallbackLanguage, type MetadataRefreshPolicy, type MetadataSettings} from '../../../../../../packages/client-core/src/metadata-settings';
 import {settingsSpec, settingsRowIndex, type SettingsRow} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {Button} from '../../../kit/controls/Button';
@@ -71,7 +71,7 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
   };
   const credential = (id: string, configured: boolean, first = false) => {
     const definition = row(id), key = credentialKeys[id]!;
-    const status = key === 'openSubtitlesUsername' ? settings?.openSubtitlesUsername || 'No account set' : configured ? 'Your own value is saved' : key === 'tmdbReadToken' || key === 'tvdbProjectKey' ? t('server.metadata.keyOurs')
+    const status = key === 'openSubtitlesUsername' ? settings?.openSubtitlesUsername || 'No account set' : configured ? 'Your own value is saved' : key === 'tmdbReadToken' && settings?.tmdbCredentialUnreadable ? t('server.metadata.keyUnreadable') : key === 'tmdbReadToken' || key === 'tvdbProjectKey' ? t('server.metadata.keyOurs')
       : key === 'acoustidKey' && settings?.advanced?.acoustidKeySource === 'environment' ? t('server.metadata.acoustidServer') : 'Not set up';
     return <LibraryRow key={id} first={first} label={t(definition.label)} help={definition.help ? t(definition.help) : undefined} value={status}
       trailing={<Button variant="text" size="xs" disabled={disabled} onPress={() => {if (settings && current()) {setEditing({row: definition, original: settings, key}); setText(key === 'openSubtitlesUsername' ? settings.openSubtitlesUsername : '');}}}>{t('web.metadataLookup.change')}</Button>}/>;
@@ -97,7 +97,7 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
       </LibraryGroup></>}
       <SectionTitle>{groupTitle(2)}</SectionTitle><LibraryGroup>
         {credential('metadata.tmdb', settings.tmdbCredentialConfigured, true)}
-        {credential('metadata.tvdb', settings.tvdbCredentialConfigured)}
+        {settings.tvdbCredentialConfigured !== undefined && credential('metadata.tvdb', settings.tvdbCredentialConfigured)}
         <LibraryRow label={t(row('metadata.noKey').label)} help={row('metadata.noKey').help ? t(row('metadata.noKey').help!) : undefined} value={row('metadata.noKey').control.text ? t(row('metadata.noKey').control.text!) : undefined}/>
       </LibraryGroup>
       {(settings.artworkPreference !== undefined || settings.artworkLanguage !== undefined) && <><SectionTitle>{groupTitle(3)}</SectionTitle><LibraryGroup>
@@ -112,27 +112,36 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
         <LibraryRow label={t(row('metadata.osTest').label)} trailing={<Button variant="glass" size="xs" disabled={disabled} onPress={() => {if (current()) void controller.checkOpenSubtitles(settings);}}>{t(row('metadata.osTest').control.label!)}</Button>}/>
       </LibraryGroup>
       <NativeTitleDatasetGroup ports={ports} runtime={runtime}/>
-      <NativeAdvancedSection testID="server-metadata-advanced" summary={`${artworkLimitText(settings.localArtworkLimitBytes)} GB · ${settings.artworkMaxEdge} px`}>
-        {advanced && <><SectionTitle>{advancedTitle(0)}</SectionTitle><LibraryGroup>
-          {select('metadata.refresh', advanced.refreshPolicy, value => ({refreshPolicy: value as typeof advanced.refreshPolicy}), true)}
-          <LibraryRow label={t(row('metadata.refreshAll').label)} help={advanced.refreshAll.running ? t('server.metadata.refreshAllRunning') : row('metadata.refreshAll').help ? t(row('metadata.refreshAll').help!) : undefined}
-            trailing={<Button testID="metadata.refreshAll" variant="glass" size="xs" disabled={disabled} onPress={() => {if (current()) setConfirmRefresh(true);}}>{t(row('metadata.refreshAll').control.label!)}</Button>}/>
-        </LibraryGroup>
-        <SectionTitle>{advancedTitle(1)}</SectionTitle><LibraryGroup>
-          {select('metadata.fallbackLanguage', advanced.fallbackLanguage, value => ({fallbackLanguage: value as typeof advanced.fallbackLanguage}), true)}
-          {select('metadata.animeTitles', advanced.animeTitles, value => ({animeTitles: value as typeof advanced.animeTitles}))}
-        </LibraryGroup>
-        <SectionTitle>{advancedTitle(2)}</SectionTitle></>}
-        <LibraryGroup>
-          {select('metadata.artworkLimit', artworkLimitText(settings.localArtworkLimitBytes), value => ({localArtworkLimitBytes: Number(value) * 2 ** 30}), true,
-            t('server.metadata.artworkUsedHelp', {used: artworkLimitText(settings.localArtworkUsedBytes)}))}
-          {select('metadata.artworkSize', settings.artworkMaxEdge === 1280 ? 'small' : settings.artworkMaxEdge === 2560 ? 'large' : 'standard', value => ({artworkMaxEdge: value === 'small' ? 1280 : value === 'large' ? 2560 : 1920}))}
-          {toggle('metadata.castPhotos', advanced?.castPhotos, castPhotos => ({castPhotos}))}
-        </LibraryGroup>
-        {advanced && <><SectionTitle>{advancedTitle(3)}</SectionTitle><LibraryGroup>
-          {credential('metadata.acoustid', advanced.acoustidKeyConfigured, true)}
-        </LibraryGroup></>}
-      </NativeAdvancedSection>
+      {/* Each Advanced row is offered only when the server sends its field, and a group only when it has a row. */}
+      {(() => {
+        const refreshing = advanced?.refreshPolicy !== undefined || advanced?.refreshAll !== undefined;
+        const languages = advanced?.fallbackLanguage !== undefined || advanced?.animeTitles !== undefined;
+        const artwork = settings.localArtworkLimitBytes !== undefined || settings.artworkMaxEdge !== undefined || advanced?.castPhotos !== undefined;
+        const music = advanced?.acoustidKeyConfigured !== undefined;
+        if (!refreshing && !languages && !artwork && !music) return null;
+        const summary = [settings.localArtworkLimitBytes !== undefined ? `${artworkLimitText(settings.localArtworkLimitBytes)} GB` : '',
+          settings.artworkMaxEdge !== undefined ? `${settings.artworkMaxEdge} px` : '', advanced?.castPhotos === false ? t('server.metadata.castPhotosOff') : ''].filter(Boolean).join(' · ');
+        return <NativeAdvancedSection testID="server-metadata-advanced" summary={summary}>
+          {refreshing && <><SectionTitle>{advancedTitle(0)}</SectionTitle><LibraryGroup>
+            {select('metadata.refresh', advanced?.refreshPolicy, value => ({refreshPolicy: value as MetadataRefreshPolicy}), true)}
+            {advanced?.refreshAll && <LibraryRow first={advanced.refreshPolicy === undefined} label={t(row('metadata.refreshAll').label)} help={advanced.refreshAll.running ? t('server.metadata.refreshAllRunning') : row('metadata.refreshAll').help ? t(row('metadata.refreshAll').help!) : undefined}
+              trailing={<Button testID="metadata.refreshAll" variant="glass" size="xs" disabled={disabled} onPress={() => {if (current()) setConfirmRefresh(true);}}>{t(row('metadata.refreshAll').control.label!)}</Button>}/>}
+          </LibraryGroup></>}
+          {languages && <><SectionTitle>{advancedTitle(1)}</SectionTitle><LibraryGroup>
+            {select('metadata.fallbackLanguage', advanced?.fallbackLanguage, value => ({fallbackLanguage: value as MetadataFallbackLanguage}), true)}
+            {select('metadata.animeTitles', advanced?.animeTitles, value => ({animeTitles: value as MetadataAnimeTitles}), advanced?.fallbackLanguage === undefined)}
+          </LibraryGroup></>}
+          {artwork && <><SectionTitle>{advancedTitle(2)}</SectionTitle><LibraryGroup>
+            {settings.localArtworkLimitBytes !== undefined && select('metadata.artworkLimit', artworkLimitText(settings.localArtworkLimitBytes), value => ({localArtworkLimitBytes: Number(value) * 2 ** 30}), true,
+              t('server.metadata.artworkUsedHelp', {used: artworkLimitText(settings.localArtworkUsedBytes ?? 0)}))}
+            {settings.artworkMaxEdge !== undefined && select('metadata.artworkSize', settings.artworkMaxEdge === 1280 ? 'small' : settings.artworkMaxEdge === 2560 ? 'large' : 'standard', value => ({artworkMaxEdge: value === 'small' ? 1280 : value === 'large' ? 2560 : 1920}), settings.localArtworkLimitBytes === undefined)}
+            {toggle('metadata.castPhotos', advanced?.castPhotos, castPhotos => ({castPhotos}), settings.localArtworkLimitBytes === undefined && settings.artworkMaxEdge === undefined)}
+          </LibraryGroup></>}
+          {music && <><SectionTitle>{advancedTitle(3)}</SectionTitle><LibraryGroup>
+            {credential('metadata.acoustid', advanced?.acoustidKeyConfigured === true, true)}
+          </LibraryGroup></>}
+        </NativeAdvancedSection>;
+      })()}
     </ScrollView>
     <BottomSheet open={!!editing} onOpenChange={open => {if (!open && !state.busy) {setEditing(undefined); setText('');}}} title={editing ? t(editing.row.label) : ''}
       footer={<View style={{flexDirection: 'row', gap: 10}}><Button variant="glass" disabled={state.busy} onPress={() => {setEditing(undefined); setText('');}}>{t('action.cancel')}</Button>
