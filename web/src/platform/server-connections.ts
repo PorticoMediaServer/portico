@@ -1,12 +1,10 @@
-import {createBrowserHostedSource} from '@core/query/hosted-directory-source.ts';
 import {readConnectionFacts} from '@core/query/connection-operations.ts';
 import {clockOrigin, observeResponseClock} from '@core/server-clock.ts';
 import {IndexedDBOutboxStore} from './outbox-store';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import {RouteConnection,sessionRoute} from '@core/route-connection';
 import {RouteError} from '@core/route-identity';
-import {restoreNativeSession,forgetNativeSession,savedConnectionDamaged,type RememberedServer,type ServerConnectionStorage,type HostedConnectionSource,type ConnectionEnvironment} from '@core/server-connections';
-import {browserAccount} from './account';
+import {restoreNativeSession,forgetNativeSession,savedConnectionDamaged,type RememberedServer,type ServerConnectionStorage,type ConnectionEnvironment} from '@core/server-connections';
 import {AppSessionStore, type AppSessionRecord, type NewServerConnection} from '@core/app-sessions.ts';
 import {browserDiscoveryProvider} from './discovery-provider';
 import {currentWebEnvironment} from './environment';
@@ -149,13 +147,12 @@ export function browserConnectionEnvironment(serverId?:string,admission?:NewServ
 const linkType=()=>(navigator as Navigator&{connection?:{type?:string}}).connection?.type;
 let activeApi:HttpLocalApi|undefined;
 export function trackBrowserConnection(api:HttpLocalApi){activeApi=api;api.setDeviceClass('web');api.setTransportClass(linkType());const next=api.getRouteConnection();if(active&&active!==next){const retired=active;setTimeout(()=>retired.dispose(),15000);}active=next;active?.setForeground(!document.hidden);}
-export function browserHostedSource(accountId:string):HostedConnectionSource {
- return createBrowserHostedSource(browserAccount(), accountId);
-}
 
 export async function restoreBrowserConnection(expected:LocalSession){
  const env=browserConnectionEnvironment(expected.viewer.serverId);
- return restoreNativeSession(env,record=>{if(!record.hosted)return;const central=browserAccount();return record.hosted.origin===central.api.origin?browserHostedSource(record.hosted.accountId):undefined;},expected);
+ // A saved server reopens on the routes it proved; the new Portico Services keeps no route documents to
+ // fetch for it (only the first service's servers, saved with its route key, ever had any).
+ return restoreNativeSession(env,undefined,expected);
 }
 export async function forgetBrowserConnection(session:LocalSession){const env=browserConnectionEnvironment(session.viewer.serverId);const captured=sessionRoute(session.accessToken);await forgetNativeSession(env,session);const retained=await env.storage.read();if(retained&&sessionRoute(retained.session.accessToken)===captured)return;if(active===captured)active=undefined;setTimeout(()=>{if(active!==captured)captured?.dispose();},16000);}
 

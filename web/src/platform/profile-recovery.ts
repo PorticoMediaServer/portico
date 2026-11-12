@@ -1,6 +1,5 @@
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import type {DirectSnapshot} from '@core/profile-management.ts';
-import type {HostedRequestApi} from '@core/portico-servers.ts';
 import type {SignInKind} from '@core/app-sessions.ts';
 import {ProfileRecoveryController, type ProfileRecoveryState} from '@core/profile-recovery.ts';
 
@@ -24,8 +23,9 @@ export class BrowserProfileRecovery {
   getSnapshot = (): ProfileRecoveryState => this.flow.getSnapshot();
   subscribe = (listener: () => void) => this.flow.subscribe(listener);
   password(password: string) {return this.flow.password(password);}
-  portico(hosted: HostedRequestApi, origin: string, accountCurrent: () => boolean) {
-    return this.flow.portico(async () => ({hosted, origin, accountCurrent}));
+  /** A Portico Account's proof for a PIN has no route on the new server yet; the flow says so. */
+  portico() {
+    return this.flow.portico();
   }
   code(code: string) {return this.flow.code(code);}
   reset(pin: string) {return this.flow.reset(pin);}

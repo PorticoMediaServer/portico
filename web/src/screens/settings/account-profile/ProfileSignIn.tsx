@@ -3,8 +3,6 @@ import {takeTwoStepSetup} from '../../../platform/two-step-continuation';
 import {defaultI18n} from '@i18n';
 import {IdentityClient, type TwoFactorEnrolment} from '@core/identity-client.ts';
 import type {TwoFactorState} from '@core/identity-restrictions.ts';
-import type {SecurityState, IdentityProvider} from '@core/hosted-security.ts';
-import {providerOnlySignIn} from '@core/hosted-security.ts';
 import type {LocalSession} from '@core/index.ts';
 import type {ProfileAPI} from '@core/profile-management.ts';
 import {passwordStrength} from '@core/password-strength.ts';
@@ -15,15 +13,12 @@ import {SettingsRow} from '../../../kit/shell/SettingsSurfaces';
 import {AuthCodeBoxes} from '../../../kit/accounts';
 import {HostedError, ServicesQuiet} from '../../../kit/accounts/ServicesAuth';
 import {ServicesAuthenticator, ServicesQuietLink, ServicesRecoveryCodes} from '../../../kit/accounts/ServicesWorkspace';
-import {servicesAccount, accountIdentity, currentAccountWork, sameAccount, type AccountIdentity, type ServicesAccount} from '../../../services/session';
-import {accountSecurityBrowserAvailable, accountSecurityUIURL} from '../../../platform/account-security-policy';
 import {browserAccountOrigin} from '../../../platform/account-origin';
-import {ProviderSecurityStartDialog} from '../../../services/ProviderSecurityStartDialog';
-import {HostedSecurityTask, type HostedSecurityTaskKind} from '../../../services/SecurityPanel';
+import {accountSecurityUIURL} from '../../../platform/account-security-policy';
+import {HostedSecurityAction} from './HostedSecurityAction';
 import type {ProfileSettingsSource} from './source';
 import {AccountPasswordFields} from './AccountPasswordFields';
 import {AccountFactorProofFields} from './AccountFactorProofFields';
-import {HostedSecurityAction} from './HostedSecurityAction';
 import styles from './profile.module.css';
 
 export type ProfileSecurityFacts=Readonly<{mfa?:boolean;remaining?:number;email?:string}>;
@@ -32,17 +27,17 @@ type Task='password'|'enrol'|'disable'|'codes';
 type Opening={
   live:boolean;busy:boolean;readonly abort:AbortController;readonly current:()=>boolean;
   readonly local:IdentityClient;readonly accountId:string;readonly link:string;
-  hosted?:ServicesAccount;identity?:AccountIdentity;providerReady?:boolean;enabledProviders?:IdentityProvider[];
 };
 type LocalIntent={readonly owner:Opening;readonly task:Task;live:boolean;enrolPassword?:string};
-type HostedIntent={readonly owner:Opening;readonly kind:HostedSecurityTaskKind;readonly id:number;readonly current:()=>boolean};
 const ended=()=>new DOMException('The original account security opening ended.','AbortError');
 
 type ProfileSignInProps={
   profiles:ProfileSettingsSource;api:ProfileAPI;commandApi:ProfileAPI;signIn:'local'|'portico';isCurrent:()=>boolean;onFacts?:(facts:ProfileSecurityFacts)=>void;session:()=>LocalSession;
 };
 
-/** Sign-in belongs to the account, not the selected editable profile.
+/** Sign-in belongs to the account, not the selected editable profile. A Portico Account's password,
+ * email and two-step are managed on its own Security page at web.getportico.tv, on every address. */
+/** (Earlier note:) Sign-in belongs to the account, not the selected editable profile.
  * A Portico Account server's Sign-in is managed at the Portico Account itself (H09, Claude's product
  * call, 28 Oct): the server's own session never holds a Hosted session on this origin, so the section
  * shows what the server knows and opens the Portico Account's own Security page. Local servers are unchanged. */
@@ -50,7 +45,7 @@ export function ProfileSignIn(props:ProfileSignInProps){
  // At web.getportico.tv the Portico Account session is this page's own, so its password, email and
  // two-step are managed right here (22 Oct inline rule, P2-66). A server's own address has no
  // Portico Account session and links to the account instead (H09).
- const inline=props.signIn!=='portico'||porticoAccountHere();
+ const inline=props.signIn!=='portico';
  return inline?<AccountSecurity {...props}/>:<PorticoAccountSignIn {...props}/>;
 }
 
@@ -80,13 +75,11 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onFacts,sessi
  const account=document?.account;
  const scope=document?.canManage&&document.capabilities.manageAccount&&account&&!account.disabled?
   JSON.stringify([document.serverId,session().sessionFamilyId,account.id,account.role,account.hostedAccountId??'',profiles.getSnapshot().inUseId]):'';
- const active=useRef<Opening|undefined>(undefined),localIntentRef=useRef<LocalIntent|undefined>(undefined),hostedIntentRef=useRef<HostedIntent|undefined>(undefined),sequence=useRef(0);
- const [opening,setOpening]=useState<Opening>(),[factor,setFactor]=useState<TwoFactorState>(),[hostedState,setHostedState]=useState<SecurityState>();
- const [task,setTask]=useState<Task>(),[hostedTask,setHostedTask]=useState<HostedIntent>();
+ const active=useRef<Opening|undefined>(undefined),localIntentRef=useRef<LocalIntent|undefined>(undefined);
+ const [opening,setOpening]=useState<Opening>(),[factor,setFactor]=useState<TwoFactorState>();
+ const [task,setTask]=useState<Task>();
  const [enrolment,setEnrolment]=useState<TwoFactorEnrolment>(),[codes,setCodes]=useState<readonly string[]>();
  const [password,setPassword]=useState(''),[next,setNext]=useState(''),[code,setCode]=useState('');
- // A Google- or Apple-only Portico Account (Justin, 1 Nov): Add a password waits behind More sign-in options.
- const [moreSignIn,setMoreSignIn]=useState(false);
  const [busy,setBusy]=useState(false),[error,setError]=useState<unknown>(),[retry,setRetry]=useState(0);
  const clearSecrets=()=>{setPassword('');setNext('');setCode('');};
  // Publish only at commit, then sample once for this setup's original lifetime.
@@ -94,8 +87,8 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onFacts,sessi
   useLayoutEffect(() => {setupPorts.current = {account, document};});
   useLayoutEffect(()=>{
     const {account, document} = setupPorts.current;
-  if(localIntentRef.current){localIntentRef.current.live=false;localIntentRef.current.enrolPassword=undefined;}localIntentRef.current=undefined;hostedIntentRef.current=undefined;
-  setOpening(undefined);setFactor(undefined);setHostedState(undefined);setTask(undefined);setHostedTask(undefined);setEnrolment(undefined);setCodes(undefined);clearSecrets();setBusy(false);setError(undefined);
+  if(localIntentRef.current){localIntentRef.current.live=false;localIntentRef.current.enrolPassword=undefined;}localIntentRef.current=undefined;
+  setOpening(undefined);setFactor(undefined);setTask(undefined);setEnrolment(undefined);setCodes(undefined);clearSecrets();setBusy(false);setError(undefined);
   if(!scope||!account||!isCurrent())return;
   const familyId=session().sessionFamilyId;
   const expected={serverId:document!.serverId,familyId,accountId:account.id,role:account.role,link:account.hostedAccountId??'',profileId:profiles.getSnapshot().inUseId};
@@ -115,43 +108,21 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onFacts,sessi
   active.current=held;setOpening(held);
   void(async()=>{
    if(!held.current()||(signIn==='local')===Boolean(expected.link))throw ended();
-   if(signIn==='local'){
-    const value=await new IdentityClient(api).twoFactor(abort.signal);
-    if(held.current())setFactor(value);
-   }else{
-    // This branch alone touches Hosted. A local account performs zero Hosted IO.
-    const hosted=servicesAccount();held.hosted=hosted;
-    const result=await currentAccountWork(hosted,async session=>{
-     if(!held.current()||session.account.id!==expected.link)throw ended();
-     const identity=Object.freeze(accountIdentity(session));
-     const [state,options]=await Promise.all([hosted.client.state(identity,session.accessToken,abort.signal),hosted.client.options(abort.signal)]);
-     if(!held.current())throw ended();
-     return {identity,state,options};
-    });
-    if(!held.current())return;
-    held.identity=result.identity;held.providerReady=result.options.credentialProviderReauthentication==='account-settings-v1'&&accountSecurityBrowserAvailable();held.enabledProviders=result.options.providers.filter(v=>v.enabled).map(v=>v.id);setHostedState(result.state);
-   }
+   // A Portico Account's sign-in is managed on its own Security page (`PorticoAccountSignIn`).
+   if(signIn!=='local')throw ended();
+   const value=await new IdentityClient(api).twoFactor(abort.signal);
+   if(held.current())setFactor(value);
   })().catch(failure=>{if(held.current())setError(failure);});
-  return()=>{held.live=false;const intent=localIntentRef.current;if(intent?.owner===held){intent.live=false;intent.enrolPassword=undefined;localIntentRef.current=undefined;}if(hostedIntentRef.current?.owner===held)hostedIntentRef.current=undefined;abort.abort();if(active.current===held)active.current=undefined;};
+  return()=>{held.live=false;const intent=localIntentRef.current;if(intent?.owner===held){intent.live=false;intent.enrolPassword=undefined;localIntentRef.current=undefined;}abort.abort();if(active.current===held)active.current=undefined;};
  },[api,commandApi,profiles,scope,signIn,isCurrent,retry,session]);
  const held=opening&&active.current===opening&&opening.current()?opening:undefined;
- const hostedCurrent=()=>{
-  const identity=held?.identity,current=held?.hosted?.service.getSnapshot().session;
-  return !!held&&held.current()&&!!identity&&!!current&&sameAccount(identity,accountIdentity(current))&&current.account.id===held.link;
- };
  const intent=localIntentRef.current?.owner===held?localIntentRef.current:undefined;
  const intentCurrent=(value:LocalIntent|undefined)=>!!held&&!!value&&value.live&&value.owner===held&&localIntentRef.current===value&&held.current();
  const close=()=>{if(!held||held.busy||!intentCurrent(intent))return;intent!.live=false;intent!.enrolPassword=undefined;localIntentRef.current=undefined;setTask(undefined);setEnrolment(undefined);setCodes(undefined);clearSecrets();setError(undefined);};
- const openHosted=(kind:HostedSecurityTaskKind)=>{
-  if(!held||held.busy||localIntentRef.current||hostedIntentRef.current||!hostedCurrent()||!hostedState||!hostedState.hasPassword&&!(held.providerReady&&hostedState.providers.some(v=>v.revision&&held.enabledProviders?.includes(v.provider))))return;
-  const next:HostedIntent={owner:held,kind,id:++sequence.current,current:()=>hostedIntentRef.current===next&&held.current()};
-  hostedIntentRef.current=next;setHostedTask(next);
- };
  const open=(value:Task)=>{
-  if(!held||held.busy||localIntentRef.current||hostedIntentRef.current||codes)return;
+  if(!held||held.busy||localIntentRef.current||codes)return;
   clearSecrets();setError(undefined);
-  if(signIn==='portico')openHosted(value==='password'?'password_set_or_change':value==='enrol'?'mfa_enroll':value==='disable'?'mfa_disable':'recovery_codes');
-  else{localIntentRef.current={owner:held,task:value,live:true};setTask(value);}
+  localIntentRef.current={owner:held,task:value,live:true};setTask(value);
  };
  const submit=async()=>{
   if(!held||!intent||!intentCurrent(intent)||held.busy||!task||intent.task!==task)return;
@@ -184,43 +155,29 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onFacts,sessi
   }catch(failure){if(intentCurrent(intent)){if(ownedTask==='enrol'&&prior){intent.enrolPassword=undefined;setEnrolment(undefined);}setError(failure);}}
   finally{held.busy=false;if(held.current())setBusy(false);}
  };
- const mfa=signIn==='local'?factor?.enabled:hostedState?.mfaEnabled;
- const remaining=signIn==='local'?factor?.recoveryCodesRemaining:hostedState?.recoveryCodesRemaining;
- useLayoutEffect(()=>{if(held?.current())onFacts?.({mfa,remaining,email:hostedState?.contactAddress});},[held,mfa,remaining,hostedState?.contactAddress,onFacts]);
+ const mfa=factor?.enabled;
+ const remaining=factor?.recoveryCodesRemaining;
+ useLayoutEffect(()=>{if(held?.current())onFacts?.({mfa,remaining});},[held,mfa,remaining,onFacts]);
  // The owner chose two-step while switching this server to local sign-in: open
  // its setup once, here, for that same server and account, only while it is off.
  useLayoutEffect(()=>{if(signIn==='local'&&held?.current()&&factor&&!task&&document&&account&&takeTwoStepSetup(document.serverId,account.id)&&!factor.enabled)open('enrol');});
- const available=!!held&&(signIn==='local'?!!factor:!!hostedState&&hostedCurrent()&&(hostedState.hasPassword||held.providerReady&&hostedState.providers.some(v=>v.revision&&held.enabledProviders?.includes(v.provider))));
+ const available=!!held&&!!factor;
  const guardField=(change:(value:string)=>void)=>(value:string)=>{if(intentCurrent(intent)&&!held!.busy)change(value);};
  const ready=!!held&&!busy&&(task==='password'?!!password&&passwordStrength(next).acceptable&&(!factor?.enabled||!!code.trim()):task==='enrol'?enrolment?!!intent?.enrolPassword&&code.length===6:!!password:!!password&&!!code.trim());
  const title=t(task==='password'?'account.changePasswordTitle':task==='disable'?'web.twoStep.turnOffConfirmTitle':task==='codes'||codes?'web.hostedSecurity.newCodesTitle':enrolment?'web.hostedSecurity.addToAuthenticator':'web.twoStep.turnOnTitle');
- const providerOnly=signIn==='portico'&&hostedState?providerOnlySignIn(hostedState):undefined;
  if(!scope||!document?.canManage)return null;
  return <><SettingsGroup title={t('next.settingsSpec.account.profile.groups.5.title')}>
-  {error&&!task&&!hostedTask&&!codes?<HostedError error={error}/>:null}
-  {Boolean(error)&&!task&&!hostedTask&&<Button size="small" onClick={()=>{if(held?.current())setRetry(value=>value+1);}}>{t('next.states.tryAgain')}</Button>}
-  {signIn==='portico'&&<SettingsRow id="profile.email" label={t('next.settingsSpec.account.profile.groups.5.rows.0.label')} help={<>{hostedState?.contactAddress}<br/>{t('services.security.emailHelp')}</>}>
-   <HostedSecurityAction label={t('next.settingsSpec.account.profile.groups.5.rows.0.control.label')} disabled={!available||busy} onOpen={()=>{openHosted('email_change');}}/>
-  </SettingsRow>}
-  {/* A Google- or Apple-only account has no Password row until More sign-in options shows it. */}
-  {(!providerOnly||moreSignIn)&&<SettingsRow id="profile.password" label={t('next.settingsSpec.account.profile.groups.5.rows.1.label')} help={providerOnly?t('web.hostedSecurity.notSet'):undefined}>
-   <HostedSecurityAction label={t(providerOnly?'web.hostedSecurity.addPassword':'next.settingsSpec.account.profile.groups.5.rows.1.control.label')} disabled={!available||busy} onOpen={()=>open('password')}/>
-  </SettingsRow>}
+  {error&&!task&&!codes?<HostedError error={error}/>:null}
+  {Boolean(error)&&!task&&<Button size="small" onClick={()=>{if(held?.current())setRetry(value=>value+1);}}>{t('next.states.tryAgain')}</Button>}
+  <SettingsRow id="profile.password" label={t('next.settingsSpec.account.profile.groups.5.rows.1.label')}>
+   <HostedSecurityAction label={t('next.settingsSpec.account.profile.groups.5.rows.1.control.label')} disabled={!available||busy} onOpen={()=>open('password')}/>
+  </SettingsRow>
   <SettingsRow id="profile.twoStep" label={t('next.settingsSpec.account.profile.groups.5.rows.2.label')} help={t('next.settingsSpec.account.profile.groups.5.rows.2.help')}>
    {mfa===undefined?<span role="status">{t('web.claim.loading')}</span>:<Switch aria-label={t('next.settingsSpec.account.profile.groups.5.rows.2.label')} checked={mfa===true} disabled={!available||busy} onCheckedChange={()=>open(mfa?'disable':'enrol')}/>}
   </SettingsRow>
   {mfa&&<SettingsRow id="profile.recoveryCodes" dependent label={t('next.settingsSpec.account.profile.groups.5.rows.2.children.0.label')} help={remaining===undefined?undefined:t('web.hostedSecurity.codesLeft',{count:remaining})}>
    <HostedSecurityAction label={t('next.settingsSpec.account.profile.groups.5.rows.2.children.0.control.label')} disabled={!available||busy} onOpen={()=>open('codes')}/>
   </SettingsRow>}
-  {hostedState&&!hostedState.hasPassword&&<ServicesQuiet>{t(held?.providerReady&&hostedState.providers.some(v=>v.revision&&held.enabledProviders?.includes(v.provider))?'web.hostedSecurity.providerConfirm':'web.hostedSecurity.providerOnly')}</ServicesQuiet>}
-  {held&&held.hosted&&held.identity&&hostedState&&!hostedState.hasPassword&&hostedTask&&hostedTask.current()&&<ProviderSecurityStartDialog key={hostedTask.id} account={held.hosted} identity={held.identity} state={hostedState} task={hostedTask.kind} enabledProviders={held.enabledProviders??[]} isCurrent={hostedTask.current} onClose={()=>{if(hostedTask.current()){hostedIntentRef.current=undefined;setHostedTask(undefined);setRetry(value=>value+1);}}}/>}
-  {held&&held.hosted&&held.identity&&hostedState&&hostedState.hasPassword&&hostedTask&&hostedTask.current()&&<HostedSecurityTask key={hostedTask.id} account={held.hosted} identity={held.identity} state={hostedState} task={hostedTask.kind} isCurrent={hostedTask.current}
-   onClose={()=>{if(hostedTask.current()){hostedIntentRef.current=undefined;setHostedTask(undefined);setRetry(value=>value+1);}}}
-   onSecurityEnded={values=>{if(hostedTask.current()){
-    hostedIntentRef.current=undefined;setHostedTask(undefined);setHostedState(undefined);
-    if(values){localIntentRef.current={owner:held,task:'codes',live:true};setCodes(Object.freeze([...values]));}else setRetry(value=>value+1);
-   }}}/>
-  }
   {held&&intentCurrent(intent)&&(task||codes)&&<Dialog open title={title} showCloseButton={false} onOpenChange={value=>{if(!value)close();}}
    footer={codes?<Button variant="primary" onClick={close}>{t('action.done')}</Button>:<><Button disabled={busy} onClick={close}>{t('action.cancel')}</Button><Button variant="primary" disabled={!ready} loading={busy} onClick={()=>void submit()}>{t(task==='password'?'account.changePasswordTitle':'action.continue')}</Button></>}>
    {error?<HostedError error={error}/>:null}
@@ -235,6 +192,5 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onFacts,sessi
     <><ServicesQuiet>{t(task==='disable'?'services.security.disableBody':'next.settingsSpec.account.profile.groups.5.rows.2.children.0.control.confirm')}</ServicesQuiet><AccountFactorProofFields password={password} code={code} disabled={busy} onPasswordChange={guardField(setPassword)} onCodeChange={guardField(setCode)}/></>}
   </Dialog>}
  </SettingsGroup>
- {providerOnly&&!moreSignIn&&<ServicesQuietLink onClick={()=>setMoreSignIn(true)}>{t('web.hostedSecurity.moreSignInOptions')}</ServicesQuietLink>}
  </>;
 }

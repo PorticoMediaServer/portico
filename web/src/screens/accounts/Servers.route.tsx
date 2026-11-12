@@ -5,10 +5,8 @@ import {defaultI18n} from '@i18n';
 import {defineWebScreen} from '../../route-registry';
 import {router} from '../../router';
 import {createBrowserAccountEntry, type BrowserAccountEntry} from '../../platform/account-entry';
-import {browserAccount} from '../../platform/account';
 import {browserAccountOrigin} from '../../platform/account-origin';
-import {createAccountServerDirectory} from '../../platform/account-server-directory';
-import {accountIdentity} from '../../platform/account-work';
+import {porticoAccountHolder} from '../../platform/portico-account-holder';
 import {browserAppSessions, observeBrowserSessionChanges} from '../../platform/server-connections';
 import {browserAppSessionActions, signOutBrowserPorticoAccount} from '../../platform/app-sessions';
 import {browserServerDisplay} from '../../platform/server-display';
@@ -43,7 +41,7 @@ export type MobileChooserRow = Readonly<{
 }>;
 /** The directory facts the chooser can display; the account service owns their truth. */
 export type DirectoryFacts = Readonly<{
-  id: string; name: string; status: string; role: string;
+  id: string; name: string; status: string; role?: string;
   presence: Readonly<{lastSeenAt: string | null}>;
   ownedByMe: boolean;
 }>;
@@ -54,9 +52,10 @@ export function mobileChooserRows(choices: readonly SavedServerChoice[], directo
   return choices.map(choice => {
     const item = byId.get(choice.id);
     if (!item) return choice;
-    const status: NonNullable<MobileChooserRow['status']> = item.status === 'active' ? {kind: 'online'}
-      : item.presence.lastSeenAt ? {kind: 'seen', at: item.presence.lastSeenAt} : {kind: 'never'};
-    return {...choice, label: item.name.trim() || choice.label, status, ...(item.ownedByMe ? {owner: true} : item.role === 'admin' ? {administrator: true} : {})};
+    // A Portico Account's signed list (`listed`) says nothing about whether a server is up: no status.
+    const status: MobileChooserRow['status'] = item.status === 'active' ? {kind: 'online'}
+      : item.presence.lastSeenAt ? {kind: 'seen', at: item.presence.lastSeenAt} : item.status === 'listed' ? undefined : {kind: 'never'};
+    return {...choice, label: item.name.trim() || choice.label, ...(status ? {status} : {}), ...(item.ownedByMe ? {owner: true} : item.role === 'admin' ? {administrator: true} : {})};
   });
 }
 export type MobileChooserAttempt =
@@ -227,38 +226,30 @@ function ServersScreen() {
 }
 function BoundServers({entry, form}: {entry: BrowserAccountEntry; form: AccountSignInForm}) {
   const state = useSyncExternalStore(entry.subscribe, entry.getSnapshot);
-  const account = browserAccount(), accountState = useSyncExternalStore(account.service.subscribe, account.service.getSnapshot);
+  const signedIn = useSyncExternalStore(porticoAccountHolder.subscribe, porticoAccountHolder.signedIn);
   const narrow = useNarrowViewport();
   const [choices, setChoices] = useState<readonly SavedServerChoice[]>([]), [busy, setBusy] = useState(false), [working, setWorking] = useState(false), [error, setError] = useState<unknown>();
   const [mode, setMode] = useState<'chooser' | 'address' | 'entry'>(() => router.state.location.search.local === true ? 'address' : 'chooser'), [origin, setOrigin] = useState<string>();
   const [attempt, setAttempt] = useState<MobileChooserAttempt>();
-  const [directory, setDirectory] = useState<readonly DirectoryFacts[]>([]);
+  const [directory, setDirectory] = useState<readonly DirectoryFacts[]>([]), [accountName, setAccountName] = useState<string>();
   const alive = useRef(true), loading = useRef<AbortController>(undefined), record = useRef<AppSessionRecord>(undefined), currentChoices = useRef(choices);
   const lockRef = useRef<AttemptLock | undefined>(undefined), attemptRef = useRef<MobileChooserAttempt | undefined>(attempt), retryDelay = useRef(20);
   lockRef.current ??= new AttemptLock();
   currentChoices.current = choices; attemptRef.current = attempt;
-  const accountId = accountState.session?.account.id, familyId = accountState.session?.familyId;
   useEffect(() => {
-    setDirectory([]);
-    if (!accountId || !familyId) return;
+    setDirectory([]); setAccountName(undefined);
+    if (!signedIn) return;
     const controller = new AbortController();
     let active = true;
-    const account = browserAccount();
     void (async () => {
       try {
-        await account.service.synchronize();
-        const session = await account.service.accessSession();
-        if (!active) return;
-        const scope = accountIdentity(session);
-        const list = await createAccountServerDirectory(account, scope).read(controller.signal);
-        if (!active || controller.signal.aborted) return;
-        const current = account.service.getSnapshot().session;
-        if (!current || current.account.id !== scope.accountId || current.familyId !== scope.familyId) return;
-        setDirectory(list.items);
-      } catch { /* The saved chooser keeps working without account presence. */ }
+        const [who, list] = await Promise.all([porticoAccountHolder.who(controller.signal), porticoAccountHolder.servers(controller.signal)]);
+        if (!active || controller.signal.aborted || !porticoAccountHolder.signedIn() || list.accountId !== who.id) return;
+        setAccountName(who.displayName || who.username); setDirectory(list.items);
+      } catch { /* The saved chooser keeps working without the account's list. */ }
     })();
     return () => {active = false; controller.abort();};
-  }, [accountId, familyId]);
+  }, [signedIn]);
   const refresh = useCallback(async () => {
     loading.current?.abort(); const controller = loading.current = new AbortController();
     if (!alive.current) return;
@@ -372,7 +363,7 @@ function BoundServers({entry, form}: {entry: BrowserAccountEntry; form: AccountS
     const presented = error ? presentError(error, 'sign-in', {operation: 'load'}) : undefined;
     const notice = presented && !presented.silent ? presented.body : undefined;
     const mobileAttempt = attempt ?? (busy && !rows.length ? {kind: 'loading'} as const : error && !rows.length ? {kind: 'loadFailed'} as const : undefined);
-    return <MobileServerChooser rows={rows} initial={initialOf(accountState.session?.account.displayName)}
+    return <MobileServerChooser rows={rows} initial={initialOf(accountName)}
       attempt={mobileAttempt} busy={busy || working} notice={notice}
       onChoose={row => {retryDelay.current = 20; void openServer(row);}} onRefresh={() => {setAttempt(undefined); setError(undefined); void refresh();}}
       onLocal={() => {form.clear(); entry.cancel(); setError(undefined); setMode('address');}} onDifferentAccount={rows.some(row => row.signIn === 'portico') ? differentAccount : undefined}

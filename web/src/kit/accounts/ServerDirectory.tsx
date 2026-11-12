@@ -10,7 +10,8 @@ const t = createI18n(resolveRegion(undefined, deviceRegion())).t;
 
 /** One row of the account's own server list, as the caller already knows it.
  * Presence text arrives formatted by its owner; nothing here reads or guesses it. */
-export type DirectoryServer = Readonly<{id: string; name: string; online: boolean; presence?: string; ownedByMe: boolean}>;
+export type DirectoryServer = Readonly<{id: string; name: string; /** Absent when nothing says whether the server is up (a Portico Account's signed list). */
+  online?: boolean; presence?: string; ownedByMe: boolean}>;
 
 /** connect 1 and 28/31c: the root server directory. Presentation only — the
  * caller owns ordering, opening, retrying, the countdown and every guard. */
@@ -40,7 +41,7 @@ export function ServicesServerDirectory({header, servers, offline, connecting = 
 }) {
   const owned = servers.some(server => server.ownedByMe);
   const open = (server: DirectoryServer) => <button key={server.id} type="button" className={offline ? styles.sl : styles.sr}
-    data-offline={!server.online || undefined} disabled={busy || pendingId !== undefined} aria-busy={pendingId === server.id || undefined}
+    data-offline={server.online === false || undefined} disabled={busy || pendingId !== undefined} aria-busy={pendingId === server.id || undefined}
     onClick={() => onOpen(server.id)}>
     <span className={styles.tile}><Icon name="i-server" size={22} /></span>
     <span className={styles.text}><b>{server.name}</b>

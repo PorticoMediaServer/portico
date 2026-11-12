@@ -5,7 +5,7 @@ import {ServerSignInProbe} from '@core/sign-in.ts';
 import {parseDirectSnapshot, selectDirectProfile} from '@core/profile-management.ts';
 import {rememberNativeSession, restoreNativeSession, type ConnectionEnvironment, type RememberedServer} from '@core/server-connections.ts';
 import {browserAppSessions, browserConnectionEnvironment} from './server-connections';
-import {browserAccount} from './account';
+import {porticoAccountHolder} from './portico-account-holder';
 import {installationIdentity} from '@core/installation.ts';
 import {routePath} from '../../../packages/contracts/src/routes.ts';
 import {forgetTabServer, recordTabPick} from './tab-session-gate';
@@ -64,10 +64,13 @@ async function revokeCaptured(entry:AppServerSession){
  try{await restored.api.logout();}finally{restored.api.getRouteConnection()?.dispose();}
 }
 export function browserAppSessionActions(){return actions??=new BrowserAppSessionActions(browserAppSessions(),id=>browserConnectionEnvironment(id),revokeCaptured);}
+/** Ends this browser's Portico Account: every server signed in with it here, then the account's
+ * own sign-in (`porticoAccountHolder`). */
 export async function signOutBrowserPorticoAccount(){
- const central=browserAccount();await central.service.synchronize();const session=central.service.getSnapshot().session;
  const saved=(await browserAppSessions().read()).servers.find(value=>value.signIn==='portico')?.connection.hosted;
- const account=saved??(session?{origin:central.api.origin,accountId:session.account.id}:undefined);
- if(!account)return [];
- return browserAppSessionActions().signOutPorticoAccount(account,async()=>{if(session)await central.service.logoutIfCurrent({accountId:session.account.id,familyId:session.familyId});});
+ const who=saved||!porticoAccountHolder.signedIn()?undefined:await porticoAccountHolder.who().catch(()=>undefined);
+ const account=saved?{origin:saved.origin,accountId:saved.accountId}:who?{origin:location.origin,accountId:who.id}:undefined;
+ const signOutHere=async()=>{if(porticoAccountHolder.signedIn())await porticoAccountHolder.signOut();};
+ if(!account){await signOutHere();return [];}
+ return browserAppSessionActions().signOutPorticoAccount(account,signOutHere);
 }

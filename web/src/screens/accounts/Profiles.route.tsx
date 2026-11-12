@@ -1,4 +1,3 @@
-import {createBrowserProfileRecoveryTransport} from '@core/query/browser-account-access.ts';
 import {useLayoutEffect, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {useSearch} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
@@ -7,7 +6,6 @@ import {router} from '../../router';
 import {profileSettingsDestination} from '../../route-registry-destination';
 import {hasTwoStepSetup} from '../../platform/two-step-continuation';
 import {createBrowserAccountEntry, type BrowserAccountEntry} from '../../platform/account-entry';
-import {browserAccount} from '../../platform/account';
 import {AuthError, AuthStage} from '../../kit/accounts';
 import {Button} from '../../kit/controls';
 import {AccountIdentityFailure} from './AccountIdentityFailure';
@@ -43,13 +41,6 @@ function BoundProfiles({entry}: {entry: BrowserAccountEntry}) {
     subscribe: entry.subscribe, getSnapshot: entry.getSnapshot,
     loadProfiles: () => entry.loadProfiles(), chooseProfile: (id, pin, remember) => entry.chooseProfile(id, pin, remember),
     profileRecovery: (id, current) => entry.profileRecovery(id, current),
-    async porticoRecovery(flow) {
-      const account = browserAccount(); await account.service.synchronize();
-      const session = await account.service.accessSession();
-      const current = () => {const selected = account.service.getSnapshot().session;return selected?.account.id === session.account.id && selected.familyId === session.familyId;};
-      if (!current()) return;
-      await flow.portico(createBrowserProfileRecoveryTransport(account, session, current), account.api.origin, current);
-    },
   }), [entry]);
   const switchServer = () => {void router.navigate({to: '/servers'});};
   const identityFailure = entry.serverIdentityFailure(switchServer, () => {
