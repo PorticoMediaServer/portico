@@ -715,6 +715,7 @@ export const enUS = {
   'playOn.airplaySubtitle': 'TVs and speakers near you',
   'playOn.googleCast': 'Google Cast',
   'playOn.onThisNetwork': 'On this network',
+  'playOn.yourDevices': 'Your devices',
   'playOn.noneNearby': 'No Portico devices or Google Cast devices found on this network.',
   'playOn.chooseDevice': 'Choose a device…',
   'playOn.looking': 'Looking for devices…',

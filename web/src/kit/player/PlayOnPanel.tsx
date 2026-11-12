@@ -22,7 +22,7 @@ function Receivers({port, t, onSend, sending, failed}: {port: PlayOnReceiversPor
   useEffect(() => { port.refresh(); }, [port]);
   if (snapshot.items.length === 0) return null;
   return <>
-    <p className={styles.menuHeading}>{t('next.cast.onThisNetwork')}</p>
+    <p className={styles.menuHeading}>{t('playOn.yourDevices')}</p>
     <div className={styles.deviceGroup}>{snapshot.items.map(receiver => <button key={receiver.id} type="button" role="menuitem" className={styles.deviceRow}
       disabled={sending !== undefined} onClick={() => onSend(receiver.id)}>
       <Icon name="i-tvdev" size={20} /><span>{receiver.name}{receiver.detail && <small>{receiver.detail}</small>}</span>{sending === receiver.id ? <small>{t('next.cast.receiverBusy')}</small> : <Icon name="i-right" size={18} />}
