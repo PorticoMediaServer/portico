@@ -88,6 +88,7 @@ type ItemQuery struct {
 	Parent     string
 	Person     string
 	PersonRole CreditRole // with Person: only the titles where the person has this role
+	PersonCrew bool       // with Person: any credit other than acting, each title once
 	Tag        string
 	List       string // a playlist or collection; its own order is read by ListEntries
 	Collection string // a library's collection: the titles it holds
@@ -670,6 +671,9 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		// One group of a person's page: the titles where they have that role.
 		if q.PersonRole != 0 {
 			w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = `, fmt.Sprint(person), ` AND role = `, itoa(int64(q.PersonRole)), `)`)
+		}
+		if q.PersonCrew {
+			w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = `, fmt.Sprint(person), ` AND role <> `, itoa(int64(RoleActor)), `)`)
 		}
 		w.person = person
 	}

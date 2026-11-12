@@ -352,6 +352,8 @@ type Person struct {
 	Images     []Image
 	// Titles is how many items the viewer may see that credit this person.
 	Titles int
+	// CrewTitles counts those items with any credit other than acting, each title once.
+	CrewTitles int
 	// Roles are the person's roles on those items, most titles first: a person page's groups.
 	Roles []PersonRole
 }
@@ -378,9 +380,10 @@ func (d *DB) Person(ctx context.Context, v Viewer, publicID string) (Person, err
 	}
 	err = tx.QueryRowContext(ctx, `SELECT p.id, p.public_id, p.name, ifnull(p.biography, ''), ifnull(p.birth_date, ''),
 		ifnull(p.death_date, ''), ifnull(p.birthplace, ''),
-		(SELECT count(DISTINCT i.id) FROM credits c JOIN items i ON i.id = c.item_id WHERE c.person_id = p.id AND `+acc.visible("i")+`)
+		(SELECT count(DISTINCT i.id) FROM credits c JOIN items i ON i.id = c.item_id WHERE c.person_id = p.id AND `+acc.visible("i")+`),
+		(SELECT count(DISTINCT i.id) FROM credits c JOIN items i ON i.id = c.item_id WHERE c.person_id = p.id AND c.role <> `+itoa(int64(RoleActor))+` AND `+acc.visible("i")+`)
 		FROM people p WHERE p.public_id = ?`, publicID).
-		Scan(&id, &p.PublicID, &p.Name, &p.Biography, &p.BirthDate, &p.DeathDate, &p.Birthplace, &p.Titles)
+		Scan(&id, &p.PublicID, &p.Name, &p.Biography, &p.BirthDate, &p.DeathDate, &p.Birthplace, &p.Titles, &p.CrewTitles)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && p.Titles == 0 {
 		return Person{}, ErrNotFound
 	}
