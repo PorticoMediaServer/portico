@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 )
 
 // A new rclone remote is given by its type and options or pasted, never both, and Google
@@ -25,5 +27,14 @@ func TestRemoteRcloneNewRefusals(t *testing.T) {
 	var list Page[RemoteSource]
 	if call(t, s, "GET", "/v1/admin/remote-sources", owner.AccessToken, nil, &list); len(list.Items) != 0 {
 		t.Fatalf("a refused source was saved: %+v", list.Items)
+	}
+}
+
+// An rclone source's folder keeps a leading slash (on sftp the server's top) and loses a
+// trailing one.
+func TestRemoteRcloneFolderKeepsItsLeadingSlash(t *testing.T) {
+	c, secret := remote.Config{}, remote.Secret{}
+	if err := remoteSettings("rclone", &c, &secret, nil, nil, nil, &RcloneSettings{Path: " /srv/media/ "}); err != nil || c.Path != "/srv/media" {
+		t.Fatalf("%v %q", err, c.Path)
 	}
 }

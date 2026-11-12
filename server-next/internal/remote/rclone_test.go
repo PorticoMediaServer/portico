@@ -52,7 +52,7 @@ func fakeRclone(args []string) int {
 	}
 	root := strings.TrimPrefix(args[2], "portico:")
 	files := map[string]string{}
-	for name, body := range map[string]string{"Media/Films/Heat.mkv": "0123456789", "Other/x.mkv": "x"} {
+	for name, body := range map[string]string{"Media/Films/Heat.mkv": "0123456789", "Other/x.mkv": "x", "/srv/media/Films/Ronin.mkv": "r"} {
 		if inside, ok := strings.CutPrefix(name, root+"/"); ok {
 			files[inside] = body
 		}

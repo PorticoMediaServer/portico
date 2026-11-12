@@ -270,7 +270,8 @@ func remoteSettings(kind string, c *remote.Config, secret *remote.Secret, preset
 		if rc == nil {
 			return nil
 		}
-		c.Path = strings.Trim(strings.TrimSpace(rc.Path), "/")
+		// A leading slash is kept: on sftp it is the server's top, not the user's home folder.
+		c.Path = strings.TrimRight(strings.TrimSpace(rc.Path), "/")
 		if rc.Config != "" {
 			options, err := remote.ParseRcloneConfig(rc.Config)
 			if err != nil {
