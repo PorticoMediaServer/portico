@@ -7,8 +7,6 @@ import (
 	"testing"
 )
 
-const away = "203.0.113.9"
-
 // setupFrom sets a new server up from addr with the remote access step's choice and returns
 // the owner's sign-in on the main profile, chosen from home; nil when setup was refused.
 func setupFrom(t *testing.T, s *Server, addr string, step SetupRemote) *Session {
