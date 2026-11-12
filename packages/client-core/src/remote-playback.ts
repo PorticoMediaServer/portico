@@ -46,16 +46,19 @@ const at = (route: Route, params: Readonly<Record<string, string>> = {}) => ({me
 export type RemoteStream = Readonly<{
   sessionId: string; deviceName: string; state: 'playing' | 'paused' | 'ended' | 'other';
   itemId?: string; title?: string; positionMs: number; durationMs?: number;
-  // The device's next queue entry slots in here once the server's read carries it (being built
-  // on the server); until then the bar shows no "next up" line.
+  /** What the device's queue plays after this; absent with no queue, at its last entry, or when
+   * the asking profile may not see that title. */
+  next?: Readonly<{itemId: string; title: string}>;
 }>;
 export function parseRemoteStream(value: unknown): RemoteStream | undefined {
   const v = value as Partial<AccountStream> | null;
   if (!v || typeof v !== 'object' || !str(v.id)) return undefined;
   const state = v.state === 'playing' || v.state === 'paused' || v.state === 'ended' ? v.state : 'other';
+  const next = (value as {next?: {itemId?: unknown; title?: unknown}}).next;
   return Object.freeze({sessionId: v.id!, deviceName: str(v.deviceName), state, positionMs: ms(v.positionMs),
     ...(str(v.itemId) ? {itemId: v.itemId} : {}), ...(str(v.title) ? {title: v.title} : {}),
-    ...(ms(v.durationMs) > 0 ? {durationMs: ms(v.durationMs)} : {})});
+    ...(ms(v.durationMs) > 0 ? {durationMs: ms(v.durationMs)} : {}),
+    ...(next && str(next.itemId) && str(next.title) ? {next: Object.freeze({itemId: next.itemId as string, title: next.title as string})} : {})});
 }
 
 /** One of the account's other open devices. */
