@@ -1,5 +1,6 @@
 import {selectionQuerySelector} from '@core/selection-model/index.ts';
 import {destinationFence} from '@core/home-selection/destination-picker.ts';
+import {withRequestRaw, type RequestRaw} from '@core/home-selection/list-destinations.ts';
 import {DetailService} from '@core/detail.ts';
 import {HomeSelectionDestinations} from '@core/home-selection/destinations.ts';
 import type {HomeSelectionPicker} from '@core/home-selection/types.ts';
@@ -35,6 +36,9 @@ export class LibraryPickerProducer {
     this.detail = new DetailService({queries: ports.queries, api, scope: {serverId: ports.serverId, viewerId: ports.viewerId}, requestId: ports.requestId});
   }
   private readonly api: EntryActionPorts['api'];
+  /** The transport additions go through: the request-only one, with the app's header-sending one beside it, so an
+   * addition names its Idempotency-Key and a retry adds nothing twice. Both refuse once this picker has ended. */
+  private changes() {return withRequestRaw(this.api, (this.ports.api as {requestRaw?: RequestRaw}).requestRaw?.bind(this.ports.api), () => this.check());}
   private current = () => !this.lifetime.signal.aborted && this.ports.isCurrent();
   private check() {
     if (!this.current()) throw new DOMException('Picker authority changed', 'AbortError');
@@ -57,7 +61,7 @@ export class LibraryPickerProducer {
       const target: SelectionTarget = {...structuredClone(selected), context: {
         scope: {serverId: this.ports.serverId, authority: identity.authority, accountId: identity.accountId, profileId: identity.profileId,
           viewId, privacyFence: destinationFence}, revision: {catalogRevision: '0', viewerRevision: '0'}}};
-      this.session = new HomeSelectionDestinations({api: this.api, events: identity.events, requestId: this.ports.requestId}, target, this.kind,
+      this.session = new HomeSelectionDestinations({api: this.changes(), events: identity.events, requestId: this.ports.requestId}, target, this.kind,
         this.lifetime.signal, this.current, this.update);
       await this.session.load();return;
     }
@@ -103,7 +107,7 @@ export class LibraryPickerProducer {
       scope: {serverId: this.ports.serverId, authority: identity.authority, accountId: identity.accountId, profileId: identity.profileId,
         viewId, privacyFence: destinationFence},
       revision: {catalogRevision: '0', viewerRevision: '0'}}});
-    this.session = new HomeSelectionDestinations({api: this.api, events: identity.events, requestId: this.ports.requestId}, target, this.kind,
+    this.session = new HomeSelectionDestinations({api: this.changes(), events: identity.events, requestId: this.ports.requestId}, target, this.kind,
       this.lifetime.signal, this.current, this.update);
     await this.session.load();
   });}

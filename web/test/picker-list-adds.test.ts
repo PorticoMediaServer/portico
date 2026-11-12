@@ -76,3 +76,34 @@ test('picked titles in a library go into a playlist in one addition, in their pi
     assert.deepEqual([shown.phase, shown.receipt?.added], ['added', 2]);
   } finally {picker.close();}
 });
+
+test('from a title\'s picker, an add or a new playlist whose answer was lost is sent again under the same key, so nothing goes in twice', async () => {
+  const s = server(), keys: (string | undefined)[] = [];
+  let lose = 1;
+  const raw = async (path: string, method: string, options: {headers?: Record<string, string>; body?: unknown} = {}) => {
+    keys.push(options.headers?.['Idempotency-Key']);
+    const body = await s.api.request<unknown>(path, method, options.body);
+    if (lose > 0) {lose--; throw Object.assign(new Error('The connection was lost.'), {code: 'network_error'});}
+    return {status: 200, headers: {}, body};
+  };
+  let shown: any;
+  const picker = new EntryPickerProducer({libraryId: 'films', itemId: 'm1', kind: 'movie'} as never, 'playlist', ports({...s.api, requestRaw: raw}), true, next => {shown = next;});
+  try {
+    await picker.open();
+    await picker.choose('Mix');
+    assert.equal(shown.phase, 'uncertain');
+    await picker.retry();
+    assert.equal(shown.phase, 'added');
+    assert.equal(keys.length, 2); assert.ok(keys[0]); assert.equal(keys[1], keys[0], 'the retry names the same part key');
+  } finally {picker.close();}
+  keys.length = 0; lose = 1;
+  const fresh = new EntryPickerProducer({libraryId: 'films', itemId: 'm1', kind: 'movie'} as never, 'playlist', ports({...s.api, requestRaw: raw}), true, next => {shown = next;});
+  try {
+    await fresh.open();
+    await fresh.create('Long drive');
+    assert.equal(shown.phase, 'uncertain');
+    await fresh.retry();
+    assert.equal(shown.phase, 'added');
+    assert.equal(keys.length, 2); assert.ok(keys[0]); assert.equal(keys[1], keys[0], 'a retried New playlist names the same key, so no second list is made');
+  } finally {fresh.close();}
+});
