@@ -44,10 +44,10 @@ func TestReviewConversionOffAlsoHoldsForTheAppsOwnMusicEngine(t *testing.T) {
 	h.call("GET", "/v1/items?library="+lib.PublicID+"&kind=track", nil, &page, 200)
 	song := page.Items[0].ID
 	var document map[string]any
-	profiles, _ := os.ReadFile(filepath.Join("..", "streaming", "testdata", "client-profiles.json"))
-	var documents map[string]json.RawMessage
-	if json.Unmarshal(profiles, &documents) != nil || json.Unmarshal(documents["ios"], &document) != nil {
-		t.Fatal("the device profiles could not be read")
+	profile, _ := os.ReadFile(filepath.Join("..", "streaming", "profiles", "ios.json"))
+	var file struct{ Document json.RawMessage }
+	if json.Unmarshal(profile, &file) != nil || json.Unmarshal(file.Document, &document) != nil {
+		t.Fatal("the iPhone's device profile could not be read")
 	}
 	document["audioDecode"] = []map[string]any{{"codec": "mp3", "containers": []string{"mp3"}}, {"codec": "opus", "containers": []string{"ogg"}}}
 	h.call("PUT", "/v1/devices/"+h.device+"/capabilities", document, nil, 204)
