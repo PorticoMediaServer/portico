@@ -45,7 +45,7 @@ const shared = (back: Awaited<ReturnType<typeof backOwner>>) => ({
   '../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({entries: []}), remove: async () => {}}, offlineOwnerKey: () => 'owner'},
   './sign-out-downloads': {removeCapturedDownloads: async () => 0},
   '../../tv/auth': {TVProfilePINForm: 'PIN', TVForgotPINHandoff: 'Forgot', TVFrontDoor: 'Front', TVCodePresenter: 'Code',
-    TVCredentialForm: 'Credentials', TVVerificationForm: 'Factor', TVRequiredSetupHandoff: 'Required', TVWhosWatching: 'WhosWatching'},
+    TVCredentialForm: 'Credentials', TVVerificationForm: 'Factor', TVRequiredSetupHandoff: 'Required', TVWhosWatching: 'WhosWatching', TVProfileSwitchPage: 'SwitchPage'},
     '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'},
 });
 
@@ -178,12 +178,15 @@ test('TV profile-switch hand-off preserves its current family, selection control
       subscribe: (listener: () => void) => {navigationListeners.add(listener); return () => {navigationListeners.delete(listener);};},
       back: () => {exited++;}}};
   let tree: any;
-  // ProfileRoute's fragment renders its destination first and sheets/dialogs after it.
+  // ProfileRoute's fragment renders its destination first and sheets/dialogs after it; on TV the picker and its PIN
+  // page are inside the Switch profile page.
   const screen = (node: any): any => Array.isArray(node) ? screen(node[0])
-    : node?.type === React.Fragment ? screen(node.props.children) : node;
-  const host = createFabricHookHost(() => {const opened = AccountRoute({route, context}); tree = screen(opened.type(opened.props));});
+    : node?.type === React.Fragment || node?.type === 'SwitchPage' ? screen(node.props.children) : node;
+  let page: any;
+  const host = createFabricHookHost(() => {const opened = AccountRoute({route, context}); page = opened.type(opened.props); tree = screen(page);});
   await act(() => host.mount());
   try {
+    assert.equal(page.type, 'SwitchPage', 'the TV picker is drawn as a page over the shell, not in the route layer');
     await act(() => nodes(tree.props.children).find(n => n.type === 'Picker').props.onSelect(profile.id));
     await act(() => tree.props.onSubmit('1234'));
     assert.deepEqual(attempts, [[profile.id, '1234']]); assert.equal(tree.props.code, '');
@@ -207,6 +210,19 @@ test('TV profile-switch hand-off preserves its current family, selection control
     assert.deepEqual(attempts, [[profile.id, '1234']], 'public hand-off neither selects a profile nor retries/resets server attempts');
     await act(() => tree.props.onSubmit('5678'));
     assert.deepEqual(attempts, [[profile.id, '1234'], [profile.id, '5678']]);
+    // The page's Back (Android TV's Back reaches the Modal's onRequestClose): the PIN page to the picker, then the
+    // picker leaves through the page's own dismissal, never straight to the previous route.
+    await act(async () => {await new Promise(resolve => setTimeout(resolve, 450)); await host.rerender();});
+    let left = 0;
+    page.props.leave.current = () => {left++;};
+    await act(() => tree.props.onSubmit('0000'));
+    await act(() => page.props.onBack());
+    assert.equal(tree.type, 'WhosWatching'); assert.equal(exited, 0);
+    assert.equal(nodes(tree.props.children).some(n => n?.props?.accessibilityRole === 'alert'), false, 'the PIN page\'s refusal does not follow onto the picker');
+    await act(() => page.props.onBack());
+    assert.equal(left, 1); assert.equal(exited, 0, 'the route closes once the page has gone (onGone), not on Back itself');
+    await act(() => page.props.onGone());
+    assert.equal(exited, 1, 'once gone, the route closes');
   } finally {await host.unmount();}
 });
 
@@ -250,7 +266,7 @@ test('R-16: a PIN submit on a stale context says so instead of returning silentl
   let tree: any;
   // ProfileRoute's fragment renders its destination first and sheets/dialogs after it.
   const screen = (node: any): any => Array.isArray(node) ? screen(node[0])
-    : node?.type === React.Fragment ? screen(node.props.children) : node;
+    : node?.type === React.Fragment || node?.type === 'SwitchPage' ? screen(node.props.children) : node;
   const host = createFabricHookHost(() => {const opened = AccountRoute({route, context}); tree = screen(opened.type(opened.props));});
   await act(() => host.mount());
   try {

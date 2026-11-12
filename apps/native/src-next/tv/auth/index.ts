@@ -12,4 +12,5 @@ export type {TVRequiredSetupHandoffProps, TVForgotPINHandoffProps} from './TVHan
 export {TVFrontDoor} from './TVFrontDoor';
 export type {TVFrontDoorProps} from './TVFrontDoor';
 export {TVWhosWatching} from './TVWhosWatching';
+export {TVProfileSwitchPage} from './TVProfileSwitchPage';
 export {TVRememberRow, TVPickerRememberRow} from './TVRememberRow';

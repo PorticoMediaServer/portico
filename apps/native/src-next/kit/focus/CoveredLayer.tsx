@@ -34,6 +34,12 @@ export function CoveredSignal({covered, children}: {covered: boolean; children: 
   return <Covered.Provider value={covered || outer}>{children}</Covered.Provider>;
 }
 
+/** A page `Modal` drawn from inside the shell's layers (the in-app Switch profile page, from its route) is its own window
+ * over all of them: while it is held the shell marks its layers covered, and that must not reach the page itself. */
+export function UncoveredWindow({children}: {children: React.ReactNode}) {
+  return <Covered.Provider value={false}>{children}</Covered.Provider>;
+}
+
 export function CoveredLayer({covered, children, style, testID, hostRef}: {covered: boolean; children: React.ReactNode; style?: StyleProp<ViewStyle>; testID?: string;
   /** The layer's own native host, for a caller that claims focus into it (W-12: the shell's last fallback). */
   hostRef?: React.Ref<View>}) {
