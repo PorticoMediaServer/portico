@@ -6,6 +6,7 @@ import {RouteConnection,sessionRoute} from '../src/route-connection.ts';
 import {type ServerPin} from '../src/route-identity.ts';
 import {parseRememberedServer,rememberNativeSession,restoreNativeSession,rememberRotatedSession,prepareRoutedSession,commitRoutedSession,type RememberedServer,type ServerConnectionStorage} from '../src/server-connections.ts';
 import {SetupCodeService,type SetupCodeJournal} from '../src/setup-code.ts';
+import {AppSessionStore,type AppSessionRecord,type AppSessionStorage} from '../src/app-sessions.ts';
 import {me} from './next-wire.ts';
 const tick=()=>new Promise<void>(r=>setTimeout(r,5));
 async function until(check:()=>boolean){for(let i=0;i<120&&!check();i++)await tick();assert.ok(check(),'condition did not settle');}
@@ -550,4 +551,26 @@ test('choosing a profile keeps the saved refresh token, and a renewal already se
   await rememberNativeSession(initial.api,{...session('token_other'),sessionFamilyId:'other_family'},{storage:store});
   assert.equal((await store.read())?.session.refreshToken,undefined);
  }finally{initial.connection.dispose();}
+});
+
+test('after a switch within the family the saved session names the new profile, and a relaunch opens it with no renewal (TV, 12 Nov)',async()=>{
+ // A memory app-session store, as the native app keeps it. Sign in as one profile; the pick captures the revision; the pick's own
+ // connection saves route memory (the TV did); then the pick saves its answer: the same family on another profile.
+ let raw:AppSessionRecord|undefined;const port:AppSessionStorage={read:async()=>structuredClone(raw),change:async update=>{raw=structuredClone(update(structuredClone(raw)));}};
+ const store=new AppSessionStore(port),first=await ready(),picked=await ready();
+ try{
+  const serverId=pin.serverId;
+  await rememberNativeSession(first.api,session(),{storage:store.connectionStorage(serverId,{signIn:'local',expectedRevision:0})});
+  const admission={signIn:'local' as const,expectedRevision:(await store.read()).revision};
+  await store.connectionStorage(serverId).change(current=>({...current!,routes:{...current!.routes,lastGood:lan}}));
+  const kids:LocalSession={...session('token_kids','2'),viewer:{...session().viewer,profileId:'kids'}};
+  await rememberNativeSession(picked.api,kids,{storage:store.connectionStorage(serverId,admission)});
+  assert.equal((await store.selected())?.connection.session.viewer.profileId,'kids','the switch\'s own answer is the stored session');
+  // Relaunch: the restore opens the stored profile with its own token; nothing is renewed.
+  const paths:string[]=[];
+  const fetcher:typeof fetch=async(input,init)=>{const url=String(input);paths.push(new URL(url).pathname);if(url.endsWith('/v1/system/identity-proof')){const q=JSON.parse(String(init?.body));return new Response(JSON.stringify(signed({kind:'portico.route-proof',version:'1',...pin,...q})),{headers:{'Content-Type':'application/json'}});}return new Response(JSON.stringify(me(kids.viewer)),{headers:{'Content-Type':'application/json'}});};
+  const result=await restoreNativeSession({storage:store.connectionStorage(serverId),fetcher});
+  try{assert.equal(result?.session.viewer.profileId,'kids');assert.equal(result?.session.accessToken,'token_kids');assert.ok(!paths.includes('/v1/auth/refresh'),'no renewal at relaunch');}
+  finally{result?.api.getRouteConnection()?.dispose();}
+ }finally{first.connection.dispose();picked.connection.dispose();}
 });
