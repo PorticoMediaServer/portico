@@ -10,20 +10,22 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/localmetadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/reading"
 	"github.com/PorticoMediaServer/portico/server-next/internal/sorttext"
 )
 
 // bookUnits turns a book library's folder into books. Each file is a book; two formats of one
-// book, with the same name in the same folder, are two versions of it. Details come from an
-// OPF file beside the book (Calibre's metadata.opf, or one with the book's name); otherwise
-// the name is the title and a folder above is the author.
+// book, with the same name in the same folder, are two versions of it. Details come from the
+// book's own file (an EPUB's package document), then from an OPF file beside the book
+// (Calibre's metadata.opf, or one with the book's name), which the owner keeps and so wins;
+// otherwise the name is the title and a folder above is the author.
 func (r *run) bookUnits(f *folder) []unit {
 	var units []unit
 	for _, file := range f.media {
-		if !file.touched() {
+		if !file.touched() && !r.rereads(file) {
 			continue
 		}
-		d := details{}
+		d := r.embedded(file)
 		if r.lib.Options.Depth != db.DepthFiles {
 			for _, sidecar := range []string{path.Join(f.rel, "metadata.opf"), strings.TrimSuffix(file.rel, path.Ext(file.rel)) + ".opf"} {
 				if raw, err := readSmall(r.ctx, r.src, sidecar, 256<<10); err == nil {
@@ -56,6 +58,7 @@ func (r *run) bookUnits(f *folder) []unit {
 		if isbn := d["isbn"]; isbn != "" {
 			item.ExternalIDs = []db.ExternalID{{Provider: "isbn", ID: isbn}}
 		}
+		item.Reread = r.rereads(file)
 		u := unit{files: []*found{file}}
 		if series := d["series"]; series != "" {
 			seriesKey := db.ItemKey{Kind: db.KeyName, Key: "series|" + fold(series)}
@@ -90,23 +93,33 @@ func (r *run) comicUnits(f *folder) []unit {
 	}
 	var units []unit
 	for _, file := range f.media {
-		if !file.touched() {
+		if !file.touched() && !r.rereads(file) {
 			continue
 		}
 		name := cleanName(file.entry.Name)
 		version := db.ImportVersion{Parts: []db.ImportPart{{File: file.ref()}}}
 		u := unit{files: []*found{file}}
+		// A comic's own ComicInfo.xml gives its title, date, summary, writers and genres.
+		d := r.embedded(file)
+		title := firstOf(d["album"], name)
 		if f.rel == "" {
-			u.items = []db.ImportItem{{Kind: db.KindComic, Title: name, Versions: []db.ImportVersion{version},
-				Keys: []db.ItemKey{db.FileKey(r.path.ID, file.rel, 0), {Kind: db.KeyName, Key: "comic|" + fold(name)}}}}
+			comic := db.ImportItem{Kind: db.KindComic, Title: title, Versions: []db.ImportVersion{version},
+				Keys: []db.ItemKey{db.FileKey(r.path.ID, file.rel, 0), {Kind: db.KeyName, Key: "comic|" + fold(name)}}}
+			comicDetails(&comic, d)
+			comic.Reread = r.rereads(file)
+			u.items = []db.ImportItem{comic}
 			units = append(units, u)
 			continue
 		}
 		series := cleanName(path.Base(f.rel))
-		issue := db.ImportItem{Kind: db.KindIssue, Title: name, ParentRow: 1, Versions: []db.ImportVersion{version},
+		issue := db.ImportItem{Kind: db.KindIssue, Title: title, ParentRow: 1, Versions: []db.ImportVersion{version},
 			Keys: []db.ItemKey{db.FileKey(r.path.ID, file.rel, 0)}, ChildKey: "issue|" + fold(name)}
+		comicDetails(&issue, d)
+		issue.Reread = r.rereads(file)
 		if m := issueNumber.FindStringSubmatch(name); m != nil {
 			n, _ := strconv.Atoi(m[1])
+			issue.IndexNumber, issue.ChildKey = &n, fmt.Sprintf("i%d", n)
+		} else if n := number(d["series_position"]); n > 0 {
 			issue.IndexNumber, issue.ChildKey = &n, fmt.Sprintf("i%d", n)
 		}
 		u.items = []db.ImportItem{{Kind: db.KindSeries, Title: series,
@@ -192,4 +205,47 @@ func (r *run) imageComic(f *folder, pages []*found) []unit {
 	u.items = []db.ImportItem{{Kind: db.KindSeries, Title: series,
 		Keys: []db.ItemKey{{Kind: db.KeyName, Key: "series|" + fold(series)}, db.FolderKey(r.path.ID, parent)}}, issue}
 	return []unit{u}
+}
+
+// embedded reads a book's details from inside its own file: an EPUB's package document, a
+// comic's ComicInfo.xml (10-reading rule 8). What the file says is recorded as the file's own,
+// so a provider never replaces it. A library scanned for names only, or a file that cannot be
+// read, gives none, and the book keeps what its name and folders say.
+func (r *run) embedded(file *found) details {
+	d := details{}
+	ext := strings.ToLower(path.Ext(file.rel))
+	if r.lib.Options.Depth == db.DepthFiles || ext != ".epub" && ext != ".cbz" {
+		return d
+	}
+	f, err := r.src.Open(r.ctx, file.rel)
+	if err != nil {
+		return d
+	}
+	defer f.Close()
+	var more map[string]string
+	if ext == ".epub" {
+		if raw, err := reading.EPUBPackage(f, f.Size()); err == nil {
+			more, _ = localmetadata.EPUBPackage(raw)
+		}
+	} else if raw, err := reading.ComicInfo(f, f.Size()); err == nil && raw != nil {
+		more, _ = localmetadata.ComicInfo(raw)
+	}
+	d.overlay(more)
+	return d
+}
+
+// rereads reports whether a book or comic file changed where it is (it was edited, or its details
+// rewritten): what it says now brings its title up to date, where neither a match nor a person's
+// edit has taken those details over.
+func (r *run) rereads(file *found) bool {
+	ext := strings.ToLower(path.Ext(file.rel))
+	return file.state == changed && r.lib.Options.Depth != db.DepthFiles && (ext == ".epub" || ext == ".cbz")
+}
+
+// comicDetails puts what a comic's ComicInfo.xml said on its item, as the file's own.
+func comicDetails(item *db.ImportItem, d details) {
+	writers := d.names("authors", "author")
+	item.Year, item.Summary, item.Tags, item.Credits = d.year(), d["description"], genreTags(d), credits(db.RoleAuthor, writers)
+	given(item, fieldIf(d["album"] != "", db.FieldTitle), fieldIf(d.year() > 0, db.FieldYear), fieldIf(d["description"] != "", db.FieldSummary),
+		fieldIf(len(item.Tags) > 0, db.FieldGenres), fieldIf(len(writers) > 0, db.FieldCredits))
 }
