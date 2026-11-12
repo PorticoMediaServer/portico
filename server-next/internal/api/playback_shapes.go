@@ -320,6 +320,15 @@ type AccountStream struct {
 	StartedAt  time.Time `json:"startedAt"`
 	// Current marks what the device asking is playing.
 	Current bool `json:"current"`
+	// Next is what that device's queue plays after this, for "Next up": only a title the
+	// asking profile may see, and absent when nothing follows.
+	Next *AccountStreamNext `json:"next,omitempty"`
+}
+
+// AccountStreamNext is the title a device's queue plays next.
+type AccountStreamNext struct {
+	ItemID string `json:"itemId"`
+	Title  string `json:"title"`
 }
 
 // AccountPlayback is what the account is playing on all its devices, and its stream limit
