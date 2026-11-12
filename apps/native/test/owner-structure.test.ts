@@ -47,7 +47,6 @@ test('Storage, Streaming, Troubleshooting and General carry their owner panels i
   const general = sections(page(phone, 'server', 'general'));
   assert.deepEqual(general.slice(general.indexOf('updates'), general.indexOf('updates') + 2), ['updates', 'restart']);
   assert.deepEqual(panels(page(phone, 'server', 'metadata')), ['server.metadataSettings']);
-  assert.equal(panels(page(phone, 'server', 'streaming')).at(-1), 'server.playbackProblems');
 });
 
 test('pausing background work and the guide limits were already a phone’s, and stay', () => {

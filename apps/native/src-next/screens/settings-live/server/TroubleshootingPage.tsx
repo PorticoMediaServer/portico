@@ -1,4 +1,3 @@
-import {NativePlaybackProblems} from './troubleshooting/PlaybackProblems';
 import {NativeSupport,useNativeSupport} from './troubleshooting/Support';
 import {NativeReports,useNativeReports} from './troubleshooting/Reports';
 import {NativeFeedback,useNativeFeedback} from './troubleshooting/Feedback';
@@ -32,7 +31,7 @@ export function NativeServerTroubleshooting({ports, runtime, compactHeader = fal
       {!compactHeader && <Text accessibilityRole="header" style={[settingsPageHeading(theme), {color: theme.colors.text}]}>{t('settings.server.troubleshooting')}</Text>}
       <Tabs testID="server-troubleshooting-tabs" style={{marginTop: 12, marginHorizontal: -20}} value={tab} onValueChange={value => {if (value === 'messages' || value === 'feedback' || value === 'reports' || value === 'support') setTab(value);}} accessibilityLabel={t('settings.server.troubleshooting')}
         items={[{value: 'messages', label: t('web.logs.messages')}, {value: 'feedback', label: openReports ? `${t('server.feedbackTab')} ${openReports}` : t('server.feedbackTab')}, {value: 'reports', label: t('server.reportsTab')}, {value: 'support', label: t('server.support')}]}/>
-      {tab === 'messages' && <><NativeMessages ports={ports} runtime={runtime}/><NativePlaybackProblems ports={ports} runtime={runtime}/></>}
+      {tab === 'messages' && <><NativeMessages ports={ports} runtime={runtime}/></>}
       {tab === 'feedback' && feedback.group && <NativeFeedback ports={ports} runtime={runtime} group={feedback.group}/>}
       {tab === 'reports' && reports && <NativeReports group={reports}/>}
       {tab === 'support' && support && <NativeSupport group={support}/>}

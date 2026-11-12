@@ -75,7 +75,7 @@ export const dependsOn = Object.freeze({
 export type ServerList =
   | 'apiKeys' | 'accessTokens' | 'webhooks' | 'members' | 'invitations' | 'devices'
   | 'clientReports' | 'feedback' | 'downloads' | 'remoteSources' | 'liveSources' | 'tuners'
-  | 'recordingGroups' | 'recordingStorage' | 'libraryChannels' | 'playbackProblems'
+  | 'recordingGroups' | 'recordingStorage' | 'libraryChannels'
   /** The Watch Together rooms this profile is in (heard by the profile). */
   | 'togetherGroups'
   /** This profile's own recordings and rules, and its own downloads (heard by the profile). */

@@ -15,7 +15,7 @@ export type SupportPanelProps = Readonly<{
   subscribe: (listener: () => void) => () => void;
   reportError: (error: unknown) => void;
   /** The Settings landing owns export controls; Support keeps its existing viewers. */
-  exportOnly?: boolean; hideExport?: boolean; advancedRows?: ReactNode; problems?: ReactNode;
+  exportOnly?: boolean; hideExport?: boolean; advancedRows?: ReactNode;
   advancedSummary?: readonly string[];
 }>;
 
@@ -109,7 +109,7 @@ export function SupportPanel(props: SupportPanelProps) {
         }}>{t('web.logs.downloadJson')}</Button>
       </div>}
     </section>}
-    {props.exportOnly && <>{props.problems}<SettingsAdvanced open={advanced} onOpenChange={setAdvanced} summary={[
+    {props.exportOnly && <><SettingsAdvanced open={advanced} onOpenChange={setAdvanced} summary={[
       ...(props.advancedSummary ?? []), ...(!supportNotice && shownWindow && shownWindow !== '24h' ? [t('web.logs.timeWindow') + ': ' + t(WINDOWS.find(entry => entry.id === shownWindow)!.label)] : []),
       ...(!supportNotice ? SUPPORT_COMPONENTS.filter(part => shownParts.includes(part) !== DEFAULT_SUPPORT_COMPONENTS.includes(part)).map(part => t(PART_LABEL[part])) : []),
     ]}>

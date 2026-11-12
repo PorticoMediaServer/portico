@@ -15997,25 +15997,6 @@ export const settingsSpec: readonly SettingsSection[] = [
             ]
           }
         ]
-      },
-      {
-        "title": "next.settingsSpec.server.troubleshooting.groups.2.title",
-        "rows": [
-          {
-            "id": "troubleshooting.playbackProblems",
-            "scope": "server",
-            "label": "next.settingsSpec.server.troubleshooting.groups.2.rows.0.label",
-            "help": "next.settingsSpec.server.troubleshooting.groups.2.rows.0.help",
-            "control": {
-              "type": "list",
-              "itemAction": {
-                "label": "next.settingsSpec.server.troubleshooting.groups.2.rows.0.control.itemAction.label",
-                "style": "glass",
-                "remove": true
-              }
-            }
-          }
-        ]
       }
     ],
     "advanced": {

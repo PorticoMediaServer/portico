@@ -41,7 +41,7 @@ export type TroubleshootingSurfacesOptions = Readonly<{
 
 export type TroubleshootingSurfaces = Readonly<{
   /** The drawn Troubleshooting page for the selected server, or nothing when this scope ended. */
-  render: (options?: ReactNode, problems?: ReactNode, advancedSummary?: readonly string[]) => ReactNode;
+  render: (options?: ReactNode, advancedSummary?: readonly string[]) => ReactNode;
   /** The parts this viewer's tier may use, so the route only builds what it can show. */
   parts: ReadonlySet<TroubleshootingPart>;
   dispose: () => void;
@@ -69,11 +69,10 @@ export type TroubleshootingPageProps = Readonly<{
   /** The parts this viewer's tier may use; the owner's when absent. */
   parts?: ReadonlySet<TroubleshootingPart>;
   options?: ReactNode;
-  problems?: ReactNode;
   advancedSummary?: readonly string[];
 }>;
 
-export function TroubleshootingPage({messages, reports, feedback, support, subscribe, isCurrent, downloadBase, reportError, options, problems, advancedSummary, initialView, parts = OWNER_PARTS}: TroubleshootingPageProps) {
+export function TroubleshootingPage({messages, reports, feedback, support, subscribe, isCurrent, downloadBase, reportError, options, advancedSummary, initialView, parts = OWNER_PARTS}: TroubleshootingPageProps) {
   const stuck = stuckOnly(parts);
   const tabs = TABS.filter(tab => TAB_PARTS[tab.id].some(part => parts.has(part))).map(tab => tab.id === 'reports' && stuck ? {...tab, label: 'next.settings.troubleshootingStuckFiles' as MessageId} : tab);
   const [view, setView] = useState<View | undefined>(initialView && tabs.some(tab => tab.id === initialView) ? initialView : undefined), opener = useRef<View | undefined>(undefined);
@@ -90,7 +89,7 @@ export function TroubleshootingPage({messages, reports, feedback, support, subsc
         </SettingsRow>;
       })}
     </SettingsGroup>
-    {parts.has('support') && <SupportPanel source={support} subscribe={subscribe} reportError={reportError} exportOnly advancedRows={options} problems={problems} advancedSummary={advancedSummary}/>}
+    {parts.has('support') && <SupportPanel source={support} subscribe={subscribe} reportError={reportError} exportOnly advancedRows={options} advancedSummary={advancedSummary}/>}
   </div>;
   return <TabsPrimitive.Root className={styles.page} data-view={view} value={view} onValueChange={value => {const tab = tabs.find(entry => entry.id === value);if (tab) setView(tab.id);}}>
     <Button className={styles.back} variant="glass" size="small" icon="i-left" onClick={() => setView(undefined)}>{t('next.settingsSpec.server.troubleshooting.title')}</Button>
@@ -149,8 +148,8 @@ export function createTroubleshootingSurfaces(options: TroubleshootingSurfacesOp
     return () => {for (const off of offs) off();};
   };
   return {
-    render: (messageOptions, problems, advancedSummary) => options.isCurrent() ? <TroubleshootingPage messages={messages} reports={reports} feedback={feedback} support={support} subscribe={subscribe} isCurrent={options.isCurrent}
-      downloadBase={options.downloadBase} reportError={options.reportError} options={messageOptions} problems={problems} advancedSummary={advancedSummary} parts={parts} /> : undefined,
+    render: (messageOptions, advancedSummary) => options.isCurrent() ? <TroubleshootingPage messages={messages} reports={reports} feedback={feedback} support={support} subscribe={subscribe} isCurrent={options.isCurrent}
+      downloadBase={options.downloadBase} reportError={options.reportError} options={messageOptions} advancedSummary={advancedSummary} parts={parts} /> : undefined,
     parts,
     dispose: () => {messages.dispose();reports.dispose();feedback.dispose();support.dispose();},
   };
