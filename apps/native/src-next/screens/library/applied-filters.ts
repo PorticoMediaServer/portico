@@ -1,5 +1,6 @@
 import type {BrowseCapabilities, BrowseNode, BrowseOperator} from '../../../../../packages/client-core/src/browse';
 import {appliedFilterLabel} from '../../../../../packages/client-core/src/presentation/browse-toolbar';
+import {filterValueName, namedFilterFields} from '../../../../../packages/client-core/src/filter-value-names';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {BrowseLabels} from '../../kit/browse';
 
@@ -15,7 +16,9 @@ export function libraryAppliedFilters(nodes: readonly BrowseNode[], capabilities
     const field = capabilities.fields.find(value => value.id === (leaf.field === 'decade' ? 'year' : leaf.field)) ?? capabilities.fields.find(value => value.id === leaf.field);
     if (!field) continue;
     const id = JSON.stringify(node), fieldName = labels.field(field);
-    result.set(id, {id, fieldName, label: appliedFilterLabel(leaf, () => fieldName, defaultI18n.t)});
+    // An author or a series is sent by its id and shown by its name.
+    const named = namedFilterFields.has(leaf.field) ? {...leaf, value: Array.isArray(leaf.value) ? leaf.value.map(value => filterValueName(value) ?? value) : filterValueName(leaf.value) ?? leaf.value} : leaf;
+    result.set(id, {id, fieldName, label: appliedFilterLabel(named, () => fieldName, defaultI18n.t)});
   }
   return [...result.values()];
 }
