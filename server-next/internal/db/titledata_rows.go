@@ -141,6 +141,16 @@ func (k *moodKeeper) stale(profileID int64) {
 	}
 }
 
+// forget drops a profile's kept choice, as when it resets its recommendations: Home shows no
+// mood rows until a new one is made from what it does next. A choice being made meanwhile is
+// kept stale (see keep), so it is made again on the next read.
+func (k *moodKeeper) forget(profileID int64) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.marked++
+	delete(k.choices, profileID)
+}
+
 // next answers a profile whose choice is to be made, and the count of stale marks so far.
 func (k *moodKeeper) next() (Viewer, int64, bool) {
 	k.mu.Lock()
@@ -315,8 +325,8 @@ func (d *DB) chooseMoodRows(ctx context.Context, v Viewer) ([]keptMoodRow, error
 	if err != nil {
 		return nil, err
 	}
-	// The taste: titles (an episode counts as its show) the profile played, started or liked,
-	// newest first, read from its two state indexes. Both the item played and the title it
+	// The taste: titles (an episode counts as its show) the profile played, started or liked
+	// since it last reset its recommendations, newest first, read from its two state indexes. Both the item played and the title it
 	// belongs to must be visible now; a low rating or Not interested is not a liking.
 	type tasteTitle struct {
 		id      int64
@@ -325,9 +335,9 @@ func (d *DB) chooseMoodRows(ctx context.Context, v Viewer) ([]keptMoodRow, error
 	}
 	taste, err := queryAll(ctx, tx, `SELECT t.id, max(max(ifnull(s.last_played_at, 0), ifnull(s.favorite_at, 0))) AS at,
 			max(s.played = 1 OR s.last_played_at IS NOT NULL OR ifnull(s.position_ms, 0) > 0)
-		FROM (SELECT item_id FROM (SELECT item_id FROM user_item_state WHERE profile_id = @viewer_profile AND last_played_at IS NOT NULL
+		FROM (SELECT item_id FROM (SELECT item_id FROM user_item_state WHERE profile_id = @viewer_profile AND last_played_at > `+tasteSince+`
 				ORDER BY last_played_at DESC LIMIT `+fmt.Sprint(tasteRecent)+`)
-			UNION SELECT item_id FROM (SELECT item_id FROM user_item_state WHERE profile_id = @viewer_profile AND favorite = 1
+			UNION SELECT item_id FROM (SELECT item_id FROM user_item_state WHERE profile_id = @viewer_profile AND favorite = 1 AND favorite_at > `+tasteSince+`
 				ORDER BY favorite_at DESC LIMIT `+fmt.Sprint(tasteFavorites)+`)) r
 		CROSS JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = r.item_id
 		CROSS JOIN items i ON i.id = s.item_id CROSS JOIN items t ON t.id = ifnull(i.root_id, i.id)

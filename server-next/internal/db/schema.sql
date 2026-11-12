@@ -603,7 +603,8 @@ CREATE UNIQUE INDEX users_portico_account ON users (portico_account_id) WHERE po
 
 -- Viewing profiles. Each account has one main profile (is_primary), made with the account: it
 -- cannot be deleted, and only it carries the account's owner or admin role. access_changed_at moves whenever what the profile may see changes, and
--- clients throw their cache away. History shows no play from before history_cleared_at.
+-- clients throw their cache away. History shows no play from before history_cleared_at, and
+-- recommendations learn from no play or favourite from before taste_reset_at.
 CREATE TABLE profiles (
   id                 INTEGER NOT NULL PRIMARY KEY,
   public_id          TEXT    NOT NULL UNIQUE,
@@ -622,6 +623,7 @@ CREATE TABLE profiles (
   allow_watch_together INTEGER NOT NULL DEFAULT 1 CHECK (allow_watch_together IN (0, 1)),
   access_changed_at  INTEGER NOT NULL,
   history_cleared_at INTEGER,
+  taste_reset_at     INTEGER,
   extra              TEXT,
   created_at         INTEGER NOT NULL,
   updated_at         INTEGER NOT NULL

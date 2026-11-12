@@ -66,6 +66,8 @@ func (s *Server) historyRoutes() {
 	Handle(s, "DELETE /v1/history/{id}", WithProfile, func(r *http.Request, _ None) (None, error) {
 		return None{}, refuse(s.db.RemoveHistoryEntry(r.Context(), viewer(r), r.PathValue("id")))
 	})
+	// Reset recommendations: the profile's taste is forgotten; nothing else changes.
+	Handle(s, "POST /v1/me/recommendations:reset", WithProfile, s.resetRecommendations)
 	// Clear history. Apps ask for a confirmation first: it cannot be undone.
 	Handle(s, "DELETE /v1/history", WithProfile, func(r *http.Request, _ None) (None, error) {
 		return None{}, s.db.ClearHistory(r.Context(), viewer(r), s.now())
