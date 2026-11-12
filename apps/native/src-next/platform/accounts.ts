@@ -22,6 +22,13 @@ import {decodeMeGetResponse} from '../../../../packages/contracts/src/hosted/dec
 import {readNativeServerDisplays, rememberNativeServerDisplay} from './server-display';
 import type {PickTrace} from './pick-deadline';
 
+/** Every listener hears the event even when one before it throws: a screen's bug must not stop a
+ * sign-out, a server switch or a Portico Account sign-out half-way. A failure is reported, not hidden. */
+function callEach(listeners: ReadonlySet<() => void>, event: string) {
+  for (const listener of [...listeners]) {
+    try {listener();} catch (error) {console.warn('portico_account_listener_failed', event, error);}
+  }
+}
 /** Headless native account/session owner. No Hosted credential is opened for local-only use.
  * Views receive server ids, verified names and localization keys, never bearer/refresh tokens. */
 /** Every step between an accepted profile pick and Home that talks to the server is bounded. */
@@ -42,8 +49,8 @@ export class NativeAccounts {
   onFence(listener: () => void) {this.fences.add(listener); return () => {this.fences.delete(listener);};}
   onCancel(listener: () => void) {this.cancellations.add(listener); return () => {this.cancellations.delete(listener);};}
   onSettled(listener: () => void) {this.settled.add(listener); return () => {this.settled.delete(listener);};}
-  private fence(notify = true) {++this.generation; this.probe.cancel(); if (this.accountAttempt) void this.accountAttempt.logout().catch(() => {}); for (const listener of [...this.cancellations]) listener(); if (notify) for (const listener of [...this.fences]) listener();}
-  private finishFence() {for (const listener of [...this.settled]) listener();}
+  private fence(notify = true) {++this.generation; this.probe.cancel(); if (this.accountAttempt) void this.accountAttempt.logout().catch(() => {}); callEach(this.cancellations, 'cancel'); if (notify) callEach(this.fences, 'fence');}
+  private finishFence() {callEach(this.settled, 'settled');}
   async snapshot() {
     const generation = this.generation; this.assertCurrent(generation);
     const state = await nativeAppSessions.read(); this.assertCurrent(generation);
@@ -82,7 +89,7 @@ export class NativeAccounts {
     trace?.mark('read-sessions');
     const previous = (await nativeAppSessions.read()).servers.find(value => value.connection.pin.serverId === session.viewer.serverId);
     this.assertCurrent(generation);
-    for (const listener of [...this.fences]) listener();
+    callEach(this.fences, 'fence');
     try {
       trace?.mark('save-session');
       await rememberNativeSession(api, session, env, hosted, () => !this.disposed && generation === this.generation && current()); this.assertCurrent(generation);
