@@ -145,7 +145,7 @@ func (m *Manager) scan(ctx context.Context, work jobs.Work) error {
 		}
 	}
 	scanner := *m.scanner
-	scanner.Scheduled = params.Scheduled
+	scanner.Scheduled, scanner.AllFiles = params.Scheduled, params.AllFiles
 	// A new scan starts from nothing: the last one's counts and file are not this one's.
 	m.mu.Lock()
 	m.stats[lib.PublicID] = Stats{}

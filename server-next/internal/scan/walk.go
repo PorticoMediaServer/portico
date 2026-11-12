@@ -35,6 +35,11 @@ type Scanner struct {
 	// because the owner asked. Such a scan lists a remote folder only when its source is due;
 	// a local folder is listed by every scan, and so is everything when the owner asks.
 	Scheduled bool
+	// AllFiles reads every file again, changed or not (Scan all files): each is treated as
+	// changed, so each title is brought up to date with what its own files say now (its tags,
+	// a book's package, a comic's ComicInfo, its sidecar files), where neither a match nor a
+	// person's edit has taken those details over.
+	AllFiles bool
 	// Pictures takes a copy of each picture found beside the media. With none, those
 	// pictures are listed as files and never become artwork.
 	Pictures Pictures
@@ -346,6 +351,8 @@ func (r *run) walkFolder(rel string, entries []Entry, depth int) error {
 			file.state = changed
 		case was.Missing:
 			file.state = back
+		case r.s.AllFiles:
+			file.state = changed
 		}
 		f.differs = f.differs || file.state != same
 		f.files = append(f.files, file)

@@ -143,3 +143,36 @@ func TestABookWhoseFileChangesIsReadAgain(t *testing.T) {
 		t.Fatalf("after the change: year %d, credits %v", d.Year, creditNames(d))
 	}
 }
+
+// Scan all files reads every file again, changed or not (03-scanning rule 27): a book scanned
+// when its own details were not read takes them from its file, and is the same book.
+func TestScanAllFilesReadsABooksOwnDetailsAgain(t *testing.T) {
+	f := newFixture(t, db.LibraryBooks)
+	f.put("plain.epub", epub(t, "3.0", `<dc:title>Its Own Title</dc:title><dc:creator>Its Author</dc:creator><dc:date>2019</dc:date>`))
+	libraries, err := f.d.AllLibraries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// First scanned for names only, as a library was before books' own details were read.
+	if err := f.d.SetLibraryOptions(ctx, libraries[0].ID, db.LibraryOptions{Depth: db.DepthFiles}); err != nil {
+		t.Fatal(err)
+	}
+	f.scan()
+	before := f.titles(db.KindBook)["plain"]
+	if err := f.d.SetLibraryOptions(ctx, libraries[0].ID, db.LibraryOptions{Depth: db.DepthBasic}); err != nil {
+		t.Fatal(err)
+	}
+	f.scan()
+	if _, still := f.titles(db.KindBook)["plain"]; !still {
+		t.Fatalf("an ordinary scan read an unchanged file: %v", keys(f.titles(db.KindBook)))
+	}
+	f.s.AllFiles = true
+	f.scan()
+	after := f.titles(db.KindBook)["Its Own Title"]
+	if after.PublicID == "" || after.PublicID != before.PublicID {
+		t.Fatalf("after Scan all files: %v (want the same book under its own title)", keys(f.titles(db.KindBook)))
+	}
+	if d := f.detail(after.PublicID); d.Year != 2019 || len(creditNames(d)) != 1 || creditNames(d)[0] != "Its Author" {
+		t.Fatalf("after Scan all files: year %d, credits %v", d.Year, creditNames(d))
+	}
+}
