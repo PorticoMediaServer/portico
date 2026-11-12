@@ -24,7 +24,7 @@ func TestReviewABusyAnswerWithNoWaitBacksOff(t *testing.T) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	defer busy.Close()
-	attach(p.s, busy.Client(), busy.URL, nil, func() time.Time { return p.clock })
+	attach(p.s, busy.Client(), busy.URL, nil, func() time.Time { return p.clock.Now() })
 	p.run(48 * time.Hour)
 	if n := calls.Load(); n > 40 {
 		t.Errorf("two days of '503' with no Retry-After made %d calls to Portico Services; two days of no answer make about a dozen", n)
