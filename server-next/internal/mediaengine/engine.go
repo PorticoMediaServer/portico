@@ -199,6 +199,8 @@ type planned struct {
 	// remoteID is the remote source the file is on, with path its path within the source, or
 	// 0 for a file on a disk here.
 	remoteID int64
+	// parts are an audiobook's files in order when it is in several, played as one book.
+	parts []streaming.JoinedPart
 	// text is the version's text subtitles, which are served beside the stream.
 	text []textTrack
 	// nudgeMs is the viewer's subtitle timing nudge. sent says the server moves it into the
@@ -447,6 +449,12 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	if err != nil {
 		return playback.Plan{}, err
 	}
+	// An audiobook in several files plays as one book (playback rule 60): its parts are
+	// joined into one stream on one clock, so every position is a place in the whole book.
+	parts, err := e.bookParts(ctx, r, remoteID, facts)
+	if err != nil {
+		return playback.Plan{}, err
+	}
 	tools := e.tools()
 	converter, fragmented, err := tools.wait(ctx)
 	if err != nil {
@@ -503,7 +511,13 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 			choice.MaxVideoBitrateBPS, choice.MaxAudioBitrateBPS, choice.MaxVideoHeight = q.MaxVideoBitrateKbps*1000, q.MaxAudioBitrateKbps*1000, q.MaxHeight
 		}
 	}
-	if music := e.musicPlan(ctx, r, request, path, place, remoteID, facts, converter); music != nil {
+	if parts != nil {
+		request.Joined, request.JoinedPartsDiffer = true, streaming.PartsDiffer(parts)
+		request.File.Duration = 0
+		for _, part := range parts {
+			request.File.Duration += float64(part.DurationMs) / 1000
+		}
+	} else if music := e.musicPlan(ctx, r, request, path, place, remoteID, facts, converter); music != nil {
 		return *music, nil
 	}
 	for _, failure := range r.Failures {
@@ -581,7 +595,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	out := playback.Plan{Mode: "stream", Player: plan.Engine, Route: routes[plan.Strategy], Container: plan.OutputContainer,
 		BitrateKbps: (plan.VideoBitrateBPS + plan.AudioBitrateBPS) / 1000, Quality: q,
 		Audio:  &playback.Decision{Action: action(plan.AudioAction), Reasons: plan.ReasonCodes, To: plan.OutputAudioCodec, Channels: plan.AudioChannels},
-		Detail: &planned{plan: plan, request: request, path: path, place: place, remoteID: remoteID}}
+		Detail: &planned{plan: plan, request: request, path: path, place: place, remoteID: remoteID, parts: parts}}
 	if plan.Strategy == streaming.DeliveryOriginal {
 		out.Mode, out.Audio.Action = "direct", "direct"
 		out.Audio.Reasons, out.Audio.To = nil, ""
@@ -640,6 +654,9 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	if detail.sent && detail.nudgeMs != 0 && out.Subtitle != nil && out.Subtitle.Delivery == "sidecar" {
 		raw = append(raw, fmt.Sprint("nudge ", detail.nudgeMs)...)
 	}
+	for _, part := range parts {
+		raw = append(raw, part.Path...)
+	}
 	sum := sha256.Sum256(append(raw, []byte(path)...))
 	out.Key = hex.EncodeToString(sum[:8])
 	if burn != nil && burn.nudgeMs != 0 {
@@ -657,7 +674,7 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 	}
 	request := p.request
 	start := streaming.StartRequest{SessionID: r.SessionID, Plan: p.plan, Request: &request, Path: p.path, Size: p.place.Size,
-		Modified: time.Unix(0, p.place.ModifiedNS), PositionMs: r.PositionMs}
+		Modified: time.Unix(0, p.place.ModifiedNS), PositionMs: r.PositionMs, Parts: p.parts}
 	if p.audio != nil {
 		start.Request, start.Audio, start.SeekIndex = nil, p.audio, p.index
 	}

@@ -3,6 +3,7 @@ package streaming
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"math"
@@ -73,7 +74,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		s.output = "building"
 	}
 	h.mu.Unlock()
-	input, remoteInput, e := h.openWindowInput(ctx, id, delivery)
+	input, remoteInput, e := h.openWindowInput(ctx, id, delivery, float64(from)*HLSSegmentSeconds)
 	if e != nil {
 		if ctx.Err() == nil {
 			h.failedWith(ctx, id, FailureSourceUnreadable, "")
@@ -172,7 +173,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		if plan != nil && plan.VideoAction == "copy" {
 			args = append(args, "-fflags", "+genpts+discardcorrupt")
 		}
-		if grid && from > 0 && input.InputAt == nil {
+		if grid && from > 0 && input.InputAt == nil && !input.Positioned {
 			// Input-side seek, so the decoder skips rather than decodes-and-drops.
 			// A copy window seeks a hair past its keyframe: the demuxer lands on
 			// the index entry at or before the target, and rounding the target
@@ -212,8 +213,38 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			path = url
 			residual = int64(math.Round(position*1000)) - at
 		}
-		args = append(args, readerOptions...)
-		args = append(args, "-i", path)
+		joinedSound := ""
+		if len(input.Joined) > 0 {
+			// Parts not encoded alike: each from the part holding the start is an input of its
+			// own, the first sought within it, and FFmpeg's concat filter joins them into the
+			// one sound the conversion encodes (the conversion's own sound filter after it).
+			first := 0
+			for first+1 < len(input.Joined) && input.Joined[first+1].Offset <= position {
+				first++
+			}
+			var filter strings.Builder
+			for n, part := range input.Joined[first:] {
+				if n == 0 && position > part.Offset {
+					args = append(args, "-ss", strconv.FormatFloat(position-part.Offset, 'f', 6, 64))
+				}
+				args = append(args, readerOptions...)
+				args = append(args, "-i", part.Path)
+				fmt.Fprintf(&filter, "[%d:a:0]", n)
+			}
+			fmt.Fprintf(&filter, "concat=n=%d:v=0:a=1", len(input.Joined)-first)
+			for i := 0; i+1 < len(codecArgs); i++ {
+				if codecArgs[i] == "-af" {
+					filter.WriteString("," + codecArgs[i+1])
+					codecArgs = append(codecArgs[:i:i], codecArgs[i+2:]...)
+					break
+				}
+			}
+			args = append(args, "-filter_complex", filter.String()+"[joined]")
+			joinedSound = "[joined]"
+		} else {
+			args = append(args, readerOptions...)
+			args = append(args, "-i", path)
+		}
 		args = append(args, extraInput...)
 		if input.InputAt != nil {
 			// Burn-in may already occupy input 1. Chapters are the final input.
@@ -231,7 +262,9 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		// The plan names the programme audio by absolute stream index. A plan
 		// without a choice (an older session) takes the first track, as before.
 		audioMap := "0:a:0?"
-		if plan != nil && plan.AudioStream >= 0 {
+		if joinedSound != "" {
+			audioMap = joinedSound
+		} else if plan != nil && plan.AudioStream >= 0 {
 			audioMap = "0:" + strconv.Itoa(plan.AudioStream)
 		}
 		switch {
