@@ -83,7 +83,11 @@ func (FileProber) Probe(ctx context.Context, path string) (Facts, error) {
 	if err != nil {
 		return Facts{}, err
 	}
-	found, err := mediafacts.Probe{ScanCommand: pooled}.Inspect(ctx, real)
+	prober := mediafacts.Probe{ScanCommand: pooled}
+	found, err := prober.Inspect(ctx, real)
+	if err == nil {
+		err = prober.CompleteAudioPackets(ctx, real, &found)
+	}
 	return factsOf(ctx, found, err)
 }
 
@@ -131,6 +135,9 @@ func factsOf(ctx context.Context, found mediafacts.Facts, err error) (Facts, err
 func FromMedia(found mediafacts.Facts) Facts {
 	facts := Facts{Container: found.Container, DurationMS: int64(math.Round(found.Duration * 1000)), Bitrate: found.BitRate,
 		Title: embeddedTitle(found.Tags["title"])}
+	if found.Packets != nil {
+		facts.Packets = &db.Packets{StartUS: found.Packets.StartUS, LengthUS: found.Packets.LengthUS}
+	}
 	for _, s := range found.Streams {
 		d := s.Detail
 		stream := db.Stream{Codec: s.Codec, Profile: d.Profile, Language: s.Language, Title: s.Title, Default: s.Default, Forced: s.Forced,

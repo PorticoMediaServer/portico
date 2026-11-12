@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +34,7 @@ type AudioFileMetadata struct {
 }
 
 type Facts struct {
+	Packets             *Packets             `json:"-"`
 	AudioFileMetadata   *AudioFileMetadata   `json:"-"`
 	DiscAlternate       bool                 `json:"-"`
 	MusicCueTracks      []Chapter            `json:"-"`
@@ -83,6 +85,10 @@ type Probe struct {
 	// admitted-file reader. Both are optional; see access.go.
 	ScanCommand func(ctx context.Context, binary string, args []string, path string, mode ScanMode, out io.Writer) (handled bool, err error)
 	ReadPrefix  func(ctx context.Context, path string, limit int64) ([]byte, error)
+	// OpenReader opens the whole file for reading by range, with its size, for a probe that
+	// must read all of it (an MP3 with no header that says its length). Optional for a file
+	// on a disk here, which is opened itself; without it an address is not read whole.
+	OpenReader func(ctx context.Context, path string) (io.ReaderAt, int64, func() error, error)
 }
 type boundedBuffer struct {
 	data  []byte
@@ -125,12 +131,8 @@ func (p Probe) probeOutput(ctx context.Context, path, input string, options []st
 // probeOutputMode reads a disc folder through its descriptor-bound directory
 // input; every other probe keeps the file descriptor or bridge it always had.
 func (p Probe) probeOutputMode(ctx context.Context, path, input string, options []string, directory bool) ([]byte, error) {
-	bin := p.Binary
-	if bin == "" {
-		bin = mediatools.Resolve("ffprobe")
-	}
 	args := append(
-		options,
+		slices.Clone(options),
 		[]string{
 			"-v",
 			"error",
@@ -144,6 +146,16 @@ func (p Probe) probeOutputMode(ctx context.Context, path, input string, options 
 			"json",
 			input,
 		}...)
+	return p.run(ctx, path, input, options, args, directory)
+}
+
+// run runs ffprobe with args on one file, confined as every probe is, and returns what it
+// wrote. options are the caller's input options, which args begin with.
+func (p Probe) run(ctx context.Context, path, input string, options, args []string, directory bool) ([]byte, error) {
+	bin := p.Binary
+	if bin == "" {
+		bin = mediatools.Resolve("ffprobe")
+	}
 	out := &boundedBuffer{limit: 1 << 20}
 	var runErr error
 	if p.ReadGuard != nil {

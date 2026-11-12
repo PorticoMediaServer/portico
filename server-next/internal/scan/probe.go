@@ -27,6 +27,7 @@ type ReaderProber interface {
 
 // Facts is what a file was found to hold.
 type Facts struct {
+	Packets    *db.Packets
 	Container  string
 	DurationMS int64
 	Bitrate    int64
@@ -162,6 +163,7 @@ func (r *run) probeFile(file db.UnprobedFile, src Source, local string) *db.Prob
 	case err == nil:
 		probe.Container, probe.DurationMS, probe.Bitrate = facts.Container, facts.DurationMS, facts.Bitrate
 		probe.Streams, probe.Chapters, probe.Title = facts.Streams, facts.Chapters, facts.Title
+		probe.Packets = facts.Packets
 	case errors.Is(err, ErrDamaged):
 		probe.Problem = db.ProblemDamaged
 	case errors.Is(err, ErrUnsupported):

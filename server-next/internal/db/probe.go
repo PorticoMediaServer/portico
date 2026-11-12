@@ -59,6 +59,7 @@ func (d *DB) UnprobedCount(ctx context.Context, libraryID int64) (int, error) {
 // Probe is what reading one file found. With Problem set the file could not be read: it goes
 // on the Files skipped list, keeps the title its name gave it and stays unread.
 type Probe struct {
+	Packets    *Packets
 	FileID     int64
 	Size       int64 // the file as it was when read; a file that changed since is left for the next scan
 	ModifiedNS int64
@@ -99,7 +100,7 @@ func storeProbe(b *batchTx, p *Probe, now int64) error {
 		return err
 	}
 	res, err := b.exec(`UPDATE files SET probed_at = ?, container = ?, duration_ms = ?, bitrate = ?, audio_exact = NULL, problem = NULL,
-		extra = CASE WHEN ? = '' THEN json_remove(extra, '$.title') ELSE json_set(ifnull(extra, '{}'), '$.title', ?) END
+		extra = json_remove(CASE WHEN ? = '' THEN json_remove(ifnull(extra, '{}'), '$.title') ELSE json_set(ifnull(extra, '{}'), '$.title', ?) END, '$.packets')
 		WHERE id = ? AND size = ? AND modified_ns = ?`, now, nz(p.Container), nz(p.DurationMS), nz(p.Bitrate), p.Title, p.Title,
 		p.FileID, p.Size, p.ModifiedNS)
 	if err != nil {
@@ -107,6 +108,12 @@ func storeProbe(b *batchTx, p *Probe, now int64) error {
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return nil
+	}
+	if p.Packets != nil {
+		if _, err := b.exec(`UPDATE files SET extra = json_set(extra, '$.packets', json_object('startUs', ?, 'lengthUs', ?)) WHERE id = ?`,
+			p.Packets.StartUS, p.Packets.LengthUS, p.FileID); err != nil {
+			return err
+		}
 	}
 	if _, err := b.exec(`DELETE FROM media_streams WHERE file_id = ?`, p.FileID); err != nil {
 		return err
@@ -273,4 +280,24 @@ func (d *DB) ForgetProbes(ctx context.Context, libraryID int64) error {
 			return err
 		}
 	}
+}
+
+// Packets is the sound packet clock, retained in files.extra without a schema change.
+// LengthUS zero means the format could not be measured.
+type Packets struct {
+	StartUS  int64 `json:"startUs"`
+	LengthUS int64 `json:"lengthUs"`
+}
+
+// RereadAudioWithoutPackets upgrades previously scanned sound files on their next scan.
+// A completed measurement, even an unsupported one, is not repeated until the file changes.
+func (d *DB) RereadAudioWithoutPackets(ctx context.Context, libraryID int64) error {
+	return d.write(ctx, Background, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `UPDATE files SET probed_at = NULL WHERE probed_at IS NOT NULL
+   AND json_extract(extra, '$.packets') IS NULL AND missing_since_at IS NULL AND role = 1
+   AND directory_id IN (SELECT d.id FROM directories d JOIN library_paths p ON p.id = d.library_path_id WHERE p.library_id = ?)
+   AND EXISTS (SELECT 1 FROM media_streams s WHERE s.file_id = files.id AND s.kind = ?)
+   AND NOT EXISTS (SELECT 1 FROM media_streams s WHERE s.file_id = files.id AND s.kind = ?)`, libraryID, StreamAudio, StreamVideo)
+		return err
+	})
 }
