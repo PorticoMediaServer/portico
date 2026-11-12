@@ -1,10 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {HttpLocalApi, LocalSession} from '@core/index.ts';
-import {routePath} from '../../packages/contracts/src/routes.ts';
 import {captureLocalDeviceOpening, type LocalDeviceLocation} from '../src/screens/device/local-device-opening.ts';
 
-const review = routePath('post_quick_connect_review'), decision = routePath('post_quick_connect_decision');
+const review = '/v1/auth/codes/2345-ABCD', decision = review + '/approve';
 function fixture() {
   let current = true, now = Date.parse('2026-10-26T12:00:00Z');
   let session: LocalSession = {accessToken: 'original-test-token', tokenGeneration: '1', expiresAt: '2026-10-26T12:10:00Z', authorizationHorizon: '2026-10-26T13:00:00Z', sessionFamilyId: 'original-family',
@@ -24,12 +23,13 @@ function fixture() {
     setLocation(value: LocalDeviceLocation) {location = value;}, setCurrent(value: boolean) {current = value;}, setNow(value: number) {now = value;},
     setConnection(value: typeof connection) {route = value;}, setState(value: typeof state) {state = value;}, setResponse(value: typeof respond) {respond = value;}};
 }
-test('capture performs no IO; only the two actual local POST review/decision routes are exposed', async () => {
+test('capture performs no IO; only the current local review GET and approval POST are exposed', async () => {
   const f = fixture(), opening = f.capture()!;assert.ok(opening);assert.equal(f.calls.length, 0);
   await assert.rejects(opening.api.request('/v1/unrelated', 'POST'), {name: 'AbortError'});
-  await assert.rejects(opening.api.request(review, 'GET'), {name: 'AbortError'});assert.equal(f.calls.length, 0);
-  await opening.api.request(review, 'POST', {userCode: 'ABCD-EFGH'});
-  await opening.api.request(decision, 'POST', {userCode: 'ABCD-EFGH', decision: 'deny'});
+  await assert.rejects(opening.api.request(review, 'POST'), {name: 'AbortError'});assert.equal(f.calls.length, 0);
+  await assert.rejects(opening.api.request(review, 'DELETE'), {name: 'AbortError'});
+  await opening.api.request(review, 'GET');
+  await opening.api.request(decision, 'POST', {deny: true});
   assert.deepEqual(f.calls.map(value => value.path), [review, decision]);opening.dispose();
 });
 test('wrong origin, unverified connection and foreign server never capture an approval opening', () => {
@@ -63,7 +63,7 @@ test('token renewal preserves the original family and horizon; every authority/e
 test('late original HTTP responses and old disposal cannot publish into a successor opening', async () => {
   const f = fixture();let resolve!: (value: unknown) => void;
   f.setResponse(() => new Promise(done => {resolve = done;}));
-  const old = f.capture()!, pending = old.api.request(review, 'POST', {userCode: 'ABCD-EFGH'});
+  const old = f.capture()!, pending = old.api.request(review, 'GET', {userCode: 'ABCD-EFGH'});
   old.dispose();const successor = f.capture()!;old.dispose();assert.equal(successor.current(), true);
   assert.equal(f.calls[0].signal?.aborted, true);resolve({review: true});
   await assert.rejects(pending, {name: 'AbortError'});assert.equal(successor.current(), true);successor.dispose();
@@ -71,6 +71,6 @@ test('late original HTTP responses and old disposal cannot publish into a succes
 test('caller abort remains terminal even if a transport resolves its original response', async () => {
   const f = fixture(), caller = new AbortController();let resolve!: (value: unknown) => void;
   f.setResponse(() => new Promise(done => {resolve = done;}));
-  const opening = f.capture()!, pending = opening.api.request(review, 'POST', {}, caller.signal);
+  const opening = f.capture()!, pending = opening.api.request(review, 'GET', {}, caller.signal);
   caller.abort();resolve({review: true});await assert.rejects(pending, {name: 'AbortError'});opening.dispose();
 });
