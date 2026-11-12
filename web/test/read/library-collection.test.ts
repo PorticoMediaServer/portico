@@ -1,25 +1,26 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {HttpLocalApi} from '@portico/client-core';
-import {routePath} from '../../../packages/contracts/src/index.ts';
 import {createReadingCollection, createReadingContinueCollection, createReadingSeriesCollection} from '../../src/screens/read/library-collection.ts';
 
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 async function settle(done: () => boolean) {for (let i = 0; i < 100 && !done(); i++) await tick(); assert.ok(done(), 'bounded unit request settled');}
+// The rebuilt server's answers: the item list for a library's titles and a series' volumes, and the
+// landing or Home row for Continue reading.
+const wire = (id: string, libraryId: string, extra: Record<string, unknown> = {}) => ({id, kind: 'book', title: `Unit title ${id}`, libraryId, addedAt: '2026-11-12T00:00:00Z',
+  images: {}, state: {watched: false, playCount: 0, favorite: false, inList: false, notInterested: false}, ...extra});
+const json = (data: unknown) => new Response(JSON.stringify(data), {headers: {'Content-Type': 'application/json'}});
+const viewer = {accountId: 'unit-account', profileId: 'unit-profile', serverId: 'unit-server', authority: 'local', role: 'member'} as const;
 function fixture(total = 480, wrongLibrary = false, budget = Infinity) {
   const calls: URL[] = [];
   const api = new HttpLocalApi('http://127.0.0.1:39117', 'unit-token', async input => {
     const url = new URL(String(input)); calls.push(url);
-    if (url.pathname.endsWith('/reading/versions')) return url.pathname.includes('/unit-reading/')
-      ? new Response(JSON.stringify({chosenSourceId: 'unit-source', versions: [{sourceId: 'unit-source', format: 'epub', size: 500, inventoryAvailable: false}]}), {headers: {'Content-Type': 'application/json'}})
-      : new Response('{}', {status: 404, headers: {'Content-Type': 'application/json'}});
     const start = Number(url.searchParams.get('cursor') ?? 0), limit = Number(url.searchParams.get('limit'));
     // RD-6: the server's byte budget can stop a page early, with a cursor from the last item kept.
-    const items = Array.from({length: Math.max(0, Math.min(limit, budget, total - start))}, (_, offset) => ({id: `unit-${start + offset}`, sourceId: `source-${start + offset}`,
-      libraryId: wrongLibrary ? 'another-library' : 'unit-library', title: `Unit title ${start + offset}`, format: 'epub', inventoryAvailable: true}));
-    return new Response(JSON.stringify({items, ...(start + items.length < total ? {nextCursor: String(start + items.length)} : {})}), {headers: {'Content-Type': 'application/json'}});
+    const items = Array.from({length: Math.max(0, Math.min(limit, budget, total - start))}, (_, offset) => wire(`unit-${start + offset}`, wrongLibrary ? 'another-library' : 'unit-library'));
+    return json({items, ...(start + items.length < total ? {nextCursor: String(start + items.length)} : {})});
   });
-  const client = api.reading({viewer: {accountId: 'unit-account', profileId: 'unit-profile', serverId: 'unit-server', authority: 'local', role: 'member'}, isCurrent: () => true});
+  const client = api.reading({viewer, isCurrent: () => true});
   const rows = createReadingCollection(client, 'unit-library');
   return {client, rows, calls, dispose() {rows.dispose(); client.dispose();}};
 }
@@ -29,7 +30,7 @@ test('actual cursor pages feed the existing sparse collection without fabricated
   const collection = f.rows.collection;
   collection.ensureRange(0, 12); await settle(() => collection.itemAt(0) !== undefined);
   assert.equal(collection.getSnapshot().totalIsLowerBound, true);
-  assert.ok(f.calls.length <= 3); assert.equal(f.calls[0].searchParams.get('libraryId'), 'unit-library');
+  assert.ok(f.calls.length <= 3); assert.equal(f.calls[0].pathname, '/v1/items'); assert.equal(f.calls[0].searchParams.get('library'), 'unit-library');
   for (let first = 60; first < 480; first += 60) {
     collection.ensureRange(first, first + 12); await settle(() => collection.itemAt(first) !== undefined);
     assert.ok(collection.resident().pages <= 6); assert.ok(collection.resident().items <= 360);
@@ -56,54 +57,41 @@ test('an unexpected library row never becomes a visible or selectable Read item'
   assert.equal(f.rows.collection.itemAt(0), undefined); assert.equal(f.rows.collection.resident().items, 0);
 });
 
-function continueFixture(total = 480, options: {all?: boolean; wrongLibrary?: boolean; delayed?: boolean} = {}) {
+function continueFixture(total = 3, options: {all?: boolean; wrongLibrary?: boolean; delayed?: boolean} = {}) {
   const calls: URL[] = []; let release: (() => void) | undefined, cancelled = 0;
   const api = new HttpLocalApi('http://127.0.0.1:39143', 'continue-unit-token', async (input, init = {}) => {
     const url = new URL(String(input)); calls.push(url);
-    assert.equal(init.method, 'GET'); assert.equal(url.pathname, routePath('get_reading_continue'));
-    const cursor = url.searchParams.get('cursor'); if (cursor) assert.match(cursor, /^after_\d+$/);
-    const start = cursor ? Number(cursor.slice(6)) : 0, limit = Number(url.searchParams.get('limit'));
-    const items = Array.from({length: Math.max(0, Math.min(limit, total - start))}, (_, offset) => {
-      const index = start + offset, sourceId = `source-${index}`;
-      return {item: {id: `item-${index}`, sourceId, libraryId: options.wrongLibrary || options.all && index % 2 ? 'another-library' : 'unit-library',
-        title: `Stored title ${index}`, format: index === 0 ? 'epub' : 'pdf', inventoryAvailable: index !== 1},
-        progress: {sourceId, sourceRevision: 'b'.repeat(64), revision: index + 7, observedAt: index + 10000, stale: index === 0,
-          location: {format: 'pdf', pageIndex: index + 17, progression: .25}}};
-    });
-    const data = JSON.stringify({items, ...(start + items.length < total ? {nextCursor: `after_${start + items.length}`} : {})});
+    assert.equal(init.method, 'GET');
+    const items = Array.from({length: total}, (_, index) => wire(`item-${index}`, options.wrongLibrary || options.all && index % 2 ? 'another-library' : 'unit-library', {
+      state: {watched: false, lastPlayedAt: new Date(10000 + index).toISOString(),
+        position: JSON.stringify({format: 'pdf', pageIndex: index + 17, progression: .25, fingerprint: '0123456789abcdef'})}}));
+    const data = JSON.stringify({rows: [{id: url.pathname === '/v1/home' ? 'continue_reading' : 'continue', title: 'Continue', shape: 'poster', items}]});
     if (options.delayed) return new Promise<Response>(resolve => {release = () => resolve(new Response(new ReadableStream({
       start(controller) {controller.enqueue(new TextEncoder().encode(data));}, cancel() {cancelled++;},
     }), {headers: {'Content-Type': 'application/json'}}));});
     return new Response(data, {headers: {'Content-Type': 'application/json'}});
   });
-  const client = api.reading({viewer: {accountId: 'unit-account', profileId: 'unit-profile', serverId: 'unit-server', authority: 'local', role: 'member'}, isCurrent: () => true});
+  const client = api.reading({viewer, isCurrent: () => true});
   const rows = createReadingContinueCollection(client, options.all ? undefined : 'unit-library');
   return {api, client, rows, calls, get cancelled() {return cancelled;}, release() {assert.ok(release); release();}, dispose() {rows.dispose(); client.dispose();}};
 }
 
-test('canonical Continue keeps real source/location/CAS/stale facts in a bounded sparse collection without preparing items', async t => {
+test('Continue keeps each title\'s place in the library\'s own row, read once, without preparing items', async t => {
   const f = continueFixture(); t.after(() => f.dispose()); assert.equal(f.calls.length, 0);
-  const collection = f.rows.collection; collection.ensureRange(0, 12); await settle(() => !!collection.itemAt(0));
+  const collection = f.rows.collection; collection.ensureRange(0, 12); await settle(() => !!collection.itemAt(0) && collection.getSnapshot().totalIsLowerBound === false);
   const row = collection.itemAt(0)!;
-  assert.equal(row.item.sourceId, 'source-0'); assert.equal(row.item.format, 'epub'); assert.equal(row.progress.stale, true);
-  assert.equal(row.progress.sourceRevision, 'b'.repeat(64)); assert.equal(row.progress.revision, 7); assert.equal(row.progress.observedAt, 10000);
+  assert.equal(row.item.id, 'item-0'); assert.equal(row.item.format, 'pdf');
+  assert.equal(row.progress.sourceRevision, '0123456789abcdef'); assert.equal(row.progress.observedAt, 10000);
   assert.equal(row.progress.location.format, 'pdf'); assert.equal(row.progress.location.pageIndex, 17); assert.equal(row.progress.location.progression, .25);
   assert.equal(Object.hasOwn(row.item, 'author'), false); assert.equal(Object.isFrozen(row.progress.location), true);
-  assert.equal(collection.itemAt(1)?.item.inventoryAvailable, false); assert.equal(collection.getSnapshot().totalIsLowerBound, true);
-  for (let first = 60; first < 480; first += 60) {
-    collection.ensureRange(first, first + 12); await settle(() => collection.itemAt(first) !== undefined);
-    assert.ok(collection.resident().pages <= 6); assert.ok(collection.resident().items <= 360);
-  }
-  await settle(() => collection.getSnapshot().totalIsLowerBound === false);
-  assert.equal(collection.getSnapshot().total, 480); assert.equal(collection.itemAt(479)?.item.id, 'item-479');
-  assert.ok(f.calls.length <= 10); assert.equal(f.calls[0].searchParams.get('libraryId'), 'unit-library');
-  assert.ok(f.calls.slice(1).some(url => url.searchParams.get('cursor') === 'after_60'));
+  assert.equal(collection.getSnapshot().total, 3);
+  assert.deepEqual(f.calls.map(url => url.pathname), ['/v1/libraries/unit-library/landing']);
 });
 
-test('profile-wide Continue omits a library filter and retains the actual library on each authorized row', async t => {
+test('profile-wide Continue is Home\'s row and retains the actual library on each authorized row', async t => {
   const f = continueFixture(2, {all: true}); t.after(() => f.dispose());
   f.rows.collection.ensureRange(0, 1); await settle(() => !!f.rows.collection.itemAt(1));
-  assert.equal(f.calls[0].searchParams.has('libraryId'), false);
+  assert.equal(f.calls[0].pathname, '/v1/home');
   assert.equal(f.rows.collection.itemAt(0)?.item.libraryId, 'unit-library'); assert.equal(f.rows.collection.itemAt(1)?.item.libraryId, 'another-library');
 });
 
@@ -121,44 +109,19 @@ test('a retired Continue capture aborts and discards a late response without pub
   assert.equal(f.rows.collection.resident().items, 0); assert.equal(f.rows.collection.itemAt(0), undefined); assert.equal(f.calls.length, 1);
 });
 
-function seriesFixture(wrongSeries = false) {
-  const seriesId = 's'.repeat(43), signedCursor = `${'a'.repeat(171)}.${'b'.repeat(43)}`;
+test('series collection keeps the volumes in the server\'s order and goes on from its cursor', async t => {
   const calls: URL[] = [];
   const api = new HttpLocalApi('http://127.0.0.1:39117', 'unit-token', async input => {
     const url = new URL(String(input)); calls.push(url);
     const start = url.searchParams.has('cursor') ? 60 : 0;
-    const items = Array.from({length: start === 0 ? 60 : 2}, (_, index) => ({
-      id: `unit-${100 - start - index}`, sourceId: `source-${start + index}`, libraryId: 'unit-library',
-      title: `Title ${100 - start - index}`, format: 'epub', inventoryAvailable: true,
-      series: {id: wrongSeries ? 'x'.repeat(43) : seriesId, name: 'Accepted series', source: 'owner'},
-    }));
-    return new Response(JSON.stringify({items, ...(start === 0 ? {nextCursor: signedCursor} : {})}),
-      {headers: {'Content-Type': 'application/json'}});
+    return json({items: Array.from({length: start === 0 ? 60 : 2}, (_, index) => wire(`unit-${100 - start - index}`, 'unit-library', {kind: 'issue'})), ...(start === 0 ? {nextCursor: 'more'} : {})});
   });
-  const client = api.reading({viewer: {accountId: 'unit-account', profileId: 'unit-profile', serverId: 'unit-server', authority: 'local', role: 'member'}, isCurrent: () => true});
-  const rows = createReadingSeriesCollection(client, 'unit-library', seriesId);
-  return {rows, calls, signedCursor, seriesId, dispose() {rows.dispose(); client.dispose();}};
-}
-
-test('series collection preserves producer order and forwards the signed cursor without generic browse', async t => {
-  const f = seriesFixture(); t.after(() => f.dispose()); assert.equal(f.calls.length, 0);
-  f.rows.collection.ensureRange(0, 12);
-  await settle(() => f.rows.collection.itemAt(60) !== undefined && f.rows.collection.getSnapshot().totalIsLowerBound === false);
-  assert.equal(f.rows.collection.itemAt(0)?.id, 'unit-100');
-  assert.equal(f.rows.collection.itemAt(1)?.id, 'unit-99');
-  assert.equal(f.rows.collection.itemAt(60)?.id, 'unit-40');
-  assert.equal(f.rows.collection.getSnapshot().total, 62);
-  assert.equal(f.calls.length, 2);
-  assert.ok(f.calls.every(url => url.pathname === routePath('get_reading_series_items', {libraryId: 'unit-library', seriesId: f.seriesId})));
-  assert.equal(f.calls[0].searchParams.has('cursor'), false);
-  assert.equal(f.calls[1].searchParams.get('cursor'), f.signedCursor);
-  assert.equal(Object.hasOwn(f.rows.collection.itemAt(0)!, 'progress'), false);
-});
-
-test('a mismatched series member never enters the resident collection', async t => {
-  const f = seriesFixture(true); t.after(() => f.dispose());
-  f.rows.collection.ensureRange(0, 1);
-  await settle(() => f.rows.collection.getSnapshot().status === 'error');
-  assert.equal(f.rows.collection.itemAt(0), undefined);
-  assert.equal(f.rows.collection.resident().items, 0);
+  const client = api.reading({viewer, isCurrent: () => true}), rows = createReadingSeriesCollection(client, 'unit-library', 'itm_series');
+  t.after(() => {rows.dispose(); client.dispose();});
+  rows.collection.ensureRange(0, 12);
+  await settle(() => rows.collection.itemAt(60) !== undefined && rows.collection.getSnapshot().totalIsLowerBound === false);
+  assert.deepEqual([0, 1, 60].map(index => rows.collection.itemAt(index)?.id), ['unit-100', 'unit-99', 'unit-40']);
+  assert.equal(rows.collection.getSnapshot().total, 62);
+  assert.ok(calls.every(url => url.pathname === '/v1/items' && url.searchParams.get('parent') === 'itm_series' && url.searchParams.get('sort') === 'order'));
+  assert.equal(calls[0].searchParams.has('cursor'), false); assert.equal(calls[1].searchParams.get('cursor'), 'more');
 });

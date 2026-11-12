@@ -80,71 +80,34 @@ test('local response rejects bad base64/overflow and cancellation before reading
   assert.equal(globalThis.Response, responseBefore); assert.equal(globalThis.ReadableStream, streamsBefore);
 });
 
-test('Discover metadata uses the bounded native body facade on a Hermes-style Response', async t => {
-  const runtime = NativeModules.PorticoRuntime as Record<string, unknown>;
-  const before = {request: runtime.networkRequest, Response: globalThis.Response};
-  t.after(() => {runtime.networkRequest = before.request; globalThis.Response = before.Response;});
-  // Model the actual native seam: an ordinary Hermes response has no pull body.
-  // The per-response Reading adapter must provide it; no app global is patched.
-  globalThis.Response = class extends before.Response { get body() { return null; } };
-  let calls = 0, current = true;
-  runtime.networkRequest = async (_id: string, url: string, method: string, headers: Record<string, string>) => {
-    calls++;
-    assert.equal(method, 'GET');
-    assert.equal(new URL(url).pathname, routePath('get_reading_discover'));
-    assert.equal(new URL(url).searchParams.get('libraryId'), 'books');
-    assert.equal(new Headers(headers).get('Authorization'), 'Bearer throwaway-test-token');
-    assert.deepEqual(nativeReadingPolicy(url, method), {binaryLimit: undefined});
-    assert.equal(nativeReadingPolicy(url, 'POST'), undefined, 'only the declared metadata method selects the facade');
-    return {status: 200, headers: {'Content-Type': 'application/json'}, body: JSON.stringify({rows: [{key: 'recent', items: []}]})};
-  };
-  const api = new HttpLocalApi(origin, 'throwaway-test-token', nativeServerFetch('s'));
-  const client = api.reading({viewer, isCurrent: () => current});
-  try {
-    const page = await client.discover({libraryId: 'books', limit: 20, shortReadsLimit: 12});
-    assert.equal(page.rows[0].key, 'recent');
-    assert.deepEqual(page.rows[0].items, []);
-    assert.equal(calls, 1);
-    current = false;
-    await assert.rejects(client.discover({libraryId: 'books'}), error => error instanceof ReadingError && error.code === 'cancelled');
-    assert.equal(calls, 1, 'retired original authority cannot send another metadata request');
-  } finally {client.dispose();}
-});
-
-test('series metadata and its original cursor use the bounded native body facade on Hermes', async t => {
+// A phone's fetch (Hermes) gives a response with no body stream. A Read library's lists are JSON
+// read as text there, and a retired sign-in asks for nothing more.
+test('Discover and a series\' volumes read on a phone, and a retired sign-in sends nothing', async t => {
   const runtime = NativeModules.PorticoRuntime as Record<string, unknown>;
   const before = {request: runtime.networkRequest, Response: globalThis.Response};
   t.after(() => {runtime.networkRequest = before.request; globalThis.Response = before.Response;});
   globalThis.Response = class extends before.Response { get body() { return null; } };
-  const seriesId = 's'.repeat(43), cursor = 'c'.repeat(171) + '.' + 'h'.repeat(43);
-  const item = {id: 'comic', sourceId: 'source', libraryId: 'comics', title: 'Offered volume', format: 'cbz', inventoryAvailable: true,
-    series: {id: seriesId, name: 'Offered series', source: 'file-metadata', number: 1}};
-  let calls = 0, current = true;
+  const wire = (id: string) => ({id, kind: 'issue', title: 'Volume ' + id, libraryId: 'comics', addedAt: '2026-11-12T00:00:00Z', images: {},
+    state: {watched: false, playCount: 0, favorite: false, inList: false, notInterested: false}});
+  const seen: URL[] = []; let current = true;
   runtime.networkRequest = async (_id: string, url: string, method: string, headers: Record<string, string>) => {
-    calls++;
-    const at = new URL(url);
-    assert.equal(method, 'GET');
-    assert.equal(at.pathname, routePath('get_reading_series_items', {libraryId: 'comics', seriesId}));
-    assert.equal(at.searchParams.get('limit'), '30');
-    assert.equal(at.searchParams.get('cursor'), calls === 1 ? null : cursor);
+    const at = new URL(url); seen.push(at);
+    assert.equal(method, 'GET'); assert.equal(at.pathname, '/v1/items');
     assert.equal(new Headers(headers).get('Authorization'), 'Bearer throwaway-test-token');
-    assert.deepEqual(nativeReadingPolicy(url, method), {binaryLimit: undefined});
-    assert.equal(nativeReadingPolicy(url, 'POST'), undefined);
-    assert.equal(nativeReadingPolicy(origin + at.pathname + '/not-a-series-route', method), undefined);
-    return {status: 200, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(calls === 1 ? {items: [item], nextCursor: cursor} : {items: []})};
+    assert.equal(nativeReadingPolicy(url, method), undefined, 'a list is ordinary JSON, not book bytes');
+    return {status: 200, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(at.searchParams.has('cursor') ? {items: []} : {items: [wire('one')], nextCursor: 'more'})};
   };
   const api = new HttpLocalApi(origin, 'throwaway-test-token', nativeServerFetch('s'));
   const client = api.reading({viewer, isCurrent: () => current});
   try {
-    const page = await client.series('comics', seriesId, {limit: 30});
-    // The official decoder returns null-prototype records; this facade vector
-    // compares every published JSON field rather than the decoder's record prototype.
-    assert.deepEqual(JSON.parse(JSON.stringify(page.items)), [item]);
-    assert.equal(page.nextCursor, cursor);
-    assert.deepEqual((await client.series('comics', seriesId, {limit: 30, cursor: page.nextCursor})).items, []);
-    assert.equal(calls, 2);
+    const discover = await client.discover({libraryId: 'comics', limit: 20, shortReadsLimit: 12});
+    assert.deepEqual(discover.rows.map(row => [row.key, row.items.map(item => item.id), row.nextCursor]), [['recent', ['one'], 'more']]);
+    const series = await client.series('comics', 'itm_series', {limit: 30});
+    assert.deepEqual(series.items.map(item => item.id), ['one']);
+    assert.deepEqual((await client.series('comics', 'itm_series', {limit: 30, cursor: series.nextCursor})).items, []);
+    assert.equal(seen[1].searchParams.get('parent'), 'itm_series'); assert.equal(seen[2].searchParams.get('cursor'), 'more');
     current = false;
-    await assert.rejects(client.series('comics', seriesId, {limit: 30}), error => error instanceof ReadingError && error.code === 'cancelled');
-    assert.equal(calls, 2, 'retired original authority cannot send another series request');
+    await assert.rejects(client.series('comics', 'itm_series', {limit: 30}), error => error instanceof ReadingError && error.code === 'cancelled');
+    assert.equal(seen.length, 3, 'a retired sign-in sends nothing more');
   } finally {client.dispose();}
 });

@@ -1,5 +1,6 @@
 import {validReadingCover} from './reading-cover.ts';
 import {serverPath} from './query/server-api.ts';
+import {rebuiltReadingContinue, rebuiltReadingPage, rebuiltReadingSeries} from './reading-lists-rebuilt.ts';
 import {retryAfterFrom} from './timer.ts';
 import {readingSavedGroupPath, parseReadingSavedGroupMembership, validReadingSavedGroupCommand, type ReadingSavedGroupTarget, type ReadingSavedGroupCommand} from './reading-saved-group.ts';
 import {readingFavoritePath, parseReadingFavorite, validReadingFavoriteCommand, type ReadingFavoriteCommand} from './reading-favorite.ts';
@@ -215,6 +216,8 @@ function validateIssue(value: ReadingPeriodicalIssue, library: string, kind: Rea
 /** The Discover rows that continue on their own. */
 export type ReadingDiscoverRowKey = 'recent' | 'series' | 'short-reads' | 'new-issues';
 const discoverRows: readonly string[] = ['recent', 'series', 'short-reads', 'new-issues'];
+/** Each title's read mark, as Discover's cards show it. */
+const marks = (items: readonly ReadingItem[]): ReadingPreviewMarks => new Map(items.flatMap(item => item.readingMark ? [[item.id, item.readingMark] as const] : []));
 const discoverCursor = (s: string) => typeof s === 'string' && (/^-?[0-9]{1,19}\.[0-9]{1,19}$/.test(s) || seriesCursor(s));
 /** Checks one paged Discover row and returns its issue cards. A row asked for
  * alone is always answered, so it may be empty; in a whole Discover answer only
@@ -620,58 +623,28 @@ export class ReadingClient {
     const state = await this.setState(itemId, {watched: command.read}, signal);
     return Object.freeze({itemId, read: state.watched === true, revision: command.expectedRevision + 1, viewerFence: noFence, operationId: command.operationId});
   }
+  /** The rebuilt server's own routes, read as JSON through this captured sign-in. */
+  #rebuilt = {request: <T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal) => this.json<T>(path, method, body, signal, value => value as T, 4 << 20)};
+  /** A library's titles, by title: every book, comic and comic issue in it. */
   async list(options: Readonly<{libraryId?: string; cursor?: string; limit?: number}> = {}, signal?: AbortSignal): Promise<GetReadingItemsResponse> {
-    if (options.libraryId !== undefined && !id(options.libraryId) || !integer(options.limit ?? 50, 1, 100) || (options.cursor !== undefined && !/^\d{1,20}$/.test(options.cursor))) fail('invalid_request');
-    const out = await this.json(query(routePath('get_reading_items'), options), 'GET', undefined, signal, openRead<GetReadingItemsResponse>('GetReadingItemsResponse'), 256 << 10);
-    if (out.items.length > 100 || out.items.some(row => !id(row.id) || !id(row.sourceId) || !sourceFormat(row.format) || !validReadingCover(row.id, row.coverUrl))) fail('invalid_document');
-    return out;
+    if (options.libraryId !== undefined && !id(options.libraryId) || !integer(options.limit ?? 50, 1, 100)) fail('invalid_request');
+    return rebuiltReadingPage(this.#rebuilt, {libraryId: options.libraryId, cursor: options.cursor, limit: options.limit ?? 50}, signal);
   }
+  /** A Read library's Discover: its recently added titles. The series, short reads, new issues and
+   * newspaper rows have no read on the rebuilt server yet and are not drawn (a stopgap while those
+   * reads are built, not a deferral). */
   async discover(options: Readonly<{libraryId?: string; limit?: number; seriesLimit?: number; shortReadsLimit?: number; newIssuesLimit?: number; newspaperLimit?: number}> = {}, signal?: AbortSignal): Promise<ReadingDiscover & {newIssueCards: readonly ReadingPeriodicalIssue[]; newspaperCard?: ReadingPeriodicalGroup; previewMarks: ReadingPreviewMarks}> {
-    if (options.libraryId !== undefined && !id(options.libraryId) || !integer(options.limit ?? 20, 1, 100) || options.seriesLimit !== undefined && (options.libraryId === undefined || !id(options.libraryId) || !integer(options.seriesLimit,1,20))) fail('invalid_request');
-    if (options.shortReadsLimit !== undefined && (options.libraryId === undefined || !id(options.libraryId) || !integer(options.shortReadsLimit, 1, 20))) fail('invalid_request');
-    if (options.newIssuesLimit !== undefined && (options.libraryId === undefined || !id(options.libraryId) || !integer(options.newIssuesLimit, 1, 20))) fail('invalid_request');
-    if (options.newspaperLimit !== undefined && (options.libraryId === undefined || !id(options.libraryId) || options.newspaperLimit !== 1)) fail('invalid_request');
-    const decoded = await this.json(query(routePath('get_reading_discover'), options), 'GET', undefined, signal,
-      raw => withReadingDiscoverMarks(raw, openRead<GetReadingDiscoverResponse>('GetReadingDiscoverResponse')), 2 << 20), out = decoded.value;
-    if (out.rows.length < 1 || out.rows.length > 5 || out.rows[0].key !== 'recent') fail('invalid_document');
-    validateDiscoverRow(out.rows[0], options.libraryId, options.limit ?? 20);
-    let newspaperCard: ReadingPeriodicalGroup | undefined;
-    let newIssueCards: ReadingPeriodicalIssue[] = [];
-    // Rows keep the server's fixed order; each appears once and only when asked for.
-    const order = ['series', 'short-reads', 'new-issues', 'newspaper'] as const;
-    const limits = {'series': options.seriesLimit, 'short-reads': options.shortReadsLimit, 'new-issues': options.newIssuesLimit, 'newspaper': options.newspaperLimit};
-    let at = 0;
-    for (const row of out.rows.slice(1)) {
-      const index = order.indexOf(row.key as typeof order[number]);
-      const limit = index < 0 ? undefined : limits[order[index]];
-      if (index < at || limit === undefined) fail('invalid_document');
-      at = index + 1;
-      if (row.key === 'newspaper') {
-        if (row.series !== undefined || row.shortReads !== undefined || 'newIssues' in row || row.items.length !== 0 || !('newspaper' in row) || row.nextCursor !== undefined) fail('invalid_document');
-        let group: ReadingPeriodicalGroup;
-        try { group = decodeGetReadingPeriodicalGroupsResponse({libraryId: options.libraryId, publicationType: 'newspaper', groups: [row.newspaper]}).groups[0]; } catch { fail('invalid_document'); }
-        if (!seriesID(group.id) || !group.name.trim() || !integer(group.issueCount, 1, Number.MAX_SAFE_INTEGER)) fail('invalid_document');
-        validateIssue(group.latest, options.libraryId ?? fail('invalid_request'), 'newspaper', group.id);
-        newspaperCard = group;
-        continue;
-      }
-      const cards = validateDiscoverRow(row, options.libraryId, limit);
-      if (row.key === 'new-issues') newIssueCards = cards;
-    }
-    return {...out, newIssueCards, newspaperCard, previewMarks: decoded.marks};
+    if (options.libraryId !== undefined && !id(options.libraryId) || !integer(options.limit ?? 20, 1, 100)) fail('invalid_request');
+    const page = await rebuiltReadingPage(this.#rebuilt, {libraryId: options.libraryId, limit: options.limit ?? 20, sort: 'added'}, signal);
+    return {rows: [{key: 'recent', items: page.items, ...(page.nextCursor ? {nextCursor: page.nextCursor} : {})}], newIssueCards: [], previewMarks: marks(page.items)};
   }
-  /** One Discover row alone: its first page, or its next page from that row's
-   * own `nextCursor`. A page may be shorter than its limit when its entries are
-   * large; a `nextCursor` still means there is more. */
+  /** One Discover row alone, its next page from that row's own `nextCursor`. Only Recently added
+   * has a read on the rebuilt server; any other row is empty. */
   async discoverRow(row: ReadingDiscoverRowKey, options: Readonly<{libraryId?: string; cursor?: string; limit?: number}> = {}, signal?: AbortSignal): Promise<Readonly<{row: ReadingDiscover['rows'][number]; newIssueCards: readonly ReadingPeriodicalIssue[]; previewMarks: ReadingPreviewMarks}>> {
-    const limit = options.limit ?? 20;
-    if (!discoverRows.includes(row) || options.libraryId !== undefined && !id(options.libraryId) || row !== 'recent' && options.libraryId === undefined
-      || !integer(limit, 1, row === 'recent' ? 100 : 20) || options.cursor !== undefined && !discoverCursor(options.cursor)) fail('invalid_request');
-    const decoded = await this.json(query(routePath('get_reading_discover'), {...options, row}), 'GET', undefined, signal,
-      raw => withReadingDiscoverMarks(raw, openRead<GetReadingDiscoverResponse>('GetReadingDiscoverResponse')), 2 << 20), out = decoded.value;
-    if (out.rows.length !== 1 || out.rows[0].key !== row) fail('invalid_document');
-    const newIssueCards = validateDiscoverRow(out.rows[0], options.libraryId, limit, true);
-    return Object.freeze({row: out.rows[0], newIssueCards, previewMarks: decoded.marks});
+    if (!discoverRows.includes(row) || options.libraryId !== undefined && !id(options.libraryId) || !integer(options.limit ?? 20, 1, 100)) fail('invalid_request');
+    if (row !== 'recent') return Object.freeze({row: {key: row, items: []}, newIssueCards: [], previewMarks: new Map()});
+    const page = await rebuiltReadingPage(this.#rebuilt, {libraryId: options.libraryId, cursor: options.cursor, limit: options.limit ?? 20, sort: 'added'}, signal);
+    return Object.freeze({row: {key: 'recent', items: page.items, ...(page.nextCursor ? {nextCursor: page.nextCursor} : {})}, newIssueCards: [], previewMarks: marks(page.items)});
   }
   async periodicalGroups(libraryId: string, publicationType: ReadingPeriodicalType, options: Readonly<{cursor?: string; limit?: number}> = {}, signal?: AbortSignal): Promise<ReadingPeriodicalGroupsPage> {
     const limit = options.limit ?? 24;
@@ -724,40 +697,17 @@ export class ReadingClient {
     }
     return {...out, yearChoices, dayChoices, calendarMonth: options.month};
   }
+  /** A series' volumes, in volume order. */
   async series(libraryId: string, seriesId: string, options: Readonly<{cursor?: string; limit?: number}> = {}, signal?: AbortSignal): Promise<ReadingSeriesPage & {overview?: ReadingSeriesOverview}> {
-    const cursor = options.cursor;
-    if (!id(libraryId) || !/^[A-Za-z0-9_-]{43}$/.test(seriesId) || !integer(options.limit ?? 50, 1, 100) || (cursor !== undefined && !/^[A-Za-z0-9_-]{171}\.[A-Za-z0-9_-]{43}$/.test(cursor))) fail('invalid_request');
-    const out = await this.json(query(routePath('get_reading_series_items', {libraryId, seriesId}), options), 'GET', undefined, signal, value => {
-      const page = openRead<GetReadingSeriesItemsResponse>('GetReadingSeriesItemsResponse')(value);
-      // Older official decoders omit unknown optional fields. Preserve only the
-      // separately checked presenter projection, never an unchecked wire object.
-      const overview = isReadingObject(value) && value.summary !== undefined ? readingSeriesOverview(value.summary, seriesId, page.items.length) : undefined;
-      return {...page, ...(overview ? {overview} : {})};
-    }, 2 << 20);
-    if (out.items.length > (options.limit ?? 50) || (out.nextCursor !== undefined && !/^[A-Za-z0-9_-]{171}\.[A-Za-z0-9_-]{43}$/.test(out.nextCursor))) fail('invalid_document');
-    const seen = new Set<string>();
-    for (const item of out.items) {
-      if (!validReadingCover(item.id, item.coverUrl) || !id(item.id) || item.libraryId !== libraryId || !id(item.sourceId) || !sourceFormat(item.format) || item.series?.id !== seriesId || seen.has(item.id)) fail('invalid_document');
-      seen.add(item.id);
-    }
-    const overview = out.overview;
-    if (overview && out.nextCursor && overview.total <= out.items.length) fail('invalid_document');
-    return {...out, ...(overview ? {overview} : {})};
+    if (!id(libraryId) || !id(seriesId) || !integer(options.limit ?? 50, 1, 100)) fail('invalid_request');
+    return rebuiltReadingSeries(this.#rebuilt, seriesId, {cursor: options.cursor, limit: options.limit ?? 50}, signal) as Promise<ReadingSeriesPage>;
   }
+  /** The titles in progress, most recent first, each with its place: a library's own Continue
+   * reading, or every library's (Home's Continue your books). One row, no further page. */
   async continue(options: Readonly<{libraryId?: string; cursor?: string; limit?: number}> = {}, signal?: AbortSignal): Promise<Omit<GetReadingContinueResponse,'items'> & {items:ReadingContinueItem[]}> {
-    if (options.libraryId !== undefined && !id(options.libraryId) || !integer(options.limit ?? 50, 1, 100) || (options.cursor !== undefined && !/^[A-Za-z0-9_-]{1,128}$/.test(options.cursor))) fail('invalid_request');
-    const out = await this.json(query(routePath('get_reading_continue'), options), 'GET', undefined, signal, raw=>withReadingContinueConversions(raw,openRead<GetReadingContinueResponse>('GetReadingContinueResponse')), 2 << 20);
-    if (out.items.length > (options.limit ?? 50) || (out.nextCursor !== undefined && !/^[A-Za-z0-9_-]{1,128}$/.test(out.nextCursor))) fail('invalid_document');
-    const seen = new Set<string>();
-    for (const {item, progress, conversion} of out.items) {
-      const location = progress.location;
-      if (!validReadingCover(item.id, item.coverUrl) || !id(item.id) || !id(item.libraryId) || !id(item.sourceId) || !sourceFormat(item.format) || seen.has(item.id) || progress.sourceId !== item.sourceId || !revision(progress.sourceRevision) || !integer(progress.revision, 1, Number.MAX_SAFE_INTEGER) || !integer(progress.observedAt, 1, Number.MAX_SAFE_INTEGER) || !engineFormat(location.format) || (!progress.stale && location.format !== item.format && !(convertedSource(item.format)&&location.format==='epub'&&conversion?.revision===progress.sourceRevision)) || !Number.isFinite(location.progression) || location.progression < 0 || location.progression >= 1) fail('invalid_progress');
-      if (location.format === 'epub') {
-        if (location.pageIndex !== undefined || !location.cfi?.startsWith('epubcfi(/') || !location.cfi.endsWith(')') || new TextEncoder().encode(location.cfi).length > 4096 || /[\p{Cc}<>]/u.test(location.cfi) || (location.section !== undefined && !member(location.section))) fail('invalid_progress');
-      } else if (location.cfi !== undefined || location.section !== undefined || !integer(location.pageIndex ?? -1, 0, 2147483647)) fail('invalid_progress');
-      seen.add(item.id);
-    }
-    return out;
+    if (options.libraryId !== undefined && !id(options.libraryId) || !integer(options.limit ?? 50, 1, 100)) fail('invalid_request');
+    if (options.cursor !== undefined) return {items: []};
+    return {items: (await rebuiltReadingContinue(this.#rebuilt, options.libraryId, signal)).slice(0, options.limit ?? 50)};
   }
   /** How to read one version of a book (the server's choice when version is absent). */
   async book(itemId: string, version: string | undefined, signal?: AbortSignal): Promise<BookAnswer> {
