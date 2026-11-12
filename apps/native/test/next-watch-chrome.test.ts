@@ -18,6 +18,9 @@ import * as tvPlayPause from '../src-next/platform/tv-play-pause.ts';
 import {Platform} from 'react-native';
 
 const gesture = () => {const value: Record<string, unknown> = {}; for (const key of ['enabled', 'runOnJS', 'activeOffsetY', 'failOffsetX', 'onEnd']) value[key] = () => value; return value;};
+// The picture's focus request waits for the frame that makes it focusable natively; in this harness that frame is now.
+globalThis.requestAnimationFrame ??= (run: FrameRequestCallback) => {run(0); return 0;};
+globalThis.cancelAnimationFrame ??= () => {};
 const focusRegistry = registryModule.createFocusRegistry();
 let event: (event: {eventType: string; eventKeyAction: number}) => void;
 let isTV = true;
