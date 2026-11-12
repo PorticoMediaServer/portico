@@ -14,7 +14,3 @@
 .offlinePlayer[data-native-video-active='true'] > video { opacity: 0; }
 .offlinePlayer > video { display: block; width: 100%; height: 100%; object-fit: contain; }
 .detailsHeading { margin: 26px 0 -14px; font-size: var(--type-activity-detail-size); font-weight: var(--type-row-heading-weight); color: var(--color-text-tertiary); }
-.toastWrap { position: fixed; z-index: var(--layer-notice); left: 64px; bottom: 28px; max-width: min(520px,calc(100vw - 32px)); }
-@media (max-width: 1023px) {
-  .toastWrap { left: 12px; right: 12px; bottom: 20px; max-width: none; }
-}
