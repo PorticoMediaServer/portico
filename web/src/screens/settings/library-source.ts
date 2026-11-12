@@ -7,6 +7,7 @@ import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {patchLibrarySettingsBinding, readLibrarySettingsBinding, patchLibrarySonicSettingsBinding, readLibrarySonicSettingsBinding} from '@core/presentation/settings-bindings.ts';
 import {randomId} from '@core/random-id.ts';
 import {readLibrarySettings, saveLibrarySettings} from '@core/server-admin/libraries.ts';
+import {notOnThisServer} from '@core/query/server-api.ts';
 import {readLibrarySonic, retryLibrarySonic, saveLibrarySonic, type LibrarySonicDocument} from '@core/server-admin/library-sonic.ts';
 
 
@@ -69,7 +70,10 @@ export class SettingsLibrarySource {
       const sonic = this.offersSonic(document) ? await readLibrarySonic(this.api, libraryId, request.signal) : undefined;
       if (this.owns(request, libraryId)) this.publish({libraryId, document, sonic, loading: false, saving: false});
     }).catch(error => {
-      if (this.owns(request, libraryId)) {this.publish({libraryId, loading: false, saving: false, error});this.reportError(error);}
+      if (!this.owns(request, libraryId)) return;
+      // A library's settings the rebuilt server does not have yet leave their rows out; they never fail the page.
+      if (notOnThisServer(error)) {this.publish({libraryId, loading: false, saving: false});return;}
+      this.publish({libraryId, loading: false, saving: false, error});this.reportError(error);
     }).finally(() => {if (this.request === request) {this.request = undefined;this.pending = undefined;}});
     this.pending = pending;return pending;
   };

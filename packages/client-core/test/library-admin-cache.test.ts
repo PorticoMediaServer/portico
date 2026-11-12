@@ -11,7 +11,8 @@ import {queryKeys} from '../src/query/keys.ts';
 // fences) stay in library-management.test.ts and library-inventory.test.ts.
 const scope = {serverId: 'server', viewerId: 'owner'};
 const fence = (value: string) => ({serverId: 'server', viewerFence: value});
-const library = (id = 'one', name = 'Named library', revision = 1): any => ({id, name, kind: 'movie', revision, source: {path: '/owner/source/' + id, availability: 'unknown', basis: 'not_checked'}, lastScan: null, actions: ['rename', 'scan']});
+// The rebuilt server's library (`AdminLibrary`): the management service maps it to the page's shape.
+const library = (id = 'one', name = 'Named library', revision = 1): any => ({id, name, kind: 'movies', revision: String(revision), folders: [{path: '/owner/source/' + id, available: true, watched: true, scanEveryMinutes: 0}], options: {depth: 'basic', trash: {mode: 'days', days: 30}, allowDelete: false, rescanMinutes: 0}, scanning: false});
 const job = (id = 'job-one', libraryId = 'one'): any => ({id, libraryId, status: 'running', processed: 12, createdAt: '2026-09-05T00:00:00Z', updatedAt: null, finishedAt: null, actions: ['cancel']});
 const config = (viewerFence = 'plain', revision = 1): any => ({scope: fence(viewerFence), libraryId: 'one', revision, sources: [], policy: {tier: 'file_list_only', revision: 1, operations: []}});
 const objects = (viewerFence = 'list', revision = 1, nextCursor = '', sourceId = ''): any => ({scope: fence(viewerFence), libraryId: 'one', sourceId, revision, items: [], nextCursor});
@@ -24,13 +25,13 @@ function server(handler: Handler = () => undefined) {
     const custom = handler(path, method, body);
     if (custom !== undefined) return custom as T;
     const u = new URL(path, 'https://x');
-    if (method !== 'GET') { writes.push(method + ' ' + u.pathname); if (method === 'PATCH') { state.name = (body as any).name; state.revision++; return {scope: fence(state.fence), library: library('one', state.name, state.revision)} as T; } return {id: 'scan-one', processed: 0} as T; }
+    if (method !== 'GET') { writes.push(method + ' ' + u.pathname); if (method === 'PATCH') { state.name = (body as any).name; state.revision++; return library('one', state.name, state.revision) as T; } return {id: 'scan-one', processed: 0} as T; }
     reads.push(u.pathname + u.search);
-    if (u.pathname === '/v1/admin/libraries') return {scope: fence(state.listFence), revision: 1, items: [library()], nextCursor: ''} as T;
+    if (u.pathname === '/v1/admin/libraries') return {items: [library()]} as T;
     if (u.pathname === '/v1/admin/jobs') return {scope: fence(state.listFence), revision: 1, items: [job('job-one', u.searchParams.get('libraryId') ?? 'one')], nextCursor: ''} as T;
     if (u.pathname.endsWith('/inventory-config')) return config(state.fence, state.inventoryRevision) as T;
     if (u.pathname.endsWith('/inventory')) return objects(state.listFence, state.inventoryRevision, u.searchParams.get('cursor') ? '' : state.nextCursor, u.searchParams.get('sourceId') ?? '') as T;
-    return {scope: fence(state.fence), library: library(decodeURIComponent(u.pathname.split('/').at(-1)!), state.name, state.revision)} as T;
+    return library(decodeURIComponent(u.pathname.split('/').at(-1)!), state.name, state.revision) as T;
   }};
   return {api, reads, writes, state};
 }
@@ -52,53 +53,7 @@ const scanned = (libraryId: string, revision: number) => ({id: 'e' + revision, t
 
 // ── No client fence comparison ─────────────────────────────────────────────
 
-test('management: a viewer fence that moved between reads answers and retires nothing', async () => {
-  const s = server(), service = management(s.api);
-  await service.loadLibraries(); await service.selectLibrary('one');
-  s.state.listFence = 'admin-list-fence-2'; s.state.fence = 'plain-2';
-  await service.reconcile();
-  const snap = service.getSnapshot();
-  assert.equal(snap.directory.phase, 'ready'); assert.equal(snap.jobs.phase, 'ready'); assert.equal(snap.selected.phase, 'ready');
-  assert.equal(snap.directory.data?.scope.viewerFence, 'admin-list-fence-2');
-  assert.equal(snap.selected.data?.scope.viewerFence, 'plain-2');
-  assert.ok(snap.directory.data && snap.selected.data && snap.jobs.data, 'nothing was cleared');
-  service.dispose();
-});
-
-test('management: a page continued under a moved viewer fence is the server\'s to refuse, not the client\'s', async () => {
-  let fenceNow = 'one';
-  const s = server((path) => {
-    const u = new URL(path, 'https://x');
-    if (u.pathname === '/v1/admin/libraries') return {scope: fence(fenceNow), revision: 1, items: [library(u.searchParams.get('cursor') ? 'two' : 'one')], nextCursor: u.searchParams.get('cursor') ? '' : 'next'};
-    return undefined;
-  });
-  const service = management(s.api);
-  await service.loadLibraries();
-  fenceNow = 'two';
-  await service.nextLibraries();
-  assert.equal(service.getSnapshot().directory.phase, 'ready');
-  assert.equal(service.getSnapshot().directory.data?.items[0]?.id, 'two');
-  // The server's own refusal of the cursor still reads as "refresh this list".
-  const refused = server((path) => {
-    const u = new URL(path, 'https://x');
-    if (u.pathname !== '/v1/admin/libraries') return undefined;
-    if (u.searchParams.get('cursor')) throw Object.assign(new Error('Changed'), {code: 'stale_continuation', status: 412});
-    return {scope: fence('one'), revision: 1, items: [library()], nextCursor: 'next'};
-  });
-  const again = management(refused.api);
-  await again.loadLibraries(); await again.nextLibraries();
-  assert.equal(again.getSnapshot().directory.phase, 'refresh-required');
-  service.dispose(); again.dispose();
-});
-
-test('management: another server\'s answer or a refused owner still ends the view', async () => {
-  const other = server((path) => { if (new URL(path, 'https://x').pathname === '/v1/admin/jobs') return {scope: {serverId: 'another-server', viewerFence: 'f'}, revision: 1, items: [], nextCursor: ''}; return undefined; });
-  const service = management(other.api);
-  await service.loadLibraries(); await service.selectLibrary('one');
-  assert.equal(service.getSnapshot().jobs.phase, 'error', 'a different server\'s answer is never adopted');
-  assert.equal(service.getSnapshot().jobs.data, null);
-  service.dispose();
-
+test('management: a refused owner ends the view', async () => {
   let denied = false;
   const s = server((path) => { if (denied) throw Object.assign(new Error('Denied'), {status: 403, code: 'forbidden'}); return undefined; });
   const {queries} = cache(s.api);

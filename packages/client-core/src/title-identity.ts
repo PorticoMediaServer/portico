@@ -1,6 +1,7 @@
 import {routeBody} from "../../contracts/src/routes.ts";
 import type {FileInfoActionProof} from './file-info-pages.ts';
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
+import {callServer} from './query/server-api.ts';
 import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
 /** Titles as things in their own right: titles whose files are gone from disk,
  * saying two titles are one, and removing a library. Owner only. These routes
@@ -92,10 +93,21 @@ export async function separateArtist(api:TitleIdentityApi,albumIds:readonly stri
 /** Removes a library. `confirmation` is the library's name typed back; `expectedRevision` its
  * configuration revision. The library disappears at once; the rest happens in the background.
  * Files on disk are not touched and watch state is kept in case its titles return. */
-export async function removeLibrary(api:TitleIdentityApi,libraryId:string,confirmation:string,expectedRevision:number):Promise<void>{
+/** Removes a library on the rebuilt server (`DELETE /v1/admin/libraries/{id}?confirm=`): the server checks the name the owner typed
+ * and removes it in a background job, which this waits for (`GET /v1/jobs/{id}`, up to a minute) so the library list read after it
+ * no longer holds the library. A job that fails is an error. The server keeps no revision of a library to compare. */
+export async function removeLibrary(api:TitleIdentityApi,libraryId:string,confirmation:string,expectedRevision:number,pollMs=500):Promise<void>{
  if(!id(libraryId)||!text(confirmation,200)||!count(expectedRevision))invalid('library to remove');
- const out=await api.request<RouteResponse<"remove_library">>(encodedRoutePath("remove_library", {"id": encodeURIComponent(libraryId)}),'DELETE',routeBody("remove_library", {confirmation,expectedRevision}));
- if(!obj(out)||out.removing!==true)invalid('library removal');
+ let job=await callServer(api,'DELETE /v1/admin/libraries/{id}',{id:libraryId,query:{confirm:confirmation}});
+ if(!obj(job)||!id(job.id))invalid('library removal');
+ const until=Date.now()+60_000,jobId=job.id;
+ while(job.state==='waiting'||job.state==='running'){
+  if(Date.now()>until)return;
+  await new Promise(resolve=>setTimeout(resolve,pollMs));
+  job=await callServer(api,'GET /v1/jobs/{id}',{id:jobId});
+  if(!obj(job))invalid('library removal');
+ }
+ if(job.state==='failed')throw Object.assign(new Error(typeof job.error==='string'&&job.error?job.error:'The library could not be removed.'),{code:'library_removal_failed'});
 }
 
 // ── Merging and splitting ───────────────────────────────────────────────────
