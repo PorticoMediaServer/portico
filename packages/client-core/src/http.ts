@@ -520,7 +520,11 @@ export class HttpLocalApi {
           const sent: Record<string, string> = {};
           new Headers(init.headers).forEach((value, key) => { sent[key] = value; });
           return this.outboxWrite(path, method, typeof init.body === 'string' ? JSON.parse(init.body) : undefined, sent, init.signal ?? undefined)
-            .then(answer => new Response(answer.body === undefined ? null : JSON.stringify(answer.body), {status: answer.status, headers: {...answer.headers, 'Content-Type': 'application/json'}}));
+            .then(answer => {
+              // One content type: the answer's own headers may already name it, in any case.
+              const headers = new Headers(answer.headers); headers.set('Content-Type', 'application/json');
+              return new Response(answer.body === undefined ? null : JSON.stringify(answer.body), {status: answer.status, headers});
+            });
         }
         const headers = new Headers(init.headers);
         headers.delete('Authorization'); if (token) headers.set('Authorization', 'Bearer ' + token);
@@ -630,7 +634,8 @@ export class HttpLocalApi {
       ...(ownerStart || /^\/v1\/(?:auth\/|setup\/|hosted\/(?:attach|profiles\/offline-select))/.test(path)?{redirect:'error' as const,credentials:'omit' as const}:{}),
       headers: {
         Accept: "application/json",
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        // A request that names its own content type (a merge patch, or a JSON one in any case) sends only that.
+        ...(body === undefined || Object.keys(extra ?? {}).some(k => k.toLowerCase() === 'content-type') ? {} : { "Content-Type": "application/json" }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...this.deliveryHeaders(),
         ...(ownerStart || issuesCredentials(path, method) ? installationHeaders() : {}),
