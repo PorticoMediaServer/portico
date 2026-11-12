@@ -185,10 +185,11 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
     },
     /** The server asks for its setup code with the owner's details, not before: the code is kept
      * here until then. The server wrote it to its log and to setup-code.txt in its data folder. */
-    async start(context, code) {
+    async start(context, code, hosted) {
       const p = await pair(context.signal);
-      // The same rule the server and Portico Services apply: a public http address is refused before any request.
-      if (!setupAddressAllowed(p.api.baseUrl)) return {kind: 'addressNotAllowed'};
+      // Portico Accounts: the rule Portico Services applies, a public http address is refused before any request.
+      // Local sign-in is set up over plain http at a home or public address alike (the owner's decision); the setup code is its proof.
+      if (hosted && !setupAddressAllowed(p.api.baseUrl)) return {kind: 'addressNotAllowed'};
       if (!code) return {kind: 'setupCodeRequired'};
       setupCode = code;
       return {kind: 'startDone'};

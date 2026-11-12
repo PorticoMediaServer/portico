@@ -45,7 +45,7 @@ function rig(options: {local?: SetupLocal; reads?: SetupServerRead[]; handlers?:
   };
   const handlers = {...defaults, ...options.handlers};
   const port = (name: string) => (...args: unknown[]) => {
-    calls.push({name, args, context: name === 'navigate' ? undefined : args[args.length - 1] as SetupPortContext});
+    calls.push({name, args, context: name === 'navigate' ? undefined : args.find(arg => typeof arg === 'object' && arg !== null && 'signal' in arg) as SetupPortContext});
     return Promise.resolve().then(() => handlers[name]!(...args));
   };
   const ports = {store, readState: async (context: SetupPortContext) => ({server: await port('readState')(context), local: await store.read()}), start: port('start'), remoteCheck: port('remoteCheck'), initializeHosted: port('initializeHosted'), initializeLocal: port('initializeLocal'),
@@ -649,6 +649,21 @@ test('from outside: start asks for the code, the typed code goes to the start po
   await t.settle();
   assert.deepEqual(codes, [undefined, 'AAAA-AAAA', 'R9TD-3MWK']);
   assert.equal(t.count('initializeHosted'), 1, 'setup carries on after the code');
+});
+
+test('only the Portico Accounts path asks the start port to refuse a public http address; Local sign-in never does', async () => {
+  for (const mode of ['local', 'hosted'] as const) {
+    const hostedFlags: unknown[] = [];
+    const t = rig({handlers: {start: (...args: unknown[]) => {hostedFlags.push(args[2]); return args[1] ? {kind: 'startDone'} : {kind: 'setupCodeRequired'};}}});
+    t.controller.start();
+    await t.settle();
+    if (mode === 'hosted') t.controller.submitHosted('Den', {navigate: false}); else t.controller.submitLocal('Den', 'owner', 'a-long-enough-password');
+    await t.settle();
+    assert.equal(t.kind(), 'code', mode);
+    t.controller.submitCode('R9TD-3MWK');
+    await t.settle();
+    assert.deepEqual(hostedFlags, mode === 'hosted' ? [true, true] : [undefined, undefined], mode);
+  }
 });
 
 test('the lockout warning: Switch to Standard changes the choices initialize sends', async () => {

@@ -150,10 +150,16 @@ const installed = () => ({status: 'in_progress', setup: {variant: 'installed', r
 const lapsed = {kind: 'exchangeRefused', lapsed: true, error: {code: 'setup_attempt_lapsed', retryable: true}};
 const hostedRecord: SetupRecord = {version: 2, serverId: claim.serverId, requestId: REQUEST, setupToken: 'saved-setup-token', tokenAt: 1, name: 'Den', authMode: 'hosted'};
 
-test('a public http address is refused before any setup request', async t => {
+test('a public http address is refused for Portico Accounts before any setup request', async t => {
   const f = await fixture(t, {origin: 'http://8.8.8.8:32500'});
-  assert.deepEqual(await f.ports.start(f.context()), {kind: 'addressNotAllowed'});
+  assert.deepEqual(await f.ports.start(f.context(), undefined, true), {kind: 'addressNotAllowed'});
   assert.deepEqual(f.calls, []);
+});
+
+test('Local sign-in is set up at a public http address too: it asks for the setup code', async t => {
+  const f = await fixture(t, {origin: 'http://8.8.8.8:32500'});
+  assert.deepEqual(await f.ports.start(f.context()), {kind: 'setupCodeRequired'});
+  assert.deepEqual(await f.ports.start(f.context(), 'R9TD-3MWK'), {kind: 'startDone'});
 });
 
 test('the exchange with no attempt is refused and sends nothing', async t => {

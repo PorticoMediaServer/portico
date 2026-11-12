@@ -35,8 +35,8 @@ export type SetupRead = Readonly<{server: SetupServerRead; local: SetupLocal}>;
 export interface SetupPorts {
   readonly store: SetupStore;
   readState(context: SetupPortContext): Promise<SetupRead>;
-  /** S1. */
-  start(context: SetupPortContext, code?: string): Promise<Of<'startDone' | 'notLocalSource' | 'addressNotAllowed' | 'setupInProgress' | 'alreadyComplete' | 'tokenRefused' | 'setupCodeRequired' | 'setupCodeInvalid'>>;
+  /** S1. `hosted` is the Portico Accounts path, the only one a public http address is refused for. */
+  start(context: SetupPortContext, code?: string, hosted?: boolean): Promise<Of<'startDone' | 'notLocalSource' | 'addressNotAllowed' | 'setupInProgress' | 'alreadyComplete' | 'tokenRefused' | 'setupCodeRequired' | 'setupCodeInvalid'>>;
   /** The lockout check (auth.html 1e panel 5): would this address be refused once setup is complete, with these choices. */
   remoteCheck(remote: SetupRemoteChoices | undefined, context: SetupPortContext): Promise<Of<'remoteOk' | 'remoteRefused'>>;
   /** S4. */
@@ -227,7 +227,11 @@ export function createSetupController(ports: SetupPorts, options: SetupControlle
   async function call(effect: SetupEffect, context: SetupPortContext): Promise<SetupInput | undefined> {
     switch (effect.kind) {
       case 'read-state': return readServer(context);
-      case 'start': return written(effect.code ? ports.start(context, effect.code) : ports.start(context));
+      case 'start': {
+        // Local sign-in works at any address the owner reaches the server by; the setup code is its proof.
+        if (view.kind === 'starting' && view.mode === 'hosted') return written(ports.start(context, effect.code, true));
+        return written(effect.code ? ports.start(context, effect.code) : ports.start(context));
+      }
       case 'remote-check': return ports.remoteCheck(remote, context);
       case 'initialize-hosted': return written(ports.initializeHosted(effect.name, remote, context));
       case 'initialize-local': {
