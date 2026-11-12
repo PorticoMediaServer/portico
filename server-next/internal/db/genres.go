@@ -204,13 +204,19 @@ func (d *DB) libraryGenres(ctx context.Context, v Viewer, library string) ([]Gen
 	for _, k := range genreKinds[kind] {
 		kinds = append(kinds, int64(k))
 	}
-	// The posters are of the titles the genre is counted over: a music library's albums.
+	// The posters are of the titles the genre is counted over (a music library's albums), and
+	// as it counts them: a title carrying the genre itself, or one whose artist (its root) does.
 	ofKinds := ""
 	if len(kinds) > 0 {
 		ofKinds = " AND x.kind IN " + intList(kinds)
 	}
 	candidates := fmt.Sprintf(`SELECT x.item_id FROM item_tags x WHERE x.tag_id = t.id AND x.library_id = %d%s LIMIT %d`,
 		libraryID, ofKinds, genreCandidates)
+	if len(kinds) > 0 {
+		candidates = fmt.Sprintf(`SELECT item_id FROM (%s) UNION SELECT item_id FROM (SELECT a.id AS item_id FROM item_tags x
+			CROSS JOIN items a ON a.root_id = x.item_id AND a.kind IN %s WHERE x.tag_id = t.id AND x.library_id = %d LIMIT %d)`,
+			candidates, intList(kinds), libraryID, genreCandidates)
+	}
 	type row struct {
 		Genre
 		posters string
