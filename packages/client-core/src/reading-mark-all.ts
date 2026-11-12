@@ -8,8 +8,10 @@ const identifier = (value: unknown): value is string => typeof value === 'string
 const bad = (): never => {throw new Error('invalid_reading_mark_all');};
 
 /** What a library's "Mark all read" asks of the rebuilt server: how many of its titles are not
- * read yet (GET), and the job that marks every one (POST). */
-export const readingMarkAllView = (libraryId: string) => `library=${encodeURIComponent(libraryId)}&kind=book,comic,issue`;
+ * read yet (GET), and the job that marks every one of those (POST). The job walks the same view
+ * the count read, the unread titles only: a book already read that the person is reading again
+ * keeps its place, and nothing already read is written again. */
+export const readingMarkAllView = (libraryId: string) => `library=${encodeURIComponent(libraryId)}&kind=book,comic,issue&watched=false`;
 export function readingMarkAllPath(method: 'GET' | 'POST', libraryId: string): string | undefined {
   if (!identifier(libraryId)) return undefined;
   return method === 'GET' ? serverPath('GET /v1/items', {query: {library: libraryId, kind: 'book,comic,issue', watched: false, limit: 1, total: true}}) : serverPath('POST /v1/jobs');

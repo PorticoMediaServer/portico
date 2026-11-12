@@ -5,7 +5,7 @@ import {createReadingMarkAllCommand} from '../src/reading-mark-all.ts';
 
 const proof = {serverId: 'server', libraryId: 'library', viewerFence: '', revision: {catalog: 0, viewer: 0}, count: 3};
 const operation = createReadingMarkAllCommand(proof, 'operation');
-const job = {kind: 'set_state', target: {filter: 'library=library&kind=book,comic,issue'}, params: {watched: true}};
+const job = {kind: 'set_state', target: {filter: 'library=library&kind=book,comic,issue&watched=false'}, params: {watched: true}};
 test('Mark all read counts the unread titles, then marks every one with the set_state job and waits for it', async () => {
   const calls: unknown[][] = [], states = ['running', 'done'];
   const api = {async request(...args: unknown[]) {calls.push(args);
