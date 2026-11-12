@@ -1,4 +1,4 @@
-import type {AccountStream, ReceiverItem, ReceiverRequest as WireRequest} from '../../contracts/src/next/api.ts';
+import type {AccountStream, ReceiverItem, ReceiverRequest as WireRequest, Routes} from '../../contracts/src/next/api.ts';
 import {serviceProblem, serviceText} from './presentation/service-text.ts';
 import {serverNow} from './server-clock.ts';
 
@@ -36,7 +36,10 @@ const code = (e: unknown) => {const v = e as {code?: unknown; body?: {code?: unk
 const retired = () => new DOMException('Remote playback retired', 'AbortError');
 const str = (v: unknown) => typeof v === 'string' ? v : '';
 const ms = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : 0;
-const path = (value: string) => encodeURIComponent(value);
+/** A route of the rebuilt server by its registered name, with its placeholders filled in. */
+type Route = keyof Routes;
+const at = (route: Route, params: Readonly<Record<string, string>> = {}) => ({method: route.slice(0, route.indexOf(' ')),
+  path: route.slice(route.indexOf(' ') + 1).replace(/\{([a-zA-Z]+)\}/g, (_, name: string) => encodeURIComponent(params[name] ?? ''))});
 
 /** What another device is playing, as the account's playback list shows it. A title the asking
  * profile may not see has no id or name (rule 30). */
@@ -162,8 +165,9 @@ export class HandoffController {
   private publish(patch: Partial<HandoffSnapshot>) {this.state = Object.freeze({...this.state, ...patch}); this.listeners.forEach(f => f());}
   dispose() {this.cancel(); for (const off of this.off.splice(0)) off(); this.listeners.clear();}
 
-  private async call<T>(guard: RemoteGuard, path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+  private async call<T>(guard: RemoteGuard, route: Route, params?: Readonly<Record<string, string>>, body?: unknown, signal?: AbortSignal): Promise<T> {
     if (!this.isCurrent() || !guard()) throw retired();
+    const {path, method} = at(route, params);
     const value = await this.api.request<T>(path, method, body, signal);
     if (!this.isCurrent() || !guard()) throw retired();
     return value;
@@ -173,7 +177,7 @@ export class HandoffController {
   async refresh(): Promise<void> {
     if (this.state.directoryPhase === 'idle') this.publish({directoryPhase: 'loading'});
     try {
-      const receivers = parseReceivers(await this.call(() => true, '/v1/receivers'));
+      const receivers = parseReceivers(await this.call(() => true, 'GET /v1/receivers'));
       const remote = this.state.receiverPlaybackId ? receivers.find(r => r.playing?.sessionId === this.state.receiverPlaybackId)?.playing : undefined;
       this.publish({receivers, directoryPhase: 'ready', directoryError: undefined, ...(remote ? {remote} : {})});
     } catch (e) {
@@ -203,13 +207,13 @@ export class HandoffController {
         ...(source.audioTrackId ? {audioTrackId: source.audioTrackId} : {}),
         ...(source.subtitleTrackId !== undefined ? {subtitleTrackId: source.subtitleTrackId} : {}),
         ...(source.queueId ? {queueId: source.queueId} : {})};
-      asked = this.asked = parseDeviceRequest(await this.call(guard, `/v1/receivers/${path(target.id)}/requests`, 'POST', {kind: 'play', play, sessionId: source.playbackId}, signal));
+      asked = this.asked = parseDeviceRequest(await this.call(guard, 'POST /v1/receivers/{id}/requests', {id: target.id}, {kind: 'play', play, sessionId: source.playbackId}, signal));
       const deadline = Date.now() + MOVE_LIMIT_MS;
       while (open(asked) && !signal.aborted && Date.now() < deadline) {
         this.publish(asked.state === 'asking' ? {phase: 'asking', message: serviceText('playOn.approveOn', device)} : {phase: 'starting', message: undefined});
         await this.sleeper.sleep(this.events?.getStatus().connected ? Math.max(this.pollMs, 5000) : this.pollMs, signal);
         if (signal.aborted) break;
-        asked = this.asked = parseDeviceRequest(await this.call(guard, `/v1/receivers/${path(target.id)}/requests/${path(asked.id)}`, 'GET', undefined, signal));
+        asked = this.asked = parseDeviceRequest(await this.call(guard, 'GET /v1/receivers/{id}/requests/{requestId}', {id: target.id, requestId: asked.id}, undefined, signal));
       }
       if (signal.aborted || open(asked)) {
         void this.withdraw(target.id, asked);
@@ -237,17 +241,17 @@ export class HandoffController {
     }
   }
   private async withdraw(receiverId: string, asked: DeviceRequest) {
-    try {await this.api.request(`/v1/receivers/${path(receiverId)}/requests/${path(asked.id)}`, 'DELETE');} catch {/* it runs out by itself */}
+    try {await this.api.request(at('DELETE /v1/receivers/{id}/requests/{requestId}', {id: receiverId, requestId: asked.id}).path, 'DELETE');} catch {/* it runs out by itself */}
   }
 
   /** Asks a device to let this one control it, and waits for the answer: at once from a device
    * that remembers this sign-in, else after its person answers. */
   private async askControl(target: PlayOnDevice): Promise<boolean> {
     const signal = new AbortController().signal, deadline = Date.now() + 60_000;
-    let asked = this.asked = parseDeviceRequest(await this.call(this.controlGuard, `/v1/receivers/${path(target.id)}/requests`, 'POST', {kind: 'control'}));
+    let asked = this.asked = parseDeviceRequest(await this.call(this.controlGuard, 'POST /v1/receivers/{id}/requests', {id: target.id}, {kind: 'control'}));
     while (asked.state === 'asking' && Date.now() < deadline) {
       await this.sleeper.sleep(this.pollMs, signal);
-      asked = this.asked = parseDeviceRequest(await this.call(this.controlGuard, `/v1/receivers/${path(target.id)}/requests/${path(asked.id)}`));
+      asked = this.asked = parseDeviceRequest(await this.call(this.controlGuard, 'GET /v1/receivers/{id}/requests/{requestId}', {id: target.id, requestId: asked.id}));
     }
     return asked.state === 'allowed';
   }
@@ -257,7 +261,7 @@ export class HandoffController {
     const id = this.state.receiverPlaybackId;
     if (!id) return false;
     try {
-      const page = await this.call<{items?: unknown[]}>(this.controlGuard, '/v1/playback/sessions');
+      const page = await this.call<{items?: unknown[]}>(this.controlGuard, 'GET /v1/playback/sessions');
       if (this.state.receiverPlaybackId !== id) return false;
       const remote = (page.items ?? []).map(parseRemoteStream).find(s => s?.sessionId === id);
       this.publish({remote: remote ?? (this.state.remote ? Object.freeze({...this.state.remote, state: 'ended' as const}) : undefined)});
@@ -281,16 +285,16 @@ export class HandoffController {
       this.publish({controlling: true, message: undefined});
       try {
         if (!change) {
-          await this.call(this.controlGuard, `/v1/playback/sessions/${path(id)}`, 'DELETE');
+          await this.call(this.controlGuard, 'DELETE /v1/playback/sessions/{id}', {id});
           this.publish({receiverPlaybackId: undefined, remote: undefined, phase: 'idle'});
           return true;
         }
-        try {await this.call(this.controlGuard, `/v1/playback/sessions/${path(id)}`, 'PATCH', change);}
+        try {await this.call(this.controlGuard, 'PATCH /v1/playback/sessions/{id}', {id}, change);}
         catch (e) {
           // The server forgets who may control a device when it restarts; the device remembers,
           // so it is asked once more and answers by itself (rule 42), and the command is sent again.
           if (status(e) !== 403 || code(e) !== 'control_not_allowed' || !this.state.target || !await this.askControl(this.state.target)) throw e;
-          await this.call(this.controlGuard, `/v1/playback/sessions/${path(id)}`, 'PATCH', change);
+          await this.call(this.controlGuard, 'PATCH /v1/playback/sessions/{id}', {id}, change);
         }
         if (this.state.receiverPlaybackId === id) await this.refreshRemote();
         return true;
@@ -358,8 +362,9 @@ export class ReceiverHost {
   getSnapshot = () => this.state;
   subscribe = (fn: () => void) => {this.listeners.add(fn); return () => {this.listeners.delete(fn);};};
   private publish(patch: Partial<ReceiverSnapshot>) {this.state = Object.freeze({...this.state, ...patch}); this.listeners.forEach(f => f());}
-  private async call<T>(signal: AbortSignal, path: string, method?: string, body?: unknown): Promise<T> {
+  private async call<T>(signal: AbortSignal, route: Route, params?: Readonly<Record<string, string>>, body?: unknown): Promise<T> {
     if (signal.aborted || !this.isCurrent()) throw retired();
+    const {path, method} = at(route, params);
     const value = await this.api.request<T>(path, method, body, signal);
     if (signal.aborted || !this.isCurrent()) throw retired();
     return value;
@@ -371,7 +376,7 @@ export class ReceiverHost {
     this.releaseEvents?.(); this.releaseEvents = undefined;
     this.run?.abort(); this.run = undefined;
     this.publish({phase: 'off', asking: undefined});
-    if (was && this.isCurrent()) void this.api.request('/v1/receivers/current', 'DELETE').catch(() => {});
+    if (was && this.isCurrent()) void this.api.request(at('DELETE /v1/receivers/current').path, 'DELETE').catch(() => {});
   }
   dispose() {this.stop(); this.listeners.clear();}
 
@@ -389,7 +394,7 @@ export class ReceiverHost {
       while (!signal.aborted) {
         try {
           if (Date.now() >= this.renewAt) {
-            const opened = await this.call<{renewEveryMs?: number}>(signal, '/v1/receivers/current', 'PUT');
+            const opened = await this.call<{renewEveryMs?: number}>(signal, 'PUT /v1/receivers/current');
             renewEvery = Math.min(Math.max(ms(opened.renewEveryMs) || 60_000, 5000), 120_000);
             this.renewAt = Date.now() + renewEvery;
             if (this.state.phase === 'opening' || this.state.phase === 'error') this.publish({phase: 'waiting', error: undefined});
@@ -435,7 +440,7 @@ export class ReceiverHost {
   private readRequests(signal: AbortSignal): Promise<void> {
     return this.reading ??= (async () => {
       try {
-        const page = await this.call<{items?: unknown[]}>(signal, '/v1/receivers/current/requests');
+        const page = await this.call<{items?: unknown[]}>(signal, 'GET /v1/receivers/current/requests');
         const pending: DeviceRequest[] = [];
         for (const raw of page.items ?? []) {try {pending.push(parseDeviceRequest(raw));} catch {/* a newer shape: skipped */}}
         // The person is asked about one device at a time; one that is no longer asking closes.
@@ -456,7 +461,7 @@ export class ReceiverHost {
     this.publish({asking: undefined});
     if (decision === 'decline') {
       this.handled.add(request.id);
-      try {await this.call(signal, `/v1/receivers/current/requests/${path(request.id)}`, 'PATCH', {answer: 'declined'});} catch {/* it runs out by itself */}
+      try {await this.call(signal, 'PATCH /v1/receivers/current/requests/{requestId}', {requestId: request.id}, {answer: 'declined'});} catch {/* it runs out by itself */}
       this.sleeper.wake();
       return;
     }
@@ -471,7 +476,7 @@ export class ReceiverHost {
     if (this.handled.has(request.id) || request.kind === 'play' && this.taking) return;
     this.handled.add(request.id);
     if (this.handled.size > 64) this.handled.delete(this.handled.values().next().value!);
-    const answer = (body: Readonly<Record<string, unknown>>) => this.call(signal, `/v1/receivers/current/requests/${path(request.id)}`, 'PATCH', body);
+    const answer = (body: Readonly<Record<string, unknown>>) => this.call(signal, 'PATCH /v1/receivers/current/requests/{requestId}', {requestId: request.id}, body);
     try {
       if (request.state === 'asking') await answer({answer: 'allowed'});
       if (request.kind !== 'play' || !request.play) return;
@@ -507,7 +512,7 @@ export class ReceiverHost {
   private async readCommand(signal: AbortSignal) {
     const id = this.player.state().playbackId;
     if (!id) return;
-    const session = await this.call<{id?: string; command?: Record<string, unknown>}>(signal, `/v1/playback/sessions/${path(id)}`);
+    const session = await this.call<{id?: string; command?: Record<string, unknown>}>(signal, 'GET /v1/playback/sessions/{id}', {id});
     const c = session.command;
     if (!c || session.id !== id || this.player.state().playbackId !== id || !str(c.id) || c.id === this.lastCommand) return;
     this.lastCommand = c.id as string;
