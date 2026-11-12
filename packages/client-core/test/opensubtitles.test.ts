@@ -33,6 +33,8 @@ test('the owner is told whether OpenSubtitles is set up, working, or refusing an
  assert.equal(quota.tone,'warning');assert.match(quota.text,/start again at/);assert.equal(quota.downloads,'0 of 20 downloads left today');
  assert.match(say({problem:'provider_rate_limited',retryAt:'2026-10-18T20:00:07Z'}).text,/wait until/);
  assert.equal(say({problem:'provider_unreachable'}).text,t('server.metadata.openSubtitlesUnreachable'));
+ assert.deepEqual(say({keySource:'none',accountSource:'none',account:'none',problem:'provider_key_unreadable'}),{tone:'warning',text:t('server.metadata.openSubtitlesKeyUnreadable')},
+  'a key and account the server can no longer open is said, not shown as never set up');
 });
 
 test('Test connection asks the server, which asks OpenSubtitles',async()=>{
