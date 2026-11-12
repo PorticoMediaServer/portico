@@ -14,7 +14,7 @@ import (
 // start often. The kernel shares the processor fairly between them meanwhile.
 //
 // For x265 the share is its worker pool only: it keeps two frame threads, so its picture is
-// what it was. Hardware encodes are neither counted nor given threads. Background work (prepared versions,
+// what it was. x264 takes at most four, where its picture is still what it was. Hardware encodes are neither counted nor given threads. Background work (prepared versions,
 // analysis) keeps its two threads and low priority.
 const (
 	minEncodeThreads = 2
@@ -23,6 +23,10 @@ const (
 	// and SVT-AV1 little past two; nothing more was found to give. Not measured on the
 	// 16-thread reference machine.
 	maxEncodeThreads = 8
+	// maxX264Threads is x264's own cap: on real film at playback's capped 1080p bitrate it
+	// was within noise of two threads at four and measurably worse at eight (see
+	// BuildConversion).
+	maxX264Threads = 4
 )
 
 var encodes struct {

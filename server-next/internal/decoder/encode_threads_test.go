@@ -55,7 +55,7 @@ func TestTheShareReachesEachSoftwareEncoder(t *testing.T) {
 		want    []string
 	}{
 		{"h264", 8, 0, []string{"-threads 2"}},
-		{"h264", 8, 8, []string{"-threads 8"}},
+		{"h264", 8, 8, []string{"-threads 4"}},
 		{"hevc", 10, 0, []string{"-threads 2", "pools=2:frame-threads=2:"}},
 		{"hevc", 10, 12, []string{"-threads 12", "pools=12:frame-threads=2:"}},
 		{"av1", 10, 0, []string{"-threads 2", "lp=2"}},
