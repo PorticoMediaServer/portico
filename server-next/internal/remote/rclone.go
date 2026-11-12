@@ -208,6 +208,9 @@ func (r *rclone) current(ctx context.Context) (*WebDAV, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := r.checkFolder(ctx, home); err != nil {
+		return nil, err
+	}
 	var name [16]byte
 	rand.Read(name[:])
 	config := filepath.Join(home, hex.EncodeToString(name[:])+".conf")
@@ -217,13 +220,7 @@ func (r *rclone) current(ctx context.Context) (*WebDAV, error) {
 	cmd := exec.Command(RcloneBinary(), "serve", "webdav", "portico:"+r.root, "--read-only", "--addr", "127.0.0.1:0")
 	// Its own process group, killed with the server if the server dies.
 	childprocess.Configure(cmd)
-	cmd.Env = []string{"RCLONE_CONFIG=" + config, "RCLONE_USER=portico", "RCLONE_PASS=" + password, "HOME=" + home, "PATH=" + os.Getenv("PATH")}
-	for key, value := range r.options {
-		if key == "token" {
-			value = r.token()
-		}
-		cmd.Env = append(cmd.Env, "RCLONE_CONFIG_PORTICO_"+strings.ToUpper(key)+"="+value)
-	}
+	cmd.Env = append(r.remoteEnv(config, home), "RCLONE_USER=portico", "RCLONE_PASS="+password)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return nil, err
@@ -292,9 +289,6 @@ var RcloneTokenCheck = time.Minute
 // keepToken hands on a token rclone wrote to its configuration file, if it differs from the
 // one the source started with.
 func (r *rclone) keepToken(config string) {
-	if r.saved == nil {
-		return
-	}
 	raw, err := os.ReadFile(config)
 	if err != nil {
 		return
@@ -302,10 +296,14 @@ func (r *rclone) keepToken(config string) {
 	for _, line := range strings.Split(string(raw), "\n") {
 		key, value, ok := strings.Cut(line, "=")
 		if value = strings.TrimSpace(value); ok && strings.TrimSpace(key) == "token" && value != "" && value != r.token() {
+			// Used from now on in any case, as a provider may have retired the one it replaces;
+			// kept with the source when it is saved.
 			r.tokenMu.Lock()
 			r.latest = value
 			r.tokenMu.Unlock()
-			r.saved(value)
+			if r.saved != nil {
+				r.saved(value)
+			}
 		}
 	}
 }

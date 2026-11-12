@@ -482,7 +482,11 @@ func (s *Server) editRemoteSource(r *http.Request, req RemoteSourceEdit) (Remote
 func (s *Server) testSource(ctx context.Context, kind string, c remote.Config, secret remote.Secret) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	return reachRefusal(remote.Test(ctx, kind, c, secret))
+	err := remote.Test(ctx, kind, c, secret)
+	if errors.Is(err, remote.ErrFolderMissing) {
+		return ErrField(kind+".path", "There is no folder \""+c.Path+"\" on this source. Check its spelling, or leave it empty for the top.")
+	}
+	return reachRefusal(err)
 }
 
 // reach lists a folder of a saved source, which also records how the source was found.
@@ -512,6 +516,8 @@ func reachRefusal(err error) error {
 		// Nothing was asked of the source: the server could not start rclone.
 		return refusal(http.StatusUnprocessableEntity, "rclone_unavailable",
 			"Portico could not start rclone, which it uses to reach this kind of source: reinstall Portico, or point PORTICO_RCLONE at an rclone program.", false)
+	case errors.Is(err, remote.ErrFolderMissing):
+		return refusal(http.StatusUnprocessableEntity, "source_folder_missing", "The source's folder is not on it any more. Check the folder in the source's settings.", false)
 	case errors.Is(err, remote.ErrAddressRefused):
 		return refusal(http.StatusUnprocessableEntity, "source_address_refused", "That address is link-local, where a cloud machine keeps its own sign-in: Portico never reads from one.", false)
 	case errors.Is(err, remote.ErrRedirectInward):
