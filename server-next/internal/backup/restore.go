@@ -350,6 +350,7 @@ func finish(dataDir string) error {
 	}
 	// Pictures and subtitle text are immutable, named by their contents. Add the backup's
 	// files to each store; a move that fails leaves the journal for the next start to retry.
+	touched := map[string]bool{}
 	for _, store := range []string{"artwork", "subtitles"} {
 		root := filepath.Join(pending, store)
 		err := filepath.WalkDir(root, func(path string, e fs.DirEntry, err error) error {
@@ -373,9 +374,15 @@ func finish(dataDir string) error {
 			if err := os.Rename(path, dst); err != nil {
 				return err
 			}
-			return dirsync.Sync(filepath.Dir(dst))
+			touched[filepath.Dir(dst)] = true
+			return nil
 		})
 		if err != nil {
+			return err
+		}
+	}
+	for folder := range touched {
+		if err := dirsync.Sync(folder); err != nil {
 			return err
 		}
 	}
