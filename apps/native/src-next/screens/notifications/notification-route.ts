@@ -28,6 +28,7 @@ export function notificationRoute(action: NotificationAction, hasLiveTV: boolean
     case 'server-people': return {kind: 'server-settings', page: 'people'};
     case 'server-network': return {kind: 'server-settings', page: 'remote'};
     case 'server-storage': return {kind: 'server-settings', page: 'storage'};
+    case 'server-remote-sources': return {kind: 'server-settings', page: 'remote-sources'};
     case 'dashboard': return {kind: 'server-dashboard'};
     case 'person': return {kind: 'person', personId: intent.personId};
     // An item, a reporter's own report, or an in-place command: no route (commands: notificationCommand).

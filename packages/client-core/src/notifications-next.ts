@@ -8,7 +8,7 @@
 import type {Notification as ServerNotification, Notifications} from '../../contracts/src/next/api.ts';
 import {defaultI18n, type MessageId, type MessageValues} from '../../i18n/src/index.ts';
 import {callServer, type ServerRequester} from './query/server-api.ts';
-import type {Notification, NotificationInbox, NotificationSeverity} from './notifications.ts';
+import type {Notification, NotificationAction, NotificationInbox, NotificationSeverity} from './notifications.ts';
 
 export type NoticeView = 'unread' | 'all' | 'archived';
 type Wording = Readonly<{title: MessageId; body?: MessageId; severity: NotificationSeverity}>;
@@ -23,6 +23,23 @@ const wordings: Readonly<Record<string, Wording>> = {
   report_reply: {title: 'notifications.notice.reportReplyTitle', severity: 'info'},
 };
 const other: Wording = {title: 'notifications.notice.otherTitle', severity: 'info'};
+const opaque = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,160}$/.test(value);
+/**
+ * The one way a notice opens what it is about, from its kind and `ref` (the server: "names what it is about, for the
+ * app to open"), the same place the Dashboard's alert opens: Storage & backups for storage and a failed backup, the
+ * Dashboard for an update, Remote sources for a source that can't be reached, and the person's own report for a reply.
+ * A notice with nothing to open (a message) has none.
+ */
+function actionOf(notice: ServerNotification): NotificationAction | undefined {
+  const label = (id: MessageId) => defaultI18n.t(id);
+  switch (notice.kind) {
+    case 'storage_nearly_full': case 'backup_failed': return {kind: 'navigate', label: label('next.dashboard.storage'), target: {view: 'settings-storage'}, arguments: {}};
+    case 'update_available': return {kind: 'navigate', label: label('next.dashboard.title'), target: {view: 'server'}, arguments: {}};
+    case 'remote_unreachable': return {kind: 'navigate', label: label('next.dashboard.remoteSources'), target: {view: 'settings-remote-sources', ...(opaque(notice.ref) ? {entityId: notice.ref} : {})}, arguments: {}};
+    case 'report_reply': return opaque(notice.ref) ? {kind: 'command', label: label('notifications.notice.openReport'), command: 'open-feedback', arguments: {reportId: notice.ref}} : undefined;
+    default: return undefined;
+  }
+}
 const facts = (params: unknown): Record<string, string> => {
   if (!params || typeof params !== 'object' || Array.isArray(params)) return {};
   return Object.fromEntries(Object.entries(params as Record<string, unknown>).filter(([, value]) => typeof value === 'string' || typeof value === 'number').map(([key, value]) => [key, String(value)]).slice(0, 12));
@@ -38,7 +55,7 @@ export function noticeOf(notice: ServerNotification): Notification {
   const body = notice.body?.trim() || (notice.kind === 'remote_unreachable' ? args.problem : notice.kind === 'backup_failed' ? args.reason : '') || (wording.body ? defaultI18n.t(wording.body, values) : '');
   const created = at(notice.createdAt);
   return {id: notice.id, audience: 'profile', severity: wording.severity, source: 'server', category: notice.kind, title: defaultI18n.t(wording.title, values), body: body.slice(0, 2000),
-    arguments: args, actions: [], dedupeKey: '', revision: 1, createdAt: created, updatedAt: created, expiresAt: 0,
+    arguments: {...args, ...(opaque(notice.ref) ? {ref: notice.ref} : {})}, actions: ((action): NotificationAction[] => action ? [action] : [])(actionOf(notice)), dedupeKey: '', revision: 1, createdAt: created, updatedAt: created, expiresAt: 0,
     readAt: notice.read ? created : null, archivedAt: notice.archived ? created : null, read: notice.read, archived: notice.archived, cursor: ''};
 }
 /** One page of a view, in the shape the inbox reads. The server keeps no revision for the inbox, so every page reads 1. */
