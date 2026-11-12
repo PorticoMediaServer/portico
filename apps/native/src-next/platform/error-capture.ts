@@ -1,6 +1,8 @@
+import {appLog, APP_LOG_AGE_MS} from '../../../../packages/client-core/src/app-log';
+import {installNativeAppLog, flushNativeAppLog} from './app-log';
 import {NativeModules} from 'react-native';
 import {NativeQueueStore} from './queue-storage';
-import {diagnosticText, ErrorJournal, fatalRecord, readFatalRecord, type FatalRecord} from './error-journal';
+import {diagnosticText, fatalRecord, readFatalRecord, type FatalRecord, type JournalLevel} from './error-journal';
 
 /**
  * What this app keeps of its own trouble (`error-journal`), wired to the runtime: warnings and
@@ -11,7 +13,13 @@ import {diagnosticText, ErrorJournal, fatalRecord, readFatalRecord, type FatalRe
  * Installed once, as the app starts. It depends on nothing but the runtime, so it is in place
  * before the rest of the app loads.
  */
-export const journal = new ErrorJournal();
+// The older diagnostics view reads this adapter too; there is only one ring, and raw console
+// arguments never enter either a report or persistent storage.
+export const journal = {
+  note(level: JournalLevel, ..._parts: unknown[]) {appLog.write(level === 'warn' ? 'warn' : 'error','app',level === 'fatal' ? 'crash' : level === 'warn' ? 'warning' : 'error');},
+  list() {return appLog.snapshot().split('\n').filter(Boolean).map(line=>{const v=JSON.parse(line);return {at:v.time,level:v.level,text:`${v.area}: ${v.message} ${JSON.stringify(v.facts)}`};});},
+  clear() {appLog.clear();},
+};
 
 const store = new NativeQueueStore();
 const KEY = 'report.fatal:v1';
@@ -25,6 +33,7 @@ let installed = false;
 export function installErrorCapture(): void {
   if (installed) return;
   installed = true;
+  installNativeAppLog();
   try { void Promise.resolve(NativeModules.PorticoCapabilities?.facts?.()).then((facts: {appVersion?: unknown} | null | undefined) => { if (typeof facts?.appVersion === 'string') appVersion = facts.appVersion; }, () => {}); } catch { /* the report says the version is unknown */ }
   for (const level of ['warn', 'error'] as const) {
     const original = console[level];
@@ -45,14 +54,19 @@ export function installErrorCapture(): void {
     const hand = () => { if (handed) return; handed = true; previous?.(error, fatal); };
     const timer = setTimeout(hand, KEEP_MS);
     let record: FatalRecord;
-    try { record = fatalRecord(error, appVersion, Date.now()); } catch { clearTimeout(timer); hand(); return; }
-    void store.change(KEY, () => ({record, value: undefined})).catch(() => {}).finally(() => { clearTimeout(timer); hand(); });
+    try { record = fatalRecord({name: error instanceof TypeError ? 'TypeError' : 'Error', message: '', stack: ''}, appVersion, Date.now()); } catch { clearTimeout(timer); hand(); return; }
+    void Promise.all([flushNativeAppLog(), store.change(KEY, () => ({record, value: undefined})).catch(() => {})]).finally(() => { clearTimeout(timer); hand(); });
   });
 }
 
 /** The error that ended an earlier run, if one is still kept. */
 export function lastCrash(): Promise<FatalRecord | undefined> {
-  return store.change<FatalRecord | undefined>(KEY, raw => ({record: raw, value: readFatalRecord(raw)})).catch(() => undefined);
+  return store.change<FatalRecord | undefined>(KEY, raw => {
+    const kept = readFatalRecord(raw);
+    if (!kept || kept.at < Date.now() - APP_LOG_AGE_MS) return {record: null, value: undefined};
+    const safe = {...kept, message: 'Error', stack: ''};
+    return {record: safe, value: safe};
+  }).catch(() => undefined);
 }
 
 /** Forgets the kept error once it has been sent (only that one: a newer crash is not lost). */
