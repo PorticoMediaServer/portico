@@ -24,13 +24,7 @@ type ListViewJobParams struct {
 	List string `json:"list"`
 }
 
-// listViewMax is the most entries a list is filled to by adding a whole view: area 6 rule 26's
-// playlist of 10,000 entries, which opens, plays and reorders. Titles of the view past it are
-// left out, and the job's note says how many.
-//
 // listViewPage is how many titles of the view one read takes, and one write adds.
-var listViewMax = 10000 // a var only so a test can make it small
-
 const listViewPage = 200
 
 func (s *Server) listViewJobs() {
@@ -91,14 +85,13 @@ func (s *Server) runListViewJob(ctx context.Context, work jobs.Work) error {
 	if v.ProfileID == 0 {
 		return &jobs.Failure{Shown: "This job has no profile to act as."}
 	}
-	l, err := s.db.List(ctx, v, list)
+	_, err = s.db.List(ctx, v, list)
 	if errors.Is(err, db.ErrNotFound) {
 		return &jobs.Failure{Shown: "This list is not there any more."}
 	}
 	if err != nil {
 		return err
 	}
-	room := listViewMax - l.Count
 	q.WithTotal = true
 	var seen, total, added, already int64
 	for page := 0; ; page++ {
@@ -114,7 +107,7 @@ func (s *Server) runListViewJob(ctx context.Context, work jobs.Work) error {
 			total, q.WithTotal = int64(items.Total), false
 		}
 		ids := make([]string, 0, len(items.Items))
-		for _, it := range items.Items[:min(len(items.Items), max(room, 0))] {
+		for _, it := range items.Items {
 			ids = append(ids, it.PublicID)
 		}
 		seen += int64(len(items.Items))
@@ -127,10 +120,10 @@ func (s *Server) runListViewJob(ctx context.Context, work jobs.Work) error {
 				}
 				return &jobs.Failure{Shown: fmt.Sprintf("Adding stopped after %d titles: %s", added, listError(err).Error())}
 			}
-			added, already, room = added+int64(done.Added), already+int64(done.Already), room-done.Added
+			added, already = added+int64(done.Added), already+int64(done.Already)
 		}
 		work.Progress(seen, max(total, seen))
-		if items.NextCursor == "" || room <= 0 || ctx.Err() != nil {
+		if items.NextCursor == "" || ctx.Err() != nil {
 			break
 		}
 		q.Cursor = items.NextCursor
@@ -140,18 +133,15 @@ func (s *Server) runListViewJob(ctx context.Context, work jobs.Work) error {
 	}
 	// The job ends done, and its note is for the person who asked, not only the owner as a
 	// done job's note is: it names no title, only how many.
-	note := listViewNote(added, already, max(total-added-already, 0))
+	note := listViewNote(added, already)
 	return errors.Join(jobs.DoneWith{Note: note}, &jobs.Failure{Shown: note})
 }
 
 // listViewNote says what adding a view did, for the screen to tell the person.
-func listViewNote(added, already, leftOut int64) string {
+func listViewNote(added, already int64) string {
 	note := fmt.Sprintf("Added %d.", added)
 	if already > 0 {
 		note += fmt.Sprintf(" %d were in it already.", already)
-	}
-	if leftOut > 0 {
-		note += fmt.Sprintf(" %d were left out: a list holds at most %d by adding a whole view.", leftOut, listViewMax)
 	}
 	return note
 }

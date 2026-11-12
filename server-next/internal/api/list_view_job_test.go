@@ -14,7 +14,7 @@ import (
 
 // Adding a whole view to a playlist adds exactly the titles the adding profile may see, in
 // the view's own order, and says how many; taken up again after a restart it adds nothing
-// twice; and past what a list holds it adds up to that and says how many were left out.
+// twice.
 func TestAddAWholeViewToAPlaylist(t *testing.T) {
 	s, token, limited := seeded(t)
 	films := get[Libraries](t, s, token, "/v1/libraries").Items[0].ID
@@ -70,18 +70,6 @@ func TestAddAWholeViewToAPlaylist(t *testing.T) {
 		t.Fatalf("taken up again the playlist has %d entries, not %d", n, len(seen.Items))
 	}
 
-	// Past what a list holds: filled to it, and the rest is said.
-	defer func(was int) { listViewMax = was }(listViewMax)
-	listViewMax = 5
-	var small List
-	call(t, s, "POST", "/v1/lists", limited, ListCreate{Kind: db.ListPlaylist, Name: "Five"}, &small)
-	start.Params = JSON(`{"list": "` + small.ID + `"}`)
-	call(t, s, "POST", "/v1/jobs", limited, start, &job)
-	job = waitForJob(t, s, limited, job.ID)
-	if job.State != db.JobDone || !strings.Contains(job.Error, "Added 5.") || !strings.Contains(job.Error, strconv.Itoa(*seen.Total-5)+" were left out") {
-		t.Fatalf("past the cap the job ended %s: %q", job.State, job.Error)
-	}
-
 	// A list the profile may not change is refused before anything is stored.
 	var theirs List
 	call(t, s, "POST", "/v1/lists", token, ListCreate{Kind: db.ListPlaylist, Name: "Not yours"}, &theirs)
@@ -90,4 +78,3 @@ func TestAddAWholeViewToAPlaylist(t *testing.T) {
 		t.Fatalf("adding to someone else's playlist answered %d", code)
 	}
 }
-
