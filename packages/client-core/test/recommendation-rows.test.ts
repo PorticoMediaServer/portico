@@ -103,6 +103,24 @@ test('a title page reads More like this from the server\'s related titles, for a
   assert.deepEqual((await fetchItemRecommendations({request: async <T>() => ({groups: []} as T)}, 'm1')).rows, []);
 });
 
+test('cast, creator and genre groups fill the existing title rows in server order', async () => {
+  const film = (id: string) => ({id, kind: 'movie', title: `Film ${id}`});
+  const api = {request: async <T>() => ({groups: [
+    {relation: 'cast', person: {id: 'p1', name: 'Ada'}, items: [film('self'), film('m2'), film('m2'), film('m3')]},
+    {relation: 'cast', person: {id: 'p2', name: 'Bea'}, items: [film('m4')]},
+    {relation: 'creator', person: {id: 'p3', name: 'Cai'}, items: [film('m5')]},
+    {relation: 'genre', tag: {value: 'g1', label: 'Drama'}, items: [film('m6')]},
+    {relation: 'cast', items: [film('unreadable')]},
+    {relation: 'extra', items: [film('extra')]},
+  ]} as T)};
+  const rows = titleRecommendationRows(await fetchItemRecommendations(api, 'self'));
+  assert.deepEqual(rows.map(row => row.id), ['cast:p1', 'cast:p2', 'creator:p3', 'genre:g1']);
+  assert.deepEqual(rows.map(row => row.relation), ['starring', 'starring', 'creator', 'genre']);
+  assert.deepEqual(rows.map(row => serverTextLabel(defaultI18n, row.titleText, row.title)), ['Starring Ada', 'Starring Bea', 'From Cai', 'Drama']);
+  assert.deepEqual(rows.map(row => row.entries.map(entry => entry.id)), [['m2', 'm3'], ['m4'], ['m5'], ['m6']]);
+  assert.deepEqual((await fetchShowRecommendations(api, 'self', 1)).rows.map(row => row.entries.map(entry => entry.id)), [['m2'], ['m4'], ['m5'], ['m6']]);
+});
+
 test('See all pages the whole row and starts again on a stale cursor', async () => {
   const calls: string[] = [];
   let stale = true;

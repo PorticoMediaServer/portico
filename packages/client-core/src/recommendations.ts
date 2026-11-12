@@ -102,7 +102,7 @@ export function validateShowRecommendations(value: unknown, showId: string): Sho
   return Object.freeze({showId, rows: Object.freeze(rowsFor(value.rows, showId)), revision: revision(value.revision)});
 }
 
-/** A show's page reads the same More like this as a film's: shows are titles on the server. */
+/** A show's page reads the same related groups as a film's: shows are titles on the server. */
 export async function fetchShowRecommendations(api: HomeApi, showId: string, limit?: number, signal?: AbortSignal): Promise<ShowRecommendations> {
   const rows = relatedRows(await callServer(api, 'GET /v1/items/{id}/related', {id: showId, signal}), showId, limit);
   return Object.freeze({showId, rows, revision: unversioned});
@@ -112,7 +112,7 @@ export async function fetchSuggestions(api: HomeApi, limit?: number, signal?: Ab
   return validateSuggestions(await api.request<RouteResponse<"get_suggestions">>(routePath("get_suggestions") + (limit === undefined ? '' : '?limit=' + limit), 'GET', undefined, signal));
 }
 
-/** A title's rows from `GET /v1/items/{id}/related`: its More like this. */
+/** A title's More like this, cast, creator and genre rows from the server's related groups. */
 export async function fetchItemRecommendations(api: HomeApi, itemId: string, limit?: number, signal?: AbortSignal): Promise<ItemRecommendations> {
   return itemRecommendationsFromRelated(await callServer(api, 'GET /v1/items/{id}/related', {id: itemId, signal}), itemId, limit);
 }
@@ -120,23 +120,33 @@ export async function fetchItemRecommendations(api: HomeApi, itemId: string, lim
 /** The server's answer carries no revision; nothing compares one for these rows. */
 const unversioned: HomeRevision = Object.freeze({catalog: 0, viewer: 0});
 
-/**
- * More like this from the server's `more_like_this` group (the titles Portico's title data names
- * as like this one, best first, only those the profile may see), as one row with the relation
- * `moreLikeThisRow` looks for. Other ties the answer carries (extras, a collection's members)
- * belong to other parts of the page. No group, or one with nothing left once the title itself
- * is set aside, is no row. `limit` keeps the first so many.
- */
+/** Map the title-page groups in server order. Other ties (extras, collection members) have their own page sections. */
 function relatedRows(value: Related, self: string, limit?: number): readonly HomeRow[] {
   if (!object(value) || !Array.isArray(value.groups)) invalid();
-  const group = value.groups.find(g => object(g) && g.relation === 'more_like_this');
-  if (!group || !Array.isArray(group.items)) return Object.freeze([]);
-  let entries = firstOfEach('recommendations', 'entries', entriesFromItems(group.items).filter(entry => entry.id !== self), entry => entry.id);
-  if (limit !== undefined && limit >= 0) entries = entries.slice(0, limit);
-  if (!entries.length) return Object.freeze([]);
-  return Object.freeze([Object.freeze({id: 'more_like_this', title: 'More like this', kind: 'more_like_this', relation: 'more_like', artworkShape: 'poster',
-    endpoint: '', privacySensitivity: '', policyState: '', priority: 0, required: false, hideable: false, reorderable: false, critical: false, cursorCapable: false,
-    entries: Object.freeze(entries), start: 0, limit: entries.length, hasMore: false, nextCursor: ''}) as HomeRow]);
+  const rows = keepReadable('recommendations', 'rows', value.groups, (group, priority) => {
+    if (!object(group) || !Array.isArray(group.items)) invalid();
+    let id: string, title: string, relation: string;
+    let titleText: HomeRow['titleText'];
+    if (group.relation === 'more_like_this') {
+      id = 'more_like_this'; title = 'More like this'; relation = 'more_like';
+    } else if (group.relation === 'cast' || group.relation === 'creator') {
+      if (!object(group.person) || !text(group.person.id) || !text(group.person.name)) invalid();
+      id = group.relation + ':' + group.person.id;
+      relation = group.relation === 'cast' ? 'starring' : 'creator';
+      title = (group.relation === 'cast' ? 'Starring ' : 'From ') + group.person.name;
+      titleText = {code: group.relation === 'cast' ? 'home.row.starring' : 'home.row.fromCreator', params: {name: group.person.name}, fallback: title};
+    } else if (group.relation === 'genre') {
+      if (!object(group.tag) || !text(group.tag.value) || !text(group.tag.label)) invalid();
+      id = 'genre:' + group.tag.value; title = group.tag.label; relation = 'genre';
+    } else return undefined;
+    let entries = firstOfEach('recommendations', 'entries', entriesFromItems(group.items).filter(entry => entry.id !== self), entry => entry.id);
+    if (limit !== undefined && limit >= 0) entries = entries.slice(0, limit);
+    if (!entries.length) return undefined;
+    return Object.freeze({id, title, ...(titleText ? {titleText} : {}), kind: group.relation, relation, artworkShape: 'poster' as const,
+      endpoint: '', privacySensitivity: '', policyState: '', priority, required: false, hideable: false, reorderable: false, critical: false, cursorCapable: false,
+      entries: Object.freeze(entries), start: 0, limit: entries.length, hasMore: false, nextCursor: ''});
+  });
+  return Object.freeze(firstOfEach('recommendations', 'rows', rows, row => row.id));
 }
 
 export function itemRecommendationsFromRelated(value: Related, itemId: string, limit?: number): ItemRecommendations {
