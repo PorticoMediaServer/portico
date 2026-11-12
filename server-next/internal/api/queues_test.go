@@ -355,11 +355,14 @@ func TestALongViewRefillsAndAFullQueueRefusesMore(t *testing.T) {
 		t.Fatalf("nine titles on: playing %s with %d held", got, q.Total)
 	}
 	// Shuffle on keeps what is playing and shuffles the rest of the view; off carries on
-	// from what is playing in the view's order.
+	// from what is playing in the view's order. Every title held after the playing one is
+	// compared with the view's own next titles: a shuffle keeps them all in order only by a
+	// chance far too small to meet (three of them alone, once in about 118,000 runs).
 	on, off := true, false
 	th.queue("PATCH", path, "", QueueChange{Shuffle: &on}, &q)
 	rest := th.order(q.ID)
-	if rest[0] != tracks[28] || q.Current.Position != 0 || slices.Contains(rest[1:], tracks[28]) || slices.Equal(rest[1:4], tracks[29:32]) {
+	inViewOrder := len(rest) > 1 && 29+len(rest)-1 <= len(tracks) && slices.Equal(rest[1:], tracks[29:29+len(rest)-1])
+	if rest[0] != tracks[28] || q.Current.Position != 0 || slices.Contains(rest[1:], tracks[28]) || inViewOrder {
 		t.Fatalf("shuffle on in a long view: %+v %v", q, rest)
 	}
 	th.queue("POST", path+"/advance", "", QueueAdvance{Reason: "next"}, &q)
