@@ -1,3 +1,4 @@
+import {fixDataFolderPermissions} from '@core/admin/data-folder.ts';
 import {ownerCertificateRequest} from '@core/owner-requests.ts';
 import type {EventsClient} from '@core/playback-v1/events.ts';
 import type {SessionControls} from '@core/playback-controls.ts';
@@ -61,6 +62,7 @@ export type DashboardBindings = Readonly<{
     openHistory: () => void; openHome: () => void; openSettings: (section: string) => void;
     /** Supplied by the action owner; mutation must retain its existing revision/idempotency guard. */
     retryCertificate?: () => Promise<void>;
+    fixPermissions?: () => Promise<void>;
     reportError: (error: unknown) => void;
   }>;
   artwork: (itemId: string, kind: 'poster' | 'backdrop' | 'square', revision?: string) => ArtworkSource | undefined;
@@ -139,6 +141,7 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
       openHome: () => {assert(); options.effects.openHome();},
       // The owner and administrators may stop a stream (console definition, rule 1).
       stop: async (id, message) => {assert(); await stopServerStream(api, id, message); assert(); options.queries?.moved([dependsOn.event('admin.sessions')]);},
+      fixPermissions: async () => {await ownerRead(() => fixDataFolderPermissions(api, life.signal));},
       retryCertificate: async () => {assert(true); await retryCertificate(certificates, AbortSignal.timeout(15000)); assert(true);},
     },
     dispose: () => {close(); offAuthority?.(); consoleClient.dispose(); listeners.clear();},

@@ -10,10 +10,13 @@ export type ActivityIssueAction = (destination: ActivityIssueDestination) => voi
 type ActivityActions = Pick<ActivityPanelView, 'onDashboard' | 'onRetry'> & {openUpdate: () => void; openIssue: ActivityIssueAction};
 
 /** One glanceable problem: the server's first major alert, in its own order; the Settings page owns the detail. */
-export function activityMajorIssue(alert: ActivitySummaryAlert | undefined, t: typeof defaultI18n.t, openIssue: ActivityIssueAction): ActivityMajorIssueView | undefined {
+export function activityMajorIssue(alert: ActivitySummaryAlert | undefined, t: typeof defaultI18n.t, openIssue: ActivityIssueAction, onDashboard: ActivityPanelView['onDashboard'] = () => {}): ActivityMajorIssueView | undefined {
   if (!alert) return undefined;
   const copy = activityIssueCopy({code: alert.code, subject: alert.params.subject});
-  if (!copy) return undefined;
+  if (alert.code === 'data_folder_readable' || !copy) return {
+    title: alert.code === 'data_folder_readable' ? t('next.dashboard.permissionsAlert') : alert.params.message || t('next.dashboard.unknownAlert'),
+    description: alert.code === 'data_folder_readable' && alert.params.message ? alert.params.message : t('next.dashboard.openAlerts'), onOpen: () => onDashboard(),
+  };
   return {title: t(copy.title, copy.values), description: t(copy.detail), onOpen: () => openIssue({kind: alert.action.kind, target: alert.action.target})};
 }
 
@@ -38,7 +41,7 @@ export function activityView(document: OwnerActivitySummary, _time: TimeEnvironm
   const {t} = defaultI18n;
   // The server sends only its major alerts and update_available, most urgent first (console rule 4).
   const major = document.alerts.find(alert => alert.major), update = document.alerts.find(alert => alert.code === 'update_available' && !!alert.params.latest);
-  const majorIssue = activityMajorIssue(major, t, actions.openIssue);
+  const majorIssue = activityMajorIssue(major, t, actions.openIssue, actions.onDashboard);
   const streams = document.streams, shown = streams.items;
   return {serverName: document.serverName, health: major ? 'attention' : 'normal', streamCount: streams.count, taskCount: document.tasks.count,
     // The rest of Now playing, in the server's own counts: the line under the three streams shown.
