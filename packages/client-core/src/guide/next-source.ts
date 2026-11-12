@@ -10,9 +10,16 @@ import type {GuideSourceSummaries, GuideSourceSummary} from './directory.ts';
 import type {ServerRequester} from '../query/server-api.ts';
 import type {ChannelPage, GuideChannelRow, GuideDataSource, GuideProgram} from './types.ts';
 
+const liveRows = new WeakSet<GuideChannelRow>();
 export function nextChannelRow(channel: LiveChannel): GuideChannelRow {
-  return Object.freeze({id: channel.id, kind: channel.kind === 'library' ? 'library' : 'live', number: channel.number, name: channel.name, group: channel.group ?? '',
+  const row: GuideChannelRow = Object.freeze({id: channel.id, kind: channel.kind === 'library' ? 'library' : 'live', number: channel.number, name: channel.name, group: channel.group ?? '',
     ...(channel.logo ? {logoUrl: channel.logo} : {}), favorite: channel.favorite, tuneAvailable: true, recordAvailable: channel.kind !== 'library', guide: 'full', native: channel});
+  liveRows.add(row);
+  return row;
+}
+/** The new server's channel behind a row made here; none for a row of the old guide. */
+export function liveChannel(row: GuideChannelRow): LiveChannel | undefined {
+  return liveRows.has(row) ? row.native as LiveChannel : undefined;
 }
 export function nextProgram(channelId: string, programme: LiveProgramme): GuideProgram {
   return Object.freeze({id: programme.id, channelId, title: programme.title ?? '', start: Date.parse(programme.startsAt), end: Date.parse(programme.endsAt),

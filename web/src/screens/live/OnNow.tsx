@@ -56,13 +56,13 @@ function CommittedOnNow({owner, now, timezone, artwork, reducedMotion, onOpen, o
       if (pending) return null;pending = true;
       return <div className={styles.nowSlot} style={{left: index * step}} key={index}>{page.failed ? <StateView title={t('guide.tileFailed')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => current.store.retry()}}/> : <Skeleton width={cardWidth} height={204}/>}</div>;
     }
-    const native = legacyChannel(channel);
-    if (!native) return null;
+    // An old-guide channel names its source; a new-server row needs none to draw.
+    const native = legacyChannel(channel), sourceId = native?.sourceId ?? '';
     // This row's witness is the exact object at its index in this On Now store.
     const witness: RowWitness = {row: channel, current: () => owner.life.current() && current.store.channelAt(index) === channel};
     return <div className={styles.nowSlot} style={{left: index * step}} key={index} data-on-now-channel-id={channel.id}>
-      <LiveCard large channel={{id: channel.id, sourceId: native.sourceId, name: channel.name, number: channel.number, favorite: channel.favorite,
-        ...(channel.mark ? {mark: {...channel.mark, sourceId: native.sourceId, id: native.id}} : {})}}
+      <LiveCard large channel={{id: channel.id, sourceId, name: channel.name, number: channel.number, favorite: channel.favorite,
+        ...(channel.mark ? {mark: {...channel.mark, sourceId, id: channel.id}} : {})}}
         logo={artwork.foreground(channel.logoUrl, 68, 1)} programme={onNowProgramme(page.programs, now, defaultI18n, timezone)}
         onNavigate={() => {if (!witness.current()) return;if (channel.tuneAvailable && onPlay) onPlay(channel, witness);else onOpen(channel, page.programs.find(programme => programme.start <= now && now < programme.end), witness);}} onPlay={channel.tuneAvailable && onPlay ? () => onPlay(channel, witness) : undefined}/>
     </div>;

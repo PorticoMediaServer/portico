@@ -92,7 +92,8 @@ export function createSeriesRulesBindings(context: ScreenContext, env: Environme
     const available = sources?.sources.filter(source => source.availableEnd !== ''), ends = available?.map(source => Date.parse(source.availableEnd));
     const end = ends?.length && ends.every(Number.isFinite) ? Math.min(...ends) : undefined;
     return Object.freeze({sourceName: context.identity?.serverName ?? '', fromServer: true,
-      ...(sources ? {channelCount: sources.sources.reduce((total, source) => total + source.channelCount, 0)} : {}),
+      // The channel count is the server's, from its sources list; a server without that list gives none to show.
+      ...(sources?.sources.length ? {channelCount: sources.sources.reduce((total, source) => total + source.channelCount, 0)} : {}),
       ...(end === undefined ? {} : {guideThrough: new Intl.DateTimeFormat(env.locale, {weekday: 'long', timeZone: env.timezone}).format(end - 1)}),
       ...(summary ? {upcomingCount: summary.upcoming, recordedCount: summary.recorded, ruleCount: summary.rules, conflictCount: summary.conflicts} : {}),
       ...(storage ? {storage: Object.freeze({free: Math.round(storage.freeBytes / 1e9), hoursLeft: storage.hoursLeft})} : {}),
@@ -150,7 +151,8 @@ export function createSeriesRulesBindings(context: ScreenContext, env: Environme
         if (serial !== previewSerial || ticket !== generation || entries.get(row.id)?.model !== row) throw cancelled();
         publish({previewLoading: false, preview: Object.freeze({ruleId: row.id, settings: freeze({...settings}), count: result.matches,
           airings: Object.freeze(result.sample.map(programme => airing(programme, rule)))})});
-      } catch (error) {if (current() && serial === previewSerial) publish({previewLoading: false, previewError: error});}
+      // A server with no preview of an edited rule leaves Coming up out; that is no failure to report.
+      } catch (error) {if (current() && serial === previewSerial) publish({previewLoading: false, ...((error as {code?: unknown} | null)?.code === 'not_on_server' ? {} : {previewError: error})});}
       finally {owner.dispose();clients.delete(owner);if (previewClient === owner) previewClient = undefined;}
     }, dispose};
 }

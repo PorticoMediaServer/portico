@@ -2,8 +2,7 @@ import {forwardIdentity} from '../detail/context';
 import {useLayoutEffect, useRef, useState} from 'react';
 import {screenLifetime, type ScreenContext} from '../detail/context';
 import {createRecordingsController, type RecordingsController, type RecordingsView} from './recordings-controller';
-import {TunerController} from '../settings/server-livetv/recording/tuner-controller';
-import {canReadRecordingTuners} from './recording-status-access';
+import type {TunerController} from '../settings/server-livetv/recording/tuner-controller';
 
 
 export type RecordingsLease = {
@@ -39,10 +38,8 @@ export function useRecordingsLease(context: ScreenContext | undefined, view: Rec
     const life = screenLifetime(screen);
     const controller = createRecordingsController({api: life.api, serverId: context.scope.serverId,
       signal: life.signal(), isCurrent: life.current});
-    const tunerCurrent = () => life.current() && canReadRecordingTuners(context.identity, context.scope.serverId);
-    const tuners = view === 'storage' && canReadRecordingTuners(context.identity, context.scope.serverId)
-      ? new TunerController(life.api, context.scope.serverId, tunerCurrent, error => {if (life.current()) context.effects.reportError(error);}) : undefined;
-    const lease: RecordingsLease = {id: crypto.randomUUID(), context, view, attempt, live: true, current, life, controller, tuners};
+    // The owner's tuner list moves to the new server with the owner's Live TV screens; until then Storage leaves it out.
+    const lease: RecordingsLease = {id: crypto.randomUUID(), context, view, attempt, live: true, current, life, controller};
     held = lease;
     publish(lease);
     const load = async () => {
@@ -51,7 +48,7 @@ export function useRecordingsLease(context: ScreenContext | undefined, view: Rec
       if (view === 'recorded') await controller.readGroups('recent');
     };
     void load().catch(() => {});
-    return () => {lease.live = false;tuners?.dispose();controller.dispose();life.dispose();};
+    return () => {lease.live = false;controller.dispose();life.dispose();};
     // routeCurrent is captured by this exact door opening.
   }, [context, view, attempt]);
   return published?.live && published.context === context && published.view === view && published.attempt === attempt && published.current() ? published : undefined;
