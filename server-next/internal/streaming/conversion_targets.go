@@ -85,12 +85,15 @@ func chooseVideoOutput(v *SourceVideo, client ClientProfile, transports []Client
 	// can make it (playback rule 13; the owner's decision of 11 Nov: the chip when it has
 	// the capability, software otherwise, and whether the processor keeps up is not the
 	// server's to decide). So the source's bit depth comes first, without promoting an
-	// 8-bit source, then HEVC, H.264 and AV1, whatever the chip encodes. The chip then makes
-	// the chosen output when it can.
+	// 8-bit source; at the same bit depth an output the chip makes comes first, since its
+	// codec changes nothing else about the picture, then HEVC, H.264 and AV1.
 	sort.SliceStable(ordered, func(i, j int) bool {
 		a, b := ordered[i], ordered[j]
 		if (a.BitDepth == preferredDepth) != (b.BitDepth == preferredDepth) {
 			return a.BitDepth == preferredDepth
+		}
+		if a.Hardware != b.Hardware {
+			return a.Hardware
 		}
 		return codecOrder(a.Codec) < codecOrder(b.Codec)
 	})

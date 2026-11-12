@@ -149,33 +149,40 @@ func TestConversionChoicesForEveryDevice(t *testing.T) {
 	}
 }
 
-// A chip changes only who makes a conversion, never what it makes: for every declared
-// device, source and target, each kind of chip gives the picture that no chip gives (codec,
-// bit depth, range and size), made by the chip where it can. Playback rule 13, and the
-// owner's decision of 11 Nov: the chip when it has the capability, software otherwise, and
-// whether the processor keeps up is not the server's to decide, so nothing about the
-// picture is lowered to keep a conversion quick.
-func TestAChipChangesOnlyWhoMakesTheConversion(t *testing.T) {
+// A chip never lowers a conversion: for every declared device, source and target, each kind
+// of chip gives the bit depth, range and size that no chip gives. The codec is the same, or
+// the chip's own where it makes the picture, since that changes nothing else about it.
+// Playback rule 13, and the owner's decision of 11 Nov: the chip when it has the
+// capability, software otherwise, and whether the processor keeps up is not the server's
+// to decide.
+func TestAChipNeverLowersTheConversion(t *testing.T) {
 	picture := func(c conversionChoice) string {
 		if c.err != nil {
 			return "refused: " + c.err.Error()
 		}
 		p, size := c.plan, ""
 		if p.ConversionTarget != nil {
-			size = fmt.Sprintf("%dx%d", p.ConversionTarget.Width, p.ConversionTarget.Height)
+			// The size of the picture made, not the box it must fit in, which differs by codec.
+			w, h := convertedDimensions(p)
+			size = fmt.Sprintf("%dx%d", w, h)
 		}
-		return fmt.Sprintf("%s %s %d %s %s", p.Mode, p.OutputVideoCodec, p.OutputBitDepth, p.Trace.Video.OutputRange, size)
+		return fmt.Sprintf("%s %d %s %s", p.Mode, p.OutputBitDepth, p.Trace.Video.OutputRange, size)
 	}
 	choices := conversionChoices(t)
-	without := map[string]string{}
+	without := map[string]conversionChoice{}
 	for _, c := range choices {
 		if c.chip == "no-chip" {
-			without[c.device+"|"+c.source+"|"+c.target] = picture(c)
+			without[c.device+"|"+c.source+"|"+c.target] = c
 		}
 	}
 	for _, c := range choices {
-		if want := without[c.device+"|"+c.source+"|"+c.target]; picture(c) != want {
-			t.Errorf("%s, %s at %s, %s: %s; with no chip: %s", c.device, c.source, c.target, c.chip, picture(c), want)
+		plain := without[c.device+"|"+c.source+"|"+c.target]
+		if picture(c) != picture(plain) {
+			t.Errorf("%s, %s at %s, %s: %s; with no chip: %s", c.device, c.source, c.target, c.chip, picture(c), picture(plain))
+		}
+		onChip := c.plan.HardwareBackend != "" && c.plan.HardwareBackend != string(decoder.BackendSoftware)
+		if c.err == nil && c.plan.OutputVideoCodec != plain.plan.OutputVideoCodec && !onChip {
+			t.Errorf("%s, %s at %s, %s: %s in software where no chip gives %s", c.device, c.source, c.target, c.chip, c.plan.OutputVideoCodec, plain.plan.OutputVideoCodec)
 		}
 	}
 }
