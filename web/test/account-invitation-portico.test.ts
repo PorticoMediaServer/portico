@@ -37,7 +37,8 @@ async function fixture(destination: 'adopt' | 'server-origin' = 'adopt',short=fa
   api.request = (async (path, _method, body) => {
     calls.push(path);
     if (path === '/v1/system') return systemAnswer(system);
-    if (path === '/v1/access/invitations/preview') return {allLibraries: false, expiresAt: '2099-01-01T00:00:00Z', inviterUsername: 'owner', libraries: [{name: 'Actual collection'}], libraryCount: 1, role: 'member', serverName: system.name, signInMethod: 'portico', forPorticoAccount: true};
+    // The invitation is read on the server's own route, as a local server's is.
+    if (path.startsWith('/v1/auth/invitations/') && _method === 'GET') return {serverName: system.name, role: 'member', allLibraries: false, libraries: ['Actual collection'], expiresAt: '2099-01-01T00:00:00Z'};
     if (path === '/v1/auth/portico/challenge') return {challenge, serverId, expiresAt: '2099-01-01T00:00:00Z'};
     if (path === '/v1/auth/portico/exchange') {
       const sent = body as {challenge: string; identity: unknown; invitation?: string};
@@ -81,7 +82,8 @@ test('changing the Portico Account while its note is issued sends nothing to the
 });
 for (const short of [false, true]) test(`joining with a Portico Account sends the server\'s challenge, Services\' note and the invitation\'s code${short ? ' (short code)' : ''}`, async () => {
   const f = await fixture('adopt', short); await f.entry.joinPortico(f.account);
-  assert.deepEqual(f.calls.filter(path => path.startsWith('/v1/auth/') || path.startsWith('Services:')), ['/v1/auth/portico/challenge', 'Services:identity', '/v1/auth/portico/exchange']);
+  assert.deepEqual(f.calls.filter(path => path.startsWith('/v1/auth/') || path.startsWith('Services:')), [`/v1/auth/invitations/${short ? '0123-4567-89AB-CDEF' : 'c'.repeat(43)}`, '/v1/auth/portico/challenge', 'Services:identity', '/v1/auth/portico/exchange'],
+    'the invitation is read on the server\'s own route first');
   assert.deepEqual(f.admitted, ['issued-family']); f.entry.dispose();
 });
 test('a note naming another Portico Account is never sent to the server', async () => {

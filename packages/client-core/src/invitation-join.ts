@@ -21,10 +21,10 @@ function invitationCode(capability: InvitationCapability): string {
 /** What the holder of a code sees before joining (`GET /v1/auth/invitations/{code}`): the server's name, the role
  * and the libraries shared. It never names who invited them. Joining the rebuilt server is always with a username
  * and password on that server. A used, ended or unknown code is the server's 404 `invitation_not_found`. */
-export async function previewServerInvitation(api: ProfileAPI, capability: InvitationCapability, signal?: AbortSignal): Promise<PublicInvitation> {
+export async function previewServerInvitation(api: ProfileAPI, capability: InvitationCapability, signal?: AbortSignal, signInMethod: 'local' | 'portico' = 'local'): Promise<PublicInvitation> {
   const raw: InvitationPreview = await callServer(api, 'GET /v1/auth/invitations/{id}', {id: invitationCode(capability), signal});
   return parsePublicInvitation({serverName: raw?.serverName, expiresAt: raw?.expiresAt, role: raw?.role, allLibraries: raw?.allLibraries,
-    libraries: Array.isArray(raw?.libraries) ? raw.libraries.map(name => ({name})) : raw?.libraries, signInMethod: 'local'});
+    libraries: Array.isArray(raw?.libraries) ? raw.libraries.map(name => ({name})) : raw?.libraries, signInMethod});
 }
 
 /** Joins: creates the person's account with the invitation and signs this device in to it

@@ -1,6 +1,5 @@
 import {createHostedDirectoryReadPort} from '@core/query/hosted-directory-source.ts';
-import {previewLocalInvitation, readDirectAccount, readServerSystem, revokeCurrentSession} from '../../../packages/client-core/src/query/connection-operations.ts';
-import {decodePreviewInvitationResponse} from '../../../packages/contracts/src/decoders.ts';
+import {readDirectAccount, readServerSystem, revokeCurrentSession} from '../../../packages/client-core/src/query/connection-operations.ts';
 import {acceptServerInvitation, previewServerInvitation} from '@core/invitation-join.ts';
 import {HttpLocalApi, type HostedServer, type LocalSession} from '@core/index.ts';
 import {serverNow} from '@core/server-clock.ts';
@@ -16,6 +15,7 @@ import type {LocalMoveCustody} from './local-move';
 import {knownServerRoutes, type AppSessionStore, type AppServerSession, type SignInKind} from '@core/app-sessions.ts';
 import {challengeNotProven} from '@core/portico-servers.ts';
 import {porticoServerSignIn} from '@core/portico-server-sign-in.ts';
+import {porticoHandoffUrl} from './portico-handoff';
 import type {JoinLink} from '@core/join-link.ts';
 import {parseShortInvitationCode} from '@core/short-invitation-code.ts';
 import {passwordStrength} from '@core/password-strength.ts';
@@ -340,10 +340,9 @@ export class BrowserAccountEntry {
   if(!api||!state.server||!['password','portico'].includes(state.phase))return;
   const op=this.operation();this.publish({...state,busy:true,error:undefined});
   try{
-   // A local-sign-in server's invitation is read on the rebuilt server's own route; a Portico Account server's
-   // invitation keeps its own route, which the Portico Account linking work moves.
-   const read=state.server.signIn==='local'?await previewServerInvitation(api, capability, op.signal):undefined;
-   const preview:PreviewInvitationResponse=read?{...read,libraries:[...read.libraries],libraryCount:read.libraries.length}:decodePreviewInvitationResponse(await previewLocalInvitation(api, capability, op.signal));
+   // Every invitation is read on the rebuilt server's own route, whichever sign-in the server uses.
+   const read=await previewServerInvitation(api, capability, op.signal, state.server.signIn);
+   const preview:PreviewInvitationResponse={...read,libraries:[...read.libraries],libraryCount:read.libraries.length};
    if(!op.current())return;
    if(preview.signInMethod!==state.server.signIn||!['member','admin'].includes(preview.role))throw new CodedError('invalid_response','The invitation sign-in method changed.');
    this.invitationCapability=capability;this.publish({...state,invitation:preview,busy:false});
@@ -698,6 +697,13 @@ export class BrowserAccountEntry {
   if(server.id!==pin.serverId||server.signIn!=='portico')throw new CodedError('invalid_return',unreadableServerResponse);
   this.api=api;this.registeredChallenge=controller;this.challengeRevision=selection.revision;
   this.publish({phase:'challenge',server,origin:api.baseUrl,pin,busy:false});this.watchAuthority();
+ }
+ /** On a Portico Accounts server's own page, signing in goes on at web.getportico.tv
+  * (`portico-handoff.ts`), with the invitation being joined. */
+ porticoHandoff(hostedOrigin:string,pageOrigin=location.origin){
+  const state=this.state,capability=this.invitationCapability;if(state.server?.signIn!=='portico'||!state.server.id)return;
+  const invitation=state.invitation&&capability?('shortCode' in capability?capability.shortCode:capability.code):undefined;
+  return porticoHandoffUrl({hostedOrigin,serverId:state.server.id,pageOrigin,invitation});
  }
  async preparePorticoSignIn(hostedOrigin:string):Promise<string|undefined>{
   const state=this.state,api=this.api,proof=this.moveProof,ticket=this.moveTicket,moving=state.phase==='move-portico';

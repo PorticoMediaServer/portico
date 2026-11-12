@@ -29,7 +29,7 @@ import {ServerlessAccountMenu} from './ServerlessAccountMenu';
 import {AccountSignInView} from './AccountSignInView';
 import {AccountSignInForm} from './sign-in-form';
 import {resumeAfterProfiles} from './chooser-resume';
-import {ChooserJoin, ChooserLocalAddress, ChooserStart, chooserIntent} from './ChooserStart';
+import {ChooserJoin, ChooserLocalAddress, ChooserStart, chooserIntent, keepHandoffInvitation} from './ChooserStart';
 import {takeCarriedInvitation, type CarriedInvitation} from '../../platform/invitation-carry';
 
 const t = defaultI18n.t;
@@ -43,6 +43,8 @@ const changed = (error: unknown) => error instanceof ApiError && (error.status =
  * address. The browser is never sent to a server's address unless the person presses the one
  * fallback a state offers. */
 export function HostedServersScreen() {
+  // Before anything else, and before a sign-in that would lose it: a server page's invitation.
+  useState(keepHandoffInvitation);
   const signedIn = useSyncExternalStore(porticoAccountHolder.subscribe, porticoAccountHolder.signedIn);
   const [who, setWho] = useState<Account>(), [error, setError] = useState<unknown>(), [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -125,6 +127,8 @@ function BoundServers({who, onEmpty}: {who: Account; onEmpty: () => void}) {
           admit: (server, signal) => admitServer(server, scope.accountId, access, signal)}, !record.selectedServerId);
         setLoaded({flow, saved});
         const asked = opening || linked ? initial.items.find(item => item.id === (opening ?? linked)) : undefined;
+        // A server's own page handed over a server this account can't use: said, never an empty open.
+        if (opening && !asked) {void router.navigate({to: '/link-unavailable', search: {reason: 'access'}, replace: true}); return;}
         if (opening || linked) goTo('/servers', {replace: true});
         if (asked) void flow.open(asked, flow.getSnapshot());
       } catch (failure) {if (current()) setError(failure);}
