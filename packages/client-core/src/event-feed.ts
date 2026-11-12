@@ -39,6 +39,12 @@ export function openBrowserEventFeed(api: Pick<HttpLocalApi, 'routeFetch' | 'bas
   return api.routeFetch(api.baseUrl + routePath('get_events'), {signal, cache: 'no-store', headers: {...headers, Authorization: 'Bearer ' + token()}});
 }
 
+/** The device's feed over a phone or TV's own stream transport: the same route and sign-in as the
+ * browser's, with the token in use at each connect. */
+export function nativeEventStream(open: (path: string, headers: Record<string, string>, signal: AbortSignal) => Promise<Response>, token: () => string): StreamOpener {
+  return eventStreamOpener((headers, signal) => open(routePath('get_events'), {...headers, Authorization: 'Bearer ' + token()}, signal));
+}
+
 export type EventStreamOpenerOptions = Timers & Readonly<{
   /** The longest the first bytes may take once the response has begun. */
   firstByteMs?: number;

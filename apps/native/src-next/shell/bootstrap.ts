@@ -19,7 +19,8 @@ import {createRoleProbe} from './role-probe';
 import {LocalSessionRefresher} from '../../../../packages/client-core/src/session-refresh';
 import {EventsClient} from '../../../../packages/client-core/src/playback-v1/events';
 import {localV1Http} from '../../../../packages/client-core/src/playback-v1/local-http';
-import {runEventFeed} from '../../../../packages/client-core/src/event-feed';
+import {nativeEventStream, runEventFeed} from '../../../../packages/client-core/src/event-feed';
+import {openEventStream} from '../platform/event-stream';
 import {ambientArtworkSource} from '../../../../packages/client-core/src/artwork';
 import {resolveShellMediaUrl} from '../../../../packages/client-core/src/shell-media';
 import type {HttpLocalApi, LocalSession, Library} from '../../../../packages/client-core/src';
@@ -270,7 +271,10 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     markRestore('first-reads');
     // The feed's position before the first reads: what changes while they are on their way is
     // replayed as hints once the feed runs, instead of being missed until the next change.
-    const events = new EventsClient({http: localV1Http(local)});
+    // The rebuilt server's change feed is a stream only (no long poll): it is read on the same
+    // verified connection as every other request, with the token in use at each connect.
+    const events = new EventsClient({http: localV1Http(local), openStream: nativeEventStream((path, headers, streamSignal) => openEventStream(local, path, headers, streamSignal),
+      () => local.getOutboxSession()?.accessToken ?? session?.accessToken ?? '')});
     await events.prime(signal.signal);
     assertCurrent();
     const [librariesResult, initialAccount, initialAvatars, initialPreferences, server] = await Promise.all([
