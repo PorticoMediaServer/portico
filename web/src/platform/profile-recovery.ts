@@ -1,7 +1,7 @@
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import type {DirectSnapshot} from '@core/profile-management.ts';
 import type {PINProviderCode} from '@core/portico-pin-provider.ts';
-import type {Provider} from '@core/portico-account.ts';
+import {ServicesError, type Provider} from '@core/portico-account.ts';
 import type {SignInKind} from '@core/app-sessions.ts';
 import {account, accountSession} from '../services/account-session';
 import {porticoAccountHolder} from './portico-account-holder';
@@ -50,6 +50,7 @@ export class BrowserProfileRecovery {
 
 /** The browser account held for this one recovery attempt. No local recovery calls this. */
 export async function browserPorticoPINProof(): Promise<PorticoPINProofSource> {
+  if (location.origin !== 'https://web.getportico.tv') throw new ServicesError(403, 'portico_account_page_required');
   const signIns = accountSession.signIns(), who = await porticoAccountHolder.who();
   return {accountId: who.id, isCurrent: () => accountSession.signedIn() && accountSession.signIns() === signIns,
     identity: (serverId, challenge, proof, signal) => account.serverPINIdentity(serverId, challenge, proof, signal)};

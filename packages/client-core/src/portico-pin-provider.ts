@@ -28,13 +28,13 @@ export async function providerPINIdentity(client: ReturnType<typeof porticoAccou
     const answer = await client.completePINApple(started.id, proof.idToken, await code(), ports.signal); check();
     return answer;
   }
-  if (!ports.browser) throw new ServicesError(409, 'account_password_required');
+  if (!ports.browser) throw new ServicesError(409, 'provider_unavailable_here');
   const secret = routeBase64(ports.crypto.random(32));
   const digest = routeBase64(await ports.crypto.sha256(new TextEncoder().encode(secret))); check();
   const started = await client.startPINProvider(provider, digest, pin, ports.signal); check();
   const returned = await ports.browser(started.authorizeUrl, started.id); check();
   const proof = parseAccountReturn(returned, started.id, ports.accountOrigin);
-  if (!proof.completionCode) throw new ServicesError(409, 'account_password_required');
+  if (!proof.completionCode) throw new ServicesError(409, 'provider_return_incomplete');
   const answer = await client.completePINProvider(started.id, proof.completionCode, secret, await code(), ports.signal); check();
   return answer;
 }

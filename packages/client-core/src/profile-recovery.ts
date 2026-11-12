@@ -90,7 +90,7 @@ export class ProfileRecoveryController {
   async porticoProvider(provider: Provider, twoStepCode: PINProviderCode = '', source = this.ports.porticoPIN) {
     if (!source?.providerIdentity) {
       if (!this.disposed && this.state.phase === 'portico' && !this.state.busy && this.ports.authorityCurrent())
-        this.publish({phase: 'portico', error: new ServicesError(409, 'account_password_required')});
+        this.publish({phase: 'portico', error: new ServicesError(409, 'provider_unavailable_here')});
       return;
     }
     await this.porticoChecked(source, 'providerChecked', (serverId, challenge, signal) =>
@@ -114,11 +114,11 @@ export class ProfileRecoveryController {
       check();
       const note = envelopePayload<{accountId: string; serverId: string; challenge: string; passwordChecked?: boolean; providerChecked?: boolean}>(answer.identity as {payload: string});
       if (note.accountId !== source.accountId || note.serverId !== asked.serverId || note.challenge !== asked.challenge || note[mark] !== true)
-        throw new CodedError('invalid_response', 'The server sign-in note did not confirm the password.');
+        throw new CodedError('invalid_response', 'The server sign-in note did not confirm the account proof.');
       this.porticoProof = {challenge: asked.challenge, identity: answer.identity, source};
       this.publish({phase: 'pin'});
     } catch (error) {
-      // Keep Services' account_password_required code for the screen's set-password action.
+      // Preserve Services' distinct refusal codes for the screen's next action.
       if (operation.current()) this.publish({phase: 'portico', error});
     }
   }

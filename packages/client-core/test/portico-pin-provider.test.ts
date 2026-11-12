@@ -57,3 +57,21 @@ test('an unrelated return, account change or disposal never spends a provider pr
     assert.equal(f.sent.length, 1, failure); assert.equal(f.adopted(), 0);
   }
 });
+
+
+test('a device without provider interaction reports its own code without starting a flow', async () => {
+  const f = fixture();
+  for (const provider of ['google', 'apple'] as const) {
+    await assert.rejects(providerPINIdentity(f.client, provider, pin, '', {accountOrigin: origin, current: () => true,
+      signal: new AbortController().signal, crypto: webRouteCrypto}), {code: 'provider_unavailable_here'});
+  }
+  assert.equal(f.sent.length, 0);
+});
+
+test('a valid return without a completion code reports its own code and cannot spend a proof', async () => {
+  const f = fixture();
+  await assert.rejects(providerPINIdentity(f.client, 'google', pin, '', {accountOrigin: origin, current: () => true,
+    signal: new AbortController().signal, crypto: webRouteCrypto,
+    browser: async () => 'portico://account-return?transactionId=sso_ada'}), {code: 'provider_return_incomplete'});
+  assert.equal(f.sent.length, 1); assert.equal(f.adopted(), 0);
+});
