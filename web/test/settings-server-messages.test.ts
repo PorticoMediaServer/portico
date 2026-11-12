@@ -121,7 +121,9 @@ test('Record more detail starts for the chosen minutes and ends with 0; Keep mes
   const source = new SettingsMessagesSource({request}, undefined, () => true, undefined, {keeping: true});
   await source.load();
   await source.detail(true);assert.equal(source.getSnapshot().detailUntil, until);
-  await source.detail(true, 120);
+  // The length chosen anywhere (the landing row, the Messages view, the phone) is the one the next start uses.
+  source.chooseLength(120);assert.equal(source.getSnapshot().detailMinutes, 120);
+  await source.detail(true);
   await source.detail(false);assert.equal(source.getSnapshot().detailUntil, undefined);
   await source.keep(7);assert.equal(source.getSnapshot().keepDays, 7);
   assert.deepEqual(writes, [['/v1/admin/logs/detail', 'PUT', {minutes: 30}], ['/v1/admin/logs/detail', 'PUT', {minutes: 120}], ['/v1/admin/logs/detail', 'PUT', {minutes: 0}], ['/v1/admin/settings/logs', 'PUT', {keepDays: 7}]]);

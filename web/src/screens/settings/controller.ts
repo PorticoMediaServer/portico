@@ -3,7 +3,6 @@ import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {troubleshootingParts, troubleshootingRowShown} from './server/troubleshooting/parts';
 import type {QuietRefreshOutcome} from '@core/freshness-actions.ts';
 import type {QuietInput} from './quiet-refresh';
-import {LOG_DETAIL_MINUTES, type LogDetailMinutes} from '@core/server-administration.ts';
 import {ConsoleClient} from '@core/console.ts';
 import {PreferencesReader} from '@core/preferences-reader.ts';
 import {validatePreferencePatch, type PreferencePatch, type PreferenceScope, type PreferenceSnapshot} from '@core/preferences.ts';
@@ -11,7 +10,7 @@ import {searchConfiguration, type SettingsConfiguration} from '@core/settings-co
 import {isSignInPolicyRow, patchSignInPolicy, signInPolicyConflict, signInPolicyValues, signInPolicyWith} from '@core/sign-in-policy.ts';
 import {applySettingsBindingPatch, changedFromDefault, exactPresetValue, presetPatch, readSettingsBinding, settingsBinding, settingsBindingPatch, settingsStorableChoices, type SettingsBindingForm, type SettingsBindingSources, type SettingsBindingValue} from '@core/presentation/settings-bindings.ts';
 import {settingsRowIndex, settingsSpec, type SettingsOption, type SettingsRow, type SettingsSection, type SettingsValue} from '@core/presentation/settings-spec.ts';
-import {runtimeForm, connectivityForm, maintenanceForm, alertsForm, logsForm, type ServerFormDeps} from '@core/server-admin/server-forms.ts';
+import {runtimeForm, connectivityForm, maintenanceForm, alertsForm, type ServerFormDeps} from '@core/server-admin/server-forms.ts';
 import type {DraftForm} from '@core/server-admin/draft-form.ts';
 import {randomId} from '@core/random-id.ts';
 import {defaultI18n} from '@i18n';
@@ -167,7 +166,6 @@ export class SettingsController {
       this.awayLimit = documentForm(ownerAwayLimitForm(deps, options.api));
       this.forms.maintenance = documentForm(maintenanceForm(deps));
       this.forms.alerts = documentForm(alertsForm(deps));
-      this.forms.logs = documentForm(logsForm(deps));
       for (const form of Object.values(this.forms)) this.offForms.push(form.subscribe(() => this.publish({})));
       this.offForms.push(this.awayLimit.subscribe(() => this.publish({})));
     }
@@ -182,11 +180,6 @@ export class SettingsController {
     if (this.current()) this.configuration = configuration;
   };
   getSnapshot = (section: SettingsSection) => this.sectionReads.snapshot(`${section.scope}/${section.id}`);
-  messageDetailMinutes = (): LogDetailMinutes | undefined => {
-    if (!this.current()) return;
-    const value = this.forms.logs?.status()?.logDetailMinutes;
-    return typeof value === 'number' && (LOG_DETAIL_MINUTES as readonly number[]).includes(value) ? value as LogDetailMinutes : undefined;
-  };
   preferencesSnapshot = () => this.current() ? this.preferences : undefined;
   serverHealth = () => this.current() ? this.header.health : undefined;
   serverFacts = () => this.current() ? this.header.facts : [];
@@ -257,7 +250,6 @@ export class SettingsController {
     return binding && readSettingsBinding(binding, this.sources(), row.id);
   }
   rowState = (row: SettingsRow, context?: SettingsContext): SettingPresentation => {
-    if (row.id === 'troubleshooting.detailLength' && this.forms.logs?.status()?.logDetailMinutes === undefined) return {present: false};
     // The PIN asked again guards the main profile's owner and account pages; other profiles have none to guard.
     if (row.id === 'profile.askPin' && !this.options.mainProfile) return {present: false};
     const location = settingsRowIndex.get(row.id);

@@ -20,7 +20,7 @@ test('Messages filters by level with its exact picker opening, Live is a switch,
   const host = hooks();
   let current = true;
   const calls: unknown[] = [];
-  const state: any = {phase: 'ready', level: '', live: true, lines: [{sequence: 1, at: '2026-10-01T12:30:00Z', level: 'warn', message: 'Fixture message', detail: 'library: Films'}]};
+  const state: any = {phase: 'ready', level: '', live: true, detailMinutes: 30, lines: [{sequence: 1, at: '2026-10-01T12:30:00Z', level: 'warn', message: 'Fixture message', detail: 'library: Films'}]};
   const source = {subscribe: () => () => {}, getSnapshot: () => state, load: async () => {calls.push('refresh');}};
   const group = {source, current: () => current, subscribeFailure: () => () => {}, getFailure: () => false, clearFailure() {},
     setLive: (value: boolean) => {calls.push(['live', value]); state.live = value;},

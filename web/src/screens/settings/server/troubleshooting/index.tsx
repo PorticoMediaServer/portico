@@ -41,7 +41,7 @@ export type TroubleshootingSurfacesOptions = Readonly<{
 
 export type TroubleshootingSurfaces = Readonly<{
   /** The drawn Troubleshooting page for the selected server, or nothing when this scope ended. */
-  render: (options?: ReactNode, detailMinutes?: LogDetailMinutes, problems?: ReactNode, advancedSummary?: readonly string[]) => ReactNode;
+  render: (options?: ReactNode, problems?: ReactNode, advancedSummary?: readonly string[]) => ReactNode;
   /** The parts this viewer's tier may use, so the route only builds what it can show. */
   parts: ReadonlySet<TroubleshootingPart>;
   dispose: () => void;
@@ -69,12 +69,11 @@ export type TroubleshootingPageProps = Readonly<{
   /** The parts this viewer's tier may use; the owner's when absent. */
   parts?: ReadonlySet<TroubleshootingPart>;
   options?: ReactNode;
-  detailMinutes?: LogDetailMinutes;
   problems?: ReactNode;
   advancedSummary?: readonly string[];
 }>;
 
-export function TroubleshootingPage({messages, reports, feedback, support, subscribe, isCurrent, downloadBase, reportError, options, detailMinutes, problems, advancedSummary, initialView, parts = OWNER_PARTS}: TroubleshootingPageProps) {
+export function TroubleshootingPage({messages, reports, feedback, support, subscribe, isCurrent, downloadBase, reportError, options, problems, advancedSummary, initialView, parts = OWNER_PARTS}: TroubleshootingPageProps) {
   const stuck = stuckOnly(parts);
   const tabs = TABS.filter(tab => TAB_PARTS[tab.id].some(part => parts.has(part))).map(tab => tab.id === 'reports' && stuck ? {...tab, label: 'next.settings.troubleshootingStuckFiles' as MessageId} : tab);
   const [view, setView] = useState<View | undefined>(initialView && tabs.some(tab => tab.id === initialView) ? initialView : undefined), opener = useRef<View | undefined>(undefined);
@@ -82,7 +81,7 @@ export function TroubleshootingPage({messages, reports, feedback, support, subsc
   useEffect(() => {if (!view && opener.current) openers.current[opener.current]?.focus();}, [view]);
   if (!view) return <div className={styles.landing}>
     <SettingsGroup title={t('next.settingsSpec.server.troubleshooting.groups.0.title')}>
-      {parts.has('detailWindow') && <DetailWindowRow source={messages} detailMinutes={detailMinutes} reportError={reportError}/>}
+      {parts.has('detailWindow') && <DetailWindowRow source={messages} reportError={reportError}/>}
       {parts.has('logSettings') && <KeepMessagesRow source={messages} reportError={reportError}/>}
       {tabs.map(tab => {
         const row = settingsRowIndex.get(`troubleshooting.${tab.id}`)!.row, stuckRow = tab.id === 'reports' && stuck;
@@ -98,7 +97,7 @@ export function TroubleshootingPage({messages, reports, feedback, support, subsc
     <TabsPrimitive.List className={styles.tabs}>{tabs.map(tab => <TabsPrimitive.Trigger key={tab.id} value={tab.id}
       className={styles.tab}>{t(tab.label)}</TabsPrimitive.Trigger>)}</TabsPrimitive.List>
     <TabsPrimitive.Content value={view}>
-    {view === 'messages' ? <MessagesPanel source={messages} detailMinutes={detailMinutes} canDetail={parts.has('detailWindow')} reportError={reportError} />
+    {view === 'messages' ? <MessagesPanel source={messages} canDetail={parts.has('detailWindow')} reportError={reportError} />
       : view === 'feedback' ? <FeedbackPanel source={feedback} subscribe={subscribe} reportError={reportError} />
       : view === 'reports' ? <ReportsPanel source={reports} subscribe={subscribe} isCurrent={isCurrent} downloadBase={downloadBase} reportError={reportError} appLogs={parts.has('reports')} />
         : <SupportPanel source={support} subscribe={subscribe} reportError={reportError} hideExport />}
@@ -108,18 +107,18 @@ export function TroubleshootingPage({messages, reports, feedback, support, subsc
 
 const DETAIL_LENGTH = (minutes: LogDetailMinutes) => `next.settingsSpec.server.troubleshooting.advanced.groups.0.rows.1.control.options.${LOG_DETAIL_MINUTES.indexOf(minutes)}.label` as MessageId;
 
-/** "Record more detail" (console rule 67): for 30 minutes unless another length is chosen here; it switches itself off. */
-function DetailWindowRow({source, detailMinutes, reportError}: {source: SettingsMessagesSource; detailMinutes?: LogDetailMinutes; reportError: (error: unknown) => void}) {
+/** "Record more detail" (console rule 67): for 30 minutes unless another length is chosen; it switches itself off. The
+ *  length is the source's, so starting it from the Messages view uses the same one. */
+function DetailWindowRow({source, reportError}: {source: SettingsMessagesSource; reportError: (error: unknown) => void}) {
   const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot), [now, setNow] = useState(serverNow());
-  const [minutes, setMinutes] = useState<LogDetailMinutes>(detailMinutes ?? 30);
   useEffect(() => {void source.load();const timer = setInterval(() => setNow(serverNow()), 30_000);return () => {clearInterval(timer);source.pause();};}, [source]);
   const until = state.detailUntil, detailed = !!until && Date.parse(until) > now;
   const row = settingsRowIndex.get('troubleshooting.detailWindow')!.row;
   return <SettingsRow label={t(row.label)} help={detailed ? t('settings.server.detailWindow.until', {time: defaultI18n.dateTime(until!)}) : row.help && t(row.help)}>
-    {!detailed && <Select aria-label={t('settings.server.detailWindow.length')} value={String(minutes)} disabled={state.changing}
-      onValueChange={value => {const chosen = Number(value) as LogDetailMinutes; if ((LOG_DETAIL_MINUTES as readonly number[]).includes(chosen)) setMinutes(chosen);}}
+    {!detailed && <Select aria-label={t('settings.server.detailWindow.length')} value={String(state.detailMinutes)} disabled={state.changing}
+      onValueChange={value => {const chosen = Number(value) as LogDetailMinutes; source.chooseLength(chosen);}}
       options={LOG_DETAIL_MINUTES.map(value => ({value: String(value), label: t(DETAIL_LENGTH(value))}))} />}
-    <Button size="small" variant="glass" disabled={state.phase !== 'ready' || state.changing} onClick={() => {void source.detail(!detailed, minutes).catch(reportError);}}>
+    <Button size="small" variant="glass" disabled={state.phase !== 'ready' || state.changing} onClick={() => {void source.detail(!detailed).catch(reportError);}}>
       {t(detailed ? 'settings.server.detailWindow.stop' : 'settings.server.detailWindow.start')}
     </Button>
   </SettingsRow>;
@@ -150,8 +149,8 @@ export function createTroubleshootingSurfaces(options: TroubleshootingSurfacesOp
     return () => {for (const off of offs) off();};
   };
   return {
-    render: (messageOptions, detailMinutes, problems, advancedSummary) => options.isCurrent() ? <TroubleshootingPage messages={messages} reports={reports} feedback={feedback} support={support} subscribe={subscribe} isCurrent={options.isCurrent}
-      downloadBase={options.downloadBase} reportError={options.reportError} options={messageOptions} detailMinutes={detailMinutes} problems={problems} advancedSummary={advancedSummary} parts={parts} /> : undefined,
+    render: (messageOptions, problems, advancedSummary) => options.isCurrent() ? <TroubleshootingPage messages={messages} reports={reports} feedback={feedback} support={support} subscribe={subscribe} isCurrent={options.isCurrent}
+      downloadBase={options.downloadBase} reportError={options.reportError} options={messageOptions} problems={problems} advancedSummary={advancedSummary} parts={parts} /> : undefined,
     parts,
     dispose: () => {messages.dispose();reports.dispose();feedback.dispose();support.dispose();},
   };
