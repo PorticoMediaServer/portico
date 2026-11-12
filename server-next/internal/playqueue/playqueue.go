@@ -118,6 +118,9 @@ type QueueSource struct {
 	// the same titles in the same order from the same entry, without those this profile may
 	// not see.
 	Queue string `json:"queue,omitempty"`
+	// Mix is one of the profile's Mixes for you, by the id GET /v1/music/mixes gives: it plays
+	// like a playlist of its songs.
+	Mix string `json:"mix,omitempty"`
 }
 
 // selection is what a queue too long to hold at once was built from, and how far into it
@@ -175,6 +178,10 @@ type Service struct {
 	db       *db.DB
 	playback *playback.Service
 	now      func() time.Time
+
+	// Mixes gives the songs of one of the profile's mixes, by its id; set by the area that
+	// makes mixes. db.ErrNotFound is a mix the profile does not have now.
+	Mixes func(ctx context.Context, v db.Viewer, id string) ([]string, error)
 
 	mu sync.Mutex
 	// prepared is the next song got ready, by queue id. committed remembers which session a
@@ -347,6 +354,12 @@ func (s *Service) items(ctx context.Context, v db.Viewer, src QueueSource, limit
 	case src.List != "":
 		items, _, err := s.db.ListItems(ctx, v, src.List, 0, limit)
 		return items, err
+	case src.Mix != "" && s.Mixes != nil:
+		songs, err := s.Mixes(ctx, v, src.Mix)
+		if err != nil {
+			return nil, err
+		}
+		return s.db.PlayableItems(ctx, v, songs)
 	case src.View != nil:
 		q, err := src.View.query()
 		if err != nil {

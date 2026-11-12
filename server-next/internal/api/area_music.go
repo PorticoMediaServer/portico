@@ -24,6 +24,7 @@ func (s *Server) startMusic(ctx context.Context) error {
 		return s.soundAnalysisStatus(r, music)
 	})
 	s.goBackground(func() { s.analyseMusic(ctx, music) })
+	s.musicMixRoutes(&musicanalysis.Mixer{DB: s.db, Now: s.now})
 	return nil
 }
 
