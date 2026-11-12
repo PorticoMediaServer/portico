@@ -5,7 +5,6 @@ import {changeNotices,readAllNotices,readNotices,readUnreadNotices,type NoticeCh
 import {randomId} from './random-id.ts';
 import {installationIdentity} from './installation.ts';
 
-const feedbackClientWord=/^[A-Za-z0-9][A-Za-z0-9 ._+-]{0,39}$/;
 /** The viewer's notification inbox and the feedback dialog, as framework-free services shared
  * by the web and Apple clients.
  *
@@ -446,66 +445,4 @@ export class InboxService{
   return audience==='profile'?readUnreadNotices(this.api,signal):0;
  }
 
-}
-
-export type FeedbackDraft={kind:string;category:string;message:string;itemId?:string;playbackSessionId?:string;attachDiagnostics:boolean};
-export type FeedbackSnapshot=Readonly<{
- phase:'loading'|'ready'|'unavailable'|'sending'|'sent';
- capabilities?:FeedbackCapabilities;
- result?:FeedbackSubmissionResult;
- error?:string;
-}>;
-
-/** One feedback dialog's lifetime. The message a person typed is never lost to a failed send:
- * the dialog returns to 'ready' with the error shown and the draft intact (the caller owns it). */
-export class FeedbackService{
- private api:InboxApi;private operationId:()=>string;private online?:()=>boolean|undefined;private attempt='';private attemptClient?:ReturnType<FeedbackService['client']>;
- private state:FeedbackSnapshot=Object.freeze({phase:'loading'});private listeners=new Set<()=>void>();
- /** `online` reports whether the device itself is online, when the platform can tell. */
- constructor(api:InboxApi,operationId:()=>string=()=>randomId(),online?:()=>boolean|undefined){this.api=api;this.operationId=operationId;this.online=online;}
- /** The sending app as triage sees it: its platform, version and online state. */
- private client(){
-  const identity=installationIdentity(),online=this.online?.();
-  if(!identity||!feedbackClientWord.test(identity.platform)||!feedbackClientWord.test(identity.appVersion))return undefined;
-  return {platform:identity.platform,appVersion:identity.appVersion,...(typeof online==='boolean'?{online}:{})};
- }
- getSnapshot=()=>this.state;
- subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
- private publish(next:FeedbackSnapshot){this.state=Object.freeze(next);this.listeners.forEach(f=>f());}
- async open():Promise<void>{
-  this.publish({phase:'loading'});
-  try{
-   const capabilities=parseFeedbackCapabilities(data(await this.api.request<RouteResponse<"get_feedback_capabilities">>(routePath("get_feedback_capabilities"))));
-   this.publish(capabilities.canSubmit?{phase:'ready',capabilities}:{phase:'unavailable',capabilities,error:serviceText('feedback.off')});
-  }catch(e){this.publish({phase:'unavailable',error:message(e,'feedback.unavailable','feedback')});}
- }
- /** Why a draft cannot be sent yet, or '' when it can. */
- problem(draft:FeedbackDraft):string{
-  const c=this.state.capabilities;if(!c)return serviceText('feedback.unavailable');
-  const kind=c.kinds.find(k=>k.id===draft.kind);if(!kind)return serviceText('feedback.chooseKind');
-  if(!kind.categories.some(x=>x.id===draft.category))return serviceText('feedback.chooseCategory');
-  // CD-46: the capability's min/max count Unicode code points (as users count), not UTF-16
-  // units or bytes. The trimmed text measured here is exactly what submit() sends.
-  const length=Array.from(draft.message.trim()).length;
-  if(length<c.minMessageLength)return serviceText('feedback.tooShort',{count:c.minMessageLength});
-  if(length>c.maxMessageLength)return serviceText('feedback.tooLong',{count:c.maxMessageLength});
-  return '';
- }
- async submit(draft:FeedbackDraft):Promise<boolean>{
-  const capabilities=this.state.capabilities;if(!capabilities||this.state.phase==='sending'||this.problem(draft))return false;
-  // One operation id per draft: a retry after a lost response is the same report, not a second.
-  // The sending app's facts are captured with it, so the retry is the same request.
-  if(!this.attempt){this.attempt=this.operationId();this.attemptClient=this.client();}
-  this.publish({phase:'sending',capabilities});
-  try{
-   const category=capabilities.kinds.find(k=>k.id===draft.kind)?.categories.find(c=>c.id===draft.category),client=this.attemptClient;
-   const result=parseFeedbackSubmission(data(await this.api.request<RouteResponse<"post_feedback_reports">>(routePath("post_feedback_reports"),'POST',routeBody("post_feedback_reports", {
-    operationId:this.attempt,kind:draft.kind,category:draft.category,message:draft.message.trim(),
-    itemId:category?.wantsItem?draft.itemId??'':'',playbackSessionId:category?.wantsPlaybackSession?draft.playbackSessionId??'':'',
-    attachDiagnostics:capabilities.diagnosticsSupported&&draft.attachDiagnostics,
-    ...(client?{client}:{}),
-   }))));
-   this.attempt='';this.attemptClient=undefined;this.publish({phase:'sent',capabilities,result});return true;
-  }catch(e){this.publish({phase:'ready',capabilities,error:message(e,'feedback.sendFailed','feedback','save')});return false;}
- }
 }
