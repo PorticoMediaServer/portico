@@ -69,6 +69,7 @@ type upgrade struct {
 // upgrades is every step since the first release, oldest first. The step at position i
 // takes a database from version firstVersion+i to the next. Add at the end only: a step that
 // has been released is never changed, moved or removed, because databases have already run it.
+// The first step must also run RebuildHolderFlags (see holder_flags.go).
 var upgrades = []upgrade{}
 
 // schemaVersion is the version this program makes and reads.
