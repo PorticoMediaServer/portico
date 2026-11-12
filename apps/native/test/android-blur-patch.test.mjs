@@ -90,6 +90,7 @@ test('npm hook preserves both blur patches before the guarded Reader patch', t =
     'node scripts/patch-apple-blur.mjs',
     'node scripts/patch-android-blur.mjs',
     'node scripts/patch-android-reader.mjs',
+    'node scripts/patch-tvos-focus-occlusion.mjs',
   ]);
   const result = spawnSync(process.execPath, [join(scripts, 'patch-android-blur.mjs')], {cwd: scripts, encoding: 'utf8'});
   assert.equal(result.status, 0, result.stderr);

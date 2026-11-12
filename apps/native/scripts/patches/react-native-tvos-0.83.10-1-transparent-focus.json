@@ -1,0 +1,39 @@
+{
+  "package": "react-native",
+  "version": "npm:react-native-tvos@0.83.10-1",
+  "installedName": "react-native-tvos",
+  "installedVersion": "0.83.10-1",
+  "files": [
+    {
+      "path": "React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.mm",
+      "beforeSHA256": "7e8c2e72ce6e4f71b93c5c2f6d453e2c43ddd6257a8540f1ed73117d5c4e8638",
+      "afterSHA256": "ecf7647ac5006339545ed2acd372c29cb93a61905e11891ff0ff9b7755552dce",
+      "replacements": [
+        {
+          "before": "- (BOOL)canBecomeFocused\n{\n  if ([self isTVFocusGuide]) {\n    return NO;\n  }\n  return _props->isTVSelectable;\n}\n",
+          "after": "- (BOOL)canBecomeFocused\n{\n  if ([self isTVFocusGuide]) {\n    return NO;\n  }\n  return _props->isTVSelectable;\n}\n\n#if TARGET_OS_TV\n// Portico: a plain view that cannot take focus itself and either draws no background (an empty, full-screen pass-through\n// layer, such as the app's playback host over its pages) or takes no input (pointerEvents none: a dim or a scrim) is\n// transparent to the focus engine, so the items under it can still be reached. Without this tvOS treats them as covered and\n// offers no move to them at all.\n- (BOOL)isTransparentFocusItem\n{\n  return [self class] == [RCTViewComponentView class] && ![self canBecomeFocused] &&\n      (_props->pointerEvents == PointerEventsMode::None || _backgroundColor == nil || CGColorGetAlpha(_backgroundColor.CGColor) == 0);\n}\n#endif\n"
+        },
+        {
+          "before": "- (void)enableDirectionalFocusGuides\n{\n  if (!self.isFocused) {\n    return;\n  }\n",
+          "after": "// Portico: a nextFocus guide sits this far outside its item. Glued to the item's edge it lay inside an item that grows when\n// focused (and was further off inside scroll views), so the focus engine never used it.\nstatic const CGFloat kPorticoFocusGuideGap = 40.0;\n\n- (void)enableDirectionalFocusGuides\n{\n  if (!self.isFocused) {\n    return;\n  }\n  // Portico: resolve the targets each time this item takes focus. They were looked up once, when the prop changed, which for\n  // a new view is before it is in the window, so the target stayed nil.\n  UIView *porticoRoot = [self containingRootView];\n  if (porticoRoot != nil) {\n    if (_props->nextFocusUp.has_value()) self->_nextFocusUp = [porticoRoot viewWithTag:_props->nextFocusUp.value()];\n    if (_props->nextFocusDown.has_value()) self->_nextFocusDown = [porticoRoot viewWithTag:_props->nextFocusDown.value()];\n    if (_props->nextFocusLeft.has_value()) self->_nextFocusLeft = [porticoRoot viewWithTag:_props->nextFocusLeft.value()];\n    if (_props->nextFocusRight.has_value()) self->_nextFocusRight = [porticoRoot viewWithTag:_props->nextFocusRight.value()];\n  }\n"
+        },
+        {
+          "before": "[self.focusGuideUp.bottomAnchor constraintEqualToAnchor:self.topAnchor].active = YES;",
+          "after": "[self.focusGuideUp.bottomAnchor constraintEqualToAnchor:self.topAnchor constant:-kPorticoFocusGuideGap].active = YES;"
+        },
+        {
+          "before": "[self.focusGuideDown.topAnchor constraintEqualToAnchor:self.bottomAnchor].active = YES;",
+          "after": "[self.focusGuideDown.topAnchor constraintEqualToAnchor:self.bottomAnchor constant:kPorticoFocusGuideGap].active = YES;"
+        },
+        {
+          "before": "[self.focusGuideLeft.rightAnchor constraintEqualToAnchor:self.leftAnchor].active = YES;",
+          "after": "[self.focusGuideLeft.rightAnchor constraintEqualToAnchor:self.leftAnchor constant:-kPorticoFocusGuideGap].active = YES;"
+        },
+        {
+          "before": "[self.focusGuideRight.leftAnchor constraintEqualToAnchor:self.rightAnchor].active = YES;",
+          "after": "[self.focusGuideRight.leftAnchor constraintEqualToAnchor:self.rightAnchor constant:kPorticoFocusGuideGap].active = YES;"
+        }
+      ]
+    }
+  ]
+}

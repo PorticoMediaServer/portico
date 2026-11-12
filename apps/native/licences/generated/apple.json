@@ -725,7 +725,7 @@
   "apps/native/licences/js-ios.txt": "732323d1c53c215e1d701efa1f189714495842dc6fd21b156ee672ce99f4e5e2",
   "apps/native/licences/native-npm.json": "1ff9df1da7e45d202989911471fdee98917cfd573be5c1f7ac84ab3cc95d826a",
   "apps/native/package-lock.json": "f46ef2ae844d7fc50db35bd24f092057021d775d9023be65cfc9e1d3c26e6e55",
-  "apps/native/tvos/Podfile.lock": "ee61f31ec69ce6616fedc3a8d93edf3660181e7d13183592bc95e74bc1e3cba8",
+  "apps/native/tvos/Podfile.lock": "a5e7523b3b5d26bcc8fe2af690fb639fd075f08df6879a90826f6c001eede9fa",
   "LICENSE": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
   "packages/design/LICENSE-LUCIDE": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57",
   "third_party/apple-subtitles/jellyfin-ffmpeg.source.lock.json": "f1f5d7cd05ae46e4d4ef25132fe4eb889f5dd7e0a03b84359f5df27c6adcdab5",

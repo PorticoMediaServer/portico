@@ -347,10 +347,10 @@ test('the real rail declares current-page entry and semantic Right return; nativ
   const nativeCard = {requestTVFocus() {throw new Error('Right must stay native, with no application focus request');}};
   registry.configure({id: returnTo.regionId, entry: 'first-card', order: ['first-card', returnTo.childId]});
   registry.attach(returnTo, nativeCard);
-  const theme = createTheme({isTV: true, width: 1920});
+  const theme = createTheme({isTV: true, width: 1920}), platform = {OS: 'android'};
   let subscribeReturn!: (listener: () => void) => () => void;
   const {TVRail} = await screenModule(new URL('../src-next/shell/TVRail.tsx', import.meta.url), {
-    react: {...h.react, useSyncExternalStore: (subscribe: typeof subscribeReturn, get: () => unknown) => {subscribeReturn = subscribe; return get();}}, '@portico/design': {motionRules}, 'react-native': {Image: 'Image', ScrollView: 'ScrollView', Text: 'Text', View: 'View', findNodeHandle: (host: unknown) => host === nativeCard ? 719 : 720},
+    react: {...h.react, useSyncExternalStore: (subscribe: typeof subscribeReturn, get: () => unknown) => {subscribeReturn = subscribe; return get();}}, '@portico/design': {motionRules}, 'react-native': {Image: 'Image', Platform: platform, ScrollView: 'ScrollView', Text: 'Text', View: 'View', findNodeHandle: (host: unknown) => host === nativeCard ? 719 : 720},
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'Gradient', Rect: 'Rect', Stop: 'Stop', Path: 'Path'},
     'react-native-reanimated': {default: {View: 'AnimatedView', Text: 'AnimatedText'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: (value: number) => ({value}), withTiming: (value: unknown) => value, withDelay: (_delay: unknown, value: unknown) => value},
     '../../../../packages/i18n/src': {defaultI18n}, '../kit/controls': {Focusable: 'Focusable'},
@@ -366,6 +366,18 @@ test('the real rail declares current-page entry and semantic Right return; nativ
   assert.equal(region.props.entry, 'home'); assert.equal(region.props.entryPolicy, 'entry');
   assert.equal(region.props.orientation, 'vertical');
   assert.equal(region.props.edges.right, ids.row('continue'));
+  // Apple TV enters the closed rail by geometry, on whichever item is level with the page's focus: entering from the page
+  // goes on to the current page's item, as Android TV's nextFocusLeft does. Android asks nothing.
+  const asked: string[] = [], focusRegion = registry.focusRegion;
+  registry.focusRegion = (id: string) => {asked.push(id); return true;};
+  try {
+    region.props.onFocusChange(true); region.props.onFocusChange(false);
+    assert.deepEqual(asked, [], 'Android TV enters by nextFocusLeft and is not redirected');
+    platform.OS = 'ios';
+    region.props.onFocusChange(true); region.props.onFocusChange(true);
+    assert.deepEqual(asked, [ids.rail], 'Apple TV: entering the rail from the page goes to its entry, once');
+  } finally {region.props.onFocusChange(false); registry.focusRegion = focusRegion; platform.OS = 'android';}
+  changes.length = 0;
   const search = nodes(tree).find(node => node.type === 'Focusable' && node.props.focusId === 'search');
   const controls = (value: unknown) => nodes(value).filter(node => node.type === 'Focusable');
   assert.ok(controls(tree).every(node => node.props.nextFocusRight === 719), 'all rail entries, including Profile, target the exact live card rather than its region entry');

@@ -5,6 +5,8 @@ ENV['PORTICO_APPLE_TARGET'] = 'tvos'
 # Apply/verify the pinned public-API blur source before autolink/codegen reads it.
 # Also runs when npm lifecycle scripts were skipped; errors abort Pod setup.
 Pod::Executable.execute_command('node', [File.expand_path('../scripts/patch-apple-blur.mjs', __dir__)])
+# tvOS: a plain view with no background is transparent to focus (scripts/patch-tvos-focus-occlusion.mjs).
+Pod::Executable.execute_command('node', [File.expand_path('../scripts/patch-tvos-focus-occlusion.mjs', __dir__)])
 
 # Resolve react_native_pods.rb with node to allow for hoisting
 require Pod::Executable.execute_command('node', ['-p',
