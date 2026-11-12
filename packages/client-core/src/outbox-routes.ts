@@ -24,7 +24,8 @@ const itemState = {kind: 'personal' as OutboxKind, method: 'PUT', parts: itemSta
 const settingsRoute: keyof Routes = 'PATCH /v1/preferences';
 const settings = {kind: 'settings' as OutboxKind, method: 'PATCH', parts: settingsRoute.slice(settingsRoute.indexOf(' ') + 1).split('/')};
 const downloadRoutes = (['POST /v1/downloads', 'DELETE /v1/downloads/{id}', 'DELETE /v1/downloads/{id}/items/{itemId}'] as const).map(route => ({kind: 'download' as OutboxKind, method: route.slice(0, route.indexOf(' ')), parts: route.slice(route.indexOf(' ') + 1).split('/')}));
-const playRoute = {kind: 'personal' as OutboxKind, method: 'POST', parts: '/v1/items/state:batch'.split('/')};
+const playRouteName: keyof Routes = 'POST /v1/items/state:batch';
+const playRoute = {kind: 'personal' as OutboxKind, method: 'POST', parts: playRouteName.slice(playRouteName.indexOf(' ') + 1).split('/')};
 const outboxRoutes = [itemState, settings, playRoute, ...downloadRoutes, ...routes.filter(route => kindOf.has(route.id)).map(route => ({kind: kindOf.get(route.id)!, method: route.method, parts: route.path.split('/')}))];
 if (outboxRoutes.length !== kindOf.size + 3 + downloadRoutes.length) throw new Error('An outbox route is missing from the generated routes.');
 
@@ -49,7 +50,7 @@ export const isOutboxRoute = (path: string, method: string): boolean => outboxKi
  */
 export function outboxBody(entry: Readonly<{path: string; method: string; body?: unknown; createdAt: number}>, now: number): unknown {
   const segments = entry.path.split('?')[0]!.split('/');
-  if (entry.method === 'POST' && segments.join('/') === '/v1/items/state:batch' && entry.body && typeof entry.body === 'object') {
+  if (entry.method === 'POST' && segments.join('/') === playRoute.parts.join('/') && entry.body && typeof entry.body === 'object') {
     const body = entry.body as {items?: unknown; plays?: unknown};
     const age = (rows: unknown) => Array.isArray(rows) ? rows.map(row => ({...row, madeAgoMs: Math.max(0, Number(row.madeAgoMs) || 0) + Math.max(0, now - entry.createdAt)})) : rows;
     return {...body, ...(body.items === undefined ? {} : {items: age(body.items)}), ...(body.plays === undefined ? {} : {plays: age(body.plays)})};
