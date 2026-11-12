@@ -145,6 +145,17 @@ test('failed explicit preparation stays at the front door and retries only on an
   assert.equal(f.tree().type, 'AccountSignIn'); assert.equal(f.calls.prepare, 2);
 });
 
+// A Portico Account failure belongs to the Portico Account choice: choosing a local server instead
+// starts clean, so the local form never shows a refusal it did not cause.
+test('a failed Portico Account tap does not follow the person to the local server form', async context => {
+  const f = await fixture(context); f.prepare(async () => {throw Object.assign(new Error('not_found'), {status: 404});});
+  await act(() => f.tree().props.onPortico());
+  assert.equal(f.tree().type, 'FrontDoor'); assert.ok(f.tree().props.error, 'the failure shows where it happened');
+  await act(() => f.tree().props.onLocal());
+  assert.equal(f.tree().type, 'AccountForm');
+  assert.ok(!words(f.tree().props.beforeActions).includes('Request failed'), 'the local server form shows no Portico Account failure');
+});
+
 test('registration preserves API argument order while drawing approved fields, password reveal, legal copy and a guarded resend', async context => {
   const f = await fixture(context); await act(() => f.tree().props.onPortico()); await act(() => f.tree().props.onCreate());
   assert.equal(f.tree().type, 'AccountForm');

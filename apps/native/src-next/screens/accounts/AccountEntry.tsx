@@ -915,7 +915,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       onDone={() => leave('servers')} onJoin={() => leave('invitation-entry')} onFind={() => leave('address')} onSignOut={() => leave('account-sign-out')}/>;
   }
   if (stage === 'welcome' && theme.isTV) return <TVFrontDoor busy={busy} error={status}
-    onPortico={() => {void run(portico);}} onLocal={() => {if (!busy) setStage('address');}}/>;
+    onPortico={() => {void run(portico);}} onLocal={() => {if (!busy) {setError(undefined); setStage('address');}}}/>;
   const authOptions = account.current && preparedAuthSource.current === account.current ? options : undefined;
   const availableProviders = authOptions?.providers.filter(value => value.enabled
     && (NativeModules.PorticoAccountAuth.canOpenBrowser || value.id === 'apple' && value.native
@@ -929,9 +929,9 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   if (stage === 'welcome' && theme.platform === 'phone') return <PhoneFrontDoor busy={busy} error={status}
     onInvitation={() => {if (lifetime.current && stageRef.current === 'welcome') openInvitationEntry();}}
     onPortico={() => {if (lifetime.current && stageRef.current === 'welcome') void run(portico);}}
-    onLocal={() => {if (lifetime.current && stageRef.current === 'welcome' && !busyRef.current && !acting.current) {stageRef.current = 'address'; setStage('address');}}}/>;
+    onLocal={() => {if (lifetime.current && stageRef.current === 'welcome' && !busyRef.current && !acting.current) {setError(undefined); stageRef.current = 'address'; setStage('address');}}}/>;
   if (stage === 'welcome') return <StateLayout testID="accounts-welcome" title={t('web.signin.welcomeHome')} beforeActions={status}
-    primaryAction={action('portico', t('accounts.signIn.portico'), portico)} secondaryAction={{id: 'local', label: t('accounts.signIn.local'), onPress: () => {setStage('address');}}}
+    primaryAction={action('portico', t('accounts.signIn.portico'), portico)} secondaryAction={{id: 'local', label: t('accounts.signIn.local'), onPress: () => {setError(undefined); setStage('address');}}}
     detailsAction={backAction}/>;
   if (stage === 'setup-confirm') return layout(t('accounts.setup.confirmTitle'), t('accounts.setup.confirmBody'),
     <View style={{alignSelf: 'stretch', gap: 12, marginBottom: 18}}>
