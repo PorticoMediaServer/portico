@@ -25,7 +25,12 @@ func (r *run) bookUnits(f *folder) []unit {
 		if !file.touched() && !r.rereads(file) {
 			continue
 		}
-		d := r.embedded(file)
+		d, read := r.embedded(file)
+		if r.rereads(file) && !read {
+			// A changed file that cannot be read now (still being copied, or cut short) says
+			// nothing about the book: it keeps what it has until a scan can read it.
+			continue
+		}
 		if r.lib.Options.Depth != db.DepthFiles {
 			for _, sidecar := range []string{path.Join(f.rel, "metadata.opf"), strings.TrimSuffix(file.rel, path.Ext(file.rel)) + ".opf"} {
 				if raw, err := readSmall(r.ctx, r.src, sidecar, 256<<10); err == nil {
@@ -99,8 +104,12 @@ func (r *run) comicUnits(f *folder) []unit {
 		name := cleanName(file.entry.Name)
 		version := db.ImportVersion{Parts: []db.ImportPart{{File: file.ref()}}}
 		u := unit{files: []*found{file}}
-		// A comic's own ComicInfo.xml gives its title, date, summary, writers and genres.
-		d := r.embedded(file)
+		// A comic's own ComicInfo.xml gives its title, date, summary, writers and genres. A
+		// changed comic that cannot be read now keeps what it has.
+		d, read := r.embedded(file)
+		if r.rereads(file) && !read {
+			continue
+		}
 		title := firstOf(d["album"], name)
 		if f.rel == "" {
 			comic := db.ImportItem{Kind: db.KindComic, Title: title, Versions: []db.ImportVersion{version},
@@ -209,29 +218,38 @@ func (r *run) imageComic(f *folder, pages []*found) []unit {
 
 // embedded reads a book's details from inside its own file: an EPUB's package document, a
 // comic's ComicInfo.xml (10-reading rule 8). What the file says is recorded as the file's own,
-// so a provider never replaces it. A library scanned for names only, or a file that cannot be
-// read, gives none, and the book keeps what its name and folders say.
-func (r *run) embedded(file *found) details {
-	d := details{}
+// so a provider never replaces it. A library scanned for names only gives none, and the book
+// keeps what its name and folders say. read is false when the file could not be read at all
+// (it will not open, or is not a whole archive): that says nothing about the book.
+func (r *run) embedded(file *found) (d details, read bool) {
+	d = details{}
 	ext := strings.ToLower(path.Ext(file.rel))
 	if r.lib.Options.Depth == db.DepthFiles || ext != ".epub" && ext != ".cbz" {
-		return d
+		return d, true
 	}
 	f, err := r.src.Open(r.ctx, file.rel)
 	if err != nil {
-		return d
+		return d, false
 	}
 	defer f.Close()
 	var more map[string]string
 	if ext == ".epub" {
-		if raw, err := reading.EPUBPackage(f, f.Size()); err == nil {
-			more, _ = localmetadata.EPUBPackage(raw)
+		raw, err := reading.EPUBPackage(f, f.Size())
+		if err != nil {
+			return d, false
 		}
-	} else if raw, err := reading.ComicInfo(f, f.Size()); err == nil && raw != nil {
-		more, _ = localmetadata.ComicInfo(raw)
+		more, _ = localmetadata.EPUBPackage(raw)
+	} else {
+		raw, err := reading.ComicInfo(f, f.Size())
+		if err != nil {
+			return d, false
+		}
+		if raw != nil {
+			more, _ = localmetadata.ComicInfo(raw)
+		}
 	}
 	d.overlay(more)
-	return d
+	return d, true
 }
 
 // rereads reports whether a book or comic file changed where it is (it was edited, or its details
