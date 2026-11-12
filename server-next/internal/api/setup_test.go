@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,10 +17,13 @@ import (
 // fakeHosted stands in for Portico Services. With fail set, any question fails the test: a
 // server that uses local sign-in must never ask Portico Services anything.
 type fakeHosted struct {
+	hosted.NotConnected
 	t        *testing.T
 	fail     bool
 	decision hosted.Decision
 	started  []hosted.ApprovalRequest
+	// approvals counts the approvals finished.
+	approvals int
 }
 
 func (f *fakeHosted) StartApproval(_ context.Context, req hosted.ApprovalRequest) (hosted.Approval, error) {
@@ -37,7 +41,32 @@ func (f *fakeHosted) FinishApproval(_ context.Context, serverID, returned string
 	if returned != "approved-for-"+serverID {
 		return hosted.Decision{}, hosted.ErrDeclined
 	}
-	return f.decision, nil
+	decision := f.decision
+	if decision.IssuedAt.IsZero() {
+		// Each approval is newer than the last, as real ones are.
+		f.approvals++
+		decision.IssuedAt = time.Now().Add(time.Duration(f.approvals) * time.Second)
+	}
+	return decision, nil
+}
+
+// VerifyIdentity answers the account the test last set, for any sign-in note.
+func (f *fakeHosted) VerifyIdentity(string, string, string) (hosted.Account, []hosted.Picture, error) {
+	if f.fail {
+		f.t.Errorf("a local server asked for a sign-in note to be checked")
+	}
+	return f.decision.Account, nil, nil
+}
+
+// porticoProof is a fresh challenge from the server with a sign-in note for it, as a waiting
+// person's app brings them when moving to a Portico Account.
+func porticoProof(t *testing.T, s *Server) (string, json.RawMessage) {
+	t.Helper()
+	var challenge PorticoChallenge
+	if w := call(t, s, "POST", "/v1/auth/portico/challenge", "", nil, &challenge); w.Code != 200 {
+		t.Fatalf("the challenge answered %d: %s", w.Code, w.Body)
+	}
+	return challenge.Challenge, json.RawMessage(`{}`)
 }
 
 // The setup code is asked on every network, the server's own machine included; it survives a
