@@ -8,6 +8,15 @@ test('library summaries are one scoped read and retain exact/lower-bound counts'
  const rows=await readLibrarySummaries(api);assert.equal(calls,1);assert.equal(rows[0].summary.counts[0].count,24);assert.ok(Object.isFrozen(rows[0].summary.counts));assert.equal(parseLibrarySummary({...summary,counts:[{kind:'episode',count:20000,atLeast:true}]}).counts[0].atLeast,true);
  for(const bad of [{...summary,coverUrls:['https://provider.example/image']},{...summary,counts:[{kind:'movie',count:-1,atLeast:false}]},{...summary,counts:[{kind:'movie',count:1,atLeast:false},{kind:'movie',count:2,atLeast:false}]}])assert.throws(()=>parseLibrarySummary(bad));
 });
+test('a library list without summaries, as the rebuilt server sends it, still lists every library with nothing known about it',async()=>{
+ const api={async request<T>(){return {items:[{id:'lib_a',name:'Films',kind:'movies'},{id:'lib_b',name:'Music',kind:'music',summary:{...summary,coverUrls:['https://provider.example/image']}},{id:'lib_c',name:'Shows',kind:'shows',summary}]} as T;}};
+ const rows=await readLibrarySummaries(api);
+ assert.deepEqual(rows.map(row=>row.name),['Films','Music','Shows']);
+ for(const row of rows.slice(0,2))assert.deepEqual(row.summary,{counts:[],coverUrls:[],latestArtwork:'',firstScan:false,empty:false,emptyKnown:false});
+ assert.equal(rows[2].summary.counts[0].count,24);
+ // An unreadable list or library row still refuses the read.
+ await assert.rejects(readLibrarySummaries({async request<T>(){return {items:[{id:'lib_a',kind:'movies'}]} as T;}}));
+});
 test('the folder explorer asks for hidden and writable folders only when wanted, and shows which are a library\'s or cannot be one',async()=>{
  const paths:string[]=[];
  const api={async request<T>(path:string){paths.push(path);return {path:'/media',parent:'/',folders:[{name:'Films',path:'/media/Films',library:'Films'},{name:'portico',path:'/media/portico',cannotBeChosen:'This folder holds Portico\'s own data.'},{name:'Music',path:'/media/Music'}],nextCursor:'200'} as T;}};
