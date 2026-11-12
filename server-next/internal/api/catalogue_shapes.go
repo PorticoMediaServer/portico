@@ -340,6 +340,10 @@ type HomeRow struct {
 	// GET /v1/items?library={library}&{query}, which is also how the row loads more.
 	Library string `json:"library,omitempty"`
 	Query   string `json:"query,omitempty"`
+	// NextCursor, on a saved-view row Home read, carries on from its last title: the row loads
+	// more with GET /v1/items?library={library}&{query}&cursor={nextCursor}, in the same order,
+	// a random one included. Empty when the view has no more.
+	NextCursor string `json:"nextCursor,omitempty"`
 	// Deferred is a saved-view row Home sent without reading its titles. The app reads them as
 	// the row comes near the screen; a deferred row may turn out empty, and is then not drawn.
 	Deferred bool `json:"deferred,omitempty"`

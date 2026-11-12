@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -115,5 +116,44 @@ func TestSavedViewsOnHome(t *testing.T) {
 	}
 	if code := save(map[string]any{"home.savedViews": tooMany}); code != 400 {
 		t.Fatalf("21 saved views on Home answered %d", code)
+	}
+}
+
+// A saved-view row Home read carries on where it stopped, in the same order, a random one
+// included: loading more repeats no title.
+func TestASavedViewRowCarriesOn(t *testing.T) {
+	budget := viewRowsBudget
+	viewRowsBudget = time.Hour
+	t.Cleanup(func() { viewRowsBudget = budget })
+	s, token, _ := seeded(t)
+	films := get[Libraries](t, s, token, "/v1/libraries").Items[0].ID
+	var made ListCreated
+	if w := call(t, s, "POST", "/v1/lists", token, ListCreate{Kind: "saved_view", Name: "Shuffled", Library: films, Query: "kind=movie&sort=random"}, &made); w.Code != 201 {
+		t.Fatalf("saving a view answered %d: %s", w.Code, w.Body)
+	}
+	if code, _ := patchPreferences(t, s, token, "profile-server", map[string]any{"home.savedViews": []string{made.ID}}); code != 200 {
+		t.Fatalf("putting the view on Home answered %d", code)
+	}
+	var row HomeRow
+	for _, r := range get[Home](t, s, token, "/v1/home").Rows {
+		if r.ID == "view:"+made.ID {
+			row = r
+		}
+	}
+	if len(row.Items) != viewRowLength || row.NextCursor == "" {
+		t.Fatalf("the view row: %d items, cursor %q", len(row.Items), row.NextCursor)
+	}
+	seen := map[string]bool{}
+	for _, it := range row.Items {
+		seen[it.ID] = true
+	}
+	more := get[ItemPage](t, s, token, "/v1/items?library="+row.Library+"&"+row.Query+"&cursor="+url.QueryEscape(row.NextCursor)+"&limit=40")
+	if len(more.Items) == 0 {
+		t.Fatal("loading more found nothing")
+	}
+	for _, it := range more.Items {
+		if seen[it.ID] {
+			t.Fatalf("loading more repeats %s", it.ID)
+		}
 	}
 }
