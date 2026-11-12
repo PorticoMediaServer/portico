@@ -83,7 +83,7 @@ export async function pollLocalTVAuthorization<T = unknown>(api: ViewerRequester
 }
 export async function cancelLocalTVAuthorization<T = unknown>(api: ViewerRequester, deviceCode: string, signal?: AbortSignal): Promise<T> {
   const [code, deviceSecret] = deviceCode.split(':');
-  await api.request('/v1/auth/codes/' + encodeURIComponent(code), 'DELETE', {deviceSecret}, signal).catch(error => {
+  await callServer(api, 'DELETE /v1/auth/codes/{id}', {id: code, body: {deviceSecret}, signal}).catch(error => {
     if (!(error instanceof ApiError && error.status === 404 && error.code === 'code_not_found')) throw error;
   });
   return undefined as T;

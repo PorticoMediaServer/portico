@@ -4046,6 +4046,7 @@ export interface Routes {
   'GET /v1/auth/codes/{id}': {access: 'withProfile'; request: undefined; response: CodeReview};
   'POST /v1/auth/codes/{id}/approve': {access: 'withProfile'; request: CodeDecision; response: undefined};
   'POST /v1/auth/codes/{id}/redeem': {access: 'public'; request: CodeCollect; response: CodeResult};
+  'DELETE /v1/auth/codes/{id}': {access: 'public'; request: CodeCollect; response: undefined};
   'GET /v1/profiles': {access: 'signedIn'; request: undefined; response: ProfilePage};
   'POST /v1/profiles': {access: 'signedIn'; request: ProfileCreate; response: Profile};
   'GET /v1/profiles/{id}': {access: 'signedIn'; request: undefined; response: Profile};
