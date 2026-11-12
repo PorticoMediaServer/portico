@@ -143,7 +143,7 @@ const panelRawProgramme: GuideProgramme = {id: panelProgrammeId, channelId: 'pk'
   subtitle: 'Homecoming', episode: {season: 3, number: 1}, categories: ['Kids', 'Animation'], rating: {system: 'TV', value: 'TV-Y'}, flags: {new: true}}; // lint-strings-allow
 const panelRecording: DvrRecording = {id: 'rec-pk3', channel: 'pk', title: panelRawProgramme.title, episodeTitle: 'Homecoming', season: 3, episode: 1,
   startsAt: panelRawProgramme.start, endsAt: panelRawProgramme.end, padBeforeMs: 0, padAfterMs: 0, priority: 0, state: 'recording',
-  inGuide: true, keep: false, fromRule: false};
+  inGuide: true, keep: false, fromRule: false, bytes: 0, mayChange: true};
 const panelChoice: SeriesChoice = {episodes: 'all', keep: '5', startEarly: 0, endLate: 2, anyChannel: false};
 const panelSnapshot: ProgrammeSnapshot = {phase: 'ready', favorite: true, recording: panelRecording, previewLoading: false,
   preview: {matches: 4, airings: [
