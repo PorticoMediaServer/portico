@@ -40,3 +40,23 @@ test('a device whose storage cannot keep the edit still sends it once and hears 
     assert.deepEqual(sent, ['op-2']);
   } finally { outbox.dispose(); }
 });
+
+// The reader saves its place through the outbox with its own `content-type`. Sent beside the
+// default one, fetch joined them ("application/json, application/json") and the server refused
+// every place with 415, so reading never resumed where it stopped.
+test('a place the reader saves through the outbox is sent with one content type', async () => {
+  const kept = new Map<string, OutboxEntry>();
+  const store = {list: async () => [...kept.values()], put: async (entry: OutboxEntry) => { kept.set(entry.id, entry); }, delete: async (id: string) => { kept.delete(id); }};
+  const types: (string | null)[] = [];
+  const api = new HttpLocalApi('http://server.test', session.accessToken, async (_input, init) => {
+    types.push(new Headers(init?.headers).get('Content-Type'));
+    return Response.json({position: 'place'});
+  });
+  api.setOutboxSession(session);
+  const outbox = api.configureOutbox(store);
+  const reading = api.reading({viewer: session.viewer, isCurrent: () => true});
+  try {
+    assert.deepEqual(await reading.setState('itm_book', {position: 'place'}), {position: 'place'});
+    assert.deepEqual(types, ['application/json']);
+  } finally { reading.dispose(); outbox.dispose(); }
+});
