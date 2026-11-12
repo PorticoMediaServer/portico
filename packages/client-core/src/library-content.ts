@@ -1,10 +1,12 @@
+import {callServer, serverPath} from './query/server-api.ts';
+import {entriesFromItems} from './items.ts';
 import {parseMusicTechnicalFacts, type MusicTechnicalFacts} from './music-facts.ts';
 import {parseMusicBadges, type MusicFormatBadge} from './music-badges.ts';
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {wireDurations,wireDisplayDurations} from './wire-units.ts';
 import {unreadableServerResponse} from './server-messages.ts';
-import {listeningData,parseBookProgress,type BookProgress,type ListeningViewerScope,parseListeningJourney,type ListeningJourney} from './listening.ts';
+import {parseBookProgress,type BookProgress,type ListeningViewerScope,parseListeningJourney,type ListeningJourney} from './listening.ts';
 import {parseBrowseNode,type BrowseNode,type BrowseSortSelection} from './browse.ts';
 import {firstOfEach,keepReadable,noteSkipped,oneOfOr} from './tolerant.ts';
 import {mergeRevalidatedList} from './freshness-actions.ts';
@@ -771,21 +773,23 @@ export { entry as validateContentEntry };
 /** A See all destination (`{pivot, query?, sort}`), or undefined when it is absent or cannot be read. Never throws. */
 export { seeAll as parseContentSeeAll };
 
-/** A server ranking, read lazily when its title/artist page asks for it, a page at a time: `cursor`
- * continues it from the page that returned `nextCursor` (relation-rows.ts `listeningSimilarPager` reads it to its end).
- * This read-only path needs only the viewer facts a scope carries; a caller's fuller queue
- * scope is accepted structurally and its controller identity is never read. */
-export function listeningSimilarPath(itemId:string,options:{limit?:number;by?:'sound';cursor?:string}={}){
- const q=new URLSearchParams();if(options.limit!==undefined)q.set('limit',String(options.limit));if(options.by!==undefined){if(options.by!=='sound')invalid();q.set('by',options.by);}if(options.cursor)q.set('cursor',options.cursor);
- return encodedRoutePath('get_items_id_similar',{id:encodeURIComponent(itemId)})+(q.size?'?'+q:'');
+/** A listening title's More like this comes from the same related read as films and shows.
+ * The server returns the complete row and does not claim a sound-analysis basis or cursor. */
+export function listeningSimilarPath(itemId:string,_options:{limit?:number;by?:'sound';cursor?:string}={}){
+ return serverPath('GET /v1/items/{id}/related',{id:itemId});
 }
-export async function readListeningSimilar<S extends ListeningViewerScope>(api:LibraryContentApi,scope:S,itemId:string,options:{limit?:number;by?:'sound';cursor?:string;signal?:AbortSignal}={}){
- const raw=listeningData(await api.request(listeningSimilarPath(itemId,options),'GET',undefined,options.signal),scope);
- if(!record(raw)||raw.itemId!==itemId||!id(raw.libraryId)||!record(raw.revision)||!count(raw.revision.catalog)||!count(raw.revision.viewer)||typeof raw.bySound!=='boolean'||!Array.isArray(raw.entries)||raw.entries.length>24||raw.nextCursor!==undefined&&(typeof raw.nextCursor!=='string'||!raw.nextCursor||raw.nextCursor.length>4096))invalid();
- const entries=raw.entries.map(entry);if(entries.some(e=>!['artist','album','song','book'].includes(e.kind)||raw.bySound&&e.kind==='book'||e.playback!==undefined))invalid();
- return Object.freeze({itemId,libraryId:raw.libraryId,bySound:raw.bySound,revision:Object.freeze({catalog:raw.revision.catalog,viewer:raw.revision.viewer}),entries:Object.freeze(entries),...(raw.hasMore===true&&raw.nextCursor?{nextCursor:raw.nextCursor as string}:{})});
+export async function readListeningSimilar<S extends ListeningViewerScope>(api:LibraryContentApi,_scope:S,itemId:string,options:{limit?:number;by?:'sound';cursor?:string;signal?:AbortSignal}={}){
+ const [source,related]=await Promise.all([
+  callServer(api,'GET /v1/items/{id}',{id:itemId,signal:options.signal}),
+  callServer(api,'GET /v1/items/{id}/related',{id:itemId,signal:options.signal}),
+ ]);
+ if(!record(source)||source.id!==itemId||!id(source.libraryId)||!record(related)||!Array.isArray(related.groups))invalid();
+ const group=related.groups.find(value=>record(value)&&value.relation==='more_like_this');
+ if(group&&!Array.isArray(group.items))invalid();
+ const entries=entriesFromItems(group?.items??[]).filter(value=>value.id!==itemId&&['artist','album','song','book'].includes(value.kind));
+ return Object.freeze({itemId,libraryId:source.libraryId,bySound:false,revision:Object.freeze({catalog:0,viewer:0}),
+  entries:Object.freeze(entries.slice(0,options.limit??24)),nextCursor:undefined as string|undefined});
 }
-
 
 /** The saved position's own facts: the fraction read and, for paged formats, a zero-based page.
  *  A stale position (the file changed since) is progress only. */

@@ -1,30 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readListeningSimilar,type LibraryContentApi} from '../src/library-content.ts';
-
-const scope={serverId:'server',authority:'local' as const,accountId:'account',profileId:'profile',controllerId:'controller',controllerEpoch:'epoch',commandLaneId:'lane'};
-const song={id:'song',kind:'song',title:'Actual song',navigation:{view:'item',entityId:'song'}};
-const payload=(bySound:unknown=true,entries:unknown[]=[song])=>({scope:{serverId:'server',authority:'local',accountId:'account',profileId:'profile'},data:{itemId:'seed',libraryId:'music',revision:{catalog:1,viewer:2},bySound,entries}});
-
-test('sound similarity preserves the actual server basis and genuine song projection',async()=>{
- let path='';const api={request:async(value:string)=>{path=value;return payload();}} as unknown as LibraryContentApi;
- const result=await readListeningSimilar(api,scope,'seed',{by:'sound',limit:12});
- assert.equal(new URL(path,'https://server.test').searchParams.get('by'),'sound');
- assert.equal(result.bySound,true);assert.equal(result.entries[0].id,'song');assert.equal(result.entries[0].playback,undefined);
+const scope={serverId:'server',authority:'local' as const,accountId:'account',profileId:'profile'};
+const album=(id:string)=>({id,kind:'album',title:id,libraryId:'music'});
+test('listening related uses the rebuilt read, preserves server order and stops at the requested limit',async()=>{
+ const calls:string[]=[];
+ const api={request:async(path:string)=>{calls.push(path);return path.endsWith('/related')?
+  {groups:[{relation:'guest_artist',items:[album('other')]},{relation:'more_like_this',items:[album('seed'),album('b'),album('a')]}]}:album('seed');}} as unknown as LibraryContentApi;
+ const page=await readListeningSimilar(api,scope,'seed',{by:'sound',limit:1});
+ assert.deepEqual(calls,['/v1/items/seed','/v1/items/seed/related']);
+ assert.deepEqual(page.entries.map(value=>value.id),['b']);assert.equal(page.libraryId,'music');
+ assert.equal(page.bySound,false);assert.equal(page.nextCursor,undefined);
 });
-
-test('a requested sound match truthfully retains the server genre fallback',async()=>{
- const result=await readListeningSimilar({request:async()=>payload(false)} as unknown as LibraryContentApi,scope,'seed',{by:'sound'});
- assert.equal(result.bySound,false);
-});
-
-test('sound basis is never guessed from request intent or malformed/missing facts',async()=>{
- for(const basis of [undefined,null,'true',1]){const malformed=payload();malformed.data.bySound=basis;await assert.rejects(readListeningSimilar({request:async()=>malformed} as unknown as LibraryContentApi,scope,'seed',{by:'sound'}));}
- await assert.rejects(readListeningSimilar({request:async()=>payload(true,[{...song,kind:'book'}])} as unknown as LibraryContentApi,scope,'seed',{by:'sound'}));
- await assert.rejects(readListeningSimilar({request:async()=>payload()} as unknown as LibraryContentApi,scope,'seed',{by:'genre' as 'sound'}));
-});
-
-test('similarity keeps the current viewer boundary',async()=>{
- const data=payload();data.scope.profileId='other';
- await assert.rejects(readListeningSimilar({request:async()=>data} as unknown as LibraryContentApi,scope,'seed',{by:'sound'}));
+test('a valid empty related answer is empty; a failed read is not hidden as empty',async()=>{
+ const api={request:async(path:string)=>path.endsWith('/related')?{groups:[]}:album('seed')} as unknown as LibraryContentApi;
+ assert.deepEqual((await readListeningSimilar(api,scope,'seed')).entries,[]);
+ const denied=Object.assign(new Error('denied'),{status:403});
+ await assert.rejects(readListeningSimilar({request:async()=>{throw denied;}} as unknown as LibraryContentApi,scope,'seed'),error=>error===denied);
 });
