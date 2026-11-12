@@ -11,6 +11,7 @@ import type {DvrRecording, DvrRule} from '../../contracts/src/next/api.ts';
 import type {GuideProgramme} from './channel-guide.ts';
 import type {DeletePreview, DVRPage, DVRSummary, DVRView, Recording, RecordingDetail, RecordingGroups, RecordingRule, RecordingState, RuleConfig, RulePreview} from './dvr.ts';
 import {changeRecording, changeRule, endRecording, readDvr, readRecording, readRecordings, readRules, removeRule, type DvrOverview} from './live-tv.ts';
+import {readItem} from './items.ts';
 import type {ServerRequester} from './query/server-api.ts';
 
 /** What the Storage tab shows: only what the server says. */
@@ -22,7 +23,7 @@ const stateOf = (recording: DvrRecording): RecordingState => (
       : recording.state === 'failed' ? 'failed' : 'cancelled') as RecordingState;
 
 /** A new-server booking in the fields the recordings screens read. */
-export function nextRecording(recording: DvrRecording): Recording {
+export function nextRecording(recording: DvrRecording, libraryId = ''): Recording {
   const programme: GuideProgramme = {id: recording.id, channelId: recording.channel, title: recording.title, start: recording.startsAt, end: recording.endsAt,
     lineage: 'interval-only', seriesId: '', episodeId: '', newEvidence: 'unknown', description: '',
     ...(recording.episodeTitle ? {subtitle: recording.episodeTitle} : {}),
@@ -31,7 +32,7 @@ export function nextRecording(recording: DvrRecording): Recording {
     ruleId: recording.fromRule ? 'rule' : '', options: {beforeSeconds: Math.round(recording.padBeforeMs / 1000), afterSeconds: Math.round(recording.padAfterMs / 1000),
       priority: recording.priority, retentionDays: 0, episodeLimit: 0},
     start: recording.startsAt, end: recording.endsAt, state: stateOf(recording), reason: recording.reason ?? '', keep: recording.keep,
-    itemId: recording.itemId ?? '', libraryId: '', coverageStart: recording.startsAt, coverageEnd: recording.endsAt, bytes: 0,
+    itemId: recording.itemId ?? '', libraryId: recording.itemId ? libraryId : '', coverageStart: recording.startsAt, coverageEnd: recording.endsAt, bytes: 0,
     conflicts: recording.conflict ? [{start: recording.startsAt, end: recording.endsAt, demand: 2, capacity: 1}] : []} as Recording;
 }
 /** A new-server series rule in the fields the Series rules screen reads. */
@@ -71,6 +72,24 @@ export class NextDVRClient {
     return out;
   }
   private history() { return this.every((cursor, signal) => readRecordings(this.api, {history: true}, cursor, signal)); }
+  /**
+   * The Recorded TV library, which every recording that was made is a title of: what plays one names it. The server gives a
+   * recording only its title, so the library is read once from one of them.
+   */
+  private recordedLibrary = '';
+  private libraryRead?: Promise<string>;
+  private async library(recordings: readonly DvrRecording[]): Promise<string> {
+    const first = recordings.find(one => one.itemId)?.itemId;
+    if (this.recordedLibrary || !first) return this.recordedLibrary;
+    // Lists asked for together share the one read; a failed read is tried again next time.
+    this.libraryRead ??= this.call(signal => readItem(this.api, first, signal)).then(item => this.recordedLibrary = item.libraryId ?? '')
+      .finally(() => {this.libraryRead = undefined;});
+    return this.libraryRead;
+  }
+  private async shown(recordings: DvrRecording[]): Promise<Recording[]> {
+    const libraryId = await this.library(recordings);
+    return recordings.map(one => nextRecording(one, libraryId));
+  }
 
   /** One view's recordings; for Recorded, `group` keeps one title of the Recorded tab. */
   async list(view: Exclude<DVRView, 'storage'>, cursor = '', _sort: 'recent' | 'title' | 'oldest' = 'recent', group = ''): Promise<DVRPage> {
@@ -80,9 +99,9 @@ export class NextDVRClient {
       const answer = await this.call(signal => readRules(this.api, false, cursor || undefined, signal));
       return page([], answer.items.map(nextRule), answer.nextCursor);
     }
-    if (view === 'recorded') return page((await this.history()).filter(one => made(one) && (!group || one.title === group)).map(nextRecording), []);
+    if (view === 'recorded') return page(await this.shown((await this.history()).filter(one => made(one) && (!group || one.title === group))), []);
     const answer = await this.call(signal => readRecordings(this.api, {history: view === 'history'}, cursor || undefined, signal));
-    return page(answer.items.map(nextRecording), [], answer.nextCursor);
+    return page(await this.shown(answer.items), [], answer.nextCursor);
   }
   async summary(): Promise<DVRSummary> {
     // The server gives no count of rules or titles: they are counted from its lists.
@@ -92,30 +111,31 @@ export class NextDVRClient {
   /** The Recorded tab's titles: the recordings made, grouped by title, newest first (or by title). */
   async groups(sort: 'recent' | 'title' | 'oldest' = 'recent', _cursor = ''): Promise<RecordingGroups> {
     const byTitle = new Map<string, DvrRecording[]>();
-    for (const recording of (await this.history()).filter(made)) byTitle.set(recording.title, [...byTitle.get(recording.title) ?? [], recording]);
+    const recordings = (await this.history()).filter(made), libraryId = await this.library(recordings);
+    for (const recording of recordings) byTitle.set(recording.title, [...byTitle.get(recording.title) ?? [], recording]);
     const groups = [...byTitle].map(([title, recordings]) => {
       const latest = recordings.reduce((a, b) => a.startsAt > b.startsAt ? a : b);
       return {key: title, title, recordings: recordings.length, unwatched: 0, kept: recordings.filter(one => one.keep).length,
-        exceptions: recordings.filter(one => one.state === 'partial').length, latest: latest.startsAt, recording: nextRecording(latest)};
+        exceptions: recordings.filter(one => one.state === 'partial').length, latest: latest.startsAt, recording: nextRecording(latest, libraryId)};
     });
     groups.sort((a, b) => sort === 'title' ? a.title.localeCompare(b.title) : sort === 'oldest' ? a.latest.localeCompare(b.latest) : b.latest.localeCompare(a.latest));
     return {groups, nextCursor: '', revision: 0};
   }
   async detail(recordingId: string): Promise<RecordingDetail> {
     const recording = await this.call(signal => readRecording(this.api, recordingId, signal));
-    return {recording: nextRecording(recording), capacity: {known: false, effective: 0}, overlaps: [], nextOverlap: ''};
+    return {recording: nextRecording(recording, await this.library([recording])), capacity: {known: false, effective: 0}, overlaps: [], nextOverlap: ''};
   }
   /** Padding and priority. */
   async update(recording: Recording, options: Recording['options']): Promise<Recording> {
     return nextRecording(await this.call(signal => changeRecording(this.api, recording.id, {padBeforeMs: options.beforeSeconds * 1000, padAfterMs: options.afterSeconds * 1000,
-      priority: options.priority}, signal)));
+      priority: options.priority}, signal)), this.recordedLibrary);
   }
   /** A conflict's choice: record this one instead, or skip it. */
   async choose(recording: Recording, choice: 'record' | 'skip'): Promise<Recording> {
-    return nextRecording(await this.call(signal => changeRecording(this.api, recording.id, {choice}, signal)));
+    return nextRecording(await this.call(signal => changeRecording(this.api, recording.id, {choice}, signal)), this.recordedLibrary);
   }
   async keep(recording: Recording): Promise<Recording> {
-    return nextRecording(await this.call(signal => changeRecording(this.api, recording.id, {keep: !recording.keep}, signal)));
+    return nextRecording(await this.call(signal => changeRecording(this.api, recording.id, {keep: !recording.keep}, signal)), this.recordedLibrary);
   }
   /** Cancels a booking, or stops one that is recording (what was captured is kept). */
   async cancel(recording: Recording): Promise<Recording> {
