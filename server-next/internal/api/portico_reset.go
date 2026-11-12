@@ -47,7 +47,7 @@ func (s *Server) loadSignInReset(ctx context.Context) error {
 		s.log.Warn("the reset-sign-in file in the data folder was ignored and removed: this server already uses local sign-in")
 		return os.Remove(asked)
 	}
-	code, file := auth.NewCode(4), filepath.Join(s.dataDir, "setup-code.txt")
+	code, file := auth.NewCode(4), filepath.Join(s.dataDir, setupCodeFile)
 	if err := os.WriteFile(file, []byte(code+"\n"), 0o600); err != nil {
 		return err
 	}
@@ -80,21 +80,7 @@ func (s *Server) localSignInReset(r *http.Request, req LocalSignInReset) (SignIn
 	// passwords are. The right code always gets through: a stranger sending wrong ones must
 	// not be able to keep the owner out.
 	if subtle.ConstantTimeCompare([]byte(auth.CodeKey(req.SetupCode)), []byte(auth.CodeKey(code))) != 1 {
-		source := ""
-		if addr, ok := s.networks().Client(r); ok {
-			source = auth.SourceKey(addr)
-		}
-		limits := []db.Limit{{Bucket: "setup", Key: source, Delay: auth.StandardPasswords.Delay}}
-		if wait, err := s.db.LimitWait(ctx, now, limits...); err != nil {
-			return SignInResponse{}, err
-		} else if wait > 0 {
-			return SignInResponse{}, errTooManyAttempts(wait)
-		}
-		if err := s.db.RecordFailure(ctx, now, limits...); err != nil {
-			return SignInResponse{}, err
-		}
-		return SignInResponse{}, refusal(http.StatusForbidden, "setup_code_invalid",
-			"That setup code is not correct. It is in the server's log and in setup-code.txt in its data folder.", false)
+		return SignInResponse{}, s.wrongSetupCode(r)
 	}
 	hash, err := s.passwords.Hash(ctx, req.Password)
 	if err != nil {
@@ -114,7 +100,7 @@ func (s *Server) localSignInReset(r *http.Request, req LocalSignInReset) (SignIn
 	s.link.resetCode = ""
 	s.link.mu.Unlock()
 	os.Remove(filepath.Join(s.dataDir, resetSignInFile))
-	os.Remove(filepath.Join(s.dataDir, "setup-code.txt"))
+	os.Remove(filepath.Join(s.dataDir, setupCodeFile))
 	s.log.Warn("this server was switched to local sign-in with the setup code from its data folder")
 	// The one "this server has left" goes out now, and the certificate client is told to stop.
 	s.porticoWake()

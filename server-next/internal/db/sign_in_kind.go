@@ -18,10 +18,6 @@ import (
 // MoveKey is the setting that holds a switch that still has people waiting: where it went and when.
 const MoveKey = "sign_in_move"
 
-// LeftMessageKey is the setting that holds until when this server, switched from Portico
-// Accounts to local sign-in, still tries to tell Portico Services once that it has left.
-const LeftMessageKey = "hosted.left_message_until"
-
 // leftMessageTries is how long the "this server has left" message is tried.
 const leftMessageTries = 7 * 24 * time.Hour
 
@@ -192,12 +188,10 @@ func (d *DB) SwitchSignIn(ctx context.Context, sw Switch) (SessionState, error) 
 				return err
 			}
 			// A server leaving Portico Accounts tells Portico Services once that it has left,
-			// trying until then and never again; a server that was local tells it nothing. Who
-			// sends the message is not built: see internal/hosted.
-			if was == SignInPortico {
-				if err := putSetting(tx, LeftMessageKey, strconv.FormatInt(sw.Now.Add(leftMessageTries).UnixMilli(), 10), at); err != nil {
-					return err
-				}
+			// trying until then and never again; a server that was local has no link and
+			// tells it nothing. The link ends in this commit; see portico_link.go.
+			if err := unlinkServer(tx, sw.Now.Add(leftMessageTries), sw.Now); err != nil {
+				return err
 			}
 		case "portico":
 			// A server whose owner is linked to a Portico Account switches or starts over only
@@ -224,9 +218,6 @@ func (d *DB) SwitchSignIn(ctx context.Context, sw Switch) (SessionState, error) 
 			// The link is made in the same commit, so "uses Portico Accounts" and "linked"
 			// are never two facts.
 			if err := linkServer(tx, sw.PorticoAccountID, sw.ApprovedAt, sw.Now); err != nil {
-				return err
-			}
-			if _, err := tx.Exec(`DELETE FROM settings WHERE key = ?`, LeftMessageKey); err != nil {
 				return err
 			}
 			// Portico Accounts keep their pictures with Portico Services, never here. Each
@@ -641,6 +632,16 @@ func (d *DB) ChangeOwner(ctx context.Context, o OwnerChange) (int64, error) {
 				return err
 			}
 			if err := markStale(tx, c, `user_id = ?`, o.OwnerID); err != nil {
+				return err
+			}
+		}
+		// On a linked server the link follows the owner. It is not a new link: no number moves.
+		var account string
+		if err := tx.QueryRow(`SELECT ifnull(portico_account_id, '') FROM users WHERE id = ?`, target).Scan(&account); err != nil {
+			return err
+		}
+		if account != "" {
+			if err := setLinkOwner(tx, account, o.Now); err != nil {
 				return err
 			}
 		}

@@ -77,7 +77,9 @@ type NewOwner struct {
 	// PorticoAccountID is set when the server is set up with Portico Accounts. The server's
 	// kind of sign-in is then recorded in the same commit; without it the server is local.
 	PorticoAccountID string
-	ProfileName      string
+	// ApprovedAt is when that account approved the server: the link's numbers start there.
+	ApprovedAt  time.Time
+	ProfileName string
 	// Settings are more settings rows setup decides, such as the remote access document.
 	Settings map[string]string
 	Session  NewSession
@@ -115,6 +117,11 @@ func (d *DB) CreateOwner(ctx context.Context, o NewOwner) (SessionState, error) 
 				return err
 			}
 			if err := putSetting(tx, SignInKindKey, SignInPortico, at); err != nil {
+				return err
+			}
+			// The link is made in the same commit, so "uses Portico Accounts" and "linked"
+			// are never two facts.
+			if err := linkServer(tx, o.PorticoAccountID, o.ApprovedAt, o.Now); err != nil {
 				return err
 			}
 		}

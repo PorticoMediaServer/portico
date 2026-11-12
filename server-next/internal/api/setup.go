@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -52,13 +51,6 @@ type SetupPorticoRequest struct {
 	ServerName string `json:"serverName,omitempty"`
 	// ReturnURL is the page the person's browser comes back to with the approval.
 	ReturnURL string `json:"returnUrl"`
-}
-
-// SetupPorticoApproval is where to send the person to approve this server with their
-// Portico Account, and until when that address works.
-type SetupPorticoApproval struct {
-	ApprovalURL string    `json:"approvalUrl"`
-	ExpiresAt   time.Time `json:"expiresAt"`
 }
 
 // SetupPorticoFinish brings the approval back. The approving Portico Account becomes the
@@ -176,20 +168,27 @@ func errSetupDone() *Error {
 // network away from home. With waits no longer bounding guesses, the code itself carries the
 // weight: 16 characters, about 79 bits.
 func (s *Server) checkSetupCode(r *http.Request, code string) error {
-	ctx, now := r.Context(), s.now()
-	if done, err := s.db.HasUsers(ctx); err != nil {
+	if done, err := s.db.HasUsers(r.Context()); err != nil {
 		return err
 	} else if done {
 		return errSetupDone()
 	}
+	if s.setupCode != "" && subtle.ConstantTimeCompare([]byte(auth.CodeKey(code)), []byte(auth.CodeKey(s.setupCode))) == 1 {
+		return nil
+	}
+	return s.wrongSetupCode(r)
+}
+
+// wrongSetupCode counts a wrong setup code against the network it came from and refuses it.
+// The reset of the kind of sign-in from the data folder (portico_reset.go) uses the same
+// code file and the same rule.
+func (s *Server) wrongSetupCode(r *http.Request) error {
+	ctx, now := r.Context(), s.now()
 	source := ""
 	if addr, ok := s.networks().Client(r); ok {
 		source = auth.SourceKey(addr)
 	}
 	limits := []db.Limit{{Bucket: "setup", Key: source, Delay: auth.StandardPasswords.Delay}}
-	if s.setupCode != "" && subtle.ConstantTimeCompare([]byte(auth.CodeKey(code)), []byte(auth.CodeKey(s.setupCode))) == 1 {
-		return nil
-	}
 	if wait, err := s.db.LimitWait(ctx, now, limits...); err != nil {
 		return err
 	} else if wait > 0 {
@@ -293,24 +292,11 @@ func (s *Server) setupOwner(r *http.Request, req SetupOwnerRequest) (SignInRespo
 	return s.signedIn(ctx, st, now, refresh)
 }
 
-// hostedError answers a failure to reach Portico Services, or an approval it did not give.
-func hostedError(err error) error {
-	switch {
-	case errors.Is(err, hosted.ErrNotConnected):
-		e := refusal(http.StatusServiceUnavailable, "portico_unavailable", "Portico Services can't be reached. Try again later.", true)
-		e.RetryAfterMs = 30_000
-		return e
-	case errors.Is(err, hosted.ErrDeclined):
-		return ErrConflict("approval_declined", "The approval was declined or has expired. Nothing has changed; start again.")
-	}
-	return err
-}
-
-// setupHostedError is hostedError in setup, where the person can always choose local sign-in
+// setupHostedError is porticoError in setup, where the person can always choose local sign-in
 // instead: nothing has been saved, and setting the server up that way needs no Portico Services.
 func setupHostedError(err error) error {
-	out := hostedError(err)
-	if e, ok := asError(out); ok && e.Code == "portico_unavailable" {
+	out := porticoError(err)
+	if e, ok := asError(out); ok && e.Code == "services_unreachable" {
 		e.Message = "Portico Services can't be reached, so this server can't be set up with Portico Accounts right now. " +
 			"Nothing has been saved. Try again in a moment, or set it up with local sign-in instead."
 	}
@@ -319,16 +305,16 @@ func setupHostedError(err error) error {
 
 // setupPortico checks the setup code and asks Portico Services where the person approves this
 // server. The server saves nothing: if the approval never comes back, it is as it was.
-func (s *Server) setupPortico(r *http.Request, req SetupPorticoRequest) (SetupPorticoApproval, error) {
+func (s *Server) setupPortico(r *http.Request, req SetupPorticoRequest) (PorticoApproval, error) {
 	serverName, err := s.checkServerName(req.ServerName)
 	if err != nil {
-		return SetupPorticoApproval{}, err
+		return PorticoApproval{}, err
 	}
 	if u, err := url.Parse(req.ReturnURL); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || len(req.ReturnURL) > 2000 {
-		return SetupPorticoApproval{}, ErrField("returnUrl", "Send the full address of the page to come back to.")
+		return PorticoApproval{}, ErrField("returnUrl", "Send the full address of the page to come back to.")
 	}
 	if err := s.checkSetupCode(r, req.SetupCode); err != nil {
-		return SetupPorticoApproval{}, err
+		return PorticoApproval{}, err
 	}
 	if serverName == "" {
 		serverName = s.serverName()
@@ -336,9 +322,9 @@ func (s *Server) setupPortico(r *http.Request, req SetupPorticoRequest) (SetupPo
 	approval, err := s.hosted.StartApproval(r.Context(), hosted.ApprovalRequest{ServerID: s.id, ServerName: serverName,
 		Purpose: hosted.PurposeSetup, ReturnURL: req.ReturnURL})
 	if err != nil {
-		return SetupPorticoApproval{}, setupHostedError(err)
+		return PorticoApproval{}, setupHostedError(err)
 	}
-	return SetupPorticoApproval{ApprovalURL: approval.URL, ExpiresAt: approval.ExpiresAt.UTC()}, nil
+	return approvalOut(approval), nil
 }
 
 // setupPorticoFinish makes the Portico Account that approved this server its owner, with no
@@ -382,14 +368,19 @@ func (s *Server) setupPorticoFinish(r *http.Request, req SetupPorticoFinish) (Si
 	if err != nil {
 		serverName = ""
 	}
-	st, err := s.db.CreateOwner(ctx, db.NewOwner{Username: username, PorticoAccountID: decision.Account.ID, ProfileName: profileName,
-		Settings: settings, Session: session, Now: now})
+	st, err := s.db.CreateOwner(ctx, db.NewOwner{Username: username, PorticoAccountID: decision.Account.ID, ApprovedAt: decision.IssuedAt,
+		ProfileName: profileName, Settings: settings, Session: session, Now: now})
 	if errors.Is(err, db.ErrSetupDone) {
 		return SignInResponse{}, errSetupDone()
+	}
+	if errors.Is(err, db.ErrStaleApproval) || errors.Is(err, db.ErrNotLinkOwner) {
+		return SignInResponse{}, setupHostedError(hosted.ErrDeclined)
 	}
 	if err != nil {
 		return SignInResponse{}, err
 	}
+	// The server is linked now: its document goes to Portico Services at once.
+	s.porticoWake()
 	s.saveServerName(ctx, st.UserID, serverName)
 	if err := s.setupDone(ctx); err != nil {
 		return SignInResponse{}, err
