@@ -6,9 +6,7 @@ import type {NativeSearchGenre} from '../src-next/screens/search/types.ts';
 test('ruling 36 surface prefixes preserve producer order and skip only the art missing for that frame', () => {
   const genres: NativeSearchGenre[] = Array.from({length: 10}, (_, index) => ({id: `facet-${index}`, name: `Metadata ${index}`, count: 100 - index,
     backdropPath: index === 0 ? undefined : `/actual/backdrop/${index}`, coverPaths: index === 1 ? ['/actual/only-poster'] : [`/actual/poster/${index}-a`, `/actual/poster/${index}-b`]}));
-  // Stopgap, not a deferral: a phone genre without two posters (the rebuilt server does not send them yet) is drawn
-  // with its backdrop, so facet-1 (one poster, a backdrop) is a tile too.
-  assert.deepEqual(nativeSearchGenreTiles(genres, 'phone').map(genre => genre.id), ['facet-0', 'facet-1', 'facet-2', 'facet-3', 'facet-4', 'facet-5']);
+  assert.deepEqual(nativeSearchGenreTiles(genres, 'phone').map(genre => genre.id), ['facet-0', 'facet-2', 'facet-3', 'facet-4', 'facet-5', 'facet-6']);
   for (const surface of ['phone-empty', 'tv'] as const) {
     const shown = nativeSearchGenreTiles(genres, surface);
     assert.deepEqual(shown.map(genre => genre.id), ['facet-1', 'facet-2', 'facet-3', 'facet-4']);
