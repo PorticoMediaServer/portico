@@ -17,6 +17,8 @@ import {presentError} from '../../../packages/client-core/src/presentation/error
 import {createTheme} from '../src-next/kit/theme.ts';
 import {defaultI18n} from '../../../packages/i18n/src';
 import {browseNameId} from '../../../packages/client-core/src/presentation/browse-toolbar.ts';
+// The Save view sheet's own rules, against the old server's view documents through the shared translator; the rebuilt server's are client-core's.
+import {legacySavedApi} from '../../../packages/client-core/test/fixtures/legacy-saved.ts';
 
 test('the handheld Library module self-registers real actions and a captured receipt-backed Save-view sheet', async () => {
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'home-only'};
@@ -59,10 +61,10 @@ test('the handheld Library module self-registers real actions and a captured rec
   });
   assert.equal(kind, 'library'); assert.equal(create, createNativeHandheldLibraryModule);
   const context = {current: () => true, navigation, authority: () => authority, session: () => ({viewer: {...authority, authority: 'local'}}),
-    api: {request: async (path: string, method?: string, body?: unknown) => {
+    api: legacySavedApi({request: async (path: string, method?: string, body?: unknown) => {
       if (method === 'POST') {posts.push(body); return {serverId: 'server', viewerFence: 'actual-viewer', receipt: {operationId, revision: 1, resourceId: 'new-view', deleted: false}};}
       return {serverId: 'server', viewerFence: 'actual-viewer', revision: 1, resources: [], nextCursor: ''};
-    }}};
+    }})};
   const module = create(context);
   const definition = {libraryId: 'actual', pivot: 'movies', query: {variant: 'predicate', field: 'favorite', operator: 'equals', value: true}, sort: [{field: 'title', direction: 'asc'}], presentation: 'grid'};
   const source = {phase: 'ready', library: {id: 'actual'}, tab: {}, discover: {appended: []}, defaultSort: {field: 'title', direction: 'asc'}};

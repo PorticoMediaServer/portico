@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PersonalSavedService, type SavedDefinition} from '@core/personal-saved.ts';
 import {saveViewDraft} from '../src/screens/browse/save-view.ts';
+// The dialog's own retry and read rules, against the old server's view documents; the rebuilt server's are client-core's.
+import {legacyPersonalTransport} from '../../packages/client-core/test/fixtures/legacy-personal-transport.ts';
 
 const definition: SavedDefinition = {libraryId: 'movies', pivot: 'movies', query: {variant:'predicate',field: 'playState', operator: 'equals', value: 'unplayed'}, sort: [{field: 'added', direction: 'desc'}], presentation: 'grid'};
 const directory = () => ({serverId: 'server', viewerFence: 'saved-only', revision: 1, resources: [], nextCursor: ''});
@@ -13,7 +15,7 @@ test('lost create response retries the original operation/definition without res
     writes.push(body);
     if (writes.length === 1) throw new TypeError('Connection lost');
     return {serverId: 'server', viewerFence: 'saved-only', receipt: {operationId: (body as {operationId: string}).operationId, resourceId: 'actual-created-view', revision: 1, deleted: false}} as T;
-  }}, {serverId: 'server', viewerId: 'viewer'}, async () => `00000000-0000-4000-8000-${String(++ids).padStart(12, '0')}`);
+  }}, {serverId: 'server', viewerId: 'viewer'}, async () => `00000000-0000-4000-8000-${String(++ids).padStart(12, '0')}`, legacyPersonalTransport);
   try {
     await assert.rejects(saveViewDraft(service, definition, '  Unwatched  ', () => true));
     assert.equal(reads, 1);assert.equal(service.getSnapshot().retryPending, true);
@@ -29,7 +31,7 @@ test('a directory read failure keeps the draft unsubmitted and can be retried as
   const service = new PersonalSavedService({request: async<T>(_path: string, method = 'GET'): Promise<T> => {
     if (method === 'GET') {if (++reads === 1) throw new TypeError('Offline');return directory() as T;}
     writes++;throw new TypeError('Offline');
-  }}, {serverId: 'server', viewerId: 'viewer'}, async () => '00000000-0000-4000-8000-000000000001');
+  }}, {serverId: 'server', viewerId: 'viewer'}, async () => '00000000-0000-4000-8000-000000000001', legacyPersonalTransport);
   try {
     await assert.rejects(saveViewDraft(service, definition, 'My view', () => true));assert.equal(writes, 0);
     await assert.rejects(saveViewDraft(service, definition, 'My view', () => true));assert.equal(reads, 2);assert.equal(writes, 1);
@@ -40,6 +42,6 @@ test('retired dialog cannot turn a late directory read into a create', async () 
   const service = new PersonalSavedService({request: async<T>(_path: string, method = 'GET'): Promise<T> => {
     if (method === 'GET') {current = false;return directory() as T;}
     writes++;throw new Error('must not create');
-  }}, {serverId: 'server', viewerId: 'viewer'}, async () => '00000000-0000-4000-8000-000000000001');
+  }}, {serverId: 'server', viewerId: 'viewer'}, async () => '00000000-0000-4000-8000-000000000001', legacyPersonalTransport);
   try {await assert.rejects(saveViewDraft(service, definition, 'My view', () => current), {name: 'AbortError'});assert.equal(writes, 0);} finally {service.dispose();}
 });

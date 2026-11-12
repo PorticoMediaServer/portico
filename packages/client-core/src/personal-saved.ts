@@ -9,7 +9,7 @@ import {firstOfEach,keepReadable,noteSkipped,oneOfOr} from './tolerant.ts';
 import {validateContentEntry,type ContentEntry} from './library-content.ts';
 import {parseBrowseNode,parseBrowseResult,type BrowseNode,type BrowseResult,type BrowseSortSelection} from './browse.ts';
 import type {SavedApi,SavedScope,SavedRoute,SavedActor,SavedShapeCounts} from './saved.ts';
-import {clearHistory,readCollections,readHistoryPage,readResource,sendResourceCommand} from './personal-saved-next.ts';
+import {clearHistory,readDirectory,readHistoryPage,readResource,readResourceRow,sendResourceCommand} from './personal-saved-next.ts';
 import {parseSavedShapeCounts,parseResourceOrderWitness,resourceContentManual,resourceContentParams,resourceContentQuery,type ResourceContentQuery,type ResourceOrderWitness} from './saved.ts';
 export type PersonalResourceKind='collection'|'view';
 /** A saved view stores the whole browse request: the pivot, the expression tree
@@ -83,13 +83,13 @@ export function parseEntryOutcomes(v:unknown,limit=200):EntryOutcomes{
 }
 /** One already-named resource, without executing its saved query or scanning a
  * directory. The same canonical metadata parser/actor scope is used as Saved. */
-export async function readPersonalResource(api:SavedApi,scope:SavedScope,resourceId:string,signal?:AbortSignal):Promise<PersonalResource>{
+export async function readPersonalResource(api:SavedApi,scope:SavedScope,resourceId:string,signal?:AbortSignal,transport:PersonalSavedTransport=personalSavedTransport):Promise<PersonalResource>{
  const original=Object.freeze({serverId:scope.serverId,viewerId:scope.viewerId});
  if(!id(original.serverId)||!str(original.viewerId,1024)||!original.viewerId||!id(resourceId))bad();
  const current=()=>{if(signal?.aborted)throw Object.assign(new Error('Saved resource read retired'),{name:'AbortError'});};
  current();
  try{
-  const raw=await api.request<unknown>(encodedRoutePath('get_saved_resources_id',{id:encodeURIComponent(resourceId)}),'GET',undefined,signal);
+  const raw=await transport.row(api,original,resourceId,signal);
   current();const value=resource(raw,original);if(value.id!==resourceId)bad();current();return freeze(value);
  }catch(error){current();throw error;}
 }
@@ -176,8 +176,8 @@ export function savedCategoryId(d?:SavedDefinition):string{
  return '';
 }
 /** What the service asks the server for History, collections and a collection's or saved view's page: the rebuilt server's by default (`personal-saved-next.ts`). A test can give its own. */
-export type PersonalSavedTransport=Readonly<{history:typeof readHistoryPage;clearHistory:typeof clearHistory;collections:typeof readCollections;resource:typeof readResource;send:typeof sendResourceCommand}>;
-export const personalSavedTransport:PersonalSavedTransport=Object.freeze({history:readHistoryPage,clearHistory,collections:readCollections,resource:readResource,send:sendResourceCommand});
+export type PersonalSavedTransport=Readonly<{history:typeof readHistoryPage;clearHistory:typeof clearHistory;directory:typeof readDirectory;resource:typeof readResource;row:typeof readResourceRow;send:typeof sendResourceCommand}>;
+export const personalSavedTransport:PersonalSavedTransport=Object.freeze({history:readHistoryPage,clearHistory,directory:readDirectory,resource:readResource,row:readResourceRow,send:sendResourceCommand});
 export class PersonalSavedService{
  private state:PersonalSavedSnapshot;private listeners=new Set<()=>void>();private generation=0;private readTicket=0;private candidateTicket=0;private disposed=false;private controllers=new Set<AbortController>();private seen=0;
  private command?:{intent:PersonalSavedIntent;path:string;method:string;body:Record<string,unknown>;fence:string;rebased?:boolean};
@@ -273,7 +273,7 @@ export class PersonalSavedService{
    if(route.view==='collections'||route.view==='views'){query.set('kind',route.view==='collections'?'collection':'view');if('shape'in route&&route.shape)query.set('shape',route.shape);}
    if(route.view==='history'&&'period'in route&&route.period)query.set('period',route.period);
    const raw=route.view==='history'?await this.bounded(s=>this.transport.history(this.api,this.scope,'period'in route?route.period:undefined,cursor,s),signal)
-    :route.view==='collections'?await this.bounded(s=>this.transport.collections(this.api,this.scope,cursor,s),signal)
+    :route.view==='collections'||route.view==='views'?await this.bounded(s=>this.transport.directory(this.api,this.scope,route.view==='views'?'view':'collection',cursor,s),signal)
     :route.view==='resource'?await this.bounded(s=>this.transport.resource(this.api,this.scope,route.resourceId!,resourceContentQuery(route),cursor,s),signal)
     :await this.request<unknown>(path+'?'+query,'GET',undefined,signal);
    if(!obj(raw)||!str(raw.nextCursor,4096))bad();let patch:{-readonly [K in keyof PersonalSavedSnapshot]?:PersonalSavedSnapshot[K]}&{viewerFence:string;revision:number;nextCursor:string}={page:null,resource:null,resources:[],entries:[],browse:null,nextCursor:raw.nextCursor,cursor,history:[...history],viewerFence:'',revision:0};
@@ -329,7 +329,7 @@ export class PersonalSavedService{
  }
  private async send():Promise<boolean>{const c=this.command,g=this.generation;if(!c||this.disposed)return false;this.publish({pending:true,mutationError:null});
   // A collection's or open saved view's change goes to the rebuilt server's lists, with what it needs from the page on screen.
-  const listed=c.intent.action==='create'?c.intent.kind==='collection':c.intent.action!=='clear-history'&&c.intent.action!=='reset-viewing-activity'&&!!this.state.resource;
+  const listed=c.intent.action==='create'?true:c.intent.action!=='clear-history'&&c.intent.action!=='reset-viewing-activity'&&!!this.state.resource;
   const context={resourceId:this.state.resource?.id,kind:this.state.resource?.kind,revision:c.body.expectedRevision as number|undefined,cursor:this.state.cursor,entries:this.state.entries.map(e=>({id:e.id,...(e.media?{itemId:e.media.id}:{})}))};
   try{const raw=c.intent.action==='clear-history'?await this.bounded(s=>this.transport.clearHistory(this.api,this.scope,c.body.operationId as string,s,c.body))
    :listed?await this.bounded(s=>this.transport.send(this.api,this.scope,c.intent,context,c.body.operationId as string,s,c))

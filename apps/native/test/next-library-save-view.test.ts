@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {NativeLibrarySaveView} from '../src-next/screens/library/save-view.ts';
 import type {SavedApi} from '../../../packages/client-core/src/saved.ts';
+// The Save view sheet's own rules, against the old server's view documents through the shared translator; the rebuilt server's are client-core's.
+import {legacySavedApi} from '../../../packages/client-core/test/fixtures/legacy-saved.ts';
 
 const scope = {serverId: 'server', viewerId: JSON.stringify(['local', 'account', 'profile'])};
 const definition = {libraryId: 'actual-movies', pivot: 'movies', query: {variant: 'predicate', field: 'favorite', operator: 'equals', value: true}, sort: [{field: 'title', direction: 'asc'}], presentation: 'grid'} as const;
@@ -14,7 +16,7 @@ test('Save view trims the real name, preserves the captured definition and close
     if (method !== 'POST') return directory() as T;
     bodies.push(body); return {serverId: 'server', viewerFence: 'actual-viewer', receipt: {operationId, revision: 2, resourceId: 'created-view', deleted: false}} as T;
   }};
-  const controller = new NativeLibrarySaveView({api, scope, definition, current: () => true, requestId: async () => operationId, saved: id => {saved.push(id);}});
+  const controller = new NativeLibrarySaveView({api: legacySavedApi(api), scope, definition, current: () => true, requestId: async () => operationId, saved: id => {saved.push(id);}});
   try {
     await controller.save(); assert.equal(bodies.length, 0);
     controller.setName('  Actual saved name  ');
@@ -34,7 +36,7 @@ test('an uncertain Save retry retains the name and exact operation body, and vie
     return {serverId: 'server', viewerFence: 'actual-viewer', receipt: {operationId, revision: 2, resourceId: 'created-view', deleted: false}} as T;
   }};
   let saved = 0;
-  const controller = new NativeLibrarySaveView({api, scope, definition, current: () => current, requestId: async () => operationId, saved: () => {saved++;}});
+  const controller = new NativeLibrarySaveView({api: legacySavedApi(api), scope, definition, current: () => current, requestId: async () => operationId, saved: () => {saved++;}});
   controller.setName('Keep this name'); await controller.save();
   assert.equal(controller.getSnapshot().open, true); assert.equal(controller.getSnapshot().name, 'Keep this name');
   assert.ok(controller.getSnapshot().error); assert.equal(controller.getSnapshot().nameLocked, true);
@@ -54,7 +56,7 @@ test('a failed initial directory read retries, while a failed post-receipt refre
     if (reads === 1 || reads > 2) throw Object.assign(new Error('offline'), {code: 'network_error'});
     return directory() as T;
   }};
-  const controller = new NativeLibrarySaveView({api, scope, definition, current: () => true, requestId: async () => operationId, saved: () => {saved++;}});
+  const controller = new NativeLibrarySaveView({api: legacySavedApi(api), scope, definition, current: () => true, requestId: async () => operationId, saved: () => {saved++;}});
   try {
     controller.setName('Preserved name'); await controller.save();
     assert.equal(controller.getSnapshot().open, true); assert.equal(controller.getSnapshot().name, 'Preserved name'); assert.equal(posts, 0);
