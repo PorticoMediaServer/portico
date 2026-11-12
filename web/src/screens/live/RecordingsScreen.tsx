@@ -51,6 +51,14 @@ function rangeOf(recording: Recording) { return timeRange(recording.start, recor
 /** Whether this viewer may change any profile's recording: the owner and administrators may; anyone else only their own.
  * The server sends no per-row "can change" fact, so a member is offered no changes in Everyone's (their own are in Mine). */
 function changesEveryones(context: ScreenContext) { return context.identity?.viewer.role === 'owner' || context.identity?.viewer.role === 'admin'; }
+/** Whether this profile may change, stop or delete one recording: the server's word for that row, or the screen's own rule
+ * for a server that does not say (`fallback`). */
+function mayChange(recording: Recording, fallback: boolean) { return recording.mayChange ?? fallback; }
+/** Whether this profile may cancel a booking not yet started, or stop one recording now. */
+function mayCancel(recording: Recording, fallback: boolean) {
+  if (recording.mayChange === undefined) return fallback;
+  return recording.state === 'recording' ? recording.mayChange : recording.mayCancel === true || recording.mayChange;
+}
 /** A refused command, said on the row it was for. */
 function RowRefusal({text}: {text?: string}) { return text ? <p className={styles.rowRefusal} role="alert">{text}</p> : null; }
 /** What Delete removes: its size only when the server has said it. */
@@ -91,8 +99,9 @@ function RecordingCopy({recording}: {recording: Recording}) {
 }
 function RecordingRow({recording, now, onCancel, onDetails, refusal}: {recording: Recording; now: number; onCancel?: () => void; onDetails?: () => void; refusal?: string}) {
   const [menuOpen, setMenuOpen] = useState(false);
+  // A recording in progress is stopped, and what was captured is kept (rule 50); a booking is cancelled.
   const items: readonly MenuEntry[] = [
-    ...(onCancel ? [{id: 'cancel', label: t('recordings.cancelAction'), icon: 'i-close' as const, destructive: true, onSelect: onCancel}] : []),
+    ...(onCancel ? [{id: 'cancel', label: recording.state === 'recording' ? t('next.live.stopAction') : t('recordings.cancelAction'), icon: 'i-close' as const, destructive: true, onSelect: onCancel}] : []),
     ...(onDetails ? [{id: 'details', label: t('next.live.details'), icon: 'i-info' as const, onSelect: onDetails}] : [])];
   return <div className={styles.recRow} data-state={recording.state}>
     <div className={styles.recWhen}><b>{recording.state === 'recording' ? t('guide.now') : timeOf(recording.start)}</b><small>{rangeOf(recording)}</small></div>
@@ -114,6 +123,7 @@ function ConflictBox({context, recording, detail: supplied, onResolve, onCancel,
     void readRecordingDetail(context, recording.id, abort.signal).then(value => {if (!abort.signal.aborted && context.isCurrent()) setDetail(value);}, () => {});
     return () => abort.abort();
   }, [context, recording.id, supplied]);
+  const tuners = recording.conflicts[0]?.capacity ?? (detail?.capacity.known ? detail.capacity.effective : undefined);
   const [menuOpen, setMenuOpen] = useState(false);
   const items: readonly MenuEntry[] = [
     ...(onCancel ? [{id: 'cancel', label: t('recordings.cancelAction'), icon: 'i-close' as const, destructive: true, onSelect: onCancel}] : []),
@@ -122,7 +132,8 @@ function ConflictBox({context, recording, detail: supplied, onResolve, onCancel,
     <div className={styles.conflictHead}><Icon name="i-warn" size={22}/><div>
       <h3>{t('recordings.conflictTitle', {title: recording.programme.title})}</h3>
       {/* The server sends no tuner count to a viewer: the box says only what it knows. */}
-      <p>{t('recordings.conflictsBody')}</p>
+      {/* How many tuners there are and what holds them, when the server says (rule 42); otherwise the plain sentence. */}
+      <p>{tuners !== undefined ? t('next.live.conflictBody', {count: tuners, range: rangeOf(recording)}) : t('recordings.conflictsBody')}</p>
     </div></div>
     <div className={styles.conflictRow}>
       <div className={styles.recWhen}><b>{timeOf(recording.start)}</b><small>{rangeOf(recording)}</small></div>
@@ -133,7 +144,10 @@ function ConflictBox({context, recording, detail: supplied, onResolve, onCancel,
           trigger={<Button className={styles.recMore} variant="ghost" size="small" iconOnly icon="i-more" aria-label={t('web.dvr.actionsFor', {title: recording.programme.title})}/>} items={items}/>}</div>
     </div>
     <RowRefusal text={refusal}/>
-    {detail && detail.overlaps.length > 0 && <div className={styles.conflictOthers}>
+    {recording.tunersUsedBy?.length ? <div className={styles.conflictOthers}>
+      <span>{t('next.live.usingTuners')}</span>
+      {recording.tunersUsedBy.map((name, index) => <span key={`${index}:${name}`}><b>{name}</b></span>)}
+    </div> : detail && detail.overlaps.length > 0 && <div className={styles.conflictOthers}>
       <span>{t('next.live.usingTuners')}</span>
       {detail.overlaps.map(other => <span key={other.id}><b>{other.title}</b><em>{t('guide.cellTime', {start: timeOf(other.start), end: timeOf(other.end)})}</em></span>)}
     </div>}
@@ -195,7 +209,8 @@ function ConflictDialog({context, opening, current, consume, controller, onClose
     title={t('recordings.conflictTitle', {title: recording.programme.title})} description={t('recordings.conflictsBody')}
     footer={<><Button variant="primary" loading={busy === 'raise'} disabled={!!busy || !opening.live} onClick={() => {void run('raise');}}>{t('web.dvr.recordThis')}</Button>
       <Button variant="glass" loading={busy === 'skip'} disabled={!!busy || !opening.live} onClick={() => {void run('skip');}}>{t('web.dvr.skipThis')}</Button></>}>
-    {error ? <Banner>{error}</Banner> : <p className={styles.dialogText}>{t('recordings.conflictsBody')}</p>}
+    {error ? <Banner>{error}</Banner> : <p className={styles.dialogText}>{recording.conflicts[0]?.capacity !== undefined
+      ? t('next.live.conflictBody', {count: recording.conflicts[0].capacity, range: rangeOf(recording)}) : t('recordings.conflictsBody')}</p>}
   </Dialog>;
 }
 
@@ -212,7 +227,7 @@ export function RecordingsPager({controller, snapshot}: {controller: RecordingsC
 
 export function UpcomingView({context, controller, snapshot, now, onResolve, conflictDetails, canChange = true}: {context: ScreenContext; controller: RecordingsController; snapshot: ReturnType<RecordingsController['getSnapshot']>; now: number; onResolve: (recording: Recording, detail?: RecordingDetail) => void; conflictDetails?: Readonly<Record<string, RecordingDetail>>; canChange?: boolean}) {
   const refusal = (recording: Recording) => snapshot.commandRecordingId === recording.id ? snapshot.commandError : undefined;
-  const cancel = (recording: Recording) => canChange ? () => {void controller.cancel(recording);} : undefined;
+  const cancel = (recording: Recording) => mayCancel(recording, canChange) ? () => {void controller.cancel(recording);} : undefined;
   const recordings = snapshot.page?.recordings ?? [];
   const conflicted = recordings.filter(recording => recording.state === 'conflicted');
   const current = recordings.filter(recording => ['recording', 'preparing', 'finalizing'].includes(recording.state) && recording.state !== 'conflicted');
@@ -221,7 +236,7 @@ export function UpcomingView({context, controller, snapshot, now, onResolve, con
   const closeShown = (target: Recording | undefined) => setShown(current => current === target ? undefined : current);
   return <div className={styles.recBody}>
     {conflicted.length > 0 && <section className={styles.recSection}><h2>{t('recordings.conflicts')}<span>{snapshot.summary?.conflicts ?? conflicted.length}</span></h2>
-      {conflicted.map(recording => <ConflictBox key={recording.id} context={context} recording={recording} detail={conflictDetails?.[recording.id]} {...(canChange ? {onResolve: (detail?: RecordingDetail) => onResolve(recording, detail)} : {})} onCancel={cancel(recording)} onDetails={() => setShown(recording)} refusal={refusal(recording)}/>)}</section>}
+      {conflicted.map(recording => <ConflictBox key={recording.id} context={context} recording={recording} detail={conflictDetails?.[recording.id]} {...(mayChange(recording, canChange) ? {onResolve: (detail?: RecordingDetail) => onResolve(recording, detail)} : {})} onCancel={cancel(recording)} onDetails={() => setShown(recording)} refusal={refusal(recording)}/>)}</section>}
     {current.length > 0 && <section className={styles.recSection}><h2>{t('next.live.recordingNow')}</h2>
       {current.map(recording => <RecordingRow key={recording.id} recording={recording} now={now} onCancel={cancel(recording)} refusal={refusal(recording)}/>)}</section>}
     {later.length > 0 && <section className={styles.recSection}><h2>{t('next.live.laterToday')}<span>{dateOf(later[0]!.start)}</span></h2>
@@ -301,8 +316,8 @@ function CommittedRecordedGroupPanel({lease, title, onClose}: {lease: RecordedGr
         <small>{recording.keep ? t('recordings.kept') : recording.watched === true ? t('next.live.watched') : recording.watched === false ? t('next.live.unwatched') : null}</small></div>
       <div className={styles.groupActions}>
         <Button variant="glass" size="small" icon="i-play" disabled={!playableRecording(recording)} onClick={() => play(recording)}>{t('next.live.play')}</Button>
-        {canChange && <Button variant="ghost" size="small" disabled={state.busy || !playableRecording(recording)} onClick={() => keep(recording)}>{recording.keep ? t('web.dvr.stopKeeping') : t('web.dvr.keep')}</Button>}
-        {canChange && <Button variant="ghost" size="small" disabled={state.busy} onClick={() => requestRemove(recording)}>{t('web.dvr.deleteRecording')}</Button>}
+        {mayChange(recording, canChange) && <Button variant="ghost" size="small" disabled={state.busy || !playableRecording(recording)} onClick={() => keep(recording)}>{recording.keep ? t('web.dvr.stopKeeping') : t('web.dvr.keep')}</Button>}
+        {mayChange(recording, canChange) && <Button variant="ghost" size="small" disabled={state.busy} onClick={() => requestRemove(recording)}>{t('web.dvr.deleteRecording')}</Button>}
       </div>
       <RowRefusal text={state.errorRecordingId === recording.id ? state.error : undefined}/>
     </div>)}
@@ -333,6 +348,12 @@ function StorageView({snapshot, tuners}: {snapshot: ReturnType<RecordingsControl
   // What the server says about the recordings' space: free, about how many hours are left, and whether the folder can be written.
   return <div className={styles.recBody}><div className={styles.storagePanel}>
     <p><b>{t('next.live.storageFree', {amount: Math.round(storage.freeBytes / 1e9)})}</b> · {t('recordings.hoursLeft', {count: storage.hoursLeft})}</p>
+    {/* Each further fact only when the server says it, in the same rounded GB as the free space. */}
+    {storage.usedBytes !== undefined && <p>{t('next.live.storageUsed', {amount: Math.round(storage.usedBytes / 1e9)})}</p>}
+    {storage.floorBytes ? <p>{t('next.live.storageFloor', {amount: Math.round(storage.floorBytes / 1e9)})}</p> : null}
+    {storage.capBytes ? <p>{t('next.live.storageCap', {amount: Math.round(storage.capBytes / 1e9)})}</p> : null}
+    {storage.keepRule && <p>{t('next.live.keepRule', {rule: storage.keepRule})}</p>}
+    {storage.upcomingBytes !== undefined && storage.upcomingHours !== undefined && <p>{t('next.live.storageForecast', {amount: Math.round(storage.upcomingBytes / 1e9), hours: storage.upcomingHours})}</p>}
     {!storage.writeHealthy && <Banner>{t('recordings.unavailableBody')}</Banner>}
   </div>{tuners && <Tuners controller={tuners} detailed/>}</div>;
 }
@@ -382,8 +403,8 @@ function Boundary({context, view, everyone, routeCurrent, onView, onScope, onGui
       <div className={styles.recordingsChips} role="group" aria-label={t('recordings.title')}>
         {views.map(item => <Chip className={styles.recordingsChip} key={item.id} selected={item.id === view} count={item.count} onClick={() => goView(item.id)}>{item.label}</Chip>)}
       </div>
-      {/* Recordings open on this profile's own, with everyone's one tap away (rule 48). */}
-      {onScope && (view === 'upcoming' || view === 'recorded' || view === 'history') && <Segmented className={styles.recordingsScope} aria-label={t('next.live.whose')} value={everyone ? 'everyone' : 'mine'}
+      {/* Recordings open on this profile's own, with everyone's one tap away for a profile that may see them (rule 48). */}
+      {onScope && summary?.everyonesRecordings !== false && (view === 'upcoming' || view === 'recorded' || view === 'history') && <Segmented className={styles.recordingsScope} aria-label={t('next.live.whose')} value={everyone ? 'everyone' : 'mine'}
         onValueChange={value => {if (lease.current() && (value === 'mine' || value === 'everyone')) onScope(value === 'everyone');}}
         items={[{value: 'mine', label: t('next.live.mine')}, {value: 'everyone', label: t('next.live.everyones')}]}/>}
       {snapshot.storage && <button type="button" className={styles.storageButton} aria-label={t('recordings.storage')} onClick={() => goView('storage')}>

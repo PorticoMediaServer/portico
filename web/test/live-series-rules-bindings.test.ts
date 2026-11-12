@@ -14,7 +14,7 @@ const nextRule = (number: number, patch: Record<string, unknown> = {}) => ({id: 
 const status = (status: number) => Object.assign(new Error('unit request rejected'), {status});
 type Call = {path: string; method: string; body: unknown};
 
-function setup(options: {total?: number; answer?: (call: Call) => unknown} = {}) {
+function setup(options: {total?: number; answer?: (call: Call) => unknown; noPreview?: boolean} = {}) {
   const rows = Array.from({length: options.total ?? 1}, (_, index) => nextRule(index + 1));
   const calls: Call[] = [];
   let active = true;
@@ -34,6 +34,10 @@ function setup(options: {total?: number; answer?: (call: Call) => unknown} = {})
       return {items: rows.slice(offset, next), ...(next < rows.length ? {nextCursor: String(next)} : {})} as T;
     }
     const index = rows.findIndex(row => url.pathname === '/v1/dvr/rules/' + row.id);
+    // A preview saves nothing: it answers the rule with what it would record.
+    if (url.searchParams.get('preview') === 'true' && index >= 0) return (options.noPreview ? rows[index] : {...rows[index], preview: {matches: 3, airings: [
+      {title: 'Stored rule 1', episodeTitle: 'Harbour Lights', season: 2, episode: 4, channel: 'Dockside News', startsAt: '2026-10-24T20:00:00Z', endsAt: '2026-10-24T20:30:00Z', alreadyBooked: true},
+      {title: 'Stored rule 1', channel: 'Dockside News', startsAt: '2026-10-25T20:00:00Z', endsAt: '2026-10-25T20:30:00Z', alreadyBooked: false}]}}) as T;
     assert(index >= 0, 'only a rule that is shown is changed');
     if (method === 'DELETE') {rows.splice(index, 1);return undefined as T;}
     rows[index] = {...rows[index]!, ...(body as object)};return rows[index] as T;
@@ -66,7 +70,8 @@ test('saving sends the editor\'s choices as one PATCH of the rule, then reads th
   try {
     await f.binding.load();const row = f.binding.getSnapshot().view!.rules[0]!;
     assert.equal(await f.binding.save(row, {...row.settings, enabled: false, episodes: 'all', keep: '5', startEarly: 2, endLate: 1}), true);
-    assert.deepEqual(f.sent(), [['PATCH', '/v1/dvr/rules/lru_1', {newOnly: false, priority: 0, paused: true, anyChannel: true, keepNewest: 5, padBeforeMs: 120_000,
+    // An unset keep choice is sent as 0, which clears it (the owner's default then applies).
+    assert.deepEqual(f.sent(), [['PATCH', '/v1/dvr/rules/lru_1', {newOnly: false, priority: 0, paused: true, anyChannel: true, keepNewest: 5, keepDays: 0, padBeforeMs: 120_000,
       padAfterMs: 60_000}]]);
     assert.equal(f.binding.getSnapshot().view?.rules[0]?.settings.enabled, false);
   } finally {f.binding.dispose();}
@@ -100,14 +105,27 @@ test('a refused save keeps the rule as shown; a second command while one runs se
   } finally {f.binding.dispose();}
 });
 
-test('the server previews no edit of an existing rule: the editor shows no Coming up, reports nothing and sends nothing', async () => {
+test('editing a rule shows what it would record, from the server\'s preview, which saves nothing', async () => {
   const f = setup();
   try {
-    await f.binding.load();const before = f.calls.length, row = f.binding.getSnapshot().view!.rules[0]!;
+    await f.binding.load();const row = f.binding.getSnapshot().view!.rules[0]!;
+    await f.binding.preview(row, {...row.settings, episodes: 'all'});
+    const preview = f.binding.getSnapshot().preview!;
+    assert.equal(preview.count, 3);
+    assert.deepEqual(preview.airings.map(one => [one.title, one.episode, one.channel, one.scheduled]), [['Harbour Lights', 'S2 E4', 'Dockside News', true], ['Stored rule 1', undefined, 'Dockside News', undefined]]);
+    const sent = f.calls.filter(call => call.method !== 'GET');
+    assert.deepEqual(sent.map(call => call.path), ['/v1/dvr/rules/lru_1?preview=true']);
+    assert.equal(f.rows[0]!.newOnly, true, 'nothing saved');
+  } finally {f.binding.dispose();}
+});
+
+test('a server with no preview of an edited rule: the editor shows no Coming up and reports nothing', async () => {
+  const f = setup({noPreview: true});
+  try {
+    await f.binding.load();const row = f.binding.getSnapshot().view!.rules[0]!;
     await f.binding.preview(row, row.settings);
     assert.equal(f.binding.getSnapshot().previewError, undefined);assert.equal(f.binding.getSnapshot().preview, undefined);
     assert.equal(f.binding.getSnapshot().previewLoading, false);
-    assert.equal(f.calls.length, before);
   } finally {f.binding.dispose();}
 });
 

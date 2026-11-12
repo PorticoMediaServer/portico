@@ -33,6 +33,8 @@ test('each tab reads its own route: Upcoming, History, Storage and the Recorded 
     if (pathname === '/v1/dvr') return dvr();
     if (pathname === '/v1/dvr/rules') return {items: []};
     if (pathname === '/v1/items/itm_1') return {id: 'itm_1', libraryId: 'lib_recorded'};
+    // The Recorded tab's own read: only the recordings that were made, ordered by title.
+    if (searchParams.get('state') === 'recorded') return {items: [booking('h3', {state: 'partial', title: 'Film'}), booking('h1', {state: 'recorded', title: 'News', itemId: 'itm_1'})]};
     if (searchParams.get('state') === 'history') return {items: [booking('h1', {state: 'recorded', title: 'News', itemId: 'itm_1'}), booking('h2', {state: 'failed', title: 'News'}),
       booking('h3', {state: 'partial', title: 'Film'})]};
     return {items: [booking('u1')]};
