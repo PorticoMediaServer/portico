@@ -24,6 +24,7 @@ func (e *Engine) bookParts(ctx context.Context, r playback.PlanRequest, remoteID
 	}
 	folders := e.folders()
 	parts := make([]streaming.JoinedPart, 0, len(r.Version.Parts))
+	packetLengths := make([]int64, 0, len(r.Version.Parts))
 	for n, part := range r.Version.Parts {
 		place, err := e.db.FileOnDisk(ctx, part.FileID)
 		if errors.Is(err, db.ErrNotFound) {
@@ -37,11 +38,19 @@ func (e *Engine) bookParts(ctx context.Context, r playback.PlanRequest, remoteID
 			return nil, playback.ErrSourceUnavailable
 		}
 		length, shape := place.DurationMS, place.AudioShape
-		if length <= 0 || shape == "" {
+		if length <= 0 || shape == "" || place.PacketLengthUS <= 0 {
 			facts := first
 			if n > 0 {
 				if facts, err = e.probe.Inspect(ctx, path); err != nil {
 					return nil, playback.ErrSourceUnavailable
+				}
+			}
+			if place.PacketLengthUS <= 0 {
+				if err := e.probe.CompleteAudioPackets(ctx, path, &facts); err != nil {
+					return nil, playback.ErrSourceUnavailable
+				}
+				if facts.Packets != nil {
+					place.PacketLengthUS = facts.Packets.LengthUS
 				}
 			}
 			if length <= 0 {
@@ -54,7 +63,15 @@ func (e *Engine) bookParts(ctx context.Context, r playback.PlanRequest, remoteID
 		if length <= 0 {
 			return nil, playback.ErrSourceUnavailable
 		}
-		parts = append(parts, streaming.JoinedPart{Path: path, Size: place.Size, Modified: time.Unix(0, place.ModifiedNS), DurationMs: length, Shape: shape})
+		parts = append(parts, streaming.JoinedPart{Path: path, Size: place.Size, Modified: time.Unix(0, place.ModifiedNS), DurationUS: length * 1000, Shape: shape})
+		packetLengths = append(packetLengths, place.PacketLengthUS)
+	}
+	if !streaming.PartsDiffer(parts) {
+		for n := range parts {
+			if packetLengths[n] > 0 {
+				parts[n].DurationUS = packetLengths[n]
+			}
+		}
 	}
 	return parts, nil
 }

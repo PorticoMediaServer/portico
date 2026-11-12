@@ -3,6 +3,7 @@ package mediaengine_test
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -190,6 +191,7 @@ func (h *house) listen(t *testing.T, url, ffmpeg, ffprobe string) heard {
 		}
 		joined = body
 	}
+
 	file := filepath.Join(t.TempDir(), "heard")
 	if err := os.WriteFile(file, joined, 0o600); err != nil {
 		t.Fatal(err)
@@ -224,7 +226,7 @@ func (h *house) listen(t *testing.T, url, ffmpeg, ffprobe string) heard {
 // parts' tones.
 func toneAt(t *testing.T, ffmpeg, file string, at float64) int {
 	t.Helper()
-	raw, err := exec.Command(ffmpeg, "-v", "error", "-i", file, "-ss", strconv.FormatFloat(at, 'f', 3, 64), "-t", "1", "-ac", "1", "-ar", "8000",
+	raw, err := exec.Command(ffmpeg, "-v", "error", "-i", file, "-ss", strconv.FormatFloat(at, 'f', 3, 64), "-t", "0.1", "-ac", "1", "-ar", "8000",
 		"-f", "s16le", "-").Output()
 	if err != nil || len(raw) < 1000 {
 		t.Fatalf("decoding what plays: %v", err)
@@ -239,20 +241,7 @@ func toneAt(t *testing.T, ffmpeg, file string, at float64) int {
 		previous = v
 	}
 	hz := crossings * 8000 / (len(raw) / 2)
-	best := 300
-	for _, tone := range []int{300, 600, 900} {
-		if abs(hz-tone) < abs(hz-best) {
-			best = tone
-		}
-	}
-	return best
-}
-
-func abs(n int) int {
-	if n < 0 {
-		return -n
-	}
-	return n
+	return int(math.Round(float64(hz)/30)) * 30
 }
 
 // joinPlaylist follows an HLS playlist (and an audio or media playlist a master names) and

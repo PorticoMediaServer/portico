@@ -144,7 +144,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		}
 		position = timeline.Boundaries[from]
 	}
-	if input.InputAt != nil || timeline != nil || grid && delivery != nil && delivery.OutputContainer == "fmp4_hls" {
+	if input.InputAt != nil || timeline != nil || input.Until > 0 || grid && delivery != nil && delivery.OutputContainer == "fmp4_hls" {
 		staging = filepath.Join(dir, "window-"+strconv.Itoa(from))
 		_ = os.RemoveAll(staging)
 		if e = os.MkdirAll(staging, 0700); e != nil {
@@ -163,6 +163,11 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 	}
 	defer cleanupBurn()
 	fragmentClock := &convertedFragmentClock{}
+	batchUntil := HLSMaxSegments
+	if input.Until > 0 {
+		batchUntil = int(math.Round(input.Until / HLSSegmentSeconds))
+		fragmentClock.until = batchUntil
+	}
 	// The threads the run's software video encode is given, set by run before it builds.
 	encodeThreads := 0
 	build := func(plan *DeliveryPlan) ([]string, []decoder.HardwareStage, error) {
@@ -246,6 +251,15 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		} else {
 			args = append(args, readerOptions...)
 			args = append(args, "-i", path)
+		}
+		// A title in parts: the run starts this far into its input (an output seek, which keeps
+		// the first frame at or after the start under its own time), and ends where its batch
+		// of parts does.
+		if input.Skip > 0 {
+			args = append(args, "-ss", strconv.FormatFloat(input.Skip, 'f', 6, 64))
+		}
+		if input.Until > position {
+			args = append(args, "-t", strconv.FormatFloat(input.Until-position, 'f', 6, 64))
 		}
 		args = append(args, extraInput...)
 		if input.InputAt != nil {
@@ -560,7 +574,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			_ = os.RemoveAll(staging)
 			_ = os.MkdirAll(staging, 0700)
 		}
-		fragmentClock = &convertedFragmentClock{}
+		fragmentClock = &convertedFragmentClock{until: fragmentClock.until}
 		beforeRetry := highestProducedSegment(dir, from)
 		h.mu.Lock()
 		if w := h.windows[id]; w == owned {
@@ -663,7 +677,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			}
 		} else {
 			if staging != "" {
-				produced = promoteCopySegments(staging, dir, from, e == nil)
+				produced = promoteCopyRange(staging, dir, from, batchUntil, e == nil)
 			} else {
 				produced = highestProducedSegment(dir, from)
 			}
@@ -762,7 +776,11 @@ func (h *HLS) watchWindow(
 						return false
 					}
 				} else {
-					produced = promoteCopySegments(staging, dir, from, false)
+					until := HLSMaxSegments
+					if fragmentClock.until > 0 {
+						until = fragmentClock.until
+					}
+					produced = promoteCopyRange(staging, dir, from, until, false)
 				}
 			} else {
 				produced = highestProducedSegment(dir, from)
