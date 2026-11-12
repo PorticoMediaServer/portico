@@ -52,6 +52,9 @@ type LibraryOptions struct {
 	Lyrics string `json:"lyrics,omitempty"`
 	// GroupSeries is "Group films from the same series": nil is on, the default.
 	GroupSeries *bool `json:"groupSeries,omitempty"`
+	// NoSoundAnalysis turns off reading a music library's songs with the sound model; what
+	// was read is kept.
+	NoSoundAnalysis bool `json:"noSoundAnalysis,omitempty"`
 }
 
 // LyricsLRCLIB is a music library that looks up lyrics its files do not have at LRCLIB.

@@ -72,10 +72,14 @@ func TestSoundAnalysisReadsEachSongOnce(t *testing.T) {
 func TestSoundAnalysisWithoutTheModelAndOutsideItsHours(t *testing.T) {
 	s, _, _ := seededWith(t, 600, 0)
 	ctx := context.Background()
-	tools := func(context.Context) (*processpool.Supervisor, string, error) { return &processpool.Supervisor{}, "/usr/bin/ffmpeg", nil }
+	tools := func(context.Context) (*processpool.Supervisor, string, error) {
+		return &processpool.Supervisor{}, "/usr/bin/ffmpeg", nil
+	}
 	music := &musicanalysis.Service{DB: s.db, Log: s.log, Tools: tools, Now: s.now,
-		Hours:  func() settings.HeavyWorkSettings { return settings.General.Get(s.settings).HeavyWork },
-		Locate: func(string) sonic.RuntimeOptions { return sonic.RuntimeOptions{Helper: "/nowhere/portico-sonic", ModelDirectory: "/nowhere/musicnn-mtt"} }}
+		Hours: func() settings.HeavyWorkSettings { return settings.General.Get(s.settings).HeavyWork },
+		Locate: func(string) sonic.RuntimeOptions {
+			return sonic.RuntimeOptions{Helper: "/nowhere/portico-sonic", ModelDirectory: "/nowhere/musicnn-mtt"}
+		}}
 	if r, _, _ := music.Runtime(ctx); r != nil {
 		t.Fatal("a server without the model has a runtime")
 	}
@@ -93,5 +97,74 @@ func TestSoundAnalysisWithoutTheModelAndOutsideItsHours(t *testing.T) {
 	}
 	if _, paused := musicanalysis.PausedUntil(settings.HeavyWorkSettings{Hours: settings.HeavyAnyTime}, noon); paused {
 		t.Fatal("Any time paused heavy work")
+	}
+}
+
+// The Sonic analysis line says what the owner needs: analyzing with about how long is left at
+// the current hours, paused until the hours begin, all done, or off; and while the server has
+// not yet read enough songs to know its own pace, that it is still working it out.
+func TestTheSoundAnalysisLineSaysWhereItIsAndHowLongIsLeft(t *testing.T) {
+	noon := time.Date(2026, 11, 12, 12, 0, 0, 0, time.Local)
+	any, overnight := settings.HeavyWorkSettings{Hours: settings.HeavyAnyTime}, settings.HeavyWorkSettings{Hours: settings.HeavyOvernight}
+	base := SoundAnalysisStatus{Available: true, On: true, Songs: 1000, Analyzed: 400}
+	got := describeSoundAnalysis(base, any, noon, 2*time.Second, true)
+	if got.State != soundAnalyzing || got.SecondsLeft == nil || *got.SecondsLeft != 1200 || got.PausedUntil != nil {
+		t.Fatalf("at any time: %+v", got)
+	}
+	got = describeSoundAnalysis(base, overnight, noon, 2*time.Second, true)
+	if got.State != soundPaused || got.PausedUntil == nil || !got.PausedUntil.Equal(time.Date(2026, 11, 13, 1, 0, 0, 0, time.Local)) ||
+		got.SecondsLeft == nil || *got.SecondsLeft != 1200*24/5 {
+		t.Fatalf("overnight only, at noon: %+v", got)
+	}
+	if got = describeSoundAnalysis(base, any, noon, 0, false); !got.Estimating || got.SecondsLeft != nil {
+		t.Fatalf("before the pace is known: %+v", got)
+	}
+	done := base
+	done.Analyzed = 1000
+	if got = describeSoundAnalysis(done, overnight, noon, time.Second, true); got.State != soundDone || got.SecondsLeft != nil || got.PausedUntil != nil {
+		t.Fatalf("all read: %+v", got)
+	}
+	off := base
+	off.On = false
+	if got = describeSoundAnalysis(off, any, noon, time.Second, true); got.State != soundOff {
+		t.Fatalf("turned off: %+v", got)
+	}
+}
+
+// The library's Sonic analysis switch is on unless turned off, an edit that sends the options
+// back keeps it, and with it off the library's analysis does nothing; without the model the
+// line says it can't run and the switch is not offered.
+func TestTheSoundAnalysisSwitch(t *testing.T) {
+	s, owner, _ := seededWith(t, 600, 0)
+	ctx := context.Background()
+	music := libraryOfKind(t, s, owner, "music")
+	var lib AdminLibrary
+	call(t, s, "GET", "/v1/admin/libraries/"+music, owner, nil, &lib)
+	if lib.Options.SoundAnalysis == nil || !*lib.Options.SoundAnalysis {
+		t.Fatalf("a music library's options read %+v", lib.Options)
+	}
+	options := lib.Options
+	options.SoundAnalysis = new(false)
+	if w := call(t, s, "PATCH", "/v1/admin/libraries/"+music, owner, LibraryEdit{Options: &options}, nil); w.Code != 200 {
+		t.Fatalf("turning Sonic analysis off answered %d: %s", w.Code, w.Body)
+	}
+	if call(t, s, "GET", "/v1/admin/libraries/"+music, owner, nil, &lib); *lib.Options.SoundAnalysis {
+		t.Fatal("Sonic analysis is still on after it was turned off")
+	}
+	var line SoundAnalysisStatus
+	if w := call(t, s, "GET", "/v1/admin/libraries/"+music+"/sound-analysis", owner, nil, &line); w.Code != 200 || line.On || line.Available ||
+		line.State != soundCantRun {
+		t.Fatalf("the line without the model, switched off, answered %d %+v", w.Code, line)
+	}
+	tools := func(context.Context) (*processpool.Supervisor, string, error) {
+		return &processpool.Supervisor{}, "/usr/bin/ffmpeg", nil
+	}
+	svc := &musicanalysis.Service{DB: s.db, Log: s.log, Tools: tools, Now: s.now, Hours: func() settings.HeavyWorkSettings { return settings.HeavyWorkSettings{} },
+		Locate: func(string) sonic.RuntimeOptions { return sonic.RuntimeOptions{} }}
+	if err := svc.Kind().Run(ctx, jobs.Work{Request: jobs.Request{Target: jobs.Target{Library: music}}, Progress: func(int64, int64) {}}); err != nil {
+		t.Fatalf("the analysis of a library switched off ended with %v", err)
+	}
+	if code := status(t, s, "GET", "/v1/admin/libraries/"+libraryOfKind(t, s, owner, "movies")+"/sound-analysis", owner, nil); code != 404 {
+		t.Fatalf("a films library's Sonic analysis answered %d", code)
 	}
 }

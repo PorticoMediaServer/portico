@@ -41,6 +41,10 @@ type LibraryOptions struct {
 	// GroupSeries is "Group films from the same series": a collection appears once two films
 	// of a series are in the library. On unless turned off; left out of an edit, it stays.
 	GroupSeries *bool `json:"groupSeries,omitempty"`
+	// SoundAnalysis is a music library's "Sonic analysis": its songs are read by the sound
+	// model for Mixes and radio by sound. On unless turned off, like watch; off keeps what was
+	// read. Its status is GET /v1/admin/libraries/{id}/sound-analysis.
+	SoundAnalysis *bool `json:"soundAnalysis,omitempty"`
 }
 
 // TrashRule is days (the default, with Days from 1 to 3,650, starting at 30), scan (after
@@ -265,9 +269,9 @@ func timePtr(ms int64) *time.Time {
 
 func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
 	watch := !o.NoWatch
-	group := o.GroupSeries == nil || *o.GroupSeries
+	group, sound := o.GroupSeries == nil || *o.GroupSeries, !o.NoSoundAnalysis
 	out := LibraryOptions{Depth: o.Depth, Trash: TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete,
-		Watch: &watch, RescanMinutes: o.RescanMinutes, GroupSeries: &group}
+		Watch: &watch, RescanMinutes: o.RescanMinutes, GroupSeries: &group, SoundAnalysis: &sound}
 	if out.Depth == "" {
 		out.Depth = db.DepthBasic
 	}
@@ -282,7 +286,8 @@ func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
 
 func optionsIn(o LibraryOptions) db.LibraryOptions {
 	return db.LibraryOptions{Depth: o.Depth, Trash: db.TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete,
-		NoWatch: o.Watch != nil && !*o.Watch, RescanMinutes: o.RescanMinutes, GroupSeries: o.GroupSeries}
+		NoWatch: o.Watch != nil && !*o.Watch, RescanMinutes: o.RescanMinutes, GroupSeries: o.GroupSeries,
+		NoSoundAnalysis: o.SoundAnalysis != nil && !*o.SoundAnalysis}
 }
 
 func (s *Server) foldersOut(lib db.Library, folders []db.LibraryFolder) []LibraryFolder {

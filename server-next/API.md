@@ -519,7 +519,13 @@ looked up, then what is due is refreshed.
 
 On a server with Portico's sound model installed, the server starts `music_analysis` for a music
 library itself, hourly, when it has songs not yet read: each song is read once by the model, in the
-`heavyWork` hours, for Mixes and radio by sound. Without the model nothing is started.
+`heavyWork` hours, for Mixes and radio by sound, two songs side by side. Without the model nothing is started.
+The library's `soundAnalysis` option (on unless turned off, like `watch`; off keeps what was read) is its
+Sonic analysis switch, and `GET /v1/admin/libraries/{id}/sound-analysis` (owner) its status line: `available`
+(the model is installed; without it the switch is not offered and `state` is `cant_run`), `on`, `state`
+(`analyzing`, `paused` with `pausedUntil`, `done`, `off`, `cant_run`), `songs` and `analyzed`, and
+`secondsLeft` at the current hours from this server's own pace, or `estimating` until it has read enough
+songs since it started to know it.
 
 | Route | Purpose |
 |---|---|
