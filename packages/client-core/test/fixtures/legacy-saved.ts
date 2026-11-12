@@ -2,6 +2,8 @@
 // a request the app now makes (GET /v1/items?inList, /v1/lists, ...) is asked of the fixture as the old one
 // (/v1/content?view=watchlist, /v1/playlists/{id}, ...), and the fixture's answer is turned into the rebuilt server's.
 // Only test code uses this.
+import {createHash} from 'node:crypto';
+import {libraryItemQuery} from '../../src/library-browse.ts';
 
 type Request = (path: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<any>;
 const itemKind: Readonly<Record<string, string>> = {song: 'track', book: 'audiobook', ebook: 'book', comic: 'book', audiobook_file: 'audiobook'};
@@ -17,14 +19,67 @@ function item(entry: any, entryId?: string): Record<string, unknown> {
 const entriesOf = (doc: any): any[] => (doc?.sections ?? []).flatMap((section: any) => section.entries ?? []);
 const totalOf = (doc: any): number => (doc?.sections ?? []).reduce((sum: number, section: any) => sum + (section.totalCount ?? (section.entries ?? []).length), 0);
 const cursorOf = (doc: any): string => (doc?.sections ?? []).map((section: any) => section.nextCursor).find(Boolean) ?? '';
+/** An old collection or saved view as a rebuilt server's list: a view keeps its library and the item list's query. */
+function personalListOf(resource: any): Record<string, unknown> {
+  const view = resource.kind === 'view', d = resource.definition;
+  let query: string | undefined;
+  if (view && d) {
+    try {
+      const {library: _, ...list} = libraryItemQuery({id: d.libraryId}, d.pivot, d.query ? ('all' in d.query ? d.query.all : [d.query]) : [], d.sort ?? []) as Record<string, unknown>;
+      query = new URLSearchParams(Object.entries(list).map(([key, value]) => [key, String(value)])).toString();
+    } catch {query = 'unreadable=1';}
+  }
+  return {id: resource.id, kind: view ? 'saved_view' : 'collection', name: resource.name, description: resource.summary ?? '', owner: {id: 'owner', name: ''},
+    // The rebuilt server decides what a viewer may do from their role: a list not offered to change is someone else's.
+    role: resource.actions?.includes('update') || resource.actions?.includes('entries') ? resource.role : 'viewer', count: resource.entryCount ?? 0, everyone: resource.visibility === 'server', covers: (resource.artworkPaths ?? []).map((poster: string) => ({poster})),
+    ...(view ? {library: d?.libraryId ?? '', query: query ?? 'unreadable=1', dropped: [...(resource.invalidComponents ?? [])]} : {}),
+    revision: String(resource.revision ?? 0), createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z'};
+}
 const listOf = (resource: any) => ({id: resource.id, kind: 'playlist', name: resource.name, description: resource.summary ?? '', owner: {id: 'owner', name: ''},
   role: resource.role, count: resource.entryCount ?? 0, covers: [], revision: String(resource.revision ?? 0), createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z'});
 
+/** `personal`: the test's lists are collections and saved views, read on the old personal resource routes; without it a
+ * list is a playlist. Headers an edit carries (`If-Match`) arrive in `headers`. */
+export type LegacySavedOptions = Readonly<{personal?: boolean}>;
 /** A test transport that speaks the old Saved documents to its fixture and the rebuilt server's to the app. */
-export function legacySavedRequest(request: Request): Request {
-  return async (path, method = 'GET', body, signal) => {
+export function legacySavedRequest(request: Request, options: LegacySavedOptions = {}): Request {
+  // The saved view last opened: its titles are the old page's, read again with its id.
+  let openedView = '';
+  return async (path, method = 'GET', body, signal, headers?: Readonly<Record<string, string>>) => {
     const url = new URL(path, 'https://legacy.invalid'), q = url.searchParams, at = url.pathname;
     const old = (oldPath: string, oldMethod = 'GET', oldBody?: unknown) => request(oldPath, oldMethod, oldBody, signal);
+    const page = (cursor: string | null) => new URLSearchParams({limit: '40', ...(cursor ? {cursor} : {})});
+    if (at === '/v1/lists' && method === 'GET' && q.get('kind') === 'collection') {
+      const doc = await old('/v1/saved-resources?' + new URLSearchParams({limit: '40', ...(q.get('cursor') ? {cursor: q.get('cursor')!} : {}), kind: 'collection'}));
+      return {items: (doc?.resources ?? []).map(personalListOf), ...(doc?.nextCursor ? {nextCursor: doc.nextCursor} : {})};
+    }
+    if (options.personal) {
+      const one = /^\/v1\/lists\/([^/]+)(\/.*)?$/.exec(at), resourcePath = (id: string) => `/v1/saved-resources/${encodeURIComponent(id)}`;
+      const content = (id: string, cursor: string | null) => old(`${resourcePath(id)}/content?` + page(cursor));
+      const revision = Number(/"(\d+)"/.exec(headers?.['If-Match'] ?? '')?.[1] ?? NaN);
+      const answered = async (id: string) => {const list = personalListOf((await content(id, null))?.resource); if (list.kind === 'saved_view') openedView = id; return list;};
+      if (one && !one[2] && method === 'GET') return answered(decodeURIComponent(one[1]!));
+      if (at === '/v1/items' && method === 'GET' && q.has('list')) {
+        const doc = await content(q.get('list')!, q.get('cursor'));
+        if (q.get('order') === 'desc' && q.get('limit') === '1') return {items: doc?.order?.last ? [{id: 'last', kind: 'movie', title: '', entryId: doc.order.last}] : []};
+        return {items: (doc?.entries ?? []).filter((entry: any) => !entry.hidden).map((entry: any) => item(entry.media, entry.id)), total: doc?.totalCount ?? 0, ...(doc?.nextCursor ? {nextCursor: doc.nextCursor} : {})};
+      }
+      if (at === '/v1/items' && method === 'GET' && q.has('library')) {
+        // A saved view's titles: the old page ran its query, so they are the opened view's page.
+        const doc = await content(openedView, q.get('cursor'));
+        return {items: (doc?.browse?.entries ?? []).map((entry: any) => item(entry)), total: doc?.browse?.pageInfo?.total ?? 0, ...(doc?.browse?.pageInfo?.nextCursor ? {nextCursor: doc.browse.pageInfo.nextCursor} : {})};
+      }
+      if (one && !one[2] && (method === 'PATCH' || method === 'DELETE')) {
+        const id = decodeURIComponent(one[1]!), change = (body ?? {}) as {name?: string; description?: string; everyone?: boolean};
+        // The rebuilt server's edit has no operation id; the old fixture's is the request's own, so a retry sends the same.
+        const operationId = '00000000-0000-4000-8000-' + createHash('sha256').update(JSON.stringify([at, method, revision, body ?? null])).digest('hex').slice(0, 12);
+        const oldBody = {expectedRevision: revision, operationId,
+          ...(change.name === undefined ? {} : {name: change.name}), ...(change.description === undefined ? {} : {summary: change.description}),
+          ...(change.everyone === undefined ? {} : {visibility: change.everyone ? 'server' : 'private'})};
+        await old(resourcePath(id), method, oldBody);
+        return method === 'DELETE' ? undefined : answered(id);
+      }
+    }
     if (at === '/v1/items' && method === 'GET' && (q.has('inList') || q.has('favorite')) && !q.has('list')) {
       // A counted read asks with limit=1, so a test that counts its page reads can leave these out.
       const view = q.has('inList') ? 'watchlist' : 'favorites', params = new URLSearchParams({view, limit: q.get('limit') === '1' ? '1' : '40'});
@@ -82,7 +137,7 @@ export function legacySavedRequest(request: Request): Request {
 }
 
 /** The same, for a test that gives `HttpLocalApi` its own fetch. A refusal from the fixture passes through as it is. */
-export function legacySavedFetch(fetcher: (input: any, init?: any) => Promise<Response>): (input: any, init?: any) => Promise<Response> {
+export function legacySavedFetch(fetcher: (input: any, init?: any) => Promise<Response>, options: LegacySavedOptions = {}): (input: any, init?: any) => Promise<Response> {
   class Refused {constructor(readonly response: Response) {}}
   return async (input: any, init: any = {}) => {
     const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, origin = new URL(href).origin;
@@ -94,7 +149,8 @@ export function legacySavedFetch(fetcher: (input: any, init?: any) => Promise<Re
       const text = await response.text(); return text ? JSON.parse(text) : undefined;
     };
     try {
-      const answer = await legacySavedRequest(ask)(href.slice(origin.length), method, body);
+      const headers = Object.fromEntries(new Headers(init.headers ?? {}).entries()), named = {'If-Match': headers['if-match'] ?? ''};
+      const answer = await (legacySavedRequest(ask, options) as (...args: unknown[]) => Promise<unknown>)(href.slice(origin.length), method, body, undefined, named);
       return new Response(answer === undefined ? null : JSON.stringify(answer), {status: answer === undefined ? 204 : 200, headers: {'content-type': 'application/json'}});
     } catch (error) {if (error instanceof Refused) return error.response; throw error;}
   };

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {React, fabricHost} from './helpers/fabric-host.mjs';
 import {standardHomeApp} from './helpers/standard-home-app-harness.mjs';
 import type {SavedApi, SavedRoute, SavedScope} from '../../../packages/client-core/src/saved';
+import {legacySavedRequest} from '../../../packages/client-core/test/fixtures/legacy-saved.ts';
 import type {NativeShellRuntime} from '../src-next/shell/runtime';
 import type {NativeSavedEntryActions} from '../src-next/screens/saved/SavedResourceScreen';
 
@@ -34,7 +35,12 @@ class CollectionFixture {
   readonly requestIds: string[] = [];
   visibility: 'private' | 'server' = 'private';
   revision = 1;
-  readonly api: SavedApi = {request: async <T>(path: string, method = 'GET', body?: unknown): Promise<T> => this.route(path, method, body) as Promise<T>};
+  // The app asks the rebuilt server's lists; this fixture answers the old personal resource documents, through the
+  // shared translator, and an edit's If-Match reaches it as the revision it names.
+  private readonly legacy = legacySavedRequest((path, method, body) => this.route(path, method ?? 'GET', body), {personal: true}) as (...args: unknown[]) => Promise<unknown>;
+  readonly api: SavedApi = {request: async <T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> => this.legacy(path, method, body, signal) as Promise<T>,
+    requestRaw: async (path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', options?: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>) =>
+      ({status: 200, headers: {}, body: await this.legacy(path, method, options?.body, options?.signal, options?.headers)})};
   private resource() {
     return {serverId: scope.serverId, viewerFence: 'fence-one', id: 'collection-1', kind: 'collection', name: 'Comfort movies',
       summary: '', visibility: this.visibility, revision: this.revision, role: 'owner', entryCount: 2,
@@ -112,7 +118,8 @@ test('NM-ID-01 / MOB-050: the real Saved page continues its offered cursor on sc
     try {
       await host.render(tree(page()));
       await settle();
-      assert.equal(destination.getSnapshot().personal?.nextCursor, 'page-2', 'the genuine first page offers a second page');
+      // The app's cursor carries the server's own (`page-2`), which the second read below sends.
+      assert.ok(destination.getSnapshot().personal?.nextCursor, 'the genuine first page offers a second page');
       assert.match(text(), /First page title/);
 
       const showMoreID = focusTestID(region, 'saved-show-more');
@@ -134,14 +141,16 @@ test('NM-ID-01 / MOB-050: the real Saved page continues its offered cursor on sc
       assert.equal(fixture.calls.filter(call => call.method === 'GET').length, reads, 'the distant tail does not prefetch');
       scroll.props.onScroll({nativeEvent: {contentOffset: {y: 1600}}});
       await settle();
-      const paged = fixture.calls.filter(call => call.method === 'GET').slice(reads);
+      // On the rebuilt server a page comes with its list and the list's last entry; one read is the page itself.
+      const paged = fixture.calls.filter(call => call.method === 'GET').slice(reads).filter(call => /[?&]cursor=/.test(call.path));
       assert.equal(paged.length, 1, 'the near-tail scroll performs the real next-page read');
       assert.match(paged[0]!.path, /[?&]cursor=page-2(?:&|$)/, 'the caller page cursor is used, not a rebuilt query');
       assert.match(text(), /Second page title/, 'the real service publishes the next page');
       assert.equal(destination.getSnapshot().personal?.nextCursor, '', 'the last page retires continuation');
+      const afterPage = fixture.calls.filter(call => call.method === 'GET').length;
       scroll.props.onScroll({nativeEvent: {contentOffset: {y: 2000}}});
       await settle();
-      assert.equal(fixture.calls.filter(call => call.method === 'GET').length, reads + 1, 'the old scroll callback cannot reuse the consumed cursor');
+      assert.equal(fixture.calls.filter(call => call.method === 'GET').length, afterPage, 'the old scroll callback cannot reuse the consumed cursor');
 
       await host.render(tree(page()));
       await settle();
