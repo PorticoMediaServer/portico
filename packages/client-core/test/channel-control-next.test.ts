@@ -63,13 +63,9 @@ test('every tuner busy: the server\'s own words say what is using them', async (
   assert.deepEqual(f.errors, [['Every tuner is busy: A recording, Another viewer.', true]]);
 });
 
-test('a Library Channel starts where the server says, seeks within its programme, and is tuned again when the programme ends', async () => {
+test('a Library Channel starts where the server says and seeks within its programme', async () => {
   const now = Date.parse('2026-11-12T20:10:00Z');
-  const ends = new Date(now + 60).toISOString();
-  let posts = 0;
-  // The first programme ends a moment from now; the next one an hour later.
-  const endOf = (n: number) => n === 1 ? ends : new Date(now + 3_600_000).toISOString();
-  const f = control(r => r.method === 'POST' ? {status: 201, body: title('2026-11-12T20:00:00Z', endOf(++posts), `ses_${posts}`)} : r.method === 'PATCH' ? {status: 200, body: title('2026-11-12T20:00:00Z', endOf(posts), `ses_${posts}`)} : {status: 204},
+  const f = control(r => r.method === 'POST' ? {status: 201, body: title('2026-11-12T20:00:00Z', '2026-11-12T21:00:00Z')} : r.method === 'PATCH' ? {status: 200, body: title('2026-11-12T20:00:00Z', '2026-11-12T21:00:00Z')} : {status: 204},
     {serverNow: () => now});
   await f.c.open(reference('library-channel', 'chn_lib'), f.sink);
   try {
@@ -79,10 +75,91 @@ test('a Library Channel starts where the server says, seeks within its programme
     const patch = f.sent.find(r => r.method === 'PATCH')!;
     assert.deepEqual((patch.body as {seek: {positionMs: number}}).seek.positionMs, 120_000);
     assert.equal(f.views.at(-1)!.linear.desired.seek?.positionUs, '120000000');
-    await wait(150);
-    assert.equal(posts, 2, 'the channel was tuned again for its next programme');
-    assert.ok(f.sent.some(r => r.method === 'DELETE' && r.path === '/v1/playback/sessions/ses_1'), 'the finished programme\'s session was stopped');
+  } finally {f.c.close();}
+});
+
+// The programme's end (11 rules 27 and 109, as the lead ruled): a viewer at live changes programme with the clock; one behind
+// live keeps the programme they are in to its own end, then goes on at the start of the programme now on.
+function programmeEnd(options: {lapsed?: boolean} = {}) {
+  const start = Date.parse('2026-11-12T20:00:00Z'), end = start + 30 * 60_000;
+  let clock = end - 150, starts = 0;
+  const ses = (n: number, patch: Record<string, unknown> = {}) => ({...title(new Date(start + (n - 1) * 30 * 60_000).toISOString(), new Date(end + (n - 1) * 30 * 60_000).toISOString(), 'ses_' + n), ...patch});
+  const f = control(r => {
+    if (r.method === 'POST') {starts++; return {status: 201, body: ses(starts, {presentation: {...title('', '').presentation, startPositionMs: Math.max(0, clock - start - (starts - 1) * 30 * 60_000)}})};}
+    if (r.method === 'PATCH') return options.lapsed && r.path.endsWith('ses_1') && (r.body as {state?: string}).state === 'playing' ? {status: 404, body: {error: {code: 'not_found'}}} : {status: 200, body: ses(starts, {state: (r.body as {state?: string}).state ?? 'playing'})};
+    return {status: 204};
+  }, {serverNow: () => clock});
+  return {...f, start, end, setClock: (value: number) => {clock = value;}, starts: () => starts};
+}
+
+test('a viewer at live changes programme with the clock', async () => {
+  const f = programmeEnd();
+  await f.c.open(reference('library-channel', 'chn_lib'), f.sink);
+  try {
+    await f.c.observe((f.end - 150 - f.start) / 1000);
+    f.setClock(f.end + 500);await wait(400);
+    assert.equal(f.starts(), 2, 'tuned again for the next programme');
+    assert.ok(f.sent.some(r => r.method === 'DELETE' && r.path === '/v1/playback/sessions/ses_1'));
     assert.equal(f.views.at(-1)!.playbackId, 'ses_2');
+    assert.ok(!f.sent.some(r => r.method === 'PATCH' && r.path.endsWith('ses_2')), 'joined at live, not moved to the start');
+  } finally {f.c.close();}
+});
+
+// Review desk A, #2957: a person pauses ten minutes before a film ends and comes back later: the film is still there.
+test('a paused Library Channel is not thrown into the next programme when its programme ends on the clock', async () => {
+  const f = programmeEnd();
+  await f.c.open(reference('library-channel', 'chn_lib'), f.sink);
+  try {
+    f.c.pause();
+    await wait(20);
+    f.setClock(f.end + 500);
+    await wait(400);
+    assert.deepEqual(f.sent.filter(r => r.method === 'DELETE').map(r => r.path), [], 'the paused session is not stopped');
+    assert.equal(f.starts(), 1, 'the channel is not tuned again under a paused viewer');
+  } finally {f.c.close();}
+});
+
+test('a rewound viewer watches the programme to its own end, then goes on at the start of the programme now on', async () => {
+  const f = programmeEnd();
+  await f.c.open(reference('library-channel', 'chn_lib'), f.sink);
+  try {
+    await f.c.observe(600);
+    f.setClock(f.end + 500);await wait(400);
+    assert.equal(f.starts(), 1, 'the programme they are in keeps playing past its end on the clock');
+    f.setClock(f.end + 5 * 60_000);
+    await f.c.observe((f.end - f.start) / 1000);await wait(20);
+    assert.equal(f.starts(), 2, 'at its end, the channel is tuned again');
+    const view = f.views.at(-1)!;
+    assert.deepEqual([view.playbackId, view.linear.desired.seek?.positionUs], ['ses_2', '0'], 'placed at the start of the programme now on');
+    const placed = f.sent.find(r => r.method === 'PATCH' && r.path === '/v1/playback/sessions/ses_2')!;
+    assert.deepEqual([(placed.body as {state: string}).state, (placed.body as {seek: {positionMs: number}}).seek.positionMs], ['playing', 0]);
+  } finally {f.c.close();}
+});
+
+test('a viewer away past the end of a paused programme comes back at the start of the programme now on', async () => {
+  const f = programmeEnd({lapsed: true});
+  await f.c.open(reference('library-channel', 'chn_lib'), f.sink);
+  try {
+    f.c.pause();await wait(20);
+    f.setClock(f.end + 20 * 60_000);await wait(400);
+    assert.equal(f.starts(), 1, 'nothing changes while they are away');
+    f.c.resume();await wait(50);
+    assert.equal(f.starts(), 2, 'the lapsed session is replaced by a new tune');
+    assert.equal(f.views.at(-1)!.linear.desired.seek?.positionUs, '0');
+    assert.deepEqual((f.sent.filter(r => r.method === 'POST').at(-1)!.body as {state: string}).state, 'playing');
+  } finally {f.c.close();}
+});
+
+test('Go to live behind a programme that has ended on the clock goes to live in the programme now on', async () => {
+  const f = programmeEnd();
+  await f.c.open(reference('library-channel', 'chn_lib'), f.sink);
+  try {
+    f.c.pause();await wait(20);
+    f.setClock(f.end + 60_000);await wait(400);
+    f.c.goLive();await wait(50);
+    assert.equal(f.starts(), 2);
+    assert.ok(!f.sent.some(r => r.method === 'PATCH' && r.path.endsWith('ses_2')), 'live, not the start');
+    assert.equal(f.views.at(-1)!.linear.desired.seek?.positionUs, String(60_000 * 1000));
   } finally {f.c.close();}
 });
 
