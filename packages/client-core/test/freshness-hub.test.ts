@@ -173,6 +173,34 @@ test('a refusal the server will repeat is an answer, not a failure to retry', as
   assert.equal(hub.getReachability(), 'reachable');
 });
 
+test('a read a screen keeps failing with an answer (a 405 it wrapped in its own error) never says the server cannot be reached', async () => {
+  const c = clock(), hub = new FreshnessHub({...c.env, backoffMs: [2000, 5000, 10_000], sustainedMs: 15_000});
+  let attempts = 0;
+  // A screen whose read is not on this server yet, wrapping the refusal as older screens do; marked retryable, so it keeps trying.
+  const doc = hub.document({dependencies: [dependsOn.content('films')], revalidate: async () => { attempts++;
+    throw Object.assign(new Error('Could not load'), {retryable: true, cause: Object.assign(new Error('Method Not Allowed'), {status: 405})}); }});
+  doc.setOpen(true);
+  hub.accept(library('films', '2'));
+  await c.advance(60_000);
+  assert.ok(attempts > 3, 'still tried again later');
+  assert.equal(hub.getReachability(), 'reachable');
+});
+
+test('an event feed the server refuses (a route it does not serve) is an answer; one that gets no answer is not', async () => {
+  for (const [refusal, expected] of [[Object.assign(new Error('not here'), {status: 404}), 'reachable'], [new TypeError('Failed to fetch'), 'unreachable']] as const) {
+    const c = clock(), hub = new FreshnessHub({...c.env, sustainedMs: 15_000});
+    const listeners = new Set<() => void>();
+    let status = {mode: 'poll' as const, connected: false, failures: 0, answered: undefined as boolean | undefined};
+    const events = {getStatus: () => status, subscribeStatus: (fn: () => void) => { listeners.add(fn); return () => listeners.delete(fn); }, onAny: () => () => {}, onResync: () => () => {}};
+    hub.attach(events as never);
+    status = {...status, failures: 3, answered: !(refusal instanceof TypeError)};
+    for (const fn of listeners) fn();
+    await c.advance(30_000);
+    assert.equal(hub.getReachability(), expected, String(refusal));
+    hub.dispose();
+  }
+});
+
 test('a read waits for a pause in input before it changes the screen', async () => {
   const c = clock(), hub = new FreshnessHub({...c.env, settleMs: 300, settleLimitMs: 5000, gatherMs: 100});
   let reads = 0;

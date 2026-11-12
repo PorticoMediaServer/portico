@@ -21,6 +21,7 @@
  *
  * No React, no DOM, no timers of its own beyond the two injected: tested under Node.
  */
+import {serverDidNotAnswer} from './no-answer.ts';
 import type {EventsClient} from './playback-v1/events.ts';
 import type {ServerEvent} from './playback-v1/types.ts';
 import {parseFreshnessChange} from './freshness.ts';
@@ -390,7 +391,8 @@ class Document implements FreshDocument {
     }
     this.failures++;
     if (answered > this.urgency) this.urgency = answered;
-    this.hub.report(this.source, false);
+    // Tried again later either way; only a read that got no answer at all says the server cannot be reached.
+    this.hub.report(this.source, !serverDidNotAnswer(failed));
     this.publish();
     const steps = this.hub.tuning.backoffMs;
     this.plan(Math.max(steps[Math.min(this.failures - 1, steps.length - 1)] ?? 30_000, serverWait(failed)));
@@ -463,7 +465,8 @@ export class FreshnessHub {
       if (s.mode === 'stopped') { this.report(this.feedSource, true); return; }
       if (s.connected) { everConnected = true; this.report(this.feedSource, true); }
       // A feed that has not connected yet has not failed: only a connection that was lost, or attempts that keep failing, count.
-      else if (everConnected || s.failures > 0) this.report(this.feedSource, false);
+      // A feed the server refused (a 404 for a route it does not serve, a 401) was still answered: only no answer counts.
+      else if (everConnected || s.failures > 0) this.report(this.feedSource, s.failures > 0 && s.answered === true);
     };
     const offStatus = events.subscribeStatus(status);
     status();

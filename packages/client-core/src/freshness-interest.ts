@@ -1,3 +1,4 @@
+import {serverDidNotAnswer} from './no-answer.ts';
 import type {FreshnessDependency, FreshnessHub} from './freshness-hub.ts';
 import {finalAnswer} from './freshness-hub.ts';
 import {isSharedReadSuperseded, supersededNextAllowedAt, observationError, type SharedReadKey, type SharedWitness} from './freshness-shared.ts';
@@ -151,7 +152,8 @@ export class Interest implements FreshnessInterest {
       this.deferred = !newer && this.serverNotBefore <= this.hub.timers.now();
     } else {
       this.failures++;
-      this.hub.report(this.source, !outcome.retryable);
+      // Retried or not by its own rule; only a read that got no answer at all says the server cannot be reached.
+      this.hub.report(this.source, !serverDidNotAnswer(outcome.error));
       if (outcome.retryable) {
         this.pending = true;
         const now = this.hub.timers.now(), steps = this.hub.tuning.backoffMs;
