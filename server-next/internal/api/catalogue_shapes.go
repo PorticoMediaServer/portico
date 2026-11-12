@@ -155,6 +155,7 @@ type Item struct {
 	Available     *bool             `json:"available,omitempty"`
 	Parent        *ItemRef          `json:"parent,omitempty"`
 	Root          *ItemRef          `json:"root,omitempty"`
+	Series        *ItemRef          `json:"series,omitempty"`
 	Tags          []Tag             `json:"tags,omitempty"`
 	ExternalIDs   map[string]string `json:"externalIds,omitempty"`
 	Credits       []Credit          `json:"credits,omitempty"`
@@ -515,7 +516,7 @@ func detailShape(d db.ItemDetail) Item {
 	for _, ref := range []struct {
 		from *db.ItemRef
 		to   **ItemRef
-	}{{d.Parent, &out.Parent}, {d.Root, &out.Root}} {
+	}{{d.Parent, &out.Parent}, {d.Root, &out.Root}, {d.Series, &out.Series}} {
 		if ref.from != nil {
 			*ref.to = &ItemRef{ID: ref.from.PublicID, Kind: ref.from.Kind.String(), Title: ref.from.Title, Index: ref.from.Index}
 		}

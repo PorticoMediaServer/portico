@@ -17,6 +17,7 @@ type ItemDetail struct {
 	Available     bool
 	Parent        *ItemRef
 	Root          *ItemRef
+	Series        *ItemRef // a book's or audiobook's series, when the viewer may see it
 	Tags          []Tag
 	ExternalIDs   []ExternalID
 	Credits       []Credit // the first few, in billing order
@@ -137,6 +138,19 @@ func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, e
 			return out, err
 		}
 		*ref.into = r
+	}
+	// A book or audiobook is tied to its series by a relation, from the series' side.
+	if out.Kind == KindBook || out.Kind == KindAudiobook {
+		r := &ItemRef{}
+		err := tx.QueryRowContext(ctx, `SELECT s.public_id, s.kind, s.title, s.index_number FROM item_relations r CROSS JOIN items s ON s.id = r.item_id
+			WHERE r.related_item_id = ? AND r.kind = ? AND `+acc.visible("s")+` ORDER BY r.item_id LIMIT 1`, out.ID, RelationSeriesMember).
+			Scan(&r.PublicID, &r.Kind, &r.Title, &r.Index)
+		switch {
+		case err == nil:
+			out.Series = r
+		case !errors.Is(err, sql.ErrNoRows):
+			return out, err
+		}
 	}
 	if out.Tags, err = queryAll(ctx, tx, `SELECT t.public_id, t.kind, t.name FROM item_tags it JOIN tags t ON t.id = it.tag_id
 		WHERE it.item_id = ? AND t.kind <> 'mood' ORDER BY t.kind, t.name`, []any{out.ID}, func(t *Tag) []any { return []any{&t.PublicID, &t.Kind, &t.Name} }); err != nil {
