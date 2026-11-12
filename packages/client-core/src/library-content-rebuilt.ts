@@ -181,13 +181,16 @@ async function audiobookPage(api: ServerRequester, route: ContentRoute, bound: C
   const libraryId = route.libraryId, version = item?.versions?.[0];
   const play = (startMs: number) => Object.freeze({itemId: id, startSeconds: Math.max(0, startMs) / 1000});
   const seconds = (startMs?: number, endMs?: number) => startMs !== undefined && endMs !== undefined && endMs > startMs ? Math.round((endMs - startMs) / 1000) : undefined;
+  // Stopgap, not a deferral, for a book of several files: the rebuilt server plays only its first file, and a place
+  // past it cannot be reached whatever is sent (the streaming lane is fixing this); the detail does not yet say
+  // where each part starts in the whole book either (the browse-reads lane; a part's own startMs/endMs are a range
+  // inside one file). So such a book lists its chapters, or else its parts, and only the row at the book's start
+  // plays; its place and time left are not shown; and it offers Play from its start, never Resume.
+  const partsOf = version?.parts ?? [], severalFiles = partsOf.length > 1;
   const chapterMarks = (version?.markers ?? []).filter((mark): mark is Marker => mark?.kind === 'chapter' && Number.isFinite(mark.startMs)).sort((a, b) => a.startMs - b.startMs);
   const chapters = chapterMarks.map((mark, n) => Object.freeze({id: `${id}:chapter:${n + 1}`, kind: 'chapter', libraryId, title: mark.title || `Chapter ${n + 1}`,
-    trackNumber: n + 1, ...(seconds(mark.startMs, mark.endMs) ? {duration: seconds(mark.startMs, mark.endMs)} : {}), playback: play(mark.startMs)}) as ContentEntry);
-  // A book of several files lists its parts plainly. Stopgap, not a deferral: the detail does not say where each
-  // part starts in the whole book yet (being built by the browse-reads lane; a part's own startMs/endMs are a
-  // range inside one file), so only Part 1, the book's start, plays from its row; Play and Resume play the book.
-  const partsOf = version?.parts ?? [];
+    trackNumber: n + 1, ...(seconds(mark.startMs, mark.endMs) ? {duration: seconds(mark.startMs, mark.endMs)} : {}),
+    ...(!severalFiles || mark.startMs <= 0 ? {playback: play(mark.startMs)} : {})}) as ContentEntry);
   const parts = chapters.length || partsOf.length < 2 ? [] : partsOf.map((_part, n) => Object.freeze({id: `${id}:part:${n + 1}`,
     kind: 'audiobook_file', libraryId, title: `Part ${n + 1}`, trackNumber: n + 1, ...(n === 0 ? {playback: play(0)} : {})}) as ContentEntry);
   // Who wrote it opens their page; the series opens its own (sent once the server names a book's series).
@@ -203,7 +206,7 @@ async function audiobookPage(api: ServerRequester, route: ContentRoute, bound: C
   const durationMs = item?.durationMs, positionMs = item?.state?.positionMs ?? 0;
   const chapterIndex = chapterMarks.reduce((found, mark, n) => mark.startMs <= positionMs ? n : found, -1);
   const current = chapterIndex >= 0 ? chapterMarks[chapterIndex]! : undefined;
-  const bookProgress = positionMs > 0 ? Object.freeze({bookId: id, itemId: id, partPositionMs: positionMs, positionMs,
+  const bookProgress = positionMs > 0 && !severalFiles ? Object.freeze({bookId: id, itemId: id, partPositionMs: positionMs, positionMs,
     ...(durationMs ? {durationMs, remainingMs: Math.max(0, durationMs - positionMs)} : {}),
     ...(current ? {chapter: Object.freeze({index: chapterIndex, number: chapterIndex + 1, title: current.title || `Chapter ${chapterIndex + 1}`, startMs: current.startMs, endMs: current.endMs})} : {})}) : undefined;
   const entity = found ? (({playback: _ignored, ...rest}) => Object.freeze({...rest, ...(authors.length ? {author: authors.map(credit => credit.name).join(', ')} : {}),
@@ -213,10 +216,8 @@ async function audiobookPage(api: ServerRequester, route: ContentRoute, bound: C
     entries: Object.freeze(entries), totalCount: entries.length, nextCursor: '', start: 0});
   return Object.freeze({
     heading: Object.freeze({key: 'library.content.book', fallback: entity?.title ?? ''}),
-    // Stopgap, not a deferral: the rebuilt server plays only a several-file book's first file, and a place past it
-    // cannot be resumed whatever is sent (the streaming lane is fixing this). Such a book offers Play from its start only.
     ...(entity ? {entity, listening: Object.freeze({target: Object.freeze({kind: 'book', id, libraryId}), actions: Object.freeze(['play', 'enqueue'] as const),
-      ...(partsOf.length > 1 ? {} : {resume: Object.freeze({itemId: id, positionSeconds: positionMs / 1000})}), resumeUnavailable: false})} : {}),
+      ...(severalFiles ? {} : {resume: Object.freeze({itemId: id, positionSeconds: positionMs / 1000})}), resumeUnavailable: false})} : {}),
     scope: Object.freeze({serverId: bound.serverId, libraryId, libraryKind: library.kind, view: route.view, entityId: id}),
     navigation: Object.freeze([]),
     query: Object.freeze({sort: '', direction: '', category: '', q: '', limit: chapters.length || parts.length, searchMode: 'none'}),
