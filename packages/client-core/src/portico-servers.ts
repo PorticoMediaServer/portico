@@ -4,6 +4,8 @@ import {routeBody} from "../../contracts/src/routes.ts";
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {encodedRoutePath as hostedEncodedRoutePath} from "../../contracts/src/hosted/routes.ts";
 import {routePath} from "../../contracts/src/route-paths.ts";
+import type {OwnerChangeRequest} from '../../contracts/src/next/api.ts';
+import {serverPath} from './query/server-api.ts';
 /** Portico Account members of user servers (Spec — Hosted at Scale).
  *
  * Hosted proves who a person is and keeps an index of their servers; each user server decides who
@@ -144,17 +146,26 @@ function wellFormed(value: string): boolean {
  }
  return true;
 }
-/** The local owner hands ownership to another member of this server:
- * `POST /v1/direct/ownership {accountId, currentPassword, expectedRevision}` and nothing else.
- * The caller's own revision is required, and the current password is re-proved by the server.
+/** Change owner on a local server (area 2 rules 32 and 33): `POST /v1/admin/owner` with the owner's password and the
+ * account that becomes the owner. The previous owner becomes an administrator, as the definition has it unless they
+ * choose otherwise.
  * This helper never signs in, retiers, signs anyone out or falls back to a Hosted assertion. */
+export const localOwnerChangePath = serverPath('POST /v1/admin/owner');
+/** A transport that sends only Change owner. The screen's transport for it may finish after Settings has closed, so its
+ * owner answer is not lost; this keeps anything else from going that way. */
+export function localOwnerChangeOnly(api:ProfileAPI):ProfileAPI{
+ return Object.freeze({request:async<T,>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>=>{
+  if(path!==localOwnerChangePath||method!=='POST')throw new Error('Not a local ownership transfer.');
+  return api.request<T>(path,method,body,signal);
+ }});
+}
 export async function transferLocalOwnership(server:ProfileAPI,accountId:string,currentPassword:string,expectedRevision:number,signal?:AbortSignal):Promise<void>{
  if(!publicId(accountId))throw new Error('The target account is invalid.');
  if(typeof expectedRevision!=='number'||!Number.isSafeInteger(expectedRevision)||expectedRevision<1)throw new Error('The owner revision is invalid.');
  if(typeof currentPassword!=='string'||currentPassword.length===0||!wellFormed(currentPassword)||new TextEncoder().encode(currentPassword).length>72)throw new Error('The current password is invalid.');
  if(signal?.aborted)throw Object.assign(new Error('The ownership transfer was cancelled.'),{name:'AbortError'});
- const body:Readonly<{accountId:string;currentPassword:string;expectedRevision:number}>={accountId,currentPassword,expectedRevision};
- await server.request<unknown>(routePath("post_direct_ownership"),'POST',routeBody("post_direct_ownership",body),signal);
+ const body:OwnerChangeRequest={password:currentPassword,accountId,previousOwner:'admin'};
+ await server.request<unknown>(localOwnerChangePath,'POST',body,signal);
 }
 
 /** Root68: a new local account is created in the SAME accepting owner transfer.
@@ -168,8 +179,8 @@ export async function transferLocalOwnershipToNewAccount(server:ProfileAPI,newAc
  if(typeof expectedRevision!=='number'||!Number.isSafeInteger(expectedRevision)||expectedRevision<1)throw new Error('The owner revision is invalid.');
  if(typeof currentPassword!=='string'||!wellFormed(currentPassword)||!currentPassword||new TextEncoder().encode(currentPassword).length>72)throw new Error('The current password is invalid.');
  if(signal?.aborted)throw Object.assign(new Error('The ownership transfer was cancelled.'),{name:'AbortError'});
- const body={accountId:'',currentPassword,expectedRevision,newAccount:{username,name,password}};
- await server.request<unknown>(routePath("post_direct_ownership"),'POST',routeBody("post_direct_ownership",body),signal);
+ const body:OwnerChangeRequest={password:currentPassword,newAccount:{username:username.trim(),password,profileName:name.trim()},previousOwner:'admin'};
+ await server.request<unknown>(localOwnerChangePath,'POST',body,signal);
 }
 
 /** A Portico Account owner accepts Hosted's custody of the server's claim (retiring it, its
