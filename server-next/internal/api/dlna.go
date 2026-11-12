@@ -2,83 +2,25 @@ package api
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"net/http"
 	"net/netip"
 	"slices"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
-	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/dlna"
 )
 
-// DLNA's switch lives in the remote-access settings document, which area 2 fills out with
-// the rest of remote access. While it is on, any device on the home networks the owner listed
-// browses and plays every original with no sign-in; see internal/dlna for the boundary.
-
-// RemoteAccessSettings is the owner's remote-access document. (So far it holds only the DLNA
-// switch.)
-type RemoteAccessSettings struct {
-	// DLNA shares every original file with any device on your home networks, with no sign-in.
-	// (The home networks are those listed in the network settings. It ignores profiles,
-	// library access, rating limits, viewing hours and stream limits, never converts, and
-	// records nothing. Off by default.)
-	DLNA bool `json:"dlna"`
-	// DLNANames are further names DLNA answers to, besides addresses and the server's own and
-	// home-network names: for a container whose host name is not the machine's, or the owner's
-	// own domain on a proxy. Up to 20.
-	DLNANames []string `json:"dlnaNames"`
-	// Warning is set while DLNA is on and the home networks take in the whole internet: the app
-	// shows it when the switch is turned on and for as long as it is true. Nothing is refused.
-	Warning string `json:"warning,omitempty"`
-	revision
-}
-
-// RemoteAccessSettingsEdit changes the document; a field left out stays as it is.
-type RemoteAccessSettingsEdit struct {
-	DLNA      *bool     `json:"dlna,omitempty"`
-	DLNANames *[]string `json:"dlnaNames,omitempty"`
-}
-
-const remoteAccessSettingsKey = "remote-access"
-
-type storedRemoteAccess struct {
-	DLNA      bool     `json:"dlna"`
-	DLNANames []string `json:"dlnaNames,omitempty"`
-}
-
-type remoteAccessState struct {
-	atomic.Pointer[storedRemoteAccess]
-}
-
-func (s *Server) remoteAccess() storedRemoteAccess {
-	if p := s.remoteAccessDoc.Load(); p != nil {
-		return *p
-	}
-	return storedRemoteAccess{}
-}
-
-func (s *Server) loadRemoteAccess(ctx context.Context) error {
-	raw, _, err := s.db.SettingDocument(ctx, remoteAccessSettingsKey)
-	if err != nil || raw == "" {
-		return err
-	}
-	var stored storedRemoteAccess
-	if err := json.Unmarshal([]byte(raw), &stored); err != nil {
-		return errors.New("the stored remote-access settings are damaged")
-	}
-	s.remoteAccessDoc.Store(&stored)
-	return nil
-}
+// DLNA's switch and its extra names are fields of the remote access settings (see
+// RemoteAccessSettings in remote_access.go). While it is on, any device on the home networks the
+// owner listed browses and plays every original with no sign-in; see internal/dlna for the
+// boundary.
 
 // dlnaHome is the home networks DLNA serves: those the owner listed, while DLNA is on. The
 // networks the server guesses before the owner chooses never count.
 func (s *Server) dlnaHome() []netip.Prefix {
-	if !s.remoteAccess().DLNA {
+	if v, _ := s.access.current(); !v.DLNA {
 		return nil
 	}
 	networks, stored := s.network.current(s.now())
@@ -121,47 +63,29 @@ func (s *Server) dlnaRoutes() {
 			return n.FromHome(r)
 		},
 		// When area 2 adds the owner's own address for the server, its name joins these.
-		Names: func() []string { return s.remoteAccess().DLNANames },
+		Names: func() []string { v, _ := s.access.current(); return v.DLNANames },
 		Name:  s.serverName}
-	Handle(s, "GET /v1/admin/settings/remote-access", Owner, func(r *http.Request, _ None) (RemoteAccessSettings, error) {
-		_, saved, err := s.db.SettingDocument(r.Context(), remoteAccessSettingsKey)
-		cur := s.remoteAccess()
-		return RemoteAccessSettings{cur.DLNA, nonNil(cur.DLNANames), s.dlnaWarning(cur.DLNA), revision(saved)}, err
-	})
-	// Opening the library to every device at home is the owner's, signed in.
-	Handle(s, "PUT /v1/admin/settings/remote-access", Owner, s.saveRemoteAccess).Scope = ScopeSession
 }
 
-func (s *Server) saveRemoteAccess(r *http.Request, req RemoteAccessSettingsEdit) (RemoteAccessSettings, error) {
-	match, err := settingsIfMatch(r)
+// checkDLNA checks the DLNA fields of a remote access document about to be saved, against
+// the one in force. Turning DLNA on needs the owner's own home list, since DLNA answers only
+// there; and opening the library to every device at home is for the owner signed in, never a key.
+func (s *Server) checkDLNA(r *http.Request, v *RemoteAccessSettings, before RemoteAccessSettings) error {
+	names, err := checkNames(v.DLNANames)
 	if err != nil {
-		return RemoteAccessSettings{}, err
+		return err
 	}
-	next := s.remoteAccess()
-	if req.DLNA != nil {
-		_, stored := s.network.current(s.now())
-		if *req.DLNA && stored.Home == nil {
-			return RemoteAccessSettings{}, ErrField("dlna", "List your home networks in the network settings first: DLNA answers only there.")
-		}
-		next.DLNA = *req.DLNA
+	v.DLNANames = names
+	if v.DLNA == before.DLNA && slices.Equal(v.DLNANames, nonNil(before.DLNANames)) {
+		return nil
 	}
-	if req.DLNANames != nil {
-		names, err := checkNames(*req.DLNANames)
-		if err != nil {
-			return RemoteAccessSettings{}, err
-		}
-		next.DLNANames = names
+	if CallerFrom(r.Context()).Key {
+		return refusal(http.StatusForbidden, "session_required", "This needs a signed-in person, not a key.", false)
 	}
-	raw, _ := json.Marshal(next)
-	saved, err := s.db.SaveSettingDocument(r.Context(), CallerFrom(r.Context()).UserID, remoteAccessSettingsKey, string(raw), match, s.now())
-	if errors.Is(err, db.ErrStale) {
-		return RemoteAccessSettings{}, errStale()
+	if _, stored := s.network.current(s.now()); v.DLNA && !before.DLNA && stored.Home == nil {
+		return ErrField("dlna", "List your home networks in the network settings first: DLNA answers only there.")
 	}
-	if err != nil {
-		return RemoteAccessSettings{}, err
-	}
-	s.remoteAccessDoc.Store(&next)
-	return RemoteAccessSettings{next.DLNA, nonNil(next.DLNANames), s.dlnaWarning(next.DLNA), revision(saved)}, nil
+	return nil
 }
 
 // AnnounceDLNA announces the server on the home networks while DLNA is on, for the listener

@@ -72,8 +72,17 @@ func TestDLNA(t *testing.T) {
 	if w := dlnaCall(s, home, "GET", "/dlna/device.xml", "", nil); w.Code != 404 {
 		t.Fatalf("with DLNA off a device at home was answered %d", w.Code)
 	}
-	on, off := true, false
-	if got := status(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSettingsEdit{DLNA: &on}); got != 400 {
+	// The DLNA switch and names are fields of the remote access settings, saved whole.
+	var settings RemoteAccessSettings
+	saveDLNA := func(change func(*RemoteAccessSettings)) int {
+		t.Helper()
+		var v RemoteAccessSettings
+		call(t, s, "GET", "/v1/admin/settings/remote-access", owner, nil, &v)
+		change(&v)
+		settings = RemoteAccessSettings{}
+		return call(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSave{RemoteAccessSettings: v}, &settings).Code
+	}
+	if got := saveDLNA(func(v *RemoteAccessSettings) { v.DLNA = true }); got != 400 {
 		t.Errorf("turning DLNA on before listing the home networks answered %d, want 400", got)
 	}
 	setHome := func(home ...string) {
@@ -84,9 +93,8 @@ func TestDLNA(t *testing.T) {
 		}
 	}
 	setHome("192.168.1.0/24", "100.64.0.0/10", "127.0.0.0/8")
-	var settings RemoteAccessSettings
-	if w := call(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSettingsEdit{DLNA: &on}, &settings); w.Code != 200 || settings.Warning != "" {
-		t.Fatalf("turning DLNA on answered %d with warning %q", w.Code, settings.Warning)
+	if got := saveDLNA(func(v *RemoteAccessSettings) { v.DLNA = true }); got != 200 || settings.Warning != "" || !settings.DLNA {
+		t.Fatalf("turning DLNA on answered %d with warning %q", got, settings.Warning)
 	}
 
 	// TVs list the server by the name the owner gave it in Settings › General.
@@ -159,8 +167,7 @@ func TestDLNA(t *testing.T) {
 		t.Errorf("the network settings did not name the proxy: %+v", network.Warnings)
 	}
 	// The owner adds their own domain on the proxy: it is answered, and still nothing else is.
-	names := []string{"Media.Example.com"}
-	if got := status(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSettingsEdit{DLNANames: &names}); got != 200 {
+	if got := saveDLNA(func(v *RemoteAccessSettings) { v.DLNANames = []string{"Media.Example.com"} }); got != 200 {
 		t.Fatalf("adding a name answered %d", got)
 	}
 	if w := dlnaCall(s, home, "GET", media, "", map[string]string{"Host": "media.example.com:443"}); w.Code != 200 {
@@ -186,7 +193,20 @@ func TestDLNA(t *testing.T) {
 	if call(t, s, "GET", "/v1/admin/settings/remote-access", owner, nil, &settings); strings.Contains(settings.Warning, "anyone on the internet") {
 		t.Errorf("the warning stayed after the range was removed: %q", settings.Warning)
 	}
-	status(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSettingsEdit{DLNA: &off})
+	saveDLNA(func(v *RemoteAccessSettings) { v.DLNA = false })
+	// Opening the library to every device at home is for the owner signed in: a key may save
+	// the rest of the remote access settings, never the DLNA switch.
+	var key KeyCreated
+	call(t, s, "POST", "/v1/admin/api-keys", owner, KeyCreate{Name: "Tool", Scopes: []string{"admin"}}, &key)
+	var current RemoteAccessSettings
+	call(t, s, "GET", "/v1/admin/settings/remote-access", owner, nil, &current)
+	if got := status(t, s, "PUT", "/v1/admin/settings/remote-access", key.Secret, RemoteAccessSave{RemoteAccessSettings: current}); got != 200 {
+		t.Errorf("a key saving the remote access settings unchanged answered %d", got)
+	}
+	current.DLNA = true
+	if got := status(t, s, "PUT", "/v1/admin/settings/remote-access", key.Secret, RemoteAccessSave{RemoteAccessSettings: current}); got != 403 {
+		t.Errorf("a key turning DLNA on answered %d, want 403", got)
+	}
 	if w := dlnaCall(s, home, "GET", media, "", nil); w.Code != 404 {
 		t.Errorf("with DLNA turned off a device at home was answered %d", w.Code)
 	}
