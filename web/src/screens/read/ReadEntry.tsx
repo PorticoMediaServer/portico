@@ -181,7 +181,9 @@ function ReadEntryBody({captured, itemId, sourceId, active = true, onClose, rece
     });
     return () => {void dispose().catch(() => {});};
   }, [captured.context, itemId, sourceId, stagedContents, contentsTarget, reportError, retry, receiver, readingContext, currentReading]);
-  if (state.book) return <ReaderBook key={state.book.session.manifest.sessionId} book={state.book} active={active} reportError={reportError} onSearchAll={query => {if (!active || !currentReading()) return; void router.navigate({to: '/search/reading', search: {q: query}}).catch(error => {if (currentReading()) reportError(error);});}} onOpenSettings={() => {if (!currentReading()) return;void router.navigate({to: '/settings', search: {scope: 'account', section: 'reading'}}).catch(reportError);}} onBack={() => {if (currentReading()) (onClose ?? (() => router.history.back()))();}}/>;
+  // No "Search all books": the app's Search does not look inside books (reading rule 34, ruling R3); search inside the
+  // open book stays (rules 32 and 33).
+  if (state.book) return <ReaderBook key={state.book.session.manifest.sessionId} book={state.book} active={active} reportError={reportError} onOpenSettings={() => {if (!currentReading()) return;void router.navigate({to: '/settings', search: {scope: 'account', section: 'reading'}}).catch(reportError);}} onBack={() => {if (currentReading()) (onClose ?? (() => router.history.back()))();}}/>;
   /** The drawn way back stays available while a book is opening and when it cannot open. */
   const leave = () => {if (currentReading()) (onClose ?? (() => router.history.back()))();};
   if (state.failed) return <ReadOpenFailure kind={state.failed} onRetry={() => {if (currentReading()) setRetry(value => value + 1);}} onBack={leave}/>;
