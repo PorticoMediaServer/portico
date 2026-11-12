@@ -1,5 +1,4 @@
-import {routeBody} from '../../contracts/src/routes.ts';
-import {routePath} from '../../contracts/src/route-paths.ts';
+import {callServer} from './query/server-api.ts';
 import type {ProfileAPI} from './profile-management.ts';
 
 /** A new account on a local-sign-in server (owner-people frames 6 and 25, server-people "Add account"):
@@ -26,18 +25,19 @@ export function directMemberInputReady(input: NewDirectMember): boolean {
   return !!directMemberUsername(input.username) && !!directMemberName(input.name) && Array.from(input.password).length >= 8 && bytes(input.password) <= 72;
 }
 
-/** Creates the account. Only the owner of a local-sign-in server may; anything else is the server's refusal. */
+/** Creates the account, then limits it to its libraries when not all of them. Only the owner of a local-sign-in
+ * server may; anything else is the server's refusal. */
 export async function createDirectMember(api: ProfileAPI, input: NewDirectMember, signal?: AbortSignal): Promise<CreatedDirectMember> {
   const username = directMemberUsername(input.username);
   if (!username || !directMemberInputReady(input)) throw Object.assign(new Error('The new account is incomplete.'), {code: 'invalid_request'});
-  const raw = await api.request<{id?: unknown; username?: unknown}>(routePath('post_direct_members'), 'POST',
-    routeBody('post_direct_members', {username, name: directMemberName(input.name)!, password: input.password, allowedLibraries: [...input.allowedLibraries]}), signal);
+  const raw = await callServer(api, 'POST /v1/admin/members', {body: {username, profileName: directMemberName(input.name)!, password: input.password}, signal});
   if (typeof raw?.id !== 'string' || !raw.id || typeof raw.username !== 'string') throw new Error('The new account response was invalid.');
+  if (input.allowedLibraries.length) await callServer(api, 'PATCH /v1/admin/members/{id}', {id: raw.id, body: {allLibraries: false, libraries: [...input.allowedLibraries]}, signal});
   return Object.freeze({id: raw.id, username: raw.username});
 }
 
-/** What a refused create means for the form: a taken username (409 conflict) goes under the username; anything else is the form's one error line. */
+/** What a refused create means for the form: a taken username (409 `username_taken`) goes under the username; anything else is the form's one error line. */
 export function directMemberCreateFailure(error: unknown): 'taken' | 'failed' {
   const code = error && typeof error === 'object' ? (error as {code?: unknown}).code : undefined;
-  return code === 'conflict' ? 'taken' : 'failed';
+  return code === 'username_taken' ? 'taken' : 'failed';
 }

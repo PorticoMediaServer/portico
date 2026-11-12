@@ -5,7 +5,7 @@ import {bindingModule, lifecycleHooks, nodes, content, t, i18n, theme} from './h
 
 async function fixture() {
   const bindings = await bindingModule(), host = lifecycleHooks();
-  const person = {accountId: 'member-fixture', username: 'member', role: 'member', revision: 2, limitsRevision: 3, disabled: false, notes: '', allowedLibraries: [], limits: {allowRemote: true, maxStreamsMode: 'limit', maxStreams: 5, maxBitrateKbps: 8000}};
+  const person = {accountId: 'member-fixture', username: 'member', role: 'member', revision: 2, limitsRevision: 3, disabled: false, notes: '', allowedLibraries: [], limits: {allowRemote: true, maxStreamsMode: 'limit', maxStreams: 5, maxBitrateKbps: 8000}, accountLimits: {homeOnly: false}};
   const device = {id: 'device-fixture', accountId: person.accountId, name: 'Tablet', lastSeenAt: '2026-10-28T12:00:00Z'};
   const state = {devices: {person, items: [device], cursor: ''},tab: 'people', query: {search: '', role: 'all', status: 'all', sort: 'person', direction: 'asc'}, invitationStatus: '', cursor: '', loading: false, busy: false, opening: false, selected: person, person, people: {items: [person], matchedCount: 1, totalCount: 1, nextCursor: ''}};
   const context = {account: {account: {id: 'owner-fixture'}}, authority: () => ({accountId: 'owner-fixture'}), serverName: 'Test server'}, writes: any[] = [];

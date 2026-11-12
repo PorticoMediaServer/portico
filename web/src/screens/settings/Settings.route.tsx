@@ -60,8 +60,8 @@ import {readingSettingsAdapter} from './reading-adapter';
 import {hasWebPreferenceEffect} from './effects';
 import {createPrivacySettingsSurfaces} from './privacy-controls';
 import {PeopleScreen, type PeopleBindings} from './People';
-import {createPeopleMemberProfilesApi} from './people-member-profiles-api';
 import {createPeopleDevicesApi} from './people-devices-api';
+import {createPeopleMemberProfilesApi} from './people-member-profiles-api';
 import {SignInSettingsSource} from './signin-source';
 import {LocalOwnerTransferSource} from './local-owner-transfer';
 import {MemberResetCodeSource} from './member-reset-code';
@@ -410,13 +410,14 @@ export function SettingsEntry() {
       }) : undefined;
     const people: PeopleBindings | undefined = route.section === 'people' && identity.primaryProfile === true && identity.capabilities?.managePeople === true &&
       (role === 'owner' || role === 'admin') && (viewer.authority === 'local' || viewer.authority === 'hosted') ? {
-        inputActivity, client: new SettingsPeopleClient(api, current), devices: createPeopleDevicesApi(api, current), memberProfiles: createPeopleMemberProfilesApi(api, current, async (path, body, contentType) => {
+        inputActivity, client: new SettingsPeopleClient(api, current, () => buildContext.facts.identity.libraries), devices: createPeopleDevicesApi(api, current), memberProfiles: createPeopleMemberProfilesApi(api, current, async (path, body, contentType) => {
           assert();
           const response = await uploadOwnerMemberAvatar(api, path, context.session().accessToken, body as BodyInit, contentType);
           if (!response.ok) throw Object.assign(new Error('Profile picture could not be saved.'), {status: response.status});
           return response.json();
         }, context.artwork), get serverName() {return buildContext.facts.serverName;}, get libraries() {return buildContext.facts.identity.libraries;}, subscribe: listener => subscribeFacts(buildContext, listener), memberResetCodes,
-        actor: {accountId: viewer.accountId, role}, streamLimits: peopleStreamLimits,
+        // Only the owner may read and set stream limits on the rebuilt server.
+        actor: {accountId: viewer.accountId, role}, ...(role === 'owner' ? {streamLimits: peopleStreamLimits} : {}),
         invitations: new SettingsInvitations(api, current, api.baseUrl, viewer.serverId), signIn: identity.signIn, openHome, reportError,
         // owner-people 6/25: only the owner of a local-sign-in server adds accounts here (the server refuses anyone else).
         ...(role === 'owner' && identity.signIn === 'local' ? {addAccount: (input: NewDirectMember, signal: AbortSignal) => {assert(); return createDirectMember(api, input, signal);}} : {}),

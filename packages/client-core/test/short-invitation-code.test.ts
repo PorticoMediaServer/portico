@@ -11,11 +11,12 @@ test('short invitation codes preserve the Server eighty-bit vectors and declared
   }
 });
 
-test('ambiguous letters, extra separators, Unicode, long-link secrets and URLs are not short codes', () => {
+test('ambiguous letters, extra separators, Unicode, long-link secrets and URLs are not short codes, and a link carries the short code as typed', () => {
   for (const raw of [undefined, null, 123, {}, '', '008J 4CT4 ANK7 F24S', '008J--4CT4-ANK7-F24S', '008J-4CT4ANK7-F24S', '008J-4CT4-ANK7-F24S-', ' 008J4CT4ANK7F24S', '008J4CT4ANK7F24S\n', '008J4CT4ANK7F24S\u200b', '００8J4CT4ANK7F24S', 'a'.repeat(43), 'https://server.test/#code=008J4CT4ANK7F24S']) {
     assert.equal(parseShortInvitationCode(raw), undefined);
     assert.equal(formatShortInvitationCode(raw), undefined);
   }
   for (const ambiguous of 'ILOUilou') assert.equal(parseShortInvitationCode(`008J4CT4ANK7F24${ambiguous}`), undefined);
-  assert.equal(parseJoinLink('portico://join#code=008J4CT4ANK7F24S&server=https%3A%2F%2Fserver.test'), undefined, 'long-link contract stays distinct');
+  // On the rebuilt server a link carries the invitation's own code, in the spelling a person types.
+  assert.equal(parseJoinLink('portico://join#code=008J4CT4ANK7F24S&server=https%3A%2F%2Fserver.test')?.code, '008J-4CT4-ANK7-F24S');
 });

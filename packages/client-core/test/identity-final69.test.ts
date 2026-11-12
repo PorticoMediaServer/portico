@@ -74,6 +74,11 @@ test('join links reject duplicates, extra fields and malformed identity expectat
  const base='portico://join#code='+'x'.repeat(32)+'&server='+encodeURIComponent(origin);
  assert.deepEqual(parseJoinLink(base+'&id='+pin.serverId),{code:'x'.repeat(32),server:origin,id:pin.serverId});
  for(const extra of ['&id=bad','&id='+pin.serverId+'&id='+pin.serverId,'&other=x','&code='+'x'.repeat(32)])assert.equal(parseJoinLink(base+extra),undefined);
+ // The rebuilt server's invitation code, in either spelling, is kept as the person would type it.
+ const short='portico://join#server='+encodeURIComponent(origin)+'&code=';
+ assert.equal(parseJoinLink(short+'k7qp2mxd9hrt4wnc')?.code,'K7QP-2MXD-9HRT-4WNC');
+ assert.equal(parseJoinLink(short+'K7QP-2MXD-9HRT-4WNC')?.code,'K7QP-2MXD-9HRT-4WNC');
+ for(const bad of ['K7QP-2MXD-9HRT','K7QP-2MXD-9HRT-4WNI'])assert.equal(parseJoinLink(short+bad),undefined);
 });
 test('all-certificate route failure propagates unconfirmed; a mixed network failure stays offline',async()=>{
  for(const mixed of [false,true]){

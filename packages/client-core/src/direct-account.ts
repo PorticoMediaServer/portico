@@ -9,6 +9,8 @@ import type {ProfileAPI} from './profile-management.ts';
 import {CodedError} from './server-messages.ts';
 import {requireTag} from './needs-newer-app.ts';
 import {identityCode} from './route-identity.ts';
+import {callServer} from './query/server-api.ts';
+import type {Invitation as NextInvitation} from '../../contracts/src/next/api.ts';
 import {formatShortInvitationCode,parseShortInvitationCode} from './short-invitation-code.ts';
 
 export type ServerInvitation=RouteResponse<'get_admin_access_invitation'>;
@@ -53,40 +55,75 @@ export function parsePeopleInvitationPage(raw:unknown):PeopleInvitationPage{
  return Object.freeze({items:Object.freeze(items),limit:Number(raw.limit),nextCursor:typeof raw.nextCursor==='string'?raw.nextCursor:'',totalCount:Number(raw.totalCount),matchedCount:Number(raw.matchedCount)});
 }
 /** Server-admin and recipient operations use distinct, generated contracts. */
+const defaultAccess=Object.freeze({maxStreamsMode:'inherit',maxStreams:0,allowRemote:true,accessTokens:true,maxContentRating:''});
+const invitationStates:Readonly<Record<string,ServerInvitation['state']>>={open:'pending',accepted:'accepted',revoked:'revoked',expired:'expired'};
+const notOnServerYet=():never=>{throw new CodedError('not_available','This is not available on this server yet.');};
+/** An invitation on the rebuilt server, in the shape the People screens read. `revision` is always 1: the later save
+ * wins. What the person gets on joining is the default every account has today, since the server keeps no access
+ * limits on an invitation yet. The code is kept only when `withCode` (a list never carries it, as before). */
+export function serverInvitationOf(raw:NextInvitation,withCode=false):ServerInvitation{
+ const state=invitationStates[raw?.state];
+ if(!object(raw)||!bounded(raw.id,128)||!state||!['member','admin'].includes(raw.role)||!timestamp(raw.createdAt)||!timestamp(raw.expiresAt)||typeof raw.allLibraries!=='boolean'||!Array.isArray(raw.libraries))invalidPeople();
+ if(raw.acceptedAt!==undefined&&!timestamp(raw.acceptedAt))invalidPeople();
+ return Object.freeze({id:raw.id,revision:1,role:raw.role,state,createdAt:raw.createdAt,expiresAt:raw.expiresAt,allowedLibraries:Object.freeze(raw.allLibraries?[]:[...raw.libraries]),
+  ...(raw.note?{notes:raw.note}:{}),...(raw.acceptedAt?{acceptedAt:raw.acceptedAt}:{}),...(withCode&&raw.code?{code:raw.code}:{}),access:defaultAccess}) as ServerInvitation;
+}
+const stateOrder:Readonly<Record<string,number>>={pending:0,accepted:1,expired:2,revoked:3};
+/** Invitations on the rebuilt server. It answers with every invitation (at most a few hundred are kept waiting), so
+ * search, the status filter and sorting happen here and the table gets one page. */
 export class PeopleInvitationsClient{
  readonly api:ProfileAPI;
  constructor(api:ProfileAPI){this.api=api;}
+ private async all(signal?:AbortSignal):Promise<readonly NextInvitation[]>{
+  const page=await callServer(this.api,'GET /v1/admin/invitations',{signal});
+  if(!Array.isArray(page?.items))invalidPeople();
+  return page.items;
+ }
+ private async find(id:string,signal?:AbortSignal):Promise<NextInvitation>{
+  const found=(await this.all(signal)).find(invitation=>invitation?.id===id);
+  if(!found)throw new CodedError('invitation_expired','This invitation is no longer usable.');
+  return found;
+ }
  async list(query:PeopleInvitationQuery={},signal?:AbortSignal):Promise<PeopleInvitationPage>{
   if(query.q!==undefined&&(typeof query.q!=='string'||new TextEncoder().encode(query.q).length>160||/[\p{Cc}\p{Cf}]/u.test(query.q))||query.state!==undefined&&!['pending','accepted','revoked','expired'].includes(query.state)||query.sort!==undefined&&!['sent','status'].includes(query.sort)||query.direction!==undefined&&!['asc','desc'].includes(query.direction)||query.limit!==undefined&&(!Number.isSafeInteger(query.limit)||query.limit<1||query.limit>100)||query.cursor!==undefined&&(typeof query.cursor!=='string'||query.cursor.length>2048))invalidPeople();
-  const params=new URLSearchParams();for(const key of ['q','state','sort','direction','limit','cursor'] as const)if(query[key]!==undefined)params.set(key,String(query[key]));
-  const path=routePath('get_admin_access_invitations')+(params.size?'?'+params.toString():'');
-  return parsePeopleInvitationPage(await this.api.request(path,'GET',undefined,signal));
+  const seen=new Set<string>(),all=(await this.all(signal)).map(raw=>{const row=serverInvitationOf(raw);if(seen.has(row.id))invalidPeople();seen.add(row.id);return row;});
+  if(query.cursor)return Object.freeze({items:Object.freeze([]),limit:1,nextCursor:'',totalCount:all.length,matchedCount:0});
+  const search=query.q?.trim().toLocaleLowerCase()??'',direction=query.direction==='asc'?1:-1;
+  const items=all.filter(row=>(!query.state||row.state===query.state)&&(!search||(row.notes??'').toLocaleLowerCase().includes(search)))
+   .sort((a,b)=>direction*(query.sort==='status'?stateOrder[a.state]-stateOrder[b.state]||a.createdAt.localeCompare(b.createdAt):a.createdAt.localeCompare(b.createdAt)));
+  return Object.freeze({items:Object.freeze(items),limit:Math.max(1,items.length),nextCursor:'',totalCount:all.length,matchedCount:items.length});
  }
+ /** Access limits and a named Portico Account are not kept on an invitation yet: asking for them is refused, never dropped. */
  async create(input:RouteRequest<'post_admin_access_invitations'>,signal?:AbortSignal):Promise<ServerInvitation>{
-  const {notes,...rest}=input;return parseServerInvitation(await this.api.request(routePath('post_admin_access_invitations'),'POST',routeBody('post_admin_access_invitations',{...rest,notes:privatePersonNotes(notes)??undefined}),signal));
+  if(input.porticoUsername||input.access&&JSON.stringify({...defaultAccess,...input.access})!==JSON.stringify(defaultAccess))notOnServerYet();
+  const days=input.expiresInHours/24,note=privatePersonNotes(input.notes)??undefined;
+  const raw=await callServer(this.api,'POST /v1/admin/invitations',{body:{role:input.role,allLibraries:input.allowedLibraries.length===0,libraries:[...input.allowedLibraries],...(note?{note}:{}),expiresInDays:days},signal});
+  return serverInvitationOf(raw,true);
  }
- async read(id:string,signal?:AbortSignal):Promise<ServerInvitation>{return parseServerInvitation(await this.api.request(routePath('get_admin_access_invitation',{id}),'GET',undefined,signal));}
+ async read(id:string,signal?:AbortSignal):Promise<ServerInvitation>{return serverInvitationOf(await this.find(id,signal));}
+ /** Changes who it is for and what it shares. The expiry stays as it is. */
  async edit(id:string,input:RouteRequest<'put_admin_access_invitation'>,signal?:AbortSignal):Promise<ServerInvitation>{
-  if(!rev(input.expectedRevision))invalidPeople();const {notes,...rest}=input;
-  return parseServerInvitation(await this.api.request(routePath('put_admin_access_invitation',{id}),'PUT',routeBody('put_admin_access_invitation',{...rest,notes:privatePersonNotes(notes)??undefined}),signal));
+  if(input.access&&JSON.stringify({...defaultAccess,...input.access})!==JSON.stringify(defaultAccess))notOnServerYet();
+  const note=privatePersonNotes(input.notes);
+  return serverInvitationOf(await callServer(this.api,'PATCH /v1/admin/invitations/{id}',{id,body:{role:input.role,allLibraries:input.allowedLibraries.length===0,libraries:[...input.allowedLibraries],note:note??''},signal}));
  }
+ /** The code a link carries: the invitation's own code, while it is waiting. */
  async link(invitation:Pick<ServerInvitation,'id'|'revision'|'state'>,signal?:AbortSignal):Promise<ServerInvitationLink>{
-  if(invitation.state!=='pending'||!rev(invitation.revision))throw new CodedError('invitation_expired','This invitation is no longer usable.');
-  const raw=await this.api.request<unknown>(routePath('post_admin_access_invitation_link',{id:invitation.id}),'POST',routeBody('post_admin_access_invitation_link',{expectedRevision:invitation.revision}),signal);
-  if(!object(raw)||!bounded(raw.code,128)||raw.code.length<32||!timestamp(raw.expiresAt))invalidPeople();
-  if(raw.serverId!==undefined){if(typeof raw.serverId!=='string')invalidPeople();try{identityCode(raw.serverId);}catch{invalidPeople();}}
-  return Object.freeze({code:raw.code,expiresAt:raw.expiresAt,...(raw.serverId===undefined?{}:{serverId:raw.serverId as string})});
+  if(invitation.state!=='pending')throw new CodedError('invitation_expired','This invitation is no longer usable.');
+  const found=await this.find(invitation.id,signal);
+  if(found.state!=='open'||!bounded(found.code,64)||!timestamp(found.expiresAt))throw new CodedError('invitation_expired','This invitation is no longer usable.');
+  return Object.freeze({code:found.code,expiresAt:found.expiresAt});
  }
- async revoke(invitation:Pick<ServerInvitation,'id'|'revision'>,operationId:string,signal?:AbortSignal):Promise<ServerInvitation>{return parseServerInvitation(await this.api.request(routePath('post_admin_access_invitations_id_revoke',{id:invitation.id}),'POST',routeBody('post_admin_access_invitations_id_revoke',{expectedRevision:invitation.revision,operationId}),signal));}
- /** Explicit New code. A receipt replay intentionally has no plaintext and
-  * must not cause a second operation or silently rotate the current code. */
- async shortCode(invitation:Pick<ServerInvitation,'id'|'revision'|'state'>,operationId:string,signal?:AbortSignal):Promise<ServerShortInvitation>{
-  if(invitation.state!=='pending'||!rev(invitation.revision))throw new CodedError('invitation_expired','This invitation is no longer usable.');
-  const raw=await this.api.request<unknown>(routePath('post_admin_access_invitation_short_code',{id:invitation.id}),'POST',routeBody('post_admin_access_invitation_short_code',{expectedRevision:invitation.revision,operationId}),signal);
-  if(!object(raw)||typeof raw.serverId!=='string'||!timestamp(raw.expiresAt)||Object.hasOwn(raw,'code'))invalidPeople();
-  try{identityCode(raw.serverId);}catch{invalidPeople();}
-  if(Object.hasOwn(raw,'shortCode')&&!parseShortInvitationCode(raw.shortCode))invalidPeople();
-  return Object.freeze({serverId:raw.serverId,expiresAt:raw.expiresAt,...(raw.shortCode===undefined?{}:{shortCode:formatShortInvitationCode(raw.shortCode)!})});
+ async revoke(invitation:Pick<ServerInvitation,'id'|'revision'>,_operationId:string,signal?:AbortSignal):Promise<ServerInvitation>{
+  await callServer(this.api,'DELETE /v1/admin/invitations/{id}',{id:invitation.id,signal});
+  return serverInvitationOf(await this.find(invitation.id,signal));
+ }
+ /** The code a person types. On the rebuilt server it is the invitation's own code, the same one a link carries;
+  * asking again shows the same code. `serverId` is empty: the server does not name itself here. */
+ async shortCode(invitation:Pick<ServerInvitation,'id'|'revision'|'state'>,_operationId:string,signal?:AbortSignal):Promise<ServerShortInvitation>{
+  const link=await this.link(invitation,signal),shortCode=formatShortInvitationCode(link.code);
+  if(!shortCode)invalidPeople();
+  return Object.freeze({serverId:'',expiresAt:link.expiresAt,shortCode:shortCode!});
  }
  async preview(code:string,signal?:AbortSignal):Promise<PublicInvitation>{return parsePublicInvitation(await this.api.request(routePath('preview_invitation'),'POST',routeBody('preview_invitation',{code}),signal));}
  async previewShort(raw:string,signal?:AbortSignal):Promise<PublicInvitation>{
@@ -98,9 +135,6 @@ export class PeopleInvitationsClient{
   if(object(raw)&&requireTag(raw,'variant',['accepted','signed-in','challenge'],invalidPeople)!=='accepted')invalidPeople();
   if(!object(raw)||!bounded(raw.accountId,128)||!bounded(raw.username,64)||!bounded(raw.profileId,128)||!['admin','member'].includes(String(raw.role))||!Array.isArray(raw.allowedLibraries)||raw.allowedLibraries.some(v=>!bounded(v,128))||Object.hasOwn(raw,'notes'))invalidPeople();
   return Object.freeze({accountId:raw.accountId,username:raw.username,profileId:raw.profileId,role:raw.role as string,allowedLibraries:[...raw.allowedLibraries]});
- }
- async notes(member:Pick<PeopleMember,'accountId'|'revision'>,notes:string|null,operationId:string,signal?:AbortSignal):Promise<PeopleMember>{
-  return this.api.request(routePath('put_admin_access_member_notes',{id:member.accountId}),'PUT',routeBody('put_admin_access_member_notes',{expectedRevision:member.revision,operationId,notes:privatePersonNotes(notes)??undefined}),signal);
  }
 }
 /** A profile is secondary to the genuine account username. Private viewers stay private. */

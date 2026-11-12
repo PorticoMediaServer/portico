@@ -1,8 +1,6 @@
 import React, {useLayoutEffect, useRef, useState} from 'react';
 import {Text, View} from 'react-native';
-import {
-  type AccessMember,
-} from '../../../../../../packages/client-core/src/server-administration';
+import type {SettingsPersonRow} from '../../../../../../packages/client-core/src/settings-people';
 import type {MessageId} from '../../../../../../packages/i18n/src';
 import {Focusable} from '../../../kit/controls';
 import {shellType} from '../../../kit/shell/visual';
@@ -13,12 +11,11 @@ import type {NativeScreenLifetime} from '../lifetime';
 import type {NativeSettingsLivePorts} from '../ports';
 import {PeoplePagesController, type PeoplePages, type PeopleSection} from './people-pages';
 
-const roleLabel = (role: AccessMember['role']): MessageId =>
+const roleLabel = (role: SettingsPersonRow['role']): MessageId =>
   role === 'owner' ? 'next.tvPeople.owner' : role === 'admin' ? 'next.settings.people.adminRole' : 'next.settings.people.memberRole';
 
-/** TV37: the web People page's three groups, read only. Accounts, invitations and
- * devices are the server's own authorized view; a device's session count is the
- * producer's optional fact and is omitted when unknown. */
+/** TV37: the web People page's groups, read only: accounts and waiting invitations, the server's own authorized view.
+ * The rebuilt server keeps no server-wide list of devices (only each person's own), so that group is not shown. */
 export function TVPeoplePanel({ports, runtime, lifetime}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; lifetime: NativeScreenLifetime}) {
   const theme = useTheme(), t = runtime.text.t;
   const [publication, setPublication] = useState<{pages: PeoplePagesController; state: PeoplePages; generation: number; ports: NativeSettingsLivePorts; lifetime: NativeScreenLifetime}>();
@@ -81,8 +78,7 @@ export function TVPeoplePanel({ports, runtime, lifetime}: {ports: NativeSettings
   return <View>
     {group('accounts', 'next.tvPeople.accounts', <>{state.members.items.length ? state.members.items.map((account, index) => {
       const name = account.username;
-      const meta = [t(roleLabel(account.role)), t(account.hostedAccountId ? 'next.tvPeople.portico' : 'next.tvPeople.local')];
-      if (account.profileNames !== undefined) meta.push(t('next.tvPeople.profiles', {count: account.profileNames.length}));
+      const meta = [t(roleLabel(account.role)), t('next.tvPeople.profiles', {count: account.profileNames.length})];
       const live = account.liveState === 'watching' || account.liveState === 'listening' ? t('next.shell.nowPlaying') : undefined;
       const last = when(account.lastActiveAt);
       const status = account.disabled ? t('next.tvPeople.turnedOff') : live ?? (last ? t('next.tvPeople.lastActive', {when: last}) : undefined);
@@ -93,10 +89,5 @@ export function TVPeoplePanel({ports, runtime, lifetime}: {ports: NativeSettings
       const expires = expiry(invitation.expiresAt);
       return row(`invitation:${invitation.id}`, title, expires ? [expires] : [], t('next.tvPeople.notUsed'), tail('invitations', index, state.invitations.items.length));
     }) : state.invitations.loaded && <StateView title={t('next.tvPeople.noInvitations')}/>} {sectionTail('invitations', state.invitations)}</>)}
-    {group('devices', 'next.tvPeople.devices', <>{state.devices.items.length ? state.devices.items.map((device, index) => {
-      const meta = [device.platform, when(device.firstSeenAt) ? t('next.tvPeople.firstSeen', {when: when(device.firstSeenAt)}) : ''].filter(Boolean);
-      const sessions = device.sessionCount === undefined ? undefined : t('next.tvPeople.sessions', {count: device.sessionCount});
-      return row(`device:${device.id}`, device.name, meta, sessions, tail('devices', index, state.devices.items.length));
-    }) : state.devices.loaded && <StateView title={t('next.tvPeople.noDevices')}/>} {sectionTail('devices', state.devices)}</>)}
   </View>;
 }

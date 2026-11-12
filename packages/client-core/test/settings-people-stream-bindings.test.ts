@@ -36,17 +36,15 @@ test('bulk Keep removes only the stream edit while explicit inherit and unlimite
  assert.throws(()=>peopleStreamLimits.readBulk({maxStreams:2}));
 });
 
-test('stream changes use the existing member CAS transport and retain current effective facts from the response',async()=>{
- let sent:any;
+test('a stream change is written into the owner stream limits, and the other limits it cannot keep are refused',async()=>{
+ let stored:any={perPerson:2,people:{other:1}};
  const client=new SettingsPeopleClient({request:async(path,method,body)=>{
-  assert.equal(path,'/v1/admin/access/members/real-person/limits');assert.equal(method,'PUT');sent=body;
-  return {accountId:person.accountId,revision:13,limits:(body as any).limits,serverMaxStreams:2,effectiveMaxStreams:2} as any;
+  assert.equal(path,'/v1/admin/playback/stream-limits');if(method==='PUT')stored=body;return stored;
  }},()=>true);
  try {
   const saved=await client.limits(person,peopleStreamLimits.patch(person,'unlimited'));
-  assert.equal(sent.expectedRevision,12);assert.ok(sent.operationId);
+  assert.deepEqual(stored,{perPerson:2,people:{other:1,'real-person':0}});
   assert.equal(saved.limits.maxStreamsMode,'unlimited');assert.equal(saved.limits.maxStreams,0);
-  assert.equal(saved.effectiveMaxStreams,2);assert.equal(saved.serverMaxStreams,2);
-  assert.deepEqual(sent.limits.tagPolicy,limits.tagPolicy);
+  assert.equal(saved.effectiveMaxStreams,null);assert.equal(saved.serverMaxStreams,2);
  } finally {client.dispose();}
 });

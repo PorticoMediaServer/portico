@@ -20,7 +20,7 @@ test('members, secondary profiles and disabled accounts never read owner TV sett
     const lifetime = scope();
     const reader = createTVServerReader({account: value, api: {request: async <T,>() => {reads++; return {} as T;}}}, lifetime);
     await assert.rejects(reader.request('/v1/admin/libraries'));
-    await assert.rejects(reader.peoplePage('members'));
+    await assert.rejects(reader.request('/v1/admin/members'));
     assert.equal(reads, 0);
     lifetime.dispose();
   }
@@ -31,11 +31,13 @@ test('an administrator reads only the shared People pages, never the owner log, 
   let reads = 0;
   const lifetime = scope();
   const reader = createTVServerReader({account: value, api: {request: async <T,>() => {reads++; return {} as T;}}}, lifetime);
-  // The shared People page is the administrator's real audience.
-  for (const path of [routePath('get_admin_access_members'), routePath('get_admin_access_invitations'), routePath('get_admin_access_devices')]) {
+  // The shared People page is the administrator's real audience: the accounts, who is playing now, the invitations.
+  for (const path of ['/v1/admin/members', '/v1/admin/sessions', '/v1/admin/invitations']) {
     await reader.request(path);
   }
   assert.equal(reads, 3);
+  // The owner's stream limits are the owner's alone.
+  await assert.rejects(reader.request('/v1/admin/playback/stream-limits'), /native_tv_server_read_denied/);
   // The owner's pages are not part of that audience, even though the tier would pass.
   for (const path of [
     routePath('get_admin_logs'), routePath('get_admin_storage_usage'), routePath('get_data_storage_usage'),
@@ -63,41 +65,20 @@ test('owner reader allows GET only and rejects a response after authority retire
   assert.equal(reads, 1);
 });
 
-test('typed People pages serialize only their bounded GET query and retain admission', async () => {
-  for (const role of ['owner', 'admin'] as const) {
-    const lifetime = scope();
-    const calls: string[] = [];
-    const reader = createTVServerReader({account: {...account, account: {...account.account, role}}, api: {request: async <T,>(path: string, method?: string) => {assert.equal(method, 'GET'); calls.push(path); return {} as T;}}}, lifetime);
-    for (const section of ['members', 'invitations', 'devices'] as const) await reader.peoplePage(section, 'a&cursor=evil');
-    assert.deepEqual(calls.map(path => {const [base, query] = path.split('?'); return [base, Object.fromEntries(new URLSearchParams(query))];}), [
-      [routePath('get_admin_access_members'), {limit: '50', cursor: 'a&cursor=evil'}],
-      [routePath('get_admin_access_invitations'), {limit: '50', state: 'pending', cursor: 'a&cursor=evil'}],
-      [routePath('get_admin_access_devices'), {limit: '50', cursor: 'a&cursor=evil'}],
-    ]);
-    await assert.rejects(reader.peoplePage('members', 'x'.repeat(4097)));
-    await assert.rejects(reader.peoplePage('bogus' as 'members'));
-    if (role === 'admin') await assert.rejects(reader.request(routePath('get_admin_access_members') + '?cursor=arbitrary'));
-    lifetime.dispose();
-    await assert.rejects(reader.peoplePage('devices'));
-    assert.equal(calls.length, 3);
-  }
-});
-
-test('typed People reader refuses forged selectors and control cursors before dispatch', async () => {
+test('an administrator\'s People reads are the exact paths, GET only, before anything is sent', async () => {
   let calls = 0;
   const lifetime = scope();
   const admin = {...account, account: {...account.account, role: 'admin' as const}};
   const reader = createTVServerReader({account: admin, api: {request: async <T,>() => {calls++; return {} as T;}}}, lifetime);
-  for (const forged of ['https://example.invalid/v1/admin/access/members', '/v1/admin/access/members?role=owner', 'members?role=owner', '__proto__']) {
-    await assert.rejects(reader.peoplePage(forged as 'members'));
+  for (const forged of ['https://example.invalid/v1/admin/members', '/v1/admin/members?role=owner', '/v1/admin/members/amy', '/v1/admin/access/members']) {
+    await assert.rejects(reader.request(forged), /native_tv_server_read_denied/);
   }
-  await assert.rejects(reader.peoplePage('members', 'cursor\nlimit=1000'));
-  await assert.rejects(reader.peoplePage('invitations', 'cursor\u2060'));
-  await assert.rejects(reader.request(routePath('get_admin_access_members') + '?cursor=x'));
-  await assert.rejects(reader.request(routePath('get_admin_access_members'), 'POST'));
-  await assert.rejects(reader.request('https://example.invalid/v1/admin/access/members'));
+  await assert.rejects(reader.request('/v1/admin/members', 'POST'));
+  await assert.rejects(reader.request('/v1/admin/invitations', 'GET', {}));
   assert.equal(calls, 0);
   lifetime.dispose();
+  await assert.rejects(reader.request('/v1/admin/members'));
+  assert.equal(calls, 0);
 });
 
 
