@@ -12,6 +12,9 @@ import (
 type System struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+	// PorticoOrigin is the published public HTTPS origin while remote access is on
+	// and the server can serve its Portico certificate. It contains no path.
+	PorticoOrigin string `json:"porticoOrigin,omitempty"`
 	// Version is told only to a signed-in caller: a stranger has no use for it but to look
 	// up what is wrong with that release.
 	Version string `json:"version,omitempty"`
@@ -78,6 +81,7 @@ func (s *Server) systemRoutes() {
 		}
 		out := System{ID: s.id, Name: s.serverName(), APIMajor: APIMajor, Capabilities: []string{},
 			SetupRequired: !hasUsers, SignInMethods: methods, SignIn: kind, AtHome: s.fromHome(r)}
+		out.PorticoOrigin = s.publicPorticoOrigin()
 		if move, moving, err := s.db.CurrentMove(r.Context()); err != nil {
 			return System{}, err
 		} else if moving {

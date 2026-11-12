@@ -65,7 +65,7 @@ Assistant) are a separate short document and are not counted here.
 
 | Route | Purpose |
 |---|---|
-| `GET /v1/system` | Public facts: name, API major, `capabilities`, sign-in methods, whether setup is needed; the version only for a signed-in caller |
+| `GET /v1/system` | Public facts: name, API major, `capabilities`, sign-in methods, whether setup is needed, optional `porticoOrigin` (public Portico HTTPS origin only, while remote access is on and its certificate is held); the version only for a signed-in caller |
 | `POST /v1/system/identity-proof` | Prove this is the server the app pinned |
 | `GET /v1/health/live`, `GET /v1/health/ready` | For process managers and proxies |
 | `GET /v1/events` | The change feed |
