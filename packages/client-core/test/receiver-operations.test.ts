@@ -6,18 +6,18 @@ test('receiver operations preserve paths, method defaults, normalized bodies and
   const calls: unknown[][] = [], signal = new AbortController().signal;
   const api = {async request<T>(...args: unknown[]): Promise<T> {
     calls.push(args);
-    return {requestId: 'request', userCode: 'ABCD', deviceName: 'TV', platform: 'tvos'} as T;
+    return {device: {name: 'TV', platform: 'tvos', appVersion: '1'}, expiresAt: '2099-01-01T00:00:00Z'} as T;
   }};
   await readReceiverItem(api, 'item/a', 'GET', signal);
   await readCastConfiguration(api);
   const links = receiverLinkOperations(api);
-  assert.deepEqual(await links.preview(' abcd ', {signal}), {requestId: 'request', userCode: 'ABCD', deviceName: 'TV', platform: 'tvos'});
-  await links.decide('request', ' abcd ', 'approve', {signal});
+  assert.deepEqual(await links.preview(' 2345abcd ', {signal}), {requestId: '2345-ABCD', userCode: '2345-ABCD', deviceName: 'TV', platform: 'tvos'});
+  await links.decide('request', ' 2345abcd ', 'approve', {signal});
   assert.deepEqual(calls, [
     ['/v1/items/item%2Fa', 'GET', undefined, signal],
     ['/v1/cast/configuration'],
-    ['/v1/quick-connect/review', 'POST', {userCode: 'ABCD'}, signal],
-    ['/v1/quick-connect/decision', 'POST', {requestId: 'request', userCode: 'ABCD', decision: 'approve'}, signal],
+    ['/v1/auth/codes/2345-ABCD', 'GET', undefined, signal],
+    ['/v1/auth/codes/2345-ABCD/approve', 'POST', {deny: false}, signal],
   ]);
 });
 

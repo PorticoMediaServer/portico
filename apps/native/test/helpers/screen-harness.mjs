@@ -1,3 +1,4 @@
+import * as setupCodes from '../../../../packages/client-core/src/setup-code.ts';
 import * as catalogueActions from '../../../../packages/client-core/src/query/catalogue-actions.ts';
 import * as catalogueReads from '../../../../packages/client-core/src/query/catalogue-reads.ts';
 import * as playbackQueries from '../../../../packages/client-core/src/query/playback.ts';
@@ -136,6 +137,7 @@ export async function screenModule(file, modules) {
   if (connectionImports.length) {
     const operations = await screenModule(new URL('../../../../packages/client-core/src/query/connection-operations.ts', import.meta.url), {
       react: modules.react ?? {default: {}},
+      '../setup-code.ts': setupCodes,
       '../index.ts': {...core, ...(modules['../../../../packages/client-core/src'] ?? modules['../../../../packages/client-core/src/index.ts'])},
       '../../../contracts/src/routes.ts': modules['../../../../packages/contracts/src/routes'] ?? connectionRoutes,
       '../../../contracts/src/hosted/routes.ts': modules['../../../../packages/contracts/src/hosted/routes'] ?? hostedConnectionRoutes,

@@ -68,6 +68,13 @@ func (s *Server) codeRoutes() {
 	Handle(s, "GET /v1/auth/codes/{id}", WithProfile, s.reviewCode).Scope = ScopeSession
 	Handle(s, "POST /v1/auth/codes/{id}/approve", WithProfile, s.decideCode).Scope = ScopeSession
 	Handle(s, "POST /v1/auth/codes/{id}/redeem", Public, s.collectCode)
+	Handle(s, "DELETE /v1/auth/codes/{id}", Public, func(r *http.Request, req CodeCollect) (None, error) {
+		err := s.db.CancelTVSignIn(r.Context(), tvCodeHash(r.PathValue("id")), auth.Hash(req.DeviceSecret), s.now())
+		if errors.Is(err, db.ErrNotFound) {
+			return None{}, errNoCode()
+		}
+		return None{}, err
+	})
 }
 
 func tvCodeHash(typed string) string { return auth.Hash("tv|" + auth.CodeKey(typed)) }

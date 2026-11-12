@@ -1,5 +1,4 @@
-import {routeBody} from '../../contracts/src/routes.ts';
-import {routePath} from '../../contracts/src/route-paths.ts';
+import {reviewLocalTVAuthorization, decideLocalTVAuthorization} from './query/connection-operations.ts';
 import {routePath as hostedPath, routeBody as hostedBody} from '../../contracts/src/hosted/routes.ts';
 import {currentUTCTimestamp} from './local-session.ts';
 import type {ProfileAPI} from './profile-management.ts';
@@ -61,7 +60,7 @@ export class TVConsentApprover {
     this.cancel(); const userCode = normalizeSetupCode(code);
     const raw = await this.run(signal => this.authority.kind === 'portico'
       ? this.api.request<SetupPreview>(hostedPath('device_authorization_review'), 'POST', hostedBody('device_authorization_review', {userCode}), signal)
-      : this.api.request<SetupPreview>(routePath('post_quick_connect_review'), 'POST', routeBody('post_quick_connect_review', {userCode}), signal));
+      : reviewLocalTVAuthorization(this.api, userCode, signal));
     if (!raw || !text(raw.requestId, 128) || normalizeSetupCode(raw.userCode) !== userCode || !text(raw.deviceName, 100) || !text(raw.platform, 32) || !text(raw.appVersion, 40) || !currentUTCTimestamp(raw.expiresAt)) throw new RouteError('invalid_consent', 'This TV sign-in request is no longer available.');
     const preview = Object.freeze({...raw}); this.preview = preview; return preview;
   }
@@ -72,6 +71,6 @@ export class TVConsentApprover {
     this.preview = undefined;
     await this.run(signal => this.authority.kind === 'portico'
       ? this.api.request<void>(hostedPath('device_authorization_decide'), 'POST', hostedBody('device_authorization_decide', {requestId: preview.requestId, userCode: preview.userCode, decision}), signal)
-      : this.api.request<void>(routePath('post_quick_connect_decision'), 'POST', routeBody('post_quick_connect_decision', {requestId: preview.requestId, userCode: preview.userCode, decision}), signal));
+      : decideLocalTVAuthorization(this.api, preview.userCode, decision, signal));
   }
 }
