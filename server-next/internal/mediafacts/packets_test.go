@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"os"
 	"os/exec"
@@ -153,4 +154,69 @@ func TestPacketFailurePreservesFacts(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Older CBR encoders often omit Xing/Info/VBRI. They need bounded sampling, not
+// a full read; a VBR file with the same missing header still needs a true count.
+func TestMP3LengthOnlyWalksVariableBitrate(t *testing.T) {
+	ffmpeg := decodertest.QualifiedFFmpeg(t)
+	for _, variable := range []bool{false, true} {
+		name := "cbr"
+		codec := []string{"-c:a", "libmp3lame", "-b:a", "192k", "-write_xing", "0"}
+		if variable {
+			name = "vbr"
+			codec = []string{"-c:a", "libmp3lame", "-q:a", "4", "-write_xing", "0"}
+		}
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "headerless.mp3")
+			args := []string{"-v", "error", "-y", "-f", "lavfi", "-i", "anoisesrc=d=95:c=pink:r=44100:a=0.3,volume='if(lt(t,3),0.01,1)':eval=frame"}
+			args = append(append(args, codec...), path)
+			if out, err := exec.Command(ffmpeg, args...).CombinedOutput(); err != nil {
+				decodertest.Unavailable(t, fmt.Sprintf("fixture: %v %s", err, out))
+			}
+			facts, err := (Probe{}).Inspect(context.Background(), path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := facts
+			f, err := os.Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			info, err := f.Stat()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var bytes int64
+			p := Probe{OpenReader: func(context.Context, string) (io.ReaderAt, int64, func() error, error) {
+				return countedMP3Reader{f, &bytes}, info.Size(), func() error { return nil }, nil
+			}}
+			if err := p.CompleteMP3Length(context.Background(), path, &facts); err != nil {
+				t.Fatal(err)
+			}
+			if variable {
+				if bytes < info.Size() || facts.Duration == before.Duration {
+					t.Fatalf("VBR was not counted: read %d of %d, duration %f -> %f", bytes, info.Size(), before.Duration, facts.Duration)
+				}
+				want := fullPacketRead(t, decodertest.QualifiedFFprobe(t), path)
+				if math.Abs(facts.Duration*1e6-float64(want.LengthUS)) > 1 {
+					t.Fatalf("VBR length %f, want %d us", facts.Duration, want.LengthUS)
+				}
+			} else if bytes > (64<<10)+5*8192+20 || !reflect.DeepEqual(facts, before) {
+				t.Fatalf("CBR needed only header and samples, keeping its ordinary facts: read %d of %d, duration %f -> %f", bytes, info.Size(), before.Duration, facts.Duration)
+			}
+		})
+	}
+}
+
+type countedMP3Reader struct {
+	io.ReaderAt
+	count *int64
+}
+
+func (r countedMP3Reader) ReadAt(b []byte, off int64) (int, error) {
+	n, err := r.ReaderAt.ReadAt(b, off)
+	*r.count += int64(n)
+	return n, err
 }
