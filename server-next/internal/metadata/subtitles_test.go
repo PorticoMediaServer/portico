@@ -107,9 +107,14 @@ func TestASubtitleIsFoundDownloadedAndOfferedAtPlayback(t *testing.T) {
 	if raw, err := os.ReadFile(path); err != nil || len(raw) == 0 {
 		t.Fatalf("the subtitle's file: %v", err)
 	}
-	// The same subtitle again is the one already kept.
+	// The same subtitle again is the one already kept, and OpenSubtitles is not asked: a
+	// download counts against the account's daily allowance.
+	asked := server.Requests.Load()
 	if again, err := s.DownloadSubtitle(ctx, viewer, id, "", results[0]); err != nil || again.PublicID != sub.PublicID {
 		t.Errorf("a second download: %+v, %v", again, err)
+	}
+	if n := server.Requests.Load() - asked; n != 0 {
+		t.Errorf("downloading the same subtitle again sent OpenSubtitles %d requests", n)
 	}
 	if n := len(downloaded(t, d, viewer, id)); n != 1 {
 		t.Errorf("%d subtitles after downloading the same one twice", n)

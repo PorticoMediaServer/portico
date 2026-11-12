@@ -110,6 +110,11 @@ func (s *Service) DownloadSubtitle(ctx context.Context, v db.Viewer, itemPublicI
 	if err != nil {
 		return db.Subtitle{}, err
 	}
+	// Asked for again, the one already kept is the answer: a download counts against the
+	// account's daily allowance.
+	if kept, ok, err := s.DB.KeptSubtitle(ctx, target.MediaID, provider.Name(), chosen.Ref); err != nil || ok {
+		return kept, err
+	}
 	raw, format, err := provider.Download(ctx, chosen.Ref)
 	if err != nil {
 		return db.Subtitle{}, err

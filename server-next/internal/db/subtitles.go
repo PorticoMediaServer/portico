@@ -126,6 +126,20 @@ func (d *DB) AddSubtitle(ctx context.Context, s Subtitle) (Subtitle, error) {
 	return s, err
 }
 
+// KeptSubtitle returns the subtitle already downloaded for a version from one provider's
+// result, and whether there is one, so the same download asked for again costs the account
+// nothing.
+func (d *DB) KeptSubtitle(ctx context.Context, mediaID int64, provider, ref string) (Subtitle, bool, error) {
+	s := Subtitle{MediaID: mediaID, Provider: provider, ProviderRef: ref}
+	err := d.read.QueryRowContext(ctx, `SELECT public_id, file_hash, format, ifnull(language, ''), ifnull(title, ''), is_forced, is_hearing_impaired
+		FROM subtitles WHERE media_id = ? AND provider = ? AND provider_ref = ?`, mediaID, provider, ref).
+		Scan(&s.PublicID, &s.FileHash, &s.Format, &s.Language, &s.Title, &s.Forced, &s.HearingImpaired)
+	if errors.Is(err, sql.ErrNoRows) {
+		return s, false, nil
+	}
+	return s, err == nil, err
+}
+
 // RemoveSubtitle removes a downloaded subtitle; the owner and administrators may. It returns
 // the subtitle's file, and whether another subtitle row still uses the same file.
 func (d *DB) RemoveSubtitle(ctx context.Context, publicID string) (hash string, stillUsed bool, err error) {
