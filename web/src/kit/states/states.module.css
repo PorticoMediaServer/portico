@@ -156,3 +156,17 @@
   .page .help { margin: 18px 6px 0; font-size: 12.5px; line-height: 1.5; }
   .page .eyebrow { justify-content: center; }
 }
+/* A player state (states.html frames 8-11) on a narrow screen: the upright phone, whether the state fills its picture
+   strip or the whole screen. The words keep 20 px gutters and the landscape variant's sizes, with no full page's minimum
+   height or margins, so nothing runs past the edge. On a short, sideways screen the same sizes keep it inside the height. */
+@media (max-width: 599px) {
+  .player, .landscape { min-height: 0; }
+  .player .position, .landscape .position { left: 20px; right: 20px; width: auto; max-height: calc(100% - 16px); }
+}
+@media (max-width: 599px), (max-height: 499px) {
+  .player .stateIcon { width: 42px; height: 42px; margin-bottom: 12px; }
+  .player .stateIcon svg { width: 22px; height: 22px; }
+  .player h1 { font-size: 26px; line-height: 1.08; letter-spacing: -.03em; margin-bottom: 8px; }
+  .player .body { font-size: 14px; line-height: 1.5; margin-bottom: 14px; }
+  .player .actions { gap: 8px; }
+}
