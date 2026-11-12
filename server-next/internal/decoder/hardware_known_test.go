@@ -21,6 +21,11 @@ func TestKnownListsTheKeptVerdictsOnlyInTheOrderTheyAreTried(t *testing.T) {
 		"ffmpeg-1/" + string(BackendAMF) + "/":   {Backend: BackendAMF, Reason: ProbeUnsupportedPlatform},
 		"ffmpeg-0/" + string(BackendQSV) + "/":   {Backend: BackendQSV, Available: true},
 	}
+	d.cache["ffmpeg-1/"+string(BackendNVENC)+"/card-two"] = HardwareProbe{Backend: BackendNVENC, Device: "card-two", Available: true,
+		DecodeCodecs: map[string]bool{"hevc:10": true}, OutputQuality: map[string]bool{"h264:8": true}}
+	if cell := d.KnownDevice(context.Background(), "ffmpeg", "card-two"); len(cell) != 1 || !cell[0].Available || !cell[0].DecodeCodecs["hevc:10"] || !cell[0].OutputQuality["h264:8"] {
+		t.Fatalf("a physical card inherited the default device's verdict: %+v", cell)
+	}
 	got := d.Known(context.Background(), "ffmpeg")
 	if len(got) != 2 || got[0].Backend != BackendNVENC || got[1].Backend != BackendVAAPI || !got[1].Available {
 		t.Fatalf("the kept verdicts: %+v", got)

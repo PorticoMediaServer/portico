@@ -83,6 +83,7 @@ func (s *Server) startConsole(ctx context.Context) error {
 	s.reportRoutes()
 	s.dashboardRoutes()
 	s.capabilityRoutes()
+	s.streamingHardwareRoutes()
 	// A notice when an alert's cause starts. See server_notices.go.
 	s.goBackground(func() { s.runServerNotices(ctx) })
 	// The console's part of the daily tidy-up: notices past the owner's keeping time, crash

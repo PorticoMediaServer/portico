@@ -167,6 +167,10 @@ func (e *Engine) setConversion(folder, ffmpeg string) error {
 			e.tryGraphics(tools, tools.ffmpeg, facts)
 		}
 		e.asking = tools
+		if tools.hardware == nil {
+			tools.hardware = &decoder.HardwareDetector{}
+		}
+		go e.testHardware(tools, false)
 	}
 	e.current = next
 	if e.running {
@@ -302,6 +306,9 @@ type toolset struct {
 	hardware *decoder.HardwareDetector
 	// problem is why ffmpeg could not be asked, for "What this server can do".
 	problem string
+	// Guarded by Engine.mu; codec results stay in the detector's existing cache.
+	devices []decoder.HardwareDevice
+	probing bool
 }
 
 // tools is the toolset in force.
@@ -359,6 +366,8 @@ func (e *Engine) ask(ffmpeg string) *toolset {
 				e.log.Error("ffmpeg could not be asked what it can do, so only original files will play", "error", err)
 			}
 			t.problem = err.Error()
+			t.hardware = &decoder.HardwareDetector{}
+			e.testHardware(t, false)
 			return
 		}
 		// A switch made meanwhile has put another program in force: this answer is not
@@ -366,14 +375,19 @@ func (e *Engine) ask(ffmpeg string) *toolset {
 		e.switching.Lock()
 		defer e.switching.Unlock()
 		t.converter, t.fragmented, t.ffmpeg, t.hardware = answered.converter, answered.fragmented, answered.ffmpeg, answered.hardware
-		if e.tools() != t || !answered.converter {
+		if e.tools() != t {
+			return
+		}
+		if !answered.converter {
+			t.hardware = &decoder.HardwareDetector{}
+			e.testHardware(t, false)
 			return
 		}
 		decoder.ConfigureToolchain(facts)
 		e.tryGraphics(t, t.ffmpeg, facts)
 		// The hardware encoders are tried out now, beside the start, so no play waits for
 		// that: until it is done a conversion is planned in software.
-		t.hardware.SelectCached(t.ffmpeg, "auto", "")
+		e.testHardware(t, false)
 	}()
 	return t
 }

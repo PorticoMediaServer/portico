@@ -723,6 +723,17 @@ follows its libraries).
 | `GET /v1/admin/skipped` | Owner | Files skipped (Troubleshooting): every library's files the last scans could not use, in one list, 40 at a time by cursor, each with its library and the reason (counted with Libraries) |
 | `GET /v1/admin/filesystem` | Owner | The folder explorer: folders under a path, 200 at a time, with `writable` on request (counted with Libraries) |
 
+The hardware read returns `checking`, `devices` (each observed `id`, `name`, `method`,
+`inUse`, `formats`, `toneMapping`, and `problem` only when needed), the selected `formats`
+grid, `toneMapping`, `lastTest` and a current `lastError` (`reason`, `detail`, `remedy`).
+Each format has `format`, `decode` and `encode`; unmeasured cells are false. Read does not
+run a probe. Test starts one bounded check in the background and returns the same shape;
+repeated requests share the running test. Save `streaming.graphicsDevice` as an observed
+physical ID, `automatic`, or `processor`. A missing or unusable choice falls through other
+measured devices and then the processor; active streams keep their plan. A driver which
+cannot expose a physical selector is reported as such, without guessing an adapter index.
+
+
 The owner's read of files Portico could not prepare is a library's skipped files (Libraries), or
 every library's at once (`GET /v1/admin/skipped`);
 remembered playback problems are under Playback. There is no history of failed conversions

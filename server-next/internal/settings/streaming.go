@@ -23,8 +23,8 @@ type StreamingSettings struct {
 	// what is left, and is refused when not even the lowest quality fits.
 	UploadSpeedKbps int `json:"uploadSpeedKbps"`
 	// GraphicsDevice converts video: "automatic" (the best one found), "processor" (no
-	// graphics device), or one kind of device by name (nvenc, qsv, vaapi, videotoolbox,
-	// amf). One that is missing or cannot take a conversion leaves it to the processor.
+	// graphics device), or an observed physical device ID. Older backend names still work.
+	// A missing or unavailable choice falls through the other devices, then the processor.
 	GraphicsDevice string `json:"graphicsDevice"`
 	// HardwareDecoding lets the graphics device read the file as well as write the
 	// conversion. Turning it off is for troubleshooting.
@@ -78,8 +78,9 @@ func checkStreaming(s *StreamingSettings) error {
 			return &Invalid{Field: f.name, Message: "Give a speed in kbps, or 0 for no limit."}
 		}
 	}
-	if s.GraphicsDevice != "automatic" && s.GraphicsDevice != "processor" && !slices.Contains(GraphicsDevices, s.GraphicsDevice) {
-		return &Invalid{Field: "graphicsDevice", Message: "Choose Automatic, software encoding or one of the graphics devices listed."}
+	if s.GraphicsDevice != "automatic" && s.GraphicsDevice != "processor" && !slices.Contains(GraphicsDevices, s.GraphicsDevice) &&
+		(s.GraphicsDevice == "" || len(s.GraphicsDevice) > 512 || strings.ContainsAny(s.GraphicsDevice, "\x00\r\n")) {
+		return &Invalid{Field: "graphicsDevice", Message: "Choose Automatic, Processor only or one of the graphics devices listed."}
 	}
 	s.ConversionFolder, s.FFmpegProgram = strings.TrimSpace(s.ConversionFolder), strings.TrimSpace(s.FFmpegProgram)
 	for _, f := range []struct{ name, value string }{{"conversionFolder", s.ConversionFolder}, {"ffmpegProgram", s.FFmpegProgram}} {
