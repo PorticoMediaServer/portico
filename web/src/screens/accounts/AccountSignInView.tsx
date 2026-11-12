@@ -53,6 +53,8 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
   const reconnectedServer = state.memberMoveCompleted ? state.server?.id : undefined;
   useEffect(() => {if (reconnectedServer) rememberMoveReconnected(reconnectedServer);}, [reconnectedServer]);
   const [recoveryChoice, setRecoveryChoice] = useState(false);
+  // Asking the server for its challenge before leaving for web.getportico.tv (option 2).
+  const [leaving, setLeaving] = useState(false);
   const [recovery, setRecovery] = useState<RecoveryTarget>();
   const [porticoRecovery, setPorticoRecovery] = useState<RecoveryTarget>();
   const [acknowledgedMove, setAcknowledgedMove] = useState<ReturnType<BrowserAccountEntry['getSnapshot']>>();
@@ -110,7 +112,7 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
     form.clear(); setError(undefined); void entry.inspect(origin);
   };
   const cancel = () => {if (!alive.current || entry.getSnapshot() !== state || form.getSnapshot() !== input) return;form.clear(); entry.cancel(); if (onCancel) onCancel(); else void router.navigate({to: '/servers'});};
-  const busy = state.busy || input.busy, failure = state.error ?? error;
+  const busy = state.busy || input.busy || leaving, failure = state.error ?? error;
   const openRecovery = () => {
     if (!alive.current || busy || joining || initializing || entry.getSnapshot() !== state || form.getSnapshot() !== input
       || state.phase !== 'password' || state.server?.signIn !== 'local' || state.invitation || !state.origin || !state.pin) return;
@@ -149,7 +151,19 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
     const epoch = input.inputEpoch, serverId = state.server?.id, origin = state.origin, pin = state.pin, phase = state.phase;
     if (!serverId || busy || !alive.current || entry.getSnapshot() !== state || form.getSnapshot() !== input || phase !== 'portico' && phase !== 'move-portico') return;
     // Signing in, and a move with the owner's code, go on at web.getportico.tv, which holds the Portico Account.
-    const handoff = entry.porticoHandoff(browserAccountOrigin(import.meta.env, location));
+    const hostedOrigin = browserAccountOrigin(import.meta.env, location);
+    const unchanged = () => alive.current && entry.getSnapshot().origin === origin && entry.getSnapshot().pin === pin && form.getSnapshot().inputEpoch === epoch;
+    if (phase === 'portico' && location.protocol === 'https:') {
+      // At this server's own HTTPS address the sign-in comes straight back here (option 2).
+      setLeaving(true); setError(undefined);
+      void entry.startPorticoReturn(hostedOrigin).then(url => {
+        const next = url ?? entry.porticoHandoff(hostedOrigin)?.url;
+        if (next && unchanged()) location.assign(next);
+        if (alive.current) setLeaving(false);
+      }, failure => {if (alive.current) {setLeaving(false); if (unchanged()) setError(failure);}});
+      return;
+    }
+    const handoff = entry.porticoHandoff(hostedOrigin);
     if (handoff && entry.getSnapshot() === state && form.getSnapshot().inputEpoch === epoch && state.origin === origin && state.pin === pin) location.assign(handoff.url);
   };
   const chooseServer = () => {void router.navigate({to: '/servers'});};
@@ -202,6 +216,7 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
     onMoveCode={state.server.move === 'to_local' && !state.invitation ? () => openMember('code') : undefined} />;
   if (state.phase === 'portico' && state.server?.signIn === 'portico') return <PorticoServerSignIn serverName={state.server.name} busy={busy} error={failure} onContinue={continuePortico}
     plainHttp={location.protocol === 'http:'}
+    onSecure={location.protocol === 'http:' && state.server.secureAddress ? () => location.assign(state.server!.secureAddress!) : undefined}
     moving={state.server.move === 'to_portico' && !state.invitation && !moveReconnected(state.server.id)} moveDays={moveOfferDays(state.server.moveEndsAt)}
     onOldPassword={() => openMember('old-password')} onMoveCode={() => openMember('code')}
     onRecovery={state.invitation ? undefined : openPorticoRecovery}/>;

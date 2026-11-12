@@ -19,6 +19,24 @@ export async function porticoServerSignIn(api: ProfileAPI, serverId: string, not
     {body: {challenge, identity, device: signInDevice(), ...(options.invitation ? {invitation: options.invitation} : {})}, signal}));
 }
 
+/** The server's one-use challenge for a Portico Account sign-in (`POST /v1/auth/portico/challenge`),
+ * checked to come from `serverId`. */
+export async function askPorticoChallenge(api: ProfileAPI, serverId: string, signal?: AbortSignal): Promise<string> {
+  const asked = await callServer(api, 'POST /v1/auth/portico/challenge', {signal});
+  if (asked?.serverId !== serverId || typeof asked.challenge !== 'string' || !asked.challenge)
+    throw new CodedError('server_mismatch', 'The server answered as a different server.');
+  return asked.challenge;
+}
+/** Signing in at a server's own HTTPS page with a note web.getportico.tv sent back to it (option 2):
+ * the challenge this page asked its server for before leaving, and the note Services made for it,
+ * whose signed audience is this page's address. The server checks both; the note is used once. */
+export async function porticoReturnedSignIn(api: ProfileAPI, serverId: string, challenge: string, identity: unknown, signal?: AbortSignal): Promise<DirectSignIn> {
+  const signedIn = await openOnlyProfile(api, parseDirectSignIn(await callServer(api, 'POST /v1/auth/portico/exchange',
+    {body: {challenge, identity, device: signInDevice()}, signal})), signal);
+  if (signedIn.kind === 'signed-in' && signedIn.snapshot.serverId !== serverId) throw new CodedError('server_mismatch', 'The server answered as a different server.');
+  return signedIn;
+}
+
 /** What finishes a waiting member's move to a Portico Account: the move code the owner gave them,
  * or the one-use ticket the server answered for their old password, which is typed only on the
  * server's own page and never travels (P2-66). */
@@ -73,6 +91,6 @@ async function porticoNoteSignIn(api: ProfileAPI, serverId: string, noteFor: (ch
 }
 
 /** The account a sign-in note names, read for comparing only: the server checks the signature. */
-function notedAccount(identity: unknown): string | undefined {
+export function notedAccount(identity: unknown): string | undefined {
   try { return envelopePayload<{accountId?: unknown}>(identity as {payload: string}).accountId as string | undefined; } catch { return undefined; }
 }
