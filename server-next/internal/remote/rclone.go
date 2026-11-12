@@ -23,21 +23,27 @@ import (
 // looks, or cannot be run. Nothing was asked of the source.
 var ErrRcloneMissing = errors.New("rclone could not be started")
 
-// RcloneBinary is the rclone that comes with Portico, found beside the server, or set with
-// PORTICO_RCLONE. Tests replace it.
+// RcloneBinary is the rclone Portico runs: the one the owner names with PORTICO_RCLONE, else
+// the one that comes with Portico, beside the server. It is never looked for on PATH: it is
+// handed a source's credentials, so it is only ever a program the owner chose or Portico
+// ships. With neither there, the path beside the server is returned and starting it fails,
+// which the owner is told as rclone_unavailable. Tests replace it.
 var RcloneBinary = func() string {
 	if path := os.Getenv("PORTICO_RCLONE"); path != "" {
 		return path
 	}
-	if exe, err := os.Executable(); err == nil {
-		root := filepath.Dir(exe)
-		for _, candidate := range []string{filepath.Join(root, "third_party", "rclone", "rclone"), filepath.Join(root, "..", "third_party", "rclone", "rclone")} {
-			if path, err := exec.LookPath(candidate); err == nil {
-				return path
-			}
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	root := filepath.Dir(exe)
+	candidates := []string{filepath.Join(root, "third_party", "rclone", "rclone"), filepath.Join(root, "..", "third_party", "rclone", "rclone")}
+	for _, candidate := range candidates {
+		if path, err := exec.LookPath(candidate); err == nil {
+			return path
 		}
 	}
-	return "rclone"
+	return candidates[0]
 }
 
 // ParseRcloneConfig reads one remote from rclone's configuration: a "[name]" line, then
