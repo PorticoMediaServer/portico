@@ -129,7 +129,10 @@ export function createDashboardBindings(options: DashboardBindingOptions): Dashb
       people: (filters, cursor, signal) => ownerRead(() => data.people({...filters, ...context}, cursor, 100, signal)),
       plays: (filters, cursor, signal, fresh = true) => queries && cacheApi && !cursor ? cached(() => readDocument(queries, serverPlayHistoryQuery(cacheApi, playFilters(filters)), {fresh, signal: waiting(signal)}), false) : adminRead(() => readServerPlayHistory(api, playFilters(filters), cursor, signal)),
       accounts: signal => adminRead(() => readServerAccounts(api, signal)),
-      server: signal => ownerRead(async () => storageServerHeader(await readServerStorage(api, signal))),
+      server: signal => ownerRead(async () => {
+        const [storage, status] = await Promise.all([readServerStorage(api, signal), data.status(signal).catch(() => undefined)]);
+        return storageServerHeader(storage, status?.alerts);
+      }),
     },
     effects: {...options.effects,
       openHistory: () => {assert(true); options.effects.openHistory(context);},

@@ -8,8 +8,8 @@ export function readServerStorage(api: ServerRequester, signal?: AbortSignal): P
   return callServer(api, 'GET /v1/admin/storage', {signal});
 }
 
-/** The header's facts: free space on the data folder's disk, the database's size, and attention while space is low. */
-export function storageFacts(storage: ServerStorage): Readonly<{freeBytes?: number; databaseBytes?: number; low: boolean}> {
+/** The header's facts: free space on the data folder's disk and the database's size. */
+export function storageFacts(storage: ServerStorage): Readonly<{freeBytes?: number; databaseBytes?: number}> {
   const database = storage.folders?.find(part => part.name === 'database');
-  return {freeBytes: storage.diskBytes > 0 ? storage.freeBytes : undefined, databaseBytes: database?.bytes, low: storage.level !== 'ok'};
+  return {freeBytes: storage.diskBytes > 0 ? storage.freeBytes : undefined, databaseBytes: database?.bytes};
 }

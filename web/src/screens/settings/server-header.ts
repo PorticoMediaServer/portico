@@ -19,11 +19,16 @@ export function settingsServerHeader(health?: Measurement, storage?: Measurement
   return {health: health?.facts.database ? measured.degraded ? 'attention' : 'normal' : undefined, facts};
 }
 
-/** The header on the rebuilt server, from its storage answer: free space and the database's size. */
-export function storageServerHeader(storage?: ServerStorage, i18n: I18n = defaultI18n): Readonly<{health?: 'normal' | 'attention'; facts: readonly FactPart[]}> {
-  if (!storage) return {facts: []};
+/**
+ * The header on the rebuilt server: free space and the database's size from its storage answer, and the
+ * health word from the Dashboard's alerts (console rules 4 and 10): "Needs attention" while any alert is
+ * major, "Running normally" when none is, and no word when the alerts could not be read.
+ */
+export function storageServerHeader(storage?: ServerStorage, alerts?: readonly Readonly<{major: boolean}>[], i18n: I18n = defaultI18n): Readonly<{health?: 'normal' | 'attention'; facts: readonly FactPart[]}> {
+  const health = alerts ? alerts.some(alert => alert.major) ? 'attention' as const : 'normal' as const : undefined;
+  if (!storage) return health ? {health, facts: []} : {facts: []};
   const measured = storageFacts(storage), facts: FactPart[] = [];
   if (measured.freeBytes !== undefined) facts.push({id: 'free', role: 'value', text: i18n.t('settings.server.health.free', {bytes: i18n.bytes(measured.freeBytes)})});
   if (measured.databaseBytes !== undefined) facts.push({id: 'database', role: 'value', text: i18n.t('settings.server.health.database', {bytes: i18n.bytes(measured.databaseBytes)})});
-  return {health: measured.low ? 'attention' : 'normal', facts};
+  return {...(health ? {health} : {}), facts};
 }
