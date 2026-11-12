@@ -30,7 +30,7 @@ func TestPorticoServerKeepsNoPasswords(t *testing.T) {
 		status              int
 	}{
 		{"POST", "/v1/admin/members", owner, MemberCreate{Username: "kim", Password: testPassword}, 409},
-		{"POST", "/v1/auth/invitations/" + invitation.Code + "/accept", "", InvitationAccept{Username: "kim", Password: testPassword, Device: device(8)}, 503},
+		{"POST", "/v1/auth/invitations/" + invitation.Code + "/accept", "", InvitationAccept{Username: "kim", Password: testPassword, Device: device(8)}, 409},
 		{"POST", "/v1/admin/members/" + alex + "/password-reset", owner, PasswordResetCreate{}, 409},
 		{"POST", "/v1/auth/password-reset/confirm", "", PasswordResetRequest{Username: "alex", Code: "AAAA-AAAA-AAAA", NewPassword: "a new password"}, 409},
 		{"POST", "/v1/auth/password", owner, PasswordRequest{CurrentPassword: testPassword, NewPassword: "a new password"}, 409},

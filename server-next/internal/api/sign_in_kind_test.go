@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
-	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/hosted"
 )
 
@@ -40,6 +39,7 @@ func porticoServer(t *testing.T) (*Server, string, string) {
 		t.Fatalf("switching to Portico Accounts answered %d: %s", w.Code, w.Body)
 	}
 	owner = onMain(t, s, switched).AccessToken
+	kindMatchesLink(t, s)
 
 	// A waiting person's old password says what to do next, and with their Portico Account
 	// it brings them back; that Portico Account then cannot be used by anyone else.
@@ -54,7 +54,17 @@ func porticoServer(t *testing.T) (*Server, string, string) {
 	fake.decision = hosted.Decision{Account: hosted.Account{ID: "pa_2", Username: "sammy"}}
 	var moved SignInResponse
 	done := MoveCompleteRequest{Username: "sam", Password: testPassword, Device: device(5)}
+	// The right password with no challenge of this server's moves nobody.
+	if code := status(t, s, "POST", "/v1/auth/move/complete", "", done); code != 401 {
+		t.Fatalf("a move with no challenge answered %d, want 401", code)
+	}
 	done.Challenge, done.Identity = porticoProof(t, s)
+	// A mistyped password does not use the sign-in note up: the same note then works.
+	typo := done
+	typo.Password = "not-" + testPassword
+	if code := status(t, s, "POST", "/v1/auth/move/complete", "", typo); code != 401 {
+		t.Fatalf("a wrong old password answered %d, want 401", code)
+	}
 	if w := call(t, s, "POST", "/v1/auth/move/complete", "", done, &moved); w.Code != 200 || moved.Account.Username != "sammy" {
 		t.Fatalf("moving to a Portico Account answered %d: %s", w.Code, w.Body)
 	}
@@ -249,14 +259,16 @@ func TestOnlyALeavingPorticoServerQueuesItsMessage(t *testing.T) {
 	if w := call(t, s, "POST", "/v1/admin/sign-in/switch", owner, body, nil); w.Code != 200 {
 		t.Fatalf("Start over answered %d: %s", w.Code, w.Body)
 	}
-	if _, queued, _ := s.db.Setting(t.Context(), db.LeftMessageKey); queued {
+	if _, queued, _ := s.db.Leave(t.Context()); queued {
 		t.Fatal("a local server queued a message for Portico Services")
 	}
 	p, porticoOwner, _ := porticoServer(t)
 	if w := call(t, p, "POST", "/v1/admin/sign-in/switch", porticoOwner, body, nil); w.Code != 200 {
 		t.Fatalf("Start over answered %d: %s", w.Code, w.Body)
 	}
-	if _, queued, _ := p.db.Setting(t.Context(), db.LeftMessageKey); !queued {
+	kindMatchesLink(t, s)
+	kindMatchesLink(t, p)
+	if _, queued, _ := p.db.Leave(t.Context()); !queued {
 		t.Fatal("a server leaving Portico Accounts did not queue its one message")
 	}
 }
@@ -444,5 +456,39 @@ func TestOnlyTheLinkedAccountMayStartOver(t *testing.T) {
 	fake.decision = hosted.Decision{Purpose: hosted.PurposeSwitch, Account: hosted.Account{ID: "pa_1", Username: "justin"}}
 	if w := call(t, s, "POST", "/v1/admin/sign-in/switch", owner, body, nil); w.Code != 200 {
 		t.Fatalf("the owning account's approval answered %d: %s", w.Code, w.Body)
+	}
+}
+
+// kindMatchesLink holds that "this server uses Portico Accounts" and "this server is linked to
+// a Portico Account" are one fact: setup, every switch and Start over write both in one commit.
+func kindMatchesLink(t *testing.T, s *Server) {
+	t.Helper()
+	kind, err := s.signInKind(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, linked, err := s.db.Link(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if (kind == "portico") != linked {
+		t.Fatalf("the kind of sign-in is %q and linked is %v", kind, linked)
+	}
+}
+
+// On a Portico Accounts server a change of owner moves the link to the new owner's Portico
+// Account and is not a new link: the link's time and note number stay where they were.
+func TestTheLinkFollowsAChangeOfOwner(t *testing.T) {
+	s, owner, _ := porticoServer(t)
+	approval := "approved-for-" + s.id
+	before, _, _ := s.db.Link(t.Context())
+	s.hosted.(*fakeHosted).decision = hosted.Decision{Purpose: hosted.PurposeChangeOwner, Account: hosted.Account{ID: "pa_7", Username: "robin"}}
+	change := OwnerChangeRequest{Approval: approval, NewAccount: &MemberCreate{Username: "robin"}, Previous: "admin"}
+	if w := call(t, s, "POST", "/v1/admin/owner", owner, change, nil); w.Code != 204 {
+		t.Fatalf("changing owner answered %d: %s", w.Code, w.Body)
+	}
+	after, linked, _ := s.db.Link(t.Context())
+	if !linked || after.AccountID != "pa_7" || after.IssuedAt != before.IssuedAt || after.NoteRevision != before.NoteRevision {
+		t.Fatalf("after a change of owner the link is %+v, was %+v", after, before)
 	}
 }
