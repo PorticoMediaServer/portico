@@ -1,10 +1,13 @@
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {encodedRoutePath, routePath} from "../../contracts/src/route-paths.ts";
+import {routePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
 /** Viewer suggestions and per-item related rows. Reasons, ranking and row shape are server-authored. */
 import {validateContentEntry, type ContentEntry} from './library-content.ts';
 import {validateHomeRow, type HomeApi, type HomeRevision, type HomeRow} from './home.ts';
 import {firstOfEach, keepReadable, noteSkipped} from './tolerant.ts';
+import {callServer} from './query/server-api.ts';
+import {entriesFromItems} from './items.ts';
+import type {Related} from '../../contracts/src/next/api.ts';
 
 export type Suggestion = Readonly<{entry: ContentEntry; reason: string; source: string; score: number}>;
 export type Suggestions = Readonly<{items: readonly Suggestion[]; total: number; revision: HomeRevision; generatedAt: string}>;
@@ -99,16 +102,43 @@ export function validateShowRecommendations(value: unknown, showId: string): Sho
   return Object.freeze({showId, rows: Object.freeze(rowsFor(value.rows, showId)), revision: revision(value.revision)});
 }
 
+/** A show's page reads the same More like this as a film's: shows are titles on the server. */
 export async function fetchShowRecommendations(api: HomeApi, showId: string, limit?: number, signal?: AbortSignal): Promise<ShowRecommendations> {
-  const path = encodedRoutePath("get_shows_id_recommendations", {"id": encodeURIComponent(showId)}) + (limit === undefined ? '' : '?limit=' + limit);
-  return validateShowRecommendations(await api.request<unknown>(path, 'GET', undefined, signal), showId);
+  const rows = relatedRows(await callServer(api, 'GET /v1/items/{id}/related', {id: showId, signal}), showId, limit);
+  return Object.freeze({showId, rows, revision: unversioned});
 }
 
 export async function fetchSuggestions(api: HomeApi, limit?: number, signal?: AbortSignal): Promise<Suggestions> {
   return validateSuggestions(await api.request<RouteResponse<"get_suggestions">>(routePath("get_suggestions") + (limit === undefined ? '' : '?limit=' + limit), 'GET', undefined, signal));
 }
 
+/** A title's rows from `GET /v1/items/{id}/related`: its More like this. */
 export async function fetchItemRecommendations(api: HomeApi, itemId: string, limit?: number, signal?: AbortSignal): Promise<ItemRecommendations> {
-  const path = encodedRoutePath("get_items_id_recommendations", {"id": encodeURIComponent(itemId)}) + (limit === undefined ? '' : '?limit=' + limit);
-  return validateItemRecommendations(await api.request<unknown>(path, 'GET', undefined, signal), itemId);
+  return itemRecommendationsFromRelated(await callServer(api, 'GET /v1/items/{id}/related', {id: itemId, signal}), itemId, limit);
+}
+
+/** The server's answer carries no revision; nothing compares one for these rows. */
+const unversioned: HomeRevision = Object.freeze({catalog: 0, viewer: 0});
+
+/**
+ * More like this from the server's `more_like_this` group (the titles Portico's title data names
+ * as like this one, best first, only those the profile may see), as one row with the relation
+ * `moreLikeThisRow` looks for. Other ties the answer carries (extras, a collection's members)
+ * belong to other parts of the page. No group, or one with nothing left once the title itself
+ * is set aside, is no row. `limit` keeps the first so many.
+ */
+function relatedRows(value: Related, self: string, limit?: number): readonly HomeRow[] {
+  if (!object(value) || !Array.isArray(value.groups)) invalid();
+  const group = value.groups.find(g => object(g) && g.relation === 'more_like_this');
+  if (!group || !Array.isArray(group.items)) return Object.freeze([]);
+  let entries = firstOfEach('recommendations', 'entries', entriesFromItems(group.items).filter(entry => entry.id !== self), entry => entry.id);
+  if (limit !== undefined && limit >= 0) entries = entries.slice(0, limit);
+  if (!entries.length) return Object.freeze([]);
+  return Object.freeze([Object.freeze({id: 'more_like_this', title: 'More like this', kind: 'more_like_this', relation: 'more_like', artworkShape: 'poster',
+    endpoint: '', privacySensitivity: '', policyState: '', priority: 0, required: false, hideable: false, reorderable: false, critical: false, cursorCapable: false,
+    entries: Object.freeze(entries), start: 0, limit: entries.length, hasMore: false, nextCursor: ''}) as HomeRow]);
+}
+
+export function itemRecommendationsFromRelated(value: Related, itemId: string, limit?: number): ItemRecommendations {
+  return Object.freeze({itemId, rows: relatedRows(value, itemId, limit), revision: unversioned});
 }
