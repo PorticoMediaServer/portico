@@ -335,7 +335,11 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
     if (visible && active && ['watch-controls', 'watch-transport', 'watch-seek-region', 'watch-group', 'watch-live-actions', 'watch-live-edge', 'watch-skip'].includes(active.regionId)) return;
     if (!visible && promptLive.current.entry) {registry.focus({regionId: 'watch-skip', childId: promptLive.current.entry}); return;}
     const node = visible ? toggle.current : picture.current;
-    node?.requestTVFocus?.();
+    if (visible) {node?.requestTVFocus?.(); return;}
+    // The picture becomes focusable in this same commit; asked before that reaches the native view, Android drops the
+    // request and nothing is focused, so no key reaches the player. Ask once the frame is drawn.
+    const frame = requestAnimationFrame(() => node?.requestTVFocus?.());
+    return () => cancelAnimationFrame(frame);
   }, [visible, fence, theme.isTV, current, state.panel, state.panelReturning, state.returnTarget, liveOverlayOpen, miniPaintPresent, registry]); // The native focus engine owns movement inside the region.
   // The full player gives Play/Pause its meaning while it is up and nothing over it does (a PIN pad).
   const playerKeys = () => theme.isTV && !!fence && current() && source.dock.local?.expanded === true && !state.panel && !state.panelReturning && !liveOverlayOpen && !miniPaintPresent;
