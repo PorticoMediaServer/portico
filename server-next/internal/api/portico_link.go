@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/certclient"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/hosted"
 	"github.com/PorticoMediaServer/portico/server-next/internal/hosted/schedule"
@@ -408,6 +409,47 @@ func documentDue(l db.Link) time.Time {
 		at = max(at, l.DocumentSentAt+int64(documentGap/time.Second))
 	}
 	return time.Unix(at, 0)
+}
+
+// porticoPublished is the addresses for the server's document, home ones first, as
+// PublishedAddresses gives them.
+func (s *Server) porticoPublished() []hosted.Address {
+	out := []hosted.Address{}
+	for _, a := range s.PublishedAddresses() {
+		out = append(out, hosted.Address{Address: a.Address, Port: a.Port})
+	}
+	return out
+}
+
+// porticoCertificate takes the certificate client's word on where the Portico address and
+// its certificate stand, and tells remote access. The zone is set only once the certificate
+// for it can be served: a set zone is an address Enhanced security answers at, in force at
+// once, and every name published under it must be one the server can prove. Until then the
+// zone is given as an address still waiting for its certificate, so Enhanced waits, works as
+// Standard and says why.
+func (s *Server) porticoCertificate(st certclient.Status) {
+	zone := ""
+	if st.NameSpace != "" && st.State != "off" && st.State != "unlinked" {
+		zone = st.NameSpace + "." + certclient.Zone
+	}
+	switch {
+	case zone != "" && st.CertificateReady:
+		s.SetPorticoZone(zone, s.portico.GetCertificate)
+		s.SetPorticoAddress("", false, "")
+	case zone != "":
+		s.SetPorticoZone("", nil)
+		s.SetPorticoAddress(zone, false, st.Message)
+	default:
+		s.SetPorticoZone("", nil)
+		s.SetPorticoAddress("", false, "")
+	}
+}
+
+// porticoUnlinked is told when the link has ended: the certificate client stops asking, and
+// the server stops publishing and answering at its Portico names.
+func (s *Server) porticoUnlinked() {
+	s.portico.Unlinked()
+	s.porticoCertificate(certclient.Status{State: "off"})
 }
 
 // porticoChangedByOwner says the owner has just changed, by hand, something the document
