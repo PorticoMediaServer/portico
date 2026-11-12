@@ -199,3 +199,47 @@ func TestTheOwnerGetsBackInWithACodeFromTheDataFolder(t *testing.T) {
 		t.Errorf("the activity record has %v, want one reset and three codes written, whatever was asked in between", seen)
 	}
 }
+
+// Two-step sign-in is required of everyone. Someone who knows Max's
+// password, and nothing else, signs in on another device and is held, as they should be. Max
+// then signs in on his own phone and sets two-step up with his authenticator. The other
+// device never showed a second step: it must not become an ordinary sign-in when Max
+// finishes. It is signed out, or stays held; it does not get in.
+func TestAHeldSignInOnAnotherDeviceDoesNotGetInWhenTwoStepIsSetUp(t *testing.T) {
+	s, owner, _, _ := twoMembers(t)
+	now := time.Now()
+	s.setClock(func() time.Time { return now })
+	saveSignIn(t, s, owner, `{"requireTwoStep":"everyone"}`, 200)
+
+	var other, phone SignInResponse
+	if w := call(t, s, "POST", "/v1/auth/sign-in", "", SignInRequest{Username: "max", Password: testPassword, Device: device(4)}, &other); w.Code != 200 || !other.Session.TwoStepSetupRequired {
+		t.Fatalf("the other device signed in with %d %s", w.Code, w.Body)
+	}
+	if w := call(t, s, "POST", "/v1/auth/sign-in", "", SignInRequest{Username: "max", Password: testPassword, Device: device(2)}, &phone); w.Code != 200 || !phone.Session.TwoStepSetupRequired {
+		t.Fatalf("Max's phone signed in with %d %s", w.Code, w.Body)
+	}
+	var setupInfo TwoFactorSetup
+	if w := call(t, s, "POST", "/v1/me/two-factor", phone.Session.AccessToken, TwoFactorEnrol{CurrentPassword: testPassword}, &setupInfo); w.Code != 200 {
+		t.Fatalf("starting two-step on the phone answered %d: %s", w.Code, w.Body)
+	}
+	secret, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(setupInfo.Secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code := status(t, s, "POST", "/v1/me/two-factor/confirm", phone.Session.AccessToken, TwoFactorVerify{Code: auth.TOTPCode(secret, auth.TOTPStep(now))}); code != 200 {
+		t.Fatalf("confirming two-step on the phone answered %d", code)
+	}
+
+	// The other device, which has only ever shown the password, renews.
+	code, renewed := renew(t, s, other.Session.RefreshToken, 4, "other-device")
+	if code == 200 && !renewed.TwoStepSetupRequired {
+		if got := status(t, s, "GET", "/v1/profiles", renewed.AccessToken, nil); got == 200 {
+			t.Fatalf("a device that showed only the password became an ordinary sign-in when two-step was set up elsewhere: it reads the account's profiles (%d)", got)
+		}
+	}
+
+	// Max's own phone, which did confirm, carries on as an ordinary sign-in.
+	if code, mine := renew(t, s, phone.Session.RefreshToken, 2, "phone"); code != 200 || mine.TwoStepSetupRequired {
+		t.Errorf("the phone that set two-step up renewed with %d, still held: %v", code, mine.TwoStepSetupRequired)
+	}
+}

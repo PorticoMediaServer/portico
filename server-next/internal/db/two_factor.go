@@ -191,7 +191,8 @@ func replaceRecoveryCodes(tx *sql.Tx, userID int64, hashes []string, now time.Ti
 // ConfirmTwoFactor turns two-step sign-in on once the person shows a code from the
 // authenticator they just set up, and stores their recovery codes. With nothing to confirm
 // it is ErrNotFound; already on, ErrConflict; a wrong code, ErrBadSecondStep.
-func (d *DB) ConfirmTwoFactor(ctx context.Context, userID int64, check CheckTOTP, recoveryHashes []string, limits []Limit, now time.Time) error {
+// sessionID is the sign-in that confirms: see below for what becomes of a held one.
+func (d *DB) ConfirmTwoFactor(ctx context.Context, userID, sessionID int64, check CheckTOTP, recoveryHashes []string, limits []Limit, now time.Time) error {
 	var refused error
 	err := d.writeSessions(ctx, func(tx *sql.Tx, c *changes) error {
 		refused = nil
@@ -221,12 +222,17 @@ func (d *DB) ConfirmTwoFactor(ctx context.Context, userID int64, check CheckTOTP
 			now.UnixMilli(), step, now.UnixMilli(), userID); err != nil {
 			return err
 		}
-		// A sign-in that was only allowed to set this up becomes an ordinary one, and its app
-		// takes a new token.
-		if err := markStale(tx, c, `user_id = ? AND scope = 'enrol'`, userID); err != nil {
+		// The sign-in that confirmed, if it was only allowed to set this up, becomes an ordinary
+		// one, and its app takes a new token. Any other held sign-in of the account has shown
+		// only the password, never a second step, so it ends here: it signs in again, with
+		// the code.
+		if err := revoke(tx, c, now, "two_step_set_up", `user_id = ? AND scope = 'enrol' AND id <> ?`, userID, sessionID); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(`UPDATE sessions SET scope = 'app' WHERE user_id = ? AND scope = 'enrol'`, userID); err != nil {
+		if err := markStale(tx, c, `id = ? AND user_id = ? AND scope = 'enrol'`, sessionID, userID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE sessions SET scope = 'app' WHERE id = ? AND user_id = ? AND scope = 'enrol'`, sessionID, userID); err != nil {
 			return err
 		}
 		return replaceRecoveryCodes(tx, userID, recoveryHashes, now)
