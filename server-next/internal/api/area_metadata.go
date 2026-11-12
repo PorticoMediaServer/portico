@@ -26,6 +26,7 @@ func (s *Server) startMetadata(ctx context.Context) error {
 	s.collectionRoutes()
 	s.artworkRoutes()
 	s.metadataJobs()
+	s.picturePass()
 	// What a scan found is looked up when it ends.
 	s.scans.AfterScan = func(ctx context.Context, library string) { s.lookUp(ctx, library) }
 	go s.lookupsAgain(ctx)

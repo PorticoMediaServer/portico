@@ -189,7 +189,8 @@ func shownPictures(b *batchTx, fileID int64) ([]shownPicture, error) {
 // one from inside the file, then the provider's, each in the order they were found. A
 // provider's picture that has not been fetched (no file_hash) cannot be shown.
 func selectPicture(b *batchTx, itemID int64, role ImageRole) error {
-	_, err := b.exec(`UPDATE images SET selected = (id = (SELECT id FROM images WHERE item_id = ? AND role = ? AND file_hash IS NOT NULL
-		ORDER BY locked AND selected DESC, source, position, id LIMIT 1)) WHERE item_id = ? AND role = ?`, itemID, role, itemID, role)
+	// A role whose pictures are all still to be fetched (see PicturesToFetch) shows none yet.
+	_, err := b.exec(`UPDATE images SET selected = ifnull(id = (SELECT id FROM images WHERE item_id = ? AND role = ? AND file_hash IS NOT NULL
+		ORDER BY locked AND selected DESC, source, position, id LIMIT 1), 0) WHERE item_id = ? AND role = ?`, itemID, role, itemID, role)
 	return err
 }

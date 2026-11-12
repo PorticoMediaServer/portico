@@ -265,3 +265,62 @@ func (d *DB) PictureHashes(ctx context.Context, fn func(hash string) error) erro
 	}
 	return rows.Err()
 }
+
+// PictureToFetch is a provider's picture a lookup recorded and nobody has fetched yet.
+type PictureToFetch struct {
+	ID        int64
+	ItemID    int64
+	Role      ImageRole
+	SourceURL string
+}
+
+// PicturesToFetch lists a library's provider pictures recorded without their file, after an
+// id, a page at a time: what the picture pass fetches. It reads the images_to_fetch index,
+// which holds only those, and each one's title by its key.
+func (d *DB) PicturesToFetch(ctx context.Context, libraryID, after int64, limit int) ([]PictureToFetch, error) {
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	return queryAll(ctx, tx, `SELECT i.id, i.item_id, i.role, i.source_url FROM images i CROSS JOIN items t ON t.id = i.item_id
+		WHERE i.file_hash IS NULL AND i.source = 3 AND i.id > ? AND t.library_id = ? AND i.source_url IS NOT NULL
+		ORDER BY i.id LIMIT ?`, []any{after, libraryID, limit},
+		func(p *PictureToFetch) []any { return []any{&p.ID, &p.ItemID, &p.Role, &p.SourceURL} })
+}
+
+// PictureFetched records the file of a picture the pass fetched, and shows it where nothing a
+// person chose or a local picture comes first (selectPicture). A row removed since is left.
+func (d *DB) PictureFetched(ctx context.Context, id int64, hash string) error {
+	return d.write(ctx, Background, func(tx *sql.Tx) error {
+		b := newBatchTx(tx)
+		defer b.close()
+		var item, library int64
+		var role ImageRole
+		err := b.queryRow(`SELECT i.item_id, i.role, t.library_id FROM images i JOIN items t ON t.id = i.item_id WHERE i.id = ?`, id).
+			Scan(&item, &role, &library)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if _, err := b.exec(`UPDATE images SET file_hash = ? WHERE id = ? AND file_hash IS NULL`, hash, id); err != nil {
+			return err
+		}
+		if err := selectPicture(b, item, role); err != nil {
+			return err
+		}
+		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicItem, Op: OpUpdated, RefID: item, LibraryID: library})
+	})
+}
+
+// PictureGone removes a recorded picture whose address the provider no longer serves, or that
+// is not a picture, so the pass does not ask for it again. The next refresh records it anew
+// if the provider still names it.
+func (d *DB) PictureGone(ctx context.Context, id int64) error {
+	return d.write(ctx, Background, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `DELETE FROM images WHERE id = ? AND file_hash IS NULL AND source = 3`, id)
+		return err
+	})
+}

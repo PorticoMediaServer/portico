@@ -37,9 +37,21 @@ func TestArtwork(t *testing.T) {
 	var films ItemPage
 	sh.do("GET", "/v1/items?kind=movie&library="+sh.library, nil, &films, 200)
 	heat := films.Items[0].ID
+	// The lookup gives the film its details at once and only records its pictures: the picture
+	// pass fetches them after, so details never wait for pictures.
+	if item := sh.detail(heat); item.Title != "Heat" || len(item.Images) != 0 {
+		t.Fatalf("straight after the lookup: %q with pictures %v; want its details and no pictures yet", item.Title, item.Images)
+	}
+	library, err := sh.s.db.LibraryID(context.Background(), sh.library)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored, err := sh.s.metadata.FetchPictures(context.Background(), library, 100); err != nil || stored != 3 {
+		t.Fatalf("the picture pass stored %d: %v; want the poster, backdrop and logo", stored, err)
+	}
 	item := sh.detail(heat)
 	if item.Images["poster"] == "" || item.Images["backdrop"] == "" || item.Images["logo"] == "" {
-		t.Fatalf("a matched film's pictures: %v", item.Images)
+		t.Fatalf("a matched film's pictures after the pass: %v", item.Images)
 	}
 	if w := call(t, sh.s, "GET", item.Images["poster"], "", nil, nil); w.Code != 200 || w.Header().Get("Content-Type") != "image/png" {
 		t.Fatalf("the stored poster answered %d %s", w.Code, w.Header().Get("Content-Type"))
@@ -186,5 +198,30 @@ func TestUndoOfAnOlderPictureChoiceKeepsALaterOne(t *testing.T) {
 	}
 	if got := sh.posters(heat); locked != 1 || got[0].Source != "upload" || !got[0].Locked {
 		t.Fatalf("after undoing an older choice, %d posters are chosen: %+v", locked, got)
+	}
+}
+
+// A library's lookup or refresh starts its picture pass by itself: the film's details come
+// first, and its pictures fill in after without anyone asking.
+func TestPicturesFillInAfterTheDetails(t *testing.T) {
+	sh := newShelf(t, "Heat (1995).mkv")
+	var films ItemPage
+	sh.do("GET", "/v1/items?kind=movie&library="+sh.library, nil, &films, 200)
+	heat := films.Items[0].ID
+	if item := sh.detail(heat); item.Title != "Heat" || len(item.Images) != 0 {
+		t.Fatalf("after the lookup: %q with pictures %v; want details and no pictures yet", item.Title, item.Images)
+	}
+	if job := sh.startJob(JobStart{Kind: "refresh_library", Target: JobTarget{Library: sh.library}}); job.State != "done" {
+		t.Fatalf("refresh: %+v", job)
+	}
+	var item Item
+	for range 500 {
+		if item = sh.detail(heat); item.Images["poster"] != "" {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if item.Images["poster"] == "" || item.Images["backdrop"] == "" || item.Images["logo"] == "" {
+		t.Fatalf("the picture pass did not fill in the film's pictures: %v", item.Images)
 	}
 }
