@@ -513,6 +513,7 @@ export class HttpLocalApi {
     return new ReadingClient({
       isCurrent,
       subscribe: retire => this.subscribeCertificateSession(retire),
+      address: path => this.baseUrl + path,
       send: (path, init) => {
         if (!isCurrent() || !path.startsWith(apiRoot) || path.includes('#') || path.includes('\\')) return Promise.reject(new Error('cancelled'));
         const method = init.method ?? 'GET';

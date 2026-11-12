@@ -194,7 +194,9 @@ const waitFor = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve
   signal?.addEventListener('abort', stop, {once: true});
 });
 type Sender = (path: string, init: RequestInit) => Promise<Response>;
-type Capture = Readonly<{acknowledge?: (key: string) => Promise<void>; send: Sender; isCurrent: () => boolean; subscribe: (retire: () => void) => () => void}>;
+type Capture = Readonly<{acknowledge?: (key: string) => Promise<void>; send: Sender; isCurrent: () => boolean; subscribe: (retire: () => void) => () => void;
+  /** The full address of a path on this server, for a link the browser follows itself. */
+  address?: (path: string) => string}>;
 function fail(code: string): never { throw new ReadingError(code); }
 const serverCodes = new Set<string>(errors.map(error => error.code));
 const cancellation = (signal: AbortSignal) => signal.reason instanceof ReadingError ? signal.reason : new ReadingError('cancelled');
@@ -529,6 +531,8 @@ export class ReadingClient {
     if (scope.signal?.aborted || !capture.isCurrent() || !scope.isCurrent()) this.dispose();
     Object.freeze(this);
   }
+  /** The full address of a path on the captured server. */
+  address(path: string): string { return this.#capture.address ? this.#capture.address(path) : path; }
   check(signal?: AbortSignal) {
     if (!this.#capture.isCurrent() || !this.#scope.isCurrent()) this.dispose();
     if (this.signal.aborted) throw cancellation(this.signal);
@@ -824,6 +828,19 @@ export class ReadingSession {
       if (mime(r.headers.get('Content-Type')) !== entry.mime.toLowerCase()) fail('invalid_response');
       return bytes(r, entry.size, active, check, entry.size);
     });
+  };
+  /** Where a browser saves the book's own file, of any size: it downloads the file itself under
+   * the file's name, and nothing is held in the page. The address is checked first, and asked for
+   * again if it has ended, so a book open for hours still saves. */
+  saveAddress = async (signal?: AbortSignal): Promise<string> => {
+    this.#check();
+    if (this.manifest.canSaveFile !== true) fail('not_permitted');
+    await this.#binary(a => a.saveUrl ?? fail('not_permitted'), {method: 'HEAD'}, signal, async (r, active, check) => {
+      if (r.status !== 200) return this.#client.error(r, active, check);
+      if (!(r.headers.get('Content-Disposition') ?? '').startsWith('attachment')) fail('source_changed');
+      check(); discard(r);
+    });
+    return this.#client.address(this.#access.saveUrl ?? fail('not_permitted'));
   };
   /** Save without holding the whole file in memory. The platform supplies its private file sink. */
   saveFileTo = async (operationId: string, write: (chunk: Uint8Array) => Promise<void>, signal?: AbortSignal): Promise<void> => {

@@ -173,7 +173,7 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
   const metadata = manifest.metadata, series = metadata.series;
   const original = detail.attempt;
   const factsCurrent = () => current(original) && original === attempt && original.ready && detail.manifest === manifest;
-  const canSaveFile = manifest.canSaveFile === true && (manifest.conversion?.originalSize ?? manifest.size) <= 64 << 20;
+  const canSaveFile = manifest.canSaveFile === true;
   const saveFile = async () => {
     const session = original?.session;
     if (!original || !session || original.saving || original.fileLife.signal.aborted || !factsCurrent()
