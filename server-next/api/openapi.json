@@ -10227,73 +10227,6 @@
         ],
         "type": "object"
       },
-      "RememberedFailure": {
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "detail": {
-            "type": "string"
-          },
-          "deviceName": {
-            "type": "string"
-          },
-          "expiresAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "failedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "fileName": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "itemId": {
-            "type": "string"
-          },
-          "player": {
-            "type": "string"
-          },
-          "route": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "deviceName",
-          "fileName",
-          "player",
-          "route",
-          "code",
-          "failedAt",
-          "expiresAt"
-        ],
-        "type": "object"
-      },
-      "RememberedFailurePage": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/RememberedFailure"
-            },
-            "type": "array"
-          },
-          "nextCursor": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "type": "object"
-      },
       "RemoteAccessSave": {
         "allOf": [
           {
@@ -16968,63 +16901,6 @@
           }
         },
         "x-access": "admin"
-      }
-    },
-    "/v1/admin/playback/failures": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RememberedFailurePage"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            },
-            "description": "A refusal"
-          }
-        },
-        "x-access": "owner"
-      }
-    },
-    "/v1/admin/playback/failures/{id}": {
-      "delete": {
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Done"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            },
-            "description": "A refusal"
-          }
-        },
-        "x-access": "owner"
       }
     },
     "/v1/admin/playback/stream-limits": {

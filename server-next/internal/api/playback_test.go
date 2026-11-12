@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
+	"github.com/PorticoMediaServer/portico/server-next/internal/serverlog"
 )
 
 // fakeEngine stands in for the media engine. It plays the original unless a lower quality
@@ -744,15 +747,24 @@ func TestAStopFromAnotherDeviceSavesNothingItSent(t *testing.T) {
 }
 
 // A way of playing that failed on a device is remembered for that device and file: the
-// session moves to the next way, the next start begins there, the owner can see it and
-// forget it, and it expires by itself.
+// session moves to the next way, the next start begins there, and Messages say what failed
+// and when it is tried again. The former owner list and Forget routes are gone.
 func TestRememberedFailures(t *testing.T) {
 	th := newTheatre(t)
+	messages, err := serverlog.Open(filepath.Join(t.TempDir(), "logs"), io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { messages.Close() })
+	th.s.UseLog(messages)
+	// Use the real service with Messages; this test drives its starts explicitly.
+	th.s.playback = playback.New(th.s.db, th.engine, th.engine, slog.New(messages.Handler()), th.clock.Now)
+	th.s.playback.UseSettings(th.s.settings)
 	token := th.owner.AccessToken
 	session := th.play(token, th.film)
 	path := "/v1/playback/sessions/" + session.ID
 	var moved PlaybackSession
-	failure := PlaybackChange{Failure: &playback.Failure{Code: "decode_error"}, PositionMs: ptr(60_000)}
+	failure := PlaybackChange{Failure: &playback.Failure{Code: "decode_error", Detail: "https://private.example/media?token=do-not-log"}, PositionMs: ptr(60_000)}
 	if w := call(t, th.s, "PATCH", path, token, failure, &moved); w.Code != 200 || moved.Presentation.Route != "repackaged" ||
 		moved.Presentation.StartPositionMs != 60_000 {
 		t.Fatalf("after Original failed: %d %+v", w.Code, moved.Presentation)
@@ -769,17 +781,28 @@ func TestRememberedFailures(t *testing.T) {
 	if next := th.play(other, th.film); next.Presentation.Route != "original" {
 		t.Fatalf("another device took the %s way", next.Presentation.Route)
 	}
-	var list Page[RememberedFailure]
-	call(t, th.s, "GET", "/v1/admin/playback/failures", again, nil, &list)
-	if len(list.Items) != 1 || list.Items[0].Route != "original" || list.Items[0].Title != "Heat" || list.Items[0].DeviceName != "Device 0" ||
-		list.Items[0].ExpiresAt.Sub(list.Items[0].FailedAt) != 7*24*time.Hour {
-		t.Fatalf("the owner's list: %+v", list.Items)
+	var lines []serverlog.Entry
+	readMessages := func() { lines, _ = messages.Since(0) }
+	readMessages()
+	until := th.clock.Now().Add(7 * 24 * time.Hour).Format("Jan 2, 2006 at 15:04 MST")
+	if len(lines) != 1 || lines[0].Kind != "playback" || lines[0].Message != "Original failed for \"Heat\" on Device 0. Repackaged until "+until+"." ||
+		strings.Contains(lines[0].Message, "private.example") || strings.Contains(lines[0].Message, "do-not-log") {
+		t.Fatalf("the remembered failure's Messages: %+v", lines)
 	}
-	if code := status(t, th.s, "DELETE", "/v1/admin/playback/failures/"+list.Items[0].ID, again, nil); code != 204 {
-		t.Fatalf("forgetting answered %d", code)
+	for _, route := range []struct{ method, path string }{{"GET", "/v1/admin/playback/failures"}, {"DELETE", "/v1/admin/playback/failures/prf_old"}} {
+		if code := status(t, th.s, route.method, route.path, again, nil); code != http.StatusNotFound {
+			t.Fatalf("the removed route %s answered %d", route.path, code)
+		}
 	}
+	th.clock.Add(7*24*time.Hour + time.Minute)
+	again = onMain(t, th.s, signIn(t, th.s, 0)).AccessToken
 	if next := th.play(again, th.film); next.Presentation.Route != "original" {
-		t.Fatalf("after forgetting, the start took the %s way", next.Presentation.Route)
+		t.Fatalf("after seven days the start took the %s way", next.Presentation.Route)
+	}
+	th.play(again, th.film)
+	readMessages()
+	if len(lines) != 2 || lines[1].Kind != "playback" || lines[1].Message != "Trying Original again for \"Heat\" on Device 0." {
+		t.Fatalf("retry should be said once: %+v", lines)
 	}
 	// When every way has failed the change is refused and nothing more is tried.
 	session = th.play(again, th.film)
@@ -795,6 +818,12 @@ func TestRememberedFailures(t *testing.T) {
 	again = onMain(t, th.s, signIn(t, th.s, 0)).AccessToken
 	if next := th.play(again, th.film); next.Presentation.Route != "original" {
 		t.Fatalf("after six hours the start took the %s way", next.Presentation.Route)
+	}
+	readMessages()
+	if len(lines) != 6 || !strings.Contains(lines[3].Message, "Converted until ") ||
+		!strings.Contains(lines[4].Message, "This way is avoided until ") ||
+		lines[5].Message != "Trying Original again for \"Heat\" on Device 0." {
+		t.Fatalf("uncertain failures and automatic retry: %+v", lines)
 	}
 }
 

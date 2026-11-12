@@ -3093,25 +3093,6 @@ export interface Release {
   publishedAt?: string;
 }
 
-export interface RememberedFailure {
-  id: string;
-  deviceName: string;
-  itemId?: string;
-  title?: string;
-  fileName: string;
-  player: string;
-  route: string;
-  code: string;
-  detail?: string;
-  failedAt: string;
-  expiresAt: string;
-}
-
-export interface RememberedFailurePage {
-  items: RememberedFailure[];
-  nextCursor?: string;
-}
-
 export interface RemoteAccessSave extends RemoteAccessSettings {
   allowThisAddress?: boolean;
   confirmRefusal?: boolean;
@@ -4128,8 +4109,6 @@ export interface Routes {
   'DELETE /v1/playback/sessions/{id}': {access: 'withProfile'; request: PlaybackStop; response: undefined};
   'GET /v1/admin/playback/stream-limits': {access: 'owner'; request: undefined; response: StreamLimits};
   'PUT /v1/admin/playback/stream-limits': {access: 'owner'; request: StreamLimits; response: StreamLimits};
-  'GET /v1/admin/playback/failures': {access: 'owner'; request: undefined; response: RememberedFailurePage};
-  'DELETE /v1/admin/playback/failures/{id}': {access: 'owner'; request: undefined; response: undefined};
   'POST /v1/queues': {access: 'withProfile'; request: QueueCreate; response: QueueCreated};
   'GET /v1/queues': {access: 'withProfile'; request: undefined; response: QueuePage};
   'GET /v1/queues/{id}': {access: 'withProfile'; request: undefined; response: Queue};

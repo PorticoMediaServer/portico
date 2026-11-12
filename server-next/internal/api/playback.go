@@ -74,8 +74,6 @@ func (s *Server) playbackRoutes() {
 	}
 	Handle(s, "GET /v1/admin/playback/stream-limits", Owner, s.getStreamLimits)
 	Handle(s, "PUT /v1/admin/playback/stream-limits", Owner, s.putStreamLimits)
-	Handle(s, "GET /v1/admin/playback/failures", Owner, s.listPlaybackFailures)
-	Handle(s, "DELETE /v1/admin/playback/failures/{id}", Owner, s.forgetPlaybackFailure)
 }
 
 // countingWriter counts the bytes of a reply.
@@ -506,21 +504,6 @@ func (s *Server) putStreamLimits(r *http.Request, req StreamLimits) (StreamLimit
 		return StreamLimits{}, playbackError(err)
 	}
 	return req, nil
-}
-
-func (s *Server) listPlaybackFailures(r *http.Request, _ None) (Page[RememberedFailure], error) {
-	failures, err := s.db.AllRouteFailures(r.Context(), s.now())
-	out := Page[RememberedFailure]{Items: make([]RememberedFailure, 0, len(failures))}
-	for _, f := range failures {
-		out.Items = append(out.Items, RememberedFailure{ID: f.PublicID, DeviceName: f.DeviceName, ItemID: f.ItemID, Title: f.ItemTitle,
-			FileName: f.FileName, Player: f.Player, Route: f.Route, Code: f.Code, Detail: f.Detail, FailedAt: f.FailedAt.UTC(),
-			ExpiresAt: f.ExpiresAt.UTC()})
-	}
-	return out, err
-}
-
-func (s *Server) forgetPlaybackFailure(r *http.Request, _ None) (None, error) {
-	return None{}, s.db.ForgetRouteFailure(r.Context(), r.PathValue("id"))
 }
 
 // SeenStream is a stream as one caller may see it. Visible is false, and Title empty, for a
