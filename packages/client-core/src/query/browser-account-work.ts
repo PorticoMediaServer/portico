@@ -2,6 +2,7 @@ import {hasCapturedAccessToken} from '../session-authority.ts';
 import {ApiError, type HostedSession} from '../index.ts';
 import type {CredentialSessionService} from '../credentials.ts';
 import type {BrowserAuthority} from './browser-account-api.ts';
+import {throwIfAborted} from '../abort-lifetime.ts';
 
 export type AccountIdentity = Readonly<{accountId: string; familyId: string}>;
 export function accountIdentity(session: Pick<HostedSession, 'account' | 'familyId'>): AccountIdentity {
@@ -29,12 +30,12 @@ export async function currentAccountRead<T>(account: AccountPort,
 async function accountWork<T>(account: AccountPort,
   work: (session: Omit<HostedSession, 'refreshToken'>) => Promise<T>, expected: AccountIdentity | undefined, retryRead: boolean, signal?: AbortSignal): Promise<T> {
   const required = expected && {accountId: expected.accountId, familyId: expected.familyId};
-  signal?.throwIfAborted();
+  throwIfAborted(signal);
   await account.service.synchronize();
   const session = await account.service.accessSession();
   const identity = accountIdentity(session);
   const accessToken = session.accessToken;
-  signal?.throwIfAborted();
+  throwIfAborted(signal);
   if (required && !sameAccount(identity, required)) throw accountChanged();
   const admitted = (token: string) => {
     const current = account.service.getSnapshot().session;
@@ -45,22 +46,22 @@ async function accountWork<T>(account: AccountPort,
   try {result = await work(session);}
   catch (error) {
     if ((error as {status?: unknown})?.status !== 401) throw error;
-    signal?.throwIfAborted();
+    throwIfAborted(signal);
     await account.service.synchronize();
-    signal?.throwIfAborted();
+    throwIfAborted(signal);
     const current = account.service.getSnapshot().session;
     if (!current?.familyId || !sameAccount(identity, accountIdentity(current))) throw accountChanged();
     // The expectation is checked again inside the canonical coordinator, after
     // its storage awaits. A queued old 401 cannot renew a successor family.
     const renewed = await account.service.accessSession(true, {...identity, accessToken});
-    signal?.throwIfAborted();
+    throwIfAborted(signal);
     if (!sameAccount(identity, accountIdentity(renewed))) throw accountChanged();
     if (!retryRead) throw error; // never replay a mutation or multi-step operation
     admitted(renewed.accessToken);
     result = await work(renewed); // one retry only; a second 401 is terminal here
   }
   await account.service.synchronize();
-  signal?.throwIfAborted();
+  throwIfAborted(signal);
   const current = account.service.getSnapshot().session;
   if (!current || !sameAccount(identity, accountIdentity(current))) throw accountChanged();
   return result;

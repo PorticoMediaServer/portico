@@ -3,6 +3,7 @@ import {parseMembershipEndingNotice} from '../membership-ending.ts';
 import {decodeServersListResponse} from '../../../contracts/src/hosted/decoders.ts';
 import {routePath} from '../../../contracts/src/hosted/routes.ts';
 import type {BrowserHostedAccount} from './hosted-account-transport.ts';
+import {throwIfAborted} from '../abort-lifetime.ts';
 import {currentAccountRead, type AccountIdentity} from './browser-account-work.ts';
 
 type AccountPort = Pick<BrowserHostedAccount, 'api' | 'service'>;
@@ -13,11 +14,11 @@ export function createAccountServerDirectory(account: AccountPort, scope: Accoun
   return {
     scope: captured,
     read: async (signal?: AbortSignal) => {
-      signal?.throwIfAborted();
+      throwIfAborted(signal);
       const result = await currentAccountRead(account, async session => {
-        signal?.throwIfAborted();
+        throwIfAborted(signal);
         const raw = await listHostedServers(account.api, signal, session.accessToken);
-        signal?.throwIfAborted();
+        throwIfAborted(signal);
         // The additive field is parsed strictly here until the next official
         // generation, and stays narrowed after generation changes its TS shape.
         if (raw && typeof raw === 'object' && !Array.isArray(raw) && Object.hasOwn(raw, 'membershipEnding')) {
@@ -29,7 +30,7 @@ export function createAccountServerDirectory(account: AccountPort, scope: Accoun
         }
         return {...decodeServersListResponse(raw), membershipEnding: undefined};
       }, captured, signal);
-      signal?.throwIfAborted();
+      throwIfAborted(signal);
       return result;
     },
   };
