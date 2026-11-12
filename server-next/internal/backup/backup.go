@@ -121,8 +121,11 @@ func within(ctx context.Context, limit time.Duration, fn func() error) error {
 }
 
 // FolderWritable says whether a backup could be written to the backup folder now.
-func (s *Service) FolderWritable() bool {
-	return within(context.Background(), folderCheckLimit, func() error { return s.prepareFolder(s.Folder()) }) == nil
+func (s *Service) FolderWritable() bool { return s.FolderProblem() == nil }
+
+// FolderProblem is why a backup could not be written to the backup folder now, or nil.
+func (s *Service) FolderProblem() error {
+	return within(context.Background(), folderCheckLimit, func() error { return s.prepareFolder(s.Folder()) })
 }
 
 // prepareFolder makes the default folder inside the data folder if it is missing, and checks

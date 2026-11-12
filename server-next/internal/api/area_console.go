@@ -29,6 +29,9 @@ type consoleArea struct {
 	restartOnce sync.Once
 	// serverLog is the server's log, for Messages. See logs.go.
 	serverLog *serverlog.Log
+	// folderLook is the last look at the folders the server writes to. See
+	// server_capabilities.go.
+	folderLook folderLook
 }
 
 // Totals are the server's lifetime statistics: the server runs them, and flushes them as it stops.
@@ -77,6 +80,7 @@ func (s *Server) startConsole(ctx context.Context) error {
 	s.notificationRoutes()
 	s.reportRoutes()
 	s.dashboardRoutes()
+	s.capabilityRoutes()
 	// A notice when an alert's cause starts. See server_notices.go.
 	s.goBackground(func() { s.runServerNotices(ctx) })
 	// The console's part of the daily tidy-up: notices past the owner's keeping time, crash
