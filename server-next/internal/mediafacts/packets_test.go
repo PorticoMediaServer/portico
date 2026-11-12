@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/decodertest"
@@ -121,4 +124,33 @@ func fullPacketRead(t *testing.T, ffprobe, path string) Packets {
 	}
 	last := new(big.Rat).Mul(big.NewRat(end, 1), base)
 	return Packets{StartUS: microseconds(new(big.Rat).Sub(first, start)), LengthUS: microseconds(new(big.Rat).Sub(last, first))}
+}
+
+// A second read is optional: even a tool failure or its own deadline must retain
+// everything the ordinary probe successfully found. Only the scan may cancel it.
+func TestPacketFailurePreservesFacts(t *testing.T) {
+	for _, failure := range []error{&exec.ExitError{}, context.DeadlineExceeded, errors.New("remote read failed"), ErrNoPackets} {
+		t.Run(failure.Error(), func(t *testing.T) {
+			original := Facts{Container: "wav", AudioCodec: "pcm_s16le", Duration: 12.5, BitRate: 705600}
+			facts := original
+			p := Probe{ScanCommand: func(context.Context, string, []string, string, ScanMode, io.Writer) (bool, error) {
+				return true, failure
+			}}
+			if err := p.CompleteAudioPackets(context.Background(), "track.wav", &facts); err != nil {
+				t.Fatal(err)
+			}
+			if facts.Packets == nil || *facts.Packets != (Packets{}) {
+				t.Fatalf("failure was not recorded as unmeasured: %+v", facts.Packets)
+			}
+			facts.Packets = nil
+			if !reflect.DeepEqual(facts, original) {
+				t.Fatalf("successful facts changed: %+v", facts)
+			}
+			scan, cancel := context.WithCancel(context.Background())
+			cancel()
+			if err := p.CompleteAudioPackets(scan, "track.wav", &facts); !errors.Is(err, context.Canceled) {
+				t.Fatalf("scan cancellation: %v", err)
+			}
+		})
+	}
 }

@@ -289,13 +289,14 @@ type Packets struct {
 	LengthUS int64 `json:"lengthUs"`
 }
 
-// RereadAudioWithoutPackets upgrades previously scanned sound files on their next scan.
+// RereadAudioWithoutPackets upgrades local audiobook files on their next scan.
+// Remote probes are retained: only Scan all files may request that reread.
 // A completed measurement, even an unsupported one, is not repeated until the file changes.
 func (d *DB) RereadAudioWithoutPackets(ctx context.Context, libraryID int64) error {
 	return d.write(ctx, Background, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `UPDATE files SET probed_at = NULL WHERE probed_at IS NOT NULL
    AND json_extract(extra, '$.packets') IS NULL AND missing_since_at IS NULL AND role = 1
-   AND directory_id IN (SELECT d.id FROM directories d JOIN library_paths p ON p.id = d.library_path_id WHERE p.library_id = ?)
+   AND directory_id IN (SELECT d.id FROM directories d JOIN library_paths p ON p.id = d.library_path_id WHERE p.library_id = ? AND p.remote_source_id IS NULL)
    AND EXISTS (SELECT 1 FROM media_streams s WHERE s.file_id = files.id AND s.kind = ?)
    AND NOT EXISTS (SELECT 1 FROM media_streams s WHERE s.file_id = files.id AND s.kind = ?)`, libraryID, StreamAudio, StreamVideo)
 		return err

@@ -20,6 +20,16 @@ import (
 // with its port reserved until it has really exited. ffprobe is the tool to run; empty finds
 // the bundled or installed one.
 func Inspect(ctx context.Context, supervisor *processpool.Supervisor, ffprobe string, source io.ReaderAt, size int64) (mediafacts.Facts, error) {
+	return inspect(ctx, supervisor, ffprobe, source, size, false)
+}
+
+// InspectAudioPackets permits tail and whole-file reads to measure audiobook parts.
+// Callers must first check that the library's depth permits Complete analysis.
+func InspectAudioPackets(ctx context.Context, supervisor *processpool.Supervisor, ffprobe string, source io.ReaderAt, size int64) (mediafacts.Facts, error) {
+	return inspect(ctx, supervisor, ffprobe, source, size, true)
+}
+
+func inspect(ctx context.Context, supervisor *processpool.Supervisor, ffprobe string, source io.ReaderAt, size int64, packets bool) (mediafacts.Facts, error) {
 	bridge, err := Open(ctx, source, size)
 	if err != nil {
 		return mediafacts.Facts{}, err
@@ -61,7 +71,7 @@ func Inspect(ctx context.Context, supervisor *processpool.Supervisor, ffprobe st
 	}
 	prober := mediafacts.Probe{Binary: ffprobe, ScanCommand: run, ReadPrefix: readPrefix, OpenReader: whole}
 	facts, err := prober.InspectRemote(ctx, bridge.URL())
-	if err == nil {
+	if err == nil && packets {
 		err = prober.CompleteAudioPackets(ctx, bridge.URL(), &facts)
 	}
 	return facts, err
