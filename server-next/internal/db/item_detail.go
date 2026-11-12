@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 )
 
 // ItemDetail is everything the detail page of one item shows.
@@ -87,13 +88,28 @@ type Part struct {
 	DurationMS *int64
 	// OffsetMS is where the part begins in the whole title, for a version in several parts:
 	// the lengths of the parts before it, in order. Nil for a version in one part, and from
-	// the first part whose length is not known yet.
+	// the first part whose length is not known yet. For parts encoded alike, which are played
+	// by copying their packets one after another, a part's length here is the time its packets
+	// take (packetsUS), the same place the stream starts it; for parts that differ, which are
+	// converted into one stream, it is the gapless length, as that stream's is.
 	OffsetMS *int64
+
+	// packetsUS is how long the file's sound packets take, when they have been measured.
+	packetsUS *int64
 }
 
 // placeParts gives each part of a version in several parts its place in the whole title.
 func placeParts(parts []Part) {
 	if len(parts) < 2 {
+		return
+	}
+	if copied(parts) {
+		var at int64
+		for n := range parts {
+			offset := (at + 500) / 1000
+			parts[n].OffsetMS = &offset
+			at += *parts[n].packetsUS
+		}
 		return
 	}
 	var at int64
@@ -105,6 +121,27 @@ func placeParts(parts []Part) {
 		parts[n].OffsetMS = &offset
 		at += *parts[n].DurationMS
 	}
+}
+
+// copied says a version's parts are played by copying their packets one after another: each
+// part a whole file, each one's sound encoded as the first's (codec, sample rate, channels
+// and layout), and each one's packets measured.
+func copied(parts []Part) bool {
+	shape := func(p Part) string {
+		for _, s := range p.Streams {
+			if s.Kind == StreamAudio {
+				return fmt.Sprintf("%s|%d|%d|%s", s.Codec, s.SampleRate, s.Channels, s.ChannelLayout)
+			}
+		}
+		return ""
+	}
+	first := shape(parts[0])
+	for _, p := range parts {
+		if p.packetsUS == nil || *p.packetsUS <= 0 || p.StartMS != nil || p.EndMS != nil || first == "" || shape(p) != first {
+			return false
+		}
+	}
+	return true
 }
 
 // detailCredits is how many credits come with the detail itself; the rest are paged.
@@ -310,17 +347,19 @@ func versions(ctx context.Context, tx *sql.Tx, itemID int64) ([]Version, error) 
 	for n := range out {
 		m := &out[n]
 		if m.Parts, err = queryAll(ctx, tx, `SELECT f.id, f.name, f.size, p.start_ms, p.end_ms, CASE WHEN p.end_ms IS NOT NULL THEN p.end_ms - ifnull(p.start_ms, 0)
-			WHEN f.duration_ms > 0 THEN max(f.duration_ms - ifnull(p.start_ms, 0), 0) END FROM media_parts p
+			WHEN f.duration_ms > 0 THEN max(f.duration_ms - ifnull(p.start_ms, 0), 0) END, json_extract(f.extra, '$.packets.lengthUs') FROM media_parts p
 			JOIN files f ON f.id = p.file_id WHERE p.media_id = ? ORDER BY p.position`, []any{m.id},
-			func(p *Part) []any { return []any{&p.FileID, &p.Name, &p.Size, &p.StartMS, &p.EndMS, &p.DurationMS} }); err != nil {
+			func(p *Part) []any {
+				return []any{&p.FileID, &p.Name, &p.Size, &p.StartMS, &p.EndMS, &p.DurationMS, &p.packetsUS}
+			}); err != nil {
 			return nil, err
 		}
-		placeParts(m.Parts)
 		for p := range m.Parts {
 			if m.Parts[p].Streams, err = streams(ctx, tx, m.Parts[p].FileID); err != nil {
 				return nil, err
 			}
 		}
+		placeParts(m.Parts)
 		if m.Markers, err = queryAll(ctx, tx, `SELECT kind, source, start_ms, end_ms, ifnull(title, '') FROM media_markers
 			WHERE media_id = ? ORDER BY start_ms`, []any{m.id},
 			func(k *Marker) []any { return []any{&k.Kind, &k.Source, &k.StartMS, &k.EndMS, &k.Title} }); err != nil {

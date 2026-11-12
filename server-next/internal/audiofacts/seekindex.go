@@ -66,7 +66,7 @@ func BuildSeekIndex(ctx context.Context, read ExtentReader, size int64, f Facts)
 	case "mp3":
 		total, err = indexMP3(c, b)
 	case "adts":
-		total, err = indexADTS(c, b)
+		total, _, err = indexADTS(c, b)
 	default:
 		total, err = indexOgg(c, b, f.Codec)
 	}
@@ -222,11 +222,9 @@ func mp3Header(b []byte) (mp3Frame, bool) {
 	return mp3Frame{version: versionBits, layer: layer, rate: rate, channels: channels, length: length, frames: int64(frames), crc: b[1]&1 == 0}, true
 }
 
-// mp3InfoFrame is a Xing/Info or VBRI header frame (no audio).
-func mp3InfoFrame(b []byte, h mp3Frame) bool {
-	if h.layer != 3 {
-		return false
-	}
+// mp3SideInfoEnd is where a Layer III frame's side information ends: where a Xing or Info
+// header frame's tag is.
+func mp3SideInfoEnd(h mp3Frame) int {
 	side := 17
 	switch {
 	case h.version == 3 && h.channels != 1:
@@ -238,6 +236,15 @@ func mp3InfoFrame(b []byte, h mp3Frame) bool {
 	if h.crc {
 		at += 2
 	}
+	return at
+}
+
+// mp3InfoFrame is a Xing/Info or VBRI header frame (no audio).
+func mp3InfoFrame(b []byte, h mp3Frame) bool {
+	if h.layer != 3 {
+		return false
+	}
+	at := mp3SideInfoEnd(h)
 	tag := func(o int) string {
 		if o+4 > len(b) {
 			return ""
@@ -261,29 +268,38 @@ func id3End(b []byte) int64 {
 }
 
 func indexMP3(c *byteCursor, b *indexBuilder) (int64, error) {
-	// The first frame: past any ID3 tags, a header the next one confirms.
+	first, err := firstMP3Frame(c)
+	if err != nil {
+		return 0, err
+	}
+	return walkMP3(c, b, first)
+}
+
+// firstMP3Frame moves c to an MP3's first frame: past any ID3 tags, a header the next one
+// confirms.
+func firstMP3Frame(c *byteCursor) (mp3Frame, error) {
 	var first mp3Frame
 	metadata := int64(0)
 	found := false
 	for searched := int64(0); searched < 1<<20 && !found; {
 		ok, err := c.need(10)
 		if err != nil || !ok {
-			return 0, orUnindexable(err)
+			return first, orUnindexable(err)
 		}
 		if end := id3End(c.view()); end > 0 {
 			if metadata += end; metadata > metadataLimit || c.pos+end > c.size {
-				return 0, errUnindexable
+				return first, errUnindexable
 			}
 			c.seek(c.pos + end)
 			continue
 		}
 		if ok, err = c.need(4); err != nil || !ok {
-			return 0, orUnindexable(err)
+			return first, orUnindexable(err)
 		}
 		if h, ok := mp3Header(c.view()); ok && h.length > 4 {
 			have, err := c.need(h.length + 4)
 			if err != nil {
-				return 0, err
+				return first, err
 			}
 			if have {
 				if next, ok := mp3Header(c.view()[h.length:]); ok && next.rate == h.rate && next.layer == h.layer && next.version == h.version {
@@ -296,8 +312,13 @@ func indexMP3(c *byteCursor, b *indexBuilder) (int64, error) {
 		searched++
 	}
 	if !found {
-		return 0, errUnindexable
+		return first, errUnindexable
 	}
+	return first, nil
+}
+
+// walkMP3 counts the samples of every audio frame from the first, recording index entries.
+func walkMP3(c *byteCursor, b *indexBuilder, first mp3Frame) (int64, error) {
 	var total, junk int64
 	for index := 0; ; {
 		ok, err := c.need(4)
@@ -359,14 +380,14 @@ func adtsHeader(b []byte) (adtsFrame, bool) {
 	return adtsFrame{rateIndex: rateIndex, length: length, blocks: int(b[6]&3) + 1}, true
 }
 
-func indexADTS(c *byteCursor, b *indexBuilder) (int64, error) {
+func indexADTS(c *byteCursor, b *indexBuilder) (int64, int, error) {
 	// One ID3 tag at the start, then a header the next one confirms within 8 KiB.
 	if ok, err := c.need(10); err != nil || !ok {
-		return 0, orUnindexable(err)
+		return 0, 0, orUnindexable(err)
 	}
 	if end := id3End(c.view()); end > 0 {
 		if end > metadataLimit || end >= c.size {
-			return 0, errUnindexable
+			return 0, 0, errUnindexable
 		}
 		c.seek(end)
 	}
@@ -375,12 +396,12 @@ func indexADTS(c *byteCursor, b *indexBuilder) (int64, error) {
 	for searched := 0; searched < 8192 && !found; searched++ {
 		ok, err := c.need(7)
 		if err != nil || !ok {
-			return 0, orUnindexable(err)
+			return 0, 0, orUnindexable(err)
 		}
 		if h, ok := adtsHeader(c.view()); ok {
 			have, err := c.need(h.length + 7)
 			if err != nil {
-				return 0, err
+				return 0, 0, err
 			}
 			if have {
 				if next, ok := adtsHeader(c.view()[h.length:]); ok && next.rateIndex == h.rateIndex {
@@ -392,13 +413,13 @@ func indexADTS(c *byteCursor, b *indexBuilder) (int64, error) {
 		c.skip(1)
 	}
 	if !found {
-		return 0, errUnindexable
+		return 0, 0, errUnindexable
 	}
 	var total, junk int64
 	for {
 		ok, err := c.need(7)
 		if err != nil {
-			return 0, err
+			return 0, 0, err
 		}
 		if !ok {
 			break
@@ -406,13 +427,13 @@ func indexADTS(c *byteCursor, b *indexBuilder) (int64, error) {
 		h, ok := adtsHeader(c.view())
 		if !ok || h.rateIndex != first.rateIndex {
 			if junk++; junk > junkLimit {
-				return 0, errUnindexable
+				return 0, 0, errUnindexable
 			}
 			c.skip(1)
 			continue
 		}
 		if ok, err = c.need(h.length); err != nil {
-			return 0, err
+			return 0, 0, err
 		} else if !ok {
 			break
 		}
@@ -420,7 +441,7 @@ func indexADTS(c *byteCursor, b *indexBuilder) (int64, error) {
 		total += 1024 * int64(h.blocks)
 		c.skip(int64(h.length))
 	}
-	return total, nil
+	return total, [13]int{96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350}[first.rateIndex], nil
 }
 
 // ── Ogg (Opus, Vorbis) ───────────────────────────────────────────────
@@ -623,4 +644,64 @@ func DecodeSeekIndex(data []byte) (*SeekIndex, error) {
 		return nil, bad
 	}
 	return x, nil
+}
+
+// MP3Samples counts the samples of every audio frame without decoding, and its sample rate.
+func MP3Samples(ctx context.Context, read ExtentReader, size int64) (samples int64, rate int, err error) {
+	c := &byteCursor{ctx: ctx, read: read, size: size}
+	first, err := firstMP3Frame(c)
+	if err != nil {
+		return 0, 0, err
+	}
+	samples, err = walkMP3(c, &indexBuilder{step: 1 << 62}, first)
+	return samples, first.rate, err
+}
+
+// MP3HeaderSamples is the samples an MP3's own header counts: the frame count of
+// its Xing, Info or VBRI frame times the samples in a frame, and the sample rate. FFmpeg makes
+// one packet of each of those frames and none of the header frame itself, so this is exactly
+// what the file's packets cover. ok is false when prefix holds no such header, or one that
+// does not count its frames.
+func MP3HeaderSamples(ctx context.Context, prefix []byte) (samples int64, rate int, ok bool) {
+	c := &byteCursor{ctx: ctx, size: int64(len(prefix)), read: func(_ context.Context, offset, length int64) ([]byte, error) {
+		return prefix[offset:min(offset+length, int64(len(prefix)))], nil
+	}}
+	first, err := firstMP3Frame(c)
+	if err != nil {
+		return 0, 0, false
+	}
+	if have, err := c.need(first.length); err != nil || !have || !mp3InfoFrame(c.view()[:first.length], first) {
+		return 0, 0, false
+	}
+	b := c.view()[:first.length]
+	at := mp3SideInfoEnd(first)
+	frames := int64(-1)
+	switch {
+	case at+12 <= len(b) && (string(b[at:at+4]) == "Xing" || string(b[at:at+4]) == "Info"):
+		if b[at+7]&1 != 0 {
+			frames = int64(binary.BigEndian.Uint32(b[at+8:]))
+		}
+	case len(b) >= 36+18 && string(b[36:40]) == "VBRI":
+		frames = int64(binary.BigEndian.Uint32(b[36+14:]))
+	}
+	if frames <= 0 {
+		return 0, 0, false
+	}
+	return frames * first.frames, first.rate, true
+}
+
+// MP3Head reads the header with as little as possible: ten bytes, then
+// 64 KiB from where an ID3 tag (often holding a cover picture) ends.
+func MP3Head(read func(offset, length int64) ([]byte, error)) ([]byte, error) {
+	start, err := read(0, 10)
+	if err != nil {
+		return nil, err
+	}
+	return read(id3End(start), 64<<10)
+}
+
+// ADTSSamples counts raw AAC frames without decoding. ADTS has no seek index,
+// so a duration measurement must walk the file rather than seek to an estimated end.
+func ADTSSamples(ctx context.Context, read ExtentReader, size int64) (int64, int, error) {
+	return indexADTS(&byteCursor{ctx: ctx, read: read, size: size}, &indexBuilder{step: 1 << 62})
 }

@@ -61,3 +61,21 @@ func (p Probe) readPrefix(ctx context.Context, path string, limit int64) ([]byte
 	}
 	return prefix, nil
 }
+
+// openReader opens a file to read whole: through the caller's reader, or a file on a disk
+// here, refused unless it is a regular file.
+func (p Probe) openReader(ctx context.Context, path string) (io.ReaderAt, int64, func() error, error) {
+	if p.OpenReader != nil {
+		return p.OpenReader(ctx, path)
+	}
+	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		file.Close()
+		return nil, 0, nil, errSourceChanged
+	}
+	return file, info.Size(), file.Close, nil
+}

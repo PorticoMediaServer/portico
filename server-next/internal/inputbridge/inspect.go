@@ -55,5 +55,14 @@ func Inspect(ctx context.Context, supervisor *processpool.Supervisor, ffprobe st
 		}
 		return prefix[:n], err
 	}
-	return mediafacts.Probe{Binary: ffprobe, ScanCommand: run, ReadPrefix: readPrefix}.InspectRemote(ctx, bridge.URL())
+	// An MP3 with no header that says its length is read whole to count its frames.
+	whole := func(context.Context, string) (io.ReaderAt, int64, func() error, error) {
+		return source, size, func() error { return nil }, nil
+	}
+	prober := mediafacts.Probe{Binary: ffprobe, ScanCommand: run, ReadPrefix: readPrefix, OpenReader: whole}
+	facts, err := prober.InspectRemote(ctx, bridge.URL())
+	if err == nil {
+		err = prober.CompleteAudioPackets(ctx, bridge.URL(), &facts)
+	}
+	return facts, err
 }
