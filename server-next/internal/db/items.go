@@ -438,7 +438,7 @@ func total(ctx context.Context, tx *sql.Tx, where *query, acc access) (int, erro
 		if where.plainKinds != "" {
 			kinds = where.plainKinds
 		}
-		hiddenSets = append(hiddenSets, acc.blockedIDs(where.library, kinds))
+		hiddenSets = append(hiddenSets, acc.blockedWithin(where.library, kinds, where.within("h")))
 	}
 	if where.emptied != "" {
 		hiddenSets = append(hiddenSets, where.emptied)
@@ -598,7 +598,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 			return false, notFound(err)
 		}
 		w.add(` AND i.parent_id = `, fmt.Sprint(parent))
-		w.holderScope = "f.parent_id = " + fmt.Sprint(parent)
+		w.scope = "SELECT id FROM items WHERE parent_id = " + fmt.Sprint(parent)
 		scoped = true
 	}
 	if len(q.Kinds) > 0 {
@@ -644,7 +644,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 			return false, notFound(err)
 		}
 		w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = `, fmt.Sprint(person), `)`)
-		w.holderScope = "f.id IN (SELECT item_id FROM credits WHERE person_id = " + fmt.Sprint(person) + ")"
+		w.scope = "SELECT item_id FROM credits WHERE person_id = " + fmt.Sprint(person)
 		scoped = true
 	}
 	if q.entries {
@@ -671,7 +671,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		}
 		members := `SELECT related_item_id FROM item_relations WHERE kind = ` + itoa(int64(RelationCollectionMember)) + ` AND item_id = ` + itoa(collection)
 		w.add(` AND i.id IN (`, members, `)`)
-		w.holderScope = "f.id IN (" + members + ")"
+		w.scope = members
 		scoped = true
 	}
 	if q.Series != "" {
@@ -685,6 +685,8 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		// A book or audiobook is tied to its series; a comic's issues sit under theirs.
 		w.add(` AND (i.id IN (SELECT related_item_id FROM item_relations WHERE kind = `, itoa(int64(RelationSeriesMember)),
 			` AND item_id = `, itoa(series), `) OR i.parent_id = `, itoa(series), `)`)
+		w.scope = `SELECT related_item_id FROM item_relations WHERE kind = ` + itoa(int64(RelationSeriesMember)) + ` AND item_id = ` + itoa(series) +
+			` UNION ALL SELECT id FROM items WHERE parent_id = ` + itoa(series)
 		scoped = true
 	}
 	if q.Tag != "" || q.Genre != "" {
@@ -812,7 +814,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	// no such check, and nor does a series' list: it holds only volumes and issues.
 	// The holders are found once for the request, and are nearly always none.
 	if q.Series == "" && (len(q.Kinds) == 0 || w.holderKinds != "") {
-		if set := acc.emptiedWithin(library, w.holderKinds, w.holderScope); set != "" {
+		if set := acc.emptiedWithin(library, w.holderKinds, w.within("f")); set != "" {
 			emptied, err := ids(ctx, tx, set)
 			if err != nil {
 				return false, err

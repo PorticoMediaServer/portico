@@ -189,8 +189,9 @@ func (a access) emptiedSet(library int64, kinds string) string {
 }
 
 // emptiedWithin is emptiedSet for a list that is of one title, person or collection: within
-// is the condition on the holder row f that it is one of the list's rows, read through that
-// condition's own index instead of every flagged holder of the server. "" is emptiedSet.
+// is the condition on the holder row f that it is one of the list's rows (query.within), read
+// through that condition's own index instead of every flagged holder of the server. "" is
+// emptiedSet.
 func (a access) emptiedWithin(library int64, kinds, within string) string {
 	shown := a.titleUnder("f")
 	if shown == "" {
@@ -239,9 +240,19 @@ func (a access) unblocked(alias string) string {
 // these instead of checking every row. library and kinds narrow it to one library and some
 // kinds; 0 and "" mean any. It reads the index of the items that have labels at all.
 func (a access) blockedIDs(library int64, kinds string) string {
+	return a.blockedWithin(library, kinds, "")
+}
+
+// blockedWithin is blockedIDs for a list that is of one title, person, collection or series:
+// within is the condition on the row h that it is one of the list's rows (query.within), so
+// only those rows are looked at instead of every labelled item of the server. "" is blockedIDs.
+func (a access) blockedWithin(library int64, kinds, within string) string {
 	in := ""
+	if within != "" {
+		in = " AND " + within
+	}
 	if library != 0 {
-		in = fmt.Sprintf(" AND h.library_id = %d", library)
+		in += fmt.Sprintf(" AND h.library_id = %d", library)
 	}
 	if kinds != "" {
 		in += " AND h.kind IN " + kinds
@@ -306,12 +317,23 @@ type query struct {
 	// in for "{holders}" on a page and in a count that checks labels row by row; a total
 	// counts without it and subtracts.
 	emptied, holders string
-	// holderScope is a condition on a holder row f that it can be in this list, when the list
-	// is of one title, person or collection (see access.emptiedWithin), or "".
-	holderScope string
+	// scope is a query for the ids of the rows this list can hold, when the list is of one
+	// title, person, collection or series, or "": what the list leaves out (the holders it is
+	// left with nothing under, what a blocked label hides) is then looked for among those rows
+	// alone, not across the server. See within.
+	scope string
 	// whole is set when the list is all of that library and those kinds with nothing else
 	// asked for, whatever the viewer's rating limit. Its tag choices are counted from indexes.
 	whole bool
+}
+
+// within is the condition that the items row with this alias is one the list can hold, or ""
+// when the list has no narrower scope than its library.
+func (q *query) within(alias string) string {
+	if q.scope == "" {
+		return ""
+	}
+	return alias + ".id IN (" + q.scope + ")"
 }
 
 func (q *query) pageWhere() string {
