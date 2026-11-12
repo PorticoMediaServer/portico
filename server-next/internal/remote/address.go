@@ -18,9 +18,10 @@ import (
 // A source never reaches a link-local address, where a cloud machine keeps its own sign-in
 // (169.254.169.254 and its names). Portico's own WebDAV client refuses one as it is dialed,
 // whatever name led there, and tries the name's next address. An rclone remote is held to it in
-// every option that names an address: by the text when it is pasted or made, and, each time it
-// connects, by what each name resolves to, refused when every address is link-local (rclone
-// dials for itself, so a home NAS whose name also answers with its fe80:: address still works).
+// every option's value, by its text when it is pasted or made, and, each time rclone starts, by
+// what each host it names resolves to: refused when any address is a metadata service's own or
+// every address is link-local (rclone dials for itself, so a home NAS whose name also answers
+// with its fe80:: address still works).
 //
 // A source out on the internet cannot send Portico's reads inward with a redirect: once a read
 // was answered from a public address, a redirect to this computer or its network is refused,
@@ -48,8 +49,9 @@ const (
 
 var (
 	carrierNAT = mustCIDR("100.64.0.0/10")
-	// Metadata addresses outside link-local: AWS's over IPv6, Alibaba's.
-	metadataIPs = []net.IP{net.ParseIP("fd00:ec2::254"), net.ParseIP("100.100.100.200")}
+	// The metadata services' own addresses: the one most clouds use, AWS's over IPv6, Alibaba's.
+	// The last two are outside link-local.
+	metadataIPs = []net.IP{net.ParseIP("169.254.169.254"), net.ParseIP("fd00:ec2::254"), net.ParseIP("100.100.100.200")}
 	// The well-known names of a cloud machine's metadata service.
 	metadataNames = map[string]bool{"metadata": true, "metadata.google.internal": true, "metadata.goog": true, "instance-data": true,
 		"instance-data.ec2.internal": true}
@@ -82,6 +84,9 @@ var lookupIP = net.DefaultResolver.LookupIPAddr
 // name says it is any other name, whose addresses decide.
 func textKind(host string) (kind addressKind, name bool) {
 	host = strings.ToLower(strings.TrimSuffix(strings.Trim(host, "[]"), "."))
+	if zone := strings.IndexByte(host, '%'); zone > 0 {
+		host = host[:zone]
+	}
 	if metadataNames[host] {
 		return linkLocalAddress, false
 	}
@@ -223,27 +228,70 @@ func rcloneHosts(options map[string]string) []string {
 	return hosts
 }
 
-// rcloneAddressRefusal refuses, as a remote is pasted or made, an option naming a host that is
-// link-local by its text; what a name resolves to is checked each time it connects
+// valuePieces are the parts of an option's value that could each be a host, however it is
+// written: split on commas, slashes, "@" and spaces (so an address with a scheme, a user in it,
+// a list of hosts, a node@host), each with any port taken off.
+func valuePieces(value string) []string {
+	var pieces []string
+	for _, piece := range strings.FieldsFunc(value, func(c rune) bool { return strings.ContainsRune(",/@ \t;", c) }) {
+		if host, _, err := net.SplitHostPort(piece); err == nil {
+			piece = host
+		}
+		pieces = append(pieces, piece)
+	}
+	return pieces
+}
+
+// rcloneAddressRefusal refuses, as a remote is pasted or made, any option whose value holds a
+// link-local or metadata address or a metadata service's name, wherever in the value it is and
+// whatever the option is called. What a name resolves to is checked each time rclone starts
 // (checkRcloneHost).
 func rcloneAddressRefusal(options map[string]string) error {
-	for _, host := range rcloneHosts(options) {
-		if kind, _ := textKind(host); kind == linkLocalAddress {
-			return ErrAddressRefused
+	for key, value := range options {
+		if key == "type" {
+			continue
+		}
+		for _, piece := range valuePieces(value) {
+			if kind, _ := textKind(piece); kind == linkLocalAddress {
+				return ErrAddressRefused
+			}
 		}
 	}
 	return nil
 }
 
-// checkRcloneHost refuses a remote with a host whose every address is link-local. rclone
-// dials for itself and tries a name's addresses in turn, so a name that also answers with an
-// ordinary address (a home NAS's fe80:: beside its 192.168 one) is not refused.
+func isMetadataIP(ip net.IP) bool {
+	for _, m := range metadataIPs {
+		if m.Equal(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// checkRcloneHost refuses a remote with a host that answers with a metadata service's own
+// address, or whose every address is link-local. rclone dials for itself and tries a name's
+// addresses in turn, so a name that also answers with an ordinary address (a home NAS's fe80::
+// or self-assigned 169.254 address beside its 192.168 one) is not refused; a metadata
+// service's address is never a home device's.
 func checkRcloneHost(ctx context.Context, options map[string]string) error {
 	for _, host := range rcloneHosts(options) {
-		found := addressKinds(ctx, host)
-		every := len(found) > 0
-		for _, k := range found {
-			every = every && k == linkLocalAddress
+		kind, name := textKind(host)
+		if !name {
+			if kind == linkLocalAddress {
+				return ErrAddressRefused
+			}
+			continue
+		}
+		lookup, cancel := context.WithTimeout(ctx, 10*time.Second)
+		addresses, _ := lookupIP(lookup, strings.TrimSuffix(host, "."))
+		cancel()
+		every := len(addresses) > 0
+		for _, a := range addresses {
+			if isMetadataIP(a.IP) {
+				return ErrAddressRefused
+			}
+			every = every && kindOf(a.IP) == linkLocalAddress
 		}
 		if every {
 			return ErrAddressRefused

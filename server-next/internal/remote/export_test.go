@@ -43,3 +43,19 @@ func LoopbackIsLinkLocal(t testing.TB) {
 	}
 	t.Cleanup(func() { kindOf = before })
 }
+
+// ResolveAllAs makes one name answer with several addresses for a test.
+func ResolveAllAs(t testing.TB, name string, addresses []string) {
+	before := lookupIP
+	lookupIP = func(ctx context.Context, host string) ([]net.IPAddr, error) {
+		if host == name {
+			var out []net.IPAddr
+			for _, a := range addresses {
+				out = append(out, net.IPAddr{IP: net.ParseIP(a)})
+			}
+			return out, nil
+		}
+		return before(ctx, host)
+	}
+	t.Cleanup(func() { lookupIP = before })
+}
