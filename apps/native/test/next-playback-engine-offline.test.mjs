@@ -228,3 +228,14 @@ test('offline runtime preserves a proven source choice across engines and fences
   f.emit('localAudioTrackApplied', {audioTrackRevision: restored.revision, catalogRevision: 1, trackId: restored.trackId});
   assert.equal(f.runtime.localTracks.getSnapshot().audioTrackId, 'replacement');
 });
+
+// #2945's three player fixes, held here so a copy of an older runtime cannot drop them unnoticed.
+test('the speed asked of the player stands while it reports none, and a paused rate of 0 never replaces it', async t => {
+  const f = await fixture(); t.after(() => f.dispose());
+  f.settings.videoRate = 1.5; f.runtime.applyOptions(); await drain();
+  assert.equal(f.runtime.chosenRate, 1.5, 'Playback options show the speed asked of the player, not 0x');
+  f.emit('progress', {effectiveRate: 1.25}); assert.equal(f.runtime.effectiveRate, 1.25);
+  f.state.intent = 'paused'; f.emit('progress', {effectiveRate: 0});
+  assert.equal(f.runtime.effectiveRate, 1.25, 'a paused player reports rate 0: the speed shown stays the one it plays at');
+});
+
