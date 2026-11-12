@@ -45,6 +45,9 @@ const (
 	readyFile   = "restore.json"
 	journalFile = "restore-swap.json"
 	madeFile    = "restore-made.json"
+	// keepFile is what the server asked to be put into the restored database when it first
+	// opens. See StageKeeping.
+	keepFile = "restore-keep.json"
 	// pendingFor is how long a staged restore waits for a restart before it is dropped: long
 	// enough to restart by hand on Windows or in a container.
 	pendingFor = time.Hour
@@ -61,6 +64,15 @@ type Pending struct {
 // already staged. name is how the backup is named. A backup without this server's mark over
 // the very bytes unpacked is ErrNotMadeHere unless the owner confirmed it (notMadeHereOK).
 func Stage(ctx context.Context, archivePath, dataDir, name string, now time.Time, notMadeHereOK bool) error {
+	return StageKeeping(ctx, archivePath, dataDir, name, now, notMadeHereOK, nil)
+}
+
+// StageKeeping is Stage for a restore that must not put everything back: keep is handed to
+// the database (db.Restored) in the commit that ends every sign-in, when the restored
+// database first opens. It is how a server linked to a Portico Account keeps the link it has
+// now, which Portico Services holds too, in place of the backup's earlier one. keep travels
+// with the staged restore: a restore that is dropped or undone drops it.
+func StageKeeping(ctx context.Context, archivePath, dataDir, name string, now time.Time, notMadeHereOK bool, keep []byte) error {
 	work, err := os.MkdirTemp(dataDir, ".staging-")
 	if err != nil {
 		return err
@@ -80,6 +92,11 @@ func Stage(ctx context.Context, archivePath, dataDir, name string, now time.Time
 	}
 	if err := db.CheckCopy(ctx, filepath.Join(work, "main.db")); err != nil {
 		return &ErrDamaged{err.Error()}
+	}
+	if len(keep) > 0 {
+		if err := writeSynced(filepath.Join(work, keepFile), keep); err != nil {
+			return err
+		}
 	}
 	raw, _ := json.Marshal(Pending{Backup: name, StagedAt: now.UTC()})
 	if err := writeSynced(filepath.Join(work, readyFile), raw); err != nil {
@@ -327,6 +344,10 @@ func finish(dataDir string) error {
 			return err
 		}
 	}
+	// What the server asked to keep goes with the database it is for.
+	if err := os.Rename(filepath.Join(pending, keepFile), filepath.Join(dataDir, keepFile)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
 	// Pictures are added to the store; one already there is the same picture.
 	filepath.WalkDir(filepath.Join(pending, "artwork"), func(path string, e fs.DirEntry, err error) error {
 		if err != nil || e.IsDir() {
@@ -385,19 +406,28 @@ func PutBack(dataDir string) (bool, error) {
 	if err := moveBack(dataDir, true); err != nil {
 		return false, err
 	}
+	// The original already holds what was to be kept.
+	os.Remove(filepath.Join(dataDir, keepFile))
 	return true, os.Remove(filepath.Join(dataDir, madeFile))
 }
 
-// Opened ends every sign-in after a restore, once the restored database has opened, and only
-// then forgets that the restore was made: a stop before this commit ends them at the next
-// start instead.
+// Opened ends every sign-in after a restore, once the restored database has opened, puts in
+// what the server asked to keep in the same commit, and only then forgets that the restore
+// was made: a stop before this commit does it at the next start instead.
 func Opened(ctx context.Context, d *db.DB, dataDir string, now time.Time) error {
+	kept := filepath.Join(dataDir, keepFile)
 	if !exists(filepath.Join(dataDir, madeFile)) {
+		os.Remove(kept)
 		return nil
 	}
-	if err := d.EndEverySignIn(ctx, now); err != nil {
+	keep, err := os.ReadFile(kept)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
+	if err := d.Restored(ctx, keep, now); err != nil {
+		return err
+	}
+	os.Remove(kept)
 	return os.Remove(filepath.Join(dataDir, madeFile))
 }
 

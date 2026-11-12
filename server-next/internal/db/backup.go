@@ -117,6 +117,21 @@ func (d *DB) RecordRestore(ctx context.Context, actorID int64, backupID string, 
 	})
 }
 
+// Restored is what happens in one commit when a restored database first opens: every sign-in
+// ends, as EndEverySignIn does, and what the server asked to keep across the restore is put
+// in. keep is KeptLink's answer, or empty.
+func (d *DB) Restored(ctx context.Context, keep []byte, now time.Time) error {
+	return d.writeSessions(ctx, func(tx *sql.Tx, c *changes) error {
+		if err := revoke(tx, c, now, "restored", `1 = 1`); err != nil {
+			return err
+		}
+		if len(keep) == 0 {
+			return nil
+		}
+		return keepLink(tx, keep, now)
+	})
+}
+
 // EndEverySignIn ends every sign-in, after a restore: the restored database's sessions are
 // sign-ins from before it. API keys and personal tokens are not sign-ins and keep working.
 func (d *DB) EndEverySignIn(ctx context.Context, now time.Time) error {

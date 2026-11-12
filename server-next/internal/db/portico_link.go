@@ -181,6 +181,59 @@ func unlinkServer(tx *sql.Tx, giveUp, now time.Time) error {
 	return saveJSONSetting(tx, leaveKey, QueuedLeave{LinkIssuedAt: old.IssuedAt, GiveUpAt: giveUp.Unix()}, now.UnixMilli())
 }
 
+// KeptLink is the server's link as it stands, to carry across a restore: the approval that
+// proves the restore makes a new link here and at Portico Services, and the backup holds the
+// one from before. Empty when the server has no link.
+func (d *DB) KeptLink(ctx context.Context) ([]byte, error) {
+	var l Link
+	if had, err := readJSONSetting(ctx, d.read, linkKey, &l); err != nil || !had {
+		return nil, err
+	}
+	return json.Marshal(l)
+}
+
+// keepLink puts the link carried across a restore into the restored database.
+//
+// A restored database that uses Portico Accounts under the same owning account gets the
+// carried link in place of its own, with nothing marked as sent: it is the link Portico
+// Services holds, which lists the server again only on that link's first document. Its note
+// numbers, the fleet number and the signing certificate are the newer of the two.
+//
+// A restored database with local sign-in (a backup from before the server used Portico
+// Accounts) gets no link: it is a local server again. The carried link is queued as the one
+// "this server has left", so Portico Services removes the server as it does after a switch to
+// local sign-in.
+//
+// A restored database linked to another Portico Account (the owner was changed since the
+// backup) is left as the backup has it: its owner is not the account that approved.
+func keepLink(tx *sql.Tx, keep []byte, now time.Time) error {
+	var kept, old Link
+	if json.Unmarshal(keep, &kept) != nil || kept.AccountID == "" || kept.IssuedAt <= 0 {
+		return nil
+	}
+	had, err := readJSONSetting(context.Background(), tx, linkKey, &old)
+	if err != nil {
+		return err
+	}
+	switch {
+	case !had:
+		return saveJSONSetting(tx, leaveKey, QueuedLeave{LinkIssuedAt: kept.IssuedAt, GiveUpAt: now.Add(leftMessageTries).Unix()}, now.UnixMilli())
+	case old.AccountID != kept.AccountID || old.IssuedAt >= kept.IssuedAt:
+		// Another account's, or already the carried link (this commit ran before a stop).
+		return nil
+	}
+	fresh := Link{AccountID: kept.AccountID, IssuedAt: kept.IssuedAt, NoteRevision: max(kept.NoteRevision, kept.IssuedAt), Fleet: max(old.Fleet, kept.Fleet),
+		Certificate: kept.Certificate, CertificateRevision: kept.CertificateRevision,
+		DocumentRevision: max(old.DocumentRevision, kept.DocumentRevision) + 1, LastContact: now.Unix()}
+	if old.CertificateRevision > kept.CertificateRevision {
+		fresh.Certificate, fresh.CertificateRevision = old.Certificate, old.CertificateRevision
+	}
+	if _, err := tx.Exec(`DELETE FROM settings WHERE key = ?`, leaveKey); err != nil {
+		return err
+	}
+	return saveJSONSetting(tx, linkKey, fresh, now.UnixMilli())
+}
+
 // setLinkOwner records a change of owner in the change's own transaction. It is not a new
 // link: the numbers stay where they are on both sides.
 func setLinkOwner(tx *sql.Tx, accountID string, now time.Time) error {
