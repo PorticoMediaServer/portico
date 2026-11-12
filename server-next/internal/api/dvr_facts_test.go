@@ -138,10 +138,18 @@ func TestEditingASeriesRulePreviewsItAndCanChangeItsChannel(t *testing.T) {
 	if w := call(t, s, "PATCH", "/v1/dvr/rules/"+rule.ID, owner, DvrRuleSave{Channel: new("chn_nothing")}, nil); w.Code != 400 {
 		t.Fatalf("an unknown channel answered %d: %s", w.Code, w.Body)
 	}
+	booked := get[Page[DvrRecording]](t, s, owner, "/v1/dvr/recordings").Items
+	if len(booked) != 1 || booked[0].ChannelID != rule.Channel || booked[0].Channel != "Film Four" {
+		t.Fatalf("the rule's booking reads %+v", booked)
+	}
 	var saved DvrRule
 	if w := call(t, s, "PATCH", "/v1/dvr/rules/"+rule.ID, owner, DvrRuleSave{Channel: &news}, &saved); w.Code != 200 || saved.Channel != news ||
 		saved.ChannelName != "Example News" {
 		t.Fatalf("changing the channel answered %d: %+v", w.Code, saved)
+	}
+	// Its booking on the channel it left, which nobody else asked for, is let go.
+	if got := get[DvrRecording](t, s, owner, "/v1/dvr/recordings/"+booked[0].ID); got.State != "cancelled" {
+		t.Fatalf("after the rule moved channel its old booking reads %+v", got)
 	}
 	if listed := get[Page[DvrRule]](t, s, owner, "/v1/dvr/rules").Items; listed[0].ChannelName != "Example News" {
 		t.Fatalf("the rule list names the channel %q", listed[0].ChannelName)
