@@ -167,11 +167,27 @@ export async function edit<T>(api: SavedNextApi, path: string, method: 'PATCH' |
 }
 
 /** An Undo of a removal: the list it was removed from, the title, and the entry it came after (empty at the front). */
-type UndoToken = Readonly<{listId: string; itemId: string; after: string}>;
+/** `before`: for a list's first entry, the entry that came after it, which the title goes back in front of. */
+export type UndoToken = Readonly<{listId: string; itemId: string; after: string; before?: string}>;
 export const encodeUndo = (token: UndoToken) => 'undo.' + btoa(JSON.stringify(token)).replace(/=+$/, '');
 export function decodeUndo(raw: string): UndoToken {
-  try {const value = JSON.parse(atob(raw.slice(5))); if (raw.startsWith('undo.') && typeof value?.listId === 'string' && typeof value.itemId === 'string' && typeof value.after === 'string') return value;} catch {/* refused below */}
+  try {const value = JSON.parse(atob(raw.slice(5))); if (raw.startsWith('undo.') && typeof value?.listId === 'string' && typeof value.itemId === 'string' && typeof value.after === 'string' && (value.before === undefined || typeof value.before === 'string')) return value;} catch {/* refused below */}
   throw new CodedError('undo_expired', 'Too late to undo.');
+}
+
+/** Undo of a removal: the title goes back just after the entry that was in front of it (area 6 rule 32). A list's first
+ * entry has none in front, and an add with no `after` goes to the end; so its token names the entry that came after it
+ * (`before`), the title is added just after that one, and then moved in front of it. The add's body is the same on a
+ * repeat, so its key holds; entries are told apart by their ids, so a twin of the title is never moved, and a repeat
+ * after the move finds that entry no longer first and moves nothing. If the list changed so that entry is not first,
+ * the title stays just after it. */
+export async function restoreEntry(api: SavedNextApi, token: UndoToken, add: (body: ListAdd) => Promise<ListAdded>, signal?: AbortSignal): Promise<ListAdded> {
+  if (token.after || !token.before) return add({items: [token.itemId], ...(token.after ? {after: token.after} : {})});
+  const done = await add({items: [token.itemId], after: token.before});
+  const [first, restored] = (await items(api, {list: token.listId, sort: 'order', limit: 2}, signal)).items;
+  if (first?.entryId !== token.before || !restored?.entryId || restored.id !== token.itemId) return done;
+  const path = serverPath('PATCH /v1/lists/{id}/entries/{entryId}', {id: token.listId, ids: {entryId: restored.entryId}});
+  return {...done, list: await edit<List>(api, path, 'PATCH', revisionOf(done.list), {before: first.entryId}, signal)};
 }
 
 export type PlaylistCommandContext = Readonly<{
@@ -203,13 +219,13 @@ export async function sendPlaylistCommand(api: SavedNextApi, bound: SavedScope, 
     case 'restore': {
       const token = decodeUndo(intent.undoToken);
       if (token.listId !== id) throw new CodedError('undo_other_list', 'This can only be undone in the list it was removed from.');
-      return receipt(id, (await addTo(id, {items: [token.itemId], ...(token.after ? {after: token.after} : {})})).list);
+      return receipt(id, (await restoreEntry(api, token, body => addTo(id, body), signal)).list);
     }
     case 'remove': {
       const order = context.entries ?? [], at = order.findIndex(entry => entry.id === intent.entryId);
       const list = await edit<List>(api, entryPath(intent.entryId), 'DELETE', context.revision, undefined, signal);
       // Undo puts the title back just after the entry in front of it (area 6 rule 32).
-      const undo = at >= 0 ? {undoToken: encodeUndo({listId: id, itemId: order[at]!.itemId, after: at > 0 ? order[at - 1]!.id : ''}), undoUntil: new Date(Date.now() + 30_000).toISOString().replace(/\.\d+Z$/, 'Z')} : {};
+      const undo = at >= 0 ? {undoToken: encodeUndo({listId: id, itemId: order[at]!.itemId, after: at > 0 ? order[at - 1]!.id : '', ...(at === 0 && order[1] ? {before: order[1].id} : {})}), undoUntil: new Date(Date.now() + 30_000).toISOString().replace(/\.\d+Z$/, 'Z')} : {};
       return receipt(id, list, {entryId: intent.entryId, ...undo});
     }
     case 'reorder': {

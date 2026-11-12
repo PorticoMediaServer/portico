@@ -4,14 +4,20 @@ import type {Routes} from '../../../contracts/src/next/api.ts';
 export type ServerRequester = {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
 
 /** The address of a route on the new server, with its `{id}` and query filled in. */
-export function serverPath(route: keyof Routes, options: Readonly<{id?: string; query?: Readonly<Record<string, string | number | boolean | undefined>>}> = {}): string {
+export function serverPath(route: keyof Routes, options: Readonly<{id?: string; ids?: Readonly<Record<string, string>>; query?: Readonly<Record<string, string | number | boolean | undefined>>}> = {}): string {
   let path = route.slice(route.indexOf(' ') + 1);
-  // The route's one placeholder ({id}, or another name such as {name}) takes `id`.
+  // The route's first placeholder ({id}, or another name such as {name}) takes `id`; any later one is named in `ids`
+  // ({entryId}: `ids.entryId`).
   const placeholder = /\{[a-zA-Z]+\}/.exec(path)?.[0];
   if (placeholder) {
     if (!options.id) throw new Error('This route needs an id.');
     path = path.replace(placeholder, encodeURIComponent(options.id));
   }
+  path = path.replace(/\{([a-zA-Z]+)\}/g, (_, name: string) => {
+    const value = options.ids?.[name];
+    if (!value) throw new Error(`This route needs ${name}.`);
+    return encodeURIComponent(value);
+  });
   const query = new URLSearchParams();
   for (const [name, value] of Object.entries(options.query ?? {})) if (value !== undefined && value !== '') query.set(name, String(value));
   return query.size ? path + '?' + query.toString() : path;
