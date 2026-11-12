@@ -304,6 +304,15 @@ type Person struct {
 	TitleCount *int              `json:"titleCount,omitempty"`
 }
 
+// PersonPage is the answer of GET /v1/people: a library's people by one role (its authors, its
+// narrators), by name. Each carries titleCount: how many of that library's titles the profile
+// may see credit them in that role. Their titles are GET /v1/items?library=&author={id}.
+type PersonPage struct {
+	Items      []Person `json:"items"`
+	NextCursor string   `json:"nextCursor,omitempty"`
+	Total      *int     `json:"total,omitempty"`
+}
+
 // Facets is the answer of GET /v1/facets: the choices of one filter over a list, each with
 // how many of the list's items it would leave. With facet=letter the values are the first
 // letters of the list's titles in title order ("#" for digits and symbols), and a letter's
