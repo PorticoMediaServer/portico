@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 // RecordedTitle is a recording's title in the Recorded TV library as one viewer sees it: its
@@ -55,4 +56,40 @@ func (d *DB) RecordedTitles(ctx context.Context, v Viewer, itemIDs []int64) (map
 		}
 	}
 	return out, nil
+}
+
+// LetGoOfOtherChannels gives up a rule's bookings not yet started on any channel but the one
+// it now follows, after its channel changed: each passes to the next person who also asked
+// for it, as a cancel by its booker does, and is cancelled only when nobody is left. A rule
+// that follows every channel (channelID 0) keeps them all.
+func (d *DB) LetGoOfOtherChannels(ctx context.Context, ruleID, channelID int64, now time.Time) error {
+	if channelID == 0 {
+		return nil
+	}
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		rows, err := tx.Query(`SELECT `+recordingColumns+` FROM recordings r WHERE r.rule_id = ? AND r.state = ? AND ifnull(r.channel_id, 0) <> ?`,
+			ruleID, RecordingScheduled, channelID)
+		if err != nil {
+			return err
+		}
+		var held []Recording
+		for rows.Next() {
+			r, err := scanRecording(rows)
+			if err != nil {
+				rows.Close()
+				return err
+			}
+			held = append(held, r)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		for _, r := range held {
+			if err := passOn(tx, r, now); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
