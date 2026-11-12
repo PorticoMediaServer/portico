@@ -138,11 +138,13 @@ func TestAConvertedSongPlaysToItsLastSample(t *testing.T) {
 }
 
 // requireEnds fails a stream whose tracks end before the source's. A converted track's last
-// packet is cut differently, so it may end up to one packet early (an MP3 or AC-3 frame is
-// at most 36 ms, a frame of a 24 fps film 42 ms); anything more is the end of the title lost.
+// packets are cut differently: it may end a little early (an MP3 or AC-3 frame is at most
+// 36 ms, a frame of a 24 fps film 42 ms, and FFmpeg 6.1.1's AAC encoder ends a 15.5 s song
+// 59 ms early with nothing folded or carried). The loss this is for is the folded tail, 0.4 s
+// to under a second; 0.1 s holds well below it.
 func (r *mediaRig) requireEnds(source, played map[string]float64) {
 	r.t.Helper()
-	const packet = 0.05
+	const packet = 0.1
 	for kind, end := range source {
 		got, ok := played[kind]
 		if !ok {
