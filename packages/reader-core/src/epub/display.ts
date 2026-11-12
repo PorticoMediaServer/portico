@@ -10,7 +10,7 @@ export type EpubDisplayPreferences = Readonly<{
   hyphenation: boolean; tapToTurn: boolean; highlightColour: 'yellow' | 'green' | 'blue' | 'pink';
 }>;
 const palettes = {dark: ['#0c151d','#d4dde4'], black: ['#000000','#c9cfd3'], sepia: ['#f1e6d1','#443629'], light: ['#fbf9f5','#1d252c']} as const;
-const colours = {yellow:'#d2b45b', green:'#75ad86', blue:'#75a9cf', pink:'#c88daa'} as const;
+export const colours = {yellow:'#d2b45b', green:'#75ad86', blue:'#75a9cf', pink:'#c88daa'} as const;
 export function epubDisplay(preferences: EpubDisplayPreferences, viewport: ReaderViewport, fonts: Readonly<{literata: string; manrope: string}>) {
   validateViewport(viewport);
   const p = preferences;

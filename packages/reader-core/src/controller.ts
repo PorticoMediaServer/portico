@@ -1,6 +1,6 @@
 import type {ReaderAdapter, ReaderDocument, ReaderFormat, ReaderLocation, ReaderNavigation, ReaderMetadata,
   ReaderSearchOptions, ReaderSearchResult, ReaderSnapshot, ReaderSource, ReaderView, ReaderViewport,
-  ReaderZoom, ReaderSurfaceInput, ReaderPageImage, ReaderContentsTarget, ReaderMotionPolicy} from './ports.ts';
+  ReaderZoom, ReaderSurfaceInput, ReaderPageImage, ReaderContentsTarget, ReaderMotionPolicy, ReaderMark} from './ports.ts';
 import {ReaderError, readerErrorCode, throwIfAborted} from './errors.ts';
 import {validateSource} from './source.ts';
 import {validateViewport} from './layout.ts';
@@ -129,6 +129,7 @@ export class ReaderController<P extends object> {
       // Defaults may have changed while the adapter was opening/mounting.
       await this.enqueue(async (mounted, active) => {
         await mounted.applyPreferences(this.snapshot.preferences, active);
+        mounted.showMarks?.(this.marks);
         if (options.location) await mounted.navigate({kind: 'location', location: options.location}, active);
       });
       if (!this.current(session)) return;
@@ -191,6 +192,13 @@ export class ReaderController<P extends object> {
     });
     session.tail = next.catch(error => { if (this.current(session)) this.publish({error: readerErrorCode(error)}); });
     return next;
+  }
+  private marks: readonly ReaderMark[] = [];
+  /** The saved highlights to draw (10-reading rule 22), kept for a book opened later. */
+  setMarks(marks: readonly ReaderMark[]): void {
+    this.marks = Object.freeze(marks.map(mark => Object.freeze({...mark, location: copy(mark.location), ...(mark.rects ? {rects: Object.freeze(mark.rects.map(copy))} : {})})));
+    const captured = this.marks;
+    if (this.session?.view && this.current(this.session)) void this.enqueue(async view => {view.showMarks?.(captured);}).catch(() => {});
   }
   navigate(target: ReaderNavigation, callerSignal?: AbortSignal): Promise<void> {
     const captured: ReaderNavigation = target.kind === 'location'

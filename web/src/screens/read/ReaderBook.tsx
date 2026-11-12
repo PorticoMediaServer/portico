@@ -1,7 +1,7 @@
 import {ReaderHighlightsExport} from './ReaderHighlightsExport';
 import type {ReadingAnnotationPort} from '@core/reading-annotations.ts';
 import {randomId} from '@core/random-id.ts';
-import {isReaderComicFormat, readingLocationFromReader, readerErrorCode} from '@portico/reader-core';
+import {isReaderComicFormat, readingLocationFromReader, readerErrorCode, readerLocationFromReading} from '@portico/reader-core';
 import {ReaderAnnotationActions, ReaderAnnotationList, useReaderAnnotations, useAnnotationLease} from './ReaderAnnotations';
 import {readingSearchStepIndex} from './search-step';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
@@ -93,6 +93,14 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
   const fixed = publication.format !== 'epub', comic = isReaderComicFormat(publication.format);
   const notes = useReaderAnnotations(book.annotations, controller, authority, active, snapshot.status === 'ready');
   const annotationLease=useAnnotationLease(notes.service);
+  // 10-reading rule 22: the profile's highlights made in this file are drawn in the page.
+  useEffect(() => {
+    controller.setMarks(notes.state.entries.flatMap(entry => {
+      if (entry.kind !== 'highlight' || entry.earlierCopy || !entry.colour) return [];
+      try {return [{id: entry.id, colour: entry.colour, location: readerLocationFromReading(entry.location), ...(entry.rects ? {rects: entry.rects} : {})}];}
+      catch {return [];}
+    }));
+  }, [controller, notes.state.entries]);
   const listSignal=annotationPanel.current.signal;
   if(!active)annotationPanel.current.abort();
   useLayoutEffect(()=>{const original=annotationPanel.current;return()=>original.abort();},[]);

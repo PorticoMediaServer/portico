@@ -7,13 +7,13 @@ import {ReaderError, throwIfAborted} from '../errors.ts';
 import {watchReaderMotion} from '../motion-policy.ts';
 import {abortScope} from '../abort.ts';
 import type {ReaderAdapter, ReaderDocument, ReaderLocation, ReaderMetadata, ReaderMount,
-  ReaderNavigation, ReaderIndexedSearchHit, ReaderSearchOptions, ReaderSearchResult, ReaderTocItem, ReaderView, ReaderViewport} from '../ports.ts';
+  ReaderNavigation, ReaderIndexedSearchHit, ReaderSearchOptions, ReaderSearchResult, ReaderTocItem, ReaderView, ReaderViewport, ReaderMark} from '../ports.ts';
 import {openEpubArchive, safeArchivePath} from './archive.ts';
 import {resourceAssets} from './resources.ts';
 import {orUnreadable, unreadableEpubMember, unreadableEpubText, UnreadableSections, settleUnreadableSection} from '../unreadable.ts';
 import {epubLimits} from './limits.ts';
 import {rejectXmlEntities, secureMarkup, secureCss} from './security.ts';
-import {epubDisplay, type EpubDisplayPreferences} from './display.ts';
+import {colours as highlightColours, epubDisplay, type EpubDisplayPreferences} from './display.ts';
 import {validateEpubRaster} from './media.ts';
 import {epubFontKey} from './font-obfuscation.ts';
 import {metadataLanguage, metadataText} from './metadata.ts';
@@ -384,6 +384,39 @@ async function mountEpub<P extends EpubDisplayPreferences>(book:Book,mount:Reade
   let motionWatch: ReturnType<typeof watchReaderMotion> | undefined;
   let cleanupDoc:()=>void=()=>{};
   let clearSearchMark:()=>void=()=>{};
+  // Saved highlights (10-reading rule 22), drawn as CSS highlights in each rendered section, one
+  // per colour; a mark whose CFI this file cannot place is left out, never drawn somewhere else.
+  let marks:readonly ReaderMark[]=[];
+  // The book's frame keeps the app's style policy, so a style the reader adds carries the app's
+  // nonce, as the paginator's own styles do; without it the browser refuses the style.
+  const readerStyle=(doc:Document,css:string)=>{
+    const style=doc.createElement('style'),nonce=mount.container.ownerDocument.querySelector<HTMLMetaElement>('meta[name="portico-style-nonce"]')?.content;
+    if(nonce&&nonce!=='__PORTICO_STYLE_NONCE__')style.nonce=nonce;
+    style.textContent=css;return style;
+  };
+  const drawMarks=(doc:Document,index:number)=>{
+    const support=doc.defaultView as unknown as {CSS?:{highlights?:{set(name:string,value:unknown):void;delete(name:string):boolean}};Highlight?:new(...ranges:Range[])=>unknown}|null;
+    if(!support?.CSS?.highlights||!support.Highlight)return;
+    const byColour=new Map<string,Range[]>();
+    for(const mark of marks){
+      if(mark.location.format!=='epub')continue;
+      try{
+        const resolved=book.resolveCFI(mark.location.cfi);
+        if(!resolved||resolved.index!==index||typeof resolved.anchor!=='function')continue;
+        const range=resolved.anchor(doc);
+        if(range&&typeof range==='object'&&'startContainer' in range&&(range as Range).startContainer.ownerDocument===doc&&!(range as Range).collapsed){
+          const list=byColour.get(mark.colour)??[];list.push(range as Range);byColour.set(mark.colour,list);}
+      }catch{/* left out */}
+    }
+    if(!doc.getElementById('portico-marks')){
+      const style=readerStyle(doc,Object.entries(highlightColours).map(([name,value])=>`::highlight(portico-mark-${name}){background:${value}66;color:inherit;}`).join(''));style.id='portico-marks';
+      (doc.head??doc.documentElement).append(style);
+    }
+    for(const name of Object.keys(highlightColours)){
+      const ranges=byColour.get(name);
+      if(ranges?.length)support.CSS.highlights.set('portico-mark-'+name,new support.Highlight(...ranges));else support.CSS.highlights.delete('portico-mark-'+name);
+    }
+  };
   function current(){throwIfAborted(signal);if(dead)throw new ReaderError('closed');unchanged();}
   function apply() {
     const display=epubDisplay(preferences,viewport,urls);surface.style.background=display.background;
@@ -409,7 +442,7 @@ async function mountEpub<P extends EpubDisplayPreferences>(book:Book,mount:Reade
     if(mount.metadata?.title)iframe?.setAttribute('title',mount.metadata.title);
     doc.documentElement.lang ||= metadataLanguage(book.metadata?.language)??'';
     const listenerAbort=new AbortController(),opts={signal:listenerAbort.signal};cleanupDoc=()=>listenerAbort.abort();
-    const placeholder=unreadable.has(book.sections[index]?.id);if(placeholder)settleUnreadableSection(doc);
+    const placeholder=unreadable.has(book.sections[index]?.id);if(placeholder)settleUnreadableSection(doc);else drawMarks(doc,index);
     const selection=()=>{
       if(dead||signal.aborted)return;if(placeholder){mount.onSelection(null);return;}const selected=doc.defaultView?.getSelection();
       if(!selected||selected.isCollapsed||!selected.rangeCount){mount.onSelection(null);return;}
@@ -482,6 +515,7 @@ async function mountEpub<P extends EpubDisplayPreferences>(book:Book,mount:Reade
     },
     async applyPreferences(next,callerSignal){current();throwIfAborted(callerSignal);preferences=next;apply();await new Promise<void>(r=>requestAnimationFrame(()=>r()));current();},
     async resize(next,callerSignal){current();throwIfAborted(callerSignal);viewport=next;apply();await new Promise<void>(r=>requestAnimationFrame(()=>r()));current();},
+    showMarks(next){marks=next;if(!dead)for(const content of renderer.getContents())drawMarks(content.doc,content.index);},
     async showSearchResult(target,callerSignal) {
       current();throwIfAborted(callerSignal);clearSearchMark();
       if(!target)return;
@@ -499,7 +533,7 @@ async function mountEpub<P extends EpubDisplayPreferences>(book:Book,mount:Reade
       const support=content.doc.defaultView as unknown as {CSS?:{highlights?:{set(name:string,value:unknown):void;delete(name:string):boolean}};Highlight?:new(...ranges:Range[])=>unknown}|null;
       if(!support?.CSS?.highlights||!support.Highlight)return;
       const registry=support.CSS.highlights,name='portico-reader-search';
-      const style=content.doc.createElement('style');style.textContent='::highlight(portico-reader-search){background:rgba(64,159,212,.48);color:inherit;}';
+      const style=readerStyle(content.doc,'::highlight(portico-reader-search){background:rgba(64,159,212,.48);color:inherit;}');
       (content.doc.head??content.doc.documentElement).append(style);
       try{registry.set(name,new support.Highlight(match));}catch(error){style.remove();throw error;}
       const clear=()=>{registry.delete(name);style.remove();callerSignal.removeEventListener('abort',clear);clearSearchMark=()=>{};};

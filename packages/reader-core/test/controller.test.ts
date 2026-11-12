@@ -337,3 +337,17 @@ test('the original mount policy methods are captured before adapter IO, without 
   old.onSurfaceInput?.({kind: 'turned'});assert.equal(turns, 1);
   await f.controller.close();old.onSurfaceInput?.({kind: 'turned'});assert.equal(turns, 1);
 });
+// 10-reading rule 22: the saved highlights reach the page when the book mounts, and again
+// whenever they change (one made, one removed).
+test('saved highlights are drawn when the book opens and drawn again when they change', async () => {
+  const f = fixture(), drawn: string[][] = [];
+  f.view.showMarks = marks => {drawn.push(marks.map(mark => mark.id));};
+  const mark = (id: string) => ({id, colour: 'yellow' as const, location});
+  f.controller.setMarks([mark('before-open')]);
+  await f.controller.open({source, format: 'epub', container});
+  f.controller.setMarks([mark('before-open'), mark('made')]);
+  f.controller.setMarks([mark('made')]);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(drawn, [['before-open'], ['before-open', 'made'], ['made']]);
+  await f.controller.close();
+});
