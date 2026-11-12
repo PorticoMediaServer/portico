@@ -12,7 +12,7 @@ import type {HistoryEntry, HistoryPage, Item, List, ListAdd, ListAdded, ListCrea
 import {callServer, serverPath, type ServerRequester} from './query/server-api.ts';
 import {wireEntryFromItem} from './items.ts';
 import {CodedError} from './server-messages.ts';
-import {decodeUndo, edit, encodeUndo, filterLabels, items, listFilters, pageSorts, revisionOf, sendRaw, type SavedNextApi} from './saved-next.ts';
+import {decodeUndo, edit, encodeUndo, restoreEntry, filterLabels, items, listFilters, pageSorts, revisionOf, sendRaw, type SavedNextApi} from './saved-next.ts';
 import {libraryItemQuery, libraryQueryControls} from './library-browse.ts';
 import type {HistoryPeriod, ResourceContentQuery, SavedScope} from './saved.ts';
 import type {PersonalSavedIntent, SavedDefinition} from './personal-saved.ts';
@@ -196,7 +196,7 @@ export async function sendResourceCommand(api: SavedNextApi, bound: SavedScope, 
       if (intent.undoToken !== undefined) {
         const token = decodeUndo(intent.undoToken);
         if (token.listId !== id) throw new CodedError('undo_other_list', 'This can only be undone in the list it was removed from.');
-        const done = await add(id, {items: [token.itemId], ...(token.after ? {after: token.after} : {})}, operationId);
+        const done = await restoreEntry(api, token, body => add(id, body, operationId), signal);
         return answer(id, done.list, {entries: {added: done.added ? [token.itemId] : [], removed: [], unchanged: done.added ? [] : [token.itemId], failed: []}});
       }
       const added: string[] = [], unchanged: string[] = [], removed: string[] = [], failed: {itemId: string; code: string}[] = [];

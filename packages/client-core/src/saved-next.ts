@@ -167,11 +167,25 @@ export async function edit<T>(api: SavedNextApi, path: string, method: 'PATCH' |
 }
 
 /** An Undo of a removal: the list it was removed from, the title, and the entry it came after (empty at the front). */
-type UndoToken = Readonly<{listId: string; itemId: string; after: string}>;
+export type UndoToken = Readonly<{listId: string; itemId: string; after: string}>;
 export const encodeUndo = (token: UndoToken) => 'undo.' + btoa(JSON.stringify(token)).replace(/=+$/, '');
 export function decodeUndo(raw: string): UndoToken {
   try {const value = JSON.parse(atob(raw.slice(5))); if (raw.startsWith('undo.') && typeof value?.listId === 'string' && typeof value.itemId === 'string' && typeof value.after === 'string') return value;} catch {/* refused below */}
   throw new CodedError('undo_expired', 'Too late to undo.');
+}
+
+/** Undo of a removal: the title goes back just after the entry that was in front of it (area 6 rule 32). An add with no
+ * `after` goes to the end, so for the list's first entry it is then moved in front of the entry now first. A repeat
+ * after a lost answer adds nothing twice (the add's key) and finds the title already first. */
+export async function restoreEntry(api: SavedNextApi, token: UndoToken, add: (body: ListAdd) => Promise<ListAdded>, signal?: AbortSignal): Promise<ListAdded> {
+  const done = await add({items: [token.itemId], ...(token.after ? {after: token.after} : {})});
+  if (token.after) return done;
+  const first = (await items(api, {list: token.listId, sort: 'order', limit: 1}, signal)).items[0];
+  if (!first?.entryId || first.id === token.itemId) return done;
+  const last = (await items(api, {list: token.listId, sort: 'order', order: 'desc', limit: 1}, signal)).items[0];
+  if (!last?.entryId || last.id !== token.itemId) return done;
+  const path = `${serverPath('GET /v1/lists/{id}', {id: token.listId})}/entries/${encodeURIComponent(last.entryId)}`;
+  return {...done, list: await edit<List>(api, path, 'PATCH', revisionOf(done.list), {before: first.entryId}, signal)};
 }
 
 export type PlaylistCommandContext = Readonly<{
@@ -203,7 +217,7 @@ export async function sendPlaylistCommand(api: SavedNextApi, bound: SavedScope, 
     case 'restore': {
       const token = decodeUndo(intent.undoToken);
       if (token.listId !== id) throw new CodedError('undo_other_list', 'This can only be undone in the list it was removed from.');
-      return receipt(id, (await addTo(id, {items: [token.itemId], ...(token.after ? {after: token.after} : {})})).list);
+      return receipt(id, (await restoreEntry(api, token, body => addTo(id, body), signal)).list);
     }
     case 'remove': {
       const order = context.entries ?? [], at = order.findIndex(entry => entry.id === intent.entryId);

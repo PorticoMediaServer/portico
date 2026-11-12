@@ -190,3 +190,27 @@ test('the order and the share picker read the playlist\'s own entries and everyo
   const picker = await readShareCandidates(s.api, 'pl', null);
   assert.deepEqual(picker.candidates.map((person: any) => [person.profileId, person.displayName]), [['gran', 'Gran']]);
 });
+
+test('Undo of a playlist\'s first entry puts its title back first, not at the end (area 6 rule 32)', async () => {
+  // A playlist that keeps its order: with no `after` the server adds at the end, and a move names the entry it goes before.
+  let entries = [{entryId: 'e1', itemId: 'a'}, {entryId: 'e2', itemId: 'b'}, {entryId: 'e3', itemId: 'a'}], revision = 7, next = 4;
+  const at = (id: string) => entries.findIndex(entry => entry.entryId === id);
+  const list = () => ({id: 'pl', kind: 'playlist', name: 'Road trip', owner: {id: 'me', name: 'Me'}, role: 'owner', count: entries.length, covers: [], revision: String(revision), createdAt: '', updatedAt: ''});
+  const api = {
+    async request<T>(path: string): Promise<T> {
+      const q = new URL(path, 'https://x').searchParams, ordered = q.get('order') === 'desc' ? [...entries].reverse() : entries;
+      return {items: ordered.slice(0, Number(q.get('limit') ?? 40)).map(entry => ({id: entry.itemId, kind: 'track', title: entry.itemId, entryId: entry.entryId}))} as T;
+    },
+    async requestRaw(path: string, method: string, options: {headers?: Record<string, string>; body?: any} = {}) {
+      if (method === 'POST') {const body = options.body; entries.splice(body.after ? at(body.after) + 1 : entries.length, 0, {entryId: 'e' + next++, itemId: body.items[0]}); revision++; return {status: 200, headers: {}, body: {list: list(), added: 1, already: 0}};}
+      if (options.headers?.['If-Match'] !== `"${revision}"`) return {status: 412, headers: {}, body: {error: {code: 'list_changed', message: 'changed'}}};
+      const entry = decodeURIComponent(path.split('/entries/')[1]!);
+      if (method === 'DELETE') {entries = entries.filter(row => row.entryId !== entry); revision++; return {status: 200, headers: {}, body: list()};}
+      const moving = entries.splice(at(entry), 1)[0]!; entries.splice(at(options.body.before), 0, moving); revision++; return {status: 200, headers: {}, body: list()};
+    },
+  };
+  const shown = entries.map(entry => ({id: entry.entryId, itemId: entry.itemId}));
+  const removed = await sendPlaylistCommand(api as never, scope, {action: 'remove', entryId: 'e1'}, {playlistId: 'pl', revision: 7, entries: shown}, 'op');
+  await sendPlaylistCommand(api as never, scope, {action: 'restore', undoToken: removed.undoToken as string}, {playlistId: 'pl'}, 'op2');
+  assert.deepEqual(entries.map(entry => entry.itemId), ['a', 'b', 'a'], 'the title is back in front, the playlist\'s other copy where it was');
+});

@@ -87,7 +87,8 @@ function lists(titles = ['a', 'b', 'c'], pageSize = 40) {
       if (path === '/v1/lists' && method === 'POST') return answer({...list(), id: 'made', name: body.name, everyone: body.everyone});
       if (path === '/v1/lists/col/entries' && method === 'POST') {
         const itemId = body.items[0]; if (entries.some(row => row.itemId === itemId)) return answer({list: list(), added: 0, already: 1});
-        entries.splice(body.after ? at(body.after) + 1 : 0, 0, {entryId: 'le' + next++, itemId}); revision++; return answer({list: list(), added: 1, already: 0});
+        // As the server does: with no `after` the title goes to the end.
+        entries.splice(body.after ? at(body.after) + 1 : entries.length, 0, {entryId: 'le' + next++, itemId}); revision++; return answer({list: list(), added: 1, already: 0});
       }
       if (!fresh(options.headers)) return refuse(412, 'list_changed');
       if (path === '/v1/lists/col' && method === 'PATCH') {if (body.name !== undefined) name = body.name; if (body.everyone !== undefined) everyone = body.everyone; revision++; return answer(list());}
@@ -163,6 +164,22 @@ test('removing an entry offers Undo, which puts the title back in its place', as
   assert.ok(undo?.token);
   assert.equal(await saved.mutate({action: 'entries', undoToken: undo.token}), true);
   assert.deepEqual(s.order(), ['a', 'b', 'c']);
+  saved.dispose();
+});
+
+test('Undo of the collection\'s first entry puts it back first, and a repeat changes nothing more', async () => {
+  const s = lists();
+  const saved = service(s.api);
+  await saved.select({view: 'resource', resourceId: 'col'} as never);
+  assert.equal(await saved.mutate({action: 'entries', removeEntryIds: ['le1']}), true);
+  assert.deepEqual(s.order(), ['b', 'c']);
+  const token = saved.getSnapshot().result!.undo!.token;
+  assert.equal(await saved.mutate({action: 'entries', undoToken: token}), true);
+  assert.deepEqual(s.order(), ['a', 'b', 'c'], 'back in its place, not at the end');
+  const moves = s.calls.filter(call => call.method === 'PATCH').length;
+  assert.equal(await saved.mutate({action: 'entries', undoToken: token}), true);
+  assert.deepEqual(s.order(), ['a', 'b', 'c']);
+  assert.equal(s.calls.filter(call => call.method === 'PATCH').length, moves, 'nothing moved again');
   saved.dispose();
 });
 
