@@ -77,6 +77,9 @@ type Viewings struct {
 	// stopped are the viewings the owner or an administrator stopped, kept a while so their
 	// device is told why when it next reports.
 	stopped map[string]stoppedViewing
+	// held are places taken for viewings still tuning: they count as streams until the
+	// viewing starts or the tune fails.
+	held map[string]heldPlace
 }
 
 // Lease is how long a viewing lives without a report from its device; it reports every
@@ -88,7 +91,7 @@ const (
 
 // NewViewings makes the registry.
 func NewViewings(now func() time.Time) *Viewings {
-	return &Viewings{byID: map[string]*Viewing{}, byGrant: map[string]*Viewing{}, now: now, stopped: map[string]stoppedViewing{}}
+	return &Viewings{byID: map[string]*Viewing{}, byGrant: map[string]*Viewing{}, now: now, stopped: map[string]stoppedViewing{}, held: map[string]heldPlace{}}
 }
 
 func token(n int) string {
@@ -117,9 +120,11 @@ func (v *Viewings) StopDevice(userID, signInID int64) {
 	}
 }
 
-// Start records a viewing of an input the caller has already tuned with use.
-func (v *Viewings) Start(userID, profileID, signInID int64, channelID string, in *Input, use *Use) *Viewing {
+// Start records a viewing of an input the caller has already tuned with use, in the place
+// held (Hold) for it, if any.
+func (v *Viewings) Start(userID, profileID, signInID int64, channelID string, in *Input, use *Use, held string) *Viewing {
 	v.mu.Lock()
+	delete(v.held, held)
 	w := &Viewing{ID: "lvs_" + token(10), UserID: userID, ProfileID: profileID, SignInID: signInID, ChannelID: channelID, Grant: token(24),
 		Input: in, use: use, Lease: v.now().Add(Lease), Away: use.Away, Name: use.Name, StartedAt: v.now()}
 	v.byID[w.ID], v.byGrant[w.Grant] = w, w

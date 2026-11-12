@@ -123,23 +123,16 @@ func (s *Server) watchSourceChannel(r *http.Request, ch db.LiveChannel, asked st
 	if err != nil {
 		return PlaybackSession{}, err
 	}
-	// Every stream counts but what this device plays now, which this start replaces.
-	account, total := s.viewings.Others(c.Viewer.UserID, c.SignInID)
-	for _, other := range s.playback.All() {
-		if c.SignInID != 0 && other.SignInID == c.SignInID {
-			continue
-		}
-		total++
-		if other.UserID == c.Viewer.UserID {
-			account++
-		}
+	// Every stream counts but what this device plays now, which this start replaces. The place
+	// is taken in the same step as the count, before the seconds of reaching the source, so
+	// two starts at once cannot both take the last one; it is given back if this start fails.
+	var held string
+	if err := s.playback.AdmitOther(c.Viewer.UserID, c.SignInID, limit, limits.Total, func() {
+		held = s.viewings.Hold(c.Viewer.UserID, c.SignInID)
+	}); err != nil {
+		return PlaybackSession{}, playbackError(err)
 	}
-	if limit > 0 && account >= limit {
-		return PlaybackSession{}, playbackError(&playback.LimitReached{Scope: "account", Limit: limit})
-	}
-	if limits.Total > 0 && total >= limits.Total {
-		return PlaybackSession{}, playbackError(&playback.LimitReached{Scope: "server", Limit: limits.Total})
-	}
+	defer s.viewings.Release(held) // nothing once the viewing has started in it
 	locator, sourceID, tuners, err := s.db.ChannelLocator(ctx, ch.ID)
 	if err != nil {
 		return PlaybackSession{}, err
@@ -176,7 +169,7 @@ func (s *Server) watchSourceChannel(r *http.Request, ch db.LiveChannel, asked st
 			s.playback.Stop(ctx, other.ID, c.Viewer.UserID, c.SignInID, nil)
 		}
 	}
-	v := s.viewings.Start(c.Viewer.UserID, c.Viewer.ProfileID, c.SignInID, ch.PublicID, in, use)
+	v := s.viewings.Start(c.Viewer.UserID, c.Viewer.ProfileID, c.SignInID, ch.PublicID, in, use, held)
 	if s.liveHLS != nil {
 		// The same planner as a title's decides how this device plays the channel.
 		conversion := live.Conversion{SessionID: v.ID, Input: in, Network: liveNetwork(asked, c.AtHome)}

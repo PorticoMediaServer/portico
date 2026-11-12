@@ -474,6 +474,13 @@ func (s *Server) accountPlayback(r *http.Request, _ None) (AccountPlayback, erro
 		}
 		out.Items = append(out.Items, stream)
 	}
+	// The account's live channels watched are streams too (area 11 rule 22): listed here, as
+	// the list at a stream limit is (area 7 rule 38), and stopped like a title.
+	channels, err := s.accountLiveStreams(r, c)
+	if err != nil {
+		return AccountPlayback{}, err
+	}
+	out.Items = append(out.Items, channels...)
 	out.Limit, err = s.playback.AccountLimit(r.Context(), c.SignInID)
 	return out, err
 }
