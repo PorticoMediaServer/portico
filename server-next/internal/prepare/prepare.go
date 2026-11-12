@@ -50,7 +50,7 @@ var (
 // Options say where the service works and what it reads.
 type Options struct {
 	DB *db.DB
-	// Folder holds the copies. Settings holds the owner's downloads document.
+	// Folder holds the copies. Settings holds the owner's settings.
 	Folder   string
 	Settings *settings.Settings
 	// FFmpeg is the encoder; empty finds the bundled or installed one.
@@ -98,6 +98,7 @@ func New(o Options) (*Service, error) {
 	}
 	s := &Service{Options: o, processes: &processpool.Supervisor{}, wake: make(chan struct{}, 1), running: map[int64]*making{}}
 	Document.Watch(o.Settings, func(Settings) { s.kick() })
+	settings.Streaming.Watch(o.Settings, func(settings.StreamingSettings) { s.kick() })
 	return s, nil
 }
 
@@ -212,12 +213,12 @@ func (s *Service) Run(ctx context.Context) {
 }
 
 func (s *Service) fill(ctx context.Context) {
-	limit := Document.Get(s.Settings).ConversionsAtOnce
+	limit := settings.Streaming.Get(s.Settings).BackgroundConversionsAtOnce
 	for ctx.Err() == nil {
 		s.mu.Lock()
 		busy := slices.Collect(maps.Keys(s.running))
 		s.mu.Unlock()
-		if len(busy) >= limit {
+		if limit > 0 && len(busy) >= limit {
 			return
 		}
 		p, err := s.DB.NextPrepared(ctx, busy)
