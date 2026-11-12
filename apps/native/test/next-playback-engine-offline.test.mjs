@@ -76,7 +76,7 @@ async function fixture(engine = 'mpv', local = false, withOptions = true) {
     ready(id) {assert.equal(id, state.intentId); state.phase = 'ready';},
     fact(id, position) {assert.equal(id, state.intentId); state.positionSeconds = position;},
     fail(id, message) {assert.equal(id, state.intentId); state.phase = 'error'; state.intent = 'paused'; state.error = message;},
-    pause() {state.intent = 'paused';}, engineLost() {},
+    pause() {state.intent = 'paused'; listeners.forEach(fn => fn());}, engineLost() {},
   };
   let instances = 0, currentInstance = 'instance';
   const transport = {acquire: async () => {
@@ -107,6 +107,15 @@ async function fixture(engine = 'mpv', local = false, withOptions = true) {
     captureFacts() {const send = listener, command = commands.at(-1), instanceId = currentInstance;
       return (type, extra = {}) => send({type, instanceId, binding: command.binding,
         lastCommandRevision: command.commandRevision, factSequence: ++sequence, position: state.positionSeconds, paused: false, ...extra});},
+    async intent(value) {
+      runtime.snapshot = {playback: {...state}};
+      state.intent = value; listeners.forEach(fn => fn());
+      const fence = runtime.fence, applyOptions = runtime.applyOptions;
+      runtime.fence = () => undefined; runtime.applyOptions = () => {};
+      runtime.sourceKey = `${state.intentId}/${state.session.id}/${state.session.generation}/${state.itemId}`;
+      try {runtime.changed();} finally {runtime.fence = fence; runtime.applyOptions = applyOptions;}
+      await drain();
+    },
     reportedAudio: () => reportedAudio, probes: () => probes, retire: () => {current = false; runtime.recovery.clear();},
     dispose() {runtime.recovery.clear(); off(); coordinator.stop();}};
 }
@@ -175,6 +184,34 @@ test('buffered progress keeps playing during route verification and retains the 
   f.timers.advance(90_000); assert.equal(f.state.phase, 'ready', 'usable buffer is not a failed playback');
   phase = 'ready'; f.runtime.routeChanged(); await drain(); f.emit('ready');
   assert.equal(f.state.recovering, undefined); assert.equal(f.state.intent, 'playing');
+});
+
+test('a paused outage has no deadline, and Play starts a fresh 90-second limit', async t => {
+  const f = await fixture(); t.after(() => f.dispose());
+  await f.intent('paused');
+  f.runtime.o.api.getRouteSnapshot = () => ({phase: 'reconnecting'});
+  f.runtime.routeChanged(); await drain();
+  f.timers.advance(120_000);
+  assert.equal(f.state.phase, 'ready'); assert.equal(f.state.intent, 'paused');
+  assert.equal(f.commands.at(-1).paused, true);
+  await f.intent('playing');
+  f.timers.advance(60_000); assert.equal(f.state.phase, 'ready');
+  await f.intent('paused'); f.timers.advance(120_000);
+  assert.equal(f.state.phase, 'ready', 'pausing also cancels a deadline already running');
+  await f.intent('playing'); f.timers.advance(89_999);
+  assert.equal(f.state.phase, 'ready');
+  f.timers.advance(1); assert.equal(f.state.phase, 'error');
+});
+
+test('a returning route clears Reconnecting on a paused open player without another media fact', async t => {
+  const f = await fixture(); t.after(() => f.dispose());
+  let phase = 'reconnecting'; f.runtime.o.api.getRouteSnapshot = () => ({phase});
+  await f.intent('paused'); f.runtime.routeChanged(); await drain();
+  assert.equal(f.state.recovering, true);
+  phase = 'ready'; f.runtime.routeChanged(); await drain();
+  assert.equal(f.state.recovering, undefined);
+  assert.equal(f.state.intent, 'paused'); assert.equal(f.commands.at(-1).paused, true);
+  f.timers.advance(120_000); assert.equal(f.state.phase, 'ready');
 });
 
 test('verified native readiness clears the same outage while a paused tick does not invent progress', async t => {
