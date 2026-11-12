@@ -13,7 +13,7 @@ import {GuideScreen, type GuideRowData} from '../../screens/live/GuideScreen';
 import {ProgrammePanelView} from '../../screens/live/ProgrammePanel';
 import type {PreviewAiring, ProgrammeSnapshot, SeriesChoice} from '../../screens/live/programme-bindings';
 import type {GuideProgramme} from '@core/channel-guide.ts';
-import type {Recording} from '@core/dvr.ts';
+import type {DvrRecording} from '@core/dvr.ts';
 import {onNowProgramme} from '../../screens/live/on-now-programme';
 import shell from '../../shell/shell.module.css';
 import live from '../../screens/live/live.module.css';
@@ -141,7 +141,7 @@ const panelRawProgramme: GuideProgramme = {id: panelProgrammeId, channelId: 'pk'
   start: new Date(at(16, 0)).toISOString(), end: new Date(at(16, 30)).toISOString(), lineage: 'provider-id', seriesId: '',
   episodeId: '', newEvidence: 'new', description: 'Story Time Island on Pebble Kids. A fictional listing from the Portico demo guide, used to test how the guide shows descriptions of different lengths.', // lint-strings-allow fixture data
   subtitle: 'Homecoming', episode: {season: 3, number: 1}, categories: ['Kids', 'Animation'], rating: {system: 'TV', value: 'TV-Y'}, flags: {new: true}}; // lint-strings-allow
-const panelRecording: Recording = {id: 'rec-pk3', revision: 1,
+const panelRecording: DvrRecording = {id: 'rec-pk3', revision: 1,
   occurrence: {sourceId: 'synthetic', channelId: 'pk', generation: 'synthetic', programmeId: panelProgrammeId},
   programme: panelRawProgramme, ruleId: '', options: {beforeSeconds: 0, afterSeconds: 0, priority: 0, retentionDays: 0, episodeLimit: 0},
   start: panelRawProgramme.start, end: panelRawProgramme.end, state: 'recording', reason: '', keep: false, itemId: '', libraryId: '',
