@@ -362,6 +362,18 @@ class PorticoRuntime(context: ReactApplicationContext) : ReactContextBaseJavaMod
   }
 
   @ReactMethod
+  fun loadAppLog(promise: Promise) = storage.execute {
+    try { promise.resolve(PorticoAppLog(reactApplicationContext).read()) }
+    catch (e: Exception) { promise.reject("app_log_storage", "App log could not be read.", e) }
+  }
+
+  @ReactMethod
+  fun saveAppLog(text: String?, promise: Promise) = storage.execute {
+    try { PorticoAppLog(reactApplicationContext).write(text); promise.resolve(true) }
+    catch (e: Exception) { promise.reject("app_log_storage", "App log could not be saved.", e) }
+  }
+
+  @ReactMethod
   fun loadQueueRecord(key: String?, promise: Promise) = storage.execute {
     val failure = "Queue recovery could not be read."
     if (key == null) promise.reject("secure_storage", failure)

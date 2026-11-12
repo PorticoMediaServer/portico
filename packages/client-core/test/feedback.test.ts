@@ -88,3 +88,15 @@ test('a dialog that ended sends nothing, and a late answer does not come back to
   assert.equal(await service.submit(draft), false);
   assert.equal(sent.length, 0);
 });
+
+test('an app log is sent only on explicit consent for that report, and consent is never remembered', async () => {
+  const {appLog} = await import('../src/app-log.ts');
+  appLog.clear();appLog.write('warn','network','network-failure',{status:503,code:'http_error',url:'https://private.example'});
+  const {api,sent} = reports([200,200,200]);
+  await new FeedbackService(api).submit(draft);
+  await new FeedbackService(api).submit({...draft,message:''},{includeAppLog:true,crash:true});
+  await new FeedbackService(api).submit(draft);
+  assert.equal(sent[0].body.log,undefined);assert.equal(sent[1].body.kind,'crash');
+  assert.equal(JSON.parse(sent[1].body.log).facts.status,503);assert.ok(!sent[1].body.log.includes('private.example'));
+  assert.equal(sent[2].body.log,undefined);appLog.clear();
+});

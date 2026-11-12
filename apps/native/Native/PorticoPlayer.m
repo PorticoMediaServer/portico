@@ -1,3 +1,4 @@
+#import "PorticoAppLog.h"
 #import "PorticoInstallationStorage.h"
 #import "PorticoBootCover.h"
 #import <sys/sysctl.h>
@@ -258,6 +259,15 @@ RCT_REMAP_METHOD(userMutationTransaction,userMutationTransaction:(NSString *)ope
   id result=[PorticoQueuePlaybackStore userMutationTransaction:operation payload:payload error:&error];
   if(result)resolve([result isKindOfClass:NSDictionary.class]?[[NSString alloc]initWithData:[NSJSONSerialization dataWithJSONObject:result options:0 error:nil] encoding:NSUTF8StringEncoding]:result);
   else reject(@"mutation_store_unavailable",@"User changes could not be saved.",error);
+ });
+}
+RCT_REMAP_METHOD(loadAppLog,loadAppLogWithResolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject){
+ dispatch_async(PorticoStorageQueue(), ^{ resolve(PorticoReadAppLog() ?: (id)NSNull.null); });
+}
+RCT_REMAP_METHOD(saveAppLog,saveAppLog:(NSString *)text resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject){
+ dispatch_async(PorticoStorageQueue(), ^{
+  if(PorticoWriteAppLog([text isKindOfClass:NSString.class] ? text : nil)) resolve(@YES);
+  else reject(@"app_log_storage",@"App log could not be saved.",nil);
  });
 }
 RCT_REMAP_METHOD(loadQueueRecord,loadQueueRecord:(NSString *)key resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject){

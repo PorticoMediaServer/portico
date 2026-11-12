@@ -1,3 +1,4 @@
+export {appLog, AppLog, APP_LOG_BYTES, APP_LOG_AGE_MS} from './app-log.ts';
 /** Everything the apps import from client-core. This file only re-exports. */
 export {linkAbortSignals, throwIfAborted} from './abort-lifetime.ts';
 export {releaseAll, releaseQuietly, releaseQuietlyAsync, releaseThenRethrow, setCleanupLog} from './cleanup.ts';

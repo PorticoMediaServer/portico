@@ -1,10 +1,15 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
 // A member reports a problem with their app's log; the owner reads it, downloads the log and
@@ -50,6 +55,9 @@ func TestReportsRepliesAndNotices(t *testing.T) {
 	}
 	if w := call(t, s, "GET", "/v1/admin/reports/"+report.ID+"/log", member.AccessToken, nil, nil); w.Code != 403 {
 		t.Errorf("the member downloaded the log: %d", w.Code)
+	}
+	if code := status(t, s, "GET", "/v1/admin/reports/"+report.ID+"/log", admin.AccessToken, nil); code != 403 {
+		t.Errorf("an administrator downloaded the log: %d", code)
 	}
 	resolved, reply := "resolved", "Fixed in the next version."
 	if code := status(t, s, "PATCH", "/v1/admin/reports/"+report.ID, owner.AccessToken, ReportEdit{Status: &resolved, Reply: &reply}); code != 200 {
@@ -119,5 +127,29 @@ func TestReportsPerDayAreCapped(t *testing.T) {
 	}
 	if after, _ := os.ReadDir(filepath.Join(s.dataDir, "reports")); len(after) != len(before) {
 		t.Errorf("a refused report wrote its log: %d logs, then %d", len(before), len(after))
+	}
+}
+
+// Crash attachments follow their report's 30-day lifetime; ordinary problem reports remain.
+func TestCrashReportsAndTheirAppLogsExpireTogether(t *testing.T) {
+	th := newTheatre(t)
+	token := th.owner.AccessToken
+	var crash, problem ProblemReport
+	call(t, th.s, "POST", "/v1/reports", token, ReportCreate{Kind: "crash", Log: "crash diagnostics"}, &crash)
+	call(t, th.s, "POST", "/v1/reports", token, ReportCreate{Kind: "problem", Message: "No sound", Log: "problem diagnostics"}, &problem)
+	th.clock.Add(crashReportsKept + time.Second)
+	if err := th.s.TidyReports(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := th.s.db.ReportByID(context.Background(), crash.ID); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("expired crash read: %v", err)
+	}
+	kept, err := th.s.db.ReportByID(context.Background(), problem.ID)
+	if err != nil || kept.LogHash == "" {
+		t.Fatalf("problem report disappeared: %v", err)
+	}
+	files, err := os.ReadDir(filepath.Join(th.s.dataDir, "reports"))
+	if err != nil || len(files) != 1 || files[0].Name() != kept.LogHash+".log" {
+		t.Fatal("the crash's log did not expire with its report")
 	}
 }

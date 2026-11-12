@@ -1,3 +1,4 @@
+import {clearNativeAppLog} from './app-log';
 import {createHostedAccountApi} from '../../../../packages/client-core/src/query/hosted-account-transport';
 import {readHostedAccountIdentity, readViewerIdentity} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {captureTVApprovalGrant} from './tv-approval-grant';
@@ -120,7 +121,7 @@ export class NativeAccounts {
     this.assertCurrent(); const selected = await nativeAppSessions.selected(); this.assertCurrent();
     const active = selected?.connection.pin.serverId === serverId && selected.connection.session.sessionFamilyId === familyId;
     this.fence(active);
-    try {const removed = await nativeAppSessions.signOutServer(serverId, familyId); await this.revoke(removed);}
+    try {const removed = await nativeAppSessions.signOutServer(serverId, familyId); await clearNativeAppLog(); await this.revoke(removed);}
     finally {if (active) this.finishFence();}
   }
   /** Forget a changed server without contacting whatever now answers there. */
@@ -130,6 +131,7 @@ export class NativeAccounts {
     const active = selected?.connection.pin.serverId === binding.serverId && selected.connection.session.sessionFamilyId === binding.familyId;
     this.fence(active); const generation = this.generation;
     try {
+      await clearNativeAppLog();
       await forgetStoredNativeServer(binding, {
         sessions: nativeAppSessions,
         current: () => !this.disposed && generation === this.generation,

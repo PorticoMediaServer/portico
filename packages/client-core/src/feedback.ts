@@ -1,3 +1,4 @@
+import {appLog} from './app-log.ts';
 import {randomId} from './random-id.ts';
 import {serverPath} from './query/server-api.ts';
 import {installationIdentity} from './installation.ts';
@@ -9,7 +10,7 @@ import type {MessageId} from '../../i18n/src/index.ts';
  * A report carries the person's words and, as its context, what they picked it is about, the
  * title they were playing (its id and name) and that playback's id, the app, its version and
  * platform, and whether the device was online. Nothing else: not the device's own name, no token,
- * password, server address, file or folder path, and no log (the apps keep none to send). The owner reads it and can reply; the reply arrives in the
+ * password, server address, file or folder path, and the app log only when the person explicitly chooses it for this report. The owner reads it and can reply; the reply arrives in the
  * person's notifications.
  *
  * The message a person typed is never lost to a failed send: the dialog goes back to 'ready'
@@ -47,6 +48,8 @@ export class FeedbackService {
   private readonly listeners = new Set<() => void>();
   private attempt = '';
   private attemptContext?: Record<string, unknown>;
+  private attemptLog?: string;
+  private attemptOptions = '';
   /** `online` reports whether the device itself is online, when the platform can tell.
    * `life` is the dialog's own: a send is refused before and its answer dropped after it ends. */
   constructor(private readonly api: FeedbackApi, private readonly operationId: () => string = () => randomId(), private readonly online?: () => boolean | undefined,
@@ -57,12 +60,12 @@ export class FeedbackService {
   private publish(next: FeedbackSnapshot) {this.state = Object.freeze(next); this.listeners.forEach(f => f());}
 
   /** Why a draft cannot be sent yet, or '' when it can. Lengths count characters as people do. */
-  problem(draft: FeedbackDraft): string {
+  problem(draft: FeedbackDraft, crash = false): string {
     const kind = feedbackKinds().find(k => k.id === draft.kind);
     if (!kind) return serviceText('feedback.chooseKind');
     if (!kind.categories.some(c => c.id === draft.category)) return serviceText('feedback.chooseCategory');
     const length = Array.from(draft.message.trim()).length;
-    if (!length) return serviceText('feedback.empty');
+    if (!length && !crash) return serviceText('feedback.empty');
     if (length > FEEDBACK_MAX_MESSAGE) return serviceText('feedback.tooLong', {count: FEEDBACK_MAX_MESSAGE});
     return '';
   }
@@ -80,17 +83,19 @@ export class FeedbackService {
       ...(typeof online === 'boolean' ? {online} : {})};
   }
 
-  async submit(draft: FeedbackDraft): Promise<boolean> {
-    if (this.state.phase !== 'ready' || this.problem(draft) || !this.current()) return false;
+  async submit(draft: FeedbackDraft, options: Readonly<{includeAppLog?: boolean; crash?: boolean}> = {}): Promise<boolean> {
+    if (this.state.phase !== 'ready' || this.problem(draft, options.crash === true) || !this.current()) return false;
+    const choice = `${options.includeAppLog === true}/${options.crash === true}`;
+    if (this.attemptOptions !== choice) {this.attempt = ''; this.attemptOptions = choice; this.attemptLog = undefined;}
     // The draft's facts are captured with its key, so a repeat is the same request.
-    if (!this.attempt) {this.attempt = this.operationId(); this.attemptContext = this.context(draft);}
+    if (!this.attempt) {this.attempt = this.operationId(); this.attemptContext = this.context(draft); if (options.includeAppLog === true) this.attemptLog = appLog.snapshot();}
     this.publish({phase: 'sending'});
     try {
       const answer = await this.api.requestRaw(serverPath('POST /v1/reports'), 'POST', {headers: {'Idempotency-Key': this.attempt},
-        body: {kind: 'problem', message: draft.message.trim(), context: this.attemptContext}, ...(this.life ? {signal: this.life.signal} : {})});
+        body: {kind: options.crash === true ? 'crash' : 'problem', message: draft.message.trim(), context: this.attemptContext, ...(this.attemptLog ? {log:this.attemptLog} : {})}, ...(this.life ? {signal: this.life.signal} : {})});
       if (!this.current()) return false;
       if (answer.status < 200 || answer.status >= 300) throw Object.assign(new Error('report refused'), {status: answer.status, ...(answer.body as {error?: object} | undefined)?.error});
-      this.attempt = ''; this.attemptContext = undefined;
+      this.attempt = ''; this.attemptContext = undefined; this.attemptLog = undefined;
       this.publish({phase: 'sent'});
       return true;
     } catch (e) {
