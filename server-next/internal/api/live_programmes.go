@@ -84,7 +84,11 @@ func (s *Server) getProgramme(r *http.Request, _ None) (LiveProgrammeDetail, err
 		return LiveProgrammeDetail{}, err
 	}
 	if rec, err := s.db.AiringRecording(ctx, ch.ID, p.ProgrammeKey); err == nil {
-		recOut := s.recordingOut(ctx, rec, false, nil)
+		names, err := s.db.ProfileNames(ctx, viewer(r).ProfileID)
+		if err != nil {
+			return LiveProgrammeDetail{}, err
+		}
+		recOut := s.withMay(r, s.recordingOut(ctx, rec, false, nil), rec, names.PublicID)
 		out.Recording = &recOut
 	} else if !errors.Is(err, db.ErrNotFound) {
 		return LiveProgrammeDetail{}, err
