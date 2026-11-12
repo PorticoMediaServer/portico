@@ -137,6 +137,30 @@ test('a lone network failure plus stationary progress still reaches the runtime 
   f.timers.advance(89_000); assert.equal(f.state.phase, 'error'); assert.equal(f.state.intent, 'paused'); assert.ok(f.state.error);
 });
 
+test('route loss without an engine error reaches the existing failed state and preserves local playback', async t => {
+  const f = await fixture(); t.after(() => f.dispose());
+  f.runtime.o.api.getRouteSnapshot = () => ({phase: 'reconnecting'});
+  f.runtime.routeChanged();
+  assert.equal(f.state.recovering, true);
+  f.timers.advance(1000); assert.equal(f.probes(), 1);
+  f.timers.advance(89_000);
+  assert.equal(f.state.phase, 'error'); assert.equal(f.state.intent, 'paused');
+  assert.equal(f.runtime.failure.reason, 'connection');
+  assert.equal(f.state.positionSeconds, 30);
+  const local = await fixture('native', true); t.after(() => local.dispose());
+  local.runtime.o.api.getRouteSnapshot = () => ({phase: 'reconnecting'});
+  local.runtime.routeChanged(); local.timers.advance(100_000);
+  assert.equal(local.state.phase, 'ready'); assert.equal(local.state.recovering, undefined);
+});
+
+test('a stalled stream has the same finite recovery even without a terminal engine error', async t => {
+  const f = await fixture(); t.after(() => f.dispose());
+  f.emit('stalled'); assert.equal(f.state.recovering, true);
+  f.timers.advance(1000); assert.equal(f.probes(), 1);
+  f.emit('progress'); f.timers.advance(89_000);
+  assert.equal(f.state.phase, 'error'); assert.equal(f.runtime.failure.reason, 'connection');
+});
+
 test('verified native readiness clears the same outage while a paused tick does not invent progress', async t => {
   const f = await fixture(); t.after(() => f.dispose());
   f.emit('error', {networkError: true}); f.state.intent = 'paused'; f.emit('progress', {paused: true});
