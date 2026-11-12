@@ -81,6 +81,9 @@ type SignInPreview struct {
 	// ApprovalURL is where the owner approves this server with their Portico Account, for a
 	// switch to Portico Accounts when a ReturnURL was sent and Portico Services answered.
 	ApprovalURL string `json:"approvalUrl,omitempty"`
+	// Approval is the same approval in full: its id, the code to match when approving on
+	// another device, and the token for asking whether it has been given.
+	Approval *PorticoApproval `json:"approval,omitempty"`
 	// PorticoUnavailable says Portico Services could not be reached for the approval.
 	PorticoUnavailable bool `json:"porticoUnavailable,omitempty"`
 }
@@ -256,7 +259,8 @@ func (s *Server) signInPreview(r *http.Request, req SignInPreviewRequest) (SignI
 		if err != nil {
 			out.PorticoUnavailable = true
 		} else {
-			out.ApprovalURL = approval.URL
+			answer := approvalOut(approval)
+			out.ApprovalURL, out.Approval = approval.URL, &answer
 		}
 	}
 	return out, nil
@@ -272,7 +276,7 @@ func (s *Server) approved(r *http.Request, approval string, purpose hosted.Purpo
 		err = hosted.ErrDeclined
 	}
 	if err != nil {
-		return hosted.Decision{}, hostedError(err)
+		return hosted.Decision{}, porticoError(err)
 	}
 	return decision, nil
 }
@@ -336,6 +340,8 @@ func (s *Server) signInSwitch(r *http.Request, req SignInSwitchRequest) (SignInR
 	case err != nil:
 		return SignInResponse{}, proofError(s.porticoTaken(r, err))
 	}
+	// A link was made or ended: the link's background work looks at once.
+	s.porticoWake()
 	return s.signedIn(ctx, st, now, refresh)
 }
 
@@ -545,12 +551,12 @@ func (s *Server) moveToPortico(r *http.Request, req MoveCompleteRequest) (SignIn
 	} else if wait > 0 {
 		return SignInResponse{}, errTooManyAttempts(wait)
 	}
-	account, _, err := s.porticoProven(r, req.Challenge, req.Identity, now)
-	if err != nil {
+	// A challenge of this server's must be standing before a password is looked at, so this
+	// route is not a way to try passwords without one. Looking uses nothing up.
+	if _, _, err := s.porticoChallengeOpen(r, req.Challenge, now); err != nil {
 		return SignInResponse{}, err
 	}
-	m := db.MoveToPortico{PorticoAccountID: account.ID, Limits: limits, Session: session, Now: now}
-	m.Username, _ = auth.Username(account.Username)
+	m := db.MoveToPortico{Limits: limits, Session: session, Now: now}
 	if req.Code != "" {
 		m.CodeHash = moveHash(req.Code)
 	} else {
@@ -558,13 +564,23 @@ func (s *Server) moveToPortico(r *http.Request, req MoveCompleteRequest) (SignIn
 		if err != nil {
 			return SignInResponse{}, err
 		}
-		// A wrong password is counted by the transaction, against the account too; a hash
-		// nobody has never stands.
-		m.UserID, m.CheckedHash, m.Limits = creds.UserID, creds.PasswordHash, passwordLimits
+		// The password is checked before the sign-in note, which works once: a mistyped
+		// password is counted as any wrong password is, against the account too, and the
+		// person tries again with the note they have.
 		if creds.UserID == 0 {
-			m.CheckedHash = "-"
+			if err := s.db.RecordFailure(ctx, now, passwordLimits...); err != nil {
+				return SignInResponse{}, err
+			}
+			return SignInResponse{}, errBadMoveCode()
 		}
+		m.UserID, m.CheckedHash, m.Limits = creds.UserID, creds.PasswordHash, passwordLimits
 	}
+	account, _, err := s.porticoProven(r, req.Challenge, req.Identity, now)
+	if err != nil {
+		return SignInResponse{}, err
+	}
+	m.PorticoAccountID = account.ID
+	m.Username, _ = auth.Username(account.Username)
 	st, err := s.db.CompleteMoveToPortico(ctx, m)
 	switch {
 	case errors.Is(err, db.ErrBadCredentials):
@@ -643,6 +659,8 @@ func (s *Server) changeOwner(r *http.Request, req OwnerChangeRequest) (None, err
 	case err != nil:
 		return None{}, proofError(memberError(err))
 	}
+	// The owner in the server's document changed.
+	s.porticoWake()
 	return None{}, nil
 }
 

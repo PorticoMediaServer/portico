@@ -8,7 +8,6 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
-	"github.com/PorticoMediaServer/portico/server-next/internal/hosted"
 )
 
 // Invitation lets one person create their own account on this server.
@@ -216,12 +215,12 @@ func (s *Server) previewInvitation(r *http.Request, _ None) (InvitationPreview, 
 
 func (s *Server) acceptInvitation(r *http.Request, req InvitationAccept) (SignInResponse, error) {
 	ctx, now := r.Context(), s.now()
-	// On a Portico Accounts server an invitation is accepted with a Portico Account, which
-	// needs Portico Services to check the approval: not connected yet, and never a password.
+	// On a Portico Accounts server an invitation is accepted by signing in with a Portico
+	// Account (POST /v1/auth/portico/exchange carries the invitation), never with a password.
 	if kind, err := s.signInKind(ctx); err != nil {
 		return SignInResponse{}, err
 	} else if kind == "portico" {
-		return SignInResponse{}, hostedError(hosted.ErrNotConnected)
+		return SignInResponse{}, ErrConflict("portico_accounts_only", "This server uses Portico Accounts. Join it by signing in with your Portico Account.")
 	}
 	session, refresh, err := s.newSession(r, req.Device, now)
 	if err != nil {

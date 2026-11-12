@@ -161,19 +161,31 @@ func (s *Server) porticoChallenge(r *http.Request, _ None) (PorticoChallenge, er
 	return PorticoChallenge{Challenge: challenge, ServerID: s.id, ExpiresAt: expires.UTC()}, nil
 }
 
+// porticoChallengeOpen says whether a challenge is one this server made, still running, under
+// the link that stands now, and not yet answered: a note asked for under an earlier link
+// signs nobody in. It uses nothing up.
+func (s *Server) porticoChallengeOpen(r *http.Request, challenge string, now time.Time) (db.Link, time.Time, error) {
+	link, err := s.linkForSignIn(r)
+	if err != nil {
+		return link, time.Time{}, err
+	}
+	issuedAt, expires, ok := s.link.openChallenge(challenge, now)
+	s.link.mu.Lock()
+	_, answered := s.link.used[challenge]
+	s.link.mu.Unlock()
+	if !ok || issuedAt != link.IssuedAt || answered {
+		return link, time.Time{}, errPorticoSignIn()
+	}
+	return link, expires, nil
+}
+
 // porticoProven checks a sign-in note: Portico Services' word that this is that Portico
 // Account, answering a challenge this server gave under the link that stands now, used once.
 // It grants nothing; the caller decides from the server's own tables what the account may do.
 func (s *Server) porticoProven(r *http.Request, challenge string, identity json.RawMessage, now time.Time) (hosted.Account, db.Link, error) {
-	link, err := s.linkForSignIn(r)
+	link, expires, err := s.porticoChallengeOpen(r, challenge, now)
 	if err != nil {
 		return hosted.Account{}, link, err
-	}
-	// The challenge must be one this server made, still running, under the link that stands
-	// now: a note asked for under an earlier link signs nobody in.
-	issuedAt, expires, ok := s.link.openChallenge(challenge, now)
-	if !ok || issuedAt != link.IssuedAt {
-		return hosted.Account{}, link, errPorticoSignIn()
 	}
 	var envelope trust.Envelope
 	if json.Unmarshal(identity, &envelope) != nil {
