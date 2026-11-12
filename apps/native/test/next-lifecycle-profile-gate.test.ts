@@ -235,3 +235,20 @@ test('on a phone a refusal does not wipe the PIN field later', async () => {
     assert.equal(entry().props.value, '3', 'what the person typed after the refusal stays');
   } finally {await g.host.unmount(); g.lifecycle.dispose();}
 });
+
+test('a refused PIN\'s message stays on the PIN page: Back to Who\'s watching shows none', async () => {
+  const g = await gate(false, true, true);
+  try {
+    const picker = nodes(g.tree().props.children).find(node => node.type === 'Picker');
+    await act(async () => {picker.props.onSelect('alex'); await settle();});
+    await g.host.rerender();
+    await act(async () => {g.tree().props.onSubmit('1111'); await settle();});
+    await g.host.rerender();
+    assert.equal(g.tree().type, 'TVPIN');
+    assert.notEqual(g.tree().props.error, undefined, 'the PIN page says the PIN was refused');
+    await act(async () => {g.tree().props.onBack(); await settle();});
+    await g.host.rerender();
+    assert.equal(g.tree().type, 'TVWho');
+    assert.equal(nodes(g.tree().props.children).some(node => node?.props?.accessibilityRole === 'alert'), false, 'Who\'s watching carries no refusal');
+  } finally {await g.host.unmount(); g.lifecycle.dispose();}
+});
