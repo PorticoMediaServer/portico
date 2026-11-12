@@ -63,7 +63,7 @@ func (f *fakeHosted) VerifyIdentity(string, string, string) (hosted.Account, []h
 func porticoProof(t *testing.T, s *Server) (string, json.RawMessage) {
 	t.Helper()
 	var challenge PorticoChallenge
-	if w := call(t, s, "POST", "/v1/auth/portico/challenge", "", nil, &challenge); w.Code != 200 {
+	if w := call(t, s, "POST", "/v1/auth/portico/challenge", "", PorticoChallengeRequest{}, &challenge); w.Code != 200 {
 		t.Fatalf("the challenge answered %d: %s", w.Code, w.Body)
 	}
 	return challenge.Challenge, json.RawMessage(`{}`)

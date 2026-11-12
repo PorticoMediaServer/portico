@@ -37,6 +37,12 @@ func (s *Server) porticoRoutes() {
 	Handle(s, "POST /v1/admin/portico/link/finish", Owner, s.porticoLinkFinish).Scope = ScopeSession
 }
 
+// PorticoChallengeRequest asks for a sign-in challenge. It says nothing: the route has a body
+// so that it comes under the rule for every route that needs no sign-in, which takes only a
+// request sent as application/json ("{}" here). A page on another site cannot send that
+// unasked, so it cannot ask a linked server for a challenge.
+type PorticoChallengeRequest struct{}
+
 // PorticoChallenge is what the app takes to Portico Services to ask for a sign-in note.
 type PorticoChallenge struct {
 	Challenge string `json:"challenge"`
@@ -152,7 +158,7 @@ func (s *Server) linkForSignIn(r *http.Request) (db.Link, error) {
 	return link, nil
 }
 
-func (s *Server) porticoChallenge(r *http.Request, _ None) (PorticoChallenge, error) {
+func (s *Server) porticoChallenge(r *http.Request, _ PorticoChallengeRequest) (PorticoChallenge, error) {
 	link, err := s.linkForSignIn(r)
 	if err != nil {
 		return PorticoChallenge{}, err

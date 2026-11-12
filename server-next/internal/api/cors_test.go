@@ -198,11 +198,7 @@ func TestASavedOriginThatIsNotOneAddressIsIgnored(t *testing.T) {
 
 // bodiless are the routes that need no sign-in and take no body at all, each with why a bare
 // POST from a page on another site does nothing.
-var bodiless = map[string]string{
-	// Linking (not on main when this was written): the challenge is made from the server's own
-	// key and the time, nothing is stored or counted, and the page cannot read the answer.
-	"POST /v1/auth/portico/challenge": "answers a sign-in challenge that is not stored, which the page cannot read",
-}
+var bodiless = map[string]string{}
 
 // A page that is not allowed can still make a browser send a POST with no body, or with a
 // body that is not JSON, without asking first. No route that needs no sign-in may act on

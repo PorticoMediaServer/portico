@@ -54,7 +54,7 @@ func TestOneUnknownServerAnswerDoesNotEndTheLink(t *testing.T) {
 	if got := state(); got.State != "linked" || got.Problem != msgPorticoUnknown {
 		t.Fatalf("after one unknown answer: %+v", got)
 	}
-	if code := status(t, p.s, "POST", "/v1/auth/portico/challenge", "", nil); code != 200 {
+	if code := status(t, p.s, "POST", "/v1/auth/portico/challenge", "", PorticoChallengeRequest{}); code != 200 {
 		t.Errorf("after one unknown answer the server gives no challenge: %d", code)
 	}
 	p.run(24 * time.Hour)
@@ -69,7 +69,7 @@ func TestOneUnknownServerAnswerDoesNotEndTheLink(t *testing.T) {
 	if made := len(p.fake.Calls()) - calls; made != 3 {
 		t.Errorf("three days of not being known made %d calls, want the three check-ins", made)
 	}
-	if code := status(t, p.s, "POST", "/v1/auth/portico/challenge", "", nil); code != 409 {
+	if code := status(t, p.s, "POST", "/v1/auth/portico/challenge", "", PorticoChallengeRequest{}); code != 409 {
 		t.Errorf("a server whose link has ended gave a challenge: %d", code)
 	}
 
@@ -140,7 +140,7 @@ func TestTheOwnerCanSwitchToLocalSignInFromTheDataFolder(t *testing.T) {
 	if p.works(sam) {
 		t.Error("after the switch a sign-in made with a Portico Account still works")
 	}
-	if code := status(t, p.s, "POST", "/v1/auth/portico/challenge", "", nil); code != 409 {
+	if code := status(t, p.s, "POST", "/v1/auth/portico/challenge", "", PorticoChallengeRequest{}); code != 409 {
 		t.Errorf("after the switch the server still gives Portico challenges: %d", code)
 	}
 	if w := call(t, p.s, "POST", "/v1/auth/sign-in", "", SignInRequest{Username: "rescued", Password: testPassword, Device: device(9)}, nil); w.Code != 200 {
