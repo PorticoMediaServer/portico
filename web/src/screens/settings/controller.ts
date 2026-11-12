@@ -20,6 +20,7 @@ import type {SettingPresentation} from '../../kit/settings';
 import type {SettingsContext, SettingsPageSnapshot} from './Settings';
 import {storageServerHeader} from './server-header';
 import {readServerStorage} from '@core/server-admin/server-storage.ts';
+import {DashboardDataClient} from '@core/admin/dashboard.ts';
 import {notOnThisServer} from '@core/query/server-api.ts';
 import {configurationFieldEligible, settingsRowEligible, type SettingsEligibility} from './eligibility';
 import {settingsRowVisible, settingsSectionVisible, type SettingsEnvironment} from '@core/presentation/settings-visibility.ts';
@@ -297,10 +298,11 @@ export class SettingsController {
   loadServerHeader = (section: SettingsSection): Promise<void> => {
     if (!this.current() || !this.sectionVisible(section)) return Promise.resolve();
     if (section.scope === 'server' && this.forms.runtime && !this.headerLoading) this.headerLoading = (async () => {
-      const storage = await readServerStorage(this.options.api, this.lifetime.signal).catch(() => undefined);
+      const [storage, status] = await Promise.all([readServerStorage(this.options.api, this.lifetime.signal).catch(() => undefined),
+        new DashboardDataClient(this.options.api).status(this.lifetime.signal).catch(() => undefined)]);
       if (!this.current()) return;
       this.headerLoaded=true;
-      this.header = storageServerHeader(storage);
+      this.header = storageServerHeader(storage, status?.alerts);
       this.publish({});
     })();
     return this.headerLoading ?? Promise.resolve();
@@ -344,7 +346,7 @@ export class SettingsController {
         blocked:()=>!this.headerLoaded,
         refresh:async()=>{
           if(!this.current() || !this.headerLoaded)return {kind:'deferred'};
-          return this.quietRead('header/storage',(_client,signal)=>readServerStorage(this.options.api,signal),storage=>{this.header=storageServerHeader(storage);});
+          return this.quietRead('header/storage',(_client,signal)=>Promise.all([readServerStorage(this.options.api,signal),new DashboardDataClient(this.options.api).status(signal).catch(()=>undefined)]),([storage,status])=>{this.header=storageServerHeader(storage,status?.alerts);});
         }});
     }
     if(section.scope==='server' && section.id==='libraries') {
