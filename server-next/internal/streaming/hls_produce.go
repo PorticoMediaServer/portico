@@ -335,6 +335,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			// Run returns only once that child is gone, so the reservation is taken
 			// in the command builder and released after Run returns.
 			releaseRemote := func() {}
+			said := &tailWriter{limit: 4096}
 			err := remoteInput.Run(processCtx, dir, func(url string) (subtitles.WindowCommand, error) {
 				path = url
 				args, stages, err := build(plan)
@@ -349,9 +350,14 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 					}
 					releaseRemote = release
 				}
-				return subtitles.WindowCommand{Args: args, Hardware: conversionJobHardware(plan, stages), Started: func() { h.recordConversionStart(ctx, id, plan, args, stages, fallbackLaunch) }}, err
+				return subtitles.WindowCommand{Args: args, Hardware: conversionJobHardware(plan, stages), Stderr: said,
+					Started: func() { h.recordConversionStart(ctx, id, plan, args, stages, fallbackLaunch) }}, err
 			})
 			releaseRemote()
+			if err == nil {
+				// A clean run that said something (a source that stopped early) is not silent.
+				return nil, sanitizeConverterOutput(said.String(), path, h.root, h.memoryRoot)
+			}
 			return err, windowConverterDiagnostic(err, path, h.root, h.memoryRoot)
 		}
 
@@ -612,6 +618,14 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 				produced = highestProducedSegment(dir, from)
 			}
 		}
+		// Only a converter that finished silently has reached the end of the title: its last
+		// slot is whole even without a tail. Any other end leaves it held for a restart.
+		silent := e == nil && !throttled() && ctx.Err() == nil && strings.TrimSpace(diagnostic) == ""
+		if err := carryTail(dir, gridSlotName(delivery), duration, silent); err != nil {
+			h.outputPublicationFailed(ctx, id, delivery, position, err)
+			return
+		}
+		produced = min(produced, hlsSegmentCount(duration)-1)
 	}
 	h.mu.Lock()
 	if w := h.windows[id]; w == owned && produced > w.produced {
@@ -688,6 +702,14 @@ func (h *HLS) watchWindow(
 				}
 			} else {
 				produced = highestProducedSegment(dir, from)
+			}
+			if timeline == nil && plan != nil {
+				if err := carryTail(dir, gridSlotName(plan), plan.Duration, false); err != nil {
+					h.publicationFailed(id, owned, err)
+					cancel()
+					return false
+				}
+				produced = min(produced, hlsSegmentCount(plan.Duration)-1)
 			}
 			h.mu.Lock()
 			window := h.windows[id]
@@ -793,4 +815,12 @@ func (h *HLS) fail(ctx context.Context, id, code, diagnostic string) bool {
 		supervise.Go("streaming.failed", func() { hook(failed) })
 	}
 	return true
+}
+
+// gridSlotName names a converted stream's slots on the fixed grid.
+func gridSlotName(plan *DeliveryPlan) func(int) string {
+	if plan != nil && plan.OutputContainer == "fmp4_hls" {
+		return func(i int) string { return strings.TrimSuffix(hlsSegmentFile(i), ".ts") + ".m4s" }
+	}
+	return hlsSegmentFile
 }

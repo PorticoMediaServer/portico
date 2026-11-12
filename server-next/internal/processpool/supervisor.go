@@ -456,7 +456,13 @@ func (s *Supervisor) runAdmission(ctx context.Context, key string, cmd *exec.Cmd
 	// The last bytes of the child's error output travel with its exit error, so
 	// "exit status 1" is never all a log line or a reason can say.
 	stderr := &tailWriter{max: stderrTailBytes}
-	cmd.Stderr = stderr
+	if cmd.Stderr != nil {
+		// The caller asked to see standard error too (a converter's, to tell a clean
+		// finish from a source that stopped early).
+		cmd.Stderr = io.MultiWriter(cmd.Stderr, stderr)
+	} else {
+		cmd.Stderr = stderr
+	}
 	if e = childprocess.Start(ctx, cmd); e != nil {
 		stdout.Close()
 		release()

@@ -64,6 +64,76 @@ func hlsSegmentCount(duration float64) int {
 	return n
 }
 
+// hlsWrittenSlots is how many files a converter cuts for a duration: one more than the grid
+// lists when a short tail was folded into the last listed slot.
+func hlsWrittenSlots(duration float64) int {
+	if !hlsDurationSupported(duration) {
+		return 0
+	}
+	return max(1, int(math.Ceil(duration/HLSSegmentSeconds)))
+}
+
+// gridSlotHeld is the last listed slot of a duration whose tail was folded into it: it is
+// not ready until the converter's tail file has been carried into it (carryTail).
+func gridSlotHeld(duration float64, index int) bool {
+	count := hlsSegmentCount(duration)
+	return count > 0 && index == count-1 && hlsWrittenSlots(duration) > count
+}
+
+// gridSlotReady is a grid slot a player may be given: written, and, if it is the held last
+// slot, whole. A player never reads a last slot that is missing its tail.
+func gridSlotReady(path string, index int, duration float64) bool {
+	return segmentReady(path) && (!gridSlotHeld(duration, index) || slotWhole(path))
+}
+
+// slotWhole reports the mark carryTail leaves on a held slot it has completed. The mark
+// names the slot's size, so a slot a later converter writes again is held again.
+func slotWhole(path string) bool {
+	mark, err := os.ReadFile(path + ".whole")
+	info, statErr := os.Stat(path)
+	return err == nil && statErr == nil && string(mark) == strconv.FormatInt(info.Size(), 10)
+}
+
+// carryTail completes the held last slot of a stream's folder: once the converter has cut
+// the folded tail into a file of its own, those bytes are added to the end of the last slot
+// (MPEG-TS and fragmented MP4 both join that way) and the tail file goes. A converter that
+// finished the title silently without cutting a tail (exited) leaves the slot whole as it
+// is. Any other end leaves it held, so the next request starts the converter again.
+func carryTail(dir string, nameAt func(int) string, duration float64, exited bool) error {
+	count := hlsSegmentCount(duration)
+	if count == 0 || hlsWrittenSlots(duration) <= count {
+		return nil
+	}
+	last, tail := filepath.Join(dir, nameAt(count-1)), filepath.Join(dir, nameAt(count))
+	if !segmentReady(last) || slotWhole(last) {
+		return nil
+	}
+	if segmentReady(tail) {
+		head, err := os.ReadFile(last)
+		if err != nil {
+			return err
+		}
+		rest, err := os.ReadFile(tail)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(last+".tmp", append(head, rest...), 0600); err != nil {
+			return err
+		}
+		if err := os.Rename(last+".tmp", last); err != nil {
+			return err
+		}
+		_ = os.Remove(tail)
+	} else if !exited {
+		return nil
+	}
+	info, err := os.Stat(last)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(last+".whole", []byte(strconv.FormatInt(info.Size(), 10)), 0600)
+}
+
 // hlsTimelineManifest writes the whole title up front, on the fixed grid.
 //
 // The manifest is authored by the server rather than by the converter, because
