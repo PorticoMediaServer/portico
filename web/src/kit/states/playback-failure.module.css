@@ -1,8 +1,14 @@
-.failure {position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: clamp(24px, 7vw, 100px); background: linear-gradient(90deg, var(--color-scrim), transparent); color: var(--color-text); pointer-events: none; z-index: 1;}
-.failure h2 {font-size: var(--type-display-size); line-height: var(--type-display-line); margin: 0 0 16px;}
-.failure p {max-width: 540px; font-size: var(--type-body-size); line-height: var(--type-body-line); margin: 0 0 24px;}
-.failure > div {pointer-events: auto; display: flex; flex-wrap: wrap; gap: 12px;}
+/* The full player (states.html frames 8 and 10): the picture stays, dimmed, under the kit's state layout, whose own
+   position and type set the words; only its buttons take the pointer, so the player's rows stay usable around it. */
+.failure {position: absolute; inset: 0; z-index: 1; color: var(--color-text); pointer-events: none;
+  background: linear-gradient(90deg, rgba(3,8,12,.82) 0, rgba(3,8,12,.55) 45%, rgba(3,8,12,.35) 100%);}
+.failure button, .failure a {pointer-events: auto;}
+/* The upright phone player is a strip of picture between its top and bottom rows: the state keeps no minimum height there,
+   and its words sit in that strip at the gutter, with no room kept for a full page's margins. */
+.failure .strip {min-height: 0;}
+.failure .strip > div {left: 20px; right: 20px; width: auto; max-height: none;}
 /* J-27: a start that failed before its first frame, inside a compact card; the full-player layout is for failures during playback. */
-.failure[data-layout='compact'] {position: static; inset: auto; padding: 0; background: none; pointer-events: auto;}
+.failure[data-layout='compact'] {position: static; inset: auto; padding: 0; background: none; pointer-events: auto; display: flex; flex-direction: column; align-items: flex-start;}
 .failure[data-layout='compact'] h2 {font-size: var(--type-title-size); line-height: var(--type-title-line); margin: 0 0 6px;}
-.failure[data-layout='compact'] p {font-size: var(--type-body-size); margin: 0 0 16px; color: var(--color-text-secondary);}
+.failure[data-layout='compact'] p {max-width: 540px; font-size: var(--type-body-size); line-height: var(--type-body-line); margin: 0 0 16px; color: var(--color-text-secondary);}
+.failure[data-layout='compact'] > div {display: flex; flex-wrap: wrap; gap: 12px;}
