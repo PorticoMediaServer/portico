@@ -75,7 +75,10 @@ export function LifecycleProfileGate() {
   const option = (value: PickerProfile) => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: art(value.id),
     primary: value.primary, pinRequired: value.pinRequired, disabled: busy});
   const busy = pick.phase === 'working' || submit.phase === 'working';
-  const failed = submit.phase === 'failed' ? submit.failure.cause : pick.phase === 'failed' ? pick.failure.cause : undefined;
+  // Each screen says only its own failure: a refused PIN stays on the PIN page and doesn't follow Back to the picker,
+  // and the picker only says why a pick failed.
+  const failed = state.kind === 'enteringPin' ? submit.phase === 'failed' ? submit.failure.cause : undefined
+    : pick.phase === 'failed' ? pick.failure.cause : undefined;
   const failure = failed ? presentError(failed, state.kind === 'enteringPin' ? 'profiles' : 'sign-in') : undefined;
   const status = failure && !failure.silent ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{profilePinFailureText(failed) ?? failure.body}</Text> : null;
   const wait = <BootWaitLine active={busy} serverName={state.server.name} testID="lifecycle-profile-wait"/>;
