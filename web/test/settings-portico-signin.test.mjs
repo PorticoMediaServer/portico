@@ -56,13 +56,12 @@ test('an unlinked or unmanageable account shows no Portico Account section', asy
   }
 });
 
-// P2-66: at web.getportico.tv the Portico Account session is the page's own, so Sign-in is managed
-// inline again (22 Oct rule); the security owner, not the link-out, renders.
-test('at the Portico Account address the account is managed inline, not linked out', async () => {
+// With the new Portico Services the in-app inline security (the first service's) is gone: a Portico
+// Account is managed on its own Security page from every address, web.getportico.tv included.
+test('at the Portico Account address too, the account is managed on its own Security page and no old account session is read', async () => {
   const f = await fixture({origin: 'https://web.getportico.tv'});
   try {
-    assert.ok(!f.nodes.some(node => node.type === 'SettingsRow' && node.props.id === 'profile.porticoAccount'), 'no link-out row');
-    assert.ok(f.hostedCalls.includes('servicesAccount'), 'the inline owner reads this page\'s own Portico Account session');
-    assert.deepEqual(f.opened, []);
+    assert.ok(f.nodes.some(node => node.type === 'SettingsRow' && node.props.id === 'profile.porticoAccount'), 'the Portico Account row');
+    assert.deepEqual(f.hostedCalls, [], 'nothing reads the old account session');
   } finally {f.close();}
 });

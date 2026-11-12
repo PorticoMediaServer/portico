@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {browserEventStream, browserFeedEnvironment} from '../src/platform/event-feed.ts';
 import {bindBrowserFreshness, disposeFreshness, freshnessFor} from '../src/platform/freshness.ts';
 import type {HttpLocalApi} from '@core/index.ts';
-import {BrowserAccountApi, BrowserCredentialStorage} from '../src/platform/account.ts';
 import {webEnvironment} from '../src/platform/environment.ts';
 
 function replace(t: import('node:test').TestContext, key: string, value: unknown) {
@@ -52,36 +51,6 @@ test('freshness pools are scoped to server/viewer and browser signals clean up',
   await new Promise(resolve => setTimeout(resolve, 5)); assert.equal(one.hub.isActive(), false);
   assert.equal(one.queries.isDisposed(), true, 'the previous viewer\'s cache is emptied at once');
   disposeFreshness(two);
-});
-test('account transport sends CSRF/credentials, refuses redirects and excludes refresh tokens', async t => {
-  replace(t, 'document', {cookie: '__Host-portico_refresh_csrf=' + 'a'.repeat(43)});
-  const storage = new Map<string, string>(); replace(t, 'localStorage', {getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value)});
-  let request: RequestInit | undefined;
-  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => { request = init; return new Response(null, {status: 204, headers: {'X-CSRF-Token': 'b'.repeat(43),'X-Portico-CSRF-Cookie':'__Host-portico_refresh_csrf'}}); });
-  const api = new BrowserAccountApi('https://accounts.example'); await api.send('/v1/sessions/revoke', 'POST', {familyId: 'synthetic'});
-  assert.equal(request?.credentials, 'include'); assert.equal(request?.redirect, 'error'); assert.equal((request?.headers as Record<string, string>)['X-CSRF-Token'], 'a'.repeat(43));
-  assert.equal(storage.get('portico.account.csrf.v2:'+JSON.stringify(['https://accounts.example','https://accounts.example'])), 'b'.repeat(43));
-  assert.throws(() => new BrowserAccountApi('http://accounts.example'), /HTTPS/);
-  assert.throws(() => api.authorityFromSession({familyId: 'family', refreshToken: 'native-secret'} as never), /native credential/);
-  await assert.rejects(api.send('https://elsewhere.example', 'GET'), /Invalid account request/);
-  await api.settled();
-});
-test('account coordination storage recovers malformed metadata without retaining credentials', async () => {
-  let raw: string | null = null; const storage = new BrowserCredentialStorage({getItem: () => raw, setItem: (_key, value) => { raw = value; }}, 'key');
-  assert.equal(await storage.load(), undefined); raw = '{broken';
-  assert.deepEqual(await storage.load(), {version:1,revocations:[]});
-  assert.equal(raw,'{broken'); // Initial restoration never writes outside the lock.
-  storage.repair(); assert.deepEqual(JSON.parse(raw),{version:1,revocations:[]});
-  raw = JSON.stringify({version:1,revocations:[{familyId:'oversized-pending'}],oldPayload:'x'.repeat(128*1024)});
-  assert.deepEqual(await storage.load(), {version:1,revocations:[{familyId:'oversized-pending'}]});
-  storage.repair(); assert.deepEqual(JSON.parse(raw),{version:1,revocations:[{familyId:'oversized-pending'}]});
-  raw='x'.repeat(4*1024*1024+1);await assert.rejects(storage.load(),/too large/);
-  raw=JSON.stringify({version:1,revocations:[{familyId:'old-family'},'native-secret'],active:{session:{accessToken:'obsolete-secret'}}});
-  assert.deepEqual(await storage.load(),{version:1,revocations:[{familyId:'old-family'}]});
-  storage.repair(); assert.equal(raw.includes('obsolete-secret'),false); assert.equal(raw.includes('native-secret'),false);
-  // The repair rereads the value at lock admission, keeping a successor's tombstone.
-  raw=JSON.stringify({version:1,revocations:[{familyId:'successor-family'}]});
-  storage.repair(); assert.deepEqual(await storage.load(),{version:1,revocations:[{familyId:'successor-family'}]});
 });
 test('hosted flags retain explicit workspace and app version, and no build id is served', () => {
   assert.deepEqual(webEnvironment({VITE_HOSTED_WEB: 'true', VITE_ACCOUNT_WORKSPACE: 'true', VITE_HOSTED_URL: 'https://accounts.example', VITE_APP_VERSION: 'test', VITE_CAST_APPLICATION_ID: 'cast'}, {hostname: 'custom.example', origin: 'https://custom.example'}), {hostedWeb: true, accountWorkspace: true, hostedUrl: 'https://accounts.example', appVersion: 'test', castApplicationId: 'cast'});

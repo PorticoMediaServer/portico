@@ -748,38 +748,6 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
   },
-  "web/src/platform/account-entry.ts#349560422f5c8e69": {
-    "category": "platform-transport",
-    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
-    "guardHash": "baeeaa79949975f0ee467ca13a9fc0844d285569873f5a21f0200fe360663cc4",
-    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
-  },
-  "web/src/platform/account-entry.ts#20dc95d1598f8be9": {
-    "category": "platform-transport",
-    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
-    "guardHash": "8039843391f461a87fff9a64b8c477d2fef3707d54c10d046ac67400e030b3b1",
-    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
-  },
-  "web/src/platform/account-entry.ts#d3b65eac59ee9d6e": {
-    "category": "platform-transport",
-    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
-    "guardHash": "8526f49adf167c5490dcc9ad94a1b302d063a7ef37af2e09264987c184462b3f",
-    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
-  },
-  "web/src/platform/account-entry.ts#aedeea5fbed3f95a": {
-    "category": "platform-transport",
-    "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
-    "guardHash": "852b3adbeabc88447f73d1fba5df1bde84a90df784ede7405d46936dcc6aeb51",
-    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
-  },
   "web/src/platform/account-entry.ts#b39b71362dd7ecdc": {
     "category": "platform-transport",
     "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",

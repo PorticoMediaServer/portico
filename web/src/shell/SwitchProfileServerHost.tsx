@@ -7,17 +7,15 @@ import {SwitchProfileServerDialog, type SwitchProfileServerEntry, type SwitchPro
 import type {ProfileIdentity} from '../kit/shell';
 import {browserAppSessions, observeBrowserSessionChanges} from '../platform/server-connections';
 import {browserServerDisplay} from '../platform/server-display';
-import {browserAccount} from '../platform/account';
-import {accountIdentity} from '../platform/account-work';
-import {createAccountServerDirectory} from '../platform/account-server-directory';
-import {createAccountServerAccess, type AccountServerAccess} from '../platform/account-server-access';
+import {porticoAccountHolder, type ListedServers} from '../platform/portico-account-holder';
+import type {PorticoServerAccess} from '../platform/portico-server-access';
 import type {HostedDirectoryServer} from '../platform/account-entry';
 import {createBrowserAccountEntry} from '../platform/account-entry';
 import {AccountSignInView} from '../screens/accounts/AccountSignInView';
 import {AccountSignInForm} from '../screens/accounts/sign-in-form';
 
 const t = defaultI18n.t;
-export type HostedSwitchSelection = Readonly<{server: HostedDirectoryServer; access: AccountServerAccess; revision: number}>;
+export type HostedSwitchSelection = Readonly<{server: HostedDirectoryServer; access: PorticoServerAccess; revision: number}>;
 export type SwitchProfileServerOpening = Readonly<{
   current: () => boolean; serverId: string; serverName: string; portico: boolean;
   profiles: readonly ProfileIdentity[]; profileId: string;
@@ -49,22 +47,18 @@ export function SwitchProfileServerHost({opening, close, presentation}: {opening
       const names = await browserServerDisplay().choices(record.servers.map(row => ({signIn: row.signIn, pin: row.connection.pin, origin: row.connection.logicalOrigin})), operation.signal);
       if (!valid()) return;
       const nameById = new Map(names.map(row => [row.id, row.label]));
-      const account = opening.portico ? browserAccount() : undefined;
-      let access: AccountServerAccess | undefined;
-      let directory: Awaited<ReturnType<ReturnType<typeof createAccountServerDirectory>['read']>> | undefined;
+      let access: PorticoServerAccess | undefined;
+      let directory: ListedServers | undefined;
       offAccount.current?.(); offAccount.current = undefined;
-      if (account) {
+      if (opening.portico && porticoAccountHolder.signedIn()) {
         try {
-          await account.service.synchronize(); if (!valid()) return;
-          const session = account.service.getSnapshot().session;
-          if (session?.familyId) {
-            const scope = accountIdentity(session);
-            access = createAccountServerAccess(account, scope);
-            const original = access;
-            offAccount.current = original.observe?.(() => {if (!original.isCurrent()) dismiss();});
-            if (!valid() || !original.isCurrent()) return;
-            directory = await createAccountServerDirectory(account, scope).read(operation.signal);
-          }
+          const who = await porticoAccountHolder.who(); if (!valid()) return;
+          access = porticoAccountHolder.access(who.id);
+          const original = access;
+          offAccount.current = original.observe(() => {if (!original.isCurrent()) dismiss();});
+          if (!valid() || !original.isCurrent()) return;
+          directory = await porticoAccountHolder.servers(operation.signal);
+          if (directory.accountId !== who.id) directory = undefined;
         } catch (failure) {
           if (!valid()) return;
           // Hosted unavailability cannot hide this browser's real local sign-ins.
@@ -77,14 +71,14 @@ export function SwitchProfileServerHost({opening, close, presentation}: {opening
       const servers: Choice[] = [], locals: Choice[] = [];
       const shown = new Set<string>();
       const selectSaved = (id: string) => opening.selectServer ? async () => {await opening.selectServer!(id, record.revision);} : undefined;
-      for (const server of [...(directory?.items ?? [])].sort((a, b) => Number(b.status === 'active') - Number(a.status === 'active'))) {
+      for (const server of directory?.items ?? []) {
         const isCurrent = server.id === opening.serverId;
-        const detail = isCurrent ? t('web.servers.current') : server.status === 'active' ? t('web.servers.online')
-          : server.presence.lastSeenAt ? t('web.chooser.lastSeen', {date: defaultI18n.date(server.presence.lastSeenAt, 'dayMonth')}) : t('web.chooser.neverSeen');
+        // The signed list says nothing about whether a server is up: only the current one is labelled.
+        const detail = isCurrent ? t('web.servers.current') : undefined;
         const saved = record.servers.find(row => row.connection.pin.serverId === server.id && row.signIn === 'portico' && row.connection.pin.publicKey === server.publicKey);
-        const immutable = Object.freeze({...server, ...(server.routes ? {routes: structuredClone(server.routes)} : {})});
+        const immutable = Object.freeze({id: server.id, name: server.name, publicKey: server.publicKey, baseUrl: server.baseUrl});
         servers.push(Object.freeze({view: Object.freeze({id: server.id, name: server.name, detail, current: isCurrent,
-          detailTone: server.status === 'active' && !isCurrent ? 'online' : undefined, dimmed: server.status !== 'active', available: true}),
+          available: true}),
           select: saved && opening.selectServer ? selectSaved(server.id) : directoryAccess ? async () => {
             if (!directoryAccess.isCurrent()) throw new DOMException('Account changed', 'AbortError');
             opening.selectHosted(Object.freeze({server: immutable, access: directoryAccess, revision: record.revision}));

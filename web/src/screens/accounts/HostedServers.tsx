@@ -1,17 +1,14 @@
 import {useEffect, useLayoutEffect, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import {RouteError} from '@core/route-identity.ts';
-import {browserAccount} from '../../platform/account';
+import {porticoAccountHolder} from '../../platform/portico-account-holder';
+import type {PorticoServerAccess} from '../../platform/portico-server-access';
+import type {Account} from '@core/portico-account.ts';
 import {router} from '../../router';
 import {goTo} from '../../platform/hosted-navigation';
-import {accountIdentity} from '../../platform/account-work';
-import {createAccountServerDirectory} from '../../platform/account-server-directory';
-import {createAccountServerAccess} from '../../platform/account-server-access';
 import {createBrowserAccountEntry, type BrowserAccountEntry} from '../../platform/account-entry';
 import {browserAppSessions} from '../../platform/server-connections';
 import {browserAppSessionActions, signOutBrowserPorticoAccount} from '../../platform/app-sessions';
-import {leavePorticoServer, removePorticoServer, serverRemovalClaim, type ServerRemovalClaim} from '@core/portico-servers.ts';
-import {randomId} from '@core/random-id.ts';
 import {ApiError} from '@core/index.ts';
 import {ServicesServerDirectory} from '../../kit/accounts/ServerDirectory';
 import {ServicesDirectoryStatus} from '../../kit/accounts/DirectoryStatus';
@@ -25,7 +22,6 @@ import {fallbackFor} from './hosted-fallback';
 import {directoryNotice} from './hosted-notice';
 import {DirectoryAccountUnavailable} from '../../services/directory-errors';
 import {presentError} from '@core/presentation/errors.ts';
-import {servicesServerDirectoryCopy} from '../../services/server-directory';
 import {servicesRelativeTime} from '../../services/time';
 import {distributionPage} from '../../services/distribution';
 import {ServerlessAccountMenu} from './ServerlessAccountMenu';
@@ -34,9 +30,8 @@ import {AccountSignInForm} from './sign-in-form';
 import {resumeAfterProfiles} from './chooser-resume';
 
 const t = defaultI18n.t;
-type Session = NonNullable<ReturnType<ReturnType<typeof browserAccount>['service']['getSnapshot']>['session']>;
 type Admitted = Readonly<{entry: BrowserAccountEntry; form: AccountSignInForm; dispose: () => void}>;
-type Removal = Readonly<{server: DirectoryItem; claim?: ServerRemovalClaim; operationId: string}>;
+type Removal = Readonly<{server: DirectoryItem}>;
 /** Hosted refused because the server's claim is no longer the one this row showed. */
 const changed = (error: unknown) => error instanceof ApiError && (error.status === 409 || error.status === 412);
 
@@ -45,18 +40,17 @@ const changed = (error: unknown) => error instanceof ApiError && (error.status =
  * address. The browser is never sent to a server's address unless the person presses the one
  * fallback a state offers. */
 export function HostedServersScreen() {
-  const account = browserAccount();
-  const state = useSyncExternalStore(account.service.subscribe, account.service.getSnapshot);
-  const [synchronized, setSynchronized] = useState(false);
+  const signedIn = useSyncExternalStore(porticoAccountHolder.subscribe, porticoAccountHolder.signedIn);
+  const [who, setWho] = useState<Account>(), [error, setError] = useState<unknown>(), [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    let live = true;
-    void account.service.synchronize().catch(() => undefined).finally(() => {if (live) setSynchronized(true);});
+    let live = true; setWho(undefined); setError(undefined);
+    if (signedIn) void porticoAccountHolder.who().then(value => {if (live) setWho(value);}, failure => {if (live) setError(failure);});
     return () => {live = false;};
-  }, [account]);
-  const session = state.session;
-  if (!synchronized) return <ServicesAuthStage><></></ServicesAuthStage>;
-  if (!session?.familyId) return <Replace to="/sign-in" />;
-  return <BoundServers key={session.account.id + '/' + session.familyId} session={session} />;
+  }, [signedIn, attempt]);
+  if (!signedIn) return <Replace to={'/sign-in?next=' + encodeURIComponent('/servers' + location.search)} />;
+  if (error) return <DocumentBootReady><ServicesAuthStage><HostedError error={error} /><Button variant="primary" onClick={() => setAttempt(value => value + 1)}>{t('next.states.tryAgain')}</Button></ServicesAuthStage></DocumentBootReady>;
+  if (!who) return <ServicesAuthStage><></></ServicesAuthStage>;
+  return <BoundServers key={who.id} who={who} />;
 }
 
 function Replace({to}: {to: string}) {
@@ -65,15 +59,19 @@ function Replace({to}: {to: string}) {
 }
 
 type Loaded = Readonly<{flow: ServicesDirectoryFlow<Admitted>; saved: ReadonlyMap<string, string>}>;
-function BoundServers({session}: {session: Session}) {
-  // One scope per mounted account and family (the parent keys on both). A refreshed session is a
-  // new object with the same identity; it must not restart the directory read (live 29 Oct: an
-  // effect loop that queued thousands of account locks and never showed the list).
-  const account = browserAccount(), [scope] = useState(() => accountIdentity(session));
+function BoundServers({who}: {who: Account}) {
+  // One scope per mounted account (the parent keys on it): the account id binds the list and every
+  // server sign-in opened from it.
+  const [scope] = useState(() => Object.freeze({accountId: who.id}));
   const [loaded, setLoaded] = useState<Loaded>(), [error, setError] = useState<unknown>(), [attempt, setAttempt] = useState(0);
   useLayoutEffect(() => {
     let live = true;
-    const controller = new AbortController(), directory = createAccountServerDirectory(account, scope), access = createAccountServerAccess(account, scope);
+    const controller = new AbortController(), access = porticoAccountHolder.access(scope.accountId);
+    const directory = {read: async (signal: AbortSignal) => {
+      const list = await porticoAccountHolder.servers(signal);
+      if (list.accountId !== scope.accountId) throw new RouteError('cancelled', 'The Portico Account changed.');
+      return list;
+    }};
     const current = () => live && access.isCurrent();
     let flow: ServicesDirectoryFlow<Admitted> | undefined;
     // A server just joined opens straight away (the person asked for it), here, in place.
@@ -88,7 +86,7 @@ function BoundServers({session}: {session: Session}) {
         if (!current()) return;
         if (linked) {
           const item = initial.items.find(value => value.id === linked);
-          if (!item || item.status !== 'active') {void router.navigate({to: '/link-unavailable', search: {reason: item ? 'offline' : 'access'}, replace: true}); return;}
+          if (!item) {void router.navigate({to: '/link-unavailable', search: {reason: 'access'}, replace: true}); return;}
         }
         if (!initial.items.length) {goTo('/welcome#join', {replace: true}); return;}
         // Where each saved sign-in last worked, for the one fallback a state may offer.
@@ -103,16 +101,16 @@ function BoundServers({session}: {session: Session}) {
       } catch (failure) {if (current()) setError(failure);}
     })();
     return () => {live = false; controller.abort(); flow?.getSnapshot().admitted?.dispose(); flow?.dispose();};
-  }, [account, scope, attempt]);
+  }, [scope, attempt]);
   if (error) return <DocumentBootReady><ServicesAuthStage><HostedError error={error} /><Button variant="primary" onClick={() => setAttempt(value => value + 1)}>{t('next.states.tryAgain')}</Button></ServicesAuthStage></DocumentBootReady>;
   if (!loaded) return <ServicesAuthStage><></></ServicesAuthStage>;
-  return <DocumentBootReady><Chooser session={session} flow={loaded.flow} saved={loaded.saved} /></DocumentBootReady>;
+  return <DocumentBootReady><Chooser who={who} flow={loaded.flow} saved={loaded.saved} /></DocumentBootReady>;
 }
 
 /** The existing sign-in state machine opens the server. A server this browser already holds a
  * sign-in for is selected again (no new sign-in or device); any other is signed in to here with
  * the Portico Account, its routes and key proved first. */
-async function admitServer(server: DirectoryItem, accountId: string, access: ReturnType<typeof createAccountServerAccess>, signal: AbortSignal): Promise<Admitted> {
+async function admitServer(server: DirectoryItem, accountId: string, access: PorticoServerAccess, signal: AbortSignal): Promise<Admitted> {
   const entry = createBrowserAccountEntry(), form = new AccountSignInForm(entry);
   let disposed = false;
   const dispose = () => {if (disposed) return; disposed = true; try {form.dispose();} finally {entry.dispose();}};
@@ -130,7 +128,7 @@ async function admitServer(server: DirectoryItem, accountId: string, access: Ret
       if (plan === 'entry' || plan === 'inspected' && (result.snapshot || result.server)) return {entry, form, dispose};
       throw result.error ?? new RouteError('route_unavailable', 'The server did not answer.');
     }
-    const immutable = Object.freeze({id: server.id, name: server.name, publicKey: server.publicKey, policyRevision: server.policyRevision, baseUrl: server.baseUrl, ...(server.routes ? {routes: structuredClone(server.routes)} : {})});
+    const immutable = Object.freeze({id: server.id, name: server.name, publicKey: server.publicKey, baseUrl: server.baseUrl});
     const opened = await entry.openHostedServer(immutable, access, record.revision); signal.throwIfAborted();
     if (!opened) throw entry.getSnapshot().error ?? new RouteError('cancelled', 'The server opening was replaced.');
     return {entry, form, dispose};
@@ -138,7 +136,7 @@ async function admitServer(server: DirectoryItem, accountId: string, access: Ret
   finally {signal.removeEventListener('abort', abort);}
 }
 
-function Chooser({session, flow, saved}: {session: Session; flow: ServicesDirectoryFlow<Admitted>; saved: ReadonlyMap<string, string>}) {
+function Chooser({who, flow, saved}: {who: Account; flow: ServicesDirectoryFlow<Admitted>; saved: ReadonlyMap<string, string>}) {
   const state = useSyncExternalStore(flow.subscribe, flow.getSnapshot);
   const [clock, setClock] = useState(Date.now), [removing, setRemoving] = useState<Removal>(), [removeFailure, setRemoveFailure] = useState<unknown>(), [working, setWorking] = useState(false), [failure, setFailure] = useState<unknown>();
   useLayoutEffect(() => {
@@ -148,7 +146,8 @@ function Chooser({session, flow, saved}: {session: Session; flow: ServicesDirect
     return () => {clearInterval(timer); clearTimeout(grace); document.removeEventListener('visibilitychange', update);};
   }, [flow]);
   const blocked = state.status === 'identity' || state.status === 'clock' || state.status === 'update';
-  const allOffline = state.items.length > 0 && state.items.every(item => item.status !== 'active');
+  // The signed list says nothing about whether a server is up, so the list is never "all offline".
+  const allOffline = false;
   // Retry only the server being waited for, while this page is visible (H01/H11).
   useLayoutEffect(() => {
     let live = true, timer: ReturnType<typeof setTimeout> | undefined;
@@ -174,9 +173,9 @@ function Chooser({session, flow, saved}: {session: Session; flow: ServicesDirect
     document.addEventListener('visibilitychange', reconcile); reconcile();
     return () => {live = false; clearTimeout(timer); document.removeEventListener('visibilitychange', reconcile);};
   }, [flow, state.phase, state.waitingId, state.items, blocked, allOffline]);
-  const name = session.account.displayName || session.account.username;
+  const name = who.displayName || who.username;
   const signOut = () => {setWorking(true); void signOutBrowserPorticoAccount().then(() => goTo('/sign-in', {replace: true}), failure => {setWorking(false); setFailure(failure);});};
-  const header = <ServicesHeader notifications={false} avatar={<ServerlessAccountMenu username={session.account.username} name={name} t={t}
+  const header = <ServicesHeader notifications={false} avatar={<ServerlessAccountMenu username={who.username} name={name} t={t}
     onAccount={() => goTo('/account')} onJoin={() => goTo('/welcome#join')} onSetup={() => goTo('/welcome#setup')} onApps={() => location.assign(distributionPage)}
     onHelp={() => window.open('https://getportico.tv/docs/', '_blank', 'noopener,noreferrer')} onSignOut={signOut} />} />;
   const admitted = state.phase === 'opened' ? state.admitted : undefined;
@@ -194,16 +193,13 @@ function Chooser({session, flow, saved}: {session: Session; flow: ServicesDirect
   const checked = clock - state.checkedAt < 45000 ? t('services.directory.justNow') : servicesRelativeTime(defaultI18n, new Date(state.checkedAt).toISOString(), clock);
   // The exact claim this row showed and one operation id, captured when the dialog opens; a retry
   // of this dialog sends both again, unchanged (P2-66 D-3).
-  const startRemoval = (item: DirectoryItem) => {setRemoveFailure(undefined); setRemoving(Object.freeze({server: item, claim: item.ownedByMe ? serverRemovalClaim(item) : undefined, operationId: randomId()}));};
+  const startRemoval = (item: DirectoryItem) => {setRemoveFailure(undefined); setRemoving(Object.freeze({server: item}));};
   const remove = async (removal: Removal) => {
-    const {server, claim, operationId} = removal;
-    if (server.ownedByMe && !claim) return;
+    const {server} = removal;
     setWorking(true); setRemoveFailure(undefined);
     try {
-      const access = createAccountServerAccess(browserAccount(), accountIdentity(session));
-      const hosted = {request: access.request};
-      if (server.ownedByMe) await removePorticoServer(hosted, access.origin, server.id, claim!, operationId);
-      else await leavePorticoServer(hosted, access.origin, server.id);
+      if (server.ownedByMe) await porticoAccountHolder.remove(server.id);
+      else await porticoAccountHolder.leave(server.id);
       await forgetSaved(server.id);
       setRemoving(undefined); flow.forget(server.id, flow.getSnapshot());
     } catch (error) {setRemoveFailure(error);}
@@ -211,7 +207,7 @@ function Chooser({session, flow, saved}: {session: Session; flow: ServicesDirect
   };
   return <>
     <ServicesServerDirectory header={header} signedInAs={name} checked={checked}
-      servers={state.items.map(item => ({id: item.id, name: item.name, online: item.status === 'active', presence: servicesServerDirectoryCopy(item, defaultI18n).presence, ownedByMe: item.ownedByMe}))}
+      servers={state.items.map(item => ({id: item.id, name: item.name, ownedByMe: item.ownedByMe}))}
       offline={allOffline} connecting={allOffline && connecting} seconds={state.seconds} pendingId={state.pendingId} busy={state.phase === 'reading' || working}
       error={failure ? <HostedError error={failure} /> : <Notice notice={connecting && transient ? undefined : directoryNotice(state, 'list', target?.name)} />}
       onOpen={id => {const item = state.items.find(value => value.id === id); if (item) void flow.open(item, state);}} onRefresh={() => void flow.refresh(state)}
@@ -220,9 +216,9 @@ function Chooser({session, flow, saved}: {session: Session; flow: ServicesDirect
     {removing && <Dialog open onOpenChange={open => {if (!open && !working) setRemoving(undefined);}} size="sm" role="alertdialog"
       title={t(removing.server.ownedByMe ? 'web.chooser.removeTitle' : 'web.chooser.leaveTitle', {server: removing.server.name})}
       footer={<><Button onClick={() => setRemoving(undefined)} disabled={working}>{t('accounts.profiles.cancel')}</Button>
-        <Button variant="primary" loading={working} disabled={removing.server.ownedByMe && !removing.claim} onClick={() => void remove(removing)}>{t(removing.server.ownedByMe ? 'web.chooser.removeServer' : 'web.chooser.leaveServer')}</Button></>}>
+        <Button variant="primary" loading={working} onClick={() => void remove(removing)}>{t(removing.server.ownedByMe ? 'web.chooser.removeServer' : 'web.chooser.leaveServer')}</Button></>}>
       <p>{t(removing.server.ownedByMe ? 'web.chooser.removeBody' : 'web.chooser.leaveBody')}</p>
-      {removing.server.ownedByMe && !removing.claim || changed(removeFailure) ? <ServicesNotice tone="error">{t('web.chooser.removeChanged')}</ServicesNotice> : <HostedError error={removeFailure} />}
+      {changed(removeFailure) ? <ServicesNotice tone="error">{t('web.chooser.removeChanged')}</ServicesNotice> : <HostedError error={removeFailure} />}
     </Dialog>}
   </>;
 }

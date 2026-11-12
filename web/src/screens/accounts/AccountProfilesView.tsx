@@ -1,7 +1,6 @@
 import {useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import type {DirectSnapshot} from '@core/profile-management.ts';
-import type {IdentityApi} from '@core/identity-client.ts';
 import type {AccountEntryState} from '../../platform/account-entry';
 import {AuthError, AuthStage, ServerProfiles, ServerProfilePIN} from '../../kit/accounts';
 import {ProfilePINRecovery} from '../../kit/accounts/ProfilePINRecovery';
@@ -15,7 +14,7 @@ export type ProfileRecoveryView = Readonly<{
   subscribe: (listener: () => void) => () => void;
   getSnapshot: () => Readonly<{phase: RecoveryPhase; busy?: boolean; error?: unknown}>;
   password: (value: string) => Promise<void>;
-  portico: (api: IdentityApi, origin: string, isCurrent: () => boolean) => Promise<void>;
+  portico: () => Promise<void>;
   code: (value: string) => Promise<void>;
   reset: (value: string) => Promise<void>;
   openProfile: (pin: string, current: () => boolean) => Promise<void>;
@@ -27,7 +26,6 @@ export type ProfilePickerViewBinding = Readonly<{
   loadProfiles: () => Promise<void>;
   chooseProfile: (id: string, pin: string, remember: boolean) => Promise<void>;
   profileRecovery: (id: string, current: () => boolean) => ProfileRecoveryView;
-  porticoRecovery: (flow: ProfileRecoveryView) => Promise<void>;
 }>;
 
 type ViewOwner = {retired: boolean; active?: {live: boolean}};
@@ -115,7 +113,7 @@ function Recovery({binding, flow, current, profileName, username, onClose, onOpe
   const live = () => lifetime?.live && active.current === lifetime && current();
   const portico = async () => {
     if (busy || !live()) return; setBusy(true); setError(undefined);
-    try {await binding.porticoRecovery(flow);} catch (failure) {if (live()) setError(failure);} finally {if (live()) setBusy(false);}
+    try {await flow.portico();} catch (failure) {if (live()) setError(failure);} finally {if (live()) setBusy(false);}
   };
   return <ProfilePINRecovery profileName={profileName} username={username} phase={state.phase} busy={state.busy || busy} error={state.error ?? error}
     onPassword={password => {if (live()) void flow.password(password);}} onPortico={() => void portico()} onCode={code => {if (live()) void flow.code(code);}} onPIN={pin => {if (live()) void flow.reset(pin);}} onClose={() => {if (live()) onClose();}} onOpen={pin => {if (live()) onOpen(pin);}} />;

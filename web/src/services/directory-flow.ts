@@ -1,15 +1,15 @@
 import {RouteError} from '@core/route-identity.ts';
-import type {WorkspaceServers} from './workspace-api';
+import type {ListedServerRow, ListedServers} from '../platform/portico-account-holder';
 import {accountDirectoryFailure, directoryFailurePhase} from './directory-errors';
 
-export type DirectoryItem = WorkspaceServers['items'][number];
+export type DirectoryItem = ListedServerRow;
 export type DirectorySnapshot<A = unknown> = Readonly<{items: readonly DirectoryItem[]; phase: 'idle'|'reading'|'opening'|'opened'; target?: DirectoryItem; showTarget?: boolean; status?: ReturnType<typeof directoryFailurePhase>; checkedAt: number; pendingId?: string; error?: unknown; errorSource?: 'account' | 'server'; waitingId?: string; seconds: number; admitted?: A}>;
 /** Where an error came from. Only a failure of Portico Accounts' own requests is an account
  * error; a server that does not answer, or cannot prove itself, is that server's (H12). */
 export type DirectoryErrorSource = NonNullable<DirectorySnapshot['errorSource']>;
 /** An admission is the server's own sign-in state, owned by the caller once it is published. */
 type Admission = Readonly<{dispose: () => void}>;
-type Ports<A extends Admission> = Readonly<{current: () => boolean; read: (signal: AbortSignal) => Promise<WorkspaceServers>; admit: (server: DirectoryItem, signal: AbortSignal) => Promise<A>; empty: () => void; now?: () => number}>;
+type Ports<A extends Admission> = Readonly<{current: () => boolean; read: (signal: AbortSignal) => Promise<ListedServers>; admit: (server: DirectoryItem, signal: AbortSignal) => Promise<A>; empty: () => void; now?: () => number}>;
 
 /** The account's server chooser at web.getportico.tv (connect 1-31). Opening a server signs in
  * to it here, on this page's own address: the browser is never sent to the server. Waiting and
@@ -25,7 +25,7 @@ export class ServicesDirectoryFlow<A extends Admission = Admission> {
   private readonly startedAt: number;
   /** `autoOpen`: this opening may open the account's only server by itself (a first visit with
    * nothing selected). A person who came here to choose is never taken anywhere unasked. */
-  constructor(initial: WorkspaceServers, private readonly ports: Ports<A>, private readonly autoOpen = false) {
+  constructor(initial: ListedServers, private readonly ports: Ports<A>, private readonly autoOpen = false) {
     this.startedAt = this.now();
     this.state = Object.freeze({items: initial.items, phase: 'idle', checkedAt: this.now(), seconds: 20});
   }
@@ -37,7 +37,7 @@ export class ServicesDirectoryFlow<A extends Admission = Admission> {
   automaticInitial() {
     if (!this.current() || this.initialAttempted) return;
     this.initialAttempted = true;
-    if (this.autoOpen && this.state.items.length === 1 && this.state.items[0].status === 'active') {this.delay = 10; void this.open(this.state.items[0], this.state, true);}
+    if (this.autoOpen && this.state.items.length === 1 && this.state.items[0].status === 'listed') {this.delay = 10; void this.open(this.state.items[0], this.state, true);}
   }
   retryDelay() {return this.delay;}
   inConnectingGrace(now = this.now()) {return now - this.startedAt < 40_000;}
@@ -85,14 +85,14 @@ export class ServicesDirectoryFlow<A extends Admission = Admission> {
     if (!this.current() || this.state !== expected || this.active || expected.phase === 'opened' || !expected.items.includes(server) && expected.target !== server) return;
     const captured = Object.freeze({...server}), active = {controller: new AbortController(), automatic}; this.active = active;
     const current = () => this.current() && this.active === active && !active.controller.signal.aborted;
-    this.publish({...expected, phase: 'opening', pendingId: captured.id, target: captured, status: undefined, showTarget: !automatic || expected.showTarget || expected.items.length === 1 && captured.status === 'active', error: undefined, errorSource: undefined});
+    this.publish({...expected, phase: 'opening', pendingId: captured.id, target: captured, status: undefined, showTarget: !automatic || expected.showTarget || expected.items.length === 1 && captured.status === 'listed', error: undefined, errorSource: undefined});
     let readingAccount = true;
     try {
       const result = await this.ports.read(active.controller.signal); if (!current()) return;
       readingAccount = false;
       const matches = result.items.filter(item => item.id === captured.id), fresh = matches[0];
       if (!result.items.length) {this.publish({...this.state, items: result.items, phase: 'idle', pendingId: undefined, target: undefined, waitingId: undefined, checkedAt: this.now()}); if (current()) this.ports.empty(); return;}
-      if (matches.length !== 1 || fresh.publicKey !== captured.publicKey || fresh.policyRevision < captured.policyRevision) throw new RouteError('identity_mismatch', 'The selected server identity or membership changed.');
+      if (matches.length !== 1 || fresh.publicKey !== captured.publicKey) throw new RouteError('identity_mismatch', 'The selected server identity or membership changed.');
       this.publish({...this.state, items: result.items, checkedAt: this.now()});
       const admitted = await this.ports.admit(Object.freeze({...fresh}), active.controller.signal);
       if (!current()) {admitted.dispose(); return;}

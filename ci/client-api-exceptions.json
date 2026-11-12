@@ -364,17 +364,9 @@
     "category": "platform-transport",
     "reason": "Approved auth/profile/invitation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
     "sites": [
-      "web/src/platform/account-entry.ts#349560422f5c8e69",
-      "web/src/platform/account-entry.ts#20dc95d1598f8be9",
-      "web/src/platform/account-entry.ts#d3b65eac59ee9d6e",
-      "web/src/platform/account-entry.ts#aedeea5fbed3f95a",
       "web/src/platform/account-entry.ts#b39b71362dd7ecdc"
     ],
     "guardHashes": {
-      "web/src/platform/account-entry.ts#349560422f5c8e69": "baeeaa79949975f0ee467ca13a9fc0844d285569873f5a21f0200fe360663cc4",
-      "web/src/platform/account-entry.ts#20dc95d1598f8be9": "8039843391f461a87fff9a64b8c477d2fef3707d54c10d046ac67400e030b3b1",
-      "web/src/platform/account-entry.ts#d3b65eac59ee9d6e": "8526f49adf167c5490dcc9ad94a1b302d063a7ef37af2e09264987c184462b3f",
-      "web/src/platform/account-entry.ts#aedeea5fbed3f95a": "852b3adbeabc88447f73d1fba5df1bde84a90df784ede7405d46936dcc6aeb51",
       "web/src/platform/account-entry.ts#b39b71362dd7ecdc": "58c0329ed296f70d039441910a673a115d169b6414c4754607794cb7b6db811b"
     }
   },

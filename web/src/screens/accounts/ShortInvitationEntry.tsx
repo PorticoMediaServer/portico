@@ -1,10 +1,10 @@
 import {useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
-import type {HostedRequestApi} from '@core/portico-servers.ts';
 import {formatShortInvitationCode} from '@core/short-invitation-code.ts';
 import {AuthError, AuthLinks, AuthStage} from '../../kit/accounts/AuthStage';
 import {LocalInvitationForm, PorticoInvitation} from '../../kit/accounts/Invitation';
 import {Button, TextField} from '../../kit/controls';
+import type {PorticoServerAccess} from '../../platform/portico-server-access';
 import {createBrowserAccountEntry, type BrowserAccountEntry} from '../../platform/account-entry';
 import styles from '../../kit/accounts/short-invitation-entry.module.css';
 import entryStyles from './short-invitation-entry.module.css';
@@ -35,7 +35,7 @@ export function shortInvitationFormErrorKind(phase: string, error: unknown, invi
 export type ShortInvitationEntryProps = Readonly<{
   onBack: () => void;
   onJoined: (destination: Readonly<{origin: string; signIn: 'local' | 'portico'}>) => void;
-  account?: Readonly<{origin: string; accountId: string; username: string; request: HostedRequestApi['request']; isCurrent: () => boolean}>;
+  account?: PorticoServerAccess & Readonly<{username: string}>;
   signedOutContent?: ReactNode;
   onDifferentAccount?: () => void;
   /** Test seam only; the real entry keeps its own browser custody. */

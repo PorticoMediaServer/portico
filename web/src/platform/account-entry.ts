@@ -10,11 +10,12 @@ import {currentServedServerOrigin,savedServerIsThisPage} from './served-origin';
 import {ServerSignInProbe, negotiateServer, parseServerSignIn, type ServerSignIn} from '@core/sign-in.ts';
 import {NeedsNewerAppError} from '@core/needs-newer-app.ts';
 import {directSignIn, directSignInContinuation, shouldRetireAccountSession, completeDirectSignInChallenge, changeRequiredPassword, parseDirectSnapshot, type DirectSignIn, type DirectSnapshot} from '@core/profile-management.ts';
-import {inspectDirectServer, connectPairedServer, connectPairedPorticoServer, connectHostedServer, rememberNativeSession, type ConnectionEnvironment, type RememberedServer} from '@core/server-connections.ts';
+import {inspectDirectServer, connectPairedServer, rememberNativeSession, type ConnectionEnvironment, type RememberedServer} from '@core/server-connections.ts';
 import {assertFirstContactIdentity, RouteError, sameServerPin, type ServerPin} from '@core/route-identity.ts';
 import type {LocalMoveCustody} from './local-move';
 import {knownServerRoutes, type AppSessionStore, type AppServerSession, type SignInKind} from '@core/app-sessions.ts';
-import {acceptPorticoInvitation, acceptShortPorticoInvitation, porticoSignIn, type HostedRequestApi} from '@core/portico-servers.ts';
+import {challengeNotProven} from '@core/portico-servers.ts';
+import {porticoServerSignIn} from '@core/portico-server-sign-in.ts';
 import type {JoinLink} from '@core/join-link.ts';
 import {parseShortInvitationCode} from '@core/short-invitation-code.ts';
 import {passwordStrength} from '@core/password-strength.ts';
@@ -33,7 +34,7 @@ import {dispatchPorticoReturn, type CapturedPorticoReturn} from './portico-retur
 import {createBrowserOwnerClaim, type BrowserOwnerClaim} from './owner-claim';
 import {createBrowserSetupReturn, type BrowserSetupReturn} from './setup-return';
 import {buildHostedSignInStartURL} from '@core/hosted-sign-in-start.ts';
-import type {AccountServerAccess} from './account-server-access';
+import type {PorticoServerAccess} from './portico-server-access';
 import {CapturedAccountIdentityFailure, type AccountIdentityFailureBinding} from './account-identity-failure';
 
 type InvitationCapability=Readonly<{code:string}|{shortCode:string}>;
@@ -44,7 +45,8 @@ type SetupReturnController=Pick<BrowserSetupReturn,'pendingReturn'|'finish'|'can
 type ContinuationReturnController=OwnerReturnController|SetupReturnController;
 type AdmittedCompletion=Readonly<{api:HttpLocalApi;result:Extract<DirectSignIn,{kind:'signed-in'}>}>;
 export type OwnerResetDetails=Readonly<{username:string;twoStepEnabled:boolean}>;
-export type HostedDirectoryServer=Readonly<Pick<HostedServer,'id'|'name'|'publicKey'|'policyRevision'|'baseUrl'|'routes'>>;
+/** A server from the Portico Account's signed list: its id, name, key and the address to try. */
+export type HostedDirectoryServer=Readonly<Pick<HostedServer,'id'|'name'|'publicKey'|'baseUrl'>>;
 // Rotation may update the bearer while the original recovery view is open.
 // A different private admission, viewer or authorization horizon never joins it.
 const sameRecoveryAdmission=(original:LocalSession,current:LocalSession|undefined)=>!!current&&
@@ -68,8 +70,6 @@ type EntryPorts = Readonly<{
  environment:(id?:string)=>ConnectionEnvironment;
  restore:typeof restoreBrowserConnection;
  inspect:typeof inspectDirectServer; connect:typeof connectPairedServer; remember:typeof rememberNativeSession;
- connectPortico?:typeof connectPairedPorticoServer;
- connectHosted?:typeof connectHostedServer; signInHosted?:typeof porticoSignIn;
  retire?:(api:HttpLocalApi,session:LocalSession)=>Promise<void>;
  temporary?:(source:HttpLocalApi,session:LocalSession)=>HttpLocalApi;
  invitationDestination?:'adopt'|'server-origin';
@@ -97,7 +97,7 @@ export class BrowserAccountEntry {
  private ownerReset?:OwnerResetCapture;private ownerResetTimer?:ReturnType<typeof setTimeout>;
  private moveProof?:Readonly<{code:string;revision:number;preview:MoveCodePreview}>;
  private moveTicket?:Readonly<{ticket:string;revision:number;expiresAt:string}>;
- private hostedChallenge?:Readonly<{account:AccountServerAccess;hosted:NonNullable<RememberedServer['hosted']>}>;
+ private hostedChallenge?:Readonly<{account:Pick<PorticoServerAccess,'accountId'|'isCurrent'|'observe'>;hosted:NonNullable<RememberedServer['hosted']>}>;
  private offHostedChallenge?:()=>void;
  private identityFailure?:CapturedAccountIdentityFailure;
  readonly probe:ServerSignInProbe;
@@ -157,56 +157,67 @@ export class BrowserAccountEntry {
  cancel(){++this.epoch;this.controller?.abort();this.probe.cancel();this.release();this.invitationCapability=undefined;this.joinedAccountId=undefined;this.joinedUsername=undefined;this.publish({phase:'welcome'});}
  address(){this.cancel();this.publish({phase:'address'});}
  private clearHostedChallenge(){const off=this.offHostedChallenge;this.hostedChallenge=undefined;this.offHostedChallenge=undefined;off?.();}
- private watchHostedChallenge(account:AccountServerAccess,hosted:NonNullable<RememberedServer['hosted']>){
+ private watchHostedChallenge(account:Pick<PorticoServerAccess,'accountId'|'isCurrent'|'observe'>,hosted:NonNullable<RememberedServer['hosted']>){
   this.clearHostedChallenge();const capture=this.hostedChallenge={account,hosted};
   const off=account.observe?.(()=>{if(this.hostedChallenge===capture&&!account.isCurrent())this.cancel();});
   if(this.hostedChallenge===capture)this.offHostedChallenge=off;else off?.();
   if(!account.isCurrent())this.cancel();
  }
- /** A directory fact is only a hint until Hosted-signed routes and the Server's
-  * private key prove this exact identity. The Server still decides membership. */
- async openHostedServer(input:HostedDirectoryServer,source:AccountServerAccess,expectedRevision?:number):Promise<boolean>{
-  const account:AccountServerAccess=Object.freeze({origin:source.origin,accountId:source.accountId,request:source.request.bind(source),isCurrent:source.isCurrent.bind(source),...(source.observe?{observe:source.observe.bind(source)}:{})});
-  const server:HostedServer=Object.freeze({id:input.id,name:input.name,publicKey:input.publicKey,policyRevision:input.policyRevision,baseUrl:input.baseUrl,...(input.routes?{routes:structuredClone(input.routes)}:{})});
+ /** A server from the Portico Account's signed server list (`openAccountServerList`): the server at
+  * the listed address must hold the listed key before anything is sent to it; it then signs the
+  * account in with the note Portico Services gives for its challenge (the apps' path, #2901). The
+  * server still decides membership. */
+ async openHostedServer(input:HostedDirectoryServer,account:PorticoServerAccess,expectedRevision?:number):Promise<boolean>{
+  const server=Object.freeze({id:input.id,name:input.name,publicKey:input.publicKey,baseUrl:input.baseUrl});
   this.cancel();const op=this.operation();this.publish({phase:'checking',busy:true});
+  return this.signInWithPortico(server,account,op,expectedRevision);
+ }
+ /** Both ways in with a Portico Account: a listed server, and a server joined by invitation. */
+ private async signInWithPortico(server:Readonly<{id:string;name?:string;publicKey?:string;baseUrl:string}>,account:PorticoServerAccess,op:ReturnType<BrowserAccountEntry['operation']>,expectedRevision?:number,invitation?:string):Promise<boolean>{
   const guard={...op,current:()=>op.current()&&account.isCurrent()};
-  let connected:Awaited<ReturnType<typeof connectHostedServer>>|undefined;
+  const cancelled=()=>new CodedError('cancelled','The Portico Account changed.');
+  let connected:Awaited<ReturnType<typeof connectPairedServer>>|undefined;
   try{
-   if(!guard.current())throw new CodedError('cancelled','The Portico Account changed.');
+   if(!guard.current())throw cancelled();
    const revision=(await this.ports.store.read()).revision;if(!guard.current())return false;
    if(expectedRevision!==undefined&&(!Number.isSafeInteger(expectedRevision)||expectedRevision<0||revision!==expectedRevision))throw new CodedError('cancelled','The server selection changed.');
-   const request:HostedRequestApi['request']=async<T,>(path:string,method?:string,body?:unknown,signal?:AbortSignal)=>{
-    if(!guard.current())throw new CodedError('cancelled','The Portico Account changed.');
-    const result=await account.request<T>(path,method,body,signal);
-    if(!guard.current())throw new CodedError('cancelled','The Portico Account changed.');return result;
-   };
-   connected=await(this.ports.connectHosted??connectHostedServer)(server,{origin:account.origin,accountId:account.accountId,request:createHostedDirectoryReadPort(request)},this.ports.environment(server.id),op.signal);
-   if(!guard.current())return false;
-   const api=connected.api,pin=connected.connection.pin,origin=api.baseUrl;
-   const verified=parseServerSignIn(await readServerSystem(api, op.signal));
-   if(!guard.current())return false;
-   if(pin.serverId!==server.id||pin.publicKey!==server.publicKey||connected.hosted.origin!==account.origin||connected.hosted.accountId!==account.accountId||verified.id!==server.id||verified.signIn!=='portico'||verified.setupRequired)throw new RouteError('identity_mismatch','The server identity or sign-in changed.');
-   negotiateServer(verified);
+   const env=this.ports.environment(server.id);
+   const pin=await this.ports.inspect(server.baseUrl,env,op.signal);if(!guard.current())return false;
+   // In place of the old server's signed challenge proof: a server answering at this address with
+   // any other id or key is refused here, before any note is asked for.
+   if(pin.serverId!==server.id||server.publicKey!==undefined&&pin.publicKey!==server.publicKey)throw new CodedError('challenge_not_proven',challengeNotProven);
    const saved=await this.ports.store.read();if(!guard.current())return false;
    if(saved.revision!==revision)throw new CodedError('cancelled','The server selection changed.');
-   assertFirstContactIdentity(origin,pin,{linkId:server.id,knownRoutes:knownServerRoutes(saved)});
+   assertFirstContactIdentity(server.baseUrl,pin,{linkId:server.id,knownRoutes:knownServerRoutes(saved)});
+   connected=await this.ports.connect(server.baseUrl,pin,env,op.signal);if(!guard.current())return false;
+   const api=connected.api,origin=api.baseUrl;
+   const verified=parseServerSignIn(await readServerSystem(api, op.signal));
+   if(!guard.current())return false;
+   if(verified.id!==server.id||verified.signIn!=='portico'||verified.setupRequired)throw new RouteError('identity_mismatch','The server directory and signed identity disagree.');
+   negotiateServer(verified);
    this.api=api;this.ports.rememberName?.(api,verified.name);
-   this.publish({phase:'portico',busy:true,server:verified,origin,pin});
+   // A join keeps its invitation in view; a listed server starts afresh.
+   this.publish({...(invitation?this.state:{}),phase:'portico',busy:true,server:verified,origin,pin});
    if(!guard.current())return false;
-   const result=await(this.ports.signInHosted??porticoSignIn)({request},account.origin,{request:(path,method,body,signal)=>{
-    if(!guard.current())throw new CodedError('cancelled','The Portico Account changed.');
-    return api.request(path,method,body,signal);
-   }},server.id,{kind:'interactive',signal:op.signal});
-   if(!guard.current()||result.kind==='signed-in'&&result.snapshot.account.hostedAccountId!==account.accountId){
+   // Remembered under its Portico Account (for Portico sign-out); the new service has no route key.
+   const hosted={origin:account.origin,accountId:account.accountId};
+   const result=await porticoServerSignIn(api,server.id,challenge=>account.identity(server.id,challenge,op.signal),op.signal,
+    {accountId:account.accountId,isCurrent:guard.current,...(invitation?{invitation}:{})});
+   if(!guard.current()){
     if(result.kind==='signed-in')await this.retire(api,result.session);
-    if(op.current())throw new CodedError('cancelled','The Portico Account changed.');return false;
+    if(op.current())throw cancelled();return false;
    }
-   if(result.kind==='challenge')this.watchHostedChallenge(account,connected.hosted);
+   if(result.kind==='challenge')this.watchHostedChallenge(account,hosted);
    if(!guard.current())return false;
-   await this.accept(result,api,revision,guard,connected.hosted);
+   await this.accept(result,api,revision,guard,hosted);
    return guard.current();
-  }catch(error){if(op.current()){this.release();this.publish({phase:'address',error,busy:false});}return false;}
-  finally{if(op.current()&&!account.isCurrent())this.cancel();if(connected&&this.api!==connected.api)connected.connection.dispose();}
+  }catch(error){if(op.current()){this.release();this.publish({...(invitation?this.state:{}),phase:invitation?this.state.phase:'address',error,busy:false});}return false;}
+  finally{
+   // An account change ends this attempt. A listed server's opening ends with it; an invitation stays
+   // open, so the account now signed in can join with it.
+   if(op.current()&&!account.isCurrent()){if(invitation)this.publish({...this.state,busy:false,error:undefined});else this.cancel();}
+   if(connected&&this.api!==connected.api)connected.connection.dispose();
+  }
  }
  async inspect(address:string,linkId?:string){
   this.cancel();const op=this.operation();this.publish({phase:'checking'});
@@ -362,32 +373,14 @@ export class BrowserAccountEntry {
    await this.accept(result,api,revision,op);
   }catch(error){if(op.current())this.publish({...state,busy:false,error});}
  }
- async joinPortico(account:Readonly<{origin:string;accountId:string;request:HostedRequestApi['request'];isCurrent:()=>boolean}>){
+ /** Joins the server this invitation is for with the Portico Account this page holds: the same
+  * sign-in as a listed server's, with the invitation's code in the exchange. */
+ async joinPortico(account:PorticoServerAccess){
   const state=this.state,capability=this.invitationCapability;
   if(state.phase!=='portico'||state.server?.signIn!=='portico'||!state.invitation||!state.pin||!state.origin||!capability||state.busy||!account.isCurrent())return;
-  const op=this.operation(),guard={...op,current:()=>op.current()&&account.isCurrent()};this.publish({...state,busy:true,error:undefined});
-  let paired:Awaited<ReturnType<typeof connectPairedPorticoServer>>|undefined;
-  try{
-   const revision=(await this.ports.store.read()).revision;if(!guard.current())return;
-   const check=()=>{if(!guard.current())throw new CodedError('cancelled','The Portico Account changed.');};
-   const request:HostedRequestApi['request']=async<T,>(path:string,method?:string,body?:unknown,signal?:AbortSignal)=>{check();const result=await account.request<T>(path,method,body,signal);check();return result;};
-   paired=await (this.ports.connectPortico??connectPairedPorticoServer)(state.origin,state.pin,
-    {origin:account.origin,accountId:account.accountId,request:createHostedDirectoryReadPort(request)},this.ports.environment(state.server.id),op.signal);
-   if(!guard.current()){paired.connection.dispose();return;}
-   const server=paired.api;
-   const short='shortCode' in capability,acceptInvitation=short?acceptShortPorticoInvitation:acceptPorticoInvitation;
-   const result=await acceptInvitation({request},account.origin,{request:(path,method,body,signal)=>{check();return server.request(path,method,body,signal);}},state.server.id,'shortCode' in capability?capability.shortCode:capability.code,op.signal);
-   if(result.kind!=='signed-in')throw new CodedError('invalid_response','The Portico invitation returned an unexpected challenge.');
-   if(!guard.current()||result.snapshot.account.hostedAccountId!==account.accountId){await this.retire(paired.api,result.session);throw new CodedError('cancelled','The Portico Account changed.');}
-   const previous=this.api;this.api=paired.api;previous?.getRouteConnection()?.dispose();
-   await this.accept(result,paired.api,revision,guard,paired.hosted);
-  }catch(error){if(guard.current())this.publish({...state,busy:false,error});}
-  finally{
-   if(paired&&this.api!==paired.api)paired.connection.dispose();
-   // A family change ends this attempt, not the invitation. Its old guard may
-   // never admit a grant, but the current page must let the new account act.
-   if(op.current()&&!account.isCurrent())this.publish({...state,busy:false,error:undefined});
-  }
+  const op=this.operation();this.publish({...state,busy:true,error:undefined});
+  const code='shortCode' in capability?capability.shortCode:capability.code;
+  await this.signInWithPortico({id:state.server.id,name:state.server.name,publicKey:state.pin.publicKey,baseUrl:state.origin},account,op,undefined,code);
  }
  async signIn(username:string,password:string){
   const state=this.state,api=this.api;

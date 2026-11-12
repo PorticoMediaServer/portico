@@ -5,9 +5,9 @@ import {accountDirectoryFailure, directoryFailurePhase} from '../src/services/di
 import {RouteError} from '@core/route-identity.ts';
 import {ApiError} from '@core/index.ts';
 
-const server: DirectoryItem={id:'srv_'+'a'.repeat(43),name:'Original server',baseUrl:'https://server.example',publicKey:'p'.repeat(43),policyRevision:1,secureConnection:'ready',endpointVerified:true,lastSeenAt:'2026-10-25T12:00:00Z',presence:{lastSeenAt:'2026-10-25T12:00:00Z'},ownedByMe:false,role:'member',status:'active'};
+const server: DirectoryItem={id:'srv_'+'a'.repeat(43),name:'Original server',baseUrl:'https://server.example',publicKey:'p'.repeat(43),ownedByMe:false,status:'listed',presence:{lastSeenAt:null}};
 const other: DirectoryItem={...server,id:'srv_'+'b'.repeat(43),name:'Other server',baseUrl:'https://other.example',publicKey:'o'.repeat(43)};
-const directory=(items: DirectoryItem[])=>({items,version:'1',watch:'1',membershipEnding:undefined});
+const directory=(items: DirectoryItem[])=>({accountId:'acct_1',items});
 const deferred=<T,>()=>{let resolve!:(value:T)=>void;const promise=new Promise<T>(done=>{resolve=done;});return{promise,resolve};};
 type Admission={id:string;dispose:()=>void};
 function fixture(items=[server],autoOpen=false){
