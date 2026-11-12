@@ -8,6 +8,7 @@ import {HttpLocalApi, type Viewer} from '../index.ts';
 import {installationIdentity} from '../installation.ts';
 import type {ViewerRequester} from './viewer-queries.ts';
 import {callServer, serverPath} from './server-api.ts';
+import {throwIfAborted} from '../abort-lifetime.ts';
 
 export function readServerSystem(api: ViewerRequester, signal?: AbortSignal): Promise<unknown> {
   return callServer(api, 'GET /v1/system', {signal});
@@ -71,9 +72,9 @@ export function createLocalDeviceApprovalTransport(request: HttpLocalApi['reques
     opening.check();
     if (method !== 'POST' || !paths.has(path)) throw opening.retired();
     const stop = signal ? AbortSignal.any([opening.signal, signal]) : opening.signal;
-    stop.throwIfAborted();
+    throwIfAborted(stop);
     const value = await request<T>(path, method, body, stop);
-    opening.check();stop.throwIfAborted();return value;
+    opening.check();throwIfAborted(stop);return value;
   }});
 }
 export function createHostedTVAuthorization<T = unknown>(api: ViewerRequester, requestId: string, publicKey: string, signal?: AbortSignal): Promise<T> {

@@ -4,6 +4,7 @@ import {ambientArtworkSource, type AmbientArtworkIdentity} from './ambient.ts';
 import {artworkRenditionFor} from './renditions.ts';
 import type {ArtworkFailure} from './scheduler.ts';
 import type {ProfileAvatar} from '../identity-restrictions.ts';
+import {throwIfAborted} from '../abort-lifetime.ts';
 
 /** pixels is the painted width in device pixels and aspect its width ÷ height:
  * the box the picture covers. The slot whose actual pixels fill that box is
@@ -73,7 +74,7 @@ async function imageBytes(response: Response, ceiling: number, signal: AbortSign
   const reader = response.body.getReader(), chunks: Uint8Array<ArrayBuffer>[] = []; let count = 0;
   try {
     for (;;) {
-      signal.throwIfAborted();
+      throwIfAborted(signal);
       const read = await reader.read(); if (read.done) break;
       count += read.value.byteLength;
       if (count > ceiling) throw Object.assign(new Error('Artwork exceeds its size bound.'), {status: 413});
@@ -99,7 +100,7 @@ export async function readAuthenticatedArtworkBytes(options: AuthenticatedArtwor
   const {api, auth, identity, isCurrent} = options;
   if (!isCurrent() || !(ambientArtworkSource(request.url, identity) || request.kind === 'foreground' && (sizedPicture.test(request.url) || channelLogoArtwork(request.url, identity) || memberProfileAvatarArtwork(request.url, identity) || trickplayTileArtwork(request.url, identity)))) throw Object.assign(new Error('Artwork authority changed.'), {status: 403});
   const token = await auth.token(options.currentToken());
-  signal.throwIfAborted();
+  throwIfAborted(signal);
   if (!isCurrent()) throw Object.assign(new Error('Artwork authority changed.'), {status: 403});
   const fetchImage = (access: string) => api.routeFetch(api.baseUrl + request.url, {method: 'GET', signal, redirect: 'error', credentials: 'omit', referrerPolicy: 'no-referrer', headers: {Authorization: 'Bearer ' + access, Accept: 'image/avif,image/webp,image/png,image/jpeg'}});
   let response = await fetchImage(token);

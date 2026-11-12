@@ -1,12 +1,13 @@
 import {encodedRoutePath} from '../../../contracts/src/routes.ts';
 import type {GetCollectionsIdItemsResponse} from '../../../contracts/src/types.ts';
 import type {DownloadsApi} from '../downloads-service.ts';
+import {throwIfAborted} from '../abort-lifetime.ts';
 
 /** The collection successor in server order: ten pages of sixty, same opaque cursor and cancellation. */
 export async function readCollectionSuccessor<T = GetCollectionsIdItemsResponse['items'][number]>(api: DownloadsApi, collectionId: string, currentItemId: string, signal: AbortSignal, project: (item: GetCollectionsIdItemsResponse['items'][number]) => T = item => item as unknown as T): Promise<T | undefined> {
   let cursor = '', after = false;
   for (let page = 0; page < 10; page++) {
-    signal.throwIfAborted();
+    throwIfAborted(signal);
     const path = encodedRoutePath('get_collections_id_items', {id: encodeURIComponent(collectionId)})
       + `?sort=groupOrder&direction=asc&limit=60${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
     const raw = await api.request<GetCollectionsIdItemsResponse>(path, 'GET', undefined, signal);

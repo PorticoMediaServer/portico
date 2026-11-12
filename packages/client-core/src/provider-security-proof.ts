@@ -1,5 +1,6 @@
 import {parseAccountReturn, securityPurposeNeedsProof, type AccountScope, type HostedAccountClient, type IdentityProvider, type RecentProof, type SecurityIntent} from './hosted-security.ts';
 import {CodedError} from './server-messages.ts';
+import {throwIfAborted} from './abort-lifetime.ts';
 
 /**
  * Root §70 / A80 in an app: an account that signs in only with Google or Apple
@@ -38,12 +39,12 @@ export async function reconfirmWithProvider(client: HostedAccountClient, input: 
   let completionCode: string | undefined;
   if (nativeApple) {
     const assertion = await ports.signInApple!(start.nativeNonce);
-    signal?.throwIfAborted();
+    throwIfAborted(signal);
     await client.nativeApple(start.transactionId, assertion.idToken, '', signal);
   } else {
     if (!start.authorizationUrl) throw failed();
     const returned = parseAccountReturn(await ports.openBrowser(start.authorizationUrl, start.transactionId), start.transactionId, accountOrigin);
-    signal?.throwIfAborted();
+    throwIfAborted(signal);
     if (!returned.completionCode) throw failed();
     completionCode = returned.completionCode;
   }

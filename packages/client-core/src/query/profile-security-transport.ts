@@ -1,5 +1,6 @@
 import type {ProfileAPI} from '../profile-management.ts';
 import {serverPath} from './server-api.ts';
+import {throwIfAborted} from '../abort-lifetime.ts';
 
 /** The account-security commands (password, two-step, recovery codes) keep their answer even if what they
  * changed retires the Settings view. Reads use the ordinary guarded transport; this is no general API. */
@@ -7,7 +8,7 @@ export function profileSecurityTransport(original:ProfileAPI,assert:()=>void,sig
  const routes=new Set(['POST /v1/auth/password','POST /v1/me/two-factor','POST /v1/me/two-factor/confirm','DELETE /v1/me/two-factor','POST /v1/me/two-factor/recovery-codes'] as const);
  return Object.freeze({request:async<T,>(path:string,method?:string,body?:unknown,input?:AbortSignal):Promise<T>=>{
   if(![...routes].some(route=>route===`${method} ${path}`&&serverPath(route)===path))throw new Error('Not an account security command.');
-  assert();const captured=signal(input);captured.throwIfAborted();
+  assert();const captured=signal(input);throwIfAborted(captured);
   return original.request<T>(path,method,body,captured);
  }});
 }
