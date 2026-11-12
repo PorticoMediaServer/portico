@@ -101,6 +101,8 @@ type Account struct {
 	ID          string
 	Username    string
 	DisplayName string
+	// Audience is filled only by a verified sign-in note for a server-page return.
+	Audience string
 	// Email is filled by a sign-in, never by an approval. The server's owner and
 	// administrators see it in People; the server does nothing else with it.
 	Email string

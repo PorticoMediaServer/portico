@@ -32,6 +32,8 @@ type Identity struct {
 	Nonce     string    `json:"nonce"`
 	IssuedAt  time.Time `json:"issuedAt"`
 	ExpiresAt time.Time `json:"expiresAt"`
+	// Audience restricts a returned sign-in note to this server’s registered HTTPS address.
+	Audience string `json:"audience,omitempty"`
 	// Pictures are where the account's profile pictures on this server can be read. The
 	// server keeps the addresses and hands them to apps; it never fetches a picture.
 	Pictures []Picture `json:"pictures"`
