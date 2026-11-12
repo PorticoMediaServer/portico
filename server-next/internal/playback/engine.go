@@ -197,6 +197,10 @@ type Plan struct {
 	AudioTrackID string
 	Subtitle     *SubtitleInForce
 	HDR          *HDR
+	// ConvertingToHeight, while the picture is converted, is the height of the quality the
+	// conversion aims at as the person and the settings name it (1080 for 1080p, whatever the
+	// film's own shape); 0 when the picture is not converted or nothing sets a height.
+	ConvertingToHeight int
 	// PlaybackInfo is what the file holds against what is playing here, and AudioRender how
 	// an app that decodes music itself should play it. Both pass through to the app as they are.
 	PlaybackInfo json.RawMessage
