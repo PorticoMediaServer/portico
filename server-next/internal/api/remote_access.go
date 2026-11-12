@@ -795,6 +795,9 @@ func (s *Server) applyRemoteAccess(r *http.Request, req RemoteAccessSave, match 
 	}
 	s.access.set(v, true)
 	s.applyCertificate(v)
+	// The public port, or remote access on or off, is in the document Portico Services holds:
+	// a change the owner makes here does not wait out the gap between address changes.
+	s.porticoChangedByOwner()
 	v.revision = revision(saved)
 	v.Warning, v.IPv6Note = s.dlnaWarning(v.DLNA), ipv6NotYet
 	return v, nil

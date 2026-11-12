@@ -74,6 +74,12 @@ func (c *Client) Step(ctx context.Context) time.Time {
 		c.save()
 	}
 	if c.state.NextTryAt.After(now) {
+		if c.Status().State == "off" {
+			// A start inside a wait: say where things stand, so a certificate already
+			// installed and still good is in use now and not when the wait ends.
+			next := c.state.NextTryAt
+			c.set(Status{State: "waiting", NextTryAt: &next})
+		}
 		return c.state.NextTryAt
 	}
 	next := c.step(ctx, now)

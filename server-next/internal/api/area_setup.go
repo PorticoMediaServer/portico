@@ -46,7 +46,7 @@ type setupArea struct {
 // once, after the job runner exists and before the jobs left from the last run are taken up.
 func (s *Server) startSetup(ctx context.Context) error {
 	s.portico = certclient.New(certclient.Options{ServerID: s.id, Key: s.identity.key, Keys: filepath.Join(s.dataDir, "Keys"),
-		Log: s.log, Now: func() time.Time { return s.now() }})
+		Log: s.log, Now: func() time.Time { return s.now() }, OnChange: s.porticoCertificate})
 	s.goBackground(func() { s.portico.Run(ctx) })
 	if err := s.loadSetupCode(ctx, s.dataDir); err != nil {
 		return err
@@ -85,7 +85,11 @@ func (s *Server) startSetup(ctx context.Context) error {
 	// The certificate client asks for the server's address and certificate only between the
 	// two: told of a link it begins, and told the link has ended it stops for good.
 	s.link.onLinked = s.portico.Linked
-	s.link.onUnlinked = s.portico.Unlinked
+	s.link.onUnlinked = s.porticoUnlinked
+	// The server's document carries the addresses it publishes; a change of address is looked
+	// at at once, and the link's own gap decides when it is sent.
+	s.link.published = s.porticoPublished
+	s.OnAddressesChange(s.porticoWake)
 	s.link.run()
 	return nil
 }

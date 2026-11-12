@@ -192,7 +192,9 @@ func (s *Server) porticoZone() string {
 // SetPorticoZone is how the Portico certificate's side of the server says this server's
 // Portico zone ("<name space>.portico.direct") and how to get the certificate for a name in
 // it. The server serves that certificate for every name under the zone, its home names
-// included, and the owner's own for any other. An empty zone stops it.
+// included, and the owner's own for any other. An empty zone stops it. A set zone is in force
+// for Enhanced security at once, with no wait for a certificate, so the caller sets it only
+// once the certificate can be served (porticoCertificate does).
 func (s *Server) SetPorticoZone(zone string, certificate func(*tls.ClientHelloInfo) (*tls.Certificate, error)) {
 	zone = strings.ToLower(strings.TrimSuffix(zone, "."))
 	if certificate == nil {
