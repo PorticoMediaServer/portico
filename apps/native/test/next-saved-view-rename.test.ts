@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {PersonalSavedService} from '../../../packages/client-core/src/personal-saved.ts';
 import type {SavedApi, SavedScope} from '../../../packages/client-core/src/saved.ts';
 import {createNativeSavedViewRenameController} from '../src-next/screens/saved/rename-view.ts';
+// The rename controller is tested against the old server's resource documents; the rebuilt server's are client-core's (personal-saved-next.test.ts).
+import {legacyPersonalTransport} from '../../../packages/client-core/test/fixtures/legacy-personal-transport.ts';
 
 const scope: SavedScope = {serverId: 'server-a', viewerId: 'actual-viewer'};
 const fence = 'resource-fence';
@@ -73,7 +75,7 @@ async function open(view: FixtureView, extra: readonly FixtureView[] = []) {
     const id = uuid(fixture.requestIds.length + 1);
     fixture.requestIds.push(id);
     return id;
-  });
+  }, legacyPersonalTransport);
   await service.select({view: 'resource', resourceId: view.id});
   assert.equal(service.getSnapshot().resource?.id, view.id);
   return {fixture, service, resource: service.getSnapshot().resource!};

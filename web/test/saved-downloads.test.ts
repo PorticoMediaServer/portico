@@ -29,7 +29,7 @@ test('personal resource grid follows the real opaque cursor without turning a li
     calls++;
     if (path.includes('cursor=opaque-next')) return await new Promise<unknown>(resolve => { next = resolve; }) as T;
     return {resource, entries: [entry('one'), entry('two'), entry('three')], nextCursor: 'opaque-next', ...fields} as T;
-  }}, {serverId: 'server', viewerId: 'viewer'}, async () => '00000000-0000-4000-8000-000000000001');
+  }}, {serverId: 'server', viewerId: 'viewer'}, async () => '00000000-0000-4000-8000-000000000001', legacyPersonalTransport);
   const window = personalEntriesWindow(service);
   try {
     await service.select({view: 'resource', resourceId: 'collection'});
@@ -142,6 +142,8 @@ import {DownloadsService} from '@core/downloads-service.ts';
 import {defaultI18n} from '@i18n';
 import {componentModule, hooks} from './helpers/component-harness.mjs';
 import {savedText} from '../src/screens/saved/text.ts';
+// The window is tested against the old server's collection documents; the rebuilt server's are client-core's.
+import {legacyPersonalTransport} from '../../packages/client-core/test/fixtures/legacy-personal-transport.ts';
 
 test('actual ServerDownloads keeps Retry for transient failures and shows feature-off/embedded-null only for genuine absence', async () => {
   const failures = [

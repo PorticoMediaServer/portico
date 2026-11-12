@@ -24,15 +24,15 @@ const PAGE = 40;
 /** The kinds each Saved shape draws: squares are music, posters everything else. */
 const shapeKinds: Readonly<Record<'posters' | 'squares', string>> = {posters: 'movie,show,season,episode,audiobook,book,comic,series,collection', squares: 'artist,album,track'};
 /** My List and Favorites filters, as GET /v1/items reads them. */
-const listFilters: Readonly<Record<string, Readonly<Record<string, string | boolean>>>> = {all: {}, unwatched: {watched: false}, inProgress: {inProgress: 'true'}, watched: {watched: true}, favorites: {favorite: true}};
+export const listFilters: Readonly<Record<string, Readonly<Record<string, string | boolean>>>> = {all: {}, unwatched: {watched: false}, inProgress: {inProgress: 'true'}, watched: {watched: true}, favorites: {favorite: true}};
 const listSorts: Readonly<Record<string, string>> = {title: 'title', added: 'added', year: 'year', duration: 'duration'};
-const pageSorts: Readonly<Record<string, string>> = {position: 'order', title: 'title', year: 'year', duration: 'duration'};
-const filterLabels: Readonly<Record<string, string>> = {all: 'All', unwatched: 'Unwatched', inProgress: 'In progress', watched: 'Watched', favorites: 'Favorites'};
+export const pageSorts: Readonly<Record<string, string>> = {position: 'order', title: 'title', year: 'year', duration: 'duration'};
+export const filterLabels: Readonly<Record<string, string>> = {all: 'All', unwatched: 'Unwatched', inProgress: 'In progress', watched: 'Watched', favorites: 'Favorites'};
 const navigation = [{id: 'watchlist', labelKey: 'saved.watchlist', view: 'watchlist'}, {id: 'favorites', labelKey: 'saved.favorites', view: 'favorites'}, {id: 'playlists', labelKey: 'saved.playlists', view: 'playlists'}];
 const notYet = (): never => {throw new CodedError('not_available', 'This is not available on this server yet.');};
-const revisionOf = (list: Pick<List, 'revision'>) => {const n = Number(list.revision); return Number.isSafeInteger(n) && n >= 0 ? n : 0;};
+export const revisionOf = (list: Pick<List, 'revision'>) => {const n = Number(list.revision); return Number.isSafeInteger(n) && n >= 0 ? n : 0;};
 
-async function items(api: SavedNextApi, query: Readonly<Record<string, string | number | boolean | undefined>>, signal?: AbortSignal): Promise<ItemPage> {
+export async function items(api: SavedNextApi, query: Readonly<Record<string, string | number | boolean | undefined>>, signal?: AbortSignal): Promise<ItemPage> {
   const page = await callServer(api, 'GET /v1/items', {query, signal});
   if (!page || !Array.isArray(page.items)) throw new CodedError('invalid_saved', 'The saved list could not be read.');
   return page;
@@ -148,7 +148,7 @@ export async function readShareCandidates(api: SavedNextApi, playlistId: string,
 const unsupported = (): never => {throw new CodedError('saved_unsupported', 'This app cannot send list changes safely.');};
 /** A change sent with its own headers (If-Match, Idempotency-Key). An edit needs If-Match, so through a transport that
  * cannot send headers it is refused before anything is sent: it must never go without one and overwrite (rule 34). */
-async function sendRaw<T>(api: SavedNextApi, path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', headers: Readonly<Record<string, string>>, body: unknown, signal?: AbortSignal): Promise<T> {
+export async function sendRaw<T>(api: SavedNextApi, path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', headers: Readonly<Record<string, string>>, body: unknown, signal?: AbortSignal): Promise<T> {
   if (!api.requestRaw) return unsupported();
   const answer = await api.requestRaw(path, method, {headers, body, signal});
   if (answer.status >= 400) {
@@ -160,7 +160,7 @@ async function sendRaw<T>(api: SavedNextApi, path: string, method: 'POST' | 'PAT
 }
 /** An edit that names the list's revision: refused with 412 `list_changed` when the list moved on (area 6 rule 34).
  * An edit with no revision to name is refused here, as an out-of-date copy would be. */
-async function edit<T>(api: SavedNextApi, path: string, method: 'PATCH' | 'PUT' | 'DELETE', revision: number | undefined, body: unknown, signal?: AbortSignal): Promise<T> {
+export async function edit<T>(api: SavedNextApi, path: string, method: 'PATCH' | 'PUT' | 'DELETE', revision: number | undefined, body: unknown, signal?: AbortSignal): Promise<T> {
   if (!api.requestRaw) return unsupported();
   if (revision === undefined) throw Object.assign(new CodedError('list_changed', 'This list changed. Reload and try again.'), {status: 412});
   return sendRaw<T>(api, path, method, {'If-Match': `"${revision}"`}, body, signal);
@@ -168,8 +168,8 @@ async function edit<T>(api: SavedNextApi, path: string, method: 'PATCH' | 'PUT' 
 
 /** An Undo of a removal: the list it was removed from, the title, and the entry it came after (empty at the front). */
 type UndoToken = Readonly<{listId: string; itemId: string; after: string}>;
-const encodeUndo = (token: UndoToken) => 'undo.' + btoa(JSON.stringify(token)).replace(/=+$/, '');
-function decodeUndo(raw: string): UndoToken {
+export const encodeUndo = (token: UndoToken) => 'undo.' + btoa(JSON.stringify(token)).replace(/=+$/, '');
+export function decodeUndo(raw: string): UndoToken {
   try {const value = JSON.parse(atob(raw.slice(5))); if (raw.startsWith('undo.') && typeof value?.listId === 'string' && typeof value.itemId === 'string' && typeof value.after === 'string') return value;} catch {/* refused below */}
   throw new CodedError('undo_expired', 'Too late to undo.');
 }
