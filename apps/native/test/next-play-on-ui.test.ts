@@ -79,7 +79,7 @@ test('tablet chooser retains the exact opener for the 360 point glass popover; p
 });
 
 test('receiver rows keep platform context, grouping and chevrons without middle-dot joins', async () => {
-  const receiver = {id: 'tv', displayName: 'Living room', kind: 'portico', platform: 'tvos', presence: 'online'};
+  const receiver = {id: 'tv', displayName: 'Living room', platform: 'tvos', allowed: false};
   const f = await sheet({tablet: true, state: {receivers: [receiver]}}), tree = f.render();
   assert.ok(find(tree, 'play-on-network'));
   const row = find(tree, 'play-on-tv');

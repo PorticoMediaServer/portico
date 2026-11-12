@@ -587,11 +587,12 @@ export class V1QueuePlayer implements QueueController {
 
   /** What a start asks for: the choices for this title and a quality chosen in the player for this
    * viewing. A start that names no quality gets the one saved on this device, which the server reads. */
-  private startChoices(choices?: PlaybackChoices): Pick<StartOptions, 'quality' | 'versionId' | 'discTitle' | 'audio'> {
+  private startChoices(choices?: PlaybackChoices): Pick<StartOptions, 'quality' | 'versionId' | 'discTitle' | 'audio' | 'requestId'> {
     const quality = choices?.quality ?? this.qualityOverride;
     const discTitle = parseDiscTitleRef(choices?.discTitle);
     if (discTitle && !choices?.versionId) throw new ContractError('disc title version');
-    return {...(quality ? {quality} : {}), ...(choices?.versionId ? {versionId: choices.versionId} : {}), ...(discTitle ? {discTitle} : {}), ...(choices?.audioTrackId ? {audio: {trackId: choices.audioTrackId}} : {})};
+    return {...(quality ? {quality} : {}), ...(choices?.versionId ? {versionId: choices.versionId} : {}), ...(discTitle ? {discTitle} : {}), ...(choices?.audioTrackId ? {audio: {trackId: choices.audioTrackId}} : {}),
+      ...(choices?.moveRequestId ? {requestId: choices.moveRequestId} : {})};
   }
 
   /** A session whose request was overtaken (the viewer moved on while it was in flight) is ended

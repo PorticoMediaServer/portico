@@ -30,7 +30,9 @@ export function playOnOffered(state: Readonly<{castAvailable: boolean; airPlayAv
 }
 
 export type PlayOnReceiversPort = Readonly<{
-  getSnapshot(): Readonly<{phase: 'idle' | 'loading' | 'ready' | 'error'; items: readonly PlayOnReceiver[]}>;
+  /** `message` is what the send in flight or the last failed one says, in plain words: approve it
+   * on the other device, or why it did not move. */
+  getSnapshot(): Readonly<{phase: 'idle' | 'loading' | 'ready' | 'error'; items: readonly PlayOnReceiver[]; message?: string}>;
   subscribe(listener: () => void): () => void;
   refresh(): void;
   send(id: string): Promise<boolean>;

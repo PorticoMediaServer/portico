@@ -376,7 +376,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         return {...nativePlaybackSettings(currentPreferences().effective, installationSettings), audiobook: audiobookPreferences(currentPreferences()), postPlay: postPlaySettings(currentPreferences()),
           audioEffects: {...musicAudioEffects(currentPreferences()), ...(matching ? {sampleRateMatching: matching} : {})}};
       }, subscribeSettings: contextBase.subscribePreferences, appVersion: contextBase.appVersion});
-    playOn = new NativePlayOn({api: local, session: () => current() ? session : undefined,
+    playOn = new NativePlayOn({api: local, events, session: () => current() ? session : undefined,
       deviceName: () => installationIdentity()?.name ?? (Platform.OS === 'ios' ? 'iPhone' : 'Android phone'),
       playback: () => playback, current, reportError: error => {if (current()) console.warn('[playOn]', error);}});
     cleanups.push(() => playOn?.dispose());

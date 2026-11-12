@@ -50,6 +50,9 @@ export type NativePlaybackStart = Readonly<{entry: ContentEntry; target: NonNull
   presentation?: NativeStartArtworkOffer;
   /** A group prepares this title paused until its authoritative clock plays. */
   state?: 'playing' | 'paused';
+  /** Playback moving here from another device: the request it answers, the audio picked there,
+   * and that device's queue, which this one takes on in place of the title's own. */
+  move?: Readonly<{requestId: string; audioTrackId?: string; queueId?: string}>;
   /** Real caller lifetime through options/create/adoption. It excludes an old output fence. */
   lifetime?: Readonly<{signal: AbortSignal; isCurrent: () => boolean}>;
 }>;

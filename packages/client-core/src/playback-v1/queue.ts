@@ -37,6 +37,7 @@ export function queueSource(source: Selector): Record<string, unknown> {
   if ('container' in source) return {container: source.container.id};
   if ('items' in source) return {items: [...source.items.ids]};
   if ('saved' in source) return {list: source.saved.id};
+  if ('queue' in source) return {queue: source.queue.id};
   if ('query' in source) {
     // A library view: the list's own filters (as the list itself reads them) and its order.
     const q = source.query;

@@ -34,6 +34,9 @@ export function serverEventsFrom(frame: Frame): readonly ServerEvent[] {
     case 'preferences': return [{id, type: 'settings.changed', resource: {kind: 'settings', id: 'preferences'}}];
     // A notice came, or one was read or archived on another device: the inbox and its badge are read again.
     case 'notice': return [{id, type: 'notification.changed'}];
+    // Playing on another device: a request to one of the account's devices was made or answered
+    // (the id is the request), or what a device plays changed or was sent a command (the session).
+    case 'receiver': case 'playback': return [{id, type: change.topic + '.changed', ...(typeof change.id === 'string' && change.id ? {resource: {kind: change.topic, id: change.id}} : {})}];
     case 'person': case 'list': return [{id, type: change.topic + '.changed', ...(typeof change.id === 'string' && change.id ? {resource: {kind: change.topic, id: change.id}} : {})}];
     default: return [{id, type: 'stream.unknown'}];
   }

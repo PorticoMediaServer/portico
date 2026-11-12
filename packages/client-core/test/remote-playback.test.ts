@@ -1,182 +1,353 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {HandoffController,ReceiverHost,receiverPollDelay} from '../src/remote-playback.ts';
-import {SOCIAL_PROTOCOL,parseReceiver} from '../src/social-playback.ts';
+import {HandoffController, ReceiverHost, memoryAllowedDevices, parseReceivers, type ReceiverCommand, type ReceiverPlay, type RemoteEvents} from '../src/remote-playback.ts';
+import {serverEventsFrom} from '../src/server-events.ts';
 
-const receiver={id:'rcv_1',kind:'portico',deviceId:'tv-1',displayName:'Living room',platform:'tvos',keyFingerprint:'A'.repeat(43),supportedCommands:['load','play','pause','seek','stop'],grantPolicy:'per-device',authorizationRevision:'1',state:'active',presence:'online',lastSeenAt:'x',createdAt:'x'};
-const grant=(state:string)=>({id:'grt_1',receiverId:'rcv_1',controllerDeviceId:'phone-1',controllerDisplayName:'Phone',receiverKeyFingerprint:'A'.repeat(43),allowedCommands:['load','play','pause','seek','stop'],authorizationRevision:'1',state,expiresAt:'x',createdAt:'x',decidedAt:state==='pending'?null:'x'});
-const handoff=(over:Record<string,unknown>={})=>({id:'hdf_1',receiverId:'rcv_1',grantId:'grt_1',requestId:'r1',state:'prepared',outcome:'waiting',reason:'',revision:'1',itemId:'item',sourcePlaybackId:'pb_1',receiverPlaybackId:'',requestedPositionUs:'90000000',readyPositionUs:'0',committedPositionUs:'0',sourceRetired:false,createdAt:'x',expiresAt:new Date(Date.now()+60000).toISOString(),settledAt:null,...over});
-const env=(body:Record<string,unknown>)=>({protocolVersion:SOCIAL_PROTOCOL,serverTime:'x',...body});
+/** A stand-in for the rebuilt server's receiver and session routes (server-next
+ * internal/api/receivers.go), with what each device is allowed to see. Each device talks to it
+ * through its own `api`; every change is told to the account's devices on their feeds. */
+type Device = {signIn: string; deviceId: string; name: string; profile: string; open: boolean; off?: boolean; allowed: Set<string>; feed: Feed};
+type Request = {id: string; kind: 'play' | 'control'; from: Device; to: Device; state: string; failed?: string; play?: Record<string, unknown>; moving?: string; sessionId?: string; createdAt: number};
+type Session = {id: string; signIn: string; itemId: string; state: 'playing' | 'paused' | 'ended'; positionMs: number; command?: Record<string, unknown>};
+const fail = (status: number, code: string) => Object.assign(new Error(code), {status, code});
 
-/** A server that walks a handoff through whatever the test scripts. */
-function server(script:{grants:string[];handoffs:Record<string,unknown>[];commit?:Record<string,unknown>}){
- const calls:{path:string;method:string;body?:any}[]=[];let g=0,h=0;
- const api={request:async<T,>(path:string,method='GET',body?:unknown):Promise<T>=>{
-  calls.push({path,method,body});
-  if(path==='/v1/receivers'&&method==='GET')return env({receivers:[receiver]}) as T;
-  if(path.endsWith('/grants')&&method==='POST')return env({grant:grant(script.grants[g])}) as T;
-  if(path.endsWith('/grants'))return env({grants:[grant(script.grants[Math.min(++g,script.grants.length-1)])]}) as T;
-  if(path==='/v1/handoffs')return env({handoff:handoff(script.handoffs[0])}) as T;
-  if(path.endsWith('/commit'))return env({handoff:handoff(script.commit??{state:'committed',outcome:'accepted',revision:'3',sourceRetired:true,receiverPlaybackId:'pb_tv',readyPositionUs:'90400000',committedPositionUs:'90400000'})}) as T;
-  if(path.endsWith('/rollback'))return env({handoff:handoff({state:'rolled_back',outcome:'rejected'})}) as T;
-  if(path.startsWith('/v1/handoffs/'))return env({handoff:handoff(script.handoffs[Math.min(++h,script.handoffs.length-1)])}) as T;
-  throw new Error('unexpected '+path);
- }};
- return {api,calls};
+class Feed implements RemoteEvents {
+  private listeners = new Map<string, Set<(e: {resource?: {kind: string; id: string}}) => void>>();
+  on(type: string, fn: (e: {resource?: {kind: string; id: string}}) => void) {const set = this.listeners.get(type) ?? new Set(); set.add(fn); this.listeners.set(type, set); return () => {set.delete(fn);};}
+  private resyncs = new Set<() => void>();
+  onResync(fn: () => void) {this.resyncs.add(fn); return () => {this.resyncs.delete(fn);};}
+  resync() {for (const fn of [...this.resyncs]) fn();}
+  subscribeStatus() {return () => {};}
+  getStatus() {return {connected: true};}
+  emit(type: string, id: string) {for (const fn of [...this.listeners.get(type) ?? []]) fn({resource: {kind: type.split('.')[0]!, id}});}
 }
-const controller=(s:ReturnType<typeof server>)=>new HandoffController({api:s.api,device:{deviceId:'phone-1',displayName:'Phone'},requestId:()=>'r1',pollMs:5});
-const tv=parseReceiver(receiver);
 
-test('a handoff commits only after the television proves it is playing', async()=>{
- const s=server({grants:['accepted'],handoffs:[{},{},{outcome:'pending',revision:'2',receiverPlaybackId:'pb_tv',readyPositionUs:'90400000'}]});
- const c=controller(s);
- assert.equal(await c.send(tv,{playbackId:'pb_1',positionSeconds:90}),true);
- assert.equal(c.getSnapshot().phase,'done');assert.equal(c.getSnapshot().handoffId,'hdf_1');
- const prepared=s.calls.find(x=>x.path==='/v1/handoffs')!;
- assert.equal(prepared.body.startPositionUs,'90000000');assert.equal(prepared.body.sourcePlaybackId,'pb_1');
- const commit=s.calls.find(x=>x.path.endsWith('/commit'))!;
- assert.equal(commit.body.expectedRevision,'2','commit is fenced on the revision the readiness produced');
- assert.ok(s.calls.findIndex(x=>x.path.endsWith('/commit'))>s.calls.filter(x=>x.path==='/v1/handoffs/hdf_1').length,'polled before committing');
-});
-
-test('a television that has not met this device is waited on, and a decline leaves the phone playing', async()=>{
- const accepted=server({grants:['pending','pending','accepted'],handoffs:[{outcome:'pending',revision:'2',receiverPlaybackId:'pb_tv',readyPositionUs:'90400000'}]});
- const c=controller(accepted);
- assert.equal(await c.send(tv,{playbackId:'pb_1',positionSeconds:0}),true);
- const declined=server({grants:['pending','declined'],handoffs:[{}]});
- const d=controller(declined);
- assert.equal(await d.send(tv,{playbackId:'pb_1',positionSeconds:0}),false);
- assert.equal(d.getSnapshot().phase,'failed');assert.match(d.getSnapshot().message!,/declined/);
- assert.ok(!declined.calls.some(x=>x.path==='/v1/handoffs'),'nothing was prepared');
-});
-
-test('expiry and cancelling never commit; cancelling rolls the proposal back', async()=>{
- const expired=server({grants:['accepted'],handoffs:[{},{state:'expired',outcome:'rejected'}]});
- const c=controller(expired);
- assert.equal(await c.send(tv,{playbackId:'pb_1',positionSeconds:0}),false);
- assert.match(c.getSnapshot().message!,/Still playing here/);
- assert.ok(!expired.calls.some(x=>x.path.endsWith('/commit')));
- const slow=server({grants:['accepted'],handoffs:[{}]});
- const d=controller(slow);const sending=d.send(tv,{playbackId:'pb_1',positionSeconds:0});
- await new Promise(r=>setTimeout(r,30));d.cancel();
- assert.equal(await sending,false);await new Promise(r=>setTimeout(r,10));
- assert.ok(slow.calls.some(x=>x.path.endsWith('/rollback')));assert.ok(!slow.calls.some(x=>x.path.endsWith('/commit')));
- assert.equal(d.getSnapshot().phase,'idle');
-});
-
-test('a television registers, asks about a new device, and reports readiness only once playing', async()=>{
- const calls:{path:string;method:string;body?:any}[]=[];let inbox:Record<string,unknown>={grants:[grant('pending')],handoffs:[]};
- const api={request:async<T,>(path:string,method='GET',body?:unknown):Promise<T>=>{
-  calls.push({path,method,body});
-  if(path==='/v1/receivers')return env({receiver}) as T;
-  if(path.endsWith('/inbox'))return env({receiverId:'rcv_1',...inbox}) as T;
-  return env({}) as T;
- }};
- const state={itemId:'',playbackId:'',playing:false,positionSeconds:0};const loads:string[]=[];
- const host=new ReceiverHost({api,device:{deviceId:'tv-1',displayName:'Living room',platform:'tvos',keyFingerprint:'A'.repeat(43)},player:{load:(id,at)=>{loads.push(id+'@'+at);},state:()=>({...state})},pollMs:5});
- host.start();await new Promise(r=>setTimeout(r,40));
- assert.equal(calls[0].body.grantPolicy,'per-device');
- assert.equal(host.getSnapshot().asking?.controllerDisplayName,'Phone');
- await host.decide(host.getSnapshot().asking!,'accept');
- assert.equal(calls.find(c=>c.path.endsWith('/decision'))!.body.decision,'accept');
- inbox={grants:[],handoffs:[handoff()]};await new Promise(r=>setTimeout(r,40));
- assert.deepEqual(loads,['item@90'],'loaded once, however many polls show the same handoff');
- assert.ok(!calls.some(c=>c.path.endsWith('/readiness')),'loading is not readiness');
- Object.assign(state,{itemId:'item',playbackId:'pb_tv',playing:true,positionSeconds:90.4});
- await new Promise(r=>setTimeout(r,700));
- const ready=calls.find(c=>c.path.endsWith('/readiness'))!;
- assert.equal(ready.body.readiness,'playing');assert.equal(ready.body.receiverPlaybackId,'pb_tv');assert.equal(ready.body.positionUs,'90400000');
- host.dispose();
-});
-
-/** PERF-16: the idle inbox interval, its jitter, the pause while playing, and the stop. */
-const idleDevice={deviceId:'tv-1',displayName:'Living room',platform:'tvos',keyFingerprint:'A'.repeat(43)};
-const idlePlayer={load:()=>{},state:()=>({itemId:'',playbackId:'',playing:false,positionSeconds:0})};
-const settleImmediate=async()=>{for(let i=0;i<30;i++)await new Promise(setImmediate);};
-function idleServer(calls:{path:string;t:number}[]){
- return {request:async<T,>(path:string):Promise<T>=>{
-  calls.push({path,t:Date.now()});
-  if(path==='/v1/receivers')return env({receiver}) as T;
-  if(path.endsWith('/inbox'))return env({receiverId:'rcv_1',grants:[],handoffs:[]}) as T;
-  return env({}) as T;
- }};
+class StandIn {
+  devices: Device[] = [];
+  requests = new Map<string, Request>();
+  sessions = new Map<string, Session>();
+  calls: {signIn: string; method: string; path: string; body?: any}[] = [];
+  /** Titles each profile may see. A kids profile sees fewer. */
+  visible: Record<string, Set<string>> = {adult: new Set(['movie', 'ep1', 'grown-up']), kids: new Set(['movie', 'ep1'])};
+  private n = 0;
+  device(name: string, profile = 'adult') {
+    const d: Device = {signIn: 'sgn_' + name, deviceId: 'dev_' + name, name, profile, open: false, allowed: new Set(), feed: new Feed()};
+    this.devices.push(d); return d;
+  }
+  private tell(type: string, id: string) {for (const d of this.devices) d.feed.emit(type, id);}
+  private out(r: Request) {
+    return {id: r.id, receiverId: r.to.deviceId, kind: r.kind, state: r.state, ...(r.failed ? {failed: r.failed} : {}), play: r.play,
+      from: {deviceId: r.from.deviceId, deviceName: r.from.name, signInId: r.from.signIn}, ...(r.sessionId ? {sessionId: r.sessionId} : {}),
+      createdAt: new Date(r.createdAt).toISOString(), expiresAt: new Date(r.createdAt + 120_000).toISOString()};
+  }
+  private finish(r: Request, state: string, failed?: string) {r.state = state; r.failed = failed; this.tell('receiver.changed', r.id);}
+  /** The receiving device starts what was sent. */
+  start(d: Device, itemId: string, requestId?: string) {
+    const id = 'ps_' + ++this.n;
+    for (const s of this.sessions.values()) if (s.signIn === d.signIn && s.state !== 'ended') s.state = 'ended';
+    this.sessions.set(id, {id, signIn: d.signIn, itemId, state: 'playing', positionMs: 0});
+    if (requestId) assert.ok(this.requests.get(requestId)?.to === d, 'the start names an open request to this device');
+    return id;
+  }
+  /** The device stops being reachable: it stops saying it is open and is no longer listed. */
+  goAway(d: Device) {
+    d.open = false; d.allowed.clear();
+    for (const r of this.requests.values()) if (r.to === d && (r.state === 'asking' || r.state === 'allowed' && r.kind === 'play')) this.finish(r, 'failed', 'not_accepting');
+  }
+  /** A restart forgets every device, request and who was allowed. */
+  restart() {for (const d of this.devices) {d.open = false; d.allowed.clear();} this.requests.clear(); for (const d of this.devices) d.feed.resync();}
+  api(d: Device) {
+    return {request: async <T,>(path: string, method = 'GET', body?: any): Promise<T> => {
+      this.calls.push({signIn: d.signIn, method, path, body});
+      await Promise.resolve();
+      return this.route(d, method, path.split('/').map(decodeURIComponent).join('/'), body) as T;
+    }};
+  }
+  private route(d: Device, method: string, path: string, body: any): unknown {
+    let m: RegExpMatchArray | null;
+    if (path === '/v1/receivers' && method === 'GET')
+      return {items: this.devices.filter(x => x.open).map(x => ({id: x.deviceId, name: x.name, platform: 'androidtv', current: x === d, allowed: x.allowed.has(d.signIn)}))};
+    if (path === '/v1/receivers/current' && method === 'PUT') {if (d.off) {d.open = false; throw fail(409, 'play_from_other_devices_off');} d.open = true; return {id: d.deviceId, renewEveryMs: 60_000};}
+    if (path === '/v1/receivers/current' && method === 'DELETE') {this.goAway(d); return {};}
+    if (path === '/v1/receivers/current/requests' && method === 'GET')
+      return {items: [...this.requests.values()].filter(r => r.to === d && (r.state === 'asking' || r.state === 'allowed' && r.kind === 'play')).map(r => this.out(r))};
+    if ((m = path.match(/^\/v1\/receivers\/current\/requests\/([^/]+)$/)) && method === 'PATCH') {
+      const r = this.requests.get(m[1]!);
+      if (!r || r.to !== d) throw fail(404, 'not_found');
+      if (!d.open) throw fail(404, 'not_found');
+      if (r.state !== 'asking' && !(r.state === 'allowed' && r.kind === 'play')) throw fail(409, 'request_over');
+      if (body.answer === 'allowed') {d.allowed.add(r.from.signIn); this.finish(r, 'allowed');}
+      else if (body.answer === 'declined') this.finish(r, 'declined');
+      else if (body.answer === 'failed') this.finish(r, 'failed', 'couldnt_start');
+      else if (body.answer === 'playing') {
+        const s = this.sessions.get(body.sessionId);
+        assert.ok(s && s.signIn === d.signIn && s.itemId === r.play?.itemId, 'playing names this device\'s session of what was asked');
+        d.allowed.add(r.from.signIn); r.sessionId = body.sessionId; this.finish(r, 'playing');
+        if (r.moving) {const moved = this.sessions.get(r.moving); if (moved) moved.state = 'ended';}
+      }
+      return this.out(r);
+    }
+    if ((m = path.match(/^\/v1\/receivers\/([^/]+)\/requests$/)) && method === 'POST') {
+      const to = this.devices.find(x => x.open && x.deviceId === m![1]);
+      if (!to || to === d) throw fail(404, 'not_found');
+      if (body.kind === 'play' && (!this.visible[d.profile]!.has(body.play.itemId) || !this.visible[to.profile]!.has(body.play.itemId))) throw fail(404, 'not_found');
+      const r: Request = {id: 'rcq_' + ++this.n, kind: body.kind, from: d, to, state: to.allowed.has(d.signIn) ? 'allowed' : 'asking', play: body.play, moving: body.sessionId, createdAt: Date.now()};
+      this.requests.set(r.id, r); this.tell('receiver.changed', r.id);
+      return this.out(r);
+    }
+    if ((m = path.match(/^\/v1\/receivers\/([^/]+)\/requests\/([^/]+)$/))) {
+      const r = this.requests.get(m[2]!);
+      if (!r || r.from !== d && r.to !== d) throw fail(404, 'not_found');
+      if (method === 'DELETE' && (r.state === 'asking' || r.state === 'allowed' && r.kind === 'play')) this.finish(r, 'cancelled');
+      return this.out(r);
+    }
+    if (path === '/v1/playback/sessions' && method === 'GET')
+      return {items: [...this.sessions.values()].filter(s => s.state !== 'ended').map(s => {const dev = this.devices.find(x => x.signIn === s.signIn)!;
+        return {id: s.id, deviceId: dev.deviceId, deviceName: dev.name, kind: 'vod', state: s.state, positionMs: s.positionMs, startedAt: 'x', current: s.signIn === d.signIn,
+          ...(this.visible[d.profile]!.has(s.itemId) ? {itemId: s.itemId, title: 'Title ' + s.itemId} : {})};})};
+    if ((m = path.match(/^\/v1\/playback\/sessions\/([^/]+)$/))) {
+      const s = this.sessions.get(m[1]!);
+      if (!s) throw fail(404, 'not_found');
+      if (method === 'GET') {assert.equal(s.signIn, d.signIn, 'a device reads only its own session'); return {id: s.id, state: s.state, itemId: s.itemId, ...(s.command ? {command: s.command} : {})};}
+      if (method === 'DELETE') {s.state = 'ended'; this.tell('playback.changed', s.id); return {};}
+      if (method === 'PATCH') {
+        if (s.signIn === d.signIn) throw new Error('not a remote change');
+        const owner = this.devices.find(x => x.signIn === s.signIn)!;
+        if (!owner.open || !owner.allowed.has(d.signIn)) throw fail(403, 'control_not_allowed');
+        s.command = {id: 'cmd_' + ++this.n, ...(body.state ? {state: body.state} : {}), ...(body.seek ? {seekMs: body.seek.positionMs} : {}), ...(body.skip ? {skip: body.skip} : {}),
+          fromDeviceId: d.deviceId, at: new Date().toISOString()};
+        this.tell('playback.changed', s.id);
+        return {id: s.id, state: s.state, command: s.command};
+      }
+    }
+    throw new Error(`unexpected ${method} ${path}`);
+  }
 }
-const inboxAt=(calls:{path:string;t:number}[])=>calls.filter(c=>c.path.endsWith('/inbox')).map(c=>c.t);
-const beats=(calls:{path:string;t:number}[])=>calls.filter(c=>c.path.endsWith('/heartbeat')).map(c=>c.t);
 
-test('the idle delay is the base ±20%',()=>{
- assert.equal(receiverPollDelay(30000,()=>0),24000);
- assert.equal(receiverPollDelay(30000,()=>0.5),30000);
- const top=receiverPollDelay(30000,()=>0.999999);
- assert.ok(top>=35999&&top<=36000,'top of the band: '+top);
- for(let i=0;i<200;i++){const d=receiverPollDelay(30000,Math.random);assert.ok(d>=24000&&d<=36000,'in band: '+d);}
+const until = async (what: string, ok: () => boolean, ms = 3000) => {
+  const end = Date.now() + ms;
+  while (!ok()) {if (Date.now() > end) throw new Error('timed out waiting for ' + what); await new Promise(r => setTimeout(r, 5));}
+};
+
+/** A TV: its player plays what it is sent and records what it is told to do. */
+function television(server: StandIn, d: Device, options: {allowed?: ReturnType<typeof memoryAllowedDevices>; loadFails?: boolean} = {}) {
+  let now = {itemId: '', playbackId: '', playing: false, positionSeconds: 0};
+  const loads: ReceiverPlay[] = [], commands: ReceiverCommand[] = [];
+  const host = new ReceiverHost({api: server.api(d), events: d.feed, allowed: options.allowed ?? memoryAllowedDevices(), pollMs: 20, busyPollMs: 20,
+    player: {
+      load: async play => {loads.push(play); if (options.loadFails) throw new Error('cannot play'); const id = server.start(d, play.itemId, play.requestId); now = {itemId: play.itemId, playbackId: id, playing: true, positionSeconds: play.positionSeconds};},
+      state: () => now,
+      command: (_id, c) => {commands.push(c);},
+    }});
+  host.start();
+  return {host, loads, commands};
+}
+function phone(server: StandIn, d: Device) {
+  const sessionId = server.start(d, 'movie');
+  return {controller: new HandoffController({api: server.api(d), events: d.feed, pollMs: 10}), sessionId};
+}
+const source = (sessionId: string, itemId = 'movie') => ({playbackId: sessionId, itemId, positionSeconds: 754.2, audioTrackId: 'a2', subtitleTrackId: '', queueId: 'que_1'});
+
+test('a move: the TV asks, its person allows, it plays what was sent, and only then is the phone done', async t => {
+  const server = new StandIn(), tvDevice = server.device('Living room'), phoneDevice = server.device('Phone');
+  const tv = television(server, tvDevice); t.after(() => tv.host.dispose());
+  await until('the TV to open', () => tvDevice.open);
+  const {controller, sessionId} = phone(server, phoneDevice); t.after(() => controller.dispose());
+  await controller.refresh();
+  assert.deepEqual(controller.getSnapshot().receivers.map(r => r.displayName), ['Living room'], 'the phone sees the TV and not itself');
+  const sending = controller.send(controller.getSnapshot().receivers[0]!, source(sessionId));
+  await until('the TV to ask', () => !!tv.host.getSnapshot().asking);
+  assert.equal(tv.host.getSnapshot().asking!.from.deviceName, 'Phone');
+  assert.equal(controller.getSnapshot().phase, 'asking');
+  assert.match(controller.getSnapshot().message!, /Approve this on Living room/);
+  assert.equal(server.sessions.get(sessionId)!.state, 'playing', 'the phone keeps playing while the TV asks');
+  await tv.host.decide(tv.host.getSnapshot().asking!, 'allow');
+  assert.equal(await sending, true);
+  assert.deepEqual(tv.loads[0], {requestId: tv.loads[0]!.requestId, itemId: 'movie', positionSeconds: 754.2, audioTrackId: 'a2', subtitleTrackId: '', queueId: 'que_1'},
+    'the title, the place, the audio and subtitle picks and the queue move');
+  const snapshot = controller.getSnapshot();
+  assert.equal(snapshot.phase, 'done');
+  assert.equal(snapshot.receiverPlaybackId, server.sessions.get(snapshot.receiverPlaybackId!)!.id);
+  assert.equal(server.sessions.get(sessionId)!.state, 'ended', 'the server stopped the phone once the TV played');
+  const post = server.calls.find(c => c.method === 'POST' && c.path.endsWith('/requests'))!;
+  assert.deepEqual(post.body, {kind: 'play', play: {itemId: 'movie', positionMs: 754200, audioTrackId: 'a2', subtitleTrackId: '', queueId: 'que_1'}, sessionId});
 });
 
-test('idle inbox polls every 30 s and the heartbeat stays at 45 s',async(t)=>{
- t.mock.timers.enable({apis:['setTimeout','Date']});
- try{
-  const calls:{path:string;t:number}[]=[];
-  const host=new ReceiverHost({api:idleServer(calls),device:idleDevice,player:idlePlayer,pollMs:30000,heartbeatMs:45000,rand:()=>0.5});
-  host.start();await settleImmediate();
-  assert.equal(inboxAt(calls).length,1,'polls once immediately on start');
-  t.mock.timers.tick(30000);await settleImmediate();
-  t.mock.timers.tick(30000);await settleImmediate();
-  const times=inboxAt(calls);
-  assert.deepEqual([times[1]-times[0],times[2]-times[1]],[30000,30000]);
-  assert.equal(beats(calls).length,1,'first heartbeat at the first poll after 45 s');
-  assert.ok(beats(calls)[0]-times[0]>=45000,'heartbeat keeps its 45 s cadence');
-  host.dispose();
- }finally{t.mock.timers.reset();}
+test('a declined move leaves the phone playing and says so; nothing starts on the TV', async t => {
+  const server = new StandIn(), tvDevice = server.device('Living room'), phoneDevice = server.device('Phone');
+  const tv = television(server, tvDevice); t.after(() => tv.host.dispose());
+  await until('the TV to open', () => tvDevice.open);
+  const {controller, sessionId} = phone(server, phoneDevice); t.after(() => controller.dispose());
+  await controller.refresh();
+  const sending = controller.send(controller.getSnapshot().receivers[0]!, source(sessionId));
+  await until('the TV to ask', () => !!tv.host.getSnapshot().asking);
+  await tv.host.decide(tv.host.getSnapshot().asking!, 'decline');
+  assert.equal(await sending, false);
+  assert.equal(controller.getSnapshot().phase, 'failed');
+  assert.equal(controller.getSnapshot().message, 'Living room declined.');
+  assert.equal(tv.loads.length, 0);
+  assert.equal(server.sessions.get(sessionId)!.state, 'playing');
 });
 
-test('jitter spreads the interval across the ±20% band',async(t)=>{
- t.mock.timers.enable({apis:['setTimeout','Date']});
- try{
-  const calls:{path:string;t:number}[]=[];
-  const seq=[0,0.999999];let i=0;
-  const host=new ReceiverHost({api:idleServer(calls),device:idleDevice,player:idlePlayer,pollMs:30000,heartbeatMs:45000,rand:()=>seq[i++%seq.length]});
-  host.start();await settleImmediate();
-  t.mock.timers.tick(23999);await settleImmediate();
-  assert.equal(inboxAt(calls).length,1,'nothing before the 24 s lower edge');
-  t.mock.timers.tick(1);await settleImmediate();
-  assert.equal(inboxAt(calls).length,2);
-  t.mock.timers.tick(35999);await settleImmediate();
-  assert.equal(inboxAt(calls).length,2,'nothing before the 36 s upper edge');
-  t.mock.timers.tick(1);await settleImmediate();
-  assert.equal(inboxAt(calls).length,3);
-  host.dispose();
- }finally{t.mock.timers.reset();}
+test('a title the TV\'s profile may not see is refused in plain words, and the phone keeps playing', async t => {
+  const server = new StandIn(), tvDevice = server.device('Kids TV', 'kids'), phoneDevice = server.device('Phone');
+  const tv = television(server, tvDevice); t.after(() => tv.host.dispose());
+  await until('the TV to open', () => tvDevice.open);
+  const {controller, sessionId} = phone(server, phoneDevice); t.after(() => controller.dispose());
+  await controller.refresh();
+  assert.equal(await controller.send(controller.getSnapshot().receivers[0]!, source(sessionId, 'grown-up')), false);
+  assert.equal(controller.getSnapshot().message, 'Kids TV couldn’t start this. Still playing here.');
+  assert.equal(tv.host.getSnapshot().asking, undefined, 'the TV is never asked');
+  assert.equal(server.sessions.get(sessionId)!.state, 'playing');
 });
 
-test('the inbox keeps polling while the player is in the foreground',async(t)=>{
- t.mock.timers.enable({apis:['setTimeout','Date']});
- try{
-  const calls:{path:string;t:number}[]=[];
-  const host=new ReceiverHost({api:idleServer(calls),device:idleDevice,player:idlePlayer,pollMs:30000,heartbeatMs:45000,rand:()=>0.5});
-  host.start();await settleImmediate();
-  host.setPlayerActive(true);
-  t.mock.timers.tick(90000);await settleImmediate();
-  assert.equal(inboxAt(calls).length,2,'inbox remains available while playback is in front');
-  assert.ok(beats(calls).length>=1,'the heartbeat keeps the registration alive while paused');
-  host.setPlayerActive(false);
-  t.mock.timers.tick(30000);await settleImmediate();
-  assert.equal(inboxAt(calls).length,3,'polling continues on the next interval');
-  host.dispose();
- }finally{t.mock.timers.reset();}
+test('a TV that goes away mid-request: the phone says so and keeps playing', async t => {
+  const server = new StandIn(), tvDevice = server.device('Living room'), phoneDevice = server.device('Phone');
+  const tv = television(server, tvDevice); t.after(() => tv.host.dispose());
+  await until('the TV to open', () => tvDevice.open);
+  const {controller, sessionId} = phone(server, phoneDevice); t.after(() => controller.dispose());
+  await controller.refresh();
+  const sending = controller.send(controller.getSnapshot().receivers[0]!, source(sessionId));
+  await until('the TV to ask', () => !!tv.host.getSnapshot().asking);
+  tv.host.dispose();
+  server.goAway(tvDevice);
+  assert.equal(await sending, false);
+  assert.equal(controller.getSnapshot().message, 'Living room isn’t accepting playback right now.');
+  assert.equal(server.sessions.get(sessionId)!.state, 'playing');
 });
 
-test('stop ends inbox and heartbeat polling (the app-background path)',async(t)=>{
- t.mock.timers.enable({apis:['setTimeout','Date']});
- try{
-  const calls:{path:string;t:number}[]=[];
-  const host=new ReceiverHost({api:idleServer(calls),device:idleDevice,player:idlePlayer,pollMs:30000,heartbeatMs:45000,rand:()=>0.5});
-  host.start();await settleImmediate();
-  const before=calls.length;
-  host.stop();
-  t.mock.timers.tick(300000);await settleImmediate();
-  assert.equal(calls.length,before,'nothing polled after stop');
-  assert.equal(host.getSnapshot().phase,'off');
-  host.dispose();
- }finally{t.mock.timers.reset();}
+test('a TV that cannot start what was sent says so, and the phone keeps playing', async t => {
+  const server = new StandIn(), tvDevice = server.device('Living room'), phoneDevice = server.device('Phone');
+  const allowed = memoryAllowedDevices(); allowed.add(phoneDevice.signIn);
+  const tv = television(server, tvDevice, {allowed, loadFails: true}); t.after(() => tv.host.dispose());
+  await until('the TV to open', () => tvDevice.open);
+  const {controller, sessionId} = phone(server, phoneDevice); t.after(() => controller.dispose());
+  await controller.refresh();
+  assert.equal(await controller.send(controller.getSnapshot().receivers[0]!, source(sessionId)), false);
+  assert.equal(controller.getSnapshot().message, 'Living room couldn’t start this. Still playing here.');
+  assert.equal(server.sessions.get(sessionId)!.state, 'playing');
 });
 
+test('cancelling a move withdraws the request; the phone keeps playing', async t => {
+  const server = new StandIn(), tvDevice = server.device('Living room'), phoneDevice = server.device('Phone');
+  const tv = television(server, tvDevice); t.after(() => tv.host.dispose());
+  await until('the TV to open', () => tvDevice.open);
+  const {controller, sessionId} = phone(server, phoneDevice); t.after(() => controller.dispose());
+  await controller.refresh();
+  const sending = controller.send(controller.getSnapshot().receivers[0]!, source(sessionId));
+  await until('the TV to ask', () => !!tv.host.getSnapshot().asking);
+  controller.cancel();
+  assert.equal(await sending, false);
+  await until('the request to be withdrawn', () => [...server.requests.values()][0]!.state === 'cancelled');
+  await until('the TV to stop asking', () => !tv.host.getSnapshot().asking);
+  assert.equal(server.sessions.get(sessionId)!.state, 'playing');
+});
+
+test('two senders at once: the TV asks about one device at a time, and the last move plays', async t => {
+  const server = new StandIn(), tvDevice = server.device('Living room'), a = server.device('Phone'), b = server.device('Laptop');
+  const tv = television(server, tvDevice); t.after(() => tv.host.dispose());
+  await until('the TV to open', () => tvDevice.open);
+  const first = phone(server, a), second = phone(server, b); t.after(() => {first.controller.dispose(); second.controller.dispose();});
+  await first.controller.refresh(); await second.controller.refresh();
+  const sendingA = first.controller.send(first.controller.getSnapshot().receivers[0]!, source(first.sessionId));
+  const sendingB = second.controller.send(second.controller.getSnapshot().receivers.find(r => r.displayName === 'Living room')!, source(second.sessionId, 'ep1'));
+  await until('the TV to ask', () => !!tv.host.getSnapshot().asking);
+  assert.equal(tv.host.getSnapshot().asking!.from.deviceName, 'Phone', 'the first to ask is asked about first');
+  await tv.host.decide(tv.host.getSnapshot().asking!, 'allow');
+  assert.equal(await sendingA, true);
+  await until('the TV to ask about the second', () => tv.host.getSnapshot().asking?.from.deviceName === 'Laptop');
+  await tv.host.decide(tv.host.getSnapshot().asking!, 'allow');
+  assert.equal(await sendingB, true);
+  assert.deepEqual(tv.loads.map(l => l.itemId), ['movie', 'ep1']);
+  assert.equal(server.sessions.get(first.sessionId)!.state, 'ended');
+  assert.equal(server.sessions.get(second.sessionId)!.state, 'ended');
+});
+
+test('the TV remembers whom it allowed: after a server restart it is not asked again, and control carries on', async t => {
+  const server = new StandIn(), tvDevice = server.device('Living room'), phoneDevice = server.device('Phone');
+  const allowed = memoryAllowedDevices();
+  const tv = television(server, tvDevice, {allowed}); t.after(() => tv.host.dispose());
+  await until('the TV to open', () => tvDevice.open);
+  const {controller, sessionId} = phone(server, phoneDevice); t.after(() => controller.dispose());
+  await controller.refresh();
+  const sending = controller.send(controller.getSnapshot().receivers[0]!, source(sessionId));
+  await until('the TV to ask', () => !!tv.host.getSnapshot().asking);
+  await tv.host.decide(tv.host.getSnapshot().asking!, 'allow');
+  assert.equal(await sending, true);
+  assert.equal(allowed.has(phoneDevice.signIn), true);
+
+  assert.equal(await controller.pause(), true);
+  await until('the TV to carry out the pause', () => tv.commands.length === 1);
+  assert.equal(tv.commands[0]!.state, 'paused');
+
+  // The server restarts: it forgets the TV and that it allowed the phone. The TV opens itself
+  // again; the phone's next command is refused once, the TV is asked and answers by itself.
+  server.restart();
+  await until('the TV to open again', () => tvDevice.open, 5000);
+  assert.equal(await controller.seek(30), true);
+  await until('the TV to carry out the seek', () => tv.commands.length === 2);
+  assert.equal(tv.commands[1]!.seekMs, 30_000);
+  assert.equal(tv.host.getSnapshot().asking, undefined, 'its person was not asked again');
+});
+
+test('a refused control says so in plain words', async t => {
+  const server = new StandIn(), tvDevice = server.device('Living room'), phoneDevice = server.device('Phone');
+  const tv = television(server, tvDevice); t.after(() => tv.host.dispose());
+  await until('the TV to open', () => tvDevice.open);
+  const {controller, sessionId} = phone(server, phoneDevice); t.after(() => controller.dispose());
+  await controller.refresh();
+  const sending = controller.send(controller.getSnapshot().receivers[0]!, source(sessionId));
+  await until('the TV to ask', () => !!tv.host.getSnapshot().asking);
+  await tv.host.decide(tv.host.getSnapshot().asking!, 'allow');
+  assert.equal(await sending, true);
+  // The TV is switched off: nobody may control it any more.
+  tv.host.dispose(); server.goAway(tvDevice);
+  assert.equal(await controller.pause(), false);
+  assert.ok(controller.getSnapshot().message, 'a message is shown');
+  assert.doesNotMatch(controller.getSnapshot().message!, /control_not_allowed|403/);
+});
+
+test('a TV with Play from other devices off on the server stops trying and asks nothing', async t => {
+  const server = new StandIn(), tvDevice = server.device('Living room'); tvDevice.off = true;
+  const tv = television(server, tvDevice); t.after(() => tv.host.dispose());
+  await until('the TV to hear it is off', () => tv.host.getSnapshot().phase === 'turned-off');
+  const puts = server.calls.filter(c => c.method === 'PUT').length;
+  await new Promise(r => setTimeout(r, 80));
+  assert.equal(server.calls.filter(c => c.method === 'PUT').length, puts, 'it does not keep asking');
+});
+
+test('a stale command is not carried out again when the TV reads its session later', async t => {
+  const server = new StandIn(), tvDevice = server.device('Living room'), phoneDevice = server.device('Phone');
+  const allowed = memoryAllowedDevices(); allowed.add(phoneDevice.signIn);
+  const tv = television(server, tvDevice, {allowed}); t.after(() => tv.host.dispose());
+  await until('the TV to open', () => tvDevice.open);
+  const {controller, sessionId} = phone(server, phoneDevice); t.after(() => controller.dispose());
+  await controller.refresh();
+  assert.equal(await controller.send(controller.getSnapshot().receivers[0]!, source(sessionId)), true);
+  assert.equal(tv.host.getSnapshot().asking, undefined, 'a remembered device is not asked');
+  assert.equal(await controller.next(), true);
+  await until('the skip', () => tv.commands.length === 1);
+  assert.equal(tv.commands[0]!.skip, 'next');
+  tvDevice.feed.emit('playback.changed', controller.getSnapshot().receiverPlaybackId!);
+  await new Promise(r => setTimeout(r, 60));
+  assert.equal(tv.commands.length, 1, 'the same command once');
+});
+
+test('the list leaves this device out and keeps what another device plays, unnamed when this profile may not see it', () => {
+  const list = parseReceivers({items: [
+    {id: 'dev_me', name: 'Phone', current: true, allowed: false},
+    {id: 'dev_tv', name: 'Living room', platform: 'androidtv', current: false, allowed: true, playing: {id: 'ps_1', deviceId: 'dev_tv', deviceName: 'Living room', kind: 'vod', state: 'paused', positionMs: 5000, startedAt: 'x', current: false}},
+  ]});
+  assert.equal(list.length, 1);
+  assert.deepEqual(list[0], {id: 'dev_tv', displayName: 'Living room', platform: 'androidtv', allowed: true,
+    playing: {sessionId: 'ps_1', deviceName: 'Living room', state: 'paused', positionMs: 5000}});
+});
+
+test('the change feed\'s receiver and playback topics reach remote playback', () => {
+  assert.deepEqual(serverEventsFrom({id: '7', event: 'change', data: JSON.stringify({topic: 'receiver', op: 'updated', id: 'rcq_1'})}),
+    [{id: '7', type: 'receiver.changed', resource: {kind: 'receiver', id: 'rcq_1'}}]);
+  assert.deepEqual(serverEventsFrom({id: '8', event: 'change', data: JSON.stringify({topic: 'playback', op: 'updated', id: 'ps_1'})}),
+    [{id: '8', type: 'playback.changed', resource: {kind: 'playback', id: 'ps_1'}}]);
+  assert.deepEqual(serverEventsFrom({id: '9', event: 'change', data: JSON.stringify({topic: 'receiver', op: 'updated'})}),
+    [{id: '9', type: 'receiver.changed'}]);
+});
