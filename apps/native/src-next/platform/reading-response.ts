@@ -8,9 +8,19 @@ const compiled = routes.filter(route => operations.has(route.id)).map(route => (
   pattern: new RegExp('^' + route.path.split(/(\{[^}]+\})/).map(part => part.startsWith('{') ? '[A-Za-z0-9_-]{1,128}' : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('') + '$')}));
 const binary = new Map<RouteId, number>([['head_reading_sessions_sessionId_source', 65536], ['get_reading_sessions_sessionId_source', 65536],
   ['get_reading_sessions_sessionId_assets', 32 * 1024 * 1024], ['get_reading_sessions_sessionId_pages_pageIndex', 16 * 1024 * 1024]]);
+/** The rebuilt server's book bytes, at the media address the book route gave: a PDF by range (or whole, when
+ * saved), one EPUB part, one comic page. Each comes through the native byte exchange with the old limits. */
+const grant = '/v1/media/[A-Za-z0-9._-]{1,512}';
+const media: readonly Readonly<{methods: readonly string[]; pattern: RegExp; limit: (headers: Headers, method: string) => number}>[] = [
+  {methods: ['HEAD', 'GET'], pattern: new RegExp(`^${grant}/source$`), limit: (headers, method) => method === 'HEAD' || headers.has('Range') ? 65536 : 64 * 1024 * 1024},
+  {methods: ['GET'], pattern: new RegExp(`^${grant}/parts/[^?#]{1,1024}$`), limit: () => 32 * 1024 * 1024},
+  {methods: ['GET'], pattern: new RegExp(`^${grant}/pages/[0-9]{1,10}$`), limit: () => 16 * 1024 * 1024},
+];
 /** Generated route identities select the local byte adapter, never an arbitrary URL. */
 export function nativeReadingPolicy(url: string, method: string, headers?: HeadersInit): Readonly<{binaryLimit?: number; sequential?: true}> | undefined {
   const path = new URL(url).pathname, operation = compiled.find(route => route.method === method && route.pattern.test(path));
+  const book = media.find(route => route.methods.includes(method) && route.pattern.test(path));
+  if (book) return {binaryLimit: book.limit(new Headers(headers), method)};
   if (operation?.id === 'get_reading_sessions_sessionId_source' && !new Headers(headers).has('Range')) return {sequential: true};
   return operation ? {binaryLimit: binary.get(operation.id)} : undefined;
 }
