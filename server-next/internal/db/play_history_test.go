@@ -7,9 +7,10 @@ import (
 	"time"
 )
 
-// A play whose library has been removed is read only by an asker with every library: an
+// A play whose library has been removed is named only to an asker with every library: an
 // administrator held to some libraries never learns what was played in one they were not
-// given, the day it is removed. The list and the summary agree.
+// given, the day it is removed. The list shows them the play with its title withheld (the
+// lead's ruling, 12 Nov); the summary counts it for nobody but those with every library.
 func TestARemovedLibrarysPlaysAreNotForALimitedAdministrator(t *testing.T) {
 	ctx := context.Background()
 	d, err := Open(ctx, t.TempDir()+"/main.db")
@@ -42,8 +43,14 @@ func TestARemovedLibrarysPlaysAreNotForALimitedAdministrator(t *testing.T) {
 	}
 	for asker, want := range map[int64]int{1: 2, 2: 1} {
 		plays, _, err := d.Plays(ctx, PlayQuery{Asker: asker, Limit: 10})
-		if err != nil || len(plays) != want {
-			t.Errorf("asker %d read %d plays, want %d: %v", asker, len(plays), want, err)
+		named := 0
+		for _, p := range plays {
+			if !p.Withheld && p.Title != "" {
+				named++
+			}
+		}
+		if err != nil || len(plays) != 2 || named != want {
+			t.Errorf("asker %d read %d plays, %d named, want 2 and %d: %v", asker, len(plays), named, want, err)
 		}
 		sum, err := d.SummarizePlays(ctx, PlayQuery{Asker: asker})
 		if err != nil || len(sum.Titles) != want {

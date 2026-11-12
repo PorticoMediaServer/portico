@@ -11,7 +11,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
-// Play history: every finished play on the server, for the owner and the administrators. It
+// Play history: every play on the server, for the owner and the administrators. It
 // includes plays made while a person had "Pause history" on, and a play stays, reading as
 // removed, after its title, its library, its profile or its account is gone.
 
@@ -35,6 +35,10 @@ type PlayEntry struct {
 	Away      bool   `json:"away"`
 	// Delivery is original, repackaged or converted; absent when not known.
 	Delivery string `json:"delivery,omitempty"`
+	// Withheld says the title is not the reader's to see: an administrator held to some
+	// libraries reads a play outside them without its title, subtitle, item or library, as Now
+	// playing lists such a stream.
+	Withheld bool `json:"withheld,omitempty"`
 }
 
 // PlaySummary is the top people, busiest times and top played over a range.
@@ -87,7 +91,7 @@ func (s *Server) playHistoryRoutes() {
 		for _, p := range plays {
 			entry := PlayEntry{PlayedAt: p.PlayedAt.UTC(), Username: p.AccountName, DeviceName: p.DeviceName, AccountID: p.AccountID,
 				LibraryID: p.LibraryID, LibraryName: p.LibraryName, ItemID: p.ItemID, Kind: p.Kind.String(), Title: p.Title,
-				Subtitle: p.Subtitle, WatchedMs: p.WatchedMS, Away: p.Away, Delivery: p.Delivery.String()}
+				Subtitle: p.Subtitle, WatchedMs: p.WatchedMS, Away: p.Away, Delivery: p.Delivery.String(), Withheld: p.Withheld}
 			if !strings.EqualFold(p.ProfileName, p.AccountName) {
 				entry.Profile = p.ProfileName
 			}
