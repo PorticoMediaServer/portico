@@ -59,6 +59,13 @@ type DvrRecording struct {
 	// "A recording".
 	Tuners       int      `json:"tuners,omitempty"`
 	TunersUsedBy []string `json:"tunersUsedBy,omitempty"`
+	// MayChange says this profile may change it (padding, priority, Keep, Record this instead
+	// or Skip this one), stop it, or delete what was recorded: the booker, the owner and
+	// administrators. MayCancel, on a booking not yet started, says it may cancel it: a profile
+	// that asked for it lets go of its own ask, and the owner or an administrator cancels it
+	// for everyone.
+	MayChange bool `json:"mayChange"`
+	MayCancel bool `json:"mayCancel,omitempty"`
 }
 
 // DvrRecordingBook asks to record one airing: Programme is a programme's id from the guide.
@@ -100,6 +107,9 @@ type DvrOverview struct {
 	// until it is deleted.
 	KeepDays   int `json:"keepDays"`
 	KeepNewest int `json:"keepNewest"`
+	// EveryonesRecordings says this profile may see everyone's recordings (it may see the
+	// Recorded TV library); without it Everyone's is the same list as its own.
+	EveryonesRecordings bool `json:"everyonesRecordings"`
 	// UpcomingBytes and UpcomingHours are about what every booking of the next 14 days will
 	// take, at the same rate as HoursLeft, so it can be set against the space left.
 	UpcomingBytes int64 `json:"upcomingBytes"`
@@ -313,7 +323,14 @@ func (s *Server) dvrSummary(r *http.Request, _ None) (DvrOverview, error) {
 		if out.UsedBytes, err = s.db.RecordedBytes(ctx, lib.ID); err != nil {
 			return DvrOverview{}, err
 		}
+		// The same test maySeeRecording applies to someone else's recording.
+		if _, err := s.db.Library(ctx, viewer(r), lib.PublicID); err == nil {
+			out.EveryonesRecordings = true
+		} else if !errors.Is(err, db.ErrNotFound) {
+			return DvrOverview{}, err
+		}
 	}
+	out.EveryonesRecordings = out.EveryonesRecordings || lv.Owner
 	// The forecast is space, not titles: every booking counts, as every booking takes room.
 	var upcomingMs int64
 	for _, rec := range upcoming {
@@ -413,11 +430,11 @@ func (s *Server) listRecordings(r *http.Request, _ None) (Page[DvrRecording], er
 	query := r.URL.Query()
 	state := query.Get("state")
 	q := db.RecordingQuery{Upcoming: state != "history" && state != "recorded", Made: state == "recorded", Limit: 50}
+	names, err := s.db.ProfileNames(ctx, viewer(r).ProfileID)
+	if err != nil {
+		return Page[DvrRecording]{}, err
+	}
 	if query.Get("scope") != "everyone" {
-		names, err := s.db.ProfileNames(ctx, viewer(r).ProfileID)
-		if err != nil {
-			return Page[DvrRecording]{}, err
-		}
 		q.ProfileID, q.ProfilePub = viewer(r).ProfileID, names.PublicID
 	}
 	var c struct {
@@ -452,7 +469,7 @@ func (s *Server) listRecordings(r *http.Request, _ None) (Page[DvrRecording], er
 		if ok, err := s.maySeeRecording(ctx, r, lv, row); err != nil {
 			return Page[DvrRecording]{}, err
 		} else if ok {
-			out.Items = append(out.Items, s.withClash(lv, s.recordingOut(ctx, row, false, items), clashes, row.ID, own))
+			out.Items = append(out.Items, s.withMay(r, s.withClash(lv, s.recordingOut(ctx, row, false, items), clashes, row.ID, own), row, names.PublicID))
 		}
 	}
 	if len(rows) == q.Limit {
@@ -513,7 +530,7 @@ func (s *Server) bookRecording(r *http.Request, req DvrRecordingBook) (DvrRecord
 	if err != nil {
 		return DvrRecording{}, err
 	}
-	out := s.recordingOut(ctx, rec, false, nil)
+	out := s.withMay(r, s.recordingOut(ctx, rec, false, nil), rec, names.PublicID)
 	if created {
 		s.goBackground(func() { s.recorder.Tick(s.liveContext) })
 	}
@@ -525,6 +542,29 @@ func (s *Server) bookRecording(r *http.Request, req DvrRecordingBook) (DvrRecord
 func (s *Server) mayChange(r *http.Request, rec db.Recording) bool {
 	c := CallerFrom(r.Context())
 	return c.Role == "owner" || c.Role == "admin" || rec.ProfileID == c.ProfileID
+}
+
+// askedFor says the viewer's profile booked a booking or also asked for it; profilePub is its
+// public id.
+func askedFor(r *http.Request, rec db.Recording, profilePub string) bool {
+	return rec.ProfileID == CallerFrom(r.Context()).ProfileID || slices.Contains(rec.AlsoWantedBy, profilePub)
+}
+
+// mayCancel says the viewer may cancel a booking not yet started: a profile that asked for it
+// (it lets go of its own ask), or the owner or an administrator (for everyone).
+func mayCancel(r *http.Request, rec db.Recording, profilePub string) bool {
+	c := CallerFrom(r.Context())
+	return askedFor(r, rec, profilePub) || c.Role == "owner" || c.Role == "admin"
+}
+
+// withMay says on a row what the viewer may do with it, by the same rules the change and
+// delete routes apply, so the app and the routes never disagree.
+func (s *Server) withMay(r *http.Request, out DvrRecording, rec db.Recording, profilePub string) DvrRecording {
+	out.MayChange = s.mayChange(r, rec)
+	if rec.State == db.RecordingScheduled {
+		out.MayCancel = mayCancel(r, rec, profilePub)
+	}
+	return out
 }
 
 func (s *Server) getRecording(r *http.Request, _ None) (DvrRecording, error) {
@@ -554,7 +594,11 @@ func (s *Server) getRecording(r *http.Request, _ None) (DvrRecording, error) {
 	if err != nil {
 		return DvrRecording{}, err
 	}
-	out := s.withClash(lv, s.recordingOut(r.Context(), rec, false, items), clashes, rec.ID, own)
+	names, err := s.db.ProfileNames(r.Context(), viewer(r).ProfileID)
+	if err != nil {
+		return DvrRecording{}, err
+	}
+	out := s.withMay(r, s.withClash(lv, s.recordingOut(r.Context(), rec, false, items), clashes, rec.ID, own), rec, names.PublicID)
 	if rec.ItemID != 0 {
 		for _, session := range s.playback.All() {
 			if session.Item.ID == rec.ItemID {
@@ -630,11 +674,10 @@ func (s *Server) deleteRecording(r *http.Request, _ None) (None, error) {
 	case rec.State == db.RecordingScheduled:
 		// The booker passes it on and someone who also asked is taken off it; the owner or an
 		// administrator who asked for neither cancels it for everyone.
-		asked := rec.ProfileID == c.ProfileID || slices.Contains(rec.AlsoWantedBy, names.PublicID)
-		everyone := !asked && (c.Role == "owner" || c.Role == "admin")
-		if !asked && !everyone {
+		if !mayCancel(r, rec, names.PublicID) {
 			return None{}, ErrNotPermitted()
 		}
+		everyone := !askedFor(r, rec, names.PublicID)
 		return None{}, s.db.CancelRecording(ctx, rec.PublicID, c.ProfileID, names.PublicID, everyone, s.now())
 	case !s.mayChange(r, rec):
 		return None{}, ErrNotPermitted()
