@@ -234,7 +234,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	// The newer areas start themselves, in this fixed order (the console first: its settings
 	// are what the others read). An area adds to its own start function, never to this list.
 	for _, start := range []func(context.Context) error{
-		s.startConsole, s.startSetup, s.startTools, s.startTogether, s.startDownloads, s.startReading, s.startLiveTV, s.startMetadata,
+		s.startConsole, s.startSetup, s.startTools, s.startTogether, s.startDownloads, s.startReading, s.startLiveTV, s.startMetadata, s.startMusic,
 	} {
 		if err := start(ctx); err != nil {
 			return nil, err

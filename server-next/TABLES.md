@@ -37,7 +37,7 @@ change the schema, before and after the first release, is rule 9 of `RULES.md`.
 | | `metadata_history` | yes | The editor's History and "Undo to before this": a title's last 20 changes made by people |
 | | `lyrics` | yes | Lyrics fetched, read from tags or pasted by the owner |
 | | `media_artifacts` | with playback | Seek previews, waveforms and keyframe positions already computed |
-| | `track_embeddings` | with music mixes | Mixes and radio from sound similarity |
+| | `track_embeddings` | yes | Mixes and radio from sound similarity |
 | Users and access | `users`, `profiles` | yes | Accounts and viewing profiles |
 | | `devices` | yes | The device list, and revoking a lost device |
 | | `device_capabilities` | yes | Starting playback on another device |
@@ -75,7 +75,7 @@ change the schema, before and after the first release, is rule 9 of `RULES.md`.
 ## Counted
 
 69 planned: 67 in the schema today, less `removed_state` (going: the scanner now forgets a
-title when its trash is emptied), plus `media_artifacts` and `track_embeddings` still to come
+title when its trash is emptied), plus `media_artifacts` still to come (`track_embeddings` is in the schema now)
 and `account_restrictions`, which is in an open pull request.
 
 Planned once and dropped, with what does the job instead:
