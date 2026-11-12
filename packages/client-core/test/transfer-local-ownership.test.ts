@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {transferLocalOwnership} from '../src/portico-servers.ts';
-import {routePath} from '../../contracts/src/routes.ts';
+import {localOwnerChangePath, transferLocalOwnership} from '../src/portico-servers.ts';
 
 const member='member_1', password='  two  spaces  ', revision=4;
 function recorder(reply: unknown = undefined) {
@@ -10,23 +9,22 @@ function recorder(reply: unknown = undefined) {
  return {api:api as never,calls};
 }
 
-test('the local transfer sends only the three scalars on the same ownership route',async()=>{
+test('Change owner on a local server sends the password, the new owner and the previous owner\'s new role (area 2 rules 32, 33)',async()=>{
  const {api,calls}=recorder(),controller=new AbortController();
  const out=await transferLocalOwnership(api,member,password,revision,controller.signal);
  assert.equal(out,undefined);
  assert.equal(calls.length,1);
- assert.equal(calls[0]!.path,routePath('post_direct_ownership'));
+ assert.equal(calls[0]!.path,'/v1/admin/owner'); assert.equal(localOwnerChangePath,'/v1/admin/owner');
  assert.equal(calls[0]!.method,'POST');
  assert.equal(calls[0]!.signal,controller.signal);
- assert.deepEqual(calls[0]!.body,{accountId:member,currentPassword:password,expectedRevision:revision});
- assert.equal(Object.keys(calls[0]!.body as object).sort().join(','),'accountId,currentPassword,expectedRevision','no porticoIdentity or other field');
+ assert.deepEqual(calls[0]!.body,{password,accountId:member,previousOwner:'admin'},'the previous owner becomes an administrator; no Portico approval or other field');
 });
 
 test('the password keeps its spaces and accepts unicode up to the 72-byte bound',async()=>{
  for(const value of [password,'€'.repeat(24),'a'.repeat(72)]){
   const {api,calls}=recorder();
   await transferLocalOwnership(api,member,value,1);
-  assert.equal((calls[0]!.body as {currentPassword:string}).currentPassword,value);
+  assert.equal((calls[0]!.body as {password:string}).password,value);
  }
  for(const value of ['€'.repeat(24)+'a','a'.repeat(73),'€'.repeat(25)]){
   const {api,calls}=recorder();
@@ -66,7 +64,7 @@ test('one call, the API error keeps its identity and there is no Hosted or custo
  const api={request:async(path: string)=>{calls++;paths.push(path);throw failure;}} as never;
  await assert.rejects(()=>transferLocalOwnership(api,member,password,revision),error=>error===failure);
  assert.equal(calls,1);
- assert.deepEqual(paths,[routePath('post_direct_ownership')]);
+ assert.deepEqual(paths,['/v1/admin/owner']);
 });
 
 test('new local owner is one closed atomic ownership request with captured scalars',async()=>{
@@ -74,8 +72,8 @@ test('new local owner is one closed atomic ownership request with captured scala
  const {api,calls}=recorder(), abort=new AbortController();
  const newAccount={username:'newowner',name:'New owner',password:'New-password2!'};
  await transferLocalOwnershipToNewAccount(api,newAccount,password,revision,abort.signal);
- assert.deepEqual(calls,[{path:routePath('post_direct_ownership'),method:'POST',body:{accountId:'',currentPassword:password,expectedRevision:revision,newAccount},signal:abort.signal}]);
- assert.equal(Object.hasOwn(calls[0]!.body as object,'porticoIdentity'),false);
+ assert.deepEqual(calls,[{path:'/v1/admin/owner',method:'POST',body:{password,newAccount:{username:'newowner',password:'New-password2!',profileName:'New owner'},previousOwner:'admin'},signal:abort.signal}]);
+ assert.equal(Object.hasOwn(calls[0]!.body as object,'approval'),false);
 });
 
 test('invalid new account, current proof or retired command never creates a member',async()=>{

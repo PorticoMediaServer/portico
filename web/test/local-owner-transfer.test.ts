@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type {ProfileAPI} from '@core/profile-management.ts';
 import {LocalOwnerTransferSource} from '../src/screens/settings/local-owner-transfer.ts';
 import {guardedSettingsRequest, localOwnerTransferTransport} from '../src/screens/settings/settings-request.ts';
+import {localOwnerChangeOnly} from '@core/portico-servers.ts';
 
 // Accepting-composition vectors, authored UNRUN. Fixtures carry actual People
 // envelopes (the rebuilt server's, whose revisions are always 1); the presenter is not an authority or a role receipt.
@@ -17,7 +18,7 @@ function fixture() {
     calls.push({path, method, body});
     if (path === '/v1/admin/members') return {items: [member('owner', 'owner'), member('member', role), member('admin', 'admin')]} as T;
     if (path === '/v1/admin/members/owner' || path === '/v1/admin/members/member') return (path.endsWith('/owner') ? member('owner', 'owner') : member('member', role)) as T;
-    if (path === '/v1/direct/ownership') {if (fail) throw fail; await post?.(); return undefined as T;}
+    if (path === '/v1/admin/owner') {if (fail) throw fail; await post?.(); return undefined as T;}
     throw new Error('Unexpected transfer request');
   }};
   const build = new AbortController();
@@ -53,7 +54,7 @@ test('one bounded original inventory uses the CALLER revision and never fabricat
     await assert.rejects(port.accept({...input, expectedRevision: 3}, life));
     assert.equal(f.calls.length, 2);
     await port.accept(input, life);
-    assert.deepEqual(f.calls.filter(value => value.path === '/v1/direct/ownership'), [{path: '/v1/direct/ownership', method: 'POST', body: input}]);
+    assert.deepEqual(f.calls.filter(value => value.path === '/v1/admin/owner'), [{path: '/v1/admin/owner', method: 'POST', body: {password: input.currentPassword, accountId: input.accountId, previousOwner: 'admin'}}]);
     assert.equal(f.complete, 1);
     const count = f.calls.length; await assert.rejects(f.source.open(caller())); assert.equal(f.calls.length, count);
   } finally {f.source.dispose();}
@@ -74,7 +75,7 @@ for (const mode of ['authority', 'caller', 'target-role'] as const) test('origin
     if (mode === 'authority') f.retire(); if (mode === 'caller') life.retire();
     if (mode === 'target-role') f.revised();
     await assert.rejects(port.accept(input, life));
-    assert.equal(f.calls.some(value => value.path === '/v1/direct/ownership'), false); assert.equal(f.complete, 0);
+    assert.equal(f.calls.some(value => value.path === '/v1/admin/owner'), false); assert.equal(f.complete, 0);
   } finally {f.source.dispose();}
 });
 test('an uncertain accepting error keeps its identity and never retries or reconciles a guessed role', async () => {
@@ -82,7 +83,7 @@ test('an uncertain accepting error keeps its identity and never retries or recon
   try {
     const port = await f.source.open(life);
     await assert.rejects(port.accept(input, life), value => value === error);
-    assert.equal(f.calls.filter(value => value.path === '/v1/direct/ownership').length, 1); assert.equal(f.complete, 0);
+    assert.equal(f.calls.filter(value => value.path === '/v1/admin/owner').length, 1); assert.equal(f.complete, 0);
   } finally {f.source.dispose();}
 });
 test('the synchronous opening claim admits only one transfer flight', async () => {
@@ -94,7 +95,7 @@ test('the synchronous opening claim admits only one transfer flight', async () =
     // Drain only the fixture's microtasks; there is no test runtime or browser job here.
     for (let i = 0; i < 8 && !release; i++) await Promise.resolve();
     assert.equal(typeof release, 'function'); release(); await first;
-    assert.equal(f.calls.filter(value => value.path === '/v1/direct/ownership').length, 1); assert.equal(f.complete, 1);
+    assert.equal(f.calls.filter(value => value.path === '/v1/admin/owner').length, 1); assert.equal(f.complete, 1);
   } finally {f.source.dispose();}
 });
 test('retiring a pending opening cannot lend its claim and a known 204 still spends the exact source', async () => {
@@ -162,8 +163,10 @@ test('ordinary Settings request still refuses a response after its build retires
   const pending = guarded('/v1/admin/access/members', 'GET');
   current = false; release();
   await assert.rejects(pending, error => error instanceof DOMException && error.name === 'AbortError');
-  const purpose = localOwnerTransferTransport(api, assertBuild, () => signal);
-  await assert.rejects(purpose.request('/v1/admin/access/members', 'GET'));
+  // The transport that may finish after Settings closes carries Change owner only, even while Settings is open.
+  current = true;
+  const purpose = localOwnerChangeOnly(localOwnerTransferTransport(api, assertBuild, () => signal));
+  await assert.rejects(purpose.request('/v1/admin/access/members', 'GET'), /Not a local ownership transfer/);
 });
 
 const newInput = {newAccount:{username:'newowner',name:'New owner',password:'New-password2!'},currentPassword:' original password ',expectedRevision:1};
@@ -172,7 +175,7 @@ test('new-owner creation uses the original transfer opening without a separate m
  try {
   const port=await f.source.open(life);
   await port.accept(newInput,life);
-  assert.deepEqual(f.calls.filter(c=>c.method==='POST'),[{path:'/v1/direct/ownership',method:'POST',body:{accountId:'',...newInput}}]);
+  assert.deepEqual(f.calls.filter(c=>c.method==='POST'),[{path:'/v1/admin/owner',method:'POST',body:{password:newInput.currentPassword,newAccount:{username:'newowner',password:'New-password2!',profileName:'New owner'},previousOwner:'admin'}}]);
   assert.equal(f.complete,1);
  } finally {f.source.dispose();}
 });
