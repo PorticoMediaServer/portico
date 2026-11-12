@@ -1290,6 +1290,8 @@ export const webMessages = {
   'web.feedback.inboxEmpty': 'No reports',
   'web.feedback.inboxEmptyBody': 'When a viewer reports a problem from their app it appears here.',
   'web.feedback.rowSubtitle': '{category} · {when}{about, select, yes { · about a title} other {}}',
+  'web.feedback.rowSubtitleFrom': '{category} · {when} · {device}{about, select, yes { · about a title} other {}}',
+  'web.feedback.sentFromDevice': 'Sent from {device}.',
   'web.feedback.reportedMeta': 'Reported {when} · {status}',
   'web.feedback.updateReport': 'Update report',
   'web.feedback.status': 'Status',

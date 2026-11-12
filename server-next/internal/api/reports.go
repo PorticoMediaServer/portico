@@ -40,14 +40,17 @@ type ProblemReport struct {
 	Reporter string `json:"reporter"`
 	Kind     string `json:"kind"`
 	// Status is open, in_progress, resolved or closed.
-	Status    string     `json:"status"`
-	Message   string     `json:"message,omitempty"`
-	Context   JSON       `json:"context,omitempty"`
-	HasLog    bool       `json:"hasLog"`
-	Reply     string     `json:"reply,omitempty"`
-	RepliedAt *time.Time `json:"repliedAt,omitempty"`
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt time.Time  `json:"updatedAt"`
+	Status  string `json:"status"`
+	Message string `json:"message,omitempty"`
+	Context JSON   `json:"context,omitempty"`
+	HasLog  bool   `json:"hasLog"`
+	// DeviceName is the current name of the device it was sent from, as the server knows it from
+	// the sign-in that sent it. Absent when that device was forgotten.
+	DeviceName string     `json:"deviceName,omitempty"`
+	Reply      string     `json:"reply,omitempty"`
+	RepliedAt  *time.Time `json:"repliedAt,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
 }
 
 // ReportEdit sets a report's status, its reply, or both. A new reply is sent to the reporter.
@@ -209,7 +212,7 @@ func (s *Server) createReport(r *http.Request, req ReportCreate) (ProblemReport,
 			return ProblemReport{}, err
 		}
 	}
-	report, err := s.db.CreateReport(r.Context(), db.NewReport{Viewer: viewer(r), Kind: req.Kind, Message: req.Message,
+	report, err := s.db.CreateReport(r.Context(), db.NewReport{Viewer: viewer(r), SignInID: CallerFrom(r.Context()).SessionID, Kind: req.Kind, Message: req.Message,
 		Context: string(req.Context), LogHash: hash, IdempotencyKey: key, RequestHash: requestHash(req), Now: s.now()})
 	switch {
 	case errors.Is(err, db.ErrKeyReused):
@@ -259,7 +262,7 @@ func (s *Server) reportPage(r *http.Request, q db.ReportQuery) (Page[ProblemRepo
 
 func problemReport(r db.Report) ProblemReport {
 	out := ProblemReport{ID: r.PublicID, Reporter: r.ReporterName, Kind: r.Kind, Status: r.Status, Message: r.Message,
-		HasLog: r.LogHash != "", Reply: r.Reply, RepliedAt: r.RepliedAt, CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC()}
+		HasLog: r.LogHash != "", DeviceName: r.DeviceName, Reply: r.Reply, RepliedAt: r.RepliedAt, CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC()}
 	if r.Context != "" {
 		out.Context = JSON(r.Context)
 	}

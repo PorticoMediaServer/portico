@@ -26,11 +26,16 @@ type Report struct {
 	RepliedAt *time.Time
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	// DeviceName is the current name of the device it was sent from, "" when that device was
+	// forgotten or the report came without a sign-in.
+	DeviceName string
 }
 
 // NewReport is a report a profile sends.
 type NewReport struct {
-	Viewer                      Viewer
+	Viewer Viewer
+	// SignInID is the sign-in that sends it: its device is the report's device.
+	SignInID                    int64
 	Kind, Message, Context      string
 	LogHash                     string
 	IdempotencyKey, RequestHash string
@@ -38,13 +43,13 @@ type NewReport struct {
 }
 
 const reportColumns = `id, public_id, reporter_name, kind, status, ifnull(message, ''), ifnull(context, ''), ifnull(log_hash, ''),
-	ifnull(reply, ''), replied_at, created_at, updated_at`
+	ifnull(reply, ''), replied_at, created_at, updated_at, ifnull((SELECT name FROM devices WHERE id = reports.device_id), '')`
 
 func scanReport(row interface{ Scan(...any) error }) (Report, error) {
 	var r Report
 	var replied sql.NullInt64
 	var created, updated int64
-	err := row.Scan(&r.ID, &r.PublicID, &r.ReporterName, &r.Kind, &r.Status, &r.Message, &r.Context, &r.LogHash, &r.Reply, &replied, &created, &updated)
+	err := row.Scan(&r.ID, &r.PublicID, &r.ReporterName, &r.Kind, &r.Status, &r.Message, &r.Context, &r.LogHash, &r.Reply, &replied, &created, &updated, &r.DeviceName)
 	r.RepliedAt, r.CreatedAt, r.UpdatedAt = optionalTime(replied), time.UnixMilli(created), time.UnixMilli(updated)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = ErrNotFound
@@ -112,11 +117,11 @@ func (d *DB) CreateReport(ctx context.Context, n NewReport) (Report, error) {
 				return ErrTooManyReports
 			}
 			ref = NewID("rpt")
-			if _, err := tx.Exec(`INSERT INTO reports (public_id, user_id, profile_id, reporter_name, kind, message, context, log_hash, created_at, updated_at)
+			if _, err := tx.Exec(`INSERT INTO reports (public_id, user_id, profile_id, reporter_name, kind, message, context, log_hash, created_at, updated_at, device_id)
 				SELECT ?, u.id, p.id, CASE WHEN lower(p.name) = lower(u.username) THEN u.username ELSE u.username || ' · ' || p.name END,
-					?, nullif(?, ''), nullif(?, ''), nullif(?, ''), ?, ?
+					?, nullif(?, ''), nullif(?, ''), nullif(?, ''), ?, ?, (SELECT device_id FROM sessions WHERE id = ? AND user_id = u.id)
 				FROM users u JOIN profiles p ON p.user_id = u.id WHERE u.id = ? AND p.id = ?`,
-				ref, n.Kind, n.Message, n.Context, n.LogHash, n.Now.UnixMilli(), n.Now.UnixMilli(), n.Viewer.UserID, n.Viewer.ProfileID); err != nil {
+				ref, n.Kind, n.Message, n.Context, n.LogHash, n.Now.UnixMilli(), n.Now.UnixMilli(), n.SignInID, n.Viewer.UserID, n.Viewer.ProfileID); err != nil {
 				return err
 			}
 			if err := rememberCreated(tx, n.Viewer.UserID, n.IdempotencyKey, n.RequestHash, ref, n.Now); err != nil {

@@ -23,12 +23,27 @@ func TestReportsRepliesAndNotices(t *testing.T) {
 	if w := call(t, s, "POST", "/v1/reports", member.AccessToken, body, &report); w.Code != 200 || !report.HasLog || report.Reporter != "max" {
 		t.Fatalf("sending a report answered %d: %s", w.Code, w.Body)
 	}
+	if report.DeviceName != "Device 2" {
+		t.Errorf("the report names the device %q, not the one its sign-in is on", report.DeviceName)
+	}
+	var devices Page[Device]
+	call(t, s, "GET", "/v1/devices", member.AccessToken, nil, &devices)
+	for _, d := range devices.Items {
+		if d.Current {
+			if code := status(t, s, "PATCH", "/v1/devices/"+d.ID, member.AccessToken, DeviceEdit{Name: "Kitchen TV"}); code != 200 && code != 204 {
+				t.Fatalf("renaming the device answered %d", code)
+			}
+		}
+	}
 	if code := status(t, s, "GET", "/v1/admin/reports", admin.AccessToken, nil); code != 403 {
 		t.Errorf("an administrator read the reports: %d", code)
 	}
 	var list Page[ProblemReport]
 	if call(t, s, "GET", "/v1/admin/reports?status=open", owner.AccessToken, nil, &list); len(list.Items) != 1 || list.Items[0].ID != report.ID {
 		t.Fatalf("the owner's open reports: %+v", list)
+	}
+	if list.Items[0].DeviceName != "Kitchen TV" {
+		t.Errorf("the owner sees the device as %q, not by its current name", list.Items[0].DeviceName)
 	}
 	if w := call(t, s, "GET", "/v1/admin/reports/"+report.ID+"/log", owner.AccessToken, nil, nil); w.Code != 200 || w.Body.String() != body.Log {
 		t.Errorf("the log answered %d: %q", w.Code, w.Body)

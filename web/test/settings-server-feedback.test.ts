@@ -2,84 +2,78 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SettingsFeedbackSource} from '../src/screens/settings/server/troubleshooting/feedback-source.ts';
 
-const serverId = 'captured-server', fence = 'a'.repeat(64);
-const envelope = (data: unknown) => ({scope: {serverId, viewerFence: fence}, data});
-const report = (id: string, revision: number, status = 'open', message = 'Something went wrong.') =>
-  ({id, cursor: '1', createdAt: '2026-10-22T18:20:00Z', updatedAt: '2026-10-22T18:20:00Z', expiresAt: '2027-04-20T18:20:00Z', revision, status,
-    kind: 'playback', category: 'buffering', message, reporter: {name: 'Alex', authority: 'local', role: 'member', self: false},
-    diagnostics: {decision: 'not-requested'}, client: {platform: 'android', appVersion: '1.4.2', online: true}, duplicates: 0, thread: []});
-const list = (items: unknown[], nextCursor: string) => ({items, nextCursor, statusCounts: {}, total: items.length, filter: {}, observedAt: '2026-10-22T18:20:00Z'});
+const serverId = 'captured-server';
+/** A report as GET /v1/admin/reports answers it. */
+const report = (id: string, status = 'open', message = 'Something went wrong.', extra: Record<string, unknown> = {}) =>
+  ({id, reporter: 'alex', kind: 'problem', status, message, hasLog: false, createdAt: '2026-10-22T18:20:00Z', updatedAt: '2026-10-22T18:20:00Z',
+    context: {about: 'playback/buffering', item: {id: 'itm_1', title: 'Heat'}, platform: 'android', appVersion: '1.4.2', online: true}, deviceName: 'Kitchen TV', ...extra});
 
 function fixture() {
   const calls: {path: string; method: string; body: unknown}[] = [];
-  let conflict = false, lost = false, serverRevision = 1, listed = [report('one', 1), report('two', 2)];
+  let lost = false, listed = [report('one'), report('two')];
   const transport = {request: async <T>(path: string, method = 'GET', body?: unknown) => {
     calls.push({path, method, body});
-    if (method === 'POST' && path.endsWith('/status')) {
-      if (conflict) {conflict = false;throw Object.assign(new Error('moved'), {status: 409, code: 'console_conflict', currentRevision: 3});}
+    if (method === 'PATCH' && path.startsWith('/v1/admin/reports/')) {
       if (lost) {lost = false;throw new TypeError('network');}
-      const sent = body as {expectedRevision: number; status: string; reply: string};
-      serverRevision = sent.expectedRevision + 1;
-      const updated = {...report('one', serverRevision, sent.status), message: 'Something went wrong.'};
-      listed = listed.map(row => row.id === 'one' ? updated : row);
-      return envelope(updated) as T;
-    }
-    if (path.includes('/admin/feedback/reports/')) {
+      const sent = body as {status: string; reply?: string};
       const id = path.split('/').pop()!;
-      // A conflict re-read sees the newer revision the server actually holds.
-      const row = listed.find(item => item.id === id) ?? report(id, 1);
-      return envelope({...row, revision: id === 'one' ? serverRevision : row.revision}) as T;
+      const updated = report(id, sent.status, 'Something went wrong.', sent.reply ? {reply: sent.reply} : {});
+      listed = listed.map(row => row.id === id ? updated : row);
+      return updated as T;
     }
-    if (path.includes('/admin/feedback/reports')) return envelope(path.includes('cursor=9') ? list([report('three', 1)], '') : list(listed, '9')) as T;
+    if (path.startsWith('/v1/admin/reports/')) {
+      const id = path.split('/').pop()!;
+      const row = listed.find(item => item.id === id);
+      if (!row) throw Object.assign(new Error('not found'), {status: 404, code: 'not_found'});
+      return row as T;
+    }
+    if (path.startsWith('/v1/admin/reports')) return (path.includes('cursor=9') ? {items: [report('three', 'in_progress')]} : {items: listed, nextCursor: '9'}) as T;
     if (path.includes('/catalogue/failures')) return {failures: [], more: false} as T;
-    if (path.includes('/console/diagnostics/')) return envelope({items: [], nextCursor: ''}) as T;
-    return envelope({items: [], limit: 25, nextCursor: ''}) as T;
+    return {items: [], nextCursor: ''} as T;
   }};
-  return {source: new SettingsFeedbackSource(transport, serverId, 'captured-viewer', () => true), calls, conflict: () => {conflict = true;serverRevision = 3;}, lose: () => {lost = true;}, listed: () => listed};
+  return {source: new SettingsFeedbackSource(transport, serverId, 'captured-viewer', () => true), calls, lose: () => {lost = true;}, listed: () => listed};
 }
 
-test('one owner read lists the inbox and the server names the next page', async () => {
+test('one owner read lists the reports from the rebuilt server and the server names the next page', async () => {
   const f = fixture();
   try {
     await f.source.load();
     assert.equal(f.source.getSnapshot().phase, 'ready');
     assert.deepEqual(f.source.getSnapshot().reports.map(row => row.id), ['one', 'two']);
     assert.equal(f.source.getSnapshot().next, '9');
-    assert.equal(f.calls[0].path.includes('/admin/feedback'), true);
+    assert.equal(f.calls[0].path, '/v1/admin/reports');
+    const one = f.source.getSnapshot().reports[0]!;
+    assert.deepEqual({kind: one.kind, category: one.category, itemId: one.itemId, itemTitle: one.itemTitle, deviceName: one.deviceName, client: one.client, reporter: one.reporter},
+      {kind: 'playback', category: 'buffering', itemId: 'itm_1', itemTitle: 'Heat', deviceName: 'Kitchen TV', client: {platform: 'android', appVersion: '1.4.2', online: true}, reporter: 'alex'});
     await f.source.more();
+    assert.equal(f.calls.at(-1)!.path, '/v1/admin/reports?cursor=9');
     assert.deepEqual(f.source.getSnapshot().reports.map(row => row.id), ['one', 'two', 'three']);
+    assert.equal(f.source.getSnapshot().reports[2]!.status, 'in-progress');
     assert.equal(f.source.getSnapshot().next, undefined);
   } finally {f.source.dispose();}
 });
 
-test('the dialog reads its own report and saves status and reply on that captured row', async () => {
+test('the dialog reads its own report and saves status and reply on that row; the reply reaches the server', async () => {
   const f = fixture();
   try {
     await f.source.load();
     const fresh = await f.source.read('one', new AbortController().signal);
-    assert.equal(fresh.revision, 1);
-    const saved = await f.source.triage(fresh, 'in-progress', 'We are looking into it.', new AbortController().signal);
-    assert.equal(saved.status, 'in-progress');
-    assert.equal(saved.revision, 2);
+    const saved = await f.source.triage(fresh, 'in-progress', '  We are looking into it. ', new AbortController().signal);
+    assert.deepEqual(f.calls.at(-1), {path: '/v1/admin/reports/one', method: 'PATCH', body: {status: 'in_progress', reply: 'We are looking into it.'}});
+    assert.equal(saved.status, 'in-progress'); assert.equal(saved.reply, 'We are looking into it.');
     assert.equal(f.source.getSnapshot().reports.find(row => row.id === 'one')?.status, 'in-progress');
+    await f.source.triage(saved, 'closed', '', new AbortController().signal);
+    assert.deepEqual(f.calls.at(-1)!.body, {status: 'closed'}, 'no reply is sent when the owner wrote none');
     await assert.rejects(f.source.read('not-listed', new AbortController().signal));
   } finally {f.source.dispose();}
 });
 
-test('a report that moved while the dialog was open carries the edit over once, silently', async () => {
-  const f = fixture();
-  try {
-    await f.source.load();
-    const fresh = await f.source.read('one', new AbortController().signal);
-    f.conflict();
-    const saved = await f.source.triage(fresh, 'resolved', 'Fixed in 1.4.3.', new AbortController().signal);
-    // The second write used the revision the reread proved (3), not the stale one (1).
-    const patches = f.calls.filter(call => call.method === 'POST');
-    assert.equal(patches.length, 2);
-    assert.deepEqual([0, 1].map(index => (patches[index].body as {expectedRevision: number}).expectedRevision), [1, 3]);
-    assert.equal(saved.status, 'resolved');
-    assert.equal(saved.revision, 4);
-  } finally {f.source.dispose();}
+test('a crash report and a report without context read plainly', async () => {
+  const {parseOwnerReport} = await import('../../packages/client-core/src/server-admin/feedback-source.ts');
+  const crash = parseOwnerReport({id: 'c', reporter: 'alex', kind: 'crash', status: 'open', hasLog: true, createdAt: '2026-10-22T18:20:00Z', updatedAt: 'x'});
+  assert.deepEqual({kind: crash.kind, category: crash.category, crash: crash.crash, hasLog: crash.hasLog, message: crash.message}, {kind: 'apps', category: 'crash', crash: true, hasLog: true, message: ''});
+  const bare = parseOwnerReport({id: 'b', reporter: 'alex', kind: 'problem', status: 'someday', message: 'Hi', createdAt: '2026-10-22T18:20:00Z', updatedAt: 'x'});
+  assert.deepEqual({kind: bare.kind, category: bare.category, status: bare.status, client: bare.client, deviceName: bare.deviceName}, {kind: 'other', category: 'other', status: 'open', client: undefined, deviceName: undefined});
 });
 
 test('a retired scope stops reading and writing at once', async () => {
@@ -94,7 +88,7 @@ test('a retired scope stops reading and writing at once', async () => {
   } finally {f.source.dispose();}
 });
 
-test('a status change whose answer was lost is retried as the same operation', async () => {
+test('a status change whose answer was lost can be sent again: the same reply sends the reporter no second notice', async () => {
   const f = fixture();
   try {
     await f.source.load();
@@ -102,10 +96,8 @@ test('a status change whose answer was lost is retried as the same operation', a
     f.lose();
     await assert.rejects(f.source.triage(fresh, 'resolved', 'Fixed.', new AbortController().signal));
     await f.source.triage(fresh, 'resolved', 'Fixed.', new AbortController().signal);
-    const sent = f.calls.filter(call => call.method === 'POST').map(call => call.body as {operationId: string; expectedRevision: number});
-    assert.equal(sent.length, 2);
-    assert.equal(sent[0].operationId, sent[1].operationId);
-    assert.ok(sent[0].operationId);
-    assert.equal(f.calls.filter(call => call.method === 'PATCH').length, 0, 'the retired PATCH route is never used');
+    const sent = f.calls.filter(call => call.method === 'PATCH').map(call => call.body);
+    assert.deepEqual(sent, [{status: 'resolved', reply: 'Fixed.'}, {status: 'resolved', reply: 'Fixed.'}]);
+    assert.equal(f.calls.some(call => call.path.includes('/feedback')), false, 'the old feedback routes are never used');
   } finally {f.source.dispose();}
 });

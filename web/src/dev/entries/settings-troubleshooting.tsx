@@ -143,9 +143,11 @@ const records = [
   {sequence: 1842, at: '2026-10-22T18:58:02Z', lane: 'runtime', severity: 'info', component: 'backups', code: 'backup_finished', fields: {kept: 7}},
   {sequence: 1841, at: '2026-10-22T19:03:00Z', lane: 'runtime', severity: 'warn', component: 'remote_access', code: 'port_mapping_failed'},
 ];
-const feedbackReport = (id: string, createdAt: string, updatedAt: string, revision: number, status: string, kind: string, category: string, message: string, itemId?: string,
-  client?: {platform: string; appVersion: string; online?: boolean}) => ({id, cursor: id, createdAt, updatedAt, expiresAt: '2027-04-20T18:20:00Z', revision, status, kind, category, message,
-  ...(itemId ? {itemId} : {}), reporter: {name: 'Alex', authority: 'local', role: 'member', self: false}, diagnostics: {decision: 'not-requested'}, ...(client ? {client} : {}), duplicates: 0, thread: []});
+/** A report as GET /v1/admin/reports answers it; `revision` is unused and kept for the rows below. */
+const feedbackReport = (id: string, createdAt: string, updatedAt: string, _revision: number, status: string, kind: string, category: string, message: string, itemId?: string,
+  client?: {platform: string; appVersion: string; online?: boolean}) => ({id, createdAt, updatedAt, status: status === 'in-progress' ? 'in_progress' : status, kind: 'problem', message, reporter: 'alex',
+  hasLog: false, deviceName: client?.platform === 'tvos' ? 'Living room Apple TV' : 'Alex’s iPhone',
+  context: {about: `${kind}/${category}`, ...(itemId ? {item: {id: itemId, title: itemId}} : {}), ...(client ?? {})}});
 const feedback = [
   feedbackReport('feedback-1', '2026-10-22T18:20:00Z', '2026-10-22T18:20:00Z', 1, 'open', 'playback', 'buffering', fixture('next.troubleshooting.fixture.message15'), 'item-1', {platform: 'ios', appVersion: '1.4.2', online: true}),
   feedbackReport('feedback-2', '2026-10-21T23:05:00Z', '2026-10-22T17:00:00Z', 2, 'in-progress', 'playback', 'subtitles', fixture('next.troubleshooting.fixture.message16'), undefined, {platform: 'tvos', appVersion: '1.4.2', online: false}),
@@ -174,11 +176,11 @@ const request = async (path: string, method = 'GET'): Promise<unknown> => {
   if (path.includes('/diagnostics/capabilities')) return capabilities;
   if (path.includes('/console/registry')) return {scope: {serverId, viewerFence: fence}, data: {fields: []}};
   if (path.includes('/console/alerts')) return {scope: {serverId, viewerFence: fence}, data: alerts};
-  if (path.includes('/admin/feedback/reports/')) {
+  if (path.startsWith('/v1/admin/reports/')) {
     const id = path.split('/').pop();
-    return {scope: {serverId, viewerFence: fence}, data: feedback.find(item => item.id === id) ?? feedback[0]};
+    return feedback.find(item => item.id === id) ?? feedback[0];
   }
-  if (path.includes('/admin/feedback/reports')) return {scope: {serverId, viewerFence: fence}, data: {items: feedback, nextCursor: '', statusCounts: {}, total: feedback.length, filter: {}, observedAt: '2026-10-22T19:00:00Z'}};
+  if (path.startsWith('/v1/admin/reports')) return {items: feedback};
   if (path.includes('client-logs/')) return envelope({...report('one', 'iPhone', 'phone', '1.4.2', '2026-10-21T22:44:00Z', 38912), body: fixture('next.troubleshooting.fixture.body1')});
   return envelope({items: [
     report('one', 'iPhone', 'phone', '1.4.2', '2026-10-21T22:44:00Z', 38912),

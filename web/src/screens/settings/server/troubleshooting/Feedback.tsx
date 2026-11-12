@@ -42,7 +42,8 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
         <button type="button" className={styles.feedbackRow} onClick={() => setOpen({source: props.source, report})}>
           <Icon name="i-bubble" size={20} />
           <span className={styles.reportText}><b>{firstLine(report.message) || t('server.reports.empty')}</b>
-            <small>{t('web.feedback.rowSubtitle', {category: categoryLabel(report), when: defaultI18n.dateTime(report.createdAt), about: report.itemId ? 'yes' : 'no'})}</small></span>
+            <small>{report.deviceName ? t('web.feedback.rowSubtitleFrom', {category: categoryLabel(report), when: defaultI18n.dateTime(report.createdAt), device: report.deviceName, about: report.itemId ? 'yes' : 'no'})
+              : t('web.feedback.rowSubtitle', {category: categoryLabel(report), when: defaultI18n.dateTime(report.createdAt), about: report.itemId ? 'yes' : 'no'})}</small></span>
           <span className={styles.status} data-status={report.status}>{statusLabel(report.status)}</span>
           <Icon name="i-right" size={16} />
         </button>
@@ -85,6 +86,7 @@ function TriageDialog({report, source, onClose}: Readonly<{report: FeedbackRepor
     {error && <p className={styles.failure} role="alert">{t('error.unconfirmedChange')}</p>}
     <p className={styles.reportMeta}>{meta}</p>
     <p className={styles.message}>{loaded.message}</p>
+    {loaded.deviceName && <p className={styles.reportMeta}>{t('web.feedback.sentFromDevice', {device: loaded.deviceName})}</p>}
     {sentFrom && <p className={styles.reportMeta}>{t('server.feedback.sentFrom', sentFrom)}</p>}
     <div className={styles.field}>
       <span className={styles.fieldLabel}>{t('web.feedback.status')}</span>
@@ -98,8 +100,8 @@ function TriageDialog({report, source, onClose}: Readonly<{report: FeedbackRepor
       <p className={styles.help}>{t('web.feedback.replyHelp')}</p>
     </div>
     <details className={styles.technical}><summary>{t('web.capabilities.technical')}</summary>
-      <dl><dt>{t('server.feedback.field.report')}</dt><dd>{loaded.id}</dd><dt>{t('server.feedback.field.revision')}</dt><dd>{loaded.revision}</dd>
-        {loaded.itemId && <><dt>{t('server.feedback.field.item')}</dt><dd>{loaded.itemId}</dd></>}</dl>
+      <dl><dt>{t('server.feedback.field.report')}</dt><dd>{loaded.id}</dd>
+        {loaded.itemId && <><dt>{t('server.feedback.field.item')}</dt><dd>{loaded.itemTitle ? `${loaded.itemTitle} (${loaded.itemId})` : loaded.itemId}</dd></>}</dl>
     </details>
   </Dialog>;
 }

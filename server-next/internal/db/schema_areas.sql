@@ -86,8 +86,10 @@ CREATE INDEX notifications_age ON notifications (created_at);
 -- "Report a problem" and the reports an app offers to send after a crash. The reporter's
 -- name is copied so a report outlives the account. context is what they were playing and on
 -- what, as JSON. log_hash names the app log they agreed to attach, a file in the data folder.
--- reply is the owner's answer, which also arrives as a notification. Crash reports are
--- removed after 30 days. Hundreds of rows; the owner's list is read newest first.
+-- reply is the owner's answer, which also arrives as a notification. device_id is the device
+-- the report was sent from, taken from the sign-in that sent it (never from what the app says),
+-- so the owner sees its current name. Crash reports are removed after 30 days. Hundreds of rows;
+-- the owner's list is read newest first.
 CREATE TABLE reports (
   id            INTEGER NOT NULL PRIMARY KEY,
   public_id     TEXT    NOT NULL UNIQUE,
@@ -102,9 +104,11 @@ CREATE TABLE reports (
   reply         TEXT,
   replied_at    INTEGER,
   created_at    INTEGER NOT NULL,
-  updated_at    INTEGER NOT NULL
+  updated_at    INTEGER NOT NULL,
+  device_id     INTEGER REFERENCES devices(id) ON DELETE SET NULL
 ) STRICT;
 CREATE INDEX reports_user ON reports (user_id, created_at) WHERE user_id IS NOT NULL;
+CREATE INDEX reports_device ON reports (device_id) WHERE device_id IS NOT NULL;
 CREATE INDEX reports_profile ON reports (profile_id) WHERE profile_id IS NOT NULL;
 CREATE INDEX reports_status ON reports (status, created_at);
 
