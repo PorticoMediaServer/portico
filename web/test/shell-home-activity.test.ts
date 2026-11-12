@@ -80,7 +80,7 @@ test('a stream with no title or profile name keeps its row, named by the usernam
   const document = summary({...bare, deviceName: ''});
   const row = activityView(document, environment, actions).streams[0];
   assert.equal(row.title, undefined); assert.equal(row.name, f.account); assert.equal(row.username, f.account); assert.equal(row.device, '');
-  assert.equal(row.problem, undefined, 'the rebuilt server sends no buffering facts, so none is shown');
+  assert.equal(row.problem, undefined, 'a stream that is not stuck says nothing about buffering');
   assert.equal(activityView(document, environment, actions).streams.length, 3);
 });
 test('row and overflow navigation use the existing genuine Dashboard callbacks', () => {
@@ -90,3 +90,10 @@ test('row and overflow navigation use the existing genuine Dashboard callbacks',
   assert.deepEqual(calls, ['streams', 'streams', 'activity', 'activity']);
 });
 
+test('a stream stuck buffering says Buffering in amber where the converting note goes; a short wait says nothing', () => {
+  const stuck = activityView(summary({...stream(), state: 'buffering', problem: true, bufferingSince: '2026-10-22T11:59:40Z'}), environment, actions).streams[0];
+  assert.deepEqual(stuck.problem, {id: 'problem', text: defaultI18n.t('next.dashboard.buffering'), role: 'status'});
+  assert.equal(defaultI18n.t('next.dashboard.buffering'), 'Buffering');
+  const waiting = activityView(summary({...stream(), state: 'buffering'}), environment, actions).streams[0];
+  assert.equal(waiting.problem, undefined, 'before ten seconds the server does not call it a problem');
+});

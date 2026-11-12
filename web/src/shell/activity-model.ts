@@ -45,13 +45,15 @@ export function activityView(document: OwnerActivitySummary, _time: TimeEnvironm
     streamOverflow: {count: streams.count - shown.length, convertingCount: streams.converting - shown.filter(stream => stream.route === 'converted').length},
     ...(majorIssue ? {majorIssue} : {}),
     // This bounded set is already selected by the server, in Now playing's order. The server names the title, the
-    // person and the device; it sends no artwork, episode numbering or buffering facts for a stream.
+    // person and the device, and whether a stream is stuck buffering; it sends no artwork or episode numbering for a stream.
     streams: shown.map(stream => {
       const name = stream.profile || stream.username;
       const video = stream.delivery.video?.action === 'transcode' || stream.delivery.video?.action === 'burn' || stream.delivery.subtitles?.action === 'burn';
       const conversion = stream.route === 'converted' ? {id: 'delivery', text: t(video ? 'web.nowPlaying.delivery.convertVideo' : 'web.nowPlaying.delivery.convertAudio'), role: 'status' as const} : undefined;
       return {id: stream.id, ...(stream.title ? {title: stream.title} : {}), username: stream.username, name, device: stream.deviceName,
         startedAt: stream.startedAt, initial: Array.from(name.trim())[0] ?? '', positionMs: stream.positionMs, durationMs: stream.durationMs, paused: stream.state === 'paused',
+        // A stream stuck buffering says so in amber in the converting note's place (desktop-activity.html 2c); the server lists it first.
+        ...(stream.problem ? {problem: {id: 'problem', text: t('next.dashboard.buffering'), role: 'status' as const}} : {}),
         conversion, onOpen: () => actions.onDashboard('streams')};
     }),
     scans: document.scans.map(scan => ({id: scan.libraryId, title: scan.libraryName, detail: scanStepName(t, defaultI18n.has, scan.phase),

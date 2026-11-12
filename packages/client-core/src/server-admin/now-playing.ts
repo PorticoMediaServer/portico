@@ -82,7 +82,7 @@ export function deliveryId(decision: AdminSession['decision']): string | undefin
 }
 
 export function stateId(state: string): string | undefined {
-  return state === 'playing' ? 'web.nowPlaying.state.playing' : state === 'paused' ? 'web.nowPlaying.state.paused' : state === 'buffering' || state === 'preparing' ? 'web.nowPlaying.state.starting' : undefined;
+  return state === 'playing' ? 'web.nowPlaying.state.playing' : state === 'paused' ? 'web.nowPlaying.state.paused' : state === 'buffering' ? 'web.nowPlaying.state.buffering' : state === 'preparing' ? 'web.nowPlaying.state.starting' : undefined;
 }
 
 export function locationId(location: AdminSession['location']): string | undefined {
