@@ -129,6 +129,9 @@ export function libraryItemQuery(library: Readonly<{id: string; views?: WireLibr
     const {field, operator, value} = node;
     if (field === 'genre' && ['in', 'contains-any', 'equals', 'contains-all'].includes(operator) && query.genre === undefined) query.genre = String(one(value));
     else if (field === 'resolution' && ['in', 'equals'].includes(operator) && query.resolution === undefined) query.resolution = String(one(value));
+    // A Read library's author (a person) or series, chosen from its Authors or Series list.
+    else if (field === 'author' && operator === 'equals' && query.author === undefined) query.author = String(one(value));
+    else if (field === 'series' && operator === 'equals' && query.series === undefined) query.series = String(one(value));
     else if (field === 'playState' && operator === 'equals' && (value === 'played' || value === 'unplayed')) query.watched = value === 'played';
     else if (field === 'favorite' && operator === 'equals' && typeof value === 'boolean') query.favorite = value;
     else if (field === 'watchlisted' && operator === 'equals' && typeof value === 'boolean') query.inList = value;
