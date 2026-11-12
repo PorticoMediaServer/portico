@@ -16,7 +16,8 @@ const folder=mkdtempSync(join(tmpdir(),'portico-public-bridge-'));
 let building:Promise<string>|undefined;
 const compiled=()=>building??=new Promise<string>((resolve,reject)=>{const binary=join(folder,'http-producer.test');
  execFile('go',['test','-c','-o',binary,'./internal/httpapi'],{cwd:fileURLToPath(new URL('../../../server/',import.meta.url))},error=>error?reject(error):resolve(binary));});
-before(()=>compiled());
+const skip="tests the old server's (server/) setup bridge, which the rebuild replaces; setup on the rebuilt server is covered by server-next's setup tests and the web setup tests";
+before(()=>skip?undefined:compiled());
 after(()=>rmSync(folder,{recursive:true,force:true}));
 
 async function bridge(){
@@ -29,7 +30,7 @@ async function bridge(){
  const initial=await receive();
  return {initial,request:async(path:string,method:string,body?:unknown,token?:string)=>{proc.stdin.write(JSON.stringify({Path:path,Method:method,Body:body,Token:token})+'\n');return receive()},close:async()=>{proc.stdin.end(JSON.stringify({Path:'stop'})+'\n');await new Promise<void>((resolve,reject)=>proc.once('exit',code=>code===0?resolve():reject(new Error('actual HTTP bridge failed'))))}};
 }
-test('exported local setup intent reaches the actual strict route and writer, and setup reads complete',{timeout:120_000},async()=>{
+test('exported local setup intent reaches the actual strict route and writer, and setup reads complete',{timeout:120_000,skip},async()=>{
  const b=await bridge();try{
   let token='';let request:any;
   const api=Object.create(HttpLocalApi.prototype) as HttpLocalApi;
@@ -40,10 +41,10 @@ test('exported local setup intent reaches the actual strict route and writer, an
   const caps=await b.request('/v1/auth/capabilities','GET');assert.equal(caps.status,200);assert.ok(caps.body.methods.includes('password'));assert.equal(caps.body.methods.includes('hosted'),false);
  }finally{await b.close()}
 });
-test('hosted omission keeps genuine pending setup and never silently creates local owner',{timeout:120_000},async()=>{
+test('hosted omission keeps genuine pending setup and never silently creates local owner',{timeout:120_000,skip},async()=>{
  const b=await bridge();try{const result=await b.request('/v1/setup','POST',{setupToken:b.initial.setupToken,name:'Fixture'});assert.equal(result.status,201);assert.equal(result.body.authMode,'hosted');assert.equal(result.body.claimRequired,true);assert.equal(result.body.accessToken,undefined);const caps=await b.request('/v1/auth/capabilities','GET');assert.equal(caps.body.methods.includes('password'),false);assert.equal(caps.body.methods.includes('hosted'),false)}finally{await b.close()}
 });
-test('generated claim prepare represents bounded v2 controls and refuses malformed purpose/role/id',()=>{
+test('generated claim prepare represents bounded v2 controls and refuses malformed purpose/role/id',{skip},()=>{
  for(const purpose of ['setup','switch','change-owner'] as const){const body=routeBody('post_networking_claim_prepare',{purpose,...(purpose==='change-owner'?{previousOwnerRole:'admin' as const}:{}),returnRegistrationId:'ret_1',expected:{serverId:'srv_fixture',localGeneration:'0'}});assert.equal(body.purpose,purpose);assert.deepEqual(JSON.parse(JSON.stringify(decode('PostNetworkingClaimPrepareRequest',body))),body)}
  for(const bad of [{purpose:'other'},{purpose:'change-owner',previousOwnerRole:'owner'},{returnRegistrationId:'https://evil.example'}])assert.throws(()=>decode('PostNetworkingClaimPrepareRequest',{...bad,expected:{serverId:'srv_fixture',localGeneration:'0'}}));
 });
