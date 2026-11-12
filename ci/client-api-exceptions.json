@@ -240,10 +240,12 @@
     "category": "platform-transport",
     "reason": "Approved captured generation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
     "sites": [
-      "apps/native/src-next/screens/saved/view-model.ts#5fd25b31f48dfca0"
+      "apps/native/src-next/screens/saved/view-model.ts#5fd25b31f48dfca0",
+      "apps/native/src-next/screens/saved/view-model.ts#3c122b5107d465d2"
     ],
     "guardHashes": {
-      "apps/native/src-next/screens/saved/view-model.ts#5fd25b31f48dfca0": "8f404dfc523a8576ee81883b3f9e9439db1349bd722245fe982340e23640202d"
+      "apps/native/src-next/screens/saved/view-model.ts#5fd25b31f48dfca0": "8f404dfc523a8576ee81883b3f9e9439db1349bd722245fe982340e23640202d",
+      "apps/native/src-next/screens/saved/view-model.ts#3c122b5107d465d2": "b5d163367b8dd39943b24c33343c738152e43d3298ff63ca142d91db8da2a6d2"
     }
   },
   "web/src/screens/pins/pins-controller.ts": {
@@ -260,10 +262,12 @@
     "category": "platform-transport",
     "reason": "Approved SavedOperations guard and tracked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
     "sites": [
-      "web/src/screens/saved/runtime.ts#03c2017e0a3c0740"
+      "web/src/screens/saved/runtime.ts#03c2017e0a3c0740",
+      "web/src/screens/saved/runtime.ts#1956e38e8411f4c4"
     ],
     "guardHashes": {
-      "web/src/screens/saved/runtime.ts#03c2017e0a3c0740": "d56a8239278b9b0f73c9a433480e5ed1587441cb04bb99a088753e65cad97e35"
+      "web/src/screens/saved/runtime.ts#03c2017e0a3c0740": "d56a8239278b9b0f73c9a433480e5ed1587441cb04bb99a088753e65cad97e35",
+      "web/src/screens/saved/runtime.ts#1956e38e8411f4c4": "d9d880c8c8c35161d683d242178b446060130e4e27758fdfeee75ff4cbdda815"
     }
   },
   "web/src/screens/watch/music/favorite-binding.ts": {

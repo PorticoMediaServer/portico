@@ -625,6 +625,14 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
   },
+  "apps/native/src-next/screens/saved/view-model.ts#3c122b5107d465d2": {
+    "category": "platform-transport",
+    "reason": "Approved captured generation guard: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "b5d163367b8dd39943b24c33343c738152e43d3298ff63ca142d91db8da2a6d2",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/2812#issuecomment-6811949943"
+  },
   "web/src/screens/pins/pins-controller.ts#d7dd10775413b00f": {
     "category": "platform-transport",
     "reason": "Approved lifetime and linked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
@@ -640,6 +648,14 @@
     "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
+  },
+  "web/src/screens/saved/runtime.ts#1956e38e8411f4c4": {
+    "category": "platform-transport",
+    "reason": "Approved SavedOperations guard and tracked abort: forwards a request fully built by a named core service (path, method, body, auth) to captured core HttpLocalApi; adds only lifetime/authority/abort; constructs nothing.",
+    "guardHash": "d9d880c8c8c35161d683d242178b446060130e4e27758fdfeee75ff4cbdda815",
+    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/2812#issuecomment-6811949943"
   },
   "web/src/screens/watch/music/favorite-binding.ts#8aaeab0e6897fe9f": {
     "category": "platform-transport",
