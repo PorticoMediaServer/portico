@@ -23,6 +23,8 @@ type metadataArea struct {
 	keys providerKeys
 	// subtitleSearches remembers recent subtitle searches. See subtitle_search.go.
 	subtitleSearches subtitleSearches
+	// castPhotos is the Cast photos switch in force. See metadata_cast_photos.go.
+	castPhotos castPhotos
 }
 
 // startMetadata builds this area's service and registers its routes. New calls it once, after
@@ -48,6 +50,7 @@ func (s *Server) startMetadata(ctx context.Context) error {
 	s.artworkRoutes()
 	s.metadataJobs()
 	s.picturePass()
+	s.watchCastPhotos(ctx)
 	// What a scan found is looked up when it ends.
 	s.scans.AfterScan = func(ctx context.Context, library string, startedAt time.Time) { s.lookUp(ctx, library, startedAt) }
 	go s.lookupsAgain(ctx)

@@ -161,6 +161,9 @@ type ImportCredit struct {
 	Person    ExternalID
 	Role      CreditRole
 	Character string
+	// Photo is the address of the provider's photo of the person, or "": it is recorded for the
+	// picture pass when the person has none from the provider yet (definition area 4, rule 47).
+	Photo string
 }
 
 // ImportImage is a picture found beside or inside the files. File is the library file a

@@ -344,7 +344,7 @@ func details(r Record, match db.MatchState) db.ItemDetails {
 			continue
 		}
 		d.Credits = append(d.Credits, db.ImportCredit{Name: c.Name, Role: role, Character: c.Character,
-			Person: db.ExternalID{Provider: c.Person.Provider, ID: c.Person.ID}})
+			Person: db.ExternalID{Provider: c.Person.Provider, ID: c.Person.ID}, Photo: c.Photo})
 	}
 	return d
 }

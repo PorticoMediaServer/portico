@@ -186,6 +186,7 @@ type person struct {
 	Name      string `json:"name"`
 	Character string `json:"character"`
 	Job       string `json:"job"`
+	Profile   string `json:"profile_path"` // the person's photo
 	Roles     []struct {
 		Character string `json:"character"`
 	} `json:"roles"`
@@ -215,7 +216,9 @@ var showCrewRoles = map[string]string{"Creator": "writer", "Executive Producer":
 // film's often starts with a producer.
 var roleOrder = []string{"director", "writer", "producer", "composer"}
 
-func (p people) credits(roles map[string]string) []metadata.Credit {
+// credits are the lines of a cast and crew list the title's page names; photo makes a person's
+// photo address from TMDB's path.
+func (p people) credits(roles map[string]string, photo func(string) string) []metadata.Credit {
 	var out []metadata.Credit
 	seen := map[string]bool{}
 	add := func(who person, role, character string) {
@@ -225,7 +228,7 @@ func (p people) credits(roles map[string]string) []metadata.Credit {
 		}
 		seen[key] = true
 		out = append(out, metadata.Credit{Person: metadata.Ref{Provider: "tmdb", Kind: "person", ID: strconv.FormatInt(who.ID, 10)},
-			Name: who.Name, Role: role, Character: character})
+			Name: who.Name, Role: role, Character: character, Photo: photo(who.Profile)})
 	}
 	// The people who made it first, by role, then the cast in billing order.
 	for _, role := range roleOrder {
@@ -352,7 +355,7 @@ func (c *Client) Details(ctx context.Context, ref metadata.Ref, locale metadata.
 	r := metadata.Record{Ref: base.Ref, Title: base.Title, OriginalTitle: base.OriginalTitle, Overview: d.Overview, Tagline: d.Tagline,
 		Year: base.Year, ReleaseDate: d.ReleaseDate + d.FirstAirDate, ContentRating: d.rating(locale.Region), Rating: d.VoteAverage,
 		Genres: names(d.Genres), Studios: names(d.Companies), Networks: names(d.Networks), Countries: names(d.Countries),
-		Credits: d.Credits.credits(crewRoles), Continuing: d.InProduction}
+		Credits: d.Credits.credits(crewRoles, c.picture), Continuing: d.InProduction}
 	if ref.Kind == "show" {
 		// A show's creators are not on its crew list.
 		whole := d.WholeRun
@@ -362,7 +365,7 @@ func (c *Client) Details(ctx context.Context, ref metadata.Ref, locale metadata.
 			whole.Crew = append(whole.Crew, who)
 		}
 		whole.Crew = append(whole.Crew, d.WholeRun.Crew...)
-		r.Credits = whole.credits(showCrewRoles)
+		r.Credits = whole.credits(showCrewRoles, c.picture)
 	}
 	if r.OriginalTitle == r.Title {
 		r.OriginalTitle = ""
@@ -431,7 +434,7 @@ func (c *Client) Children(ctx context.Context, parent metadata.Ref, group int, l
 	out := make([]metadata.Record, 0, len(season.Episodes))
 	for _, e := range season.Episodes {
 		r := metadata.Record{Ref: metadata.Ref{Provider: "tmdb", Kind: "episode", ID: strconv.FormatInt(e.ID, 10)}, Title: e.Name,
-			Overview: e.Overview, Year: year(e.AirDate), ReleaseDate: e.AirDate, Rating: e.VoteAverage, Credits: e.credits(crewRoles),
+			Overview: e.Overview, Year: year(e.AirDate), ReleaseDate: e.AirDate, Rating: e.VoteAverage, Credits: e.credits(crewRoles, c.picture),
 			Index: e.Number, ParentIndex: group}
 		if e.StillPath != "" {
 			r.Pictures = []metadata.Picture{{Role: "thumb", URL: c.picture(e.StillPath)}}

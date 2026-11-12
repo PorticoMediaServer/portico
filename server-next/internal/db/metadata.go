@@ -396,6 +396,11 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 			if err := b.insertCredit(itemID, position, personID, credit.Role, credit.Character); err != nil {
 				return err
 			}
+			if credit.Photo != "" {
+				if err := b.recordPhoto(personID, credit.Photo); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	return appendChange(b.tx, Change{At: now, Topic: TopicItem, Op: OpUpdated, RefID: itemID, LibraryID: library})

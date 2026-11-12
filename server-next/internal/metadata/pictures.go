@@ -213,53 +213,87 @@ func (s *Service) FetchPictures(ctx context.Context, libraryID int64, limit int)
 	if s.Pictures == nil {
 		return 0, nil
 	}
-	stored, after, inARow := 0, int64(0), 0
-	for stored < limit {
-		page, err := s.DB.PicturesToFetch(ctx, libraryID, after, 50)
-		if err != nil || len(page) == 0 {
-			return stored, err
+	pass := picturePass{s: s, limit: limit}
+	// The titles' pictures first, then the photos of the people credited in the library while
+	// Cast photos are on (definition area 4, rule 47).
+	if err := pass.run(ctx, func(after int64) ([]db.PictureToFetch, error) {
+		return s.DB.PicturesToFetch(ctx, libraryID, after, 50)
+	}, func() bool { return true }); err != nil || pass.stored >= limit {
+		return pass.stored, err
+	}
+	on := func() bool { return s.setting().CastPhotos }
+	if !on() {
+		return pass.stored, nil
+	}
+	err := pass.run(ctx, func(after int64) ([]db.PictureToFetch, error) {
+		return s.DB.PhotosToFetch(ctx, libraryID, after, 50)
+	}, on)
+	return pass.stored, err
+}
+
+// picturePass is one run of FetchPictures: what it stored, and the host failures in a row.
+type picturePass struct {
+	s             *Service
+	limit, stored int
+	inARow        int
+}
+
+// run fetches the pictures that page lists, while still says to go on (a switch turned off
+// part way stops it before anything more is kept).
+func (p *picturePass) run(ctx context.Context, page func(after int64) ([]db.PictureToFetch, error), still func() bool) error {
+	after := int64(0)
+	for p.stored < p.limit {
+		list, err := page(after)
+		if err != nil || len(list) == 0 {
+			return err
 		}
-		for _, p := range page {
-			after = p.ID
-			data, err := fetchPicture(ctx, p.SourceURL)
+		for _, pic := range list {
+			after = pic.ID
+			if !still() {
+				return nil
+			}
+			data, err := fetchPicture(ctx, pic.SourceURL)
 			if ctx.Err() != nil {
-				return stored, ctx.Err()
+				return ctx.Err()
 			}
 			if errors.Is(err, errPictureGone) {
-				if err := s.DB.PictureGone(ctx, p.ID); err != nil {
-					return stored, err
+				if err := p.s.DB.PictureGone(ctx, pic.ID); err != nil {
+					return err
 				}
 				continue
 			}
 			if err != nil && providerOutage(err) {
-				if inARow++; inARow >= downAfter {
-					return stored, fmt.Errorf("%w: %w", ErrPictureHostDown, err)
+				if p.inARow++; p.inARow >= downAfter {
+					return fmt.Errorf("%w: %w", ErrPictureHostDown, err)
 				}
 				continue
 			}
-			inARow = 0
+			p.inARow = 0
 			if err != nil {
 				continue // refused now: the next pass asks again
 			}
 			sum := sha256.Sum256(data)
 			hash := hex.EncodeToString(sum[:])
-			if err := s.Pictures.Put(hash, data); errors.Is(err, artwork.ErrNotAPicture) {
-				if err := s.DB.PictureGone(ctx, p.ID); err != nil {
-					return stored, err
+			if err := p.s.Pictures.Put(hash, data); errors.Is(err, artwork.ErrNotAPicture) {
+				if err := p.s.DB.PictureGone(ctx, pic.ID); err != nil {
+					return err
 				}
 				continue
 			} else if err != nil {
-				return stored, err
+				return err
 			}
-			if err := s.DB.PictureFetched(ctx, p.ID, hash); err != nil {
-				return stored, err
+			if !still() {
+				return nil // the stored file is unnamed and swept
 			}
-			if stored++; stored >= limit {
-				return stored, nil
+			if err := p.s.DB.PictureFetched(ctx, pic.ID, hash); err != nil {
+				return err
+			}
+			if p.stored++; p.stored >= p.limit {
+				return nil
 			}
 		}
 	}
-	return stored, nil
+	return nil
 }
 
 // storePictures records the provider's pictures of a title that it does not have yet: the

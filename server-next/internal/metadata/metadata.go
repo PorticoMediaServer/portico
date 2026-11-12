@@ -118,6 +118,9 @@ type Credit struct {
 	Name      string
 	Role      string // actor, director, writer, producer, composer, author, narrator, artist, guest, crew
 	Character string
+	// Photo is the address of the provider's photo of the person, or "". The server records it
+	// and fetches it in the picture pass while Cast photos are on (definition area 4, rule 47).
+	Photo string
 }
 
 // Picture is a picture the provider offers for a title or a person.

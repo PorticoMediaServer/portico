@@ -269,7 +269,7 @@ func (d *DB) PictureHashes(ctx context.Context, fn func(hash string) error) erro
 // PictureToFetch is a provider's picture a lookup recorded and nobody has fetched yet.
 type PictureToFetch struct {
 	ID        int64
-	ItemID    int64
+	ItemID    int64 // the title's, or 0 for a person's photo
 	Role      ImageRole
 	SourceURL string
 }
@@ -284,7 +284,7 @@ func (d *DB) PicturesToFetch(ctx context.Context, libraryID, after int64, limit 
 	}
 	defer tx.Rollback()
 	return queryAll(ctx, tx, `SELECT i.id, i.item_id, i.role, i.source_url FROM images i CROSS JOIN items t ON t.id = i.item_id
-		WHERE i.file_hash IS NULL AND i.source = 3 AND i.id > ? AND t.library_id = ? AND i.source_url IS NOT NULL
+		WHERE i.file_hash IS NULL AND i.source = 3 AND i.item_id IS NOT NULL AND i.id > ? AND t.library_id = ? AND i.source_url IS NOT NULL
 		ORDER BY i.id LIMIT ?`, []any{after, libraryID, limit},
 		func(p *PictureToFetch) []any { return []any{&p.ID, &p.ItemID, &p.Role, &p.SourceURL} })
 }
@@ -295,23 +295,26 @@ func (d *DB) PictureFetched(ctx context.Context, id int64, hash string) error {
 	return d.write(ctx, Background, func(tx *sql.Tx) error {
 		b := newBatchTx(tx)
 		defer b.close()
-		var item, library int64
+		var item, library, person sql.NullInt64
 		var role ImageRole
-		err := b.queryRow(`SELECT i.item_id, i.role, t.library_id FROM images i JOIN items t ON t.id = i.item_id WHERE i.id = ?`, id).
-			Scan(&item, &role, &library)
+		err := b.queryRow(`SELECT i.item_id, i.person_id, i.role, t.library_id FROM images i LEFT JOIN items t ON t.id = i.item_id WHERE i.id = ?`, id).
+			Scan(&item, &person, &role, &library)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
+		if person.Valid {
+			return photoFetched(b, id, person.Int64, role, hash)
+		}
 		if _, err := b.exec(`UPDATE images SET file_hash = ? WHERE id = ? AND file_hash IS NULL`, hash, id); err != nil {
 			return err
 		}
-		if err := selectPicture(b, item, role); err != nil {
+		if err := selectPicture(b, item.Int64, role); err != nil {
 			return err
 		}
-		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicItem, Op: OpUpdated, RefID: item, LibraryID: library})
+		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicItem, Op: OpUpdated, RefID: item.Int64, LibraryID: library.Int64})
 	})
 }
 

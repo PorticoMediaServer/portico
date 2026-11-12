@@ -59,8 +59,12 @@ func TestAPictureServerInTroubleStopsThePass(t *testing.T) {
 			}
 			f.tmdb.PicturesDown.Store(false)
 			f.tmdb.PicturesHang.Store(false)
-			if stored, err := f.s.FetchPictures(ctx, f.lib.ID, 100); err != nil || stored != len(recorded) {
-				t.Fatalf("the next pass, with the server back: %d stored, %v; want all %d", stored, err, len(recorded))
+			// Back up, the next pass stores every title's picture, then the people's photos.
+			if stored, err := f.s.FetchPictures(ctx, f.lib.ID, 1000); err != nil || stored < len(recorded) {
+				t.Fatalf("the next pass, with the server back: %d stored, %v; want all %d of the titles' at least", stored, err, len(recorded))
+			}
+			if still, err := f.d.PicturesToFetch(ctx, f.lib.ID, 0, 100); err != nil || len(still) != 0 {
+				t.Fatalf("titles' pictures still to fetch after the server came back: %d, %v", len(still), err)
 			}
 		})
 	}

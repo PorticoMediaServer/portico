@@ -35,6 +35,8 @@ type MetadataSettings struct {
 	Revision int64 `json:"revision"`
 	// IncludeAdult is "Include adult titles", off by default.
 	IncludeAdult bool `json:"includeAdult"`
+	// CastPhotos is "Cast and crew photos", on by default (rule 47). See metadata_cast_photos.go.
+	CastPhotos bool `json:"castPhotos"`
 	// TMDBCredentialConfigured says the owner's own TMDB read access token is in use. Without
 	// one, TMDB is asked with Portico's key, built into the server.
 	TMDBCredentialConfigured bool `json:"tmdbCredentialConfigured"`
@@ -58,6 +60,7 @@ type MetadataSettingsChange struct {
 	// Left out, the save is made over whatever is there.
 	ExpectedRevision *int64  `json:"expectedRevision,omitempty"`
 	IncludeAdult     *bool   `json:"includeAdult,omitempty"`
+	CastPhotos       *bool   `json:"castPhotos,omitempty"`
 	TMDBReadToken    *string `json:"tmdbReadToken,omitempty"`
 	// The OpenSubtitles key, username and password. An empty username removes the account and
 	// its password; a new username without a password leaves none saved.
@@ -100,7 +103,8 @@ func (s *Server) metadataSettingsPage() (MetadataSettings, error) {
 	s.keys.mu.Lock()
 	defer s.keys.mu.Unlock()
 	// The document's revision is 0 until its first save; the page's starts at 1.
-	return MetadataSettings{Revision: doc.Revision + 1, IncludeAdult: metadata.Document.Get(s.settings).IncludeAdult,
+	current := metadata.Document.Get(s.settings)
+	return MetadataSettings{Revision: doc.Revision + 1, IncludeAdult: current.IncludeAdult, CastPhotos: current.CastPhotos,
 		TMDBCredentialConfigured: s.keys.tmdb != "", TMDBCredentialUnreadable: s.keys.unreadable[settingTMDBKey],
 		OpenSubtitlesKeyConfigured: s.keys.subtitles.APIKey != "", OpenSubtitlesUsername: s.keys.subtitles.Username,
 		OpenSubtitlesPasswordConfigured: s.keys.subtitles.Password != "", OpenSubtitles: s.subtitleStatus()}, nil
@@ -143,6 +147,9 @@ func (s *Server) saveMetadataSettings(r *http.Request, req MetadataSettingsChang
 	change := map[string]any{}
 	if req.IncludeAdult != nil {
 		change["includeAdult"] = *req.IncludeAdult
+	}
+	if req.CastPhotos != nil {
+		change["castPhotos"] = *req.CastPhotos
 	}
 	raw, _ := json.Marshal(change)
 	if _, err := s.settings.Write(r.Context(), CallerFrom(r.Context()).UserID, metadata.Document.Name(), raw, match, s.now()); errors.Is(err, settings.ErrStale) {

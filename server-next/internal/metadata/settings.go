@@ -9,10 +9,13 @@ type Setting struct {
 	// IncludeAdult is "Include adult titles" in lookups and searches. Off by default
 	// (definition area 4, rule 8).
 	IncludeAdult bool `json:"includeAdult"`
+	// CastPhotos is "Cast and crew photos", on by default: people's photos come from the
+	// provider. Off, none is fetched or kept (definition area 4, rule 47).
+	CastPhotos bool `json:"castPhotos"`
 }
 
 // Document is the owner's metadata switches.
-var Document = settings.Define("metadata", Setting{}, nil)
+var Document = settings.Define("metadata", Setting{CastPhotos: true}, nil)
 
 // setting is the switches in force; with no Settings (a package's own tests), the defaults.
 func (s *Service) setting() Setting { return Document.Get(s.Settings) }

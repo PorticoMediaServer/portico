@@ -46,8 +46,9 @@ func TestArtwork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stored, err := sh.s.metadata.FetchPictures(context.Background(), library, 100); err != nil || stored != 3 {
-		t.Fatalf("the picture pass stored %d: %v; want the poster, backdrop and logo", stored, err)
+	// The film's poster, backdrop and logo, then the photos of the people it credits.
+	if stored, err := sh.s.metadata.FetchPictures(context.Background(), library, 1000); err != nil || stored < 3 {
+		t.Fatalf("the picture pass stored %d: %v; want the poster, backdrop and logo at least", stored, err)
 	}
 	item := sh.detail(heat)
 	if item.Images["poster"] == "" || item.Images["backdrop"] == "" || item.Images["logo"] == "" {

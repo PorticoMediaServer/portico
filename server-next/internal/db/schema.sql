@@ -493,8 +493,11 @@ CREATE INDEX images_item ON images (item_id, role, selected) WHERE item_id IS NO
 CREATE INDEX images_person ON images (person_id, role, selected) WHERE person_id IS NOT NULL;
 CREATE INDEX images_profile ON images (profile_id) WHERE profile_id IS NOT NULL;
 CREATE INDEX images_file ON images (file_id) WHERE file_id IS NOT NULL;
--- A provider's pictures recorded by a lookup and not fetched yet: the picture pass reads only these.
-CREATE INDEX images_to_fetch ON images (id) WHERE file_hash IS NULL AND source = 3;
+-- A provider's pictures recorded by a lookup and not fetched yet: the picture pass reads only these,
+-- a title's apart from a person's, so photos left unfetched while Cast photos are off cost a
+-- title's pass nothing.
+CREATE INDEX images_to_fetch ON images (id) WHERE file_hash IS NULL AND source = 3 AND item_id IS NOT NULL;
+CREATE INDEX photos_to_fetch ON images (id) WHERE file_hash IS NULL AND source = 3 AND person_id IS NOT NULL;
 
 -- large. Subtitles a person uploaded or the server downloaded for one version, which a rescan
 -- cannot find again. (A subtitle inside the file or beside it is a media_streams row.) The
