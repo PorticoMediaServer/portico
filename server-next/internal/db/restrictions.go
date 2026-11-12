@@ -125,9 +125,21 @@ func (d *DB) ProfileRestrictions(ctx context.Context, userID int64, publicID str
 // apps are told at once to throw away what they have cached; nobody is signed out. An
 // unknown library is ErrUnknownLibrary and an unknown label ErrUnknownLabel.
 func (d *DB) SetProfileRestrictions(ctx context.Context, userID int64, publicID string, r Restrictions, now time.Time) (Restrictions, error) {
+	return d.ChangeProfileRestrictions(ctx, userID, publicID, func(Restrictions) (Restrictions, error) { return r, nil }, now)
+}
+
+// ChangeProfileRestrictions is SetProfileRestrictions for a change to some of them: change is
+// given what the profile is kept from now and returns what it is to be kept from, in the
+// same transaction, so a save that names one thing leaves the rest as another device last
+// saved it. An error it returns refuses the save.
+func (d *DB) ChangeProfileRestrictions(ctx context.Context, userID int64, publicID string, change func(Restrictions) (Restrictions, error), now time.Time) (Restrictions, error) {
 	var out Restrictions
 	err := d.write(ctx, User, func(tx *sql.Tx) error {
-		id, _, err := restrictions(tx, userID, publicID)
+		id, current, err := restrictions(tx, userID, publicID)
+		if err != nil {
+			return err
+		}
+		r, err := change(current)
 		if err != nil {
 			return err
 		}
