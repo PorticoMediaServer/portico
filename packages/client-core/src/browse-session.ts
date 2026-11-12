@@ -1,7 +1,8 @@
 import {BrowseQueryBuilder, type BrowseCapabilities, type BrowseNode, type BrowseResult, type BrowseSortSelection, type BrowseWholeSelection, type BrowseWholeSelectionUnavailable} from './browse.ts';
 import type {FetchPage} from './collections/windowed.ts';
 import type {ContentEntry} from './library-content.ts';
-import {countItems, entriesFromItems, readFacet, readItems} from './items.ts';
+import {countItems, entriesFromItems, entryFromPerson, readFacet, readItems} from './items.ts';
+import {callServer} from './query/server-api.ts';
 import {libraryItemQuery} from './library-browse.ts';
 import {linkAbortSignals} from './abort-lifetime.ts';
 import {isStaleAnswer} from './freshness-actions.ts';
@@ -118,9 +119,14 @@ export class BrowseSession<T> {
   private async read(start: number, count: number, signal: AbortSignal) {
     if (this.retired || !this.options.current()) throw browseSessionClosed();
     if (this.ended) throw browseListMoved();
-    const list = libraryItemQuery({id: this.query.libraryId}, this.query.pivot, this.query.nodes, this.query.sorts);
     const lifetime = linkAbortSignals([signal, this.life.signal]), active = lifetime.signal;
     const api = {request: <R>(path: string, method = 'GET', body?: unknown, input?: AbortSignal) => this.options.request(path, method, body, input ?? active) as Promise<R>};
+    if (this.query.pivot === 'authors') {
+      try {return await this.readAuthors(api, start, count, signal, active);}
+      catch (error) {if (!this.retired && this.options.current() && !signal.aborted && ended(error)) this.end(error); throw error;}
+      finally {lifetime.dispose();}
+    }
+    const list = libraryItemQuery({id: this.query.libraryId}, this.query.pivot, this.query.nodes, this.query.sorts);
     try {
       // The count is its own request and no page waits for it; until it answers the list is "at least this long".
       this.counting ??= countItems(api, list, this.life.signal)
@@ -138,23 +144,44 @@ export class BrowseSession<T> {
       // The next page follows its cursor; anywhere else (a scroll bar, a letter) opens the list at that position.
       const cursor = this.cursors.get(start);
       const page = await readItems(api, list, cursor ? {cursor, limit: count} : {at: start, limit: count}, active);
-      const end = start + page.items.length;
-      if (page.nextCursor && page.items.length) this.cursors.set(end, page.nextCursor);
       if (this.retired || !this.options.current() || signal.aborted) throw browseSessionClosed();
-      const entries = entriesFromItems(page.items, this.query.libraryId);
-      const counted = this.total ?? (page.nextCursor ? undefined : end), total = counted ?? end + 1;
-      const result: BrowseResult = Object.freeze({pivot: this.query.pivot, applied: {query: null, sort: this.query.sorts, seek: null}, entries,
-        pageInfo: {start, total, totalIsLowerBound: counted === undefined, revision: this.pinned ?? '', hasMore: !!page.nextCursor, nextCursor: page.nextCursor ?? ''}, positionIndex: []});
-      const first = this.pinned === undefined;
-      this.pinned ??= 'reading-' + ++readings;
-      for (const entry of entries) this.entries.add(entry);
-      if (first) this.options.onRevision?.(this.pinned);
-      this.options.onPage?.(result);
-      if (!this.live() || signal.aborted) throw browseSessionClosed();
-      return {items: entries.map((entry, index) => this.options.item(entry, result, index)), total, ...(counted === undefined ? {totalIsLowerBound: true} : {}), positionIndex: this.letters ?? {}};
+      return this.answer(entriesFromItems(page.items, this.query.libraryId), start, start + page.items.length, page.nextCursor, signal);
     } catch (error) {
       if (!this.retired && this.options.current() && !signal.aborted && ended(error)) this.end(error);
       throw error;
     } finally {lifetime.dispose();}
+  }
+  /** An audiobook library's Authors tab: the library's authors by name, from its people list. The
+   * list pages by cursor only, so a position past the pages read is reached by reading on to it. */
+  private async readAuthors(api: Parameters<typeof readItems>[0], start: number, count: number, signal: AbortSignal, active: AbortSignal) {
+    const read = (cursor: string) => callServer(api, 'GET /v1/people', {query: {library: this.query.libraryId, role: 'author', limit: count,
+      ...(cursor ? {cursor} : {}), ...(this.total === undefined ? {total: true} : {})}, signal: active});
+    let at = Math.max(...[...this.cursors.keys()].filter(position => position <= start));
+    let page = await read(this.cursors.get(at) ?? '');
+    for (let walked = 0; at + page.items.length <= start && page.nextCursor && page.items.length && walked < 100; walked++) {
+      at += page.items.length;
+      this.cursors.set(at, page.nextCursor);
+      page = await read(page.nextCursor);
+    }
+    if (typeof page.total === 'number') {this.total = page.total; if (this.live()) this.options.onFacts?.({total: page.total});}
+    // A position inside the page read is the rest of that page; the page's next cursor is where it ends.
+    const people = page.items.slice(Math.max(0, start - at));
+    const entries = people.flatMap(person => {const entry = entryFromPerson(person, this.query.libraryId, 'author'); return entry ? [entry] : [];});
+    if (this.retired || !this.options.current() || signal.aborted) throw browseSessionClosed();
+    return this.answer(entries, start, start + people.length, page.nextCursor, signal);
+  }
+  /** One page as the screens take it, with what is known of the list's length. */
+  private answer(entries: readonly ContentEntry[], start: number, end: number, nextCursor: string | undefined, signal: AbortSignal) {
+    if (nextCursor && end > start) this.cursors.set(end, nextCursor);
+    const counted = this.total ?? (nextCursor ? undefined : end), total = counted ?? end + 1;
+    const result: BrowseResult = Object.freeze({pivot: this.query.pivot, applied: {query: null, sort: this.query.sorts, seek: null}, entries,
+      pageInfo: {start, total, totalIsLowerBound: counted === undefined, revision: this.pinned ?? '', hasMore: !!nextCursor, nextCursor: nextCursor ?? ''}, positionIndex: []});
+    const first = this.pinned === undefined;
+    this.pinned ??= 'reading-' + ++readings;
+    for (const entry of entries) this.entries.add(entry);
+    if (first) this.options.onRevision?.(this.pinned);
+    this.options.onPage?.(result);
+    if (!this.live() || signal.aborted) throw browseSessionClosed();
+    return {items: entries.map((entry, index) => this.options.item(entry, result, index)), total, ...(counted === undefined ? {totalIsLowerBound: true} : {}), positionIndex: this.letters ?? {}};
   }
 }

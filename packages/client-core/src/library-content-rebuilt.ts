@@ -12,8 +12,8 @@
  * artist's popular songs, every song crediting them) is not sent, so the page leaves it out.
  */
 import type {Home, Item, ItemPage, Library as WireLibrary, Person} from '../../contracts/src/next/api.ts';
-import type {ContentEntry, ContentProjection, ContentRoute, ContentScope, ContentSection} from './library-content.ts';
-import {entriesFromItems, entryFromItem, libraryKind} from './items.ts';
+import type {ContentProjection, ContentRoute, ContentScope, ContentSection} from './library-content.ts';
+import {entriesFromItems, entryFromItem, entryFromPerson, libraryKind} from './items.ts';
 import {callServer, type ServerRequester} from './query/server-api.ts';
 import {firstOfEach} from './tolerant.ts';
 
@@ -58,14 +58,6 @@ const holders: Readonly<Record<string, Holder>> = {
   author: {person: true, sections: [{id: 'books', type: 'grid', pages: true, query: (id, library) => ({library, author: id})}]},
 };
 
-/** An author's page header: the person, as the app's author card. */
-function authorEntry(person: Person, libraryId: string): ContentEntry | undefined {
-  if (!person?.id || typeof person.name !== 'string') return undefined;
-  const picture = person.images?.photo ?? person.images?.poster ?? person.images?.thumb;
-  return Object.freeze({id: person.id, kind: 'author', title: person.name, libraryId, navigation: Object.freeze({view: 'author', entityId: person.id}),
-    ...(picture ? {posterUrl: picture} : {}), ...(person.biography ? {overview: person.biography} : {}),
-    ...(typeof person.titleCount === 'number' ? {count: person.titleCount} : {})}) as ContentEntry;
-}
 
 /** The views the rebuilt server answers. */
 export const rebuiltContentViews: ReadonlySet<string> = new Set(['discover', ...Object.keys(holders)]);
@@ -119,7 +111,7 @@ async function holderPage(api: ServerRequester, route: ContentRoute, bound: Cont
   ]);
   // The page's own title never plays from its header. An album names its artist (its parent), for the "by" link.
   const item = holder.person ? undefined : title as Item | undefined, person = holder.person ? title as Person | undefined : undefined;
-  const found = person ? authorEntry(person, route.libraryId) : item ? entryFromItem(item, route.libraryId) : undefined;
+  const found = person ? entryFromPerson(person, route.libraryId, 'author') : item ? entryFromItem(item, route.libraryId) : undefined;
   const artist = route.view === 'album' && item?.parent?.kind === 'artist' && item.parent.id ? {artist: Object.freeze({id: item.parent.id, name: item.parent.title})} : {};
   const entity = found ? (({playback: _ignored, ...rest}) => Object.freeze({...rest, ...artist}))(found as Record<string, unknown> & {playback?: unknown}) as typeof found : undefined;
   const start = page.next ? undefined : page.at ?? 0;

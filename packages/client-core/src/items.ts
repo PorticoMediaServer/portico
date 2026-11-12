@@ -6,7 +6,7 @@
  * last tap wins. Screens never see the wire: they get a card (`ContentEntry`), a page of cards,
  * and "set watched".
  */
-import type {Item, ItemState, Library as WireLibrary, StateReply, StateRequest} from '../../contracts/src/next/api.ts';
+import type {Item, ItemState, Library as WireLibrary, Person, StateReply, StateRequest} from '../../contracts/src/next/api.ts';
 import type {ContentEntry, ContentEntryKind, ContentView} from './library-content.ts';
 import {callServer, serverPath, type ServerRequester} from './query/server-api.ts';
 import {keepReadable} from './tolerant.ts';
@@ -57,6 +57,15 @@ export function entryFromItem(item: Item, libraryId?: string): ContentEntry | un
   };
   for (const key of Object.keys(entry)) if (entry[key] === undefined || entry[key] === null) delete entry[key];
   return Object.freeze(entry) as ContentEntry;
+}
+/** The card for a person listed in a library (an author), opening their page there. */
+export function entryFromPerson(person: Person, libraryId: string, kind: 'author'): ContentEntry | undefined {
+  if (!person?.id || typeof person.name !== 'string') return undefined;
+  // A person's picture is their portrait.
+  const picture = person.images?.portrait ?? person.images?.thumb;
+  return Object.freeze({id: person.id, kind, title: person.name, libraryId, navigation: Object.freeze({view: kind, entityId: person.id}),
+    ...(picture ? {posterUrl: picture} : {}), ...(person.biography ? {overview: person.biography} : {}),
+    ...(typeof person.titleCount === 'number' ? {count: person.titleCount} : {})}) as ContentEntry;
 }
 /** The card for one item in the server's wire units (durations and positions in milliseconds), for the readers that
  * check a card the way they check the old server's documents. */

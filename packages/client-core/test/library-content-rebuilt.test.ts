@@ -204,7 +204,7 @@ test('a later page that comes back with no titles keeps the titles already shown
 });
 
 /** An audiobook library's series and author pages on the rebuilt server. */
-function bookApi(person: Record<string, unknown> = {id: 'per_1', name: 'Ada Adams', biography: 'Writes about the sea.', images: {photo: '/v1/images/ada'}}) {
+function bookApi(person: Record<string, unknown> = {id: 'per_1', name: 'Ada Adams', biography: 'Writes about the sea.', images: {portrait: '/v1/images/ada'}}) {
   const paths: string[] = [];
   const read = async (path: string) => {
     paths.push(path);

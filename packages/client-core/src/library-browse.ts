@@ -22,6 +22,8 @@ const pivots: readonly Readonly<{id: string; kind: string; labelKey: string; vie
   {id: 'books', kind: 'audiobook', labelKey: 'library.books', views: ['grid', 'list']},
   // An audiobook library's Series tab: each series a card, opening its volumes.
   {id: 'series', kind: 'series', labelKey: 'library.tab.series', views: ['grid', 'list']},
+  // An audiobook library's Authors tab is its people list (GET /v1/people), not an item list: by name, with no filters.
+  {id: 'authors', kind: 'author', labelKey: 'library.tab.authors', views: ['grid', 'list']},
   {id: 'books', kind: 'book', labelKey: 'library.tab.books', views: ['grid', 'list']},
   // A comic library's tab lists its comics with their series, each series opening its volumes.
   {id: 'comics', kind: 'comic', labelKey: 'library.tab.volumesAndIssues', views: ['grid', 'list'], lists: 'comic,series'},
@@ -48,11 +50,16 @@ const quick: readonly Readonly<{id: string; labelKey: string; field: string; val
 /** The largest page the server serves; the lists ask for less. */
 const limits = {maximumDepth: 5, maximumClauses: 40, maximumBytes: 16_384, maximumSorts: 1, defaultLimit: 60, maximumLimit: 200, cursorTtlMs: 0};
 
-const pivotFor = (library: WireLibrary, pivotId: string) => pivots.find(pivot => pivot.id === pivotId && library.views?.some(view => view.kind === pivot.kind));
+/** The library offers the tab: its views list the kind. Authors and Series are an audiobook library's tabs (a
+ * reading library's come from its own reading tabs); Authors is its people list, not one of its views. */
+const offers = (library: WireLibrary, pivot: (typeof pivots)[number]): boolean =>
+  pivot.id === 'authors' ? library.kind === 'audiobooks'
+    : (pivot.id !== 'series' || library.kind === 'audiobooks') && !!library.views?.some(view => view.kind === pivot.kind);
+const pivotFor = (library: WireLibrary, pivotId: string) => pivots.find(pivot => pivot.id === pivotId && offers(library, pivot));
 
 /** What this library's tab can be filtered and ordered by, as `parseBrowseCapabilities` reads it. */
 export function libraryBrowseCapabilities(library: WireLibrary, pivotId: string): unknown {
-  const offered = pivots.filter(pivot => library.views?.some(view => view.kind === pivot.kind));
+  const offered = pivots.filter(pivot => offers(library, pivot));
   // `latest` is a show's newest episode (the Recently aired tab); music's newest track has no name in the app yet.
   const sorts = (library.sorts ?? []).filter(sort => sortIds[sort.id] && (sort.id !== 'latest' || ['shows', 'anime'].includes(library.kind))).map(sort => ({id: sortIds[sort.id]!, labelKey: 'sort.' + sortIds[sort.id], directions: ['asc', 'desc'], defaultDirection: sort.order === 'desc' ? 'desc' : 'asc', applicableKinds: []}));
   const filters = (library.filters ?? []).flatMap(filter => {
@@ -61,9 +68,13 @@ export function libraryBrowseCapabilities(library: WireLibrary, pivotId: string)
     const {facet, ...field} = known;
     return [{...field, cost: 'indexed', applicableKinds: [], ...(filter.values?.length ? {allowedValues: filter.values} : {}), ...(facet ? {facetSource: {endpoint: serverPath('GET /v1/facets'), field: facet}} : {})}];
   });
-  const first = sorts[0];
-  const shaped = offered.map(pivot => ({id: pivot.id, labelKey: pivot.labelKey, entityKinds: [pivot.kind === 'track' ? 'song' : pivot.kind], supportedViews: pivot.views, browsable: true,
-    defaultSort: first ? [{field: first.id, direction: first.defaultDirection}] : [], sorts: sorts.map(sort => sort.id), filters: filters.map(filter => filter.id), paging: 'keyset'}));
+  const shaped = offered.map(pivot => {
+    // The people list is in name order only, with no filters.
+    const own = pivot.id === 'authors' ? sorts.filter(sort => sort.id === 'title') : sorts, lead = own[0];
+    return {id: pivot.id, labelKey: pivot.labelKey, entityKinds: [pivot.kind === 'track' ? 'song' : pivot.kind], supportedViews: pivot.views, browsable: true,
+      defaultSort: lead ? [{field: lead.id, direction: pivot.id === 'authors' ? 'asc' : lead.defaultDirection}] : [], sorts: own.map(sort => sort.id),
+      filters: pivot.id === 'authors' ? [] : filters.map(filter => filter.id), paging: 'keyset'};
+  });
   return {library: {id: library.id, name: library.name, kind: libraryKind(library.kind), defaultView: ''}, pivots: shaped, resolvedPivot: shaped.find(pivot => pivot.id === pivotId) ?? null,
     fields: filters, sorts, quickFilters: quick.filter(each => filters.some(filter => filter.id === each.field)).map(each => ({id: each.id, labelKey: each.labelKey, query: {variant: 'predicate', field: each.field, operator: 'equals', value: each.value}})),
     queryLimits: limits};
