@@ -19,6 +19,10 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/childprocess"
 )
 
+// ErrRcloneMissing says the server could not start rclone at all: it is not where Portico
+// looks, or cannot be run. Nothing was asked of the source.
+var ErrRcloneMissing = errors.New("rclone could not be started")
+
 // RcloneBinary is the rclone that comes with Portico, found beside the server, or set with
 // PORTICO_RCLONE. Tests replace it.
 var RcloneBinary = func() string {
@@ -192,7 +196,7 @@ func (r *rclone) current(ctx context.Context) (*WebDAV, error) {
 	}
 	if err := cmd.Start(); err != nil {
 		os.Remove(config)
-		return nil, fmt.Errorf("rclone could not be started: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrRcloneMissing, err)
 	}
 	done := make(chan struct{})
 	exited := make(chan struct{})

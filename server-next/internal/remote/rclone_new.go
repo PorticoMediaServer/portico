@@ -109,6 +109,10 @@ func rcloneTool(ctx context.Context, input string, args ...string) ([]byte, erro
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	if err := cmd.Run(); err != nil {
+		var exited *exec.ExitError
+		if !errors.As(err, &exited) {
+			return nil, fmt.Errorf("%w: %v", ErrRcloneMissing, err)
+		}
 		return nil, fmt.Errorf("rclone could not be run: %w", err)
 	}
 	return out.Bytes(), nil
