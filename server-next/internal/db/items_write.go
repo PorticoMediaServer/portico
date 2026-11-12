@@ -97,7 +97,7 @@ type ImportItem struct {
 	OriginalTitle string
 	Year          int
 	ReleaseDate   string
-	// Publication is a book's or comic's kind of publication, as its own file says it
+	// Publication is a book's or comic's kind of publication, from its file metadata or name
 	// (PublicationBook, PublicationMagazine, PublicationNewspaper).
 	Publication     int
 	WordCount       *int
