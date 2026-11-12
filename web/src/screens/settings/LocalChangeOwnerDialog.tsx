@@ -2,11 +2,12 @@ import {useLayoutEffect, useRef, useState} from 'react';
 import {defaultI18n} from '@i18n';
 import {errorMessage} from '@core/presentation/errors.ts';
 import {Icon} from '../../kit/Icon';
-import {Button, TextField} from '../../kit/controls';
+import {Button, RichSelect, TextField} from '../../kit/controls';
 import {LocalOwnerChoiceFields, type LocalOwnerChoiceMode} from './LocalOwnerChoiceFields';
 import {Dialog} from '../../kit/overlays/Dialog';
 import styles from './local-change-owner.module.css';
 import type {LocalOwnerTransferPort} from './local-owner-transfer';
+import type {PreviousOwner} from '@core/portico-servers.ts';
 
 const t = defaultI18n.t;
 
@@ -35,6 +36,10 @@ export function LocalChangeOwnerDialog({open, port, onClose, onError}: {
   const [selected, setSelected] = useState(''), [mode, setMode] = useState<LocalOwnerChoiceMode>('existing');
   const [username, setUsername] = useState(''), [name, setName] = useState(''), [newPassword, setNewPassword] = useState('');
   const [password, setPassword] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState<unknown>();
+  // What the owner becomes: an administrator unless they choose otherwise (area 2 rule 33).
+  const [previousOwner, setPreviousOwner] = useState<PreviousOwner>('admin');
+  // The owner's two-step code, asked for only when their account uses one; like the password, it is never kept.
+  const [code, setCode] = useState('');
   // Publish only at commit, then sample once for this setup's original lifetime.
   const setupPorts = useRef({onError, onClose});
   useLayoutEffect(() => {setupPorts.current = {onError, onClose};});
@@ -46,7 +51,7 @@ export function LocalChangeOwnerDialog({open, port, onClose, onError}: {
     witnessRef.current = fresh;
     setWitness(fresh);
     // The approved dialog has no default owner: the caller must choose one explicitly.
-    setSelected('');setMode('existing');setUsername('');setName('');setNewPassword('');
+    setSelected('');setMode('existing');setUsername('');setName('');setNewPassword('');setPreviousOwner('admin');
     setPassword('');
     setError(undefined);
     setBusy(false);
@@ -54,7 +59,7 @@ export function LocalChangeOwnerDialog({open, port, onClose, onError}: {
       fresh.live = false;
       if (witnessRef.current === fresh) witnessRef.current = null;
       setWitness(current => current === fresh ? null : current);
-      setPassword('');setNewPassword('');
+      setPassword('');setNewPassword('');setCode('');
       fresh.abort.abort();
     };
   }, [open, port, generation]);
@@ -63,7 +68,7 @@ export function LocalChangeOwnerDialog({open, port, onClose, onError}: {
     held.live = false;
     if (witnessRef.current === held) witnessRef.current = null;
     setWitness(current => current === held ? null : current);
-    setPassword('');setNewPassword('');setUsername('');setName('');
+    setPassword('');setNewPassword('');setCode('');setUsername('');setName('');
     setBusy(false);
     setGeneration(value => value + 1);
   };
@@ -84,16 +89,17 @@ export function LocalChangeOwnerDialog({open, port, onClose, onError}: {
   const changeMode = (value: LocalOwnerChoiceMode) => {if (live() && !drawn.busy) {setMode(value);setSelected('');setUsername('');setName('');setNewPassword('');setPassword('');setError(undefined);}};
   const submit = () => {
     const held = witnessRef.current;
-    if (!held || held !== witness || held !== drawn || !held.live || held.busy || !password || (mode === 'existing' ? !selected : !username.trim() || !name.trim() || !newPassword)) return;
+    if (!held || held !== witness || held !== drawn || !held.live || held.busy || !password || held.port.opening.twoStep && !code.trim() || (mode === 'existing' ? !selected : !username.trim() || !name.trim() || !newPassword)) return;
     // Take the secret out of retained UI state before the request starts; a rejection
     // reports the failure but never restores or keeps the password.
     const secret = password;
     const target = mode === 'new' ? {newAccount: Object.freeze({username, name, password: newPassword})} : {accountId: selected};
-    held.busy = true;setBusy(true);setError(undefined);setPassword('');setNewPassword('');
+    const twoStep = held.port.opening.twoStep, oneTime = code.trim();
+    held.busy = true;setBusy(true);setError(undefined);setPassword('');setNewPassword('');setCode('');
     const caller = {isCurrent: () => held.live && witnessRef.current === held && !held.abort.signal.aborted, signal: held.abort.signal};
     void (async () => {
       try {
-        await accept({...target, currentPassword: secret, expectedRevision: held.port.opening.ownerRevision}, caller);
+        await accept({...target, currentPassword: secret, expectedRevision: held.port.opening.ownerRevision, previousOwner, ...(twoStep && oneTime ? {code: oneTime} : {})}, caller);
         if (!held.live || witnessRef.current !== held) return;
         retire(held);
         held.onClose();
@@ -104,7 +110,7 @@ export function LocalChangeOwnerDialog({open, port, onClose, onError}: {
       }
     })();
   };
-  const ready = Boolean(password && !busy && (mode === 'existing' ? selected : username.trim() && name.trim() && newPassword));
+  const ready = Boolean(password && !busy && (!drawn.port.opening.twoStep || code.trim()) && (mode === 'existing' ? selected : username.trim() && name.trim() && newPassword));
   return <Dialog open={open} onOpenChange={value => {if (!value) close();}} width={560} title={t('next.settingsSpec.server.signin.groups.0.rows.5.label')}
     dismissOnBack={!busy} dismissOnOutsidePress={!busy} showCloseButton={!busy}
     footer={<>
@@ -118,8 +124,15 @@ export function LocalChangeOwnerDialog({open, port, onClose, onError}: {
         disabled={busy} onModeChange={changeMode} onAccountIdChange={choose}
         onUsernameChange={value => {if (live() && !drawn.busy) setUsername(value);}} onNameChange={value => {if (live() && !drawn.busy) setName(value);}}
         onNewPasswordChange={value => {if (live() && !drawn.busy) setNewPassword(value);}} />
+      <RichSelect label={t('accounts.settings.changeOwnerLocalYou')} value={previousOwner} disabled={busy}
+        description={previousOwner === 'removed' ? t('accounts.settings.changeOwnerLocalLeaveHelp') : undefined}
+        options={[{value: 'admin', label: t('accounts.settings.changeOwnerLocalStayAdmin'), isDefault: true}, {value: 'member', label: t('accounts.settings.changeOwnerLocalStayMember')},
+          {value: 'removed', label: t('accounts.settings.changeOwnerLocalLeave'), description: t('accounts.settings.changeOwnerLocalLeaveHelp')}]}
+        onValueChange={value => {if (live() && !drawn.busy && (value === 'admin' || value === 'member' || value === 'removed')) setPreviousOwner(value);}} />
       <TextField label={t('account.currentPassword')}
         type="password" autoComplete="current-password" value={password} disabled={busy} onChange={event => typePassword(event.currentTarget.value)}/>
+      {drawn.port.opening.twoStep && <TextField label={t('next.account.proof.code')} value={code} disabled={busy} autoComplete="one-time-code" inputMode="numeric"
+        onChange={event => {if (live() && !drawn.busy) setCode(event.currentTarget.value);}}/>}
       <ul className={styles.lines}>
         <li><Icon name="i-check" size={18} />{t('accounts.settings.changeOwnerLocalStays')}</li>
         <li data-tone="info"><Icon name="i-info" size={18} />{t('accounts.settings.changeOwnerLocalOnlyNew')}</li>

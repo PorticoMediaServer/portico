@@ -58,6 +58,7 @@ export type LimitsDocument=Readonly<{accountId:string;revision:number;updatedAt?
  * Account (`left`).
  */
 export type AccessMember=Readonly<{accountId:string;username:string;email?:string;displayName?:string;profileId:string;role:AccessTier;disabled:boolean;
+ /** The account signs in with a two-step code as well as its password. */twoStep?:boolean;
  disabledAt?:string;disabledReason?:'owner'|'left'|'did_not_move';
  hostedAccountId?:string;notes?:string;joinedVia?:string;joinedAt?:string;profileNames?:readonly string[];lastActiveAt?:string;liveState?:'idle'|'watching'|'listening';
  revision:number;allowedLibraries:readonly string[];limitsRevision:number;limits:MemberLimits;

@@ -42,12 +42,12 @@ const caller = () => {
   return {signal: abort.signal, isCurrent: () => !abort.signal.aborted, retire: () => abort.abort()};
 };
 const newAccount = () => ({username: 'harbourview', name: 'Harbour View', password: 'New-password2!'});
-const input = () => ({newAccount: newAccount(), currentPassword: ' original password ', expectedRevision: 1});
+const input = () => ({newAccount: newAccount(), currentPassword: ' original password ', expectedRevision: 1, previousOwner: 'admin' as const});
 const ownership = (calls: {path: string; method?: string; body?: unknown}[]) => calls.filter(value => value.path === '/v1/admin/owner');
 const drain = async (ready: () => unknown) => {for (let i = 0; i < 8 && !ready(); i++) await Promise.resolve();};
 
 test('a caller-owned newAccount mutated after accept cannot change the accepting body', async () => {
-  const f = fixture(), life = caller(), draft = newAccount(), command = {newAccount: draft, currentPassword: ' original password ', expectedRevision: 1};
+  const f = fixture(), life = caller(), draft = newAccount(), command = {newAccount: draft, currentPassword: ' original password ', expectedRevision: 1, previousOwner: 'admin' as const};
   let release!: () => void;
   f.wait(() => new Promise<void>(resolve => {release = resolve;}));
   try {

@@ -10,14 +10,16 @@ import {localOwnerChangeOnly} from '@core/portico-servers.ts';
 /** An account as the rebuilt server answers it. */
 const member = (id: string, role = 'member') => ({id, username: id, role, disabled: false, createdAt: '2026-11-01T00:00:00Z', allLibraries: true, libraries: [], twoFactorEnabled: false});
 function fixture() {
-  let current = true, role = 'member', fail: unknown, complete = 0, reconciled = 0, navigated = 0;
+  let current = true, role = 'member', fail: unknown, complete = 0, reconciled = 0, navigated = 0, ownerTwoStep = false;
   let post: (() => Promise<void>) | undefined;
   const calls: {path: string; method?: string; body?: unknown}[] = [];
   const api: ProfileAPI = {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
     if (path === '/v1/admin/playback/stream-limits' || path === '/v1/admin/sessions') throw Object.assign(new Error('not here'), {status: 404, code: 'not_found'});
     calls.push({path, method, body});
     if (path === '/v1/admin/members') return {items: [member('owner', 'owner'), member('member', role), member('admin', 'admin')]} as T;
-    if (path === '/v1/admin/members/owner' || path === '/v1/admin/members/member') return (path.endsWith('/owner') ? member('owner', 'owner') : member('member', role)) as T;
+    if (path === '/v1/admin/members/owner') return {...member('owner', 'owner'), twoFactorEnabled: ownerTwoStep} as T;
+    if (path === '/v1/admin/members/member') return member('member', role) as T;
+    if (path === '/v1/admin/members/admin') return member('admin', 'admin') as T;
     if (path === '/v1/admin/owner') {if (fail) throw fail; await post?.(); return undefined as T;}
     throw new Error('Unexpected transfer request');
   }};
@@ -37,19 +39,22 @@ function fixture() {
     }});
   return {source, calls, get complete() {return complete;}, get reconciled() {return reconciled;}, get navigated() {return navigated;},
     retire: () => {current = false;build.abort();}, restoreParent: () => {current = true;},
-    revised: () => {role = 'admin';}, fail: (error: unknown) => {fail = error;}, wait: (value: () => Promise<void>) => {post = value;}};
+    // Between opening and accepting the person stopped being one who may become the owner (an administrator still may).
+    revised: () => {role = 'owner';}, twoStep: () => {ownerTwoStep = true;}, fail: (error: unknown) => {fail = error;}, wait: (value: () => Promise<void>) => {post = value;}};
 }
 const caller = () => {
   const abort = new AbortController();
   return {signal: abort.signal, isCurrent: () => !abort.signal.aborted, retire: () => abort.abort()};
 };
-const input = {accountId: 'member', currentPassword: ' original password ', expectedRevision: 1};
+const input = {accountId: 'member', currentPassword: ' original password ', expectedRevision: 1, previousOwner: 'admin' as const};
 
 test('one bounded original inventory uses the CALLER revision and never fabricates a role receipt', async () => {
   const f = fixture(), life = caller();
   try {
     const port = await f.source.open(life);
-    assert.deepEqual(port.opening.members, [{accountId: 'member', username: 'member'}]);
+    // Any existing account may become the owner, a member or an administrator (area 2 rule 32).
+    assert.deepEqual(port.opening.members, [{accountId: 'admin', username: 'admin', role: 'admin'}, {accountId: 'member', username: 'member', role: 'member'}]);
+    assert.equal(port.opening.twoStep, false);
     assert.equal(port.opening.ownerRevision, 1, 'the rebuilt server keeps no revisions: always 1'); assert.equal(f.calls.length, 2);
     await assert.rejects(port.accept({...input, expectedRevision: 3}, life));
     assert.equal(f.calls.length, 2);
@@ -169,7 +174,7 @@ test('ordinary Settings request still refuses a response after its build retires
   await assert.rejects(purpose.request('/v1/admin/access/members', 'GET'), /Not a local ownership transfer/);
 });
 
-const newInput = {newAccount:{username:'newowner',name:'New owner',password:'New-password2!'},currentPassword:' original password ',expectedRevision:1};
+const newInput = {newAccount:{username:'newowner',name:'New owner',password:'New-password2!'},currentPassword:' original password ',expectedRevision:1,previousOwner:'admin' as const};
 test('new-owner creation uses the original transfer opening without a separate member write',async()=>{
  const f=fixture(),life=caller();
  try {
@@ -178,6 +183,16 @@ test('new-owner creation uses the original transfer opening without a separate m
   assert.deepEqual(f.calls.filter(c=>c.method==='POST'),[{path:'/v1/admin/owner',method:'POST',body:{password:newInput.currentPassword,newAccount:{username:'newowner',password:'New-password2!',profileName:'New owner'},previousOwner:'admin'}}]);
   assert.equal(f.complete,1);
  } finally {f.source.dispose();}
+});
+test('the previous owner\'s choice goes as chosen: staying as a member, or leaving the server (area 2 rule 33)',async()=>{
+ for(const previousOwner of ['member','removed'] as const){
+  const f=fixture(),life=caller();
+  try {
+   const port=await f.source.open(life);
+   await port.accept({...input,previousOwner},life);
+   assert.deepEqual(f.calls.filter(c=>c.method==='POST').map(c=>(c.body as {previousOwner?: string}).previousOwner),[previousOwner]);
+  } finally {f.source.dispose();}
+ }
 });
 test('new-owner creation refuses retired opening, changed revision and ambiguous target before writing',async()=>{
  for(const kind of ['retired','revision','ambiguous'] as const){
@@ -200,4 +215,15 @@ test('known new-owner 204 after retirement still spends only the original contex
   assert.equal(typeof release,'function');f.retire();f.source.dispose();release();await pending;
   assert.equal(f.complete,1);assert.equal(f.navigated,0);assert.equal(f.reconciled,0);
  } finally {f.source.dispose();}
+});
+
+test('an administrator can become the owner, and an owner whose account uses two-step sign-in sends the code with the password', async () => {
+  const f = fixture(), life = caller();
+  try {
+    f.twoStep();
+    const port = await f.source.open(life);
+    assert.equal(port.opening.twoStep, true, 'the dialog asks for the code');
+    await port.accept({...input, accountId: 'admin', code: '123456'}, life);
+    assert.deepEqual(f.calls.filter(value => value.path === '/v1/admin/owner').map(value => value.body), [{password: input.currentPassword, accountId: 'admin', previousOwner: 'admin', code: '123456'}]);
+  } finally {f.source.dispose();}
 });

@@ -109,7 +109,7 @@ function personRow(m: Member, libraries: readonly Library[], limits: StreamLimit
 export function accessMemberOf(m: Member, streams: Streams): AccessMember {
   checkMember(m);
   const {streamsKnown: _known, ...facts} = streams, profileNames = profilesOf(m), lastActiveAt = lastActiveOf(m), account = accountLimitsOf(m);
-  return Object.freeze({accountId: m.id, username: m.username, ...(m.email ? {email: m.email} : {}), profileId: '', role: m.role as AccessTier, disabled: m.disabled,
+  return Object.freeze({accountId: m.id, username: m.username, ...(m.email ? {email: m.email} : {}), profileId: '', role: m.role as AccessTier, disabled: m.disabled, ...(m.twoFactorEnabled ? {twoStep: true} : {}),
     ...(m.notes ? {notes: m.notes} : {}), profileNames, ...(lastActiveAt ? {lastActiveAt} : {}), revision: 1, allowedLibraries: allowedOf(m), limitsRevision: 1,
     limits: Object.freeze({...(account ? screenLimits(account) : noAccountLimits), maxStreams: facts.maxStreams, maxStreamsMode: facts.maxStreamsMode}),
     ...(account ? {accountLimits: account} : {}), serverMaxStreams: facts.serverMaxStreams, effectiveMaxStreams: facts.effectiveMaxStreams});
