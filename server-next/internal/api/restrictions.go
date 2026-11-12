@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -8,7 +9,7 @@ import (
 )
 
 // Restrictions are what a profile is kept from seeing. They only narrow what the account
-// may see. PUT replaces all of it, so an editor sends back what it read with its changes.
+// may see. A save (ProfileRestrictionsEdit) changes only the fields it names.
 type Restrictions struct {
 	// MaxRatingAge is the highest age rating shown (13 shows PG-13 and below), or null for
 	// no limit. Under a limit, a title with no rating is not shown unless AllowUnrated is set.
@@ -45,6 +46,62 @@ type Restrictions struct {
 	AccountBlockedLabels []string `json:"accountBlockedLabels"`
 }
 
+// ProfileRestrictionsEdit is a save of a profile's restrictions. Only the fields sent change:
+// one left out stays as it is, so a sheet opened earlier on another device cannot undo what
+// was saved since by sending back what it read. maxRatingAge null lifts the rating limit;
+// blockedLabels and libraries, when sent, are the whole list. The later save of a field wins.
+type ProfileRestrictionsEdit struct {
+	MaxRatingAge   *int      `json:"maxRatingAge,omitempty"`
+	AllowUnrated   *bool     `json:"allowUnrated,omitempty"`
+	BlockedLabels  *[]string `json:"blockedLabels,omitempty"`
+	AllLibraries   *bool     `json:"allLibraries,omitempty"`
+	Libraries      *[]string `json:"libraries,omitempty"`
+	AllowDownloads *bool     `json:"allowDownloads,omitempty"`
+	// AllowWatchTogether turned off takes the profile out of its groups at once.
+	AllowWatchTogether *bool `json:"allowWatchTogether,omitempty"`
+
+	// sent is the save as it arrived, which alone tells a field left out from one sent as null.
+	sent json.RawMessage
+}
+
+func (e *ProfileRestrictionsEdit) UnmarshalJSON(raw []byte) error {
+	type fields ProfileRestrictionsEdit
+	if err := json.Unmarshal(raw, (*fields)(e)); err != nil {
+		return err
+	}
+	e.sent = append(json.RawMessage(nil), raw...)
+	return nil
+}
+
+// over lays the save over the profile's restrictions as they are and checks the result.
+func (e *ProfileRestrictionsEdit) over(current db.Restrictions) (db.Restrictions, error) {
+	// Only what a save may change is carried over: what the account is held to is not the
+	// profile's to send.
+	next := struct {
+		MaxRatingAge       *int     `json:"maxRatingAge"`
+		AllowUnrated       bool     `json:"allowUnrated"`
+		BlockedLabels      []string `json:"blockedLabels"`
+		AllLibraries       bool     `json:"allLibraries"`
+		Libraries          []string `json:"libraries"`
+		AllowDownloads     *bool    `json:"allowDownloads"`
+		AllowWatchTogether *bool    `json:"allowWatchTogether"`
+	}{current.MaxRatingAge, current.AllowUnrated, current.BlockedLabels, current.AllLibraries, current.Libraries, nil, nil}
+	if err := json.Unmarshal(e.sent, &next); err != nil {
+		return current, ErrInvalid("These restrictions could not be read.")
+	}
+	switch {
+	case next.MaxRatingAge != nil && (*next.MaxRatingAge < 0 || *next.MaxRatingAge > maxRatingAge):
+		return current, ErrField("maxRatingAge", "Use an age from 0 to 21, or null for no limit.")
+	case len(next.BlockedLabels) > maxRestrictionEntries:
+		return current, ErrField("blockedLabels", "That is too many labels.")
+	case len(next.Libraries) > maxRestrictionEntries:
+		return current, ErrField("libraries", "That is too many libraries.")
+	}
+	return db.Restrictions{MaxRatingAge: next.MaxRatingAge, AllowUnrated: next.AllowUnrated, BlockedLabels: next.BlockedLabels,
+		AllLibraries: next.AllLibraries, Libraries: next.Libraries, AllowDownloads: next.AllowDownloads,
+		AllowWatchTogether: next.AllowWatchTogether}, nil
+}
+
 // The most labels or libraries one profile's restrictions can name, and the highest age limit.
 const (
 	maxRestrictionEntries = 200
@@ -70,21 +127,12 @@ func (s *Server) restrictionRoutes() {
 		out, err := s.db.ProfileRestrictions(r.Context(), userID, r.PathValue("id"))
 		return restrictionsOut(out), refuse(err)
 	})
-	Handle(s, "PUT /v1/profiles/{id}/restrictions", SignedIn, func(r *http.Request, req Restrictions) (Restrictions, error) {
+	Handle(s, "PUT /v1/profiles/{id}/restrictions", SignedIn, func(r *http.Request, req ProfileRestrictionsEdit) (Restrictions, error) {
 		userID, _, err := s.profileOwner(r)
-		switch {
-		case err != nil:
+		if err != nil {
 			return Restrictions{}, err
-		case req.MaxRatingAge != nil && (*req.MaxRatingAge < 0 || *req.MaxRatingAge > maxRatingAge):
-			return Restrictions{}, ErrField("maxRatingAge", "Use an age from 0 to 21, or null for no limit.")
-		case len(req.BlockedLabels) > maxRestrictionEntries:
-			return Restrictions{}, ErrField("blockedLabels", "That is too many labels.")
-		case len(req.Libraries) > maxRestrictionEntries:
-			return Restrictions{}, ErrField("libraries", "That is too many libraries.")
 		}
-		out, err := s.db.SetProfileRestrictions(r.Context(), userID, r.PathValue("id"), db.Restrictions{MaxRatingAge: req.MaxRatingAge, AllowUnrated: req.AllowUnrated,
-			BlockedLabels: req.BlockedLabels, AllLibraries: req.AllLibraries, Libraries: req.Libraries,
-			AllowDownloads: req.AllowDownloads, AllowWatchTogether: req.AllowWatchTogether}, s.now())
+		out, err := s.db.ChangeProfileRestrictions(r.Context(), userID, r.PathValue("id"), req.over, s.now())
 		if err == nil {
 			if p, err := s.db.Profile(r.Context(), userID, r.PathValue("id")); err == nil {
 				if req.AllowWatchTogether != nil && !*req.AllowWatchTogether {
