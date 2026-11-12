@@ -46,7 +46,8 @@ type DashboardAlert struct {
 
 // AlertAction is where the alert's one action goes: storage, backups, fix-permissions (POST
 // /v1/admin/data-folder/permissions/fix, once the owner confirms), library-source (Target is
-// the library), remote-source (Target is the source) or update.
+// the library), remote-source (Target is the source) or update; none is an alert nothing in
+// the app can cure, whose params say why.
 type AlertAction struct {
 	Kind   string `json:"kind"`
 	Target string `json:"target"`
@@ -250,7 +251,11 @@ func (s *Server) alerts(libraries []db.AdminLibrary, sources []db.RemoteSource) 
 	}
 	// One look at the data folder's own mode (data_folder.go).
 	if p := s.dataFolderPermissions(); p.ReadableByOthers {
-		add("data_folder_readable", "major", map[string]string{"path": p.Path, "account": p.Account}, "fix-permissions", "", 0)
+		params, action := map[string]string{"path": p.Path, "owner": p.Owner}, "fix-permissions"
+		if !p.Fixable {
+			params["reason"], params["message"], action = p.Reason, p.Message, "none"
+		}
+		add("data_folder_readable", "major", params, action, "", 0)
 	}
 	for _, l := range libraries {
 		unreachable := 0

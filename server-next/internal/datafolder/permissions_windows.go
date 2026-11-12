@@ -1,8 +1,8 @@
 package datafolder
 
-// ReadableByOthers is never true on Windows: a folder's mode bits there say nothing of who
-// may open it, so no alert is raised on them.
-func ReadableByOthers(string) (bool, error) { return false, ErrNotChecked }
+// Look says nothing on Windows: a folder's mode bits there say nothing of who may open it, so
+// no alert is raised on them.
+func Look(string) (State, error) { return State{}, ErrNotChecked }
 
 // MakePrivate is refused on Windows, for the same reason.
 func MakePrivate(string) error { return ErrNotChecked }

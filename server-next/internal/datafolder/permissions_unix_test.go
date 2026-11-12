@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 )
 
@@ -27,8 +28,8 @@ func TestADataFolderOthersCanOpenIsMadePrivateAndNothingInside(t *testing.T) {
 	inside := filepath.Join(data, "portico.db")
 	os.WriteFile(inside, nil, 0o644)
 	os.Chmod(inside, 0o644)
-	if open, err := ReadableByOthers(data); err != nil || !open {
-		t.Fatalf("a 0755 data folder: %v %v", open, err)
+	if st, err := Look(data); err != nil || !st.ReadableByOthers || !st.Fixable || st.Owner == "" {
+		t.Fatalf("a 0755 data folder: %+v %v", st, err)
 	}
 	for range 2 {
 		if err := MakePrivate(data); err != nil {
@@ -38,8 +39,8 @@ func TestADataFolderOthersCanOpenIsMadePrivateAndNothingInside(t *testing.T) {
 	if mode(t, data) != 0o700 || mode(t, inside) != 0o644 {
 		t.Fatalf("after the fix: folder %o, file inside %o", mode(t, data), mode(t, inside))
 	}
-	if open, err := ReadableByOthers(data); err != nil || open {
-		t.Fatalf("after the fix: %v %v", open, err)
+	if st, err := Look(data); err != nil || st.ReadableByOthers {
+		t.Fatalf("after the fix: %+v %v", st, err)
 	}
 }
 
@@ -100,7 +101,48 @@ func TestAFolderTheServerDoesNotOwnIsRefusedWithWhy(t *testing.T) {
 	if err := MakePrivate("/"); !errors.Is(err, ErrNotOwner) {
 		t.Fatalf("the root folder: %v", err)
 	}
+	if st, err := Look("/"); err != nil || st.Fixable || !errors.Is(st.Why, ErrNotOwner) || st.Owner != "root" {
+		t.Fatalf("the look at the root folder: %+v %v", st, err)
+	}
 	if mode(t, "/")&others == 0 {
 		t.Fatal("the root folder was changed")
+	}
+}
+
+// A drive that accepts a change of mode and does not keep it (a share mounted without Unix
+// permissions, a FAT, exFAT or NTFS drive), and one that answers "not permitted" to the
+// folder's own owner. Both are stood in for here: making such a drive needs the system's
+// administrator. The folder is said not to be fixable before any press, with why; a fix is
+// refused with the same reason, not as done and not as "not the owner", and nothing changes.
+func TestADriveThatDoesNotKeepTheChangeIsNotFixableAndSaysWhy(t *testing.T) {
+	for name, stand := range map[string]func(*os.File, os.FileMode) error{
+		"accepts and keeps nothing": func(*os.File, os.FileMode) error { return nil },
+		"not permitted":             func(*os.File, os.FileMode) error { return &os.PathError{Op: "chmod", Err: syscall.EPERM} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			tried.Clear()
+			chmod = stand
+			t.Cleanup(func() { chmod = func(f *os.File, mode os.FileMode) error { return f.Chmod(mode) }; tried.Clear() })
+			data := filepath.Join(t.TempDir(), "data")
+			os.Mkdir(data, 0o700)
+			os.Chmod(data, 0o755)
+			st, err := Look(data)
+			if err != nil || !st.ReadableByOthers || st.Fixable || !errors.Is(st.Why, ErrNotKept) {
+				t.Fatalf("the look: %+v %v", st, err)
+			}
+			if entries, _ := os.ReadDir(data); len(entries) != 0 {
+				t.Fatalf("the trial left %d files", len(entries))
+			}
+			tried.Clear() // the press itself finds it out too
+			if err := MakePrivate(data); !errors.Is(err, ErrNotKept) {
+				t.Fatalf("the fix: %v", err)
+			}
+			if mode(t, data) != 0o755 {
+				t.Fatalf("the folder is %o", mode(t, data))
+			}
+			if st, _ := Look(data); st.Fixable || !errors.Is(st.Why, ErrNotKept) {
+				t.Fatalf("after the press: %+v", st)
+			}
+		})
 	}
 }
