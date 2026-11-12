@@ -171,8 +171,8 @@ async function discoverFromLanding(api: ServerRequester, route: ContentRoute, bo
 /**
  * An audiobook's page: the book (`GET /v1/items/{id}`), who wrote and read it, its chapters or its parts, its
  * series, and where the listener is. Everything comes from the detail: a version that is one whole file carries
- * its chapters as `markers` of kind `chapter`; a book of several files carries no chapters, and its parts
- * (each with its place in the whole book) are the list. Every row plays the book itself from its start.
+ * its chapters as `markers` of kind `chapter`; a book of several files carries no chapters, and its parts are
+ * the list. A row plays the book itself from its start.
  */
 async function audiobookPage(api: ServerRequester, route: ContentRoute, bound: ContentScope, signal?: AbortSignal): Promise<ContentProjection> {
   const id = route.entityId ?? '';
@@ -184,13 +184,12 @@ async function audiobookPage(api: ServerRequester, route: ContentRoute, bound: C
   const chapterMarks = (version?.markers ?? []).filter((mark): mark is Marker => mark?.kind === 'chapter' && Number.isFinite(mark.startMs)).sort((a, b) => a.startMs - b.startMs);
   const chapters = chapterMarks.map((mark, n) => Object.freeze({id: `${id}:chapter:${n + 1}`, kind: 'chapter', libraryId, title: mark.title || `Chapter ${n + 1}`,
     trackNumber: n + 1, ...(seconds(mark.startMs, mark.endMs) ? {duration: seconds(mark.startMs, mark.endMs)} : {}), playback: play(mark.startMs)}) as ContentEntry);
+  // A book of several files lists its parts plainly. Stopgap, not a deferral: the detail does not say where each
+  // part starts in the whole book yet (being built by the browse-reads lane; a part's own startMs/endMs are a
+  // range inside one file), so only Part 1, the book's start, plays from its row; Play and Resume play the book.
   const partsOf = version?.parts ?? [];
-  let at = 0;
-  const parts = chapters.length || partsOf.length < 2 ? [] : partsOf.map((part, n) => {
-    const start = part.startMs ?? at, end = part.endMs; at = end ?? at;
-    return Object.freeze({id: `${id}:part:${n + 1}`, kind: 'audiobook_file', libraryId, title: `Part ${n + 1}`, trackNumber: n + 1,
-      ...(seconds(start, end) ? {duration: seconds(start, end)} : {}), playback: play(start)}) as ContentEntry;
-  });
+  const parts = chapters.length || partsOf.length < 2 ? [] : partsOf.map((_part, n) => Object.freeze({id: `${id}:part:${n + 1}`,
+    kind: 'audiobook_file', libraryId, title: `Part ${n + 1}`, trackNumber: n + 1, ...(n === 0 ? {playback: play(0)} : {})}) as ContentEntry);
   // Who wrote it opens their page; the series opens its own (sent once the server names a book's series).
   const credits = item?.credits ?? [];
   const authors = credits.filter(credit => credit.role === 'author' && credit.personId && credit.name);
