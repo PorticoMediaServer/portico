@@ -419,13 +419,16 @@ func (d *DB) Person(ctx context.Context, v Viewer, publicID string) (Person, err
 	for _, k := range counts {
 		p.KindCounts[k.Kind.String()] = k.Count
 	}
-	// Billing position is stored with every credit. Directors and writers (including
-	// creators) rank with the lead; each top-level title is returned only once.
+	// Crew is stored before cast: acting's billing position counts only acting credits.
+	// Directors and writers (including creators) rank with the lead; each title appears once.
 	p.KnownFor, err = queryAll(ctx, tx, `SELECT `+itemColumns+` FROM items i JOIN credits c ON c.item_id = i.id`+stateJoin+`
 		c.person_id = @person AND i.kind IN (1, 2, 6, 8, 9, 10, 11) AND `+acc.visible("i")+` GROUP BY i.id
-		ORDER BY min(CASE WHEN c.role IN (@director, @writer) THEN 0 ELSE c.position END),
+		ORDER BY min(CASE WHEN c.role IN (@director, @writer) THEN 0 WHEN c.role IN (@actor, @guest) THEN
+			(SELECT count(*) FROM credits prior WHERE prior.item_id = c.item_id AND prior.position < c.position AND prior.role IN (@actor, @guest))
+			ELSE c.position END),
 		i.community_rating DESC, i.year DESC, i.id LIMIT 12`,
-		[]any{sql.Named("viewer_profile", v.ProfileID), sql.Named("person", id), sql.Named("director", RoleDirector), sql.Named("writer", RoleWriter)},
+		[]any{sql.Named("viewer_profile", v.ProfileID), sql.Named("person", id),
+			sql.Named("director", RoleDirector), sql.Named("writer", RoleWriter), sql.Named("actor", RoleActor), sql.Named("guest", RoleGuest)},
 		func(it *Item) []any { return it.dest() })
 	if err != nil {
 		return p, err
