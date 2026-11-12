@@ -82,6 +82,29 @@ type Part struct {
 	StartMS *int64
 	EndMS   *int64
 	Streams []Stream
+	// DurationMS is the part's own length, from its file's probe (or its range within the
+	// file); nil while the file has not been probed.
+	DurationMS *int64
+	// OffsetMS is where the part begins in the whole title, for a version in several parts:
+	// the lengths of the parts before it, in order. Nil for a version in one part, and from
+	// the first part whose length is not known yet.
+	OffsetMS *int64
+}
+
+// placeParts gives each part of a version in several parts its place in the whole title.
+func placeParts(parts []Part) {
+	if len(parts) < 2 {
+		return
+	}
+	var at int64
+	for n := range parts {
+		if parts[n].DurationMS == nil {
+			return
+		}
+		offset := at
+		parts[n].OffsetMS = &offset
+		at += *parts[n].DurationMS
+	}
 }
 
 // detailCredits is how many credits come with the detail itself; the rest are paged.
@@ -286,11 +309,13 @@ func versions(ctx context.Context, tx *sql.Tx, itemID int64) ([]Version, error) 
 	}
 	for n := range out {
 		m := &out[n]
-		if m.Parts, err = queryAll(ctx, tx, `SELECT f.id, f.name, f.size, p.start_ms, p.end_ms FROM media_parts p
+		if m.Parts, err = queryAll(ctx, tx, `SELECT f.id, f.name, f.size, p.start_ms, p.end_ms, CASE WHEN p.end_ms IS NOT NULL THEN p.end_ms - ifnull(p.start_ms, 0)
+			WHEN f.duration_ms > 0 THEN max(f.duration_ms - ifnull(p.start_ms, 0), 0) END FROM media_parts p
 			JOIN files f ON f.id = p.file_id WHERE p.media_id = ? ORDER BY p.position`, []any{m.id},
-			func(p *Part) []any { return []any{&p.FileID, &p.Name, &p.Size, &p.StartMS, &p.EndMS} }); err != nil {
+			func(p *Part) []any { return []any{&p.FileID, &p.Name, &p.Size, &p.StartMS, &p.EndMS, &p.DurationMS} }); err != nil {
 			return nil, err
 		}
+		placeParts(m.Parts)
 		for p := range m.Parts {
 			if m.Parts[p].Streams, err = streams(ctx, tx, m.Parts[p].FileID); err != nil {
 				return nil, err

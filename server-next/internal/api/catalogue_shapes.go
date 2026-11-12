@@ -250,6 +250,13 @@ type Part struct {
 	StartMs *int64   `json:"startMs,omitempty"`
 	EndMs   *int64   `json:"endMs,omitempty"`
 	Streams []Stream `json:"streams"`
+	// DurationMs is the part's own length. OffsetMs, for a version in several files (an
+	// audiobook in parts), is where the part begins in the whole title, from the earlier
+	// parts' lengths in order. Each is absent while it is not known: a file not probed yet,
+	// and for the offset every part after it too. StartMs and EndMs are something else: a
+	// range within one file.
+	DurationMs *int64 `json:"durationMs,omitempty"`
+	OffsetMs   *int64 `json:"offsetMs,omitempty"`
 }
 
 // Stream is one video, audio or subtitle track.
@@ -536,7 +543,8 @@ func detailShape(d db.ItemDetail) Item {
 			Size: v.Size, Width: v.Width, Height: v.Height, VideoCodec: v.VideoCodec, AudioCodec: v.AudioCodec,
 			AudioChannels: v.AudioChannels, HDR: v.HDR, Parts: []Part{}}
 		for _, p := range v.Parts {
-			m.Parts = append(m.Parts, Part{Size: p.Size, StartMs: p.StartMS, EndMs: p.EndMS, Streams: streamShapes(p.Streams)})
+			m.Parts = append(m.Parts, Part{Size: p.Size, StartMs: p.StartMS, EndMs: p.EndMS, Streams: streamShapes(p.Streams),
+				DurationMs: p.DurationMS, OffsetMs: p.OffsetMS})
 		}
 		for _, k := range v.Markers {
 			m.Markers = append(m.Markers, Marker{Kind: k.Kind.String(), StartMs: k.StartMS, EndMs: k.EndMS, Title: k.Title})
