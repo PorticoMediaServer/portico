@@ -1,3 +1,4 @@
+import {serverDidNotAnswer} from '../no-answer.ts';
 import {serverEventsFrom} from '../server-events.ts';
 import {ResyncCoordinator, type ResyncReadContext, type ResyncRegistration} from '../resync-coordinator.ts';
 import {routePath} from "../../../contracts/src/route-paths.ts";
@@ -57,7 +58,8 @@ const UNPARKED_READ_FLOOR_MS = 2000, CONTINUATION_MS = 1000;
 const RECENT_BYTES = 192 * 1024;
 const recentBytes = (id: string): number => 96 + id.length * 2;
 
-export type EventsStatus = Readonly<{mode: 'stream' | 'poll' | 'stopped'; connected: boolean; cursor?: string; failures: number}>;
+/** `answered`: the last failure was the server's own answer (a refusal), not a failure to get one. */
+export type EventsStatus = Readonly<{mode: 'stream' | 'poll' | 'stopped'; connected: boolean; cursor?: string; failures: number; answered?: boolean}>;
 
 type Listener = (event: ServerEvent) => void;
 
@@ -213,7 +215,7 @@ export class EventsClient {
         const reconnectAfter = streaming ? await this.streamOnce(signal) : await this.pollOnce(signal);
         if (signal.aborted) break;
         failures = 0;
-        this.setStatus({failures: 0});
+        this.setStatus({failures: 0, answered: undefined});
         if (reconnectAfter) await this.sleep(this.spread(reconnectAfter), signal);
       } catch (e) {
         if (signal.aborted) break;
@@ -225,7 +227,7 @@ export class EventsClient {
           else if (status !== 409) this.streamFailures++;
         }
         failures++;
-        this.setStatus({connected: false, failures});
+        this.setStatus({connected: false, failures, answered: !serverDidNotAnswer(e)});
         const directed = (e as {retryAfterMs?: unknown} | null)?.retryAfterMs;
         const minimum = typeof directed === 'number' && Number.isFinite(directed) && directed > 0 ? directed : 0;
         if (streaming && pollOnly() && !minimum) continue; // unsupported streams can fall back immediately
