@@ -10,6 +10,7 @@ import * as installation from '../../../packages/client-core/src/installation.ts
 import * as freshnessHub from '../../../packages/client-core/src/freshness-hub.ts';
 import * as queryKeys from '../../../packages/client-core/src/query/keys.ts';
 import * as queryUntil from '../../../packages/client-core/src/query/until.ts';
+import * as abortLifetime from '../../../packages/client-core/src/abort-lifetime.ts';
 
 const routePath = (name: string) => '/test/' + name;
 const unsupported = () => {throw new Error('Unexpected bootstrap-resource test path');};
@@ -25,7 +26,7 @@ const inbox = await screenModule(new URL('../../../packages/client-core/src/inbo
 });
 const preferences = await screenModule(new URL('../../../packages/client-core/src/preferences-reader.ts', import.meta.url), {
   react,
-  '../../contracts/src/routes.ts': routes, '../../contracts/src/route-paths.ts': routes, './preferences.ts': preferenceValues, './query/server-api.ts': serverApi,
+  '../../contracts/src/routes.ts': routes, '../../contracts/src/route-paths.ts': routes, './preferences.ts': preferenceValues, './query/server-api.ts': serverApi, './abort-lifetime.ts': abortLifetime,
 });
 const guide = await screenModule(new URL('../../../packages/client-core/src/guide/directory.ts', import.meta.url), {
   react,
