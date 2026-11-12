@@ -49,3 +49,19 @@ func TestHeavyWorkHoursAreChecked(t *testing.T) {
 		t.Fatalf("overnight kept chosen hours: %+v %v", got, err)
 	}
 }
+
+// How much of the week the hours are open, for how long heavy work takes.
+func TestHeavyWorkOpenShare(t *testing.T) {
+	for _, c := range []struct {
+		h    HeavyWorkSettings
+		want float64
+	}{
+		{HeavyWorkSettings{Hours: HeavyAnyTime}, 1},
+		{HeavyWorkSettings{Hours: HeavyOvernight}, 5.0 / 24},
+		{HeavyWorkSettings{Hours: HeavyChosen, Days: []string{"sat", "sun"}, From: "22:00", To: "06:00"}, 16.0 / 168},
+	} {
+		if got := c.h.OpenShare(); got != c.want {
+			t.Errorf("%+v: %v, want %v", c.h, got, c.want)
+		}
+	}
+}

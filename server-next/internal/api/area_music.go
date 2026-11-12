@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -19,6 +20,9 @@ func (s *Server) startMusic(ctx context.Context) error {
 	music := &musicanalysis.Service{DB: s.db, Log: s.log, Tools: s.analysisTools, Now: s.now,
 		Hours: func() settings.HeavyWorkSettings { return settings.General.Get(s.settings).HeavyWork }}
 	s.jobs.Register(music.Kind())
+	Handle(s, "GET /v1/admin/libraries/{id}/sound-analysis", Owner, func(r *http.Request, _ None) (SoundAnalysisStatus, error) {
+		return s.soundAnalysisStatus(r, music)
+	})
 	s.goBackground(func() { s.analyseMusic(ctx, music) })
 	return nil
 }
@@ -55,6 +59,9 @@ func (s *Server) analyseMusic(ctx context.Context, music *musicanalysis.Service)
 			s.log.Error("music libraries to analyse could not be read", "error", err)
 		}
 		for _, lib := range libraries {
+			if lib.Options.NoSoundAnalysis {
+				continue
+			}
 			left, err := s.db.TracksToAnalyse(ctx, lib.ID, runtime.Identity().Version, 0, 1)
 			if err == nil && len(left) > 0 {
 				_, err = s.jobs.Start(ctx, musicanalysis.JobKind, jobs.Request{Target: jobs.Target{Library: lib.PublicID}})
