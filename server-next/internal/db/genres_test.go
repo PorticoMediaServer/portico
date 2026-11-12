@@ -18,11 +18,11 @@ func TestGenresShowOnlyWhatTheProfileMaySee(t *testing.T) {
 	}
 	video := []db.ItemKind{db.KindMovie, db.KindShow}
 	for n, v := range l.viewers {
-		plain, err := l.d.Genres(ctx, v, false)
+		plain, err := l.d.Genres(ctx, v, "", false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		counted, err := l.d.Genres(ctx, v, true)
+		counted, err := l.d.Genres(ctx, v, "", true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -52,7 +52,7 @@ func TestGenresShowOnlyWhatTheProfileMaySee(t *testing.T) {
 			}
 		}
 		// No genre with a title the profile may see is left out.
-		all, err := l.d.Genres(ctx, l.all, false)
+		all, err := l.d.Genres(ctx, l.all, "", false)
 		if err != nil {
 			t.Fatal(err)
 		}

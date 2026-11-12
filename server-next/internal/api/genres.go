@@ -32,17 +32,23 @@ func (s *Server) genreRoutes() {
 			return GenreList{}, err
 		}
 		withCounts := counts != nil && *counts
-		genres, err := s.db.Genres(r.Context(), viewer(r), withCounts)
+		// With library, that one library's genres, whatever its kind: a music library's Genres tab.
+		genres, err := s.db.Genres(r.Context(), viewer(r), r.URL.Query().Get("library"), withCounts)
+		if err != nil {
+			return GenreList{}, refuse(err)
+		}
 		out := GenreList{Genres: make([]GenreEntry, len(genres))}
 		for n, g := range genres {
 			out.Genres[n] = GenreEntry{Value: g.PublicID, Label: g.Name}
 			if g.CoverHash != "" {
-				out.Genres[n].Cover = imageMap([]db.Image{{Role: db.ImageBackdrop, FileHash: g.CoverHash}})
+				out.Genres[n].Cover = imageMap([]db.Image{{Role: g.CoverRole, FileHash: g.CoverHash}})
 			}
-			if withCounts {
+			// One library's genres come with their counts whether asked or not: the count is how
+			// they are found.
+			if withCounts || r.URL.Query().Get("library") != "" {
 				out.Genres[n].Count = &g.Count
 			}
 		}
-		return out, err
+		return out, nil
 	})
 }

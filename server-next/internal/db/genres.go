@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"slices"
+	"strings"
 )
 
 // The genres of the films and shows a profile may see, across every library it may see, for
@@ -22,11 +23,16 @@ const (
 type Genre struct {
 	PublicID, Name string
 	CoverHash      string
+	CoverRole      ImageRole // the kind of picture the cover is: a backdrop, or a library's own covers
 	Count          int
 }
 
 // Genres lists the genres of the films and shows the viewer may see, by name, at most 200.
-func (d *DB) Genres(ctx context.Context, v Viewer, counts bool) ([]Genre, error) {
+// With library (a public id) it lists that one library's genres instead: see libraryGenres.
+func (d *DB) Genres(ctx context.Context, v Viewer, library string, counts bool) ([]Genre, error) {
+	if library != "" {
+		return d.libraryGenres(ctx, v, library)
+	}
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, err
@@ -57,6 +63,7 @@ func (d *DB) Genres(ctx context.Context, v Viewer, counts bool) ([]Genre, error)
 			id int64
 			Genre
 		}) []any {
+			g.CoverRole = ImageBackdrop
 			return []any{&g.id, &g.PublicID, &g.Name, &g.CoverHash}
 		})
 	if err != nil || len(genres) == 0 {
@@ -114,4 +121,61 @@ func (d *DB) Genres(ctx context.Context, v Viewer, counts bool) ([]Genre, error)
 		out[place[c.tag]].Count = c.n
 	}
 	return out, err
+}
+
+// genreKinds are the titles a library's own genres are counted over, by the kind of library:
+// a music library's genres are its albums'.
+var genreKinds = map[string][]ItemKind{LibraryMovies: {KindMovie}, LibraryShows: {KindShow}, LibraryAnime: {KindMovie, KindShow},
+	LibraryMusic: {KindAlbum}, LibraryAudiobooks: {KindAudiobook}, LibraryBooks: {KindBook, KindComic}}
+
+// libraryGenres lists the genres of one library the viewer may see, by name, at most 200: a
+// music library's Genres tab. Each has its count, the number of the library's albums (films,
+// shows, books) the viewer may see that the genre opens to. It is the genre filter's own
+// count (see Facets), so the tab and the filter never disagree, and an album counts for a
+// genre its artist carries, as the list does. The cover is the picture of one such title that
+// carries the genre itself: a film's or show's backdrop, else the title's own cover.
+func (d *DB) libraryGenres(ctx context.Context, v Viewer, library string) ([]Genre, error) {
+	var kind string
+	var libraryID int64
+	err := d.read.QueryRowContext(ctx, `SELECT id, kind FROM libraries WHERE public_id = ?`, library).Scan(&libraryID, &kind)
+	if err != nil {
+		return nil, notFound(err)
+	}
+	// Facets answers "not found" itself for a library the viewer may not see.
+	counted, err := d.Facets(ctx, v, ItemQuery{Library: library, Kinds: genreKinds[kind]}, FacetGenre)
+	if err != nil || len(counted) == 0 {
+		return nil, err
+	}
+	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	acc, err := loadAccess(ctx, tx, v)
+	if err != nil {
+		return nil, err
+	}
+	count := map[string]int{}
+	args := v.args()
+	marks := make([]string, len(counted))
+	for n, c := range counted {
+		count[c.Value], marks[n] = c.Count, fmt.Sprintf("@genre%d", n)
+		args = append(args, sql.Named(fmt.Sprintf("genre%d", n), c.Value))
+	}
+	roles := fmt.Sprintf("(%d)", ImageBackdrop)
+	if kind != LibraryMovies && kind != LibraryShows && kind != LibraryAnime {
+		roles = fmt.Sprintf("(%d, %d)", ImageCover, ImagePoster) // what is listened to or read has a cover
+	}
+	// The first few titles of the library that carry the genre, in the order of the tag
+	// table's own key, and the first of them the viewer may see that has a picture.
+	cover := fmt.Sprintf(`FROM (SELECT x.item_id FROM item_tags x WHERE x.tag_id = t.id AND x.library_id = %d
+			LIMIT %d) c CROSS JOIN items i ON i.id = c.item_id CROSS JOIN images im ON im.item_id = i.id AND im.role IN %s AND im.selected = 1
+		WHERE im.file_hash IS NOT NULL AND %s LIMIT 1`, libraryID, genreCandidates, roles, acc.visible("i"))
+	genres, err := queryAll(ctx, tx, fmt.Sprintf(`SELECT t.public_id, t.name, ifnull((SELECT im.file_hash %s), ''), ifnull((SELECT im.role %s), 0)
+		FROM tags t WHERE t.public_id IN (%s) ORDER BY t.norm_name`, cover, cover, strings.Join(marks, ", ")), args,
+		func(g *Genre) []any { return []any{&g.PublicID, &g.Name, &g.CoverHash, &g.CoverRole} })
+	for n := range genres {
+		genres[n].Count = count[genres[n].PublicID]
+	}
+	return genres, err
 }
