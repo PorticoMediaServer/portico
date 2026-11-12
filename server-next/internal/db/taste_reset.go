@@ -18,8 +18,12 @@ const tasteSince = `ifnull((SELECT taste_reset_at FROM profiles WHERE id = @view
 // ResetTaste forgets the viewer's taste from now, and the mood rows chosen from it.
 func (d *DB) ResetTaste(ctx context.Context, v Viewer, now time.Time) error {
 	err := d.write(ctx, User, func(tx *sql.Tx) error {
-		_, err := tx.Exec(`UPDATE profiles SET taste_reset_at = max(ifnull(taste_reset_at, 0), ?) WHERE id = ?`, now.UnixMilli(), v.ProfileID)
-		return err
+		if _, err := tx.Exec(`UPDATE profiles SET taste_reset_at = max(ifnull(taste_reset_at, 0), ?) WHERE id = ?`, now.UnixMilli(), v.ProfileID); err != nil {
+			return err
+		}
+		// The profile's other devices read again what they show, Home's rows among it: a state
+		// change that names no title.
+		return appendChange(tx, Change{At: now.UnixMilli(), Topic: TopicState, Op: OpUpdated, ProfileID: v.ProfileID})
 	})
 	if err == nil {
 		d.moods.forget(v.ProfileID)

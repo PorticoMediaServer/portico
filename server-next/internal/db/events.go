@@ -72,6 +72,9 @@ func (d *DB) Events(ctx context.Context, v Viewer, after int64, limit int) (even
 			if c.Op != OpDeleted {
 				err = list.QueryRowContext(ctx, append(v.args(), sql.Named("list", c.RefID))...).Scan(&e.PublicID)
 			}
+		case c.Topic == TopicState && c.RefID == 0:
+			// The profile's state changed as a whole (its recommendations were reset): nothing
+			// to look up, and its apps read again what they show.
 		case (c.Topic == TopicItem || c.Topic == TopicState) && c.Op != OpDeleted:
 			err = item.QueryRowContext(ctx, c.RefID).Scan(&e.PublicID, &e.LibraryID)
 		case c.LibraryID != 0:

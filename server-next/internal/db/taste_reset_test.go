@@ -1,6 +1,7 @@
 package db_test
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -33,8 +34,28 @@ func TestResetRecommendationsForgetsTheTasteAndNothingElse(t *testing.T) {
 	}
 
 	time.Sleep(2 * time.Millisecond) // the reset is later than every play before it
+	_, from, _, err := l.d.Events(ctx, v, 0, 100_000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, otherFrom, _, err := l.d.Events(ctx, l.viewers[1], 0, 100_000)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := l.d.ResetTaste(ctx, v, time.Now()); err != nil {
 		t.Fatal(err)
+	}
+	// The profile's other devices are told to read again what they show; no other profile is.
+	told := func(who db.Viewer, after int64) bool {
+		t.Helper()
+		events, _, _, err := l.d.Events(ctx, who, after, 100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return slices.ContainsFunc(events, func(e db.Event) bool { return e.Topic == db.TopicState && e.PublicID == "" })
+	}
+	if !told(v, from) || told(l.viewers[1], otherFrom) {
+		t.Errorf("after the reset the profile was told %v and another profile %v; want true and false", told(v, from), told(l.viewers[1], otherFrom))
 	}
 	// At once, before anything is chosen again, and after.
 	if rows, err := l.d.MoodRows(ctx, v); err != nil || len(rows) != 0 {
