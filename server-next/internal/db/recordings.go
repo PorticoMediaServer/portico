@@ -185,22 +185,37 @@ type RecordingQuery struct {
 	Upcoming   bool
 	ProfileID  int64 // 0 for everyone's
 	ProfilePub string
-	After      int64 // the start (upcoming) or update time (history) the page goes on from
+	After      int64 // the start (upcoming and made) or update time (history) the page goes on from
 	AfterID    int64
+	// Made reads the recordings that were made, by title; AfterTitle is the title the page goes on from.
+	Made       bool
+	AfterTitle string
 	Limit      int
 }
 
 // Recordings reads a page. Upcoming reads recordings_upcoming in start order; history reads
-// recordings_finished. A profile's own are the ones it booked or also asked for.
+// recordings_finished; made reads the recordings that were made, by title and then newest
+// first, so one show's are together (it sorts every made recording: as many as the library of
+// recordings, an accepted cost on the Recorded tab). A profile's own are the ones it booked or
+// also asked for.
 func (d *DB) Recordings(ctx context.Context, q RecordingQuery) ([]Recording, error) {
 	where, order := `r.state IN ('scheduled', 'recording') AND (r.starts_at, r.id) > (?, ?)`, `r.starts_at, r.id`
-	if !q.Upcoming {
+	args := []any{q.After, q.AfterID}
+	switch {
+	case q.Made:
+		where, order = `r.state IN ('partial', 'recorded')`, `r.title, r.starts_at DESC, r.id DESC`
+		args = nil
+		if q.AfterID != 0 {
+			where += ` AND (r.title > ? OR r.title = ? AND (r.starts_at < ? OR r.starts_at = ? AND r.id < ?))`
+			args = []any{q.AfterTitle, q.AfterTitle, q.After, q.After, q.AfterID}
+		}
+	case !q.Upcoming:
 		where, order = `r.state IN ('failed', 'cancelled', 'skipped', 'partial', 'recorded') AND (r.updated_at, r.id) < (?, ?)`, `r.updated_at DESC, r.id DESC`
 		if q.After == 0 {
 			q.After, q.AfterID = 1<<62, 1<<62
 		}
+		args = []any{q.After, q.AfterID}
 	}
-	args := []any{q.After, q.AfterID}
 	if q.ProfileID != 0 {
 		where += ` AND (r.profile_id = ? OR EXISTS (SELECT 1 FROM json_each(r.also_wanted_by) w WHERE w.value = ?))`
 		args = append(args, q.ProfileID, q.ProfilePub)
@@ -388,10 +403,10 @@ func (d *DB) RecordingStarted(ctx context.Context, id int64, reason string, now 
 	})
 }
 
-// RecordingTitle links a recording to the title the scan made of its file.
+// RecordingTitle links a recording to the title the scan made of its file; 0 unlinks it.
 func (d *DB) RecordingTitle(ctx context.Context, id, itemID int64) error {
 	return d.write(ctx, Background, func(tx *sql.Tx) error {
-		_, err := tx.Exec(`UPDATE recordings SET item_id = ? WHERE id = ?`, itemID, id)
+		_, err := tx.Exec(`UPDATE recordings SET item_id = nullif(?, 0) WHERE id = ?`, itemID, id)
 		return err
 	})
 }
