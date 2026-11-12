@@ -193,6 +193,13 @@ func (s *Server) catalogueRoutes() {
 			}
 			out.Groups = append(out.Groups, group)
 		}
+		more, err := s.db.MoreAudiobooks(r.Context(), viewer(r), r.PathValue("id"))
+		if err != nil {
+			return Related{}, refuse(err)
+		}
+		if len(more) > 0 {
+			out.Groups = append(out.Groups, RelatedGroup{Relation: "more_audiobooks", Items: itemShapes(more)})
+		}
 		return out, nil
 	})
 	// A library's people by one role: the Authors tab of an audiobook or book library.
