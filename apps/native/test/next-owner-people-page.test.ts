@@ -87,3 +87,25 @@ test('Person Profiles mounts the real read/editor surface with the exact selecte
     assert.equal(profiles.props.person, f.person); assert.equal(profiles.props.people, f.source);
   } finally {f.host.dispose();}
 });
+
+test('the owner\'s Let back in sits on a Left row only and asks once before it is sent (area 2 rule 39)', async () => {
+  const f = await fixture();
+  try {
+    const left = {...f.person, accountId: 'left-fixture', username: 'left', status: 'left', allowedLibraries: [], libraryNames: [], profileNames: [], effectiveMaxStreams: null, liveState: 'idle'};
+    const active = {...left, accountId: 'active-fixture', username: 'active', status: 'active'};
+    (f.source as any).letBackIn = async (captured: unknown) => {f.writes.push({letBackIn: captured});};
+    const list = () => nodes(f.page()).find((node: any) => node.type === 'FlatList');
+    const button = (item: unknown, id: string) => nodes(list().props.renderItem({item})).find((node: any) => node.props.testID === `people-let-back-in-${id}`);
+    assert.equal(button(active, 'active-fixture'), undefined, 'no button for someone who has not left');
+    button(left, 'left-fixture').props.onPress();
+    assert.equal(f.writes.length, 0, 'nothing is sent before it is confirmed');
+    const confirmation = nodes(f.page()).find((node: any) => node.type === 'BottomSheet' && node.props.showClose === false);
+    assert.equal(confirmation.props.open, true);
+    assert.equal(confirmation.props.title, t('next.settings.letBackInTitle', {name: 'left'}));
+    assert.ok(nodes(confirmation).some((node: any) => node.type === 'Text' && content(node) === t('next.settings.letBackInBody')));
+    await nodes(confirmation.props.footer).find((node: any) => node.type === 'Button' && content(node) === t('next.settings.letBackIn')).props.onPress();
+    assert.deepEqual(f.writes, [{letBackIn: left}]);
+    (f.source as any).ownerControls = () => false;
+    assert.equal(button(left, 'left-fixture'), undefined, 'only the owner sees it');
+  } finally {f.host.dispose();}
+});

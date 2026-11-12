@@ -26,7 +26,7 @@ import {PeopleMemberProfiles} from './PeopleMemberProfiles';
 import {settingsPageHeading, settingsPageInset} from './page-layout';
 
 type Props = {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader?: boolean};
-type Confirmation = Readonly<{person: AccessMember; action: 'disable' | 'enable' | 'role' | 'devices'; role?: 'admin' | 'member'; device?: AccessDevice} | {person: AccessMember; action: 'remove'; preview: MemberDeletionPreview} | {invitation: ServerInvitation; action: 'revoke'}>;
+type Confirmation = Readonly<{person: AccessMember; action: 'disable' | 'enable' | 'role' | 'devices'; role?: 'admin' | 'member'; device?: AccessDevice} | {person: AccessMember; action: 'remove'; preview: MemberDeletionPreview} | {invitation: ServerInvitation; action: 'revoke'} | {row: SettingsPersonRow; action: 'letBackIn'}>;
 const IDS = ['runtime'] as const;
 // List contracts expose strings; the shared parser admits these three roles.
 const roleLabel = (t: NativeShellRuntime['text']['t'], role: string) => accessRoleLabel(t, role === 'owner' || role === 'admin' ? role : 'member');
@@ -57,6 +57,7 @@ function People({ports, runtime, compactHeader, source}: Props & {source: Native
     view.confirmation = undefined; setConfirmation(undefined); setTypedName('');
     if (held.action === 'remove') await source.remove(held.person, held.preview);
     else if (held.action === 'revoke') await source.revoke(held.invitation);
+    else if (held.action === 'letBackIn') await source.letBackIn(held.row);
     else if (held.action === 'devices') await source.signOutDevices(held.person, held.device);
     else if (held.action === 'role' && held.role) await source.role(held.person, held.role);
     else if (held.action === 'enable' || held.action === 'disable') await source.enabled(held.person, held.action === 'enable');
@@ -93,13 +94,14 @@ function People({ports, runtime, compactHeader, source}: Props & {source: Native
   return <View testID="server-people" style={{flex: 1}}>
     <FlatList data={rows} keyExtractor={row => 'accountId' in row && 'username' in row ? row.accountId : row.id} contentContainerStyle={{...settingsPageInset(theme, compactHeader)}}
       ListHeaderComponent={header} ListEmptyComponent={!loading && page ? <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{t('web.people.noResults')}</Text> : null}
-      renderItem={({item}) => 'username' in item ? <Focusable testID={`people-person-${item.accountId}`} accessibilityRole="button" accessibilityLabel={item.username} disabled={loading} onPress={() => {if (current()) void source.open(item);}} style={{paddingVertical: 14, borderTopWidth: 1, borderTopColor: theme.colors.lineSoft, gap: 4}}>
+      renderItem={({item}) => 'username' in item ? <View><Focusable testID={`people-person-${item.accountId}`} accessibilityRole="button" accessibilityLabel={item.username} disabled={loading} onPress={() => {if (current()) void source.open(item);}} style={{paddingVertical: 14, borderTopWidth: 1, borderTopColor: theme.colors.lineSoft, gap: 4}}>
         <View style={{flexDirection: 'row', justifyContent: 'space-between', gap: 12}}><Text style={[shellType(16, 700), {color: theme.colors.text}]}>{item.username}</Text><Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{roleLabel(t, item.role)}</Text></View>
         {item.email && <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{item.email}</Text>}
         <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{item.allowedLibraries.length ? item.libraryNames.join(' · ') : t('server.people.allLibraries')} · {item.effectiveMaxStreams === null ? t('settings.server.unlimited') : t('server.people.streams', {count: item.effectiveMaxStreams})}</Text>
         <Text style={[shellType(14, 400, 20), {color: theme.colors.textTertiary}]}>{item.profileNames.filter(name => item.profileNames.length > 1 || name !== item.username).join(' · ')}</Text>
         <Text style={[shellType(13, 400, 18), {color: theme.colors.textTertiary}]}>{item.liveState === 'watching' ? t('next.settingsSpec.server.people.groups.0.rows.0.control.filters.1.options.1.label') : item.liveState === 'listening' ? t('next.settings.listeningNow') : item.lastActiveAt ? defaultI18n.date(item.lastActiveAt) : '—'}</Text>
-      </Focusable> : <View style={{paddingVertical: 14, borderTopWidth: 1, borderTopColor: theme.colors.lineSoft, gap: 5}}>
+      </Focusable>
+        {source.ownerControls() && item.status === 'left' && <Button testID={`people-let-back-in-${item.accountId}`} variant="glass" size="compact" disabled={loading} onPress={() => ask({row: item, action: 'letBackIn'})}>{t('next.settings.letBackIn')}</Button>}</View> : <View style={{paddingVertical: 14, borderTopWidth: 1, borderTopColor: theme.colors.lineSoft, gap: 5}}>
         <Text style={[shellType(15, 700), {color: theme.colors.text}]}>{item.notes || roleLabel(t, item.role)}</Text>
         <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{roleLabel(t, item.role)} · {invitationState(t, item.state)} · {defaultI18n.date(item.expiresAt)}</Text>
         {source.ownerControls() && item.state === 'pending' && <Button variant="glass" size="compact" disabled={loading} onPress={() => {if (current()) source.beginInvitation(item);}}>{t('next.selection.edit')}</Button>}
@@ -117,10 +119,10 @@ function People({ports, runtime, compactHeader, source}: Props & {source: Native
     {state.invitationOpening?.ready && state.invitationOpening.invitation ? <InvitationReadySheet key={`ready:${state.invitationOpening.invitation.id}:${state.invitationOpening.invitation.revision}`} source={source} opening={state.invitationOpening} runtime={runtime} serverName={ports.context.serverName}
         signIn={ports.context.account.account.hostedAccountId ? 'portico' : 'local'}/>
       : state.invitationOpening && <InvitationEditor key={state.invitationOpening.invitation ? `${state.invitationOpening.invitation.id}:${state.invitationOpening.invitation.revision}` : 'new'} source={source} opening={state.invitationOpening} runtime={runtime}/>}
-    <BottomSheet open={!!held} showClose={false} onOpenChange={open => {if (!open) close();}} title={held?.action === 'revoke' ? t('web.access.revoke') : held ? held.person.username : undefined}
-      footer={<View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" onPress={close}>{t('action.cancel')}</Button><Button variant={held?.action === 'role' || held?.action === 'enable' ? 'primary' : 'danger'} disabled={!held || held.action === 'remove' && typedName !== held.preview.username} onPress={() => {void confirm();}}>{t(held?.action === 'remove' ? 'action.delete' : held?.action === 'revoke' ? 'web.access.revoke' : held?.action === 'devices' ? 'action.signOut' : 'action.save')}</Button></View>}>
+    <BottomSheet open={!!held} showClose={false} onOpenChange={open => {if (!open) close();}} title={held?.action === 'revoke' ? t('web.access.revoke') : held?.action === 'letBackIn' ? t('next.settings.letBackInTitle', {name: held.row.username}) : held ? held.person.username : undefined}
+      footer={<View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" onPress={close}>{t('action.cancel')}</Button><Button variant={held?.action === 'role' || held?.action === 'enable' || held?.action === 'letBackIn' ? 'primary' : 'danger'} disabled={!held || held.action === 'remove' && typedName !== held.preview.username} onPress={() => {void confirm();}}>{t(held?.action === 'remove' ? 'action.delete' : held?.action === 'revoke' ? 'web.access.revoke' : held?.action === 'devices' ? 'action.signOut' : held?.action === 'letBackIn' ? 'next.settings.letBackIn' : 'action.save')}</Button></View>}>
       {held?.action === 'remove' ? <View style={{gap: 12}}><Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{t('next.settingsSpec.server.people.groups.0.rows.0.control.bulk.2.confirm')}</Text><TextField label={held.preview.username} value={typedName} onChangeText={setTypedName} autoCapitalize="none" autoCorrect={false}/></View>
-        : <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{held?.action === 'devices' ? t(held.device ? 'next.settingsSpec.server.people.panels.person.tabs.3.groups.0.rows.0.control.itemAction.confirm' : 'next.settingsSpec.server.people.panels.person.tabs.3.groups.0.rows.1.control.confirm') : held?.action === 'role' ? t('web.people.changeRole', {role: roleLabel(t, held.role!)}) : held?.action === 'disable' ? t('web.people.disableConfirm') : held?.action === 'enable' ? t('web.people.enableConfirm') : t('web.access.revokeNoLonger')}</Text>}
+        : <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary}]}>{held?.action === 'devices' ? t(held.device ? 'next.settingsSpec.server.people.panels.person.tabs.3.groups.0.rows.0.control.itemAction.confirm' : 'next.settingsSpec.server.people.panels.person.tabs.3.groups.0.rows.1.control.confirm') : held?.action === 'letBackIn' ? t('next.settings.letBackInBody') : held?.action === 'role' ? t('web.people.changeRole', {role: roleLabel(t, held.role!)}) : held?.action === 'disable' ? t('web.people.disableConfirm') : held?.action === 'enable' ? t('web.people.enableConfirm') : t('web.access.revokeNoLonger')}</Text>}
     </BottomSheet>
   </View>;
 }
