@@ -46,6 +46,7 @@ type Entry struct {
 	Seq     int64             `json:"-"`
 	Time    time.Time         `json:"time"`
 	Level   string            `json:"level"`
+	Kind    string            `json:"kind"`
 	Message string            `json:"message"`
 	Attrs   map[string]string `json:"attrs,omitempty"`
 }
@@ -129,8 +130,12 @@ func (h *handler) WithGroup(name string) slog.Handler {
 
 func (h *handler) Handle(ctx context.Context, r slog.Record) error {
 	err := h.inner.Handle(ctx, r)
-	e := Entry{Time: r.Time, Level: strings.ToLower(r.Level.String()), Message: Clean(r.Message)}
+	e := Entry{Time: r.Time, Level: strings.ToLower(r.Level.String()), Message: Clean(r.Message), Kind: "server"}
 	add := func(a slog.Attr) {
+		if a.Key == "log_kind" {
+			e.Kind = a.Value.String()
+			return
+		}
 		if e.Attrs == nil {
 			e.Attrs = map[string]string{}
 		}
@@ -336,6 +341,8 @@ func (l *Log) DetailUntil() time.Time {
 type Query struct {
 	// Level is the least level to include: debug, info, warn or error.
 	Level string
+	// Kind narrows by the component that wrote a line; empty includes every kind.
+	Kind string
 	// Text keeps lines whose message or values contain it, ignoring case.
 	Text string
 	// From and To bound the time; zero is no bound.
@@ -380,9 +387,15 @@ func (l *Log) Read(q Query) ([]Entry, string, error) {
 		for lines.next() {
 			scanned += len(lines.line) + 1
 			var e Entry
-			if json.Unmarshal(lines.line, &e) == nil && levels[e.Level] >= least && (q.To.IsZero() || !e.Time.After(q.To)) &&
-				(q.From.IsZero() || !e.Time.Before(q.From)) && (text == "" || matches(e, text)) {
-				out = append(out, e)
+			if json.Unmarshal(lines.line, &e) == nil {
+				// Logs made before kinds were recorded are server messages.
+				if e.Kind == "" {
+					e.Kind = "server"
+				}
+				if levels[e.Level] >= least && (q.Kind == "" || e.Kind == q.Kind) && (q.To.IsZero() || !e.Time.After(q.To)) &&
+					(q.From.IsZero() || !e.Time.Before(q.From)) && (text == "" || matches(e, text)) {
+					out = append(out, e)
+				}
 			}
 			if len(out) == q.Limit || scanned >= scanBudget {
 				lines.close()

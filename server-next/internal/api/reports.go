@@ -103,7 +103,11 @@ func (s *Server) reportRoutes() {
 		if status != "" && !validReportStatus(status) {
 			return Page[ProblemReport]{}, ErrField("status", "Choose open, in_progress, resolved or closed.")
 		}
-		return s.reportPage(r, db.ReportQuery{Status: status})
+		kind := r.URL.Query().Get("kind")
+		if kind != "" && kind != "problem" && kind != "crash" {
+			return Page[ProblemReport]{}, ErrField("kind", "Choose problem or crash.")
+		}
+		return s.reportPage(r, db.ReportQuery{Status: status, Kind: kind})
 	})
 	Handle(s, "GET /v1/admin/reports/{id}", Owner, func(r *http.Request, _ None) (ProblemReport, error) {
 		report, err := s.db.ReportByID(r.Context(), r.PathValue("id"))

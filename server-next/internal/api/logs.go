@@ -22,6 +22,7 @@ import (
 type LogLine struct {
 	Time    time.Time         `json:"time"`
 	Level   string            `json:"level"`
+	Kind    string            `json:"kind"`
 	Message string            `json:"message"`
 	Attrs   map[string]string `json:"attrs,omitempty"`
 }
@@ -77,7 +78,11 @@ func (s *Server) logRoutes() {
 		if level != "" && level != "debug" && level != "info" && level != "warn" && level != "error" {
 			return out, ErrField("level", "Choose debug, info, warn or error.")
 		}
-		query := serverlog.Query{Level: level, Text: q.Get("text"), Cursor: q.Get("cursor"), Limit: logPage}
+		kind := q.Get("kind")
+		if !validLogKind(kind) {
+			return out, ErrField("kind", "Choose server, playback, scan or network.")
+		}
+		query := serverlog.Query{Level: level, Kind: kind, Text: q.Get("text"), Cursor: q.Get("cursor"), Limit: logPage}
 		for name, at := range map[string]*time.Time{"from": &query.From, "to": &query.To} {
 			if raw := q.Get(name); raw != "" {
 				t, err := time.Parse(time.RFC3339, raw)
@@ -123,6 +128,9 @@ func (s *Server) logRoutes() {
 		if err == nil {
 			err = s.mayReadMessages(r)
 		}
+		if err == nil && !validLogKind(r.URL.Query().Get("kind")) {
+			err = ErrField("kind", "Choose server, playback, scan or network.")
+		}
 		if err != nil {
 			s.writeError(w, r, err)
 			return
@@ -167,7 +175,7 @@ func (s *Server) mayReadMessages(r *http.Request) error {
 }
 
 func logLine(e serverlog.Entry) LogLine {
-	return LogLine{Time: e.Time.UTC(), Level: e.Level, Message: e.Message, Attrs: e.Attrs}
+	return LogLine{Time: e.Time.UTC(), Level: e.Level, Kind: e.Kind, Message: e.Message, Attrs: e.Attrs}
 }
 
 func (s *Server) detailUntil() *time.Time {
@@ -196,9 +204,12 @@ func (s *Server) followLog(w http.ResponseWriter, r *http.Request) {
 	for {
 		lines, more := s.serverLog.Since(seq)
 		for _, e := range lines {
+			seq = e.Seq
+			if kind := r.URL.Query().Get("kind"); kind != "" && e.Kind != kind {
+				continue
+			}
 			raw, _ := json.Marshal(logLine(e))
 			fmt.Fprintf(w, "event: line\ndata: %s\n\n", raw)
-			seq = e.Seq
 		}
 		if flusher != nil {
 			flusher.Flush()
@@ -328,4 +339,9 @@ func (s *Server) supportExport(w http.ResponseWriter, r *http.Request, req Suppo
 		}
 		after = list[len(list)-1].ID
 	}
+}
+
+// validLogKind keeps the filter choices tied to the server components that write them.
+func validLogKind(kind string) bool {
+	return kind == "" || kind == "server" || kind == "playback" || kind == "scan" || kind == "network"
 }

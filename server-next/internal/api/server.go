@@ -219,7 +219,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.historyRoutes()
 	s.listRoutes()
 	s.stateBatchRoutes()
-	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log, func() time.Time { return s.now() })
+	s.playback = playback.New(d, playback.NoEngine{}, playback.NoEngine{}, log.With("log_kind", "playback"), func() time.Time { return s.now() })
 	s.goBackground(func() { s.playback.Run(ctx) })
 	s.playbackRoutes()
 	s.queues = playqueue.New(d, s.playback, func() time.Time { return s.now() })
@@ -227,7 +227,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.subtitleRoutes()
 
 	s.jobs = jobs.New(ctx, d, log)
-	s.scans = scan.NewManager(s.jobs, &scan.Scanner{DB: d, Prober: scan.FileProber{}, Pictures: s.artwork, Log: log,
+	s.scans = scan.NewManager(s.jobs, &scan.Scanner{DB: d, Prober: scan.FileProber{}, Pictures: s.artwork, Log: log.With("log_kind", "scan"),
 		Remote: s.remote.Open, ReaderProber: scan.RemoteProber{}})
 	s.libraryRoutes()
 	s.jobRoutes()

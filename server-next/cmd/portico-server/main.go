@@ -145,7 +145,7 @@ func run(log *slog.Logger) (err error) {
 			conversions = filepath.Join("/transcode", "portico-conversions")
 		}
 	}
-	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: conversions, Log: log,
+	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: conversions, Log: log.With("log_kind", "playback"),
 		Kept: filepath.Join(*data, "ffmpeg-abilities.json"), Remote: handler.RemoteSources().Open, Settings: handler.Settings()})
 	if err != nil {
 		return err

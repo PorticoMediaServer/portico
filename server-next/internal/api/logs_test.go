@@ -36,7 +36,7 @@ func TestMessagesAndSupportExport(t *testing.T) {
 	limited := signInAs(t, s, "kit", testPassword, 3).AccessToken
 	admin := signInAs(t, s, "ada", testPassword, 1).AccessToken
 	member := signInAs(t, s, "max", testPassword, 2).AccessToken
-	s.log.Warn("a library folder cannot be read", "path", "/srv/media/films/Heat (1995)/heat.mkv", "password", "hunter2")
+	s.log.With("log_kind", "scan").Warn("a library folder cannot be read", "path", "/srv/media/films/Heat (1995)/heat.mkv", "password", "hunter2")
 	s.log.Error("a file could not be opened", "error", "open /media/Films/The Thing (1982)/The Thing (1982).mkv: no such file or directory")
 	if code := status(t, s, "PUT", "/v1/admin/settings/backups", owner.AccessToken, json.RawMessage(`{"folder":"/mnt/nas/The Archive"}`)); code != 200 {
 		t.Fatalf("setting the backup folder answered %d", code)
@@ -46,6 +46,15 @@ func TestMessagesAndSupportExport(t *testing.T) {
 	if w := call(t, s, "GET", "/v1/admin/logs?level=warn", admin, nil, &page); w.Code != 200 || len(page.Items) != 2 ||
 		!strings.Contains(page.Items[1].Attrs["path"], "heat.mkv") || page.Items[1].Attrs["password"] != "[hidden]" {
 		t.Fatalf("an administrator's Messages answered %d: %s", w.Code, w.Body)
+	}
+	var scans LogPage
+	if w := call(t, s, "GET", "/v1/admin/logs?kind=scan", admin, nil, &scans); w.Code != 200 || len(scans.Items) != 1 || scans.Items[0].Kind != "scan" {
+		t.Fatalf("the scan filter answered %d: %s", w.Code, w.Body)
+	}
+	for _, path := range []string{"/v1/admin/logs?kind=unknown", "/v1/admin/logs/events?kind=unknown"} {
+		if code := status(t, s, "GET", path, admin, nil); code != 400 {
+			t.Errorf("an unknown kind at %s answered %d", path, code)
+		}
 	}
 	// Messages name the files of every library: not for a member, nor for an administrator
 	// held to some libraries.
