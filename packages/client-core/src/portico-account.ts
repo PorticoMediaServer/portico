@@ -34,7 +34,8 @@ export type TVCode = Readonly<{id: string; device: Device}>;
 /** The sign-in this device holds. `forget(held)` forgets it only if it is still the one held.
  * `kept` says a sign-in is held where this page cannot read it (the browser's cookie), so an
  * access token can be had by renewing even when none is in memory. */
-export type HeldSignIn = Readonly<{current: () => Tokens | undefined; keep: (tokens: Tokens) => void; forget: (held: Tokens | undefined) => void; kept?: () => boolean}>;
+/** `began`, when given, keeps a new sign-in (not a renewal), so a holder can tell the two apart. */
+export type HeldSignIn = Readonly<{current: () => Tokens | undefined; keep: (tokens: Tokens) => void; forget: (held: Tokens | undefined) => void; kept?: () => boolean; began?: (tokens: Tokens) => void}>;
 
 type Options = Readonly<{token?: string; create?: boolean; signal?: AbortSignal}>;
 type Transport = Readonly<{origin: string; cookie: boolean; fetcher?: typeof fetch}>;
@@ -118,7 +119,7 @@ export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false, f
       return anyone<T>(route, values, body, {...options, token: renewed.accessToken});
     }
   };
-  const tokensKept = <T extends {tokens?: Tokens}>(answer: T): T => { if (answer.tokens) held.keep(answer.tokens); return answer; };
+  const tokensKept = <T extends {tokens?: Tokens}>(answer: T): T => { if (answer.tokens) (held.began ?? held.keep)(answer.tokens); return answer; };
 
   return {
     capabilities: () => anyone<{capabilities?: string[]}>('system').then(value => value.capabilities ?? []),

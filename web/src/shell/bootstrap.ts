@@ -42,6 +42,7 @@ import {authenticatedArtwork, type ShellArtwork} from './artwork';
 import type {ShellBindings} from './bindings';
 import type {ShellIdentity} from './Shell';
 import {admitProfile, admittedProfile, forgetTabServer, tabAdmits, tabHadOpen} from '../platform/tab-session-gate';
+import {restoreAfterAccountEnd} from '../platform/portico-account-end';
 
 export type ShellFacts = Readonly<{identity: ShellIdentity; preferences: PreferenceSnapshot; serverName: string}>;
 export type ShellAssemblyContext = Readonly<{
@@ -175,7 +176,7 @@ export class ShellBootstrap {
     selected: Pick<typeof browserViewerStorage, 'read'> & Partial<Pick<typeof browserViewerStorage, 'clearIfFamily'>>;
     restore: typeof restoreBrowserConnection;
     actions?: () => BrowserAppSessionActions;
-  } = {selected: browserViewerStorage, restore: restoreBrowserConnection}) {
+  } = {selected: browserViewerStorage, restore: restoreAfterAccountEnd}) {
     this.startedAt = environment.startedAt ?? documentStartedAt();
     this.state = Object.freeze({phase: 'restoring', startedAt: this.startedAt});
   }

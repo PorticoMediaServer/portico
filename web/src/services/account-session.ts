@@ -9,19 +9,25 @@ import {porticoAccount, type HeldSignIn, type Tokens} from '@core/portico-accoun
 const flag = 'portico.account.signedIn';
 const listeners = new Set<() => void>();
 let current: Tokens | undefined;
-let flagged = readFlag();
+/** Counts the sign-ins this page has seen begin, here or in another tab. */
+let signIns = 0;
+// The flag's value changes at each new sign-in (not at a renewal), so other tabs also hear a
+// sign-in made over another one with no sign-out between.
+let mark = readFlag();
+let flagged = mark !== null;
 // Before the cookie, this browser kept both tokens in storage; leave none behind.
 try { localStorage.removeItem('portico.account.signIn'); } catch { /* private window */ }
 
-function readFlag(): boolean {
-  try { return localStorage.getItem(flag) === '1'; } catch { return false; }
+function readFlag(): string | null {
+  try { return localStorage.getItem(flag); } catch { return null; }
 }
 function notify() { for (const listener of listeners) listener(); }
-function write(tokens: Tokens | undefined) {
+function write(tokens: Tokens | undefined, began = false) {
   current = tokens;
-  if (flagged !== (tokens !== undefined)) {
-    flagged = tokens !== undefined;
-    try { if (flagged) localStorage.setItem(flag, '1'); else localStorage.removeItem(flag); } catch { /* private window: this tab only */ }
+  const next = tokens === undefined ? null : began ? Date.now().toString(36) : mark ?? '1';
+  if (next !== mark) {
+    mark = next; flagged = next !== null;
+    try { if (next !== null) localStorage.setItem(flag, next); else localStorage.removeItem(flag); } catch { /* private window: this tab only */ }
   }
   notify();
 }
@@ -29,7 +35,9 @@ if (typeof window !== 'undefined') window.addEventListener('storage', event => {
   if (event.key !== flag && event.key !== null) return;
   // Another tab signed in or out: this tab's access token, if any, is no longer the one to use.
   current = undefined;
-  flagged = readFlag();
+  const next = readFlag();
+  if (next !== null && next !== mark) signIns++;
+  mark = next; flagged = next !== null;
   notify();
 });
 
@@ -39,11 +47,14 @@ const held: HeldSignIn = {
   // compareSessionAuthority is for media server sign-ins; a Portico Services sign-in has no session family or generation, so the sign-in held is compared as itself.
   forget: tokens => { if (current === tokens) write(undefined); },
   kept: () => flagged,
+  began: tokens => { signIns++; write(tokens, true); },
 };
 
 export const accountSession = {
   subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
   signedIn: () => current !== undefined || flagged,
+  /** Changes when a sign-in begins (here or in another tab): the account may now be another one. */
+  signIns: () => signIns,
   keep(tokens: Tokens) { write(tokens); },
   /** Forget whatever sign-in is held (after a password reset ended them all). */
   forget() { write(undefined); },

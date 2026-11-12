@@ -281,7 +281,9 @@ test('the sign-in is kept where no script can read it: storage holds only a flag
   await session.account.signIn('ada', 'long enough password', {name: 'Chrome, Linux', kind: 'web'});
   assert.equal(calls[0].headers['Portico-Refresh'], 'cookie', 'asks Services for its cookie');
   assert.equal(calls[0].credentials, 'same-origin', 'so the browser keeps the cookie Services sets');
-  assert.equal(localStorage.dump(), JSON.stringify([['portico.account.signedIn', '1']]), 'nothing secret in storage');
+  const stored = JSON.parse(localStorage.dump());
+  assert.deepEqual(stored.map(([key]) => key), ['portico.account.signedIn'], 'nothing secret in storage');
+  assert.match(stored[0][1], /^[0-9a-z]{1,12}$/, 'the flag marks only which sign-in this is, never a token');
   // A reload or another tab starts with no access token, and renews once from the cookie.
   const reloaded = await componentModule(new URL('../src/services/account-session.ts', import.meta.url), {});
   calls.length = 0;

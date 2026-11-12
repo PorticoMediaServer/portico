@@ -11,7 +11,7 @@ const memory = (entries: Record<string, string>) => {
 };
 async function holder(listed: unknown[] = []) {
   return componentModule(new URL('../src/platform/portico-account-holder.ts', import.meta.url), {
-    '../services/account-session': {accountSession: {subscribe: () => () => {}, signedIn: () => true}, account: {}},
+    '../services/account-session': {accountSession: {subscribe: () => () => {}, signedIn: () => true, signIns: () => 0}, account: {}},
     '@core/portico-server-list.ts': {openAccountServerList: async () => ({accountId: 'acct_1', items: listed, version: 2, listToken: 't'})},
     '@core/route-identity.ts': {webRouteCrypto: {}},
     './portico-server-access': {porticoServerAccess: () => ({})},

@@ -35,6 +35,14 @@ export class BrowserAppSessionActions {
   for(const entry of captured)forgetTabServer(entry.connection.pin.serverId);
   return Promise.allSettled([Promise.resolve().then(logout),...captured.map(async entry=>this.revoke(entry))]);
  }
+ /** The account's sign-in ended elsewhere (`portico-account-end.ts`): its servers are forgotten here
+  * now, and signed out at each server in the background. */
+ async endPorticoAccount(account:PorticoAccountScope){
+  this.probe.cancel();const captured=await this.store.signOutPorticoAccount(account);
+  for(const entry of captured)forgetTabServer(entry.connection.pin.serverId);
+  void Promise.allSettled(captured.map(async entry=>this.revoke(entry)));
+  return captured;
+ }
  async switchProfile(api:HttpLocalApi,session:LocalSession,profileId:string,pin:string,signal:AbortSignal,isCurrent:()=>boolean,remember=false){
   const state=await this.store.read(),entry=state.servers.find(value=>value.connection.pin.serverId===session.viewer.serverId);
   if(!entry||entry.connection.session.sessionFamilyId!==session.sessionFamilyId)throw new Error('This server sign-in has ended.');

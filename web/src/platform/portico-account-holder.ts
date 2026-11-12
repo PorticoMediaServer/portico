@@ -20,8 +20,10 @@ export type ListedServers = Readonly<{accountId: string; items: readonly ListedS
 export const porticoAccountHolder = Object.freeze({
   subscribe: accountSession.subscribe,
   signedIn: accountSession.signedIn,
+  signIns: accountSession.signIns,
   /** The account signed in now (one read per sign-in on this page). */
   who: (signal?: AbortSignal): Promise<Account> => {
+    if (heldFor !== accountSession.signIns()) {held = undefined; heldFor = accountSession.signIns();}
     held ??= account.account(signal).catch(error => {held = undefined; throw error;});
     return held;
   },
@@ -36,7 +38,7 @@ export const porticoAccountHolder = Object.freeze({
   remove: (serverId: string) => account.removeServer(serverId),
   signOut: () => account.signOut(),
 });
-let held: Promise<Account> | undefined;
+let held: Promise<Account> | undefined, heldFor = accountSession.signIns();
 accountSession.subscribe(() => {if (!accountSession.signedIn()) held = undefined;});
 
 /** Before the new Portico Services, the app kept its own Portico Account sign-in in this
