@@ -95,6 +95,10 @@ func (s *Service) Run(ctx context.Context) {
 			wait = -1
 			continue
 		}
+		if until := s.Settings.BackgroundPausedUntil(s.Now()); !until.IsZero() {
+			wait = min(until.Sub(s.Now()), time.Second)
+			continue
+		}
 		if retryUntil.IsZero() {
 			retryUntil = s.Now().Add(retryFor)
 		}

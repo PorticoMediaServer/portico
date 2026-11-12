@@ -104,6 +104,18 @@ func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
 		e.log = slog.Default()
 	}
 	e.shareDeviceSetting()
+	background := func(g settings.GeneralSettings) {
+		priority := "lower"
+		if g.BackgroundSpeed == "fast" {
+			priority = "normal"
+		}
+		_ = e.processes.SetBackgroundTaskPriority(priority)
+	}
+	background(settings.General.Get(e.settings))
+	if e.settings != nil {
+		settings.General.Watch(e.settings, background)
+	}
+
 	if err := empty(o.Folder); err != nil {
 		return nil, err
 	}
