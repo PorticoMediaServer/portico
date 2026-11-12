@@ -31,3 +31,7 @@ export function withReadingManifestFacts<T extends {metadata: object; format: st
   }
   return Object.freeze({...base, metadata: Object.freeze({...base.metadata, ...facts})});
 }
+
+/** A reading time shown in whole minutes, never less than one: "About 2h 10m", not seconds
+ * (10-reading rule 40). Give the result to the ordinary duration formatter. */
+export const readingDuration = (estimatedSeconds: number): number => Math.max(1, Math.round(estimatedSeconds / 60)) * 60;

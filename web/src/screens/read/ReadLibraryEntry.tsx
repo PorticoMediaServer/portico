@@ -1,4 +1,5 @@
 import {useRouteLibrary} from '../browse/route-library';
+import {readingDuration} from '@core/reading-manifest-facts.ts';
 import {forwardIdentity} from '../detail/context';
 import {useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {calendarDate, defaultI18n} from '@i18n';
@@ -159,7 +160,7 @@ function LibraryRows({resources, libraryId, name, comic, view, onMore, onRetry, 
     ...(shortReads.length ? [{id: 'short-reads', kind: 'covers' as const, heading: t('next.reader.shortReads'), subtitle: t('next.reader.shortReadsFromWordCount'),
       items: shortReads.map(entry => ({id: entry.item.id, card: {
         artwork: resources.artwork.foreground(entry.item.coverUrl, 380, 2 / 3), kind: 'book' as const, context: 'shelf' as const, density: 'shelf' as const, visible: true,
-        model: {title: entry.item.title, caption: [...authorFacts(entry.item.author), {id: 'estimate', text: t('next.reader.aboutDuration', {duration: defaultI18n.duration(entry.estimatedSeconds)}), role: 'identity' as const}]},
+        model: {title: entry.item.title, caption: [...authorFacts(entry.item.author), {id: 'estimate', text: t('next.reader.aboutDuration', {duration: defaultI18n.duration(readingDuration(entry.estimatedSeconds))}), role: 'identity' as const}]},
         generated: {title: entry.item.title, glyph: Array.from(entry.item.title)[0] ?? '', tint: generatedCoverTint(entry.item.title)},
         disabled: !entry.item.inventoryAvailable, playLabel: t('next.reader.read'),
         onNavigate: () => {if (resources.bindings.authority.isCurrent()) void router.navigate({to: '/item/$itemId', params: {itemId: entry.item.id}}).catch(resources.reportError);},

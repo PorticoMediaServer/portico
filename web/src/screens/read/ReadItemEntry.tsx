@@ -8,6 +8,7 @@ import {defaultI18n} from '@i18n';
 import {generatedCoverTint} from '@design';
 import {ApiError} from '@core/index.ts';
 import {rereadReadingSource} from '@core/reading-reread.ts';
+import {readingDuration} from '@core/reading-manifest-facts.ts';
 import {validateRepair} from '@core/metadata-repair.ts';
 import {createReadingPublication, type ReaderContentsTarget} from '@portico/reader-core';
 import {stageContentsTarget, retireContentsTarget} from './contents-handoff';
@@ -252,7 +253,7 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
   return <>{phoneBack}<ReadBookHero cover={context.artwork.foreground(manifest.metadata.coverUrl, 784, 2 / 3)} title={title} titleStyle={readBookTitleStyle(title, !!metadata.openingLines)} author={author ? {name: author} : undefined} series={seriesPresentation} facts={[
       ...(metadata.wordCount !== undefined ? [{id: 'words', text: t('next.reader.wordCount', {count: metadata.wordCount}), role: 'context' as const}] : []),
       ...(metadata.pageCount !== undefined ? [{id: 'pages', text: t('next.reader.pageCount', {count: metadata.pageCount}), role: 'context' as const}] : []),
-      ...(metadata.estimatedSeconds !== undefined && metadata.estimatedSeconds > 0 ? [{id: 'estimate', text: t('next.reader.aboutDuration', {duration: defaultI18n.duration(metadata.estimatedSeconds)}), role: 'context' as const}] : []),
+      ...(metadata.estimatedSeconds !== undefined && metadata.estimatedSeconds > 0 ? [{id: 'estimate', text: t('next.reader.aboutDuration', {duration: defaultI18n.duration(readingDuration(metadata.estimatedSeconds))}), role: 'context' as const}] : []),
     ]} opening={metadata.openingLines ? {label: t('next.reader.openingLines'), text: metadata.openingLines} : undefined}
     ambient={<span className={styles.ambient} style={{'--read-tint-first': tint.first, '--read-tint-second': tint.second} as CSSProperties} aria-hidden="true"/>}
     actions={<>{progression !== undefined && progression > 0 ? <ResumeButton className={styles.primary} icon="i-book" progress={progression} remaining={defaultI18n.percent(progression)} onClick={() => open()}>{t('next.cards.read')}</ResumeButton>

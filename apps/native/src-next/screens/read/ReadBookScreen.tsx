@@ -1,4 +1,5 @@
 import React, {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
+import {readingDuration} from '../../../../../packages/client-core/src/reading-manifest-facts';
 import {ScrollView, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {generatedCoverTint} from '@portico/design';
@@ -215,7 +216,7 @@ function ReadBookBody({controller, manifest, series, comic, runtime, wide, rowHe
   // The shell's own classification decides, so a landscape phone is never a row.
   const coverWidth = rowHero ? (wide ? 206 : 176) : 168, coverHeight = coverWidth * 3 / 2;
   const titleSize = rowHero ? (wide ? 84 : 66) : 40;
-  const duration = manifest.metadata.estimatedSeconds !== undefined ? defaultI18n.duration(manifest.metadata.estimatedSeconds) : '';
+  const duration = manifest.metadata.estimatedSeconds !== undefined ? t('next.reader.aboutDuration', {duration: defaultI18n.duration(readingDuration(manifest.metadata.estimatedSeconds))}) : '';
   const pages = manifest.metadata.pageCount ?? manifest.pageNames?.length;
   const contents = manifest.format === 'epub' ? manifest.contents ?? [] : [];
   const facts = [

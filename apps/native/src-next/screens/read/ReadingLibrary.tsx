@@ -6,7 +6,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {readingResumePage, type ReadingItem} from '../../../../../packages/client-core/src';
 import type {BrowseCapabilities} from '../../../../../packages/client-core/src/browse';
 import {readLibrarySummaries, type LibrarySummary} from '../../../../../packages/client-core/src/library-summary';
-import {formatDuration} from '../../../../../packages/client-core/src/presentation/content';
+import {readingDuration} from '../../../../../packages/client-core/src/reading-manifest-facts';
 import {libraryTabs, readingTabModel, type LibraryTabId} from '../../../../../packages/client-core/src/presentation/library-tabs';
 import {GeneratedCover, StandardBackdrop} from '../../kit/artwork';
 import {ReadResumeCard} from '../../kit/cards';
@@ -198,7 +198,7 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
     {discoveryState.shortReads.length ? <DiscoveryRow title={defaultI18n.t('next.reader.shortReads')} sub={defaultI18n.t('next.reader.underThreeHours')}
       onNearEnd={() => {void discovery.more('short-reads').catch(runtime.reportError);}}>
       {discoveryState.shortReads.map(row => <DiscoveryCoverCard key={row.item.id} item={row.item} width={tablet ? 142 : 118} onOpen={openDiscover} offer={readingOffer(row.item, 'discover')} actions={readingActions}
-        detail={defaultI18n.t('next.reader.aboutDuration', {duration: formatDuration(row.estimatedSeconds)})}/>)}
+        detail={defaultI18n.t('next.reader.aboutDuration', {duration: defaultI18n.duration(readingDuration(row.estimatedSeconds))})}/>)}
     </DiscoveryRow> : null}
   </ScrollView>;
   const booksGrid = <View style={{flex: 1}}>
