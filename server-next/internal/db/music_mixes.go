@@ -38,15 +38,6 @@ func (d *DB) RecentPlayedSongs(ctx context.Context, v Viewer, model string, play
 	if err != nil {
 		return nil, err
 	}
-	// Older pre-launch folders also say version 1, but may predate sound analysis.
-	// They have no analyses to make mixes from; a fresh folder always has this table.
-	var hasSoundTable bool
-	if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'track_embeddings')`).Scan(&hasSoundTable); err != nil {
-		return nil, err
-	}
-	if !hasSoundTable {
-		return nil, nil
-	}
 	rows, err := tx.QueryContext(ctx, `WITH recent AS (
 			SELECT h.item_id, h.played_at, ifnull(h.watched_ms, 0) AS watched FROM play_history h
 			WHERE h.profile_id = ? AND h.item_kind = ? AND h.hidden_from_profile = 0 AND h.item_id IS NOT NULL

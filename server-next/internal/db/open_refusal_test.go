@@ -47,9 +47,8 @@ func TestAFileThatIsNotOursIsRefusedUnchanged(t *testing.T) {
 	}
 }
 
-// When the version cannot be read, the refusal says what failed. It does not tell the
-// person to delete their database.
-func TestAFailureToReadTheVersionIsReportedAsItself(t *testing.T) {
+// A version table from another test schema is refused before any version-dependent read.
+func TestAnOldVersionTableIsRefused(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "main.db")
 	other, err := sql.Open("sqlite", "file:"+path)
 	if err != nil {
@@ -60,7 +59,7 @@ func TestAFailureToReadTheVersionIsReportedAsItself(t *testing.T) {
 	}
 	other.Close()
 	_, err = Open(context.Background(), path)
-	if err == nil || !strings.Contains(err.Error(), "reading the database's version failed") || strings.Contains(err.Error(), "delete") {
+	if err != ErrOldTestFolder {
 		t.Fatalf("Open says %v", err)
 	}
 }
