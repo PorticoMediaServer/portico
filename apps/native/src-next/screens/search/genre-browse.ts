@@ -1,6 +1,7 @@
-import {readBrowseCapabilitiesResponse, readImmediateBrowsePageResponse} from '../../../../../packages/client-core/src/query/browse-reads';
+import {readBrowseCapabilitiesResponse} from '../../../../../packages/client-core/src/query/browse-reads';
+import {BrowseSession} from '../../../../../packages/client-core/src/browse-session';
 import {
-  BrowseQueryBuilder, parseBrowseCapabilities, parseBrowseResult,
+  acrossLibraries, BrowseQueryBuilder, parseBrowseCapabilities,
   type BrowseCapabilities, type BrowseNode, type BrowseSortSelection,
 } from '../../../../../packages/client-core/src/browse';
 import {searchGenreBrowsePivot, searchGenreBrowseRequest} from '../../../../../packages/client-core/src/search-genres';
@@ -81,27 +82,19 @@ export class NativeGenreBrowseDestination {
     for (const node of predicates) builder.add(node);
     return builder.sort(sort.field, sort.direction, sort.seed).limit(count).range({start, ...(revision ? {revision} : {})}).build();
   }
+  /** The genre's titles across every library, from the shared list reader (`GET /v1/items?tag=&kind=movie,show`). */
   private pages(capabilities: BrowseCapabilities, predicates: readonly BrowseNode[], sort: BrowseSortSelection): FetchPage<ContentEntry> {
-    let revision: string | undefined;
+    const session = new BrowseSession<ContentEntry>({query: {libraryId: acrossLibraries, pivot: searchGenreBrowsePivot, capabilities, nodes: predicates, sorts: [sort]},
+      request: this.request, item: entry => entry,
+      current: () => this.current() && this.state.predicates === predicates && this.state.sort === sort,
+      onRevision: revision => {if (this.state.predicates === predicates && this.state.sort === sort && this.state.revision !== revision) this.publish({revision});},
+      onStale: error => {if (this.state.predicates === predicates) this.publish({phase: 'error', error});}});
     return async (start, count, signal) => {
       if (!this.current() || this.state.phase !== 'ready' || this.state.predicates !== predicates || this.state.sort !== sort) throw retired();
-      try {
-        const result = parseBrowseResult(await readImmediateBrowsePageResponse({request: this.request.bind(this)}, '*', this.build(capabilities, predicates, sort, start, count, revision), signal));
-        if (result.pivot !== searchGenreBrowsePivot || result.pageInfo.start !== start || result.entries.length > count || !result.pageInfo.revision
-          || revision && result.pageInfo.revision !== revision || result.entries.some(entry => !entry.libraryId || !['movie', 'show'].includes(entry.kind))) {
-          throw Object.assign(new Error('native_genre_browse_scope_mismatch'), {code: 'stale_continuation'});
-        }
-        revision ??= result.pageInfo.revision;
-        result.entries.forEach(entry => this.entries.add(entry));
-        if (this.state.predicates === predicates && this.state.sort === sort && this.state.revision !== revision) this.publish({revision});
-        return {items: result.entries, total: result.pageInfo.total, totalIsLowerBound: result.pageInfo.totalIsLowerBound,
-          positionIndex: Object.fromEntries(result.positionIndex.map(value => [value.key, value.index]))};
-      } catch (error) {
-        // A changed source cannot be patched into resident pages from the old
-        // source. Explicit retry starts a fresh collection and opaque revision.
-        if (!signal.aborted && this.state.predicates === predicates && (error as {code?: unknown})?.code === 'stale_continuation') this.publish({phase: 'error', error});
-        throw error;
-      }
+      const page = await session.fetchPage(start, count, signal);
+      if (page.items.some(entry => !entry.libraryId || !['movie', 'show'].includes(entry.kind))) throw Object.assign(new Error('native_genre_browse_scope_mismatch'), {code: 'stale_continuation'});
+      page.items.forEach(entry => this.entries.add(entry));
+      return page;
     };
   }
   setQuery = (predicates: readonly BrowseNode[], sort = this.state.sort): void => {

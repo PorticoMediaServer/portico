@@ -1,5 +1,5 @@
 import {entriesFromItems, readFacet, readItems, readLibrary, type ItemListQuery} from '../items.ts';
-import {childrenQuery, libraryBrowseCapabilities, libraryItemQuery} from '../library-browse.ts';
+import {childrenQuery, genreTitlesCapabilities, genreTitlesPivot, libraryBrowseCapabilities, libraryItemQuery} from '../library-browse.ts';
 import type {ContentEntry} from '../library-content.ts';
 import {unreadableServerResponse} from '../server-messages.ts';
 import type {ServerRequester} from './server-api.ts';
@@ -13,6 +13,8 @@ export interface BrowseReadApi {
 }
 /** What a library's tab can be filtered and ordered by, for `parseBrowseCapabilities`. A list across libraries still asks the route it always did. */
 export async function readBrowseCapabilitiesResponse(api: BrowseReadApi, libraryId: string, pivot: string, signal?: AbortSignal) {
+  // A genre's titles across every library: one list of films and shows, sorted by title, date added or year.
+  if (libraryId === acrossLibraries && pivot === genreTitlesPivot) return genreTitlesCapabilities();
   if (libraryId === acrossLibraries) return api.request(browseCapabilitiesPath(libraryId, pivot), 'GET', undefined, signal);
   return libraryBrowseCapabilities(await readLibrary(api as ServerRequester, libraryId, signal), pivot);
 }

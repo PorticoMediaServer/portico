@@ -7,7 +7,7 @@
  * refused in plain words before anything is asked.
  */
 import type {Library as WireLibrary} from '../../contracts/src/next/api.ts';
-import {BrowseQueryError, type BrowseNode, type BrowseSortSelection} from './browse.ts';
+import {acrossLibraries, BrowseQueryError, type BrowseNode, type BrowseSortSelection} from './browse.ts';
 import {itemKindOf, libraryKind, type ItemListQuery} from './items.ts';
 import {serverPath} from './query/server-api.ts';
 
@@ -87,8 +87,36 @@ const one = (value: unknown): string | number | boolean => {
   return values[0] as string | number | boolean;
 };
 
+/** A genre's titles across every library (Search's genre page): the films and shows carrying it,
+ * `GET /v1/items?tag={genre}&kind=movie,show`. The genre is the page's one condition. */
+export const genreTitlesPivot = 'video-titles';
+const genreTitleSorts = ['title', 'added', 'year'] as const;
+export function genreTitlesCapabilities(): unknown {
+  const sorts = genreTitleSorts.map(id => ({id: sortIds[id]!, labelKey: 'sort.' + sortIds[id], directions: ['asc', 'desc'], defaultDirection: id === 'title' ? 'asc' : 'desc', applicableKinds: []}));
+  const {facet: _facet, ...genre} = fields.genre!;
+  const pivot = {id: genreTitlesPivot, labelKey: 'library.tab.movies', entityKinds: ['movie', 'show'], supportedViews: ['grid', 'list'], browsable: true,
+    defaultSort: [{field: 'title', direction: 'asc'}], sorts: sorts.map(sort => sort.id), filters: ['genre'], paging: 'keyset'};
+  return {library: {id: acrossLibraries, name: '', kind: 'mixed', defaultView: ''}, pivots: [pivot], resolvedPivot: pivot,
+    fields: [{...genre, cost: 'indexed', applicableKinds: []}], sorts, quickFilters: [], queryLimits: limits};
+}
+function genreTitlesQuery(nodes: readonly BrowseNode[], sorts: readonly BrowseSortSelection[]): ItemListQuery {
+  const query: Record<string, unknown> = {kind: 'movie,show'};
+  const add = (node: BrowseNode): void => {
+    if ('all' in node) { node.all.forEach(add); return; }
+    if ('field' in node && node.field === 'genre' && ['equals', 'in', 'contains-any'].includes(node.operator) && query.tag === undefined) query.tag = String(one(node.value));
+    else unsupported();
+  };
+  nodes.forEach(add);
+  if (!query.tag) throw new BrowseQueryError('query', 'Choose a genre.');
+  const sort = sorts[0], name = sort && wireSort(sort.field);
+  if (sorts.length > 1 || sort && !name) throw new BrowseQueryError('sort', 'That sort is not available here.');
+  if (sort) { query.sort = name; query.order = sort.direction; }
+  return query as ItemListQuery;
+}
+
 /** The server's list for a tab with these filters and this order. The filters all apply together; anything else is refused. */
 export function libraryItemQuery(library: Readonly<{id: string; views?: WireLibrary['views']}>, pivotId: string, nodes: readonly BrowseNode[], sorts: readonly BrowseSortSelection[]): ItemListQuery {
+  if (library.id === acrossLibraries && pivotId === genreTitlesPivot) return genreTitlesQuery(nodes, sorts);
   const candidates = pivots.filter(each => each.id === pivotId && (!library.views || library.views.some(view => view.kind === each.kind)));
   const pivot = candidates[0];
   if (!pivot) throw new BrowseQueryError('pivot', 'That view is not available in this library.');

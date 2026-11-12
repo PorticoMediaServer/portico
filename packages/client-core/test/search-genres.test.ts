@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {parseSearchGenres, readSearchGenres, searchGenresPath, searchGenreBrowsePivot, searchGenreBrowseRequest,
+import {parseSearchGenres, readPreparedSearchGenres, searchGenresPath, searchGenreBrowsePivot, searchGenreBrowseRequest,
   parseSearchGenrePreparing, releaseSearchGenres, searchGenresReadMetadata, type SearchGenreApi, type SearchGenreReadOptions} from '../src/search-genres.ts';
 import {parseSearchGenreFallback} from '../src/search-genres.ts';
 import type {LibraryContentApi} from '../src/library-content.ts';
@@ -73,7 +73,7 @@ test('uses the generated route and preserves the exact opaque continuation', asy
     assert.equal(path, '/v1/search/genres?limit=8'); assert.equal(method, 'GET'); assert.equal(body, undefined); assert.ok(signal instanceof AbortSignal);
     return answer() as T;
   }};
-  const page = await readSearchGenres(api, {limit: 8}, controller.signal);
+  const page = await readPreparedSearchGenres(api, {limit: 8}, controller.signal);
   assert.equal(page.genres.length, 2); releaseSearchGenres(page);
 });
 
@@ -81,9 +81,9 @@ test('a cancelled caller neither starts another read nor installs a late respons
   const controller = new AbortController();
   let reads = 0;
   const api: LibraryContentApi = {request: async <T>(): Promise<T> => {reads++; controller.abort(); return answer() as T;}};
-  await assert.rejects(readSearchGenres(api, {}, controller.signal), {name: 'AbortError'});
+  await assert.rejects(readPreparedSearchGenres(api, {}, controller.signal), {name: 'AbortError'});
   assert.equal(reads, 1);
-  await assert.rejects(readSearchGenres(api, {}, controller.signal), {name: 'AbortError'});
+  await assert.rejects(readPreparedSearchGenres(api, {}, controller.signal), {name: 'AbortError'});
   assert.equal(reads, 1);
 });
 
@@ -103,7 +103,7 @@ test('slot previews are independent bounded reads and retain artless-directory p
     {variant: 'ready', queryId: 'preview_1', revision: 'basis', genres: [], hasGenres: true},
     {variant: 'ready', queryId: 'preview_1', revision: 'basis', genres: [], hasGenres: false},
   ]) {
-    const page = await readSearchGenres({request: async <T>() => raw as T}, {limit: 4, preview: 'backdrop'});
+    const page = await readPreparedSearchGenres({request: async <T>() => raw as T}, {limit: 4, preview: 'backdrop'});
     assert.equal(page.hasGenres, raw.hasGenres);
     assert.deepEqual(page.genres, []);
   }
@@ -113,7 +113,7 @@ test('slot previews are independent bounded reads and retain artless-directory p
     {variant: 'ready', queryId: 'preview_1', revision: 'basis', genres: [answer().genres[1]], hasGenres: true},
     {variant: 'ready', queryId: 'preview_1', revision: 'basis', genres: answer().genres, hasGenres: true},
   ]) {
-    await assert.rejects(readSearchGenres({request: async <T>() => raw as T}, {limit: 1, preview: 'backdrop'}));
+    await assert.rejects(readPreparedSearchGenres({request: async <T>() => raw as T}, {limit: 1, preview: 'backdrop'}));
   }
 });
 
@@ -204,7 +204,7 @@ test('request accepts empty/list preview mode and inherited continuation limit, 
 
 test('raw initial 200 retains a directory lease until explicit release, with no enumerable ownership state', async () => {
   const f = rawFixture([response(200, ready())]);
-  const page = await readSearchGenres(f.api, {}, f.scope.signal, f.options);
+  const page = await readPreparedSearchGenres(f.api, {}, f.scope.signal, f.options);
   assert.equal(f.ordinaryCalls(), 0); assert.equal(f.gets().length, 1); assert.equal(f.deletes().length, 0);
   assert.equal(Object.keys(page).includes('release'), false); assert.equal(Object.keys(page).includes('reanchored'), false);
   assert.deepEqual(searchGenresReadMetadata(page), {reanchored: false});
@@ -219,31 +219,31 @@ test('raw initial 200 retains a directory lease until explicit release, with no 
 
 test('later scope abort releases a ready directory lease; un-signalled caller can explicitly dispose', async () => {
   const f = rawFixture([response(200, ready())]);
-  const page = await readSearchGenres(f.api, {}, f.scope.signal, f.options);
+  const page = await readPreparedSearchGenres(f.api, {}, f.scope.signal, f.options);
   f.scope.abort(); releaseSearchGenres(page); assert.equal(f.deletes().length, 1);
   const g = rawFixture([response(200, ready())]);
-  const unowned = await readSearchGenres(g.api, {}, undefined, g.options);
+  const unowned = await readPreparedSearchGenres(g.api, {}, undefined, g.options);
   assert.equal(g.deletes().length, 0); releaseSearchGenres(unowned); assert.equal(g.deletes().length, 1);
 });
 
 test('previews and anchorless empty directory pages release immediately, including empty/artless hasGenres', async t => {
   for (const hasGenres of [true, false]) await t.test(String(hasGenres), async () => {
     const f = rawFixture([response(200, {variant: 'ready', queryId: 'preview_1', revision: 'basis', genres: [], hasGenres})]);
-    const page = await readSearchGenres(f.api, {preview: 'backdrop', limit: 4}, f.scope.signal, f.options);
+    const page = await readPreparedSearchGenres(f.api, {preview: 'backdrop', limit: 4}, f.scope.signal, f.options);
     assert.equal(page.queryId, 'preview_1'); assert.equal(page.hasGenres, hasGenres); assert.deepEqual(page.genres, []);
     assert.equal(f.gets().length, 1); assert.equal(f.deletes().length, 1);
     assert.equal(getEventListeners(f.scope.signal, 'abort').length, 0);
     releaseSearchGenres(page); f.scope.abort(); assert.equal(f.deletes().length, 1);
   });
   const f = rawFixture([response(200, {variant: 'ready', queryId: 'empty_1', revision: 'basis', genres: []})]);
-  const page = await readSearchGenres(f.api, {}, f.scope.signal, f.options);
+  const page = await readPreparedSearchGenres(f.api, {}, f.scope.signal, f.options);
   assert.equal(f.deletes().length, 1); releaseSearchGenres(page); assert.equal(f.deletes().length, 1); f.scope.abort();
 });
 
 test('preview requires exact slot art/nonnullable hasGenres and forbids every continuation anchor', async t => {
   for (const key of ['nextCursor', 'previousCursor', 'reloadCursor']) await t.test(key, async () => {
     const f = rawFixture([response(200, {variant: 'ready', queryId: 'preview_1', revision: 'basis', genres: [], hasGenres: true, [key]: 'opaque'})]);
-    await assert.rejects(readSearchGenres(f.api, {preview: 'covers'}, f.scope.signal, f.options));
+    await assert.rejects(readPreparedSearchGenres(f.api, {preview: 'covers'}, f.scope.signal, f.options));
     assert.equal(f.deletes().length, 1); assert.equal(f.gets().length, 1); f.scope.abort();
   });
   for (const body of [{variant: 'ready', queryId: 'p', revision: 'basis', genres: []},
@@ -251,7 +251,7 @@ test('preview requires exact slot art/nonnullable hasGenres and forbids every co
     {variant: 'ready', queryId: 'p', revision: 'basis', genres: answer().genres, hasGenres: true},
   ]) {
     const f = rawFixture([response(200, body)]);
-    await assert.rejects(readSearchGenres(f.api, {preview: 'covers'}, f.scope.signal, f.options));
+    await assert.rejects(readPreparedSearchGenres(f.api, {preview: 'covers'}, f.scope.signal, f.options));
     assert.equal(f.deletes().length, 1); f.scope.abort();
   }
 });
@@ -265,7 +265,7 @@ test('202 raw polls honor full numeric/date/body floors and chunk long waits, wi
   ]) await t.test(JSON.stringify(example), async () => {
     const raw = response(202, pending('genre_1', example.body), {...example.headers, Location: '/v1/genre-queries/genre_1'});
     const f = rawFixture([raw, response(200, ready())]); let events = 0;
-    const done = readSearchGenres(f.api, {limit: 8}, f.scope.signal, {...f.options, onPreparing(p, meta) {
+    const done = readPreparedSearchGenres(f.api, {limit: 8}, f.scope.signal, {...f.options, onPreparing(p, meta) {
       assert.deepEqual(p, pending('genre_1', example.body)); assert.equal(meta, raw); events++;
     }});
     await flush(); assert.equal(events, 1); assert.equal(f.gets().length, 1); assert.equal(f.clock.delays[0], example.expected[0]);
@@ -279,8 +279,8 @@ test('202 raw polls honor full numeric/date/body floors and chunk long waits, wi
 
 test('continuation keeps predecessor alive until server consumes its token, then releases it once', async () => {
   const ack = deferred<PreparationResponse>(), f = rawFixture([response(200, ready()), ack.promise, response(200, ready('genre_2'))]);
-  const first = await readSearchGenres(f.api, {limit: 8}, f.scope.signal, f.options);
-  const next = readSearchGenres(f.api, {cursor: first.nextCursor}, f.scope.signal, {...f.options, previousPage: first});
+  const first = await readPreparedSearchGenres(f.api, {limit: 8}, f.scope.signal, f.options);
+  const next = readPreparedSearchGenres(f.api, {cursor: first.nextCursor}, f.scope.signal, {...f.options, previousPage: first});
   await flush(); assert.equal(f.deletes().length, 0); assert.equal(f.gets().length, 2);
   const query = new URL(f.gets()[1].path, 'https://local.invalid').searchParams;
   assert.equal(query.get('cursor'), first.nextCursor); assert.equal(query.get('limit'), '8');
@@ -295,9 +295,9 @@ test('continuation keeps predecessor alive until server consumes its token, then
 test('previous/reload reuse only existing cursor query; no history, rank, offsets or implicit extra reads', async () => {
   const f = rawFixture([response(200, ready('genre_1', {previousCursor: 'previous_1', reloadCursor: 'reload_1'})),
     response(200, ready('genre_2', {reloadCursor: 'reload_2'})), response(200, ready('genre_3'))]);
-  const first = await readSearchGenres(f.api, {}, f.scope.signal, f.options);
-  const previous = await readSearchGenres(f.api, {cursor: first.previousCursor}, f.scope.signal, {...f.options, previousPage: first});
-  const reloaded = await readSearchGenres(f.api, {cursor: previous.reloadCursor}, f.scope.signal, {...f.options, previousPage: previous});
+  const first = await readPreparedSearchGenres(f.api, {}, f.scope.signal, f.options);
+  const previous = await readPreparedSearchGenres(f.api, {cursor: first.previousCursor}, f.scope.signal, {...f.options, previousPage: first});
+  const reloaded = await readPreparedSearchGenres(f.api, {cursor: previous.reloadCursor}, f.scope.signal, {...f.options, previousPage: previous});
   assert.equal(new URL(f.gets()[1].path, 'https://local.invalid').searchParams.get('cursor'), 'previous_1');
   assert.equal(new URL(f.gets()[2].path, 'https://local.invalid').searchParams.get('cursor'), 'reload_2');
   assert.equal(f.gets().length, 3); assert.equal(f.deletes().length, 2);
@@ -306,8 +306,8 @@ test('previous/reload reuse only existing cursor query; no history, rank, offset
 
 test('manual lease owners can release prior page after continuation completion without premature cancellation', async () => {
   const f = rawFixture([response(200, ready()), response(200, ready('genre_2'))]);
-  const first = await readSearchGenres(f.api, {}, f.scope.signal, f.options);
-  const second = await readSearchGenres(f.api, {cursor: first.nextCursor}, f.scope.signal, f.options);
+  const first = await readPreparedSearchGenres(f.api, {}, f.scope.signal, f.options);
+  const second = await readPreparedSearchGenres(f.api, {cursor: first.nextCursor}, f.scope.signal, f.options);
   assert.equal(f.deletes().length, 0);
   releaseSearchGenres(first); assert.equal(f.deletes().length, 1);
   releaseSearchGenres(second); f.scope.abort(); assert.equal(f.deletes().length, 2);
@@ -315,19 +315,19 @@ test('manual lease owners can release prior page after continuation completion w
 
 test('foreign/released predecessor cursor is rejected before GET and cannot release unrelated pages', async () => {
   const f = rawFixture([response(200, ready())]);
-  const first = await readSearchGenres(f.api, {}, f.scope.signal, f.options);
-  await assert.rejects(readSearchGenres(f.api, {cursor: 'foreign'}, f.scope.signal, {...f.options, previousPage: first}));
+  const first = await readPreparedSearchGenres(f.api, {}, f.scope.signal, f.options);
+  await assert.rejects(readPreparedSearchGenres(f.api, {cursor: 'foreign'}, f.scope.signal, {...f.options, previousPage: first}));
   assert.equal(f.gets().length, 1); assert.equal(f.deletes().length, 0);
   releaseSearchGenres(first);
-  await assert.rejects(readSearchGenres(f.api, {cursor: first.nextCursor}, f.scope.signal, {...f.options, previousPage: first}));
+  await assert.rejects(readPreparedSearchGenres(f.api, {cursor: first.nextCursor}, f.scope.signal, {...f.options, previousPage: first}));
   assert.equal(f.gets().length, 1); f.scope.abort();
 });
 
 test('409 reanchors once without cursor, exposes raw refresh and accepted new-root metadata', async () => {
   const stale = response(409, {error: {code: 'stale_continuation'}});
   const f = rawFixture([response(200, ready()), stale, response(200, ready('genre_2', {revision: 'new_basis'}))]);
-  const first = await readSearchGenres(f.api, {limit: 8}, f.scope.signal, f.options); let refreshes = 0;
-  const page = await readSearchGenres(f.api, {cursor: first.nextCursor}, f.scope.signal, {...f.options, previousPage: first, onReanchor(raw) { assert.equal(raw, stale); refreshes++; }});
+  const first = await readPreparedSearchGenres(f.api, {limit: 8}, f.scope.signal, f.options); let refreshes = 0;
+  const page = await readPreparedSearchGenres(f.api, {cursor: first.nextCursor}, f.scope.signal, {...f.options, previousPage: first, onReanchor(raw) { assert.equal(raw, stale); refreshes++; }});
   assert.equal(refreshes, 1); assert.equal(page.revision, 'new_basis');
   assert.deepEqual(searchGenresReadMetadata(page), {reanchored: true, previousRevision: first.revision});
   assert.equal(new URL(f.gets()[2].path, 'https://local.invalid').searchParams.has('cursor'), false);
@@ -337,20 +337,20 @@ test('409 reanchors once without cursor, exposes raw refresh and accepted new-ro
 
 test('continuation revision change without stale refresh fails and releases old/new leases', async () => {
   const f = rawFixture([response(200, ready()), response(200, ready('genre_2', {revision: 'changed_basis'}))]);
-  const first = await readSearchGenres(f.api, {}, f.scope.signal, f.options);
-  await assert.rejects(readSearchGenres(f.api, {cursor: first.nextCursor}, f.scope.signal, {...f.options, previousPage: first}), (error: {code?: string}) => error.code === 'stale_continuation');
+  const first = await readPreparedSearchGenres(f.api, {}, f.scope.signal, f.options);
+  await assert.rejects(readPreparedSearchGenres(f.api, {cursor: first.nextCursor}, f.scope.signal, {...f.options, previousPage: first}), (error: {code?: string}) => error.code === 'stale_continuation');
   assert.deepEqual(f.deletes().map(c => c.path), ['/v1/genre-queries/genre_1', '/v1/genre-queries/genre_2']); f.scope.abort();
 });
 
 test('second stale and typed refusal remain terminal ApiErrors with status/code/retry/full header metadata', async t => {
   const f = rawFixture([response(409), response(409, {error: {code: 'stale_continuation', retry: 'after_refresh'}})]);
   let refreshes = 0;
-  await assert.rejects(readSearchGenres(f.api, {cursor: 'old'}, f.scope.signal, {...f.options, onReanchor: () => { refreshes++; }}), error => error instanceof ApiError && error.status === 409 && error.code === 'stale_continuation');
+  await assert.rejects(readPreparedSearchGenres(f.api, {cursor: 'old'}, f.scope.signal, {...f.options, onReanchor: () => { refreshes++; }}), error => error instanceof ApiError && error.status === 409 && error.code === 'stale_continuation');
   assert.equal(refreshes, 1); assert.equal(f.gets().length, 2); f.scope.abort();
   for (const status of [429, 503, 401, 403, 400]) await t.test(String(status), async () => {
     const raw = response(status, {error: {code: 'original_code', retry: 'same_request', message: 'original message', path: 'field'}}, {'Retry-After': 'Wed, 28 Oct 2026 12:02:00 GMT'});
     const g = rawFixture([response(202, pending()), raw]);
-    const done = readSearchGenres(g.api, {}, g.scope.signal, g.options);
+    const done = readPreparedSearchGenres(g.api, {}, g.scope.signal, g.options);
     const rejected = assert.rejects(done, error => error instanceof ApiError && error.status === status && error.code === 'original_code' && error.retryable === true
       // Receipt follows the first 1001ms poll wait, so the absolute date's remaining floor
       // is 118.999 seconds, rounded up by the existing ApiError header parser.
@@ -362,17 +362,17 @@ test('second stale and typed refusal remain terminal ApiErrors with status/code/
 
 test('custom typed errors preserve identity and receive raw metadata', async () => {
   const raw = response(503), f = rawFixture([raw]), error = new Error('existing typed error');
-  await assert.rejects(readSearchGenres(f.api, {}, f.scope.signal, {...f.options, errorFromResponse: response => { assert.equal(response, raw); return error; }}), actual => actual === error);
+  await assert.rejects(readPreparedSearchGenres(f.api, {}, f.scope.signal, {...f.options, errorFromResponse: response => { assert.equal(response, raw); return error; }}), actual => actual === error);
   assert.equal(f.gets().length, 1); f.scope.abort();
 });
 
 test('abort during pending timer clears it and cancels once; late initial 200 cleans direct-ready handle', async () => {
   const f = rawFixture([response(202, pending())]);
-  const done = readSearchGenres(f.api, {}, f.scope.signal, f.options), rejected = assert.rejects(done, {name: 'AbortError'});
+  const done = readPreparedSearchGenres(f.api, {}, f.scope.signal, f.options), rejected = assert.rejects(done, {name: 'AbortError'});
   await flush(); f.scope.abort(); await rejected;
   assert.equal(f.clock.timers.size, 0); assert.equal(f.gets().length, 1); assert.equal(f.deletes().length, 1);
   const late = deferred<PreparationResponse>(), g = rawFixture([late.promise]);
-  const other = readSearchGenres(g.api, {}, g.scope.signal, g.options), otherRejected = assert.rejects(other, {name: 'AbortError'});
+  const other = readPreparedSearchGenres(g.api, {}, g.scope.signal, g.options), otherRejected = assert.rejects(other, {name: 'AbortError'});
   g.scope.abort(); await otherRejected;
   late.resolve(response(200, ready())); await flush();
   assert.equal(g.deletes().length, 1); assert.equal(g.deletes()[0].path, '/v1/genre-queries/genre_1'); assert.equal(g.gets().length, 1);
@@ -380,7 +380,7 @@ test('abort during pending timer clears it and cancels once; late initial 200 cl
 
 test('supersession discards late 202 and cannot publish stale page, even if raw transport ignores abort', async () => {
   const late = deferred<PreparationResponse>(), f = rawFixture([late.promise]); let pendingEvents = 0;
-  const done = readSearchGenres(f.api, {}, f.scope.signal, {...f.options, onPreparing: () => { pendingEvents++; }});
+  const done = readPreparedSearchGenres(f.api, {}, f.scope.signal, {...f.options, onPreparing: () => { pendingEvents++; }});
   const rejected = assert.rejects(done, {name: 'AbortError'});
   f.supersede(); late.resolve(response(202, pending())); await rejected; await flush();
   assert.equal(pendingEvents, 0); assert.equal(f.clock.timers.size, 0); assert.equal(f.deletes().length, 1); f.scope.abort();
@@ -392,7 +392,7 @@ test('foreign Location, malformed pending and a changed poll handle never reach 
       : mode === 'malformed' ? [response(202, {...pending(), genres: []})]
       : [response(202, pending()), response(200, ready('genre_2'))];
     const f = rawFixture(replies); let events = 0;
-    const done = readSearchGenres(f.api, {}, f.scope.signal, {...f.options, onPreparing: () => { events++; }}), rejected = assert.rejects(done);
+    const done = readPreparedSearchGenres(f.api, {}, f.scope.signal, {...f.options, onPreparing: () => { events++; }}), rejected = assert.rejects(done);
     await flush(); if (mode === 'changed-handle') f.clock.fire(); await rejected;
     assert.equal(events, mode === 'changed-handle' ? 1 : 0); assert.equal(f.clock.timers.size, 0);
     assert.ok(f.calls.every(c => !c.path.includes('foreign.example'))); assert.equal(f.deletes().length, mode === 'malformed' ? 0 : 1); f.scope.abort();
@@ -402,22 +402,22 @@ test('foreign Location, malformed pending and a changed poll handle never reach 
 test('read-only legacy test ports perform one GET, never hide preparing JSON or send a mutation', async () => {
   let calls = 0;
   const api: LibraryContentApi = {request: async <T>(_path: string, method?: string): Promise<T> => { calls++; assert.equal(method, 'GET'); return pending() as T; }};
-  await assert.rejects(readSearchGenres(api)); assert.equal(calls, 1);
+  await assert.rejects(readPreparedSearchGenres(api)); assert.equal(calls, 1);
 });
 
 test('pre-abort prevents both transports and onPreparing retirement cannot leave a timer or poll', async () => {
   const f = rawFixture([]); f.scope.abort();
-  await assert.rejects(readSearchGenres(f.api, {}, f.scope.signal, f.options), {name: 'AbortError'}); assert.equal(f.calls.length, 0);
+  await assert.rejects(readPreparedSearchGenres(f.api, {}, f.scope.signal, f.options), {name: 'AbortError'}); assert.equal(f.calls.length, 0);
   const g = rawFixture([response(202, pending())]);
-  await assert.rejects(readSearchGenres(g.api, {}, g.scope.signal, {...g.options, onPreparing: () => g.scope.abort()}), {name: 'AbortError'});
+  await assert.rejects(readPreparedSearchGenres(g.api, {}, g.scope.signal, {...g.options, onPreparing: () => g.scope.abort()}), {name: 'AbortError'});
   assert.equal(g.gets().length, 1); assert.equal(g.deletes().length, 1); assert.equal(g.clock.timers.size, 0);
 });
 
 test('many explicit continuations keep exactly one live lease/scope listener and no background read loop', async () => {
   const f = rawFixture(Array.from({length: 40}, (_, i) => response(200, ready(`genre_${i}`))));
-  let page = await readSearchGenres(f.api, {}, f.scope.signal, f.options);
+  let page = await readPreparedSearchGenres(f.api, {}, f.scope.signal, f.options);
   for (let i = 1; i < 40; i++) {
-    page = await readSearchGenres(f.api, {cursor: page.nextCursor}, f.scope.signal, {...f.options, previousPage: page});
+    page = await readPreparedSearchGenres(f.api, {cursor: page.nextCursor}, f.scope.signal, {...f.options, previousPage: page});
     assert.equal(page.queryId, `genre_${i}`);
     assert.equal(f.gets().length, i + 1); assert.equal(f.deletes().length, i);
     assert.equal(getEventListeners(f.scope.signal, 'abort').length, 1);
@@ -435,7 +435,7 @@ test('retirement during anchorless ready cleanup cannot publish a late empty suc
     if (method === 'DELETE') f.scope.abort();
     return reply;
   };
-  await assert.rejects(readSearchGenres(f.api, {}, f.scope.signal, f.options), {name: 'AbortError'});
+  await assert.rejects(readPreparedSearchGenres(f.api, {}, f.scope.signal, f.options), {name: 'AbortError'});
   assert.equal(f.deletes().length, 1); assert.equal(f.gets().length, 1);
   assert.equal(getEventListeners(f.scope.signal, 'abort').length, 0);
 });
@@ -472,7 +472,7 @@ test('cold fallback publishes transient unknown panel and continues to exact pre
   const exact = {variant: 'ready', queryId: 'genre_1', revision: 'accepted_basis', genres: [], hasGenres: false};
   const f = rawFixture([response(202, pending()), interim, response(200, exact)]);
   let callbacks = 0, finished = false;
-  const done = readSearchGenres(f.api, {preview: 'backdrop', limit: 4}, f.scope.signal, {...f.options, onFallback(panel, raw) {
+  const done = readPreparedSearchGenres(f.api, {preview: 'backdrop', limit: 4}, f.scope.signal, {...f.options, onFallback(panel, raw) {
     callbacks++; assert.equal(raw, interim); assert.equal(panel.hasGenresKnown, false); assert.equal(panel.totalIsLowerBound, true);
     assert.equal('hasGenres' in panel, false); assert.deepEqual(panel.genres, []); assert.equal(searchGenresReadMetadata(panel), undefined);
   }});
@@ -487,7 +487,7 @@ test('cold fallback publishes transient unknown panel and continues to exact pre
 
 test('direct/repeated fallback keeps one handle and no ready lease until exact directory page arrives', async () => {
   const f = rawFixture([response(200, fallback()), response(200, fallback()), response(200, ready())]); let callbacks = 0;
-  const done = readSearchGenres(f.api, {}, f.scope.signal, {...f.options, onFallback: panel => { callbacks++; assert.equal(searchGenresReadMetadata(panel), undefined); }});
+  const done = readPreparedSearchGenres(f.api, {}, f.scope.signal, {...f.options, onFallback: panel => { callbacks++; assert.equal(searchGenresReadMetadata(panel), undefined); }});
   await flush(); assert.equal(callbacks, 1); assert.equal(f.deletes().length, 0);
   f.clock.fire(); await flush(); assert.equal(callbacks, 2); assert.equal(f.gets().length, 2);
   f.clock.fire(); const page = await done;
@@ -499,7 +499,7 @@ test('invalid fallback/foreign Location/changed pending ID cannot publish the un
   for (const mode of ['invalid-flags', 'foreign-location', 'changed-id']) await t.test(mode, async () => {
     const body = mode === 'invalid-flags' ? fallback('genre_1', {totalIsLowerBound: false}) : fallback(mode === 'changed-id' ? 'genre_2' : 'genre_1');
     const f = rawFixture([response(202, pending()), response(200, body, mode === 'foreign-location' ? {Location: 'https://foreign.example/g'} : {})]); let callbacks = 0;
-    const done = readSearchGenres(f.api, {}, f.scope.signal, {...f.options, onFallback: () => { callbacks++; }}), rejected = assert.rejects(done);
+    const done = readPreparedSearchGenres(f.api, {}, f.scope.signal, {...f.options, onFallback: () => { callbacks++; }}), rejected = assert.rejects(done);
     await flush(); f.clock.fire(); await rejected;
     assert.equal(callbacks, 0); assert.equal(f.deletes().length, 1); assert.equal(f.clock.timers.size, 0); f.scope.abort();
   });
@@ -508,7 +508,7 @@ test('invalid fallback/foreign Location/changed pending ID cannot publish the un
 test('fallback callback retirement/failure cancels once with no poll or cached ready page', async t => {
   for (const mode of ['abort', 'throw']) await t.test(mode, async () => {
     const f = rawFixture([response(200, fallback())]), sentinel = new Error('fallback callback failed');
-    await assert.rejects(readSearchGenres(f.api, {}, f.scope.signal, {...f.options, onFallback: () => {
+    await assert.rejects(readPreparedSearchGenres(f.api, {}, f.scope.signal, {...f.options, onFallback: () => {
       if (mode === 'throw') throw sentinel; f.scope.abort();
     }}), error => mode === 'throw' ? error === sentinel : (error as Error).name === 'AbortError');
     assert.equal(f.deletes().length, 1); assert.equal(f.gets().length, 1); assert.equal(f.clock.timers.size, 0); f.scope.abort();
@@ -517,7 +517,7 @@ test('fallback callback retirement/failure cancels once with no poll or cached r
 
 test('late malformed fallback after abort uses only queryId for safe cleanup and never publishes', async () => {
   const late = deferred<PreparationResponse>(), f = rawFixture([late.promise]); let callbacks = 0;
-  const done = readSearchGenres(f.api, {}, f.scope.signal, {...f.options, onFallback: () => { callbacks++; }}), rejected = assert.rejects(done, {name: 'AbortError'});
+  const done = readPreparedSearchGenres(f.api, {}, f.scope.signal, {...f.options, onFallback: () => { callbacks++; }}), rejected = assert.rejects(done, {name: 'AbortError'});
   f.scope.abort(); await rejected;
   late.resolve(response(200, fallback('genre_1', {genres: 'malformed'}))); await flush();
   assert.equal(callbacks, 0); assert.equal(f.deletes().length, 1); assert.equal(f.gets().length, 1); assert.equal(f.clock.timers.size, 0);
@@ -525,8 +525,8 @@ test('late malformed fallback after abort uses only queryId for safe cleanup and
 
 test('fallback following continuation consumes predecessor and can still reanchor once to a new exact root', async () => {
   const f = rawFixture([response(200, ready()), response(200, fallback('genre_2')), response(409), response(200, ready('genre_3', {revision: 'new_basis'}))]);
-  const first = await readSearchGenres(f.api, {}, f.scope.signal, f.options); let callbacks = 0;
-  const done = readSearchGenres(f.api, {cursor: first.nextCursor}, f.scope.signal, {...f.options, previousPage: first, onFallback: () => { callbacks++; }});
+  const first = await readPreparedSearchGenres(f.api, {}, f.scope.signal, f.options); let callbacks = 0;
+  const done = readPreparedSearchGenres(f.api, {cursor: first.nextCursor}, f.scope.signal, {...f.options, previousPage: first, onFallback: () => { callbacks++; }});
   await flush(); assert.equal(callbacks, 1); assert.deepEqual(f.deletes().map(c => c.path), ['/v1/genre-queries/genre_1']);
   f.clock.fire(); const exact = await done;
   assert.equal(exact.queryId, 'genre_3'); assert.equal(exact.revision, 'new_basis'); assert.equal(searchGenresReadMetadata(exact)?.reanchored, true);
@@ -542,7 +542,7 @@ test('Search "Browse by genre" (survey A17): preparing, then a ready answer in t
   const {nextCursor: _cursor, ...base} = ready('genre_1');
   const preview = {...base, hasGenres: true, genres: (base.genres as {backdrop?: unknown}[]).filter(genre => genre.backdrop)};
   const f = rawFixture([response(202, pending('genre_1', 1000)), response(200, preview)]);
-  const done = readSearchGenres(f.api, {limit: 8, preview: 'backdrop'}, f.scope.signal, f.options);
+  const done = readPreparedSearchGenres(f.api, {limit: 8, preview: 'backdrop'}, f.scope.signal, f.options);
   await flush(); f.clock.fire();
   const page = await done;
   assert.equal(f.gets().length, 2);
