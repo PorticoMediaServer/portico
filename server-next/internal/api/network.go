@@ -250,7 +250,7 @@ func (s *Server) noteGateway(r *http.Request) {
 	s.network.mu.Unlock()
 	if first {
 		if w, ok := gatewayWarning(s.networks(), gateway, s.networks().Home, true); ok {
-			s.log.Warn(w.Message, "gateway", gateway.String())
+			s.networkLog.Warn(w.Message, "gateway", gateway.String())
 		}
 	}
 }
@@ -310,7 +310,7 @@ func (s *Server) notePublicProxy(address string) {
 	}
 	s.network.mu.Unlock()
 	if !known && added {
-		s.log.Warn(publicProxyNotice(address, 0), "address", address)
+		s.networkLog.Warn(publicProxyNotice(address, 0), "address", address)
 	}
 }
 
@@ -329,7 +329,7 @@ func (s *Server) noteUnlistedProxy(proxy string) {
 	}
 	s.network.mu.Unlock()
 	if !known && added {
-		s.log.Warn(unlistedProxyNotice(proxy), "proxy", proxy)
+		s.networkLog.Warn(unlistedProxyNotice(proxy), "proxy", proxy)
 	}
 }
 
@@ -376,7 +376,7 @@ func (s *Server) noteSilentProxy(proxy string) {
 	}
 	s.network.mu.Unlock()
 	if !known && added {
-		s.log.Warn(silentProxyNotice(proxy), "proxy", proxy)
+		s.networkLog.Warn(silentProxyNotice(proxy), "proxy", proxy)
 	}
 }
 
@@ -473,7 +473,7 @@ func (s *Server) loadNetworks(ctx context.Context) error {
 		if ok && kept == origin {
 			return false
 		}
-		s.log.Warn("a saved web origin is not one web address (scheme, name and perhaps a port) and is ignored", "origin", origin)
+		s.networkLog.Warn("a saved web origin is not one web address (scheme, name and perhaps a port) and is ignored", "origin", origin)
 		return true
 	})
 	return s.network.set(stored)

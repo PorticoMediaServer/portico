@@ -293,7 +293,7 @@ func (s *Server) applyCertificate(v RemoteAccessSettings) {
 	// its setup page on the internet by itself.
 	owned, err := s.db.HasUsers(context.Background())
 	if err != nil {
-		s.log.Error("could not tell whether this server has an owner", "error", err)
+		s.networkLog.Error("could not tell whether this server has an owner", "error", err)
 	}
 	s.ports.Set(owned && v.RemoteAccess == "on" && v.PortMapping == "automatic", s.listenPort(), v.PublicPort)
 	// The public address is asked of outside services under the same conditions, mapping or not.
@@ -316,7 +316,7 @@ func (s *Server) ServeNetwork(ctx context.Context, port int) {
 	s.access.mu.Unlock()
 	// Apps at home find the server by its announcement, which needs a port they can reach.
 	if port != 0 {
-		finder := discovery.New(s.log, discovery.Record{ServerID: s.id, Fingerprint: s.identity.fingerprint, Port: port})
+		finder := discovery.New(s.networkLog, discovery.Record{ServerID: s.id, Fingerprint: s.identity.fingerprint, Port: port})
 		s.access.mu.Lock()
 		s.access.finder = finder
 		s.access.mu.Unlock()
@@ -398,7 +398,7 @@ func (s *Server) SetPorticoAddress(address string, certificateReady bool, proble
 	v, allowed = s.access.current()
 	if after := s.access.security(v, allowed, finished, false).Active; after != before {
 		// The owner sees it on the Remote access page; a notice joins this when notices exist.
-		s.log.Info("remote security changed by itself", "inForce", after, "portico", address)
+		s.networkLog.Info("remote security changed by itself", "inForce", after, "portico", address)
 	}
 }
 
@@ -513,7 +513,7 @@ func (s *Server) resetRemoteAccess(ctx context.Context, dataDir string) error {
 	if err := os.Remove(path); err != nil {
 		return err
 	}
-	s.log.Warn("the remote access and network settings were put back to their safe defaults, as the reset-remote-access file in the data folder asked")
+	s.networkLog.Warn("the remote access and network settings were put back to their safe defaults, as the reset-remote-access file in the data folder asked")
 	return nil
 }
 

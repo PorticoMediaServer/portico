@@ -192,13 +192,13 @@ func (s *Server) porticoStep(ctx context.Context) time.Time {
 	now := s.now()
 	next := now.Add(porticoTick)
 	if leave, leaving, err := s.db.Leave(ctx); err != nil {
-		s.log.Error("could not read the queued leave", "error", err)
+		s.networkLog.Error("could not read the queued leave", "error", err)
 	} else if leaving {
 		next = sooner(next, s.sendLeave(ctx, leave, now))
 	}
 	link, linked, err := s.db.Link(ctx)
 	if err != nil {
-		s.log.Error("could not read the link to Portico Services", "error", err)
+		s.networkLog.Error("could not read the link to Portico Services", "error", err)
 		return next
 	}
 	s.link.mu.Lock()
@@ -225,7 +225,7 @@ func (s *Server) porticoStep(ctx context.Context) time.Time {
 	update := func(change func(*db.Link)) bool {
 		link, err = s.db.UpdateLink(ctx, link.IssuedAt, now, change)
 		if err != nil && !errors.Is(err, db.ErrNoLink) {
-			s.log.Error("could not save the link to Portico Services", "error", err)
+			s.networkLog.Error("could not save the link to Portico Services", "error", err)
 		}
 		return err == nil
 	}
@@ -238,7 +238,7 @@ func (s *Server) porticoStep(ctx context.Context) time.Time {
 	// The document: has anything in it changed, and is a changed one due to be sent?
 	doc, digest, people, err := s.porticoDocument(ctx)
 	if err != nil {
-		s.log.Error("could not read this server's members for Portico Services", "error", err)
+		s.networkLog.Error("could not read this server's members for Portico Services", "error", err)
 		return next
 	}
 	s.link.mu.Lock()
@@ -289,7 +289,7 @@ func (s *Server) porticoStep(ctx context.Context) time.Time {
 	s.porticoProblem(failed)
 	if errors.Is(failed, hosted.ErrUnknownServer) {
 		if update(func(l *db.Link) { unknownServer(l, s.id, now) }) && link.Unlinked {
-			s.log.Warn("Portico Services has not known this server on three check-ins: its link has ended")
+			s.networkLog.Warn("Portico Services has not known this server on three check-ins: its link has ended")
 			return now
 		}
 		return sooner(next, time.Unix(link.CheckInAt, 0))
@@ -316,7 +316,7 @@ func (s *Server) porticoStep(ctx context.Context) time.Time {
 	}
 	if answer.Note != nil {
 		if _, err := s.applyNote(ctx, *answer.Note); err != nil {
-			s.log.Warn("the note in a check-in answer did not check out", "error", err)
+			s.networkLog.Warn("the note in a check-in answer did not check out", "error", err)
 		}
 	}
 	if answer.DocumentWanted {
@@ -355,7 +355,7 @@ func (s *Server) sendDocument(ctx context.Context, link *db.Link, doc hosted.Doc
 	}
 	if err == nil {
 		if err := s.db.MarkLeft(ctx, link.IssuedAt, stored.NotMembers, now); err != nil {
-			s.log.Error("could not mark the accounts Portico Services says have left", "error", err)
+			s.networkLog.Error("could not mark the accounts Portico Services says have left", "error", err)
 		}
 	}
 	return true
@@ -367,7 +367,7 @@ func (s *Server) sendDocument(ctx context.Context, link *db.Link, doc hosted.Doc
 func (s *Server) sendLeave(ctx context.Context, leave db.QueuedLeave, now time.Time) time.Time {
 	if now.Unix() >= leave.GiveUpAt {
 		if err := s.db.SaveLeave(ctx, leave, true, now); err != nil {
-			s.log.Error("could not drop the queued leave", "error", err)
+			s.networkLog.Error("could not drop the queued leave", "error", err)
 		}
 		return time.Time{}
 	}
@@ -379,7 +379,7 @@ func (s *Server) sendLeave(ctx context.Context, leave db.QueuedLeave, now time.T
 		leave.TryAt = now.Add(retryWait(schedule.ChangeRetry, &leave.Tries, err, s.link.random())).Unix()
 	}
 	if err := s.db.SaveLeave(ctx, leave, err == nil, now); err != nil {
-		s.log.Error("could not save the queued leave", "error", err)
+		s.networkLog.Error("could not save the queued leave", "error", err)
 	}
 	if err == nil {
 		return time.Time{}
@@ -569,14 +569,14 @@ func (s *Server) porticoProblem(err error) {
 		default:
 			s.link.setProblem(msgPorticoDetails)
 		}
-		s.log.Warn("Portico Services refused a request from this server", "status", refused.Status, "code", refused.Code, "answer", refused.Detail)
+		s.networkLog.Warn("Portico Services refused a request from this server", "status", refused.Status, "code", refused.Code, "answer", refused.Detail)
 	case errors.As(err, &busy):
 		s.link.setProblem(msgPorticoBusy)
 	case errors.As(err, &clock):
 		s.link.setProblem(msgPorticoClock)
 	default:
 		s.link.setProblem(msgPorticoUnreachable)
-		s.log.Warn("a call to Portico Services failed", "error", err)
+		s.networkLog.Warn("a call to Portico Services failed", "error", err)
 	}
 }
 

@@ -283,7 +283,7 @@ func (s *Server) keepCertificate(r *http.Request, link db.Link) {
 			l.Certificate, l.CertificateRevision = raw, held.Revision
 		}
 	}); err != nil && !errors.Is(err, db.ErrNoLink) {
-		s.log.Error("could not keep Portico Services' signing certificate", "error", err)
+		s.networkLog.Error("could not keep Portico Services' signing certificate", "error", err)
 	}
 }
 
