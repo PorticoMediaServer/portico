@@ -484,6 +484,7 @@ func (s *Server) libraryRoutes() {
 	Handle(s, "DELETE /v1/admin/libraries/{id}/scan", Owner, s.cancelScan).with(ScopeLibrary)
 	Handle(s, "GET /v1/admin/libraries/{id}/scan", Owner, s.scanStatus).with(ScopeLibrary)
 	Handle(s, "GET /v1/admin/libraries/{id}/skipped", Owner, s.skippedFiles)
+	s.skippedRoutes()
 	Handle(s, "GET /v1/admin/libraries/{id}/missing", Owner, s.missingTitles)
 	Handle(s, "DELETE /v1/admin/libraries/{id}/missing", Owner, s.emptyTrash)
 	Handle(s, "GET /v1/admin/items/{id}/deletion", Owner, s.previewItemDeletion)
