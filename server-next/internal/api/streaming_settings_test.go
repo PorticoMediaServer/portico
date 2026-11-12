@@ -66,7 +66,7 @@ func TestUploadSpeedAndTheAwayLimit(t *testing.T) {
 	if held := th.s.playback.UploadHeld(); held.Narrowed != 2 || held.Refused != 1 {
 		t.Fatalf("the upload speed is holding back %+v, want 2 narrowed and 1 refused", held)
 	}
-	th.clock = th.clock.Add(6 * time.Minute)
+	th.clock.Add(6 * time.Minute)
 	if held := th.s.playback.UploadHeld(); held.Narrowed != 2 || held.Refused != 0 {
 		t.Fatalf("six minutes on the upload speed is holding back %+v, want 2 narrowed and no refusal", held)
 	}
