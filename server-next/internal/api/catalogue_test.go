@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -215,7 +216,7 @@ func TestStateAndEvents(t *testing.T) {
 	stream := httptest.NewServer(s)
 	defer stream.Close() // after cancel: an open feed ends when its reader goes away
 	defer cancel()
-	feed := func(query string) func(want string) {
+	feed := func(query string) func(want string) string {
 		request, _ := http.NewRequestWithContext(ctx, "GET", stream.URL+"/v1/events"+query, nil)
 		request.Header.Set("Authorization", "Bearer "+token)
 		response, err := http.DefaultClient.Do(request)
@@ -230,13 +231,13 @@ func TestStateAndEvents(t *testing.T) {
 			}
 			lines <- "<closed>"
 		}()
-		return func(want string) {
+		return func(want string) string {
 			t.Helper()
 			for {
 				select {
 				case line := <-lines:
 					if strings.Contains(line, want) {
-						return
+						return line
 					}
 				case <-time.After(5 * time.Second):
 					t.Fatalf("the feed did not say %q", want)
@@ -245,7 +246,11 @@ func TestStateAndEvents(t *testing.T) {
 		}
 	}
 	expect := feed("")
+	cursor := strings.TrimPrefix(expect("id: "), "id: ")
 	expect("event: ready")
+	// A reconnect with its cursor hears from the server at once, not at the first heartbeat
+	// twenty seconds later: apps count a stream silent for ten seconds as broken.
+	feed("?cursor=" + url.QueryEscape(cursor))(": connected")
 
 	var state StateReply
 	if w := call(t, s, "PUT", "/v1/items/"+film.ID+"/state", token, map[string]any{"positionMs": 90_000}, &state); w.Code != 200 || state.PositionMs != 90_000 {

@@ -511,6 +511,9 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, route *Route) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Accel-Buffering", "no")
 	flusher, _ := w.(http.Flusher)
+	// Something at once on every connect, a reconnect with a cursor included: apps count a stream
+	// that says nothing for ten seconds as broken, and the first heartbeat is twenty away.
+	fmt.Fprint(w, ": connected\n\n")
 	send := func(id int64, event string, data any) {
 		raw, _ := json.Marshal(data)
 		fmt.Fprintf(w, "id: %s\nevent: %s\ndata: %s\n\n", feedCursor(id, live), event, raw)
