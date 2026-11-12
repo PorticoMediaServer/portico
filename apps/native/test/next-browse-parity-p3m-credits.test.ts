@@ -8,22 +8,23 @@ import {standardHomeApp} from './helpers/standard-home-app-harness.mjs';
 
 const film = (id: string): ContentEntry => ({id, kind: 'movie', libraryId: 'films', title: id, navigation: {view: 'item', entityId: id}});
 const show = (id: string): ContentEntry => ({id, kind: 'show', libraryId: 'shows', title: id, navigation: {view: 'item', entityId: id}});
-const groups = [{id: 'department:Directing', department: 'Directing', total: 3}, {id: 'department:Production', department: 'Production', total: 2}];
-// The server answers a department request with only that department's credits and total, as the person read does.
+const facts = {id: 'person-without-library', name: 'Stored Person', biography: 'Actual biography', images: {}, titleCount: 5, crewTitleCount: 5,
+  roles: [{role: 'director', titleCount: 3}, {role: 'producer', titleCount: 2}]};
 function answer(path: string) {
-  const department = new URL(path, 'https://fixture.invalid').searchParams.get('department');
-  const credits = department === 'Production' ? [show('series-1'), show('series-2')] : department === 'Directing' ? [film('movie-1'), film('movie-2'), film('movie-3')] : [film('movie-1'), film('movie-2'), film('movie-3'), show('series-1'), show('series-2')];
-  return {viewerFence: 'Person-own-fence', revision: {catalog: 12, viewer: 7},
-    person: {id: 'person-without-library', name: 'Stored Person', revision: 3, biography: 'Actual biography', knownFor: [film('known-film')]}, groups,
-    credits: credits.map(media => ({media, creditKind: 'crew', role: 'Director'})), pageInfo: {total: credits.length, nextCursor: ''}};
+  const role = new URL(path, 'https://fixture.invalid').searchParams.get('role');
+  const items = [...[film('movie-1'), film('movie-2'), film('movie-3')].map(media => ({...media, credits: [{personId: facts.id, name: facts.name, role: 'director'}]})),
+    ...[show('series-1'), show('series-2')].map(media => ({...media, credits: [{personId: facts.id, name: facts.name, role: 'producer'}]}))]
+    .filter(item => !role || item.credits[0].role === role);
+  return {items, total: items.length};
 }
 
 test('a department window reads only that department of the arrived person page, with its own total', async () => {
   const reads: string[] = [];
   const app = await standardHomeApp({mountUI: false, nativeResponse: async (request: {path: string}, f: {pin: {serverId: string}}) => {
-    if (!request.path.startsWith('/v1/people/')) return;
+    if (request.path.startsWith('/v1/people/')) return {status: 200, body: facts};
+    if (!request.path.startsWith('/v1/items?person=')) return;
     reads.push(request.path);
-    return {status: 200, body: {...answer(request.path), serverId: f.pin.serverId}};
+    return {status: 200, body: answer(request.path)};
   }});
   let runtime: RestoredNativeShellRuntime | undefined, source: ReturnType<typeof createNativePersonController> | undefined;
   const windows: ReturnType<typeof createNativePersonCreditWindow>[] = [];
@@ -50,8 +51,8 @@ test('a department window reads only that department of the arrived person page,
         window.collection.subscribePage(0, done); window.collection.ensureRange(0, 4); done();
       });
     }
-    const departments = reads.slice(1).map(path => new URL(path, 'https://fixture.invalid').searchParams.get('department'));
-    assert.deepEqual(departments.sort(), ['Directing', 'Production'], 'one department-scoped read per row; the seeded all-credits page is not reused');
+    const departments = reads.slice(1).map(path => new URL(path, 'https://fixture.invalid').searchParams.get('role'));
+    assert.deepEqual(departments.sort(), ['director', 'producer'], 'one department-scoped read per row; the seeded all-credits page is not reused');
     assert.equal(movies!.collection.getSnapshot().total, 3);
     assert.equal(shows!.collection.getSnapshot().total, 2);
     assert.deepEqual([0, 1, 2].map(index => movies!.collection.itemAt(index)?.media.id), ['movie-1', 'movie-2', 'movie-3']);
@@ -68,9 +69,10 @@ test('a department window reads only that department of the arrived person page,
 test('on TV a re-read of all credits reads each department first page with it, and its window holds it from the start', async () => {
   const reads: string[] = [];
   const app = await standardHomeApp({mountUI: false, nativeResponse: async (request: {path: string}, f: {pin: {serverId: string}}) => {
-    if (!request.path.startsWith('/v1/people/')) return;
+    if (request.path.startsWith('/v1/people/')) return {status: 200, body: facts};
+    if (!request.path.startsWith('/v1/items?person=')) return;
     reads.push(request.path);
-    return {status: 200, body: {...answer(request.path), serverId: f.pin.serverId}};
+    return {status: 200, body: answer(request.path)};
   }});
   let runtime: RestoredNativeShellRuntime | undefined, source: ReturnType<typeof createNativePersonController> | undefined;
   const windows: ReturnType<typeof createNativePersonCreditWindow>[] = [];
@@ -88,9 +90,9 @@ test('on TV a re-read of all credits reads each department first page with it, a
     assert.equal(source.getSnapshot().departmentPages, undefined, 'the first read is the page alone (each row reads its own)');
     assert.equal(await source.reread(), true);
     const snapshot = source.getSnapshot(), pages = snapshot.departmentPages!;
-    assert.deepEqual([...pages.keys()].sort(), ['department:Directing', 'department:Production']);
-    const departments = reads.slice(1).map(path => new URL(path, 'https://fixture.invalid').searchParams.get('department'));
-    assert.deepEqual(departments, [null, 'Directing', 'Production'], 'the page, then one read per department');
+    assert.deepEqual([...pages.keys()].sort(), ['role:director', 'role:producer']);
+    const departments = reads.slice(1).map(path => new URL(path, 'https://fixture.invalid').searchParams.get('role'));
+    assert.deepEqual(departments, [null, 'director', 'producer'], 'the page, then one read per department');
     const before = reads.length;
     for (const group of personDepartments(snapshot.page)) windows.push(createNativePersonCreditWindow(context, route, source, {...group, first: pages.get(group.id)}));
     const [movies, shows] = windows;
@@ -121,9 +123,10 @@ test('Filters apply to every department row: Cast keeps the acting row, Crew the
 test('a department page whose total is not the department total never seeds its window (a server that ignored department)', async () => {
   const reads: string[] = [];
   const app = await standardHomeApp({mountUI: false, nativeResponse: async (request: {path: string}, f: {pin: {serverId: string}}) => {
-    if (!request.path.startsWith('/v1/people/')) return;
+    if (request.path.startsWith('/v1/people/')) return {status: 200, body: facts};
+    if (!request.path.startsWith('/v1/items?person=')) return;
     reads.push(request.path);
-    return {status: 200, body: {...answer(request.path), serverId: f.pin.serverId}};
+    return {status: 200, body: answer(request.path)};
   }});
   let runtime: RestoredNativeShellRuntime | undefined, source: ReturnType<typeof createNativePersonController> | undefined, window: ReturnType<typeof createNativePersonCreditWindow> | undefined;
   try {
@@ -146,7 +149,7 @@ test('a department page whose total is not the department total never seeds its 
       window!.collection.subscribePage(0, done); window!.collection.ensureRange(0, 4); done();
     });
     assert.deepEqual([0, 1, 2].map(index => window!.collection.itemAt(index)?.media.id), ['movie-1', 'movie-2', 'movie-3'], 'its own department page');
-    assert.equal(new URL(reads.at(-1)!, 'https://fixture.invalid').searchParams.get('department'), 'Directing');
+    assert.equal(new URL(reads.at(-1)!, 'https://fixture.invalid').searchParams.get('role'), 'director');
   } finally {
     window?.dispose(); source?.dispose(); runtime?.dispose(); await app.unmount(); app.disposeLoader();
   }

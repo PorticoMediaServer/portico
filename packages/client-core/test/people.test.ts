@@ -2,6 +2,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {parsePersonPage,parsePeopleDirectory,personPath,peopleSearchPath,personPortraitPath,readPerson} from '../src/people.ts';
 import {personalBatchBody,parsePersonalBatchReceipt,parseEntryOutcomes,MAX_PERSONAL_BATCH} from '../src/personal-saved.ts';
 import {savedListPath,personalHistoryPath} from '../src/saved.ts';
+import {skippedParts} from '../src/tolerant.ts';
 const scope={serverId:'server',viewerId:JSON.stringify(['local','account','profile'])};
 const media=(id:string)=>({id,libraryId:'library',kind:'movie',title:'Film '+id,navigation:{view:'item',entityId:id}});
 const person=(patch:any={})=>({id:'person-1',name:'Ada Lovelace',sortName:'ada lovelace',biography:'',birthDate:'',deathDate:'',portraitUrl:'/v1/people/person-1/portrait?size=thumbnail&v=abc',roles:['Acting'],knownFor:[media('a')],providerIds:{tmdb:'42'},revision:1,...patch});
@@ -34,8 +35,8 @@ test('known-for and credit pages stay bounded and consistent with pageInfo',()=>
  assert.throws(()=>parsePersonPage(page({credits:Array.from({length:41},(_,i)=>({media:media('c'+i),role:'r',character:'c',department:'Acting',creditKind:'cast'}))}),scope,{limit:40,personId:'person-1'}));
  assert.throws(()=>parsePersonPage(page({pageInfo:{total:1,nextCursor:7}}),scope,{limit:40,personId:'person-1'}));
  assert.equal(parsePersonPage(page({pageInfo:{total:0,nextCursor:''}}),scope,{limit:40,personId:'person-1'}).pageInfo.total,1);
- // A continuation on a page the server did not fill would skip rows.
- assert.throws(()=>parsePersonPage(page({pageInfo:{total:9,nextCursor:'next'}}),scope,{limit:40,personId:'person-1'}));
+ // A shorter page can continue: the cursor is opaque and unreadable cards may be omitted.
+ assert.equal(parsePersonPage(page({pageInfo:{total:9,nextCursor:'next'}}),scope,{limit:40,personId:'person-1'}).pageInfo.nextCursor,'next');
  const full=parsePersonPage(page({credits:[{media:media('a'),role:'r',character:'r',department:'Acting',creditKind:'cast'}],pageInfo:{total:9,nextCursor:'next'}}),scope,{limit:1,personId:'person-1'});
  assert.equal(full.pageInfo.nextCursor,'next');
 });
@@ -47,7 +48,11 @@ test('people directory keeps the people it can read and refuses foreign servers'
  assert.throws(()=>parsePeopleDirectory({serverId:'other',viewerFence:'fence',revision:{catalog:1,viewer:0},q:'ada',people:[]},scope,25));
 });
 test('person paths are server addresses the client only assembles',()=>{
- assert.equal(personPath('p 1',{role:'cast',limit:10}),'/v1/people/p%201?limit=10&role=cast');
+ assert.equal(personPath('p 1',{role:'cast',limit:10}),'/v1/items?person=p+1&limit=10&total=true&creditGroup=acting');
+ assert.match(personPath('p1',{role:'crew'}),/creditGroup=crew/);
+ assert.match(personPath('p1',{department:'Cast'}),/role=guest/);
+ assert.match(personPath('p1',{department:'Directing'}),/role=director/);
+ assert.match(personPath('p1',{department:'Crew'}),/role=crew/);
  assert.equal(personPortraitPath('p1'),'/v1/people/p1/portrait?size=thumbnail');
  assert.match(peopleSearchPath('  Ada   Lovelace '),/^\/v1\/people\?q=Ada\+Lovelace&limit=25$/);
  assert.throws(()=>personPath('p1',{limit:101}));
@@ -55,10 +60,34 @@ test('person paths are server addresses the client only assembles',()=>{
  assert.throws(()=>peopleSearchPath('   '));
 });
 test('readPerson requests exactly what it validates',async()=>{
- let requested='';
- const parsed=await readPerson({request:async<T>(path:string)=>{requested=path;return page() as T;}},scope,'person-1',{limit:40});
- assert.equal(requested,'/v1/people/person-1?limit=40');
- assert.equal(parsed.credits.length,1);
+ const paths:string[]=[];
+ const facts={id:'person-1',name:'Ada',biography:'A biography',birthplace:'London',images:{portrait:'/v1/images/portrait'},titleCount:3,crewTitleCount:2,
+  roles:[{role:'actor',titleCount:1},{role:'guest',titleCount:1},{role:'director',titleCount:1},{role:'crew',titleCount:1}]};
+ const credit=(role:string,character?:string)=>({personId:'person-1',name:'Ada',role,character});
+ const films=[{id:'mixed',kind:'movie',title:'Mixed',credits:[credit('actor','Ada'),credit('director'),{personId:'someone-else',name:'Other actor',role:'actor'}]},
+  {id:'guest',kind:'episode',title:'Visit',credits:[credit('guest','Visitor')]},{id:'crew',kind:'movie',title:'Crew',credits:[credit('crew')]}];
+ const api={request:async<T>(path:string)=>{
+  paths.push(path);if(path.startsWith('/v1/people/'))return facts as T;
+  const q=new URL(path,'https://fixture.invalid').searchParams;
+  const items=q.get('creditGroup')==='acting'?films.slice(0,2):q.get('creditGroup')==='crew'?[films[0],films[2]]:q.get('role')==='guest'?[films[1]]:films;
+  return {items,total:items.length} as T;
+ }};
+ const before=skippedParts();
+ const parsed=await readPerson(api,scope,'person-1',{limit:40});
+ assert.deepEqual(skippedParts(),before,'another person’s readable credit is ignored quietly');
+ assert.deepEqual(paths,['/v1/people/person-1','/v1/items?person=person-1&limit=40&total=true']);
+ assert.equal(parsed.person.birthPlace,'London');assert.equal(parsed.person.portraitUrl,'/v1/images/portrait');
+ assert.deepEqual(parsed.person.knownFor,[]);assert.deepEqual(parsed.credits.map(c=>c.media.id),['mixed','guest','crew']);
+ assert.deepEqual(parsed.credits[0].roles,[{role:'Ada',department:'Acting'},{role:'Director',department:'Directing'}]);
+ assert.equal(parsed.credits[1].creditKind,'cast');assert.equal(parsed.credits[1].character,'Visitor');
+ assert.deepEqual(parsed.groups.map(g=>[g.department,g.total]),[['Acting',1],['Cast',1],['Directing',1],['Crew',1]]);
+ assert.deepEqual((await readPerson(api,scope,'person-1',{role:'cast'})).credits.map(c=>c.media.id),['mixed','guest']);
+ const crew=await readPerson(api,scope,'person-1',{role:'crew'});
+ assert.equal(crew.pageInfo.total,2);assert.equal(crew.credits[0].role,'Director');assert.equal(crew.credits[0].character,'');
+ assert.equal(crew.credits[0].roles.length,2,'every role stays under its title');
+ assert.deepEqual((await readPerson(api,scope,'person-1',{department:'Cast'})).credits.map(c=>c.media.id),['guest']);
+ const changed={request:async<T>(path:string)=>{if(path.startsWith('/v1/people/'))return facts as T;throw Object.assign(new Error('changed'),{code:'cursor_expired'});}};
+ await assert.rejects(readPerson(changed,scope,'person-1',{cursor:'old'}),{code:'invalid_cursor'});
 });
 test('a bulk personal intent is one bounded request answered row by row',()=>{
  const body=personalBatchBody('op-1',[{itemId:'a',watchlisted:true},{itemId:'b',watched:true,favorite:true}]);
