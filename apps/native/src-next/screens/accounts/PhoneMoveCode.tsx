@@ -14,8 +14,7 @@ import type {NativeMemberAccountMove} from '../../platform/member-account-move';
 
 type FormTicket = {live: boolean; scope: object; scan?: AbortController};
 
-/** Connect44b/c. The canonical code is a 43-character secret, not the short
- * illustrative frame data. The verified operation owns preview and redemption. */
+/** Connect44b/c. The verified operation checks the owner’s move code and owns redemption. */
 export function PhoneMoveCode<Result>({controller, onBack, isCurrent}: {
   controller: NativeMemberAccountMove<Result>; onBack: () => void;
   /** Captured member controller and its original verified operation, never a successor. */

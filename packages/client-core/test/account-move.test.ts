@@ -36,10 +36,11 @@ test('old-password proof is only an opaque bounded ticket; code preview exposes 
  assert.throws(()=>parseAccountMoveCodes({items:[{accountId:'a',username:'alice',code,expiresAt:until},{accountId:'a',username:'alice',code,expiresAt:until}]}));
 });
 test('duplicate mutation and offline failure grant nothing; the client never retries a spent operation',async()=>{
+ const {setInstallationIdentity}=await import('../src/installation.ts');setInstallationIdentity({installationId:'i'.repeat(43),name:'Test browser',platform:'web',app:'portico',appVersion:'1'});
  let fail!:(e:unknown)=>void,calls=0;const f=fixture();
  const client=new MemberAccountMoveClient({request:()=>{calls++;return new Promise((_resolve,reject)=>{fail=reject;}) as any;}},f.options);
  const first=client.redeemLocal(code,'alice','new password');await assert.rejects(client.redeemLocal(code,'alice','new password'),{code:'move_request_in_progress'});
- fail(new Error('offline'));await assert.rejects(first);assert.equal(calls,1);assert.deepEqual(f.retired,[]);client.dispose();
+ fail(new Error('offline'));await assert.rejects(first);assert.equal(calls,1);assert.deepEqual(f.retired,[]);client.dispose();setInstallationIdentity(undefined);
 });
 test('link fragments are scrubbed synchronously, exact and memory-only',()=>{
  const kept:string[]=[];const history={replaceState:(_a:unknown,_b:string,url?:string|URL|null)=>{kept.push(String(url));}};
@@ -104,4 +105,27 @@ test('a move ticket, preview and codes are never refused by this device\'s clock
    assert.equal(parseAccountMoveCodes({items:[{accountId:'a',username:'alice',code,expiresAt:soon}]})[0].expiresAt,soon);
   }
  }finally{Date.now=real;}
+});
+test('on the rebuilt server a member\'s move code is checked with POST /v1/auth/move/check, and a move to local sign-in finishes with /move/complete',async()=>{
+ const {setInstallationIdentity}=await import('../src/installation.ts');
+ setInstallationIdentity({installationId:'i'.repeat(43),name:'Test browser',platform:'web',app:'portico',appVersion:'1'});
+ try{
+  const f=fixture({username:'alice',next:'choose_password'});
+  const client=new MemberAccountMoveClient(f.api,f.options);
+  assert.deepEqual(await client.previewCode('K7QP-2MXD-9HRT'),{username:'alice',signIn:'local'});
+  assert.deepEqual(f.calls.at(-1),{path:'/v1/auth/move/check',method:'POST',body:{code:'K7QP-2MXD-9HRT'}});
+  f.set({username:'alice',next:'portico_account'});
+  assert.equal((await client.previewCode('k7qp2mxd9hrt')).signIn,'portico','typed without dashes, in lower case');
+  assert.throws(()=>client.previewCode('K7QP-2MXD'),{code:'invalid_account_move'},'an incomplete code is not sent');
+  // The rebuilt server's sign-in answer (server-next SignInResponse).
+  const later=(minutes:number)=>new Date(Date.now()+minutes*60000).toISOString();
+  f.set({session:{accessToken:'access',expiresAt:later(15),sessionId:'ses_1',tokenGeneration:'1',sessionExpiresAt:later(60*24*90),deviceId:'dev_1',installationId:'i'.repeat(43),refreshToken:'refresh_token_0000000001',viewer:{accountId:'acct',serverId:'server',role:'account'}},
+   account:{id:'acct',username:'alice',role:'member'},profiles:[{id:'main',name:'Alice',color:'blue',isPrimary:true,pinRequired:true}]});
+  await client.redeemLocal('K7QP-2MXD-9HRT','alice','ordinary-new-password');
+  const sent=f.calls.at(-1)!;
+  assert.equal(sent.path,'/v1/auth/move/complete');
+  assert.deepEqual({...sent.body,device:undefined},{code:'K7QP-2MXD-9HRT',username:'alice',password:'ordinary-new-password',device:undefined});
+  assert.equal(sent.body.device.installationId,'i'.repeat(43));
+  client.dispose();
+ }finally{setInstallationIdentity(undefined);}
 });

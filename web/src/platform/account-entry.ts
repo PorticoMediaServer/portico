@@ -472,7 +472,8 @@ export class BrowserAccountEntry {
   const op=this.operation();this.publish({...state,busy:true,error:undefined});
   const client=new MemberAccountMoveClient(api,{serverId:state.server.id,isCurrent:op.current,retireLateGrant:session=>this.retire(api,session)});
   try{
-   if(Date.parse(proof.preview.expiresAt)<=serverNow())throw new CodedError('move_code_invalid','The move code expired.');
+   // The rebuilt server keeps a code's expiry to itself and refuses an expired one.
+   if(proof.preview.expiresAt!==undefined&&Date.parse(proof.preview.expiresAt)<=serverNow())throw new CodedError('move_code_invalid','The move code expired.');
    if((await this.ports.store.read()).revision!==proof.revision)throw new CodedError('cancelled','The server selection changed.');
    if(!op.current())return;
    const result=await client.redeemLocal(proof.code,username,password,op.signal);

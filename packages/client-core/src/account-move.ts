@@ -3,7 +3,7 @@ import {routeBody} from '../../contracts/src/routes.ts';
 import {routePath, encodedRoutePath, type RouteRequest} from '../../contracts/src/route-paths.ts';
 import {CodedError,unreadableServerResponse} from './server-messages.ts';
 import {currentUTCTimestamp} from './local-session.ts';
-import {parseDirectSignIn,type DirectSignIn,type ProfileAPI,type ManagementCapabilities} from './profile-management.ts';
+import {parseDirectSignIn,signInDevice,type DirectSignIn,type ProfileAPI,type ManagementCapabilities} from './profile-management.ts';
 import type {LocalSession} from './index.ts';
 import type {SignInKind} from './app-sessions.ts';
 import {identityCode,routeOrigin} from './route-identity.ts';
@@ -11,7 +11,8 @@ import {identityCode,routeOrigin} from './route-identity.ts';
 export type MoveDirection='to_portico'|'to_local';
 export type AccountMove=Readonly<{id:string;from:SignInKind;to:SignInKind;startOver:boolean;stage:'preview'|'moving_to_portico'|'moving_to_local'|'complete'|'cancelled';revision:number;people:number;profiles:number;invitations:number;waiting:number;retainedProfiles?:number;removedProfiles?:number;serverName:string;ownAddressRequired:boolean;devices?:number}>;
 export type MovePasswordTicket=Readonly<{ticket:string;expiresAt:string}>;
-export type MoveCodePreview=Readonly<{username:string;signIn:SignInKind;expiresAt:string}>;
+/** Who a move code is for, and which way the server is moving. The rebuilt server keeps the code's expiry to itself. */
+export type MoveCodePreview=Readonly<{username:string;signIn:SignInKind;expiresAt?:string}>;
 export type AccountMoveCode=Readonly<{accountId:string;username:string;code:string;expiresAt:string;serverId?:string}>;
 export type AccountMoveConfirmation=Readonly<{kind:'local';signIn:DirectSignIn}|{kind:'portico';move:AccountMove}>;
 export type MoveCredential=Readonly<{ticket:string;code?:never}|{code:string;ticket?:never}>;
@@ -27,6 +28,13 @@ const obj=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Ar
 const text=(v:unknown,max=256):v is string=>typeof v==='string'&&v.length>0&&v.length<=max&&!/[\p{Cc}\p{Cf}]/u.test(v);
 const count=(v:unknown):v is number=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=0;
 const secret=(v:unknown):v is string=>typeof v==='string'&&/^[A-Za-z0-9_-]{43}$/.test(v);
+/** A move code as the rebuilt server makes it: twelve letters and digits, typed with or without its dashes (K7QP-2MXD-9HRT). */
+const moveCode=(v:unknown):v is string=>typeof v==='string'&&(/^[A-Za-z0-9]{12}$/.test(v.replace(/[-\s]/g,''))||secret(v));
+/** `POST /v1/auth/move/check`: the person a proof names, and what they do next. */
+function parseMoveCheck(raw:unknown):MoveCodePreview{
+ if(!obj(raw)||!text(raw.username,64)||!['choose_password','portico_account'].includes(String(raw.next)))invalid();
+ return Object.freeze({username:raw.username,signIn:raw.next==='portico_account'?'portico':'local'});
+}
 function invalid():never{throw new CodedError('invalid_account_move',unreadableServerResponse);}
 function ended():never{throw new CodedError('cancelled','This account move request ended.');}
 // No client-clock requirements: an expiry is the server's to enforce; this device's clock never bounds it.
@@ -92,7 +100,7 @@ export type MoveCodeLink=Readonly<{code:string;id?:string}>;
 export function consumeAccountMoveFragment(location:Pick<Location,'pathname'|'search'|'hash'>,history:Pick<History,'replaceState'>):MoveCodeLink|undefined{
  const raw=location.hash,search=location.search,path=location.pathname;history.replaceState(null,'',path);if(search)invalid();if(!raw)return;
  const params=new URLSearchParams(raw.slice(1)),code=params.get('code'),id=params.get('id');
- if(!secret(code)||params.getAll('code').length!==1||params.getAll('id').length>1||[...params.keys()].some(key=>!['code','id'].includes(key)))invalid();
+ if(!moveCode(code)||params.getAll('code').length!==1||params.getAll('id').length>1||[...params.keys()].some(key=>!['code','id'].includes(key)))invalid();
  if(id!==null){try{identityCode(id);}catch{invalid();}}
  return Object.freeze({code,...(id===null?{}:{id})});
 }
@@ -102,7 +110,7 @@ export function consumeMoveCodeFragment(location:Pick<Location,'pathname'|'searc
  const link=consumeAccountMoveFragment(location,history);if(link?.id!==undefined)invalid();return link?.code;
 }
 export function accountMoveLink(serverOrigin:string,code:string,serverId?:string):string{
- if(!secret(code))invalid();if(serverId!==undefined){try{identityCode(serverId);}catch{invalid();}}
+ if(!moveCode(code))invalid();if(serverId!==undefined){try{identityCode(serverId);}catch{invalid();}}
  return new URL('/sign-in#code='+code+(serverId===undefined?'':'&id='+serverId),routeOrigin(serverOrigin)).href;
 }
 
@@ -135,8 +143,10 @@ class MoveTransport {
 }
 export class MemberAccountMoveClient extends MoveTransport {
  password(username:string,password:string,signal?:AbortSignal){if(!text(username,64)||!text(password,72))invalid();return this.call(routePath('post_auth_move_password'),'POST',routeBody('post_auth_move_password',{username,password}),parseMovePasswordTicket,signal);}
- previewCode(code:string,signal?:AbortSignal){if(!secret(code))invalid();return this.call(routePath('post_auth_move_code'),'POST',routeBody('post_auth_move_code',{code}),parseMoveCodePreview,signal);}
- redeemLocal(code:string,username:string,password:string,signal?:AbortSignal){if(!secret(code)||!text(username,64)||!text(password,72))invalid();return this.call(routePath('post_auth_move_local'),'POST',routeBody('post_auth_move_local',{code,username,password}),raw=>this.grant(raw),signal,value=>value);}
+ /** The rebuilt server's check of the owner's move code (`server-next/API.md`, `POST /v1/auth/move/check`). */
+ previewCode(code:string,signal?:AbortSignal){if(!moveCode(code))invalid();return this.call('/v1/auth/move/check','POST',{code},parseMoveCheck,signal);}
+ /** Finishes a move to local sign-in with the code and the username and password chosen (`POST /v1/auth/move/complete`); the answer is the sign-in. */
+ redeemLocal(code:string,username:string,password:string,signal?:AbortSignal){if(!moveCode(code)||!text(username,64)||!text(password,72))invalid();return this.call('/v1/auth/move/complete','POST',{code,username,password,device:signInDevice()},raw=>this.grant(raw),signal,value=>value);}
  redeemPortico(proof:MoveCredential,porticoIdentity:RouteRequest<'post_auth_move_portico'>['porticoIdentity'],signal?:AbortSignal){
   if(!obj(proof)||(secret(proof.code)?proof.ticket!==undefined:!secret(proof.ticket)||proof.code!==undefined))invalid();
   return this.call(routePath('post_auth_move_portico'),'POST',routeBody('post_auth_move_portico',{...proof,porticoIdentity}),raw=>this.grant(raw),signal,value=>value);
