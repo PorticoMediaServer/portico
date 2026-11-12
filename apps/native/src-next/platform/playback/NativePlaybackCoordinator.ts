@@ -280,7 +280,7 @@ export class NativePlaybackCoordinator {
       connectionState:this.connected()?'ready':'verifying',
       routeRevision:this.routeRevision,
       paused:
-        !this.connected() || state.intent === 'paused' ||
+        state.intent === 'paused' ||
         state.phase === 'error' ||
         state.phase === 'ended' ||
         !!state.failedSeek || !!state.seekError,
@@ -382,7 +382,7 @@ export class NativePlaybackCoordinator {
     const native=!!this.service.getSnapshot().nativeListening;
     if(native&&!(typeof f?.type==='string'&&(['audioMapped','audioObserved','audioApplied','audioFailed','subtitleStatus'].includes(f.type))))return;
     if (
-      !this.active || !this.connected() ||
+      !this.active ||
       !this.lease ||
       !this.binding ||
       !f?.binding ||

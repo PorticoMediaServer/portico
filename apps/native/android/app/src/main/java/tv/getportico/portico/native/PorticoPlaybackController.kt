@@ -362,6 +362,7 @@ internal class PorticoPlaybackController(private val context: Context) {
   private fun apply(next: Map<String, Any?>) {
     val sameBinding = command?.get("binding") == next["binding"]
     val verifying = next["connectionState"] == "verifying"
+    val retrySource = command?.get("connectionState") == "verifying" && player?.playerError != null
     val nextId = number((next["binding"] as Map<*, *>)["intentId"])!!.toLong()
     val nextSource = next["source"] as String
     val policy = (next["passthrough"] as? Map<*, *>)?.let { PorticoPassthroughPolicy.read(it) } ?: passthroughPolicy
@@ -374,7 +375,7 @@ internal class PorticoPlaybackController(private val context: Context) {
     val retainedAudio = if (sameBinding && !changed && outputChanged && !verifying && nextSource.startsWith("file://"))
         localAudioSelection.retain(localAudio) else null
     // A transport rebind is not a new playback intent or a seek: keep the position it had.
-    if (sameBinding && (verifying || changed || outputChanged) && !routeResume && !routeSuspended) {
+    if (sameBinding && !verifying && (retrySource || changed || outputChanged) && !routeResume && !routeSuspended) {
       val position = if (routeFailed) routePosition else sourcePosition()
       if (position.isFinite() && (timelineOriginMs != null || position >= 0)) { routePosition = position; routeResume = true; routeFailed = false; routeEpoch++ }
     }
@@ -383,6 +384,11 @@ internal class PorticoPlaybackController(private val context: Context) {
     clearDisabledFrameRate()
     desiredPaused = next["paused"] as Boolean
     if (verifying) {
+      // Keep the accepted media and its buffer while the control route is checked.
+      if (sameBinding && !changed && player?.currentMediaItem != null) {
+        applyPendingSeek(); applyIntent(); startTicking()
+        return
+      }
       if (!routeSuspended) { subtitles.invalidate(); audioSelection.invalidate(); unload(); routeSeeking = false; seeking = false; seekWait = null }
       routeSuspended = true
       return
@@ -391,8 +397,8 @@ internal class PorticoPlaybackController(private val context: Context) {
     @Suppress("UNCHECKED_CAST") val plan = render?.get("plan") as? Map<String, Any?>
     // After a gapless or crossfaded edge the engine already plays the next plan: the new binding is
     // adopted without touching the sound.
-    val adopted = plan != null && plan["id"] == enginePlan && !routeSuspended && !outputChanged && player?.currentMediaItem != null
-    val reload = outputChanged || if (plan != null) !adopted else (routeSuspended || nextId != intentId || changed || player?.currentMediaItem == null || enginePlan != null)
+    val adopted = plan != null && plan["id"] == enginePlan && !retrySource && !routeSuspended && !outputChanged && player?.currentMediaItem != null
+    val reload = outputChanged || if (plan != null) !adopted else (retrySource || routeSuspended || nextId != intentId || changed || player?.currentMediaItem == null || enginePlan != null)
     routeSuspended = false
     if (adopted && (nextId != intentId || changed)) {
       intentId = nextId
@@ -1355,7 +1361,7 @@ internal class PorticoPlaybackController(private val context: Context) {
     next["source"] = listeningOrigin + (media["streamUrl"] as String)
     next["connectionState"] = if (listeningRouteReady) "ready" else "verifying"
     next["routeRevision"] = listeningRouteRevision.toDouble()
-    next["paused"] = !listeningRouteReady || !listeningAllowed || desired["state"] != "playing"
+    next["paused"] = !listeningAllowed || desired["state"] != "playing"
     next["rate"] = number(desired["rate"]) ?: 1.0
     next["timelineOriginMs"] = null
     next["pendingSeek"] = listeningSeek
