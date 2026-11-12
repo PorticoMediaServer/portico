@@ -2474,7 +2474,7 @@
       "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
     },
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-1",
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/2965#issuecomment-6818216918",
     "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
     "dependencyReviewUrls": [
       "https://github.com/PorticoMediaServer/portico/pull/1005",
@@ -2501,7 +2501,7 @@
       "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
     },
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-1",
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/2965#issuecomment-6818216918",
     "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
     "dependencyReviewUrls": [
       "https://github.com/PorticoMediaServer/portico/pull/1005",
@@ -2528,7 +2528,7 @@
       "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
     },
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-1",
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/2965#issuecomment-6818216918",
     "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
     "dependencyReviewUrls": [
       "https://github.com/PorticoMediaServer/portico/pull/1005",
@@ -2663,7 +2663,7 @@
       "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
     },
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-1",
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/2965#issuecomment-6818216918",
     "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
     "dependencyReviewUrls": [
       "https://github.com/PorticoMediaServer/portico/pull/1005",
@@ -2690,7 +2690,7 @@
       "packages/client-core/src/media-sources.ts": "bc0ea98883b94f7b7d77ba241dbe278f1bf46df70de6709cd4da92546f95bb29"
     },
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-1",
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/2965#issuecomment-6818216918",
     "condition": "Exact count-one canonical native function; only core-supplied operations/capabilities reach it. Preserve the reviewed URL/method/header/auth/body, validation, bounds, byte conversions, cancellation, redirect/privacy, admission and deadline policy. All six native helper/source files match the #1010 packet byte-for-byte. Caller ownership extractions already on main (#1005/#1015) are bound with their current adapter files and core destinations; no native policy changes.",
     "dependencyReviewUrls": [
       "https://github.com/PorticoMediaServer/portico/pull/1005",
