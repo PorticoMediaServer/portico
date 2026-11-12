@@ -48,7 +48,7 @@ export function NativeServerOfflineNoticeRow({context, runtime, lifetime}: {cont
       try {
         const session = credentials.getSnapshot().session;
         if (!session || !current()) throw Object.assign(new Error('native_account_changed'), {code: 'account_changed'});
-        return await (write ? nativeAccountWork : nativeAccountRead)(credentials, live => work(createHostedNotificationClient(credentials, live, nativeNetworkFetch, request.signal), request.signal), // query-read: kept (a Portico Account preference over the hosted API, not a server document in the viewer's cache)
+        return await (write ? nativeAccountWork : nativeAccountRead)(credentials, live => work(createHostedNotificationClient(credentials, live, nativeNetworkFetch, request.signal), request.signal),
         {expected: accountExpectation(session), signal: request.signal, isCurrent: current});
       } finally {clearTimeout(timer); requests.delete(request);}
     };

@@ -38,7 +38,7 @@ export function createNativeOwnerActivity(context: NativeShellBootstrapContext, 
     subscribe: listener => {sourceListeners.add(listener); return () => {sourceListeners.delete(listener);};},
   };
   const offAuthority = context.subscribeAuthority(() => {for (const listener of [...sourceListeners]) listener();});
-  const service = new ActivitySummaryService({source, queries: viewerQueriesFor(context.api, {serverId: session.viewer.serverId})}); // query-read: kept (it reads through the viewer's cache: `queries` serves the shared activitySummaryQuery)
+  const service = new ActivitySummaryService({source, queries: viewerQueriesFor(context.api, {serverId: session.viewer.serverId})});
   const offService = service.subscribe(() => {
     const next = nativeOwnerActivityIndicator(service.getSnapshot());
     if (next.known === last.known && next.count === last.count && next.busy === last.busy && next.update === last.update) return;

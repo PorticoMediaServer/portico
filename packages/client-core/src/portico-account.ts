@@ -61,7 +61,7 @@ async function send<T>({origin, cookie, fetcher = fetch}: Transport, route: Serv
   if (cookie) headers['Portico-Refresh'] = 'cookie';
   let response: Response;
   try {
-    response = await fetcher(origin + path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: options.signal, credentials: cookie ? 'same-origin' : 'omit', cache: 'no-store'}); // query-read: kept (Portico Services, the person's Portico Account: not a media server document)
+    response = await fetcher(origin + path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: options.signal, credentials: cookie ? 'same-origin' : 'omit', cache: 'no-store'});
   } catch (error) {
     if (options.signal?.aborted) throw error;
     throw new ServicesError(0, 'unreachable');
