@@ -9,7 +9,7 @@ import {presentError} from './errors.ts';
  * start from this address (the browser start refused with 401/403), otherwise the ordinary error. */
 export type SetupFailureKind = 'services' | 'address' | 'other';
 export function setupFailureKind(view: Extract<SetupView, {kind: 'failed'}>): SetupFailureKind {
-  if (view.error.code === 'claim_unavailable') return 'services';
+  if (view.error.code === 'claim_unavailable' || view.error.code === 'services_unreachable') return 'services';
   const step = view.retry.effects[0]?.kind;
   if (step === 'start' && (view.error.code === 'unauthorized' || view.error.code === 'forbidden')) return 'address';
   return 'other';
@@ -18,6 +18,7 @@ export function setupFailureKind(view: Extract<SetupView, {kind: 'failed'}>): Se
 export function setupErrorMessage(error: SetupError): string {
   if (error.code === 'setup_source_not_local') return defaultI18n.t('web.setup.notLocalSource');
   if (error.code === 'claim_unavailable') return defaultI18n.t('web.setup.servicesUnavailableBody');
+  if (error.code === 'services_unreachable') return defaultI18n.t('web.setup.porticoUnreachable');
   if (error.code === 'setup_installing') return defaultI18n.t('web.setup.stillInstalling');
   return presentError(error, 'sign-in', {operation: 'action', i18n: defaultI18n}).body;
 }
@@ -30,6 +31,7 @@ export function setupBusyMessage(retryAt: number | undefined): string {
 export function setupEndedMessage(outcome: SetupOutcome, server: string): string {
   if (outcome === 'expired') return defaultI18n.t('web.setup.earlierExpired');
   if (outcome === 'approval_lapsed') return defaultI18n.t('web.setup.startOverLapsed');
+  if (outcome === 'not_approved') return defaultI18n.t('web.setup.notApproved', {server});
   return defaultI18n.t('web.claim.expired');
 }
 /** A phase from a newer server. */

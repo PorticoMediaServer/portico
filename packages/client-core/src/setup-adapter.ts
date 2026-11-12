@@ -2,9 +2,10 @@ import type {LibraryContentApi} from './library-content.ts';
 import {linkAbortSignals} from './abort-lifetime.ts';
 import {releaseThenRethrow} from './cleanup.ts';
 import {ApiError, HttpLocalApi, type LocalSession} from './index.ts';
-import type {AppSessionStore} from './app-sessions.ts';
+import type {AppSessionStore, PorticoAccountScope} from './app-sessions.ts';
+import type {PorticoApproval} from '../../contracts/src/next/api.ts';
 import {parseLocalSession} from './local-session.ts';
-import {completeOwnerSetup, parseDirectSnapshot} from './profile-management.ts';
+import {completeOwnerSetup, openOnlyProfile, parseDirectSignIn, parseDirectSnapshot, signInDevice} from './profile-management.ts';
 import {callServer} from './query/server-api.ts';
 import {cleanServerPath, typedServerPath} from './library-management.ts';
 import {readDirectAccount, readServerSystem, revokeCurrentSession} from './query/connection-operations.ts';
@@ -15,11 +16,12 @@ import type {ServerSignIn} from './sign-in.ts';
 import {routeBase64, sameServerPin, webRouteCrypto, type RouteCrypto, type ServerPin} from './route-identity.ts';
 import type {ConnectionEnvironment, rememberNativeSession} from './server-connections.ts';
 import {CodedError, unreadableServerResponse} from './server-messages.ts';
-import {setupAddressAllowed} from './setup-address.ts';
+import {setupApprovalAccount, setupReturnUrl, type SetupPageReturn} from './setup-portico.ts';
 import {SETUP_CLAIM_LIFETIME_MS} from './setup-claim-attempt.ts';
 import {requestSetupApproval} from './setup-approval-client.ts';
 import {randomId} from './random-id.ts';
 import type {SetupCredentials, SetupLibrary, SetupPortContext, SetupPorts, SetupRead} from './setup-controller.ts';
+import type {SetupInput} from './setup-machine.ts';
 import {isUnreadable, type SetupAttempt, type SetupLocal, type SetupRecord, type SetupStore} from './setup-store.ts';
 import {serverNow} from './server-clock.ts';
 import {encodedRoutePath, routeBody, routePath} from '../../contracts/src/routes.ts';
@@ -47,6 +49,9 @@ export type SetupAdapterDeps = Readonly<{
   navigate: (url: string) => void;
   /** The app's own Portico Account sign-in approves this setup's claim, with no trip to Portico Services. Absent on the web. */
   approveInApp?: (input: Readonly<{attempt: SetupAttempt; approvalUrl: string; signal: AbortSignal; current: () => Promise<void>}>) => Promise<void>;
+  /** The web: what this page's own address carries back from Portico Services (read once, then cleared from the
+   * address). Absent in the apps, which ask the server how the approval stands instead. */
+  pageReturn?: () => SetupPageReturn | undefined;
   /** The page that opened this setup is still the one showing. */
   current?: () => boolean;
   now?: () => number;
@@ -57,6 +62,7 @@ export type SetupAdapterDeps = Readonly<{
 export type SetupAdapter = Readonly<{ports: SetupPorts; libraryFolders: LibraryContentApi; serverName: () => string | undefined; signIn: () => 'local' | 'portico' | undefined; dispose: () => void}>;
 
 type Paired = SetupPairing & {revision: number; installationId: string};
+type Of<K extends SetupInput['kind']> = Extract<SetupInput, {kind: K}>;
 type Own = {requestId: string; revision: string};
 const changed = () => new CodedError('cancelled', 'The pending setup or selected server changed.');
 /** A best-effort cleanup request, ended after five seconds; its failure is ignored. */
@@ -76,6 +82,28 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
   let paired: Paired | undefined, own: Own | undefined, issued: {serverId: string; setupToken: string} | undefined;
   let setupCode: string | undefined;
   let owner: {api: HttpLocalApi; session: LocalSession} | undefined, pendingLocal: LocalSession | undefined, exchanged: {api: HttpLocalApi; session: LocalSession} | undefined;
+  /** Portico Accounts (rebuilt server), in memory only: the approval this page asked for, the one that came back, and
+   * the Portico Account the owner's sign-in is filed under. A second tab or a stranger holds none of it. */
+  let porticoApproval: PorticoApproval | undefined, returnedApproval: string | undefined, pendingPortico: PorticoAccountScope | undefined;
+  /** How a Portico Account approval stands while setup still needs its owner: it came back to this page, the page came
+   * back without it, or (when this page asked for one) Portico Services has it answered, not yet, or not at all. */
+  async function porticoReading(p: Paired, signal: AbortSignal): Promise<Of<'approvalReturned' | 'approvalWaiting' | 'approvalNotGiven'> | undefined> {
+    const back = deps.pageReturn?.();
+    if (back?.approval) {returnedApproval = back.approval; return {kind: 'approvalReturned'};}
+    if (back?.returned) {porticoApproval = undefined; return {kind: 'approvalNotGiven'};}
+    const asked = porticoApproval;
+    if (!asked) return undefined;
+    try {
+      const answer = await callServer(p.api, 'POST /v1/hosted/approvals/{id}/poll', {id: asked.approvalId, body: {pollToken: asked.pollToken}, signal});
+      await assertPaired(p);
+      if (porticoApproval !== asked) throw changed();
+      if (answer?.state === 'approved' && typeof answer.approval === 'string' && answer.approval) {returnedApproval = answer.approval; return {kind: 'approvalReturned'};}
+      return {kind: 'approvalWaiting', pollAfterMs: typeof answer?.pollAfterMs === 'number' ? answer.pollAfterMs : undefined};
+    } catch (error) {
+      if (refused(error, 'approval_declined')) {porticoApproval = undefined; return {kind: 'approvalNotGiven'};}
+      throw error;
+    }
+  }
 
   const live = () => {
     let opening = true;
@@ -174,6 +202,10 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         // The new server has one setup fact, told to anyone: whether it still needs its owner.
         const state: SetupState = Object.freeze({status: parseServerSignIn(await readServerSystem(p.api, context.signal)).setupRequired ? 'ready' : 'complete'});
         await assertPaired(p);
+        if (state.status === 'ready') {
+          const portico = await porticoReading(p, context.signal);
+          if (portico) return {server: portico, local};
+        }
         own = typeof state.setup === 'object' ? {requestId: state.setup.requestId, revision: state.setup.revision} : undefined;
         const ownerSessionHeld = state.status === 'complete' ? await heldOwner(p, context.signal) : undefined;
         return {server: {kind: 'state', state, ...(ownerSessionHeld !== undefined ? {ownerSessionHeld} : {})}, local};
@@ -185,42 +217,28 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
     },
     /** The server asks for its setup code with the owner's details, not before: the code is kept
      * here until then. The server wrote it to its log and to setup-code.txt in its data folder. */
-    async start(context, code, hosted) {
-      const p = await pair(context.signal);
-      // Portico Accounts: the rule Portico Services applies, a public http address is refused before any request.
-      // Local sign-in is set up over plain http at a home or public address alike (the owner's decision); the setup code is its proof.
-      if (hosted && !setupAddressAllowed(p.api.baseUrl)) return {kind: 'addressNotAllowed'};
+    async start(context, code) {
+      await pair(context.signal);
+      // Every address, plain HTTP included, for both kinds of sign-in (decision O11): the setup code is the proof.
       if (!code) return {kind: 'setupCodeRequired'};
       setupCode = code;
       return {kind: 'startDone'};
     },
     /** Remote access is chosen in Settings after setup on the new server; there is nothing to check yet. */
     async remoteCheck() {return {kind: 'remoteOk'};},
-    async initializeHosted(name, remote, context) {
+    /** Portico Accounts (rebuilt server): the setup code and the server's name go to the server, which asks Portico
+     * Services for an approval address. Nothing is saved on the server, or in this browser, until the approval comes back. */
+    async initializeHosted(name, _remote, context) {
       const p = await pair(context.signal);
-      if (!issued || issued.serverId !== p.pin.serverId) throw changed();
-      const token = issued.setupToken, store = records(p);
-      // The record is written before the request, so an answer lost on the way still reconciles; a Try again reuses it.
-      let record = (await store.read()).record;
-      await assertPaired(p);
-      if (!record || record.setupToken !== token || record.authMode !== 'hosted') {
-        const fresh: SetupRecord = Object.freeze({version: 2, serverId: p.pin.serverId, requestId: newRequestId(), setupToken: token, tokenAt: now(), name, authMode: 'hosted',
-          ...(remote ? {remoteAccess: remote.remoteAccess, remoteSecurity: remote.remoteSecurity} : {})});
-        if (!await store.change({requestId: record?.requestId}, {record: fresh})) throw changed();
-        record = fresh;
-      }
-      await assertPaired(p);
+      if (!setupCode) throw changed();
       try {
-        const session = parseSetupSession(await tokenApi(p, token).request(routePath('setup_server'), 'POST',
-          routeBody('setup_server', {requestId: record.requestId, setupToken: token, name: record.name, authMode: 'hosted', interactive: true,
-            ...(record.remoteAccess ? {remoteAccess: record.remoteAccess} : {}), ...(record.remoteSecurity ? {remoteSecurity: record.remoteSecurity} : {}),
-            ...(remote?.allowAddress ? {allowAddress: remote.allowAddress} : {})}), context.signal), p.pin.serverId);
+        const approval = await callServer(p.api, 'POST /v1/setup/portico', {body: {setupCode, serverName: name.trim() || undefined, returnUrl: setupReturnUrl(deps.pageOrigin())}, signal: context.signal});
         await assertPaired(p);
-        if (!('claimRequired' in session) || session.requestId !== record.requestId) throw changed();
-        own = {requestId: session.requestId, revision: session.revision};
+        if (!approval?.approvalUrl || !/^https:\/\//.test(approval.approvalUrl) || !approval.approvalId || !approval.pollToken) throw new CodedError('invalid_response', unreadableServerResponse);
+        porticoApproval = approval; returnedApproval = undefined;
         return {kind: 'initializeDone'};
       } catch (error) {
-        if (refused(error, 'unauthorized')) return {kind: 'tokenRefused'};
+        if (refused(error, 'setup_code_invalid')) return {kind: 'setupCodeInvalid'};
         if (refused(error, 'setup_complete', 'not_setup_required')) return {kind: 'alreadyComplete'};
         throw error;
       }
@@ -244,7 +262,12 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         throw error;
       }
     },
-    requestApproval: (_navigate, context) => approval(context, false),
+    /** The approval address the server asked for: the reducer opens it (the web leaves for it) and then asks how it stands. */
+    async requestApproval(_navigate, context) {
+      await pair(context.signal);
+      if (!porticoApproval) throw changed();
+      return {kind: 'approvalReady', approvalUrl: porticoApproval.approvalUrl, expiresAt: porticoApproval.expiresAt};
+    },
     async approveInApp(context) {
       if (!deps.approveInApp) throw new CodedError('unsupported', 'Approve on Portico Services.');
       const p = await pair(context.signal), store = records(p), local = await store.read();
@@ -308,34 +331,25 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         throw error;
       }
     },
+    /** The approval that came back goes to the server once (`POST /v1/setup/portico/finish`), which checks it and makes the
+     * approving Portico Account the owner. It is forgotten here whatever the answer: an approval is used once. */
     async exchange(context) {
-      const p = await pair(context.signal), store = records(p), local = await store.read();
-      await assertPaired(p);
-      if (deps.finish.kind === 'return-page') {
-        // The exchange needs the person's Return on Portico Services, which account entry consumes and admits.
-        // Reaching it here means they came back without pressing Return: send them back to that page for it.
-        const link = local.attempt?.approvalUrl;
-        if (!link) throw new CodedError('setup_return_required', 'Finish on Portico Services, then press Return.');
-        deps.navigate(link);
-        return leaving(context.signal);
+      const p = await pair(context.signal), approval = returnedApproval;
+      returnedApproval = undefined; porticoApproval = undefined;
+      if (!approval) throw changed();
+      const accountId = setupApprovalAccount(approval, p.pin.serverId);
+      if (!accountId) return {kind: 'exchangeRefused', lapsed: false, error: {code: 'approval_declined', retryable: false}};
+      try {
+        const grant = await openOnlyProfile(p.api, parseDirectSignIn(await callServer(p.api, 'POST /v1/setup/portico/finish', {body: {approval, device: signInDevice()}, signal: context.signal})), context.signal);
+        await assertPaired(p);
+        if (grant.kind !== 'signed-in' || grant.snapshot.serverId !== p.pin.serverId) throw changed();
+        pendingLocal = grant.session; pendingPortico = Object.freeze({origin: deps.hostedOrigin, accountId});
+        return {kind: 'exchangeDone'};
+      } catch (error) {
+        if (refused(error, 'approval_declined')) return {kind: 'exchangeRefused', lapsed: false, error: {code: 'approval_declined', retryable: false}};
+        if (refused(error, 'setup_complete', 'not_setup_required')) return {kind: 'alreadyComplete'};
+        throw error;
       }
-      // No usable attempt here (none, lapsed, or another installation's): the reducer renews it (S7).
-      const attempt = local.attempt;
-      if (!attempt || isUnreadable(attempt) || !attempt.handoff || attempt.origin !== p.api.baseUrl || attempt.installationId !== p.installationId || Date.parse(attempt.expiresAt) <= now())
-        return {kind: 'exchangeRefused', lapsed: true, error: {code: 'setup_attempt_lapsed', retryable: true}};
-      const done = await finishSetupExchange(deps.finish.ports, {attempt, store, signal: context.signal, current: live,
-        admitted: () => !life.signal.aborted && deps.installationId() === p.installationId});
-      const family = done.result.session.sessionFamilyId;
-      try {await continueFromAdmission(p, family);} catch (error) {
-        // Replaced after admission: what this run remembered goes, and its session ends.
-        return releaseThenRethrow(error, 'setup exchange', async () => {
-          await deps.sessions().connectionStorage(p.pin.serverId).change(old => old?.session.sessionFamilyId === family ? undefined : old).catch(() => {});
-          await bounded(signal => revokeCurrentSession(done.api, signal));
-          done.connection.dispose();
-        });
-      }
-      exchanged = {api: done.api, session: done.result.session};
-      return {kind: 'exchangeDone'};
     },
     renew: async context => {await approval(context, true); return {kind: 'renewDone'};},
     async adoptOwner(context) {
@@ -350,24 +364,27 @@ export function createSetupAdapter(deps: SetupAdapterDeps): SetupAdapter {
         owner = held; exchanged = undefined;
         return {kind: 'ownerAdopted'};
       }
-      const value = pendingLocal;
+      const value = pendingLocal, portico = pendingPortico;
       if (!value) throw changed();
+      // A server set up with a Portico Account keeps the owner's sign-in under that account, as the apps file one opened from
+      // the account's list: the server's own session, labelled with the account (no route key).
+      const signIn = portico ? 'portico' as const : 'local' as const;
       const session = parseLocalSession(value, {serverId: p.pin.serverId, authority: 'local'});
       if (session.viewer.role !== 'owner' || Date.parse(session.expiresAt) <= now()) throw changed();
       const sessions = deps.sessions(), environment = deps.environment(p.pin.serverId);
       let adopted = false;
       try {
-        await deps.remember(p.api, session, {...environment, storage: sessions.connectionStorage(p.pin.serverId, {signIn: 'local', expectedRevision: p.revision})}, undefined,
+        await deps.remember(p.api, session, {...environment, storage: sessions.connectionStorage(p.pin.serverId, {signIn, ...(portico ? {hostedAccount: portico} : {}), expectedRevision: p.revision})}, portico,
           () => !life.signal.aborted && deps.installationId() === p.installationId);
         live();
         const selected = await sessions.selected();
         live();
-        if (!selected || selected.signIn !== 'local' || !sameServerPin(selected.connection.pin, p.pin) || selected.connection.session.sessionFamilyId !== session.sessionFamilyId) throw changed();
+        if (!selected || selected.signIn !== signIn || !sameServerPin(selected.connection.pin, p.pin) || selected.connection.session.sessionFamilyId !== session.sessionFamilyId) throw changed();
         await continueFromAdmission(p, session.sessionFamilyId);
         p.api.setAccessToken(session.accessToken);
         await ownerSnapshot(p.api, session, context.signal);
         live();
-        owner = {api: p.api, session}; pendingLocal = undefined; adopted = true;
+        owner = {api: p.api, session}; pendingLocal = undefined; pendingPortico = undefined; adopted = true;
         return {kind: 'ownerAdopted'};
       } finally {
         if (!adopted) {
