@@ -1,4 +1,11 @@
 #import <Foundation/Foundation.h>
+#import <TargetConditionals.h>
+
+#if TARGET_OS_TV
+// tvOS has no persistent support-file storage: its ring lasts only for this run.
+static NSString *PorticoReadAppLog(void) { return nil; }
+static BOOL PorticoWriteAppLog(NSString *text) { (void)text; return YES; }
+#else
 
 // These diagnostics stay on this device, in the app's private support folder, outside backups.
 static NSURL *PorticoAppLogURL(void) {
@@ -22,3 +29,5 @@ static BOOL PorticoWriteAppLog(NSString *text) {
   if (!data || data.length > 1024 * 1024) return NO;
   return [data writeToURL:url options:NSDataWritingAtomic | NSDataWritingFileProtectionCompleteUntilFirstUserAuthentication error:nil];
 }
+
+#endif
