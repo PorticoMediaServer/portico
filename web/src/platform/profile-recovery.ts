@@ -82,7 +82,7 @@ export class BrowserProfileRecovery {
 /** The browser account held for this one recovery attempt. No local recovery calls this. */
 export async function browserPorticoPINProof(): Promise<PorticoPINProofSource> {
   // Only web.getportico.tv holds a Portico Account; a server's own address never uses the account client.
-  if (!currentWebEnvironment().hostedWeb) throw new CodedError('portico_account_elsewhere', 'Reset this PIN at web.getportico.tv.');
+  if (location.origin !== 'https://web.getportico.tv') throw new CodedError('portico_account_elsewhere', 'Reset this PIN at web.getportico.tv.');
   const signIns = accountSession.signIns(), who = await porticoAccountHolder.who();
   return {accountId: who.id, isCurrent: () => accountSession.signedIn() && accountSession.signIns() === signIns,
     identity: (serverId, challenge, proof, signal) => account.serverPINIdentity(serverId, challenge, proof, signal)};

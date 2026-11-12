@@ -6,7 +6,11 @@ import assert from 'node:assert/strict';
 import {componentModule, hooks} from './helpers/component-harness.mjs';
 
 /** The wrapper (`platform/profile-recovery.ts`) around a stand-in controller in its Portico step. */
-async function wrapper(options: {hostedWeb: boolean; who?: () => Promise<unknown>}) {
+const originalLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
+test.after(() => {if (originalLocation) Object.defineProperty(globalThis, 'location', originalLocation); else Reflect.deleteProperty(globalThis, 'location');});
+
+async function wrapper(options: {hostedWeb: boolean; origin?: string; who?: () => Promise<unknown>}) {
+  Object.defineProperty(globalThis, 'location', {configurable: true, value: {origin: options.origin ?? (options.hostedWeb ? 'https://web.getportico.tv' : 'https://den.example')}});
   const calls: unknown[][] = [], listeners = new Set<() => void>();
   class Controller {
     private readonly state = Object.freeze({phase: 'portico'});
@@ -18,7 +22,7 @@ async function wrapper(options: {hostedWeb: boolean; who?: () => Promise<unknown
   const account = {serverPINIdentity: async () => {calls.push(['Services:identity']); return {identity: {}};}};
   const module = await componentModule(new URL('../src/platform/profile-recovery.ts', import.meta.url), {
     '@core/profile-recovery.ts': {ProfileRecoveryController: Controller},
-    '../services/account-session': {account, accountSession: {signIns: () => 1, signedIn: () => true}},
+    '../services/account-session': {account, accountSession: {signIns: () => {calls.push(['signIns']); return 1;}, signedIn: () => {calls.push(['signedIn']); return true;}}},
     './portico-account-holder': {porticoAccountHolder: {who: options.who ?? (async () => {calls.push(['who']); return {id: 'acct', username: 'ada', hasPassword: true, twoStep: true};})}},
     './environment': {currentWebEnvironment: () => ({hostedWeb: options.hostedWeb})},
   });
@@ -33,6 +37,19 @@ test('at a server\'s own address the Portico step says where to go, and the acco
   await w.flow.porticoPassword('secret', '');
   assert.deepEqual(w.calls, [], 'nothing is sent anywhere');
   await assert.rejects(w.module.browserPorticoPINProof(), {code: 'portico_account_elsewhere'}, 'refused outright off web.getportico.tv');
+});
+
+test('exact-origin refusals survive the hosted build flag and reach recovery state before account reads', async () => {
+  for (const origin of ['http://web.getportico.tv', 'https://web.getportico.tv:4443',
+    'https://web.getportico.tv.example', 'https://server.example', 'http://server.example']) {
+    const w = await wrapper({hostedWeb: true, origin});
+    await w.flow.preparePortico();
+    const state = w.flow.getSnapshot();
+    assert.equal(state.portico.phase, 'failed', origin);
+    assert.equal(state.portico.error.code, 'portico_account_elsewhere', origin);
+    await w.flow.porticoPassword('just typed');
+    assert.deepEqual(w.calls, [], 'no account read or password proof from ' + origin);
+  }
 });
 
 test('a failed Portico Account lookup stays in the flow\'s own state, and a good one gives its facts and its proof', async () => {
