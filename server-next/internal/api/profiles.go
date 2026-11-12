@@ -82,8 +82,6 @@ type ProfileSelect struct {
 	PINToken string `json:"pinToken,omitempty"`
 }
 
-var profileColors = []string{"blue", "violet", "mint", "coral", "gold", "slate", "rose", "sky"}
-
 func profileOut(p db.Profile) Profile {
 	out := Profile{ID: p.PublicID, Name: p.Name, Color: p.Color, IsPrimary: p.Primary, PINRequired: p.PINHash != "",
 		AccessMarker: strconv.FormatInt(p.AccessChangedAt, 36)}
@@ -171,7 +169,7 @@ func checkProfileFields(name, color, pin *string) error {
 	switch {
 	case name != nil && !auth.ValidName(*name):
 		return ErrField("name", "Give the profile a name of at most 120 characters.")
-	case color != nil && !slices.Contains(profileColors, *color):
+	case color != nil && !slices.Contains(db.ProfileColors, *color):
 		return ErrField("color", "Choose one of the profile colors.")
 	case pin != nil && *pin != "" && !auth.ValidPIN(*pin):
 		return ErrField("pin", "A PIN is four digits.")
@@ -185,10 +183,11 @@ func (s *Server) createProfile(r *http.Request, req ProfileCreate) (Profile, err
 	if err != nil {
 		return Profile{}, err
 	}
-	if req.Color == "" {
-		req.Color = "blue"
+	var color *string
+	if req.Color != "" {
+		color = &req.Color
 	}
-	if err := checkProfileFields(&req.Name, &req.Color, &req.PIN); err != nil {
+	if err := checkProfileFields(&req.Name, color, &req.PIN); err != nil {
 		return Profile{}, err
 	}
 	key := r.Header.Get("Idempotency-Key")

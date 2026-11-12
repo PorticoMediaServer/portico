@@ -11,6 +11,9 @@ import (
 // MaxProfiles is how many profiles one account can have, its main profile included.
 const MaxProfiles = 8
 
+// ProfileColors is the profile palette, in the order assigned to new profiles.
+var ProfileColors = []string{"blue", "violet", "mint", "coral", "gold", "slate", "rose", "sky"}
+
 var (
 	// ErrProfileLimit: the account already has MaxProfiles profiles.
 	ErrProfileLimit = errors.New("the account has its full number of profiles")
@@ -166,6 +169,19 @@ func (d *DB) CreateProfile(ctx context.Context, n NewProfile) (Profile, error) {
 		}
 		if count >= limit {
 			return &ProfileLimitError{Limit: limit}
+		}
+		if n.Color == "" {
+			n.Color = ProfileColors[0]
+			for _, color := range ProfileColors {
+				var used bool
+				if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM profiles WHERE user_id = ? AND color = ?)`, n.UserID, color).Scan(&used); err != nil {
+					return err
+				}
+				if !used {
+					n.Color = color
+					break
+				}
+			}
 		}
 		at := n.Now.UnixMilli()
 		out, err = scanProfile(tx.QueryRow(`INSERT INTO profiles (public_id, user_id, name, color, position, pin_hash, access_changed_at, created_at, updated_at)

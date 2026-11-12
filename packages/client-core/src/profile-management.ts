@@ -183,7 +183,7 @@ export class ManagedProfilesClient {
  readonly api:ProfileAPI;readonly scope:ProfileScope;
  constructor(api:ProfileAPI,scope:ProfileScope){if(scope.authority!=='local'||!text(scope.accountId,128)||!text(scope.serverId,128))throw new Error('An account profile scope is required.');this.api=api;this.scope=Object.freeze({...scope});}
  async list(signal?:AbortSignal):Promise<readonly ManagedProfile[]>{return parseManagedProfiles((await callServer(this.api,'GET /v1/profiles',{signal}))?.items,true);}
- async create(name:string,art:ProfileArt='blue',signal?:AbortSignal):Promise<void>{if(!text(name.trim(),120)||!PROFILE_ART.includes(art))throw new Error('Enter a profile name.');await callServer(this.api,'POST /v1/profiles',{body:{name:name.trim(),color:art},signal});}
+ async create(name:string,art?:ProfileArt,signal?:AbortSignal):Promise<void>{if(!text(name.trim(),120)||(art!==undefined&&!PROFILE_ART.includes(art)))throw new Error('Enter a profile name.');await callServer(this.api,'POST /v1/profiles',{body:{name:name.trim(),...(art===undefined?{}:{color:art})},signal});}
  /** The later save wins. An empty `pin` removes the PIN. Library access for a profile is not on the new server yet. */
  async edit(profile:ManagedProfile,change:{name?:string;art?:ProfileArt;pin?:string;policy?:ProfilePolicy},signal?:AbortSignal):Promise<void>{
   if(change.pin!==undefined&&change.pin!==''&&!/^\d{4}$/.test(change.pin))throw new Error('Use exactly four numeric digits for the profile PIN.');
