@@ -115,6 +115,7 @@ internal class PorticoMpvController(private val context: Context) {
   /** A load was asked for the current source. */
   private var fileRequested = false
   private var loaded = false
+  private var sourceFailed = false
   private var restarted = false
   private var displayHold = false
   private var backgroundHold = false
@@ -367,6 +368,7 @@ internal class PorticoMpvController(private val context: Context) {
   private fun apply(next: Map<String, Any?>) {
     val sameBinding = command?.get("binding") == next["binding"]
     val verifying = next["connectionState"] == "verifying"
+    val retrySource = command?.get("connectionState") == "verifying" && sourceFailed
     val nextIntent = PorticoMpvSupport.integer(PorticoMpvSupport.map(next["binding"])?.get("intentId")) ?: 0L
     val nextSource = (next["source"] as? String) ?: ""
     if (!sameBinding) {
@@ -379,7 +381,7 @@ internal class PorticoMpvController(private val context: Context) {
     val changed = source != nextSource
     // A change of route is not a new playback and not a seek: the position already reached is
     // kept, and playback returns to it on the new route.
-    if (sameBinding && (verifying || changed) && !routeResume && !routeSuspended) {
+    if (sameBinding && !verifying && (retrySource || changed) && !routeResume && !routeSuspended) {
       val position = if (routeFailed) routePosition else currentPosition()
       if (position.isFinite() && position >= 0) {
         routePosition = position
@@ -396,6 +398,10 @@ internal class PorticoMpvController(private val context: Context) {
     // Play, pressed again after another app had taken the sound, asks for it back.
     if (wasPaused && !desiredPaused) focusLost = false
     if (verifying) {
+      if (sameBinding && !changed && fileRequested) {
+        applyPendingSeek(); applyIntent()
+        return
+      }
       if (!routeSuspended) {
         subtitleOverlay.invalidate()
         resetAudio()
@@ -406,7 +412,7 @@ internal class PorticoMpvController(private val context: Context) {
       routeSuspended = true
       return
     }
-    val reload = routeSuspended || nextIntent != intentId || changed || !fileRequested
+    val reload = retrySource || routeSuspended || nextIntent != intentId || changed || !fileRequested
     routeSuspended = false
     if (reload) {
       hasPlayed = false
@@ -590,6 +596,7 @@ internal class PorticoMpvController(private val context: Context) {
     loadEpoch++
     fileRequested = false
     loaded = false
+    sourceFailed = false
     restarted = false
     displayHold = false
     pendingDisplayReady = null
@@ -644,6 +651,7 @@ internal class PorticoMpvController(private val context: Context) {
     val epoch = loadEpoch
     fileRequested = true
     loaded = false
+    sourceFailed = false
     restarted = false
     displayHold = false
     endedEmitted = false
@@ -1091,6 +1099,7 @@ internal class PorticoMpvController(private val context: Context) {
    * is unclear says so and blames nobody.
    */
   private fun publishFailure(code: Int, message: String, log: List<String>, named: String = "", relayFailure: PorticoMpvRelay.Failure? = null) {
+    sourceFailed = true
     var network = false
     var delivery = false
     var uncertain = false

@@ -163,6 +163,20 @@ test('ordinary rebuffer on a ready route stays playing without a route probe, th
   assert.equal(f.state.phase, 'error'); assert.equal(f.runtime.failure, undefined, 'a healthy but slow route does not claim the connection dropped');
 });
 
+test('buffered progress keeps playing during route verification and retains the reconnecting state', async t => {
+  const f = await fixture(); t.after(() => f.dispose());
+  let phase = 'ready'; f.runtime.o.api.getRouteSnapshot = () => ({phase});
+  f.emit('error', {networkError: true});
+  phase = 'reconnecting'; f.runtime.routeChanged(); await drain();
+  assert.equal(f.commands.at(-1).connectionState, 'verifying');
+  assert.equal(f.commands.at(-1).paused, false);
+  f.emit('progress', {position: 35, isPlaying: true});
+  assert.equal(f.state.positionSeconds, 35); assert.equal(f.state.recovering, true);
+  f.timers.advance(90_000); assert.equal(f.state.phase, 'ready', 'usable buffer is not a failed playback');
+  phase = 'ready'; f.runtime.routeChanged(); await drain(); f.emit('ready');
+  assert.equal(f.state.recovering, undefined); assert.equal(f.state.intent, 'playing');
+});
+
 test('verified native readiness clears the same outage while a paused tick does not invent progress', async t => {
   const f = await fixture(); t.after(() => f.dispose());
   f.emit('error', {networkError: true}); f.state.intent = 'paused'; f.emit('progress', {paused: true});

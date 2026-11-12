@@ -114,9 +114,11 @@ Fields with no rejection of their own:
 What an accepted command does:
 
 1. **Different binding**: route state is cleared.
-2. **`connectionState: 'verifying'`** (same binding): the position reached is kept, the media is
-   closed, and the engine waits. No facts are sent until a `ready` command arrives. The same
-   happens to the kept position when the source changes within a binding.
+2. **`connectionState: 'verifying'`** (same binding): already open media keeps playing its
+   buffer under the viewer's current play/pause intent and keeps reporting facts. A source
+   not yet open waits. When `ready` arrives, healthy media stays open. A failed source retries
+   at its current position, including progress made while the route was checked. A changed
+   source in the same binding also keeps the position it had reached.
 3. **Load.** The media is (re)opened when the engine was waiting, the `intentId` changed, the
    source changed, or nothing is open. A new `itemInstanceId` is made. With a kept position the
    engine returns to it before saying `ready`; if it cannot get within half a second it sends
@@ -158,8 +160,8 @@ Every fact is one object on the engine's fact event. Fields on every fact:
 | `monotonicSeconds` | number | The device's uptime clock. |
 | `engine` | string | mpv sends `'mpv'`. Optional. |
 
-No fact is sent while the engine waits on `verifying`. While a kept position is being restored
-only `error` facts are sent. JavaScript drops any fact whose `instanceId`, binding, sequence or
+An open source keeps sending facts during `verifying`; a source not yet open waits.
+While a kept position is being restored only `error` facts are sent. JavaScript drops any fact whose `instanceId`, binding, sequence or
 `lastCommandRevision` shows it belongs to a superseded lease, item, route or seek.
 
 | Type | When | Extra fields |

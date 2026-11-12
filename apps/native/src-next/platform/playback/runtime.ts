@@ -1590,7 +1590,11 @@ export class NativePlaybackRuntime {
     if (!(fact.type === 'progress' && before.recovering && !recovered && before.intent === 'playing')) this.path.engineFact(fact);
     // The opening seek landed (or failed, which shows the picture where it is): the held frame is now true.
     if (this.heldFirstVideoFrame && !this.playback.getSnapshot().pendingSeek) {this.firstVideoFrame = this.heldFirstVideoFrame; this.heldFirstVideoFrame = undefined;}
-    if (recovered || fact.type === 'ended') {this.recovery.clear(); this.playback.recovering(before.intentId, false);}
+    if (recovered || fact.type === 'ended') {
+      this.recovery.clear();
+      const route = this.o.api.getRouteSnapshot();
+      if (!route || route.phase === 'ready' || fact.type === 'ended') this.playback.recovering(before.intentId, false);
+    }
     if (this.audioTrackSelection.accept(fact)) {
       if (fact.type === 'audioTrackFailed') this.playback.fail(before.intentId, serviceText('player.opt.unavailable'));
       else this.applyOptions();

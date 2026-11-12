@@ -358,7 +358,7 @@ static __weak PorticoPlaybackController *PorticoSharedPlaybackController;
  BOOL changed=![binding[@"sessionId"] isEqual:media[@"id"]]||![binding[@"generation"] isEqual:media[@"generation"]];
  if(changed){binding[@"intentId"]=@([binding[@"intentId"] integerValue]+1);binding[@"sessionId"]=media[@"id"];binding[@"generation"]=media[@"generation"];binding[@"itemId"]=desired[@"context"][@"itemId"];}
  double denominator=[desired[@"rate"][@"denominator"] doubleValue];double rate=denominator>0?[desired[@"rate"][@"numerator"] doubleValue]/denominator:1;
- NSMutableDictionary *command=[@{@"binding":binding,@"commandRevision":@(_commandRevision+1),@"source":[_listeningOrigin stringByAppendingString:media[@"streamUrl"]],@"connectionState":_listeningRouteReady?@"ready":@"verifying",@"routeRevision":@(_listeningRouteRevision),@"paused":@((BOOL)(!_listeningRouteReady||!_listeningAllowed||![desired[@"state"] isEqual:@"playing"])),@"rate":@(rate),@"timelineOriginMs":NSNull.null,@"pendingSeek":_listeningSeek?:NSNull.null,@"audioRender":_listeningRender?:NSNull.null,@"audio":attachment[@"audio"]?:_command[@"audio"]?:NSNull.null,@"subtitles":attachment[@"subtitles"]?:_command[@"subtitles"]?:NSNull.null} mutableCopy];
+ NSMutableDictionary *command=[@{@"binding":binding,@"commandRevision":@(_commandRevision+1),@"source":[_listeningOrigin stringByAppendingString:media[@"streamUrl"]],@"connectionState":_listeningRouteReady?@"ready":@"verifying",@"routeRevision":@(_listeningRouteRevision),@"paused":@((BOOL)(!_listeningAllowed||![desired[@"state"] isEqual:@"playing"])),@"rate":@(rate),@"timelineOriginMs":NSNull.null,@"pendingSeek":_listeningSeek?:NSNull.null,@"audioRender":_listeningRender?:NSNull.null,@"audio":attachment[@"audio"]?:_command[@"audio"]?:NSNull.null,@"subtitles":attachment[@"subtitles"]?:_command[@"subtitles"]?:NSNull.null} mutableCopy];
  if(attachment[@"matchDynamicRange"])command[@"matchDynamicRange"]=attachment[@"matchDynamicRange"];
  // Skip no-op updates so native facts do not churn the JS command barrier.
  NSMutableDictionary *before=[_command mutableCopy],*after=[command mutableCopy];[before removeObjectForKey:@"commandRevision"];[after removeObjectForKey:@"commandRevision"];
@@ -390,10 +390,11 @@ static __weak PorticoPlaybackController *PorticoSharedPlaybackController;
 - (void)setCommand:(NSDictionary *)command {
  BOOL sameBinding=[_command[@"binding"] isEqual:command[@"binding"]];
  BOOL verifying=[command[@"connectionState"] isEqual:@"verifying"];
+ BOOL retrySource=[_command[@"connectionState"] isEqual:@"verifying"]&&_player.currentItem.status==AVPlayerItemStatusFailed;
  NSInteger nextId=[command[@"binding"][@"intentId"] integerValue];NSString *source=command[@"source"];
  if(!sameBinding){_routeResume=NO;_routeSeeking=NO;_routeSuspended=NO;_routeFailed=NO;_routeEpoch++;}
  BOOL changed=![_source isEqualToString:source];
- if(sameBinding&&(verifying||changed)&&!_routeResume&&!_routeSuspended){double position=_routeFailed?_routePosition:[self sourcePosition];if(isfinite(position)&&(_timelineOriginMS||position>=0)){_routePosition=position;_routeResume=YES;_routeFailed=NO;_routeEpoch++;}}
+ if(sameBinding&&!verifying&&(retrySource||changed)&&!_routeResume&&!_routeSuspended){double position=_routeFailed?_routePosition:[self sourcePosition];if(isfinite(position)&&(_timelineOriginMS||position>=0)){_routePosition=position;_routeResume=YES;_routeFailed=NO;_routeEpoch++;}}
  BOOL matchingWasWaiting=_displayWaiting;
  BOOL matchingWasOff=[_command[@"matchDynamicRange"] isEqual:@"off"];
  _command=[command copy];_paused=[command[@"paused"] boolValue];
@@ -406,6 +407,11 @@ static __weak PorticoPlaybackController *PorticoSharedPlaybackController;
  (void)matchingWasOff;(void)matchingWasWaiting;
 #endif
  if(verifying){
+  if(sameBinding&&!changed&&(_player.currentItem||_audioRender.active)){
+   if(_audioRender.active)[_audioRender applyCommand:command];
+   else{[self applyPendingSeek];[self applyIntent];}
+   return;
+  }
   [_audioRender invalidate];
   if(!_routeSuspended){[_subtitleSelection invalidate];[_subtitleOverlay invalidate];[_audioSelection invalidate];[self removeObservation];[_player.currentItem cancelPendingSeeks];[_player pause];[_player replaceCurrentItemWithPlayerItem:nil];_routeSeeking=NO;_seeking=NO;}
   _routeSuspended=YES;return;
@@ -418,7 +424,7 @@ static __weak PorticoPlaybackController *PorticoSharedPlaybackController;
   _routeSuspended=NO;_routeResume=NO;_routeSeeking=NO;[_audioRender applyCommand:routed];return;
  }
  [_audioRender invalidate];
- BOOL reload=_routeSuspended||nextId!=_intentId||changed||!_player.currentItem;_routeSuspended=NO;
+ BOOL reload=retrySource||_routeSuspended||nextId!=_intentId||changed||!_player.currentItem;_routeSuspended=NO;
  if(reload){
   _hasPlayed=NO;_previousProgress=NAN;
   _routeEpoch++;
