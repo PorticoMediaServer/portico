@@ -143,11 +143,13 @@ func sooner(a, b time.Time) time.Time {
 }
 
 // retryWait is how long to wait after a call failed. Portico Services saying "retry after"
-// is obeyed as it stands and does not count as a failed try; no answer backs off, doubling
-// to the policy's ceiling, each wait drawn between half the step and all of it.
+// is obeyed as it stands and does not count as a failed try; anything else backs off, doubling
+// to the policy's ceiling, each wait drawn between half the step and all of it. A "busy" that
+// names no wait is one of those: it is what a proxy in front of Portico Services says when
+// Services is down or swamped, so nobody is setting a pace to obey.
 func retryWait(policy schedule.Retry, tries *int, err error, r float64) time.Duration {
 	var busy *hosted.BusyError
-	if errors.As(err, &busy) {
+	if errors.As(err, &busy) && busy.Wait > 0 {
 		// Never longer than a day: one answer that says years, a fault at Portico Services,
 		// must not silence this server for good.
 		return min(schedule.After(busy.Wait), 24*time.Hour)
@@ -266,12 +268,12 @@ func (s *Server) porticoStep(ctx context.Context) time.Time {
 	}
 	// While Portico Services says it does not know this server, only the daily check-in asks.
 	if link.DocumentSent < link.DocumentRevision && doc.OwnerAccountID != "" && link.Unknown == 0 {
-		if link.DocumentAt > now.Unix() {
-			next = sooner(next, time.Unix(link.DocumentAt, 0))
+		if due := documentDue(link); due.After(now) {
+			next = sooner(next, due)
 		} else if !s.sendDocument(ctx, &link, doc, now, update) {
 			return next
 		} else if link.DocumentSent < link.DocumentRevision {
-			next = sooner(next, time.Unix(link.DocumentAt, 0))
+			next = sooner(next, documentDue(link))
 		}
 	}
 
@@ -339,7 +341,7 @@ func (s *Server) sendDocument(ctx context.Context, link *db.Link, doc hosted.Doc
 				l.DocumentAt = now.Add(schedule.ChangeRetry.Wait(l.DocumentTries, s.link.random())).Unix()
 			}
 			l.DocumentTries++
-			l.LastContact = now.Unix()
+			l.LastContact, l.DocumentSentAt = now.Unix(), now.Unix()
 		default:
 			l.DocumentSent, l.DocumentAt, l.DocumentTries = doc.Revision, 0, 0
 			l.LastContact, l.DocumentSentAt = now.Unix(), now.Unix()
@@ -393,6 +395,20 @@ func (s *Server) porticoServerName() string {
 // addresses changed. Portico Services is sized for about one call a server a day; a home
 // connection whose address flips every minute must not turn that into one a minute.
 const addressGap = 5 * time.Minute
+
+// documentGap is the shortest time between any two documents Portico Services has taken from
+// this server, whatever changed: an owner adding ten people one after another costs Portico
+// Services a few calls, not ten. The first document of a link is never held back.
+const documentGap = time.Minute
+
+// documentDue is when a document waiting to be sent may go.
+func documentDue(l db.Link) time.Time {
+	at := l.DocumentAt
+	if l.DocumentSentAt != 0 {
+		at = max(at, l.DocumentSentAt+int64(documentGap/time.Second))
+	}
+	return time.Unix(at, 0)
+}
 
 // porticoChangedByOwner says the owner has just changed, by hand, something the document
 // carries (the public port, remote access on or off): the document goes at once.

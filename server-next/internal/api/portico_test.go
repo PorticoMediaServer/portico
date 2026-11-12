@@ -309,7 +309,7 @@ func TestLinkingAndSigningInWithAPorticoAccount(t *testing.T) {
 	if code, refused, _ := p.signIn(accountMal, invitation, 3); code != 404 {
 		t.Errorf("a used invitation let a second Portico Account in: %d %s", code, refused)
 	}
-	p.step()
+	p.run(documentGap)
 	if _, members := p.fake.Linked(p.s.id); members[accountSam.ID] != "member" || len(members) != 2 {
 		t.Errorf("after a person joined, Portico Services holds %v", members)
 	}
@@ -331,7 +331,7 @@ func TestLinkingAndSigningInWithAPorticoAccount(t *testing.T) {
 	// A restart keeps the link and calls nobody: starting is not a reason to call.
 	before := len(p.fake.Calls())
 	p.open()
-	p.run(time.Minute)
+	p.run(documentGap)
 	if after := len(p.fake.Calls()); after != before+1 || p.fake.Count("PUT", "/document") != 3 {
 		// The one call is the document with the third member, which was still waiting.
 		t.Errorf("a restart made %d calls, want only the waiting document", after-before)
@@ -937,9 +937,19 @@ func TestAnAddressThatKeepsChangingIsSentAtMostEveryFewMinutes(t *testing.T) {
 	if _, members := p.fake.Linked(p.s.id); sent() != settled+2 || members[accountSam.ID] != "member" || held() != address {
 		t.Errorf("a person joining inside the gap: %d documents, members %v", sent()-settled, members)
 	}
+	// A change the owner makes by hand does not wait out the addresses' gap either, but no
+	// two documents of any kind go within a minute of each other, and the one that goes
+	// then is the one that is true then.
 	address = "198.51.100.9"
 	p.s.porticoChangedByOwner()
 	p.step()
+	address = "198.51.100.10"
+	p.s.porticoChangedByOwner()
+	p.step()
+	if sent() != settled+2 {
+		t.Errorf("two changes by hand straight after a document sent %d more documents at once", sent()-settled-2)
+	}
+	p.run(documentGap)
 	if sent() != settled+3 || held() != address {
 		t.Errorf("a change the owner made by hand inside the gap sent %d documents, holding %s", sent()-settled, held())
 	}
