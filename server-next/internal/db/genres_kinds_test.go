@@ -42,7 +42,7 @@ func TestGenresLeaveOutAShowEmptiedByTheRatingLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	counted, err := l.d.Genres(ctx, v, true)
+	counted, err := l.d.Genres(ctx, v, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,14 +69,14 @@ func TestGenresLeaveOutAShowEmptiedByTheRatingLimit(t *testing.T) {
 // An anime library's shows are shows: their genres belong in the list.
 func TestGenresTakeInAnAnimeLibrary(t *testing.T) {
 	l := newLibrary(t, 1500)
-	before, err := l.d.Genres(ctx, l.all, true)
+	before, err := l.d.Genres(ctx, l.all, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := l.d.ExecForTest(ctx, `UPDATE libraries SET kind = ? WHERE kind = ?`, db.LibraryAnime, db.LibraryShows); err != nil {
 		t.Fatal(err)
 	}
-	after, err := l.d.Genres(ctx, l.all, true)
+	after, err := l.d.Genres(ctx, l.all, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
