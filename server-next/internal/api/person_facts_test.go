@@ -23,7 +23,8 @@ func TestAPersonsKnownTitlesAndKindCounts(t *testing.T) {
 			CommunityRating: rating, Year: year, Credits: credits}
 	}
 	items := []db.ImportItem{
-		film("Lead", 6, 2000, credit(db.RoleActor)),
+		film("Lead", 6, 2000, db.ImportCredit{Name: "Other Director", Role: db.RoleDirector},
+			db.ImportCredit{Name: "Other Writer", Role: db.RoleWriter}, db.ImportCredit{Name: "Producer", Role: db.RoleProducer}, credit(db.RoleActor)),
 		film("Director", 9, 2020, other, credit(db.RoleDirector)),
 		film("Writer", 9, 2024, other, credit(db.RoleWriter)),
 		film("Both", 9, 2024, credit(db.RoleActor), credit(db.RoleDirector)),
