@@ -62,3 +62,27 @@ func (d *DB) HasRemoteSources(ctx context.Context) (bool, error) {
 	err := d.read.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM remote_sources)`).Scan(&has)
 	return has, err
 }
+
+// BackupSubtitles are the downloaded subtitles named by the copied database. Reading the
+// copy matters: a subtitle added or removed while a backup is made must not change its set.
+func BackupSubtitles(ctx context.Context, path string) ([]string, error) {
+	copied, err := sql.Open("sqlite", "file:"+url.PathEscape(path)+"?mode=ro&immutable=1")
+	if err != nil {
+		return nil, err
+	}
+	defer copied.Close()
+	rows, err := copied.QueryContext(ctx, `SELECT DISTINCT file_hash FROM subtitles`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var hashes []string
+	for rows.Next() {
+		var hash string
+		if err := rows.Scan(&hash); err != nil {
+			return nil, err
+		}
+		hashes = append(hashes, hash)
+	}
+	return hashes, rows.Err()
+}

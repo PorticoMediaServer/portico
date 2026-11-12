@@ -19,7 +19,7 @@ import (
 
 // Checking a backup whole, before it is restored. A backup that fails any part of the check is
 // refused whole: its archive must be whole, hold nothing but a database, key files and
-// pictures under the names Portico gives them, and its database must pass db.CheckCopy.
+// pictures and downloaded subtitles under the names Portico gives them, and its database must pass db.CheckCopy.
 
 // Contents is what a backup that passed its check holds.
 type Contents struct {
@@ -90,6 +90,8 @@ func Inspect(ctx context.Context, archivePath, scratch string) (Contents, error)
 			out.KeyFiles = append(out.KeyFiles, h.Name)
 		case "picture":
 			out.Pictures++
+		case "subtitle":
+			// The immutable subtitle text is restored beside the database that names it.
 		default:
 			return out, &ErrDamaged{fmt.Sprintf("it holds %q, which is not a file a backup holds", h.Name)}
 		}
@@ -120,6 +122,9 @@ func entryKind(name string) string {
 	}
 	// artwork/ab/<id>.<size>: the picture store's own names, which nothing can climb out of.
 	parts := strings.Split(name, "/")
+	if len(parts) == 3 && parts[0] == "subtitles" && len(parts[2]) == 64 && artwork.ValidID(parts[2]) && parts[1] == parts[2][:2] {
+		return "subtitle"
+	}
 	if len(parts) != 3 || parts[0] != "artwork" {
 		return ""
 	}

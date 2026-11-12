@@ -1,5 +1,5 @@
 // Package backup makes, lists, checks and removes backups of the server: its database, the key
-// files that open what the database keeps sealed, and the pictures people uploaded. Never
+// files that open what the database keeps sealed, the pictures people uploaded and downloaded subtitles. Never
 // media, recordings, the cache, logs or conversions. A backup is one .tar.gz in the backup
 // folder with a small .json beside it describing it.
 //
@@ -426,6 +426,20 @@ func (s *Service) make(ctx context.Context, id string, scheduled bool) error {
 		return err
 	}
 	files = append(files, pictures...)
+	subtitles, err := db.BackupSubtitles(ctx, copyPath)
+	if err != nil {
+		return err
+	}
+	for _, hash := range subtitles {
+		if len(hash) != 64 {
+			return fmt.Errorf("a downloaded subtitle has an invalid file name")
+		}
+		name := "subtitles/" + hash[:2] + "/" + hash
+		if entryKind(name) != "subtitle" {
+			return fmt.Errorf("a downloaded subtitle has an invalid file name")
+		}
+		files = append(files, archived{name: name, path: filepath.Join(s.DataDir, filepath.FromSlash(name))})
+	}
 	desc.Pictures = len(pictures)
 
 	// Only now is the backup folder touched, by this goroutine alone and within a limit.

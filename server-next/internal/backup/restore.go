@@ -348,19 +348,37 @@ func finish(dataDir string) error {
 	if err := os.Rename(filepath.Join(pending, keepFile), filepath.Join(dataDir, keepFile)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	// Pictures are added to the store; one already there is the same picture.
-	filepath.WalkDir(filepath.Join(pending, "artwork"), func(path string, e fs.DirEntry, err error) error {
-		if err != nil || e.IsDir() {
-			return nil
+	// Pictures and subtitle text are immutable, named by their contents. Add the backup's
+	// files to each store; a move that fails leaves the journal for the next start to retry.
+	for _, store := range []string{"artwork", "subtitles"} {
+		root := filepath.Join(pending, store)
+		err := filepath.WalkDir(root, func(path string, e fs.DirEntry, err error) error {
+			if errors.Is(err, fs.ErrNotExist) && path == root {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			if e.IsDir() {
+				return nil
+			}
+			rel, _ := filepath.Rel(pending, path)
+			dst := filepath.Join(dataDir, rel)
+			if exists(dst) {
+				return nil
+			}
+			if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
+				return err
+			}
+			if err := os.Rename(path, dst); err != nil {
+				return err
+			}
+			return dirsync.Sync(filepath.Dir(dst))
+		})
+		if err != nil {
+			return err
 		}
-		rel, _ := filepath.Rel(pending, path)
-		dst := filepath.Join(dataDir, rel)
-		if !exists(dst) {
-			os.MkdirAll(filepath.Dir(dst), 0o700)
-			os.Rename(path, dst)
-		}
-		return nil
-	})
+	}
 	if err := writeSynced(filepath.Join(dataDir, madeFile), raw); err != nil {
 		return err
 	}
