@@ -494,7 +494,7 @@ export class NativeServerSignIn {
       }
       const api = this.api, route = api.getRouteConnection(), pin = route?.pin;
       if (!route || !pin || pin.serverId !== descriptor.id) throw mismatch();
-      const server = parseServerSignIn(await readServerSystem(api, this.controller.signal)); this.assertCurrent();
+      const server = parseServerSignIn(await readServerSystem(api, this.controller.signal), true); this.assertCurrent();
       if (server.id !== descriptor.id || server.signIn !== descriptor.signIn || server.move !== descriptor.move) throw mismatch();
       // Before release an app opens only a server of its own API level (P2-66 G-2).
       negotiateNativeServer(server);
@@ -552,13 +552,11 @@ export class NativeServerSignIn {
           if (!hostedCurrent() || account.account.id !== accountId || account.familyId !== familyId) throw cancelled();
           this.admission = await this.owner.admission('portico', {origin: hostedUrl, accountId}); await assertCurrent();
           if (!hostedCurrent()) throw cancelled();
-          const paired = await connectPairedPorticoServer(origin, pin, nativeHostedSource(hostedUrl, credentials, accountId, accountExpectation(account)), nativeServerEnvironment(server.id), this.controller.signal);
-          try {await assertCurrent(); if (!hostedCurrent()) throw cancelled(); this.hosted = paired.hosted;}
-          finally {paired.connection.dispose();}
+          this.hosted = {origin: hostedUrl, accountId};
           const expected = accountExpectation(account);
-          const hosted: HostedRequestApi = createNativeHostedCommandTransport(credentials, nativeNetworkFetch, expected, this.controller.signal,
-            () => this.current() && hostedCurrent());
-          return {api: hosted, origin: hostedUrl, accountId, familyId,
+          return {origin: hostedUrl, accountId, username: account.account.username, familyId,
+            identity: (challenge: string, signal: AbortSignal) => nativeAccountRead(credentials,
+              issued => this.owner.porticoIdentity(issued, server.id, challenge, signal), {expected, isCurrent, signal}),
             isCurrent: hostedCurrent, assertCurrent: async () => {if (!hostedCurrent()) throw cancelled(); await assertCurrent(); if (!hostedCurrent()) throw cancelled();}};
         },
         adopt: async (result, hosted) => {

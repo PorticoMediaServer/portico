@@ -1,17 +1,15 @@
-import {serverNow} from '../../../../packages/client-core/src/server-clock';
-import {decode} from '../../../../packages/contracts/src/runtime';
-import type {RouteRequest} from '../../../../packages/contracts/src/routes';
 import {ApiError, type LocalSession} from '../../../../packages/client-core/src';
-import {MemberAccountMoveClient, accountMoveLink, consumeAccountMoveFragment, type MoveCodePreview, type MoveCollisionDetails, type MoveCredential} from '../../../../packages/client-core/src/account-move';
+import {MemberAccountMoveClient, accountMoveLink, consumeAccountMoveFragment, type MoveCodePreview, type MoveCollisionDetails} from '../../../../packages/client-core/src/account-move';
 import type {DirectSignIn, ProfileAPI} from '../../../../packages/client-core/src/profile-management';
-import {requestIdentityAssertion, requestPorticoChallenge, type HostedRequestApi} from '../../../../packages/client-core/src/portico-servers';
+import {checkPorticoMove, porticoMove, type PorticoMoveProof, type SignInNote} from '../../../../packages/client-core/src/portico-server-sign-in';
 import {routeOrigin, type RouteCrypto, type ServerPin} from '../../../../packages/client-core/src/route-identity';
 import {CodedError} from '../../../../packages/client-core/src/server-messages';
 import type {ServerSignIn} from '../../../../packages/client-core/src/sign-in';
 import {hostedUrl} from './account-authority';
 
 export type NativeMoveHostedCapture = Readonly<{
-  api: HostedRequestApi; origin: string; accountId: string; familyId: string;
+  origin: string; accountId: string; username: string; familyId: string;
+  identity: (challenge: string, signal: AbortSignal) => Promise<SignInNote>;
   isCurrent: () => boolean; assertCurrent: () => Promise<void>;
 }>;
 
@@ -34,12 +32,10 @@ export type NativeMemberMovePorts<Result> = Readonly<{
 }>;
 
 export type NativeMemberMoveSnapshot<Result> = Readonly<{
-  phase: 'password' | 'code' | 'portico' | 'local' | 'collision' | 'adopted';
-  busy: boolean; username?: string; collision?: MoveCollisionDetails; result?: Result; error?: unknown;
+  phase: 'password' | 'code' | 'portico' | 'confirm-portico' | 'local' | 'collision' | 'adopted';
+  busy: boolean; username?: string; porticoAccount?: Readonly<{id: string; username: string}>; collision?: MoveCollisionDetails; result?: Result; error?: unknown;
 }>;
-/** `expiresAt` is absent for a move code: the rebuilt server keeps its expiry to itself and refuses an expired one. */
-type Proof = Readonly<{credential: MoveCredential; expiresAt?: string; preview?: MoveCodePreview}>;
-const expired = (expiresAt: string | undefined) => expiresAt !== undefined && Date.parse(expiresAt) <= serverNow();
+type Proof = Readonly<{credential: PorticoMoveProof; preview: Pick<MoveCodePreview, 'username' | 'signIn'>}>;
 const cancelled = () => new CodedError('cancelled', 'This account move request ended.');
 const invalidProof = () => new CodedError('move_code_invalid', 'The move proof expired.');
 
@@ -53,6 +49,7 @@ export class NativeMemberAccountMove<Result> {
   private epoch = 0;
   private disposed = false;
   private proof?: Proof;
+  private confirmedAccount?: NativeMoveHostedCapture;
   private client?: MemberAccountMoveClient;
   private abort?: AbortController;
   private accepted?: Readonly<{epoch: number; result: Result; isCurrent: () => boolean}>;
@@ -128,7 +125,7 @@ export class NativeMemberAccountMove<Result> {
     this.publish({busy: true, error: undefined, collision: undefined});
     try {await this.fence(epoch); await work(epoch, abort.signal, client);}
     catch (error) {
-      if (this.current(epoch)) this.publish({error, ...(!this.proof ? {phase: this.initial, username: undefined} : {}), ...(error instanceof ApiError && error.code === 'move_collision' && error.current
+      if (this.current(epoch)) this.publish({error, ...(!this.proof ? {phase: this.initial, username: undefined, porticoAccount: undefined} : {}), ...(error instanceof ApiError && error.code === 'move_collision' && error.current
         ? {phase: 'collision' as const, collision: error.current} : {})});
     } finally {
       client.dispose();
@@ -139,30 +136,30 @@ export class NativeMemberAccountMove<Result> {
   }
   proveOldPassword(username: string, password: string) {
     if (this.state.phase !== 'password' || this.ports.server.signIn !== 'portico' || this.ports.server.move !== 'to_portico') return Promise.resolve();
-    return this.command(async (epoch, signal, client) => {
+    return this.command(async (epoch, signal) => {
       this.proof = undefined;
-      const ticket = await client.password(username, password, signal);
+      const checked = await checkPorticoMove(this.ports.api, {username, password}, signal);
       await this.fence(epoch);
-      if (Date.parse(ticket.expiresAt) <= serverNow()) throw invalidProof();
-      this.proof = Object.freeze({credential: {ticket: ticket.ticket}, expiresAt: ticket.expiresAt});
-      this.publish({phase: 'portico'});
+      this.proof = Object.freeze({credential: checked.proof, preview: {username: checked.username, signIn: 'portico'}});
+      this.publish({phase: 'portico', username: checked.username});
     });
   }
   previewCode(code: string) {
     if (this.state.phase !== 'code') return Promise.resolve();
     return this.command(async (epoch, signal, client) => {
       this.proof = undefined;
-      const preview = await client.previewCode(code, signal);
+      const preview = this.ports.server.signIn === 'portico'
+        ? {username: (await checkPorticoMove(this.ports.api, {code}, signal)).username, signIn: 'portico' as const}
+        : await client.previewCode(code, signal);
       await this.fence(epoch);
       if (preview.signIn !== this.ports.server.signIn) throw new CodedError('identity_mismatch', 'The server sign-in changed.');
-      if (expired(preview.expiresAt)) throw invalidProof();
-      this.proof = Object.freeze({credential: {code}, expiresAt: preview.expiresAt, preview});
+      this.proof = Object.freeze({credential: {code}, preview});
       this.publish({phase: preview.signIn === 'local' ? 'local' : 'portico', username: preview.username});
     });
   }
   private takeProof() {
     const proof = this.proof; this.proof = undefined;
-    if (!proof || expired(proof.expiresAt)) throw invalidProof();
+    if (!proof) throw invalidProof();
     return proof;
   }
   private async adopt(result: DirectSignIn, epoch: number, hosted?: NativeMoveHostedCapture) {
@@ -190,40 +187,46 @@ export class NativeMemberAccountMove<Result> {
     if (this.state.phase !== 'local' || this.ports.server.signIn !== 'local') return Promise.resolve();
     return this.command(async (epoch, signal, client) => {
       const proof = this.takeProof();
-      if (!proof.credential.code || proof.preview?.signIn !== 'local') throw invalidProof();
+      if (!('code' in proof.credential) || proof.preview.signIn !== 'local') throw invalidProof();
       const result = await client.redeemLocal(proof.credential.code, username, password, signal);
       await this.adopt(result, epoch);
     });
   }
+  /** After account sign-in: name both accounts, but request no note and move nothing. The screen
+   * must show this confirmation and call redeemPortico only for its explicit Move button. */
+  preparePortico() {
+    if (this.state.phase !== 'portico' || !this.proof) return Promise.resolve();
+    return this.command(async epoch => {
+      const hosted = Object.freeze({...await this.ports.captureHosted()});
+      await this.fence(epoch, hosted);
+      if (routeOrigin(hosted.origin) !== routeOrigin(hostedUrl) || !hosted.accountId || !hosted.familyId || !hosted.username) throw cancelled();
+      this.confirmedAccount = hosted;
+      this.publish({phase: 'confirm-portico', username: this.proof!.preview.username,
+        porticoAccount: {id: hosted.accountId, username: hosted.username}});
+    });
+  }
+  /** Not you? keeps the server proof while the screen changes the signed-in Portico Account. */
+  changePorticoAccount() {
+    if (this.state.busy || !this.proof) return;
+    this.confirmedAccount = undefined;
+    this.publish({phase: 'portico', porticoAccount: undefined, error: undefined});
+  }
   redeemPortico() {
-    if (this.state.phase !== 'portico' || this.ports.server.signIn !== 'portico' || this.ports.server.move !== 'to_portico') return Promise.resolve();
+    const hosted = this.confirmedAccount;
+    if (this.state.phase !== 'confirm-portico' || !hosted || this.ports.server.signIn !== 'portico' || this.ports.server.move !== 'to_portico') return Promise.resolve();
     return this.command(async (epoch, signal) => {
-      const proof = this.takeProof();
-      // Capture the official Hosted origin/account/family ONCE for this command.
-      const captured = await this.ports.captureHosted();
-      const hosted: NativeMoveHostedCapture = Object.freeze({...captured});
+      const proof = this.takeProof(); this.confirmedAccount = undefined;
       await this.fence(epoch, hosted);
-      if (routeOrigin(hosted.origin) !== routeOrigin(hostedUrl) || !hosted.accountId || !hosted.familyId) throw cancelled();
-      const challenge = await requestPorticoChallenge(this.ports.api, this.ports.server.id, signal, this.ports.crypto);
-      await this.fence(epoch, hosted);
-      const identity = await requestIdentityAssertion(hosted.api, hosted.origin, this.ports.server.id, challenge, 'interactive', signal);
-      await this.fence(epoch, hosted);
-      if (expired(proof.expiresAt)) throw invalidProof();
-      const client = new MemberAccountMoveClient(this.ports.api, {serverId: this.ports.server.id,
-        isCurrent: () => this.current(epoch, hosted), retireLateGrant: session => this.retireFresh(session)});
-      try {
-        // Validate the optional certificate against the official request schema;
-        // the Hosted assertion transport intentionally exposes it as unknown.
-        const checked = decode('PostAuthMovePorticoRequest', {...proof.credential, porticoIdentity: identity}) as RouteRequest<'post_auth_move_portico'>;
-        const result = await client.redeemPortico(proof.credential, checked.porticoIdentity, signal);
-        await this.adopt(result, epoch, hosted);
-      } finally {client.dispose();}
+      const result = await porticoMove(this.ports.api, this.ports.server.id, proof.credential,
+        challenge => hosted.identity(challenge, signal), signal,
+        {accountId: hosted.accountId, isCurrent: () => this.current(epoch, hosted)});
+      await this.adopt(result, epoch, hosted);
     });
   }
   cancel = () => {
-    ++this.epoch; this.proof = undefined; this.accepted = undefined; this.abort?.abort(); this.client?.dispose();
+    ++this.epoch; this.proof = undefined; this.confirmedAccount = undefined; this.accepted = undefined; this.abort?.abort(); this.client?.dispose();
     this.abort = undefined; this.client = undefined;
-    this.publish({phase: this.initial, busy: false, username: undefined, collision: undefined, result: undefined, error: undefined});
+    this.publish({phase: this.initial, busy: false, username: undefined, porticoAccount: undefined, collision: undefined, result: undefined, error: undefined});
   };
   dispose = () => {
     if (this.disposed) return;
