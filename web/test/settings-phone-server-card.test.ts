@@ -23,7 +23,7 @@ test('the audience comes from the settings bindings, the one list the desktop pi
   const bindings = readFileSync(new URL('../src/screens/settings/bindings.ts', import.meta.url), 'utf8');
   const settings = readFileSync(new URL('../src/screens/settings/Settings.tsx', import.meta.url), 'utf8');
   // Troubleshooting is shared when administrators have any part of it (troubleshooting/parts.ts, from routes.ts).
-  assert.match(bindings, /audience: section => \['dashboard', 'libraries', 'people'\]\.includes\(section\.id\) \|\| section\.id === 'troubleshooting' && troubleshootingParts\('admin'\)\.size > 0 \? 'administrators' : 'owner',/);
+  assert.match(bindings, /audience: section => \['dashboard', 'history', 'libraries', 'people'\]\.includes\(section\.id\) \|\| section\.id === 'troubleshooting' && troubleshootingParts\('admin'\)\.size > 0 \? 'administrators' : 'owner',/);
   assert.match(settings, /const audience = bindings\.audience\(section\);/);
   assert.match(settings, /<ServerHeader serverName=\{bindings\.serverName\} viewerRole="owner" audience=\{audience\}/);
 });
