@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 	"github.com/PorticoMediaServer/portico/server-next/internal/streaming"
@@ -84,5 +85,28 @@ func TestTheConnectionIsToldToThePlanner(t *testing.T) {
 		if got != want {
 			t.Errorf("%s: %+v, want %+v", network, got, want)
 		}
+	}
+}
+
+// The conversion-device setting reaches the decoder package, where pictures, previews and
+// linear outputs are planned: with software encoding chosen it sees an FFmpeg without the
+// graphics-device filters, with Automatic or a named device it sees them.
+func TestTheDeviceSettingReachesEveryJobMadeFromFFmpegsFacts(t *testing.T) {
+	defer decoder.RestoreToolchain(decoder.CurrentToolchain())
+	defer decoder.SetSoftwareEncodingChosen(nil)
+	for device, software := range map[string]bool{"processor": true, "automatic": false, "": false, "vaapi": false} {
+		if got := softwareEncoding(settings.StreamingSettings{GraphicsDevice: device}); got != software {
+			t.Fatalf("graphics device %q counted as software encoding: %v", device, got)
+		}
+	}
+	// An engine on which nothing was saved has Automatic.
+	(&Engine{}).shareDeviceSetting()
+	decoder.RestoreToolchain(&decoder.ToolchainFacts{VulkanAvailable: true})
+	if !decoder.CurrentToolchain().VulkanAvailable {
+		t.Fatal("with Automatic the graphics-device filters were hidden")
+	}
+	decoder.SetSoftwareEncodingChosen(func() bool { return softwareEncoding(settings.StreamingSettings{GraphicsDevice: "processor"}) })
+	if decoder.CurrentToolchain().VulkanAvailable {
+		t.Fatal("with software encoding chosen the decoder still sees a Vulkan device")
 	}
 }

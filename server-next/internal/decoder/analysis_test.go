@@ -94,3 +94,46 @@ func TestSegmentRegionRecipes(t *testing.T) {
 		}
 	}
 }
+
+// With software encoding chosen nothing made from FFmpeg's facts uses the graphics device,
+// although a working one was found: a picture or preview of a Dolby Vision profile 5 film is
+// refused, as on a server with no such device, and a linear output is tone mapped on the
+// processor. When the owner switches back, both use it again without a restart.
+func TestSoftwareEncodingKeepsPicturesPreviewsAndLinearOutputOffTheGraphicsDevice(t *testing.T) {
+	defer RestoreToolchain(installedToolchain.Load())
+	defer SetSoftwareEncodingChosen(nil)
+	chosen := true
+	SetSoftwareEncodingChosen(func() bool { return chosen })
+	RestoreToolchain(&ToolchainFacts{VulkanAvailable: true, OpenCLAvailable: true,
+		Filters:  map[string]bool{"libplacebo": true, "tonemap_opencl": true, "zscale": true, "tonemap": true},
+		Encoders: map[string]bool{"libx264": true, "aac": true}})
+	usesDevice := func(args []string) bool {
+		text := strings.Join(args, " ")
+		return strings.Contains(text, "vulkan") || strings.Contains(text, "opencl") || strings.Contains(text, "libplacebo")
+	}
+	for _, kind := range []string{"image"} {
+		spec := AnalysisSpec{Kind: kind, MaxDurationUS: 60000000, SourceVideo: PreviewVideoFacts{DynamicRange: "dolby_vision", DolbyVisionProfile: 5}}
+		if args, err := AnalysisArgs("input", spec); err == nil {
+			t.Fatalf("a %s of a profile 5 film was planned with software encoding chosen: %v", kind, args)
+		}
+		chosen = false
+		if args, err := AnalysisArgs("input", spec); err != nil || !usesDevice(args) {
+			t.Fatalf("after switching back, a %s of a profile 5 film: %v %v", kind, args, err)
+		}
+		chosen = true
+	}
+	// An HDR10 picture is still made, tone mapped on the processor.
+	hdr := AnalysisSpec{Kind: "image", MaxDurationUS: 60000000, SourceVideo: PreviewVideoFacts{DynamicRange: "hdr10"}}
+	if args, err := AnalysisArgs("input", hdr); err != nil || usesDevice(args) {
+		t.Fatalf("a picture of an HDR10 film with software encoding chosen: %v %v", args, err)
+	}
+	linear := LinearEncoding{Video: true, ConvertVideo: true, HDRToSDR: true}
+	linear.Toolchain = CurrentToolchain()
+	args, hardware, err := linearHLSArgs(linearTestInput, linearTestOutput, linear)
+	if err != nil || hardware || usesDevice(args) {
+		t.Fatalf("a linear output with software encoding chosen: hardware %v, %v %v", hardware, args, err)
+	}
+	if facts := installedToolchain.Load(); !facts.VulkanAvailable || !facts.OpenCLAvailable {
+		t.Fatal("what the trial found was thrown away", facts)
+	}
+}

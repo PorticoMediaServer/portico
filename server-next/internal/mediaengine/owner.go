@@ -15,6 +15,20 @@ import (
 // owner is the owner's streaming settings as they are now.
 func (e *Engine) owner() settings.StreamingSettings { return settings.Streaming.Get(e.settings) }
 
+// shareDeviceSetting lets the conversion-device setting reach every job made from FFmpeg's
+// facts, not only a play: with software encoding chosen no thumbnail, preview or linear output
+// uses the graphics device either. It is read as it is now each time, like every other
+// streaming setting.
+func (e *Engine) shareDeviceSetting() {
+	decoder.SetSoftwareEncodingChosen(func() bool { return softwareEncoding(e.owner()) })
+}
+
+// softwareEncoding reports the conversion-device setting "software encoding" (stored as
+// "processor"): conversions run on the processor and no graphics device is used.
+func softwareEncoding(owner settings.StreamingSettings) bool {
+	return owner.GraphicsDevice == "processor"
+}
+
 // Delivery is the owner's settings in the stream runtime's terms (streaming.DeliverySettings).
 func (e *Engine) Delivery() streaming.DeliveryConfiguration { return delivery(e.owner()) }
 
