@@ -5,7 +5,7 @@ import {parseBrowseCapabilities} from '../src/browse.ts';
 import {filterControlOf, filterValuesField} from '../src/presentation/browse-toolbar.ts';
 import {appliedFilterParts} from '../src/presentation/kit-model/filters.ts';
 import {filterValueName} from '../src/filter-value-names.ts';
-import {readBrowseFacetResponse, readReadingBrowseFacet} from '../src/query/browse-reads.ts';
+import {nameFilterValues, readBrowseFacetResponse, readReadingBrowseFacet} from '../src/query/browse-reads.ts';
 
 // A Read library's filters on the rebuilt server: choosing an author or a series narrows its list,
 // and the filter menu's author choices are the library's people by the author role.
@@ -67,4 +67,18 @@ test('a chosen author\'s chip says the author\'s name, not the id the list is fi
   const parts = appliedFilterParts({field: 'author', operator: 'contains-any', value: ['per_named']}, () => 'Author', {t: ((id: string) => id) as never}, value => filterValueName(value) ?? String(value));
   assert.deepEqual(parts.values.map(value => value.text), ['Jane Doe']);
   assert.equal(filterValueName('per_never_listed'), undefined);
+});
+
+test('an author or series in use that the lists have not shown is named by reading it on its own', async () => {
+  const asked: string[] = [];
+  const api = {request: async (path: string) => {
+    const {pathname} = new URL(path, 'http://server.test'); asked.push(pathname);
+    if (pathname === '/v1/people/per_far') return {id: 'per_far', name: 'Zadie Far', images: {}};
+    if (pathname === '/v1/items/itm_far') return {id: 'itm_far', kind: 'series', title: 'Far Series', libraryId: 'lib_books', addedAt: '2026-11-12T00:00:00Z', images: {}};
+    throw new Error('not_found');
+  }};
+  await nameFilterValues(api, 'author', ['per_far', 'per_gone']);
+  await nameFilterValues(api, 'series', ['itm_far']);
+  assert.deepEqual(asked, ['/v1/people/per_far', '/v1/people/per_gone', '/v1/items/itm_far']);
+  assert.deepEqual([filterValueName('per_far'), filterValueName('per_gone'), filterValueName('itm_far')], ['Zadie Far', undefined, 'Far Series']);
 });

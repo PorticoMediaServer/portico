@@ -1,4 +1,5 @@
-import {entriesFromItems, readFacet, readItems, readLibrary, type ItemListQuery} from '../items.ts';
+import {entriesFromItems, readFacet, readItem, readItems, readLibrary, readPersonFacts, type ItemListQuery} from '../items.ts';
+import {rememberFilterNames} from '../filter-value-names.ts';
 import {childrenQuery, genreTitlesCapabilities, genreTitlesPivot, libraryBrowseCapabilities, libraryItemQuery} from '../library-browse.ts';
 import type {ContentEntry} from '../library-content.ts';
 import {unreadableServerResponse} from '../server-messages.ts';
@@ -47,6 +48,16 @@ export async function readBrowseFacetResponse(api: BrowseReadApi, libraryId: str
   const values = facet.values.map(value => ({value: field === 'genre' ? value.label || value.value : value.value, label: value.label || value.value, count: value.count}))
     .filter(value => !wanted || value.label.toLocaleLowerCase().includes(wanted));
   return {field, total: values.length, values: values.slice(0, limit)};
+}
+/** Names the author or series ids a filter holds that this app has not listed yet (a link, a
+ * reload): each is read on its own, so its chip says the name wherever it sits in the library's list. */
+export async function nameFilterValues(api: BrowseReadApi, field: 'author' | 'series', ids: readonly string[], signal?: AbortSignal): Promise<void> {
+  const named = await Promise.all(ids.map(async id => {
+    const label = field === 'author' ? (await readPersonFacts(api as ServerRequester, id, signal).catch(() => undefined))?.name
+      : (await readItem(api as ServerRequester, id, signal).catch(() => undefined))?.title;
+    return typeof label === 'string' && label ? [{value: id, label}] : [];
+  }));
+  rememberFilterNames(named.flat());
 }
 /** A Reading library's filter choices: its authors and series from the rebuilt server's people and
  * series lists, any other filter from the library's own counted choices. */
