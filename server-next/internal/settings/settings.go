@@ -126,9 +126,10 @@ var ErrNoDocument = errors.New("no such settings document")
 
 // Settings is one server's documents, held in memory.
 type Settings struct {
-	db   *db.DB
-	mu   sync.RWMutex
-	docs map[string]*loaded
+	db          *db.DB
+	mu          sync.RWMutex
+	docs        map[string]*loaded
+	pausedUntil time.Time
 	// saving puts saves of one document in order, so watchers see them in the order they
 	// committed.
 	saving sync.Mutex

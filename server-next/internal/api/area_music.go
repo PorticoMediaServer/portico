@@ -17,7 +17,7 @@ import (
 // calls it once, after the job runner exists and before the jobs left from the last run are
 // taken up. On a server without the sound model installed, nothing is ever started.
 func (s *Server) startMusic(ctx context.Context) error {
-	music := &musicanalysis.Service{DB: s.db, Log: s.log, Tools: s.analysisTools, Now: s.now,
+	music := &musicanalysis.Service{Settings: s.settings, DB: s.db, Log: s.log, Tools: s.analysisTools, Now: s.now,
 		Hours: func() settings.HeavyWorkSettings { return settings.General.Get(s.settings).HeavyWork }}
 	s.jobs.Register(music.Kind())
 	Handle(s, "GET /v1/admin/libraries/{id}/sound-analysis", Owner, func(r *http.Request, _ None) (SoundAnalysisStatus, error) {
