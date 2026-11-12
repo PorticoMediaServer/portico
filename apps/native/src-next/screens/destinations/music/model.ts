@@ -1,9 +1,6 @@
 import {DetailService} from '../../../../../../packages/client-core/src/detail';
-import {readAlbumTrackPage, readBrowseCapabilitiesResponse, readImmediateBrowsePageResponse, createArtistAlbumPageRead} from '../../../../../../packages/client-core/src/query/browse-reads';
+import {readAlbumTrackPage, readArtistReleasePage, readArtistSongPage} from '../../../../../../packages/client-core/src/query/browse-reads';
 import type {ContentProjection, ContentEntry} from '../../../../../../packages/client-core/src/library-content';
-import {
-  BrowseQueryBuilder, browsePath, parseBrowseCapabilities, parseBrowseResult, type BrowseCapabilities,
-} from '../../../../../../packages/client-core/src/browse';
 import {getContainerState, setContainerFlag, type ContainerState} from '../../../../../../packages/client-core/src/container-state';
 import {readListeningSimilar, listeningSimilarPath, LibraryContentService} from '../../../../../../packages/client-core/src/library-content';
 import {nativeSimilarRow, type NativeRelatedRow, type NativeRelatedRowSnapshot} from '../../watch/title-related';
@@ -72,10 +69,6 @@ const diagnose = (read: 'capabilities' | 'favorite' | 'similar' | 'songs' | 'det
 };
 const id = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\r\n]/.test(value);
 const obj = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
-const list = (value: unknown, max: number): unknown[] => {
-  if (!Array.isArray(value) || value.length > max) throw new Error(unreadableServerResponse);
-  return value;
-};
 const text = (value: unknown, max = 4096): value is string => typeof value === 'string' && value.length <= max && !/[\x00-\x1f\x7f]/.test(value);
 const album = (value: unknown): MusicAlbumRow | undefined => {
   if (!obj(value) || !id(value.id) || !id(value.libraryId) || !text(value.title, 2048)) return undefined;
@@ -263,24 +256,12 @@ export class NativeTVMusicController {
     this.pending = task;
     return task;
   };
-  private async capabilities(pivot: string, signal: AbortSignal): Promise<BrowseCapabilities> {
-    const libraryId = this.options.entry.libraryId;
-    if (!libraryId) throw new Error('music_library_required');
-    return parseBrowseCapabilities(await readBrowseCapabilitiesResponse(this.api, libraryId, pivot, signal));
-  }
-  private async browse(capabilities: BrowseCapabilities, build: (builder: BrowseQueryBuilder) => BrowseQueryBuilder, signal: AbortSignal) {
-    const libraryId = this.options.entry.libraryId;
-    if (!libraryId) throw new Error('music_library_required');
-    const body = build(new BrowseQueryBuilder(capabilities)).build();
-    return parseBrowseResult(await readImmediateBrowsePageResponse(this.api, libraryId, body, signal));
-  }
-  /** An artist's songs, still read through the browse query the old server answered. */
-  private browseSongRead(capabilities: BrowseCapabilities, build: (builder: BrowseQueryBuilder) => BrowseQueryBuilder) {
-    const libraryId=this.options.entry.libraryId!,path=browsePath(libraryId),original=build(new BrowseQueryBuilder(capabilities)).build();
-    return {query: JSON.stringify([path, original]), read: async (cursor: string, signal: AbortSignal): Promise<MusicSectionPage<ContentEntry>> => {
-      const page=parseBrowseResult(await readImmediateBrowsePageResponse(this.api,libraryId,{...original,...(cursor?{cursor}:{})},signal));
-      return {items:page.entries,nextCursor:page.pageInfo.hasMore?page.pageInfo.nextCursor:'',revision:page.pageInfo.revision,
-        offset:page.pageInfo.start,total:page.pageInfo.total,totalIsLowerBound:page.pageInfo.totalIsLowerBound};
+  /** Every song crediting the artist, by name, from the server's list of the artist's songs. */
+  private artistSongRead(generation: number) {
+    const libraryId=this.options.entry.libraryId!,artistId=this.options.entry.id;
+    return {query: JSON.stringify(['artist-songs', libraryId, artistId]), read: async (cursor: string, signal: AbortSignal): Promise<MusicSectionPage<ContentEntry>> => {
+      const page=await readArtistSongPage(this.api,libraryId,artistId,'title',{cursor,limit:200},signal);
+      return {items:page.entries,nextCursor:page.nextCursor,revision:`artist-${generation}`,total:page.total,totalIsLowerBound:page.total===undefined};
     }};
   }
   /** The album's tracks in its own order, from the server's list of what the album holds. */
@@ -379,23 +360,23 @@ export class NativeTVMusicController {
   private async loadArtist(signal: AbortSignal): Promise<void> {
     // The Details producer is secondary: it may arrive after the songs and
     // releases, and its refusal leaves the real grid-entry facts in place.
-    const [capabilities,favorite]=await Promise.all([
-      this.capabilities('songs',signal),this.favoriteState(signal),this.artistAlbums(signal),
-    ]);
+    const libraryId = this.options.entry.libraryId, generation = this.generation;
+    if (!libraryId) throw new Error('music_library_required');
+    const [favorite]=await Promise.all([this.favoriteState(signal),this.artistAlbums(signal)]);
     if (!this.current() || signal.aborted) return;
-    const original = new BrowseQueryBuilder(capabilities).where('artist', 'equals', this.options.entry.title).sort('playCount', 'desc').limit(Math.min(5, capabilities.queryLimits.maximumLimit)).build();
-    const libraryId = this.options.entry.libraryId!, path = browsePath(libraryId);
-    const page = parseBrowseResult(await readImmediateBrowsePageResponse(this.api, libraryId, original, signal));
+    // Popular: the server's most played songs; none played (or none by people who share their activity) is no row.
+    const page = await readArtistSongPage(this.api, libraryId, this.options.entry.id, 'popular', {limit: 10}, signal);
     if (!this.current() || signal.aborted) return;
     if (page.entries.some(entry => entry.kind !== 'song')) throw new Error(unreadableServerResponse);
-    this.songQuery = JSON.stringify([path, original]); this.topSongsRevision = page.pageInfo.revision;
-    this.publish({phase:'ready',songs:page.entries,songTotal:page.pageInfo.totalIsLowerBound?undefined:page.pageInfo.total,favorite});
+    this.songQuery = JSON.stringify(['artist-popular', libraryId, this.options.entry.id]); this.topSongsRevision = `artist-${generation}`;
+    // The row's own count is of played songs only; the artist's song count comes with its details.
+    this.publish({phase:'ready',songs:page.entries,songTotal:undefined,favorite});
     // The optional entity projection supplies real Details and the Similar
     // revision; neither ever holds the artist's own songs and releases.
     if (!this.current() || signal.aborted) return;
     const details=await this.entityDetails('artist',signal);
     if (!this.current() || signal.aborted) return;
-    if(details)this.publish({artistDetails:details});
+    if(details)this.publish({artistDetails:details,...(details.count!==undefined?{songTotal:details.count}:{})});
     await this.loadSimilar(signal);
   }
   /** The page's own bounded entity projection, independent of its track pages.
@@ -432,14 +413,13 @@ export class NativeTVMusicController {
     }
   }
   private async artistAlbums(signal: AbortSignal): Promise<void> {
-    const generation=this.generation,read=createArtistAlbumPageRead(this.api,this.options.entry.id);
+    const generation=this.generation,libraryId=this.options.entry.libraryId!,artist={id:this.options.entry.id,name:this.options.entry.title};
     const pager=new MusicSectionPager<MusicAlbumRow>({
       current:()=>this.current()&&generation===this.generation&&!signal.aborted,
       read:async(cursor,input)=>{
-        const raw=await read(cursor,input);
-        if(!text(raw?.nextCursor,4096))throw membershipFailure('music_section_unreadable');
-        const items=list(raw?.albums,100).flatMap(row=>{const value=album(row);return value?[value]:[];});
-        return {items,nextCursor:raw.nextCursor};
+        const page=await readArtistReleasePage(this.api,libraryId,this.options.entry.id,{cursor,limit:100},input);
+        const items=page.entries.flatMap(entry=>{const value=album({...entry,albumArtistId:artist.id,albumArtist:artist.name});return entry.kind==='album'&&value?[value]:[];});
+        return {items,nextCursor:page.nextCursor,revision:`artist-${generation}`,total:page.total,totalIsLowerBound:page.total===undefined};
       },
       publish:section=>this.publish({releases:section,albums:section.items}),
     });
@@ -493,10 +473,7 @@ export class NativeTVMusicController {
     this.allSongsController=controller;
     this.publish({allSongs:Object.freeze({...emptyMusicSection<ContentEntry>(),phase:'loading',songs:[]})});
     try{
-      const capabilities=await this.capabilities('songs',signal);
-      if(!this.current()||signal.aborted||generation!==this.generation)return;
-      const pager=this.songSection(this.browseSongRead(capabilities,builder=>builder.where('artist','equals',this.options.entry.title).sort('title','asc')
-        .limit(Math.min(200,capabilities.queryLimits.maximumLimit))),generation,true);
+      const pager=this.songSection(this.artistSongRead(generation),generation,true);
       this.allSongPager=pager;await pager.load();
     }catch(error){
       if(this.current()&&!signal.aborted&&generation===this.generation)this.publish({allSongs:Object.freeze({...emptyMusicSection<ContentEntry>(),phase:'error',songs:[],error})});
