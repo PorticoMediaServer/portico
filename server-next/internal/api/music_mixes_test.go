@@ -167,3 +167,52 @@ func TestARadioPlaysWhatSoundsClosest(t *testing.T) {
 		}
 	}
 }
+
+// Save as playlist on a mix makes a new playlist of its songs, in the mix's order, without
+// touching any queue; another profile's mix is not found.
+func TestAMixIsSavedAsAPlaylistWithoutTouchingTheQueue(t *testing.T) {
+	th := newTheatre(t)
+	_, quiet := th.album("Quiet", 6)
+	_, loud := th.album("Loud", 6)
+	near := map[string]int{}
+	for _, s := range quiet {
+		near[s] = 0
+	}
+	for _, s := range loud {
+		near[s] = 1
+	}
+	sounds(t, th, near)
+	for _, s := range append(quiet, loud...) {
+		listenTo(t, th, s, 2)
+	}
+	owner := th.owner.AccessToken
+	mixes := get[Page[MusicMix]](t, th.s, owner, "/v1/music/mixes").Items
+	if len(mixes) == 0 {
+		t.Fatal("no mixes")
+	}
+	playing := th.create(QueueCreate{Source: playqueue.QueueSource{Items: []string{quiet[0]}}})
+	var saved List
+	if w := call(t, th.s, "POST", "/v1/music/mixes/"+mixes[0].ID+"/playlist", owner, MusicMixSave{Name: "Mellow mix"}, &saved); w.Code != 201 ||
+		saved.Name != "Mellow mix" || saved.Kind != "playlist" {
+		t.Fatalf("saving the mix answered %d: %s", w.Code, w.Body)
+	}
+	entries := get[ItemPage](t, th.s, owner, "/v1/items?list="+saved.ID+"&limit=200").Items
+	if len(entries) != mixes[0].Songs {
+		t.Fatalf("the playlist holds %d of the mix's %d songs", len(entries), mixes[0].Songs)
+	}
+	var queue QueueCreated
+	call(t, th.s, "GET", "/v1/queues/"+playing.Queue.ID, owner, nil, &queue.Queue)
+	if queue.Queue.Total != 1 {
+		t.Fatalf("saving the mix changed the queue playing: %+v", queue.Queue)
+	}
+	if code := status(t, th.s, "POST", "/v1/music/mixes/mix_nothing/playlist", owner, MusicMixSave{Name: "Nothing"}); code != 404 {
+		t.Fatalf("a mix the profile does not have answered %d", code)
+	}
+	var kid Profile
+	call(t, th.s, "POST", "/v1/profiles", owner, ProfileCreate{Name: "Kid"}, &kid)
+	var onKid Session
+	call(t, th.s, "POST", "/v1/profiles/"+kid.ID+"/select", signIn(t, th.s, 1).Session.AccessToken, ProfileSelect{}, &onKid)
+	if code := status(t, th.s, "POST", "/v1/music/mixes/"+mixes[0].ID+"/playlist", onKid.AccessToken, MusicMixSave{Name: "Not mine"}); code != 404 {
+		t.Fatalf("another profile's mix answered %d", code)
+	}
+}
