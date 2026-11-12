@@ -278,7 +278,7 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 			if !mayWatch(lv, ch) {
 				return PlaybackSession{}, ErrNotFound()
 			}
-			return s.watchSourceChannel(r, ch)
+			return s.watchSourceChannel(r, ch, req.Network)
 		}
 		tuned, err := s.tuneChannel(r.Context(), viewer(r), req.Channel)
 		if err != nil {

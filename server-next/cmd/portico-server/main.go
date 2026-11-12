@@ -152,6 +152,7 @@ func run(log *slog.Logger) (err error) {
 	}
 	handler.Playback().SetEngine(engine, engine)
 	handler.ServeMediaWith(engine.ServeMedia)
+	handler.LiveHLSWith(engine)
 	// The web app is served by this same server, at every address that is not the API's, so
 	// an install needs no web server in front of it.
 	dir := webapp.Find(*web)

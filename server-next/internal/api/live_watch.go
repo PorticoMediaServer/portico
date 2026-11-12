@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -25,18 +26,46 @@ type LiveWindow struct {
 	LiveAt   time.Time `json:"liveAt"`
 }
 
+// LiveHLS makes HLS of a live channel for a device that cannot play the source's MPEG-TS as it
+// is: the media engine (package mediaengine).
+type LiveHLS interface {
+	// StartLive decides how the device plays the channel: nil for the source's stream as it
+	// is, or the HLS it starts for the device.
+	StartLive(ctx context.Context, r live.Conversion) (*live.Play, error)
+	// ServeLive answers a request for the HLS's playlist (index.m3u8) or a file it names.
+	ServeLive(w http.ResponseWriter, r *http.Request, sessionID, file string)
+	StopLive(sessionID string)
+	// LiveFailed says the conversion failed for good.
+	LiveFailed(sessionID string) bool
+}
+
+// LiveHLSWith gives the server the media engine's live HLS. Call it before serving.
+func (s *Server) LiveHLSWith(engine LiveHLS) { s.liveHLS = engine }
+
 // liveStreamRoute serves a live session's stream: the source's own MPEG-TS, from the moment
 // asked for (at=, RFC 3339) or from live. The address names its session and is its
-// permission, like every media address; it ends with the session.
+// permission, like every media address; it ends with the session. A session played as HLS
+// is served beneath it: index.m3u8 (at= asks for a moment) and the files it names.
 func (s *Server) liveStreamRoute() {
+	files := &Route{Pattern: "GET /v1/live/streams/{grant}/{file}", Access: Public, Scope: ScopeOpen}
+	s.routes = append(s.routes, files)
+	s.mux.HandleFunc(files.Pattern, func(w http.ResponseWriter, r *http.Request) {
+		v, ok := s.viewings.ByGrant(r.PathValue("grant"))
+		if !ok || v.Play == nil || s.liveHLS == nil {
+			s.writeError(w, r, ErrNotFound())
+			return
+		}
+		s.liveHLS.ServeLive(w, r, v.ID, r.PathValue("file"))
+	})
 	route := &Route{Pattern: "GET /v1/live/streams/{grant}", Access: Public, Scope: ScopeOpen}
 	s.routes = append(s.routes, route)
 	s.mux.HandleFunc(route.Pattern, func(w http.ResponseWriter, r *http.Request) {
-		in, ok := s.viewings.ByGrant(r.PathValue("grant"))
+		v, ok := s.viewings.ByGrant(r.PathValue("grant"))
 		if !ok {
 			s.writeError(w, r, ErrNotFound())
 			return
 		}
+		in := v.Input
 		var at time.Time
 		if text := r.URL.Query().Get("at"); text != "" {
 			var err error
@@ -75,7 +104,7 @@ func noTuner(busy *live.NoTuner, userID int64) *Error {
 
 // watchSourceChannel starts a live session on a source's channel: it joins the channel's
 // shared input, or takes a free tuner for it.
-func (s *Server) watchSourceChannel(r *http.Request, ch db.LiveChannel) (PlaybackSession, error) {
+func (s *Server) watchSourceChannel(r *http.Request, ch db.LiveChannel, asked string) (PlaybackSession, error) {
 	ctx := r.Context()
 	c := s.playbackCaller(r)
 	// A key or a token without a device has no name to show, and its account's limit is read
@@ -136,6 +165,34 @@ func (s *Server) watchSourceChannel(r *http.Request, ch db.LiveChannel) (Playbac
 		}
 	}
 	v := s.viewings.Start(c.Viewer.UserID, c.Viewer.ProfileID, c.SignInID, ch.PublicID, in, use)
+	if s.liveHLS != nil {
+		// The same planner as a title's decides how this device plays the channel.
+		conversion := live.Conversion{SessionID: v.ID, Input: in, Network: liveNetwork(asked, c.AtHome)}
+		if device.PublicID != "" {
+			if doc, _, err := s.db.DeviceCapabilities(ctx, c.Viewer.UserID, device.PublicID); err == nil {
+				conversion.Capabilities = json.RawMessage(doc)
+			} else if !errors.Is(err, db.ErrNotFound) {
+				s.viewings.Stop(v.ID, c.Viewer.UserID)
+				return PlaybackSession{}, err
+			}
+		}
+		prefs, err := s.db.Preferences(ctx, c.Viewer.ProfileID, device.ID)
+		if err == nil {
+			conversion.Preferences = prefs
+			conversion.Limits, err = s.db.PlayLimits(ctx, c.Viewer.UserID)
+		}
+		var play *live.Play
+		if err == nil {
+			play, err = s.liveHLS.StartLive(ctx, conversion)
+		}
+		if err != nil {
+			// Nothing plays, so the tuner is given back now, not when the lease runs out.
+			s.viewings.Stop(v.ID, c.Viewer.UserID)
+			return PlaybackSession{}, playbackError(err)
+		}
+		s.viewings.SetPlay(v.ID, play)
+		v.Play = play
+	}
 	out := s.liveSessionOut(*v)
 	out.status = http.StatusCreated
 	return out, nil
@@ -151,13 +208,31 @@ func (s *Server) liveSessionOut(v live.Viewing) PlaybackSession {
 		Lease:        PlaybackLease{ExpiresAt: v.Lease.UTC(), ReportEveryMs: live.ReportEvery.Milliseconds()},
 		Presentation: Presentation{Mode: "live", URL: "/v1/live/streams/" + v.Grant, Engine: "copy", Route: "original"},
 		Live:         &LiveWindow{OldestAt: oldest.UTC(), LiveAt: now.UTC()}}
+	if v.Play != nil {
+		out.Presentation = Presentation{Mode: "live", URL: "/v1/live/streams/" + v.Grant + "/index.m3u8", Engine: v.Play.Engine,
+			Route: v.Play.Route, Container: v.Play.Container}
+	}
 	if !v.CountdownTo.IsZero() {
 		out.Countdown = &LiveCountdown{EndsAt: v.CountdownTo.UTC(), Reason: v.CountdownReason}
 	}
 	if err := v.Input.Stopped(); err != nil {
 		out.State, out.End = playback.StateEnded, &SessionEnd{Reason: "failed", Message: "The channel stopped."}
+	} else if v.Play != nil && s.liveHLS != nil && s.liveHLS.LiveFailed(v.ID) {
+		out.State, out.End = playback.StateEnded, &SessionEnd{Reason: "failed", Message: "This channel could not be converted for this device."}
 	}
 	return out
+}
+
+// liveNetwork is the kind of connection a live start is on, as a title's start decides it:
+// the server tells home from away, and the app may say it is on a cellular network.
+func liveNetwork(asked string, atHome bool) string {
+	switch {
+	case asked == playback.NetworkCellular:
+		return playback.NetworkCellular
+	case atHome:
+		return playback.NetworkLocal
+	}
+	return playback.NetworkRemote
 }
 
 // liveSession answers the playback routes for a live session.

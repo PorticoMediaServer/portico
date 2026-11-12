@@ -53,6 +53,8 @@ type Streams struct {
 	// never interleave.
 	byGrant   map[string]*stream
 	bySession map[string]*stream
+	// live is each live viewing's HLS, by viewing (live.go); also guarded by hls.mu.
+	live map[string]*liveConversion
 }
 
 // StartRequest is one stream to serve.
@@ -190,7 +192,14 @@ func (s *Streams) Shutdown(ctx context.Context) error {
 			s.hls.signalLocked(st)
 		}
 	}
+	var live []string
+	for session := range s.live {
+		live = append(live, session)
+	}
 	s.hls.mu.Unlock()
+	for _, session := range live {
+		s.StopLive(session)
+	}
 	err := s.hls.Shutdown(ctx)
 	if err == nil {
 		// Every converter has exited, so what they wrote can go now and not at
@@ -286,6 +295,19 @@ func (s *Streams) admitLocked(plan *DeliveryPlan) error {
 	total, hardware, software := 0, 0, 0
 	for _, other := range s.byGrant {
 		if other.mode != "hls" || other.state != streamLive || other.plan.VideoAction != "convert" {
+			continue
+		}
+		total++
+		if hardwarePlan(other.plan) {
+			hardware++
+		} else {
+			software++
+		}
+	}
+	// A live channel's conversion for one device counts as any other: a second device
+	// converting the same channel is one more conversion.
+	for _, other := range s.live {
+		if other.plan.VideoAction != "convert" || other.ended || other.failure != nil {
 			continue
 		}
 		total++
@@ -461,7 +483,18 @@ func (s *Streams) RecentFailures() []ConversionFailure {
 }
 
 // Conversions reports how many conversions are running against the owner's limit.
-func (s *Streams) Conversions() ConversionCapacity { return s.hls.Conversions() }
+func (s *Streams) Conversions() ConversionCapacity {
+	out := s.hls.Conversions()
+	// A live channel's conversion for a device is running while its converter is.
+	s.hls.mu.Lock()
+	for _, l := range s.live {
+		if l.cancel != nil && l.plan.VideoAction == "convert" {
+			out.Active++
+		}
+	}
+	s.hls.mu.Unlock()
+	return out
+}
 
 func (s *Streams) session(sessionID string) (*stream, error) {
 	s.hls.mu.Lock()

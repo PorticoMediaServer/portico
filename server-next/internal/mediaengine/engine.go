@@ -87,6 +87,7 @@ type Engine struct {
 	mu    sync.Mutex
 	facts map[string]mediafacts.Facts // by path, size and modified time
 	music map[string]*measuredMusic   // the same, for the exact measurement of a music file
+	live  []measuredInput             // what was measured of each live channel's input
 }
 
 // New starts the media engine. Asking ffmpeg what it can do takes several seconds, so it
