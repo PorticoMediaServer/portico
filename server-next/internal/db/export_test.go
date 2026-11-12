@@ -211,6 +211,24 @@ func HolderFlags(d *DB) (missing []string, extra int, stored map[int64]bool, err
 			}
 		}
 	}
+	// A collection or a book series holds its titles by relation.
+	related, err := d.read.Query(`SELECT item_id, related_item_id FROM item_relations WHERE kind IN ` + heldByRelation)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	for related.Next() {
+		var holder, member int64
+		if err := related.Scan(&holder, &member); err != nil {
+			related.Close()
+			return nil, 0, nil, err
+		}
+		if h, m := items[holder], items[member]; m.kind.Playable() && (h.rating != m.rating || h.labels != m.labels) {
+			want[holder] = true
+		}
+	}
+	if err := related.Close(); err != nil {
+		return nil, 0, nil, err
+	}
 	stored = map[int64]bool{}
 	for id, r := range items {
 		stored[id] = r.flag

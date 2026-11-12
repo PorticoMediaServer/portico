@@ -126,8 +126,9 @@ func (a access) libraryVisible(library string) string {
 //
 // A profile with no restriction gets the condition "1", so its reads cost nothing extra.
 //
-// A show, season, artist or album whose every playable title is hidden from the profile is
-// hidden too, so a restricted profile never meets an empty holder. See filled.
+// A show, season, artist, album, collection or book series whose every playable title is
+// hidden from the profile is hidden too, so a restricted profile never meets an empty holder.
+// See filled.
 func (a access) visible(alias string) string {
 	return "(" + a.libraryVisible(alias+".library_id") + a.rated(alias, "+") + a.unblocked(alias) + a.filled(alias) + ")"
 }
@@ -144,7 +145,14 @@ func (a access) filled(alias string) string {
 	if shown == "" {
 		return ""
 	}
-	return " AND (" + alias + ".may_empty = 0 OR " + alias + ".leaf_count = 0 OR " + shown + ")"
+	return " AND (" + alias + ".may_empty = 0 OR " + holdsNothing(alias) + " OR " + shown + ")"
+}
+
+// holdsNothing is the condition that the holder row with this alias has no titles under it
+// as children. leaf_count counts those; a collection or a book series holds its titles by
+// relation and has none, so for those kinds it says nothing and titleUnder decides.
+func holdsNothing(alias string) string {
+	return "(" + alias + ".leaf_count = 0 AND " + alias + ".kind NOT IN " + relationHolderKinds + ")"
 }
 
 // titleUnder is the condition that the holder row with this alias holds a playable title the
@@ -156,12 +164,18 @@ func (a access) titleUnder(alias string) string {
 		return ""
 	}
 	// Titles nest at most three deep, so a holder is the root or the parent of its titles;
-	// each is found through its own index (see underHolder).
+	// each is found through its own index (see underHolder). A collection holds its films by
+	// relation instead, read through the relations' primary key, and a series holds books by
+	// relation and comic issues as children. Each kind looks only where it can hold titles.
 	under := func(column string) string {
 		return "EXISTS (SELECT 1 FROM items " + leaf + " WHERE " + leaf + "." + column + " = " + alias + ".id AND " +
 			leaf + ".kind IN " + playableKindsSQL + check + ")"
 	}
-	return "(" + under("root_id") + " OR " + under("parent_id") + ")"
+	related := "EXISTS (SELECT 1 FROM item_relations " + leaf + "_r JOIN items " + leaf + " ON " + leaf + ".id = " + leaf + "_r.related_item_id WHERE " +
+		leaf + "_r.item_id = " + alias + ".id AND " + leaf + "_r.kind IN " + heldByRelation + " AND " + leaf + ".kind IN " + playableKindsSQL + check + ")"
+	return "(CASE " + alias + ".kind WHEN " + itoa(int64(KindCollection)) + " THEN " + related +
+		" WHEN " + itoa(int64(KindSeries)) + " THEN (" + related + " OR " + under("parent_id") + ")" +
+		" ELSE (" + under("root_id") + " OR " + under("parent_id") + ") END)"
 }
 
 // emptiedSet is a query for the holders the profile would see but for being left with nothing
@@ -171,9 +185,20 @@ func (a access) titleUnder(alias string) string {
 // row costs nothing more however many rows a count or a jump reads. "" for a profile that is
 // kept from nothing.
 func (a access) emptiedSet(library int64, kinds string) string {
+	return a.emptiedWithin(library, kinds, "")
+}
+
+// emptiedWithin is emptiedSet for a list that is of one title, person or collection: within
+// is the condition on the holder row f that it is one of the list's rows, read through that
+// condition's own index instead of every flagged holder of the server. "" is emptiedSet.
+func (a access) emptiedWithin(library int64, kinds, within string) string {
 	shown := a.titleUnder("f")
 	if shown == "" {
 		return ""
+	}
+	from := `items f INDEXED BY items_may_empty WHERE f.may_empty = 1`
+	if within != "" {
+		from = `items f WHERE ` + within + ` AND f.may_empty = 1`
 	}
 	in := ""
 	if library != 0 {
@@ -183,8 +208,8 @@ func (a access) emptiedSet(library int64, kinds string) string {
 		in += " AND f.kind IN " + kinds
 	}
 	// A holder the profile may not see anyway needs no look under it.
-	return `SELECT f.id FROM items f INDEXED BY items_may_empty WHERE f.may_empty = 1` + in + a.rated("f", "") + a.unblocked("f") +
-		` AND f.leaf_count > 0 AND NOT ` + shown
+	return `SELECT f.id FROM ` + from + in + a.rated("f", "") + a.unblocked("f") +
+		` AND NOT ` + holdsNothing("f") + ` AND NOT ` + shown
 }
 
 // rated is the rating part of visible, as " AND ..." or nothing. plus is "+" to keep it a
@@ -281,6 +306,9 @@ type query struct {
 	// in for "{holders}" on a page and in a count that checks labels row by row; a total
 	// counts without it and subtracts.
 	emptied, holders string
+	// holderScope is a condition on a holder row f that it can be in this list, when the list
+	// is of one title, person or collection (see access.emptiedWithin), or "".
+	holderScope string
 	// whole is set when the list is all of that library and those kinds with nothing else
 	// asked for, whatever the viewer's rating limit. Its tag choices are counted from indexes.
 	whole bool

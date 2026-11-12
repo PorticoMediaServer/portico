@@ -598,6 +598,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 			return false, notFound(err)
 		}
 		w.add(` AND i.parent_id = `, fmt.Sprint(parent))
+		w.holderScope = "f.parent_id = " + fmt.Sprint(parent)
 		scoped = true
 	}
 	if len(q.Kinds) > 0 {
@@ -643,6 +644,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 			return false, notFound(err)
 		}
 		w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = `, fmt.Sprint(person), `)`)
+		w.holderScope = "f.id IN (SELECT item_id FROM credits WHERE person_id = " + fmt.Sprint(person) + ")"
 		scoped = true
 	}
 	if q.entries {
@@ -667,8 +669,9 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		if err != nil {
 			return false, err
 		}
-		w.add(` AND i.id IN (SELECT related_item_id FROM item_relations WHERE kind = `, itoa(int64(RelationCollectionMember)),
-			` AND item_id = `, itoa(collection), `)`)
+		members := `SELECT related_item_id FROM item_relations WHERE kind = ` + itoa(int64(RelationCollectionMember)) + ` AND item_id = ` + itoa(collection)
+		w.add(` AND i.id IN (`, members, `)`)
+		w.holderScope = "f.id IN (" + members + ")"
 		scoped = true
 	}
 	if q.Series != "" {
@@ -804,11 +807,12 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	if found, err := q.conditions(ctx, tx, w, &scoped); err != nil || !found {
 		return false, err
 	}
-	// A list that can hold shows, seasons, artists or albums leaves out those the viewer would
-	// find nothing under; one of films, episodes or tracks alone needs no such check.
+	// A list that can hold shows, seasons, artists, albums, collections or series leaves out
+	// those the viewer would find nothing under; one of films, episodes or tracks alone needs
+	// no such check, and nor does a series' list: it holds only volumes and issues.
 	// The holders are found once for the request, and are nearly always none.
-	if len(q.Kinds) == 0 || w.holderKinds != "" {
-		if set := acc.emptiedSet(library, w.holderKinds); set != "" {
+	if q.Series == "" && (len(q.Kinds) == 0 || w.holderKinds != "") {
+		if set := acc.emptiedWithin(library, w.holderKinds, w.holderScope); set != "" {
 			emptied, err := ids(ctx, tx, set)
 			if err != nil {
 				return false, err
