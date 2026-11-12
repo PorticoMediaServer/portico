@@ -1525,7 +1525,7 @@ export class NativePlaybackRuntime {
       ...(this.o.pictureInPictureControls ? {pictureInPicture: Object.freeze({request: this.pictureRequests, active: this.pictureAttempt?.state === 'active', state: this.pictureState, automatic: !this.retired && this.o.settings().autoPictureInPicture !== false,
         ...(this.pictureBinding && externalPresentationBinding && sameNativePresentation(this.pictureBinding, externalPresentationBinding) ? {binding: this.pictureBinding} : {})})} : {}), retired: this.retired,
       bookChapters: fence?.kind === 'queue' ? this.queue.bookChaptersView() : null,
-      capabilities: Object.freeze({queueSelection: queueSelectionReady, queueEdit: queueEditReady, queuePolicy: ready && fence?.kind === 'queue' && !!view && session?.queue?.queueId === view.queue.id && view.queue.currentEntryId === fence.entryId, retry: playback.phase === 'error' && !this.preparing && fence?.kind === 'queue' && session?.kind === 'vod' && session.presentation.subtitle?.delivery !== 'other' && view?.queue.currentEntryId === fence.entryId && view.queue.entries.some(entry => entry.id === fence.entryId && !entry.hidden && !entry.removed), play: ready && playback.intent === 'paused' || playback.phase === 'ended' && fence?.kind === 'queue' && !this.retired && this.entry?.id === fence.itemId, pause: ready && playback.intent === 'playing', stop: !!fence, seek: ready && (seekWindow ? seekWindow.endSeconds > seekWindow.startSeconds : playback.duration > 0),
+      capabilities: Object.freeze({queueSelection: queueSelectionReady, queueEdit: queueEditReady, queuePolicy: ready && fence?.kind === 'queue' && !!view && session?.queue?.queueId === view.queue.id && view.queue.currentEntryId === fence.entryId, retry: playback.phase === 'error' && !this.preparing && fence?.kind === 'queue' && session?.kind === 'vod' && session.presentation.subtitle?.delivery !== 'other' && view?.queue.currentEntryId === fence.entryId && view.queue.entries.some(entry => entry.id === fence.entryId && !entry.hidden && !entry.removed), play: ready && playback.intent === 'paused' || playback.phase === 'ended' && fence?.kind === 'queue' && !this.retired, pause: ready && playback.intent === 'playing', stop: !!fence, seek: ready && (seekWindow ? seekWindow.endSeconds > seekWindow.startSeconds : playback.duration > 0),
         previous: ready && fence?.kind === 'queue' && (chapterPrevious !== undefined ? !!chapterPrevious : playback.positionSeconds > 3 || currentIndex > 0), next: ready && fence?.kind === 'queue' && (chapterNext !== undefined ? !!chapterNext : !!view && view.next.reason !== 'end'), cast: ready && fence?.kind === 'queue' && !!this.o.openDestinations,
         // The system route picker moves the retained player; Portico adds no second transport.
         airPlayVideo: ready && fence?.kind === 'queue' && localPicture?.kind === 'video' && !this.path.controller.getSnapshot().changing
@@ -1689,10 +1689,8 @@ export class NativePlaybackRuntime {
   toggle = async (fence: PlaybackFence): Promise<void> => {
     if (!this.matches(fence)) return;
     const state = this.playback.getSnapshot();
-    // At the end, Play plays the title again from its start, as a new play: the ended session is done.
-    if (state.phase === 'ended' && fence.kind === 'queue' && this.entry?.id === fence.itemId) {
-      await this.start({entry: this.entry, target: {itemId: fence.itemId, startSeconds: 0}, startIntent: 'start-over'}); return;
-    }
+    // At the end, Play plays the title again from its start, as the end card's Play again does.
+    if (state.phase === 'ended' && fence.kind === 'queue') { await this.replay(fence); return; }
     if (state.intent === 'playing') this.playback.pause(); else this.playback.resume();
   };
   selectQueuedEntry = async (fence: PlaybackFence, request: V1QueuedEntrySelection, lifetime: NativePlaybackReadLifetime): Promise<void> => {
