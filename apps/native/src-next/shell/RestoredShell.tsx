@@ -387,7 +387,7 @@ export function RestoredShell() {
       primaryAction={restore ? {id: 'restore', label: error.actionLabel, onPress: retry, preferredFocus: theme.isTV} : undefined}
       secondaryAction={{id: 'accounts', label: defaultI18n.t('portico.landing.chooseAnother'), onPress: chooseAccounts, preferredFocus: theme.isTV && !restore}}/></TVDesignCanvas></View>);
   }
-  return withDownloads(<AccountEntry downloads={remembered?.entry} onSetupComplete={setupComplete} onComplete={complete}/>);
+  return withDownloads(<AccountEntry downloads={remembered?.entry} onSetupComplete={setupComplete} onComplete={complete} resumeAccount/>);
   };
   const content = renderContent();
   const boot = content === null && state.phase === 'loading' && waiting.stage === 'boot';

@@ -118,3 +118,34 @@ export function emailedCode(value: string): string {
   const plain = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
   return plain.length > 4 ? `${plain.slice(0, 4)}-${plain.slice(4)}` : plain;
 }
+
+/** One sign-in of the account, as the apps' Devices page draws it (`accountSessionDevice`). Services
+ * lists only sign-ins in force, with the name and kind their app gave at sign-in. */
+export type PorticoSessionRow = Readonly<{id: string; mode: 'browser' | 'native'; status: 'active'; current: boolean;
+  createdAt: string; lastUsedAt: string | null; deviceName: string | null; platform: null; app: null}>;
+const unreadable = () => new ApiError(502, 'invalid_response', 'portico_services_sessions_unreadable');
+const when = (value: unknown) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) && Number.isFinite(Date.parse(value));
+/** Services' rows (`{id, name, kind, createdAt, lastUsedAt, current}`) as the page's rows. A row
+ * without an id or a time is not a sign-in this page can show or end, so the list is refused. */
+export function porticoSessionRows(items: unknown): readonly PorticoSessionRow[] {
+  if (!Array.isArray(items)) throw unreadable();
+  const rows = items.map(item => {
+    const row = item as Record<string, unknown> | null;
+    if (!row || typeof row.id !== 'string' || !row.id || row.id.length > 128 || typeof row.current !== 'boolean' || !when(row.createdAt)) throw unreadable();
+    const name = typeof row.name === 'string' && row.name.trim() && row.name.length <= 120 && !/[\x00-\x1f\x7f]/.test(row.name) ? row.name : null;
+    return Object.freeze({id: row.id, mode: row.kind === 'web' ? 'browser' as const : 'native' as const, status: 'active' as const, current: row.current,
+      createdAt: row.createdAt as string, lastUsedAt: when(row.lastUsedAt) ? row.lastUsedAt as string : null, deviceName: name, platform: null, app: null});
+  });
+  if (rows.filter(row => row.current).length > 1 || new Set(rows.map(row => row.id)).size !== rows.length) throw unreadable();
+  return Object.freeze(rows);
+}
+/** The account's sign-ins at Portico Services, and ending one or all the others. Ending one that
+ * is already gone is not an error, so a lost answer is settled by reading the list again. */
+export function porticoAccountSessions(accessToken: string, origin: string, fetcher?: typeof fetch) {
+  const account = porticoAccount(heldFor(accessToken), origin, {fetcher});
+  return Object.freeze({
+    list: (signal?: AbortSignal) => refused(account.devices(signal)).then(porticoSessionRows),
+    end: (id: string, signal?: AbortSignal) => refused(account.signOutDevice(id, signal)),
+    endOthers: (signal?: AbortSignal) => refused(account.signOutOthers(signal)),
+  });
+}

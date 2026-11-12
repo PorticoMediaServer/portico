@@ -1,11 +1,11 @@
 import {createNativeAccountWorkspaceRequest} from '../../../../packages/client-core/src/query/hosted-account-transport';
 import {readHostedSecurity, readHostedServers} from '../../../../packages/client-core/src/query/connection-operations';
-import {HttpLocalApi, parseServerPresence, type HostedServer} from '../../../../packages/client-core/src';
-import {AccountSessionReviewService, type AccountSessionRow, type AccountSessionScope, type AccountSessionReviewSnapshot} from '../../../../packages/client-core/src/account-sessions';
+import {parseServerPresence, type HostedServer} from '../../../../packages/client-core/src';
+import type {AccountSessionScope} from '../../../../packages/client-core/src/account-sessions';
+import {porticoAccountSessions, type PorticoSessionRow} from '../../../../packages/client-core/src/portico-services-native';
 import {AccountNotificationsClient, type AccountNotification} from '../../../../packages/client-core/src/account-notifications';
 import {parseSecurityState, type SecurityState} from '../../../../packages/client-core/src/hosted-security';
 import {presentError} from '../../../../packages/client-core/src/presentation/errors';
-import {routePath} from '../../../../packages/contracts/src/hosted/routes';
 import {leavePorticoServer} from '../../../../packages/client-core/src/portico-servers';
 import {hostedUrl} from './account-authority';
 import {nativeNetworkFetch} from './server-connections';
@@ -14,9 +14,11 @@ import {accountExpectation, nativeAccountRead, nativeAccountWork} from './accoun
 import {NativeAccountSecurity} from './account-security';
 
 type NotificationView = {epoch: number; cursors: (string | undefined)[]; index: number; next?: string};
+type SessionView = {epoch: number};
+type Sessions = ReturnType<typeof porticoAccountSessions>;
 export type AccountWorkspacePage = 'menu' | 'security' | 'devices' | 'servers' | 'notifications';
 export type AccountWorkspaceSnapshot = Readonly<{page: AccountWorkspacePage; phase: 'idle' | 'loading' | 'ready' | 'failed' | 'ended';
-  failure?: string; mutationFailure?: string; notice?: string; pending?: string | null; endingOthers?: boolean; retrySession?: string | null; retryOthers?: boolean; notificationsNext?: boolean; notificationsPrevious?: boolean; sessionsNext?: boolean; sessionsPrevious?: boolean; security?: SecurityState; sessions?: readonly AccountSessionRow[]; servers?: readonly HostedServer[]; notifications?: readonly AccountNotification[]}>;
+  failure?: string; mutationFailure?: string; notice?: string; pending?: string | null; endingOthers?: boolean; notificationsNext?: boolean; notificationsPrevious?: boolean; security?: SecurityState; sessions?: readonly PorticoSessionRow[]; servers?: readonly HostedServer[]; notifications?: readonly AccountNotification[]}>;
 const changed = () => Object.assign(new Error('native_account_changed'), {code: 'account_changed'});
 
 /** Account-only workspace. No server authority or credentials enter its snapshot. */
@@ -30,7 +32,7 @@ export class NativeAccountWorkspace {
   private readonly listeners = new Set<() => void>();
   private readonly off: () => void;
   private notificationView?: NotificationView;
-  private sessionReview?: {epoch: number; service: AccountSessionReviewService; currentRevoked: () => boolean};
+  private sessionView?: SessionView;
   private securityView?: NativeAccountSecurity;
   private mutation = false;
   private epoch = 0;
@@ -48,7 +50,7 @@ export class NativeAccountWorkspace {
   private publish(state: AccountWorkspaceSnapshot) {this.state = Object.freeze(state); this.listeners.forEach(listener => listener());}
   private end() {if (this.controller.signal.aborted) return; ++this.epoch; this.retireReads(); this.controller.abort(); this.publish({page: 'menu', phase: 'ended'});}
   dispose() {this.listeners.clear(); this.end(); this.off();}
-  private retireReads() {this.notificationView = undefined; this.sessionReview?.service.dispose(); this.sessionReview = undefined; this.securityView?.dispose(); this.securityView = undefined; this.requests.forEach(request => request.abort()); this.requests.clear(); this.mutation = false;}
+  private retireReads() {this.notificationView = undefined; this.sessionView = undefined; this.securityView?.dispose(); this.securityView = undefined; this.requests.forEach(request => request.abort()); this.requests.clear(); this.mutation = false;}
   menu() {this.assert(); ++this.epoch; this.retireReads(); this.publish({page: 'menu', phase: 'idle'});}
   private assertEpoch(epoch: number) {this.assert(); if (epoch !== this.epoch) throw changed();}
   private requestFor = (epoch: number, commands = false) => createNativeAccountWorkspaceRequest(this.credentials, nativeNetworkFetch, {
@@ -71,29 +73,26 @@ export class NativeAccountWorkspace {
         await this.readNotifications(view, 0, undefined); return;
       }
       else {
-        let currentRevoked = false;
-        const commands = this.requestFor(epoch, true);
-        const service = new AccountSessionReviewService({api: {request: async <T,>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> => {
-          const result = await commands<T>(path, method, body, signal);
-          if (method === 'DELETE' && result && typeof result === 'object') {
-            const receipt = result as {id?: unknown; revoked?: unknown; current?: unknown};
-            if (receipt.id === this.scope.familyId && receipt.revoked === true && receipt.current === true) currentRevoked = true;
-          }
-          return result;
-        }}, scope: this.scope});
-        const review = {epoch, service, currentRevoked: () => currentRevoked}; this.sessionReview = review;
-        this.assertEpoch(epoch); await service.refresh(); this.assertEpoch(epoch);
-        if (this.sessionReview !== review) throw changed();
-        this.publish(this.sessionState(service.getSnapshot())); return;
+        const view: SessionView = {epoch}; this.sessionView = view;
+        this.publish(await this.sessionsState(view)); return;
       }
       this.assert(); if (epoch === this.epoch) this.publish({page, phase: 'ready', ...content});
     } catch (error) {if (this.current() && epoch === this.epoch) this.publish({page, phase: 'failed', failure: presentError(error, 'portico-account').body}); else if (!this.current()) this.end();}
   }
-  private sessionState(value: AccountSessionReviewSnapshot): AccountWorkspaceSnapshot {
-    return value.phase === 'ready' ? {page: 'devices', phase: 'ready', sessions: value.items,
-      sessionsNext: !!value.nextCursor, sessionsPrevious: value.hasPrevious, pending: value.pending, endingOthers: value.endingOthers, retrySession: value.retryId, retryOthers: value.retryOthers,
-      mutationFailure: value.mutationError?.message, notice: value.notice || undefined}
-      : {page: 'devices', phase: 'failed', failure: value.error?.message ?? presentError(new Error('native_account_read_failed'), 'portico-account').body};
+  /** One call to the account's sign-ins at Portico Services, renewed once on a 401 as every account
+   * call is; a read is then made again, a command never. Retiring the page or 15 s ends it. */
+  private sessionsWork<T>(view: SessionView, work: (sessions: Sessions, signal: AbortSignal) => Promise<T>, read: boolean): Promise<T> {
+    const live = this.credentials.getSnapshot().session; if (!live) throw changed();
+    const request = new AbortController(), timer = setTimeout(() => request.abort(), 15000); this.requests.add(request);
+    const opening = {expected: accountExpectation(live), isCurrent: () => this.current() && this.epoch === view.epoch && this.sessionView === view, signal: request.signal};
+    const call = (issued: {accessToken: string}) => work(porticoAccountSessions(issued.accessToken, hostedUrl, nativeNetworkFetch), request.signal);
+    return (read ? nativeAccountRead(this.credentials, call, opening) : nativeAccountWork(this.credentials, call, opening))
+      .finally(() => {clearTimeout(timer); this.requests.delete(request);});
+  }
+  private async sessionsState(view: SessionView): Promise<AccountWorkspaceSnapshot> {
+    const sessions = await this.sessionsWork(view, (account, signal) => account.list(signal), true);
+    this.assertEpoch(view.epoch); if (this.sessionView !== view) throw changed();
+    return {page: 'devices', phase: 'ready', sessions};
   }
 
   securityActions(): NativeAccountSecurity {
@@ -104,49 +103,35 @@ export class NativeAccountWorkspace {
       () => this.current() && this.epoch === epoch && this.state.page === 'security');
   }
 
-  async revokeSession(row: AccountSessionRow | string) {
-    this.assert(); const review = this.sessionReview;
-    const familyId = typeof row === 'string' ? row : row.id, retry = review?.service.getSnapshot().retryId;
-    if (this.mutation || !review || this.state.page !== 'devices' || this.state.phase !== 'ready'
-      || (typeof row === 'string' ? row !== retry : !this.state.sessions?.includes(row) || row.status !== 'active' && row.id !== retry)) throw changed();
-    const epoch = review.epoch; this.assertEpoch(epoch); this.mutation = true;
-    this.publish({...this.state, pending: familyId, mutationFailure: undefined});
-    try {
-      const previous = review.service.getSnapshot();
-      if (previous.retryId) {if (previous.retryId !== familyId) throw changed(); await review.service.retryRevoke();}
-      else await review.service.revoke(familyId);
-      this.assertEpoch(epoch); if (this.sessionReview !== review) throw changed();
-      const result = review.service.getSnapshot();
-      if (result.phase === 'ended') {
-        if (review.currentRevoked()) {await this.owner.signOutPorticoAccount(this.scope); return;}
-        // A command's issuing bearer may have expired and renewed. The command is
-        // never replayed, and its old 401 must not sign out that live family.
-        await review.service.refresh(); this.assertEpoch(epoch);
-        this.publish({...this.sessionState(review.service.getSnapshot()), mutationFailure: presentError(new Error('native_account_session_outcome_unconfirmed'), 'portico-account').body}); return;
-      }
-      this.publish(this.sessionState(result));
-    } finally {if (this.current() && this.epoch === epoch) {this.mutation = false; if (this.state.pending) this.publish({...this.state, pending: null});}}
+  /** Signs one other device out. Ending a sign-in that is already gone is not an error, so the list
+   * is read again either way: a failure is shown only while that device is still listed. */
+  async revokeSession(row: PorticoSessionRow) {
+    this.assert(); const view = this.sessionView;
+    if (this.mutation || !view || this.state.page !== 'devices' || this.state.phase !== 'ready' || !this.state.sessions?.includes(row) || row.current) throw changed();
+    const epoch = view.epoch; this.assertEpoch(epoch); this.mutation = true;
+    this.publish({...this.state, pending: row.id, mutationFailure: undefined});
+    try {await this.settleSessions(view, (account, signal) => account.end(row.id, signal), sessions => sessions.some(value => value.id === row.id));}
+    finally {if (this.current() && this.epoch === epoch) {this.mutation = false; if (this.state.pending) this.publish({...this.state, pending: null});}}
   }
 
-  /** Signs out every other sign-in of this Portico Account in one request; this device stays signed in.
-   * An unconfirmed outcome is only ever retried as that same operation. */
+  /** Signs out every other sign-in of this Portico Account in one request; this device stays signed in. */
   async revokeOtherSessions() {
-    this.assert(); const review = this.sessionReview;
-    if (this.mutation || !review || this.state.page !== 'devices' || this.state.phase !== 'ready') throw changed();
-    const epoch = review.epoch; this.assertEpoch(epoch); this.mutation = true;
-    this.publish({...this.state, endingOthers: true, mutationFailure: undefined, notice: undefined});
+    this.assert(); const view = this.sessionView;
+    if (this.mutation || !view || this.state.page !== 'devices' || this.state.phase !== 'ready') throw changed();
+    const epoch = view.epoch; this.assertEpoch(epoch); this.mutation = true;
+    this.publish({...this.state, endingOthers: true, mutationFailure: undefined});
+    try {await this.settleSessions(view, (account, signal) => account.endOthers(signal), sessions => sessions.some(value => !value.current));}
+    finally {if (this.current() && this.epoch === epoch) {this.mutation = false; if (this.state.endingOthers) this.publish({...this.state, endingOthers: false});}}
+  }
+  private async settleSessions(view: SessionView, command: (account: Sessions, signal: AbortSignal) => Promise<void>, stillThere: (sessions: readonly PorticoSessionRow[]) => boolean) {
+    let failure: unknown;
+    try {await this.sessionsWork(view, command, false);} catch (error) {failure = error;}
     try {
-      if (review.service.getSnapshot().retryOthers) await review.service.retryRevoke(); else await review.service.revokeOthers();
-      this.assertEpoch(epoch); if (this.sessionReview !== review) throw changed();
-      const result = review.service.getSnapshot();
-      if (result.phase === 'ended') {
-        // This sign-in is never among the ones ended, so a 401 means its bearer lapsed or was
-        // ended elsewhere. Re-read with the renewed session rather than signing it out.
-        await review.service.refresh(); this.assertEpoch(epoch);
-        this.publish({...this.sessionState(review.service.getSnapshot()), mutationFailure: presentError(new Error('native_account_session_outcome_unconfirmed'), 'portico-account').body}); return;
-      }
-      this.publish(this.sessionState(result));
-    } finally {if (this.current() && this.epoch === epoch) {this.mutation = false; if (this.state.endingOthers) this.publish({...this.state, endingOthers: false});}}
+      const next = await this.sessionsState(view);
+      this.publish(failure !== undefined && stillThere(next.sessions ?? []) ? {...next, mutationFailure: presentError(failure, 'portico-account').body} : next);
+    } catch (error) {
+      if (this.current() && this.epoch === view.epoch) this.publish({...this.state, mutationFailure: presentError(failure ?? error, 'portico-account').body});
+    }
   }
 
   async leaveServer(row: HostedServer) {
@@ -161,21 +146,6 @@ export class NativeAccountWorkspace {
       if (this.current() && this.epoch === epoch) this.publish({...this.state, pending: null, mutationFailure: presentError(error, 'portico-account').body});
     } finally {if (this.current() && this.epoch === epoch) this.mutation = false;}
   }
-  async pageSessions(direction: 'next' | 'previous') {
-    this.assert(); const review = this.sessionReview;
-    if (this.mutation || !review || this.state.page !== 'devices' || this.state.phase !== 'ready') return;
-    const before = review.service.getSnapshot(), epoch = review.epoch;
-    if (direction === 'next' ? !before.nextCursor : !before.hasPrevious) return;
-    // H14: paging keeps the painted list until the next page lands.
-    this.assertEpoch(epoch); this.publish({...this.state, page: 'devices', phase: 'loading'});
-    try {
-      this.assertEpoch(epoch);
-      if (direction === 'next') await review.service.next(); else await review.service.previous();
-      this.assertEpoch(epoch); if (this.sessionReview !== review) throw changed();
-      this.publish(this.sessionState(review.service.getSnapshot()));
-    } catch (error) {if (this.current() && epoch === this.epoch) this.publish({page: 'devices', phase: 'failed', failure: presentError(error, 'portico-account').body}); else if (!this.current()) this.end();}
-  }
-
   private async readNotifications(view: NotificationView, index: number, cursor: string | undefined) {
     this.assertEpoch(view.epoch); if (this.notificationView !== view) throw changed();
     const value = await new AccountNotificationsClient(this.requestFor(view.epoch)).page(cursor, this.controller.signal);

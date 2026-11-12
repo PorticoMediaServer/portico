@@ -12,7 +12,7 @@ const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : 
 const texts = (node: any) => nodes(node).filter(item => item.type === 'Text').map(item => [item.props.children].flat().join(''));
 const t = defaultI18n.t;
 
-const row = (patch: Record<string, unknown>) => ({id: 'other', mode: 'native', status: 'active', current: false, createdAt: '2026-10-01T10:00:00Z', expiresAt: '2026-11-01T10:00:00Z',
+const row = (patch: Record<string, unknown>) => ({id: 'other', mode: 'native', status: 'active', current: false, createdAt: '2026-10-01T10:00:00Z',
   deviceName: null, platform: null, app: null, lastUsedAt: null, ...patch});
 
 async function mount(state: Record<string, unknown>) {
@@ -78,22 +78,13 @@ test('Sign out all other devices asks first, then makes the one request', async 
   } finally {await app.host.unmount();}
 });
 
-test('while Sign out all other devices is unconfirmed, only its Try again acts', async () => {
-  const app = await mount({sessions: [row({id: 'here', current: true}), row({id: 'tv'})], retryOthers: true, mutationFailure: 'Not confirmed'});
+test('Sign out all other devices is off when no other sign-in is listed, and a failure is said under the list', async () => {
+  const app = await mount({sessions: [row({id: 'here', current: true})]});
   try {
     assert.equal(button(app.tree(), 'account-devices-sign-out-others').props.disabled, true);
-    assert.equal(button(app.tree(), 'account-device-sign-out-tv').props.disabled, true);
-    const retry = nodes(app.tree()).find(node => node.type === 'Button' && node.props.children === t('action.tryAgain'));
-    await act(() => retry.props.onPress());
-    assert.deepEqual(app.calls, ['others']);
-  } finally {await app.host.unmount();}
-});
-
-test('Sign out all other devices is off when no other sign-in is listed or follows', async () => {
-  const app = await mount({sessions: [row({id: 'here', current: true})], sessionsNext: false});
-  try {
-    assert.equal(button(app.tree(), 'account-devices-sign-out-others').props.disabled, true);
-    await app.set({sessionsNext: true});
+    await app.set({sessions: [row({id: 'here', current: true}), row({id: 'tv'})], mutationFailure: 'Portico Services is busy'});
     assert.equal(button(app.tree(), 'account-devices-sign-out-others').props.disabled, false);
+    assert.ok(texts(app.tree()).includes('Portico Services is busy'));
+    assert.equal(nodes(app.tree()).some(node => node.type === 'Button' && [t('web.hostedAccount.newer'), t('web.hostedAccount.older')].includes(node.props.children)), false, 'one list, no pages');
   } finally {await app.host.unmount();}
 });
