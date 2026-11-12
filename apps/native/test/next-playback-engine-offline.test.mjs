@@ -9,6 +9,7 @@ import * as recovery from '../src-next/platform/playback/playback-recovery.ts';
 import * as audio from '../src-next/platform/playback/audio-track-selection.ts';
 import * as offline from '../src-next/platform/playback/offline-tracks.ts';
 import * as media from '../src-next/platform/playback/engine-media.ts';
+import * as sidecarSubtitle from '../../../packages/client-core/src/playback-v1/sidecar-subtitle.ts';
 import * as captions from '../src-next/platform/playback/caption-style.ts';
 import * as external from '../src-next/platform/playback/external-presentation.ts';
 import * as failures from '../src-next/platform/playback/playback-failure.ts';
@@ -28,7 +29,7 @@ const {NativePlaybackRuntime} = await sourceModule(new URL('../src-next/platform
   '../../../../../packages/client-core/src/index': {PlaybackService: unused}, '../../../../../packages/client-core/src/detail': {DetailService: unused}, '../../shell/freshness': {viewerQueriesFor: unused},
   '../../../../../packages/client-core/src/media-item': {parseMediaItem: unused}, '../../../../../packages/client-core/src/items': {entryFromItem: unused, readItem: unused}, '../../../../../packages/contracts/src/routes': {encodedRoutePath: unused, routePath: unused},
   '../../../../../packages/client-core/src/playback-v1/sessions': {SessionsClient: unused}, '../../../../../packages/client-core/src/playback-v1/local-http': {localV1Http: unused},
-  '../../../../../packages/client-core/src/playback-v1/http': {call: unused}, '../../../../../packages/client-core/src/playback-v1/options': {PlaybackOptionsClient: unused},
+  '../../../../../packages/client-core/src/playback-v1/http': {call: unused}, '../../../../../packages/client-core/src/playback-v1/sidecar-subtitle': sidecarSubtitle, '../../../../../packages/client-core/src/playback-v1/options': {PlaybackOptionsClient: unused},
   '../../../../../packages/client-core/src/playback-v1/v1-queue-player': {V1QueuePlayer: unused, serverSupportsQueueTransitions: unused, queueVideoKind: unused},
   '../../../../../packages/client-core/src/playback-v1/queue': {QueueClient: unused},
   '../../../../../packages/client-core/src/trickplay': {downloadTrickplaySet: unused, preferredTrickplaySet: unused, readItemTrickplay: unused},
