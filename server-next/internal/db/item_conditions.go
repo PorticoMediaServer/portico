@@ -46,7 +46,7 @@ var (
 		"composer": RoleComposer, "author": RoleAuthor, "narrator": RoleNarrator, "artist": RoleArtist, "person": 0}
 	// A number or a range of numbers: "7", "7..9", "7..", "..9".
 	conditionNumbers = map[string]string{
-		"communityRating": "i.community_rating", "criticRating": "i.critic_rating", "durationMs": "i.duration_ms",
+		"communityRating": "i.community_rating", "criticRating": "i.critic_rating", "durationMs": "i.duration_ms", "wordCount": "i.word_count",
 		"userRating": stateValue("rating"), "playCount": "ifnull(" + stateValue("play_count") + ", 0)",
 		"versions": "(SELECT count(*) FROM media m WHERE m.item_id = i.id)",
 	}
@@ -67,7 +67,7 @@ func stateValue(column string) string {
 // ConditionFields lists every field a condition can name.
 var ConditionFields = []string{"genre", "studio", "network", "label", "tag", "actor", "director", "writer", "producer", "composer", "author",
 	"narrator", "artist", "person", "year", "contentRating", "resolution", "dynamicRange", "audioLanguage", "subtitleLanguage",
-	"communityRating", "criticRating", "durationMs", "userRating", "playCount", "versions", "added", "lastPlayed", "released",
+	"communityRating", "criticRating", "durationMs", "wordCount", "userRating", "playCount", "versions", "added", "lastPlayed", "released",
 	"available", "inProgress", "country", "mood", "decade", "collection"}
 
 // PersonalFields are the fields that read the viewer's own state. A Library Channel is shared,
