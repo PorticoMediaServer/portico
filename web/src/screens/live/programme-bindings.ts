@@ -1,6 +1,6 @@
 import {serverNow} from '@core/server-clock.ts';
 import {DVRClient, defaultRecordingOptions, draftRule, dvrMessage, seriesRuleConfig,
-  type Recording, type RuleConfig} from '@core/dvr.ts';
+  type DvrRecording, type RuleConfig} from '@core/dvr.ts';
 import {channelOperationId, saveChannelPreference, type GuideChannel, type GuideProgramme} from '@core/channel-guide.ts';
 import {legacyChannel, legacyProgramme, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
 import {defaultI18n} from '@i18n';
@@ -17,7 +17,7 @@ export type PreviewAiring = Readonly<{id: string; start: number; time: string; r
 export type ProgrammeSnapshot = Readonly<{
   phase: 'idle' | 'loading' | 'ready' | 'error';
   /** The one-off recording this programme actually holds, read back from the server. */
-  recording?: Recording;
+  recording?: DvrRecording;
   /** A cancel this panel confirmed; the guide's own mark arrives with the next guide read. */
   recordingRemoved?: boolean;
   favorite: boolean;
