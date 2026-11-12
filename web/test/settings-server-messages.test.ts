@@ -10,14 +10,16 @@ const line = (sequence: string): MessageLine => ({sequence, at: '2026-10-22T19:0
 const logsDoc = {name: 'logs', values: {keepDays: 30}, defaults: {keepDays: 30}, etag: '"1"'};
 const page = {items: [wire(2), wire(1)]};
 const transport = {request: async <T>(path: string) => (path.includes('/settings/') ? logsDoc : page) as T};
-test('Messages reads the rebuilt server\'s log oldest first, filtered by level only; the owner\'s source also reads how long messages are kept', async () => {
+test('Messages reads the rebuilt server\'s log newest first, filtered by level and kind; the owner\'s source also reads how long messages are kept', async () => {
   const calls: string[] = [];
   const request = async <T>(path: string) => {calls.push(path);return transport.request<T>(path);};
   const admin = new SettingsMessagesSource({request}, undefined, () => true);
   await admin.load();assert.equal(admin.getSnapshot().phase, 'ready');
-  assert.deepEqual(admin.getSnapshot().lines.map(x => x.message), ['Backup finished 1', 'Backup finished 2']);
+  assert.deepEqual(admin.getSnapshot().lines.map(x => x.message), ['Backup finished 2', 'Backup finished 1'], 'newest first (rule 66)');
   assert.deepEqual(calls, ['/v1/admin/logs'], 'an administrator is never sent the owner\'s settings read');
-  await admin.select('warn');assert.equal(calls.at(-1), '/v1/admin/logs?level=warn');admin.dispose();
+  await admin.select('warn');assert.equal(calls.at(-1), '/v1/admin/logs?level=warn');
+  await admin.select('warn', 'scan');assert.equal(calls.at(-1), '/v1/admin/logs?level=warn&kind=scan');
+  await admin.select('', '');assert.equal(calls.at(-1), '/v1/admin/logs');admin.dispose();
   calls.length = 0;
   const owner = new SettingsMessagesSource({request}, undefined, () => true, undefined, {keeping: true});
   await owner.load();assert.deepEqual(calls.sort(), ['/v1/admin/logs', '/v1/admin/settings/logs']);assert.equal(owner.getSnapshot().keepDays, 30);owner.dispose();
@@ -33,13 +35,13 @@ test('a line shows its values, and a line the app cannot read fails the read', a
   await bad.load();assert.equal(bad.getSnapshot().phase, 'error');bad.dispose();
 });
 
-test('bounded lines dedupe and keep time order', () => {
-  const lines = Array.from({length: 500}, (_, i) => ({...line(String(i)), at: new Date(Date.UTC(2026, 10, 12, 0, 0, i)).toISOString()}));
-  assert.equal(appendMessage(lines, lines[499]), lines);
+test('bounded lines dedupe and keep newest first', () => {
+  const lines = Array.from({length: 500}, (_, i) => ({...line(String(i)), at: new Date(Date.UTC(2026, 10, 12, 0, 0, 499 - i)).toISOString()}));
+  assert.equal(appendMessage(lines, lines[0]), lines);
   const late = {...line('late'), at: new Date(Date.UTC(2026, 10, 12, 0, 0, 600)).toISOString()};
-  const next = appendMessage(lines, late);assert.equal(next.length, 500);assert.equal(next[0].sequence, '1');assert.equal(next[499].sequence, 'late');
+  const next = appendMessage(lines, late);assert.equal(next.length, 500);assert.equal(next[0].sequence, 'late', 'a new line arrives at the top');assert.equal(next[499].sequence, '498');
   const earlier = {...line('earlier'), at: new Date(Date.UTC(2026, 10, 12, 0, 0, 250)).toISOString()};
-  const inserted = appendMessage(next, earlier);assert.equal(inserted[249].sequence, 'earlier');
+  const inserted = appendMessage(next, earlier);assert.equal(inserted[250].sequence, 'earlier');
 });
 
 test('held reads cannot publish into a retired authority', async () => {
@@ -48,7 +50,7 @@ test('held reads cannot publish into a retired authority', async () => {
   const pending = source.load();current = false;release(page);await pending;assert.equal(source.getSnapshot().phase, 'idle');source.dispose();
 });
 
-test('following live adds each line once, after the lines already shown, and opens again when the server ends it', async t => {
+test('following live adds each line once, above the lines already shown, and opens again when the server ends it', async t => {
   t.mock.timers.enable({apis: ['setTimeout']});
   let calls = 0;
   const source = new SettingsMessagesSource(transport, {open: async () => {
@@ -59,7 +61,7 @@ test('following live adds each line once, after the lines already shown, and ope
   }}, () => true);
   await source.load();source.setLive(true);
   for (let n = 0; n < 20; n++) await Promise.resolve();
-  assert.deepEqual(source.getSnapshot().lines.map(x => x.message), ['Backup finished 1', 'Backup finished 2', 'Backup finished 3']);assert.equal(source.getSnapshot().reconnecting, true);
+  assert.deepEqual(source.getSnapshot().lines.map(x => x.message), ['Backup finished 3', 'Backup finished 2', 'Backup finished 1']);assert.equal(source.getSnapshot().reconnecting, true);
   t.mock.timers.tick(2000);for (let n = 0; n < 20; n++) await Promise.resolve();
   assert.equal(calls, 2);source.pause();const count = calls;t.mock.timers.tick(120000);await Promise.resolve();assert.equal(calls, count);source.dispose();
 });
@@ -152,4 +154,36 @@ test('message timestamps keep drawn seconds without a year and follow the viewer
   const twentyFour = createI18n(resolveRegion({hourCycle: 'h23'}, device));
   assert.equal(messageTime(twelve, '2026-10-22T18:58:02Z'), 'Oct 22, 3:58:02 PM');
   assert.equal(messageTime(twentyFour, '2026-10-22T18:58:02Z'), 'Oct 22, 15:58:02');
+});
+
+test('a line carries its kind, and following live with a kind chosen adds only that kind', async t => {
+  const {messageLine} = await import('../src/screens/settings/server/troubleshooting/messages-source.ts');
+  assert.equal(messageLine(wire(1, {kind: 'scan'})).kind, 'scan');
+  assert.equal(messageLine(wire(1)).kind, 'server', 'a line without a kind reads as the server\'s own');
+  t.mock.timers.enable({apis: ['setTimeout']});
+  const source = new SettingsMessagesSource({request: async <T>() => ({items: []}) as T}, {open: async () => new Response(
+    [wire(5, {kind: 'scan', message: 'Scanned'}), wire(6, {kind: 'playback', message: 'Played'})].map(l => `event: line\ndata: ${JSON.stringify(l)}\n\n`).join(''),
+    {headers: {'Content-Type': 'text/event-stream'}})}, () => true);
+  await source.select('', 'scan');source.setLive(true);
+  for (let n = 0; n < 20; n++) await Promise.resolve();
+  assert.deepEqual(source.getSnapshot().lines.map(x => x.message), ['Scanned']);source.dispose();
+});
+
+test('away from the top new lines wait, so what the person reads stays in place; asking or returning to the top brings them in', async t => {
+  t.mock.timers.enable({apis: ['setTimeout']});
+  let pages = 0;
+  const source = new SettingsMessagesSource({request: async <T>() => ({items: pages++ ? [wire(9), wire(2), wire(1)] : [wire(2), wire(1)]}) as T}, {open: async () => new Response(
+    `event: line\ndata: ${JSON.stringify(wire(5))}\n\n`, {headers: {'Content-Type': 'text/event-stream'}})}, () => true);
+  await source.load();
+  source.setAtTop(false);
+  source.setLive(true);for (let n = 0; n < 20; n++) await Promise.resolve();
+  assert.deepEqual(source.getSnapshot().lines.map(x => x.message), ['Backup finished 2', 'Backup finished 1'], 'the lines read stay as they were');
+  assert.equal(source.getSnapshot().waiting, 1);
+  await source.load();
+  assert.deepEqual(source.getSnapshot().lines.map(x => x.message), ['Backup finished 2', 'Backup finished 1'], 'a phone\'s re-read waits too');
+  assert.equal(source.getSnapshot().waiting, 2);
+  source.showWaiting();
+  assert.deepEqual(source.getSnapshot().lines.map(x => x.message), ['Backup finished 9', 'Backup finished 5', 'Backup finished 2', 'Backup finished 1']);
+  assert.equal(source.getSnapshot().waiting, 0);
+  source.dispose();
 });

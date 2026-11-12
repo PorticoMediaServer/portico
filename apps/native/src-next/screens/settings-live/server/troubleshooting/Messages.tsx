@@ -2,7 +2,7 @@ import {serverNow} from '../../../../../../../packages/client-core/src/server-cl
 import {Menu} from '../../../../kit/overlays';
 import React, {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {AppState, Text, View} from 'react-native';
-import {KEEP_MESSAGE_DAYS, SettingsMessagesSource, type KeepMessageDays} from '../../../../../../../packages/client-core/src/server-admin/messages-source';
+import {KEEP_MESSAGE_DAYS, MESSAGE_KINDS, SettingsMessagesSource, type KeepMessageDays, type MessageKind} from '../../../../../../../packages/client-core/src/server-admin/messages-source';
 import {LOG_DETAIL_MINUTES, logLevels, type LogDetailMinutes} from '../../../../../../../packages/client-core/src/server-administration';
 import {defaultI18n} from '../../../../../../../packages/i18n/src';
 import type {NativeShellBootstrapContext} from '../../../../shell/bootstrap';
@@ -14,19 +14,28 @@ import {Button, Chip, Select, Switch} from '../../../../kit/controls';
 import {alpha, shellType} from '../../../../kit/shell/visual';
 import {useTheme} from '../../../../kit/theme';
 
-function createMessages(context: NativeShellBootstrapContext, reportError: NativeShellRuntime['reportError']) {
-  const lifetime = new NativeScreenLifetime(context), listeners = new Set<() => void>();
-  const current = () => lifetime.current() && nativeStorageOwner(context);
-  const api = {request: <T,>(path: string, method?: string, body?: unknown, caller?: AbortSignal): Promise<T> => current()
+/** The owner and administrators read Messages (console rule 1, frame 33); only the owner keeps it and records more detail. */
+/** Troubleshooting's server calls on the phone: on this screen's lifetime, and only while `current` holds. */
+export function troubleshootingApi(context: NativeShellBootstrapContext, lifetime: NativeScreenLifetime, current: () => boolean) {
+  return {request: <T,>(path: string, method?: string, body?: unknown, caller?: AbortSignal): Promise<T> => current()
     ? lifetime.request(signal => context.api.request<T>(path, method, body, signal), caller) : Promise.reject(screenScopeEnded())};
+}
+export function messagesReader(context: NativeShellBootstrapContext): boolean {
+  const authority = context.authority(), account = context.account;
+  return nativeStorageOwner(context) || context.current() && account.serverId === authority.serverId && account.account.id === authority.accountId && !account.account.disabled && account.canManage;
+}
+function createMessages(context: NativeShellBootstrapContext, reportError: NativeShellRuntime['reportError']) {
+  const lifetime = new NativeScreenLifetime(context), listeners = new Set<() => void>(), owner = nativeStorageOwner(context);
+  const current = () => lifetime.current() && messagesReader(context);
+  const api = troubleshootingApi(context, lifetime, current);
   let failed = false, desired = false, foreground = AppState.currentState === 'active', token: object | undefined, timer: ReturnType<typeof setTimeout> | undefined;
   const notify = () => {for (const listener of listeners) listener();};
   const handleFailure = (error: unknown) => {
     if (source.getSnapshot().phase === 'idle') {const owned = current();dispose();if (owned) reportError(error);}
     else {failed = true;notify();}
   };
-  // Messages on the phone is the owner's, so it also reads and sets how long messages are kept.
-  const source = new SettingsMessagesSource(api, undefined, current, handleFailure, {keeping: true});
+  // How long messages are kept is the owner's alone: an administrator's source never reads it.
+  const source = new SettingsMessagesSource(api, undefined, current, handleFailure, {keeping: owner});
   const stop = () => {token = undefined;clearTimeout(timer);timer = undefined;};
   const active = (captured: object) => current() && desired && foreground && token === captured;
   const poll = async (captured: object) => {
@@ -42,48 +51,57 @@ function createMessages(context: NativeShellBootstrapContext, reportError: Nativ
   const subscription = AppState.addEventListener('change', value => {foreground = value === 'active';stop();if (!current()) return;if (!foreground) source.pause();else if (desired) start(true);});
   const dispose = () => {desired = false;stop();subscription.remove();source.dispose();lifetime.dispose();listeners.clear();};
   let selection: object | undefined;
-  return {context, source, current, dispose, setLive, failure: handleFailure,
+  return {context, source, current, owner, dispose, setLive, failure: handleFailure,
     getFailure: () => failed, subscribeFailure: (listener: () => void) => {listeners.add(listener);return () => {listeners.delete(listener);};}, clearFailure: () => {failed = false;notify();},
-    select: async (level: Parameters<SettingsMessagesSource['select']>[0]) => {if (!current()) return;const captured = {};selection = captured;stop();await source.select(level);if (selection === captured && current() && desired) start(false);},
+    select: async (level: Parameters<SettingsMessagesSource['select']>[0], kind: Parameters<SettingsMessagesSource['select']>[1]) => {if (!current()) return;const captured = {};selection = captured;stop();await source.select(level, kind);if (selection === captured && current() && desired) start(false);},
   };
 }
 type Group = ReturnType<typeof createMessages>;
-export function NativeMessages({ports, runtime}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime}) {
+/** `pageScrollY` is how far the page is scrolled and `scrollToY` scrolls it: away from the log's top, new lines wait. */
+export function NativeMessages({ports, runtime, pageScrollY = 0, scrollToY}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; pageScrollY?: number; scrollToY?: (y: number) => void}) {
   const context = ports.context, reportError = runtime.reportError, [group, setGroup] = useState<Group>();
   useLayoutEffect(() => {const next = createMessages(context,reportError);setGroup(next);return next.dispose;},[context,reportError]);
-  return group?.context === context ? <Messages group={group} runtime={runtime}/> : null;
+  return group?.context === context ? <Messages group={group} runtime={runtime} pageScrollY={pageScrollY} scrollToY={scrollToY}/> : null;
 }
-export function Messages({group, runtime}: {group: Group; runtime: NativeShellRuntime}) {
+export function Messages({group, runtime, pageScrollY = 0, scrollToY}: {group: Group; runtime: NativeShellRuntime; pageScrollY?: number; scrollToY?: (y: number) => void}) {
+  // Newest first (rule 66): at the log's top a new line arrives live; further down it waits behind "N new lines", so
+  // what the person reads stays in place.
+  const [rootY, setRootY] = useState(0), [logY, setLogY] = useState(0);
+  useEffect(() => {group.source.setAtTop(pageScrollY - (rootY + logY) < 48);}, [group, pageScrollY, rootY, logY]);
   const {source} = group, state = useSyncExternalStore(source.subscribe,source.getSnapshot,source.getSnapshot), failure = useSyncExternalStore(group.subscribeFailure,group.getFailure,group.getFailure), theme = useTheme(), t = runtime.text.t as typeof defaultI18n.t;
-  const [now,setNow] = useState(serverNow), [filter, setFilter] = useState<Readonly<{kind: 'level'}>>();
+  const [now,setNow] = useState(serverNow), [filter, setFilter] = useState<Readonly<{kind: 'level' | 'category'}>>();
   const filterRef = useRef(filter);
-  const openFilter = (kind: 'level') => {if (!group.current() || filterRef.current) return; const next = {kind}; filterRef.current = next; setFilter(next);};
+  const openFilter = (kind: 'level' | 'category') => {if (!group.current() || filterRef.current) return; const next = {kind}; filterRef.current = next; setFilter(next);};
   const closeFilter = () => {if (!filter || filterRef.current !== filter) return; filterRef.current = undefined; setFilter(undefined);};
   useEffect(() => {void source.load();const timer = setInterval(() => {if (group.current()) setNow(serverNow());},30000);return () => clearInterval(timer);},[source,group]);
   const until = state.detailUntil, recording = !!until && Date.parse(until) > now;
   const detail = () => {if (!group.current() || source.getSnapshot().changing) return;group.clearFailure();void source.detail(!recording).catch(error => {if (group.current()) group.failure(error);});};
   const keep = (days: KeepMessageDays) => {if (!group.current()) return;group.clearFailure();void source.keep(days).catch(error => {if (group.current()) group.failure(error);});};
-  return <View style={{marginTop:14,gap:12}} testID="server-troubleshooting-messages">
+  return <View style={{marginTop:14,gap:12}} testID="server-troubleshooting-messages" onLayout={event => setRootY(event.nativeEvent.layout.y)}>
     <Text style={[shellType(17,800),{color:theme.colors.text}]}>{t('web.logs.messages')}</Text><Text style={[shellType(13,400,18),{color:theme.colors.textSecondary}]}>{t('web.logs.messagesLede')}</Text>
-    <View style={{padding:14,gap:8,borderRadius:14,backgroundColor:theme.colors.raised}}><Text style={[shellType(15,700),{color:theme.colors.text}]}>{recording ? t('next.settingsSpec.server.troubleshooting.groups.0.rows.0.label') : t('settings.server.detailWindow.forMinutes',{minutes:state.detailMinutes})}</Text><Text style={{color:theme.colors.textSecondary}}>{recording && until ? t('settings.server.detailWindow.until',{time:defaultI18n.time(Date.parse(until))}) : t('settings.server.detailWindow.help')}</Text><Button size="compact" loading={state.changing} disabled={state.changing} onPress={detail}>{t(recording ? 'settings.server.detailWindow.stop' : 'settings.server.detailWindow.start')}</Button></View>
+    <View style={{padding:14,gap:8,borderRadius:14,backgroundColor:theme.colors.raised}}><Text style={[shellType(15,700),{color:theme.colors.text}]}>{recording ? t('next.settingsSpec.server.troubleshooting.groups.0.rows.0.label') : t('settings.server.detailWindow.forMinutes',{minutes:state.detailMinutes})}</Text><Text style={{color:theme.colors.textSecondary}}>{recording && until ? t('settings.server.detailWindow.until',{time:defaultI18n.time(Date.parse(until))}) : t('settings.server.detailWindow.help')}</Text>{group.owner && <Button size="compact" loading={state.changing} disabled={state.changing} onPress={detail}>{t(recording ? 'settings.server.detailWindow.stop' : 'settings.server.detailWindow.start')}</Button>}</View>
     <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8}}>
       <Chip variant="pill" trailingIcon="i-down" onPress={() => openFilter('level')} accessibilityLabel={t('web.logs.level')}>{state.level ? t(`web.logs.level.${state.level}`) : t('web.logs.allLevels')}</Chip>
+      <Chip variant="pill" trailingIcon="i-down" onPress={() => openFilter('category')} accessibilityLabel={t('feedback.category')}>{state.kind ? t(`web.logs.category.${state.kind}`) : t('web.logs.everything')}</Chip>
       <Switch checked={state.live} onCheckedChange={value => {if (group.current()) group.setLive(value);}}>{t('next.cards.live')}</Switch>
       {state.live && <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}><View style={{width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.healthy}}/><Text style={[shellType(12.5, 700), {color: theme.colors.healthy}]}>{t('web.logs.following')}</Text></View>}
       <Button size="small" variant="text" disabled={state.phase === 'loading'} onPress={() => {if (group.current()) {group.clearFailure(); void source.load();}}}>{t('web.selection.refresh')}</Button>
     </View>
-    <Menu open={!!filter && filterRef.current === filter && group.current()} onOpenChange={open => {if (!open) closeFilter();}} presentation="sheet" title={t('web.logs.level')}
-      items={[{value: '', label: t('web.logs.allLevels')}, ...logLevels.map(value => ({value, label: t(`web.logs.level.${value}`)}))].map(option => ({id: option.value || 'all', label: option.label, selected: option.value === state.level, onSelect: () => {
+    <Menu open={!!filter && filterRef.current === filter && group.current()} onOpenChange={open => {if (!open) closeFilter();}} presentation="sheet" title={t(filter?.kind === 'category' ? 'feedback.category' : 'web.logs.level')}
+      items={(filter?.kind === 'category' ? [{value: '', label: t('web.logs.everything')}, ...MESSAGE_KINDS.map(value => ({value, label: t(`web.logs.category.${value}`)}))]
+        : [{value: '', label: t('web.logs.allLevels')}, ...logLevels.map(value => ({value, label: t(`web.logs.level.${value}`)}))]).map(option => ({id: option.value || 'all', label: option.label, selected: option.value === (filter?.kind === 'category' ? state.kind : state.level), onSelect: () => {
           if (!filter || filterRef.current !== filter || !group.current()) return;
           closeFilter();
-          if (option.value === '' || logLevels.includes(option.value as typeof logLevels[number])) void group.select(option.value as typeof state.level);
+          if (filter.kind === 'category') {if (option.value === '' || MESSAGE_KINDS.includes(option.value as MessageKind)) void group.select(source.getSnapshot().level, option.value as MessageKind | '');}
+          else if (option.value === '' || logLevels.includes(option.value as typeof logLevels[number])) void group.select(option.value as typeof state.level, source.getSnapshot().kind);
         }}))}/>
     {failure && <Text accessibilityRole="alert" style={{color:theme.colors.record}}>{t('error.unavailable')}</Text>}
     {state.phase === 'loading' && !state.lines.length && <Text style={{color:theme.colors.textSecondary}}>{t('web.logs.loadingMessages')}</Text>}{state.phase === 'ready' && !state.lines.length && <Text style={{color:theme.colors.textSecondary}}>{t('web.logs.noMessages')}</Text>}
-    <View style={{borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.messageLog, borderWidth: 1, borderColor: theme.colors.lineSoft}}>
-      {state.lines.map((row, index) => <View key={row.sequence} style={{gap: 3, paddingVertical: 7, paddingHorizontal: 12, backgroundColor: row.level === 'error' ? alpha(theme.colors.danger, .07) : undefined, borderTopWidth: index ? 1 : 0, borderColor: alpha(theme.colors.lineStrong, .35)}}><View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 10}}><Text style={{fontFamily: 'monospace', fontSize: 11.5, color: theme.colors.textTertiary}}>{defaultI18n.time(Date.parse(row.at))}</Text><Text style={{fontFamily: 'monospace', fontSize: 11.5, fontWeight: '700', color: row.level === 'error' ? theme.colors.danger : row.level === 'warn' ? theme.colors.amber : row.level === 'info' ? theme.colors.textSecondary : theme.colors.textTertiary}}>{t(`web.logs.level.${row.level}`)}</Text></View><Text selectable style={[shellType(13.5, 500, 19), {color: row.level === 'error' ? theme.colors.text : theme.colors.textSecondary}]}>{row.message}</Text>{row.detail ? <Text selectable style={{fontFamily: 'monospace', fontSize: 11.5, color: theme.colors.textTertiary}}>{row.detail}</Text> : null}</View>)}
+    {state.waiting > 0 && <Button size="small" variant="glass" testID="server-messages-new-lines" onPress={() => {group.source.showWaiting(); scrollToY?.(rootY + logY);}}>{t('web.logs.newLines', {count: state.waiting})}</Button>}
+    <View onLayout={event => setLogY(event.nativeEvent.layout.y)} style={{borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.messageLog, borderWidth: 1, borderColor: theme.colors.lineSoft}}>
+      {state.lines.map((row, index) => <View key={row.sequence} style={{gap: 3, paddingVertical: 7, paddingHorizontal: 12, backgroundColor: row.level === 'error' ? alpha(theme.colors.danger, .07) : undefined, borderTopWidth: index ? 1 : 0, borderColor: alpha(theme.colors.lineStrong, .35)}}><View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 10}}><Text style={{fontFamily: 'monospace', fontSize: 11.5, color: theme.colors.textTertiary}}>{defaultI18n.time(Date.parse(row.at))}</Text><Text style={{fontFamily: 'monospace', fontSize: 11.5, fontWeight: '700', color: row.level === 'error' ? theme.colors.danger : row.level === 'warn' ? theme.colors.amber : row.level === 'info' ? theme.colors.textSecondary : theme.colors.textTertiary}}>{t(`web.logs.level.${row.level}`)}</Text><Text style={{fontFamily: 'monospace', fontSize: 11.5, color: theme.colors.textTertiary}}>{t(`server.logCategory.${row.kind}`)}</Text></View><Text selectable style={[shellType(13.5, 500, 19), {color: row.level === 'error' ? theme.colors.text : theme.colors.textSecondary}]}>{row.message}</Text>{row.detail ? <Text selectable style={{fontFamily: 'monospace', fontSize: 11.5, color: theme.colors.textTertiary}}>{row.detail}</Text> : null}</View>)}
     </View>
-    {!recording && <Select label={t('next.settingsSpec.server.troubleshooting.advanced.groups.0.rows.1.label')} value={String(state.detailMinutes)} options={LOG_DETAIL_MINUTES.map(value=>({value:String(value),label:t('web.dvr.minutes',{count:value})}))} disabled={state.changing} onValueChange={value=>{const chosen=Number(value);if(group.current() && LOG_DETAIL_MINUTES.includes(chosen as LogDetailMinutes))source.chooseLength(chosen as LogDetailMinutes);}}/>}
+    {group.owner && !recording && <Select label={t('next.settingsSpec.server.troubleshooting.advanced.groups.0.rows.1.label')} value={String(state.detailMinutes)} options={LOG_DETAIL_MINUTES.map(value=>({value:String(value),label:t('web.dvr.minutes',{count:value})}))} disabled={state.changing} onValueChange={value=>{const chosen=Number(value);if(group.current() && LOG_DETAIL_MINUTES.includes(chosen as LogDetailMinutes))source.chooseLength(chosen as LogDetailMinutes);}}/>}
     {state.keepDays && <Select label={t('settings.server.keepMessages')} value={String(state.keepDays)} options={KEEP_MESSAGE_DAYS.map(days=>({value:String(days),label:t('settings.server.keepMessages.days',{days})}))} disabled={state.changing} onValueChange={value=>{const days=Number(value);if(KEEP_MESSAGE_DAYS.includes(days as KeepMessageDays))keep(days as KeepMessageDays);}}/>}
   </View>;
 }
