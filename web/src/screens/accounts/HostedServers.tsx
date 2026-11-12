@@ -30,6 +30,7 @@ import {AccountSignInView} from './AccountSignInView';
 import {AccountSignInForm} from './sign-in-form';
 import {resumeAfterProfiles} from './chooser-resume';
 import {ChooserJoin, ChooserLocalAddress, ChooserStart, chooserIntent} from './ChooserStart';
+import {takeCarriedInvitation, type CarriedInvitation} from '../../platform/invitation-carry';
 
 const t = defaultI18n.t;
 type Admitted = Readonly<{entry: BrowserAccountEntry; form: AccountSignInForm; dispose: () => void}>;
@@ -66,14 +67,15 @@ function accountHeader(who: Account, signOut: () => void): ReactNode {
 function HostedChooser({who}: {who: Account}) {
   const hash = useRouterState({select: state => state.location.hash});
   const intent = chooserIntent(hash ? '#' + hash.replace(/^#/, '') : '');
-  const [code, setCode] = useState<string>(), [empty, setEmpty] = useState(false);
-  const back = () => goTo('/servers', {replace: true});
-  if (intent === 'join') return <ChooserJoin who={who} initialCode={code} onBack={back} />;
+  // An invitation carried here (a shared link opened at /join, or pasted on the start) opens Join filled in.
+  const [carried, setCarried] = useState<CarriedInvitation | undefined>(takeCarriedInvitation), [empty, setEmpty] = useState(false);
+  const back = () => {setCarried(undefined); goTo('/servers', {replace: true});};
+  if (carried || intent === 'join') return <ChooserJoin who={who} initialCode={carried?.code} initialAddress={carried?.address || undefined} onBack={back} />;
   if (intent === 'local') return <ChooserLocalAddress onBack={back} />;
   if (intent === 'setup' || empty) {
     const signOut = () => void signOutBrowserPorticoAccount().then(() => goTo('/sign-in', {replace: true}), () => {});
     return <ChooserStart header={accountHeader(who, signOut)} intent={intent === 'setup' ? 'setup' : undefined}
-      onJoin={value => {setCode(value); goTo('/servers#join');}} onLocal={() => goTo('/servers#local')} />;
+      onJoin={(code, address) => {setCarried(Object.freeze({code, address: address?.startsWith('https://') ? address : ''})); goTo('/servers#join');}} onLocal={() => goTo('/servers#local')} />;
   }
   return <BoundServers who={who} onEmpty={() => setEmpty(true)} />;
 }
