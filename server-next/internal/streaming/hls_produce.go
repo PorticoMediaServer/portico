@@ -162,6 +162,8 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 	}
 	defer cleanupBurn()
 	fragmentClock := &convertedFragmentClock{}
+	// The threads the run's software video encode is given, set by run before it builds.
+	encodeThreads := 0
 	build := func(plan *DeliveryPlan) ([]string, []decoder.HardwareStage, error) {
 		offset := strconv.FormatFloat(position, 'f', 6, 64)
 		protocols := "file,pipe"
@@ -189,7 +191,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		videoMap := "0:v:0"
 		if plan != nil {
 			var err error
-			graph, graphErr := plan.conversionGraph(burn)
+			graph, graphErr := plan.conversionGraph(burn, encodeThreads)
 			err = graphErr
 			inputArgs, codecArgs, stages = graph.Input, append(graph.Video, graph.Audio...), graph.Stages
 			extraInput = graph.ExtraInput
@@ -330,6 +332,14 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 	}
 	fallbackLaunch := false
 	run := func(plan *DeliveryPlan) (error, string) {
+		// A software encode for playback takes its share of the machine for as long as its
+		// converter runs (decoder.ReservePlaybackEncode).
+		release := func() {}
+		encodeThreads = 0
+		if softwareVideoEncode(plan) {
+			encodeThreads, release = decoder.ReservePlaybackEncode()
+		}
+		defer release()
 		if remoteInput != nil {
 			// The remote-input runner starts and reaps the converter itself, and
 			// Run returns only once that child is gone, so the reservation is taken
@@ -844,4 +854,10 @@ func gridSlotName(plan *DeliveryPlan) func(int) string {
 		return func(i int) string { return strings.TrimSuffix(hlsSegmentFile(i), ".ts") + ".m4s" }
 	}
 	return hlsSegmentFile
+}
+
+// softwareVideoEncode says a plan's picture is encoded by the processor: the encodes that share
+// the machine's threads (decoder.ReservePlaybackEncode).
+func softwareVideoEncode(plan *DeliveryPlan) bool {
+	return plan != nil && plan.VideoAction == "convert" && (plan.HardwareBackend == "" || plan.HardwareBackend == string(decoder.BackendSoftware))
 }

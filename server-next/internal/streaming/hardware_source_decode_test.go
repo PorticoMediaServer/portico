@@ -50,7 +50,7 @@ func TestConversionGraphUsesActualSourceCodecAndDepthForHardwareDecode(t *testin
 			if test.edit != nil {
 				test.edit(&plan)
 			}
-			graph, err := plan.conversionGraph(nil)
+			graph, err := plan.conversionGraph(nil, 0)
 			if err != nil {
 				t.Fatal(err)
 			}

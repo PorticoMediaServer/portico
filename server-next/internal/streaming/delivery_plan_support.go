@@ -118,14 +118,17 @@ func audioBudget(t QualityTarget) int {
 
 // CodecArgs is consumed by every HLS producer.
 func (p DeliveryPlan) CodecArgs() ([]string, []string, []decoder.HardwareStage, error) {
-	graph, err := p.conversionGraph(nil)
+	graph, err := p.conversionGraph(nil, 0)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	return graph.Input, append(append([]string{}, graph.Video...), graph.Audio...), graph.Stages, nil
 }
 
-func (p DeliveryPlan) conversionGraph(burn *decoder.BurnIn) (decoder.ConversionGraph, error) {
+// conversionGraph is the converter's graph for the plan. threads is what a software video
+// encode is given (decoder.ReservePlaybackEncode); 0 builds it as background work would, which
+// is what a plan-time check needs.
+func (p DeliveryPlan) conversionGraph(burn *decoder.BurnIn, threads int) (decoder.ConversionGraph, error) {
 	if p.Profile != DeliveryProfileLegacy || p.Mode != "hls" {
 		return decoder.ConversionGraph{}, errors.New("delivery plan does not describe ordinary HLS")
 	}
@@ -153,6 +156,7 @@ func (p DeliveryPlan) conversionGraph(burn *decoder.BurnIn) (decoder.ConversionG
 		Downmix:          p.Downmix == DownmixITULimited,
 		AudioSampleRate:  p.AudioSampleRate,
 		SourceVideoCodec: p.SourceVideoCodec,
+		SoftwareThreads:  threads,
 	}
 	if p.ConversionToolchain != nil {
 		request.Toolchain = p.ConversionToolchain

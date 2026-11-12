@@ -291,7 +291,14 @@ func (l *liveConversion) resumeOr(from time.Time) time.Time {
 // it finishes, until it exits. It says how many segments it made.
 func (s *Streams) liveConvert(ctx context.Context, l *liveConversion, run int, from time.Time, plan *DeliveryPlan) (error, string, int) {
 	h := s.hls
-	args, stages, err := liveArgs(plan, run, l.dir)
+	// A software encode takes its share of the machine for as long as this run's converter
+	// runs, as a title's window does (decoder.ReservePlaybackEncode).
+	threads, release := 0, func() {}
+	if softwareVideoEncode(plan) {
+		threads, release = decoder.ReservePlaybackEncode()
+	}
+	defer release()
+	args, stages, err := liveArgs(plan, run, l.dir, threads)
 	if err != nil {
 		return err, sanitizeConverterOutput(err.Error(), h.root), 0
 	}
@@ -484,8 +491,8 @@ func liveRunSegments(path string) []runSegment {
 
 // liveArgs is the converter for one run: the channel's MPEG-TS on descriptor 3, converted or
 // repackaged as the plan says, into HLS segments of the run's own.
-func liveArgs(plan *DeliveryPlan, run int, dir string) ([]string, []decoder.HardwareStage, error) {
-	graph, err := plan.conversionGraph(nil)
+func liveArgs(plan *DeliveryPlan, run int, dir string, threads int) ([]string, []decoder.HardwareStage, error) {
+	graph, err := plan.conversionGraph(nil, threads)
 	if err != nil {
 		return nil, nil, err
 	}
