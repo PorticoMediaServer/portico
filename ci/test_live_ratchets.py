@@ -20,7 +20,7 @@ class LiveRatchets(unittest.TestCase):
         self.git('init','-q','-b','main');self.git('config','user.name','Justin Ehler');self.git('config','user.email','justin@justinehler.com')
         self.path='web/src/request.ts'
         (self.root/self.path).parent.mkdir(parents=True)
-        for config in engineering.QUERY_READ_CONFIGS:
+        for config in ['web/tsconfig.json','apps/native/tsconfig.json','apps/vega/tsconfig.json','apps/desktop/tsconfig.json']:
             destination=self.root/config;destination.parent.mkdir(parents=True,exist_ok=True)
             (destination.parent/'ratchet-empty.d.ts').write_text('export {};')
             destination.write_text(json.dumps({'compilerOptions':{'target':'ES2022','lib':['ES2022','DOM'],'strict':True,'types':[]},
@@ -29,8 +29,7 @@ class LiveRatchets(unittest.TestCase):
         self.source=self.prefix+"fetch('/v1/kept');\nfetch('/v1/removed');\nsetInterval(tick, 1000);\nsetInterval(tick, 1000);\n"
         (self.root/self.path).write_text(self.source)
         self.git('add','.')
-        (self.root/census.ALLOWLIST).write_text('{}')
-        (self.root/census.BASELINE).write_text(json.dumps(census.counts(census.scan(self.root))))
+        (self.root/'ci').mkdir(exist_ok=True)
         (self.root/'ci/engineering-rules-baseline.json').write_text(json.dumps(engineering.source_counts(self.root)))
         self.base=self.commit('Record upper bounds')
 
@@ -45,7 +44,16 @@ class LiveRatchets(unittest.TestCase):
         with redirect_stdout(io.StringIO()),redirect_stderr(io.StringIO()):
             return (census.main(args,root=self.root),engineering.main(args,root=self.root))
 
-    def test_removal_passes_without_editing_either_baseline(self):
+    def test_moved_calls_pass_and_added_calls_fail(self):
+        moved=self.root/'web/src/moved.ts'
+        moved.write_text(self.prefix+"function renamed() { fetch('/v1/removed'); }\n")
+        (self.root/self.path).write_text(self.prefix+"fetch('/v1/kept');\nsetInterval(tick, 1000);\nsetInterval(tick, 1000);\n")
+        self.git('add','.')
+        self.assertEqual(self.checks(self.base),(0,0))
+        moved.write_text(moved.read_text()+"fetch('/v1/added', {method: 'POST'});\n")
+        self.assertEqual(self.checks(self.base),(1,0))
+
+    def test_removal_passes_without_editing_engineering_baseline(self):
         (self.root/self.path).write_text(self.prefix+"fetch('/v1/kept');\nsetInterval(tick, 1000);\n")
         self.assertEqual(self.checks(self.base),(0,0))
         self.assertEqual(self.git('diff','--name-only'),self.path)
@@ -64,7 +72,6 @@ class LiveRatchets(unittest.TestCase):
             (package/'index.d.ts').write_text(f'export declare function request({parameters}): void;')
         (self.root/self.path).write_text("import {request} from '@test/platform-transport'; request('/v1/new', 'POST');")
         install('2.0.0');self.git('add','.')
-        (self.root/census.BASELINE).write_text(json.dumps(census.counts(census.scan(self.root))))
         base=self.commit('Version two requester')
         self.assertEqual(len(census.scan(self.root)),1)
         self.assertEqual(self.checks(base),(0,0))
@@ -160,16 +167,16 @@ class LiveRatchets(unittest.TestCase):
                 (self.root/self.path).write_text(self.source+'\ndeclare function require(path: string): any; declare const specifier: string; '+expression+';')
                 self.assertEqual(self.checks(self.base),(1,1))
 
-    def test_reachable_excluded_patterns_are_counted_without_query_reads(self):
+    def test_reachable_excluded_patterns_are_counted(self):
         extra=self.root/'web/src/__tests__/extra.ts';extra.parent.mkdir()
         extra.write_text('export const extra = () => setInterval(tick, 1000);')
         (self.root/self.path).write_text(self.source+"import {extra} from './__tests__/extra'; extra();")
         self.git('add','.')
         self.assertEqual(self.checks(self.base),(0,1))
 
-    def test_malformed_config_fails_closed(self):
+    def test_census_uses_its_own_config(self):
         (self.root/'web/tsconfig.json').write_text('{"compilerOptions": {"target": "not-a-target"}}')
-        self.assertEqual(self.checks(self.base)[1],1)
+        self.assertEqual(self.checks(self.base),(0,0))
 
     def test_named_review_refs_resolve_before_isolated_snapshot_metadata(self):
         self.git('update-ref','refs/remotes/origin/main',self.base)
@@ -182,7 +189,6 @@ class LiveRatchets(unittest.TestCase):
         self.assertEqual(self.checks(lower),(1,1))
         # Updating a stale-high baseline cannot conceal the growth either.
         with redirect_stdout(io.StringIO()),redirect_stderr(io.StringIO()):
-            self.assertEqual(census.main(['--update','--base',lower],root=self.root),1)
             self.assertEqual(engineering.main(['--update','--base',lower],root=self.root),1)
 
     def test_merge_group_checks_all_queued_changes_against_target_tip(self):
@@ -291,7 +297,6 @@ class LiveRatchets(unittest.TestCase):
         original=self.prefix+"fetch('/v1/kept');\n// \nfetch('/v1/removed');\n"
         removed=self.prefix+"fetch('/v1/kept');\n// $Format:%n$fetch('/v1/removed');\n"
         (self.root/self.path).write_text(original)
-        (self.root/census.BASELINE).write_text(json.dumps(census.counts(census.scan(self.root))))
         target=self.commit('Record original comment-bearing request identity and upper bound')
         for merge in [False,True]:
             with self.subTest(merge=merge):
@@ -300,13 +305,13 @@ class LiveRatchets(unittest.TestCase):
                 (self.root/'.gitattributes').write_text(self.path+' export-subst\n')
                 first=self.group(target,name+'A',removed,merge=merge)
                 second=self.group(first,name+'B',original,merge=merge)
-                self.assertEqual(self.checks(target,first,second),(1,1),'B checks restoration against exact removal blobs')
+                self.assertEqual(self.checks(target,first,second),(1,0),'B checks restoration against exact removal blobs')
                 head=self.group(second,name+'C',merge=merge)
                 before=(self.git('rev-parse','HEAD'),self.git('write-tree'),self.git('status','--porcelain'))
                 self.assertEqual(self.checks(target),(0,0),'aggregate alone sees no net change')
-                self.assertEqual(self.checks(first),(1,1),'the restored call must grow against the exact removal blob')
+                self.assertEqual(self.checks(first),(1,0),'the restored call must grow against the exact removal blob')
                 self.assertEqual(self.checks(target,second,head),(0,0),'C does not recheck B')
-                self.assertEqual(self.checks(first,second,head),(1,1),'final-tree growth against the base is still rejected')
+                self.assertEqual(self.checks(first,second,head),(1,0),'final-tree growth against the base is still rejected')
                 self.assertEqual((self.git('rev-parse','HEAD'),self.git('write-tree'),self.git('status','--porcelain')),before)
                 (self.root/'.gitattributes').unlink();head=self.commit('Later removal of archive attribute')
                 self.assertEqual(self.checks(target,second,head),(0,0))

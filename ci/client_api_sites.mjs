@@ -1,6 +1,5 @@
 // Request/URL-construction census on the repository's TypeScript AST and checker.
 // Unlike G's route-evidence scanner, literals, DTO types, imports and validators do not count.
-import {createHash} from 'node:crypto';
 import {API} from 'typescript/unstable/sync';
 import {SyntaxKind as K} from 'typescript/unstable/ast';
 import {readFileSync, writeFileSync, mkdtempSync, rmSync} from 'node:fs';
@@ -12,8 +11,6 @@ const nameOf = e => e?.kind === K.Identifier ? e.text : e?.kind === K.PropertyAc
 const literal = n => n?.kind === K.StringLiteral || n?.kind === K.NoSubstitutionTemplateLiteral ? n.text : undefined;
 const requestNames = new Set(['request', 'requestRaw', 'requestConsole', 'requestDirect', 'send', 'fetch', 'fetcher', 'nativeNetworkFetch', 'nativeSignInFetch', 'networkFetch', 'nativeRequest', 'exchange', 'readJson', 'readJSON']);
 const builders = new Set(['routePath', 'encodedRoutePath', 'hostedRoutePath', 'hostedEncodedRoutePath']);
-import {parseForwarder, containsArguments} from './client_api_forwarder_grammar.mjs';
-import {legacyForwarderPin} from './client_api_legacy_forwarders.mjs';
 export const censusProjectConfig = (root,files) => ({compilerOptions: {target:'ES2022', module:'ESNext', moduleResolution:'bundler', jsx:'react-jsx', allowJs:true, noEmit:true, skipLibCheck:true, types:[], paths:{'@core/*':[resolve(root,'packages/client-core/src/*')], '@core':[resolve(root,'packages/client-core/src/index.ts')]}}, files:files.map(f=>resolve(root,f))});
 
 // The scan body is shared unchanged by one-shot checks and the incremental
@@ -126,86 +123,7 @@ export function analyseCensus({root,files},runtime={}) {
       ids(c);
       const callee=text(c.expression).replace(/\s+/g,' ');
       const line=file.getLineAndCharacterOfPosition(c.expression.end).line+1;
-      const callName=nameOf(c.expression), args=c.arguments ?? [];
-      const sameNames = names => names.every((name,i)=>args[i]?.kind===K.Identifier && args[i].text===name);
-      const functions = [K.FunctionDeclaration,K.FunctionExpression,K.ArrowFunction,K.MethodDeclaration];
-      const parents=stack.filter(n=>functions.includes(n.kind));
-      // Bind the complete reviewed policy span, including outer lifetime/equality
-      // guards around an inline forwarding callback and any captured capability.
-      const outerPolicy=[...parents].reverse().find(n=>[K.FunctionDeclaration,K.MethodDeclaration].includes(n.kind)) ?? parents[0];
-      const policyText=outerPolicy ? text(outerPolicy) : '';
-      const chapterGuard=policyText.includes("'get_playback_sessions_id_chapters'")
-        && /method\s*!==\s*['"]GET['"]/.test(policyText) && /body\s*!==\s*undefined/.test(policyText)
-        && /path\s*!==\s*chapterPath/.test(policyText);
-      const parameterGuard=[...parents].reverse().find(n=>['path','method'].every(name=>n.parameters?.some(p=>p.name?.text===name)) && ['body','options'].some(name=>n.parameters?.some(p=>p.name?.text===name)));
-      // A block-bodied parameter guard is the complete reviewed guard. A bare
-      // forwarding callback uses its containing policy; chapter comparisons also
-      // bind the outer factory that creates the comparison-only capability.
-      let guard=chapterGuard ? outerPolicy : parameterGuard?.body?.kind===K.Block ? parameterGuard : outerPolicy;
-      let forwardingShape;
-      if ((callName==='request' || aliases.has(callName)) && [3,4].includes(args.length) && sameNames(['path','method','body'])) forwardingShape=args.length===3 ? 'request-without-signal' : 'request';
-      if (callName==='requestRaw' && args.length===3 && sameNames(['path','method','options'])) forwardingShape='requestRaw';
-      const contract=[...parents].reverse().find(n=>n.parameters?.some(p=>['path','input','request','value'].includes(p.name?.text) || p.dotDotDotToken));
-      const parameters=new Set(contract?.parameters?.map(p=>p.name?.text) ?? []);
-      // requestRaw's reviewed rest tuple is destructured without remapping:
-      // const [path, method, init] = args. A reordered/defaulted/copied tuple fails.
-      function tupleBindings(n) {
-        if (n.kind===K.VariableDeclaration && n.name?.kind===K.ArrayBindingPattern && n.initializer?.kind===K.Identifier
-            && contract?.parameters?.some(p=>p.dotDotDotToken && p.name?.text===n.initializer.text)) {
-          const values=n.name.elements;
-          if (values.length===3 && values[0]?.name?.text==='path' && values[1]?.name?.text==='method'
-              && values.every(e=>e.kind===K.BindingElement && !e.initializer && !e.dotDotDotToken))
-            for (const value of values) parameters.add(value.name.text);
-        }
-        n.forEachChild(tupleBindings);
-      }
-      if (contract?.body) tupleBindings(contract.body);
-      const parameter = name => parameters.has(name);
-      const rest=contract?.parameters?.find(p=>p.dotDotDotToken && p.name?.kind===K.Identifier);
-      const restName=rest?.name.text;
-      if (callName==='request' && args.length===1 && args[0].kind===K.SpreadElement
-          && args[0].expression.kind===K.Identifier && args[0].expression.text===restName) forwardingShape='request-rest';
-      // Upload/bounded guards bind their captured API selection in the enclosing
-      // policy by default. A separately ruled complete callback span is explicit
-      // in both the pin and ledger, never an implicit narrowing of this hash.
-      const forwardingHash=['requestMetadataUpload','requestBounded'].includes(callName) && contract?.body?.kind===K.Block
-        ? createHash('sha256').update(text(contract)).digest('hex') : undefined;
-      const guardText=guard ? text(guard) : '';
-      const signalOptions = n => n?.kind===K.ObjectLiteralExpression && n.properties.length===2
-        && n.properties[0].kind===K.SpreadAssignment && n.properties[0].expression.kind===K.Identifier && parameter(n.properties[0].expression.text)
-        && [K.PropertyAssignment,K.ShorthandPropertyAssignment].includes(n.properties[1].kind) && nameOf(n.properties[1].name)==='signal';
-      const unchangedRequest = n => n?.kind===K.Identifier && parameter(n.text);
-      // Reviewed conditional delivery changes only the signal, on the same
-      // request in both branches. A copied body/path or another object fails.
-      const signalCopyOf = (n,original) => signalOptions(n)
-        && n.properties[0].expression.text===original.text;
-      const conditionalSignalCopy = n => n?.kind===K.ConditionalExpression
-        && (unchangedRequest(n.whenTrue) && signalCopyOf(n.whenFalse,n.whenTrue)
-          || unchangedRequest(n.whenFalse) && signalCopyOf(n.whenTrue,n.whenFalse));
-      if (callName==='requestRaw' && args.length===3 && sameNames(['path','method']) && ['path','method'].every(parameter) && signalOptions(args[2])) forwardingShape='raw-signal-options';
-      if (callName==='requestConsole' && args.length===4 && sameNames(['path','method','body']) && ['path','method','body'].every(parameter)) forwardingShape='console';
-      if (callName==='request' && args.length===5 && sameNames(['path','method','body']) && ['path','method','body'].every(parameter) && args[4]?.kind===K.Identifier && parameter(args[4].text)) forwardingShape='request-options';
-      if (callName==='requestLyrics' && args.length===4 && sameNames(['path','method','body']) && ['path','method','body'].every(parameter)) forwardingShape='lyrics';
-      if (callName==='requestMetadataUpload' && args.length===3 && sameNames(['path','body']) && ['path','body'].every(parameter)) forwardingShape='metadata-upload';
-      if (callName==='requestBounded' && args.length===3 && sameNames(['path','maxBytes']) && ['path','maxBytes'].every(parameter)) forwardingShape='bounded';
-      if (callName==='routeFetch' && args.length===2 && args[0]?.kind===K.Identifier && parameter(args[0].text) && signalOptions(args[1])) forwardingShape='fetch-signal-options';
-      if (callName==='send' && args.length===1 && (args[0]?.kind===K.Identifier && parameter(args[0].text) || signalOptions(args[0]))) forwardingShape='request-object';
-      if (callName==='send' && args.length===1 && conditionalSignalCopy(args[0])) forwardingShape='conditional-signal';
-      if (callName==='farewell' && args.length===3 && sameNames(['path','method','body'])
-          && ['path','method','body'].every(parameter)) forwardingShape='farewell';
-      // The approved XHR executor is a frozen legacy production, not a
-      // general grammar for constructing future XHR transports.
-      if (callName==='open' && guard?.parameters?.some(p=>p.name?.text==='pending')) forwardingShape='vega-pending';
-      if (callName==='request' && args.length===4 && args[0]?.kind===K.Identifier && args[0].text==='path' && parameter('path')
-          && literal(args[1])==='GET' && args[2]?.kind===K.Identifier && args[2].text==='undefined') forwardingShape='read-only';
-      if (chapterGuard && callName==='request' && args.length===4 && args[0]?.kind===K.Identifier && args[0].text==='path' && literal(args[1])==='GET' && args[2]?.kind===K.Identifier && args[2].text==='undefined') forwardingShape='chapter-read';
-      if (chapterGuard && builders.has(callName) && literal(args[0])==='get_playback_sessions_id_chapters') forwardingShape='chapter-capability';
-      const guardHash = guard ? createHash('sha256').update(guardText).digest('hex') : undefined;
-      const grammar=forwardingShape ? parseForwarder({contract,call:c,shape:forwardingShape}) : {accepted:false,reason:'arguments are not a forwarding shape'};
-      const frozen=legacyForwarderPin({file:path,guardHash,forwardingHash,callText:text(c),shape:forwardingShape,owner:owner?text(owner.name):'<module>'});
-      const forwardedRequest=forwardingShape!==undefined && !containsArguments(guard ?? contract ?? c) && (grammar.accepted || frozen!==undefined);
-      const forwardingGrammar=forwardedRequest ? grammar.accepted ? 'closed' : 'frozen-legacy' : undefined;
-      sites.push({forwardingGrammar,...(forwardingGrammar==='frozen-legacy'?{frozenBinding:frozen.binding,frozenOccurrences:frozen.occurrences}:{}),grammarRejection:grammar.reason,file:path,line,kind,forwardedRequest,forwardingShape,guardHash,forwardingHash,owner:owner?text(owner.name):'<module>',callee,operations:[...new Set(operations)].sort(),callText:text(c),expression:text(c).replace(/\s+/g,' ')});
+      sites.push({file:path,line,kind,owner:owner?text(owner.name):'<module>',callee,operations:[...new Set(operations)].sort(),expression:text(c).replace(/\s+/g,' ')});
     }
   }
  } finally {if(api)api.close();if(scratch)rmSync(scratch,{recursive:true,force:true});}

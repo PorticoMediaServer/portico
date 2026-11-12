@@ -10,7 +10,6 @@ import {resolve, relative, dirname, sep} from 'node:path';
 import {createInterface} from 'node:readline';
 import {fileURLToPath} from 'node:url';
 import {analyseCensus,censusProjectConfig} from './client_api_sites.mjs';
-import {analyseQueryReads} from './query_reads.mjs';
 
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const sourceSuffix=/\.(?:[cm]?ts|tsx|[cm]?js|jsx|json)$/;
@@ -20,10 +19,10 @@ const excludedExecutable=path=>/\.(?:[cm]?ts|tsx|[cm]?js|jsx)$/.test(path)&&!/\.
 
 export class TypedRatchet {
   constructor(root,kind,dependencyRoot=root) {
-    if (!['census','query'].includes(kind))throw Error('Unknown typed ratchet scope');
+    if (kind!=='census')throw Error('Unknown typed ratchet scope');
     this.root=resolve(root);this.dependencyRoot=resolve(dependencyRoot);this.kind=kind;this.files=new Map();this.cache=new Map();
     this.thirdParty=new Map();this.directoryCache=new Map();this.configReads=new Set();this.graphs=new Map();this.sourceMetadata=new Map();
-    this.interest=new Set();this.pending=new Set();this.invariant=new Set();
+    this.interest=new Set();this.pending=new Set();
     this.verifiedPackages=new Set();
     this.requireMetadata=new Map();
     this.requireRoots=new Set();
@@ -227,21 +226,11 @@ export class TypedRatchet {
     for(const path of this.files.keys())if(!next.has(path))deleted.push(resolve(this.root,path));
     this.files=next;this.aliases=this.packageAliases();this.directoryCache.clear();
     const virtual={};for(const [path,value] of next)virtual[resolve(this.root,path)]=value.text;
-    const configs=this.kind==='census'?[this.config]:input.configs.map(p=>resolve(this.root,p));
-    const fallback=resolve(this.root,'.portico-ratchet/query.json');
+    const configs=[this.config];
     const required=[...this.requireRoots].filter(p=>this.files.has(p));
-    if(this.kind==='census') {
-      virtual[this.config]=JSON.stringify(censusProjectConfig(this.root,[...new Set([...(input.projectFiles??input.files),...required])]));
-      if(this.previousConfig!==virtual[this.config])changed.push(this.config);
-      this.previousConfig=virtual[this.config];
-    } else if(required.length||input.files.some(p=>! /\.(?:ts|tsx)$/.test(p))) {
-      // App configs need not include a newly supported executable extension.
-      // Keep their resolution first and give every remaining counted source
-      // a project, rather than accepting an unanalysed zero.
-      virtual[fallback]=JSON.stringify(censusProjectConfig(this.root,[...new Set([...input.files.filter(p=>! /\.(?:ts|tsx)$/.test(p)),...required])]));
-      if(this.previousConfig!==virtual[fallback])changed.push(fallback);
-      this.previousConfig=virtual[fallback];configs.push(fallback);
-    }
+    virtual[this.config]=JSON.stringify(censusProjectConfig(this.root,[...new Set([...(input.projectFiles??input.files),...required])]));
+    if(this.previousConfig!==virtual[this.config])changed.push(this.config);
+    this.previousConfig=virtual[this.config];
     this.vfs=createVirtualFileSystem(virtual);
     const configList=JSON.stringify(configs);
     const selection=JSON.stringify([input.files,input.projectFiles??input.files,configs]);
@@ -269,9 +258,7 @@ export class TypedRatchet {
     if(process.env.PORTICO_RATCHET_TRACE)process.stderr.write(JSON.stringify({kind:this.kind,stage:'snapshot',milliseconds:performance.now()-began})+'\n');
     const wanted=new Set(input.files),selected=new Map(),contexts=new Map(),syntax=[];
     for(const config of configs)if(!this.snapshot.getProject(config))throw Error('Missing compiler project: '+config);
-    // Preserve the existing counter's project ordering; the extension-only
-    // fallback is last and cannot replace an app's resolved type context.
-    const projects=[...this.snapshot.getProjects()].sort((a,b)=>(a.configFileName===fallback)-(b.configFileName===fallback));
+    const projects=[...this.snapshot.getProjects()];
     for(const project of projects) {
       const filenames=[...project.program.getSourceFileNames()].sort();
       const diagnostics=[...project.program.getConfigFileParsingDiagnostics()];
@@ -282,7 +269,7 @@ export class TypedRatchet {
         const path=relative(this.root,filename);
         if(wanted.has(path)&&!selected.has(path))selected.set(path,project);
       }
-      if(![...selected.values()].includes(project)&&!(project.configFileName===fallback&&required.length))continue;
+      if(![...selected.values()].includes(project))continue;
       const graph=new Map(),globals=[],externals=[],metadata=new Map();
       const metadataContext=hash([project.configFileName,project.compilerOptions]);
       // Source metadata/edges are plain values, never handles from an old
@@ -352,10 +339,9 @@ export class TypedRatchet {
     // Inventory the whole production-reachable executable closure, including
     // excluded directories reached through barrels or dynamic imports. A
     // label cannot hide debt; declaration-only dependencies remain legitimate.
-    const scanFiles=[...input.files],reachable=new Set(scanFiles),needed=new Set(),owners=new Map(),ordinary=new Set(),requireFailures=[];
+    const scanFiles=[...input.files],reachable=new Set(scanFiles),needed=new Set(),owners=new Map(),requireFailures=[];
     for(const [project,{graph}]of contexts)for(const at of graph.keys()) {
       if(!owners.has(at))owners.set(at,project);
-      if(project.configFileName!==fallback)ordinary.add(at);
     }
     for(const path of input.files) {
       const project=selected.get(path);if(!project)throw Error('No compiler project for '+path);
@@ -369,9 +355,7 @@ export class TypedRatchet {
           try {JSON.parse(this.files.get(at).text.replace(/^\uFEFF/,''));}
           catch {throw Error('Invalid CommonJS JSON input: '+at);}
         }
-        for(const target of edges?.requireTargets??[])if(this.kind==='census'
-          ? !(input.projectFiles??input.files).includes(target)
-          : !ordinary.has(target)&&!wanted.has(target))needed.add(target);
+        for(const target of edges?.requireTargets??[])if(!(input.projectFiles??input.files).includes(target))needed.add(target);
         if(owner&&excludedExecutable(at)&&!reachable.has(at)) {
           reachable.add(at);scanFiles.push(at);selected.set(at,owner);
         }
@@ -393,9 +377,6 @@ export class TypedRatchet {
     const completeEnvironment=hash([configs,[...this.files].map(([p,v])=>[p,v.oid])]);
     const extraSignature=scanFiles.length>input.files.length?completeEnvironment:null;
     for(const path of scanFiles) {
-      if(this.kind==='query'&&this.invariant.has(path+'\0'+this.files.get(path)?.oid)) {
-        results[path]=[];this.stats.reusedFiles++;continue;
-      }
       const project=selected.get(path);if(!project)throw Error('No compiler project for '+path);
       const {graph,context,whole}=contexts.get(project),visited=new Set(),pending=[path],foreign=new Set();let known=true;
       while(pending.length) {
@@ -414,25 +395,18 @@ export class TypedRatchet {
       if(cached!==undefined){results[path]=cached;this.stats.reusedFiles++;}
       else {missing.push(path);signatures.set(path,signature);}
     }
-    if(this.kind==='census') {
-      const fresh=[];
-      for(const project of new Set(missing.map(p=>selected.get(p))))fresh.push(...analyseCensus({root:this.root,files:missing.filter(p=>selected.get(p)===project)},{project,readFile:p=>{
-        const value=this.files.get(relative(this.root,p));if(!value)throw Error('Missing exact source '+p);return value.text;
-      }}));
-      for(const path of missing)results[path]=fresh.filter(site=>site.file===path);
-    } else {
-      const fresh=analyseQueryReads({root:this.root,configs:input.configs,files:missing},{snapshot:this.snapshot,projects});
-      for(const path of fresh.invariant)this.invariant.add(path+'\0'+this.files.get(path).oid);
-      for(const path of missing)results[path]=fresh.reads[path]??[];
-    }
+    const fresh=[];
+    for(const project of new Set(missing.map(p=>selected.get(p))))fresh.push(...analyseCensus({root:this.root,files:missing.filter(p=>selected.get(p)===project)},{project,readFile:p=>{
+      const value=this.files.get(relative(this.root,p));if(!value)throw Error('Missing exact source '+p);return value.text;
+    }}));
+    for(const path of missing)results[path]=fresh.filter(site=>site.file===path);
     for(const path of missing) {
       this.stats.analysedFiles++;
       if(signatures.get(path))this.cache.set(path+'\0'+signatures.get(path),results[path]);
     }
     this.stats.lastMilliseconds=performance.now()-began;
     if(process.env.PORTICO_RATCHET_TRACE)process.stderr.write(JSON.stringify({kind:this.kind,stage:'result',...this.stats})+'\n');
-    this.lastAnswer=this.kind==='census'?{sites:scanFiles.flatMap(p=>results[p]),inventory:scanFiles}:
-      {reads:Object.fromEntries(Object.entries(results).filter(([,lines])=>lines.length)),inventory:scanFiles};
+    this.lastAnswer={sites:scanFiles.flatMap(p=>results[p]),inventory:scanFiles};
     return {...this.lastAnswer,stats:{...this.stats}};
   }
   close(){if(this.api)this.api.close();this.api=null;this.snapshot=null;}

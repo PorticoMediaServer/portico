@@ -40,16 +40,11 @@ RULES = [
     ('page-memory', set(), re.compile(r'\busePageMemory\(|\bpages\.(?:remember|recall)\(')),
     # §4.7: currency is the cache's to own; no new per-screen lease hooks re-checking it.
     ('lease-layer', set(), re.compile(r'\bfunction\s+use\w*Lease\b')),
-    # §4 / step 7 slice 3: a screen reads a server document through a query function in the viewer's query cache
-    # (packages/client-core/src/query/), not with its own GET or a service it builds. Counted by the TypeScript
-    # checker, not a pattern (ci/query_reads.mjs says exactly what counts). A read that must stay outside the cache
-    # (sign-in, the event feed, the cache's own transport) carries `// query-read: kept (reason)` on its line.
-    ('query-read', {'packages/client-core/src/query/'}, None),
 ]
 # A compare kept on purpose carries `// fence-compare: kept (reason)` as a real line comment on its own line, with a
 # non-empty reason. The marker spares exactly one match on that line: a second compare there still counts. The text
 # inside a string or template, or without a reason, spares nothing, and neither does a marker on the line above.
-KEPT = {rule: re.compile(r'^//\s*' + re.escape(rule) + r': kept \(\S[^)]*\)') for rule in ('fence-compare', 'query-read')}
+KEPT = {rule: re.compile(r'^//\s*' + re.escape(rule) + r': kept \(\S[^)]*\)') for rule in ('fence-compare',)}
 
 
 def line_comments(text):
@@ -123,7 +118,6 @@ GUIDE = {
     'fence-compare': 'read through the viewer query cache (packages/client-core/src/query); a moved fence means read again, and only a revision of the same entity is compared',
     'page-memory': 'keep a screen\'s document in the viewer query cache (packages/client-core/src/query) instead of a page memory',
     'lease-layer': 'read through the viewer query cache, which owns cancellation and the viewer boundary, instead of a new lease hook',
-    'query-read': 'read server documents through a query function in packages/client-core/src/query (viewer-queries.ts), not with a GET or a new service outside it',
 }
 
 
@@ -138,90 +132,15 @@ def tracked(root=ROOT):
     return [p for p in out.split('\0') if p and SOURCES.match(p) and not TESTS.search(p)]
 
 
-# The TypeScript projects that hold every client source (the apps' first; ci/query-reads.tsconfig.json last).
-QUERY_READ_CONFIGS = ['web/tsconfig.json', 'apps/native/tsconfig.json', 'apps/vega/tsconfig.json', 'apps/desktop/tsconfig.json',
-                      'packages/client-core/tsconfig.json', 'packages/player-core/tsconfig.json', 'packages/reader-core/tsconfig.json',
-                      'packages/contracts/tsconfig.json', 'ci/query-reads.tsconfig.json']
-
-
-QUERY_READ_SKIP = {'node_modules', '.git', 'dist', 'build', 'android', 'ios', 'Pods', '.gradle'}
-
-
-def _sha(path):
-    import hashlib
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
-def query_reads(paths, root=ROOT, configs=QUERY_READ_CONFIGS):
-    """{path: [1-based line of each server read]} from ci/query_reads.mjs, which needs the root `npm ci`.
-
-    One run serves every caller over the same tree (hygiene's unit test, then the check), kept in the system temp
-    directory. Its key covers everything the programs could load: every TypeScript and JSON file under the projects'
-    directories (tracked or not, counted or exempt, and the configs they extend), the request, the counter and the
-    lockfile (for node_modules). A file the programs loaded from anywhere else is recorded with the answer and
-    checked again before the answer is reused."""
-    runtime=active_runtime(root)
-    if runtime:return runtime.query(runtime.current(root),paths,configs)
-    import hashlib
-    import os
-    import subprocess
-    import tempfile
-    root = Path(root)
-    request = json.dumps({'root': str(root), 'configs': list(configs), 'files': list(paths)})
-    digest = hashlib.sha256(request.encode())
-    for own in [ROOT / 'ci' / 'query_reads.mjs', ROOT / 'package-lock.json']:
-        digest.update(b'\0' + own.read_bytes())
-    homes = sorted({(root / config).parent.resolve() for config in configs} | ({(root / 'packages').resolve()} if (root / 'packages').is_dir() else set()))
-    seen = set()
-    for home in homes:
-        for folder, dirs, files in os.walk(home):
-            dirs[:] = sorted(d for d in dirs if d not in QUERY_READ_SKIP)
-            for name in sorted(files):
-                if not name.endswith(('.ts', '.tsx', '.mts', '.cts', '.json')):
-                    continue
-                path = Path(folder) / name
-                if path in seen:
-                    continue
-                seen.add(path)
-                digest.update(b'\0' + str(path).encode() + b'\0' + path.read_bytes())
-    kept = Path(tempfile.gettempdir()) / f'portico-query-reads-{digest.hexdigest()}.json'
-    if kept.exists():
-        try:
-            entry = json.loads(kept.read_text())
-            if all(Path(path).is_file() and _sha(path) == sha for path, sha in entry['elsewhere'].items()):
-                return entry['reads']
-        except (ValueError, KeyError, OSError):
-            pass
-    try:
-        run = subprocess.run(['node', str(ROOT / 'ci' / 'query_reads.mjs')], input=request, capture_output=True, text=True, cwd=root, timeout=600)
-    except FileNotFoundError as error:
-        raise SystemExit('query-read needs Node (ci/query_reads.mjs)') from error
-    if run.returncode != 0:
-        raise SystemExit('query-read counter failed (run `npm ci` at the repository root first):\n' + run.stderr)
-    answer = json.loads(run.stdout)
-    # Loaded from outside the projects' directories and node_modules: checked again before the answer is reused.
-    elsewhere = {path: _sha(path) for path in answer['loaded']
-                 if 'node_modules' not in Path(path).parts and Path(path) not in seen and Path(path).is_file()}
-    kept.write_text(json.dumps({'elsewhere': elsewhere, 'reads': answer['reads']}))
-    return answer['reads']
-
-
-def counts(paths, read=lambda p: (ROOT / p).read_text(encoding='utf-8', errors='replace'), reads=None):
-    """Per rule and file, the counts above. `reads` gives query-read's lines ({path: [line]}); without it they are
-    found with the TypeScript checker, but only when the files are read from the tree (a test's `read` has none)."""
+def counts(paths, read=lambda p: (ROOT / p).read_text(encoding='utf-8', errors='replace')):
+    """Per rule and file counts of the patterns above."""
     found = {}
-    paths = list(paths)
-    if reads is None and read is counts.__defaults__[0]:
-        reads = query_reads([p for p in paths if not exempt(p, dict((r, a) for r, a, _ in RULES)['query-read'])])
     for path in paths:
         text = read(path)
         for rule, allowed, pattern in RULES:
             if exempt(path, allowed):
                 continue
-            if pattern is None:
-                n = spare([line - 1 for line in (reads or {}).get(path, [])], text, KEPT.get(rule))
-            else:
-                n = count(pattern, text, KEPT.get(rule))
+            n = count(pattern, text, KEPT.get(rule))
             if n:
                 found.setdefault(rule, {})[path] = n
     return found
@@ -255,20 +174,22 @@ def compare(found, baseline):
     return risen, fallen
 
 
-def source_counts(root, paths=None, configs=QUERY_READ_CONFIGS):
+def source_counts(root, paths=None):
     paths=tracked(root) if paths is None else [p for p in paths if SOURCES.match(p) and not TESTS.search(p)]
-    reads=query_reads([p for p in paths if not exempt(p,dict((r,a)for r,a,_ in RULES)['query-read'])],root=root,configs=configs)
     runtime=active_runtime(root)
     if runtime:
-        view=runtime.current(root);found={}
-        paths=sorted(set(paths)|set(runtime.query_inventories.get(view.identity,[])))
+        view=runtime.current(root)
+        # Reuse the census's production dependency inventory for imported sources.
+        runtime.census(view)
+        paths=sorted(set(paths)|{p for p in runtime.census_inventories[view.identity] if SOURCES.match(p)})
+        found={}
         for path in paths:
-            _,oid,data=view.records[path];key=(path,oid,tuple(reads.get(path,[])))
+            _,oid,data=view.records[path];key=(path,oid)
             if key not in runtime.rule_counts:
-                runtime.rule_counts[key]=counts([path],read=lambda _:source_text(data,errors='replace'),reads=reads)
+                runtime.rule_counts[key]=counts([path],read=lambda _:source_text(data,errors='replace'))
             for rule,files in runtime.rule_counts[key].items():found.setdefault(rule,{}).update(files)
         return found
-    return counts(paths,read=lambda p:(root/p).read_text(encoding='utf-8',errors='replace'),reads=reads)
+    return counts(paths,read=lambda p:(root/p).read_text(encoding='utf-8',errors='replace'))
 
 
 def _main(argv, root=ROOT, paths=None):

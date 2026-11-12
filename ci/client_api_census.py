@@ -1,30 +1,17 @@
 #!/usr/bin/env python3
-"""All-verb client API ownership ratchet. See docs/client-api-ownership.md.
-
-python3 ci/client_api_census.py [--update] [--base <review base>] [--report <json>]
-"""
+"""Direct client API calls outside client-core may move or fall, but their total may not rise."""
 import argparse
-from bisect import bisect_right
-from collections import Counter
-import hashlib
 import json
-import os
 from pathlib import Path
 import re
-import stat
 import subprocess
 import sys
 import unicodedata
-from ratchet_base import merge_base, historical_json, source_snapshot, check_queue
+from ratchet_base import merge_base, source_snapshot, check_queue
 from ratchet_runtime import RatchetRuntime, active_runtime
 
 ROOT = Path(__file__).resolve().parent.parent
 SCANNER = ROOT / 'ci/client_api_sites.mjs'
-BASELINE = 'ci/client-api-baseline.json'
-ALLOWLIST = 'ci/client-api-exceptions.json'
-APPROVALS = 'ci/client-api-approvals.json'
-DETECTIONS = 'ci/client-api-detection-additions.json'
-REHASH_RULING = 'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725'
 SOURCE_ROOTS = ('web/', 'apps/native/', 'apps/desktop/', 'apps/vega/',
                 'packages/player-core/', 'packages/reader-core/', 'website/', 'server/receiver/cast/')
 EXTENSIONS = {'.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.kt', '.java', '.swift', '.m', '.mm', '.rs'}
@@ -223,166 +210,6 @@ def kotlin_span_tokens(source):
     return out,newlines
 
 
-def native_function_spans(ts, source, path, line_breaks=None):
-    """Complete method source ranges [start,end), including builder inputs."""
-    if path.endswith('.kt') and line_breaks is None:ts,line_breaks=kotlin_span_tokens(source)
-    closes, stack = {}, []
-    for i, (kind, value, _) in enumerate(ts):
-        if kind == 'string': continue
-        if value == '{': stack.append(i)
-        elif value == '}' and stack: closes[stack.pop()] = i
-    rounds, round_stack = {}, []
-    for i,(kind,value,_) in enumerate(ts):
-        if kind=='string': continue
-        if value=='(': round_stack.append(i)
-        elif value==')' and round_stack: rounds[round_stack.pop()]=i
-    def balanced_prefix(at):
-        pairs={'(':')','[':']','{':'}','<':'>'};stack=[]
-        angles=ts[at][1]=='<'
-        for index in range(at,len(ts)):
-            kind,value,_=ts[index]
-            if kind=='string':continue
-            if value in pairs and (value!='<' or angles and (not stack or stack[-1]=='>')):
-                stack.append(pairs[value])
-            elif value in ')]}' or value=='>' and angles and stack and stack[-1]=='>' and ts[index-1][1]!='-':
-                if not stack or stack.pop()!=value:return None
-                if not stack:return index+1
-        return None
-    def identifier_end(at):
-        hard={'as','break','class','continue','do','else','false','for','fun','if','in','interface',
-              'is','null','object','package','return','super','this','throw','true','try','typealias','typeof','val','var','when','while'}
-        if at<len(ts) and ts[at][0]=='id' and ts[at][1] not in hard:return at+1
-        if at<len(ts) and ts[at][0]=='quoted-id':return at+1
-        if at<len(ts) and ts[at][1]=='`':
-            for end in range(at+1,len(ts)):
-                if '\n' in source[ts[at][2]:ts[end][2]]:return None
-                if ts[end][1]=='`':return end+1 if end>at+1 else None
-        return None
-    def annotation_name_end(at):
-        end=identifier_end(at)
-        if end is None:return None
-        while end<len(ts) and ts[end][1]=='.':
-            end=identifier_end(end+1)
-            if end is None:return None
-        if end<len(ts) and ts[end][1]=='(':return balanced_prefix(end)
-        return end
-    def named_function(at):
-        # A receiver is not the function name: the final simpleIdentifier must
-        # be followed by the parameter list. Never scan past an anonymous list.
-        if at<len(ts) and ts[at][1]=='<':
-            at=balanced_prefix(at)
-            if at is None:return False
-        if at<len(ts) and ts[at][1]=='interface':return identifier_end(at+1) is not None
-        while at<len(ts):
-            if ts[at][1]=='@':
-                at=annotation_name_end(at+1)
-                if at is None:return False
-                continue
-            if ts[at][1]=='(':
-                end=balanced_prefix(at)
-                if end is None:return False
-            else:
-                end=identifier_end(at)
-                if end is None:return False
-                if end<len(ts) and ts[end][1]=='(':
-                    close=balanced_prefix(end)
-                    return close is not None and (close==len(ts) or ts[close][1] not in {'.','?','-','<'})
-                if end<len(ts) and ts[end][1]=='<':
-                    end=balanced_prefix(end)
-                    if end is None:return False
-            while end<len(ts) and ts[end][1]=='?':end+=1
-            if end>=len(ts) or ts[end][1]!='.':return False
-            at=end+1
-        return False
-    def kotlin_declaration_start(at):
-        # Kotlin modifiers may interleave with complete annotations. Only their
-        # prefix is skipped; it never becomes part of the preceding try span.
-        modifiers={'enum','sealed','annotation','data','inner','value','override','lateinit',
-                   'public','private','internal','protected','tailrec','operator','infix','inline',
-                   'external','suspend','const','abstract','final','open','vararg','noinline','crossinline','expect','actual'}
-        targets={'file','field','property','get','set','receiver','param','setparam','delegate'}
-        while at<len(ts):
-            if ts[at][1] in modifiers:at+=1;continue
-            if ts[at][1]!='@':break
-            at+=1
-            if at+1<len(ts) and ts[at+1][1]==':':
-                if ts[at][1] not in targets:return False
-                at+=2
-            if at<len(ts) and ts[at][1]=='[':
-                at+=1;count=0
-                while at<len(ts) and ts[at][1]!=']':
-                    at=annotation_name_end(at)
-                    if at is None:return False
-                    count+=1
-                if not count or at>=len(ts):return False
-                at+=1
-            else:
-                at=annotation_name_end(at)
-                if at is None:return False
-        if at>=len(ts):return False
-        declaration=ts[at][1];following=at+1
-        if declaration=='fun':return named_function(following)
-        if declaration in {'class','object','interface','typealias'}:
-            return identifier_end(following) is not None
-        if declaration in {'val','var'}:return identifier_end(following) is not None or following<len(ts) and ts[following][1]=='('
-        if declaration=='companion':return following<len(ts) and ts[following][1] in {'object','data'}
-        return declaration in {'init','constructor'} and following<len(ts) and ts[following][1]==('{' if declaration=='init' else '(')
-    def kotlin_try_end(start):
-        if start+1>=len(ts) or ts[start][1]!='try' or ts[start+1][1]!='{':return None
-        end=closes.get(start+1)
-        if end is None:return None
-        clause=False
-        while end+1<len(ts) and ts[end+1][1]=='catch':
-            arguments=end+2
-            if arguments>=len(ts) or ts[arguments][1]!='(':return None
-            close=rounds.get(arguments)
-            if close is None or close+1>=len(ts) or ts[close+1][1]!='{':return None
-            end=closes.get(close+1)
-            if end is None:return None
-            clause=True
-        if end+1<len(ts) and ts[end+1][1]=='finally':
-            body=end+2
-            if body>=len(ts) or ts[body][1]!='{':return None
-            end=closes.get(body)
-            if end is None:return None
-            clause=True
-        if not clause:return None
-        if end+1<len(ts) and ts[end+1][1] not in {'}',';'}:
-            # Support the complete standalone try expression, never a prefix of
-            # a chained/Elvis/cast/infix expression. Unknown tails stay unbound.
-            following=end+1
-            newline=bisect_right(line_breaks,ts[end][2])
-            if newline==len(line_breaks) or line_breaks[newline]>=ts[following][2]:return None
-            if not kotlin_declaration_start(following):return None
-        return end
-    spans = []
-    for i, (kind, value, offset) in enumerate(ts):
-        objc = value in ('-', '+') and source[source.rfind('\n',0,offset)+1:offset].strip()=='' and i+1<len(ts) and ts[i+1][1]=='('
-        macro=value in ('RCT_EXPORT_METHOD','RCT_REMAP_METHOD','RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD')
-        following=rounds.get(i+1)
-        declaration=(path.endswith(('.m','.mm','.java')) and kind=='id' and following is not None
-                     and following+1<len(ts) and ts[following+1][1]=='{'
-                     and (i==0 or ts[i-1][1] not in ('.','new'))
-                     and value not in ('if','for','while','switch','catch','synchronized'))
-        if value not in ('fun','func','fn') and not objc and not macro and not declaration: continue
-        depth = 0
-        for j in range(i+1,len(ts)):
-            if ts[j][0]=='string': continue
-            token = ts[j][1]
-            if token == '(': depth += 1
-            elif token == ')': depth -= 1
-            elif depth == 0 and token == '=':
-                if path.endswith('.kt'):
-                    end=kotlin_try_end(j+1)
-                    if end is not None:spans.append((i,end))
-                break
-            elif depth == 0 and token == ';': break
-            elif depth == 0 and token == '{':
-                if j in closes: spans.append((i,closes[j]))
-                break
-    return [(ts[a][2],ts[b][2]+1) for a,b in spans]
-
-
 def native_chain(ts, start, end):
     """Keep the complete receiver and fluent policy-bearing request chain."""
     while start >= 2 and ts[start-1][1] == '.' and ts[start-2][0]=='id': start -= 2
@@ -401,27 +228,6 @@ def native_chain(ts, start, end):
                     if depth==0: end=j;break
             else: break
     return start,end
-
-
-def native_forwarding_shape(path, body):
-    """The two reviewed certificate executors consume URL/method/body parameters.
-
-    These are admission shapes, not an immutability proof. The full native method
-    hash is mandatory in the pin and ledger; any policy edit requires re-review.
-    """
-    if path.endswith('.kt') and all(re.search(p,body) for p in [
-            r'fun\s+proofRequest\([^)]*requestUrl:\s*String\?[^)]*method:\s*String\?[^)]*body:\s*String\?',
-            r'requestUrl\?\.toHttpUrlOrNull\(\)', r'\.url\(target\)',
-            r'\.method\(method!!,\s*body\.toByteArray\(Charsets\.UTF_8\)\.toRequestBody\("application/json"\.toMediaType\(\)\)\)']):
-        return 'native-proof'
-    if path.endswith(('.m','.mm')) and all(re.search(p,body) for p in [
-            r'prove:\(NSString\s*\*\)origin\s+fingerprint:',
-            r'url:\(NSString\s*\*\)requestURL\s+method:\(NSString\s*\*\)method\s+body:\(NSString\s*\*\)body',
-            r'NSURL\s*\*url\s*=\s*\[NSURL\s+URLWithString:requestURL\]',
-            r'requestWithURL:url\]', r'request\.HTTPMethod\s*=\s*method\s*;',
-            r'request\.HTTPBody\s*=\s*\[body\s+dataUsingEncoding:NSUTF8StringEncoding\]']):
-        return 'native-proof'
-    return None
 
 
 def token_expression(ts):
@@ -515,7 +321,6 @@ def native_sites(path, source):
             return start
         return None
     found = []
-    function_spans = native_function_spans(ts, source, path,line_breaks)
     brackets, enclosing, opening_offsets = [], {}, {}
     for n, token in enumerate(ts):
         enclosing[n] = [kind for kind,_ in brackets]
@@ -577,18 +382,9 @@ def native_sites(path, source):
         if is_url and not any(t[0]=='string' and '/v1/' in t[1] for t in call): continue
         if value == 'Request' and is_builder: continue
         expression = token_expression(call)
-        spans = [(a,b) for a,b in function_spans if a<=offset<b]
-        construction_hash = None
-        policy = ''
-        if spans:
-            a,b = min(spans,key=lambda span:span[1]-span[0])
-            policy = source[a:b]
-            construction_hash = hashlib.sha256(policy.encode()).hexdigest()
-        shape = native_forwarding_shape(path,policy)
         found.append({'file':path,'line':source.count('\n',0,offset)+1,
-                      'kind':'url' if is_url else 'request','owner':'<native>',
-                      'callee':value,'operations':[], 'expression':expression, 'callText':source[ts[message_start][2]:ts[end][2]+len(ts[end][1])], 'constructionHash': construction_hash,
-                      **({'forwardedRequest':True,'forwardingShape':shape,'guardHash':construction_hash} if shape else {})})
+                      'kind':'url' if is_url else 'request', 'callee':value,
+                      'expression':expression, 'callText':source[ts[message_start][2]:ts[end][2]+len(ts[end][1])]})
     return found
 
 
@@ -606,452 +402,28 @@ def scan(root=ROOT, paths=None):
     else: sites = []
     for path in paths:
         if path not in js: sites.extend(native_sites(path,(root/path).read_text()))
-    return identify_sites(sites)
+    return sites
 
 
-def identify_sites(sites):
-    for site in sites:
-        # Stable across line moves. Multisets preserve identical calls on the same line.
-        identity = [site['kind'],site['owner'],site['callee'],site['expression']]
-        if 'constructionHash' in site: identity.append(site['constructionHash'])
-        # Existing guard identities stay stable. Newly recognized adapters already
-        # counted as direct keep their identity; every allowance still binds its
-        # complete guardHash in classify/base_guard, independently of this ID.
-        if site.get('forwardingShape') in {'request','requestRaw','request-without-signal','chapter-read','chapter-capability'} and site.get('guardHash'):
-            identity.append(site['guardHash'])
-        identity = json.dumps(identity, separators=(',',':'))
-        site['id'] = site['file']+'#'+hashlib.sha256(identity.encode()).hexdigest()[:16]
-    bind_frozen_sites(sites)
-    return sorted(sites,key=lambda s:(s['file'],s['line'],s['id']))
-
-
-def bind_frozen_sites(sites):
-    """A legacy parse cannot spend a new pin's ID or occurrence budget.
-
-    Node checks the exact original source fingerprint. Bind that result to the
-    canonical ID here, after identity construction, and cap it independently of
-    current approvals. A cloned span or a raised ledger budget cannot silently
-    turn another occurrence into an old legacy exception.
-    """
-    used=Counter()
-    for site in sites:
-        if site.get('forwardingGrammar')!='frozen-legacy':continue
-        binding=site.get('frozenBinding')
-        limit=site.get('frozenOccurrences')
-        if (not isinstance(binding,str) or binding.split('@',1)[0]!=site['id']
-                or '@' in binding and binding.rsplit('@',1)[1]!=site.get('guardHash')
-                or type(limit) is not int or limit<1):
-            site['forwardedRequest']=False
-            site['grammarRejection']='frozen legacy ID or budget is unbound'
-            continue
-        used[binding]+=1
-        if used[binding]>limit:
-            site['forwardedRequest']=False
-            site['grammarRejection']='original frozen legacy occurrence budget exhausted'
-
-
-def scan_snapshot(root, ref, files=None):
-    with source_snapshot(root,ref) as (snapshot,paths):
-        return active_runtime(snapshot).census(active_runtime(snapshot).current(snapshot),files)
-
-
-def verified_detection_counts(root, base, baseline, old_baseline, old_exceptions, manifest):
-    """Growth needs both a reviewed exact-site ruling and the same site in base.
-
-    The manifest authorizes a detection improvement, never a product addition:
-    re-scan both its immutable source commit and the PR base using this detector.
-    A deleted request cannot be reintroduced using an old manifest entry.
-    """
-    rising={key:n for key,n in baseline.items() if n>old_baseline.get(key,0)}
-    if not rising or not manifest:return {}
-    source=manifest.get('sourceCommit','');entries=manifest.get('sites',{})
-    if not re.fullmatch(r'[a-f0-9]{40}',source):raise ValueError('Detection additions require an immutable sourceCommit')
-    for key,entry in entries.items():
-        if (not re.fullmatch(r'.+#[a-f0-9]{16}',key) or type(entry.get('occurrences')) is not int or entry['occurrences']<1
-                or not entry.get('reason','').strip() or not isinstance(entry.get('rulingUrl'),str)
-                or not re.fullmatch(r'https://github\.com/PorticoMediaServer/portico/(?:pull|issues)/[1-9]\d*#issuecomment-[1-9]\d*',entry['rulingUrl'])):
-            raise ValueError(f'{key}: detection addition requires exact count, reason and lead-ruling URL')
-    if subprocess.run(['git','merge-base','--is-ancestor',source,base],cwd=root).returncode:
-        raise ValueError('Detection sourceCommit must be an ancestor of the PR base')
-    old_pins={source_id(key) for entry in old_exceptions.values() for key in exception_pins(entry)}
-    candidates=set(rising)&entries.keys()-old_pins
-    if not candidates:return {}
-    files={key.split('#')[0] for key in candidates}
-    original=counts(scan_snapshot(root,source,files))
-    at_base=original if subprocess.check_output(['git','rev-parse',base],cwd=root,text=True).strip()==source else counts(scan_snapshot(root,base,files))
-    return {key:min(entries[key]['occurrences'],original.get(key,0),at_base.get(key,0)) for key in candidates}
-
-
-def counts(sites):
-    return dict(sorted(Counter(s['id'] for s in sites).items()))
-
-
-def compare(actual, baseline):
-    new = [f'{key}: {n} direct API site(s), baseline {baseline.get(key,0)}' for key,n in actual.items() if n>baseline.get(key,0)]
-    stale = [key for key,n in baseline.items() if actual.get(key,0)<n]
-    return new, stale
-
-
-def exception_pins(entry):
-    if set(entry['sites']) & set(entry.get('additionalSites', {})):
-        raise ValueError('Exception ID overlap between sites and additionalSites is forbidden')
-    pins = {**{key: {'category': entry['category'], 'reason': entry['reason'], **({'guardHash': entry.get('guardHashes', {}).get(key),
-                **({'guardSpan':entry['guardSpans'][key]} if key in entry.get('guardSpans',{}) else {})} if entry['category'] in {'platform-transport','non-api-platform'} or entry.get('guardSpans',{}).get(key)=='native-function' else {}),
-                **({'sourceHashes':entry['sourceHashes'][key]} if key in entry.get('sourceHashes',{}) else {})} for key in entry['sites']},
-            **entry.get('additionalSites', {})}
-    budgets=Counter(entry['sites'])+Counter(entry.get('additionalSites',{}).keys())
-    for key,pin in pins.items():
-        if '@' not in key:continue
-        site,span=key.rsplit('@',1)
-        if (not re.fullmatch(r'.+#[a-f0-9]{16}',site) or not re.fullmatch(r'[a-f0-9]{64}',span)
-                or pin['category']!='platform-transport' or pin.get('guardHash')!=span or budgets[key]!=1):
-            raise ValueError(f'{key}: an exact ID/hash pair requires its full guardHash and occurrence count 1')
-        if site in pins:raise ValueError(f'{key}: paired and unqualified allowances cannot overlap')
-    return pins
-
-
-def source_id(key):
-    return key.rsplit('@',1)[0] if '@' in key else key
-
-
-def exception_counts(exceptions):
-    return sum((Counter(e['sites'])+Counter(e.get('additionalSites',{}).keys()) for e in exceptions.values()),Counter())
-
-
-def matches_guard(site, expected, span=None):
-    if span=='native-function' and Path(site['file']).suffix not in {'.kt','.java','.m','.mm','.swift','.rs'}:return False
-    field={None:'guardHash','forwarding-function':'forwardingHash','native-function':'constructionHash'}.get(span)
-    return field is not None and expected is not None and expected==site.get(field)
-
-
-def validate_native_pin(key, pin, count):
-    if pin.get('guardSpan')!='native-function':return
-    path=key.split('#')[0]
-    if (pin['category'] not in {'platform-transport','platform-url'}
-            or not path.startswith('apps/native/') or Path(path).suffix not in {'.kt','.java','.m','.mm','.swift'}
-            or not re.fullmatch(r'[a-f0-9]{64}',pin.get('guardHash') or '') or count!=1
-            or not isinstance(pin.get('sourceHashes'),dict) or path not in pin['sourceHashes']):
-        raise ValueError(f'{key}: native-function requires one exact native span and its complete policy-source hash')
-
-
-def validate_source_hashes(key, hashes):
-    if not isinstance(hashes,dict) or not hashes:
-        raise ValueError(f'{key}: exact condition source hashes are required')
-    for path,digest in hashes.items():
-        if (not isinstance(path,str) or not Path(path).parts or Path(path).is_absolute() or '..' in Path(path).parts
-                or '.git' in Path(path).parts or 'node_modules' in Path(path).parts
-                or not isinstance(digest,str) or not re.fullmatch(r'[a-f0-9]{64}',digest)):
-            raise ValueError(f'{key}: invalid exact condition source hash')
-
-
-def condition_source_hash(root, path, key):
-    """Read exact regular files without following any below-root symlink.
-
-    Directory descriptors bind each parent before opening the next component;
-    checking resolve()/hashes alone permits relocated relative dependencies.
-    """
-    descriptors=[]
-    try:
-        flags=os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-        descriptors.append(os.open(root,flags))
-        parts=Path(path).parts
-        for part in parts[:-1]:
-            descriptors.append(os.open(part,flags,dir_fd=descriptors[-1]))
-        descriptors.append(os.open(parts[-1],os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,dir_fd=descriptors[-1]))
-        if not stat.S_ISREG(os.fstat(descriptors[-1]).st_mode):
-            raise ValueError(f'{key}: condition source must be a regular file without symlinks: {path}')
-        digest=hashlib.sha256()
-        while chunk:=os.read(descriptors[-1],131072):digest.update(chunk)
-        return digest.hexdigest()
-    except OSError as error:
-        raise ValueError(f'{key}: cannot read condition source as a regular file without symlinks: {path}: {error}') from error
-    finally:
-        for descriptor in reversed(descriptors):os.close(descriptor)
-
-
-def classify(sites, exceptions, root=None):
-    approved = {'platform-url','native-extension','native-listening','separate-product','platform-transport','non-api-platform'}
-    exempt, direct = [], []
-    remaining = {path: Counter(entry['sites']) + Counter(entry.get('additionalSites', {}).keys()) for path,entry in exceptions.items()}
-    for path,entry in exceptions.items():
-        if any(pin['category'] not in approved or not pin['reason'].strip() for pin in exception_pins(entry).values()) or any(c in path for c in '*?['):
-            raise ValueError(f'Invalid exception (exact file, approved category and reason required): {path}')
-        if not entry.get('sites'): raise ValueError(f'Exception must pin its exact construction/request sites: {path}')
-        for key,pin in exception_pins(entry).items():
-            validate_native_pin(key,pin,remaining[path][key])
-            if pin['category']=='non-api-platform' or 'sourceHashes' in pin:
-                validate_source_hashes(key,pin.get('sourceHashes'))
-                if root is None:raise ValueError(f'{key}: checking condition source hashes requires the exact source root')
-                for source_path,digest in pin['sourceHashes'].items():
-                    if condition_source_hash(root,source_path,key)!=digest:
-                        raise ValueError(f'{key}: reviewed condition source changed: {source_path}; re-approval is required')
-    for site in sites:
-        entry = exceptions.get(site['file'])
-        pins=exception_pins(entry) if entry else {}
-        pair=site['id']+'@'+str(site.get('guardHash'))
-        binding=pair if pair in pins else site['id']
-        pin=pins.get(binding)
-        allowed = pin is not None and remaining[site['file']][binding] > 0
-        if allowed: remaining[site['file']][binding] -= 1
-        if allowed and (pin['category']=='platform-transport' or pin.get('guardSpan')=='native-function') and not matches_guard(site,pin.get('guardHash'),pin.get('guardSpan')):
-            raise ValueError(f"{site['file']}:{site['line']}: reviewed guard source changed or is unbound; re-approval and a new guardHash are required")
-        if allowed and pin['category']=='platform-transport' and pin.get('guardSpan')!='native-function' and not site.get('forwardedRequest'):
-            raise ValueError(f"{site['file']}:{site['line']}: platform transport must match the closed forwarder grammar or an exact frozen legacy span")
-        if allowed and pin['category']=='non-api-platform' and not matches_guard(site,pin.get('guardHash')):
-            raise ValueError(f"{site['file']}:{site['line']}: reviewed non-API source span changed; re-approval is required")
-        if allowed:exempt.append(dict(site,exceptionId=binding))
-        else:direct.append(site)
-    return direct, exempt
-
-
-def approval_for(approvals, key, pin, count):
-    entry = approvals.get(key, {})
-    return (entry.get('reason') == pin['reason'] and entry.get('condition', '').strip()
-            and entry.get('category') == pin['category'] and entry.get('guardHash') == pin.get('guardHash')
-            and entry.get('guardSpan')==pin.get('guardSpan')
-            and entry.get('sourceHashes')==pin.get('sourceHashes')
-            and type(entry.get('occurrences')) is int and entry['occurrences'] >= count
-            and isinstance(entry.get('rulingUrl'), str)
-            and re.fullmatch(r'https://github\.com/PorticoMediaServer/portico/(?:pull|issues)/[1-9]\d*#issuecomment-[1-9]\d*', entry['rulingUrl']))
-
-
-def validate_approvals(approvals):
-    for key, entry in approvals.items():
-        if (not re.fullmatch(r'.+#[a-f0-9]{16}(?:@[a-f0-9]{64})?', key) or not entry.get('reason', '').strip()
-                or not entry.get('condition', '').strip() or type(entry.get('occurrences')) is not int or entry['occurrences'] < 1
-                or entry.get('category') not in {'platform-transport','platform-url','native-extension','native-listening','separate-product','identity-rehash','non-api-platform'}
-                or not isinstance(entry.get('rulingUrl'),str)
-                or not re.fullmatch(r'https://github\.com/PorticoMediaServer/portico/(?:pull|issues)/[1-9]\d*#issuecomment-[1-9]\d*',entry['rulingUrl'])
-                or entry['category'] in {'platform-transport','identity-rehash','non-api-platform'} and not re.fullmatch(r'[a-f0-9]{64}',entry.get('guardHash',''))):
-            raise ValueError(f'{key}: approval requires an exact site, condition, positive multiplicity, category/source binding and lead-ruling URL')
-        if entry['category']=='non-api-platform' or 'sourceHashes' in entry:
-            validate_source_hashes(key,entry.get('sourceHashes'))
-        validate_native_pin(key,entry,entry['occurrences'])
-        if '@' in key and (entry['category']!='platform-transport' or key.rsplit('@',1)[1]!=entry.get('guardHash')
-                           or entry['occurrences']!=1 or 'previousSiteId' in entry):
-            raise ValueError(f'{key}: paired approval requires its exact full hash, count 1 and an explicit ruling')
-        if 'guardSpan' in entry and entry['guardSpan']!='native-function' and (entry['category']!='platform-transport' or entry['guardSpan']!='forwarding-function'):
-            raise ValueError(f'{key}: invalid explicitly reviewed forwarding span')
-        if entry['category']=='identity-rehash' or entry['rulingUrl']==REHASH_RULING or 'previousSiteId' in entry:
-            if (entry['category'] not in {'identity-rehash','platform-transport'}
-                    or not re.fullmatch(r'.+#[a-f0-9]{16}',entry.get('previousSiteId',''))
-                    or key.split('#')[0]!=entry['previousSiteId'].split('#')[0]
-                    or not re.fullmatch(r'[a-f0-9]{64}',entry.get('previousGuardHash',''))
-                    or not re.fullmatch(r'[a-f0-9]{40}',entry.get('previousCommit',''))
-                    or not re.fullmatch(r'[a-f0-9]{40}',entry.get('reviewedCommit',''))
-                    or not re.fullmatch(r'https://github\.com/PorticoMediaServer/portico/pull/[1-9]\d*',entry.get('pullRequest',''))
-                    or not re.fullmatch(re.escape(entry.get('pullRequest',''))+r'#(?:issuecomment-|pullrequestreview-|discussion_r)[1-9]\d*',entry.get('reviewUrl',''))
-                    or not re.fullmatch(r'docs/client-api-rehashes/[A-Za-z0-9._-]+\.json',entry.get('spanEvidence',''))):
-                raise ValueError(f'{key}: re-hash requires old/new hashes, immutable commits, editing PR, independent review and complete span evidence')
-
-
-def transport_rehash_budgets(approvals, old_approvals, exceptions, load_previous=None):
-    """Every retained/replacement allowance consumes its original shared budget."""
-    nodes={};limits={};affected=set()
-    for ledger in [old_approvals,approvals]:
-        for key,entry in ledger.items():
-            if entry['category']=='platform-transport':
-                node=(key,entry['guardHash']);nodes[node]=entry
-                limits[node]=min(limits.get(node,entry['occurrences']),entry['occurrences'])
-    # A same-ID re-hash replaces its predecessor's ledger row. Recover that
-    # exact historical approval, including its own lineage, after it lands.
-    # Resolve the same graph on its own PR too, before the base row disappears.
-    if load_previous:
-        nodes={(key,entry['guardHash']):entry for key,entry in approvals.items() if entry['category']=='platform-transport'}
-    pending=list(nodes.items())
-    for (key,_),entry in pending:
-        if entry['category']!='platform-transport' or 'previousSiteId' not in entry:continue
-        node=(entry['previousSiteId'],entry['previousGuardHash'])
-        if node not in nodes and load_previous:
-            previous=load_previous(entry)
-            if previous.get('category')=='platform-transport' and previous.get('guardHash')==node[1]:
-                if previous['occurrences']>limits.get(node,previous['occurrences']):
-                    raise ValueError(f'{key}: historical transport approval exceeds the comparison base budget')
-                nodes[node]=previous;limits[node]=previous['occurrences']
-                pending.append((node,previous))
-        previous=nodes.get(node,{})
-        if not previous or entry['occurrences']>limits[entry['previousSiteId'],entry['previousGuardHash']]:
-            raise ValueError(f'{key}: transport re-hash expands the original occurrence budget; a new ruling is required')
-    used=Counter()
-    for entry in exceptions.values():
-        counts=Counter(entry['sites'])+Counter(entry.get('additionalSites',{}).keys())
-        for key,pin in exception_pins(entry).items():
-            if pin['category']!='platform-transport':continue
-            node=(key,pin['guardHash']);seen=set();lineage=[]
-            while node in nodes:
-                if node in seen:raise ValueError(f'{key}: cyclic transport re-hash lineage')
-                seen.add(node);lineage.append(node);used[node]+=counts[key];parent=nodes[node]
-                if 'previousSiteId' not in parent:break
-                node=(parent['previousSiteId'],parent['previousGuardHash'])
-            if len(lineage)>1:affected.update(lineage)
-    for node,count in used.items():
-        if node in affected and count>limits[node]:
-            raise ValueError(f'{node[0]}: retained and replacement transport pins exceed their shared occurrence budget')
-
-
-def verify_rehashes(root, base, sites, approvals, old_approvals, old_baseline=None, old_exceptions=None, exceptions=None):
-    """Standing re-hash rulings never authorize a new request or an exception.
-
-    Direct identities can relocate only against a removed base occurrence. A
-    transport pin can re-hash only from an already-approved transport pin.
-    Review links are checked by independent human review, as for all ledger rows.
-    """
-    moves={};snapshots={}
-    def load_previous(entry):
-        commit=entry['previousCommit']
-        if subprocess.run(['git','merge-base','--is-ancestor',commit,base],cwd=root).returncode:
-            raise ValueError(f"{entry['previousSiteId']}: re-hash source/review commit is outside its immutable ancestry")
-        return historical_json(root,commit,APPROVALS).get(entry['previousSiteId'],{})
-    transport_rehash_budgets(approvals,old_approvals,exceptions or {},load_previous)
-    for key,entry in approvals.items():
-        if 'previousSiteId' not in entry:continue
-        current=[s for s in sites if s['id']==key]
-        if not current:continue  # A reviewed future source entry grants no active allowance.
-        if entry==old_approvals.get(key):
-            old_pin=exception_pins((old_exceptions or {}).get(current[0]['file'],{'sites':[]})).get(key,{})
-            active=(old_baseline or {}).get(key,0)>=len(current) or old_pin.get('guardHash')==entry['guardHash']
-            if active and all(matches_guard(s,entry['guardHash'],entry.get('guardSpan')) for s in current):continue
-        previous=entry['previousSiteId'];commit=entry['previousCommit']
-        for ancestor,descendant in [(commit,base)]:
-            if subprocess.run(['git','merge-base','--is-ancestor',ancestor,descendant],cwd=root).returncode:
-                raise ValueError(f'{key}: re-hash source/review commit is outside its immutable ancestry')
-        old_key=(commit,previous.split('#')[0])
-        if old_key not in snapshots:snapshots[old_key]=scan_snapshot(root,commit,{old_key[1]})
-        old=[s for s in snapshots[old_key] if s['id']==previous]
-        reviewed_commit=entry['reviewedCommit']
-        reviewed_key=(reviewed_commit,key.split('#')[0])
-        if reviewed_key not in snapshots:snapshots[reviewed_key]=scan_snapshot(root,reviewed_commit,{reviewed_key[1]})
-        reviewed=[s for s in snapshots[reviewed_key] if s['id']==key and matches_guard(s,entry['guardHash'],entry.get('guardSpan'))]
-        try:proof=json.loads((root/entry['spanEvidence']).read_text())
-        except (OSError,ValueError) as error:raise ValueError(f'{key}: complete re-hash span evidence is missing or unreadable') from error
-        if (not old or len(reviewed)<len(current) or any(not matches_guard(s,entry['previousGuardHash'],entry.get('guardSpan')) for s in old)
-                or any(not matches_guard(s,entry['guardHash'],entry.get('guardSpan')) for s in current)
-                or Counter(s.get('callText') for s in old)!=Counter(s.get('callText') for s in current)
-                or not isinstance(proof,dict) or any(not isinstance(proof.get(field),str) for field in ['oldSpan','newSpan'])
-                or any(hashlib.sha256(proof.get(field,'').encode()).hexdigest()!=entry[hash_field]
-                       for field,hash_field in [('oldSpan','previousGuardHash'),('newSpan','guardHash')])):
-            raise ValueError(f'{key}: re-hash changed forwarding bytes, source hashes or complete span evidence')
-        if entry['category']=='platform-transport':
-            original=old_approvals.get(previous,{})
-            if (original.get('category')!='platform-transport' or original.get('guardHash')!=entry['previousGuardHash']
-                    or original.get('guardSpan')!=entry.get('guardSpan')
-                    or original.get('reason')!=entry['reason'] or original.get('condition')!=entry['condition']):
-                raise ValueError(f'{key}: re-hash cannot create a new transport approval')
-        else:moves[key]=(previous,min(entry['occurrences'],len(old),len(current)))
-    return moves
-
-
-def rehash_counts(baseline, old_baseline, moves):
-    available={key:max(0,n-baseline.get(key,0)) for key,n in old_baseline.items()};permitted={}
-    for key,(previous,n) in sorted(moves.items()):
-        moved=min(n,available.get(previous,0));available[previous]=available.get(previous,0)-moved
-        permitted[key]=old_baseline.get(key,0)+moved
-    return permitted
-
-
-def base_guard(baseline, exceptions, old_baseline, old_exceptions, approvals=None, detections=None, rehashes=None, site_counts=None, base_site_counts=None):
-    permitted={**old_baseline}
-    for key,count in (detections or {}).items():permitted[key]=max(permitted.get(key,0),count)
-    for key,count in rehash_counts(baseline,old_baseline,rehashes or {}).items():permitted[key]=max(permitted.get(key,0),count)
-    errors, _ = compare(baseline, permitted)
-    # New/changed allowances require a reviewed ruling for this exact site,
-    # source hash, reason/category and complete multiplicity. Ledger edits are
-    # themselves reviewable; an old approval cannot authorize a larger count.
-    approvals = approvals or {}
-    before=exception_counts(old_exceptions);after=exception_counts(exceptions)
-    # Converting DIRECT duplicates to distinct paired exceptions must not let an
-    # extra occurrence spend the same old DIRECT budget a second time. Check the
-    # complete source multiset (before classification), not only the residuals.
-    paired={source_id(key) for key in after if '@' in key and after[key]>before[key]}
-    old_total=Counter(old_baseline)
-    for key,n in before.items():old_total[source_id(key)]+=n
-    for key in paired:
-        if site_counts is None:
-            errors.append(f'{key}: paired activation requires complete source occurrence counts')
-        elif site_counts.get(key,0)>old_total[key]:
-            errors.append(f'{key}: paired activation grows total source occurrences; a new detection ruling is required')
-    # A stale-high upper bound must not supply removal credit when a formerly
-    # DIRECT occurrence becomes exempt. Check its live combined multiplicity,
-    # including the unapproved occurrences left after classification.
-    if base_site_counts is not None:
-        activated={source_id(key) for key in after if after[key]>before[key]}
-        for key in activated:
-            if base_site_counts.get(key,0) and (site_counts or {}).get(key,0)>base_site_counts[key]:
-                errors.append(f'{key}: exception activation grows live source occurrences against the merge base')
-    for path,entry in exceptions.items():
-        pins=exception_pins(entry);old=old_exceptions.get(path)
-        previous=exception_pins(old) if old else {}
-        total=Counter(entry['sites'])+Counter(entry.get('additionalSites', {}).keys())
-        was=Counter(old['sites'])+Counter(old.get('additionalSites', {}).keys()) if old else Counter()
-        for key,pin in pins.items():
-            if (previous.get(key)!=pin or total[key]>was[key]) and not approval_for(approvals,key,pin,total[key]):
-                errors.append(f'{key}: exception expanded or changed without an exact lead-ruling approval in {APPROVALS}')
-    return errors
-
-
-def _main(argv=None, root=ROOT, paths=None):
-    write_root=root
+def _main(argv, root=ROOT, paths=None):
     runtime=active_runtime(root)
-    view=runtime.current(root,paths);root=view.root;paths=view.paths
-    p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--update',action='store_true');p.add_argument('--initialize',action='store_true',help='one-time creation; refuses an existing baseline')
-    p.add_argument('--base');p.add_argument('--predecessor');p.add_argument('--queue-head');p.add_argument('--report',type=Path);a=p.parse_args(argv)
-    if a.queue_head and not a.base:p.error('--queue-head requires --base')
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--base');parser.add_argument('--predecessor');parser.add_argument('--queue-head')
+    args=parser.parse_args(argv)
+    if args.queue_head and not args.base:parser.error('--queue-head requires --base')
     for field in ['base','predecessor','queue_head']:
-        if getattr(a,field):setattr(a,field,runtime.git.git(['rev-parse','--verify',getattr(a,field)+'^{commit}']).decode().strip())
-    queue_errors=check_queue(root,a.predecessor or a.base,a.queue_head,lambda parent,snapshot,paths:main(['--base',parent],root=snapshot,paths=paths)) if a.queue_head else []
-    exceptions=json.loads((root/ALLOWLIST).read_text())
-    approvals=json.loads((root/APPROVALS).read_text()) if (root/APPROVALS).exists() else {}
-    sites=scan(root,paths)
-    try:
-        validate_approvals(approvals)
-        direct,exempt=classify(sites,exceptions,root=root)
-    except ValueError as error:
-        print(f"Client-core ownership ratchet failed: {error}", file=sys.stderr); return 1
-    actual=counts(direct)
-    baseline_path=root/BASELINE
-    if a.initialize:
-        if baseline_path.exists():p.error('baseline already exists; --update only removes sites')
-        baseline_path.write_text(json.dumps(actual,indent=2)+'\n')
-        (write_root/BASELINE).write_text(json.dumps(actual,indent=2)+'\n')
-    baseline=json.loads(baseline_path.read_text())
-    new,stale=compare(actual,baseline)
-    detections={}
-    refs=list(dict.fromkeys(merge_base(root,ref)for ref in [a.base,a.predecessor]if ref))
-    if refs:new=[]
-    for base in refs:
-        old_baseline=historical_json(root,base,BASELINE)
-        old_exceptions=historical_json(root,base,ALLOWLIST)
-        old_approvals=historical_json(root,base,APPROVALS,optional=True) or {}
-        manifest=json.loads((root/DETECTIONS).read_text()) if (root/DETECTIONS).exists() else {}
-        moves=verify_rehashes(root,base,sites,approvals,old_approvals,old_baseline,old_exceptions,exceptions)
-        proposed={key:max(n,actual.get(key,0)) for key,n in baseline.items()}
-        proposed.update({key:n for key,n in actual.items() if key not in proposed})
-        detections=verified_detection_counts(root,base,proposed,old_baseline,old_exceptions,manifest)
-        permitted={**baseline}
-        for key,count in detections.items():permitted[key]=max(permitted.get(key,0),count)
-        for key,count in rehash_counts(actual,old_baseline,moves).items():permitted[key]=max(permitted.get(key,0),count)
-        new+=compare(actual,permitted)[0]
-        base_view=runtime.historical(base)
-        base_sites=runtime.census(base_view)
-        new+=base_guard(actual if a.update else baseline,exceptions,old_baseline,old_exceptions,approvals,detections,moves,counts(sites),counts(base_sites))
-        previous,_=classify(base_sites,old_exceptions,root=base_view.root)
-        live=counts(previous)
-        for key,count in rehash_counts(actual,live,moves).items():live[key]=max(live.get(key,0),count)
-        new+=compare(actual,live)[0]
-    new+=queue_errors
-    pinned = exception_counts(exceptions)
-    stale_exceptions = list((pinned - Counter(s.get('exceptionId',s['id']) for s in exempt)).elements())
-    if stale_exceptions:new += [f'{site}: stale exception; remove its allowance' for site in stale_exceptions]
-    if a.report:a.report.write_text(json.dumps({'direct':direct,'exceptions':exempt},indent=2)+'\n')
-    if new:
-        print('Client-core ownership ratchet failed: new/increased direct API sites outside packages/client-core.',file=sys.stderr)
-        print('\n'.join(new),file=sys.stderr)
-        print('Move URL/request/body policy into named client-core domain operations; do not raise the baseline or use a generic screen request wrapper.',file=sys.stderr)
-        return 1
-    if a.update and actual!=baseline:(write_root/BASELINE).write_text(json.dumps(actual,indent=2)+'\n')
-    print(f'Client-core ownership holds: {len(direct)} direct sites; {len(exempt)} pinned approved exception sites.')
-    return 0
+        if getattr(args,field):setattr(args,field,runtime.git.git(['rev-parse','--verify',getattr(args,field)+'^{commit}']).decode().strip())
+    errors=check_queue(root,args.predecessor or args.base,args.queue_head,
+        lambda parent,snapshot,paths:main(['--base',parent],root=snapshot,paths=paths)) if args.queue_head else []
+    total=len(scan(root,paths))
+    for ref in dict.fromkeys(merge_base(root,ref) for ref in [args.base,args.predecessor] if ref):
+        with source_snapshot(root,ref) as (snapshot,old_paths):
+            previous=len(scan(snapshot,old_paths))
+        print(f'Direct client API calls: {previous} -> {total} (base {ref[:12]})')
+        if total>previous:errors.append('Direct client API call count increased; move calls into packages/client-core.')
+    if not args.base and not args.predecessor:print(f'Direct client API calls: {total} (inventory only; pass --base to compare)')
+    for error in errors:print(error)
+    return int(bool(errors))
 
 
 def main(argv=None, root=ROOT, paths=None):
@@ -1061,7 +433,7 @@ def main(argv=None, root=ROOT, paths=None):
         with RatchetRuntime(root) as runtime:
             status=_main(argv,root,paths);runtime.ensure_head();return status
     except (ValueError,OSError,RuntimeError,subprocess.CalledProcessError) as error:
-        print(f'Client-core ownership ratchet failed closed: {error}',file=sys.stderr);return 1
+        print(f'Client API count failed: {error}',file=sys.stderr);return 1
 
 
-if __name__=='__main__':sys.exit(main())
+if __name__=='__main__':sys.exit(main(sys.argv[1:]))

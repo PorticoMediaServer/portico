@@ -210,7 +210,7 @@ class RatchetRuntime:
         self.original=Path(root).resolve();self.budget=Budget(seconds)
         self.dependency_root=Path(dependency_root or self.original).resolve()
         self.git=GitBlobs(self.original,self.budget);self.views={};self.by_root={};self.native={};self.workers={};self.results={};self.rule_counts={}
-        self.query_inventories={}
+        self.census_inventories={}
         self.initial_head=self.git.git(['rev-parse','--verify','HEAD^{commit}']).decode().strip()
         # The only install available in CI is npm ci's final checkout. Refuse
         # to reinterpret an entry selected by different dependency inputs.
@@ -221,20 +221,11 @@ class RatchetRuntime:
         self.scratch=tempfile.TemporaryDirectory(prefix='portico-ratchet-',dir=os.environ.get('TMPDIR'))
         self.stats={'nativeAnalysed':0,'nativeReused':0,'materializedFiles':0}
 
-    @staticmethod
-    def bound_files(exceptions):
-        return {path for entry in exceptions.values()
-            for hashes in [*entry.get('sourceHashes',{}).values(),*(pin.get('sourceHashes',{}) for pin in entry.get('additionalSites',{}).values())]
-            for path in hashes}
-
     def historical(self, ref):
         commit=self.git.git(['rev-parse','--verify',ref+'^{commit}']).decode().strip()
         tree,entries=self.git.tree(ref)
         if commit in self.views:return self.views[commit]
-        exceptions=self.git.json(ref,'ci/client-api-exceptions.json',optional=True) or {}
-        bound=self.bound_files(exceptions)
-        wanted={p:record for p,record in entries.items() if Path(p).suffix in SUFFIXES or p in bound or dependency_input(p)}
-        if not bound<=entries.keys():raise RatchetFailure('Missing bound historical source file')
+        wanted={p:record for p,record in entries.items() if Path(p).suffix in SUFFIXES or dependency_input(p)}
         for path,(mode,kind,_) in wanted.items():
             if mode not in {'100644','100755'} or kind!='blob':raise RatchetFailure(f'Historical source {path} is not a regular blob; symlinks are forbidden')
         data=self.git.load(record[2] for record in wanted.values())
@@ -248,21 +239,9 @@ class RatchetRuntime:
             raise RatchetFailure('Git HEAD changed during the ratchet invocation')
         paths=paths if paths is not None else self.git.budget.run(['git','ls-files','-z'],cwd=root,capture_output=True).stdout.decode().split('\0')
         paths=[p for p in paths if p]
-        # Local checks historically accept a newly written ledger/evidence
-        # before `git add`. Counted product sources still come only from the
-        # index; immutable historical views never see these working files.
-        for path in ['ci/client-api-approvals.json','ci/client-api-detection-additions.json']:
-            if (root/path).exists() or (root/path).is_symlink():paths.append(path)
-        approval_file=root/'ci/client-api-approvals.json'
-        if approval_file.is_file():
-            approvals=json.loads(approval_file.read_bytes())
-            paths.extend(e['spanEvidence'] for e in approvals.values() if isinstance(e,dict) and isinstance(e.get('spanEvidence'),str))
-        paths=list(dict.fromkeys(paths))
-        try:exceptions=json.loads((root/'ci/client-api-exceptions.json').read_bytes())
-        except FileNotFoundError:exceptions={}
-        bound=self.bound_files(exceptions);records={}
+        records={}
         for path in paths:
-            if Path(path).suffix not in SUFFIXES and path not in bound and not dependency_input(path):continue
+            if Path(path).suffix not in SUFFIXES and not dependency_input(path):continue
             relative=Path(path)
             if relative.is_absolute() or '..' in relative.parts:raise RatchetFailure('Invalid current source path')
             descriptors=[]
@@ -280,7 +259,6 @@ class RatchetRuntime:
             finally:
                 for descriptor in reversed(descriptors):os.close(descriptor)
             records[path]=('100755' if info.st_mode&0o111 else '100644',self.git.oid(data),data)
-        if not bound<=records.keys():raise RatchetFailure('Missing bound current source file')
         identity='working-'+hashlib.sha256(json.dumps([(p,v[0],v[1]) for p,v in sorted(records.items())]).encode()).hexdigest()
         if identity not in self.views:self.views[identity]=self.materialize(identity,paths,records,self.initial_head)
         return self.views[identity]
@@ -311,7 +289,7 @@ class RatchetRuntime:
             raise RatchetFailure('Git HEAD changed during the ratchet invocation; no result accepted')
 
     def census(self, view, files=None):
-        from client_api_census import production,native_sites,identify_sites
+        from client_api_census import production,native_sites
         self.verify_environment(view)
         key=('census',view.identity,None if files is None else tuple(sorted(files)))
         if key in self.results:return copy.deepcopy(self.results[key])
@@ -319,7 +297,9 @@ class RatchetRuntime:
             return copy.deepcopy([s for s in self.results[('census',view.identity,None)] if s['file'] in files])
         all_paths=sorted(p for p in view.paths if production(p));paths=all_paths if files is None else [p for p in all_paths if p in files]
         js=[p for p in paths if Path(p).suffix in EXECUTABLE];project_files=[p for p in all_paths if Path(p).suffix in EXECUTABLE]
-        sites=self.worker('census').scan(view,js,project_files=project_files)['sites'] if js else []
+        answer=self.worker('census').scan(view,js,project_files=project_files) if js else {'sites':[],'inventory':[]}
+        self.census_inventories[view.identity]=answer['inventory']
+        sites=answer['sites']
         for path in paths:
             if path in js:continue
             if path not in view.records:raise RatchetFailure('Missing counted source '+path)
@@ -328,17 +308,9 @@ class RatchetRuntime:
                 self.native[native_key]=native_sites(path,source_text(data));self.stats['nativeAnalysed']+=1
             else:self.stats['nativeReused']+=1
             sites.extend(copy.deepcopy(self.native[native_key]))
-        self.results[key]=identify_sites(sites)
+        self.results[key]=sites
         return copy.deepcopy(self.results[key])
 
-    def query(self, view, paths, configs):
-        self.verify_environment(view)
-        key=('query',view.identity,tuple(paths),tuple(configs))
-        if key not in self.results:
-            answer=self.worker('query').scan(view,paths,configs) if paths else {'reads':{},'inventory':[]}
-            self.results[key]=answer
-        self.query_inventories[view.identity]=self.results[key]['inventory']
-        return copy.deepcopy(self.results[key]['reads'])
 
     def verify_environment(self,view):
         environment=dependency_environment(view.records)
