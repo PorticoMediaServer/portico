@@ -29,6 +29,7 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
     const authority = {serverId: 'actual', viewerFence: 'viewer'};
     const document = {rows: [row], spotlight: [], serverId: authority.serverId, viewerFence: authority.viewerFence};
     let currentAuthority = authority;
+    let anchorOptions: unknown[] = [];
     const vertical = {scrollRef: {}, offset: {value: 146}, repeating: false, stop() {}, move() {}, anchor: (...args: number[]) => anchors.push(args)};
     const runtime = {home: {subscribe() {}, getSnapshot: () => ({document, phase: 'ready'})}, playback: {},
       getSnapshot: () => ({authority: currentAuthority, libraries: [], selectionActive: false}), selection: () => ({}), text: {t: (key: string) => key, locale: 'en-US'}};
@@ -50,7 +51,7 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
       '../../kit/focus/initial-entry': {createInitialRegionEntry},
       '../../shell/tv-focus': {tvFocusIds, tvHomeRegionMap}, './tv-presentation': {tvHomeRows}, '../../shell/home-paging': {NativeHomePaging}, './home-window': homeWindow, './home-start': homeStart,
       '../../kit/layout': {Row: 'Row', Hero: 'Hero', FocusPreviewHero: 'FocusPreviewHero'},
-      '../../kit/layout/FocusAnchor': {useFocusAnchor: () => vertical}, '../../kit/layout/types': {}, '../../kit/states': {LoadingPaint: 'LoadingPaint', },
+      '../../kit/layout/FocusAnchor': {useFocusAnchor: (...args: unknown[]) => {anchorOptions = args; return vertical;}}, '../../kit/layout/types': {}, '../../kit/states': {LoadingPaint: 'LoadingPaint', },
       '../../platform/home-action-diagnostics': {homeActionDiagnostics}, '../../kit/theme': {nativeType, useTheme: () => createTheme({isTV: true, width: 1920})}, '../../shell/model': {authorityKey, sameAuthority: (a: unknown, b: unknown) => a === b},
       '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../destinations/useTVPageBack': {useTVPageBack() {}},
       '../destinations/music/MusicMixesRow': {MusicMixesRow: 'MusicMixesRow'}, './TvHomeRecovery': {TvHomeRecovery: 'Recovery'}, './useTvHomeRecovery': {useTvHomeRecovery: () => ({visible: false})},
@@ -85,6 +86,9 @@ test('initial TV focus reanchors when the compact hero measurement arrives and i
     assert.ok(descendants(tree).some(node => node.type === 'FocusPreviewHero'));
     rowBox(tree).props.onLayout({nativeEvent: {layout: {y: 588, height: 300}}});
     assert.deepEqual(anchors.at(-1), [588, 300, 1080, 1080, 588, 96]);
+    // A TV row (492) never fits between the 588 preview hero and a 96 bottom margin; kept merely visible, focus arriving
+    // from below (the first landing) left Home 96 px higher than focus arriving from above.
+    assert.equal(anchorOptions[2], 'start', 'the focused row\'s top sits under the preview hero whichever way focus came');
     // A real Up can arrive before the previous row's layout/RAF work.
     actions[0].props.onFocus();
     tree = render();
