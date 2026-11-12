@@ -173,7 +173,7 @@ func (s *Server) verifyTwoFactor(r *http.Request, req TwoFactorVerify) (Recovery
 		return RecoveryCodes{}, err
 	}
 	codes, hashes := newRecoveryCodes(caller.UserID)
-	err = s.db.ConfirmTwoFactor(r.Context(), caller.UserID, func(secret []byte, lastStep int64) (int64, bool) {
+	err = s.db.ConfirmTwoFactor(r.Context(), caller.UserID, caller.SessionID, func(secret []byte, lastStep int64) (int64, bool) {
 		return auth.CheckTOTP(secret, req.Code, now, lastStep)
 	}, hashes, s.sourceLimit(r), now)
 	var limited *db.LimitedError
