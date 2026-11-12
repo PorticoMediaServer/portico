@@ -14,6 +14,8 @@ export function CastDock({controller, snapshot, visuals, phone, reportError, t =
   if (!remote || snapshot.disposed) return null;
   const bound = remote.itemId && visuals.itemId === remote.itemId ? visuals : undefined;
   const playing = remote.phase === 'playing', terminal = ['stopped', 'replaced', 'error'].includes(remote.phase);
+  // A Portico device has no Cast remote panel: the bar is its whole control.
+  const panel = playing && remote.kind !== 'portico';
   const back = visuals.skipBackSeconds, forward = visuals.skipForwardSeconds;
   const canContinue = remote.confirmed && remote.positionKnown && remote.phase === 'stopped' && !!remote.itemId;
   const position = remote.positionKnown ? clockText(remote.positionSeconds) ?? '' : '', duration = remote.positionKnown ? clockText(remote.durationSeconds) ?? '' : '';
@@ -32,7 +34,7 @@ export function CastDock({controller, snapshot, visuals, phone, reportError, t =
   </div>;
   return <section className={phone ? dock.phoneBar : dock.bar} data-mode="cast" aria-label={t('cast.region')} style={{'--dock-glow': bound?.palette?.first ?? 'transparent'} as CSSProperties}>
     <div data-dock-identity className={phone ? dock.phoneIdentity : undefined}>
-      {playing ? <button type="button" className={dock.identity} aria-label={t('next.dock.castControls')} onClick={() => controller.openRemote(remote)}>{identity}</button> : <div className={dock.identity}>{identity}</div>}
+      {panel ? <button type="button" className={dock.identity} aria-label={t('next.dock.castControls')} onClick={() => controller.openRemote(remote)}>{identity}</button> : <div className={dock.identity}>{identity}</div>}
     </div>
     {terminal ? terminalActions : phone && !playing ? <Control icon="i-stop" label={t('next.dock.stopConnecting')} onClick={() => controller.stop(remote)} /> : <div className={phone ? dock.transport : dock.middle}>
       <div className={dock.transport}><Control icon={phone ? 'i-rew' : 'i-back'} skip={back} label={t('next.dock.back', {seconds: back})} disabled={!playing || !remote.positionKnown || !back} onClick={() => skip(-back)} />{main}
@@ -46,7 +48,7 @@ export function CastDock({controller, snapshot, visuals, phone, reportError, t =
     {!terminal && !phone && <div className={dock.endControls}>
       {playing && !!(snapshot.cast.audioTracks.length || snapshot.cast.textTracks.length) && <Control icon="d-cc" label={t('next.dock.subtitlesAudio')} onClick={() => controller.openTracks(remote)} />}
       <Button variant="glass" size="dock" onClick={() => controller.stop(remote)}>{t('next.dock.stop')}</Button>
-      {playing && <Control icon="i-up" label={t('next.dock.castControls')} onClick={() => controller.openRemote(remote)} />}
+      {panel && <Control icon="i-up" label={t('next.dock.castControls')} onClick={() => controller.openRemote(remote)} />}
     </div>}
     {phone && !terminal && <span className={dock.progressLine} aria-hidden="true"><i style={{transform: `scaleX(${remote.durationSeconds > 0 ? Math.min(1, remote.positionSeconds / remote.durationSeconds) : 0})`}} /></span>}
   </section>;

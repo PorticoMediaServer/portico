@@ -100,7 +100,7 @@ export type CompositeId =
 export type SettingsActionId = 'signOut' | 'resetRecommendations' | 'linkTV' | 'customizeHome' | 'devicePlayerFixes';
 export type SettingsCustomId =
   | 'identity' | 'profiles' | 'password' | 'twoStep' | 'devices' | 'porticoAccount' | 'servers'
-  | 'subtitlePreview' | 'deviceName' | 'deviceConnectionStatus' | 'deviceServerAddress' | 'deviceTestConnection' | 'deviceInsecureConnections' | 'downloadsStorage' | 'equalizer' | 'about' | 'accessTokens' | 'privacyNote' | 'remoteControls'
+  | 'subtitlePreview' | 'deviceName' | 'deviceConnectionStatus' | 'deviceServerAddress' | 'deviceTestConnection' | 'deviceInsecureConnections' | 'downloadsStorage' | 'equalizer' | 'about' | 'accessTokens' | 'privacyNote' | 'remoteControls' | 'allowedDevices'
   // The Server heading's panels: each is drawn natively by the client.
   | 'server.nowPlaying' | 'server.alerts' | 'server.health' | 'server.activity' | 'server.statistics'
   | 'server.playHistory'
@@ -526,6 +526,8 @@ const accountPages: readonly AuthoredPage[] = [
         custom('deviceName', 'settings.row.deviceName', {needs: c => !!c.deviceName}),
         {kind: 'action', id: 'linkTV', label: 'settings.linkTV', help: 'settings.linkTVHelp', icon: 'tvDevice', platforms: ['web', 'phone']},
         {kind: 'composite', id: 'receiveFromDevices', storage: 'device', label: 'settings.row.receiveFromDevices', help: 'settings.help.receiveFromDevices', scope: 'device', platforms: ['tv'], control: {type: 'switch'}},
+        // The devices allowed to play here, each with Forget (area 8, rule 23).
+        custom('allowedDevices', 'settings.row.allowedDevices', {platforms: ['tv']}),
         custom('downloadsStorage', 'settings.row.downloadsStorage', {platforms: ['phone'], needs: c => !!c.downloads}),
         // On by default: leaving the app while a video plays continues it in Picture in Picture. Off: only the player's button starts it.
         {kind: 'composite', id: 'autoPictureInPicture', storage: 'device', label: 'settings.row.autoPictureInPicture', scope: 'device', platforms: ['phone'], control: {type: 'switch'}},

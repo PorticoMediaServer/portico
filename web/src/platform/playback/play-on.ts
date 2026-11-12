@@ -18,9 +18,15 @@ export type CastRemoteView = CastRemoteToken & Readonly<{
   /** The version the receiver reported playing, correlated to this occurrence. */
   versionId?: string;
   source?: WebPlaybackPresentation; metadata?: CastMetadata;
+  /** A Portico device of the account rather than a Cast device. */
+  kind?: 'portico';
 }>;
-/** A Portico television the viewer may send to, named by the server's receiver directory. */
-export type PlayOnReceiver = Readonly<{id: string; name: string; detail?: string}>;
+/** One of the account's other open devices; `playing` is what it plays now (no title when this
+ * profile may not see it), which this browser can take control of (rule 28). */
+export type PlayOnReceiver = Readonly<{id: string; name: string; detail?: string; playing?: Readonly<{title?: string}>}>;
+/** What a Portico device this browser sent to or controls is playing, for the dock's bar. */
+export type PlayOnPorticoRemote = Readonly<{sessionId: string; deviceName: string; itemId?: string; title?: string;
+  positionKnown: boolean; positionSeconds: number; durationSeconds: number; paused: boolean; stopped: boolean}>;
 /** The receiver directory and one proven handoff. `send` resolves true only after the
  * television has proved it is playing; the caller then stops only the fenced run. */
 /** AU-1: whether Play on can do anything, so the button and the panel agree (desktop-player.html: "With neither, the
@@ -32,10 +38,18 @@ export function playOnOffered(state: Readonly<{castAvailable: boolean; airPlayAv
 export type PlayOnReceiversPort = Readonly<{
   /** `message` is what the send in flight or the last failed one says, in plain words: approve it
    * on the other device, or why it did not move. */
-  getSnapshot(): Readonly<{phase: 'idle' | 'loading' | 'ready' | 'error'; items: readonly PlayOnReceiver[]; message?: string}>;
+  getSnapshot(): Readonly<{phase: 'idle' | 'loading' | 'ready' | 'error'; items: readonly PlayOnReceiver[]; message?: string; remote?: PlayOnPorticoRemote}>;
   subscribe(listener: () => void): () => void;
   refresh(): void;
   send(id: string): Promise<boolean>;
+  /** Takes control of what the device plays, after its yes (rule 28). */
+  control?(id: string): Promise<boolean>;
+  /** The bar's commands for the device being controlled. */
+  toggle?(): void;
+  seek?(seconds: number): void;
+  stop?(): void;
+  /** Lets the bar go; the device carries on as it is. */
+  dismiss?(): void;
 }>;
 export type PlayOnLinkPreview = Readonly<{requestId: string; userCode: string; deviceName: string; platform?: string}>;
 /** Signing a television in with the code it shows: review the device, then allow or deny. */
@@ -103,8 +117,23 @@ export class PlayOnController {
         return () => {off();offSender?.();};
       },
     }));
+    if (options.receivers) this.detach.push(options.receivers.subscribe(this.receiversChanged));
     this.runtimeChanged(); this.senderChanged();
   }
+  /** A Portico device this browser moved playback to or controls takes the dock's bar, unless a
+   * Cast device has it. */
+  private receiversChanged = (): void => {
+    if (!this.current()) return;
+    const r = this.options.receivers?.getSnapshot().remote, previous = this.state.remote;
+    if (previous && previous.kind !== 'portico') return;
+    if (!r) {if (previous) {this.clearExpiry(); this.publish({remote: undefined});} return;}
+    const remote: CastRemoteView = Object.freeze({id: 'portico:' + r.sessionId, sequence: ++this.sequence, kind: 'portico' as const,
+      phase: r.stopped ? 'stopped' as const : 'playing' as const, confirmed: true, ...(r.itemId ? {itemId: r.itemId} : {}), ...(r.title ? {title: r.title} : {}),
+      deviceName: r.deviceName, positionKnown: r.positionKnown, positionSeconds: r.positionSeconds, durationSeconds: r.durationSeconds, paused: r.paused});
+    this.publish({remote});
+    if (r.stopped) this.terminal(); else this.clearExpiry();
+  };
+  private portico(remote: CastRemoteView | undefined): boolean {return remote?.kind === 'portico';}
   getSnapshot = (): PlayOnSnapshot => this.state;
   subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private current(): boolean { return !this.disposed && this.options.isCurrent() && !this.options.runtime.getSnapshot().disposed; }
@@ -143,6 +172,8 @@ export class PlayOnController {
   private senderChanged = (): void => {
     if (!this.current() || this.dismissing) return;
     const cast = this.options.sender.getSnapshot(), previous = this.state.remote, attempt = this.attempt;
+    // A Portico device's bar is not the Cast sender's to change while Cast is idle.
+    if (this.portico(previous) && cast.phase === 'off' && !cast.transferPending && !attempt) {this.publish({cast}); return;}
     const requestedSource=attempt?.choices.source,acceptedSource=cast.acceptedSource;
     const acceptedAttempt=!!requestedSource&&!!acceptedSource&&acceptedSource.sessionId===requestedSource.sessionId&&acceptedSource.generation===requestedSource.generation&&acceptedSource.queueId===requestedSource.queueId&&acceptedSource.entryId===requestedSource.entryId&&acceptedSource.queueRevision===requestedSource.queueRevision;
     // Receipt recovery can arrive after the transport closed. Process its exact
@@ -248,25 +279,35 @@ export class PlayOnController {
     const remote = this.state.remote;
     return remote && token.id === remote.id && token.sequence === remote.sequence ? remote : undefined;
   }
-  openRemote(token: CastRemoteToken): void { if (this.requireRemote(token)?.phase === 'playing') this.publish({panel: 'remote'}); }
+  openRemote(token: CastRemoteToken): void { const remote = this.requireRemote(token); if (remote?.phase === 'playing' && !this.portico(remote)) this.publish({panel: 'remote'}); }
   openTracks(token: CastRemoteToken): void {
-    if (this.requireRemote(token)?.phase === 'playing' && (this.state.cast.audioTracks.length || this.state.cast.textTracks.length)) this.publish({panel: 'tracks'});
+    const remote = this.requireRemote(token);
+    if (remote?.phase === 'playing' && !this.portico(remote) && (this.state.cast.audioTracks.length || this.state.cast.textTracks.length)) this.publish({panel: 'tracks'});
   }
-  toggle(token: CastRemoteToken): void { if (this.requireRemote(token)?.phase === 'playing') this.options.sender.toggle(); }
+  toggle(token: CastRemoteToken): void {
+    const remote = this.requireRemote(token);
+    if (remote?.phase !== 'playing') return;
+    if (this.portico(remote)) this.options.receivers?.toggle?.(); else this.options.sender.toggle();
+  }
   seek(token: CastRemoteToken, seconds: number): void {
     const remote = this.requireRemote(token);
     if (!remote || remote.phase !== 'playing' || !remote.positionKnown || !Number.isFinite(seconds) || seconds < 0) return;
-    this.options.sender.seek(remote.durationSeconds > 0 ? Math.min(seconds, remote.durationSeconds) : seconds);
+    const to = remote.durationSeconds > 0 ? Math.min(seconds, remote.durationSeconds) : seconds;
+    if (this.portico(remote)) this.options.receivers?.seek?.(to); else this.options.sender.seek(to);
   }
   audio(token: CastRemoteToken, id: number): void { if (this.requireRemote(token)?.phase === 'playing' && this.state.cast.audioTracks.some(track => track.id === id)) this.options.sender.setAudioTrack(id); }
   subtitles(token: CastRemoteToken, id: number | null): void { if (this.requireRemote(token)?.phase === 'playing' && (id === null || this.state.cast.textTracks.some(track => track.id === id))) this.options.sender.setSubtitleTrack(id); }
   stop(token: CastRemoteToken): void {
-    const remote = this.requireRemote(token); if (!remote) return; ++this.serial;
+    const remote = this.requireRemote(token); if (!remote) return;
+    if (this.portico(remote)) {this.options.receivers?.stop?.(); return;}
+    ++this.serial;
     if (!remote.confirmed) { this.options.sender.cancelConnecting(); this.clearExpiry(); this.publish({panel: null}); return; }
     this.options.sender.stop();
   }
   dismiss(token: CastRemoteToken): void {
-    if (!this.requireRemote(token)) return;
+    const shown = this.requireRemote(token);
+    if (!shown) return;
+    if (this.portico(shown)) {this.clearExpiry(); this.options.receivers?.dismiss?.(); this.publish({remote: undefined, panel: null}); return;}
     if(this.state.cast.transferPending){++this.serial;this.clearExpiry();this.options.sender.stop();this.publish({panel:null});return;}
     ++this.serial; this.attempt = undefined; this.describedItem = undefined; this.clearExpiry(); this.dismissing = true;
     try { this.options.sender.dismiss(); } finally { this.dismissing = false; }

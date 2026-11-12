@@ -17,16 +17,20 @@ const closedLink: LinkState = {phase: 'closed', code: ''};
  * stage can never be approved. */
 type Opening = {id: number; stage: 'code' | 'review' | 'busy' | 'done' | 'failed'; preview?: PlayOnLinkPreview};
 
-function Receivers({port, t, onSend, sending, failed}: {port: PlayOnReceiversPort; t: CastPlayerTranslate; onSend(id: string): void; sending?: string; failed?: string}) {
+function Receivers({port, t, onSend, onControl, sending, failed}: {port: PlayOnReceiversPort; t: CastPlayerTranslate; onSend(id: string): void; onControl(id: string): void; sending?: string; failed?: string}) {
   const snapshot = useSyncExternalStore(port.subscribe, port.getSnapshot, noReceivers);
   useEffect(() => { port.refresh(); }, [port]);
   if (snapshot.items.length === 0) return null;
   return <>
     <p className={styles.menuHeading}>{t('playOn.yourDevices')}</p>
-    <div className={styles.deviceGroup}>{snapshot.items.map(receiver => <button key={receiver.id} type="button" role="menuitem" className={styles.deviceRow}
-      disabled={sending !== undefined} onClick={() => onSend(receiver.id)}>
-      <Icon name="i-tvdev" size={20} /><span>{receiver.name}{receiver.detail && <small>{receiver.detail}</small>}</span>{sending === receiver.id ? <small>{t('next.cast.receiverBusy')}</small> : <Icon name="i-right" size={18} />}
-    </button>)}</div>
+    <div className={styles.deviceGroup}>{snapshot.items.map(receiver => <div key={receiver.id} className={styles.deviceLine}>
+      <button type="button" role="menuitem" className={styles.deviceRow} disabled={sending !== undefined} onClick={() => onSend(receiver.id)}>
+        <Icon name="i-tvdev" size={20} /><span>{receiver.name}{receiver.playing ? <small>{receiver.playing.title ? t('playOn.playingTitle', {title: receiver.playing.title}) : t('playOn.playingSomething')}</small>
+          : receiver.detail && <small>{receiver.detail}</small>}</span>{sending === receiver.id ? <small>{t('next.cast.receiverBusy')}</small> : <Icon name="i-right" size={18} />}
+      </button>
+      {receiver.playing && port.control && <button type="button" role="menuitem" className={styles.deviceControl} disabled={sending !== undefined}
+        aria-label={t('playOn.controlDevice', {device: receiver.name})} onClick={() => onControl(receiver.id)}>{t('playOn.control')}</button>}
+    </div>)}</div>
     {(sending || failed) && snapshot.message ? <p className={styles.footnote} role="status">{snapshot.message}</p>
       : failed && <p className={styles.footnote} role="status">{t('next.cast.receiverFailed', {device: snapshot.items.find(receiver => receiver.id === failed)?.name ?? ''})}</p>}
   </>;
@@ -96,6 +100,13 @@ export function PlayOnPanel({controller, snapshot, phone, anchorRef, reportError
     void receivers.send(id).then(taken => { setSending(undefined); if (taken) close(); else setFailed(id); })
       .catch(error => { setSending(undefined); setFailed(id); reportError(error); });
   };
+  // Taking control of what another device plays: this browser's own playback carries on.
+  const control = (id: string) => {
+    if (!receivers?.control) return;
+    setSending(id); setFailed(undefined);
+    void receivers.control(id).then(taken => { setSending(undefined); if (taken) close(); else setFailed(id); })
+      .catch(error => { setSending(undefined); setFailed(id); reportError(error); });
+  };
   const beginLink = () => {
     retire();
     const id = ++seq.current;
@@ -163,7 +174,7 @@ export function PlayOnPanel({controller, snapshot, phone, anchorRef, reportError
       {snapshot.cast.available && <button type="button" role={phone ? undefined : 'menuitem'} className={styles.deviceRow} onClick={() => { void controller.startCast().catch(reportError); }}>
         <Icon name="i-cast" size={20} /><span>{t('playOn.googleCast')}<small>{t('next.cast.browserDevices')}</small></span></button>}
     </div>
-    {receivers && <Receivers port={receivers} t={t} onSend={send} sending={sending} failed={failed} />}
+    {receivers && <Receivers port={receivers} t={t} onSend={send} onControl={control} sending={sending} failed={failed} />}
     {linkTv && link.phase === 'closed' && <div className={styles.deviceGroup}>
       <button type="button" role={phone ? undefined : 'menuitem'} className={styles.deviceRow} onClick={beginLink}>
         <Icon name="i-tv" size={20} /><span>{t('next.cast.linkTv')}<small>{t('next.cast.linkTvHint')}</small></span><Icon name="i-right" size={18} /></button>
