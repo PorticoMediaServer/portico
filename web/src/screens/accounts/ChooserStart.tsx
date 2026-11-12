@@ -26,13 +26,14 @@ export function chooserIntent(hash: string): ChooserIntent | undefined {
 
 /** The drawn start (connect 26/31), for an account with no servers yet and for Set up: join with
  * an invitation, set up a server, or use a server by its address. */
-export function ChooserStart({header, intent, onJoin, onLocal}: {header: React.ReactNode; intent?: 'setup'; onJoin: (code?: string) => void; onLocal: () => void}) {
+export function ChooserStart({header, intent, onJoin, onLocal}: {header: React.ReactNode; intent?: 'setup'; onJoin: (code: string, address?: string) => void; onLocal: () => void}) {
   const [invitation, setInvitation] = useState(''), [invalid, setInvalid] = useState(false);
   useLayoutEffect(() => {if (intent === 'setup') document.getElementById('setup')?.scrollIntoView({block: 'start'});}, [intent]);
-  // A link opens the server's own page, where the invitation is read; a code is entered here.
+  // A pasted link and a typed code both open Join here: a link from its parts (the code and the
+  // server it names), never by following it.
   const join = (value = invitation) => {
     const link = parseJoinLink(value.trim());
-    if (link) {location.assign(value.trim()); return;}
+    if (link) {onJoin(link.code, link.server); return;}
     if (parseShortInvitationCode(value)) {onJoin(value); return;}
     setInvalid(true);
   };
@@ -47,9 +48,9 @@ export function ChooserStart({header, intent, onJoin, onLocal}: {header: React.R
 }
 
 /** Join with an invitation code at web.getportico.tv, as the Portico Account signed in here. */
-export function ChooserJoin({who, initialCode, onBack}: {who: Account; initialCode?: string; onBack: () => void}) {
+export function ChooserJoin({who, initialCode, initialAddress, onBack}: {who: Account; initialCode?: string; initialAddress?: string; onBack: () => void}) {
   const account = useMemo(() => Object.freeze({...porticoAccountHolder.access(who.id), username: who.username}), [who]);
-  return <ShortInvitationEntry account={account} initialCode={initialCode} onBack={onBack}
+  return <ShortInvitationEntry account={account} initialCode={initialCode} initialAddress={initialAddress} onBack={onBack}
     onDifferentAccount={() => void porticoAccountHolder.signOut().then(() => goTo('/sign-in?next=' + encodeURIComponent('/servers#join'), {replace: true}), () => {})}
     // A Portico Accounts server joined here is opened from the list here; a local one at its own address.
     onJoined={joined => {if (joined.signIn === 'portico') goTo('/servers', {replace: true}); else location.assign(joined.origin);}} />;
