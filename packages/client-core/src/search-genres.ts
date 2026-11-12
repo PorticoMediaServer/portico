@@ -196,8 +196,7 @@ export async function readSearchGenres(api: SearchGenreApi, request: SearchGenre
 
 /** The rebuilt server's genres (`GET /v1/genres?counts=true`): the films' and shows' genres the profile may see, by
  * name, at most 200, each with its count and one cover. A tile's slot keeps only the genres with its art: `backdrop`
- * the cover; `covers`, two posters (`posters`, being built by the browse-reads lane: until it lands the phone draws
- * the backdrop tile as a stopgap, not a deferral). The list is read whole and handed out a slice at a time. */
+ * the cover; `covers`, two posters (`posters`, two of its titles' posters). The list is read whole and handed out a slice at a time. */
 async function readRebuiltGenres(api: SearchGenreApi, request: SearchGenreRequest, signal: AbortSignal | undefined, isCurrent: (() => boolean) | undefined): Promise<SearchGenrePage> {
   const answer = await callServer(api as ServerRequester, 'GET /v1/genres', {query: {counts: true}, signal});
   current(signal, isCurrent);
@@ -212,11 +211,7 @@ async function readRebuiltGenres(api: SearchGenreApi, request: SearchGenreReques
     return [Object.freeze({value: entry.value, label: entry.label, count: safeCount(entry.count) ? entry.count : 0,
       ...(backdrop ? {backdrop: art(backdrop)} : {}), covers: Object.freeze(posters.map(art))})];
   });
-  // Stopgap, not a deferral: while the server sends no posters at all, the covers slot keeps the genres with a
-  // backdrop, which the phone draws as the backdrop tile.
-  const postersSent = answer.genres.some(entry => object(entry) && Array.isArray(entry.posters));
-  const eligible = request.preview === 'backdrop' ? genres.filter(genre => genre.backdrop)
-    : request.preview === 'covers' ? genres.filter(genre => genre.covers.length === 2 || !postersSent && genre.backdrop) : genres;
+  const eligible = request.preview === 'backdrop' ? genres.filter(genre => genre.backdrop) : request.preview === 'covers' ? genres.filter(genre => genre.covers.length === 2) : genres;
   const limit = Math.max(1, Math.min(request.limit ?? 50, 50)), offset = request.cursor && /^o\d{1,5}$/.test(request.cursor) ? Number(request.cursor.slice(1)) : 0;
   const shown = eligible.slice(offset, offset + limit), more = !request.preview && offset + limit < eligible.length;
   return Object.freeze({queryId: 'genres', revision: 'genres', hasGenres: genres.length > 0, genres: Object.freeze(shown),

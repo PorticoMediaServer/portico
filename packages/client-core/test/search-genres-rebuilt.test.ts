@@ -21,8 +21,7 @@ test('Search genres read the rebuilt server: every genre by name with its count,
   assert.equal(all.hasGenres, true);
   // TV's and the web's backdrop tiles: only genres with a backdrop, up to the limit.
   assert.deepEqual((await readSearchGenres(api(answer()) as never, {preview: 'backdrop', limit: 1})).genres.map(genre => genre.value), ['tag_a']);
-  // The phone's two-poster tiles: while the server sends no posters, the genres with a backdrop (a stopgap); once it does, only those with two.
-  assert.deepEqual((await readSearchGenres(api(answer()) as never, {preview: 'covers', limit: 6})).genres.map(genre => genre.value), ['tag_a', 'tag_w']);
+  // The phone's two-poster tiles: only the genres with two posters.
   const covers = await readSearchGenres(api(answer(true)) as never, {preview: 'covers', limit: 6});
   assert.deepEqual(covers.genres.map(genre => [genre.value, genre.covers.map(art => art.path)]), [['tag_a', ['/v1/images/a1', '/v1/images/a2']]]);
 });
