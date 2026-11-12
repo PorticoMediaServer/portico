@@ -342,7 +342,7 @@ func browseBy(kind string) ([]View, []Sort, []Filter) {
 // defaultOrder is the direction a sort starts in when the request does not say.
 var defaultOrder = map[string]bool{db.SortAdded: true, db.SortYear: true, db.SortRelease: true, db.SortDuration: true,
 	db.SortCommunityRating: true, db.SortCriticRating: true, db.SortUserRating: true, db.SortLastPlayed: true, db.SortPlayCount: true,
-	db.SortResolution: true, db.SortLatest: true}
+	db.SortResolution: true, db.SortLatest: true, db.SortPopular: true}
 
 func boolParam(query url.Values, name string) (*bool, error) {
 	switch query.Get(name) {

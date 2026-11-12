@@ -11,6 +11,7 @@ import (
 	"math/rand/v2"
 	"slices"
 	"strings"
+	"time"
 )
 
 // Item is one row of a list, with the viewer's own state.
@@ -74,6 +75,7 @@ const (
 	SortResolution      = "resolution" // by the widest version
 	SortLatest          = "latest"     // a show or album by its newest episode or track
 	SortRandom          = "random"     // one order for as long as a reader pages through it
+	SortPopular         = "popular"    // one artist's or album's songs, most played on the server first
 )
 
 // ItemQuery says which items to list. Library, Parent, Person, Tag, Collection and Series are public ids. At
@@ -172,7 +174,32 @@ func (q ItemQuery) sortSpec(seed int64) (sortSpec, bool) {
 	if q.Sort == SortOrder && q.Series != "" {
 		return seriesOrder, true
 	}
+	if q.Sort == SortPopular {
+		return popularOrder(time.Now()), true
+	}
 	return sortFor(q.Sort, seed)
+}
+
+// popularOrder is Popular (browse rule 40): plays on the whole server in the last seven days,
+// and then plays ever. Who played is never read, and the counts are never sent; a play made
+// while a profile had its history paused is not counted. The seven days end on the hour, so
+// a list keeps one order while it is paged through. There is no setting yet for a profile to
+// keep its plays out of Popular; when there is, its plays are left out here.
+func popularOrder(now time.Time) sortSpec {
+	since := now.Truncate(time.Hour).Add(-7 * 24 * time.Hour).UnixMilli()
+	return sortSpec{columns: []string{
+		fmt.Sprintf("(SELECT count(*) FROM play_history h WHERE h.item_id = i.id AND h.hidden_from_profile = 0 AND h.played_at >= %d)", since),
+		"(SELECT count(*) FROM play_history h WHERE h.item_id = i.id AND h.hidden_from_profile = 0)"}}
+}
+
+// hasArtist reports whether the list is narrowed to one artist's titles.
+func (q ItemQuery) hasArtist() bool {
+	for _, c := range q.Conditions {
+		if c.Field == "artist" && len(c.Values) == 1 && (c.Mode == "" || c.Mode == ModeAny) {
+			return true
+		}
+	}
+	return false
 }
 
 // listCursor is where the next page starts: the sort it belongs to and the position of the
@@ -283,6 +310,11 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 		// Season and episode numbers order one show's items. Over a whole library they have
 		// no index and mean nothing, so the list would be sorted afresh for every page.
 		return page, invalid("Only the titles inside a show, season, artist, album or series can be sorted in their own order.")
+	}
+	if q.Sort == SortPopular && q.Parent == "" && !q.hasArtist() {
+		// Plays have no index in a list's order, so the list is counted and sorted whole: one
+		// artist's or one album's songs are few enough, a library is not.
+		return page, invalid("Only one artist's or one album's songs can be sorted by popularity.")
 	}
 	if q.Limit <= 0 {
 		q.Limit = defaultPageSize
@@ -577,6 +609,10 @@ var rareTag = 2000
 func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access) (bool, error) {
 	w.add("(", acc.libraryVisible("i.library_id"), acc.rated("i", "{rated}"), "){labels}{holders}")
 	w.labels = acc.unblocked("i")
+	if q.Sort == SortPopular {
+		// Popular holds only what has been played: an artist nobody has played has no row.
+		w.add(` AND EXISTS (SELECT 1 FROM play_history h WHERE h.item_id = i.id AND h.hidden_from_profile = 0)`)
+	}
 	scoped := false
 	var library int64
 	var kindList string
