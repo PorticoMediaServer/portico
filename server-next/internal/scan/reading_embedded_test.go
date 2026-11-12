@@ -85,6 +85,9 @@ func TestABookIsReadFromItsOwnPackageDocument(t *testing.T) {
 	if series["Harbour Tales"].PublicID == "" || series["Tides"].PublicID == "" {
 		t.Fatalf("series %v", keys(series))
 	}
+	if series["Harbour Tales"].ChildCount != 1 || series["Tides"].ChildCount != 1 {
+		t.Fatalf("EPUB collection volume counts: %+v", series)
+	}
 }
 
 // A comic's details come from its ComicInfo.xml: the issue's own title, writers, year, summary
