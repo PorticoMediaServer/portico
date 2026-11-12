@@ -313,6 +313,14 @@ type Person struct {
 	Images     []Image
 	// Titles is how many items the viewer may see that credit this person.
 	Titles int
+	// Roles are the person's roles on those items, most titles first: a person page's groups.
+	Roles []PersonRole
+}
+
+// PersonRole is one role a person has, and on how many titles the viewer may see.
+type PersonRole struct {
+	Role   CreditRole
+	Titles int
 }
 
 // Person returns a person the viewer may know of: one credited on at least one item the viewer
@@ -343,5 +351,11 @@ func (d *DB) Person(ctx context.Context, v Viewer, publicID string) (Person, err
 	p.Images, err = queryAll(ctx, tx, `SELECT id, role, ifnull(file_hash, ''), ifnull(width, 0), ifnull(height, 0), ifnull(placeholder, '')
 		FROM images WHERE person_id = ? AND selected = 1`, []any{id},
 		func(i *Image) []any { return []any{&i.ID, &i.Role, &i.FileHash, &i.Width, &i.Height, &i.Placeholder} })
+	if err != nil {
+		return p, err
+	}
+	p.Roles, err = queryAll(ctx, tx, `SELECT c.role, count(DISTINCT i.id) FROM credits c JOIN items i ON i.id = c.item_id
+		WHERE c.person_id = ? AND `+acc.visible("i")+` GROUP BY c.role ORDER BY 2 DESC, c.role`, []any{id},
+		func(r *PersonRole) []any { return []any{&r.Role, &r.Titles} })
 	return p, err
 }
