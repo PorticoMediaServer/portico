@@ -5,9 +5,10 @@ import {keepReadable} from './tolerant.ts';
  * Remembered playback problems on the rebuilt server (console rule 72): `GET /v1/admin/playback/failures`
  * lists each way of playing a file that failed and is avoided until it expires, and
  * `DELETE /v1/admin/playback/failures/{id}` forgets one. `sourceId` is that failure's own id, so each one is
- * a row with its own Forget. `item`: the title the file belongs to, absent once the file has left the library.
+ * a row with its own Forget, naming the device it failed on (07-playback rule 75). `item`: the title the file belongs
+ * to, absent once the file has left the library.
  */
-export type PlaybackFailure = Readonly<{sourceId:string;engine:'native'|'mpv';route:'original'|'repackaged'|'converted';code:string;detail:string;reportedAtMs:number;expiresAtMs:number;item?:Readonly<{id:string;title:string;kind:string}>}>;
+export type PlaybackFailure = Readonly<{sourceId:string;device:string;engine:'native'|'mpv';route:'original'|'repackaged'|'converted';code:string;detail:string;reportedAtMs:number;expiresAtMs:number;item?:Readonly<{id:string;title:string}>}>;
 export type PlaybackFailureMemory = Readonly<{items:readonly PlaybackFailure[];more:boolean}>;
 type Api = Readonly<{request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>}>;
 const obj=(v:unknown):v is Record<string,unknown>=>v!==null&&typeof v==='object'&&!Array.isArray(v);
@@ -18,10 +19,10 @@ export function parsePlaybackFailureMemory(raw:unknown):PlaybackFailureMemory {
  if(!obj(raw)||!Array.isArray(raw.items)||raw.nextCursor!==undefined&&typeof raw.nextCursor!=='string')throw new Error(unreadableServerResponse);
  const items=keepReadable('playback-failure-memory','items',raw.items,(v):PlaybackFailure=>{
   const failedAt=obj(v)?time(v.failedAt):undefined,expiresAt=obj(v)?time(v.expiresAt):undefined;
-  if(!obj(v)||!id(v.id)||!['native','mpv'].includes(v.player as string)||!['original','repackaged','converted'].includes(v.route as string)||!text(v.code,48)||v.detail!==undefined&&!text(v.detail,512)||failedAt===undefined||expiresAt===undefined)throw new Error(unreadableServerResponse);
+  if(!obj(v)||!id(v.id)||!text(v.deviceName,256)||!['native','mpv'].includes(v.player as string)||!['original','repackaged','converted'].includes(v.route as string)||!text(v.code,48)||v.detail!==undefined&&!text(v.detail,512)||failedAt===undefined||expiresAt===undefined)throw new Error(unreadableServerResponse);
   // The title is a nicety: a malformed one leaves the row as it was rather than dropping it.
-  const item=text(v.itemId,128)&&v.itemId&&text(v.title,2048)&&v.title?Object.freeze({id:v.itemId,title:v.title,kind:''}):undefined;
-  return Object.freeze({sourceId:v.id,engine:v.player as PlaybackFailure['engine'],route:v.route as PlaybackFailure['route'],code:v.code,detail:(v.detail as string|undefined)??'',reportedAtMs:failedAt,expiresAtMs:expiresAt,...(item?{item}:{})});
+  const item=text(v.itemId,128)&&v.itemId&&text(v.title,2048)&&v.title?Object.freeze({id:v.itemId,title:v.title}):undefined;
+  return Object.freeze({sourceId:v.id,device:v.deviceName as string,engine:v.player as PlaybackFailure['engine'],route:v.route as PlaybackFailure['route'],code:v.code,detail:(v.detail as string|undefined)??'',reportedAtMs:failedAt,expiresAtMs:expiresAt,...(item?{item}:{})});
  });
  return Object.freeze({items:Object.freeze(items),more:!!raw.nextCursor});
 }

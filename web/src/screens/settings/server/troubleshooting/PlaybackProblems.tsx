@@ -16,8 +16,8 @@ export function PlaybackProblems({source}: {source: PlaybackProblemsSource}) {
     {state.error !== undefined && <p className={styles.failure} role="alert">{t('next.states.pageFailedBody')} <Button size="small" variant="glass" onClick={() => {void source.load();}}>{t('next.shell.tryAgain')}</Button></p>}
     {state.groups.map(group => <div key={group.sourceId}>
       <b>{group.item?.title || t('server.routes.unknownTitle')}</b>
-      {group.failures.map((failure, index) => <p key={index}>{t('server.routes.line', {route: t(`server.routes.route.${failure.route}` as MessageId), engine: t(`server.routes.engine.${failure.engine}` as MessageId)})}</p>)}
-      <p>{t('server.routes.when', {when: defaultI18n.dateTime(group.reportedAtMs), until: defaultI18n.dateTime(group.expiresAtMs)})}</p>
+      {group.failures.map((failure, index) => <p key={index}>{t('server.routes.line', {route: t(`server.routes.route.${failure.route}` as MessageId), device: failure.device, when: defaultI18n.date(failure.reportedAtMs, 'dayMonth')})}</p>)}
+      <p>{t('server.routes.when', {until: defaultI18n.date(group.expiresAtMs, 'dayMonth')})}</p>
       <Button size="small" variant="glass" disabled={!!state.busy} onClick={() => {void source.forget(group.sourceId);}}>{t('server.routes.forget')}</Button>
     </div>)}
     {state.more && <p>{t('server.routes.more')}</p>}

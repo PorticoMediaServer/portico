@@ -15,7 +15,7 @@ test('remembered playback problems read the rebuilt server, keep useful rows and
  const row={id:'rf_1',deviceName:'Living room',fileName:'Film.mkv',player:'native',route:'converted',code:'decode_error',detail:'decoder stopped',failedAt:'2026-11-12T10:00:00Z',expiresAt:'2026-11-19T10:00:00Z'};
  const parsed=parsePlaybackFailureMemory({items:[row,{...row,id:'../escape'}]});
  assert.equal(parsed.items.length,1);
- assert.deepEqual([parsed.items[0].sourceId,parsed.items[0].engine,parsed.items[0].reportedAtMs],['rf_1','native',Date.parse(row.failedAt)]);
+ assert.deepEqual([parsed.items[0].sourceId,parsed.items[0].device,parsed.items[0].engine,parsed.items[0].reportedAtMs],['rf_1','Living room','native',Date.parse(row.failedAt)],'each failure names the device it failed on (07-playback rule 75)');
  const calls:string[]=[];
  const api={request:async<T>(path:string,method?:string):Promise<T>=>{calls.push(`${method} ${path}`);return {items:[row]} as T;}};
  assert.equal((await readPlaybackFailureMemory(api)).items[0].route,'converted');
