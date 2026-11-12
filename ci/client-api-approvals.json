@@ -2796,6 +2796,6 @@
     "guardHash": "d71c7279d5e9c01e84b21478dfc08c016af3542d446931cf2f8d812ed28ae272",
     "condition": "forwards Change owner on a local server, fully built by client-core's transferLocalOwnership and narrowed to that one POST by localOwnerChangeOnly, unchanged; adds only Settings currentness and the captured abort, so its answer may arrive after Settings closes; constructs nothing",
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-1"
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/2984#issuecomment-6819085231"
   }
 }
