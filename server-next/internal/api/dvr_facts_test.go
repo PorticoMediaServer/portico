@@ -260,3 +260,41 @@ func TestARecordingThatCapturedNothingFailsAndLeavesNoTitle(t *testing.T) {
 		t.Fatalf("it left %v", files)
 	}
 }
+
+// Each row says what this profile may do with it, as the routes decide: the booker and the
+// owner change and cancel; another profile that only reads it may do neither until it asks
+// for the booking too, and then may cancel its own ask. The header says whether Everyone's
+// shows more than the profile's own.
+func TestARowSaysWhatThisProfileMayDoWithIt(t *testing.T) {
+	s, owner, _ := recordable(t)
+	var kid Profile
+	call(t, s, "POST", "/v1/profiles", owner, ProfileCreate{Name: "Kid"}, &kid)
+	var onKid Session
+	call(t, s, "POST", "/v1/profiles/"+kid.ID+"/select", signIn(t, s, 1).Session.AccessToken, ProfileSelect{}, &onKid)
+	var late DvrRecording
+	call(t, s, "POST", "/v1/dvr/recordings", owner, DvrRecordingBook{Programme: programmeID(t, s, owner, "Late News")}, &late)
+	if !late.MayChange || !late.MayCancel {
+		t.Fatalf("the booker's own booking reads %+v", late)
+	}
+	if !get[DvrOverview](t, s, owner, "/v1/dvr").EveryonesRecordings || !get[DvrOverview](t, s, onKid.AccessToken, "/v1/dvr").EveryonesRecordings {
+		t.Fatal("a profile that may see Recorded TV is told Everyone's shows nothing more")
+	}
+	seen := get[Page[DvrRecording]](t, s, onKid.AccessToken, "/v1/dvr/recordings?scope=everyone").Items
+	if len(seen) != 1 || seen[0].MayChange || seen[0].MayCancel {
+		t.Fatalf("another profile's booking reads to the kid as %+v", seen)
+	}
+	if code := status(t, s, "DELETE", "/v1/dvr/recordings/"+late.ID, onKid.AccessToken, nil); code != 403 {
+		t.Fatalf("the kid cancelling someone else's booking answered %d", code)
+	}
+	call(t, s, "POST", "/v1/dvr/recordings", onKid.AccessToken, DvrRecordingBook{Programme: programmeID(t, s, owner, "Late News")}, nil)
+	if got := get[DvrRecording](t, s, onKid.AccessToken, "/v1/dvr/recordings/"+late.ID); got.MayChange || !got.MayCancel {
+		t.Fatalf("once the kid asked too the booking reads %+v", got)
+	}
+
+	if code := status(t, s, "PUT", "/v1/profiles/"+kid.ID+"/restrictions", owner, Restrictions{AllLibraries: false, Libraries: []string{}}); code != 200 {
+		t.Fatalf("limiting the kid's libraries answered %d", code)
+	}
+	if get[DvrOverview](t, s, onKid.AccessToken, "/v1/dvr").EveryonesRecordings {
+		t.Fatal("a profile that may not see Recorded TV is offered Everyone's")
+	}
+}
