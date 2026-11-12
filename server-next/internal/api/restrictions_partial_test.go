@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/seed"
@@ -67,6 +68,35 @@ func TestARestrictionsSaveChangesOnlyWhatItNames(t *testing.T) {
 	for name, bad := range map[string]string{"an age of 99": `{"maxRatingAge":99}`, "a Tag nobody has": `{"blockedLabels":["tag_nothing"]}`} {
 		if code := status(t, s, "PUT", address, phone, json.RawMessage(bad)); code != 400 {
 			t.Errorf("%s answered %d, want 400", name, code)
+		}
+	}
+}
+
+// A save that names nothing, or names only what is already so,
+// changes nothing: the profile's access marker, which every open app compares to decide
+// whether to throw away what it has cached, stays as it was.
+func TestARestrictionsSaveThatChangesNothingMovesNoMarker(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	var kid Profile
+	call(t, s, "POST", "/v1/profiles", owner, ProfileCreate{Name: "Kid"}, &kid)
+	address := "/v1/profiles/" + kid.ID + "/restrictions"
+	marker := func() string {
+		t.Helper()
+		return get[Profile](t, s, owner, "/v1/profiles/"+kid.ID).AccessMarker
+	}
+	if code := status(t, s, "PUT", address, owner, json.RawMessage(`{"maxRatingAge":13}`)); code != 200 {
+		t.Fatalf("setting a rating answered %d", code)
+	}
+	before := marker()
+	clock := time.Now().Add(time.Minute)
+	s.setClock(func() time.Time { return clock })
+	for _, body := range []string{`{}`, `{"maxRatingAge":13}`, `{"allowUnrated":null}`} {
+		if code := status(t, s, "PUT", address, owner, json.RawMessage(body)); code != 200 {
+			t.Fatalf("saving %s answered %d", body, code)
+		}
+		if after := marker(); after != before {
+			t.Errorf("a save of %s, which changes nothing, moved the profile's access marker from %s to %s", body, before, after)
 		}
 	}
 }

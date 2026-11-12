@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -128,6 +129,27 @@ func (d *DB) SetProfileRestrictions(ctx context.Context, userID int64, publicID 
 	return d.ChangeProfileRestrictions(ctx, userID, publicID, func(Restrictions) (Restrictions, error) { return r, nil }, now)
 }
 
+// sameRestrictions reports whether saving next over stored would change nothing. A switch
+// left unset in next is left as it is, so it changes nothing.
+func sameRestrictions(stored, next Restrictions) bool {
+	age := (stored.MaxRatingAge == nil) == (next.MaxRatingAge == nil) && (stored.MaxRatingAge == nil || *stored.MaxRatingAge == *next.MaxRatingAge)
+	sameSet := func(a, b []string) bool {
+		if len(a) != len(b) {
+			return false
+		}
+		for _, x := range a {
+			if !slices.Contains(b, x) {
+				return false
+			}
+		}
+		return true
+	}
+	sameSwitch := func(a, b *bool) bool { return b == nil || a != nil && *a == *b }
+	return age && stored.AllowUnrated == next.AllowUnrated && stored.AllLibraries == next.AllLibraries &&
+		sameSet(stored.BlockedLabels, next.BlockedLabels) && sameSet(stored.Libraries, next.Libraries) &&
+		sameSwitch(stored.AllowDownloads, next.AllowDownloads) && sameSwitch(stored.AllowWatchTogether, next.AllowWatchTogether)
+}
+
 // ChangeProfileRestrictions is SetProfileRestrictions for a change to some of them: change is
 // given what the profile is kept from now and returns what it is to be kept from, in the
 // same transaction, so a save that names one thing leaves the rest as another device last
@@ -142,6 +164,12 @@ func (d *DB) ChangeProfileRestrictions(ctx context.Context, userID int64, public
 		r, err := change(current)
 		if err != nil {
 			return err
+		}
+		// A save that names nothing, or only what is already so, writes nothing: the profile's
+		// access marker stays, so its open apps keep what they have cached.
+		if sameRestrictions(current, r) {
+			out = current
+			return nil
 		}
 		libraries, err := libraryIDs(tx, r.Libraries)
 		if err != nil {
