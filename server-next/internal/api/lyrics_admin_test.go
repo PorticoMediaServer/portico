@@ -182,3 +182,21 @@ func TestNewSongsGetLyricsWhenTheLookupAfterAScanFails(t *testing.T) {
 		t.Fatalf("the scan's new song after a failed lookup: %+v", got)
 	}
 }
+
+// The server asks MusicBrainz about a music library's albums and LRCLIB about its songs'
+// lyrics, neither needing a key: a new server's music library is looked up after its scans, as
+// a film library is at TMDB (definition area 4, rules 2, 8 and 64).
+func TestMusicLibrariesAskMusicBrainzAndLRCLIB(t *testing.T) {
+	ctx := context.Background()
+	s := newTestServer(t)
+	if s.metadata.Lyrics == nil {
+		t.Fatal("the server has no lyrics provider")
+	}
+	music, err := s.db.CreateLibrary(ctx, "Music", db.LibraryMusic, "en", []string{t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if asks, err := s.metadata.Asks(ctx, music.PublicID); err != nil || !asks {
+		t.Fatalf("a music library has a provider to ask: %v, %v; want MusicBrainz", asks, err)
+	}
+}
