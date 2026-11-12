@@ -104,3 +104,20 @@ func (d *DB) MusicLibraries(ctx context.Context) ([]Library, error) {
 	}
 	return out, nil
 }
+
+// SoundAnalysisCounts are a music library's songs on this machine's folders and how many of
+// them the model has read (a song it could not read counts: it was read). One count over the
+// library's songs, as large as the library: an accepted cost on the owner's Scanning tab.
+func (d *DB) SoundAnalysisCounts(ctx context.Context, libraryID int64, model string) (songs, analysed int, err error) {
+	err = d.read.QueryRowContext(ctx, `SELECT count(*), ifnull(sum(e.item_id IS NOT NULL AND e.model = ? AND e.file_id = f.id AND e.size = f.size
+			AND e.modified_ns = f.modified_ns), 0)
+		FROM items i
+		JOIN media m ON m.item_id = i.id AND m.position = 0
+		JOIN media_parts p ON p.media_id = m.id AND p.position = 0
+		JOIN files f ON f.id = p.file_id AND f.missing_since_at IS NULL
+		JOIN directories d ON d.id = f.directory_id
+		JOIN library_paths lp ON lp.id = d.library_path_id AND lp.remote_source_id IS NULL
+		LEFT JOIN track_embeddings e ON e.item_id = i.id
+		WHERE i.library_id = ? AND i.kind = ? AND i.available = 1`, model, libraryID, KindTrack).Scan(&songs, &analysed)
+	return songs, analysed, err
+}

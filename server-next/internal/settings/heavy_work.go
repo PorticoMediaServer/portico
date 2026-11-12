@@ -109,3 +109,21 @@ func (h HeavyWorkSettings) Open(now time.Time) (open bool, opens time.Time) {
 	}
 	return false, now // never reached: a valid document has a day every week
 }
+
+// OpenShare is the share of a week the hours are open, for how long heavy work will take:
+// 1 at any time.
+func (h HeavyWorkSettings) OpenShare() float64 {
+	switch h.Hours {
+	case HeavyOvernight:
+		return 5.0 / 24
+	case HeavyChosen:
+		from, _ := clockTime(h.From)
+		to, _ := clockTime(h.To)
+		minutes := to - from
+		if minutes <= 0 {
+			minutes += 24 * 60
+		}
+		return float64(len(h.Days)*minutes) / (7 * 24 * 60)
+	}
+	return 1
+}

@@ -50,6 +50,8 @@ type Service struct {
 	mu      sync.Mutex
 	runtime *sonic.Runtime
 	tried   bool
+	// recent are the times the last songs took, for the estimate of time left.
+	recent []time.Duration
 }
 
 // Locate is the default place of the installed model.
@@ -113,6 +115,9 @@ func (s *Service) run(ctx context.Context, work jobs.Work) error {
 	if err != nil {
 		return err
 	}
+	if lib.Options.NoSoundAnalysis {
+		return nil // turned off since the job was asked for: what was read stays
+	}
 	runtime, supervisor, ffmpeg := s.Runtime(ctx)
 	if runtime == nil {
 		return jobs.DoneWith{Note: "Music analysis can't run on this server."}
@@ -126,36 +131,93 @@ func (s *Service) run(ctx context.Context, work jobs.Work) error {
 			return err
 		}
 		var batch []db.TrackAnalysis
-		for _, t := range tracks {
+		keep := func(err error) error {
+			return errors.Join(err, s.DB.SaveTrackAnalyses(context.WithoutCancel(ctx), batch, s.Now()))
+		}
+		for from := 0; from < len(tracks); from += SongsAtOnce {
 			if err := s.waitForHours(ctx); err != nil {
-				return errors.Join(err, s.DB.SaveTrackAnalyses(context.WithoutCancel(ctx), batch, s.Now()))
+				return keep(err)
 			}
-			a, err := s.analyse(ctx, runtime, supervisor, ffmpeg, t)
-			if errors.Is(err, errNotNow) {
-				// No row: the song is listed again next time. Many in a row is the drive or
-				// the share, not the songs: stop, and the hourly start tries again.
-				after = t.ItemID
-				if unreachable++; unreachable >= unreachableInARow {
-					return errors.Join(jobs.DoneWith{Note: "This library's files can't be reached right now. They are tried again later."},
-						s.DB.SaveTrackAnalyses(context.WithoutCancel(ctx), batch, s.Now()))
+			group := tracks[from:min(from+SongsAtOnce, len(tracks))]
+			results := make([]result, len(group))
+			var wg sync.WaitGroup
+			for n, t := range group {
+				wg.Go(func() {
+					started := time.Now()
+					results[n].a, results[n].err = s.analyse(ctx, runtime, supervisor, ffmpeg, t)
+					if results[n].err == nil {
+						s.measured(time.Since(started))
+					}
+				})
+			}
+			wg.Wait()
+			for n, r := range results {
+				after = group[n].ItemID
+				if errors.Is(r.err, errNotNow) {
+					// No row: the song is listed again next time. Many in a row is the drive or
+					// the share, not the songs: stop, and the hourly start tries again.
+					if unreachable++; unreachable >= unreachableInARow {
+						return keep(jobs.DoneWith{Note: "This library's files can't be reached right now. They are tried again later."})
+					}
+					continue
 				}
-				continue
+				unreachable = 0
+				if r.err != nil {
+					// Cancelled or stopping, or the model itself failed: keep what is done.
+					return keep(r.err)
+				}
+				r.a.Model = model
+				batch = append(batch, r.a)
+				done++
 			}
-			unreachable = 0
-			if err != nil {
-				// Cancelled or stopping, or the model itself failed: keep what is done.
-				return errors.Join(err, s.DB.SaveTrackAnalyses(context.WithoutCancel(ctx), batch, s.Now()))
-			}
-			a.Model = model
-			batch = append(batch, a)
-			after = t.ItemID
-			done++
 			work.Progress(done, 0)
 		}
 		if err := s.DB.SaveTrackAnalyses(ctx, batch, s.Now()); err != nil {
 			return err
 		}
 	}
+}
+
+// SongsAtOnce is how many songs a library's analysis reads side by side. Two read about half
+// as fast again as one on a busy 6-core machine for the same processor time; three gained
+// nothing. Both run in the background pool, which already holds heavy work to half the cores.
+const SongsAtOnce = 2
+
+type result struct {
+	a   db.TrackAnalysis
+	err error
+}
+
+// rateSamples is how many recent songs the estimate of time left is worked out from, and
+// rateKnown how many it needs before it gives a number.
+const (
+	rateSamples = 50
+	rateKnown   = 6
+)
+
+// measured adds how long one song took to the server's own rate.
+func (s *Service) measured(took time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.recent = append(s.recent, took)
+	if len(s.recent) > rateSamples {
+		s.recent = s.recent[len(s.recent)-rateSamples:]
+	}
+}
+
+// PerSong is about how long one song takes here, read side by side as the job reads them;
+// false until enough songs have been read since the server started to say.
+func (s *Service) PerSong() (time.Duration, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.recent) < rateKnown {
+		return 0, false
+	}
+	var sum time.Duration
+	for _, d := range s.recent {
+		sum += d
+	}
+	return sum / time.Duration(len(s.recent)) / SongsAtOnce, true
 }
 
 func (s *Service) library(ctx context.Context, publicID string) (db.Library, error) {
