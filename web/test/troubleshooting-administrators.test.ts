@@ -18,10 +18,9 @@ const {createTroubleshootingSurfaces} = await import('../src/screens/settings/se
 const {MessagesPanel} = await import('../src/screens/settings/server/troubleshooting/Messages.tsx');
 const {SettingsMessagesSource} = await import('../src/screens/settings/server/troubleshooting/messages-source.ts');
 
-const settings = {revision: 1, logLevel: 'info', effectiveLevel: 'info', retention: [], levels: ['error', 'warn', 'info', 'debug'], categories: ['server'], logDetailMinutes: 30,
-  debugWindowUntil: new Date(Date.now() + 600_000).toISOString()};
-const page = {items: [], limit: 200, nextCursor: '', level: 'info', effectiveLevel: 'info'};
-const transport = {request: async <T>(path: string) => (path.includes('/settings') ? settings : page) as T};
+// The rebuilt server's Messages page, with "Record more detail" running.
+const page = {items: [], detailUntil: new Date(Date.now() + 600_000).toISOString()};
+const transport = {request: async <T>(path: string) => (path.includes('/settings/') ? {name: 'logs', values: {keepDays: 30}, defaults: {keepDays: 30}, etag: '"1"'} : page) as T};
 
 test('a tier may call a route as routes.ts publishes it: the log reads are administrators\', the debug window and log settings changes the owner\'s', () => {
   for (const id of ['get_admin_logs', 'get_admin_logs_events', 'get_admin_logs_settings'] as const) {

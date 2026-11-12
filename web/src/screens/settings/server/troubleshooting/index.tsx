@@ -1,18 +1,18 @@
 import {serverNow} from '@core/server-clock.ts';
-import type {LogDetailMinutes} from '@core/server-administration.ts';
+import {LOG_DETAIL_MINUTES, type LogDetailMinutes} from '@core/server-administration.ts';
 import {useEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {Tabs as TabsPrimitive} from 'radix-ui';
 import {defaultI18n, type MessageId} from '@i18n';
 import type {ReportTransport} from '@core/client-reports.ts';
 import {settingsRowIndex} from '@core/presentation/settings-spec.ts';
-import {Button} from '../../../../kit/controls';
+import {Button, Select} from '../../../../kit/controls';
 import {SettingsGroup} from '../../../../kit/settings';
 import {SettingsRow} from '../../../../kit/shell/SettingsSurfaces';
 import {FeedbackPanel} from './Feedback';
 import {ReportsPanel} from './Reports';
 import {SupportPanel} from './Support';
 import {MessagesPanel} from './Messages';
-import {SettingsMessagesSource, type MessageConnection} from './messages-source';
+import {KEEP_MESSAGE_DAYS, SettingsMessagesSource, type KeepMessageDays, type MessageConnection} from './messages-source';
 import {SettingsFeedbackSource} from './feedback-source';
 import {SettingsSupportSource} from './support-source';
 import {SettingsReportsSource} from './reports-source';
@@ -83,6 +83,7 @@ export function TroubleshootingPage({messages, reports, feedback, support, subsc
   if (!view) return <div className={styles.landing}>
     <SettingsGroup title={t('next.settingsSpec.server.troubleshooting.groups.0.title')}>
       {parts.has('detailWindow') && <DetailWindowRow source={messages} detailMinutes={detailMinutes} reportError={reportError}/>}
+      {parts.has('logSettings') && <KeepMessagesRow source={messages} reportError={reportError}/>}
       {tabs.map(tab => {
         const row = settingsRowIndex.get(`troubleshooting.${tab.id}`)!.row, stuckRow = tab.id === 'reports' && stuck;
         return <SettingsRow key={tab.id} label={stuckRow ? t('next.settings.troubleshootingStuckFiles') : t(row.label)} help={stuckRow ? t('next.settings.troubleshootingStuckFilesHelp') : row.help && t(row.help)}>
@@ -105,15 +106,33 @@ export function TroubleshootingPage({messages, reports, feedback, support, subsc
   </TabsPrimitive.Root>;
 }
 
+const DETAIL_LENGTH = (minutes: LogDetailMinutes) => `next.settingsSpec.server.troubleshooting.advanced.groups.0.rows.1.control.options.${LOG_DETAIL_MINUTES.indexOf(minutes)}.label` as MessageId;
+
+/** "Record more detail" (console rule 67): for 30 minutes unless another length is chosen here; it switches itself off. */
 function DetailWindowRow({source, detailMinutes, reportError}: {source: SettingsMessagesSource; detailMinutes?: LogDetailMinutes; reportError: (error: unknown) => void}) {
   const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot), [now, setNow] = useState(serverNow());
+  const [minutes, setMinutes] = useState<LogDetailMinutes>(detailMinutes ?? 30);
   useEffect(() => {void source.load();const timer = setInterval(() => setNow(serverNow()), 30_000);return () => {clearInterval(timer);source.pause();};}, [source]);
-  const until = state.settings?.debugWindowUntil, detailed = !!until && Date.parse(until) > now;
+  const until = state.detailUntil, detailed = !!until && Date.parse(until) > now;
   const row = settingsRowIndex.get('troubleshooting.detailWindow')!.row;
   return <SettingsRow label={t(row.label)} help={detailed ? t('settings.server.detailWindow.until', {time: defaultI18n.dateTime(until!)}) : row.help && t(row.help)}>
-    <Button size="small" variant="glass" disabled={!state.settings || state.changing} onClick={() => {void source.detail(!detailed, detailMinutes).catch(reportError);}}>
+    {!detailed && <Select aria-label={t('settings.server.detailWindow.length')} value={String(minutes)} disabled={state.changing}
+      onValueChange={value => {const chosen = Number(value) as LogDetailMinutes; if ((LOG_DETAIL_MINUTES as readonly number[]).includes(chosen)) setMinutes(chosen);}}
+      options={LOG_DETAIL_MINUTES.map(value => ({value: String(value), label: t(DETAIL_LENGTH(value))}))} />}
+    <Button size="small" variant="glass" disabled={state.phase !== 'ready' || state.changing} onClick={() => {void source.detail(!detailed, minutes).catch(reportError);}}>
       {t(detailed ? 'settings.server.detailWindow.stop' : 'settings.server.detailWindow.start')}
     </Button>
+  </SettingsRow>;
+}
+
+/** How long messages are kept (console rule 68): 30 days unless the owner chooses 7 or 14. */
+function KeepMessagesRow({source, reportError}: {source: SettingsMessagesSource; reportError: (error: unknown) => void}) {
+  const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
+  if (!state.keepDays) return null;
+  return <SettingsRow label={t('settings.server.keepMessages')} help={t('settings.server.keepMessages.help')}>
+    <Select aria-label={t('settings.server.keepMessages')} value={String(state.keepDays)} disabled={state.changing}
+      onValueChange={value => {const days = Number(value) as KeepMessageDays; if ((KEEP_MESSAGE_DAYS as readonly number[]).includes(days)) void source.keep(days).catch(reportError);}}
+      options={KEEP_MESSAGE_DAYS.map(days => ({value: String(days), label: t('settings.server.keepMessages.days', {days})}))} />
   </SettingsRow>;
 }
 
@@ -121,7 +140,7 @@ const OWNER_PARTS = troubleshootingParts('owner');
 
 export function createTroubleshootingSurfaces(options: TroubleshootingSurfacesOptions): TroubleshootingSurfaces {
   const parts = troubleshootingParts(options.tier), ownError = partError(options.reportError);
-  const messages = new SettingsMessagesSource(options.transport, options.messageConnection, options.isCurrent, ownError);
+  const messages = new SettingsMessagesSource(options.transport, options.messageConnection, options.isCurrent, ownError, {keeping: parts.has('logSettings')});
   const reports = new SettingsReportsSource(options.transport, options.serverId, options.viewerId, options.isCurrent, ownError,
     {reports: parts.has('reports'), stuckFiles: parts.has('stuckFiles')});
   const feedback = new SettingsFeedbackSource(options.transport, options.serverId, options.viewerId, options.isCurrent, ownError);
