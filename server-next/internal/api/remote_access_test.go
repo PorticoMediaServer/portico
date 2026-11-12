@@ -320,3 +320,23 @@ func TestEnhancedWithTheOwnCertificateLoaded(t *testing.T) {
 		t.Fatalf("with the certificate loaded: %+v", got)
 	}
 }
+
+// The IPv6 switch is not built yet, and says so: it reads as off with one plain line, and a
+// save that turns it on is refused with that line instead of being kept and doing nothing.
+func TestTheIPv6SwitchSaysItIsNotAvailableYet(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	var v RemoteAccessSettings
+	if call(t, s, "GET", "/v1/admin/settings/remote-access", owner, nil, &v); v.IPv6 || v.IPv6Note != "IPv6 is not available yet." {
+		t.Fatalf("the settings say ipv6 %v with note %q", v.IPv6, v.IPv6Note)
+	}
+	if w := call(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSave{RemoteAccessSettings: v}, nil); w.Code != 200 {
+		t.Fatalf("saving the settings as read answered %d: %s", w.Code, w.Body)
+	}
+	v.IPv6 = true
+	var refused errorBody
+	if w := call(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSave{RemoteAccessSettings: v}, &refused); w.Code != 400 ||
+		len(refused.Error.Fields) != 1 || refused.Error.Fields[0].Path != "ipv6" || refused.Error.Fields[0].Message != "IPv6 is not available yet." {
+		t.Fatalf("turning IPv6 on answered %d: %s", w.Code, w.Body)
+	}
+}

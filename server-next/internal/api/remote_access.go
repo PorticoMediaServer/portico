@@ -66,9 +66,11 @@ type RemoteAccessSettings struct {
 	PortMapping string `json:"portMapping"`
 	// PublicPort is the port people outside connect to.
 	PublicPort int `json:"publicPort"`
-	// IPv6 is meant to let connections in over IPv6 too. Nothing reads it yet: no IPv6 pinhole
-	// is asked of the router, so IPv6 from outside is neither opened nor closed by it.
-	IPv6 bool `json:"ipv6"`
+	// IPv6 is meant to let connections in over IPv6 too. It is not built yet: no IPv6 opening
+	// is asked of the router. So it is always off, a save that turns it on is refused, and
+	// IPv6Note says so in one line for the screens to show beside the switch. The note is not saved.
+	IPv6     bool   `json:"ipv6"`
+	IPv6Note string `json:"ipv6Note,omitempty"`
 	// OwnAddress is the owner's own domain, with a certificate for it or a reverse proxy in front.
 	OwnAddress OwnAddress `json:"ownAddress"`
 	// AllowedAddresses are more addresses Enhanced answers at: "host" (port 443) or "host:port".
@@ -113,6 +115,9 @@ type OwnAddress struct {
 	CertificateFile string `json:"certificateFile"`
 	KeyFile         string `json:"keyFile"`
 }
+
+// ipv6NotYet is what the IPv6 switch says until the server can open IPv6 on the router.
+const ipv6NotYet = "IPv6 is not available yet."
 
 const (
 	remoteAccessKey   = "remote-access"
@@ -464,6 +469,8 @@ func (s *Server) loadRemoteAccess(ctx context.Context) error {
 		if json.Unmarshal([]byte(raw), &v) != nil {
 			return errors.New("the stored remote access settings are damaged")
 		}
+		// IPv6 is not built yet: a document saved with it on reads as off.
+		v.IPv6 = false
 		if field, _ := v.problem(); field != "" {
 			return errors.New("the stored remote access settings are damaged at " + field)
 		}
@@ -590,7 +597,7 @@ func (s *Server) remoteAccessRoutes() {
 		_, saved, err := s.db.SettingDocument(r.Context(), remoteAccessKey)
 		v, _ := s.access.current()
 		v.revision = revision(saved)
-		v.Warning = s.dlnaWarning(v.DLNA)
+		v.Warning, v.IPv6Note = s.dlnaWarning(v.DLNA), ipv6NotYet
 		return v, err
 	})
 	Handle(s, "PUT /v1/admin/settings/remote-access", Owner, s.saveRemoteAccess)
@@ -695,6 +702,10 @@ func cleanRemoteAccess(v *RemoteAccessSettings) error {
 		v.AllowedAddresses = []string{}
 	}
 	v.OwnAddress.Domain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(v.OwnAddress.Domain), "."))
+	v.IPv6Note = ""
+	if v.IPv6 {
+		return ErrField("ipv6", ipv6NotYet)
+	}
 	if field, message := v.problem(); field != "" {
 		return ErrField(field, message)
 	}
@@ -772,7 +783,7 @@ func (s *Server) applyRemoteAccess(r *http.Request, req RemoteAccessSave, match 
 	s.access.set(v, true)
 	s.applyCertificate(v)
 	v.revision = revision(saved)
-	v.Warning = s.dlnaWarning(v.DLNA)
+	v.Warning, v.IPv6Note = s.dlnaWarning(v.DLNA), ipv6NotYet
 	return v, nil
 }
 

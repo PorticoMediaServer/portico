@@ -585,7 +585,7 @@ after), `storage` (Keep generated files, the free-space warnings), `backups`, `l
 (on or off, highest quality, space, how long prepared copies are kept), `title_data`
 (Enhanced Recommendations on or off, and a copy's address), `live` and `dvr`,
 `remote-access` (remote access on or off, Remote security, Secure connections, port mapping,
-the public port, IPv6, your own address and certificate files, who may sign in from outside,
+the public port, IPv6 (not built yet: `ipv6` reads as off, `ipv6Note` carries "IPv6 is not available yet." for the screen, and a save that turns it on is refused `400` with that sentence), your own address and certificate files, who may sign in from outside,
 Find this server at home, and the DLNA switch), `integrations` (Assistants, the compatible
 routes, the cap on members' tokens). Already built under their own addresses and kept there: `network`
 (`/v1/admin/settings/network`), provider keys (`/v1/admin/metadata/settings`), stream limits
