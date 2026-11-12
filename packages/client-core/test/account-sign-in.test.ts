@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {withUnknownFields} from './unknown-fields.ts';
 import {setInstallationIdentity} from '../src/installation.ts';
-import {ManagedProfilesClient, completeDirectSignInChallenge, completeOwnerSetup, directSignIn, directSignInContinuation, parseDirectSnapshot, parseManagedProfiles, selectDirectProfile, type ProfileAPI} from '../src/profile-management.ts';
+import {ManagedProfilesClient, completeDirectSignInChallenge, completeOwnerSetup, directSignIn, directSignInContinuation, keepSignInRenewal, parseDirectSnapshot, parseManagedProfiles, selectDirectProfile, type ProfileAPI} from '../src/profile-management.ts';
 import {IdentityClient} from '../src/identity-client.ts';
 import {parseDevices} from '../src/identity-devices.ts';
 
@@ -172,4 +172,24 @@ test('devices and sign-ins: rename, sign a device out, sign out everywhere else,
   assert.deepEqual(s.calls.slice(0, 5).map(call => [call.method, call.path, call.body]), [
     ['PATCH', '/v1/devices/dev_2', {name: 'Den'}], ['DELETE', '/v1/devices/dev_2', undefined], ['DELETE', '/v1/me/sessions', undefined], ['DELETE', '/v1/me/sessions/ses_9', undefined],
     ['POST', '/v1/auth/password', {currentPassword: 'old password', newPassword: 'new password', code: '123456'}]]);
+});
+
+test('a profile picked on Who\'s watching keeps the sign-in\'s refresh token, so the app can still renew it', async () => {
+  const s = server({
+    'POST /v1/auth/sign-in': {account: account(), profiles: [profile('main'), profile('kid')], session: session()},
+    'POST /v1/profiles/kid/select': session({profileId: 'kid', role: 'member', refreshToken: null, accessToken: 'access_kid'}),
+  });
+  const signedIn = await directSignIn(s.api, 'sam', 'a password');
+  assert.equal(signedIn.kind, 'signed-in');
+  if (signedIn.kind !== 'signed-in') return;
+  const picked = await selectDirectProfile(s.api.withAccessToken!(signedIn.session.accessToken), {authority: 'local', accountId: 'acct', serverId: 'srv'}, 'kid', {});
+  const kept = keepSignInRenewal(picked.session, signedIn.session);
+  assert.equal(kept.refreshToken, 'refresh_token_0000000001');
+  assert.equal(kept.accessToken, 'access_kid');
+  assert.equal(kept.viewer.profileId, 'kid');
+  // A pick that answered with its own refresh token, or for another sign-in, is left as it is.
+  const own = {...picked.session, refreshToken: 'refresh_token_0000000002'};
+  assert.equal(keepSignInRenewal(own, signedIn.session).refreshToken, 'refresh_token_0000000002');
+  const other = {...picked.session, sessionFamilyId: 'ses_other'};
+  assert.equal(keepSignInRenewal(other, signedIn.session).refreshToken, undefined);
 });
