@@ -16,37 +16,38 @@ const common = {
   '../../lifetime': {}, '../storage/space-source': {},
 };
 
-test('Messages filters use their exact picker opening, Live is a switch, and log metadata stays separate', async () => {
+test('Messages filters by level with its exact picker opening, Live is a switch, and a line\'s time, level and values stay separate from its message', async () => {
   const host = hooks();
   let current = true;
   const calls: unknown[] = [];
-  const state: any = {phase: 'ready', level: '', category: '', live: true, lines: [{sequence: 1, at: '2026-10-01T12:30:00Z', level: 'warn', category: 'scan', message: 'Fixture message'}]};
+  const state: any = {phase: 'ready', level: '', live: true, lines: [{sequence: 1, at: '2026-10-01T12:30:00Z', level: 'warn', message: 'Fixture message', detail: 'library: Films'}]};
   const source = {subscribe: () => () => {}, getSnapshot: () => state, load: async () => {calls.push('refresh');}};
   const group = {source, current: () => current, subscribeFailure: () => () => {}, getFailure: () => false, clearFailure() {},
     setLive: (value: boolean) => {calls.push(['live', value]); state.live = value;},
-    select: async (level: string, category: string) => {calls.push([level, category]); state.level = level; state.category = category;}};
+    select: async (level: string) => {calls.push([level]); state.level = level;}};
   const {Messages} = await screenModule(new URL('../src-next/screens/settings-live/server/troubleshooting/Messages.tsx', import.meta.url), {
     ...common, react: host.react,
-    '../../../../../../../packages/client-core/src/server-admin/messages-source': {},
-    '../../../../../../../packages/client-core/src/server-administration': {LOG_DETAIL_MINUTES: [30], logLevels: ['error', 'warn', 'info', 'debug'], logCategories: ['server', 'playback', 'scan', 'network', 'client']},
-    '../storage/forms': {useFormState: () => ({}), useStorageSet: () => ({})},
+    '../../../../../../../packages/client-core/src/server-admin/messages-source': {KEEP_MESSAGE_DAYS: [7, 14, 30]},
+    '../../../../../../../packages/client-core/src/server-administration': {LOG_DETAIL_MINUTES: [30], logLevels: ['error', 'warn', 'info', 'debug']},
   });
-  const render = () => host.render(() => Messages({group, forms: {forms: {logs: {}}}, runtime: {text: {t}}}));
+  const render = () => host.render(() => Messages({group, runtime: {text: {t}}}));
   const chip = (label: string) => nodes(render()).find(node => node.type === 'Chip' && node.props.accessibilityLabel === label)!;
   const menu = () => nodes(render()).find(node => node.type === 'Menu')!;
+  assert.equal(nodes(render()).some(node => node.type === 'Chip' && node.props.accessibilityLabel === 'feedback.category'), false, 'the server keeps no kind for a line');
   chip('web.logs.level').props.onPress(); const first = menu();
   first.props.onOpenChange(false);
-  chip('feedback.category').props.onPress(); const second = menu();
+  chip('web.logs.level').props.onPress(); const second = menu();
   first.props.items.find((item: any) => item.id === 'error').onSelect(); first.props.onOpenChange(false);
-  assert.equal(menu().props.open, true); assert.deepEqual(calls, []);
-  const choose = second.props.items.find((item: any) => item.id === 'scan').onSelect;
-  choose(); choose(); assert.deepEqual(calls, [['', 'scan']]); assert.equal(menu().props.open, false);
+  assert.equal(menu().props.open, true); assert.deepEqual(calls, [], 'a closed picker chooses nothing');
+  const choose = second.props.items.find((item: any) => item.id === 'warn').onSelect;
+  choose(); choose(); assert.deepEqual(calls, [['warn']]); assert.equal(menu().props.open, false);
   const live = nodes(render()).find(node => node.type === 'Switch')!; assert.equal(live.props.checked, true);
   assert.ok(nodes(render()).some(node => node.type === 'Text' && text(node) === t('web.logs.following')));
   live.props.onCheckedChange(false); assert.deepEqual(calls.at(-1), ['live', false]);
   const line = nodes(render()).find(node => node.type === 'View' && node.props.key === 1)!;
   assert.ok(line); const metadata = line.props.children[0];
-  assert.deepEqual(nodes(metadata).filter(node => node.type === 'Text').map(text), ['12:30', 'web.logs.level.warn', 'server.logCategory.scan']);
+  assert.deepEqual(nodes(metadata).filter(node => node.type === 'Text').map(text), ['12:30', 'web.logs.level.warn']);
+  assert.ok(nodes(line).some(node => node.type === 'Text' && text(node) === 'library: Films'), 'a line shows its values');
   const meta = nodes(metadata).filter(node => node.type === 'Text');
   assert.ok(meta.every(node => node.props.style.fontFamily === 'monospace'));
   assert.equal(meta[1].props.style.color, 'amber');
