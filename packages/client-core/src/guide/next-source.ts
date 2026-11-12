@@ -96,7 +96,10 @@ export async function findChannel(api: ServerRequester, id: string, now = Date.n
   const window = {from: new Date(now), to: new Date(now + 60_000)};
   let cursor: string | undefined;
   for (let page = 0; page < 40; page++) {
-    const answer = await readGuide(api, window, page === 0 ? {around: id, hidden: true} : {hidden: true}, cursor, signal);
+    let answer;
+    try { answer = await readGuide(api, window, page === 0 ? {around: id, hidden: true} : {hidden: true}, cursor, signal); }
+    // A channel the profile may not see, or one that does not exist, is not found: nothing to show, never an error.
+    catch (error) { if ((error as {status?: number} | null)?.status === 404) return undefined; throw error; }
     const match = answer.items.find(row => row.channel.id === id);
     if (match) {
       const on = match.programmes.find(programme => Date.parse(programme.startsAt) <= now && now < Date.parse(programme.endsAt));

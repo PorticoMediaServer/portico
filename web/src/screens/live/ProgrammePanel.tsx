@@ -227,19 +227,21 @@ function CommittedProgrammePanel({context, admission, channel, programme, now, t
     setSeriesOpen(value);
     if (value) void binding.preview(choice).catch(() => {});
   };
-  // Reminders are direct local writes; a retired opening or row admission
-  // must not write them from a retained panel.
+  // A reminder is kept by the server for this profile and shown here at once; a refusal puts the mark back. A retired opening
+  // or row admission must not write one from a retained panel.
   const canWrite = () => lease.live && context.isCurrent() && admission.row === channel && admission.current();
-  const reminder = (airing: PreviewAiring) => {
+  const remind = (value: Parameters<typeof toggleReminder>[0]) => {
     if (!canWrite()) return;
-    toggleReminder({programId: airing.id, channelId: airing.channelId, title: airing.title, channelName: channel.name, start: airing.start});
+    const on = toggleReminder(value);
+    void binding.remind(value.programId, on).catch(() => {toggleReminder(value);});
   };
+  const reminder = (airing: PreviewAiring) => remind({programId: airing.id, channelId: airing.channelId, title: airing.title, channelName: channel.name, start: airing.start});
   const view = <ProgrammePanelView channel={channel} {...(programme ? {programme} : {})} now={now} timezone={timezone} snapshot={snapshot}
     choice={choice} seriesOpen={seriesOpen} reminders={JSON.parse(reminders) as string[]}
     onClose={onClose} {...(onWatch ? {onWatch} : {})} onRecord={() => {void binding.record();}}
     onCancelRecording={() => {void binding.cancel();}} onRecordSeries={() => {void binding.recordSeries(choice).then(ok => {if (ok) setSeriesOpen(false);});}}
     onFavorite={() => {void binding.toggleFavorite();}} onSeriesOpenChange={openSeries} onChoice={change} onReminder={reminder}
-    {...(programme ? {onProgrammeReminder: () => {if (!canWrite()) return; toggleReminder({programId: programme.id, channelId: channel.id, title: programme.title, channelName: channel.name, start: programme.start});}} : {})}
+    {...(programme ? {onProgrammeReminder: () => remind({programId: programme.id, channelId: channel.id, title: programme.title, channelName: channel.name, start: programme.start})} : {})}
     {...(onViewRecordings ? {onViewRecordings} : {})}/>;
   return portrait ? <BottomSheet open={open} onOpenChange={value => {if (!value) onClose();}} fitContent showCloseButton={false}
     className={styles.programmeSheet} headerClassName={styles.programmeSheetHeader} bodyClassName={styles.programmeSheetBody}

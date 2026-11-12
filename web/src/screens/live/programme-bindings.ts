@@ -1,9 +1,10 @@
 import {serverNow} from '@core/server-clock.ts';
-import {DVRClient, defaultRecordingOptions, draftRule, dvrMessage, seriesRuleConfig,
-  type DvrRecording, type RuleConfig} from '@core/dvr.ts';
-import {channelOperationId, saveChannelPreference, type GuideChannel, type GuideProgramme} from '@core/channel-guide.ts';
-import {legacyChannel, legacyProgramme, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
+import {bookRecording, endRecording, markChannel, readProgramme, readReminders as readServerReminders, saveRule, setReminder,
+  type DvrRecording} from '@core/live-tv.ts';
+import type {DvrRuleSave} from '../../../../packages/contracts/src/next/api.ts';
+import type {GuideChannelRow, GuideProgram} from '@core/guide/index.ts';
 import {defaultI18n} from '@i18n';
+import {replaceReminders} from './reminders';
 import {screenLifetime, type ScreenContext} from '../detail/context';
 
 /** The editor's bounded choices, the same values the Series rules editor offers. */
@@ -28,39 +29,35 @@ export type ProgrammeSnapshot = Readonly<{
   error?: string;
 }>;
 
-type Environment = Readonly<{timezone: string; locale: string; now?: () => number; requestId?: () => Promise<string>;
-  operationId?: () => Promise<string>; onChanged?: () => void}>;
+type Environment = Readonly<{timezone: string; locale: string; now?: () => number; onChanged?: () => void}>;
 
-const randomHex = async () => Array.from(crypto.getRandomValues(new Uint8Array(24)), value => value.toString(16).padStart(2, '0')).join('');
 const cancelled = () => new DOMException('Programme selection changed', 'AbortError');
-const noDraft = () => Object.assign(new Error('This programme cannot be recorded.'), {code: 'programme-not-recordable'});
+/** The server's own sentence for a refusal (every tuner busy, not allowed to record), or a plain line. */
+const refusalText = (error: unknown) => {
+  const message = (error as {message?: unknown} | null)?.message;
+  return typeof message === 'string' && message.trim() && message.length <= 300 ? message : defaultI18n.t('next.live.actionFailed');
+};
 
 /** The same rule shape the guide's Record series action sends: a provider series id when the
  * guide has one, otherwise the real title-and-channel match the server accepts. */
-export function previewRule(draft: Readonly<{channel: GuideChannel; programme: GuideProgramme; series: boolean}>, choice: SeriesChoice): RuleConfig {
-  const config = draftRule(draft);
-  config.episodes = choice.episodes;
-  config.allowedChannels = choice.anyChannel && config.matchKind !== 'title' ? [] : [draft.channel.id];
-  config.options = {...defaultRecordingOptions, beforeSeconds: choice.startEarly * 60, afterSeconds: choice.endLate * 60,
-    episodeLimit: choice.keep === 'all' ? 0 : Number(choice.keep)};
-  return config;
+/** A series rule made from this programme with the editor's choices (definition 11: new episodes only or all, how many to
+ * keep, start early and end late, this channel or any). */
+export function seriesRule(programmeId: string, choice: SeriesChoice): DvrRuleSave {
+  return {programme: programmeId, newOnly: choice.episodes === 'new', ...(choice.keep === 'all' ? {} : {keepNewest: Number(choice.keep)}),
+    ...(choice.anyChannel ? {anyChannel: true} : {}), ...(choice.startEarly ? {padBeforeMs: choice.startEarly * 60_000} : {}),
+    ...(choice.endLate ? {padAfterMs: choice.endLate * 60_000} : {})};
 }
 
 /**
- * The selected programme's real recording facts and commands. Construction performs no read;
- * the mounted panel calls `load`. Every request is fenced by the captured screen authority, and
- * a rule preview only describes airings the server returned.
+ * The selected programme's recording facts and commands on the new server. Construction performs no read; the mounted panel
+ * calls `load`, which reads the programme: whether it is booked, has a reminder, may be recorded, and its other airings.
  */
 export function createProgrammeBindings(context: ScreenContext, row: GuideChannelRow, programme: GuideProgram | undefined, env: Environment) {
   const life = screenLifetime(context), listeners = new Set<() => void>();
-  const rawChannel = legacyChannel(row), rawProgramme = programme ? legacyProgramme(programme) : undefined;
-  const draft = rawChannel && rawProgramme ? Object.freeze({channel: rawChannel, programme: rawProgramme, series: false}) : undefined;
-  const requestId = env.requestId ?? randomHex, operationId = env.operationId ?? (async () => channelOperationId(() => Promise.resolve(crypto.randomUUID())));
   const now = env.now ?? serverNow;
-  const client = new DVRClient(life.api, context.scope.serverId, requestId);
-  let closed = false, started = false, previewSerial = 0;
-  let revision = rawChannel?.preferenceRevision ?? 0;
+  let closed = false, started = false, canRecord = row.recordAvailable;
   let state: ProgrammeSnapshot = Object.freeze({phase: 'idle', favorite: row.favorite, previewLoading: false});
+  const hidden = (row.native as {hidden?: unknown} | undefined)?.hidden === true;
 
   const current = () => !closed && life.current();
   const assert = () => { if (!current()) throw cancelled(); };
@@ -69,107 +66,86 @@ export function createProgrammeBindings(context: ScreenContext, row: GuideChanne
     state = Object.freeze({...state, ...patch});
     for (const listener of [...listeners]) listener();
   };
-  const recordable = () => !!draft && !!rawChannel?.recordAvailable && Date.parse(draft.programme.end) > now();
-
-  const airing = (programme: GuideProgramme): PreviewAiring => {
-    const start = Date.parse(programme.start), today = new Date(start).toDateString() === new Date(now()).toDateString();
-    const episode = programme.episode?.display ?? (programme.episode?.season !== undefined && programme.episode.number !== undefined
-      ? defaultI18n.t('downloads.title.episode', {season: programme.episode.season, episode: programme.episode.number}) : undefined);
-    return Object.freeze({id: programme.id, start,
-      time: new Intl.DateTimeFormat(env.locale, {hour: 'numeric', minute: '2-digit', timeZone: env.timezone}).format(start),
-      range: defaultI18n.t('guide.cellTime', {
-        start: new Intl.DateTimeFormat(env.locale, {hour: 'numeric', minute: '2-digit', timeZone: env.timezone}).format(start),
-        end: new Intl.DateTimeFormat(env.locale, {hour: 'numeric', minute: '2-digit', timeZone: env.timezone}).format(Date.parse(programme.end))}),
-      day: today ? defaultI18n.t('guide.today') : new Intl.DateTimeFormat(env.locale, {weekday: 'long', timeZone: env.timezone}).format(start),
-      title: programme.subtitle || programme.title, ...(episode ? {episode} : {}), channelId: programme.channelId});
-  };
-
-  const loadPreview = async (choice: SeriesChoice): Promise<void> => {
-    if (!draft || !recordable()) return;
-    const serial = ++previewSerial;
-    publish({previewLoading: true});
-    try {
-      const result = await client.preview(previewRule(draft, choice));
-      assert();if (serial !== previewSerial) throw cancelled();
-      const airings = result.sample.map(airing).filter(item => item.id !== draft.programme.id && item.start > now())
-        .sort((left, right) => left.start - right.start);
-      publish({previewLoading: false, preview: Object.freeze({matches: result.matches, airings: Object.freeze(airings.slice(0, 5))})});
-    } catch (error) {
-      if (!current() || serial !== previewSerial) return;
-      // A preview that the server refuses only omits the drawn list; the panel itself still works.
-      publish({previewLoading: false, preview: undefined});
-    }
-  };
+  const recordable = () => !!programme && canRecord && programme.end > now();
+  const time = (at: number) => new Intl.DateTimeFormat(env.locale, {hour: 'numeric', minute: '2-digit', timeZone: env.timezone}).format(at);
+  const airing = (id: string, start: number, end: number, channelId: string): PreviewAiring => Object.freeze({id, start, time: time(start),
+    range: defaultI18n.t('guide.cellTime', {start: time(start), end: time(end)}),
+    day: new Date(start).toDateString() === new Date(now()).toDateString() ? defaultI18n.t('guide.today') : new Intl.DateTimeFormat(env.locale, {weekday: 'long', timeZone: env.timezone}).format(start),
+    title: programme?.subtitle || programme?.title || '', channelId});
 
   return {
     getSnapshot: () => state,
     subscribe(listener: () => void) { if (closed) return () => {};listeners.add(listener);return () => {listeners.delete(listener);}; },
     async load(): Promise<void> {
       assert();
-      if (started) return;
+      if (started || !programme) { if (!programme) publish({phase: 'ready'}); return; }
       started = true;
-      publish({phase: 'loading', error: undefined});
-      const recordingId = programme?.recording?.id;
+      publish({phase: 'loading', error: undefined, previewLoading: true});
       try {
-        if (recordingId) {
-          const detail = await client.detail(recordingId);
-          assert();publish({recording: detail.recording});
-        }
-        publish({phase: 'ready'});
+        const [detail, reminders] = await Promise.all([readProgramme(life.api, programme.id, life.signal()), readServerReminders(life.api, undefined, life.signal()).catch(() => undefined)]);
+        assert();
+        canRecord = detail.canRecord && row.recordAvailable;
+        if (reminders) replaceReminders(reminders.items.map(item => ({programId: item.programme, channelId: item.channel, title: item.title, channelName: row.name, start: Date.parse(item.startsAt)})));
+        // More airings are the programme's own other airings, as the server listed them.
+        const airings = detail.airings.map(one => airing(one.id, Date.parse(one.startsAt), Date.parse(one.endsAt), one.channel))
+          .filter(one => one.id !== programme.id && one.start > now()).sort((left, right) => left.start - right.start);
+        publish({phase: 'ready', favorite: detail.channel.favorite, previewLoading: false, ...(detail.recording ? {recording: detail.recording} : {}),
+          preview: Object.freeze({matches: airings.length, airings: Object.freeze(airings.slice(0, 5))})});
       } catch (error) {
         if (!current()) return;
-        publish({phase: 'ready', error: dvrMessage(error)});
+        publish({phase: 'ready', previewLoading: false, error: refusalText(error)});
       }
-      if (current()) await loadPreview({...defaultSeriesChoice, episodes: rawProgramme && ['new', 'repeat'].includes(rawProgramme.newEvidence) ? 'new' : 'all'});
     },
-    preview: (choice: SeriesChoice) => { if (!current()) return Promise.resolve();return loadPreview(choice); },
+    /** The editor's choices change what a rule would record, not which airings exist: nothing to read again. */
+    preview: (_choice: SeriesChoice) => Promise.resolve(),
     async record(): Promise<boolean> {
-      if (!draft || !recordable() || state.busy) return false;
+      if (!programme || !recordable() || state.busy) return false;
       publish({busy: 'record', error: undefined, notice: undefined});
       try {
-        const recording = await client.schedule(draft, defaultRecordingOptions);
+        const recording = await bookRecording(life.api, {programme: programme.id}, life.signal());
         assert();publish({recording, recordingRemoved: false, notice: 'recorded'});env.onChanged?.();
         return true;
-      } catch (error) { if (current()) publish({error: dvrMessage(error)});return false; }
+      } catch (error) { if (current()) publish({error: refusalText(error)});return false; }
       finally { publish({busy: undefined}); }
     },
     async recordSeries(choice: SeriesChoice): Promise<boolean> {
-      if (!draft || !recordable() || state.busy) return false;
+      if (!programme || !recordable() || state.busy) return false;
       publish({busy: 'series', error: undefined, notice: undefined});
       try {
-        const {config, anchor} = seriesRuleConfig({...draft, series: true},
-          {episodes: choice.episodes, keep: choice.keep === 'all' ? 0 : Number(choice.keep),
-            beforeSeconds: choice.startEarly * 60, afterSeconds: choice.endLate * 60, anyChannel: choice.anyChannel});
-        await client.saveRule(await client.newRuleID(), 0, config, anchor);
+        await saveRule(life.api, seriesRule(programme.id, choice), false, life.signal());
         assert();publish({notice: 'series'});env.onChanged?.();
         return true;
-      } catch (error) { if (current()) publish({error: dvrMessage(error)});return false; }
+      } catch (error) { if (current()) publish({error: refusalText(error)});return false; }
       finally { publish({busy: undefined}); }
     },
     async cancel(): Promise<boolean> {
       if (!state.recording || state.busy) return false;
       publish({busy: 'cancel', error: undefined, notice: undefined});
       try {
-        await client.cancel(state.recording);
+        await endRecording(life.api, state.recording.id, 'cancel', life.signal());
         assert();publish({recording: undefined, recordingRemoved: true, notice: 'cancelled'});env.onChanged?.();
         return true;
-      } catch (error) { if (current()) publish({error: dvrMessage(error)});return false; }
+      } catch (error) { if (current()) publish({error: refusalText(error)});return false; }
       finally { publish({busy: undefined}); }
     },
     async toggleFavorite(): Promise<boolean> {
-      if (!rawChannel || state.busy) return false;
+      if (state.busy) return false;
       const favorite = !state.favorite;
       publish({busy: 'favorite', error: undefined});
       try {
-        revision = await saveChannelPreference(life.api, context.scope.serverId,
-          {...rawChannel, favorite, preferenceRevision: revision}, await operationId(), {favorite, hidden: rawChannel.hidden});
+        await markChannel(life.api, row.id, {favorite, hidden}, life.signal());
         assert();publish({favorite, busy: undefined});env.onChanged?.();
         return true;
-      } catch (error) { if (current()) publish({busy: undefined, error: dvrMessage(error)});return false; }
+      } catch (error) { if (current()) publish({busy: undefined, error: refusalText(error)});return false; }
+    },
+    /** A reminder kept by the server for this profile; the app shows it when it comes due. */
+    async remind(programmeId: string, on: boolean): Promise<void> {
+      assert();
+      await setReminder(life.api, programmeId, on, life.signal());
     },
     dispose() {
       if (closed) return;
-      closed = true;previewSerial++;life.dispose();client.dispose();listeners.clear();
+      closed = true;life.dispose();listeners.clear();
     },
   };
 }
