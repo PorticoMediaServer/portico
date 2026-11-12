@@ -3,6 +3,7 @@ import {readHostedAccountIdentity, readViewerIdentity} from '../../../../package
 import {captureTVApprovalGrant} from './tv-approval-grant';
 import {NativeModules, Platform} from 'react-native';
 import {PorticoServicesAccountClient, heldFor, porticoApiError} from '../../../../packages/client-core/src/portico-services-native';
+import {providerPINIdentity} from '../../../../packages/client-core/src/portico-pin-provider';
 import {porticoAccount} from '../../../../packages/client-core/src/portico-account';
 import {HttpLocalApi, type HostedSession, type LocalSession} from '../../../../packages/client-core/src';
 import {ServerSignInProbe, signInLabelKey} from '../../../../packages/client-core/src/sign-in';
@@ -195,9 +196,18 @@ export class NativeAccounts {
       const held = credentials.getSnapshot().session;
       return !this.disposed && this.generation === generation && held?.account.id === expected.accountId && held.familyId === expected.familyId;
     };
-    return {accountId: expected.accountId, isCurrent, identity: (serverId, challenge, proof, signal) =>
-      nativeAccountWork(credentials, issued => porticoAccount(heldFor(issued.accessToken), hostedUrl, {fetcher: nativeNetworkFetch})
-        .serverPINIdentity(serverId, challenge, proof, signal).catch(error => {throw porticoApiError(error);}), {expected, isCurrent, signal})};
+    const work = <T>(signal: AbortSignal, run: (client: ReturnType<typeof porticoAccount>) => Promise<T>) =>
+      nativeAccountWork(credentials, issued => run(porticoAccount(heldFor(issued.accessToken), hostedUrl, {fetcher: nativeNetworkFetch}))
+        .catch(error => {throw porticoApiError(error);}), {expected, isCurrent, signal});
+    const bridge = NativeModules.PorticoAccountAuth;
+    return {accountId: expected.accountId, isCurrent,
+      identity: (serverId, challenge, proof, signal) => work(signal, client => client.serverPINIdentity(serverId, challenge, proof, signal)),
+      providerIdentity: (serverId, challenge, provider, twoStepCode, signal) => work(signal, client =>
+        providerPINIdentity(client, provider, {serverId, challenge}, twoStepCode, {
+          accountOrigin: hostedUrl, current: isCurrent, signal, crypto: nativeRouteCrypto,
+          ...(bridge?.canSignInApple ? {apple: (nonce: string) => bridge.signInApple(nonce)} : {}),
+          ...(bridge?.canOpenBrowser ? {browser: (url: string, id: string) => bridge.openBrowser(url, id)} : {}),
+        }))};
   }
   accountClient(binding: string, isCurrent?: () => boolean, ownsResult?: () => boolean) {this.assertCurrent(); return createNativeAccountClient(hostedUrl, binding, isCurrent, ownsResult);}
   async authenticatePorticoAccount(callback: (signal: AbortSignal) => Promise<HostedSession>, callerCurrent?: () => boolean) {

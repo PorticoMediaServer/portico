@@ -103,3 +103,25 @@ test('Services passwordless refusal reaches the recovery screen as account_passw
   assert.equal(f.sent.length, 1, 'no PIN goes to the server');
   f.controller.dispose();
 });
+
+
+test('provider PIN recovery requires its own checked mark and forwards only the note and new PIN', async () => {
+  for (const marked of [false, true]) {
+    const f = porticoFlow();
+    const source = {accountId: 'acct_ada', isCurrent: () => true, identity: async () => {throw new Error('password route must not run');},
+      providerIdentity: async (serverId: string, challenge: string, provider: string, code: unknown) => {
+        assert.equal(provider, 'google'); assert.equal(code, '123456');
+        return {identity: {payload: btoa(JSON.stringify({accountId: 'acct_ada', serverId, challenge, providerChecked: marked, passwordChecked: !marked}))}};
+      }};
+    await f.controller.porticoProvider('google', '123456', source);
+    assert.equal(f.controller.getSnapshot().phase, marked ? 'pin' : 'portico');
+    await f.controller.reset('2468');
+    assert.equal(f.sent.length, marked ? 2 : 1);
+    if (marked) {
+      const body = f.sent[1].body;
+      assert.deepEqual(Object.keys(body).sort(), ['challenge', 'identity', 'pin']);
+      assert.equal(body.pin, '2468'); assert.equal(f.controller.getSnapshot().phase, 'done');
+    }
+    f.controller.dispose();
+  }
+});

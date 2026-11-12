@@ -5,12 +5,14 @@ import type {porticoSignIn, HostedRequestApi} from './portico-servers.ts';
 import type {SignInKind} from './app-sessions.ts';
 import {CodedError} from './server-messages.ts';
 import {callServer} from './query/server-api.ts';
-import {envelopePayload, type Proof} from './portico-account.ts';
+import type {PINProviderCode} from './portico-pin-provider.ts';
+import {envelopePayload, ServicesError, type Proof, type Provider} from './portico-account.ts';
 
 export type PorticoProofSource = () => Promise<Readonly<{hosted: HostedRequestApi; origin: string; accountCurrent: () => boolean}>>;
 /** Captured signed-in Portico Account. A platform keeps renewal and account-switch fencing here. */
 export type PorticoPINProofSource = Readonly<{
   accountId: string; isCurrent: () => boolean;
+  providerIdentity?: (serverId: string, challenge: string, provider: Provider, twoStepCode: PINProviderCode, signal: AbortSignal) => Promise<{identity: unknown}>;
   identity: (serverId: string, challenge: string, proof: Proof, signal: AbortSignal) => Promise<{identity: unknown}>;
 }>;
 export type ProfileRecoveryPhase = 'password' | 'portico' | 'challenge' | 'pin' | 'done';
@@ -80,7 +82,23 @@ export class ProfileRecoveryController {
   }
   /** Passwords go only to Services. The signed note stays private until the person chooses a PIN. */
   async porticoPassword(password: string, twoStepCode = '', source = this.ports.porticoPIN) {
-    if (this.disposed || this.state.phase !== 'portico' || this.state.busy || !password || !source || !this.ports.authorityCurrent()) return;
+    if (!password || !source) return;
+    await this.porticoChecked(source, 'passwordChecked', (serverId, challenge, signal) =>
+      source.identity(serverId, challenge, {currentPassword: password, ...(twoStepCode ? {twoStepCode} : {})}, signal));
+  }
+  /** Only Services decides whether this account has no password and whether this new provider proof is fresh. */
+  async porticoProvider(provider: Provider, twoStepCode: PINProviderCode = '', source = this.ports.porticoPIN) {
+    if (!source?.providerIdentity) {
+      if (!this.disposed && this.state.phase === 'portico' && !this.state.busy && this.ports.authorityCurrent())
+        this.publish({phase: 'portico', error: new ServicesError(409, 'account_password_required')});
+      return;
+    }
+    await this.porticoChecked(source, 'providerChecked', (serverId, challenge, signal) =>
+      source.providerIdentity!(serverId, challenge, provider, twoStepCode, signal));
+  }
+  private async porticoChecked(source: PorticoPINProofSource, mark: 'passwordChecked' | 'providerChecked',
+    prove: (serverId: string, challenge: string, signal: AbortSignal) => Promise<{identity: unknown}>) {
+    if (this.disposed || this.state.phase !== 'portico' || this.state.busy || !this.ports.authorityCurrent()) return;
     const operation = this.operation(); this.porticoProof = undefined;
     const check = () => {
       if (!operation.current() || !source.isCurrent() || this.ports.snapshot.account.hostedAccountId && this.ports.snapshot.account.hostedAccountId !== source.accountId)
@@ -92,10 +110,10 @@ export class ProfileRecoveryController {
       const asked = await callServer(this.ports.api, 'POST /v1/auth/portico/challenge', {signal: operation.signal});
       check();
       if (asked.serverId !== this.ports.snapshot.serverId || !asked.challenge) throw new CodedError('server_mismatch', 'The server answered as a different server.');
-      const answer = await source.identity(asked.serverId, asked.challenge, {currentPassword: password, ...(twoStepCode ? {twoStepCode} : {})}, operation.signal);
+      const answer = await prove(asked.serverId, asked.challenge, operation.signal);
       check();
-      const note = envelopePayload<{accountId: string; serverId: string; challenge: string; passwordChecked?: boolean}>(answer.identity as {payload: string});
-      if (note.accountId !== source.accountId || note.serverId !== asked.serverId || note.challenge !== asked.challenge || note.passwordChecked !== true)
+      const note = envelopePayload<{accountId: string; serverId: string; challenge: string; passwordChecked?: boolean; providerChecked?: boolean}>(answer.identity as {payload: string});
+      if (note.accountId !== source.accountId || note.serverId !== asked.serverId || note.challenge !== asked.challenge || note[mark] !== true)
         throw new CodedError('invalid_response', 'The server sign-in note did not confirm the password.');
       this.porticoProof = {challenge: asked.challenge, identity: answer.identity, source};
       this.publish({phase: 'pin'});
