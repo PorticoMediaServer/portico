@@ -1,4 +1,5 @@
 import {throwIfAborted} from './abort-lifetime.ts';
+import {serverPath} from './query/server-api.ts';
 import {routeBody} from '../../contracts/src/routes.ts';
 import {routePath, encodedRoutePath, type RouteRequest} from '../../contracts/src/route-paths.ts';
 import {CodedError,unreadableServerResponse} from './server-messages.ts';
@@ -144,9 +145,9 @@ class MoveTransport {
 export class MemberAccountMoveClient extends MoveTransport {
  password(username:string,password:string,signal?:AbortSignal){if(!text(username,64)||!text(password,72))invalid();return this.call(routePath('post_auth_move_password'),'POST',routeBody('post_auth_move_password',{username,password}),parseMovePasswordTicket,signal);}
  /** The rebuilt server's check of the owner's move code (`server-next/API.md`, `POST /v1/auth/move/check`). */
- previewCode(code:string,signal?:AbortSignal){if(!moveCode(code))invalid();return this.call('/v1/auth/move/check','POST',{code},parseMoveCheck,signal);}
+ previewCode(code:string,signal?:AbortSignal){if(!moveCode(code))invalid();return this.call(serverPath('POST /v1/auth/move/check'),'POST',{code},parseMoveCheck,signal);}
  /** Finishes a move to local sign-in with the code and the username and password chosen (`POST /v1/auth/move/complete`); the answer is the sign-in. */
- redeemLocal(code:string,username:string,password:string,signal?:AbortSignal){if(!moveCode(code)||!text(username,64)||!text(password,72))invalid();return this.call('/v1/auth/move/complete','POST',{code,username,password,device:signInDevice()},raw=>this.grant(raw),signal,value=>value);}
+ redeemLocal(code:string,username:string,password:string,signal?:AbortSignal){if(!moveCode(code)||!text(username,64)||!text(password,72))invalid();return this.call(serverPath('POST /v1/auth/move/complete'),'POST',{code,username,password,device:signInDevice()},raw=>this.grant(raw),signal,value=>value);}
  redeemPortico(proof:MoveCredential,porticoIdentity:RouteRequest<'post_auth_move_portico'>['porticoIdentity'],signal?:AbortSignal){
   if(!obj(proof)||(secret(proof.code)?proof.ticket!==undefined:!secret(proof.ticket)||proof.code!==undefined))invalid();
   return this.call(routePath('post_auth_move_portico'),'POST',routeBody('post_auth_move_portico',{...proof,porticoIdentity}),raw=>this.grant(raw),signal,value=>value);
