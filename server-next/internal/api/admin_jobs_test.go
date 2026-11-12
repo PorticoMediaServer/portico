@@ -30,7 +30,9 @@ func TestOwnersTasks(t *testing.T) {
 	folder := filepath.Join(t.TempDir(), "Films")
 	os.MkdirAll(folder, 0o755)
 	var films AdminLibrary
-	if w := call(t, s, "POST", "/v1/admin/libraries", owner, LibraryCreate{Name: "Films", Kind: "movies", Folders: []string{folder}}, &films); w.Code != 200 {
+	// A books library, which uses local metadata only: its scan starts no lookup, so the tasks
+	// listed are the test's own and the scan.
+	if w := call(t, s, "POST", "/v1/admin/libraries", owner, LibraryCreate{Name: "Films", Kind: "books", Folders: []string{folder}}, &films); w.Code != 200 {
 		t.Fatalf("adding a library answered %d: %s", w.Code, w.Body)
 	}
 	var failing atomic.Bool
