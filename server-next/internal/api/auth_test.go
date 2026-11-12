@@ -575,6 +575,27 @@ func TestProfileCreateIsSafeToRepeat(t *testing.T) {
 	}
 }
 
+// Unchosen colours fill the account's palette; a person's choice is kept.
+func TestProfileDefaultColors(t *testing.T) {
+	s := newTestServer(t)
+	token := onMain(t, s, setup(t, s)).AccessToken
+	for _, want := range []string{"coral", "violet", "mint", "gold", "slate", "rose", "sky"} {
+		req := ProfileCreate{Name: "Guest"}
+		if want == "coral" {
+			req.Color = want
+		}
+		var got Profile
+		if w := call(t, s, "POST", "/v1/profiles", token, req, &got); w.Code != 200 || got.Color != want {
+			t.Fatalf("create answered %d, color %q; want %q", w.Code, got.Color, want)
+		}
+	}
+	var list Page[Profile]
+	call(t, s, "GET", "/v1/profiles", token, nil, &list)
+	if len(list.Items) != 8 || !list.Items[0].IsPrimary || list.Items[0].Color != "blue" {
+		t.Fatalf("existing primary profile changed: %+v", list.Items)
+	}
+}
+
 // Forgetting a device ends the sessions on it and takes it off the list; renaming sticks
 // through the next sign-in.
 func TestDevicesAndSessions(t *testing.T) {
