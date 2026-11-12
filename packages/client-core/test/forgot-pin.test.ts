@@ -35,3 +35,55 @@ test('a wrong password goes back to the password with the server\'s words', asyn
   assert.equal(controller.getSnapshot().phase, 'password');
   assert.equal((controller.getSnapshot().error as {code?: string}).code, 'current_password_incorrect');
 });
+
+function porticoFlow() {
+  const sent: {path: string; body?: any}[] = [], service: any[] = [];
+  let current = true, marked = true;
+  const account = {serverId: 'srv_den', account: {id: 'local_ada', hostedAccountId: 'acct_ada'}, canManage: false,
+    profiles: [{id: 'prf_kid', primary: false, pinRequired: true}]} as unknown as DirectSnapshot;
+  const api = {request: async (path: string, _method?: string, body?: unknown) => {
+    sent.push({path, body});
+    if (path === '/v1/auth/portico/challenge') return {serverId: 'srv_den', challenge: 'fresh-server-challenge'};
+    assert.equal(path, '/v1/profiles/prf_kid/pin'); return {};
+  }} as unknown as HttpLocalApi;
+  const source = {accountId: 'acct_ada', isCurrent: () => current,
+    identity: async (serverId: string, challenge: string, proof: unknown) => {
+      service.push({serverId, challenge, proof});
+      return {identity: {payload: btoa(JSON.stringify({accountId: 'acct_ada', serverId, challenge, passwordChecked: marked}))}};
+    }};
+  const controller = new ProfileRecoveryController({api, snapshot: account, profileId: 'prf_kid', selectedFamilyId: 'selected-family',
+    kind: 'portico', authorityCurrent: () => true, porticoPIN: source});
+  return {controller, sent, service, changeAccount: () => {current = false;}, unmarked: () => {marked = false;}};
+}
+
+test('Portico Forgot PIN sends the password and two-step only to Services, and only its marked note to the server', async () => {
+  const f = porticoFlow();
+  await f.controller.porticoPassword('typed just now', '123456');
+  assert.deepEqual(f.service, [{serverId: 'srv_den', challenge: 'fresh-server-challenge', proof: {currentPassword: 'typed just now', twoStepCode: '123456'}}]);
+  assert.equal(f.controller.getSnapshot().phase, 'pin');
+  assert.doesNotMatch(JSON.stringify(f.controller.getSnapshot()), /typed just now|payload/);
+  await f.controller.reset('2468');
+  assert.equal(f.controller.getSnapshot().phase, 'done');
+  assert.deepEqual(f.sent.map(call => call.path), ['/v1/auth/portico/challenge', '/v1/profiles/prf_kid/pin']);
+  assert.deepEqual(Object.keys(f.sent[1].body).sort(), ['challenge', 'identity', 'pin']);
+  assert.equal(f.sent[1].body.pin, '2468');
+  assert.doesNotMatch(JSON.stringify(f.sent), /typed just now|123456|refresh|select/);
+  f.controller.dispose();
+});
+
+test('an unmarked note, a changed account or closing recovery cannot reset a Portico PIN', async () => {
+  const unmarked = porticoFlow(); unmarked.unmarked();
+  await unmarked.controller.porticoPassword('typed just now');
+  assert.equal(unmarked.controller.getSnapshot().phase, 'portico');
+  await unmarked.controller.reset('2468');
+  assert.equal(unmarked.sent.length, 1);
+  unmarked.controller.dispose();
+
+  const changed = porticoFlow(); await changed.controller.porticoPassword('typed just now');
+  changed.changeAccount(); await changed.controller.reset('2468');
+  assert.equal(changed.sent.length, 1); assert.equal(changed.controller.getSnapshot().phase, 'portico'); changed.controller.dispose();
+
+  const closed = porticoFlow(); await closed.controller.porticoPassword('typed just now');
+  closed.controller.dispose(); await closed.controller.reset('2468');
+  assert.equal(closed.sent.length, 1);
+});

@@ -21,6 +21,8 @@ import {hostedUrl} from './account-authority';
 import {decodeMeGetResponse} from '../../../../packages/contracts/src/hosted/decoders';
 import {readNativeServerDisplays, rememberNativeServerDisplay} from './server-display';
 import type {PickTrace} from './pick-deadline';
+import type {PorticoPINProofSource} from '../../../../packages/client-core/src/profile-recovery';
+import {accountExpectation, nativeAccountWork} from './account-work';
 
 /** Every listener hears the event even when one before it throws: a screen's bug must not stop a
  * sign-out, a server switch or a Portico Account sign-out half-way. A failure is reported, not hidden. */
@@ -182,6 +184,20 @@ export class NativeAccounts {
   porticoIdentity(issued: Pick<HostedSession, 'accessToken'>, serverId: string, challenge: string, signal?: AbortSignal) {
     return porticoAccount(heldFor(issued.accessToken), hostedUrl, {fetcher: nativeNetworkFetch}).serverIdentity(serverId, challenge, signal)
       .catch(error => {throw porticoApiError(error);});
+  }
+  /** Obtained only when Forgot PIN asks for a Portico password. Never opened for local recovery. */
+  async porticoPINProof(): Promise<PorticoPINProofSource> {
+    const generation = this.generation, credentials = this.accountCredentials();
+    await credentials.synchronize(); this.assertCurrent(generation);
+    const captured = await credentials.accessSession(); this.assertCurrent(generation);
+    const expected = accountExpectation(captured);
+    const isCurrent = () => {
+      const held = credentials.getSnapshot().session;
+      return !this.disposed && this.generation === generation && held?.account.id === expected.accountId && held.familyId === expected.familyId;
+    };
+    return {accountId: expected.accountId, isCurrent, identity: (serverId, challenge, proof, signal) =>
+      nativeAccountWork(credentials, issued => porticoAccount(heldFor(issued.accessToken), hostedUrl, {fetcher: nativeNetworkFetch})
+        .serverPINIdentity(serverId, challenge, proof, signal).catch(error => {throw porticoApiError(error);}), {expected, isCurrent, signal})};
   }
   accountClient(binding: string, isCurrent?: () => boolean, ownsResult?: () => boolean) {this.assertCurrent(); return createNativeAccountClient(hostedUrl, binding, isCurrent, ownsResult);}
   async authenticatePorticoAccount(callback: (signal: AbortSignal) => Promise<HostedSession>, callerCurrent?: () => boolean) {
