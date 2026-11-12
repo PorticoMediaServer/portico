@@ -9,11 +9,14 @@ import {withQueries} from '../../packages/client-core/test/fixtures/viewer-queri
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-function setup(handler: (path: string) => Promise<unknown>) {
+function setup(handler: (path: string) => Promise<unknown>, total = 3) {
+  const response = (path: string) => path.startsWith('/v1/people/')
+    ? Promise.resolve({id: 'rebecca', name: 'Rebecca Ferguson', images: {}, titleCount: total, crewTitleCount: 1,
+      roles: [{role: 'actor', titleCount: total}, {role: 'producer', titleCount: 1}]}) : handler(path);
   let current = true, requests = 0;
   const context = withQueries({
-    api: {request: <T,>(path: string) => { requests++; return handler(path) as Promise<T>; },
-      requestRaw: async (path: string) => ({status: 200, headers: {}, body: await handler(path)})},
+    api: {request: <T,>(path: string) => { requests++; return response(path) as Promise<T>; },
+      requestRaw: async (path: string) => ({status: 200, headers: {}, body: await response(path)})},
     scope: {serverId: 'server', viewerId: JSON.stringify(['local', 'account', 'profile'])}, isCurrent: () => current,
     preferences: {getSnapshot: () => ({}), subscribe: () => () => {}},
     effects: {openEntry: () => {}, reportError: () => {}},
@@ -23,17 +26,17 @@ function setup(handler: (path: string) => Promise<unknown>) {
 
 const media = (id: string, kind: 'movie' | 'show', title: string) => ({id, libraryId: kind === 'movie' ? 'movies' : 'tv', kind, title, available: true});
 const credit = (id: string, kind: 'movie' | 'show', title: string, roles: readonly {role: string; department: string}[], creditKind: 'cast' | 'crew') => ({roles, media: media(id, kind, title), role: roles[0]?.role ?? '', character: roles[0]?.role ?? '', department: roles[0]?.department ?? '', creditKind});
+const wireCredit = (row: ReturnType<typeof credit>) => ({...row.media,
+  credits: row.roles.map(role => ({personId: 'rebecca', name: 'Rebecca Ferguson', role: role.department === 'Production' ? 'producer' : 'actor',
+    ...(role.department === 'Acting' ? {character: role.role} : {})}))});
 const page = (role: string | null, kind: string | null, limit: number) => {
   const all = [
     credit('dune-part-two', 'movie', 'Dune: Part Two', [{role: 'Lady Jessica', department: 'Acting'}], 'cast'),
     credit('dune', 'movie', 'Dune', [{role: 'Lady Jessica', department: 'Acting'}], 'cast'),
     credit('silo', 'show', 'Silo', [{role: 'Juliette Nichols', department: 'Acting'}, {role: 'Executive producer', department: 'Production'}], 'cast'),
   ];
-  const selected = all.filter(row => (kind ? row.media.kind === kind : true) && (role === 'cast' ? row.creditKind === 'cast' : role === 'crew' ? row.creditKind === 'crew' : true));
-  return {serverId: 'server', viewerFence: 'fence', revision: {catalog: 1, viewer: 1},
-    person: {id: 'rebecca', name: 'Rebecca Ferguson', revision: 1, biography: '', birthDate: '', deathDate: '', birthPlace: '', portraitUrl: '', roles: ['Acting'], knownFor: [], providerIds: {}},
-    groups: [{id: 'movie', kind: 'movie', total: 2}, {id: 'show', kind: 'show', total: 1}], credits: selected.slice(0, limit),
-    pageInfo: {total: selected.length, nextCursor: selected.length > limit ? 'next' : ''}};
+  const selected = all.filter(row => (kind ? row.media.kind === kind : true) && (role === 'cast' ? row.roles.some(r => r.department === 'Acting') : role === 'crew' ? row.roles.some(r => r.department !== 'Acting') : true));
+  return {items: selected.slice(0, limit).map(wireCredit), total: selected.length, nextCursor: selected.length > limit ? 'next' : ''};
 };
 
 test('acting and crew credit rows keep the drawn catalogue wording and separated emphasis', () => {
@@ -46,15 +49,15 @@ test('acting and crew credit rows keep the drawn catalogue wording and separated
   assert.equal(creditRole({role: 'Director', department: 'Directing'}, 'role-2').part.text, 'Director');
 });
 
-test('the person page groups credits by the server kind and pages each group on its own', async () => {
+test('the person page reads the server roles and pages requested kinds independently', async () => {
   const paths: string[] = [];
-  const owner = setup(async path => { paths.push(path); const query = new URL('https://unit.invalid' + path).searchParams; return page(query.get('role'), query.get('kind'), Number(query.get('limit') ?? '40')); });
+  const owner = setup(async path => { paths.push(path); const query = new URL('https://unit.invalid' + path).searchParams; return page(query.get('creditGroup') === 'acting' ? 'cast' : query.get('creditGroup'), query.get('kind'), Number(query.get('limit') ?? '40')); });
   const binding = createPersonBindings(owner.context);
   try {
     await binding.select('rebecca');
     const snapshot = binding.getSnapshot(), header = snapshot.page!;
     assert.equal(snapshot.phase, 'ready');
-    assert.deepEqual(header.groups.map(group => [group.kind, group.total]), [['movie', 2], ['show', 1]]);
+    assert.deepEqual(header.groups.map(group => [group.department, group.total]), [['Acting', 3], ['Production', 1]]);
     assert.equal(header.pageInfo.total, 3);
     const movies = binding.credits(header, 'movie'); movies.ensureRange(0, 1);
     const shows = binding.credits(header, 'show'); shows.ensureRange(0, 1);
@@ -88,7 +91,7 @@ test('the DEV entry mounts the registered Person route on the public frame facts
   assert.match(entry, /creditFor\(toyStory3, 'Woody'\)/);
   assert.match(html, /<script type="module" src="\.\/person\.tsx"><\/script>/);
   assert.doesNotMatch(entry, /Bearer |Authorization:|assets\/pool|--bd\.jpg/i);
-  assert.doesNotMatch(entry, /\/v1\/(?!people\/|admin\/activity)/);
+  assert.doesNotMatch(entry, /\/v1\/(?!people\/|items\b|admin\/activity)/);
 });
 
 test('no production module imports the person specimen', () => {
@@ -101,46 +104,32 @@ test('no production module imports the person specimen', () => {
   assert.deepEqual(production.filter(path => /dev\/entries\/person|__porticoPersonSpecimen/.test(readFileSync(path, 'utf8'))), []);
 });
 
-// Step 7: a credit continuation under a moved fence is the newer answer; a refused cursor reads the person again once in
-// place of the shown page (a second refusal shows); a moved revision is not read again.
-function paged(continuation: (path: string) => unknown, header = (_path: string) => ({})) {
+// A refused server cursor reads the person again once in place of the shown page; a second refusal shows.
+function paged(continuation: (path: string) => unknown) {
   const paths: string[] = [];
-  const many = Array.from({length: 60}, (_, index) => credit(`title-${index}`, 'movie', `Title ${index}`, [{role: 'Role', department: 'Acting'}], 'cast'));
+  const many = Array.from({length: 60}, (_, index) => wireCredit(credit(`title-${index}`, 'movie', `Title ${index}`, [{role: 'Role', department: 'Acting'}], 'cast')));
   const owner = setup(async path => {
     paths.push(path);
     const query = new URL('https://unit.invalid' + path).searchParams, limit = Number(query.get('limit') ?? '40');
     if (query.get('cursor')) return continuation(path);
-    const answer = {...page(null, null, 0), groups: [{id: 'movie', kind: 'movie', total: 60}], credits: many.slice(0, limit), pageInfo: {total: 60, nextCursor: 'p1'}, ...header(path)};
+    const answer = {...page(null, null, 0), items: many.slice(0, limit), total: 60, nextCursor: 'p1'};
     return answer;
-  });
-  const later = (changes: object = {}) => ({...page(null, null, 0), credits: many.slice(40), pageInfo: {total: 60, nextCursor: ''}, ...changes});
+  }, 60);
+  const later = (changes: object = {}) => ({...page(null, null, 0), items: many.slice(40), total: 60, nextCursor: '', ...changes});
   return {owner, paths, later, headers: () => paths.filter(path => path.includes('limit=1')).length};
 }
 const settled = async () => {for (let turn = 0; turn < 12; turn++) await setImmediate();};
 
-test('step 7: a person credit page answered under a moved fence is the newer answer for the same revision', async () => {
-  let f!: ReturnType<typeof paged>;
-  f = paged(() => f.later({viewerFence: 'moved'}));
-  const binding = createPersonBindings(f.owner.context);
-  try {
-    await binding.select('rebecca'); const header = binding.getSnapshot().page!;
-    const all = binding.credits(header); all.ensureRange(0, 0); await settled(); all.ensureRange(40, 40); await settled();
-    assert.equal(all.getSnapshot().status === 'error', false); assert.equal(all.itemAt(40)?.media.title, 'Title 40');
-  } finally { binding.dispose(); }
-});
-
 test('step 7: a refused person credit cursor reads the person once in place of the shown page; a second refusal shows', async () => {
-  let reread = false;
-  const f = paged(() => Promise.reject(Object.assign(new Error('Expired'), {code: 'invalid_cursor'})), path => path.includes('limit=1') && reread ? {viewerFence: 'moved'} : {});
+  const f = paged(() => Promise.reject(Object.assign(new Error('Expired'), {code: 'cursor_expired'})));
   const binding = createPersonBindings(f.owner.context);
   try {
     await binding.select('rebecca'); const header = binding.getSnapshot().page!;
     const phases: string[] = []; const off = binding.subscribe(() => phases.push(binding.getSnapshot().phase));
     // The collection reads ahead to page 1 on its own, so the refusal (and the re-read) can come with the first range.
-    reread = true;
     const all = binding.credits(header); all.ensureRange(0, 0); await settled(); all.ensureRange(40, 40); await settled(); off();
     const now = binding.getSnapshot();
-    assert.notEqual(now.page, header); assert.equal(now.phase, 'ready'); assert.equal(now.page!.viewerFence, 'moved');
+    assert.notEqual(now.page, header); assert.equal(now.phase, 'ready'); assert.equal(now.page!.viewerFence, f.owner.context.scope.viewerId);
     assert.ok(!phases.includes('loading'), 'the shown page stays until the re-read answers');
     assert.equal(f.headers(), 2);
     // The screen takes the new page's collection; its refused cursor is shown, not read again.
@@ -149,34 +138,23 @@ test('step 7: a refused person credit cursor reads the person once in place of t
   } finally { binding.dispose(); }
 });
 
-test('step 7: a person credit page from another revision is refused and the person is not read again', async () => {
-  let f!: ReturnType<typeof paged>;
-  f = paged(() => f.later({revision: {catalog: 2, viewer: 1}}));
-  const binding = createPersonBindings(f.owner.context);
-  try {
-    await binding.select('rebecca'); const header = binding.getSnapshot().page!;
-    const all = binding.credits(header); all.ensureRange(0, 0); await settled(); all.ensureRange(40, 40); await settled();
-    assert.equal(all.itemAt(40), undefined); assert.equal(binding.getSnapshot().page, header); assert.equal(f.headers(), 1);
-  } finally { binding.dispose(); }
-});
-
 test('step 7: a later access change in the same visit reads the person again too, once a credit page has answered since the last re-read', async () => {
   // Three pages of credits; the continuation answers follow a script: refused, answered, refused, refused.
-  const many = Array.from({length: 120}, (_, index) => credit(`title-${index}`, 'movie', `Title ${index}`, [{role: 'Role', department: 'Acting'}], 'cast'));
+  const many = Array.from({length: 120}, (_, index) => wireCredit(credit(`title-${index}`, 'movie', `Title ${index}`, [{role: 'Role', department: 'Acting'}], 'cast')));
   const script = ['refuse', 'answer', 'refuse', 'refuse'], paths: string[] = [];
   let headers = 0;
   const owner = setup(async path => {
     paths.push(path);
     const query = new URL('https://unit.invalid' + path).searchParams, limit = Number(query.get('limit') ?? '40'), cursor = query.get('cursor');
-    const base = {...page(null, null, 0), groups: [{id: 'movie', kind: 'movie', total: 120}]};
+    const base = page(null, null, 0);
     if (!cursor) {
       if (limit === 1) headers++;
-      return {...base, viewerFence: `fence-${headers}`, credits: many.slice(0, limit), pageInfo: {total: 120, nextCursor: 'p40'}};
+      return {...base, items: many.slice(0, limit), total: 120, nextCursor: 'p40'};
     }
     if (script.shift() !== 'answer') throw Object.assign(new Error('Expired'), {code: 'invalid_cursor'});
     const start = Number(cursor.slice(1));
-    return {...base, credits: many.slice(start, start + 40), pageInfo: {total: 120, nextCursor: `p${start + 40}`}};
-  });
+    return {...base, items: many.slice(start, start + 40), total: 120, nextCursor: `p${start + 40}`};
+  }, 120);
   const binding = createPersonBindings(owner.context);
   const open = async (from: number) => {
     const all = binding.credits(binding.getSnapshot().page!);
@@ -190,7 +168,7 @@ test('step 7: a later access change in the same visit reads the person again too
     assert.notEqual(second, first); assert.equal(headers, 2);
     // Paging goes on: page 1 answers, then a second access change refuses page 2, and the person is read again.
     await open(80); const third = binding.getSnapshot().page!;
-    assert.notEqual(third, second); assert.equal(third.viewerFence, 'fence-3'); assert.equal(headers, 3);
+    assert.notEqual(third, second); assert.equal(third.viewerFence, owner.context.scope.viewerId); assert.equal(headers, 3);
     assert.equal(binding.getSnapshot().phase, 'ready');
     // A refusal straight after that re-read, with no page answered in between, shows.
     const last = await open(40);

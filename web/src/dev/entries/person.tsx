@@ -98,7 +98,6 @@ const fixtures: Readonly<Record<'desktop' | 'phone', Fixture>> = Object.freeze({
   desktop: Object.freeze({personId, person: rebecca, credits: rebeccaCredits, groups: rebeccaGroups}),
   phone: Object.freeze({personId: tomHanksId, person: tom, credits: tomCredits, groups: tomGroups}),
 });
-const metric = Object.freeze({catalog: 1, viewer: 1});
 
 function pageFor(fixture: Fixture, role: string | null, kind: string | null, limit: number) {
   const byRole = fixture.credits.filter(credit => {
@@ -107,8 +106,13 @@ function pageFor(fixture: Fixture, role: string | null, kind: string | null, lim
       : role === 'crew' ? roles.some(item => !/^(acting|cast)$/i.test(item.department)) : true;
   });
   const selected = byRole.filter(credit => kind === null || (credit.media as {kind?: string}).kind === kind);
-  return {serverId, viewerFence, revision: metric, person: fixture.person, groups: fixture.groups, credits: selected.slice(0, limit),
-    pageInfo: {total: selected.length, nextCursor: selected.length > limit ? 'specimen-next' : ''}};
+  return {items: selected.slice(0, limit).map(credit => {
+    const media = credit.media as Record<string, unknown>;
+    return {...media, images: {poster: media.posterUrl, backdrop: media.backdropUrl}, durationMs: Number(media.duration) * 1000,
+      state: {watched: media.watched, positionMs: Number(media.progressSeconds) * 1000},
+      credits: (credit.roles as readonly Role[]).map(role => ({personId: fixture.personId, name: fixture.person.name,
+        role: role.department === 'Production' ? 'producer' : 'actor', ...(role.department === 'Acting' ? {character: role.role} : {})}))};
+  }), total: selected.length, nextCursor: selected.length > limit ? 'specimen-next' : ''};
 }
 
 function activityDocument(now: string) {
@@ -129,9 +133,15 @@ export function createPersonSpecimen(kind: 'desktop' | 'phone' = 'desktop') {
     const url = new URL(path, 'http://specimen.invalid'), route = url.pathname;
     record('request', {path: route, method});
     if (method === 'GET' && route === `/v1/people/${fixture.personId}`) {
+      const titles = (department: string) => fixture.credits.filter(credit => (credit.roles as readonly Role[]).some(role => role.department === department)).length;
+      return {id: fixture.personId, name: fixture.person.name, biography: fixture.person.biography, birthDate: fixture.person.birthDate,
+        deathDate: fixture.person.deathDate, birthplace: fixture.person.birthPlace, images: {}, titleCount: fixture.credits.length, crewTitleCount: titles('Production'),
+        roles: [{role: 'actor', titleCount: titles('Acting')}, {role: 'producer', titleCount: titles('Production')}].filter(role => role.titleCount > 0)} as T;
+    }
+    if (method === 'GET' && route === '/v1/items' && url.searchParams.get('person') === fixture.personId) {
       const limit = Number(url.searchParams.get('limit') ?? '40');
       if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw Object.assign(new Error('Person page bound refused.'), {code: 'invalid_person', status: 400});
-      return pageFor(fixture, url.searchParams.get('role'), url.searchParams.get('kind'), limit) as T;
+      return pageFor(fixture, url.searchParams.get('creditGroup') === 'acting' ? 'cast' : url.searchParams.get('creditGroup'), url.searchParams.get('kind'), limit) as T;
     }
     throw Object.assign(new Error(`The person specimen has no answer for ${method} ${route}.`), {code: 'not_found', status: 404});
   };
