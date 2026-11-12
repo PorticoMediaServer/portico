@@ -85,7 +85,7 @@ export class NativeGenreBrowseDestination {
   /** The genre's titles across every library, from the shared list reader (`GET /v1/items?tag=&kind=movie,show`). */
   private pages(capabilities: BrowseCapabilities, predicates: readonly BrowseNode[], sort: BrowseSortSelection): FetchPage<ContentEntry> {
     const session = new BrowseSession<ContentEntry>({query: {libraryId: acrossLibraries, pivot: searchGenreBrowsePivot, capabilities, nodes: predicates, sorts: [sort]},
-      request: (path, method, body, signal) => this.request(path, method, body, signal), item: entry => entry,
+      request: this.request, item: entry => entry,
       current: () => this.current() && this.state.predicates === predicates && this.state.sort === sort,
       onRevision: revision => {if (this.state.predicates === predicates && this.state.sort === sort && this.state.revision !== revision) this.publish({revision});},
       onStale: error => {if (this.state.predicates === predicates) this.publish({phase: 'error', error});}});
