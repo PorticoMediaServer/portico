@@ -3,6 +3,7 @@ import {installationHeaders} from '../installation.ts';
 import {observeResponseClock} from '../server-clock.ts';
 import {browserCsrfCookieName, browserCsrfShape, exactBrowserCsrfCookie} from '../browser-csrf.ts';
 import {parseAccountSession} from '../hosted-security.ts';
+import {throwIfAborted} from '../abort-lifetime.ts';
 import {ApiError, retryAfterSecondsFromHeaders, transportJSON, type CredentialApi, type HostedSession} from '../index.ts';
 export type BrowserAuthority = {familyId:string};
 
@@ -79,7 +80,7 @@ export class BrowserAccountApi implements CredentialApi<BrowserAuthority> {
   private async csrfToken(discover:boolean,signal?:AbortSignal):Promise<string|undefined> {
     if(this.readableCookie){
       if(!this.csrfCookie&&discover)await this.learnCsrfCookie();
-      signal?.throwIfAborted();
+      throwIfAborted(signal);
       // Missing/malformed/duplicate expected cookies cannot borrow stored or foreign values.
       try{return this.csrfCookie?exactBrowserCsrfCookie(document.cookie,this.csrfCookie):undefined;}catch{return;}
     }
@@ -162,9 +163,9 @@ export class BrowserAccountApi implements CredentialApi<BrowserAuthority> {
     if(!path.startsWith(apiRoot))throw new Error('Invalid account request.');
     // Freeze command intent before metadata can yield to another UI action.
     const payload=body===undefined?undefined:transportJSON(body);
-    signal?.throwIfAborted();
+    throwIfAborted(signal);
     const csrf=method==='GET'?undefined:await this.csrfToken(requiresBrowserCsrf(path,method),signal);
-    signal?.throwIfAborted();
+    throwIfAborted(signal);
     const installation=issuesHostedCredentials(path,method)?hostedInstallationHeaders():{};
     const sentAt=Date.now();
     const response=await fetch(this.origin+path,{
