@@ -51,6 +51,23 @@ class PorticoSubtitleSelectionTimelineTest {
     assertEquals("", fixture.statuses.last())
   }
 
+  @Test fun webVttNeedsAHeaderIncludingForAnEmptyBody() {
+    val cue = "00:00:00.000 --> 00:02:00.000\nFrom the file\n"
+    assertEquals(1, PorticoSubtitleSelection.parseWebVtt("\uFEFFWEBVTT captions\n\n$cue").size)
+    for (body in listOf("", cue)) {
+      val fixture = Fixture()
+      fixture.accept("held")
+      fixture.loop.advanceTo(25_000)
+      fixture.http.calls.last().respond(200, body, "\"vtt\"", "text/vtt")
+      fixture.loop.runCurrent()
+      assertEquals("", fixture.display.text)
+      assertTrue(fixture.statuses.last().isNotEmpty())
+      fixture.owner.tick(POSITION_US)
+      assertEquals("", fixture.display.text)
+      fixture.owner.invalidate()
+    }
+  }
+
   @Test fun transportFailuresRetainCuesRetryAfterFiveSecondsAndNeverRenewTheGrant() {
     for (failure in listOf("io", "500", "503")) {
       val fixture = Fixture()

@@ -362,6 +362,8 @@ internal class PorticoSubtitleSelection(
     /** The cues of a WebVTT file, in order. Bounded like the server's cue document. */
     internal fun parseWebVtt(text: String): List<Cue> {
       val lines = text.replace("\r\n", "\n").replace('\r', '\n').split('\n')
+      val header = lines.firstOrNull()?.removePrefix("\uFEFF").orEmpty()
+      require(header == "WEBVTT" || header.startsWith("WEBVTT ") || header.startsWith("WEBVTT\t"))
       val out = ArrayList<Cue>()
       var textBytes = 0L
       var i = 0
