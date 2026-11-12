@@ -1325,7 +1325,8 @@ test('drawn list-field prompts use singular catalogue copy and retain real valid
 
 // The actual People panel, state presenter and native controls are materialised
 // through the same element/hook harness used by the other TV focus regressions.
-test('TV People retains its focused continuation host and renders the real scoped retry action', async () => {
+test('TV People keeps the accounts it drew when invitations fail, and the invitations\' own retry reads only them again', async () => {
+  // TV People reads the accounts and the waiting invitations, each in one read (no continuation to page on).
   const {TVPeoplePanel} = await import('../src-next/screens/settings-live/server/TVPeoplePanel.tsx');
   const {NativeScreenLifetime} = await import('../src-next/screens/settings-live/lifetime.ts');
   const {NativeScreenServices} = await import('../src-next/screens/screen-services.ts');
@@ -1334,42 +1335,37 @@ test('TV People retains its focused continuation host and renders the real scope
   const owner = {authority: () => authority, current: () => true, subscribeAuthority: () => () => {}, navigation: {open() {}}};
   const lifetime = new NativeScreenLifetime(owner), feedback = new NativeScreenServices(owner as any, async () => 'id');
   const account = {canManage: true, account: {role: 'admin', primaryProfileId: 'primary', disabled: false}};
-  const device = (id: string) => ({id, accountId: 'account', profileId: 'primary', username: 'a', name: id, platform: 'tv', app: '', appVersion: '', lastNetwork: '', liveState: 'idle', firstSeenAt: '2026-01-01T00:00:00Z', lastSeenAt: '2026-01-01T00:00:00Z', revision: 1});
-  let rejectPage!: (error: Error) => void, resolvePage!: (page: unknown) => void;
+  const member = {id: 'amy', username: 'amy', role: 'member', disabled: false, state: 'active', createdAt: '2026-11-01T00:00:00Z', allLibraries: true, libraries: [], twoFactorEnabled: false, profiles: ['Amy']};
+  let resolveInvitations!: (page: unknown) => void, failInvitations = true;
   const requests: string[] = [];
   const ports = {context: {account, api: {request: async (path: string) => {
     requests.push(path);
-    if (path.includes('/members')) return {items: [], limit: 50, nextCursor: ''};
-    if (path.includes('/invitations')) return {items: [], limit: 50, nextCursor: '', totalCount: 0, matchedCount: 0};
-    if (!path.includes('cursor=')) return {items: [device('first')], limit: 50, nextCursor: 'offered'};
-    return new Promise((resolve, reject) => {resolvePage = resolve; rejectPage = reject;});
+    if (path === '/v1/admin/members') return {items: [member]};
+    if (path === '/v1/admin/sessions') return {items: []};
+    if (path === '/v1/admin/invitations') {
+      if (failInvitations) {failInvitations = false; throw new Error('offline');}
+      return new Promise(resolve => {resolveInvitations = resolve;});
+    }
+    throw new Error(`unexpected ${path}`);
   }}}};
   const runtime = {text: {t: (id: string) => id, locale: 'en-US'}, error: feedback.error};
   const panel = await mount(TVPeoplePanel, {ports, runtime, lifetime});
-  const focus = () => ofType(panel.tree, Focusable).find(element => element.props.testID === 'tv-people-devices-more')!;
+  const shown = (focusId: string) => ofType(panel.tree, Focusable).some(element => element.props.focusId === focusId);
   try {
-    await act(() => {});
-    const before = focus(); assert.ok(before); assert.equal(before.props.disabled, false);
-    let nativeId: string | undefined;
-    await withNativeControl(before, host => {nativeId = host.props.testID; host.props.onFocus({nativeEvent: {}}); host.props.onPress();});
-    await act(() => {});
-    const pending = focus(); assert.ok(pending); assert.equal(pending.key, before.key); assert.equal(pending.props.disabled, true); assert.equal(pending.props.focusableWhenDisabled, true);
-    await withNativeControl(pending, host => {assert.equal(host.props.testID, nativeId); assert.notEqual(host.props.focusable, false); assert.equal(host.props.onPress, undefined);});
-    await act(() => rejectPage(new Error('offline')));
-    const failed = focus(); assert.ok(failed); assert.equal(failed.key, before.key); assert.equal(failed.props.disabled, false);
-    assert.ok(ofType(panel.tree, Focusable).find(element => element.props.focusId === 'tv-people:device:first'));
-    const error = ofType(panel.tree, StateView).find(element => element.props.testID === 'tv-people-devices-error')!;
-    assert.ok(error.props.primaryAction); const errorView = await mount(StateView, error.props);
+    await act(() => {}); await act(() => {});
+    assert.ok(shown('tv-people:account:amy'), 'the accounts are drawn');
+    const error = ofType(panel.tree, StateView).find(element => element.props.testID === 'tv-people-invitations-error')!;
+    assert.ok(error?.props.primaryAction, 'the failed group shows its own retry');
+    assert.equal(ofType(panel.tree, StateView).some(element => element.props.testID === 'tv-people-members-error'), false);
+    const errorView = await mount(StateView, error.props);
     try {
       const action = elements(errorView.tree).find(element => element.props.action?.id === 'retry')!;
-      assert.ok(action); await withNativeControl(action, host => {assert.ok(host.props.testID?.includes('tv-people-devices-error')); host.props.onPress();});
-      await act(() => {}); assert.equal(focus().props.disabled, true);
-      await act(() => resolvePage({items: [device('last')], limit: 50, nextCursor: ''}));
-      assert.ok(ofType(panel.tree, Focusable).find(element => element.props.focusId === 'tv-people:device:first'));
-      assert.ok(ofType(panel.tree, Focusable).find(element => element.props.focusId === 'tv-people:device:last'));
-      assert.deepEqual(requests.filter(path => path.includes('/devices')).map(path => new URLSearchParams(path.split('?')[1]).get('cursor')), [null, 'offered', 'offered']);
-      // A saved callback from the prior page cannot start a successor request.
-      before.props.onPress(); assert.equal(requests.filter(path => path.includes('/devices')).length, 3);
+      assert.ok(action); await withNativeControl(action, host => {assert.ok(host.props.testID?.includes('tv-people-invitations-error')); host.props.onPress();});
+      await act(() => {});
+      assert.ok(shown('tv-people:account:amy'), 'the accounts stay while invitations are read again');
+      await act(() => resolveInvitations({items: [{id: 'waiting', role: 'member', state: 'open', allLibraries: true, libraries: [], createdAt: '2026-11-01T00:00:00Z', expiresAt: '2027-01-01T00:00:00Z'}]}));
+      assert.ok(shown('tv-people:invitation:waiting'));
+      assert.deepEqual([requests.filter(path => path === '/v1/admin/members').length, requests.filter(path => path === '/v1/admin/invitations').length], [1, 2], 'Retry reads only the failed group');
     } finally {await errorView.host.unmount();}
   } finally {await panel.host.unmount(); feedback.dispose(); lifetime.dispose();}
 });

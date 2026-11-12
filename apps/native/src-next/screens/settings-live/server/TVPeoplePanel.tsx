@@ -68,13 +68,11 @@ export function TVPeoplePanel({ports, runtime, lifetime}: {ports: NativeSettings
 
   if (!publication || controller.current !== publication.pages || publication.ports !== ports || publication.lifetime !== lifetime) return <StateView title={t('status.loading')}/>;
   const {pages, state, generation} = publication;
-  const load = (section: keyof PeoplePages) => {if (controller.current === pages && renderScope.current.ports === ports && renderScope.current.lifetime === lifetime) void pages.load(section, state[section].cursor, generation);};
+  const load = (section: keyof PeoplePages) => {if (controller.current === pages && renderScope.current.ports === ports && renderScope.current.lifetime === lifetime) void pages.load(section, '', generation);};
   const sectionTail = (section: keyof PeoplePages, page: PeopleSection<unknown>) => <>
     {page.pending && <StateView title={t('status.loading')}/>}
     {page.error !== undefined && <StateView {...runtime.error(page.error, () => load(section))} testID={`tv-people-${section}-error`}/>}
-    {page.loaded && !!page.cursor && <Focusable key={`tv-people-${section}-more`} focusId={`tv-people-${section}-more`} testID={`tv-people-${section}-more`} disabled={page.pending} focusableWhenDisabled onPress={() => load(section)}><Text style={{color: theme.colors.text}}>{t(page.error !== undefined ? 'next.states.tryAgain' : 'next.settings.loadMore')}</Text></Focusable>}
   </>;
-  const tail = (section: keyof PeoplePages, index: number, length: number) => index >= length - 2 && state[section].error === undefined ? () => load(section) : undefined;
   return <View>
     {group('accounts', 'next.tvPeople.accounts', <>{state.members.items.length ? state.members.items.map((account, index) => {
       const name = account.username;
@@ -82,12 +80,12 @@ export function TVPeoplePanel({ports, runtime, lifetime}: {ports: NativeSettings
       const live = account.liveState === 'watching' || account.liveState === 'listening' ? t('next.shell.nowPlaying') : undefined;
       const last = when(account.lastActiveAt);
       const status = account.disabled ? t('next.tvPeople.turnedOff') : live ?? (last ? t('next.tvPeople.lastActive', {when: last}) : undefined);
-      return row(`account:${account.accountId}`, name, meta, status, tail('members', index, state.members.items.length));
+      return row(`account:${account.accountId}`, name, meta, status);
     }) : state.members.loaded && <StateView title={t('next.tvPeople.noAccounts')}/>} {sectionTail('members', state.members)}</>)}
     {group('invitations', 'next.tvPeople.invitations', <>{state.invitations.items.length ? state.invitations.items.map((invitation, index) => {
       const title = t(invitation.role === 'admin' ? 'next.tvPeople.invitationForAdmin' : 'next.tvPeople.invitationForMember');
       const expires = expiry(invitation.expiresAt);
-      return row(`invitation:${invitation.id}`, title, expires ? [expires] : [], t('next.tvPeople.notUsed'), tail('invitations', index, state.invitations.items.length));
+      return row(`invitation:${invitation.id}`, title, expires ? [expires] : [], t('next.tvPeople.notUsed'));
     }) : state.invitations.loaded && <StateView title={t('next.tvPeople.noInvitations')}/>} {sectionTail('invitations', state.invitations)}</>)}
   </View>;
 }
