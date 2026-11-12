@@ -17,6 +17,8 @@ import (
 
 // Topics of the events this package carries.
 const (
+	// TopicActivity: a stream or task in the owner's activity read changed; owner account only.
+	TopicActivity = "activity"
 	// TopicReceiver: a request to one of the account's devices was made or answered, or the
 	// account's devices open to playback changed. ID is the request, or empty.
 	TopicReceiver = "receiver"

@@ -47,6 +47,12 @@ func TestTheOwnersDevicesAreToldWhenActivityChanges(t *testing.T) {
 		what string
 		do   func()
 	}{
+		{"changing quality", func() {
+			if code := status(t, th.s, "PATCH", "/v1/playback/sessions/"+session.ID, owner,
+				PlaybackChange{Quality: &playback.Quality{Mode: "fixed", ID: "720p-high"}}); code != 200 {
+				t.Fatalf("quality change: %d", code)
+			}
+		}},
 		{"pausing", func() { th.report(owner, session.ID, playback.StatePaused, 30_000) }},
 		{"buffering", func() { th.report(owner, session.ID, playback.StateBuffering, 30_000) }},
 		{"becoming a problem", func() { th.clock.Add(ProblemAfter) }},

@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/livefeed"
 )
 
 // The owner's activity panel and Now playing read again when told something they show has
@@ -42,7 +44,7 @@ func (s *Server) watchActivity(ctx context.Context, last string) {
 		if err != nil {
 			continue // no owner yet (setup not done): nobody to tell
 		}
-		s.live.ToAccount(owner, "activity", "updated", "")
+		s.live.ToAccount(owner, livefeed.TopicActivity, livefeed.OpUpdated, "")
 	}
 }
 
@@ -54,11 +56,16 @@ func (s *Server) activityNow() string {
 	now := s.now()
 	for _, v := range s.playback.All() {
 		problem := !v.BufferingSince.IsZero() && now.Sub(v.BufferingSince) >= ProblemAfter
-		parts = append(parts, v.ID+" "+v.State+" "+strconv.FormatBool(!v.BufferingSince.IsZero())+" "+strconv.FormatBool(problem))
+		parts = append(parts, v.ID+" "+v.State+" "+v.Plan.Route+" "+strconv.Itoa(v.Plan.ConvertingToHeight)+" "+
+			strconv.FormatBool(!v.BufferingSince.IsZero())+" "+strconv.FormatBool(problem))
 	}
 	if s.viewings != nil {
 		for _, v := range s.viewings.All() {
-			parts = append(parts, v.ID+" "+strconv.FormatBool(v.Paused))
+			route := ""
+			if v.Play != nil {
+				route = v.Play.Route
+			}
+			parts = append(parts, v.ID+" "+route+" "+strconv.FormatBool(v.Paused))
 		}
 	}
 	slices.Sort(parts)
