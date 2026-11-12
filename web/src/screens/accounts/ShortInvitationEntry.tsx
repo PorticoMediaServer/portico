@@ -6,6 +6,7 @@ import {LocalInvitationForm, PorticoInvitation} from '../../kit/accounts/Invitat
 import {Button, TextField} from '../../kit/controls';
 import type {PorticoServerAccess} from '../../platform/portico-server-access';
 import {createBrowserAccountEntry, type BrowserAccountEntry} from '../../platform/account-entry';
+import {browserAccountOrigin} from '../../platform/account-origin';
 import styles from '../../kit/accounts/short-invitation-entry.module.css';
 import entryStyles from './short-invitation-entry.module.css';
 
@@ -81,8 +82,11 @@ function ShortInvitationOperation({entry, onBack, onJoined, account, signedOutCo
     if (state.invitation.signInMethod === 'local') return <LocalInvitationForm serverName={state.server.name} inviter={state.invitation.inviterUsername}
       libraries={state.invitation.libraries.map(library => library.name)} busy={state.busy} error={refusal ? undefined : state.error} errorContent={refusalNotice}
       onJoin={(username, password, name) => void entry.joinLocal(username, password, name)} onBack={returnBack} />;
+    // On the server's own page there is no Portico Account here: joining goes on at web.getportico.tv with this invitation.
+    const handoff = signedOutContent ?? <><Button variant="primary" onClick={() => {const next = entry.porticoHandoff(browserAccountOrigin(import.meta.env, location)); if (next) location.assign(next.url);}}>{t('accounts.signIn.handoff')}</Button>
+      {location.protocol === 'http:' && <p className={styles.lede}>{t('accounts.invitation.handoffPlainHttp', {server: state.server.name})}</p>}</>;
     return <PorticoInvitation serverName={state.server.name} libraries={state.invitation.libraries} member={state.invitation.role === 'member'}
-      account={account?.isCurrent() ? account : undefined} signedOutContent={signedOutContent} busy={state.busy} error={refusal ? undefined : state.error} errorContent={refusalNotice}
+      account={account?.isCurrent() ? account : undefined} signedOutContent={handoff} busy={state.busy} error={refusal ? undefined : state.error} errorContent={refusalNotice}
       onJoin={() => {if (account?.isCurrent()) void entry.joinPortico(account);}} onDifferentAccount={() => {if (state.busy) return;entry.cancel();onDifferentAccount?.();}} />;
   }
   const change = (apply: (value: string) => void) => (event: ChangeEvent<HTMLInputElement>) => {

@@ -15,6 +15,7 @@ import {porticoAccountHolder} from '../../platform/portico-account-holder';
 import {browserConnectionEnvironment} from '../../platform/server-connections';
 import {distributionPage} from '../../services/distribution';
 import {ShortInvitationEntry} from './ShortInvitationEntry';
+import {carryInvitation} from '../../platform/invitation-carry';
 
 const t = defaultI18n.t;
 /** What the chooser at web.getportico.tv opens besides the list: `/servers#join`, `#setup` and
@@ -22,6 +23,16 @@ const t = defaultI18n.t;
 export type ChooserIntent = 'join' | 'setup' | 'local';
 export function chooserIntent(hash: string): ChooserIntent | undefined {
   return hash === '#join' ? 'join' : hash === '#setup' ? 'setup' : hash === '#local' ? 'local' : undefined;
+}
+
+/** A server's own page hands joining on to web.getportico.tv with `#invitation=<code>&address=<its
+ * HTTPS address>` (`portico-handoff.ts`). The fragment is taken out of the address bar at once, and
+ * the invitation is carried through the account's sign-in as a shared link's is. */
+export function keepHandoffInvitation(): void {
+  if (!location.hash.startsWith('#invitation=')) return;
+  const values = new URLSearchParams(location.hash.slice(1)), code = values.get('invitation') ?? '', address = values.get('address') ?? '';
+  history.replaceState(history.state, '', location.pathname + location.search);
+  if (parseShortInvitationCode(code)) carryInvitation(code, address);
 }
 
 /** The drawn start (connect 26/31), for an account with no servers yet and for Set up: join with

@@ -45,12 +45,12 @@ export function LocalServerSignIn({serverName, initialUsername = '', remembered 
 }
 /** `moveDays`: whole days left to use the old sign-in during a move to Portico Accounts (0 is
  * today). Absent means no move is on, and nothing about the old sign-in is shown. */
-export function PorticoServerSignIn({serverName, busy, error, moveDays, onContinue, onRecovery, onOldPassword}: {
-  serverName: string; busy?: boolean; error?: unknown; moveDays?: number; onContinue: () => void; onRecovery?: () => void; onOldPassword?: () => void;
+export function PorticoServerSignIn({serverName, busy, error, moveDays, plainHttp = false, onContinue, onRecovery, onOldPassword}: {
+  serverName: string; busy?: boolean; error?: unknown; moveDays?: number; plainHttp?: boolean; onContinue: () => void; onRecovery?: () => void; onOldPassword?: () => void;
 }) {
   const moving = moveDays !== undefined;
   return <AuthStage phoneShape="top"><p className={styles.eyebrow}>{t('accounts.signIn.to')}</p><h1>{serverName}</h1>
-    <p className={styles.lede}>{t('accounts.signIn.handoffBody')}</p><AuthError error={error} />
+    <p className={styles.lede}>{t('accounts.signIn.handoffBody', {server: serverName})}</p>{plainHttp && <p className={styles.lede}>{t('accounts.signIn.handoffPlainHttp', {server: serverName})}</p>}<AuthError error={error} />
     <Button className={styles.handoffSubmit} variant="primary" loading={busy} onClick={onContinue}>{t('accounts.signIn.handoff')}</Button>
     {moving && <p className={styles.lede}>{t('accounts.move.toPortico', {server: serverName})}</p>}
     <AuthLinks><button type="button" data-quiet disabled={!onRecovery || busy} onClick={onRecovery}>{t('accounts.signIn.cannotUsePortico')}</button>

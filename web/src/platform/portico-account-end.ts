@@ -2,6 +2,7 @@ import type {PorticoAccountScope} from '@core/app-sessions.ts';
 import {browserAppSessionActions} from './app-sessions';
 import {porticoAccountHolder} from './portico-account-holder';
 import {browserAppSessions, restoreBrowserConnection} from './server-connections';
+import {forgetCarriedInvitation} from './invitation-carry';
 
 /** The servers this browser opened with its Portico Account last only as long as that sign-in.
  * However it ends (Sign out here or on the account pages, "Not you?", this device signed out in
@@ -21,7 +22,7 @@ let settled: Promise<void> = Promise.resolve();
 let signIns = porticoAccountHolder.signIns();
 function check() {
   settled = settled.then(async () => {
-    if (!porticoAccountHolder.signedIn()) {await endServers(); return;}
+    if (!porticoAccountHolder.signedIn()) {forgetCarriedInvitation(); await endServers(); return;}
     if (porticoAccountHolder.signIns() === signIns) return;
     signIns = porticoAccountHolder.signIns();
     const who = await porticoAccountHolder.who().catch(() => undefined);

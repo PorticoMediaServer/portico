@@ -18,7 +18,8 @@ export function BootstrapContent({children}: {children: ReactNode}) {
   const state = useContext(Context);
   const path = useRouterState({select: state => state.location.pathname});
   const needsSignIn = state?.snapshot.phase === 'signed-out' && !state.snapshot.entry
-    && !['/setup', '/sign-in', '/profiles', '/servers', '/account'].includes(path) && !path.startsWith('/dev/');
+    // A link to a server this account can't open says so (O-161) with no server selected; it needs none.
+    && !['/setup', '/sign-in', '/profiles', '/servers', '/account', '/link-unavailable'].includes(path) && !path.startsWith('/dev/');
   const needsProfile = state?.snapshot.phase === 'choose-profile' && path !== '/profiles';
   const focus = state?.snapshot.focus;
   useEffect(() => {
