@@ -86,6 +86,7 @@ export type ItemListQuery = Readonly<{
   library?: string; parent?: string; person?: string; artist?: string; tag?: string; kind?: string;
   genre?: string; year?: string; resolution?: string; watched?: boolean; favorite?: boolean; inList?: boolean;
   sort?: string; order?: 'asc' | 'desc';
+  author?: string; series?: string;
 }>;
 export type ItemsPage = Readonly<{items: readonly Item[]; nextCursor?: string; total?: number}>;
 
