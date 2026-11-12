@@ -131,7 +131,7 @@ export function NativePlayOnSheets({controller, artwork, ambient, airPlayVideo, 
     </View>}
     {castState?.phase === 'error' && <Text style={[theme.type.body, {color: theme.colors.textSecondary, paddingVertical: 12}]}>{castState.error ?? t('cast.error.unreachable')}</Text>}
     <Text testID="play-on-network" accessibilityRole="header" style={[nativeType({size: 13, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale),
-      {color: theme.colors.textTertiary, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6}]}>{t('playOn.onThisNetwork')}</Text>
+      {color: theme.colors.textTertiary, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6}]}>{t('playOn.yourDevices')}</Text>
     {state.directoryPhase === 'loading' && !state.receivers.length && <Text style={[theme.type.body, {color: theme.colors.textTertiary, paddingVertical: 14}]}>{t('playOn.looking')}</Text>}
     {state.directoryPhase === 'error' && <Text style={[theme.type.body, {color: theme.colors.textSecondary, paddingVertical: 14}]}>{state.directoryError || t('playOn.devicesUnavailable')}</Text>}
     {state.receivers.map(receiver => <Focusable key={receiver.id} focusId={`play-on-${receiver.id}`} testID={`play-on-${receiver.id}`} focusKind="row" accessibilityRole="button"
