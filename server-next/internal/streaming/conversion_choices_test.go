@@ -1,6 +1,7 @@
 package streaming
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,10 +21,10 @@ type conversionChoice struct {
 	err                          error
 }
 
-// conversionChoices plans every declared device for seven sources, at Original and at a
+// conversionChoices plans each of these devices for eight sources, at Original and at a
 // 720p limit, on four kinds of server: no chip; a chip that encodes H.264; one that also
 // encodes HEVC 10-bit; one that also encodes AV1 10-bit.
-func conversionChoices(t *testing.T) []conversionChoice {
+func conversionChoices(t *testing.T, devices map[string]CapabilityDocument) []conversionChoice {
 	t.Helper()
 	facts := &decoder.ToolchainFacts{Identity: "unit-selected-device",
 		Encoders: map[string]bool{"libx264": true, "libx265": true, "libaom-av1": true, "aac": true, "ac3": true, "eac3": true, "flac": true, "libopus": true},
@@ -59,8 +60,10 @@ func conversionChoices(t *testing.T) []conversionChoice {
 	vp9 := mediafacts.StreamDetail{Profile: "Profile 2", Width: 3840, Height: 2160, FrameRate: 24, BitDepth: 10, DynamicRange: mediafacts.RangeHDR10}
 	av1 := vp9
 	av1.Profile = "Main"
+	uhd8 := mediafacts.StreamDetail{Profile: "Advanced", Width: 3840, Height: 2160, FrameRate: 24, BitDepth: 8, DynamicRange: mediafacts.RangeSDR}
 	sources := map[string]*DeliverySource{
 		"vc1-8bit-sdr-1080":        videoSource("mkv", "vc1", hd, aac),
+		"vc1-8bit-sdr-2160":        videoSource("mkv", "vc1", uhd8, aac),
 		"h264-hi10-10bit-sdr-1080": videoSource("mkv", "h264", hi10, aac),
 		"hevc-10bit-sdr-2160":      videoSource("mkv", "hevc", uhd, aac),
 		"hevc-hdr10-2160":          videoSource("mkv", "hevc", hdr10, aac),
@@ -75,7 +78,7 @@ func conversionChoices(t *testing.T) []conversionChoice {
 	chips := map[string][]string{"no-chip": nil, "chip-h264": {"h264:8"}, "chip-h264-hevc10": {"h264:8", "hevc:8", "hevc:10"},
 		"chip-h264-hevc10-av1": {"h264:8", "hevc:8", "hevc:10", "av1:8", "av1:10"}}
 	var out []conversionChoice
-	for name, doc := range plannerDocuments(t) {
+	for name, doc := range devices {
 		for sourceName, source := range sources {
 			for targetName, target := range targets {
 				for chipName, encodes := range chips {
@@ -101,7 +104,7 @@ func conversionChoices(t *testing.T) []conversionChoice {
 // after a change that is meant.
 func TestConversionChoicesForEveryDevice(t *testing.T) {
 	var lines []string
-	for _, c := range conversionChoices(t) {
+	for _, c := range conversionChoices(t, plannerDocuments(t)) {
 		got := ""
 		if c.err != nil {
 			got = "refused: " + c.err.Error()
@@ -149,6 +152,24 @@ func TestConversionChoicesForEveryDevice(t *testing.T) {
 	}
 }
 
+// everyDeclaredDevice is the planner's documents and every profile file, each with its own
+// player and with mpv where it carries one.
+func everyDeclaredDevice(t *testing.T) map[string]CapabilityDocument {
+	devices := plannerDocuments(t)
+	for _, name := range profileNames(t) {
+		var d CapabilityDocument
+		if err := json.Unmarshal(profileDocument(t, name), &d); err != nil {
+			t.Fatal(err)
+		}
+		devices["profile "+name] = d
+		if d.Engines.MPV != nil {
+			d.EngineSetting = EngineSettingMPV
+			devices["profile "+name+" (mpv)"] = d
+		}
+	}
+	return devices
+}
+
 // A chip never lowers a conversion: for every declared device, source and target, each kind
 // of chip gives the bit depth, range and size that no chip gives. The codec is the same, or
 // the chip's own where it makes the picture, since that changes nothing else about it.
@@ -168,7 +189,7 @@ func TestAChipNeverLowersTheConversion(t *testing.T) {
 		}
 		return fmt.Sprintf("%s %d %s %s", p.Mode, p.OutputBitDepth, p.Trace.Video.OutputRange, size)
 	}
-	choices := conversionChoices(t)
+	choices := conversionChoices(t, everyDeclaredDevice(t))
 	without := map[string]conversionChoice{}
 	for _, c := range choices {
 		if c.chip == "no-chip" {
