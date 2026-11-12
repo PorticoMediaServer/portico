@@ -213,7 +213,7 @@ func (s *Server) liveChannels(r *http.Request, _ None) (LiveChannelPage, error) 
 		return LiveChannelPage{}, err
 	}
 	if r.URL.Query().Get("cursor") == "" {
-		if out.Sources, out.Groups, err = s.liveFilterChoices(r.Context(), lv); err != nil {
+		if out.Sources, err = s.liveFilterSources(r.Context(), viewer(r), lv, q.WithHidden); err != nil {
 			return LiveChannelPage{}, err
 		}
 	}

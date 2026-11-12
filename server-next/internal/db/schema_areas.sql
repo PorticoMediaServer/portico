@@ -317,6 +317,9 @@ CREATE INDEX channels_by_name ON channels (state, sort_name, id);
 CREATE INDEX channels_of_source ON channels (source_id, state, number, id) WHERE source_id IS NOT NULL;
 CREATE INDEX channels_of_group ON channels (group_name, state, number, id) WHERE group_name IS NOT NULL;
 CREATE INDEX channels_guide ON channels (guide_source_id, guide_key) WHERE guide_source_id IS NOT NULL;
+-- The guide's filter menu counts each source's channels in use by group from this alone.
+CREATE INDEX channels_in_use_by_group ON channels (source_id, group_name, guide_source_id)
+  WHERE kind = 1 AND state = 1 AND missing_since_at IS NULL;
 
 -- large. A profile's own favourite channels and the channels it hid for itself. A row exists
 -- only for a channel the profile marked.
