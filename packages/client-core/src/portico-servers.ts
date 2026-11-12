@@ -146,9 +146,9 @@ function wellFormed(value: string): boolean {
  }
  return true;
 }
-/** Change owner on a local server (area 2 rules 32 and 33): `POST /v1/admin/owner` with the owner's password and the
- * account that becomes the owner. The previous owner becomes an administrator, as the definition has it unless they
- * choose otherwise.
+/** Change owner on a local server (area 2 rules 32 and 33): `POST /v1/admin/owner` with the owner's password, the
+ * account that becomes the owner, and what the previous owner becomes: an administrator unless they choose to be a
+ * member or to leave the server.
  * This helper never signs in, retiers, signs anyone out or falls back to a Hosted assertion. */
 export const localOwnerChangePath = serverPath('POST /v1/admin/owner');
 /** A transport that sends only Change owner. The screen's transport for it may finish after Settings has closed, so its
@@ -159,19 +159,34 @@ export function localOwnerChangeOnly(api:ProfileAPI):ProfileAPI{
   return api.request<T>(path,method,body,signal);
  }});
 }
-export async function transferLocalOwnership(server:ProfileAPI,accountId:string,currentPassword:string,expectedRevision:number,signal?:AbortSignal):Promise<void>{
+/** What the previous owner becomes (area 2 rule 33): an administrator unless they choose to be a member or to leave the
+ * server, which deletes their account and its profiles. */
+export type PreviousOwner = 'admin' | 'member' | 'removed';
+const previousOwners: readonly PreviousOwner[] = ['admin', 'member', 'removed'];
+/** What the owner chooses besides the new owner: what they become, and their two-step code when their account uses
+ * one (the server refuses the password alone for such an account). */
+export type OwnerChangeChoice = Readonly<{previousOwner: PreviousOwner; code?: string}>;
+function choiceOf(choice: OwnerChangeChoice): Readonly<{previousOwner: PreviousOwner; code?: string}> {
+ if(!previousOwners.includes(choice?.previousOwner))throw new Error('Choose what the previous owner becomes.');
+ const code=choice.code?.trim();
+ if(code!==undefined&&code!==''&&(code.length>64||!wellFormed(code)))throw new Error('The two-step code is invalid.');
+ return {previousOwner:choice.previousOwner,...(code?{code}:{})};
+}
+export async function transferLocalOwnership(server:ProfileAPI,accountId:string,currentPassword:string,expectedRevision:number,choice:OwnerChangeChoice,signal?:AbortSignal):Promise<void>{
+ const chosen=choiceOf(choice);
  if(!publicId(accountId))throw new Error('The target account is invalid.');
  if(typeof expectedRevision!=='number'||!Number.isSafeInteger(expectedRevision)||expectedRevision<1)throw new Error('The owner revision is invalid.');
  if(typeof currentPassword!=='string'||currentPassword.length===0||!wellFormed(currentPassword)||new TextEncoder().encode(currentPassword).length>72)throw new Error('The current password is invalid.');
  if(signal?.aborted)throw Object.assign(new Error('The ownership transfer was cancelled.'),{name:'AbortError'});
- const body:OwnerChangeRequest={password:currentPassword,accountId,previousOwner:'admin'};
+ const body:OwnerChangeRequest={password:currentPassword,accountId,...chosen};
  await server.request<unknown>(localOwnerChangePath,'POST',body,signal);
 }
 
 /** Root68: a new local account is created in the SAME accepting owner transfer.
  * Never issue an ordinary member-create followed by a second mutation. */
 export type LocalOwnerCreate = Readonly<{username:string;name:string;password:string}>;
-export async function transferLocalOwnershipToNewAccount(server:ProfileAPI,newAccount:LocalOwnerCreate,currentPassword:string,expectedRevision:number,signal?:AbortSignal):Promise<void>{
+export async function transferLocalOwnershipToNewAccount(server:ProfileAPI,newAccount:LocalOwnerCreate,currentPassword:string,expectedRevision:number,choice:OwnerChangeChoice,signal?:AbortSignal):Promise<void>{
+ const chosen=choiceOf(choice);
  const username=newAccount?.username, name=newAccount?.name, password=newAccount?.password;
  if(typeof username!=='string'||!wellFormed(username)||new TextEncoder().encode(username.trim()).length<3||new TextEncoder().encode(username.trim()).length>64||/[ \t\r\n@]/.test(username.trim()))throw new Error('The new local username is invalid.');
  if(typeof name!=='string'||!wellFormed(name)||!name.trim()||new TextEncoder().encode(name.trim()).length>120||/[\x00-\x1f\x7f]/.test(name.trim()))throw new Error('The new local display name is invalid.');
@@ -179,7 +194,7 @@ export async function transferLocalOwnershipToNewAccount(server:ProfileAPI,newAc
  if(typeof expectedRevision!=='number'||!Number.isSafeInteger(expectedRevision)||expectedRevision<1)throw new Error('The owner revision is invalid.');
  if(typeof currentPassword!=='string'||!wellFormed(currentPassword)||!currentPassword||new TextEncoder().encode(currentPassword).length>72)throw new Error('The current password is invalid.');
  if(signal?.aborted)throw Object.assign(new Error('The ownership transfer was cancelled.'),{name:'AbortError'});
- const body:OwnerChangeRequest={password:currentPassword,newAccount:{username:username.trim(),password,profileName:name.trim()},previousOwner:'admin'};
+ const body:OwnerChangeRequest={password:currentPassword,newAccount:{username:username.trim(),password,profileName:name.trim()},...chosen};
  await server.request<unknown>(localOwnerChangePath,'POST',body,signal);
 }
 

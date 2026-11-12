@@ -1,11 +1,13 @@
 import type {ProfileAPI} from '@core/profile-management.ts';
 import {SettingsPeopleClient} from '@core/settings-people.ts';
-import {localOwnerChangeOnly, transferLocalOwnership, transferLocalOwnershipToNewAccount, type LocalOwnerCreate} from '@core/portico-servers.ts';
+import {localOwnerChangeOnly, transferLocalOwnership, transferLocalOwnershipToNewAccount, type LocalOwnerCreate, type PreviousOwner} from '@core/portico-servers.ts';
 
-export type LocalOwnerCandidate = Readonly<{accountId: string; username: string}>;
+export type LocalOwnerCandidate = Readonly<{accountId: string; username: string; role?: 'admin' | 'member'}>;
 export type LocalOwnerTransferCaller = Readonly<{isCurrent: () => boolean; signal: AbortSignal}>;
-export type LocalOwnerTransferOpening = Readonly<{members: readonly LocalOwnerCandidate[]; ownerRevision: number}>;
-export type LocalOwnerTransferInput = Readonly<{currentPassword: string; expectedRevision: number}> & (Readonly<{accountId: string; newAccount?: never}> | Readonly<{accountId?: never; newAccount: LocalOwnerCreate}>);
+/** `members`: the accounts that may become the owner, members and administrators (area 2 rule 32). `twoStep`: the owner's
+ * account signs in with a two-step code, which Change owner then asks for too. */
+export type LocalOwnerTransferOpening = Readonly<{members: readonly LocalOwnerCandidate[]; ownerRevision: number; twoStep: boolean}>;
+export type LocalOwnerTransferInput = Readonly<{currentPassword: string; expectedRevision: number; previousOwner: PreviousOwner; code?: string}> & (Readonly<{accountId: string; newAccount?: never}> | Readonly<{accountId?: never; newAccount: LocalOwnerCreate}>);
 export type LocalOwnerTransferPort = Readonly<{
   opening: LocalOwnerTransferOpening;
   accept: (input: LocalOwnerTransferInput, caller: LocalOwnerTransferCaller) => Promise<void>;
@@ -78,23 +80,25 @@ export class LocalOwnerTransferSource {
       this.assert(entry);
       const [owner, page] = await Promise.all([
         this.people.person(this.accountId, signal),
-        this.people.read({search: '', role: 'member', status: 'active', sort: 'person', direction: 'asc'}, '', signal),
+        this.people.read({search: '', role: 'all', status: 'active', sort: 'person', direction: 'asc'}, '', signal),
       ]);
       this.assert(entry);
       // Settings opens this only from the owner's own main profile; the rebuilt server's member answer does not name it.
       if (owner.accountId !== this.accountId || owner.role !== 'owner' || owner.disabled || owner.hostedAccountId) throw changed();
-      const members = Object.freeze(page.items.filter(row => row.role === 'member' && !row.disabled && row.accountId !== this.accountId)
-        .map(row => Object.freeze({accountId: row.accountId, username: row.username})));
-      if (!members.length && page.matchedCount > 0) throw changed();
+      // Any existing account may become the owner (area 2 rule 32): a member or an administrator.
+      const members = Object.freeze(page.items.filter(row => (row.role === 'member' || row.role === 'admin') && !row.disabled && row.accountId !== this.accountId)
+        .map(row => Object.freeze({accountId: row.accountId, username: row.username, role: row.role as 'admin' | 'member'})));
+      // The owner is one of the active accounts read; any other there must have become a choice.
+      if (!members.length && page.matchedCount > 1) throw changed();
       const revisions = new Map(page.items.map(row => [row.accountId, row.revision]));
-      const opening = Object.freeze({members, ownerRevision: owner.revision});
+      const opening = Object.freeze({members, ownerRevision: owner.revision, twoStep: owner.twoStep === true});
       const port: LocalOwnerTransferPort = Object.freeze({opening, close: () => this.retire(entry),
         accept: async (input, commandCaller) => {
           this.assert(entry);
           if (entry.port !== port || entry.busy || this.running || !activeCaller(commandCaller) || input.expectedRevision !== opening.ownerRevision ||
             (input.newAccount ? input.accountId !== undefined : !members.some(row => row.accountId === input.accountId))) throw ended();
           // Capture request-local scalars and the exact caller before the first await.
-          const target = input.accountId, password = input.currentPassword, revision = opening.ownerRevision;
+          const target = input.accountId, password = input.currentPassword, revision = opening.ownerRevision, previousOwner = input.previousOwner, code = input.code;
           const newAccount = input.newAccount ? Object.freeze({username: input.newAccount.username, name: input.newAccount.name, password: input.newAccount.password}) : undefined;
           const command = Object.freeze({...commandCaller});
           const commandSignal = AbortSignal.any([signal, command.signal]);
@@ -103,14 +107,14 @@ export class LocalOwnerTransferSource {
           try {
             assert();
             if (newAccount) {
-              await transferLocalOwnershipToNewAccount(this.transferApi, newAccount, password, revision, commandSignal);
+              await transferLocalOwnershipToNewAccount(this.transferApi, newAccount, password, revision, {previousOwner, ...(code ? {code} : {})}, commandSignal);
             } else {
               if (!target) throw ended();
               const person = await this.people.person(target, commandSignal);
               assert();
-              if (person.accountId !== target || person.role !== 'member' || person.disabled || person.hostedAccountId ||
+              if (person.accountId !== target || person.role !== 'member' && person.role !== 'admin' || person.disabled || person.hostedAccountId ||
                 person.revision !== revisions.get(target)) throw changed();
-              await transferLocalOwnership(this.transferApi, target, password, revision, commandSignal);
+              await transferLocalOwnership(this.transferApi, target, password, revision, {previousOwner, ...(code ? {code} : {})}, commandSignal);
             }
             // The response is a known accepting acknowledgement. View retirement
             // can suppress publication, but cannot make this source reusable.

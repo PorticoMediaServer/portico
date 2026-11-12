@@ -5,7 +5,7 @@ import styles from './local-change-owner.module.css';
 const t = defaultI18n.t;
 
 export type LocalOwnerChoiceMode = 'existing' | 'new';
-export type LocalOwnerChoiceMember = Readonly<{accountId: string; username: string}>;
+export type LocalOwnerChoiceMember = Readonly<{accountId: string; username: string; role?: 'admin' | 'member'}>;
 
 /**
  * Root63/68: the local Change owner choice as fields only, for the guard writer
@@ -34,7 +34,7 @@ export function LocalOwnerChoiceFields({mode, members, accountId, username, name
       onValueChange={value => onModeChange(value === 'new' ? 'new' : 'existing')} />
     {mode === 'existing' ? <>
       <RichSelect label={t('accounts.settings.changeOwnerLocalExisting')} value={accountId} disabled={disabled || !members.length}
-        options={members.map(member => ({value: member.accountId, label: member.username}))} onValueChange={onAccountIdChange} />
+        options={members.map(member => ({value: member.accountId, label: member.role === 'admin' ? `${member.username} · ${t('web.access.roleAdmin')}` : member.username}))} onValueChange={onAccountIdChange} />
       {!members.length && <p className={styles.empty}>{t('accounts.settings.changeOwnerLocalEmptyCreate')}</p>}
     </> : <>
       <TextField label={t('accounts.settings.changeOwnerLocalUsername')} name="username" autoComplete="username" autoCapitalize="off" spellCheck={false}
