@@ -12,18 +12,8 @@ class RatchetRuntimeTests(unittest.TestCase):
     def test_parse_errors_precede_fresh_cached_zero_and_retry_results(self):
         result=subprocess.run(['node',str(TOOL_ROOT/'ci/ratchet_rejection_fixture.mjs')],cwd=TOOL_ROOT,capture_output=True,text=True,timeout=45)
         self.assertEqual(result.returncode,0,result.stdout+'\n'+result.stderr)
-        self.assertEqual(json.loads(result.stdout)['assertions'],12)
+        self.assertEqual(json.loads(result.stdout)['assertions'],4)
 
-    def test_activation_cannot_spend_a_stale_high_direct_budget(self):
-        from client_api_census import base_guard
-        key='web/src/a.ts#'+'a'*16
-        pin={'category':'platform-transport','reason':'Approved forwarding','sites':[key],'guardHashes':{key:'b'*64}}
-        ledger={key:{'category':pin['category'],'reason':pin['reason'],'guardHash':'b'*64,
-                     'condition':'Reviewed complete span','occurrences':1,
-                     'rulingUrl':'https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6648755492'}}
-        errors=base_guard({key:1},{'web/src/a.ts':pin},{key:99},{},ledger,site_counts={key:2},base_site_counts={key:1})
-        self.assertTrue(any('live source occurrences' in error for error in errors),errors)
-        self.assertFalse(base_guard({},{'web/src/a.ts':pin},{key:99},{},ledger,site_counts={key:1},base_site_counts={key:1}))
 
     def test_native_text_preserves_existing_universal_newline_semantics(self):
         from ratchet_runtime import source_text

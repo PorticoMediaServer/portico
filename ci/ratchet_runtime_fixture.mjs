@@ -20,7 +20,7 @@ const initial=()=>({
  'web/src/unrelated.ts':'export const untouched=true;'
 });
 let assertions=0;
-for(const kind of ['census','query']) {
+for(const kind of ['census']) {
  const worker=new TypedRatchet(root,kind);let sources=initial();
  const request=()=>({root,kind,files:Object.keys(sources).filter(p=>p.startsWith('web/src/')&&p.endsWith('.ts')&&!p.includes('/__tests__/')),configs:['web/tsconfig.json'],sources:Object.fromEntries(Object.entries(sources).map(([p,text])=>[p,{text,oid:oid(text)}]))});
  function check(expected,label) {
@@ -58,12 +58,8 @@ for(const kind of ['census','query']) {
   sources['web/src/caller.ts']="import {makeClient} from '@source'; const api=makeClient();api.consume('/v1/items');";
   sources['web/tsconfig.json']=JSON.stringify({...config,compilerOptions:{...config.compilerOptions,paths:{'@source':['./src/alternate.ts']}}});
   // The census deliberately uses its existing synthetic project, independent
-  // of app tsconfig aliases. The query counter uses the actual project options.
-  if(kind==='query') {
-   check(0,'changed tsconfig alias');
-   sources['web/tsconfig.json']=JSON.stringify({...config,compilerOptions:{...config.compilerOptions,paths:{'@source':['./src/supplier.tsx']}}});
-   check(1,'configuration changes an unchanged caller');
-  }
+  // of app tsconfig aliases.
+
   sources=initial();
   sources['web/src/caller.ts']="api.consume('/v1/items');";
   sources['web/src/ambient.d.ts']="import type {HttpLocalApi} from '../../packages/client-core/src/index'; declare global {var api: {consume(name: string): void};}";

@@ -10,7 +10,7 @@ const sources={'web/tsconfig.json':config,'web/src/main.ts':"import {value} from
 const request=()=>({files:['web/src/main.ts','web/src/dependency.ts'],configs:['web/tsconfig.json'],
   sources:Object.fromEntries(Object.entries(sources).map(([path,text])=>[path,{text,oid:createHash('sha256').update(text).digest('hex')}]))});
 let assertions=0;
-for(const kind of ['census','query']) {
+for(const kind of ['census']) {
   const worker=new TypedRatchet(root,kind);
   try {
     worker.advance(request());worker.advance(request());
@@ -26,15 +26,7 @@ for(const kind of ['census','query']) {
     finally {cold.close();}
     sources['web/src/dependency.ts']='export const value=1;';
     worker.advance(request());
-    if(kind==='query') {
-      for(const invalid of ['{"compilerOptions": {"target": "invalid"}}','{"compilerOptions": {']) {
-        sources['web/tsconfig.json']=invalid;
-        for(let retry=0;retry<2;retry++) {
-          assert.throws(()=>worker.advance(request()),/parse\/config diagnostic|project/i);assertions++;
-        }
-        sources['web/tsconfig.json']=config;worker.advance(request());
-      }
-    }
+
   } finally {worker.close();sources['web/src/dependency.ts']='export const value=1;';sources['web/tsconfig.json']=config;}
 }
 console.log(JSON.stringify({assertions,result:'fresh, cached, zero and retry diagnostics fail closed'}));

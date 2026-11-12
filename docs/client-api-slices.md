@@ -4,7 +4,7 @@ Product source: `7ca1f0cef7e49b2ba1e10561c60d04670a2b3b36` (unchanged by the cen
 
 The census merges before slices. Each slice moves reads and writes across every app surface with unchanged DTO/auth/retry/recovery/cache/freshness behavior; no visual or interaction change. Desktop inherits web; Vega inherits native. Direct account, quick-connect and invitations belong to slice 1; events/native playback to CC-3; saved/personal/downloads/search history to CC-2. CC-0 moves revision-required-fetch.
 
-Reproduce current exact identities, full expressions, source hashes, operation IDs and file:line with `python3 ci/client_api_census.py --report <json>`. Lines below refer to the product snapshot. The checked-in allowlist and approvals ledger, rather than this planning snapshot, own exceptions. Guards include the approved raw/alias/three-argument/chapter-equality shapes; all bind the complete reviewed function/method span. The chapter comparison URL never issues a request.
+This is a historical migration inventory. Current calls are counted by `python3 ci/client_api_census.py --base origin/main`; no exceptions, source hashes or approval ledger are required.
 
 ## slice 1: Connection/auth/setup (121 sites)
 
