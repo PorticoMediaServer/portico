@@ -190,6 +190,11 @@ export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false, f
      * minutes); `note` is the server's news when it is behind, for the app to carry there. */
     serverIdentity: (server: string, challenge: string, signal?: AbortSignal) =>
       person<{identity: unknown; note?: unknown}>('serverIdentity', {id: server}, {challenge}, {signal}),
+    /** The same note for signing in at the server's own HTTPS page (option 2): Services makes it only
+     * for one of that server's registered addresses (`returnTo`, else `return_address_unknown`), and
+     * names it in the note, so the server takes it only from that page. */
+    serverReturnIdentity: (server: string, challenge: string, returnTo: string, signal?: AbortSignal) =>
+      person<{identity: unknown}>('serverIdentity', {id: server}, {challenge, returnTo}, {signal}),
     /** A PIN recovery note: Services checks this typed password and two-step code before marking it. */
     serverPINIdentity: (server: string, challenge: string, proof: Proof, signal?: AbortSignal) =>
       person<{identity: unknown}>('serverIdentity', {id: server}, {challenge, ...proof}, {signal}),

@@ -14,7 +14,8 @@ import {assertFirstContactIdentity, RouteError, sameServerPin, type ServerPin} f
 import type {LocalMoveCustody} from './local-move';
 import {knownServerRoutes, type AppSessionStore, type AppServerSession, type SignInKind} from '@core/app-sessions.ts';
 import {challengeNotProven} from '@core/portico-servers.ts';
-import {checkPorticoMove, peekPorticoMoveTicket, porticoMove, porticoServerSignIn, type PorticoMoveProof} from '@core/portico-server-sign-in.ts';
+import {askPorticoChallenge, checkPorticoMove, notedAccount, peekPorticoMoveTicket, porticoMove, porticoReturnedSignIn, porticoServerSignIn, type PorticoMoveProof} from '@core/portico-server-sign-in.ts';
+import {accountReturnStart, httpsOrigin, keepAccountReturn, readReturnFragment, takeAccountReturn} from './portico-account-return';
 import {porticoHandoffUrl} from './portico-handoff';
 import type {JoinLink} from '@core/join-link.ts';
 import {parseShortInvitationCode} from '@core/short-invitation-code.ts';
@@ -721,7 +722,42 @@ export class BrowserAccountEntry {
   const move=state.phase==='move-portico'?this.porticoMoveProof:undefined;
   return porticoHandoffUrl({hostedOrigin,serverId:state.server.id,pageOrigin,invitation,move});
  }
+ /** At this server's own HTTPS page, signing in with a Portico Account comes back here (option 2):
+  * the server's challenge is kept in this tab, and web.getportico.tv shows the server and address
+  * from the account's signed list before it sends a note for this address only. Undefined where
+  * that can't work (plain HTTP, another address, joining, a move): `porticoHandoff` then. */
+ async startPorticoReturn(hostedOrigin:string,pageOrigin=location.origin):Promise<string|undefined>{
+  const state=this.state,api=this.api,server=state.server,to=httpsOrigin(pageOrigin);
+  if(state.phase!=='portico'||server?.signIn!=='portico'||!server.id||state.invitation||!api||!to||!state.origin||new URL(state.origin).origin!==to)return;
+  const challenge=await askPorticoChallenge(api,server.id);
+  if(this.state.phase!=='portico'||this.state.server?.id!==server.id||this.api!==api)return;
+  return accountReturnStart(hostedOrigin,{serverId:server.id,challenge,to,state:keepAccountReturn({challenge,serverId:server.id,origin:to,hosted:new URL(hostedOrigin).origin})});
+ }
+ /** The note web.getportico.tv sent back: only for the tab that started it (its `state`, read once),
+  * at the address it started from, and spent at the server with the challenge kept here. */
+ private async finishAccountReturn(captured:CapturedPorticoReturn,returned:Readonly<{identity:unknown;state:string}>){
+  const record=takeAccountReturn(),origin=new URL(captured.href).origin;
+  const opened=await this.inspect(origin);if(!opened)return;
+  const state=this.state,api=opened.api,op={signal:this.controller!.signal,current:opened.current};
+  if(!record||record.state!==returned.state||record.origin!==origin||state.phase!=='portico'||state.server?.id!==record.serverId){
+   this.publish({...state,error:new CodedError('return_not_this_tab','This sign-in was started in another tab, or more than ten minutes ago. Continue to sign in again.')});return;
+  }
+  this.publish({...state,busy:true,error:undefined});
+  try{
+   const revision=(await this.ports.store.read()).revision;if(!op.current())return;
+   const result=await porticoReturnedSignIn(api,record.serverId,record.challenge,returned.identity,op.signal);
+   if(!op.current()){if(result.kind==='signed-in')await this.retire(api,result.session);return;}
+   // Remembered under the Portico Account the note names, which the server has just accepted (for Portico sign-out).
+   const accountId=notedAccount(returned.identity);
+   if(!accountId){if(result.kind==='signed-in')await this.retire(api,result.session);throw new CodedError('invalid_return',unreadableServerResponse);}
+   await this.accept(result,api,revision,op,{origin:record.hosted,accountId});
+  }catch(error){if(op.current())this.publish({...state,busy:false,error});}
+ }
  async finishPorticoReturn(captured:CapturedPorticoReturn){
+  // A note for this tab's own Portico Account sign-in is exactly `note` and `state`, which no
+  // continuation journal accepts; anything else goes on to the journals as before.
+  const returned=readReturnFragment(captured.fragment);
+  if(returned){await this.finishAccountReturn(captured,returned);return;}
   // Cancel prior entry work BEFORE selecting an owner journal. Calling cancel
   // between pendingReturn and finish would delete that very captured attempt.
   this.cancel();const op=this.operation();this.publish({phase:'checking',busy:true});

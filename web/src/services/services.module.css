@@ -18,6 +18,8 @@
   .desktopOnly { display: none; }
 }
 .serverId { font: 500 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+/* The way back's address under its heading (AccountServerReturn): one line where it fits, wrapped anywhere where it doesn't. */
+.returnAddress { display: block; margin-top: 8px; font-size: var(--type-heading-size); line-height: var(--type-heading-line); font-weight: var(--type-heading-weight); letter-spacing: var(--type-heading-tracking); overflow-wrap: anywhere; }
 .tvCode { margin: 4px 0 4px; font: 700 40px/1.1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; }
 .tvDevice { display: flex; gap: 10px; align-items: baseline; min-width: 0; margin: 8px 0 0; white-space: nowrap; }
 .tvDevice b, .tvDevice span { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
