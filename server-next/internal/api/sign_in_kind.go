@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -135,11 +136,15 @@ type MoveCheck struct {
 // MoveCompleteRequest finishes a move: to local sign-in the code with the chosen username and
 // password; to Portico Accounts the code or old password with the Portico approval.
 type MoveCompleteRequest struct {
-	Code     string     `json:"code,omitempty"`
-	Username string     `json:"username,omitempty"`
-	Password string     `json:"password,omitempty"`
-	Approval string     `json:"approval,omitempty"`
-	Device   DeviceInfo `json:"device"`
+	Code     string `json:"code,omitempty"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+	// Challenge and Identity prove the Portico Account a waiting person moves to: the
+	// challenge from POST /v1/auth/portico/challenge and the sign-in note Portico Services
+	// answered it with. A move is a sign-in, never an approval: an approval names an owner.
+	Challenge string          `json:"challenge,omitempty"`
+	Identity  json.RawMessage `json:"identity,omitempty"`
+	Device    DeviceInfo      `json:"device"`
 }
 
 // OwnerChangeRequest hands the server to someone else.
@@ -258,18 +263,18 @@ func (s *Server) signInPreview(r *http.Request, req SignInPreviewRequest) (SignI
 }
 
 // approved checks a Portico approval brought back for purpose, through Portico Services.
-func (s *Server) approved(r *http.Request, approval string, purpose hosted.Purpose) (hosted.Account, error) {
+func (s *Server) approved(r *http.Request, approval string, purpose hosted.Purpose) (hosted.Decision, error) {
 	if approval == "" || len(approval) > 8192 {
-		return hosted.Account{}, ErrField("approval", "Send the approval exactly as it came back.")
+		return hosted.Decision{}, ErrField("approval", "Send the approval exactly as it came back.")
 	}
 	decision, err := s.hosted.FinishApproval(r.Context(), s.id, approval)
 	if err == nil && (decision.Purpose != purpose || decision.Account.ID == "") {
 		err = hosted.ErrDeclined
 	}
 	if err != nil {
-		return hosted.Account{}, hostedError(err)
+		return hosted.Decision{}, hostedError(err)
 	}
-	return decision.Account, nil
+	return decision, nil
 }
 
 func (s *Server) signInSwitch(r *http.Request, req SignInSwitchRequest) (SignInResponse, error) {
@@ -311,11 +316,11 @@ func (s *Server) signInSwitch(r *http.Request, req SignInSwitchRequest) (SignInR
 		}
 		sw.Username, sw.PasswordHash = username, hash
 	} else {
-		account, err := s.approved(r, req.Approval, hosted.PurposeSwitch)
+		decision, err := s.approved(r, req.Approval, hosted.PurposeSwitch)
 		if err != nil {
 			return SignInResponse{}, err
 		}
-		sw.PorticoAccountID = account.ID
+		sw.PorticoAccountID, sw.ApprovedAt = decision.Account.ID, decision.IssuedAt
 	}
 	st, err := s.db.SwitchSignIn(ctx, sw)
 	switch {
@@ -323,7 +328,9 @@ func (s *Server) signInSwitch(r *http.Request, req SignInSwitchRequest) (SignInR
 		return SignInResponse{}, ErrConflict("username_taken", "That username is already in use.")
 	case errors.Is(err, db.ErrNotPermitted):
 		return SignInResponse{}, ErrNotPermitted()
-	case errors.Is(err, db.ErrNotTheLinkedAccount):
+	case errors.Is(err, db.ErrStaleApproval):
+		return SignInResponse{}, porticoError(hosted.ErrDeclined)
+	case errors.Is(err, db.ErrNotTheLinkedAccount), errors.Is(err, db.ErrNotLinkOwner):
 		return SignInResponse{}, refusal(http.StatusForbidden, "not_the_linked_account",
 			"This server belongs to another Portico Account. Approve with the Portico Account that owns it.", false)
 	case err != nil:
@@ -541,7 +548,7 @@ func (s *Server) moveToPortico(r *http.Request, req MoveCompleteRequest) (SignIn
 	} else if wait > 0 {
 		return SignInResponse{}, errTooManyAttempts(wait)
 	}
-	account, err := s.approved(r, req.Approval, hosted.PurposeLink)
+	account, _, err := s.porticoProven(r, req.Challenge, req.Identity, now)
 	if err != nil {
 		return SignInResponse{}, err
 	}
@@ -586,10 +593,11 @@ func (s *Server) changeOwner(r *http.Request, req OwnerChangeRequest) (None, err
 	change := db.OwnerChange{OwnerID: caller.UserID, Previous: req.Previous, Now: now}
 	if kind == "portico" {
 		// The new owner approves with their Portico Account; nothing else proves them.
-		account, err := s.approved(r, req.Approval, hosted.PurposeChangeOwner)
+		decision, err := s.approved(r, req.Approval, hosted.PurposeChangeOwner)
 		if err != nil {
 			return None{}, err
 		}
+		account := decision.Account
 		username, ok := auth.Username(account.Username)
 		if !ok {
 			return None{}, errors.New("portico services answered a username this server cannot use")

@@ -51,13 +51,15 @@ func porticoServer(t *testing.T) (*Server, string, string) {
 	if w := call(t, s, "POST", "/v1/auth/move/check", "", MoveCheckRequest{Username: "sam", Password: testPassword}, &check); w.Code != 200 || check.Next != "portico_account" {
 		t.Fatalf("checking an old password answered %d: %s", w.Code, w.Body)
 	}
-	fake.decision = hosted.Decision{Purpose: hosted.PurposeLink, Account: hosted.Account{ID: "pa_2", Username: "sammy"}}
+	fake.decision = hosted.Decision{Account: hosted.Account{ID: "pa_2", Username: "sammy"}}
 	var moved SignInResponse
-	done := MoveCompleteRequest{Username: "sam", Password: testPassword, Approval: approval, Device: device(5)}
+	done := MoveCompleteRequest{Username: "sam", Password: testPassword, Device: device(5)}
+	done.Challenge, done.Identity = porticoProof(t, s)
 	if w := call(t, s, "POST", "/v1/auth/move/complete", "", done, &moved); w.Code != 200 || moved.Account.Username != "sammy" {
 		t.Fatalf("moving to a Portico Account answered %d: %s", w.Code, w.Body)
 	}
-	again := MoveCompleteRequest{Username: "alex", Password: testPassword, Approval: approval, Device: device(6)}
+	again := MoveCompleteRequest{Username: "alex", Password: testPassword, Device: device(6)}
+	again.Challenge, again.Identity = porticoProof(t, s)
 	if w := call(t, s, "POST", "/v1/auth/move/complete", "", again, nil); w.Code != 409 || !strings.Contains(w.Body.String(), "as sammy") {
 		t.Fatalf("a Portico Account already here answered %d: %s", w.Code, w.Body)
 	}
@@ -312,11 +314,12 @@ func TestTurnedOffStaysOffThroughASwitch(t *testing.T) {
 	if code := status(t, s, "POST", "/v1/admin/members/"+alex.ID+"/move-code", owner, nil); code != 409 {
 		t.Fatalf("a move code for a turned-off account answered %d, want 409", code)
 	}
-	fake.decision = hosted.Decision{Purpose: hosted.PurposeLink, Account: hosted.Account{ID: "pa_9", Username: "alex"}}
+	fake.decision = hosted.Decision{Account: hosted.Account{ID: "pa_9", Username: "alex"}}
 	if code := status(t, s, "POST", "/v1/auth/move/check", "", MoveCheckRequest{Username: "alex", Password: testPassword}); code != 401 {
 		t.Fatalf("a turned-off account's old password answered %d on the check, want 401", code)
 	}
-	done := MoveCompleteRequest{Username: "alex", Password: testPassword, Approval: approval, Device: device(2)}
+	done := MoveCompleteRequest{Username: "alex", Password: testPassword, Device: device(2)}
+	done.Challenge, done.Identity = porticoProof(t, s)
 	if code := status(t, s, "POST", "/v1/auth/move/complete", "", done); code != 401 {
 		t.Fatalf("a turned-off account's old password moved it (%d)", code)
 	}
@@ -331,6 +334,7 @@ func TestTurnedOffStaysOffThroughASwitch(t *testing.T) {
 	if code := status(t, s, "POST", "/v1/admin/members/"+alex.ID+"/move-code", owner, nil); code != 200 {
 		t.Fatalf("a move code for alex turned on answered %d", code)
 	}
+	done.Challenge, done.Identity = porticoProof(t, s) // a sign-in note works once
 	if code := status(t, s, "POST", "/v1/auth/move/complete", "", done); code != 200 {
 		t.Fatalf("alex turned on could not move with the old password (%d)", code)
 	}
@@ -410,8 +414,9 @@ func TestPicturesGoWhenEachPersonMoves(t *testing.T) {
 	if has("justin") || !has("sam") {
 		t.Fatalf("after the switch: the owner's picture kept %v, sam's kept %v", has("justin"), has("sam"))
 	}
-	fake.decision = hosted.Decision{Purpose: hosted.PurposeLink, Account: hosted.Account{ID: "pa_2", Username: "sam"}}
-	done := MoveCompleteRequest{Username: "sam", Password: testPassword, Approval: approval, Device: device(2)}
+	fake.decision = hosted.Decision{Account: hosted.Account{ID: "pa_2", Username: "sam"}}
+	done := MoveCompleteRequest{Username: "sam", Password: testPassword, Device: device(2)}
+	done.Challenge, done.Identity = porticoProof(t, s)
 	if w := call(t, s, "POST", "/v1/auth/move/complete", "", done, nil); w.Code != 200 {
 		t.Fatalf("sam's move answered %d: %s", w.Code, w.Body)
 	}
