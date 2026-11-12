@@ -1,6 +1,7 @@
 import {routePath} from '../../contracts/src/route-paths.ts';
 import type {RouteResponse} from '../../contracts/src/route-paths.ts';
 import {noteSkipped} from './tolerant.ts';
+import {libraryKind} from './items.ts';
 export type LibraryPublicationKind='book'|'magazine'|'newspaper';
 /** Explicitly classified, visible Reading titles; separate from the library's ebook total. */
 export type LibraryPublicationCount=Readonly<{kind:LibraryPublicationKind;count:number;atLeast:boolean}>;
@@ -46,5 +47,5 @@ function optionalSummary(raw:unknown):LibrarySummary{
 export async function readLibrarySummaries(api:{request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>},signal?:AbortSignal):Promise<readonly Readonly<{id:string;name:string;kind:string;summary:LibrarySummary}>[]>{
  const raw=await api.request<RouteResponse<'get_libraries'>>(routePath('get_libraries'),'GET',undefined,signal);
  if(!object(raw)||!Array.isArray(raw.items)||raw.items.length>2048)invalid();
- return Object.freeze(raw.items.map(row=>{if(!object(row)||!text(row.id)||!text(row.name)||!text(row.kind))invalid();return Object.freeze({id:row.id,name:row.name,kind:row.kind,summary:optionalSummary(row.summary)});}));
+ return Object.freeze(raw.items.map(row=>{if(!object(row)||!text(row.id)||!text(row.name)||!text(row.kind))invalid();return Object.freeze({id:row.id,name:row.name,kind:libraryKind(row.kind),summary:optionalSummary(row.summary)});}));
 }
