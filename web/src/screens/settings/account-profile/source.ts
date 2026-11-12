@@ -175,7 +175,7 @@ export class ProfileSettingsSource {
       await this.client.edit(profile, change, this.lifetime.signal);
     });
   }
-  create = (name: string, art: ProfileArt): Promise<void> => this.mutate(async document => {
+  create = (name: string, art?: ProfileArt): Promise<void> => this.mutate(async document => {
     if (document.profiles.length >= 8) throw new CodedError('conflict', 'This account already has eight profiles.');
     await this.client.create(name, art, this.lifetime.signal);
   });

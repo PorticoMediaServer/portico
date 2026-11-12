@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject} from 'react';
 import {profileArtColors} from '@design';
 import {defaultI18n} from '@i18n';
-import {PROFILE_ART, type ProfileArt} from '@core/profile-management.ts';
+import {PROFILE_ART, nextProfileArt, type ManagedProfile, type ProfileArt} from '@core/profile-management.ts';
 import {Button, TextField} from '../../../kit/controls';
 import {Dialog} from '../../../kit/overlays/Dialog';
 import type {ProfileSettingsSource} from './source';
@@ -27,16 +27,18 @@ export function AddProfileDialog({source, isCurrent, onClose, returnFocusRef}: {
     }
   }, [snapshot, document, isCurrent, onClose]);
   if (!isCurrent() || !document?.canManage || !document.capabilities.manageAccount || document.profiles.length >= 8) return null;
-  return <AddProfileForm source={source} busy={snapshot.busy} isCurrent={isCurrent} onClose={() => {
+  return <AddProfileForm source={source} busy={snapshot.busy} isCurrent={isCurrent} profiles={document.profiles} onClose={() => {
     if (!finished.current) {finished.current = true;onClose();}
   }} returnFocusRef={returnFocusRef} />;
 }
 
-function AddProfileForm({source, busy, isCurrent, onClose, returnFocusRef}: {
-  source: ProfileSettingsSource; busy: boolean; isCurrent: () => boolean; onClose: () => void;
+function AddProfileForm({source, busy, isCurrent, profiles, onClose, returnFocusRef}: {
+  source: ProfileSettingsSource; busy: boolean; isCurrent: () => boolean; profiles: readonly ManagedProfile[]; onClose: () => void;
   returnFocusRef?: RefObject<HTMLElement | null>;
 }) {
-  const [name, setName] = useState(''), [art, setArt] = useState<ProfileArt>('blue');
+  // A colour is sent only once the person chooses one; until then the server gives the first one
+  // unused on the account, which is the one shown.
+  const [name, setName] = useState(''), [chosen, setArt] = useState<ProfileArt>(), art = chosen ?? nextProfileArt(profiles);
   const input = useRef<HTMLInputElement>(null), submitting = useRef(false), closed = useRef(false);
   useEffect(() => {closed.current = false;return () => {closed.current = true;};}, []);
   const close = () => {closed.current = true;setName('');onClose();};
@@ -44,7 +46,7 @@ function AddProfileForm({source, busy, isCurrent, onClose, returnFocusRef}: {
     if (!isCurrent() || closed.current || submitting.current || busy || !name.trim() || name.trim().length > 120) return;
     submitting.current = true;
     try {
-      await source.create(name.trim(), art);
+      await source.create(name.trim(), chosen);
       if (!closed.current && isCurrent()) close();
     } catch {
       if (!closed.current && isCurrent()) close();

@@ -13,6 +13,9 @@ export interface ProfileAPI {request<T>(path:string,method?:string,body?:unknown
  withAccessToken?(token:string):ProfileAPI}
 export type ProfileAuthority='local'|'hosted';
 export const PROFILE_ART=['blue','violet','mint','coral','gold','slate','rose','sky'] as const;
+/** The colour the server gives a new profile nobody coloured: the first in palette order not already
+ * used on the account, else blue (server-next `db.profiles`). A screen shows it until a colour is chosen. */
+export function nextProfileArt(profiles:readonly Readonly<{art:ProfileArt}>[]):ProfileArt{const used=new Set(profiles.map(profile=>profile.art));return PROFILE_ART.find(art=>!used.has(art))??'blue';}
 export type ProfileArt=typeof PROFILE_ART[number];
 /** `accessMarker` changes whenever what the profile may see changes (its libraries, its limits, its account's role).
  * The server keeps no revision of a profile: the later save wins. */
