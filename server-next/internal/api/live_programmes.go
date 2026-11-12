@@ -22,10 +22,12 @@ type LiveProgrammeDetail struct {
 
 // LiveAiring is another time a programme is on.
 type LiveAiring struct {
-	ID       string    `json:"id"`
-	Channel  string    `json:"channel"`
-	StartsAt time.Time `json:"startsAt"`
-	EndsAt   time.Time `json:"endsAt"`
+	ID      string `json:"id"`
+	Channel string `json:"channel"`
+	// ChannelID is the channel's id; Channel is its name.
+	ChannelID string    `json:"channelId"`
+	StartsAt  time.Time `json:"startsAt"`
+	EndsAt    time.Time `json:"endsAt"`
 	// EpisodeTitle, Season and Episode say which episode airs then, where the guide says.
 	EpisodeTitle string `json:"episodeTitle,omitempty"`
 	Season       *int   `json:"season,omitempty"`
@@ -34,8 +36,10 @@ type LiveAiring struct {
 
 // LiveReminderOut is a reminder as the apps show it, two minutes before its programme starts.
 type LiveReminderOut struct {
-	Programme string    `json:"programme"`
-	Channel   string    `json:"channel"`
+	Programme string `json:"programme"`
+	Channel   string `json:"channel"`
+	// ChannelID is the channel's id; Channel is its name.
+	ChannelID string    `json:"channelId"`
 	Title     string    `json:"title"`
 	StartsAt  time.Time `json:"startsAt"`
 	EndsAt    time.Time `json:"endsAt"`
@@ -80,7 +84,7 @@ func (s *Server) getProgramme(r *http.Request, _ None) (LiveProgrammeDetail, err
 		return LiveProgrammeDetail{}, err
 	}
 	if rec, err := s.db.AiringRecording(ctx, ch.ID, p.ProgrammeKey); err == nil {
-		recOut := s.recordingOut(rec, false, nil)
+		recOut := s.recordingOut(ctx, rec, false, nil)
 		out.Recording = &recOut
 	} else if !errors.Is(err, db.ErrNotFound) {
 		return LiveProgrammeDetail{}, err
@@ -105,7 +109,7 @@ func (s *Server) getProgramme(r *http.Request, _ None) (LiveProgrammeDetail, err
 				if err != nil || !mayWatch(lv, full) {
 					continue
 				}
-				out.Airings = append(out.Airings, LiveAiring{ID: programmeRef(c.PublicID, a.StartsAt), Channel: c.Name, StartsAt: a.StartsAt.UTC(),
+				out.Airings = append(out.Airings, LiveAiring{ID: programmeRef(c.PublicID, a.StartsAt), Channel: c.Name, ChannelID: c.PublicID, StartsAt: a.StartsAt.UTC(),
 					EndsAt: a.EndsAt.UTC(), EpisodeTitle: a.EpisodeTitle, Season: a.Season, Episode: a.Episode})
 			}
 			if len(out.Airings) >= 50 {
@@ -136,7 +140,7 @@ func (s *Server) listReminders(r *http.Request, _ None) (Page[LiveReminderOut], 
 		if err != nil || !mayWatch(lv, ch) {
 			continue // a channel the profile may no longer watch: its reminders are absent
 		}
-		out.Items = append(out.Items, LiveReminderOut{Programme: programmeRef(public, rem.StartsAt), Channel: ch.Name, Title: rem.Title,
+		out.Items = append(out.Items, LiveReminderOut{Programme: programmeRef(public, rem.StartsAt), Channel: ch.Name, ChannelID: public, Title: rem.Title,
 			StartsAt: rem.StartsAt.UTC(), EndsAt: rem.EndsAt.UTC()})
 	}
 	return out, nil

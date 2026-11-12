@@ -16,8 +16,10 @@ import (
 // DvrRecording is one booking, recording or line of History. A recorded programme is also a
 // title in the Recorded TV library (ItemID), listed, played and marked like any title.
 type DvrRecording struct {
-	ID           string    `json:"id"`
+	ID string `json:"id"`
+	// Channel is the channel's name and ChannelID its id, left out once the channel is gone.
 	Channel      string    `json:"channel"`
+	ChannelID    string    `json:"channelId,omitempty"`
 	Title        string    `json:"title"`
 	EpisodeTitle string    `json:"episodeTitle,omitempty"`
 	Season       *int      `json:"season,omitempty"`
@@ -224,7 +226,7 @@ func (s *Server) programme(ctx context.Context, v db.Viewer, lv db.LiveViewer, i
 	return ch, db.GuideProgramme{}, ErrNotFound()
 }
 
-func (s *Server) recordingOut(r db.Recording, conflict bool, items map[int64]db.RecordedTitle) DvrRecording {
+func (s *Server) recordingOut(ctx context.Context, r db.Recording, conflict bool, items map[int64]db.RecordedTitle) DvrRecording {
 	title := items[r.ItemID]
 	out := DvrRecording{ID: r.PublicID, Channel: r.ChannelName, Title: r.Title, EpisodeTitle: r.EpisodeTitle, Season: r.Season, Episode: r.Episode,
 		StartsAt: r.StartsAt.UTC(), EndsAt: r.EndsAt.UTC(), PadBeforeMs: r.PadBefore.Milliseconds(), PadAfterMs: r.PadAfter.Milliseconds(),
@@ -233,6 +235,9 @@ func (s *Server) recordingOut(r db.Recording, conflict bool, items map[int64]db.
 		DurationMs: title.DurationMS, Watched: title.Watched}
 	if r.State != db.RecordingScheduled {
 		out.Bytes = s.recorder.Bytes(r)
+	}
+	if r.ChannelID != 0 {
+		out.ChannelID, _ = s.db.ChannelPublicID(ctx, r.ChannelID) // a channel that has gone has no id to give
 	}
 	return out
 }
@@ -447,7 +452,7 @@ func (s *Server) listRecordings(r *http.Request, _ None) (Page[DvrRecording], er
 		if ok, err := s.maySeeRecording(ctx, r, lv, row); err != nil {
 			return Page[DvrRecording]{}, err
 		} else if ok {
-			out.Items = append(out.Items, s.withClash(lv, s.recordingOut(row, false, items), clashes, row.ID, own))
+			out.Items = append(out.Items, s.withClash(lv, s.recordingOut(ctx, row, false, items), clashes, row.ID, own))
 		}
 	}
 	if len(rows) == q.Limit {
@@ -508,7 +513,7 @@ func (s *Server) bookRecording(r *http.Request, req DvrRecordingBook) (DvrRecord
 	if err != nil {
 		return DvrRecording{}, err
 	}
-	out := s.recordingOut(rec, false, nil)
+	out := s.recordingOut(ctx, rec, false, nil)
 	if created {
 		s.goBackground(func() { s.recorder.Tick(s.liveContext) })
 	}
@@ -549,7 +554,7 @@ func (s *Server) getRecording(r *http.Request, _ None) (DvrRecording, error) {
 	if err != nil {
 		return DvrRecording{}, err
 	}
-	out := s.withClash(lv, s.recordingOut(rec, false, items), clashes, rec.ID, own)
+	out := s.withClash(lv, s.recordingOut(r.Context(), rec, false, items), clashes, rec.ID, own)
 	if rec.ItemID != 0 {
 		for _, session := range s.playback.All() {
 			if session.Item.ID == rec.ItemID {
@@ -867,6 +872,7 @@ func (s *Server) changeRule(r *http.Request, req DvrRuleSave) (DvrRule, error) {
 	if rule.ProfileID != viewer(r).ProfileID && CallerFrom(ctx).Role != "owner" {
 		return DvrRule{}, ErrNotPermitted()
 	}
+	before := rule.ChannelID
 	if err := s.ruleChannel(r, lv, &rule, req); err != nil {
 		return DvrRule{}, err
 	}
@@ -883,6 +889,12 @@ func (s *Server) changeRule(r *http.Request, req DvrRuleSave) (DvrRule, error) {
 	saved, err := s.db.SaveRule(ctx, rule, s.now())
 	if err != nil {
 		return DvrRule{}, err
+	}
+	// A rule moved to one channel lets go of its bookings not yet started on the others.
+	if saved.ChannelID != before {
+		if err := s.db.LetGoOfOtherChannels(ctx, saved.ID, saved.ChannelID, s.now()); err != nil {
+			return DvrRule{}, err
+		}
 	}
 	// The edited rule books what it now matches at once, as a new rule does.
 	if err := s.recorder.FollowRules(ctx); err != nil {
@@ -941,7 +953,7 @@ func (s *Server) dvrTuners(r *http.Request, _ None) (DvrTuners, error) {
 	}
 	for _, rec := range upcoming {
 		if losers[rec.ID] {
-			out.Conflicts = append(out.Conflicts, s.recordingOut(rec, true, nil))
+			out.Conflicts = append(out.Conflicts, s.recordingOut(ctx, rec, true, nil))
 		}
 	}
 	return out, nil
