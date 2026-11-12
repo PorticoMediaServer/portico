@@ -23,9 +23,6 @@ type setupArea struct {
 	// setupCode is what creating the owner needs. It is made at start while there is no
 	// account, and written to the log and to setupFile, never sent to an app. See setup.go.
 	setupCode, setupFile string
-	// hosted is Portico Services. Only a server choosing or using Portico Accounts asks it
-	// anything; tests replace it.
-	hosted hosted.Service
 	// access is the owner's remote access settings. See remote_access.go.
 	access remoteState
 	// certs is the certificate for the owner's own address, read from the Keys folder.
@@ -36,6 +33,13 @@ type setupArea struct {
 	// public finds the server's public address from outside services; like ports, it asks
 	// nothing until ServeNetwork runs it.
 	public *publicaddr.Finder
+	// hosted is what request handlers ask of Portico Services: approvals, and checking what
+	// it signed. It is the link's client; tests put a client for a fake service here.
+	hosted hosted.Service
+	// link keeps this server's link to Portico Services up to date in the background. It
+	// contacts nothing unless the server is linked to a Portico Account, so a server with
+	// local sign-in never does. See portico_link.go.
+	link *porticoLink
 }
 
 // startSetup builds this area's services and registers its routes and job kinds. New calls it
@@ -44,7 +48,6 @@ func (s *Server) startSetup(ctx context.Context) error {
 	s.portico = certclient.New(certclient.Options{ServerID: s.id, Key: s.identity.key, Keys: filepath.Join(s.dataDir, "Keys"),
 		Log: s.log, Now: func() time.Time { return s.now() }})
 	s.goBackground(func() { s.portico.Run(ctx) })
-	s.hosted = hosted.NotConnected{}
 	if err := s.loadSetupCode(ctx, s.dataDir); err != nil {
 		return err
 	}
@@ -69,5 +72,15 @@ func (s *Server) startSetup(ctx context.Context) error {
 	s.remoteAccessRoutes()
 	s.setupRoutes()
 	s.signInKindRoutes()
+	if err := s.startPortico(ctx); err != nil {
+		return err
+	}
+	// Whatever must hear that the server is linked, or no longer is, is set on s.link here
+	// (onLinked, onUnlinked, published), above the line that starts its background work.
+	// The certificate client asks for the server's address and certificate only between the
+	// two: told of a link it begins, and told the link has ended it stops for good.
+	s.link.onLinked = s.portico.Linked
+	s.link.onUnlinked = s.portico.Unlinked
+	s.link.run()
 	return nil
 }

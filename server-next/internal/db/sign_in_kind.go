@@ -111,6 +111,8 @@ type Switch struct {
 	Username, PasswordHash string
 	// PorticoAccountID is the owner's Portico Account on a server moving to Portico Accounts.
 	PorticoAccountID string
+	// ApprovedAt is when that account approved: the new link's numbers start there.
+	ApprovedAt time.Time
 	// Session is the owner's new sign-in, started in the same commit.
 	Session NewSession
 	Now     time.Time
@@ -217,6 +219,11 @@ func (d *DB) SwitchSignIn(ctx context.Context, sw Switch) (SessionState, error) 
 				return err
 			}
 			if err := putSetting(tx, SignInKindKey, SignInPortico, at); err != nil {
+				return err
+			}
+			// The link is made in the same commit, so "uses Portico Accounts" and "linked"
+			// are never two facts.
+			if err := linkServer(tx, sw.PorticoAccountID, sw.ApprovedAt, sw.Now); err != nil {
 				return err
 			}
 			if _, err := tx.Exec(`DELETE FROM settings WHERE key = ?`, LeftMessageKey); err != nil {
