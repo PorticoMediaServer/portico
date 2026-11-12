@@ -1,3 +1,4 @@
+import {appLogFetch} from './app-log.ts';
 /** The selected server's HTTP client, its wire types and errors, and the Portico account client. */
 import {clockOrigin, observeResponseClock, serverNow} from './server-clock.ts';
 import {linkAbortSignals, throwIfAborted} from './abort-lifetime.ts';
@@ -443,7 +444,7 @@ export class HttpLocalApi {
     if (routes.logicalOrigin !== this.baseUrl) throw new Error('This route belongs to another logical server origin.');
     if (this.routes === routes) return;
     this.routeUnsubscribe?.(); this.routeUnsubscribe = undefined; this.routes = routes;
-    this.fetcher = routes.fetch;
+    this.fetcher = appLogFetch(routes.fetch);
     this.observeRoutes();
     if (this.token) bindSessionRoute(this.token,routes);
   }
@@ -467,7 +468,7 @@ export class HttpLocalApi {
     // Native Window.fetch accepts a value call, not this API as its receiver.
     // An explicitly bound injected transport retains its own receiver.
     this.rawFetcher = (input, init) => fetcher(input, init);
-    this.fetcher = (input,init) => this.rawFetcher(input,{...init,redirect:'error',credentials:'omit',referrerPolicy:'no-referrer'});
+    this.fetcher = appLogFetch((input,init) => this.rawFetcher(input,{...init,redirect:'error',credentials:'omit',referrerPolicy:'no-referrer'}));
     const routes = sessionRoute(token); if (routes) this.useRoutes(routes);
   }
   /** What this device is connected over, for the server to resolve a network

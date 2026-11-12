@@ -1,3 +1,4 @@
+import {appLog} from '../app-log.ts';
 import {PlaybackApiError, call, idempotencyKey, type V1Http} from './http.ts';
 import {playbackPath} from './routes.ts';
 /**
@@ -322,7 +323,14 @@ export class PlaybackSessionController {
 
   getSnapshot = (): ControllerSnapshot => this.state;
   subscribe = (fn: () => void) => { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; };
-  private publish(p: Partial<ControllerSnapshot>) { this.state = Object.freeze({...this.state, ...p,
+  private publish(p: Partial<ControllerSnapshot>) {
+    if (p.session && (p.session.id !== this.state.session?.id || p.session.presentation !== this.state.session?.presentation)) {
+      const s = p.session;
+      appLog.write('info','playback','playback',{sessionId:s.id,itemId:s.itemId,versionId:s.versionId,route:s.playbackInfo?.route,
+        engine:s.presentation.engine,codec:s.playbackInfo?.delivered.audio?.codec ?? s.observedPlayback?.audio?.codec ?? s.presentation.decision.audio?.to,state:s.state});
+    }
+    if (p.observation && p.observation.state !== this.state.observation?.state) appLog.write('info','playback',p.observation.state === 'buffering' ? 'stall' : 'playback',{state:p.observation.state});
+    this.state = Object.freeze({...this.state, ...p,
     ...(p.phase && p.phase !== 'preparing' ? {preparation: undefined} : {})}); for (const l of [...this.listeners]) l(); }
 
   /**
@@ -537,7 +545,7 @@ export class PlaybackSessionController {
     if (!this.gate.accepts(o.generation)) return;
     if (o.state === 'playing' || o.state === 'paused' || o.state === 'buffering') this.heardMs = o.positionMs;
     this.publish({observation: o});
-    if (e.type === 'error') { this.reporter?.failed(o.generation); return; }
+    if (e.type === 'error') { appLog.write('error','playback','error',{code:e.code,sessionId:this.state.session?.id}); this.reporter?.failed(o.generation); return; }
     // PiP or AirPlay can't show an overlay the app draws: ask for the same track in the manifest,
     // which the system renders wherever the picture is (Plan §8.3). Once per generation.
     if (o.subtitlesCarried === false && o.subtitleTrackId && this.carriedFor !== o.generation) {

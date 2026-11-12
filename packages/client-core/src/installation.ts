@@ -1,3 +1,4 @@
+import {appLog} from './app-log.ts';
 import {routePrefix} from "../../contracts/src/routes.ts";
 /**
  * The installation claim a first-party client sends when it asks a server for credentials
@@ -31,6 +32,7 @@ export function setInstallationIdentity(identity: InstallationIdentity | undefin
     app: clean(identity.app, 64),
     appVersion: clean(identity.appVersion, 64),
   });
+  appLog.write('info','app','started',{appVersion: current.appVersion});
 }
 
 export function installationIdentity(): InstallationIdentity | undefined {
