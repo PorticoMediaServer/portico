@@ -53,7 +53,7 @@ type Lane='directory'|'selected'|'jobs';type PageOperation={cursor:string|null;h
 export class LibraryManagementService{
  private readRetries:number;private retryBaseMs:number;private api:LibraryContentApi;private scope:ContentScope;private pageSize:number;private timeoutMs:number;private epoch=0;private generation=0;private disposed=false;private listeners=new Set<()=>void>();private controls:Partial<Record<Lane,AbortController>>={};private sequences:Record<Lane,number>={directory:0,selected:0,jobs:0};private operations:Partial<Record<'directory'|'jobs',PageOperation>>={};private mutationController?:AbortController;private mutationPromise?:Promise<void>;private mutationKey='';private queries?:ViewerQueries;private state:LibraryManagementSnapshot;
  /** `queries`: the viewer's cache; a library's own document (`selectLibrary`) is read through it, shared with every other view of it. */
- constructor(o:{api:LibraryContentApi;scope:ContentScope;pageSize?:number;timeoutMs?:number;readRetries?:number;retryBaseMs?:number;queries?:ViewerQueries;scanRecheckMs?:number}){this.scanRecheckMs=o.scanRecheckMs??5000;this.readRetries=o.readRetries??3;this.retryBaseMs=o.retryBaseMs??1000;this.api=o.api;this.scope=checkScope(o.scope);if(o.queries&&o.queries.scope.serverId!==this.scope.serverId)throw new Error('Library management is read from its own server\'s cache.');this.queries=o.queries;this.pageSize=o.pageSize??40;this.timeoutMs=o.timeoutMs??15000;if(!Number.isInteger(this.pageSize)||this.pageSize<1||this.pageSize>40||!Number.isFinite(this.timeoutMs)||this.timeoutMs<1||this.timeoutMs>60000)throw new Error('Invalid management request bounds.');this.state=this.empty();}
+ constructor(o:{api:LibraryContentApi;scope:ContentScope;pageSize?:number;timeoutMs?:number;readRetries?:number;retryBaseMs?:number;queries?:ViewerQueries;scanRecheckMs?:number;hidden?:()=>boolean}){this.scanRecheckMs=o.scanRecheckMs??5000;if(o.hidden)this.hidden=o.hidden;this.readRetries=o.readRetries??3;this.retryBaseMs=o.retryBaseMs??1000;this.api=o.api;this.scope=checkScope(o.scope);if(o.queries&&o.queries.scope.serverId!==this.scope.serverId)throw new Error('Library management is read from its own server\'s cache.');this.queries=o.queries;this.pageSize=o.pageSize??40;this.timeoutMs=o.timeoutMs??15000;if(!Number.isInteger(this.pageSize)||this.pageSize<1||this.pageSize>40||!Number.isFinite(this.timeoutMs)||this.timeoutMs<1||this.timeoutMs>60000)throw new Error('Invalid management request bounds.');this.state=this.empty();}
  private quietDirectory?:AbortController;
  /** Cancels only the mounted quiet directory read; ordinary paging and command owners stay intact. */
  invalidateQuietDirectory=():void=>{const c=this.quietDirectory;this.quietDirectory=undefined;c?.abort();if(c&&this.controls.directory===c)delete this.controls.directory;};
@@ -63,13 +63,15 @@ export class LibraryManagementService{
  private publish(p:Partial<LibraryManagementSnapshot>){this.state=Object.freeze({...this.state,...p,generation:++this.generation});for(const fn of this.listeners)fn();this.followScan();}
  /** How often a running scan is looked at again. */
  private scanRecheckMs:number;private scanTimer:ReturnType<typeof setTimeout>|undefined;
+ /** A tab out of sight reads nothing while a scan runs; it reads again within one wait of being shown. A phone app has no document and reads on. */
+ private hidden:()=>boolean=()=>typeof document!=='undefined'&&document.visibilityState==='hidden';
  /** The rebuilt server says nothing on the change feed when a scan ends, so while the list or the selected library
   * shows a scan running, both are read again every few seconds, and not once none does. */
  private followScan(){
   const running=(l:ManagedLibrary|undefined)=>l?.lastScan?.status==='running';
   const any=!!this.state.directory.data?.items.some(running)||running(this.state.selected.data?.library);
   if(!any||this.scanTimer||this.disposed)return;
-  this.scanTimer=setTimeout(()=>{this.scanTimer=undefined;if(this.disposed)return;
+  this.scanTimer=setTimeout(()=>{this.scanTimer=undefined;if(this.disposed)return;if(this.hidden()){this.followScan();return;}
    void this.refreshDirectory();const id=this.state.selectedLibraryId;if(id&&running(this.state.selected.data?.library))void this.resource(id,true).catch(()=>{});},this.scanRecheckMs);
  }
  private denied(e:unknown){const v=e as {status?:unknown;code?:unknown};return v?.status===401||v?.status===403||['unauthorized','forbidden','permission_changed','session_revoked'].includes(String(v?.code));}

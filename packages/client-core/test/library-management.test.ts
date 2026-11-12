@@ -112,3 +112,16 @@ test('while a scan runs the list and the selected library are read again, and no
   assert.equal(reads, settled, 'nothing more is read once no scan runs');
   s.dispose();
 });
+
+test('while the tab is out of sight a running scan is not read again; once shown it is', async () => {
+  let hidden = true, reads = 0;
+  const {api} = server(call => { if (call.method === 'GET') reads++; return call.method === 'GET' ? {items: [library('lib_one', {scanning: true})]} : undefined; });
+  const s = new LibraryManagementService({scope, api, readRetries: 1, retryBaseMs: 1, scanRecheckMs: 5, hidden: () => hidden}); made.push(s);
+  await s.loadLibraries();
+  const first = reads;
+  await new Promise(r => setTimeout(r, 40));
+  assert.equal(reads, first, 'a hidden tab reads nothing');
+  hidden = false;
+  for (let n = 0; n < 50 && reads === first; n++) await new Promise(r => setTimeout(r, 5));
+  assert.ok(reads > first, 'shown again, the scan is followed');
+});
