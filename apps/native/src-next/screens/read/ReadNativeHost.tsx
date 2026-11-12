@@ -138,15 +138,10 @@ export function ReadNativeHost({context, target, active, preferences, onBack, on
     retryTicket.spent = true; setRetry(value => value + 1);
   };
   useEffect(() => {void Promise.resolve().then(() => owner.ensure()).catch(() => {}); return () => {void owner.dispose().catch(() => {});};}, [owner]);
-  const onSearchAll = (query: string, signal: AbortSignal, isLive: () => boolean) => {
-    if (!owner.current() || signal.aborted) return false;
-    let live = false; try {live = isLive();} catch {live = false;}
-    if (!live || !owner.current() || (binding && !binding.activeCurrent()) || context.navigation.getSnapshot().route !== target) return false;
-    const destination: NativeShellRoute = {kind: 'search-reading', query};
-    return context.navigation.allows(destination) && owner.current() && context.navigation.open(destination, context.authority());
-  };
+  // No "Search all books": the app's Search does not look inside books (reading rule 34, ruling R3); search inside the
+  // open book stays (rules 32 and 33).
   if (snapshot.phase === 'ready' && resident) return place(<NativeReadingGuestHost owner={owner} active={active} preferences={preferences}
-    onBack={onBack} onSettings={onOpenSettings} onSearchAll={onSearchAll} contentsTarget={target.contentsTarget} onGuestState={onGuestState} activeCurrent={binding?.activeCurrent}/>);
+    onBack={onBack} onSettings={onOpenSettings} contentsTarget={target.contentsTarget} onGuestState={onGuestState} activeCurrent={binding?.activeCurrent}/>);
   if (!resident) return null;
   const failed = snapshot.phase === 'failed' || snapshot.phase === 'retired';
   // RD-8 (DECISIONS W-19): only the server-wide session cap is busy, and the reading client has
