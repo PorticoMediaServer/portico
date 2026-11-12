@@ -1,5 +1,6 @@
 import type {Routes} from '../../contracts/src/next/api.ts';
 import {callServer, type ServerRequester} from './query/server-api.ts';
+import {throwIfAborted} from './abort-lifetime.ts';
 import {parsePreferenceSnapshot,validatePreferencePatch,withPreferencePatch,type DeviceClass,type PreferencePatch,type PreferenceScope,type PreferenceSnapshot} from './preferences.ts';
 
 /**
@@ -37,7 +38,7 @@ export class PreferencesReader {
   }
   private async call<K extends keyof Routes>(route:K,options:Readonly<{query?:Record<string,string>;body?:Routes[K]['request']}>,signal?:AbortSignal):Promise<PreferenceSnapshot>{
     if(this.disposed)throw new Error('This preferences scope is closed.');
-    signal?.throwIfAborted();
+    throwIfAborted(signal);
     const c=new AbortController();this.requests.add(c);
     const stop=()=>c.abort(signal?.reason);signal?.addEventListener('abort',stop,{once:true});
     try{
