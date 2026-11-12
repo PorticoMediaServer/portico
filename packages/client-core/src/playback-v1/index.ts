@@ -25,7 +25,7 @@ export {V1QueuePlayer, movedEntry, playbackV1ForKind, serverSupportsPlaybackV1, 
 export {AutomaticQuality, audioStreamIndex, audioTrackId, fixedQualities, fixedQuality, fixedQualityOf, heightClass, isQualityChoice, offeredQualities, qualityChoiceOf, qualityChoiceOrder, qualityRequest, type AutomaticOptions, type FixedQuality, type FixedQualityId, type PlaybackChoices, type QualityChoice} from './choices.ts';
 export {sessionEndMessage} from '../session-end.ts';
 export {audioGainLinear, audioSeconds, audioTrimWindow, parseAudioRenderV2, playableAudio, type AudioDecodeCapability, type AudioGain, type AudioRenderMode, type AudioRenderV2, type AudioTrim, type Normalization, type PlayableAudioRender} from './audio-render.ts';
-export {V1ChannelControl, serverSupportsV1Channels, channelView, parseChannelSession, v1ChannelId, type ChannelPlayback, type ChannelStartOptions, type OriginalChannelStart, type ChannelStartReceipt, type ChannelView, type ChannelViewSink, type V1ChannelOptions} from './channel-control.ts';
+export {V1ChannelControl, serverSupportsV1Channels, channelView, parseChannelSession, CHANNEL_NOT_PLAYABLE_HERE, type ChannelPlayback, type ChannelStartOptions, type OriginalChannelStart, type ChannelStartReceipt, type ChannelView, type ChannelViewSink, type V1ChannelOptions} from './channel-control.ts';
 
 export {musicQualityPresentation, qualityPresentation, qualityLimitKbps, qualityLimit} from './quality-presentation.ts';
 

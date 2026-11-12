@@ -35,8 +35,11 @@ export class PlaybackApiError extends Error {
    const v=this.current as Record<string,unknown>|undefined;
    return this.code==='stream_limit_reached'&&v?.scope==='account'&&Number.isSafeInteger(v.limit)&&Number(v.limit)>0&&Number.isSafeInteger(v.playing)&&Number(v.playing)>=0?Object.freeze({scope:'account',limit:v.limit as number,playing:v.playing as number}):undefined;
   }
-  constructor(status: number, code: string, retry: RetryClass, current?: unknown, retryAfterMs?: number, reason?: string) {
+  /** The server's own words for the refusal, when it sends them ("Every tuner is busy: A recording."). */
+  readonly serverMessage?: string;
+  constructor(status: number, code: string, retry: RetryClass, current?: unknown, retryAfterMs?: number, reason?: string, serverMessage?: string) {
     super(code);
+    if (serverMessage) this.serverMessage = serverMessage;
     this.name = 'PlaybackApiError';
     this.status = status;
     this.code = code;
@@ -84,12 +87,13 @@ export async function callOnce(http: V1Http, request: V1Request, ok?: readonly n
   const r = await http.send(request);
   const good = ok ? ok.includes(r.status) : r.status >= 200 && r.status < 300;
   if (good) return r;
-  const e = (r.body as {error?: {code?: unknown; retry?: unknown; current?: unknown; retryAfterMs?: unknown; reason?: unknown}} | undefined)?.error;
+  const e = (r.body as {error?: {code?: unknown; message?: unknown; retry?: unknown; current?: unknown; retryAfterMs?: unknown; reason?: unknown}} | undefined)?.error;
   const code = typeof e?.code === 'string' ? e.code : r.status === 404 ? 'not_found' : 'request_failed';
   // The server says only whether sending the same request again may work.
   const retry: RetryClass = e?.retry === true ? 'same_request' : e?.retry === false && r.status !== 401 ? 'never' : defaultRetry(r.status);
   const reason = typeof e?.reason === 'string' && e.reason.length <= 128 ? e.reason : undefined;
-  throw new PlaybackApiError(r.status, code, retry, e?.current, retryAfter(r, e), reason);
+  const message = typeof e?.message === 'string' && e.message.length <= 300 ? e.message : undefined;
+  throw new PlaybackApiError(r.status, code, retry, e?.current, retryAfter(r, e), reason, message);
 }
 
 /** A fresh `Idempotency-Key` (16–128 chars, `[A-Za-z0-9_-]`, style guide §4.7.3). */

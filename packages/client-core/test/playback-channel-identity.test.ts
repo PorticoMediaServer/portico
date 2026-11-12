@@ -1,18 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PlaybackService} from '../src/index.ts';
-import {channelView,type ChannelPlayback,type ChannelViewSink} from '../src/playback-v1/channel-control.ts';
+import {channelView,parseChannelSession,type ChannelPlayback,type ChannelViewSink} from '../src/playback-v1/channel-control.ts';
 import type {ChannelReference} from '../src/playback/linear-protocol.ts';
 import {playbackFence,sameFence,type ChannelPlaybackFence} from '../../player-core/src/identity.ts';
 
 const scope={serverId:'server',authority:'local' as const,accountId:'account',profileId:'profile',controllerId:'controller',controllerEpoch:'epoch',commandLaneId:'lane'};
 const channel:ChannelReference={kind:'live-source',sourceId:'source',channelId:'channel',generation:'g1'};
-const projection=(reference:ChannelReference,id='server-session',generation=1)=>channelView({
- id,revision:'1',state:'playing',presentation:{generation,url:'/media/channel.m3u8',linear:{
-  name:'News',originMs:0,windowStartMs:0,windowEndMs:60000,liveEdgeMs:60000,state:'active',
-  seek:{id:'seek-'+generation,positionMs:60000,acknowledged:false},
- }},
-},reference);
+// A rebuilt live session as the channel control presents it: the attachment numbers the stream the engine joins.
+const projection=(reference:ChannelReference,id='server-session',generation=1)=>channelView(parseChannelSession({
+ id,kind:'live',state:'playing',presentation:{generation,mode:'live',url:'/v1/live/streams/grant',engine:'copy',route:'original'},
+ live:{oldestAt:'2026-11-12T20:00:00Z',liveAt:'2026-11-12T20:01:00Z'},lease:{expiresAt:'2026-11-12T20:02:00Z',reportEveryMs:10000},
+}),reference,{generation,key:`${id}:${generation}`,seekId:'seek-'+generation,targetMs:60000},{now:0,serverNow:0});
 function setup(){
  const sinks:ChannelViewSink[]=[];
  const starts:('playing'|'paused')[]=[],controls:string[]=[];

@@ -1,21 +1,21 @@
 import type {ResyncReadContext} from '../resync-coordinator.ts';
 import {encodedRoutePath} from "../../../contracts/src/route-paths.ts";
 /**
- * Live TV and Library Channels on a Playback v1 session (spec §11, §18.6; Plan — Client Playback
- * Migration §10, B6). The same surface as the /v2 `ChannelControl` (open, pause, resume, seek, go
- * live, retry, observe, close), so `PlaybackService` and the players don't change: each read of the
- * v1 session is presented as the channel projection the service already applies.
+ * Watching a channel on the rebuilt server (definition 11, rules 22-29): one playback session, the
+ * same one a title uses, presented as the channel view `PlaybackService` and the players already
+ * read, so neither changes.
  *
- * - Start: `POST /v1/playback/sessions {channelId, channelGeneration, state}`. A start with every
- *   tuner in use is `409 no_tuner_available`, said as such.
- * - Join: once the stream exists, a go-live seek (`PATCH seek {live: true}`) that the server
- *   resolves to a position in the window: the engine attaches there.
- * - Controls: `PATCH` with the session's revision (`state`; `seek {positionMs}` or `{live: true}`);
- *   play on a failed source is the server's retry.
- * - Reports: the timeline (§6) is the lease and the observation. A report after the engine reached
- *   a seek acknowledges it (the server compares the position with the target). One report at least
- *   every 10 s playing and 30 s paused keeps the lease.
- * - Stop: `DELETE`. A new channel waits for the previous stop, so a one-tuner source isn't refused.
+ * - Start: `POST /v1/playback/sessions {channel, state}`. A start with every tuner in use is
+ *   `409 no_tuner`, and the server's own words say what is using them.
+ * - A live source's channel answers a `live` session: its stream is `presentation.url`, from the
+ *   live edge, and `live` is the stretch that can be rewound. A device that cannot play the stream
+ *   the server chose for it (`plays`) is told so plainly and the session is stopped at once.
+ * - A Library Channel answers ordinary title playback with `channel` (the programme's start and
+ *   end): the engine starts where the server says (`startPositionMs`), may go back to the
+ *   programme's start and never past live, and at the programme's end the channel is tuned again
+ *   for the next one.
+ * - Controls: `PATCH {state}`; a Library Channel's seek is `PATCH {seek}`. Go to live on a live
+ *   source reloads its stream. Reports (`PUT .../progress`) keep the lease. Stop: `DELETE`.
  */
 import type {ChannelDesired, ChannelProjection, ChannelReference} from '../playback/linear-protocol.ts';
 import {channelMessage} from '../playback/linear-protocol.ts';
@@ -25,7 +25,13 @@ import {SessionsClient, type StartContext, type StartPreparation, type Timers} f
 import {ProgressReporter} from './progress.ts';
 
 type ChannelEvents = Readonly<{onResync?(listener: () => void): () => void; onResyncRead?(read: (context: ResyncReadContext) => Promise<void>, options?: {priority?: number}): {dispose(): void}}>;
-export type V1ChannelOptions = Readonly<{events?: ChannelEvents; http: V1Http; key?: () => string; now?: () => number; pollMs?: number; timers?: Timers}>;
+/** What the server chose to send this device: the stream's address, how it is delivered, and whether it was converted. */
+export type ChannelPresentation = Readonly<{mode: string; route: string; url: string; container?: string}>;
+export type V1ChannelOptions = Readonly<{events?: ChannelEvents; http: V1Http; key?: () => string; now?: () => number; pollMs?: number; timers?: Timers;
+  /** This server's time as this device knows it (`serverNow`), for a programme's end and a tuner countdown. */
+  serverNow?: () => number;
+  /** Whether this device can play the stream the server chose for it. A browser cannot play a live source's own MPEG-TS. */
+  plays?: (presentation: ChannelPresentation) => boolean}>;
 
 /** What the service applies: the playback id, whether the start can't proceed, and the projection. */
 export type ChannelView = Readonly<{playbackId: string; status?: string; linear: ChannelProjection}>;
@@ -33,7 +39,7 @@ export type ChannelViewSink = {state: (value: ChannelView) => void; error: (mess
 /** Facts of this exact original channel POST, captured before any start I/O.
  * This is not a session, cleanup authority or a permission to adopt a successor. */
 export type OriginalChannelStart = Readonly<{
-  body: Readonly<{channelId: string; channelGeneration: string; state: 'playing' | 'paused'}>;
+  body: Readonly<{channel: string; state: 'playing' | 'paused'}>;
   key: string; signal: AbortSignal; isCurrent(): boolean;
 }>;
 /** The host supplies purpose-specific never-installed resource custody. Its
@@ -42,9 +48,9 @@ export type OriginalChannelStart = Readonly<{
 export type ChannelStartReceipt = Readonly<{
   isCurrent(): boolean;
   capturePreparing: NonNullable<StartContext['capturePreparing']>;
-  /** Synchronously claim this actual resource before internal installation or
-   * a go-live PATCH. Only literal true permits installation; the host shares
-   * its original registration with every current/in-flight channel start. */
+  /** Synchronously claim this actual resource before internal installation. Only literal true
+   * permits installation; the host shares its original registration with every current/in-flight
+   * channel start. */
   claimInstall(session: Readonly<{id: string; generation: number}>): boolean;
   /** Facts of a late actual 200/201, never a fabricated Session. The host
    * re-proves this original principal/id/generation and never-installed
@@ -54,7 +60,7 @@ export type ChannelStartReceipt = Readonly<{
 }>;
 export type ChannelStartOptions = Readonly<{state?:'playing'|'paused'; signal?: AbortSignal; isCurrent?: () => boolean; capturePreparing?: StartContext['capturePreparing']; captureStart?: (original: OriginalChannelStart) => ChannelStartReceipt}>;
 
-/** The service's channel control, whichever protocol (the /v2 `ChannelControl` or this). */
+/** The service's channel control. */
 export interface ChannelPlayback {
   open(channel: ChannelReference, sink: ChannelViewSink, options?:ChannelStartOptions): Promise<void>;
   recover(): Promise<void>;
@@ -67,110 +73,137 @@ export interface ChannelPlayback {
   close(): void;
 }
 
-/** Whether the server plays channels as v1 sessions (`features.playback_v1_channels`, spec §18.6). */
+/** Whether the server plays channels: the rebuilt server always does, unless it says otherwise. */
 export function serverSupportsV1Channels(capabilities: unknown): boolean {
   const features = obj(capabilities) && obj(capabilities.features) ? capabilities.features : undefined;
-  return features?.playback_v1_channels === 'enabled';
+  return features?.playback_v1_channels !== 'disabled';
 }
 
-/** A v1 channelId: `live:<sourceId>:<channelId>` or `library:<channelId>` (spec §18.6). */
-export function v1ChannelId(ref: ChannelReference): string {
-  return ref.kind === 'live-source' ? `live:${ref.sourceId}:${ref.channelId}` : `library:${ref.channelId}`;
-}
-
-type Programme = Readonly<{id: string; itemId?: string; title: string; startMs: number; endMs: number}>;
-type Linear = Readonly<{
-  reservationRequiredAtMs?:number;nowMs?:number;name: string; programme?: Programme; next?: Programme; originMs: number; windowStartMs: number; windowEndMs: number; liveEdgeMs: number;
-  state: string; errorCode?: string; seek?: Readonly<{id: string; live?: boolean; positionMs?: number; acknowledged: boolean; error?: string}>; confirmedPositionMs?: number;
-  clocks?: readonly Readonly<{startMs: number; endMs: number; offsetMs: number}>[];
+type Session = Readonly<{
+  id: string;
+  /** `live`: a live source's channel. `title`: a Library Channel, played as its programme's title. */
+  kind: 'live' | 'title';
+  state: string;
+  itemId?: string;
+  presentation: Readonly<{generation: number; mode: string; route: string; url: string; container?: string; startPositionMs: number}>;
+  /** A Library Channel's programme: where it started and where it ends, as server instants. */
+  channel?: Readonly<{id: string; startsAtMs?: number; endsAtMs?: number; maxKbps?: number}>;
+  /** A live channel's rewind stretch, as server instants. */
+  window?: Readonly<{oldestAtMs: number; liveAtMs: number}>;
+  /** When a recording takes this stream's tuner, as a server instant, and why. */
+  countdown?: Readonly<{endsAtMs: number; reason: string}>;
+  end?: Readonly<{reason: string; message?: string}>;
 }>;
-type Session = Readonly<{id: string; revision: string; state: string; presentation: Readonly<{generation: number; url: string; linear?: Linear}>; end?: Readonly<{reason: string; message?: string}>}>;
 
 const obj = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v);
 const int = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v);
 const us = (ms: number) => String(Math.round(ms) * 1000);
+const instant = (v: unknown): number | undefined => {
+  if (typeof v !== 'string') return undefined;
+  const ms = Date.parse(v);
+  return Number.isFinite(ms) ? ms : undefined;
+};
+/** A day: the reach of a live stream's window as the player sees it, so a long watch never leaves it. */
+const DAY_MS = 86_400_000;
 
-function parseProgramme(v: unknown): Programme | undefined {
-  if (v === undefined) return undefined;
-  if (!obj(v) || typeof v.id !== 'string' || typeof v.title !== 'string' || !int(v.startMs) || !int(v.endMs)) throw new Error('Unreadable channel programme.');
-  return v as Programme;
+/** Reads a rebuilt playback session for a channel, as it arrives. */
+export function parseChannelSession(v: unknown): Session {
+  if (!obj(v) || typeof v.id !== 'string' || !v.id || typeof v.state !== 'string' || !obj(v.presentation) || typeof v.presentation.url !== 'string') throw new Error('Unreadable channel session.');
+  const p = v.presentation, kind = v.kind === 'live' ? 'live' : 'title';
+  // A live session's stream exists as soon as it starts; the server numbers no generation for it.
+  const generation = int(p.generation) && p.generation > 0 ? p.generation : kind === 'live' && p.url ? 1 : 0;
+  const channel = obj(v.channel) && typeof v.channel.id === 'string' ? Object.freeze({id: v.channel.id,
+    ...(instant(v.channel.startsAt) !== undefined ? {startsAtMs: instant(v.channel.startsAt)} : {}),
+    ...(instant(v.channel.endsAt) !== undefined ? {endsAtMs: instant(v.channel.endsAt)} : {}),
+    ...(int(v.channel.maxKbps) && v.channel.maxKbps > 0 ? {maxKbps: v.channel.maxKbps} : {})}) : undefined;
+  const oldest = obj(v.live) ? instant(v.live.oldestAt) : undefined, live = obj(v.live) ? instant(v.live.liveAt) : undefined;
+  const countdownAt = obj(v.countdown) ? instant(v.countdown.endsAt) : undefined;
+  return Object.freeze({id: v.id, kind, state: v.state, ...(typeof v.itemId === 'string' && v.itemId ? {itemId: v.itemId} : {}),
+    presentation: Object.freeze({generation, mode: typeof p.mode === 'string' ? p.mode : '', route: typeof p.route === 'string' ? p.route : '', url: p.url,
+      ...(typeof p.container === 'string' && p.container ? {container: p.container} : {}), startPositionMs: int(p.startPositionMs) && p.startPositionMs > 0 ? p.startPositionMs : 0}),
+    ...(channel ? {channel} : {}),
+    ...(oldest !== undefined && live !== undefined ? {window: Object.freeze({oldestAtMs: oldest, liveAtMs: Math.max(oldest, live)})} : {}),
+    ...(countdownAt !== undefined ? {countdown: Object.freeze({endsAtMs: countdownAt, reason: typeof v.countdown.reason === 'string' ? v.countdown.reason : ''})} : {}),
+    ...(obj(v.end) && typeof v.end.reason === 'string' && v.end.reason ? {end: Object.freeze({reason: v.end.reason, ...(typeof v.end.message === 'string' && v.end.message ? {message: v.end.message} : {})})} : {})});
 }
 
 /**
- * Reads a v1 channel session (the fields this control uses), as it arrives. A tuner deadline comes
- * with the server's clock (`nowMs`); it is moved onto this device's clock here, at receipt, so
- * every player's countdown and the automatic stop run against server time whatever this device's
- * clock says (off only by the response's travel time).
+ * Where this device is with a session's stream: which attachment of it (a new stream, or Go to
+ * live reloading one, is a new attachment the engine joins), the position it was asked to start or
+ * seek to, and the seek it has reached.
  */
-export function parseChannelSession(v: unknown, now: () => number = Date.now): Session {
-  if (!obj(v) || typeof v.id !== 'string' || typeof v.revision !== 'string' || typeof v.state !== 'string' || !obj(v.presentation) || !int(v.presentation.generation) || typeof v.presentation.url !== 'string') throw new Error('Unreadable channel session.');
-  const l = v.presentation.linear;
-  if (l !== undefined) {
-    if (!obj(l) || typeof l.name !== 'string' || !int(l.originMs) || !int(l.windowStartMs) || !int(l.windowEndMs) || !int(l.liveEdgeMs) || typeof l.state !== 'string') throw new Error('Unreadable channel clock.');
-    if(l.reservationRequiredAtMs!==undefined&&(!int(l.reservationRequiredAtMs)||l.reservationRequiredAtMs<0))throw new Error("Unreadable tuner deadline.");
-    parseProgramme(l.programme); parseProgramme(l.next);
-    if (l.seek !== undefined && (!obj(l.seek) || typeof l.seek.id !== 'string' || typeof l.seek.acknowledged !== 'boolean' || l.seek.positionMs !== undefined && !int(l.seek.positionMs))) throw new Error('Unreadable channel seek.');
-    if (l.confirmedPositionMs !== undefined && !int(l.confirmedPositionMs)) throw new Error('Unreadable channel position.');
-    if (l.clocks !== undefined && !(Array.isArray(l.clocks) && l.clocks.length <= 64 && l.clocks.every((c: unknown) => obj(c) && int(c.startMs) && int(c.endMs) && int(c.offsetMs)))) throw new Error('Unreadable channel clock.');
-    if (l.nowMs !== undefined && !int(l.nowMs)) throw new Error('Unreadable server clock.');
-    if (l.reservationRequiredAtMs !== undefined && l.nowMs !== undefined) {
-      const {nowMs, ...rest} = l;
-      return {...v, presentation: {...v.presentation, linear: {...rest, reservationRequiredAtMs: Math.max(0, l.reservationRequiredAtMs - nowMs + Math.round(now()))}}} as Session;
-    }
-  }
-  return v as Session;
-}
+export type ChannelAttachment = Readonly<{generation: number; key: string; seekId: string; targetMs: number; ackId?: string; confirmedMs?: number}>;
 
-/** The v1 session as the channel projection `PlaybackService.applyChannel` reads. */
-export function channelView(s: Session, channel: ChannelReference): ChannelView {
-  const l = s.presentation.linear;
-  const generation = s.presentation.generation > 0 ? String(s.presentation.generation) : '';
-  const programme = (p?: Programme) => (p ? Object.freeze({id: p.id, itemId: p.itemId ?? '', title: p.title, startMs: p.startMs, endMs: p.endMs}) : null);
-  const seek = l?.seek && l.seek.positionMs !== undefined ? Object.freeze({seekCommandId: l.seek.id, bufferGeneration: generation, kind: 'position' as const, positionUs: us(l.seek.positionMs)}) : null;
+/** How the engine takes the stream: a file or a live source's own MPEG-TS directly, anything else as HLS. */
+const engineMode = (s: Session): 'direct' | 'hls' =>
+  s.kind === 'live' ? (s.presentation.route === 'original' ? 'direct' : 'hls') : s.presentation.mode === 'direct' ? 'direct' : 'hls';
+
+/** The session as the channel projection `PlaybackService.applyChannel` reads. */
+export function channelView(s: Session, channel: ChannelReference, at: ChannelAttachment, timing: Readonly<{now: number; serverNow: number}>): ChannelView {
+  const generation = String(at.generation), programme = s.kind === 'title' ? s.channel : undefined;
+  const start = programme?.startsAtMs, end = programme?.endsAtMs;
+  // A Library Channel's timeline is its programme's title, from the programme's start; a live
+  // stream's is the stream from where this device joined it.
+  const originMs = start ?? s.window?.oldestAtMs ?? 0;
+  const windowEndMs = start !== undefined && end !== undefined ? Math.max(0, end - start) : DAY_MS;
+  const liveEdgeMs = start !== undefined ? Math.min(windowEndMs, Math.max(0, timing.serverNow - start)) : s.window ? s.window.liveAtMs - s.window.oldestAtMs : 0;
+  const seek = Object.freeze({seekCommandId: at.seekId, bufferGeneration: generation, kind: 'position' as const, positionUs: us(at.targetMs)});
   const desired: ChannelDesired = Object.freeze({state: s.state === 'paused' ? 'paused' : 'playing', seek, retryRequestId: null});
+  // The countdown is a server instant: moved onto this device's clock here, at receipt.
+  const reservation = s.countdown ? Math.max(0, s.countdown.endsAtMs - timing.serverNow + Math.round(timing.now)) : undefined;
   const linear: ChannelProjection = Object.freeze({
-    channel, name: l?.name ?? '', programme: programme(l?.programme), next: programme(l?.next), desired,
-    media: Object.freeze({... (l?.reservationRequiredAtMs===undefined?{}:{reservationRequiredAtMs:l.reservationRequiredAtMs}),streamUrl: s.presentation.url, bufferGeneration: generation, presentationGeneration: generation, originMs: l?.originMs ?? 0, windowRevision: '1',
-      windowStartUs: us(l?.windowStartMs ?? 0), windowEndUs: us(l?.windowEndMs ?? 0), liveEdgeUs: us(l?.liveEdgeMs ?? 0), gaps: [], state: l?.state ?? 'preparing', errorCode: l?.errorCode ?? '', logoUrl: '', ...(l?.clocks?.length ? {clocks: Object.freeze(l.clocks.map(c => Object.freeze({startMs: c.startMs, endMs: c.endMs, offsetMs: c.offsetMs})))} : {})}),
+    channel, name: channel.name ?? '',
+    programme: programme && start !== undefined && end !== undefined ? Object.freeze({id: `${programme.id}@${start}`, itemId: s.itemId ?? '', title: '', startMs: start, endMs: end}) : null,
+    next: null, desired,
+    media: Object.freeze({...(reservation === undefined ? {} : {reservationRequiredAtMs: reservation}), streamUrl: s.presentation.url, mode: engineMode(s),
+      // Live HLS dates its segments; a title, or a live source's own stream, counts media time from its start.
+      clock: s.kind === 'live' && engineMode(s) === 'hls' ? 'dates' as const : 'media' as const,
+      bufferGeneration: generation, presentationGeneration: generation, originMs, windowRevision: generation, windowStartUs: '0', windowEndUs: us(windowEndMs),
+      liveEdgeUs: us(liveEdgeMs), gaps: [], state: 'playing', errorCode: '', logoUrl: ''}),
     overlay: {enabled: false, corner: 'top-right', sizePercent: 8, insetPercent: 3, treatment: 'original'},
-    confirmedPositionUs: l?.confirmedPositionMs !== undefined ? us(l.confirmedPositionMs) : null,
-    acknowledgedSeekCommandId: l?.seek?.acknowledged ? l.seek.id : null,
-    seekError: l?.seek?.error ?? '',
+    confirmedPositionUs: at.confirmedMs !== undefined ? us(at.confirmedMs) : null,
+    acknowledgedSeekCommandId: at.ackId ?? null,
+    seekError: '',
   });
-  return Object.freeze({playbackId: s.id, status: l?.state === 'recoverable' ? 'recoverable' : undefined, linear});
+  return Object.freeze({playbackId: s.id, linear});
 }
 
-type Active = {wake?: () => void; serial: number; channel: ChannelReference; startAbort: AbortController; id?: string; session?: Session; joined: boolean; reporter?: ProgressReporter; tail: Promise<unknown>; closed: boolean};
+type Active = {wake?: () => void; serial: number; channel: ChannelReference; startAbort: AbortController; id?: string; session?: Session; at: ChannelAttachment;
+  joined: boolean; reporter?: ProgressReporter; tail: Promise<unknown>; closed: boolean; retune?: ReturnType<typeof setTimeout>};
 
 const message = (e: unknown): string => {
   if (e instanceof PlaybackApiError) {
-    if (e.code === 'no_tuner_available') return channelMessage('tuner_busy');
+    // The server names what is using every tuner (rule 25): its words, as it says them.
+    if (e.code === 'no_tuner') return e.serverMessage ?? channelMessage('tuner_busy');
     if (e.code === 'not_found') return 'This channel isn’t available.';
-    if (e.code === 'seek_unavailable') return channelMessage('window_expired');
-    if (e.code === 'stream_limit_reached') return 'This account is already playing as many streams as it is allowed.';
-    if (e.code === 'channel_unavailable') return 'This channel can’t be played right now. Try again in a moment.';
+    if (e.code === 'limit_reached' || e.code === 'stream_limit_reached') return e.serverMessage ?? 'This account is already playing as many streams as it is allowed.';
+    if (e.code === 'source_sign_in') return e.serverMessage ?? 'This channel’s source needs its sign-in again.';
     if (e.code === 'session_ended') return 'This channel playback has ended. Select the channel again.';
   }
   return 'Channel playback could not connect. Check the server and retry.';
 };
-/** Why a channel session ended, in words: an administrator's message, a profile without Live TV, or the generic end. */
+/** Why a channel session ended, in words: the server's message, a profile without Live TV, or the generic end. */
 export const channelEndMessage = (end: Session['end']): string => {
-  if (end?.reason === 'terminated' && end.message) return end.message;
   if (end?.reason === 'feature_restricted') return serviceText('live.offForProfile');
+  if (end?.message) return end.message;
   return 'This channel playback has ended. Select the channel again.';
 };
-const terminal = (e: unknown) => e instanceof PlaybackApiError && [401, 403, 404, 410].includes(e.status) || e instanceof PlaybackApiError && e.code === 'no_tuner_available';
+const terminal = (e: unknown) => e instanceof PlaybackApiError && ([401, 403, 404, 410].includes(e.status) || ['no_tuner', 'limit_reached', 'stream_limit_reached', 'source_sign_in'].includes(e.code));
 
 /** How long a started channel may take to have its stream, and how often to look. */
 export const CHANNEL_STREAM_WAIT_MS = 60_000, CHANNEL_STREAM_POLL_MS = 500;
 /** The plain, terminal words for a start the host refused and one whose stream never came. */
 export const CHANNEL_START_REFUSED = 'This channel could not start. Try again.', CHANNEL_START_TIMEOUT = 'This channel did not start in time. Try again.';
+/** A stream this device cannot play. For now a browser cannot play a live source's own stream; the server will convert it. */
+export const CHANNEL_NOT_PLAYABLE_HERE = 'This channel can’t be played in a browser yet.';
 
 export class V1ChannelControl implements ChannelPlayback {
   private readonly http: V1Http;
   private readonly sessions: SessionsClient;
   private readonly key: () => string;
   private readonly now: () => number;
+  private readonly serverNow: () => number;
+  private readonly plays: (presentation: ChannelPresentation) => boolean;
   private readonly timers?: Timers;
   private readonly pollMs?: number;
   private readonly events?: ChannelEvents;
@@ -186,12 +219,14 @@ export class V1ChannelControl implements ChannelPlayback {
     this.sessions = new SessionsClient(options.http, options.timers);
     this.key = options.key ?? (() => idempotencyKey());
     this.now = options.now ?? (() => Date.now());
+    this.serverNow = options.serverNow ?? this.now;
+    this.plays = options.plays ?? (() => true);
     this.timers = options.timers;
     this.pollMs = options.pollMs;
     this.events = options.events;
   }
 
-  /** Nothing to recover: a v1 session a crash left behind lapses with its lease. */
+  /** Nothing to recover: a session a crash left behind lapses with its lease. */
   recover(): Promise<void> { return Promise.resolve(); }
 
   private current(a: Active) { return this.active === a && !a.closed; }
@@ -199,6 +234,9 @@ export class V1ChannelControl implements ChannelPlayback {
     const result = a.tail.then(work);
     a.tail = result.catch(() => {});
     return result;
+  }
+  private emit(a: Active) {
+    if (this.current(a) && a.session && a.joined) this.sink?.state(channelView(a.session, a.channel, a.at, {now: this.now(), serverNow: this.serverNow()}));
   }
 
   async open(channel: ChannelReference, sink: ChannelViewSink, options:ChannelStartOptions={}): Promise<void> {
@@ -213,21 +251,21 @@ export class V1ChannelControl implements ChannelPlayback {
     if (!starting() || this.serial !== entered + 1) return;
     this.sink = sink;
     this.wanted = state;
-    const a: Active = {serial: ++this.serial, channel: originalChannel, startAbort: new AbortController(), joined: false, tail: Promise.resolve(), closed: false};
+    const a: Active = {serial: ++this.serial, channel: originalChannel, startAbort: new AbortController(), at: {generation: 0, key: '', seekId: '', targetMs: 0}, joined: false, tail: Promise.resolve(), closed: false};
     this.active = a;
     const currentStart = () => this.current(a) && starting() && this.current(a);
     let admitted = currentStart, finish: ChannelStartReceipt['finish'] | undefined;
     let claimInstall: ChannelStartReceipt['claimInstall'] | undefined;
     let retireUninstalled: ChannelStartReceipt['retireUninstalled'] | undefined, retiring: Promise<void> | undefined;
     const retireLate = (session: Readonly<{id: string; generation: number}>) => {
-      if (!captureStart) {void this.stop(session.id, session.generation).catch(error => this.sink?.error(message(error), true)); return;}
+      if (!captureStart) {void this.stop(session.id).catch(error => this.sink?.error(message(error), true)); return;}
       if (retireUninstalled) {try {retiring = Promise.resolve(retireUninstalled(Object.freeze({id: session.id, generation: session.generation}))).catch(() => {});} catch { /* Original host retains cleanup uncertainty; never downgrade it. */ }}
     };
     const cancel = () => {if (this.current(a)) this.close();};
     signal?.addEventListener('abort', cancel, {once: true});
     try {
       const stopping = this.stopping;
-      const body = Object.freeze({channelId: v1ChannelId(originalChannel), channelGeneration: originalChannel.generation, state});
+      const body = Object.freeze({channel: originalChannel.channelId, state});
       const key = this.key();
       if (typeof key !== 'string') throw new Error('invalid_channel_start_key');
       if (!currentStart()) {cancel();return;}
@@ -238,18 +276,25 @@ export class V1ChannelControl implements ChannelPlayback {
       const hostCurrent = captured?.isCurrent, originalPreparing = captured?.capturePreparing;
       if (captureStart && (typeof finish !== 'function' || typeof hostCurrent !== 'function' || typeof originalPreparing !== 'function' || typeof retireUninstalled !== 'function' || typeof claimInstall !== 'function')) throw new Error('invalid_channel_start_receipt');
       admitted = () => {try {return currentStart() && (!hostCurrent || hostCurrent() === true) && currentStart();} catch {return false;}};
+      // A new channel waits for the previous stop, so a one-tuner source isn't refused.
       await stopping.catch(() => {});
       if (!admitted()) {cancel();return;}
-      const result = await this.sessions.startResponse({channelId: body.channelId, channelGeneration: body.channelGeneration}, {state: body.state}, key, {
+      const result = await this.sessions.startResponse({channel: body.channel}, {state: body.state}, key, {
         signal: a.startAbort.signal, isCurrent: admitted, capturePreparing: captureStart ? originalPreparing : capturePreparing,
         onPreparing: (_wait, preparation) => {if (admitted()) sink.preparation?.(preparation);},
-      }, body => parseChannelSession(body, this.now));
+      }, body => parseChannelSession(body), body => {
+        // As the server answered it: a live session numbers no generation (0).
+        const v = body as {id?: unknown; presentation?: {generation?: unknown}} | null;
+        if (!v || typeof v.id !== 'string' || !v.id) throw new Error('Unreadable channel session.');
+        return {id: v.id, generation: int(v.presentation?.generation) && v.presentation.generation >= 0 ? v.presentation.generation : 0};
+      });
       if (!admitted()) {retireLate(result);cancel();return;}
       const s = result.body;
       sink.preparation?.(undefined);
       if (!admitted()) {retireLate(result);cancel();return;}
       let install = !captureStart;
-      try {if (claimInstall) install = claimInstall(Object.freeze({id: s.id, generation: s.presentation.generation})) === true;} catch { /* A host refusal cannot install or downgrade its cleanup proof. */ }
+      // The host's receipt names the session as the start answered it (a live session answers generation 0).
+      try {if (claimInstall) install = claimInstall(Object.freeze({id: result.id, generation: result.generation})) === true;} catch { /* A host refusal cannot install or downgrade its cleanup proof. */ }
       if (!install || !admitted()) {
         const refused = !install && admitted();
         retireLate(result);cancel();
@@ -259,6 +304,8 @@ export class V1ChannelControl implements ChannelPlayback {
         return;
       }
       a.id = s.id;
+      // A stream this device cannot play is said plainly, and its tuner is given back at once.
+      if (s.presentation.url && !this.plays(s.presentation)) {this.close(); sink.error(CHANNEL_NOT_PLAYABLE_HERE, true); return;}
       a.reporter = this.reporterFor(a, s.id);
       this.accept(a, s);
       if (this.current(a)) {
@@ -272,22 +319,16 @@ export class V1ChannelControl implements ChannelPlayback {
         };
         const recovery = this.events?.onResyncRead?.(({signal}) => recover(signal), {priority: 0});
         this.offResync = recovery ? () => recovery.dispose() : this.events?.onResync?.(() => {void recover().catch(error => {if (this.current(a)) sink.error(message(error), false);});});
-        // A start answered before the channel's stream exists (generation 0, no URL) has no
-        // reading or observation that may create its first join. Follow this start's own
-        // session until the server has the stream, then join (P2-74 E-web-25); never wait
-        // silently forever.
+        // A start answered before its stream exists (generation 0, no address) is followed until
+        // the server has the stream, then joined; never waited on silently forever.
         const deadline = this.now() + CHANNEL_STREAM_WAIT_MS;
         // One pending wait at a time, cleared at once when the channel closes (Stop, a newer start).
-        // Real time, like the channel's own clock; it never holds a process open (unref where the
-        // platform has it) and a closed channel clears it at once.
         const wait = (ms: number) => new Promise<void>(resolve => {
           const timer = setTimeout(() => {a.wake = undefined; resolve();}, ms);
           (timer as {unref?: () => void}).unref?.();
           a.wake = () => {clearTimeout(timer); a.wake = undefined; resolve();};
         });
         while (currentStart() && !a.joined) {
-          const ready = a.session && a.session.presentation.url && a.session.presentation.generation > 0;
-          if (ready) {this.accept(a, a.session!); break;}
           if (this.now() >= deadline) {
             // The hard bound: end this start (Stop frees the tuner) and say so, terminally.
             this.close(); sink.error(CHANNEL_START_TIMEOUT, true); return;
@@ -302,7 +343,12 @@ export class V1ChannelControl implements ChannelPlayback {
       if (!admitted()) {cancel();return;}
       if (this.current(a)) {
         sink.preparation?.(undefined);
-        if (admitted()) {this.active = undefined; a.closed = true; a.startAbort.abort(); sink.error(message(e), true);}
+        if (admitted()) {
+          this.active = undefined; a.closed = true; a.startAbort.abort();
+          // A session that started before the failure is stopped, so its tuner is not held.
+          if (a.id) void this.stop(a.id).catch(() => {});
+          sink.error(message(e), true);
+        }
       }
     } finally {
       signal?.removeEventListener('abort', cancel);
@@ -315,28 +361,46 @@ export class V1ChannelControl implements ChannelPlayback {
     if (!this.current(a)) return;
     if (s.state === 'ended' || s.end) {
       a.reporter?.stop(); this.offResync?.(); this.offResync = undefined;
+      this.clearRetune(a);
       this.active = undefined;
       this.sink?.error(channelEndMessage(s.end), true);
       return;
     }
     a.session = s;
-    // Catch-up cannot create the initial join/seek. The original start and its
-    // own renderer observations retain that admission.
-    if (observational && !a.joined) return;
-    // The first join is a go-live seek the server resolves to a position in the window.
-    if (!a.joined && s.presentation.url && s.presentation.generation > 0) {
+    const key = `${s.id}:${s.presentation.generation}:${s.presentation.url}`;
+    if (key !== a.at.key) {
+      // Catch-up never makes the first join; the start does, once the stream exists.
+      if (observational && !a.joined) return;
+      if (!s.presentation.url || s.presentation.generation <= 0) return;
+      // A new stream (the start, or the server's new presentation): the engine joins it where the
+      // server starts it; a live stream from its live edge.
+      a.at = Object.freeze({generation: a.at.generation + 1, key, seekId: this.key(), targetMs: s.kind === 'title' ? s.presentation.startPositionMs : 0});
       a.joined = true;
-      void this.patch(a, {state: this.wanted, seek: {id: this.key(), positionMs: 0, live: true}});
-      return;
+      this.scheduleRetune(a, s);
     }
-    // The engine's readings are the observations; until it has one, the confirmed position keeps
-    // the samples (and so the lease and this view) coming once a second.
     if (a.reporter && a.reporter.snapshot().generation !== s.presentation.generation) {
       a.reporter.setGeneration(s.presentation.generation);
-      a.reporter.observe({generation: s.presentation.generation, state: this.wanted, positionMs: s.presentation.linear?.confirmedPositionMs ?? 0, rate: this.wanted === 'playing' ? 1 : 0}, 'state');
+      a.reporter.observe({generation: s.presentation.generation, state: this.wanted, positionMs: a.at.confirmedMs ?? a.at.targetMs, rate: this.wanted === 'playing' ? 1 : 0}, 'state');
     }
-    this.sink?.state(channelView(s, a.channel));
+    this.emit(a);
   }
+
+  /** A Library Channel's programme ends: tune the channel again for the next one. */
+  private scheduleRetune(a: Active, s: Session) {
+    this.clearRetune(a);
+    const end = s.kind === 'title' ? s.channel?.endsAtMs : undefined;
+    if (end === undefined) return;
+    // An end this device's view of the server's clock already passed is tuned a second later, never in a tight loop.
+    const left = end - this.serverNow(), delay = left > 0 ? left : 1_000;
+    a.retune = setTimeout(() => {
+      a.retune = undefined;
+      const sink = this.sink;
+      if (!this.current(a) || !sink) return;
+      void this.open(a.channel, sink, {state: this.wanted}).catch(() => {});
+    }, delay);
+    (a.retune as {unref?: () => void}).unref?.();
+  }
+  private clearRetune(a: Active) { if (a.retune !== undefined) {clearTimeout(a.retune); a.retune = undefined;} }
 
   private async read(a: Active, signal?: AbortSignal, observational = false) {
     if (!a.id || !this.current(a) || signal?.aborted) return;
@@ -352,8 +416,7 @@ export class V1ChannelControl implements ChannelPlayback {
       onNewer: () => { if (this.current(a)) void this.read(a).catch(() => {}); },
       onEnded: () => { if (this.current(a)) void this.read(a).catch(e => { if (this.current(a)) { this.sink?.error(message(e), true); this.active = undefined; } }); },
       onConnection: healthy => { if (!healthy && this.current(a)) this.sink?.error(message(undefined), false); },
-      // Reports run on real time, like the channel's own clock (the injected timers pace start
-      // preparation only); pollMs fixes their cadence for hosts and tests that need it.
+      // Reports run on real time, like the channel's own clock; pollMs fixes their cadence for hosts and tests that need it.
       ...(this.pollMs !== undefined ? {everyMs: this.pollMs} : {}),
     });
   }
@@ -362,57 +425,79 @@ export class V1ChannelControl implements ChannelPlayback {
     return this.enqueue(a, async () => {
       if (!a.id || !a.session || !this.current(a)) return;
       try {
-        const r = await call(this.http, {method: 'PATCH', path: encodedRoutePath("change_playback_session", {"id": enc(a.id)}), headers: {'If-Match': `"${a.session.revision}"`}, body});
+        const r = await call(this.http, {method: 'PATCH', path: encodedRoutePath("change_playback_session", {"id": enc(a.id)}), body});
         this.accept(a, parseChannelSession(r.body));
       } catch (e) {
         if (!this.current(a)) return;
-        if (e instanceof PlaybackApiError && e.status === 412) {
-          // Another change landed first: take the current session and apply ours on it.
-          const current = e.current ? parseChannelSession(e.current) : undefined;
-          if (current) {
-            a.session = current;
-            const r = await call(this.http, {method: 'PATCH', path: encodedRoutePath("change_playback_session", {"id": enc(a.id)}), headers: {'If-Match': `"${current.revision}"`}, body});
-            this.accept(a, parseChannelSession(r.body));
-            return;
-          }
-        }
         try { await this.read(a); } catch { /* the next tick reads again */ }
         this.sink?.error(message(e), terminal(e));
       }
     });
   }
 
+  /** The engine goes to a position of this attachment: a new seek it acknowledges when it gets there. */
+  private moveTo(a: Active, ms: number) {
+    a.at = Object.freeze({...a.at, seekId: this.key(), targetMs: Math.max(0, Math.round(ms)), ackId: undefined, confirmedMs: undefined});
+    this.emit(a);
+  }
+  /** A live stream joined again from its live edge: a new attachment of the same stream. */
+  private reload(a: Active) {
+    a.at = Object.freeze({generation: a.at.generation + 1, key: a.at.key, seekId: this.key(), targetMs: 0});
+    this.emit(a);
+  }
+
   pause() { this.wanted = 'paused'; const a = this.active; if (a) void this.patch(a, {state: 'paused'}); }
   resume() { this.wanted = 'playing'; const a = this.active; if (a) void this.patch(a, {state: 'playing'}); }
   seek(seconds: number) {
-    const a = this.active;
-    if (!a || !Number.isFinite(seconds)) return;
-    void this.patch(a, {state: this.wanted, seek: {id: this.key(), positionMs: Math.max(0, Math.round(seconds * 1000))}});
+    const a = this.active, s = a?.session;
+    if (!a || !s || !Number.isFinite(seconds)) return;
+    if (s.kind === 'live') {
+      // Within a live HLS stream the engine moves on its own; a live source's own stream cannot be
+      // moved in (rewinding further back comes with the stream the server converts).
+      if (engineMode(s) === 'hls') this.moveTo(a, seconds * 1000);
+      return;
+    }
+    // A Library Channel goes back as far as its programme's start and never past live: the server
+    // holds that bound, and the engine goes where it was asked.
+    this.moveTo(a, seconds * 1000);
+    void this.patch(a, {state: this.wanted, seek: {id: a.at.seekId, positionMs: a.at.targetMs}});
   }
   goLive() {
     this.wanted = 'playing';
-    const a = this.active;
-    if (a) void this.patch(a, {state: 'playing', seek: {id: this.key(), positionMs: 0, live: true}});
+    const a = this.active, s = a?.session;
+    if (!a || !s) return;
+    if (s.kind === 'live') {this.reload(a); void this.patch(a, {state: 'playing'}); return;}
+    const start = s.channel?.startsAtMs;
+    if (start === undefined) {void this.patch(a, {state: 'playing'}); return;}
+    this.moveTo(a, this.serverNow() - start);
+    void this.patch(a, {state: 'playing', seek: {id: a.at.seekId, positionMs: a.at.targetMs}});
   }
-  /** Play on a failed source is the server's retry. */
-  retry() { const a = this.active; if (a) void this.patch(a, {state: 'playing'}); }
+  /** Play again: the server's retry; a live stream is joined again from live. */
+  retry() {
+    const a = this.active;
+    if (!a) return;
+    if (a.session?.kind === 'live') this.reload(a);
+    void this.patch(a, {state: 'playing'});
+  }
 
   /** Where the engine is (a seek it reached, or ordinary progress). The latest wins: the next
    * sample (within a second) carries it, and a reached seek is sent at once. */
   async observe(seconds: number, seekId: string | null = null, _errorCode: string | null = null): Promise<boolean> {
     const a = this.active, s = a?.session;
     if (!a?.id || !s || !a.reporter || !this.current(a) || !Number.isFinite(seconds)) return false;
-    if (seekId && s.presentation.linear?.seek?.id !== seekId) return false;
-    a.reporter.observe({generation: s.presentation.generation, state: this.wanted, positionMs: Math.max(0, Math.round(seconds * 1000)), rate: this.wanted === 'playing' ? 1 : 0}, seekId ? 'seeked' : 'time');
-    if (seekId) await a.reporter.flush();
+    if (seekId && a.at.seekId !== seekId) return false;
+    const positionMs = Math.max(0, Math.round(seconds * 1000));
+    a.reporter.observe({generation: s.presentation.generation, state: this.wanted, positionMs, rate: this.wanted === 'playing' ? 1 : 0}, seekId ? 'seeked' : 'time');
+    if (seekId) {
+      a.at = Object.freeze({...a.at, ackId: seekId, confirmedMs: positionMs});
+      this.emit(a);
+      await a.reporter.flush();
+    }
     return this.current(a);
   }
 
-  private stop(id: string, generation?: number): Promise<unknown> {
-    const send = (g?: number) => call(this.http, {method: 'DELETE', path: encodedRoutePath("stop_playback_session", {"id": enc(id)}), body: g === undefined ? {} : {generation: g}}, [200, 204]);
-    // A generation the stream moved past since the last reading (412) still ends this session.
-    const work = send(generation).catch(error => {
-      if (generation !== undefined && error instanceof PlaybackApiError && error.status === 412) return send(undefined);
+  private stop(id: string): Promise<unknown> {
+    const work = call(this.http, {method: 'DELETE', path: encodedRoutePath("stop_playback_session", {"id": enc(id)}), body: {}}, [200, 204]).catch(error => {
       // No answer: the outbox keeps the stop and sends it when the server is back.
       if ((error as {code?: unknown} | null)?.code === 'sync_pending') return undefined;
       throw error;
@@ -432,12 +517,11 @@ export class V1ChannelControl implements ChannelPlayback {
     if (!a) return;
     a.closed = true;
     a.wake?.();
+    this.clearRetune(a);
     a.startAbort.abort();
     sink?.preparation?.(undefined);
     a.reporter?.stop();
-    // Stop frees the tuner now, including a slow start still at stream generation 0: the
-    // server refuses generation 0, so an unseen generation ends the session by id alone.
-    const generation = a.session?.presentation.generation;
-    if (a.id) void this.stop(a.id, generation !== undefined && generation > 0 ? generation : undefined).catch(error => sink?.error(message(error), true));
+    // Stop frees the tuner now, including a slow start whose stream has not come yet.
+    if (a.id) void this.stop(a.id).catch(error => sink?.error(message(error), true));
   }
 }

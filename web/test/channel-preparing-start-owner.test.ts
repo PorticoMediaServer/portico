@@ -11,14 +11,12 @@ import {createWebPreparingStarts} from '../src/platform/playback/start-owner.ts'
 // Authored against the real Web binding and canonical SDK. Only the original
 // fake API and documented decoders are used; no network, browser, tuner,
 // actual timer or server preparation job.
-// The accepted channel 201 shape: an active linear session observed after the
-// producer's buffer exists, with its own canonical linear media URL
-// (`/v1/media/linear/<id>/<generation>/<token>/index.m3u8`).
-const real = (id = 'original_channel') => ({variant: 'session', id, revision: '1', kind: 'live', role: 'local', state: 'playing', channelId: 'live:source:station',
+// The accepted channel 201 shape on the rebuilt server: a live session on the channel, its stream from the start
+// (`/v1/live/streams/<grant>`), generation 0 as the server sends it for a live session.
+const real = (id = 'original_channel') => ({id, kind: 'live', state: 'playing', itemId: '', versionId: '', channel: {id: 'station'},
   lease: {expiresAt: '2099-01-01T00:00:00Z', reportEveryMs: 10_000},
-  presentation: {generation: 1, mode: 'stream', engine: 'native', url: `/v1/media/linear/${id}/1/original-grant/index.m3u8`, startPositionMs: 0,
-    quality: {mode: 'original'}, subtitles: [], decision: {},
-    linear: {name: 'Station', originMs: 0, windowStartMs: 0, windowEndMs: 120_000, liveEdgeMs: 60_000, state: 'active'}}});
+  presentation: {generation: 0, mode: 'live', url: '/v1/live/streams/original-grant', startPositionMs: 0, engine: 'copy', route: 'original', quality: {}, subtitles: [], decision: {}},
+  live: {oldestAt: '2026-11-12T20:00:00Z', liveAt: '2026-11-12T20:01:00Z'}});
 const response = (body: unknown, status = 202) => ({body, status, headers: {}});
 function deferred<T>() {let resolve!: (value: T) => void;const promise = new Promise<T>(yes => {resolve = yes;});return {promise, resolve};}
 function fixture() {
@@ -34,7 +32,7 @@ function fixture() {
       return response(method === 'GET' ? await (reads.shift() ?? Promise.resolve(real())) : await (stops.shift() ?? Promise.resolve(undefined)), method === 'GET' ? 200 : 204);
     }} as unknown as HttpLocalApi;
   const owner = createWebPreparingStarts(api, session, () => session, () => principal)!, reg = owner.attach();
-  const original = (key = 'channel-key'): OriginalChannelStart => Object.freeze({body: Object.freeze({channelId: 'live:source:station', channelGeneration: 'original-guide', state: 'playing' as const}),
+  const original = (key = 'channel-key'): OriginalChannelStart => Object.freeze({body: Object.freeze({channel: 'station', state: 'playing' as const}),
     key, signal: new AbortController().signal, isCurrent: () => view});
   return {owner, reg, original, calls, reads, stops, route, retireView: () => {view = false;}, retirePrincipal: () => {principal = false;}, current: () => view};
 }
@@ -56,15 +54,14 @@ test('late real success facts are read under original channel custody, never con
   try {
     f.retireView();await start.retireUninstalled(Object.freeze({id: 'original_channel', generation: 1}));start.finish();
     assert.deepEqual(f.calls.map(call => call.method), ['GET', 'DELETE']);
-    assert.ok(Object.isFrozen(original.body));assert.equal(original.body.channelGeneration, 'original-guide');
+    assert.ok(Object.isFrozen(original.body));assert.equal(original.body.channel, 'station');
   } finally {f.reg.dispose();f.owner.dispose();}
 });
 
-test('a changed actual generation, channel, kind or ownership refuses cleanup', async () => {
+test('a changed actual generation or channel, an ended session or one with no channel refuses cleanup', async () => {
   for (const changed of [
-    {...real(), presentation: {...real().presentation, generation: 2}}, {...real(), channelId: 'live:other:station'},
-    {...real(), role: 'receiver'}, {...real(), kind: 'vod'}, {...real(), state: 'ended'},
-    {...real(), queue: {queueId: 'queue', entryId: 'entry'}}, {...real(), itemId: 'movie'},
+    {...real(), presentation: {...real().presentation, generation: 2}}, {...real(), channel: {id: 'other'}},
+    {...real(), state: 'ended'}, {...real(), channel: undefined},
   ]) {
     const f = fixture(), start = f.reg.beginChannel(f.original(), f.current);f.reads.push(Promise.resolve(changed));
     try {await start.retireUninstalled({id: 'original_channel', generation: 1});start.finish();assert.deepEqual(f.calls.map(call => call.method), ['GET']);}
@@ -131,7 +128,7 @@ test('actual channel SDK retry-only 202 pending wait then wait-abort spends no r
   try {const pending = f.start();await settle();assert.equal(f.jobs.size, 1);f.caller.abort();await pending;await settle();
     assert.deepEqual(f.calls.map(call => call.method), ['POST']);assert.equal(f.jobs.size, 0);assert.equal(f.installed.length, 0);
     assert.equal(f.cleanupCalls.length, 0, 'a retry-only preparation owns no resource to retire');
-    assert.deepEqual(f.calls[0]!.body, {channelId: 'live:source:station', channelGeneration: 'original-guide', state: 'playing'});
+    assert.deepEqual(f.calls[0]!.body, {channel: 'station', state: 'playing'});
     assert.deepEqual(f.calls[0]!.headers, {'Idempotency-Key': 'actual-channel-key'});
   } finally {f.control.close();f.reg.dispose();f.owner.dispose();}
 });
@@ -148,7 +145,7 @@ test('actual channel SDK late201 after caller abort uses only its original host 
   try {const pending = f.start();await settle();f.caller.abort();held.resolve(response(real(), 201));await pending;await settle();
     assert.deepEqual(f.calls.map(call => call.method), ['POST']);assert.equal(f.jobs.size, 0);assert.equal(f.installed.length, 0);
     assert.deepEqual(f.cleanupCalls.map(call => call.method), ['GET', 'DELETE']);assert.equal(f.cleanupCalls.length, 2, 'one bounded cleanup for the one actual receipt');
-    assert.deepEqual(f.calls[0]!.body, {channelId: 'live:source:station', channelGeneration: 'original-guide', state: 'playing'});
+    assert.deepEqual(f.calls[0]!.body, {channel: 'station', state: 'playing'});
     assert.deepEqual(f.calls[0]!.headers, {'Idempotency-Key': 'actual-channel-key'});
   } finally {f.control.close();f.reg.dispose();f.owner.dispose();}
 });
@@ -156,9 +153,8 @@ test('actual channel SDK late201 after caller abort uses only its original host 
 
 test('the public pre-install claim registers a genuine accepted channel before service publication', async () => {
   const f = controlFixture();
-  // The genuine active 201 carries media, so the canonical go-live join lands
-  // before the projection publishes; the registration precedes both.
-  f.replies.push(Promise.resolve(response(real(), 201)), Promise.resolve(response(real(), 200)));
+  // The genuine active 201 carries its stream, so the engine joins it as the projection publishes; the registration precedes it.
+  f.replies.push(Promise.resolve(response(real(), 201)));
   try {await f.start();await settle();assert.deepEqual(f.installed, ['original_channel']);
     // The successful resource is remembered before an older receipt can try
     // to acquire and retire this same id, even without media attachment yet.
@@ -168,11 +164,11 @@ test('the public pre-install claim registers a genuine accepted channel before s
     const stops = f.calls.filter(call => call.method === 'DELETE');
     assert.equal(stops.length, 1, 'the installed channel retires exactly once');
     assert.equal(stops[0]!.path, '/v1/playback/sessions/original_channel');
-    assert.deepEqual(stops[0]!.body, {generation: 1}, 'normal teardown retains the exact installed generation');
+    assert.deepEqual(stops[0]!.body, {}, 'the rebuilt stop names its session by id');
   } finally {f.control.close();f.reg.dispose();f.owner.dispose();}
 });
 
-test('a cleanup-claimed resource refuses canonical install before any state or go-live PATCH', async () => {
+test('a cleanup-claimed resource refuses canonical install before any state is published', async () => {
   const f = controlFixture(), stopping = deferred<unknown>();f.stops.push(stopping.promise);
   const original = f.reg.beginChannel(f.original('cleanup-key'), f.current);
   try {

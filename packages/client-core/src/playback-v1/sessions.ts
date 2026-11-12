@@ -28,7 +28,7 @@ export type {SessionChangeContext} from './change-context.ts';
 
 export type StartTarget =
   | Readonly<{itemId: string}>
-  | Readonly<{channelId: string; channelGeneration?: string}>
+  | Readonly<{channel: string}>
   | Readonly<{queue: Readonly<{queueId: string; entryId: string}>}>
   | Readonly<{transferId: string}>;
 
@@ -124,10 +124,12 @@ export class SessionsClient {
   }
 
   /** `start` with the caller's own reading of the answer (a channel's view beside the session). */
-  async startResponse<T>(target: StartTarget, options: StartOptions, key: string, extra: StartContext, decode: (body: unknown) => T): Promise<Readonly<{id: string; generation: number; body: T}>> {
+  /** `identify` reads the answer's id and generation for a session the title parser does not take (a live channel's). */
+  async startResponse<T>(target: StartTarget, options: StartOptions, key: string, extra: StartContext, decode: (body: unknown) => T,
+    identify?: (body: unknown) => Readonly<{id: string; generation: number}>): Promise<Readonly<{id: string; generation: number; body: T}>> {
     return this.startOriginal(target, options, key, extra, body => {
-      const session = parseSession(body);
-      return {id: session.id, generation: session.presentation.generation, body: decode(body)};
+      const session = identify ? identify(body) : (({id, presentation}) => ({id, generation: presentation.generation}))(parseSession(body));
+      return {id: session.id, generation: session.generation, body: decode(body)};
     });
   }
 
