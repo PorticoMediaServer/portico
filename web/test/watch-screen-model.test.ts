@@ -399,6 +399,18 @@ test('the actual screen renders one empty picture target and real identity, with
   assert.doesNotMatch(html, /<video|<audio|Movie night|1080p/);
   assert.match(html, /<h2>Title<\/h2>/);
   assert.match(html, /aria-label="Pause"/);
+  // A failed playback: only the transport gives way (states.html frames 8 and 10), so nothing to press sits under the
+  // failure's words and Try again; the top row and the bottom row stay.
+  const failed = snapshot({playback: {phase: 'error', error: {code: 'playback_failed', message: 'x'}} as never});
+  const failedHtml = renderToStaticMarkup(createElement(WatchScreen, {
+    binding: {runtime: {getSnapshot: () => failed, bufferedRanges: () => [], canRetryFailure: () => true, onAction: async () => { throw new Error('render_must_not_command'); }} as never, artwork: {} as never, environment: {t: (key: string) => key} as never, skips: {back: 10, forward: 30}, reportError: error => { throw error; }},
+    snapshot: failed, expanded: true, surfaceSlotRef: {current: null}, onCollapse() {},
+  }));
+  assert.doesNotMatch(failedHtml, /aria-label="(Pause|Play)"/, 'no transport under a failure');
+  assert.doesNotMatch(failedHtml, /class="center"|class="transport"/);
+  assert.match(failedHtml, /<h2>Title<\/h2>/, 'the top row stays');
+  assert.match(failedHtml, /aria-label="Playback position"/, 'the bottom row stays, with the seek bar');
+  assert.match(html, /class="transport"/, 'while playing, the transport is there');
   const dock = new PlaybackDock(fence.playback.scope), playback = {kind: 'video' as const, fence, queue: null, positionSeconds: 30, playing: true, expanded: true};
   dock.start(playback);
   dock.beginRemote({id: 'cast', kind: 'cast', phase: 'connecting', sequence: '1', playback, positionSeconds: 0}, 0);
