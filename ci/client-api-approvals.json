@@ -1660,15 +1660,6 @@
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
     "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
   },
-  "web/src/screens/settings/settings-request.ts#2c1b1146df88646a": {
-    "category": "platform-transport",
-    "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
-    "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
-    "guardHash": "f0bdaad6e44a2961d5c7b6198234f0dcc4bf67e9d832877678044cf7a85e33bd",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
-    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
-  },
   "apps/native/src-next/screens/settings-live/SettingsRoute.tsx#32ee3e8586b61f52": {
     "category": "platform-transport",
     "reason": "Named core services build each complete request; this transport preserves path/method/body/auth and adds only lifetime/signal checks and its existing GET-only readEventState resync scheduling.",
@@ -2766,5 +2757,13 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/2465#issuecomment-6788320233",
     "reviewedCommit": "8aadba51d3dd20594c9b28c48f4e634cd9e18b41"
+  },
+  "web/src/screens/settings/settings-request.ts#16047bdf943972b4": {
+    "category": "platform-transport",
+    "reason": "forwards Change owner on a local server, fully built by client-core's transferLocalOwnership and narrowed to that one POST by localOwnerChangeOnly (its method typed 'POST'), unchanged; adds only Settings currentness and the captured abort, so its answer may arrive after Settings closes; constructs nothing",
+    "guardHash": "7fceaac200fca40aabbcaeaa9833797423a52f161033685c5a830593ac2eebf1",
+    "condition": "forwards Change owner on a local server, fully built by client-core's transferLocalOwnership and narrowed to that one POST by localOwnerChangeOnly (its method typed 'POST'), unchanged; adds only Settings currentness and the captured abort, so its answer may arrive after Settings closes; constructs nothing",
+    "occurrences": 1,
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-1"
   }
 }

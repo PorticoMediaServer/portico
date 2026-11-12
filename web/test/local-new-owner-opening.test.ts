@@ -19,7 +19,7 @@ function fixture() {
     calls.push({path, method, body});
     if (path === '/v1/admin/members') return {items: [member('owner', 'owner'), member('member', role), member('admin', 'admin')]} as T;
     if (path === '/v1/admin/members/owner' || path === '/v1/admin/members/member') return (path.endsWith('/owner') ? member('owner', 'owner') : member('member', role)) as T;
-    if (path === '/v1/direct/ownership') {if (fail) throw fail; await post?.(); return undefined as T;}
+    if (path === '/v1/admin/owner') {if (fail) throw fail; await post?.(); return undefined as T;}
     throw new Error('Unexpected transfer request');
   }};
   const build = new AbortController();
@@ -43,7 +43,7 @@ const caller = () => {
 };
 const newAccount = () => ({username: 'harbourview', name: 'Harbour View', password: 'New-password2!'});
 const input = () => ({newAccount: newAccount(), currentPassword: ' original password ', expectedRevision: 1});
-const ownership = (calls: {path: string; method?: string; body?: unknown}[]) => calls.filter(value => value.path === '/v1/direct/ownership');
+const ownership = (calls: {path: string; method?: string; body?: unknown}[]) => calls.filter(value => value.path === '/v1/admin/owner');
 const drain = async (ready: () => unknown) => {for (let i = 0; i < 8 && !ready(); i++) await Promise.resolve();};
 
 test('a caller-owned newAccount mutated after accept cannot change the accepting body', async () => {
@@ -56,8 +56,8 @@ test('a caller-owned newAccount mutated after accept cannot change the accepting
     draft.username = 'swapped'; draft.name = 'Swapped'; draft.password = 'Swapped-password9!';
     await drain(() => typeof release === 'function');
     release(); await pending;
-    assert.deepEqual(ownership(f.calls).map(value => value.body), [{accountId: '', currentPassword: ' original password ', expectedRevision: 1,
-      newAccount: {username: 'harbourview', name: 'Harbour View', password: 'New-password2!'}}]);
+    assert.deepEqual(ownership(f.calls).map(value => value.body), [{password: ' original password ',
+      newAccount: {username: 'harbourview', password: 'New-password2!', profileName: 'Harbour View'}, previousOwner: 'admin'}]);
     assert.equal(f.complete, 1);
   } finally {f.source.dispose();}
 });
