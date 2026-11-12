@@ -367,6 +367,8 @@ func browseBy(kind string) ([]View, []Sort, []Filter) {
 	reading := []View{{"book"}, {"series"}}
 	if kind == db.LibraryComics {
 		reading = []View{{"comic"}, {"series"}}
+	} else {
+		filters = append(filters, Filter{ID: "wordCount", Type: "number"})
 	}
 	return reading, append(sorts[:3:3], ownSorts...), append(filters, Filter{ID: "author", Type: "person"},
 		Filter{ID: "publication", Type: "choice", Values: []string{"book", "magazine", "newspaper"}})
