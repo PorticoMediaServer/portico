@@ -147,7 +147,7 @@ export function LibraryBrowse(bindings: LibraryBrowseBindings) {
   const view = views.find(view => view === appearance.view) ?? views[0];
   if (!view) return null;
   const chips = model.applied.flatMap((node, index) => 'field' in node ? [{id: String(index), parts: appliedFilterParts(node, id => {const field = state.capabilities!.fields.find(field => field.id === id);return field ? browseLabels.field(field) : id;}, env,
-    value => filterValueName(value) ?? String(value))}] : []);
+    value => filterValueName(value) ?? (namedFilterFields.has(node.field) ? '' : String(value)))}] : []);
   const setPredicates = (nodes: readonly BrowseNode[]) => {try {controller.setQuery(nodes, undefined, state);} catch (error) {bindings.reportError(error);}};
   // The retained count describes the same accepted generation still painted by
   // the collection. A pending replacement cannot use it as its new match count.
