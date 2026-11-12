@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {NativeSavedDestination} from '../src-next/screens/saved/model.ts';
+import {legacySavedRequest} from '../../../packages/client-core/test/fixtures/legacy-saved.ts';
 
 const projection = {scope: {serverId: 'server', libraryId: '', libraryKind: 'mixed', view: 'watchlist', entityId: '', viewerFence: 'fence-1'},
   revision: {catalog: 1, viewer: 1}, heading: {key: 'saved.title', fallback: ''}, navigation: [],
@@ -14,6 +15,7 @@ function destination(paths: string[], savedResponse: (path: string) => unknown) 
     if (path.includes('/saved-pins/order')) throw Object.assign(new Error('pins unavailable'), {code: 'invalid_response'});
     throw new Error(`unexpected ${path}`);
   }};
+  api.request = legacySavedRequest(api.request as never) as typeof api.request;
   return new NativeSavedDestination({api: api as never, scope: {serverId: 'server', viewerId: 'viewer-1'},
     requestId: async () => 'request-id', current: () => true});
 }

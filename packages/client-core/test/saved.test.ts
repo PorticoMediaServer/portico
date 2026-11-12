@@ -2,6 +2,7 @@ import {wireFixture} from './wire-fixture.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SavedService, readWatchlist} from '../src/saved.ts';
+import {legacySavedTransport} from './fixtures/legacy-saved-transport.ts';
 const scope={serverId:'server',viewerId:'["local","account","profile"]'};
 const tick=()=>new Promise(r=>setTimeout(r,0));
 const deferred=()=>{let resolve!:(v:any)=>void;const promise=new Promise<any>(r=>resolve=r);return{promise,resolve};};
@@ -15,7 +16,7 @@ function projection(view='playlist',revision=0,entries:any[]=[occurrence()],curs
 }
 const resource=(revision=0,entryCount=1)=>({serverId:'server',viewerFence:'fence',id:'playlist',name:'Playlist',summary:'Summary',revision,role:'owner',entryCount,actions:['rename','summary','delete','share','add','remove','reorder'],limits:{maxEntries:1000,maxShares:100,maxReorderEntries:1000},shares:[]});
 const receipt=(body:any,revision=1)=>({serverId:'server',viewerFence:'fence',operationId:body.operationId,playlistId:'playlist',revision,deleted:false,entryId:'new-entry'});
-function setup(request:(path:string,method?:string,body?:any,signal?:AbortSignal)=>Promise<any>,timeoutMs=200){let i=0;return new SavedService({scope,api:{request:async (...args:any[])=>wireFixture(await (request as any)(...args),{'duration': 'durationMs', 'progressSeconds': 'progressMs', 'startSeconds': 'startMs', 'positionSeconds': 'positionMs'})},requestId:async()=>`00000000-0000-4000-8000-${String(++i).padStart(12,'0')}`,timeoutMs});}
+function setup(request:(path:string,method?:string,body?:any,signal?:AbortSignal)=>Promise<any>,timeoutMs=200){let i=0;return new SavedService({transport:legacySavedTransport,scope,api:{request:async (...args:any[])=>wireFixture(await (request as any)(...args),{'duration': 'durationMs', 'progressSeconds': 'progressMs', 'startSeconds': 'startMs', 'positionSeconds': 'positionMs'})},requestId:async()=>`00000000-0000-4000-8000-${String(++i).padStart(12,'0')}`,timeoutMs});}
 const isContent=(p:string)=>p.includes('/content');
 
 test('server occurrence order preserves duplicate media and opaque hidden rows',async()=>{
@@ -184,7 +185,7 @@ test('viewer cannot fetch order windows and unknown occurrence IDs cannot be mov
  const editable=setup(async p=>isContent(p)?projection():resource());await editable.select({view:'playlist',playlistId:'playlist'});assert.throws(()=>editable.mutate({action:'reorder',entryIds:['unseen']}),/current playlist order/);
 });
 test('reorder retains selected revision across delayed operation-ID generation',async()=>{
- const requestId=deferred();let revision=0,body:any;const s=new SavedService({scope,requestId:()=>requestId.promise,api:{request:async<T>(p:string,m?:string,b?:unknown)=>{if(m==='PUT'){body=b;return receipt(b,2) as T;}return wireFixture(isContent(p)?projection('playlist',revision):resource(revision),{startSeconds:'startMs'}) as T;}}});await s.select({view:'playlist',playlistId:'playlist'});const mutation=s.mutate({action:'reorder',entryIds:['entry']});revision=1;await s.refresh();requestId.resolve('00000000-0000-4000-8000-000000000099');await mutation;assert.equal(body.expectedRevision,0);
+ const requestId=deferred();let revision=0,body:any;const s=new SavedService({transport:legacySavedTransport,scope,requestId:()=>requestId.promise,api:{request:async<T>(p:string,m?:string,b?:unknown)=>{if(m==='PUT'){body=b;return receipt(b,2) as T;}return wireFixture(isContent(p)?projection('playlist',revision):resource(revision),{startSeconds:'startMs'}) as T;}}});await s.select({view:'playlist',playlistId:'playlist'});const mutation=s.mutate({action:'reorder',entryIds:['entry']});revision=1;await s.refresh();requestId.resolve('00000000-0000-4000-8000-000000000099');await mutation;assert.equal(body.expectedRevision,0);
 });
 test('uncapped playlists read past 1,000 entries through order windows',async()=>{
  const ids=Array.from({length:1050},(_,i)=>'entry-'+i);
@@ -360,19 +361,18 @@ test('a playlist paged past its first page is read again through every page on s
  reads.length=0;ids=['n',...ids];await s.revalidate();assert.deepEqual(reads,['0','40','80']);assert.equal(s.getSnapshot().projection!.sections[0].entries.length,90);assert.equal(s.getSnapshot().phase,'ready');
 });
 
-test('Saved summary, shape paths and removed-title reads use typed routes and validate authority', async()=>{
- const {savedListPath,fetchSavedSummary,fetchRemovedTitle,dismissRemovedTitle}=await import('../src/saved.ts');
- assert.equal(savedListPath('watchlist',{shape:'squares',limit:37}),'/v1/content?view=watchlist&limit=37&shape=squares');
- assert.throws(()=>savedListPath('watchlist',{shape:'mixed' as never}));
+test('the Saved summary counts My List and Favorites by shape and the profile\'s lists on the rebuilt server', async()=>{
+ const {fetchSavedSummary}=await import('../src/saved.ts');
  const calls:string[]=[];
- const response={serverId:'s',viewerFence:'f',revision:{catalog:3,viewer:2},myList:{posters:1203,squares:40},favorites:{posters:3,squares:1},playlists:2,collections:1,savedViews:4};
- const api={async request<T>(path:string,method?:string):Promise<T>{calls.push((method??'GET')+' '+path);return (path.endsWith('/summary')?response:method==='DELETE'?{removed:true}:{id:'gone',title:'Gone',kind:'movie',removedAt:'2026-10-22T00:00:00Z',canRemoveFromContinue:true}) as T;}};
- assert.equal((await fetchSavedSummary(api,{serverId:'s',viewerId:'p'})).myList.posters,1203);
- await assert.rejects(fetchSavedSummary(api,{serverId:'other',viewerId:'p'}));
- assert.equal((await fetchRemovedTitle(api,'gone')).title,'Gone');
- await dismissRemovedTitle(api,'gone');
- assert.deepEqual(calls,['GET /v1/me/saved/summary','GET /v1/me/saved/summary','GET /v1/me/removed-titles/gone','DELETE /v1/me/removed-titles/gone']);
+ const totals:Record<string,number>={'inList|movie,show,season,episode,audiobook,book,comic,series,collection':1203,'inList|artist,album,track':40,'favorite|movie,show,season,episode,audiobook,book,comic,series,collection':3,'favorite|artist,album,track':1};
+ const api={async request<T>(path:string):Promise<T>{calls.push(path);const url=new URL(path,'https://x');
+  if(url.pathname==='/v1/lists')return {items:[{kind:'playlist'},{kind:'playlist'},{kind:'collection'},{kind:'saved_view'},{kind:'saved_view'}]} as T;
+  const which=url.searchParams.has('inList')?'inList':'favorite';return {items:[],total:totals[which+'|'+url.searchParams.get('kind')]} as T;}};
+ const summary=await fetchSavedSummary(api,{serverId:'s',viewerId:'p'});
+ assert.deepEqual([summary.myList,summary.favorites,summary.playlists,summary.collections,summary.savedViews],[{posters:1203,squares:40},{posters:3,squares:1},2,1,2]);
+ assert.ok(calls.filter(path=>path.startsWith('/v1/items?')).every(path=>new URL(path,'https://x').searchParams.get('limit')==='1'),'each count reads one title');
 });
+
 
 test('a Reading Saved row with AV playback or duration is refused by the canonical reader',async()=>{
  for(const extra of [{playback:{itemId:'book'}},{durationMs:1000}]){
@@ -651,13 +651,13 @@ test('a page of the playlist’s own order witnesses moves across its edges; ano
  assert.throws(()=>s.select({view:'playlist',playlistId:'playlist',sort:'position',direction:'desc'}));
 });
 
-test('readWatchlist is one named read of My List\'s first page through the Saved projection', async () => {
+test('readWatchlist reads My List\'s first page from the rebuilt server', async () => {
  const paths:string[]=[];
- const api={request:async (path:string)=>{paths.push(path);return wireFixture(projection('watchlist',0,[media('one'),media('two')]),{'duration':'durationMs','progressSeconds':'progressMs','startSeconds':'startMs','positionSeconds':'positionMs'});}};
+ const api={request:async (path:string)=>{paths.push(path);const url=new URL(path,'https://x');return url.searchParams.get('limit')==='1'?{items:[],total:2}:{items:[{id:'one',kind:'movie',title:'One',libraryId:'library'},{id:'two',kind:'movie',title:'Two',libraryId:'library'}],total:2};}};
  const titles=await readWatchlist(api as any,scope);
- assert.deepEqual(paths,['/v1/content?view=watchlist&limit=40']);
+ const first=new URL(paths[0]!,'https://x');
+ assert.deepEqual([first.pathname,first.searchParams.get('inList'),first.searchParams.get('limit')],['/v1/items','true','40']);
  assert.deepEqual(titles.map(entry=>entry.id),['one','two']);
- await assert.rejects(readWatchlist(api as any,{...scope,serverId:'other'}),'another server\'s page is refused');
 });
 
 test('step 7: a moved fence on a Saved read is a newer answer; an old cursor is the server\'s to refuse; a write answer under it is still refused',async()=>{

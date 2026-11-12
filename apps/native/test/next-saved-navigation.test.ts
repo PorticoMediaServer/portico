@@ -14,6 +14,7 @@ import * as librarySavedViewIntent from '../src-next/screens/library/saved-view-
 import * as savedSummaryOwner from '../src-next/screens/saved/view-summary-owner';
 import * as savedRename from '../src-next/screens/saved/rename-view';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {legacySavedFetch, legacySavedRequest} from '../../../packages/client-core/test/fixtures/legacy-saved.ts';
 
 const title: ContentEntry = {kind: 'movie', id: 'actual-film', libraryId: 'movies', title: 'Stored title'};
 function fixture() {
@@ -38,10 +39,10 @@ function fixture() {
   const unavailable = (): never => {throw new Error('unexpected_saved_port');};
   const context: NativeShellBootstrapContext = {
     current: () => active, session: () => session, authority: () => authority, navigation,
-    api: new HttpLocalApi('https://fixture.invalid', '', async (input, init) => {
+    api: new HttpLocalApi('https://fixture.invalid', '', legacySavedFetch(async (input, init) => {
       const url = new URL(String(input)); paths.push(url.pathname + url.search); if (init?.signal) signals.push(init.signal);
       return new Response(JSON.stringify(await reply(url)), {status: 200, headers: {'Content-Type': 'application/json'}});
-    }),
+    })),
     subscribeAuthority: listener => {listeners.add(listener); return () => {listeners.delete(listener);};},
     get home() {return unavailable();}, get events() {return unavailable();}, preferences: unavailable, subscribePreferences: unavailable,
     get appVersion() {return unavailable();}, get serverName() {return unavailable();}, get playback() {return unavailable();},
@@ -116,7 +117,7 @@ test('retirement aborts a pending Saved request and late private pages never rep
   let changes = 0; controller.activation.subscribe(() => {changes++;});
   f.retire(); const closed = controller.source.getSnapshot();
   assert.equal(changes, 1); assert.deepEqual(closed, {phase: 'idle'}); assert.ok(f.signals.every(signal => signal.aborted));
-  assert.equal(finishes.length, 2);
+  assert.equal(finishes.length, 6, 'the directory page and the landing totals (the lists and four counted reads) were all in flight');
   for (const finish of finishes) finish({serverId: 'server', viewerFence: 'old-fence', revision: 7, resources: [], nextCursor: ''});
   await loading; assert.equal(controller.source.getSnapshot(), closed); assert.equal(controller.activation.getSnapshot().visible, false);
   assert.throws(() => createNativeSavedViewController(f.context, target, async () => 'unused'), /authority_required/);

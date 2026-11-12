@@ -130,7 +130,8 @@ test('parent disposal aborts both real shape-service transports and drops delaye
     return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new DOMException('Cancelled', 'AbortError')), {once: true}));
   }}});
   const pending = runtime.select({view: 'watchlist'});
-  assert.equal(signals.length, 2); runtime.dispose(); await pending;
+  // Both shape services are reading (each read of My List is a page and its counted reads).
+  assert.ok(signals.length >= 2); runtime.dispose(); await pending;
   assert.ok(signals.every(signal => signal.aborted));
   assert.equal(runtime.posters.getSnapshot().projection, null); assert.equal(runtime.squares.getSnapshot().projection, null);
 });

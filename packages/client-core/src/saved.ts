@@ -1,4 +1,5 @@
 import {parseSavedReadingGroupCard, type SavedReadingGroupCard} from './reading-saved-group.ts';
+import {readSavedPage, readSavedSummary, savedTransport, type SavedTransport} from './saved-next.ts';
 import {validateHomeEntry} from './home.ts';
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
@@ -294,8 +295,10 @@ export class SavedService {
    * commands proceed; this slot preserves the operation for a deliberate retry. */
   private staleRetried = false;
   private lastFailure?: {intent: SavedIntent; operationId?: string; body?: Record<string, unknown>; orderRevision?: number; kind: 'retry-required'|'conflict'};
- constructor(options: { api: SavedApi; scope: SavedScope; requestId: () => Promise<string>; timeoutMs?: number }) {
-  this.api = options.api; this.bound = scope(options.scope); this.requestId = options.requestId; this.timeoutMs = options.timeoutMs ?? 15000;
+ private readonly transport: SavedTransport;
+ /** `transport` is what the service asks the server; the rebuilt server's unless a test gives its own. */
+ constructor(options: { api: SavedApi; scope: SavedScope; requestId: () => Promise<string>; timeoutMs?: number; transport?: SavedTransport }) {
+  this.transport = options.transport ?? savedTransport; this.api = options.api; this.bound = scope(options.scope); this.requestId = options.requestId; this.timeoutMs = options.timeoutMs ?? 15000;
   if (!number(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 120000) throw new Error('Invalid Saved deadline.');
   this.state = this.empty();
  }
@@ -331,11 +334,7 @@ export class SavedService {
    // Paged past the first page (or shown as one long first page since): every page on screen is read again, not only the last one.
    if ((cursor !== null || this.seen > SAVED_PAGE) && await this.readThrough(controller, context?.settle, ticket)) return;
    if (!live()) return;
-   const params = new URLSearchParams({ limit: '40' }); if (cursor) params.set('cursor', cursor);
-   let path: string;
-   if (selected.view === 'playlist') { path = encodedRoutePath("get_playlists_id_content", {"id": encodeURIComponent(selected.playlistId)}); resourceContentParams(params, selected); }
-   else { path = routePath("get_saved_content"); params.set('view', selected.view); if (selected.sort) params.set('sort', selected.sort); if (selected.direction) params.set('direction', selected.direction); if('shape'in selected&&selected.shape)params.set('shape',selected.shape); if ('filter' in selected && selected.filter) params.set('filter', selected.filter); }
-   const [raw, rawResource] = await this.deadline(Promise.all([api.request<unknown>(path + '?' + params, 'GET', undefined, controller.signal), selected.view === 'playlist' ? api.request<RouteResponse<"get_playlists_id">>(encodedRoutePath("get_playlists_id", {"id": encodeURIComponent(selected.playlistId)}), 'GET', undefined, controller.signal) : Promise.resolve(null)]), controller);
+   const {page: raw, resource: rawResource} = await this.deadline(this.transport.read(api, bound, selected, cursor, controller.signal), controller);
    if (!live()) return;
    const parsed = projection(raw, bound, selected), playlist = selected.view === 'playlist' ? resource(rawResource, bound, selected.playlistId) : null;
    // Two reads of the playlist at different revisions, or one older than a change confirmed here, are not shown; the next hint reads again.
@@ -367,13 +366,7 @@ export class SavedService {
   if (!selected || want > SAVED_DEEP_PAGES * SAVED_PAGE) return false;
   const generation = this.generation, read = this.readGeneration, api = this.api, bound = this.bound;
   const live = () => !this.disposed && generation === this.generation && read === this.readGeneration && (ticket === undefined || ticket === this.quiet) && !controller.signal.aborted;
-  const pathOf = (cursor: string | null) => {
-   const params = new URLSearchParams({ limit: String(SAVED_PAGE) }); if (cursor) params.set('cursor', cursor);
-   if (selected.view === 'playlist') return encodedRoutePath("get_playlists_id_content", {"id": encodeURIComponent(selected.playlistId)}) + '?' + resourceContentParams(params, selected);
-   params.set('view', selected.view); if (selected.sort) params.set('sort', selected.sort); if (selected.direction) params.set('direction', selected.direction); if('shape'in selected&&selected.shape)params.set('shape',selected.shape); if ('filter' in selected && selected.filter) params.set('filter', selected.filter);
-   return routePath("get_saved_content") + '?' + params;
-  };
-  const [raw, rawResource] = await this.deadline(Promise.all([api.request<unknown>(pathOf(null), 'GET', undefined, controller.signal), selected.view === 'playlist' ? api.request<RouteResponse<"get_playlists_id">>(encodedRoutePath("get_playlists_id", {"id": encodeURIComponent(selected.playlistId)}), 'GET', undefined, controller.signal) : Promise.resolve(null)]), controller);
+  const {page: raw, resource: rawResource} = await this.deadline(this.transport.read(api, bound, selected, null, controller.signal), controller);
   if (!live()) return true;
   const first = projection(raw, bound, selected), playlist = selected.view === 'playlist' ? resource(rawResource, bound, selected.playlistId) : null;
   if (playlist && (playlist.revision !== first.playlistRevision || this.state.lastReceipt?.playlistId === playlist.id && playlist.revision < this.state.lastReceipt.revision)) return false;
@@ -386,7 +379,7 @@ export class SavedService {
    if (pages >= SAVED_DEEP_PAGES) return false;
    const followed = paged.nextCursor;
    let page: SavedProjection;
-   try { page = projection(await this.deadline(api.request<unknown>(pathOf(followed), 'GET', undefined, controller.signal), controller), bound, selected); }
+   try { page = projection((await this.deadline(this.transport.read(api, bound, selected, followed, controller.signal), controller)).page, bound, selected); }
    catch (error) {
    const owned = !this.disposed && generation === this.generation && read === this.readGeneration && (ticket === undefined || ticket === this.quiet);
    if (!owned) return true;
@@ -459,11 +452,7 @@ export class SavedService {
   this.requestKey = key; this.retryCursor = cursor; this.retryMove = move; this.publish({ phase: 'loading', error: null });
   const task = (async () => {
    try {
-    const params = new URLSearchParams({ limit: '40' }); if (cursor) params.set('cursor', cursor);
-    let path: string;
-    if (selected.view === 'playlist') { path = encodedRoutePath("get_playlists_id_content", {"id": encodeURIComponent(selected.playlistId)}); resourceContentParams(params, selected); }
-    else { path = routePath("get_saved_content"); params.set('view', selected.view); if (selected.sort) params.set('sort', selected.sort); if (selected.direction) params.set('direction', selected.direction); if('shape'in selected&&selected.shape)params.set('shape',selected.shape); if ('filter' in selected && selected.filter) { if (!filterAllowed(selected.view, selected.filter)) throw new Error('Unknown saved list filter.'); params.set('filter', selected.filter); } }
-    const [raw, rawResource] = await this.deadline(Promise.all([api.request<unknown>(path + '?' + params, 'GET', undefined, controller.signal), selected.view === 'playlist' ? api.request<RouteResponse<"get_playlists_id">>(encodedRoutePath("get_playlists_id", {"id": encodeURIComponent(selected.playlistId)}), 'GET', undefined, controller.signal) : Promise.resolve(null)]), controller);
+    const {page: raw, resource: rawResource} = await this.deadline(this.transport.read(api, bound, selected, cursor, controller.signal), controller);
     if (this.disposed || generation !== this.generation || read !== this.readGeneration) return;
     const parsed = projection(raw, bound, selected), playlist = selected.view === 'playlist' ? resource(rawResource, bound, selected.playlistId) : null;
     if (playlist && this.state.lastReceipt?.playlistId === playlist.id && playlist.revision < this.state.lastReceipt.revision) throw new Failure('stale_continuation', 'The server returned a playlist older than the confirmed change. Refresh again.', true);
@@ -553,19 +542,11 @@ export class SavedService {
   try {
    if (!c.operationId) { this.allowed(c.intent); if (c.intent.action === 'reorder' && c.orderRevision !== this.state.playlist?.revision) throw new Failure('playlist_conflict', 'The playlist changed after this order was chosen. Reload and review before retrying.', true); const value = await this.deadline(this.requestId(), controller); if (!uuid.test(value)) throw new Failure('invalid_request_id', 'A UUIDv4 operation ID is required.'); if (generation !== this.generation || this.disposed) return; c.operationId = value; c.body = { operationId: value, ...(c.intent.action === 'create' ? {} : { expectedRevision: c.intent.action==='pin'?this.state.playlist!.pinRevision:c.orderRevision ?? this.state.playlist!.revision }) }; }
    if (!selected || !fence) throw new Failure('saved_required', 'Reload Saved before retrying.', true);
-   const value = c.intent; let path: string = routePath("post_playlists"), method = 'POST'; const body = { ...c.body };
-   if (value.action !== 'create') { if (selected.view !== 'playlist') throw new Error('Playlist is not selected.'); path=encodedRoutePath(value.action==='rename'?'patch_playlists_id':'get_playlists_id',{id:encodeURIComponent(selected.playlistId)}); }
-   switch (value.action) {
-    case 'pin': path=encodedRoutePath("put_saved_pins_kind_id", {"kind": "playlist", "id": encodeURIComponent(this.state.playlist!.id)});method='PUT';body.pinned=value.pinned;break;
-    case 'create': case 'rename': if(value.action==='create'&&value.itemIds)body.itemIds=value.itemIds;if (value.action === 'rename') method = 'PATCH'; if (value.name !== undefined) body.name = value.name; if (value.summary !== undefined) body.summary = value.summary; break;
-    case 'add': path = encodedRoutePath('post_playlists_id_entries',{id:encodeURIComponent((selected as {playlistId:string}).playlistId)}); body.itemId = value.itemId; break;
-    case 'restore': path = encodedRoutePath('post_playlists_id_entries',{id:encodeURIComponent((selected as {playlistId:string}).playlistId)}); body.undoToken = value.undoToken; break;
-    case 'remove': path=encodedRoutePath('delete_playlists_id_entries_entryId',{id:encodeURIComponent((selected as {playlistId:string}).playlistId),entryId:encodeURIComponent(value.entryId)}); method = 'DELETE'; break;
-    case 'reorder': path=encodedRoutePath('reorder_playlist_window',{id:encodeURIComponent((selected as {playlistId:string}).playlistId)}); method = 'PUT'; body.entryIds = value.entryIds; if (value.afterEntryId !== undefined) body.afterEntryId = value.afterEntryId; break;
-    case 'delete':path=encodedRoutePath('delete_playlists_id',{id:encodeURIComponent((selected as {playlistId:string}).playlistId)}); method = 'DELETE'; break;
-    case 'share': case 'unshare':path=encodedRoutePath(value.action==='share'?'put_playlists_id_shares':'delete_playlists_id_shares',{id:encodeURIComponent((selected as {playlistId:string}).playlistId)}); method = value.action === 'share' ? 'PUT' : 'DELETE'; Object.assign(body, value.actor); if (value.action === 'share') body.role = value.role; break;
-   }
-   const raw = await this.deadline(api.request<unknown>(path, method, body, controller.signal), controller);
+   const playlistId = selected.view === 'playlist' ? selected.playlistId : undefined;
+   if (c.intent.action !== 'create' && !playlistId) throw new Error('Playlist is not selected.');
+   // The entries shown, in order: a removal's Undo puts its title back after the one in front of it, and a move places from them.
+   const shown = (this.state.projection?.sections ?? []).flatMap(section => section.entries).flatMap(entry => entry.kind === 'playlist_entry' && !entry.hidden ? [{id: entry.id, itemId: entry.media.id}] : []);
+   const raw = await this.deadline(this.transport.send(api, this.bound, c.intent, {playlistId, revision: c.body?.expectedRevision as number | undefined, entries: shown}, c.operationId, controller.signal), controller);
    if (this.disposed || generation !== this.generation) return;
    if (!record(raw) || raw.serverId !== this.bound.serverId || raw.viewerFence !== fence || raw.operationId !== c.operationId || !id(raw.playlistId) || selected.view === 'playlist' && raw.playlistId !== selected.playlistId || !int(raw.revision) || typeof raw.deleted !== 'boolean' || raw.entryId !== undefined && !id(raw.entryId) || raw.undoToken !== undefined && (!id(raw.undoToken) || !text(raw.undoUntil, 64))) invalid();
    const receipt: SavedReceipt = freeze({ serverId: this.bound.serverId, viewerFence: fence, operationId: c.operationId, playlistId: raw.playlistId, revision: raw.revision, deleted: raw.deleted, ...(raw.entryId === undefined ? {} : { entryId: raw.entryId as string }), ...(raw.undoToken === undefined ? {} : { undoToken: raw.undoToken as string, undoUntil: raw.undoUntil as string }) });
@@ -628,9 +609,7 @@ export class SavedService {
   const generation = this.generation, read = ++this.orderGeneration;
   this.publish({ order: cursor ? this.state.order : null, orderLoading: true, orderError: null });
   try {
-   const query = new URLSearchParams({limit: String(limit ?? 100)});
-   if (cursor) query.set('cursor', cursor);
-   const raw = await this.deadline(this.api.request<RouteResponse<"get_playlist_order">>(encodedRoutePath("get_playlist_order", {"id": encodeURIComponent(p.id)}) + "?" + (query), 'GET', undefined, controller.signal), controller);
+   const raw = {serverId: this.bound.serverId, viewerFence: p.viewerFence, playlistId: p.id, ...await this.deadline(this.transport.order(this.api, p.id, cursor ?? null, controller.signal, limit ?? 100), controller)};
    if (this.disposed || generation !== this.generation || read !== this.orderGeneration) return;
    // The order is checked against the playlist's own revision; a moved fence is a newer answer, and the reorder itself still
    // has to match the playlist it was loaded for (allowed()).
@@ -651,7 +630,7 @@ export class SavedService {
   const generation = this.generation, read = ++this.orderGeneration, previous = window;
   this.publish({ orderLoading: true, orderError: null });
   try {
-   const raw = await this.deadline(this.api.request<RouteResponse<"get_playlist_order">>(encodedRoutePath("get_playlist_order", {"id": encodeURIComponent(previous.playlistId)}) + "?limit=100&cursor=" + (encodeURIComponent(previous.nextCursor)), 'GET', undefined, controller.signal), controller);
+   const raw = {serverId: this.bound.serverId, viewerFence: previous.viewerFence, playlistId: previous.playlistId, ...await this.deadline(this.transport.order(this.api, previous.playlistId, previous.nextCursor, controller.signal), controller)};
    if (this.disposed || generation !== this.generation || read !== this.orderGeneration) return;
    if (!record(raw) || raw.serverId !== this.bound.serverId || !id(raw.viewerFence) || raw.playlistId !== previous.playlistId || !int(raw.revision)) invalid();
    if (raw.revision !== previous.revision) throw new Failure('stale_continuation', 'The playlist changed. Restart its order from the first page.', true);
@@ -669,8 +648,7 @@ export class SavedService {
   const generation = this.generation, read = ++this.candidateGeneration;
   this.publish({ candidatesLoading: true, candidatesError: null });
   try {
-   const query = new URLSearchParams({ limit: '40' }); if (cursor) query.set('cursor', cursor);
-   const raw = await this.deadline(this.api.request<RouteResponse<"get_playlists_id_share_candidates">>(encodedRoutePath("get_playlists_id_share_candidates", {"id": encodeURIComponent(selected.playlistId)}) + "?" + (query), 'GET', undefined, controller.signal), controller);
+   const raw = {serverId: this.bound.serverId, viewerFence: p.viewerFence, playlistId: p.id, ...await this.deadline(this.transport.candidates(this.api, selected.playlistId, cursor ?? null, controller.signal), controller)};
    if (this.disposed || generation !== this.generation || read !== this.candidateGeneration) return;
    if (!record(raw) || raw.serverId !== this.bound.serverId || !id(raw.viewerFence) || raw.playlistId !== p.id || !int(raw.revision) || !text(raw.nextCursor, 4096)) invalid();
    if (raw.revision !== this.state.playlist?.revision) throw new Failure('stale_continuation', 'The playlist changed. Reload its share candidates.', true);
@@ -696,24 +674,11 @@ export type SavedLandingSummary=Readonly<{serverId:string;viewerFence:string;rev
  * a one-line change; nothing here is cached, seeded or fenced. Reading groups are left out: they
  * aren't titles. */
 export async function readWatchlist(api: SavedApi, bound: SavedScope, signal?: AbortSignal): Promise<readonly ContentEntry[]> {
- const page = projection(await api.request<unknown>(savedListPath('watchlist'), 'GET', undefined, signal), bound, {view: 'watchlist'});
+ const page = projection((await readSavedPage(api, bound, {view: 'watchlist'}, null, signal)).page, bound, {view: 'watchlist'});
  return page.sections.flatMap(section => section.entries.filter((entry): entry is ContentEntry => entry.kind !== 'reading_group' && entry.kind !== 'playlist_entry' && entry.kind !== 'playlist'));
 }
 export async function fetchSavedSummary(api:SavedApi,bound:SavedScope,signal?:AbortSignal):Promise<SavedLandingSummary>{
- const value:unknown=await api.request<RouteResponse<"get_me_saved_summary">>(routePath('get_me_saved_summary'),'GET',undefined,signal);
+ const value:unknown=await readSavedSummary(api,bound,signal);
  if(!record(value)||value.serverId!==bound.serverId||!id(value.viewerFence)||!record(value.revision)||!int(value.revision.catalog)||!int(value.revision.viewer)||!int(value.playlists)||!int(value.collections)||!int(value.savedViews))invalid();
  return freeze({serverId:bound.serverId,viewerFence:value.viewerFence,revision:{catalog:value.revision.catalog,viewer:value.revision.viewer},myList:parseSavedShapeCounts(value.myList),favorites:parseSavedShapeCounts(value.favorites),playlists:value.playlists,collections:value.collections,savedViews:value.savedViews});
-}
-export type RemovedTitle=Readonly<{id:string;title:string;kind:string;posterUrl?:string;backdropUrl?:string;removedAt:string;canRemoveFromContinue:boolean}>;
-export async function fetchRemovedTitle(api:SavedApi,itemId:string,signal?:AbortSignal):Promise<RemovedTitle>{
- if(!id(itemId))throw new Error('A removed title ID is required.');
- const value:unknown=await api.request<RouteResponse<"get_me_removed_titles_id">>(encodedRoutePath('get_me_removed_titles_id',{id:encodeURIComponent(itemId)}),'GET',undefined,signal);
- if(!record(value)||value.id!==itemId||!text(value.title,2048)||!['movie','episode','song','audiobook_file'].includes(String(value.kind))||!text(value.removedAt,128)||typeof value.canRemoveFromContinue!=='boolean')invalid();
- for(const key of ['posterUrl','backdropUrl'])if(value[key]!==undefined&&!text(value[key],4096))invalid();
- return freeze({id:itemId,title:value.title,kind:value.kind as string,removedAt:value.removedAt,canRemoveFromContinue:value.canRemoveFromContinue,...(typeof value.posterUrl==='string'?{posterUrl:value.posterUrl}:{}),...(typeof value.backdropUrl==='string'?{backdropUrl:value.backdropUrl}:{})});
-}
-export async function dismissRemovedTitle(api:SavedApi,itemId:string,signal?:AbortSignal):Promise<void>{
- if(!id(itemId))throw new Error('A removed title ID is required.');
- const value:unknown=await api.request<RouteResponse<"delete_me_removed_titles_id">>(encodedRoutePath('delete_me_removed_titles_id',{id:encodeURIComponent(itemId)}),'DELETE',undefined,signal);
- if(!record(value)||value.removed!==true)invalid();
 }

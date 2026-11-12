@@ -12,6 +12,7 @@ import * as savedNavigation from '../src-next/screens/saved/navigation';
 import * as savedSummaryOwner from '../src-next/screens/saved/view-summary-owner';
 import * as savedRename from '../src-next/screens/saved/rename-view';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {legacySavedFetch, legacySavedRequest} from '../../../packages/client-core/test/fixtures/legacy-saved.ts';
 
 const title: ContentEntry = {kind: 'movie', id: 'actual-film', libraryId: 'movies', title: 'Stored title'};
 const resource = {serverId: 'server', viewerFence: 'resources-fence', id: 'actual-collection', kind: 'collection', name: 'Actual collection', summary: '', visibility: 'private',
@@ -42,10 +43,10 @@ async function setup() {
   const unavailable = (): never => {throw new Error('unexpected_tv_saved_port');};
   const context: NativeShellBootstrapContext = {
     current: () => active, session: () => session, authority: () => authority, navigation,
-    api: new HttpLocalApi('https://fixture.invalid', '', async (input, init) => {
+    api: new HttpLocalApi('https://fixture.invalid', '', legacySavedFetch(async (input, init) => {
       const url = new URL(String(input)); paths.push(url.pathname + url.search); if (init?.signal) signals.push(init.signal);
       return new Response(JSON.stringify(await reply(url)), {status: 200, headers: {'Content-Type': 'application/json'}});
-    }),
+    })),
     subscribeAuthority: listener => {listeners.add(listener); return () => {listeners.delete(listener);};},
     get home() {return unavailable();}, get events() {return unavailable();}, preferences: unavailable, subscribePreferences: unavailable,
     get appVersion() {return unavailable();}, get serverName() {return unavailable();}, get playback() {return unavailable();},
@@ -141,7 +142,7 @@ test('retiring the TV Saved viewer aborts its inline query and prevents late dat
     f.navigation.open({kind: 'shell', destination: {kind: 'saved'}}, f.authority);
     const target = f.navigation.getSnapshot().route, root = f.state.root(target);
     const loading = root.selectTab('collections'); await new Promise<void>(resolve => setImmediate(resolve));
-    assert.equal(pending.length, 2);
+    assert.equal(pending.length, 6, 'the directory page and the landing totals (the lists and four counted reads) are in flight');
     root.actions.menuState.subscribe(() => {});
     f.retire();
     assert.ok(f.signals.every(signal => signal.aborted)); assert.equal(f.releases(), 1);

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SavedService, type SavedRoute} from '../src/saved.ts';
+import {legacySavedTransport} from './fixtures/legacy-saved-transport.ts';
 
 // The server publishes the selected filter alone as the saved query's category.
 // These cases pin the producer echo the strict parser accepts, and keep the
@@ -26,7 +27,7 @@ function page(category: string) {
 type RouteShape = Readonly<{shape?: 'posters' | 'squares'; filter?: 'all' | 'unwatched' | 'inProgress' | 'watched' | 'favorites'}>;
 async function read(category: string, route: RouteShape) {
   let calls = 0;
-  const service = new SavedService({scope, api: {request: async () => { calls++; return page(category); }},
+  const service = new SavedService({transport: legacySavedTransport, scope, api: {request: async () => { calls++; return page(category); }},
     requestId: async () => '00000000-0000-4000-8000-000000000001', timeoutMs: 200});
   await service.select({view: 'watchlist', sort: 'added', direction: 'desc', ...route} as SavedRoute);
   const snapshot = service.getSnapshot();
