@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/fetch"
 	"image"
 	"image/png"
 	"net"
@@ -65,7 +66,7 @@ func TestAPictureFollowsARedirectOnlyWithinItsProvider(t *testing.T) {
 		public bool
 	}{{"127.0.0.1", false}, {"10.1.2.3", false}, {"192.168.1.1", false}, {"169.254.1.1", false}, {"::1", false}, {"fe80::1", false},
 		{"fd00::1", false}, {"0.0.0.0", false}, {"100.100.1.1", false}, {"::ffff:127.0.0.1", false}, {"207.241.224.2", true}, {"2620:0:2d0:200::7", true}} {
-		if got := publicAddress(net.ParseIP(c.ip)); got != c.public {
+		if got := fetch.PublicAddress(net.ParseIP(c.ip)); got != c.public {
 			t.Errorf("%s: public %v, want %v", c.ip, got, c.public)
 		}
 	}

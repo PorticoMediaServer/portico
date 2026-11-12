@@ -30,6 +30,8 @@ type Service struct {
 	// subtitleFiles keeps a download's "write the file, add its row" apart from a removal's
 	// "remove the row, remove the file", so a listed subtitle always has its file.
 	subtitleFiles sync.Mutex
+	// downloading puts two downloads of the same subtitle for the same version in turn.
+	downloading keyedLocks
 
 	mu        sync.RWMutex // guards Providers and subtitles
 	subtitles SubtitleProvider

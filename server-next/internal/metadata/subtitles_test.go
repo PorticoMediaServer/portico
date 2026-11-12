@@ -4,10 +4,12 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/fetch"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/opensubtitles"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/opensubtitles/opensubtitlestest"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
@@ -136,5 +138,56 @@ func TestASubtitleIsFoundDownloadedAndOfferedAtPlayback(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("the removed subtitle's file: %v", err)
+	}
+}
+
+// The subtitle file is fetched through the same guard as every provider request: from a test,
+// an address OpenSubtitles gives on its real file host is refused as a live call, not fetched.
+func TestTheSubtitleFileGoesThroughTheProviderGuard(t *testing.T) {
+	d, viewer, id := film(t)
+	server := opensubtitlestest.New(t)
+	s := &metadata.Service{DB: d, SubtitleDir: t.TempDir()}
+	s.UseSubtitles(opensubtitles.New(server.URL, 0, "key", "owner", "right"))
+	results, err := s.SearchSubtitles(ctx, viewer, id, []string{"eng"})
+	if err != nil || len(results) == 0 {
+		t.Fatalf("search: %+v, %v", results, err)
+	}
+	server.LinkElsewhere.Store(true)
+	if _, err := s.DownloadSubtitle(ctx, viewer, id, "", results[0]); !errors.Is(err, fetch.ErrLiveCallInTest) {
+		t.Fatalf("a file on OpenSubtitles' real host, from a test: %v; want it refused as a live call", err)
+	}
+	if n := len(downloaded(t, d, viewer, id)); n != 0 {
+		t.Fatalf("%d subtitles kept after the file was refused", n)
+	}
+}
+
+// Two downloads of the same subtitle for the same version at once (a double press, a retried
+// request) spend one of the account's daily downloads: the second answers the first's.
+func TestTwoDownloadsOfOneSubtitleAtOnceSpendOne(t *testing.T) {
+	d, viewer, id := film(t)
+	server := opensubtitlestest.New(t)
+	s := &metadata.Service{DB: d, SubtitleDir: t.TempDir()}
+	s.UseSubtitles(opensubtitles.New(server.URL, 0, "key", "owner", "right"))
+	results, err := s.SearchSubtitles(ctx, viewer, id, []string{"eng"})
+	if err != nil || len(results) == 0 {
+		t.Fatalf("search: %+v, %v", results, err)
+	}
+	server.SlowDownloads.Store(true)
+	var wg sync.WaitGroup
+	got := make([]db.Subtitle, 2)
+	errs := make([]error, 2)
+	for i := range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			got[i], errs[i] = s.DownloadSubtitle(ctx, viewer, id, "", results[0])
+		}()
+	}
+	wg.Wait()
+	if errs[0] != nil || errs[1] != nil || got[0].PublicID != got[1].PublicID {
+		t.Fatalf("two downloads at once: %+v %v, %+v %v", got[0], errs[0], got[1], errs[1])
+	}
+	if n := server.Downloads.Load(); n != 1 {
+		t.Fatalf("two downloads of one subtitle at once asked OpenSubtitles for %d downloads; want 1", n)
 	}
 }

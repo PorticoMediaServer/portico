@@ -24,6 +24,8 @@ var answers embed.FS
 type Server struct {
 	URL      string
 	Requests atomic.Int64
+	// Refuses makes it answer every request 400, as LRCLIB does for a query it will not take.
+	Refuses atomic.Bool
 }
 
 // New starts a stand-in that stops when the test ends.
@@ -50,6 +52,11 @@ func file(r *http.Request) string {
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	s.Requests.Add(1)
 	w.Header().Set("Content-Type", "application/json")
+	if s.Refuses.Load() {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"code":400,"name":"BadRequest","message":"Invalid query"}`))
+		return
+	}
 	raw, err := answers.ReadFile(file(r))
 	switch {
 	case err == nil:

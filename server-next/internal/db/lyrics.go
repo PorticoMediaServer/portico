@@ -37,7 +37,9 @@ type Lyrics struct {
 
 // SetLyrics is the one write of a song's lyrics. Pasted lyrics are replaced only by pasting
 // again; lyrics from the file's tags only by the tags again or by pasting; a provider's only
-// by anything. It reports whether the lyrics were stored. Background work passes Background.
+// by anything. A provider's "nothing found" never removes lyrics a song has: it is stored only
+// for a song without any. It reports whether the lyrics were stored. Background work passes
+// Background.
 func (d *DB) SetLyrics(ctx context.Context, p Priority, itemID int64, l Lyrics) (bool, error) {
 	stored := false
 	err := d.write(ctx, p, func(tx *sql.Tx) error {
@@ -70,7 +72,8 @@ func putLyrics(tx *sql.Tx, itemID int64, l Lyrics, now int64) (bool, error) {
 	}
 	res, err := tx.Exec(`INSERT INTO lyrics (item_id, source, body, timed, language, updated_at) VALUES (?, ?, nullif(?, ''), ?, nullif(?, ''), ?)
 		ON CONFLICT (item_id) DO UPDATE SET source = excluded.source, body = excluded.body, timed = excluded.timed,
-		language = excluded.language, updated_at = excluded.updated_at WHERE excluded.source >= lyrics.source`,
+		language = excluded.language, updated_at = excluded.updated_at
+		WHERE excluded.source >= lyrics.source AND (excluded.body IS NOT NULL OR lyrics.body IS NULL)`,
 		itemID, l.Source, l.Body, l.Timed && l.Body != "", l.Language, now)
 	if err != nil {
 		return false, err

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 	"unicode"
 )
 
@@ -27,6 +28,12 @@ type Server struct {
 	URL           string
 	Requests      atomic.Int64
 	AllowanceUsed atomic.Bool
+	// Downloads counts the downloads asked for, each one of the account's daily allowance.
+	// SlowDownloads makes each answer take 200 ms, for two asked for at once. LinkElsewhere
+	// answers a download with an address on OpenSubtitles' real file host instead of this one.
+	Downloads     atomic.Int64
+	SlowDownloads atomic.Bool
+	LinkElsewhere atomic.Bool
 }
 
 // New starts a stand-in that stops when the test ends.
@@ -52,9 +59,9 @@ func slug(query string) string {
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	s.Requests.Add(1)
 	w.Header().Set("Content-Type", "application/json")
-	// No key, the key "refused", or a request without Portico's User-Agent is refused, as
+	// No key, a key that starts "refused", or a request without Portico's User-Agent is refused, as
 	// OpenSubtitles refuses an unknown key.
-	if strings.HasPrefix(r.URL.Path, "/api/") && (r.Header.Get("Api-Key") == "" || r.Header.Get("Api-Key") == "refused" ||
+	if strings.HasPrefix(r.URL.Path, "/api/") && (r.Header.Get("Api-Key") == "" || strings.HasPrefix(r.Header.Get("Api-Key"), "refused") ||
 		!strings.HasPrefix(r.Header.Get("User-Agent"), "Portico v")) {
 		w.WriteHeader(http.StatusForbidden)
 		return
@@ -91,7 +98,15 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			FileID int64 `json:"file_id"`
 		}
 		json.NewDecoder(r.Body).Decode(&ask)
-		link, _ := json.Marshal(s.URL + "/download/file_" + jsonNumber(ask.FileID) + ".srt")
+		s.Downloads.Add(1)
+		if s.SlowDownloads.Load() {
+			time.Sleep(200 * time.Millisecond)
+		}
+		at := s.URL
+		if s.LinkElsewhere.Load() {
+			at = "https://www.opensubtitles.com"
+		}
+		link, _ := json.Marshal(at + "/download/file_" + jsonNumber(ask.FileID) + ".srt")
 		w.Write([]byte(`{"link":` + string(link) + `,"file_name":"subtitle.srt","requests":1,"remaining":19,"reset_time_utc":"2026-11-11T00:00:00.000Z"}`))
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/download/"):
 		raw, err := answers.ReadFile("answers/" + strings.TrimPrefix(r.URL.Path, "/download/"))

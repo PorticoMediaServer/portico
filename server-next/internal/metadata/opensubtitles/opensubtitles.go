@@ -54,9 +54,11 @@ type Client struct {
 	origin            string
 	key, user, secret string
 	api               *fetch.Client
-	files             *http.Client
-	mu                sync.Mutex
-	token, apiOrigin  string
+	// files downloads the subtitle files the API's answers point to, through the same guard
+	// and pacing as every provider request (definition area 4, rule 7).
+	files            *fetch.Client
+	mu               sync.Mutex
+	token, apiOrigin string
 	// refused: OpenSubtitles refused the account. It is not asked again with the same
 	// password, which could lock the account; the owner saving it again makes a new client.
 	refused bool
@@ -71,12 +73,22 @@ func New(origin string, every time.Duration, key, username, password string) *Cl
 	c := &Client{origin: strings.TrimRight(origin, "/"), key: key, user: username, secret: password,
 		// A person waiting is told of a pause rather than kept waiting.
 		api: fetch.New("opensubtitles", every, 0)}
-	c.files = &http.Client{Timeout: time.Minute, CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		if len(via) > 3 || !c.theirs(req.URL) {
-			return errors.New("a subtitle download pointed somewhere other than OpenSubtitles")
-		}
-		return nil
-	}}
+	// A file is fetched only from OpenSubtitles' own hosts (theirs), over at most three of their
+	// redirects, and connected to only at an address on the Internet. The server the client was
+	// made for (OpenSubtitles' API, or a test's stand-in) is the one host not looked up again.
+	own := ""
+	if u, err := url.Parse(c.origin); err == nil {
+		own = u.Hostname()
+	}
+	c.files = fetch.NewWith("opensubtitles", 0, 0, &http.Client{Timeout: time.Minute,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) > 3 || !c.theirs(req.URL) {
+				return errors.New("a subtitle download pointed somewhere other than OpenSubtitles")
+			}
+			return nil
+		},
+		Transport: fetch.InternetTransport(func(host string) bool { return host != own }),
+	}, maxFile)
 	return c
 }
 
@@ -359,20 +371,12 @@ func (c *Client) Download(ctx context.Context, ref string) ([]byte, string, erro
 		return nil, "", err
 	}
 	req.Header.Set("User-Agent", userAgent)
-	res, err := c.files.Do(req)
-	if err != nil {
-		return nil, "", fmt.Errorf("opensubtitles: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("opensubtitles answered %d for the subtitle file", res.StatusCode)
-	}
-	raw, err := io.ReadAll(io.LimitReader(res.Body, maxFile+1))
-	if err != nil {
-		return nil, "", fmt.Errorf("opensubtitles: %w", err)
-	}
-	if len(raw) > maxFile {
+	raw, err := c.files.Do(req)
+	switch {
+	case errors.Is(err, fetch.ErrTooLarge):
 		return nil, "", errors.New("the subtitle file is larger than any real one")
+	case err != nil:
+		return nil, "", fmt.Errorf("the subtitle file: %w", err)
 	}
 	return raw, "srt", nil
 }
