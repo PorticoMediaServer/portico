@@ -180,27 +180,50 @@ func readLiveCursor(r *http.Request) (liveCursor, error) {
 	return c, nil
 }
 
-func (s *Server) liveChannels(r *http.Request, _ None) (Page[LiveChannel], error) {
+// liveChannels lists the channels the profile may watch, filtered by source, group and
+// favourites as the guide is (see liveChannelQuery). around=<channel id> answers instead the
+// channels either side of that channel, for the player's mini guide (channelsAround). The
+// first page also carries the sources and groups to filter by.
+func (s *Server) liveChannels(r *http.Request, _ None) (LiveChannelPage, error) {
 	lv, err := s.liveViewer(r)
 	if err != nil {
-		return Page[LiveChannel]{}, err
+		return LiveChannelPage{}, err
 	}
-	query := r.URL.Query()
-	q := db.LiveChannelQuery{ByName: query.Get("sort") == "name", Favorites: query.Get("favorites") == "true",
-		WithHidden: query.Get("hidden") == "true"}
+	q, none, err := s.liveChannelQuery(r, lv)
+	if err != nil {
+		return LiveChannelPage{}, err
+	}
+	out := LiveChannelPage{Items: []LiveChannel{}}
+	if around := r.URL.Query().Get("around"); around != "" {
+		rows, err := s.channelsAround(r.Context(), viewer(r), lv, q, around)
+		if err != nil {
+			return LiveChannelPage{}, err
+		}
+		for _, row := range rows {
+			out.Items = append(out.Items, channelOut(row))
+		}
+		return out, nil
+	}
 	c, err := readLiveCursor(r)
 	if err != nil {
-		return Page[LiveChannel]{}, err
+		return LiveChannelPage{}, err
 	}
 	limit, err := pageLimit(r, 100, 200)
 	if err != nil {
-		return Page[LiveChannel]{}, err
+		return LiveChannelPage{}, err
+	}
+	if r.URL.Query().Get("cursor") == "" {
+		if out.Sources, out.Groups, err = s.liveFilterChoices(r.Context(), lv); err != nil {
+			return LiveChannelPage{}, err
+		}
+	}
+	if none {
+		return out, nil
 	}
 	rows, next, err := s.visibleChannels(r.Context(), viewer(r), lv, q, c, limit)
 	if err != nil {
-		return Page[LiveChannel]{}, err
+		return LiveChannelPage{}, err
 	}
-	out := Page[LiveChannel]{Items: []LiveChannel{}}
 	for _, row := range rows {
 		out.Items = append(out.Items, channelOut(row))
 	}
@@ -302,9 +325,10 @@ func (s *Server) liveGuide(r *http.Request, _ None) (LiveGuide, error) {
 	if !to.After(from) || to.Sub(from) > 24*time.Hour {
 		return LiveGuide{}, ErrField("to", "Ask for up to a day of the guide at a time.")
 	}
-	query := r.URL.Query()
-	q := db.LiveChannelQuery{ByName: query.Get("sort") == "name", Favorites: query.Get("favorites") == "true",
-		WithHidden: query.Get("hidden") == "true"}
+	q, none, err := s.liveChannelQuery(r, lv)
+	if err != nil {
+		return LiveGuide{}, err
+	}
 	c, err := readLiveCursor(r)
 	if err != nil {
 		return LiveGuide{}, err
@@ -313,9 +337,18 @@ func (s *Server) liveGuide(r *http.Request, _ None) (LiveGuide, error) {
 	if err != nil {
 		return LiveGuide{}, err
 	}
-	channels, next, err := s.visibleChannels(r.Context(), viewer(r), lv, q, c, limit)
-	if err != nil {
-		return LiveGuide{}, err
+	var channels []db.LiveChannel
+	var next *liveCursor
+	switch around := r.URL.Query().Get("around"); {
+	case around != "":
+		// The mini guide's channels with what is on them.
+		if channels, err = s.channelsAround(r.Context(), viewer(r), lv, q, around); err != nil {
+			return LiveGuide{}, err
+		}
+	case !none:
+		if channels, next, err = s.visibleChannels(r.Context(), viewer(r), lv, q, c, limit); err != nil {
+			return LiveGuide{}, err
+		}
 	}
 	progs, err := s.programmes(r.Context(), viewer(r), lv, channels, from, to, 200)
 	if err != nil {
