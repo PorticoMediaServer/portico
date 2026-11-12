@@ -15,13 +15,19 @@ import (
 type metadataArea struct {
 	// metadata looks titles up at their library's provider. See metadata.go.
 	metadata *metadata.Service
+	// keys is the owner's provider keys, opened. See metadata_settings.go.
+	keys providerKeys
 }
 
 // startMetadata builds this area's service and registers its routes. New calls it once, after
 // the job runner exists and before the jobs left from the last run are taken up.
 func (s *Server) startMetadata(ctx context.Context) error {
-	s.metadata = &metadata.Service{DB: s.db, Providers: map[string]metadata.Provider{}, Pictures: s.artwork}
+	s.metadata = &metadata.Service{DB: s.db, Providers: map[string]metadata.Provider{}, Settings: s.settings, Pictures: s.artwork}
+	if err := s.loadProviderKeys(ctx); err != nil {
+		return err
+	}
 	s.metadataRoutes()
+	s.metadataSettingsRoutes()
 	s.editorRoutes()
 	s.collectionRoutes()
 	s.artworkRoutes()
@@ -69,6 +75,6 @@ func (s *Server) lookupsAgain(ctx context.Context) {
 	}
 }
 
-// UseProvider gives the server an online metadata source. Without one, titles are looked up
-// nowhere and keep what their files say.
-func (s *Server) UseProvider(p metadata.Provider) { s.metadata.Providers[p.Name()] = p }
+// UseProvider gives the server an online metadata source in place of the one of its name: a
+// test's own.
+func (s *Server) UseProvider(p metadata.Provider) { s.metadata.Use(p) }

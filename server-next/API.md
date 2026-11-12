@@ -536,7 +536,7 @@ library itself, hourly, when it has songs not yet read: each song is read once b
 | `PUT /v1/admin/items/{id}/artwork/{role}` | Use this picture for the role, which locks it; or unlock the role |
 | `DELETE /v1/admin/items/{id}/artwork/{imageId}` | Remove an upload; the next best picture is used |
 | `POST /v1/admin/items/{id}/artwork/find` | Find more: every picture the provider has for a `role`, fetched by the server and kept to choose from. Making an episode's picture from the video comes with the preview work |
-| `GET /v1/admin/metadata/settings`, `PUT /v1/admin/metadata/settings` | Own provider keys (write-only: the answer says only whether one is set), Include adult titles, cast photos, the subtitle account |
+| `GET /v1/admin/metadata/settings`, `PUT /v1/admin/metadata/settings` | The owner's alone. `revision` moves on with every save; a save sends the one it read as `expectedRevision`, and one saved since answers `412 changed_elsewhere`. `includeAdult` (off by default). The owner's own TMDB read access token, `tmdbReadToken`: write-only (the answer says only `tmdbCredentialConfigured`), empty removes it, and it takes precedence over Portico's key built into the server, which is used without one. `tmdbCredentialUnreadable`: a key the owner saved that this server can no longer open (its key file was replaced); Portico's key is used until it is entered again |
 
 ### Remote sources, route by route (8 of the 33 for libraries, storage and files)
 

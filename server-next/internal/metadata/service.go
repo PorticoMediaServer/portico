@@ -4,22 +4,28 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/contentrating"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
+	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
 // Service gives titles their details from the providers it is handed.
 type Service struct {
-	DB        *db.DB
-	Providers map[string]Provider // by Name
-	// IncludeAdult is the owner's "Include adult titles" switch.
-	IncludeAdult bool
+	DB *db.DB
+	// Providers are the online sources by Name. Use replaces one while the server runs (the
+	// owner's own TMDB key replacing Portico's); read them through provider.
+	Providers map[string]Provider
+	// Settings holds the owner's switches (Document); nil uses their defaults.
+	Settings *settings.Settings
 	// Lyrics is the lyrics provider, or nil.
 	Lyrics LyricsProvider
 	// Pictures keeps the provider's pictures the server fetches; nil fetches none.
 	Pictures PictureStore
+
+	mu sync.RWMutex // guards Providers
 }
 
 // defaultProviders is the provider a library of each kind uses until the owner chooses.
@@ -37,7 +43,20 @@ func (s *Service) provider(src db.LibrarySource) Provider {
 	if name == db.ProviderLocal {
 		return nil
 	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.Providers[name]
+}
+
+// Use gives the service an online source, replacing the one of the same name. A title being
+// looked up at that moment finishes with the one it had.
+func (s *Service) Use(p Provider) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.Providers == nil {
+		s.Providers = map[string]Provider{}
+	}
+	s.Providers[p.Name()] = p
 }
 
 // Asks reports whether a library (a public id) has a provider to ask: one that uses local
@@ -136,7 +155,7 @@ func (s *Service) match(ctx context.Context, p Provider, locale Locale, libraryK
 	if err != nil {
 		return false, err
 	}
-	q := Query{Kind: providerKinds[item.Kind], Title: title, Year: year, Locale: locale, IncludeAdult: s.IncludeAdult}
+	q := Query{Kind: providerKinds[item.Kind], Title: title, Year: year, Locale: locale, IncludeAdult: s.setting().IncludeAdult}
 	if item.Kind == db.KindAlbum {
 		q.Creator, q.Layout = item.ParentTitle, item.Layout
 	}
@@ -436,7 +455,7 @@ func (s *Service) Rematch(ctx context.Context, itemID string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	q := Query{Kind: providerKinds[t.Kind], Title: title, Year: year, Locale: locale, IncludeAdult: s.IncludeAdult}
+	q := Query{Kind: providerKinds[t.Kind], Title: title, Year: year, Locale: locale, IncludeAdult: s.setting().IncludeAdult}
 	ref := Ref{Provider: p.Name(), Kind: q.Kind}
 	if t.Match != db.MatchFound {
 		// The ids of a title the server has not matched are the ones its name or NFO file

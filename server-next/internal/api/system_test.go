@@ -42,6 +42,9 @@ func openTestServer(t *testing.T, path string) *Server {
 	}
 	stopWhenDone(t, s, cancel)
 	s.passwords = auth.NewPasswords(bcrypt.MinCost, bcrypt.MinCost)
+	// No test asks the real TMDB: until a test points it at its stand-in, TMDB is a port where
+	// nothing listens, and a lookup fails at once, as a provider that is down.
+	s.UseTMDBHost("http://127.0.0.1:1")
 	return s
 }
 

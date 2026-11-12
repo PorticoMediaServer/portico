@@ -4,14 +4,13 @@ import (
 	"os"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/api"
-	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tmdb"
 )
 
-// useTMDBFromEnv gives the server TMDB when a read access token is set. Until the owner can
-// enter provider keys in Settings, PORTICO_TMDB_TOKEN is the way; PORTICO_TMDB_ORIGIN points it
-// at a stand-in for testing.
-func useTMDBFromEnv(handler *api.Server) {
-	if token := os.Getenv("PORTICO_TMDB_TOKEN"); token != "" {
-		handler.UseProvider(tmdb.New(token, env("PORTICO_TMDB_ORIGIN", tmdb.Origin)))
+// useTMDBStandIn points the server's TMDB client at PORTICO_TMDB_ORIGIN when it is set: a
+// stand-in, for testing only. TMDB is otherwise asked at its own address, with the owner's key
+// from Settings › Metadata or Portico's built-in one.
+func useTMDBStandIn(handler *api.Server) {
+	if origin := os.Getenv("PORTICO_TMDB_ORIGIN"); origin != "" {
+		handler.UseTMDBHost(origin)
 	}
 }
