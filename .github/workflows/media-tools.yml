@@ -169,8 +169,6 @@ jobs:
     env:
       PORTICO_REQUIRE_DECODER_SANDBOX: '1'
       PORTICO_TEST_TIER: all
-      # The suite that plays real files through the media engine and checks the output.
-      PORTICO_MEDIA_MATRIX: '1'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -197,6 +195,7 @@ jobs:
           echo "PORTICO_FFMPEG=$RUNNER_TEMP/bundle/bin/ffmpeg" >> "$GITHUB_ENV"
           echo "PORTICO_FFPROBE=$RUNNER_TEMP/bundle/bin/ffprobe" >> "$GITHUB_ENV"
           echo "PORTICO_DISC_TEST_BINARY=$RUNNER_TEMP/bundle/bin/portico-disc" >> "$GITHUB_ENV"
+          echo "PORTICO_DISC_TEST_FFMPEG=$RUNNER_TEMP/bundle/bin/ffmpeg" >> "$GITHUB_ENV"
           echo "$RUNNER_TEMP/bundle/bin" >> "$GITHUB_PATH"
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
@@ -214,6 +213,12 @@ jobs:
       - name: Disc tests with the bundle's helper
         working-directory: server-next
         run: go test ./internal/disc -count=1 -v 2>&1 | grep -E '^(--- |PASS|FAIL|ok|panic|\s+\S+_test.go)' ; exit "${PIPESTATUS[0]}"
+      - name: Real files played through the media engine, each conversion the server asks for
+        working-directory: server-next
+        env:
+          PORTICO_MEDIA_MATRIX: '1'
+        # One line per file and device, so the run shows what was converted and what was skipped.
+        run: go test ./internal/mediaengine -run '^TestMediaMatrix$' -count=1 -v 2>&1 | grep -E '^\s*(--- |PASS|FAIL|ok|panic)|_test.go:[0-9]+:' ; exit "${PIPESTATUS[0]}"
       - name: Every server test, media tests included, with the bundle as FFmpeg
         working-directory: server-next
         run: go test ./... 2>&1 | tee "$RUNNER_TEMP/test.log" | grep -vE '^ok ' ; exit "${PIPESTATUS[0]}"
