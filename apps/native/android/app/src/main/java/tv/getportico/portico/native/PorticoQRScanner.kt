@@ -30,7 +30,10 @@ class PorticoQRScanner(context: ReactApplicationContext) : ReactContextBaseJavaM
   }
   init { context.addActivityEventListener(listener); context.addLifecycleEventListener(this) }
   override fun getName() = "PorticoQRScanner"
-  @ReactMethod fun scan(requestId: String, title: String, cancel: String, promise: Promise) = UiThreadUtil.runOnUiThread {
+  // A React method returns nothing: runOnUiThread answers a Boolean, and a method that returns a value
+  // is taken for a synchronous one, so the whole module failed to load and every screen asking whether
+  // scanning is available crashed (Portico Account sign-in with no servers yet).
+  @ReactMethod fun scan(requestId: String, title: String, cancel: String, promise: Promise) { UiThreadUtil.runOnUiThread {
     if (closed) { promise.reject("qr_camera_unavailable", "Scanner module is closed."); return@runOnUiThread }
     if (!requestId.matches(Regex("[a-f0-9]{32}")) || title.length !in 1..200 || cancel.length !in 1..100) {
       promise.reject("qr_invalid_request", "Invalid scanner opening."); return@runOnUiThread
@@ -48,12 +51,12 @@ class PorticoQRScanner(context: ReactApplicationContext) : ReactContextBaseJavaM
       activity.startActivityForResult(Intent(activity, PorticoQRScanActivity::class.java)
         .putExtra("requestId", requestId).putExtra("title", title).putExtra("cancel", cancel), REQUEST_CODE)
     } catch (_: Exception) { PorticoQRScanActivity.cancel(requestId); if (pending === owned) pending = null; promise.reject("qr_camera_unavailable", "Camera scanning is unavailable.") }
-  }
-  @ReactMethod fun cancel(requestId: String) = UiThreadUtil.runOnUiThread {
+  } }
+  @ReactMethod fun cancel(requestId: String) { UiThreadUtil.runOnUiThread {
     val owned = pending
     if (owned?.id != requestId) return@runOnUiThread
     pending = null; PorticoQRScanActivity.cancel(requestId); owned.promise.resolve(null)
-  }
+  } }
   override fun onHostResume() {}
   // The app's own scan Activity intentionally pauses the React host. That Activity
   // stops its camera on Pause and cancels on Stop, including real backgrounding.
