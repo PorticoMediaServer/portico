@@ -4,126 +4,58 @@ import {createAudiobookBindings} from './bindings.ts';
 import type {ScreenContext} from '../context.ts';
 import {withQueries} from '../../../../../packages/client-core/test/fixtures/viewer-queries.ts';
 
-/** More audiobooks is owed, not deferred: the rebuilt server has no read for an audiobook's similar titles yet
- * (`GET /v1/items/{id}/related` sends more_like_this for films and shows only), and this row still reads the old
- * server's /similar. These tests hold the row's rules for when that read lands. */
-const waitsFor = {skip: 'More audiobooks waits for a rebuilt read of an audiobook\'s similar titles (owed, not deferred)'};
+// More audiobooks reads the rebuilt server's related titles: the `more_audiobooks` group of
+// GET /v1/items/{id}/related (the library's other audiobooks, newest first, at most twenty, never
+// the book's own series). One read, with no continuation.
 const scope = {serverId: 'server', authority: 'local', accountId: 'account', profileId: 'profile'};
-const book = (id: string, changes: Record<string, unknown> = {}) => ({id, libraryId: 'audio', kind: 'book', title: id, available: true, navigation: {view: 'book', entityId: id}, ...changes});
-const response = (entries: unknown[], nextCursor?: string, changes: Record<string, unknown> = {}) => ({scope, data: {
-  itemId: 'seed', libraryId: 'audio', bySound: false, revision: {catalog: 1, viewer: 1}, entries,
-  ...(nextCursor ? {hasMore: true, nextCursor} : {hasMore: false}), ...changes,
-}});
+const book = (id: string, changes: Record<string, unknown> = {}) => ({id, kind: 'audiobook', title: id, libraryId: 'audio', images: {}, state: {}, addedAt: '2026-11-12T00:00:00Z', ...changes});
+const related = (items: unknown[], extra: unknown[] = []) => ({groups: [...extra, {relation: 'more_audiobooks', items}]});
+const seed = {id: 'seed', kind: 'audiobook', title: 'Seed', libraryId: 'audio', images: {}, state: {}, addedAt: '2026-11-12T00:00:00Z',
+  versions: [{id: 'v1', parts: [{size: 1, streams: []}]}]};
+
 function harness(read: (path: string, signal?: AbortSignal) => unknown) {
   let active = true;
   const paths: string[] = [];
-  const projection = {scope: {serverId: 'server', libraryId: 'audio', libraryKind: 'audiobook', view: 'book', entityId: 'seed', viewerFence: 'fence'},
-    revision: {catalog: 1, viewer: 1}, query: {sort: '', direction: '', category: '', q: '', limit: 40},
-    entity: book('seed'), heading: {key: 'entity.title', fallback: 'Seed'}, sections: []};
-  // The bindings read through the viewer's cache: a cache over this fake API.
   const context = withQueries(({api: {request: async (path: string, _method: unknown, _body: unknown, signal?: AbortSignal) => {
-    if (!path.includes('/similar')) return projection;
+    const url = new URL(path, 'https://server.test');
+    if (url.pathname === '/v1/items/seed') return seed;
+    if (url.pathname.startsWith('/v1/libraries/')) return {id: 'audio', name: 'Audio', kind: 'audiobooks'};
     paths.push(path);return await read(path, signal);
   }}, identity: {viewer: scope}, scope: {serverId: 'server', viewerId: 'viewer'}, isCurrent: () => active,
   effects: {openEntry: () => {}, reportError: () => {}}}) as never) as unknown as ScreenContext;
   const binding = createAudiobookBindings(context, {libraryId: 'audio', view: 'book', entityId: 'seed'});
-  /** The page moved on the server (a newer catalog revision) and a hint says so: the next load reads the new page. */
-  const moved = () => {projection.revision = {...projection.revision, catalog: projection.revision.catalog + 1};return context.queries.client.invalidateQueries();};
-  return {binding, paths, moved, retire: () => {active = false;}};
+  return {binding, paths, retire: () => {active = false;}};
 }
 
-test('More audiobooks continues past twelve, filters every source page, and deduplicates in server order', waitsFor, async () => {
-  const h = harness(path => path.includes('cursor=tail')
-    ? response([book('b11'), book('b12'), book('other', {libraryId: 'other'}), book('gone', {missing: true}), book('unavailable', {available: false}), book('album', {kind: 'album', navigation: {view: 'album', entityId: 'album'}}), book('b13')])
-    : response(Array.from({length: 12}, (_, i) => book(`b${i}`)), 'tail'));
+test('More audiobooks is the server\'s list in its own order, keeping only this library\'s other playable books', async () => {
+  const h = harness(() => related([book('b2'), book('b1'), book('seed'), book('other', {libraryId: 'other'}), book('gone', {available: false}), {id: 'album', kind: 'album', title: 'Album', libraryId: 'audio', images: {}, state: {}, addedAt: ''}],
+    [{relation: 'series_member', items: [book('in-series')]}]));
   await h.binding.load();const page = h.binding.service.getSnapshot().projection!;
   const first = await h.binding.moreBooks(page), pager = h.binding.moreBooksPager(page, first);
-  assert.equal(h.paths.length, 1, 'constructing the pager does not read ahead');
-  assert.equal(pager.getSnapshot().entries.length, 12);
-  await pager.more();
-  assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), Array.from({length: 14}, (_, i) => `b${i}`));
-  assert.equal(h.paths[0], '/v1/items/seed/similar?limit=12');
-  assert.equal(h.paths[1], '/v1/items/seed/similar?limit=24&cursor=tail');
-  await pager.more();assert.equal(h.paths.length, 2, 'no request after exhaustion');
+  assert.deepEqual(pager.getSnapshot().entries.map(entry => [entry.id, entry.kind]), [['b2', 'book'], ['b1', 'book']]);
+  assert.deepEqual(h.paths, ['/v1/items/seed/related']);
+  assert.equal(first.nextCursor, undefined, 'one read, no continuation');
+  await pager.more();assert.equal(h.paths.length, 1, 'nothing more is read');
   pager.dispose();h.binding.dispose();
 });
 
-test('empty filtered first and intermediate pages preserve demand without eagerly draining the source', waitsFor, async () => {
-  const h = harness(path => path.includes('cursor=second') ? response([book('beyond')])
-    : path.includes('cursor=first') ? response([book('gone', {missing: true})], 'second')
-    : response([book('other', {libraryId: 'other'})], 'first'));
-  await h.binding.load();const page = h.binding.service.getSnapshot().projection!;
-  const first = await h.binding.moreBooks(page), pager = h.binding.moreBooksPager(page, first);
-  assert.deepEqual(first.entries, []);assert.equal(first.nextCursor, 'first');assert.equal(h.paths.length, 1);
-  await pager.more();assert.deepEqual(pager.getSnapshot().entries, []);assert.equal(pager.getSnapshot().cursor, 'second');
-  assert.equal(h.paths.length, 2, 'one source page per demand even when empty');
-  await pager.more();assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['beyond']);
-  assert.equal(pager.getSnapshot().cursor, undefined);pager.dispose();h.binding.dispose();
-});
-
-for (const [label, change] of Object.entries({library: {libraryId: 'other'}, basis: {bySound: true}})) {
-  test(`More audiobooks rejects a moved ${label} fence on its first page and continuation`, waitsFor, async () => {
-    const h = harness(path => response(path.includes('cursor=') ? [] : [book('b1')], 'tail', path.includes('cursor=') ? change : {}));
+test('an audiobook with no others has no More audiobooks row', async () => {
+  for (const answer of [{groups: []}, related([])]) {
+    const h = harness(() => answer);
     await h.binding.load();const page = h.binding.service.getSnapshot().projection!;
-    const first = await h.binding.moreBooks(page), pager = h.binding.moreBooksPager(page, first);
-    await pager.more();assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['b1']);
-    assert.equal(pager.getSnapshot().error?.code, 'stale_continuation');assert.equal(pager.getSnapshot().cursor, undefined);
-    pager.dispose();h.binding.dispose();
-    const initial = harness(() => response([], undefined, change));await initial.binding.load();
-    await assert.rejects(initial.binding.moreBooks(initial.binding.service.getSnapshot().projection!), {code: 'stale_continuation'});
-    initial.binding.dispose();
-  });
-}
-
-test('continuations reject another viewer envelope and retain only previously admitted books', waitsFor, async () => {
-  const h = harness(path => path.includes('cursor=') ? {...response([book('wrong')]), scope: {...scope, profileId: 'other'}} : response([book('b1')], 'tail'));
-  await h.binding.load();const page = h.binding.service.getSnapshot().projection!;
-  const pager = h.binding.moreBooksPager(page, await h.binding.moreBooks(page));
-  await pager.more();assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['b1']);assert.ok(pager.getSnapshot().error);
-  pager.dispose();h.binding.dispose();
+    assert.deepEqual((await h.binding.moreBooks(page)).entries, []);
+    h.binding.dispose();
+  }
 });
 
-test('one demand at a time and disposal cancels a pending continuation', waitsFor, async () => {
-  let release!: (value: unknown) => void, signal: AbortSignal | undefined;
-  const h = harness((path, input) => path.includes('cursor=') ? (signal = input, new Promise(resolve => {release = resolve;})) : response([book('b1')], 'tail'));
+test('a replaced authority cannot publish the row it was reading', async () => {
+  let release!: (value: unknown) => void;
+  const h = harness(() => new Promise(resolve => {release = resolve;}));
   await h.binding.load();const page = h.binding.service.getSnapshot().projection!;
-  const pager = h.binding.moreBooksPager(page, await h.binding.moreBooks(page));
-  const pending = pager.more();await pager.more();assert.equal(h.paths.length, 2);
-  pager.dispose();assert.equal(signal?.aborted, true);release(response([book('late')]));await pending;
-  assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['b1']);h.binding.dispose();
-});
-
-for (const replacement of ['authority'] as const) {
-  test(`a replaced ${replacement} cannot publish an in-flight source page`, waitsFor, async () => {
-    let release!: (value: unknown) => void;
-    const h = harness(path => path.includes('cursor=') ? new Promise(resolve => {release = resolve;}) : response([book('b1')], 'tail'));
-    await h.binding.load();const page = h.binding.service.getSnapshot().projection!;
-    const pager = h.binding.moreBooksPager(page, await h.binding.moreBooks(page));
-    const pending = pager.more();
-    h.retire();
-    release(response([book('late')]));await pending;
-    assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['b1']);
-    await assert.rejects(h.binding.moreBooks(page), {name: 'AbortError'});
-    pager.dispose();h.binding.dispose();
-  });
-}
-
-test('More audiobooks: a continuation the server refuses reads the first page once in place of the row; a second refusal ends it', waitsFor, async () => {
-  const refused = () => {throw Object.assign(new Error('Expired'), {code: 'invalid_cursor'});};
-  let reads = 0;
-  const h = harness(path => {
-    reads++;
-    if (path.includes('cursor=')) return refused();
-    // The first page read again after the refusal: the old row's b2 is gone, b9 is new, and a new cursor follows.
-    return reads === 1 ? response([book('b1'), book('b2')], 'tail') : response([book('b9'), book('b1')], 'again');
-  });
-  await h.binding.load();const page = h.binding.service.getSnapshot().projection!;
-  const first = await h.binding.moreBooks(page), pager = h.binding.moreBooksPager(page, first);
-  await pager.more();
-  assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['b9', 'b1']);assert.equal(pager.getSnapshot().cursor, 'again');
-  assert.equal(pager.getSnapshot().error, undefined);assert.equal(h.paths[2], '/v1/items/seed/similar?limit=12', 'the first page, without a cursor');
-  await pager.more();
-  assert.deepEqual(pager.getSnapshot().error, {code: 'invalid_cursor', stale: true});assert.equal(pager.getSnapshot().cursor, undefined);
-  assert.deepEqual(pager.getSnapshot().entries.map(e => e.id), ['b9', 'b1']);assert.equal(h.paths.length, 4);
-  pager.dispose();h.binding.dispose();
+  const pending = h.binding.moreBooks(page);
+  await new Promise(resolve => setImmediate(resolve));
+  h.retire();release(related([book('late')]));
+  await assert.rejects(pending, {name: 'AbortError'});
+  await assert.rejects(h.binding.moreBooks(page), {name: 'AbortError'});
+  h.binding.dispose();
 });

@@ -1,5 +1,6 @@
 import {readBrowseCapabilitiesResponse} from '@core/query/browse-reads.ts';
-import {LibraryContentService, readListeningSimilar, type ContentEntry, type ContentProjection} from '@core/library-content.ts';
+import {LibraryContentService, type ContentEntry, type ContentProjection} from '@core/library-content.ts';
+import {entriesFromItems, readRelatedItems} from '@core/items.ts';
 import {getContainerState, setContainerFlag, setContainerState} from '@core/container-state.ts';
 import {parseBrowseCapabilities, validateBrowseQuery, type BrowseCapabilities} from '@core/browse.ts';
 import {RelationRowPager, type RelationPage} from '@core/relation-rows.ts';
@@ -18,21 +19,19 @@ export function createAudiobookBindings(context: ScreenContext, input: Audiobook
       || page.entity?.id !== target.entityId || page.entity.kind !== target.view) throw new DOMException('Audiobook page changed', 'AbortError');
   };
   const entries = () => service.getSnapshot().appended.flatMap(section => section.entries);
-  const viewer = context.identity?.viewer;
-  const similarScope = viewer && (viewer.authority === 'local' || viewer.authority === 'hosted')
-    ? Object.freeze({serverId: context.scope.serverId, authority: viewer.authority, accountId: viewer.accountId, profileId: viewer.profileId}) : undefined;
   /** Keep the source cursor even when every entry in this bounded page is filtered out.
    * The visible shelf, rather than an eager scan, asks for each following source page. */
+  /** More audiobooks: the server's own list of the library's other audiobooks (`GET /v1/items/{id}/related`, the
+   * `more_audiobooks` group, newest first, at most twenty, never the book's own series). One read, no continuation. */
   const readMoreBooks = async (page: ContentProjection, cursor?: string, signal?: AbortSignal): Promise<RelationPage> => {
     current(page);
-    if (target.view !== 'book' || !similarScope) return Object.freeze({entries: Object.freeze([])});
-    const value = await readListeningSimilar(life.api, similarScope, target.entityId,
-      {limit: cursor ? 24 : 12, cursor, signal: life.signal(signal)});
+    if (target.view !== 'book' || cursor) return Object.freeze({entries: Object.freeze([])});
+    const related = await readRelatedItems(life.api, target.entityId, life.signal(signal));
     current(page);
-    if (value.itemId !== target.entityId || value.libraryId !== target.libraryId || value.bySound)
-      throw Object.assign(new Error('Book page changed'), {code: 'stale_continuation'});
-    return Object.freeze({entries: Object.freeze(value.entries.filter(entry => entry.kind === 'book' && entry.libraryId === target.libraryId && entry.available !== false && !entry.missing)),
-      ...(value.nextCursor ? {nextCursor: value.nextCursor} : {})});
+    const group = related?.groups?.find(value => value.relation === 'more_audiobooks');
+    const entries = entriesFromItems(group?.items ?? [], target.libraryId).filter(entry => entry.kind === 'book' && entry.id !== target.entityId
+      && entry.libraryId === target.libraryId && entry.available !== false && !entry.missing);
+    return Object.freeze({entries: Object.freeze(entries)});
   };
   // The exact page whose checked filters may act, and the one opener both links use.
   let filterFact: Readonly<{page: ContentProjection; capabilities: BrowseCapabilities}> | undefined;
