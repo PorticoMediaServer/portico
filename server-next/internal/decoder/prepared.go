@@ -266,11 +266,6 @@ func runPrepared(ctx context.Context, s *processpool.Supervisor, key string, cmd
 	if s == nil || key == "" || ownership == nil || cmd == nil {
 		return ErrInvalidConfiguration
 	}
-	release, err := admitPreparedConversion(ctx)
-	if err != nil {
-		return err
-	}
-	defer release()
 	cmd.ExtraFiles = append(cmd.ExtraFiles, ownership)
 	if !res.claim(endpoint, cmd) {
 		return ErrReservationInUse

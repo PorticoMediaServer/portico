@@ -254,31 +254,6 @@ func TestSoftwareToneMapUsesHDRFixture(t *testing.T) {
 	}
 }
 
-func TestBackgroundConversionLimitWaitsAndCancels(t *testing.T) {
-	preparedAdmission.Lock()
-	before := preparedAdmission.limit
-	preparedAdmission.Unlock()
-	SetBackgroundConversionLimit(1)
-	defer SetBackgroundConversionLimit(before)
-	held, err := admitPreparedConversion(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
-	if release, err := admitPreparedConversion(ctx); err == nil {
-		release()
-		held()
-		t.Fatal("owner cap admitted concurrent work")
-	}
-	held()
-	release, err := admitPreparedConversion(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	release()
-}
-
 func TestBitmapBurnPreservesGlyphShapeOnCroppedVideo(t *testing.T) {
 	binary := decodertest.QualifiedFFmpeg(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
