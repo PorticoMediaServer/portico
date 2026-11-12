@@ -103,6 +103,10 @@ const instant = (v: unknown): number | undefined => {
   const ms = Date.parse(v);
   return Number.isFinite(ms) ? ms : undefined;
 };
+/** How far behind the live edge a playing viewer still counts as watching at live. */
+const LIVE_SLACK_MS = 10_000;
+/** How near a programme's end the engine's position counts as having reached it. */
+const END_SLACK_MS = 1_000;
 /** A day: the reach of a live stream's window as the player sees it, so a long watch never leaves it. */
 const DAY_MS = 86_400_000;
 
@@ -178,7 +182,13 @@ export function channelView(s: Session, channel: ChannelReference, at: ChannelAt
 }
 
 type Active = {wake?: () => void; serial: number; channel: ChannelReference; startAbort: AbortController; id?: string; session?: Session; at: ChannelAttachment;
-  joined: boolean; reporter?: ProgressReporter; tail: Promise<unknown>; closed: boolean; retune?: ReturnType<typeof setTimeout>};
+  joined: boolean; reporter?: ProgressReporter; tail: Promise<unknown>; closed: boolean; retune?: ReturnType<typeof setTimeout>;
+  /** Where the engine last said it was, in the stream's own time. */
+  positionMs?: number;
+  /** This start places the viewer at the start of the programme now on (they finished, or were away past, the one before). */
+  placeAtStart?: boolean;
+  /** A new tune of this channel is under way: no second one. */
+  retuning?: boolean};
 
 const message = (e: unknown): string => {
   if (e instanceof PlaybackApiError) {
@@ -223,6 +233,8 @@ export class V1ChannelControl implements ChannelPlayback {
   private active?: Active;
   private sink?: ChannelViewSink;
   private wanted: 'playing' | 'paused' = 'playing';
+  /** The next start places the viewer at the start of the programme now on. */
+  private placeNextAtStart = false;
   private stopping: Promise<unknown> = Promise.resolve();
 
   constructor(options: V1ChannelOptions) {
@@ -262,7 +274,9 @@ export class V1ChannelControl implements ChannelPlayback {
     if (!starting() || this.serial !== entered + 1) return;
     this.sink = sink;
     this.wanted = state;
-    const a: Active = {serial: ++this.serial, channel: originalChannel, startAbort: new AbortController(), at: {generation: 0, key: '', seekId: '', targetMs: 0}, joined: false, tail: Promise.resolve(), closed: false};
+    const placeAtStart = this.placeNextAtStart;this.placeNextAtStart = false;
+    const a: Active = {serial: ++this.serial, channel: originalChannel, startAbort: new AbortController(), at: {generation: 0, key: '', seekId: '', targetMs: 0}, joined: false, tail: Promise.resolve(), closed: false,
+      ...(placeAtStart ? {placeAtStart} : {})};
     this.active = a;
     const currentStart = () => this.current(a) && starting() && this.current(a);
     let admitted = currentStart, finish: ChannelStartReceipt['finish'] | undefined;
@@ -385,8 +399,11 @@ export class V1ChannelControl implements ChannelPlayback {
       if (!s.presentation.url || s.presentation.generation <= 0) return;
       // A new stream (the start, or the server's new presentation): the engine joins it where the
       // server starts it; a live stream from its live edge.
-      a.at = Object.freeze({generation: a.at.generation + 1, key, seekId: this.key(), targetMs: s.kind === 'title' ? s.presentation.startPositionMs : liveJoinMs(s, this.serverNow())});
+      const fromStart = !a.joined && a.placeAtStart && s.kind === 'title';
+      a.at = Object.freeze({generation: a.at.generation + 1, key, seekId: this.key(), targetMs: fromStart ? 0 : s.kind === 'title' ? s.presentation.startPositionMs : liveJoinMs(s, this.serverNow())});
       a.joined = true;
+      // At the start of the programme now on (11 rule 109's oldest point): the server is told where the viewer is.
+      if (fromStart) void this.patch(a, {state: this.wanted, seek: {id: a.at.seekId, positionMs: 0}});
       this.scheduleRetune(a, s);
     }
     if (a.reporter && a.reporter.snapshot().generation !== s.presentation.generation) {
@@ -396,20 +413,40 @@ export class V1ChannelControl implements ChannelPlayback {
     this.emit(a);
   }
 
-  /** A Library Channel's programme ends: tune the channel again for the next one. */
+  /**
+   * A Library Channel's programme ends on the clock. A viewer at live changes programme with it. A viewer behind live
+   * (paused or rewound) keeps the programme they are in until they reach its end (11 rules 27 and 109).
+   */
   private scheduleRetune(a: Active, s: Session) {
     this.clearRetune(a);
     const end = s.kind === 'title' ? s.channel?.endsAtMs : undefined;
     if (end === undefined) return;
-    // An end this device's view of the server's clock already passed is tuned a second later, never in a tight loop.
+    // An end this device's view of the server's clock already passed is looked at a second later, never in a tight loop.
     const left = end - this.serverNow(), delay = left > 0 ? left : 1_000;
     a.retune = setTimeout(() => {
       a.retune = undefined;
-      const sink = this.sink;
-      if (!this.current(a) || !sink) return;
-      void this.open(a.channel, sink, {state: this.wanted}).catch(() => {});
+      if (this.current(a) && this.atLive(a)) this.retune(a, false);
     }, delay);
     (a.retune as {unref?: () => void}).unref?.();
+  }
+  /** Whether this viewer is watching a Library Channel at live: playing, and within a few seconds of the live edge. */
+  private atLive(a: Active): boolean {
+    const start = a.session?.channel?.startsAtMs;
+    if (this.wanted !== 'playing' || start === undefined) return false;
+    return (a.positionMs ?? a.at.targetMs) >= this.serverNow() - start - LIVE_SLACK_MS;
+  }
+  /** The length of the programme this viewer is in, when it has one. */
+  private programmeMs(a: Active): number | undefined {
+    const c = a.session?.kind === 'title' ? a.session.channel : undefined;
+    return c?.startsAtMs !== undefined && c.endsAtMs !== undefined ? c.endsAtMs - c.startsAtMs : undefined;
+  }
+  /** Tune the channel again: at live with the clock, or at the start of the programme now on for a viewer who finished one. */
+  private retune(a: Active, atStart: boolean) {
+    const sink = this.sink;
+    if (!this.current(a) || !sink || a.retuning) return;
+    a.retuning = true;
+    this.placeNextAtStart = atStart;
+    void this.open(a.channel, sink, {state: this.wanted}).catch(() => {});
   }
   private clearRetune(a: Active) { if (a.retune !== undefined) {clearTimeout(a.retune); a.retune = undefined;} }
 
@@ -440,6 +477,8 @@ export class V1ChannelControl implements ChannelPlayback {
         this.accept(a, parseChannelSession(r.body));
       } catch (e) {
         if (!this.current(a)) return;
+        // A Library Channel whose session lapsed while the viewer was away: they come back at the start of the programme now on.
+        if (a.session.kind === 'title' && e instanceof PlaybackApiError && (e.status === 404 || e.status === 410)) {this.retune(a, true);return;}
         try { await this.read(a); } catch { /* the next tick reads again */ }
         this.sink?.error(message(e), terminal(e));
       }
@@ -478,8 +517,10 @@ export class V1ChannelControl implements ChannelPlayback {
     const a = this.active, s = a?.session;
     if (!a || !s) return;
     if (s.kind === 'live') {this.reload(a); void this.patch(a, {state: 'playing'}); return;}
-    const start = s.channel?.startsAtMs;
+    const start = s.channel?.startsAtMs, end = s.channel?.endsAtMs;
     if (start === undefined) {void this.patch(a, {state: 'playing'}); return;}
+    // Behind live in a programme that has already ended on the clock: live is in the programme now on.
+    if (end !== undefined && this.serverNow() >= end) {this.retune(a, false); return;}
     this.moveTo(a, this.serverNow() - start);
     void this.patch(a, {state: 'playing', seek: {id: a.at.seekId, positionMs: a.at.targetMs}});
   }
@@ -498,7 +539,12 @@ export class V1ChannelControl implements ChannelPlayback {
     if (!a?.id || !s || !a.reporter || !this.current(a) || !Number.isFinite(seconds)) return false;
     if (seekId && a.at.seekId !== seekId) return false;
     const positionMs = Math.max(0, Math.round(seconds * 1000));
+    a.positionMs = positionMs;
     a.reporter.observe({generation: s.presentation.generation, state: this.wanted, positionMs, rate: this.wanted === 'playing' ? 1 : 0}, seekId ? 'seeked' : 'time');
+    // A viewer who reaches the end of a Library Channel's programme after it ended on the clock goes on at the start of the
+    // programme now on; one at live is changed with the clock (scheduleRetune).
+    const length = this.programmeMs(a), end = s.channel?.endsAtMs;
+    if (length !== undefined && end !== undefined && positionMs >= length - END_SLACK_MS && this.serverNow() >= end) this.retune(a, true);
     if (seekId) {
       a.at = Object.freeze({...a.at, ackId: seekId, confirmedMs: positionMs});
       this.emit(a);
