@@ -1,10 +1,16 @@
 package mediaengine
 
 import (
+	"context"
+	"encoding/json"
+	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
@@ -108,5 +114,56 @@ func TestTheDeviceSettingReachesEveryJobMadeFromFFmpegsFacts(t *testing.T) {
 	decoder.SetSoftwareEncodingChosen(func() bool { return softwareEncoding(settings.StreamingSettings{GraphicsDevice: "processor"}) })
 	if decoder.CurrentToolchain().VulkanAvailable {
 		t.Fatal("with software encoding chosen the decoder still sees a Vulkan device")
+	}
+}
+
+// The same through the real settings store, as the console saves it: with software encoding
+// saved, a thumbnail of a Dolby Vision profile 5 film is not planned on the graphics device
+// (it is refused, as on a server without one), and one of an HDR10 film is planned with no
+// device filter; with Automatic saved again the profile 5 thumbnail uses the device, with no
+// restart in between.
+func TestSavingTheDeviceSettingChangesWhatAThumbnailIsPlannedWith(t *testing.T) {
+	ctx := context.Background()
+	d, err := db.Open(ctx, filepath.Join(t.TempDir(), "main.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	store, _, err := settings.Open(ctx, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer decoder.RestoreToolchain(decoder.CurrentToolchain())
+	defer decoder.SetSoftwareEncodingChosen(nil)
+	(&Engine{settings: store}).shareDeviceSetting()
+	// What the trial at start found on a server with a working graphics device.
+	decoder.RestoreToolchain(&decoder.ToolchainFacts{VulkanAvailable: true, Filters: map[string]bool{"libplacebo": true, "zscale": true, "tonemap": true}})
+
+	save := func(device string) {
+		t.Helper()
+		change, _ := json.Marshal(map[string]string{"graphicsDevice": device})
+		if _, err := store.Write(ctx, 0, settings.Streaming.Name(), change, -1, time.Now()); err != nil {
+			t.Fatalf("saving graphics device %q: %v", device, err)
+		}
+	}
+	thumbnail := func(video decoder.PreviewVideoFacts) (string, error) {
+		args, err := decoder.AnalysisArgs("input", decoder.AnalysisSpec{Kind: "image", MaxDurationUS: 60000000, SourceVideo: video})
+		return strings.Join(args, " "), err
+	}
+	profile5 := decoder.PreviewVideoFacts{DynamicRange: "dolby_vision", DolbyVisionProfile: 5}
+	usesDevice := func(args string) bool {
+		return strings.Contains(args, "vulkan") || strings.Contains(args, "opencl") || strings.Contains(args, "libplacebo")
+	}
+
+	save("processor")
+	if args, err := thumbnail(profile5); err == nil {
+		t.Fatalf("with software encoding saved a profile 5 thumbnail was planned: %s", args)
+	}
+	if args, err := thumbnail(decoder.PreviewVideoFacts{DynamicRange: "hdr10"}); err != nil || usesDevice(args) {
+		t.Fatalf("with software encoding saved an HDR10 thumbnail: %s %v", args, err)
+	}
+	save("automatic")
+	if args, err := thumbnail(profile5); err != nil || !usesDevice(args) {
+		t.Fatalf("with Automatic saved again a profile 5 thumbnail does not use the device: %s %v", args, err)
 	}
 }
