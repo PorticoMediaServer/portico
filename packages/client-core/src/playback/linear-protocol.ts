@@ -1,10 +1,17 @@
 /** Channel (Live TV, Library Channels) projection shapes shared by the v1 channel control
  * (spec §18.6) and the player: the reference, the desired transport, the media window. */
-export type ChannelReference = Readonly<{kind:'live-source'|'library-channel'; sourceId:string; channelId:string; generation:string}>;
+/** A channel to watch. `name` is what the player calls it. The rebuilt server names a channel by its id alone; its `sourceId`
+ * and `generation` are fixed stand-ins (`NEXT_CHANNEL_SOURCE`, `NEXT_CHANNEL_GENERATION`) and the start sends only the id. */
+export type ChannelReference = Readonly<{kind:'live-source'|'library-channel'; sourceId:string; channelId:string; generation:string; name?:string}>;
 export type ChannelSeek = Readonly<{seekCommandId:string; bufferGeneration:string; kind:'position'|'live'; positionUs:string|null}>;
 export type ChannelDesired = Readonly<{state:'playing'|'paused'; seek:ChannelSeek|null; retryRequestId:string|null}>;
 export type ChannelProgramme = Readonly<{id:string;itemId:string;title:string;startMs:number;endMs:number}>;
-export type ChannelMedia = Readonly<{reservationRequiredAtMs?:number;streamUrl:string;bufferGeneration:string;presentationGeneration:string;originMs:number;windowRevision:string;windowStartUs:string;windowEndUs:string;liveEdgeUs:string;gaps:readonly {startUs:string;endUs:string}[];state:string;errorCode:string;logoUrl:string;
+export type ChannelMedia = Readonly<{reservationRequiredAtMs?:number;streamUrl:string;
+ /** How the engine takes the stream: directly (a file, a live source's own MPEG-TS) or as HLS (the default). */
+ mode?:'direct'|'hls';
+ /** How a position is read from the stream: by its program dates (the default; live HLS), or as media time from where
+  * the stream starts (a Library Channel's title, a live source's own stream), with `originMs` as that start. */
+ clock?:'dates'|'media';bufferGeneration:string;presentationGeneration:string;originMs:number;windowRevision:string;windowStartUs:string;windowEndUs:string;liveEdgeUs:string;gaps:readonly {startUs:string;endUs:string}[];state:string;errorCode:string;logoUrl:string;
  /** Clock epochs (channel position = media time + offsetMs over [startMs, endMs)), for an engine that reports media time rather than program dates (mpv). */
  clocks?:readonly ChannelClock[]}>;
 export type ChannelClock = Readonly<{startMs:number;endMs:number;offsetMs:number}>;

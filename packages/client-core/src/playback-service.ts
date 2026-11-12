@@ -640,7 +640,7 @@ export class PlaybackService {
       const target=channelSeconds(seek.positionUs);
       if(!this.snapshot.session||changed){
         const generation=Number(m.bufferGeneration);if(!Number.isSafeInteger(generation)){this.fail(this.snapshot.intentId,'Channel generation is not supported.');return;}
-        patch.session={id:state.playbackId,generation,streamUrl:m.streamUrl,mode:'hls',duration:0,resumeSeconds:target};
+        patch.session={id:state.playbackId,generation,streamUrl:m.streamUrl,mode:m.mode??'hls',duration:0,resumeSeconds:target};
         patch.phase='starting';patch.duration=0;this.channelSeekId=undefined;this.channelObservedSeek=undefined;this.channelSubmittedSeek=undefined;
       }else if(this.snapshot.phase==='error')patch.phase='error';
       if(seek.seekCommandId!==this.channelSeekId){

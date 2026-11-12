@@ -47,7 +47,7 @@ export class WebPreparingStarts {
           // Capture once, before dispatch. Do not later reconstruct a body from a
           // mutable source, queue, quality choice or a successor caller.
           const body: StartTarget & StartOptions = freeze(JSON.parse(JSON.stringify({...target, ...options})));
-          const channelBody = channel && 'channelId' in body ? Object.freeze({channelId: body.channelId, channelGeneration: body.channelGeneration!, state: body.state!}) : undefined;
+          const channelBody = channel && 'channel' in body ? Object.freeze({channel: body.channel, state: body.state!}) : undefined;
           const continuation = flight.current;
           if (!continuation()) throw retired();
           const acquire = (actual: ChannelStartResource, stop: PreparingStop): (() => Promise<void>) | undefined => {
@@ -103,7 +103,7 @@ export class WebPreparingStarts {
       beginChannel: (original: OriginalChannelStart, isCurrent: () => boolean) => {
         const {body, key, signal, isCurrent: channelCurrent} = original;
         const current = () => valid(channelCurrent) && valid(isCurrent);
-        const start = begin({channelId: body.channelId, channelGeneration: body.channelGeneration}, {state: body.state}, key, signal, current, body);
+        const start = begin({channel: body.channel}, {state: body.state}, key, signal, current, body);
         return Object.freeze({isCurrent: start.context.isCurrent!, capturePreparing: start.context.capturePreparing!, claimInstall: start.claimChannel, retireUninstalled: start.retireChannel, finish: start.finish});
       },
     });
