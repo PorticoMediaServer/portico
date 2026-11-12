@@ -10,6 +10,7 @@ import type {Library as WireLibrary} from '../../contracts/src/next/api.ts';
 import {acrossLibraries, BrowseQueryError, type BrowseNode, type BrowseSortSelection} from './browse.ts';
 import {itemKindOf, libraryKind, type ItemListQuery} from './items.ts';
 import {serverPath} from './query/server-api.ts';
+import {routePattern} from '../../contracts/src/routes.ts';
 
 /** Each tab's name in the app, the kind of item it lists and its label. */
 const pivots: readonly Readonly<{id: string; kind: string; labelKey: string; views: readonly string[]; /** The kinds the list asks for, when more than the tab's own. */ lists?: string}>[] = [
@@ -77,7 +78,15 @@ export function libraryBrowseCapabilities(library: WireLibrary, pivotId: string)
       defaultSort: lead ? [{field: lead.id, direction: pivot.id === 'authors' ? 'asc' : lead.defaultDirection}] : [], sorts: own.map(sort => sort.id),
       filters: pivot.id === 'authors' ? [] : filters.map(filter => filter.id), paging: 'keyset'};
   });
-  return {library: {id: library.id, name: library.name, kind: libraryKind(library.kind), defaultView: ''}, pivots: shaped, resolvedPivot: shaped.find(pivot => pivot.id === pivotId) ?? null,
+  // A Books or Comics library's Authors and Series tabs: its people by the author role and its
+  // series, each opening the titles it holds (the read-web frames). Comics lead with Series.
+  const reading = library.kind === 'books' || library.kind === 'comics';
+  const list = (id: string, field: string) => ({id, labelKey: 'library.tab.' + id, entityKinds: [field], supportedViews: ['grid', 'list'], browsable: false,
+    defaultSort: [], sorts: [], filters: [], facetSource: {endpoint: routePattern('get_library_facets'), field}});
+  const authors = reading && filters.some(filter => filter.id === 'author') ? [list('authors', 'author')] : [];
+  const series = reading && library.views?.some(view => view.kind === 'series') ? [list('series', 'series')] : [];
+  const all = library.kind === 'comics' ? [...series, ...shaped, ...authors] : [...shaped, ...authors, ...series];
+  return {library: {id: library.id, name: library.name, kind: libraryKind(library.kind), defaultView: ''}, pivots: all, resolvedPivot: shaped.find(pivot => pivot.id === pivotId) ?? null,
     fields: filters, sorts, quickFilters: quick.filter(each => filters.some(filter => filter.id === each.field)).map(each => ({id: each.id, labelKey: each.labelKey, query: {variant: 'predicate', field: each.field, operator: 'equals', value: each.value}})),
     queryLimits: limits};
 }
