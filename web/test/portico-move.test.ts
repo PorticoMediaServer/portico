@@ -177,3 +177,32 @@ test('a ticket cannot complete before its preview or after Cancel', async () => 
   assert.equal(f.calls.some(call => call.path === 'Services:identity'), false);
   f.entry.dispose();
 });
+
+test('a move link naming a server that uses local sign-in says so, with the server\'s checked name, and asks it nothing about a move', async () => {
+  const {hooks} = await import('./helpers/component-harness.mjs');
+  const host = hooks(), asked: string[] = [], backs: string[] = [];
+  let snapshot: Record<string, unknown> = {phase: 'welcome', busy: false};
+  const entry = {subscribe: () => () => {}, getSnapshot: () => snapshot, cancel: () => {asked.push('cancel');}, dispose: () => {},
+    inspect: async () => {asked.push('inspect'); snapshot = {phase: 'password', busy: false, server: {id: 'srv_den', name: 'Den', signIn: 'local', move: null}};},
+    previewMoveCode: async () => {asked.push('previewMoveCode');}, previewMoveTicket: async () => {asked.push('previewMoveTicket');}, movePortico: async () => {asked.push('movePortico');}};
+  const label = (key: string, values?: Record<string, string>) => values ? `${key}:${JSON.stringify(values)}` : key;
+  const {ChooserMove} = await componentModule(new URL('../src/screens/accounts/ChooserMove.tsx', import.meta.url), {
+    react: host.react, '@i18n': {defaultI18n: {t: label}},
+    '../../platform/account-entry': {createBrowserAccountEntry: () => entry},
+    '../../platform/portico-account-holder': {porticoAccountHolder: {access: () => ({accountId: 'acct_visitor'})}},
+    './sign-in-form': {AccountSignInForm: class {dispose() {}}},
+  });
+  const all = (node: any): any[] => Array.isArray(node) ? node.flatMap(all) : node?.props ? [node, ...all(node.props.children)] : [];
+  const text = (node: any) => all(node).flatMap((item: any) => [item.props.children].flat()).filter((value: unknown) => typeof value === 'string').join('\n');
+  // The refusal is its own small component; draw it in place.
+  const unwrap = (node: any): any => node?.type?.name === 'MoveNotPortico' ? node.type(node.props) : node;
+  const draw = () => host.render(() => unwrap(ChooserMove({who: {id: 'acct_visitor', username: 'visitor'}, held: {code: 'K7QP-2MXD'}, initialAddress: 'https://den.example', onBack: () => {backs.push('back');}, onNotYou: () => {}})));
+  all(draw()).find((node: any) => node.type === 'form').props.onSubmit({preventDefault() {}});
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(asked, ['inspect'], 'the server is checked, and never asked about a move');
+  const page = draw();
+  assert.match(text(page), /accounts\.move\.notPortico:\{"server":"Den"\}/);
+  assert.equal(all(page).some((node: any) => node.type === 'form'), false, 'no code form to fill in');
+  all(page).find((node: any) => [node.props.children].flat().includes('action.back')).props.onClick();
+  assert.deepEqual([asked, backs], [['inspect', 'cancel'], ['back']]);
+});

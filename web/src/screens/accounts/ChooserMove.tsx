@@ -41,13 +41,21 @@ export function ChooserMove({who, held, initialAddress, onBack, onNotYou}: {who:
       <button type="button" disabled={busy} onClick={() => {entry.cancel(); onBack();}}>{t('action.cancel')}</button>
     </AuthLinks>
   </AuthStage>;
+  // A link can name a server that uses local sign-in: there is nothing to move to a Portico Account,
+  // so the page says so, with the server's own checked name, rather than leaving the code form.
+  if (!busy && state.server?.signIn === 'local') return <MoveNotPortico server={state.server.name} onBack={() => {entry.cancel(); onBack();}} />;
   return <AuthStage phoneShape="top"><h1>{t(ticket !== undefined ? 'accounts.move.finishTitle' : 'accounts.move.enterCode')}</h1>
     <p>{t(ticket !== undefined ? 'accounts.move.ticketBody' : 'accounts.move.porticoCodeBody')}</p>
     <AuthError error={state.error} />
     <form onSubmit={event => {
       event.preventDefault();
       if (busy || !ready) return;
-      void (async () => {await entry.inspect(address.trim()); if ('code' in proof) await entry.previewMoveCode(proof.code); else await entry.previewMoveTicket(proof.ticket);})();
+      void (async () => {
+        await entry.inspect(address.trim());
+        // Only a server that uses Portico Accounts is asked about a move to one.
+        if (entry.getSnapshot().server?.signIn !== 'portico') return;
+        if ('code' in proof) await entry.previewMoveCode(proof.code); else await entry.previewMoveTicket(proof.ticket);
+      })();
     }}>
       <TextField variant="auth" label={t('accounts.signIn.address')} name="server" autoComplete="url" inputMode="url" autoCapitalize="none" spellCheck={false}
         value={address} onChange={event => setAddress(event.currentTarget.value)} disabled={busy} required />
@@ -56,5 +64,14 @@ export function ChooserMove({who, held, initialAddress, onBack, onNotYou}: {who:
       <Button variant="primary" type="submit" loading={busy} disabled={!ready}>{t('action.continue')}</Button>
     </form>
     <AuthLinks><button type="button" disabled={busy} onClick={onBack}>{t('action.back')}</button></AuthLinks>
+  </AuthStage>;
+}
+
+/** A move to a Portico Account asked of a server that uses its own sign-in. */
+export function MoveNotPortico({server, onBack}: {server: string; onBack: () => void}) {
+  return <AuthStage phoneShape="top">
+    <h1>{t('accounts.move.notPortico', {server})}</h1>
+    <p>{t('accounts.move.notPorticoBody', {server})}</p>
+    <AuthLinks><button type="button" onClick={onBack}>{t('action.back')}</button></AuthLinks>
   </AuthStage>;
 }
