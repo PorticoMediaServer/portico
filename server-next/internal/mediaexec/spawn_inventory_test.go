@@ -33,6 +33,8 @@ var processSpawns = map[string]string{
 	"cmd/portico-server/restart_unix.go:restartSelf": "the server starting its own program again in place; no media",
 
 	"internal/remote/rclone_new.go:rcloneTool": "rclone config providers and rclone obscure, input on stdin, while the owner makes a new remote; no media",
+
+	"internal/remote/rclone_folder.go:checkFolder": "rclone lsjson --stat on a source's own folder before it is served, options in its environment; no media",
 }
 
 type spawn struct{ file, function string }

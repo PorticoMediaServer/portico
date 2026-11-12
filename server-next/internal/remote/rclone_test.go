@@ -29,6 +29,9 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// fakeFiles are the files the stand-in rclone's remote holds.
+var fakeFiles = map[string]string{"Media/Films/Heat.mkv": "0123456789", "Other/x.mkv": "x", "/srv/media/Films/Ronin.mkv": "r"}
+
 func fakeRclone(args []string) int {
 	// The remote's options come in the environment, never on the command line.
 	for _, arg := range args {
@@ -52,7 +55,7 @@ func fakeRclone(args []string) int {
 	}
 	root := strings.TrimPrefix(args[2], "portico:")
 	files := map[string]string{}
-	for name, body := range map[string]string{"Media/Films/Heat.mkv": "0123456789", "Other/x.mkv": "x", "/srv/media/Films/Ronin.mkv": "r"} {
+	for name, body := range fakeFiles {
 		if inside, ok := strings.CutPrefix(name, root+"/"); ok {
 			files[inside] = body
 		}

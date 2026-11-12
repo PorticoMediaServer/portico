@@ -23,6 +23,21 @@ func fakeRcloneTools(args []string) {
 			{"Name":"onedrive","Options":[{"Name":"token"},{"Name":"drive_id"},{"Name":"drive_type"}]},{"Name":"dropbox","Options":[{"Name":"token"}]},
 			{"Name":"local","Options":[]}]`)
 		os.Exit(0)
+	case len(args) == 3 && args[0] == "lsjson" && args[1] == "--stat":
+		// A folder is there when a file is inside it; a file is not a folder.
+		root := strings.TrimPrefix(args[2], "portico:")
+		for name := range fakeFiles {
+			if name == root {
+				fmt.Print(`{"Path":"","IsDir":false}`)
+				os.Exit(0)
+			}
+			if strings.HasPrefix(name, root+"/") {
+				fmt.Print(`{"Path":"","IsDir":true}`)
+				os.Exit(0)
+			}
+		}
+		fmt.Fprintln(os.Stderr, "Failed to lsjson: directory not found")
+		os.Exit(3)
 	case len(args) == 2 && args[0] == "obscure" && args[1] == "-":
 		typed, _ := io.ReadAll(os.Stdin)
 		fmt.Printf("obscured-%x\n", typed)
