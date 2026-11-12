@@ -42,7 +42,9 @@ const (
 	// What an allowed page may send, and what it may read besides the body. A page can
 	// always send Accept and read Content-Type and Content-Length.
 	corsMethods = "GET, HEAD, POST, PUT, PATCH, DELETE"
-	corsHeaders = "Authorization, Content-Type, Idempotency-Key, If-Match, If-None-Match, Range, Last-Event-ID"
+	corsHeaders = "Authorization, Content-Type, Idempotency-Key, If-Match, If-None-Match, Range, Last-Event-ID, Cache-Control, " +
+		"Portico-Playback, X-Portico-Transport-Class, X-Portico-Device-Class, X-Portico-App-Language, " +
+		"X-Portico-Installation-Id, X-Portico-Device-Name, X-Portico-Device-Platform, X-Portico-App, X-Portico-App-Version"
 	corsExposed = "ETag, Retry-After, Location, Date, Content-Range, Accept-Ranges, Content-Disposition, X-Request-Id, X-Audio-Trim-Start, X-Audio-Trim-End, X-Audio-Frames"
 	// How long a browser may remember that this origin may ask. The request itself is checked
 	// against the list every time. Browsers keep it for less: two hours in Chromium.
