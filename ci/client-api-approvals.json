@@ -1336,10 +1336,16 @@
     "category": "platform-transport",
     "reason": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
     "condition": "forwards a request fully built by a named client-core service or owner operation (path, method, body, auth) unchanged; adds only lifetime, abort, authority, currentness, refusal or resync checks; constructs nothing",
-    "guardHash": "829743b8eba5fe2c2eb9ceac1d56e9c4ffcb5e3fd59ee02f36eaf460b5734295",
+    "guardHash": "82faf73997cd05cbf17052c65cc637af46c2a47c36b276b344a6e15f5237eac9",
     "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6645602628",
-    "reviewedCommit": "78b2dc4a367118e700e566341259ca72e6dfd997"
+    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6646375725",
+    "previousSiteId": "apps/native/src-next/screens/settings-live/server/TVServerReadOnlyPanel.tsx#9cd2f6f16d40c740",
+    "previousGuardHash": "829743b8eba5fe2c2eb9ceac1d56e9c4ffcb5e3fd59ee02f36eaf460b5734295",
+    "previousCommit": "ef8a0dbeb6f4d987c83503db67a1d0dd1a1a400c",
+    "reviewedCommit": "9adc2a1414602c6f5ce2d801d3c67a431c2182da",
+    "pullRequest": "https://github.com/PorticoMediaServer/portico/pull/2900",
+    "reviewUrl": "https://github.com/PorticoMediaServer/portico/pull/2900#issuecomment-6815643234",
+    "spanEvidence": "docs/client-api-rehashes/2900-tv-remote-sources.json"
   },
   "apps/native/src-next/screens/settings-live/server/channels/logo-upload.ts#efbeb7ab26c8325a": {
     "category": "platform-transport",
