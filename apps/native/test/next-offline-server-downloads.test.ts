@@ -7,10 +7,10 @@ import {downloaded, request} from '../../../packages/client-core/test/helpers/do
 test('a server-next original arrives, plays with no server, expires after its permission and keeps an offline removal', async t => {
   const f = await offlineFixture(); t.after(() => f.offline.dispose());
   const id = downloadCopyId('dl_one', 'itm_film'), p = downloadPreparation(request(), request().items![0]!);
-  f.service.downloaded = async () => downloaded;
-  f.service.grant = async () => ({url: downloaded.files[0]!.url, artifact: {ref: downloaded.versionId, sha256: '', bytes: 100, fileName: 'media.mp4', container: 'mp4', contentType: ''}});
+  const service = Object.assign(f.service, {downloaded: async () => downloaded,
+    grant: async () => ({url: downloaded.files[0]!.url, artifact: {ref: downloaded.versionId, sha256: '', bytes: 100, fileName: 'media.mp4', container: 'mp4', contentType: ''}})});
   f.handlers.set('/v1/downloads/sync', () => ({playableUntil: new Date(Date.now() + 30 * 86400000).toISOString(), playableForMs: 30 * 86400000, fetch: [], remove: []}));
-  await f.offline.open(); f.offline.connect(f.api, f.service as any, viewer); await settle();
+  await f.offline.open(); f.offline.connect(f.api, service as any, viewer); await settle();
   await f.offline.fetch(p);
   assert.equal(f.started[0]?.sha256, '', 'no server digest was fabricated');
   assert.equal(f.started[0]?.sourceId, downloaded.versionId);
@@ -25,7 +25,7 @@ test('a server-next original arrives, plays with no server, expires after its pe
   await f.offline.remove(entry); assert.deepEqual(f.offline.getSnapshot().entries, []);
   const kept = JSON.parse(f.disk.state); assert.deepEqual(kept.removed[owner][id], {downloadId: 'dl_one', itemId: 'itm_film'});
   f.handlers.set('/v1/downloads/dl_one/items/itm_film', () => undefined);
-  f.offline.connect(f.api, f.service as any, viewer); await settle();
+  f.offline.connect(f.api, service as any, viewer); await settle();
   assert.ok(f.calls.some(c => c.path === '/v1/downloads/dl_one/items/itm_film' && c.method === 'DELETE'));
   assert.equal(JSON.parse(f.disk.state).removed[owner][id], undefined);
   assert.deepEqual(f.offline.getSnapshot().entries, []);

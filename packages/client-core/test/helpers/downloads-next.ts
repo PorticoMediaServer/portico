@@ -4,7 +4,7 @@ export const menu: DownloadOptions = {itemId: 'itm_film', kind: 'movie', titles:
   {quality: 'original', label: 'Original', sizeBytes: 100, estimated: false, prepared: false, available: true},
   {quality: '720p-low', label: '720p', sizeBytes: 50, estimated: true, prepared: true, available: true},
 ]};
-export const downloaded: DownloadedItem = {item: {id: 'itm_film', kind: 'movie', title: 'Film', libraryId: 'library', images: {}, addedAt: '', durationMs: 60000, state: {positionMs: 12000}}, versionId: 'media_one', quality: 'original', files: [{url: '/v1/download-media/token/file/1', sizeBytes: 100, container: 'mp4'}], audio: [], subtitles: [], chapters: [{startMs: 0, title: 'Beginning'}], markers: []};
+export const downloaded: DownloadedItem = {item: {id: 'itm_film', kind: 'movie', title: 'Film', libraryId: 'library', images: {}, addedAt: '', durationMs: 60000, state: {positionMs: 12000, watched: false, playCount: 0, favorite: false, inList: false, notInterested: false}}, versionId: 'media_one', quality: 'original', files: [{url: '/v1/download-media/token/file/1', sizeBytes: 100, container: 'mp4'}], audio: [], subtitles: [], chapters: [{startMs: 0, title: 'Beginning'}], markers: []};
 export function server(initial: Download[] = [request()]) {
   let items = initial, failure: unknown;
   const calls: {path: string; method: string; body?: any}[] = [];
