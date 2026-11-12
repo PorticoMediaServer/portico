@@ -12,6 +12,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/opensubtitles/opensubtitlestest"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tmdb"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tmdb/tmdbtest"
 	"golang.org/x/crypto/bcrypt"
@@ -193,5 +194,99 @@ func TestProviderKeys(t *testing.T) {
 		if log.contains(secret) {
 			t.Fatal("the log holds a TMDB key")
 		}
+	}
+}
+
+// The owner's OpenSubtitles key and account: saved sealed and never answered, a new username
+// drops the old password, Test connection says what OpenSubtitles answered (signed in with the
+// downloads left, a refused password, a refused key), and an account the server can no longer
+// open says so on the page.
+func TestOpenSubtitlesAccount(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "main.db")
+	var log lockedBuffer
+	s := openLoggedServer(t, path, &log)
+	stand := opensubtitlestest.New(t)
+	s.UseSubtitleHost(stand.URL)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	const apiKey, password = "os-api-key-for-the-test", "right"
+	save := func(change MetadataSettingsChange) MetadataSettings {
+		t.Helper()
+		var p MetadataSettings
+		if w := call(t, s, "PUT", "/v1/admin/metadata/settings", owner, change, &p); w.Code != 200 {
+			t.Fatalf("saving answered %d: %s", w.Code, w.Body)
+		} else if bytes.Contains(w.Body.Bytes(), []byte(apiKey)) {
+			t.Fatal("the answer holds the OpenSubtitles key")
+		}
+		return p
+	}
+	check := func() OpenSubtitlesStatus {
+		t.Helper()
+		var st OpenSubtitlesStatus
+		if w := call(t, s, "POST", "/v1/admin/metadata/settings/opensubtitles/check", owner, nil, &st); w.Code != 200 {
+			t.Fatalf("Test connection answered %d: %s", w.Code, w.Body)
+		}
+		return st
+	}
+	str := func(v string) *string { return &v }
+
+	if st := check(); st.KeySource != "none" || st.Account != "none" || stand.Requests.Load() != 0 {
+		t.Fatalf("with nothing saved, Test connection: %+v after %d requests; want nothing set up and nothing asked", st, stand.Requests.Load())
+	}
+	p := save(MetadataSettingsChange{OpenSubtitlesAPIKey: str(apiKey), OpenSubtitlesUsername: str("owner")})
+	if !p.OpenSubtitlesKeyConfigured || p.OpenSubtitlesUsername != "owner" || p.OpenSubtitlesPasswordConfigured || p.OpenSubtitles.Account != "incomplete" {
+		t.Fatalf("a key and username without a password: %+v", p)
+	}
+	p = save(MetadataSettingsChange{OpenSubtitlesPassword: str(password)})
+	if !p.OpenSubtitlesPasswordConfigured || p.OpenSubtitles.Account != "not_checked" || p.OpenSubtitles.KeySource != "owner" {
+		t.Fatalf("with the account complete: %+v", p)
+	}
+	if st := check(); st.Account != "signed_in" || st.DownloadsRemaining != 17 || st.DownloadsAllowed != 20 || st.CheckedAt == "" || st.Problem != "" {
+		t.Fatalf("Test connection with a working account: %+v", st)
+	}
+	// A new username: the old password is not sent with it.
+	p = save(MetadataSettingsChange{OpenSubtitlesUsername: str("someone-else")})
+	if p.OpenSubtitlesPasswordConfigured || p.OpenSubtitles.Account != "incomplete" {
+		t.Fatalf("after changing the username: %+v", p)
+	}
+	save(MetadataSettingsChange{OpenSubtitlesPassword: str("wrong")})
+	if st := check(); st.Account != "rejected" || st.Problem != "provider_sign_in_failed" {
+		t.Fatalf("Test connection with a refused password: %+v", st)
+	}
+	save(MetadataSettingsChange{OpenSubtitlesAPIKey: str("refused"), OpenSubtitlesPassword: str(password)})
+	if st := check(); st.Problem != "provider_key_rejected" {
+		t.Fatalf("Test connection with a refused key: %+v", st)
+	}
+	save(MetadataSettingsChange{OpenSubtitlesAPIKey: str(apiKey)})
+	for _, file := range []string{path, path + "-wal"} {
+		raw, _ := os.ReadFile(file)
+		if bytes.Contains(raw, []byte(apiKey)) {
+			t.Fatalf("%s holds the OpenSubtitles key as typed", filepath.Base(file))
+		}
+	}
+
+	// After a restart the account is opened again; with the key file gone it cannot be, and the
+	// page says so.
+	stopServer(s)
+	closeDB(s.db)
+	s = openLoggedServer(t, path, &log)
+	s.UseSubtitleHost(stand.URL)
+	owner = onMain(t, s, signIn(t, s, 1)).AccessToken
+	var after MetadataSettings
+	call(t, s, "GET", "/v1/admin/metadata/settings", owner, nil, &after)
+	if !after.OpenSubtitlesKeyConfigured || after.OpenSubtitlesUsername != "someone-else" || after.OpenSubtitles.Account != "not_checked" {
+		t.Fatalf("after a restart: %+v", after)
+	}
+	stopServer(s)
+	closeDB(s.db)
+	os.Remove(filepath.Join(filepath.Dir(path), "secrets.key"))
+	s = openLoggedServer(t, path, &log)
+	owner = onMain(t, s, signIn(t, s, 2)).AccessToken
+	after = MetadataSettings{}
+	call(t, s, "GET", "/v1/admin/metadata/settings", owner, nil, &after)
+	if after.OpenSubtitlesKeyConfigured || after.OpenSubtitles.Problem != "provider_key_unreadable" || after.OpenSubtitles.KeySource != "none" {
+		t.Fatalf("with the key file gone: %+v", after)
+	}
+	if log.contains(apiKey) || log.contains(password) {
+		t.Fatal("the log holds the OpenSubtitles key or password")
 	}
 }

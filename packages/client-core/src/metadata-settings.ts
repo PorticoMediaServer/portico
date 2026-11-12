@@ -82,6 +82,8 @@ export function openSubtitlesSummary(status:OpenSubtitlesStatus,i18n:I18n,now=se
  const {t}=i18n;
  const downloads=status.downloadsRemaining<0?undefined:status.downloadsAllowed>0?t('server.metadata.openSubtitlesDownloadsOf',{remaining:status.downloadsRemaining,allowed:status.downloadsAllowed}):t('server.metadata.openSubtitlesDownloadsLeft',{remaining:status.downloadsRemaining});
  const later=(id:MessageId,at:string)=>at?t(id,{time:when(i18n,at,now)}):t('server.metadata.openSubtitlesLater');
+ // A key and account saved that the server can no longer open (its key file was replaced): enter them again.
+ if(status.problem==='provider_key_unreadable')return Object.freeze({tone:'warning',text:t('server.metadata.openSubtitlesKeyUnreadable')});
  if(status.keySource==='none')return Object.freeze({tone:'neutral',text:t('server.metadata.openSubtitlesNotSetUp')});
  if(status.account==='rejected'||status.problem==='provider_sign_in_failed')return Object.freeze({tone:'danger',text:t('server.metadata.openSubtitlesAccountRejected')});
  const problems:Record<string,()=>OpenSubtitlesSummary>={

@@ -52,7 +52,10 @@ func slug(query string) string {
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	s.Requests.Add(1)
 	w.Header().Set("Content-Type", "application/json")
-	if strings.HasPrefix(r.URL.Path, "/api/") && (r.Header.Get("Api-Key") == "" || !strings.HasPrefix(r.Header.Get("User-Agent"), "Portico v")) {
+	// No key, the key "refused", or a request without Portico's User-Agent is refused, as
+	// OpenSubtitles refuses an unknown key.
+	if strings.HasPrefix(r.URL.Path, "/api/") && (r.Header.Get("Api-Key") == "" || r.Header.Get("Api-Key") == "refused" ||
+		!strings.HasPrefix(r.Header.Get("User-Agent"), "Portico v")) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -70,6 +73,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"user":{"allowed_downloads":20,"level":"Sub leecher","vip":false},"base_url":"` + host + `","token":"stand-in-token","status":200}`))
 	case !signedIn && strings.HasPrefix(r.URL.Path, "/api/"):
 		w.WriteHeader(http.StatusUnauthorized)
+	case r.Method == http.MethodGet && r.URL.Path == "/api/v1/infos/user":
+		w.Write([]byte(`{"data":{"allowed_downloads":20,"level":"Sub leecher","user_id":1,"ext_installed":false,"vip":false,"downloads_count":3,"remaining_downloads":17}}`))
 	case r.Method == http.MethodGet && r.URL.Path == "/api/v1/subtitles":
 		raw, err := answers.ReadFile("answers/subtitles_" + slug(r.URL.RawQuery) + ".json")
 		if err != nil {

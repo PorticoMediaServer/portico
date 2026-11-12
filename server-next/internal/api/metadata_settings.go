@@ -7,8 +7,10 @@ import (
 	"errors"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/opensubtitles"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tmdb"
 	"github.com/PorticoMediaServer/portico/server-next/internal/secrets"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
@@ -21,7 +23,11 @@ import (
 // set. The switches are the settings document "metadata" (metadata.Document).
 
 // The rows the owner's keys are sealed in, each sealed to its own name.
-const settingTMDBKey = "metadata.key.tmdb"
+const (
+	settingTMDBKey = "metadata.key.tmdb"
+	// settingOpenSubtitles holds the OpenSubtitles API key and account (openSubtitlesAccount).
+	settingOpenSubtitles = "metadata.key.opensubtitles"
+)
 
 // MetadataSettings is Server › Metadata as the owner's page reads it.
 type MetadataSettings struct {
@@ -36,6 +42,13 @@ type MetadataSettings struct {
 	// longer open (its key file was lost or replaced since): Portico's key is in use until the
 	// owner enters theirs again.
 	TMDBCredentialUnreadable bool `json:"tmdbCredentialUnreadable,omitempty"`
+	// The owner's OpenSubtitles API key and account, which subtitle search needs (definition
+	// area 7, rule 67): whether a key and a password are saved, and the account's username.
+	OpenSubtitlesKeyConfigured      bool   `json:"openSubtitlesKeyConfigured"`
+	OpenSubtitlesUsername           string `json:"openSubtitlesUsername"`
+	OpenSubtitlesPasswordConfigured bool   `json:"openSubtitlesPasswordConfigured"`
+	// OpenSubtitles says how OpenSubtitles last answered Test connection. See metadata_subtitle_keys.go.
+	OpenSubtitles OpenSubtitlesStatus `json:"openSubtitles"`
 }
 
 // MetadataSettingsChange is a save of the page. A field left out keeps its value. An empty key
@@ -46,6 +59,11 @@ type MetadataSettingsChange struct {
 	ExpectedRevision *int64  `json:"expectedRevision,omitempty"`
 	IncludeAdult     *bool   `json:"includeAdult,omitempty"`
 	TMDBReadToken    *string `json:"tmdbReadToken,omitempty"`
+	// The OpenSubtitles key, username and password. An empty username removes the account and
+	// its password; a new username without a password leaves none saved.
+	OpenSubtitlesAPIKey   *string `json:"openSubtitlesApiKey,omitempty"`
+	OpenSubtitlesUsername *string `json:"openSubtitlesUsername,omitempty"`
+	OpenSubtitlesPassword *string `json:"openSubtitlesPassword,omitempty"`
 }
 
 // providerKeys is the owner's keys, opened, kept in memory only.
@@ -57,6 +75,13 @@ type providerKeys struct {
 	unreadable map[string]bool
 	// tmdbHost is TMDB's address; a stand-in's for testing.
 	tmdbHost string
+	// subtitles is the owner's OpenSubtitles key and account, and checked what Test connection
+	// last found. subtitleHost and subtitleEvery are OpenSubtitles' address and spacing; a
+	// stand-in's for testing.
+	subtitles     openSubtitlesAccount
+	checked       subtitleCheck
+	subtitleHost  string
+	subtitleEvery time.Duration
 }
 
 func (s *Server) metadataSettingsRoutes() {
@@ -64,6 +89,7 @@ func (s *Server) metadataSettingsRoutes() {
 		return s.metadataSettingsPage()
 	})
 	Handle(s, "PUT /v1/admin/metadata/settings", Owner, s.saveMetadataSettings)
+	Handle(s, "POST /v1/admin/metadata/settings/opensubtitles/check", Owner, s.checkOpenSubtitles)
 }
 
 func (s *Server) metadataSettingsPage() (MetadataSettings, error) {
@@ -75,7 +101,9 @@ func (s *Server) metadataSettingsPage() (MetadataSettings, error) {
 	defer s.keys.mu.Unlock()
 	// The document's revision is 0 until its first save; the page's starts at 1.
 	return MetadataSettings{Revision: doc.Revision + 1, IncludeAdult: metadata.Document.Get(s.settings).IncludeAdult,
-		TMDBCredentialConfigured: s.keys.tmdb != "", TMDBCredentialUnreadable: s.keys.unreadable[settingTMDBKey]}, nil
+		TMDBCredentialConfigured: s.keys.tmdb != "", TMDBCredentialUnreadable: s.keys.unreadable[settingTMDBKey],
+		OpenSubtitlesKeyConfigured: s.keys.subtitles.APIKey != "", OpenSubtitlesUsername: s.keys.subtitles.Username,
+		OpenSubtitlesPasswordConfigured: s.keys.subtitles.Password != "", OpenSubtitles: s.subtitleStatus()}, nil
 }
 
 // checkSecretField refuses a key, user name or password that cannot be real: too long, or with
@@ -93,8 +121,16 @@ func checkSecretField(path, value string, limit int) error {
 }
 
 func (s *Server) saveMetadataSettings(r *http.Request, req MetadataSettingsChange) (MetadataSettings, error) {
-	if req.TMDBReadToken != nil {
-		if err := checkSecretField("tmdbReadToken", *req.TMDBReadToken, 2048); err != nil {
+	for _, f := range []struct {
+		path  string
+		value *string
+		limit int
+	}{{"tmdbReadToken", req.TMDBReadToken, 2048}, {"openSubtitlesApiKey", req.OpenSubtitlesAPIKey, 256},
+		{"openSubtitlesUsername", req.OpenSubtitlesUsername, 100}, {"openSubtitlesPassword", req.OpenSubtitlesPassword, 256}} {
+		if f.value == nil {
+			continue
+		}
+		if err := checkSecretField(f.path, *f.value, f.limit); err != nil {
 			return MetadataSettings{}, err
 		}
 	}
@@ -123,6 +159,9 @@ func (s *Server) saveMetadataSettings(r *http.Request, req MetadataSettingsChang
 		delete(s.keys.unreadable, settingTMDBKey)
 		s.useTMDB()
 		s.keys.mu.Unlock()
+	}
+	if err := s.saveSubtitleAccount(r.Context(), req); err != nil {
+		return MetadataSettings{}, err
 	}
 	return s.metadataSettingsPage()
 }
@@ -164,14 +203,23 @@ func (s *Server) loadProviderKeys(ctx context.Context) error {
 		return err
 	}
 	s.keys.box, s.keys.tmdbHost, s.keys.unreadable = box, tmdb.Origin, map[string]bool{}
+	s.keys.subtitleHost, s.keys.subtitleEvery = opensubtitles.Origin, opensubtitles.Every
 	key, err := s.openKey(ctx, settingTMDBKey)
+	if err != nil {
+		return err
+	}
+	account, err := s.openKey(ctx, settingOpenSubtitles)
 	if err != nil {
 		return err
 	}
 	s.keys.mu.Lock()
 	defer s.keys.mu.Unlock()
 	s.keys.tmdb = key
+	if account != "" {
+		json.Unmarshal([]byte(account), &s.keys.subtitles)
+	}
 	s.useTMDB()
+	s.useSubtitles()
 	return nil
 }
 
