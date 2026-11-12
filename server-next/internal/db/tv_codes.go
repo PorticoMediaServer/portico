@@ -153,7 +153,7 @@ func (d *DB) CollectTVSignIn(ctx context.Context, pollHash string, session NewSe
 }
 
 // CancelTVSignIn retires only the code whose long secret the TV holds, even after
-// approval. The code and its collection receipt stop together; repeating is safe.
+// approval. The code and its collection request stop together; repeating is safe.
 func (d *DB) CancelTVSignIn(ctx context.Context, codeHash, pollHash string, now time.Time) error {
 	return d.write(ctx, User, func(tx *sql.Tx) error {
 		var payload string
