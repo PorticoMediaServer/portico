@@ -2,6 +2,7 @@ package api
 
 import (
 	"cmp"
+	"encoding/json"
 	"net/http"
 	"slices"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 )
 
@@ -26,6 +28,14 @@ type NowPlaying struct {
 	State      string `json:"state"`
 	PositionMs int64  `json:"positionMs"`
 	DurationMs int64  `json:"durationMs,omitempty"`
+	// For an episode named here: its show and its season and episode numbers.
+	ShowID        string `json:"showId,omitempty"`
+	ShowTitle     string `json:"showTitle,omitempty"`
+	SeasonNumber  *int   `json:"seasonNumber,omitempty"`
+	EpisodeNumber *int   `json:"episodeNumber,omitempty"`
+	// ConvertingToHeight is the height of the picture the stream is converted to, while its
+	// picture is converted: "Converting to 1080p".
+	ConvertingToHeight int `json:"convertingToHeight,omitempty"`
 	// Username, then Profile when its name differs, then DeviceName name the person.
 	Username   string `json:"username"`
 	Profile    string `json:"profile,omitempty"`
@@ -106,6 +116,10 @@ func (s *Server) nowPlaying(r *http.Request, _ None) (Page[NowPlaying], error) {
 	if err != nil {
 		return Page[NowPlaying]{}, err
 	}
+	numbers, err := s.db.IndexNumbers(r.Context(), ids)
+	if err != nil {
+		return Page[NowPlaying]{}, err
+	}
 	slices.SortStableFunc(sessions, func(a, b playback.Session) int {
 		if converting := cmp.Compare(btoi(b.Plan.Route == playback.RouteConverted), btoi(a.Plan.Route == playback.RouteConverted)); converting != 0 {
 			return converting
@@ -120,10 +134,39 @@ func (s *Server) nowPlaying(r *http.Request, _ None) (Page[NowPlaying], error) {
 			Route: v.Plan.Route, Delivery: decisions(v.Plan), StartedAt: v.StartedAt.UTC()}
 		if title, ok := titles[v.Item.ID]; ok {
 			item.ItemID, item.Title, item.DurationMs = v.Item.PublicID, title, v.Item.DurationMS
+			if v.Item.Kind == db.KindEpisode && v.Item.Root != nil {
+				item.ShowID, item.ShowTitle = v.Item.Root.PublicID, v.Item.Root.Title
+				if v.Item.Parent != nil && v.Item.Parent.Kind == db.KindSeason {
+					item.SeasonNumber = v.Item.Parent.Index
+				}
+				if n, ok := numbers[v.Item.ID]; ok {
+					item.EpisodeNumber = &n
+				}
+			}
 		}
+		item.ConvertingToHeight = convertedHeight(v.Plan.PlaybackInfo)
 		out.Items = append(out.Items, item)
 	}
 	return out, nil
+}
+
+// convertedHeight is the height of the picture a stream delivers when its picture is
+// converted, as the plan in force says (its PlaybackInfo), or 0.
+func convertedHeight(info json.RawMessage) int {
+	var plan struct {
+		Routes struct {
+			Picture string `json:"picture"`
+		} `json:"routes"`
+		Delivered struct {
+			Video *struct {
+				Height int `json:"height"`
+			} `json:"video"`
+		} `json:"delivered"`
+	}
+	if len(info) == 0 || json.Unmarshal(info, &plan) != nil || plan.Routes.Picture != "converted" || plan.Delivered.Video == nil {
+		return 0
+	}
+	return plan.Delivered.Video.Height
 }
 
 func btoi(b bool) int {

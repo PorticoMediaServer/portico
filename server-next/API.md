@@ -690,8 +690,8 @@ follows its libraries).
 
 | Route | Who | Purpose |
 |---|---|---|
-| `GET /v1/admin/dashboard` | Owner | Alerts (each one line with one action, present while its cause lasts), totals, tasks running |
-| `GET /v1/admin/sessions`, `DELETE /v1/admin/sessions/{id}` | Owner and administrators | Now playing, a problem first; stop one with a message of up to 500 characters |
+| `GET /v1/admin/dashboard` | Owner | Alerts (each one line with one action, present while its cause lasts), totals, tasks running (each counting job with its `unit`: files, songs or titles), scans (a running one with the `current` file, a path within the library's folder) |
+| `GET /v1/admin/sessions`, `DELETE /v1/admin/sessions/{id}` | Owner and administrators | Now playing, a problem first; stop one with a message of up to 500 characters. An episode named there carries `showId`, `showTitle`, `seasonNumber` and `episodeNumber`; a stream whose picture is converted carries `convertingToHeight` |
 | `GET /v1/admin/activity` | Owner | The activity popover: the server's name; `streams` (`count` of every stream, paused ones included, `converting`, and the first three of Now playing as `items`, in its order); the Dashboard's `scans` and `tasks`; its major alerts and `update_available` as `alerts`; `lastScanAt` |
 | `GET /v1/admin/load` | Owner | Bandwidth, processor, memory and conversions, `range=live` or `24h`. Kept in memory; starts again after a restart |
 | `GET /v1/admin/statistics` | Owner | The server's whole history in daily totals: plays, watch time, bandwidth at home and away, conversions, by `metric` and a range of days |

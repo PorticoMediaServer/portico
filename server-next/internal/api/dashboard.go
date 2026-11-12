@@ -8,6 +8,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/diskspace"
+	"github.com/PorticoMediaServer/portico/server-next/internal/musicanalysis"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 )
 
@@ -60,6 +61,8 @@ type DashboardScan struct {
 	Discovered  int    `json:"discovered"`
 	Analyzed    int    `json:"analyzed"`
 	Total       *int   `json:"total,omitempty"`
+	// Current is the file the scan is on, as a path within the library's folder, while running.
+	Current string `json:"current,omitempty"`
 }
 
 // DashboardTasks is the first tasks and how many there are.
@@ -81,7 +84,14 @@ type DashboardTask struct {
 	State       string `json:"state"`
 	Processed   *int64 `json:"processed,omitempty"`
 	Total       *int64 `json:"total,omitempty"`
+	// Unit is what Processed and Total count, for a kind of job that counts: files, songs or
+	// titles ("38 of 96 titles").
+	Unit string `json:"unit,omitempty"`
 }
+
+// taskUnits is what each kind of job's own progress counts.
+var taskUnits = map[string]string{db.JobScan: "files", musicanalysis.JobKind: "songs", jobRefreshLibrary: "titles",
+	jobRefreshItems: "titles", jobEditItems: "titles", stateJobKind: "titles"}
 
 // StreamTotals counts every stream, paused ones included.
 type StreamTotals struct {
@@ -165,7 +175,7 @@ func (s *Server) dashboard(r *http.Request, _ None) (Dashboard, error) {
 			t.LibraryID, t.LibraryName = lib.PublicID, lib.Name
 		}
 		if j.State == db.JobRunning || j.Done > 0 {
-			t.Processed = &j.Done
+			t.Processed, t.Unit = &j.Done, taskUnits[j.Kind]
 			if j.Total > 0 {
 				t.Total = &j.Total
 			}
@@ -202,7 +212,7 @@ func (s *Server) scanLine(j db.Job, lib db.AdminLibrary) DashboardScan {
 	}
 	out.Phase = "walking"
 	if stats, ok := s.scans.Stats(lib.PublicID); ok {
-		out.Discovered, out.Analyzed = stats.Files, stats.Probed
+		out.Discovered, out.Analyzed, out.Current = stats.Files, stats.Probed, stats.Current
 		if stats.Unread > 0 {
 			out.Phase = "reading"
 		}
