@@ -36,8 +36,9 @@ test('Reading patches validate the passed registry, scope and domain without ext
   const bounded = snapshot(fields.map(field => field.key === 'reading.textSize' ? {...field, min: 2, max: 6} : field));
   assert.throws(() => readingPreferencesPatch(bounded, {textSize: 1}));
   assert.throws(() => readingPreferencesPatch(bounded, {textSize: 7}));
-  const wrongScope = snapshot(fields.map(field => field.key === 'reading.theme' ? {...field, scopes: ['profile-device-class'] as const} : field));
-  assert.throws(() => readingPreferencesPatch(wrongScope, {theme: null}));
+  // A setting is saved in the scope the server publishes for it (the rebuilt server keeps the page for each kind of device).
+  const perDevice = snapshot(fields.map(field => field.key === 'reading.theme' ? {...field, scopes: ['profile-device-class'] as const} : field));
+  assert.deepEqual(readingPreferencesPatch(perDevice, {theme: 'sepia', textSize: 3}), {'reading.theme': 'sepia', 'reading.textSize': 3});
   const missing = snapshot(fields.filter(field => field.key !== 'reading.theme'));
   assert.throws(() => readingPreferencesPatch(missing, {theme: null}));
 });
