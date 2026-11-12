@@ -32,3 +32,11 @@ test('an error a screen wrapped around the one it got is judged by what it wrapp
   assert.equal(serverDidNotAnswer(Object.assign(new Error('Could not load'), {cause: new TypeError('Failed to fetch')})), true);
   assert.equal(serverDidNotAnswer(new Error('Your server sent something Portico could not read')), false);
 });
+
+test('a phone or TV app connection that dropped part way through is no answer; the app\'s own refusals under the same code are not', () => {
+  const native = (message: string) => Object.assign(new Error(message), {code: 'queue_transport'});
+  assert.equal(serverDidNotAnswer(native('The queue request could not be confirmed.')), true);
+  assert.equal(serverDidNotAnswer(native('Too many queue requests.')), false);
+  assert.equal(serverDidNotAnswer(native('Invalid queue request.')), false);
+  assert.equal(serverDidNotAnswer(Object.assign(new Error('Could not load.'), {cause: native('The queue request could not be confirmed.')})), true);
+});
