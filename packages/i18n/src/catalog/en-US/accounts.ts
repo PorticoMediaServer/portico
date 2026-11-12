@@ -116,6 +116,8 @@ export const accountMessages = {
   'accounts.move.collisionBody': 'That Portico Account is already on {server} as {username}. Ask the owner, or use a different Portico Account.',
   'accounts.move.differentAccount': 'Use a different Portico Account',
   'accounts.move.toLocal': '{server} now uses local sign-in.',
+  'accounts.move.notPortico': '{server} doesn’t use Portico Accounts',
+  'accounts.move.notPorticoBody': '{server} uses its own sign-in, so there’s no account to move to your Portico Account. If its owner gave you a code, use it on {server}’s own page.',
   'accounts.move.askForCode': 'Ask the owner for your code.',
   'accounts.move.haveCode': 'I have a code',
   'accounts.move.porticoCodeBody': 'Enter the server’s address and the move code its owner gave you.',
