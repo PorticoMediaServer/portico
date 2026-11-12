@@ -99,7 +99,10 @@ export class ProfileRecoveryController {
         throw new CodedError('invalid_response', 'The server sign-in note did not confirm the password.');
       this.porticoProof = {challenge: asked.challenge, identity: answer.identity, source};
       this.publish({phase: 'pin'});
-    } catch (error) {if (operation.current()) this.publish({phase: 'portico', error});}
+    } catch (error) {
+      // Keep Services' account_password_required code for the screen's set-password action.
+      if (operation.current()) this.publish({phase: 'portico', error});
+    }
   }
   async code(code: string) {
     if (this.disposed || this.state.phase !== 'challenge' || this.state.busy || !this.pin_ || !code.trim()) return;
