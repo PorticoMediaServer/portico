@@ -219,3 +219,23 @@ func TestTheLaterSettingsChangeWins(t *testing.T) {
 		t.Fatalf("a negative madeAgoMs answered %d", code)
 	}
 }
+
+// A book's page settings belong to each kind of device (10-reading rule 36): a second phone
+// starts from the text size chosen on the first, and a desktop keeps its own.
+func TestReadingPageSettingsBelongToEachKindOfDevice(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s)
+	edit := PreferencesEdit{Scope: "profile-device-class", DeviceClass: "mobile", Values: map[string]any{"reading.textSize": 7, "comics.fit": "width"}}
+	if w := call(t, s, "PATCH", "/v1/preferences", owner.AccessToken, edit, nil); w.Code != 200 {
+		t.Fatalf("saving the page for phones answered %d", w.Code)
+	}
+	other := onMain(t, s, signIn(t, s, 5))
+	phone := get[Preferences](t, s, other.AccessToken, "/v1/preferences?deviceClass=mobile")
+	if phone.Effective["reading.textSize"] != 7.0 || phone.Effective["comics.fit"] != "width" {
+		t.Fatalf("a second phone: %v %v", phone.Effective["reading.textSize"], phone.Effective["comics.fit"])
+	}
+	desktop := get[Preferences](t, s, other.AccessToken, "/v1/preferences?deviceClass=web")
+	if desktop.Effective["reading.textSize"] != 5.0 || desktop.Effective["comics.fit"] != "auto" {
+		t.Fatalf("a desktop: %v %v", desktop.Effective["reading.textSize"], desktop.Effective["comics.fit"])
+	}
+}

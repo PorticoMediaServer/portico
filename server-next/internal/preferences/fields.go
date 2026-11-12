@@ -187,28 +187,29 @@ var fields = []Setting{
 
 	flag("notifications.badges", true, ScopeProfile),
 
-	// How a book's page looks belongs to one device: a phone and a desktop keep their own text
-	// size. A change made inside the reader is the reader's own until the book closes, and is
+	// How a book's page looks belongs to each kind of device: a second phone starts from the
+	// first phone's text size, and a desktop keeps its own (10-reading rule 36). A change made
+	// inside the reader is the reader's own until the book closes, and is
 	// not saved here.
-	oneOf("reading.theme", "dark", []string{"dark", "black", "sepia", "light"}, ScopeDevice),
-	oneOf("reading.font", "literata", []string{"publisher", "literata", "manrope"}, ScopeDevice),
-	intRange("reading.textSize", 5, 1, 7, ScopeDevice),
-	oneOf("reading.lineSpacing", "normal", []string{"tight", "normal", "loose"}, ScopeDevice),
-	oneOf("reading.margins", "normal", []string{"narrow", "normal", "wide"}, ScopeDevice),
-	oneOf("reading.alignment", "justified", []string{"left", "justified"}, ScopeDevice),
-	oneOf("reading.layout", "pages", []string{"pages", "scroll"}, ScopeDevice),
+	oneOf("reading.theme", "dark", []string{"dark", "black", "sepia", "light"}, ScopeDeviceClass),
+	oneOf("reading.font", "literata", []string{"publisher", "literata", "manrope"}, ScopeDeviceClass),
+	intRange("reading.textSize", 5, 1, 7, ScopeDeviceClass),
+	oneOf("reading.lineSpacing", "normal", []string{"tight", "normal", "loose"}, ScopeDeviceClass),
+	oneOf("reading.margins", "normal", []string{"narrow", "normal", "wide"}, ScopeDeviceClass),
+	oneOf("reading.alignment", "justified", []string{"left", "justified"}, ScopeDeviceClass),
+	oneOf("reading.layout", "pages", []string{"pages", "scroll"}, ScopeDeviceClass),
 	// Two pages side by side when the screen is wide enough: a tablet on its side, a foldable
 	// opened like a book.
-	flag("reading.twoPages", true, ScopeDevice),
+	flag("reading.twoPages", true, ScopeDeviceClass),
 	// Tapping the edge of the page turns it; the reader's own word breaks; the colour a new
 	// highlight starts in; how a PDF's pages fit the screen.
-	flag("reading.tapToTurn", true, ScopeDevice),
-	flag("reading.hyphenation", true, ScopeDevice),
-	oneOf("reading.highlightColour", "yellow", []string{"yellow", "green", "blue", "pink"}, ScopeDevice),
-	oneOf("reading.pdfView", "automatic", []string{"automatic", "spread", "width", "page"}, ScopeDevice),
-	oneOf("comics.fit", "auto", []string{"auto", "width", "height"}, ScopeDevice),
+	flag("reading.tapToTurn", true, ScopeDeviceClass),
+	flag("reading.hyphenation", true, ScopeDeviceClass),
+	oneOf("reading.highlightColour", "yellow", []string{"yellow", "green", "blue", "pink"}, ScopeDeviceClass),
+	oneOf("reading.pdfView", "automatic", []string{"automatic", "spread", "width", "page"}, ScopeDeviceClass),
+	oneOf("comics.fit", "auto", []string{"auto", "width", "height"}, ScopeDeviceClass),
 	// "file" follows the comic: one that says it reads right to left opens that way.
-	oneOf("comics.direction", "file", []string{"file", "ltr", "rtl", "vertical"}, ScopeDevice),
+	oneOf("comics.direction", "file", []string{"file", "ltr", "rtl", "vertical"}, ScopeDeviceClass),
 	// Two pages side by side keep a comic's cover on its own, as a printed comic opens.
-	flag("comics.firstPageAlone", true, ScopeDevice),
+	flag("comics.firstPageAlone", true, ScopeDeviceClass),
 }
