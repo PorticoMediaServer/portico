@@ -92,6 +92,7 @@ export async function cancelLocalTVAuthorization<T = unknown>(api: ViewerRequest
 export async function reviewLocalTVAuthorization(api: ViewerRequester, code: string, signal?: AbortSignal): Promise<SetupPreview> {
   const userCode = normalizeSetupCode(code);
   const raw = await callServer(api, 'GET /v1/auth/codes/{id}', {id: userCode, signal});
+  if (!raw?.device) throw new Error('quick_connect_unreadable');
   return {requestId: userCode, userCode, deviceName: raw.device.name, platform: raw.device.platform ?? '',
     appVersion: raw.device.appVersion ?? '', expiresAt: raw.expiresAt};
 }
