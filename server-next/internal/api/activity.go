@@ -58,6 +58,7 @@ const activityPage = 100
 
 func (s *Server) activityRoutes() {
 	Handle(s, "GET /v1/admin/sessions", Admin, s.nowPlaying)
+	Handle(s, "GET /v1/admin/activity", Owner, s.activitySummary)
 	Handle(s, "DELETE /v1/admin/sessions/{id}", Admin, func(r *http.Request, req StreamStop) (None, error) {
 		req.Message = strings.TrimSpace(req.Message)
 		if utf8.RuneCountInString(req.Message) > 500 {
