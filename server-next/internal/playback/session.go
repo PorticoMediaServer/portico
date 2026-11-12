@@ -36,7 +36,10 @@ const (
 const (
 	StatePlaying = "playing"
 	StatePaused  = "paused"
-	StateEnded   = "ended"
+	// StateBuffering is what a player reports while it waits for the stream. It is kept on
+	// the session as BufferingSince; the session stays playing, a stream like any other.
+	StateBuffering = "buffering"
+	StateEnded     = "ended"
 )
 
 // Why a session ended, when its own device did not stop it.
@@ -102,7 +105,10 @@ type Session struct {
 
 	// PositionMs is where the device last said it was.
 	PositionMs int64
-	StartedAt  time.Time
+	// BufferingSince is when the device said it was waiting for the stream, until it next
+	// says it is playing or paused; zero while it is not.
+	BufferingSince time.Time
+	StartedAt      time.Time
 	// order is the session's place among all that were ever started: lists are oldest first.
 	order       int64
 	LeaseUntil  time.Time
@@ -370,7 +376,7 @@ func (s *Service) Report(ctx context.Context, id string, v db.Viewer, signInID i
 	}
 	// A jump is a position that is not where playing on from the last sample would be.
 	expected := sess.PositionMs
-	if sess.State == StatePlaying && !sess.sampleAt.IsZero() {
+	if sess.State == StatePlaying && sess.BufferingSince.IsZero() && !sess.sampleAt.IsZero() {
 		expected += now.Sub(sess.sampleAt).Milliseconds()
 	}
 	jumped := !sess.sampleAt.IsZero() && abs(r.PositionMs-expected) > 2*reportPlaying.Milliseconds()
@@ -382,7 +388,15 @@ func (s *Service) Report(ctx context.Context, id string, v db.Viewer, signInID i
 		state = StatePlaying
 	}
 	edge := jumped || state != sess.State || r.State == StateEnded
-	if state != sess.State {
+	buffering := r.State == StateBuffering
+	if buffering != !sess.BufferingSince.IsZero() {
+		// Now playing follows it without a refresh, as it follows playing and paused.
+		sess.BufferingSince = time.Time{}
+		if buffering {
+			sess.BufferingSince = now
+		}
+		s.changedLocked(sess)
+	} else if state != sess.State {
 		s.changedLocked(sess)
 	}
 	s.setStateLocked(sess, state, now)
