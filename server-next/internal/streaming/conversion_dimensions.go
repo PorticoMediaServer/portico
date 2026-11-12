@@ -42,19 +42,19 @@ func convertedDimensions(p DeliveryPlan) (int, int) {
 }
 
 // conversionBox is the most a conversion to one of a device's codecs may be: the codec's own
-// limits at this bit depth, and the quality target's height. A conversion makes the source
-// fitted into it (convertedDimensions).
-func conversionBox(codec *ClientVideoCodec, depth int, video *SourceVideo, maxHeight int) (width, height int) {
+// limits at this bit depth, and the quality target's box (its height and the width that
+// height names). A conversion makes the source fitted into it (convertedDimensions).
+func conversionBox(codec *ClientVideoCodec, depth int, video *SourceVideo, maxHeight, maxWidth int) (width, height int) {
 	height = maxHeight
 	if codec == nil {
-		return 0, height
+		return maxWidth, height
 	}
 	sourceHeight := 0
 	if video != nil {
 		point := codec.forConversion(depth, video.Width, video.Height, video.FrameRate)
 		codec, sourceHeight = &point, video.Height
 	}
-	width = codec.MaxWidth
+	width = narrowCeiling(codec.MaxWidth, maxWidth)
 	if codec.MaxHeight > 0 && (height == 0 || codec.MaxHeight < height) && sourceHeight > codec.MaxHeight {
 		height = codec.MaxHeight
 	}
@@ -62,10 +62,10 @@ func conversionBox(codec *ClientVideoCodec, depth int, video *SourceVideo, maxHe
 }
 
 // producedSize is the picture a conversion to this codec and bit depth makes of a source.
-func producedSize(codec *ClientVideoCodec, depth int, video *SourceVideo, maxHeight int) (int, int) {
+func producedSize(codec *ClientVideoCodec, depth int, video *SourceVideo, maxHeight, maxWidth int) (int, int) {
 	if video == nil {
 		return 0, 0
 	}
-	width, height := conversionBox(codec, depth, video, maxHeight)
+	width, height := conversionBox(codec, depth, video, maxHeight, maxWidth)
 	return convertedDimensions(DeliveryPlan{TargetWidth: width, TargetHeight: height, Trace: &DecisionTrace{Video: traceVideoSource(video)}})
 }

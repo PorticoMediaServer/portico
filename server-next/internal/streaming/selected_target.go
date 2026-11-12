@@ -230,13 +230,13 @@ func boundConvertedPicture(p *DeliveryPlan, v *SourceVideo, codec *ClientVideoCo
 	if cap.MaxHeight > 0 {
 		height = min(height, cap.MaxHeight)
 	}
-	if cap.MaxWidth > 0 {
-		if p.TargetWidth == 0 || p.TargetWidth > cap.MaxWidth {
-			p.TargetWidth = cap.MaxWidth
-		}
-		if width > cap.MaxWidth {
-			height = min(height, displayHeight*cap.MaxWidth/width)
-		}
+	if cap.MaxWidth > 0 && (p.TargetWidth == 0 || p.TargetWidth > cap.MaxWidth) {
+		p.TargetWidth = cap.MaxWidth
+	}
+	// The narrower of the device's width and the quality's box: a picture wider than 16:9 is
+	// fitted to it, so the height stored is the height made.
+	if p.TargetWidth > 0 && width > p.TargetWidth {
+		height = min(height, displayHeight*p.TargetWidth/width)
 	}
 	rate := v.FrameRate
 	if rate == 0 {
