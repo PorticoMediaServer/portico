@@ -6,6 +6,7 @@ import {validateContentProjection as parseContentProjection} from '../src/librar
 import {fetchItemRecommendations, fetchShowRecommendations, moreLikeThisRow, titleRecommendationRows, validateItemRecommendations} from '../src/recommendations.ts';
 import {serverTextLabel} from '../src/presentation/server-text.ts';
 import {HomeRowPager} from '../src/home-row-page.ts';
+import {resetSkippedParts, skippedParts} from '../src/tolerant.ts';
 
 // Recommendations P7: personal rows, their parameterised titles and the See all page.
 
@@ -104,6 +105,7 @@ test('a title page reads More like this from the server\'s related titles, for a
 });
 
 test('cast, creator and genre groups fill the existing title rows in server order', async () => {
+  resetSkippedParts();
   const film = (id: string) => ({id, kind: 'movie', title: `Film ${id}`});
   const api = {request: async <T>() => ({groups: [
     {relation: 'cast', person: {id: 'p1', name: 'Ada'}, items: [film('self'), film('m2'), film('m2'), film('m3')]},
@@ -118,7 +120,12 @@ test('cast, creator and genre groups fill the existing title rows in server orde
   assert.deepEqual(rows.map(row => row.relation), ['starring', 'starring', 'creator', 'genre']);
   assert.deepEqual(rows.map(row => serverTextLabel(defaultI18n, row.titleText, row.title)), ['Starring Ada', 'Starring Bea', 'From Cai', 'Drama']);
   assert.deepEqual(rows.map(row => row.entries.map(entry => entry.id)), [['m2', 'm3'], ['m4'], ['m5'], ['m6']]);
+  assert.deepEqual(skippedParts().filter(part => part.part === 'rows'), [{document: 'recommendations', part: 'rows', count: 1}], 'only the malformed cast group is unreadable');
   assert.deepEqual((await fetchShowRecommendations(api, 'self', 1)).rows.map(row => row.entries.map(entry => entry.id)), [['m2'], ['m4'], ['m5'], ['m6']]);
+  const before = skippedParts();
+  const quiet = {request: async <T>() => ({groups: [{relation: 'extra', items: [film('extra')]}, {relation: 'genre', tag: {value: 'empty', label: 'Empty'}, items: []}]} as T)};
+  assert.deepEqual((await fetchItemRecommendations(quiet, 'self')).rows, []);
+  assert.deepEqual(skippedParts(), before, 'extras and an empty genre group do not raise the Support count');
 });
 
 test('See all pages the whole row and starts again on a stale cursor', async () => {

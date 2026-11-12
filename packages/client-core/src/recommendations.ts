@@ -123,28 +123,34 @@ const unversioned: HomeRevision = Object.freeze({catalog: 0, viewer: 0});
 /** Map the title-page groups in server order. Other ties (extras, collection members) have their own page sections. */
 function relatedRows(value: Related, self: string, limit?: number): readonly HomeRow[] {
   if (!object(value) || !Array.isArray(value.groups)) invalid();
-  const rows = keepReadable('recommendations', 'rows', value.groups, (group, priority) => {
-    if (!object(group) || !Array.isArray(group.items)) invalid();
-    let id: string, title: string, relation: string;
-    let titleText: HomeRow['titleText'];
-    if (group.relation === 'more_like_this') {
-      id = 'more_like_this'; title = 'More like this'; relation = 'more_like';
-    } else if (group.relation === 'cast' || group.relation === 'creator') {
-      if (!object(group.person) || !text(group.person.id) || !text(group.person.name)) invalid();
-      id = group.relation + ':' + group.person.id;
-      relation = group.relation === 'cast' ? 'starring' : 'creator';
-      title = (group.relation === 'cast' ? 'Starring ' : 'From ') + group.person.name;
-      titleText = {code: group.relation === 'cast' ? 'home.row.starring' : 'home.row.fromCreator', params: {name: group.person.name}, fallback: title};
-    } else if (group.relation === 'genre') {
-      if (!object(group.tag) || !text(group.tag.value) || !text(group.tag.label)) invalid();
-      id = 'genre:' + group.tag.value; title = group.tag.label; relation = 'genre';
-    } else return undefined;
-    let entries = firstOfEach('recommendations', 'entries', entriesFromItems(group.items).filter(entry => entry.id !== self), entry => entry.id);
-    if (limit !== undefined && limit >= 0) entries = entries.slice(0, limit);
-    if (!entries.length) return undefined;
-    return Object.freeze({id, title, ...(titleText ? {titleText} : {}), kind: group.relation, relation, artworkShape: 'poster' as const,
-      endpoint: '', privacySensitivity: '', policyState: '', priority, required: false, hideable: false, reorderable: false, critical: false, cursorCapable: false,
-      entries: Object.freeze(entries), start: 0, limit: entries.length, hasMore: false, nextCursor: ''});
+  const rows: HomeRow[] = [];
+  value.groups.forEach((group, priority) => {
+    if (!object(group) || !['more_like_this', 'cast', 'creator', 'genre'].includes(group.relation)) return;
+    try {
+      if (!Array.isArray(group.items)) invalid();
+      let id: string, title: string, relation: string;
+      let titleText: HomeRow['titleText'];
+      if (group.relation === 'more_like_this') {
+        id = 'more_like_this'; title = 'More like this'; relation = 'more_like';
+      } else if (group.relation === 'cast' || group.relation === 'creator') {
+        if (!object(group.person) || !text(group.person.id) || !text(group.person.name)) invalid();
+        id = group.relation + ':' + group.person.id;
+        relation = group.relation === 'cast' ? 'starring' : 'creator';
+        title = (group.relation === 'cast' ? 'Starring ' : 'From ') + group.person.name;
+        titleText = {code: group.relation === 'cast' ? 'home.row.starring' : 'home.row.fromCreator', params: {name: group.person.name}, fallback: title};
+      } else if (group.relation === 'genre') {
+        if (!object(group.tag) || !text(group.tag.value) || !text(group.tag.label)) invalid();
+        id = 'genre:' + group.tag.value; title = group.tag.label; relation = 'genre';
+      } else return;
+      let entries = firstOfEach('recommendations', 'entries', entriesFromItems(group.items).filter(entry => entry.id !== self), entry => entry.id);
+      if (limit !== undefined && limit >= 0) entries = entries.slice(0, limit);
+      if (!entries.length) return;
+      rows.push(Object.freeze({id, title, ...(titleText ? {titleText} : {}), kind: group.relation, relation, artworkShape: 'poster' as const,
+        endpoint: '', privacySensitivity: '', policyState: '', priority, required: false, hideable: false, reorderable: false, critical: false, cursorCapable: false,
+        entries: Object.freeze(entries), start: 0, limit: entries.length, hasMore: false, nextCursor: ''}));
+    } catch {
+      if (group.relation !== 'more_like_this') noteSkipped('recommendations', 'rows');
+    }
   });
   return Object.freeze(firstOfEach('recommendations', 'rows', rows, row => row.id));
 }
