@@ -78,12 +78,9 @@ func AvailableConversionOutputs(f *ToolchainFacts) ConversionOutputs {
 	return o
 }
 
-// orderVideoOutputs puts the outputs in the order the planner tries them: what
-// this machine's hardware encodes first, then software. In software AV1 comes
-// last: its encoders are several times slower than libx264, so a device that
-// plays both would stall on a server without a hardware encoder. A picture that
-// only AV1 can carry (ten bits for a device without HEVC) still gets it, because
-// the planner tries the source's bit depth before the other.
+// orderVideoOutputs lists the outputs with what this machine's chip encodes first. It is
+// a listing order only: the planner chooses among them by the picture each makes for the
+// device (streaming.chooseVideoOutput), never by how fast this server would make it.
 func orderVideoOutputs(video []ConversionVideoOutput) {
 	rank := func(o ConversionVideoOutput) int {
 		switch {
