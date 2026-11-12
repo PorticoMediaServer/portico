@@ -174,7 +174,7 @@ test('profile PIN shares the actual pad, submits four digits once and exposes on
   const {TVProfilePINForm} = await screenModule(new URL('../src-next/tv/auth/TVProfilePINForm.tsx', import.meta.url), {
     ...await common(react), 'react-native': {Text: 'Text', View: 'View', useTVEventHandler: (fn: typeof remote) => {remote = fn;}},
     '../../platform/tv-keys': remoteKeys(handler => {remote = handler;}),
-    '../../kit/focus': {FocusProvider: 'Provider'}, './TVAuthLayout': {TVProfilePINLayout: 'PINLayout'}, './TVNumericPad': numeric,
+    '../../kit/focus': {FocusProvider: 'Provider'}, './TVAuthLayout': {TVProfilePINLayout: 'PINLayout', TVCodeErrorLine: 'ErrorLine'}, './TVNumericPad': numeric,
     '../../kit/controls': {Focusable: 'Focusable'}, '../../kit/Icon': {Icon: 'Icon'}, './TVRememberRow': {TVRememberRow: 'TVRememberRow'},
   });
   const profile = {id: 'actual-profile', name: 'Actual name', initial: 'A', color: 'blue'};
@@ -202,6 +202,12 @@ test('profile PIN shares the actual pad, submits four digits once and exposes on
     await act(async () => {props.code = ''; await host.rerender();});
     for (const digit of '1234') await act(async () => {press(digit); await host.rerender();});
     assert.deepEqual(submitted, ['1234', '1234'], 'a rejected/reset controlled PIN can be retried');
+    // While a refused PIN is still in the boxes, a digit starts the next PIN instead of being lost (motion S.3's 400 ms).
+    await act(async () => {(props as any).error = 'refused'; await host.rerender();});
+    await act(async () => {press('7'); await host.rerender();});
+    assert.equal(props.code, '7', 'a digit pressed during the refusal starts the next PIN');
+    assert.deepEqual(submitted, ['1234', '1234'], 'nothing is sent for it');
+    await act(async () => {(props as any).error = undefined; props.code = '1234'; await host.rerender();});
     nodes(pad()).find(node => node.type === 'Button').props.onPress(); tree.props.onBack();
     assert.deepEqual(actions, ['forgot', 'back']);
     await act(async () => {props.busy = true; await host.rerender(); remote({eventType: 'playPause', eventKeyAction: 0}); press('9');});

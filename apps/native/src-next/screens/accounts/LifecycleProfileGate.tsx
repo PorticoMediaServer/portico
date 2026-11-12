@@ -1,4 +1,4 @@
-import React, {useEffect, useState, useSyncExternalStore} from 'react';
+import React, {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {Text, View} from 'react-native';
 import {StateLayout} from '../../kit/states';
 import {Button} from '../../kit/controls';
@@ -44,12 +44,15 @@ export function LifecycleProfileGate() {
   const profileId = state.kind === 'enteringPin' ? state.profile.id : undefined;
   // A new PIN screen starts empty; the tick is the person's and carries from the picker to the PIN page and back.
   useEffect(() => {setCode(''); setForgot(false);}, [profileId]);
-  // notes/motion.md S.3, as the in-app picker does: a refused PIN stays in the red boxes for 400 ms, then they empty for
-  // the next try (each refusal is a new lifecycle state).
-  const refused = state.kind === 'enteringPin' && state.rejected ? state : undefined;
+  // TV, notes/motion.md S.3, as the in-app picker does: a refused PIN stays in the red boxes for 400 ms, then they empty
+  // for the next try (each refusal is a new lifecycle state). Only the refused code is emptied: a digit pressed in that
+  // time has already started the next one. The phone's field keeps what is typed.
+  const refused = theme.isTV && state.kind === 'enteringPin' && state.rejected ? state : undefined;
+  const codeNow = useRef(code); codeNow.current = code;
   useEffect(() => {
     if (!refused) return;
-    const timer = setTimeout(() => setCode(''), 400);
+    const refusedCode = codeNow.current;
+    const timer = setTimeout(() => setCode(current => current === refusedCode ? '' : current), 400);
     return () => clearTimeout(timer);
   }, [refused]);
   const choosing = state.kind === 'choosingProfile' || state.kind === 'enteringPin';
