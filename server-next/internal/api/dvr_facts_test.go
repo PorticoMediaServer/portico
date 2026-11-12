@@ -235,24 +235,26 @@ func TestARecordingThatCapturedNothingFailsAndLeavesNoTitle(t *testing.T) {
 		t.Fatalf("booking answered %d: %s", w.Code, w.Body)
 	}
 	s.recorder.Tick(context.Background())
-	// The source is tried again for a minute before the channel is said to have stopped: the
-	// clock moves past that once the recording has started.
-	deadline := time.Now().Add(10 * time.Second)
-	for get[DvrRecording](t, s, owner, "/v1/dvr/recordings/"+rec.ID).State == "scheduled" && time.Now().Before(deadline) {
-		time.Sleep(100 * time.Millisecond)
-	}
+	// The source is tried again for a minute of the server's clock, and at least three times,
+	// before the channel is said to have stopped. From here a minute of that clock passes in
+	// each second, so the minute is over two seconds after the third try whenever the tries
+	// begin: a slow machine waits for its tries, never for the clock.
 	claims, err := s.tokens.CheckAccess(owner, s.now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.setClock(func() time.Time { return time.Now().Add(2 * time.Minute) })
-	owner, _ = s.tokens.Access(claims, s.now(), s.now().Add(time.Hour))
-	deadline = time.Now().Add(20 * time.Second)
-	got := get[DvrRecording](t, s, owner, "/v1/dvr/recordings/"+rec.ID)
-	for (got.State == "scheduled" || got.State == "recording") && time.Now().Before(deadline) {
+	started := time.Now()
+	s.setClock(func() time.Time { return started.Add(time.Since(started) * 60) })
+	ctx := context.Background()
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		if r, err := s.db.Recording(ctx, rec.ID); err != nil || r.State != "scheduled" && r.State != "recording" {
+			break
+		}
 		time.Sleep(200 * time.Millisecond)
-		got = get[DvrRecording](t, s, owner, "/v1/dvr/recordings/"+rec.ID)
 	}
+	owner, _ = s.tokens.Access(claims, s.now(), s.now().Add(time.Hour))
+	got := get[DvrRecording](t, s, owner, "/v1/dvr/recordings/"+rec.ID)
 	if got.State != "failed" || got.Reason == "" || got.ItemID != "" || got.Bytes != 0 {
 		t.Fatalf("a recording that captured nothing reads %+v", got)
 	}
