@@ -19,9 +19,10 @@ function fixtureApi(read: (path: string, method?: string, body?: unknown, signal
 }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { resolve, promise }; }
 
-test('an unknown card kind drops only that Discover entry and retains the section total', async () => {
+test('an unknown card kind drops only that entry and retains the section total', async () => {
   const nav = service(async path => projection(path, {sections: [{id: 'personal', type: 'rail', heading: {key: 'personal', fallback: 'For you'}, entries: [entry('first'), {...entry('future'), kind: 'interactive'}, entry('last')], totalCount: 7, nextCursor: 'next'}]}));
-  await nav.select({libraryId: 'movies', view: 'discover'});
+  // Discover is read from the rebuilt server (library-content-rebuilt.test.ts); the parser is the content route's.
+  await nav.select({libraryId: 'movies', view: 'collections'});
   assert.equal(nav.getSnapshot().phase, 'ready');
   assert.deepEqual(nav.getSnapshot().sections[0].entries.map(card => card.id), ['first', 'last']);
   assert.equal(nav.getSnapshot().sections[0].totalCount, 7);
@@ -29,18 +30,18 @@ test('an unknown card kind drops only that Discover entry and retains the sectio
   nav.dispose();
 });
 
-test('a Music Discover rail as long as the page asked for is drawn whole, not dropped (DR-1)', async () => {
+test('a rail as long as the page asked for is drawn whole, not dropped (DR-1)', async () => {
   const rail = (id: string, length: number) => ({id, type: 'rail', heading: {key: id, fallback: id}, entries: Array.from({length}, (_, i) => entry(`${id}-${i}`)), totalCount: length, nextCursor: ''});
   resetSkippedParts();
   const nav = service(async path => {assert.equal(new URL(path, 'https://server.test').searchParams.get('limit'), '40'); return projection(path, {sections: [rail('artists', 40), rail('recent', 13), rail('continue', 12)]});});
-  await nav.select({libraryId: 'music', view: 'discover'});
+  await nav.select({libraryId: 'music', view: 'collections'});
   assert.equal(nav.getSnapshot().phase, 'ready');
   assert.deepEqual(nav.getSnapshot().sections.map(section => [section.id, section.entries.length]), [['artists', 40], ['recent', 13], ['continue', 12]]);
   assert.deepEqual(skippedParts().filter(part => part.document === 'content' && part.part === 'sections'), []);
   nav.dispose();
   // Still bounded: more than was asked for is not a rail this page can hold.
   const over = service(async path => projection(path, {sections: [rail('artists', 41), rail('continue', 3)]}));
-  await over.select({libraryId: 'music', view: 'discover'});
+  await over.select({libraryId: 'music', view: 'collections'});
   assert.deepEqual(over.getSnapshot().sections.map(section => section.id), ['continue']);
   over.dispose();
 });
@@ -107,7 +108,8 @@ test('publishes exact server semantic rows, order, metadata and chapter playback
 test('all typed domain routes request one canonical endpoint with encoded query values', async () => {
   const paths: string[] = [];
   const nav = service(async path => { paths.push(path); return projection(path); });
-  for (const view of ['discover','browse','collections','categories','show','season','artist','album','book','collection'] as const) {
+  // Discover is read from the rebuilt server's landing (library-content-rebuilt.test.ts).
+  for (const view of ['browse','collections','categories','show','season','artist','album','book','collection'] as const) {
     await nav.select({ libraryId: 'library/a', view, ...(['show','season','artist','album','book','collection'].includes(view) ? { entityId: 'entity&x=1' } : {}) });
     assert.equal(nav.getSnapshot().phase, 'ready');
     assert.ok(paths.at(-1)!.startsWith('/v1/libraries/library%2Fa/content?'));
@@ -508,7 +510,7 @@ test('everything read so far is one list per section: later pages append, More w
     if (cursor === 'b-next') return projection(path, { sections: [shelf('b', ['b3'], '')] });
     return projection(path, { sections: first });
   });
-  await nav.select({ libraryId: 'movies', view: 'discover' });
+  await nav.select({ libraryId: 'movies', view: 'collections' });
   await nav.next('a');
   const ids = () => nav.getSnapshot().appended.map(s => s.entries.map(e => e.id).join(','));
   assert.deepEqual(ids(), ['a1,a2,a3', 'b1,b2'], 'the page is appended to its own section, a repeated entry is dropped, the other section stays');

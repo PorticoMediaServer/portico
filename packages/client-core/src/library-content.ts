@@ -16,6 +16,7 @@ import type {ViewerQueryOptions} from './query/react.ts';
 import {queryKeys} from './query/keys.ts';
 import {dependsOn, titlesWithPersonalState} from './freshness-hub.ts';
 import {linkAbortSignals} from './abort-lifetime.ts';
+import {rebuiltContent, rebuiltContentViews} from './library-content-rebuilt.ts';
 /** Transport/state for server-authored semantic projections. No client ranking or grouping. */
 export type ContentView = 'discover' | 'browse' | 'collections' | 'categories' | 'show' | 'season' | 'artist' | 'album' | 'book' | 'collection' | 'releases' | 'songs' | 'authors' | 'series' | 'author' | 'book_series' | 'disc';
 export type ContentSurface = ContentView;
@@ -481,7 +482,11 @@ export function contentPageQuery(queries: ViewerQueries, r: ContentRoute, cursor
     queryKey: queryKeys.content(r.libraryId, query.toString()),
     queryFn: async ({signal}) => {
       const deadline = linkAbortSignals([signal], 15_000);
-      try { return projection(await queries.api.request<unknown>(encodedRoutePath("get_libraries_id_content", {"id": encodeURIComponent(r.libraryId)}) + "?" + query, 'GET', undefined, deadline.signal), r, queries.scope, pageSize); }
+      try {
+        // A view the rebuilt server answers is read there; the rest still ask the content route.
+        if (rebuiltContentViews.has(r.view)) return await rebuiltContent(queries.api, r, queries.scope, pageSize, deadline.signal);
+        return projection(await queries.api.request<unknown>(encodedRoutePath("get_libraries_id_content", {"id": encodeURIComponent(r.libraryId)}) + "?" + query, 'GET', undefined, deadline.signal), r, queries.scope, pageSize);
+      }
       catch (error) { if (deadline.signal.aborted && !signal.aborted) throw new ContentFailure('timeout', 'The server took too long to respond. Try again.', true); throw error; }
       finally { deadline.dispose(); }
     },
