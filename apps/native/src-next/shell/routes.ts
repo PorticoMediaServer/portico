@@ -174,6 +174,7 @@ export class NativeShellNavigation {
   private parked = new Map<string, readonly NativeRoutePresentation[]>();
   private tabOrder: string[] = ['home'];
   private tabSnapshot: NativeTabStacks;
+  private endedTabs?: NativeTabStacks;
   constructor(authority: ShellAuthority, currentAuthority: () => ShellAuthority, admission?: NativeRouteAdmission, options?: NativeShellNavigationOptions) {
     this.currentAuthority = currentAuthority;
     this.admission = admission;
@@ -247,7 +248,10 @@ export class NativeShellNavigation {
   };
 
   /** Every visited tab's stack in first-visit order (one linear stack when untabbed). */
-  tabStacks = (): NativeTabStacks => this.isCurrent() ? this.tabSnapshot : Object.freeze({active: this.tab, stacks: Object.freeze([])});
+  /** After the authority ends (signing out) it is one empty value, the same on every read: a new
+   * object each time makes React's external-store reader render without end. */
+  tabStacks = (): NativeTabStacks => this.isCurrent() ? this.tabSnapshot
+    : this.endedTabs?.active === this.tab ? this.endedTabs : (this.endedTabs = Object.freeze({active: this.tab, stacks: Object.freeze([])}));
   getIntent = (): NativeDestinationIntent => this.intent;
   isCurrent = (): boolean => this.current(this.snapshot.authority);
   allows = (route: NativeShellRoute, origin: ShellDestination = route.kind === 'shell' ? route.destination : this.snapshot.destination): boolean =>

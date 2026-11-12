@@ -105,3 +105,13 @@ test('without tab stacks (television) history stays one linear list', () => {
   navigation.selectTab({kind: 'saved'}, authority, true);
   assert.equal(navigation.presentationStack().length, 3);
 });
+
+test('after signing out, the tab stacks read as one unchanging empty value, so the stack host does not render without end', () => {
+  let current: ShellAuthority = authority;
+  const navigation = new NativeShellNavigation(authority, () => current, undefined, {tabStacks: true});
+  navigation.open(title('m'), authority);
+  current = {...authority, epoch: 'signed-out'};
+  const first = navigation.tabStacks();
+  assert.deepEqual(first.stacks, []);
+  assert.equal(navigation.tabStacks(), first, 'the same object on every read: React\'s external-store reader compares by identity');
+});
