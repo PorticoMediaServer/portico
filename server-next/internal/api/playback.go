@@ -355,6 +355,9 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 	if err != nil {
 		return PlaybackSession{}, playbackError(err)
 	}
+	if in.Caller.SignInID != 0 && s.viewings != nil {
+		s.viewings.StopDevice(in.Caller.Viewer.UserID, in.Caller.SignInID) // a device plays one stream: a title replaces its channel
+	}
 	if req.RequestID != "" && !s.receivers.Started(in.Caller.SignInID, req.RequestID, session.ID) {
 		// The move ended while this device was starting: it is undone, as a failed move is.
 		s.playback.Stop(r.Context(), session.ID, in.Caller.Viewer.UserID, 0, nil)

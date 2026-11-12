@@ -289,6 +289,10 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 			}
 		}
 	}
+	if s.OtherStreams != nil {
+		a, t := s.OtherStreams(c.Viewer.UserID, c.SignInID)
+		account, total = account+a, total+t
+	}
 	if limit := limits.forAccount(device.UserPublicID); limit > 0 && account >= limit {
 		s.mu.Unlock()
 		return nil, &LimitReached{Scope: "account", Limit: limit}

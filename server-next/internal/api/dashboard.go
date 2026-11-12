@@ -186,6 +186,15 @@ func (s *Server) dashboard(r *http.Request, _ None) (Dashboard, error) {
 			out.NowPlaying.Converting++
 		}
 	}
+	for _, v := range s.viewings.All() {
+		out.NowPlaying.Streams++
+		if v.Away {
+			out.NowPlaying.Away++
+		}
+		if v.Play != nil && v.Play.Route == playback.RouteConverted {
+			out.NowPlaying.Converting++
+		}
+	}
 	last, read := s.backups.Newest()
 	out.Backups.Read = read
 	if last != nil {

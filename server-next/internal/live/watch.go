@@ -25,6 +25,11 @@ type Viewing struct {
 	use       *Use
 	Paused    bool
 	Lease     time.Time
+	// Away is a viewer outside the home networks; Name is the device's name; StartedAt is
+	// when it tuned in. For the owner's Now playing.
+	Away      bool
+	Name      string
+	StartedAt time.Time
 	// CountdownTo, when set, is when this stream stops so a recording can take its tuner, and
 	// CountdownReason says so in a sentence.
 	CountdownTo     time.Time
@@ -69,6 +74,9 @@ type Viewings struct {
 	// Ended is told each viewing that ends, however it ends, so what was made for it stops
 	// too. Set it before the viewings are used.
 	Ended func(id string)
+	// stopped are the viewings the owner or an administrator stopped, kept a while so their
+	// device is told why when it next reports.
+	stopped map[string]stoppedViewing
 }
 
 // Lease is how long a viewing lives without a report from its device; it reports every
@@ -80,7 +88,7 @@ const (
 
 // NewViewings makes the registry.
 func NewViewings(now func() time.Time) *Viewings {
-	return &Viewings{byID: map[string]*Viewing{}, byGrant: map[string]*Viewing{}, now: now}
+	return &Viewings{byID: map[string]*Viewing{}, byGrant: map[string]*Viewing{}, now: now, stopped: map[string]stoppedViewing{}}
 }
 
 func token(n int) string {
@@ -113,7 +121,7 @@ func (v *Viewings) StopDevice(userID, signInID int64) {
 func (v *Viewings) Start(userID, profileID, signInID int64, channelID string, in *Input, use *Use) *Viewing {
 	v.mu.Lock()
 	w := &Viewing{ID: "lvs_" + token(10), UserID: userID, ProfileID: profileID, SignInID: signInID, ChannelID: channelID, Grant: token(24),
-		Input: in, use: use, Lease: v.now().Add(Lease)}
+		Input: in, use: use, Lease: v.now().Add(Lease), Away: use.Away, Name: use.Name, StartedAt: v.now()}
 	v.byID[w.ID], v.byGrant[w.Grant] = w, w
 	v.mu.Unlock()
 	return w
@@ -211,6 +219,11 @@ func (v *Viewings) Run(ctx context.Context) {
 		for _, w := range v.byID {
 			if v.now().After(w.Lease) {
 				gone = append(gone, w)
+			}
+		}
+		for id, st := range v.stopped {
+			if v.now().Sub(st.at) > Lease {
+				delete(v.stopped, id)
 			}
 		}
 		v.mu.Unlock()
