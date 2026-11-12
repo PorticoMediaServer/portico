@@ -35,9 +35,9 @@ function fixture(kind: 'local' | 'portico' = 'local') {
     if (path === '/v1/auth/password-reset/confirm') return undefined;
     if (path === '/v1/auth/sign-in') return signInAnswer(twoStep ? {challenge: {token: 'actual-factor-challenge', expiresAt: '2099-01-01T00:00:00Z'}} : grant(false));
     if (path === '/v1/auth/two-factor') {if (refuseFactor) throw new ApiError(401, 'invalid_credentials', 'That code is not right.'); return signInAnswer(grant(false));}
-    if (path === '/v1/auth/move/code') return {username: 'actual_user', signIn: kind, expiresAt: new Date(Date.now() + 3600000).toISOString()};
+    // The rebuilt server's move routes: the check names the person and what comes next; the complete is the sign-in.
     if (path === '/v1/auth/move/check') return {username: 'actual_user', next: kind === 'portico' ? 'portico_account' : 'choose_password'};
-    if (path === '/v1/auth/move/local') {if (verifyGate) await verifyGate; return grant(false);}
+    if (path === '/v1/auth/move/complete') {if (verifyGate) await verifyGate; return signInAnswer(grant(false));}
     throw new Error('Unexpected public route: ' + path);
   }) as HttpLocalApi['request'];
   const temporary = {request: async (path: string, _method: string, body?: unknown) => {
@@ -72,7 +72,7 @@ test('Portico kind cannot dispatch the Local reset-file or password flow', async
 test('a server selection changed after move preview refuses redemption before any code/password dispatch', async () => {
   const f = fixture(); await f.entry.inspect(origin); await f.entry.previewMoveCode('m'.repeat(43)); f.revise();
   await f.entry.redeemLocalMove('chosen_user', 'ordinary-new-password');
-  assert.equal(f.calls.some(call => call.path === '/v1/auth/move/local'), false); assert.deepEqual(f.admitted, []); f.entry.dispose();
+  assert.equal(f.calls.some(call => call.path === '/v1/auth/move/complete'), false); assert.deepEqual(f.admitted, []); f.entry.dispose();
 });
 test('a Portico move-code preview cannot enter Local password redemption or expose its code in state', async () => {
   const f = fixture('portico'); await f.entry.inspect(origin); await f.entry.previewMoveCode('m'.repeat(43));
@@ -105,4 +105,17 @@ test('a reset whose two-step code is refused has still set the password: the per
   assert.equal(f.calls.filter(call => call.path === '/v1/auth/password-reset/confirm').length, 1);
   assert.equal((f.entry.getSnapshot().error as {code?: string} | undefined)?.code, 'invalid_credentials', 'and told why, at the two-step step');
   f.entry.dispose(); setInstallationIdentity(undefined);
+});
+
+test('a member moves to local sign-in on the rebuilt server: the owner\'s code is checked, then the code, username and password finish the move, which is the sign-in', async () => {
+  setInstallationIdentity({installationId: 'i'.repeat(43), name: 'Test browser', platform: 'web', app: 'portico', appVersion: '1'});
+  const f = fixture(); await f.entry.inspect(origin);
+  await f.entry.previewMoveCode('K7QP-2MXD-9HRT');
+  assert.equal(f.entry.getSnapshot().phase, 'move-local'); assert.equal(f.entry.getSnapshot().movePreview?.username, 'actual_user');
+  await f.entry.redeemLocalMove('chosen_user', 'ordinary-new-password');
+  const moves = f.calls.filter(call => call.path.startsWith('/v1/auth/move/'));
+  assert.deepEqual(moves.map(call => call.path), ['/v1/auth/move/check', '/v1/auth/move/complete']);
+  assert.deepEqual(moves[0].body, {code: 'K7QP-2MXD-9HRT'});
+  assert.equal(moves[1].body.code, 'K7QP-2MXD-9HRT'); assert.equal(moves[1].body.username, 'chosen_user'); assert.equal(moves[1].body.password, 'ordinary-new-password');
+  assert.equal(f.admitted.length, 1, 'the move\'s answer is kept as this browser\'s sign-in'); f.entry.dispose();
 });

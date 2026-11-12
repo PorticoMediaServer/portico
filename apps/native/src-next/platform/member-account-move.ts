@@ -37,7 +37,9 @@ export type NativeMemberMoveSnapshot<Result> = Readonly<{
   phase: 'password' | 'code' | 'portico' | 'local' | 'collision' | 'adopted';
   busy: boolean; username?: string; collision?: MoveCollisionDetails; result?: Result; error?: unknown;
 }>;
-type Proof = Readonly<{credential: MoveCredential; expiresAt: string; preview?: MoveCodePreview}>;
+/** `expiresAt` is absent for a move code: the rebuilt server keeps its expiry to itself and refuses an expired one. */
+type Proof = Readonly<{credential: MoveCredential; expiresAt?: string; preview?: MoveCodePreview}>;
+const expired = (expiresAt: string | undefined) => expiresAt !== undefined && Date.parse(expiresAt) <= serverNow();
 const cancelled = () => new CodedError('cancelled', 'This account move request ended.');
 const invalidProof = () => new CodedError('move_code_invalid', 'The move proof expired.');
 
@@ -70,7 +72,7 @@ export class NativeMemberAccountMove<Result> {
   /** A link supplies input only to this already-proved issuer. Never follow its URL. */
   readCodeInput = (raw: string): string | undefined => {
     if (!this.isCurrentOpening()) return;
-    if (/^[A-Za-z0-9_-]{43}$/.test(raw)) return raw;
+    if (/^[A-Za-z0-9]{12}$/.test(raw.replace(/[-\s]/g, '')) || /^[A-Za-z0-9_-]{43}$/.test(raw)) return raw;
     if (!this.ports.origin || raw.length > 8192) return;
     try {
       const url = new URL(raw);
@@ -153,14 +155,14 @@ export class NativeMemberAccountMove<Result> {
       const preview = await client.previewCode(code, signal);
       await this.fence(epoch);
       if (preview.signIn !== this.ports.server.signIn) throw new CodedError('identity_mismatch', 'The server sign-in changed.');
-      if (Date.parse(preview.expiresAt) <= serverNow()) throw invalidProof();
+      if (expired(preview.expiresAt)) throw invalidProof();
       this.proof = Object.freeze({credential: {code}, expiresAt: preview.expiresAt, preview});
       this.publish({phase: preview.signIn === 'local' ? 'local' : 'portico', username: preview.username});
     });
   }
   private takeProof() {
     const proof = this.proof; this.proof = undefined;
-    if (!proof || Date.parse(proof.expiresAt) <= serverNow()) throw invalidProof();
+    if (!proof || expired(proof.expiresAt)) throw invalidProof();
     return proof;
   }
   private async adopt(result: DirectSignIn, epoch: number, hosted?: NativeMoveHostedCapture) {
@@ -206,7 +208,7 @@ export class NativeMemberAccountMove<Result> {
       await this.fence(epoch, hosted);
       const identity = await requestIdentityAssertion(hosted.api, hosted.origin, this.ports.server.id, challenge, 'interactive', signal);
       await this.fence(epoch, hosted);
-      if (Date.parse(proof.expiresAt) <= serverNow()) throw invalidProof();
+      if (expired(proof.expiresAt)) throw invalidProof();
       const client = new MemberAccountMoveClient(this.ports.api, {serverId: this.ports.server.id,
         isCurrent: () => this.current(epoch, hosted), retireLateGrant: session => this.retireFresh(session)});
       try {
