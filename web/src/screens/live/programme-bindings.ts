@@ -86,7 +86,8 @@ export function createProgrammeBindings(context: ScreenContext, row: GuideChanne
         const [detail, reminders] = await Promise.all([readProgramme(life.api, programme.id, life.signal()), readServerReminders(life.api, undefined, life.signal()).catch(() => undefined)]);
         assert();
         canRecord = detail.canRecord && row.recordAvailable;
-        if (reminders) replaceReminders(reminders.items.map(item => ({programId: item.programme, channelId: item.channel, title: item.title, channelName: row.name, start: Date.parse(item.startsAt)})));
+        // Each reminder names its own channel (the server sends the channel's name).
+        if (reminders) replaceReminders(reminders.items.map(item => ({programId: item.programme, channelId: item.channel, title: item.title, channelName: item.channel, start: Date.parse(item.startsAt)})));
         // More airings are the programme's own other airings, as the server listed them.
         const airings = detail.airings.map(one => airing(one.id, Date.parse(one.startsAt), Date.parse(one.endsAt), one.channel))
           .filter(one => one.id !== programme.id && one.start > now()).sort((left, right) => left.start - right.start);
