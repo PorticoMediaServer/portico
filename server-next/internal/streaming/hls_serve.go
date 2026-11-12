@@ -181,8 +181,13 @@ func (h *HLS) FileContext(ctx context.Context, id, name string) (string, error) 
 		return path, nil
 	}
 	count := hlsSegmentCount(duration)
-	if timeline := h.sessionTimeline(ctx, id); timeline != nil {
+	timeline := h.sessionTimeline(ctx, id)
+	if timeline != nil {
 		count = timeline.count()
+	}
+	// On the converted grid the last slot is given out only once its tail is in it.
+	ready := func(path string) bool {
+		return segmentReady(path) && (timeline != nil || gridSlotReady(path, index, duration))
 	}
 	if index >= count {
 		// A well-formed segment slot at or past a known grid is the end of this
@@ -197,7 +202,7 @@ func (h *HLS) FileContext(ctx context.Context, id, name string) (string, error) 
 		return "", errors.New("empty stream timeline")
 	}
 	cfg := h.configuration()
-	if info, err := os.Stat(path); err == nil && info.Size() > 0 {
+	if ready(path) {
 		h.noteServed(ctx, id, index, cfg)
 		return path, nil
 	}
@@ -233,7 +238,7 @@ func (h *HLS) FileContext(ctx context.Context, id, name string) (string, error) 
 					return "", err
 				}
 			}
-			if segmentReady(path) {
+			if ready(path) {
 				h.noteServed(ctx, id, index, cfg)
 				return path, nil
 			}

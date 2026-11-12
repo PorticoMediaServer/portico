@@ -1,5 +1,7 @@
 package subtitles
 
+import "io"
+
 import "context"
 
 type WindowCommand struct {
@@ -7,6 +9,9 @@ type WindowCommand struct {
 	Started  func()
 	Args     []string
 	Hardware bool
+	// Stderr, when set, receives what the converter writes to standard error, as a local
+	// run's does: a converter that exits 0 having said something did not simply finish.
+	Stderr io.Writer
 }
 
 // Window inputs retain the existing observed source and private endpoint

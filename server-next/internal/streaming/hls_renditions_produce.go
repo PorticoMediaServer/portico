@@ -143,6 +143,7 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 	if plan == nil {
 		return
 	}
+	slotName := func(i int) string { return renditionSegmentFile(r, i) }
 	dir, err := h.createStreamingOutput(ctx, id, plan)
 	if errors.Is(err, ErrSegmentPreparing) {
 		// The stream's folder is busy for a moment (another window is making it, or it is
@@ -288,7 +289,7 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 					produced++
 				}
 				if input.InputAt != nil && !fragmented {
-					for next := produced + 1; next < hlsSegmentCount(plan.Duration) && segmentReady(filepath.Join(outputDir, renditionSegmentFile(r, next))); next++ {
+					for next := produced + 1; next < hlsWrittenSlots(plan.Duration) && segmentReady(filepath.Join(outputDir, renditionSegmentFile(r, next))); next++ {
 						if err := os.Rename(filepath.Join(outputDir, renditionSegmentFile(r, next)), filepath.Join(dir, renditionSegmentFile(r, next))); err != nil {
 							cancel()
 							failed(FailureConverter)
@@ -306,6 +307,12 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 						return false
 					}
 				}
+				if err := carryTail(dir, slotName, plan.Duration, false); err != nil {
+					cancel()
+					failed(FailureConverter)
+					return false
+				}
+				produced = min(produced, hlsSegmentCount(plan.Duration)-1)
 
 				h.mu.Lock()
 				w.produced = produced
@@ -343,7 +350,7 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 					copied[i+1] = "http,tcp"
 				}
 			}
-			return subtitles.WindowCommand{Args: copied}, nil
+			return subtitles.WindowCommand{Args: copied, Stderr: tail}, nil
 		})
 		if err != nil {
 			_, _ = tail.Write([]byte(windowConverterDiagnostic(err, "", h.root, h.memoryRoot)))
@@ -390,7 +397,7 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 		return
 	}
 	if input.InputAt != nil && !fragmented {
-		for next := from; next < hlsSegmentCount(plan.Duration); next++ {
+		for next := from; next < hlsWrittenSlots(plan.Duration); next++ {
 			source := filepath.Join(outputDir, renditionSegmentFile(r, next))
 			if !segmentReady(source) {
 				continue
@@ -416,10 +423,15 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 	}
 	// FFmpeg also exits 0 when its source stops early (a file cut short, a connection
 	// dropped half way), but then it says so on standard error; the true end of a track
-	// is silent. A film must never end early, so an end is noted only for a silent
-	// converter on a local file, whose standard error this reads; otherwise the next
-	// request starts it again (playback rule 76a).
-	if err == nil && !throttled && !relocating && ctx.Err() == nil && remoteInput == nil && strings.TrimSpace(tail.String()) == "" {
+	// is silent. A film must never end early, so only a silent converter is taken to have
+	// reached the end: its last slot is whole without a tail, and what it did not write the
+	// track does not have. Otherwise the next request starts it again (playback rule 76a).
+	silent := err == nil && !throttled && !relocating && ctx.Err() == nil && strings.TrimSpace(tail.String()) == ""
+	if carryErr := carryTail(dir, slotName, plan.Duration, silent); carryErr != nil && ctx.Err() == nil {
+		failed(FailureConverter)
+		return
+	}
+	if silent {
 		h.noteRenditionEnd(id, r, dir, from, hlsSegmentCount(plan.Duration))
 	}
 }
@@ -485,7 +497,7 @@ func (h *HLS) renditionFile(ctx context.Context, id, name string, p *DeliveryPla
 	ordinal, _ := strconv.Atoi(parts[1])
 	index, _ := strconv.Atoi(parts[2])
 	key := renditionKey(id, ordinal)
-	if segmentReady(path) {
+	if gridSlotReady(path, index, p.Duration) {
 		h.noteRenditionServed(id, key, index)
 		return path, nil
 	}
@@ -507,7 +519,10 @@ func (h *HLS) renditionFile(ctx context.Context, id, name string, p *DeliveryPla
 				h.mu.Unlock()
 				return "", ErrGrantEnded
 			}
-			state, failure, changed := s.state, s.plan.Renditions[ordinal].Failure, s.changed
+			// The stream's plan as it is now: the producer may have replaced it since this
+			// request began, and asking again with the old entry would be refused as ended.
+			state, rendition, changed := s.state, s.plan.Renditions[ordinal], s.changed
+			failure := rendition.Failure
 			h.mu.Unlock()
 			if e := finishedStreamError(state); e != nil {
 				return "", e
@@ -515,17 +530,17 @@ func (h *HLS) renditionFile(ctx context.Context, id, name string, p *DeliveryPla
 			if failure != "" {
 				return "", ErrAudioRenditionUnavailable
 			}
-			if h.renditionEnded(id, ordinal, index) && !segmentReady(path) {
+			if h.renditionEnded(id, ordinal, index) && !gridSlotReady(path, index, p.Duration) {
 				return "", ErrGrantEnded
 			}
 			current := filepath.Join(h.outputDir(id), name)
 			if current != path {
 				path = current
-				if err := h.startRendition(ctx, id, p.Renditions[ordinal], index); err != nil {
+				if err := h.startRendition(ctx, id, rendition, index); err != nil {
 					return "", err
 				}
 			}
-			if segmentReady(path) {
+			if gridSlotReady(path, index, p.Duration) {
 				h.noteRenditionServed(id, key, index)
 				return path, nil
 			}
@@ -536,6 +551,17 @@ func (h *HLS) renditionFile(ctx context.Context, id, name string, p *DeliveryPla
 				}
 				return "", ErrSegmentPreparing
 			case <-changed:
+				// The window this request waited on may have ended without the slot (a
+				// converter that lost its source leaves the last slot held): ask again, but
+				// only when no window of this track is running, so a working one is never moved.
+				h.mu.Lock()
+				running := h.windows[key] != nil
+				h.mu.Unlock()
+				if !running {
+					if err := h.startRendition(ctx, id, rendition, index); err != nil {
+						return "", err
+					}
+				}
 			case <-tick.C:
 			}
 		}

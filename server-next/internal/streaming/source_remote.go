@@ -228,7 +228,7 @@ func (w *bridgeWindow) Run(ctx context.Context, dir string, build func(string) (
 	if spec.Started != nil {
 		ctx = childprocess.WithStarted(ctx, spec.Started)
 	}
-	return decoder.RunHLSWindow(ctx, w.processes, token(), w.ffmpeg, w.bridge.URL(), dir, reservation, spec.Args, spec.Hardware, w.libraries...)
+	return decoder.RunHLSWindow(ctx, w.processes, token(), w.ffmpeg, w.bridge.URL(), dir, reservation, spec.Args, spec.Hardware, spec.Stderr, w.libraries...)
 }
 
 func (w *bridgeWindow) Close() error { return w.bridge.Close() }
