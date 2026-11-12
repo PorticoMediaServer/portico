@@ -172,9 +172,11 @@ type rclone struct {
 	done chan struct{}
 }
 
-// NewRclone serves one remote, given its options, from a folder within it.
+// NewRclone serves one remote, given its options, from a folder within it. The folder is as
+// rclone reads it: on sftp, ftp or smb a leading slash starts from the server's top rather
+// than the user's home folder; bucket kinds (s3 and the like) ignore it.
 func NewRclone(options map[string]string, root string) *rclone {
-	return &rclone{options: options, root: strings.Trim(root, "/"), latest: options["token"]}
+	return &rclone{options: options, root: strings.TrimRight(root, "/"), latest: options["token"]}
 }
 
 // current returns the WebDAV client of the running rclone, starting rclone if it is not
