@@ -15,8 +15,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
 )
 
 // UserAgent names the server to providers. Some, like MusicBrainz, refuse a request
@@ -24,6 +22,13 @@ import (
 const UserAgent = "Portico/1.0 ( https://github.com/PorticoMediaServer/portico )"
 
 const maxAnswer = 4 << 20 // no answer from a provider's API is larger; more is not read
+
+// ErrNotFound is a provider's answer that it has no such thing (a 404). The metadata package
+// names it metadata.ErrNotFound.
+var ErrNotFound = errors.New("the provider has no such title")
+
+// ErrTooLarge is an answer larger than any real one: more than the client reads.
+var ErrTooLarge = errors.New("the answer is larger than any real one")
 
 // SlowDown is a provider's request to wait before asking again. Until it passes, every
 // request to that provider fails with it at once, without being sent.
@@ -102,6 +107,8 @@ type Client struct {
 	// client of the service shares, apart from lookups). Nil counts every request together.
 	Bucket func(*http.Request) string
 	http   *http.Client
+	// most is the largest answer read.
+	most int
 
 	mu      sync.Mutex
 	next    time.Time // the earliest the next request may start, by spacing
@@ -120,16 +127,23 @@ type budget struct {
 // New makes a client that starts at most one request every `every` and waits out a pause of
 // up to maxWait.
 func New(name string, every, maxWait time.Duration) *Client {
-	return &Client{name: name, every: every, maxWait: maxWait, budgets: map[string]*budget{}, http: &http.Client{
+	return NewWith(name, every, maxWait, &http.Client{
 		Timeout: 20 * time.Second,
 		// Every address is built by the provider's own code; an answer that points elsewhere
 		// is not followed.
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}}
+	}, maxAnswer)
+}
+
+// NewWith is New with the HTTP client that sends the requests and the largest answer it reads:
+// for downloads such as a provider's pictures, which follow only the redirects their own client
+// allows and are larger than an API's answers.
+func NewWith(name string, every, maxWait time.Duration, h *http.Client, most int) *Client {
+	return &Client{name: name, every: every, maxWait: maxWait, budgets: map[string]*budget{}, http: h, most: most}
 }
 
 // Do sends a request built by the provider's code and returns the body of a 200 answer. It
-// fails with metadata.ErrNotFound for a 404, *SlowDown for a pause it cannot wait out, and
+// fails with ErrNotFound for a 404, ErrTooLarge for an answer larger than the client reads, *SlowDown for a pause it cannot wait out, and
 // *Status for any other answer. A request with a body must be built with a body that can be
 // read again (http.NewRequest does that for bytes and strings), since a pause sends it twice.
 func (c *Client) Do(req *http.Request) ([]byte, error) {
@@ -163,24 +177,24 @@ func (c *Client) Do(req *http.Request) ([]byte, error) {
 			return nil, fmt.Errorf("%s: %w", c.name, err)
 		}
 		c.count(bucket, res.Header)
-		raw, err := io.ReadAll(io.LimitReader(res.Body, maxAnswer+1))
+		raw, err := io.ReadAll(io.LimitReader(res.Body, int64(c.most)+1))
 		res.Body.Close()
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", c.name, err)
 		}
 		switch {
 		case res.StatusCode == http.StatusOK:
-			if len(raw) > maxAnswer {
-				return nil, fmt.Errorf("%s sent an answer larger than any real one", c.name)
+			if len(raw) > c.most {
+				return nil, fmt.Errorf("%s: %w", c.name, ErrTooLarge)
 			}
 			return raw, nil
 		case res.StatusCode == http.StatusMovedPermanently && c.MovedIsAnswer && len(raw) > 0:
-			if len(raw) > maxAnswer {
-				return nil, fmt.Errorf("%s sent an answer larger than any real one", c.name)
+			if len(raw) > c.most {
+				return nil, fmt.Errorf("%s: %w", c.name, ErrTooLarge)
 			}
 			return raw, nil
 		case res.StatusCode == http.StatusNotFound:
-			return nil, metadata.ErrNotFound
+			return nil, ErrNotFound
 		case res.StatusCode == http.StatusTooManyRequests ||
 			res.StatusCode == http.StatusServiceUnavailable && (c.Busy503 || res.Header.Get("Retry-After") != ""):
 			pause := c.pause(res.Header.Get("Retry-After"))

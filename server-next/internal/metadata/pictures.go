@@ -6,15 +6,16 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/fetch"
 )
 
 // PictureStore keeps a picture's bytes under its hash: the server's picture store.
@@ -42,12 +43,39 @@ var pictureRedirects = map[string][]string{
 // machine, play the provider. They are never set outside tests.
 var redirectsOverHTTP, redirectsToPrivate bool
 
-var pictureClient = &http.Client{Timeout: 30 * time.Second, CheckRedirect: checkPictureRedirect, Transport: pictureTransport()}
+// pictureTimeout is the longest one picture's download may take, its redirects included. A
+// picture host that only times out costs a pass downAfter of these before the pass stops.
+var pictureTimeout = 20 * time.Second
+
+// pictureWait is the longest pause a picture host may ask for (a 429, or a 503 with
+// Retry-After) that a download waits out; a longer one fails it, as a host in trouble.
+const pictureWait = 30 * time.Second
+
+var pictureHTTP = &http.Client{CheckRedirect: checkPictureRedirect, Transport: pictureTransport()}
+
+// pictureHosts are the pacing clients the pictures are downloaded through, one per host the
+// addresses name, so a host's ask to slow down holds back its own downloads and no other's.
+var pictureHosts = struct {
+	sync.Mutex
+	by map[string]*fetch.Client
+}{by: map[string]*fetch.Client{}}
+
+func pictureHost(host string) *fetch.Client {
+	pictureHosts.Lock()
+	defer pictureHosts.Unlock()
+	c := pictureHosts.by[host]
+	if c == nil {
+		c = fetch.NewWith("the picture server "+host, 0, pictureWait, pictureHTTP, maxPictureBytes)
+		pictureHosts.by[host] = c
+	}
+	return c
+}
 
 // errLiveCallInTest refuses a picture download a test makes from anything but this machine.
 // The rule: tests never reach a live provider; they use a stand-in on 127.0.0.1. It holds for
-// every address, a provider's picture server and Cover Art Archive's fixed one alike.
-var errLiveCallInTest = errors.New("a test may not reach a live provider: tests use a stand-in on 127.0.0.1")
+// every address, a provider's picture server and Cover Art Archive's fixed one alike: fetch
+// refuses the address, and the connection to a host a redirect leads to is refused too.
+var errLiveCallInTest = fetch.ErrLiveCallInTest
 
 // thisMachine reports whether host names this machine: localhost or a loopback address. Any
 // other name is not looked up.
@@ -141,32 +169,33 @@ func publicAddress(ip net.IP) bool {
 var sharedAddresses = &net.IPNet{IP: net.IPv4(100, 64, 0, 0), Mask: net.CIDRMask(10, 32)}
 
 // fetchPicture downloads one picture a provider offers. Every app sees it from the server's
-// own copy and never asks the provider.
-func fetchPicture(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+// own copy and never asks the provider. A host's failure that is its own (no answer, a 5xx, a
+// 429 or a pause) is told apart by providerOutage, as an API's is.
+func fetchPicture(ctx context.Context, address string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, pictureTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
 	if err != nil {
 		return nil, err
 	}
-	res, err := pictureClient.Do(req)
-	if err != nil {
+	data, err := pictureHost(strings.ToLower(req.URL.Host)).Do(req)
+	var status *fetch.Status
+	switch {
+	case errors.Is(err, fetch.ErrNotFound) || errors.As(err, &status) && status.Code == http.StatusGone:
+		return nil, fmt.Errorf("the picture's address answered that it has none: %w", errPictureGone)
+	case errors.Is(err, fetch.ErrTooLarge):
+		return nil, fmt.Errorf("the provider's picture is too large: %w", errPictureGone)
+	case err != nil:
 		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode == http.StatusNotFound || res.StatusCode == http.StatusGone {
-		return nil, fmt.Errorf("the picture's address answered %d: %w", res.StatusCode, errPictureGone)
-	}
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("the picture's address answered %d", res.StatusCode)
-	}
-	data, err := io.ReadAll(io.LimitReader(res.Body, maxPictureBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(data) > maxPictureBytes || !strings.HasPrefix(http.DetectContentType(data), "image/") {
-		return nil, fmt.Errorf("the provider's picture is too large or not a picture: %w", errPictureGone)
+	case !strings.HasPrefix(http.DetectContentType(data), "image/"):
+		return nil, fmt.Errorf("the provider's picture is not a picture: %w", errPictureGone)
 	}
 	return data, nil
 }
+
+// ErrPictureHostDown is a picture pass stopped because the pictures' host failed itself on
+// several in a row. Every picture not fetched is still recorded, for the next pass.
+var ErrPictureHostDown = errors.New("the provider's picture server did not answer")
 
 // errPictureGone is a picture's address that will not give a picture: the provider no longer
 // has it, or what it serves is too large or not a picture. Anything else may work next time.
@@ -176,12 +205,15 @@ var errPictureGone = errors.New("no picture at this address")
 // lookups and refreshes recorded, keeps each in the picture store in its two sizes and shows it, one at a
 // time and at Background priority, so it never holds up a lookup or a person. It does at most
 // limit and says how many it stored. An address that gives no picture is dropped; one that
-// cannot be reached now is tried at the next pass.
+// cannot be had now is passed over and tried at the next pass. A picture host in trouble (no
+// answer, a 5xx, a 429) for downAfter pictures in a row ends the pass with ErrPictureHostDown,
+// as the lookup's rule for a provider that is down: the rest stay recorded for the next pass,
+// which every lookup and refresh run starts.
 func (s *Service) FetchPictures(ctx context.Context, libraryID int64, limit int) (int, error) {
 	if s.Pictures == nil {
 		return 0, nil
 	}
-	stored, after := 0, int64(0)
+	stored, after, inARow := 0, int64(0), 0
 	for stored < limit {
 		page, err := s.DB.PicturesToFetch(ctx, libraryID, after, 50)
 		if err != nil || len(page) == 0 {
@@ -199,8 +231,15 @@ func (s *Service) FetchPictures(ctx context.Context, libraryID int64, limit int)
 				}
 				continue
 			}
+			if err != nil && providerOutage(err) {
+				if inARow++; inARow >= downAfter {
+					return stored, fmt.Errorf("%w: %w", ErrPictureHostDown, err)
+				}
+				continue
+			}
+			inARow = 0
 			if err != nil {
-				continue // not reached now: the next pass asks again
+				continue // refused now: the next pass asks again
 			}
 			sum := sha256.Sum256(data)
 			hash := hex.EncodeToString(sum[:])

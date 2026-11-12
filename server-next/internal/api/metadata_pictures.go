@@ -7,6 +7,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
 )
 
 // jobPictures is a library's picture pass: it fetches the provider's pictures that its lookups
@@ -24,6 +25,9 @@ func (s *Server) picturePass() {
 			return err
 		}
 		_, err = s.metadata.FetchPictures(ctx, id, math.MaxInt)
+		if errors.Is(err, metadata.ErrPictureHostDown) {
+			return jobs.DoneWith{Note: "The provider's picture server did not answer. The pictures not fetched are fetched by a later pass, after the next lookup or refresh."}
+		}
 		return err
 	}})
 }

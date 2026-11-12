@@ -30,11 +30,16 @@ var Picture = func() []byte {
 }()
 
 // Server answers like TMDB. Requests counts every request it was sent. Down makes it answer
-// 503 to everything, as TMDB does when it is unwell.
+// 503 to everything, as TMDB does when it is unwell. Its picture server is apart, as TMDB's
+// is: PictureRequests counts the requests for pictures, PicturesDown makes it answer 503 to
+// them, and PicturesHang makes it never answer, until the request is given up.
 type Server struct {
-	URL      string
-	Requests atomic.Int64
-	Down     atomic.Bool
+	URL             string
+	Requests        atomic.Int64
+	Down            atomic.Bool
+	PictureRequests atomic.Int64
+	PicturesDown    atomic.Bool
+	PicturesHang    atomic.Bool
 }
 
 // New starts a stand-in that stops when the test ends.
@@ -68,6 +73,15 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/t/p/") {
 		// A picture, which TMDB serves without a token: the same small one for every address,
 		// and a drawing for an SVG address, as some of TMDB's logos are.
+		s.PictureRequests.Add(1)
+		switch {
+		case s.PicturesHang.Load():
+			<-r.Context().Done()
+			return
+		case s.PicturesDown.Load():
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
 		if strings.HasSuffix(r.URL.Path, ".svg") {
 			w.Header().Set("Content-Type", "image/svg+xml")
 			w.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="4" height="6"/>`))

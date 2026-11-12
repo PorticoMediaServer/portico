@@ -56,7 +56,7 @@ func TestAPictureFollowsARedirectOnlyWithinItsProvider(t *testing.T) {
 		t.Fatal("a redirect to plain http was followed")
 	}
 	redirectsOverHTTP, redirectsToPrivate = true, false
-	pictureClient.CloseIdleConnections() // a connection made while the test allowed this machine is not reused
+	pictureHTTP.CloseIdleConnections() // a connection made while the test allowed this machine is not reused
 	if _, err := fetchPicture(ctx, within.URL+"/release/1/front"); err == nil {
 		t.Fatal("a redirect to this machine was followed")
 	}
