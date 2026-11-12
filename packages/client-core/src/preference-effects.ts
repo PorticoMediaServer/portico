@@ -95,5 +95,12 @@ export function readingPreferencesPatch(snapshot: PreferenceSnapshot, change: Re
     if (value === undefined) throw new Error(`No value was supplied for the Reading preference ${property}.`);
     patch[readingPreferenceKeys[name]] = value;
   }
-  return validatePreferencePatch(snapshot.registry, 'profile-server', patch);
+  // Each setting is saved in the scope the server publishes for it: the old server kept them for
+  // the profile, the rebuilt one for each device.
+  const out: Record<string, PreferenceValue | null> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    const scopes = snapshot.registry.fields.find(field => field.key === key)?.scopes ?? [];
+    Object.assign(out, validatePreferencePatch(snapshot.registry, scopes.includes('profile-server') ? 'profile-server' : scopes[0] ?? 'profile-server', {[key]: value}));
+  }
+  return Object.freeze(out);
 }
