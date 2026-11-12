@@ -137,6 +137,11 @@ export type ChannelAttachment = Readonly<{generation: number; key: string; seekI
 /** How the engine takes the stream: a file or a live source's own MPEG-TS directly, anything else as HLS. */
 const engineMode = (s: Session): 'direct' | 'hls' =>
   s.kind === 'live' ? (s.presentation.route === 'original' ? 'direct' : 'hls') : s.presentation.mode === 'direct' ? 'direct' : 'hls';
+/**
+ * Where a live stream is joined: its live edge. Live HLS is read by its program dates from the window's oldest moment, so the
+ * edge is that far along; a live source's own stream starts where this device joined it, at media time 0.
+ */
+const liveJoinMs = (s: Session) => engineMode(s) === 'hls' && s.window ? s.window.liveAtMs - s.window.oldestAtMs : 0;
 
 /** The session as the channel projection `PlaybackService.applyChannel` reads. */
 export function channelView(s: Session, channel: ChannelReference, at: ChannelAttachment, timing: Readonly<{now: number; serverNow: number}>): ChannelView {
@@ -145,8 +150,11 @@ export function channelView(s: Session, channel: ChannelReference, at: ChannelAt
   // A Library Channel's timeline is its programme's title, from the programme's start; a live
   // stream's is the stream from where this device joined it.
   const originMs = start ?? s.window?.oldestAtMs ?? 0;
-  const windowEndMs = start !== undefined && end !== undefined ? Math.max(0, end - start) : DAY_MS;
-  const liveEdgeMs = start !== undefined ? Math.min(windowEndMs, Math.max(0, timing.serverNow - start)) : s.window ? s.window.liveAtMs - s.window.oldestAtMs : 0;
+  // Live HLS: the rewind stretch, from its oldest moment to live now. A live source's own stream (counted from where this
+  // device joined) has no stretch to draw: its window reaches a day so a long watch never leaves it.
+  const datedLive = s.kind === 'live' && engineMode(s) === 'hls' && s.window ? Math.max(s.window.liveAtMs, timing.serverNow) - s.window.oldestAtMs : undefined;
+  const windowEndMs = start !== undefined && end !== undefined ? Math.max(0, end - start) : datedLive ?? DAY_MS;
+  const liveEdgeMs = start !== undefined ? Math.min(windowEndMs, Math.max(0, timing.serverNow - start)) : datedLive ?? (s.window ? s.window.liveAtMs - s.window.oldestAtMs : 0);
   const seek = Object.freeze({seekCommandId: at.seekId, bufferGeneration: generation, kind: 'position' as const, positionUs: us(at.targetMs)});
   const desired: ChannelDesired = Object.freeze({state: s.state === 'paused' ? 'paused' : 'playing', seek, retryRequestId: null});
   // The countdown is a server instant: moved onto this device's clock here, at receipt.
@@ -374,7 +382,7 @@ export class V1ChannelControl implements ChannelPlayback {
       if (!s.presentation.url || s.presentation.generation <= 0) return;
       // A new stream (the start, or the server's new presentation): the engine joins it where the
       // server starts it; a live stream from its live edge.
-      a.at = Object.freeze({generation: a.at.generation + 1, key, seekId: this.key(), targetMs: s.kind === 'title' ? s.presentation.startPositionMs : 0});
+      a.at = Object.freeze({generation: a.at.generation + 1, key, seekId: this.key(), targetMs: s.kind === 'title' ? s.presentation.startPositionMs : liveJoinMs(s)});
       a.joined = true;
       this.scheduleRetune(a, s);
     }
@@ -442,7 +450,7 @@ export class V1ChannelControl implements ChannelPlayback {
   }
   /** A live stream joined again from its live edge: a new attachment of the same stream. */
   private reload(a: Active) {
-    a.at = Object.freeze({generation: a.at.generation + 1, key: a.at.key, seekId: this.key(), targetMs: 0});
+    a.at = Object.freeze({generation: a.at.generation + 1, key: a.at.key, seekId: this.key(), targetMs: a.session ? liveJoinMs(a.session) : 0});
     this.emit(a);
   }
 
@@ -492,7 +500,8 @@ export class V1ChannelControl implements ChannelPlayback {
       a.at = Object.freeze({...a.at, ackId: seekId, confirmedMs: positionMs});
       this.emit(a);
       await a.reporter.flush();
-    }
+    } else if (s.kind === 'live' && engineMode(s) === 'hls') this.emit(a); // live moves on: the window's edge follows the server's time
+
     return this.current(a);
   }
 
