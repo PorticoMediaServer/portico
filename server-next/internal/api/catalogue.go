@@ -440,10 +440,10 @@ func itemQuery(query url.Values) (db.ItemQuery, error) {
 		q.PersonRole = parsed
 	}
 	if group := query.Get("creditGroup"); group != "" {
-		if group != "crew" || q.Person == "" || q.PersonRole != 0 {
-			return q, ErrField("creditGroup", "Use creditGroup=crew with one person and without role.")
+		if group != "crew" && group != "acting" || q.Person == "" || q.PersonRole != 0 {
+			return q, ErrField("creditGroup", "Use creditGroup=acting or crew with one person and without role.")
 		}
-		q.PersonCrew = true
+		q.PersonGroup = group
 	}
 	for _, name := range strings.FieldsFunc(query.Get("kind"), func(r rune) bool { return r == ',' }) {
 		kind, ok := db.ParseItemKind(name)

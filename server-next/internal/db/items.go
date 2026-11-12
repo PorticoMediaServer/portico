@@ -84,23 +84,23 @@ const (
 // ItemQuery says which items to list. Library, Parent, Person, Tag, Collection and Series are public ids. At
 // least one of them, or one of the state filters, must be set.
 type ItemQuery struct {
-	Library    string
-	Parent     string
-	Person     string
-	PersonRole CreditRole // with Person: only the titles where the person has this role
-	PersonCrew bool       // with Person: any credit other than acting, each title once
-	Tag        string
-	List       string // a playlist or collection; its own order is read by ListEntries
-	Collection string // a library's collection: the titles it holds
-	Series     string // a series of books, audiobooks or comics: its volumes
-	Genre      string // a genre by name, as people type it
-	Kinds      []ItemKind
-	YearFrom   int
-	YearTo     int
-	Watched    *bool
-	Favorite   *bool
-	InList     *bool
-	Resolution string // "sd", "720p", "1080p" or "4k"
+	Library     string
+	Parent      string
+	Person      string
+	PersonRole  CreditRole // with Person: only the titles where the person has this role
+	PersonGroup string     // with Person: acting (actor or guest) or crew (every other role)
+	Tag         string
+	List        string // a playlist or collection; its own order is read by ListEntries
+	Collection  string // a library's collection: the titles it holds
+	Series      string // a series of books, audiobooks or comics: its volumes
+	Genre       string // a genre by name, as people type it
+	Kinds       []ItemKind
+	YearFrom    int
+	YearTo      int
+	Watched     *bool
+	Favorite    *bool
+	InList      *bool
+	Resolution  string // "sd", "720p", "1080p" or "4k"
 	// Conditions are further filters, each of which can take several values. See Condition.
 	Conditions []Condition
 	Sort       string
@@ -672,8 +672,12 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		if q.PersonRole != 0 {
 			w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = `, fmt.Sprint(person), ` AND role = `, itoa(int64(q.PersonRole)), `)`)
 		}
-		if q.PersonCrew {
-			w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = `, fmt.Sprint(person), ` AND role <> `, itoa(int64(RoleActor)), `)`)
+		if q.PersonGroup != "" {
+			op := "IN"
+			if q.PersonGroup == "crew" {
+				op = "NOT IN"
+			}
+			w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = `, fmt.Sprint(person), ` AND role `, op, ` (`, itoa(int64(RoleActor)), `, `, itoa(int64(RoleGuest)), `))`)
 		}
 		w.person = person
 	}

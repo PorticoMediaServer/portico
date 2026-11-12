@@ -332,7 +332,7 @@ type Person struct {
 	Birthplace string            `json:"birthplace,omitempty"`
 	Images     map[string]string `json:"images"`
 	TitleCount *int              `json:"titleCount,omitempty"`
-	// CrewTitleCount, on GET /v1/people/{id}: titles crediting the person in any non-acting role.
+	// CrewTitleCount, on GET /v1/people/{id}: titles crediting the person in any non-acting role (neither actor nor guest).
 	CrewTitleCount *int `json:"crewTitleCount,omitempty"`
 	// Roles, on GET /v1/people/{id}: each role the person has on titles the caller may see,
 	// with how many, most first. A person page's groups (Acting, Directing, ...); one group's

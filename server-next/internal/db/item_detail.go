@@ -381,7 +381,7 @@ func (d *DB) Person(ctx context.Context, v Viewer, publicID string) (Person, err
 	err = tx.QueryRowContext(ctx, `SELECT p.id, p.public_id, p.name, ifnull(p.biography, ''), ifnull(p.birth_date, ''),
 		ifnull(p.death_date, ''), ifnull(p.birthplace, ''),
 		(SELECT count(DISTINCT i.id) FROM credits c JOIN items i ON i.id = c.item_id WHERE c.person_id = p.id AND `+acc.visible("i")+`),
-		(SELECT count(DISTINCT i.id) FROM credits c JOIN items i ON i.id = c.item_id WHERE c.person_id = p.id AND c.role <> `+itoa(int64(RoleActor))+` AND `+acc.visible("i")+`)
+		(SELECT count(DISTINCT i.id) FROM credits c JOIN items i ON i.id = c.item_id WHERE c.person_id = p.id AND c.role NOT IN (`+itoa(int64(RoleActor))+`, `+itoa(int64(RoleGuest))+`) AND `+acc.visible("i")+`)
 		FROM people p WHERE p.public_id = ?`, publicID).
 		Scan(&id, &p.PublicID, &p.Name, &p.Biography, &p.BirthDate, &p.DeathDate, &p.Birthplace, &p.Titles, &p.CrewTitles)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && p.Titles == 0 {
