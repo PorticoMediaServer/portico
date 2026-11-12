@@ -298,6 +298,9 @@ func newRcloneRemote(ctx context.Context, rc *RcloneSettings) error {
 		return ErrField("rclone", "Paste a remote, or give its type and options, not both.")
 	}
 	config, err := remote.NewRcloneRemote(ctx, rc.Type, rc.Options)
+	if errors.Is(err, remote.ErrRcloneMissing) {
+		return reachRefusal(err)
+	}
 	if err != nil {
 		return ErrField("rclone", "The remote could not be made: "+err.Error()+".")
 	}
@@ -504,6 +507,10 @@ func reachRefusal(err error) error {
 	switch {
 	case err == nil:
 		return nil
+	case errors.Is(err, remote.ErrRcloneMissing):
+		// Nothing was asked of the source: the server could not start rclone.
+		return refusal(http.StatusUnprocessableEntity, "rclone_unavailable",
+			"Portico could not start rclone, which it uses to reach this kind of source: reinstall Portico, or point PORTICO_RCLONE at an rclone program.", false)
 	case errors.Is(err, remote.ErrAddressRefused):
 		return refusal(http.StatusUnprocessableEntity, "source_address_refused", "That address is link-local, where a cloud machine keeps its own sign-in: Portico never reads from one.", false)
 	case errors.Is(err, remote.ErrRedirectInward):
