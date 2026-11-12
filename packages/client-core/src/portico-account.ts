@@ -146,6 +146,15 @@ export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false, f
       : anyone<{id: string; authorizeUrl: string}>('providerStart', {}, {provider, secretHash}),
     completeProvider: (flow: string, code: string, secret: string, device: Device, chosen: {username?: string; displayName?: string} = {}) =>
       anyone<ProviderCompletion>('providerComplete', {}, {id: flow, code, secret, device, ...chosen}, {create: true}).then(tokensKept),
+    /** A fresh provider flow bound to this PIN request. It never starts/adopts an account session. */
+    startPINProvider: (provider: Provider, secretHash: string, pin: {serverId: string; challenge: string}, signal?: AbortSignal) =>
+      person<{id: string; authorizeUrl: string}>('providerStart', {}, {provider, secretHash, pin}, {signal}),
+    completePINProvider: (id: string, code: string, secret: string, twoStepCode: string, signal?: AbortSignal) =>
+      anyone<{identity: unknown}>('providerComplete', {}, {id, code, secret, ...(twoStepCode ? {twoStepCode} : {})}, {signal}),
+    startPINApple: (pin: {serverId: string; challenge: string}, signal?: AbortSignal) =>
+      person<{id: string; nonce: string}>('providerStart', {}, {provider: 'apple', kind: 'app', pin}, {signal}),
+    completePINApple: (id: string, identityToken: string, twoStepCode: string, signal?: AbortSignal) =>
+      anyone<{identity: unknown}>('providerApple', {}, {id, identityToken, ...(twoStepCode ? {twoStepCode} : {})}, {signal}),
     /** For an app's own sign-in store, which renews and ends the sign-ins it keeps itself. */
     renewWith: (refreshToken: string, signal?: AbortSignal) => anyone<Tokens>('refresh', {}, {refreshToken}, {signal}),
     endWith: (accessToken: string, signal?: AbortSignal) => anyone<void>('signOut', {}, undefined, {token: accessToken, signal}),

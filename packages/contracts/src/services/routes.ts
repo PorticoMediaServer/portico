@@ -12,6 +12,7 @@ export const servicesRoutes = {
   twoStepSignIn: ['POST', '/v1/sessions/two-step'],
   providerStart: ['POST', '/v1/sessions/provider'],
   providerComplete: ['POST', '/v1/sessions/provider/complete'],
+  providerApple: ['POST', '/v1/sessions/apple'],
   refresh: ['POST', '/v1/sessions/refresh'],
   signOut: ['DELETE', '/v1/sessions/current'],
   account: ['GET', '/v1/account'],

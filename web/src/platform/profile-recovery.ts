@@ -1,5 +1,7 @@
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import type {DirectSnapshot} from '@core/profile-management.ts';
+import type {PINProviderCode} from '@core/portico-pin-provider.ts';
+import type {Provider} from '@core/portico-account.ts';
 import type {SignInKind} from '@core/app-sessions.ts';
 import {account, accountSession} from '../services/account-session';
 import {porticoAccountHolder} from './portico-account-holder';
@@ -32,6 +34,10 @@ export class BrowserProfileRecovery {
   async porticoPassword(password: string, twoStepCode = '') {
     const source = await browserPorticoPINProof();
     if (!this.disposed) await this.flow.porticoPassword(password, twoStepCode, source);
+  }
+  /** The account-pages return flow supplies its captured Services source; an own-address page has no Services cookie. */
+  porticoProvider(provider: Provider, twoStepCode: PINProviderCode, source: PorticoPINProofSource) {
+    if (!this.disposed) return this.flow.porticoProvider(provider, twoStepCode, source);
   }
   code(code: string) {return this.flow.code(code);}
   reset(pin: string) {return this.flow.reset(pin);}
