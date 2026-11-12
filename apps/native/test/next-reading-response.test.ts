@@ -105,7 +105,7 @@ test('Discover and a series\' volumes read on a phone, and a retired sign-in sen
     const series = await client.series('comics', 'itm_series', {limit: 30});
     assert.deepEqual(series.items.map(item => item.id), ['one']);
     assert.deepEqual((await client.series('comics', 'itm_series', {limit: 30, cursor: series.nextCursor})).items, []);
-    assert.equal(seen[1].searchParams.get('parent'), 'itm_series'); assert.equal(seen[2].searchParams.get('cursor'), 'more');
+    assert.equal(seen[1].searchParams.get('series'), 'itm_series'); assert.equal(seen[2].searchParams.get('cursor'), 'more');
     current = false;
     await assert.rejects(client.series('comics', 'itm_series', {limit: 30}), error => error instanceof ReadingError && error.code === 'cancelled');
     assert.equal(seen.length, 3, 'a retired sign-in sends nothing more');

@@ -60,6 +60,6 @@ test('Continue reading is the library landing row, or Home\'s, each title with t
 test('a series lists its volumes in volume order', async () => {
   const {calls, reading} = server(() => ({items: [wire('itm_1', 'issue'), wire('itm_2', 'issue')]}));
   const page = await reading.series('lib_books', 'itm_series', {limit: 30});
-  assert.deepEqual(Object.fromEntries(calls[0].searchParams), {parent: 'itm_series', sort: 'order', limit: '30'});
+  assert.deepEqual(Object.fromEntries(calls[0].searchParams), {series: 'itm_series', sort: 'order', limit: '30'});
   assert.deepEqual(page.items.map(item => item.id), ['itm_1', 'itm_2']);
 });
