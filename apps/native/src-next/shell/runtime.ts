@@ -98,7 +98,9 @@ export interface NativeShellRuntime {
   /** `listening`: the TV listening screen is up (W-9). It covers the route pages like the expanded
    * player does, even before or without the dock's own expanded flag. */
   /** TV: `covered` comes from the shell's layer stack (true unless a route is the top layer); `hostRef` is the route layer's host. */
-  renderRoutes: (options?: Readonly<{covered?: boolean; hostRef?: React.Ref<import('react-native').View>}>) => ReactNode;
+  renderRoutes: (options?: Readonly<{covered?: boolean; hostRef?: React.Ref<import('react-native').View>;
+    /** TV: the closed rail drawn over a pushed page and under that page's own sheets. */
+    rail?: ReactNode}>) => ReactNode;
   stacks?: NativeTouchStacksPort;
   /** Persistent watch chrome above the one native picture surface. */
   renderWatch?: () => ReactNode;

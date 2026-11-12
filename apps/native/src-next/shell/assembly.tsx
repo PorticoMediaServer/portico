@@ -507,6 +507,7 @@ export function createNativeShellBindings(context: NativeShellBootstrapContext):
             screen, and with no route open, the route layer is covered: nothing in it takes D-pad focus and the
             empty container never holds focus over the page (W-9, W-12). Overlays and music navigation stay above. */}
         {Platform.isTV ? <CoveredLayer covered={options?.covered ?? route.kind === 'shell'} hostRef={options?.hostRef} style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0}} testID="native-shell-routes">{pages}</CoveredLayer> : pages}
+        {options?.rail}
         {musicNavigation.render()}
         {(routes.renderOverlays(runtime) ?? []).map((node, index) => <React.Fragment key={index}>{node}</React.Fragment>)}
       </View> : null;

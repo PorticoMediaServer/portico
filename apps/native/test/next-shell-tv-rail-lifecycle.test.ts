@@ -51,7 +51,7 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     // This fixture forwards the production effect's dependency list verbatim.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
-  let railBack: (() => boolean) | undefined, tree: any, root: any, sessionRenders = 0;
+  let railBack: (() => boolean) | undefined, tree: any, root: any, routeRail: any, sessionRenders = 0;
   let snapshot: any = {authority, destination: {kind: 'home'}, libraries: [], hasLiveTV: false, profile: {}, account: {actions: []}, selectionActive: false,
     homeVisible: true, homeObscured: false, mediaExpanded: false};
   const navigations: unknown[] = [], tops: unknown[] = [], menuCapture: boolean[] = [];
@@ -73,7 +73,8 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     memory: {read: async () => undefined, remember: async () => {}},
     registerTVRailBack: (fn: () => boolean) => {railBack = fn; return () => {railBack = undefined;};},
     // The route layer's host, as assembly.renderRoutes attaches it: a claim into the route layer asks it.
-    renderRoutes(options: any) {if (options?.hostRef) options.hostRef.current = {requestTVFocus() {requests.push('layer-claim');}};}, renderSelection() {}, renderDestination() {}};
+    // The rail is drawn in the route layer, so it reaches the routes through this option.
+    renderRoutes(options: any) {routeRail = options?.rail; if (options?.hostRef) options.hostRef.current = {requestTVFocus() {requests.push('layer-claim');}};}, renderSelection() {}, renderDestination() {}};
   const {NativeShell} = await screenModule(new URL('../src-next/shell/NativeShell.tsx', import.meta.url), {...stackSlotFixture,
     '../screens/home/home-start': homeStart,
     '../kit/overlays/SurfacePaintHost': surfacePaintFixture,
@@ -106,7 +107,7 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     const session = nodes(root).find(node => node.type?.name === 'ShellSession');
     sessionHost = createFabricHookHost(() => {sessionRenders++; tree = session.type({runtime, snapshot});});
     await act(async () => {await sessionHost!.mount();});
-    const rail = () => nodes(tree).find(node => node.type === 'TVRail');
+    const rail = () => nodes(routeRail).find(node => node.type === 'TVRail');
     // The page layer's own host (its CoveredLayer): the last fallback when nothing on the page can be restored.
     nodes(tree).find(node => node.type === 'CoveredLayer').props.hostRef.current = {requestTVFocus() {requests.push('page-claim');}};
     const beforeUnrelated = sessionRenders;
