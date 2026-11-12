@@ -31,10 +31,13 @@ export interface CredentialStorage<Authority = string> {
 export interface CredentialApi<Authority = string> {
   readonly origin?: string;
   authorityFromSession(session: HostedSession): Authority;
+  /** `previous` is the session being renewed, for a service whose answer carries only the new
+   * tokens (Portico Services): the account and sign-in it belongs to come from it. */
   refresh(
     authority: Authority,
     requestId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    previous?: HostedSession
   ): Promise<HostedSession>;
   revoke(authority: Authority, signal?: AbortSignal): Promise<void>;
   /** Shared circuit for this account service; automatic work defers to it. */
@@ -366,7 +369,7 @@ export class CredentialSessionService<Authority = string> {
     try {
       const session = await this.bounded((signal) =>
         this.api
-          .refresh(authority, pending.pendingRequestId!, signal)
+          .refresh(authority, pending.pendingRequestId!, signal, pending.session)
           .then((value) => {
             if (generation !== this.generation)
               void this.compensate(value);
