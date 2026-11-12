@@ -62,6 +62,7 @@ func (s *Server) catalogueRoutes() {
 		}
 		out := Library{ID: l.PublicID, Name: l.Name, Kind: l.Kind}
 		out.Views, out.Sorts, out.Filters = browseBy(l.Kind)
+		out.Views = append(out.Views, s.periodicalViews(r, l)...)
 		return out, nil
 	})
 	// A library's landing page (its Discover tab): Home's rows, for this library alone, in the
@@ -97,6 +98,7 @@ func (s *Server) catalogueRoutes() {
 		return Home{Rows: shownRows([]HomeRow{
 			{ID: "continue", Title: title, Shape: shape, Items: itemShapes(continuing)},
 			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: itemShapes(recent)},
+			s.newIssuesRow(r, l),
 		})}, nil
 	})
 	Handle(s, "GET /v1/items", WithProfile, func(r *http.Request, _ None) (ItemPage, error) {
@@ -366,7 +368,8 @@ func browseBy(kind string) ([]View, []Sort, []Filter) {
 	if kind == db.LibraryComics {
 		reading = []View{{"comic"}, {"series"}}
 	}
-	return reading, append(sorts[:3:3], ownSorts...), append(filters, Filter{ID: "author", Type: "person"})
+	return reading, append(sorts[:3:3], ownSorts...), append(filters, Filter{ID: "author", Type: "person"},
+		Filter{ID: "publication", Type: "choice", Values: []string{"book", "magazine", "newspaper"}})
 }
 
 // defaultOrder is the direction a sort starts in when the request does not say.
@@ -404,6 +407,13 @@ func limitParam(query url.Values) (int, error) {
 func itemQuery(query url.Values) (db.ItemQuery, error) {
 	q := db.ItemQuery{Library: query.Get("library"), Parent: query.Get("parent"), Sort: query.Get("sort"), Cursor: query.Get("cursor"), List: query.Get("list"),
 		Collection: query.Get("collection"), Series: query.Get("series")}
+	if name := query.Get("publication"); name != "" {
+		p, ok := db.ParsePublication(name)
+		if !ok {
+			return q, ErrField("publication", "Use book, magazine or newspaper.")
+		}
+		q.Publication = &p
+	}
 	// A filter may be sent more than once, and each time as "v", "v1,v2", or with how its
 	// values combine in front: "any:v1,v2", "all:v1,v2", "none:v1,v2". A value that holds
 	// a comma goes in the body of POST /v1/items/query instead.

@@ -74,25 +74,26 @@ func (d MetadataDocument) reply(h http.Header) int { etag(h, d.Revision); return
 // A list sent replaces the whole list. Lock and Unlock name fields to lock or unlock without
 // changing them; LockAll and UnlockAll do every field, list and the match.
 type MetadataPatch struct {
-	Title         *string           `json:"title,omitempty"`
-	SortTitle     *string           `json:"sortTitle,omitempty"`
-	OriginalTitle *string           `json:"originalTitle,omitempty"`
-	Edition       *string           `json:"edition,omitempty"`
-	Tagline       *string           `json:"tagline,omitempty"`
-	Summary       *string           `json:"summary,omitempty"`
-	Year          *int              `json:"year,omitempty"`
-	ReleaseDate   *string           `json:"releaseDate,omitempty"`
-	ContentRating *string           `json:"contentRating,omitempty"`
-	Genres        *[]string         `json:"genres,omitempty"`
-	Studios       *[]string         `json:"studios,omitempty"`
-	Networks      *[]string         `json:"networks,omitempty"`
-	Countries     *[]string         `json:"countries,omitempty"`
-	Labels        *[]string         `json:"labels,omitempty"`
-	Credits       *[]MetadataCredit `json:"credits,omitempty"`
-	Lock          []string          `json:"lock,omitempty"`
-	Unlock        []string          `json:"unlock,omitempty"`
-	LockAll       bool              `json:"lockAll,omitempty"`
-	UnlockAll     bool              `json:"unlockAll,omitempty"`
+	Title           *string           `json:"title,omitempty"`
+	SortTitle       *string           `json:"sortTitle,omitempty"`
+	OriginalTitle   *string           `json:"originalTitle,omitempty"`
+	PublicationType *string           `json:"publicationType,omitempty"`
+	Edition         *string           `json:"edition,omitempty"`
+	Tagline         *string           `json:"tagline,omitempty"`
+	Summary         *string           `json:"summary,omitempty"`
+	Year            *int              `json:"year,omitempty"`
+	ReleaseDate     *string           `json:"releaseDate,omitempty"`
+	ContentRating   *string           `json:"contentRating,omitempty"`
+	Genres          *[]string         `json:"genres,omitempty"`
+	Studios         *[]string         `json:"studios,omitempty"`
+	Networks        *[]string         `json:"networks,omitempty"`
+	Countries       *[]string         `json:"countries,omitempty"`
+	Labels          *[]string         `json:"labels,omitempty"`
+	Credits         *[]MetadataCredit `json:"credits,omitempty"`
+	Lock            []string          `json:"lock,omitempty"`
+	Unlock          []string          `json:"unlock,omitempty"`
+	LockAll         bool              `json:"lockAll,omitempty"`
+	UnlockAll       bool              `json:"unlockAll,omitempty"`
 }
 
 // MetadataHistoryEntry is one change a person made: fields_edited, artwork_chosen,
@@ -185,6 +186,9 @@ func (s *Server) document(r *http.Request, id string) (MetadataDocument, error) 
 	if !ok {
 		offer = otherFields
 	}
+	if doc.Kind.Reading() {
+		offer.fields = append(append([]string{}, offer.fields...), db.FieldPublicationType, db.FieldReleaseDate)
+	}
 	out := MetadataDocument{ItemID: id, Kind: doc.Kind.String(), Revision: strconv.FormatInt(doc.Revision, 10),
 		Fields: map[string]MetadataField{}, Lists: map[string]MetadataList{},
 		Match: MetadataMatch{State: doc.Match.String(), Locked: locked[db.FieldMatch] || doc.Match == db.MatchChosen, IDs: map[string]string{}}}
@@ -223,7 +227,7 @@ func (s *Server) editMetadata(r *http.Request, req MetadataPatch) (MetadataDocum
 		return MetadataDocument{}, refusal(http.StatusPreconditionRequired, "if_match_required", "Send the title's revision in If-Match.", false)
 	}
 	revision, _ := strconv.ParseInt(header, 10, 64)
-	edit := db.MetadataEdit{Title: req.Title, SortTitle: req.SortTitle, OriginalTitle: req.OriginalTitle, Edition: req.Edition, Tagline: req.Tagline,
+	edit := db.MetadataEdit{PublicationType: req.PublicationType, Title: req.Title, SortTitle: req.SortTitle, OriginalTitle: req.OriginalTitle, Edition: req.Edition, Tagline: req.Tagline,
 		Summary: req.Summary, Year: req.Year, ReleaseDate: req.ReleaseDate, ContentRating: req.ContentRating, Genres: req.Genres, Studios: req.Studios,
 		Networks: req.Networks, Countries: req.Countries, Labels: req.Labels, Lock: req.Lock, Unlock: req.Unlock, LockAll: req.LockAll, UnlockAll: req.UnlockAll}
 	if req.Credits != nil {

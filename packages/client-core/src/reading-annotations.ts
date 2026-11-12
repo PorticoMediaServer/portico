@@ -3,7 +3,7 @@ import type {PutReadingSessionsSessionIdProgressRequest} from '../../contracts/s
 export type ReadingAnnotationLocation = Readonly<PutReadingSessionsSessionIdProgressRequest['location']>;
 export type ReadingAnnotationRect = Readonly<{x: number; y: number; width: number; height: number}>;
 export type ReadingAnnotationContent = Readonly<{id: string; kind: 'bookmark' | 'highlight'; location: ReadingAnnotationLocation; text: string; note: string; colour: '' | 'yellow' | 'green' | 'blue' | 'pink'; rects?: readonly ReadingAnnotationRect[]}>;
-export type ReadingAnnotation = ReadingAnnotationContent & Readonly<{createdAt: number; updatedAt: number}>;
+export type ReadingAnnotation = ReadingAnnotationContent & Readonly<{createdAt: number; updatedAt: number; earlierCopy?: true}>;
 export type ReadingAnnotationsPage = Readonly<{sourceId: string; sourceRevision: string; revision: number; entries: readonly ReadingAnnotation[]; nextCursor: string}>;
 export type ReadingAnnotationMutation = Readonly<{expectedRevision: number; operation: 'delete'; id: string}> | (ReadingAnnotationContent & Readonly<{expectedRevision: number; operation: 'upsert'}>);
 export type ReadingAnnotationPort = Readonly<{

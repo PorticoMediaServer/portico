@@ -44,8 +44,10 @@ function place(raw: unknown): Place | undefined {
 export function readingItem(item: WireItem, format = ''): ReadingItem | undefined {
   if (!object(item) || !text(item.id, 128) || !text(item.title) || !text(item.libraryId, 128) || !['book', 'comic', 'issue'].includes(item.kind)) return undefined;
   const coverUrl = cover(item);
+  const publicationType = (item as WireItem & {publicationType?: string}).publicationType;
   return Object.freeze({id: item.id, libraryId: item.libraryId, title: item.title, format, sourceId: item.id, inventoryAvailable: true,
     ...(coverUrl ? {coverUrl} : {}),
+    ...(publicationType ? {publicationType: {value: publicationType, source: 'file'}} : {}),
     readingMark: Object.freeze({itemId: item.id, read: item.state?.watched === true, revision: 0})});
 }
 
