@@ -9,11 +9,11 @@ import (
 	"time"
 )
 
-// The owner's Play history: every finished play on the server, for the owner and the
+// The owner's Play history: every play on the server, for the owner and the
 // administrators. It is in time order only. A filter by kind or text, and the summary, read
 // the plays of their range: an accepted cost on this page, bounded at a million plays.
 
-// Play is one finished play.
+// Play is one play.
 type Play struct {
 	ID          int64
 	PlayedAt    time.Time
@@ -31,12 +31,17 @@ type Play struct {
 	WatchedMS  int64
 	Away       bool
 	Delivery   PlayDelivery
+	// Withheld says the asker may not see this play's title: its library is not theirs (or is
+	// gone, and they do not have every library). Title, Subtitle, ItemID and the library are
+	// then blank; the person, device, time, watched time, Home or Away and delivery stay.
+	Withheld bool
 }
 
 // PlayQuery picks plays. Times bound played_at; zero is no bound.
 type PlayQuery struct {
-	// Asker is who is reading: an administrator whose account is held to some libraries
-	// reads only the plays in those (and plays whose library is gone).
+	// Asker is who is reading. An administrator whose account is held to some libraries reads
+	// every play in the list, with the titles of the plays outside those withheld (the lead's
+	// ruling, 12 Nov, as Now playing withholds them); the summary counts only plays in those.
 	Asker     int64
 	AccountID string
 	LibraryID string
@@ -99,14 +104,37 @@ func (q PlayQuery) filtered() (string, []any) {
 // whatever the filter, where reading until a page is full took seconds.
 const playsWindow = 50_000
 
+// listFiltered is filtered for the list: every play, whatever the asker may see, except that a
+// text search matches only titles the asker may see and a library filter only a library they may.
+func (q PlayQuery) listFiltered() (string, []any) {
+	where := []string{`1 = 1`}
+	var args []any
+	if q.LibraryID != "" {
+		where, args = append(where, accountSees("h.library_id")), append(args, accountSeesArgs(q.Asker)...)
+	}
+	if len(q.Kinds) > 0 {
+		marks := strings.TrimSuffix(strings.Repeat("?,", len(q.Kinds)), ",")
+		where = append(where, `h.item_kind IN (`+marks+`)`)
+		for _, k := range q.Kinds {
+			args = append(args, k)
+		}
+	}
+	if q.Text != "" {
+		escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(q.Text)
+		where = append(where, accountSees("h.library_id")+` AND (h.title LIKE ? ESCAPE '\' OR h.subtitle LIKE ? ESCAPE '\')`)
+		args = append(append(args, accountSeesArgs(q.Asker)...), "%"+escaped+"%", "%"+escaped+"%")
+	}
+	return strings.Join(where, " AND "), args
+}
+
 // Plays lists plays newest first. next is the cursor of the next page, 0 at the end: the last
 // play of the page, or, when the window ran out before the page was full, the last play read.
 func (d *DB) Plays(ctx context.Context, q PlayQuery) (out []Play, next int64, err error) {
 	indexed, iargs := q.indexed()
-	filtered, fargs := q.filtered()
+	filtered, fargs := q.listFiltered()
 	var edgeAt, edgeID int64
 	err = d.read.QueryRowContext(ctx, `SELECT h.played_at, h.id FROM play_history h WHERE `+indexed+`
-		ORDER BY h.played_at DESC, h.id DESC LIMIT 1 OFFSET ?`, append(iargs, playsWindow-1)...).Scan(&edgeAt, &edgeID)
+		ORDER BY h.played_at DESC, h.id DESC LIMIT 1 OFFSET ?`, append(append([]any{}, iargs...), playsWindow-1)...).Scan(&edgeAt, &edgeID)
 	window := ""
 	switch {
 	case err == nil:
@@ -116,13 +144,13 @@ func (d *DB) Plays(ctx context.Context, q PlayQuery) (out []Play, next int64, er
 	default:
 		return nil, 0, err
 	}
-	args := append(append([]any{}, iargs...), fargs...)
+	args := append(append(accountSeesArgs(q.Asker), iargs...), fargs...)
 	if window != "" {
 		args = append(args, edgeAt, edgeID)
 	}
 	rows, err := d.read.QueryContext(ctx, `SELECT h.id, h.played_at, h.account_name, h.profile_name, ifnull(u.public_id, ''),
 		ifnull(l.public_id, ''), ifnull(l.name, ''), ifnull(i.public_id, ''), h.item_kind, h.title, ifnull(h.subtitle, ''), h.device_name,
-		ifnull(h.watched_ms, 0), h.away, h.delivery
+		ifnull(h.watched_ms, 0), h.away, h.delivery, ifnull(`+accountSees("h.library_id")+`, 0)
 		FROM play_history h LEFT JOIN users u ON u.id = h.user_id LEFT JOIN libraries l ON l.id = h.library_id LEFT JOIN items i ON i.id = h.item_id
 		WHERE `+indexed+` AND `+filtered+window+` ORDER BY h.played_at DESC, h.id DESC LIMIT ?`, append(args, q.Limit+1)...)
 	if err != nil {
@@ -132,9 +160,13 @@ func (d *DB) Plays(ctx context.Context, q PlayQuery) (out []Play, next int64, er
 	for rows.Next() {
 		var p Play
 		var at int64
+		var sees bool
 		if err := rows.Scan(&p.ID, &at, &p.AccountName, &p.ProfileName, &p.AccountID, &p.LibraryID, &p.LibraryName, &p.ItemID, &p.Kind,
-			&p.Title, &p.Subtitle, &p.DeviceName, &p.WatchedMS, &p.Away, &p.Delivery); err != nil {
+			&p.Title, &p.Subtitle, &p.DeviceName, &p.WatchedMS, &p.Away, &p.Delivery, &sees); err != nil {
 			return nil, 0, err
+		}
+		if !sees {
+			p.Withheld, p.Title, p.Subtitle, p.ItemID, p.LibraryID, p.LibraryName = true, "", "", "", "", ""
 		}
 		p.PlayedAt = time.UnixMilli(at)
 		out = append(out, p)

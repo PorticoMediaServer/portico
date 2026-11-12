@@ -384,14 +384,16 @@ type PlayRecord struct {
 	AccountName string
 }
 
-// PlayRecords lists a profile's finished plays, newest first, for the owner: it includes
+// PlayRecords lists a profile's plays, newest first, for the owner (a playing short of the
+// watched point included): it includes
 // plays made while the profile had its history paused. Anything shown to the profile itself
 // must leave out the rows with HiddenFromProfile.
 func (d *DB) PlayRecords(ctx context.Context, profileID int64, limit int) ([]PlayRecord, error) {
 	return d.playRecords(ctx, `WHERE profile_id = ?`, profileID, limit)
 }
 
-// ServerPlayRecords lists the finished plays of the whole server, newest first, for the
+// ServerPlayRecords lists the plays of the whole server (a playing short of the watched point
+// included), newest first, for the
 // owner and admins. It is kept for good: a play is still here, under the names its title, its
 // profile and its account had, after any of them has been deleted.
 func (d *DB) ServerPlayRecords(ctx context.Context, limit int) ([]PlayRecord, error) {
@@ -721,6 +723,11 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 		if err != nil {
 			return false, err
 		}
+		// The owner's record of this playing so far is replaced by the finished play, and a
+		// finished play that goes on (the credits) keeps its watched time growing.
+		if err := w.playedThrough(sample, id); err != nil {
+			return false, err
+		}
 		if n, _ := res.RowsAffected(); n == 0 || paused {
 			// Already counted; or history is paused, and the play is the owner's record only.
 			return true, nil
@@ -738,6 +745,9 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 			return false, err
 		}
 		return true, appendChange(w.tx, Change{At: w.now, Topic: TopicState, Op: OpUpdated, RefID: id, ProfileID: w.viewer.ProfileID})
+	}
+	if err := w.recordPlaying(sample, id, kind, title, holder, duration); err != nil {
+		return false, err
 	}
 	if kind == KindTrack || paused {
 		return false, nil
@@ -760,6 +770,60 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 		err = nil
 	}
 	return false, err
+}
+
+// The owner's Play history lists every play on the server (console rule 16), a profile's own
+// History only the finished ones (personal state rule 18). A playing that has not reached the
+// watched point is in the owner's record as its own row: client_event_id is the PlayID with
+// playingSuffix, hidden from the profile, unaffected by Pause history, its watched time raised
+// at each save. Since every save writes it, it is there however the playing ends: a stop, a
+// stop from the Dashboard, a device that goes quiet, or the server stopping. When the playing
+// reaches the watched point the finished row (the PlayID itself) takes its place, so a play
+// is listed once.
+const playingSuffix = "~playing"
+
+// playedOne is how long a playing must have played to be listed: one that never played a
+// second leaves nothing.
+const playedOne = 1000
+
+// recordPlaying writes or updates the owner's row for a playing short of the watched point.
+func (w *stateWriter) recordPlaying(sample Progress, id int64, kind ItemKind, title, holder string, duration int64) error {
+	watched := max(sample.WatchedMS, 0)
+	if duration > 0 {
+		watched = min(watched, duration)
+	}
+	if watched < playedOne {
+		return nil
+	}
+	// A playing that finished and was then sought back is the finished play; only its time grows.
+	res, err := w.exec(`UPDATE play_history SET watched_ms = max(ifnull(watched_ms, 0), ?3) WHERE profile_id = ?1 AND client_event_id = ?2`,
+		w.viewer.ProfileID, sample.PlayID, watched)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	_, err = w.exec(`INSERT INTO play_history (profile_id, profile_name, account_name, item_id, device_id, client_event_id, played_at,
+		watched_ms, item_kind, title, subtitle, hidden_from_profile, user_id, library_id, device_name, away, delivery)
+		SELECT p.id, p.name, u.username, ?1, ?2, ?3, ?4, ?5, ?6, ?7, nullif(?8, ''), 1, u.id,
+			(SELECT library_id FROM items WHERE id = ?1), ifnull((SELECT name FROM devices WHERE id = ?2), ''), ?10, ?11
+		FROM profiles p JOIN users u ON u.id = p.user_id WHERE p.id = ?9
+		ON CONFLICT (profile_id, client_event_id) DO UPDATE SET watched_ms = max(ifnull(watched_ms, 0), excluded.watched_ms)`,
+		id, nz(sample.DeviceID), sample.PlayID+playingSuffix, sample.At.UnixMilli(), watched, kind, title, holder, w.viewer.ProfileID,
+		sample.Away, sample.Delivery)
+	return err
+}
+
+// playedThrough removes the owner's row for a playing that has now finished, and raises the
+// finished row's watched time to what has played.
+func (w *stateWriter) playedThrough(sample Progress, id int64) error {
+	if _, err := w.exec(`DELETE FROM play_history WHERE profile_id = ? AND client_event_id = ?`, w.viewer.ProfileID, sample.PlayID+playingSuffix); err != nil {
+		return err
+	}
+	_, err := w.exec(`UPDATE play_history SET watched_ms = max(ifnull(watched_ms, 0), ?3) WHERE profile_id = ?1 AND client_event_id = ?2`,
+		w.viewer.ProfileID, sample.PlayID, max(sample.WatchedMS, 0))
+	return err
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
