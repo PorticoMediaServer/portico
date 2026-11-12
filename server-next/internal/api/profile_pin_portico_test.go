@@ -14,6 +14,11 @@ import (
 // Portico Account is refused even with a real note; nobody reaches another account's profile
 // this way; and the account's other device on that profile is sent back to the chooser.
 func TestAForgottenPINIsReplacedWithTheAccountsOwnPorticoAccount(t *testing.T) {
+	t.Run("password checked", func(t *testing.T) { testForgottenPorticoPIN(t, false) })
+	t.Run("fresh provider checked", func(t *testing.T) { testForgottenPorticoPIN(t, true) })
+}
+
+func testForgottenPorticoPIN(t *testing.T, provider bool) {
 	p := newPorticoRig(t)
 	p.link(accountJustin)
 	_, _, sam := p.signIn(accountSam, p.invite(), 4) // a member, before anything below changes
@@ -38,7 +43,8 @@ func TestAForgottenPINIsReplacedWithTheAccountsOwnPorticoAccount(t *testing.T) {
 		challenge := p.challenge()
 		note := p.fake.Sign(trust.Identity{Kind: trust.IdentityKind, AccountID: account.ID, Username: account.Username,
 			DisplayName: account.DisplayName, Email: account.Email, ServerID: p.s.id, Challenge: challenge, Nonce: "n",
-			IssuedAt: p.clock.Now(), ExpiresAt: p.clock.Now().Add(5 * time.Minute), Pictures: []trust.Picture{}, PasswordChecked: checked})
+			IssuedAt: p.clock.Now(), ExpiresAt: p.clock.Now().Add(5 * time.Minute), Pictures: []trust.Picture{},
+			PasswordChecked: checked && !provider, ProviderChecked: checked && provider})
 		raw, _ := json.Marshal(note)
 		return ProfilePIN{PIN: "5678", Challenge: challenge, Identity: raw}
 	}

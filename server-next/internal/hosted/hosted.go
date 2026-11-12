@@ -106,6 +106,8 @@ type Account struct {
 	Email string
 	// PasswordChecked comes only from a verified sign-in note, never an approval.
 	PasswordChecked bool
+	// ProviderChecked is a verified fresh provider proof for a password-less account.
+	ProviderChecked bool
 }
 
 // Picture is where one profile's picture can be read. See trust.Picture.
