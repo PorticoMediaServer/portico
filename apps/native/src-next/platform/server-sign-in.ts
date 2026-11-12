@@ -8,7 +8,7 @@ import {ServerSignInProbe, parseServerSignIn, type ServerSignIn} from '../../../
 import {negotiateNativeServer} from './negotiation';
 import {boundedPick, type PickTrace} from './pick-deadline';
 import {logPickFailure, provenIdentityMismatch} from './pick-failure';
-import {directSignIn, directSignInContinuation, completeDirectSignInChallenge, selectDirectProfile, parseDirectSnapshot, type DirectSignIn, type DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
+import {directSignIn, directSignInContinuation, completeDirectSignInChallenge, keepSignInRenewal, selectDirectProfile, parseDirectSnapshot, type DirectSignIn, type DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
 import {connectHostedServer, connectPairedServer, connectPairedPorticoServer, inspectDirectServer} from '../../../../packages/client-core/src/server-connections';
 import {knownServerRoutes, type NewServerConnection, type AppServerSession} from '../../../../packages/client-core/src/app-sessions';
 import {porticoSignIn, acceptPorticoInvitation, acceptShortPorticoInvitation} from '../../../../packages/client-core/src/portico-servers';
@@ -442,11 +442,12 @@ export class NativeServerSignIn {
   chooseProfile(profileId: string, pin?: string, remember = false) {
     return this.run(async () => {
       if (!this.api || !this.snapshot || !this.account || !this.snapshot.profiles.some(profile => profile.id === profileId)) throw mismatch();
-      const api = this.api, snapshot = this.snapshot;
+      const api = this.api, snapshot = this.snapshot, signedIn = this.account;
       await boundedPick(async (signal, trace) => {
         trace.mark('select');
-        const result = await selectDirectProfile(api, {authority: 'local', accountId: snapshot.account.id, serverId: snapshot.serverId},
+        const picked = await selectDirectProfile(api, {authority: 'local', accountId: snapshot.account.id, serverId: snapshot.serverId},
           profileId, {pin, installationId: this.installation?.installationId, ...(remember && snapshot.rememberProfiles ? {remember: true} : {})}, signal);
+        const result = {...picked, session: keepSignInRenewal(picked.session, signedIn)};
         this.issued.set(result.session.sessionFamilyId, result.session);
         try {await this.persist(result.session, trace);} catch (error) {
           // E-mobile-01: only a proven different identity ends the picked session; anything else leaves it unpublished.

@@ -134,10 +134,19 @@ export async function openOnlyProfile(api:ProfileAPI,result:DirectSignIn,signal?
  const account=result.session,only=result.snapshot.profiles[0]!,scoped=api.withAccessToken?.(account.accessToken);
  if(!scoped)return result;
  const chosen=await selectDirectProfile(scoped,{authority:'local',accountId:result.snapshot.account.id,serverId:result.snapshot.serverId},only.id,{},signal);
- const session=Object.freeze({...chosen.session,...(account.refreshToken?{refreshToken:account.refreshToken}:{})});
+ const session=keepSignInRenewal(chosen.session,account);
  const role=session.viewer.role,snapshot=result.snapshot;
  return Object.freeze({...result,session,accountScoped:false,snapshot:Object.freeze({...snapshot,canManage:true,
   capabilities:Object.freeze({manageAccount:true,managePeople:role==='owner'||role==='admin',manageServer:role==='owner'||role==='admin',manageSignIn:role==='owner'})})});
+}
+/**
+ * A profile pick answers with the same sign-in and a new access token, and no refresh token: the
+ * one the sign-in answered with still renews it. Whoever saves a pick made straight after signing
+ * in (nothing saved yet to keep it from) puts it back here, or the app can't renew and is signed
+ * out when the access token ends. A pick that started a new sign-in keeps its own.
+ */
+export function keepSignInRenewal(chosen:LocalSession,signIn:LocalSession):LocalSession{
+ return chosen.refreshToken||!signIn.refreshToken||chosen.sessionFamilyId!==signIn.sessionFamilyId?chosen:Object.freeze({...chosen,refreshToken:signIn.refreshToken});
 }
 /** `POST /v1/auth/sign-in`. */
 export async function directSignIn(api:ProfileAPI,username:string,password:string,signal?:AbortSignal):Promise<DirectSignIn>{
