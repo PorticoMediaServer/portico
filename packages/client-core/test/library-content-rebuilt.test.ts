@@ -73,19 +73,50 @@ test('an album page is its title and its songs in disc and track order, read fro
   nav.dispose();
 });
 
-test('an artist page shows its albums; the sections the rebuilt server has no read for are left out, not failed', async () => {
+/** An artist's page on the rebuilt server: its albums by `parent=`, its songs by `artist=` (#2956). */
+function artistApi(paths: string[], popular: () => unknown) {
+  return async (path: string) => {
+    paths.push(path);
+    const u = new URL(path, 'https://server.test'), query = u.searchParams;
+    if (u.pathname === '/v1/items' && query.get('parent') === 'art_1') return {items: [{id: 'alb_2', kind: 'album', title: 'Later', year: 2010}, {id: 'alb_1', kind: 'album', title: 'Earlier', year: 2001}], total: 2};
+    if (u.pathname === '/v1/items' && query.get('sort') === 'popular') return popular();
+    if (u.pathname === '/v1/items' && query.get('artist') === 'art_1')
+      return query.get('cursor') === 'c2' ? {items: [track('t3', 1, 3)], total: 3} : {items: [track('t1', 1, 1), track('t2', 1, 2)], total: 3, nextCursor: 'c2'};
+    if (u.pathname.startsWith('/v1/libraries/')) return {id: 'lib_m', name: 'Music', kind: 'music'};
+    return {id: 'art_1', kind: 'artist', title: 'The Band', libraryId: 'lib_m'};
+  };
+}
+const ids = (snap: ReturnType<LibraryContentService['getSnapshot']>) => snap.sections.map(section => [section.id, section.entries.map(e => e.id)]);
+
+test('an artist page shows its albums newest first, its most played songs, and every song crediting it', async () => {
   const paths: string[] = [];
-  const read = holderApi(paths, {art_1: {items: [{id: 'alb_2', kind: 'album', title: 'Later', year: 2010}, {id: 'alb_1', kind: 'album', title: 'Earlier', year: 2001}]}},
-    {art_1: {id: 'art_1', kind: 'artist', title: 'The Band', libraryId: 'lib_m'}});
-  const nav = service(read);
+  const nav = service(artistApi(paths, () => ({items: [track('t2', 1, 2)], total: 1})));
   await nav.select({libraryId: 'lib_m', view: 'artist', entityId: 'art_1'});
   const snap = nav.getSnapshot();
   assert.equal(snap.phase, 'ready');
   assert.equal(snap.projection?.entity?.kind, 'artist');
-  assert.deepEqual(snap.sections.map(section => [section.id, section.entries.map(e => e.id)]), [['releases', ['alb_2', 'alb_1']]]);
-  const list = new URL(paths.find(path => path.startsWith('/v1/items?'))!, 'https://server.test');
-  assert.deepEqual([list.searchParams.get('parent'), list.searchParams.get('kind'), list.searchParams.get('sort'), list.searchParams.get('order')], ['art_1', 'album', 'year', 'desc']);
+  assert.deepEqual(ids(snap), [['releases', ['alb_2', 'alb_1']], ['popularTracks', ['t2']], ['songs', ['t1', 't2']]]);
+  const asked = (test: (q: URLSearchParams) => boolean) => paths.map(path => new URL(path, 'https://server.test')).find(u => u.pathname === '/v1/items' && test(u.searchParams))?.searchParams;
+  const releases = asked(q => q.get('parent') === 'art_1')!, popular = asked(q => q.get('sort') === 'popular')!, songs = asked(q => q.get('sort') === 'title')!;
+  assert.deepEqual([releases.get('kind'), releases.get('sort'), releases.get('order')], ['album', 'year', 'desc']);
+  assert.deepEqual([popular.get('artist'), popular.get('kind'), popular.get('limit')], ['art_1', 'track', '10']);
+  assert.deepEqual([songs.get('artist'), songs.get('kind'), songs.get('order')], ['art_1', 'track', 'asc']);
+  // Popular is one fixed rail; every song pages on by its own cursor.
+  assert.equal(snap.sections.find(section => section.id === 'popularTracks')?.nextCursor, '');
+  await nav.next('songs');
+  assert.deepEqual(nav.getSnapshot().appended.find(section => section.id === 'songs')?.entries.map(e => e.id), ['t1', 't2', 't3']);
+  assert.equal(new URL(paths.at(-1)!, 'https://server.test').searchParams.get('cursor'), 'c2');
   nav.dispose();
+});
+
+test('an artist nobody has played has no Popular row, and the page opens when Popular cannot be read', async () => {
+  for (const popular of [() => ({items: [], total: 0}), () => { throw Object.assign(new Error('unavailable'), {status: 503}); }]) {
+    const nav = service(artistApi([], popular));
+    await nav.select({libraryId: 'lib_m', view: 'artist', entityId: 'art_1'});
+    assert.equal(nav.getSnapshot().phase, 'ready');
+    assert.deepEqual(ids(nav.getSnapshot()), [['releases', ['alb_2', 'alb_1']], ['songs', ['t1', 't2']]]);
+    nav.dispose();
+  }
 });
 
 test('a collection\'s grid is opened at any position with the whole count, from the rebuilt server', async () => {
@@ -126,7 +157,7 @@ test('a paged section reads its next page by its cursor, and carries the server\
   const nav = service(read);
   await nav.select({libraryId: 'lib_m', view: 'album', entityId: 'alb_1'});
   assert.equal(nav.getSnapshot().sections[0]!.totalCount, 3);
-  assert.equal(nav.getSnapshot().sections[0]!.nextCursor, 'c2');
+  assert.equal(nav.getSnapshot().sections[0]!.nextCursor, 'tracks~c2', 'the cursor names its section');
   // The album names its artist, for the page's "by" link.
   assert.deepEqual(nav.getSnapshot().projection?.entity?.artist, {id: 'art_1', name: 'The Band'});
   await nav.next('tracks');
@@ -153,5 +184,21 @@ test('an audiobook library\'s Continue is the screen\'s resume shelf', async () 
     : {id: 'lib_b', name: 'Audiobooks', kind: 'audiobooks'});
   await nav.select({libraryId: 'lib_b', view: 'discover'});
   assert.deepEqual(nav.getSnapshot().sections.map(section => section.id), ['continue_listening']);
+  nav.dispose();
+});
+
+test('a later page that comes back with no titles keeps the titles already shown, and ends the list', async () => {
+  const read = async (path: string) => {
+    const u = new URL(path, 'https://server.test');
+    if (u.pathname === '/v1/items') return u.searchParams.get('cursor') === 'c2' ? {items: [], total: 2} : {items: [track('t1', 1, 1), track('t2', 1, 2)], total: 3, nextCursor: 'c2'};
+    if (u.pathname.startsWith('/v1/libraries/')) return {id: 'lib_m', name: 'Music', kind: 'music'};
+    return {id: 'alb_1', kind: 'album', title: 'Album', libraryId: 'lib_m'};
+  };
+  const nav = service(read);
+  await nav.select({libraryId: 'lib_m', view: 'album', entityId: 'alb_1'});
+  await nav.next('tracks');
+  const shown = nav.getSnapshot().appended.find(section => section.id === 'tracks')!;
+  assert.deepEqual(shown.entries.map(e => e.id), ['t1', 't2']);
+  assert.equal(shown.nextCursor, '');
   nav.dispose();
 });
