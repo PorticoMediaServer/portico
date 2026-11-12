@@ -268,3 +268,7 @@ func (NoEngine) Ready(context.Context, string) error          { return ErrSource
 func (s *Service) SetEngine(planner Planner, streams Streams) {
 	s.planner, s.streams = planner, streams
 }
+
+// Engine is the planner SetEngine gave, for what else the media engine answers (what the
+// server's tools can do); nil before it is set.
+func (s *Service) Engine() Planner { return s.planner }
