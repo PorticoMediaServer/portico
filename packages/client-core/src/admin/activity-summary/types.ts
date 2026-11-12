@@ -6,7 +6,8 @@ type Immutable<T> = T extends readonly (infer V)[] ? readonly Immutable<V>[] : T
 /** The rebuilt server's owner summary, `GET /v1/admin/activity` (server-next ActivitySummary). */
 export type OwnerActivitySummary = Immutable<{
   observedAt: string; serverName: string;
-  streams: {count: number; converting: number; items: NowPlaying[]};
+  // `problem` and `bufferingSince` arrive with server-next #3055, ahead of the generated contract's next regeneration.
+  streams: {count: number; converting: number; items: (NowPlaying & {problem?: boolean; bufferingSince?: string})[]};
   scans: DashboardScan[]; tasks: DashboardTasks; alerts: DashboardAlert[]; lastScanAt?: string;
 }>;
 export type ActivitySummarySession = OwnerActivitySummary['streams']['items'][number];

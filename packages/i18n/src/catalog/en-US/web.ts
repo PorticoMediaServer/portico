@@ -1004,6 +1004,7 @@ export const webMessages = {
   'web.nowPlaying.state.playing': 'Playing',
   'web.nowPlaying.state.paused': 'Paused',
   'web.nowPlaying.state.starting': 'Starting',
+  'web.nowPlaying.state.buffering': 'Buffering',
   'web.nowPlaying.delivery.directPlay': 'Direct play',
   'web.nowPlaying.delivery.directStream': 'Direct stream',
   'web.nowPlaying.delivery.convertVideo': 'Converting video',

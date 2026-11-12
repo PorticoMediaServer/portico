@@ -34,6 +34,8 @@ export function adminSessionFromServer(value: unknown): AdminSession {
     ...(whole(value.durationMs) && (value.durationMs as number) > 0 ? {durationMs: value.durationMs} : {}),
     ...(whole(value.bitrateKbps) && (value.bitrateKbps as number) > 0 ? {bitrateKbps: value.bitrateKbps} : {}),
     decision: value.delivery, location: value.away ? 'remote' : 'local', startedAt: value.startedAt,
+    // A player that has waited ten seconds for its stream is a problem (12-console rule 7); the server lists it first.
+    ...(value.problem === true && value.state === 'buffering' ? {problem: 'buffering'} : {}), ...(text(value.bufferingSince) ? {bufferingSince: value.bufferingSince} : {}),
   });
 }
 
