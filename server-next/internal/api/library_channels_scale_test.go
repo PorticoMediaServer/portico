@@ -28,10 +28,10 @@ func TestAThousandChannelsOfFiftyBlocksStayBounded(t *testing.T) {
 		if n%2 == 1 {
 			library, kind = shows, "show"
 		}
-		b := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{library}, Kinds: []string{kind}}}
+		b := librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{library}, Kinds: []string{kind}}}
 		for k := range 50 {
 			day, slot := k%7, k/7 // seven two-hour blocks a day, and one more on Sunday
-			b.Blocks = append(b.Blocks, librarychannels.Block{ID: fmt.Sprint("b", k), Days: []string{days[day]},
+			b.Blocks = append(b.Blocks, librarychannels.LibraryChannelBlock{ID: fmt.Sprint("b", k), Days: []string{days[day]},
 				From: fmt.Sprintf("%02d:00", slot*2+1), To: fmt.Sprintf("%02d:00", slot*2+2), Overrun: "cut"})
 		}
 		var ch LibraryChannel
@@ -40,7 +40,7 @@ func TestAThousandChannelsOfFiftyBlocksStayBounded(t *testing.T) {
 		}
 	}
 	if code := status(t, s, "POST", "/v1/admin/library-channels", owner, LibraryChannelSave{Name: new("One more"),
-		Builder: &librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"}}}}); code != 409 {
+		Builder: &librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{films}, Kinds: []string{"movie"}}}}); code != 409 {
 		t.Fatalf("a 1,001st channel answered %d", code)
 	}
 
@@ -73,10 +73,10 @@ func TestAThousandChannelsOfFiftyBlocksStayBounded(t *testing.T) {
 	stretch := "/v1/live/guide?limit=20&from=" + s.now().UTC().Format(time.RFC3339) + "&to=" + s.now().Add(3*time.Hour).UTC().Format(time.RFC3339)
 	for _, who := range []struct{ name, token string }{{"owner", owner}, {"films only", filmsOnly}} {
 		var slowest time.Duration
-		var guide Guide
+		var guide LiveGuide
 		for range 5 {
 			began := time.Now()
-			guide = get[Guide](t, s, who.token, stretch)
+			guide = get[LiveGuide](t, s, who.token, stretch)
 			slowest = max(slowest, time.Since(began))
 		}
 		t.Logf("%s: a page of the guide took at most %v", who.name, slowest.Round(time.Microsecond))

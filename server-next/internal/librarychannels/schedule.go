@@ -116,7 +116,7 @@ type pool struct {
 type build struct {
 	ctx   context.Context
 	src   Source
-	b     *Builder
+	b     *LibraryChannelBuilder
 	loc   *time.Location
 	st    *State
 	now   time.Time
@@ -136,7 +136,7 @@ type build struct {
 
 // Build fills a channel's schedule from from until it reaches until, carrying st forward.
 // discarded are the programmes a rebuild throws away.
-func Build(ctx context.Context, src Source, b *Builder, loc *time.Location, st *State, from, until, now time.Time,
+func Build(ctx context.Context, src Source, b *LibraryChannelBuilder, loc *time.Location, st *State, from, until, now time.Time,
 	discarded []Discarded) ([]db.ScheduleRow, Report, error) {
 	if st.Orders == nil {
 		st.Orders = map[string]*Order{}
@@ -146,7 +146,7 @@ func Build(ctx context.Context, src Source, b *Builder, loc *time.Location, st *
 	}
 	bd := &build{ctx: ctx, src: src, b: b, loc: loc, st: st, now: now, pools: map[string]*pool{}, discarded: map[int64]bool{}, base: seedOf(b)}
 	bd.putBack(discarded)
-	main, err := bd.pool("", &b.Selection)
+	main, err := bd.pool("", &b.LibraryChannelSelection)
 	if err != nil {
 		return nil, Report{}, err
 	}
@@ -195,7 +195,7 @@ func placeLess(a, b Place) bool {
 }
 
 // seedOf is a hash of a builder document.
-func seedOf(b *Builder) uint64 {
+func seedOf(b *LibraryChannelBuilder) uint64 {
 	raw, _ := json.Marshal(b)
 	h := fnv.New64a()
 	h.Write(raw)
@@ -248,7 +248,7 @@ const (
 	minProgramme = time.Minute
 )
 
-func (bd *build) pool(key string, sel *Selection) (*pool, error) {
+func (bd *build) pool(key string, sel *LibraryChannelSelection) (*pool, error) {
 	if p := bd.pools[key]; p != nil {
 		return p, nil
 	}
@@ -415,7 +415,7 @@ func (bd *build) played(ids ...int64) {
 
 // pick chooses the next title of a selection's order, or false when the order has nothing
 // more to give (everything has played and the channel shows the slate, or nothing matches).
-func (bd *build) pick(o *Order, p *pool, sel *Selection, room int64) (title, bool) {
+func (bd *build) pick(o *Order, p *pool, sel *LibraryChannelSelection, room int64) (title, bool) {
 	if len(p.titles) == 0 {
 		return title{}, false
 	}
@@ -488,7 +488,7 @@ func playable(ms int64) bool {
 // episode is the episode of show to play next under the selection. An episode that is placed
 // moves the show's place; one that does not fit room leaves the place where it is, so it airs
 // later. Episodes that can never be scheduled are passed over for good.
-func (bd *build) episode(show int64, sel *Selection, o *Order, room int64) (db.Episode, bool, error) {
+func (bd *build) episode(show int64, sel *LibraryChannelSelection, o *Order, room int64) (db.Episode, bool, error) {
 	fits := func(e db.Episode) bool { return room <= 0 || e.DurationMS <= room }
 	if sel.Episodes == "random" {
 		count, err := bd.src.ShowEpisodeCount(bd.ctx, show)
@@ -533,7 +533,7 @@ func (bd *build) episode(show int64, sel *Selection, o *Order, room int64) (db.E
 
 // runLength is how many more episodes of a show play in a row after the one just placed: the
 // rest of the marathon, or under In order by "Show then episode", every episode it has left.
-func (bd *build) runLength(sel *Selection, show int64) (int, error) {
+func (bd *build) runLength(sel *LibraryChannelSelection, show int64) (int, error) {
 	if sel.Episodes == "marathon" {
 		if sel.Marathon == 0 {
 			return 11, nil
@@ -546,13 +546,13 @@ func (bd *build) runLength(sel *Selection, show int64) (int, error) {
 }
 
 // inRuns says a show's episodes play in a row: a marathon, or In order by show then episode.
-func inRuns(sel *Selection) bool {
+func inRuns(sel *LibraryChannelSelection) bool {
 	return sel.Episodes == "marathon" || sel.Order == "inOrder" && sel.Sort == "episode" && sel.Episodes != "mixed"
 }
 
 // next is the next programme of a selection: its item and length, or false for the slate.
 // room, when above 0, is how long the programme may run.
-func (bd *build) next(poolKey, orderKey string, sel *Selection, room int64) (int64, int64, bool, error) {
+func (bd *build) next(poolKey, orderKey string, sel *LibraryChannelSelection, room int64) (int64, int64, bool, error) {
 	p, err := bd.pool(poolKey, sel)
 	if err != nil {
 		return 0, 0, false, err
@@ -602,7 +602,7 @@ func (bd *build) next(poolKey, orderKey string, sel *Selection, room int64) (int
 
 // airing is one weekly block's stretch of time.
 type airing struct {
-	block      *Block
+	block      *LibraryChannelBlock
 	start, end time.Time
 }
 
@@ -683,7 +683,7 @@ func (bd *build) run(from, until time.Time) error {
 		}
 		if now == nil {
 			// Outside every block a programme always finishes, so a block can start late.
-			item, ms, ok, err := bd.next("", "", &bd.b.Selection, 0)
+			item, ms, ok, err := bd.next("", "", &bd.b.LibraryChannelSelection, 0)
 			if err != nil {
 				return err
 			}
@@ -702,7 +702,7 @@ func (bd *build) run(from, until time.Time) error {
 		o.Airing = now.start.UnixMilli()
 		poolKey, sel := blk.ID, blk.Selection
 		if sel == nil {
-			poolKey, sel = "", &bd.b.Selection
+			poolKey, sel = "", &bd.b.LibraryChannelSelection
 		}
 		var room int64
 		bd.whole = 0
@@ -717,7 +717,7 @@ func (bd *build) run(from, until time.Time) error {
 		}
 		item, ms, ok, err := bd.next(poolKey, blk.ID, sel, room)
 		if err == nil && !ok && blk.IfEmpty != "slate" && blk.Selection != nil {
-			item, ms, ok, err = bd.next("", "", &bd.b.Selection, room)
+			item, ms, ok, err = bd.next("", "", &bd.b.LibraryChannelSelection, room)
 		}
 		if err != nil {
 			return err

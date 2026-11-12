@@ -24,8 +24,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/secrets"
 )
 
-// SourceConfig is a source's settings, stored as JSON. The sign-in is never in it.
-type SourceConfig struct {
+// LiveSourceConfig is a source's settings, stored as JSON. The sign-in is never in it.
+type LiveSourceConfig struct {
 	// PlaylistURL is a playlist's address; Uploaded says the owner sent the playlist itself.
 	PlaylistURL string `json:"playlistUrl,omitempty"`
 	Uploaded    bool   `json:"uploaded,omitempty"`
@@ -45,8 +45,8 @@ type SourceConfig struct {
 	FirstNumber int    `json:"firstNumber,omitempty"`
 }
 
-// SignIn is an Xtream sign-in. It is stored sealed and never shown again.
-type SignIn struct {
+// LiveSignIn is an Xtream sign-in. It is stored sealed and never shown again.
+type LiveSignIn struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
@@ -115,14 +115,14 @@ func newClient(timeout time.Duration) *http.Client {
 
 // Seal seals a source's sign-in for storing, bound to that source, so it can be opened only
 // for it. Nothing ever shows it to an app or writes it to the log.
-func (s *Service) Seal(sourceID string, in SignIn) []byte {
+func (s *Service) Seal(sourceID string, in LiveSignIn) []byte {
 	raw, _ := json.Marshal(in)
 	return s.box.Seal("live-source:"+sourceID, raw)
 }
 
 // SignIn opens a source's sign-in, to read the source or to tune one of its channels.
-func (s *Service) SignIn(sourceID string, sealed []byte) (SignIn, error) {
-	var in SignIn
+func (s *Service) SignIn(sourceID string, sealed []byte) (LiveSignIn, error) {
+	var in LiveSignIn
 	raw, err := s.box.Open("live-source:"+sourceID, sealed)
 	if err != nil {
 		return in, ErrSignIn
@@ -133,7 +133,7 @@ func (s *Service) SignIn(sourceID string, sealed []byte) (SignIn, error) {
 // StreamAddress is where a channel's stream is read from. A source that signs in keeps no
 // address in its channels, only the stream's id ("xtream:<id>"); the address, with the
 // sign-in in it as the provider wants, is made here in memory each time a channel is tuned.
-func StreamAddress(kind string, cfg SourceConfig, signIn SignIn, locator string) (string, error) {
+func StreamAddress(kind string, cfg LiveSourceConfig, signIn LiveSignIn, locator string) (string, error) {
 	id, ok := strings.CutPrefix(locator, "xtream:")
 	if kind != "xtream" || !ok {
 		return locator, nil
@@ -253,15 +253,15 @@ func joinPath(base, path string, q url.Values) string {
 // Pulled is what a source sends: its channels, how many it delivers at once (0 when the
 // source does not say), and where its guide is.
 type Pulled struct {
-	Channels []SentChannel
+	Channels []LiveSentChannel
 	Tuners   int
 	guideURL string
 }
 
 // pull reads a source's channels. upload is the playlist the owner sent, when there is one.
-func (s *Service) pull(ctx context.Context, kind string, cfg SourceConfig, signIn SignIn, upload io.Reader, report *SourceReport) (Pulled, error) {
+func (s *Service) pull(ctx context.Context, kind string, cfg LiveSourceConfig, signIn LiveSignIn, upload io.Reader, report *LiveSourceReport) (Pulled, error) {
 	var out Pulled
-	add := func(c SentChannel) error { out.Channels = append(out.Channels, c); return nil }
+	add := func(c LiveSentChannel) error { out.Channels = append(out.Channels, c); return nil }
 	out.guideURL = cfg.GuideURL
 	switch kind {
 	case "playlist":
@@ -310,7 +310,7 @@ func (s *Service) pull(ctx context.Context, kind string, cfg SourceConfig, signI
 				continue
 			}
 			stream := "xtream:" + strconv.FormatInt(id, 10)
-			c := SentChannel{Key: stream, Name: st.Name, Number: st.Number.String(), GuideKey: st.EPG, Locator: stream, Group: st.Category}
+			c := LiveSentChannel{Key: stream, Name: st.Name, Number: st.Number.String(), GuideKey: st.EPG, Locator: stream, Group: st.Category}
 			if validLocator(st.Icon) {
 				c.Logo = st.Icon
 			}
@@ -357,7 +357,7 @@ func (s *Service) pull(ctx context.Context, kind string, cfg SourceConfig, signI
 				report.note("A channel is protected, or its number, name or address could not be read.")
 				continue
 			}
-			out.Channels = append(out.Channels, SentChannel{Key: "hdhr:" + r.Number, Name: r.Name, Number: r.Number, Locator: r.URL})
+			out.Channels = append(out.Channels, LiveSentChannel{Key: "hdhr:" + r.Number, Name: r.Name, Number: r.Number, Locator: r.URL})
 		}
 		return out, nil
 	case "guide":
@@ -366,7 +366,7 @@ func (s *Service) pull(ctx context.Context, kind string, cfg SourceConfig, signI
 	return out, fmt.Errorf("unknown kind of source")
 }
 
-func brought(cfg SourceConfig, c SentChannel) bool {
+func brought(cfg LiveSourceConfig, c LiveSentChannel) bool {
 	if len(cfg.Channels) > 0 {
 		for _, k := range cfg.Channels {
 			if k == c.Key {

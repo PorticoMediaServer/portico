@@ -24,7 +24,7 @@ func libraryOfKind(t *testing.T, s *Server, token, kind string) string {
 	return ""
 }
 
-func makeChannel(t *testing.T, s *Server, owner, name string, b librarychannels.Builder) LibraryChannel {
+func makeChannel(t *testing.T, s *Server, owner, name string, b librarychannels.LibraryChannelBuilder) LibraryChannel {
 	t.Helper()
 	var ch LibraryChannel
 	if w := call(t, s, "POST", "/v1/admin/library-channels", owner, LibraryChannelSave{Name: &name, Builder: &b}, &ch); w.Code != 201 {
@@ -61,7 +61,7 @@ func programmes(t *testing.T, s *Server, channelID string, from, to time.Time) [
 // is refused with the field named.
 func TestALibraryChannelIsMadeAndScheduledAWeekAhead(t *testing.T) {
 	s, owner, _ := seededWith(t, 600, 0)
-	var templates Page[ChannelTemplate]
+	var templates Page[LibraryChannelTemplate]
 	call(t, s, "GET", "/v1/admin/library-channels/templates", owner, nil, &templates)
 	if len(templates.Items) != 9 || !templates.Items[0].Available {
 		t.Fatalf("templates: %+v", templates.Items)
@@ -96,7 +96,7 @@ func TestALibraryChannelIsMadeAndScheduledAWeekAhead(t *testing.T) {
 
 	films := libraryOfKind(t, s, owner, "movies")
 	b := templates.Items[0].Builder
-	b.Blocks = []librarychannels.Block{
+	b.Blocks = []librarychannels.LibraryChannelBlock{
 		{ID: "evening", Days: []string{"mon", "tue"}, From: "19:00", To: "23:00"},
 		{ID: "late", Days: []string{"tue"}, From: "22:00", To: "02:00"},
 	}
@@ -110,8 +110,8 @@ func TestALibraryChannelIsMadeAndScheduledAWeekAhead(t *testing.T) {
 		field string
 	}{
 		{LibraryChannelSave{Builder: &b}, "builder.blocks[1]"},
-		{LibraryChannelSave{Builder: &librarychannels.Builder{Selection: librarychannels.Selection{Kinds: []string{"movie"}}}}, "builder.libraries"},
-		{LibraryChannelSave{Builder: &librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}}}}, "builder.kinds"},
+		{LibraryChannelSave{Builder: &librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Kinds: []string{"movie"}}}}, "builder.libraries"},
+		{LibraryChannelSave{Builder: &librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{films}}}}, "builder.kinds"},
 		{LibraryChannelSave{TimeZone: new("Mars/Olympus")}, "timeZone"},
 	} {
 		var e struct {
@@ -130,7 +130,7 @@ func TestShowsPlayInEpisodeOrderAndRegenerateKeepsTheirPlace(t *testing.T) {
 	s, owner, _ := seededWith(t, 600, 0)
 	ctx := context.Background()
 	shows := libraryOfKind(t, s, owner, "shows")
-	ch := makeChannel(t, s, owner, "TV", librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{shows},
+	ch := makeChannel(t, s, owner, "TV", librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{shows},
 		Kinds: []string{"show"}, Order: "inOrder", Episodes: "rotate"}})
 	now := time.Now()
 	before := programmes(t, s, ch.ID, now, now.Add(8*24*time.Hour))
@@ -178,9 +178,9 @@ func TestABlockThatCutsOffEndsOnTime(t *testing.T) {
 	films := libraryOfKind(t, s, owner, "movies")
 	shows := libraryOfKind(t, s, owner, "shows")
 	zone := "America/Halifax"
-	b := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"}},
-		Blocks: []librarychannels.Block{{ID: "cartoons", Days: []string{"sun", "mon", "tue", "wed", "thu", "fri", "sat"}, From: "19:00", To: "21:00",
-			Overrun: "cut", Selection: &librarychannels.Selection{Libraries: []string{shows}, Kinds: []string{"show"}}}}}
+	b := librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{films}, Kinds: []string{"movie"}},
+		Blocks: []librarychannels.LibraryChannelBlock{{ID: "cartoons", Days: []string{"sun", "mon", "tue", "wed", "thu", "fri", "sat"}, From: "19:00", To: "21:00",
+			Overrun: "cut", Selection: &librarychannels.LibraryChannelSelection{Libraries: []string{shows}, Kinds: []string{"show"}}}}}
 	var ch LibraryChannel
 	if w := call(t, s, "POST", "/v1/admin/library-channels", owner, LibraryChannelSave{Name: new("Evenings"), TimeZone: &zone, Builder: &b}, &ch); w.Code != 201 {
 		t.Fatalf("making the channel answered %d: %s", w.Code, w.Body)
@@ -213,9 +213,9 @@ func TestABlockThatCutsOffEndsOnTime(t *testing.T) {
 func TestThePreviewIsTheScheduleSavingMakes(t *testing.T) {
 	s, owner, _ := seededWith(t, 600, 0)
 	films := libraryOfKind(t, s, owner, "movies")
-	b := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"}}}
-	var preview ChannelPreview
-	if w := call(t, s, "POST", "/v1/admin/library-channels/preview", owner, ChannelPreviewAsk{TimeZone: "UTC", Builder: b}, &preview); w.Code != 200 {
+	b := librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{films}, Kinds: []string{"movie"}}}
+	var preview LibraryChannelPreview
+	if w := call(t, s, "POST", "/v1/admin/library-channels/preview", owner, LibraryChannelPreviewAsk{TimeZone: "UTC", Builder: b}, &preview); w.Code != 200 {
 		t.Fatalf("preview answered %d: %s", w.Code, w.Body)
 	}
 	ch := makeChannel(t, s, owner, "Same", b)
@@ -234,30 +234,30 @@ func TestThePreviewIsTheScheduleSavingMakes(t *testing.T) {
 func TestAChannelSpeaksTheListFiltersConditions(t *testing.T) {
 	s, owner, _ := seededWith(t, 600, 0)
 	films := libraryOfKind(t, s, owner, "movies")
-	decade := db.ChannelCondition{Field: "decade", Values: []string{"1990"}}
+	decade := db.LibraryChannelCondition{Field: "decade", Values: []string{"1990"}}
 	var list ItemPage
 	if w := call(t, s, "POST", "/v1/items/query", owner, ItemQueryRequest{Library: films, Kind: []string{"movie"},
 		Filter: []Condition{{Field: "decade", Values: []string{"1990"}}}, Total: true}, &list); w.Code != 200 || list.Total == nil || *list.Total == 0 {
 		t.Fatalf("the list filtered by decade answered %d: %s", w.Code, w.Body)
 	}
-	b := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"},
-		Conditions: []db.ChannelCondition{decade}}}
-	var preview ChannelPreview
-	if w := call(t, s, "POST", "/v1/admin/library-channels/preview", owner, ChannelPreviewAsk{TimeZone: "UTC", Builder: b}, &preview); w.Code != 200 ||
+	b := librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{films}, Kinds: []string{"movie"},
+		Conditions: []db.LibraryChannelCondition{decade}}}
+	var preview LibraryChannelPreview
+	if w := call(t, s, "POST", "/v1/admin/library-channels/preview", owner, LibraryChannelPreviewAsk{TimeZone: "UTC", Builder: b}, &preview); w.Code != 200 ||
 		preview.Titles != *list.Total {
 		t.Fatalf("the channel matches %d titles of the decade, the list %d (%d)", preview.Titles, *list.Total, w.Code)
 	}
 	// Exclude on top: the same condition turned around matches every other film.
-	b.Conditions = []db.ChannelCondition{{Field: "decade", Values: []string{"1990"}, Exclude: true}}
-	var others ChannelPreview
-	call(t, s, "POST", "/v1/admin/library-channels/preview", owner, ChannelPreviewAsk{TimeZone: "UTC", Builder: b}, &others)
+	b.Conditions = []db.LibraryChannelCondition{{Field: "decade", Values: []string{"1990"}, Exclude: true}}
+	var others LibraryChannelPreview
+	call(t, s, "POST", "/v1/admin/library-channels/preview", owner, LibraryChannelPreviewAsk{TimeZone: "UTC", Builder: b}, &others)
 	var all ItemPage
 	call(t, s, "POST", "/v1/items/query", owner, ItemQueryRequest{Library: films, Kind: []string{"movie"}, Total: true}, &all)
 	if others.Titles+preview.Titles != *all.Total {
 		t.Fatalf("excluded %d plus included %d is not the %d films", others.Titles, preview.Titles, *all.Total)
 	}
-	b.Conditions = []db.ChannelCondition{{Field: "playCount", Values: []string{"1.."}}}
-	if code := status(t, s, "POST", "/v1/admin/library-channels/preview", owner, ChannelPreviewAsk{TimeZone: "UTC", Builder: b}); code != 400 {
+	b.Conditions = []db.LibraryChannelCondition{{Field: "playCount", Values: []string{"1.."}}}
+	if code := status(t, s, "POST", "/v1/admin/library-channels/preview", owner, LibraryChannelPreviewAsk{TimeZone: "UTC", Builder: b}); code != 400 {
 		t.Fatalf("a channel chosen by play count answered %d", code)
 	}
 }
@@ -269,9 +269,9 @@ func TestPresetsFixedTimesAndALogo(t *testing.T) {
 	s, owner, members := seededWith(t, 600, 1)
 	ctx := context.Background()
 	films := libraryOfKind(t, s, owner, "movies")
-	var preset BlockPreset
-	if w := call(t, s, "POST", "/v1/admin/block-presets", owner, BlockPresetSave{Name: new("Late films"), Library: &films,
-		Recipe: &librarychannels.Recipe{Order: "recent", Minutes: 180, StartsAt: "21:00", Days: []string{"fri", "sat"}}}, &preset); w.Code != 201 {
+	var preset LibraryChannelBlockPreset
+	if w := call(t, s, "POST", "/v1/admin/block-presets", owner, LibraryChannelBlockPresetSave{Name: new("Late films"), Library: &films,
+		Recipe: &librarychannels.LibraryChannelRecipe{Order: "recent", Minutes: 180, StartsAt: "21:00", Days: []string{"fri", "sat"}}}, &preset); w.Code != 201 {
 		t.Fatalf("making a preset answered %d: %s", w.Code, w.Body)
 	}
 	page, err := s.db.Items(ctx, viewerOfToken(t, s, owner), db.ItemQuery{Library: films, Kinds: []db.ItemKind{db.KindMovie}, Limit: 1})
@@ -280,11 +280,11 @@ func TestPresetsFixedTimesAndALogo(t *testing.T) {
 	}
 	pinned := page.Items[0].PublicID
 	zone := "America/Halifax"
-	b := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"}},
-		Blocks: []librarychannels.Block{
+	b := librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{films}, Kinds: []string{"movie"}},
+		Blocks: []librarychannels.LibraryChannelBlock{
 			{ID: "late", FromPreset: preset.ID},
 			{ID: "classic", Days: []string{"sun"}, From: "20:00", To: "20:01", Overrun: "finish",
-				Selection: &librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"}, Always: []string{pinned}, OnlyAlways: true}},
+				Selection: &librarychannels.LibraryChannelSelection{Libraries: []string{films}, Kinds: []string{"movie"}, Always: []string{pinned}, OnlyAlways: true}},
 		}}
 	var ch LibraryChannel
 	if w := call(t, s, "POST", "/v1/admin/library-channels", owner, LibraryChannelSave{Name: new("Fixed"), TimeZone: &zone, Builder: &b}, &ch); w.Code != 201 {
@@ -295,7 +295,7 @@ func TestPresetsFixedTimesAndALogo(t *testing.T) {
 		late.Selection.Sort != "recent" || len(late.Days) != 2 {
 		t.Fatalf("the block copied from the preset reads %+v", late)
 	}
-	status(t, s, "PATCH", "/v1/admin/block-presets/"+preset.ID, owner, BlockPresetSave{Name: new("Renamed")})
+	status(t, s, "PATCH", "/v1/admin/block-presets/"+preset.ID, owner, LibraryChannelBlockPresetSave{Name: new("Renamed")})
 	if again := get[LibraryChannel](t, s, owner, "/v1/admin/library-channels/"+ch.ID); again.Builder.Blocks[0].Name != "Late films" {
 		t.Fatalf("changing the preset changed the channel: %+v", again.Builder.Blocks[0])
 	}
@@ -323,7 +323,7 @@ func TestPresetsFixedTimesAndALogo(t *testing.T) {
 	}
 
 	// An upload is kept small and shown with the channel.
-	b.LogoOnScreen = librarychannels.Logo{On: true}
+	b.LogoOnScreen = librarychannels.LibraryChannelLogo{On: true}
 	var picture bytes.Buffer
 	png.Encode(&picture, image.NewRGBA(image.Rect(0, 0, 1200, 600)))
 	r := newRequest("PUT", "/v1/admin/library-channels/"+ch.ID+"/logo", owner, nil)
@@ -343,7 +343,7 @@ func TestPresetsFixedTimesAndALogo(t *testing.T) {
 	if code := status(t, s, "PATCH", "/v1/admin/library-channels/"+ch.ID, owner, LibraryChannelSave{Builder: &b}); code != 200 {
 		t.Fatalf("turning the logo on answered %d", code)
 	}
-	for _, c := range get[Page[Channel]](t, s, members[0], "/v1/live/channels").Items {
+	for _, c := range get[Page[LiveChannel]](t, s, members[0], "/v1/live/channels").Items {
 		if c.ID == ch.ID && c.Logo != withLogo.Logo {
 			t.Fatalf("the channel list shows logo %q", c.Logo)
 		}

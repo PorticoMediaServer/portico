@@ -32,11 +32,11 @@ type StartInput struct {
 	Prepared *Prepared
 	// Channel, when set, is the Library Channel this title is on now. Such a session saves no
 	// place and no watched mark, and its play is the owner's record only.
-	Channel *ChannelLink
+	Channel *LibraryChannelLink
 }
 
-// ChannelLink is the Library Channel a session joined and the programme it joined.
-type ChannelLink struct {
+// LibraryChannelLink is the Library Channel a session joined and the programme it joined.
+type LibraryChannelLink struct {
 	ID       string    `json:"id"`
 	StartsAt time.Time `json:"startsAt"`
 	EndsAt   time.Time `json:"endsAt"`
@@ -44,11 +44,11 @@ type ChannelLink struct {
 	MaxKbps int `json:"maxKbps,omitempty"`
 	// Logo is the channel's on-screen logo, drawn by the app over the picture and never
 	// burned into it: its address, corner (topRight unless set) and size (medium unless set).
-	Logo *ChannelLogo `json:"logo,omitempty"`
+	Logo *LibraryChannelPlaybackLogo `json:"logo,omitempty"`
 }
 
-// ChannelLogo is a channel's on-screen logo.
-type ChannelLogo struct {
+// LibraryChannelPlaybackLogo is a channel's on-screen logo.
+type LibraryChannelPlaybackLogo struct {
 	URL    string `json:"url"`
 	Corner string `json:"corner"`
 	Size   string `json:"size"`

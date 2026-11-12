@@ -143,7 +143,7 @@ func (s *Service) Schedule(ctx context.Context, publicID string) error {
 // plan reads what building a channel's schedule starts from: its document, its time zone,
 // its stored orders, where the new part begins (the end of the programme now on, for a
 // rebuild or a schedule that has run out) and the programmes a rebuild throws away.
-func (s *Service) plan(ctx context.Context, ch db.LibraryChannelSchedule, now time.Time) (*Builder, *time.Location, State, time.Time,
+func (s *Service) plan(ctx context.Context, ch db.LibraryChannelSchedule, now time.Time) (*LibraryChannelBuilder, *time.Location, State, time.Time,
 	[]Discarded, error) {
 	var st State
 	b, err := Parse(ch.Builder)
@@ -271,7 +271,7 @@ func (s *Service) Dropped(ctx context.Context, publicID string) error {
 }
 
 // Describe is one sentence saying what a channel plays, for its row in the list.
-func Describe(b *Builder) string {
+func Describe(b *LibraryChannelBuilder) string {
 	what := "Movies and TV shows"
 	switch {
 	case len(b.Kinds) == 1 && b.Kinds[0] == "movie":

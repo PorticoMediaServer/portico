@@ -12,8 +12,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/live"
 )
 
-// Channel is a channel in the guide: a source's or a Library Channel.
-type Channel struct {
+// LiveChannel is a channel in the guide: a source's or a Library Channel.
+type LiveChannel struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
 	Number string `json:"number"`
@@ -26,9 +26,9 @@ type Channel struct {
 	Hidden   bool   `json:"hidden"`
 }
 
-// Programme is one programme of the guide. A Library Channel's programme names its title by
+// LiveProgramme is one programme of the guide. A Library Channel's programme names its title by
 // ItemID. One the profile may not see says only NotAvailable and its times; the slate says Slate.
-type Programme struct {
+type LiveProgramme struct {
 	ID           string    `json:"id"`
 	StartsAt     time.Time `json:"startsAt"`
 	EndsAt       time.Time `json:"endsAt"`
@@ -43,29 +43,29 @@ type Programme struct {
 	NotAvailable bool      `json:"notAvailable,omitempty"`
 }
 
-// GuideRow is one channel with its programmes over the stretch asked for.
-type GuideRow struct {
-	Channel    Channel     `json:"channel"`
-	Programmes []Programme `json:"programmes"`
+// LiveGuideRow is one channel with its programmes over the stretch asked for.
+type LiveGuideRow struct {
+	Channel    LiveChannel     `json:"channel"`
+	Programmes []LiveProgramme `json:"programmes"`
 }
 
-// Guide is a page of channels with their programmes.
-type Guide struct {
-	Items      []GuideRow `json:"items"`
-	NextCursor string     `json:"nextCursor,omitempty"`
+// LiveGuide is a page of channels with their programmes.
+type LiveGuide struct {
+	Items      []LiveGuideRow `json:"items"`
+	NextCursor string         `json:"nextCursor,omitempty"`
 	// OutOfDate says the last refresh of a source failed and the guide shown is older.
 	OutOfDate bool `json:"outOfDate"`
 }
 
-// OnNow is one channel with what is on and what is next.
-type OnNow struct {
-	Channel Channel    `json:"channel"`
-	Now     *Programme `json:"now,omitempty"`
-	Next    *Programme `json:"next,omitempty"`
+// LiveOnNow is one channel with what is on and what is next.
+type LiveOnNow struct {
+	Channel LiveChannel    `json:"channel"`
+	Now     *LiveProgramme `json:"now,omitempty"`
+	Next    *LiveProgramme `json:"next,omitempty"`
 }
 
-// ChannelMarks is a profile's own favourite and hidden marks on a channel.
-type ChannelMarks struct {
+// LiveChannelMarks is a profile's own favourite and hidden marks on a channel.
+type LiveChannelMarks struct {
 	Favorite bool `json:"favorite"`
 	Hidden   bool `json:"hidden"`
 }
@@ -116,8 +116,8 @@ func rated(v db.LiveViewer, age *int) bool {
 	return v.MaxAge == nil || age == nil || *age <= *v.MaxAge
 }
 
-func channelOut(c db.LiveChannel) Channel {
-	out := Channel{ID: c.PublicID, Name: c.Name, Kind: "library", Group: c.Group, Favorite: c.Favorite, Hidden: c.Hidden,
+func channelOut(c db.LiveChannel) LiveChannel {
+	out := LiveChannel{ID: c.PublicID, Name: c.Name, Kind: "library", Group: c.Group, Favorite: c.Favorite, Hidden: c.Hidden,
 		Number: strconv.Itoa(c.Number)}
 	if c.LogoHash != "" {
 		out.Logo = "/v1/images/" + c.LogoHash
@@ -180,27 +180,27 @@ func readLiveCursor(r *http.Request) (liveCursor, error) {
 	return c, nil
 }
 
-func (s *Server) liveChannels(r *http.Request, _ None) (Page[Channel], error) {
+func (s *Server) liveChannels(r *http.Request, _ None) (Page[LiveChannel], error) {
 	lv, err := s.liveViewer(r)
 	if err != nil {
-		return Page[Channel]{}, err
+		return Page[LiveChannel]{}, err
 	}
 	query := r.URL.Query()
 	q := db.LiveChannelQuery{ByName: query.Get("sort") == "name", Favorites: query.Get("favorites") == "true",
 		WithHidden: query.Get("hidden") == "true"}
 	c, err := readLiveCursor(r)
 	if err != nil {
-		return Page[Channel]{}, err
+		return Page[LiveChannel]{}, err
 	}
 	limit, err := pageLimit(r, 100, 200)
 	if err != nil {
-		return Page[Channel]{}, err
+		return Page[LiveChannel]{}, err
 	}
 	rows, next, err := s.visibleChannels(r.Context(), viewer(r), lv, q, c, limit)
 	if err != nil {
-		return Page[Channel]{}, err
+		return Page[LiveChannel]{}, err
 	}
-	out := Page[Channel]{Items: []Channel{}}
+	out := Page[LiveChannel]{Items: []LiveChannel{}}
 	for _, row := range rows {
 		out.Items = append(out.Items, channelOut(row))
 	}
@@ -225,7 +225,7 @@ func timeParam(r *http.Request, name string, fallback time.Time) (time.Time, err
 // programmes reads each channel's programmes over a stretch and hides what the viewer may
 // not see: a title above its rating limit, carrying a Tag blocked for it, or gone, shows
 // only that it is not available, never its name.
-func (s *Server) programmes(ctx context.Context, v db.Viewer, lv db.LiveViewer, channels []db.LiveChannel, from, to time.Time, most int) ([][]Programme, error) {
+func (s *Server) programmes(ctx context.Context, v db.Viewer, lv db.LiveViewer, channels []db.LiveChannel, from, to time.Time, most int) ([][]LiveProgramme, error) {
 	all := make([][]db.GuideProgramme, len(channels))
 	var ids []int64
 	for n, c := range channels {
@@ -257,11 +257,11 @@ func (s *Server) programmes(ctx context.Context, v db.Viewer, lv db.LiveViewer, 
 	if err != nil {
 		return nil, err
 	}
-	out := make([][]Programme, len(channels))
+	out := make([][]LiveProgramme, len(channels))
 	for n, rows := range all {
-		out[n] = []Programme{}
+		out[n] = []LiveProgramme{}
 		for _, p := range rows {
-			item := Programme{ID: encodeOpaque(map[string]any{"c": channels[n].PublicID, "s": p.StartsAt.UnixMilli()}),
+			item := LiveProgramme{ID: encodeOpaque(map[string]any{"c": channels[n].PublicID, "s": p.StartsAt.UnixMilli()}),
 				StartsAt: p.StartsAt.UTC(), EndsAt: p.EndsAt.UTC()}
 			switch {
 			case channels[n].Kind == db.ChannelFromLibrary && p.ItemID == 0:
@@ -285,48 +285,48 @@ func (s *Server) programmes(ctx context.Context, v db.Viewer, lv db.LiveViewer, 
 	return out, nil
 }
 
-func (s *Server) liveGuide(r *http.Request, _ None) (Guide, error) {
+func (s *Server) liveGuide(r *http.Request, _ None) (LiveGuide, error) {
 	lv, err := s.liveViewer(r)
 	if err != nil {
-		return Guide{}, err
+		return LiveGuide{}, err
 	}
 	now := s.now()
 	from, err := timeParam(r, "from", now.Truncate(30*time.Minute))
 	if err != nil {
-		return Guide{}, err
+		return LiveGuide{}, err
 	}
 	to, err := timeParam(r, "to", from.Add(3*time.Hour))
 	if err != nil {
-		return Guide{}, err
+		return LiveGuide{}, err
 	}
 	if !to.After(from) || to.Sub(from) > 24*time.Hour {
-		return Guide{}, ErrField("to", "Ask for up to a day of the guide at a time.")
+		return LiveGuide{}, ErrField("to", "Ask for up to a day of the guide at a time.")
 	}
 	query := r.URL.Query()
 	q := db.LiveChannelQuery{ByName: query.Get("sort") == "name", Favorites: query.Get("favorites") == "true",
 		WithHidden: query.Get("hidden") == "true"}
 	c, err := readLiveCursor(r)
 	if err != nil {
-		return Guide{}, err
+		return LiveGuide{}, err
 	}
 	limit, err := pageLimit(r, 20, 50)
 	if err != nil {
-		return Guide{}, err
+		return LiveGuide{}, err
 	}
 	channels, next, err := s.visibleChannels(r.Context(), viewer(r), lv, q, c, limit)
 	if err != nil {
-		return Guide{}, err
+		return LiveGuide{}, err
 	}
 	progs, err := s.programmes(r.Context(), viewer(r), lv, channels, from, to, 200)
 	if err != nil {
-		return Guide{}, err
+		return LiveGuide{}, err
 	}
-	out := Guide{Items: []GuideRow{}}
+	out := LiveGuide{Items: []LiveGuideRow{}}
 	for n, ch := range channels {
-		out.Items = append(out.Items, GuideRow{Channel: channelOut(ch), Programmes: progs[n]})
+		out.Items = append(out.Items, LiveGuideRow{Channel: channelOut(ch), Programmes: progs[n]})
 	}
 	if out.OutOfDate, err = s.guideOutOfDate(r.Context(), channels); err != nil {
-		return Guide{}, err
+		return LiveGuide{}, err
 	}
 	if next != nil {
 		out.NextCursor = encodeOpaque(next)
@@ -336,18 +336,18 @@ func (s *Server) liveGuide(r *http.Request, _ None) (Guide, error) {
 
 // liveNow lists the profile's favourite channels first, then the rest by number, each with
 // what is on and what is next.
-func (s *Server) liveNow(r *http.Request, _ None) (Page[OnNow], error) {
+func (s *Server) liveNow(r *http.Request, _ None) (Page[LiveOnNow], error) {
 	lv, err := s.liveViewer(r)
 	if err != nil {
-		return Page[OnNow]{}, err
+		return Page[LiveOnNow]{}, err
 	}
 	c, err := readLiveCursor(r)
 	if err != nil {
-		return Page[OnNow]{}, err
+		return Page[LiveOnNow]{}, err
 	}
 	limit, err := pageLimit(r, 20, 50)
 	if err != nil {
-		return Page[OnNow]{}, err
+		return Page[LiveOnNow]{}, err
 	}
 	ctx := r.Context()
 	var channels []db.LiveChannel
@@ -356,7 +356,7 @@ func (s *Server) liveNow(r *http.Request, _ None) (Page[OnNow], error) {
 		q := db.LiveChannelQuery{Favorites: c.Phase == 0, NotFavorites: c.Phase == 1}
 		var rows []db.LiveChannel
 		if rows, next, err = s.visibleChannels(ctx, viewer(r), lv, q, c, limit-len(channels)); err != nil {
-			return Page[OnNow]{}, err
+			return Page[LiveOnNow]{}, err
 		}
 		channels = append(channels, rows...)
 		if next == nil {
@@ -369,11 +369,11 @@ func (s *Server) liveNow(r *http.Request, _ None) (Page[OnNow], error) {
 	now := s.now()
 	progs, err := s.programmes(ctx, viewer(r), lv, channels, now, now.Add(24*time.Hour), 2)
 	if err != nil {
-		return Page[OnNow]{}, err
+		return Page[LiveOnNow]{}, err
 	}
-	out := Page[OnNow]{Items: []OnNow{}}
+	out := Page[LiveOnNow]{Items: []LiveOnNow{}}
 	for n, ch := range channels {
-		item := OnNow{Channel: channelOut(ch)}
+		item := LiveOnNow{Channel: channelOut(ch)}
 		for k := range progs[n] {
 			p := &progs[n][k]
 			if !p.StartsAt.After(now) && item.Now == nil {
@@ -390,17 +390,17 @@ func (s *Server) liveNow(r *http.Request, _ None) (Page[OnNow], error) {
 	return out, nil
 }
 
-func (s *Server) setChannelMarks(r *http.Request, req ChannelMarks) (ChannelMarks, error) {
+func (s *Server) setChannelMarks(r *http.Request, req LiveChannelMarks) (LiveChannelMarks, error) {
 	lv, err := s.liveViewer(r)
 	if err != nil {
-		return ChannelMarks{}, err
+		return LiveChannelMarks{}, err
 	}
 	ch, err := s.db.LiveChannelByID(r.Context(), viewer(r), r.PathValue("id"))
 	if errors.Is(err, db.ErrNotFound) || err == nil && !mayWatch(lv, ch) {
-		return ChannelMarks{}, ErrNotFound()
+		return LiveChannelMarks{}, ErrNotFound()
 	}
 	if err != nil {
-		return ChannelMarks{}, err
+		return LiveChannelMarks{}, err
 	}
 	return req, s.db.SetChannelMarks(r.Context(), viewer(r), ch.ID, req.Favorite, req.Hidden, s.now())
 }

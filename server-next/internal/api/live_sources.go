@@ -18,15 +18,15 @@ type LiveSource struct {
 	Kind string `json:"kind"` // playlist, xtream, hdhomerun or guide
 	Name string `json:"name"`
 	// Audience is everyone or owner: who may watch its channels.
-	Audience   string             `json:"audience"`
-	TunerCount int                `json:"tunerCount"`
-	Paused     bool               `json:"paused"`
-	State      string             `json:"state"` // new, refreshing, up_to_date, trouble, not_working, needs_sign_in, paused
-	LastError  string             `json:"lastError,omitempty"`
-	Report     *live.SourceReport `json:"report,omitempty"`
-	Refreshed  *time.Time         `json:"refreshedAt,omitempty"`
-	Config     live.SourceConfig  `json:"config"`
-	HasSignIn  bool               `json:"hasSignIn"`
+	Audience   string                 `json:"audience"`
+	TunerCount int                    `json:"tunerCount"`
+	Paused     bool                   `json:"paused"`
+	State      string                 `json:"state"` // new, refreshing, up_to_date, trouble, not_working, needs_sign_in, paused
+	LastError  string                 `json:"lastError,omitempty"`
+	Report     *live.LiveSourceReport `json:"report,omitempty"`
+	Refreshed  *time.Time             `json:"refreshedAt,omitempty"`
+	Config     live.LiveSourceConfig  `json:"config"`
+	HasSignIn  bool                   `json:"hasSignIn"`
 	revision   int64
 	status     int
 }
@@ -39,26 +39,26 @@ func (s LiveSource) reply(h http.Header) int {
 // LiveSourceSave adds a source, previews one, or changes one (only what is sent changes).
 // Playlist and Guide are an uploaded playlist and guide, as text.
 type LiveSourceSave struct {
-	Kind       string             `json:"kind,omitempty"`
-	Name       *string            `json:"name,omitempty"`
-	Audience   *string            `json:"audience,omitempty"`
-	TunerCount *int               `json:"tunerCount,omitempty"`
-	Paused     *bool              `json:"paused,omitempty"`
-	Config     *live.SourceConfig `json:"config,omitempty"`
-	SignIn     *live.SignIn       `json:"signIn,omitempty"`
-	Playlist   string             `json:"playlist,omitempty"`
-	Guide      string             `json:"guide,omitempty"`
+	Kind       string                 `json:"kind,omitempty"`
+	Name       *string                `json:"name,omitempty"`
+	Audience   *string                `json:"audience,omitempty"`
+	TunerCount *int                   `json:"tunerCount,omitempty"`
+	Paused     *bool                  `json:"paused,omitempty"`
+	Config     *live.LiveSourceConfig `json:"config,omitempty"`
+	SignIn     *live.LiveSignIn       `json:"signIn,omitempty"`
+	Playlist   string                 `json:"playlist,omitempty"`
+	Guide      string                 `json:"guide,omitempty"`
 }
 
-// SourcePreview is what a source would bring in and leave out, and why.
-type SourcePreview struct {
-	Report   live.SourceReport  `json:"report"`
-	Channels []live.SentChannel `json:"channels"`
-	Tuners   int                `json:"tuners"`
+// LiveSourcePreview is what a source would bring in and leave out, and why.
+type LiveSourcePreview struct {
+	Report   live.LiveSourceReport  `json:"report"`
+	Channels []live.LiveSentChannel `json:"channels"`
+	Tuners   int                    `json:"tuners"`
 }
 
-// SourceChannel is one channel on the owner's channel map.
-type SourceChannel struct {
+// LiveSourceChannel is one channel on the owner's channel map.
+type LiveSourceChannel struct {
 	ID           string   `json:"id"`
 	Name         string   `json:"name"`
 	Number       string   `json:"number"`
@@ -72,13 +72,13 @@ type SourceChannel struct {
 	Edited       []string `json:"edited,omitempty"`
 }
 
-// SourceChannelEdits changes many of a source's channels at once.
-type SourceChannelEdits struct {
-	Channels []SourceChannelEdit `json:"channels"`
+// LiveSourceChannelEdits changes many of a source's channels at once.
+type LiveSourceChannelEdits struct {
+	Channels []LiveSourceChannelEdit `json:"channels"`
 }
 
-// SourceChannelEdit is one channel's change: only what is sent changes.
-type SourceChannelEdit struct {
+// LiveSourceChannelEdit is one channel's change: only what is sent changes.
+type LiveSourceChannelEdit struct {
 	ID          string  `json:"id"`
 	Name        *string `json:"name,omitempty"`
 	Number      *string `json:"number,omitempty"`
@@ -108,7 +108,7 @@ func (s *Server) liveSourceOut(src db.LiveSource) LiveSource {
 	json.Unmarshal([]byte(src.Config), &out.Config)
 	out.Config.PlaylistURL, out.Config.GuideURL = live.Masked(out.Config.PlaylistURL), live.Masked(out.Config.GuideURL)
 	if src.Report != "" {
-		out.Report = &live.SourceReport{}
+		out.Report = &live.LiveSourceReport{}
 		json.Unmarshal([]byte(src.Report), out.Report)
 	}
 	if !src.RefreshedAt.IsZero() {
@@ -139,7 +139,7 @@ func sourceError(err error) error {
 }
 
 // checkSource fills in a source's settings from what was sent and refuses what cannot be saved.
-func checkSource(save *db.LiveSourceSave, cfg *live.SourceConfig, req LiveSourceSave, adding bool) error {
+func checkSource(save *db.LiveSourceSave, cfg *live.LiveSourceConfig, req LiveSourceSave, adding bool) error {
 	if save.Name == "" || len([]rune(save.Name)) > 120 {
 		return ErrField("name", "Give the source a name of up to 120 characters.")
 	}
@@ -216,7 +216,7 @@ func (s *Server) createLiveSource(r *http.Request, req LiveSourceSave) (LiveSour
 	if req.Paused != nil {
 		save.Paused = *req.Paused
 	}
-	cfg := live.SourceConfig{}
+	cfg := live.LiveSourceConfig{}
 	if req.Config != nil {
 		cfg = *req.Config
 	}
@@ -251,26 +251,26 @@ func (s *Server) keepUploads(sourceID string, req LiveSourceSave) error {
 	return nil
 }
 
-func (s *Server) previewLiveSource(r *http.Request, req LiveSourceSave) (SourcePreview, error) {
-	cfg := live.SourceConfig{}
+func (s *Server) previewLiveSource(r *http.Request, req LiveSourceSave) (LiveSourcePreview, error) {
+	cfg := live.LiveSourceConfig{}
 	if req.Config != nil {
 		cfg = *req.Config
 	}
-	var signIn live.SignIn
+	var signIn live.LiveSignIn
 	if req.SignIn != nil {
 		signIn = *req.SignIn
 	}
 	p, err := s.sources.Preview(r.Context(), req.Kind, cfg, signIn, req.Playlist, req.Guide)
 	if errors.Is(err, live.ErrSignIn) {
-		return SourcePreview{}, ErrField("signIn", "The provider refused this sign-in.")
+		return LiveSourcePreview{}, ErrField("signIn", "The provider refused this sign-in.")
 	}
 	if err != nil {
-		return SourcePreview{}, ErrInvalid(err.Error())
+		return LiveSourcePreview{}, ErrInvalid(err.Error())
 	}
 	if p.Channels == nil {
-		p.Channels = []live.SentChannel{}
+		p.Channels = []live.LiveSentChannel{}
 	}
-	return SourcePreview{Report: p.Report, Channels: p.Channels, Tuners: p.Tuners}, nil
+	return LiveSourcePreview{Report: p.Report, Channels: p.Channels, Tuners: p.Tuners}, nil
 }
 
 func (s *Server) getLiveSource(r *http.Request, _ None) (LiveSource, error) {
@@ -305,7 +305,7 @@ func (s *Server) saveLiveSource(r *http.Request, req LiveSourceSave) (LiveSource
 	if req.Paused != nil {
 		save.Paused = *req.Paused
 	}
-	var cfg live.SourceConfig
+	var cfg live.LiveSourceConfig
 	json.Unmarshal([]byte(src.Config), &cfg)
 	if req.Config != nil {
 		stored := cfg
@@ -373,26 +373,26 @@ func formatNumber(n int) string {
 	return strconv.Itoa(n/1000) + "." + strconv.Itoa(n%1000)
 }
 
-func (s *Server) listSourceChannels(r *http.Request, _ None) (Page[SourceChannel], error) {
+func (s *Server) listSourceChannels(r *http.Request, _ None) (Page[LiveSourceChannel], error) {
 	src, err := s.db.LiveSource(r.Context(), r.PathValue("id"))
 	if err != nil {
-		return Page[SourceChannel]{}, sourceError(err)
+		return Page[LiveSourceChannel]{}, sourceError(err)
 	}
 	c, err := readLiveCursor(r)
 	if err != nil {
-		return Page[SourceChannel]{}, err
+		return Page[LiveSourceChannel]{}, err
 	}
 	rows, err := s.db.SourceChannels(r.Context(), src.ID, c.Number, c.ID, 201)
 	if err != nil {
-		return Page[SourceChannel]{}, err
+		return Page[LiveSourceChannel]{}, err
 	}
-	out := Page[SourceChannel]{Items: []SourceChannel{}}
+	out := Page[LiveSourceChannel]{Items: []LiveSourceChannel{}}
 	for n, row := range rows {
 		if n == 200 {
 			out.NextCursor = encodeOpaque(liveCursor{Number: rows[n-1].Number, ID: rows[n-1].ID})
 			break
 		}
-		item := SourceChannel{ID: row.PublicID, Name: row.Name, Number: formatNumber(row.Number), Group: row.Group,
+		item := LiveSourceChannel{ID: row.PublicID, Name: row.Name, Number: formatNumber(row.Number), Group: row.Group,
 			BroughtIn: row.State != db.ChannelNotIn, Hidden: row.State == db.ChannelHidden, Missing: row.Missing, GuideSource: row.GuideSource,
 			GuideKey: row.GuideKey, Edited: row.Edited}
 		if row.SourceNumber != 0 {
@@ -403,7 +403,7 @@ func (s *Server) listSourceChannels(r *http.Request, _ None) (Page[SourceChannel
 	return out, nil
 }
 
-func (s *Server) editSourceChannels(r *http.Request, req SourceChannelEdits) (None, error) {
+func (s *Server) editSourceChannels(r *http.Request, req LiveSourceChannelEdits) (None, error) {
 	src, err := s.db.LiveSource(r.Context(), r.PathValue("id"))
 	if err != nil {
 		return None{}, sourceError(err)

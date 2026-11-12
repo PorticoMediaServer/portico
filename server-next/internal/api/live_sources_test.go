@@ -106,8 +106,8 @@ func TestAPlaylistAndItsGuideComeIn(t *testing.T) {
 	everything, thirteen := members[0], members[3]
 	fake := fakeProvider(t, s.now())
 
-	var preview SourcePreview
-	ask := LiveSourceSave{Kind: "playlist", Config: &live.SourceConfig{PlaylistURL: fake.URL + "/playlist.m3u", GuideURL: fake.URL + "/guide.xml.gz"}}
+	var preview LiveSourcePreview
+	ask := LiveSourceSave{Kind: "playlist", Config: &live.LiveSourceConfig{PlaylistURL: fake.URL + "/playlist.m3u", GuideURL: fake.URL + "/guide.xml.gz"}}
 	if w := call(t, s, "POST", "/v1/admin/live/sources/preview", owner, ask, &preview); w.Code != 200 ||
 		preview.Report.Channels != 2 || preview.Report.SkippedChannels != 1 || preview.Report.Programmes != 4 || preview.Report.SkippedProgrammes != 1 {
 		t.Fatalf("preview answered %d %+v", w.Code, preview.Report)
@@ -121,14 +121,14 @@ func TestAPlaylistAndItsGuideComeIn(t *testing.T) {
 		t.Fatalf("after its refresh the source reads %+v", got)
 	}
 
-	channels := get[Page[Channel]](t, s, everything, "/v1/live/channels").Items
+	channels := get[Page[LiveChannel]](t, s, everything, "/v1/live/channels").Items
 	if len(channels) != 2 || channels[0].Number != "2.1" || channels[1].Number != "4" {
 		t.Fatalf("channels: %+v", channels)
 	}
 	stretch := "/v1/live/guide?from=" + s.now().Add(-time.Hour).UTC().Format(time.RFC3339) + "&to=" + s.now().Add(3*time.Hour).UTC().Format(time.RFC3339)
 	check := func(token string, grimShown bool) {
 		t.Helper()
-		guide := get[Guide](t, s, token, stretch)
+		guide := get[LiveGuide](t, s, token, stretch)
 		if len(guide.Items) != 2 || len(guide.Items[0].Programmes) != 2 || len(guide.Items[1].Programmes) != 1 {
 			t.Fatalf("guide: %+v", guide.Items)
 		}
@@ -142,17 +142,17 @@ func TestAPlaylistAndItsGuideComeIn(t *testing.T) {
 	}
 	check(everything, true)
 	check(thirteen, false)
-	if code := status(t, s, "PUT", "/v1/live/channels/"+channels[1].ID+"/state", everything, ChannelMarks{Favorite: true}); code != 200 {
+	if code := status(t, s, "PUT", "/v1/live/channels/"+channels[1].ID+"/state", everything, LiveChannelMarks{Favorite: true}); code != 200 {
 		t.Fatalf("favouriting answered %d", code)
 	}
 	if code := status(t, s, "PATCH", "/v1/admin/live/sources/"+src.ID+"/channels", owner,
-		SourceChannelEdits{Channels: []SourceChannelEdit{{ID: channels[1].ID, Name: new("Films"), Number: new("40")}}}); code != 204 {
+		LiveSourceChannelEdits{Channels: []LiveSourceChannelEdit{{ID: channels[1].ID, Name: new("Films"), Number: new("40")}}}); code != 204 {
 		t.Fatalf("editing a channel answered %d", code)
 	}
 	if err := s.sources.Refresh(context.Background(), src.ID); err != nil {
 		t.Fatal(err)
 	}
-	now := get[Page[OnNow]](t, s, everything, "/v1/live/now").Items
+	now := get[Page[LiveOnNow]](t, s, everything, "/v1/live/now").Items
 	if len(now) != 2 || now[0].Channel.Name != "Films" || now[0].Channel.Number != "40" || !now[0].Channel.Favorite || now[0].Now == nil {
 		t.Fatalf("after a refresh On now reads %+v", now)
 	}
@@ -161,11 +161,11 @@ func TestAPlaylistAndItsGuideComeIn(t *testing.T) {
 	if code := status(t, s, "PATCH", "/v1/admin/live/sources/"+src.ID, owner, LiveSourceSave{Audience: new("owner")}); code != 200 {
 		t.Fatalf("changing the audience answered %d", code)
 	}
-	if n := len(get[Page[Channel]](t, s, everything, "/v1/live/channels").Items); n != 0 {
+	if n := len(get[Page[LiveChannel]](t, s, everything, "/v1/live/channels").Items); n != 0 {
 		t.Fatalf("a member is shown %d channels of an owner-only source", n)
 	}
 	status(t, s, "PATCH", "/v1/admin/live/sources/"+src.ID, owner, LiveSourceSave{Paused: new(true)})
-	if n := len(get[Page[Channel]](t, s, owner, "/v1/live/channels").Items); n != 0 {
+	if n := len(get[Page[LiveChannel]](t, s, owner, "/v1/live/channels").Items); n != 0 {
 		t.Fatalf("a paused source's %d channels are in Live TV", n)
 	}
 }
@@ -175,8 +175,8 @@ func TestAPlaylistAndItsGuideComeIn(t *testing.T) {
 func TestAnXtreamSignInIsNeverShownAndATunerSaysItsTuners(t *testing.T) {
 	s, owner, _ := seededWith(t, 50, 0)
 	fake := fakeProvider(t, s.now())
-	src := addSource(t, s, owner, LiveSourceSave{Kind: "xtream", Name: new("Provider"), Config: &live.SourceConfig{ServerURL: fake.URL + "/xtream"},
-		SignIn: &live.SignIn{Username: "sam", Password: "s3cret-word"}})
+	src := addSource(t, s, owner, LiveSourceSave{Kind: "xtream", Name: new("Provider"), Config: &live.LiveSourceConfig{ServerURL: fake.URL + "/xtream"},
+		SignIn: &live.LiveSignIn{Username: "sam", Password: "s3cret-word"}})
 	w := call(t, s, "GET", "/v1/admin/live/sources/"+src.ID, owner, nil, nil)
 	if strings.Contains(w.Body.String(), "s3cret-word") || !strings.Contains(w.Body.String(), `"hasSignIn":true`) {
 		t.Fatalf("the source shows its sign-in, or not that it has one: %s", w.Body)
@@ -184,21 +184,21 @@ func TestAnXtreamSignInIsNeverShownAndATunerSaysItsTuners(t *testing.T) {
 	if w := call(t, s, "GET", "/v1/live/guide", owner, nil, nil); strings.Contains(w.Body.String(), "s3cret-word") || !strings.Contains(w.Body.String(), "Example News") {
 		t.Fatalf("the guide: %s", w.Body)
 	}
-	status(t, s, "PATCH", "/v1/admin/live/sources/"+src.ID, owner, LiveSourceSave{SignIn: &live.SignIn{Username: "sam", Password: "wrong"}})
+	status(t, s, "PATCH", "/v1/admin/live/sources/"+src.ID, owner, LiveSourceSave{SignIn: &live.LiveSignIn{Username: "sam", Password: "wrong"}})
 	if err := s.sources.Refresh(context.Background(), src.ID); err == nil {
 		t.Fatal("a refused sign-in refreshed")
 	}
 	if got := get[LiveSource](t, s, owner, "/v1/admin/live/sources/"+src.ID); got.State != "needs_sign_in" {
 		t.Fatalf("after a refused sign-in the source reads %q", got.State)
 	}
-	if n := len(get[Page[Channel]](t, s, owner, "/v1/live/channels").Items); n != 1 {
+	if n := len(get[Page[LiveChannel]](t, s, owner, "/v1/live/channels").Items); n != 1 {
 		t.Fatalf("a failed refresh left %d channels, want the one it had", n)
 	}
-	if !get[Guide](t, s, owner, "/v1/live/guide").OutOfDate {
+	if !get[LiveGuide](t, s, owner, "/v1/live/guide").OutOfDate {
 		t.Fatal("after a failed refresh the guide does not say it is out of date")
 	}
 
-	tuner := addSource(t, s, owner, LiveSourceSave{Kind: "hdhomerun", Name: new("Antenna"), Config: &live.SourceConfig{TunerURL: fake.URL + "/hdhr",
+	tuner := addSource(t, s, owner, LiveSourceSave{Kind: "hdhomerun", Name: new("Antenna"), Config: &live.LiveSourceConfig{TunerURL: fake.URL + "/hdhr",
 		GuideURL: fake.URL + "/guide.xml.gz"}})
 	got := get[LiveSource](t, s, owner, "/v1/admin/live/sources/"+tuner.ID)
 	if got.TunerCount != 2 || got.Report == nil || got.Report.Channels != 1 || got.Report.SkippedChannels != 1 || got.Report.ChannelsWithGuide != 1 {
@@ -213,8 +213,8 @@ func TestWatchingASourcesChannelSharesItsTuner(t *testing.T) {
 	s, owner, members := seededWith(t, 50, 2)
 	fake := fakeProvider(t, s.now())
 	t.Cleanup(s.tuners.Close) // before the fake source closes, which waits for its streams
-	addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("Antenna"), TunerCount: new(1), Config: &live.SourceConfig{PlaylistURL: fake.URL + "/tuned.m3u"}})
-	channels := get[Page[Channel]](t, s, members[0], "/v1/live/channels").Items
+	addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("Antenna"), TunerCount: new(1), Config: &live.LiveSourceConfig{PlaylistURL: fake.URL + "/tuned.m3u"}})
+	channels := get[Page[LiveChannel]](t, s, members[0], "/v1/live/channels").Items
 	if len(channels) != 2 {
 		t.Fatalf("channels: %+v", channels)
 	}
@@ -266,9 +266,9 @@ func TestAnXtreamChannelPlaysWithItsSealedSignIn(t *testing.T) {
 	s, owner, _ := seededWith(t, 50, 0)
 	fake := fakeProvider(t, s.now())
 	t.Cleanup(s.tuners.Close)
-	addSource(t, s, owner, LiveSourceSave{Kind: "xtream", Name: new("Provider"), Config: &live.SourceConfig{ServerURL: fake.URL + "/xtream"},
-		SignIn: &live.SignIn{Username: "sam", Password: "s3cret-word"}})
-	channels := get[Page[Channel]](t, s, owner, "/v1/live/channels").Items
+	addSource(t, s, owner, LiveSourceSave{Kind: "xtream", Name: new("Provider"), Config: &live.LiveSourceConfig{ServerURL: fake.URL + "/xtream"},
+		SignIn: &live.LiveSignIn{Username: "sam", Password: "s3cret-word"}})
+	channels := get[Page[LiveChannel]](t, s, owner, "/v1/live/channels").Items
 	var session PlaybackSession
 	if w := call(t, s, "POST", "/v1/playback/sessions", owner, PlaybackStart{Channel: channels[0].ID}, &session); w.Code != 201 ||
 		strings.Contains(w.Body.String(), "s3cret-word") {

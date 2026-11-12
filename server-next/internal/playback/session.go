@@ -86,7 +86,7 @@ type Session struct {
 	fileID    int64
 	Queue     *QueueLink
 	// Channel is the Library Channel the session joined, or nil.
-	Channel *ChannelLink
+	Channel *LibraryChannelLink
 
 	State   string
 	Choice  Choice

@@ -10,34 +10,34 @@ import (
 	"time"
 )
 
-// ChannelCondition is one condition of a Library Channel's selection, or a group of them when
+// LibraryChannelCondition is one condition of a Library Channel's selection, or a group of them when
 // Conditions is set. A single condition is the list filters' own (Condition: a field, how its
 // values combine, the values), named, valued and turned into SQL by the same code, so the
 // apps build one field-and-value picker. On top, and only for a channel: Exclude turns a
 // condition or a group around, and a group holds conditions with its own all or any (one
 // level deep). Fields that read the viewer's own state are refused: a channel is shared. A
 // field this server does not know is kept in the document and not tested.
-type ChannelCondition struct {
-	Field      string             `json:"field,omitempty"`
-	Mode       string             `json:"mode,omitempty"`
-	Values     []string           `json:"values,omitempty"`
-	Exclude    bool               `json:"exclude,omitempty"`
-	Match      string             `json:"match,omitempty"`
-	Conditions []ChannelCondition `json:"conditions,omitempty"`
+type LibraryChannelCondition struct {
+	Field      string                    `json:"field,omitempty"`
+	Mode       string                    `json:"mode,omitempty"`
+	Values     []string                  `json:"values,omitempty"`
+	Exclude    bool                      `json:"exclude,omitempty"`
+	Match      string                    `json:"match,omitempty"`
+	Conditions []LibraryChannelCondition `json:"conditions,omitempty"`
 }
 
 // MaxChannelConditionValues is how many values one Library Channel condition may hold.
 const MaxChannelConditionValues = 500
 
-func (c ChannelCondition) group() bool { return c.Conditions != nil || c.Match != "" }
+func (c LibraryChannelCondition) group() bool { return c.Conditions != nil || c.Match != "" }
 
 // Leaf is a single condition as the list filters have it.
-func (c ChannelCondition) Leaf() Condition {
+func (c LibraryChannelCondition) Leaf() Condition {
 	return Condition{Field: c.Field, Mode: c.Mode, Values: c.Values}
 }
 
 // Known says whether this server can test the condition.
-func (c ChannelCondition) Known() bool {
+func (c LibraryChannelCondition) Known() bool {
 	if c.group() {
 		for _, inner := range c.Conditions {
 			if !inner.Known() {
@@ -53,7 +53,7 @@ func (c ChannelCondition) Known() bool {
 // a mode that is not any, all or none, no values or too many, or a value its field cannot
 // take, judged by the code that turns it into SQL. A group checks each of its conditions. A
 // condition this server does not know is kept unchecked.
-func (c ChannelCondition) CheckValues() error {
+func (c LibraryChannelCondition) CheckValues() error {
 	if c.group() {
 		for _, inner := range c.Conditions {
 			if err := inner.CheckValues(); err != nil {
@@ -91,7 +91,7 @@ type ChannelSelection struct {
 	Shows      bool     // shows rather than films
 	Films      bool
 	Match      string // all or any
-	Conditions []ChannelCondition
+	Conditions []LibraryChannelCondition
 	// AddedSince, when not zero, keeps only titles added since then.
 	AddedSince time.Time
 	Always     []string // public ids, played whatever the conditions say
@@ -218,7 +218,7 @@ func (q *query) list(values []string) string {
 	return strings.Join(names, ", ")
 }
 
-func conditionGroup(ctx context.Context, tx *sql.Tx, q *query, match string, conditions []ChannelCondition) (string, error) {
+func conditionGroup(ctx context.Context, tx *sql.Tx, q *query, match string, conditions []LibraryChannelCondition) (string, error) {
 	joiner, neutral := " AND ", "1"
 	if match == "any" {
 		joiner, neutral = " OR ", "0"

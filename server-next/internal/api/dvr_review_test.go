@@ -27,8 +27,8 @@ func limitedKid(t *testing.T, s *Server, owner string) (Profile, string) {
 func TestALimitedProfileNeverSeesAnotherPersonsHiddenBooking(t *testing.T) {
 	s, owner, _ := recordable(t)
 	_, kid := limitedKid(t, s, owner)
-	var grim Recording
-	if w := call(t, s, "POST", "/v1/dvr/recordings", owner, RecordingBook{Programme: programmeID(t, s, owner, "A Grim Film")}, &grim); w.Code != 200 {
+	var grim DvrRecording
+	if w := call(t, s, "POST", "/v1/dvr/recordings", owner, DvrRecordingBook{Programme: programmeID(t, s, owner, "A Grim Film")}, &grim); w.Code != 200 {
 		t.Fatalf("booking answered %d: %s", w.Code, w.Body)
 	}
 	for _, path := range []string{"/v1/dvr/recordings?scope=everyone", "/v1/dvr/recordings?scope=everyone&state=history"} {
@@ -52,16 +52,16 @@ func TestDeletingARuleWithItsBookingsPassesOnOnesOthersWanted(t *testing.T) {
 	var onOther Session
 	call(t, s, "POST", "/v1/profiles/"+other.ID+"/select", kid, ProfileSelect{}, &onOther)
 	night := programmeID(t, s, owner, "Night Film")
-	var rule Rule
-	if w := call(t, s, "POST", "/v1/dvr/rules", owner, RuleSave{Programme: night}, &rule); w.Code != 201 {
+	var rule DvrRule
+	if w := call(t, s, "POST", "/v1/dvr/rules", owner, DvrRuleSave{Programme: night}, &rule); w.Code != 201 {
 		t.Fatalf("making a rule answered %d: %s", w.Code, w.Body)
 	}
-	var booked Recording
-	call(t, s, "POST", "/v1/dvr/recordings", onOther.AccessToken, RecordingBook{Programme: night}, &booked)
+	var booked DvrRecording
+	call(t, s, "POST", "/v1/dvr/recordings", onOther.AccessToken, DvrRecordingBook{Programme: night}, &booked)
 	if code := status(t, s, "DELETE", "/v1/dvr/rules/"+rule.ID+"?bookings=cancel", owner, nil); code != 204 {
 		t.Fatalf("deleting the rule answered %d", code)
 	}
-	if got := get[Recording](t, s, onOther.AccessToken, "/v1/dvr/recordings/"+booked.ID); got.State != "scheduled" || got.BookedBy != "Sam" {
+	if got := get[DvrRecording](t, s, onOther.AccessToken, "/v1/dvr/recordings/"+booked.ID); got.State != "scheduled" || got.BookedBy != "Sam" {
 		t.Fatalf("a booking Sam also asked for reads %+v after the rule's owner deleted the rule", got)
 	}
 }
@@ -71,18 +71,18 @@ func TestDeletingARuleWithItsBookingsPassesOnOnesOthersWanted(t *testing.T) {
 func TestARecordingStopsWhenSpaceRunsOutWhileItRecords(t *testing.T) {
 	s, owner, _ := recordable(t)
 	options := s.dvrOptions()
-	var rec Recording
-	call(t, s, "POST", "/v1/dvr/recordings", owner, RecordingBook{Programme: programmeID(t, s, owner, "Morning News")}, &rec)
+	var rec DvrRecording
+	call(t, s, "POST", "/v1/dvr/recordings", owner, DvrRecordingBook{Programme: programmeID(t, s, owner, "Morning News")}, &rec)
 	s.recorder.Tick(context.Background())
 	deadline := time.Now().Add(10 * time.Second)
-	for get[Recording](t, s, owner, "/v1/dvr/recordings/"+rec.ID).State != "recording" && time.Now().Before(deadline) {
+	for get[DvrRecording](t, s, owner, "/v1/dvr/recordings/"+rec.ID).State != "recording" && time.Now().Before(deadline) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	options.Floor = 1 << 62 // the disk is now below the floor
 	s.setDVROptions(options)
 	deadline = time.Now().Add(15 * time.Second)
 	for {
-		got := get[Recording](t, s, owner, "/v1/dvr/recordings/"+rec.ID)
+		got := get[DvrRecording](t, s, owner, "/v1/dvr/recordings/"+rec.ID)
 		if got.State != "recording" {
 			if got.Reason != "Space ran out" {
 				t.Fatalf("the recording ended as %+v", got)
@@ -101,9 +101,9 @@ func TestARecordingStopsWhenSpaceRunsOutWhileItRecords(t *testing.T) {
 // one other channel fits: that channel never uses more than one tuner at a time.
 func TestBackToBackBookingsOnOneChannelUseOneTuner(t *testing.T) {
 	s, owner, _ := recordable(t)
-	var news, film Recording
-	call(t, s, "POST", "/v1/dvr/recordings", owner, RecordingBook{Programme: programmeID(t, s, owner, "Late News")}, &news)
-	call(t, s, "POST", "/v1/dvr/recordings", owner, RecordingBook{Programme: programmeID(t, s, owner, "Night Film")}, &film)
+	var news, film DvrRecording
+	call(t, s, "POST", "/v1/dvr/recordings", owner, DvrRecordingBook{Programme: programmeID(t, s, owner, "Late News")}, &news)
+	call(t, s, "POST", "/v1/dvr/recordings", owner, DvrRecordingBook{Programme: programmeID(t, s, owner, "Night Film")}, &film)
 	ctx := context.Background()
 	n, _ := s.db.Recording(ctx, news.ID)
 	f, _ := s.db.Recording(ctx, film.ID)

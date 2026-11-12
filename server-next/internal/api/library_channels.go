@@ -42,9 +42,9 @@ type LibraryChannel struct {
 	UnknownConditions bool `json:"unknownConditions,omitempty"`
 	// DroppedTitles is how many pinned or weighted titles that no longer exist this save took
 	// out of the builder.
-	DroppedTitles int                      `json:"droppedTitles,omitempty"`
-	Builder       *librarychannels.Builder `json:"builder,omitempty"`
-	Health        *ChannelHealth           `json:"health,omitempty"`
+	DroppedTitles int                                    `json:"droppedTitles,omitempty"`
+	Builder       *librarychannels.LibraryChannelBuilder `json:"builder,omitempty"`
+	Health        *LibraryChannelHealth                  `json:"health,omitempty"`
 	revision      int64
 	status        int
 }
@@ -54,8 +54,8 @@ func (c LibraryChannel) reply(h http.Header) int {
 	return c.status
 }
 
-// ChannelHealth answers "is this channel actually on the air?".
-type ChannelHealth struct {
+// LibraryChannelHealth answers "is this channel actually on the air?".
+type LibraryChannelHealth struct {
 	OnAir bool `json:"onAir"`
 	// Message is the one sentence why not, when it is not.
 	Message     string     `json:"message,omitempty"`
@@ -69,11 +69,11 @@ type ChannelHealth struct {
 // LibraryChannelSave makes a channel, or changes one: only what is sent changes, and a builder
 // is always sent whole.
 type LibraryChannelSave struct {
-	Name        *string                  `json:"name,omitempty"`
-	Description *string                  `json:"description,omitempty"`
-	TimeZone    *string                  `json:"timeZone,omitempty"`
-	On          *bool                    `json:"on,omitempty"`
-	Builder     *librarychannels.Builder `json:"builder,omitempty"`
+	Name        *string                                `json:"name,omitempty"`
+	Description *string                                `json:"description,omitempty"`
+	TimeZone    *string                                `json:"timeZone,omitempty"`
+	On          *bool                                  `json:"on,omitempty"`
+	Builder     *librarychannels.LibraryChannelBuilder `json:"builder,omitempty"`
 }
 
 // LibraryChannelOrder is the owner's order: every Library Channel's id, once.
@@ -81,35 +81,35 @@ type LibraryChannelOrder struct {
 	IDs []string `json:"ids"`
 }
 
-// ChannelTemplate is a whole channel filled in for this server, to review before saving.
-type ChannelTemplate struct {
-	Key         string                  `json:"key"`
-	Name        string                  `json:"name"`
-	Description string                  `json:"description"`
-	Available   bool                    `json:"available"`
-	Reason      string                  `json:"reason,omitempty"`
-	Builder     librarychannels.Builder `json:"builder"`
+// LibraryChannelTemplate is a whole channel filled in for this server, to review before saving.
+type LibraryChannelTemplate struct {
+	Key         string                                `json:"key"`
+	Name        string                                `json:"name"`
+	Description string                                `json:"description"`
+	Available   bool                                  `json:"available"`
+	Reason      string                                `json:"reason,omitempty"`
+	Builder     librarychannels.LibraryChannelBuilder `json:"builder"`
 }
 
-// ChannelPreviewAsk is a channel as it is being edited. ChannelID, for one that exists,
+// LibraryChannelPreviewAsk is a channel as it is being edited. ChannelID, for one that exists,
 // previews it as saving would: from the end of the programme now on, with its own places.
-type ChannelPreviewAsk struct {
-	ChannelID string                  `json:"channelId,omitempty"`
-	TimeZone  string                  `json:"timeZone"`
-	Builder   librarychannels.Builder `json:"builder"`
+type LibraryChannelPreviewAsk struct {
+	ChannelID string                                `json:"channelId,omitempty"`
+	TimeZone  string                                `json:"timeZone"`
+	Builder   librarychannels.LibraryChannelBuilder `json:"builder"`
 }
 
-// ChannelPreview is what the channel being edited would play.
-type ChannelPreview struct {
-	Titles      int                `json:"titles"`
-	Unplaceable int                `json:"unplaceable"`
-	Hours       int                `json:"hours"`
-	Sample      []PreviewTitle     `json:"sample"`
-	Today       []PreviewProgramme `json:"today"`
+// LibraryChannelPreview is what the channel being edited would play.
+type LibraryChannelPreview struct {
+	Titles      int                              `json:"titles"`
+	Unplaceable int                              `json:"unplaceable"`
+	Hours       int                              `json:"hours"`
+	Sample      []LibraryChannelPreviewTitle     `json:"sample"`
+	Today       []LibraryChannelPreviewProgramme `json:"today"`
 }
 
-// PreviewTitle is a title in a preview.
-type PreviewTitle struct {
+// LibraryChannelPreviewTitle is a title in a preview.
+type LibraryChannelPreviewTitle struct {
 	ID           string `json:"id"`
 	Title        string `json:"title"`
 	EpisodeTitle string `json:"episodeTitle,omitempty"`
@@ -118,35 +118,35 @@ type PreviewTitle struct {
 	Year         int    `json:"year,omitempty"`
 }
 
-// PreviewProgramme is one programme of today's schedule; Title is absent for the slate.
-type PreviewProgramme struct {
-	StartsAt time.Time     `json:"startsAt"`
-	EndsAt   time.Time     `json:"endsAt"`
-	Title    *PreviewTitle `json:"title,omitempty"`
+// LibraryChannelPreviewProgramme is one programme of today's schedule; Title is absent for the slate.
+type LibraryChannelPreviewProgramme struct {
+	StartsAt time.Time                   `json:"startsAt"`
+	EndsAt   time.Time                   `json:"endsAt"`
+	Title    *LibraryChannelPreviewTitle `json:"title,omitempty"`
 }
 
-// BlockPreset is a block the owner saved to reuse on any Library Channel.
-type BlockPreset struct {
-	ID          string                 `json:"id"`
-	Name        string                 `json:"name"`
-	Description string                 `json:"description,omitempty"`
-	Library     string                 `json:"library"`
-	Recipe      librarychannels.Recipe `json:"recipe"`
+// LibraryChannelBlockPreset is a block the owner saved to reuse on any Library Channel.
+type LibraryChannelBlockPreset struct {
+	ID          string                               `json:"id"`
+	Name        string                               `json:"name"`
+	Description string                               `json:"description,omitempty"`
+	Library     string                               `json:"library"`
+	Recipe      librarychannels.LibraryChannelRecipe `json:"recipe"`
 	revision    int64
 	status      int
 }
 
-func (p BlockPreset) reply(h http.Header) int {
+func (p LibraryChannelBlockPreset) reply(h http.Header) int {
 	etag(h, strconv.FormatInt(p.revision, 10))
 	return p.status
 }
 
-// BlockPresetSave makes a preset, or changes one: only what is sent changes.
-type BlockPresetSave struct {
-	Name        *string                 `json:"name,omitempty"`
-	Description *string                 `json:"description,omitempty"`
-	Library     *string                 `json:"library,omitempty"`
-	Recipe      *librarychannels.Recipe `json:"recipe,omitempty"`
+// LibraryChannelBlockPresetSave makes a preset, or changes one: only what is sent changes.
+type LibraryChannelBlockPresetSave struct {
+	Name        *string                               `json:"name,omitempty"`
+	Description *string                               `json:"description,omitempty"`
+	Library     *string                               `json:"library,omitempty"`
+	Recipe      *librarychannels.LibraryChannelRecipe `json:"recipe,omitempty"`
 }
 
 const libraryChannelPage = 50
@@ -213,7 +213,7 @@ func stateWord(ch db.LibraryChannel, now time.Time) string {
 	return "onAir"
 }
 
-func (s *Server) libraryChannelOut(ch db.LibraryChannel, b *librarychannels.Builder, detail bool) LibraryChannel {
+func (s *Server) libraryChannelOut(ch db.LibraryChannel, b *librarychannels.LibraryChannelBuilder, detail bool) LibraryChannel {
 	out := LibraryChannel{ID: ch.PublicID, Name: ch.Name, Number: ch.Number, On: ch.On, Description: ch.Description, Summary: ch.Description,
 		TimeZone: ch.TimeZone, Libraries: ch.Libraries, State: stateWord(ch, s.now()), Problem: ch.Problem, Titles: ch.Titles,
 		revision: ch.Revision}
@@ -265,7 +265,7 @@ func (s *Server) listLibraryChannels(r *http.Request, _ None) (Page[LibraryChann
 // pinned or weighted titles that no longer exist it took out. Blocks added from a preset are
 // filled in from it first. The on-screen logo may be on without a logo: the session carries
 // none until one is uploaded, so deleting a logo never blocks a save.
-func (s *Server) checkBuilder(ctx context.Context, b *librarychannels.Builder, zone string) (string, int, error) {
+func (s *Server) checkBuilder(ctx context.Context, b *librarychannels.LibraryChannelBuilder, zone string) (string, int, error) {
 	if _, err := librarychannels.LoadZone(zone); err != nil {
 		return "", 0, channelError(err)
 	}
@@ -285,7 +285,7 @@ func (s *Server) checkBuilder(ctx context.Context, b *librarychannels.Builder, z
 		if err != nil {
 			return "", 0, err
 		}
-		var recipe librarychannels.Recipe
+		var recipe librarychannels.LibraryChannelRecipe
 		if err := json.Unmarshal([]byte(preset.Recipe), &recipe); err != nil {
 			return "", 0, err
 		}
@@ -405,7 +405,7 @@ func (s *Server) getLibraryChannel(r *http.Request, _ None) (LibraryChannel, err
 		return LibraryChannel{}, err
 	}
 	out := s.libraryChannelOut(ch, b, true)
-	h := &ChannelHealth{Titles: ch.Titles, Unplaceable: ch.Unplaceable, Building: ch.State == db.LibraryChannelBuilding,
+	h := &LibraryChannelHealth{Titles: ch.Titles, Unplaceable: ch.Unplaceable, Building: ch.State == db.LibraryChannelBuilding,
 		Reaches: out.ScheduledThrough}
 	if h.Programmes, err = s.db.ScheduledProgrammes(ctx, ch.ID, s.now()); err != nil {
 		return LibraryChannel{}, err
@@ -511,19 +511,19 @@ func (s *Server) orderLibraryChannels(r *http.Request, req LibraryChannelOrder) 
 // enough is how many matching titles a template needs to be offered.
 const enough = 3
 
-func (s *Server) channelTemplates(r *http.Request, _ None) (Page[ChannelTemplate], error) {
+func (s *Server) channelTemplates(r *http.Request, _ None) (Page[LibraryChannelTemplate], error) {
 	ctx := r.Context()
 	kinds, err := s.db.LibraryKinds(ctx)
 	if err != nil {
-		return Page[ChannelTemplate]{}, err
+		return Page[LibraryChannelTemplate]{}, err
 	}
-	out := Page[ChannelTemplate]{Items: []ChannelTemplate{}}
+	out := Page[LibraryChannelTemplate]{Items: []LibraryChannelTemplate{}}
 	for _, t := range librarychannels.Templates(kinds) {
-		count, err := s.channels.CountUpTo(ctx, &t.Builder.Selection, enough)
+		count, err := s.channels.CountUpTo(ctx, &t.Builder.LibraryChannelSelection, enough)
 		if err != nil {
-			return Page[ChannelTemplate]{}, err
+			return Page[LibraryChannelTemplate]{}, err
 		}
-		item := ChannelTemplate{Key: t.Key, Name: t.Name, Description: t.Description, Available: count >= enough, Builder: t.Builder}
+		item := LibraryChannelTemplate{Key: t.Key, Name: t.Name, Description: t.Description, Available: count >= enough, Builder: t.Builder}
 		if !item.Available {
 			item.Reason = "Not enough media"
 		}
@@ -532,46 +532,46 @@ func (s *Server) channelTemplates(r *http.Request, _ None) (Page[ChannelTemplate
 	return out, nil
 }
 
-func previewTitle(t *db.ProgrammeTitle) *PreviewTitle {
+func previewTitle(t *db.ProgrammeTitle) *LibraryChannelPreviewTitle {
 	if t == nil {
 		return nil
 	}
-	return &PreviewTitle{ID: t.PublicID, Title: t.Title, EpisodeTitle: t.EpisodeTitle, Season: t.Season, Episode: t.Episode, Year: t.Year}
+	return &LibraryChannelPreviewTitle{ID: t.PublicID, Title: t.Title, EpisodeTitle: t.EpisodeTitle, Season: t.Season, Episode: t.Episode, Year: t.Year}
 }
 
-func (s *Server) previewLibraryChannel(r *http.Request, req ChannelPreviewAsk) (ChannelPreview, error) {
+func (s *Server) previewLibraryChannel(r *http.Request, req LibraryChannelPreviewAsk) (LibraryChannelPreview, error) {
 	ctx := r.Context()
 	zone := req.TimeZone
 	if zone == "" {
 		zone = s.serverZone()
 	}
 	if _, _, err := s.checkBuilder(ctx, &req.Builder, zone); err != nil {
-		return ChannelPreview{}, err
+		return LibraryChannelPreview{}, err
 	}
 	loc, _ := librarychannels.LoadZone(zone)
 	p, err := s.channels.Preview(ctx, &req.Builder, loc, req.ChannelID)
 	if errors.Is(err, db.ErrNotFound) {
-		return ChannelPreview{}, ErrField("channelId", "This channel no longer exists.")
+		return LibraryChannelPreview{}, ErrField("channelId", "This channel no longer exists.")
 	}
 	if err != nil {
-		return ChannelPreview{}, err
+		return LibraryChannelPreview{}, err
 	}
-	out := ChannelPreview{Titles: p.Titles, Unplaceable: p.Unplaceable, Hours: p.Hours, Sample: []PreviewTitle{}, Today: []PreviewProgramme{}}
+	out := LibraryChannelPreview{Titles: p.Titles, Unplaceable: p.Unplaceable, Hours: p.Hours, Sample: []LibraryChannelPreviewTitle{}, Today: []LibraryChannelPreviewProgramme{}}
 	for n := range p.Sample {
 		out.Sample = append(out.Sample, *previewTitle(&p.Sample[n]))
 	}
 	for _, row := range p.Today {
-		out.Today = append(out.Today, PreviewProgramme{StartsAt: row.StartsAt.UTC(), EndsAt: row.EndsAt.UTC(), Title: previewTitle(row.Title)})
+		out.Today = append(out.Today, LibraryChannelPreviewProgramme{StartsAt: row.StartsAt.UTC(), EndsAt: row.EndsAt.UTC(), Title: previewTitle(row.Title)})
 	}
 	return out, nil
 }
 
-func presetOut(p db.BlockPreset) (BlockPreset, error) {
-	out := BlockPreset{ID: p.PublicID, Name: p.Name, Description: p.Description, Library: p.Library, revision: p.Revision}
+func presetOut(p db.BlockPreset) (LibraryChannelBlockPreset, error) {
+	out := LibraryChannelBlockPreset{ID: p.PublicID, Name: p.Name, Description: p.Description, Library: p.Library, revision: p.Revision}
 	return out, json.Unmarshal([]byte(p.Recipe), &out.Recipe)
 }
 
-func (s *Server) listBlockPresets(r *http.Request, _ None) (Page[BlockPreset], error) {
+func (s *Server) listBlockPresets(r *http.Request, _ None) (Page[LibraryChannelBlockPreset], error) {
 	var afterName string
 	var afterID int64
 	if cursor := r.URL.Query().Get("cursor"); cursor != "" {
@@ -580,15 +580,15 @@ func (s *Server) listBlockPresets(r *http.Request, _ None) (Page[BlockPreset], e
 			ID   int64  `json:"i"`
 		}
 		if err := decodeOpaque(cursor, &c); err != nil {
-			return Page[BlockPreset]{}, ErrField("cursor", "This cursor is not one this list gave.")
+			return Page[LibraryChannelBlockPreset]{}, ErrField("cursor", "This cursor is not one this list gave.")
 		}
 		afterName, afterID = c.Name, c.ID
 	}
 	rows, err := s.db.BlockPresets(r.Context(), afterName, afterID, libraryChannelPage+1)
 	if err != nil {
-		return Page[BlockPreset]{}, err
+		return Page[LibraryChannelBlockPreset]{}, err
 	}
-	out := Page[BlockPreset]{Items: []BlockPreset{}}
+	out := Page[LibraryChannelBlockPreset]{Items: []LibraryChannelBlockPreset{}}
 	for n, p := range rows {
 		if n == libraryChannelPage {
 			last := rows[n-1]
@@ -597,14 +597,14 @@ func (s *Server) listBlockPresets(r *http.Request, _ None) (Page[BlockPreset], e
 		}
 		item, err := presetOut(p)
 		if err != nil {
-			return Page[BlockPreset]{}, err
+			return Page[LibraryChannelBlockPreset]{}, err
 		}
 		out.Items = append(out.Items, item)
 	}
 	return out, nil
 }
 
-func checkPreset(name string, recipe *librarychannels.Recipe) error {
+func checkPreset(name string, recipe *librarychannels.LibraryChannelRecipe) error {
 	if name == "" {
 		return ErrField("name", "Give the preset a name.")
 	}
@@ -617,10 +617,10 @@ func checkPreset(name string, recipe *librarychannels.Recipe) error {
 	return channelError(librarychannels.CheckRecipe(recipe))
 }
 
-func (s *Server) createBlockPreset(r *http.Request, req BlockPresetSave) (BlockPreset, error) {
+func (s *Server) createBlockPreset(r *http.Request, req LibraryChannelBlockPresetSave) (LibraryChannelBlockPreset, error) {
 	key, err := idempotencyKey(r)
 	if err != nil {
-		return BlockPreset{}, err
+		return LibraryChannelBlockPreset{}, err
 	}
 	save := db.BlockPresetSave{IdempotencyKey: key, RequestHash: requestHash(req), Now: s.now()}
 	if req.Name != nil {
@@ -633,32 +633,32 @@ func (s *Server) createBlockPreset(r *http.Request, req BlockPresetSave) (BlockP
 		save.Library = *req.Library
 	}
 	if err := checkPreset(save.Name, req.Recipe); err != nil {
-		return BlockPreset{}, err
+		return LibraryChannelBlockPreset{}, err
 	}
 	raw, _ := json.Marshal(req.Recipe)
 	save.Recipe = string(raw)
 	p, err := s.db.CreateBlockPreset(r.Context(), CallerFrom(r.Context()).UserID, save)
 	if err != nil {
-		return BlockPreset{}, channelError(err)
+		return LibraryChannelBlockPreset{}, channelError(err)
 	}
 	out, err := presetOut(p)
 	out.status = http.StatusCreated
 	return out, err
 }
 
-func (s *Server) saveBlockPreset(r *http.Request, req BlockPresetSave) (BlockPreset, error) {
+func (s *Server) saveBlockPreset(r *http.Request, req LibraryChannelBlockPresetSave) (LibraryChannelBlockPreset, error) {
 	ctx := r.Context()
 	match, err := channelIfMatch(r)
 	if err != nil {
-		return BlockPreset{}, err
+		return LibraryChannelBlockPreset{}, err
 	}
 	p, err := s.db.BlockPreset(ctx, r.PathValue("id"))
 	if err != nil {
-		return BlockPreset{}, channelError(err)
+		return LibraryChannelBlockPreset{}, channelError(err)
 	}
 	current, err := presetOut(p)
 	if err != nil {
-		return BlockPreset{}, err
+		return LibraryChannelBlockPreset{}, err
 	}
 	save := db.BlockPresetSave{Name: p.Name, Description: p.Description, Library: p.Library, Now: s.now()}
 	recipe := &current.Recipe
@@ -675,13 +675,13 @@ func (s *Server) saveBlockPreset(r *http.Request, req BlockPresetSave) (BlockPre
 		recipe = req.Recipe
 	}
 	if err := checkPreset(save.Name, recipe); err != nil {
-		return BlockPreset{}, err
+		return LibraryChannelBlockPreset{}, err
 	}
 	raw, _ := json.Marshal(recipe)
 	save.Recipe = string(raw)
 	saved, err := s.db.SaveBlockPreset(ctx, p.PublicID, save, match)
 	if err != nil {
-		return BlockPreset{}, channelError(err)
+		return LibraryChannelBlockPreset{}, channelError(err)
 	}
 	return presetOut(saved)
 }

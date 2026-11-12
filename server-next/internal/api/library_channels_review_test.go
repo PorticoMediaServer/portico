@@ -14,8 +14,8 @@ func TestReviewABadConditionValueNeverLeavesTheChannelBuilding(t *testing.T) {
 	s, owner, _ := seededWith(t, 200, 0)
 	films := libraryOfKind(t, s, owner, "movies")
 	name := "Bad"
-	b := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"},
-		Conditions: []db.ChannelCondition{{Field: "year", Values: []string{"nineteen"}}}}}
+	b := librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{films}, Kinds: []string{"movie"},
+		Conditions: []db.LibraryChannelCondition{{Field: "year", Values: []string{"nineteen"}}}}}
 	var ch LibraryChannel
 	w := call(t, s, "POST", "/v1/admin/library-channels", owner, LibraryChannelSave{Name: &name, Builder: &b}, &ch)
 	if w.Code != 201 {

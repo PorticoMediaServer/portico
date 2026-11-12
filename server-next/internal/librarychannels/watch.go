@@ -30,7 +30,7 @@ type PreviewProgramme struct {
 // (channelID) keeps what is scheduled up to the end of the programme now on and builds the
 // rest from its stored orders. Its cost follows the size of the chosen libraries: it is the
 // owner's editor, asked again a moment after each edit.
-func (s *Service) Preview(ctx context.Context, b *Builder, loc *time.Location, channelID string) (Preview, error) {
+func (s *Service) Preview(ctx context.Context, b *LibraryChannelBuilder, loc *time.Location, channelID string) (Preview, error) {
 	now := s.now().Truncate(time.Second)
 	local := now.In(loc)
 	midnight := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
@@ -97,9 +97,9 @@ func (s *Service) Preview(ctx context.Context, b *Builder, loc *time.Location, c
 }
 
 // hours is about how long everything the channel's own selection matches would take to play.
-func (s *Service) hours(ctx context.Context, b *Builder, st *State) (int, error) {
+func (s *Service) hours(ctx context.Context, b *LibraryChannelBuilder, st *State) (int, error) {
 	bd := &build{ctx: ctx, src: s.db, b: b, st: st, now: s.now(), pools: map[string]*pool{}}
-	p, err := bd.pool("", &b.Selection)
+	p, err := bd.pool("", &b.LibraryChannelSelection)
 	if err != nil {
 		return 0, err
 	}
@@ -118,7 +118,7 @@ func (s *Service) hours(ctx context.Context, b *Builder, st *State) (int, error)
 
 // CountUpTo counts the titles a selection matches, stopping at limit, so a template is
 // offered or not without reading every title.
-func (s *Service) CountUpTo(ctx context.Context, sel *Selection, limit int) (int, error) {
+func (s *Service) CountUpTo(ctx context.Context, sel *LibraryChannelSelection, limit int) (int, error) {
 	if len(sel.Libraries) == 0 {
 		return 0, nil
 	}

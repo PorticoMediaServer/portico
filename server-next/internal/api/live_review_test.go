@@ -16,7 +16,7 @@ func TestReviewLibraryLimitedProfileAndTheProgrammeLeftOnAfterAnEdit(t *testing.
 	ctx := context.Background()
 	films := libraryOfKind(t, s, owner, "movies")
 	shows := libraryOfKind(t, s, owner, "shows")
-	both := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films, shows},
+	both := librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{films, shows},
 		Kinds: []string{"movie", "show"}}}
 	ch := makeChannel(t, s, owner, "Both", both)
 	rows := programmes(t, s, ch.ID, s.now(), s.now().Add(72*time.Hour))
@@ -52,7 +52,7 @@ func TestReviewLibraryLimitedProfileAndTheProgrammeLeftOnAfterAnEdit(t *testing.
 	owner, _ = s.tokens.Access(ownerClaims, clock, clock.Add(time.Hour))
 	filmsOnly, _ = s.tokens.Access(memberClaims, clock, clock.Add(time.Hour))
 
-	narrowed := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"}}}
+	narrowed := librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{films}, Kinds: []string{"movie"}}}
 	if w := call(t, s, "PATCH", "/v1/admin/library-channels/"+ch.ID, owner, LibraryChannelSave{Builder: &narrowed}, nil); w.Code != 200 {
 		t.Fatalf("narrowing answered %d: %s", w.Code, w.Body)
 	}
@@ -60,7 +60,7 @@ func TestReviewLibraryLimitedProfileAndTheProgrammeLeftOnAfterAnEdit(t *testing.
 		t.Fatal(err)
 	}
 	seen := false
-	for _, c := range get[Page[Channel]](t, s, filmsOnly, "/v1/live/channels").Items {
+	for _, c := range get[Page[LiveChannel]](t, s, filmsOnly, "/v1/live/channels").Items {
 		seen = seen || c.ID == ch.ID
 	}
 	if !seen {
@@ -68,7 +68,7 @@ func TestReviewLibraryLimitedProfileAndTheProgrammeLeftOnAfterAnEdit(t *testing.
 	}
 	stretch := "/v1/live/guide?from=" + clock.UTC().Format(time.RFC3339) + "&to=" + clock.Add(20*time.Hour).UTC().Format(time.RFC3339)
 	hidden := 0
-	for _, row := range get[Guide](t, s, filmsOnly, stretch).Items {
+	for _, row := range get[LiveGuide](t, s, filmsOnly, stretch).Items {
 		if row.Channel.ID != ch.ID {
 			continue
 		}
@@ -88,7 +88,7 @@ func TestReviewLibraryLimitedProfileAndTheProgrammeLeftOnAfterAnEdit(t *testing.
 	if hidden == 0 {
 		t.Fatal("the episode left on the air is not hidden from the films-only profile")
 	}
-	for _, on := range get[Page[OnNow]](t, s, filmsOnly, "/v1/live/now").Items {
+	for _, on := range get[Page[LiveOnNow]](t, s, filmsOnly, "/v1/live/now").Items {
 		if on.Channel.ID == ch.ID && (on.Now == nil || !on.Now.NotAvailable) {
 			t.Fatalf("On now shows %+v", on.Now)
 		}

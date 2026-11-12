@@ -26,8 +26,8 @@ const (
 	MaxProgrammes = 5_000_000
 )
 
-// SourceReport is what a refresh or a preview brought in and left out, with a few examples why.
-type SourceReport struct {
+// LiveSourceReport is what a refresh or a preview brought in and left out, with a few examples why.
+type LiveSourceReport struct {
 	Channels          int      `json:"channels"`
 	SkippedChannels   int      `json:"skippedChannels"`
 	Programmes        int      `json:"programmes"`
@@ -39,7 +39,7 @@ type SourceReport struct {
 	examplesSeen      map[string]bool
 }
 
-func (r *SourceReport) note(reason string) {
+func (r *LiveSourceReport) note(reason string) {
 	if r.examplesSeen == nil {
 		r.examplesSeen = map[string]bool{}
 	}
@@ -49,7 +49,7 @@ func (r *SourceReport) note(reason string) {
 	}
 }
 
-func (r *SourceReport) group(name string) {
+func (r *LiveSourceReport) group(name string) {
 	if name == "" {
 		return
 	}
@@ -62,9 +62,9 @@ func (r *SourceReport) group(name string) {
 	}
 }
 
-// SentChannel is one channel a source sends. (Channel, in the contract, is a channel of the
+// LiveSentChannel is one channel a source sends. (LiveChannel, in the contract, is a channel of the
 // guide.)
-type SentChannel struct {
+type LiveSentChannel struct {
 	Key      string // the source's own name for it, stable across refreshes
 	Name     string
 	Number   string // as sent, "5.1" or "" for none
@@ -136,10 +136,10 @@ func playlistSeparator(line string) int {
 // ParsePlaylist reads an M3U playlist and calls fn with each usable channel. A line it cannot
 // use is counted in the report and never loses the rest; a document that is not a playlist
 // at all is an error.
-func ParsePlaylist(r io.Reader, report *SourceReport, fn func(SentChannel) error) error {
+func ParsePlaylist(r io.Reader, report *LiveSourceReport, fn func(LiveSentChannel) error) error {
 	in := bufio.NewReaderSize(r, 64<<10)
 	first, pending := true, false
-	var ch SentChannel
+	var ch LiveSentChannel
 	seen := map[string]bool{}
 	skip := func(reason string) { report.SkippedChannels++; report.note(reason) }
 	for {
@@ -165,7 +165,7 @@ func ParsePlaylist(r io.Reader, report *SourceReport, fn func(SentChannel) error
 				skip("A channel's description could not be read.")
 				break
 			}
-			ch = SentChannel{Name: strings.TrimSpace(text[comma+1:])}
+			ch = LiveSentChannel{Name: strings.TrimSpace(text[comma+1:])}
 			for _, m := range attribute.FindAllStringSubmatch(text[:comma], -1) {
 				value := m[2] + m[3] + m[4]
 				switch strings.ToLower(m[1]) {
@@ -301,7 +301,7 @@ type GuideChannel struct {
 // ParseGuide reads an XMLTV guide and calls channel and programme with what it finds, one at
 // a time, never holding the whole guide. Entities are never expanded and a DOCTYPE may name
 // only the tv document.
-func ParseGuide(r io.Reader, report *SourceReport, channel func(GuideChannel) error, programme func(Programme) error) error {
+func ParseGuide(r io.Reader, report *LiveSourceReport, channel func(GuideChannel) error, programme func(Programme) error) error {
 	budget := &elementBudget{r: r}
 	dec := xml.NewDecoder(budget)
 	dec.CharsetReader = charset
