@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -195,6 +196,14 @@ func TestASavedOriginThatIsNotOneAddressIsIgnored(t *testing.T) {
 	}
 }
 
+// bodiless are the routes that need no sign-in and take no body at all, each with why a bare
+// POST from a page on another site does nothing.
+var bodiless = map[string]string{
+	// Linking (not on main when this was written): the challenge is made from the server's own
+	// key and the time, nothing is stored or counted, and the page cannot read the answer.
+	"POST /v1/auth/portico/challenge": "answers a sign-in challenge that is not stored, which the page cannot read",
+}
+
 // A page that is not allowed can still make a browser send a POST with no body, or with a
 // body that is not JSON, without asking first. No route that needs no sign-in may act on
 // one: each must refuse it. A new route that would accept one fails here.
@@ -208,6 +217,14 @@ func TestNoRouteWithoutSignInActsOnABodyAPageCanSendUnasked(t *testing.T) {
 			continue
 		}
 		checked++
+		// A route that takes no body cannot be told from a bare request, so each one is listed
+		// here with why a bare POST to it does nothing. One that is not listed fails.
+		if route.Request == reflect.TypeFor[None]() {
+			if bodiless[route.Pattern] == "" {
+				t.Errorf("%s needs no sign-in and takes no body: say in bodiless why a bare POST to it does nothing, or give it a body", route.Pattern)
+			}
+			continue
+		}
 		path = regexp.MustCompile(`\{[^}]+\}`).ReplaceAllString(path, "x")
 		for name, send := range map[string]func(r *http.Request){
 			"no body":         func(r *http.Request) {},

@@ -1,8 +1,10 @@
 package api
 
 import (
+	"mime"
 	"net/http"
 	"net/url"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -132,4 +134,23 @@ func plainOrigin(origin string) bool {
 	}
 	host := u.Hostname()
 	return host != "localhost" && host != "127.0.0.1" && host != "::1" && !strings.HasSuffix(host, ".localhost")
+}
+
+// unaskedPost refuses a POST to a route that needs no sign-in and takes a body unless it is
+// sent as application/json. A page on any site can make a browser send a POST with no body, a
+// form or plain text without asking the server first; it cannot send application/json without
+// a preflight, and only an allowed origin's preflight is answered. Without this a route whose
+// body is all optional would act on such a request: a page could start an owner reset. A
+// signed-in route is safe already, since its token goes in a header a page cannot send
+// unasked either. A route that takes no body at all is not refused here: each such route
+// that needs no sign-in is listed, with why a bare request to it does nothing, in the test
+// that holds this rule.
+func unaskedPost(r *http.Request, route *Route) error {
+	if route.Access != Public || r.Method != http.MethodPost || route.Request == reflect.TypeFor[None]() {
+		return nil
+	}
+	if kind, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); kind != "application/json" {
+		return refusal(http.StatusUnsupportedMediaType, "unsupported_media_type", "Send the request as application/json.", false)
+	}
+	return nil
 }

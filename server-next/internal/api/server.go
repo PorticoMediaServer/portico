@@ -403,6 +403,11 @@ func Handle[Req, Resp any](s *Server, pattern string, access Access, fn func(r *
 			s.writeError(w, r, err)
 			return
 		}
+		// A route that needs no sign-in takes only what a foreign page cannot send unasked. See cors.go.
+		if err := unaskedPost(r, route); err != nil {
+			s.writeError(w, r, err)
+			return
+		}
 		var req Req
 		limit := int64(maxBody)
 		if route.BodyLimit > 0 {
