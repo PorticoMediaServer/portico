@@ -70,6 +70,8 @@ func TestAnRcloneHostIsNeverLinkLocal(t *testing.T) {
 		"[a]\ntype = box\nauth_url = http://instance-data/auth\n",
 		"[a]\ntype = sia\napi_url = http://100.100.100.200:9980\n",
 		"[a]\ntype = newkind\nwhere_to = http://metadata.goog/x\n",
+		"[a]\ntype = sftp\nhost = metadata\n",
+		"[a]\ntype = sftp\nhost = nas.example\nsocks_proxy = instance-data:1080\n",
 	} {
 		if _, err := remote.ParseRcloneConfig(paste); !errors.Is(err, remote.ErrAddressRefused) {
 			t.Errorf("%q: %v", paste, err)
@@ -180,7 +182,8 @@ func TestAnRcloneNameWithAMetadataAddressIsRefused(t *testing.T) {
 	// Every option's value is looked in, whatever the option is called; ordinary values pass.
 	for _, paste := range []string{
 		"[a]\ntype = s3\ndescription = films from the shed\nendpoint = https://s3.example:9000/\n",
-		"[a]\ntype = sftp\nhost = nas.local\nkey_pem = -----BEGIN OPENSSH PRIVATE KEY-----\\nb3BlbnNzaC1rZXktdjEAAAAA+/x/y==\\n-----END OPENSSH PRIVATE KEY-----\n",
+		"[a]\ntype = sftp\nhost = nas.local\nuser = me\npass = an+ordinary/value==\n",
+		"[a]\ntype = webdav\nurl = https://dav.example/metadata/films\nuser = instance-data\n",
 		"[a]\ntype = dropbox\ntoken = {\"access_token\":\"a.b/c\",\"expiry\":\"2026-11-11T19:00:00Z\"}\n",
 	} {
 		if _, err := remote.ParseRcloneConfig(paste); err != nil {
