@@ -33,7 +33,7 @@ function setup(handler: (path: string, method?: string, body?: unknown, signal?:
   }) as unknown as ScreenContext;
   return {context, requests: () => requests, retire: () => { current = false; }};
 }
-const personPage = (id: string) => ({serverId: 'server', viewerFence: 'fence', revision: {catalog: 1, viewer: 1}, person: {id, name: id, revision: 1}, credits: [], pageInfo: {total: 0, nextCursor: ''}});
+const personFacts = (id: string, total = 0) => ({id, name: id, images: {}, titleCount: total, crewTitleCount: 0, roles: total ? [{role: 'actor', titleCount: total}] : []});
 const detailPage = (id: string) => ({scope: {serverId: 'server', libraryId: 'library', itemId: id, viewerFence: 'fence'}, revision: {catalog: 1, viewer: 1},
   item: {id, libraryId: 'library', kind: 'movie', title: id, durationMs: 1000, progressMs: 0, available: true},
   personal: {watchlisted: false, favorite: false, rating: null, revision: 1, watched: false, progressMs: 0, lastPlayedAt: '', status: 'current', conflicts: []},
@@ -222,25 +222,26 @@ test('the canonical episode preference changes the real Show layout and remains 
 test('switching people aborts the old read and ignores a transport that still returns it', async () => {
   const old = deferred<unknown>(); let oldSignal: AbortSignal | undefined;
   const owner = setup(async (path, _method, _body, signal) => {
-    if (path.includes('/first?')) { oldSignal = signal; return old.promise; }
-    return personPage('second');
+    if (path === '/v1/people/first') { oldSignal = signal; return old.promise; }
+    if (path === '/v1/people/second') return personFacts('second');
+    return {items: [], total: 0};
   });
   const binding = createPersonBindings(owner.context), first = binding.select('first');
   await binding.select('second');
   assert.equal(oldSignal?.aborted, true);
-  old.resolve(personPage('first')); await first;
+  old.resolve(personFacts('first')); await first;
   assert.equal(binding.getSnapshot().page?.person.id, 'second');
   binding.dispose();
   assert.equal(binding.getSnapshot().page, undefined);
 });
 
 test('person page identity must still be current before starting a credit collection', async () => {
-  const owner = setup(async path => personPage(path.includes('/first?') ? 'first' : 'second'));
+  const owner = setup(async path => path.startsWith('/v1/people/') ? personFacts(path.split('/').at(-1)!) : {items: [], total: 0});
   const binding = createPersonBindings(owner.context);
   await binding.select('first'); const first = binding.getSnapshot().page!;
   await binding.select('second');
   assert.throws(() => binding.credits(first), /Person required/);
-  assert.equal(owner.requests(), 2);
+  assert.equal(owner.requests(), 4, 'two facts/items reads, and no stale collection request');
   binding.dispose();
 });
 
@@ -260,12 +261,15 @@ test('the entry version command preserves nested authority and refuses a removed
 
 test('person credits expose only cursor-addressable pages and retain a bounded window', async () => {
   let pages = 0, active = 0, concurrent = 0;
+  const item = (index: number) => ({id: `title-${index}`, libraryId: 'library', kind: 'movie', title: `title-${index}`,
+    credits: [{personId: 'one', name: 'one', role: 'actor', character: 'Role'}]});
   const owner = setup(async path => {
+    if (path === '/v1/people/one') return personFacts('one', 1000000);
     const query = new URL('https://unit.invalid' + path).searchParams;
-    if (query.get('limit') === '1') return {...personPage('one'), pageInfo: {total: 1000000, nextCursor: ''}};
+    if (query.get('limit') === '1') return {items: [item(0)], total: 1000000, nextCursor: 'header-next'};
     const page = Number(query.get('cursor') ?? 0); pages++; active++; concurrent = Math.max(concurrent, active);
     await setImmediate(); active--;
-    return {...personPage('one'), credits: Array.from({length: 40}, (_, index) => ({creditKind: 'cast', roles: [], media: {id: `title-${page * 40 + index}`, libraryId: 'library', kind: 'movie', title: `title-${page * 40 + index}`}})), pageInfo: {total: 1000000, nextCursor: String(page + 1)}};
+    return {items: Array.from({length: 40}, (_, index) => item(page * 40 + index)), total: 1000000, nextCursor: String(page + 1)};
   });
   const binding = createPersonBindings(owner.context); await binding.select('one');
   const collection = binding.credits(binding.getSnapshot().page!); collection.ensureRange(0, 10);
