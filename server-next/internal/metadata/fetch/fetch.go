@@ -69,7 +69,17 @@ func (e *Status) ProviderOutage() bool {
 // tests never reach a live provider; they use a stand-in on 127.0.0.1, such as tmdbtest. It
 // holds wherever an address comes from: the built-in TMDB key with a server a test has not yet
 // pointed at a stand-in, or a provider's fixed address such as Cover Art Archive's.
-var ErrLiveCallInTest = errors.New("a test may not reach a live provider: tests use a stand-in on 127.0.0.1, such as tmdbtest")
+// It counts as the provider not answering, so a test server that has not pointed a provider at a
+// stand-in (MusicBrainz, LRCLIB, the built-in TMDB key) leaves its titles as they were, with no
+// wait recorded against them.
+var ErrLiveCallInTest error = liveCallInTest{}
+
+type liveCallInTest struct{}
+
+func (liveCallInTest) Error() string {
+	return "a test may not reach a live provider: tests use a stand-in on 127.0.0.1, such as tmdbtest"
+}
+func (liveCallInTest) ProviderOutage() bool { return true }
 
 // liveInTest says whether a request to u is one a test may not send: the program is running
 // under go test and the host is not this machine. A name other than localhost is not looked

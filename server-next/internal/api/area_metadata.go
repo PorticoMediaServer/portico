@@ -11,6 +11,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/lrclib"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/musicbrainz"
 )
 
 // metadataArea is what metadata (area 04) keeps on the server. Add this area's fields here and its
@@ -33,6 +34,9 @@ func (s *Server) startMetadata(ctx context.Context) error {
 		return err
 	}
 	s.metadataRoutes()
+	// Music libraries look albums and artists up at MusicBrainz, which needs no key and is asked
+	// at its own pace (definition area 4, rules 2 and 8).
+	s.metadata.Use(musicbrainz.New(musicbrainz.Origin, musicbrainz.Every))
 	// LRCLIB needs no key (definition area 4, rule 64): lyrics are looked up only in a music
 	// library whose owner chose "Files, then LRCLIB", or by hand.
 	s.metadata.Lyrics = lrclib.New(lrclib.Origin, lrclib.Every)
