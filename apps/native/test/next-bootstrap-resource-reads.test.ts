@@ -1,6 +1,7 @@
 import test, {type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
 import * as notifications from '../../../packages/client-core/src/notifications.ts';
+import * as notificationsNext from '../../../packages/client-core/src/notifications-next.ts';
 import * as preferenceValues from '../../../packages/client-core/src/preferences.ts';
 import * as serverApi from '../../../packages/client-core/src/query/server-api.ts';
 import * as tolerant from '../../../packages/client-core/src/tolerant.ts';
@@ -20,7 +21,7 @@ const routes = {routePath, encodedRoutePath: unsupported, routeBody: (_name: str
 // generated path resolution and display-only error copy are replaced.
 const inbox = await screenModule(new URL('../../../packages/client-core/src/inbox.ts', import.meta.url), {
   react,
-  '../../contracts/src/routes.ts': routes, '../../contracts/src/route-paths.ts': routes, './random-id.ts': {randomId: () => 'operation'}, './installation.ts': installation, './notifications.ts': notifications,
+  '../../contracts/src/routes.ts': routes, '../../contracts/src/route-paths.ts': routes, './random-id.ts': {randomId: () => 'operation'}, './installation.ts': installation, './notifications.ts': notifications, './notifications-next.ts': notificationsNext,
   './freshness-hub.ts': freshnessHub, './query/keys.ts': queryKeys, './query/until.ts': queryUntil,
   './presentation/service-text.ts': {serviceProblem: () => 'Request failed', serviceText: (key: string) => key},
 });
@@ -72,14 +73,12 @@ function fixture(context: TestContext) {
     if (request.resource === 'preferences') return preferenceData(request.method === 'PATCH' ? 1.5 : 1, request.method === 'PATCH' ? 2 : 1);
     if (request.resource === 'guide') return {protocolVersion: '1.0', serverId: 'server', viewerFence: 'guide-fence', revision: 'guide-1', sources: []};
     if (request.resource === 'home') return {serverId: 'server', viewerFence: 'home-fence', rows: []};
-    return {scope: {serverId: 'server', viewerFence: 'b'.repeat(64)}, data: {
-      revision: 7, audience: 'profile', counts, observedAt: '2026-10-22T12:00:00Z',
-      ...(request.path.startsWith(routePath('get_notifications_inbox')) ? {audiences: ['profile'], state: 'unread', items: [], nextCursor: '', retentionDays: 180} : {}),
-    }};
+    // The rebuilt server's inbox: the profile's notices with the unread count, and no envelope.
+    return {items: [], unreadCount: counts.unread};
   };
   const api = {request: async (path: string, method = 'GET', body?: unknown, signal?: AbortSignal) => {
     assert.ok(signal, 'native services must supply their owned cancellation signal');
-    const resource: Resource = path.includes('notifications_') ? 'unread' : path.includes('guide_') ? 'guide' : path.includes('preferences') ? 'preferences' : path.includes('get_home') ? 'home' : unsupported();
+    const resource: Resource = path.startsWith('/v1/notifications') ? 'unread' : path.includes('guide_') ? 'guide' : path.includes('preferences') ? 'preferences' : path.includes('get_home') ? 'home' : unsupported();
     const request = {resource, method, path, signal, startedAborted: signal.aborted, body}; calls.push(request);
     const hold = held.find(value => value.resource === resource && value.method === method && !value.request);
     if (hold) {hold.request = request; return hold.pending.promise;}

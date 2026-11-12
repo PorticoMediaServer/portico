@@ -74,18 +74,8 @@ function fixture(t: TestContext, deviceClass: DeviceClass = 'mobile', role: 'own
       if (request.url.searchParams.get('deviceClass') !== deviceClass) return {status: 400, value: {error: {code: 'invalid_console_request', message: 'Invalid device class.'}}};
       return {value: preferenceData(state.deviceClass, state.speed)};
     }
-    if (path === routePath('get_notifications_inbox')) {
-      const audience = request.url.searchParams.get('audience');
-      // N5-2: the badge reads the profile inbox; the server lists every audience an owner or administrator may read.
-      assert.equal(audience, 'profile');
-      return {value: envelope('inbox', {revision: 7, audience, audiences: role === 'owner' || role === 'admin' ? ['profile', 'account-admin'] : ['profile'], state: 'unread',
-        counts: counts(2), items: [], nextCursor: '', observedAt: '2026-10-22T12:00:00Z', retentionDays: 180})};
-    }
-    if (path === routePath('get_notifications_unread_count')) {
-      const audience = request.url.searchParams.get('audience');
-      assert.ok(audience === 'profile' || audience === 'account-admin');
-      return {value: envelope('inbox', {revision: 7, audience, counts: counts(audience === 'profile' ? 2 : 3), observedAt: '2026-10-22T12:00:00Z'})};
-    }
+    // The rebuilt server's inbox: one per profile, with its unread count, and no envelope.
+    if (path === '/v1/notifications') return {value: {items: [], unreadCount: 2}};
     if (path === routePath('get_guide_sources')) return {value: {protocolVersion: '1.0', serverId: state.servers.guide, viewerFence: state.fences.guide, revision: 'guide-1',
       sources: [{id: 'live-source', name: 'Actual authorized source', generation: 'g1', publishedAt: '2026-10-22T12:00:00Z', availableStart: '', availableEnd: '',
         provenance: 'live-source', refreshState: 'healthy', position: 0, recordAvailable: true, guideDays: 7, channelCount: 2, favoriteCount: 1,
@@ -123,7 +113,7 @@ function fixture(t: TestContext, deviceClass: DeviceClass = 'mobile', role: 'own
 test('Home and required preferences can finish while auxiliary badges and guide are still waiting', async t => {
   const f = fixture(t), delayed = deferred<void>(), entered = deferred<void>();
   f.state.reply = async request => {
-    if (new Set<string>([routePath('get_notifications_inbox'), routePath('get_guide_sources')]).has(request.url.pathname)) {entered.resolve(); await delayed.promise;}
+    if (new Set<string>(['/v1/notifications', routePath('get_guide_sources')]).has(request.url.pathname)) {entered.resolve(); await delayed.promise;}
     return f.response(request);
   };
   let auxiliaryReady = false;
@@ -132,7 +122,7 @@ test('Home and required preferences can finish while auxiliary badges and guide 
   const [preferences] = await Promise.all([f.services.readPreferences('mobile'), f.services.home.load()]);
   assert.equal(preferences.deviceClass, 'mobile'); assert.equal(f.services.home.getSnapshot().phase, 'ready');
   assert.equal(auxiliaryReady, false, 'the ready Home does not wait for inbox or guide');
-  delayed.resolve(); assert.deepEqual(await auxiliary, [5, true]);
+  delayed.resolve(); assert.deepEqual(await auxiliary, [2, true]);
 });
 
 test('a preference-only refresh never requests inbox, guide, libraries, account or Home', async t => {
@@ -146,7 +136,7 @@ test('a delayed auxiliary permission denial still retires an already-admitted Ho
   const f = fixture(t), delayed = deferred<void>();
   await Promise.all([f.services.readPreferences('mobile'), f.services.home.load()]);
   f.state.reply = async request => {
-    if (request.url.pathname === routePath('get_notifications_inbox')) {await delayed.promise; return {status: 403, value: {error: {code: 'forbidden'}}};}
+    if (request.url.pathname === '/v1/notifications') {await delayed.promise; return {status: 403, value: {error: {code: 'forbidden'}}};}
     return f.response(request);
   };
   const unread = f.services.readUnread(); delayed.resolve(); await assert.rejects(unread);
@@ -160,14 +150,15 @@ test('settings answered for another kind of device are refused', async t => {
   assert.equal(f.state.ended, 0); assert.equal(f.services.getSnapshot(), undefined);
 });
 
-for (const domain of ['inbox', 'guide', 'home'] as const) test(`a foreign server in the ${domain} response is refused independently of Home`, async t => {
+// The rebuilt server's inbox answer names no server: an answer from elsewhere is one this session's own requests reach.
+for (const domain of ['guide', 'home'] as const) test(`a foreign server in the ${domain} response is refused independently of Home`, async t => {
   const f = fixture(t); await Promise.all([f.services.read(), f.services.home.load()]);
   f.state.servers[domain] = 'other-server';
   if (domain === 'home') await f.services.home.revalidate(); else await assert.rejects(f.services.read());
   assert.equal(f.state.ended, 1); assert.equal(f.services.getSnapshot(), undefined); assert.equal(f.services.home.getSnapshot().document, undefined);
 });
 
-for (const [domain, path] of [['preferences', routePath('get_preferences')], ['inbox', routePath('get_notifications_unread_count')],
+for (const [domain, path] of [['preferences', routePath('get_preferences')], ['inbox', '/v1/notifications'],
   ['guide', routePath('get_guide_sources')], ['home', routePath('get_home')]] as const) test(`a real HTTP permission denial in ${domain} cannot be swallowed by a core service`, async t => {
   const f = fixture(t); await Promise.all([f.services.read(), f.services.home.load()]);
   f.state.reply = async request => request.url.pathname === path ? {status: 403, value: {error: {code: 'forbidden', message: 'Denied.'}}} : f.response(request);
@@ -191,7 +182,7 @@ test('guide protocol and source summaries are parsed instead of trusted as a raw
   assert.equal(f.services.getSnapshot(), undefined); assert.equal(f.state.ended, 0);
 });
 
-for (const path of [routePath('get_preferences'), routePath('get_notifications_unread_count'), routePath('get_guide_sources')]) test(`a transient ${path} refresh preserves the same authority and permits recovery`, async t => {
+for (const path of [routePath('get_preferences'), '/v1/notifications', routePath('get_guide_sources')]) test(`a transient ${path} refresh preserves the same authority and permits recovery`, async t => {
   const f = fixture(t); await Promise.all([f.services.read(), f.services.home.load()]);
   const before = f.services.getSnapshot(), homeBefore = f.services.home.getSnapshot().document;
   f.state.reply = async request => request.url.pathname === path ? {status: 503, value: {error: {code: 'temporarily_unavailable', retryable: true}}} : f.response(request);
@@ -269,12 +260,12 @@ for (const role of ['owner', 'admin', 'member'] as const) test(`the actual ${rol
   await assert.rejects(f.services.readAccount(), {code: 'access_refused'}); assert.equal(f.state.ended, 1);
 });
 
-for (const [role, unread] of [['admin', 5], ['member', 2]] as const) test(`the ${role} badge counts the inboxes the server says it may read (N5-2)`, async t => {
+for (const role of ['admin', 'member'] as const) test(`the ${role} badge is the profile's own inbox, read once: server notices come to it`, async t => {
   const f = fixture(t, 'mobile', role);
   const [first] = await Promise.all([f.services.read(), f.services.home.load()]);
-  assert.equal(first.unread, unread);
-  const counted = f.state.calls.filter(value => value.url.pathname === routePath('get_notifications_unread_count')).map(value => value.url.searchParams.get('audience'));
-  assert.deepEqual([...new Set(counted)], role === 'admin' ? ['profile', 'account-admin'] : ['profile']);
+  assert.equal(first.unread, 2);
+  const reads = f.state.calls.filter(value => value.url.pathname === '/v1/notifications').map(value => value.url.searchParams.get('view'));
+  assert.ok(reads.length >= 1 && reads.every(view => view === 'unread'), 'only the profile\'s unread view is read');
 });
 
 test('an account answer for another account is refused, never adopted', async t => {
@@ -304,12 +295,10 @@ test('hosted and unselected account authorities are never parsed or defaulted as
 
 test('malformed inbox data cannot become a successful bootstrap badge', async t => {
   const f = fixture(t);
-  f.state.reply = async request => request.url.pathname === routePath('get_notifications_inbox')
-    ? {value: {scope: {serverId: 'server', viewerFence: f.state.fences.inbox}, data: {}}} : f.response(request);
+  f.state.reply = async request => request.url.pathname === '/v1/notifications' ? {value: {}} : f.response(request);
   await assert.rejects(f.services.read()); assert.equal(f.services.getSnapshot(), undefined);
   f.state.reply = async request => f.response(request); const before = await f.services.read();
-  f.state.reply = async request => request.url.pathname === routePath('get_notifications_unread_count')
-    ? {value: {scope: {serverId: 'server', viewerFence: f.state.fences.inbox}, data: {counts: {unread: 'bad'}}}} : f.response(request);
+  f.state.reply = async request => request.url.pathname === '/v1/notifications' ? {value: {items: [], unreadCount: 'bad'}} : f.response(request);
   await assert.rejects(f.services.read()); assert.strictEqual(f.services.getSnapshot(), before); assert.equal(f.state.ended, 0);
 });
 

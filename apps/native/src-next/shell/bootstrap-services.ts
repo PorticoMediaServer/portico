@@ -1,7 +1,6 @@
 import {readDirectAccount} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {HomeService, type HomeSnapshot} from '../../../../packages/client-core/src/home-service';
 import {InboxService} from '../../../../packages/client-core/src/inbox';
-import {parseNotificationSummary} from '../../../../packages/client-core/src/notifications';
 import {PreferencesReader} from '../../../../packages/client-core/src/preferences-reader';
 import type {DeviceClass, PreferencePatch, PreferenceScope, PreferenceSnapshot} from '../../../../packages/client-core/src/preferences';
 import {fetchGuideSourceSummaries} from '../../../../packages/client-core/src/guide/directory';
@@ -74,12 +73,9 @@ export class NativeShellBootstrapServices {
       signal?.addEventListener('abort', noteCancelled, {once: true});
       try {
         const raw = await this.call<T>('inbox', path, method, body, signal);
-        // refreshUnread intentionally swallows malformed summaries as well as transport
-        // failures. Validate with its genuine parser before that forgiving boundary.
-        if (path.split('?')[0] === routePath('get_notifications_unread_count')) {
-          if (!object(raw)) throw invalid();
-          parseNotificationSummary(raw.data);
-        }
+        // refreshUnread intentionally swallows malformed answers as well as transport
+        // failures. Check the inbox's shape before that forgiving boundary.
+        if (path.split('?')[0] === '/v1/notifications' && (!object(raw) || !Array.isArray(raw.items) || !Number.isSafeInteger(raw.unreadCount) || (raw.unreadCount as number) < 0)) throw invalid();
         return raw;
       }
       catch (error) {if (batch === this.unreadController && !batch?.signal.aborted) this.inboxFailure = error; throw error;}
@@ -116,23 +112,18 @@ export class NativeShellBootstrapServices {
     throw error;
   }
   private checkFence(domain: Domain, raw: unknown): void {
-    // The rebuilt server's settings answer is the settings themselves, with no envelope to check.
-    if (domain === 'preferences') return;
+    // The rebuilt server's settings and notification answers are the documents themselves, with no envelope to check.
+    if (domain === 'preferences' || domain === 'inbox') return;
     if (!object(raw)) throw invalid();
-    const scope = domain === 'inbox' ? raw.scope : raw;
+    const scope = raw;
     // Layout mutation receipts have no viewer fence. Their canonical parser still validates them.
     if (domain === 'home' && !('viewerFence' in raw)) return;
     if (!object(scope) || typeof scope.viewerFence !== 'string' || domain !== 'home' && typeof scope.serverId !== 'string') throw invalid();
     // Home row pages carry the Home fence without repeating the server ID.
     if ((domain !== 'home' || 'serverId' in scope) && scope.serverId !== this.options.viewer.serverId) this.retire();
     const fence = scope.viewerFence;
-    if (domain === 'inbox') {
-      if (!/^[a-f0-9]{64}$/.test(fence)) throw invalid();
-    } else if (!opaqueFence(fence)) throw invalid();
+    if (!opaqueFence(fence)) throw invalid();
     if (domain === 'home' && this.checkHomeFence(scope, fence)) return;
-    // A notification envelope's fence is never compared with another read's (client data step 6):
-    // the server re-authorizes every request, and a role change is the shell's to follow.
-    if (domain === 'inbox') return;
     if (this.fences.has(domain) && this.fences.get(domain) !== fence || domain === 'guide' && this.guideDenied) this.retire();
     this.fences.set(domain, fence);
   }

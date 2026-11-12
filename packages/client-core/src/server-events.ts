@@ -32,6 +32,8 @@ export function serverEventsFrom(frame: Frame): readonly ServerEvent[] {
     case 'access': return [{id, type: accessChangedEvent}];
     // The profile's own settings changed, on this device or another: they are read again.
     case 'preferences': return [{id, type: 'settings.changed', resource: {kind: 'settings', id: 'preferences'}}];
+    // A notice came, or one was read or archived on another device: the inbox and its badge are read again.
+    case 'notice': return [{id, type: 'notification.changed'}];
     case 'person': case 'list': return [{id, type: change.topic + '.changed', ...(typeof change.id === 'string' && change.id ? {resource: {kind: change.topic, id: change.id}} : {})}];
     default: return [{id, type: 'stream.unknown'}];
   }
