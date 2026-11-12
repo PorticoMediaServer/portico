@@ -29,6 +29,15 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// fakeSignedIn says the stand-in rclone's provider accepts the remote's sign-in.
+func fakeSignedIn() bool {
+	env := os.Getenv
+	return env("RCLONE_CONFIG_PORTICO_TOKEN") == fakeToken || env("RCLONE_CONFIG_PORTICO_TOKEN") == refreshedToken ||
+		env("RCLONE_CONFIG_PORTICO_CLIENT_ID") == "client-1" && env("RCLONE_CONFIG_PORTICO_CLIENT_SECRET") == "secret-1" &&
+			strings.Contains(env("RCLONE_CONFIG_PORTICO_TOKEN"), `"refresh_token":"refresh-1"`) ||
+		strings.Contains(env("RCLONE_CONFIG_PORTICO_SERVICE_ACCOUNT_CREDENTIALS"), `"service_account"`)
+}
+
 // fakeFiles are the files the stand-in rclone's remote holds.
 var fakeFiles = map[string]string{"Media/Films/Heat.mkv": "0123456789", "Other/x.mkv": "x", "/srv/media/Films/Ronin.mkv": "r"}
 
@@ -41,11 +50,7 @@ func fakeRclone(args []string) int {
 		}
 	}
 	env := os.Getenv
-	signedIn := env("RCLONE_CONFIG_PORTICO_TOKEN") == fakeToken || env("RCLONE_CONFIG_PORTICO_TOKEN") == refreshedToken ||
-		env("RCLONE_CONFIG_PORTICO_CLIENT_ID") == "client-1" && env("RCLONE_CONFIG_PORTICO_CLIENT_SECRET") == "secret-1" &&
-			strings.Contains(env("RCLONE_CONFIG_PORTICO_TOKEN"), `"refresh_token":"refresh-1"`) ||
-		strings.Contains(env("RCLONE_CONFIG_PORTICO_SERVICE_ACCOUNT_CREDENTIALS"), `"service_account"`)
-	if env("RCLONE_CONFIG_PORTICO_TYPE") != "drive" || !signedIn {
+	if env("RCLONE_CONFIG_PORTICO_TYPE") != "drive" || !fakeSignedIn() {
 		fmt.Fprintln(os.Stderr, "Failed to create file system: didn't find section in config file")
 		return 1
 	}
@@ -133,7 +138,7 @@ func TestRclone(t *testing.T) {
 		t.Fatalf("a bad line: %v", err)
 	}
 	wrong, _ := remote.ParseRcloneConfig("[a]\ntype = drive\nclient_id = own-client\ntoken = other\n")
-	if _, err := remote.NewRclone(wrong, "").List(ctx, ""); !errors.Is(err, remote.ErrNeedsAttention) {
+	if _, err := remote.NewRclone(wrong, "").List(ctx, ""); !errors.Is(err, remote.ErrSignIn) {
 		t.Fatalf("a remote rclone refused: %v", err)
 	}
 }

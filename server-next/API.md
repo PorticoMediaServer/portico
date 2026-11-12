@@ -543,7 +543,7 @@ The owner's alone. Adding, changing and disconnecting a source, and starting a D
 | `POST /v1/admin/remote-sources` | Add one: the connection is tested first and nothing is saved unless it works. Takes an `Idempotency-Key` |
 | `PATCH /v1/admin/remote-sources/{id}` | Rename, change the preset or limits, change the address or replace the password (tested first; a new host needs the password again) |
 | `DELETE /v1/admin/remote-sources/{id}` | Disconnect, once no library folder is on it (`409 source_in_use` otherwise) |
-| `POST /v1/admin/remote-sources/{id}/test` | Test the saved source now |
+| `POST /v1/admin/remote-sources/{id}/test` | Test the saved source now, asking the source itself (for rclone and Drive, rclone lists it): a refused sign-in answers `422 source_sign_in` and the source needs its sign-in again |
 | `GET /v1/admin/remote-sources/{id}/folders?path=` | The folders in one folder of the source, for choosing a library's folders |
 | `POST /v1/admin/remote-sources/drive-sign-in` | Start a Google sign-in with the owner's own OAuth client; the address the browser is sent to is pasted into the Drive source's settings |
 

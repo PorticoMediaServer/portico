@@ -208,7 +208,7 @@ func (r *rclone) current(ctx context.Context) (*WebDAV, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := r.checkFolder(ctx, home); err != nil {
+	if err := r.checkRemote(ctx, home); err != nil {
 		return nil, err
 	}
 	var name [16]byte

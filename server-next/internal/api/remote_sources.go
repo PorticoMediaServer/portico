@@ -189,6 +189,11 @@ func (s *Server) remoteSourceRoutes() {
 		if err != nil {
 			return RemoteSource{}, err
 		}
+		// Asked of the source itself first: rclone serves a remote whose sign-in is refused as an
+		// empty top, which a listing through it cannot tell from an empty source.
+		if err := s.remote.Check(r.Context(), row.ID); err != nil {
+			return RemoteSource{}, reachRefusal(err)
+		}
 		if err := s.reach(r.Context(), row.ID, ""); err != nil {
 			return RemoteSource{}, err
 		}
@@ -373,7 +378,7 @@ func (s *Server) createRemoteSource(r *http.Request, req RemoteSourceCreate) (Re
 	if len(key) > 128 {
 		return RemoteSource{}, ErrInvalid("The Idempotency-Key is at most 128 characters.")
 	}
-	if err := s.testSource(ctx, req.Kind, c, secret); err != nil {
+	if err := s.testSource(ctx, req.Kind, c, &secret); err != nil {
 		return RemoteSource{}, err
 	}
 	config, _ := json.Marshal(c)
@@ -446,7 +451,7 @@ func (s *Server) editRemoteSource(r *http.Request, req RemoteSourceEdit) (Remote
 				return RemoteSource{}, ErrConflict("source_secret_lost", "Paste the remote's configuration again.")
 			}
 		}
-		if err := s.testSource(ctx, row.Kind, c, secret); err != nil {
+		if err := s.testSource(ctx, row.Kind, c, &secret); err != nil {
 			return RemoteSource{}, err
 		}
 		if edit.Secret, err = s.remote.Seal(row.PublicID, secret); err != nil {
@@ -468,7 +473,7 @@ func (s *Server) editRemoteSource(r *http.Request, req RemoteSourceEdit) (Remote
 				return RemoteSource{}, ErrConflict("source_secret_lost", "Give the source's password again.")
 			}
 		}
-		if err := s.testSource(ctx, row.Kind, c, secret); err != nil {
+		if err := s.testSource(ctx, row.Kind, c, &secret); err != nil {
 			return RemoteSource{}, err
 		}
 		if edit.Secret, err = s.remote.Seal(row.PublicID, secret); err != nil {
@@ -486,10 +491,11 @@ func (s *Server) editRemoteSource(r *http.Request, req RemoteSourceEdit) (Remote
 }
 
 // testSource tries a source's settings before anything is kept.
-func (s *Server) testSource(ctx context.Context, kind string, c remote.Config, secret remote.Secret) error {
+// A token the provider gave during the test is put into secret, which is what is then saved.
+func (s *Server) testSource(ctx context.Context, kind string, c remote.Config, secret *remote.Secret) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	err := remote.Test(ctx, kind, c, secret)
+	err := remote.TestKeepingToken(ctx, kind, c, secret)
 	if errors.Is(err, remote.ErrFolderMissing) {
 		return ErrField(kind+".path", "There is no folder \""+c.Path+"\" on this source. Check its spelling, or leave it empty for the top.")
 	}
@@ -531,7 +537,7 @@ func reachRefusal(err error) error {
 		return refusal(http.StatusUnprocessableEntity, "source_address_refused",
 			"The source sent Portico from the internet to an address on this computer or its network, which Portico does not follow.", false)
 	case errors.Is(err, remote.ErrSignIn):
-		return refusal(http.StatusUnprocessableEntity, "source_sign_in", "The source refused that user name and password.", false)
+		return refusal(http.StatusUnprocessableEntity, "source_sign_in", "The source refused its sign-in: check the user name and password, key or token.", false)
 	case errors.Is(err, context.DeadlineExceeded):
 		return refusal(http.StatusUnprocessableEntity, "source_unreachable", "The source did not answer in time. Check the address.", true)
 	case errors.As(err, &unreachable):

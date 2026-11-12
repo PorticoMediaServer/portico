@@ -122,12 +122,41 @@ func Build(kind string, c Config, s Secret) (Storage, error) {
 // Test reaches a source that is not saved yet: its top folder is listed once, within the
 // source's limits. A slow-down answer is waited for until ctx ends.
 func Test(ctx context.Context, kind string, c Config, s Secret) error {
-	storage, err := Build(kind, c, s)
+	return TestKeepingToken(ctx, kind, c, &s)
+}
+
+// TestKeepingToken is Test, and when the provider gave rclone a new token during it, the token
+// is put into s, so the source is saved with the newest one: a provider whose refresh tokens
+// work once has already retired the one that was pasted.
+func TestKeepingToken(ctx context.Context, kind string, c Config, s *Secret) error {
+	storage, err := Build(kind, c, *s)
 	if err != nil {
 		return err
 	}
 	defer closeStorage(storage)
 	_, err = Throttled(storage, NewThrottle(c.limits())).List(ctx, "")
+	if rc, ok := storage.(*rclone); ok && rc.token() != rc.options["token"] {
+		withToken(kind, s, rc.token())
+	}
+	return err
+}
+
+// Check asks a saved source whether it is still reachable and still accepts its sign-in, in a
+// way serving cannot show (for rclone, its top listed by rclone itself), and records how it
+// went. It is the owner's Test of a saved source.
+func (r *Registry) Check(ctx context.Context, id int64) error {
+	if _, _, err := r.Open(ctx, id); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	o := r.open[id]
+	r.mu.Unlock()
+	checker, ok := o.raw.(interface{ check(context.Context) error })
+	if !ok {
+		return nil
+	}
+	err := o.throttle.Do(ctx, func() error { return checker.check(ctx) })
+	r.found(id, err, false)
 	return err
 }
 
@@ -298,6 +327,17 @@ var tokenLine = regexp.MustCompile(`(?m)^[ \t]*token[ \t]*=.*$`)
 // with it. It is kept only while the source is at the revision rclone was started for: an
 // edit the owner made since wins.
 func (r *Registry) keepToken(id, revision int64, publicID, kind string, secret *Secret, token string) {
+	if !withToken(kind, secret, token) {
+		return
+	}
+	sealed, err := r.Seal(publicID, *secret)
+	if err == nil {
+		_ = r.db.SetRemoteSourceSecret(context.Background(), id, revision, sealed)
+	}
+}
+
+// withToken puts a token rclone got into a source's secret, as the next start signs in with it.
+func withToken(kind string, secret *Secret, token string) bool {
 	switch kind {
 	case "drive":
 		secret.DriveToken = token
@@ -308,12 +348,9 @@ func (r *Registry) keepToken(id, revision int64, publicID, kind string, secret *
 			secret.Rclone = strings.TrimRight(secret.Rclone, "\n") + "\ntoken = " + token + "\n"
 		}
 	default:
-		return
+		return false
 	}
-	sealed, err := r.Seal(publicID, *secret)
-	if err == nil {
-		_ = r.db.SetRemoteSourceSecret(context.Background(), id, revision, sealed)
-	}
+	return true
 }
 
 // Waiting reports whether the source was told to slow down and until when.

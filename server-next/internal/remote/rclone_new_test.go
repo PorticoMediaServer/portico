@@ -24,8 +24,24 @@ func fakeRcloneTools(args []string) {
 			{"Name":"local","Options":[]}]`)
 		os.Exit(0)
 	case len(args) == 3 && args[0] == "lsjson" && args[1] == "--stat":
-		// A folder is there when a file is inside it; a file is not a folder.
+		// As rclone answers: a configuration it cannot use, a sign-in the provider refuses, and
+		// a token the provider replaces (written where rclone writes it). A folder is there when
+		// a file is inside it; a file is not a folder; the top is always a folder.
+		switch {
+		case os.Getenv("RCLONE_CONFIG_PORTICO_TYPE") != "drive":
+			fmt.Fprintln(os.Stderr, "Failed to create file system: didn't find section in config file")
+			os.Exit(1)
+		case !fakeSignedIn():
+			fmt.Fprintln(os.Stderr, "Failed to lsjson: couldn't list files: sign in: 401 Unauthorized")
+			os.Exit(1)
+		case os.Getenv("RCLONE_CONFIG_PORTICO_TOKEN") == fakeToken:
+			os.WriteFile(os.Getenv("RCLONE_CONFIG"), []byte("[portico]\ntype = drive\ntoken = "+refreshedToken+"\n"), 0o600)
+		}
 		root := strings.TrimPrefix(args[2], "portico:")
+		if root == "" {
+			fmt.Print(`{"Path":"","IsDir":true}`)
+			os.Exit(0)
+		}
 		for name := range fakeFiles {
 			if name == root {
 				fmt.Print(`{"Path":"","IsDir":false}`)
