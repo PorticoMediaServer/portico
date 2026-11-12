@@ -246,11 +246,12 @@ CREATE TABLE items (
   -- The width of the item's widest version, for the sort by resolution. Whatever adds a
   -- version, moves one or reads a new picture size calls versionsChanged in the same transaction.
   best_width       INTEGER,
-  -- For a show, season, artist or album: 1 when some playable title under it is rated or
-  -- covered by labels differently from it, so a profile may see it and none of what it
-  -- holds. Every other holder skips that check. Only flagHolders writes it, and ordinary
-  -- writes only ever set it (holder_flags.go). A database that gains this column by an
-  -- upgrade must have it filled (RebuildHolderFlags) before the server answers anyone:
+  -- For a show, season, artist, album, collection or series: 1 when some playable title it
+  -- holds (under it, or by relation for a collection or a book series) is rated or covered
+  -- by labels differently from it, so a profile may see it and none of what it holds. Every
+  -- other holder skips that check. Only flagHolders and collectionsRated write it, and
+  -- ordinary writes only ever set it (holder_flags.go). A database that gains this column by
+  -- an upgrade must have it filled (RebuildHolderFlags) before the server answers anyone:
   -- until then a holder whose titles are all hidden from a profile still lists for it.
   may_empty        INTEGER NOT NULL DEFAULT 0 CHECK (may_empty IN (0, 1)),
   last_child_added_at INTEGER,
