@@ -36,6 +36,18 @@ test('one metadata row writes the actual revision and required unchanged values 
   assert.equal(f.calls.length, 2); f.controller.dispose();
 });
 
+test('a server that keeps no artwork limit is sent none: a row saves only what the server has', async () => {
+  const f = fixture();
+  const {localArtworkLimitBytes: _limit, localArtworkUsedBytes: _used, artworkMaxEdge: _edge, tvdbCredentialConfigured: _tvdb, ...rebuilt} = data();
+  f.setReply(async () => rebuilt); await f.controller.load();
+  const original = f.controller.getSnapshot().data;
+  f.setReply(async () => ({...rebuilt, revision: 2, castPhotos: false}));
+  assert.equal(await f.controller.save(original, {castPhotos: false}), true);
+  assert.deepEqual(f.calls[1]!.body, {expectedRevision: 1, includeAdult: false, castPhotos: false});
+  assert.deepEqual(f.controller.getSnapshot().data.advanced, {castPhotos: false, acoustidKeySource: 'none'});
+  f.controller.dispose();
+});
+
 test('episode thumbnails use the separate complete producer and fence the exact library revision', () => {
   const settings = shared.parseMetadataSettings(data()) as MetadataSettings;
   assert.deepEqual(values.episodeThumbnailChange(settings, 'series', 'off'), {
@@ -92,7 +104,7 @@ test('Refresh all posts once from the current document, and Advanced choices sav
   assert.equal(await f.controller.refreshAll(original), true);
   assert.deepEqual([f.calls[1]!.path, f.calls[1]!.method], ['refresh_all_metadata', 'POST']);
   const after = f.controller.getSnapshot().data as MetadataSettings;
-  assert.equal(after.advanced?.refreshAll.running, true);
+  assert.equal(after.advanced?.refreshAll?.running, true);
   assert.equal(await f.controller.refreshAll(original), false, 'a retained old document cannot dispatch');
   f.setReply(async () => ({...data(2), ...advanced, castPhotos: false}));
   assert.equal(await f.controller.save(after, {castPhotos: false, acoustidKey: 'owner-key'}), true);

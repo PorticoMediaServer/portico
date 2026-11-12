@@ -614,6 +614,7 @@ export const settingsMessages = {
   'server.metadata.keyHelp': 'Optional. Portico has a key of its own. Use yours if you have one and want your own allowance with the provider.',
   'server.metadata.keySet': 'Your own key is in use',
   'server.metadata.keyOurs': 'Portico’s key is in use',
+  'server.metadata.keyUnreadable': 'Your key can no longer be read on this server, so Portico’s key is in use. Paste your key again to use it.',
   'next.settings.hardware.deviceGone': 'An adapter no longer found',
   'server.metadata.acoustidServer': 'This server’s key is in use',
   'server.metadata.acoustidNone': 'Not set up',

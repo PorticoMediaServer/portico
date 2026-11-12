@@ -1,8 +1,8 @@
 import type {MetadataLibrarySettings, MetadataSettings, MetadataSettingsChange} from '../../../../../../packages/client-core/src/metadata-settings';
 
-/** Required unchanged fields accompany one edited row at the original revision. */
+/** Required unchanged fields (and the artwork limit, on a server that has one) accompany one edited row at the original revision. */
 export function metadataChange(settings: MetadataSettings, patch: Partial<Omit<MetadataSettingsChange, 'expectedRevision'>>): MetadataSettingsChange {
-  return {localArtworkLimitBytes: settings.localArtworkLimitBytes, includeAdult: settings.includeAdult, ...patch, expectedRevision: settings.revision};
+  return {...(settings.localArtworkLimitBytes !== undefined ? {localArtworkLimitBytes: settings.localArtworkLimitBytes} : {}), includeAdult: settings.includeAdult, ...patch, expectedRevision: settings.revision};
 }
 
 export function episodeThumbnailLibrary(settings: MetadataSettings, libraryId: string): MetadataLibrarySettings | undefined {

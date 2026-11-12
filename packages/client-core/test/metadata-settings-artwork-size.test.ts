@@ -20,10 +20,19 @@ test('metadata reads require an actual supported edge without a factory fallback
     assert.ok(Object.isFrozen(parsed));
     assert.doesNotThrow(() => decode('GetMetadataSettingsResponse', {...settings, artworkMaxEdge}));
   }
-  for (const artworkMaxEdge of [undefined, null, '1920', true, 0, 1921, 3840, NaN, Infinity]) {
+  for (const artworkMaxEdge of [null, '1920', true, 0, 1921, 3840, NaN, Infinity]) {
     assert.throws(() => parseMetadataSettings({...settings, artworkMaxEdge}));
     assert.throws(() => decode('GetMetadataSettingsResponse', {...settings, artworkMaxEdge}));
   }
+});
+
+test('a server that keeps no artwork limit and makes no other picture size sends neither, and the page offers no row for them', () => {
+  const {artworkMaxEdge: _edge, localArtworkLimitBytes: _limit, localArtworkUsedBytes: _used, tvdbCredentialConfigured: _tvdb, ...rest} = settings;
+  const parsed = parseMetadataSettings(rest);
+  for (const field of ['artworkMaxEdge', 'localArtworkLimitBytes', 'localArtworkUsedBytes', 'tvdbCredentialConfigured']) assert.equal(field in parsed, false, field);
+  assert.equal(parsed.tmdbCredentialUnreadable, false);
+  assert.equal(parseMetadataSettings({...rest, tmdbCredentialUnreadable: true}).tmdbCredentialUnreadable, true);
+  for (const localArtworkLimitBytes of [0, -1, '2', 1.5]) assert.throws(() => parseMetadataSettings({...rest, localArtworkLimitBytes}));
 });
 
 test('metadata writes preserve required limit/adult values and admit only an optional supported edge', async () => {
