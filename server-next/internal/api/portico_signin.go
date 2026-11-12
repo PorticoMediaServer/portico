@@ -199,7 +199,7 @@ func (s *Server) porticoProven(r *http.Request, challenge string, identity json.
 		return hosted.Account{}, link, ErrField("identity", "Send the sign-in note exactly as Portico Services answered it.")
 	}
 	account, _, err := s.hosted.VerifyIdentity(s.id, challenge, trust.Returned(envelope))
-	if err != nil || account.ID == "" || !s.link.spend(challenge, expires, now) {
+	if err != nil || account.ID == "" || !s.porticoAudienceAllowed(r, account.Audience) || !s.link.spend(challenge, expires, now) {
 		return hosted.Account{}, link, errPorticoSignIn()
 	}
 	return account, link, nil

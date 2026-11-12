@@ -777,3 +777,7 @@ lower-bound totals (with one stated exception: the count of people in a search b
 revision on personal state, per-provider and per-screen route families, and step-by-step
 wizard routes. Each existed for the old storage design. What a person would lose without
 them is nothing: the last deliberate edit wins, a `2xx` means it happened, and reads answer.
+
+### Returning a Portico Account sign-in to this server’s own page
+
+A Services identity with `audience` is accepted only when it is an HTTPS origin this server serves (its approved addresses or its own Portico zone at a served port), the request arrives at that same host and port over HTTPS, and its browser `Origin` is that origin. Forwarded scheme/host count only from a configured trusted proxy. A foreign or missing Origin, another host/port, HTTP or an address belonging to another server refuses the note before exchange. The challenge remains one-use. Notes without audience continue to support the hosted-web and native sign-in paths. The page must still bind its return to its own tab/state before sending the note; the server never receives the fragment.
