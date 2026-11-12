@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -86,10 +88,48 @@ func TestChangingRecordingFolderKeepsRecordedFile(t *testing.T) {
 	if after.Bytes != original.Bytes {
 		t.Fatalf("changing folder lost the old file's size: %d, was %d", after.Bytes, original.Bytes)
 	}
+	// The same file is removable in the finish-to-import window too.
+	r, err := s.db.Recording(context.Background(), recorded.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.db.RecordingTitle(context.Background(), r.ID, 0); err != nil {
+		t.Fatal(err)
+	}
+	if withoutTitle := get[DvrRecording](t, s, owner, "/v1/dvr/recordings/"+recorded.ID); withoutTitle.Bytes != original.Bytes {
+		t.Fatalf("without an imported title the old file's size is %d, was %d", withoutTitle.Bytes, original.Bytes)
+	}
 	if code := status(t, s, "DELETE", "/v1/dvr/recordings/"+recorded.ID, owner, nil); code != 204 {
 		t.Fatalf("delete answered %d", code)
 	}
 	if _, err := os.Stat(files[0]); !os.IsNotExist(err) {
 		t.Fatalf("the old file was not deleted: %v", err)
+	}
+}
+
+// A folder change applies to future recordings. An active recording must still stop at
+// the free-space floor on the disk it is filling, even when the new folder is unavailable.
+func TestARecordingChecksSpaceWhereItStarted(t *testing.T) {
+	s, owner, _ := recordable(t)
+	var rec DvrRecording
+	call(t, s, "POST", "/v1/dvr/recordings", owner, DvrRecordingBook{Programme: programmeID(t, s, owner, "Morning News")}, &rec)
+	s.recorder.Tick(context.Background())
+	options := s.dvrOptions()
+	options.Folder = filepath.Join(t.TempDir(), "not-created")
+	options.Floor = math.MaxInt64 // the real recording disk is below this floor
+	s.setDVROptions(options)
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		got := get[DvrRecording](t, s, owner, "/v1/dvr/recordings/"+rec.ID)
+		if got.State != "recording" {
+			if got.Reason != "Space ran out" {
+				t.Fatalf("the recording stopped for %q", got.Reason)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("recording ignored the floor on its original disk")
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }

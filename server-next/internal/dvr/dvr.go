@@ -254,7 +254,7 @@ func (s *Service) Tick(ctx context.Context) {
 // start takes a tuner for a recording and writes the stream until end.
 func (s *Service) start(ctx context.Context, r db.Recording, end time.Time) {
 	opts := s.options()
-	if s.full(ctx) {
+	if s.full(ctx, opts.Folder) {
 		s.db.RecordingFinished(ctx, r.ID, db.RecordingFailed, "Space ran out", s.now())
 		return
 	}
@@ -333,7 +333,7 @@ func (s *Service) start(ctx context.Context, r db.Recording, end time.Time) {
 				title()
 			}
 		}()
-		err := in.Read(work, time.Time{}, &roomCheck{w: file, full: func() bool { return s.full(context.WithoutCancel(ctx)) }})
+		err := in.Read(work, time.Time{}, &roomCheck{w: file, full: func() bool { return s.full(context.WithoutCancel(ctx), run.folder) }})
 		state, why := db.RecordingRecorded, ""
 		current, _ := s.db.Recording(context.WithoutCancel(ctx), r.PublicID)
 		switch {
@@ -363,9 +363,9 @@ func (s *Service) start(ctx context.Context, r db.Recording, end time.Time) {
 
 // full says recording must stop: the recordings folder's disk is below the owner's free-space
 // floor, or the recordings have reached the owner's cap.
-func (s *Service) full(ctx context.Context) bool {
+func (s *Service) full(ctx context.Context, folder string) bool {
 	opts := s.options()
-	if !diskspace.Room(opts.Folder, opts.Floor) {
+	if !diskspace.Room(folder, opts.Floor) {
 		return true
 	}
 	if opts.Cap > 0 {
@@ -851,13 +851,18 @@ func (s *Service) files(r db.Recording) []string {
 		}
 	}
 	if len(paths) == 0 {
-		folder := s.options().Folder
 		s.mu.Lock()
-		if active := s.running[r.ID]; active != nil && active.folder != "" {
-			folder = active.folder
-		}
+		active := s.running[r.ID]
 		s.mu.Unlock()
-		paths = []string{filepath.Join(folder, filepath.FromSlash(dir), name)}
+		if active != nil && active.folder != "" {
+			paths = []string{filepath.Join(active.folder, filepath.FromSlash(dir), name)}
+		} else if lib, err := s.Library(context.Background()); err == nil {
+			// A finished recording may not have a title yet. Its exact booking-derived
+			// name can still be found under the library's retained recording folders.
+			for _, root := range lib.Paths {
+				paths = append(paths, filepath.Join(root.Path, filepath.FromSlash(dir), name))
+			}
+		}
 	}
 	var files []string
 	for _, path := range paths {
