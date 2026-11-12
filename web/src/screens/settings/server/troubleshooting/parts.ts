@@ -18,7 +18,6 @@ export const troubleshootingRoutes = Object.freeze({
   // gives administrators "Messages and stuck files" while app logs stay the owner's.
   stuckFiles: ['get_catalogue_failures'],
   support: ['get_capability_report', 'get_admin_console_alerts', 'get_console_registry', 'post_admin_console_exports', 'get_admin_console_exports_id'],
-  problems: ['list_playback_failure_memory', 'clear_playback_failure_memory'],
 } satisfies Record<string, readonly RouteId[]>);
 
 export type TroubleshootingPart = keyof typeof troubleshootingRoutes;
@@ -33,7 +32,6 @@ const rowParts: Readonly<Record<string, TroubleshootingPart | readonly Troublesh
   'troubleshooting.detailWindow': 'detailWindow', 'troubleshooting.messages': 'messages', 'troubleshooting.feedback': 'feedback',
   'troubleshooting.reports': ['reports', 'stuckFiles'] as const, 'troubleshooting.support': 'support', 'troubleshooting.prepareExport': 'support', 'troubleshooting.exportPaths': 'support',
   'troubleshooting.exportWindow': 'support', 'troubleshooting.exportRecords': 'support', 'troubleshooting.exportClient': 'support', 'troubleshooting.exportAudit': 'support', 'troubleshooting.exportHealth': 'support',
-  'troubleshooting.playbackProblems': 'problems',
   'troubleshooting.logLevel': 'logSettings', 'troubleshooting.detailLength': 'logSettings', 'troubleshooting.keepLogs': 'logSettings', 'troubleshooting.keepLogsByKind': 'logSettings',
 });
 

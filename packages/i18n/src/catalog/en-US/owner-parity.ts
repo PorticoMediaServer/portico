@@ -12,8 +12,6 @@ export const ownerParityMessages = {
   'web.nowPlaying.moveBody': 'Playback on {viewer}’s device jumps to the point you choose.',
   'web.nowPlaying.moveConfirm': 'Move here',
   // ── Streaming › Playback problems ──
-  'server.routes.unknownTitle': 'A file no longer in a library',
-  'server.routes.openTitle': 'Open the title',
   // ── Live TV › Recording › Tuners ──
   'server.tuners.whoseProfile': '{profile} ({account})',
   // ── Live TV › a source › Import limits ──

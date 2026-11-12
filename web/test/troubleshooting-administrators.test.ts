@@ -28,7 +28,7 @@ test('a tier may call a route as routes.ts publishes it: the log reads are admin
     assert.equal(serverTierMayCall(id, 'admin'), true, id);
     assert.equal(serverTierMayCall(id, 'owner'), true, id);
   }
-  for (const id of ['post_admin_logs_debug_window', 'patch_admin_logs_settings', 'get_client_logs', 'get_capability_report', 'list_playback_failure_memory'] as const) {
+  for (const id of ['post_admin_logs_debug_window', 'patch_admin_logs_settings', 'get_client_logs', 'get_capability_report'] as const) {
     assert.equal(serverTierMayCall(id, 'admin'), false, id);
     assert.equal(serverTierMayCall(id, 'owner'), true, id);
   }
@@ -63,7 +63,7 @@ test('an administrator gets Messages and stuck files (spec: "Administrators see 
   assert.equal(troubleshootingRowShown('troubleshooting.reports', 'admin'), true, 'the reports row opens stuck files for an administrator');
   assert.deepEqual([...troubleshootingParts('owner')].sort(), Object.keys(troubleshootingRoutes).sort());
   assert.equal(troubleshootingRowShown('troubleshooting.messages', 'admin'), true);
-  for (const row of ['troubleshooting.detailWindow', 'troubleshooting.logLevel', 'troubleshooting.keepLogs', 'troubleshooting.feedback', 'troubleshooting.support', 'troubleshooting.exportWindow', 'troubleshooting.playbackProblems', 'troubleshooting.someNewRow'])
+  for (const row of ['troubleshooting.detailWindow', 'troubleshooting.logLevel', 'troubleshooting.keepLogs', 'troubleshooting.feedback', 'troubleshooting.support', 'troubleshooting.exportWindow', 'troubleshooting.someNewRow'])
     assert.equal(troubleshootingRowShown(row, 'admin'), false, row);
   for (const row of ['troubleshooting.detailWindow', 'troubleshooting.logLevel', 'troubleshooting.someNewRow', 'storage.backups']) assert.equal(troubleshootingRowShown(row, 'owner'), true, row);
   assert.equal(troubleshootingRowShown('storage.backups', 'admin'), true, 'a row outside Troubleshooting is not this page\'s to decide');
@@ -100,7 +100,6 @@ test('the Messages viewer shows an administrator whether a detail window is open
 test('Settings builds the page for owners and administrators, and passes log settings and Playback problems only with their parts', () => {
   const route = readFileSync(new URL('../src/screens/settings/Settings.route.tsx', import.meta.url), 'utf8');
   assert.match(route, /route\.section === 'troubleshooting' && \(role === 'owner' \|\| role === 'admin'\)[^\n]*createTroubleshootingSurfaces\(\{tier: role,/);
-  assert.match(route, /const playbackProblems = troubleshooting\?\.parts\.has\('problems'\) \?/);
   assert.match(route, /troubleshooting\?\.render\(troubleshooting\.parts\.has\('logSettings'\) && <MessageOptions>/);
   const controller = readFileSync(new URL('../src/screens/settings/controller.ts', import.meta.url), 'utf8');
   assert.match(controller, /if \(section\.id === 'troubleshooting'\) return this\.options\.capabilities\.manageServer && this\.options\.role !== 'member' && troubleshootingParts\(this\.options\.role\)\.size > 0;/);

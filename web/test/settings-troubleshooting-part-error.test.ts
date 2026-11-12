@@ -25,14 +25,3 @@ test('a part that ends itself because its viewer may no longer read it still tel
     [['reports_authority_ended', 403], ['feedback_authority_ended', 401]], 'a refused part must not go blank in silence');
 });
 
-test('remembered playback problems keep their own failure; a lost sign-in still reaches the page', async () => {
-  const {PlaybackProblemsSource} = await import('../src/screens/settings/server/troubleshooting/playback-problems-source.ts');
-  const page: unknown[] = [];
-  const failing = (status: number) => new PlaybackProblemsSource({transport: {request: async () => { throw Object.assign(new Error('no'), {status}); }} as never,
-    isCurrent: () => true, subscribe: () => () => {}, reportError: error => page.push(error)});
-  const missing = failing(404); await missing.load();
-  assert.equal(missing.getSnapshot().phase, 'error', 'the part shows its own error');
-  assert.equal(page.length, 0);
-  await failing(401).load();
-  assert.equal(page.length, 1);
-});
