@@ -11,6 +11,7 @@ import {NativeSavedDestination} from '../src-next/screens/saved/model.ts';
 import {createNativeSavedViewSummaryBinding} from '../src-next/screens/saved/view-summaries.ts';
 import {NativeSavedViewDestination} from '../src-next/screens/saved/view-model.ts';
 import type {NativeShellBootstrapContext} from '../src-next/shell/bootstrap.ts';
+import {legacySavedFetch, legacySavedRequest} from '../../../packages/client-core/test/fixtures/legacy-saved.ts';
 
 const scope = {serverId: 'server', viewerId: 'local/account/profile'};
 const authority = Object.freeze({serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'fence'});
@@ -48,9 +49,9 @@ type Call = Readonly<{path: string; method?: string; body?: unknown; signal?: Ab
 const deferred = <T>() => {let resolve!: (value: T) => void; const promise = new Promise<T>(done => {resolve = done;}); return {resolve, promise};};
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 function fakeApi(answer: (path: string) => unknown | Promise<unknown>, calls: Call[] = []): SavedApi & LibraryContentApi {
-  return {request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
-    calls.push({path, method, body, signal}); return await answer(path) as T;
-  }};
+  return {request: legacySavedRequest(async (path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<any> => {
+    calls.push({path, method, body, signal}); return await answer(path);
+  }) as SavedApi['request']};
 }
 const answerSaved = (views: (shape: string | null) => readonly unknown[]) => (path: string) => {
   const url = new URL(path, 'https://test.invalid');

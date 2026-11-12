@@ -7,6 +7,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SavedService} from '../../../packages/client-core/src/saved.ts';
+import {legacySavedTransport} from '../../../packages/client-core/test/fixtures/legacy-saved-transport.ts';
 
 const scope = {serverId: 'server', viewerId: '["local","account","profile"]'};
 let ids = 0;
@@ -43,7 +44,7 @@ test('a rejected playlist add surfaces mutationError and the next add still land
       return {serverId: 'server', viewerFence: 'fence', operationId: b.operationId, playlistId: 'playlist', revision: 0, deleted: false} as T;
     },
   };
-  const service = new SavedService({api, scope, requestId, timeoutMs: 500});
+  const service = new SavedService({transport: legacySavedTransport, api, scope, requestId, timeoutMs: 500});
   await service.select({view: 'playlist', playlistId: 'playlist'});
   // The sheet's run() awaits mutate inside try/catch and shows say(e) in its
   // Notice; here we pin the contract it relies on: the failure rejects (so it

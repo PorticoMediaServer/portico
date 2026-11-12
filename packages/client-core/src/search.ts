@@ -1,6 +1,6 @@
 import type {SearchResults as ServerSearchResults, SearchHistory as ServerSearchHistory, Item as ServerItem, Person as ServerPerson} from "../../contracts/src/next/api.ts";
 import {serverPath} from './query/server-api.ts';
-import {entryFromItem} from './items.ts';
+import {wireEntryFromItem} from './items.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 /** Authorized server search projections. No local matching, grouping, ranking or query persistence.
  * Groups are independent: one group may fail while the response as a whole succeeds, and the
@@ -199,12 +199,9 @@ export function searchPath(q:SearchQuery,limit:number,cursor?:string|null):strin
 const personRow=(p:ServerPerson)=>({id:p?.id,kind:'person',title:p?.name,...(p?.images&&(p.images.thumb??p.images.profile??p.images.poster)?{posterUrl:p.images.thumb??p.images.profile??p.images.poster}:{}),navigation:{view:'person',entityId:p?.id}});
 /** One title as a card, in the units the card check reads (milliseconds); a book or comic opens its page rather than playing. */
 function titleRow(item:ServerItem,group:SearchGroup):unknown{
- const entry=entryFromItem(item) as Record<string,unknown>|undefined;
- if(!entry)return undefined;
- const {duration,progressSeconds,playback,...rest}=entry as {duration?:number;progressSeconds?:number;playback?:{itemId:string;startSeconds?:number}}&Record<string,unknown>;
- const ms=(seconds:number|undefined)=>seconds===undefined?undefined:Math.round(seconds*1000);
- return {...rest,...(duration===undefined?{}:{durationMs:ms(duration)}),...(progressSeconds===undefined?{}:{progressMs:ms(progressSeconds)}),
-  ...(playback&&group!=='reading'?{playback:{itemId:playback.itemId,...(playback.startSeconds===undefined?{}:{startMs:ms(playback.startSeconds)})}}:{})};
+ const row=wireEntryFromItem(item);
+ if(row&&group==='reading')delete row.playback;
+ return row;
 }
 /**
  * Reads one search from the rebuilt server and answers it in the shape this module checks: the query it echoes, every

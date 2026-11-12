@@ -13,6 +13,7 @@ import * as customizeIntent from '../src-next/screens/home/customize-intent';
 import * as librarySavedViewIntent from '../src-next/screens/library/saved-view-intent';
 import {nativeDestinationLifetime} from '../src-next/screens/destinations/lifetime';
 import {screenModule} from './helpers/screen-harness.mjs';
+import {legacySavedFetch, legacySavedRequest} from '../../../packages/client-core/test/fixtures/legacy-saved.ts';
 
 const title: ContentEntry = {kind: 'movie', id: 'actual-film', libraryId: 'movies', title: 'Film'};
 const session = {viewer: {serverId: 'server', accountId: 'account', profileId: 'profile', authority: 'local', role: 'owner'},
@@ -66,13 +67,13 @@ function fixture() {
   const unavailable = (): never => {throw new Error('unexpected_saved_port');};
   const context: NativeShellBootstrapContext = {
     current: () => active, session: () => session, authority: () => authority, navigation,
-    api: new HttpLocalApi('https://fixture.invalid', '', async (input, init) => {
+    api: new HttpLocalApi('https://fixture.invalid', '', legacySavedFetch(async (input, init) => {
       const url = new URL(String(input)), method = init?.method ?? 'GET';
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       paths.push(url.pathname + url.search);
       if (method === 'PATCH') mutations.push({path: url.pathname, method, body});
       return new Response(JSON.stringify(await reply(url, method, body)), {status: 200, headers: {'Content-Type': 'application/json'}});
-    }),
+    })),
     subscribeAuthority: listener => {listeners.add(listener); return () => {listeners.delete(listener);};},
     libraries: () => [{id: 'movies', name: 'Movies', kind: 'movie'}],
     get home() {return unavailable();}, get events() {return unavailable();}, preferences: unavailable, subscribePreferences: unavailable,

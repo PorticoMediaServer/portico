@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {SavedApi} from '../../../packages/client-core/src/saved.ts';
 import {NativeSavedViewDestination} from '../src-next/screens/saved/view-model.ts';
+import {legacySavedRequest} from '../../../packages/client-core/test/fixtures/legacy-saved.ts';
 
 const scope = {serverId: 'server-a', viewerId: 'actual-viewer'};
 function summary() {return {serverId: scope.serverId, viewerFence: 'summary-fence', revision: {catalog: 4, viewer: 7},
@@ -16,16 +17,18 @@ test('Saved directory reads its actual bounded page and canonical total, and ded
     if (path.includes('cursor=')) return await new Promise<unknown>(resolve => {finish = resolve;}) as T;
     return directory('actual-next-cursor') as T;
   }};
+  api.request = legacySavedRequest(api.request.bind(api) as never) as typeof api.request;
   const view = new NativeSavedViewDestination({api, scope, requestId: async () => 'request-id', current: () => true});
   try {
     const loading = view.select({view: 'collections'}); assert.equal(view.select({view: 'collections'}), loading); await loading;
-    assert.equal(view.getSnapshot().phase, 'ready'); assert.equal(calls.length, 2);
+    const pages = () => calls.filter(path => path.includes('saved-resources'));
+    assert.equal(view.getSnapshot().phase, 'ready'); assert.equal(pages().length, 1); assert.equal(calls.filter(path => path.endsWith('/saved/summary')).length, 1);
     assert.equal(view.getSnapshot().summary?.collections, 27, 'zero loaded resources do not become a fake directory total');
     const first = new URL(calls.find(path => path.includes('saved-resources'))!, 'https://test.invalid');
     assert.equal(first.searchParams.get('kind'), 'collection'); assert.equal(first.searchParams.get('limit'), '40');
     const next = view.next(); assert.equal(view.next(), next); finish(directory()); await next;
-    assert.equal(calls.length, 3); assert.equal(new URL(calls[2], 'https://test.invalid').searchParams.get('cursor'), 'actual-next-cursor');
-    await view.next(); assert.equal(calls.length, 3, 'the real empty continuation stops further reads');
+    assert.equal(pages().length, 2); assert.equal(new URL(pages()[1]!, 'https://test.invalid').searchParams.get('cursor'), 'actual-next-cursor');
+    const before = calls.length; await view.next(); assert.equal(calls.length, before, 'the real empty continuation stops further reads');
     assert.equal(view.getSnapshot().summary?.collections, 27);
   } finally {view.dispose();}
 });
@@ -33,6 +36,7 @@ test('Saved directory reads its actual bounded page and canonical total, and ded
 test('switching the real Saved route aborts old reads and cannot restore old directory state', async () => {
   const pending: {path: string; signal?: AbortSignal; resolve: (value: unknown) => void}[] = [];
   const api: SavedApi = {request: <T>(path: string, _method?: string, _body?: unknown, signal?: AbortSignal) => new Promise<T>(resolve => {pending.push({path, signal, resolve: value => resolve(value as T)});})};
+  api.request = legacySavedRequest(api.request.bind(api) as never) as typeof api.request;
   const view = new NativeSavedViewDestination({api, scope, requestId: async () => 'request-id', current: () => true});
   try {
     const old = view.select({view: 'collections'}), oldReads = [...pending];
@@ -50,6 +54,7 @@ test('retiring a viewer clears private Saved page/totals and stops late replies'
   let active = true;
   const pending: {signal?: AbortSignal; resolve: (value: unknown) => void; path: string}[] = [];
   const api: SavedApi = {request: <T>(path: string, _method?: string, _body?: unknown, signal?: AbortSignal) => new Promise<T>(resolve => {pending.push({path, signal, resolve: value => resolve(value as T)});})};
+  api.request = legacySavedRequest(api.request.bind(api) as never) as typeof api.request;
   const view = new NativeSavedViewDestination({api, scope, requestId: async () => 'request-id', current: () => active});
   const loading = view.select({view: 'collections'}); active = false;
   const closed = view.getSnapshot(); assert.deepEqual(closed, {phase: 'idle'});

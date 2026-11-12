@@ -58,6 +58,16 @@ export function entryFromItem(item: Item, libraryId?: string): ContentEntry | un
   for (const key of Object.keys(entry)) if (entry[key] === undefined || entry[key] === null) delete entry[key];
   return Object.freeze(entry) as ContentEntry;
 }
+/** The card for one item in the server's wire units (durations and positions in milliseconds), for the readers that
+ * check a card the way they check the old server's documents. */
+export function wireEntryFromItem(item: Item, libraryId?: string): Record<string, unknown> | undefined {
+  const entry = entryFromItem(item, libraryId) as Record<string, unknown> | undefined;
+  if (!entry) return undefined;
+  const {duration, progressSeconds, playback, ...rest} = entry as {duration?: number; progressSeconds?: number; playback?: {itemId: string; startSeconds?: number}} & Record<string, unknown>;
+  const ms = (seconds: number) => Math.round(seconds * 1000);
+  return {...rest, ...(duration === undefined ? {} : {durationMs: ms(duration)}), ...(progressSeconds === undefined ? {} : {progressMs: ms(progressSeconds)}),
+    ...(playback ? {playback: {itemId: playback.itemId, ...(playback.startSeconds === undefined ? {} : {startMs: ms(playback.startSeconds)})}} : {})};
+}
 /** The cards of a list; an item of an unknown kind is left out alone. */
 export const entriesFromItems = (items: readonly Item[], libraryId?: string): ContentEntry[] =>
   keepReadable('items', 'items', [...items], item => entryFromItem(item as Item, libraryId));
