@@ -36,7 +36,14 @@ func TestReturnedSignInNoteWorksOnlyAtItsOwnHTTPSPageOnce(t *testing.T) {
 		p.s.ServeHTTP(w, r)
 		return w.Code
 	}
-	for _, attempt := range [][2]string{{audience, ""}, {audience, "https://web.getportico.tv"}, {audience, "https://media.example.evil:8443"}, {"https://media.example:8444", audience}, {"https://other.example:8443", audience}, {"http://media.example:8443", audience}} {
+	for _, attempt := range [][2]string{
+		{audience, ""},
+		{audience, "https://web.getportico.tv"},
+		{audience, "https://media.example.evil:8443"},
+		{"https://media.example:8444", audience},
+		{"https://other.example:8443", audience},
+		{"http://media.example:8443", audience},
+	} {
 		if status := exchange(attempt[0], attempt[1]); status < 400 {
 			t.Fatalf("a note escaped its page at %q from %q: %d", attempt[0], attempt[1], status)
 		}
