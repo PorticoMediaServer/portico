@@ -35,11 +35,9 @@ test('a directory connect is fenced to its attempt: Choose another and a success
     serverDescriptor() {return {id: 'server', name: 'Server', signIn: 'portico'};}
     dispose() {}
   }
-  class HostedApi {
-    async servers() {return {items: directory};}
-  }
   const account = {account: {id: 'account'}, familyId: 'family', accessToken: 'token'};
-  const nativeAccounts = {accountCredentials: () => ({
+  // The account's checked server list (Portico Services' signed list, read in client-core).
+  const nativeAccounts = {porticoServers: async () => ({items: directory}), accountCredentials: () => ({
     subscribe: () => () => {}, synchronize: async () => {}, getSnapshot: () => ({session: account}), accessSession: async () => account,
   })};
   const {AccountEntry} = await screenModule(new URL('../src-next/screens/accounts/AccountEntry.tsx', import.meta.url), {'./ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, '../../shell/StartupBoot': {BootWaitLine: 'BootWaitLine'}, 
@@ -58,7 +56,6 @@ test('a directory connect is fenced to its attempt: Choose another and a success
       NativeModules: {}, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Linking: {openURL: async () => {}}},
     'react-native-qrcode-svg': {default: 'QR'},
     '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src': {HttpHostedApi: HostedApi},
     '../../../../../packages/client-core/src/sign-in': {ServerSignInProbe: class {}},
     '../../../../../packages/client-core/src/route-identity': {routeOrigin: (value: string) => value},
     '../../../../../packages/client-core/src/server-address': serverAddress,

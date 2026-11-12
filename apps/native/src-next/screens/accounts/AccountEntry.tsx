@@ -3,7 +3,7 @@ import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import {AppState, Linking, NativeModules, Platform, Share, Image, Text, View} from 'react-native';
 import {useTVMenuCapture} from '../../platform/tv-menu';
 import QRCode from 'react-native-qrcode-svg';
-import {HttpHostedApi, type HostedServer} from '../../../../../packages/client-core/src';
+import type {HostedServer} from '../../../../../packages/client-core/src';
 import {ServerSignInProbe, moveOfferDays, type ServerSignIn} from '../../../../../packages/client-core/src/sign-in';
 import {firstAnswering, serverAddressCandidates} from '../../../../../packages/client-core/src/server-address';
 import {routeOrigin} from '../../../../../packages/client-core/src/route-identity';
@@ -31,7 +31,6 @@ import {createNativePorticoTVSignIn} from '../../platform/tv-sign-in';
 import {createTVApprovalCredentialOpening, type TVApprovalCredentialOpening} from './tv-approval-credentials';
 import {createTVApprovalFinalization, type TVApprovalFinalization} from './tv-approval-finalization';
 import {createTVCodeOpening, type TVCodeCapture, type TVCodeKind, type TVCodeOpening} from './tv-code-opening';
-import {hostedUrl} from '../../platform/account-authority';
 import {TVCredentialForm, TVCodePresenter, TVVerificationForm, TVRequiredSetupHandoff, TVFrontDoor, TVProfilePINForm, TVForgotPINHandoff, TVWhosWatching, TVPickerRememberRow} from '../../tv/auth';
 import {TVIdentityCodeForm} from '../../tv/auth/TVIdentityCodeForm';
 import type {NativeProfileRecovery} from '../../platform/profile-recovery';
@@ -480,7 +479,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     stopRetry(); targetRef.current = undefined; setTarget(undefined); setError(undefined); setPassword('');
     setServers([]); setDirectoryList('loading'); setStage('servers');
     try {
-      const out = await nativeAccountRead(credentials, issued => new HttpHostedApi(hostedUrl, issued.accessToken, nativeNetworkFetch).servers(),
+      const out = await nativeAccountRead(credentials, issued => nativeAccounts.porticoServers(issued),
         {expected, isCurrent: current});
       if (!current()) return;
       if (!out || !Array.isArray(out.items) || out.items.some(value => !value || typeof value.id !== 'string' || !value.id ||

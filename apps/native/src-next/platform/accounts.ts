@@ -1,13 +1,15 @@
 import {createHostedAccountApi} from '../../../../packages/client-core/src/query/hosted-account-transport';
 import {readHostedAccountIdentity, readViewerIdentity} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {captureTVApprovalGrant} from './tv-approval-grant';
-import {NativeModules} from 'react-native';
+import {NativeModules, Platform} from 'react-native';
+import {PorticoServicesAccountClient, porticoApiError} from '../../../../packages/client-core/src/portico-services-native';
 import {HttpLocalApi, type HostedSession, type LocalSession} from '../../../../packages/client-core/src';
 import {ServerSignInProbe, signInLabelKey} from '../../../../packages/client-core/src/sign-in';
 import type {AppServerSession, NewServerConnection, PorticoAccountScope} from '../../../../packages/client-core/src/app-sessions';
 import {restoreNativeSession, rememberNativeSession, type ConnectionEnvironment} from '../../../../packages/client-core/src/server-connections';
 import {nativeAppSessions} from './app-session-storage';
-import {nativeNetworkFetch, nativeServerEnvironment} from './server-connections';
+import {nativeNetworkFetch, nativeRouteCrypto, nativeServerEnvironment} from './server-connections';
+import {readPorticoServerList} from '../../../../packages/client-core/src/portico-server-list';
 import {createCredentials} from './credentials';
 import {createNativeAccountClient} from './account-client';
 import {TVConsentApprover, type TVConsentAuthority} from '../../../../packages/client-core/src/tv-consent';
@@ -15,7 +17,6 @@ import {forgetSessionRoute, sessionRoute, type RouteConnection} from '../../../.
 import {revokeInBackground} from './session-revocation';
 import {forgetStoredNativeServer, type NativeServerBinding} from './forget-server';
 import {hostedUrl} from './account-authority';
-import {routePath as hostedPath} from '../../../../packages/contracts/src/hosted/routes';
 import {decodeMeGetResponse} from '../../../../packages/contracts/src/hosted/decoders';
 import {readNativeServerDisplays, rememberNativeServerDisplay} from './server-display';
 import type {PickTrace} from './pick-deadline';
@@ -157,6 +158,18 @@ export class NativeAccounts {
   }
   /** Explicit user-selected Portico action only. Constructing this owner does no account IO. */
   accountCredentials() {this.assertCurrent(); return this.credentials ??= createCredentials(hostedUrl);}
+  /** Sign-in and sign-up at Portico Services. The name is what the account's Signed-in devices shows. */
+  porticoClient() {
+    this.assertCurrent();
+    const name = Platform.OS === 'ios' ? Platform.isTV ? 'Apple TV' : (Platform as {isPad?: boolean}).isPad ? 'iPad' : 'iPhone' : Platform.isTV ? 'Android TV' : 'Android';
+    return new PorticoServicesAccountClient(hostedUrl, {name: `Portico on ${name}`, kind: Platform.isTV ? 'tv' : 'phone'}, nativeNetworkFetch);
+  }
+  /** The account's servers from its signed list, checked against the root this app was built with.
+   * A refusal is an `ApiError`, so an ended sign-in renews once as every account read does. */
+  porticoServers(issued: Pick<HostedSession, 'accessToken' | 'account'>, signal?: AbortSignal) {
+    return readPorticoServerList(hostedUrl, issued.accessToken, issued.account.id, nativeRouteCrypto, {fetcher: nativeNetworkFetch, signal})
+      .catch(error => {throw porticoApiError(error);});
+  }
   accountClient(binding: string, isCurrent?: () => boolean, ownsResult?: () => boolean) {this.assertCurrent(); return createNativeAccountClient(hostedUrl, binding, isCurrent, ownsResult);}
   async authenticatePorticoAccount(callback: (signal: AbortSignal) => Promise<HostedSession>, callerCurrent?: () => boolean) {
     const credentials = this.accountCredentials();
@@ -167,14 +180,9 @@ export class NativeAccounts {
     try {return await credentials.authenticateIfSignedOut(callback, {}, callerCurrent);}
     finally {if (this.accountAttempt === credentials) this.accountAttempt = undefined;}
   }
-  signInPorticoAccount(binding: string, username: string, password: string) {
-    const client = this.accountClient(binding), generation = this.generation;
-    return this.authenticatePorticoAccount(async signal => {
-      this.assertCurrent(generation);
-      const id: unknown = await NativeModules.PorticoRuntime.newRequestId(); this.assertCurrent(generation);
-      if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) throw Object.assign(new Error('native_account_request_invalid'), {code: 'invalid_request'});
-      return client.login(username, password, id, signal);
-    });
+  signInPorticoAccount(username: string, password: string) {
+    const client = this.porticoClient(), generation = this.generation;
+    return this.authenticatePorticoAccount(async () => {this.assertCurrent(generation); return client.login(username, password);});
   }
   adoptPorticoTVSession(session: HostedSession, callerCurrent?: () => boolean) {
     const original = captureTVApprovalGrant(session), admitted = original.session;
