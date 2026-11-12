@@ -17,8 +17,9 @@ import (
 )
 
 // policy is what the app's page may load and talk to: itself, the Cast sender script, and
-// this server reached through Portico's remote-access names.
-const policy = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com/cv/js/sender/ " +
+// this server reached through Portico's remote-access names. The reader hands a book's pages
+// the reading fonts it loaded as blob: addresses.
+const policy = "default-src 'self'; font-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com/cv/js/sender/ " +
 	"https://www.gstatic.com/eureka/clank/ https://www.gstatic.com/cast/sdk/libs/sender/; style-src 'self'; " +
 	"connect-src 'self' https://*.direct.getportico.tv https://web.getportico.tv; img-src 'self' blob: data: https://*.direct.getportico.tv; " +
 	"media-src 'self' blob:; worker-src 'self' blob:; frame-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; " +

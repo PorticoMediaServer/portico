@@ -46,7 +46,9 @@ func TestTheWebAppIsServedFromItsFolder(t *testing.T) {
 	page := get("GET", "/", "text/html")
 	body := page.Body.String()
 	nonce := strings.TrimSuffix(strings.TrimPrefix(body, `<html><style nonce="`), `"></style>app</html>`)
+	// The reader's fonts reach a book's pages as blob: addresses; blocked, every book shows in a fallback font.
 	if page.Code != 200 || strings.Contains(body, "__PORTICO") || nonce == "" || !strings.Contains(page.Header().Get("Content-Security-Policy"), "'nonce-"+nonce+"'") ||
+		!strings.Contains(page.Header().Get("Content-Security-Policy"), "font-src 'self' blob:") ||
 		page.Header().Get("Cache-Control") != "no-store" || !strings.HasPrefix(page.Header().Get("Content-Type"), "text/html") {
 		t.Fatalf("the page: %d %q %v", page.Code, body, page.Header())
 	}
