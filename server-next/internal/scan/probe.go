@@ -13,7 +13,7 @@ import (
 )
 
 // Prober reads the inside of one media file: what a file is, how long it is and its tracks.
-// It reads headers only and decodes nothing.
+// It decodes nothing. Local headerless MP3s may be frame-counted for their true length.
 type Prober interface {
 	Probe(ctx context.Context, path string) (Facts, error)
 }
@@ -148,14 +148,26 @@ func (r *run) probeFile(file db.UnprobedFile, src Source, local string) *db.Prob
 	var facts Facts
 	var err error
 	if local != "" {
-		facts, err = r.s.Prober.Probe(r.ctx, local)
+		if p, ok := r.s.Prober.(interface {
+			ProbeAudioPackets(context.Context, string) (Facts, error)
+		}); ok && r.lib.Kind == db.LibraryAudiobooks {
+			facts, err = p.ProbeAudioPackets(r.ctx, local)
+		} else {
+			facts, err = r.s.Prober.Probe(r.ctx, local)
+		}
 	} else {
 		// Not on a disk here: the file is opened through its source, which reads only the
 		// ranges the prober asks for, each one a request within the source's limits.
 		local = path.Join(file.Root, file.Rel)
 		var opened File
 		if opened, err = src.Open(r.ctx, file.Rel); err == nil {
-			facts, err = r.s.ReaderProber.ProbeReader(r.ctx, opened, opened.Size())
+			if p, ok := r.s.ReaderProber.(interface {
+				ProbeAudioPacketsReader(context.Context, io.ReaderAt, int64) (Facts, error)
+			}); ok && r.lib.Kind == db.LibraryAudiobooks && r.lib.Options.Depth == db.DepthComplete {
+				facts, err = p.ProbeAudioPacketsReader(r.ctx, opened, opened.Size())
+			} else {
+				facts, err = r.s.ReaderProber.ProbeReader(r.ctx, opened, opened.Size())
+			}
 			opened.Close()
 		}
 	}

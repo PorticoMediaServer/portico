@@ -69,7 +69,16 @@ func pooled(ctx context.Context, binary string, args []string, path string, mode
 // errToolRefused says the tool ran on a pooled worker and could not make sense of the file.
 var errToolRefused = errors.New("the media tool could not read the file")
 
-func (FileProber) Probe(ctx context.Context, path string) (Facts, error) {
+func (p FileProber) Probe(ctx context.Context, path string) (Facts, error) {
+	return p.probe(ctx, path, false)
+}
+
+// ProbeAudioPackets also measures the packet clock used to place audiobook parts.
+func (p FileProber) ProbeAudioPackets(ctx context.Context, path string) (Facts, error) {
+	return p.probe(ctx, path, true)
+}
+
+func (FileProber) probe(ctx context.Context, path string, packets bool) (Facts, error) {
 	// The confined tool is given one real file, so a link is resolved first. The path came
 	// from the scan's own walk of a library folder, never from a request.
 	// A film disc kept as a folder is read by the disc reader, as one title. The file the
@@ -86,7 +95,11 @@ func (FileProber) Probe(ctx context.Context, path string) (Facts, error) {
 	prober := mediafacts.Probe{ScanCommand: pooled}
 	found, err := prober.Inspect(ctx, real)
 	if err == nil {
-		err = prober.CompleteAudioPackets(ctx, real, &found)
+		if packets {
+			err = prober.CompleteAudioPackets(ctx, real, &found)
+		} else {
+			err = prober.CompleteMP3Length(ctx, real, &found)
+		}
 	}
 	return factsOf(ctx, found, err)
 }
@@ -104,11 +117,24 @@ type RemoteProber struct {
 var remoteProbes = &processpool.Supervisor{}
 
 func (p RemoteProber) ProbeReader(ctx context.Context, file io.ReaderAt, size int64) (Facts, error) {
+	return p.probeReader(ctx, file, size, false)
+}
+
+// ProbeAudioPacketsReader is a whole-file operation, for Complete-depth audiobooks only.
+func (p RemoteProber) ProbeAudioPacketsReader(ctx context.Context, file io.ReaderAt, size int64) (Facts, error) {
+	return p.probeReader(ctx, file, size, true)
+}
+
+func (p RemoteProber) probeReader(ctx context.Context, file io.ReaderAt, size int64, packets bool) (Facts, error) {
 	processes := p.Processes
 	if processes == nil {
 		processes = remoteProbes
 	}
-	found, err := inputbridge.Inspect(ctx, processes, "", file, size)
+	inspect := inputbridge.Inspect
+	if packets {
+		inspect = inputbridge.InspectAudioPackets
+	}
+	found, err := inspect(ctx, processes, "", file, size)
 	return factsOf(ctx, found, err)
 }
 

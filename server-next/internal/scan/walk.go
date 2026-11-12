@@ -109,8 +109,10 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) (Stats, error) {
 		paths[p.ID] = unavailable
 	}
 	if r.reads() {
-		if err := s.DB.RereadAudioWithoutPackets(ctx, lib.ID); err != nil {
-			return r.stats, err
+		if lib.Kind == db.LibraryAudiobooks {
+			if err := s.DB.RereadAudioWithoutPackets(ctx, lib.ID); err != nil {
+				return r.stats, err
+			}
 		}
 		if err := r.probe(); err != nil {
 			return r.stats, err

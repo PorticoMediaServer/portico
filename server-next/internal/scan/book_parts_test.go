@@ -141,7 +141,7 @@ func TestBookPartsAreMeasuredAndAnEstimatedMP3IsCounted(t *testing.T) {
 	run()
 	check("scanned again after a server that estimated")
 
-	// Music files use the same packet measurements; an unchanged scan does not probe again.
+	// Music keeps the cheap headerless-MP3 fix, without measuring packet clocks.
 	music, err := d.CreateLibrary(ctx, "Music", db.LibraryMusic, "en", []string{root})
 	if err != nil {
 		t.Fatal(err)
@@ -151,14 +151,18 @@ func TestBookPartsAreMeasuredAndAnEstimatedMP3IsCounted(t *testing.T) {
 	}
 	var measured int
 	if err := raw.QueryRowContext(ctx, `SELECT count(*) FROM files f JOIN directories dr ON dr.id = f.directory_id
-  JOIN library_paths lp ON lp.id = dr.library_path_id WHERE lp.library_id = ? AND json_extract(f.extra, '$.packets.lengthUs') > 0`, music.ID).Scan(&measured); err != nil || measured != 4 {
+  JOIN library_paths lp ON lp.id = dr.library_path_id WHERE lp.library_id = ? AND json_extract(f.extra, '$.packets.lengthUs') > 0`, music.ID).Scan(&measured); err != nil || measured != 0 {
 		t.Fatalf("music packet measurements: %d, %v", measured, err)
 	}
 	if stats, err := scanner.Scan(ctx, music); err != nil || stats.Probed != 0 {
 		t.Fatalf("unchanged music scan probed %d files: %v", stats.Probed, err)
 	}
-	// The remote prober runs over the isolated range bridge, including its whole-file
-	// count when an MP3 has no length header.
+	var duration int64
+	if err := raw.QueryRowContext(ctx, `SELECT f.duration_ms FROM files f JOIN directories dr ON dr.id = f.directory_id
+ JOIN library_paths lp ON lp.id = dr.library_path_id WHERE lp.library_id = ? AND f.name = '02.mp3'`, music.ID).Scan(&duration); err != nil || math.Abs(float64(duration)-counted*1000) > 1 {
+		t.Fatalf("music headerless length: %d ms, %v", duration, err)
+	}
+	// Only the Complete-depth audiobook prober may count the whole remote file.
 	file, err := os.Open(loose)
 	if err != nil {
 		t.Fatal(err)
@@ -168,7 +172,11 @@ func TestBookPartsAreMeasuredAndAnEstimatedMP3IsCounted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	remote, err := (scan.RemoteProber{}).ProbeReader(ctx, file, info.Size())
+	ordinary, err := (scan.RemoteProber{}).ProbeReader(ctx, file, info.Size())
+	if err != nil || ordinary.Packets != nil {
+		t.Fatalf("ordinary remote probe measured packets: %+v, %v", ordinary, err)
+	}
+	remote, err := (scan.RemoteProber{}).ProbeAudioPacketsReader(ctx, file, info.Size())
 	if err != nil || remote.Packets == nil {
 		t.Fatalf("remote packet facts: %+v, %v", remote, err)
 	}

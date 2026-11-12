@@ -202,15 +202,58 @@ func microseconds(r *big.Rat) int64 {
 
 // CompleteAudioPackets records the packet clock for a sound-only file during a scan.
 // An unmeasurable file keeps its ordinary duration; zero prevents repeated attempts
-// until the file changes. Transient read failures leave it for the next scan.
+// until the file changes. Only cancellation of the scan itself aborts the probe.
 func (p Probe) CompleteAudioPackets(ctx context.Context, path string, facts *Facts) error {
 	if facts.AudioCodec == "" || facts.VideoCodec != "" {
 		return nil
 	}
-	packets, err := p.measurePackets(ctx, path, facts)
-	if err != nil && !errors.Is(err, ErrNoPackets) {
-		return err
+	measured := *facts
+	packets, err := p.measurePackets(ctx, path, &measured)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if err == nil {
+		*facts = measured
 	}
 	facts.Packets = &packets
+	return nil
+}
+
+// CompleteMP3Length corrects a local headerless MP3's bitrate-based estimate without
+// another ffprobe process. Headered MP3s need only a small header read. Optional read
+// failures preserve the ordinary facts; an unchanged scan does not try again.
+func (p Probe) CompleteMP3Length(ctx context.Context, path string, facts *Facts) error {
+	if facts.Container != "mp3" || facts.AudioCodec != "mp3" || facts.VideoCodec != "" {
+		return nil
+	}
+	_ = p.completeMP3Length(ctx, path, facts)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return nil
+}
+
+func (p Probe) completeMP3Length(ctx context.Context, path string, facts *Facts) error {
+	ctx, cancel := context.WithTimeout(ctx, packetsTime)
+	defer cancel()
+	source, size, done, err := p.openReader(ctx, path)
+	if err != nil {
+		return err
+	}
+	defer done()
+	read := readerAt(source, size)
+	head, err := audiofacts.MP3Head(read)
+	if err != nil {
+		return err
+	}
+	if _, _, ok := audiofacts.MP3HeaderSamples(ctx, head); ok {
+		return nil
+	}
+	samples, rate, err := audiofacts.MP3Samples(ctx, func(_ context.Context, offset, length int64) ([]byte, error) { return read(offset, length) }, size)
+	if err != nil || samples <= 0 || rate <= 0 {
+		return ErrNoPackets
+	}
+	facts.Duration = float64(samples) / float64(rate)
+	facts.BitRate = int64(float64(size) * 8 / facts.Duration)
 	return nil
 }
