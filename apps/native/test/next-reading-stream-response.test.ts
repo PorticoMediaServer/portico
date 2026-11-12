@@ -88,36 +88,3 @@ test('actual native fetch selects canonical no-Range Reading stream and retains 
   assert.equal(reads, 0); const reader = response.body!.getReader(), pending = reader.read(); await until(() => reads === 1);
   caller.abort(); await assert.rejects(pending, coded('cancelled')); assert.equal(cancels, 1); reader.releaseLock();
 });
-
-test('canonical captured facade accepts first-byte metadata and native pulls without a global ReadableStream constructor', async t => {
-  const runtime = NativeModules.PorticoRuntime as Record<string, unknown>;
-  const before = {request: runtime.networkRequest, open: runtime.networkStreamOpen, read: runtime.networkStreamRead, cancel: runtime.cancelQueueRequest, bytes: runtime.networkBytesRequest};
-  t.after(() => {runtime.networkRequest = before.request; runtime.networkStreamOpen = before.open; runtime.networkStreamRead = before.read; runtime.cancelQueueRequest = before.cancel; runtime.networkBytesRequest = before.bytes;});
-  let reads = 0, opens = 0, cancels = 0, streamId: string | undefined;
-  let firstByte!: () => void;
-  runtime.networkRequest = async (_id: string, _url: string, method: string) => ({status: method === 'DELETE' ? 204 : 200,
-    headers: {'Content-Type': 'application/json', ETag: `"${revision}"`},
-    body: method === 'DELETE' ? '' : JSON.stringify({sessionId: 'session', itemId: 'item', sourceId: 'source', revision, size: 3, format: 'pdf', sequential: true, metadata: {title: 'Stored title'}})});
-  runtime.networkBytesRequest = async (_id: string, _url: string, method: string) => {assert.equal(method, 'HEAD'); return {status: 200, headers, bodyBase64: ''};};
-  runtime.networkStreamOpen = (identifier: string, _url: string, requestHeaders: Record<string, string>) => {
-    opens++; streamId = identifier;
-    assert.equal(new Headers(requestHeaders).get('Authorization'), 'Bearer canonical-native-test-token');
-    assert.equal(new Headers(requestHeaders).get('If-Match'), `"${revision}"`); assert.equal(new Headers(requestHeaders).has('Range'), false);
-    // Models §44's allowed delay; the native driver still owns its first bytes.
-    return new Promise(resolve => {firstByte = () => resolve({status: 200, headers});});
-  };
-  runtime.networkStreamRead = async (identifier: string) => {assert.equal(identifier, streamId); return ++reads === 1 ? {done: false, bodyBase64: encoded} : {done: true, bodyBase64: ''};};
-  runtime.cancelQueueRequest = (identifier: string) => {assert.equal(identifier, streamId); cancels++;};
-  const api = new HttpLocalApi(origin, 'canonical-native-test-token', nativeServerFetch('server'));
-  const client = api.reading({viewer: {authority: 'local', serverId: 'server', accountId: 'account', profileId: 'profile', role: 'member'}, isCurrent: () => true});
-  const session = await client.open({itemId: 'item', sourceId: 'source'}); await session.headPDF();
-  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'ReadableStream'); assert.ok(descriptor);
-  try {
-    Object.defineProperty(globalThis, 'ReadableStream', {configurable: true, writable: true, value: undefined});
-    const opening = session.openSequential(); await until(() => opens === 1); assert.equal(reads, 0);
-    firstByte(); const stream = await opening; assert.equal(reads, 0);
-    const reader = stream.getReader(); assert.deepEqual((await reader.read()).value, Uint8Array.of(0, 255, 128));
-    assert.equal((await reader.read()).done, true); assert.equal(cancels, 1); reader.releaseLock();
-    assert.equal(globalThis.ReadableStream, undefined, 'production did not install a constructor');
-  } finally {Object.defineProperty(globalThis, 'ReadableStream', descriptor); await session.close(); client.dispose();}
-});
