@@ -17,38 +17,39 @@ async function loadHook(h, commands = readingCommands) {
   const code=result.code.replace(/import\s+([\s\S]*?)\s+from\s+["']([^"']+)["'];/g,(_,names,source)=>`const ${names.trim().replace(/\bas\b/g,':')} = modules[${JSON.stringify(source)}];`).replace('export function useReadingMarkAll','function useReadingMarkAll');
   return new Function('modules',`${code}\nreturn useReadingMarkAll;`)(modules);
 }
-const proof=(viewer=1,count=3)=>({serverId:'server',libraryId:'library',viewerFence:'a'.repeat(64),revision:{catalog:2,viewer},count});
-async function fixture({response,current=()=>proof(5,8),retireAtCommandSettlement=false}={}) {
+// The rebuilt server: the unread count is the item list's total, and the marking is one set_state job.
+async function fixture({response,count=3,retireAtCommandSettlement=false}={}) {
   const h=createRenderer(),calls=[],errors=[],committedWhileLive=[];let committed=0,live=true;
   const commands = retireAtCommandSettlement ? {...readingCommands, commitReadingMarkAll: (...args) => readingCommands.commitReadingMarkAll(...args).then(value => {live=false;return value;})} : readingCommands;
   const hook=await loadHook(h,commands);
   const context={scope:{serverId:'server'},identity:{viewer:{authority:'local',accountId:'account',profileId:'profile',role:'member'}},isCurrent:()=>live,effects:{reportError:error=>errors.push(error)},api:{
-    async request(path,method,body){calls.push({path,method,body});if(method==='GET')return calls.length===1?proof():current();return response?response(body):{...proof(2),operationId:body.operationId,expectedRevision:body.expectedRevision,changed:3};},
+    async request(path,method,body){calls.push({path,method,body});if(path.startsWith('/v1/items'))return {items:[],total:count};return response?response(body):{id:'job_1',kind:'set_state',state:'done'};},
   }};
   const render=()=>h.render(()=>hook(context,'library','opening',()=>{committedWhileLive.push(live);committed++;}));
   render();await tick();render();
   return {calls,errors,render,committedWhileLive,committed:()=>committed,retire:()=>{live=false;},dispose:()=>h.dispose()};
 }
-test('an invalid Mark All answer keeps the exact operation for another try',async()=>{
-  const f=await fixture({response:body=>({...proof(2),operationId:'wrong',expectedRevision:body.expectedRevision,changed:3})});
-  try{f.render()();await tick();f.render()();await tick();assert.equal(f.committed(),0);assert.equal(f.calls[1].body.operationId,f.calls[2].body.operationId);}finally{f.dispose();}
+
+test('Mark all read marks every title of the library with one job and refreshes the library once',async()=>{
+  const f=await fixture();
+  try{f.render()();await tick();
+    assert.deepEqual(f.calls.map(call=>[call.method,call.path.split('?')[0]]),[['GET','/v1/items'],['POST','/v1/jobs']]);
+    assert.deepEqual(f.calls[1].body,{kind:'set_state',target:{filter:'library=library&kind=book,comic,issue'},params:{watched:true}});
+    assert.equal(f.committed(),1);}finally{f.dispose();}
 });
-test('covered conflict preserves original command for review without a replacement revision or key',async()=>{
-  const f=await fixture({response:()=>{throw new ApiError(409,'personal_state_conflict','conflict');}});
-  try{f.render()();await tick();assert.equal(f.calls.length,2);assert.equal(f.render(),undefined);assert.equal(f.calls[1].body.expectedRevision.viewer,1);}finally{f.dispose();}
+test('a library with nothing left to read offers no Mark all read',async()=>{
+  const f=await fixture({count:0});
+  try{assert.equal(f.render(),undefined);}finally{f.dispose();}
+});
+test('a job that fails is reported, marks nothing, and can be asked for again',async()=>{
+  const f=await fixture({response:()=>({id:'job_1',kind:'set_state',state:'failed',error:'stopped'})});
+  try{f.render()();await tick();assert.equal(f.committed(),0);assert.equal(f.errors.length,1);
+    const again=f.render();assert.equal(typeof again,'function');again();await tick();assert.equal(f.calls.filter(call=>call.method==='POST').length,2);}finally{f.dispose();}
 });
 test('a retired opening does not complete on a late Mark All success',async()=>{
   let resolve;const held=new Promise(yes=>{resolve=yes;}),f=await fixture({response:()=>held});
-  try{f.render()();await tick();f.retire();resolve({...proof(2),operationId:f.calls[1].body.operationId,expectedRevision:f.calls[1].body.expectedRevision,changed:3});await tick();assert.equal(f.committed(),0);}finally{f.dispose();}
+  try{f.render()();await tick();f.retire();resolve({id:'job_1',kind:'set_state',state:'done'});await tick();assert.equal(f.committed(),0);}finally{f.dispose();}
 });
-
-
-test('Mark All caller ID works on HTTP LAN without randomUUID, subtle or Web Locks',async()=>{
-  const descriptor=Object.getOwnPropertyDescriptor(globalThis,'crypto'),crypto=globalThis.crypto;
-  Object.defineProperty(globalThis,'crypto',{configurable:true,value:{getRandomValues:crypto.getRandomValues.bind(crypto)}});
-  let f;try{f=await fixture();f.render()();await tick();assert.match(f.calls[1].body.operationId,/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);}finally{f?.dispose();Object.defineProperty(globalThis,'crypto',descriptor);}
-});
-
 test('completion publishes at its original guarded point before command settlement can retire the opening',async()=>{
   const f=await fixture({retireAtCommandSettlement:true});
   try{f.render()();await tick();assert.deepEqual(f.committedWhileLive,[true]);}
