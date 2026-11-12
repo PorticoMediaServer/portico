@@ -87,7 +87,7 @@ Assistant) are a separate short document and are not counted here.
 | `POST /v1/auth/password` | Change your password |
 | `GET /v1/auth/remembered`, `DELETE /v1/auth/remembered/{id}` | Accounts remembered on this device's sign-in screen |
 
-### Me, profiles and devices (33)
+### Me, profiles and devices (34)
 
 | Route | Purpose |
 |---|---|
@@ -105,6 +105,7 @@ Assistant) are a separate short document and are not counted here.
 | `GET /v1/devices/{id}/capabilities`, `PUT /v1/devices/{id}/capabilities` | What a device can play |
 | `GET /v1/me/sessions`, `DELETE /v1/me/sessions/{id}`, `DELETE /v1/me/sessions` | Your sign-ins: list, end one, end all others |
 | `GET /v1/admin/members/{id}/devices`, `DELETE /v1/admin/members/{id}/devices/{deviceId}` | The owner or an administrator: the devices of a person they manage, and sign one out |
+| `GET /v1/admin/devices` | People's Devices group: every account's devices for the owner, only the members' for an administrator (never the owner's, another administrator's or its own), a device once per account signed in on it, with the account (`porticoAccount` for the Local / Portico label) and its live sign-ins, most recently seen first, by cursor. Signing one out is the route above, or `DELETE /v1/devices/{id}` for the caller's own |
 | `GET /v1/preferences`, `PATCH /v1/preferences` | A profile's own settings: the list of settings with their defaults, what the profile saved for everywhere, for this kind of device and for this device, and the values in force. The last save wins. A list setting says the most items it holds (`maxItems`). The `pins` setting is the profile's pins in its order, at most 200, each `playlist:`, `collection:`, `view:` or `library:` and an id; an app names them from `GET /v1/lists` and `GET /v1/libraries` and leaves out a pin neither lists |
 | `/v1/me/tokens`, `/v1/me/app-passwords` | Your personal tokens and app passwords: list, make, revoke. A key's secret is shown once and not kept, so a repeat of the same `Idempotency-Key` answers the key made the first time: with a new secret while that key has never been used (the unseen first one stops working), and with no secret and a `note` once it has been used; this holds for `/v1/admin/api-keys` too. |
 
