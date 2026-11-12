@@ -1,3 +1,4 @@
+import {jsonEmptyWrites} from '../server-write-fetch.ts';
 import {requestDeadlineMs} from '../index.ts';
 import {encodedRoutePath} from '../../../contracts/src/routes.ts';
 import {SessionsClient, type PreparingSessionView} from './sessions.ts';
@@ -15,7 +16,7 @@ export async function stopOriginalPreparingSession(fetcher: typeof fetch, origin
     signal.addEventListener('abort', abort, {once: true}); if (signal.aborted) abort();
     const timer = setTimeout(abort, requestDeadlineMs(request.path, request.method));
     try {
-      const response = await fetcher(origin + request.path, {method: request.method, signal: round.signal,
+      const response = await jsonEmptyWrites(fetcher)(origin + request.path, {method: request.method, signal: round.signal,
         headers: {Accept: 'application/json', Authorization: 'Bearer ' + accessToken},
         redirect: 'error', credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store'});
       if (round.signal.aborted || !allowed()) {void response.body?.cancel().catch(() => {}); throw new Error('Original preparing owner retired');}

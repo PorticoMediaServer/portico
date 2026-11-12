@@ -43,7 +43,11 @@ test('native preparing cleanup reads only the exact id then claims and stops it 
     ['https://original.invalid/v1/playback/sessions/original_session', 'DELETE'],
   ]);
   assert.ok(f.requests.every(value => new Headers(value.init?.headers).get('Authorization') === 'Bearer synthetic-original-token'));
-  assert.ok(f.requests.every(value => value.init?.redirect === 'error' && value.init.credentials === 'omit' && value.init.body === undefined));
+  assert.ok(f.requests.every(value => value.init?.redirect === 'error' && value.init.credentials === 'omit'));
+  assert.equal(f.requests[0]!.init?.body, undefined, 'the exact session read stays bodyless');
+  assert.equal(new Headers(f.requests[0]!.init?.headers).has('Content-Type'), false);
+  assert.equal(f.requests[1]!.init?.body, '{}', 'stopping adds no position or other command field');
+  assert.equal(new Headers(f.requests[1]!.init?.headers).get('Content-Type'), 'application/json');
 });
 
 test('changed generation, target or local role after the exact read refuses the stop claim', async () => {

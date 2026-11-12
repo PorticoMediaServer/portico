@@ -1,5 +1,6 @@
 import {appLogFetch} from './app-log.ts';
 /** The selected server's HTTP client, its wire types and errors, and the Portico account client. */
+import {jsonEmptyWrites} from './server-write-fetch.ts';
 import {clockOrigin, observeResponseClock, serverNow} from './server-clock.ts';
 import {linkAbortSignals, throwIfAborted} from './abort-lifetime.ts';
 import {resendableRefusal, retryWriterCapacity} from './writer-capacity.ts';
@@ -444,7 +445,7 @@ export class HttpLocalApi {
     if (routes.logicalOrigin !== this.baseUrl) throw new Error('This route belongs to another logical server origin.');
     if (this.routes === routes) return;
     this.routeUnsubscribe?.(); this.routeUnsubscribe = undefined; this.routes = routes;
-    this.fetcher = appLogFetch(routes.fetch);
+    this.fetcher = appLogFetch(jsonEmptyWrites(routes.fetch));
     this.observeRoutes();
     if (this.token) bindSessionRoute(this.token,routes);
   }
@@ -467,7 +468,7 @@ export class HttpLocalApi {
     this.token = token;
     // Native Window.fetch accepts a value call, not this API as its receiver.
     // An explicitly bound injected transport retains its own receiver.
-    this.rawFetcher = (input, init) => fetcher(input, init);
+    this.rawFetcher = jsonEmptyWrites(fetcher);
     this.fetcher = appLogFetch((input,init) => this.rawFetcher(input,{...init,redirect:'error',credentials:'omit',referrerPolicy:'no-referrer'}));
     const routes = sessionRoute(token); if (routes) this.useRoutes(routes);
   }
