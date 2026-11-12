@@ -180,6 +180,19 @@ func (s *Server) catalogueRoutes() {
 		if len(like) > 0 {
 			out.Groups = append(out.Groups, RelatedGroup{Relation: "more_like_this", Items: itemShapes(like)})
 		}
+		rows, err := s.db.TitleRows(r.Context(), viewer(r), r.PathValue("id"))
+		if err != nil {
+			return Related{}, refuse(err)
+		}
+		for _, row := range rows {
+			group := RelatedGroup{Relation: row.Relation, Items: itemShapes(row.Items)}
+			if row.PersonID != "" {
+				group.Person = &RelatedPerson{ID: row.PersonID, Name: row.PersonName}
+			} else {
+				group.Tag = &RelatedTag{Value: row.TagID, Label: row.TagName}
+			}
+			out.Groups = append(out.Groups, group)
+		}
 		return out, nil
 	})
 	// A library's people by one role: the Authors tab of an audiobook or book library.
