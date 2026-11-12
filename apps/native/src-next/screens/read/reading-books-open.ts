@@ -1,6 +1,7 @@
 import type {ReadingItem} from '../../../../../packages/client-core/src';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
+import {nativeEntryRoute} from '../../shell/routes';
 import {nativeReadEligibility, openNativeReadBook, type NativeReadOrigin} from './eligibility';
 
 /**
@@ -17,7 +18,14 @@ export async function openNativeReadingBookEntry(context: NativeShellBootstrapCo
 }>): Promise<boolean> {
   const {entry, libraryId, signal} = target, selected = context.session();
   if (signal?.aborted || !selected || !context.current() || !target.resident()) return false;
-  if ((entry.kind !== 'ebook' && entry.kind !== 'comic') || (entry.libraryId !== undefined && entry.libraryId !== libraryId)) return false;
+  if (entry.libraryId !== undefined && entry.libraryId !== libraryId) return false;
+  if (entry.kind === 'book_series') {
+    const origin = context.navigation.getSnapshot();
+    if (origin.route !== target.origin.route || origin.revision !== target.origin.revision) return false;
+    const destination = nativeEntryRoute(entry);
+    return context.navigation.allows(destination) && context.navigation.open(destination, context.authority());
+  }
+  if (entry.kind !== 'ebook' && entry.kind !== 'comic') return false;
   const resident = () => !signal?.aborted && context.current() && context.session()?.sessionFamilyId === selected.sessionFamilyId && target.resident();
   // The Read door checks only this context's `current()` on both sides of its
   // own versions await, so the same residence guard fences its admission too.
