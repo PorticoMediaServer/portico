@@ -92,7 +92,7 @@ async function fixture(engine = 'mpv', local = false, withOptions = true) {
     subtitleStyles: new styles.NativeSubtitleStyleChoices(),
     choices: {get: (_key, _playback, fallback) => fallback, has: () => false},
     o: {settings: () => settings, nativeLocalSubtitleTiming: true, engineFeatures: () => ({subtitleRendering: ['text']}), engines: {transport: () => transport},
-      api: {mediaUrl: unused, getRouteConnection: () => ({}), recoverRoute: async () => {probes++;}}},
+      api: {mediaUrl: unused, getRouteConnection: () => ({}), getRouteSnapshot: () => ({phase: 'ready'}), recoverRoute: async () => {probes++;}}},
     path: {setRate() {}, setTracks(id) {reportedAudio = id;}, setAutomatic() {}, engineFact(fact) {observations.push(fact);}},
     active: () => current, currentSession: () => local ? undefined : accepted,
     fence: () => ({kind: local ? 'local' : 'queue', sessionId: state.session.id, generation: state.session.generation, playback: {run: state.playbackRun}}),
@@ -153,12 +153,14 @@ test('route loss without an engine error reaches the existing failed state and p
   assert.equal(local.state.phase, 'ready'); assert.equal(local.state.recovering, undefined);
 });
 
-test('a stalled stream has the same finite recovery even without a terminal engine error', async t => {
+test('ordinary rebuffer on a ready route stays playing without a route probe, then has a finite deadline', async t => {
   const f = await fixture(); t.after(() => f.dispose());
   f.emit('stalled'); assert.equal(f.state.recovering, true);
-  f.timers.advance(1000); assert.equal(f.probes(), 1);
+  f.timers.advance(1000); await drain();
+  assert.equal(f.probes(), 0); assert.equal(f.state.intent, 'playing');
+  assert.equal(f.commands.at(-1).connectionState, 'ready'); assert.equal(f.commands.at(-1).paused, false);
   f.emit('progress'); f.timers.advance(89_000);
-  assert.equal(f.state.phase, 'error'); assert.equal(f.runtime.failure.reason, 'connection');
+  assert.equal(f.state.phase, 'error'); assert.equal(f.runtime.failure, undefined, 'a healthy but slow route does not claim the connection dropped');
 });
 
 test('verified native readiness clears the same outage while a paused tick does not invent progress', async t => {
