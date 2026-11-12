@@ -19,7 +19,7 @@ const session = (family: string, role = 'account'): LocalSession => ({accessToke
   viewer: {serverId, authority: 'local', accountId: 'owner-account', profileId: 'main', role}});
 
 async function fixture(kind:'owner'|'setup'|'ambiguous'='owner', admittedSetupOwner=false, observeFails=false) {
-  let raw: AppSessionRecord | undefined, portico = false, pending = true, remembers = 0, ownerFinishes = 0, registeredFinishes = 0, cancels = 0;
+  let raw: AppSessionRecord | undefined, portico = false, pending = true, remembers = 0, ownerFinishes = 0, cancels = 0;
   let gate: Promise<void> | undefined, release: (() => void) | undefined, pendingGate: Promise<void> | undefined, releasePending: (() => void) | undefined;
   let successor = false, mismatch = false, required = false, exchangeFailure = false, capturedAttempt = false;
   let notifications = 0, returnedRevision = -1, returnedNotifications = -1;
@@ -61,21 +61,18 @@ async function fixture(kind:'owner'|'setup'|'ambiguous'='owner', admittedSetupOw
     },
     async cancel() {cancels++;events.push('owner:cancel');if (capturedAttempt) pending = false;capturedAttempt = false;},
   };
-  const registered = {prepare: async () => '', completeChallenge: async () => {throw new Error('owner return cannot enter generic MFA');}, cancel: async () => {},
-    async finish(captured: CapturedPorticoReturn) {registeredFinishes++;dispatchPorticoReturn(captured, {kind: 'registered'});return complete();}};
   const entry = new BrowserAccountEntry({store, actions: {} as never,
     environment: () => ({storage: store.connectionStorage(serverId)}),
     restore: async captured => {events.push('restore');return {api, session: captured!};},
     inspect: async () => pin, connect: (async () => ({api, connection: api.getRouteConnection()})) as never,
     remember: async () => {remembers++;}, ownerReturn: kind==='setup'?undefined:()=>owner,
     setupReturn: kind==='setup'?()=>({...owner,pendingReturn:async()=>{const p=await owner.pendingReturn();return p?{...p,kind:'setup' as const}:undefined;}}):kind==='ambiguous'?()=>({pendingReturn:async()=>({kind:'setup' as const,transactionId:'actual-setup-transaction'}),finish:async()=>{throw new Error('ambiguous setup must not finish');},cancel:async()=>{throw new Error('ambiguous setup must not cancel');}}):undefined,
-    registered: () => ({controller: registered, installationId: () => 'i'.repeat(43)}),
     // Fails only once a setup Return's pending profiles state is up: the step right after it, inside admission.
     observeSelection: hint => {if (observeFails && entry.getSnapshot().setupPending) throw new Error('selection watch unavailable'); hints.add(hint);return () => {hints.delete(hint);};},
     retire: async (_api, value) => {retired.push(value.sessionFamilyId);},
   });
   return {entry, store, events, retired, hints, get remembers() {return remembers;}, get ownerFinishes() {return ownerFinishes;},
-    get registeredFinishes() {return registeredFinishes;}, get notifications() {return notifications;}, get returnedRevision() {return returnedRevision;}, get returnedNotifications() {return returnedNotifications;}, get cancels() {return cancels;}, get pending() {return pending;},
+    get notifications() {return notifications;}, get returnedRevision() {return returnedRevision;}, get returnedNotifications() {return returnedNotifications;}, get cancels() {return cancels;}, get pending() {return pending;},
     noOwner: () => {pending = false;}, requireFactor: () => {required = true;}, supersede: () => {successor = true;}, mismatch: () => {mismatch = true;},
     failExchange: () => {exchangeFailure = true;},
     hold: () => {gate = new Promise(resolve => {release = resolve;});}, release: () => release?.(),
@@ -86,7 +83,7 @@ async function fixture(kind:'owner'|'setup'|'ambiguous'='owner', admittedSetupOw
 test('protected owner KIND selects the same controller before any generic restore and never remembers again', async () => {
   const f = await fixture();await f.entry.finishPorticoReturn(callback);
   assert.equal(f.events[0], 'owner:pending');assert.equal(f.events[1], 'owner:finish');
-  assert.equal(f.ownerFinishes, 1);assert.equal(f.registeredFinishes, 0);assert.equal(f.remembers, 0);
+  assert.equal(f.ownerFinishes, 1);assert.equal(f.remembers, 0);
   assert.equal((await f.store.selected())?.connection.session.viewer.role, 'account');
   assert.equal(f.entry.getSnapshot().phase, 'profiles');assert.equal(f.entry.getSnapshot().snapshot?.account.role, 'owner');
   assert.doesNotMatch(JSON.stringify(f.entry.getSnapshot()), /private-code|refresh-returned|access-returned|actual-owner-transaction/);f.entry.dispose();
@@ -96,18 +93,19 @@ test('an old entry observer retires before the owner controller publishes its ow
   f.events.length = 0;await f.entry.finishPorticoReturn(callback);
   assert.deepEqual(f.events.slice(0, 2), ['owner:pending', 'owner:finish']);assert.equal(f.entry.getSnapshot().phase, 'profiles');f.entry.dispose();
 });
-test('a missing owner pending keeps the existing ordinary registered return branch', async () => {
+test('a return without a protected owner or setup pending is refused', async () => {
   const f = await fixture();f.noOwner();await f.entry.finishPorticoReturn(normalCallback);
-  assert.equal(f.ownerFinishes, 0);assert.equal(f.registeredFinishes, 1);assert.equal(f.entry.getSnapshot().phase, 'profiles');assert.equal(f.remembers, 0);f.entry.dispose();
+  assert.equal(f.ownerFinishes, 0);assert.equal(f.entry.getSnapshot().phase, 'welcome');
+  assert.equal((f.entry.getSnapshot().error as {code: string}).code, 'invalid_return');assert.equal(f.remembers, 0);f.entry.dispose();
 });
 test('a no-code fragment cannot invent owner authority without protected owner KIND', async () => {
   const f = await fixture();f.noOwner();await f.entry.finishPorticoReturn(callback);
-  assert.equal(f.ownerFinishes, 0);assert.equal(f.registeredFinishes, 1);assert.equal(f.entry.getSnapshot().phase, 'welcome');
+  assert.equal(f.ownerFinishes, 0);assert.equal(f.entry.getSnapshot().phase, 'welcome');
   assert.equal((await f.store.selected())?.connection.session.sessionFamilyId, 'original-owner');f.entry.dispose();
 });
 test('a mixed callback cannot exchange or cancel the legitimate selected owner journal', async () => {
   const f = await fixture();await f.entry.finishPorticoReturn({...callback, fragment: callback.fragment + '&code=not-owner-input'});
-  assert.equal(f.ownerFinishes, 0);assert.equal(f.registeredFinishes, 0);assert.equal(f.pending, true);assert.equal(f.cancels, 0);
+  assert.equal(f.ownerFinishes, 0);assert.equal(f.pending, true);assert.equal(f.cancels, 0);
   assert.equal(f.entry.getSnapshot().phase, 'welcome');f.entry.dispose();assert.equal(f.pending, true);
 });
 test('a selected successor is preserved and only the unused returned owner family is retired', async () => {
@@ -129,26 +127,26 @@ test('cancelling an owner exchange quarantines only its late returned family and
     assert.equal((await f.store.read()).revision, f.returnedRevision + (successor ? 0 : 1));
     assert.equal(f.notifications, f.returnedNotifications + (successor ? 0 : 1));
     assert.deepEqual(f.retired, ['returned-owner']);assert.equal(f.ownerFinishes, 1);
-    assert.equal(f.registeredFinishes, 0);assert.equal(f.entry.getSnapshot().phase, 'welcome');f.entry.dispose();
+    assert.equal(f.entry.getSnapshot().phase, 'welcome');f.entry.dispose();
   }
 });
-test('cancelling while protected pending is read cannot start the owner or registered exchange', async () => {
+test('cancelling while protected pending is read cannot start the owner exchange', async () => {
   const f = await fixture();f.holdPending();const work = f.entry.finishPorticoReturn(callback);await settle();f.entry.cancel();f.releasePending();await work;
-  assert.equal(f.ownerFinishes, 0);assert.equal(f.registeredFinishes, 0);assert.equal(f.pending, false);assert.equal(f.entry.getSnapshot().phase, 'welcome');f.entry.dispose();
+  assert.equal(f.ownerFinishes, 0);assert.equal(f.pending, false);assert.equal(f.entry.getSnapshot().phase, 'welcome');f.entry.dispose();
 });
 test('a terminal owner exchange failure does not fall back to member admission', async () => {
   const f = await fixture();f.failExchange();await f.entry.finishPorticoReturn(callback);
-  assert.equal(f.ownerFinishes, 1);assert.equal(f.registeredFinishes, 0);assert.equal(f.remembers, 0);assert.equal(f.entry.getSnapshot().phase, 'welcome');
+  assert.equal(f.ownerFinishes, 1);assert.equal(f.remembers, 0);assert.equal(f.entry.getSnapshot().phase, 'welcome');
   assert.equal((await f.store.selected())?.connection.session.sessionFamilyId, 'original-owner');f.entry.dispose();
 });
 
 test('protected setup kind uses the setup controller without a Local owner continuation',async()=>{
  const f=await fixture('setup');await f.entry.finishPorticoReturn(callback);
- assert.equal(f.ownerFinishes,1);assert.equal(f.registeredFinishes,0);assert.equal(f.entry.getSnapshot().phase,'profiles');f.entry.dispose();
+ assert.equal(f.ownerFinishes,1);assert.equal(f.entry.getSnapshot().phase,'profiles');f.entry.dispose();
 });
 test('two protected continuation kinds refuse without URL selection or consuming either journal',async()=>{
  const f=await fixture('ambiguous');await f.entry.finishPorticoReturn(callback);
- assert.equal(f.ownerFinishes,0);assert.equal(f.registeredFinishes,0);assert.equal(f.cancels,0);assert.equal(f.pending,true);assert.equal(f.entry.getSnapshot().phase,'welcome');f.entry.dispose();
+ assert.equal(f.ownerFinishes,0);assert.equal(f.cancels,0);assert.equal(f.pending,true);assert.equal(f.entry.getSnapshot().phase,'welcome');f.entry.dispose();
 });
 
 

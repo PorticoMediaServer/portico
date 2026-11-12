@@ -13,9 +13,7 @@ test('callback scrubs synchronously and only protected pending KIND selects the 
   const value = capture('#transaction=' + transaction);
   assert.equal(value.href, 'https://server.test/auth/portico-return');
   assert.deepEqual(dispatchPorticoReturn(value, {kind: 'owner', transactionId: transaction}), {kind: 'owner', transactionId: transaction, href: value.href + value.fragment});
-  assert.throws(() => dispatchPorticoReturn(value, {kind: 'registered'}), {code: 'invalid_return'});
   const normal = capture('#code=src_' + 'c'.repeat(43) + '&state=' + 's'.repeat(43) + '&transaction=' + transaction);
-  assert.equal(dispatchPorticoReturn(normal, {kind: 'registered'}).kind, 'registered');
   assert.throws(() => dispatchPorticoReturn(normal, {kind: 'owner', transactionId: transaction}), {code: 'invalid_return'});
 });
 for (const fragment of ['', '#transaction=x', '#transaction=' + transaction + '&transaction=' + transaction,
@@ -47,6 +45,5 @@ test('setup is a distinct protected kind and never inferred from callback fields
  const value=capture('#transaction=actual-setup');
  assert.equal(dispatchPorticoReturn(value,{kind:'setup',transactionId:'actual-setup'}).kind,'setup');
  assert.throws(()=>dispatchPorticoReturn(value,{kind:'owner',transactionId:'other-owner'}),{code:'invalid_return'});
- assert.throws(()=>dispatchPorticoReturn(value,{kind:'registered'}),{code:'invalid_return'});
  assert.throws(()=>dispatchPorticoReturn(capture('#transaction=actual-setup&purpose=setup'),{kind:'setup',transactionId:'actual-setup'}),{code:'invalid_return'});
 });

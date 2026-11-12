@@ -21,8 +21,10 @@ async function endServers(keep?: string) {
 let settled: Promise<void> = Promise.resolve();
 let signIns = porticoAccountHolder.signIns();
 function check() {
+  // Clear for this sign-out now; queued server cleanup must not erase a move deliberately carried after it.
+  if (!porticoAccountHolder.signedIn()) forgetCarriedInvitation();
   settled = settled.then(async () => {
-    if (!porticoAccountHolder.signedIn()) {forgetCarriedInvitation(); await endServers(); return;}
+    if (!porticoAccountHolder.signedIn()) {await endServers(); return;}
     if (porticoAccountHolder.signIns() === signIns) return;
     signIns = porticoAccountHolder.signIns();
     const who = await porticoAccountHolder.who().catch(() => undefined);

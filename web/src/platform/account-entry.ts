@@ -29,17 +29,13 @@ import {browserAppSessions, browserConnectionEnvironment, restoreBrowserConnecti
 import {browserAppSessionActions, type BrowserAppSessionActions} from './app-sessions';
 import {browserServerDisplay} from './server-display';
 import {BrowserProfileRecovery} from './profile-recovery';
-import {createBrowserRegisteredSignIn, type BrowserRegisteredSignIn} from './registered-sign-in';
 import {dispatchPorticoReturn, type CapturedPorticoReturn} from './portico-return-dispatch';
 import {createBrowserOwnerClaim, type BrowserOwnerClaim} from './owner-claim';
 import {createBrowserSetupReturn, type BrowserSetupReturn} from './setup-return';
-import {buildHostedSignInStartURL} from '@core/hosted-sign-in-start.ts';
 import type {PorticoServerAccess} from './portico-server-access';
 import {CapturedAccountIdentityFailure, type AccountIdentityFailureBinding} from './account-identity-failure';
 
 type InvitationCapability=Readonly<{code:string}|{shortCode:string}>;
-type RegisteredController=Pick<BrowserRegisteredSignIn,'prepare'|'finish'|'completeChallenge'|'cancel'>;
-type RegisteredCompletion=Awaited<ReturnType<RegisteredController['finish']>>;
 type OwnerReturnController=Pick<BrowserOwnerClaim,'pendingReturn'|'finish'|'cancel'>;
 type SetupReturnController=Pick<BrowserSetupReturn,'pendingReturn'|'finish'|'cancel'>;
 type ContinuationReturnController=OwnerReturnController|SetupReturnController;
@@ -74,7 +70,6 @@ type EntryPorts = Readonly<{
  temporary?:(source:HttpLocalApi,session:LocalSession)=>HttpLocalApi;
  invitationDestination?:'adopt'|'server-origin';
  observeSelection?:(changed:()=>void)=>()=>void;
- registered?:()=>Readonly<{controller:RegisteredController;installationId:()=>string}>;
  ownerReturn?:()=>OwnerReturnController;
  setupReturn?:()=>SetupReturnController;
  setupRequired?:(origin:string,pin:ServerPin)=>void;
@@ -92,14 +87,13 @@ export class BrowserAccountEntry {
  private readonly retiredListeners=new Set<()=>void>();private offSelection?:()=>void;
  private epoch=0;private controller?:AbortController;private api?:HttpLocalApi;private session?:LocalSession;
  private challenge?:Extract<DirectSignIn,{kind:'challenge'}>;private challengeRevision?:number;private disposed=false;
- private registered?:RegisteredController;private registeredChallenge?:RegisteredController;private ownerReturn?:ContinuationReturnController;
+ private ownerReturn?:ContinuationReturnController;
  private invitationCapability?:InvitationCapability;private joinedAccountId?:string;private joinedUsername?:string;
  private ownerReset?:OwnerResetCapture;private ownerResetTimer?:ReturnType<typeof setTimeout>;
  private moveProof?:Readonly<{code:string;revision:number;preview:MoveCodePreview}>;
  /** What the server accepted for a member's move to Portico Accounts (the owner's code, or its ticket
   * for an old password), handed on to web.getportico.tv to finish there. */
  private porticoMoveProof?:PorticoMoveProof;
- private moveTicket?:Readonly<{ticket:string;revision:number;expiresAt:string}>;
  private hostedChallenge?:Readonly<{account:Pick<PorticoServerAccess,'accountId'|'isCurrent'|'observe'>;hosted:NonNullable<RememberedServer['hosted']>}>;
  private offHostedChallenge?:()=>void;
  private identityFailure?:CapturedAccountIdentityFailure;
@@ -116,10 +110,9 @@ export class BrowserAccountEntry {
  private release(){
   this.identityFailure?.dispose();this.identityFailure=undefined;
   this.clearHostedChallenge();
-  this.stopAuthorityWatch();const api=this.api,registered=this.registered,ownerReturn=this.ownerReturn,reset=this.takeOwnerReset(),hadAuthority=!!this.session||!!this.challenge||!!registered||!!ownerReturn||!!reset;
-  this.api=undefined;this.session=undefined;this.challenge=undefined;this.challengeRevision=undefined;this.moveProof=undefined;this.moveTicket=undefined;this.porticoMoveProof=undefined;this.registered=undefined;this.registeredChallenge=undefined;this.ownerReturn=undefined;
+  this.stopAuthorityWatch();const api=this.api,ownerReturn=this.ownerReturn,reset=this.takeOwnerReset(),hadAuthority=!!this.session||!!this.challenge||!!ownerReturn||!!reset;
+  this.api=undefined;this.session=undefined;this.challenge=undefined;this.challengeRevision=undefined;this.moveProof=undefined;this.porticoMoveProof=undefined;this.ownerReturn=undefined;
   if(ownerReturn)void ownerReturn.cancel().catch(()=>{});
-  if(registered)void registered.cancel().catch(()=>{});
   if(hadAuthority)this.retired();
   if(reset)void this.retire(reset.source,reset.grant.session).catch(()=>{}).finally(()=>api?.getRouteConnection()?.dispose());
   else api?.getRouteConnection()?.dispose();
@@ -128,10 +121,10 @@ export class BrowserAccountEntry {
   * captured grant defines this lifetime; no family id is added to public state. */
  private watchAuthority(){
   this.stopAuthorityWatch();
-  const observe=this.ports.observeSelection,api=this.api,session=this.session,challenge=this.challenge??this.registeredChallenge,revision=this.challengeRevision,pin=api?.getRouteConnection()?.pin,kind=this.state.server?.signIn;
+  const observe=this.ports.observeSelection,api=this.api,session=this.session,challenge=this.challenge,revision=this.challengeRevision,pin=api?.getRouteConnection()?.pin,kind=this.state.server?.signIn;
   if(!observe||!api||!pin||!session&&!challenge)return;
   let stopped=false,reading=false,changes=0;
-  const current=()=>!stopped&&!this.disposed&&this.api===api&&(session?!!this.session: (this.challenge??this.registeredChallenge)===challenge);
+  const current=()=>!stopped&&!this.disposed&&this.api===api&&(session?!!this.session: (this.challenge)===challenge);
   const check=async()=>{
    ++changes;if(reading)return;reading=true;
    try{while(current()){
@@ -428,7 +421,7 @@ export class BrowserAccountEntry {
  async previewMoveCode(code:string){
   const state=this.state,api=this.api;
   if(!api||!state.server||state.invitation||state.busy||!['password','portico','move-code','move-local','move-portico'].includes(state.phase))return;
-  const op=this.operation();this.moveProof=undefined;this.moveTicket=undefined;this.porticoMoveProof=undefined;this.publish({...state,phase:'move-code',movePreview:undefined,busy:true,error:undefined});
+  const op=this.operation();this.moveProof=undefined;this.porticoMoveProof=undefined;this.publish({...state,phase:'move-code',movePreview:undefined,busy:true,error:undefined});
   if(state.server.signIn==='portico'){
    // The server checks the code (`POST /v1/auth/move/check`); the move itself finishes at
    // web.getportico.tv, which holds the Portico Account (`porticoHandoff`).
@@ -457,7 +450,7 @@ export class BrowserAccountEntry {
  async proveLocalMovePassword(username:string,password:string):Promise<boolean>{
   const state=this.state,api=this.api;
   if(state.phase!=='portico'||state.server?.signIn!=='portico'||state.server.move!=='to_portico'||state.invitation||state.busy||!api)return false;
-  const op=this.operation();this.moveProof=undefined;this.moveTicket=undefined;this.porticoMoveProof=undefined;this.publish({...state,busy:true,error:undefined});
+  const op=this.operation();this.moveProof=undefined;this.porticoMoveProof=undefined;this.publish({...state,busy:true,error:undefined});
   try{
    // P2-66: the old sign-in proves the member here, on the server's own page. The server answers a
    // one-use ticket for it, which finishes the move at web.getportico.tv; the password goes nowhere else.
@@ -696,7 +689,7 @@ export class BrowserAccountEntry {
    current.session.viewer.serverId===session.viewer.serverId&&current.session.viewer.authority===session.viewer.authority&&current.session.viewer.accountId===session.viewer.accountId?undefined:current);}
   finally{try{await this.retire(api,session);}finally{api.getRouteConnection()?.dispose();}}
  }
- private async admittedCompletion({api,result}:AdmittedCompletion,op:ReturnType<BrowserAccountEntry['operation']>,initialSetup=false,memberMove=false){
+ private async admittedCompletion({api,result}:AdmittedCompletion,op:ReturnType<BrowserAccountEntry['operation']>,initialSetup=false){
   if(!op.current()){await this.discardReturn(api,result.session);return;}
   const pin=api.getRouteConnection()?.pin;this.api=api;
   if(!pin)throw new CodedError('invalid_return',unreadableServerResponse);
@@ -706,7 +699,7 @@ export class BrowserAccountEntry {
     result.snapshot.serverId!==pin.serverId||result.snapshot.account.id!==saved.viewer.accountId||(['serverId','authority','accountId','profileId','role'] as const).some(key=>saved.viewer[key]!==result.session.viewer[key])){await this.discardReturn(api,result.session);throw new CodedError('cancelled','The server selection changed.');}
   this.api=api;this.session=result.session;
   try{
-   await this.restoreProfiles({pin,session:result.session,memberMove,initialSetup});
+   await this.restoreProfiles({pin,session:result.session,initialSetup});
    // The fresh setup writer may issue its single, unprotected main-profile
    // owner directly. Do not choose a profile or promote an account-only grant.
    const state=this.state;
@@ -719,18 +712,6 @@ export class BrowserAccountEntry {
    // Decided or failed, the page is never left waiting on a setup decision.
    if(!this.disposed&&this.state.setupPending)this.publish({...this.state,setupPending:undefined});
   }
- }
- private async registeredCompletion(completion:RegisteredCompletion,controller:RegisteredController,op:ReturnType<BrowserAccountEntry['operation']>){
-  const {api,result}=completion;
-  if(result.kind==='signed-in')return this.admittedCompletion({api,result},op,false,completion.memberMove===true);
-  if(!op.current()){api.getRouteConnection()?.dispose();return;}
-  this.api=api;const pin=api.getRouteConnection()?.pin;
-  if(!pin)throw new CodedError('invalid_return',unreadableServerResponse);
-  const [server,selection]=await Promise.all([readServerSystem(api, op.signal).then(parseServerSignIn),this.ports.store.read()]);
-  if(!op.current()){api.getRouteConnection()?.dispose();return;}
-  if(server.id!==pin.serverId||server.signIn!=='portico')throw new CodedError('invalid_return',unreadableServerResponse);
-  this.api=api;this.registeredChallenge=controller;this.challengeRevision=selection.revision;
-  this.publish({phase:'challenge',server,origin:api.baseUrl,pin,busy:false});this.watchAuthority();
  }
  /** On a Portico Accounts server's own page, signing in goes on at web.getportico.tv
   * (`portico-handoff.ts`), with the invitation being joined. */
@@ -763,9 +744,7 @@ export class BrowserAccountEntry {
     this.stopAuthorityWatch();
     await this.admittedCompletion(await owner.finish(captured),op,choice.pending.kind==='setup');return;
    }
-   if(!this.ports.registered)throw new CodedError('invalid_return',unreadableServerResponse);
-   const {controller}=this.ports.registered();this.registered=controller;
-   await this.registeredCompletion(await controller.finish(captured),controller,op);
+   throw new CodedError('invalid_return',unreadableServerResponse);
   }catch(error){if(op.current()){
    // The domain preserves a legitimate journal for malformed/mixed callbacks;
    // a valid owner's one-shot exchange is terminal on failure. Do not turn a
@@ -775,12 +754,6 @@ export class BrowserAccountEntry {
   }}
  }
  async completeChallenge(code:string){
-  const registered=this.registeredChallenge;
-  if(registered&&this.state.phase==='challenge'&&!this.state.busy){
-   const state=this.state,op=this.operation();this.stopAuthorityWatch();this.publish({...state,busy:true,error:undefined});
-   try{await this.registeredCompletion(await registered.completeChallenge(code),registered,op);}
-   catch(error){if(op.current()){this.publish({...state,busy:false,error});this.watchAuthority();}}return;
-  }
   const state=this.state,api=this.api,challenge=this.challenge,revision=this.challengeRevision;if(state.phase!=='challenge'||!api||!challenge||revision===undefined)return;
   const op=this.operation(),hosted=this.hostedChallenge,guard={...op,current:()=>op.current()&&(!hosted||hosted.account.isCurrent())};this.publish({...state,busy:true,error:undefined});
   try{
@@ -806,7 +779,7 @@ export class BrowserAccountEntry {
  serverIdentityFailure(chooseServer:()=>void,afterForget?:()=>void):AccountIdentityFailureBinding|undefined{
   return this.identityFailure?.isCurrent()?this.identityFailure.binding(chooseServer,afterForget):undefined;
  }
- private async restoreProfiles(expected?:Readonly<{pin:ServerPin;session:LocalSession;signIn?:SignInKind;memberMove?:boolean;initialSetup?:boolean}>){
+ private async restoreProfiles(expected?:Readonly<{pin:ServerPin;session:LocalSession;signIn?:SignInKind;initialSetup?:boolean}>){
   this.cancel();const op=this.operation();this.publish({phase:'profiles',busy:true});
   let saved:AppServerSession|undefined,revision=0;
   try{
@@ -825,7 +798,7 @@ export class BrowserAccountEntry {
    if(!op.current())return;if(server.id!==entry.connection.pin.serverId||server.signIn!==entry.signIn)throw new Error('The server sign-in changed.');
    if(expected&&!matches(await this.ports.store.selected()))throw new CodedError('cancelled','The server selection changed.');
    if(!op.current())return;
-   this.publish({phase:snapshot.twoStepSetupRequired?'two-step-setup':'profiles',server,origin:restored.api.baseUrl,pin:entry.connection.pin,snapshot,busy:false,...(expected?.memberMove?{memberMoveCompleted:true as const}:{}),...(expected?.initialSetup?{setupPending:true as const}:{})});
+   this.publish({phase:snapshot.twoStepSetupRequired?'two-step-setup':'profiles',server,origin:restored.api.baseUrl,pin:entry.connection.pin,snapshot,busy:false,...(expected?.initialSetup?{setupPending:true as const}:{})});
    this.watchAuthority();
   }catch(error){if(op.current()){
    this.release();
@@ -893,4 +866,4 @@ export class BrowserAccountEntry {
 
  dispose(){this.cancel();this.disposed=true;this.probe.dispose();this.listeners.clear();this.retiredListeners.clear();}
 }
-export function createBrowserAccountEntry(options:Pick<EntryPorts,'invitationDestination'>={}){return new BrowserAccountEntry({store:browserAppSessions(),actions:browserAppSessionActions(),environment:browserConnectionEnvironment,restore:restoreBrowserConnection,inspect:inspectDirectServer,connect:connectPairedServer,remember:rememberNativeSession,observeSelection:observeBrowserSessionChanges,registered:()=>createBrowserRegisteredSignIn(buildHostedSignInStartURL),ownerReturn:createBrowserOwnerClaim,setupReturn:createBrowserSetupReturn,setupRequired:(origin)=>location.assign(new URL('/setup',origin).href),rememberName:(api,name)=>browserServerDisplay().remember(api,name),serverName:id=>browserServerDisplay().name(id),servedOrigin:currentServedServerOrigin,...options});}
+export function createBrowserAccountEntry(options:Pick<EntryPorts,'invitationDestination'>={}){return new BrowserAccountEntry({store:browserAppSessions(),actions:browserAppSessionActions(),environment:browserConnectionEnvironment,restore:restoreBrowserConnection,inspect:inspectDirectServer,connect:connectPairedServer,remember:rememberNativeSession,observeSelection:observeBrowserSessionChanges,ownerReturn:createBrowserOwnerClaim,setupReturn:createBrowserSetupReturn,setupRequired:(origin)=>location.assign(new URL('/setup',origin).href),rememberName:(api,name)=>browserServerDisplay().remember(api,name),serverName:id=>browserServerDisplay().name(id),servedOrigin:currentServedServerOrigin,...options});}

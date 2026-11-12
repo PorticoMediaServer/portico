@@ -1,6 +1,6 @@
 import {CodedError} from '@core/server-messages.ts';
 
-export type PorticoReturnPending = Readonly<{kind: 'registered'} | {kind: 'owner' | 'setup'; transactionId: string}>;
+export type PorticoReturnPending = Readonly<{kind: 'owner' | 'setup'; transactionId: string}>;
 export type CapturedPorticoReturn = Readonly<{href: string; fragment: string}>;
 /** Run in the callback's first synchronous render, before storage or network.
  * The captured value stays in memory; refresh cannot replay the URL fragment. */
@@ -23,9 +23,6 @@ export function dispatchPorticoReturn(captured: CapturedPorticoReturn, pending: 
     // The protected continuation producer's opaque id is captured in protected storage. Do not
     // invent a prefix or reinterpret an ordinary return id as an owner id.
     if (keys !== 'transaction' || values.getAll('transaction').length !== 1 || !/^[A-Za-z0-9_-]{1,128}$/.test(pending.transactionId) || values.get('transaction') !== pending.transactionId) throw invalid();
-  } else if (pending.kind === 'registered') {
-    // Normal code/state checks remain in canonical consumeSameTabReturn.
-    if (keys !== 'code,state,transaction' || ['code', 'state', 'transaction'].some(key => values.getAll(key).length !== 1) || !/^srt_[A-Za-z0-9_-]{20,128}$/.test(values.get('transaction') ?? '')) throw invalid();
   } else throw invalid();
   return Object.freeze({kind: pending.kind, transactionId: values.get('transaction')!, href: captured.href + captured.fragment});
 }
