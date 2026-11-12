@@ -2291,6 +2291,7 @@ export const webMessages = {
   'web.setup.notApproved': '{server} wasn’t approved with a Portico Account, or the approval ran out. Nothing has been saved. Try again, or set it up with local sign-in instead.',
   'web.setup.useLocal': 'Use local sign-in',
   'web.setup.porticoUnreachable': 'Portico Services can’t be reached, so this server can’t be set up with Portico Accounts right now. Nothing has been saved. Try again in a moment, or set it up with local sign-in instead.',
+  'web.setup.approvalAddressForeign': 'This server asked to send you to an approval page that isn’t on Portico’s site, so it wasn’t opened. Nothing has been saved. Try again, or set it up with local sign-in instead.',
   'web.setup.plainHttpPortico': 'You approve on Portico’s secure site. This page and your devices reach this server over plain HTTP until it has a secure address.',
   'web.setup.plainHttp': 'Devices connect with plain HTTP until you add a certificate. You can switch to Portico Accounts any time in Settings › Server › Sign-in.',
   'web.setup.stepsLabel': 'Setup steps',
