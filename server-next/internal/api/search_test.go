@@ -43,7 +43,7 @@ func TestSearch(t *testing.T) {
 	shown := func(token, path string) (films []string, total int) {
 		t.Helper()
 		results := get[SearchResults](t, s, token, path)
-		if len(results.Groups) != 9 || results.Groups[0].Kind != "movie" || results.Groups[3].Kind != "person" {
+		if len(results.Groups) != 10 || results.Groups[9].Kind != "channel" || results.Groups[0].Kind != "movie" || results.Groups[3].Kind != "person" {
 			t.Fatalf("groups: %+v", results.Groups)
 		}
 		for _, item := range results.Groups[0].Items {
@@ -64,7 +64,7 @@ func TestSearch(t *testing.T) {
 	page := "/v1/search?kind=episode&limit=1&q=" + url.QueryEscape(word[:2])
 	first := get[SearchResults](t, s, token, page)
 	group := first.Groups[2]
-	if len(first.Groups) != 9 || len(group.Items) != 1 || group.Items[0].Root == nil || group.Items[0].Root.Kind != "show" || group.NextCursor == "" {
+	if len(first.Groups) != 10 || len(group.Items) != 1 || group.Items[0].Root == nil || group.Items[0].Root.Kind != "show" || group.NextCursor == "" {
 		t.Fatalf("the first episode page: %+v", group)
 	}
 	seen := 1

@@ -32,7 +32,10 @@ type SearchGroup struct {
 	TotalIsMinimum bool     `json:"totalIsMinimum,omitempty"`
 	Items          []Item   `json:"items,omitempty"`
 	People         []Person `json:"people,omitempty"`
-	NextCursor     string   `json:"nextCursor,omitempty"`
+	// Channels is filled for "channel", the Live TV group, last and only for a profile allowed
+	// Live TV.
+	Channels   []LiveChannel `json:"channels,omitempty"`
+	NextCursor string        `json:"nextCursor,omitempty"`
 }
 
 // SearchSuggestions is the answer of GET /v1/search/suggestions.
@@ -96,14 +99,28 @@ func (s *Server) searchRoutes() {
 		if err != nil {
 			return SearchResults{}, err
 		}
+		remember := func() error {
+			if record != nil && *record && q.Cursor == "" {
+				return s.db.RememberSearch(r.Context(), viewer(r), q.Text)
+			}
+			return nil
+		}
+		if q.Kind == liveSearchKind {
+			// For a profile not allowed Live TV the group does not exist, and the search below
+			// refuses it as any unknown kind is refused.
+			if group, ok, err := s.searchChannels(r, q); ok || err != nil {
+				if err != nil {
+					return SearchResults{}, err
+				}
+				return SearchResults{Groups: []SearchGroup{group}}, remember()
+			}
+		}
 		found, err := s.db.Search(r.Context(), viewer(r), q)
 		if err != nil {
 			return SearchResults{}, searchRefusal(err)
 		}
-		if record != nil && *record && q.Cursor == "" {
-			if err := s.db.RememberSearch(r.Context(), viewer(r), q.Text); err != nil {
-				return SearchResults{}, err
-			}
+		if err := remember(); err != nil {
+			return SearchResults{}, err
 		}
 		out := SearchResults{Groups: make([]SearchGroup, len(found.Groups))}
 		for n, g := range found.Groups {
@@ -120,6 +137,20 @@ func (s *Server) searchRoutes() {
 				group.People = append(group.People, Person{ID: p.PublicID, Name: p.Name, Images: imageMap(p.Images)})
 			}
 			out.Groups[n] = group
+		}
+		// The channel group comes last: with its first results when every group is asked for,
+		// and with only its count on the first page of another kind, as every group does.
+		if q.Cursor == "" {
+			all := q
+			all.Kind, all.Sort, all.Desc = "", "", false
+			if group, ok, err := s.searchChannels(r, all); err != nil {
+				return SearchResults{}, err
+			} else if ok {
+				if q.Kind != "" {
+					group.Channels, group.NextCursor = nil, ""
+				}
+				out.Groups = append(out.Groups, group)
+			}
 		}
 		return out, nil
 	})
