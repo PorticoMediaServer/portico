@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -27,6 +28,10 @@ type SettingsDocument struct {
 	// (a conversion folder that cannot be written to, a program that is not ffmpeg): what
 	// was in use before stays in use. Absent when all is well.
 	Problem string `json:"problem,omitempty"`
+	// NotApplicable names the fields that do not apply on this server, each with one plain
+	// line a screen shows in place of the setting. A save that turns such a field on is
+	// refused with the same line.
+	NotApplicable map[string]string `json:"notApplicable,omitempty"`
 
 	revision
 }
@@ -39,7 +44,7 @@ func (s *Server) settingsRoutes() {
 			if err != nil {
 				return out, err
 			}
-			out.Items = append(out.Items, settingsDocument(doc))
+			out.Items = append(out.Items, s.settingsOut(r.Context(), doc))
 		}
 		return out, nil
 	})
@@ -48,7 +53,7 @@ func (s *Server) settingsRoutes() {
 		if errors.Is(err, settings.ErrNoDocument) {
 			return SettingsDocument{}, ErrNotFound()
 		}
-		return settingsDocument(doc), err
+		return s.settingsOut(r.Context(), doc), err
 	})
 	// A save sends the fields it changes; a field left out keeps its value. With If-Match, a
 	// document saved since is refused with 412 and the page reads it again.
@@ -70,6 +75,9 @@ func (s *Server) settingsRoutes() {
 				}
 			}
 		}
+		if err := s.refuseNotApplicable(r.Context(), r.PathValue("name"), change); err != nil {
+			return SettingsDocument{}, err
+		}
 		doc, err := s.settings.Write(r.Context(), CallerFrom(r.Context()).UserID, r.PathValue("name"), change, match, s.now())
 		var invalid *settings.Invalid
 		switch {
@@ -82,7 +90,7 @@ func (s *Server) settingsRoutes() {
 		case err != nil:
 			return SettingsDocument{}, err
 		}
-		return settingsDocument(doc), nil
+		return s.settingsOut(r.Context(), doc), nil
 	})
 }
 
@@ -90,6 +98,13 @@ func (s *Server) settingsRoutes() {
 // program the server runs or a folder it empties. A key that leaked could not be allowed
 // that, so they take a signed-in owner, as pointing a webhook elsewhere does.
 var personOnly = map[string][]string{"streaming": {"conversionFolder", "ffmpegProgram"}}
+
+// settingsOut is a document as its page reads it, with what does not apply on this server.
+func (s *Server) settingsOut(ctx context.Context, doc settings.Document) SettingsDocument {
+	out := settingsDocument(doc)
+	out.NotApplicable, _ = s.settingsNotApplicable(ctx, doc.Name)
+	return out
+}
 
 func settingsDocument(doc settings.Document) SettingsDocument {
 	out := SettingsDocument{Name: doc.Name, Values: JSON(doc.Values), Defaults: JSON(doc.Defaults),
