@@ -378,8 +378,10 @@ test('continuation coalesces a section and retains first-page entity and listeni
 /** The rebuilt server's answers for an audiobook library: a book's detail (its chapters or parts, the
  * listener's place) and a series' volumes a page at a time. */
 const rebuiltLibrary = {id: 'books', name: 'Audiobooks', kind: 'audiobooks'};
+// A book of several files as a real scan sends it: each part a whole file, with no place in the book.
 const rebuiltBook = (id: string, parts: number, positionMs = 0) => ({id, kind: 'audiobook', title: id, libraryId: 'books', images: {}, addedAt: '2026-11-12T00:00:00Z',
-  state: positionMs ? {positionMs} : {}, versions: [{id: 'v1', parts: Array.from({length: parts}, (_, n) => ({size: 1, startMs: n * 60_000, endMs: (n + 1) * 60_000, streams: []}))}]});
+  durationMs: parts * 60_000, state: positionMs ? {positionMs} : {}, versions: [{id: 'v1', container: 'mp3', durationMs: parts * 60_000,
+    parts: Array.from({length: parts}, () => ({size: 1000, streams: [{index: 0, kind: 'audio', codec: 'mp3', channels: 2, sampleRate: 44100}]}))}]});
 const rebuiltSeries = {id: 'series-1', kind: 'series', title: 'Series', libraryId: 'books', images: {}, addedAt: '2026-11-12T00:00:00Z', state: {}};
 const volume = (id: string) => ({id, kind: 'audiobook', title: id, libraryId: 'books', images: {}, addedAt: '2026-11-12T00:00:00Z', state: {}});
 
