@@ -69,23 +69,32 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   const paintedDestination = settingsPage ? previousPage.current : destination;
   useLayoutEffect(() => {if (destination.kind !== 'settings') previousPage.current = destination;}, [destination]);
   const [tvListeningPresent, setTVListeningPresent] = useState(false);
-  const pageFocus = useRef<FocusSnapshot | undefined>(undefined), pageFocusDestination = useRef<string | undefined>(undefined);
+  /** The element the rail returns to, per page (a rail page, or a pushed page that keeps the rail). */
+  const pageFocus = useRef(new Map<string, FocusSnapshot>());
   const railRelease = useRef<(() => void) | undefined>(undefined);
   useEffect(() => {
     const original = runtime.retirementSignal;
+    let lastSeen: FocusSnapshot | undefined;
     const remember = () => {
       // Native region cleanup may publish before React's passive unsubscribe.
       // Refuse that original observer before touching any retired business accessor.
       if (original?.aborted) return;
       const now = runtime.getSnapshot(), saved = registry.capture();
+      // Only a focus move counts: when a pushed page closes, navigation already names the page under it while focus
+      // is still on the closing page's element, which must not become that page's.
+      const moved = saved?.regionId !== lastSeen?.regionId || saved?.childId !== lastSeen?.childId;
+      lastSeen = saved;
+      if (!moved) return;
       // A pushed page that keeps the rail is the rail's page: its element is the one to return to.
-      if (now.mediaExpanded || tvListeningPresent || !routeRailRef.current && (now.contentVisible === false || now.homeObscured
+      const owner = pageOwner.current();
+      if (!owner || now.mediaExpanded || tvListeningPresent || !owner.startsWith('route:') && (now.contentVisible === false || now.homeObscured
         || now.destination.kind === 'home' && !now.homeVisible)) return;
       if (saved && saved.regionId !== ids.rail && registry.config(saved.regionId)?.hold !== true) {
-        pageFocus.current = saved; pageFocusDestination.current = focusOwnerRef.current;
+        const pages = pageFocus.current;
+        pages.delete(owner); pages.set(owner, saved);
+        if (pages.size > 16) pages.delete(pages.keys().next().value!);
       }
     };
-    rememberPageFocus.current = remember;
     remember();
     if (original?.aborted) return;
     const off = registry.subscribe(remember);
@@ -93,7 +102,17 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     if (original?.aborted) off();
     return () => {original?.removeEventListener('abort', off);off();};
   }, [ids, registry, runtime, tvListeningPresent]);
-  const routeRailRef = useRef(false), focusOwnerRef = useRef(JSON.stringify(destination)), rememberPageFocus = useRef(() => {});
+  /** Whose element the rail returns to: the rail page, or a pushed page that keeps the rail. Read from navigation when
+   * asked, because a pushed page's first element is focused before this shell renders again. */
+  const pageOwner = useRef((): string | undefined => undefined);
+  pageOwner.current = () => {
+    const nav = runtime.navigation?.getSnapshot();
+    if (theme.isTV && nav && nav.route.kind !== 'shell') {
+      const top = runtime.navigation?.presentationStack?.().at(-1);
+      return tvRouteKeepsRail(nav.route) ? `route:${top?.occurrence ?? nav.revision}` : undefined;
+    }
+    return JSON.stringify(runtime.getSnapshot().destination);
+  };
   /** The page's and the routes' own layers (CoveredLayer hosts): a layer that takes focus asks its host, which
    * lands on the element last focused there or its first focusable. */
   const baseLayer = useRef<View>(null), routeLayer = useRef<View>(null);
@@ -118,12 +137,8 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   const topLayer = layerSpecs.at(-1)?.key;
   /** Choice 16: a title, person, collection or See all page pushed over a rail page keeps the closed rail. */
   const routeRail = theme.isTV && !!topLayer?.startsWith('route:') && !!navigationPort && tvRouteKeepsRail(navigationPort.getSnapshot().route);
-  /** Whose element Right and Back from the rail return to: the page, or the pushed page on top of it. */
-  const focusOwner = routeRail ? topLayer! : JSON.stringify(destination);
-  routeRailRef.current = routeRail; focusOwnerRef.current = focusOwner;
-  // A page pushed with focus already on its start (Play) has to be its rail's return target before any move.
-  useLayoutEffect(() => rememberPageFocus.current(), [focusOwner]);
-  const currentPageFocus = pageFocusDestination.current === focusOwner ? pageFocus.current : undefined;
+  const focusOwner = pageOwner.current();
+  const currentPageFocus = focusOwner === undefined ? undefined : pageFocus.current.get(focusOwner);
   useLayoutEffect(() => {if (!runtime.retirementSignal?.aborted) layers?.sync(layerSpecs);}, [layers, layerSpecs, runtime]);
   useEffect(() => () => {railRelease.current?.();}, []);
   const [remembered, setRemembered] = useState<string>(), [memoryReady, setMemoryReady] = useState(false);
@@ -279,7 +294,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   };
   const expanded = useCallback((value: boolean) => {
     setRailExpanded(value);
-    const saved = pageFocusDestination.current === focusOwnerRef.current ? pageFocus.current : undefined;
+    const owner = pageOwner.current(), saved = owner === undefined ? undefined : pageFocus.current.get(owner);
     if (value && !railRelease.current && saved) railRelease.current = registry.retain(saved);
     if (!value) {railRelease.current?.(); railRelease.current = undefined;}
     // tv.html f2 moves the copy's left edge from200 to470. The frame wins the stale220 token.
@@ -290,9 +305,10 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     if (!theme.isTV) return;
     return runtime.registerTVRailBack?.(() => {
       if (registry.capture()?.regionId !== ids.rail) return false;
-      const saved = pageFocusDestination.current === focusOwnerRef.current ? pageFocus.current : undefined;
+      const owner = pageOwner.current(), saved = owner === undefined ? undefined : pageFocus.current.get(owner);
       expanded(false);
-      if (!registry.restore(saved)) runtime.scrollToTop(runtime.getSnapshot().destination);
+      // A pushed page whose element wasn't recorded gets focus back through its layer, which remembers it natively.
+      if (!registry.restore(saved)) {if (owner?.startsWith('route:')) requestNativeFocus(routeLayer.current); else runtime.scrollToTop(runtime.getSnapshot().destination);}
       return true;
     });
   }, [runtime, registry, ids, theme.isTV, expanded]);

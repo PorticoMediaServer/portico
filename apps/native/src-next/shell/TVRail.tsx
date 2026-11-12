@@ -46,7 +46,8 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
     });
   }, [getReturnSnapshot, registry, returnRegionId]);
   const {enabled: returnEnabled, host: returnHost} = useSyncExternalStore(subscribeReturn, getReturnSnapshot, getReturnSnapshot);
-  const returnRegion = returnTo ? returnEnabled ? returnTo.regionId : undefined : ids.spotlight;
+  // Without a remembered element: Home's spotlight on Home; elsewhere the platform's own search to the right.
+  const returnRegion = returnTo ? returnEnabled ? returnTo.regionId : undefined : destination.kind === 'home' ? ids.spotlight : undefined;
   const returnHandle = returnHost ? findNodeHandle(returnHost as View) : null;
   // The native engine handles Right directly, including the remembered child.
   // Without its live host, keep the region guide's normal memory/fallback path.

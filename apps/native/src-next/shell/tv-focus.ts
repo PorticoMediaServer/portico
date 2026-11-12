@@ -49,8 +49,8 @@ export function sameDestination(a: ShellDestination, b: ShellDestination): boole
   return tvRailDestinationId(a) === tvRailDestinationId(b);
 }
 
-/** tv-detail.html, tv-more.html 6-8, collections.html 16-21 and 44-45: a page pushed over a rail page keeps the
- * closed rail at its left (focus map Choice 16). Full-screen pages (the reader, live TV, account and server pages,
- * the music player) keep the whole screen. */
-export const tvRouteKeepsRail = (route: Readonly<{kind: string}>): boolean => ['title', 'music', 'book', 'audiobook', 'person', 'collection',
-  'home-see-all', 'search-genre', 'search-genres', 'saved-view', 'saved-destination', 'read-book', 'read-series', 'read-periodical'].includes(route.kind);
+/** tv-detail.html, collections.html 16-21: a page pushed over a rail page keeps the closed rail at its left (focus map
+ * Choice 16). Album and artist pages (drawn by music navigation, outside the route layer), book and reading pages are
+ * not wired to the rail yet, though tv-more.html 6-8 draw it there too; full-screen pages keep the whole screen. */
+export const tvRouteKeepsRail = (route: Readonly<{kind: string}>): boolean => ['title', 'person', 'collection',
+  'home-see-all', 'search-genre', 'search-genres', 'saved-view', 'saved-destination'].includes(route.kind);
