@@ -75,6 +75,10 @@ func (r *run) probe() error {
 		// Up to four files are read at once: each read is a confined tool at low priority, so
 		// it gives way to playback, and one at a time would make a large library's first
 		// scan take several times as long.
+		r.stats.Current = files[0].Rel
+		if r.s.Progress != nil {
+			r.s.Progress(r.stats)
+		}
 		results := make([]*db.Probe, len(files))
 		var wg sync.WaitGroup
 		slots := make(chan struct{}, min(4, runtime.NumCPU()))

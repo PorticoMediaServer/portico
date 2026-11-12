@@ -61,6 +61,9 @@ type Stats struct {
 	Unread      int
 	Removed     int   // missing titles the library's trash rule removed
 	RowsWritten int64 // rows the folder walk inserted, updated or deleted
+	// Current is the file the scan is on, as a path within its library folder: the last one
+	// stored, or the first of those being read.
+	Current string
 }
 
 // errEmptied is the state of a library folder that had files and now lists as empty: most
@@ -516,6 +519,9 @@ func (r *run) flush() error {
 	r.stats.FilesChanged += stats.FilesChanged
 	r.stats.ItemsNew += stats.ItemsNew
 	r.stats.RowsWritten += stats.RowsWritten
+	if n := len(batch.Files); n > 0 {
+		r.stats.Current = path.Join(batch.Files[n-1].Dir, batch.Files[n-1].Name)
+	}
 	if r.s.Progress != nil {
 		r.s.Progress(r.stats)
 	}
