@@ -11,8 +11,8 @@
  * artist's albums, a collection's titles. A section the rebuilt server has no read for (an
  * artist's popular songs, every song crediting them) is not sent, so the page leaves it out.
  */
-import type {Home, Item, ItemPage, Library as WireLibrary} from '../../contracts/src/next/api.ts';
-import type {ContentProjection, ContentRoute, ContentScope, ContentSection} from './library-content.ts';
+import type {Home, Item, ItemPage, Library as WireLibrary, Person} from '../../contracts/src/next/api.ts';
+import type {ContentEntry, ContentProjection, ContentRoute, ContentScope, ContentSection} from './library-content.ts';
 import {entriesFromItems, entryFromItem, libraryKind} from './items.ts';
 import {callServer, type ServerRequester} from './query/server-api.ts';
 import {firstOfEach} from './tolerant.ts';
@@ -40,8 +40,9 @@ const railLimit = 100;
  * the page draws without it: when the read lands, it is one more entry here.
  */
 type HolderSection = Readonly<{id: string; type: ContentSection['type']; pages: boolean;
-  query: (entityId: string) => Record<string, string>; /** A fixed rail's own length. */ limit?: number}>;
-type Holder = Readonly<{sections: readonly HolderSection[]}>;
+  query: (entityId: string, libraryId: string) => Record<string, string>; /** A fixed rail's own length. */ limit?: number}>;
+/** `person`: the page's own title is a person (an author), read as one. */
+type Holder = Readonly<{sections: readonly HolderSection[]; person?: boolean}>;
 const holders: Readonly<Record<string, Holder>> = {
   album: {sections: [{id: 'tracks', type: 'list', pages: true, query: id => ({parent: id, sort: 'order'})}]},
   // An artist's releases, newest first; its ten most played songs (none played: an empty rail, so no row);
@@ -52,7 +53,19 @@ const holders: Readonly<Record<string, Holder>> = {
     {id: 'songs', type: 'list', pages: true, query: id => ({artist: id, kind: 'track', sort: 'title', order: 'asc'})},
   ]},
   collection: {sections: [{id: 'items', type: 'grid', pages: true, query: id => ({collection: id})}]},
+  // An audiobook series' volumes in volume order, and an author's books in this library.
+  book_series: {sections: [{id: 'books', type: 'grid', pages: true, query: id => ({series: id, sort: 'order'})}]},
+  author: {person: true, sections: [{id: 'books', type: 'grid', pages: true, query: (id, library) => ({library, author: id})}]},
 };
+
+/** An author's page header: the person, as the app's author card. */
+function authorEntry(person: Person, libraryId: string): ContentEntry | undefined {
+  if (!person?.id || typeof person.name !== 'string') return undefined;
+  const picture = person.images?.photo ?? person.images?.poster ?? person.images?.thumb;
+  return Object.freeze({id: person.id, kind: 'author', title: person.name, libraryId, navigation: Object.freeze({view: 'author', entityId: person.id}),
+    ...(picture ? {posterUrl: picture} : {}), ...(person.biography ? {overview: person.biography} : {}),
+    ...(typeof person.titleCount === 'number' ? {count: person.titleCount} : {})}) as ContentEntry;
+}
 
 /** The views the rebuilt server answers. */
 export const rebuiltContentViews: ReadonlySet<string> = new Set(['discover', ...Object.keys(holders)]);
@@ -95,18 +108,19 @@ async function holderPage(api: ServerRequester, route: ContentRoute, bound: Cont
   const wanted = page.next ? holder.sections.filter(section => section.id === page.next!.section) : page.window ? holder.sections.slice(0, 1) : holder.sections;
   if (page.next && !wanted.length) throw new Error('This cursor names no section of the page.');
   const [title, library, ...lists] = await Promise.all([
-    callServer(api, 'GET /v1/items/{id}', {id, signal}) as Promise<Item>,
+    holder.person ? callServer(api, 'GET /v1/people/{id}', {id, signal}) as Promise<Person> : callServer(api, 'GET /v1/items/{id}', {id, signal}) as Promise<Item>,
     kindOf(api, route.libraryId, signal),
     // A fixed rail (an artist's Popular) is optional: when it cannot be read, the page draws without it.
     ...wanted.map(section => {
-      const read = callServer(api, 'GET /v1/items', {query: {...section.query(id), ...order, limit: section.limit ?? limit,
+      const read = callServer(api, 'GET /v1/items', {query: {...section.query(id, route.libraryId), ...order, limit: section.limit ?? limit,
         ...(page.next ? {cursor: page.next.cursor} : {at: page.at || undefined}), total: true}, signal}) as Promise<ItemPage>;
       return section.pages ? read : read.catch(() => undefined);
     }),
   ]);
   // The page's own title never plays from its header. An album names its artist (its parent), for the "by" link.
-  const found = title ? entryFromItem(title, route.libraryId) : undefined;
-  const artist = route.view === 'album' && title?.parent?.kind === 'artist' && title.parent.id ? {artist: Object.freeze({id: title.parent.id, name: title.parent.title})} : {};
+  const item = holder.person ? undefined : title as Item | undefined, person = holder.person ? title as Person | undefined : undefined;
+  const found = person ? authorEntry(person, route.libraryId) : item ? entryFromItem(item, route.libraryId) : undefined;
+  const artist = route.view === 'album' && item?.parent?.kind === 'artist' && item.parent.id ? {artist: Object.freeze({id: item.parent.id, name: item.parent.title})} : {};
   const entity = found ? (({playback: _ignored, ...rest}) => Object.freeze({...rest, ...artist}))(found as Record<string, unknown> & {playback?: unknown}) as typeof found : undefined;
   const start = page.next ? undefined : page.at ?? 0;
   const sections = wanted.flatMap((holderSection, n) => {
@@ -124,8 +138,9 @@ async function holderPage(api: ServerRequester, route: ContentRoute, bound: Cont
       ...(start === undefined ? {} : {start})}) as ContentSection;
   });
   return Object.freeze({
-    heading: Object.freeze({key: `library.content.${route.view}`, fallback: typeof title?.title === 'string' ? title.title : ''}),
-    ...(entity && entity.kind === route.view ? {entity} : {}),
+    heading: Object.freeze({key: `library.content.${route.view}`, fallback: found?.title ?? ''}),
+    // The page's header is its own title only: another id or kind is no header at all.
+    ...(entity && entity.kind === route.view && entity.id === id ? {entity} : {}),
     scope: Object.freeze({serverId: bound.serverId, libraryId: route.libraryId, libraryKind: library.kind, view: route.view, entityId: id}),
     navigation: Object.freeze([]),
     query: Object.freeze({sort, direction: sort ? direction : '', category: '', q: '', limit, searchMode: 'none'}),

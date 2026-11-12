@@ -529,10 +529,11 @@ test('everything read so far is one list per section: later pages append, More w
 });
 
 
-test('author and series heroes are exact entities in their own library',async()=>{
- for(const view of ['author','book_series'] as const){
+// The author and series pages read the rebuilt server (library-content-rebuilt.test.ts); a book's page is still read here.
+test('a book hero is the exact entity in its own library',async()=>{
+ for(const view of ['book'] as const){
   const target:ContentRoute={libraryId:'books',view,entityId:'group'};
-  for(const change of [null,{id:'other'},{libraryId:'private'},{kind:'book'}]){
+  for(const change of [null,{id:'other'},{libraryId:'private'},{kind:'author'}]){
    const nav=service(async path=>projection(path,{entity:{id:'group',libraryId:'books',kind:view,title:'Writer',...change},sections:[]}));
    await nav.select(target);
    assert.equal(nav.getSnapshot().phase,change===null?'ready':'error');

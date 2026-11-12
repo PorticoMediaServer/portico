@@ -20,6 +20,8 @@ const pivots: readonly Readonly<{id: string; kind: string; labelKey: string; vie
   {id: 'albums', kind: 'album', labelKey: 'library.albums', views: ['grid', 'list']},
   {id: 'songs', kind: 'track', labelKey: 'library.songs', views: ['list']},
   {id: 'books', kind: 'audiobook', labelKey: 'library.books', views: ['grid', 'list']},
+  // An audiobook library's Series tab: each series a card, opening its volumes.
+  {id: 'series', kind: 'series', labelKey: 'library.tab.series', views: ['grid', 'list']},
   {id: 'books', kind: 'book', labelKey: 'library.tab.books', views: ['grid', 'list']},
   // A comic library's tab lists its comics with their series, each series opening its volumes.
   {id: 'comics', kind: 'comic', labelKey: 'library.tab.volumesAndIssues', views: ['grid', 'list'], lists: 'comic,series'},

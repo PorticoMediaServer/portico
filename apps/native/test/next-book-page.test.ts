@@ -572,8 +572,15 @@ test('real chapter and author book continuations retain ordered eighty-one row m
     const id = `${kind}-1`;
     const rows = Array.from({length: 81}, (_, i) => ({id: `row-${i}`, kind: rowKind, libraryId: 'books', title: `Row ${i}`}));
     const api = {request: async (path: string) => {
-      const cursor = new URL(path, 'https://server.test').searchParams.get('cursor');
+      const url = new URL(path, 'https://server.test'), cursor = url.searchParams.get('cursor');
       const start = cursor === 'page-3' ? 80 : cursor ? 40 : 0;
+      // An author's page reads the rebuilt server: the person, and their books in the library a page at a time.
+      if (kind === 'author') {
+        if (url.pathname === '/v1/people/author-1') return {id, name: 'Original', images: {}};
+        if (url.pathname.startsWith('/v1/libraries/')) return {id: 'books', name: 'Audiobooks', kind: 'audiobooks'};
+        return {items: rows.slice(start, start + 40).map(row => ({id: row.id, kind: 'audiobook', title: row.title, libraryId: 'books'})), total: 81,
+          ...(start === 80 ? {} : {nextCursor: start === 40 ? 'page-3' : 'page-2'})};
+      }
       const section = {id: sectionId, type: 'list', heading: {key: sectionId}, entries: rows.slice(start, start + 40), totalCount: 81,
         nextCursor: start === 80 ? '' : start === 40 ? 'page-3' : 'page-2'};
       return {scope: {serverId: 'server', libraryId: 'books', libraryKind: 'book', view: kind, entityId: id, viewerFence: 'fence'},

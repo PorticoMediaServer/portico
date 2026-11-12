@@ -202,3 +202,41 @@ test('a later page that comes back with no titles keeps the titles already shown
   assert.equal(shown.nextCursor, '');
   nav.dispose();
 });
+
+/** An audiobook library's series and author pages on the rebuilt server. */
+function bookApi(person: Record<string, unknown> = {id: 'per_1', name: 'Ada Adams', biography: 'Writes about the sea.', images: {photo: '/v1/images/ada'}}) {
+  const paths: string[] = [];
+  const read = async (path: string) => {
+    paths.push(path);
+    const u = new URL(path, 'https://server.test'), query = u.searchParams;
+    const book = (id: string, index?: number) => ({id, kind: 'audiobook', title: `Book ${id}`, ...(index ? {index} : {})});
+    if (u.pathname === '/v1/items' && query.get('series') === 'ser_1') return {items: [book('b1', 1), book('b2', 2)], total: 2};
+    if (u.pathname === '/v1/items' && query.get('author') === 'per_1') return {items: [book('b9')], total: 1};
+    if (u.pathname === '/v1/items/ser_1') return {id: 'ser_1', kind: 'series', title: 'Tides', libraryId: 'lib_a'};
+    if (u.pathname === '/v1/people/per_1') return person;
+    return {id: 'lib_a', name: 'Audiobooks', kind: 'audiobooks'};
+  };
+  return {paths, read};
+}
+
+test('a series page is its volumes in volume order; an author page is the person and their books in this library', async () => {
+  const {paths, read} = bookApi();
+  const nav = service(read);
+  await nav.select({libraryId: 'lib_a', view: 'book_series', entityId: 'ser_1'});
+  assert.deepEqual([nav.getSnapshot().projection?.entity?.kind, nav.getSnapshot().projection?.entity?.title], ['book_series', 'Tides']);
+  assert.deepEqual(ids(nav.getSnapshot()), [['books', ['b1', 'b2']]]);
+  assert.ok(paths.some(path => path.startsWith('/v1/items?series=ser_1&sort=order')), paths.join(' | '));
+  await nav.select({libraryId: 'lib_a', view: 'author', entityId: 'per_1'});
+  const author = nav.getSnapshot().projection?.entity;
+  assert.deepEqual([author?.kind, author?.title, author?.overview, author?.posterUrl], ['author', 'Ada Adams', 'Writes about the sea.', '/v1/images/ada']);
+  assert.deepEqual(ids(nav.getSnapshot()), [['books', ['b9']]]);
+  assert.ok(paths.some(path => path.startsWith('/v1/items?library=lib_a&author=per_1')), paths.join(' | '));
+  nav.dispose();
+});
+
+test('an author page whose person read names someone else has no header, never theirs', async () => {
+  const nav = service(bookApi({id: 'per_2', name: 'Someone Else', images: {}}).read);
+  await nav.select({libraryId: 'lib_a', view: 'author', entityId: 'per_1'});
+  assert.equal(nav.getSnapshot().projection?.entity, undefined);
+  nav.dispose();
+});
