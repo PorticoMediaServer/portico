@@ -6,7 +6,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {ProfileOption} from '../../kit/artwork';
 import {FocusProvider} from '../../kit/focus';
 import {nativeType, useTheme} from '../../kit/theme';
-import {TVProfilePINLayout} from './TVAuthLayout';
+import {TVCodeErrorLine, TVProfilePINLayout} from './TVAuthLayout';
 import {TVCodeBoxes, TVNumericPad} from './TVNumericPad';
 import {TVRememberRow} from './TVRememberRow';
 
@@ -51,9 +51,10 @@ function ProfilePINForm(props: TVProfilePINFormProps) {
     props.onCodeChange(next);
     if (next.length === 4 && submitted.current !== next) {submitted.current = next; props.onSubmit(next);}
   };
-  return <TVProfilePINLayout profile={props.profile} error={props.error} hints={props.hints ?? <TVProfilePINHints/>} onBack={props.onBack}
+  return <TVProfilePINLayout profile={props.profile} hints={props.hints ?? <TVProfilePINHints/>} onBack={props.onBack}
     pad={<TVNumericPad id={id} busy={props.busy} onDigit={digit} onDelete={remove} help={defaultI18n.t('pin.forgot')} onHelp={props.onForgotPIN}/>}>
     <TVCodeBoxes code={props.code} length={4} masked busy={props.busy} error={!!props.error}/>
+    <TVCodeErrorLine error={props.error}/>
     {props.remember && <TVRememberRow {...props.remember} busy={props.busy}/>}
   </TVProfilePINLayout>;
 }

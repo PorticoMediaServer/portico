@@ -1,4 +1,6 @@
-import React from 'react';
+import React, {useEffect} from 'react';
+import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
+import {useMotion} from '../../kit/useMotion';
 import {Image, Text, View, useWindowDimensions} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {ColourBackdrop, ProfileFace, type ProfileOption} from '../../kit/artwork';
@@ -34,8 +36,8 @@ export function TVAuthLayout({heading, eyebrow, body, children, portico, aside, 
 }
 
 /** Auth17's profile identity column; the account owner supplies every visible profile fact. */
-export function TVProfilePINLayout({profile, error, children, pad, hints, onBack}: {
-  profile: ProfileOption; error?: React.ReactNode; children: React.ReactNode; pad: React.ReactNode; hints?: React.ReactNode; onBack: () => void;
+export function TVProfilePINLayout({profile, children, pad, hints, onBack}: {
+  profile: ProfileOption; children: React.ReactNode; pad: React.ReactNode; hints?: React.ReactNode; onBack: () => void;
 }) {
   const theme = useTheme(), window = useWindowDimensions(), canvas = shellLayout(window.width, window.height, true);
   return <View testID="tv-profile-pin" onAccessibilityEscape={onBack} style={{flex: 1, backgroundColor: theme.colors.ink}}>
@@ -49,11 +51,19 @@ export function TVProfilePINLayout({profile, error, children, pad, hints, onBack
         <Text accessibilityRole="header" style={[nativeType({size: 52, weight: 800, tracking: -.04, lineHeight: 'normal'}, theme.textScale),
           {color: theme.colors.text, marginTop: 30, marginBottom: 6}]}>{defaultI18n.t('auth.enterProfilePin')}</Text>
         <Text style={[nativeType({size: 28, weight: 400, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textSecondary, marginBottom: 40}]}>{profile.name}</Text>
-        {error && <View accessibilityRole="alert" style={{marginBottom: 16}}>{error}</View>}
         {children}
       </View>
       {pad}
       {hints && <View style={{position: 'absolute', left: 0, right: 0, bottom: 72, flexDirection: 'row', justifyContent: 'center', gap: 44}}>{hints}</View>}
     </View>
   </View>;
+}
+
+/** notes/motion.md S.3: the line under the boxes fades in (standard). Its room is kept whether or not it shows, so the
+ * face, heading and boxes never move when a wrong PIN is said. */
+export function TVCodeErrorLine({error}: {error?: React.ReactNode}) {
+  const motion = useMotion(), opacity = useSharedValue(0), shown = !!error;
+  useEffect(() => {opacity.value = shown ? withTiming(1, motion.timing('standard')) : 0;}, [motion, opacity, shown]);
+  const style = useAnimatedStyle(() => ({opacity: opacity.value}));
+  return <Animated.View accessibilityRole={shown ? 'alert' : undefined} style={[{minHeight: 34, marginTop: 16, alignItems: 'center'}, style]}>{error}</Animated.View>;
 }
