@@ -97,6 +97,7 @@ func (c *Choice) target(policy ResolvedDeliveryPolicy, cfg DeliveryConfiguration
 			out.MaxVideoHeight = narrowCeiling(out.MaxVideoHeight, step.Height)
 		}
 	}
+	out.MaxVideoWidth = qualityladder.BoxWidth(out.MaxVideoHeight)
 	return out
 }
 

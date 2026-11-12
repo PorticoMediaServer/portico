@@ -865,7 +865,7 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 		convertAudio()
 	}
 	encoded := client.videoCodec(picture.Codec)
-	p.TargetWidth, p.TargetHeight = conversionBox(encoded, picture.BitDepth, video, in.Target.MaxVideoHeight)
+	p.TargetWidth, p.TargetHeight = conversionBox(encoded, picture.BitDepth, video, in.Target.MaxVideoHeight, in.Target.MaxVideoWidth)
 	if encoded != nil && video != nil {
 		point := encoded.forConversion(picture.BitDepth, video.Width, video.Height, video.FrameRate)
 		encoded = &point

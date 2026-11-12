@@ -89,7 +89,7 @@ func chooseVideoOutput(v *SourceVideo, client ClientProfile, transports []Client
 		preferredDepth = 10
 	}
 	area := func(o ConversionVideoOutput) int {
-		w, h := producedSize(client.videoCodec(o.Codec), o.BitDepth, v, target.MaxVideoHeight)
+		w, h := producedSize(client.videoCodec(o.Codec), o.BitDepth, v, target.MaxVideoHeight, target.MaxVideoWidth)
 		return w * h
 	}
 	ordered := append([]ConversionVideoOutput{}, outputs.Video...)

@@ -141,7 +141,9 @@ type QualityTarget struct {
 	MaxVideoBitrateBPS int
 	MaxAudioBitrateBPS int
 	MaxVideoHeight     int
-	AllowHDR           bool
+	// MaxVideoWidth is the width of the box the height names (qualityladder.BoxWidth).
+	MaxVideoWidth int
+	AllowHDR      bool
 }
 
 // Target narrows one rung by the resolved policy. The narrower of the two wins
@@ -177,6 +179,7 @@ func (r QualityRung) Target(policy ResolvedDeliveryPolicy, sourceHeight int) Qua
 		out.MaxAudioBitrateBPS = policy.MaxAudioBitrateBPS
 		out.MaxVideoHeight = policy.MaxVideoHeight
 	}
+	out.MaxVideoWidth = qualityladder.BoxWidth(out.MaxVideoHeight)
 	if sourceHeight > 0 && out.MaxVideoHeight > sourceHeight {
 		out.MaxVideoHeight = sourceHeight
 	}
