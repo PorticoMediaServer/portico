@@ -349,23 +349,6 @@ type StreamLimits struct {
 	EndPausedVideoAfterMs int64 `json:"endPausedVideoAfterMs,omitempty"`
 }
 
-// RememberedFailure is one "this way of playing this file failed on this device".
-type RememberedFailure struct {
-	ID         string `json:"id"`
-	DeviceName string `json:"deviceName"`
-	ItemID     string `json:"itemId,omitempty"`
-	Title      string `json:"title,omitempty"`
-	FileName   string `json:"fileName"`
-	// Player is native or mpv; Route is original, repackaged or converted.
-	Player   string    `json:"player"`
-	Route    string    `json:"route"`
-	Code     string    `json:"code"`
-	Detail   string    `json:"detail,omitempty"`
-	FailedAt time.Time `json:"failedAt"`
-	// ExpiresAt is when that way is tried again by itself.
-	ExpiresAt time.Time `json:"expiresAt"`
-}
-
 func sessionKind(kind db.ItemKind) string {
 	if kind == db.KindTrack || kind == db.KindAudiobook {
 		return "audio"

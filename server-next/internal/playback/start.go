@@ -108,6 +108,7 @@ func (s *Service) Prepare(ctx context.Context, c Caller, itemID, from string) (*
 			s.failed(sess)(stream)
 		}
 	}}
+	s.retryRememberedFailure(ctx, device, r)
 	stream, err := s.streams.Start(ctx, request)
 	if err != nil {
 		return nil, err
@@ -330,6 +331,7 @@ func (s *Service) create(ctx context.Context, in StartInput) (*session, error) {
 
 	stream := sess.Stream
 	if in.Prepared == nil {
+		s.retryRememberedFailure(ctx, device, r)
 		stream, err = s.streams.Start(ctx, StartRequest{SessionID: sess.ID, Item: r.item, Version: r.version, Plan: r.plan, PositionMs: position,
 			Replaced: s.replaced(sess), Failed: s.failed(sess)})
 	}
@@ -506,6 +508,7 @@ func (s *Service) change(ctx context.Context, id string, c Caller, ch Change, fa
 		s.Save(ctx, db.User, id)
 	}
 
+	nextRoute := ""
 	if ch.Failure != nil {
 		kept := uncertainFailureKept
 		if certainFailures[ch.Failure.Code] {
@@ -518,6 +521,7 @@ func (s *Service) change(ctx context.Context, id string, c Caller, ch Change, fa
 			}
 			return Session{}, err
 		}
+		defer func() { s.logRememberedFailure(before, nextRoute, now.Add(kept)) }()
 	}
 	a := ch.Ask
 	replan := ch.Replan || ch.Failure != nil || a.VersionID != "" || a.Audio != nil || a.Subtitle != nil || a.Quality != nil ||
@@ -553,6 +557,7 @@ func (s *Service) change(ctx context.Context, id string, c Caller, ch Change, fa
 	}
 	if restart {
 		s.streams.Stop(id)
+		s.retryRememberedFailure(ctx, before.Device, r)
 		request := StartRequest{SessionID: id, Item: r.item, Version: r.version, Plan: r.plan, PositionMs: position, Replaced: s.replaced(sess), Failed: s.failed(sess)}
 		if stream, err = s.streams.Start(ctx, request); err != nil {
 			if failedGrant != "" {
@@ -568,6 +573,7 @@ func (s *Service) change(ctx context.Context, id string, c Caller, ch Change, fa
 		}
 		generation++
 	}
+	nextRoute = r.plan.Route
 	s.mu.Lock()
 	ended := sess.State == StateEnded
 	if !ended {
