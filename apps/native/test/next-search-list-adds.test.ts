@@ -10,6 +10,7 @@ const state = {positionMs: 0, watched: false, playCount: 0, favorite: false, inL
 const list = (id: string, kind: string, extra: Record<string, unknown> = {}) => ({id, kind, name: id, owner: {id: 'me', name: 'Me'}, role: 'owner', count: 0, covers: [], revision: '5',
   createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z', ...extra});
 function server() {
+  const keys: (string | undefined)[] = [];
   const calls: Call[] = [], revisions: Record<string, number> = {Mix: 5, Best: 5};
   const api = {async request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
     calls.push({path, method, body});
@@ -28,8 +29,11 @@ function server() {
       return {list: list(add[1]!, add[1] === 'Mix' ? 'playlist' : 'collection', {revision: String(revisions[add[1]!])}), added: held ? 0 : 1, already: held ? 1 : 0} as T;
     }
     throw new Error(`unexpected ${method} ${path}`);
+  }, async requestRaw(path: string, method: string, options: {headers?: Record<string, string>; body?: unknown} = {}) {
+    keys.push(options.headers?.['Idempotency-Key']);
+    return {status: 200, headers: {}, body: await api.request(path, method, options.body)};
   }};
-  return {api, calls};
+  return {api, calls, keys};
 }
 const entries = ['m1', 'm2'].map(id => ({id, kind: 'movie', title: 'Film ' + id, libraryId: 'films'}));
 function destinations(api: unknown) {
@@ -47,6 +51,7 @@ test('picked titles go into the playlist chosen from the profile\'s playlists', 
     await picker.choose('playlist', 'Mix', page.token);
     assert.deepEqual(posts(s.calls), [['/v1/lists/Mix/entries', ['m1']], ['/v1/lists/Mix/entries', ['m2']]]);
     assert.equal(picker.snapshot().completed, 2);
+    assert.equal(s.keys.length, 2); assert.ok(s.keys.every(Boolean), 'each addition names its key');
     assert.ok(s.calls.every(call => !call.path.includes('/home/destination') && !call.path.includes('/v1/jobs')), 'nothing asks the old server\'s routes');
   } finally {picker.dispose();}
 });
@@ -60,5 +65,6 @@ test('picked titles go into a collection, each saying whether it went in or was 
     assert.deepEqual(posts(s.calls), [['/v1/lists/Best/entries', ['m1']], ['/v1/lists/Best/entries', ['m2']]]);
     assert.deepEqual(picker.snapshot().collectionOutcome, {added: ['m1'], unchanged: ['m2'], failed: []});
     assert.equal(picker.snapshot().collection.resource?.name, 'Best');
+    assert.deepEqual(s.keys.map(key => key?.split('.').slice(-2).join('.')), ['m1.0', 'm2.0'], 'each title names its own key');
   } finally {picker.dispose();}
 });

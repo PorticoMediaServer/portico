@@ -25,6 +25,20 @@ export const LIST_ADD_AT_ONCE = 500;
  * Idempotency-Key, so a repeat after a lost answer adds nothing twice. Without one it is sent as before. */
 export type ListDestinationApi = ServerRequester & Partial<Readonly<{requestRaw(path: string, method: 'POST', options?: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>): Promise<{status: number; headers: Record<string, string>; body?: unknown}>}>>;
 
+/** The header-sending transport of an app (`HttpLocalApi.requestRaw`), as a screen hands it over. */
+export type RequestRaw = (path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', options?: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>) => Promise<{status: number; headers: Record<string, string>; body?: unknown}>;
+/**
+ * A screen's request-only transport with the app's header-sending one beside it, so an addition names its key and an
+ * edit its revision from every way in. `guard` is the screen's own currentness check: it runs before each change, and
+ * a change made after the screen ended is refused before it is sent.
+ */
+export function withRequestRaw<A extends ServerRequester>(api: A, raw: RequestRaw | undefined, guard: () => void): A & {requestRaw?: RequestRaw} {
+  if (!raw) return api;
+  return Object.assign(Object.create(api) as A, {
+    request: api.request.bind(api),
+    requestRaw: async (path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', options?: Parameters<RequestRaw>[2]) => {guard(); const answer = await raw(path, method, options); guard(); return answer;},
+  });
+}
 const revisionOf = (list: Pick<List, 'revision'>) => {const n = Number(list.revision); return Number.isSafeInteger(n) && n >= 1 ? n : 1;};
 /** A list's covers as the artwork its row draws (only drawn, never opened). */
 const coversOf = (list: List): ContentEntry[] => (list.covers ?? []).slice(0, 4).flatMap((images, index) => {

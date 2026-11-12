@@ -1,7 +1,7 @@
 import {DetailService} from '../../../../../packages/client-core/src/detail';
 import {SavedService} from '../../../../../packages/client-core/src/saved';
 import type {EntryOutcomes} from '../../../../../packages/client-core/src/personal-saved';
-import {addToDestination, readDestination} from '../../../../../packages/client-core/src/home-selection/list-destinations';
+import {addToDestination, readDestination, withRequestRaw, type RequestRaw} from '../../../../../packages/client-core/src/home-selection/list-destinations';
 import {appendPlaylistSelection} from '../../../../../packages/client-core/src/playlist-selection';
 import {validateContentEntry, type ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {CatalogueSelectionOptions} from '../../../../../packages/client-core/src/catalogue-selection';
@@ -67,8 +67,10 @@ export class NativeLoadedDestinations {
       this.assertCurrent(); return result;
     }};
     const requestId = async () => {this.assertCurrent(); const id = await options.requestId(); this.assertCurrent(); return id;};
-    this.api = api; this.requestId = requestId;
-    this.playlist = new SavedService({api, scope: options.scope, requestId});
+    // Additions name their key and edits their revision through the app's header-sending transport, checked the same way.
+    const changes = withRequestRaw(api, (options.api as {requestRaw?: RequestRaw}).requestRaw?.bind(options.api), () => this.assertCurrent());
+    this.api = changes; this.requestId = requestId;
+    this.playlist = new SavedService({api: changes, scope: options.scope, requestId});
     this.stops = [this.playlist.subscribe(this.changed)];
     options.signal.addEventListener('abort', this.dispose, {once: true});
   }
