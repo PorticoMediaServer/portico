@@ -24,7 +24,7 @@ export function MessagesPanel({source, options, detailMinutes, canDetail = true}
   return <div className={styles.messagePanels}>
     {options}
     {state.phase === 'ready' && <section className={styles.detailWindow}>
-      <div><b>{t('settings.server.detailWindow.forMinutes', {minutes: detailMinutes ?? 30})}</b><p className={styles.help}>{detailed ? t('settings.server.detailWindow.until', {time: defaultI18n.dateTime(until!)}) : t('settings.server.detailWindow.help')}</p></div>
+      <div><b>{detailed ? t('next.settingsSpec.server.troubleshooting.groups.0.rows.0.label') : t('settings.server.detailWindow.forMinutes', {minutes: detailMinutes ?? 30})}</b><p className={styles.help}>{detailed ? t('settings.server.detailWindow.until', {time: defaultI18n.dateTime(until!)}) : t('settings.server.detailWindow.help')}</p></div>
       {canDetail && <Button size="xs" variant="glass" disabled={state.changing} onClick={() => {void source.detail(!detailed, detailMinutes).catch(() => { /* The source reports through its captured owner. */ });}}>{t(detailed ? 'settings.server.detailWindow.stop' : 'settings.server.detailWindow.start')}</Button>}
     </section>}
     <section className={styles.messages}>
