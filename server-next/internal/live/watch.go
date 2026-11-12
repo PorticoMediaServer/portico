@@ -170,13 +170,16 @@ func (v *Viewings) Stop(id string, userID int64) {
 	w.Input.Leave(w.use)
 }
 
-// SetPlay records how a viewing's device plays its channel.
-func (v *Viewings) SetPlay(id string, play *Play) {
+// SetPlay records how a viewing's device plays its channel, and says whether the viewing is
+// still there: one that ended meanwhile (the device started again) is not.
+func (v *Viewings) SetPlay(id string, play *Play) bool {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if w := v.byID[id]; w != nil {
+	w := v.byID[id]
+	if w != nil {
 		w.Play = play
 	}
+	return w != nil
 }
 
 // Count is how many live viewings an account has on other sign-ins, and the server
