@@ -45,12 +45,14 @@ func TestSeriesAndCollectionsHoldNothingAProfileMayNotSee(t *testing.T) {
 	film := func(name string, age *int, in db.ItemKey, labels ...string) db.ImportItem {
 		return title(db.KindMovie, name, age, in, db.RelationCollectionMember, labels...)
 	}
+	low := book("Low Water", &seven, tides)
+	low.Parent = &tides // A volume held both ways is still one volume.
 	if _, err := d.Import(ctx, db.ImportBatch{LibraryID: books.ID, PathID: books.Paths[0].ID, Scan: 1, Dirs: []db.ImportDir{{}}, Items: []db.ImportItem{
 		{Kind: db.KindSeries, Title: "Night", Keys: []db.ItemKey{night}},
 		{Kind: db.KindSeries, Title: "Tides", Keys: []db.ItemKey{tides}},
 		{Kind: db.KindSeries, Title: "Mixed", Keys: []db.ItemKey{mixed}},
 		book("Dark", &seven, night, "Scary"),
-		book("Low Water", &seven, tides),
+		low,
 		book("High Water", &sixteen, tides),
 		book("Quiet", nil, mixed),
 		book("Loud", &sixteen, mixed),
@@ -95,6 +97,16 @@ func TestSeriesAndCollectionsHoldNothingAProfileMayNotSee(t *testing.T) {
 		q := db.ItemQuery{Library: lib.PublicID, Kinds: []db.ItemKind{kind}}
 		for _, it := range everything(t, d, v, q) {
 			out = append(out, it.Title)
+			if kind == db.KindSeries {
+				volumes, err := d.Items(ctx, v, db.ItemQuery{Series: it.PublicID, WithTotal: true, Limit: 1})
+				if err != nil || it.ChildCount != volumes.Total {
+					t.Fatalf("%s: children %d, page total %d (%v)", it.Title, it.ChildCount, volumes.Total, err)
+				}
+				detail, err := d.Item(ctx, v, it.PublicID)
+				if err != nil || detail.ChildCount != volumes.Total {
+					t.Fatalf("%s detail: children %d, page total %d (%v)", it.Title, detail.ChildCount, volumes.Total, err)
+				}
+			}
 		}
 		q.WithTotal = true
 		if page, err := d.Items(ctx, v, q); err != nil || page.Total != len(out) {
