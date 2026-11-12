@@ -392,6 +392,13 @@ func (in *Input) newSegment(now time.Time) (*os.File, error) {
 // is read: it waits for what is still to come. A moment older than the stretch starts at its
 // oldest point. Closing ends the reading.
 func (in *Input) Read(ctx context.Context, at time.Time, w io.Writer) error {
+	return in.ReadFrom(ctx, at, w, nil)
+}
+
+// ReadFrom is Read, and tells began, before anything is written, the moment the reading
+// really starts with: segments are read whole, so that is the start of the one holding at,
+// at or a few seconds before it.
+func (in *Input) ReadFrom(ctx context.Context, at time.Time, w io.Writer, began func(time.Time)) error {
 	in.mu.Lock()
 	next := len(in.segments) - 1
 	if !at.IsZero() {
@@ -424,6 +431,10 @@ func (in *Input) Read(ctx context.Context, at time.Time, w io.Writer) error {
 			}
 			current, offset = in.segments[0], 0
 			in.mu.Unlock()
+		}
+		if began != nil {
+			began(current.start)
+			began = nil
 		}
 		file, err := os.Open(current.path)
 		if err != nil {

@@ -140,6 +140,7 @@ func newHouseWith(t *testing.T, ffmpeg, ffprobe string) (*house, *db.DB, *remote
 	}
 	handler.Playback().SetEngine(engine, engine)
 	handler.ServeMediaWith(engine.ServeMedia)
+	handler.LiveHLSWith(engine)
 	go engine.Run(ctx)
 	server := httptest.NewServer(handler)
 	t.Cleanup(func() {

@@ -24,6 +24,9 @@ type liveTVArea struct {
 	// tuners runs each channel's shared input, and viewings the live sessions on them.
 	tuners   *live.Tuners
 	viewings *live.Viewings
+	// liveHLS makes HLS of a channel for a device that cannot play its MPEG-TS as it is (the
+	// media engine); nil plays every channel as the source sends it.
+	liveHLS LiveHLS
 	// recorder records Live TV; dvrOptions are its settings, defaults until the dvr settings
 	// document exists. See dvr.go.
 	recorder *dvr.Service
@@ -47,6 +50,12 @@ func (s *Server) startLiveTV(ctx context.Context) error {
 	s.tuners = live.NewTuners(filepath.Join(s.dataDir, "transcodes", "live"), live.StreamClient(), s.log, func() time.Time { return s.now() },
 		func() live.Tuning { return live.DefaultTuning })
 	s.viewings = live.NewViewings(func() time.Time { return s.now() })
+	// However a viewing ends, the HLS made for its device stops with it.
+	s.viewings.Ended = func(id string) {
+		if s.liveHLS != nil {
+			s.liveHLS.StopLive(id)
+		}
+	}
 	s.goBackground(func() { s.tuners.Run(ctx) })
 	s.goBackground(func() { s.viewings.Run(ctx) })
 	s.liveStreamRoute()
