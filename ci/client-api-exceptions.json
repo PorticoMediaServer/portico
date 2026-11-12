@@ -450,25 +450,6 @@
       "apps/native/src-next/platform/play-on/cast.ts#4258366f1ac13d4d": "24e47ed184d3288b7b462a350811ebf8b1f0b64314cfc1a6b6d93661994f0ef6"
     }
   },
-  "apps/native/src-next/platform/play-on/controller.ts": {
-    "category": "platform-transport",
-    "reason": "HandoffController, SessionsClient and PlaybackControlsService; original directory authority or captured handoff attempt/lease. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
-    "sites": [
-      "apps/native/src-next/platform/play-on/controller.ts#2b028109967d7aaf",
-      "apps/native/src-next/platform/play-on/controller.ts#b77ad8a3557e46b8",
-      "apps/native/src-next/platform/play-on/controller.ts#b2e16cf88c2755c8",
-      "apps/native/src-next/platform/play-on/controller.ts#b2e16cf88c2755c8",
-      "apps/native/src-next/platform/play-on/controller.ts#72a84b119fb62b21",
-      "apps/native/src-next/platform/play-on/controller.ts#6ef68d445969530a"
-    ],
-    "guardHashes": {
-      "apps/native/src-next/platform/play-on/controller.ts#2b028109967d7aaf": "f0c7aec57ab71fea9d244a8da0bd94ca14e69ab86769f638fd90ade33d4b3b83",
-      "apps/native/src-next/platform/play-on/controller.ts#b77ad8a3557e46b8": "f0c7aec57ab71fea9d244a8da0bd94ca14e69ab86769f638fd90ade33d4b3b83",
-      "apps/native/src-next/platform/play-on/controller.ts#b2e16cf88c2755c8": "3d42bd712e48d8e1556542648b26cc7e24f8472d54528d0c79a4b5e5849e8b34",
-      "apps/native/src-next/platform/play-on/controller.ts#72a84b119fb62b21": "ddd7ef1bdac8d8ece7361ab04decd06a010c43e0c8bccb0edc36db2a8e2f8086",
-      "apps/native/src-next/platform/play-on/controller.ts#6ef68d445969530a": "c4f4c98ce9cd9991c6e84873e319f69c101c5668896f992ed8a43df681f916a0"
-    }
-  },
   "apps/native/src-next/platform/playback/listening-controls.ts": {
     "category": "platform-transport",
     "reason": "PlayerChaptersService; exact chapter capability equality/read-only guard, original listening source and combined read lifetime. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
@@ -696,19 +677,6 @@
     "guardHashes": {
       "web/src/screens/watch/play-on-binding.ts#43bdecad665b5170": "5a663d308dc14f4c5d91c94daeaf96c052c2df7bbe5d00c7a53bbca803b0e88f",
       "web/src/screens/watch/play-on-binding.ts#211f7c4332ab5021": "b90e1659d6d7ac40d559ebf2a20f57dbe0ca7fc49ffc5e74e36dcc33813ea750"
-    }
-  },
-  "web/src/screens/watch/receivers.ts": {
-    "category": "platform-transport",
-    "reason": "HandoffController; original directory/rollback authority or exact captured send flight/fence. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
-    "sites": [
-      "web/src/screens/watch/receivers.ts#551270c96a51117a",
-      "web/src/screens/watch/receivers.ts#551270c96a51117a",
-      "web/src/screens/watch/receivers.ts#90567718c0019793"
-    ],
-    "guardHashes": {
-      "web/src/screens/watch/receivers.ts#551270c96a51117a": "0ce28196f123090fde52ad1331e522210d1485cf3b4296f5b6730c689486fe2d",
-      "web/src/screens/watch/receivers.ts#90567718c0019793": "0ce28196f123090fde52ad1331e522210d1485cf3b4296f5b6730c689486fe2d"
     }
   },
   "apps/native/Native/PorticoPlayer.m": {
@@ -1671,16 +1639,6 @@
     ],
     "guardHashes": {
       "apps/native/src-next/screens/settings-live/LiveRoute.tsx#22aafff635b1f14e": "f3337664452b186c03ec5c7cedc59370625b8225f56627cb023100df1f225337"
-    }
-  },
-  "apps/native/src-next/screens/settings-live/NativeTVReceiver.tsx": {
-    "category": "platform-transport",
-    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
-    "sites": [
-      "apps/native/src-next/screens/settings-live/NativeTVReceiver.tsx#d2c78d29a1e1958e"
-    ],
-    "guardHashes": {
-      "apps/native/src-next/screens/settings-live/NativeTVReceiver.tsx#d2c78d29a1e1958e": "12b83dcfafa00b68a7c07dc56640da0bce245aaabb4bad2a04628d7cdb1f361e"
     }
   },
   "apps/native/src-next/screens/settings-live/live-controller.ts": {

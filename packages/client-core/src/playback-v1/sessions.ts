@@ -50,6 +50,8 @@ export type StartOptions = Readonly<{
    * start lands on the widest quality that fits; with a fixed quality a start the connection
    * plainly cannot carry is refused (`connection_too_slow`). */
   throughputKbps?: number;
+  /** Another device's request to play here that this start answers (playback moving here). */
+  requestId?: string;
 }>;
 
 export type SessionChange = Readonly<{

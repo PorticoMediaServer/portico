@@ -853,46 +853,6 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
   },
-  "apps/native/src-next/platform/play-on/controller.ts#2b028109967d7aaf": {
-    "category": "platform-transport",
-    "reason": "HandoffController, SessionsClient and PlaybackControlsService; original directory authority or captured handoff attempt/lease. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
-    "guardHash": "f0c7aec57ab71fea9d244a8da0bd94ca14e69ab86769f638fd90ade33d4b3b83",
-    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
-  },
-  "apps/native/src-next/platform/play-on/controller.ts#b77ad8a3557e46b8": {
-    "category": "platform-transport",
-    "reason": "HandoffController, SessionsClient and PlaybackControlsService; original directory authority or captured handoff attempt/lease. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
-    "guardHash": "f0c7aec57ab71fea9d244a8da0bd94ca14e69ab86769f638fd90ade33d4b3b83",
-    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
-  },
-  "apps/native/src-next/platform/play-on/controller.ts#b2e16cf88c2755c8": {
-    "category": "platform-transport",
-    "reason": "HandoffController, SessionsClient and PlaybackControlsService; original directory authority or captured handoff attempt/lease. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
-    "guardHash": "3d42bd712e48d8e1556542648b26cc7e24f8472d54528d0c79a4b5e5849e8b34",
-    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
-    "occurrences": 2,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
-  },
-  "apps/native/src-next/platform/play-on/controller.ts#72a84b119fb62b21": {
-    "category": "platform-transport",
-    "reason": "HandoffController, SessionsClient and PlaybackControlsService; original directory authority or captured handoff attempt/lease. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
-    "guardHash": "ddd7ef1bdac8d8ece7361ab04decd06a010c43e0c8bccb0edc36db2a8e2f8086",
-    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
-  },
-  "apps/native/src-next/platform/play-on/controller.ts#6ef68d445969530a": {
-    "category": "platform-transport",
-    "reason": "HandoffController, SessionsClient and PlaybackControlsService; original directory authority or captured handoff attempt/lease. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
-    "guardHash": "c4f4c98ce9cd9991c6e84873e319f69c101c5668896f992ed8a43df681f916a0",
-    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
-  },
   "apps/native/src-next/platform/playback/listening-controls.ts#dd519f381fe5dcc0": {
     "category": "platform-transport",
     "reason": "PlayerChaptersService; exact chapter capability equality/read-only guard, original listening source and combined read lifetime. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
@@ -1081,22 +1041,6 @@
     "category": "platform-transport",
     "reason": "CastController/WatchReceivers core operations; captured shell authority and caller signal. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
     "guardHash": "b90e1659d6d7ac40d559ebf2a20f57dbe0ca7fc49ffc5e74e36dcc33813ea750",
-    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
-  },
-  "web/src/screens/watch/receivers.ts#551270c96a51117a": {
-    "category": "platform-transport",
-    "reason": "HandoffController; original directory/rollback authority or exact captured send flight/fence. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
-    "guardHash": "0ce28196f123090fde52ad1331e522210d1485cf3b4296f5b6730c689486fe2d",
-    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
-    "occurrences": 2,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
-  },
-  "web/src/screens/watch/receivers.ts#90567718c0019793": {
-    "category": "platform-transport",
-    "reason": "HandoffController; original directory/rollback authority or exact captured send flight/fence. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
-    "guardHash": "0ce28196f123090fde52ad1331e522210d1485cf3b4296f5b6730c689486fe2d",
     "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
@@ -2241,14 +2185,6 @@
     "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
     "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
     "guardHash": "f3337664452b186c03ec5c7cedc59370625b8225f56627cb023100df1f225337",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
-  },
-  "apps/native/src-next/screens/settings-live/NativeTVReceiver.tsx#d2c78d29a1e1958e": {
-    "category": "platform-transport",
-    "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
-    "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
-    "guardHash": "12b83dcfafa00b68a7c07dc56640da0bce245aaabb4bad2a04628d7cdb1f361e",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
   },

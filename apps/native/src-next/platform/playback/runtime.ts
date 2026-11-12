@@ -1021,9 +1021,13 @@ export class NativePlaybackRuntime {
     this.expanded = !audioKind(offered.kind);
     try {
       if (!current()) throw Object.assign(new Error('Playback start retired'), {name: 'AbortError'});
-      await this.queue.playItem(input.target.itemId, nativeStartSeconds(input), undefined, undefined, undefined, versionId ? {versionId, ...(discTitle ? {discTitle} : {})} : undefined,
-        // Plays on through the item's show, album or book, anchored on it (PB-1, MU-2).
-        {...lifetime, state: input.state ?? 'playing', isCurrent: current, propagateError: true, ...(offered.container ? {from: {container: offered.container}} : {})});
+      const move = input.move, choices = {...(versionId ? {versionId, ...(discTitle ? {discTitle} : {})} : {}),
+        ...(move ? {moveRequestId: move.requestId, ...(move.audioTrackId ? {audioTrackId: move.audioTrackId} : {})} : {})};
+      await this.queue.playItem(input.target.itemId, nativeStartSeconds(input), undefined, undefined, undefined, Object.keys(choices).length ? choices : undefined,
+        // Plays on through the item's show, album or book, anchored on it (PB-1, MU-2); a move
+        // plays on through the queue the other device had.
+        {...lifetime, state: input.state ?? 'playing', isCurrent: current, propagateError: true,
+          ...(move?.queueId ? {from: {queue: {id: move.queueId}}} : offered.container ? {from: {container: offered.container}} : {})});
     } catch (error) {
       // Keep the original typed admission refusal, including its closed reason,
       // retry policy and account detail. A retired operation cannot publish it.

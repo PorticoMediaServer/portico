@@ -32,6 +32,9 @@ export function serverEventsFrom(frame: Frame): readonly ServerEvent[] {
     case 'access': return [{id, type: accessChangedEvent}];
     // The profile's own settings changed, on this device or another: they are read again.
     case 'preferences': return [{id, type: 'settings.changed', resource: {kind: 'settings', id: 'preferences'}}];
+    // Playing on another device: a request to one of the account's devices was made or answered
+    // (the id is the request), or what a device plays changed or was sent a command (the session).
+    case 'receiver': case 'playback': return [{id, type: change.topic + '.changed', ...(typeof change.id === 'string' && change.id ? {resource: {kind: change.topic, id: change.id}} : {})}];
     case 'person': case 'list': return [{id, type: change.topic + '.changed', ...(typeof change.id === 'string' && change.id ? {resource: {kind: change.topic, id: change.id}} : {})}];
     default: return [{id, type: 'stream.unknown'}];
   }
