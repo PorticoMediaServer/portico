@@ -1009,14 +1009,6 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
   },
-  "web/src/platform/playback/runtime.ts#9f937c39ca0397c2": {
-    "category": "platform-transport",
-    "reason": "DetailService/SubtitleService; original stack lifetime signals. Forwards a request fully built by the named core service (path, method, body, auth) unchanged; adds only lifetime/abort/currentness checks and constructs nothing.",
-    "guardHash": "9b3c8587753a3ec78086dd24b4b31a7d5b45a1121f7f649837d4a3ef8394e673",
-    "condition": "Forwards a request fully built by a named client-core service (path, method, body, auth) unchanged; adds only lifetime/abort/authority/currentness checks and constructs nothing.",
-    "occurrences": 1,
-    "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/875#issuecomment-6645260082"
-  },
   "web/src/platform/playback/runtime.ts#0d18e1c4278bb920": {
     "category": "platform-url",
     "reason": "Approved CC-3 player/event byte transport: The URL comes from a core-issued grant or core URL resolution; the platform fetches bytes/stream data only, and no domain JSON is constructed.",
@@ -2296,11 +2288,11 @@
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
   },
-  "apps/native/src-next/screens/settings-live/settings-panels.tsx#1b31452e0e60fbc5": {
+  "apps/native/src-next/screens/settings-live/settings-panels.tsx#6c2c9782306ec000": {
     "category": "platform-transport",
     "reason": "Approved tail-A transport: forwards named core-built requests unchanged, adding only the reviewed lifetime, currentness, abort, custody or bounded platform delivery.",
     "condition": "Exact full canonical guard span and file-qualified occurrence budget. Core builds path, method, body, auth and header sequence; platform constructs nothing. Notifications consume exactly two combined occurrences; each share file has its own count-one allowance. Any span change voids approval.",
-    "guardHash": "13f80ea3c80bca29adfa2bb828f45685bb0e0ff16c70fa263942da395b2deaa7",
+    "guardHash": "376e7d61233a5dd82c7c9985bb2b5b2d41bf42f4079b70490cc1f2406444a4cc",
     "occurrences": 1,
     "rulingUrl": "https://github.com/PorticoMediaServer/portico/pull/880#issuecomment-6650348707"
   },

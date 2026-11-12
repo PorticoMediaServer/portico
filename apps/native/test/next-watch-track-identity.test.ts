@@ -7,7 +7,7 @@ import {parseOptions} from '../../../packages/client-core/src/playback-v1/types.
 const fence = playbackFence({kind: 'queue', playback: {scope: {serverId: 'server', accountId: 'account', profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane', authority: 'local'}, run: 1}, sessionId: 'session', itemId: 'item', sourceId: 'version-2', entryId: 'entry', generation: 3});
 function source(): NativeWatchTrackSource {
   return {fence, retired: false, dock: {local: {fence}},
-    session: {id: 'session', revision: '1', kind: 'vod', role: 'local', state: 'playing', lease: {reportEveryMs: 5000}, itemId: 'item', versionId: 'version-2', queue: {queueId: 'queue', entryId: 'entry'},
+    session: {id: 'session', kind: 'vod', role: 'local', state: 'playing', lease: {reportEveryMs: 5000}, itemId: 'item', versionId: 'version-2', queue: {queueId: 'queue', entryId: 'entry'},
       presentation: {generation: 3, mode: 'direct', url: '/v1/media/test/file', engine: 'native', startPositionMs: 0, subtitles: [], decision: {}, quality: {mode: 'original'}, audioTrackId: 'commentary', subtitle: {trackId: 'sidecar', kind: 'text', delivery: 'sidecar'}}},
     options: parseOptions({itemId: 'item', versions: [
       {id: 'version-1', audio: [{id: 'default', default: true}], subtitles: [{id: 'embedded', default: true}]},

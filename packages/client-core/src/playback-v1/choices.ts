@@ -104,13 +104,14 @@ export function qualityChoiceOf(quality: QualityRequest | QualityInForce | undef
 
 /** The audio request for a track id, or for a legacy absolute stream index. */
 export function audioTrackId(stream: number | string | undefined): string | undefined {
-  if (typeof stream === 'string') return /^a\d{1,4}$/.test(stream) ? stream : undefined;
-  return typeof stream === 'number' && Number.isInteger(stream) && stream >= 0 && stream <= 9999 ? 'a' + stream : undefined;
+  if (typeof stream === 'string') return /^\d{1,4}$/.test(stream) ? stream : undefined;
+  return typeof stream === 'number' && Number.isInteger(stream) && stream >= 0 && stream <= 9999 ? String(stream) : undefined;
 }
 
-/** The stream index of a playback-options audio id (`a3` → 3). */
+/** The stream index of a playback-options audio id: the server names a track of the file by its
+ * stream index (`"3"` → 3). */
 export function audioStreamIndex(trackId: string | undefined): number | undefined {
-  const m = trackId ? /^a(\d{1,4})$/.exec(trackId) : null;
+  const m = trackId ? /^(\d{1,4})$/.exec(trackId) : null;
   return m ? Number(m[1]) : undefined;
 }
 

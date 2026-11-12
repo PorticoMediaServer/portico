@@ -119,6 +119,8 @@ export type NativePlaybackSettings = Readonly<{
   matchFrameRate?: 'auto' | 'off';
   matchDynamicRange?: 'auto' | 'off';
   audiobook?: import('../../../../../packages/client-core/src/audiobook-preferences').AudiobookPreferences;
+  /** Autoplay next, its countdown and Stop at season end. */
+  postPlay?: import('../../../../../packages/client-core/src/playback-v1/post-play').PostPlaySettings;
   /** The profile's Music > Sound settings, as the listening engine renders them. */
   audioEffects?: import('../../../../../packages/client-core/src/audio-effects').AudioEffectsSettings;
   engine: EngineSetting; overrides?: CapabilityOverrides;

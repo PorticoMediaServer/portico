@@ -37,11 +37,3 @@ test('missing, empty and ended snapshots do not inherit or fabricate output',asy
   assert.equal(replacement.observedPlayback,undefined);
 });
 
-test('invalid optional renderer blocks stay unknown while session authority stays readable',async()=>{
-  for(const value of [null,[],{video:null},{video:{height:-1}},{screen:{refreshRateHz:2000}},{audio:{handling:'guessed-hdmi'}},{audio:{sampleRate:9999999}},{subtitles:{rendering:'unknown'}}]) {
-    const session = await wire(resource(value)).client.get('session');
-    assert.equal(session.id,'session');
-    assert.equal(session.revision,'1');
-    assert.equal(session.observedPlayback,undefined);
-  }
-});

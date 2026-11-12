@@ -1,13 +1,14 @@
 /**
- * Playback Protocol v1 client core: sessions and the controller that plays one on a `MediaPlayer`
- * port, the timeline reporter, queues, the viewer's playback choices and the device event feed.
+ * Playback client core: sessions and the controller that plays one on a `MediaPlayer` port, the
+ * progress reporter, queues, the viewer's playback choices and the device event feed.
  */
 export type {MediaPlayer, PlayerEvent, PlayerObservation, PlayerSource, PlayerState, SidecarSubtitle} from './port.ts';
 export {localPlayerSource, localPlayerLoadReceipt} from './local-port.ts';
 export type {LocalPlayerSource, LocalPlayerLoadContext, LocalPlayerLoadReceipt} from './local-port.ts';
 export {ServerClock, driftCorrection, timelinePosition, type ClockEstimate, type ClockSample, type DriftCorrection} from './clock.ts';
 export {GenerationGate} from './generation.ts';
-export {ObservationReporter, type ObservationAck, type ObservationReporterOptions, type ObservationSample, type ObservationSnapshot, type ObservationState, type ObserverGrant} from './observation.ts';
+export {ProgressReporter, type ProgressAnswer, type ProgressReport, type ProgressReporterOptions, type ProgressSnapshot, type ProgressState} from './progress.ts';
+export {playbackPath} from './routes.ts';
 export {connectionTooSlow, musicQualityLadder, savedMusicQualities, savedMusicQualityRequest, type SavedMusicQuality, qualityLadder, qualityOptionRequest, qualityOptionSelected, requestInForce, sameQuality, savedQualities, savedQualityRequest, type QualityId, type QualityInForce, type QualityOption, type QualityRequest, type SavedQuality} from './quality.ts';
 export {PlaybackApiError, call, header, idempotencyKey, type RetryClass, type V1Http, type V1Request, type V1Response} from './http.ts';
 export {ShufflePermutation} from './shuffle.ts';

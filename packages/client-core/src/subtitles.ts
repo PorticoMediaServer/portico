@@ -6,6 +6,7 @@ import {keepReadable} from './tolerant.ts';
 import {serviceI18n, serviceText} from './presentation/service-text.ts';
 import type {LibraryContentApi} from './library-content.ts';
 import {serverNow} from './server-clock.ts';
+import {parseWebVtt} from './playback-v1/webvtt.ts';
 
 export type SubtitleFormat='srt'|'vtt'|'ass'|'ssa'|'pgs'|'sup'|'vobsub'|'idx'|'dvb'|'smi'|'sami'|'ttml'|'dfxp';
 export type SubtitleRendering='text'|'ass'|'pgs'|'vobsub'|'dvb';
@@ -135,11 +136,12 @@ export async function fetchSubtitleDocument(fetcher:typeof fetch,url:string,etag
 }
 export async function readSubtitleDocument(response:Response,signal:AbortSignal):Promise<SubtitleDocument>{
  if(!response.ok){void response.body?.cancel().catch(()=>{});throw Object.assign(new Error('Subtitle access is no longer available.'),{status:response.status});}
- if(!response.headers.get('Content-Type')?.toLowerCase().startsWith('application/json'))invalid();
+ const type=response.headers.get('Content-Type')?.toLowerCase()??'',vtt=type.startsWith('text/vtt');
+ if(!vtt&&!type.startsWith('application/json'))invalid();
  const max=8388608,declared=response.headers.get('Content-Length');if(declared!==null&&(!/^\d+$/.test(declared)||Number(declared)>max))invalid();
  if(!response.body)invalid();const reader=response.body.getReader();const chunks:Uint8Array[]=[];let total=0;
  const abort=()=>{void reader.cancel().catch(()=>{});};signal.addEventListener('abort',abort,{once:true});
- try{while(!signal.aborted){const {done,value}=await reader.read();if(done)break;total+=value.length;if(total>max)invalid();chunks.push(value);}if(signal.aborted)throw new Error('Subtitle request cancelled.');const bytes=new Uint8Array(total);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}return validateSubtitleDocument(JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)));}
+ try{while(!signal.aborted){const {done,value}=await reader.read();if(done)break;total+=value.length;if(total>max)invalid();chunks.push(value);}if(signal.aborted)throw new Error('Subtitle request cancelled.');const bytes=new Uint8Array(total);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}const decoded=new TextDecoder('utf-8',{fatal:true}).decode(bytes);return vtt?parseWebVtt(decoded):validateSubtitleDocument(JSON.parse(decoded));}
  finally{signal.removeEventListener('abort',abort);void reader.cancel().catch(()=>{});reader.releaseLock();}
 }
 const providerMessages:Readonly<Record<string,MessageId>>={subtitle_provider_not_configured:'subtitles.error.providerNotConfigured',subtitle_provider_key_rejected:'subtitles.error.providerKeyRejected',subtitle_provider_sign_in_failed:'subtitles.error.providerSignInFailed',subtitle_provider_sign_in_required:'subtitles.error.providerSignInRequired',subtitle_provider_busy:'subtitles.error.providerBusy'};

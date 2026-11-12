@@ -3,6 +3,8 @@ import type {MessageId} from '../../i18n/src/index.ts';
 import {sessionEndMessage} from './session-end.ts';
 export {sessionEndMessage};
 /** Presentation only: recovery and authorization decisions still use the original failure. */
+/** The catalogue's sentences for a playback the server ended, in the viewer's language. */
+const endSentences=():readonly string[]=>(['player.ended.other','player.ended.transferred','player.ended.leaseExpired','player.ended.replaced','player.ended.restored','player.ended.pausedTimeout','player.ended.outsideHours','player.ended.terminated'] as const).map(key=>serviceText(key));
 export function playbackUserMessage(error:unknown):string {
  const value=error&&typeof error==='object'?error as {code?:unknown;message?:unknown;status?:unknown}:undefined;
  const code=typeof value?.code==='string'?value.code:typeof error==='string'?error:'';
@@ -10,7 +12,14 @@ export function playbackUserMessage(error:unknown):string {
  // Each known failure has its sentence in the catalogue (`playback.message.*`), in the viewer's language.
  const known:ReadonlySet<string>=new Set(['unauthorized','access_revoked','forbidden','source_unavailable','storage_offline','source_changed','not_found','owner_account_cap','owner_server_cap','transcoding_disabled','unsupported_tuple','unknown_source_facts','encoder_failure','actual_allocation_failure','decoder_contradiction','delivery_http_failure','network_stall','timeout','controller_retired','lease_expired','candidate_expired','revision_conflict','identity_conflict','sequence_stale','receipt_expired','receipt_not_found','lane_occupied','operation_unavailable','seek_mismatch','timeline_unmapped','unsupported_version','invalid_request','internal_error']);
  const say=(name:string)=>serviceText(('playback.message.'+name) as MessageId);
+ // A playback the server ended carries its end sentence (`sessionEndMessage`): that sentence is shown as it is.
+ if(typeof error==='string'&&endSentences().includes(error))return error;
  if(code==='terminated')return sessionEndMessage({reason:'terminated',message:typeof value?.message==='string'?value.message:undefined});
+ if(code==='stopped_elsewhere')return sessionEndMessage({reason:code});
+ // The rebuilt server's stream limits: the account's, and the whole server's.
+ if(code==='stream_limit_reached')return say('owner_account_cap');
+ if(code==='server_stream_limit_reached')return say('owner_server_cap');
+ if(code==='conversion_off')return say('transcoding_disabled');
  if(code==='conversion_capacity')return serviceText('error.playbackConversionCapacity');
  if(code==='queue_too_large')return serviceText('error.queueTooLarge');
  // Lyric and subtitle searches on a library whose metadata source is local only.
@@ -37,6 +46,6 @@ export function playbackUserMessage(error:unknown):string {
 export function playbackFailurePermanent(error:unknown):boolean {
  const value=error&&typeof error==='object'?error as {code?:unknown;message?:unknown}:undefined;
  const text=typeof error==='string'?error:typeof value?.code==='string'?value.code:typeof value?.message==='string'?value.message:'';
- return ['no_admissible_delivery_route','cannot_play_here','streaming_unsupported','unsupported_media','unsupported_tuple','unknown_source_facts','transcoding_disabled','transcode_not_allowed','not_found','forbidden','access_revoked','unsupported_version','client_update_required',
+ return ['no_admissible_delivery_route','cannot_play_here','streaming_unsupported','unsupported_media','unsupported_tuple','unknown_source_facts','transcoding_disabled','transcode_not_allowed','conversion_off','not_found','forbidden','access_revoked','unsupported_version','client_update_required',
   'This title can’t be played on this device.','This title needs converting, and converting is turned off for this account.','This item isn’t available.'].includes(text);
 }

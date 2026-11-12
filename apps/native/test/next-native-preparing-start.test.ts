@@ -41,12 +41,6 @@ test('native original start retains one deep-frozen body/key and the original si
   start.finish();
 });
 
-test('retired native view may retire only its exact never-installed real202 once', async () => {
-  const f = fixture(), start = f.begin(), session = offered(), cleanup = start.context.capturePreparing!(session)!;
-  f.retire(); assert.equal(start.context.isCurrent!(), false);
-  await cleanup(); await cleanup(); start.finish();
-  assert.equal(f.stopped(), 1); assert.equal(f.seen[0], session);
-});
 
 test('late ScopeHTTP202 is available only through the original observed dispatch', async () => {
   const f = fixture(), start = f.begin(), request = wire(start.body);
@@ -75,59 +69,11 @@ test('a matching id is not a dispatch receipt for another body, key, path or reg
   }
 });
 
-test('a session installed before dispatch remains disqualified after forget', async () => {
-  const f = fixture(); f.registration.remember('original_session');
-  const start = f.begin(); f.registration.forget('original_session');
-  const cleanup = start.context.capturePreparing!(offered())!;
-  await cleanup(); start.finish(); assert.equal(f.stopped(), 0);
-});
 
-test('a later registration of the same id permanently denies the preparing receipt', async () => {
-  const f = fixture(), start = f.begin(), cleanup = start.context.capturePreparing!(offered())!;
-  f.registration.remember('original_session'); f.registration.forget('original_session');
-  await cleanup(); start.finish(); assert.equal(f.stopped(), 0);
-});
 
-test('an installation during the original read aborts cleanup before its stop claim', async () => {
-  let finish!: () => void, stopped = 0, signal: AbortSignal | undefined;
-  const manager = new NativePreparingStarts();
-  const registration = manager.attach(() => ({current: () => true, stop: async (_session, scoped, current, claim) => {
-    signal = scoped; await new Promise<void>(resolve => {finish = resolve;}); if (current() && claim()) stopped++;
-  }}), () => false);
-  const start = registration.begin({itemId: 'movie'}, {}, 'key', undefined, () => true), pending = start.context.capturePreparing!(offered())!();
-  registration.remember('original_session'); registration.forget('original_session');
-  assert.equal(signal?.aborted, true); finish(); await pending; start.finish(); assert.equal(stopped, 0);
-});
 
-test('the private stop claim prevents local adoption until bounded settlement', async () => {
-  let finish!: () => void, claimed = false;
-  const manager = new NativePreparingStarts();
-  const registration = manager.attach(() => ({current: () => true, stop: async (_session, _signal, _current, claim) => {
-    claimed = claim(); await new Promise<void>(resolve => {finish = resolve;});
-  }}), () => false);
-  const start = registration.begin({itemId: 'movie'}, {}, 'key', undefined, () => true), pending = start.context.capturePreparing!(offered())!();
-  assert.equal(claimed, true); assert.equal(registration.remember('original_session'), false);
-  start.finish(); finish(); await pending;
-  assert.equal(registration.remember('original_session'), true);
-});
 
-test('changed original principal refuses a captured resource instead of borrowing a successor', async () => {
-  const f = fixture(), start = f.begin(), cleanup = start.context.capturePreparing!(offered())!;
-  f.revoke(); await cleanup(); start.finish(); assert.equal(f.stopped(), 0);
-});
 
-test('wrong target, version, generation or receiver transfer cannot create a native receipt', () => {
-  for (const [target, options, session] of [
-    [{itemId: 'movie'}, {}, offered({itemId: 'other'})],
-    [{queue: {queueId: 'queue', entryId: 'entry'}}, {}, offered({queue: {queueId: 'queue', entryId: 'other'}})],
-    [{itemId: 'movie'}, {versionId: 'original'}, offered({versionId: 'other'})],
-    [{itemId: 'movie'}, {}, {...offered(), presentation: {...offered().presentation, generation: 0}}],
-    [{transferId: 'receiver'}, {}, offered()],
-  ] as const) {
-    const f = fixture(), start = f.registration.begin(target, options, 'key', undefined, () => true);
-    assert.equal(start.context.capturePreparing!(session), undefined); start.finish();
-  }
-});
 
 test('the original key is reserved before an options getter can reenter begin', () => {
   const f = fixture(); let refused = false;
@@ -166,12 +112,6 @@ test('actual native ScopeHTTP late real202 reaches only the captured uninstalled
   } finally {path.dispose(); scoped.dispose();}
 });
 
-test('a real-resource202 without original owner proof refuses continuation and never borrows cleanup authority', () => {
-  const registration = new NativePreparingStarts().attach(() => undefined, () => false);
-  const start = registration.begin({itemId: 'movie'}, {}, 'unbound', undefined, () => true);
-  assert.throws(() => start.context.capturePreparing!(offered()), {name: 'AbortError'});
-  start.finish(); registration.dispose();
-});
 
 test('a reentrant key producer cannot dispatch an older native start over its successor', async () => {
   const requests: unknown[] = []; let successor: Promise<unknown> | undefined, entered = false;

@@ -6,7 +6,7 @@ async function fixture(noService = false) {
   const ui = hooks(), theme = {colors: {text: '#fff', textSecondary: '#ccc', textTertiary: '#aaa'}};
   const core = await screenModule(new URL('../../../packages/client-core/src/lyrics.ts', import.meta.url), {'../../contracts/src/route-paths.ts': {}, 
     react: {default: {}}, '../../contracts/src/routes.ts': {}, './server-messages.ts': {unreadableServerResponse: 'unreadable'},
-    './tolerant.ts': {}, './wire-units.ts': {},
+    './tolerant.ts': {}, './wire-units.ts': {}, './playback-v1/track-lists.ts': {},
   });
   const source = {id: 'source', version: 'v1', startSeconds: 0, duration: 100, sourceDuration: 100, local: false};
   const document = {format: 'lrc', text: '', embeddedOffsetMs: 0, lines: [{atMs: 0, text: 'one'}, {atMs: 10_000, text: 'two'}]};

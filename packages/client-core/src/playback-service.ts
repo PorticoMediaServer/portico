@@ -403,7 +403,7 @@ export class PlaybackService {
     const clean=tracks.filter(t=>Number.isInteger(t.streamIndex)&&t.streamIndex>=0&&t.streamIndex<=65535).slice(0,64);
     // The track this play asked for by name is the one in use; otherwise the caller's (the file's default).
     const choice=this.lastPlay?.itemId===this.snapshot.itemId?this.lastPlay?.choices?.audioTrackId:undefined;
-    const asked=this.lastPlay?.itemId===this.snapshot.itemId?(choice&&/^a\d{1,4}$/.test(choice)?Number(choice.slice(1)):this.lastPlay?.audioStream):undefined;
+    const asked=this.lastPlay?.itemId===this.snapshot.itemId?(choice&&/^\d{1,4}$/.test(choice)?Number(choice):this.lastPlay?.audioStream):undefined;
     if(asked!==undefined&&clean.some(t=>t.streamIndex===asked))selected=asked;
     this.update({audioTracks:clean.length>1?Object.freeze({tracks:Object.freeze(clean.map(t=>Object.freeze({...t}))),selected}):undefined});
   }
@@ -415,7 +415,7 @@ export class PlaybackService {
     // The live session is re-planned with that track (same session, same queue entry).
     if(this.queue?.changePlayback&&this.snapshot.session&&['starting','ready'].includes(this.snapshot.phase)){
       const intentId=this.snapshot.intentId;
-      return this.changePlayback({audioTrackId:'a'+streamIndex}).then(()=>{
+      return this.changePlayback({audioTrackId:String(streamIndex)}).then(()=>{
         const now=this.snapshot.audioTracks;
         if(this.snapshot.intentId===intentId&&now?.pending===streamIndex)this.update({audioTracks:Object.freeze({...now,selected:streamIndex,pending:undefined})});
       },error=>{

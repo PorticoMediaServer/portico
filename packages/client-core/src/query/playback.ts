@@ -1,18 +1,19 @@
-import {encodedRoutePath, routePath, routePattern} from '../../../contracts/src/routes.ts';
-import type {ItemResponse} from '../media-item.ts';
+import {encodedRoutePath, routePath} from '../../../contracts/src/routes.ts';
 import type {V1Http} from '../playback-v1/http.ts';
 import {call, enc} from '../playback-v1/http.ts';
 import {decodeOpen} from '../../../contracts/src/runtime.ts';
 import {SessionsClient} from '../playback-v1/sessions.ts';
+import {playbackPath} from '../playback-v1/routes.ts';
 import type {OriginalChannelStart} from '../playback-v1/channel-control.ts';
 import type {GetPlaybackSessionResponse} from '../../../contracts/src/types.ts';
 
 type PlaybackApi = {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
-export function readPlaybackCapabilities(api: PlaybackApi, signal?: AbortSignal): Promise<unknown> {
-  return api.request(routePath('get_capabilities'), 'GET', undefined, signal);
-}
-export function readPlaybackItem(api: PlaybackApi, id: string, signal?: AbortSignal): Promise<ItemResponse> {
-  return api.request(encodedRoutePath('get_items_id', {id: encodeURIComponent(id)}), 'GET', undefined, signal);
+/** The playback features the server offers beyond sessions and queues. The rebuilt server offers
+ * none yet: no hand-over to the system audio players (they still speak the old server's queue and
+ * progress messages) and no prepared gapless joins, so audio plays in the app's own player. */
+export function readPlaybackCapabilities(_api: PlaybackApi, signal?: AbortSignal): Promise<unknown> {
+  signal?.throwIfAborted();
+  return Promise.resolve({features: {}});
 }
 /** The admitted subtitle plan supplies the exact font/line document capability. */
 export function readPlaybackSubtitleFonts(api: PlaybackApi, path: string, signal?: AbortSignal): Promise<unknown> {
@@ -38,8 +39,9 @@ export async function stopOriginalPreparingChannel(http: V1Http, body: OriginalC
   if (!claimStop()) return;
   await new SessionsClient(http).stop(actual.id, undefined, signal);
 }
-/** Page teardown must keep using the captured API's keepalive path, without waiting. */
-export function farewellPlaybackSession(farewell: (path: string, method: string, body?: unknown) => void, id: string, generation: number, positionMs?: number): void {
-  farewell(routePattern('stop_playback_session').replace('{id}', encodeURIComponent(id)), 'DELETE', {generation,
-    ...(positionMs !== undefined ? {positionMs: Math.max(0, Math.round(positionMs))} : {})});
+/** Page teardown must keep using the captured API's keepalive path, without waiting. The stop
+ * carries the final position. */
+export function farewellPlaybackSession(farewell: (path: string, method: string, body?: unknown) => void, id: string, _generation: number, positionMs?: number): void {
+  farewell(playbackPath('DELETE /v1/playback/sessions/{id}', {id}), 'DELETE',
+    positionMs !== undefined ? {positionMs: Math.max(0, Math.round(positionMs))} : undefined);
 }

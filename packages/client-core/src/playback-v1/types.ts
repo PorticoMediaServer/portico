@@ -124,6 +124,16 @@ function videoSourceFacts(s: Obj): Partial<VideoStream> {
   };
 }
 
+/** The server says what happens to each kind of track (`decision.video`, `.audio`, `.subtitles`). */
+function planStreams(v: unknown): readonly PlanStream[] {
+  const d = obj(v) ? v : {};
+  return Object.freeze((['video', 'audio', 'subtitles'] as const).flatMap(kind => {
+    const s = d[kind];
+    if (!obj(s)) return [];
+    return [Object.freeze({id: kind, action: oneOf(s.action, streamActions, 'other' as never), to: typeof s.to === 'string' && s.to ? s.to : undefined, reasons: Object.freeze(arr(s.reasons).filter((r): r is string => typeof r === 'string'))})];
+  }));
+}
+
 export function parseOptions(v: unknown): PlaybackOptions {
   if (!obj(v)) throw new ContractError('playback options');
   const versions = arr(v.versions).map((x, i): MediaVersion => {
@@ -146,7 +156,7 @@ export function parseOptions(v: unknown): PlaybackOptions {
   });
   const plan = obj(v.plan) ? Object.freeze({
     versionId: id(v.plan.versionId, 'plan version'), mode: oneOf(v.plan.mode, ['direct', 'stream'] as const, 'stream'), engine: engineOf(v.plan.engine),
-    streams: Object.freeze(arr(v.plan.streams).filter(obj).map(s => Object.freeze({id: str(s.id), action: oneOf(s.action, streamActions, 'other' as never), to: typeof s.to === 'string' && s.to ? s.to : undefined, reasons: Object.freeze(arr(s.reasons).filter((r): r is string => typeof r === 'string'))}))),
+    streams: planStreams(v.plan.decision),
     estimatedBitrateKbps: optNum(v.plan.estimatedBitrateKbps), quality: parseQuality(v.plan.quality),
   }) : undefined;
   return Object.freeze({
@@ -201,7 +211,7 @@ export type SessionControl = Readonly<{revision: string; state: 'playing' | 'pau
 export type Session = Readonly<{
   /** Absent for channels (their desired state is in the channel view) and ended sessions. */
   control?: SessionControl;
-  id: string; revision: string; kind: SessionKind; role: 'local' | 'receiver' | 'group_member' | 'other';
+  id: string; kind: SessionKind; role: 'local' | 'receiver' | 'group_member' | 'other';
   state: 'playing' | 'paused' | 'ended' | 'other'; itemId?: string; versionId?: string;
   discTitle?: DiscTitleRef;
   queue?: Readonly<{queueId: string; entryId: string}>;
@@ -246,8 +256,8 @@ export function parseSession(v: unknown): Session {
     ...(control ? {control} : {}),
     ...(observed !== undefined ? {observedPlayback: observed} : {}),
     ...(playbackInfo !== undefined ? {playbackInfo} : {}),
-    id: id(v.id, 'session id'), revision: revision(v.revision), kind: oneOf(v.kind, ['vod', 'audio', 'live', 'channel'] as const, 'other' as never),
-    role: oneOf(v.role, ['local', 'receiver', 'group_member'] as const, 'other' as never), state: oneOf(v.state, ['playing', 'paused', 'ended'] as const, 'other' as never),
+    id: id(v.id, 'session id'), kind: oneOf(v.kind, ['vod', 'audio', 'live', 'channel'] as const, 'other' as never),
+    role: oneOf(v.role ?? 'local', ['local', 'receiver', 'group_member'] as const, 'other' as never), state: oneOf(v.state, ['playing', 'paused', 'ended'] as const, 'other' as never),
     itemId: optId(v.itemId, 'item id'), versionId: optId(v.versionId, 'version id'),
     ...(discTitle ? {discTitle} : {}),
     queue: obj(v.queue) ? Object.freeze({queueId: id(v.queue.queueId, 'queue id'), entryId: id(v.queue.entryId, 'entry id')}) : undefined,
@@ -300,6 +310,12 @@ export type Selector =
 export type QueueSegment = Readonly<{id: string; kind: 'items' | 'selector' | 'radio' | 'other'; sourceRevision?: string; label: string; count: number; state: 'building' | 'ready' | 'failed' | 'other'}>;
 export type QueueHeader = Readonly<{
   id: string; revision: string; total: number; remainingCount?: number; totalDurationMs?: number; durationKnown?: boolean; current?: Readonly<{entryId: string; position: number}>;
+  /** What is left after the current entry, in milliseconds. */
+  remainingMs?: number;
+  /** A device keeps one audio queue and one video queue. */
+  medium?: 'audio' | 'video';
+  /** The queue takes more by itself as it nears its end (a large view, a radio). */
+  refills?: boolean;
   repeat: 'off' | 'one' | 'all'; shuffle?: Readonly<{seed: string; lap: number}>; segments: readonly QueueSegment[];
   /** What plays after the current entry, through the viewer's fence (spec §18.5). */
   next?: Readonly<{entryId: string | null; available: boolean; reason: 'ready' | 'end' | 'unavailable'}>;
@@ -327,18 +343,25 @@ export function consecutiveOnAlbum(current: QueueEntry | undefined, next: QueueE
   return nextDisc === disc && next.track === current.track + 1 || nextDisc === disc + 1 && next.track === 1;
 }
 
+/** A queue as the server sends it. What the server does not send (segments, a shuffle seed) is
+ * filled with what an app needs from it: the next entry from `nextEntryId`, and the count of
+ * automatic advances that "Still watching?" goes by. */
 export function parseQueue(v: unknown): QueueHeader {
   if (!obj(v)) throw new ContractError('queue');
   const total = v.total;
   if (typeof total !== 'number' || !Number.isSafeInteger(total) || total < 0) throw new ContractError('queue total');
+  const next = typeof v.nextEntryId === 'string' && v.nextEntryId ? id(v.nextEntryId, 'next entry') : null;
   return Object.freeze({
-    id: id(v.id, 'queue id'), revision: revision(v.revision), total, remainingCount: optNum(v.remainingCount), totalDurationMs: optNum(v.totalDurationMs), durationKnown: bool(v.durationKnown),
+    id: id(v.id, 'queue id'), revision: revision(v.revision), total, remainingCount: optNum(v.remainingCount), remainingMs: optNum(v.remainingMs),
+    medium: v.medium === 'audio' ? 'audio' as const : 'video' as const,
     current: obj(v.current) ? Object.freeze({entryId: id(v.current.entryId, 'current entry'), position: num(v.current.position)}) : undefined,
     repeat: oneOf(v.repeat, ['off', 'one', 'all'] as const, 'off'),
-    shuffle: obj(v.shuffle) ? Object.freeze({seed: str(v.shuffle.seed), lap: num(v.shuffle.lap)}) : undefined,
-    segments: Object.freeze(arr(v.segments).filter(obj).map(s => Object.freeze({id: id(s.id, 'segment id'), kind: oneOf(s.kind, ['items', 'selector', 'radio'] as const, 'other' as never), ...(typeof s.sourceRevision === 'string' ? {sourceRevision: s.sourceRevision} : {}), label: str(s.label), count: num(s.count), state: oneOf(s.state, ['building', 'ready', 'failed'] as const, 'other' as never)}))),
-    next: obj(v.next) ? Object.freeze({entryId: typeof v.next.entryId === 'string' ? id(v.next.entryId, 'next entry') : null, available: v.next.available === true, reason: oneOf(v.next.reason, ['ready', 'end', 'unavailable'] as const, 'end')}) : undefined,
-    postPlay: obj(v.postPlay) ? Object.freeze({autoplay: v.postPlay.autoplay !== false, countdownSeconds: num(v.postPlay.countdownMs, 10000) / 1000, passoutCheckDue: v.postPlay.passoutCheckDue === true, automaticAdvances: num(v.postPlay.automaticAdvances), startDuringCredits: v.postPlay.startDuringCredits === true}) : undefined,
+    shuffle: v.shuffle === true ? Object.freeze({seed: '', lap: 0}) : undefined,
+    refills: v.refills === true,
+    segments: Object.freeze([]),
+    next: Object.freeze(next ? {entryId: next, available: true, reason: 'ready' as const} : {entryId: null, available: false, reason: 'end' as const}),
+    // The rest of what happens at the end is the player's, from the profile's settings.
+    postPlay: Object.freeze({autoplay: true, countdownSeconds: 10, passoutCheckDue: false, automaticAdvances: num(v.automaticAdvances), startDuringCredits: false}),
   });
 }
 
@@ -352,27 +375,37 @@ const entryFacts = new WeakMap<QueueEntry, QueueEntryFacts>();
 const unknownEntryFacts: QueueEntryFacts = Object.freeze({});
 export function queueEntryFacts(entry: QueueEntry): QueueEntryFacts {return entryFacts.get(entry) ?? unknownEntryFacts;}
 
+/** One queue entry. An episode's season and show and a song's album and artist come as its
+ * parent and root; they are named here the way the player screens read them. */
 export function parseEntry(v: unknown): QueueEntry {
   if (!obj(v)) throw new ContractError('queue entry');
   const available = v.available !== false;
-  // A placeholder carries no item: one that became unavailable, or (kind "pending") one still
-  // being snapshotted in a large queue that fills in shortly (P16).
-  const entry: QueueEntry = Object.freeze({entryId: id(v.entryId, 'entry id'), position: num(v.position), itemId: available ? id(v.itemId, 'item id') : typeof v.itemId === 'string' ? v.itemId : '', kind: str(v.kind, 'other'), title: str(v.title), durationMs: optNum(v.durationMs), available,
-    ...(v.available === true && typeof v.libraryId === 'string' && v.libraryId ? {libraryId: id(v.libraryId, 'library id')} : {}),
-    ...(typeof v.segmentId === 'string' ? {segmentId: id(v.segmentId, 'segment id')} : {}),
-    ...(typeof v.album === 'string' ? {album: v.album} : {}), ...(typeof v.artist === 'string' ? {artist: v.artist} : {}),
-    ...(typeof v.artistId === 'string' && v.artistId ? {artistId: id(v.artistId, 'artist id')} : {}),
-    ...(typeof v.showId === 'string' && v.showId ? {showId: id(v.showId, 'show id')} : {}),
-    ...(typeof v.seasonId === 'string' && v.seasonId ? {seasonId: id(v.seasonId, 'season id')} : {}),
-    ...(obj(v.episode) ? {episode: Object.freeze({seasonNumber: num(v.episode.seasonNumber), number: num(v.episode.number)})} : {}),
-    ...(artworkPath(v.backdropUrl) ? {backdropUrl: v.backdropUrl as string} : {}),
-    ...(artworkPath(v.posterUrl) ? {posterUrl: v.posterUrl as string} : {}), ...(artworkPath(v.stillUrl) ? {stillUrl: v.stillUrl as string} : {}),
-    ...(typeof v.albumId === 'string' && v.albumId ? {albumId: v.albumId} : {}), ...(optNum(v.disc) ? {disc: v.disc as number} : {}), ...(optNum(v.track) ? {track: v.track as number} : {})});
+  const kind = str(v.kind, 'other'), index = optNum(v.index), parentIndex = optNum(v.parentIndex);
+  const parentId = typeof v.parentId === 'string' && v.parentId ? id(v.parentId, 'parent id') : undefined;
+  const rootId = typeof v.rootId === 'string' && v.rootId ? id(v.rootId, 'root id') : undefined;
+  const parentTitle = typeof v.parentTitle === 'string' && v.parentTitle ? v.parentTitle : undefined;
+  const rootTitle = typeof v.rootTitle === 'string' && v.rootTitle ? v.rootTitle : undefined;
+  const images = obj(v.images) ? v.images : {};
+  const episode = kind === 'episode', song = kind === 'track';
+  const entry: QueueEntry = Object.freeze({entryId: id(v.entryId, 'entry id'), position: num(v.position), itemId: available ? id(v.itemId, 'item id') : typeof v.itemId === 'string' ? v.itemId : '', kind, title: str(v.title), durationMs: optNum(v.durationMs), available,
+    ...(episode && rootId ? {showId: rootId} : {}), ...(episode && parentId ? {seasonId: parentId} : {}),
+    ...(episode && index !== undefined ? {episode: Object.freeze({seasonNumber: parentIndex ?? 0, number: index})} : {}),
+    ...(song && parentId ? {albumId: parentId} : {}), ...(song && parentTitle ? {album: parentTitle} : {}),
+    ...(song && rootId ? {artistId: rootId} : {}), ...(song && rootTitle ? {artist: rootTitle} : {}),
+    ...(song && index !== undefined ? {track: index} : {}), ...(song && parentIndex ? {disc: parentIndex} : {}),
+    ...(artworkPath(images.backdrop) ? {backdropUrl: images.backdrop as string} : {}),
+    ...(artworkPath(images.poster) ? {posterUrl: images.poster as string} : {}), ...(artworkPath(images.thumb) ? {stillUrl: images.thumb as string} : {})});
   entryFacts.set(entry, Object.freeze({
     ...(typeof v.position === 'number' && Number.isSafeInteger(v.position) && v.position >= 0 ? {position: v.position} : {}),
     ...(typeof v.available === 'boolean' ? {available: v.available} : {}),
   }));
   return entry;
+}
+
+/** A run of a queue's entries: `start` is the position of the first. */
+export function parseQueueEntries(v: unknown): Readonly<{items: readonly QueueEntry[]; start: number; total: number; revision: string}> {
+  if (!obj(v) || !Array.isArray(v.items)) throw new ContractError('queue entries');
+  return Object.freeze({items: Object.freeze(v.items.map(parseEntry)), start: num(v.start), total: num(v.total), revision: revision(v.revision)});
 }
 
 /** The style guide's collection envelope (§4.5). */
