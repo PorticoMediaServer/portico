@@ -113,6 +113,9 @@ func run(log *slog.Logger) (err error) {
 	// Every sign-in a restore brought back is ended before anything is served.
 	d, err := backup.OpenData(ctx, *data, log, time.Now)
 	if err != nil {
+		if errors.Is(err, db.ErrOldTestFolder) {
+			return oldTestFolder(ctx, *listen, log)
+		}
 		return err
 	}
 	defer d.Close()
