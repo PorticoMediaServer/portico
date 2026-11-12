@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {routePath} from '../../contracts/src/routes.ts';
 import {ActivitySummaryService,DashboardSessionsService} from '../src/admin/activity-summary/service.ts';
+import {serverEventsFrom} from '../src/server-events.ts';
 import type {ActivitySummaryScope, ActivitySummarySnapshot, ActivitySummarySource, ActivitySummaryTimers} from '../src/admin/activity-summary/types.ts';
 import type {ServerEvent} from '../src/playback-v1/types.ts';
 import type {V1Http, V1Request, V1Response} from '../src/playback-v1/http.ts';
@@ -170,6 +171,13 @@ test('real administrative hint types coalesce at most once per second and resync
   for (const fn of h.feed.resync) fn(); await h.clock.advance(999); assert.equal(h.requests.length, 2);
   await h.clock.advance(1); assert.equal(h.requests.length, 3);
   h.feed.emit('personal.changed'); await h.clock.advance(20_000); assert.equal(h.requests.length, 3); assert.equal(h.clock.tasks.size, 0); h.service.dispose();
+});
+test('an activity change from the server reaches Activity as its sessions hint and makes it read again', async () => {
+  const h = harness(); h.activate(); await h.service.load();
+  const events = serverEventsFrom({id: '9', event: 'change', data: JSON.stringify({topic: 'activity', op: 'updated'})});
+  assert.deepEqual(events.map(event => event.type), ['admin.sessions']);
+  for (const event of events) h.feed.emit(event.type);
+  await h.clock.advance(1000); assert.equal(h.requests.length, 2); h.service.dispose();
 });
 test('hints during a slow read produce one trailing current-source read, with no burst or polling', async () => {
   const pending = deferred<V1Response>(), h = harness((_r, n) => n === 1 ? pending.promise : ok()); h.activate(); const read = h.service.load(); await flush();
