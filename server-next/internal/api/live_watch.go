@@ -119,14 +119,26 @@ func (s *Server) watchSourceChannel(r *http.Request, ch db.LiveChannel, asked st
 			return PlaybackSession{}, err
 		}
 	}
-	account, _ := s.viewings.Count(c.Viewer.UserID, c.SignInID)
-	for _, other := range s.playback.AccountSessions(c.Viewer.UserID) {
-		if c.SignInID == 0 || other.SignInID != c.SignInID {
+	limits, err := s.playback.Limits(ctx)
+	if err != nil {
+		return PlaybackSession{}, err
+	}
+	// Every stream counts but what this device plays now, which this start replaces.
+	account, total := s.viewings.Others(c.Viewer.UserID, c.SignInID)
+	for _, other := range s.playback.All() {
+		if c.SignInID != 0 && other.SignInID == c.SignInID {
+			continue
+		}
+		total++
+		if other.UserID == c.Viewer.UserID {
 			account++
 		}
 	}
 	if limit > 0 && account >= limit {
 		return PlaybackSession{}, playbackError(&playback.LimitReached{Scope: "account", Limit: limit})
+	}
+	if limits.Total > 0 && total >= limits.Total {
+		return PlaybackSession{}, playbackError(&playback.LimitReached{Scope: "server", Limit: limits.Total})
 	}
 	locator, sourceID, tuners, err := s.db.ChannelLocator(ctx, ch.ID)
 	if err != nil {
@@ -148,7 +160,7 @@ func (s *Server) watchSourceChannel(r *http.Request, ch db.LiveChannel, asked st
 	if locator, err = live.StreamAddress(src.Kind, cfg, signIn, locator); err != nil {
 		return PlaybackSession{}, ErrConflict("source_sign_in", "This channel's source needs its sign-in again.")
 	}
-	use := &live.Use{UserID: c.Viewer.UserID, Name: device.Name}
+	use := &live.Use{UserID: c.Viewer.UserID, Name: device.Name, Away: liveNetwork(asked, c.AtHome) != playback.NetworkLocal}
 	// What this device watches live gives its tuner back first, so it can change channel.
 	s.viewings.StopDevice(c.Viewer.UserID, c.SignInID)
 	in, err := s.tuners.Tune(ch.ID, sourceID, tuners, locator, use)
@@ -252,6 +264,11 @@ func (s *Server) liveSession(r *http.Request, paused *bool) (PlaybackSession, er
 		v, ok = s.viewings.Report(v.ID, userID, *paused)
 	}
 	if !ok {
+		if message, stopped := s.viewings.StoppedFor(r.PathValue("id"), userID); stopped {
+			// Stopped by the owner or an administrator: the viewer is told so (area 7 rule 42).
+			return PlaybackSession{ID: r.PathValue("id"), Kind: "live", State: playback.StateEnded,
+				End: &SessionEnd{Reason: playback.EndTerminated, Message: message}}, nil
+		}
 		return PlaybackSession{}, ErrNotFound()
 	}
 	return s.liveSessionOut(v), nil

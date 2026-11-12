@@ -21,6 +21,8 @@ type Use struct {
 	UserID int64
 	// Name is what the account's own people see it as: the device or the programme.
 	Name string
+	// Away is a viewer outside the home networks, for the owner's Now playing.
+	Away bool
 }
 
 // NoTuner says every tuner of the source is busy, and with what.

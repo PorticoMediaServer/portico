@@ -690,7 +690,7 @@ follows its libraries).
 | Route | Who | Purpose |
 |---|---|---|
 | `GET /v1/admin/dashboard` | Owner | Alerts (each one line with one action, present while its cause lasts), totals, tasks running |
-| `GET /v1/admin/sessions`, `DELETE /v1/admin/sessions/{id}` | Owner and administrators | Now playing, a problem first; stop one with a message of up to 500 characters |
+| `GET /v1/admin/sessions`, `DELETE /v1/admin/sessions/{id}` | Owner and administrators | Now playing, a problem first; stop one with a message of up to 500 characters. A live channel watched is a stream here too (`kind` `live`, the channel's name where the asker may watch it), in the Dashboard's count and against the stream limits; stopped, its viewer reads the session ended with the message |
 | `GET /v1/admin/load` | Owner | Bandwidth, processor, memory and conversions, `range=live` or `24h`. Kept in memory; starts again after a restart |
 | `GET /v1/admin/statistics` | Owner | The server's whole history in daily totals: plays, watch time, bandwidth at home and away, conversions, by `metric` and a range of days |
 | `GET /v1/admin/play-history`, `GET /v1/admin/play-history/summary` | Owner and administrators | Every play, newest first, filtered by person, library, kind, text and period; top people, busiest times and top played over a chosen range. The list is in time order only. A filter by kind or text, and the summary, read the plays of the range: an accepted cost on this page, so the summary answers from at most the newest million plays of its range and says when it stopped there |

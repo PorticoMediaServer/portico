@@ -57,6 +57,8 @@ func (s *Server) startLiveTV(ctx context.Context) error {
 		}
 	}
 	s.goBackground(func() { s.tuners.Run(ctx) })
+	// A live channel watched counts against the stream limits like a title (area 11 rule 22).
+	s.playback.OtherStreams = s.viewings.Others
 	s.goBackground(func() { s.viewings.Run(ctx) })
 	s.liveStreamRoute()
 	home, err := os.UserHomeDir()

@@ -179,6 +179,11 @@ type startRecord struct {
 
 // Service holds every running session.
 type Service struct {
+	// OtherStreams counts the streams held outside these sessions (live channels watched),
+	// other than one sign-in's own: the account's and the server's. They count against the
+	// stream limits as titles do. Set once before serving; nil is none.
+	OtherStreams func(userID, signInID int64) (account, total int)
+
 	db      *db.DB
 	planner Planner
 	streams Streams
