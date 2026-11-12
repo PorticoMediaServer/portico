@@ -98,14 +98,14 @@ export async function reviewLocalTVAuthorization(api: ViewerRequester, code: str
 export function decideLocalTVAuthorization(api: ViewerRequester, code: string, decision: 'approve' | 'deny', signal?: AbortSignal): Promise<void> {
   return callServer(api, 'POST /v1/auth/codes/{id}/approve', {id: normalizeSetupCode(code), body: {deny: decision === 'deny'}, signal}).then(() => {});
 }
-/** The original local approval opening exposes only its two core-built POSTs. */
+/** The original local approval opening exposes only a code review and its decision. */
 export function createLocalDeviceApprovalTransport(request: HttpLocalApi['request'], opening: {
   signal: AbortSignal; check(): void; retired(): Error;
 }): Pick<HttpLocalApi, 'request'> {
-  const paths = new Set<string>([routePath('post_quick_connect_review'), routePath('post_quick_connect_decision')]);
+  const codePath = /^\/v1\/auth\/codes\/[A-Z2-9]{4}-[A-Z2-9]{4}$/;
   return Object.freeze({request: async <T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> => {
     opening.check();
-    if (method !== 'POST' || !paths.has(path)) throw opening.retired();
+    if (!(method === 'GET' && codePath.test(path) || method === 'POST' && path.endsWith('/approve') && codePath.test(path.slice(0, -8)))) throw opening.retired();
     const stop = signal ? AbortSignal.any([opening.signal, signal]) : opening.signal;
     throwIfAborted(stop);
     const value = await request<T>(path, method, body, stop);
