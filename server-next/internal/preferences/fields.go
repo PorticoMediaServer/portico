@@ -200,7 +200,15 @@ var fields = []Setting{
 	// Two pages side by side when the screen is wide enough: a tablet on its side, a foldable
 	// opened like a book.
 	flag("reading.twoPages", true, ScopeDevice),
+	// Tapping the edge of the page turns it; the reader's own word breaks; the colour a new
+	// highlight starts in; how a PDF's pages fit the screen.
+	flag("reading.tapToTurn", true, ScopeDevice),
+	flag("reading.hyphenation", true, ScopeDevice),
+	oneOf("reading.highlightColour", "yellow", []string{"yellow", "green", "blue", "pink"}, ScopeDevice),
+	oneOf("reading.pdfView", "automatic", []string{"automatic", "spread", "width", "page"}, ScopeDevice),
 	oneOf("comics.fit", "auto", []string{"auto", "width", "height"}, ScopeDevice),
 	// "file" follows the comic: one that says it reads right to left opens that way.
 	oneOf("comics.direction", "file", []string{"file", "ltr", "rtl", "vertical"}, ScopeDevice),
+	// Two pages side by side keep a comic's cover on its own, as a printed comic opens.
+	flag("comics.firstPageAlone", true, ScopeDevice),
 }
