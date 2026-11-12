@@ -26,6 +26,10 @@ type LiveAiring struct {
 	Channel  string    `json:"channel"`
 	StartsAt time.Time `json:"startsAt"`
 	EndsAt   time.Time `json:"endsAt"`
+	// EpisodeTitle, Season and Episode say which episode airs then, where the guide says.
+	EpisodeTitle string `json:"episodeTitle,omitempty"`
+	Season       *int   `json:"season,omitempty"`
+	Episode      *int   `json:"episode,omitempty"`
 }
 
 // LiveReminderOut is a reminder as the apps show it, two minutes before its programme starts.
@@ -102,7 +106,7 @@ func (s *Server) getProgramme(r *http.Request, _ None) (LiveProgrammeDetail, err
 					continue
 				}
 				out.Airings = append(out.Airings, LiveAiring{ID: programmeRef(c.PublicID, a.StartsAt), Channel: c.Name, StartsAt: a.StartsAt.UTC(),
-					EndsAt: a.EndsAt.UTC()})
+					EndsAt: a.EndsAt.UTC(), EpisodeTitle: a.EpisodeTitle, Season: a.Season, Episode: a.Episode})
 			}
 			if len(out.Airings) >= 50 {
 				break

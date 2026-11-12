@@ -325,6 +325,11 @@ func (s *Service) start(ctx context.Context, r db.Recording, end time.Time) {
 			state, why = db.RecordingPartial, "The source stopped"
 		}
 		file.Sync()
+		if info, err := file.Stat(); err == nil && info.Size() == 0 {
+			// Nothing came: there is nothing to play, so it fails and leaves no title behind.
+			s.discardEmpty(context.WithoutCancel(ctx), r, why)
+			return
+		}
 		title()
 		s.db.RecordingFinished(context.WithoutCancel(ctx), r.ID, state, why, s.now())
 	}()
@@ -543,6 +548,23 @@ func NFO(r db.Recording) string {
 // then single bookings before series rules, the higher priority, the earlier start and the
 // booking made first. Start early and finish late give way before any programme's own time.
 func (s *Service) Clashes(ctx context.Context, upcoming []db.Recording) (map[int64]bool, error) {
+	clashes, err := s.ClashDetails(ctx, upcoming)
+	losers := make(map[int64]bool, len(clashes))
+	for id := range clashes {
+		losers[id] = true
+	}
+	return losers, err
+}
+
+// Clash is why a recording loses a tuner: how many tuners its source has, and the recordings
+// that hold them during its time.
+type Clash struct {
+	Tuners int
+	Using  []db.Recording
+}
+
+// ClashDetails is Clashes with, for each recording that loses, what it loses to.
+func (s *Service) ClashDetails(ctx context.Context, upcoming []db.Recording) (map[int64]Clash, error) {
 	type airing struct {
 		r      db.Recording
 		source int64
@@ -559,7 +581,7 @@ func (s *Service) Clashes(ctx context.Context, upcoming []db.Recording) (map[int
 		}
 		bySource[source] = append(bySource[source], airing{r, source, tuners})
 	}
-	losers := map[int64]bool{}
+	losers := map[int64]Clash{}
 	for _, list := range bySource {
 		sort.SliceStable(list, func(i, j int) bool {
 			a, b := list[i].r, list[j].r
@@ -578,7 +600,13 @@ func (s *Service) Clashes(ctx context.Context, upcoming []db.Recording) (map[int
 		var winners []db.Recording
 		for _, a := range list {
 			if inUse(winners, a.r) >= max(a.tuners, 1) {
-				losers[a.r.ID] = true
+				var using []db.Recording
+				for _, w := range winners {
+					if w.StartsAt.Before(a.r.EndsAt) && a.r.StartsAt.Before(w.EndsAt) && w.ChannelID != a.r.ChannelID {
+						using = append(using, w)
+					}
+				}
+				losers[a.r.ID] = Clash{Tuners: max(a.tuners, 1), Using: using}
 				continue
 			}
 			winners = append(winners, a.r)
@@ -632,16 +660,23 @@ func (s *Service) FollowRules(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) followRule(ctx context.Context, rule db.RecordingRule, now time.Time) error {
+// RuleAiring is one airing a series rule would record, on the channel it would be recorded
+// from, and whether that airing is booked already.
+type RuleAiring struct {
+	Programme db.GuideProgramme
+	Channel   db.LiveChannel
+	Booked    bool
+}
+
+// RuleAirings lists what a rule records over the next 14 days: its airings in the guide, new
+// ones only if it asks, leaving out episodes it already has, each on the first of the rule's
+// channels that carries it. A saved rule books these; a rule being made or edited previews them.
+func (s *Service) RuleAirings(ctx context.Context, rule db.RecordingRule, now time.Time) ([]RuleAiring, error) {
 	airings, err := s.db.GuideAirings(ctx, rule.SeriesKey, rule.Title, now, now.AddDate(0, 0, 14), 2000)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	profile, err := s.db.ProfileNames(ctx, rule.ProfileID)
-	if err != nil {
-		return err
-	}
-	opts := s.options()
+	var out []RuleAiring
 	for _, p := range airings {
 		if rule.NewOnly && p.Flags&live.FlagNew == 0 {
 			continue
@@ -653,30 +688,48 @@ func (s *Service) followRule(ctx context.Context, rule db.RecordingRule, now tim
 		}
 		channels, err := s.db.ChannelsForListings(ctx, p.SourceID, p.GuideKey)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		for _, c := range channels {
 			if c.SourceID != rule.SourceID || rule.ChannelID != 0 && c.ID != rule.ChannelID {
 				continue
 			}
-			if had, err := s.db.AiringRecording(ctx, c.ID, p.ProgrammeKey); err == nil && had.State != db.RecordingCancelled {
-				break // booked already: nothing to write
-			}
-			b := db.Booking{ProfileID: rule.ProfileID, ProfileName: profile.Name, ProfilePub: profile.PublicID, RuleID: rule.ID, ChannelID: c.ID,
-				ChannelName: c.Name, ProgrammeKey: p.ProgrammeKey, SeriesKey: p.SeriesKey, Title: p.Title, EpisodeTitle: p.EpisodeTitle,
-				Season: p.Season, Episode: p.Episode, Details: p.Summary, Rating: p.Rating, RatingAge: p.RatingAge, StartsAt: p.StartsAt,
-				EndsAt: p.EndsAt, PadBefore: opts.PadBefore,
-				PadAfter: opts.PadAfter, Priority: rule.Priority, Now: now}
-			if rule.PadBefore != nil {
-				b.PadBefore = *rule.PadBefore
-			}
-			if rule.PadAfter != nil {
-				b.PadAfter = *rule.PadAfter
-			}
-			if _, _, err := s.db.BookAiring(ctx, b); err != nil {
-				return err
-			}
+			had, err := s.db.AiringRecording(ctx, c.ID, p.ProgrammeKey)
+			out = append(out, RuleAiring{Programme: p, Channel: c, Booked: err == nil && had.State != db.RecordingCancelled})
 			break // one airing of a programme is recorded once
+		}
+	}
+	return out, nil
+}
+
+func (s *Service) followRule(ctx context.Context, rule db.RecordingRule, now time.Time) error {
+	airings, err := s.RuleAirings(ctx, rule, now)
+	if err != nil {
+		return err
+	}
+	profile, err := s.db.ProfileNames(ctx, rule.ProfileID)
+	if err != nil {
+		return err
+	}
+	opts := s.options()
+	for _, a := range airings {
+		if a.Booked {
+			continue // booked already: nothing to write
+		}
+		p, c := a.Programme, a.Channel
+		b := db.Booking{ProfileID: rule.ProfileID, ProfileName: profile.Name, ProfilePub: profile.PublicID, RuleID: rule.ID, ChannelID: c.ID,
+			ChannelName: c.Name, ProgrammeKey: p.ProgrammeKey, SeriesKey: p.SeriesKey, Title: p.Title, EpisodeTitle: p.EpisodeTitle,
+			Season: p.Season, Episode: p.Episode, Details: p.Summary, Rating: p.Rating, RatingAge: p.RatingAge, StartsAt: p.StartsAt,
+			EndsAt: p.EndsAt, PadBefore: opts.PadBefore,
+			PadAfter: opts.PadAfter, Priority: rule.Priority, Now: now}
+		if rule.PadBefore != nil {
+			b.PadBefore = *rule.PadBefore
+		}
+		if rule.PadAfter != nil {
+			b.PadAfter = *rule.PadAfter
+		}
+		if _, _, err := s.db.BookAiring(ctx, b); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -734,15 +787,54 @@ func (s *Service) Delete(ctx context.Context, r db.Recording) error {
 	if r.ItemID != 0 && s.Deleted != nil {
 		s.Deleted(ctx, r.ItemID)
 	}
-	dir, name := Layout(r)
-	folder := filepath.Join(s.options().Folder, filepath.FromSlash(dir))
-	os.Remove(filepath.Join(folder, name))
-	os.Remove(filepath.Join(folder, strings.TrimSuffix(name, filepath.Ext(name))+".nfo"))
+	s.removeFiles(r)
 	if err := s.db.DeleteRecording(ctx, r.ID); err != nil {
 		return err
 	}
 	go s.Rescan(context.WithoutCancel(ctx))
 	return nil
+}
+
+// discardEmpty ends a recording that captured nothing as failed, removes its empty file and
+// the guide's details beside it, and unlinks and drops the title a scan may already have made.
+func (s *Service) discardEmpty(ctx context.Context, r db.Recording, why string) {
+	if why == "" {
+		why = "Nothing came from the source"
+	}
+	s.removeFiles(r)
+	if current, err := s.db.Recording(ctx, r.PublicID); err == nil && current.ItemID != 0 {
+		if s.Deleted != nil {
+			s.Deleted(ctx, current.ItemID)
+		}
+		s.db.RecordingTitle(ctx, r.ID, 0)
+	}
+	s.db.RecordingFinished(ctx, r.ID, db.RecordingFailed, why, s.now())
+	go s.Rescan(ctx)
+}
+
+// files are a recording's file and the guide's details beside it, where Delete removes them.
+func (s *Service) files(r db.Recording) []string {
+	dir, name := Layout(r)
+	folder := filepath.Join(s.options().Folder, filepath.FromSlash(dir))
+	return []string{filepath.Join(folder, name), filepath.Join(folder, strings.TrimSuffix(name, filepath.Ext(name))+".nfo")}
+}
+
+func (s *Service) removeFiles(r db.Recording) {
+	for _, path := range s.files(r) {
+		os.Remove(path)
+	}
+}
+
+// Bytes is how much deleting a recording frees: its file and the guide's details beside it,
+// as they are on disk now, so a recording still being made reads what it holds so far.
+func (s *Service) Bytes(r db.Recording) int64 {
+	var n int64
+	for _, path := range s.files(r) {
+		if info, err := os.Stat(path); err == nil {
+			n += info.Size()
+		}
+	}
+	return n
 }
 
 // Keep deletes what a keep choice no longer keeps: a series rule's own (its newest few, or its
