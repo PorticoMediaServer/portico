@@ -137,8 +137,14 @@ func readEPUB(a *archive) (*epub, error) {
 // decode parses an XML document as leniently as books need: HTML entities such as &nbsp; are
 // known, and a declared character set other than UTF-8 is read as UTF-8. No document type,
 // entity definition or outside reference is ever followed.
+//
+// The container, the package document and ComicInfo are XML, not HTML: an element such as <meta>
+// is closed by its own end tag, as EPUB 3 requires of <meta property="dcterms:modified">, so the
+// HTML rule that closes <meta> at once is not applied to them.
 func decode(raw []byte, into any) error {
-	return newDecoder(raw).Decode(into)
+	d := newDecoder(raw)
+	d.AutoClose = nil
+	return d.Decode(into)
 }
 
 func newDecoder(raw []byte) *xml.Decoder {
