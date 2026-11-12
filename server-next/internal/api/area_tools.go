@@ -23,9 +23,8 @@ type toolsArea struct {
 	// compat and compatKey serve the Jellyfin-compatible routes. See compat.go.
 	compat    compatState
 	compatKey []byte
-	// remoteAccessDoc is the remote-access settings, and dlna the DLNA server they switch. See dlna.go.
-	remoteAccessDoc remoteAccessState
-	dlna            *dlna.Server
+	// dlna is the DLNA server the remote access settings switch. See dlna.go.
+	dlna *dlna.Server
 	// toolNotices bounds the notices each key sends. See tool_notices.go.
 	toolNotices toolNotices
 }
@@ -43,9 +42,6 @@ func (s *Server) startTools(ctx context.Context) error {
 	s.compatKey = []byte(compatKey)
 	s.integrationRoutes()
 	s.mcpRoutes()
-	if err := s.loadRemoteAccess(ctx); err != nil {
-		return err
-	}
 	s.dlnaRoutes()
 	box, err := secrets.Open(s.dataDir)
 	if err != nil {

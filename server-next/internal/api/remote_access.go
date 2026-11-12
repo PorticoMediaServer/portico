@@ -82,6 +82,19 @@ type RemoteAccessSettings struct {
 	// server knows no home networks, when everyone counts as outside, the household included.
 	// Off, Enhanced waits for home networks and works as Standard; the default never turns it on.
 	EnhancedWithoutHome bool `json:"enhancedWithoutHome"`
+	// DLNA shares every original file with any device on your home networks, with no sign-in.
+	// (The home networks are those listed in the network settings. It ignores profiles,
+	// library access, rating limits, viewing hours and stream limits, never converts, and
+	// records nothing. Off by default.)
+	DLNA bool `json:"dlna"`
+	// DLNANames are further names DLNA answers to, besides addresses and the server's own and
+	// home-network names: for a container whose host name is not the machine's, or the owner's
+	// own domain on a proxy. Up to 20.
+	DLNANames []string `json:"dlnaNames"`
+	// Warning is set while DLNA is on and the home networks take in the whole internet, or a
+	// trusted proxy passes DLNA requests on with no visitor's address: the app shows it when the
+	// switch is turned on and for as long as it is true. Nothing is refused, and it is not saved.
+	Warning string `json:"warning,omitempty"`
 	// CertificateWarningDays is how many days before the own certificate expires the owner
 	// is warned: 7, 14, 30 or 60.
 	CertificateWarningDays int `json:"certificateWarningDays"`
@@ -110,7 +123,7 @@ const (
 
 func defaultRemoteAccess() RemoteAccessSettings {
 	return RemoteAccessSettings{RemoteAccess: "on", RemoteSecurity: "enhanced", SecureConnections: "preferred",
-		SignInFromOutside: "anyone", PortMapping: "automatic", PublicPort: defaultPublicPort, AllowedAddresses: []string{}, FindAtHome: true,
+		SignInFromOutside: "anyone", PortMapping: "automatic", PublicPort: defaultPublicPort, AllowedAddresses: []string{}, FindAtHome: true, DLNANames: []string{},
 		CertificateWarningDays: 14}
 }
 
@@ -576,6 +589,7 @@ func (s *Server) remoteAccessRoutes() {
 		_, saved, err := s.db.SettingDocument(r.Context(), remoteAccessKey)
 		v, _ := s.access.current()
 		v.revision = revision(saved)
+		v.Warning = s.dlnaWarning(v.DLNA)
 		return v, err
 	})
 	Handle(s, "PUT /v1/admin/settings/remote-access", Owner, s.saveRemoteAccess)
@@ -714,6 +728,12 @@ func (s *Server) applyRemoteAccess(r *http.Request, req RemoteAccessSave, match 
 	if err := cleanRemoteAccess(&v); err != nil {
 		return RemoteAccessSettings{}, err
 	}
+	// The DLNA switch and names are part of this document. See dlna.go.
+	v.Warning = ""
+	inForce, _ := s.access.current()
+	if err := s.checkDLNA(r, &v, inForce); err != nil {
+		return RemoteAccessSettings{}, err
+	}
 	if req.AllowThisAddress {
 		if address := s.requestAddress(r, true); !slices.Contains(approved(v, ""), address) {
 			v.AllowedAddresses = append(v.AllowedAddresses, address)
@@ -751,6 +771,7 @@ func (s *Server) applyRemoteAccess(r *http.Request, req RemoteAccessSave, match 
 	s.access.set(v, true)
 	s.applyCertificate(v)
 	v.revision = revision(saved)
+	v.Warning = s.dlnaWarning(v.DLNA)
 	return v, nil
 }
 
