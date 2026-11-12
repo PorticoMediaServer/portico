@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/atomicfile"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -111,7 +112,10 @@ func (s *Service) DownloadSubtitle(ctx context.Context, v db.Viewer, itemPublicI
 		return db.Subtitle{}, err
 	}
 	// Asked for again, the one already kept is the answer: a download counts against the
-	// account's daily allowance.
+	// account's daily allowance. Two asks at once for the same subtitle of the same version
+	// (a double press, a retried request) take turns, so the second finds the first's.
+	unlock := s.downloading.lock(fmt.Sprintf("%d\x00%s\x00%s", target.MediaID, provider.Name(), chosen.Ref))
+	defer unlock()
 	if kept, ok, err := s.DB.KeptSubtitle(ctx, target.MediaID, provider.Name(), chosen.Ref); err != nil || ok {
 		return kept, err
 	}
@@ -157,4 +161,40 @@ func (s *Service) RemoveSubtitle(ctx context.Context, publicID string) error {
 		return err
 	}
 	return nil
+}
+
+// keyedLocks are locks by name, made when first needed and dropped when nobody holds or waits
+// for them.
+type keyedLocks struct {
+	mu   sync.Mutex
+	held map[string]*keyedLock
+}
+
+type keyedLock struct {
+	sync.Mutex
+	users int
+}
+
+// lock takes the lock of a name and returns what releases it.
+func (k *keyedLocks) lock(name string) (unlock func()) {
+	k.mu.Lock()
+	if k.held == nil {
+		k.held = map[string]*keyedLock{}
+	}
+	l := k.held[name]
+	if l == nil {
+		l = &keyedLock{}
+		k.held[name] = l
+	}
+	l.users++
+	k.mu.Unlock()
+	l.Lock()
+	return func() {
+		l.Unlock()
+		k.mu.Lock()
+		if l.users--; l.users == 0 {
+			delete(k.held, name)
+		}
+		k.mu.Unlock()
+	}
 }

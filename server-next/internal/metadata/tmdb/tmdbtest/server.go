@@ -42,6 +42,8 @@ type Server struct {
 	PicturesHang    atomic.Bool
 	// Token is the read access token the last request to the API was signed with.
 	Token atomic.Pointer[string]
+	// RefusesKeys makes it refuse every token, as TMDB refuses a key it does not know.
+	RefusesKeys atomic.Bool
 }
 
 // New starts a stand-in that stops when the test ends.
@@ -100,7 +102,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	case s.Down.Load():
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
-	case !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer "):
+	case s.RefusesKeys.Load() || !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer "):
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(`{"success":false,"status_code":7,"status_message":"Invalid API key: You must be granted a valid key."}`))
 		return

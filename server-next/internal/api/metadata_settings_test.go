@@ -290,3 +290,73 @@ func TestOpenSubtitlesAccount(t *testing.T) {
 		t.Fatal("the log holds the OpenSubtitles key or password")
 	}
 }
+
+// When a provider refuses the owner's key, what the owner and the log are told never carries
+// the key: not a job's error, not an answer's error, not the log. TMDB refusing the owner's key
+// during the lookup after a scan, and OpenSubtitles refusing its key on a search and on Test
+// connection.
+func TestARefusedKeyIsNeverInAnErrorOrTheLog(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "main.db")
+	var log lockedBuffer
+	s := openLoggedServer(t, path, &log)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	tmdbStand, subtitles := tmdbtest.New(t), opensubtitlestest.New(t)
+	tmdbStand.RefusesKeys.Store(true)
+	s.UseTMDBHost(tmdbStand.URL)
+	s.UseSubtitleHost(subtitles.URL)
+	const tmdbKey, subtitleKey, password = "eyJhbGciOiJIUzI1NiJ9.the-owner's-refused-token", "refused-os-key-for-the-test", "right"
+	key, osKey, user, pass := tmdbKey, subtitleKey, "owner", password
+	if w := call(t, s, "PUT", "/v1/admin/metadata/settings", owner, MetadataSettingsChange{TMDBReadToken: &key,
+		OpenSubtitlesAPIKey: &osKey, OpenSubtitlesUsername: &user, OpenSubtitlesPassword: &pass}, nil); w.Code != 200 {
+		t.Fatalf("saving the keys: %d %s", w.Code, w.Body)
+	}
+	secrets := []string{tmdbKey, subtitleKey, password, tmdb.ProjectToken}
+	holds := func(where string, raw []byte) {
+		t.Helper()
+		for _, secret := range secrets {
+			if bytes.Contains(raw, []byte(secret)) {
+				t.Fatalf("%s holds a key or password", where)
+			}
+		}
+	}
+
+	// A film library's lookup after its scan, with TMDB refusing the key.
+	folder := filepath.Join(t.TempDir(), "Films")
+	os.MkdirAll(folder, 0o755)
+	os.WriteFile(filepath.Join(folder, "Heat (1995).mkv"), make([]byte, 100), 0o644)
+	var films AdminLibrary
+	if w := call(t, s, "POST", "/v1/admin/libraries", owner, LibraryCreate{Name: "Films", Kind: "movies", Folders: []string{folder}}, &films); w.Code != 200 {
+		t.Fatalf("adding a library: %d %s", w.Code, w.Body)
+	}
+	scanNow(t, s, owner, films.ID)
+	var job Job
+	if w := call(t, s, "POST", "/v1/jobs", owner, JobStart{Kind: "match_library", Target: JobTarget{Library: films.ID}}, &job); w.Code != 202 {
+		t.Fatalf("starting the lookup: %d %s", w.Code, w.Body)
+	}
+	if done := waitForJob(t, s, owner, job.ID); done.Error == "" {
+		t.Fatalf("a lookup with the key refused says nothing: %+v", done)
+	}
+	if tmdbStand.Requests.Load() == 0 {
+		t.Fatal("TMDB was never asked")
+	}
+	holds("the tasks list", call(t, s, "GET", "/v1/admin/jobs", owner, nil, nil).Body.Bytes())
+	holds("the job", call(t, s, "GET", "/v1/jobs/"+job.ID, owner, nil, nil).Body.Bytes())
+
+	// OpenSubtitles refusing its key, on Test connection and on a search.
+	holds("Test connection", call(t, s, "POST", "/v1/admin/metadata/settings/opensubtitles/check", owner, nil, nil).Body.Bytes())
+	var page ItemPage
+	call(t, s, "GET", "/v1/items?kind=movie&library="+films.ID, owner, nil, &page)
+	if len(page.Items) != 1 {
+		t.Fatalf("films: %+v", page.Items)
+	}
+	w := call(t, s, "GET", "/v1/items/"+page.Items[0].ID+"/subtitles/search?languages=eng", owner, nil, nil)
+	if w.Code < 400 {
+		t.Fatalf("a search with the key refused answered %d", w.Code)
+	}
+	holds("a refused search's answer", w.Body.Bytes())
+	stopServer(s)
+	log.mu.Lock()
+	raw := append([]byte(nil), log.buf.Bytes()...)
+	log.mu.Unlock()
+	holds("the log", raw)
+}

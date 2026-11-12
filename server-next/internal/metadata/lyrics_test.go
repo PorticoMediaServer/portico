@@ -97,3 +97,26 @@ func TestLyricsAreFetchedOnlyWhereTheOwnerChoseAndPastedLyricsWin(t *testing.T) 
 		t.Errorf("lyrics on an artist: %v", err)
 	}
 }
+
+// Fetching a song's lyrics by hand again never loses the lyrics it has: an answer of nothing
+// found, or a refusal, leaves LRCLIB's earlier lyrics in place.
+func TestAFailedFetchKeepsTheLyricsASongHas(t *testing.T) {
+	d, _, ids := songs(t)
+	server := lrclibtest.New(t)
+	s := &metadata.Service{DB: d, Lyrics: lrclib.New(server.URL, 0)}
+	song := ids["Come Together"]
+	if stored, err := s.FetchLyrics(ctx, song); err != nil || !stored {
+		t.Fatalf("the first fetch: %v, %v", stored, err)
+	}
+	before, err := d.SongLyrics(ctx, song)
+	if err != nil || before.Body == "" {
+		t.Fatalf("lyrics after the first fetch: %+v, %v", before, err)
+	}
+	server.Refuses.Store(true)
+	if stored, err := s.FetchLyrics(ctx, song); err != nil || stored {
+		t.Fatalf("a refused fetch: %v, %v; want nothing stored and no error", stored, err)
+	}
+	if after, err := d.SongLyrics(ctx, song); err != nil || after.Body != before.Body {
+		t.Fatalf("a refused fetch replaced the song's lyrics with %+v, %v", after, err)
+	}
+}

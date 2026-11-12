@@ -103,7 +103,7 @@ func pictureTransport() *http.Transport {
 			return nil, err
 		}
 		for _, a := range addresses {
-			if !publicAddress(a.IP) {
+			if !fetch.PublicAddress(a.IP) {
 				return nil, fmt.Errorf("the picture's address redirected to %s, which is not on the Internet", host)
 			}
 		}
@@ -156,17 +156,6 @@ func checkPictureRedirect(req *http.Request, via []*http.Request) error {
 	// The host's address is checked when the connection is made: see pictureTransport.
 	return nil
 }
-
-// publicAddress reports whether ip is on the Internet: not this machine, the local network,
-// a link-local address or an unspecified one.
-func publicAddress(ip net.IP) bool {
-	return !(ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() ||
-		ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || sharedAddresses.Contains(ip))
-}
-
-// sharedAddresses is 100.64.0.0/10, the carrier-grade NAT range that Tailscale and similar
-// private networks also use.
-var sharedAddresses = &net.IPNet{IP: net.IPv4(100, 64, 0, 0), Mask: net.CIDRMask(10, 32)}
 
 // fetchPicture downloads one picture a provider offers. Every app sees it from the server's
 // own copy and never asks the provider. A host's failure that is its own (no answer, a 5xx, a
