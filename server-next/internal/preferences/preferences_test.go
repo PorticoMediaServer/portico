@@ -66,3 +66,19 @@ func TestCheck(t *testing.T) {
 		}
 	}
 }
+
+// The reader and Settings › Reading read all fifteen page settings, and a server that leaves
+// one out fails the whole Reading section ("Something didn't load").
+func TestReaderPageSettingsArePublished(t *testing.T) {
+	listed := map[string]bool{}
+	for _, f := range Settings() {
+		listed[f.Key] = true
+	}
+	for _, key := range []string{"reading.theme", "reading.font", "reading.textSize", "reading.lineSpacing", "reading.margins",
+		"reading.alignment", "reading.layout", "reading.twoPages", "reading.tapToTurn", "reading.hyphenation",
+		"reading.highlightColour", "reading.pdfView", "comics.fit", "comics.direction", "comics.firstPageAlone"} {
+		if !listed[key] {
+			t.Errorf("%s is not published", key)
+		}
+	}
+}
