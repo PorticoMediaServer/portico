@@ -43,3 +43,8 @@ export function subscribeReminders(listener: () => void): () => void {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
 }
+
+/** The reminders the server keeps for this profile, as read with a programme: they replace what this browser held. */
+export function replaceReminders(list: readonly LiveReminder[]): void {
+  save(list.filter(item => Number.isFinite(item.start)));
+}

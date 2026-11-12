@@ -65,4 +65,5 @@ export const liveMessages = {
   'next.live.example.northwind': 'Northwind News 24',
   'next.live.example.crossed': 'Crossed Wires',
   'next.live.example.doors': 'Open Doors',
+  'next.live.actionFailed': 'That didn’t work. Try again.',
 } as const;

@@ -55,3 +55,9 @@ test('On now lists the server\'s order with what is on and next, and a channel n
   assert.deepEqual([found?.row.name, found?.now?.title], ['Channel 5', 'Show 5']);
   assert.equal(await findChannel(api, 'ch_99'), undefined);
 });
+
+test('a linked channel the profile may not see is simply not found', async () => {
+  const {findChannel} = await import('../src/guide/next-source.ts');
+  const api = {request: async <T>(): Promise<T> => { throw Object.assign(new Error('Not found.'), {status: 404, code: 'not_found'}); }};
+  assert.equal(await findChannel(api, 'ch_hidden'), undefined);
+});
