@@ -212,13 +212,24 @@ jobs:
           bwrap --unshare-all --die-with-parent --ro-bind / / --proc /proc --dev /dev --cap-drop ALL /bin/true
       - name: Disc tests with the bundle's helper
         working-directory: server-next
-        run: go test ./internal/disc -count=1 -v 2>&1 | grep -E '^(--- |PASS|FAIL|ok|panic|\s+\S+_test.go)' ; exit "${PIPESTATUS[0]}"
+        # A skipped test is a failure here: with the bundle every disc test can run.
+        run: |
+          go test ./internal/disc -count=1 -v > "$RUNNER_TEMP/disc.log" 2>&1 && passed=1
+          grep -E '^(--- |PASS|FAIL|ok|panic|\s+\S+_test.go)' "$RUNNER_TEMP/disc.log" || true
+          if grep -qE '^\s*--- SKIP' "$RUNNER_TEMP/disc.log"; then echo "a disc test was skipped, so the bundle was not tested by it"; exit 1; fi
+          [ "${passed:-0}" = 1 ]
       - name: Real files played through the media engine, each conversion the server asks for
         working-directory: server-next
         env:
           PORTICO_MEDIA_MATRIX: '1'
-        # One line per file and device, so the run shows what was converted and what was skipped.
-        run: go test ./internal/mediaengine -run '^TestMediaMatrix$' -count=1 -v 2>&1 | grep -E '^\s*(--- |PASS|FAIL|ok|panic)|_test.go:[0-9]+:' ; exit "${PIPESTATUS[0]}"
+        # One line per file and device, so the run shows what was converted. A skipped case is
+        # a failure: the suite skips a sample this FFmpeg cannot make, and a bundle that has
+        # lost an encoder must not pass by converting less.
+        run: |
+          go test ./internal/mediaengine -run '^TestMediaMatrix$' -count=1 -v > "$RUNNER_TEMP/matrix.log" 2>&1 && passed=1
+          grep -E '^\s*(--- |PASS|FAIL|ok|panic)|_test.go:[0-9]+:' "$RUNNER_TEMP/matrix.log" || true
+          if grep -qE '^\s*--- SKIP' "$RUNNER_TEMP/matrix.log"; then echo "a real-media case was skipped, so the bundle did not convert it"; exit 1; fi
+          [ "${passed:-0}" = 1 ]
       - name: Every server test, media tests included, with the bundle as FFmpeg
         working-directory: server-next
         run: go test ./... 2>&1 | tee "$RUNNER_TEMP/test.log" | grep -vE '^ok ' ; exit "${PIPESTATUS[0]}"
