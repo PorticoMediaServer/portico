@@ -128,6 +128,10 @@ export function detailProjection(item: Item, scope: DetailScope): DetailProjecti
   const position = seconds(state.positionMs), playable = plays && media.available;
   const actions: DetailAction[] = [{id: 'watchlist', labelKey: 'action.watchlist', enabled: true}, {id: 'favorite', labelKey: 'action.favorite', enabled: true}, {id: 'rating', labelKey: 'action.rating', enabled: true, min: 0, max: 10, step: 1}];
   if (plays && item.kind !== 'track') actions.push({id: 'watched', labelKey: 'action.watched', enabled: true});
+  // Any profile may add a title to its own playlists and collections, and to those shared with it to edit (area 6 rules
+  // 25, 27); which lists it may change is each list's own role, shown in the add-to sheet. A playlist takes a show,
+  // season or album as its playable titles (rule 24); a collection holds each title once (rule 33).
+  actions.push({id: 'add_to_playlist', labelKey: 'action.add_to_playlist', enabled: true}, {id: 'add_to_collection', labelKey: 'action.add_to_collection', enabled: true});
   if (playable && position > 0) actions.push({id: 'resume', labelKey: 'action.resume', enabled: true, playback: {itemId: item.id, startSeconds: position}}, {id: 'start_over', labelKey: 'action.start_over', enabled: true, playback: {itemId: item.id, startSeconds: 0}});
   else if (playable) actions.push({id: 'play', labelKey: 'action.play', enabled: true, playback: {itemId: item.id, startSeconds: 0}});
   const all = (item.credits ?? []).map(credit), cast = all.filter(each => each.department === 'cast').length;

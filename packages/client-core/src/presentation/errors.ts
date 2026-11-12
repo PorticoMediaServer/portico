@@ -181,6 +181,8 @@ const codeBodies: Record<string, MessageId> = {
   // PR-1: a remembered main profile past its management hour; the app asks for the PIN (it keeps watching).
   profile_pin_manage: 'error.profilePinManage',
   queue_too_large: 'error.queueTooLarge',
+  // A whole view of more titles than one addition takes (`home-selection/list-destinations.ts`).
+  'too-many-to-add': 'error.tooManyToAdd',
   // OPS-2: an encrypted, multi-volume, solid or compressed legacy archive; the file itself, nothing to retry.
   comic_archive_unsupported: 'error.comicArchiveUnsupported',
   // An online-only action (match search, artwork, lyrics or subtitle search) on a library whose
@@ -215,7 +217,7 @@ const codeBodies: Record<string, MessageId> = {
   session_ended: 'error.sessionEnded',
 };
 /** Codes whose sentence says what to do instead, so the notice offers no Try again. */
-const noActionCodes = new Set(['sync_pending', 'comic_archive_unsupported', 'local_metadata_only', 'credential_limit', 'access_tokens_off', 'webhook_limit', 'session_ended', 'image_too_large', 'reading_progress_pending', 'factor_setup_required', 'artwork_cap_unreachable', 'unsupported_artwork']);
+const noActionCodes = new Set(['too-many-to-add', 'sync_pending', 'comic_archive_unsupported', 'local_metadata_only', 'credential_limit', 'access_tokens_off', 'webhook_limit', 'session_ended', 'image_too_large', 'reading_progress_pending', 'factor_setup_required', 'artwork_cap_unreachable', 'unsupported_artwork']);
 
 export function presentError(error: unknown, context: ErrorContext = 'generic', options: PresentOptions = {}): PresentedError {
   const i18n = options.i18n ?? defaultI18n;
@@ -238,6 +240,7 @@ export function presentError(error: unknown, context: ErrorContext = 'generic', 
   const account = (options.service ?? (ACCOUNT_CONTEXTS.has(context) ? 'portico-account' : 'server')) === 'portico-account';
   if (account && accountBodies[category]) messageId = accountBodies[category]!;
   if (category === 'rate-limited' && f.retryAfterSeconds) { messageId = 'error.rateLimitedSeconds'; values = {seconds: f.retryAfterSeconds}; }
+  if (f.code === 'too-many-to-add') values = {count: typeof (error as {limit?: unknown})?.limit === 'number' ? (error as {limit: number}).limit : 500};
   if (options.retrying && (category === 'unreachable' || category === 'offline' || category === 'timeout' || category === 'busy')) {
     messageId = category === 'offline' ? 'error.offlineRetrying' : account ? 'error.account.unreachableRetrying' : 'error.unreachableRetrying';
     action = 'automatic';

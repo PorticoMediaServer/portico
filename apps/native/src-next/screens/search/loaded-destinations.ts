@@ -1,6 +1,7 @@
 import {DetailService} from '../../../../../packages/client-core/src/detail';
 import {SavedService} from '../../../../../packages/client-core/src/saved';
-import {PersonalSavedService, type EntryOutcomes} from '../../../../../packages/client-core/src/personal-saved';
+import type {EntryOutcomes} from '../../../../../packages/client-core/src/personal-saved';
+import {addToDestination, readDestination} from '../../../../../packages/client-core/src/home-selection/list-destinations';
 import {appendPlaylistSelection} from '../../../../../packages/client-core/src/playlist-selection';
 import {validateContentEntry, type ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {CatalogueSelectionOptions} from '../../../../../packages/client-core/src/catalogue-selection';
@@ -25,7 +26,10 @@ export class NativeLoadedDestinations {
   private readonly requestId: CatalogueSelectionOptions['requestId'];
   private readonly entries: readonly ContentEntry[];
   private readonly playlist: SavedService;
-  private readonly collection: PersonalSavedService;
+  /** The collection chosen, as the server last answered for it. */
+  private collectionRow?: HomeSelectionPickerRow;
+  /** The operation the collection's additions are sent under; a retry reuses it, so nothing goes in twice. */
+  private collectionKey?: string;
   private readonly listeners = new Set<() => void>();
   private readonly stops: (() => void)[];
   private disposed = false;
@@ -43,7 +47,6 @@ export class NativeLoadedDestinations {
    * and any successor read start/success retires it. */
   private pickerErrorRead?: Readonly<{read: PickerRead; token: object}>;
   private pickerReads = 0;
-  private attemptedCollection = false;
   private collectionItems: readonly string[];
   private readonly collectionReceipts: EntryOutcomes[] = [];
   /** The real pending failures, resolved against the captured entries only. */
@@ -66,8 +69,7 @@ export class NativeLoadedDestinations {
     const requestId = async () => {this.assertCurrent(); const id = await options.requestId(); this.assertCurrent(); return id;};
     this.api = api; this.requestId = requestId;
     this.playlist = new SavedService({api, scope: options.scope, requestId});
-    this.collection = new PersonalSavedService(api, options.scope, requestId);
-    this.stops = [this.playlist.subscribe(this.changed), this.collection.subscribe(this.changed)];
+    this.stops = [this.playlist.subscribe(this.changed)];
     options.signal.addEventListener('abort', this.dispose, {once: true});
   }
   private assertCurrent() {
@@ -103,7 +105,7 @@ export class NativeLoadedDestinations {
     pickerCanRetry: !!this.pickerErrorRead, pickerErrorToken: this.pickerErrorRead?.token,
     pickerPrevious: this.pickerHistory.length > 0,
     collectionReceipts: Object.freeze([...this.collectionReceipts]), collectionOutcome: this.collectionOutcome(),
-    playlistFailure: this.playlistFailure, playlist: this.playlist.getSnapshot(), collection: this.collection.getSnapshot()});
+    playlistFailure: this.playlistFailure, playlist: this.playlist.getSnapshot(), collection: Object.freeze({resource: this.collectionRow ? Object.freeze({name: this.collectionRow.name, entryCount: this.collectionRow.count}) : undefined})});
   /** One page of the canonical Home destination picker: the exact captured leaves,
    * the literal query, one bounded cursor and the captured Home viewer fence. */
   private async readPicker(kind: 'playlist' | 'collection', query: string, cursor: string | undefined, history: (string | undefined)[], origin?: object) {
@@ -182,10 +184,9 @@ export class NativeLoadedDestinations {
       if (state.phase !== 'ready' || state.playlist?.id !== id || state.playlist.revision !== offered.revision
         || !state.playlist.actions.includes('add')) throw unavailable();
     } else {
-      await this.collection.select({view: 'resource', resourceId: id}); this.assertCurrent();
-      const state = this.collection.getSnapshot();
-      if (state.loading || state.error || state.resource?.id !== id || state.resource.kind !== 'collection'
-        || state.resource.revision !== offered.revision || !state.resource.actions.includes('entries')) throw unavailable();
+      const row = await readDestination(this.api, 'collection', id, this.options.signal); this.assertCurrent();
+      if (row.revision !== offered.revision || !row.canAdd) throw unavailable();
+      this.collectionRow = row;
     }
     this.chosen = {kind, id}; await this.append();
   });
@@ -204,25 +205,28 @@ export class NativeLoadedDestinations {
         throw error;
       }
     } else if (this.chosen?.kind === 'collection') {
-      if (!this.collectionItems.length) throw unavailable();
-      const state = this.collection.getSnapshot();
-      if (state.resource?.id !== this.chosen.id || state.resource.kind !== 'collection' || !state.resource.actions.includes('entries')) throw unavailable();
-      if (this.attemptedCollection) {
-        if (!state.retryPending) throw unavailable();
-        await this.collection.retry();
-      } else {
-        this.attemptedCollection = true;
-        await this.collection.mutate({action: 'entries', addItemIds: this.collectionItems, removeEntryIds: []});
+      if (!this.collectionItems.length || this.collectionRow?.id !== this.chosen.id) throw unavailable();
+      const id = this.chosen.id;
+      this.collectionKey ??= (await this.requestId()).replaceAll('-', '');
+      // One title at a time, so each says whether it went in or was already there (area 6 rule 33). Each names its own
+      // key, the same on a retry, so a title that went in is never added twice.
+      const added: string[] = [], unchanged: string[] = [], failed: {itemId: string; code: string}[] = [];
+      for (const itemId of this.collectionItems) {
+        this.assertCurrent();
+        try {
+          const done = await addToDestination(this.api, id, [itemId], `${this.collectionKey}.${itemId}`, this.options.signal);
+          (done.added ? added : unchanged).push(itemId);
+          this.collectionRow = {...this.collectionRow!, revision: done.revision, count: done.count};
+        } catch (error) {
+          this.assertCurrent();
+          failed.push({itemId, code: String((error as {code?: unknown})?.code ?? 'unavailable')});
+        }
       }
-      this.assertCurrent();
-      const after = this.collection.getSnapshot();
-      if (after.pending || after.retryPending || after.mutationError || !after.result?.entries) throw after.mutationError ?? unavailable();
-      const receipt = after.result.entries;
-      if (!this.collectionReceipts.includes(receipt)) this.collectionReceipts.push(receipt);
-      // Retry keeps only the ids this receipt left unresolved.
-      const missing = new Set(receipt.failed.map(failure => failure.itemId));
-      this.collectionItems = Object.freeze(this.collectionItems.filter(id => missing.has(id)));
-      this.attemptedCollection = false;
+      const receipt = Object.freeze({added: Object.freeze(added), removed: Object.freeze([]), unchanged: Object.freeze(unchanged), failed: Object.freeze(failed.map(row => Object.freeze(row)))}) as EntryOutcomes;
+      this.collectionReceipts.push(receipt);
+      // Retry keeps only the ids that did not go in.
+      this.collectionItems = Object.freeze(failed.map(row => row.itemId));
+      if (failed.length) throw Object.assign(new Error(failed[0]!.code), {code: failed[0]!.code});
     } else throw unavailable();
   }
   /** A new playlist holding exactly the captured leaves, in their picked order. */
@@ -256,6 +260,6 @@ export class NativeLoadedDestinations {
     if (this.disposed) return;
     this.disposed = true; this.options.signal.removeEventListener('abort', this.dispose);
     this.stops.forEach(stop => stop());
-    this.playlist.dispose(); this.collection.dispose(); this.listeners.clear();
+    this.playlist.dispose(); this.listeners.clear();
   };
 }

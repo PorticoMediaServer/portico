@@ -5,6 +5,9 @@ import {validateContentEntry, type ContentEntry} from '../library-content.ts';
 import {selectionExecutionError} from './execution.ts';
 
 export type HomeDestinationReceiptRequest = Readonly<{kind: 'playlist' | 'collection'; destinationId: string; jobIds: readonly string[]; cursor?: string}>;
+/** What an addition to a playlist or collection did, as the add-to sheets draw it. `destinations.ts` builds it from the
+ * rebuilt server's answers (the job fields stay empty). `fetchHomeDestinationReceipt` below is the old server's, kept only
+ * for the reader's add-to-collection until it moves onto `list-destinations.ts`. */
 export type HomeDestinationReceipt = Readonly<{
   kind: 'playlist' | 'collection'; destinationId: string; jobIds: readonly string[]; jobs: readonly Job[];
   /** Distinct actual expanded members across this entire genuine job set. */

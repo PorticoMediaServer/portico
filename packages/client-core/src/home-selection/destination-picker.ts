@@ -1,15 +1,21 @@
-import {routePath} from '../../../contracts/src/route-paths.ts';
-import type {HomeApi} from '../home.ts';
+import type {ServerRequester} from '../query/server-api.ts';
 import {validateContentEntry} from '../library-content.ts';
-import type {HomeSelectionPickerRow} from './types.ts';
 import {selectionExecutionError} from './execution.ts';
+import {readDestinationPage, type DestinationPage} from './list-destinations.ts';
+
 export type HomeDestinationPickerRequest = Readonly<{kind: 'playlist' | 'collection'; query: string; cursor?: string; limit: number; itemIds?: readonly string[]}>;
-export type HomeDestinationPickerPage = Readonly<{rows: readonly HomeSelectionPickerRow[]; nextCursor: string; revision: Readonly<{catalog: number; viewer: number}>}>;
-/** The query-selection opening reads its own destination authority before the
- * session starts. Its existing owner validates the fence and captured page. */
-export function readQueryDestinationPickerResponse(api: HomeApi, request: HomeDestinationPickerRequest, signal?: AbortSignal): Promise<unknown> {
-  return api.request(routePath('post_home_destination_picker'), 'POST', request, signal);
+export type HomeDestinationPickerPage = DestinationPage;
+/** One page of the add-to sheet's rows: the profile's playlists or collections whose names hold the query, from the
+ * rebuilt server's lists (`list-destinations.ts`). Lists carry their own revisions, so there is no fence to pass. */
+export function fetchHomeDestinationPicker(api: ServerRequester, request: HomeDestinationPickerRequest, _serverId?: string, _viewerFence?: string, signal?: AbortSignal): Promise<HomeDestinationPickerPage> {
+  return readDestinationPage(api, {kind: request.kind, query: request.query, ...(request.cursor ? {cursor: request.cursor} : {}), limit: request.limit}, signal);
 }
+/** What an add-to sheet opened from a title or a library selection holds as its selection's privacy fence. Lists need
+ * none (each carries its revision), so it is the opened marker every other selection uses. */
+export const destinationFence = 'opened';
+
+/** The old server's destination-picker answer, kept only for the reader's add-to-collection (`reading-collection.ts`)
+ * until it moves onto `list-destinations.ts`. */
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const count = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const id = (value: unknown): value is string => typeof value === 'string' && !!value && value.length <= 256 && !/[\x00-\x1f\x7f]/.test(value);
@@ -23,20 +29,4 @@ export function parseHomeDestinationPicker(raw: unknown, request: HomeDestinatio
   });
   if (new Set(rows.map(row => row.id)).size !== rows.length) bad();
   return Object.freeze({rows: Object.freeze(rows), nextCursor: raw.nextCursor, revision: Object.freeze({catalog: raw.revision.catalog, viewer: raw.revision.viewer})});
-}
-export async function fetchHomeDestinationPicker(api: HomeApi, request: HomeDestinationPickerRequest, serverId: string, viewerFence: string, signal?: AbortSignal): Promise<HomeDestinationPickerPage> {
-  if (!Number.isSafeInteger(request.limit) || request.limit < 1 || request.limit > 40 || [...request.query].length > 100 || /[\x00-\x1f\x7f-\x9f]/.test(request.query)) throw selectionExecutionError('invalid-destination-query');
-  return parseHomeDestinationPicker(await api.request(routePath('post_home_destination_picker'), 'POST', request, signal), request, serverId, viewerFence);
-}
-
-/** The destination domain's own authority: the fence and revision a playlist or collection picker read issues. A
- * picker opened from a detail page or a library selection holds this, never the detail's or the page's fence, which
- * the destination read never carries (walk J-11, J-13: every add said "That list could not be updated."). */
-export type DestinationAuthority = Readonly<{viewerFence: string; revision: Readonly<{catalog: number; viewer: number}>}>;
-export async function fetchDestinationAuthority(api: HomeApi, kind: 'playlist' | 'collection', serverId: string, signal?: AbortSignal): Promise<DestinationAuthority> {
-  const request = {kind, query: '', limit: 40} as const;
-  const raw = await api.request<unknown>(routePath('post_home_destination_picker'), 'POST', request, signal);
-  if (!record(raw) || typeof raw.viewerFence !== 'string' || !/^[a-f0-9]{64}$/.test(raw.viewerFence)) bad();
-  const page = parseHomeDestinationPicker(raw, request, serverId, raw.viewerFence);
-  return Object.freeze({viewerFence: raw.viewerFence, revision: page.revision});
 }

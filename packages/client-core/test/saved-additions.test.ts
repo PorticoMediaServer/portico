@@ -33,23 +33,21 @@ test('through a transport without headers, add, put back and make are sent and s
   assert.equal(writes(), sent, 'no edit was sent (sharing only read who it is shared with)');
 });
 
-test('making a playlist from a selection picker (web title and library pickers, Home selection) is sent and the new playlist is chosen', async () => {
-  const fence = 'f'.repeat(64);
+test('making a playlist from a selection picker (web title and library pickers, Home selection) makes it with the titles in it', async () => {
   const s = plain({
-    'POST /v1/home/destination-picker': () => ({serverId: 's', viewerFence: fence, kind: 'playlist', query: '', revision: {catalog: 1, viewer: 1}, rows: [], nextCursor: ''}),
     'GET /v1/lists': () => ({items: []}),
-    'POST /v1/lists': call => list({id: 'new', name: call.body.name, count: 0, revision: '1'}),
-    'GET /v1/lists/new': () => list({id: 'new', name: 'New', count: 0, revision: '1'}),
+    'POST /v1/lists': call => list({id: 'new', name: call.body.name, count: call.body.items.length, revision: '1'}),
   });
   const target = {mode: 'explicit', items: [{item: {kind: 'movie', id: 'm1', libraryId: 'lib'}}],
-    context: {scope: {serverId: 's', authority: 'local', accountId: 'a', profileId: 'p', viewId: 'view', privacyFence: fence}, revision: {catalogRevision: '1', viewerRevision: '1'}}};
+    context: {scope: {serverId: 's', authority: 'local', accountId: 'a', profileId: 'p', viewId: 'view', privacyFence: 'opened'}, revision: {catalogRevision: '0', viewerRevision: '0'}}};
+  let shown: any;
   const session = new HomeSelectionDestinations({api: s.api, requestId: async () => '00000000-0000-4000-8000-000000000001'} as never, target as never, 'playlist',
-    new AbortController().signal, () => true, () => {});
+    new AbortController().signal, () => true, state => {shown = state;});
   try {
     await session.load();
     await session.create('New');
-    const made = s.calls.find(call => call.method === 'POST' && call.path === '/v1/lists');
-    assert.deepEqual(made?.body, {kind: 'playlist', name: 'New'});
-    assert.ok(s.calls.some(call => call.method === 'GET' && call.path === '/v1/lists/new'), 'the new playlist is opened to add to');
+    const made = s.calls.filter(call => call.method === 'POST');
+    assert.deepEqual(made.map(call => [call.path, call.body, call.headers]), [['/v1/lists', {kind: 'playlist', name: 'New', items: ['m1']}, undefined]], 'one request makes it with the title in it');
+    assert.deepEqual([shown.phase, shown.destination?.id, shown.receipt?.added], ['added', 'new', 1]);
   } finally {session.dispose();}
 });
