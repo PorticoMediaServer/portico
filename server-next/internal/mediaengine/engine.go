@@ -526,7 +526,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		request.Joined, request.JoinedPartsDiffer = true, streaming.PartsDiffer(parts)
 		request.File.Duration = 0
 		for _, part := range parts {
-			request.File.Duration += float64(part.DurationMs) / 1000
+			request.File.Duration += float64(part.DurationUS) / 1e6
 		}
 	} else if music := e.musicPlan(ctx, r, request, path, place, remoteID, facts, converter); music != nil {
 		return *music, nil

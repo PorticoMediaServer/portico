@@ -3,6 +3,7 @@ package streaming
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"runtime"
 	"strings"
@@ -19,9 +20,9 @@ type JoinedPart struct {
 	Path     string
 	Size     int64
 	Modified time.Time
-	// DurationMs is the part's length as its probe stored it: where the next part begins in
-	// the whole title, the same place the title's page shows for it.
-	DurationMs int64
+	// DurationUS is the chosen part clock: packet length for copied parts,
+	// decoded length for parts that must be converted.
+	DurationUS int64
 	// Shape is the codec, sample rate, channels and layout of the part's sound. Parts whose
 	// shapes are all the same are joined as they are; parts that differ are converted to one
 	// stream, since no player can be handed one stream that changes codec half way.
@@ -46,12 +47,39 @@ type JoinedInput struct {
 	Offset, Duration float64
 }
 
-// joinedInput is the converter's input for a title in several files: FFmpeg's concat
-// demuxer reading the parts in order, as one title whose clock runs across all of them. Each
-// part is opened by the one rule for library files and given to the converter as a
-// descriptor of its own (4, 5, …), so it never opens a library path itself; the list naming
-// them is descriptor 3. Each part's length is the stored one, so a place in the stream is the
-// same place the title's page shows.
+// joinedBatch is the most parts one converter run is handed. The sandbox gives a tool at most
+// 32 files, and a book in one file per chapter can have hundreds: a run converts a batch and
+// ends on a segment boundary inside its last part, and the next segment's request starts the
+// next run there. The files held stay the same however long the book is.
+const joinedBatch = 24
+
+// joinedBatchEnd is where a run from position over parts first.. ends in the whole title, in
+// seconds, and the part after its last: 0 when the batch reaches the end of the title, else
+// the last segment boundary inside the batch's last part, so the next run starts on the grid.
+func joinedBatchEnd(parts []JoinedPart, first int, offset, position float64) (until float64, last int) {
+	end := offset
+	last = first
+	for last < len(parts) && last-first < joinedBatch {
+		end += float64(parts[last].DurationUS) / 1e6
+		last++
+	}
+	for last < len(parts) {
+		until = math.Floor(end/HLSSegmentSeconds) * HLSSegmentSeconds
+		if until > position {
+			return until, last
+		}
+		// Parts so short that the batch does not reach the next boundary: one more, as far as
+		// the sandbox allows.
+		if last-first >= 31 {
+			return end, last
+		}
+		end += float64(parts[last].DurationUS) / 1e6
+		last++
+	}
+	return 0, last
+}
+
+// joinedInput opens one bounded batch, on the whole book's clock.
 func joinedInput(parts []JoinedPart, roots func() []string) inputOpener {
 	return func(ctx context.Context, position float64) (*PlaybackInput, subtitles.WindowInput, error) {
 		if err := ctx.Err(); err != nil {
@@ -59,17 +87,18 @@ func joinedInput(parts []JoinedPart, roots func() []string) inputOpener {
 		}
 		// The part holding the run's start, and where in it the start is.
 		first, offset := 0, 0.0
-		for first+1 < len(parts) && offset+float64(parts[first].DurationMs)/1000 <= position {
-			offset += float64(parts[first].DurationMs) / 1000
+		for first+1 < len(parts) && offset+float64(parts[first].DurationUS)/1e6 <= position {
+			offset += float64(parts[first].DurationUS) / 1e6
 			first++
 		}
+		until, last := joinedBatchEnd(parts, first, offset, position)
 		var files []*os.File
 		closeAll := func() {
 			for _, f := range files {
 				f.Close()
 			}
 		}
-		for _, part := range parts[first:] {
+		for _, part := range parts[first:last] {
 			file, err := libraryfile.Open(part.Path, roots())
 			if err != nil {
 				closeAll()
@@ -82,44 +111,39 @@ func joinedInput(parts []JoinedPart, roots func() []string) inputOpener {
 				return nil, nil, ErrSourceChanged
 			}
 		}
-		name := func(n int) string {
-			if runtime.GOOS == "windows" {
-				return files[n].Name()
-			}
-			return fmt.Sprintf("/dev/fd/%d", 3+n)
-		}
 		if PartsDiffer(parts) {
-			// Parts not encoded alike: each part an input of its own (descriptor 3 on), from the
-			// part holding the start; the converter seeks within that one and joins them.
+			// Parts not encoded alike: each part of the batch an input of its own (descriptor
+			// 3 on), from the part holding the start; the converter seeks within that one,
+			// decoding, and joins them.
 			var joined []JoinedInput
 			at := offset
-			for n, part := range parts[first:] {
-				joined = append(joined, JoinedInput{Path: name(n), Offset: at, Duration: float64(part.DurationMs) / 1000})
-				at += float64(part.DurationMs) / 1000
+			for n, part := range parts[first:last] {
+				name := fmt.Sprintf("/dev/fd/%d", 3+n)
+				if runtime.GOOS == "windows" {
+					name = files[n].Name()
+				}
+				joined = append(joined, JoinedInput{Path: name, Offset: at, Duration: float64(part.DurationUS) / 1e6})
+				at += float64(part.DurationUS) / 1e6
 			}
 			return &PlaybackInput{File: files[0], Argument: joined[0].Path, Inherit: runtime.GOOS != "windows",
-				Options: []string{"-format_whitelist", mediaexec.LocalInputFormats}, Extra: files[1:], Joined: joined, Positioned: true}, nil, nil
+				Options: []string{"-format_whitelist", mediaexec.LocalInputFormats}, Extra: files[1:], Joined: joined, Positioned: true,
+				Until: until}, nil, nil
 		}
-		// Parts alike: one list for FFmpeg's concat demuxer, from the part holding the start,
-		// entered at its place in that part. The demuxer cannot itself be sought when its
-		// packets are copied (it starts from the beginning whatever it is asked), so the list
-		// starts where the run does. A part's duration after its in-point is what is left of
-		// it, which is what places the next part at its place in the whole title.
+		// Parts alike: one list for FFmpeg's concat demuxer, from the start of the part holding
+		// the run's start, each part with its stored length. The run is cut at its start after
+		// the list is read (Skip), not by seeking the demuxer: a copied demuxer cannot be sought
+		// (it starts from the beginning whatever it is asked), and an in-point keeps the frame
+		// that straddles it, which the run before has already played (26 ms heard twice). Cut
+		// after, the run's first frame is the one after the last frame of the run before.
 		var list strings.Builder
 		list.WriteString("ffconcat version 1.0\n")
-		for n, part := range parts[first:] {
+		for n, part := range parts[first:last] {
 			// The list is descriptor 3, so the parts are 4 on.
 			path := fmt.Sprintf("/dev/fd/%d", 4+n)
 			if runtime.GOOS == "windows" {
 				path = files[n].Name()
 			}
-			fmt.Fprintf(&list, "file '%s'\n", strings.ReplaceAll(path, "'", `'\''`))
-			length := float64(part.DurationMs) / 1000
-			if n == 0 && position > offset {
-				fmt.Fprintf(&list, "inpoint %.3f\n", position-offset)
-				length -= position - offset
-			}
-			fmt.Fprintf(&list, "duration %.3f\n", length)
+			fmt.Fprintf(&list, "file '%s'\nduration %.6f\n", strings.ReplaceAll(path, "'", `'\''`), float64(part.DurationUS)/1e6)
 		}
 		listFile, err := os.CreateTemp("", "portico-parts-*.ffconcat")
 		if err == nil && runtime.GOOS != "windows" {
@@ -140,7 +164,8 @@ func joinedInput(parts []JoinedPart, roots func() []string) inputOpener {
 		}
 		// The concat demuxer, and under it only the single-file formats a library file may be.
 		options := []string{"-f", "concat", "-safe", "0", "-format_whitelist", mediaexec.LocalInputFormats + ",concat"}
-		input := &PlaybackInput{File: listFile, Argument: "/dev/fd/3", Inherit: true, Options: options, Extra: files, Positioned: true}
+		input := &PlaybackInput{File: listFile, Argument: "/dev/fd/3", Inherit: true, Options: options, Extra: files, Positioned: true,
+			Skip: position - offset, Until: until}
 		if runtime.GOOS == "windows" {
 			input.Argument, input.Inherit = listFile.Name(), false
 		}

@@ -33,9 +33,12 @@ type PlaybackInput struct {
 	// borrows it as well as its own operation context; possession of File does not
 	// extend source or actor authority.
 	Lifetime context.Context
-	// Positioned says the input already starts at the run's position (a title in parts,
-	// opened from the part holding it), so the converter is not sought as well.
-	Positioned bool
+	// Positioned says the input is placed at the run's position itself (a title in parts,
+	// opened from the part holding it), so the converter is not sought before it. Skip is
+	// how far into the input the run's position is, cut after the input is read (an output
+	// seek); Until is where in the whole title the run ends, 0 for the end of the title.
+	Positioned  bool
+	Skip, Until float64
 	// Joined, for a title in several files that are not encoded alike, is each part as the
 	// converter is given it (File first, then Extra): it reads them as inputs of their own,
 	// from the part holding its start, joined by FFmpeg's concat filter.
