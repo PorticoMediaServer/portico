@@ -237,7 +237,7 @@ func (s *Server) catalogueRoutes() {
 			return Person{}, refuse(err)
 		}
 		out := Person{ID: p.PublicID, Name: p.Name, Biography: p.Biography, BirthDate: p.BirthDate, DeathDate: p.DeathDate,
-			Birthplace: p.Birthplace, Images: imageMap(p.Images), TitleCount: &p.Titles}
+			Birthplace: p.Birthplace, Images: imageMap(p.Images), TitleCount: &p.Titles, CrewTitleCount: &p.CrewTitles}
 		for _, role := range p.Roles {
 			out.Roles = append(out.Roles, PersonRole{Role: role.Role.String(), TitleCount: role.Titles})
 		}
@@ -448,6 +448,12 @@ func itemQuery(query url.Values) (db.ItemQuery, error) {
 			return q, ErrField("role", "Use role with one person, and a credit role such as actor or director.")
 		}
 		q.PersonRole = parsed
+	}
+	if group := query.Get("creditGroup"); group != "" {
+		if group != "crew" && group != "acting" || q.Person == "" || q.PersonRole != 0 {
+			return q, ErrField("creditGroup", "Use creditGroup=acting or crew with one person and without role.")
+		}
+		q.PersonGroup = group
 	}
 	for _, name := range strings.FieldsFunc(query.Get("kind"), func(r rune) bool { return r == ',' }) {
 		kind, ok := db.ParseItemKind(name)

@@ -86,10 +86,11 @@ const (
 // ItemQuery says which items to list. Library, Parent, Person, Tag, Collection and Series are public ids. At
 // least one of them, or one of the state filters, must be set.
 type ItemQuery struct {
-	Library    string
-	Parent     string
-	Person     string
-	PersonRole CreditRole // with Person: only the titles where the person has this role
+	Library     string
+	Parent      string
+	Person      string
+	PersonRole  CreditRole // with Person: only the titles where the person has this role
+	PersonGroup string     // with Person: acting (actor or guest) or crew (every other role)
 	// Publication keeps one kind of publication (PublicationMagazine...): its issues, and the
 	// series that hold them.
 	Publication *int
@@ -675,6 +676,13 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		// One group of a person's page: the titles where they have that role.
 		if q.PersonRole != 0 {
 			w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = `, fmt.Sprint(person), ` AND role = `, itoa(int64(q.PersonRole)), `)`)
+		}
+		if q.PersonGroup != "" {
+			op := "IN"
+			if q.PersonGroup == "crew" {
+				op = "NOT IN"
+			}
+			w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = `, fmt.Sprint(person), ` AND role `, op, ` (`, itoa(int64(RoleActor)), `, `, itoa(int64(RoleGuest)), `))`)
 		}
 		w.person = person
 	}
