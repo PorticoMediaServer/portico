@@ -9,6 +9,7 @@ import {firstOfEach,keepReadable,noteSkipped,oneOfOr} from './tolerant.ts';
 import {validateContentEntry,type ContentEntry} from './library-content.ts';
 import {parseBrowseNode,parseBrowseResult,type BrowseNode,type BrowseResult,type BrowseSortSelection} from './browse.ts';
 import type {SavedApi,SavedScope,SavedRoute,SavedActor,SavedShapeCounts} from './saved.ts';
+import {clearHistory,readHistoryPage} from './personal-saved-next.ts';
 import {parseSavedShapeCounts,parseResourceOrderWitness,resourceContentManual,resourceContentParams,resourceContentQuery,type ResourceContentQuery,type ResourceOrderWitness} from './saved.ts';
 export type PersonalResourceKind='collection'|'view';
 /** A saved view stores the whole browse request: the pivot, the expression tree
@@ -172,11 +173,14 @@ export function savedCategoryId(d?:SavedDefinition):string{
  }
  return '';
 }
+/** What the service asks the server for History: the rebuilt server's by default (`personal-saved-next.ts`). A test can give its own. */
+export type PersonalSavedTransport=Readonly<{history:typeof readHistoryPage;clearHistory:typeof clearHistory}>;
+export const personalSavedTransport:PersonalSavedTransport=Object.freeze({history:readHistoryPage,clearHistory});
 export class PersonalSavedService{
  private state:PersonalSavedSnapshot;private listeners=new Set<()=>void>();private generation=0;private readTicket=0;private candidateTicket=0;private disposed=false;private controllers=new Set<AbortController>();private seen=0;
  private command?:{intent:PersonalSavedIntent;path:string;method:string;body:Record<string,unknown>;fence:string;rebased?:boolean};
- private api:SavedApi;readonly scope:SavedScope;private requestId:()=>Promise<string>;
- constructor(api:SavedApi,scope:SavedScope,requestId:()=>Promise<string>){this.api=api;this.scope=Object.freeze({...scope});this.requestId=requestId;if(!id(scope.serverId)||!str(scope.viewerId,1024)||!scope.viewerId)throw new Error('A complete viewer scope is required.');this.state=this.empty();}
+ private api:SavedApi;readonly scope:SavedScope;private requestId:()=>Promise<string>;private transport:PersonalSavedTransport;
+ constructor(api:SavedApi,scope:SavedScope,requestId:()=>Promise<string>,transport:PersonalSavedTransport=personalSavedTransport){this.api=api;this.transport=transport;this.scope=Object.freeze({...scope});this.requestId=requestId;if(!id(scope.serverId)||!str(scope.viewerId,1024)||!scope.viewerId)throw new Error('A complete viewer scope is required.');this.state=this.empty();}
  private empty():PersonalSavedSnapshot{return freeze({page:null,route:null,loading:false,error:null,mutationError:null,pending:false,retryPending:false,resources:[],resource:null,entries:[],browse:null,revision:0,viewerFence:'',cursor:null,history:[],nextCursor:'',result:null,candidates:[],candidateCursor:'',libraries:[]});}
  getSnapshot=()=>this.state;
  subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
@@ -266,7 +270,7 @@ export class PersonalSavedService{
    const path=route.view==='resource'?encodedRoutePath("get_saved_resources_id_content", {"id": encodeURIComponent(route.resourceId!)}):route.view==='history'?routePath("get_personal_history"):routePath("get_saved_resources");
    if(route.view==='collections'||route.view==='views'){query.set('kind',route.view==='collections'?'collection':'view');if('shape'in route&&route.shape)query.set('shape',route.shape);}
    if(route.view==='history'&&'period'in route&&route.period)query.set('period',route.period);
-   const raw=await this.request<unknown>(path+'?'+query,'GET',undefined,signal);
+   const raw=route.view==='history'?await this.bounded(s=>this.transport.history(this.api,this.scope,'period'in route?route.period:undefined,cursor,s),signal):await this.request<unknown>(path+'?'+query,'GET',undefined,signal);
    if(!obj(raw)||!str(raw.nextCursor,4096))bad();let patch:{-readonly [K in keyof PersonalSavedSnapshot]?:PersonalSavedSnapshot[K]}&{viewerFence:string;revision:number;nextCursor:string}={page:null,resource:null,resources:[],entries:[],browse:null,nextCursor:raw.nextCursor,cursor,history:[...history],viewerFence:'',revision:0};
    if(route.view==='resource'){
     const r=resource(raw.resource,this.scope);if(r.id!==route.resourceId)bad();patch.resource=r;patch.viewerFence=r.viewerFence;patch.revision=r.revision;
@@ -319,7 +323,7 @@ export class PersonalSavedService{
   catch(e){if(this.alive(g))this.publish({pending:false,mutationError:info(e),retryPending:!!this.command});return false;}
  }
  private async send():Promise<boolean>{const c=this.command,g=this.generation;if(!c||this.disposed)return false;this.publish({pending:true,mutationError:null});
-  try{const raw=await this.request<unknown>(c.path,c.method,c.body);if(!this.alive(g))return false;if(!obj(raw)||raw.serverId!==this.scope.serverId||raw.viewerFence!==c.fence)bad();const receipt=c.intent.action==='pin'?raw:raw.receipt;if(!obj(receipt)||receipt.operationId!==c.body.operationId||!num(receipt.revision))bad();const activity=c.intent.action==='clear-history'||c.intent.action==='reset-viewing-activity';if(!activity&&(!id(receipt.resourceId)||typeof receipt.deleted!=='boolean'))bad();
+  try{const raw=c.intent.action==='clear-history'?await this.bounded(s=>this.transport.clearHistory(this.api,this.scope,c.body.operationId as string,s,c.body)):await this.request<unknown>(c.path,c.method,c.body);if(!this.alive(g))return false;if(!obj(raw)||raw.serverId!==this.scope.serverId||raw.viewerFence!==c.fence)bad();const receipt=c.intent.action==='pin'?raw:raw.receipt;if(!obj(receipt)||receipt.operationId!==c.body.operationId||!num(receipt.revision))bad();const activity=c.intent.action==='clear-history'||c.intent.action==='reset-viewing-activity';if(!activity&&(!id(receipt.resourceId)||typeof receipt.deleted!=='boolean'))bad();
    if(c.intent.action!=='create'&&!activity&&receipt.resourceId!==this.state.resource?.id)bad();
    const deleted=obj(raw.current)&&raw.current.resourceId===receipt.resourceId&&typeof raw.current.deleted==='boolean'?raw.current.deleted:receipt.deleted===true;
    const entries=c.intent.action==='entries'&&receipt.entries!==undefined?parseEntryOutcomes(receipt.entries):undefined;

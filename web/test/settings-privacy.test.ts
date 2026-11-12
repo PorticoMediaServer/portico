@@ -89,27 +89,19 @@ test('Reset recommendations posts one idempotent operation and checks the receip
   assert.equal(calls[0]!.method, 'POST');
 });
 
-test('Clear viewing history reads the fenced revision before it clears it', async () => {
+test('Clear viewing history reads History, then empties it on the server and reads it again', async () => {
   let reads = 0;
   const {api, calls} = fakeApi(call => {
-    if (call.path.startsWith('/v1/personal-history?') && call.method === 'GET') {
-      reads += 1;
-      return {serverId: 's1', viewerFence: 'fence-1', revision: 7, nextCursor: '', entries: []};
-    }
-    if (call.path === '/v1/personal-history/actions' && call.method === 'POST') {
-      const body = call.body as {expectedRevision: number; action: string; operationId: string};
-      assert.equal(body.expectedRevision, 7);
-      assert.equal(body.action, 'clear-history');
-      return {serverId: 's1', viewerFence: 'fence-1', receipt: {operationId: body.operationId, revision: 8}};
-    }
+    if (call.path.startsWith('/v1/history?') && call.method === 'GET') {reads += 1; return {items: []};}
+    if (call.path === '/v1/history' && call.method === 'DELETE') return undefined;
     throw new Error(`unexpected ${call.method} ${call.path}`);
   });
   await runPrivacyAction('privacy.clearHistory', {api, serverId: 's1', viewerId: 'v1', signal: new AbortController().signal});
   assert.equal(reads, 2, 'one read before the clear and the service refresh after it');
-  assert.deepEqual(calls.filter(call => call.method === 'POST').map(call => call.path), ['/v1/personal-history/actions']);
+  assert.deepEqual(calls.filter(call => call.method !== 'GET').map(call => [call.method, call.path]), [['DELETE', '/v1/history']]);
 });
 
-const historyDocument = {serverId: 's1', viewerFence: 'fence-1', revision: 7, nextCursor: '', entries: []};
+const historyDocument = {items: []};
 const signalOptions = (signal: AbortSignal) => ({serverId: 's1', viewerId: 'v1', signal});
 
 test('the history producer refusal codes are recognized as auth failures without a status', () => {
@@ -123,20 +115,20 @@ test('a refused history read propagates its normalized unauthorized code', async
   assert.deepEqual(calls.map(call => call.method), ['GET']);
 });
 
-test('a refused history clear propagates its normalized forbidden code after the fenced read', async () => {
+test('a refused history clear propagates its normalized forbidden code after the read', async () => {
   const {api, calls} = fakeApi(call => {
     if (call.method === 'GET') return historyDocument;
     throw Object.assign(new Error('denied'), {code: 'forbidden'});
   });
   await assert.rejects(clearViewingHistory({api, ...signalOptions(new AbortController().signal)}), (error: unknown) => (error as {code?: string}).code === 'forbidden');
-  assert.deepEqual(calls.map(call => call.method), ['GET', 'POST']);
+  assert.deepEqual(calls.map(call => call.method), ['GET', 'DELETE']);
 });
 
 test('aborting during the history read retires the service before any clear', async () => {
   const controller = new AbortController();
   let posts = 0, reads = 0;
   const api = {request: <T>(_path: string, method = 'GET', _body?: unknown, signal?: AbortSignal) => {
-    if (method === 'POST') {posts += 1; return Promise.resolve({} as T);}
+    if (method !== 'GET') {posts += 1; return Promise.resolve({} as T);}
     reads += 1;
     return new Promise<T>((_resolve, reject) => {
       const cancel = () => reject(Object.assign(new Error('cancelled'), {code: 'cancelled'}));
