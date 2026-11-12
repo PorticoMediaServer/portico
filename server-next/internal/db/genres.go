@@ -36,7 +36,10 @@ func (d *DB) Genres(ctx context.Context, v Viewer, counts bool) ([]Genre, error)
 	if err != nil {
 		return nil, err
 	}
-	libraries, err := ids(ctx, tx, `SELECT l.id FROM libraries l WHERE l.kind IN (?, ?) AND `+acc.libraryVisible("l.id"), LibraryMovies, LibraryShows)
+	// Every library the viewer may see, whatever its kind: the titles are picked by their own
+	// kind below, so a library of any kind that holds films or shows (anime does) is taken in,
+	// and one that holds none costs one empty look in the index.
+	libraries, err := ids(ctx, tx, `SELECT l.id FROM libraries l WHERE `+acc.libraryVisible("l.id"))
 	if err != nil || len(libraries) == 0 {
 		return nil, err
 	}
