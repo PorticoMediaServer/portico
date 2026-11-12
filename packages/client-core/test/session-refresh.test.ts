@@ -563,6 +563,26 @@ test('a renewal that comes back with no profile is kept: the profile\'s PIN chan
   assert.equal(store.peek()?.session.tokenGeneration, '2');
 });
 
+test('a renewal on another profile of the same account is adopted and stored: a switch reached the server and its answer never reached this device', async t => {
+  // Without this every later renewal is refused and the app can never start again (TV, 12 Nov: a crash mid-switch).
+  const {server, store, env} = setup(t);
+  const answer = server.envelope('access_1', 'refresh_000000000002', 2);
+  server.refreshAnswers.push(() => new Response(JSON.stringify({...answer, viewer: {...viewer, profileId: 'kids'}}), {headers: {'Content-Type': 'application/json'}}));
+  const renewed = await refreshDirectly(env, server);
+  assert.equal(renewed.viewer.profileId, 'kids');
+  assert.equal(store.peek()?.session.viewer.profileId, 'kids');
+  assert.equal(store.peek()?.session.tokenGeneration, '2');
+});
+
+test('a renewal for another account is still refused and changes nothing', async t => {
+  const {server, store, env} = setup(t);
+  const answer = server.envelope('access_1', 'refresh_000000000002', 2);
+  server.refreshAnswers.push(() => new Response(JSON.stringify({...answer, viewer: {...viewer, accountId: 'other'}}), {headers: {'Content-Type': 'application/json'}}));
+  await assert.rejects(refreshDirectly(env, server), {code: 'refresh_invalid', signOut: false});
+  assert.equal(store.peek()?.session.viewer.accountId, viewer.accountId);
+  assert.equal(store.peek()?.session.tokenGeneration, '1');
+});
+
 test('an expired replayed renewal is refused unless it is this sign-in, account, profile, server, installation and device', async t => {
   const {server, store, env} = setup(t);
   const original = structuredClone(store.peek()!);

@@ -212,8 +212,8 @@ export async function rememberRotatedSession(env:ConnectionEnvironment,session:L
  const parsed=parseLocalSession(session);let saved:RememberedServer|undefined,connection:RouteConnection|undefined;
  await env.storage.change(current=>{
   if(!current||current.session.sessionFamilyId!==parsed.sessionFamilyId||current.session.viewer.serverId!==parsed.viewer.serverId)return current;
-  // A renewal keeps the account and the profile, or comes back with no profile after that profile's PIN changed.
-  if(current.session.viewer.accountId!==parsed.viewer.accountId||(parsed.viewer.profileId!==''&&current.session.viewer.profileId!==parsed.viewer.profileId))throw new RouteError('identity_mismatch','Renewal changed the selected viewer.');
+  // A renewal keeps the account. Its profile is the server's to say (see refreshStoredSession).
+  if(current.session.viewer.accountId!==parsed.viewer.accountId)throw new RouteError('identity_mismatch','Renewal changed the selected viewer.');
   const generation=BigInt(parsed.tokenGeneration),old=BigInt(current.session.tokenGeneration);
   if(generation<old)return current;
   if(generation===old&&parsed.accessToken!==current.session.accessToken)throw new RouteError('identity_mismatch','Conflicting credentials for the same generation.');
@@ -365,15 +365,19 @@ export function refreshStoredSession(o:RefreshStoredOptions):Promise<LocalSessio
    throw busy;
   }finally{clearTimeout(timer);o.signal?.removeEventListener('abort',abort);}
   let next:LocalSession;
-  // The renewed sign-in is for the same account on the same server. It keeps its profile, or has
-  // none when that profile's PIN changed on another device: the app then asks Who's watching.
-  try{next=parseLocalSession(raw,{accountId:session.viewer.accountId,serverId:session.viewer.serverId},{refreshReceipt:true});if(next.viewer.profileId!==''&&next.viewer.profileId!==session.viewer.profileId)throw new Error();}
+  // The renewed sign-in is for the same account on the same server. Which profile it is on is the
+  // server's to say: usually the same one; none when that profile's PIN changed on another device
+  // (the app then asks Who's watching); or another one when a profile switch reached the server and
+  // its answer never reached this device (the app was killed, or the connection dropped), since the
+  // server checked any PIN when it switched. That profile is adopted and stored; keeping the old one
+  // would refuse every renewal from then on and leave the app unable to start.
+  try{next=parseLocalSession(raw,{accountId:session.viewer.accountId,serverId:session.viewer.serverId},{refreshReceipt:true});}
   catch{throw new SessionRefreshError('refresh_invalid','The renewed sign-in didn’t match this one.',false);}
   if(next.sessionFamilyId!==session.sessionFamilyId||BigInt(next.tokenGeneration)<=BigInt(session.tokenGeneration)||Date.parse(next.authorizationHorizon)<=now()||
    !next.refreshToken||next.refreshToken===session.refreshToken||
    // An expired receipt is adopted and renewed here with no caller in between, so its bindings
-   // are checked here. A live successor is returned, and the caller's own binding gate decides.
-   (Date.parse(next.expiresAt)<=now()&&((session.deviceId!==undefined&&next.deviceId!==session.deviceId)||
+   // (this one keeps its profile too) are checked here. A live successor is returned, and the caller's own binding gate decides.
+   (Date.parse(next.expiresAt)<=now()&&((next.viewer.profileId!==''&&next.viewer.profileId!==session.viewer.profileId)||(session.deviceId!==undefined&&next.deviceId!==session.deviceId)||
     (next.installationId!==undefined&&next.installationId!==identity.installationId)||(session.installationId!==undefined&&next.installationId!==session.installationId)))||
    (session.viewer.role==='account'&&next.viewer.role!=='account'))
    throw new SessionRefreshError('refresh_invalid','The renewed sign-in didn’t match this one.',false);
