@@ -43,14 +43,6 @@ func TestAQualityIsABoxNotAHeight(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", c.name, err)
 		}
-		if c.quality == "2160p" {
-			if plan.VideoAction == "convert" {
-				if w, h := convertedDimensions(plan); w != c.wantW || h != c.wantH {
-					t.Errorf("%s: made %dx%d, want %dx%d", c.name, w, h, c.wantW, c.wantH)
-				}
-			}
-			continue
-		}
 		if plan.VideoAction != "convert" {
 			t.Fatalf("%s: video %q, want converted", c.name, plan.VideoAction)
 		}
@@ -59,6 +51,11 @@ func TestAQualityIsABoxNotAHeight(t *testing.T) {
 		}
 		if plan.TargetHeight != c.wantH {
 			t.Errorf("%s: the plan stores height %d, want the height made, %d", c.name, plan.TargetHeight, c.wantH)
+		}
+		// Where the quality limits the picture, what playback info names as the limit is the
+		// quality's height, not the height made.
+		if info := PlaybackInfoForPlan(plan, nil); c.height > preset.Height && (info.Reason.Kind != "quality" || info.Reason.MaxHeight != preset.Height) {
+			t.Errorf("%s: playback info gives the reason %q with a limit of %d lines, want quality and the quality's %d", c.name, info.Reason.Kind, info.Reason.MaxHeight, preset.Height)
 		}
 	}
 }

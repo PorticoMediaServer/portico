@@ -364,7 +364,8 @@ func PlaybackInfoForPlan(p DeliveryPlan, subtitle *PlaybackSubtitleFacts) *Playb
 	}
 	if containsString(p.ReasonCodes, ReasonHeightExceedsPolicy) || containsString(p.ReasonCodes, ReasonBitrateExceedsPolicy) || containsString(p.ReasonCodes, ReasonQualityRungSelected) {
 		out.Reason.Kind = "quality"
-		out.Reason.MaxHeight = p.TargetHeight
+		// The limit that applied, not the height made from it.
+		out.Reason.MaxHeight = p.QualityHeight
 		out.Reason.MaxBitrateKbps = p.VideoBitrateBPS / 1000
 	}
 	if out.Routes.Subtitles == "converted" {
