@@ -71,7 +71,7 @@ for (const [label, skew] of SKEWS) {
     assert.equal(reviewed.requestId, 'request');
     const authority: TVConsentAuthority = {kind: 'local', origin: 'https://server.test', serverId: 'server', accountId: 'account', sessionFamilyId: 'family'};
     const calls: string[] = [];
-    const approver = new TVConsentApprover({baseUrl: authority.origin, request: async <T>(path: string) => {calls.push(path); return (calls.length === 1 ? preview : undefined) as T;}}, authority, () => authority);
+    const approver = new TVConsentApprover({baseUrl: authority.origin, request: async <T>(path: string) => {calls.push(path); return (calls.length === 1 ? {device: {name: preview.deviceName, platform: preview.platform, appVersion: preview.appVersion}, expiresAt: preview.expiresAt} : undefined) as T;}}, authority, () => authority);
     const tv = await approver.review('2345ABCD');
     await approver.decide(tv, 'approve');
     assert.equal(calls.length, 2);
