@@ -49,7 +49,11 @@ func delivery(owner settings.StreamingSettings) streaming.DeliveryConfiguration 
 	case "processor":
 		c.HardwareBackend, c.HardwareSelection = string(decoder.BackendSoftware), string(decoder.BackendSoftware)
 	default:
-		c.HardwareBackend = owner.GraphicsDevice
+		if decoder.ValidBackend(owner.GraphicsDevice) {
+			c.HardwareBackend = owner.GraphicsDevice
+		} else {
+			c.HardwareSelection = owner.GraphicsDevice
+		}
 	}
 	c.SoftwareDecode = !owner.HardwareDecoding
 	c.MaxConversions = owner.ConversionsAtOnce

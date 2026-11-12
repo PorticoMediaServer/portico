@@ -48,12 +48,6 @@ func (e *Engine) StartLive(ctx context.Context, r live.Conversion) (*live.Play, 
 		Settings: owner, TranscodingEnabled: owner.ConversionMode != "never", FragmentedOutput: fragmented, NoConverter: !converter,
 		Preferences: saved(r.Preferences),
 	}
-	if tools.hardware != nil {
-		request.Hardware = tools.hardware.SelectCached(tools.ffmpeg, request.Settings.HardwareBackend, "")
-	}
-	if owner.SoftwareDecode {
-		request.Hardware.DecodeCodecs = nil
-	}
 	connection(&request.Connection, playback.PlanRequest{Network: r.Network})
 	holdToLimits(&request, r.Limits)
 	if len(r.Capabilities) > 0 {
@@ -62,7 +56,7 @@ func (e *Engine) StartLive(ctx context.Context, r live.Conversion) (*live.Play, 
 		}
 	}
 	request.Choice.AssetID, request.Choice.QualityID = "live", playback.QualityOriginal
-	plan, err := streaming.Plan(request)
+	plan, err := e.planWithHardware(ctx, tools, request)
 	switch {
 	case errors.Is(err, streaming.ErrTranscodingDisabled):
 		return nil, playback.ErrConversionOff

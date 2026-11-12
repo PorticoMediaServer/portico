@@ -9,6 +9,12 @@ import "context"
 // absent, and before anything is tried the list is empty. A backend whose device stopped
 // working since it was tried is answered as such, with ProbeCircuitOpen.
 func (d *HardwareDetector) Known(ctx context.Context, executable string) []HardwareProbe {
+	return d.KnownDevice(ctx, executable, "")
+}
+
+// KnownDevice reads the same completed codec cells as playback for one observed selector.
+// It never starts a probe; a missing cell stays unknown.
+func (d *HardwareDetector) KnownDevice(ctx context.Context, executable, device string) []HardwareProbe {
 	lookup := d.CachedRuntimeIdentity
 	if lookup == nil {
 		lookup = cachedHardwareIdentity
@@ -24,12 +30,14 @@ func (d *HardwareDetector) Known(ctx context.Context, executable string) []Hardw
 		if spec, ok := backendSpecs[backend]; !ok || !spec.supported() {
 			continue
 		}
-		probe, ok := d.cache[identity+"/"+string(backend)+"/"]
+		probe, ok := d.cache[identity+"/"+string(backend)+"/"+device]
 		if !ok {
 			continue
 		}
-		if probe.Available && deviceCircuitOpen(backend, "") {
+		if probe.Available && deviceCircuitOpen(backend, device) {
 			probe.Available, probe.Reason = false, ProbeCircuitOpen
+		} else if probe.Available && deviceNeedsProbe(backend, device) {
+			probe.Available, probe.Reason = false, ProbeWarming
 		}
 		out = append(out, probe)
 	}

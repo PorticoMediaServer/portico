@@ -461,15 +461,6 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		Connection:  streaming.DeliveryContext{NetworkClass: streaming.NetworkRemote},
 		Preferences: saved(r.Preferences),
 	}
-	if tools.hardware != nil {
-		// Only what has already been measured: a play never waits for a hardware encoder
-		// to be tried out.
-		request.Hardware = tools.hardware.SelectCached(tools.ffmpeg, request.Settings.HardwareBackend, "")
-	}
-	if owner.SoftwareDecode {
-		// Hardware decoding is off: the graphics device still writes the conversion.
-		request.Hardware.DecodeCodecs = nil
-	}
 	connection(&request.Connection, r)
 	// After connection: the member's limits apply only away from home.
 	holdToLimits(&request, r.Limits)
@@ -540,14 +531,14 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 			request.BurnIn = &streaming.BurnInSpec{ResourceID: r.Choice.SubtitleTrackID, Revision: 1, Format: burn.format}
 		}
 	}
-	plan, err := streaming.Plan(request)
+	plan, err := e.planWithHardware(ctx, tools, request)
 	if err != nil && !errors.Is(err, streaming.ErrTranscodingDisabled) && owner.ConversionMode != "all" {
 		// Nothing plays under the owner's "Convert when needed". If it would with converting
 		// allowed, that setting is the reason, and the viewer is told so, not that the device
 		// cannot play the title.
 		allowed := request
 		allowed.Settings.ConversionMode, allowed.TranscodingEnabled = "all", true
-		if _, would := streaming.Plan(allowed); would == nil {
+		if _, would := e.planWithHardware(ctx, tools, allowed); would == nil {
 			err = streaming.ErrTranscodingDisabled
 		}
 	}
