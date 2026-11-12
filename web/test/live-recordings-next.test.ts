@@ -32,6 +32,7 @@ test('each tab reads its own route: Upcoming, History, Storage and the Recorded 
     const {pathname, searchParams} = route(call);
     if (pathname === '/v1/dvr') return dvr();
     if (pathname === '/v1/dvr/rules') return {items: []};
+    if (pathname === '/v1/items/itm_1') return {id: 'itm_1', libraryId: 'lib_recorded'};
     if (searchParams.get('state') === 'history') return {items: [booking('h1', {state: 'recorded', title: 'News', itemId: 'itm_1'}), booking('h2', {state: 'failed', title: 'News'}),
       booking('h3', {state: 'partial', title: 'Film'})]};
     return {items: [booking('u1')]};
@@ -46,8 +47,10 @@ test('each tab reads its own route: Upcoming, History, Storage and the Recorded 
   // Recorded: the recordings that were made, by title, each naming its title in the Recorded TV library.
   const groups = await c.readGroups('title');
   assert.deepEqual(groups.groups.map(group => [group.title, group.recordings, group.exceptions]), [['Film', 1, 1], ['News', 1, 0]]);
-  assert.equal(groups.groups[1]!.recording.itemId, 'itm_1');
-  assert.ok(calls.every(call => route(call).pathname.startsWith('/v1/dvr')));
+  assert.deepEqual([groups.groups[1]!.recording.itemId, groups.groups[1]!.recording.libraryId], ['itm_1', 'lib_recorded']);
+  // Besides the DVR routes, one title is read once to learn the Recorded TV library that plays it.
+  assert.ok(calls.every(call => route(call).pathname.startsWith('/v1/dvr') || route(call).pathname === '/v1/items/itm_1'));
+  assert.equal(calls.filter(call => route(call).pathname === '/v1/items/itm_1').length, 1);
 });
 
 test('an Upcoming page\'s cursor is the server\'s, carried forward exactly', async () => {

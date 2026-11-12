@@ -29,3 +29,17 @@ test('the rule count is every page of rules, since the server gives no count', a
   assert.deepEqual([summary.rules, summary.upcoming, summary.groups], [3, 2, 0]);
   assert.ok(paths.includes('/v1/dvr/rules?cursor=p2'));
 });
+
+test('a recording that was made plays from the Recorded TV library, which is read once from one of its titles', async () => {
+  const paths: string[] = [];
+  const api = {async request<T>(path: string): Promise<T> {
+    paths.push(path);
+    if (path.startsWith('/v1/items/')) return {id: 'itm_1', libraryId: 'lib_recorded'} as T;
+    return {items: [booking({id: 'r1', state: 'partial', itemId: 'itm_1'} as Partial<DvrRecording>), booking({id: 'r2', state: 'failed'})]} as T;
+  }};
+  const client = new NextDVRClient(api);
+  const page = await client.list('history');
+  assert.deepEqual(page.recordings.map(one => [one.itemId, one.libraryId]), [['itm_1', 'lib_recorded'], ['', '']]);
+  await client.list('recorded');
+  assert.equal(paths.filter(path => path.startsWith('/v1/items/')).length, 1);
+});
