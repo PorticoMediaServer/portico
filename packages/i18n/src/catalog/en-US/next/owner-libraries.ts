@@ -145,7 +145,7 @@ export const ownerLibrariesMessages = {
   'next.ownerLibraries.explorer.disksOnly': 'This server’s own disks. A network share needs a remote source.',
   'next.ownerLibraries.explorer.useFolder': 'Use this folder',
   'next.ownerLibraries.explorer.usePath': 'Use selected path',
-  'next.ownerLibraries.explorer.useFolders': 'Use {count} folders',
+  'next.ownerLibraries.explorer.useFolders': '{count, plural, one {Use # folder} other {Use # folders}}',
   'next.ownerLibraries.explorer.filesAndFolders': 'Files and folders',
   'next.ownerLibraries.explorer.noFilesOrFolders': 'No files or folders here',
   'next.ownerLibraries.explorer.replacesSelection': 'Choosing folders from another source replaces this selection.',
