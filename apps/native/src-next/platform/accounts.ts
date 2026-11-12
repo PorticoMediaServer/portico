@@ -2,7 +2,8 @@ import {createHostedAccountApi} from '../../../../packages/client-core/src/query
 import {readHostedAccountIdentity, readViewerIdentity} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {captureTVApprovalGrant} from './tv-approval-grant';
 import {NativeModules, Platform} from 'react-native';
-import {PorticoServicesAccountClient, porticoApiError} from '../../../../packages/client-core/src/portico-services-native';
+import {PorticoServicesAccountClient, heldFor, porticoApiError} from '../../../../packages/client-core/src/portico-services-native';
+import {porticoAccount} from '../../../../packages/client-core/src/portico-account';
 import {HttpLocalApi, type HostedSession, type LocalSession} from '../../../../packages/client-core/src';
 import {ServerSignInProbe, signInLabelKey} from '../../../../packages/client-core/src/sign-in';
 import type {AppServerSession, NewServerConnection, PorticoAccountScope} from '../../../../packages/client-core/src/app-sessions';
@@ -168,6 +169,11 @@ export class NativeAccounts {
    * A refusal is an `ApiError`, so an ended sign-in renews once as every account read does. */
   porticoServers(issued: Pick<HostedSession, 'accessToken' | 'account'>, signal?: AbortSignal) {
     return readPorticoServerList(hostedUrl, issued.accessToken, issued.account.id, nativeRouteCrypto, {fetcher: nativeNetworkFetch, signal})
+      .catch(error => {throw porticoApiError(error);});
+  }
+  /** A sign-in note from Portico Services for one server and the challenge that server gave. */
+  porticoIdentity(issued: Pick<HostedSession, 'accessToken'>, serverId: string, challenge: string, signal?: AbortSignal) {
+    return porticoAccount(heldFor(issued.accessToken), hostedUrl, {fetcher: nativeNetworkFetch}).serverIdentity(serverId, challenge, signal)
       .catch(error => {throw porticoApiError(error);});
   }
   accountClient(binding: string, isCurrent?: () => boolean, ownsResult?: () => boolean) {this.assertCurrent(); return createNativeAccountClient(hostedUrl, binding, isCurrent, ownsResult);}

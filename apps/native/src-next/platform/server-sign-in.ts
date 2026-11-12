@@ -2,7 +2,7 @@ import {createNativeHostedCommandTransport} from '../../../../packages/client-co
 import {readDirectAccount, readServerSystem} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {linkNativeAbortSignals} from './abort-signals';
-import {accountExpectation, nativeAccountWork} from './account-work';
+import {accountExpectation, nativeAccountRead, nativeAccountWork} from './account-work';
 import {HttpLocalApi, transportJSON, assertFirstContactIdentity, type HostedServer, type HostedSession, type LocalSession} from '../../../../packages/client-core/src';
 import {ServerSignInProbe, parseServerSignIn, type ServerSignIn} from '../../../../packages/client-core/src/sign-in';
 import {negotiateNativeServer} from './negotiation';
@@ -11,7 +11,9 @@ import {logPickFailure, provenIdentityMismatch} from './pick-failure';
 import {directSignIn, directSignInContinuation, completeDirectSignInChallenge, keepSignInRenewal, selectDirectProfile, parseDirectSnapshot, type DirectSignIn, type DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
 import {connectHostedServer, connectPairedServer, connectPairedPorticoServer, inspectDirectServer} from '../../../../packages/client-core/src/server-connections';
 import {knownServerRoutes, type NewServerConnection, type AppServerSession} from '../../../../packages/client-core/src/app-sessions';
-import {porticoSignIn, acceptPorticoInvitation, acceptShortPorticoInvitation} from '../../../../packages/client-core/src/portico-servers';
+import {acceptPorticoInvitation, acceptShortPorticoInvitation, challengeNotProven} from '../../../../packages/client-core/src/portico-servers';
+import {porticoServerSignIn} from '../../../../packages/client-core/src/portico-server-sign-in';
+import {CodedError} from '../../../../packages/client-core/src/server-messages';
 import {routePath} from '../../../../packages/contracts/src/routes';
 import {REVOCATION_TIMEOUT_MS, revokeInBackground} from './session-revocation';
 import {createNativeLocalTVSignIn} from './tv-sign-in';
@@ -227,7 +229,10 @@ export class NativeServerSignIn {
       this.assertCurrent();
     });
   }
-  /** Explicit Portico path: identity and directory transport are opened only here. */
+  /** Explicit Portico path. The server's address and key come from the account's signed list
+   * (`nativeAccounts.porticoServers`); the server at that address must prove that key before
+   * anything is sent to it, then signs the account in with a note Portico Services gives for the
+   * challenge it set. */
   connectPortico(server: HostedServer) {
     return this.run(async () => {
       if (this.api) throw mismatch();
@@ -235,18 +240,25 @@ export class NativeServerSignIn {
       await credentials.synchronize(); this.assertCurrent();
       const account = captureAccount(await credentials.accessSession()); this.assertCurrent();
       this.admission = await this.owner.admission('portico', {origin: hostedUrl, accountId: account.account.id});
-      const connected = await connectHostedServer(server, nativeHostedSource(hostedUrl, credentials, account.account.id, accountExpectation(account)), nativeServerEnvironment(server.id), this.controller.signal);
-      this.api = connected.api; this.hosted = connected.hosted; this.assertCurrent();
-      const system = await rememberNativeServerDisplay(connected.api, {serverId: server.id, signIn: 'portico',
+      const env = nativeServerEnvironment(server.id);
+      const pin = await inspectDirectServer(server.baseUrl, env, this.controller.signal); this.assertCurrent();
+      // In place of the old server's signed challenge proof: a server answering at the listed
+      // address with any other id or key is refused here, before any note is asked for.
+      if (pin.serverId !== server.id || pin.publicKey !== server.publicKey) throw new CodedError('challenge_not_proven', challengeNotProven);
+      assertFirstContactIdentity(server.baseUrl, pin, {knownRoutes: knownServerRoutes(await nativeAppSessions.read())}); this.assertCurrent();
+      const connected = await connectPairedServer(server.baseUrl, pin, env, this.controller.signal);
+      // Remembered under its Portico Account (for Portico sign-out); the new service has no route-signing key.
+      this.api = connected.api; this.hosted = {origin: hostedUrl, accountId: account.account.id}; this.assertCurrent();
+      this.server = await rememberNativeServerDisplay(connected.api, {serverId: server.id, signIn: 'portico',
         signal: this.controller.signal, isCurrent: this.current}); this.assertCurrent();
-      this.server = system;
-      return this.consumeHostedCommand(connected, credentials, account,
-        (hosted, api, signal) => porticoSignIn(hosted, hostedUrl, api, server.id, {signal, crypto: nativeRouteCrypto}));
+      const expected = accountExpectation(account);
+      return this.consumeHostedCommand(connected, credentials, account, (_hosted, api, signal) => porticoServerSignIn(api, server.id,
+        challenge => nativeAccountRead(credentials, issued => this.owner.porticoIdentity(issued, server.id, challenge, signal), {expected, isCurrent: this.current, signal}), signal));
     });
   }
   /** Shared directory/invitation handoff: preserve the exact account family through
    * exchange, repeated factors, profile choice and atomic publication. */
-  private async consumeHostedCommand(connected: Awaited<ReturnType<typeof connectHostedServer>>,
+  private async consumeHostedCommand(connected: Pick<Awaited<ReturnType<typeof connectHostedServer>>, 'api' | 'connection'>,
     credentials: ReturnType<NativeAccounts['accountCredentials']>, account: Omit<HostedSession, 'refreshToken'>,
     command: (hosted: HostedRequestApi, api: HttpLocalApi, signal: AbortSignal) => Promise<DirectSignIn>) {
     const signal = this.controller.signal, expected = accountExpectation(account);

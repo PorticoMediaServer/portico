@@ -234,24 +234,29 @@ for (const status of [403, 429, 'network'] as const) {
   });
 }
 
-/** Public connectPortico -> actual consumeHostedCommand -> actual HTTP -> real owner.
- * Verified-route and command-producer ports are synthetic; this does not prove real signed routes
- * or invitation/member/owner/TV admission. No server-local selection operation is supplied. */
-async function serverCommand(f: F, kind: string, produce?: (hosted: any) => Promise<any>) {
-  const installation = {installationId: 'fixture-installation'}, pin = {serverId: 'server', publicKey: 'public', fingerprint: 'fingerprint'};
-  const descriptor = systemAnswer({id: 'server', name: 'Server', version: '1', signIn: 'portico'});
-  const routes = {pin, dispose() {}}, api = {baseUrl: 'https://server.example', getRouteConnection: () => routes,
-    request: async (path: string) => {assert.equal(path, localRoutes.routePath('get_system')); return descriptor;}};
+/** Public connectPortico -> the new Portico Services note for the server's challenge -> actual HTTP
+ * -> real owner. The server's address and key are the account's signed list's; the server port is
+ * synthetic, and nothing is saved: these end before a sign-in is consumed. */
+async function serverCommand(f: F, pin = {serverId: 'server', publicKey: 'listed-key', fingerprint: 'fingerprint'}) {
+  const installation = {installationId: 'fixture-installation_000000000000001', name: 'Portico on Android', platform: 'android', app: 'portico', appVersion: '1'};
+  const routes = {pin, dispose() {}}, asked: string[] = [];
+  const api = {baseUrl: 'https://a1.ns.portico.direct:32400', getRouteConnection: () => routes,
+    request: async (path: string, method: string) => {asked.push(`${method} ${path}`);
+      if (path === '/v1/auth/portico/challenge') return {challenge: 'challenge-from-the-server-0001', serverId: 'server', expiresAt: new Date(Date.now() + 300000).toISOString()};
+      throw new Error('unexpected server request ' + path);}};
   const selection = {revision: 1, selectedServerId: 'server', servers: [{connection: {pin, session: {sessionFamilyId: 'retained-server-local'}}}]}, before = structuredClone(selection);
+  const {porticoAccount} = await import('../../../packages/client-core/src/portico-account');
+  const {heldFor, porticoApiError} = await import('../../../packages/client-core/src/portico-services-native');
   const modules: Record<string, any> = {react: {default: React},
     '../../../../packages/client-core/src': {...core, assertFirstContactIdentity() {}},
-    '../../../../packages/client-core/src/sign-in': {...serverProbe, ServerSignInProbe: class {dispose() {} async inspect() {return descriptor;} getSnapshot() {return {origin: api.baseUrl};}}},
+    '../../../../packages/client-core/src/sign-in': {...serverProbe, ServerSignInProbe: class {dispose() {} getSnapshot() {return {origin: api.baseUrl};}}},
     '../../../../packages/contracts/src/routes': localRoutes,
     '../../../../packages/client-core/src/app-sessions': {knownServerRoutes: () => []},
     '../../../../packages/client-core/src/installation': {installationIdentity: () => installation},
-    '../../../../packages/client-core/src/portico-servers': {porticoSignIn: produce ?? (async (hosted: any) => hosted.request('/v1/servers/server/identity', 'POST', {challenge: 'original-' + kind, requestId: 'original-operation'}))},
-    '../../../../packages/client-core/src/server-connections': {inspectDirectServer: async () => pin, connectPairedServer: async () => ({api, connection: routes}),
-      connectPairedPorticoServer: async () => ({api, connection: routes, hosted: {origin: hostedUrl, accountId: 'account'}}), connectHostedServer: async () => ({api, connection: routes, hosted: {origin: hostedUrl, accountId: 'account'}})},
+    '../../../../packages/client-core/src/portico-servers': {challengeNotProven: 'This server could not prove it is the server you chose. Nothing was sent to it.'},
+    '../../../../packages/client-core/src/portico-server-sign-in': await import('../../../packages/client-core/src/portico-server-sign-in'),
+    '../../../../packages/client-core/src/server-messages': await import('../../../packages/client-core/src/server-messages'),
+    '../../../../packages/client-core/src/server-connections': {inspectDirectServer: async () => pin, connectPairedServer: async () => ({api, connection: routes})},
     './accounts': {nativeAccounts: {}}, './account-work': accountWork, './abort-signals': abortSignals, './account-authority': {hostedUrl},
     './server-connections': await import('../src-next/platform/server-connections'),
     './server-display': {rememberNativeServerDisplay: async () => ({id: 'server', name: 'Server', signIn: 'portico'})},
@@ -259,59 +264,34 @@ async function serverCommand(f: F, kind: string, produce?: (hosted: any) => Prom
     './member-account-move': {NativeMemberAccountMove: class {captureHosted: () => Promise<any>; constructor(ports: any) {this.captureHosted = ports.captureHosted;} dispose() {}}},
     './hosted-sign-in-unavailable': {hostedSignInUnavailable: () => undefined},
     './negotiation': await import('../src-next/platform/negotiation'),
-    // The real local-invitation namespace: these closure tests never open one,
-    // and an unexpected parse or format call would run the real guard.
     './local-invitation': localInvitation,
   };
   const {NativeServerSignIn} = await screenModule(new URL('../src-next/platform/server-sign-in.ts', import.meta.url), new Proxy(modules,
     {get: (all, name: string) => all[name] ?? new Proxy({}, {get: (_, key) => () => {throw new Error('Unvisited command port ' + name + ':' + String(key));}})}));
-  const command = new NativeServerSignIn({accountCredentials: () => f.owner, onCancel: () => () => {}, admission: async () => ({})});
-  return {command, start: () => command.connectPortico({id: 'server'}), selection: () => {assert.deepEqual(selection, before);}};
+  // The owner's own note request, as `nativeAccounts.porticoIdentity` makes it, over the native transport.
+  const owner = {accountCredentials: () => f.owner, onCancel: () => () => {}, admission: async () => ({}),
+    porticoIdentity: (issued: {accessToken: string}, serverId: string, challenge: string, signal?: AbortSignal) =>
+      porticoAccount(heldFor(issued.accessToken), hostedUrl, {fetcher: nativeNetworkFetch}).serverIdentity(serverId, challenge, signal).catch((error: unknown) => {throw porticoApiError(error);})};
+  const command = new NativeServerSignIn(owner);
+  return {command, asked, start: () => command.connectPortico({id: 'server', name: 'Server', baseUrl: api.baseUrl, publicKey: 'listed-key', policyRevision: 0}),
+    selection: () => {assert.deepEqual(selection, before);}};
 }
-for (const kind of ['directory', 'invitation', 'member', 'owner', 'TV']) {
-  test(`actual server-sign-in request closure never repeats ${kind} mutation when 401 renews the original family`, async t => {
-    const f = await fixture(), sent: string[] = [];
-    transport(t, async (_url, method, headers, body) => {assert.equal(method, 'POST'); assert.equal(new Headers(headers).get('Authorization'), 'Bearer old-access'); sent.push(body!); return response(401);});
-    const operation = await serverCommand(f, kind);
-    await assert.rejects(operation.start(), (error: unknown) => error instanceof core.ApiError && error.status === 401);
-    assert.deepEqual(sent.map(value => JSON.parse(value)), [{challenge: 'original-' + kind, requestId: 'original-operation'}]);
-    assert.equal(f.renewals.length, 1); assert.equal(f.owner.getSnapshot().session?.familyId, 'family'); operation.selection(); operation.command.dispose();
-  });
-}
-
-{
-  for (const cancel of [false, true]) {
-    test(`actual official Hosted closure snapshots nested command JSON before held storage; cancel=${cancel}`, async t => {
-      const f = await fixture(), caller = new AbortController(), issued = deferred<ReturnType<F['holdLoad']>>();
-      const body = {challenge: 'original-challenge', requestId: 'original-request', target: {id: 'original-target', nested: ['original']}};
-      const sent: {path: string; method: string; body: string | null}[] = [];
-      transport(t, async (path, method, _headers, wire) => {sent.push({path, method, body: wire}); return response(401);});
-      const invoke = (hosted: any) => {const hold = f.holdLoad(); issued.resolve(hold);
-        return hosted.request('/v1/servers/server/identity', 'POST', body, caller.signal);};
-      const operation = await serverCommand(f, 'snapshot', invoke);
-      const pending = operation.start();
-      const settled = Promise.allSettled([pending]), hold = await issued.promise; await hold.entered.promise;
-      assert.equal(sent.length, 0, 'canonical storage is actually holding original admission');
-      body.challenge = 'successor-challenge'; body.requestId = 'successor-request'; body.target.id = 'successor-target'; body.target.nested[0] = 'successor';
-      if (cancel) caller.abort(); hold.resolve(); const [result] = await settled;
-      assert.equal(result!.status, 'rejected');
-      if (cancel) {assert.deepEqual(sent, []); assert.equal(f.renewals.length, 0);}
-      else {
-        assert.deepEqual(sent, [{path: hostedUrl + '/v1/servers/server/identity', method: 'POST', body: JSON.stringify({challenge: 'original-challenge', requestId: 'original-request', target: {id: 'original-target', nested: ['original']}})}]);
-        assert.equal(f.renewals.length, 1);
-      }
-      operation.selection(); operation.command.dispose();
-    });
-  }
-  for (const body of [undefined, null]) {
-    test(`actual official Hosted closure preserves ${body === undefined ? 'absent' : 'null'} command body`, async t => {
-      const f = await fixture(), sent: (string | null)[] = [];
-      transport(t, async (_path, _method, _headers, wire) => {sent.push(wire); return response(401);});
-      const invoke = (hosted: any) => hosted.request('/v1/servers/server/identity', 'POST', body);
-      const operation = await serverCommand(f, 'body-shape', invoke);
-      await assert.rejects(operation.start());
-      assert.deepEqual(sent, [body === undefined ? null : 'null']); assert.equal(f.renewals.length, 1);
-      operation.selection(); operation.command.dispose();
-    });
-  }
-}
+test('opening a listed server asks Portico Services for the note for its challenge, and once more only after a 401 renews the account', async t => {
+  const f = await fixture(), sent: {path: string; body: string | null; token: string | null}[] = [];
+  transport(t, async (url, method, headers, body) => {assert.equal(method, 'POST'); sent.push({path: url, body, token: new Headers(headers).get('Authorization')}); return response(401);});
+  const operation = await serverCommand(f);
+  await assert.rejects(operation.start(), (error: unknown) => error instanceof core.ApiError && error.status === 401);
+  assert.deepEqual(sent.map(value => value.path), [hostedUrl + '/v1/servers/server/identity', hostedUrl + '/v1/servers/server/identity']);
+  assert.deepEqual(sent.map(value => JSON.parse(value.body!)), [{challenge: 'challenge-from-the-server-0001'}, {challenge: 'challenge-from-the-server-0001'}]);
+  assert.deepEqual(sent.map(value => value.token), ['Bearer old-access', 'Bearer renewed-access']);
+  assert.equal(f.renewals.length, 1); assert.deepEqual(operation.asked, ['POST /v1/auth/portico/challenge']);
+  operation.selection(); operation.command.dispose();
+});
+test('a server answering at the listed address with another key is refused before any note is asked for', async t => {
+  const f = await fixture(), sent: string[] = [];
+  transport(t, async url => {sent.push(url); return response(200, {});});
+  const operation = await serverCommand(f, {serverId: 'server', publicKey: 'another-key', fingerprint: 'fingerprint'});
+  await assert.rejects(operation.start(), {code: 'challenge_not_proven'});
+  assert.deepEqual(sent, []); assert.deepEqual(operation.asked, [], 'nothing is sent to that server either');
+  operation.selection(); operation.command.dispose();
+});
