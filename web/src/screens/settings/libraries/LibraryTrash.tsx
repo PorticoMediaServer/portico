@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from 'react';
 import {defaultI18n} from '@i18n';
 import type {ServerRequester} from '@core/query/server-api.ts';
-import {emptyLibraryTrash, readLibraryTrash, saveTrashRule, type LibraryTrash as Trash, type TrashRule} from '@core/admin/library-trash.ts';
+import {emptyLibraryTrash, readLibraryTrash, removedAtNextScan, saveTrashRule, type LibraryTrash as Trash, type TrashRule} from '@core/admin/library-trash.ts';
 import type {MessageId} from '@i18n';
 import {Button, Select, TextField} from '../../../kit/controls';
 import {Dialog} from '../../../kit/overlays/Dialog';
@@ -96,11 +96,19 @@ export function LibraryTrashRule({libraryId, api, isCurrent, label}: Readonly<{l
     const capture = new AbortController(); lifetime.current = capture; void ports.current.load(capture);
     return () => {capture.abort(); if (lifetime.current === capture) lifetime.current = undefined;};
   }, [libraryId, api]);
+  const [asking, setAsking] = useState<Readonly<{rule: TrashRule; count: number}>>();
+  // Discourage, don't block: a rule that removes titles at the next scan, with no count typed, says how many first.
+  const choose = (rule: TrashRule) => {
+    if (!trash || busy) return;
+    const count = removedAtNextScan(trash, rule);
+    if (count > removedAtNextScan(trash, trash.rule)) setAsking({rule, count}); else void save(rule);
+  };
   const save = async (rule: TrashRule) => {
     const capture = lifetime.current;
+    setAsking(undefined);
     if (!live(capture) || busy || !trash) return;
     setBusy(true); setFailed(false);
-    try { await saveTrashRule(api, libraryId, trash.options, rule, capture.signal); if (live(capture)) await load(capture); }
+    try { await saveTrashRule(api, libraryId, rule, capture.signal); if (live(capture)) await load(capture); }
     catch { if (live(capture)) setFailed(true); }
     finally { if (live(capture)) setBusy(false); }
   };
@@ -109,12 +117,18 @@ export function LibraryTrashRule({libraryId, api, isCurrent, label}: Readonly<{l
     {failed && <span role="alert">{t('next.states.pageFailedBody')}</span>}
     {trash && <>
       <Select aria-label={label} value={trash.rule.mode} disabled={busy} onValueChange={mode => {
-        if (mode === 'days' || mode === 'scan' || mode === 'manual') void save({mode, days: trash.rule.days});
+        if (mode === 'days' || mode === 'scan' || mode === 'manual') choose({mode, days: trash.rule.days});
       }} options={RULES.map(rule => ({value: rule.value, label: t(rule.label)}))} />
       {trash.rule.mode === 'days' && <>
         <TextField aria-label={t('next.ownerLibraries.missingRuleDaysLabel')} inputMode="numeric" value={days} disabled={busy} onChange={event => setDays(event.currentTarget.value)} />
-        <Button disabled={busy || !daysValid || dayCount === trash.rule.days} onClick={() => {void save({mode: 'days', days: dayCount});}}>{t('next.settings.apply')}</Button>
+        <Button disabled={busy || !daysValid || dayCount === trash.rule.days} onClick={() => choose({mode: 'days', days: dayCount})}>{t('next.settings.apply')}</Button>
       </>}
     </>}
+    <Dialog open={!!asking && !!trash} onOpenChange={value => {if (!value) setAsking(undefined);}} size="sm" role="alertdialog"
+      title={asking ? t('next.ownerLibraries.ruleRemovesTitle', {count: asking.count}) : ''}
+      description={asking && trash ? t('next.ownerLibraries.ruleRemovesBody', {count: asking.count, library: trash.name}) : ''} footer={<>
+        <Button disabled={busy} onClick={() => setAsking(undefined)}>{t('next.settings.cancel')}</Button>
+        <Button variant="primary" disabled={busy} onClick={() => {if (asking) void save(asking.rule);}}>{t('next.ownerLibraries.ruleRemovesConfirm')}</Button>
+      </>}>{null}</Dialog>
   </div>;
 }

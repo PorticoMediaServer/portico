@@ -8,7 +8,7 @@ import type {AdminLibrary, LibraryOptions} from '../../../contracts/src/next/api
  */
 export type TrashRule = Readonly<{mode: 'days' | 'scan' | 'manual'; days: number}>;
 export type MissingTitle = Readonly<{id: string; title: string; year?: number; missingSince: string; removedAt?: string}>;
-export type LibraryTrash = Readonly<{name: string; rule: TrashRule; options: LibraryOptions; items: readonly MissingTitle[]; total: number}>;
+export type LibraryTrash = Readonly<{name: string; rule: TrashRule; items: readonly MissingTitle[]; total: number}>;
 
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 const invalid = () => Object.assign(new Error('invalid_library_trash'), {code: 'invalid_library_trash'});
@@ -32,14 +32,26 @@ export async function readLibraryTrash(api: ServerRequester, libraryId: string, 
     if (!object(m) || typeof m.id !== 'string' || typeof m.title !== 'string' || !time(m.missingSinceAt) || m.removedAt !== undefined && !time(m.removedAt)) throw invalid();
     return Object.freeze({id: m.id, title: m.title, ...(typeof m.year === 'number' && m.year > 0 ? {year: m.year} : {}), missingSince: m.missingSinceAt, ...(m.removedAt ? {removedAt: m.removedAt as string} : {})});
   });
-  return Object.freeze({name: library.name, rule: ruleOf(library.options), options: library.options as unknown as LibraryOptions, items: Object.freeze(items), total: missing.total});
+  return Object.freeze({name: library.name, rule: ruleOf(library.options), items: Object.freeze(items), total: missing.total});
 }
 
-/** Saves the library's rule. The server replaces a library's options whole, so the others go back as they were read. */
-export async function saveTrashRule(api: ServerRequester, libraryId: string, options: LibraryOptions, rule: TrashRule, signal?: AbortSignal): Promise<TrashRule> {
+/** Saves the library's rule and nothing else. The server replaces a library's options whole, so they are read again
+ *  just before saving and go back as they are now, with only the trash rule changed. */
+export async function saveTrashRule(api: ServerRequester, libraryId: string, rule: TrashRule, signal?: AbortSignal): Promise<TrashRule> {
+  const library: unknown = await callServer(api, 'GET /v1/admin/libraries/{id}', {id: libraryId, signal});
+  if (!object(library) || !object(library.options)) throw invalid();
   const trash = rule.mode === 'days' ? {mode: 'days', days: rule.days} : {mode: rule.mode};
-  const saved: AdminLibrary = await callServer(api, 'PATCH /v1/admin/libraries/{id}', {id: libraryId, body: {options: {...options, trash}}, signal});
+  const saved: AdminLibrary = await callServer(api, 'PATCH /v1/admin/libraries/{id}', {id: libraryId, body: {options: {...(library.options as unknown as LibraryOptions), trash}}, signal});
   return ruleOf(saved?.options);
+}
+
+/** How many of these missing titles a rule removes at the next scan: every one after every scan, those missing for at
+ *  least its days otherwise, none when only the owner empties the trash. */
+export function removedAtNextScan(trash: Pick<LibraryTrash, 'items' | 'total'>, rule: TrashRule, now = Date.now()): number {
+  if (rule.mode === 'manual') return 0;
+  if (rule.mode === 'scan') return trash.total;
+  const cutoff = now - rule.days * 86_400_000;
+  return trash.items.filter(item => Date.parse(item.missingSince) <= cutoff).length;
 }
 
 /** Empties the trash now. `typed` is the count the owner typed; the server checks it against what is missing. */
