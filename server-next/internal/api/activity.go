@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/live"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 )
 
@@ -65,6 +66,12 @@ func (s *Server) activityRoutes() {
 			return None{}, ErrField("message", "Write a message of up to 500 characters.")
 		}
 		id := r.PathValue("id")
+		if live.IsLive(id) {
+			if !s.viewings.StopFor(id, req.Message) {
+				return None{}, nil
+			}
+			return None{}, s.db.Record(r.Context(), CallerFrom(r.Context()).UserID, "stream.stop", id, req.Message, s.now())
+		}
 		// Stopping a stream that has already ended is fine: the viewer was told once.
 		if !slices.ContainsFunc(s.playback.All(), func(v playback.Session) bool { return v.ID == id }) {
 			return None{}, nil
@@ -123,6 +130,13 @@ func (s *Server) nowPlaying(r *http.Request, _ None) (Page[NowPlaying], error) {
 		}
 		out.Items = append(out.Items, item)
 	}
+	channels, err := s.nowWatchingLive(r)
+	if err != nil {
+		return Page[NowPlaying]{}, err
+	}
+	// A channel watched has no conversion state to order by beside the titles: the newest
+	// start first among them, after the titles' own order.
+	out.Items = append(out.Items, channels...)
 	return out, nil
 }
 
