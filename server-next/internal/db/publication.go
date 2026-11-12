@@ -2,8 +2,8 @@ package db
 
 import "strings"
 
-// A book's or comic's kind of publication (items.publication). Only the file's own explicit
-// field or the owner's edit sets one: never a folder's name, a title's words or a date.
+// A book's or comic's kind of publication (items.publication). File metadata and owner edits
+// take precedence over recognisable issue names and publication folders.
 const (
 	PublicationBook      = 0
 	PublicationMagazine  = 1

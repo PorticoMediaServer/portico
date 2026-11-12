@@ -180,9 +180,8 @@ func TestScanAllFilesReadsABooksOwnDetailsAgain(t *testing.T) {
 	}
 }
 
-// Only a file's own explicit field makes a title a magazine or a newspaper: never a folder's name,
-// the title's words or a date in its name; and two fields that disagree say nothing.
-func TestOnlyTheFileSaysItIsAPeriodical(t *testing.T) {
+// Missing file fields can use a recognisable issue name; conflicting file fields alone say nothing.
+func TestPeriodicalNamesFillMissingFileFields(t *testing.T) {
 	f := newFixture(t, db.LibraryBooks)
 	f.put("Wired Magazine/Wired Magazine 2026-11.epub", epub(t, "3.0", `<dc:title>Wired Magazine November</dc:title>`))
 	f.put("Mixed/mixed.epub", epub(t, "3.0", `<dc:title>Mixed</dc:title><dc:type>magazine</dc:type><dc:type>newspaper</dc:type>`))
@@ -198,8 +197,8 @@ func TestOnlyTheFileSaysItIsAPeriodical(t *testing.T) {
 	for _, it := range page.Items {
 		got[it.Title]++
 	}
-	if len(got) != 1 || got["Real Issue"] != 1 {
-		t.Fatalf("magazines: %v (want only the file that says so)", got)
+	if len(got) != 2 || got["Real Issue"] != 1 || got["Wired Magazine November"] != 1 {
+		t.Fatalf("magazines: %v (want the explicit issue and the named issue)", got)
 	}
 }
 
@@ -228,5 +227,76 @@ func TestRemoteEPUBWordCountsRequireCompleteDepth(t *testing.T) {
 		if depth == db.DepthComplete && (count == nil || *count != 1) {
 			t.Fatal("Complete did not count the remote book's words")
 		}
+	}
+}
+
+// Common date/issue shapes group a publication without a provider or extra file reads.
+func TestPeriodicalDatesAndGroupsFromNamesKeepOwnerLocks(t *testing.T) {
+	f := newFixture(t, db.LibraryBooks)
+	cases := []struct {
+		file, title, date string
+		publication       int
+	}{
+		{"Amazing Stories 1926-04.epub", "Amazing Stories 1926-04", "1926-04", db.PublicationMagazine},
+		{"The Strand Magazine/The Strand Magazine 1891-07.epub", "The Strand Magazine 1891-07", "1891-07", db.PublicationMagazine},
+		{"Times/Times 1918-10-21.epub", "Times 1918-10-21", "1918-10-21", db.PublicationNewspaper},
+		{"Times/Times 19181022.epub", "Times 19181022", "1918-10-22", db.PublicationNewspaper},
+		{"The Strand Magazine/July 1891.epub", "July 1891", "1891-07", db.PublicationMagazine},
+		{"Daily/21 Oct 1918/edition.epub", "edition", "1918-10-21", db.PublicationNewspaper},
+		{"Magazines/Wired/Issue 12.epub", "Issue 12", "", db.PublicationMagazine},
+		{"Magazines/Wired/0013.epub", "0013", "", db.PublicationMagazine},
+		{"Wired/Wired #14.epub", "Wired #14", "", db.PublicationMagazine},
+		{"Ambiguous/Ambiguous 03-04-2026.epub", "Ambiguous 03-04-2026", "", db.PublicationBook},
+		{"Invalid/Invalid 2026-02-30.epub", "Invalid 2026-02-30", "", db.PublicationBook},
+	}
+	for _, c := range cases {
+		f.put(c.file, epub(t, "3.0", ""))
+	}
+	f.write("Unsorted/Wired 2026-11.pdf")
+	f.scan()
+	books := f.titles(db.KindBook)
+	for _, c := range cases {
+		it := books[c.title]
+		if it.PublicID == "" || it.Publication != c.publication || it.ReleaseDate != c.date {
+			t.Fatalf("%s: publication %d, date %q; want %d, %q", c.file, it.Publication, it.ReleaseDate, c.publication, c.date)
+		}
+	}
+	series := f.titles(db.KindSeries)
+	for name, count := range map[string]int{"Amazing Stories": 1, "The Strand Magazine": 2, "Times": 2, "Daily": 1, "Wired": 3} {
+		group := series[name]
+		if group.PublicID == "" {
+			t.Fatalf("no publication group %s", name)
+		}
+		page, err := f.d.Items(ctx, f.viewer, db.ItemQuery{Library: f.lib.PublicID, Series: group.PublicID, Limit: 10})
+		if err != nil || len(page.Items) != count {
+			t.Fatalf("%s group: %d issues, %v", name, len(page.Items), err)
+		}
+	}
+	// A PDF already scanned as a book learns its publication when moved into that folder.
+	oldPDF := books["Wired 2026-11"]
+	f.move("Unsorted/Wired 2026-11.pdf", "Wired/Wired 2026-11.pdf")
+	f.scan()
+	movedPDF := f.titles(db.KindBook)["Wired 2026-11"]
+	if movedPDF.PublicID != oldPDF.PublicID || movedPDF.Publication != db.PublicationMagazine || movedPDF.ReleaseDate != "2026-11" {
+		t.Fatalf("the moved PDF did not learn its issue facts: %+v", movedPDF)
+	}
+	wired := books["Issue 12"]
+	if wired.IndexNumber == nil || *wired.IndexNumber != 12 {
+		t.Fatal("numbered issue lost its number")
+	}
+	kept := books["Times 1918-10-21"]
+	locks, err := f.d.MetadataLocks(ctx, kept.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	book, date := "book", "1999-01-01"
+	if _, err := f.d.EditMetadata(ctx, kept.PublicID, locks.Revision, db.MetadataEdit{PublicationType: &book, ReleaseDate: &date}); err != nil {
+		t.Fatal(err)
+	}
+	f.put(cases[1].file, epub(t, "3.0", `<dc:type>newspaper</dc:type><dc:date>2000-01-02</dc:date>`))
+	f.scan()
+	after := f.detail(kept.PublicID)
+	if after.Publication != db.PublicationBook || after.ReleaseDate != date {
+		t.Fatalf("scan overwrote owner locks: publication %d, date %q", after.Publication, after.ReleaseDate)
 	}
 }

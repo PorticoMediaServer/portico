@@ -41,8 +41,9 @@ func (r *run) bookUnits(f *folder) []unit {
 			}
 		}
 		name := cleanName(file.entry.Name)
+		publication, date, group, index := r.namedPeriodical(d, file.rel)
 		authors := d.names("authors", "author")
-		if len(authors) == 0 {
+		if len(authors) == 0 && publication == db.PublicationBook {
 			// Author/Title/file and Author/file: the folder at the top is the author.
 			if top, _, nested := strings.Cut(file.rel, "/"); nested {
 				authors = []string{top}
@@ -66,10 +67,10 @@ func (r *run) bookUnits(f *folder) []unit {
 		if n, err := strconv.Atoi(d["word_count"]); err == nil {
 			item.WordCount = &n
 		}
-		item.Reread = r.rereads(file)
-		item.Publication, item.ReleaseDate = issue(d, name)
+		item.Reread = r.rereads(file) || publication != db.PublicationBook
+		item.Publication, item.ReleaseDate, item.IndexNumber = publication, date, index
 		u := unit{files: []*found{file}}
-		if series := d["series"]; series != "" {
+		if series := firstOf(d["series"], group); series != "" {
 			seriesKey := db.ItemKey{Kind: db.KeyName, Key: "series|" + fold(series)}
 			item.ExtraOf, item.ExtraKind = []db.ItemKey{seriesKey}, db.RelationSeriesMember
 			if position := number(d["series_position"]); position > 0 {
@@ -114,22 +115,26 @@ func (r *run) comicUnits(f *folder) []unit {
 		if r.rereads(file) && !read {
 			continue
 		}
+		publication, date, group, _ := r.namedPeriodical(d, file.rel)
 		title := firstOf(d["album"], name)
 		if f.rel == "" {
 			comic := db.ImportItem{Kind: db.KindComic, Title: title, Versions: []db.ImportVersion{version},
 				Keys: []db.ItemKey{db.FileKey(r.path.ID, file.rel, 0), {Kind: db.KeyName, Key: "comic|" + fold(name)}}}
 			comicDetails(&comic, d)
+			comic.Publication, comic.ReleaseDate = publication, date
 			comic.Reread = r.rereads(file)
 			u.items = []db.ImportItem{comic}
 			units = append(units, u)
 			continue
 		}
-		series := cleanName(path.Base(f.rel))
+		series := firstOf(d["series"], group, cleanName(path.Base(f.rel)))
 		issue := db.ImportItem{Kind: db.KindIssue, Title: title, ParentRow: 1, Versions: []db.ImportVersion{version},
 			Keys: []db.ItemKey{db.FileKey(r.path.ID, file.rel, 0)}, ChildKey: "issue|" + fold(name)}
 		comicDetails(&issue, d)
+		issue.Publication, issue.ReleaseDate = publication, date
 		issue.Reread = r.rereads(file)
-		if m := issueNumber.FindStringSubmatch(name); m != nil {
+		namedDate, _ := issueDateName(name)
+		if m := issueNumber.FindStringSubmatch(name); m != nil && (publication == db.PublicationBook || namedDate == "") {
 			n, _ := strconv.Atoi(m[1])
 			issue.IndexNumber, issue.ChildKey = &n, fmt.Sprintf("i%d", n)
 		} else if n := number(d["series_position"]); n > 0 {
@@ -269,7 +274,7 @@ func (r *run) embedded(file *found) (d details, read bool) {
 // edit has taken those details over.
 func (r *run) rereads(file *found) bool {
 	ext := strings.ToLower(path.Ext(file.rel))
-	return file.state == changed && r.lib.Options.Depth != db.DepthFiles && (ext == ".epub" || ext == ".cbz")
+	return file.state == changed && r.lib.Options.Depth != db.DepthFiles && (ext == ".epub" || ext == ".cbz" || ext == ".pdf")
 }
 
 // comicDetails puts what a comic's ComicInfo.xml said on its item, as the file's own.
@@ -278,36 +283,17 @@ func comicDetails(item *db.ImportItem, d details) {
 	item.Year, item.Summary, item.Tags, item.Credits = d.year(), d["description"], genreTags(d), credits(db.RoleAuthor, writers)
 	given(item, fieldIf(d["album"] != "", db.FieldTitle), fieldIf(d.year() > 0, db.FieldYear), fieldIf(d["description"] != "", db.FieldSummary),
 		fieldIf(len(item.Tags) > 0, db.FieldGenres), fieldIf(len(writers) > 0, db.FieldCredits))
-	item.Publication, item.ReleaseDate = issue(d, item.Title)
 }
 
-var (
-	fullDate  = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}`)
-	monthDate = regexp.MustCompile(`^\d{4}-\d{2}$`)
-	// A date in a periodical's file name: "The Economist 2026-11-07", "Wired 2026-03".
-	namedDay   = regexp.MustCompile(`(?:^|[^\d])(\d{4}-\d{2}-\d{2})(?:[^\d]|$)`)
-	namedMonth = regexp.MustCompile(`(?:^|[^\d])(\d{4}-\d{2})(?:[^\d-]|$)`)
-)
-
-// issue is a book's or comic's publication, as its own file names it, and its date: the file's
-// own (a whole date, or a year and month for a magazine), or for a magazine or newspaper a date in
-// its name. A newspaper's issue is a day; a magazine's may be a month.
-func issue(d details, name string) (int, string) {
+// issue reads the file's own publication and date before names supply missing facts.
+func issue(d details) (int, string) {
 	publication, _ := db.ParsePublication(d["publication"])
 	date := d["date"]
-	switch {
-	case fullDate.MatchString(date):
-		return publication, date[:10]
-	case publication == db.PublicationMagazine && monthDate.MatchString(date):
+	if len(date) >= 10 {
+		date = date[:10]
+	}
+	if parsed, _ := issueDateName(date); parsed == date && date != "" && (len(date) == 10 || publication == db.PublicationMagazine) {
 		return publication, date
-	case publication == db.PublicationBook:
-		return publication, ""
-	}
-	if m := namedDay.FindStringSubmatch(name); m != nil {
-		return publication, m[1]
-	}
-	if m := namedMonth.FindStringSubmatch(name); m != nil && publication == db.PublicationMagazine {
-		return publication, m[1]
 	}
 	return publication, ""
 }
