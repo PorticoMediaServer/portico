@@ -1,6 +1,5 @@
 import {parseServerInvitation,parsePeopleInvitationPage} from './direct-account.ts';
-import {callServer} from './query/server-api.ts';
-import {fetchMemberDevices,memberDevicesPath} from './query/member-devices.ts';
+import {callServer,serverPath} from './query/server-api.ts';
 /**
  * Wire shapes for server administration: access tiers, invitations, per-member
  * limits, devices, API keys, message logs and connectivity.
@@ -226,18 +225,18 @@ export function parseAccessDevicePage(raw:unknown):AdministrationPage<AccessDevi
  if(!obj(raw)||Object.hasOwn(raw,'approvalRequired'))return invalid();
  return page(raw,parseAccessDevice,row=>row.id,true);
 }
-type NextDevice=Readonly<{id:string;name:string;platform?:string;app?:string;appVersion?:string;createdAt:string;lastSeenAt:string;network?:string;signedIn:boolean}>;
 /** The devices of a person the viewer manages: the list that person sees under Signed-in devices. One page. */
 export async function readMemberDevices(api:MemberDeletionApi,accountId:string,signal?:AbortSignal):Promise<AdministrationPage<AccessDevice>>{
- const raw=await fetchMemberDevices(api,str(accountId),signal);
+ const raw=await callServer(api,'GET /v1/admin/members/{id}/devices',{id:str(accountId),signal});
  if(!obj(raw)||!Array.isArray(raw.items))return invalid();
- const items=(raw.items as NextDevice[]).map(device=>parseAccessDevice({id:device?.id,accountId,name:device?.name??'',platform:device?.platform??'',app:device?.app??'',appVersion:device?.appVersion??'',
+ const items=raw.items.map(device=>parseAccessDevice({id:device?.id,accountId,name:device?.name??'',platform:device?.platform??'',app:device?.app??'',appVersion:device?.appVersion??'',
   lastNetwork:device?.network??'',liveState:'idle',firstSeenAt:device?.createdAt,lastSeenAt:device?.lastSeenAt,revision:1}));
  return Object.freeze({limit:Math.max(1,items.length),nextCursor:'',items:Object.freeze(items)});
 }
 /** Signs this person out of one device at once; signing in on it again is allowed. */
 export async function signOutMemberDevice(api:MemberDeletionApi,accountId:string,deviceId:string,signal?:AbortSignal):Promise<void>{
- await api.request(memberDevicesPath(str(accountId))+'/'+encodeURIComponent(str(deviceId)),'DELETE',undefined,signal);
+ // `DELETE /v1/admin/members/{id}/devices/{deviceId}`: the person's devices route, then the device.
+ await api.request<void>(serverPath('GET /v1/admin/members/{id}/devices',{id:str(accountId)})+'/'+encodeURIComponent(str(deviceId)),'DELETE',undefined,signal);
 }
 /** Signs this person out of every device on their list, one at a time (the server has no route for all at once). */
 export async function signOutMemberDevices(api:MemberDeletionApi,accountId:string,signal?:AbortSignal):Promise<void>{

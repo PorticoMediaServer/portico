@@ -156,3 +156,31 @@ test('an account the server holds to limits shows them, and a save names only wh
   assert.deepEqual(calls[0].body, {allLibraries: true, libraries: [], limits: {homeOnly: false, maxRatingAge: 0}});
   client.dispose();
 });
+
+test('a person waiting to move, one who left and one not moved show as such, and a waiting person\'s code comes from the sign-in page', async () => {
+  const soon = new Date(Date.now() + 86_400_000).toISOString(), gone = new Date(Date.now() - 1000).toISOString();
+  const all = [member('amy'), member('wes', {state: 'waiting'}), member('wyn', {state: 'waiting'}), member('lee', {state: 'left'}), member('nat', {state: 'not_moved', disabled: true}), member('ben', {disabled: true})];
+  for (const owner of [true, false]) {
+    const calls: string[] = [];
+    const client = new SettingsPeopleClient({request: async <T,>(path: string): Promise<T> => {
+      calls.push(path);
+      if (path === '/v1/admin/members') return {items: all} as T;
+      if (path === '/v1/admin/sign-in') {
+        if (!owner) throw Object.assign(new Error('not permitted'), {status: 403, code: 'not_permitted'});
+        return {kind: 'portico', owner: {id: 'owner', username: 'owner', role: 'owner'}, waiting: [{id: 'wes', username: 'wes', codeExpiresAt: soon}, {id: 'wyn', username: 'wyn', codeExpiresAt: gone}]} as T;
+      }
+      return {items: []} as T;
+    }}, () => true);
+    const rows = (await client.read(query)).items, of = (id: string) => rows.find(row => row.accountId === id)!;
+    assert.deepEqual(['amy', 'wes', 'wyn', 'lee', 'nat', 'ben'].map(id => of(id).status), ['active', 'waiting', 'waiting', 'left', 'did_not_move', 'off']);
+    assert.deepEqual([of('wes').hasMoveCode, of('wyn').hasMoveCode], [owner, false], 'only a code that still works counts, and only the owner can see it');
+    for (const [status, ids] of [['waiting', ['wes', 'wyn']], ['left', ['lee']], ['did_not_move', ['nat']], ['active', ['amy']], ['off', ['ben']]] as const)
+      assert.deepEqual((await client.read({...query, status})).items.map(row => row.accountId), ids, status);
+    assert.ok(calls.includes('/v1/admin/sign-in'));
+    client.dispose();
+  }
+  // Nobody waiting: the sign-in page is not read at all.
+  const calls: string[] = [];
+  const quiet = new SettingsPeopleClient({request: async <T,>(path: string): Promise<T> => {calls.push(path); return (path === '/v1/admin/members' ? {items: [member('amy')]} : {items: []}) as T;}}, () => true);
+  await quiet.read(query); assert.equal(calls.includes('/v1/admin/sign-in'), false); quiet.dispose();
+});

@@ -89,11 +89,17 @@ const allowedOf = (m: Member) => Object.freeze(m.allLibraries ? [] : [...m.libra
 const lastActiveOf = (m: Member) => {const at = (m as {lastActiveAt?: unknown}).lastActiveAt; return typeof at === 'string' && Number.isFinite(Date.parse(at)) ? at : undefined;};
 const profilesOf = (m: Member) => {const names = (m as {profiles?: unknown}).profiles; return Object.freeze(Array.isArray(names) ? names.filter((name): name is string => line(name, 120) && !!name) : []);};
 
-function personRow(m: Member, libraries: readonly Library[], limits: StreamLimits | undefined, live: ReadonlyMap<string, SettingsPersonRow['liveState']>): SettingsPersonRow {
+/** Where an account stands: waiting to move after the kind of sign-in changed, left, not moved when the owner finished the
+ * move without them, turned off, or active. */
+function statusOf(m: Member): SettingsPersonRow['status'] {
+  const state = (m as {state?: unknown}).state;
+  return state === 'waiting' ? 'waiting' : state === 'left' ? 'left' : state === 'not_moved' ? 'did_not_move' : m.disabled ? 'off' : 'active';
+}
+function personRow(m: Member, libraries: readonly Library[], limits: StreamLimits | undefined, live: ReadonlyMap<string, SettingsPersonRow['liveState']>, codes: ReadonlySet<string>): SettingsPersonRow {
   const allowed = allowedOf(m), names = allowed.map(id => libraries.find(library => library.id === id)?.name).filter((name): name is string => !!name);
   const profileNames = profilesOf(m), lastActiveAt = lastActiveOf(m);
   return Object.freeze({accountId: m.id, username: m.username, ...(m.email ? {email: m.email} : {}), role: m.role as AccessTier, revision: 1, limitsRevision: 1,
-    disabled: m.disabled, status: m.disabled ? 'off' : 'active', hasMoveCode: false, allowedLibraries: allowed, libraryNames: Object.freeze(names),
+    disabled: m.disabled, status: statusOf(m), hasMoveCode: codes.has(m.id), allowedLibraries: allowed, libraryNames: Object.freeze(names),
     ...streamsOf(m.id, limits), profileCount: profileNames.length, profileNames, liveState: live.get(m.username) ?? 'idle', ...(lastActiveAt ? {lastActiveAt} : {}),
     accountLimits: !!accountLimitsOf(m)});
 }
@@ -116,11 +122,10 @@ function matches(row: SettingsPersonRow, query: SettingsPeopleQuery, now: number
   const recent = !!row.lastActiveAt && now - Date.parse(row.lastActiveAt) <= monthMs;
   switch (query.status) {
     case 'all': return true;
-    case 'active': return !row.disabled;
-    case 'off': return row.disabled;
+    case 'active': case 'off': case 'waiting': case 'left': case 'did_not_move': return row.status === query.status;
     case 'now': return row.liveState !== 'idle';
     case 'month': return row.liveState !== 'idle' || recent;
-    case 'idle': return !row.disabled && row.liveState === 'idle' && !recent;
+    case 'idle': return row.status === 'active' && row.liveState === 'idle' && !recent;
     default: return false;
   }
 }
@@ -170,12 +175,21 @@ export class SettingsPeopleClient {
     for (const item of Array.isArray(page?.items) ? page.items : []) if (typeof item?.username === 'string' && live.get(item.username) !== 'watching') live.set(item.username, item.kind === 'audio' ? 'listening' : 'watching');
     return live;
   }
+  /** Who of those waiting to move holds a code that still works. Read only while someone waits, from the owner's sign-in
+   * page; an administrator, who may not read it, sees no code either way. */
+  private async moveCodes(members: readonly Member[], signal?: AbortSignal): Promise<ReadonlySet<string>> {
+    if (!members.some(member => statusOf(member) === 'waiting')) return new Set();
+    const page = await this.call(s => callServer(this.api, 'GET /v1/admin/sign-in', {signal: s}), signal, true).catch(error => {if (this.closed || signal?.aborted) throw error; return undefined;});
+    const now = Date.now();
+    return new Set((Array.isArray(page?.waiting) ? page.waiting : []).filter(row => typeof row?.codeExpiresAt === 'string' && Date.parse(row.codeExpiresAt) > now).map(row => row.id));
+  }
   async read(query: SettingsPeopleQuery, cursor = '', signal?: AbortSignal): Promise<SettingsPeoplePage> {
     if (!line(query.search, 160) || !line(cursor, 4096)) invalid();
     const [members, limits, live] = await Promise.all([this.call(s => callServer(this.api, 'GET /v1/admin/members', {signal: s}), signal), this.streamLimits(signal), this.live(signal)]);
     if (!Array.isArray(members?.items)) unreadable();
     const seen = new Set<string>(), libraries = this.libraries();
-    const rows = members.items.map(member => {checkMember(member); if (seen.has(member.id)) unreadable(); seen.add(member.id); return personRow(member, libraries, limits, live);});
+    const codes = await this.moveCodes(members.items, signal);
+    const rows = members.items.map(member => {checkMember(member); if (seen.has(member.id)) unreadable(); seen.add(member.id); return personRow(member, libraries, limits, live, codes);});
     if (cursor) return Object.freeze({items: Object.freeze([]), totalCount: rows.length, matchedCount: 0, nextCursor: '', limit: 1});
     const now = Date.now(), direction = query.direction === 'desc' ? -1 : 1;
     const matched = rows.filter(row => matches(row, query, now)).sort((a, b) => direction * compare(a, b, query.sort));
