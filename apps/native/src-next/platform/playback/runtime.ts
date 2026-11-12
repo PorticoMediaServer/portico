@@ -417,6 +417,7 @@ export class NativePlaybackRuntime {
     if (!this.active()) return;
     const route = this.o.api.getRouteSnapshot();
     if (route && route.phase !== 'ready') {this.cancelSnapshot(); this.externalPresentationBinding = null; this.pictureBinding = undefined; this.pictureAttempt = undefined; this.pictureLeave = undefined; this.pictureState = 'idle'; this.externalController?.abort();}
+    if (route && route.phase !== 'ready' && this.playback.getSnapshot().session?.mode !== 'local') this.recoverConnection();
     this.coordinator.setConnection(!route || route.phase === 'ready');
     if (route && route.phase !== 'ready') this.publish();
   }
@@ -1611,7 +1612,10 @@ export class NativePlaybackRuntime {
     else if (fact.type === 'progress' && this.airPlayActive) this.followAirPlay();
     if (fact.type === 'systemPaused') this.playback.pause();
     else if (fact.type === 'ready') this.playback.ready(before.intentId);
-    else if (fact.type === 'stalled') this.playback.recovering(before.intentId, true);
+    else if (fact.type === 'stalled') {
+      if (before.session?.mode === 'local') this.playback.recovering(before.intentId, true);
+      else this.recoverConnection();
+    }
     else if (fact.type === 'seekApplied') this.playback.seekApplied(before.intentId, fact.seekRevision, fact.position, fact.paused ? 'paused' : 'playing');
     else if (fact.type === 'seekFailed') this.playback.seekFailed(before.intentId, fact.seekRevision, serviceText('queuePlayer.startFailed'));
     else if (fact.type === 'progress' || fact.type === 'ended') this.playback.fact(before.intentId, fact.position, fact.type === 'ended' ? 'ended' : fact.paused ? 'paused' : 'playing');
@@ -1622,14 +1626,7 @@ export class NativePlaybackRuntime {
       const failure = classifyPlaybackFailure(fact), reason = playbackFailureReason(fact);
       const remember = (value = reason) => {this.failure = value ? Object.freeze({intentId: before.intentId, run: before.playbackRun, reason: value}) : undefined;};
       if (failure.network && this.o.api.getRouteConnection()) {
-        const run = `${before.intentId}/${before.playbackRun}`;
-        const current = () => {const state = this.playback.getSnapshot(); return this.active() && state.intentId === before.intentId
-          && state.playbackRun === before.playbackRun && !!state.session && (state.phase === 'starting' || state.phase === 'ready');};
-        if (!current()) return;
-        this.playback.recovering(before.intentId, true);
-        // The route recovery gave up: the connection is what failed.
-        this.recovery.start(run, current, () => {remember('connection'); this.playback.fail(before.intentId, serviceText('queuePlayer.startFailed'));},
-          () => {void this.o.api.recoverRoute().catch(() => {});});
+        this.recoverConnection();
         return;
       }
       this.recovery.clear();
@@ -1639,6 +1636,20 @@ export class NativePlaybackRuntime {
     }
     if (fact.rateError && before.intent === 'playing') this.playback.pause();
     this.publish();
+  }
+
+  /** Losing the route can suspend the engine without an error fact. It has the same
+   * finite recovery as a failed media request, including the reason and Retry. */
+  private recoverConnection(): void {
+    const before = this.playback.getSnapshot();
+    const current = () => {const state = this.playback.getSnapshot(); return this.active() && state.intentId === before.intentId
+      && state.playbackRun === before.playbackRun && !!state.session && (state.phase === 'starting' || state.phase === 'ready');};
+    if (!current()) return;
+    this.playback.recovering(before.intentId, true);
+    this.recovery.start(`${before.intentId}/${before.playbackRun}`, current, () => {
+      this.failure = Object.freeze({intentId: before.intentId, run: before.playbackRun, reason: 'connection'});
+      this.playback.fail(before.intentId, serviceText('queuePlayer.startFailed'));
+    }, () => {void this.o.api.recoverRoute().catch(() => {});});
   }
 
   private videoPolicyCurrent(fence: QueuePlaybackFence): boolean {
