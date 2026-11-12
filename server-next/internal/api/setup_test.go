@@ -125,7 +125,7 @@ func TestSetupWithPorticoAccounts(t *testing.T) {
 		Account: hosted.Account{ID: "pa_1", Username: "justin", DisplayName: "Justin"}}}
 	s.hosted = fake
 
-	var start SetupPorticoApproval
+	var start PorticoApproval
 	body := SetupPorticoRequest{SetupCode: s.setupCode, ServerName: "Cabin", ReturnURL: "https://cabin.example/setup"}
 	if w := call(t, s, "POST", "/v1/setup/portico", "", body, &start); w.Code != 200 || start.ApprovalURL == "" {
 		t.Fatalf("starting a Portico setup answered %d: %s", w.Code, w.Body)
@@ -152,6 +152,10 @@ func TestSetupWithPorticoAccounts(t *testing.T) {
 	}
 	if kind, _, _ := s.db.Setting(t.Context(), db.SignInKindKey); kind != db.SignInPortico {
 		t.Fatalf("sign_in_kind is %q", kind)
+	}
+	// The same commit linked the server to that account, so it now keeps up with Portico Services.
+	if link, linked, _ := s.db.Link(t.Context()); !linked || link.AccountID != "pa_1" {
+		t.Fatalf("after a Portico setup the server's link is %+v (linked %v)", link, linked)
 	}
 	// There is no password to guess.
 	if code := status(t, s, "POST", "/v1/auth/sign-in", "", SignInRequest{Username: "justin", Password: "", Device: device(1)}); code != 401 {
