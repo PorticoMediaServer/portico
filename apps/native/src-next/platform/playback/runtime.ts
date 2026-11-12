@@ -191,6 +191,8 @@ export class NativePlaybackRuntime {
   private serverKinds: readonly string[] = [];
   private transitions = false;
   private effectiveRate = 0;
+  /** The speed last asked of the engine: what Playback options shows while the engine reports none. */
+  private chosenRate = 1;
   private supportedRates: readonly number[] = [];
   private surfaceOwner?: object;
   private surfaceTag?: number;
@@ -1423,6 +1425,7 @@ export class NativePlaybackRuntime {
     }
     this.readForcedImage(fence, forcedPath);
     if (subtitles && this.forcedImageAvailable(fence) && this.choices.get('forcedOnly', fence.playback, false)) subtitles = {...subtitles, forcedOnly: true};
+    this.chosenRate = rate;
     this.coordinator.setOptions(rate, null, subtitles);
     const version = this.options?.versions.find(value => value.id === session?.versionId);
     this.path.setAutomatic(session?.presentation.quality.mode === 'automatic' ? {steps: automaticSteps(this.options?.qualities ?? []), originalKbps: version?.bitrateKbps} : null);
@@ -1518,7 +1521,7 @@ export class NativePlaybackRuntime {
       startFailure: this.startFailure, capacityWait: this.capacityWait, firstVideoFrame, ...this.startingFields(fence),
       initialPresentation: this.initialPresentation?.read(fence),
       ...(fence && this.forcedImageAvailable(fence) ? {forcedOnly: Object.freeze({on: this.choices.get('forcedOnly', fence.playback, false)})} : {}),
-      options: this.options, subtitles: this.subtitleService?.getSnapshot(), ...(fence?.kind === 'queue' ? {subtitleStyle: this.subtitleStyles.read(fence, this.o.settings().subtitles)} : {}), localTracks, audioTrackSelection: this.audioTrackSelection.getSnapshot(), seekWindow, engine: this.coordinator.getEngine() === 'mpv' ? 'mpv' : 'native', lease: this.coordinator.getSnapshot(), effectiveRate: playback.nativeListening?.effectiveRate ?? this.effectiveRate, supportedRates: playback.nativeListening?.supportedRates ?? this.supportedRates, externalPresentationBinding,
+      options: this.options, subtitles: this.subtitleService?.getSnapshot(), ...(fence?.kind === 'queue' ? {subtitleStyle: this.subtitleStyles.read(fence, this.o.settings().subtitles)} : {}), localTracks, audioTrackSelection: this.audioTrackSelection.getSnapshot(), seekWindow, engine: this.coordinator.getEngine() === 'mpv' ? 'mpv' : 'native', lease: this.coordinator.getSnapshot(), effectiveRate: playback.nativeListening?.effectiveRate ?? (this.effectiveRate > 0 ? this.effectiveRate : this.chosenRate), supportedRates: playback.nativeListening?.supportedRates ?? this.supportedRates, externalPresentationBinding,
       ...(this.o.pictureInPictureControls ? {pictureInPicture: Object.freeze({request: this.pictureRequests, active: this.pictureAttempt?.state === 'active', state: this.pictureState, automatic: !this.retired && this.o.settings().autoPictureInPicture !== false,
         ...(this.pictureBinding && externalPresentationBinding && sameNativePresentation(this.pictureBinding, externalPresentationBinding) ? {binding: this.pictureBinding} : {})})} : {}), retired: this.retired,
       bookChapters: fence?.kind === 'queue' ? this.queue.bookChaptersView() : null,
