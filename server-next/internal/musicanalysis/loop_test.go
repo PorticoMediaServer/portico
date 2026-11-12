@@ -54,6 +54,19 @@ func TestTheJobReadsAndStopsWhenTurnedOff(t *testing.T) {
 		return s.Kind().Run(ctx, jobs.Work{Request: jobs.Request{Target: jobs.Target{Library: lib.PublicID}}, Progress: func(int64, int64) {}})
 	}
 
+	docs, _, err := settings.Open(ctx, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Settings = docs
+	docs.PauseBackground(s.Now(), true)
+	paused, cancel := context.WithTimeout(ctx, 30*time.Millisecond)
+	defer cancel()
+	if err := s.Kind().Run(paused, jobs.Work{Request: jobs.Request{Target: jobs.Target{Library: lib.PublicID}}, Progress: func(int64, int64) {}}); err == nil || readSongs.Load() != 0 {
+		t.Fatalf("paused analysis read %d songs: %v", readSongs.Load(), err)
+	}
+	docs.PauseBackground(s.Now(), false)
+
 	stopAt = 5
 	if err := run(); err != nil {
 		t.Fatalf("the job turned off part way ended with %v", err)

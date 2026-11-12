@@ -56,6 +56,7 @@ func (s *Server) startConsole(ctx context.Context) error {
 	// Playback reads the owner's limits on plays away from home from them.
 	s.playback.UseSettings(s.settings)
 	s.settingsRoutes()
+	s.backgroundWorkRoutes()
 	s.upgradeCopyRoutes()
 	s.activityRoutes()
 	s.totals = &console.Totals{DB: s.db, Log: s.log, Now: func() time.Time { return s.now() }}

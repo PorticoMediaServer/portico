@@ -58,7 +58,15 @@ func (s *Server) soundAnalysisStatus(r *http.Request, music *musicanalysis.Servi
 		return SoundAnalysisStatus{}, err
 	}
 	perSong, known := music.PerSong()
-	return describeSoundAnalysis(out, settings.General.Get(s.settings).HeavyWork, s.now(), perSong, known), nil
+	out = describeSoundAnalysis(out, settings.General.Get(s.settings).HeavyWork, s.now(), perSong, known)
+	if until := s.settings.BackgroundPausedUntil(s.now()); !until.IsZero() && (out.State == soundAnalyzing || out.State == soundPaused) {
+		out.State = soundPaused
+		if out.PausedUntil == nil || until.After(*out.PausedUntil) {
+			u := until.UTC()
+			out.PausedUntil = &u
+		}
+	}
+	return out, nil
 }
 
 // describeSoundAnalysis fills in the state and the estimate from the counts, the hours for

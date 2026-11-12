@@ -399,6 +399,9 @@ func (s *Service) make(ctx context.Context, id string, scheduled bool) error {
 	defer os.RemoveAll(work)
 	copyPath := filepath.Join(work, "main.db")
 	if err := s.DB.BackupTo(ctx, copyPath, func(left int) {
+		if scheduled {
+			_ = s.Settings.WaitForBackground(ctx, s.Now)
+		}
 		s.mu.Lock()
 		if s.running != nil {
 			s.running.PagesLeft = left
@@ -462,7 +465,7 @@ func (s *Service) make(ctx context.Context, id string, scheduled bool) error {
 		}
 		partial := filepath.Join(folder, makingPrefix+id+".tar.gz")
 		defer os.Remove(partial)
-		if err := writeArchive(partial, files); err != nil {
+		if err := s.writeArchive(ctx, partial, files, scheduled); err != nil {
 			return err
 		}
 		info, err := os.Stat(partial)
@@ -570,7 +573,7 @@ func (s *Service) pictures(ctx context.Context, all bool) ([]archived, error) {
 	return out, nil
 }
 
-func writeArchive(path string, files []archived) error {
+func (s *Service) writeArchive(ctx context.Context, path string, files []archived, scheduled bool) error {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return err
@@ -590,8 +593,19 @@ func writeArchive(path string, files []archived) error {
 		if err := tw.WriteHeader(&tar.Header{Name: a.name, Mode: 0o600, Size: info.Size(), ModTime: info.ModTime(), Typeflag: tar.TypeReg}); err != nil {
 			return err
 		}
-		_, err = io.Copy(tw, src)
-		return err
+		for left := info.Size(); left > 0; {
+			if scheduled {
+				if err := s.Settings.WaitForBackground(ctx, s.Now); err != nil {
+					return err
+				}
+			}
+			n, err := io.CopyN(tw, src, min(left, 1<<20))
+			if err != nil {
+				return err
+			}
+			left -= n
+		}
+		return nil
 	}
 	for _, a := range files {
 		if err := write(a); err != nil {

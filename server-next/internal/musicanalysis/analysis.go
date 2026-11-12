@@ -36,9 +36,10 @@ type Tools func(ctx context.Context) (*processpool.Supervisor, string, error)
 
 // Service analyses music libraries.
 type Service struct {
-	DB    *db.DB
-	Log   *slog.Logger
-	Tools Tools
+	Settings *settings.Settings
+	DB       *db.DB
+	Log      *slog.Logger
+	Tools    Tools
 	// Hours are the owner's hours for heavy work; Now is the server's clock.
 	Hours func() settings.HeavyWorkSettings
 	Now   func() time.Time
@@ -121,6 +122,9 @@ func (s *Service) run(ctx context.Context, work jobs.Work) error {
 	if lib.Options.NoSoundAnalysis {
 		return nil // turned off since the job was asked for: what was read stays
 	}
+	if err := s.waitForHours(ctx); err != nil {
+		return err
+	}
 	read, model := s.read, s.model
 	if read == nil {
 		runtime, supervisor, ffmpeg := s.Runtime(ctx)
@@ -143,7 +147,7 @@ func (s *Service) run(ctx context.Context, work jobs.Work) error {
 		keep := func(err error) error {
 			return errors.Join(err, s.DB.SaveTrackAnalyses(context.WithoutCancel(ctx), batch, s.Now()))
 		}
-		for from := 0; from < len(tracks); from += SongsAtOnce {
+		for from := 0; from < len(tracks); {
 			if err := s.waitForHours(ctx); err != nil {
 				return keep(err)
 			}
@@ -151,7 +155,8 @@ func (s *Service) run(ctx context.Context, work jobs.Work) error {
 			if now, err := s.library(ctx, lib.PublicID); err != nil || now.Options.NoSoundAnalysis {
 				return keep(err)
 			}
-			group := tracks[from:min(from+SongsAtOnce, len(tracks))]
+			group := tracks[from:min(from+s.songsAtOnce(), len(tracks))]
+			from += len(group)
 			results := make([]result, len(group))
 			var wg sync.WaitGroup
 			for n, t := range group {
@@ -230,7 +235,7 @@ func (s *Service) PerSong() (time.Duration, bool) {
 	for _, d := range s.recent {
 		sum += d
 	}
-	return sum / time.Duration(len(s.recent)) / SongsAtOnce, true
+	return sum / time.Duration(len(s.recent)) / time.Duration(s.songsAtOnce()), true
 }
 
 func (s *Service) library(ctx context.Context, publicID string) (db.Library, error) {
@@ -250,6 +255,9 @@ func (s *Service) library(ctx context.Context, publicID string) (db.Library, err
 // they begin. It looks at the hours again every minute, so a change to them counts at once.
 func (s *Service) waitForHours(ctx context.Context) error {
 	for {
+		if err := s.Settings.WaitForBackground(ctx, s.Now); err != nil {
+			return err
+		}
 		open, opens := s.Hours().Open(s.Now())
 		if open {
 			return nil
@@ -330,4 +338,11 @@ func (s *Service) analyse(ctx context.Context, runtime *sonic.Runtime, superviso
 		binary.LittleEndian.PutUint32(out.Tags[i*4:], math.Float32bits(v))
 	}
 	return out, nil
+}
+
+func (s *Service) songsAtOnce() int {
+	if settings.General.Get(s.Settings).BackgroundSpeed == "gentle" {
+		return 1
+	}
+	return SongsAtOnce
 }
