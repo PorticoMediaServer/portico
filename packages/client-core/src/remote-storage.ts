@@ -117,3 +117,28 @@ export async function addCloudTokenSource(_api: ServerRequester, _source: Readon
 /** A new rclone remote made from its kind and settings rather than pasted (rule 8). Being built on the server, as above. */
 export async function addRcloneRemoteFromFields(_api: ServerRequester, _source: Readonly<{name: string; type: string; options: Readonly<Record<string, string>>; path: string; preset: RemotePreset}>,
   _signal?: AbortSignal): Promise<RemoteSource> { throw notOnServerYet(); }
+
+/** The fields a refusal can name, in the words each app keeps for them. */
+export type RemoteRefusedField = 'name' | 'address' | 'password' | 'config' | 'drive' | 'limits';
+/**
+ * What to tell the owner about a refused remote-storage request: the server's own sentence when it
+ * wrote one for this area (an address it could not reach, a sign-in the source refused, a source a
+ * library still uses), the field a refused form names, or nothing more specific than that it failed.
+ */
+export function remoteRefusal(error: unknown): Readonly<{sentence: string} | {field: RemoteRefusedField} | {notOnServer: true} | {other: string}> {
+  if (isNotOnServerYet(error)) return {notOnServer: true};
+  const {code, message, path} = (error ?? {}) as {code?: unknown; message?: unknown; path?: unknown};
+  const text = typeof code === 'string' ? code : '';
+  if (typeof message === 'string' && message.trim() && message.length <= 400
+    && ['source_unreachable', 'source_sign_in', 'source_unusable', 'source_secret_lost', 'source_in_use', 'drive_sign_in'].includes(text)) return {sentence: message.trim()};
+  if (text === 'invalid_request' || text === 'missing_field') {
+    const at = typeof path === 'string' ? path : '';
+    const field: RemoteRefusedField | undefined = at === 'name' ? 'name' : at === 'webdav' || at === 'webdav.address' ? 'address' : at === 'webdav.password' ? 'password'
+      : at.startsWith('rclone') ? 'config' : at.startsWith('drive') ? 'drive' : at === 'limits' || at === 'preset' ? 'limits' : undefined;
+    if (field) return {field};
+  }
+  return {other: text};
+}
+/** The field a form is missing before anything is sent, named the same way. */
+export const missingField = (missing: string): Error => Object.assign(new Error(missing), {code: 'missing_field',
+  path: missing === 'address' ? 'webdav.address' : missing === 'config' ? 'rclone.config' : missing === 'name' ? 'name' : 'drive'});

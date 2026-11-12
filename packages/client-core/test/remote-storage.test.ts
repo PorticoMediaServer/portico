@@ -45,3 +45,17 @@ test('Continue setup does not report a folder as added when the answer does not 
   const api = {request: async <T>(): Promise<T> => library as T};
   await assert.rejects(addRemoteFolderToLibrary(api, 'lib_1', {source: 'rs_2', path: 'Films'}), {code: 'not_on_server'});
 });
+
+test('a refused request says what the server wrote for this area, or names the refused field, never a stranger sentence', async () => {
+  const {remoteRefusal, missingField, addCloudTokenSource} = await import('../src/remote-storage.ts');
+  // Seen in the browser try: an address nothing answers on, and rclone missing on the server.
+  assert.deepEqual(remoteRefusal({code: 'source_unreachable', message: 'Portico could not reach that address: connection refused'}),
+    {sentence: 'Portico could not reach that address: connection refused'});
+  assert.deepEqual(remoteRefusal({code: 'source_in_use', message: "Remove this source's folders from their libraries first."}),
+    {sentence: "Remove this source's folders from their libraries first."});
+  assert.deepEqual(remoteRefusal({code: 'invalid_request', message: 'Check the request and try again.', path: 'rclone.config'}), {field: 'config'});
+  assert.deepEqual(remoteRefusal({code: 'invalid_request', message: 'Check the request and try again.', path: 'webdav.address'}), {field: 'address'});
+  assert.deepEqual(remoteRefusal(missingField('config')), {field: 'config'});
+  assert.deepEqual(remoteRefusal({code: 'internal', message: '<pre>stack</pre>'}), {other: 'internal'});
+  assert.deepEqual(remoteRefusal(await addCloudTokenSource({request: async () => ({}) as never}, {name: 'x', provider: 'dropbox', token: '{}', path: '', preset: 'read-once'}).catch(e => e)), {notOnServer: true});
+});

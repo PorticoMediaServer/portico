@@ -1,7 +1,7 @@
 import React, {createContext, useContext, useEffect, useState} from 'react';
 import {Linking, Text, View} from 'react-native';
 import {defaultI18n, type MessageId} from '../../../../../../packages/i18n/src';
-import {defaultRemotePreset, isNotOnServerYet, remotePresets, remoteSourceCreate, type RemoteFolder, type RemoteLimits, type RemotePreset, type RemoteSource} from '../../../../../../packages/client-core/src/remote-storage';
+import {defaultRemotePreset, missingField, remotePresets, remoteRefusal, remoteSourceCreate, type RemoteFolder, type RemoteLimits, type RemotePreset, type RemoteSource} from '../../../../../../packages/client-core/src/remote-storage';
 import type {AdminLibrary} from '../../../../../../packages/contracts/src/next/api';
 import {Button} from '../../../kit/controls/Button';
 import {TextField} from '../../../kit/controls/TextField';
@@ -16,13 +16,13 @@ export type ChosenSourceFolder = Pick<RemoteFolder, 'name' | 'path'>;
 
 /** The server's refusal in the owner's words; a step this server does not offer yet says so plainly. */
 export function remoteSourceError(t: Translate, error: unknown): string {
-  if (isNotOnServerYet(error)) return t('next.remoteSources.notOnServerYet');
-  const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : '';
-  const message = (error as {message?: unknown} | null)?.message;
-  // A field refusal and a source a library still uses are the server's own sentence.
-  if (['invalid_field', 'invalid_request', 'remote_unreachable', 'source_in_use'].includes(code) && typeof message === 'string' && message.trim() && message.length < 300) return message;
-  const keys = {unauthorized: 'next.remoteSources.error.signIn', forbidden: 'next.remoteSources.error.forbidden', invalid_field: 'next.remoteSources.error.invalid', invalid_request: 'next.remoteSources.error.invalid'} as const;
-  return t(Object.prototype.hasOwnProperty.call(keys, code) ? keys[code as keyof typeof keys] : 'next.remoteSources.error.generic');
+  const refusal = remoteRefusal(error);
+  if ('notOnServer' in refusal) return t('next.remoteSources.notOnServerYet');
+  if ('sentence' in refusal) return refusal.sentence;
+  if ('field' in refusal) return t(`next.remoteSources.field.${refusal.field}` as MessageId);
+  if (refusal.other === 'unauthorized') return t('next.remoteSources.error.signIn');
+  if (refusal.other === 'forbidden' || refusal.other === 'not_permitted') return t('next.remoteSources.error.forbidden');
+  return t('next.remoteSources.error.generic');
 }
 export const SourceWizardContext = createContext<Readonly<{step: number; back: () => void}> | undefined>(undefined);
 export const stateWords: Record<string, MessageId> = {
@@ -103,7 +103,7 @@ export function AddSourceFlow({controller, t, isCurrent, onCancel, onSaved}: {co
       const body = remoteSourceCreate(kind === 'webdav' ? {kind, name: f.name, address: f.address, user: f.user, password: f.password}
         : kind === 'rclone' ? {kind, name: f.name, config: f.config, path: f.path}
           : f.driveMode === 'key' ? {kind: 'drive', name: f.name, path: f.path, serviceAccountKey: f.key} : {kind: 'drive', name: f.name, path: f.path, signIn: f.signIn, redirectedUrl: f.redirectedUrl}, preset);
-      if ('missing' in body) throw Object.assign(new Error(t('next.remoteSources.error.invalid')), {code: 'invalid_request'});
+      if ('missing' in body) throw missingField(body.missing);
       source = await controller.add(body);
     }
     if (isCurrent()) {setCreated(source); setStep(3);}
@@ -180,7 +180,9 @@ export function ManageSource({controller, t, source, isCurrent, onClose, onConti
   isCurrent: () => boolean; onClose: () => void; onContinue: (source: RemoteSource) => void}) {
   const {busy, error, run} = useRun(t, isCurrent);
   const [shown, setShown] = useState(source), [name, setName] = useState(source.name), [secret, setSecret] = useState(''), [confirm, setConfirm] = useState<string>();
-  const [preset, setPreset] = useState<RemotePreset>(remotePresets.find(one => one.id === source.preset)?.id ?? defaultRemotePreset), [limits, setLimits] = useState(source.limits);
+  const startPreset = remotePresets.find(one => one.id === source.preset) ?? remotePresets.find(one => one.id === defaultRemotePreset)!;
+  // A source saved before its preset step holds no limits yet: they start as its preset's own.
+  const [preset, setPreset] = useState<RemotePreset>(startPreset.id), [limits, setLimits] = useState(source.limits.connections > 0 && source.limits.perSecond > 0 ? source.limits : startPreset.limits);
   const save = () => run(async () => {
     const replaced = !secret ? {} : source.kind === 'webdav' ? {webdav: {address: shown.webdav!.address, ...(shown.webdav?.user ? {user: shown.webdav.user} : {}), password: secret}}
       : source.kind === 'rclone' ? {rclone: {config: secret}} : {drive: {serviceAccountKey: secret}};
@@ -189,7 +191,6 @@ export function ManageSource({controller, t, source, isCurrent, onClose, onConti
   });
   return <Page title={shown.name} t={t} busy={busy} onCancel={onClose} footer={<Button variant="primary" loading={busy} disabled={!name.trim()} onPress={save}>{t('next.remoteSources.save')}</Button>}>
     <Text>{t(stateWords[shown.state] ?? 'next.remoteSources.state.problem')}{shown.problem ? ` · ${shown.problem}` : ''}</Text>
-    <Problem message={error}/>
     <Button variant="glass" disabled={busy} onPress={() => run(async () => {const tested = await controller.test(source.id); if (isCurrent()) setShown(tested);})}>{t('next.remoteSources.test')}</Button>
     {shown.state === 'setup' && <Button variant="primary" onPress={() => onContinue(shown)}>{t('next.remoteSources.continueSetup')}</Button>}
     <TextField label={t('next.remoteSources.name')} value={name} onChangeText={setName} editable={!busy}/>
@@ -200,5 +201,6 @@ export function ManageSource({controller, t, source, isCurrent, onClose, onConti
       <Text>{t('next.remoteSources.disconnectBodyNext')}</Text>
       <TextField label={t('next.remoteSources.disconnectConfirm')} value={confirm} onChangeText={setConfirm}/>
       <Button variant="glass" disabled={busy || confirm !== shown.name} onPress={() => run(async () => {await controller.remove(source.id); if (isCurrent()) onClose();})}>{t('next.remoteSources.disconnect')}</Button></>}
+    <Problem message={error}/>
   </Page>;
 }

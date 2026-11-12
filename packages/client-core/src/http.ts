@@ -781,7 +781,8 @@ export class HttpLocalApi {
         retryAfterSecondsFrom(response.headers.get("Retry-After")),
         data?.error?.serverTime
       );
-      const path = errorFieldPath(data?.error?.path);
+      // The new server names a refused field in `fields`; the old one sent `path`.
+      const path = errorFieldPath(data?.error?.path ?? (Array.isArray(data?.error?.fields) ? data.error.fields[0]?.path : undefined));
       if (path) error.path = path;
       const roots = errorConfirmRoots(data?.error?.current?.confirmRoots);
       if (roots) error.confirmRoots = roots;
