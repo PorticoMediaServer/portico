@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Saved views put on Home are rows in the profile's order. Home reads the titles of the first
@@ -12,6 +13,11 @@ import (
 // may not read, or one deleted, is no row and no name; an empty one is left out; a 21st is
 // refused.
 func TestSavedViewsOnHome(t *testing.T) {
+	// Which rows Home reads is what is tested here, not how fast: the budget is taken out of
+	// the way until the out-of-time case below.
+	budget := viewRowsBudget
+	viewRowsBudget = time.Hour
+	t.Cleanup(func() { viewRowsBudget = budget })
 	s, token, other := seeded(t)
 	films := get[Libraries](t, s, token, "/v1/libraries").Items[0].ID
 	view := func(who, name, query string) string {
@@ -91,10 +97,9 @@ func TestSavedViewsOnHome(t *testing.T) {
 	if code := save(map[string]any{"home.hiddenRowIds": nil}); code != 200 {
 		t.Fatalf("showing the row again answered %d", code)
 	}
-	budget := viewRowsBudget
 	viewRowsBudget = 0
 	late := get[Home](t, s, token, "/v1/home").Rows
-	viewRowsBudget = budget
+	viewRowsBudget = time.Hour
 	for _, row := range late {
 		if strings.HasPrefix(row.ID, "view:") && (!row.Deferred || len(row.Items) > 0) {
 			t.Fatalf("a view row read with no time left: %+v", row)
