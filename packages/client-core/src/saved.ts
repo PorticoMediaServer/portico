@@ -590,7 +590,10 @@ export class SavedService {
    } catch (error) {
     if (this.disposed || generation !== this.generation) return;
     const e = errorInfo(error);
-    const kind = ['playlist_conflict','revision_mismatch','revision_conflict','resource_conflict'].includes(e.code) ? 'conflict' : 'retry-required';
+    // The rebuilt server refuses an edit on an out-of-date copy as `list_changed` (area 6 rule 34). A change that was
+    // partly made (a reorder whose first moves landed) also reloads, whatever stopped it, so the page shows the list
+    // as the server now has it and Retry starts from there.
+    const kind = ['playlist_conflict','revision_mismatch','revision_conflict','resource_conflict','list_changed'].includes(e.code) || (error as {partlyMade?: unknown})?.partlyMade === true ? 'conflict' : 'retry-required';
     // Q7: report the failure to its caller and remove it from the queue so
     // later commands proceed. Conflict still refreshes to the current revision.
     // The operation is kept for explicit retryMutation (same idempotency key

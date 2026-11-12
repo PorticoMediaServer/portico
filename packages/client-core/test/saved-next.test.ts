@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {SavedService} from '../src/saved.ts';
 import {readPlaylistOrder, readShareCandidates, sendPlaylistCommand} from '../src/saved-next.ts';
 
-import {nextSavedServer as server} from './fixtures/next-saved-server.ts';
+import {list, nextSavedServer as server, refused, title} from './fixtures/next-saved-server.ts';
 
 const scope = {serverId: 'server', viewerId: '["local","account","profile"]'};
 const service = (api: unknown) => new SavedService({scope, api: api as never, requestId: async () => '00000000-0000-4000-8000-000000000001', timeoutMs: 1000});
@@ -64,6 +64,58 @@ test('an edit through a transport that cannot send headers is refused before any
   const s = server();
   await assert.rejects(sendPlaylistCommand(s.api, scope, {action: 'rename', name: 'Long drive'}, {playlistId: 'pl'}, 'op'), {code: 'list_changed'}, 'an edit with no revision to name');
   assert.deepEqual(s.calls, []);
+});
+
+test('an edit refused because the list changed reloads the list, says so, and Retry names the fresh revision', async () => {
+  let revision = '7', name = 'Road trip';
+  const s = server({
+    'GET /v1/lists/pl': () => list({revision, name}),
+    'PATCH /v1/lists/pl': call => {
+      if (call.headers?.['If-Match'] !== `"${revision}"`) return refused(412, 'list_changed');
+      revision = String(Number(revision) + 1); name = call.body.name; return list({revision, name});
+    },
+  }), saved = service(s.api);
+  await saved.select({view: 'playlist', playlistId: 'pl'});
+  revision = '8'; // someone else changed it
+  const reads = () => s.calls.filter(call => call.method === 'GET' && call.path === '/v1/lists/pl').length, before = reads();
+  await assert.rejects(saved.mutate({action: 'rename', name: 'Long drive'}), {code: 'list_changed'});
+  const shot = saved.getSnapshot();
+  assert.equal(reads(), before + 1, 'the list is read again');
+  assert.deepEqual([shot.playlist!.revision, shot.mutationError?.code, shot.mutationError?.message], [8, 'list_changed', 'This list changed. Reload and try again.']);
+  await saved.retryMutation();
+  assert.deepEqual(s.calls.filter(call => call.method === 'PATCH').map(call => call.headers?.['If-Match']), ['"7"', '"8"'], 'Retry starts from the fresh revision');
+  assert.equal(name, 'Long drive', 'the retried rename landed');
+  saved.dispose();
+});
+
+test('a reorder that stops half way shows the list as the server now has it, and Retry starts from there', async () => {
+  // Entries e1 e2 e3; moving [e3, e2] to the front: e3 lands, then the second move fails.
+  let order = ['e1', 'e2', 'e3'], revision = 7, fail = true;
+  const titles: Record<string, string> = {e1: 'a', e2: 'b', e3: 'c'};
+  const s = server({
+    'GET /v1/lists/pl': () => list({revision: String(revision)}),
+    'GET /v1/items': (_call, url) => url.searchParams.get('list') === 'pl'
+      ? {items: (url.searchParams.get('order') === 'desc' ? order.slice(-1) : order).map(entry => title(titles[entry]!, {entryId: entry})), total: 3}
+      : {items: [], total: 0},
+  });
+  s.api.requestRaw = (async (path: string, method: string, options: {headers?: Record<string, string>; body?: any} = {}) => {
+    s.calls.push({path, method, body: options.body, headers: options.headers});
+    if (options.headers?.['If-Match'] !== `"${revision}"`) return {status: 412, headers: {}, body: {error: {code: 'list_changed', message: 'This list changed. Reload and try again.'}}};
+    const moved = path.split('/').pop()!;
+    if (order.indexOf(moved) > 0 && moved === 'e2' && fail) {fail = false; return {status: 503, headers: {}, body: {error: {code: 'unavailable', message: 'Try again.', retryable: true}}};}
+    order = order.filter(entry => entry !== moved);
+    order.splice(options.body.before ? order.indexOf(options.body.before) : order.indexOf(options.body.after) + 1, 0, moved);
+    revision++; return {status: 200, headers: {}, body: list({revision: String(revision)})};
+  }) as typeof s.api.requestRaw;
+  const saved = service(s.api);
+  await saved.select({view: 'playlist', playlistId: 'pl'});
+  await assert.rejects(saved.mutate({action: 'reorder', entryIds: ['e3', 'e2'], afterEntryId: ''}));
+  const shown = () => saved.getSnapshot().projection!.sections[0]!.entries.map(entry => entry.id);
+  assert.deepEqual([shown(), saved.getSnapshot().playlist!.revision], [['e3', 'e1', 'e2'], 8], 'the first move landed and the page shows it');
+  await saved.retryMutation();
+  assert.deepEqual(order, ['e3', 'e2', 'e1']);
+  assert.deepEqual(s.calls.filter(call => call.method === 'PATCH').map(call => call.headers?.['If-Match']), ['"7"', '"8"', '"8"', '"9"'], 'Retry names the revision the page was reloaded at');
+  saved.dispose();
 });
 
 test('removing an entry offers an Undo that puts its title back after the entry in front of it', async () => {
