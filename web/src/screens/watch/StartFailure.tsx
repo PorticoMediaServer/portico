@@ -67,7 +67,7 @@ export function WatchStartTimedOut({timedOut, reportError}: {timedOut: WebPlayba
   const deadline = timedOut.code === undefined;
   return <div ref={root} className={compact.card} data-start-problem={timedOut.code ?? 'playback_start_timeout'} role="alertdialog" aria-label={t(deadline ? 'web.player.error.startTitle' : 'next.states.playbackStopped')}
     onKeyDown={event => {if (event.key === 'Escape') {event.preventDefault();timedOut.close();}}}>
-    <PlaybackFailure layout="compact" error={timedOut.code ?? 'playback_start_timeout'} heading={deadline ? t('web.player.error.startTitle') : undefined} sentence={deadline ? t('web.player.error.startBody') : undefined}
+    <PlaybackFailure layout="compact" error={timedOut.code ?? 'playback_start_timeout'} heading={deadline ? t('web.player.error.startTitle') : undefined} sentence={timedOut.sentence ?? (deadline ? t('web.player.error.startBody') : undefined)}
       onRetry={timedOut.retry} onClose={timedOut.close} closeLabel={t('action.close')} onError={reportError}/>
   </div>;
 }

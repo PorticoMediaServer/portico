@@ -4,48 +4,44 @@ import {subscribeFacts} from '../../shell/fact-source';
 import {subscribePresentation, useShellFacts} from '../../shell/fact-hooks';
 import {useLayoutEffect, useRef, useState} from 'react';
 import {defaultI18n} from '@i18n';
-import {DVRClient, defaultRecordingOptions, type Recording} from '@core/dvr.ts';
+import type {Recording} from '@core/dvr.ts';
 import type {ChannelReference} from '@core/index.ts';
 import {channelTimeline} from '@core/playback/channel-timeline.ts';
-import {legacyChannel, legacyChannelRow, legacyGuideSource, legacyProgramme, type GuideChannelRow} from '@core/guide/index.ts';
-import type {GuideChannel, GuideProgramme} from '@core/channel-guide.ts';
+import type {GuideChannelRow, GuideProgram} from '@core/guide/index.ts';
+import {channelsAround, liveGuideChannel} from '@core/guide/next-source.ts';
+import {bookRecording, endRecording} from '@core/live-tv.ts';
+import {nextRecording} from '@core/next-dvr.ts';
+import type {GuideChannel} from '@core/channel-guide.ts';
 import type {ChannelPlaybackFence} from '../../../../packages/player-core/src/index.ts';
 import type {WebPlaybackRuntimeSnapshot, WebShellPlaybackRuntime} from '../../platform/playback';
 import {fenceKey as shellFenceKey} from '../../shell/playback-model';
 import type {ShellAssemblyContext} from '../../shell/bootstrap';
 import {router} from '../../router';
 import {screenLifetime, type ScreenContext} from '../detail/context';
-import {createLiveBindings, type LiveBindings} from './bindings';
 import {liveChannelCurrent, liveNavigationAllowed, liveRecordCommand} from './live-chrome-model';
 import type {LiveChromeChannel, LiveChromeGuideChannel, LiveChromeGuideTarget, LiveChromePort, LiveChromeProgramme} from './live-chrome-types';
 
-const randomHex = async () => Array.from(crypto.getRandomValues(new Uint8Array(24)), value => value.toString(16).padStart(2, '0')).join('');
-const recordingStates: ReadonlySet<string> = new Set(['scheduled', 'conflicted', 'waiting-source', 'waiting-guide', 'preparing', 'recording', 'finalizing', 'completed', 'incomplete-playable', 'failed', 'cancelled', 'pending-delete', 'deleted']);
-const recordingState = (programme: GuideProgramme | undefined): LiveChromeProgramme['recording'] => {
-  if (!programme?.recordingId || programme.recordingState === undefined || !recordingStates.has(programme.recordingState)) return undefined;
-  return programme.recordingState as LiveChromeProgramme['recording'];
-};
 const asChromeChannel = (channel: GuideChannel): LiveChromeChannel => ({id: channel.id, sourceId: channel.sourceId, kind: channel.provenance,
   generation: channel.generation, number: channel.number, name: channel.name, ...(channel.mark ? {mark: {text: channel.mark.text, seed: channel.mark.seed}} : {}),
   favorite: channel.favorite, recordAvailable: channel.recordAvailable, tuneAvailable: channel.tuneAvailable});
-const asChromeProgramme = (programme: GuideProgramme): LiveChromeProgramme => ({id: programme.id, title: programme.title,
+const asChromeProgramme = (programme: GuideProgram): LiveChromeProgramme => ({id: programme.id, title: programme.title,
   ...(programme.subtitle ? {subtitle: programme.subtitle} : {}), ...(programme.episode ? {episode: programme.episode} : {}),
-  startMs: Date.parse(programme.start), endMs: Date.parse(programme.end), ...(recordingState(programme) ? {recording: recordingState(programme)} : {})});
-const asMini = (row: GuideChannelRow, programme: GuideProgramme | undefined): LiveChromeGuideChannel | undefined => {
-  const channel = legacyChannel(row);
+  startMs: programme.start, endMs: programme.end});
+const asMini = (row: GuideChannelRow, programme: GuideProgram | undefined): LiveChromeGuideChannel | undefined => {
+  const channel = liveGuideChannel(row);
   if (!channel) return undefined;
   return {channel: asChromeChannel(channel), ...(programme ? {programme: asChromeProgramme(programme)} : {}),
-    ...(programme ? {nextStartMs: Date.parse(programme.end)} : {})};
+    ...(programme ? {nextStartMs: programme.end} : {})};
 };
 
 /** The shell fence plus the exact programme input this read was opened for. */
 const guideReadKey = (fence: ChannelPlaybackFence, programme: {id: string; startMs: number; endMs: number} | null | undefined) =>
   JSON.stringify([shellFenceKey(fence), programme?.id ?? '', programme?.startMs ?? 0, programme?.endMs ?? 0]);
-type GuideFacts = Readonly<{chromeId: string; readId: string; fenceKey: string; current: GuideChannel; rows: readonly GuideChannelRow[]; programmes: ReadonlyMap<string, GuideProgramme>}>;
+type GuideFacts = Readonly<{chromeId: string; readId: string; fenceKey: string; current: GuideChannel; rows: readonly GuideChannelRow[]; programmes: ReadonlyMap<string, GuideProgram>}>;
 type ChromeAuthority = {id: string; scopeKey: string; context: ShellAssemblyContext; live: boolean;
-  screen: ScreenContext; life: ReturnType<typeof screenLifetime>; client: DVRClient};
+  screen: ScreenContext; life: ReturnType<typeof screenLifetime>};
 type ChromeRead = {id: string; chrome: ChromeAuthority; fence: ChannelPlaybackFence; channel: ChannelReference; fenceKey: string; runtime: WebShellPlaybackRuntime; live: boolean;
-  bindings: LiveBindings; source: ReturnType<typeof legacyGuideSource>};
+  life: ReturnType<typeof screenLifetime>};
 type ChromeAction = {id: string; chrome: ChromeAuthority; read: ChromeRead; fence: ChannelPlaybackFence; channel: ChannelReference; fenceKey: string;
   mediaAuthority: WebPlaybackRuntimeSnapshot['authority']; runtime: WebShellPlaybackRuntime; live: boolean};
 type RecordClaim = {id: string; actionId: string; readId: string; programmeId: string; live: boolean};
@@ -85,10 +81,9 @@ export function useLiveChromePort(context: ShellAssemblyContext | undefined, run
     const base = chromeScreen(context);
     const screen: ScreenContext = forwardIdentity(base, {isCurrent: () => chromeLive && context.isCurrent()});
     const life = screenLifetime(screen);
-    const client = new DVRClient(life.api, screen.scope.serverId, randomHex);
-    const held: ChromeAuthority = {id: crypto.randomUUID(), scopeKey, context, live: true, screen, life, client};
+    const held: ChromeAuthority = {id: crypto.randomUUID(), scopeKey, context, live: true, screen, life};
     publishChrome(held);
-    return () => {chromeLive = false;held.live = false;client.dispose();life.dispose();};
+    return () => {chromeLive = false;held.live = false;life.dispose();};
   }, [context, scopeKey]);
   const chrome = publishedChrome?.live && publishedChrome.context === context && publishedChrome.scopeKey === scopeKey
     && publishedChrome.screen.isCurrent() ? publishedChrome : undefined;
@@ -108,13 +103,10 @@ export function useLiveChromePort(context: ShellAssemblyContext | undefined, run
   useLayoutEffect(() => {
     const {fence, channel} = setupPorts.current;
     if (!chrome || !fence || !channel || !fenceKey || !runtime) return;
-    const options = {kind: channel.kind, sourceId: channel.sourceId, timezone: defaultI18n.region.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone, search: '', sort: 'number' as const};
     let readLive = true;
     const readScreen: ScreenContext = {...chrome.screen, isCurrent: () => readLive && chrome.screen.isCurrent()};
-    const bindings = createLiveBindings(readScreen, options);
     const readLife = screenLifetime(readScreen);
-    const source = legacyGuideSource(readLife.api, chrome.screen.scope.serverId, options);
-    const held: ChromeRead = {id: crypto.randomUUID(), chrome, fence, channel, fenceKey, runtime, live: true, bindings, source};
+    const held: ChromeRead = {id: crypto.randomUUID(), chrome, fence, channel, fenceKey, runtime, live: true, life: readLife};
     publishRead(held);
     const abort = new AbortController();
     const admitted = () => {
@@ -125,35 +117,16 @@ export function useLiveChromePort(context: ShellAssemblyContext | undefined, run
         && currentChannel.channelId === held.channel.channelId && currentChannel.kind === held.channel.kind
         && currentChannel.sourceId === held.channel.sourceId && currentChannel.generation === held.channel.generation;
     };
+    // The channel, the ones around it and what is on each, from the new server's guide (`around=`).
     const run = async () => {
-      const current = await held.bindings.chromeChannel({sourceId: held.channel.sourceId, channelId: held.channel.channelId, provenance: held.channel.kind}, abort.signal);
-      if (!current || current.generation !== held.channel.generation || !admitted()) return;
-      const row = legacyChannelRow(current);
-      const down = source.neighbor ? await source.neighbor(row, -1, abort.signal).catch(() => undefined) : undefined;
-      if (!admitted()) return;
-      const up: GuideChannelRow[] = [];
-      let anchor: GuideChannelRow | undefined = row;
-      for (let index = 0; index < 3 && anchor; index++) {
-        const next: GuideChannelRow | undefined = source.neighbor ? await source.neighbor(anchor, 1, abort.signal).catch(() => undefined) : undefined;
-        if (!admitted()) return;
-        if (!next) break;
-        up.push(next);anchor = next;
-      }
-      const rows = [down, row, ...up].filter((item): item is GuideChannelRow => !!item);
-      const programs = await source.programs(rows.map(item => item.id), serverNow(), serverNow() + 1, abort.signal);
-      if (!admitted()) return;
-      const programmes = new Map<string, GuideProgramme>();
-      for (const item of rows) {
-        const raw = legacyChannel(item); if (!raw) continue;
-        const page = programs[item.id]?.find(programme => programme.start <= serverNow() && serverNow() < programme.end);
-        const rawProgramme = page ? legacyProgramme(page) : undefined;
-        if (rawProgramme) programmes.set(item.id, rawProgramme);
-      }
-      if (!admitted()) return;
-      setFacts({chromeId: chrome.id, readId: held.id, fenceKey: held.fenceKey, current, rows, programmes});
+      const around = await channelsAround(readLife.api, held.channel.channelId, serverNow(), abort.signal);
+      if (!around || !admitted()) return;
+      const row = around.rows.find(item => item.id === held.channel.channelId), current = row ? liveGuideChannel(row) : undefined;
+      if (!current) return;
+      setFacts({chromeId: chrome.id, readId: held.id, fenceKey: held.fenceKey, current, rows: around.rows, programmes: around.now});
     };
     void run().catch(() => {});
-    return () => {readLive = false;held.live = false;abort.abort();bindings.dispose();readLife.dispose();};
+    return () => {readLive = false;held.live = false;abort.abort();readLife.dispose();};
     // expanded is presentation-only and deliberately absent from the source/facts lifetime.
   }, [chrome, fenceKey, refresh, runtime]);
   const read = publishedRead?.live && publishedRead.chrome === chrome && publishedRead.fenceKey === fenceKey && publishedRead.runtime === runtime ? publishedRead : undefined;
@@ -186,49 +159,42 @@ export function useLiveChromePort(context: ShellAssemblyContext | undefined, run
   const currentFence = action.fence;
   const shownChannel = !!liveFacts ? asChromeChannel(liveFacts.current) : undefined;
   const currentGuide = liveFacts?.rows.find(row => row.id === currentFence.channelId);
-  const currentGuideProgramme = liveFacts?.programmes.get(currentFence.channelId);
-  const guideProgramme = liveFacts && linear.programme
-    ? (currentGuideProgramme?.id === linear.programme.id ? currentGuideProgramme : liveFacts.current.programmes.find(programme => programme.id === linear.programme!.id)) : undefined;
-  const recordKnown = liveRecordCommand(!!guideProgramme?.recordingId, guideProgramme?.recordingState) !== 'none';
-  const authoritative: LiveChromeChannel = shownChannel && currentGuide ? {...shownChannel, recordAvailable: shownChannel.recordAvailable && !!guideProgramme && recordKnown} : {id: currentFence.channelId, sourceId: linear.channel.sourceId, kind: currentFence.channelKind, generation: currentFence.channelGeneration,
+  // What is on the channel now is the guide's: the session names no guide programme.
+  const guideProgramme = liveFacts?.programmes.get(currentFence.channelId);
+  const authoritative: LiveChromeChannel = shownChannel && currentGuide ? {...shownChannel, recordAvailable: shownChannel.recordAvailable && !!guideProgramme} : {id: currentFence.channelId, sourceId: linear.channel.sourceId, kind: currentFence.channelKind, generation: currentFence.channelGeneration,
     number: '', name: linear.name, favorite: false, recordAvailable: false, tuneAvailable: true};
-  const factsRecording = recordingState(guideProgramme);
-  const localRecording = recorded && recorded.programmeId === linear.programme?.id ? recorded.recording.state : undefined;
-  const currentRecording = factsRecording ?? localRecording;
-  const programme: LiveChromeProgramme | undefined = linear.programme ? {id: linear.programme.id, title: linear.programme.title,
-    startMs: linear.programme.startMs, endMs: linear.programme.endMs, ...(currentRecording ? {recording: currentRecording} : {})} : undefined;
+  // A recording made from here is known; one booked elsewhere is the server's to say (the panel reads it).
+  const currentRecording = recorded && recorded.programmeId === guideProgramme?.id ? recorded.recording.state : undefined;
+  const programme: LiveChromeProgramme | undefined = guideProgramme ? {...asChromeProgramme(guideProgramme), ...(currentRecording ? {recording: currentRecording} : {})}
+    : linear.programme ? {id: linear.programme.id, title: linear.programme.title, startMs: linear.programme.startMs, endMs: linear.programme.endMs} : undefined;
   const position = presentation.positionSeconds;
   const timeline = channelTimeline(linear, position), origin = linear.media.originMs;
-  const miniGuide: LiveChromeGuideChannel[] = liveFacts ? liveFacts.rows.map(row => asMini(row,
-    row.id === currentFence.channelId ? guideProgramme : liveFacts.programmes.get(row.id))).filter((row): row is LiveChromeGuideChannel => !!row) : [];
+  const miniGuide: LiveChromeGuideChannel[] = liveFacts ? liveFacts.rows.map(row => asMini(row, liveFacts.programmes.get(row.id)))
+    .filter((row): row is LiveChromeGuideChannel => !!row) : [];
   const currentIndex = liveFacts ? liveFacts.rows.findIndex(row => row.id === currentFence.channelId) : -1;
   const downRow = currentIndex > 0 ? liveFacts!.rows[currentIndex - 1] : undefined;
   const upRow = currentIndex >= 0 ? liveFacts!.rows[currentIndex + 1] : undefined;
   const down = downRow ? asMini(downRow, liveFacts!.programmes.get(downRow.id)) : undefined;
   const up = upRow ? asMini(upRow, liveFacts!.programmes.get(upRow.id)) : undefined;
   const guideTarget = (target: LiveChromeGuideTarget): GuideChannel | undefined => {
-    // The facts' own native row: the display row maps a library channel's
-    // sourceId to "library", so compare the source, generation and provenance
-    // the native row actually carries, never a later store row.
-    const row = liveFacts?.rows.find(item => {
-      const raw = legacyChannel(item);
-      return !!raw && item.id === target.channelId && raw.sourceId === target.sourceId
-        && raw.generation === target.generation && raw.provenance === target.kind;
-    });
-    const raw = row ? legacyChannel(row) : undefined;
-    return raw && raw.tuneAvailable ? raw : undefined;
+    // Only a row these facts actually hold, matched on everything the player's channel identity carries.
+    const row = liveFacts?.rows.find(item => item.id === target.channelId);
+    const raw = row ? liveGuideChannel(row) : undefined;
+    return raw && raw.sourceId === target.sourceId && raw.generation === target.generation && raw.provenance === target.kind && raw.tuneAvailable ? raw : undefined;
   };
   const tuneTarget = async (target: LiveChromeGuideTarget): Promise<void> => {
     if (!isCurrent()) return;
     const raw = guideTarget(target);
     if (!raw) return;
-    await action.runtime.playFromGuide(raw, {signal: read.bindings.life.signal(), isCurrent: () => isCurrent() && read.live});
+    // Admitted while this channel plays; the new start then replaces it, so it lives as long as the chrome, not this channel.
+    await action.runtime.playFromGuide(raw, {signal: chrome.life.signal(), isCurrent: () => chrome.live && chrome.screen.isCurrent()});
   };
   const guideRowTarget = (row: LiveChromeGuideChannel): LiveChromeGuideTarget => ({sourceId: row.channel.sourceId, channelId: row.channel.id,
     generation: row.channel.generation, kind: row.channel.kind});
+  // Record books what is on now (rule 33); a booking made from here is cancelled, or stopped once it is recording (rule 50).
   const record = async (): Promise<void> => {
-    const guideChannel = liveFacts?.current, programme = guideProgramme;
-    if (!isCurrent() || !guideChannel || !programme) return;
+    const programme = guideProgramme;
+    if (!isCurrent() || !programme || !liveFacts) return;
     const active = recordingClaim.current;
     if (active?.live && active.actionId === action.id && active.readId === read.id && active.programmeId === programme.id) return;
     const claim: RecordClaim = {id: crypto.randomUUID(), actionId: action.id, readId: read.id, programmeId: programme.id, live: true};
@@ -236,25 +202,17 @@ export function useLiveChromePort(context: ShellAssemblyContext | undefined, run
     const settle = () => {claim.live = false;if (recordingClaim.current === claim) recordingClaim.current = undefined;};
     const claimCurrent = () => recordingClaim.current === claim && claim.live && isCurrent();
     const local = recorded?.programmeId === programme.id ? recorded.recording : undefined;
+    const signal = AbortSignal.any([chrome.life.signal(), read.life.signal()]);
     try {
-      if (programme.recordingId) {
-        if (liveRecordCommand(true, programme.recordingState) !== 'cancel') return;
-        const detail = await chrome.client.detail(programme.recordingId);
-        if (!claimCurrent()) return;
-        await chrome.client.cancel(detail.recording);
-        if (!claimCurrent()) return;
-        setRecorded(undefined);setRefresh(value => value + 1);return;
-      }
       if (local) {
         if (liveRecordCommand(true, local.state) !== 'cancel') return;
-        await chrome.client.cancel(local);
+        await endRecording(chrome.life.api, local.id, local.state === 'recording' ? 'stop' : 'cancel', signal);
         if (!claimCurrent()) return;
         setRecorded(undefined);setRefresh(value => value + 1);return;
       }
-      const command = {signal: AbortSignal.any([chrome.life.signal(), read.bindings.life.signal()]), isCurrent: claimCurrent};
-      const scheduled = await chrome.client.schedule({channel: guideChannel, programme, series: false}, defaultRecordingOptions, command);
+      const booked = await bookRecording(chrome.life.api, {programme: programme.id}, signal);
       if (!claimCurrent()) return;
-      setRecorded({programmeId: programme.id, recording: scheduled});
+      setRecorded({programmeId: programme.id, recording: nextRecording(booked)});
       setRefresh(value => value + 1);
     } finally {settle();}
   };

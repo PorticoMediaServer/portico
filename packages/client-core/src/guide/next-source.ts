@@ -5,6 +5,7 @@
  * pages in order and keeps what it has read for the view, so scrolling back reads nothing again.
  */
 import type {LiveChannel, LiveProgramme} from '../../../contracts/src/next/api.ts';
+import type {GuideChannel} from '../channel-guide.ts';
 import {channelSources, readChannels, readGuide, readOnNow, type ChannelChoice} from '../live-tv.ts';
 import type {GuideSourceSummaries, GuideSourceSummary} from './directory.ts';
 import type {ServerRequester} from '../query/server-api.ts';
@@ -20,6 +21,25 @@ export function nextChannelRow(channel: LiveChannel): GuideChannelRow {
 /** The new server's channel behind a row made here; none for a row of the old guide. */
 export function liveChannel(row: GuideChannelRow): LiveChannel | undefined {
   return liveRows.has(row) ? row.native as LiveChannel : undefined;
+}
+
+/**
+ * The rebuilt server names a channel by its id alone. The player's channel identity also carries the source and guide
+ * generation the old guide had; a new-server channel gives them fixed values (a Library Channel names itself as its source),
+ * the same in every reference and fence.
+ * They are never shown.
+ */
+export const NEXT_CHANNEL_SOURCE = 'server', NEXT_CHANNEL_GENERATION = '1';
+/** A new-server row as the channel the player starts from the guide; none for a row of the old guide. */
+export function liveGuideChannel(row: GuideChannelRow): GuideChannel | undefined {
+  const channel = liveChannel(row);
+  if (!channel) return undefined;
+  // A Library Channel is its own source (the player's identity allows no other); a live source's channel takes the stand-in.
+  const library = channel.kind === 'library';
+  return Object.freeze({id: channel.id, sourceId: library ? channel.id : NEXT_CHANNEL_SOURCE, provenance: library ? 'library-channel' : 'live-source', name: channel.name,
+    number: channel.number, group: channel.group ?? '', generation: NEXT_CHANNEL_GENERATION, ...(channel.logo ? {logoPath: channel.logo} : {}), programmes: [],
+    tuneAvailable: true, recordAvailable: channel.kind !== 'library', tuneUnavailableReason: '', recordUnavailableReason: '', guide: 'full',
+    favorite: channel.favorite, hidden: channel.hidden, preferenceRevision: 0}) as GuideChannel;
 }
 export function nextProgram(channelId: string, programme: LiveProgramme): GuideProgram {
   return Object.freeze({id: programme.id, channelId, title: programme.title ?? '', start: Date.parse(programme.startsAt), end: Date.parse(programme.endsAt),
@@ -117,6 +137,25 @@ export async function findChannel(api: ServerRequester, id: string, now = Date.n
     if (!cursor) return undefined;
   }
   return undefined;
+}
+
+/**
+ * The channels around one, with what is on each now: the player's channel up and down and its mini guide. One read of the
+ * guide around the channel (`around=`); a server without it answers from the start, and then only the channel itself is
+ * found (by paging, as `findChannel` does).
+ */
+export async function channelsAround(api: ServerRequester, id: string, now = Date.now(), signal?: AbortSignal): Promise<Readonly<{rows: readonly GuideChannelRow[]; now: ReadonlyMap<string, GuideProgram>}> | undefined> {
+  const window = {from: new Date(now), to: new Date(now + 60_000)};
+  let answer;
+  try { answer = await readGuide(api, window, {around: id}, undefined, signal); }
+  catch (error) { if ((error as {status?: number} | null)?.status === 404) return undefined; throw error; }
+  const on = (row: {channel: LiveChannel; programmes: readonly LiveProgramme[]}) => row.programmes.find(programme => Date.parse(programme.startsAt) <= now && now < Date.parse(programme.endsAt));
+  if (answer.items.some(row => row.channel.id === id)) {
+    const rows = answer.items.map(row => nextChannelRow(row.channel));
+    return {rows, now: new Map(answer.items.flatMap(row => {const programme = on(row);return programme ? [[row.channel.id, nextProgram(row.channel.id, programme)] as const] : [];}))};
+  }
+  const found = await findChannel(api, id, now, signal);
+  return found ? {rows: [found.row], now: new Map(found.now ? [[id, found.now]] : [])} : undefined;
 }
 
 /**

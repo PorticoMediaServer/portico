@@ -1,8 +1,6 @@
 import {GuideWindowStore, type GuideChannelRow} from '@core/guide/index.ts';
 import {findChannel, nextGuideSource, nextGuideSummaries, nextOnNowSource} from '@core/guide/next-source.ts';
 import type {LegacyGuideOptions} from '@core/guide/legacy-source.ts';
-import {readSelectedChannelGuideResponse} from '@core/query/browse-reads.ts';
-import {guideWindow, parseChannelGuide, type ChannelKind} from '@core/channel-guide.ts';
 import {markChannel, type ChannelChoice} from '@core/live-tv.ts';
 import type {setServerChannelHidden} from '@core/server-channel-visibility.ts';
 import {screenLifetime, type ScreenContext} from '../detail/context';
@@ -58,15 +56,6 @@ export function createLiveBindings(context: ScreenContext, options: LegacyGuideO
       const value = await findChannel(api, target.channelId, Date.now(), life.signal(signal));
       life.assert();signal?.throwIfAborted();
       return value;
-    },
-    /** The player's live chrome reads its channel the old server's way. It moves with Watch live, in the player's area: until
-     * then the chrome is not used against the new server. */
-    async chromeChannel(target: Readonly<{sourceId: string; channelId: string; provenance: ChannelKind}>, signal?: AbortSignal) {
-      const route = {kind: target.provenance, sourceId: target.sourceId, ...(options.includeServerHidden ? {includeServerHidden: true} : {}), timezone: options.timezone, search: '', ...guideWindow()};
-      const value = parseChannelGuide(await readSelectedChannelGuideResponse(api, route, target.channelId, options.includeServerHidden === true, life.signal(signal)), context.scope.serverId, route);
-      life.assert();signal?.throwIfAborted();
-      return value.channels.find(channel => channel.id === target.channelId && channel.provenance === target.provenance
-        && (channel.sourceId === target.sourceId || target.sourceId === 'library' && channel.provenance === 'library-channel'));
     },
     /** The viewer's favorite for one drawn row, retaining its existing profile hidden
      * preference at that row's revision. The caller re-reads the guide afterwards; nothing is patched locally. */

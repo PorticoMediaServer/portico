@@ -437,7 +437,8 @@ export class WebPlayback implements PlaybackAdapter {
     if (next.channel) {
       // A channel's session, lease and reports belong to the channel control.
       this.controller.detach();
-      const origin = next.linear?.media.originMs;
+      // A stream counted in media time (a Library Channel's title) is placed by its media time, not by program dates.
+      const origin = next.linear?.media.clock === 'media' ? undefined : next.linear?.media.originMs;
       this.slot.load({url: session.streamUrl, generation: session.generation, mode: session.mode === 'direct' ? 'direct' : 'stream', startPositionMs, subtitles: [], autoplay, sessionId: session.id, ...(origin !== undefined ? {liveOriginMs: origin} : {})});
       return true;
     }
