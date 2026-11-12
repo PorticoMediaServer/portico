@@ -262,6 +262,8 @@ type query struct {
 	// ratingPlus stands in for "{rated}" on a page: "+" unless the page is read from the
 	// rating index. See access.rated.
 	ratingPlus string
+	// person is the person the list is of (ItemQuery.Person), or 0.
+	person int64
 	// plainLibrary and plainKinds are set when the list is a whole library and some kinds
 	// with nothing else asked for and no rating limit. Its totals and tag counts can then be
 	// read from item_tags and the labels alone.

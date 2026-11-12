@@ -41,6 +41,9 @@ type Item struct {
 	WatchedLeaves int
 	// EntryID is the entry's id when the item is listed as an entry of a list.
 	EntryID int64
+	// Credits, on a list of one person's titles, are that person's credits on the item, in
+	// billing order: every role they have on it (browse rule 26).
+	Credits []Credit
 
 	sortTitle string
 	// sortValues are the item's values in the sort it was listed by, for the next cursor.
@@ -82,6 +85,7 @@ type ItemQuery struct {
 	Library    string
 	Parent     string
 	Person     string
+	PersonRole CreditRole // with Person: only the titles where the person has this role
 	Tag        string
 	List       string // a playlist or collection; its own order is read by ListEntries
 	Collection string // a library's collection: the titles it holds
@@ -347,6 +351,9 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 		return page, err
 	}
 	if err := loadImages(ctx, tx, page.Items); err != nil {
+		return page, err
+	}
+	if err := loadPersonCredits(ctx, tx, where.person, page.Items); err != nil {
 		return page, err
 	}
 	return page, loadLeafCounts(ctx, tx, v, acc, page.Items)
@@ -644,6 +651,11 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		}
 		w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = `, fmt.Sprint(person), `)`)
 		scoped = true
+		// One group of a person's page: the titles where they have that role.
+		if q.PersonRole != 0 {
+			w.add(` AND i.id IN (SELECT item_id FROM credits WHERE person_id = `, fmt.Sprint(person), ` AND role = `, itoa(int64(q.PersonRole)), `)`)
+		}
+		w.person = person
 	}
 	if q.entries {
 		scoped = true
@@ -860,6 +872,34 @@ func idList(items []Item) string {
 }
 
 // loadImages attaches each item's chosen pictures.
+// loadPersonCredits gives each item of a list of one person's titles that person's credits on
+// it. person is 0 for any other list.
+func loadPersonCredits(ctx context.Context, tx *sql.Tx, person int64, items []Item) error {
+	if person == 0 || len(items) == 0 {
+		return nil
+	}
+	at := make(map[int64]int, len(items))
+	ids := make([]int64, len(items))
+	for n, it := range items {
+		at[it.ID], ids[n] = n, it.ID
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT c.item_id, p.public_id, p.name, c.role, ifnull(c.character, '') FROM credits c
+		JOIN people p ON p.id = c.person_id WHERE c.person_id = ? AND c.item_id IN `+intList(ids)+` ORDER BY c.item_id, c.position`, person)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item int64
+		var c Credit
+		if err := rows.Scan(&item, &c.PersonID, &c.Name, &c.Role, &c.Character); err != nil {
+			return err
+		}
+		items[at[item]].Credits = append(items[at[item]].Credits, c)
+	}
+	return rows.Err()
+}
+
 func loadImages(ctx context.Context, tx *sql.Tx, items []Item) error {
 	if len(items) == 0 {
 		return nil

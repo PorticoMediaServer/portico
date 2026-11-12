@@ -180,6 +180,9 @@ var creditRoleNames = map[CreditRole]string{
 
 func (r CreditRole) String() string { return creditRoleNames[r] }
 
+// ParseCreditRole reads a credit role by its name.
+func ParseCreditRole(name string) (CreditRole, bool) { return parseCode(creditRoleNames, name) }
+
 // RelationKind is how one item relates to another.
 type RelationKind int
 

@@ -122,7 +122,9 @@ func (req ItemQueryRequest) query() (db.ItemQuery, error) {
 	return q, nil
 }
 
-// Item is anything a person can browse.
+// Item is anything a person can browse. Credits are the first of the cast and crew on
+// GET /v1/items/{id}, and on a list of one person's titles (GET /v1/items?person=) that
+// person's credits on the title: every role they have on it, in billing order.
 type Item struct {
 	ID            string            `json:"id"`
 	Kind          string            `json:"kind"`
@@ -302,6 +304,16 @@ type Person struct {
 	Birthplace string            `json:"birthplace,omitempty"`
 	Images     map[string]string `json:"images"`
 	TitleCount *int              `json:"titleCount,omitempty"`
+	// Roles, on GET /v1/people/{id}: each role the person has on titles the caller may see,
+	// with how many, most first. A person page's groups (Acting, Directing, ...); one group's
+	// titles are GET /v1/items?person=<id>&role=<role>.
+	Roles []PersonRole `json:"roles,omitempty"`
+}
+
+// PersonRole is one role of a person and how many titles the caller may see credit them in it.
+type PersonRole struct {
+	Role       string `json:"role"`
+	TitleCount int    `json:"titleCount"`
 }
 
 // PersonPage is the answer of GET /v1/people: a library's people by one role (its authors, its
@@ -452,6 +464,9 @@ func itemShape(it db.Item) Item {
 	}
 	if it.CommunityRating != 0 {
 		out.Ratings = &Ratings{Community: it.CommunityRating}
+	}
+	if len(it.Credits) > 0 {
+		out.Credits = creditShapes(it.Credits)
 	}
 	if !it.Kind.Playable() {
 		out.Counts = &ItemCounts{Children: it.ChildCount, Leaves: it.Leaves, UnwatchedLeaves: it.Leaves - it.WatchedLeaves}
