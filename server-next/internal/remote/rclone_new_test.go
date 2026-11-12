@@ -28,6 +28,14 @@ func fakeRcloneTools(args []string) {
 		// a token the provider replaces (written where rclone writes it). A folder is there when
 		// a file is inside it; a file is not a folder; the top is always a folder.
 		switch {
+		case os.Getenv("RCLONE_CONFIG_PORTICO_TOKEN") == "rate-limited":
+			// Captured from the bundled rclone against a server answering 403 for a rate limit.
+			fmt.Fprintln(os.Stderr, "Failed to lsjson: couldn't list files: User Rate Limit Exceeded. Rate of requests for user exceed configured project quota.: 403 Forbidden")
+			os.Exit(1)
+		case os.Getenv("RCLONE_CONFIG_PORTICO_TOKEN") == "unreachable":
+			// Captured from the bundled rclone against a port nothing listens on.
+			fmt.Fprintln(os.Stderr, `Failed to lsjson: couldn't list files: Propfind "http://127.0.0.1:403/dav/": dial tcp 127.0.0.1:403: connect: connection refused`)
+			os.Exit(5)
 		case os.Getenv("RCLONE_CONFIG_PORTICO_TYPE") != "drive":
 			fmt.Fprintln(os.Stderr, "Failed to create file system: didn't find section in config file")
 			os.Exit(1)

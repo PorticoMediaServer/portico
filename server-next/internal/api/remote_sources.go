@@ -191,7 +191,9 @@ func (s *Server) remoteSourceRoutes() {
 		}
 		// Asked of the source itself first: rclone serves a remote whose sign-in is refused as an
 		// empty top, which a listing through it cannot tell from an empty source.
-		if err := s.remote.Check(r.Context(), row.ID); err != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+		if err := s.remote.Check(ctx, row.ID); err != nil {
 			return RemoteSource{}, reachRefusal(err)
 		}
 		if err := s.reach(r.Context(), row.ID, ""); err != nil {
@@ -543,6 +545,8 @@ func reachRefusal(err error) error {
 	case errors.Is(err, remote.ErrRedirectInward):
 		return refusal(http.StatusUnprocessableEntity, "source_address_refused",
 			"The source sent Portico from the internet to an address on this computer or its network, which Portico does not follow.", false)
+	case errors.As(err, new(*remote.SlowDown)):
+		return refusal(http.StatusUnprocessableEntity, "source_waiting", "The source asked Portico to slow down for a while. Test it again in a few minutes.", true)
 	case errors.Is(err, remote.ErrSignIn):
 		return refusal(http.StatusUnprocessableEntity, "source_sign_in", "The source refused its sign-in: check the user name and password, key or token.", false)
 	case errors.Is(err, context.DeadlineExceeded):
