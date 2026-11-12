@@ -54,10 +54,9 @@ async function send<T>({origin, cookie}: Transport, route: ServicesRoute, values
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (options.token) headers.Authorization = `Bearer ${options.token}`;
   if (options.create) headers['Idempotency-Key'] = crypto.randomUUID();
-  // The header asks Services to keep the refresh token in its cookie (`__Host-portico_refresh`,
-  // path `/`), so the browser must be allowed to send and keep cookies. The browser sends that
-  // cookie with every request to this address anyway; Services reads it only on the routes that
-  // sign in, renew or sign out, and only with this header.
+  // The header asks Services to set, read or clear its refresh-token cookie
+  // (`__Host-portico_refresh`), so the browser must be allowed to send and keep cookies. Only the
+  // routes that do that are sent this way (`cookieRoutes`).
   if (cookie) headers['Portico-Refresh'] = 'cookie';
   let response: Response;
   try {
@@ -77,11 +76,14 @@ async function send<T>({origin, cookie}: Transport, route: ServicesRoute, values
   throw new ServicesError(response.status, code, fields);
 }
 
+/** The routes where Portico Services sets, reads or clears its sign-in cookie for a browser. */
+const cookieRoutes: ReadonlySet<ServicesRoute> = new Set<ServicesRoute>(['signIn', 'twoStepSignIn', 'confirm', 'providerComplete', 'refresh', 'signOut', 'deleteAccount', 'passwordResetConfirm']);
+
 /** The account's operations. `origin` is Portico Services' own (empty on its own pages);
  * `cookie` is for those pages, where Services keeps the refresh token in its cookie. */
 export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false}: Readonly<{cookie?: boolean}> = {}) {
   type Values = Readonly<Record<string, string>>;
-  const anyone = <T>(route: ServicesRoute, values: Values = {}, body?: unknown, options: Options = {}) => send<T>({origin, cookie}, route, values, body, options);
+  const anyone = <T>(route: ServicesRoute, values: Values = {}, body?: unknown, options: Options = {}) => send<T>({origin, cookie: cookie && cookieRoutes.has(route)}, route, values, body, options);
   let renewing: Promise<Tokens | undefined> | undefined;
   /** Renews the access token once it has run out. A renewal sent twice (two tabs) gets the same
    * answer from Services, so the tabs never sign each other out. */
@@ -139,17 +141,16 @@ export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false}: 
     completeProvider: (flow: string, code: string, secret: string, device: Device, chosen: {username?: string; displayName?: string} = {}) =>
       anyone<ProviderCompletion>('providerComplete', {}, {id: flow, code, secret, device, ...chosen}, {create: true}).then(tokensKept),
     signOut: async () => {
-      const before = held.current();
-      try { await person<void>('signOut'); } finally { held.forget(before ?? held.current()); }
+      // Whatever is held now: the call may have renewed the access token to send it.
+      try { await person<void>('signOut'); } finally { held.forget(held.current()); }
     },
     account: (signal?: AbortSignal) => person<Account>('account', {}, undefined, {signal}),
     changePassword: (proof: Proof, newPassword: string) => person<void>('password', {}, {...proof, newPassword}),
     askEmailChange: (proof: Proof, newEmail: string) => person<{email: string}>('email', {}, {...proof, newEmail}),
     confirmEmailChange: (email: string, code: string) => anyone<{email: string}>('confirm', {}, {email, code}),
     deleteAccount: async (proof: Proof) => {
-      const before = held.current();
       await person<void>('deleteAccount', {}, proof);
-      held.forget(before ?? held.current());
+      held.forget(held.current());
     },
     devices: () => person<{items: SignedInDevice[]}>('sessions').then(answer => answer.items),
     signOutDevice: (device: string) => person<void>('endSession', {id: device}),

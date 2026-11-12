@@ -293,6 +293,9 @@ test('the sign-in is kept where no script can read it: storage holds only a flag
   assert.deepEqual(calls.map(call => call.route), ['POST /v1/sessions/refresh', 'GET /v1/account', 'GET /v1/account']);
   assert.equal(calls[0].body, undefined);
   assert.equal(calls[1].headers.Authorization, 'Bearer pat_renewed');
+  assert.equal(calls[0].headers['Portico-Refresh'], 'cookie');
+  assert.equal(calls[1].headers['Portico-Refresh'], undefined, 'only the cookie routes ask for the cookie');
+  assert.equal(calls[1].credentials, 'omit', 'and only they let the browser send it');
   // A browser with no sign-in spends no call finding that out.
   reloaded.accountSession.forget(); calls.length = 0;
   await assert.rejects(reloaded.account.account(), {code: 'signed_out'});
