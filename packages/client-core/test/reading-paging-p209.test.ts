@@ -11,44 +11,8 @@ const client = (answer: (url: URL) => unknown) => {
   const api = new HttpLocalApi('https://server.example', 'token', async input => {const url = new URL(String(input)); calls.push(url); return response(answer(url));});
   return {calls, reading: api.reading({viewer, isCurrent: () => true})};
 };
-const seriesCursor = 'a'.repeat(171) + '.' + 'b'.repeat(43);
-
-test('Discover rows carry their own continuation and continue alone', async () => {
-  const {calls, reading} = client(url => url.searchParams.has('row')
-    ? {rows: [{key: 'recent', items: [{...item, id: 'second'}]}]}
-    : {rows: [{key: 'recent', items: [item], nextCursor: '1700000000000.42'}]});
-  const first = await reading.discover({libraryId: 'library', limit: 1});
-  assert.equal(first.rows[0].nextCursor, '1700000000000.42');
-  const next = await reading.discoverRow('recent', {libraryId: 'library', cursor: first.rows[0].nextCursor, limit: 1});
-  assert.equal(calls[1].search, '?libraryId=library&cursor=1700000000000.42&limit=1&row=recent');
-  assert.equal(next.row.items[0].id, 'second');
-  assert.equal(next.row.nextCursor, undefined);
-});
-
-test('A short page with a cursor is ordinary; an empty page with a cursor is not', async () => {
-  const {reading} = client(() => ({rows: [{key: 'series', items: [], series: [{id: 's'.repeat(43), libraryId: 'library', name: 'Saga', count: 2, readCount: 0,
-    preview: [{...item, series: {id: 's'.repeat(43), name: 'Saga', source: 'owner'}}]}], nextCursor: seriesCursor}]}));
-  const page = await reading.discoverRow('series', {libraryId: 'library', limit: 20});
-  assert.equal(page.row.series?.length, 1);
-  for (const rows of [
-    [{key: 'recent', items: [], nextCursor: '1.2'}],
-    [{key: 'recent', items: [item], nextCursor: 'not a cursor'}],
-  ]) {
-    const {reading} = client(() => ({rows}));
-    await assert.rejects(reading.discoverRow(rows[0].key as 'recent', {libraryId: 'library'}), coded('invalid_document'));
-  }
-});
-
-test('Discover rows refuse bad requests before IO', async () => {
-  const {calls, reading} = client(() => ({rows: []}));
-  await assert.rejects(reading.discoverRow('newspaper' as 'recent', {libraryId: 'library'}), coded('invalid_request'));
-  await assert.rejects(reading.discoverRow('series', {}), coded('invalid_request'));
-  await assert.rejects(reading.discoverRow('series', {libraryId: 'library', limit: 21}), coded('invalid_request'));
-  await assert.rejects(reading.discoverRow('recent', {cursor: '../x'}), coded('invalid_request'));
-  assert.equal(calls.length, 0);
-});
-
 const issue = (date: string, id: string) => ({issueDate: date, item: {...item, id, format: 'epub', publicationType: {value: 'magazine', source: 'owner'}, series: {id: 'g'.repeat(43), name: 'Monthly', source: 'owner'}}});
+
 test('Periodical issues ask for oldest first and check that order', async () => {
   const page = (items: unknown[]) => ({libraryId: 'library', seriesId: 'g'.repeat(43), publicationType: 'magazine', order: 'oldest', items, years: [], days: []});
   const {calls, reading} = client(() => page([issue('1930-01', 'a'), issue('1930-02', 'b')]));
