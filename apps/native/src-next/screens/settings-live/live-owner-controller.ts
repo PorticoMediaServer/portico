@@ -248,7 +248,7 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
     const round = new AbortController(), stop = () => round.abort();
     opening.addEventListener('abort', stop, {once: true}); caller?.addEventListener('abort', stop, {once: true});
     if (caller?.aborted) stop();
-    return this.lifetime.request(next => this.api.request<T>(path, 'GET', undefined, next), round.signal) // query-read: kept (folder explorer listings of the server's disks for one opening, not a viewer document)
+    return this.lifetime.request(next => this.api.request<T>(path, 'GET', undefined, next), round.signal)
       .finally(() => {opening.removeEventListener('abort', stop); caller?.removeEventListener('abort', stop);});
   }});
   dispose(): void {

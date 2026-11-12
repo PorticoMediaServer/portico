@@ -43,7 +43,7 @@ def event_base(event, env):
     if env.get('GITHUB_EVENT_NAME')=='push':raise ValueError('push ratchet check requires an explicit CI_BASE')
     if env.get('GITHUB_EVENT_NAME')=='workflow_dispatch' and env.get('CI_FULL_PLAN')!='true':
         raise ValueError('manual ratchet check requires CI_BASE or a full inventory')
-    return ''  # Nightly/full inventory enforces the checked-in upper bounds.
+    return ''  # Full inventory: engineering bounds apply; the API census only reports its count.
 
 
 def event_bases(event, env):

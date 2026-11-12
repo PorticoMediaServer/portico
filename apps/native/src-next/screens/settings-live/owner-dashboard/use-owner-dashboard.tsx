@@ -74,7 +74,7 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
   const telemetry = useOwnerTelemetry(reader, healthWindow, owner), statistics = useOwnerStatistics(reader, viewingPeriod, owner);
   // owner-dashboard 2b: the owner's cached release check, read once per showing and on pull; a pressed check asks the server once.
   const updates = useMemo(() => owner
-    ? new SettingsUpdatesSource(reader.updates, () => controller.lifetime.current(), runtime.reportError) // query-read: kept (owner-only release check on the Dashboard's own lifetime; it reads the server's cached report, never the feed)
+    ? new SettingsUpdatesSource(reader.updates, () => controller.lifetime.current(), runtime.reportError)
     : undefined, [owner, reader, controller, runtime]);
   useEffect(() => {if (!updates) return; void updates.load(); return () => updates.dispose();}, [updates]);
   const updateSnapshot = React.useSyncExternalStore(updates?.subscribe ?? noUpdatesSubscription, updates?.getSnapshot ?? noUpdatesSnapshot);
