@@ -13,7 +13,7 @@ import {useMotion} from '../kit/useMotion';
 import {registerTVMenuFallback} from '../platform/menu-key';
 import {useTVMenuCapture} from '../platform/tv-menu';
 import {CoveredLayer, CoveredSignal, createTVLayerStack, provideTVPage, requestNativeFocus, tvLayerSpecs, tvPageModal, tvRouteLayerKeys, useFocusRegistry, type FocusSnapshot} from '../kit/focus';
-import {tvFocusIds, sameDestination} from './tv-focus';
+import {tvFocusIds, sameDestination, tvRouteKeepsRail} from './tv-focus';
 import {HomeScreen} from '../screens/home/HomeScreen';
 import {canYieldTVHomeMenu, homeStartModel, resolveTVHomeStart} from '../screens/home/home-start';
 import {authorityKey, canOpenLibrary, librariesDestination, mediumRailMetrics, phoneBarHeight, sameAuthority, selectedTab, shellLayout, type ShellDestination, type ShellTab} from './model';
@@ -78,12 +78,14 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
       // Refuse that original observer before touching any retired business accessor.
       if (original?.aborted) return;
       const now = runtime.getSnapshot(), saved = registry.capture();
-      if (now.contentVisible === false || now.mediaExpanded || tvListeningPresent || now.homeObscured
-        || now.destination.kind === 'home' && !now.homeVisible) return;
+      // A pushed page that keeps the rail is the rail's page: its element is the one to return to.
+      if (now.mediaExpanded || tvListeningPresent || !routeRailRef.current && (now.contentVisible === false || now.homeObscured
+        || now.destination.kind === 'home' && !now.homeVisible)) return;
       if (saved && saved.regionId !== ids.rail && registry.config(saved.regionId)?.hold !== true) {
-        pageFocus.current = saved; pageFocusDestination.current = JSON.stringify(now.destination);
+        pageFocus.current = saved; pageFocusDestination.current = focusOwnerRef.current;
       }
     };
+    rememberPageFocus.current = remember;
     remember();
     if (original?.aborted) return;
     const off = registry.subscribe(remember);
@@ -91,10 +93,13 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     if (original?.aborted) off();
     return () => {original?.removeEventListener('abort', off);off();};
   }, [ids, registry, runtime, tvListeningPresent]);
-  const currentPageFocus = pageFocusDestination.current === JSON.stringify(destination) ? pageFocus.current : undefined;
+  const routeRailRef = useRef(false), focusOwnerRef = useRef(JSON.stringify(destination)), rememberPageFocus = useRef(() => {});
   /** The page's and the routes' own layers (CoveredLayer hosts): a layer that takes focus asks its host, which
    * lands on the element last focused there or its first focusable. */
   const baseLayer = useRef<View>(null), routeLayer = useRef<View>(null);
+  /** Search keeps its page alive in the route layer (screens/search/register.tsx), so on Search that layer is the page's. */
+  const pageInRouteLayer = useRef(false);
+  pageInRouteLayer.current = theme.isTV && destination.kind === 'search';
   /** TV-FOCUS-REVIEW §5: one layer stack owns which full-screen layer is on top, what is covered, and where focus
    * goes when a layer opens over another or closes (W-9, W-12). */
   const layers = useMemo(() => theme.isTV ? createTVLayerStack(registry) : undefined, [registry, theme.isTV]);
@@ -108,9 +113,17 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     const routes = JSON.parse(routeLayerKeys) as string[];
     // A runtime without the Back stack still says whether a route covers the page.
     if (!routes.length && snapshot.contentVisible === false) routes.push('route:current');
-    return tvLayerSpecs(routes, snapshot.mediaExpanded === true, tvListeningPresent, () => baseLayer.current, () => routeLayer.current);
+    return tvLayerSpecs(routes, snapshot.mediaExpanded === true, tvListeningPresent, () => pageInRouteLayer.current ? routeLayer.current : baseLayer.current, () => routeLayer.current);
   }, [routeLayerKeys, snapshot.contentVisible, snapshot.mediaExpanded, theme.isTV, tvListeningPresent]);
   const topLayer = layerSpecs.at(-1)?.key;
+  /** Choice 16: a title, person, collection or See all page pushed over a rail page keeps the closed rail. */
+  const routeRail = theme.isTV && !!topLayer?.startsWith('route:') && !!navigationPort && tvRouteKeepsRail(navigationPort.getSnapshot().route);
+  /** Whose element Right and Back from the rail return to: the page, or the pushed page on top of it. */
+  const focusOwner = routeRail ? topLayer! : JSON.stringify(destination);
+  routeRailRef.current = routeRail; focusOwnerRef.current = focusOwner;
+  // A page pushed with focus already on its start (Play) has to be its rail's return target before any move.
+  useLayoutEffect(() => rememberPageFocus.current(), [focusOwner]);
+  const currentPageFocus = pageFocusDestination.current === focusOwner ? pageFocus.current : undefined;
   useLayoutEffect(() => {if (!runtime.retirementSignal?.aborted) layers?.sync(layerSpecs);}, [layers, layerSpecs, runtime]);
   useEffect(() => () => {railRelease.current?.();}, []);
   const [remembered, setRemembered] = useState<string>(), [memoryReady, setMemoryReady] = useState(false);
@@ -162,10 +175,18 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
       const start = homeStartNow();
       // Not ready yet: Home's own entry takes it when it is.
       if (start.kind === 'ready') registry.focus(start.address);
-    } else if (topLayer === 'page') requestNativeFocus(baseLayer.current);
+    } else if (topLayer === 'page') requestNativeFocus(pageInRouteLayer.current ? routeLayer.current : baseLayer.current);
     else if (topLayer?.startsWith('route:')) requestNativeFocus(routeLayer.current);
   };
   useEffect(() => theme.isTV ? provideTVPage({identity: () => pageIdentity.current, enter: () => enterPage.current()}) : undefined, [theme.isTV]);
+  /** A rail choice hands focus to the page it opened, once that page is the one on top. */
+  const enterNext = useRef(false), pageKey = pageIdentity.current;
+  useEffect(() => {
+    if (!enterNext.current) return;
+    enterNext.current = false;
+    const frame = requestAnimationFrame(() => enterPage.current());
+    return () => cancelAnimationFrame(frame);
+  }, [pageKey]);
   const subscribeFocus = useCallback((listener: () => void) => {
     let previous = getFocusSnapshot();
     return registry.subscribe(() => {
@@ -258,18 +279,18 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   };
   const expanded = useCallback((value: boolean) => {
     setRailExpanded(value);
-    const saved = pageFocusDestination.current === JSON.stringify(runtime.getSnapshot().destination) ? pageFocus.current : undefined;
+    const saved = pageFocusDestination.current === focusOwnerRef.current ? pageFocus.current : undefined;
     if (value && !railRelease.current && saved) railRelease.current = registry.retain(saved);
     if (!value) {railRelease.current?.(); railRelease.current = undefined;}
     // tv.html f2 moves the copy's left edge from200 to470. The frame wins the stale220 token.
     shift.value = motion.transforms ? withTiming(value ? 270 : 0, motion.timing('standard')) : value ? 270 : 0;
     dim.value = withTiming(value ? .42 : 0, motion.timing('standard'));
-  }, [dim, motion, registry, runtime, shift]);
+  }, [dim, motion, registry, shift]);
   useEffect(() => {
     if (!theme.isTV) return;
     return runtime.registerTVRailBack?.(() => {
       if (registry.capture()?.regionId !== ids.rail) return false;
-      const saved = pageFocusDestination.current === JSON.stringify(runtime.getSnapshot().destination) ? pageFocus.current : undefined;
+      const saved = pageFocusDestination.current === focusOwnerRef.current ? pageFocus.current : undefined;
       expanded(false);
       if (!registry.restore(saved)) runtime.scrollToTop(runtime.getSnapshot().destination);
       return true;
@@ -336,6 +357,21 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
           {runtime.renderDestination(paintedDestination, openLibrary)}
         </View>}
   </>;
+  const tvRail = theme.isTV ? <TVRail authority={snapshot.authority} returnTo={currentPageFocus} libraries={snapshot.libraries} hasLiveTV={snapshot.hasLiveTV} destination={snapshot.railDestination ?? destination} profile={snapshot.profile} unread={snapshot.unreadNotifications} dimmed={destination.kind === 'home' && snapshot.homeVisible && !snapshot.mediaExpanded && !!railDim && !railDim.retired} onNavigate={next => {
+        if (snapshot.contentVisible !== false && sameDestination(next, destination)) {expanded(false); runtime.scrollToTop(destination); return;}
+        // F-RAIL: OK opens that page at its starting focus and the rail closes.
+        expanded(false); enterNext.current = true;
+        if (next.kind === 'library') openLibrary(next.libraryId); else navigate(next);
+      }}
+      onProfile={() => setAccountOpen(true)} profileRef={avatarRef} onExpandedChange={expanded}/> : null;
+  /** The rail and its dim sit in the route layer, above the page under them and under that page's own sheets: a rail
+   * page (Search is kept alive there) or a pushed page that keeps the rail. */
+  const railShown = topLayer === 'page' ? snapshot.contentVisible !== false : routeRail;
+  const routeRailLayer = theme.isTV && railShown && !snapshot.selectionActive && !chromeHidden ? <View pointerEvents="box-none" style={{position: 'absolute', left: layout.left, top: layout.top,
+    width: layout.width, height: layout.height, transformOrigin: 'top left', transform: [{scale: layout.scale}]}}>
+    <Animated.View pointerEvents="none" style={[{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink}, dimStyle]}/>
+    {tvRail}
+  </View> : undefined;
   const content = <>
     {stacks ? <Animated.View pointerEvents="box-none" accessibilityElementsHidden={!!snapshot.mediaExpanded} importantForAccessibility={snapshot.mediaExpanded ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', inset: 0}, pageStyle]}>
       <TouchStacks port={stacks} slots={slots} tier={nativeStackMotionTier(motion)} background={theme.colors.ink} renderShell={renderShellPage} routeStyle={pushedPage}/>
@@ -346,10 +382,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     </Animated.View>
     {settingsPage && <Animated.View style={[{position: 'absolute', inset: 0, paddingLeft: sideNavigation ? sideWidth : 0, paddingBottom: settingsSheet ? 0 : pageBottom}, pageStyle]}>{runtime.renderDestination(destination, openLibrary)}</Animated.View>}
     </>}
-    {theme.isTV && <Animated.View pointerEvents="none" style={[{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink, zIndex: theme.layers.navigation - 1}, dimStyle]}/>}
-    {!snapshot.selectionActive && (stacks ? !immersiveRoute(stackTop) : snapshot.contentVisible !== false) && !chromeHidden && (!theme.isTV || topLayer === 'page') && (theme.isTV ? <TVRail authority={snapshot.authority} returnTo={currentPageFocus} libraries={snapshot.libraries} hasLiveTV={snapshot.hasLiveTV} destination={snapshot.railDestination ?? destination} profile={snapshot.profile} unread={snapshot.unreadNotifications} dimmed={destination.kind === 'home' && snapshot.homeVisible && !snapshot.mediaExpanded && !!railDim && !railDim.retired} onNavigate={next => {if (snapshot.contentVisible !== false && sameDestination(next, destination)) {expanded(false); runtime.scrollToTop(destination);} else if (next.kind === 'library') openLibrary(next.libraryId); else navigate(next);}}
-      onProfile={() => setAccountOpen(true)} profileRef={avatarRef} onExpandedChange={expanded}/>
-      : <>
+    {!snapshot.selectionActive && (stacks ? !immersiveRoute(stackTop) : snapshot.contentVisible !== false) && !chromeHidden && !theme.isTV && (<>
         {sideNavigation && (!!stacks || snapshot.contentVisible !== false) && <MediumRail expanded={layout.kind === 'desktop' && sidebarOpen} onToggle={layout.kind === 'desktop' && !railHeld ? toggleSidebar : undefined} brand={layout.kind === 'desktop' && railHeld} serverName={snapshot.serverName} libraries={snapshot.libraries} hasLiveTV={snapshot.hasLiveTV} destination={railDestination} profile={snapshot.profile} unread={snapshot.unreadNotifications}
           serverAction={snapshot.account.serverAction && {id: snapshot.account.serverAction.id, label: snapshot.account.serverAction.label, onPress: snapshot.account.serverAction.onPress}} activity={runtime.ownerActivity}
           notificationAction={notifications && {label: notifications.label, onPress: notifications.onPress}}
@@ -381,7 +414,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     })()}
     {runtime.renderWatch && <View pointerEvents="box-none" style={{position: 'absolute', inset: 0, zIndex: theme.layers.player + 1}}>
       {theme.isTV ? <CoveredSignal covered={pageModalOpen}>{runtime.renderWatch()}</CoveredSignal> : runtime.renderWatch()}</View>}
-    {theme.isTV ? <CoveredSignal covered={pageModalOpen}>{runtime.renderRoutes({covered: !topLayer?.startsWith('route:'), hostRef: routeLayer})}</CoveredSignal> : <Animated.View pointerEvents={initialPlayer ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer}
+    {theme.isTV ? <CoveredSignal covered={pageModalOpen}>{runtime.renderRoutes({covered: !topLayer?.startsWith('route:') && !pageInRouteLayer.current, hostRef: routeLayer, rail: routeRailLayer})}</CoveredSignal> : <Animated.View pointerEvents={initialPlayer ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer}
       importantForAccessibility={initialPlayer ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', inset: 0}, initialTitleStyle]}>{runtime.renderRoutes()}</Animated.View>}
     <ShellUnreachableLine reachability={runtime.reachability} serverName={snapshot.serverName} layout={layout}
       hidden={!!snapshot.mediaExpanded || tvListeningPresent || (stacks ? immersiveRoute(stackTop) : false)}/>
