@@ -34,7 +34,7 @@ test('Mark all read marks every title of the library with one job and refreshes 
   const f=await fixture();
   try{f.render()();await tick();
     assert.deepEqual(f.calls.map(call=>[call.method,call.path.split('?')[0]]),[['GET','/v1/items'],['POST','/v1/jobs']]);
-    assert.deepEqual(f.calls[1].body,{kind:'set_state',target:{filter:'library=library&kind=book,comic,issue'},params:{watched:true}});
+    assert.deepEqual(f.calls[1].body,{kind:'set_state',target:{filter:'library=library&kind=book,comic,issue&watched=false'},params:{watched:true}},'the job marks only what the count said: the unread titles');
     assert.equal(f.committed(),1);}finally{f.dispose();}
 });
 test('a library with nothing left to read offers no Mark all read',async()=>{
