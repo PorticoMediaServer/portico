@@ -76,3 +76,36 @@ test('joining by invitation sends its code with the note, and a note for another
   await assert.rejects(porticoServerSignIn(other.api, 'srv', noteFor('someone-else'), undefined, {accountId: 'acct'}), {code: 'account_changed'});
   assert.deepEqual(other.calls.map(call => call.path), ['/v1/auth/portico/challenge'], 'nothing is sent to the server');
 });
+
+test('a waiting member moves to the Portico Account with the owner\'s move code: the server checks it, then its challenge, the note and the code finish the move', async () => {
+  const note = {payload: btoa(JSON.stringify({accountId: 'acct'})).replace(/=+$/, ''), signature: 's', keyId: 'k'};
+  const s = server({
+    'POST /v1/auth/move/check': call => (assert.deepEqual(call.body, {code: 'MOVE-CODE-0001'}), {username: 'ada', next: 'portico_account'}),
+    'POST /v1/auth/portico/challenge': () => ({challenge: 'challenge-from-srv-000000', serverId: 'srv', expiresAt: later(5)}),
+    'POST /v1/auth/move/complete': call => (assert.equal(call.body.code, 'MOVE-CODE-0001'), assert.equal(call.body.challenge, 'challenge-from-srv-000000'), assert.equal(call.body.identity, note), assert.ok(call.body.device), signedIn),
+  });
+  const {checkPorticoMove, porticoMove} = await import('../src/portico-server-sign-in.ts');
+  assert.deepEqual(await checkPorticoMove(s.api, {code: 'MOVE-CODE-0001'}), {username: 'ada', proof: {code: 'MOVE-CODE-0001'}});
+  assert.equal((await porticoMove(s.api, 'srv', {code: 'MOVE-CODE-0001'}, async () => ({identity: note}), undefined, {accountId: 'acct'})).kind, 'signed-in');
+  assert.deepEqual(s.calls.map(call => call.path), ['/v1/auth/move/check', '/v1/auth/portico/challenge', '/v1/auth/move/complete']);
+  // A server moving its accounts to local sign-in is not one to move to a Portico Account.
+  const local = server({'POST /v1/auth/move/check': () => ({username: 'ada', next: 'choose_password'})});
+  await assert.rejects(checkPorticoMove(local.api, {code: 'MOVE-CODE-0001'}), {code: 'move_not_portico'});
+  // The old username and password, on the server's own page, are answered with a ticket that stands in for them.
+  const old = server({'POST /v1/auth/move/check': call => (assert.deepEqual(call.body, {username: 'ada', password: 'old password'}), {username: 'ada', next: 'portico_account', ticket: 'ticket-from-the-server-000000000000'})});
+  assert.deepEqual(await checkPorticoMove(old.api, {username: 'ada', password: 'old password'}), {username: 'ada', proof: {ticket: 'ticket-from-the-server-000000000000'}});
+  const noTicket = server({'POST /v1/auth/move/check': () => ({username: 'ada', next: 'portico_account'})});
+  await assert.rejects(checkPorticoMove(noTicket.api, {username: 'ada', password: 'old password'}), {code: 'invalid_response'});
+});
+
+test('a server says when a switch still has people to move, and only in the way it now signs in', async () => {
+  const {parseServerSignIn} = await import('../src/sign-in.ts');
+  const system = (signIn: string, move?: string) => ({id: 'srv', name: 'Den', apiMajor: 1, capabilities: [], setupRequired: false, signInMethods: [signIn], ...(move ? {move} : {})});
+  assert.equal(parseServerSignIn(system('portico', 'to_portico'), true).move, 'to_portico');
+  assert.equal(parseServerSignIn(system('password', 'to_local'), true).move, 'to_local');
+  assert.equal(parseServerSignIn(system('password', 'to_portico'), true).move, null, 'a local server is not moving to Portico Accounts');
+  assert.equal(parseServerSignIn(system('portico'), true).move, null);
+  assert.equal(parseServerSignIn(system('portico', 'to_portico')).move, null, 'an app that does not act on a move (the phone and TV, for now) is told nothing');
+  const ends = parseServerSignIn({...system('portico', 'to_portico'), moveEndsAt: '2026-12-12T00:00:00Z'}, true);
+  assert.equal(ends.moveEndsAt, '2026-12-12T00:00:00Z', 'the day the old password stops moving accounts');
+});

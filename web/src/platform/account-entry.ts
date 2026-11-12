@@ -14,7 +14,7 @@ import {assertFirstContactIdentity, RouteError, sameServerPin, type ServerPin} f
 import type {LocalMoveCustody} from './local-move';
 import {knownServerRoutes, type AppSessionStore, type AppServerSession, type SignInKind} from '@core/app-sessions.ts';
 import {challengeNotProven} from '@core/portico-servers.ts';
-import {porticoServerSignIn} from '@core/portico-server-sign-in.ts';
+import {checkPorticoMove, peekPorticoMoveTicket, porticoMove, porticoServerSignIn, type PorticoMoveProof} from '@core/portico-server-sign-in.ts';
 import {porticoHandoffUrl} from './portico-handoff';
 import type {JoinLink} from '@core/join-link.ts';
 import {parseShortInvitationCode} from '@core/short-invitation-code.ts';
@@ -60,7 +60,7 @@ export type AccountEntryState = Readonly<{
  phase:'welcome'|'address'|'checking'|'password'|'portico'|'challenge'|'password-change'|'profiles'|'ready'|'joined'|'move-code'|'move-local'|'move-portico'|'two-step-setup'|'owner-reset-password';
  server?:ServerSignIn; origin?:string; pin?:ServerPin; snapshot?:DirectSnapshot;
  invitation?:PreviewInvitationResponse; joined?:Readonly<{origin:string;signIn:'local'|'portico'}>;
- movePreview?:MoveCodePreview; ownerReset?:OwnerResetDetails; setupCompleted?:true; /** A setup Return still deciding whether its owner opens straight away: no profile page yet. */ setupPending?:true; memberMoveCompleted?:true; memberMovePending?:true;
+ movePreview?:Readonly<{username:string;signIn:MoveCodePreview['signIn'];expiresAt?:string}>; ownerReset?:OwnerResetDetails; setupCompleted?:true; /** A setup Return still deciding whether its owner opens straight away: no profile page yet. */ setupPending?:true; memberMoveCompleted?:true; memberMovePending?:true;
  /** AU-5: `welcome` because the held saved sign-in ended, not because nothing has started. */
  ended?:true;
  busy?:boolean; error?:unknown; identityFailure?:Readonly<{serverName:string;failure:'local-changed'|'unconfirmed'}>;
@@ -96,12 +96,16 @@ export class BrowserAccountEntry {
  private invitationCapability?:InvitationCapability;private joinedAccountId?:string;private joinedUsername?:string;
  private ownerReset?:OwnerResetCapture;private ownerResetTimer?:ReturnType<typeof setTimeout>;
  private moveProof?:Readonly<{code:string;revision:number;preview:MoveCodePreview}>;
+ /** What the server accepted for a member's move to Portico Accounts (the owner's code, or its ticket
+  * for an old password), handed on to web.getportico.tv to finish there. */
+ private porticoMoveProof?:PorticoMoveProof;
  private moveTicket?:Readonly<{ticket:string;revision:number;expiresAt:string}>;
  private hostedChallenge?:Readonly<{account:Pick<PorticoServerAccess,'accountId'|'isCurrent'|'observe'>;hosted:NonNullable<RememberedServer['hosted']>}>;
  private offHostedChallenge?:()=>void;
  private identityFailure?:CapturedAccountIdentityFailure;
  readonly probe:ServerSignInProbe;
- constructor(private readonly ports:EntryPorts,probe=new ServerSignInProbe()){this.probe=probe;}
+ // The web acts on a switch of the kind of sign-in in progress (`readsMove`): its member-move pages are built.
+ constructor(private readonly ports:EntryPorts,probe=new ServerSignInProbe(globalThis.fetch,15000,true)){this.probe=probe;}
  getSnapshot=()=>this.state;
  subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
  private publish(value:AccountEntryState){if(this.disposed)return;this.state=Object.freeze(value);for(const fn of this.listeners){try{fn();}catch{ /* One view cannot undo a committed credential or block other subscribers. */ }}}
@@ -113,7 +117,7 @@ export class BrowserAccountEntry {
   this.identityFailure?.dispose();this.identityFailure=undefined;
   this.clearHostedChallenge();
   this.stopAuthorityWatch();const api=this.api,registered=this.registered,ownerReturn=this.ownerReturn,reset=this.takeOwnerReset(),hadAuthority=!!this.session||!!this.challenge||!!registered||!!ownerReturn||!!reset;
-  this.api=undefined;this.session=undefined;this.challenge=undefined;this.challengeRevision=undefined;this.moveProof=undefined;this.moveTicket=undefined;this.registered=undefined;this.registeredChallenge=undefined;this.ownerReturn=undefined;
+  this.api=undefined;this.session=undefined;this.challenge=undefined;this.challengeRevision=undefined;this.moveProof=undefined;this.moveTicket=undefined;this.porticoMoveProof=undefined;this.registered=undefined;this.registeredChallenge=undefined;this.ownerReturn=undefined;
   if(ownerReturn)void ownerReturn.cancel().catch(()=>{});
   if(registered)void registered.cancel().catch(()=>{});
   if(hadAuthority)this.retired();
@@ -172,9 +176,10 @@ export class BrowserAccountEntry {
   this.cancel();const op=this.operation();this.publish({phase:'checking',busy:true});
   return this.signInWithPortico(server,account,op,expectedRevision);
  }
- /** Both ways in with a Portico Account: a listed server, and a server joined by invitation. */
- private async signInWithPortico(server:Readonly<{id:string;name?:string;publicKey?:string;baseUrl:string}>,account:PorticoServerAccess,op:ReturnType<BrowserAccountEntry['operation']>,expectedRevision?:number,invitation?:string):Promise<boolean>{
-  const guard={...op,current:()=>op.current()&&account.isCurrent()};
+ /** The ways in with a Portico Account: a listed server, a server joined by invitation, and a waiting
+  * member's move to the account with the owner's code. */
+ private async signInWithPortico(server:Readonly<{id:string;name?:string;publicKey?:string;baseUrl:string}>,account:PorticoServerAccess,op:ReturnType<BrowserAccountEntry['operation']>,expectedRevision?:number,invitation?:string,move?:PorticoMoveProof):Promise<boolean>{
+  const guard={...op,current:()=>op.current()&&account.isCurrent()},stays=invitation!==undefined||move!==undefined;
   const cancelled=()=>new CodedError('cancelled','The Portico Account changed.');
   let connected:Awaited<ReturnType<typeof connectPairedServer>>|undefined;
   try{
@@ -191,31 +196,33 @@ export class BrowserAccountEntry {
    assertFirstContactIdentity(server.baseUrl,pin,{linkId:server.id,knownRoutes:knownServerRoutes(saved)});
    connected=await this.ports.connect(server.baseUrl,pin,env,op.signal);if(!guard.current())return false;
    const api=connected.api,origin=api.baseUrl;
-   const verified=parseServerSignIn(await readServerSystem(api, op.signal));
+   const verified=parseServerSignIn(await readServerSystem(api, op.signal),true);
    if(!guard.current())return false;
    if(verified.id!==server.id||verified.signIn!=='portico'||verified.setupRequired)throw new RouteError('identity_mismatch','The server directory and signed identity disagree.');
+   if(move&&verified.move!=='to_portico')throw new CodedError('move_not_portico','This server is not moving its accounts to Portico Accounts.');
    negotiateServer(verified);
    this.api=api;this.ports.rememberName?.(api,verified.name);
    // A join keeps its invitation in view; a listed server starts afresh.
-   this.publish({...(invitation?this.state:{}),phase:'portico',busy:true,server:verified,origin,pin});
+   this.publish({...(stays?this.state:{}),phase:'portico',busy:true,server:verified,origin,pin});
    if(!guard.current())return false;
    // Remembered under its Portico Account (for Portico sign-out); the new service has no route key.
    const hosted={origin:account.origin,accountId:account.accountId};
-   const result=await porticoServerSignIn(api,server.id,challenge=>account.identity(server.id,challenge,op.signal),op.signal,
-    {accountId:account.accountId,isCurrent:guard.current,...(invitation?{invitation}:{})});
+   const noteFor=(challenge:string)=>account.identity(server.id,challenge,op.signal);
+   const result=move?await porticoMove(api,server.id,move,noteFor,op.signal,{accountId:account.accountId,isCurrent:guard.current})
+    :await porticoServerSignIn(api,server.id,noteFor,op.signal,{accountId:account.accountId,isCurrent:guard.current,...(invitation?{invitation}:{})});
    if(!guard.current()){
     if(result.kind==='signed-in')await this.retire(api,result.session);
     if(op.current())throw cancelled();return false;
    }
    if(result.kind==='challenge')this.watchHostedChallenge(account,hosted);
    if(!guard.current())return false;
-   await this.accept(result,api,revision,guard,hosted);
+   await this.accept(result,api,revision,guard,hosted,!!move);
    return guard.current();
-  }catch(error){if(op.current()){this.release();this.publish({...(invitation?this.state:{}),phase:invitation?this.state.phase:'address',error,busy:false});}return false;}
+  }catch(error){if(op.current()){this.release();this.publish({...(stays?this.state:{}),phase:stays?this.state.phase:'address',error,busy:false});}return false;}
   finally{
-   // An account change ends this attempt. A listed server's opening ends with it; an invitation stays
-   // open, so the account now signed in can join with it.
-   if(op.current()&&!account.isCurrent()){if(invitation)this.publish({...this.state,busy:false,error:undefined});else this.cancel();}
+   // An account change ends this attempt. A listed server's opening ends with it; an invitation or a
+   // move stays open, so the account now signed in can carry on with it.
+   if(op.current()&&!account.isCurrent()){if(stays)this.publish({...this.state,busy:false,error:undefined});else this.cancel();}
    if(connected&&this.api!==connected.api)connected.connection.dispose();
   }
  }
@@ -242,7 +249,7 @@ export class BrowserAccountEntry {
    if(!op.current()){connected.connection.dispose();return;}
    // A second kind read on the verified connection closes a change between discovery and entry.
    this.api=connected.api;
-   const verified=parseServerSignIn(await readServerSystem(connected.api, op.signal));
+   const verified=parseServerSignIn(await readServerSystem(connected.api, op.signal),true);
    if(!op.current())return;if(verified.id!==server.id||verified.signIn!==server.signIn)throw new RouteError('identity_mismatch','The server sign-in changed.');
    assertFirstContactIdentity(origin,pin,{linkId,knownRoutes:knownServerRoutes(await this.ports.store.read())});
    if(!op.current())return;
@@ -372,6 +379,27 @@ export class BrowserAccountEntry {
    await this.accept(result,api,revision,op);
   }catch(error){if(op.current())this.publish({...state,busy:false,error});}
  }
+ /** At web.getportico.tv: the server names the account a handed move ticket is for (without spending
+  * it), so the confirm is built from the server's words, never the link's. */
+ async previewMoveTicket(ticket:string){
+  const state=this.state,api=this.api;
+  if(state.phase!=='portico'||state.server?.signIn!=='portico'||state.server.move!=='to_portico'||state.invitation||state.busy||!api)return;
+  const op=this.operation();this.porticoMoveProof=undefined;this.publish({...state,busy:true,error:undefined});
+  try{
+   const named=await peekPorticoMoveTicket(api,ticket,op.signal);if(!op.current())return;
+   this.porticoMoveProof={ticket};
+   this.publish({...state,phase:'move-portico',movePreview:{username:named.username,signIn:'portico',expiresAt:named.expiresAt},busy:false,error:undefined});
+  }catch(error){if(op.current())this.publish({...state,busy:false,error});}
+ }
+ /** At web.getportico.tv: moves a waiting member's account, on the server inspected at its address
+  * here, to the Portico Account this page holds, with the owner's move code. The answer is the
+  * sign-in, kept as a Portico Account server as an opened one is. */
+ async movePortico(proof:PorticoMoveProof,account:PorticoServerAccess){
+  const state=this.state;
+  if(state.phase!=='move-portico'||!state.movePreview||!this.porticoMoveProof||JSON.stringify(proof)!==JSON.stringify(this.porticoMoveProof)||state.server?.signIn!=='portico'||state.server.move!=='to_portico'||state.invitation||!state.pin||!state.origin||state.busy||!account.isCurrent())return;
+  const op=this.operation();this.publish({...state,busy:true,error:undefined});
+  await this.signInWithPortico({id:state.server.id,name:state.server.name,publicKey:state.pin.publicKey,baseUrl:state.origin},account,op,undefined,undefined,proof);
+ }
  /** Joins the server this invitation is for with the Portico Account this page holds: the same
   * sign-in as a listed server's, with the invitation's code in the exchange. */
  async joinPortico(account:PorticoServerAccess){
@@ -400,7 +428,17 @@ export class BrowserAccountEntry {
  async previewMoveCode(code:string){
   const state=this.state,api=this.api;
   if(!api||!state.server||state.invitation||state.busy||!['password','portico','move-code','move-local','move-portico'].includes(state.phase))return;
-  const op=this.operation();this.moveProof=undefined;this.moveTicket=undefined;this.publish({...state,phase:'move-code',movePreview:undefined,busy:true,error:undefined});
+  const op=this.operation();this.moveProof=undefined;this.moveTicket=undefined;this.porticoMoveProof=undefined;this.publish({...state,phase:'move-code',movePreview:undefined,busy:true,error:undefined});
+  if(state.server.signIn==='portico'){
+   // The server checks the code (`POST /v1/auth/move/check`); the move itself finishes at
+   // web.getportico.tv, which holds the Portico Account (`porticoHandoff`).
+   try{
+    const {username,proof}=await checkPorticoMove(api,{code},op.signal);if(!op.current())return;
+    this.porticoMoveProof=proof;
+    this.publish({...state,phase:'move-portico',movePreview:{username,signIn:'portico'},busy:false,error:undefined});
+   }catch(error){if(op.current())this.publish({...state,phase:'move-code',movePreview:undefined,busy:false,error});}
+   return;
+  }
   const client=new MemberAccountMoveClient(api,{serverId:state.server.id,isCurrent:op.current,retireLateGrant:session=>this.retire(api,session)});
   try{
    const revision=(await this.ports.store.read()).revision;if(!op.current())return;
@@ -419,19 +457,14 @@ export class BrowserAccountEntry {
  async proveLocalMovePassword(username:string,password:string):Promise<boolean>{
   const state=this.state,api=this.api;
   if(state.phase!=='portico'||state.server?.signIn!=='portico'||state.server.move!=='to_portico'||state.invitation||state.busy||!api)return false;
-  const op=this.operation();this.moveProof=undefined;this.moveTicket=undefined;this.publish({...state,busy:true,error:undefined});
-  const client=new MemberAccountMoveClient(api,{serverId:state.server.id,isCurrent:op.current,retireLateGrant:session=>this.retire(api,session)});
+  const op=this.operation();this.moveProof=undefined;this.moveTicket=undefined;this.porticoMoveProof=undefined;this.publish({...state,busy:true,error:undefined});
   try{
-   const revision=(await this.ports.store.read()).revision;if(!op.current())return false;
-   const proof=await client.password(username,password,op.signal);
-   if(!op.current())return false;
-   if((await this.ports.store.read()).revision!==revision)throw new CodedError('cancelled','The server selection changed.');
-   if(!op.current())return false;
-   if(Date.parse(proof.expiresAt)<=serverNow())throw new CodedError('move_code_invalid','The move proof expired.');
-   this.moveTicket={ticket:proof.ticket,expiresAt:proof.expiresAt,revision};
-   this.publish({...state,phase:'move-portico',busy:false,error:undefined});return true;
+   // P2-66: the old sign-in proves the member here, on the server's own page. The server answers a
+   // one-use ticket for it, which finishes the move at web.getportico.tv; the password goes nowhere else.
+   const checked=await checkPorticoMove(api,{username,password},op.signal);if(!op.current())return false;
+   this.porticoMoveProof=checked.proof;
+   this.publish({...state,phase:'move-portico',movePreview:{username:checked.username,signIn:'portico'},busy:false,error:undefined});return true;
   }catch(error){if(op.current())this.publish({...state,busy:false,error});return false;}
-  finally{client.dispose();}
  }
  async redeemLocalMove(username:string,password:string){
   const state=this.state,api=this.api,proof=this.moveProof;
@@ -703,36 +736,8 @@ export class BrowserAccountEntry {
  porticoHandoff(hostedOrigin:string,pageOrigin=location.origin){
   const state=this.state,capability=this.invitationCapability;if(state.server?.signIn!=='portico'||!state.server.id)return;
   const invitation=state.invitation&&capability?('shortCode' in capability?capability.shortCode:capability.code):undefined;
-  return porticoHandoffUrl({hostedOrigin,serverId:state.server.id,pageOrigin,invitation});
- }
- async preparePorticoSignIn(hostedOrigin:string):Promise<string|undefined>{
-  const state=this.state,api=this.api,proof=this.moveProof,ticket=this.moveTicket,moving=state.phase==='move-portico';
-  if(!['portico','move-portico'].includes(state.phase)||state.server?.signIn!=='portico'||state.invitation||state.busy||!api||!state.origin||!this.ports.registered)return;
-  // A move is never silently retried as ordinary sign-in. Its actual old-
-  // password ticket or owner-issued code must accompany the private prepare.
-  if(moving&&(state.server.move!=='to_portico'||(!proof&&!ticket)))return;
-  const op=this.operation();this.publish({...state,busy:true,error:undefined});
-  let preparing:RegisteredController|undefined;
-  const checkMove=async()=>{
-   if(!moving)return;
-   const revision=proof?.revision??ticket!.revision,expiresAt=proof?.preview.expiresAt??ticket!.expiresAt;
-   if(!op.current()||Date.parse(expiresAt)<=serverNow())throw new CodedError('move_code_invalid','The move proof expired.');
-   if((await this.ports.store.read()).revision!==revision)throw new CodedError('cancelled','The server selection changed.');
-   if(!op.current()||Date.parse(expiresAt)<=serverNow())throw new CodedError('cancelled','The account move request ended.');
-  };
-  try{
-   await checkMove();if(!op.current())return;
-   const previous=this.registered;this.registered=undefined;if(previous)await previous.cancel();if(!op.current())return;
-   await checkMove();if(!op.current())return;
-   const flow=this.ports.registered();preparing=this.registered=flow.controller;
-   const move=moving?(proof?{moveCode:proof.code}:{moveTicket:ticket!.ticket}):{};
-   const url=await flow.controller.prepare(api,state.origin,hostedOrigin,flow.installationId(),move);
-   await checkMove();if(!op.current())return;
-   this.publish({...state,busy:false,error:undefined});return url;
-  }catch(error){
-   if(preparing&&this.registered===preparing){this.registered=undefined;await preparing.cancel().catch(()=>{});}
-   if(op.current())this.publish({...state,busy:false,error});
-  }
+  const move=state.phase==='move-portico'?this.porticoMoveProof:undefined;
+  return porticoHandoffUrl({hostedOrigin,serverId:state.server.id,pageOrigin,invitation,move});
  }
  async finishPorticoReturn(captured:CapturedPorticoReturn){
   // Cancel prior entry work BEFORE selecting an owner journal. Calling cancel

@@ -12,7 +12,9 @@ const text = (v: unknown, max: number): v is string => typeof v === 'string' && 
  * the server is, how to sign in and whether setup is pending; anything else is ignored. A server
  * that names no way to sign in this app knows never gets a password form. The version is told only
  * to a signed-in caller, so it is carried when present. */
-export function parseServerSignIn(raw: unknown): ServerSignIn {
+/** `readsMove`: whether this app acts on a switch of the kind of sign-in still in progress (`move`,
+ * `moveEndsAt`). The web does; the phone and TV keep theirs off until their own move is built. */
+export function parseServerSignIn(raw: unknown, readsMove = false): ServerSignIn {
   const methods = object(raw) && Array.isArray(raw.signInMethods) ? raw.signInMethods : [];
   const signIn: SignInKind | undefined = methods.includes('portico') ? 'portico' : methods.includes('password') ? 'local' : undefined;
   if (!object(raw) || !text(raw.id, 256) || !text(raw.name, 120) || !signIn || typeof raw.setupRequired !== 'boolean' || !Number.isSafeInteger(raw.apiMajor) || (raw.apiMajor as number) < 1 ||
@@ -20,7 +22,10 @@ export function parseServerSignIn(raw: unknown): ServerSignIn {
     throw new RouteError('invalid_system', 'This server did not report how to sign in.');
   const major = raw.apiMajor as number;
   const capabilities = Object.freeze([...new Set(raw.capabilities.filter((value): value is string => text(value, 128)))].sort());
-  return Object.freeze({id: raw.id, name: raw.name, signIn, setupRequired: raw.setupRequired, move: null, moveEndsAt: null, hostedConfigured: false, hostedAttached: false, apiLevel: major, apiVersion: major + '.0', apiMajors: Object.freeze([major]), capabilities,
+  // A switch still has people to move (`move`, server-next's System): the way it moves matches the server's sign-in now.
+  const move = readsMove && (raw.move === 'to_portico' && signIn === 'portico' || raw.move === 'to_local' && signIn === 'local') ? raw.move : null;
+  const moveEndsAt = move === 'to_portico' && text(raw.moveEndsAt, 64) && Number.isFinite(Date.parse(raw.moveEndsAt)) ? raw.moveEndsAt : null;
+  return Object.freeze({id: raw.id, name: raw.name, signIn, setupRequired: raw.setupRequired, move, moveEndsAt, hostedConfigured: false, hostedAttached: false, apiLevel: major, apiVersion: major + '.0', apiMajors: Object.freeze([major]), capabilities,
     ...(text(raw.version, 256) ? {version: raw.version} : {})});
 }
 /** Whole calendar days left to use the old sign-in during a move, counted on this device's
@@ -80,7 +85,9 @@ export class ServerSignInProbe {
   private controller?: AbortController;
   private disposed = false;
   private readonly fetcher: typeof fetch; private readonly timeoutMs: number;
-  constructor(fetcher: typeof fetch = globalThis.fetch, timeoutMs = 15000) {
+  private readonly readsMove: boolean;
+  constructor(fetcher: typeof fetch = globalThis.fetch, timeoutMs = 15000, readsMove = false) {
+    this.readsMove = readsMove;
     // Invoke the captured transport as a value, never as a method of this
     // probe. Native Window.fetch rejects a ServerSignInProbe receiver; a
     // caller's explicitly bound transport keeps its own receiver unchanged.
@@ -104,7 +111,7 @@ export class ServerSignInProbe {
         const response = await this.fetcher(origin + serverPath('GET /v1/system'), {method: 'GET', redirect: 'error', credentials: 'omit', headers: {Accept: 'application/json'}, signal: controller.signal});
         if (!current()) { void response.body?.cancel().catch(() => {}); return; }
         if (!response.ok) throw new ApiError(response.status, 'system_unavailable', 'The server could not report how to sign in.', response.status >= 500);
-        return parseServerSignIn(await routeJSON(response, controller.signal, 8192));
+        return parseServerSignIn(await routeJSON(response, controller.signal, 8192), this.readsMove);
       })();
       const server = await Promise.race([pending, new Promise<never>((_, reject) => {
         const abort = () => reject(new RouteError('cancelled', 'Server selection was cancelled.'));

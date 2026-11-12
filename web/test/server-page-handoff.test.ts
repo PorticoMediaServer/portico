@@ -32,11 +32,11 @@ test('a handed invitation leaves the address bar at once, is kept in this tab th
   const tab = page('#invitation=K7QP-2MXD-9HRT-4WNC&address=https%3A%2F%2Fa1.ns.portico.direct%3A32500');
   start.keepHandoffInvitation();
   assert.deepEqual(tab.replaced, ['/servers?open=srv_den'], 'the fragment is taken out of the address and its history entry');
-  assert.deepEqual(start.takeHandoffInvitation(), {code: 'K7QP-2MXD-9HRT-4WNC', address: 'https://a1.ns.portico.direct:32500'});
+  assert.deepEqual(start.takeHandoffInvitation(), {code: 'K7QP-2MXD-9HRT-4WNC', address: 'https://a1.ns.portico.direct:32500', kind: 'invitation'});
   assert.equal(start.takeHandoffInvitation(), undefined, 'read once');
   // Only an HTTPS origin is filled in for the person; anything else is left for them to type.
   page('#invitation=K7QP-2MXD-9HRT-4WNC&address=http%3A%2F%2Fevil.example%2Fpath'); start.keepHandoffInvitation();
-  assert.deepEqual(start.takeHandoffInvitation(), {code: 'K7QP-2MXD-9HRT-4WNC', address: ''});
+  assert.deepEqual(start.takeHandoffInvitation(), {code: 'K7QP-2MXD-9HRT-4WNC', address: '', kind: 'invitation'});
   // Something that is not an invitation code is dropped, and an unrelated fragment is left alone.
   const bad = page('#invitation=not-a-code'); start.keepHandoffInvitation();
   assert.deepEqual(bad.replaced, ['/servers?open=srv_den']); assert.equal(start.takeHandoffInvitation(), undefined);

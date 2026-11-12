@@ -30,7 +30,8 @@ import {AccountSignInView} from './AccountSignInView';
 import {AccountSignInForm} from './sign-in-form';
 import {resumeAfterProfiles} from './chooser-resume';
 import {ChooserJoin, ChooserLocalAddress, ChooserStart, chooserIntent, keepHandoffInvitation} from './ChooserStart';
-import {takeCarriedInvitation, type CarriedInvitation} from '../../platform/invitation-carry';
+import {ChooserMove} from './ChooserMove';
+import {carryInvitation, takeCarriedInvitation, type CarriedInvitation} from '../../platform/invitation-carry';
 
 const t = defaultI18n.t;
 type Admitted = Readonly<{entry: BrowserAccountEntry; form: AccountSignInForm; dispose: () => void}>;
@@ -72,12 +73,18 @@ function HostedChooser({who}: {who: Account}) {
   // An invitation carried here (a shared link opened at /join, or pasted on the start) opens Join filled in.
   const [carried, setCarried] = useState<CarriedInvitation | undefined>(takeCarriedInvitation), [empty, setEmpty] = useState(false);
   const back = () => {setCarried(undefined); goTo('/servers', {replace: true});};
+  if (carried?.kind === 'move' || carried?.kind === 'ticket') return <ChooserMove who={who} held={carried.kind === 'ticket' ? {ticket: carried.code} : {code: carried.code}}
+    initialAddress={carried.address || undefined} onBack={back}
+    onNotYou={() => void signOutBrowserPorticoAccount().then(() => {
+      carryInvitation(carried.code, carried.address, Date.now(), carried.kind);
+      goTo('/sign-in?next=' + encodeURIComponent('/servers'), {replace: true});
+    }, () => {})} />;
   if (carried || intent === 'join') return <ChooserJoin who={who} initialCode={carried?.code} initialAddress={carried?.address || undefined} onBack={back} />;
   if (intent === 'local') return <ChooserLocalAddress onBack={back} />;
   if (intent === 'setup' || empty) {
     const signOut = () => void signOutBrowserPorticoAccount().then(() => goTo('/sign-in', {replace: true}), () => {});
     return <ChooserStart header={accountHeader(who, signOut)} intent={intent === 'setup' ? 'setup' : undefined}
-      onJoin={(code, address) => {setCarried(Object.freeze({code, address: address?.startsWith('https://') ? address : ''})); goTo('/servers#join');}} onLocal={() => goTo('/servers#local')} />;
+      onJoin={(code, address) => {setCarried(Object.freeze({code, address: address?.startsWith('https://') ? address : '', kind: 'invitation' as const})); goTo('/servers#join');}} onLocal={() => goTo('/servers#local')} />;
   }
   return <BoundServers who={who} onEmpty={() => setEmpty(true)} />;
 }

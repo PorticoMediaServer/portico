@@ -29,10 +29,15 @@ export function chooserIntent(hash: string): ChooserIntent | undefined {
  * HTTPS address>` (`portico-handoff.ts`). The fragment is taken out of the address bar at once, and
  * the invitation is carried through the account's sign-in as a shared link's is. */
 export function keepHandoffInvitation(): void {
-  if (!location.hash.startsWith('#invitation=')) return;
-  const values = new URLSearchParams(location.hash.slice(1)), code = values.get('invitation') ?? '', address = values.get('address') ?? '';
+  if (!['#invitation=', '#move=', '#ticket='].some(start => location.hash.startsWith(start))) return;
+  const values = new URLSearchParams(location.hash.slice(1)), address = values.get('address') ?? '';
   history.replaceState(history.state, '', location.pathname + location.search);
-  if (parseShortInvitationCode(code)) carryInvitation(code, address);
+  const invitation = values.get('invitation'), move = values.get('move'), ticket = values.get('ticket');
+  if (invitation !== null && parseShortInvitationCode(invitation)) carryInvitation(invitation, address);
+  // A waiting member's move code (the server's own page checked it with the server): moved here.
+  else if (move !== null && /^[A-Za-z0-9]{12}$/.test(move.replace(/[-\s]/g, ''))) carryInvitation(move, address, Date.now(), 'move');
+  // The server's ticket for an old password proved on its own page (P2-66); the password stayed there.
+  else if (ticket !== null && /^[a-z2-7]{32,64}$/.test(ticket)) carryInvitation(ticket, address, Date.now(), 'ticket');
 }
 
 /** The drawn start (connect 26/31), for an account with no servers yet and for Set up: join with
