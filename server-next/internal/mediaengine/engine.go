@@ -17,6 +17,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/audiofacts"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/inputbridge"
 	"github.com/PorticoMediaServer/portico/server-next/internal/libraryfile"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
@@ -111,11 +112,15 @@ func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
 	e.asking = e.ask(o.FFmpeg)
 	current, err := e.open(o.Folder, o.FFmpeg)
 	e.current = current
+	decoder.SetBackgroundConversionLimit(e.owner().BackgroundConversionsAtOnce)
 	if err == nil && e.settings != nil {
 		// The owner's own conversion folder and FFmpeg program. A change is put in force when
 		// it is saved, beside the save, because a new program is tried out first and that
 		// takes seconds; what was saved before this start is put in force the same way now.
-		settings.Streaming.Watch(e.settings, func(settings.StreamingSettings) { go e.applyConversion() })
+		settings.Streaming.Watch(e.settings, func(v settings.StreamingSettings) {
+			decoder.SetBackgroundConversionLimit(v.BackgroundConversionsAtOnce)
+			go e.applyConversion()
+		})
 		if owner := e.owner(); owner.ConversionFolder != "" || owner.FFmpegProgram != "" {
 			go e.applyConversion()
 		}
