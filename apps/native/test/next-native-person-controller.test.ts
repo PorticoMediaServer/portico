@@ -8,23 +8,24 @@ import {standardHomeApp} from './helpers/standard-home-app-harness.mjs';
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 const deferred = <T>() => {let resolve!: (value: T) => void; const promise = new Promise<T>(done => {resolve = done;}); return {resolve, promise};};
 const film = (id: string): ContentEntry => ({id, kind: 'movie', libraryId: 'films', title: id, navigation: {view: 'item', entityId: id}});
-function page(personId = 'person-without-library', start = 0, count = 2, cursor = '', viewer = 'Person-own-fence') {
-  return {serverId: 'demo-server', viewerFence: viewer, revision: {catalog: 12, viewer: 7},
-    person: {id: personId, name: 'Stored Person', revision: 3, biography: 'Actual biography', knownFor: [film('known-film')]},
-    groups: [{id: 'movies', kind: 'movie', total: 82}],
-    credits: Array.from({length: count}, (_, index) => ({media: film(`credit-${start + index}`), creditKind: 'cast', role: 'Stored role', character: 'Stored character'})),
-    pageInfo: {total: 82, nextCursor: cursor}};
+function page(personId = 'person-without-library', start = 0, count = 2, cursor = '') {
+  return {person: {id: personId, name: 'Stored Person', biography: 'Actual biography', images: {}, titleCount: 82, crewTitleCount: 0,
+    roles: [{role: 'actor', titleCount: 82}]},
+    items: Array.from({length: count}, (_, index) => ({...film(`credit-${start + index}`),
+      credits: [{personId, name: 'Stored Person', role: 'actor', character: 'Stored character'}]})),
+    total: 82, nextCursor: cursor};
 }
 async function fixture() {
   const reads: {path: string; signal?: AbortSignal}[] = [];
   let reply = async (_path: string): Promise<unknown> => page();
   const app = await standardHomeApp({mountUI: false, nativeResponse: async (request: {path: string; signal?: AbortSignal}, f: {pin: {serverId: string}}) => {
-    if (!request.path.startsWith('/v1/people/')) return;
+    if (request.path.startsWith('/v1/people/')) return {status: 200, body: page().person};
+    if (!request.path.startsWith('/v1/items?person=')) return;
     reads.push({path: request.path, signal: request.signal});
     const body = await reply(request.path);
     // A reply may be the server's refusal: {refuse: code} answers 400 in the server's error envelope.
     if (body && typeof body === 'object' && 'refuse' in body) return {status: 400, body: {error: {code: (body as {refuse: string}).refuse, message: 'refused'}}};
-    return {status: 200, body: {...body as object, serverId: f.pin.serverId}};
+    return {status: 200, body};
   }});
   let runtime: RestoredNativeShellRuntime | undefined;
   try {
@@ -48,11 +49,11 @@ test('Person uses exact id and canonical bounded facts, without library inferenc
     assert.throws(() => createNativePersonController(f.context, {...f.route}), /route_required/);
     await f.source.load();
     const state = f.source.getSnapshot(); assert.equal(state.phase, 'ready'); assert.ok(state.page);
-    assert.equal(state.page.person.id, f.route.personId); assert.equal(state.page.viewerFence, 'Person-own-fence');
+    assert.equal(state.page.person.id, f.route.personId); assert.ok(state.page.viewerFence);
     assert.equal(state.page.person.name, 'Stored Person'); assert.equal(state.page.pageInfo.total, 82);
     const url = new URL(f.reads[0]!.path, 'https://fixture.invalid');
-    assert.equal(url.pathname, '/v1/people/person-without-library'); assert.equal(url.searchParams.get('limit'), '40');
-    assert.equal(url.searchParams.get('role'), 'all'); assert.equal(url.searchParams.has('libraryId'), false);
+    assert.equal(url.pathname, '/v1/items'); assert.equal(url.searchParams.get('person'), 'person-without-library'); assert.equal(url.searchParams.get('limit'), '40');
+    assert.equal(url.searchParams.has('creditGroup'), false); assert.equal(url.searchParams.has('libraryId'), false);
     const entry = state.page.credits[0]!.media;
     assert.equal(f.source.contains(entry), true); assert.equal(f.source.contains({...entry}), false);
     await f.source.load(); assert.equal(f.reads.length, 1);
@@ -80,7 +81,7 @@ test('Person role changes supersede late pages and retained hidden requests cann
   const f = await fixture(), late = deferred<unknown>();
   try {
     f.reply(async () => late.promise); const first = f.source.load(); await tick();
-    f.reply(async () => ({...page(), credits: []})); await f.source.select({role: 'crew'});
+    f.reply(async () => ({...page(), items: []})); await f.source.select({role: 'crew'});
     assert.equal(f.source.getSnapshot().phase, 'ready'); assert.deepEqual(f.source.getSnapshot().group, {role: 'crew'});
     late.resolve(page()); await first; assert.equal(f.source.getSnapshot().page!.credits.length, 0);
     const hidden = deferred<unknown>(); f.reply(async () => hidden.promise); const pending = f.source.select({role: 'all'}); await tick();
@@ -91,7 +92,7 @@ test('Person role changes supersede late pages and retained hidden requests cann
   } finally {late.resolve(page()); await f.close();}
 });
 
-test('Person continuation replaces the bounded resident page, takes a moved fence as newer and rejects cross-revision splicing', async () => {
+test('Person continuation replaces the bounded resident page and a refused read clears it', async () => {
   const f = await fixture();
   try {
     f.reply(async () => page(undefined, 0, 40, 'opaque-next'));
@@ -99,11 +100,11 @@ test('Person continuation replaces the bounded resident page, takes a moved fenc
     f.reply(async () => page(undefined, 40, 40, 'opaque-after'));
     await f.source.next(); assert.equal(f.source.getSnapshot().page!.credits.length, 40); assert.equal(f.source.contains(old), false);
     assert.equal(new URL(f.reads[1]!.path, 'https://fixture.invalid').searchParams.get('cursor'), 'opaque-next');
-    // Step 7: a page answered under a moved fence is the newer answer for the same person revision.
-    f.reply(async () => page(undefined, 80, 40, 'opaque-last', 'Changed-person-fence'));
-    await f.source.next(); assert.equal(f.source.getSnapshot().phase, 'ready'); assert.equal(f.source.getSnapshot().page!.viewerFence, 'Changed-person-fence');
-    // Another revision of the person is not spliced.
-    f.reply(async () => ({...page(undefined, 120, 2, '', 'Changed-person-fence'), revision: {catalog: 13, viewer: 7}}));
+    // The next item page has no legacy envelope metadata.
+    f.reply(async () => page(undefined, 80, 40, 'opaque-last'));
+    await f.source.next(); assert.equal(f.source.getSnapshot().phase, 'ready');
+    // The server decides visibility again on each read.
+    f.reply(async () => ({refuse: 'not_found'}));
     await f.source.next(); assert.equal(f.source.getSnapshot().phase, 'error'); assert.equal(f.source.getSnapshot().page, undefined);
   } finally {await f.close();}
 });
@@ -122,9 +123,10 @@ test('step 7: a refused continuation reads the first page again once; a continua
   const f = await fixture();
   try {
     const script = ['refuse', 'answer', 'refuse', 'refuse']; let firsts = 0;
-    f.reply(async path => new URL(path, 'https://fixture.invalid').searchParams.has('cursor')
-      ? (script.shift() === 'answer' ? page(undefined, 40, 40, 'opaque-80') : {refuse: 'invalid_cursor'})
-      : page(undefined, 0, 40, 'opaque-40', `fence-${++firsts}`));
+    f.reply(async path => {
+      if (new URL(path, 'https://fixture.invalid').searchParams.has('cursor')) return script.shift() === 'answer' ? page(undefined, 40, 40, 'opaque-80') : {refuse: 'invalid_cursor'};
+      firsts++; return page(undefined, 0, 40, 'opaque-40');
+    });
     const settled = async () => {for (let i = 0; i < 20; i++) await tick();};
     await f.source.load(); assert.equal(firsts, 1);
     // First access change: refused, and the first page is read again.
@@ -133,7 +135,7 @@ test('step 7: a refused continuation reads the first page again once; a continua
     // A continuation answers; a second access change is read again too.
     await f.source.next(); await settled(); assert.equal(f.source.getSnapshot().pageOrigin, 'continuation');
     await f.source.next(); await settled();
-    assert.equal(f.source.getSnapshot().phase, 'ready'); assert.equal(f.source.getSnapshot().page?.viewerFence, 'fence-3'); assert.equal(firsts, 3);
+    assert.equal(f.source.getSnapshot().phase, 'ready'); assert.equal(firsts, 3);
     // A refusal straight after that re-read shows.
     await f.source.next(); await settled();
     assert.equal(f.source.getSnapshot().phase, 'error'); assert.equal(firsts, 3);

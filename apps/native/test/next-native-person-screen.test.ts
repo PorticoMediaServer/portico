@@ -13,13 +13,12 @@ const fallback = {id: 'fallback-film', kind: 'movie', libraryId: 'movies', title
 test('real App mounts the handheld Person route, exact credit actions and retained native list through Title/Back', async () => {
   const reads: string[] = [];
   const app = await standardHomeApp({mountUI: false, nativeResponse: async (request: {path: string}, fixture: {pin: {serverId: string}}) => {
-    if (!request.path.startsWith('/v1/people/')) return;
+    if (request.path.startsWith('/v1/people/')) return {status: 200, body: {id: 'person-no-library', name: 'Actual Person', biography: 'Actual canonical biography', images: {}, titleCount: 2, crewTitleCount: 0, roles: [{role: 'actor', titleCount: 2}]}};
+    if (!request.path.startsWith('/v1/items?person=')) return;
     reads.push(request.path);
-    const role = new URL(request.path, 'https://fixture.invalid').searchParams.get('role');
-    return {status: 200, body: {serverId: fixture.pin.serverId, viewerFence: 'Person-actual-response', revision: {catalog: 12, viewer: 7},
-      person: {id: 'person-no-library', name: 'Actual Person', revision: 2, biography: 'Actual canonical biography', roles: ['Acting'], knownFor: [entry, fallback]},
-      groups: [], credits: role === 'crew' ? [] : [{media: entry, creditKind: 'cast', character: 'Actual character', role: 'Actor'}, {media: fallback, creditKind: 'cast', character: '', role: 'Actor'}],
-      pageInfo: {total: role === 'crew' ? 0 : 2, nextCursor: ''}}};
+    const crew = new URL(request.path, 'https://fixture.invalid').searchParams.get('creditGroup') === 'crew';
+    return {status: 200, body: {items: crew ? [] : [entry, fallback].map((media, i) => ({...media, title: 'displayTitle' in media ? media.displayTitle : media.title,
+      images: {poster: 'posterUrl' in media ? media.posterUrl : undefined}, credits: [{personId: 'person-no-library', name: 'Actual Person', role: 'actor', character: i === 0 ? 'Actual character' : ''}]})), total: crew ? 0 : 2}};
   }});
   let runtime: RestoredNativeShellRuntime | undefined;
   try {
@@ -43,8 +42,7 @@ test('real App mounts the handheld Person route, exact credit actions and retain
     const circle = header.find((node: any) => node.props?.initials === 'AP');
     assert.ok(circle, 'the phone person keeps the drawn initials fallback when the server has no portrait');
     assert.equal(circle.props.size, 96); assert.equal(circle.props.source, undefined, 'no invented photo');
-    assert.equal(header.find(node => node.props.testID === 'person-known-movie')!.props.title, entry.displayTitle);
-    assert.equal(header.find(node => node.props.testID === 'person-known-fallback-film')!.props.title, fallback.title);
+    assert.equal(header.some(node => node.props.testID === 'person-known-movie'), false, 'the server does not invent Known for titles');
     assert.ok(header.some(node => node.props.testID === 'person-role-all' && node.props.selected));
     const row = arrived.props.renderItem({item: 0});
     assert.equal(style(row.props.style).paddingHorizontal, 16); assert.equal(style(row.props.style).gap, 10);
@@ -64,7 +62,7 @@ test('real App mounts the handheld Person route, exact credit actions and retain
     assert.equal(list()!.props.data, collection); assert.equal(reads.length, 1);
     const crew = elements(list()!.props.ListHeaderComponent).find(node => node.props.testID === 'person-role-crew');
     assert.ok(crew); crew.props.onPress(); await app.settle();
-    assert.equal(new URL(reads.at(-1)!, 'https://fixture.invalid').searchParams.get('role'), 'crew');
+    assert.equal(new URL(reads.at(-1)!, 'https://fixture.invalid').searchParams.get('creditGroup'), 'crew');
     assert.equal(list()!.props.getItemCount(list()!.props.data), 0);
     assert.equal(list()!.props.ListEmptyComponent.props.body, 'No crew credits on this server.');
     const before = context.navigation.getSnapshot(); card.props.onNavigate(); assert.equal(context.navigation.getSnapshot(), before, 'replaced resident handle cannot navigate');

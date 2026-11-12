@@ -1,9 +1,12 @@
 import {encodedRoutePath, routePath} from "../../contracts/src/route-paths.ts";
 import {unreadableServerResponse} from './server-messages.ts';
-/** Canonical person pages. The server owns person identity, credit membership, ordering and
- * paging; this module only rejects a payload that does not match what it asked for. */
+/** Person facts and paged credits in the shape the existing screens draw. The server owns
+ * identity, membership, ordering and totals. */
 import {validateContentEntry,type ContentEntry,type ContentScope,type LibraryContentApi} from './library-content.ts';
 import {firstOfEach,keepReadable} from './tolerant.ts';
+import {callServer,serverPath} from './query/server-api.ts';
+import {entryFromItem,itemKindOf} from './items.ts';
+import type {Item} from '../../contracts/src/next/api.ts';
 export type PersonRole='cast'|'crew'|'all';
 export type Person=Readonly<{birthPlace?:string;biographySource?:string;id:string;name:string;sortName:string;biography:string;birthDate:string;deathDate:string;portraitUrl:string;roles:readonly string[];knownFor:readonly ContentEntry[];providerIds:Readonly<Record<string,string>>;revision:number}>;
 export type PersonCredit=Readonly<{roles:readonly Readonly<{role:string;department:string}>[];media:ContentEntry;role:string;character:string;department:string;creditKind:'cast'|'crew'}>;
@@ -13,6 +16,11 @@ export type PeopleDirectory=Readonly<{serverId:string;viewerFence:string;revisio
 export const MAX_PERSON_CREDITS=100;
 export const MAX_KNOWN_FOR=8;
 const roles:readonly PersonRole[]=['cast','crew','all'];
+// The existing screens call exact credit roles departments. Cast is the guest-star row;
+// both it and Acting belong to their Acting filter, while every other role belongs to Crew.
+const departments:Readonly<Record<string,string>>={actor:'Acting',guest:'Cast',director:'Directing',writer:'Writing',producer:'Production',composer:'Music',author:'Author',narrator:'Narration',artist:'Artist',crew:'Crew'};
+const acting=(role:string)=>role==='actor'||role==='guest';
+const roleLabel=(role:string)=>role==='guest'?'Guest star':role.charAt(0).toUpperCase()+role.slice(1);
 const object=(v:unknown):v is Record<string,unknown>=>typeof v==='object'&&v!==null&&!Array.isArray(v);
 const text=(v:unknown,max=4096):v is string=>typeof v==='string'&&v.length<=max&&!/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(v);
 const line=(v:unknown,max=512):v is string=>typeof v==='string'&&v.length<=max&&!/[\x00-\x1f\x7f]/.test(v);
@@ -55,16 +63,14 @@ export function parsePersonPage(raw:unknown,scope:ContentScope,request:Readonly<
  const sent=array(raw.credits,request.limit);
  const credits=keepReadable('people','credits',sent,v=>{
   if(!object(v)||(v.creditKind!=='cast'&&v.creditKind!=='crew'))invalid();
-  // The server classifies the credit; a client that guessed from department
-  // would disagree with the server's own role filter.
+  // The projection classifies the credit from its server role, never its department label.
   if(request.role==='cast'&&v.creditKind!=='cast'||request.role==='crew'&&v.creditKind!=='crew')invalid();
   const roles=keepReadable('people','credit.roles',array(v.roles??[],128),role=>{if(!object(role)||!line(role.role,512)||!line(role.department,256))invalid();return Object.freeze({role:role.role,department:role.department});});
   return Object.freeze({roles:Object.freeze(roles),media:validateContentEntry(v.media),role:words(v.role,512),character:words(v.character,512),department:words(v.department,256),creditKind:v.creditKind});
  });
  const info=raw.pageInfo;
  if(!line(info.nextCursor??'',4096))invalid();
- // A cursor only follows a full page, so a server cannot keep a client paging through empty ones.
- if(info.nextCursor&&sent.length<request.limit)invalid();
+ // The cursor is opaque; unreadable cards may leave a shorter page with more to read.
  const groups=keepReadable('people','groups',array(raw.groups??[],256),g=>{if(!object(g)||!id(g.id)||!count(g.total))invalid();return Object.freeze({id:g.id,total:g.total,...(line(g.kind,128)&&g.kind?{kind:g.kind}:{}),...(line(g.department,128)&&g.department?{department:g.department}:{})});});
  return Object.freeze({groups:Object.freeze(groups),serverId:raw.serverId as string,viewerFence:raw.viewerFence,revision:Object.freeze({catalog:raw.revision.catalog,viewer:raw.revision.viewer}),person:subject,credits:Object.freeze(credits),pageInfo:Object.freeze({total:Math.max(count(info.total)?info.total:0,credits.length),nextCursor:(info.nextCursor??'') as string})});
 }
@@ -83,12 +89,11 @@ export function personPath(personId:string,options:Readonly<{role?:PersonRole;de
  const limit=options.limit??40;
  if(!Number.isInteger(limit)||limit<1||limit>MAX_PERSON_CREDITS)throw new Error('Person credits page 1 to 100 rows.');
  if(options.role!==undefined&&!roles.includes(options.role))throw new Error('Unknown credit role.');
- const params=new URLSearchParams({limit:String(limit)});
  if(options.department&&options.kind||options.role&&(options.department||options.kind))throw new Error('Choose one person credit group.');
- if(options.department)params.set('department',options.department);if(options.kind)params.set('kind',options.kind);
- if(options.role)params.set('role',options.role);
- if(options.cursor)params.set('cursor',options.cursor);
- return encodedRoutePath("get_people_id", {"id": encodeURIComponent(personId)}) + "?" + (params);
+ const role=options.department?(Object.keys(departments).find(role=>departments[role]===options.department)??options.department):undefined;
+ return serverPath('GET /v1/items',{query:{person:personId,limit,total:true,
+  ...(role?{role}:{}),...(options.kind?{kind:itemKindOf(options.kind)}:{}),
+  ...(options.role==='cast'?{creditGroup:'acting'}:options.role==='crew'?{creditGroup:'crew'}:{}),cursor:options.cursor??undefined}});
 }
 export function peopleSearchPath(q:string,limit=25):string{
  if(typeof q!=='string'||!q.trim())throw new Error('A person name query is required.');
@@ -102,8 +107,43 @@ export function personPortraitPath(personId:string,size:'thumbnail'|'full'='thum
 }
 export async function readPerson(api:LibraryContentApi,scope:ContentScope,personId:string,options:Readonly<{role?:PersonRole;department?:string;kind?:string;limit?:number;cursor?:string|null;signal?:AbortSignal}>={}):Promise<PersonPage>{
  const limit=options.limit??40;
- const raw=await api.request<unknown>(personPath(personId,{role:options.role,department:options.department,kind:options.kind,limit,cursor:options.cursor}),'GET',undefined,options.signal);
- return parsePersonPage(raw,scope,{role:options.role,limit,personId});
+ const path=personPath(personId,options);
+ try{
+  const [facts,raw]=await Promise.all([callServer(api,'GET /v1/people/{id}',{id:personId,signal:options.signal}),api.request<unknown>(path,'GET',undefined,options.signal)]);
+  if(!object(facts)||facts.id!==personId||!object(raw))invalid();
+  const groups=keepReadable('people','roles',array(facts.roles??[],16),r=>{
+   if(!object(r)||!id(r.role)||!count(r.titleCount))invalid();
+   return {id:'role:'+r.role,department:departments[r.role]??r.role,total:r.titleCount};
+  });
+  const selectedRole=options.department?(Object.keys(departments).find(role=>departments[role]===options.department)??options.department):undefined;
+  const credits=firstOfEach('people','credits',keepReadable('people','credits',array(raw.items,limit),item=>{
+   if(!object(item))invalid();
+   const media=entryFromItem(item as unknown as Item);if(!media)invalid();
+   const ours=array(item.credits??[],128).filter(credit=>!object(credit)||!id(credit.personId)||credit.personId===personId);
+   const creditRoles=keepReadable('people','credit.roles',ours,credit=>{
+    if(!object(credit)||credit.personId!==personId||!id(credit.role))invalid();
+    return {role:credit.role,character:words(credit.character,512)};
+   });
+   const chosen=creditRoles.find(credit=>selectedRole?credit.role===selectedRole:options.role==='cast'?acting(credit.role):options.role==='crew'?!acting(credit.role):true);
+   if(!chosen)invalid();
+   const cast=acting(chosen.role),department=departments[chosen.role]??chosen.role;
+   return {media,creditKind:cast?'cast' as const:'crew' as const,character:cast?chosen.character:'',department,
+    role:cast?chosen.character||roleLabel(chosen.role):roleLabel(chosen.role),
+    roles:creditRoles.map(credit=>({role:acting(credit.role)?credit.character||roleLabel(credit.role):roleLabel(credit.role),
+     department:acting(credit.role)&&!credit.character?'':departments[credit.role]??credit.role}))};
+  }),credit=>credit.media.id);
+  const crewTotal=(facts as {crewTitleCount?:unknown}).crewTitleCount;
+  if(options.role==='crew'&&!count(crewTotal))invalid();
+  // The rebuilt server has no page revision or fence. These screen fields are unversioned,
+  // bound to the caller's scope; refused server cursors still restart the existing pagers.
+  return parsePersonPage({serverId:scope.serverId,viewerFence:scope.viewerId,revision:{catalog:0,viewer:0},
+   person:{id:facts.id,name:facts.name,biography:facts.biography,birthDate:facts.birthDate,deathDate:facts.deathDate,birthPlace:facts.birthplace,
+    portraitUrl:facts.images?.portrait??facts.images?.thumb,roles:[...new Set(groups.map(group=>group.department==='Cast'?'Acting':group.department))],revision:0},groups,credits,
+   pageInfo:{total:options.role==='crew'?crewTotal:raw.total,nextCursor:raw.nextCursor}},scope,{role:options.role,limit,personId});
+ }catch(error){
+  if((error as {code?:unknown})?.code==='cursor_expired')throw new Failure('invalid_cursor','This list changed. Read it again.');
+  throw error;
+ }
 }
 export async function readPeople(api:LibraryContentApi,scope:ContentScope,q:string,limit=25,signal?:AbortSignal):Promise<PeopleDirectory>{
  return parsePeopleDirectory(await api.request<unknown>(peopleSearchPath(q,limit),'GET',undefined,signal),scope,limit);
