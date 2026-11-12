@@ -79,7 +79,7 @@ func TestOneUnknownServerAnswerDoesNotEndTheLink(t *testing.T) {
 	q.run(24 * time.Hour)
 	q.fake.Forget(q.s.id)
 	q.run(24 * time.Hour)
-	q.clock = q.clock.Add(time.Minute)
+	q.clock.Add(time.Minute)
 	q.approve(accountJustin, hosted.PurposeSwitch) // Portico Services has the server's row again
 	q.run(24 * time.Hour)
 	if link, _, _ := q.s.db.Link(context.Background()); link.Unknown != 0 || link.Unlinked {

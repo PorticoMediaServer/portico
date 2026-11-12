@@ -36,7 +36,7 @@ func canned(status int, header map[string]string, body string) *http.Response {
 }
 
 func (p *porticoRig) servicesAnswer(answer func(*http.Request) *http.Response) {
-	attach(p.s, &http.Client{Transport: answering{answer}}, p.fake.URL, p.fake, func() time.Time { return p.clock })
+	attach(p.s, &http.Client{Transport: answering{answer}}, p.fake.URL, p.fake, func() time.Time { return p.clock.Now() })
 }
 
 // The contract author's second point on this PR: a document Portico Services refuses is not
@@ -79,7 +79,7 @@ func TestReviewAnEndlessRetryAfterDoesNotEndTheCheckIns(t *testing.T) {
 	})
 	p.run(25 * time.Hour)
 	link, _, _ := p.s.db.Link(context.Background())
-	if wait := time.Unix(link.CheckInAt, 0).Sub(p.clock); wait > 7*24*time.Hour {
+	if wait := time.Unix(link.CheckInAt, 0).Sub(p.clock.Now()); wait > 7*24*time.Hour {
 		t.Errorf("after one answer of Retry-After 50 years, the next check-in is %s away, and that is saved across restarts", wait.Round(time.Hour))
 	}
 }

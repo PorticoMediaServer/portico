@@ -27,7 +27,7 @@ type porticoRig struct {
 	*testing.T
 	s     *Server
 	fake  *hostedtest.Services
-	clock time.Time
+	clock *rigClock
 	path  string
 	owner Session
 	// told counts how often the certificate client's hook was called.
@@ -41,9 +41,9 @@ var (
 )
 
 func newPorticoRig(t *testing.T) *porticoRig {
-	p := &porticoRig{T: t, path: filepath.Join(t.TempDir(), "main.db"), clock: time.Now().UTC().Truncate(time.Second)}
+	p := &porticoRig{T: t, path: filepath.Join(t.TempDir(), "main.db"), clock: newRigClock(time.Now().UTC().Truncate(time.Second))}
 	p.fake = hostedtest.New(t)
-	p.fake.Now = func() time.Time { return p.clock }
+	p.fake.Now = func() time.Time { return p.clock.Now() }
 	p.open()
 	p.owner = onMain(t, p.s, setup(t, p.s))
 	return p
@@ -56,7 +56,7 @@ func (p *porticoRig) open() {
 		closeDB(p.s.db)
 	}
 	p.s = openTestServer(p.T, p.path)
-	attach(p.s, p.fake.Client(), p.fake.URL, p.fake, func() time.Time { return p.clock })
+	attach(p.s, p.fake.Client(), p.fake.URL, p.fake, func() time.Time { return p.clock.Now() })
 	p.s.link.onLinked = func(time.Time) { p.told++ }
 }
 
@@ -86,18 +86,18 @@ func (p *porticoRig) step() time.Time { return p.s.porticoStep(context.Backgroun
 
 // run moves the clock forward by d, doing the background work whenever it falls due.
 func (p *porticoRig) run(d time.Duration) {
-	end := p.clock.Add(d)
+	end := p.clock.Now().Add(d)
 	for {
 		next := p.step()
 		if next.After(end) {
 			break
 		}
-		if !next.After(p.clock) {
-			next = p.clock.Add(time.Second)
+		if !next.After(p.clock.Now()) {
+			next = p.clock.Now().Add(time.Second)
 		}
-		p.clock = next
+		p.clock.Set(next)
 	}
-	p.clock = end
+	p.clock.Set(end)
 }
 
 // approve gets an approval for this server from Portico Services as account would give it.
@@ -121,7 +121,7 @@ func (p *porticoRig) approve(account hostedtest.Account, purpose hosted.Purpose)
 func (p *porticoRig) link(account hostedtest.Account) {
 	p.Helper()
 	decision := p.approve(account, hosted.PurposeSetup)
-	if err := p.s.db.LinkServer(context.Background(), db.NewLink{OwnerID: 1, AccountID: decision.Account.ID, IssuedAt: decision.IssuedAt, Now: p.clock}); err != nil {
+	if err := p.s.db.LinkServer(context.Background(), db.NewLink{OwnerID: 1, AccountID: decision.Account.ID, IssuedAt: decision.IssuedAt, Now: p.clock.Now()}); err != nil {
 		p.Fatal(err)
 	}
 	p.step()
@@ -207,7 +207,7 @@ func (r *refuseAll) RoundTrip(req *http.Request) (*http.Response, error) {
 // or when someone calls the routes a Portico Accounts server answers.
 func TestALocalServerNeverContactsPorticoServices(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "main.db")
-	clock := time.Now().UTC()
+	clock := newRigClock(time.Now().UTC())
 	transport := &refuseAll{t: t}
 	var s *Server
 	open := func() {
@@ -215,10 +215,10 @@ func TestALocalServerNeverContactsPorticoServices(t *testing.T) {
 			closeDB(s.db)
 		}
 		s = openTestServer(t, path)
-		attach(s, &http.Client{Transport: transport}, "", nil, func() time.Time { return clock })
+		attach(s, &http.Client{Transport: transport}, "", nil, clock.Now)
 	}
 	days := func(n int) {
-		for end := clock.Add(time.Duration(n) * 24 * time.Hour); clock.Before(end); clock = clock.Add(time.Minute) {
+		for end := clock.Now().Add(time.Duration(n) * 24 * time.Hour); clock.Now().Before(end); clock.Add(time.Minute) {
 			s.porticoStep(context.Background())
 		}
 	}
@@ -367,7 +367,7 @@ func TestASignInNoteIsBoundToThisServerThisLinkAndThisMoment(t *testing.T) {
 
 	// Past its time: the note lasts five minutes, and so does the challenge.
 	note := p.fake.Identity(accountJustin, p.s.id, challenge)
-	p.clock = p.clock.Add(6 * time.Minute)
+	p.clock.Add(6 * time.Minute)
 	refused("a note past its time", challenge, note)
 
 	// Used once, a note and its challenge are spent: the copy changes nothing.
@@ -387,7 +387,7 @@ func TestASignInNoteIsBoundToThisServerThisLinkAndThisMoment(t *testing.T) {
 	// again are no use under the new link.
 	challenge = p.challenge()
 	note = p.fake.Identity(accountJustin, p.s.id, challenge)
-	p.clock = p.clock.Add(time.Minute)
+	p.clock.Add(time.Minute)
 	p.relink(accountJustin)
 	refused("a note made under an earlier link", challenge, note)
 
@@ -442,7 +442,7 @@ func TestNotesAreAppliedOnceAndOnlyForThisLink(t *testing.T) {
 	}
 	p.step()
 
-	now := p.clock
+	now := p.clock.Now()
 	sign := func(n trust.Note) trust.Envelope {
 		n.Kind = trust.NoteKind
 		if n.IssuedAt.IsZero() {
@@ -571,12 +571,12 @@ func TestOnlyTheOwningAccountCanApproveALinkedServer(t *testing.T) {
 	signed := func(a trust.Approval) string {
 		a.Kind, a.ServerID, a.ServerName = trust.ApprovalKind, p.s.id, "Cabin"
 		if a.IssuedAt.IsZero() {
-			a.IssuedAt = p.clock.Add(time.Minute)
+			a.IssuedAt = p.clock.Now().Add(time.Minute)
 		}
 		a.ExpiresAt = a.IssuedAt.Add(10 * time.Minute)
 		return trust.Returned(p.fake.Sign(a))
 	}
-	p.clock = p.clock.Add(2 * time.Minute)
+	p.clock.Add(2 * time.Minute)
 
 	// Portico Services itself refuses to let another account approve a linked server. Even
 	// if such an approval existed, properly signed, the server would not take it.
@@ -590,9 +590,9 @@ func TestOnlyTheOwningAccountCanApproveALinkedServer(t *testing.T) {
 		"an approval older than the link": signed(trust.Approval{ApprovalID: "apr_x4", Purpose: trust.PurposeSwitch, AccountID: accountJustin.ID,
 			IssuedAt: time.Unix(link.IssuedAt, 0).Add(-time.Minute)}),
 		"an approval signed by someone else": trust.Returned(hostedtest.New(t).Sign(trust.Approval{Kind: trust.ApprovalKind, ApprovalID: "apr_x5", ServerID: p.s.id,
-			Purpose: trust.PurposeSwitch, AccountID: accountJustin.ID, IssuedAt: p.clock, ExpiresAt: p.clock.Add(time.Minute)})),
+			Purpose: trust.PurposeSwitch, AccountID: accountJustin.ID, IssuedAt: p.clock.Now(), ExpiresAt: p.clock.Now().Add(time.Minute)})),
 		"an approval for another server": trust.Returned(p.fake.Sign(trust.Approval{Kind: trust.ApprovalKind, ApprovalID: "apr_x6", ServerID: "srv_" + strings.Repeat("C", 43),
-			Purpose: trust.PurposeSwitch, AccountID: accountJustin.ID, IssuedAt: p.clock, ExpiresAt: p.clock.Add(time.Minute)})),
+			Purpose: trust.PurposeSwitch, AccountID: accountJustin.ID, IssuedAt: p.clock.Now(), ExpiresAt: p.clock.Now().Add(time.Minute)})),
 		"nonsense": "bm9uc2Vuc2U",
 	} {
 		if code, refused := finish(approval); code != 409 || refused != "approval_declined" {
@@ -621,7 +621,7 @@ func TestOnlyTheOwningAccountCanApproveALinkedServer(t *testing.T) {
 
 	// A person approving on another device: the page asks the server, which asks Portico
 	// Services no faster than it was told to, and only about approvals it started itself.
-	p.clock = p.clock.Add(5 * time.Minute)
+	p.clock.Add(5 * time.Minute)
 	var approval PorticoApproval
 	call(t, p.s, "POST", "/v1/admin/portico/link", p.owner.AccessToken, PorticoLinkRequest{ReturnURL: "https://cabin.example/back"}, &approval)
 	poll := func(id string) (int, PorticoApprovalPoll) {
@@ -643,7 +643,7 @@ func TestOnlyTheOwningAccountCanApproveALinkedServer(t *testing.T) {
 		t.Errorf("a poll of an approval this server never started answered %d and may have asked Portico Services", code)
 	}
 	// Someone who saw only the approval's address cannot collect the approval.
-	p.clock = p.clock.Add(3 * time.Second)
+	p.clock.Add(3 * time.Second)
 	p.fake.Decide(approval.ApprovalID, accountJustin, true)
 	if code := status(t, p.s, "POST", "/v1/hosted/approvals/"+approval.ApprovalID+"/poll", "", PorticoApprovalPollRequest{PollToken: "guess"}); code != 409 || asked() != 1 {
 		t.Errorf("a poll without the page's token answered %d", code)
@@ -820,8 +820,8 @@ func TestAServerThatLeftSaysSoOnceAndThenGivesUp(t *testing.T) {
 	queue := func(p *porticoRig) {
 		// What the switch to local sign-in commits: the link gone, the one message queued.
 		link, _, _ := p.s.db.Link(ctx)
-		raw, _ := json.Marshal(db.QueuedLeave{LinkIssuedAt: link.IssuedAt, GiveUpAt: p.clock.Add(schedule.LeaveGiveUp).Unix()})
-		if err := p.s.db.SaveSetting(ctx, "hosted.leave", string(raw), p.clock); err != nil {
+		raw, _ := json.Marshal(db.QueuedLeave{LinkIssuedAt: link.IssuedAt, GiveUpAt: p.clock.Now().Add(schedule.LeaveGiveUp).Unix()})
+		if err := p.s.db.SaveSetting(ctx, "hosted.leave", string(raw), p.clock.Now()); err != nil {
 			t.Fatal(err)
 		}
 		raw2, err := sql.Open("sqlite", "file:"+url.PathEscape(p.path)+"?_pragma=busy_timeout(5000)")
@@ -899,7 +899,7 @@ func TestAnAddressThatKeepsChangingIsSentAtMostEveryFewMinutes(t *testing.T) {
 	// An hour of an address that flips every minute.
 	for minute := 1; minute <= 60; minute++ {
 		address = "203.0.113." + itoa(minute+1)
-		p.clock = p.clock.Add(time.Minute)
+		p.clock.Add(time.Minute)
 		p.step()
 	}
 	if flips := sent() - 1; flips < 10 || flips > 12 {
@@ -918,13 +918,13 @@ func TestAnAddressThatKeepsChangingIsSentAtMostEveryFewMinutes(t *testing.T) {
 
 	// Inside the gap, a person joining and a change the owner makes by hand do not wait.
 	address = "198.51.100.7"
-	p.clock = p.clock.Add(time.Minute)
+	p.clock.Add(time.Minute)
 	p.step() // more than the gap since the last document: goes at once and starts a new gap
 	if sent() != settled+1 {
 		t.Fatalf("a changed address long after the last document sent %d documents, want one at once", sent()-settled)
 	}
 	address = "198.51.100.8"
-	p.clock = p.clock.Add(time.Minute)
+	p.clock.Add(time.Minute)
 	p.step()
 	if sent() != settled+1 {
 		t.Fatal("a second change of address a minute later did not wait")

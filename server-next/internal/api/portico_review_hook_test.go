@@ -46,9 +46,9 @@ func TestReviewTheCertificateClientIsToldTheLinkAndItsEnd(t *testing.T) {
 	}
 
 	// Linking again tells it the new link's time.
-	p.clock = p.clock.Add(time.Minute)
+	p.clock.Add(time.Minute)
 	decision := p.approve(accountJustin, hosted.PurposeSwitch)
-	if err := p.s.db.LinkServer(context.Background(), db.NewLink{OwnerID: 1, AccountID: decision.Account.ID, IssuedAt: decision.IssuedAt, Now: p.clock}); err != nil {
+	if err := p.s.db.LinkServer(context.Background(), db.NewLink{OwnerID: 1, AccountID: decision.Account.ID, IssuedAt: decision.IssuedAt, Now: p.clock.Now()}); err != nil {
 		t.Fatal(err)
 	}
 	p.step()
