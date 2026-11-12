@@ -676,7 +676,11 @@ removal here; cutting someone off is the Downloads switch on the account or the 
 Everyone's series rules are `GET /v1/dvr/rules?scope=everyone`. Live TV and recording
 settings (guide length, rewind stretch, retry time, logos; the recordings folder, paddings,
 the keep rule, the space floor and cap, what a tuner clash does) are the `live` and `dvr`
-settings documents.
+settings documents. `live` has `rewindMinutes` (10–120, default 30), `retrySeconds`
+(default 60), and `guideDays` (3, 7 or 14, default 7). `dvr` has `folder` (empty uses the
+server's default), `beforeMs`, `afterMs`, `floorBytes`, `capBytes` (0 is no cap), `keepDays`
+or `keepNewest` (both 0 keeps until deleted), and `stopViewers`. Old recording folders remain
+in Recorded TV when the destination changes, and existing recordings keep their own files.
 
 Not carried: `/v1/admin/live-sources/remote/preview` and `/remote/save` (one preview, one
 create); `/{id}/enabled`, `/remove`, `/logos`, `/configuration` and `/channel-map` (the

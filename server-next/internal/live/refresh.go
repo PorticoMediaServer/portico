@@ -12,11 +12,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
-// guideDays is how far ahead listings are kept, and guideKept how long after they end.
-const (
-	guideDays = 14
-	guideKept = 24 * time.Hour
-)
+// guideKept is how long listings are kept after they end.
+const guideKept = 24 * time.Hour
 
 // Run refreshes each source that is due, until ctx ends: on its own interval, and a failing
 // one again after half an hour.
@@ -166,6 +163,7 @@ func (s *Service) refresh(ctx context.Context, src db.LiveSource) (LiveSourceRep
 		defer guide.Close()
 		guideSource = src.ID
 		now := s.now()
+		guideDays := Document.Get(s.Settings).GuideDays
 		err := s.db.ReplaceSourceGuide(ctx, src.ID, func(add func(db.GuideProgramme) error) error {
 			return ParseGuide(guide, &report, func(c GuideChannel) error {
 				for _, n := range c.Names {
