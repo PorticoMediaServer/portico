@@ -9,7 +9,7 @@ import {firstOfEach,keepReadable,noteSkipped,oneOfOr} from './tolerant.ts';
 import {validateContentEntry,type ContentEntry} from './library-content.ts';
 import {parseBrowseNode,parseBrowseResult,type BrowseNode,type BrowseResult,type BrowseSortSelection} from './browse.ts';
 import type {SavedApi,SavedScope,SavedRoute,SavedActor,SavedShapeCounts} from './saved.ts';
-import {clearHistory,readHistoryPage} from './personal-saved-next.ts';
+import {clearHistory,readCollections,readHistoryPage,readResource,sendResourceCommand} from './personal-saved-next.ts';
 import {parseSavedShapeCounts,parseResourceOrderWitness,resourceContentManual,resourceContentParams,resourceContentQuery,type ResourceContentQuery,type ResourceOrderWitness} from './saved.ts';
 export type PersonalResourceKind='collection'|'view';
 /** A saved view stores the whole browse request: the pivot, the expression tree
@@ -129,7 +129,9 @@ export function parsePersonalBatchReceipt(v:unknown,serverId:string,requested:re
  return Object.freeze({serverId,viewerFence:v.viewerFence,operationId:v.operationId,results:Object.freeze(results),updated:v.updated,failed:v.failed});
 }
 export const PERSONAL_BATCH_PATH=routePath("put_items_personal_state_batch");
-function info(e:unknown):PersonalSavedError{const x=e as {code?:unknown};const code=id(x?.code)?x.code:'request_failed';return {code,message:e instanceof Error?e.message:'The request failed.',conflict:['resource_conflict','revision_mismatch','personal_state_conflict','stale_continuation','operation_expired'].includes(code)};}
+/** A conflict is read again and offered as a reviewed retry: an out-of-date copy (`list_changed`, area 6 rule 34), or a
+ * reorder that moved some entries before it failed. */
+function info(e:unknown):PersonalSavedError{const x=e as {code?:unknown;partlyMade?:unknown};const code=id(x?.code)?x.code:'request_failed';return {code,message:e instanceof Error?e.message:'The request failed.',conflict:x?.partlyMade===true||['resource_conflict','revision_mismatch','personal_state_conflict','stale_continuation','operation_expired','list_changed'].includes(code)};}
 function freeze<T>(v:T):T{if(v&&typeof v==='object'){for(const c of Object.values(v))freeze(c);Object.freeze(v);}return v;}
 /** Entries a page holds, and how far a quiet re-read reaches: DEEP_PAGES pages of PAGE. */
 const PAGE=40,DEEP_PAGES=25;
@@ -173,9 +175,9 @@ export function savedCategoryId(d?:SavedDefinition):string{
  }
  return '';
 }
-/** What the service asks the server for History: the rebuilt server's by default (`personal-saved-next.ts`). A test can give its own. */
-export type PersonalSavedTransport=Readonly<{history:typeof readHistoryPage;clearHistory:typeof clearHistory}>;
-export const personalSavedTransport:PersonalSavedTransport=Object.freeze({history:readHistoryPage,clearHistory});
+/** What the service asks the server for History, collections and a collection's or saved view's page: the rebuilt server's by default (`personal-saved-next.ts`). A test can give its own. */
+export type PersonalSavedTransport=Readonly<{history:typeof readHistoryPage;clearHistory:typeof clearHistory;collections:typeof readCollections;resource:typeof readResource;send:typeof sendResourceCommand}>;
+export const personalSavedTransport:PersonalSavedTransport=Object.freeze({history:readHistoryPage,clearHistory,collections:readCollections,resource:readResource,send:sendResourceCommand});
 export class PersonalSavedService{
  private state:PersonalSavedSnapshot;private listeners=new Set<()=>void>();private generation=0;private readTicket=0;private candidateTicket=0;private disposed=false;private controllers=new Set<AbortController>();private seen=0;
  private command?:{intent:PersonalSavedIntent;path:string;method:string;body:Record<string,unknown>;fence:string;rebased?:boolean};
@@ -270,7 +272,10 @@ export class PersonalSavedService{
    const path=route.view==='resource'?encodedRoutePath("get_saved_resources_id_content", {"id": encodeURIComponent(route.resourceId!)}):route.view==='history'?routePath("get_personal_history"):routePath("get_saved_resources");
    if(route.view==='collections'||route.view==='views'){query.set('kind',route.view==='collections'?'collection':'view');if('shape'in route&&route.shape)query.set('shape',route.shape);}
    if(route.view==='history'&&'period'in route&&route.period)query.set('period',route.period);
-   const raw=route.view==='history'?await this.bounded(s=>this.transport.history(this.api,this.scope,'period'in route?route.period:undefined,cursor,s),signal):await this.request<unknown>(path+'?'+query,'GET',undefined,signal);
+   const raw=route.view==='history'?await this.bounded(s=>this.transport.history(this.api,this.scope,'period'in route?route.period:undefined,cursor,s),signal)
+    :route.view==='collections'?await this.bounded(s=>this.transport.collections(this.api,this.scope,cursor,s),signal)
+    :route.view==='resource'?await this.bounded(s=>this.transport.resource(this.api,this.scope,route.resourceId!,resourceContentQuery(route),cursor,s),signal)
+    :await this.request<unknown>(path+'?'+query,'GET',undefined,signal);
    if(!obj(raw)||!str(raw.nextCursor,4096))bad();let patch:{-readonly [K in keyof PersonalSavedSnapshot]?:PersonalSavedSnapshot[K]}&{viewerFence:string;revision:number;nextCursor:string}={page:null,resource:null,resources:[],entries:[],browse:null,nextCursor:raw.nextCursor,cursor,history:[...history],viewerFence:'',revision:0};
    if(route.view==='resource'){
     const r=resource(raw.resource,this.scope);if(r.id!==route.resourceId)bad();patch.resource=r;patch.viewerFence=r.viewerFence;patch.revision=r.revision;
@@ -323,7 +328,12 @@ export class PersonalSavedService{
   catch(e){if(this.alive(g))this.publish({pending:false,mutationError:info(e),retryPending:!!this.command});return false;}
  }
  private async send():Promise<boolean>{const c=this.command,g=this.generation;if(!c||this.disposed)return false;this.publish({pending:true,mutationError:null});
-  try{const raw=c.intent.action==='clear-history'?await this.bounded(s=>this.transport.clearHistory(this.api,this.scope,c.body.operationId as string,s,c.body)):await this.request<unknown>(c.path,c.method,c.body);if(!this.alive(g))return false;if(!obj(raw)||raw.serverId!==this.scope.serverId||raw.viewerFence!==c.fence)bad();const receipt=c.intent.action==='pin'?raw:raw.receipt;if(!obj(receipt)||receipt.operationId!==c.body.operationId||!num(receipt.revision))bad();const activity=c.intent.action==='clear-history'||c.intent.action==='reset-viewing-activity';if(!activity&&(!id(receipt.resourceId)||typeof receipt.deleted!=='boolean'))bad();
+  // A collection's or open saved view's change goes to the rebuilt server's lists, with what it needs from the page on screen.
+  const listed=c.intent.action==='create'?c.intent.kind==='collection':c.intent.action!=='clear-history'&&c.intent.action!=='reset-viewing-activity'&&!!this.state.resource;
+  const context={resourceId:this.state.resource?.id,kind:this.state.resource?.kind,revision:c.body.expectedRevision as number|undefined,cursor:this.state.cursor,entries:this.state.entries.map(e=>({id:e.id,...(e.media?{itemId:e.media.id}:{})}))};
+  try{const raw=c.intent.action==='clear-history'?await this.bounded(s=>this.transport.clearHistory(this.api,this.scope,c.body.operationId as string,s,c.body))
+   :listed?await this.bounded(s=>this.transport.send(this.api,this.scope,c.intent,context,c.body.operationId as string,s,c))
+   :await this.request<unknown>(c.path,c.method,c.body);if(!this.alive(g))return false;if(!obj(raw)||raw.serverId!==this.scope.serverId||raw.viewerFence!==c.fence)bad();const receipt=c.intent.action==='pin'?raw:raw.receipt;if(!obj(receipt)||receipt.operationId!==c.body.operationId||!num(receipt.revision))bad();const activity=c.intent.action==='clear-history'||c.intent.action==='reset-viewing-activity';if(!activity&&(!id(receipt.resourceId)||typeof receipt.deleted!=='boolean'))bad();
    if(c.intent.action!=='create'&&!activity&&receipt.resourceId!==this.state.resource?.id)bad();
    const deleted=obj(raw.current)&&raw.current.resourceId===receipt.resourceId&&typeof raw.current.deleted==='boolean'?raw.current.deleted:receipt.deleted===true;
    const entries=c.intent.action==='entries'&&receipt.entries!==undefined?parseEntryOutcomes(receipt.entries):undefined;

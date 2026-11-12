@@ -46,7 +46,7 @@ async function setup() {
     api: new HttpLocalApi('https://fixture.invalid', '', legacySavedFetch(async (input, init) => {
       const url = new URL(String(input)); paths.push(url.pathname + url.search); if (init?.signal) signals.push(init.signal);
       return new Response(JSON.stringify(await reply(url)), {status: 200, headers: {'Content-Type': 'application/json'}});
-    })),
+    }, {personal: true})),
     subscribeAuthority: listener => {listeners.add(listener); return () => {listeners.delete(listener);};},
     get home() {return unavailable();}, get events() {return unavailable();}, preferences: unavailable, subscribePreferences: unavailable,
     get appVersion() {return unavailable();}, get serverName() {return unavailable();}, get playback() {return unavailable();},

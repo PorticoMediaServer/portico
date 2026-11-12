@@ -73,7 +73,7 @@ function fixture() {
       paths.push(url.pathname + url.search);
       if (method === 'PATCH') mutations.push({path: url.pathname, method, body});
       return new Response(JSON.stringify(await reply(url, method, body)), {status: 200, headers: {'Content-Type': 'application/json'}});
-    })),
+    }, {personal: true})),
     subscribeAuthority: listener => {listeners.add(listener); return () => {listeners.delete(listener);};},
     libraries: () => [{id: 'movies', name: 'Movies', kind: 'movie'}],
     get home() {return unavailable();}, get events() {return unavailable();}, preferences: unavailable, subscribePreferences: unavailable,

@@ -110,3 +110,33 @@ export function libraryItemQuery(library: Readonly<{id: string; views?: WireLibr
 /** A holder's own list (a show's seasons, a season's episodes, an album's tracks), in its own order. */
 export const childrenQuery = (parent: string, kind?: string): ItemListQuery => ({parent, ...(kind ? {kind: itemKindOf(kind)} : {}), sort: 'order'});
 export {pivotFor as libraryPivot};
+
+/**
+ * A saved view's stored list read back as the browse controls draw it: the tab, the filters and the order that
+ * `libraryItemQuery` turned into that list (definition area 6 rule 24: a saved view is a saved sort and filter on one
+ * library). `undefined` when the list holds something the controls cannot draw, so it is not shown as something else.
+ */
+export function libraryQueryControls(query: string): Readonly<{pivot: string; nodes: readonly BrowseNode[]; sorts: readonly BrowseSortSelection[]}> | undefined {
+  const params = new URLSearchParams(query), nodes: BrowseNode[] = [];
+  const kind = params.get('kind') ?? '';
+  const pivot = kind === 'audiobook,book' ? 'books' : pivots.find(each => (each.lists ?? each.kind) === kind)?.id;
+  if (!pivot) return undefined;
+  let sorts: BrowseSortSelection[] = [];
+  for (const [name, value] of params) {
+    if (name === 'kind' || name === 'order') continue;
+    if (name === 'genre') nodes.push({variant: 'predicate', field: 'genre', operator: 'equals', value});
+    else if (name === 'resolution') nodes.push({variant: 'predicate', field: 'resolution', operator: 'equals', value});
+    else if (name === 'watched' && (value === 'true' || value === 'false')) nodes.push({variant: 'predicate', field: 'playState', operator: 'equals', value: value === 'true' ? 'played' : 'unplayed'});
+    else if ((name === 'favorite' || name === 'inList') && (value === 'true' || value === 'false')) nodes.push({variant: 'predicate', field: name === 'favorite' ? 'favorite' : 'watchlisted', operator: 'equals', value: value === 'true'});
+    else if (name === 'year') {
+      const [from, to] = value.split('..').map(Number);
+      if (!value.includes('..') && Number.isInteger(from)) nodes.push({variant: 'predicate', field: 'year', operator: 'equals', value: from!});
+      else if (to === 9999 && Number.isInteger(from)) nodes.push({variant: 'predicate', field: 'year', operator: 'at-least', value: from!});
+      else if (from === 1 && Number.isInteger(to)) nodes.push({variant: 'predicate', field: 'year', operator: 'at-most', value: to!});
+      else if (Number.isInteger(from) && Number.isInteger(to)) nodes.push({variant: 'predicate', field: 'year', operator: 'between', value: [from!, to!]});
+      else return undefined;
+    } else if (name === 'sort' && sortIds[value]) sorts = [{field: sortIds[value]!, direction: params.get('order') === 'desc' ? 'desc' : 'asc'}];
+    else return undefined;
+  }
+  return {pivot, nodes, sorts};
+}
