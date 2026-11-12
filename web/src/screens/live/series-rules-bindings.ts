@@ -1,6 +1,8 @@
 import {serverNow} from '@core/server-clock.ts';
-import {DVRClient, isAccessError, validRecordingOptions, type DVRPage, type DVRSummary, type RecordingRule, type RecordingStorage, type RuleConfig} from '@core/dvr.ts';
-import {fetchGuideSourceSummaries, type GuideSourceSummaries} from '@core/guide/directory.ts';
+import {isAccessError, validRecordingOptions, type DVRPage, type DVRSummary, type RecordingRule, type RuleConfig} from '@core/dvr.ts';
+import {NextDVRClient, type RecordingSpace} from '@core/next-dvr.ts';
+import {nextGuideSummaries} from '@core/guide/next-source.ts';
+import type {GuideSourceSummaries} from '@core/guide/directory.ts';
 import {localDayStart} from '@core/guide/time.ts';
 import type {GuideProgramme} from '@core/channel-guide.ts';
 import {defaultI18n} from '@i18n';
@@ -17,7 +19,7 @@ type RuleEntry = Readonly<{rule: RecordingRule; model: SeriesRule}>;
 export type SeriesRulesSnapshot = Readonly<{phase: 'idle' | 'loading' | 'ready' | 'error' | 'retired'; view?: SeriesRulesView;
   loadingMore: boolean; nextCursor?: string; mutating: boolean; error?: unknown; previewError?: unknown; previewLoading: boolean;
   preview?: Readonly<{ruleId: string; settings: RuleSettings; count: number; airings: readonly RuleAiring[]}>}>;
-type Environment = Readonly<{timezone: string; locale: string; now?: () => number; requestId?: () => Promise<string>}>;
+type Environment = Readonly<{timezone: string; locale: string; now?: () => number}>;
 
 export function ruleSettings(rule: RecordingRule): RuleSettings {
   const config = rule.config, title = config.matchKind === 'title';
@@ -48,22 +50,21 @@ export function editedRuleConfig(rule: RecordingRule, settings: RuleSettings): R
   return config;
 }
 
-/** Actual DVR client reads/receipt-backed commands. Fixture projection is not
+/** The rules, counts and space from the server, and its rule commands. Fixture projection is not
  * imported here. Only a mounted caller starts a bounded cursor request. */
 export function createSeriesRulesBindings(context: ScreenContext, env: Environment) {
   const life = screenLifetime(context), listeners = new Set<() => void>(), entries = new Map<string, RuleEntry>();
-  const requestId = env.requestId ?? (async () => Array.from(crypto.getRandomValues(new Uint8Array(24)), value => value.toString(16).padStart(2, '0')).join(''));
   const now = env.now ?? serverNow;
   let offIdentity: (() => void) | undefined;
-  let closed = false, generation = 0, pending: Promise<void> | undefined, previewSerial = 0, previewClient: DVRClient | undefined;
-  let page: DVRPage | undefined, summary: DVRSummary | undefined, storage: RecordingStorage | undefined, sources: GuideSourceSummaries | undefined;
+  let closed = false, generation = 0, pending: Promise<void> | undefined, previewSerial = 0, previewClient: NextDVRClient | undefined;
+  let page: DVRPage | undefined, summary: DVRSummary | undefined, storage: RecordingSpace | undefined, sources: GuideSourceSummaries | undefined;
   let state: SeriesRulesSnapshot = Object.freeze({phase: 'idle', loadingMore: false, mutating: false, previewLoading: false});
-  const clients = new Set<DVRClient>();
+  const clients = new Set<NextDVRClient>();
   const api = {async request<T>(...args: Parameters<typeof life.api.request>) {
     try {return await life.api.request<T>(...args);}
     catch (error) {if (isAccessError(error)) dispose(error);throw error;}
   }};
-  const client = new DVRClient(api, context.scope.serverId, requestId);clients.add(client);
+  const client = new NextDVRClient(api);clients.add(client);
   const publish = (patch: Partial<SeriesRulesSnapshot>) => {if (closed) return;state = Object.freeze({...state, ...patch});for (const listener of [...listeners]) listener();};
   const current = () => {if (closed) return false;if (!life.current()) {dispose();return false;}return true;};
   const assert = () => {if (!current()) throw cancelled();};
@@ -94,7 +95,7 @@ export function createSeriesRulesBindings(context: ScreenContext, env: Environme
       ...(sources ? {channelCount: sources.sources.reduce((total, source) => total + source.channelCount, 0)} : {}),
       ...(end === undefined ? {} : {guideThrough: new Intl.DateTimeFormat(env.locale, {weekday: 'long', timeZone: env.timezone}).format(end - 1)}),
       ...(summary ? {upcomingCount: summary.upcoming, recordedCount: summary.recorded, ruleCount: summary.rules, conflictCount: summary.conflicts} : {}),
-      ...(storage ? {storage: Object.freeze({used: Math.round(storage.measurement.usedBytes / 1e9), free: Math.round(storage.measurement.freeBytes / 1e9), hoursLeft: storage.forecastHours})} : {}),
+      ...(storage ? {storage: Object.freeze({free: Math.round(storage.freeBytes / 1e9), hoursLeft: storage.hoursLeft})} : {}),
       rules: Object.freeze([...entries.values()].map(entry => entry.model))});
   };
   const cancelPreview = () => {previewSerial++;previewClient?.dispose();if (previewClient) clients.delete(previewClient);previewClient = undefined;publish({preview: undefined, previewError: undefined, previewLoading: false});};
@@ -107,7 +108,7 @@ export function createSeriesRulesBindings(context: ScreenContext, env: Environme
     const task = Promise.resolve().then(async () => {
       try {
         assert();
-        if (!more) [summary, storage, sources] = await Promise.all([client.summary(), client.storage(), fetchGuideSourceSummaries(api, context.scope.serverId, env.timezone, life.signal())]);
+        if (!more) [summary, storage, sources] = await Promise.all([client.summary(), client.storage(), nextGuideSummaries(api, life.signal())]);
         const result = await client.list('rules', cursor);assert();if (ticket !== generation) throw cancelled();
         if (more && (result.revision !== page?.revision || result.rules.some(rule => entries.has(rule.id)) || result.nextCursor && result.nextCursor === cursor)) throw invalid();
         if (!more) entries.clear();
@@ -143,7 +144,7 @@ export function createSeriesRulesBindings(context: ScreenContext, env: Environme
     cancelPreview,
     async preview(row: SeriesRule, settings: RuleSettings) {
       const rule = captured(row);cancelPreview();const serial = previewSerial, ticket = generation;
-      const owner = new DVRClient(api, context.scope.serverId, requestId);previewClient = owner;clients.add(owner);publish({previewLoading: true});
+      const owner = new NextDVRClient(api);previewClient = owner;clients.add(owner);publish({previewLoading: true});
       try {
         const result = await owner.preview(editedRuleConfig(rule, settings));assert();
         if (serial !== previewSerial || ticket !== generation || entries.get(row.id)?.model !== row) throw cancelled();

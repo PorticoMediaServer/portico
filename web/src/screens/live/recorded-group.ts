@@ -1,7 +1,7 @@
-import {DVRClient, dvrMessage, playableRecording, type DVRPage, type Recording} from '@core/dvr.ts';
+import {NextDVRClient} from '@core/next-dvr.ts';
+import {dvrMessage, playableRecording, type DVRPage, type Recording} from '@core/dvr.ts';
 import {screenLifetime, type ScreenContext} from '../detail/context';
 
-const randomHex = async () => Array.from(crypto.getRandomValues(new Uint8Array(24)), value => value.toString(16).padStart(2, '0')).join('');
 const cancelled = () => new DOMException('Recorded show closed', 'AbortError');
 
 export type RecordedGroupSnapshot = Readonly<{phase: 'idle' | 'loading' | 'ready' | 'error' | 'retired';
@@ -14,7 +14,7 @@ export type RecordedGroupSnapshot = Readonly<{phase: 'idle' | 'loading' | 'ready
  */
 export function createRecordedGroupReader(context: ScreenContext, group: string, sort: 'recent' | 'title' | 'oldest') {
   const life = screenLifetime(context), listeners = new Set<() => void>();
-  const client = new DVRClient(life.api, context.scope.serverId, randomHex);
+  const client = new NextDVRClient(life.api);
   let closed = false, generation = 0, pending: Promise<void> | undefined, pendingToken: object | undefined;
   let page: DVRPage | undefined;
   let state: RecordedGroupSnapshot = Object.freeze({phase: 'idle', recordings: [], busy: false});

@@ -3,7 +3,7 @@ import {defaultI18n} from '@i18n';
 import {Button, Chip, Segmented, Select, Switch, Tabs} from '../../kit/controls';
 import {Banner, SidePanel} from '../../kit/overlays';
 import {Icon} from '../../kit/Icon';
-import {RecordingsLayout, RecordingStorage} from '../../kit/dvr/RecordingsLayout';
+import {RecordingsLayout} from '../../kit/dvr/RecordingsLayout';
 import {RuleCard, RuleDecoration, RuleField, RuleGap} from '../../kit/dvr/RuleCard';
 import {createRulesState, matchingAirings, matchingCount, rulesReducer, type RuleAiring, type SeriesRule, type SeriesRulesView, type RuleSettings} from './series-rules-model';
 import styles from '../../kit/dvr/rules.module.css';
@@ -72,8 +72,7 @@ export function SeriesRules({view, navigation, busy = false, error, tail, onGuid
     <RecordingPhoneTabs views={views} value="rules" onChange={onView}/>
     <div className={styles.recordingBar}><div className={styles.chips} aria-label={t('recordings.title')}>
       {views.map(item => <Chip className={styles.chip} key={item.id} selected={item.id === 'rules'} count={item.count} onClick={onView ? () => onView(item.id) : undefined}>{item.label}</Chip>)}
-    </div>{view.storage && <RecordingStorage used={t('next.live.storageUsed', {amount: view.storage.used})} free={t('next.live.storageFree', {amount: view.storage.free})}
-      remaining={t('next.live.storageLeft', {hours: view.storage.hoursLeft})} label={t('next.live.storageLabel', view.storage)} fraction={view.storage.used / (view.storage.used + view.storage.free)}/>}</div>
+    </div>{view.storage && <span>{t('next.live.storageFree', {amount: view.storage.free})} · {t('next.live.storageLeft', {hours: view.storage.hoursLeft})}</span>}</div>
     <div className={styles.body}><div className={styles.rules}>{state.rules.map(rule => <RuleCard key={rule.id} title={rule.title} glyph={rule.glyph} tone={rule.tone}
       selected={selected?.id === rule.id} paused={!rule.settings.enabled} disabled={busy} options={[t(rule.settings.episodes === 'all' ? 'guide.allEpisodes' : 'guide.newOnly'), rule.settings.channel === 'any' ? t('guide.anyChannel') : rule.settings.channel === 'this' ? rule.channelName : undefined, keepLabel(rule.settings.keep)].filter((value): value is string => value !== undefined)}
       next={nextLine(rule)} conflict={rule.conflict}
