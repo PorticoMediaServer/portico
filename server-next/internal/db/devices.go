@@ -123,3 +123,72 @@ func (d *DB) ForgetMemberDevice(ctx context.Context, actorID int64, actorRole, m
 		return audit(tx, actorID, "member.device_sign_out", m.PublicID, m.Username+": "+name, now)
 	})
 }
+
+// AccountDevice is one account's use of a device, for the owner's server-wide device list: a
+// device two accounts signed in on is listed once for each.
+type AccountDevice struct {
+	Device
+	AccountID      string
+	Username       string
+	PorticoAccount bool
+	LiveSessions   int
+	userID         int64
+	deviceRowID    int64
+}
+
+// AccountDeviceCursor is where a page of AccountDevices goes on from.
+type AccountDeviceCursor struct {
+	LastSeen int64 `json:"s"`
+	Device   int64 `json:"d"`
+	User     int64 `json:"u"`
+}
+
+// AccountDevices lists every account's devices, most recently seen first, as the per-account
+// lists show them (a forgotten device is gone): for the owner every account's, for an
+// administrator only the members' (never the owner's or another administrator's, nor its
+// own). It reads the sessions table, a few rows per device: an accepted cost on People.
+func (d *DB) AccountDevices(ctx context.Context, actorRole string, after AccountDeviceCursor, limit int, now time.Time) ([]AccountDevice, *AccountDeviceCursor, error) {
+	where := `ifnull(s.revoked_reason, '') <> 'device_forgotten'`
+	args := []any{now.UnixMilli()}
+	switch actorRole {
+	case "owner":
+	case "admin":
+		where += ` AND u.role = 'member'`
+	default:
+		return nil, nil, ErrNotPermitted
+	}
+	if after.Device != 0 {
+		where += ` AND (d.last_seen_at < ? OR d.last_seen_at = ? AND (d.id > ? OR d.id = ? AND u.id > ?))`
+		args = append(args, after.LastSeen, after.LastSeen, after.Device, after.Device, after.User)
+	}
+	rows, err := d.read.QueryContext(ctx, `
+		SELECT d.id, u.id, d.public_id, d.name, ifnull(d.platform, ''), ifnull(d.app, ''), ifnull(d.app_version, ''), d.created_at, d.last_seen_at,
+			sum(s.revoked_at IS NULL AND s.expires_at > ?1), u.public_id, u.username, u.portico_account_id IS NOT NULL,
+			ifnull((SELECT x.remote_addr FROM sessions x WHERE x.device_id = d.id AND x.user_id = u.id ORDER BY x.last_used_at DESC LIMIT 1), '')
+		FROM devices d JOIN sessions s ON s.device_id = d.id JOIN users u ON u.id = s.user_id
+		WHERE `+where+` GROUP BY d.id, u.id ORDER BY d.last_seen_at DESC, d.id, u.id LIMIT ?`, append(args, limit+1)...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	var out []AccountDevice
+	for rows.Next() {
+		var v AccountDevice
+		var created, seen int64
+		if err := rows.Scan(&v.deviceRowID, &v.userID, &v.PublicID, &v.Name, &v.Platform, &v.App, &v.AppVersion, &created, &seen, &v.LiveSessions,
+			&v.AccountID, &v.Username, &v.PorticoAccount, &v.RemoteAddr); err != nil {
+			return nil, nil, err
+		}
+		v.CreatedAt, v.LastSeenAt, v.SignedIn = time.UnixMilli(created), time.UnixMilli(seen), v.LiveSessions > 0
+		out = append(out, v)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	if len(out) <= limit {
+		return out, nil, nil
+	}
+	out = out[:limit]
+	last := out[limit-1]
+	return out, &AccountDeviceCursor{LastSeen: last.LastSeenAt.UnixMilli(), Device: last.deviceRowID, User: last.userID}, nil
+}

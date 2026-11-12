@@ -53,6 +53,8 @@ type Member struct {
 	// Profiles are the account's profile names, in the order its picker shows them.
 	Profiles []string
 	Limits   AccountLimits
+	// PorticoAccount says the account signs in with a Portico Account, not a local password.
+	PorticoAccount bool
 }
 
 // AccountLimits are what the owner or an admin holds a whole account to: every profile of
@@ -85,7 +87,8 @@ const memberColumns = `u.id, u.public_id, u.username, ifnull(u.email, ''), u.rol
 	(SELECT json_group_array(name) FROM (SELECT p.name FROM profiles p WHERE p.user_id = u.id ORDER BY p.is_primary DESC, p.position, p.id)),
 	u.home_only, u.viewing_hours, u.max_rating_age, u.allow_unrated, u.remote_max_bitrate_kbps, u.max_profiles,
 	u.allow_watch_together, u.allow_tokens,
-	ifnull((SELECT group_concat(t.public_id, ' ') FROM account_restrictions r JOIN tags t ON t.id = r.tag_id WHERE r.user_id = u.id), '')`
+	ifnull((SELECT group_concat(t.public_id, ' ') FROM account_restrictions r JOIN tags t ON t.id = r.tag_id WHERE r.user_id = u.id), ''),
+	u.portico_account_id IS NOT NULL`
 
 func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	var m Member
@@ -96,7 +99,7 @@ func scanMember(row interface{ Scan(...any) error }) (Member, error) {
 	err := row.Scan(&m.ID, &m.PublicID, &m.Username, &m.Email, &m.Role, &m.Disabled, &m.State, &created, &m.AllLibraries, &m.Notes, &m.TwoFactor, &m.AllowDownloads, &libraries,
 		&active, &profiles,
 		&l.HomeOnly, &hours, &l.MaxRatingAge, &l.AllowUnrated, &l.RemoteMaxBitrateKbps, &l.MaxProfiles,
-		&l.AllowWatchTogether, &l.AllowTokens, &labels)
+		&l.AllowWatchTogether, &l.AllowTokens, &labels, &m.PorticoAccount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrNotFound
 	}

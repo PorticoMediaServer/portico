@@ -178,8 +178,57 @@ func (s *Server) memberDeviceRoutes() {
 		devices, err := s.devicesOf(r, m.ID, 0)
 		return Page[Device]{Items: devices}, err
 	})
+	Handle(s, "GET /v1/admin/devices", Admin, s.serverDevices)
 	Handle(s, "DELETE /v1/admin/members/{id}/devices/{deviceId}", Admin, func(r *http.Request, _ None) (None, error) {
 		caller := CallerFrom(r.Context())
 		return None{}, memberError(s.db.ForgetMemberDevice(r.Context(), caller.UserID, caller.Role, r.PathValue("id"), r.PathValue("deviceId"), s.now()))
 	})
+}
+
+// ServerDevice is one account's use of a device, on the owner's server-wide device list. A
+// device two accounts signed in on is listed once for each. Signing one out is
+// DELETE /v1/admin/members/{account}/devices/{id}, or DELETE /v1/devices/{id} for the
+// caller's own.
+type ServerDevice struct {
+	Device
+	Account ServerDeviceAccount `json:"account"`
+	// Sessions is how many live sign-ins the account has on the device.
+	Sessions int `json:"sessions"`
+}
+
+// ServerDeviceAccount names the account a device is signed in to.
+type ServerDeviceAccount struct {
+	ID             string `json:"id"`
+	Username       string `json:"username"`
+	PorticoAccount bool   `json:"porticoAccount"`
+}
+
+// serverDevices lists every account's devices for the owner, and only the members' for an
+// administrator, most recently seen first, by cursor.
+func (s *Server) serverDevices(r *http.Request, _ None) (Page[ServerDevice], error) {
+	caller := CallerFrom(r.Context())
+	var after db.AccountDeviceCursor
+	if text := r.URL.Query().Get("cursor"); text != "" && decodeOpaque(text, &after) != nil {
+		return Page[ServerDevice]{}, ErrField("cursor", "This cursor is not one this list gave.")
+	}
+	rows, next, err := s.db.AccountDevices(r.Context(), caller.Role, after, 100, s.now())
+	if errors.Is(err, db.ErrNotPermitted) {
+		return Page[ServerDevice]{}, ErrNotPermitted()
+	}
+	if err != nil {
+		return Page[ServerDevice]{}, err
+	}
+	out := Page[ServerDevice]{Items: make([]ServerDevice, 0, len(rows))}
+	for _, v := range rows {
+		out.Items = append(out.Items, ServerDevice{
+			Device: Device{ID: v.PublicID, Name: v.Name, Platform: v.Platform, App: v.App, AppVersion: v.AppVersion, CreatedAt: v.CreatedAt.UTC(),
+				LastSeenAt: v.LastSeenAt.UTC(), Network: s.homeOrAway(v.RemoteAddr), SignedIn: v.SignedIn},
+			Account:  ServerDeviceAccount{ID: v.AccountID, Username: v.Username, PorticoAccount: v.PorticoAccount},
+			Sessions: v.LiveSessions,
+		})
+	}
+	if next != nil {
+		out.NextCursor = encodeOpaque(next)
+	}
+	return out, nil
 }

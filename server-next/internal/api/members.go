@@ -42,6 +42,8 @@ type Member struct {
 	Profiles []string `json:"profiles"`
 	// Limits are what the whole account is held to.
 	Limits MemberLimits `json:"limits"`
+	// PorticoAccount says the account signs in with a Portico Account, not a local password.
+	PorticoAccount bool `json:"porticoAccount"`
 }
 
 // MemberCreate makes an account directly, with a first password to pass on to its person.
@@ -92,7 +94,7 @@ func memberOut(m db.Member) Member {
 	}
 	out := Member{Account: accountOut(m.Account), Disabled: m.Disabled, State: m.State, CreatedAt: m.CreatedAt.UTC(), AllLibraries: m.AllLibraries,
 		Libraries: libraries, TwoFactorEnabled: m.TwoFactor, Notes: m.Notes, AllowDownloads: m.AllowDownloads, Profiles: m.Profiles,
-		Limits: memberLimitsOut(m.Limits)}
+		Limits: memberLimitsOut(m.Limits), PorticoAccount: m.PorticoAccount}
 	if out.Profiles == nil {
 		out.Profiles = []string{}
 	}
