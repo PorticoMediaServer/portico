@@ -1,7 +1,8 @@
 import {throwSignalAborted as throwIfAborted} from '../abort.ts';
 import {releaseQuietlyAsync} from '@portico/client-core';
 import {abortScope} from '../abort.ts';
-import type {ReaderAdapter,ReaderDocument,ReaderLocation} from '../ports.ts';
+import type {ReaderAdapter,ReaderDocument,ReaderLocation,ReaderMark} from '../ports.ts';
+import {colours as highlightColours} from '../epub/display.ts';
 import {mountFixed,type FixedPreferences} from './fixed-view.ts';
 import {openPdf,pdfText,pdfTextStream,PdfInputError,type PdfEngine,type PdfOptions} from './engine.ts';
 import {renderPdfStructure} from './struct-tree.ts';
@@ -63,6 +64,15 @@ export function createPdfAdapter<P extends FixedPreferences>(options:PdfOptions=
           const owner=mountOptions.container.ownerDocument,style=owner.createElement('style');style.textContent=textCss;mountOptions.container.append(style);
           const life=new AbortController(),scope=abortScope([mountOptions.signal,engine.signal,life.signal]),combined=scope.signal;
           let fixed:Awaited<ReturnType<ReaderDocument<P>['mount']>>;
+          // Saved highlights (10-reading rule 22): each page's rectangles, in units of the page,
+          // drawn under its text layer so the text stays selectable.
+          let marks:readonly ReaderMark[]=[];const overlays=new Map<number,HTMLElement>();
+          const drawMarks=(overlay:HTMLElement,index:number)=>{
+            overlay.replaceChildren(...marks.flatMap(mark=>mark.location.format==='pdf'&&mark.location.page===index?(mark.rects??[]).map(rect=>{
+              const box=owner.createElement('div');
+              Object.assign(box.style,{position:'absolute',left:rect.x*100+'%',top:rect.y*100+'%',width:rect.width*100+'%',height:rect.height*100+'%',background:highlightColours[mark.colour]+'66'});
+              return box;}):[]));
+          };
           try{fixed=await mountFixed('pdf',engine.document.numPages,direction??'ltr',async(index,{signal:pageSignal})=>{
             const page=await engine.page(index,pageSignal),original=page.getViewport({scale:1});
             if(original.width<=0||original.height<=0||original.width>32768||original.height>32768)throw new PdfInputError('pdf_limit');
@@ -71,6 +81,8 @@ export function createPdfAdapter<P extends FixedPreferences>(options:PdfOptions=
                 throwIfAborted(renderSignal);const viewport=page.getViewport({scale}),canvas=owner.createElement('canvas');
                 const dpr=Math.min(owner.defaultView?.devicePixelRatio??1,2,8192/viewport.width,8192/viewport.height,Math.sqrt(16_000_000/(viewport.width*viewport.height)));
                 canvas.width=Math.max(1,Math.ceil(viewport.width*dpr));canvas.height=Math.max(1,Math.ceil(viewport.height*dpr));Object.assign(canvas.style,{display:'block',width:'100%',height:'100%'});canvas.setAttribute('aria-hidden','true');target.append(canvas);
+                const overlay=owner.createElement('div');Object.assign(overlay.style,{position:'absolute',inset:'0',pointerEvents:'none'});overlay.setAttribute('aria-hidden','true');
+                target.append(overlay);overlays.set(index,overlay);drawMarks(overlay,index);
                 const layer=owner.createElement('div');layer.dataset.readerText=String(index);layer.style.setProperty('--total-scale-factor',String(viewport.scale));target.append(layer);
                 const text=new engine.library.TextLayer({textContentSource:pdfTextStream(page,renderSignal),container:layer,viewport});
                 const render=page.render({canvas,viewport,...dpr!==1?{transform:[dpr,0,0,dpr,0,0]}:{},annotationMode:engine.library.AnnotationMode.DISABLE});
@@ -78,8 +90,8 @@ export function createPdfAdapter<P extends FixedPreferences>(options:PdfOptions=
                 let structure:HTMLElement|null=null;
                 try{const [,,tree]=await engine.run(Promise.all([render.promise,text.render(),page.getStructTree()]),renderSignal);
                   throwIfAborted(renderSignal);structure=renderPdfStructure(tree,layer);if(structure)target.insertBefore(structure,layer);
-                  return ()=>{renderSignal.removeEventListener('abort',abort);abort();canvas.width=0;canvas.height=0;canvas.remove();layer.remove();structure?.remove();};}
-                catch(error){renderSignal.removeEventListener('abort',abort);abort();canvas.width=0;canvas.height=0;canvas.remove();layer.remove();structure?.remove();throw error;}
+                  return ()=>{renderSignal.removeEventListener('abort',abort);abort();canvas.width=0;canvas.height=0;canvas.remove();layer.remove();structure?.remove();overlay.remove();if(overlays.get(index)===overlay)overlays.delete(index);};}
+                catch(error){renderSignal.removeEventListener('abort',abort);abort();canvas.width=0;canvas.height=0;canvas.remove();layer.remove();structure?.remove();overlay.remove();if(overlays.get(index)===overlay)overlays.delete(index);throw error;}
               },dispose(){page.cleanup();}
             };
           },{...mountOptions,signal:combined,onLocation(location){mountOptions.onLocation({...location,...location.format==='pdf'&&labels?.[location.page]?{pageLabel:labels[location.page]}:{}});}});}catch(error){life.abort();scope.dispose();style.remove();throw error;}
@@ -104,7 +116,7 @@ export function createPdfAdapter<P extends FixedPreferences>(options:PdfOptions=
             const complete=pageRects.length>0&&pageRects.every((rect):rect is NonNullable<typeof rect>=>rect!==undefined);
             mountOptions.onSelection?.({text,location:position(page,engine.document.numPages),rects,...complete?{pageRects}: {}});
           };owner.addEventListener('selectionchange',onSelection,{signal:combined});
-          const view={...fixed,dispose(){life.abort();scope.dispose();style.remove();views.delete(view);return fixed.dispose();}};views.add(view);return view;
+          const view={...fixed,showMarks(next:readonly ReaderMark[]){marks=next;for(const [index,overlay] of overlays)drawMarks(overlay,index);},dispose(){life.abort();scope.dispose();style.remove();views.delete(view);return fixed.dispose();}};views.add(view);return view;
         },
         async *search(query,searchOptions){
           if(closed)throw new PdfInputError('closed');const term=query.trim(),foldedTerm=term.toLowerCase();if(!term||term.length>256)throw new PdfInputError('pdf_limit');

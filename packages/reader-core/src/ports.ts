@@ -76,6 +76,9 @@ export type ReaderSelection = Readonly<{
   /** Real page-relative unit rectangles; viewport rectangles are never persisted as anchors. */
   pageRects?: readonly ReaderRect[];
 }>;
+/** A saved highlight drawn on the page: an EPUB text range by its CFI, or a PDF page's unit
+ * rectangles (the selection's pageRects). */
+export type ReaderMark = Readonly<{id: string; colour: 'yellow' | 'green' | 'blue' | 'pink'; location: ReaderLocation; rects?: readonly ReaderRect[]}>;
 export type ReaderSearchResult = Readonly<{
   id: string; excerpt: string; chapter?: string;
   /** A real engine location only when this hit's range was resolved and proved
@@ -107,6 +110,8 @@ export interface ReaderView<Preferences extends object> {
   getLocation(): ReaderLocation | null;
   /** Transient presentation of a real search result; no bookmark/annotation persistence. */
   showSearchResult?(location: ReaderLocation | null, signal: AbortSignal): Promise<void>;
+  /** The saved highlights to draw, replacing those drawn before; drawn again as pages render. */
+  showMarks?(marks: readonly ReaderMark[]): void;
   setZoom?(zoom: ReaderZoom, signal: AbortSignal): Promise<void>;
   getZoom?(): ReaderZoomState;
   canTurnAtFit?(): boolean;
