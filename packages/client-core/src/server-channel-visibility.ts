@@ -1,13 +1,14 @@
 import type {ChannelApi} from './channel-guide.ts';
 import {parseEnvelope, parseChannelMapPage} from './administration.ts';
 import {encodedRoutePath} from '../../contracts/src/route-paths.ts';
+import {throwIfAborted} from './abort-lifetime.ts';
 
 /** A bounded exact lookup; never walk the owner's entire channel map. No automatic
  * rebase: another settings edit must win over a stale hide or Undo. */
 export async function setServerChannelHidden(api: ChannelApi, serverId: string, sourceId: string, channelId: string,
   hidden: boolean, operationId: () => string, signal: AbortSignal, isCurrent: () => boolean,
   expected?: Readonly<{revision: number; hidden: boolean}>): Promise<Readonly<{revision: number; hidden: boolean; previousHidden: boolean}>> {
-  const assert = () => {signal.throwIfAborted();if (!isCurrent()) throw Object.assign(new Error('channel_scope_ended'), {name: 'AbortError'});};
+  const assert = () => {throwIfAborted(signal);if (!isCurrent()) throw Object.assign(new Error('channel_scope_ended'), {name: 'AbortError'});};
   const path = encodedRoutePath('get_admin_live_sources_id_channel_map', {id: encodeURIComponent(sourceId)});
   assert();
   const page = parseEnvelope(await api.request(path + '?' + new URLSearchParams({channelId, limit: '1'}), 'GET', undefined, signal), serverId, parseChannelMapPage).result;
