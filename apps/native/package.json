@@ -13,7 +13,7 @@
     "lint:boundary": "node scripts/lint-boundary.mjs",
     "check:next": "npm run lint:boundary && npm run lint:hooks && npm run lint:strings && npm run typecheck && npm run typecheck:next-test && npm test",
     "typecheck:next-test": "tsc -p test/tsconfig.next.json --noEmit",
-    "postinstall": "node scripts/patch-apple-blur.mjs && node scripts/patch-android-blur.mjs && node scripts/patch-android-reader.mjs",
+    "postinstall": "node scripts/patch-apple-blur.mjs && node scripts/patch-android-blur.mjs && node scripts/patch-android-reader.mjs && node scripts/patch-tvos-focus-occlusion.mjs",
     "test:apple-blur-patch": "node --test test/apple-blur-patch.test.mjs",
     "test:android-blur-patch": "node --test test/android-blur-patch.test.mjs",
     "test:android-package": "node --test test/package-android-emulator.test.mjs"
