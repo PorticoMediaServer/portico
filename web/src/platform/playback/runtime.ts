@@ -16,6 +16,7 @@ import {SessionsClient} from '@core/playback-v1/sessions.ts';
 import type {CatalogueSelectionQueuePort} from '@core/catalogue-selection.ts';
 import {QueueClient, type SegmentInput} from '@core/playback-v1/queue.ts';
 import {V1ChannelControl} from '@core/playback-v1/channel-control.ts';
+import {serverNow} from '@core/server-clock.ts';
 import {ownedWebChannels} from './channel-start-binding.ts';
 import type {WebStartRegistration} from './preparing-start.ts';
 import type {HomeSelectionPlaybackPort, HomeSelectionPlaybackRequest} from '@core/home-selection/types.ts';
@@ -230,7 +231,9 @@ export class WebShellPlaybackRuntime {
     this.equalizerPort = environment.equalizerPort;
     this.capabilityPublisher = new CapabilityPublisher(localV1Http(source.api), () => JSON.stringify([this.authority.serverId, this.authority.accountId, this.authority.profileId, this.authority.epoch]));
     const inner = localV1Http(source.api);
-    this.channelControl = new V1ChannelControl({events: source.events, http: {send: request => inner.send(request.method === 'DELETE' ? request : {...request, signal: request.signal ? AbortSignal.any([request.signal, this.life.signal]) : this.life.signal})}, key: environment.key, now: environment.timers?.now});
+    this.channelControl = new V1ChannelControl({events: source.events, http: {send: request => inner.send(request.method === 'DELETE' ? request : {...request, signal: request.signal ? AbortSignal.any([request.signal, this.life.signal]) : this.life.signal})}, key: environment.key, now: environment.timers?.now,
+      // A browser plays a channel's HLS, never a live source's own MPEG-TS; the server converts it for a browser (11 rule 23).
+      serverNow: () => serverNow(), plays: presentation => !(presentation.mode === 'live' && presentation.route === 'original')});
     // This is the exact device-queue scope V1QueuePlayer exposes; these are its existing v1
     // controller values, never a Cast/receiver identity or a newly invented server resource.
     this.dock = new PlaybackDock(queueScope({...source.authority, controllerId: 'v1', controllerEpoch: 'v1', commandLaneId: 'v1'}), localScope);
@@ -717,7 +720,7 @@ export class WebShellPlaybackRuntime {
    * belongs to the player, so a page refreshing underneath it does not hide the failure. A start
    * superseded by a newer press, stopped or cancelled stays quiet, and a session failure the
    * player already shows is not shown twice. Either way the toast stays quiet. */
-  private reportStartProblem(error: unknown, display: WebPlaybackStartDisplay | undefined, retry: () => Promise<void>, serial: number): 'shown' | 'quiet' | 'unhandled' {
+  private reportStartProblem(error: unknown, display: WebPlaybackStartDisplay | undefined, retry: () => Promise<void>, serial: number, sentence?: string): 'shown' | 'quiet' | 'unhandled' {
     if (this.disposed) return 'unhandled';
     const value = error as {name?: unknown; code?: unknown; message?: unknown} | null;
     const code = typeof value?.code === 'string' && value.code ? value.code
@@ -726,7 +729,7 @@ export class WebShellPlaybackRuntime {
     if (serial !== this.operation || value?.name === 'AbortError' || code === 'stale_selection_context') return 'quiet';
     // A refused session already draws its own failure in the player.
     if (this.stack.startFailure?.isCurrent()) return 'quiet';
-    const view: WebPlaybackStartTimedOut = Object.freeze({key: String(++this.startingKeys), ...(code === 'playback_start_timeout' ? {} : {code}), ...(display ? {display} : {}),
+    const view: WebPlaybackStartTimedOut = Object.freeze({key: String(++this.startingKeys), ...(code === 'playback_start_timeout' ? {} : {code}), ...(display ? {display} : {}), ...(sentence ? {sentence} : {}),
       retry: async () => {if (this.startTimedOut !== view) return; this.startTimedOut = undefined; this.sync(); await retry();},
       close: () => {if (this.startTimedOut === view) {this.startTimedOut = undefined; this.sync();}}});
     this.startTimedOut = view; this.sync();
@@ -1190,13 +1193,15 @@ export class WebShellPlaybackRuntime {
     check();
     if (!channel.tuneAvailable || channel.tuneUnavailableReason || !['live-source', 'library-channel'].includes(channel.provenance)
       || ![channel.id, channel.sourceId, channel.generation].every(value => typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\r\n]/.test(value))) problem('invalid_channel_target');
-    const value = Object.freeze({...channel}), reference = Object.freeze({kind: value.provenance, sourceId: value.sourceId, channelId: value.id, generation: value.generation});
+    const value = Object.freeze({...channel}), reference = Object.freeze({kind: value.provenance, sourceId: value.sourceId, channelId: value.id, generation: value.generation, name: value.name});
     const serial = ++this.operation;
     const finishRetention = this.retainMediaStart(context.signal, () => serial === this.operation);
     // The channel's own name is the only fact a guide start has; no art is invented.
     const subject = {kind: 'channel' as const, id: value.id, sourceId: value.sourceId, channelName: value.name};
     const starting = this.beginStarting({subject}, () => this.playFromGuide(value, this.retryLifetime()), {watchdog: false}), stopped = new AbortController();
     starting.stopWith(() => stopped.abort());
+    // The channel's own words for a start that could not play (every tuner busy, a stream this browser cannot play yet).
+    let said: string | undefined;
     try {
       const stack = this.replace();
       starting.attach(stack);
@@ -1213,12 +1218,18 @@ export class WebShellPlaybackRuntime {
         await stack.service.playChannel(reference, {signal: lifetime, isCurrent: current});
         if (!current()) problem('stale_selection_context');
         const state = stack.service.getSnapshot();
-        if (state.phase === 'error' || !state.channel) problem('channel_playback_failed');
+        if (state.phase === 'error' || !state.channel) {said = state.error || undefined;problem('channel_playback_failed');}
         starting.accepted(); starting.stopWith(abandon);
         this.sync();
       } catch (error) { cancel(); throw error; }
       finally {lifetime.removeEventListener('abort', cancel);}
-    } catch (error) {starting.end(); if (stopped.signal.aborted) throw startStopped(); throw error;}
+    } catch (error) {
+      const display = starting.display();
+      starting.end(); if (stopped.signal.aborted) throw startStopped();
+      // Drawn in the player, with Try again, as a title's refused start is; never a bare toast.
+      const outcome = this.reportStartProblem(error, display, () => this.playFromGuide(value, this.retryLifetime()), serial, said);
+      throw outcome === 'unhandled' ? error : markPresentedInPlayer(error);
+    }
     finally {finishRetention();}
   }
 

@@ -6,7 +6,7 @@ import {useLocation, useSearch} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import {clampGuideStart, guideDayMenu, guideNowStart, guideRange, localDayStart, legacyChannel, legacyChannelRow, legacyProgram, pxPerMsFor, type GuideChannelRow, type GuideProgram} from '@core/guide/index.ts';
 import {dayPrimeTime} from '@core/channel-guide.ts';
-import {liveChannel} from '@core/guide/next-source.ts';
+import {liveChannel, liveGuideChannel} from '@core/guide/next-source.ts';
 import type {GuideSourceSummaries, GuideSourceSummary} from '@core/guide/directory.ts';
 import type {LegacyGuideOptions} from '@core/guide/legacy-source.ts';
 import {dependsOn} from '@core/freshness-hub.ts';
@@ -50,6 +50,11 @@ const noFailure = () => undefined;
 /** The sources the guide shows: the switcher's one source, or every source of the chosen kind. */
 function selectGuideSources(sources: readonly GuideSourceSummary[] | undefined, search: LiveScreenSearch): readonly GuideSourceSummary[] {
   return sources?.filter(source => (!search.sourceId || source.id === search.sourceId) && (!search.kind || search.kind === 'all' || source.provenance === search.kind)) ?? [];
+}
+/** The channel the player starts: a new-server row as its guide channel, an old-guide row as it was read. */
+function playableChannel(options: LegacyGuideOptions, row: GuideChannelRow) {
+  const channel = admittedChannel(options, row) ? liveGuideChannel(row) ?? legacyChannel(row) : undefined;
+  return channel && channel.tuneAvailable && !channel.tuneUnavailableReason ? channel : undefined;
 }
 function admittedChannel(options: LegacyGuideOptions, row: GuideChannelRow) {
   // A new-server row is one it answered for the channels asked for: its source and group are the server's own filters.
@@ -251,8 +256,16 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
   if (!lease) return null;
   if (authorityFailure) return <ScreenProblem context={lease.screen} error={authorityFailure} retry={() => {if (context.isCurrent()) setReopen(value => value + 1);}}/>;
   if (!lease.live || !lease.life.current() || !lease.routeCurrent()) return null;
-  // Watching a channel moves with the player (Watch live: a playback session for the channel). Until then the guide offers no
-  // Watch, and an On now card opens its programme.
+  // Watching a channel is the ordinary player (rule 22): a new-server row is started by its id, an old-guide row as before.
+  const play = (channel: GuideChannelRow, admission?: SelectionAdmission) => {
+    const actual = playableChannel(lease.options, channel), playback = lease.playbackOwner;
+    if (!actual || !playback || !admission || admission.row !== channel) return;
+    const current = () => lease.live && lease.life.current() && lease.routeCurrent() && admission.row === channel
+      && admission.current() && !!playableChannel(lease.options, channel);
+    if (!current()) return;
+    void playback.playFromGuide(actual, {signal: lease.life.signal(), isCurrent: current}).catch(lease.screen.effects.reportError);
+  };
+  const onPlay = lease.playbackOwner ? play : undefined;
   const sources = summary?.lease === lease ? summary.value.sources : undefined;
   const selectedSources = selectGuideSources(sources, search);
   const groupCounts = new Map<string, number>();
@@ -303,8 +316,10 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
           summary={hasSources ? {name: sourceName ?? t('channels.all'), ...(snapshot.total !== undefined ? {channels: snapshot.total} : {}), ...(throughDay ? {through: t('next.live.guideThrough', {day: throughDay})} : {})} : undefined}
           onTabChange={() => {if (context.isCurrent()) void enterRecordings(JSON.parse(searchKey), 'upcoming').catch(context.effects.reportError);}}
           chips={chips}
+          onPlay={onPlay}
           onNow={width >= 1024 && hasSources ? <LiveOnNow owner={lease.bindings} now={now} timezone={timezone} artwork={context.artwork} reducedMotion={appearance.reducedMotion}
-            onOpen={(channel, programme, witness) => {if (!witness || witness.row !== channel || !witness.current() || !admittedChannel(lease.options, channel)) return;selectRow({lease, channel, programme, admission: witness});}}/> : undefined}
+            onOpen={(channel, programme, witness) => {if (!witness || witness.row !== channel || !witness.current() || !admittedChannel(lease.options, channel)) return;selectRow({lease, channel, programme, admission: witness});}}
+            onPlay={onPlay}/> : undefined}
           day={{label: t('guide.day'), value: String(localDayStart(start, timezone)),
             options: days.map(day => ({value: String(day), label: day === today ? t('guide.today') : new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {weekday: 'long', timeZone: timezone}).format(day)})),
             onChange: value => {const day = days.find(day => String(day) === value);if (day === undefined) return;
@@ -329,7 +344,7 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
           onVisibleWindow={onVisibleWindow} onRetry={() => {if (lease.life.current()) lease.bindings.store.retry();}}/>}
     {currentSelection && <ProgrammePanel key={JSON.stringify([currentSelection.selection.lease.id, currentSelection.selection.channel.sourceId, currentSelection.selection.channel.id, currentSelection.selection.programme?.id, currentSelection.selection.programme?.start])} context={lease.screen} admission={currentSelection.admission} channel={currentSelection.selection.channel} programme={currentSelection.selection.programme}
       now={now} timezone={timezone} open onClose={() => closeSelection(currentSelection.selection)}
-      onChanged={onChanged} onViewRecordings={() => openRecordings(currentSelection.selection)}/>}
+      onWatch={onPlay ? () => onPlay(currentSelection.selection.channel, currentSelection.admission) : undefined} onChanged={onChanged} onViewRecordings={() => openRecordings(currentSelection.selection)}/>}
   <ToastHost toast={visibilityToast?.lease === lease && lease?.life.current() && lease.routeCurrent() ? visibilityToast.toast : null} onDismiss={() => setVisibilityToast(undefined)}/></>;
 }
 const recordingsNav: RecordingsNavigation = {state: () => router.state.location.state, back: () => router.history.back(),

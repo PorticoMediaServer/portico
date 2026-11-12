@@ -42,7 +42,9 @@ export type WebPlaybackStarting = Readonly<{key: string; display: WebPlaybackSta
  * its deadline, or one refused before its session existed (the item, its options or the
  * session request failed). Drawn inside the player with the reason (`code`, absent for the
  * deadline), the title's picture (`display`), Try again and Back. */
-export type WebPlaybackStartTimedOut = Readonly<{key: string; retry: () => Promise<void>; close: () => void; code?: string; display?: WebPlaybackStartDisplay}>;
+export type WebPlaybackStartTimedOut = Readonly<{key: string; retry: () => Promise<void>; close: () => void; code?: string; display?: WebPlaybackStartDisplay;
+  /** The start's own plain words, when it has them (a channel: every tuner busy and what is using them). */
+  sentence?: string}>;
 export type WebPlaybackScreenLifetime = Readonly<{signal: AbortSignal; isCurrent(): boolean}>;
 export type WebPlaybackSettings = Readonly<{
   audiobookPreferences?: () => AudiobookPreferences;
