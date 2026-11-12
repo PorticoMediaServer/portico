@@ -712,9 +712,11 @@ follows its libraries).
 | `POST /v1/admin/support-export` | Owner | Prepare and download a support export in one request; it is not kept |
 | `POST /v1/admin/notifications` | Owner for `audience=everyone`; a key allowed Administer for `audience=admins` | Message everyone; or a tool's notice to the owner and administrators |
 | `PUT /v1/admin/libraries/order` | Owner | The order of libraries everyone sees (counted with Libraries) |
+| `GET /v1/admin/skipped` | Owner | Files skipped (Troubleshooting): every library's files the last scans could not use, in one list, 40 at a time by cursor, each with its library and the reason (counted with Libraries) |
 | `GET /v1/admin/filesystem` | Owner | The folder explorer: folders under a path, 200 at a time, with `writable` on request (counted with Libraries) |
 
-The owner's read of files Portico could not prepare is a library's skipped files (Libraries);
+The owner's read of files Portico could not prepare is a library's skipped files (Libraries), or
+every library's at once (`GET /v1/admin/skipped`);
 remembered playback problems are under Playback. There is no history of failed conversions
 beyond the log and a failed task.
 
