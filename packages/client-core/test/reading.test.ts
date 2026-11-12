@@ -10,10 +10,10 @@ const chapter = new TextEncoder().encode('<html xmlns="http://www.w3.org/1999/xh
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), {status, headers: {'Content-Type': 'application/json'}});
 type Call = {url: URL; init: RequestInit; body?: Record<string, unknown>};
 
-function server(format: 'epub' | 'cbz' | 'pdf' = 'epub') {
+function server(format: 'epub' | 'cbz' | 'pdf' = 'epub', saveSize?: number) {
   const calls: Call[] = [];
   let address = 'b.first', position = '', annotations: Record<string, unknown>[] = [];
-  const book = () => ({itemId: 'itm_book', version: 'med_one', versions: [{id: 'med_one', format}], format, fingerprint, size: format === 'epub' ? 4096 : 131072,
+  const book = () => ({itemId: 'itm_book', version: 'med_one', versions: [{id: 'med_one', format}], format, fingerprint, size: saveSize ?? (format === 'epub' ? 4096 : 131072),
     mediaUrl: '/v1/media/' + address, saveUrl: '/v1/media/' + address + '/source?save=1',
     ...(format === 'epub' ? {parts: [{path: 'OEBPS/chapter 1.xhtml', type: 'application/xhtml+xml', size: chapter.length}], spine: ['OEBPS/chapter 1.xhtml'],
       contents: [{title: 'Chapter One', part: 'OEBPS/chapter 1.xhtml', depth: 0}]} : {}),
@@ -23,6 +23,10 @@ function server(format: 'epub' | 'cbz' | 'pdf' = 'epub') {
     calls.push({url, init, body});
     const path = decodeURIComponent(url.pathname);
     if (path === '/v1/items/itm_film/book') return json({error: {code: 'not_found', message: 'This is not available.', retry: false}}, 404);
+    if (path === '/v1/media/b.first/source' && saveSize) {
+      let left = saveSize; const chunk = new Uint8Array(65536);
+      return new Response(new ReadableStream({pull(controller) {if (!left) {controller.close();return;} const n = Math.min(left, chunk.length);controller.enqueue(chunk.subarray(0,n));left -= n;}}), {headers: {'Content-Disposition': 'attachment; filename=book.epub'}});
+    }
     if (path === '/v1/items/itm_book/book') return json(book());
     if (path === '/v1/items/itm_book') return json({id: 'itm_book', title: 'A Book', state: {position, watched: false, updatedAt: '2026-11-11T00:00:00Z'}});
     if (path === '/v1/items/itm_book/state') { if (typeof body?.position === 'string') position = body.position; return json({position, watched: body?.watched === true}); }
@@ -68,13 +72,13 @@ test('a place is saved through the state route with its file, resumes exactly in
   comic.place = JSON.stringify({format: 'cbz', pageIndex: 9, progression: 0.5, fingerprint: 'ffffffffffffffff'});
   const opened = await comic.client.open({itemId: 'itm_book', sourceId: 'med_one'});
   const near = await opened.progress();
-  assert.equal(near.progress?.stale, false);
+  assert.equal(near.progress?.stale, true);
   assert.equal(near.progress?.location.pageIndex, 2, 'half way through four pages');
   await opened.saveProgress({expectedRevision: 0, location: {format: 'cbz', pageIndex: 3, progression: 1}});
   assert.equal(JSON.parse(comic.place).atEnd, true, 'the last page marks the book read');
 });
 
-test('annotations made in this file are shown, those from an earlier copy are kept back, and a highlight is sent whole', async () => {
+test('annotations made in this file are shown, those from an earlier copy stay listed with their provenance, and a highlight is sent whole', async () => {
   const s = server();
   s.annotations = [
     {id: 'h1', kind: 'highlight', color: 'green', location: JSON.stringify({format: 'epub', cfi: 'epubcfi(/6/2!/4/2,/1:0,/1:5)', progression: 0.1}), madeOn: fingerprint,
@@ -84,7 +88,12 @@ test('annotations made in this file are shown, those from an earlier copy are ke
   ];
   const session = await s.client.open({itemId: 'itm_book', sourceId: 'med_one'});
   const page = await session.annotations();
-  assert.deepEqual(page.entries.map(entry => [entry.id, entry.colour, entry.text]), [['h1', 'green', 'It was']]);
+  assert.deepEqual(page.entries.map(entry => [entry.id, entry.colour, entry.text]), [['h1', 'green', 'It was'], ['h2', 'pink', 'elsewhere']]);
+  assert.equal(page.entries[1].earlierCopy, true);
+  await assert.rejects(session.mutateAnnotation({...page.entries[1], operation: 'upsert', expectedRevision: page.revision}),
+    (error: unknown) => error instanceof ReadingError && error.code === 'invalid_request');
+  await session.mutateAnnotation({id: page.entries[1].id, operation: 'delete', expectedRevision: page.revision});
+  assert.equal(s.calls.at(-1)?.init.method, 'DELETE');
   const long = 'word '.repeat(1500);
   await session.mutateAnnotation({operation: 'upsert', expectedRevision: page.revision, id: 'h3', kind: 'highlight', colour: 'yellow', text: long, note: '',
     location: {format: 'epub', cfi: 'epubcfi(/6/2!/4/2,/1:0,/1:9)', progression: 0.3}});
@@ -92,4 +101,13 @@ test('annotations made in this file are shown, those from an earlier copy are ke
   assert.equal(sent.init.method, 'PUT');
   assert.equal(sent.url.pathname, '/v1/items/itm_book/annotations/h3');
   assert.deepEqual({...sent.body, location: undefined}, {kind: 'highlight', color: 'yellow', location: undefined, madeOn: fingerprint, progress: 0.3, text: long, note: ''});
+});
+
+
+test('saving an original above 64 MB streams each chunk to the platform without a file-size cap', async () => {
+  const size = 65 * 1024 * 1024, s = server('epub', size);
+  const session = await s.client.open({itemId: 'itm_book', sourceId: 'med_one'});
+  let written = 0;
+  await session.saveFileTo('01234567-89ab-cdef-0123-456789abcdef', async chunk => {assert.ok(chunk.length <= 65536); written += chunk.length;});
+  assert.equal(written, size);
 });

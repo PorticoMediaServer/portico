@@ -126,22 +126,24 @@ func (req ItemQueryRequest) query() (db.ItemQuery, error) {
 // GET /v1/items/{id}, and on a list of one person's titles (GET /v1/items?person=) that
 // person's credits on the title: every role they have on it, in billing order.
 type Item struct {
-	ID            string            `json:"id"`
-	Kind          string            `json:"kind"`
-	Title         string            `json:"title"`
-	Year          int               `json:"year,omitempty"`
-	ReleaseDate   string            `json:"releaseDate,omitempty"`
-	ParentID      string            `json:"parentId,omitempty"`
-	RootID        string            `json:"rootId,omitempty"`
-	Index         *int              `json:"index,omitempty"`
-	ParentIndex   *int              `json:"parentIndex,omitempty"`
-	DurationMs    int64             `json:"durationMs,omitempty"`
-	ContentRating string            `json:"contentRating,omitempty"`
-	Ratings       *Ratings          `json:"ratings,omitempty"`
-	AddedAt       string            `json:"addedAt"`
-	Images        map[string]string `json:"images"`
-	Counts        *ItemCounts       `json:"counts,omitempty"`
-	State         ItemState         `json:"state"`
+	PublicationType string            `json:"publicationType,omitempty"`
+	WordCount       *int              `json:"wordCount,omitempty"`
+	ID              string            `json:"id"`
+	Kind            string            `json:"kind"`
+	Title           string            `json:"title"`
+	Year            int               `json:"year,omitempty"`
+	ReleaseDate     string            `json:"releaseDate,omitempty"`
+	ParentID        string            `json:"parentId,omitempty"`
+	RootID          string            `json:"rootId,omitempty"`
+	Index           *int              `json:"index,omitempty"`
+	ParentIndex     *int              `json:"parentIndex,omitempty"`
+	DurationMs      int64             `json:"durationMs,omitempty"`
+	ContentRating   string            `json:"contentRating,omitempty"`
+	Ratings         *Ratings          `json:"ratings,omitempty"`
+	AddedAt         string            `json:"addedAt"`
+	Images          map[string]string `json:"images"`
+	Counts          *ItemCounts       `json:"counts,omitempty"`
+	State           ItemState         `json:"state"`
 	// LibraryID is the library the item is in, on every card and every page.
 	LibraryID string `json:"libraryId"`
 	// EntryID is the entry's id in a list read in its own order: what a move or a removal names.
@@ -487,6 +489,9 @@ func itemShape(it db.Item) Item {
 		ParentID: it.ParentPublicID, RootID: it.RootPublicID, Index: it.IndexNumber, ParentIndex: it.ParentIndex,
 		DurationMs: it.DurationMS, ContentRating: it.ContentRating, AddedAt: timeString(it.AddedAt), Images: imageMap(it.Images),
 		State: stateShape(it.State), LibraryID: it.LibraryID}
+	if it.Kind.Reading() {
+		out.PublicationType, out.WordCount = db.PublicationName(it.Publication), it.WordCount
+	}
 	if it.EntryID != 0 {
 		out.EntryID = db.EntryID(it.EntryID)
 	}

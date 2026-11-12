@@ -234,6 +234,11 @@ CREATE TABLE items (
   local_fields     TEXT,
   refreshed_at     INTEGER,
   refresh_due      INTEGER,
+  -- A book's or comic's publication: 0 a book, 1 a magazine, 2 a newspaper. Only the file's own
+  -- explicit field (an EPUB's dc:type, a comic's ComicInfo Format) or the owner's edit sets it; an
+  -- issue's date is its release_date.
+  word_count       INTEGER,
+  publication      INTEGER NOT NULL DEFAULT 0,
   child_count      INTEGER NOT NULL DEFAULT 0,
   leaf_count       INTEGER NOT NULL DEFAULT 0,
   -- The labels that cover the item: its own, its season's or album's and its show's or

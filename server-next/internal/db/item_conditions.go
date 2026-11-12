@@ -401,6 +401,24 @@ func conditionTest(w *query, field, value string) (string, error) {
 		return between(w, expr, low, high, from != "", to != ""), nil
 	}
 	if expr, ok := conditionDays[field]; ok {
+		if field == "released" && (len(from) == 4 || len(from) == 7 || len(to) == 4 || len(to) == 7) {
+			for _, value := range []string{from, to} {
+				if value == "" {
+					continue
+				}
+				layout := map[int]string{4: "2006", 7: "2006-01", 10: time.DateOnly}[len(value)]
+				if _, err := time.Parse(layout, value); err != nil {
+					return "", invalid("Give a day such as 2024-03-01, or a range such as 2024-01-01..2024-12-31.")
+				}
+			}
+			upper := to
+			if len(to) == 4 {
+				upper += "-99-99"
+			} else if len(to) == 7 {
+				upper += "-99"
+			}
+			return between(w, expr, from, upper, from != "", to != ""), nil
+		}
 		var first, last time.Time
 		var errFrom, errTo error
 		if from != "" {

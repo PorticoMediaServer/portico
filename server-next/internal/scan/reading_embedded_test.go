@@ -176,3 +176,26 @@ func TestScanAllFilesReadsABooksOwnDetailsAgain(t *testing.T) {
 		t.Fatalf("after Scan all files: year %d, credits %v", d.Year, creditNames(d))
 	}
 }
+
+// Only a file's own explicit field makes a title a magazine or a newspaper: never a folder's name,
+// the title's words or a date in its name; and two fields that disagree say nothing.
+func TestOnlyTheFileSaysItIsAPeriodical(t *testing.T) {
+	f := newFixture(t, db.LibraryBooks)
+	f.put("Wired Magazine/Wired Magazine 2026-11.epub", epub(t, "3.0", `<dc:title>Wired Magazine November</dc:title>`))
+	f.put("Mixed/mixed.epub", epub(t, "3.0", `<dc:title>Mixed</dc:title><dc:type>magazine</dc:type><dc:type>newspaper</dc:type>`))
+	f.put("Real/real.epub", epub(t, "3.0", `<dc:title>Real Issue</dc:title><dc:type>Magazine</dc:type>`))
+	f.scan()
+	f.titles(db.KindBook) // loads the library the query names
+	magazine := db.PublicationMagazine
+	page, err := f.d.Items(ctx, f.viewer, db.ItemQuery{Library: f.lib.PublicID, Kinds: []db.ItemKind{db.KindBook}, Publication: &magazine, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]int{}
+	for _, it := range page.Items {
+		got[it.Title]++
+	}
+	if len(got) != 1 || got["Real Issue"] != 1 {
+		t.Fatalf("magazines: %v (want only the file that says so)", got)
+	}
+}

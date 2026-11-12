@@ -23,7 +23,39 @@ func EPUBPackage(raw []byte) (map[string]string, error) {
 		}
 		raw = meta
 	}
-	return parseOPF(raw)
+	out, err := parseOPF(raw)
+	if err != nil {
+		return nil, err
+	}
+	// dc:type, when it says magazine or newspaper. The parser above has the document already
+	// checked; read again for this one list.
+	if root, err := parseAudioXML(raw); err == nil {
+		var types []string
+		for _, node := range root.all("type") {
+			types = append(types, node.text)
+		}
+		if p := explicitPublication(types); p != "" {
+			out["publication"] = p
+		}
+	}
+	return out, nil
+}
+
+// explicitPublication is "magazine" or "newspaper" when every value the file gives says that one,
+// and "" otherwise: a book, a value it does not know, or values that disagree.
+func explicitPublication(values []string) string {
+	found := ""
+	for _, v := range values {
+		v = strings.ToLower(strings.TrimSpace(v))
+		if v == "" {
+			continue
+		}
+		if v != "magazine" && v != "newspaper" || found != "" && found != v {
+			return ""
+		}
+		found = v
+	}
+	return found
 }
 
 // ComicInfo reads a comic's ComicInfo.xml: its title, series and number, writers, summary,
@@ -52,6 +84,16 @@ func ComicInfo(raw []byte) (map[string]string, error) {
 	}
 	if genres := uniqueAudioNames(strings.Split(root.first("genre"), ",")); len(genres) > 0 {
 		out["genres"] = audioList(genres)
+	}
+	if day := root.first("day"); out["date"] != "" && len(out["date"]) == 7 && len(day) > 0 && len(day) <= 2 {
+		out["date"] += "-" + strings.Repeat("0", 2-len(day)) + day
+	}
+	var formats []string
+	for _, node := range root.all("format") {
+		formats = append(formats, node.text)
+	}
+	if p := explicitPublication(formats); p != "" {
+		out["publication"] = p
 	}
 	return out, nil
 }
