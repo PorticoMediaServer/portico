@@ -71,7 +71,7 @@ async function fixture(t: TestContext, options: {local?: {record?: SetupRecord};
 const own = (phase: string) => ({status: 'in_progress', setup: {variant: phase, requestId: REQUEST, revision: '2'}});
 const hostedRecord: SetupRecord = {version: 2, serverId: claim.serverId, requestId: REQUEST, setupToken: 'saved-setup-token', tokenAt: 1, name: 'Den', authMode: 'hosted'};
 
-test('a public http address is refused for Portico Accounts before any start request', async t => {
+test('both kinds of sign-in are set up at a public http address: the setup code is asked, nothing is refused (decision O11)', async t => {
   const f = await fixture(t);
   const make = () => createWebSetupAdapter({hostedOrigin: claim.audience, pageOrigin: () => 'http://8.8.8.8:32500',
     pair: async () => ({server: {id: claim.serverId, name: 'Den'} as never, api: new HttpLocalApi('http://8.8.8.8:32500', '', async () => {throw new Error('must not send');}), pin: {serverId: claim.serverId, publicKey: claim.publicKey, fingerprint: 'f'}, dispose: () => {}}),
@@ -79,6 +79,6 @@ test('a public http address is refused for Portico Accounts before any start req
     restore: async () => undefined, remember: async () => {}, store: () => f.store, installationId: () => installationId, navigate: () => {}});
   const adapter = make(), local = make();
   t.after(() => {adapter.dispose(); local.dispose();});
-  assert.deepEqual(await adapter.ports.start(f.context(), undefined, true), {kind: 'addressNotAllowed'});
-  assert.deepEqual(await local.ports.start(f.context()), {kind: 'setupCodeRequired'}, 'Local sign-in asks for the setup code instead');
+  assert.deepEqual(await adapter.ports.start(f.context()), {kind: 'setupCodeRequired'});
+  assert.deepEqual(await local.ports.start(f.context()), {kind: 'setupCodeRequired'});
 });

@@ -18,7 +18,8 @@ export type SetupKind = 'hosted' | 'local';
 /** `choose` offers both kinds; `hosted` and `local` are the two forms. Arriving in `form` always shows `choose`. */
 export type SetupFormMode = 'choose' | SetupKind;
 export type SetupRefusal = 'not_local_source' | 'address_not_allowed' | 'already_set_up';
-export type SetupOutcome = 'expired' | 'superseded' | 'cancelled' | 'approval_lapsed';
+/** `not_approved`: the Portico Account didn't approve this server (declined, ran out, or the person came back without approving). */
+export type SetupOutcome = 'expired' | 'superseded' | 'cancelled' | 'approval_lapsed' | 'not_approved';
 export type SetupError = Readonly<{code: string; retryable: boolean; retryAfterMs?: number}>;
 /** How far the server has gone with this person's attempt, which decides what Back may do:
  * `none` nothing to abandon; `unapproved` Back sends S8 abandon; `committed` the server won't take it, so Back shows its phase. */
@@ -106,6 +107,11 @@ export type SetupInput =
   | Readonly<{kind: 'addressNotAllowed'}>
   | Readonly<{kind: 'alreadyComplete'}>
   | Readonly<{kind: 'setupInProgress'; retryAfterSeconds?: number}>
+  // The Portico Accounts approval (rebuilt server): it came back to this page or was answered while waiting, it is still
+  // waiting (asked again after `pollAfterMs`), or it was not given (declined, ran out, or the person came back without it).
+  | Readonly<{kind: 'approvalReturned'}>
+  | Readonly<{kind: 'approvalWaiting'; pollAfterMs?: number}>
+  | Readonly<{kind: 'approvalNotGiven'}>
   // effect results
   | Readonly<{kind: 'startDone'}>
   | Readonly<{kind: 'initializeDone'}>
@@ -233,6 +239,8 @@ function connecting(view: SetupView, i: SetupInput, now: number): SetupStep {
     case 'tokenRefused': return go(form(''), RETIRE);
     case 'notLocalSource': return go({kind: 'refused', reason: 'not_local_source'});
     case 'alreadyComplete': return alreadySetUp();
+    case 'approvalReturned': return go({kind: 'admitting'}, [{kind: 'exchange'}]);
+    case 'approvalNotGiven': return go(ended('not_approved', ''));
     default: return stay(view);
   }
 }
@@ -319,6 +327,9 @@ function awaitingApproval(view: Extract<SetupView, {kind: 'awaiting_approval'}>,
       return reconcile(i, now);
     }
     case 'readFailed': return go({...view, polls: view.polls + 1}, [readAfter(view.polls + 1, i.error.retryAfterMs)]);
+    case 'approvalReturned': return go({kind: 'admitting'}, [{kind: 'exchange'}]);
+    case 'approvalWaiting': return go({...view, polls: view.polls + 1}, [readAfter(view.polls + 1, i.pollAfterMs)]);
+    case 'approvalNotGiven': return go(ended('not_approved', view.name), [{kind: 'cancel-pending'}]);
     case 'tokenRefused': return superseded(view.name);
     case 'alreadyComplete': return alreadySetUp();
     case 'back': return leave('unapproved', view.name);
@@ -377,7 +388,10 @@ function busy(view: Extract<SetupView, {kind: 'busy_elsewhere'}>, i: SetupInput,
 function admitting(view: Extract<SetupView, {kind: 'admitting'}>, i: SetupInput): SetupStep {
   switch (i.kind) {
     case 'exchangeDone': return go(view, [{kind: 'adopt-owner'}]);
-    case 'exchangeRefused': return i.lapsed ? go({kind: 'renewing'}, [{kind: 'renew'}]) : failedStep(i.error, '', 'committed', view, [{kind: 'exchange'}]);
+    // A refused approval can't be tried again: it says so, with the way back to choose again.
+    case 'exchangeRefused': return i.error.code === 'approval_declined' ? go(ended('not_approved', ''), RETIRE)
+      : i.lapsed ? go({kind: 'renewing'}, [{kind: 'renew'}]) : failedStep(i.error, '', 'committed', view, [{kind: 'exchange'}]);
+    case 'alreadyComplete': return alreadySetUp();
     case 'ownerAdopted': return go({kind: 'library'}, RETIRE);
     case 'tokenRefused': return superseded('');
     case 'effectFailed':
@@ -425,7 +439,7 @@ export function stepSetup(view: SetupView, input: SetupInput, now: number): Setu
     case 'lockout': return lockout(view, input);
     case 'ended':
       if (input.kind === 'startOver') return startOver(view.name);
-      return input.kind === 'back' || input.kind === 'startAgain' ? leave(view.outcome === 'superseded' ? 'none' : 'unapproved', view.name) : stay(view);
+      return input.kind === 'back' || input.kind === 'startAgain' ? leave(view.outcome === 'superseded' || view.outcome === 'not_approved' ? 'none' : 'unapproved', view.name) : stay(view);
     case 'unknown': return input.kind === 'retry' ? go({kind: 'connecting'}, [{kind: 'read-state'}]) : stay(view);
     case 'library':
       if (input.kind === 'addLibrary') return go(view, [{kind: 'add-library'}]);

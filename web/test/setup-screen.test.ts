@@ -54,6 +54,10 @@ test('each drawn setup state shows its own catalogue words and only the actions 
   has(render({kind: 'busy_elsewhere', polls: 0}), t('web.setup.inProgressNoTime'), 'busy');
   // An attempt that ended (expired) before an approval.
   has(render({kind: 'ended', outcome: 'expired', name: 'Den'}), t('web.setup.earlierExpired'), 'ended');
+  // Not approved with a Portico Account: it says so in plain words, with Try again and a way straight to local sign-in.
+  const notApproved = render({kind: 'ended', outcome: 'not_approved', name: 'Den'});
+  for (const text of [t('web.setup.notApproved', {server: 'Den'}), again, t('web.setup.useLocal')]) has(notApproved, text, 'not approved');
+  lacks(notApproved, t('web.setup.notOnNetwork'), 'not approved is not the address refusal');
   // Started again after the Portico Account declined: the same page with one line, Continue and Back as ever.
   const declined = render({kind: 'awaiting_approval', name: 'Den', serverPhase: 'started', polls: 0, declined: true});
   has(declined, t('web.setup.declined'), 'declined'); has(declined, go, 'declined'); has(declined, back, 'declined');

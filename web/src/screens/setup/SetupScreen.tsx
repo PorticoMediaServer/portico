@@ -1,4 +1,4 @@
-import {useEffect, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {useEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {RadioGroup} from 'radix-ui';
 import {defaultI18n} from '@i18n';
 import type {LibraryContentApi} from '@core/library-content.ts';
@@ -51,16 +51,19 @@ export function SetupScreen(props: SetupScreenProps) {
   const steps = setupSteps({serverName: view.kind === 'library' && form.name?.trim() || serverName, mode, phase: view.kind === 'library' ? 'library' : 'form', local: mode === 'local',
     owner: form.username.trim() || undefined});
   const showSteps = view.kind === 'form' || view.kind === 'starting' || view.kind === 'library';
+  // "Use local sign-in" after a Portico Account didn't approve: back to the form, with local sign-in chosen there.
+  const wantLocal = useRef(false);
+  useEffect(() => {if (view.kind === 'form' && wantLocal.current) {wantLocal.current = false; controller.chooseKind('local');}}, [view, controller]);
   return <div className={styles.host}>
     {view.kind === 'library'
       ? <FirstLibrary controller={controller} library={library} setLibrary={setLibrary} serverName={serverName} folders={props.libraryFolders} busy={busy}/>
-      : <Stage view={view} controller={controller} form={form} setForm={setForm} name={name} mode={mode} library={library} setLibrary={setLibrary}
+      : <Stage view={view} controller={controller} form={form} setForm={setForm} name={name} mode={mode} library={library} setLibrary={setLibrary} wantLocal={wantLocal}
         serverName={serverName} folders={props.libraryFolders}/>}
     {showSteps ? <SetupSteps steps={steps} label={t('web.setup.stepsLabel')}/> : null}
   </div>;
 }
 
-function Stage({view, controller, form, setForm, name, mode, library, setLibrary, serverName, folders}: {view: SetupView; controller: SetupController; form: Form;
+function Stage({view, controller, form, setForm, name, mode, library, setLibrary, serverName, folders, wantLocal}: {view: SetupView; controller: SetupController; form: Form; wantLocal: {current: boolean};
   setForm: (update: (old: Form) => Form) => void; name: string; mode: 'hosted' | 'local'; library: Library; setLibrary: (update: (old: Library) => Library) => void;
   serverName: string; folders?: LibraryContentApi}) {
   const back = <Button variant="glass" size="hero" onClick={controller.back}>{t('action.back')}</Button>;
@@ -91,6 +94,10 @@ function Stage({view, controller, form, setForm, name, mode, library, setLibrary
     case 'busy_elsewhere':
       return <Message icon="i-clock" heading text={setupBusyMessage(view.retryAt)} actions={<>{startOver(true)}{back}</>}/>;
     case 'ended':
+      // Not approved with a Portico Account: nothing was saved; choose again, or go straight to local sign-in.
+      if (view.outcome === 'not_approved') return <Message icon="i-warn" heading text={setupEndedMessage(view.outcome, view.name || name)}
+        actions={<><Button variant="primary" size="hero" onClick={controller.startAgain}>{t('action.tryAgain')}</Button>
+          <Button variant="glass" size="hero" onClick={() => {wantLocal.current = true; controller.startAgain();}}>{t('web.setup.useLocal')}</Button></>}/>;
       return <Message icon={offer.offer ? 'i-clock' : 'i-warn'} heading text={setupEndedMessage(view.outcome, view.name || name)}
         actions={offer.offer ? <>{startOver(true)}{back}</> : <><Button variant="primary" size="hero" onClick={controller.startAgain}>{t('action.tryAgain')}</Button>{back}</>}/>;
     case 'failed': {
@@ -253,6 +260,7 @@ function SetupForm({controller, view, form, setForm, name, mode}: {controller: S
       {busy && <Button variant="glass" size="hero" onClick={controller.back}>{t('action.back')}</Button>}
     </div>
     <p className={styles.quiet}>{hosted ? t('web.setup.tabTrip') : t('web.setup.plainHttp')}</p>
+    {hosted && globalThis.location?.protocol === 'http:' && <p className={styles.quiet}>{t('web.setup.plainHttpPortico')}</p>}
   </form>;
 }
 
