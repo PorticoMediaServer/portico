@@ -20,7 +20,11 @@
 #   helper     compile portico-disc against those libraries
 #   configure  FFmpeg's configure step alone, checked against wanted/
 #   compile    ffmpeg and ffprobe
-#   package    the bundle, with its feature list checked against wanted/
+#   package    the bundle; on a machine of the bundle's own kind it is verified at once
+#   verify     the bundle's programs are run: they start, need no extra library, list every
+#              wanted feature, and the disc reader reads the fixture discs. A bundle built for
+#              another kind of processor (arm64, built on x86) is verified on a machine of
+#              that kind.
 set -euo pipefail
 shopt -s globstar nullglob
 
@@ -30,7 +34,8 @@ STAGE="${1:?usage: build.sh <stage> <platform>}"
 PLATFORM="${2:?usage: build.sh <stage> <platform>}"
 
 case "$PLATFORM" in
-    linux-x64) TARGET=linux64 ;;
+    linux-x64) TARGET=linux64 MACHINE=x86_64 ;;
+    linux-arm64) TARGET=linuxarm64 MACHINE=aarch64 ;;
     *) echo "build.sh: no build for $PLATFORM yet" >&2; exit 2 ;;
 esac
 VARIANT=gpl
@@ -72,6 +77,11 @@ prepare() {
 
     # FDK AAC is not redistributable in a GPL program. The server uses FFmpeg's own AAC encoder.
     rm "$BUILDER/scripts.d/50-fdk-aac-stripped.sh"
+    # Rockchip's two libraries (arm64 boards only) are left out until the licence file of
+    # rkrga has been read and there is a board to try them on. Such a board converts in
+    # software meanwhile.
+    # (Only where they would be built, so the x86 build plan and its saved layers stay as they are.)
+    [[ "$TARGET" == linuxarm64 ]] && rm "$BUILDER/scripts.d/50-rkmpp.sh" "$BUILDER/scripts.d/50-rkrga.sh"
 
     cp "$HERE"/recipes/*.sh "$BUILDER/scripts.d/"
     mkdir -p "$BUILDER/patches/portico"
@@ -408,11 +418,22 @@ case "$libs" in *dvdcss*|*aacs*|*bdplus*) echo "a decryption library is in the l
 $CC $CFLAGS -std=c11 -O2 -Wall -Wextra -Werror -D_FILE_OFFSET_BITS=64 -fPIE $(pkg-config --cflags $modules) \
     /disc/portico-disc.c -o /out/portico-disc $LDFLAGS -pie $libs
 EOF
-    local disc
+    if runs_here; then
+        read_fixture_discs "$WORK/out/portico-disc"
+    else
+        say "the helper is built for $MACHINE and this machine is $(uname -m): the verify stage reads the fixture discs with it"
+    fi
+}
+
+# Whether this machine can run the programs being built.
+runs_here() { [[ "$(uname -m)" == "$MACHINE" ]]; }
+
+read_fixture_discs() {
+    local helper="$1" disc
     for disc in bluray-two-clip-bdmv bluray-udf250.iso dvd-two-title-video-ts; do
-        "$WORK/out/portico-disc" probe "$ROOT/fixtures/discs/$disc" > "$WORK/out/probe.json" ||
+        "$helper" probe "$ROOT/fixtures/discs/$disc" > "$WORK/probe.json" ||
             fail "the helper could not read fixtures/discs/$disc"
-        say "helper read $disc: $(head -c 120 "$WORK/out/probe.json")"
+        say "helper read $disc: $(head -c 120 "$WORK/probe.json")"
     done
 }
 
@@ -481,12 +502,65 @@ package() {
     cp "$WORK/ffbuild/prefix/bin/ffmpeg" "$WORK/ffbuild/prefix/bin/ffprobe" "$WORK/out/portico-disc" "$bundle/bin/"
     cp "$SRC/COPYING.GPLv3" "$bundle/LICENSES/GPL-3.0.txt"
     [[ -d "$WORK/licences" ]] && cp -R "$WORK/licences/." "$bundle/LICENSES/"
+    [[ -s "$WORK/recipes.txt" ]] || plan
 
+    cat > "$bundle/NOTICE.md" <<EOF
+# Portico media tools ($PLATFORM)
+
+ffmpeg and ffprobe are FFmpeg built from jellyfin-ffmpeg $(lock tag) with Portico's patches.
+portico-disc is Portico's reader for Blu-ray and DVD folders and images. All three are
+licensed under the GNU General Public License, version 3 or later (LICENSES/GPL-3.0.txt).
+manifest.json lists every library built into them, with its licence and where its licence
+text is in the LICENSES folder. The complete source for these exact programs is offered with
+every Portico release that carries them. None of these programs can decrypt a commercial disc.
+EOF
+
+    python3 - "$bundle" "$PLATFORM" "$(lock tag)" "$HERE/licences.txt" "$WORK/library-versions.txt" "$WORK/recipes.txt" <<'EOF'
+import hashlib, json, pathlib, sys
+bundle, platform, tag, rows, versions = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4], pathlib.Path(sys.argv[5])
+# Only what this platform's build plan built: licences.txt has rows for every platform.
+built = {pathlib.Path(line.strip()).stem for line in pathlib.Path(sys.argv[6]).read_text().splitlines() if line.strip()}
+pins = {}
+if versions.is_file():
+    for line in versions.read_text().splitlines():
+        recipe, source, version = line.split('|')
+        pins.setdefault(recipe, []).append({'source': source, 'version': version})
+libraries = []
+for line in pathlib.Path(rows).read_text().splitlines():
+    if not line.strip() or line.startswith('#'):
+        continue
+    recipe, name, licence, use = [part.strip() for part in line.split('|')][:4]  # a fifth column names the licence text
+    if use.startswith('build only') or recipe not in built:
+        continue
+    texts = sorted(str(p.relative_to(bundle)) for p in (bundle / 'LICENSES' / recipe).glob('*') if p.is_file())
+    libraries.append({'name': name, 'licence': licence, 'use': use, 'sources': pins.get(recipe, []), 'licenceTexts': texts})
+files = {str(p.relative_to(bundle)): hashlib.sha256(p.read_bytes()).hexdigest()
+         for p in sorted(bundle.rglob('*')) if p.is_file()}
+manifest = {'schemaVersion': 2, 'target': platform, 'ffmpeg': 'jellyfin-ffmpeg ' + tag + ' with Portico patches',
+            'licence': 'GPL-3.0-or-later', 'licenceText': 'LICENSES/GPL-3.0.txt', 'libraries': libraries, 'files': files}
+(bundle / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+EOF
+    tar -C "$bundle" -cJf "$WORK/portico-media-tools-$PLATFORM.tar.xz" .
+    say "bundle: $WORK/portico-media-tools-$PLATFORM.tar.xz ($(du -sh "$WORK/portico-media-tools-$PLATFORM.tar.xz" | cut -f1))"
+    if runs_here; then
+        verify
+    else
+        say "built for $MACHINE on $(uname -m): NOT verified here; run the verify stage on a $MACHINE machine"
+    fi
+}
+
+# Runs the bundle's programs. The bundle is $WORK/bundle, or the folder in MEDIA_TOOLS_BUNDLE
+# (an unpacked bundle from another machine).
+verify() {
+    local bundle="${MEDIA_TOOLS_BUNDLE:-$WORK/bundle}" tool
+    [[ -x "$bundle/bin/ffmpeg" && -x "$bundle/bin/portico-disc" ]] || fail "no bundle in $bundle"
+    runs_here || fail "this machine is $(uname -m) and the bundle is for $MACHINE"
+    mkdir -p "$WORK"
     say "the programs start and need nothing beyond the operating system"
     "$bundle/bin/ffmpeg" -hide_banner -version | head -1
     "$bundle/bin/ffprobe" -hide_banner -version | head -1
     for tool in ffmpeg ffprobe portico-disc; do
-        if ldd "$bundle/bin/$tool" | grep -vE '^\s*(linux-vdso|/lib64/ld-linux|lib(c|m|dl|pthread|rt|mvec|gcc_s)\.so)' | grep -q .; then
+        if ldd "$bundle/bin/$tool" | grep -vE '^\s*(linux-vdso|/lib(64)?/ld-linux|lib(c|m|dl|pthread|rt|mvec|gcc_s)\.so)' | grep -q .; then
             ldd "$bundle/bin/$tool" >&2
             fail "$tool needs a library that is not part of the operating system"
         fi
@@ -511,42 +585,8 @@ package() {
     done < <(grep -Ev '^(#|$)' "$WANTED")
     [[ $missing == 0 ]] || fail "$missing wanted feature(s) are missing from the bundle"
 
-    cat > "$bundle/NOTICE.md" <<EOF
-# Portico media tools ($PLATFORM)
-
-ffmpeg and ffprobe are FFmpeg built from jellyfin-ffmpeg $(lock tag) with Portico's patches.
-portico-disc is Portico's reader for Blu-ray and DVD folders and images. All three are
-licensed under the GNU General Public License, version 3 or later (LICENSES/GPL-3.0.txt).
-manifest.json lists every library built into them, with its licence and where its licence
-text is in the LICENSES folder. The complete source for these exact programs is offered with
-every Portico release that carries them. None of these programs can decrypt a commercial disc.
-EOF
-
-    python3 - "$bundle" "$PLATFORM" "$(lock tag)" "$HERE/licences.txt" "$WORK/library-versions.txt" <<'EOF'
-import hashlib, json, pathlib, sys
-bundle, platform, tag, rows, versions = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4], pathlib.Path(sys.argv[5])
-pins = {}
-if versions.is_file():
-    for line in versions.read_text().splitlines():
-        recipe, source, version = line.split('|')
-        pins.setdefault(recipe, []).append({'source': source, 'version': version})
-libraries = []
-for line in pathlib.Path(rows).read_text().splitlines():
-    if not line.strip() or line.startswith('#'):
-        continue
-    recipe, name, licence, use = [part.strip() for part in line.split('|')][:4]  # a fifth column names the licence text
-    if use.startswith('build only'):
-        continue
-    texts = sorted(str(p.relative_to(bundle)) for p in (bundle / 'LICENSES' / recipe).glob('*') if p.is_file())
-    libraries.append({'name': name, 'licence': licence, 'use': use, 'sources': pins.get(recipe, []), 'licenceTexts': texts})
-files = {str(p.relative_to(bundle)): hashlib.sha256(p.read_bytes()).hexdigest()
-         for p in sorted(bundle.rglob('*')) if p.is_file()}
-manifest = {'schemaVersion': 2, 'target': platform, 'ffmpeg': 'jellyfin-ffmpeg ' + tag + ' with Portico patches',
-            'licence': 'GPL-3.0-or-later', 'licenceText': 'LICENSES/GPL-3.0.txt', 'libraries': libraries, 'files': files}
-(bundle / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
-EOF
-    tar -C "$bundle" -cJf "$WORK/portico-media-tools-$PLATFORM.tar.xz" .
-    say "bundle: $WORK/portico-media-tools-$PLATFORM.tar.xz ($(du -sh "$WORK/portico-media-tools-$PLATFORM.tar.xz" | cut -f1))"
+    read_fixture_discs "$bundle/bin/portico-disc"
+    say "verified: $PLATFORM"
 }
 
 case "$STAGE" in
@@ -559,5 +599,6 @@ case "$STAGE" in
     configure) configure ;;
     compile) compile ;;
     package) package ;;
+    verify) verify ;;
     *) fail "unknown stage: $STAGE" ;;
 esac

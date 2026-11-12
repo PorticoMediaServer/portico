@@ -11,6 +11,7 @@ name: Media tools
 #   helper     portico-disc, then the disc tests against the fixtures
 #   configure  FFmpeg's configure step alone
 #   bundle     ffmpeg and ffprobe, the helper, and the finished bundle as a run artifact
+#              (for arm64, built on x86, the bundle's programs are then run on an arm64 runner)
 #   test       the server's media and disc tests against the bundle of an earlier run
 #
 # The kept layers are container images named build-cache-ffmpeg-* in the project's registry.
@@ -27,7 +28,7 @@ on:
         description: Platform to build for
         type: choice
         default: linux-x64
-        options: [linux-x64]
+        options: [linux-x64, linux-arm64]
       stage:
         description: The one stage to run
         type: choice
@@ -62,6 +63,9 @@ jobs:
         run: third_party/ffmpeg/build.sh prepare "$PLATFORM"
       - name: Everything that needs no compiler
         run: third_party/ffmpeg/build.sh check "$PLATFORM"
+      - name: The same for Linux arm64, on a pull request
+        if: github.event_name == 'pull_request'
+        run: third_party/ffmpeg/build.sh prepare linux-arm64 && third_party/ffmpeg/build.sh check linux-arm64
 
   sources:
     if: github.event_name == 'workflow_dispatch' && inputs.stage == 'sources'
@@ -126,13 +130,14 @@ jobs:
       - name: Disc helper
         if: inputs.stage == 'helper' || inputs.stage == 'bundle'
         run: third_party/ffmpeg/build.sh helper "$PLATFORM"
+      # An arm64 helper cannot run on this x86 runner: the verify job below runs these tests.
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
-        if: inputs.stage == 'helper' || inputs.stage == 'bundle'
+        if: (inputs.stage == 'helper' || inputs.stage == 'bundle') && inputs.platform != 'linux-arm64'
         with:
           go-version-file: server-next/go.mod
           cache: false
       - name: Disc tests against the fixtures
-        if: inputs.stage == 'helper' || inputs.stage == 'bundle'
+        if: (inputs.stage == 'helper' || inputs.stage == 'bundle') && inputs.platform != 'linux-arm64'
         working-directory: server-next
         env:
           GOWORK: 'off'
@@ -152,8 +157,50 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: inputs.stage == 'bundle'
         with:
-          name: portico-media-tools-${{ env.PLATFORM }}
+          # An arm64 bundle built here has not been run yet; it gets its name from the verify job.
+          name: portico-media-tools-${{ env.PLATFORM }}${{ inputs.platform == 'linux-arm64' && '-unverified' || '' }}
           path: .media-tools/${{ env.PLATFORM }}/portico-media-tools-${{ env.PLATFORM }}.tar.xz
+          retention-days: ${{ inputs.platform == 'linux-arm64' && 3 || 30 }}
+          compression-level: 0
+
+  verify:
+    # A bundle for arm64 is cross-compiled on x86, so the checks that run its programs happen
+    # here, on an arm64 runner: they start, need no extra library, list every wanted feature,
+    # and the disc reader reads the fixture discs. Only then is it kept under its real name.
+    if: github.event_name == 'workflow_dispatch' && inputs.stage == 'bundle' && inputs.platform == 'linux-arm64'
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          sparse-checkout: |
+            third_party/ffmpeg
+            fixtures/discs
+            server-next
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: portico-media-tools-${{ env.PLATFORM }}-unverified
+          path: ${{ runner.temp }}/download
+      - name: Run the bundle's programs
+        run: |
+          mkdir -p "$RUNNER_TEMP/bundle"
+          tar -xJf "$RUNNER_TEMP/download/portico-media-tools-$PLATFORM.tar.xz" -C "$RUNNER_TEMP/bundle"
+          MEDIA_TOOLS_BUNDLE="$RUNNER_TEMP/bundle" third_party/ffmpeg/build.sh verify "$PLATFORM"
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server-next/go.mod
+          cache: false
+      - name: Disc tests against the fixtures
+        working-directory: server-next
+        env:
+          GOWORK: 'off'
+          PORTICO_DISC_TEST_BINARY: ${{ runner.temp }}/bundle/bin/portico-disc
+        run: go test ./internal/disc -run 'TestHelper' -count=1 -v | grep -E '^(=== RUN|--- |PASS|FAIL|ok|\s+\S+_test.go)' ; exit "${PIPESTATUS[0]}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: portico-media-tools-${{ env.PLATFORM }}
+          path: ${{ runner.temp }}/download/portico-media-tools-${{ env.PLATFORM }}.tar.xz
           retention-days: 30
           compression-level: 0
 
@@ -161,7 +208,7 @@ jobs:
     # The new server's whole test suite, media tests included, with the bundle as its FFmpeg, and
     # the disc tests with the bundle's helper. Not part of ci/required.
     if: github.event_name == 'workflow_dispatch' && inputs.stage == 'test'
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.platform == 'linux-arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 40
     permissions:
       contents: read
