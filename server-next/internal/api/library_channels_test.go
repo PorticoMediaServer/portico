@@ -335,6 +335,15 @@ func TestPresetsFixedTimesAndALogo(t *testing.T) {
 	if w := call(t, s, "GET", withLogo.Logo, "", nil, nil); w.Code != 200 {
 		t.Fatalf("the logo answered %d", w.Code)
 	}
+	// The daily sweep of unused pictures keeps a channel's logo: it is named only by the channel.
+	s.setClock(func() time.Time { return time.Now().Add(2 * time.Hour) })
+	if _, err := s.SweepPictures(ctx); err != nil {
+		t.Fatal(err)
+	}
+	s.setClock(time.Now)
+	if w := call(t, s, "GET", withLogo.Logo, "", nil, nil); w.Code != 200 {
+		t.Fatalf("after the picture sweep the channel's logo answered %d", w.Code)
+	}
 	tiny := newRequest("PUT", "/v1/admin/library-channels/"+ch.ID+"/logo", owner, nil)
 	tiny.Body = io.NopCloser(bytes.NewReader([]byte("not a picture")))
 	if w := serve(s, tiny); w.Code != 400 {
