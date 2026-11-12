@@ -106,10 +106,20 @@ func escapeFilterPath(path string) string {
 
 // Subtitle white is 100-nit BT.709, independently converted to the HDR output
 // transfer. The source picture never passes through an SDR working surface.
+//
+// Only the colours go through the conversion. The subtitle's transparency is
+// taken off first, kept at its full range in 10 bits, and put back after: handed
+// a picture with transparency, zscale in FFmpeg 8.1 returns the transparency
+// changed (an opaque subtitle came out half transparent or not at all, and not
+// the same from one run to the next), where 8.0 passed it through.
+// It takes an RGBA picture and gives a 10-bit one with transparency.
 func hdrSubtitleFilter(dynamicRange string) string {
 	transfer := "smpte2084"
 	if dynamicRange == "hlg" {
 		transfer = "arib-std-b67"
 	}
-	return "format=gbrap16le,zscale=pin=bt709:tin=bt709:min=gbr:p=bt2020:t=" + transfer + ":m=bt2020nc:r=tv:npl=100,format=yuva420p10le"
+	// The format is pinned first: the filters before this one may hand on another.
+	return "format=rgba,split[burn_rgb][burn_a];[burn_a]alphaextract,scale=in_range=full:out_range=full,format=gray10le[burn_alpha];" +
+		"[burn_rgb]format=gbrp16le,zscale=pin=bt709:tin=bt709:min=gbr:p=bt2020:t=" + transfer + ":m=bt2020nc:r=tv:npl=100,format=yuv420p10le[burn_hdr];" +
+		"[burn_hdr][burn_alpha]alphamerge,format=yuva420p10le"
 }
