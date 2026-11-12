@@ -22,7 +22,7 @@ func TestH264ManifestDoesNotInventConstraintFlags(t *testing.T) {
 		t.Run(profile, func(t *testing.T) {
 			target := decoder.ConversionTarget{VideoCodec: "h264", BitDepth: 8, DynamicRange: "sdr", Width: 160, Height: 90, VideoProfile: profile, VideoLevel: 31}
 			p := DeliveryPlan{Profile: DeliveryProfileLegacy, Mode: "hls", VideoAction: "convert", AudioAction: "none", OutputVideoCodec: "h264", ConversionTarget: &target, SoftwarePreset: "veryfast"}
-			g, err := p.conversionGraph(nil)
+			g, err := p.conversionGraph(nil, 0)
 			if err != nil {
 				t.Fatal(err)
 			}

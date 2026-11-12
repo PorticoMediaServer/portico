@@ -417,7 +417,7 @@ func TestHDRBitmapBurnKeepsTenBitPlane(t *testing.T) {
 
 func TestSVTFixedQualityUsesACappedQualityMode(t *testing.T) {
 	target := ConversionTarget{VideoCodec: "av1", RateControl: "bitrate", VideoBitrateBPS: 900000}
-	args := videoRateArgs(target, "libsvtav1", "medium")
+	args := videoRateArgs(target, "libsvtav1", "medium", 2)
 	if argValue(args, "-crf") != "28" || argValue(args, "-b:v") != "0" || argValue(args, "-maxrate") != "900000" || argValue(args, "-bufsize") != "1800000" {
 		t.Fatal(args)
 	}

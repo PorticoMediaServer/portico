@@ -238,7 +238,7 @@ func withoutMatrix(args []string) []string {
 	return out
 }
 
-func videoRateArgs(t ConversionTarget, encoder, preset string) []string {
+func videoRateArgs(t ConversionTarget, encoder, preset string, threads int) []string {
 	quality := t.Quality
 	if quality == 0 {
 		quality = 20
@@ -251,7 +251,7 @@ func videoRateArgs(t ConversionTarget, encoder, preset string) []string {
 	case "libx264", "libx265":
 		out = append(out, "-preset", preset)
 	case "libsvtav1":
-		out = append(out, "-preset", "8", "-svtav1-params", "lp=2"+svtHDRParams(t))
+		out = append(out, "-preset", "8", "-svtav1-params", "lp="+strconv.Itoa(threads)+svtHDRParams(t))
 	case "libaom-av1":
 		out = append(out, "-cpu-used", "6", "-row-mt", "1")
 	case "librav1e":

@@ -52,7 +52,7 @@ func TestProfile5ForAnHDRDisplayConvertsToHD(t *testing.T) {
 		plan.ConversionTarget.DynamicRange != mediafacts.RangeHDR10 {
 		t.Fatalf("profile 5 did not convert to HDR10: %+v", plan.ConversionTarget)
 	}
-	graph, err := plan.conversionGraph(nil)
+	graph, err := plan.conversionGraph(nil, 0)
 	if err != nil || !strings.Contains(strings.Join(graph.Video, " "), "libplacebo=") {
 		t.Fatal("profile 5 HDR10 conversion does not reshape", graph, err)
 	}
@@ -72,7 +72,7 @@ func TestSoftwareEncodingNeverUsesTheGraphicsDevice(t *testing.T) {
 	plan, err := profile5Plan(config)
 	var refused ErrDeliveryRefused
 	if !errors.As(err, &refused) || plan.ConversionTarget != nil {
-		graph, _ := plan.conversionGraph(nil)
+		graph, _ := plan.conversionGraph(nil, 0)
 		t.Fatalf("profile 5 with software encoding chosen: %v, planned %q %v %v", err, plan.Strategy, graph.Input, graph.Video)
 	}
 	if refused.Error() != "This server cannot prepare a version of this title that this device can play." {

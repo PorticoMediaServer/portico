@@ -41,7 +41,10 @@ type ConversionRequest struct {
 	ConvertAudio          bool
 	CopyAudio             bool
 	SoftwarePreset        string
-	KeyframeSeconds       int
+	// SoftwareThreads is how many threads a software video encode is given (see
+	// ReservePlaybackEncode); 0 gives the two that background work keeps.
+	SoftwareThreads int
+	KeyframeSeconds int
 	// Deinterlace inserts a deinterlacer ahead of every other picture filter.
 	Deinterlace bool
 	// MaxFrameRate caps the output rate; zero leaves the source rate alone.
@@ -443,13 +446,14 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 		}
 		out.Video = append(out.Video, "-c:v", encoder)
 		out.Video = append(out.Video, hdr10PlusOptions...)
+		threads := max(r.SoftwareThreads, minEncodeThreads)
 		if backend == BackendSoftware {
-			out.Video = append(out.Video, "-threads", "2")
+			out.Video = append(out.Video, "-threads", strconv.Itoa(threads))
 		}
 		if backend == BackendSoftware || backend == BackendAMF || backend == BackendVideoToolbox {
 			out.Video = append(out.Video, "-pix_fmt", pixel)
 		}
-		out.Video = append(out.Video, videoRateArgs(target, encoder, preset)...)
+		out.Video = append(out.Video, videoRateArgs(target, encoder, preset, threads)...)
 		colour := videoColorArgs(target)
 		if native && r.ToneMap && backend == BackendVAAPI {
 			// VA-API's tone mapper writes BT.709 itself (matrix=bt709). Asking the
@@ -494,7 +498,12 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 			}
 			out.Video = append(out.Video, "-profile:v", profile, "-tag:v", "hvc1", "-level:v", levelArg(backend, level, 30))
 			if encoder == "libx265" {
-				params := "pools=2:frame-threads=2:open-gop=0:repeat-headers=1"
+				// Two frames in flight on two threads, as every encode had; from four threads
+				// on, x265 picks the number of frames in flight for its pool itself.
+				params := "pools=" + strconv.Itoa(threads) + ":frame-threads=2:open-gop=0:repeat-headers=1"
+				if threads >= 4 {
+					params = "pools=" + strconv.Itoa(threads) + ":open-gop=0:repeat-headers=1"
+				}
 				if target.DynamicRange == "hdr10" {
 					params += ":hdr10=1"
 					if target.MasterDisplay != "" {

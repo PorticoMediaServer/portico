@@ -172,7 +172,7 @@ func finishConversionTarget(p *DeliveryPlan, video *SourceVideo, audio *SourceAu
 		copy := probe
 		p.ConversionProbe = &copy
 	}
-	graph, err := p.conversionGraph(nil)
+	graph, err := p.conversionGraph(nil, 0)
 	if err != nil {
 		return err
 	}
