@@ -7,7 +7,7 @@ import type {ServerEvent} from '../src/playback-v1/types.ts';
 import type {V1Http, V1Request, V1Response} from '../src/playback-v1/http.ts';
 
 const scope: ActivitySummaryScope = {serverId: 'server', accountId: 'owner-account', profileId: 'owner-profile', authority: 'local', role: 'owner', sessionFamilyId: 'family', authorizationEpoch: '1'};
-const wire = (extra: Record<string, unknown> = {}): any => ({scope: {serverId: 'server', viewerFence: 'a'.repeat(64)}, observedAt: '2026-10-22T07:00:00.000000001Z', serverName: 'Private server', streams: {count: 0, convertingCount: 0, overflow: {count: 0, convertingCount: 0}, items: []}, scans: [{libraryId: 'movies', libraryName: 'Movies', kind: 'movie', phase: 'discovering', discovered: 12, analyzed: 4, current: 'private-film.mkv'}], tasks: {count: 0, items: []}, update: {available: false, state: 'unconfigured', current: '0.1.0-dev'}, majorIssues:[], health: {degraded: false}, ...extra});
+const wire = (extra: Record<string, unknown> = {}): any => ({observedAt: '2026-10-22T07:00:00.000000001Z', serverName: 'Private server', streams: {count: 0, converting: 0, items: []}, scans: [{kind: 'movie', libraryId: 'movies', libraryName: 'Movies', phase: 'discovering', discovered: 12, analyzed: 4}], tasks: {count: 0, items: []}, alerts: [], ...extra});
 const ok = (body = wire()): V1Response => ({status: 200, headers: {}, body});
 function deferred<T>() { let resolve!: (value: T) => void, reject!: (error: unknown) => void; const promise = new Promise<T>((a, b) => {resolve = a; reject = b;}); return {promise, resolve, reject}; }
 async function flush() { for (let n = 0; n < 12; n++) await Promise.resolve(); }
@@ -61,7 +61,7 @@ test('owner uses the actual generated route and canonical HTTP request with priv
   const h = harness(); h.activate(); const first = h.service.load(), second = h.service.load(); assert.equal(first, second); await first;
   assert.equal(h.requests.length, 1); assert.equal(h.requests[0].path, routePath('get_admin_activity')); assert.equal(h.requests[0].method, 'GET');
   assert.deepEqual(h.requests[0].headers, {'Cache-Control': 'no-cache, no-store'}); assert.equal(h.requests[0].body, undefined);
-  assert.equal(h.service.getSnapshot().phase, 'ready'); assert.equal(h.service.getSnapshot().document?.scans[0].current, 'private-film.mkv');
+  assert.equal(h.service.getSnapshot().phase, 'ready'); assert.equal(h.service.getSnapshot().document?.scans[0].analyzed, 4);
   await h.clock.advance(20_000); assert.equal(h.requests.length, 1); assert.equal(h.clock.tasks.size, 0); h.service.dispose();
 });
 test('every source identity dimension synchronously clears private facts and aborts an outstanding read', async () => {
@@ -102,11 +102,23 @@ test('denial never retains private owner body or error current payload and block
     h.source.set({http: h.http, scope: {...scope, authorizationEpoch: '2'}}); assert.equal(h.service.getSnapshot().document, undefined); h.service.dispose();
   }
 });
-test('another server erases the body without accepting the new scope; a moved viewer fence answers and retires nothing', async () => {
-  const h = harness((_r, n) => ok(n === 1 ? wire() : wire({scope: {serverId: 'other-server', viewerFence: 'a'.repeat(64)}}))); h.activate(); await h.service.load(); await h.service.load();
-  assert.deepEqual(h.service.getSnapshot(), {phase: 'error', error: {code: 'permission_changed'}}); h.service.dispose();
-  const moved = harness((_r, n) => ok(wire({scope: {serverId: 'server', viewerFence: (n === 1 ? 'a' : 'b').repeat(64)}, serverName: n === 1 ? 'First' : 'Second'}))); moved.activate(); await moved.service.load(); await moved.service.load();
+test('a later answer replaces the shown summary; the rebuilt server\'s summary names no server, so the source identity alone keeps another server\'s facts out', async () => {
+  const moved = harness((_r, n) => ok(wire({serverName: n === 1 ? 'First' : 'Second'}))); moved.activate(); await moved.service.load(); await moved.service.load();
   const snapshot = moved.service.getSnapshot(); assert.equal(snapshot.phase, 'ready'); assert.equal(snapshot.document?.serverName, 'Second'); assert.equal(moved.requests.length, 2); moved.service.dispose();
+});
+test('the rebuilt server sends no change for the summary: a held one is read again every interval until stopped, never in a hidden tab, and stops when refused', async () => {
+  const h = harness(); h.activate(); await h.service.load(); assert.equal(h.requests.length, 1);
+  let visible = true; const stop = h.service.keepFresh(5000, () => visible);
+  await h.clock.advance(5000); assert.equal(h.requests.length, 2);
+  await h.clock.advance(5000); assert.equal(h.requests.length, 3);
+  visible = false; await h.clock.advance(10_000); assert.equal(h.requests.length, 3, 'a hidden tab reads nothing');
+  visible = true; await h.clock.advance(5000); assert.equal(h.requests.length, 4);
+  stop(); await h.clock.advance(20_000); assert.equal(h.requests.length, 4, 'stopped');
+  assert.equal(h.clock.tasks.size, 0, 'nothing is left scheduled');
+  h.service.dispose();
+  const refused = harness((_r, n) => n === 1 ? ok() : {status: 403, headers: {}, body: {error: {code: 'forbidden', message: 'x'}}}); refused.activate(); await refused.service.load();
+  refused.service.keepFresh(5000); await refused.clock.advance(5000); await refused.clock.advance(20_000);
+  assert.equal(refused.requests.length, 2, 'a refused read stops the rereading'); refused.service.dispose();
 });
 test('observation revisions compare all nanoseconds and never replace a newer summary with an older completion', async () => {
   const h = harness((_r, n) => ok(wire({observedAt: n === 1 ? '2026-10-22T07:00:00.000000002Z' : '2026-10-22T07:00:00.000000001Z'})));
@@ -143,10 +155,10 @@ test('a background refresh keeps the shown document instead of withdrawing it to
   assert.equal(h.requests.length, 2);
   for (const snapshot of published) assert.equal(snapshot.document, shown.document, 'no published snapshot withdraws the rows');
   assert.equal(h.service.getSnapshot().document?.scans[0]?.libraryName, 'Movies');
-  pending.resolve(ok(wire({scans: [{libraryId: 'movies', libraryName: 'Movies', kind: 'movie', phase: 'discovering', discovered: 40, analyzed: 30, current: 'later-film.mkv'}]}))); await h.clock.advance(0);
+  pending.resolve(ok(wire({scans: [{libraryId: 'movies', libraryName: 'Movies', kind: 'movie', phase: 'discovering', discovered: 40, analyzed: 30}]}))); await h.clock.advance(0);
   await new Promise(resolve => setImmediate(resolve));
   assert.notEqual(h.service.getSnapshot().document, shown.document, 'the values changed in place');
-  assert.equal(h.service.getSnapshot().document?.scans[0]?.current, 'later-film.mkv');
+  assert.equal(h.service.getSnapshot().document?.scans[0]?.analyzed, 30);
   assert.ok(published.every(snapshot => snapshot.document !== undefined), 'every intermediate snapshot still carries a document');
   stop(); h.service.dispose();
 });

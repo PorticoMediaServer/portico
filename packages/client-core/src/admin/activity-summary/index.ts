@@ -1,13 +1,12 @@
 export {ActivitySummaryContractError, parseActivitySummary,parseDashboardSessions} from './parser.ts';
-export {ActivitySummaryService,DashboardSessionsService} from './service.ts';
-export type {OwnerActivitySummary,DashboardSessionsPage,DashboardSessionsSnapshot, ActivitySummarySession, ActivitySummaryScan, ActivitySummaryTask, ActivitySummaryScope, ActivitySummarySource, ActivitySummarySourceStore, ActivitySummaryErrorCode, ActivitySummarySnapshot, ActivitySummaryTimers} from './types.ts';
+export {ActivitySummaryService,DashboardSessionsService,ACTIVITY_OPEN_READ_MS,ACTIVITY_GLANCE_READ_MS} from './service.ts';
+export type {OwnerActivitySummary,ActivitySummaryAlert,DashboardSessionsPage,DashboardSessionsSnapshot, ActivitySummarySession, ActivitySummaryScan, ActivitySummaryTask, ActivitySummaryScope, ActivitySummarySource, ActivitySummarySourceStore, ActivitySummaryErrorCode, ActivitySummarySnapshot, ActivitySummaryTimers} from './types.ts';
 
 import type {MessageId,MessageValues} from '../../../../i18n/src/index.ts';
-import type {OwnerActivitySummary} from './types.ts';
 export type ActivityCopy=Readonly<{title:MessageId;detail:MessageId;values:MessageValues}>;
 /** Only qualified source facts select a major-issue message. Ordinary health
  * and unmatched/scan counts have no route into this mapping. */
-export function activityIssueCopy(issue:OwnerActivitySummary['majorIssues'][number]):ActivityCopy|undefined {
+export function activityIssueCopy(issue:Readonly<{code:string;subject?:string}>):ActivityCopy|undefined {
  const keys:Record<string,readonly[MessageId,MessageId]>={
   library_unreachable:['next.shell.issue.libraryTitle','next.shell.issue.libraryDetail'],
   remote_unreachable:['next.shell.issue.remoteTitle','next.shell.issue.remoteDetail'],
@@ -16,7 +15,7 @@ export function activityIssueCopy(issue:OwnerActivitySummary['majorIssues'][numb
   backup_failed:['next.shell.issue.backupTitle','next.shell.issue.backupDetail'],
   secure_renewal_failed:['next.shell.issue.renewalTitle','next.shell.issue.renewalDetail'],
  };
- const key=keys[issue.code];return key?{title:key[0],detail:key[1],values:{subject:issue.subject}}:undefined;
+ const key=keys[issue.code];return key?{title:key[0],detail:key[1],values:{subject:issue.subject??''}}:undefined;
 }
 /** Alert parameters stay separate from localized sentences and raw diagnostics. */
 export function activityAlertCopy(alert:Readonly<{code:string;params:Readonly<Partial<Record<'title'|'channel'|'reason'|'time',string>>>}>):ActivityCopy|undefined {

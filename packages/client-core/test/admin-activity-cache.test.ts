@@ -12,7 +12,7 @@ import {heldDocument} from '../src/query/admin-documents.ts';
 // of the viewer shares one read; one opened again shows at once with no request; a hint reads again,
 // and the document on screen stays while it does (J-9).
 const scope: ActivitySummaryScope = {serverId: 'server', accountId: 'owner-account', profileId: 'owner-profile', authority: 'local', role: 'owner', sessionFamilyId: 'family', authorizationEpoch: '1'};
-const wire = (name: string, extra: Record<string, unknown> = {}): any => ({scope: {serverId: 'server', viewerFence: 'a'.repeat(64)}, observedAt: '2026-10-22T07:00:00.000000001Z', serverName: name, streams: {count: 0, convertingCount: 0, overflow: {count: 0, convertingCount: 0}, items: []}, scans: [], tasks: {count: 0, items: []}, update: {available: false, state: 'unconfigured', current: '0.1.0-dev'}, health: {degraded: false}, majorIssues: [], ...extra});
+const wire = (name: string, extra: Record<string, unknown> = {}): any => ({observedAt: '2026-10-22T07:00:00.000000001Z', serverName: name, streams: {count: 0, converting: 0, items: []}, scans: [], tasks: {count: 0, items: []}, alerts: [], ...extra});
 const tick = () => new Promise(resolve => setTimeout(resolve, 5));
 class Clock implements ActivitySummaryTimers {
   value = 0; sequence = 0; tasks = new Map<number, {at: number; fn: () => void}>();

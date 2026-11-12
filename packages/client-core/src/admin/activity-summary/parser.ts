@@ -1,6 +1,8 @@
 import {parseHardwareExecution} from '../../delivery.ts';
 import {currentUTCTimestamp, utcOrderKey} from '../../local-session.ts';
 import type {OwnerActivitySummary, DashboardSessionsPage} from './types.ts';
+import {parseDashboardStatus} from '../dashboard.ts';
+import {adminSessionFromServer} from '../server-now-playing.ts';
 
 type Reader = (value: unknown) => unknown;
 type ObjectValue = Record<string, unknown>;
@@ -59,93 +61,36 @@ const quality: Reader = v => {
       out.mode === 'automatic' && numbers || out.mode === 'limit' && out.id !== undefined) invalid();
   return out;
 };
-const username: Reader = value => {
-  const out = text(256, true)(value) as string;
-  return out.trim() ? out : invalid();
-};
 const choice = (values: readonly string[]): Reader => v => typeof v === 'string' && values.includes(v) ? v : invalid();
 const finite: Reader = v => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : invalid();
 const conversion = record({speed:finite, observedAt:timestamp, cadenceMs:integer(1000,1000)});
 const problemCode=choice(['buffering','behind']);
 const channel=record({name:words},{number:words});
 const programme=record({title:words,endsAt:timestamp});
-const sessionShape = record({id, user: record({id}, {username}), profile: named, device: named, kind: label, state: label,
-  startedAt: timestamp, converting: bool, positionMs: count, decision: decisions},
-  {durationMs: integer(Number.MAX_SAFE_INTEGER, 1), item, quality, videoHeight: integer(Number.MAX_SAFE_INTEGER, 1), problem: problemCode, bufferingSince:timestamp, transcode:conversion, channel, programme});
 function qualifyProblem(out:ObjectValue,converting:boolean):void {
  if (out.problem==='buffering' && (out.state!=='buffering' || !out.bufferingSince)) invalid();
  if (out.problem==='behind' && (!['playing','buffering'].includes(out.state as string) || !converting || !(out.transcode as {speed?:number}|undefined) || ((out.transcode as {speed:number}).speed>=1))) invalid();
  if (out.transcode && !converting) invalid();
 }
-const session: Reader = value => {
-  const out = sessionShape(value) as ObjectValue;
-  const decision = out.decision as {video?: {action: string}; audio?: {action: string}; subtitles?: {action: string}};
-  const converting = ['transcode', 'burn'].includes(decision.video?.action ?? '') || decision.audio?.action === 'transcode' || decision.subtitles?.action === 'burn';
-  if (out.converting !== converting) invalid();
-  qualifyProblem(out,converting);
-  return out;
-};
-const streams: Reader = value => {
-  const out = record({count, convertingCount: count, overflow: record({count, convertingCount: count}), items: list(session, 3, 'id')})(value) as ObjectValue;
-  const items = out.items as ObjectValue[], total = out.count as number, converting = out.convertingCount as number;
-  const overflow = out.overflow as {count: number; convertingCount: number};
-  if (items.length !== Math.min(total, 3) || converting > total || overflow.count !== total - items.length ||
-      overflow.convertingCount !== converting - items.filter(item => item.converting).length || overflow.convertingCount > overflow.count) invalid();
-  const priority = (item: ObjectValue) => item.problem ? 0 : item.converting ? 1 : 2;
-  for (let n = 1; n < items.length; n++) {
-    const previous = items[n - 1], current = items[n], p = priority(previous), c = priority(current);
-    const pt = utcOrderKey(previous.startedAt as string), ct = utcOrderKey(current.startedAt as string);
-    if (p > c || p === c && (pt < ct || pt === ct && (previous.id as string) > (current.id as string))) invalid();
-  }
-  return out;
-};
-const relativeFile: Reader = v => {
-  const path = text(4096, true)(v) as string;
-  if (/^(?:[/\\]|[A-Za-z]:)/.test(path) || path.split(/[/\\]/).some(p => p === '..') || path === '.') invalid();
-  return path;
-};
-const scanShape = record({libraryId: id, libraryName: words, kind: label, discovered: count, analyzed: count, phase: label}, {total: count, current: relativeFile});
-const scan: Reader = v => {
-  const out = scanShape(v) as ObjectValue;
-  if ((out.analyzed as number) > (out.discovered as number) || out.total !== undefined && out.total !== out.discovered) invalid();
-  return out;
-};
-const taskShape = record({id, kind: label, state: label, phase: words}, {libraryId: id, libraryName: words, processed: count, total: count, unit: label});
-const task: Reader = v => {
-  const out = taskShape(v) as ObjectValue;
-  if (out.total !== undefined && (out.processed === undefined || (out.processed as number) > (out.total as number))) invalid();
-  return out;
-};
-const capped = (read: Reader, cap: number): Reader => value => {
-  const out = record({count, items: list(read, cap, 'id')})(value) as ObjectValue;
-  if ((out.items as unknown[]).length !== Math.min(out.count as number, cap)) invalid();
-  return out;
-};
-const updateShape = record({available: bool, state: label, current: text(256)}, {latest: text(256, true)});
-const update: Reader = v => {
-  const out = updateShape(v) as ObjectValue;
-  if (!['unconfigured', 'unavailable', 'current', 'available'].includes(out.state as string) || out.available !== (out.state === 'available') || out.available && out.latest === undefined) invalid();
-  return out;
-};
-const majorIssueShape=record({kind:choice(['library','storage','backups','networking','remote-source']),code:choice(['library_unreachable','storage_nearly_full','backup_failed','secure_renewal_failed','remote_unreachable','remote_program_unavailable']),severity:choice(['playback_stop','data_risk']),subject:words,destination:record({kind:label,target:words})});
-const majorIssue:Reader=v=>{
- const out=majorIssueShape(v) as ObjectValue,d=out.destination as {kind:string;target:string};
- const expected:Record<string,readonly[string,string,string,string|undefined]>={library_unreachable:['library','playback_stop','library-source',undefined],remote_unreachable:['remote-source','playback_stop','remote-source',undefined],remote_program_unavailable:['remote-source','playback_stop','remote-source',undefined],storage_nearly_full:['storage','data_risk','storage','state'],backup_failed:['backups','data_risk','backups',''],secure_renewal_failed:['networking','data_risk','networking','certificate']};
- const e=expected[out.code as string];if(out.kind!==e[0] || out.severity!==e[1] || d.kind!==e[2] || e[3]===undefined && !d.target || e[3]!==undefined && d.target!==e[3])invalid();return out;
-};
-const summary = record({
-  scope: record({serverId: id, viewerFence: text(64, true)}), observedAt: timestamp, serverName: words,
-  streams, scans: list(scan, Number.MAX_SAFE_INTEGER, 'libraryId'), tasks: capped(task, 3),
-  update, health: record({degraded: bool}),
- majorIssues:list(majorIssue,20),
-}, {lastScanFinishedAt: timestamp});
-
-/** One current owner document; no tolerant defaults, joined captions or invented denominators. */
+/** The rebuilt server's owner summary (`GET /v1/admin/activity`, server-next/internal/api/activity_summary.go): the
+ * first three streams of Now playing in its order and how many there are, the Dashboard's scans and tasks, its major
+ * alerts and update_available, and when a scan last finished. Streams are checked as Now playing checks them; scans,
+ * tasks and alerts as the Dashboard checks them, with the same subject and reason words. */
 export function parseActivitySummary(value: unknown): OwnerActivitySummary {
-  const out = summary(value) as OwnerActivitySummary;
-  if (!/^[a-f0-9]{64}$/.test(out.scope.viewerFence)) invalid();
-  for (const item of out.streams.items) freshSession(item as ObjectValue,out.observedAt);
-  return out;
+  if (!object(value) || !object(value.streams) || !Array.isArray(value.streams.items)) invalid();
+  const streams = value.streams as ObjectValue, items = streams.items as unknown[];
+  timestamp(value.observedAt); words(value.serverName);
+  if (value.lastScanAt !== undefined) timestamp(value.lastScanAt);
+  const total = count(streams.count) as number, converting = count(streams.converting) as number;
+  if (items.length !== Math.min(total, 3) || converting > total) invalid();
+  try {for (const item of items) {adminSessionFromServer(item); if (!['original', 'repackaged', 'converted'].includes((item as ObjectValue).route as string)) invalid();}} catch {invalid();}
+  if (new Set(items.map(item => (item as ObjectValue).id)).size !== items.length ||
+      converting < items.filter(item => (item as ObjectValue).route === 'converted').length) invalid();
+  let board: ReturnType<typeof parseDashboardStatus>;
+  try {board = parseDashboardStatus({observedAt: value.observedAt, alerts: value.alerts, scans: value.scans, tasks: value.tasks});} catch {invalid();}
+  return Object.freeze({observedAt: value.observedAt as string, serverName: value.serverName as string,
+    streams: Object.freeze({count: total, converting, items: Object.freeze(items as OwnerActivitySummary['streams']['items'])}),
+    scans: board.scans, tasks: board.tasks, alerts: board.alerts, ...(value.lastScanAt !== undefined ? {lastScanAt: value.lastScanAt as string} : {})});
 }
 
 function freshSession(item:ObjectValue,observedAt:string):void {

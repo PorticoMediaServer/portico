@@ -2,51 +2,48 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaultI18n} from '../../packages/i18n/src/index.ts';
 import type {ActivitySummarySession, OwnerActivitySummary} from '@core/admin/activity-summary/index.ts';
-import {activityPanelView, activitySubject, activityView} from '../src/shell/activity-model.ts';
+import {activityPanelView, activityView} from '../src/shell/activity-model.ts';
 import {homeFixtures as f} from '../../packages/i18n/src/catalog/en-US/next/dev/home-fixtures.ts';
 
+// The owner's summary as the rebuilt server sends it (GET /v1/admin/activity): Now playing's first three streams in its
+// order, how many there are and how many are converted, the Dashboard's scans, tasks and alerts, and the last scan.
 const environment = {t: defaultI18n.t, locale: 'en-US', timeZone: 'UTC'};
-function stream(): ActivitySummarySession { return {id: 'session', kind: 'vod', state: 'playing', positionMs: 480000, startedAt: '2026-10-22T10:00:00Z', problem: false, converting: true,
-  user: {id: 'account', username: f.account}, profile: {id: 'profile', name: f.profile}, device: {id: 'device', name: f.device},
-  decision: {video: {action: 'transcode', reasons: []}}, quality: {mode: 'fixed', id: '2160p'}, videoHeight: 1080,
-  item: {id: 'episode', title: f.episode, kind: 'episode', showId: 'show', showTitle: f.show, seasonNumber: 2, episodeNumber: 3, art: []}, durationMs: 1800000}; }
-function summary(session = stream()): OwnerActivitySummary { return {scope: {serverId: 'server', viewerFence: 'viewer-fence'}, serverName: f.server, observedAt: '2026-10-22T12:00:00Z',
-  streams: {count: 9, convertingCount: 4, overflow: {count: 6, convertingCount: 3}, items: [session, {...session, id: 'second', converting: false, decision: {}}, {...session, id: 'third', converting: false, decision: {}}]}, scans: [{libraryId: 'library', libraryName: f.libraryPrefix, kind: 'movies', phase: 'analyzing', analyzed: 12, discovered: 40}],
+function stream(): ActivitySummarySession { return {id: 'session', itemId: 'itm_episode', title: f.episode, kind: 'episode', state: 'playing', positionMs: 480000, durationMs: 1800000,
+  startedAt: '2026-10-22T10:00:00Z', username: f.account, profile: f.profile, deviceName: f.device, away: false, route: 'converted', delivery: {video: {action: 'transcode', reasons: []}}}; }
+function summary(session = stream()): OwnerActivitySummary { return {serverName: f.server, observedAt: '2026-10-22T12:00:00Z',
+  streams: {count: 9, converting: 4, items: [session, {...session, id: 'second', route: 'original', delivery: {}}, {...session, id: 'third', route: 'repackaged', delivery: {}}]},
+  scans: [{libraryId: 'library', libraryName: f.libraryPrefix, kind: 'movies', phase: 'analyzing', analyzed: 12, discovered: 40}],
   tasks: {count: 4, items: [{id: 'task', kind: 'metadata', state: 'running', phase: 'fetching', processed: 5}]},
-  update: {available: true, state: 'available', current: '1.0', latest: '1.1'}, health: {degraded: false}, majorIssues: [], lastScanFinishedAt: '2026-10-22T11:55:00Z'}; }
+  alerts: [{code: 'update_available', severity: 'warning', major: false, params: {current: '1.0', latest: '1.1'}, action: {kind: 'update', target: ''}}],
+  lastScanAt: '2026-10-22T11:55:00Z'}; }
 const actions = {onDashboard: () => {}, onRetry: () => {}, openUpdate: () => {}, openIssue: () => {}};
 
-test('Activity maps semantic episode identity while keeping the real profile and device separate', () => {
+test('a stream keeps the server\'s title, and the person\'s username, profile and device separate', () => {
   const view = activityView(summary(), environment, actions), value = view.streams[0];
-  assert.equal(value.identity!.title, f.show);
-  assert.equal(value.identity!.subtitle.find(part => part.id === 'episode-title')?.text, f.episode);
+  assert.equal(value.title, f.episode); assert.equal(value.identity, undefined, 'the server names the title; nothing is made up around it');
   assert.equal(value.username, f.account); assert.equal(value.name, f.profile); assert.equal(value.device, f.device);
-  assert.equal(value.positionMs, 480000); assert.equal(value.durationMs, 1800000);
+  assert.equal(value.positionMs, 480000); assert.equal(value.durationMs, 1800000); assert.equal(value.paused, false);
   assert.equal(view.streamCount, 9); assert.equal(view.taskCount, 4);
 });
-test('conversion names the delivered height and never substitutes the requested quality ceiling', () => {
-  const view = activityView(summary(), environment, actions);
-  assert.ok(view.streams[0].conversion?.text.includes('1080p'));
-  assert.ok(!view.streams[0].conversion?.text.includes('2160'));
-  assert.equal(activityView(summary({...stream(), videoHeight: undefined}), environment, actions).streams[0].conversion?.text, defaultI18n.t('web.nowPlaying.delivery.convertVideo'));
+test('only a converted stream says it is converting, video or audio by what the server converts', () => {
+  const view = (delivery: ActivitySummarySession['delivery'], route = 'converted') => activityView(summary({...stream(), delivery, route}), environment, actions).streams[0];
+  assert.equal(view({video: {action: 'transcode', reasons: []}}).conversion?.text, defaultI18n.t('web.nowPlaying.delivery.convertVideo'));
+  assert.equal(view({video: {action: 'copy', reasons: []}, subtitles: {action: 'burn', reasons: []}}).conversion?.text, defaultI18n.t('web.nowPlaying.delivery.convertVideo'));
+  assert.equal(view({video: {action: 'copy', reasons: []}, audio: {action: 'transcode', reasons: []}}).conversion?.text, defaultI18n.t('web.nowPlaying.delivery.convertAudio'));
+  for (const route of ['original', 'repackaged']) assert.equal(view({}, route).conversion, undefined, route);
 });
-test('Activity decisions use canonical open-enum validation and conversion precedence', () => {
-  const view = (decision: ActivitySummarySession['decision']) => activityView(summary({...stream(), decision, converting: decision.video?.action === 'transcode' || decision.subtitles?.action === 'burn' || decision.audio?.action === 'transcode'}), environment, actions).streams[0];
-  assert.equal(view({video: {action: 'future-video-mode', reasons: []}, audio: {action: 'transcode', reasons: []}}).conversion?.text,
-    defaultI18n.t('web.nowPlaying.delivery.convertAudio'));
-  assert.equal(view({video: {action: 'copy', reasons: []}, audio: {action: 'transcode', reasons: []}, subtitles: {action: 'burn', reasons: []}}).conversion?.text,
-    defaultI18n.t('next.home.shell.convertingTo', {quality: '1080p'}));
-  for (const action of ['direct', 'copy', 'future-video-mode']) {
-    assert.equal(view({video: {action, reasons: []}, audio: {action: 'direct', reasons: []}}).conversion, undefined);
-  }
-  assert.equal(view({}).conversion, undefined);
-});
-test('unknown totals stay unknown and server work counts and identifiers survive mapping', () => {
+test('unknown totals stay unknown; the update and the last scan come from the server', () => {
   const view = activityView(summary(), environment, actions);
   assert.equal(view.scans[0].discovered, 40); assert.equal(view.scans[0].processed, 12); assert.equal(view.scans[0].total, undefined);
-  assert.equal(view.tasks[0].processed, 5); assert.equal(view.tasks[0].total, undefined);
-  assert.equal(view.update.available, true); assert.equal(view.update.current, '1.0'); assert.equal(view.update.latest, '1.1');
+  assert.equal(view.tasks[0].processed, 5); assert.equal(view.tasks[0].total, undefined); assert.equal(view.tasks[0].progressText, undefined);
+  assert.deepEqual([view.update.available, view.update.current, view.update.latest], [true, '1.0', '1.1']);
   assert.equal(view.lastScan, defaultI18n.relativeTime('2026-10-22T11:55:00Z', Date.parse('2026-10-22T12:00:00Z'), {inSentence: true}));
+  const none = activityView({...summary(), alerts: []}, environment, actions);
+  assert.equal(none.update.available, false); assert.equal(none.health, 'normal'); assert.equal(none.majorIssue, undefined);
+  const noLatest = activityView({...summary(), alerts: [{code: 'update_available', severity: 'warning', major: false, params: {current: '1.0'}, action: {kind: 'update', target: ''}}]}, environment, actions);
+  assert.equal(noLatest.update.available, false, 'an update with no version to name is not offered');
+  const {lastScanAt: _, ...first} = summary();
+  assert.equal(activityView(first, environment, actions).lastScan, undefined);
 });
 test('the last scan reads mid-sentence: "finished just now", "finished yesterday", never a capital in the middle', () => {
   const now = Date.parse('2026-10-22T12:00:00Z');
@@ -58,33 +55,32 @@ test('the last scan reads mid-sentence: "finished just now", "finished yesterday
   assert.equal(defaultI18n.relativeTime('2026-10-22T11:59:50Z', now), 'Just now');
   assert.equal(defaultI18n.relativeTime('2026-10-21T12:00:00Z', now), 'Yesterday');
 });
-test('an absent or unrecognized media projection never becomes an invented title', () => {
-  assert.equal(activitySubject({...stream(), item: undefined}), undefined);
-  assert.equal(activitySubject({...stream(), item: {...stream().item!, kind: 'unrecognized'}}), undefined);
-});
 test('cold loading, refreshing and errors assert no health, counts or update facts, while a ready zero is real', () => {
   for (const phase of ['idle', 'loading', 'error', 'unavailable'] as const) {
     const view = activityPanelView({phase, document: summary()}, f.server, environment, actions);
     for (const field of ['health', 'streamCount', 'taskCount', 'update', 'majorIssue']) assert.equal(Object.hasOwn(view, field), false);
     assert.deepEqual(view.streams, []); assert.deepEqual(view.scans, []); assert.deepEqual(view.tasks, []);
   }
-  const document = {...summary(), streams: {count: 0, convertingCount: 0, overflow: {count: 0, convertingCount: 0}, items: []}, tasks: {count: 0, items: []}, scans: []};
+  const document = {...summary(), streams: {count: 0, converting: 0, items: []}, tasks: {count: 0, items: []}, scans: []};
   const ready = activityPanelView({phase: 'ready', document}, f.server, environment, actions);
   assert.equal(ready.streamCount, 0); assert.equal(ready.taskCount, 0); assert.equal(ready.health, 'normal');
+  assert.deepEqual(ready.streamOverflow, {count: 0, convertingCount: 0});
 });
 
-test('Activity preserves returned priority order and authoritative full-set overflow without inferring recency', () => {
+test('the streams keep the server\'s order, and the line for the rest is the server\'s counts less the streams shown', () => {
   const document = summary();
   const view = activityView(document, environment, actions);
   assert.deepEqual(view.streams.map(row => row.id), document.streams.items.map(row => row.id));
-  assert.equal(view.streamOverflow, document.streams.overflow);
+  // Nine streams, four converted; three shown, one of them converted: six more, three of them converted.
+  assert.deepEqual(view.streamOverflow, {count: 6, convertingCount: 3});
   assert.equal(view.streams[0].startedAt, document.streams.items[0].startedAt);
 });
-test('missing usernames and missing subject facts stay absent and never drop a selected session', () => {
-  const document = summary({...stream(), user: {id: 'account'}, profile: {id: 'profile', name: ''}, device: {id: 'device', name: ''}, item: undefined, problem: true});
+test('a stream with no title or profile name keeps its row, named by the username alone', () => {
+  const {title: _, profile: __, ...bare} = stream();
+  const document = summary({...bare, deviceName: ''});
   const row = activityView(document, environment, actions).streams[0];
-  assert.equal(row.username, undefined); assert.equal(row.name, ''); assert.equal(row.device, '');
-  assert.equal(row.identity, undefined); assert.equal(row.title, undefined); assert.ok(row.problem);
+  assert.equal(row.title, undefined); assert.equal(row.name, f.account); assert.equal(row.username, f.account); assert.equal(row.device, '');
+  assert.equal(row.problem, undefined, 'the rebuilt server sends no buffering facts, so none is shown');
   assert.equal(activityView(document, environment, actions).streams.length, 3);
 });
 test('row and overflow navigation use the existing genuine Dashboard callbacks', () => {
@@ -94,22 +90,3 @@ test('row and overflow navigation use the existing genuine Dashboard callbacks',
   assert.deepEqual(calls, ['streams', 'streams', 'activity', 'activity']);
 });
 
-test('a stored buffering problem uses its actual state while other problems remain general', () => {
-  const buffering = activityView(summary({...stream(), state: 'buffering', problem: true}), environment, actions).streams[0];
-  assert.equal(buffering.problem?.text, defaultI18n.t('web.together.loading'));
-  const error = activityView(summary({...stream(), state: 'error', problem: true}), environment, actions).streams[0];
-  assert.equal(error.problem?.text, defaultI18n.t('next.shell.activityProblem'));
-  assert.equal(activityView(summary({...stream(), state: 'playing', problem: false}), environment, actions).streams[0].problem, undefined);
-});
-
-test('watchdog degraded is unqualified attention and never fabricates a major issue or destination', () => {
-  const document = {...summary(), health: {degraded: true}};
-  const view = activityView(document, environment, actions);
-  assert.equal(view.health, 'attention');
-  assert.equal(view.majorIssue, undefined);
-  assert.equal(activityView(summary({...stream(), state: 'buffering', problem: true}), environment, actions).majorIssue, undefined);
-  for (const phase of ['loading', 'error', 'unavailable'] as const) {
-    const stale = activityPanelView({phase, document}, f.server, environment, actions);
-    assert.equal(stale.majorIssue, undefined); assert.equal(stale.health, undefined);
-  }
-});

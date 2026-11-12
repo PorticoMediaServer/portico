@@ -234,17 +234,12 @@ function recommendationRow(index: number, row: DetailsFixture['rows'][number]) {
 }
 
 function activityDocument(now: string) {
-  const session = (id: string) => ({
-    id, user: {id: 'specimen-account', username: 'demo'}, profile: {id: 'demo', name: fixtureText('next.detail.fixture.profile')},
-    device: {id: 'specimen-device', name: fixtureText('next.detail.fixture.device')}, kind: 'vod', state: 'playing', startedAt: now,
-    problem: false, converting: false, positionMs: 60_000, decision: {},
-  });
-  return {
-    scope: {serverId, viewerFence: 'a'.repeat(64)}, observedAt: now, serverName: fixtureText('next.detail.fixture.server'),
-    streams: {count: 2, convertingCount: 0, overflow: {count: 0, convertingCount: 0}, items: [session('stream-1'), session('stream-2')]},
-    scans: [], tasks: {count: 0, items: []}, update: {available: false, state: 'unconfigured', current: ''},
-    health: {degraded: false}, majorIssues: [],
-  };
+  // The rebuilt server's owner summary (GET /v1/admin/activity).
+  const session = (id: string) => ({id, kind: 'movie', state: 'playing', positionMs: 60_000, username: 'demo', profile: fixtureText('next.detail.fixture.profile'),
+    deviceName: fixtureText('next.detail.fixture.device'), away: false, route: 'original', delivery: {}, startedAt: now});
+  return {observedAt: now, serverName: fixtureText('next.detail.fixture.server'),
+    streams: {count: 2, converting: 0, items: [session('stream-1'), session('stream-2')]},
+    scans: [], tasks: {count: 0, items: []}, alerts: []};
 }
 
 export type DetailSpecimen = ReturnType<typeof createDetailSpecimen>;
