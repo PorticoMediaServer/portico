@@ -134,7 +134,9 @@ func TestKeepingToken(ctx context.Context, kind string, c Config, s *Secret) err
 		return err
 	}
 	defer closeStorage(storage)
-	_, err = Throttled(storage, NewThrottle(c.limits())).List(ctx, "")
+	throttle := NewThrottle(c.limits())
+	_, err = Throttled(storage, throttle).List(ctx, "")
+	err = resting(err, throttle)
 	if rc, ok := storage.(*rclone); ok && rc.token() != rc.options["token"] {
 		withToken(kind, s, rc.token())
 	}
@@ -155,8 +157,17 @@ func (r *Registry) Check(ctx context.Context, id int64) error {
 	if !ok {
 		return nil
 	}
-	err := o.throttle.Do(ctx, func() error { return checker.check(ctx) })
+	err := resting(o.throttle.Do(ctx, func() error { return checker.check(ctx) }), o.throttle)
 	r.found(id, err, false)
+	return err
+}
+
+// resting says a test that ran out of time while the source had asked for a rest is the source
+// asking to slow down, not a source that did not answer.
+func resting(err error, t *Throttle) error {
+	if until, waiting := t.Waiting(); waiting && (errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)) {
+		return &SlowDown{After: time.Until(until)}
+	}
 	return err
 }
 

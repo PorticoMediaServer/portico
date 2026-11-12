@@ -3,6 +3,7 @@ package remote_test
 import (
 	"context"
 	"errors"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -88,5 +89,43 @@ func TestATokenFromAFailedTestIsHandedBack(t *testing.T) {
 	}
 	if !strings.Contains(secret.Rclone, "token = "+refreshedToken) {
 		t.Fatalf("the secret after a failed test: %q", secret.Rclone)
+	}
+}
+
+// rclone serves a source it cannot reach, or one that asks for a rest, as an empty folder too.
+// Asked first, an unreachable source is said to be unreachable, and a rate limit or quota is
+// the source asking to slow down, which every request then waits for (rule 14).
+func TestAnUnreachableOrRateLimitedRemoteIsSaidSo(t *testing.T) {
+	fakeRcloneBinary(t)
+	for _, tc := range []struct {
+		token string
+		check func(error) bool
+	}{
+		{"unreachable", func(err error) bool { var u *url.Error; return errors.As(err, &u) }},
+		{"rate-limited", func(err error) bool { var s *remote.SlowDown; return errors.As(err, &s) }},
+	} {
+		options, err := remote.ParseRcloneConfig("[g]\ntype = drive\nclient_id = own-client\ntoken = " + tc.token + "\n")
+		if err != nil {
+			t.Fatal(err)
+		}
+		src := remote.NewRclone(options, "")
+		_, err = src.List(ctx, "")
+		src.Close()
+		if !tc.check(err) || errors.Is(err, remote.ErrSignIn) {
+			t.Errorf("%s: %v", tc.token, err)
+		}
+	}
+}
+
+// A test before saving that runs out of time while the source rests is the source asking to
+// slow down, not a source that did not answer.
+func TestATestCutShortByARestSaysSo(t *testing.T) {
+	fakeRcloneBinary(t)
+	short, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
+	defer cancel()
+	err := remote.Test(short, "rclone", remote.Config{}, remote.Secret{Rclone: "[g]\ntype = drive\nclient_id = own-client\ntoken = rate-limited\n"})
+	var slow *remote.SlowDown
+	if !errors.As(err, &slow) {
+		t.Fatalf("a test cut short by a rest: %v", err)
 	}
 }

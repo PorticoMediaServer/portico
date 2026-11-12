@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -77,6 +78,13 @@ func (r *rclone) checkRemote(ctx context.Context, home string) error {
 		return ErrFolderMissing
 	case signInRefused.MatchString(stderr.String()):
 		return ErrSignIn
+	case notSignIn.MatchString(stderr.String()):
+		// A rate limit or quota: the source asks for a rest, as it would of any request.
+		return &SlowDown{}
+	case exited.ExitCode() == 5:
+		// rclone's own code for a temporary error: the source could not be reached (rclone
+		// would otherwise serve it as an empty folder).
+		return &url.Error{Op: "Get", URL: "the source", Err: errors.New("rclone could not reach the source")}
 	}
 	return nil
 }
