@@ -3,7 +3,7 @@
 // (/v1/content?view=watchlist, /v1/playlists/{id}, ...), and the fixture's answer is turned into the rebuilt server's.
 // Only test code uses this.
 import {createHash} from 'node:crypto';
-import {libraryItemQuery} from '../../src/library-browse.ts';
+import {libraryItemQuery, libraryQueryControls} from '../../src/library-browse.ts';
 
 type Request = (path: string, method?: string, body?: unknown, signal?: AbortSignal) => Promise<any>;
 const itemKind: Readonly<Record<string, string>> = {song: 'track', book: 'audiobook', ebook: 'book', comic: 'book', audiobook_file: 'audiobook'};
@@ -49,9 +49,22 @@ export function legacySavedRequest(request: Request, options: LegacySavedOptions
     const url = new URL(path, 'https://legacy.invalid'), q = url.searchParams, at = url.pathname;
     const old = (oldPath: string, oldMethod = 'GET', oldBody?: unknown) => request(oldPath, oldMethod, oldBody, signal);
     const page = (cursor: string | null) => new URLSearchParams({limit: '40', ...(cursor ? {cursor} : {})});
-    if (at === '/v1/lists' && method === 'GET' && q.get('kind') === 'collection') {
-      const doc = await old('/v1/saved-resources?' + new URLSearchParams({limit: '40', ...(q.get('cursor') ? {cursor: q.get('cursor')!} : {}), kind: 'collection'}));
+    if (at === '/v1/lists' && method === 'GET' && (q.get('kind') === 'collection' || q.get('kind') === 'saved_view')) {
+      const kind = q.get('kind') === 'saved_view' ? 'view' : 'collection';
+      const doc = await old('/v1/saved-resources?' + new URLSearchParams({limit: '40', ...(q.get('cursor') ? {cursor: q.get('cursor')!} : {}), kind}));
       return {items: (doc?.resources ?? []).map(personalListOf), ...(doc?.nextCursor ? {nextCursor: doc.nextCursor} : {})};
+    }
+    if (at === '/v1/lists' && method === 'POST' && ['collection', 'saved_view'].includes((body as {kind?: string})?.kind ?? '')) {
+      // The old create carried the operation and, for a view, its definition; the rebuilt one names its library and query.
+      const made = body as {kind: string; name: string; description?: string; everyone?: boolean; library?: string; query?: string};
+      const view = made.kind === 'saved_view', controls = view ? libraryQueryControls(made.query ?? '') : undefined;
+      const definition = controls && {libraryId: made.library, pivot: controls.pivot, query: controls.nodes.length === 0 ? null : controls.nodes.length === 1 ? controls.nodes[0] : {variant: 'group', all: controls.nodes},
+        sort: controls.sorts.length ? controls.sorts : [{field: 'title', direction: 'asc'}], presentation: 'grid'};
+      const operationId = headers?.['Idempotency-Key'] || '00000000-0000-4000-8000-' + createHash('sha256').update(JSON.stringify(body)).digest('hex').slice(0, 12);
+      const raw = await old('/v1/saved-resources', 'POST', {expectedRevision: 0, kind: view ? 'view' : 'collection', name: made.name, summary: made.description ?? '',
+        ...(view ? {definition} : {visibility: made.everyone ? 'server' : 'private'}), operationId});
+      return {id: raw?.receipt?.resourceId ?? 'created', kind: made.kind, name: made.name, owner: {id: 'owner', name: ''}, role: 'owner', count: 0, covers: [],
+        revision: String(raw?.receipt?.revision ?? 1), createdAt: '', updatedAt: '', ...(view ? {library: made.library, query: made.query} : {})};
     }
     if (options.personal) {
       const one = /^\/v1\/lists\/([^/]+)(\/.*)?$/.exec(at), resourcePath = (id: string) => `/v1/saved-resources/${encodeURIComponent(id)}`;
@@ -154,4 +167,9 @@ export function legacySavedFetch(fetcher: (input: any, init?: any) => Promise<Re
       return new Response(answer === undefined ? null : JSON.stringify(answer), {status: answer === undefined ? 204 : 200, headers: {'content-type': 'application/json'}});
     } catch (error) {if (error instanceof Refused) return error.response; throw error;}
   };
+}
+
+/** The same, around a test's own `{request}` api. */
+export function legacySavedApi<A extends {request: (...args: any[]) => Promise<any>}>(api: A, options: LegacySavedOptions = {}): A {
+  return {...api, request: legacySavedRequest(api.request.bind(api) as Request, options)} as A;
 }

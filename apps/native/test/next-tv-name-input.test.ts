@@ -5,6 +5,8 @@ import {NativeLibrarySaveView} from '../src-next/screens/library/save-view';
 import {createDestinationEntryFocus} from '../src-next/screens/destinations/focus';
 import {createFocusRegistry} from '../src-next/kit/focus/registry';
 import {createNativeTVNameInput} from '../src-next/tv/library/keyboard-state';
+// The Save view sheet's own rules, against the old server's view documents through the shared translator; the rebuilt server's are client-core's.
+import {legacySavedApi} from '../../../packages/client-core/test/fixtures/legacy-saved.ts';
 
 const scope = {serverId: 'server', viewerId: JSON.stringify(['local', 'account', 'profile'])};
 const definition = {libraryId: 'movies', pivot: 'movies', query: {variant: 'predicate', field: 'favorite', operator: 'equals', value: true},
@@ -51,7 +53,7 @@ test('TV name editing keeps Unicode bounds and the exact uncertain Save operatio
     if (fail) throw Object.assign(new Error('offline'), {code: 'network_error', retryable: true});
     return {serverId: 'server', viewerFence: 'actual-viewer', receipt: {operationId, revision: 2, resourceId: 'created-view', deleted: false}} as T;
   }};
-  const controller = new NativeLibrarySaveView({api, scope, definition, current: () => true, requestId: async () => operationId, saved: id => {saved.push(id);}});
+  const controller = new NativeLibrarySaveView({api: legacySavedApi(api), scope, definition, current: () => true, requestId: async () => operationId, saved: id => {saved.push(id);}});
   const input = createNativeTVNameInput(controller);
   try {
     controller.setName('🎬'.repeat(200)); input.openKeyboard();
@@ -81,7 +83,7 @@ test('busy and retired form lifetimes reject TV keyboard callbacks without issui
     if (method === 'POST') {posts++; throw new Error('unexpected_retired_mutation');}
     entered(); return new Promise<T>(resolve => {finish = value => resolve(value as T);});
   }};
-  const controller = new NativeLibrarySaveView({api, scope, definition, current: () => current, requestId: async () => operationId, saved: () => {saved++;}});
+  const controller = new NativeLibrarySaveView({api: legacySavedApi(api), scope, definition, current: () => current, requestId: async () => operationId, saved: () => {saved++;}});
   const input = createNativeTVNameInput(controller);
   try {
     controller.setName('Current name'); input.openKeyboard();
