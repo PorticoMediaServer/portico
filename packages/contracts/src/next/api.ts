@@ -6,6 +6,7 @@ export interface Account {
   username: string;
   email?: string;
   role: string;
+  hostedAccountId?: string;
 }
 
 export interface AccountPlayback {
@@ -434,6 +435,7 @@ export interface DashboardScan {
   discovered: number;
   analyzed: number;
   total?: number;
+  current?: string;
 }
 
 export interface DashboardTask {
@@ -445,11 +447,23 @@ export interface DashboardTask {
   state: string;
   processed?: number;
   total?: number;
+  unit?: string;
 }
 
 export interface DashboardTasks {
   count: number;
   items: DashboardTask[];
+}
+
+export interface DataFolderPermissions {
+  path: string;
+  owner: string;
+  account: string;
+  readableByOthers: boolean;
+  fixable: boolean;
+  reason?: string;
+  message?: string;
+  checked: boolean;
 }
 
 export interface Decision {
@@ -2173,6 +2187,10 @@ export interface MusicMixPage {
   nextCursor?: string;
 }
 
+export interface MusicMixSave {
+  name: string;
+}
+
 export interface NetworkSettings {
   homeNetworks: string[];
   homeNetworksDefault: boolean;
@@ -2225,6 +2243,11 @@ export interface NowPlaying {
   state: string;
   positionMs: number;
   durationMs?: number;
+  showId?: string;
+  showTitle?: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  convertingToHeight?: number;
   username: string;
   profile?: string;
   deviceName: string;
@@ -2233,6 +2256,8 @@ export interface NowPlaying {
   route: string;
   delivery: PlaybackDecisions;
   startedAt: string;
+  bufferingSince?: string;
+  problem?: boolean;
 }
 
 export interface NowPlayingPage {
@@ -3454,6 +3479,19 @@ export interface ServerMessageSent {
   sent: number;
 }
 
+export interface ServerSkippedFile {
+  libraryId: string;
+  libraryName: string;
+  path: string;
+  reason: string;
+  message: string;
+}
+
+export interface ServerSkippedFilePage {
+  items: ServerSkippedFile[];
+  nextCursor?: string;
+}
+
 export interface Session {
   accessToken: string;
   expiresAt: string;
@@ -3743,6 +3781,7 @@ export interface StreamTotals {
   streams: number;
   away: number;
   converting: number;
+  problems: number;
 }
 
 export interface SubtitleDownload {
@@ -4161,6 +4200,7 @@ export interface Routes {
   'DELETE /v1/admin/libraries/{id}/scan': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/libraries/{id}/scan': {access: 'owner'; request: undefined; response: ScanStatus};
   'GET /v1/admin/libraries/{id}/skipped': {access: 'owner'; request: undefined; response: SkippedFilePage};
+  'GET /v1/admin/skipped': {access: 'owner'; request: undefined; response: ServerSkippedFilePage};
   'GET /v1/admin/libraries/{id}/missing': {access: 'owner'; request: undefined; response: MissingTitles};
   'DELETE /v1/admin/libraries/{id}/missing': {access: 'owner'; request: undefined; response: TrashEmptied};
   'GET /v1/admin/items/{id}/deletion': {access: 'owner'; request: undefined; response: DeletionPreview};
@@ -4184,6 +4224,8 @@ export interface Routes {
   'GET /v1/admin/updates': {access: 'owner'; request: undefined; response: State};
   'POST /v1/admin/updates/check': {access: 'owner'; request: undefined; response: State};
   'GET /v1/admin/storage': {access: 'owner'; request: undefined; response: Storage};
+  'GET /v1/admin/data-folder/permissions': {access: 'owner'; request: undefined; response: DataFolderPermissions};
+  'POST /v1/admin/data-folder/permissions/fix': {access: 'owner'; request: undefined; response: DataFolderPermissions};
   'GET /v1/admin/backups': {access: 'owner'; request: undefined; response: Backups};
   'POST /v1/admin/backups': {access: 'owner'; request: undefined; response: BackupStarted};
   'DELETE /v1/admin/backups/{id}': {access: 'owner'; request: undefined; response: undefined};
@@ -4362,5 +4404,6 @@ export interface Routes {
   'POST /v1/admin/items/{id}/artwork/find': {access: 'admin'; request: undefined; response: ArtworkPicturePage};
   'POST /v1/admin/items/{id}/artwork': {access: 'admin'; request: undefined; response: ArtworkPicture};
   'GET /v1/admin/libraries/{id}/sound-analysis': {access: 'owner'; request: undefined; response: SoundAnalysisStatus};
+  'POST /v1/music/mixes/{id}/playlist': {access: 'withProfile'; request: MusicMixSave; response: ListCreated};
   'GET /v1/music/mixes': {access: 'withProfile'; request: undefined; response: MusicMixPage};
 }

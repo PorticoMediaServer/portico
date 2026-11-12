@@ -6,6 +6,9 @@
           "email": {
             "type": "string"
           },
+          "hostedAccountId": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
           },
@@ -1436,6 +1439,9 @@
           "analyzed": {
             "type": "integer"
           },
+          "current": {
+            "type": "string"
+          },
           "discovered": {
             "type": "integer"
           },
@@ -1490,6 +1496,9 @@
           },
           "total": {
             "type": "integer"
+          },
+          "unit": {
+            "type": "string"
           }
         },
         "required": [
@@ -1515,6 +1524,43 @@
         "required": [
           "count",
           "items"
+        ],
+        "type": "object"
+      },
+      "DataFolderPermissions": {
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "checked": {
+            "type": "boolean"
+          },
+          "fixable": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "readableByOthers": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "owner",
+          "account",
+          "readableByOthers",
+          "fixable",
+          "checked"
         ],
         "type": "object"
       },
@@ -7275,6 +7321,17 @@
         ],
         "type": "object"
       },
+      "MusicMixSave": {
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "NetworkSettings": {
         "properties": {
           "builtInWebOrigins": {
@@ -7443,6 +7500,13 @@
           "bitrateKbps": {
             "type": "integer"
           },
+          "bufferingSince": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "convertingToHeight": {
+            "type": "integer"
+          },
           "delivery": {
             "$ref": "#/components/schemas/PlaybackDecisions"
           },
@@ -7450,6 +7514,9 @@
             "type": "string"
           },
           "durationMs": {
+            "type": "integer"
+          },
+          "episodeNumber": {
             "type": "integer"
           },
           "id": {
@@ -7464,10 +7531,22 @@
           "positionMs": {
             "type": "integer"
           },
+          "problem": {
+            "type": "boolean"
+          },
           "profile": {
             "type": "string"
           },
           "route": {
+            "type": "string"
+          },
+          "seasonNumber": {
+            "type": "integer"
+          },
+          "showId": {
+            "type": "string"
+          },
+          "showTitle": {
             "type": "string"
           },
           "startedAt": {
@@ -11471,6 +11550,50 @@
         ],
         "type": "object"
       },
+      "ServerSkippedFile": {
+        "properties": {
+          "libraryId": {
+            "type": "string"
+          },
+          "libraryName": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "libraryId",
+          "libraryName",
+          "path",
+          "reason",
+          "message"
+        ],
+        "type": "object"
+      },
+      "ServerSkippedFilePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ServerSkippedFile"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "Session": {
         "properties": {
           "accessToken": {
@@ -12480,6 +12603,9 @@
           "converting": {
             "type": "integer"
           },
+          "problems": {
+            "type": "integer"
+          },
           "streams": {
             "type": "integer"
           }
@@ -12487,7 +12613,8 @@
         "required": [
           "streams",
           "away",
-          "converting"
+          "converting",
+          "problems"
         ],
         "type": "object"
       },
@@ -13911,6 +14038,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/data-folder/permissions": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataFolderPermissions"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/data-folder/permissions/fix": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataFolderPermissions"
                 }
               }
             },
@@ -18286,6 +18467,33 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/skipped": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerSkippedFilePage"
                 }
               }
             },
@@ -23458,6 +23666,53 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MusicMixPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/music/mixes/{id}/playlist": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MusicMixSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCreated"
                 }
               }
             },
