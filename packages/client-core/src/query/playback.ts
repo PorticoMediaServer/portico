@@ -4,6 +4,7 @@ import {call, enc} from '../playback-v1/http.ts';
 import {decodeOpen} from '../../../contracts/src/runtime.ts';
 import {SessionsClient} from '../playback-v1/sessions.ts';
 import {playbackPath} from '../playback-v1/routes.ts';
+import {throwIfAborted} from '../abort-lifetime.ts';
 import type {OriginalChannelStart} from '../playback-v1/channel-control.ts';
 import type {GetPlaybackSessionResponse} from '../../../contracts/src/types.ts';
 
@@ -12,7 +13,7 @@ type PlaybackApi = {request<T>(path: string, method?: string, body?: unknown, si
  * none yet: no hand-over to the system audio players (they still speak the old server's queue and
  * progress messages) and no prepared gapless joins, so audio plays in the app's own player. */
 export function readPlaybackCapabilities(_api: PlaybackApi, signal?: AbortSignal): Promise<unknown> {
-  signal?.throwIfAborted();
+  throwIfAborted(signal);
   return Promise.resolve({features: {}});
 }
 /** The admitted subtitle plan supplies the exact font/line document capability. */
