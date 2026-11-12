@@ -528,7 +528,7 @@ function TouchNowPlayingScreen({occupant, queue, artwork, width, height, topInse
     </ListeningSurface></RetainedOverlay></TVMusicFocus>
     <BottomSheet open={paintActive && !wide && !!sheet} onOpenChange={open => {if (!open) setSheet(null);}}
       title={t(sheet === 'chapters' ? 'player.opt.chapters' : sheet === 'lyrics' ? 'player.lyrics' : 'player.queue')} scrollable={false}
-      contentStyle={{flex: 1, minHeight: 0}} testID={`${testID}-sheet`} detents={[.5, .94]}>
+      contentStyle={{flex: 1, minHeight: 0}} testID={`${testID}-sheet`} detents={[Math.round(height * .5), Math.round(height * .94)]}>
       {sheet === 'chapters' ? chapterPane : sheet === 'lyrics' ? lyricPaint : queuePaint}
     </BottomSheet>
     <Menu open={paintActive && panel === 'speed'} onOpenChange={open => {if (!open) setPanel(null);}} title={t('player.opt.speed')} testID={`${testID}-speed-menu`}

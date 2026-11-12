@@ -86,6 +86,8 @@ test('phone queue lives in a dismissible BottomSheet while the player stays moun
   f.button('queue-toggle').props.onPress(); f.render();
   const sheet = f.nodes().find(node => node.type === 'BottomSheet');
   assert.equal(sheet.props.open, true); assert.ok(f.column());
+  // Detents are heights in points: fractions (.5, .94) made the sheet rise 1 point, a sliver under a dimmed screen.
+  assert.deepEqual(sheet.props.detents, [422, 793]);
   assert.ok(nodes(sheet).some(node => node.type === 'QueuePaint'));
   sheet.props.onOpenChange(false); f.render();
   assert.equal(f.nodes().find(node => node.type === 'BottomSheet').props.open, false);
