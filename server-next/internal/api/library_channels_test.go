@@ -172,7 +172,9 @@ func TestShowsPlayInEpisodeOrderAndRegenerateKeepsTheirPlace(t *testing.T) {
 }
 
 // In a block that cuts programmes off, nothing runs past the block's end; outside it a film
-// always finishes, so the block can start late.
+// always finishes, so the block can start late (area 11 rule 92), and a film that runs over
+// the block's whole time leaves that evening's block empty. Every evening the schedule covers
+// is one or the other, whatever the time the test runs at.
 func TestABlockThatCutsOffEndsOnTime(t *testing.T) {
 	s, owner, _ := seededWith(t, 600, 0)
 	films := libraryOfKind(t, s, owner, "movies")
@@ -193,19 +195,42 @@ func TestABlockThatCutsOffEndsOnTime(t *testing.T) {
 	}
 	loc, _ := time.LoadLocation(zone)
 	now := time.Now()
-	inBlock := 0
-	for _, r := range programmes(t, s, ch.ID, now, now.Add(8*24*time.Hour)) {
+	rows := programmes(t, s, ch.ID, now, now.Add(8*24*time.Hour))
+	if len(rows) == 0 {
+		t.Fatal("the channel has no schedule")
+	}
+	for _, r := range rows {
 		start := r.StartsAt.In(loc)
 		end := time.Date(start.Year(), start.Month(), start.Day(), 21, 0, 0, 0, loc)
-		if start.Hour() >= 19 && start.Hour() < 21 {
-			inBlock++
-			if r.EndsAt.After(end) {
-				t.Fatalf("a programme in the block runs from %v to %v, past %v", start, r.EndsAt.In(loc), end)
-			}
+		if start.Hour() >= 19 && start.Hour() < 21 && r.EndsAt.After(end) {
+			t.Fatalf("a programme in the block runs from %v to %v, past %v", start, r.EndsAt.In(loc), end)
 		}
 	}
-	if inBlock < 7 {
-		t.Fatalf("only %d programmes in a week of evening blocks", inBlock)
+	evenings, played := 0, 0
+	day := time.Date(now.In(loc).Year(), now.In(loc).Month(), now.In(loc).Day(), 0, 0, 0, 0, loc)
+	for ; day.Before(rows[len(rows)-1].EndsAt); day = day.AddDate(0, 0, 1) {
+		from, to := day.Add(19*time.Hour), day.Add(21*time.Hour)
+		if from.Before(rows[0].StartsAt) || to.After(rows[len(rows)-1].EndsAt) {
+			continue // an evening the schedule covers only in part
+		}
+		evenings++
+		inBlock, coveredBy := 0, ""
+		for _, r := range rows {
+			switch {
+			case !r.StartsAt.Before(from) && r.StartsAt.Before(to):
+				inBlock++
+			case r.StartsAt.Before(from) && !r.EndsAt.Before(to):
+				coveredBy = r.StartsAt.In(loc).Format("15:04") + " to " + r.EndsAt.In(loc).Format("15:04")
+			}
+		}
+		if inBlock > 0 {
+			played++
+		} else if coveredBy == "" {
+			t.Fatalf("the evening of %s has nothing in its block and no film running over it", day.Format("Mon 2 Jan"))
+		}
+	}
+	if evenings < 6 || played == 0 {
+		t.Fatalf("the schedule covers %d whole evenings and the block played on %d of them", evenings, played)
 	}
 }
 
