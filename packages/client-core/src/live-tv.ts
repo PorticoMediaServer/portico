@@ -11,8 +11,33 @@ import {callServer, type ServerRequester} from './query/server-api.ts';
 
 export type {LiveChannel, DvrOverview, LiveGuideRow, LiveOnNow, LiveProgrammeDetail, DvrRecording, LiveReminderOut, DvrRule};
 /** Which channels, in what order: favourites only, hidden ones too, by number (the default) or by name. */
-export type ChannelChoice = Readonly<{favorites?: boolean; hidden?: boolean; sort?: 'number' | 'name'}>;
-const choice = (c: ChannelChoice = {}) => ({...(c.favorites ? {favorites: true} : {}), ...(c.hidden ? {hidden: true} : {}), ...(c.sort === 'name' ? {sort: 'name'} : {})});
+/** Which channels, in what order: favourites only, hidden ones too, by number (the default) or by name, one source, one group,
+ * or the channels around one (the mini guide). Source, group and around are the server follow-up to the Live TV PR; a server
+ * without them answers every channel. */
+export type ChannelChoice = Readonly<{favorites?: boolean; hidden?: boolean; sort?: 'number' | 'name'; source?: string; group?: string; around?: string}>;
+const choice = (c: ChannelChoice = {}) => ({...(c.favorites ? {favorites: true} : {}), ...(c.hidden ? {hidden: true} : {}), ...(c.sort === 'name' ? {sort: 'name'} : {}),
+  ...(c.source ? {source: c.source} : {}), ...(c.group ? {group: c.group} : {}), ...(c.around ? {around: c.around} : {})});
+
+/**
+ * The sources and groups to filter by, which come with the first page of channels (definition 11, section 3), in the shape this
+ * app reads: each source with its kind, its channel and favourite counts, its groups with their counts, how far its guide reaches
+ * and whether it is out of date. Absent from a server without the follow-up: the filters then offer All and Favorites only.
+ */
+export type ChannelSourceSummary = Readonly<{id: string; name: string; kind: 'live' | 'library'; channels: number; favorites: number;
+  groups: readonly Readonly<{name: string; count: number}>[]; guideThrough?: string; outOfDate?: boolean}>;
+export function channelSources(page: unknown): ChannelSourceSummary[] {
+  const raw = (page as {sources?: unknown} | null)?.sources;
+  if (!Array.isArray(raw)) return [];
+  const count = (value: unknown) => Number.isSafeInteger(value) && (value as number) >= 0 ? value as number : 0;
+  return raw.flatMap((one): ChannelSourceSummary[] => {
+    const source = one as Record<string, unknown> | null;
+    if (!source || typeof source.id !== 'string' || typeof source.name !== 'string') return [];
+    const groups = Array.isArray(source.groups) ? source.groups.flatMap(group => typeof (group as {name?: unknown})?.name === 'string'
+      ? [{name: (group as {name: string}).name, count: count((group as {count?: unknown}).count)}] : []) : [];
+    return [{id: source.id, name: source.name, kind: source.kind === 'library' ? 'library' : 'live', channels: count(source.channels), favorites: count(source.favorites), groups,
+      ...(typeof source.guideThrough === 'string' ? {guideThrough: source.guideThrough} : {}), ...(source.outOfDate === true ? {outOfDate: true} : {})}];
+  });
+}
 
 /** On now: favourites first, then by number, with what is on and what is next. One page at a time. */
 export const readOnNow = (api: ServerRequester, cursor?: string, signal?: AbortSignal): Promise<LiveOnNowPage> =>

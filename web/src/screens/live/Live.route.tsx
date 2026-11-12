@@ -154,11 +154,10 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
     const attempt: ReadAttempt = {current: () => attemptLive && link === currentLink() && lease.live && lease.life.current() && lease.routeCurrent(),
       retire: () => {attemptLive = false;}};
     reads.current?.retire();reads.current = attempt;
-    void lease.bindings.selectedChannel({sourceId: search.sourceId, channelId: search.channelId, provenance: search.kind}, request.signal).then(channel => {
-      if (!channel || request.signal.aborted || !attempt.current()) return;
-      const time = serverNow(), programme = channel.programmes.find(programme => Date.parse(programme.start) <= time && time < Date.parse(programme.end)) ?? channel.programmes[0];
-      const row = legacyChannelRow(channel);
-      setSelected({lease, channel: row, ...(programme ? {programme: legacyProgram(programme)} : {}), admission: {row, current: attempt.current, retire: attempt.retire}});
+    void lease.bindings.selectedChannel({channelId: search.channelId}, request.signal).then(found => {
+      if (!found || request.signal.aborted || !attempt.current()) return;
+      const row = found.row;
+      setSelected({lease, channel: row, ...(found.now ? {programme: found.now} : {}), admission: {row, current: attempt.current, retire: attempt.retire}});
     }).catch(error => {if (!request.signal.aborted && attempt.current()) lease.screen.effects.reportError(error);});
     return () => {attempt.retire();request.abort();if (reads.current === attempt) reads.current = undefined;};
   }, [lease, search.sourceId, search.channelId, search.kind]);
