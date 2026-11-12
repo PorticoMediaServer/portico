@@ -156,7 +156,7 @@ test('actual ServerDownloads keeps Retry for transient failures and shows featur
   for (const {error, absent} of failures) {
     let failure: unknown = error, listReads = 0;
     const service = new DownloadsService({request: async <T>(path: string): Promise<T> => {
-      if (!path.startsWith('/v1/downloads/preparations?')) throw new Error(`Unexpected fixture request: ${path}`);
+      if (!path.startsWith('/v1/downloads?')) throw new Error(`Unexpected fixture request: ${path}`);
       listReads++; if (failure) throw failure;
       return {items: [], nextCursor: ''} as T;
     }});

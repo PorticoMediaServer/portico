@@ -54,7 +54,7 @@ export function createSavedRuntime(input: Readonly<{api: SavedApi; scope: SavedD
   };
   const serverScope = Object.freeze({serverId: scope.serverId, viewerId: JSON.stringify([scope.authority, scope.accountId, scope.profileId, scope.sessionFamilyId])});
   const makeSaved = () => new SavedService({api, scope: serverScope, requestId: async () => randomId()});
-  const saved = makeSaved(), posters = makeSaved(), squares = makeSaved(), personal = new PersonalSavedService(api, serverScope, async () => randomId()), downloads = new DownloadsService(api);
+  const saved = makeSaved(), posters = makeSaved(), squares = makeSaved(), personal = new PersonalSavedService(api, serverScope, async () => randomId()), downloads = new DownloadsService(api, undefined, undefined, scope.profileId);
   const summary = new SavedSummary(api, serverScope, operations);
   let readyDownloads: SavedReadyDownloads | undefined;
   if (input.deviceId) downloads.followDevice(input.deviceId);

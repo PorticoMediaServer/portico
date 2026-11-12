@@ -16,7 +16,7 @@ export type NativeDownloadsCopy = Readonly<{
 export function downloadEntryIdentity(entry: OfflineEntry): string {
   const receipt = entry.receipt, viewer = receipt?.claims.viewer;
   return JSON.stringify([entry.id, entry.itemId, viewer ? [viewer.authority, viewer.accountId, viewer.profileId, viewer.serverId] : entry.owner,
-    receipt?.receiptId, receipt?.claims.artifact.sha256, receipt?.claims.artifact.bytes]);
+    receipt?.receiptId, receipt?.claims.artifact.sha256, receipt?.claims.artifact.bytes, entry.downloadId, entry.artifact?.sha256, entry.artifact?.bytes]);
 }
 
 /** Group only the actual local movie entries. Other kinds retain the device's ordering. */

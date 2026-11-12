@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DownloadsService} from '@core/downloads-service.ts';
+import type {DownloadsService} from '@core/downloads-service.ts';
+import {parseDownloadPage} from '@core/downloads.ts';
 import {SavedOperations} from '../src/screens/saved/operations.ts';
 import {SavedReadyDownloads, readyArtifactKey} from '../src/screens/saved/ready-downloads.ts';
 import type {SavedDownloadsScope} from '../src/screens/saved/downloads-port.ts';
@@ -13,17 +14,15 @@ const preparation = (overrides: Record<string, unknown> = {}) => ({
   progress: {bytesDone: 4096, bytesTotal: 4096, bytesTotalEstimated: false, percent: 100, etaMs: null},
   actions: ['remove'], revision: 1, createdAt: '2026-10-23T10:00:00Z', updatedAt: '2026-10-23T10:01:00Z', readyAt: '2026-10-23T10:01:00Z', expiresAt: '2026-10-30T10:01:00Z', ...overrides,
 });
+// This consumer accepts the shared preparation view, independently of which server protocol produced it.
 function source() {
-  let items: unknown[] = [];
-  const service = new DownloadsService({async request<T>(path: string): Promise<T> {
-    if (path.startsWith('/v1/downloads/preparations?')) return {items, nextCursor: ''} as T;
-    if (path === '/v1/downloads/usage') return {profileId: 'profile', profileBytes: 0, profileCount: 0, serverBytes: 0, serverCount: 0, distinctArtifactBytes: 0, maxPreparedBytes: 0, remainingBytes: null, retentionDays: 7, profiles: []} as T;
-    throw new Error(`Unexpected producer request: ${path}`);
-  }});
-  return {service, async publish(rows: unknown[]) { items = rows; await service.refresh(); }};
+  let snapshot = {items: parseDownloadPage({items: []}).items};
+  const listeners = new Set<() => void>();
+  const service = {getSnapshot: () => snapshot, subscribe(fn: () => void) {listeners.add(fn); return () => {listeners.delete(fn);};}, dispose() {listeners.clear();}} as DownloadsService;
+  return {service, async publish(rows: unknown[]) {snapshot = {items: parseDownloadPage({items: rows}).items}; listeners.forEach(fn => fn());}};
 }
 
-test('one real service hands each exact READY artifact off once, independent of preparation revision', async () => {
+test('one shared preparation source hands each exact READY artifact off once, independent of preparation revision', async () => {
   const server = source(), parent = new SavedOperations(() => true), keys: string[] = [];
   const observer = new SavedReadyDownloads(server.service, scope, parent, async value => { keys.push(readyArtifactKey(value)!); }, assert.fail);
   try {
