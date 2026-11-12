@@ -16,7 +16,7 @@ import type {ViewerQueryOptions} from './query/react.ts';
 import {queryKeys} from './query/keys.ts';
 import {dependsOn, titlesWithPersonalState} from './freshness-hub.ts';
 import {linkAbortSignals} from './abort-lifetime.ts';
-import {rebuiltContent, rebuiltContentViews} from './library-content-rebuilt.ts';
+import {rebuiltContent, rebuiltContentViews, rebuiltContentWindow} from './library-content-rebuilt.ts';
 /** Transport/state for server-authored semantic projections. No client ranking or grouping. */
 export type ContentView = 'discover' | 'browse' | 'collections' | 'categories' | 'show' | 'season' | 'artist' | 'album' | 'book' | 'collection' | 'releases' | 'songs' | 'authors' | 'series' | 'author' | 'book_series' | 'disc';
 export type ContentSurface = ContentView;
@@ -459,8 +459,9 @@ export function libraryContentPages(options: Readonly<{ api: LibraryContentApi; 
     const query = new URLSearchParams({ view: selected.view, limit: String(count) });
     for (const field of ['entityId','sort','direction','category','q'] as const) if (selected[field] !== undefined) query.set(field, selected[field]!);
     if (start > 0) query.set('start', String(start));
-    const raw = await options.api.request<unknown>(encodedRoutePath("get_libraries_id_content", {"id": encodeURIComponent(selected.libraryId)}) + "?" + query, 'GET', undefined, signal);
-    const result = projection(raw, selected, bound, pageSize);
+    // A view the rebuilt server answers is read there, opened at the same position.
+    const result = rebuiltContentViews.has(selected.view) ? await rebuiltContentWindow(options.api, selected, bound, start, count, signal)
+      : projection(await options.api.request<unknown>(encodedRoutePath("get_libraries_id_content", {"id": encodeURIComponent(selected.libraryId)}) + "?" + query, 'GET', undefined, signal), selected, bound, pageSize);
     // The server leaves out an empty section: an empty library at the top, or a list that shrank under a later page.
     const grid = result.sections.find(section => section.id === 'items' && section.type === 'grid');
     if (!grid) { if (start > 0) throw changed(); options.onPage?.(Object.freeze({ ...result, sections: Object.freeze([]) })); return { items: Object.freeze([]), total: 0 }; }
@@ -484,7 +485,7 @@ export function contentPageQuery(queries: ViewerQueries, r: ContentRoute, cursor
       const deadline = linkAbortSignals([signal], 15_000);
       try {
         // A view the rebuilt server answers is read there; the rest still ask the content route.
-        if (rebuiltContentViews.has(r.view)) return await rebuiltContent(queries.api, r, queries.scope, pageSize, deadline.signal);
+        if (rebuiltContentViews.has(r.view)) return await rebuiltContent(queries.api, r, queries.scope, pageSize, deadline.signal, cursor);
         return projection(await queries.api.request<unknown>(encodedRoutePath("get_libraries_id_content", {"id": encodeURIComponent(r.libraryId)}) + "?" + query, 'GET', undefined, deadline.signal), r, queries.scope, pageSize);
       }
       catch (error) { if (deadline.signal.aborted && !signal.aborted) throw new ContentFailure('timeout', 'The server took too long to respond. Try again.', true); throw error; }

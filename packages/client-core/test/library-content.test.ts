@@ -108,9 +108,9 @@ test('publishes exact server semantic rows, order, metadata and chapter playback
 test('all typed domain routes request one canonical endpoint with encoded query values', async () => {
   const paths: string[] = [];
   const nav = service(async path => { paths.push(path); return projection(path); });
-  // Discover is read from the rebuilt server's landing (library-content-rebuilt.test.ts).
-  for (const view of ['browse','collections','categories','show','season','artist','album','book','collection'] as const) {
-    await nav.select({ libraryId: 'library/a', view, ...(['show','season','artist','album','book','collection'].includes(view) ? { entityId: 'entity&x=1' } : {}) });
+  // Discover, an album, an artist and a collection are read from the rebuilt server (library-content-rebuilt.test.ts).
+  for (const view of ['browse','collections','categories','show','season','book'] as const) {
+    await nav.select({ libraryId: 'library/a', view, ...(['show','season','book'].includes(view) ? { entityId: 'entity&x=1' } : {}) });
     assert.equal(nav.getSnapshot().phase, 'ready');
     assert.ok(paths.at(-1)!.startsWith('/v1/libraries/library%2Fa/content?'));
   }
@@ -349,9 +349,10 @@ test('temporary refresh failure retains content but invalid and denied responses
 });
 
 test('entity identity and art are independent of page rows and fenced to the requested library and entity',async()=>{
- const target:ContentRoute={libraryId:'music',view:'album',entityId:'release'};
- for(const change of [null,{id:'other'},{libraryId:'private'},{kind:'book'},{playback:{itemId:'track'}}]){
-  const nav=service(async path=>projection(path,{entity:{id:'release',libraryId:'music',kind:'album',title:'Release',subtitle:'Artist',posterUrl:'/cover',backdropUrl:'/backdrop',count:205,...change},sections:[]}));
+ // A view still read from the content route (an album's page is read from the rebuilt server).
+ const target:ContentRoute={libraryId:'music',view:'book',entityId:'release'};
+ for(const change of [null,{id:'other'},{libraryId:'private'},{kind:'album'},{playback:{itemId:'track'}}]){
+  const nav=service(async path=>projection(path,{entity:{id:'release',libraryId:'music',kind:'book',title:'Release',subtitle:'Artist',posterUrl:'/cover',backdropUrl:'/backdrop',count:205,...change},sections:[]}));
   await nav.select(target);
   if(change===null||'playback' in change){assert.equal(nav.getSnapshot().phase,'ready');assert.equal(nav.getSnapshot().projection?.entity?.count,205);assert.equal(nav.getSnapshot().projection?.entity?.backdropUrl,'/backdrop');assert.equal(nav.getSnapshot().projection?.entity?.playback,undefined,'the page\'s own entity never plays');}
   else assert.equal(nav.getSnapshot().phase,'error');
@@ -384,15 +385,15 @@ test('M20: content sections report their start index, defaulting to 0', async ()
 });
 
 test('M24: album artist link, release roles and category artworkPaths parse as optional, unknown values dropped', async () => {
-  // Album entity with the new facts.
+  // An album card with the new facts, in a view still read from the content route (an album's own
+  // page is read from the rebuilt server, library-content-rebuilt.test.ts).
   const album = service(async path => projection(path, {
-    entity: { id: 'album-1', libraryId: 'music', kind: 'album', title: 'Blue', subtitle: 'Joni Mitchell', year: 1971, duration: 2160, artist: { id: 'artist-1', name: 'Joni Mitchell' } },
-    sections: [],
+    sections: [{ id: 'albums', type: 'grid', heading: { key: 'albums', fallback: 'Albums' }, entries: [{ id: 'album-1', libraryId: 'music', kind: 'album', title: 'Blue', subtitle: 'Joni Mitchell', year: 1971, duration: 2160, artist: { id: 'artist-1', name: 'Joni Mitchell' }, navigation: { view: 'album', entityId: 'album-1' } }], totalCount: 1, nextCursor: '' }],
   }));
-  await album.select({ libraryId: 'music', view: 'album', entityId: 'album-1' });
+  await album.select({ libraryId: 'music', view: 'collections' });
   assert.equal(album.getSnapshot().phase, 'ready');
-  assert.deepEqual(album.getSnapshot().projection!.entity!.artist, { id: 'artist-1', name: 'Joni Mitchell' });
-  assert.equal(album.getSnapshot().projection!.entity!.year, 1971);
+  assert.deepEqual(album.getSnapshot().sections[0]!.entries[0]!.artist, { id: 'artist-1', name: 'Joni Mitchell' });
+  assert.equal(album.getSnapshot().sections[0]!.entries[0]!.year, 1971);
   album.dispose();
   // Artist releases carry roles; category rows carry mosaic paths.
   const artist = service(async path => projection(path, {
@@ -402,22 +403,23 @@ test('M24: album artist link, release roles and category artworkPaths parse as o
       { id: 'releases', type: 'grid', heading: { key: 'releases', fallback: 'Releases & appearances' }, entries: [{ id: 'album-1', kind: 'album', title: 'Blue', role: 'album' }, { id: 'album-2', kind: 'album', title: 'Guest spot', role: 'appearance' }], totalCount: 2, nextCursor: '' },
     ],
   }));
-  await artist.select({ libraryId: 'music', view: 'artist', entityId: 'artist-1' });
+  await artist.select({ libraryId: 'music', view: 'collections' });
   assert.equal(artist.getSnapshot().phase, 'ready');
   const releases = artist.getSnapshot().sections.find(s => s.id === 'releases')!;
   assert.deepEqual(releases.entries.map(e => [e.id, e.role]), [['album-1', 'album'], ['album-2', 'appearance']]);
   artist.dispose();
   // be/pages: an artist entity with three genres, and release types (EP, single, compilation).
+  // An artist card's genres, in a view still read from the content route.
   const typed = service(async path => projection(path, {
-    entity: { id: 'artist-1', libraryId: 'music', kind: 'artist', title: 'Radiohead', genres: ['Alternative', 'Rock', 'Electronic'] },
-    sections: [{ id: 'releases', type: 'grid', heading: { key: 'releases', fallback: 'Releases' }, entries: [
+    sections: [{ id: 'artists', type: 'grid', heading: { key: 'artists', fallback: 'Artists' }, entries: [{ id: 'artist-1', libraryId: 'music', kind: 'artist', title: 'Radiohead', genres: ['Alternative', 'Rock', 'Electronic'], navigation: { view: 'artist', entityId: 'artist-1' } }], totalCount: 1, nextCursor: '' },
+      { id: 'releases', type: 'grid', heading: { key: 'releases', fallback: 'Releases' }, entries: [
       { id: 'album-1', kind: 'album', title: 'OK Computer', role: 'album', genres: ['Rock', 'Alternative', 'Art rock', 42] },
       { id: 'album-3', kind: 'album', title: 'Airbag', role: 'ep' }, { id: 'album-4', kind: 'album', title: 'Creep', role: 'single' },
       { id: 'album-5', kind: 'album', title: 'Best of', role: 'compilation' }, { id: 'album-6', kind: 'album', title: 'Odd', role: 'bootleg' }], totalCount: 5, nextCursor: '' }],
   }));
-  await typed.select({ libraryId: 'music', view: 'artist', entityId: 'artist-1' });
+  await typed.select({ libraryId: 'music', view: 'collections' });
   assert.equal(typed.getSnapshot().phase, 'ready');
-  assert.deepEqual([...typed.getSnapshot().projection!.entity!.genres!], ['Alternative', 'Rock', 'Electronic']);
+  assert.deepEqual([...typed.getSnapshot().sections.find(s => s.id === 'artists')!.entries[0]!.genres!], ['Alternative', 'Rock', 'Electronic']);
   const typedReleases = typed.getSnapshot().sections.find(s => s.id === 'releases')!;
   assert.deepEqual(typedReleases.entries.map(e => [e.id, e.role]), [['album-1', 'album'], ['album-3', 'ep'], ['album-4', 'single'], ['album-5', 'compilation'], ['album-6', undefined]]);
   assert.deepEqual([...typedReleases.entries[0].genres!], ['Rock', 'Alternative', 'Art rock']);
