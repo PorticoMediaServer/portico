@@ -40,6 +40,9 @@ type Config struct {
 	DriveClientID string `json:"driveClientId,omitempty"`
 	// SecretSet says a password or key is stored, which is all the owner is shown of it.
 	SecretSet bool `json:"secretSet,omitempty"`
+	// HostUnchecked says an sftp remote was given no host_keys, so the server's identity is not
+	// checked when it connects. The owner is warned; nothing is refused.
+	HostUnchecked bool `json:"hostUnchecked,omitempty"`
 }
 
 // Secret is what a source signs in with. It is stored sealed, never returned by any route,

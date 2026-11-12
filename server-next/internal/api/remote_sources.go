@@ -38,6 +38,9 @@ type RemoteSource struct {
 	State        string     `json:"state"`
 	WaitingUntil *time.Time `json:"waitingUntil,omitempty"`
 	Problem      string     `json:"problem,omitempty"`
+	// Warning is something about how the source is set up that the owner should know, while it
+	// works: an sftp server whose identity is not checked.
+	Warning string `json:"warning,omitempty"`
 	// Folders is how many library folders are on the source.
 	Folders int `json:"folders"`
 }
@@ -222,6 +225,9 @@ func (s *Server) remoteSourceOut(row db.RemoteSource) RemoteSource {
 		out.WebDAV = &WebDAVShown{Address: c.Address, User: c.User, PasswordSet: c.SecretSet}
 	case "rclone":
 		out.Rclone = &RcloneShown{Type: c.RcloneType, Path: c.Path}
+		if c.HostUnchecked {
+			out.Warning = "This server's identity is not checked. Add its host key to be sure you are connecting to the right server."
+		}
 	case "drive":
 		out.Drive = &DriveShown{Path: c.Path, SignedInWith: "service-account", ClientID: c.DriveClientID}
 		if c.DriveClientID != "" {
@@ -281,6 +287,7 @@ func remoteSettings(kind string, c *remote.Config, secret *remote.Secret, preset
 				return ErrField("rclone.config", "Paste one remote from the rclone configuration: "+err.Error()+".")
 			}
 			secret.Rclone, c.RcloneType, c.SecretSet = rc.Config, options["type"], true
+			c.HostUnchecked = options["type"] == "sftp" && options["host_keys"] == ""
 		}
 	case "drive":
 	default:
