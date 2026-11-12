@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useState, useSyncExternalStore} from 'react';
 import {Text, View} from 'react-native';
-import {artworkLimitText, openSubtitlesSummary, type MetadataSettings} from '../../../../../../packages/client-core/src/metadata-settings';
+import {artworkLimitText, openSubtitlesSummary, type MetadataAnimeTitles, type MetadataFallbackLanguage, type MetadataRefreshPolicy, type MetadataSettings} from '../../../../../../packages/client-core/src/metadata-settings';
 import {settingsRowIndex, settingsSpec, type SettingsRow} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {Button} from '../../../kit/controls';
@@ -67,6 +67,17 @@ function Panel({controller, current, runtime, ports}: {controller: NativeMetadat
   };
   const subtitles = openSubtitlesSummary(settings.openSubtitles, {...defaultI18n, t});
   const extra = settings.advanced;
+  const advancedRows = [
+    settings.localArtworkLimitBytes !== undefined && select('metadata.artworkLimit', artworkLimitText(settings.localArtworkLimitBytes), value => ({localArtworkLimitBytes: Number(value) * 2 ** 30}),
+      t('server.metadata.artworkUsedHelp', {used: artworkLimitText(settings.localArtworkUsedBytes ?? 0)})),
+    settings.artworkMaxEdge !== undefined && select('metadata.artworkSize', settings.artworkMaxEdge === 1280 ? 'small' : settings.artworkMaxEdge === 2560 ? 'large' : 'standard', value => ({artworkMaxEdge: value === 'small' ? 1280 : value === 'large' ? 2560 : 1920})),
+    // Refresh all is an action, and actions stay off TV (Q37).
+    select('metadata.refresh', extra?.refreshPolicy, value => ({refreshPolicy: value as MetadataRefreshPolicy})),
+    select('metadata.fallbackLanguage', extra?.fallbackLanguage, value => ({fallbackLanguage: value as MetadataFallbackLanguage})),
+    select('metadata.animeTitles', extra?.animeTitles, value => ({animeTitles: value as MetadataAnimeTitles})),
+    toggle('metadata.castPhotos', extra?.castPhotos, castPhotos => ({castPhotos})),
+    extra?.acoustidKeyConfigured !== undefined && secret('metadata.acoustid', 'acoustidKey', extra.acoustidKeyConfigured, extra.acoustidKeySource === 'environment' ? t('server.metadata.acoustidServer') : undefined),
+  ].filter(Boolean);
   return <View testID="tv-server-metadata-settings">
     {state.error !== undefined && <StateView variant="inline" {...runtime.error(state.error, () => {void controller.load();})}/>}
     {group(0, [
@@ -78,8 +89,8 @@ function Panel({controller, current, runtime, ports}: {controller: NativeMetadat
       select('metadata.region', settings.defaultRegion, defaultRegion => ({defaultRegion})),
     ])}
     {group(2, [
-      secret('metadata.tmdb', 'tmdbReadToken', settings.tmdbCredentialConfigured, t('server.metadata.keyOurs')),
-      secret('metadata.tvdb', 'tvdbProjectKey', settings.tvdbCredentialConfigured, t('server.metadata.keyOurs')),
+      secret('metadata.tmdb', 'tmdbReadToken', settings.tmdbCredentialConfigured, t(settings.tmdbCredentialUnreadable ? 'server.metadata.keyUnreadable' : 'server.metadata.keyOurs')),
+      settings.tvdbCredentialConfigured !== undefined && secret('metadata.tvdb', 'tvdbProjectKey', settings.tvdbCredentialConfigured, t('server.metadata.keyOurs')),
     ])}
     {group(3, [
       select('metadata.artworkPrefer', settings.artworkPreference, value => ({artworkPreference: value as MetadataSettings['artworkPreference']})),
@@ -96,19 +107,12 @@ function Panel({controller, current, runtime, ports}: {controller: NativeMetadat
         onPress={() => {if (current()) void controller.checkOpenSubtitles(settings);}}>{t(row('metadata.osTest').control.label!)}</Button>}/>,
     ])}
     <NativeTitleDatasetGroup ports={ports} runtime={runtime} tv/>
-    <View style={{flexDirection: 'row', alignItems: 'center', gap: 20, marginBottom: 24}}>
+    {/* Each Advanced row is offered only when the server sends its field; with none, there is no Advanced. */}
+    {advancedRows.length > 0 && <View style={{flexDirection: 'row', alignItems: 'center', gap: 20, marginBottom: 24}}>
       <Button testID="tv-server-metadata-advanced" variant="glass" size="small" trailingIcon={advanced ? 'i-up' : 'i-down'} onPress={() => setAdvanced(value => !value)}>{t('settings.section.advanced')}</Button>
-    </View>
-    {advanced && <View style={{backgroundColor: theme.colors.raised, borderRadius: 18, marginBottom: 30}}>
-      {select('metadata.artworkLimit', artworkLimitText(settings.localArtworkLimitBytes), value => ({localArtworkLimitBytes: Number(value) * 2 ** 30}),
-        t('server.metadata.artworkUsedHelp', {used: artworkLimitText(settings.localArtworkUsedBytes)}))}
-      {select('metadata.artworkSize', settings.artworkMaxEdge === 1280 ? 'small' : settings.artworkMaxEdge === 2560 ? 'large' : 'standard', value => ({artworkMaxEdge: value === 'small' ? 1280 : value === 'large' ? 2560 : 1920}))}
-      {/* Refresh all is an action, and actions stay off TV (Q37). */}
-      {extra && select('metadata.refresh', extra.refreshPolicy, value => ({refreshPolicy: value as typeof extra.refreshPolicy}))}
-      {extra && select('metadata.fallbackLanguage', extra.fallbackLanguage, value => ({fallbackLanguage: value as typeof extra.fallbackLanguage}))}
-      {extra && select('metadata.animeTitles', extra.animeTitles, value => ({animeTitles: value as typeof extra.animeTitles}))}
-      {toggle('metadata.castPhotos', extra?.castPhotos, castPhotos => ({castPhotos}))}
-      {extra && secret('metadata.acoustid', 'acoustidKey', extra.acoustidKeyConfigured, extra.acoustidKeySource === 'environment' ? t('server.metadata.acoustidServer') : undefined)}
+    </View>}
+    {advanced && advancedRows.length > 0 && <View style={{backgroundColor: theme.colors.raised, borderRadius: 18, marginBottom: 30}}>
+      {advancedRows}
     </View>}
   </View>;
 }

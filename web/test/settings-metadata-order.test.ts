@@ -16,6 +16,12 @@ test('the local artwork limit and picture size sit in Advanced › Artwork, not 
   const advancedArtwork = at("metadata.advanced.groups.2.title')} advanced>");
   assert.ok(advancedArtwork < at("aria-label={t('metadata.settings.artworkLimit')}"));
   assert.ok(at('<SettingsAdvanced open={advancedOpen}') < advancedArtwork);
-  // Advanced always renders: the artwork rows come from the main document.
+  // Advanced is drawn whenever the server sends one of its fields, the artwork rows from the main document among them.
   assert.doesNotMatch(page, /\{document\.advanced && draft\.advanced \? <SettingsAdvanced/);
+});
+
+test('each Advanced row, the TheTVDB key and the artwork limit are offered only when the server sends their field', () => {
+  for (const guard of ["document.tvdbCredentialConfigured !== undefined && secret('tvdb'", 'hasLimit ? <>', 'draft.edge !== undefined ? <SettingsRow',
+    'extra?.castPhotos !== undefined ?', 'advanced?.refreshAll ? <SettingsRow', 'music ? <SettingsGroup']) at(guard);
+  at("key === 'tmdb' && document.tmdbCredentialUnreadable ? 'server.metadata.keyUnreadable'");
 });
