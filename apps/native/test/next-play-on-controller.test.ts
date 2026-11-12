@@ -15,7 +15,7 @@ async function fixture() {
   let snapshot: any = {authority, fence, entry, playback: {phase: 'ready', positionSeconds: 12, duration: 100}, dock: {local}};
   // What the account's playback list says the TV plays (client-core RemoteStream).
   let report: any = {sessionId: 'receiver-1', itemId: 'episode-1', title: 'Episode one', deviceName: 'Living room',
-    state: 'playing', positionMs: 45_000, durationMs: 100_000};
+    state: 'playing', positionMs: 45_000, durationMs: 100_000, next: {itemId: 'episode-2', title: 'Episode two'}};
   const playbackListeners = new Set<() => void>();
   const playback = {getSnapshot: () => snapshot, subscribe: (listener: () => void) => {playbackListeners.add(listener); return () => playbackListeners.delete(listener);},
     beginRemote: async (value: any) => {snapshot = {...snapshot, dock: {...snapshot.dock, remote: value}};},
@@ -68,7 +68,7 @@ test('a move keeps the exact chooser anchor and shows only the clock the server 
   const remote = f.controller.getSnapshot().remote;
   assert.equal(remote.positionSeconds, 45); assert.equal(remote.durationSeconds, 100); assert.equal(remote.positionKnown, true);
   assert.equal(remote.entry, f.entry);
-  assert.equal(remote.next, undefined, 'no next-up line until the server reads the TV\'s next entry');
+  assert.deepEqual(remote.next, {itemId: 'episode-2', title: 'Episode two', available: true}, 'the TV\'s next entry, as the server reads it');
   assert.deepEqual(remote.allows, {pause: true, resume: true, seek: true, stop: true}, 'every control while the TV plays');
   f.replaceLocal(); assert.equal(f.controller.getSnapshot().remote.entry, f.entry, 'another local title never supplies remote display facts');
   f.controller.openRemote(); assert.equal(f.controller.getSnapshot().remoteOpen, true); assert.equal(f.controller.getSnapshot().open, false);
@@ -89,14 +89,16 @@ test('remote seeks use the current receiver position, clamp the title, and stop 
   assert.deepEqual(f.errors, []);
 });
 
-test('changed receiver items clear captured episode art and unknown duration', async t => {
+test('changed receiver items clear captured episode art and unknown duration; next follows the same read', async t => {
   const f = await fixture(); t.after(() => f.controller.dispose());
   await f.controller.send(f.receiver); await f.settle(); const id = f.controller.getSnapshot().remote.id;
-  f.setReport({...f.report(), itemId: 'episode-2', title: 'Episode two', durationMs: undefined});
+  f.setReport({...f.report(), itemId: 'episode-2', title: 'Episode two', durationMs: undefined, next: {itemId: 'episode-3', title: 'Episode three'}});
   await f.controller.skip(0, id);
   const remote = f.controller.getSnapshot().remote;
   assert.equal(remote.itemId, 'episode-2'); assert.equal(remote.title, 'Episode two'); assert.equal(remote.entry, undefined);
-  assert.equal(remote.durationSeconds, 0);
+  assert.equal(remote.durationSeconds, 0); assert.equal(remote.next.itemId, 'episode-3');
+  f.setReport({...f.report(), next: undefined}); await f.controller.skip(0, id);
+  assert.equal(f.controller.getSnapshot().remote.next, undefined, 'at the last entry there is no next-up line');
   f.setReport(undefined); await f.controller.skip(0, id);
   assert.equal(f.controller.getSnapshot().remote.positionKnown, false); assert.equal(f.controller.getSnapshot().remote.next, undefined);
   assert.equal(f.controller.getSnapshot().remote.allows.seek, false);
