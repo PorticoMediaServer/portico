@@ -662,7 +662,7 @@ func (s *Server) dvrTuners(r *http.Request, _ None) (DvrTuners, error) {
 	}
 	for _, rec := range upcoming {
 		if losers[rec.ID] {
-			out.Conflicts = append(out.Conflicts, s.recordingOut(ctx, rec, true, nil))
+			out.Conflicts = append(out.Conflicts, s.withMay(r, s.recordingOut(ctx, rec, true, nil), rec, ""))
 		}
 	}
 	return out, nil
