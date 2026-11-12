@@ -6,7 +6,7 @@ import {defaultI18n} from '@i18n';
 import {bytesLabel, dvrMessage, playableRecording, recordingReason, recordingStateLabel,
   type Recording, type RecordingDetail, type RecordingState} from '@core/dvr.ts';
 import {channelTint} from '@portico/client-core/kit-model';
-import {Button, Chip, Select} from '../../kit/controls';
+import {Button, Chip, Segmented, Select} from '../../kit/controls';
 import {ChannelMark} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
 import {Banner, Dialog, Menu, SidePanel, type MenuEntry} from '../../kit/overlays';
@@ -31,7 +31,7 @@ const noSubscribe = () => () => {};
 const noSnapshot = () => undefined;
 const statePill = (state: RecordingState) => t(({scheduled: 'dvr.state.scheduled', conflicted: 'dvr.state.conflicted', 'waiting-source': 'dvr.state.waitingSource',
   'waiting-guide': 'dvr.state.waitingGuide', preparing: 'dvr.state.preparing', recording: 'dvr.state.recording', finalizing: 'dvr.state.finalizing',
-  completed: 'dvr.state.completed', 'incomplete-playable': 'dvr.state.incompletePlayable', failed: 'dvr.state.failed', cancelled: 'dvr.state.cancelled',
+  completed: 'dvr.state.completed', 'incomplete-playable': 'dvr.state.incompletePlayable', failed: 'dvr.state.failed', cancelled: 'dvr.state.cancelled', skipped: 'next.live.skipped',
   'pending-delete': 'dvr.state.pendingDelete', deleted: 'dvr.state.deleted'} as const)[state]);
 
 function timeOf(value: string) { return new Intl.DateTimeFormat(defaultI18n.region.formatLocale, {hour: 'numeric', minute: '2-digit', timeZone: defaultI18n.region.timeZone ?? undefined}).format(Date.parse(value)); }
@@ -48,6 +48,10 @@ function timeRange(start: string, end: string) {
   return t('guide.cellTime', {start: same ? from.slice(0, -(meridiem.length + 1)) : from, end: to});
 }
 function rangeOf(recording: Recording) { return timeRange(recording.start, recording.end); }
+/** What Delete removes: its size only when the server has said it. */
+function deleteBody(recording: Recording | undefined) {
+  return recording && recording.bytes > 0 ? t('web.dvr.deleteBody', {size: bytesLabel(recording.bytes)}) : t('next.live.deleteBody');
+}
 function episodeOf(recording: Recording) {
   const info = recording.programme.episode;
   const number = info?.number ?? (info as {number?: number; episode?: number} | undefined)?.episode;
@@ -77,7 +81,7 @@ function RecordingCopy({recording}: {recording: Recording}) {
   return <div className={styles.recCopy}>
     <b>{recording.programme.title}</b>
     {(episode || recording.programme.subtitle) && <small className={styles.recEpisode}>{episode}{episode && recording.programme.subtitle && <RuleGap/>}{recording.programme.subtitle}</small>}
-    <small className={styles.recMeta}>{recording.programme.flags?.live && <span className={styles.recFlag} data-kind="live">{t('guide.live')}</span>}{recording.programme.flags?.new && <span className={styles.recFlag} data-kind="new">{t('guide.new')}</span>}{recording.channel && <span>{mark && <ChannelMark mark={mark} size={18}/>}{recording.channel.name}</span>}{recording.ruleId ? <span><Icon name="i-series" size={15}/>{t('next.live.seriesRule')}</span> : <span>{t('next.live.oneTime')}</span>}</small>
+    <small className={styles.recMeta}>{recording.programme.flags?.live && <span className={styles.recFlag} data-kind="live">{t('guide.live')}</span>}{recording.programme.flags?.new && <span className={styles.recFlag} data-kind="new">{t('guide.new')}</span>}{recording.channel && <span>{mark && <ChannelMark mark={mark} size={18}/>}{recording.channel.name}</span>}{recording.ruleId ? <span><Icon name="i-series" size={15}/>{t('next.live.seriesRule')}</span> : <span>{t('next.live.oneTime')}</span>}{recording.bookedBy && <span>{t('next.live.bookedBy', {name: recording.bookedBy})}</span>}</small>
   </div>;
 }
 function RecordingRow({recording, now, onCancel, onDetails}: {recording: Recording; now: number; onCancel?: () => void; onDetails?: () => void}) {
@@ -104,8 +108,6 @@ function ConflictBox({context, recording, detail: supplied, onResolve, onCancel,
     void readRecordingDetail(context, recording.id, abort.signal).then(value => {if (!abort.signal.aborted && context.isCurrent()) setDetail(value);}, () => {});
     return () => abort.abort();
   }, [context, recording.id, supplied]);
-  const tuners = detail?.capacity.known ? detail.capacity.effective : recording.conflicts[0]?.capacity;
-  const window = recording.conflicts[0];
   const [menuOpen, setMenuOpen] = useState(false);
   const items: readonly MenuEntry[] = [
     ...(onCancel ? [{id: 'cancel', label: t('recordings.cancelAction'), icon: 'i-close' as const, destructive: true, onSelect: onCancel}] : []),
@@ -113,7 +115,8 @@ function ConflictBox({context, recording, detail: supplied, onResolve, onCancel,
   return <div className={styles.conflictBox}>
     <div className={styles.conflictHead}><Icon name="i-warn" size={22}/><div>
       <h3>{t('recordings.conflictTitle', {title: recording.programme.title})}</h3>
-      {tuners !== undefined && <p>{t('next.live.conflictBody', {count: tuners, range: window ? timeRange(window.start, window.end) : rangeOf(recording)})}</p>}
+      {/* The server sends no tuner count to a viewer: the box says only what it knows. */}
+      <p>{t('recordings.conflictsBody')}</p>
     </div></div>
     <div className={styles.conflictRow}>
       <div className={styles.recWhen}><b>{timeOf(recording.start)}</b><small>{rangeOf(recording)}</small></div>
@@ -171,9 +174,10 @@ function ConflictDialog({context, opening, current, consume, controller, onClose
     if (busy || !held || !owns(held, true) || !consume(opening)) return;
     setBusy(kind);setError(undefined);
     try {
-      const priority = Math.min(1000, Math.max(recording.options.priority, ...(detail?.overlaps ?? []).map(other => other.priority)) + 1);
-      const result = kind === 'skip' ? await controller.cancel(recording) : await controller.raisePriority(recording, priority);
+      const result = await controller.choose(recording, kind === 'skip' ? 'skip' : 'record');
       if (!owns(held)) return;
+      // The server's answer: an airing it still cannot fit says so, and the dialog stays.
+      if (result.committed && result.recording?.state === 'conflicted') {setError(t('next.live.stillConflicts'));return;}
       if (result.committed) {onClose(opening);return;}
       if (!result.busy) setError(dvrMessage({status: 409}));
     } catch (failure) {
@@ -184,7 +188,7 @@ function ConflictDialog({context, opening, current, consume, controller, onClose
     title={t('recordings.conflictTitle', {title: recording.programme.title})} description={t('recordings.conflictsBody')}
     footer={<><Button variant="primary" loading={busy === 'raise'} disabled={!!busy || !opening.live} onClick={() => {void run('raise');}}>{t('web.dvr.recordThis')}</Button>
       <Button variant="glass" loading={busy === 'skip'} disabled={!!busy || !opening.live} onClick={() => {void run('skip');}}>{t('web.dvr.skipThis')}</Button></>}>
-    {error ? <Banner>{error}</Banner> : <p className={styles.dialogText}>{detail?.capacity.known ? t('next.live.conflictBody', {count: detail.capacity.effective, range: rangeOf(recording)}) : t('recordings.conflictsBody')}</p>}
+    {error ? <Banner>{error}</Banner> : <p className={styles.dialogText}>{t('recordings.conflictsBody')}</p>}
   </Dialog>;
 }
 
@@ -220,7 +224,7 @@ export function UpcomingView({context, controller, snapshot, now, onResolve, con
   </div>;
 }
 
-export function RecordedView({context, controller, current, snapshot}: {context: ScreenContext; controller: RecordingsController; current: () => boolean; snapshot: ReturnType<RecordingsController['getSnapshot']>}) {
+export function RecordedView({context, controller, current, snapshot, everyone = false}: {context: ScreenContext; controller: RecordingsController; current: () => boolean; snapshot: ReturnType<RecordingsController['getSnapshot']>; everyone?: boolean}) {
   const [open, setOpen] = useState<{key: string; title: string}>();
   const sort = (snapshot.groupsSort ?? 'recent') as RecordingsSort;
   const groups = snapshot.groups?.groups ?? [];
@@ -234,12 +238,12 @@ export function RecordedView({context, controller, current, snapshot}: {context:
         <small>{group.unwatched ? t('recordings.showCountUnwatched', {count: group.recordings, unwatched: group.unwatched}) : t('recordings.showCount', {count: group.recordings})}</small></span>
     </button>)}</div> : <StateView title={t('recordings.noneRecorded')} body={t('recordings.noneRecordedBody')}/>}
     <RecordingsPager controller={controller} snapshot={snapshot}/>
-    {open && <RecordedGroupPanel key={open.key} context={context} current={current} group={open.key} title={open.title} sort={sort} onClose={() => setOpen(value => value === open ? undefined : value)}/>}
+    {open && <RecordedGroupPanel key={open.key} context={context} current={current} group={open.key} title={open.title} sort={sort} everyone={everyone} onClose={() => setOpen(value => value === open ? undefined : value)}/>}
   </div>;
 }
 
-function RecordedGroupPanel({context, current, group, title, sort, onClose}: {context: ScreenContext; current: () => boolean; group: string; title: string; sort: RecordingsSort; onClose: () => void}) {
-  const lease = useRecordedGroupLease(context, group, sort, current);
+function RecordedGroupPanel({context, current, group, title, sort, everyone, onClose}: {context: ScreenContext; current: () => boolean; group: string; title: string; sort: RecordingsSort; everyone: boolean; onClose: () => void}) {
+  const lease = useRecordedGroupLease(context, group, sort, current, everyone);
   return lease ? <CommittedRecordedGroupPanel key={lease.id} lease={lease} title={title} onClose={onClose}/> : null;
 }
 function CommittedRecordedGroupPanel({lease, title, onClose}: {lease: RecordedGroupLease; title: string; onClose: () => void}) {
@@ -284,7 +288,7 @@ function CommittedRecordedGroupPanel({lease, title, onClose}: {lease: RecordedGr
     {state.recordings.map(recording => <div className={styles.groupRow} key={recording.id}>
       <RecordingArt recording={recording}/>
       <div className={styles.groupCopy}><b>{recording.programme.subtitle || recording.programme.title}</b><small>{dayOf(recording.start, serverNow())}<RuleGap/>{rangeOf(recording)}</small>
-        <small>{recording.keep ? t('recordings.kept') : recording.watched ? t('next.live.watched') : t('next.live.unwatched')}</small></div>
+        <small>{recording.keep ? t('recordings.kept') : recording.watched === true ? t('next.live.watched') : recording.watched === false ? t('next.live.unwatched') : null}</small></div>
       <div className={styles.groupActions}>
         <Button variant="glass" size="small" icon="i-play" disabled={!playableRecording(recording)} onClick={() => play(recording)}>{t('next.live.play')}</Button>
         <Button variant="ghost" size="small" disabled={state.busy || !playableRecording(recording)} onClick={() => keep(recording)}>{recording.keep ? t('web.dvr.stopKeeping') : t('web.dvr.keep')}</Button>
@@ -293,9 +297,9 @@ function CommittedRecordedGroupPanel({lease, title, onClose}: {lease: RecordedGr
     </div>)}
     {state.nextCursor && <Button className={styles.groupMore} variant="glass" onClick={() => {if (lease.current()) void lease.reader.more().catch(() => {});}}>{t('next.live.more')}</Button>}
     <Dialog open={!!removeOpening} onOpenChange={open => {if (!open && removeOpening) dismissRemove(removeOpening);}} width={440} title={t('web.dvr.deleteTitle', {title: removeOpening?.target.recording.programme.title ?? ''})}
-      description={t('web.dvr.deleteBody', {size: bytesLabel(removeOpening?.target.recording.bytes ?? 0)})} footer={<><Button variant="glass" onClick={() => {if (removeOpening) dismissRemove(removeOpening);}}>{t('action.cancel')}</Button>
+      description={deleteBody(removeOpening?.target.recording)} footer={<><Button variant="glass" onClick={() => {if (removeOpening) dismissRemove(removeOpening);}}>{t('action.cancel')}</Button>
         <Button variant="ghost" loading={state.busy} onClick={() => {if (removeOpening) confirmRemove(removeOpening);}}>{t('web.dvr.deleteRecording')}</Button></>}>
-      <p className={styles.dialogText}>{t('web.dvr.deleteBody', {size: bytesLabel(removeOpening?.target.recording.bytes ?? 0)})}</p>
+      <p className={styles.dialogText}>{deleteBody(removeOpening?.target.recording)}</p>
     </Dialog>
   </SidePanel>;
 }
@@ -322,12 +326,12 @@ function StorageView({snapshot, tuners}: {snapshot: ReturnType<RecordingsControl
   </div>{tuners && <Tuners controller={tuners} detailed/>}</div>;
 }
 
-function Boundary({context, view, routeCurrent, onView, onGuide}: {context: ScreenContext; view: RecordingsView; routeCurrent: () => boolean;
-  onView: (view: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage') => void; onGuide: () => void}) {
+function Boundary({context, view, everyone, routeCurrent, onView, onScope, onGuide}: {context: ScreenContext; view: RecordingsView; everyone: boolean; routeCurrent: () => boolean;
+  onView: (view: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage') => void; onScope?: (everyone: boolean) => void; onGuide: () => void}) {
   const [attempt, setAttempt] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   useScreenIdentity(context);
-  const lease = useRecordingsLease(context, view, attempt, routeCurrent);
+  const lease = useRecordingsLease(context, view, attempt, routeCurrent, everyone);
   const snapshot = useSyncExternalStore(lease?.controller.subscribe ?? noSubscribe, lease?.controller.getSnapshot ?? noSnapshot, lease?.controller.getSnapshot ?? noSnapshot);
   const summary = snapshot?.summary;
   const views = [
@@ -356,7 +360,7 @@ function Boundary({context, view, routeCurrent, onView, onGuide}: {context: Scre
   const body = loading ? <p role="status">{t('recordings.loading')}</p>
     : snapshot.error && !snapshot.page && !snapshot.storage ? <StateView title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: retry}}/>
       : view === 'upcoming' ? <UpcomingView context={context} controller={lease.controller} snapshot={snapshot} now={now} onResolve={openConflict}/>
-        : view === 'recorded' ? <RecordedView context={context} controller={lease.controller} current={lease.current} snapshot={snapshot}/>
+        : view === 'recorded' ? <RecordedView context={context} controller={lease.controller} current={lease.current} snapshot={snapshot} everyone={everyone}/>
           : view === 'history' ? <HistoryView snapshot={snapshot} now={now} controller={lease.controller}/>
             : <StorageView snapshot={snapshot} tuners={lease.tuners}/>;
   return <RecordingsLayout key={lease.id} title={t('next.home.shell.live')} sourceLabel={t('channels.source')} allChannels={t('channels.all')}
@@ -367,6 +371,10 @@ function Boundary({context, view, routeCurrent, onView, onGuide}: {context: Scre
       <div className={styles.recordingsChips} role="group" aria-label={t('recordings.title')}>
         {views.map(item => <Chip className={styles.recordingsChip} key={item.id} selected={item.id === view} count={item.count} onClick={() => goView(item.id)}>{item.label}</Chip>)}
       </div>
+      {/* Recordings open on this profile's own, with everyone's one tap away (rule 48). */}
+      {onScope && (view === 'upcoming' || view === 'recorded' || view === 'history') && <Segmented className={styles.recordingsScope} aria-label={t('next.live.whose')} value={everyone ? 'everyone' : 'mine'}
+        onValueChange={value => {if (lease.current() && (value === 'mine' || value === 'everyone')) onScope(value === 'everyone');}}
+        items={[{value: 'mine', label: t('next.live.mine')}, {value: 'everyone', label: t('next.live.everyones')}]}/>}
       {snapshot.storage && <button type="button" className={styles.storageButton} aria-label={t('recordings.storage')} onClick={() => goView('storage')}>
         <span>{t('next.live.storageFree', {amount: Math.round(snapshot.storage.freeBytes / 1e9)})} · {t('recordings.hoursLeft', {count: snapshot.storage.hoursLeft})}</span>
       </button>}
@@ -378,12 +386,12 @@ function Boundary({context, view, routeCurrent, onView, onGuide}: {context: Scre
   </RecordingsLayout>;
 }
 
-export function RecordingsScreen({captured, view, onView, onGuide}: {captured: ProtectedLibraryScreen; view: RecordingsView; onView: (view: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage') => void; onGuide: () => void}) {
+export function RecordingsScreen({captured, view, everyone = false, onView, onScope, onGuide}: {captured: ProtectedLibraryScreen; view: RecordingsView; everyone?: boolean; onView: (view: 'upcoming' | 'recorded' | 'rules' | 'history' | 'storage') => void; onScope?: (everyone: boolean) => void; onGuide: () => void}) {
   const pathname = useLocation({select: location => location.pathname});
   const context = useCommittedLibraryScreenContext(captured, pathname, () => router.state.location.pathname === pathname);
   const routeCurrent = () => {
     const search = router.state.location.search as unknown as Record<string, unknown>;
-    return router.state.location.pathname === pathname && search.tab === 'recordings' && (search.dvr ?? 'upcoming') === view;
+    return router.state.location.pathname === pathname && search.tab === 'recordings' && (search.dvr ?? 'upcoming') === view && (search.scope === 'everyone') === everyone;
   };
-  return context ? <Boundary context={context} view={view} routeCurrent={routeCurrent} onView={onView} onGuide={onGuide}/> : null;
+  return context ? <Boundary context={context} view={view} everyone={everyone} routeCurrent={routeCurrent} onView={onView} onScope={onScope} onGuide={onGuide}/> : null;
 }

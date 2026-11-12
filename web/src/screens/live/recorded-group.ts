@@ -12,9 +12,10 @@ export type RecordedGroupSnapshot = Readonly<{phase: 'idle' | 'loading' | 'ready
  * Recordings door keeps its page and summary; this reader is a separate, bounded
  * cursor over the same DVR client and is retired with the panel that opened it.
  */
-export function createRecordedGroupReader(context: ScreenContext, group: string, sort: 'recent' | 'title' | 'oldest') {
+export function createRecordedGroupReader(context: ScreenContext, group: string, sort: 'recent' | 'title' | 'oldest', everyone = false) {
   const life = screenLifetime(context), listeners = new Set<() => void>();
   const client = new NextDVRClient(life.api);
+  client.everyone = everyone;
   let closed = false, generation = 0, pending: Promise<void> | undefined, pendingToken: object | undefined;
   let page: DVRPage | undefined;
   let state: RecordedGroupSnapshot = Object.freeze({phase: 'idle', recordings: [], busy: false});

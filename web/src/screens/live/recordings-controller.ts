@@ -44,6 +44,8 @@ export type RecordingsControllerOptions = Readonly<{
   signal: AbortSignal;
   /** The borrowed family/profile/role/navigation epoch that owns this screen. */
   isCurrent: () => boolean;
+  /** Everyone's recordings rather than this profile's own (rule 48). */
+  everyone?: boolean;
 }>;
 
 const sorts: readonly RecordingsSort[] = ['recent', 'title', 'oldest'];
@@ -108,6 +110,7 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
     }
   }
   const client = new NextDVRClient(api);
+  client.everyone = input.everyone === true;
   const model = new DestinationModel(client);
   let closed = false, started = false, stopModel: (() => void) | undefined;
   /** Bumped by a new page/detail/storage load and by disposal, so an older load cannot land. */
@@ -467,13 +470,14 @@ export function createRecordingsController(input: RecordingsControllerOptions) {
       if (!keepable.includes(target.state)) throw notOffered();
       return command(() => client.keep(target));
     },
-    /** Resolve a tuner conflict in this recording's favour by raising its priority
-     * above every recording it actually overlaps. The server validates the value. */
-    async raisePriority(recording: Recording, priority: number): Promise<RecordingsCommandOutcome> {
+    /** A conflict's choice (rule 42): Record this instead, or Skip this one. The server's answer
+     * comes back with the outcome, so the dialog can say when the airing still clashes. */
+    async choose(recording: Recording, choice: 'record' | 'skip'): Promise<RecordingsCommandOutcome & Readonly<{recording?: Recording}>> {
       const target = commandTarget(recording);
-      if (!mutableRecording(target) || !Number.isSafeInteger(priority)) throw notOffered();
-      const bounded = Math.min(1000, Math.max(-1000, priority));
-      return command(() => client.update(target, {...target.options, priority: bounded}));
+      if (!mutableRecording(target)) throw notOffered();
+      let answered: Recording | undefined;
+      const outcome = await command(async () => {answered = await client.choose(target, choice);});
+      return Object.freeze({...outcome, ...(answered ? {recording: answered} : {})});
     },
     /** The server's own delete preview for the exact resident row, offered only by
      * the actual current page for a non-active recording. The returned object is

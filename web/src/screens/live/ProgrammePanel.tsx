@@ -86,9 +86,10 @@ export function ProgrammePanelView({channel, programme, now, timezone, snapshot,
   const watchLabel = airing ? t('guide.watchLive') : t('guide.watchChannel');
   const titleMatch = programme?.seriesId === undefined || programme?.seriesId === '';
   const recordingFact = snapshot.recording !== undefined || (programme?.recording !== undefined && snapshot.recordingRemoved !== true);
+  const stopping = snapshot.recording?.state === 'recording';
   const notice = snapshot.notice === 'recorded' ? t('guide.scheduledBody')
     : snapshot.notice === 'series' ? t('guide.seriesSet')
-      : snapshot.notice === 'cancelled' ? t('next.live.recordingCancelled') : undefined;
+      : snapshot.notice === 'cancelled' ? t('next.live.recordingCancelled') : snapshot.notice === 'stopped' ? t('next.live.recordingStopped') : undefined;
   const busy = snapshot.busy !== undefined;
   const recordingMenu: readonly MenuEntry[] = [
     {id: 'cancel', label: t('web.dvr.cancelRecording'), icon: 'i-close', destructive: true, onSelect: () => setCancelOpen(true)},
@@ -142,7 +143,7 @@ export function ProgrammePanelView({channel, programme, now, timezone, snapshot,
     {future && onProgrammeReminder && <p className={styles.airingsNote}>{t('guide.reminderSet')}</p>}
     {seriesOpen && canRecord && <div className={styles.seriesBox} role="group" aria-label={t('guide.recordSeriesTitle')}>
       <div className={styles.seriesHead}><b>{t('guide.recordSeriesTitle')}</b>
-        <span>{snapshot.preview ? t('next.live.matchCount', {count: snapshot.preview.matches}) : snapshot.previewLoading ? t('recordings.loading') : ''}</span></div>
+        <span>{snapshot.preview?.matches !== undefined ? t('next.live.matchCount', {count: snapshot.preview.matches}) : snapshot.previewLoading ? t('recordings.loading') : ''}</span></div>
       <Segmented className={styles.seriesSegment} aria-label={t('guide.recordSeriesTitle')} value={choice.episodes} disabled={busy}
         onValueChange={value => {if (value === 'new' || value === 'all') onChoice({episodes: value});}}
         items={[{value: 'new', label: t('guide.newOnly'), disabled: !supportsNewEpisodes(programme)}, {value: 'all', label: t('guide.allEpisodes')}]}/>
@@ -173,10 +174,11 @@ export function ProgrammePanelView({channel, programme, now, timezone, snapshot,
       })}
       <p className={styles.airingsNote}>{t('guide.reminderSet')}</p>
     </section>}
-    <Dialog open={cancelOpen} onOpenChange={setCancelOpen} title={t('recordings.cancelTitle', {title: programme?.title ?? channel.name})}
-      description={t('recordings.cancelNotRecorded')} width={440}
+    {/* A recording in progress is stopped and what was captured is kept (rule 50); a booking is cancelled. */}
+    <Dialog open={cancelOpen} onOpenChange={setCancelOpen} title={stopping ? t('next.live.stopTitle', {title: programme?.title ?? channel.name}) : t('recordings.cancelTitle', {title: programme?.title ?? channel.name})}
+      description={stopping ? t('next.live.stopBody') : t('recordings.cancelNotRecorded')} width={440}
       footer={<><Button variant="glass" onClick={() => setCancelOpen(false)}>{t('action.cancel')}</Button>
-        <Button variant="ghost" loading={snapshot.busy === 'cancel'} onClick={() => {setCancelOpen(false);onCancelRecording?.();}}>{t('recordings.cancelAction')}</Button></>}>{null}</Dialog>
+        <Button variant="ghost" loading={snapshot.busy === 'cancel'} onClick={() => {setCancelOpen(false);onCancelRecording?.();}}>{stopping ? t('next.live.stopAction') : t('recordings.cancelAction')}</Button></>}>{null}</Dialog>
   </div>;
 }
 

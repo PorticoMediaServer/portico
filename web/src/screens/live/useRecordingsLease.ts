@@ -9,6 +9,8 @@ export type RecordingsLease = {
   id: string;
   context: ScreenContext;
   view: RecordingsView;
+  /** Everyone's recordings rather than this profile's own. */
+  everyone: boolean;
   attempt: number;
   /** False once this door's layout retirement ran, before its controller aborts. */
   live: boolean;
@@ -23,7 +25,7 @@ export type RecordingsLease = {
 /** One committed Recordings door. The exact context, destination and retry own
  * the controller and its session; layout retirement retires them before abort,
  * so an effect replay cannot revive a disposed controller or its private facts. */
-export function useRecordingsLease(context: ScreenContext | undefined, view: RecordingsView, attempt: number, routeCurrent: () => boolean): RecordingsLease | undefined {
+export function useRecordingsLease(context: ScreenContext | undefined, view: RecordingsView, attempt: number, routeCurrent: () => boolean, everyone = false): RecordingsLease | undefined {
   const [published, publish] = useState<RecordingsLease>();
   // The route witness belongs to this exact opening: keep the one this effect ran
   // with instead of recreating the controller whenever the route hands a new closure.
@@ -37,9 +39,9 @@ export function useRecordingsLease(context: ScreenContext | undefined, view: Rec
     const screen: ScreenContext = forwardIdentity(context, {isCurrent: current});
     const life = screenLifetime(screen);
     const controller = createRecordingsController({api: life.api, serverId: context.scope.serverId,
-      signal: life.signal(), isCurrent: life.current});
+      signal: life.signal(), isCurrent: life.current, everyone});
     // The owner's tuner list moves to the new server with the owner's Live TV screens; until then Storage leaves it out.
-    const lease: RecordingsLease = {id: crypto.randomUUID(), context, view, attempt, live: true, current, life, controller};
+    const lease: RecordingsLease = {id: crypto.randomUUID(), context, view, everyone, attempt, live: true, current, life, controller};
     held = lease;
     publish(lease);
     const load = async () => {
@@ -50,6 +52,6 @@ export function useRecordingsLease(context: ScreenContext | undefined, view: Rec
     void load().catch(() => {});
     return () => {lease.live = false;controller.dispose();life.dispose();};
     // routeCurrent is captured by this exact door opening.
-  }, [context, view, attempt]);
-  return published?.live && published.context === context && published.view === view && published.attempt === attempt && published.current() ? published : undefined;
+  }, [context, view, attempt, everyone]);
+  return published?.live && published.context === context && published.view === view && published.everyone === everyone && published.attempt === attempt && published.current() ? published : undefined;
 }

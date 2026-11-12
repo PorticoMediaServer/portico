@@ -20,6 +20,6 @@ export function enterRecordingsPage(nav: RecordingsNavigation, search: LiveScree
 }
 export function leaveRecordingsPage(nav: RecordingsNavigation, search: LiveScreenSearch): Promise<unknown> {
   if (recordingsEntered(nav.state())) {nav.back(); return Promise.resolve();}
-  const {dvr: _view, ...guide} = search;
+  const {dvr: _view, scope: _scope, ...guide} = search;
   return nav.navigate({search: {...guide, tab: 'guide'}, replace: true, resetScroll: false});
 }

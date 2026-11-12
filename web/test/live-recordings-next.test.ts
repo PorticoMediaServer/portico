@@ -5,7 +5,7 @@ import type {ChannelApi} from '@core/channel-guide.ts';
 
 // The recordings screens against the new server's routes: GET /v1/dvr/recordings (Upcoming, and History with
 // state=history), GET /v1/dvr/rules, GET /v1/dvr for the counts and the space.
-type Call = Readonly<{path: string; method: string}>;
+type Call = Readonly<{path: string; method: string; body?: unknown}>;
 const booking = (id: string, patch: Record<string, unknown> = {}) => ({id, channel: 'ch_1', title: 'Airing', startsAt: '2026-11-12T20:00:00Z',
   endsAt: '2026-11-12T21:00:00Z', padBeforeMs: 0, padAfterMs: 0, priority: 0, state: 'scheduled', inGuide: true, keep: false, fromRule: false, ...patch});
 const dvr = (patch: Record<string, unknown> = {}) => ({upcoming: 3, recorded: 12, unwatched: 4, conflicts: 1, freeBytes: 300e9, hoursLeft: 40,
@@ -14,8 +14,8 @@ const tick = async () => { for (let n = 0; n < 6; n++) await new Promise<void>(d
 
 function server(answer: (call: Call) => unknown) {
   const calls: Call[] = [];
-  const api: ChannelApi = {async request<T>(path: string, method = 'GET'): Promise<T> {
-    const call = {path, method};
+  const api: ChannelApi = {async request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+    const call = {path, method, body};
     calls.push(call);
     const value = await answer(call);
     if (value instanceof Error) throw value;
@@ -145,4 +145,30 @@ test('a second command while one is in flight is busy and sends nothing; a refus
   const refused = await c.cancel(c.getSnapshot().page!.recordings[0]!).catch(() => ({committed: false}));
   assert.equal(refused.committed, false);
   assert.equal(c.getSnapshot().page?.recordings.length, 2, 'what is shown stays');
+});
+
+test('a conflict\'s choice is sent as the choice itself, and an airing the server still cannot fit says so', async () => {
+  let still = false;
+  const {api, calls} = server(call => {
+    if (call.method === 'PATCH') return booking('u1', {state: 'scheduled', conflict: still});
+    return {items: [booking('u1', {conflict: true}), booking('u2', {conflict: true})]};
+  });
+  const c = controller(api);
+  await c.load({view: 'upcoming'}); await tick();
+  const [first] = c.getSnapshot().page!.recordings;
+  assert.equal(first!.state, 'conflicted');
+  const recorded = await c.choose(first!, 'record'); await tick();
+  assert.equal(recorded.committed, true);assert.equal(recorded.recording?.state, 'scheduled');
+  still = true;
+  const again = await c.choose(c.getSnapshot().page!.recordings[1]!, 'skip'); await tick();
+  assert.equal(again.recording?.state, 'conflicted');
+  assert.deepEqual(calls.filter(call => call.method !== 'GET').map(call => [call.method, call.path, call.body]),
+    [['PATCH', '/v1/dvr/recordings/u1', {choice: 'record'}], ['PATCH', '/v1/dvr/recordings/u2', {choice: 'skip'}]]);
+});
+
+test('Everyone\'s recordings are read with the server\'s everyone scope', async () => {
+  const {api, calls} = server(() => ({items: []}));
+  const c = createRecordingsController({api, serverId: 'server', signal: new AbortController().signal, isCurrent: () => true, everyone: true});
+  await c.load({view: 'history'}); await tick();
+  assert.equal(route(calls[0]!).searchParams.get('scope'), 'everyone');
 });

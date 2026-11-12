@@ -16,7 +16,8 @@ export type ChannelMenuActions = Readonly<{
   onEdit(channel: GuideChannelRow): void;
 }>;
 
-/** desktop-live List view: Add to Favorites for everyone; owners also get Hide channel, and
+/** desktop-live List view: Add to Favorites for everyone; owners also get Hide channel (a channel of the old guide only, until
+ * the owner's Live TV screens bring it to the new server), and
  * Edit channel on Library Channels. A hidden channel (shown only to an owner who asked) offers
  * Show channel instead. */
 export function guideChannelMenuEntries(channel: GuideChannelRow, actions: ChannelMenuActions): readonly MenuEntry[] {
@@ -24,7 +25,7 @@ export function guideChannelMenuEntries(channel: GuideChannelRow, actions: Chann
   return [
     {id: 'favorite', label: t(channel.favorite ? 'channels.removeFavorite' : 'channels.addFavorite'), icon: channel.favorite ? 'i-star-f' : 'i-star',
       disabled: actions.busy, onSelect: () => actions.onFavorite(channel)},
-    ...(actions.owner && channel.kind !== 'library' ? [{id: 'hide', label: t(hidden ? 'channels.unhide' : 'channels.hide'), icon: hidden ? 'i-eye' as const : 'i-eyeoff' as const,
+    ...(actions.owner && channel.kind !== 'library' && legacyChannel(channel) ? [{id: 'hide', label: t(hidden ? 'channels.unhide' : 'channels.hide'), icon: hidden ? 'i-eye' as const : 'i-eyeoff' as const,
       disabled: actions.busy, onSelect: () => actions.onHidden(channel, !hidden)}] : []),
     ...(actions.owner && channel.kind === 'library' ? [{id: 'edit', label: t('channels.editChannel'), icon: 'i-edit' as const, onSelect: () => actions.onEdit(channel)}] : []),
   ];

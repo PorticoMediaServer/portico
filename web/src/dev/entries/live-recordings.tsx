@@ -56,7 +56,7 @@ const snapshot: RecordingsSnapshot = {query: {view: 'upcoming'}, phase: 'ready',
   paging: {busy: false, error: '', previous: false, next: false}, accessDenied: false, error: '', mutating: false, commandError: ''};
 const context = {isCurrent: () => false, scope: {serverId: 'synthetic'}, effects: {play: async () => {}, reportError: () => {}},
   api: {request: async () => { throw new Error('No reads in the specimen.'); }}} as unknown as ScreenContext;
-const controller = {cancel: async () => ({committed: false, refreshed: false, busy: true}), raisePriority: async () => ({committed: false, refreshed: false, busy: true}),
+const controller = {cancel: async () => ({committed: false, refreshed: false, busy: true}), choose: async () => ({committed: false, refreshed: false, busy: true}),
   readGroups: async () => groups} as unknown as RecordingsController;
 const details = {[conflict.id]: detail} as const;
 
