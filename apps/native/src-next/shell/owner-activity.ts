@@ -1,3 +1,4 @@
+import {AppState} from 'react-native';
 import {ACTIVITY_GLANCE_READ_MS, ActivitySummaryService, type ActivitySummarySnapshot, type ActivitySummarySource, type ActivitySummarySourceStore} from '../../../../packages/client-core/src/admin/activity-summary';
 import {localV1Http} from '../../../../packages/client-core/src/playback-v1/local-http';
 import type {NativeShellBootstrapContext} from './bootstrap';
@@ -49,9 +50,15 @@ export function createNativeOwnerActivity(context: NativeShellBootstrapContext, 
     hold: () => {
       if (retired || !context.current()) return () => {};
       let held = true;
-      // The rebuilt server sends no change for streams, scans or tasks: a held glyph reads the summary again now and then.
-      if (++holders === 1) {service.setActive(true); service.attach(context.events); void service.load().catch(() => {}); stopFresh = service.keepFresh(ACTIVITY_GLANCE_READ_MS);}
-      return () => {if (!held) return; held = false; if (--holders === 0 && !retired) {stopFresh(); service.setActive(false);}};
+      // The rebuilt server sends no change for streams, scans or tasks: a held glyph reads the summary again now and then,
+      // only while the app is in the foreground (music keeps it running for hours with the screen off), and once on return.
+      if (++holders === 1) {
+        service.setActive(true); service.attach(context.events); void service.load().catch(() => {});
+        stopFresh = service.keepFresh(ACTIVITY_GLANCE_READ_MS, () => AppState.currentState === 'active');
+        const app = AppState.addEventListener('change', state => {if (state === 'active') void service.retry().catch(() => {});});
+        const stopTimer = stopFresh; stopFresh = () => {stopTimer(); app.remove();};
+      }
+      return () => {if (!held) return; held = false; if (--holders === 0 && !retired) {stopFresh(); stopFresh = () => {}; service.setActive(false);}};
     },
     dispose: () => {
       if (retired) return;

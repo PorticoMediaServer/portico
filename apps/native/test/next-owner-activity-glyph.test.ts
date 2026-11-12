@@ -21,15 +21,23 @@ class FakeService {
   setActive(value: boolean) {this.active = value;}
   attach(events: unknown) {this.attached = events;}
   load = async () => {this.loads++;};
-  fresh = 0; stopped = 0;
-  keepFresh(_everyMs: number) {this.fresh++; return () => {this.stopped++;};}
+  fresh = 0; stopped = 0; retries = 0; when?: () => boolean;
+  keepFresh(_everyMs: number, when?: () => boolean) {this.fresh++; this.when = when; return () => {this.stopped++;};}
+  retry = async () => {this.retries++;};
   dispose() {this.disposed = true;}
   publish(state: any) {this.state = state; for (const listener of [...this.listeners]) listener();}
 }
 
+/** The app's foreground state, as react-native's AppState gives it. */
+const appState = {
+  currentState: 'active', listeners: new Set<(state: string) => void>(),
+  addEventListener(_type: 'change', listener: (state: string) => void) {appState.listeners.add(listener); return {remove: () => {appState.listeners.delete(listener);}};},
+  set(state: string) {appState.currentState = state; for (const listener of [...appState.listeners]) listener(state);},
+};
+
 async function ownerActivity() {
   return screenModule(new URL('../src-next/shell/owner-activity.ts', import.meta.url), {
-    react: {default: {}}, '../../../../packages/client-core/src/admin/activity-summary': {ActivitySummaryService: FakeService},
+    react: {default: {}}, 'react-native': {AppState: appState}, '../../../../packages/client-core/src/admin/activity-summary': {ActivitySummaryService: FakeService, ACTIVITY_GLANCE_READ_MS: 30_000},
     '../../../../packages/client-core/src/playback-v1/local-http': {localV1Http: (api: unknown) => ({send() {}, api})},
     './freshness': {viewerQueriesFor: () => ({queries: true})},
   });
@@ -134,4 +142,21 @@ test('Disposing the store while a glyph still holds it (bootstrap order) erases 
   assert.equal(changes, 1, 'a mounted glyph is told once');
   service.publish({phase: 'ready', document: document(3)}); release(); activity.dispose();
   assert.equal(activity.getSnapshot().known, false); assert.equal(changes, 1, 'nothing after disposal reaches it');
+});
+
+test('A held glyph reads again only while the app is in the foreground: a backgrounded app sends nothing, and it reads once on return', async () => {
+  const {createNativeOwnerActivity} = await ownerActivity();
+  FakeService.made = []; appState.currentState = 'active';
+  const activity = createNativeOwnerActivity(context('owner'), false)!, service = FakeService.made[0]!;
+  const release = activity.hold();
+  assert.equal(service.when?.(), true, 'in the foreground the timer reads');
+  appState.set('background');
+  assert.equal(service.when?.(), false, 'screen off with music playing: the timer sends nothing');
+  assert.equal(service.retries, 0);
+  appState.set('active');
+  assert.equal(service.when?.(), true); assert.equal(service.retries, 1, 'back in the foreground it reads once at once');
+  release();
+  assert.equal(appState.listeners.size, 0, 'a released glyph stops listening');
+  appState.set('background'); appState.set('active'); assert.equal(service.retries, 1);
+  activity.dispose();
 });
