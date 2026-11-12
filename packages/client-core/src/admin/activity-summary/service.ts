@@ -9,8 +9,11 @@ import {queryKeys} from '../../query/keys.ts';
 import {heldDocument,readDocument} from '../../query/admin-documents.ts';
 import type {ViewerQueries} from '../../query/viewer-queries.ts';
 import type {ViewerQueryOptions} from '../../query/react.ts';
-import type {DashboardSessionsSnapshot, ActivitySummaryErrorCode, ActivitySummaryScope, ActivitySummarySnapshot, ActivitySummarySource, ActivitySummarySourceStore, ActivitySummaryTimers, OwnerActivitySummary} from './types.ts';
+import type {DashboardSessionsSnapshot, ActivitySummaryErrorCode, ActivitySummarySnapshot, ActivitySummarySource, ActivitySummarySourceStore, ActivitySummaryTimers, OwnerActivitySummary} from './types.ts';
 
+/** How often the owner's summary is read again on the rebuilt server, which sends no change for it: while the popover
+ * is open, and otherwise while its glyph shows. */
+export const ACTIVITY_OPEN_READ_MS = 5_000, ACTIVITY_GLANCE_READ_MS = 30_000;
 const hintTypes = ['admin.sessions', 'library.scan.updated', 'job.updated', 'operation.updated', 'server.updated', 'list.changed'] as const;
 /** What the owner's summary is built from: the same hints that make the service read it again. */
 const summaryMoved = hintTypes.map(type => dependsOn.event(type));
@@ -140,6 +143,18 @@ export class ActivitySummaryService {
   load = (): Promise<void> => this.read(undefined, false);
   /** Always asks the server. */
   retry = (): Promise<void> => this.read(undefined, true);
+  /** The rebuilt server's change feed carries nothing for streams, scans or tasks, so a held summary is read again
+   * every `everyMs` (when `when` allows: the web skips a hidden tab) until the returned stop. A read already on its
+   * way is shared, a refused one stops it, and a read never stacks on another. */
+  keepFresh(everyMs: number, when: () => boolean = () => true): () => void {
+    let timer: unknown, stopped = false;
+    const next = () => {
+      if (stopped || this.disposed || this.blocked) return;
+      timer = this.timers.setTimer(() => {timer = undefined; if (stopped) return; void (when() ? this.retry() : Promise.resolve()).finally(next);}, everyMs);
+    };
+    next();
+    return () => {stopped = true; if (timer !== undefined) this.timers.clearTimer(timer); timer = undefined;};
+  }
   /** Compatible with the existing freshness document protocol; no content is retained after refusal. */
   revalidate = (context?: {signal?: AbortSignal; settle?: () => Promise<void>; admission?: object}): Promise<void> => this.read(context, true);
 
@@ -187,7 +202,7 @@ export class ActivitySummaryService {
         await Promise.race([context?.settle?.(), interrupted]);
         if (!isCurrent()) return;
         if (controller.signal.aborted) { this.publish({phase: 'idle'}); return; }
-        this.admit(document, source.scope);
+        this.admit(document);
         this.publish({phase: 'ready', document});
       } catch (error) {
         if (!isCurrent()) return;
@@ -209,8 +224,7 @@ export class ActivitySummaryService {
     this.reading = {controller, promise};
     return promise;
   }
-  private admit(document: OwnerActivitySummary, scope: ActivitySummaryScope): void {
-    if (document.scope.serverId !== scope.serverId) throw failure('permission_changed');
+  private admit(document: OwnerActivitySummary): void {
     const observed = utcOrderKey(document.observedAt);
     if (this.observed !== undefined && observed < this.observed) throw failure('invalid_activity_summary');
     this.observed = observed;

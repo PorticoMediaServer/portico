@@ -1,4 +1,4 @@
-import {ActivitySummaryService, type ActivitySummarySnapshot, type ActivitySummarySource, type ActivitySummarySourceStore} from '../../../../packages/client-core/src/admin/activity-summary';
+import {ACTIVITY_GLANCE_READ_MS, ActivitySummaryService, type ActivitySummarySnapshot, type ActivitySummarySource, type ActivitySummarySourceStore} from '../../../../packages/client-core/src/admin/activity-summary';
 import {localV1Http} from '../../../../packages/client-core/src/playback-v1/local-http';
 import type {NativeShellBootstrapContext} from './bootstrap';
 import {viewerQueriesFor} from './freshness';
@@ -20,7 +20,7 @@ export function nativeOwnerActivityIndicator(snapshot: ActivitySummarySnapshot):
   const document = snapshot.phase === 'ready' ? snapshot.document : undefined;
   if (!document) return unknown;
   const count = document.streams.count;
-  return Object.freeze({known: true, count, update: document.update?.available === true,
+  return Object.freeze({known: true, count, update: document.alerts.some(alert => alert.code === 'update_available' && !!alert.params.latest),
     busy: count > 0 || document.scans.length > 0 || document.tasks.count > 0});
 }
 
@@ -29,7 +29,7 @@ export function nativeOwnerActivityIndicator(snapshot: ActivitySummarySnapshot):
 export function createNativeOwnerActivity(context: NativeShellBootstrapContext, tv: boolean): NativeOwnerActivity | undefined {
   const session = context.session();
   if (tv || !session || context.account.account.role !== 'owner' || session.viewer.role !== 'owner') return undefined;
-  let retired = false, holders = 0, last: NativeOwnerActivityIndicator = unknown;
+  let retired = false, holders = 0, last: NativeOwnerActivityIndicator = unknown, stopFresh = () => {};
   const sourceListeners = new Set<() => void>(), listeners = new Set<() => void>();
   const value: ActivitySummarySource = {http: localV1Http(context.api), scope: {...session.viewer, sessionFamilyId: session.sessionFamilyId, authorizationEpoch: context.authority().epoch}};
   const source: ActivitySummarySourceStore = {
@@ -49,12 +49,13 @@ export function createNativeOwnerActivity(context: NativeShellBootstrapContext, 
     hold: () => {
       if (retired || !context.current()) return () => {};
       let held = true;
-      if (++holders === 1) {service.setActive(true); service.attach(context.events); void service.load().catch(() => {});}
-      return () => {if (!held) return; held = false; if (--holders === 0 && !retired) service.setActive(false);};
+      // The rebuilt server sends no change for streams, scans or tasks: a held glyph reads the summary again now and then.
+      if (++holders === 1) {service.setActive(true); service.attach(context.events); void service.load().catch(() => {}); stopFresh = service.keepFresh(ACTIVITY_GLANCE_READ_MS);}
+      return () => {if (!held) return; held = false; if (--holders === 0 && !retired) {stopFresh(); service.setActive(false);}};
     },
     dispose: () => {
       if (retired) return;
-      retired = true; offAuthority(); offService();
+      retired = true; stopFresh(); offAuthority(); offService();
       for (const listener of [...sourceListeners]) listener();
       service.dispose(); sourceListeners.clear();
       // The service is cleared, but this store's own indicator is what a glyph draws: erase it and tell any glyph still

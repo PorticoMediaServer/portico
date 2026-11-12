@@ -21,25 +21,23 @@ const environment = {t: defaultI18n.t, locale: 'en-US', timeZone: 'UTC'};
 const actions = {onDashboard: () => {}, onRetry: () => {}, openUpdate: () => {}, openIssue: () => {}};
 
 function stream(id: string, username: string, device: string, extra: Partial<ActivitySummarySession> = {}): ActivitySummarySession {
-  return {id, kind: 'vod', state: 'playing', positionMs: 600000, durationMs: 2400000, startedAt: '2026-10-22T15:00:00Z', problem: false, converting: false,
-    user: {id: `account-${id}`, username}, profile: {id: `profile-${id}`, name: username}, device: {id: `device-${id}`, name: device},
-    decision: {}, quality: {mode: 'auto'}, item: {id: `item-${id}`, title: `Drawn ${id}`, kind: 'movie', year: 2001, art: []}, ...extra};
+  return {id, itemId: `itm_${id}`, title: `Drawn ${id}`, kind: 'movie', state: 'playing', positionMs: 600000, durationMs: 2400000, startedAt: '2026-10-22T15:00:00Z',
+    username, profile: username, deviceName: device, away: false, route: 'original', delivery: {}, ...extra};
 }
 /** The drawn frame 2 with a scan and a task running, which is when the feed hints arrive fastest. */
-function summary(current = 'Practical Magic 2 (2026).mkv', analyzed = 51): OwnerActivitySummary {
-  return {scope: {serverId: 'server', viewerFence: 'viewer-fence'}, serverName: 'Portico demo', observedAt: `2026-10-22T15:20:0${analyzed % 10}Z`,
-    health: {degraded: false}, majorIssues: [],
-    streams: {count: 2, convertingCount: 0, overflow: {count: 0, convertingCount: 0}, items: [stream('sam', 'sam_k', 'Living room TV'), stream('nana', 'nana_r', 'Kitchen iPad')]},
-    scans: [{libraryId: 'movies', libraryName: 'Movies', kind: 'movies', phase: 'analyzing', analyzed, discovered: 80, total: 80, current}],
-    tasks: {count: 1, items: [{id: 'previews', kind: 'trickplay', libraryId: 'tv', libraryName: 'TV Shows', state: 'running', phase: 'making-previews', processed: 38, total: 96, unit: 'episodes'}]},
-    update: {available: false, state: 'unconfigured', current: '0.1.0'}, lastScanFinishedAt: '2026-10-22T15:12:00Z'};
+function summary(analyzed = 51): OwnerActivitySummary {
+  return {serverName: 'Portico demo', observedAt: `2026-10-22T15:20:0${analyzed % 10}Z`,
+    streams: {count: 2, converting: 0, items: [stream('sam', 'sam_k', 'Living room TV'), stream('nana', 'nana_r', 'Kitchen iPad')]},
+    scans: [{libraryId: 'movies', libraryName: 'Movies', kind: 'movies', phase: 'analyzing', analyzed, discovered: 80, total: 80}],
+    tasks: {count: 1, items: [{id: 'previews', kind: 'trickplay', libraryId: 'tv', libraryName: 'TV Shows', state: 'running', phase: 'making-previews', processed: 38, total: 96}]},
+    alerts: [], lastScanAt: '2026-10-22T15:12:00Z'};
 }
 const rows = (html: string) => (html.match(/data-panel-row=/g) ?? []).length;
 const drawn = (view: ReturnType<typeof activityPanelView>) => renderToStaticMarkup(createElement(ActivityPanel, {viewerRole: 'owner', view}));
 
 test('a scan update changes the panel values in place and never replaces its rows', () => {
   const first = activityPanelView({phase: 'ready', document: summary()}, 'Portico demo', environment, actions);
-  const next = activityPanelView({phase: 'ready', document: summary('Half-Light (2024).mkv', 57)}, 'Portico demo', environment, actions);
+  const next = activityPanelView({phase: 'ready', document: summary(57)}, 'Portico demo', environment, actions);
   // The same rows own the panel before and after the read: no ids changed, no loading state.
   assert.deepEqual(next.streams.map(row => row.id), first.streams.map(row => row.id));
   assert.deepEqual(next.scans.map(row => row.id), first.scans.map(row => row.id));
@@ -47,7 +45,7 @@ test('a scan update changes the panel values in place and never replaces its row
   assert.equal(next.phase, 'ready');
   const before = drawn(first), after = drawn(next);
   assert.equal(rows(before), rows(after), 'the same number of rows still owns the panel');
-  assert.match(after, /Half-Light \(2024\)\.mkv/); assert.match(after, /57 of 80 files/);
+  assert.match(after, /57 of 80 files/);
   assert.doesNotMatch(after, /role="status"/, 'the loading state never replaces the content');
 });
 

@@ -6,9 +6,9 @@ import {hooks, screenModule} from './helpers/screen-harness.mjs';
 
 const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree?.props ? [tree, ...nodes(tree.props.children)] : [];
 const document = (streams: number, more: {scans?: number; tasks?: number; update?: boolean} = {}) => ({
-  streams: {count: streams, items: [], convertingCount: 0, overflow: {count: 0, convertingCount: 0}},
+  streams: {count: streams, converting: 0, items: []},
   scans: Array.from({length: more.scans ?? 0}, () => ({})), tasks: {count: more.tasks ?? 0, items: []},
-  update: {available: more.update === true, current: '1', state: 'idle'},
+  alerts: more.update === true ? [{code: 'update_available', severity: 'warning', major: false, params: {current: '1', latest: '2'}, action: {kind: 'update', target: ''}}] : [],
 });
 
 class FakeService {
@@ -21,6 +21,8 @@ class FakeService {
   setActive(value: boolean) {this.active = value;}
   attach(events: unknown) {this.attached = events;}
   load = async () => {this.loads++;};
+  fresh = 0; stopped = 0;
+  keepFresh(_everyMs: number) {this.fresh++; return () => {this.stopped++;};}
   dispose() {this.disposed = true;}
   publish(state: any) {this.state = state; for (const listener of [...this.listeners]) listener();}
 }
@@ -69,6 +71,7 @@ test('Only an owner on a phone or tablet gets the summary; it reads only while a
   assert.equal(service.active, false); assert.equal(service.loads, 0);
   const first = activity.hold(), second = activity.hold();
   assert.equal(service.active, true); assert.equal(service.attached, owner.events); assert.equal(service.loads, 1, 'two glyphs share one read');
+  assert.deepEqual([service.fresh, service.stopped], [1, 0], 'held, it is read again now and then (the rebuilt server sends no change for it)');
   let published = 0; activity.subscribe(() => published++);
   service.publish({phase: 'ready', document: document(2, {update: true})});
   assert.deepEqual({...activity.getSnapshot()}, {known: true, count: 2, busy: true, update: true});
@@ -77,7 +80,7 @@ test('Only an owner on a phone or tablet gets the summary; it reads only while a
   first(); first();
   assert.equal(service.active, true, 'a repeated release counts once');
   second();
-  assert.equal(service.active, false);
+  assert.equal(service.active, false); assert.equal(service.stopped, 1, 'the last release stops the rereading');
   let sourceChanged = 0; service.options.source.subscribe(() => sourceChanged++);
   owner.retire();
   assert.equal(sourceChanged, 1); assert.equal(service.options.source.getSnapshot(), null, 'a retired viewer offers no source');

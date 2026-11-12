@@ -112,14 +112,12 @@ function pageFor(fixture: Fixture, role: string | null, kind: string | null, lim
 }
 
 function activityDocument(now: string) {
-  const session = (id: string) => ({
-    id, user: {id: 'specimen-account', username: 'demo'}, profile: {id: 'demo', name: 'Demo'}, // lint-strings-allow: public DEV specimen identity
-    device: {id: 'specimen-device', name: 'Portico web'}, kind: 'vod', state: 'playing', startedAt: now, // lint-strings-allow: public DEV specimen device
-    problem: false, converting: false, positionMs: 60_000, decision: {},
-  });
-  return {scope: {serverId, viewerFence: 'a'.repeat(64)}, observedAt: now, serverName: 'Portico demo', // lint-strings-allow: public DEV specimen server
-    streams: {count: 2, convertingCount: 0, overflow: {count: 0, convertingCount: 0}, items: [session('stream-1'), session('stream-2')]},
-    scans: [], tasks: {count: 0, items: []}, update: {available: false, state: 'unconfigured', current: ''}, health: {degraded: false}, majorIssues: []};
+  // The rebuilt server's owner summary (GET /v1/admin/activity).
+  const session = (id: string) => ({id, kind: 'movie', state: 'playing', positionMs: 60_000, username: 'demo', profile: 'Demo', // lint-strings-allow: public DEV specimen identity
+    deviceName: 'Portico web', away: false, route: 'original', delivery: {}, startedAt: now}); // lint-strings-allow: public DEV specimen device
+  return {observedAt: now, serverName: 'Portico demo', // lint-strings-allow: public DEV specimen server
+    streams: {count: 2, converting: 0, items: [session('stream-1'), session('stream-2')]},
+    scans: [], tasks: {count: 0, items: []}, alerts: []};
 }
 
 export function createPersonSpecimen(kind: 'desktop' | 'phone' = 'desktop') {

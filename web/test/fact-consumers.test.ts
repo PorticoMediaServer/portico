@@ -213,10 +213,10 @@ test('Activity explicitly notifies its admitted source and redraws the name with
   class Activity {
     state = {};off: () => void;source: any;
     constructor({source}: any) {constructed++;this.source = source;lastSource = source.getSnapshot();this.off = source.subscribe(() => {sourceChanges++;lastSource = source.getSnapshot();});}
-    getSnapshot = () => this.state;subscribe = () => () => {};setActive() {}attach() {}async load() {loads++;}async retry() {}dispose() {this.off();}
+    getSnapshot = () => this.state;subscribe = () => () => {};setActive() {}attach() {}async load() {loads++;}async retry() {}keepFresh() {return () => {};}dispose() {this.off();}
   }
   const module = await componentModule(new URL('../src/shell/Activity.tsx', import.meta.url), {react: h.react, './fact-source': {subscribeFacts}, './fact-hooks': hooks,
-    '@core/admin/activity-summary/index.ts': {ActivitySummaryService: Activity}, '../kit/shell': {TopBarActivity: 'TopBarActivity'}, './activity-model': {activityPanelView: (_state: unknown, serverName: string) => ({serverName})}});
+    '@core/admin/activity-summary/index.ts': {ActivitySummaryService: Activity, ACTIVITY_OPEN_READ_MS: 5000, ACTIVITY_GLANCE_READ_MS: 30000}, '../kit/shell': {TopBarActivity: 'TopBarActivity'}, './activity-model': {activityPanelView: (_state: unknown, serverName: string) => ({serverName})}});
   const owner = module.createOwnerActivity(f.context, {}, () => {}, () => {}, () => {});
   const draw = () => tree(h.render(() => h.react.createElement(owner.OwnerActivity, {})));
   try {

@@ -2,190 +2,59 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseActivitySummary, ActivitySummaryContractError} from '../src/admin/activity-summary/parser.ts';
 
+// The rebuilt server's GET /v1/admin/activity (server-next/internal/api/activity_summary.go).
 const stamp = '2026-10-22T07:00:00.000000001Z';
 const fence = 'a'.repeat(64);
-const session = (id = 'session') => ({
-  id, user: {id: 'account', username: 'account name'}, profile: {id: 'profile', name: 'profile name'}, device: {id: 'device', name: 'device name'},
-  kind: 'vod', state: 'playing', startedAt: stamp, converting: true, positionMs: 1234, durationMs: 5000,
-  item: {id: 'episode', title: 'Episode title', kind: 'episode', showId: 'show', showTitle: 'Show title', seasonNumber: 1, episodeNumber: 3, episodeNumbering: 'aired', airDate: '2023-01-29', year: 2023, art: [{kind: 'show', id: 'show', role: 'poster', revision: 'digest'}]},
-  decision: {video: {action: 'transcode', reasons: ['quality_requested'], to: 'h264'}}, quality: {mode: 'limit', maxHeight: 1080}, videoHeight: 720,
-});
-const scan = () => ({libraryId: 'movies', libraryName: 'Movies', kind: 'movie', discovered: 80, analyzed: 51, total: 80, current: 'Film (2001)/Film.mkv', phase: 'analysis'});
-const task = (id = 'task') => ({id, kind: 'checksum', state: 'running', phase: 'checksum', libraryId: 'movies', libraryName: 'Movies', processed: 128, total: 1024, unit: 'bytes'});
-const document = (): any => ({scope: {serverId: 'server', viewerFence: fence}, observedAt: stamp, serverName: 'Home server', streams: {count: 1, convertingCount: 1, overflow: {count: 0, convertingCount: 0}, items: [session()]}, scans: [scan()], tasks: {count: 1, items: [task()]}, update: {available: true, state: 'available', current: '0.1.0-dev', latest: '0.2.0'}, majorIssues:[], health: {degraded: false}, lastScanFinishedAt: '2026-10-21T07:00:00Z'});
-function rejects(change: (raw: any) => void): void { const raw = document(); change(raw); assert.throws(() => parseActivitySummary(raw), ActivitySummaryContractError); }
+const stream = (id = 'stream', route = 'converted') => ({id, itemId: 'itm_episode', title: 'Episode title', kind: 'episode', state: 'playing', positionMs: 1234, durationMs: 5000,
+  username: 'sam', profile: 'Kids', deviceName: 'Living room TV', away: false, bitrateKbps: 8000, route,
+  delivery: route === 'converted' ? {video: {action: 'transcode', reasons: ['quality_requested'], to: 'h264'}} : {}, startedAt: stamp});
+const scan = () => ({kind: 'movie', libraryId: 'movies', libraryName: 'Movies', phase: 'analysis', discovered: 80, analyzed: 51, total: 80});
+const task = (id = 'job_1') => ({id, kind: 'trickplay', libraryId: 'movies', libraryName: 'Movies', phase: 'running', state: 'running', processed: 3, total: 10});
+const document = (): any => ({observedAt: stamp, serverName: 'Home server', streams: {count: 1, converting: 1, items: [stream()]}, scans: [scan()],
+  tasks: {count: 1, items: [task()]}, alerts: [{code: 'library_unreachable', severity: 'major', major: true, params: {library: 'Movies'}, action: {kind: 'library-source', target: 'lib_1'}, count: 2},
+    {code: 'update_available', severity: 'warning', major: false, params: {current: '1.0.0', latest: '1.1.0'}, action: {kind: 'update', target: ''}}], lastScanAt: stamp});
+function rejects(change: (raw: any) => void, why: string): void { const raw = document(); change(raw); assert.throws(() => parseActivitySummary(raw), ActivitySummaryContractError, why); }
 
-test('busy summary retains independent source identities, episode facts, actual height and all owner facts', () => {
-  const raw = document(), parsed = parseActivitySummary(raw);
-  assert.deepEqual(parsed, raw);
-  assert.deepEqual(parsed.streams.items[0].profile, {id: 'profile', name: 'profile name'});
-  assert.equal(parsed.streams.items[0].quality?.maxHeight, 1080);
-  assert.equal(parsed.streams.items[0].videoHeight, 720);
-  assert.equal(parsed.streams.items[0].item?.showId, 'show');
-  assert.equal(parsed.observedAt, stamp);
-  assert.ok(Object.isFrozen(parsed)); assert.ok(Object.isFrozen(parsed.scans[0])); assert.ok(Object.isFrozen(parsed.streams.items[0].item?.art));
-  raw.streams.items[0].profile.name = 'overwritten';
-  assert.equal(parsed.streams.items[0].profile.name, 'profile name');
+test('a busy summary keeps the server\'s streams in its order, its counts, scans, tasks, alerts and last scan', () => {
+  const out = parseActivitySummary(document());
+  assert.equal(out.serverName, 'Home server');
+  assert.deepEqual([out.streams.count, out.streams.converting, out.streams.items[0]!.route, out.streams.items[0]!.profile], [1, 1, 'converted', 'Kids']);
+  assert.deepEqual([out.scans[0]!.analyzed, out.tasks.count, out.tasks.items[0]!.total, out.lastScanAt], [51, 1, 10, stamp]);
+  assert.deepEqual(out.alerts.map(alert => alert.code), ['library_unreachable', 'update_available']);
+  assert.equal(out.alerts[0]!.params.subject, 'Movies', 'the library an alert is about is its subject, as on the Dashboard');
 });
-test('quiet, update-only and degraded documents retain real cached update and last scan facts', () => {
-  const raw = document(); raw.streams = {count: 0, convertingCount: 0, overflow: {count: 0, convertingCount: 0}, items: []}; raw.scans = []; raw.tasks = {count: 0, items: []};
-  for (const [state, available] of [['unconfigured', false], ['unavailable', false], ['current', false], ['available', true]] as const) {
-    raw.update = {state, available, current: '0.1.0-dev', ...(available ? {latest: '0.2.0'} : {})}; raw.health.degraded = true;
-    assert.deepEqual(parseActivitySummary(raw), raw);
-  }
+
+test('a quiet summary, before the first scan, has nothing running and no last scan', () => {
+  const raw = {...document(), streams: {count: 0, converting: 0, items: []}, scans: [], tasks: {count: 0, items: []}, alerts: []};
+  delete raw.lastScanAt;
+  const out = parseActivitySummary(raw);
+  assert.deepEqual([out.streams.count, out.scans.length, out.tasks.count, out.alerts.length, 'lastScanAt' in out], [0, 0, 0, 0, false]);
 });
-test('exact totals survive three visible sessions and three visible tasks without client pagination', () => {
-  const raw = document(); raw.streams = {count: 23, convertingCount: 7, overflow: {count: 20, convertingCount: 4}, items: Array.from({length: 3}, (_, n) => session('s' + n))}; raw.tasks = {count: 11, items: Array.from({length: 3}, (_, n) => task('t' + n))};
-  const parsed = parseActivitySummary(raw);
-  assert.equal(parsed.streams.count, 23); assert.equal(parsed.tasks.count, 11);
-  assert.equal(parsed.streams.items.length, 3); assert.equal(parsed.tasks.items.length, 3);
-});
-test('unknown denominators remain absent, including STRM bytes larger than its descriptor', () => {
-  const raw = document(); delete raw.scans[0].total; delete raw.scans[0].current;
-  raw.tasks.items[0] = {...task(), processed: 2_000_000}; delete raw.tasks.items[0].total;
-  delete raw.streams.items[0].videoHeight;
-  const parsed = parseActivitySummary(raw);
-  assert.equal(parsed.scans[0].discovered, 80); assert.equal(parsed.scans[0].analyzed, 51);
-  assert.equal(parsed.scans[0].total, undefined); assert.equal(parsed.scans[0].current, undefined);
-  assert.equal(parsed.tasks.items[0].processed, 2_000_000); assert.equal(parsed.tasks.items[0].total, undefined);
-  assert.equal(parsed.streams.items[0].videoHeight, undefined);
-  assert.equal(Object.hasOwn(parsed.scans[0], 'percentage'), false);
-});
-test('known zero denominator remains zero and unmeasured tasks remain absent, without fabricated progress', () => {
-  const raw = document(); raw.scans[0] = {...scan(), discovered: 0, analyzed: 0, total: 0};
-  raw.tasks.items[0] = {id: 'segments:movies', kind: 'segments', phase: 'segment_evidence', state: 'queued', unit: 'files'};
-  const parsed = parseActivitySummary(raw);
-  assert.equal(parsed.scans[0].total, 0); assert.equal(parsed.tasks.items[0].processed, undefined);
-});
-test('music facts are independent and channel identity needs no synthetic item or duration', () => {
-  const raw = document(); raw.streams.items[0].item = {id: 'song', kind: 'song', title: 'Song name', artist: 'Artist name', album: 'Album name', art: []}; raw.streams.items[0].kind = 'audio';
-  const parsed = parseActivitySummary(raw); assert.equal(parsed.streams.items[0].item?.artist, 'Artist name'); assert.equal(parsed.streams.items[0].item?.album, 'Album name');
-  raw.streams.convertingCount = 0; raw.streams.items[0] = {id: 'channel-session', user: {id: 'a'}, startedAt: stamp, converting: false, profile: {id: 'p', name: ''}, device: {id: 'd', name: ''}, kind: 'channel', state: 'starting', positionMs: 0, decision: {}};
-  assert.equal(parseActivitySummary(raw).streams.items[0].item, undefined);
-});
-test('nonfinite, negative, fractional and unsafe counters never become clamped rings', () => {
-  for (const value of [NaN, Infinity, -Infinity, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '1', null]) {
-    for (const field of ['discovered', 'analyzed', 'total']) rejects(raw => {raw.scans[0][field] = value;});
-    for (const field of ['processed', 'total']) rejects(raw => {raw.tasks.items[0][field] = value;});
-    rejects(raw => {raw.streams.count = value;}); rejects(raw => {raw.tasks.count = value;});
-    rejects(raw => {raw.streams.items[0].positionMs = value;});
-  }
-});
-test('contradictory totals, counts, caps and duplicate identities fail closed', () => {
-  for (const change of [
-    (raw: any) => {raw.streams.items = Array.from({length: 4}, (_, n) => session('s' + n)); raw.streams.count = 4;},
-    (raw: any) => {raw.tasks.items = Array.from({length: 4}, (_, n) => task('t' + n)); raw.tasks.count = 4;},
-    (raw: any) => {raw.streams.count = 0;}, (raw: any) => {raw.tasks.count = 0;},
-    (raw: any) => {raw.streams.items = [session(), session()]; raw.streams.count = 2;},
-    (raw: any) => {raw.tasks.items = [task(), task()]; raw.tasks.count = 2;},
-    (raw: any) => {raw.scans = [scan(), scan()];}, (raw: any) => {raw.scans[0].analyzed = 81;},
-    (raw: any) => {raw.scans[0].total = 79;}, (raw: any) => {raw.tasks.items[0].processed = 1025;},
-    (raw: any) => {delete raw.tasks.items[0].processed;},
-  ]) rejects(change);
-});
-test('no unexpected private fields, capability URLs, absolute files, invalid scope or malformed timestamps survive', () => {
-  for (const change of [
-    (raw: any) => {raw.token = 'credential';}, (raw: any) => {raw.streams.items[0].url = 'capability';},
-    (raw: any) => {raw.streams.items[0].item.path = '/private/media';},
-    (raw: any) => {raw.scope.viewerFence = '';}, (raw: any) => {raw.scope.serverId = '';},
-    (raw: any) => {raw.scans[0].current = '/media/Film.mkv';}, (raw: any) => {raw.scans[0].current = '../Film.mkv';},
-    (raw: any) => {raw.scans[0].current = 'C:\\Media\\Film.mkv';}, (raw: any) => {raw.scans[0].current = '\\\\server\\share';},
-    (raw: any) => {raw.scans[0].current = 'Film\n.mkv';}, (raw: any) => {raw.observedAt = '2026-02-30T00:00:00Z';},
-    (raw: any) => {raw.lastScanFinishedAt = 'yesterday';}, (raw: any) => {raw.observedAt = '2026-10-22T07:00:00-03:00';},
-    (raw: any) => {raw.streams.items[0].item.airDate = '2026-02-30';},
-    (raw: any) => {raw.scans = null;}, (raw: any) => {raw.tasks.items = {};},
-  ]) rejects(change);
-});
-test('quality request is validated independently of committed conversion height', () => {
+
+test('three streams of more: the rest are counts only, and the conversions among them can be worked out', () => {
   const raw = document();
-  for (const quality of [{mode: 'original'}, {mode: 'fixed', id: '720p-high'}, {mode: 'automatic'}, {mode: 'automatic', id: '1080p-low'}, {mode: 'limit', maxHeight: 1080}]) {
-    raw.streams.items[0].quality = quality; assert.equal(parseActivitySummary(raw).streams.items[0].videoHeight, 720);
-  }
-  for (const change of [
-    (raw: any) => {raw.streams.items[0].quality = {mode: 'fixed', maxHeight: 720};},
-    (raw: any) => {raw.streams.items[0].quality = {mode: 'original', id: '1080p-low'};},
-    (raw: any) => {raw.streams.items[0].quality = {mode: 'automatic', step: 'down'};},
-    (raw: any) => {raw.streams.items[0].videoHeight = NaN;},
-    (raw: any) => {raw.update.available = false;}, (raw: any) => {delete raw.update.latest;},
-  ]) rejects(change);
+  raw.streams = {count: 7, converting: 4, items: [stream('a'), stream('b'), stream('c', 'original')]};
+  const out = parseActivitySummary(raw);
+  assert.deepEqual([out.streams.count, out.streams.items.length, out.streams.converting - out.streams.items.filter(item => item.route === 'converted').length], [7, 3, 2]);
 });
 
-test('username provenance, actual start and complete overflow facts survive without invented identity', () => {
-  const raw = document(); delete raw.streams.items[0].user.username;
-  const parsed = parseActivitySummary(raw);
-  assert.deepEqual(parsed.streams.items[0].user, {id: 'account'});
-  assert.equal(parsed.streams.items[0].startedAt, stamp);
-  assert.equal(parsed.streams.convertingCount, 1);
-  assert.deepEqual(parsed.streams.overflow, {count: 0, convertingCount: 0});
-  for (const change of [
-    (raw: any) => {raw.streams.items[0].user.name = 'profile substitute';},
-    (raw: any) => {raw.streams.items[0].user.username = '';},
-    (raw: any) => {raw.streams.items[0].user.username = '   ';},
-    (raw: any) => {delete raw.streams.items[0].startedAt;},
-    (raw: any) => {raw.streams.items[0].startedAt = 'yesterday';},
-    (raw: any) => {raw.streams.items[0].problem = true;},
-    (raw: any) => {raw.streams.items[0].converting = false;},
-    (raw: any) => {raw.streams.convertingCount = 0;},
-    (raw: any) => {raw.streams.convertingCount = 2;},
-    (raw: any) => {raw.streams.overflow.count = 1;},
-    (raw: any) => {raw.streams.overflow.convertingCount = 1;},
-    (raw: any) => {delete raw.streams.overflow;},
-  ]) rejects(change);
-});
-test('global priority then nanosecond recency and stable id order are validated without client reslicing', () => {
-  const raw = document();
-  const problem = {...session('problem'), state: 'buffering', problem: 'buffering', bufferingSince:'2026-10-22T06:59:40Z', converting: false, decision: {}, startedAt: '2026-10-20T00:00:00Z'};
-  const converter = {...session('converter'), startedAt: '2026-10-21T00:00:00.000000001Z'};
-  const recent = {...session('recent'), converting: false, decision: {video: {action: 'copy', reasons: []}}, quality: {mode: 'limit', maxHeight: 2160}};
-  raw.streams = {count: 7, convertingCount: 3, overflow: {count: 4, convertingCount: 2}, items: [problem, converter, recent]};
-  const parsed = parseActivitySummary(raw);
-  assert.deepEqual(parsed.streams.items.map(item => item.id), ['problem', 'converter', 'recent']);
-  assert.equal(parsed.streams.items[2].converting, false);
-  assert.equal(parsed.streams.overflow.convertingCount, 2);
-  for (const items of [[recent, converter, problem], [converter, problem, recent]]) {
-    assert.throws(() => parseActivitySummary({...raw, streams: {...raw.streams, items}}), ActivitySummaryContractError);
-  }
-  const a = {...session('a'), startedAt: '2026-10-22T07:00:00.000000002Z'}, b = {...session('b'), startedAt: stamp};
-  raw.streams = {count: 2, convertingCount: 2, overflow: {count: 0, convertingCount: 0}, items: [a, b]};
-  assert.equal(parseActivitySummary(raw).streams.items[0].id, 'a');
-  raw.streams.items = [b, a]; assert.throws(() => parseActivitySummary(raw), ActivitySummaryContractError);
-  b.startedAt = a.startedAt; raw.streams.items = [a, b]; assert.equal(parseActivitySummary(raw).streams.items[0].id, 'a');
-  raw.streams.items = [b, a]; assert.throws(() => parseActivitySummary(raw), ActivitySummaryContractError);
+test('counts that disagree with the streams shown, a repeated stream, and a malformed stream are refused', () => {
+  rejects(raw => {raw.streams.count = 2;}, 'two streams with one shown');
+  rejects(raw => {raw.streams = {count: 4, converting: 0, items: [stream('a'), stream('b')]};}, 'fewer than three shown of four');
+  rejects(raw => {raw.streams.converting = 2;}, 'more conversions than streams');
+  rejects(raw => {raw.streams = {count: 2, converting: 0, items: [stream('a'), stream('b')]};}, 'fewer conversions than the converted streams shown');
+  rejects(raw => {raw.streams = {count: 2, converting: 2, items: [stream('a'), stream('a')]};}, 'a repeated stream');
+  rejects(raw => {raw.streams.items[0].route = 'teleported';}, 'an unknown route');
+  rejects(raw => {delete raw.streams.items[0].username;}, 'a stream with no person');
 });
 
-test('qualified problems require current producer evidence and sustained buffering; health alone is independent',()=>{
- const raw=document();const item=raw.streams.items[0];
- item.transcode={speed:0.5,observedAt:'2026-10-22T06:59:59Z',cadenceMs:1000};item.problem='behind';
- assert.equal(parseActivitySummary(raw).streams.items[0].problem,'behind');
- for(const speed of [NaN,Infinity,-1])assert.throws(()=>parseActivitySummary({...raw,streams:{...raw.streams,items:[{...item,transcode:{...item.transcode,speed}}]}}),ActivitySummaryContractError);
- item.transcode.observedAt='2026-10-22T06:59:54Z';assert.throws(()=>parseActivitySummary(raw),ActivitySummaryContractError);
- delete item.transcode;delete item.problem;item.state='buffering';item.bufferingSince='2026-10-22T06:59:59Z';
- assert.equal(parseActivitySummary(raw).streams.items[0].problem,undefined);
- item.problem='buffering';assert.throws(()=>parseActivitySummary(raw),ActivitySummaryContractError);
- item.bufferingSince='2026-10-22T06:59:40Z';assert.equal(parseActivitySummary(raw).streams.items[0].problem,'buffering');
- raw.health.degraded=true;assert.deepEqual(parseActivitySummary(raw).majorIssues,[]);
- raw.majorIssues=[{kind:'remote-source',code:'remote_unreachable',severity:'playback_stop',subject:'Archive',destination:{kind:'remote-source',target:'archive'}}];
- assert.equal(parseActivitySummary(raw).majorIssues[0].subject,'Archive');
- raw.majorIssues[0].token='private';assert.throws(()=>parseActivitySummary(raw),ActivitySummaryContractError);
-});
-
-test('qualified issue code, effect and destination agree instead of inferring a dot from a count',()=>{
- const raw=document();const issue={kind:'remote-source',code:'remote_unreachable',severity:'playback_stop',subject:'Archive',destination:{kind:'remote-source',target:'archive'}};
- raw.majorIssues=[issue];assert.equal(parseActivitySummary(raw).majorIssues.length,1);
- for(const change of [{...issue,code:'scan_failed'},{...issue,severity:'warning'},{...issue,destination:{kind:'settings',target:'/private'}},{...issue,kind:'library'},{...issue,destination:{kind:'remote-source',target:''}}]){
-  assert.throws(()=>parseActivitySummary({...raw,majorIssues:[change]}),ActivitySummaryContractError);
- }
-});
-
-test('OW-2: a CD-quality music session is a real server quality mode and must not fail the whole summary', () => {
-  const raw = document();
-  const song = {
-    ...session('cd-quality-song'), kind: 'audio', converting: false,
-    item: {id: 'song', kind: 'song', title: 'Song name', artist: 'Artist name', album: 'Album name', art: []},
-    decision: {}, quality: {mode: 'cd-quality'},
-  };
-  raw.streams = {count: 1, convertingCount: 0, overflow: {count: 0, convertingCount: 0}, items: [song]};
-  assert.equal(parseActivitySummary(raw).streams.items[0].quality?.mode, 'cd-quality');
+test('a summary missing a part, with a malformed time, or with a malformed scan, task or alert is refused', () => {
+  rejects(raw => {delete raw.alerts;}, 'no alerts');
+  rejects(raw => {raw.observedAt = 'yesterday';}, 'a malformed time');
+  rejects(raw => {raw.lastScanAt = 'soon';}, 'a malformed last scan');
+  rejects(raw => {raw.scans[0].discovered = -1;}, 'a negative count');
+  rejects(raw => {raw.tasks.items = [task('a'), task('b'), task('c'), task('d')]; raw.tasks.count = 4;}, 'more than three tasks shown');
+  rejects(raw => {raw.alerts[0].major = 'yes';}, 'an alert that is not plainly major or not');
 });
 
 test('OW-2: the Dashboard reads a CD-quality music session too, and CD quality stays as strict as original', async () => {

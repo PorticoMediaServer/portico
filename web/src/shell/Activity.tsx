@@ -1,7 +1,7 @@
 import {subscribeFacts} from './fact-source';
 import {useShellFacts} from './fact-hooks';
 import {useEffect, useMemo, useState, useSyncExternalStore} from 'react';
-import {ActivitySummaryService, type ActivitySummarySource, type ActivitySummarySourceStore} from '@core/admin/activity-summary/index.ts';
+import {ACTIVITY_GLANCE_READ_MS, ACTIVITY_OPEN_READ_MS, ActivitySummaryService, type ActivitySummarySource, type ActivitySummarySourceStore} from '@core/admin/activity-summary/index.ts';
 import {localV1Http} from '@core/playback-v1/local-http.ts';
 import type {TimeEnvironment} from '@core/presentation/kit-model/index.ts';
 import {TopBarActivity, type ActivityPanelView} from '../kit/shell';
@@ -35,6 +35,10 @@ export function createOwnerActivity(context: ShellAssemblyContext, time: TimeEnv
       mounted.add(service); service.setActive(true); service.attach(context.events); void service.load();
       return () => { mounted.delete(service); service.setActive(false); service.dispose(); };
     }, [service]);
+    // The rebuilt server sends no change for streams, scans or tasks: opening the popover reads now, and the summary is
+    // read again while it shows (more often while the popover is open; never in a hidden tab).
+    useEffect(() => { if (open) void service.retry(); }, [service, open]);
+    useEffect(() => service.keepFresh(open ? ACTIVITY_OPEN_READ_MS : ACTIVITY_GLANCE_READ_MS, () => document.visibilityState === 'visible'), [service, open]);
     const retry = () => { void service.retry(); };
     const view = activityPanelView(snapshot, context.facts.serverName, time, {onDashboard, onRetry: retry, openUpdate, openIssue});
     if (presentation !== 'topbar') {

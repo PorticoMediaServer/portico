@@ -1,12 +1,18 @@
-import type {GetAdminActivityResponse,ListAdminSessionsResponse} from '../../../../contracts/src/types.ts';
+import type {ListAdminSessionsResponse} from '../../../../contracts/src/types.ts';
+import type {DashboardAlert, DashboardScan, DashboardTasks, NowPlaying} from '../../../../contracts/src/next/api.ts';
 import type {V1Http} from '../../playback-v1/http.ts';
 
 type Immutable<T> = T extends readonly (infer V)[] ? readonly Immutable<V>[] : T extends object ? {readonly [K in keyof T]: Immutable<T[K]>} : T;
-/** Current server facts. Names, identities, requested quality and committed height stay separate. */
-export type OwnerActivitySummary = Immutable<GetAdminActivityResponse>;
+/** The rebuilt server's owner summary, `GET /v1/admin/activity` (server-next ActivitySummary). */
+export type OwnerActivitySummary = Immutable<{
+  observedAt: string; serverName: string;
+  streams: {count: number; converting: number; items: NowPlaying[]};
+  scans: DashboardScan[]; tasks: DashboardTasks; alerts: DashboardAlert[]; lastScanAt?: string;
+}>;
 export type ActivitySummarySession = OwnerActivitySummary['streams']['items'][number];
 export type ActivitySummaryScan = OwnerActivitySummary['scans'][number];
 export type ActivitySummaryTask = OwnerActivitySummary['tasks']['items'][number];
+export type ActivitySummaryAlert = OwnerActivitySummary['alerts'][number];
 
 /** No credentials. The shell advances authorizationEpoch whenever its authority is replaced. */
 export type ActivitySummaryScope = Readonly<{
