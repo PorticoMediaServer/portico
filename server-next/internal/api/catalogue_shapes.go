@@ -285,10 +285,30 @@ type Related struct {
 }
 
 // RelatedGroup is one kind of tie, such as "extra" or "collection_member". "more_like_this" is
-// the titles Portico's title data names as like this one, best first.
+// the titles Portico's title data names as like this one, best first. After it, for a film or
+// a show, in this order: "cast", one group for each of its first three actors, and "creator",
+// its first director (a film) or first writer (a show), each with Person and up to 20 of
+// their other titles (all of them: GET /v1/items?person=); then "genre", its first genre, with
+// Tag and up to 20 other titles of its kind in its library, best rated first (all of them:
+// GET /v1/items?library=&kind=&tag=). A group with nothing in it is left out.
 type RelatedGroup struct {
-	Relation string `json:"relation"`
-	Items    []Item `json:"items"`
+	Relation string         `json:"relation"`
+	Person   *RelatedPerson `json:"person,omitempty"`
+	Tag      *RelatedTag    `json:"tag,omitempty"`
+	Items    []Item         `json:"items"`
+}
+
+// RelatedPerson is the person a "cast" or "creator" group of a title's page is of.
+type RelatedPerson struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// RelatedTag is the genre a "genre" group of a title's page is of; Value is what GET /v1/items
+// takes as tag.
+type RelatedTag struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
 }
 
 // Person is someone with credits. Their titles are GET /v1/items?person=<id>. TitleCount, how
