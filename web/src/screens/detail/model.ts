@@ -2,6 +2,13 @@ import type {ContentEntry} from '@core/library-content.ts';
 import type {TitleFile} from '@core/detail.ts';
 import {cardText, titleFactParts, type CardSubject, type TextEnvironment, type FileFacts, type TitleFacts, type FactPart} from '@core/presentation/kit-model';
 
+/** A title that holds others has its own page in its library (the one its card opens): a show with its seasons and
+ * episodes, a season, an album with its tracks. Opened by its address, it goes there instead of drawing one title's page. */
+export function holderPage(item: Readonly<{id: string; kind: string}>, libraryId: string): Readonly<{libraryId: string; view: 'show' | 'season' | 'album'; entityId: string}> | undefined {
+  const view = item.kind === 'show' || item.kind === 'season' || item.kind === 'album' ? item.kind : undefined;
+  return view && libraryId ? {libraryId, view, entityId: item.id} : undefined;
+}
+
 /** Full title pages group genuine genres together, between length/seasons and the rating. */
 export function titlePageFacts(facts: TitleFacts, env: TextEnvironment): readonly FactPart[] {
   const parts = titleFactParts({...facts, genres: undefined}, env), genres = (facts.genres ?? []).filter(value => value.trim());

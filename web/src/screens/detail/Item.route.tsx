@@ -1,6 +1,6 @@
 import {useGuardedLibraryContext, useLibraryRouteGuard} from '../browse/library-route-guard';
 import {forwardFacts} from '../../shell/fact-source';
-import {useLayoutEffect, useRef, useState} from 'react';
+import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {useLocation, useParams} from '@tanstack/react-router';
 import {defineWebScreen} from '../../route-registry';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
@@ -13,9 +13,11 @@ import {DetailScreen} from './Detail';
 import {createReadBindings, ReadItemEntry, type ReadItemEligibility} from '../read';
 import {resolveItemRead} from './read-resolution';
 import {DetailLoading} from './Loading';
+import {holderPage} from './model';
 import {ScreenProblem} from './ScreenProblem';
 
 type DetailLease = {id: number; context: ScreenContext; itemId: string; live: boolean; binding: ReturnType<typeof createDetailBindings>};
+const noSubscription = () => () => {};
 function OrdinaryItem({context, itemId, artworkClaim}: {context: ScreenContext; itemId: string; artworkClaim?: import('../../kit/cards/source-art-transition').SourceArtClaim}) {
   const [lease, publish] = useState<DetailLease>();
   const serial = useRef(0);
@@ -26,6 +28,17 @@ function OrdinaryItem({context, itemId, artworkClaim}: {context: ScreenContext; 
     publish(held);
     return () => {held.live = false;held.binding.dispose();};
   }, [context, itemId]);
+  const service = lease?.binding.service;
+  const holder = useSyncExternalStore(service ? service.subscribe : noSubscription, () => {
+    const data = service?.getSnapshot().data, page = data && data.item.id === itemId ? holderPage(data.item, data.scope.libraryId) : undefined;
+    return page ? `${page.view}:${page.libraryId}` : '';
+  });
+  useEffect(() => {
+    if (!holder || !lease?.live || !context.isCurrent()) return;
+    const view = holder.slice(0, holder.indexOf(':')) as 'show' | 'season' | 'album', libraryId = holder.slice(holder.indexOf(':') + 1);
+    void router.navigate({to: '/library/$libraryId', params: {libraryId}, search: {view, entityId: itemId}, replace: true}).catch(context.effects.reportError);
+  }, [holder, lease, context, itemId]);
+  if (holder) return <DetailLoading/>;
   return lease?.live && lease.context === context && lease.itemId === itemId && context.isCurrent()
     ? <DetailScreen key={lease.id} binding={lease.binding} itemId={itemId} artworkClaim={artworkClaim}/> : <DetailLoading/>;
 }
