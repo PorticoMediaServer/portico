@@ -201,9 +201,12 @@ func (d *DB) UpdateInvitation(ctx context.Context, e InvitationEdit) (Invitation
 	return out, err
 }
 
-// Invitations lists invitations, newest first.
+// Invitations lists the newest 500 invitations, the ones still waiting to be used first, then
+// the rest, each newest first: an invitation that is waiting is never left out of the list
+// for used, revoked or run-out ones, however many of those a server has made.
 func (d *DB) Invitations(ctx context.Context, now time.Time) ([]Invitation, error) {
-	rows, err := d.read.QueryContext(ctx, `SELECT `+invitationColumns+` FROM invitations i ORDER BY i.created_at DESC, i.id DESC LIMIT 500`)
+	rows, err := d.read.QueryContext(ctx, `SELECT `+invitationColumns+` FROM invitations i
+		ORDER BY i.state = 'open' AND i.expires_at > ? DESC, i.created_at DESC, i.id DESC LIMIT 500`, now.UnixMilli())
 	if err != nil {
 		return nil, err
 	}
