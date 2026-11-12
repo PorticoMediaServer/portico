@@ -39,9 +39,27 @@ func issueDateName(name string) (date, rest string) {
 	return "", name
 }
 
+// A date alone may be a novel's title. Only repeated publication titles with different
+// dates establish a run outside the explicit Magazines/Newspapers folders.
+func datedIssueRuns(f *folder) map[string]bool {
+	first, runs := map[string]string{}, map[string]bool{}
+	for _, file := range f.media {
+		date, title := issueDateName(cleanName(file.entry.Name))
+		if date == "" || title == "" {
+			continue
+		}
+		title = fold(title)
+		if earlier, ok := first[title]; ok && earlier != date {
+			runs[title] = true
+		}
+		first[title] = date
+	}
+	return runs
+}
+
 // A publication folder holds dated or numbered issue files. Explicit file fields win;
 // Magazines/Newspapers folders also disambiguate weekly magazines named with a full date.
-func (r *run) namedPeriodical(d details, rel string) (publication int, date, group string, index *int) {
+func (r *run) namedPeriodical(d details, rel string, runs map[string]bool) (publication int, date, group string, index *int) {
 	publication, date = issue(d)
 	_, explicit := db.ParsePublication(d["publication"])
 	if explicit && publication == db.PublicationBook {
@@ -68,9 +86,6 @@ func (r *run) namedPeriodical(d details, rel string) (publication int, date, gro
 			category = db.PublicationNewspaper
 		}
 	}
-	if category == db.PublicationBook && strings.HasSuffix(strings.ToLower(group), " magazine") {
-		category = db.PublicationMagazine
-	}
 	var numberPrefix string
 	if fileDate == "" {
 		if m := issueNumber.FindStringSubmatchIndex(name); m != nil {
@@ -93,12 +108,9 @@ func (r *run) namedPeriodical(d details, rel string) (publication int, date, gro
 	}
 	if !explicit {
 		publication = category
-		namedDate := firstOf(folderDate, fileDate)
-		sameTitle := prefix == "" || fold(prefix) == fold(group) || folderDate != ""
-		numbered := index != nil && (strings.Contains(name, "#") || strings.Contains(strings.ToLower(name), "issue")) && (numberPrefix == "" || fold(numberPrefix) == fold(group))
-		if publication == db.PublicationBook && r.lib.Kind == db.LibraryBooks && group != "" && (namedDate != "" && sameTitle || numbered) {
-			publication = db.PublicationMagazine
-			if len(namedDate) == 10 {
+		if publication == db.PublicationBook && r.lib.Kind == db.LibraryBooks && fileDate != "" && runs[fold(prefix)] {
+			publication, group = db.PublicationMagazine, prefix
+			if len(fileDate) == 10 {
 				publication = db.PublicationNewspaper
 			}
 		}

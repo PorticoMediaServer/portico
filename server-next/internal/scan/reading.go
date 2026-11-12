@@ -20,6 +20,7 @@ import (
 // (Calibre's metadata.opf, or one with the book's name), which the owner keeps and so wins;
 // otherwise the name is the title and a folder above is the author.
 func (r *run) bookUnits(f *folder) []unit {
+	runs := datedIssueRuns(f)
 	var units []unit
 	for _, file := range f.media {
 		if !file.touched() && !r.rereads(file) {
@@ -41,7 +42,7 @@ func (r *run) bookUnits(f *folder) []unit {
 			}
 		}
 		name := cleanName(file.entry.Name)
-		publication, date, group, index := r.namedPeriodical(d, file.rel)
+		publication, date, group, index := r.namedPeriodical(d, file.rel, runs)
 		authors := d.names("authors", "author")
 		if len(authors) == 0 && publication == db.PublicationBook {
 			// Author/Title/file and Author/file: the folder at the top is the author.
@@ -115,7 +116,7 @@ func (r *run) comicUnits(f *folder) []unit {
 		if r.rereads(file) && !read {
 			continue
 		}
-		publication, date, group, _ := r.namedPeriodical(d, file.rel)
+		publication, date, group, _ := r.namedPeriodical(d, file.rel, nil)
 		title := firstOf(d["album"], name)
 		if f.rel == "" {
 			comic := db.ImportItem{Kind: db.KindComic, Title: title, Versions: []db.ImportVersion{version},

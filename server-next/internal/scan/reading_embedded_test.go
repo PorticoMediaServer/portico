@@ -180,7 +180,7 @@ func TestScanAllFilesReadsABooksOwnDetailsAgain(t *testing.T) {
 	}
 }
 
-// Missing file fields can use a recognisable issue name; conflicting file fields alone say nothing.
+// A lone dated file and a folder ending in Magazine do not classify a book; explicit fields do.
 func TestPeriodicalNamesFillMissingFileFields(t *testing.T) {
 	f := newFixture(t, db.LibraryBooks)
 	f.put("Wired Magazine/Wired Magazine 2026-11.epub", epub(t, "3.0", `<dc:title>Wired Magazine November</dc:title>`))
@@ -197,8 +197,8 @@ func TestPeriodicalNamesFillMissingFileFields(t *testing.T) {
 	for _, it := range page.Items {
 		got[it.Title]++
 	}
-	if len(got) != 2 || got["Real Issue"] != 1 || got["Wired Magazine November"] != 1 {
-		t.Fatalf("magazines: %v (want the explicit issue and the named issue)", got)
+	if len(got) != 1 || got["Real Issue"] != 1 {
+		t.Fatalf("magazines: %v (want only the explicit issue)", got)
 	}
 }
 
@@ -238,14 +238,19 @@ func TestPeriodicalDatesAndGroupsFromNamesKeepOwnerLocks(t *testing.T) {
 		publication       int
 	}{
 		{"Amazing Stories 1926-04.epub", "Amazing Stories 1926-04", "1926-04", db.PublicationMagazine},
+		{"Amazing Stories 1926-05.epub", "Amazing Stories 1926-05", "1926-05", db.PublicationMagazine},
 		{"The Strand Magazine/The Strand Magazine 1891-07.epub", "The Strand Magazine 1891-07", "1891-07", db.PublicationMagazine},
 		{"Times/Times 1918-10-21.epub", "Times 1918-10-21", "1918-10-21", db.PublicationNewspaper},
 		{"Times/Times 19181022.epub", "Times 19181022", "1918-10-22", db.PublicationNewspaper},
-		{"The Strand Magazine/July 1891.epub", "July 1891", "1891-07", db.PublicationMagazine},
-		{"Daily/21 Oct 1918/edition.epub", "edition", "1918-10-21", db.PublicationNewspaper},
+		{"The Strand Magazine/The Strand Magazine August 1891.epub", "The Strand Magazine August 1891", "1891-08", db.PublicationMagazine},
+		{"Newspapers/Daily/21 Oct 1918/edition.epub", "edition", "1918-10-21", db.PublicationNewspaper},
 		{"Magazines/Wired/Issue 12.epub", "Issue 12", "", db.PublicationMagazine},
 		{"Magazines/Wired/0013.epub", "0013", "", db.PublicationMagazine},
-		{"Wired/Wired #14.epub", "Wired #14", "", db.PublicationMagazine},
+		{"Wired/Wired #14.epub", "Wired #14", "", db.PublicationBook},
+		{"Aleksandr Solzhenitsyn/August 1914/August 1914.epub", "August 1914", "", db.PublicationBook},
+		{"David Halberstam/October 1964.epub", "October 1964", "", db.PublicationBook},
+		{"James S A Corey/The Expanse/The Expanse #3.epub", "The Expanse #3", "", db.PublicationBook},
+		{"Discworld/Discworld 03.epub", "Discworld 03", "", db.PublicationBook},
 		{"Ambiguous/Ambiguous 03-04-2026.epub", "Ambiguous 03-04-2026", "", db.PublicationBook},
 		{"Invalid/Invalid 2026-02-30.epub", "Invalid 2026-02-30", "", db.PublicationBook},
 	}
@@ -262,7 +267,7 @@ func TestPeriodicalDatesAndGroupsFromNamesKeepOwnerLocks(t *testing.T) {
 		}
 	}
 	series := f.titles(db.KindSeries)
-	for name, count := range map[string]int{"Amazing Stories": 1, "The Strand Magazine": 2, "Times": 2, "Daily": 1, "Wired": 3} {
+	for name, count := range map[string]int{"Amazing Stories": 2, "The Strand Magazine": 2, "Times": 2, "Daily": 1, "Wired": 2} {
 		group := series[name]
 		if group.PublicID == "" {
 			t.Fatalf("no publication group %s", name)
@@ -274,7 +279,7 @@ func TestPeriodicalDatesAndGroupsFromNamesKeepOwnerLocks(t *testing.T) {
 	}
 	// A PDF already scanned as a book learns its publication when moved into that folder.
 	oldPDF := books["Wired 2026-11"]
-	f.move("Unsorted/Wired 2026-11.pdf", "Wired/Wired 2026-11.pdf")
+	f.move("Unsorted/Wired 2026-11.pdf", "Magazines/Wired/Wired 2026-11.pdf")
 	f.scan()
 	movedPDF := f.titles(db.KindBook)["Wired 2026-11"]
 	if movedPDF.PublicID != oldPDF.PublicID || movedPDF.Publication != db.PublicationMagazine || movedPDF.ReleaseDate != "2026-11" {
@@ -293,7 +298,7 @@ func TestPeriodicalDatesAndGroupsFromNamesKeepOwnerLocks(t *testing.T) {
 	if _, err := f.d.EditMetadata(ctx, kept.PublicID, locks.Revision, db.MetadataEdit{PublicationType: &book, ReleaseDate: &date}); err != nil {
 		t.Fatal(err)
 	}
-	f.put(cases[1].file, epub(t, "3.0", `<dc:type>newspaper</dc:type><dc:date>2000-01-02</dc:date>`))
+	f.put("Times/Times 1918-10-21.epub", epub(t, "3.0", `<dc:type>newspaper</dc:type><dc:date>2000-01-02</dc:date>`))
 	f.scan()
 	after := f.detail(kept.PublicID)
 	if after.Publication != db.PublicationBook || after.ReleaseDate != date {
