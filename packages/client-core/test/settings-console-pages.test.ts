@@ -36,7 +36,6 @@ test('phones and tablets have the owner administration as on the web, in the web
   for (const id of ['server.resourceUsage', 'server.storageStatus', 'server.downloadUsage']) assert.ok(rowIds(page(pages, 'storage')!).includes(id), id);
   for (const id of ['server.setAsideTitles', 'server.clientReports']) assert.ok(rowIds(page(pages, 'troubleshooting')!).includes(id), id);
   assert.ok(rowIds(page(pages, 'general')!).includes('server.restart'));
-  assert.ok(rowIds(page(pages, 'streaming')!).includes('server.playbackProblems'));
   // Television keeps the read-only Dashboard alone.
   assert.deepEqual(server('tv').map(p => p.id), ['dashboard']);
 });
@@ -176,21 +175,11 @@ test('the third-pass panels sit beside the settings they explain', () => {
   const playback = rowIds(page(web, 'streaming')!);
   assert.ok(playback.indexOf('server.ffmpegStatus') === playback.indexOf('runtime.ffmpegPath') + 1, 'the check result follows the path it checked');
   assert.ok(rowIds(page(web, 'troubleshooting')!).includes('server.setAsideTitles'));
-  // What the server is avoiding after a playback failure is the last thing on the page about playing.
-  assert.equal(playback.at(-1), 'server.playbackProblems');
   // None of the console's panels is offered on television, which draws the Dashboard alone.
-  for (const id of ['server.resourceUsage', 'server.storageStatus', 'server.downloadUsage', 'server.setAsideTitles', 'server.playbackProblems']) for (const p of server('tv')) assert.ok(!rowIds(p).includes(id), id);
+  for (const id of ['server.resourceUsage', 'server.storageStatus', 'server.downloadUsage', 'server.setAsideTitles']) for (const p of server('tv')) assert.ok(!rowIds(p).includes(id), id);
   const device = settingsStructure({owner: false, platform: 'web', capabilities: {}}).headings[0]!.pages.find(p => p.id === 'device')!;
   assert.ok(rowIds(device).includes('remoteControls'));
   // What this profile plays on its other devices can be paused or stopped from a phone or a television too.
   for (const platform of ['phone', 'tv'] as const) assert.ok(rowIds(settingsStructure({owner: false, platform, capabilities: {}}).headings[0]!.pages.find(p => p.id === 'device')!).includes('remoteControls'), platform);
 });
 
-test('remembered playback failures are shown a file at a time, newest first', async () => {
-  const {groupPlaybackFailures, parsePlaybackFailureMemory} = await import('../src/playback-failure-memory.ts');
-  const row = (sourceId: string, route: string, reportedAtMs: number, expiresAtMs: number) => ({sourceId, engine: 'native', route, code: 'decode_failed', detail: 'no decoder', reportedAtMs, expiresAtMs});
-  const memory = parsePlaybackFailureMemory({items: [row('a', 'original', 10, 100), row('b', 'original', 30, 90), row('a', 'copy_remux', 20, 200), {sourceId: 'bad id!', engine: 'native', route: 'original', code: 'x', detail: '', reportedAtMs: 1, expiresAtMs: 2}], more: false});
-  const groups = groupPlaybackFailures(memory.items);
-  assert.deepEqual(groups.map(g => [g.sourceId, g.failures.map(f => f.route), g.reportedAtMs, g.expiresAtMs]), [['b', ['original'], 30, 90], ['a', ['copy_remux', 'original'], 20, 200]]);
-  assert.deepEqual(groupPlaybackFailures([]), []);
-});

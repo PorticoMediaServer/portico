@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {clampToLength, offersScrubber, playedFraction, seekTarget, sendSeekTo, END_MARGIN_MS} from '../src/server-admin/now-playing.ts';
 import {parseSessionControls, type SessionControls} from '../src/playback-controls.ts';
-import {groupPlaybackFailures, parsePlaybackFailureMemory} from '../src/playback-failure-memory.ts';
 import {dependsOn} from '../src/freshness-hub.ts';
 
 test('a session with a length has a position bar and Forward stops short of the end', () => {
@@ -36,16 +35,6 @@ test('moving the position bar is sent again quietly when the session moved, to t
   const done = await sendSeekTo(service, 's', 900000);
   assert.equal(done.positionMs, 600000 - END_MARGIN_MS);
   assert.deepEqual(sent, [600000 - END_MARGIN_MS]);
-});
-
-test('a remembered playback problem names its title, and a bad title never drops the row', () => {
-  const memory = parsePlaybackFailureMemory({more: false, items: [
-    {sourceId: 'a1', engine: 'native', route: 'original', code: 'decode_error', detail: '', reportedAtMs: 2, expiresAtMs: 9, itemId: 'm1', title: 'Arrival', kind: 'movie'},
-    {sourceId: 'a1', engine: 'mpv', route: 'copy_remux', code: 'decode_error', detail: '', reportedAtMs: 1, expiresAtMs: 8},
-    {sourceId: 'b2', engine: 'native', route: 'original', code: 'x', detail: '', reportedAtMs: 3, expiresAtMs: 9, itemId: 7, title: 'Bad'},
-  ]});
-  const groups = groupPlaybackFailures(memory.items);
-  assert.deepEqual(groups.map(g => [g.sourceId, g.item?.title]), [['b2', undefined], ['a1', 'Arrival']]);
 });
 
 test('a list hint is a dependency on its own event', () => {
