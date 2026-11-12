@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,12 +25,19 @@ func TestOwnerCanPauseBackgroundWorkForAnHour(t *testing.T) {
 	if got := get[BackgroundWorkState](t, s, owner, "/v1/admin/background/pause"); got.PausedUntil == nil {
 		t.Fatal("the pause is absent from its status")
 	}
+	if _, err := s.backups.Start(true); err != nil {
+		t.Fatal(err)
+	}
+	if w := call(t, s, "POST", "/v1/admin/backups", owner, nil, nil); w.Code != 409 || !strings.Contains(w.Body.String(), "A scheduled backup is paused") {
+		t.Fatalf("a manual backup did not explain the paused scheduled one: %d %s", w.Code, w.Body)
+	}
 	if code := status(t, s, "DELETE", "/v1/admin/background/pause", owner, nil); code != 200 {
 		t.Fatalf("resume answered %d", code)
 	}
 	if got := get[BackgroundWorkState](t, s, owner, "/v1/admin/background/pause"); got.PausedUntil != nil {
 		t.Fatal("resume left the pause in force")
 	}
+	s.backups.Wait()
 	status(t, s, "PUT", "/v1/admin/background/pause", owner, nil)
 	s.setClock(func() time.Time { return now.Add(time.Hour) })
 	if got := get[BackgroundWorkState](t, s, owner, "/v1/admin/background/pause"); got.PausedUntil != nil {

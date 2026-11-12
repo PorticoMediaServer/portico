@@ -30,3 +30,12 @@ func (s *Supervisor) BackgroundTaskPriority() string {
 	}
 	return "lower"
 }
+
+// SetBackgroundFullCapacity changes admission capacity without raising the OS priority.
+// Existing background children stay at lower priority, and waiting work sees the new limit.
+func (s *Supervisor) SetBackgroundFullCapacity(full bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.backgroundFullCapacity = full
+	s.signalLocked()
+}

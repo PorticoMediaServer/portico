@@ -203,10 +203,14 @@ type Progress struct {
 	StartedAt time.Time `json:"startedAt"`
 	// PagesLeft is how much of the database is still to copy.
 	PagesLeft int `json:"pagesLeft"`
+	scheduled bool
 }
 
 // ErrRunning: a backup is already being made.
 var ErrRunning = errors.New("a backup is being made")
+
+// ErrPaused says the running scheduled backup is waiting for background work to resume.
+var ErrPaused = errors.New("a scheduled backup is paused")
 
 // ErrNotFound: no backup has that id.
 var ErrNotFound = errors.New("no such backup")
@@ -329,12 +333,16 @@ func (s *Service) GiveUp() {
 func (s *Service) Start(scheduled bool) (string, error) {
 	s.mu.Lock()
 	if s.running != nil {
+		paused := s.running.scheduled && !s.Settings.BackgroundPausedUntil(s.Now()).IsZero()
 		s.mu.Unlock()
+		if paused {
+			return "", ErrPaused
+		}
 		return "", ErrRunning
 	}
 	now := s.Now()
 	id := "portico-" + now.Format("20060102-150405")
-	s.running = &Progress{ID: id, StartedAt: now}
+	s.running = &Progress{ID: id, StartedAt: now, scheduled: scheduled}
 	s.mu.Unlock()
 	stopping := s.Stopping
 	if stopping == nil {
