@@ -63,6 +63,8 @@ func (b *batchTx) flagHolders(items ...int64) error {
 // RebuildHolderFlags works out every holder's flag again from nothing, a few thousand items to
 // a transaction, and clears the ones nothing causes any more. Nothing needs it in ordinary
 // running; it is there to prove the writes keep the flag, and to fill it after an upgrade.
+// The first upgrade step after release must run it: databases made before collections and
+// series were flagged (#2913) hold them unflagged, so a profile would meet one left empty.
 func (d *DB) RebuildHolderFlags(ctx context.Context) error {
 	const page = 2000
 	flag := `(kind NOT IN ` + playableKindsSQL + ` AND ` + differsBelow + `)`
