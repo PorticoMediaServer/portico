@@ -213,8 +213,10 @@ async function audiobookPage(api: ServerRequester, route: ContentRoute, bound: C
     entries: Object.freeze(entries), totalCount: entries.length, nextCursor: '', start: 0});
   return Object.freeze({
     heading: Object.freeze({key: 'library.content.book', fallback: entity?.title ?? ''}),
+    // Stopgap, not a deferral: the rebuilt server plays only a several-file book's first file, and a place past it
+    // cannot be resumed whatever is sent (the streaming lane is fixing this). Such a book offers Play from its start only.
     ...(entity ? {entity, listening: Object.freeze({target: Object.freeze({kind: 'book', id, libraryId}), actions: Object.freeze(['play', 'enqueue'] as const),
-      resume: Object.freeze({itemId: id, positionSeconds: positionMs / 1000}), resumeUnavailable: false})} : {}),
+      ...(partsOf.length > 1 ? {} : {resume: Object.freeze({itemId: id, positionSeconds: positionMs / 1000})}), resumeUnavailable: false})} : {}),
     scope: Object.freeze({serverId: bound.serverId, libraryId, libraryKind: library.kind, view: route.view, entityId: id}),
     navigation: Object.freeze([]),
     query: Object.freeze({sort: '', direction: '', category: '', q: '', limit: chapters.length || parts.length, searchMode: 'none'}),
