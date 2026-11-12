@@ -155,9 +155,9 @@ export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false, f
       await person<void>('deleteAccount', {}, proof);
       held.forget(held.current());
     },
-    devices: () => person<{items: SignedInDevice[]}>('sessions').then(answer => answer.items),
-    signOutDevice: (device: string) => person<void>('endSession', {id: device}),
-    signOutOthers: () => person<void>('endOtherSessions'),
+    devices: (signal?: AbortSignal) => person<{items: SignedInDevice[]}>('sessions', {}, undefined, {signal}).then(answer => answer.items),
+    signOutDevice: (device: string, signal?: AbortSignal) => person<void>('endSession', {id: device}, undefined, {signal}),
+    signOutOthers: (signal?: AbortSignal) => person<void>('endOtherSessions', {}, undefined, {signal}),
     disconnectProvider: (provider: Provider, proof: Proof) => person<void>('disconnectProvider', {provider}, proof),
     twoStep: () => person<{on: boolean; recoveryCodesLeft: number}>('twoStep'),
     beginTwoStep: (proof: Proof) => person<{secret: string; qrAddress: string}>('twoStepBegin', {}, proof),

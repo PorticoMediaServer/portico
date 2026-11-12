@@ -36,7 +36,7 @@ function parse(value:unknown,scope:AccountSessionScope){
  * sign-in mode proves (a browser or an app), and an unknown app or form is null rather than a guess. */
 export type AccountSessionDevice=Readonly<{name:string;app:string|null;form:'phone'|'tv'|'computer'|null}>;
 const platformApp:Readonly<Record<string,MessageId>>={web:'services.workspace.appWeb',tvos:'services.workspace.appAppleTV',ios:'services.workspace.appIPhone',androidtv:'services.workspace.appAndroidTV'};
-export function accountSessionDevice(row:AccountSessionRow):AccountSessionDevice{
+export function accountSessionDevice(row:Pick<AccountSessionRow,'mode'|'deviceName'|'platform'|'app'>):AccountSessionDevice{
  const p=row.platform,known=p?platformApp[p]:undefined;
  return Object.freeze({name:row.deviceName??serviceText(row.mode==='browser'?'web.hostedAccount.aBrowser':'web.hostedAccount.anApp'),app:known?serviceText(known):row.app,
   form:p==='ios'||p==='android'?'phone':p==='tvos'||p==='androidtv'||p==='firetv'?'tv':p==='web'||p==='macos'||p==='windows'||p==='linux'?'computer':null});

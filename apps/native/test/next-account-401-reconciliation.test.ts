@@ -142,7 +142,7 @@ test('two real route-source failures share one canonical renewal; a late origina
 
 /** Actual Entry directory and credential lifecycle; unvisited command, native host and
  * presenter boundaries are explicit ports, never a replacement directory implementation. */
-async function entry(t: any, f: F) {
+async function entry(t: any, f: F, extra: Record<string, any> = {}, resumeAccount = false) {
   let tree: any; const stages: string[] = [], theme = createTheme({isTV: false, width: 390});
   class Auth {async prepare() {return {password: true, registration: false, recovery: false, providers: []};} dispose() {}}
   const modules: Record<string, any> = {
@@ -167,14 +167,15 @@ async function entry(t: any, f: F) {
     '../../platform/server-connections': await import('../src-next/platform/server-connections'),
     '../../platform/tv-menu': {useTVMenuCapture() {}}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, './ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, './tv-code-opening': tvOpening, './directory-chooser': chooser, './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, './PhoneAccountForm': {PhoneAccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, './PhoneAccountSignIn': {PhoneAccountSignIn: 'SignIn'}, './PhoneFrontDoor': {PhoneFrontDoor: 'FrontDoor'},
     './PhoneNoServers': {PhoneNoServers: 'NoServers'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}},
+    ...extra,
   };
   const {AccountEntry} = await screenModule(new URL('../src-next/screens/accounts/AccountEntry.tsx', import.meta.url), new Proxy(modules,
     {get: (all, name: string) => all[name] ?? new Proxy({}, {get: (_, key) => () => {throw new Error('Unvisited entry port ' + name + ':' + String(key));}})}));
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'require'); Object.defineProperty(globalThis, 'require', {configurable: true, value: () => 'wordmark'});
   t.after(() => {if (previous) Object.defineProperty(globalThis, 'require', previous); else Reflect.deleteProperty(globalThis, 'require');});
-  const host = createFabricHookHost(() => {tree = AccountEntry({onComplete: () => {throw new Error('Unexpected navigation');}, onStageChange: (stage: string) => {stages.push(stage);}});});
+  const host = createFabricHookHost(() => {tree = AccountEntry({resumeAccount, onComplete: () => {throw new Error('Unexpected navigation');}, onStageChange: (stage: string) => {stages.push(stage);}});});
   t.after(() => host.unmount()); await act(() => host.mount());
-  assert.equal(tree.type, 'FrontDoor'); await act(() => tree.props.onPortico());
+  if (!resumeAccount) {assert.equal(tree.type, 'FrontDoor'); await act(() => tree.props.onPortico());}
   return {host, stages, tree: () => tree, settle: async () => {for (let i = 0; i < 8; i++) await act(() => {});}};
 }
 test('actual AccountEntry directory remote revocation returns to the front door instead of a cached-bearer Retry loop', async t => {
@@ -294,4 +295,44 @@ test('a server answering at the listed address with another key is refused befor
   await assert.rejects(operation.start(), {code: 'challenge_not_proven'});
   assert.deepEqual(sent, []); assert.deepEqual(operation.asked, [], 'nothing is sent to that server either');
   operation.selection(); operation.command.dispose();
+});
+const ended = (tree: any) => [tree.props.error?.props?.children].flat().includes(defaultI18n.t('web.signIn.error.accountEnded'));
+const listed = {id: 'server', name: 'Server', baseUrl: 'https://a1.ns.portico.direct:32400', publicKey: 'listed-key', policyRevision: 0};
+
+test('a Portico Account kept on this device opens its server list at launch, even with no servers yet', async t => {
+  const f = await fixture();
+  transport(t, async () => response(200, {items: []}));
+  const app = await entry(t, f, {}, true); await app.settle();
+  assert.equal(app.tree().type, 'NoServers');
+  // Signed out, launch stays on welcome and asks Services nothing.
+  await act(async () => {await f.owner.logout();}); await app.settle();
+  const again = await entry(t, f, {}, true); await again.settle();
+  assert.equal(again.tree().type, 'FrontDoor'); assert.equal(ended(again.tree()), false);
+});
+
+test('a renewal Services refuses while the list is open lands on welcome saying the sign-in has ended; signing out says nothing', async t => {
+  const f = await fixture(); let refused = false;
+  transport(t, async () => refused ? response(401) : response(200, {items: []}));
+  const app = await entry(t, f); await app.settle(); assert.equal(app.tree().type, 'NoServers');
+  refused = true; f.renewal(async () => {throw new core.ApiError(401, 'session_ended', 'Ended', false);});
+  await act(() => app.tree().props.onRefresh()); await app.settle();
+  assert.equal(app.tree().type, 'FrontDoor'); assert.equal(ended(app.tree()), true);
+  assert.equal(app.tree().props.busy, false);
+  const chosen = await fixture(); refused = false;
+  const other = await entry(t, chosen); await other.settle();
+  await act(async () => {await chosen.owner.logout();}); await other.settle();
+  assert.equal(other.tree().type, 'FrontDoor'); assert.equal(ended(other.tree()), false);
+});
+
+test('when the account ends while a server is opening, welcome is not left busy', async t => {
+  const f = await fixture(); const held = deferred<never>();
+  transport(t, async () => response(200, {items: [listed]}));
+  class SignIn {static parseInvitationEntry() {return undefined;} connectPortico() {return held.promise;} dispose() {} serverDescriptor() {return undefined;}}
+  const app = await entry(t, f, {'../../platform/server-sign-in': {NativeServerSignIn: SignIn}, './directory-refusal': await import('../src-next/screens/accounts/directory-refusal')}); await app.settle();
+  const all = (node: any): any[] => Array.isArray(node) ? node.flatMap(all) : node?.props ? [node, ...all(node.props.children), ...all(node.props.beforeActions)] : [];
+  await act(() => all(app.tree()).find(node => node.type === 'Focusable' && node.props.onPress).props.onPress()); await app.settle();
+  f.renewal(async () => {throw new core.ApiError(401, 'session_ended', 'Ended', false);});
+  await act(async () => {await f.owner.accessSession(true, accountWork.accountExpectation(f.owner.getSnapshot().session!)).catch(() => {});}); await app.settle();
+  held.resolve(undefined as never); await app.settle();
+  assert.equal(app.tree().type, 'FrontDoor'); assert.equal(app.tree().props.busy, false); assert.equal(ended(app.tree()), true);
 });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PorticoServicesAccountClient, PorticoServicesCredentialApi, emailedCode} from '../src/portico-services-native.ts';
+import {PorticoServicesAccountClient, PorticoServicesCredentialApi, emailedCode, porticoAccountSessions, porticoSessionRows} from '../src/portico-services-native.ts';
 import {MFARequiredError} from '../src/hosted-security.ts';
 import {ApiError, CredentialSessionService, type CredentialRecord} from '../src/index.ts';
 import {presentError} from '../src/presentation/errors.ts';
@@ -119,4 +119,45 @@ test('ending a kept sign-in renews it once and signs it out, and one Services al
   assert.deepEqual(s.calls.map(call => call.route), ['POST /v1/sessions/refresh', 'DELETE /v1/sessions/current']);
   await api.revoke('prt_gone');
   assert.equal(s.calls.at(-1)!.route, 'POST /v1/sessions/refresh', 'nothing more to end');
+});
+
+test('the Devices page reads the account\'s sign-ins from Services and ends one or all the others on its new routes', async () => {
+  const items = [
+    {id: 'ses_here', name: 'Portico on iPhone', kind: 'phone', createdAt: '2026-11-01T10:00:00Z', lastUsedAt: '2026-11-12T01:00:00Z', current: true},
+    {id: 'ses_web', name: 'Chrome, Linux', kind: 'web', createdAt: '2026-11-02T10:00:00Z', lastUsedAt: 'not a time', current: false},
+  ];
+  const s = services({
+    'GET /v1/account/sessions': (_, headers) => headers.Authorization === 'Bearer pat_1' ? [200, {items}] : [401, refusal('signed_out')],
+    'DELETE /v1/account/sessions/ses_web': () => [204],
+    'DELETE /v1/account/sessions': () => [204],
+  });
+  const sessions = porticoAccountSessions('pat_1', origin, s.fetcher);
+  assert.deepEqual(await sessions.list(), [
+    {id: 'ses_here', mode: 'native', status: 'active', current: true, createdAt: '2026-11-01T10:00:00Z', lastUsedAt: '2026-11-12T01:00:00Z', deviceName: 'Portico on iPhone', platform: null, app: null},
+    {id: 'ses_web', mode: 'browser', status: 'active', current: false, createdAt: '2026-11-02T10:00:00Z', lastUsedAt: null, deviceName: 'Chrome, Linux', platform: null, app: null},
+  ]);
+  await sessions.end('ses_web'); await sessions.endOthers();
+  assert.deepEqual(s.calls.map(call => call.route), ['GET /v1/account/sessions', 'DELETE /v1/account/sessions/ses_web', 'DELETE /v1/account/sessions']);
+  await assert.rejects(porticoAccountSessions('pat_old', origin, s.fetcher).list(), (error: unknown) => error instanceof ApiError && error.status === 401, 'a 401 reaches the apps\' renewal');
+  // A list the page could not show or end rows of is refused, not drawn in part.
+  assert.throws(() => porticoSessionRows([{...items[0], id: ''}]), (error: unknown) => error instanceof ApiError && error.code === 'invalid_response');
+  assert.throws(() => porticoSessionRows([items[0], {...items[1], current: true}]), (error: unknown) => error instanceof ApiError && error.code === 'invalid_response');
+});
+
+test('a renewal Services refuses ends the apps\' sign-in and says so; one that cannot reach Services keeps it', async () => {
+  for (const reached of [true, false]) {
+    const s = services({});
+    const fetcher = (reached ? (async (url: string, init: RequestInit) => {
+      await s.fetcher(url, init); return {ok: false, status: 401, headers: {get: () => null}, text: async () => JSON.stringify(refusal('signed_out'))};
+    }) : (async () => { throw new TypeError('Network request failed'); })) as unknown as typeof fetch;
+    let kept: CredentialRecord | undefined;
+    const store = {load: async () => structuredClone(kept) ?? null, save: async (value: CredentialRecord) => { kept = structuredClone(value); }};
+    const service = new CredentialSessionService(new PorticoServicesCredentialApi(origin, fetcher), store as never, async () => crypto.randomUUID());
+    await service.authenticateIfSignedOut(async () => ({accessToken: 'pat_a', refreshToken: 'prt_a', expiresAt: new Date(Date.now() - 1000).toISOString(),
+      refreshExpiresAt: new Date(Date.now() + 90 * 86400000).toISOString(), familyId: 'family-1', account: {id: 'acct_1', username: 'ada', displayName: 'Ada'}}));
+    await assert.rejects(service.accessSession());
+    const after = service.getSnapshot();
+    if (reached) { assert.equal(after.session, undefined); assert.equal(after.ended, true, 'the apps say the sign-in has ended'); }
+    else { assert.equal(after.session?.familyId, 'family-1', 'the sign-in is kept, to renew again later'); assert.equal(after.ended, undefined); }
+  }
 });

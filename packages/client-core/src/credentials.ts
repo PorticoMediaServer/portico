@@ -84,6 +84,8 @@ export type CredentialSnapshot = {
   session?: Omit<HostedSession, "refreshToken">;
   context?: CredentialContext;
   error?: string;
+  /** This sign-in ended because the account service refused to renew it, not by a sign-out. */
+  ended?: true;
   pendingRevocations: number;
 };
 /** Owns refresh credentials; renderer snapshots never contain refresh tokens. */
@@ -177,13 +179,14 @@ export class CredentialSessionService<Authority = string> {
     const { refreshToken: _, ...visible } = session;
     return visible;
   }
-  private publish(phase?: CredentialSnapshot["phase"], error?: string) {
+  private publish(phase?: CredentialSnapshot["phase"], error?: string, ended = false) {
     const active = this.record.active;
     this.state = {
       phase: phase ?? (active ? "ready" : "signedOut"),
       session: active ? this.publicSession(active.session) : undefined,
       context: active?.context,
       error,
+      ...(ended ? {ended: true as const} : {}),
       pendingRevocations: this.record.revocations.length,
     };
     this.emit();
@@ -402,8 +405,9 @@ export class CredentialSessionService<Authority = string> {
         // outright (a CSRF, origin or mode mismatch: only a fresh sign-in issues a usable
         // cookie pair) both end this sign-in, so the app shows the sign-in form again.
         if (e instanceof ApiError && (e.status === 401 || (e.status === 409 && e.code === "family_changed") || (e.status === 403 && unusableCredentialCodes.has(e.code)))) {
-          await this.logoutInside();
-          this.publish("signedOut", e.message);
+          // Marked from its first publish, so a screen that retires on it can say why.
+          await this.logoutInside(true, true);
+          this.publish("signedOut", e.message, true);
         } else
           this.publish(
             "error",
@@ -466,8 +470,8 @@ export class CredentialSessionService<Authority = string> {
       return true;
     });
   }
-  private async logoutInside(advanceGeneration=true){
-    const authority=this.record.active?.authority;if(advanceGeneration)++this.generation;this.record.active=undefined;if(authority!==undefined)this.addRevocation(authority);this.publish("signedOut");
+  private async logoutInside(advanceGeneration=true,ended=false){
+    const authority=this.record.active?.authority;if(advanceGeneration)++this.generation;this.record.active=undefined;if(authority!==undefined)this.addRevocation(authority);this.publish("signedOut",undefined,ended);
     try{await this.persist()}catch(e){this.publish("signedOut","Sign-out could not be saved. Retry before closing the app.");throw e}
     await this.retryInside();
   }

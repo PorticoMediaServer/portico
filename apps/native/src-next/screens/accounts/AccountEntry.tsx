@@ -82,13 +82,17 @@ const setupElsewhereRefusal = (error: unknown): boolean => (error as {code?: unk
 
 /** Current normal entry, drawn in connect39 onward. The separately labelled historical
  * setup entry is not imported. Every button below dispatches an actual native/core command. */
-export function AccountEntry({downloads, incomingInvitation, onBack, onComplete, onSetupComplete, onStageChange, initialStage = 'welcome', initialAddress = '', endedSignIn}: {downloads?: AccountDownloadsEntry; incomingInvitation?: NativeInvitationLink; onBack?: () => void; onComplete: () => void; onSetupComplete?: (serverId: string) => void; onStageChange?: (stage: NativeAccountEntryStage) => void; initialStage?: 'welcome' | 'address'; initialAddress?: string; endedSignIn?: NativeSignInHint}) {
+export function AccountEntry({downloads, incomingInvitation, onBack, onComplete, onSetupComplete, onStageChange, initialStage = 'welcome', initialAddress = '', endedSignIn, resumeAccount}: {downloads?: AccountDownloadsEntry; incomingInvitation?: NativeInvitationLink; onBack?: () => void; onComplete: () => void; onSetupComplete?: (serverId: string) => void; onStageChange?: (stage: NativeAccountEntryStage) => void; initialStage?: 'welcome' | 'address'; initialAddress?: string; endedSignIn?: NativeSignInHint;
+  /** Launch with no saved server: a Portico Account kept on this device opens its server list, not welcome. */
+  resumeAccount?: boolean}) {
   const latestEndedHint = useRef(endedSignIn); latestEndedHint.current = endedSignIn;
   const preparedAuthSource = useRef<NativePorticoSignIn | undefined>(undefined);
   // The original phone provider opening owns its waiting paint across the OS
   // handoff, callback read and session adoption. It is paint, never authority.
   const [providerLoading, setProviderLoading] = useState<NativePorticoSignIn>();
   const theme = useTheme(), [stage, setStage] = useState<NativeAccountEntryStage>(endedSignIn ? 'ended-sign-in' : initialStage), [busy, setBusy] = useState(false), [error, setError] = useState<unknown>();
+  // Portico Services refused to renew the account's sign-in while it was shown; welcome says so.
+  const [accountEnded, setAccountEnded] = useState(false);
   const [address, setAddress] = useState(endedSignIn?.origin ?? initialAddress), [username, setUsername] = useState(endedSignIn?.signIn === 'local' ? endedSignIn.username : ''), [password, setPassword] = useState(''), [code, setCode] = useState('');
   const wrongCodeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => {if (wrongCodeTimer.current) {clearTimeout(wrongCodeTimer.current); wrongCodeTimer.current = undefined;}}, [stage]);
@@ -330,7 +334,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   // The runner's identity carries the exact busy, stage and recovery it drew with; effects that
   // drive it read the port of the commit that drew them rather than a newer render's runner.
   const run = useCallback(async (work: () => Promise<void>) => {
-    if (busy || acting.current || adoptingTV.current || tvOpening.current?.pending() || !lifetime.current) return; acting.current = true; setBusy(true); setError(undefined);
+    if (busy || acting.current || adoptingTV.current || tvOpening.current?.pending() || !lifetime.current) return; acting.current = true; setBusy(true); setError(undefined); setAccountEnded(false);
     const startedInvitationEpoch = invitationEpoch.current;
     try {await work();} catch (failure) {if (lifetime.current && invitationEpoch.current === startedInvitationEpoch) {
       if (endedTarget.current) {setPassword(''); setCode('');}
@@ -346,7 +350,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     }} finally {if (invitationEpoch.current === startedInvitationEpoch) {acting.current = false; if (lifetime.current) setBusy(adoptingTV.current || tvOpening.current?.pending() === true);}}
   }, [busy, recovery, stage]);
   const reset = useCallback(() => {retireTVOpening(true); retireAccountWorkspace(); retireInvitationEntry(); retireInvitationSwitch(); invitationIntent.current = undefined; retireInvitation(); ownerResetIntent.current = undefined; endedTarget.current = undefined; retireOwnerRecoveryContact(); retireOwnerReset(); setDirectoryList('idle'); memberFactorOperation.current = undefined; stopMemberMove(); retireRecovery(); stopRetry(); targetRef.current = undefined; stageRef.current = initialStage; ++directoryAttempt.current; acting.current = false; preparedAuthSource.current = undefined; operation.current?.dispose(); operation.current = undefined; account.current?.dispose(); account.current = undefined;
-    setPassword(''); setSetupPasswordConfirm(''); setCode(''); setIdentityCode(''); setIdentityWrong(false); setIdentityAddress(''); identityOrigin.current = undefined; setTarget(undefined); setError(undefined); retryDelay.current = 20; setRetryIn(20); setStage(initialStage);},
+    // A retired attempt never clears busy itself (its finally sees a newer attempt), so the reset does.
+    setBusy(false); setAccountEnded(false); setPassword(''); setSetupPasswordConfirm(''); setCode(''); setIdentityCode(''); setIdentityWrong(false); setIdentityAddress(''); identityOrigin.current = undefined; setTarget(undefined); setError(undefined); retryDelay.current = 20; setRetryIn(20); setStage(initialStage);},
   [initialStage, retireAccountWorkspace, retireInvitation, retireInvitationEntry, retireInvitationSwitch, retireOwnerRecoveryContact, retireOwnerReset, retireRecovery, stopMemberMove, stopRetry, retireTVOpening]);
   const cancelDirectory = useCallback(() => {retireOwnerRecoveryContact(); retireOwnerReset(); setDirectoryList('idle'); retireRecovery(); stopRetry(); targetRef.current = undefined; ++directoryAttempt.current; operation.current?.dispose(); operation.current = undefined; acting.current = false; setBusy(false); setTarget(undefined); setError(undefined);}, [retireOwnerRecoveryContact, retireOwnerReset, retireRecovery, stopRetry]);
   const openAccountWorkspace = (scope: Readonly<{accountId: string; familyId: string}> | undefined, isCurrent: () => boolean) => {
@@ -489,7 +494,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       setServers(out.items); setDirectoryList('ready');
     } catch (failure) {
       if (!current()) {
-        if (lifetime.current && attempt === directoryAttempt.current) reset();
+        if (lifetime.current && attempt === directoryAttempt.current) {reset(); if (credentials.getSnapshot().ended) setAccountEnded(true);}
         return;
       }
       const presentation = presentError(failure, 'portico-account');
@@ -608,6 +613,16 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     }
     if (publishPreparedAccount(next, available, current)) {stageRef.current = 'portico'; setStage('portico');}
   };
+  // At launch with no saved server, a Portico Account kept on this device opens its server list
+  // ("No servers yet" included) as if Sign in with Portico Account were chosen; it reads only this
+  // device's store until then, and a refused renewal there says so on welcome.
+  const resume = useRef(() => {}); resume.current = () => {if (lifetime.current && stageRef.current === 'welcome' && !busyRef.current && !acting.current) void run(portico);};
+  useEffect(() => {
+    if (!resumeAccount) return;
+    let active = true; const credentials = nativeAccounts.accountCredentials();
+    void credentials.synchronize().then(() => {if (active && credentials.getSnapshot().session) resume.current();}, () => {});
+    return () => {active = false;};
+  }, [resumeAccount]);
   const beginMemberMove = async () => {
     const source = operation.current;
     if (!source || !server || server.move !== 'to_portico' || Platform.isTV) return;
@@ -798,7 +813,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   // picked from a list says the same.
   const status = Platform.isTV && setupElsewhereRefusal(error)
     ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{t('accounts.setup.elsewhere')}</Text>
-    : failure && !failure.silent ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{failure.body}</Text> : null;
+    : failure && !failure.silent ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{failure.body}</Text>
+    : accountEnded && stage === 'welcome' ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.text, marginBottom: 16}]}>{t('web.signIn.error.accountEnded')}</Text> : null;
   const directoryView = stage === 'servers' ? directoryFailure(target, error) : 'other';
   const hostedWaiting = stage === 'servers' && !!target && error instanceof HostedSignInUnavailable;
   const directoryScope = accountScope.current;
@@ -810,6 +826,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       const live = credentials.getSnapshot().session;
       if (live?.account.id === directoryScope.accountId && live.familyId === directoryScope.familyId) return;
       retired = true; reset(); // retire this view; canonical owner alone ends credentials
+      if (credentials.getSnapshot().ended) setAccountEnded(true);
     };
     const off = credentials.subscribe(changed); changed(); return off;
     // reset keeps one identity for this entry, so the stage and scope alone reopen this view.
