@@ -44,8 +44,8 @@ func TestReviewAnEpisodeThatDoesNotFitIsNotSkipped(t *testing.T) {
 		}
 		src.episodes = append(src.episodes, db.Episode{ID: int64(100 + n), Season: 1, Number: n, DurationMS: ms})
 	}
-	sel := Selection{Libraries: []string{"lib"}, Kinds: []string{"show"}, Episodes: "showOrder"}
-	b := &Builder{Selection: sel, Blocks: []Block{{ID: "short", Days: weekdays, From: "06:00", To: "06:40", Overrun: "fit"}}}
+	sel := LibraryChannelSelection{Libraries: []string{"lib"}, Kinds: []string{"show"}, Episodes: "showOrder"}
+	b := &LibraryChannelBuilder{LibraryChannelSelection: sel, Blocks: []LibraryChannelBlock{{ID: "short", Days: weekdays, From: "06:00", To: "06:40", Overrun: "fit"}}}
 	start := time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)
 	rows, _, err := Build(context.Background(), src, b, time.UTC, &State{}, start, start.Add(24*time.Hour), start, nil)
 	if err != nil {

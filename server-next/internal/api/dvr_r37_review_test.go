@@ -15,8 +15,8 @@ import (
 // few minutes: one programme of the same title now covers most of the booked time.
 func TestReviewABookingFollowsAProgrammeWhoseKeyIsItsStart(t *testing.T) {
 	s, owner, _ := recordable(t)
-	var rec Recording
-	call(t, s, "POST", "/v1/dvr/recordings", owner, RecordingBook{Programme: programmeID(t, s, owner, "Night Film")}, &rec)
+	var rec DvrRecording
+	call(t, s, "POST", "/v1/dvr/recordings", owner, DvrRecordingBook{Programme: programmeID(t, s, owner, "Night Film")}, &rec)
 	ctx := context.Background()
 	stored, _ := s.db.Recording(ctx, rec.ID)
 	if strings.HasPrefix(stored.ProgrammeKey, "id:") {
@@ -37,7 +37,7 @@ func TestReviewABookingFollowsAProgrammeWhoseKeyIsItsStart(t *testing.T) {
 	if err := s.recorder.FollowRules(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if got := get[Recording](t, s, owner, "/v1/dvr/recordings/"+rec.ID); !got.InGuide || !got.StartsAt.Equal(moved.UTC()) {
+	if got := get[DvrRecording](t, s, owner, "/v1/dvr/recordings/"+rec.ID); !got.InGuide || !got.StartsAt.Equal(moved.UTC()) {
 		t.Fatalf("a programme moved five minutes leaves its booking reading %+v (in guide %v)", got.StartsAt, got.InGuide)
 	}
 }
@@ -47,8 +47,8 @@ func TestReviewABookingFollowsAProgrammeWhoseKeyIsItsStart(t *testing.T) {
 // id, and never to one that is already over.
 func TestReviewABookingNeverFollowsToAnotherAiringOfTheSameKey(t *testing.T) {
 	s, owner, _ := recordable(t)
-	var rec Recording
-	call(t, s, "POST", "/v1/dvr/recordings", owner, RecordingBook{Programme: programmeID(t, s, owner, "Night Film")}, &rec)
+	var rec DvrRecording
+	call(t, s, "POST", "/v1/dvr/recordings", owner, DvrRecordingBook{Programme: programmeID(t, s, owner, "Night Film")}, &rec)
 	ctx := context.Background()
 	stored, _ := s.db.Recording(ctx, rec.ID)
 	source, key, _ := s.db.ChannelListings(ctx, stored.ChannelID)
@@ -65,7 +65,7 @@ func TestReviewABookingNeverFollowsToAnotherAiringOfTheSameKey(t *testing.T) {
 	if err := s.recorder.FollowRules(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if got := get[Recording](t, s, owner, "/v1/dvr/recordings/"+rec.ID); !got.StartsAt.Equal(stored.StartsAt.UTC()) {
+	if got := get[DvrRecording](t, s, owner, "/v1/dvr/recordings/"+rec.ID); !got.StartsAt.Equal(stored.StartsAt.UTC()) {
 		t.Fatalf("the booking for %v moved to %v, another airing of the same key", stored.StartsAt.UTC(), got.StartsAt)
 	}
 }
@@ -75,8 +75,8 @@ func TestReviewABookingNeverFollowsToAnotherAiringOfTheSameKey(t *testing.T) {
 func TestReviewTheDefaultKeepRuleLeavesARuleThatKeepsEveryEpisode(t *testing.T) {
 	s, owner, _ := recordable(t)
 	ctx := context.Background()
-	var rule Rule
-	if w := call(t, s, "POST", "/v1/dvr/rules", owner, RuleSave{Programme: programmeID(t, s, owner, "Night Film")}, &rule); w.Code != 201 {
+	var rule DvrRule
+	if w := call(t, s, "POST", "/v1/dvr/rules", owner, DvrRuleSave{Programme: programmeID(t, s, owner, "Night Film")}, &rule); w.Code != 201 {
 		t.Fatalf("making a rule answered %d: %s", w.Code, w.Body)
 	}
 	if rule.KeepNewest != nil || rule.KeepDays != nil {
@@ -86,7 +86,7 @@ func TestReviewTheDefaultKeepRuleLeavesARuleThatKeepsEveryEpisode(t *testing.T) 
 	if err != nil || len(rules) != 1 {
 		t.Fatalf("rules %v, %v", rules, err)
 	}
-	channels := get[Page[Channel]](t, s, owner, "/v1/live/channels").Items
+	channels := get[Page[LiveChannel]](t, s, owner, "/v1/live/channels").Items
 	ch, err := s.db.LiveChannelByID(ctx, viewerOfToken(t, s, owner), channels[0].ID)
 	if err != nil {
 		t.Fatal(err)
@@ -120,8 +120,8 @@ func TestReviewTheDefaultKeepRuleLeavesARuleThatKeepsEveryEpisode(t *testing.T) 
 // and recordings (definition rule 48: Everyone's is for those who may see the library).
 func TestReviewAProfileWithoutRecordedTVSeesNoOneElsesBookings(t *testing.T) {
 	s, owner, _ := recordable(t)
-	var news Recording
-	if w := call(t, s, "POST", "/v1/dvr/recordings", owner, RecordingBook{Programme: programmeID(t, s, owner, "Morning News")}, &news); w.Code != 200 {
+	var news DvrRecording
+	if w := call(t, s, "POST", "/v1/dvr/recordings", owner, DvrRecordingBook{Programme: programmeID(t, s, owner, "Morning News")}, &news); w.Code != 200 {
 		t.Fatalf("booking answered %d: %s", w.Code, w.Body)
 	}
 	films := libraryOfKind(t, s, owner, "movies")

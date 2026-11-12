@@ -10,9 +10,9 @@ func TestReviewTwoFeedsSharingAGuideIDBothComeIn(t *testing.T) {
 	playlist := "#EXTM3U\n" +
 		"#EXTINF:-1 tvg-id=\"cnn.us\" group-title=\"News\",CNN HD\nhttp://streams.invalid/cnn-hd.ts\n" +
 		"#EXTINF:-1 tvg-id=\"cnn.us\" group-title=\"News\",CNN SD\nhttp://streams.invalid/cnn-sd.ts\n"
-	var report SourceReport
-	var got []SentChannel
-	if err := ParsePlaylist(strings.NewReader(playlist), &report, func(c SentChannel) error { got = append(got, c); return nil }); err != nil {
+	var report LiveSourceReport
+	var got []LiveSentChannel
+	if err := ParsePlaylist(strings.NewReader(playlist), &report, func(c LiveSentChannel) error { got = append(got, c); return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 2 {
@@ -29,7 +29,7 @@ func TestAHugeGuideElementIsRefusedWithinItsBudget(t *testing.T) {
 	runtime.GC()
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	err := ParseGuide(strings.NewReader(guide), &SourceReport{}, func(GuideChannel) error { return nil }, func(Programme) error { return nil })
+	err := ParseGuide(strings.NewReader(guide), &LiveSourceReport{}, func(GuideChannel) error { return nil }, func(Programme) error { return nil })
 	runtime.ReadMemStats(&after)
 	if err == nil || (after.TotalAlloc-before.TotalAlloc) > 32<<20 {
 		t.Fatalf("err %v, allocated %d MB", err, (after.TotalAlloc-before.TotalAlloc)>>20)

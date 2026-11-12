@@ -11,11 +11,11 @@ type Template struct {
 	Key         string
 	Name        string
 	Description string
-	Builder     Builder
+	Builder     LibraryChannelBuilder
 }
 
-func condition(field string, values ...string) db.ChannelCondition {
-	return db.ChannelCondition{Field: field, Values: values}
+func condition(field string, values ...string) db.LibraryChannelCondition {
+	return db.LibraryChannelCondition{Field: field, Values: values}
 }
 
 // Templates are the nine starting points, filled in with this server's libraries of each kind.
@@ -35,7 +35,7 @@ func Templates(libraryKinds map[string]string) []Template {
 	for _, list := range [][]string{movies, shows, anime} {
 		slices.Sort(list)
 	}
-	film := func(extra Selection) Selection {
+	film := func(extra LibraryChannelSelection) LibraryChannelSelection {
 		extra.Libraries, extra.Kinds = movies, []string{"movie"}
 		if extra.Order == "" {
 			extra.Order = "shuffle"
@@ -43,22 +43,22 @@ func Templates(libraryKinds map[string]string) []Template {
 		return extra
 	}
 	return []Template{
-		{"movies", "Movie channel", "Every movie, shuffled, with no repeats.", Builder{Selection: film(Selection{})}},
+		{"movies", "Movie channel", "Every movie, shuffled, with no repeats.", LibraryChannelBuilder{LibraryChannelSelection: film(LibraryChannelSelection{})}},
 		{"television", "Television channel", "Shows from your TV libraries, each in episode order, rotating among shows.",
-			Builder{Selection: Selection{Libraries: shows, Kinds: []string{"show"}, Order: "shuffle", Episodes: "showOrder"}}},
+			LibraryChannelBuilder{LibraryChannelSelection: LibraryChannelSelection{Libraries: shows, Kinds: []string{"show"}, Order: "shuffle", Episodes: "showOrder"}}},
 		{"eighties", "Eighties movies", "Movies released from 1980 through 1989.",
-			Builder{Selection: film(Selection{Conditions: []db.ChannelCondition{condition("year", "1980..1989")}})}},
+			LibraryChannelBuilder{LibraryChannelSelection: film(LibraryChannelSelection{Conditions: []db.LibraryChannelCondition{condition("year", "1980..1989")}})}},
 		{"nineties", "Nineties movies", "Movies released from 1990 through 1999.",
-			Builder{Selection: film(Selection{Conditions: []db.ChannelCondition{condition("year", "1990..1999")}})}},
+			LibraryChannelBuilder{LibraryChannelSelection: film(LibraryChannelSelection{Conditions: []db.LibraryChannelCondition{condition("year", "1990..1999")}})}},
 		{"thriller", "Thriller channel", "Thrillers from your movies.",
-			Builder{Selection: film(Selection{Conditions: []db.ChannelCondition{condition("genre", "Thriller")}})}},
+			LibraryChannelBuilder{LibraryChannelSelection: film(LibraryChannelSelection{Conditions: []db.LibraryChannelCondition{condition("genre", "Thriller")}})}},
 		{"family", "Family movies", "Movies in the Family genre.",
-			Builder{Selection: film(Selection{Conditions: []db.ChannelCondition{condition("genre", "Family")}})}},
+			LibraryChannelBuilder{LibraryChannelSelection: film(LibraryChannelSelection{Conditions: []db.LibraryChannelCondition{condition("genre", "Family")}})}},
 		{"anime", "Anime channel", "Shows from your anime libraries, each in episode order.",
-			Builder{Selection: Selection{Libraries: anime, Kinds: []string{"show"}, Order: "shuffle", Episodes: "showOrder"}}},
+			LibraryChannelBuilder{LibraryChannelSelection: LibraryChannelSelection{Libraries: anime, Kinds: []string{"show"}, Order: "shuffle", Episodes: "showOrder"}}},
 		{"recent", "Recently added movies", "Movies added in the last 30 days, newest first.",
-			Builder{Selection: film(Selection{AddedWithinDays: 30, Order: "inOrder", Sort: "recent"})}},
+			LibraryChannelBuilder{LibraryChannelSelection: film(LibraryChannelSelection{AddedWithinDays: 30, Order: "inOrder", Sort: "recent"})}},
 		{"marathons", "TV marathons", "Up to twelve episodes of one show in a row, then another show.",
-			Builder{Selection: Selection{Libraries: shows, Kinds: []string{"show"}, Order: "shuffle", Episodes: "marathon", Marathon: 12}}},
+			LibraryChannelBuilder{LibraryChannelSelection: LibraryChannelSelection{Libraries: shows, Kinds: []string{"show"}, Order: "shuffle", Episodes: "marathon", Marathon: 12}}},
 	}
 }

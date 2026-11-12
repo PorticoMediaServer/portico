@@ -258,7 +258,7 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 		key = db.NewID("once") // a start sent without a key is never taken for a repeat
 	}
 	hash := requestHash(req) // of the request as sent: joining a channel fills in its title below
-	var channel *playback.ChannelLink
+	var channel *playback.LibraryChannelLink
 	if req.Channel != "" {
 		if req.ItemID != "" || req.Queue != nil {
 			return PlaybackSession{}, ErrField("channel", "Say which title, queue entry or channel to play: one of them.")
@@ -278,9 +278,9 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 		req.ItemID = tuned.ItemID
 		offset := tuned.Offset.Milliseconds()
 		req.StartPositionMs = &offset
-		channel = &playback.ChannelLink{ID: req.Channel, StartsAt: tuned.StartsAt.UTC(), EndsAt: tuned.EndsAt.UTC()}
+		channel = &playback.LibraryChannelLink{ID: req.Channel, StartsAt: tuned.StartsAt.UTC(), EndsAt: tuned.EndsAt.UTC()}
 		if tuned.Logo != nil {
-			logo := playback.ChannelLogo{URL: "/v1/images/" + tuned.LogoHash, Corner: tuned.Logo.Corner, Size: tuned.Logo.Size}
+			logo := playback.LibraryChannelPlaybackLogo{URL: "/v1/images/" + tuned.LogoHash, Corner: tuned.Logo.Corner, Size: tuned.Logo.Size}
 			if logo.Corner == "" {
 				logo.Corner = "topRight"
 			}

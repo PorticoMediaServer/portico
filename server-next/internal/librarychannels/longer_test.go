@@ -18,8 +18,8 @@ func TestAnEpisodeLongerThanItsBlockIsPassedOver(t *testing.T) {
 		}
 		src.episodes = append(src.episodes, db.Episode{ID: int64(100 + n), Season: 1, Number: n, DurationMS: ms})
 	}
-	sel := Selection{Libraries: []string{"lib"}, Kinds: []string{"show"}, Episodes: "showOrder"}
-	b := &Builder{Selection: sel}
+	sel := LibraryChannelSelection{Libraries: []string{"lib"}, Kinds: []string{"show"}, Episodes: "showOrder"}
+	b := &LibraryChannelBuilder{LibraryChannelSelection: sel}
 	for h := 0; h < 24; h++ {
 		for _, m := range [][2]string{{":00", ":30"}, {":30", ""}} {
 			from := fmt.Sprintf("%02d%s", h, m[0])
@@ -30,7 +30,7 @@ func TestAnEpisodeLongerThanItsBlockIsPassedOver(t *testing.T) {
 					to = "24:00"
 				}
 			}
-			b.Blocks = append(b.Blocks, Block{ID: fmt.Sprintf("b%d%s", h, m[0][1:]), Days: weekdays, From: from, To: to, Overrun: "fit"})
+			b.Blocks = append(b.Blocks, LibraryChannelBlock{ID: fmt.Sprintf("b%d%s", h, m[0][1:]), Days: weekdays, From: from, To: to, Overrun: "fit"})
 		}
 	}
 	start := time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)

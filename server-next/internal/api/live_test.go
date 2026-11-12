@@ -17,19 +17,19 @@ func TestARestrictedProfileNeverLearnsOfAHiddenTitleThroughALibraryChannel(t *te
 	s, owner, members := seededWith(t, 600, 4)
 	films := libraryOfKind(t, s, owner, "movies")
 	shows := libraryOfKind(t, s, owner, "shows")
-	filmsOnly := librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"}}
-	movie := makeChannel(t, s, owner, "Movies", librarychannels.Builder{Selection: filmsOnly})
-	tv := makeChannel(t, s, owner, "TV", librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{shows},
+	filmsOnly := librarychannels.LibraryChannelSelection{Libraries: []string{films}, Kinds: []string{"movie"}}
+	movie := makeChannel(t, s, owner, "Movies", librarychannels.LibraryChannelBuilder{LibraryChannelSelection: filmsOnly})
+	tv := makeChannel(t, s, owner, "TV", librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{shows},
 		Kinds: []string{"show"}}})
 	// A film channel whose weekly block draws from the shows: it follows both libraries.
-	mixed := makeChannel(t, s, owner, "Evenings", librarychannels.Builder{Selection: filmsOnly, Blocks: []librarychannels.Block{{
-		ID: "cartoons", Days: []string{"sat"}, From: "08:00", To: "12:00", Selection: &librarychannels.Selection{Libraries: []string{shows},
+	mixed := makeChannel(t, s, owner, "Evenings", librarychannels.LibraryChannelBuilder{LibraryChannelSelection: filmsOnly, Blocks: []librarychannels.LibraryChannelBlock{{
+		ID: "cartoons", Days: []string{"sat"}, From: "08:00", To: "12:00", Selection: &librarychannels.LibraryChannelSelection{Libraries: []string{shows},
 			Kinds: []string{"show"}}}}})
 
 	everything, labelled, filmsAndMusic, thirteen := members[0], members[1], members[2], members[3]
 	names := func(token string) map[string]bool {
 		out := map[string]bool{}
-		for _, c := range get[Page[Channel]](t, s, token, "/v1/live/channels").Items {
+		for _, c := range get[Page[LiveChannel]](t, s, token, "/v1/live/channels").Items {
 			out[c.ID] = true
 		}
 		return out
@@ -41,7 +41,7 @@ func TestARestrictedProfileNeverLearnsOfAHiddenTitleThroughALibraryChannel(t *te
 		t.Fatalf("a profile without the shows library is shown %v", seen)
 	}
 	for _, path := range []string{"/v1/live/channels/" + tv.ID + "/state", "/v1/live/channels/" + mixed.ID + "/state"} {
-		if code := status(t, s, "PUT", path, filmsAndMusic, ChannelMarks{Favorite: true}); code != 404 {
+		if code := status(t, s, "PUT", path, filmsAndMusic, LiveChannelMarks{Favorite: true}); code != 404 {
 			t.Errorf("marking a channel the profile may not see answered %d", code)
 		}
 	}
@@ -51,7 +51,7 @@ func TestARestrictedProfileNeverLearnsOfAHiddenTitleThroughALibraryChannel(t *te
 
 	stretch := "/v1/live/guide?from=" + s.now().UTC().Format(time.RFC3339) + "&to=" + s.now().Add(20*time.Hour).UTC().Format(time.RFC3339)
 	full := map[string]string{} // the owner's guide: each programme's title by channel and start
-	for _, row := range get[Guide](t, s, owner, stretch).Items {
+	for _, row := range get[LiveGuide](t, s, owner, stretch).Items {
 		for _, p := range row.Programmes {
 			full[row.Channel.ID+p.StartsAt.String()] = p.ItemID
 		}
@@ -61,7 +61,7 @@ func TestARestrictedProfileNeverLearnsOfAHiddenTitleThroughALibraryChannel(t *te
 		someHidden  bool
 	}{{"rated 13", thirteen, true}, {"blocked label", labelled, false}} {
 		hidden := 0
-		for _, row := range get[Guide](t, s, who.token, stretch).Items {
+		for _, row := range get[LiveGuide](t, s, who.token, stretch).Items {
 			for _, p := range row.Programmes {
 				item, ok := full[row.Channel.ID+p.StartsAt.String()]
 				if !ok {
@@ -82,8 +82,8 @@ func TestARestrictedProfileNeverLearnsOfAHiddenTitleThroughALibraryChannel(t *te
 		if who.someHidden && hidden == 0 {
 			t.Fatalf("%s: nothing hidden in 20 hours of the guide; the seed should rate some films above 13", who.name)
 		}
-		for _, on := range get[Page[OnNow]](t, s, who.token, "/v1/live/now").Items {
-			for _, p := range []*Programme{on.Now, on.Next} {
+		for _, on := range get[Page[LiveOnNow]](t, s, who.token, "/v1/live/now").Items {
+			for _, p := range []*LiveProgramme{on.Now, on.Next} {
 				if p != nil && p.ItemID != "" {
 					if code := status(t, s, "GET", "/v1/items/"+p.ItemID, who.token, nil); code != 200 {
 						t.Fatalf("%s: On now names %s, which the profile may not open", who.name, p.ItemID)

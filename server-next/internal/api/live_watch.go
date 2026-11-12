@@ -12,8 +12,8 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 )
 
-// Countdown says a live stream stops at EndsAt so a recording can take its tuner.
-type Countdown struct {
+// LiveCountdown says a live stream stops at EndsAt so a recording can take its tuner.
+type LiveCountdown struct {
 	EndsAt time.Time `json:"endsAt"`
 	Reason string    `json:"reason"`
 }
@@ -108,9 +108,9 @@ func (s *Server) watchSourceChannel(r *http.Request, ch db.LiveChannel) (Playbac
 	if err != nil {
 		return PlaybackSession{}, err
 	}
-	var cfg live.SourceConfig
+	var cfg live.LiveSourceConfig
 	json.Unmarshal([]byte(src.Config), &cfg)
-	var signIn live.SignIn
+	var signIn live.LiveSignIn
 	if src.Kind == "xtream" {
 		if signIn, err = s.sources.SignIn(src.PublicID, src.Secret); err != nil {
 			return PlaybackSession{}, ErrConflict("source_sign_in", "This channel's source needs its sign-in again.")
@@ -147,12 +147,12 @@ func (s *Server) liveSessionOut(v live.Viewing) PlaybackSession {
 		state = playback.StatePaused
 	}
 	oldest, now := v.Input.Window()
-	out := PlaybackSession{ID: v.ID, Kind: "live", State: state, Channel: &playback.ChannelLink{ID: v.ChannelID},
+	out := PlaybackSession{ID: v.ID, Kind: "live", State: state, Channel: &playback.LibraryChannelLink{ID: v.ChannelID},
 		Lease:        PlaybackLease{ExpiresAt: v.Lease.UTC(), ReportEveryMs: live.ReportEvery.Milliseconds()},
 		Presentation: Presentation{Mode: "live", URL: "/v1/live/streams/" + v.Grant, Engine: "copy", Route: "original"},
 		Live:         &LiveWindow{OldestAt: oldest.UTC(), LiveAt: now.UTC()}}
 	if !v.CountdownTo.IsZero() {
-		out.Countdown = &Countdown{EndsAt: v.CountdownTo.UTC(), Reason: v.CountdownReason}
+		out.Countdown = &LiveCountdown{EndsAt: v.CountdownTo.UTC(), Reason: v.CountdownReason}
 	}
 	if err := v.Input.Stopped(); err != nil {
 		out.State, out.End = playback.StateEnded, &SessionEnd{Reason: "failed", Message: "The channel stopped."}

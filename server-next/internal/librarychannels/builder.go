@@ -27,14 +27,14 @@ const (
 	MaxBuilderSize = 2 << 20
 )
 
-// Selection is what one part of a channel plays: the channel's own choice, or a block's copy.
+// LibraryChannelSelection is what one part of a channel plays: the channel's own choice, or a block's copy.
 // Titles and libraries are named by public id.
-type Selection struct {
+type LibraryChannelSelection struct {
 	Libraries []string `json:"libraries"`
 	// Kinds is movie, show or both.
-	Kinds      []string              `json:"kinds"`
-	Match      string                `json:"match,omitempty"` // all (the default) or any
-	Conditions []db.ChannelCondition `json:"conditions,omitempty"`
+	Kinds      []string                     `json:"kinds"`
+	Match      string                       `json:"match,omitempty"` // all (the default) or any
+	Conditions []db.LibraryChannelCondition `json:"conditions,omitempty"`
 	// Mentions is words that must all appear, as whole words, in the title or the summary.
 	Mentions        string   `json:"mentions,omitempty"`
 	AddedWithinDays int      `json:"addedWithinDays,omitempty"`
@@ -58,34 +58,34 @@ type Selection struct {
 	// WhenDone is again (the default) or slate, once everything has played.
 	WhenDone string `json:"whenDone,omitempty"`
 	// Weights make a title or show play more or less often under random: 0.25 to 10.
-	Weights []Weight `json:"weights,omitempty"`
+	Weights []LibraryChannelWeight `json:"weights,omitempty"`
 }
 
-// Weight is how much more or less often one title or show plays.
-type Weight struct {
+// LibraryChannelWeight is how much more or less often one title or show plays.
+type LibraryChannelWeight struct {
 	ID     string  `json:"id"`
 	Weight float64 `json:"weight"`
 }
 
-// Builder is a Library Channel's whole document.
-type Builder struct {
-	Selection
+// LibraryChannelBuilder is a Library Channel's whole document.
+type LibraryChannelBuilder struct {
+	LibraryChannelSelection
 	// AvoidRepeats keeps a title from playing again within that many programmes: 5 unless set.
-	AvoidRepeats *int           `json:"avoidRepeats,omitempty"`
-	Blocks       []Block        `json:"blocks,omitempty"`
-	Quality      ChannelQuality `json:"quality"`
-	LogoOnScreen Logo           `json:"logoOnScreen"`
+	AvoidRepeats *int                  `json:"avoidRepeats,omitempty"`
+	Blocks       []LibraryChannelBlock `json:"blocks,omitempty"`
+	Quality      LibraryChannelQuality `json:"quality"`
+	LogoOnScreen LibraryChannelLogo    `json:"logoOnScreen"`
 }
 
-// Block is a weekly stretch of hours with its own selection.
-type Block struct {
+// LibraryChannelBlock is a weekly stretch of hours with its own selection.
+type LibraryChannelBlock struct {
 	ID   string   `json:"id"`
 	Name string   `json:"name,omitempty"`
 	Days []string `json:"days"`
 	From string   `json:"from"`
 	To   string   `json:"to"`
 	// Selection is the block's own copy; none plays the channel's own selection.
-	Selection *Selection `json:"selection,omitempty"`
+	Selection *LibraryChannelSelection `json:"selection,omitempty"`
 	// FromPreset, on a save, names a block preset to copy: its selection, and its days, start
 	// and length where the block does not set them. The saved block keeps the copy, not the
 	// name, so changing or deleting the preset never changes the channel.
@@ -98,24 +98,24 @@ type Block struct {
 	IfEmpty string `json:"ifEmpty,omitempty"`
 }
 
-// ChannelQuality is a channel's quality: auto (each viewer's own settings), original (never
+// LibraryChannelQuality is a channel's quality: auto (each viewer's own settings), original (never
 // converted) or limited. Named for the contract, where playback.Quality is Quality.
-type ChannelQuality struct {
+type LibraryChannelQuality struct {
 	Mode    string `json:"mode,omitempty"`
 	MaxKbps int    `json:"maxKbps,omitempty"`
 }
 
-// Logo is the on-screen logo the apps draw over the picture.
-type Logo struct {
+// LibraryChannelLogo is the on-screen logo the apps draw over the picture.
+type LibraryChannelLogo struct {
 	On     bool   `json:"on,omitempty"`
 	Corner string `json:"corner,omitempty"` // topRight (the default), topLeft, bottomRight, bottomLeft
 	Size   string `json:"size,omitempty"`   // small, medium (the default), large
 }
 
-// Recipe is a block preset: what a block copies when it is added from the preset.
-type Recipe struct {
+// LibraryChannelRecipe is a block preset: what a block copies when it is added from the preset.
+type LibraryChannelRecipe struct {
 	// Clauses include or exclude values of a field (Exclude), all of which must hold.
-	Clauses []db.ChannelCondition `json:"clauses"`
+	Clauses []db.LibraryChannelCondition `json:"clauses"`
 	// Order is shuffle, inOrder, recent or leastPlayed.
 	Order    string   `json:"order"`
 	Minutes  int      `json:"minutes"`
@@ -135,8 +135,8 @@ func fieldError(field, format string, args ...any) error {
 var weekdays = []string{"sun", "mon", "tue", "wed", "thu", "fri", "sat"}
 
 // Parse reads a builder document.
-func Parse(raw string) (*Builder, error) {
-	var b Builder
+func Parse(raw string) (*LibraryChannelBuilder, error) {
+	var b LibraryChannelBuilder
 	if err := json.Unmarshal([]byte(raw), &b); err != nil {
 		return nil, fieldError("builder", "The channel's settings could not be read.")
 	}
@@ -144,7 +144,7 @@ func Parse(raw string) (*Builder, error) {
 }
 
 // AvoidWithin is the "Avoid repeats within" number in force.
-func (b *Builder) AvoidWithin() int {
+func (b *LibraryChannelBuilder) AvoidWithin() int {
 	if b.AvoidRepeats == nil {
 		return 5
 	}
@@ -153,7 +153,7 @@ func (b *Builder) AvoidWithin() int {
 
 // Libraries is every library the channel and its blocks draw from: who may see the channel
 // follows this list.
-func (b *Builder) Libraries() []string {
+func (b *LibraryChannelBuilder) Libraries() []string {
 	var out []string
 	add := func(ids []string) {
 		for _, id := range ids {
@@ -162,7 +162,7 @@ func (b *Builder) Libraries() []string {
 			}
 		}
 	}
-	add(b.Selection.Libraries)
+	add(b.LibraryChannelSelection.Libraries)
 	for _, blk := range b.Blocks {
 		if blk.Selection != nil {
 			add(blk.Selection.Libraries)
@@ -172,7 +172,7 @@ func (b *Builder) Libraries() []string {
 }
 
 // Pinned is every title the document pins, always or never, in any selection.
-func (b *Builder) Pinned() []string {
+func (b *LibraryChannelBuilder) Pinned() []string {
 	out := slices.Concat(b.Always, b.Never)
 	for _, blk := range b.Blocks {
 		if blk.Selection != nil {
@@ -184,7 +184,7 @@ func (b *Builder) Pinned() []string {
 
 // HasUnknownConditions says the document holds conditions this server cannot test: they are
 // kept as they are and the builder says so.
-func (b *Builder) HasUnknownConditions() bool {
+func (b *LibraryChannelBuilder) HasUnknownConditions() bool {
 	all := slices.Clone(b.Conditions)
 	for _, blk := range b.Blocks {
 		if blk.Selection != nil {
@@ -202,8 +202,8 @@ func (b *Builder) HasUnknownConditions() bool {
 // Check refuses a document that cannot be saved, naming the field. libraryKinds maps each
 // library that exists to its kind, and titleLibraries each pinned title to its library.
 // moods says the server has Portico's title data, which a Mood condition needs.
-func (b *Builder) Check(libraryKinds, titleLibraries map[string]string, moods bool) error {
-	if err := b.Selection.check("", libraryKinds, titleLibraries, moods); err != nil {
+func (b *LibraryChannelBuilder) Check(libraryKinds, titleLibraries map[string]string, moods bool) error {
+	if err := b.LibraryChannelSelection.check("", libraryKinds, titleLibraries, moods); err != nil {
 		return err
 	}
 	if b.AvoidRepeats != nil && (*b.AvoidRepeats < 0 || *b.AvoidRepeats > 1000) {
@@ -264,7 +264,7 @@ func oneOf(value string, choices ...string) bool {
 	return value == "" || slices.Contains(choices, value)
 }
 
-func (s *Selection) check(prefix string, libraryKinds, titleLibraries map[string]string, moods bool) error {
+func (s *LibraryChannelSelection) check(prefix string, libraryKinds, titleLibraries map[string]string, moods bool) error {
 	if len(s.Libraries) == 0 {
 		return fieldError(prefix+"libraries", "Choose at least one library.")
 	}
@@ -296,7 +296,7 @@ func (s *Selection) check(prefix string, libraryKinds, titleLibraries map[string
 		if err := c.CheckValues(); err != nil {
 			return fieldError(prefix+"conditions", "A condition's values can't be used: %s.", strings.TrimPrefix(err.Error(), "invalid: "))
 		}
-		if !moods && (c.Field == "mood" || slices.ContainsFunc(c.Conditions, func(i db.ChannelCondition) bool { return i.Field == "mood" })) {
+		if !moods && (c.Field == "mood" || slices.ContainsFunc(c.Conditions, func(i db.LibraryChannelCondition) bool { return i.Field == "mood" })) {
 			return fieldError(prefix+"conditions", "Mood needs Portico's title data, which this server doesn't have.")
 		}
 		count++
@@ -375,7 +375,7 @@ func (s *Selection) check(prefix string, libraryKinds, titleLibraries map[string
 }
 
 // Weighted lists the titles whose weights must be looked up, with the pinned ones.
-func (b *Builder) Weighted() []string {
+func (b *LibraryChannelBuilder) Weighted() []string {
 	var out []string
 	for _, w := range b.Weights {
 		out = append(out, w.ID)
@@ -404,7 +404,7 @@ func clock(text string) (int, bool) {
 const week = 7 * 24 * 60
 
 // checkOverlap refuses two blocks that share a minute of the week, naming the other block.
-func (b *Builder) checkOverlap() error {
+func (b *LibraryChannelBuilder) checkOverlap() error {
 	type stretch struct{ from, to, block int }
 	var all []stretch
 	for n, blk := range b.Blocks {
@@ -439,7 +439,7 @@ func (b *Builder) checkOverlap() error {
 }
 
 // CheckRecipe refuses a block preset that cannot be saved.
-func CheckRecipe(r *Recipe) error {
+func CheckRecipe(r *LibraryChannelRecipe) error {
 	if r.Minutes < 5 || r.Minutes > 1440 {
 		return fieldError("recipe.minutes", "Minutes, from 5 to 1,440.")
 	}
@@ -487,9 +487,9 @@ func LoadZone(name string) (*time.Location, error) {
 
 // DropGone takes out of every pinned and weighted list the titles that no longer exist:
 // rule 79 says such a title leaves the choice at once. It answers how many it took out.
-func (b *Builder) DropGone(titleLibraries map[string]string) int {
+func (b *LibraryChannelBuilder) DropGone(titleLibraries map[string]string) int {
 	dropped := 0
-	clean := func(s *Selection) {
+	clean := func(s *LibraryChannelSelection) {
 		keep := func(ids []string) []string {
 			return slices.DeleteFunc(ids, func(id string) bool {
 				_, ok := titleLibraries[id]
@@ -500,7 +500,7 @@ func (b *Builder) DropGone(titleLibraries map[string]string) int {
 			})
 		}
 		s.Always, s.Never = keep(s.Always), keep(s.Never)
-		s.Weights = slices.DeleteFunc(s.Weights, func(w Weight) bool {
+		s.Weights = slices.DeleteFunc(s.Weights, func(w LibraryChannelWeight) bool {
 			_, ok := titleLibraries[w.ID]
 			if !ok {
 				dropped++
@@ -508,7 +508,7 @@ func (b *Builder) DropGone(titleLibraries map[string]string) int {
 			return !ok
 		})
 	}
-	clean(&b.Selection)
+	clean(&b.LibraryChannelSelection)
 	for n := range b.Blocks {
 		if b.Blocks[n].Selection != nil {
 			clean(b.Blocks[n].Selection)
@@ -520,7 +520,7 @@ func (b *Builder) DropGone(titleLibraries map[string]string) int {
 // Copy fills a block from a preset as Add a block from a preset does: the preset's selection,
 // and its days, start and length where the block sets none. libraryKind is the kind of the
 // preset's library.
-func (r Recipe) Copy(blk *Block, name, library, libraryKind string) {
+func (r LibraryChannelRecipe) Copy(blk *LibraryChannelBlock, name, library, libraryKind string) {
 	kinds := []string{"show"}
 	switch libraryKind {
 	case db.LibraryMovies:
@@ -528,7 +528,7 @@ func (r Recipe) Copy(blk *Block, name, library, libraryKind string) {
 	case db.LibraryAnime:
 		kinds = []string{"movie", "show"}
 	}
-	sel := &Selection{Libraries: []string{library}, Kinds: kinds, Match: "all", Conditions: r.Clauses}
+	sel := &LibraryChannelSelection{Libraries: []string{library}, Kinds: kinds, Match: "all", Conditions: r.Clauses}
 	switch r.Order {
 	case "inOrder":
 		sel.Order, sel.Sort = "inOrder", "title"

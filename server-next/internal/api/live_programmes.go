@@ -8,28 +8,28 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
-// ProgrammeDetail is one programme with its other airings, and whether the profile booked it
+// LiveProgrammeDetail is one programme with its other airings, and whether the profile booked it
 // or set a reminder. One the profile's rating limit hides says only that, and can be neither
 // watched nor recorded.
-type ProgrammeDetail struct {
-	Programme
-	Channel   Channel    `json:"channel"`
-	Airings   []Airing   `json:"airings"`
-	Recording *Recording `json:"recording,omitempty"`
-	Reminder  bool       `json:"reminder"`
-	CanRecord bool       `json:"canRecord"`
+type LiveProgrammeDetail struct {
+	LiveProgramme
+	Channel   LiveChannel   `json:"channel"`
+	Airings   []LiveAiring  `json:"airings"`
+	Recording *DvrRecording `json:"recording,omitempty"`
+	Reminder  bool          `json:"reminder"`
+	CanRecord bool          `json:"canRecord"`
 }
 
-// Airing is another time a programme is on.
-type Airing struct {
+// LiveAiring is another time a programme is on.
+type LiveAiring struct {
 	ID       string    `json:"id"`
 	Channel  string    `json:"channel"`
 	StartsAt time.Time `json:"startsAt"`
 	EndsAt   time.Time `json:"endsAt"`
 }
 
-// ReminderOut is a reminder as the apps show it, two minutes before its programme starts.
-type ReminderOut struct {
+// LiveReminderOut is a reminder as the apps show it, two minutes before its programme starts.
+type LiveReminderOut struct {
 	Programme string    `json:"programme"`
 	Channel   string    `json:"channel"`
 	Title     string    `json:"title"`
@@ -48,24 +48,24 @@ func programmeRef(channel string, at time.Time) string {
 	return encodeOpaque(map[string]any{"c": channel, "s": at.UnixMilli()})
 }
 
-func (s *Server) getProgramme(r *http.Request, _ None) (ProgrammeDetail, error) {
+func (s *Server) getProgramme(r *http.Request, _ None) (LiveProgrammeDetail, error) {
 	lv, err := s.liveViewer(r)
 	if err != nil {
-		return ProgrammeDetail{}, err
+		return LiveProgrammeDetail{}, err
 	}
 	ctx := r.Context()
 	ch, p, err := s.programme(ctx, viewer(r), lv, r.PathValue("id"))
 	if err != nil {
-		return ProgrammeDetail{}, err
+		return LiveProgrammeDetail{}, err
 	}
 	rows, err := s.programmes(ctx, viewer(r), lv, []db.LiveChannel{ch}, p.StartsAt, p.StartsAt.Add(time.Millisecond), 2)
 	if err != nil {
-		return ProgrammeDetail{}, err
+		return LiveProgrammeDetail{}, err
 	}
-	out := ProgrammeDetail{Channel: channelOut(ch), Airings: []Airing{}, CanRecord: lv.Record && ch.Kind == db.ChannelFromSource}
+	out := LiveProgrammeDetail{Channel: channelOut(ch), Airings: []LiveAiring{}, CanRecord: lv.Record && ch.Kind == db.ChannelFromSource}
 	for _, item := range rows[0] {
 		if item.StartsAt.Equal(p.StartsAt) {
-			out.Programme = item
+			out.LiveProgramme = item
 		}
 	}
 	if out.NotAvailable {
@@ -73,20 +73,20 @@ func (s *Server) getProgramme(r *http.Request, _ None) (ProgrammeDetail, error) 
 		return out, nil
 	}
 	if out.Reminder, err = s.db.HasReminder(ctx, viewer(r).ProfileID, ch.ID, p.ProgrammeKey); err != nil {
-		return ProgrammeDetail{}, err
+		return LiveProgrammeDetail{}, err
 	}
 	if rec, err := s.db.AiringRecording(ctx, ch.ID, p.ProgrammeKey); err == nil {
 		recOut := s.recordingOut(rec, false, nil)
 		out.Recording = &recOut
 	} else if !errors.Is(err, db.ErrNotFound) {
-		return ProgrammeDetail{}, err
+		return LiveProgrammeDetail{}, err
 	}
 	if ch.Kind == db.ChannelFromSource {
 		// More airings, to everyone allowed Live TV, on the channels they may watch.
 		// At most 200 rows of the guide, so a common title ("News") costs a page, not the guide.
 		airings, err := s.db.GuideAirings(ctx, p.SeriesKey, p.Title, s.now(), s.now().AddDate(0, 0, 14), 200)
 		if err != nil {
-			return ProgrammeDetail{}, err
+			return LiveProgrammeDetail{}, err
 		}
 		for _, a := range airings {
 			if a.ProgrammeKey == p.ProgrammeKey && a.StartsAt.Equal(p.StartsAt) || p.SeriesKey != "" && a.EpisodeTitle != p.EpisodeTitle {
@@ -94,14 +94,14 @@ func (s *Server) getProgramme(r *http.Request, _ None) (ProgrammeDetail, error) 
 			}
 			channels, err := s.db.ChannelsForListings(ctx, a.SourceID, a.GuideKey)
 			if err != nil {
-				return ProgrammeDetail{}, err
+				return LiveProgrammeDetail{}, err
 			}
 			for _, c := range channels {
 				full, err := s.db.LiveChannelByID(ctx, viewer(r), c.PublicID)
 				if err != nil || !mayWatch(lv, full) {
 					continue
 				}
-				out.Airings = append(out.Airings, Airing{ID: programmeRef(c.PublicID, a.StartsAt), Channel: c.Name, StartsAt: a.StartsAt.UTC(),
+				out.Airings = append(out.Airings, LiveAiring{ID: programmeRef(c.PublicID, a.StartsAt), Channel: c.Name, StartsAt: a.StartsAt.UTC(),
 					EndsAt: a.EndsAt.UTC()})
 			}
 			if len(out.Airings) >= 50 {
@@ -112,17 +112,17 @@ func (s *Server) getProgramme(r *http.Request, _ None) (ProgrammeDetail, error) 
 	return out, nil
 }
 
-func (s *Server) listReminders(r *http.Request, _ None) (Page[ReminderOut], error) {
+func (s *Server) listReminders(r *http.Request, _ None) (Page[LiveReminderOut], error) {
 	lv, err := s.liveViewer(r)
 	if err != nil {
-		return Page[ReminderOut]{}, err
+		return Page[LiveReminderOut]{}, err
 	}
 	ctx := r.Context()
 	rows, err := s.db.Reminders(ctx, viewer(r).ProfileID, s.now())
 	if err != nil {
-		return Page[ReminderOut]{}, err
+		return Page[LiveReminderOut]{}, err
 	}
-	out := Page[ReminderOut]{Items: []ReminderOut{}}
+	out := Page[LiveReminderOut]{Items: []LiveReminderOut{}}
 	for _, rem := range rows {
 		public, err := s.db.ChannelPublicID(ctx, rem.ChannelID)
 		if err != nil {
@@ -132,7 +132,7 @@ func (s *Server) listReminders(r *http.Request, _ None) (Page[ReminderOut], erro
 		if err != nil || !mayWatch(lv, ch) {
 			continue // a channel the profile may no longer watch: its reminders are absent
 		}
-		out.Items = append(out.Items, ReminderOut{Programme: programmeRef(public, rem.StartsAt), Channel: ch.Name, Title: rem.Title,
+		out.Items = append(out.Items, LiveReminderOut{Programme: programmeRef(public, rem.StartsAt), Channel: ch.Name, Title: rem.Title,
 			StartsAt: rem.StartsAt.UTC(), EndsAt: rem.EndsAt.UTC()})
 	}
 	return out, nil

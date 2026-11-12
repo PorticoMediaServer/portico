@@ -12,7 +12,7 @@ func TestALimitedChannelCapsEveryQuality(t *testing.T) {
 	th := newTheatre(t)
 	token := th.owner.AccessToken
 	b := th.filmChannel()
-	b.Quality = librarychannels.ChannelQuality{Mode: "limited", MaxKbps: 2000}
+	b.Quality = librarychannels.LibraryChannelQuality{Mode: "limited", MaxKbps: 2000}
 	ch := makeChannel(t, th.s, token, "Films", *b)
 	rows := programmes(t, th.s, ch.ID, th.clock.Now(), th.clock.Now().Add(time.Hour))
 	claims, _ := th.s.tokens.CheckAccess(token, th.clock.Now())

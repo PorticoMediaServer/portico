@@ -17,19 +17,19 @@ func TestReviewExcludeKeepsTitlesWithNoValue(t *testing.T) {
 	films := libraryOfKind(t, s, owner, "movies")
 	var all ItemPage
 	call(t, s, "POST", "/v1/items/query", owner, ItemQueryRequest{Library: films, Kind: []string{"movie"}, Total: true}, &all)
-	titles := func(conds ...db.ChannelCondition) int {
-		b := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"},
+	titles := func(conds ...db.LibraryChannelCondition) int {
+		b := librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{films}, Kinds: []string{"movie"},
 			Match: "all", Conditions: conds}}
-		var p ChannelPreview
-		if w := call(t, s, "POST", "/v1/admin/library-channels/preview", owner, ChannelPreviewAsk{TimeZone: "UTC", Builder: b}, &p); w.Code != 200 {
+		var p LibraryChannelPreview
+		if w := call(t, s, "POST", "/v1/admin/library-channels/preview", owner, LibraryChannelPreviewAsk{TimeZone: "UTC", Builder: b}, &p); w.Code != 200 {
 			t.Fatalf("preview answered %d: %s", w.Code, w.Body)
 		}
 		return p.Titles
 	}
-	for _, c := range []db.ChannelCondition{
+	for _, c := range []db.LibraryChannelCondition{
 		{Field: "contentRating", Values: []string{"R"}},
 		{Field: "contentRating", Mode: "all", Values: []string{"R"}},
-		{Match: "any", Conditions: []db.ChannelCondition{{Field: "contentRating", Values: []string{"R"}}, {Field: "decade", Values: []string{"1990"}}}},
+		{Match: "any", Conditions: []db.LibraryChannelCondition{{Field: "contentRating", Values: []string{"R"}}, {Field: "decade", Values: []string{"1990"}}}},
 	} {
 		in := titles(c)
 		c.Exclude = true
@@ -39,8 +39,8 @@ func TestReviewExcludeKeepsTitlesWithNoValue(t *testing.T) {
 		}
 	}
 	// "none" of a rating keeps an unrated film, as Exclude does.
-	none := titles(db.ChannelCondition{Field: "contentRating", Mode: "none", Values: []string{"R"}})
-	in := titles(db.ChannelCondition{Field: "contentRating", Values: []string{"R"}})
+	none := titles(db.LibraryChannelCondition{Field: "contentRating", Mode: "none", Values: []string{"R"}})
+	in := titles(db.LibraryChannelCondition{Field: "contentRating", Values: []string{"R"}})
 	if in+none != *all.Total {
 		t.Errorf("rated R %d plus none of R %d is not the %d films", in, none, *all.Total)
 	}
@@ -50,21 +50,21 @@ func TestReviewExcludeKeepsTitlesWithNoValue(t *testing.T) {
 func TestReviewAnEmptyGroupChangesNothing(t *testing.T) {
 	s, owner, _ := seededWith(t, 600, 0)
 	films := libraryOfKind(t, s, owner, "movies")
-	titles := func(conds ...db.ChannelCondition) int {
-		b := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"},
+	titles := func(conds ...db.LibraryChannelCondition) int {
+		b := librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{films}, Kinds: []string{"movie"},
 			Match: "all", Conditions: conds}}
-		var p ChannelPreview
-		if w := call(t, s, "POST", "/v1/admin/library-channels/preview", owner, ChannelPreviewAsk{TimeZone: "UTC", Builder: b}, &p); w.Code != 200 {
+		var p LibraryChannelPreview
+		if w := call(t, s, "POST", "/v1/admin/library-channels/preview", owner, LibraryChannelPreviewAsk{TimeZone: "UTC", Builder: b}, &p); w.Code != 200 {
 			t.Fatalf("preview answered %d: %s", w.Code, w.Body)
 		}
 		return p.Titles
 	}
-	decade := db.ChannelCondition{Field: "decade", Values: []string{"1990"}}
+	decade := db.LibraryChannelCondition{Field: "decade", Values: []string{"1990"}}
 	want := titles(decade)
-	for _, g := range []db.ChannelCondition{
-		{Match: "any", Conditions: []db.ChannelCondition{}},
-		{Match: "all", Conditions: []db.ChannelCondition{}},
-		{Match: "any", Conditions: []db.ChannelCondition{}, Exclude: true},
+	for _, g := range []db.LibraryChannelCondition{
+		{Match: "any", Conditions: []db.LibraryChannelCondition{}},
+		{Match: "all", Conditions: []db.LibraryChannelCondition{}},
+		{Match: "any", Conditions: []db.LibraryChannelCondition{}, Exclude: true},
 	} {
 		if got := titles(decade, g); got != want {
 			t.Errorf("an empty group %+v left %d titles, not %d", g, got, want)
@@ -77,15 +77,15 @@ func TestReviewAnEmptyGroupChangesNothing(t *testing.T) {
 func TestTooManyConditionValuesAreRefusedAtSave(t *testing.T) {
 	s, owner, _ := seededWith(t, 50, 0)
 	films := libraryOfKind(t, s, owner, "movies")
-	var conditions []db.ChannelCondition
+	var conditions []db.LibraryChannelCondition
 	for range 3 {
 		var values []string
 		for n := range 500 {
 			values = append(values, fmt.Sprint(1900+n%100))
 		}
-		conditions = append(conditions, db.ChannelCondition{Field: "year", Values: values})
+		conditions = append(conditions, db.LibraryChannelCondition{Field: "year", Values: values})
 	}
-	b := librarychannels.Builder{Selection: librarychannels.Selection{Libraries: []string{films}, Kinds: []string{"movie"}, Conditions: conditions}}
+	b := librarychannels.LibraryChannelBuilder{LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{films}, Kinds: []string{"movie"}, Conditions: conditions}}
 	var e struct {
 		Error Error `json:"error"`
 	}

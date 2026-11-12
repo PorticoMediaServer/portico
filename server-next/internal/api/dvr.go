@@ -13,9 +13,9 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/dvr"
 )
 
-// Recording is one booking, recording or line of History. A recorded programme is also a
+// DvrRecording is one booking, recording or line of History. A recorded programme is also a
 // title in the Recorded TV library (ItemID), listed, played and marked like any title.
-type Recording struct {
+type DvrRecording struct {
 	ID           string    `json:"id"`
 	Channel      string    `json:"channel"`
 	Title        string    `json:"title"`
@@ -41,17 +41,17 @@ type Recording struct {
 	ItemID   string `json:"itemId,omitempty"`
 }
 
-// RecordingBook asks to record one airing: Programme is a programme's id from the guide.
-type RecordingBook struct {
+// DvrRecordingBook asks to record one airing: Programme is a programme's id from the guide.
+type DvrRecordingBook struct {
 	Programme   string `json:"programme"`
 	PadBeforeMs *int64 `json:"padBeforeMs,omitempty"`
 	PadAfterMs  *int64 `json:"padAfterMs,omitempty"`
 	Priority    *int   `json:"priority,omitempty"`
 }
 
-// RecordingChange changes one booking or recording: only what is sent changes. Choice is
+// DvrRecordingChange changes one booking or recording: only what is sent changes. Choice is
 // record ("Record this instead") or skip ("Skip this one").
-type RecordingChange struct {
+type DvrRecordingChange struct {
 	PadBeforeMs *int64  `json:"padBeforeMs,omitempty"`
 	PadAfterMs  *int64  `json:"padAfterMs,omitempty"`
 	Priority    *int    `json:"priority,omitempty"`
@@ -59,8 +59,8 @@ type RecordingChange struct {
 	Choice      *string `json:"choice,omitempty"`
 }
 
-// DVR is the Recordings header: counts, space and the keep rule in force.
-type DVR struct {
+// DvrOverview is the Recordings header: counts, space and the keep rule in force.
+type DvrOverview struct {
 	Upcoming  int    `json:"upcoming"`
 	Recorded  int    `json:"recorded"`
 	Unwatched int    `json:"unwatched"`
@@ -72,8 +72,8 @@ type DVR struct {
 	CanRecord bool   `json:"canRecord"`
 }
 
-// Rule is a series rule.
-type Rule struct {
+// DvrRule is a series rule.
+type DvrRule struct {
 	ID          string `json:"id"`
 	Title       string `json:"title"`
 	Source      string `json:"source"`
@@ -89,10 +89,10 @@ type Rule struct {
 	status      int
 }
 
-func (r Rule) reply(http.Header) int { return r.status }
+func (r DvrRule) reply(http.Header) int { return r.status }
 
-// RuleSave makes a rule from a programme in the guide, or changes one.
-type RuleSave struct {
+// DvrRuleSave makes a rule from a programme in the guide, or changes one.
+type DvrRuleSave struct {
 	Programme   string `json:"programme,omitempty"`
 	AnyChannel  *bool  `json:"anyChannel,omitempty"`
 	NewOnly     *bool  `json:"newOnly,omitempty"`
@@ -104,16 +104,16 @@ type RuleSave struct {
 	Paused      *bool  `json:"paused,omitempty"`
 }
 
-// TunerUse is what holds a tuned channel: a viewer (named only for the owner's own) or a recording.
-type TunerUse struct {
+// DvrTunerUse is what holds a tuned channel: a viewer (named only for the owner's own) or a recording.
+type DvrTunerUse struct {
 	Channel string `json:"channel"`
 	Using   string `json:"using"`
 }
 
-// Tuners is the owner's Tuners page: what is using them now, and the clashes ahead.
-type Tuners struct {
-	InUse     []TunerUse  `json:"inUse"`
-	Conflicts []Recording `json:"conflicts"`
+// DvrTuners is the owner's Tuners page: what is using them now, and the clashes ahead.
+type DvrTuners struct {
+	InUse     []DvrTunerUse  `json:"inUse"`
+	Conflicts []DvrRecording `json:"conflicts"`
 }
 
 func (s *Server) dvrRoutes() {
@@ -166,8 +166,8 @@ func (s *Server) programme(ctx context.Context, v db.Viewer, lv db.LiveViewer, i
 	return ch, db.GuideProgramme{}, ErrNotFound()
 }
 
-func (s *Server) recordingOut(r db.Recording, conflict bool, items map[int64]string) Recording {
-	out := Recording{ID: r.PublicID, Channel: r.ChannelName, Title: r.Title, EpisodeTitle: r.EpisodeTitle, Season: r.Season, Episode: r.Episode,
+func (s *Server) recordingOut(r db.Recording, conflict bool, items map[int64]string) DvrRecording {
+	out := DvrRecording{ID: r.PublicID, Channel: r.ChannelName, Title: r.Title, EpisodeTitle: r.EpisodeTitle, Season: r.Season, Episode: r.Episode,
 		StartsAt: r.StartsAt.UTC(), EndsAt: r.EndsAt.UTC(), PadBeforeMs: r.PadBefore.Milliseconds(), PadAfterMs: r.PadAfter.Milliseconds(),
 		Priority: r.Priority, State: r.State, Reason: r.Reason, BookedBy: r.BookedBy, Conflict: conflict, Choice: r.Choice, InGuide: r.InGuide,
 		Keep: r.Keep, FromRule: r.RuleID != 0, ItemID: items[r.ItemID]}
@@ -182,30 +182,30 @@ func (s *Server) liveAllowed(r *http.Request, record bool) (db.LiveViewer, error
 	return lv, err
 }
 
-func (s *Server) dvrSummary(r *http.Request, _ None) (DVR, error) {
+func (s *Server) dvrSummary(r *http.Request, _ None) (DvrOverview, error) {
 	lv, err := s.liveAllowed(r, false)
 	if err != nil {
-		return DVR{}, err
+		return DvrOverview{}, err
 	}
 	ctx := r.Context()
 	counts, err := s.db.RecordingCounts(ctx, viewer(r))
 	if err != nil {
-		return DVR{}, err
+		return DvrOverview{}, err
 	}
 	upcoming, err := s.db.Upcoming(ctx, s.now().AddDate(0, 0, 14))
 	if err != nil {
-		return DVR{}, err
+		return DvrOverview{}, err
 	}
 	losers, err := s.recorder.Clashes(ctx, upcoming)
 	if err != nil {
-		return DVR{}, err
+		return DvrOverview{}, err
 	}
 	opts := s.dvrOptions()
-	out := DVR{Recorded: counts.Recorded, Unwatched: counts.Unwatched, KeepRule: keepRule(opts), CanRecord: lv.Record}
+	out := DvrOverview{Recorded: counts.Recorded, Unwatched: counts.Unwatched, KeepRule: keepRule(opts), CanRecord: lv.Record}
 	// Upcoming and conflicts count only the bookings this profile may see.
 	for _, rec := range upcoming {
 		if ok, err := s.maySeeRecording(ctx, r, lv, rec); err != nil {
-			return DVR{}, err
+			return DvrOverview{}, err
 		} else if ok {
 			out.Upcoming++
 			if losers[rec.ID] {
@@ -280,10 +280,10 @@ func (s *Server) itemIDs(ctx context.Context, v db.Viewer, rows []db.Recording) 
 	return s.db.VisibleItems(ctx, v, ids)
 }
 
-func (s *Server) listRecordings(r *http.Request, _ None) (Page[Recording], error) {
+func (s *Server) listRecordings(r *http.Request, _ None) (Page[DvrRecording], error) {
 	lv, err := s.liveAllowed(r, false)
 	if err != nil {
-		return Page[Recording]{}, err
+		return Page[DvrRecording]{}, err
 	}
 	ctx := r.Context()
 	query := r.URL.Query()
@@ -291,7 +291,7 @@ func (s *Server) listRecordings(r *http.Request, _ None) (Page[Recording], error
 	if query.Get("scope") != "everyone" {
 		names, err := s.db.ProfileNames(ctx, viewer(r).ProfileID)
 		if err != nil {
-			return Page[Recording]{}, err
+			return Page[DvrRecording]{}, err
 		}
 		q.ProfileID, q.ProfilePub = viewer(r).ProfileID, names.PublicID
 	}
@@ -300,31 +300,31 @@ func (s *Server) listRecordings(r *http.Request, _ None) (Page[Recording], error
 		ID    int64 `json:"i"`
 	}
 	if text := query.Get("cursor"); text != "" && decodeOpaque(text, &c) != nil {
-		return Page[Recording]{}, ErrField("cursor", "This cursor is not one this list gave.")
+		return Page[DvrRecording]{}, ErrField("cursor", "This cursor is not one this list gave.")
 	}
 	q.After, q.AfterID = c.After, c.ID
 	rows, err := s.db.Recordings(ctx, q)
 	if err != nil {
-		return Page[Recording]{}, err
+		return Page[DvrRecording]{}, err
 	}
 	var losers map[int64]bool
 	if q.Upcoming {
 		upcoming, err := s.db.Upcoming(ctx, s.now().AddDate(0, 0, 14))
 		if err != nil {
-			return Page[Recording]{}, err
+			return Page[DvrRecording]{}, err
 		}
 		if losers, err = s.recorder.Clashes(ctx, upcoming); err != nil {
-			return Page[Recording]{}, err
+			return Page[DvrRecording]{}, err
 		}
 	}
 	items, err := s.itemIDs(ctx, viewer(r), rows)
 	if err != nil {
-		return Page[Recording]{}, err
+		return Page[DvrRecording]{}, err
 	}
-	out := Page[Recording]{Items: []Recording{}}
+	out := Page[DvrRecording]{Items: []DvrRecording{}}
 	for _, row := range rows {
 		if ok, err := s.maySeeRecording(ctx, r, lv, row); err != nil {
-			return Page[Recording]{}, err
+			return Page[DvrRecording]{}, err
 		} else if ok {
 			out.Items = append(out.Items, s.recordingOut(row, losers[row.ID], items))
 		}
@@ -340,30 +340,30 @@ func (s *Server) listRecordings(r *http.Request, _ None) (Page[Recording], error
 	return out, nil
 }
 
-func (s *Server) bookRecording(r *http.Request, req RecordingBook) (Recording, error) {
+func (s *Server) bookRecording(r *http.Request, req DvrRecordingBook) (DvrRecording, error) {
 	lv, err := s.liveAllowed(r, true)
 	if err != nil {
-		return Recording{}, err
+		return DvrRecording{}, err
 	}
 	ctx := r.Context()
 	ch, p, err := s.programme(ctx, viewer(r), lv, req.Programme)
 	if err != nil {
-		return Recording{}, err
+		return DvrRecording{}, err
 	}
 	switch {
 	case ch.Kind != db.ChannelFromSource:
-		return Recording{}, ErrConflict("cannot_record", "This program can't be recorded.")
+		return DvrRecording{}, ErrConflict("cannot_record", "This program can't be recorded.")
 	case !rated(lv, p.RatingAge):
-		return Recording{}, ErrNotFound()
+		return DvrRecording{}, ErrNotFound()
 	case !p.EndsAt.After(s.now()):
-		return Recording{}, ErrConflict("programme_over", "This program has ended.")
+		return DvrRecording{}, ErrConflict("programme_over", "This program has ended.")
 	}
 	names, err := s.db.ProfileNames(ctx, viewer(r).ProfileID)
 	if err != nil {
-		return Recording{}, err
+		return DvrRecording{}, err
 	}
 	if _, err := s.recorder.Library(ctx); err != nil {
-		return Recording{}, ErrConflict("recordings_folder", "The recordings folder can't be written.")
+		return DvrRecording{}, ErrConflict("recordings_folder", "The recordings folder can't be written.")
 	}
 	opts := s.dvrOptions()
 	b := db.Booking{ProfileID: viewer(r).ProfileID, ProfileName: names.Name, ProfilePub: names.PublicID, ChannelID: ch.ID, ChannelName: ch.Name,
@@ -381,7 +381,7 @@ func (s *Server) bookRecording(r *http.Request, req RecordingBook) (Recording, e
 	}
 	rec, created, err := s.db.BookAiring(ctx, b)
 	if err != nil {
-		return Recording{}, err
+		return DvrRecording{}, err
 	}
 	out := s.recordingOut(rec, false, nil)
 	if created {
@@ -397,57 +397,57 @@ func (s *Server) mayChange(r *http.Request, rec db.Recording) bool {
 	return c.Role == "owner" || c.Role == "admin" || rec.ProfileID == c.ProfileID
 }
 
-func (s *Server) getRecording(r *http.Request, _ None) (Recording, error) {
+func (s *Server) getRecording(r *http.Request, _ None) (DvrRecording, error) {
 	lv, err := s.liveAllowed(r, false)
 	if err != nil {
-		return Recording{}, err
+		return DvrRecording{}, err
 	}
 	rec, err := s.db.Recording(r.Context(), r.PathValue("id"))
 	if err != nil {
-		return Recording{}, sourceError(err)
+		return DvrRecording{}, sourceError(err)
 	}
 	if ok, err := s.maySeeRecording(r.Context(), r, lv, rec); err != nil || !ok {
 		if err != nil {
-			return Recording{}, err
+			return DvrRecording{}, err
 		}
-		return Recording{}, ErrNotFound()
+		return DvrRecording{}, ErrNotFound()
 	}
 	items, err := s.itemIDs(r.Context(), viewer(r), []db.Recording{rec})
 	if err != nil {
-		return Recording{}, err
+		return DvrRecording{}, err
 	}
 	upcoming, err := s.db.Upcoming(r.Context(), s.now().AddDate(0, 0, 14))
 	if err != nil {
-		return Recording{}, err
+		return DvrRecording{}, err
 	}
 	losers, err := s.recorder.Clashes(r.Context(), upcoming)
 	if err != nil {
-		return Recording{}, err
+		return DvrRecording{}, err
 	}
 	return s.recordingOut(rec, losers[rec.ID], items), nil
 }
 
-func (s *Server) changeRecording(r *http.Request, req RecordingChange) (Recording, error) {
+func (s *Server) changeRecording(r *http.Request, req DvrRecordingChange) (DvrRecording, error) {
 	ctx := r.Context()
 	lv, err := s.liveAllowed(r, false)
 	if err != nil {
-		return Recording{}, err
+		return DvrRecording{}, err
 	}
 	rec, err := s.db.Recording(ctx, r.PathValue("id"))
 	if err != nil {
-		return Recording{}, sourceError(err)
+		return DvrRecording{}, sourceError(err)
 	}
 	if ok, err := s.maySeeRecording(ctx, r, lv, rec); err != nil || !ok {
 		if err != nil {
-			return Recording{}, err
+			return DvrRecording{}, err
 		}
-		return Recording{}, ErrNotFound()
+		return DvrRecording{}, ErrNotFound()
 	}
 	if !s.mayChange(r, rec) {
-		return Recording{}, ErrNotPermitted()
+		return DvrRecording{}, ErrNotPermitted()
 	}
 	if req.Choice != nil && *req.Choice != "record" && *req.Choice != "skip" && *req.Choice != "" {
-		return Recording{}, ErrField("choice", "Choose record or skip.")
+		return DvrRecording{}, ErrField("choice", "Choose record or skip.")
 	}
 	c := db.RecordingChange{Priority: req.Priority, Keep: req.Keep, Choice: req.Choice}
 	if req.PadBeforeMs != nil {
@@ -459,7 +459,7 @@ func (s *Server) changeRecording(r *http.Request, req RecordingChange) (Recordin
 		c.PadAfter = &d
 	}
 	if err := s.db.ChangeRecording(ctx, rec.PublicID, c, s.now()); err != nil {
-		return Recording{}, err
+		return DvrRecording{}, err
 	}
 	return s.getRecording(r, None{})
 }
@@ -507,8 +507,8 @@ func (s *Server) deleteRecording(r *http.Request, _ None) (None, error) {
 	return None{}, s.recorder.Delete(ctx, rec) // which stops anyone playing it
 }
 
-func ruleOut(rule db.RecordingRule, source, channel string) Rule {
-	out := Rule{ID: rule.PublicID, Title: rule.Title, Source: source, Channel: channel, ByTitle: rule.SeriesKey == "", NewOnly: rule.NewOnly,
+func ruleOut(rule db.RecordingRule, source, channel string) DvrRule {
+	out := DvrRule{ID: rule.PublicID, Title: rule.Title, Source: source, Channel: channel, ByTitle: rule.SeriesKey == "", NewOnly: rule.NewOnly,
 		KeepNewest: rule.KeepNewest, KeepDays: rule.KeepDays, Priority: rule.Priority, Paused: rule.Paused}
 	if rule.PadBefore != nil {
 		ms := rule.PadBefore.Milliseconds()
@@ -521,9 +521,9 @@ func ruleOut(rule db.RecordingRule, source, channel string) Rule {
 	return out
 }
 
-func (s *Server) listRules(r *http.Request, _ None) (Page[Rule], error) {
+func (s *Server) listRules(r *http.Request, _ None) (Page[DvrRule], error) {
 	if _, err := s.liveAllowed(r, true); err != nil {
-		return Page[Rule]{}, err
+		return Page[DvrRule]{}, err
 	}
 	profile := viewer(r).ProfileID
 	if r.URL.Query().Get("scope") == "everyone" && CallerFrom(r.Context()).Role == "owner" {
@@ -531,16 +531,16 @@ func (s *Server) listRules(r *http.Request, _ None) (Page[Rule], error) {
 	}
 	rules, err := s.db.Rules(r.Context(), profile)
 	if err != nil {
-		return Page[Rule]{}, err
+		return Page[DvrRule]{}, err
 	}
-	out := Page[Rule]{Items: []Rule{}}
+	out := Page[DvrRule]{Items: []DvrRule{}}
 	for _, rule := range rules {
 		out.Items = append(out.Items, ruleOut(rule, "", ""))
 	}
 	return out, nil
 }
 
-func applyRule(rule *db.RecordingRule, req RuleSave) error {
+func applyRule(rule *db.RecordingRule, req DvrRuleSave) error {
 	if req.NewOnly != nil {
 		rule.NewOnly = *req.NewOnly
 	}
@@ -576,62 +576,62 @@ func applyRule(rule *db.RecordingRule, req RuleSave) error {
 // createRule makes a series rule from a programme: it follows the guide's series id, or where
 // the guide has none, the same title on the same channel. With ?preview=true it answers what
 // it would record and makes nothing.
-func (s *Server) createRule(r *http.Request, req RuleSave) (Rule, error) {
+func (s *Server) createRule(r *http.Request, req DvrRuleSave) (DvrRule, error) {
 	lv, err := s.liveAllowed(r, true)
 	if err != nil {
-		return Rule{}, err
+		return DvrRule{}, err
 	}
 	ctx := r.Context()
 	ch, p, err := s.programme(ctx, viewer(r), lv, req.Programme)
 	if err != nil {
-		return Rule{}, err
+		return DvrRule{}, err
 	}
 	if ch.Kind != db.ChannelFromSource {
-		return Rule{}, ErrConflict("cannot_record", "This program can't be recorded.")
+		return DvrRule{}, ErrConflict("cannot_record", "This program can't be recorded.")
 	}
 	rule := db.RecordingRule{ProfileID: viewer(r).ProfileID, SourceID: ch.SourceID, ChannelID: ch.ID, SeriesKey: p.SeriesKey, Title: p.Title}
 	if req.AnyChannel != nil && *req.AnyChannel && p.SeriesKey != "" {
 		rule.ChannelID = 0
 	}
 	if req.NewOnly != nil && *req.NewOnly && p.Flags == 0 {
-		return Rule{}, ErrField("newOnly", "This guide doesn't say which episodes are new.")
+		return DvrRule{}, ErrField("newOnly", "This guide doesn't say which episodes are new.")
 	}
 	if err := applyRule(&rule, req); err != nil {
-		return Rule{}, err
+		return DvrRule{}, err
 	}
 	if r.URL.Query().Get("preview") == "true" {
 		return ruleOut(rule, "", ch.PublicID), nil
 	}
 	saved, err := s.db.SaveRule(ctx, rule, s.now())
 	if err != nil {
-		return Rule{}, err
+		return DvrRule{}, err
 	}
 	if err := s.recorder.FollowRules(ctx); err != nil {
-		return Rule{}, err
+		return DvrRule{}, err
 	}
 	out := ruleOut(saved, "", ch.PublicID)
 	out.status = http.StatusCreated
 	return out, nil
 }
 
-func (s *Server) changeRule(r *http.Request, req RuleSave) (Rule, error) {
+func (s *Server) changeRule(r *http.Request, req DvrRuleSave) (DvrRule, error) {
 	if _, err := s.liveAllowed(r, true); err != nil {
-		return Rule{}, err
+		return DvrRule{}, err
 	}
 	ctx := r.Context()
 	rule, err := s.db.Rule(ctx, r.PathValue("id"))
 	if err != nil {
-		return Rule{}, sourceError(err)
+		return DvrRule{}, sourceError(err)
 	}
 	if rule.ProfileID != viewer(r).ProfileID && CallerFrom(ctx).Role != "owner" {
-		return Rule{}, ErrNotPermitted()
+		return DvrRule{}, ErrNotPermitted()
 	}
 	if err := applyRule(&rule, req); err != nil {
-		return Rule{}, err
+		return DvrRule{}, err
 	}
 	saved, err := s.db.SaveRule(ctx, rule, s.now())
 	if err != nil {
-		return Rule{}, err
+		return DvrRule{}, err
 	}
 	return ruleOut(saved, "", ""), nil
 }
@@ -654,35 +654,35 @@ func (s *Server) deleteRule(r *http.Request, _ None) (None, error) {
 	return None{}, s.db.DeleteRule(ctx, rule.PublicID, r.URL.Query().Get("bookings") == "cancel", s.now())
 }
 
-func (s *Server) dvrTuners(r *http.Request, _ None) (Tuners, error) {
+func (s *Server) dvrTuners(r *http.Request, _ None) (DvrTuners, error) {
 	ctx := r.Context()
 	sources, err := s.db.LiveSources(ctx)
 	if err != nil {
-		return Tuners{}, err
+		return DvrTuners{}, err
 	}
-	out := Tuners{InUse: []TunerUse{}, Conflicts: []Recording{}}
+	out := DvrTuners{InUse: []DvrTunerUse{}, Conflicts: []DvrRecording{}}
 	for _, src := range sources {
 		for channel, uses := range s.tuners.Using(src.ID) {
 			name, err := s.db.ChannelName(ctx, channel)
 			if err != nil && !errors.Is(err, db.ErrNotFound) {
-				return Tuners{}, err
+				return DvrTuners{}, err
 			}
 			for _, u := range uses {
 				using := u.Name
 				if !u.Record {
 					using = "A viewer: " + u.Name
 				}
-				out.InUse = append(out.InUse, TunerUse{Channel: name, Using: using})
+				out.InUse = append(out.InUse, DvrTunerUse{Channel: name, Using: using})
 			}
 		}
 	}
 	upcoming, err := s.db.Upcoming(ctx, s.now().Add(12*time.Hour))
 	if err != nil {
-		return Tuners{}, err
+		return DvrTuners{}, err
 	}
 	losers, err := s.recorder.Clashes(ctx, upcoming)
 	if err != nil {
-		return Tuners{}, err
+		return DvrTuners{}, err
 	}
 	for _, rec := range upcoming {
 		if losers[rec.ID] {
