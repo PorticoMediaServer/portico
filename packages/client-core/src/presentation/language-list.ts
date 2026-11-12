@@ -22,7 +22,15 @@ export const COMMON_LANGUAGES: readonly string[] = [
  * row never shows blank. Hermes (Apple) may lack `Intl.DisplayNames`, in
  * which case catalogue languages still render by name.
  */
+/** The two entries that stand for a language rather than name one, with the labels Settings gives them. */
+const SPECIAL_LANGUAGES: Readonly<Record<string, string>> = {
+  '@appLanguage': 'next.settingsSpec.account.audio-subtitles.groups.0.rows.0.control.items.0.label',
+  '@original': 'next.settingsSpec.account.audio-subtitles.groups.0.rows.0.control.items.1.label',
+};
+
 export function languageName(code: string, lookup?: (key: string) => string | undefined, locale?: string): string {
+  const special = SPECIAL_LANGUAGES[code];
+  if (special) return lookup?.(special) ?? code;
   const known = lookup?.(`language.${code}`);
   if (known) return known;
   try {
