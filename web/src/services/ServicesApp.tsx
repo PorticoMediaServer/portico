@@ -13,6 +13,7 @@ import {AccountProviderReturn} from './AccountProviders';
 import {AccountWorkspace} from './AccountWorkspace';
 import {LinkTV} from './LinkTV';
 import {JoinArrival} from './JoinArrival';
+import {AccountServerReturn} from './AccountServerReturn';
 import {isServicesPath} from './paths';
 
 type Arrival = {id?: string; code?: string; failed: boolean};
@@ -34,6 +35,7 @@ const routes = (arrival?: Arrival) => [
   createRoute({getParentRoute: () => root, path: '/account', component: () => <AccountWorkspace />}),
   createRoute({getParentRoute: () => root, path: '/tv', component: () => <LinkTV />}),
   createRoute({getParentRoute: () => root, path: '/join', component: () => <JoinArrival />}),
+  createRoute({getParentRoute: () => root, path: '/servers/return', component: () => <AccountServerReturn />}),
   createRoute({getParentRoute: () => root, path: '/app/account-return', component: () => <AccountProviderReturn arrival={arrival ?? {failed: true}} />}),
 ];
 

@@ -86,6 +86,17 @@ export const accountPagesMessages = {
   'next.account.approve.back': 'Back to {server}',
   'next.account.approve.declinedTitle': 'Not approved',
   'next.account.approve.declinedBody': '{server} wasn’t linked to your account. Nothing was changed.',
+  // Signing in at a server's own address (option 2): the way back, named from the signed list
+  'next.account.signIn.forServerReturn': 'Sign in with your Portico Account and you go straight back to your server.',
+  'next.account.serverReturn.title': 'Sign in to {server} at {address}?',
+  'next.account.serverReturn.lead': 'You’ll go back to that address, signed in with your Portico Account. Continue only if you just chose Continue to Portico Account there.',
+  'next.account.serverReturn.continue': 'Continue',
+  'next.account.serverReturn.cancel': 'Cancel',
+  'next.account.serverReturn.badLink': 'This sign-in link isn’t complete. Go back to the server’s page and choose Continue to Portico Account again.',
+  'next.account.serverReturn.notListed': 'This server isn’t in your Portico Account’s list, so nothing was sent. Ask its owner for an invitation.',
+  'next.account.serverReturn.addressUnknown': '{server} hasn’t registered this address with Portico Services, so nothing was sent. Open {server} from your list instead.',
+  'next.account.serverReturn.openHere': 'Open {server} here',
+  'next.account.serverReturn.chooseServer': 'Choose a server',
   // The account page
   'next.account.workspace.devicesLead': 'Where your Portico Account is signed in.',
   'next.account.workspace.securityLead': 'How you sign in to your Portico Account, and what happens if you can’t.',

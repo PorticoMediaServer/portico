@@ -3,6 +3,7 @@ import {useState} from 'react';
 import {IconSprite} from '../../kit/Icon';
 import {AuthStage, LocalServerSignIn, PorticoServerSignIn, ServerIdentityFailure, ServerProfiles, ServerProfilePIN} from '../../kit/accounts';
 import {ServicesActions, ServicesAuthStage, ServicesHeading, ServicesLead, ServicesSignedInAccount} from '../../kit/accounts/ServicesAuth';
+import {ServerReturnCard} from '../../services/AccountServerReturn';
 import {Button} from '../../kit/controls/Button';
 import {defaultI18n} from '@i18n';
 import '../../kit/tokens.css';
@@ -33,6 +34,10 @@ function Specimen() {
   if (frame === 'welcome') return <ServicesAuthStage><ServicesHeading singleLine>{defaultI18n.t('auth.welcomeHome')}</ServicesHeading><ServicesLead>{defaultI18n.t('web.signin.accountLede')}</ServicesLead>
     <ServicesSignedInAccount username="nana_r" onDifferent={() => record('different')} />
     <ServicesActions><Button variant="primary" onClick={() => record('continue')}>{defaultI18n.t('action.continue')}</Button></ServicesActions></ServicesAuthStage>;
+  if (frame === '4b-http') return <PorticoServerSignIn serverName="Portico demo" plainHttp onContinue={() => record('hosted')} onRecovery={() => record('recovery')} />;
+  if (frame === '4b-http-secure') return <PorticoServerSignIn serverName="Portico demo" plainHttp onSecure={() => record('secure')} onContinue={() => record('hosted')} onRecovery={() => record('recovery')} />;
+  if (frame === '5-return') return <ServerReturnCard server="Portico demo" address="66-94-102-39.ptc-example.portico.direct:32510" username="nana_r"
+    onContinue={() => record('continue')} onCancel={() => record('cancel')} onNotYou={() => record('not-you')} />;
   if (frame === '4b') return <PorticoServerSignIn serverName="Portico demo" onContinue={() => record('portico')} onRecovery={() => record('recovery')} onMoveCode={() => record('move-code')} />;
   return <LocalServerSignIn serverName="Portico demo" initialUsername="nana_r" remembered={remembered}
     onSignIn={(username, password) => record('sign-in', {username, password})} onForgotPassword={() => record('forgot-password')} onJoin={() => record('join')} />;

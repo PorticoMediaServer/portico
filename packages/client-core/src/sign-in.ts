@@ -5,7 +5,16 @@ import {API_LEVEL} from '../../contracts/src/api-level.ts';
 import type {SignInKind} from './app-sessions.ts';
 import {serverNow} from './server-clock.ts';
 
-export type ServerSignIn = Readonly<SystemInfo & {signIn: SignInKind}>;
+/** `GET /v1/system`'s optional `porticoOrigin`: the server's own published Portico HTTPS origin, sent
+ * while remote access is on and its certificate is ready (never taken from the request's Host). Not
+ * in the generated contract until its next regeneration, so read here as an optional extra. */
+export const SECURE_ADDRESS_FIELD = 'porticoOrigin';
+export type ServerSignIn = Readonly<SystemInfo & {signIn: SignInKind; secureAddress?: string}>;
+/** An HTTPS origin and nothing more, else undefined. */
+function secureOrigin(value: unknown): string | undefined {
+  if (!text(value, 512)) return undefined;
+  try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password && (url.pathname === '/' || url.pathname === '') && !url.search && !url.hash ? url.origin : undefined; } catch { return undefined; }
+}
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && v.length <= max && !/[\p{Cc}\p{Cf}]/u.test(v);
 /** Reads `GET /v1/system` (`System` in the generated contract). What this app must know is who
@@ -26,7 +35,8 @@ export function parseServerSignIn(raw: unknown, readsMove = false): ServerSignIn
   const move = readsMove && (raw.move === 'to_portico' && signIn === 'portico' || raw.move === 'to_local' && signIn === 'local') ? raw.move : null;
   const moveEndsAt = move === 'to_portico' && text(raw.moveEndsAt, 64) && Number.isFinite(Date.parse(raw.moveEndsAt)) ? raw.moveEndsAt : null;
   return Object.freeze({id: raw.id, name: raw.name, signIn, setupRequired: raw.setupRequired, move, moveEndsAt, hostedConfigured: false, hostedAttached: false, apiLevel: major, apiVersion: major + '.0', apiMajors: Object.freeze([major]), capabilities,
-    ...(text(raw.version, 256) ? {version: raw.version} : {})});
+    ...(text(raw.version, 256) ? {version: raw.version} : {}),
+    ...(signIn === 'portico' && secureOrigin(raw[SECURE_ADDRESS_FIELD]) ? {secureAddress: secureOrigin(raw[SECURE_ADDRESS_FIELD])} : {})});
 }
 /** Whole calendar days left to use the old sign-in during a move, counted on this device's
  * calendar: 0 when it ends today, 1 when it ends tomorrow. Undefined when nothing is offered. */
