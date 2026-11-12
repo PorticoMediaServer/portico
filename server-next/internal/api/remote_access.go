@@ -18,6 +18,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/discovery"
+	"github.com/PorticoMediaServer/portico/server-next/internal/dlna"
 	"github.com/PorticoMediaServer/portico/server-next/internal/portmap"
 	"github.com/PorticoMediaServer/portico/server-next/internal/publicaddr"
 	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
@@ -828,6 +829,12 @@ func (s *Server) requestAddress(r *http.Request, secure bool) string {
 // outsideRefusal is the refusal for a request from outside the home networks that the owner's
 // remote access settings do not allow, or nil. Requests from home are never refused here.
 func (s *Server) outsideRefusal(r *http.Request) *Error {
+	// DLNA has a home-only rule of its own and its own warning (see dlna.go): a TV behind a
+	// listed proxy that passes on no address is answered and warned about, never refused here
+	// (the owner's ruling, 10 November).
+	if strings.HasPrefix(r.URL.Path, dlna.Prefix) {
+		return nil
+	}
 	v, allowed := s.access.current()
 	finished := s.setupFinished()
 	if v.RemoteAccess == "on" && v.SecureConnections == "preferred" && s.access.security(v, allowed, finished, false).Active == "standard" {

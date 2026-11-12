@@ -211,3 +211,53 @@ func TestDLNA(t *testing.T) {
 		t.Errorf("with DLNA turned off a device at home was answered %d", w.Code)
 	}
 }
+
+// DLNA decides by its own home-only rule whatever the remote access settings say about
+// connections from outside: a TV behind a listed proxy that passes on no visitor's address is
+// answered and the owner warned, under Remote access Off, Secure connections Required and
+// Enhanced alike, while an unlisted proxy and a device away from home are still refused.
+func TestDLNABehindAListedProxyUnderEveryRemoteAccessSetting(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s).AccessToken
+	const home, away, proxy = "192.168.1.20", "198.51.100.9", "192.168.1.5"
+	homeList := []string{"192.168.1.0/24"}
+	if got := status(t, s, "PUT", "/v1/admin/settings/network", owner, NetworkSettingsEdit{HomeNetworks: &homeList, TrustedProxies: []string{proxy}}); got != 200 {
+		t.Fatalf("saving the home networks answered %d", got)
+	}
+	var v RemoteAccessSettings
+	call(t, s, "GET", "/v1/admin/settings/remote-access", owner, nil, &v)
+	v.DLNA = true
+	if got := status(t, s, "PUT", "/v1/admin/settings/remote-access", owner, RemoteAccessSave{RemoteAccessSettings: v}); got != 200 {
+		t.Fatalf("turning DLNA on answered %d", got)
+	}
+	const device = "/dlna/device.xml"
+	for _, c := range []struct {
+		what string
+		set  func(*RemoteAccessSettings)
+	}{
+		{"Remote access Off", func(v *RemoteAccessSettings) { v.RemoteAccess = "off" }},
+		{"Secure connections Required", func(v *RemoteAccessSettings) { v.RemoteSecurity, v.SecureConnections = "standard", "required" }},
+		{"Enhanced in force", func(v *RemoteAccessSettings) { v.AllowedAddresses = []string{"media.example.com"} }},
+	} {
+		// Put in force as a save would, without the owner's own connection being judged.
+		next := v
+		c.set(&next)
+		s.access.set(next, true)
+		// The setting does refuse an ordinary request that arrives the same way.
+		if w := dlnaCall(s, proxy, "GET", "/v1/system", "", nil); w.Code != 403 {
+			t.Fatalf("%s: an ordinary request through the proxy with no address answered %d, want 403", c.what, w.Code)
+		}
+		if w := dlnaCall(s, proxy, "GET", device, "", nil); w.Code != 200 {
+			t.Errorf("%s: a TV behind the listed proxy that passes on no address was answered %d, want 200", c.what, w.Code)
+		}
+		if warning := s.dlnaWarning(true); !strings.Contains(warning, "proxy at "+proxy+" ") {
+			t.Errorf("%s: the owner was not warned about the proxy: %q", c.what, warning)
+		}
+		if w := dlnaCall(s, home, "GET", device, "", map[string]string{"X-Forwarded-For": home}); w.Code != 404 {
+			t.Errorf("%s: a proxy the owner did not list was answered %d, want 404", c.what, w.Code)
+		}
+		if w := dlnaCall(s, away, "GET", device, "", nil); w.Code != 404 {
+			t.Errorf("%s: a device away from home was answered %d, want 404", c.what, w.Code)
+		}
+	}
+}
