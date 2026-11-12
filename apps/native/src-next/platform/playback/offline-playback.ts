@@ -102,10 +102,11 @@ export class NativeOfflinePlayback {
   }
   async prepare(entry: OfflineEntry, isCurrent: () => boolean): Promise<NativeOfflineSource> {
     const owner = this.owner(), claims = entry.receipt?.claims;
-    if (this.disposed || !owner || !claims || !text(entry.id) || !text(entry.itemId) || claims.itemId !== entry.itemId
-      || !text(claims.preparationId) || !/^[a-f0-9]{64}$/.test(claims.artifact.sha256)
-      || !Number.isSafeInteger(claims.artifact.bytes) || claims.artifact.bytes < 1) throw unavailable();
-    const artifact = Object.freeze({...claims.artifact}), preparationId = claims.preparationId;
+    const bytes = entry.downloadId ? entry.artifact : claims?.artifact;
+    const preparationId = entry.downloadId ? entry.id : claims?.preparationId;
+    if (this.disposed || !owner || !text(entry.id) || !text(entry.itemId) || !text(preparationId) || !bytes
+      || !/^[a-f0-9]{64}$/.test(bytes.sha256) || !Number.isSafeInteger(bytes.bytes) || bytes.bytes < 1) throw unavailable();
+    const artifact = Object.freeze({...bytes});
     const currentEntry = (): OfflineEntry | undefined => {
       try {
       const currentOwner = this.owner();
@@ -113,9 +114,11 @@ export class NativeOfflinePlayback {
       const matches = this.device.getSnapshot().entries.filter(value => value.id === entry.id);
       if (matches.length !== 1) return;
       const live = matches[0]!, receipt = live.receipt?.claims;
-      if (!receipt || live.itemId !== entry.itemId || receipt.itemId !== entry.itemId || receipt.preparationId !== preparationId
-        || receipt.artifact.sha256 !== artifact.sha256 || receipt.artifact.bytes !== artifact.bytes
-        || (['authority', 'serverId', 'accountId', 'profileId'] as const).some(key => receipt.viewer[key] !== owner[key])
+      const liveBytes = live.downloadId ? live.artifact : receipt?.artifact;
+      if (live.itemId !== entry.itemId || (live.downloadId ? live.id : receipt?.preparationId) !== preparationId
+        || live.downloadId !== entry.downloadId || liveBytes?.sha256 !== artifact.sha256 || liveBytes.bytes !== artifact.bytes
+        || (live.downloadId ? live.owner !== JSON.stringify([owner.authority, owner.accountId, owner.profileId, owner.serverId])
+          : !receipt || receipt.itemId !== entry.itemId || (['authority', 'serverId', 'accountId', 'profileId'] as const).some(key => receipt.viewer[key] !== owner[key]))
         || this.device.playabilityReason(live) !== null) return;
       return live;
       } catch {return undefined;}

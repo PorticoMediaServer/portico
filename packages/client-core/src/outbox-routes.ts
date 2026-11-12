@@ -15,7 +15,7 @@ const kinds = {
     'put_saved_pins_order', 'put_saved_pins_kind_id'],
   stop: ['stop_playback_session'],
 } as const;
-export type OutboxKind = keyof typeof kinds | 'settings';
+export type OutboxKind = keyof typeof kinds | 'settings' | 'download';
 const kindOf = new Map<string, OutboxKind>(Object.entries(kinds).flatMap(([kind, ids]) => ids.map(id => [id, kind as OutboxKind] as const)));
 /** A person's own state on a title: watched, favourite, My List, rating, hidden and position, on the one route that sets them. */
 const itemStateRoute: keyof Routes = 'PUT /v1/items/{id}/state';
@@ -23,8 +23,11 @@ const itemState = {kind: 'personal' as OutboxKind, method: 'PUT', parts: itemSta
 /** A profile's own settings: the server keeps the last save. */
 const settingsRoute: keyof Routes = 'PATCH /v1/preferences';
 const settings = {kind: 'settings' as OutboxKind, method: 'PATCH', parts: settingsRoute.slice(settingsRoute.indexOf(' ') + 1).split('/')};
-const outboxRoutes = [itemState, settings, ...routes.filter(route => kindOf.has(route.id)).map(route => ({kind: kindOf.get(route.id)!, method: route.method, parts: route.path.split('/')}))];
-if (outboxRoutes.length !== kindOf.size + 2) throw new Error('An outbox route is missing from the generated routes.');
+const downloadRoutes = (['POST /v1/downloads', 'DELETE /v1/downloads/{id}', 'DELETE /v1/downloads/{id}/items/{itemId}'] as const).map(route => ({kind: 'download' as OutboxKind, method: route.slice(0, route.indexOf(' ')), parts: route.slice(route.indexOf(' ') + 1).split('/')}));
+const playRouteName: keyof Routes = 'POST /v1/items/state:batch';
+const playRoute = {kind: 'personal' as OutboxKind, method: 'POST', parts: playRouteName.slice(playRouteName.indexOf(' ') + 1).split('/')};
+const outboxRoutes = [itemState, settings, playRoute, ...downloadRoutes, ...routes.filter(route => kindOf.has(route.id)).map(route => ({kind: kindOf.get(route.id)!, method: route.method, parts: route.path.split('/')}))];
+if (outboxRoutes.length !== kindOf.size + 3 + downloadRoutes.length) throw new Error('An outbox route is missing from the generated routes.');
 
 /** Which kind of write this is, when the outbox carries it: the words for it differ, and a stop is never reported. */
 export function outboxKind(path: string, method: string): OutboxKind | undefined {
@@ -47,6 +50,11 @@ export const isOutboxRoute = (path: string, method: string): boolean => outboxKi
  */
 export function outboxBody(entry: Readonly<{path: string; method: string; body?: unknown; createdAt: number}>, now: number): unknown {
   const segments = entry.path.split('?')[0]!.split('/');
+  if (entry.method === 'POST' && segments.join('/') === playRoute.parts.join('/') && entry.body && typeof entry.body === 'object') {
+    const body = entry.body as {items?: unknown; plays?: unknown};
+    const age = (rows: unknown) => Array.isArray(rows) ? rows.map(row => ({...row, madeAgoMs: Math.max(0, Number(row.madeAgoMs) || 0) + Math.max(0, now - entry.createdAt)})) : rows;
+    return {...body, ...(body.items === undefined ? {} : {items: age(body.items)}), ...(body.plays === undefined ? {} : {plays: age(body.plays)})};
+  }
   const ordered = [itemState, settings].some(route => entry.method === route.method && segments.length === route.parts.length
     && route.parts.every((part, i) => part.startsWith('{') ? !!segments[i] : part === segments[i]));
   if (!ordered || typeof entry.body !== 'object' || entry.body === null) return entry.body;

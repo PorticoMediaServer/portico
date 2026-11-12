@@ -497,14 +497,16 @@ static NSString *PorticoSafeFileName(NSString *value) {
   if (!entry || [entry[@"state"] isEqual:@"ready"]) { [[NSFileManager defaultManager] removeItemAtURL:holding error:nil]; return; }
   [self retirePublicationGeneration:identifier];
   NSString *expected = [entry[@"sha256"] isKindOfClass:NSString.class] ? entry[@"sha256"] : @"";
-  NSString *actual = expected.length ? [self digestOf:holding] : @"";
-  if (expected.length && ![actual isEqualToString:expected.lowercaseString]) {
+  NSString *actual = [self digestOf:holding];
+  NSNumber *length = nil; [holding getResourceValue:&length forKey:NSURLFileSizeKey error:nil];
+  if (actual.length != 64 || ![length isEqualToNumber:entry[@"bytes"]] || (expected.length && ![actual isEqualToString:expected.lowercaseString])) {
     [[NSFileManager defaultManager] removeItemAtURL:holding error:nil];
     [[NSFileManager defaultManager] removeItemAtURL:[self resumeURLFor:identifier] error:nil];
     entry[@"state"] = @"failed"; entry[@"error"] = @"verification_failed"; entry[@"waiting"] = @"";
     [self saveManifest]; [self changed:identifier force:YES];
     return;
   }
+  entry[@"sha256"] = actual;
   NSURL *final = [[self directoryFor:identifier] URLByAppendingPathComponent:PorticoSafeFileName(entry[@"fileName"])];
   [[NSFileManager defaultManager] removeItemAtURL:final error:nil];
   if (![[NSFileManager defaultManager] moveItemAtURL:holding toURL:final error:nil]) {
@@ -654,8 +656,8 @@ static NSString *PorticoSafeFileName(NSString *value) {
   [self retirePublicationGeneration:identifier];
   // The bytes already fetched belong to one exact file.
   NSString *wanted = [request[@"sha256"] isKindOfClass:NSString.class] ? [request[@"sha256"] lowercaseString] : @"";
-  BOOL sameFile = wanted.length > 0 && [entry[@"sha256"] isKindOfClass:NSString.class] && [[entry[@"sha256"] lowercaseString] isEqual:wanted];
-  for (NSString *key in @[@"itemId", @"title", @"subtitle", @"quality", @"fileName", @"sha256", @"contentType", @"meta"]) if ([request[key] isKindOfClass:NSString.class]) entry[key] = request[key];
+  BOOL sameFile = wanted.length ? [entry[@"sha256"] isKindOfClass:NSString.class] && [[entry[@"sha256"] lowercaseString] isEqual:wanted] : [request[@"sourceId"] isKindOfClass:NSString.class] && [request[@"sourceId"] length] > 0 && [entry[@"sourceId"] isEqual:request[@"sourceId"]] && [entry[@"bytes"] isEqual:request[@"bytes"]];
+  for (NSString *key in @[@"itemId", @"title", @"subtitle", @"quality", @"fileName", @"sha256", @"sourceId", @"contentType", @"meta"]) if ([request[key] isKindOfClass:NSString.class]) entry[key] = request[key];
   entry[@"id"] = identifier;
   entry[@"bytes"] = [request[@"bytes"] isKindOfClass:NSNumber.class] ? request[@"bytes"] : @0;
   entry[@"state"] = @"downloading"; entry[@"error"] = @""; entry[@"waiting"] = @""; entry[@"intent"] = @"run";
