@@ -393,11 +393,14 @@ jobs:
     if: ${{ !cancelled() }}
     needs: [planner, hygiene, server_next, go_build, go_vet_cross, go_tests, decoder_sandbox, js, js_static, android]
     runs-on: ubuntu-24.04
-    timeout-minutes: 2
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+          fetch-depth: 1
+          sparse-checkout: ci/
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: selection
