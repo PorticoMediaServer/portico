@@ -280,6 +280,12 @@ func TestAScannedFilmPlaysAsItIsAndConverted(t *testing.T) {
 		second.URL == first.URL || !strings.HasSuffix(second.URL, "/master.m3u8") {
 		t.Fatalf("a lower quality should be a conversion at a new address: %+v", second)
 	}
+	// Now playing says what it converts to as the quality is named, not the picture's own size.
+	var playing api.Page[api.NowPlaying]
+	h.call("GET", "/v1/admin/sessions", nil, &playing, 200)
+	if len(playing.Items) != 1 || playing.Items[0].ConvertingToHeight != 240 {
+		t.Fatalf("Now playing of the 240p conversion: %+v", playing.Items)
+	}
 	if code, _, _ = h.media(first.URL); code != http.StatusNotFound {
 		t.Fatalf("the replaced address answered %d", code)
 	}

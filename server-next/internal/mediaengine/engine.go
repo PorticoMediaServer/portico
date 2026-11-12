@@ -595,6 +595,9 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		if plan.ToneMap {
 			out.HDR = &playback.HDR{ToneMapped: true}
 		}
+		if plan.VideoAction == "convert" {
+			out.ConvertingToHeight = plan.TargetHeight
+		}
 	}
 	// Every text subtitle of the version is served beside the stream as WebVTT, whichever
 	// way the title plays, so changing subtitles never interrupts it. The chosen one is in

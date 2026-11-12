@@ -2,7 +2,6 @@ package api
 
 import (
 	"cmp"
-	"encoding/json"
 	"net/http"
 	"slices"
 	"strconv"
@@ -34,8 +33,8 @@ type NowPlaying struct {
 	ShowTitle     string `json:"showTitle,omitempty"`
 	SeasonNumber  *int   `json:"seasonNumber,omitempty"`
 	EpisodeNumber *int   `json:"episodeNumber,omitempty"`
-	// ConvertingToHeight is the height of the picture the stream is converted to, while its
-	// picture is converted: "Converting to 1080p".
+	// ConvertingToHeight, while the picture is converted, is the height of the quality it is
+	// converted to as the settings name it: "Converting to 1080p".
 	ConvertingToHeight int `json:"convertingToHeight,omitempty"`
 	// Username, then Profile when its name differs, then DeviceName name the person.
 	Username   string `json:"username"`
@@ -151,7 +150,7 @@ func (s *Server) nowPlaying(r *http.Request, _ None) (Page[NowPlaying], error) {
 				}
 			}
 		}
-		item.ConvertingToHeight = convertedHeight(v.Plan.PlaybackInfo)
+		item.ConvertingToHeight = v.Plan.ConvertingToHeight
 		out.Items = append(out.Items, item)
 	}
 	channels, err := s.nowWatchingLive(r)
@@ -162,25 +161,6 @@ func (s *Server) nowPlaying(r *http.Request, _ None) (Page[NowPlaying], error) {
 	// start first among them, after the titles' own order.
 	out.Items = append(out.Items, channels...)
 	return out, nil
-}
-
-// convertedHeight is the height of the picture a stream delivers when its picture is
-// converted, as the plan in force says (its PlaybackInfo), or 0.
-func convertedHeight(info json.RawMessage) int {
-	var plan struct {
-		Routes struct {
-			Picture string `json:"picture"`
-		} `json:"routes"`
-		Delivered struct {
-			Video *struct {
-				Height int `json:"height"`
-			} `json:"video"`
-		} `json:"delivered"`
-	}
-	if len(info) == 0 || json.Unmarshal(info, &plan) != nil || plan.Routes.Picture != "converted" || plan.Delivered.Video == nil {
-		return 0
-	}
-	return plan.Delivered.Video.Height
 }
 
 func btoi(b bool) int {

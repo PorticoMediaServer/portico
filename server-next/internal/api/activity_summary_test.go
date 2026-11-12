@@ -1,12 +1,9 @@
 package api
 
 import (
-	"encoding/json"
 	"slices"
 	"testing"
 	"time"
-
-	"github.com/PorticoMediaServer/portico/server-next/internal/streaming"
 )
 
 // The owner's activity popover: every stream counted, the three newest shown in Now playing's
@@ -69,27 +66,5 @@ func TestNowPlayingNamesAnEpisodesShowAndNumbers(t *testing.T) {
 	if got.ID != session.ID || got.ShowTitle != "Dark" || got.ShowID == "" || got.SeasonNumber == nil || *got.SeasonNumber != 1 ||
 		got.EpisodeNumber == nil || *got.EpisodeNumber != 2 {
 		t.Errorf("the episode reads %+v", got)
-	}
-}
-
-// The height a converted stream is converted to is read from the plan's own PlaybackInfo, in
-// the shape the streaming plan writes it; a stream whose picture is not converted has none.
-func TestConvertingToHeightIsTheConvertedPictures(t *testing.T) {
-	info := func(route string, height int) json.RawMessage {
-		raw, err := json.Marshal(streaming.PlaybackInfo{Routes: streaming.PlaybackRoutes{Picture: route},
-			Delivered: streaming.PlaybackMediaFacts{Video: &streaming.PlaybackPictureFacts{Height: height}}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return raw
-	}
-	if got := convertedHeight(info("converted", 1080)); got != 1080 {
-		t.Errorf("a converted picture of 1080 lines reads %d", got)
-	}
-	if got := convertedHeight(info("original", 2160)); got != 0 {
-		t.Errorf("a picture sent as it is reads %d", got)
-	}
-	if got := convertedHeight(nil); got != 0 {
-		t.Errorf("no plan reads %d", got)
 	}
 }

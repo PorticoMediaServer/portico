@@ -6,6 +6,7 @@ import (
 	"io"
 	"path"
 	"runtime"
+	"slices"
 	"sync"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -75,12 +76,27 @@ func (r *run) probe() error {
 		// Up to four files are read at once: each read is a confined tool at low priority, so
 		// it gives way to playback, and one at a time would make a large library's first
 		// scan take several times as long.
-		r.stats.Current = files[0].Rel
-		if r.s.Progress != nil {
-			r.s.Progress(r.stats)
-		}
+		// The progress names the oldest file still being read: the one a scan that sits on
+		// one file is sitting on.
 		results := make([]*db.Probe, len(files))
 		var wg sync.WaitGroup
+		var reading sync.Mutex
+		var underWay []string // in the order they were taken up
+		taken := func(rel string, starts bool) {
+			reading.Lock()
+			defer reading.Unlock()
+			if starts {
+				underWay = append(underWay, rel)
+			} else if at := slices.Index(underWay, rel); at >= 0 {
+				underWay = slices.Delete(underWay, at, at+1)
+			}
+			if len(underWay) > 0 && r.stats.Current != underWay[0] {
+				r.stats.Current = underWay[0]
+				if r.s.Progress != nil {
+					r.s.Progress(r.stats)
+				}
+			}
+		}
 		slots := make(chan struct{}, min(4, runtime.NumCPU()))
 		for i, file := range files {
 			after = file.ID
@@ -90,9 +106,10 @@ func (r *run) probe() error {
 				continue
 			}
 			slots <- struct{}{}
+			taken(file.Rel, true)
 			wg.Add(1)
 			go func() {
-				defer func() { <-slots; wg.Done() }()
+				defer func() { taken(file.Rel, false); <-slots; wg.Done() }()
 				results[i] = r.probeFile(file, src, local)
 			}()
 		}
