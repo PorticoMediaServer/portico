@@ -87,12 +87,22 @@ export class NativeSavedViewDestination {
     }
     this.retire(); const generation = ++this.generation;
     const live = () => this.current() && generation === this.generation;
+    const isLive = () => live(), headers = this.options.api as Required<SavedApi>;
+    const cancelled = () => Object.assign(new Error('native_saved_view_cancelled'), {code: 'cancelled'});
     const api: SavedApi = {request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
       if (!live() || signal?.aborted) throw Object.assign(new Error('native_saved_view_cancelled'), {code: 'cancelled'});
       const result = await this.options.api.request<T>(path, method, body, signal);
       if (!live() || signal?.aborted) throw Object.assign(new Error('native_saved_view_cancelled'), {code: 'cancelled'});
       return result;
-    }};
+    },
+    // List changes name the list's revision and their own key in headers, so the header-sending transport passes
+    // through with the same currentness checks.
+    ...(this.options.api.requestRaw ? {requestRaw: async (path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', options?: Parameters<NonNullable<SavedApi['requestRaw']>>[2]) => {
+      if (!isLive()) throw cancelled();
+      const result = await headers.requestRaw(path, method, options);
+      if (!isLive()) throw cancelled();
+      return result;
+    }} : {})};
     if (isPersonalSavedRoute(route)) this.personal = new PersonalSavedService(api, this.options.scope, this.options.requestId);
     else this.saved = new SavedService({api, scope: this.options.scope, requestId: this.options.requestId});
     const service = this.personal ?? this.saved!;

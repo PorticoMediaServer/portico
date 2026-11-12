@@ -4,37 +4,9 @@ import assert from 'node:assert/strict';
 import {SavedService} from '../src/saved.ts';
 import {readPlaylistOrder, readShareCandidates, sendPlaylistCommand} from '../src/saved-next.ts';
 
+import {nextSavedServer as server} from './fixtures/next-saved-server.ts';
+
 const scope = {serverId: 'server', viewerId: '["local","account","profile"]'};
-type Call = {path: string; method: string; body?: any; headers?: Record<string, string>};
-const title = (id: string, extra: Record<string, unknown> = {}) => ({id, kind: 'movie', title: 'Title ' + id, libraryId: 'films', ...extra});
-const list = (extra: Record<string, unknown> = {}) => ({id: 'pl', kind: 'playlist', name: 'Road trip', description: 'For the car', owner: {id: 'me', name: 'Sam'}, role: 'owner', count: 3, covers: [], revision: '7',
-  createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-02T00:00:00Z', ...extra});
-/** A rebuilt server: My List, a playlist of three entries, its shares, and every edit recorded. */
-function server(answers: Partial<Record<string, (call: Call, url: URL) => unknown>> = {}) {
-  const calls: Call[] = [];
-  const answer = (call: Call) => {
-    const url = new URL(call.path, 'https://x'), key = call.method + ' ' + url.pathname;
-    if (answers[key]) return answers[key]!(call, url);
-    if (key === 'GET /v1/items' && url.searchParams.get('limit') === '1' && url.searchParams.get('total') === 'true') return {items: [], total: 5};
-    if (key === 'GET /v1/items' && url.searchParams.get('list') === 'pl') {
-      const all = [title('a', {entryId: 'e1'}), title('b', {entryId: 'e2'}), title('a', {entryId: 'e3'})];
-      return {items: url.searchParams.get('order') === 'desc' ? [all[2]] : all, total: 3};
-    }
-    if (key === 'GET /v1/items') return {items: [title('one'), title('two')], total: 2};
-    if (key === 'GET /v1/lists/pl') return list();
-    if (key === 'GET /v1/lists/pl/shares') return {shares: [{profileId: 'kid', name: 'Kid', person: 'Sam', canEdit: false}], people: [{profileId: 'kid', name: 'Kid'}, {profileId: 'gran', name: 'Gran', person: 'Gran'}]};
-    if (key === 'GET /v1/lists') return {items: [list(), list({id: 'theirs', role: 'viewer', name: 'Shared'})]};
-    return list({revision: '8'});
-  };
-  const api = {
-    request: async <T>(path: string, method = 'GET', body?: unknown): Promise<T> => {const call = {path, method, body}; calls.push(call); return answer(call) as T;},
-    requestRaw: async (path: string, method: string, options: {headers?: Record<string, string>; body?: unknown} = {}) => {
-      const call = {path, method, body: options.body, headers: options.headers}; calls.push(call);
-      return {status: 200, headers: {}, body: answer(call)};
-    },
-  };
-  return {api, calls};
-}
 const service = (api: unknown) => new SavedService({scope, api: api as never, requestId: async () => '00000000-0000-4000-8000-000000000001', timeoutMs: 1000});
 
 test('My List is read from the rebuilt server with real filter and shape counts, and its page passes the Saved checks', async () => {
@@ -77,6 +49,21 @@ test('an edit names the list\'s revision, and one on an out-of-date copy is refu
   assert.deepEqual(s.calls.at(-1), {path: '/v1/lists/pl', method: 'PATCH', body: {name: 'Long drive'}, headers: {'If-Match': '"7"'}});
   const stale = {request: s.api.request, requestRaw: async () => ({status: 412, headers: {}, body: {error: {code: 'list_changed', message: 'This list changed. Reload and try again.'}}})};
   await assert.rejects(sendPlaylistCommand(stale, scope, {action: 'delete'}, {playlistId: 'pl', revision: 6}, 'op'), {code: 'list_changed', status: 412});
+});
+
+test('an edit through a transport that cannot send headers is refused before anything is sent', async () => {
+  // The Saved screens wrap the app's transport; a wrapper that dropped `requestRaw` must not let an edit go without the
+  // list's revision, where an edit on an out-of-date copy would overwrite.
+  const sent: {path: string; method: string; body: unknown}[] = [];
+  const withoutHeaders = {request: async <T>(path: string, method = 'GET', body?: unknown): Promise<T> => {
+    sent.push({path, method, body});
+    return {id: 'pl', kind: 'playlist', name: 'Long drive', role: 'owner', count: 0, covers: [], revision: '8'} as T;
+  }};
+  await assert.rejects(sendPlaylistCommand(withoutHeaders, scope, {action: 'rename', name: 'Long drive'}, {playlistId: 'pl', revision: 7}, 'op'), {code: 'saved_unsupported'});
+  assert.deepEqual(sent, [], 'nothing may be sent without the revision');
+  const s = server();
+  await assert.rejects(sendPlaylistCommand(s.api, scope, {action: 'rename', name: 'Long drive'}, {playlistId: 'pl'}, 'op'), {code: 'list_changed'}, 'an edit with no revision to name');
+  assert.deepEqual(s.calls, []);
 });
 
 test('removing an entry offers an Undo that puts its title back after the entry in front of it', async () => {

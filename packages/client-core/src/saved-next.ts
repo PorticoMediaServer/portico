@@ -16,8 +16,9 @@ import type {SavedIntent, SavedRoute, SavedScope} from './saved.ts';
 type ListRoute = Exclude<SavedRoute, {view: 'playlist'}>;
 type PlaylistRoute = Extract<SavedRoute, {view: 'playlist'}>;
 
-/** A transport that can also send per-request headers (`HttpLocalApi.requestRaw`): If-Match on list edits. */
-export type SavedNextApi = ServerRequester & Partial<Readonly<{requestRaw(path: string, method: string, options?: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>): Promise<{status: number; headers: Record<string, string>; body?: unknown}>}>>;
+/** A transport that can also send per-request headers (`HttpLocalApi.requestRaw`). Every list change needs it:
+ * If-Match on an edit, Idempotency-Key on an addition. */
+export type SavedNextApi = ServerRequester & Partial<Readonly<{requestRaw(path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', options?: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>): Promise<{status: number; headers: Record<string, string>; body?: unknown}>}>>;
 
 const PAGE = 40;
 /** The kinds each Saved shape draws: squares are music, posters everything else. */
@@ -144,16 +145,25 @@ export async function readShareCandidates(api: SavedNextApi, playlistId: string,
     .map(person => ({id: person.profileId, authority: 'local', accountId: person.profileId, profileId: person.profileId, displayName: person.name ?? person.person ?? ''}))};
 }
 
-/** An edit that names the list's revision: refused with 412 `list_changed` when the list moved on (area 6 rule 34).
- * Without a transport that sends headers the edit goes without it, and the later edit wins. */
-async function edit<T>(api: SavedNextApi, path: string, method: 'PATCH' | 'PUT' | 'DELETE', revision: number | undefined, body: unknown, signal?: AbortSignal): Promise<T> {
-  if (!api.requestRaw || revision === undefined) return api.request<T>(path, method, body, signal);
-  const answer = await api.requestRaw(path, method, {headers: {'If-Match': `"${revision}"`}, body, signal});
+const unsupported = (): never => {throw new CodedError('saved_unsupported', 'This app cannot send list changes safely.');};
+/** A change sent with its own headers. Saved changes need them (If-Match, Idempotency-Key), so a transport that cannot
+ * send headers is refused before anything is sent: a change must never go without them and overwrite or repeat. */
+async function sendRaw<T>(api: SavedNextApi, path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', headers: Readonly<Record<string, string>>, body: unknown, signal?: AbortSignal): Promise<T> {
+  if (!api.requestRaw) return unsupported();
+  const answer = await api.requestRaw(path, method, {headers, body, signal});
   if (answer.status >= 400) {
-    const error = (answer.body as {error?: {code?: string; message?: string}} | undefined)?.error;
-    throw Object.assign(new Error(error?.message ?? 'This list changed. Reload and try again.'), {status: answer.status, code: error?.code ?? (answer.status === 412 ? 'list_changed' : 'request_failed'), retryable: false});
+    const error = (answer.body as {error?: {code?: string; message?: string; retryable?: boolean}} | undefined)?.error;
+    throw Object.assign(new Error(error?.message ?? (answer.status === 412 ? 'This list changed. Reload and try again.' : 'The list could not be changed.')),
+      {status: answer.status, code: error?.code ?? (answer.status === 412 ? 'list_changed' : 'request_failed'), retryable: error?.retryable ?? answer.status >= 500});
   }
   return answer.body as T;
+}
+/** An edit that names the list's revision: refused with 412 `list_changed` when the list moved on (area 6 rule 34).
+ * An edit with no revision to name is refused here, as an out-of-date copy would be. */
+async function edit<T>(api: SavedNextApi, path: string, method: 'PATCH' | 'PUT' | 'DELETE', revision: number | undefined, body: unknown, signal?: AbortSignal): Promise<T> {
+  if (!api.requestRaw) return unsupported();
+  if (revision === undefined) throw Object.assign(new CodedError('list_changed', 'This list changed. Reload and try again.'), {status: 412});
+  return sendRaw<T>(api, path, method, {'If-Match': `"${revision}"`}, body, signal);
 }
 
 /** An Undo of a removal: the title, and the entry it came after (empty at the front). */

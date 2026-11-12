@@ -9,6 +9,7 @@ import {SavedOperations} from './operations.ts';
 import {SavedReadyDownloads, type SaveReadyPreparation} from './ready-downloads.ts';
 import {SavedSummary} from './summary.ts';
 
+type RawOptions = Parameters<NonNullable<SavedApi['requestRaw']>>[2];
 export type SavedScreenRoute = SavedRoute | Readonly<{view: 'downloads'}> | Readonly<{view: 'home'}>;
 /** The web's home route is the directory; its canonical My List is the only read it
  * may make. `home` is a UI route and never reaches core by type. */
@@ -29,6 +30,7 @@ export function createSavedRuntime(input: Readonly<{api: SavedApi; scope: SavedD
   if (!['local', 'hosted'].includes(input.scope.authority) || [input.scope.serverId, input.scope.accountId, input.scope.profileId, input.scope.sessionFamilyId].some(value => typeof value !== 'string' || !value || /[\u0000-\u001f\u007f]/.test(value))) throw new Error('Saved requires a complete captured viewer scope.');
   const scope = Object.freeze({...input.scope}), operations = new SavedOperations(input.isCurrent), controllers = new Set<AbortController>();
   const abort = () => new DOMException('Saved authority is no longer current.', 'AbortError');
+  const valid = () => operations.current, headers = input.api as Required<SavedApi>;
   const api: SavedApi = {
     async request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> {
       if (!operations.current || signal?.aborted) throw abort();
@@ -41,6 +43,14 @@ export function createSavedRuntime(input: Readonly<{api: SavedApi; scope: SavedD
         return result;
       } finally { signal?.removeEventListener('abort', stop); controllers.delete(controller); }
     },
+    // List changes name the list's revision and their own key in headers, so the header-sending transport passes
+    // through, refused once this lifetime ends.
+    ...(input.api.requestRaw ? {async requestRaw(path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', options?: RawOptions) {
+      if (!valid()) throw new DOMException('Saved authority is no longer current.', 'AbortError');
+      const result = await headers.requestRaw(path, method, options);
+      if (!valid()) throw new DOMException('Saved authority is no longer current.', 'AbortError');
+      return result;
+    }} : {}),
   };
   const serverScope = Object.freeze({serverId: scope.serverId, viewerId: JSON.stringify([scope.authority, scope.accountId, scope.profileId, scope.sessionFamilyId])});
   const makeSaved = () => new SavedService({api, scope: serverScope, requestId: async () => randomId()});

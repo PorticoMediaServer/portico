@@ -10,7 +10,12 @@ import {firstOfEach, keepReadable, noteSkipped, oneOfOr} from './tolerant.ts';
 import type {ContentEntry, ContentHeading, ContentProjection} from './library-content.ts';
 export type SavedScope = Readonly<{ serverId: string; viewerId: string }>;
 export interface SavedApi {
- request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> }
+ request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>;
+ /** Any status, with headers: how a list change names the list's revision (If-Match) and its own key
+  * (Idempotency-Key). Only changes go this way. Saved refuses to change a list through a transport without it, so a
+  * screen's wrapper must pass it through. */
+ requestRaw?(path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', options?: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>): Promise<{status: number; headers: Record<string, string>; body?: unknown}>;
+}
 export type SavedShape = 'posters' | 'squares';
 export type SavedShapeCounts = Readonly<{posters:number;squares:number}>;
 export type SavedListFilter = 'all' | 'unwatched' | 'inProgress' | 'watched' | 'favorites';
