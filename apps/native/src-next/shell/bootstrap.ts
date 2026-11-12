@@ -27,7 +27,7 @@ import type {HttpLocalApi, LocalSession, Library} from '../../../../packages/cli
 import {beginRestoreTrace, markRestore} from './restore-trace';
 import {noteHomeRead} from './home-read-log';
 import {trackNativeConnection} from '../platform/server-connections';
-import {NativeProfileGated, nativeProfileGated, type NativeConnected} from '../platform/session-lifecycle-native';
+import {NativeProfileGated, nativeProfileGated, renewalMovedProfile, type NativeConnected} from '../platform/session-lifecycle-native';
 import {nativeRememberedProfile, nativeSessionLifecycle} from '../platform/native-session-lifecycle';
 import {nativeManageGate, nativeManageRefused} from '../platform/manage-gate';
 import {beginNativeInstallation} from '../platform/installation';
@@ -417,7 +417,8 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     publish();
     cleanups.push(context.subscribePreferences(publish));
     refresher = new LocalSessionRefresher({env, api: local, session, onRotated: renewed => {
-      if (!current() || !sameViewer(session!, renewed)) {end(); return;}
+      // Another profile of this same sign-in (desk B on #3018): the old profile's screens end and Who's watching opens.
+      if (!current() || !sameViewer(session!, renewed)) {end(current() && renewalMovedProfile(session!, renewed) ? new NativeProfileGated() : undefined); return;}
       ownTokens.add(renewed.accessToken);
       local.setOutboxSession(renewed);
       if (renewed.viewer.role !== session!.viewer.role) {session = renewed; rebuild(); return;}

@@ -574,6 +574,22 @@ test('a renewal on another profile of the same account is adopted and stored: a 
   assert.equal(store.peek()?.session.tokenGeneration, '2');
 });
 
+test('a running app renewing onto another profile is handed that profile, so its shell can end the old one (desk B on #3018)', async t => {
+  // The web shell restarts on it and its launch gate opens Who's watching (web/src/shell/bootstrap.ts, tabAdmits); the
+  // native shell ends as a PIN changed elsewhere (apps/native/src-next/shell/bootstrap.ts, renewalMovedProfile).
+  const {server, store, timers, events, tab} = setup(t);
+  const {refresher} = tab();
+  server.refreshAnswers.push(() => new Response(JSON.stringify({...server.envelope('access_1', 'refresh_000000000002', 2),
+    accessToken: 'access_2', expiresAt: iso(clock + 15 * MIN), viewer: {...viewer, profileId: 'kids'}}), {headers: {'Content-Type': 'application/json'}}));
+  timers.advance(13 * MIN + 1);
+  await settle();
+  assert.equal(events.rotated.length, 1);
+  assert.equal(events.rotated[0]!.viewer.profileId, 'kids');
+  assert.equal(store.peek()?.session.viewer.profileId, 'kids');
+  assert.deepEqual(events.signedOut, []);
+  refresher.stop();
+});
+
 test('a renewal for another account is still refused and changes nothing', async t => {
   const {server, store, env} = setup(t);
   const answer = server.envelope('access_1', 'refresh_000000000002', 2);
