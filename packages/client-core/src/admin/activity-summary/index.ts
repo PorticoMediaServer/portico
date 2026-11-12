@@ -1,5 +1,5 @@
 export {ActivitySummaryContractError, parseActivitySummary,parseDashboardSessions} from './parser.ts';
-export {ActivitySummaryService,DashboardSessionsService,ACTIVITY_OPEN_READ_MS,ACTIVITY_GLANCE_READ_MS} from './service.ts';
+export {ActivitySummaryService,DashboardSessionsService,ACTIVITY_FALLBACK_READ_MS} from './service.ts';
 export type {OwnerActivitySummary,ActivitySummaryAlert,DashboardSessionsPage,DashboardSessionsSnapshot, ActivitySummarySession, ActivitySummaryScan, ActivitySummaryTask, ActivitySummaryScope, ActivitySummarySource, ActivitySummarySourceStore, ActivitySummaryErrorCode, ActivitySummarySnapshot, ActivitySummaryTimers} from './types.ts';
 
 import type {MessageId,MessageValues} from '../../../../i18n/src/index.ts';

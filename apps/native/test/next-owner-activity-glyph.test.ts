@@ -37,7 +37,7 @@ const appState = {
 
 async function ownerActivity() {
   return screenModule(new URL('../src-next/shell/owner-activity.ts', import.meta.url), {
-    react: {default: {}}, 'react-native': {AppState: appState}, '../../../../packages/client-core/src/admin/activity-summary': {ActivitySummaryService: FakeService, ACTIVITY_GLANCE_READ_MS: 30_000},
+    react: {default: {}}, 'react-native': {AppState: appState}, '../../../../packages/client-core/src/admin/activity-summary': {ActivitySummaryService: FakeService, ACTIVITY_FALLBACK_READ_MS: 30_000},
     '../../../../packages/client-core/src/playback-v1/local-http': {localV1Http: (api: unknown) => ({send() {}, api})},
     './freshness': {viewerQueriesFor: () => ({queries: true})},
   });

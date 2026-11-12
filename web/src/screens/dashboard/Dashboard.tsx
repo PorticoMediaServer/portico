@@ -49,9 +49,10 @@ function DashboardView({bindings: b, embedded = false, initialSection, phone = f
   const current = useDashboardAuthority(b);
   const ref = useRef<HTMLDivElement>(null), allowed = current && b.isMainProfile() && (b.role === 'owner' || b.role === 'admin');
   const statusLoad = useCallback((signal: AbortSignal, fresh: boolean) => b.read.status(signal, fresh), [b]);
-  const status = useDashboardRead(b, statusLoad, allowed && b.role === 'owner', 10000);
+  // Now playing and the status follow the server's activity change (admin.sessions); a slow timer only while the feed is down.
+  const status = useDashboardRead(b, statusLoad, allowed && b.role === 'owner', 30000, undefined, true);
   const sessionsLoad = useCallback((signal: AbortSignal) => readNowPlaying(b, signal), [b]);
-  const sessions = useDashboardRead(b, sessionsLoad, allowed, 10000);
+  const sessions = useDashboardRead(b, sessionsLoad, allowed, 30000, undefined, true);
   const liveLoad = useCallback((signal: AbortSignal) => b.read.telemetry('live', signal), [b]);
   const live = useDashboardRead(b, liveLoad, onServer.load && allowed && b.role === 'owner' && !phone, 2000);
   const [healthRange, setHealthRange] = useState<'10m' | '1h' | '24h'>('1h');

@@ -7,7 +7,9 @@ const accountChanges = ['playback.history', 'stream.resync'];
 /** One read in flight, cancellation and identity fence on every completion. Events coalesce.
  * Layout cleanup withdraws the original loader before a new range/owner commits;
  * a held old response cannot publish or report through the passive-cleanup gap. */
-export function useDashboardRead<T>(bindings: DashboardBindings, load: (signal: AbortSignal, fresh: boolean) => Promise<T>, enabled: boolean, everyMs = 0, changes: readonly string[] = defaultChanges) {
+/** `everyMs` reads again on a timer; with `fallback`, only while the change feed is not connected (a section the server's
+ * changes keep current, such as Now playing and the status on `admin.sessions`). */
+export function useDashboardRead<T>(bindings: DashboardBindings, load: (signal: AbortSignal, fresh: boolean) => Promise<T>, enabled: boolean, everyMs = 0, changes: readonly string[] = defaultChanges, fallback = false) {
   const [version, setVersion] = useState(0), [state, setState] = useState<ReadState<T> & {loader?: typeof load}>({loading: true, failed: false});
   // A refresh follows an action (Fix permissions, Retry): its read asks the server, never the held copy from before the action.
   const forced = useRef(false);
@@ -38,9 +40,9 @@ export function useDashboardRead<T>(bindings: DashboardBindings, load: (signal: 
     offs.push(recovery ? () => recovery.dispose() : bindings.events?.onResync?.(update));
     const visibility = () => {recovery?.setOpen(!document.hidden); update();};
     document.addEventListener('visibilitychange', visibility);
-    const timer = everyMs ? setInterval(update, everyMs) : undefined; update();
+    const timer = everyMs ? setInterval(() => {if (!fallback || bindings.events?.getStatus?.().connected !== true) update();}, everyMs) : undefined; update();
     return () => {controller.abort(); if (timer) clearInterval(timer); offs.forEach(off => off?.()); document.removeEventListener('visibilitychange', visibility);};
-  }, [bindings, load, enabled, everyMs, version, changes]);
+  }, [bindings, load, enabled, everyMs, version, changes, fallback]);
   return {...(state.loader === load ? state : {loading: true, failed: false}), refresh};
 }
 
