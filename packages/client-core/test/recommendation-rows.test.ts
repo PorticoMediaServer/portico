@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {defaultI18n} from '../../i18n/src/index.ts';
 import {homeRowHeading, isPersonalRowId, validateHomeRow} from '../src/home.ts';
 import {validateContentProjection as parseContentProjection} from '../src/library-content.ts';
-import {fetchShowRecommendations, moreLikeThisRow, titleRecommendationRows, validateItemRecommendations} from '../src/recommendations.ts';
+import {fetchItemRecommendations, fetchShowRecommendations, moreLikeThisRow, titleRecommendationRows, validateItemRecommendations} from '../src/recommendations.ts';
 import {serverTextLabel} from '../src/presentation/server-text.ts';
 import {HomeRowPager} from '../src/home-row-page.ts';
 
@@ -81,16 +81,26 @@ test('a title page shows every row the endpoint returned, in its order', () => {
   assert.deepEqual(titleRecommendationRows(null), []);
 });
 
-test('a show page reads its own rows', async () => {
+test('a title page reads More like this from the server\'s related titles, for a film and for a show', async () => {
+  const film = (id: string) => ({id, kind: 'movie', title: `Film ${id}`});
   const paths: string[] = [];
-  const api = {request: async <T>(path: string) => { paths.push(path); return {showId: 's 1', revision: {catalog: 1, viewer: 1}, rows: [related('more_like')]} as T; }};
-  const recs = await fetchShowRecommendations(api, 's 1', 12);
-  assert.equal(paths[0], '/v1/shows/s%201/recommendations?limit=12');
-  assert.equal(recs.rows[0]!.relation, 'more_like');
-  const echo = {request: async <T>() => ({showId: 's1', revision: {catalog: 1, viewer: 1}, rows: [related('more_like', {entries: [entry('s1')]})]} as T)};
-  // The show itself is never one of its own recommendations: a row left with nothing is not shown.
-  assert.equal((await fetchShowRecommendations(echo, 's1')).rows.length, 0);
-  await assert.rejects(fetchShowRecommendations(echo, 'another'));
+  const api = {request: async <T>(path: string) => { paths.push(path); return {groups: [{relation: 'extra', items: [film('x1')]},
+    {relation: 'more_like_this', items: [film('m2'), film('m1'), film('m3'), {id: 'p1', kind: 'person-like-unknown', title: 'Not a card'}]}]} as T; }};
+  const recs = await fetchItemRecommendations(api, 'm1');
+  assert.equal(paths[0], '/v1/items/m1/related');
+  // The title itself and a kind the app has no card for are left out; the server's order is kept.
+  assert.deepEqual(titleRecommendationRows(recs).map(row => row.entries.map(entry => entry.id)), [['m2', 'm3']]);
+  assert.deepEqual(moreLikeThisRow(recs, 'More like this')?.entries.map(entry => entry.id), ['m2', 'm3']);
+  assert.equal((await fetchItemRecommendations(api, 'm1', 1)).rows[0]!.entries.length, 1);
+  // A show's page reads the same route, by the show's id.
+  const show = await fetchShowRecommendations(api, 's 1', 12);
+  assert.equal(paths.at(-1), '/v1/items/s%201/related');
+  assert.equal(show.showId, 's 1');
+  assert.equal(show.rows[0]!.relation, 'more_like');
+  // No group, or nothing left in it, is no row.
+  const none = {request: async <T>() => ({groups: [{relation: 'more_like_this', items: [film('only')]}]} as T)};
+  assert.deepEqual((await fetchItemRecommendations(none, 'only')).rows, []);
+  assert.deepEqual((await fetchItemRecommendations({request: async <T>() => ({groups: []} as T)}, 'm1')).rows, []);
 });
 
 test('See all pages the whole row and starts again on a stale cursor', async () => {
