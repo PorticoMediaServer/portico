@@ -194,14 +194,16 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     else if (topLayer?.startsWith('route:')) requestNativeFocus(routeLayer.current);
   };
   useEffect(() => theme.isTV ? provideTVPage({identity: () => pageIdentity.current, enter: () => enterPage.current()}) : undefined, [theme.isTV]);
-  /** A rail choice hands focus to the page it opened, once that page is the one on top. */
-  const enterNext = useRef(false), pageKey = pageIdentity.current;
+  /** F-RAIL: after a rail choice the new page's own entry takes focus (a library's first card). If focus is still on
+   * the closing rail once the entry has had its chance (Search's keyboard asks before its layer can take focus), it is
+   * handed to the page. A choice that changes no page expires rather than firing on a later, unrelated change. */
+  const enterNext = useRef(0), pageKey = pageIdentity.current;
   useEffect(() => {
-    if (!enterNext.current) return;
-    enterNext.current = false;
-    const frame = requestAnimationFrame(() => enterPage.current());
-    return () => cancelAnimationFrame(frame);
-  }, [pageKey]);
+    const chosen = enterNext.current; enterNext.current = 0;
+    if (!chosen || Date.now() - chosen > 2000) return;
+    const timer = setTimeout(() => {if (registry.capture()?.regionId === ids.rail) enterPage.current();}, 700);
+    return () => clearTimeout(timer);
+  }, [ids.rail, pageKey, registry]);
   const subscribeFocus = useCallback((listener: () => void) => {
     let previous = getFocusSnapshot();
     return registry.subscribe(() => {
@@ -375,8 +377,8 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   </>;
   const tvRail = theme.isTV ? <TVRail authority={snapshot.authority} returnTo={currentPageFocus} libraries={snapshot.libraries} hasLiveTV={snapshot.hasLiveTV} destination={snapshot.railDestination ?? destination} profile={snapshot.profile} unread={snapshot.unreadNotifications} dimmed={destination.kind === 'home' && snapshot.homeVisible && !snapshot.mediaExpanded && !!railDim && !railDim.retired} onNavigate={next => {
         if (snapshot.contentVisible !== false && sameDestination(next, destination)) {expanded(false); runtime.scrollToTop(destination); return;}
-        // F-RAIL: OK opens that page at its starting focus and the rail closes.
-        expanded(false); enterNext.current = true;
+        // F-RAIL: OK opens that page and the rail closes; the page's own entry takes focus (its starting focus).
+        expanded(false); enterNext.current = Date.now();
         if (next.kind === 'library') openLibrary(next.libraryId); else navigate(next);
       }}
       onProfile={() => setAccountOpen(true)} profileRef={avatarRef} onExpandedChange={expanded}/> : null;
