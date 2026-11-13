@@ -149,3 +149,8 @@ export function porticoAccountSessions(accessToken: string, origin: string, fetc
     endOthers: (signal?: AbortSignal) => refused(account.signOutOthers(signal)),
   });
 }
+
+/** An account read, used on return from the hosted reset page to reconcile this device's sign-in. */
+export function readPorticoAccount(accessToken: string, origin: string, fetcher: typeof fetch, signal: AbortSignal) {
+  return refused(porticoAccount(heldFor(accessToken), origin, {fetcher}).account(signal));
+}
