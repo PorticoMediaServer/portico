@@ -22,7 +22,7 @@ export function NativeEqualizerSettingsScreen({runtime, onBack}: {runtime: Nativ
       return t(accessible || frequency < 1000 ? 'next.media.eq.hz' : 'next.media.eq.khz', {frequency: accessible || frequency < 1000 ? frequency : frequency / 1000});
     },
   };
-  return <View style={{flex: 1}}><StandardBackdrop/>
+  return <View style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     <NativeWatchEqualizer store={nativeEqualizer} copy={copy} onBack={back} reportError={runtime.reportError}/>
   </View>;
 }

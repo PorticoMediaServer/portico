@@ -115,7 +115,7 @@ export function PersonScreen({focusScope, page, role, collection, groups, runtim
   </>;
   const rows = useMemo(() => Math.ceil((state.total ?? page.pageInfo.total) / columns), [columns, page.pageInfo.total, state.total]);
   if (theme.isTV) return <TVPerson focusScope={focusScope} page={page} role={role} collection={collection} groups={groups} runtime={runtime} actions={actions} selection={selection} onRole={onRole} onBack={onBack}/>;
-  return <View style={{flex: 1}} testID="native-person"><StandardBackdrop/>
+  return <View style={{flex: 1}} testID="native-person">{theme.isTV && <StandardBackdrop/>}
     <VirtualizedList data={collection} getItem={(_data, index) => index} getItemCount={() => rows} keyExtractor={index => String(index)} extraData={`${version()}:${selectionRevision}`}
       initialNumToRender={4} maxToRenderPerBatch={4} windowSize={5} ListHeaderComponent={header} onViewableItemsChanged={visible}
       contentContainerStyle={{paddingBottom: insets.bottom + 24}} renderItem={({item: row}: {item: number}) => <View style={{flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingBottom: 16}}>
@@ -180,7 +180,7 @@ export function TVPerson({focusScope, page, role, collection, groups, runtime, a
   const filtersChip = <Chip ref={filtersRef} focusId="person-role-filter" testID="person-role-filter" selected={role !== 'all'} onPress={() => setFilters(true)}>{t('next.browse.native.filters')}</Chip>;
   const filterItems: MenuEntry[] = ([['all', 'title.creditsAll'], ['cast', 'web.person.cast'], ['crew', 'web.person.crew']] as const).map(([value, label]) =>
     ({id: value, label: t(label), selected: role === value, onSelect: () => onRole(value)}));
-  return <View testID="native-person" style={{flex: 1}}><StandardBackdrop/>
+  return <View testID="native-person" style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     <View pointerEvents="none" style={{position: 'absolute', inset: 0, overflow: 'hidden'}}><AmbientArt source={runtime.ambient(known[0]?.backdropUrl || person.portraitUrl || known[0]?.posterUrl)} treatment="person"/></View>
     <ScrollView contentContainerStyle={{paddingLeft: 200, paddingRight: 96, paddingTop: 92, paddingBottom: 80}}>
       <View style={{flexDirection: 'row', alignItems: 'flex-start', gap: 60, minHeight: 284}}>

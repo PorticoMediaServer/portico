@@ -302,7 +302,7 @@ async function shellSession(state: ReturnType<typeof lifecycle>, runtime: Native
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
     '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => state.motion}, './model': shellModel,
     '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: 'CoveredLayer', CoveredSignal: ({children}: any) => children, useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds, sameDestination},
-    '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'}, '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/browse': {},
+    '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'}, '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../kit/browse': {},
     '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './PhoneTabBar': {PhoneTabBar: 'PhoneTabBar'}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}},
     './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './TVRail': {}, './TVProfileMenu': {}, './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {}, './DesktopHeader': {},
   });
@@ -456,7 +456,7 @@ async function driverShellSession(state: ReturnType<typeof lifecycle>, runtime: 
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
     '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => state.motion}, './model': shellModel,
     '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: 'CoveredLayer', CoveredSignal: ({children}: any) => children, useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds, sameDestination},
-    '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'}, '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/browse': {},
+    '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'}, '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, '../kit/browse': {},
     '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './PhoneTabBar': {PhoneTabBar: 'PhoneTabBar'}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}},
     './PhoneHomeHeader': {PhoneHomeHeader: 'PhoneHomeHeader'}, './TVRail': {}, './TVProfileMenu': {}, './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {}, './DesktopHeader': {},
   });

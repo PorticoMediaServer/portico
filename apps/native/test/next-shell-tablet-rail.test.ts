@@ -29,7 +29,7 @@ async function shell(width: number, height: number, top: unknown, railHeld?: boo
     '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'}, '../kit/dock/PlayerMorphBridge': {PlayerMorphProvider: 'PlayerMorphProvider', useInitialPlayerPagePaint: () => undefined},
     '../kit/dock/DockClearance': {DockClearanceProvider: 'DockClearanceProvider'},
     '../kit/dock/ListeningCoverBridge': {ListeningCoverProvider: 'ListeningCoverProvider', useListeningTabBarPaint: () => ({style: {}, measure() {}})},
-    '../kit/overlays/SurfacePaintHost': {SurfacePaintHost: 'SurfacePaintHost'}, '../kit/shell': {AccountMenu: 'AccountMenu'},
+    '../kit/overlays/SurfacePaintHost': {SurfacePaintHost: 'SurfacePaintHost'}, '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/artwork': {StandardBackdrop: 'AccountMenu'},
     '../kit/theme': {useTheme: () => ({isTV: false, colors: {ink: '#071018'}, layers: {navigation: 3, sticky: 4, player: 8}})},
     '../kit/useMotion': {useMotion: () => ({transforms: false})}, '../platform/menu-key': {}, '../platform/tv-menu': {useTVMenuCapture() {}},
     '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: 'CoveredLayer', CoveredSignal: ({children}: any) => children, useFocusRegistry: () => registry}, './tv-focus': {tvFocusIds: () => ({rail: 'rail'}), sameDestination: (a: unknown, b: unknown) => a === b},

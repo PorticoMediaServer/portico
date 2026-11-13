@@ -56,7 +56,7 @@ export function ReadPeriodicalScreen({controller, route, context, runtime, onBac
   const selected = periodicalHeroIssue(state, magazine), paddingTop = Math.max(96, insets.top + 56);
   const hero = <PeriodicalHero state={state} issue={selected} magazine={magazine} tablet={tablet} runtime={runtime} theme={theme} onOpen={open} offer={offer} actions={actions}/>;
   return <View testID={`native-read-periodical-${route.groupId}`} style={{flex: 1}}
-    onLayout={event => setPaneWidth(event.nativeEvent.layout.width)}><StandardBackdrop/>
+    onLayout={event => setPaneWidth(event.nativeEvent.layout.width)}>{theme.isTV && <StandardBackdrop/>}
     {tablet && runtime.ambient(selected?.item.coverUrl) ? <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 0, right: 0, height: 760, overflow: 'hidden'}}>
       <AmbientArt source={runtime.ambient(selected?.item.coverUrl)} treatment="title" style={{position: 'absolute', inset: 0}}/>
     </View> : null}

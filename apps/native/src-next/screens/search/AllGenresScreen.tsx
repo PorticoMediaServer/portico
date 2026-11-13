@@ -30,7 +30,7 @@ export function AllGenresScreen({focusScope, explore, runtime, visible, current,
     const start = Date.now(), timer = setTimeout(() => setElapsed(Math.max(300, Date.now() - start)), 300);
     return () => clearTimeout(timer);
   }, [state.phase]);
-  return <View testID="native-search-all-genres" style={{flex: 1}}><StandardBackdrop/>
+  return <View testID="native-search-all-genres" style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     <View style={{paddingTop: insets.top, marginBottom: 8}}>
       <View style={{height: 44, paddingHorizontal: 12, justifyContent: 'center'}}><Focusable testID="search-all-genres-back" accessibilityLabel={t('action.back')}
         onPress={onBack} style={{width: 38, height: 38, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-left" size={22} color={theme.colors.text}/></Focusable></View>

@@ -16,7 +16,7 @@ import {releaseSheet, resistSheet, sheetHeights} from './geometry';
 import {alpha, FocusBoundary, PanelBackground, SurfaceHeader, usePresence} from './surface';
 import type {BottomSheetProps, OverlayReason} from './types';
 
-export function BottomSheet({open, onOpenChange, title, description, children, footer, headerAction, headerContext, headerContent, initialFocusRef, returnFocusRef, restoreFocus = true, accessibilityLabel, testID, style, contentStyle, titleType, titleTextStyle, descriptionTextStyle, detents, width, detent, defaultDetent = 0, onDetentChange, dismissOnOutsidePress = true, dismissOnBack = true, dismissOnGesture = true, scrollable = true, showClose = true, showGrabber = true, fitContent = false, contentFooterGap = 16, keyboardAvoiding = false, footerPadding, showFooterSeparator = true, backdropOpacity = 0.64, host = 'modal', presentation = 'sheet', onExited}: BottomSheetProps) {
+export function BottomSheet({open, onOpenChange, title, description, children, footer, headerAction, headerContext, headerContent, initialFocusRef, returnFocusRef, restoreFocus = true, accessibilityLabel, testID, style, contentStyle, titleType, titleTextStyle, descriptionTextStyle, detents, width, detent, defaultDetent = 0, onDetentChange, dismissOnOutsidePress = true, dismissOnBack = true, dismissOnGesture = true, scrollable = true, showClose = true, showGrabber = true, fitContent = false, contentFooterGap = 16, keyboardAvoiding = false, footerPadding, showFooterSeparator = true, backdropOpacity = 0.64, host = 'modal', presentation = 'sheet', onExited, surfaceBackground}: BottomSheetProps) {
   const theme = useTheme(), paint = useOverlayPaintMode();
   const page = host === 'inline' && presentation === 'page';
   const side = !page && theme.platform !== 'phone';
@@ -134,6 +134,7 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
           : {height: max, borderColor: alpha(theme.colors.text, 0.08)},
         {backgroundColor: theme.colors.raised}, page ? undefined : side ? tvStyle : sheetStyle, style]}>
         {theme.isTV && <PanelBackground/>}
+        {surfaceBackground}
         <FocusBoundary modal={!page} testID={testID} style={styles.root}>
           <GestureDetector gesture={pan}><Animated.View style={page ? {display: 'none'} : undefined} onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}>
             <View style={side ? {display: 'none'} : undefined} accessible={!side} accessibilityRole="adjustable" accessibilityLabel={accessibilityLabel ?? (typeof title === 'string' ? title : undefined)} accessibilityValue={{min: 1, max: heights.length, now: index + 1, text: defaultI18n.t('next.overlays.native.sheetPosition', {position: index + 1, count: heights.length})}}

@@ -180,7 +180,7 @@ export function DownloadsScreen({device, runtime, copy, back, openTitle, service
   const openMenu = useCallback((entry: OfflineEntry, anchor: RefObject<View | null>) => setEntryMenu({entry, anchor}), []);
   const playEntry = useCallback((entry: OfflineEntry) => {if (device.openOffline) run(() => device.openOffline!(entry));}, [device, run]);
   const retryEntry = useCallback((entry: OfflineEntry) => run(() => device.resume(entry)), [device, run]);
-  return <View testID="native-downloads-screen" onLayout={event => setPaneWidth(event.nativeEvent.layout.width)} style={{flex: 1}}><StandardBackdrop/>
+  return <View testID="native-downloads-screen" onLayout={event => setPaneWidth(event.nativeEvent.layout.width)} style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     {!inline && <View style={{height: Math.max(96, insets.top + 48), paddingTop: Math.max(50, insets.top), paddingHorizontal: 10, justifyContent: 'center'}}>
       <Focusable testID="downloads-back" accessibilityLabel={t('saved.title')} onPress={back} style={{height: 38, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', paddingRight: 6, marginLeft: -4}}>
         <Icon name="i-left" size={24} color={theme.colors.textSecondary}/><Text style={[browseType(theme, 16, 600), {color: theme.colors.textSecondary}]}>{t('saved.title')}</Text>

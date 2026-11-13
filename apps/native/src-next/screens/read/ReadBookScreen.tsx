@@ -147,7 +147,7 @@ export function ReadBookScreen({controller, route, comic, owner, context, runtim
       onShelfRetry={() => {void controller.retrySeriesShelf(shelf.witness, manifest).catch(runtime.reportError);}}
       onShelfItem={item => {void controller.openSeriesItem(shelf.witness, manifest, item).then(ok => {if (!ok) return;}).catch(runtime.reportError);}}/>
     : null;
-  return <View testID={`native-read-book-${controller.item.id}`} style={{flex: 1}}><StandardBackdrop/>
+  return <View testID={`native-read-book-${controller.item.id}`} style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 0, right: 0, height: 560, overflow: 'hidden'}}>
       {runtime.ambient(controller.item.coverUrl ?? manifest?.metadata.coverUrl) ? <AmbientArt source={runtime.ambient(controller.item.coverUrl ?? manifest?.metadata.coverUrl)} treatment="title" style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: 0}}/> : null}
       <View style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: theme.colors.ink, opacity: .5}}/>

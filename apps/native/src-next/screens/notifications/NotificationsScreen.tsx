@@ -276,7 +276,7 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
  * Header gestures, Back, escape and screen-reader containment use the shared host. */
 function NotificationsFrame({children, header, title, testID, onClose}: {children?: React.ReactNode; header?: React.ReactNode; title: string; testID: string; onClose: () => void}) {
   const theme = useTheme(), insets = useSafeAreaInsets(), window = useWindowDimensions();
-  if (theme.platform !== 'phone') return <View testID={testID} style={{flex: 1, paddingTop: insets.top + 14}}><StandardBackdrop/>{header}{children}</View>;
+  if (theme.platform !== 'phone') return <View testID={testID} style={{flex: 1, paddingTop: insets.top + 14}}>{theme.isTV && <StandardBackdrop/>}{header}{children}</View>;
   return <BottomSheet testID={testID} title={title} open onOpenChange={open => {if (!open) onClose();}} accessibilityLabel={title}
     detents={[Math.max(1, window.height - 62)]} headerContent={header ?? <View style={{height: 56}}/>} scrollable={false} showClose={false} showGrabber={false}
     style={{backgroundColor: theme.colors.ink, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingTop: 0}}>

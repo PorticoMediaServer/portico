@@ -38,9 +38,9 @@ export function HomeSkeleton({elapsedMs, pressed, shell, slowNotice, rowTitle, r
   const wideCount = Math.ceil((width - gutter) / (wideWidth + wideGap)) + 1;
   const rowTop = tv ? 588 : 586;
   return <View testID={testID} accessibilityState={{busy: true}} accessibilityLabel={defaultI18n.t('status.loading')}
-    style={[{flex: 1, overflow: 'hidden', backgroundColor: theme.colors.ink}, style]}>
+    style={[{flex: 1, overflow: 'hidden', backgroundColor: theme.isTV ? theme.colors.ink : undefined}, style]}>
     {/* The standard backdrop (Justin, 29 Oct): never a screen-specific loading glow. Pressed art layers over it. */}
-    <StandardBackdrop />
+    {theme.isTV && <StandardBackdrop/>}
     {pressed?.art && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: 0, width, height: tv ? 900 : 560}}><AmbientArt {...pressed.art} visible={visible && pressed.art.visible !== false} arrivalDurationMs={skeletonTiming.pictureFadeMs} treatment={tv ? 'hero' : 'phone'} /></View>}
     {shell}
     {tv && pressed ? <View style={{position: 'absolute', left: gutter, top: 150, width: 960}}>

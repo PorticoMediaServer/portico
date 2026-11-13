@@ -153,7 +153,7 @@ export function SearchScreen({focusScope, destination, runtime, explore, onNow =
   const active = groups.find(group => group.id === state.group), wideSearch = theme.layoutMode === 'desktop' && !theme.isTV;
   if (theme.isTV) return <TVSearchScreen focusScope={focusScope} destination={destination} runtime={runtime} activation={activation} explore={explore} actions={actions} selection={selection} copy={tvCopy}/>;
   return <View testID="native-search-screen" pointerEvents={activeRoute.visible ? 'auto' : 'none'} accessibilityElementsHidden={!activeRoute.visible}
-    importantForAccessibility={activeRoute.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}} onLayout={event => setSurface(event.nativeEvent.layout.width)}><StandardBackdrop/>
+    importantForAccessibility={activeRoute.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}} onLayout={event => setSurface(event.nativeEvent.layout.width)}>{theme.isTV && <StandardBackdrop/>}
     {fields}
     {state.group === 'all' || empty || !typed ? <ScrollView ref={scroll} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom: 28}}>
       {problem && <StateView variant="search" title={problem} style={{margin: 20}}/>}

@@ -10,7 +10,7 @@ import {StandardBackdrop} from '../../kit/artwork';
 
 export function Screen({children, title, style}: {children: ReactNode; title?: string; style?: StyleProp<ViewStyle>}) {
   const theme = useTheme();
-  return <View style={[{flex: 1, paddingLeft: theme.isTV ? 200 : 0, paddingRight: theme.isTV ? 96 : 0, paddingTop: theme.isTV ? 60 : 0}, style]}><StandardBackdrop/>
+  return <View style={[{flex: 1, paddingLeft: theme.isTV ? 200 : 0, paddingRight: theme.isTV ? 96 : 0, paddingTop: theme.isTV ? 60 : 0}, style]}>{theme.isTV && <StandardBackdrop/>}
     {title && <Text accessibilityRole="header" style={[shellType(theme.isTV ? 44 : 32, 800, 'normal', -.035), {color: theme.colors.text, marginBottom: theme.isTV ? 38 : 16, marginHorizontal: theme.isTV ? 0 : 20}]}>{title}</Text>}
     {children}
   </View>;

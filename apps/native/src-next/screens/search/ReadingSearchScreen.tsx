@@ -37,7 +37,7 @@ export function ReadingSearchScreen({port, opening, runtime, query, onBack}: Rea
     list.current?.scrollToOffset({offset: 0, animated: false});
   };
   const rows = state.phase === 'loading' ? undefined : state.hits;
-  return <View testID="native-reading-search" style={{flex: 1}}><StandardBackdrop/>
+  return <View testID="native-reading-search" style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     <View style={{paddingTop: Math.max(56, insets.top), backgroundColor: theme.colors.ink}}>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 12, height: 44}}>
         <Focusable testID="reading-search-back" accessibilityLabel={t('action.back')} onPress={onBack} hitSlop={10}
