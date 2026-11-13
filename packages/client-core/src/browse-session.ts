@@ -5,6 +5,7 @@ import {countItems, entriesFromItems, entryFromPerson, readFacet, readItems} fro
 import {callServer} from './query/server-api.ts';
 import {libraryItemQuery} from './library-browse.ts';
 import {linkAbortSignals} from './abort-lifetime.ts';
+import {rememberFilterNames} from './filter-value-names.ts';
 import {isStaleAnswer} from './freshness-actions.ts';
 
 /** One applied Browse query: what every page, count, facet read and saved view is built from.
@@ -167,6 +168,8 @@ export class BrowseSession<T> {
     // A position inside the page read is the rest of that page; the page's next cursor is where it ends.
     const people = page.items.slice(Math.max(0, start - at));
     const entries = people.flatMap(person => {const entry = entryFromPerson(person, this.query.libraryId, 'author'); return entry ? [entry] : [];});
+    // A filter opened from an author shows their name, not their id.
+    rememberFilterNames(entries.map(entry => ({value: entry.id, label: entry.title})));
     if (this.retired || !this.options.current() || signal.aborted) throw browseSessionClosed();
     return this.answer(entries, start, start + people.length, page.nextCursor, signal);
   }

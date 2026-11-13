@@ -53,11 +53,13 @@ const quick: readonly Readonly<{id: string; labelKey: string; field: string; val
 /** The largest page the server serves; the lists ask for less. */
 const limits = {maximumDepth: 5, maximumClauses: 40, maximumBytes: 16_384, maximumSorts: 1, defaultLimit: 60, maximumLimit: 200, cursorTtlMs: 0};
 
-/** The library offers the tab: its views list the kind. Authors and Series are an audiobook library's tabs (a
- * reading library's come from its own reading tabs); Authors is its people list, not one of its views. */
+const readingKind = (kind: string) => kind === 'books' || kind === 'comics';
+/** The library offers the tab: its views list the kind. Authors and Series are the tabs of an
+ * audiobook, book or comic library, drawn by the same grid; Authors is the library's people list
+ * (where it can be filtered by author), not one of its views. */
 const offers = (library: WireLibrary, pivot: (typeof pivots)[number]): boolean =>
-  pivot.id === 'authors' ? library.kind === 'audiobooks'
-    : (pivot.id !== 'series' || library.kind === 'audiobooks') && !!library.views?.some(view => view.kind === pivot.kind);
+  pivot.id === 'authors' ? library.kind === 'audiobooks' || readingKind(library.kind) && !!library.filters?.some(filter => filter.id === 'author')
+    : (pivot.id !== 'series' || library.kind === 'audiobooks' || readingKind(library.kind)) && !!library.views?.some(view => view.kind === pivot.kind);
 const pivotFor = (library: WireLibrary, pivotId: string) => pivots.find(pivot => pivot.id === pivotId && offers(library, pivot));
 
 /** What this library's tab can be filtered and ordered by, as `parseBrowseCapabilities` reads it. */
@@ -78,18 +80,16 @@ export function libraryBrowseCapabilities(library: WireLibrary, pivotId: string)
       defaultSort: lead ? [{field: lead.id, direction: pivot.id === 'authors' ? 'asc' : lead.defaultDirection}] : [], sorts: own.map(sort => sort.id),
       filters: pivot.id === 'authors' ? [] : filters.map(filter => filter.id), paging: 'keyset'};
   });
-  // A Books or Comics library's Authors and Series tabs: its people by the author role and its
-  // series, each opening the titles it holds (the read-web frames). Comics lead with Series.
-  const reading = library.kind === 'books' || library.kind === 'comics';
   const list = (id: string, field: string) => ({id, labelKey: 'library.tab.' + id, entityKinds: [field], supportedViews: ['grid', 'list'], browsable: false,
     defaultSort: [], sorts: [], filters: [], facetSource: {endpoint: routePattern('get_library_facets'), field}});
-  const authors = reading && filters.some(filter => filter.id === 'author') ? [list('authors', 'author')] : [];
-  const series = reading && library.views?.some(view => view.kind === 'series') ? [list('series', 'series')] : [];
+  // A Books or Comics library's Authors and Series are browsable tabs, as an audiobook library's are
+  // (the read-web frames): Books, then Authors and Series; Comics lead with Series.
+  const pick = (id: string) => shaped.filter(pivot => pivot.id === id), rest = shaped.filter(pivot => pivot.id !== 'authors' && pivot.id !== 'series');
   // Magazines and Newspapers, where this profile may see some (10-reading rule 43): each lists its
   // periodicals, opening their issues by year or editions by date.
   const periodicals = library.kind !== 'books' ? [] : (['magazine', 'newspaper'] as const).filter(kind => library.views?.some(view => view.kind === kind))
     .map(kind => ({...list(kind + 's', 'publicationType'), facetSource: {endpoint: routePattern('get_reading_periodical_groups'), field: 'publicationType'}}));
-  const all = library.kind === 'comics' ? [...series, ...shaped, ...authors] : [...shaped, ...periodicals, ...authors, ...series];
+  const all = library.kind === 'comics' ? [...pick('series'), ...rest, ...pick('authors')] : library.kind === 'books' ? [...rest, ...periodicals, ...pick('authors'), ...pick('series')] : shaped;
   return {library: {id: library.id, name: library.name, kind: libraryKind(library.kind), defaultView: ''}, pivots: all, resolvedPivot: shaped.find(pivot => pivot.id === pivotId) ?? null,
     fields: filters, sorts, quickFilters: quick.filter(each => filters.some(filter => filter.id === each.field)).map(each => ({id: each.id, labelKey: each.labelKey, query: {variant: 'predicate', field: each.field, operator: 'equals', value: each.value}})),
     queryLimits: limits};

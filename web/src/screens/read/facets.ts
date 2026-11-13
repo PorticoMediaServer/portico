@@ -1,6 +1,4 @@
 import type {BrowseNode} from '@portico/client-core';
-export {loadReadingFacetPage as loadFacetPage} from '@core/query/reading-facets.ts';
-export type {ReadingFacetField, FacetRequest, FacetPageOptions} from '@core/query/reading-facets.ts';
 
 /**
  * An author facet value is the filter: the author's person id from the library's Authors list,
