@@ -6,10 +6,10 @@ import (
 	"time"
 )
 
-// CachedPrepared pages ready, reusable copies.
+// CachedPrepared pages ready copies no download request still names.
 func (d *DB) CachedPrepared(ctx context.Context, after int64) ([]Prepared, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT `+preparedColumns+` FROM prepared_media
-		WHERE state='ready' AND id > ? ORDER BY id LIMIT 100`, after)
+		WHERE state='ready' AND id > ? AND NOT EXISTS (SELECT 1 FROM download_items WHERE prepared_id=prepared_media.id) ORDER BY id LIMIT 100`, after)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +28,8 @@ func (d *DB) CachedPrepared(ctx context.Context, after int64) ([]Prepared, error
 // RemoveCachedPrepared leaves a copy alone if a fetch or request has used it since the read.
 func (d *DB) RemoveCachedPrepared(ctx context.Context, id int64, lastUsed time.Time) (removed bool, err error) {
 	err = d.write(ctx, User, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `DELETE FROM prepared_media WHERE id=? AND state='ready' AND last_used_at = ?`, id, lastUsed.UnixMilli())
+		res, err := tx.ExecContext(ctx, `DELETE FROM prepared_media WHERE id=? AND state='ready' AND last_used_at = ?
+ AND NOT EXISTS (SELECT 1 FROM download_items WHERE prepared_id=prepared_media.id)`, id, lastUsed.UnixMilli())
 		if err == nil {
 			n, _ := res.RowsAffected()
 			removed = n != 0

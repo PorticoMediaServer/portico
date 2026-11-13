@@ -474,7 +474,7 @@ func (c *counting) Write(b []byte) (int, error) {
 // any file in the prepared folder that no copy names. A download that waited for a removed
 // copy reads as expired, with Try again. Copies already on people's devices are not touched.
 func (s *Service) Tidy(ctx context.Context) error {
-	keep := time.Duration(settings.Storage.Get(s.Settings).PreparedKeepDays()) * 24 * time.Hour
+	keep := time.Duration(Document.Get(s.Settings).KeepDays) * 24 * time.Hour
 	files, err := s.copyFiles()
 	if err != nil {
 		return err
