@@ -59,6 +59,10 @@ func delivery(owner settings.StreamingSettings) streaming.DeliveryConfiguration 
 	c.MaxConversions = owner.ConversionsAtOnce
 	c.MaxSoftwareConversions = owner.ProcessorConversionsAtOnce
 	c.ToneMapping = owner.ToneMapping
+	c.SoftwarePreset = owner.EncoderSpeed
+	c.PlanningPolicy = owner.PlanningPolicy
+	c.RemuxEnabled = owner.Repackaging
+	c.OutputFormat = owner.ConversionFormat
 	return c.Normalized()
 }
 

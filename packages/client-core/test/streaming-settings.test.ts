@@ -99,3 +99,27 @@ test('the processor cap appears only when honoured and saves independently of ot
   await source.save('streaming.maxSoftwareConversions', '4');
   assert.deepEqual(f.calls.at(-1)?.body, {processorConversionsAtOnce: 4});
 });
+
+test('the conversion controls read and save the actual engine settings, including Most as compatibility', async () => {
+  const f = fixture();
+  const added = {encoderSpeed: 'medium', planningPolicy: 'maximum_compatibility', repackaging: false, conversionFormat: 'h264'};
+  const original = {encoderSpeed: 'veryfast', planningPolicy: 'maximum_fidelity', repackaging: true, conversionFormat: 'auto'};
+  const source = new OwnerStreamingSettings({...f.api, request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    const doc: any = await f.api.request(path, method, body);
+    if (path.endsWith('/settings/streaming')) {doc.values = {...doc.values, ...added}; doc.defaults = {...doc.defaults, ...original};}
+    return doc;
+  }});
+  const configuration = await source.readConfiguration();
+  const read = (id: string) => readSettingsBinding(settingsBinding(id)!, {configuration}, id);
+  assert.equal(read('streaming.encoderSpeed')?.current, 'medium');
+  assert.equal(read('streaming.whenCantPlay')?.current, 'most');
+  assert.equal(read('streaming.whenCantPlay')?.default, 'least');
+  assert.equal(read('streaming.repackage')?.current, false);
+  assert.equal(read('streaming.outputFormat')?.current, 'h264');
+  await source.save('streaming.encoderSpeed', 'fast');
+  await source.save('streaming.whenCantPlay', 'least');
+  await source.save('streaming.repackage', true);
+  await source.save('streaming.outputFormat', 'auto');
+  assert.deepEqual(f.calls.filter(c => c.method === 'PUT').map(c => c.body),
+    [{encoderSpeed: 'fast'}, {planningPolicy: 'maximum_fidelity'}, {repackaging: true}, {conversionFormat: 'auto'}]);
+});

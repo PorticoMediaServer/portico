@@ -299,7 +299,7 @@ function presented(binding:SettingsBinding,v:unknown,sources:SettingsBindingSour
  if(binding.codec==='player-engine')return v==='automatic'?'auto':v==='native'||v==='mpv'?v:undefined;
 
  if(binding.codec==='missing-rule'){const n=sources.configuration?.fields.find(f=>f.id==='storage.missingDaysExact')?.current??sources.forms?.runtime?.['library.missingTitlesDays'];return v==='never'?'never':v==='immediately'?'now':v==='after_days'?(n===7?'7d':n===30?'30d':n===90?'90d':'custom'):undefined;}
- if(binding.key==='planningPolicy')return v==='minimize_server_work'?'least':v==='maximum_fidelity'?'most':undefined;
+ if(binding.key==='planningPolicy')return v==='minimize_server_work'||v==='maximum_fidelity'?'least':v==='maximum_compatibility'?'most':undefined;
  if(binding.codec==='update-checks'){const feed=defaultFeed(sources);return v===''?'never':feed===undefined?undefined:v===feed?'auto':'custom';}
  if(binding.codec==='away-quality')return v===0?'original':canonicalQualityLadder.find(q=>q.height>0&&q.videoKbps===v)?.id.replace('2160p','4k')??'custom';
  if(binding.codec==='domain')return v?`https://${String(v)}`:'';
@@ -430,7 +430,7 @@ export function settingsBindingPatch(binding:SettingsBinding,value:unknown,sourc
  if(binding.codec==='surround'){if(value!=='asis'&&value!=='stereo')throw new Error('Invalid setting value.');raw=value==='stereo';}
  if(binding.codec==='player-engine'){if(value!=='auto'&&value!=='native'&&value!=='mpv')throw new Error('Invalid setting value.');raw=value==='auto'?'automatic':value;}
  if(binding.form==='preferences')return preferenceBindingPatch(binding,{[binding.key]:raw},sources);
- if(binding.key==='planningPolicy')raw=value==='least'?'minimize_server_work':value==='most'?'maximum_fidelity':undefined;
+ if(binding.key==='planningPolicy')raw=value==='least'?'maximum_fidelity':value==='most'?'maximum_compatibility':undefined;
  if(value==='custom'&&binding.codec!=='window-mode')throw new Error('Custom is derived.');
  if(binding.codec==='domain'){
   if(value==='')raw='';else{if(typeof value!=='string')throw new Error('An HTTPS address is required.');const url=new URL(value.includes('://')?value:`https://${value}`);if(url.protocol!=='https:'||url.username||url.password||url.pathname!=='/'||url.search||url.hash||url.port)throw new Error('An HTTPS domain is required.');raw=url.hostname;}
