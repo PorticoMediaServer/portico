@@ -49,7 +49,7 @@ export function DeleteMediaDialog(props: DeleteMediaDialogProps) {
   const failures = result?.receipts.filter(receipt => !receipt.removed) ?? [];
   const footer = <>
     <Button size="compact" disabled={busy} variant={result ? 'primary' : 'glass'} onClick={() => surface.onOpenChange(false, 'action')}>{text(result || tooMany || blocked.length || acrossLibraries || error ? 'next.selection.close' : 'next.selection.cancel')}</Button>
-    {!result && <Button size="compact" className={styles.deleteButton} disabled={!allowed} loading={busy} onClick={() => { if (preview && allowed && deletePermission(owner, selectionCount, preview, confirmation)) onDelete({preview, confirmation, deleteFiles: removeFiles}); }}>{text(selectionCount === 1 || tooMany ? 'next.selection.delete' : 'next.selection.deleteCount', {count: selectionCount})}</Button>}
+    {!result && <Button size="compact" variant="destructive" disabled={!allowed} loading={busy} onClick={() => { if (preview && allowed && deletePermission(owner, selectionCount, preview, confirmation)) onDelete({preview, confirmation, deleteFiles: removeFiles}); }}>{text(selectionCount === 1 || tooMany ? 'next.selection.delete' : 'next.selection.deleteCount', {count: selectionCount})}</Button>}
   </>;
   return <Dialog footerDismisses {...surface} title={<span className={styles.deleteHeading}><span className={styles.deleteOwner}>{ownerTag}</span><span>{title}</span></span>} accessibilityLabel={title} width={520} className={styles.deleteDialog} bodyClassName={styles.deleteBody} footerClassName={styles.deleteFooter} initialFocusRef={input} footer={footer} dismissOnOutsidePress={!busy} dismissOnBack={!busy} showCloseButton={!busy && !phone}>
     {result ? <>

@@ -8,7 +8,7 @@ import {localV1Http} from '@core/playback-v1/local-http.ts';
 import {readTitleIdentity} from '../../platform/title-identity';
 import {screenLifetime, type ScreenContext} from './context';
 import {createRecommendations} from './recommendations';
-import {versionDeletionService, deletionAllowed, type VersionDeletePreview} from '@core/administration.ts';
+import {deleteVersionFiles, previewVersionDeletion, type VersionDeletion} from '@core/administration.ts';
 import {splitTitleVersion, canMergeTitles, mergeTitles, SPLITTABLE_KINDS} from '@core/title-identity.ts';
 import {validateContentEntry, type ContentEntry} from '@core/library-content.ts';
 import {titleView} from './view-state';
@@ -34,7 +34,13 @@ export function createDetailBindings(context: ScreenContext) {
   const offSubject = service.subscribe(() => { const data = service.getSnapshot().data; if (data && service.getSnapshot().phase === 'ready') subject = {itemId: data.item.id, libraryId: data.scope.libraryId, title: data.item.title}; });
   /** Unmount cleanup may follow the route's dispose; it must never revive a retired read. */
   const cancel = () => { if (!disposed) {intent++; selected = undefined; recommendations.clear(); service.cancel();} };
-  const previews = new WeakMap<VersionDeletePreview, Readonly<{data: DetailProjection; versionId: string}>>();
+  const previews = new WeakMap<VersionDeletion, DetailProjection>();
+  /** Deleting a version is the owner's alone (the server's routes are owner-only): an administrator is never asked. */
+  const ownerCommand = (data: DetailProjection, signal?: AbortSignal) => {
+    fileCommand(data, signal);
+    const viewer = context.identity?.viewer;
+    if (viewer?.role !== 'owner' || viewer.authority !== 'local') throw new DOMException('Only the owner deletes a version', 'AbortError');
+  };
   const current = (data: DetailProjection) => {
     life.assert();
     if (service.getSnapshot().phase !== 'ready' || service.getSnapshot().data !== data) throw new DOMException('Title revision changed', 'AbortError');
@@ -143,18 +149,17 @@ export function createDetailBindings(context: ScreenContext) {
       if (!data.metadata.genres.some(value => value.name === genre)) throw new DOMException('Title genre changed', 'AbortError');
       return openGenre(context, life.api, data.scope.libraryId, genre, () => current(data), life.signal());
     },
+    /** What deleting this whole version takes. Asked once per press of Delete: the server runs the deletion as a dry run. */
     async previewDelete(data: DetailProjection, file: FileInfoFileRow, signal?: AbortSignal) {
-      fileCommand(data, signal);
-      const preview = await versionDeletionService(commandApi(signal).request).preview(file.itemId, file.id);
+      ownerCommand(data, signal);
+      const preview = await previewVersionDeletion(commandApi(signal), file.id, signal);
       current(data); signal?.throwIfAborted();
-      if (preview.assetId !== file.id || preview.targets.length !== 1 || preview.targets[0]?.itemId !== file.itemId) throw new Error('Delete preview target mismatch');
-      previews.set(preview, {data, versionId: file.id}); return preview;
+      previews.set(preview, data); return preview;
     },
-    async deleteVersion(data: DetailProjection, preview: VersionDeletePreview, confirmation: string, operationId: string, signal?: AbortSignal) {
-      const held = previews.get(preview);
-      if (held?.data !== data || held.versionId !== preview.assetId || !deletionAllowed(preview) || confirmation !== preview.confirmation) throw new DOMException('Delete preview changed', 'AbortError');
-      fileCommand(data, signal);
-      const result = await versionDeletionService(commandApi(signal).request).remove(preview, confirmation, operationId);
+    async deleteVersion(data: DetailProjection, preview: VersionDeletion, signal?: AbortSignal) {
+      if (previews.get(preview) !== data) throw new DOMException('Delete preview changed', 'AbortError');
+      ownerCommand(data, signal);
+      const result = await deleteVersionFiles(commandApi(signal), preview, signal);
       current(data); signal?.throwIfAborted(); return result;
     },
     /** Split the selected whole version; server-next does not accept a file occurrence. */

@@ -232,8 +232,6 @@ button.circle:focus-visible { outline: 3px solid var(--color-focus); outline-off
 .deleteSmall.deleteSmall { font-size: 13px; line-height: 1.45; color: var(--color-text-tertiary); }
 .deleteFooter { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 .deleteFooter.deleteFooter button { height: 46px; padding: 0 22px; font-size: 15.5px; border-radius: 11px; }
-.deleteButton.deleteButton { background: var(--color-record); color: #2a0808; }
-.deleteButton:hover { background: #f58a8a; }
 .removeFilesRow { display: flex; align-items: center; gap: 14px; font-size: 15px; font-weight: 700; color: var(--color-text); }
 .removeFilesRow input { margin-left: auto; flex: none; }
 .deleteNotice { display: flex; gap: 10px; padding: 12px 14px; border-radius: 10px; font-size: 14px; line-height: 1.45; color: var(--color-text-secondary); background: rgba(237,245,250,.06); }

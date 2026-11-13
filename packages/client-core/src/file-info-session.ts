@@ -81,10 +81,10 @@ export class FileInfoSession {
     if (item.id !== itemId || !Array.isArray(item.versions ?? []) || locations && !Array.isArray(locations.versions)) invalid();
     const versions = this.mapVersions(item, locations);
     const fileCount = versions.reduce((sum, v) => sum + v.files.length, 0);
-    // Deletion remains unavailable until the server can preview this exact version's impact.
-    // Do not substitute a whole-title preview or pretend a local count includes other people.
+    // Deleting a version is the owner's alone (03-scanning rule 64; the server's GET/DELETE /v1/admin/versions/{id}
+    // are owner-only), with the exact version preview first. Administrators see paths, split and merge (rule 25).
     this.publish({surface: Object.freeze({fileCount, eligibleFileCount: fileCount, groupCount: versions.length, canSplit: versions.length > 1,
-      hasDiscColumns: false, ...(manage ? {manage: {delete: false, split: versions.length > 1, merge: true}} : {})})});
+      hasDiscColumns: false, ...(manage ? {manage: {delete: role === 'owner', split: versions.length > 1, merge: true}} : {})})});
     return versions;
   }
   private mapVersions(item: Item, locations?: ItemFiles): Version[] {

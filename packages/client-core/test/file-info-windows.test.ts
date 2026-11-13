@@ -33,7 +33,7 @@ test('File info reads existing title versions and streams without an opening or 
   session.retire();
 });
 
-test('owner and administrators get recorded paths and missing status, with no invented deletion preview', async () => {
+test('owner and administrators get recorded paths and missing status; only the owner may delete a version', async () => {
   for (const role of ['owner', 'admin']) {
     const {session, calls} = fixture(role);
     await session.groups(); await session.members('ver_1');
@@ -41,9 +41,21 @@ test('owner and administrators get recorded paths and missing status, with no in
     assert.deepEqual(calls, ['/v1/items/movie%2F1', '/v1/items/movie%2F1/files']);
     assert.deepEqual(files.map(f => [f.id, f.path, f.available]), [['ver_1', '/private/ver_1-0.mkv', true], ['ver_1', '/private/ver_1-1.mkv', false]]);
     assert.equal(files[1].missingSinceAt, '2026-11-12T00:00:00Z');
-    assert.deepEqual(snapshot.surface!.manage, {delete: false, split: true, merge: true});
+    assert.deepEqual(snapshot.surface!.manage, {delete: role === 'owner', split: true, merge: true});
     assert.equal(snapshot.groups.rows!.more, false); session.retire();
   }
+});
+
+test('Delete this version is offered once per whole version, on its first file, and only where the surface asks for it', async () => {
+  const {session} = fixture('owner');
+  await session.groups(); await session.members('ver_1'); await session.members('ver_2');
+  const snapshot = session.getSnapshot(), policy = {tracks: 'raw', context: 'desktop', manageSurface: 'desktop', split: true, merge: true} as const;
+  const actions = (model: ReturnType<typeof fileInfoPanelModel>) => model!.owner!.locations.map(location => [location.versionId, location.actions.map(action => action.id)]);
+  assert.deepEqual(actions(fileInfoPanelModel(snapshot, {...policy, delete: true}, {t: defaultI18n.t})), [['ver_1', ['delete-version']], ['ver_1', []], ['ver_2', ['delete-version']]], 'a two-file version is deleted whole, never one part');
+  assert.deepEqual(actions(fileInfoPanelModel(snapshot, policy, {t: defaultI18n.t})), [['ver_1', []], ['ver_1', []], ['ver_2', []]], 'a surface without the confirm (native today) offers none');
+  const admin = fixture('admin'); await admin.session.groups(); await admin.session.members('ver_1');
+  assert.deepEqual(actions(fileInfoPanelModel(admin.session.getSnapshot(), {...policy, delete: true}, {t: defaultI18n.t})), [['ver_1', []], ['ver_1', []]], 'an administrator is never offered it');
+  session.retire(); admin.session.retire();
 });
 
 test('native offered tracks use playback options while flat parts use the stored streams, with no lease cleanup', async () => {

@@ -44,6 +44,9 @@ const cancelled = () => Object.assign(new Error('watch_capture_ended'), {name: '
 
 /** The presenter borrows the real captured member. Closing it retires requests;
  * navigation, authority and output replacement retire the same owned lifetime. */
+/** Native draws no version deletion confirm on the current preview yet (see manageFile). */
+const NATIVE_VERSION_DELETE = false;
+
 export class NativeWatchPresenters {
   private value?: NativeWatchOverlay;
   private listeners = new Set<() => void>();
@@ -311,7 +314,9 @@ export class NativeWatchPresenters {
     const value = this.value, owner = value?.owner;
     if (!value || value.capture !== capture || value.phase !== 'file-info' || !owner || !this.current(capture)) return;
     const snapshot = owner.session.getSnapshot(), manage = snapshot.surface?.manage;
-    if (action === 'delete-version' && manage?.delete && fileId && nativeFileInfoFile(snapshot, fileId)) {
+    // The server lets the owner delete a version (manage.delete), but this app's confirm still reads the retired preview;
+    // it offers Delete once it moves to client-core's previewVersionDeletion (web has; phone lane). Until then, never.
+    if (action === 'delete-version' && manage?.delete && NATIVE_VERSION_DELETE && fileId && nativeFileInfoFile(snapshot, fileId)) {
       const next = this.patch(value, {phase: 'delete', fileId, confirmation: '', error: undefined, preview: undefined, operationId: undefined});
       if (next) void this.previewDelete(next);
     } else if (action === 'split-versions' && manage?.split && snapshot.surface?.canSplit && SPLITTABLE_KINDS.includes(owner.kind)) {

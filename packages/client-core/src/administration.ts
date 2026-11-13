@@ -464,7 +464,34 @@ export function parseVersionDeletePreview(raw:unknown):VersionDeletePreview{
  if(!object(raw)||!filled(raw.assetId,128)||!text(raw.previewKey,64)||!/^[0-9a-f]{64}$/.test(raw.previewKey)||preview.targets.length!==1||preview.totalFiles!==1||preview.targets[0].files.length!==1||preview.targets[0].files[0].assetId!==raw.assetId)invalid('version delete preview');
  return Object.freeze({...preview,assetId:raw.assetId,previewKey:raw.previewKey});
 }
-/** Version DELETE is owner-only. The old file-occurrence preview route no longer exists. */
+/** What deleting one whole version takes, as the server previews it: its files and their size, the titles that go with
+ * them (`titles`: the title itself only when no other version survives, and `alsoRemoves`, other titles played from the
+ * same files), the list entries that go, and other people's saved places and marks that go. The preview runs the real
+ * deletion as a dry run on the server's single writer and can hold it for about a second, so an app asks for it once,
+ * when the owner presses Delete, and never live, on hover, focus or a timer. */
+export type VersionDeletion=Readonly<{versionId:string;title:string;titles:number;files:number;bytes:number;listEntries:number;otherPeople:number;alsoRemoves:readonly Readonly<{id:string;title:string}>[]}>;
+export function parseVersionDeletion(versionId:string,raw:unknown):VersionDeletion{
+ if(!object(raw)||!text(raw.title,1024)||!count(raw.titles)||!count(raw.files)||!count(raw.bytes)||!count(raw.listEntries)||!count(raw.otherPeople)||!Array.isArray(raw.alsoRemoves))invalid('version deletion preview');
+ const alsoRemoves=raw.alsoRemoves.map(v=>{if(!object(v)||!filled(v.id,256)||!text(v.title,1024))invalid('version deletion preview');return Object.freeze({id:v.id,title:v.title});});
+ return Object.freeze({versionId,title:raw.title,titles:raw.titles,files:raw.files,bytes:raw.bytes,listEntries:raw.listEntries,otherPeople:raw.otherPeople,alsoRemoves:Object.freeze(alsoRemoves)});
+}
+type VersionApi=Readonly<{request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>}>;
+/** One preview per press of Delete (see VersionDeletion). Owner only. */
+export async function previewVersionDeletion(api:VersionApi,versionId:string,signal?:AbortSignal):Promise<VersionDeletion>{
+ return parseVersionDeletion(versionId,await callServer(api,'GET /v1/admin/versions/{id}/deletion',{id:versionId,signal}));
+}
+/** Deletes the previewed version's files from disk. A file that changed since the server last read it, or could not be
+ * deleted, is kept, and so is its title: the receipt says so. */
+export async function deleteVersionFiles(api:VersionApi,deletion:VersionDeletion,signal?:AbortSignal):Promise<DeleteResult>{
+ const out=await callServer(api,'DELETE /v1/admin/versions/{id}',{id:deletion.versionId,signal});
+ if(!object(out)||!Array.isArray(out.kept)||!count(out.filesDeleted)||!count(out.bytes))invalid('version delete result');
+ const kept=out.kept.length>0;
+ return Object.freeze({revision:0,removed:kept?0:1,failed:kept?1:0,bytesDeleted:out.bytes,filesRetained:kept,
+  receipts:[{itemId:deletion.versionId,title:deletion.title,removed:!kept,filesDeleted:out.filesDeleted,filesKept:out.kept.length,bytes:out.bytes,code:kept?'file_not_removed':''}]});
+}
+
+/** Version DELETE is owner-only. The old file-occurrence preview route no longer exists; web uses previewVersionDeletion
+ * and deleteVersionFiles above. */
 export function versionDeletionService(request:<T>(path:string,method?:string,body?:unknown)=>Promise<T>){
  return Object.freeze({
   async preview(_item:string,_version:string):Promise<VersionDeletePreview>{

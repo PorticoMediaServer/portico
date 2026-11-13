@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useMemo, useState, useSyncExternalStore, type RefObject} from 'react';
+import type {VersionDeletionOpening} from './version-deletion';
 import type {DetailProjection, FileInfoDisc} from '@core/detail.ts';
 import {fileInfoTrackKey, fileInfoUsesGroups, type FileInfoLane, type FileInfoSession, type FileInfoTrackLane} from '@core/file-info-session.ts';
 import type {FileInfoFileRow, FileInfoGroupRow, FileInfoSurface} from '@core/file-info-pages.ts';
@@ -18,7 +19,8 @@ export type FileInfoManageContext = Readonly<{
   files: ReadonlyMap<string, FileInfoFileRow>;
   /** Split always names a whole version, including all its parts. */
   splitCandidates: readonly Readonly<{id: string; occurrence: string; facts: FileFacts}>[];
-
+  /** Delete this version…: the preview the press started (version-deletion.ts). */
+  deletion?: VersionDeletionOpening;
 }>;
 type Props = {
   binding: DetailBindings; data: DetailProjection; surface: 'file' | 'titles'; phone: boolean;
@@ -84,7 +86,7 @@ function Opened({session, binding, data, surface, phone, returnFocusRef, onClose
   }, [entries, byId, flat, lane, manage, read, session, snapshot]);
 
   // Web lists a version head's raw tracks; Merge is drawn in the phone sheet only (phone-detail 12).
-  const model = useMemo(() => fileInfoPanelModel(snapshot, {tracks: 'raw', context: phone ? 'phone' : 'desktop', manageSurface: phone ? 'phone' : 'desktop', split: true, merge: phone}, environment), [phone, snapshot]);
+  const model = useMemo(() => fileInfoPanelModel(snapshot, {tracks: 'raw', context: phone ? 'phone' : 'desktop', manageSurface: phone ? 'phone' : 'desktop', split: true, merge: phone, delete: true}, environment), [phone, snapshot]);
 
   // The disc block names the entry whose file it was read from.
   const disc = useMemo((): FileInfoDisc | undefined => {
