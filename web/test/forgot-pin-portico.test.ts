@@ -98,3 +98,10 @@ test('the Portico step asks for the two-step code with the password when it is o
   page.find(node => node.type === 'form').props.onSubmit({preventDefault() {}});
   assert.deepEqual(d.actions, [['porticoPassword', 'secret', '123456']]);
 });
+
+test('a wrong password or two-step code says so, not that the profile lacks access', async () => {
+  const {presentError} = await import('@core/presentation/errors.ts');
+  const {defaultI18n} = await import('@i18n');
+  for (const [code, id] of [['password_wrong', 'next.account.problem.passwordWrong'], ['two_step_wrong', 'next.account.problem.twoStepWrong']])
+    assert.equal(presentError(Object.assign(new Error('refused'), {code, status: 403}), 'sign-in', {operation: 'action', i18n: defaultI18n}).messageId, id, code);
+});
