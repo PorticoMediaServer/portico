@@ -105,6 +105,12 @@ class StandIn {
       if (method === 'DELETE' && (r.state === 'asking' || r.state === 'allowed' && r.kind === 'play')) this.finish(r, 'cancelled');
       return this.out(r);
     }
+    if ((m = path.match(/^\/v1\/items\/([^/]+)\/playback-options$/)) && method === 'GET') {
+      if (!this.visible[d.profile]!.has(m[1]!)) throw fail(404, 'not_found');
+      return {itemId: m[1], kind: 'movie', versions: [{id: 'ver_1', label: '1080p', durationMs: 7_200_000, parts: [{id: 'p1', index: 0, durationMs: 7_200_000}], video: [],
+        audio: [{id: 'a1', codec: 'aac', channels: 2, language: 'en', default: true, atmos: false, commentary: false, visualImpaired: false}, {id: 'a2', codec: 'ac3', channels: 6, language: 'fr', default: false, atmos: false, commentary: false, visualImpaired: false}],
+        subtitles: [{id: 's1', format: 'srt', source: 'sidecar', language: 'en', forced: false, sdh: false, default: false}]}], chapters: [], markers: [], qualities: []};
+    }
     if (path === '/v1/playback/sessions' && method === 'GET')
       return {items: [...this.sessions.values()].filter(s => s.state !== 'ended').map(s => {const dev = this.devices.find(x => x.signIn === s.signIn)!;
         return {id: s.id, deviceId: dev.deviceId, deviceName: dev.name, kind: 'vod', state: s.state, positionMs: s.positionMs, startedAt: 'x', current: s.signIn === d.signIn,
@@ -119,6 +125,7 @@ class StandIn {
         const owner = this.devices.find(x => x.signIn === s.signIn)!;
         if (!owner.open || !owner.allowed.has(d.signIn)) throw fail(403, 'control_not_allowed');
         s.command = {id: 'cmd_' + ++this.n, ...(body.state ? {state: body.state} : {}), ...(body.seek ? {seekMs: body.seek.positionMs} : {}), ...(body.skip ? {skip: body.skip} : {}),
+          ...(body.audio ? {audioTrackId: body.audio.trackId} : {}), ...(body.subtitles ? {subtitleTrackId: body.subtitles.trackId ?? ''} : {}),
           fromDeviceId: d.deviceId, at: new Date().toISOString()};
         this.tell('playback.changed', s.id);
         return {id: s.id, state: s.state, command: s.command};
@@ -422,3 +429,29 @@ test('a device forgotten in This device is asked again, and the TV lists whom it
   await tv.host.decide(tv.host.getSnapshot().asking!, 'decline');
   assert.equal(await again, false);
 });
+
+test('the bar\'s audio and subtitles reach the TV, which carries them out, and the TV\'s tracks are named with the ones moved there marked', async t => {
+  const server = new StandIn(), tvDevice = server.device('Living room'), phoneDevice = server.device('Phone');
+  const allowed = memoryAllowedDevices(); allowed.add(phoneDevice.signIn);
+  const tv = television(server, tvDevice, {allowed}); t.after(() => tv.host.dispose());
+  await until('the TV to open', () => tvDevice.open);
+  const {controller, sessionId} = phone(server, phoneDevice); t.after(() => controller.dispose());
+  await controller.refresh();
+  assert.equal(await controller.send(controller.getSnapshot().receivers[0]!, source(sessionId)), true);
+  await until('the TV\'s title to be read', () => !!controller.getSnapshot().remote?.itemId);
+  const tracks = await controller.remoteTracks();
+  assert.deepEqual(tracks?.audio.map(track => track.id), ['a1', 'a2']);
+  assert.match(tracks!.audio[1]!.name, /Dolby Digital/);
+  assert.deepEqual([tracks?.subtitles.map(track => track.id), tracks?.audioId, tracks?.subtitleId], [['s1'], 'a2', null], 'what moved there is what it plays: French, subtitles off');
+  assert.equal(await controller.audio('a1'), true);
+  await until('the TV to switch audio', () => tv.commands.length === 1);
+  assert.equal(tv.commands[0]!.audioTrackId, 'a1');
+  assert.equal(await controller.subtitles('s1'), true);
+  await until('the TV to switch subtitles', () => tv.commands.length === 2);
+  assert.equal(tv.commands[1]!.subtitleTrackId, 's1');
+  assert.deepEqual([(await controller.remoteTracks())?.audioId, (await controller.remoteTracks())?.subtitleId], ['a1', 's1'], 'the bar marks what was chosen');
+  assert.equal(await controller.subtitles(null), true);
+  await until('the TV to turn subtitles off', () => tv.commands.length === 3);
+  assert.equal(tv.commands[2]!.subtitleTrackId, '');
+});
+

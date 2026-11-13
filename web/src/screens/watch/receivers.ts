@@ -1,4 +1,4 @@
-import {HandoffController} from '@core/remote-playback.ts';
+import {HandoffController, type RemoteTracks} from '@core/remote-playback.ts';
 import {sameFence} from '../../../../packages/player-core/src/index.ts';
 import {defaultI18n, type MessageId, type MessageValues} from '@i18n';
 import type {HttpLocalApi} from '@core/index.ts';
@@ -61,11 +61,29 @@ export class WatchReceivers implements PlayOnReceiversPort {
     this.remote = keep ? this.remote : id ? Object.freeze({sessionId: id, deviceName: directory.target?.displayName ?? seen?.deviceName ?? '',
       ...(seen?.itemId ? {itemId: seen.itemId} : {}), ...(seen?.title ? {title: seen.title} : {}),
       positionKnown: !!seen, positionSeconds: (seen?.positionMs ?? 0) / 1000, durationSeconds: (seen?.durationMs ?? 0) / 1000,
-      paused: seen?.state === 'paused', stopped: seen?.state === 'ended'}) : undefined;
+      paused: seen?.state === 'paused', stopped: seen?.state === 'ended',
+      ...(seen?.next ? {next: Object.freeze({title: seen.next.title})} : {}),
+      ...(this.tracks && this.tracks.key === `${id}|${seen?.itemId ?? ''}` ? {tracks: this.tracks.value} : {})}) : undefined;
     this.state = Object.freeze({phase: directory.directoryPhase, items, ...(message ? {message} : {}), ...(this.remote ? {remote: this.remote} : {})});
     this.follow();
+    this.readTracks();
     for (const listener of [...this.listeners]) listener();
   };
+  /** The followed device's tracks, read once per title it plays (rule 27): what the bar's Subtitles & audio offers. */
+  private tracks?: Readonly<{key: string; value: RemoteTracks}>;
+  private tracksFor?: string;
+  private readTracks(force = false): void {
+    const remote = this.remote;
+    if (!remote || remote.stopped || !remote.itemId) return;
+    const key = `${remote.sessionId}|${remote.itemId}`;
+    if (!force && (this.tracksFor === key || this.tracks?.key === key)) return;
+    this.tracksFor = key;
+    void this.handoff.remoteTracks().then(value => {
+      if (this.tracksFor !== key || !this.options.isCurrent()) return;
+      this.tracksFor = undefined;
+      if (value) {this.tracks = Object.freeze({key, value}); this.publish();}
+    });
+  }
 
   refreshPresentation = (): void => {if (this.options.isCurrent()) this.publish();};
   getSnapshot = (): ReturnType<PlayOnReceiversPort['getSnapshot']> => this.state;
@@ -114,6 +132,9 @@ export class WatchReceivers implements PlayOnReceiversPort {
   }
   toggle = (): void => {const remote = this.remote; if (remote && !remote.stopped) void (remote.paused ? this.handoff.play() : this.handoff.pause()).then(this.publish);};
   seek = (seconds: number): void => {if (this.remote && !this.remote.stopped) void this.handoff.seek(seconds).then(this.publish);};
+  next = (): void => {if (this.remote && !this.remote.stopped && this.remote.next) void this.handoff.next().then(this.publish);};
+  audio = (trackId: string): void => {if (this.remote && !this.remote.stopped) void this.handoff.audio(trackId).then(() => {this.readTracks(true);});};
+  subtitles = (trackId: string | null): void => {if (this.remote && !this.remote.stopped) void this.handoff.subtitles(trackId).then(() => {this.readTracks(true);});};
   /** Stops the other device; the bar stays, stopped, with Continue here. */
   stop = (): void => {
     const remote = this.remote;
