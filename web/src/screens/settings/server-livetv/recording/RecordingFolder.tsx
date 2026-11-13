@@ -13,19 +13,17 @@ export function RecordingFolder({controller, api}: {controller: RecordingRootCon
   const [open, setOpen] = useState(false), opener = useRef<HTMLButtonElement>(null);
   useEffect(() => {void controller.load();}, [controller]);
   const choose = useCallback((path: string) => {if (controller.isActive()) {controller.choose(path);setOpen(false);void controller.save();}}, [controller]);
-  if (!controller.isActive() || state.unsupported) return null;
+  if (!controller.isActive()) return null;
   return <section className={styles.section}>
     <SettingsRow label={t('web.liveTv.recordingFolder')} help={t('web.liveTv.recordingFolderHelp')}>
-      <span style={{minWidth: 0, overflowWrap: 'anywhere'}}>{state.draft || t('web.liveTv.recordingFolderUnset')}</span>
-      <Button ref={opener} size="small" variant="text" disabled={!state.status || state.loading || state.saving || state.uncertain || state.status.operatorControlled} onClick={() => setOpen(true)}>{t('server.live.choose')}</Button>
+      <span style={{minWidth: 0, overflowWrap: 'anywhere'}}>{(controller.dirty()?state.draft:state.folder?.folder) || t('next.settings.loading')}</span>
+      <Button ref={opener} size="small" variant="text" disabled={!state.document || state.loading || state.saving || state.uncertain} onClick={() => setOpen(true)}>{t('server.live.choose')}</Button>
     </SettingsRow>
-    {state.terminalRequest && <p role="status">{t('web.liveTv.recordingFolderRequestRetired')}</p>}
     {state.loading && <p role="status">{t('status.loading')}</p>}
-    {!!state.error && <p role="alert" className={styles.error}>{errorMessage(state.error)}</p>}
-    {!!state.error && <Button size="small" variant="text" onClick={() => {if (controller.dirty()) void controller.save();else void controller.load(true);}}>{t('action.tryAgain')}</Button>}
-    {state.status && <p className={styles.lede} style={{overflowWrap: 'anywhere'}}>{t('web.liveTv.recordingFolderEffective', {path: state.status.effective || t('web.liveTv.recordingFolderUnset')})}</p>}
-    {state.status?.pendingRestart && <p role="status">{t('web.liveTv.recordingFolderPending')}</p>}
-    {state.status?.operatorControlled && <p className={styles.lede}>{t('web.liveTv.recordingFolderOperator')}</p>}
-    <ServerDirectoryExplorer open={open} onOpenChange={setOpen} api={api} onChoose={choose} initialPath={state.draft} checkWritable returnFocusRef={opener}/>
+    {!!state.error && <p role="alert" className={styles.error}>{errorMessage(state.error,'server-console',{operation:'action'})}</p>}
+    {!!state.error && <Button size="small" variant="text" onClick={() => {if (controller.dirty()) void controller.save();else void controller.load();}}>{t('action.tryAgain')}</Button>}
+    {state.folder?.state==='not_made'&&<p className={styles.lede}>{t('web.liveTv.recordingFolderNotMade')}</p>}
+    {state.folder?.state==='unwritable'&&<p role="alert" className={styles.error}>{t('web.liveTv.notWritable')}{state.folder.problem&&` ${state.folder.problem}`}</p>}
+    <ServerDirectoryExplorer open={open} onOpenChange={setOpen} api={api} onChoose={choose} initialPath={state.folder?.state==='ready'?(controller.dirty()?state.draft:state.folder.folder):undefined} checkWritable returnFocusRef={opener}/>
   </section>;
 }

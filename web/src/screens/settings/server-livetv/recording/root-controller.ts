@@ -1,57 +1,24 @@
 import type {LibraryContentApi} from '@core/library-content.ts';
-import {readRecordingRoot, saveRecordingRoot, type RecordingRootStatus, type RecordingRootIntent} from '@core/server-admin/recording-root.ts';
-import {channelRequestID} from '@core/live-source-draft.ts';
-import {OwnerStore, errorFacts} from '../../../live/owner/lifetime';
-type State = Readonly<{loading: boolean; saving: boolean; status?: RecordingRootStatus; draft?: string; error?: unknown; unsupported?: boolean; uncertain?: boolean; terminalRequest?: 'console_expired' | 'console_capacity'}>;
-export class RecordingRootController extends OwnerStore<State> {
-  private pending?: RecordingRootIntent;
-  constructor(private api: LibraryContentApi, current: () => boolean, reportError: (error: unknown) => void) {super(Object.freeze({loading: false, saving: false}), current, reportError);}
-  dirty = () => {const s = this.getSnapshot();return !!s.status && s.draft !== undefined && s.draft !== (s.status.requested || s.status.effective);};
-  async load(keepDraft = false) {
-    if (!this.isActive() || this.snapshot.loading || this.snapshot.saving || this.pending || !keepDraft && this.dirty()) return;
-    const priorDraft = this.snapshot.draft, terminalRequest = this.snapshot.terminalRequest;
-    const attempt = this.begin();this.publish({...this.snapshot, loading: true, error: undefined});
-    try {
-      const status = await readRecordingRoot(this.api, attempt.abort.signal);
-      if (this.valid(attempt)) this.publish({loading: false, saving: false, status, terminalRequest, draft: keepDraft ? priorDraft ?? (status.requested || status.effective) : status.requested || status.effective});
-    } catch (error) {
-      if (!this.valid(attempt)) return;
-      const facts = errorFacts(error);
-      if (facts.status === 404 || facts.code === 'not_found') this.publish({loading: false, saving: false, unsupported: true});
-      else this.fail(error, {...this.snapshot, loading: false, error: facts});
-    }
-  }
-  choose(path: string) {
-    if (!this.isActive() || this.snapshot.loading || this.snapshot.saving || this.pending || !this.snapshot.status || this.snapshot.status.operatorControlled || !path || new TextEncoder().encode(path).length > 1024) return;
-    this.publish({...this.snapshot, draft: path, error: undefined, terminalRequest: undefined});
-  }
-  discard() {
-    if (this.isActive() && !this.snapshot.saving && !this.pending && this.snapshot.status) this.publish({...this.snapshot, draft: this.snapshot.status.requested || this.snapshot.status.effective, error: undefined});
-  }
-  async save() {
-    if (!this.isActive() || this.snapshot.loading || this.snapshot.saving || !this.snapshot.status || !this.snapshot.draft || this.snapshot.status.operatorControlled || !this.dirty()) return;
-    const intent = this.pending ?? Object.freeze({expectedRevision: this.snapshot.status.revision, operationId: channelRequestID(), path: this.snapshot.draft});
-    this.pending = intent;
-    const attempt = this.begin();this.publish({...this.snapshot, saving: true, error: undefined});
-    try {
-      const status = await saveRecordingRoot(this.api, intent, attempt.abort.signal);
-      if (!this.valid(attempt)) return;
-      this.pending = undefined;this.publish({loading: false, saving: false, status, draft: status.requested || status.effective, uncertain: false});
-    } catch (error) {
-      if (!this.valid(attempt)) return;
-      const facts = errorFacts(error);
-      if (facts.code === 'console_expired' || facts.code === 'console_capacity') {
-        // These typed responses definitively retire this operation key. Expiry
-        // does not prove it never succeeded: reread, never remint/replay a write.
-        this.pending = undefined;
-        this.publish({loading: false, saving: false, terminalRequest: facts.code, error: facts});
-        await this.load();
-        return;
-      }
-      const refused = [400, 409, 422].includes(facts.status ?? 0) || ['invalid_request', 'invalid_console_request', 'console_conflict', 'revision_mismatch'].includes(facts.code);
-      if (refused) this.pending = undefined;
-      this.fail(error, {...this.snapshot, saving: false, uncertain: !refused, error: facts});
-    }
-  }
-  override dispose() {this.pending = undefined;super.dispose();}
+import {readOwnerDvrSettings,saveOwnerDvrSettings,type OwnerDvrDocument} from '@core/server-admin/owner-dvr-settings.ts';
+import {callServer} from '@core/query/server-api.ts';
+import type {DvrFolderStatus} from '../../../../../../packages/contracts/src/next/api.ts';
+import {OwnerStore,errorFacts} from '../../../live/owner/lifetime';
+type State=Readonly<{loading:boolean;saving:boolean;document?:OwnerDvrDocument;folder?:DvrFolderStatus;draft?:string;error?:unknown;uncertain?:boolean}>;
+/** A folder edit is one field of the rebuilt DVR document, using its captured ETag. */
+export class RecordingRootController extends OwnerStore<State>{
+ constructor(private api:LibraryContentApi,current:()=>boolean,reportError:(error:unknown)=>void){super({loading:false,saving:false},current,reportError);}
+ dirty=()=>{const state=this.getSnapshot();return !!state.document&&state.draft!==undefined&&state.draft!==state.document.value.folder;};
+ async load(preserveError?:unknown){if(!this.isActive()||this.snapshot.loading||this.snapshot.saving)return;const attempt=this.begin();this.publish({...this.snapshot,loading:true,error:preserveError});if(!this.valid(attempt))return;
+  try{const document=await readOwnerDvrSettings(this.api,attempt.abort.signal);if(!this.valid(attempt))return;const folder=await callServer(this.api,'GET /v1/admin/dvr/folder',{signal:attempt.abort.signal});if(this.valid(attempt))this.publish({loading:false,saving:false,document,folder,draft:document.value.folder,error:preserveError});}
+  catch(error){if(this.valid(attempt))this.fail(error,{...this.snapshot,loading:false,error:errorFacts(error)});}
+ }
+ choose(path:string){if(!this.isActive()||this.snapshot.loading||this.snapshot.saving||this.snapshot.uncertain||!this.snapshot.document||!path||path.length>4096)return;this.publish({...this.snapshot,draft:path,error:undefined});}
+ discard(){if(this.isActive()&&!this.snapshot.saving&&this.snapshot.document)this.publish({...this.snapshot,draft:this.snapshot.document.value.folder,error:undefined});}
+ async save(){
+  if(!this.isActive()||this.snapshot.loading||this.snapshot.saving||!this.snapshot.document||!this.snapshot.draft||!this.dirty())return;
+  if(this.snapshot.uncertain){await this.load();return;}
+  const attempt=this.begin(),document=this.snapshot.document;this.publish({...this.snapshot,saving:true,error:undefined});if(!this.valid(attempt))return;
+  try{const saved=await saveOwnerDvrSettings(this.api,document,{folder:this.snapshot.draft},attempt.abort.signal);if(!this.valid(attempt))return;const folder=await callServer(this.api,'GET /v1/admin/dvr/folder',{signal:attempt.abort.signal});if(this.valid(attempt))this.publish({loading:false,saving:false,document:saved,folder,draft:saved.value.folder});}
+  catch(error){if(!this.valid(attempt))return;const facts=errorFacts(error),uncertain=![400,401,403,409,412,422].includes(facts.status??0);this.fail(error,{...this.snapshot,saving:false,error:facts,uncertain});if(this.valid(attempt)&&(uncertain||facts.status===412)){await this.load(facts);}}
+ }
 }

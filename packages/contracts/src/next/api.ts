@@ -4713,6 +4713,7 @@ export interface Routes {
   'POST /v1/dvr/rules': {access: 'withProfile'; request: DvrRuleSave; response: DvrRule};
   'PATCH /v1/dvr/rules/{id}': {access: 'withProfile'; request: DvrRuleSave; response: DvrRule};
   'DELETE /v1/dvr/rules/{id}': {access: 'withProfile'; request: undefined; response: undefined};
+  'GET /v1/admin/dvr/folder': {access: 'owner'; request: undefined; response: DvrFolderStatus};
   'GET /v1/admin/dvr/tuners': {access: 'owner'; request: undefined; response: DvrTuners};
   'GET /v1/live/programmes/{id}': {access: 'withProfile'; request: undefined; response: LiveProgrammeDetail};
   'GET /v1/live/reminders': {access: 'withProfile'; request: undefined; response: LiveReminderOutPage};
@@ -4756,3 +4757,5 @@ export interface Routes {
   'POST /v1/music/mixes/{id}/playlist': {access: 'withProfile'; request: MusicMixSave; response: ListCreated};
   'GET /v1/music/mixes': {access: 'withProfile'; request: undefined; response: MusicMixPage};
 }
+
+export interface DvrFolderStatus {folder: string; state: string; problem?: string}
