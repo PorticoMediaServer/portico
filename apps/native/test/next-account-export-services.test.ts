@@ -29,7 +29,7 @@ test('account export needs fresh proof, keeps its direct file on this opening, a
     '../../../../packages/client-core/src/presentation/errors': {presentError},
     './account-work': {accountExpectation: () => scope, nativeAccountWork: async (_: unknown, work: any, guard: any) => {
       assert(guard.isCurrent()); return work(session);
-    }}, './account-authority': {hostedUrl: origin}, './server-connections': {nativeNetworkFetch: fetcher},
+    }}, './account-password-reset': {openNativeAccountPasswordReset: async () => {}}, './account-authority': {hostedUrl: origin}, './server-connections': {nativeNetworkFetch: fetcher},
   });
   const owner = {accountCredentials: () => ({getSnapshot: () => ({session})}), accountClient: () => {throw new Error('retired proof/job API');}};
   const security = {hasPassword: true, mfaEnabled: true};

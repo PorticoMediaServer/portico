@@ -35,7 +35,7 @@ test('email change sends inline proof and confirms the captured address, retaini
     '../../../../packages/client-core/src/presentation/errors': {presentError: (e: Error) => ({body: e.message})},
     './account-work': {accountExpectation: () => scope, nativeAccountWork: async (_: unknown, work: any, guard: any) => {
       assert(guard.isCurrent()); const answer = await work(session); assert(guard.isCurrent()); return answer;
-    }}, './account-authority': {hostedUrl: origin}, './server-connections': {nativeNetworkFetch: fetcher},
+    }}, './account-password-reset': {openNativeAccountPasswordReset: async () => {}}, './account-authority': {hostedUrl: origin}, './server-connections': {nativeNetworkFetch: fetcher},
   });
   const owner = {accountCredentials: () => ({getSnapshot: () => ({session})}), accountClient: () => {throw new Error('retired proof API');}};
   const service = new NativeAccountSecurity(owner, scope, {hasPassword: true}, () => active);

@@ -70,7 +70,7 @@ async function fixture({hosted = true, matching = true, hasPassword = true, prov
       assert(answer, 'no retired Services routes');
       return new Response(JSON.stringify(answer), {status: 200, headers: {'Content-Type': 'application/json'}});
     }},
-    '../accounts/PhoneAccountSecurity': {AccountSecuritySheet: 'AccountSecuritySheet', accountSecurityAvailability: shared.accountSecurityAvailability}, './native-account-security': securityScope,
+    '../accounts/PhoneAccountSecurity': {AccountSecuritySheet: 'AccountSecuritySheet', PasswordResetSheet: 'PasswordResetSheet', accountSecurityAvailability: shared.accountSecurityAvailability}, './native-account-security': securityScope,
   });
   let tree: any;
   const render = () => {tree = host.render(() => NativeHostedSignInPanel({kind, context, lifetime, t: (key: string) => key, runtime: {}})); for (const effect of effects.splice(0)) effect(); return tree;};
@@ -124,15 +124,20 @@ test('H09: without this account’s Portico session the app says who the server 
   }
 });
 
-test('Password-less Settings actions are unavailable even when a provider bridge is ready', async () => {
+test('Password-less Two-step says a password comes first and links to Add a password, which opens the hosted reset (#3392)', async () => {
   for (const providerReady of [false, true]) {
     const f = await fixture({hasPassword: false, providerReady, kind: 'twoStep'});
     try {
       assert.equal(f.find('settings-panel-twoStep').props.value, 'web.hostedSecurity.on');
+      assert.equal(f.find('settings-panel-twoStep').props.description, 'account.security.passwordNeeded');
       assert.equal(f.find('account-security-mfa-off'), undefined);
       assert.equal(f.find('account-security-codes'), undefined);
-      assert(JSON.stringify(f.tree()).includes('account.security.appUnavailable'));
-      assert.deepEqual(f.controllers[0].opened, []);
+      const link = f.find('account-security-two-step-password');
+      assert.equal([link.props.children].flat().join(''), 'web.hostedSecurity.addPassword');
+      const sheet = () => JSON.parse(JSON.stringify(f.tree(), (key, value) => key === '_owner' ? undefined : value));
+      assert.equal(JSON.stringify(sheet()).includes('"PasswordResetSheet"'), true);
+      link.props.onPress(); await f.settle();
+      assert.deepEqual(f.controllers[0].opened, [], 'no security action opens: the reset page is the hosted one');
     } finally {f.dispose();}
   }
 });
@@ -176,7 +181,7 @@ test('R-21: a Portico Account page that cannot open says so instead of doing not
 });
 
 // Justin, 1 Nov: a Google- or Apple-only account never sees Set a password in Settings either.
-test('A Google-only Settings account shows an unavailable Password row after More sign-in options', async () => {
+test('A Google-only Settings account shows a Password row with Add a password after More sign-in options', async () => {
   const f = await fixture({hasPassword: false, kind: 'password'});
   try {
     assert.equal(f.find('settings-panel-password'), undefined, 'no Password row until it is asked for');
@@ -187,8 +192,8 @@ test('A Google-only Settings account shows an unavailable Password row after Mor
     assert.equal(f.find('settings-more-sign-in'), undefined, 'the link goes away');
     const row = f.find('settings-panel-password');
     assert.equal(row.props.label, 'settings.row.password'); assert.equal(row.props.value, 'web.hostedSecurity.notSet');
-    assert.equal(f.find('account-security-password'), undefined);
-    assert(JSON.stringify(row).includes('account.security.appUnavailable'));
-    assert.deepEqual(f.controllers.at(-1)!.opened, []);
+    assert.equal([f.find('account-security-password').props.children].flat().join(''), 'web.hostedSecurity.addPassword');
+    f.find('account-security-password').props.onPress(); await f.settle();
+    assert.deepEqual(f.controllers.at(-1)!.opened, [], 'Add a password opens the hosted reset, not a security action');
   } finally {f.dispose();}
 });

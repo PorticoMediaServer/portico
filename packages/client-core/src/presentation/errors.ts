@@ -114,7 +114,7 @@ const exact: Record<string, ErrorCategory> = {
   cancelled: 'cancelled', canceled: 'cancelled', aborted: 'cancelled',
   network: 'unreachable', request_failed: 'unreachable', server_unavailable: 'unreachable', route_unavailable: 'unreachable', insecure_route_unconfirmed: 'unreachable', console_unavailable: 'unreachable', delivery_http_failure: 'unreachable', remote_unavailable: 'unreachable',
   timeout: 'timeout', remote_stalled: 'timeout',
-  unauthorized: 'authentication', authentication_required: 'authentication', session_expired: 'authentication', invalid_token: 'authentication', unauthenticated: 'authentication',
+  unauthorized: 'authentication', authentication_required: 'authentication', sign_in_again: 'authentication', signed_out: 'authentication', session_expired: 'authentication', invalid_token: 'authentication', unauthenticated: 'authentication',
   forbidden: 'permission', permission_changed: 'permission', access_revoked: 'permission', owner_required: 'permission', remote_denied: 'permission', remote_sign_in_not_allowed: 'permission', outside_allowed_hours: 'permission',
   not_found: 'not-found', gone: 'not-found',
   rate_limited: 'rate-limited', too_many_requests: 'rate-limited',
@@ -174,6 +174,8 @@ const codeBodies: Record<string, MessageId> = {
   sync_pending: 'sync.kept',
   reading_progress_pending: 'error.readingProgressPending',
   factor_setup_required: 'error.factorSetupRequired',
+  // Deleting a Portico Account that still owns a server: what to do first, not a generic refusal.
+  owns_server: 'error.ownsServer',
   // The phone's Google or Apple sheet closed without an answer: cancelled or failed, the system can't say which.
   provider_cancelled: 'error.providerUnfinished',
   profile_pin_invalid: 'accounts.profiles.pinFailed',
