@@ -2,7 +2,7 @@ import {jobStateName} from '../../../../../../packages/client-core/src/server-ad
 import type {LibraryContentApi} from '../../../../../../packages/client-core/src/library-content';
 import {EpisodeThumbnailsRow} from './EpisodeThumbnailsRow';
 import type {AnalysisPolicy} from '../../../../../../packages/client-core/src/remote-sources';
-import {MissingTitlesTab} from '../server/storage/MissingTitlesTab';
+import {LibraryTrashGroup} from './LibraryTrashGroup';
 import {loadInitialOwnerLibrary} from './initial-library';
 import {screenScopeEnded, type NativeScreenLifetime} from '../lifetime';
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore} from 'react';
@@ -149,7 +149,6 @@ export function NativeOwnerLibrariesPanel({ports, runtime, initialLibraryId, lif
       <View style={{flexDirection: 'row', marginTop: 14, marginBottom: 4}}>
         <Button size="compact" icon="i-plus" onPress={() => setAdding(true)}>{t('web.empty.addLibrary')}</Button>
       </View>
-      <MissingTitlesTab ports={ports} runtime={runtime} t={runtime.text.t as Translate}/>
       {state.directory.phase === 'error' && <StateView {...runtime.error(state.directory.error, () => {void controller.refresh();}, 'server-console')}/>}
       {libraryListState(state.directory.phase, libraries.length) === 'empty' && <SettingsGroup style={{marginTop: 12}}>
         <SettingsRow first label={t('next.ownerLibraries.empty')} description={t('next.ownerLibraries.emptyHelp')}/>
@@ -237,6 +236,7 @@ function LibraryPage({api, library, document, state, tab, tabChange, t, runtime,
         {tab === 'metadata' && <><MetadataTab document={document} metadata={state.metadata} busy={state.busy} t={t} save={save} saveAgent={saveAgent} fetchLyrics={fetchLyrics} state={state} parentCurrent={parentCurrent}/><SectionTitle>{t('next.ownerLibraries.tab.attention')}</SectionTitle><AttentionTab state={state} t={t} more={moreUnmatched}/></>}
         {tab === 'scanning' && <ScanningTab api={api} library={library} document={document} metadata={state.metadata} state={state} t={t} locale={runtime.text.locale ?? defaultI18n.region.formatLocale} skipped={skipped} cancel={cancel} dashboard={dashboard} save={save} scanAll={scanAll} parentCurrent={parentCurrent} strmChange={strmChange} strmRetry={strmRetry} sonicToggle={sonicToggle} sonicRetry={sonicRetry} sonicReload={sonicReload}/>}
         {tab === 'advanced' && <AdvancedTab document={document} t={t} owner={viewerRole === 'owner'} busy={state.busy} save={save}/>}
+        {tab === 'scanning' && viewerRole === 'owner' && <LibraryTrashGroup api={api} libraryId={library.id} parentCurrent={parentCurrent} t={t}/>}
       </View>
     </ScrollView>
   </View>;
