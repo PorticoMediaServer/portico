@@ -5,7 +5,8 @@ import {unreadableServerResponse} from './server-messages.ts';
 import {validateContentEntry,type ContentEntry,type ContentScope,type LibraryContentApi} from './library-content.ts';
 import {firstOfEach,keepReadable} from './tolerant.ts';
 import {callServer,serverPath} from './query/server-api.ts';
-import {entryFromItem,itemKindOf} from './items.ts';
+import {entryFromItem} from './items.ts';
+import type {MessageId} from '../../i18n/src/index.ts';
 import type {Item} from '../../contracts/src/next/api.ts';
 export type PersonRole='cast'|'crew'|'all';
 export type Person=Readonly<{birthPlace?:string;biographySource?:string;id:string;name:string;sortName:string;biography:string;birthDate:string;deathDate:string;portraitUrl:string;roles:readonly string[];knownFor:readonly ContentEntry[];providerIds:Readonly<Record<string,string>>;revision:number}>;
@@ -19,6 +20,33 @@ const roles:readonly PersonRole[]=['cast','crew','all'];
 // The existing screens call exact credit roles departments. Cast is the guest-star row;
 // both it and Acting belong to their Acting filter, while every other role belongs to Crew.
 const departments:Readonly<Record<string,string>>={actor:'Acting',guest:'Cast',director:'Directing',writer:'Writing',producer:'Production',composer:'Music',author:'Author',narrator:'Narration',artist:'Artist',crew:'Crew'};
+/**
+ * A person's titles in sections by kind (desktop-detail frame 7), in search's fixed order (browse
+ * rule 30) and under search's names. Each section is one server request for the item kinds it
+ * holds: a season sits with its show, and books, comics and their issues are one Books section,
+ * as in search. The server lists each credited item on its own (browse rule 26: one card per
+ * title), so an episode credit is an Episodes card, not folded into its show.
+ */
+export const PERSON_SECTIONS:readonly Readonly<{kind:string;label:MessageId}>[]=[
+ {kind:'movie',label:'search.chip.movies'},{kind:'show,season',label:'search.chip.shows'},{kind:'episode',label:'search.chip.episodes'},
+ {kind:'artist',label:'search.chip.artists'},{kind:'album',label:'search.chip.albums'},{kind:'track',label:'search.chip.songs'},
+ {kind:'audiobook',label:'search.chip.audiobooks'},{kind:'book,comic,issue,series',label:'search.chip.reading'},
+];
+/** A section's heading; one this app did not make reads as Credits. */
+export const personSectionLabel=(kind:string|undefined):MessageId=>PERSON_SECTIONS.find(section=>section.kind===kind)?.label??'web.person.credits';
+/** The sections a person's kind totals fill, with their totals. A title of a kind no section holds
+ * would be missing from every section, so then there are none and the page lists every title once. */
+export function personSections(counts:unknown):readonly Readonly<{id:string;kind:string;total:number}>[]{
+ if(!object(counts))return [];
+ const totals=new Map<string,number>();
+ for(const [kind,value] of Object.entries(counts)){
+  if(!count(value)||value===0)continue;
+  const section=PERSON_SECTIONS.find(entry=>entry.kind.split(',').includes(kind));
+  if(!section)return [];
+  totals.set(section.kind,(totals.get(section.kind)??0)+value);
+ }
+ return PERSON_SECTIONS.flatMap(section=>totals.has(section.kind)?[{id:'kind:'+section.kind,kind:section.kind,total:totals.get(section.kind)!}]:[]);
+}
 const acting=(role:string)=>role==='actor'||role==='guest';
 const roleLabel=(role:string)=>role==='guest'?'Guest star':role.charAt(0).toUpperCase()+role.slice(1);
 const object=(v:unknown):v is Record<string,unknown>=>typeof v==='object'&&v!==null&&!Array.isArray(v);
@@ -92,7 +120,7 @@ export function personPath(personId:string,options:Readonly<{role?:PersonRole;de
  if(options.department&&options.kind||options.role&&(options.department||options.kind))throw new Error('Choose one person credit group.');
  const role=options.department?(Object.keys(departments).find(role=>departments[role]===options.department)??options.department):undefined;
  return serverPath('GET /v1/items',{query:{person:personId,limit,total:true,
-  ...(role?{role}:{}),...(options.kind?{kind:itemKindOf(options.kind)}:{}),
+  ...(role?{role}:{}),...(options.kind?{kind:options.kind}:{}),
   ...(options.role==='cast'?{creditGroup:'acting'}:options.role==='crew'?{creditGroup:'crew'}:{}),cursor:options.cursor??undefined}});
 }
 export function peopleSearchPath(q:string,limit=25):string{
@@ -111,7 +139,7 @@ export async function readPerson(api:LibraryContentApi,scope:ContentScope,person
  try{
   const [facts,raw]=await Promise.all([callServer(api,'GET /v1/people/{id}',{id:personId,signal:options.signal}),api.request<unknown>(path,'GET',undefined,options.signal)]);
   if(!object(facts)||facts.id!==personId||!object(raw))invalid();
-  const groups=keepReadable('people','roles',array(facts.roles??[],16),r=>{
+  const groups:Readonly<{id:string;kind?:string;department?:string;total:number}>[]=keepReadable('people','roles',array(facts.roles??[],16),r=>{
    if(!object(r)||!id(r.role)||!count(r.titleCount))invalid();
    return {id:'role:'+r.role,department:departments[r.role]??r.role,total:r.titleCount};
   });
@@ -119,6 +147,8 @@ export async function readPerson(api:LibraryContentApi,scope:ContentScope,person
    if(!object(item))invalid();
    const entry=entryFromItem(item as unknown as Item);if(!entry)invalid();return entry;
   });
+  const roleNames=[...new Set(groups.map(group=>group.department==='Cast'?'Acting':group.department!))];
+  groups.push(...personSections((facts as {kindCounts?:unknown}).kindCounts));
   const selectedRole=options.department?(Object.keys(departments).find(role=>departments[role]===options.department)??options.department):undefined;
   const credits=firstOfEach('people','credits',keepReadable('people','credits',array(raw.items,limit),item=>{
    if(!object(item))invalid();
@@ -133,8 +163,9 @@ export async function readPerson(api:LibraryContentApi,scope:ContentScope,person
    const cast=acting(chosen.role),department=departments[chosen.role]??chosen.role;
    return {media,creditKind:cast?'cast' as const:'crew' as const,character:cast?chosen.character:'',department,
     role:cast?chosen.character||roleLabel(chosen.role):roleLabel(chosen.role),
-    roles:creditRoles.map(credit=>({role:acting(credit.role)?credit.character||roleLabel(credit.role):roleLabel(credit.role),
-     department:acting(credit.role)&&!credit.character?'':departments[credit.role]??credit.role}))};
+    // The same role named twice on one title is one line under its card.
+    roles:[...new Map(creditRoles.map(credit=>{const role={role:acting(credit.role)?credit.character||roleLabel(credit.role):roleLabel(credit.role),
+     department:acting(credit.role)&&!credit.character?'':departments[credit.role]??credit.role};return [role.role+'\n'+role.department,role] as const;})).values()]};
   }),credit=>credit.media.id);
   const crewTotal=(facts as {crewTitleCount?:unknown}).crewTitleCount;
   if(options.role==='crew'&&!count(crewTotal))invalid();
@@ -142,7 +173,7 @@ export async function readPerson(api:LibraryContentApi,scope:ContentScope,person
   // bound to the caller's scope; refused server cursors still restart the existing pagers.
   return parsePersonPage({serverId:scope.serverId,viewerFence:scope.viewerId,revision:{catalog:0,viewer:0},
    person:{id:facts.id,name:facts.name,biography:facts.biography,birthDate:facts.birthDate,deathDate:facts.deathDate,birthPlace:facts.birthplace,
-    portraitUrl:facts.images?.portrait??facts.images?.thumb,roles:[...new Set(groups.map(group=>group.department==='Cast'?'Acting':group.department))],knownFor,revision:0},groups,credits,
+    portraitUrl:facts.images?.portrait??facts.images?.thumb,roles:roleNames,knownFor,revision:0},groups,credits,
    pageInfo:{total:options.role==='crew'?crewTotal:raw.total,nextCursor:raw.nextCursor}},scope,{role:options.role,limit,personId});
  }catch(error){
   if((error as {code?:unknown})?.code==='cursor_expired')throw new Failure('invalid_cursor','This list changed. Read it again.');

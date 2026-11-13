@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {parsePersonPage,parsePeopleDirectory,personPath,peopleSearchPath,personPortraitPath,readPerson} from '../src/people.ts';
+import {parsePersonPage,parsePeopleDirectory,personPath,peopleSearchPath,personPortraitPath,readPerson,personSections,personSectionLabel} from '../src/people.ts';
 import {personalBatchBody,parsePersonalBatchReceipt,parseEntryOutcomes,MAX_PERSONAL_BATCH} from '../src/personal-saved.ts';
 import {savedListPath,personalHistoryPath} from '../src/saved.ts';
 import {skippedParts} from '../src/tolerant.ts';
@@ -93,6 +93,29 @@ test('readPerson requests exactly what it validates',async()=>{
  assert.deepEqual((await readPerson(api,scope,'person-1',{department:'Cast'})).credits.map(c=>c.media.id),['guest']);
  const changed={request:async<T>(path:string)=>{if(path.startsWith('/v1/people/'))return facts as T;throw Object.assign(new Error('changed'),{code:'cursor_expired'});}};
  await assert.rejects(readPerson(changed,scope,'person-1',{cursor:'old'}),{code:'invalid_cursor'});
+});
+test('a person’s kind totals fill sections in search’s order, each asking for its own kinds',async()=>{
+ // An actor with a film, guest spots on episodes and a season, an author of books, comics and issues, and a narrator.
+ const counts={episode:4,movie:2,season:1,issue:3,book:5,comic:1,audiobook:2,track:6};
+ assert.deepEqual(personSections(counts).map(s=>[s.kind,s.total]),[['movie',2],['show,season',1],['episode',4],['track',6],['audiobook',2],['book,comic,issue,series',9]]);
+ assert.deepEqual(personSections(counts).map(s=>personSectionLabel(s.kind)),['search.chip.movies','search.chip.shows','search.chip.episodes','search.chip.songs','search.chip.audiobooks','search.chip.reading']);
+ assert.equal(personSectionLabel(undefined),'web.person.credits');
+ // A title of a kind no section holds would be in none of them: then the page lists every title once.
+ assert.deepEqual(personSections({movie:2,collection:1}),[]);
+ assert.deepEqual(personSections({movie:0,show:1}).map(s=>s.kind),['show,season']);
+ assert.deepEqual(personSections(undefined),[]);assert.deepEqual(personSections({movie:-1}),[]);
+ // A section asks the server for exactly its kinds: books are never asked for as audiobooks.
+ assert.equal(new URL(personPath('p1',{kind:'book,comic,issue,series'}),'https://unit.invalid').searchParams.get('kind'),'book,comic,issue,series');
+ assert.equal(new URL(personPath('p1',{kind:'audiobook'}),'https://unit.invalid').searchParams.get('kind'),'audiobook');
+ const facts={id:'person-1',name:'Ada',titleCount:3,crewTitleCount:0,roles:[{role:'author',titleCount:3}],kindCounts:{book:2,issue:1}};
+ const api={request:async<T>(path:string)=>(path.startsWith('/v1/people/')?facts:{items:[],total:0}) as T};
+ const read=await readPerson(api,scope,'person-1',{limit:1});
+ assert.deepEqual(read.groups.map(g=>[g.id,g.kind,g.department,g.total]),[['role:author',undefined,'Author',3],['kind:book,comic,issue,series','book,comic,issue,series',undefined,3]]);
+ assert.deepEqual(read.person.roles,['Author'],'a kind section is not a role');
+ // The same role named twice on one title is one line under its card; two characters stay two.
+ const twice={request:async<T>(path:string)=>(path.startsWith('/v1/people/')?facts:{items:[{id:'e1',kind:'episode',title:'Visit',credits:[
+  {personId:'person-1',role:'guest'},{personId:'person-1',role:'guest'},{personId:'person-1',role:'actor',character:'A'},{personId:'person-1',role:'actor',character:'B'}]}],total:1}) as T};
+ assert.deepEqual((await readPerson(twice,scope,'person-1',{limit:1})).credits[0].roles.map(r=>r.role),['Guest star','A','B']);
 });
 test('a bulk personal intent is one bounded request answered row by row',()=>{
  const body=personalBatchBody('op-1',[{itemId:'a',watchlisted:true},{itemId:'b',watched:true,favorite:true}]);
