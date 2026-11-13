@@ -44,6 +44,7 @@ async function fixture(storage = Promise.resolve()) {
   const {NativeCastCaller} = await sourceModule(new URL('../src-next/platform/play-on/cast.ts', import.meta.url), {
     'react-native': {NativeEventEmitter: Emitter, NativeModules: {PorticoCast: bridge}, Platform: {isTV: false}},
     '../../../../../packages/client-core/src/query/catalogue-reads': catalogueReads,
+  '../../../../../packages/client-core/src/presentation/service-text':{serviceText:id=>id},
   '../../../../../packages/client-core/src/connection-policy': {castOrigin},
     '../../../../../packages/client-core/src/cast': {CastController: Controller, sameCastRemote: (a, b) => a === b, parseCastEvent: value => value},
     '../../../../../packages/player-core/src': {sameFence},
@@ -51,7 +52,7 @@ async function fixture(storage = Promise.resolve()) {
     './cast-controller-storage': {castControllerStorage: {}, castControllerStorageReady: storage}, './cast-offered': {castOffered},
   });
   const session = {sessionFamilyId: 'family', viewer: {...scope, role: 'member'}};
-  const caller = new NativeCastCaller({api: {baseUrl: 'https://server.invalid', request: async path => {assert.equal(path, '/v1/cast/configuration');return {applicationId: 'APP'};}},
+  const caller = new NativeCastCaller({api: {baseUrl: 'https://server.invalid', request: async path => {assert.equal(path, '/v1/cast/config');return {applicationId: 'APP'};}},
     session: () => session, playback: () => adapter, current: () => current, deviceName: () => 'Phone', reportError: error => errors.push(error)});
   await settle(); assert.equal(caller.getSnapshot().cast.available, true);
   const change = patch => {snapshot = {...snapshot, ...patch};for (const fn of [...playbackListeners]) fn();};

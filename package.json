@@ -13,7 +13,7 @@
     "dev:web": "npm run dev --workspace portico-web",
     "check:web": "npm run test:cast && npm run check --workspace portico-web",
     "test:core": "npm run test --workspace @portico/client-core",
-    "test:cast": "node --test server/receiver/cast/test/*.test.cjs",
+    "test:cast": "node --test server-next/receiver/cast/test/*.test.cjs",
     "test:player": "npm run test --workspace @portico/player-core",
     "check:player": "npm run check --workspace @portico/player-core",
     "test:reader": "npm run test --workspace @portico/reader-core",

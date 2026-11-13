@@ -110,7 +110,7 @@ function main() {
   }
   const problems = [];
   let scanned = 0;
-  for (const [label, dir] of [['web', dist], ['cast receiver', join(root, 'server/receiver/cast')]]) {
+  for (const [label, dir] of [['web', dist], ['cast receiver', join(root, 'server-next/receiver/cast')]]) {
     for (const path of files(dir)) {
       if (path.includes(`${join('receiver', 'cast', 'test')}`)) continue;
       scanned++;
@@ -118,7 +118,7 @@ function main() {
     }
   }
   problems.push(...cspProblems('web CSP (installation.go)', goConstant('server/internal/httpapi/installation.go', 'webContentSecurityPolicy')));
-  problems.push(...cspProblems('Cast receiver CSP (social_routes.go)', goConstant('server/internal/httpapi/social_routes.go', 'castReceiverCSP')));
+  problems.push(...cspProblems('Cast receiver CSP (receiver.go)', goConstant('server-next/receiver/receiver.go', 'receiverCSP')));
   if (scanned === 0) problems.push('no shipped files were scanned');
   if (problems.length) {
     console.error(`External font or CDN references found (only the Cast SDK may load from outside):\n- ${problems.join('\n- ')}`);

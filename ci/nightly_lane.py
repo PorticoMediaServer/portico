@@ -23,7 +23,7 @@ def configure_environment(lane):
 def run_receiver_contracts(lane):
     if lane != 'golden':
         return
-    tests = sorted((ROOT/'server/receiver/cast/test').glob('*.test.cjs'))
+    tests = sorted((ROOT/'server-next/receiver/cast/test').glob('*.test.cjs'))
     required = {'receiver.test.cjs', 'text.test.cjs'}
     if not required.issubset({test.name for test in tests}):
         raise ValueError('missing Cast receiver compatibility suite')
