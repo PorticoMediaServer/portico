@@ -84,8 +84,8 @@ test('readPerson requests exactly what it validates',async()=>{
  assert.deepEqual(parsed.credits.map(c=>c.media.id),['mixed','guest','crew']);
  assert.deepEqual(parsed.credits[0].roles,[{role:'Ada',department:'Acting'},{role:'Director',department:'Directing'}]);
  assert.equal(parsed.credits[1].creditKind,'cast');assert.equal(parsed.credits[1].character,'Visitor');
- assert.deepEqual(parsed.groups.filter(g=>g.department).map(g=>[g.department,g.total]),[['Acting',1],['Cast',1],['Directing',1],['Crew',1]]);
- assert.deepEqual(parsed.groups.filter(g=>g.kind).map(g=>[g.kind,g.total]),[['movie',2],['episode',1],['ebook',4],['book',5],['song',6]]);
+ assert.deepEqual(parsed.groups.map(g=>[g.department,g.total]),[['Acting',1],['Cast',1],['Directing',1],['Crew',1]]);
+ assert.equal(parsed.groups.some(group=>group.kind),false,'kind totals do not activate desktop sections before their design is ready');
  assert.deepEqual((await readPerson(api,scope,'person-1',{role:'cast'})).credits.map(c=>c.media.id),['mixed','guest']);
  const crew=await readPerson(api,scope,'person-1',{role:'crew'});
  assert.equal(crew.pageInfo.total,2);assert.equal(crew.credits[0].role,'Director');assert.equal(crew.credits[0].character,'');
