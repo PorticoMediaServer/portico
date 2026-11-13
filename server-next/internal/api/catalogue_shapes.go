@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
 )
 
 // The shapes of the browse and personal-state routes. One Item shape serves every kind and
@@ -609,6 +610,9 @@ func detailShape(d db.ItemDetail) Item {
 func streamShapes(streams []db.Stream) []Stream {
 	out := make([]Stream, len(streams))
 	for index, s := range streams {
+		if s.Kind == db.StreamAudio && !mediafacts.LosslessAudio(s.Codec) {
+			s.BitDepth = 0
+		}
 		out[index] = Stream{Index: index, Kind: s.Kind.String(), Codec: s.Codec, Profile: s.Profile,
 			Language: s.Language, Title: s.Title, Default: s.Default, Forced: s.Forced, HearingImpaired: s.HearingImpaired,
 			Commentary: s.Commentary, ObjectAudio: s.ObjectAudio,

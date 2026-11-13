@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 )
 
@@ -403,6 +404,9 @@ func versionOut(v db.PlaybackVersion) PlaybackVersion {
 			out.Video = append(out.Video, PlaybackVideo{ID: id, Codec: t.Codec, Profile: t.Profile, BitDepth: t.BitDepth, Width: t.Width,
 				Height: t.Height, FPS: t.FrameRate, HDR: t.HDR, BitrateKbps: t.Bitrate / 1000})
 		case db.StreamAudio:
+			if !mediafacts.LosslessAudio(t.Codec) {
+				t.BitDepth = 0
+			}
 			out.Audio = append(out.Audio, PlaybackAudio{ID: id, Codec: t.Codec, Profile: t.Profile, Channels: t.Channels,
 				Layout: t.ChannelLayout, SampleRate: t.SampleRate, BitDepth: t.BitDepth, Language: t.Language, Title: t.Title,
 				Default: t.Default, Commentary: playback.Commentary(t), ObjectAudio: t.ObjectAudio})
