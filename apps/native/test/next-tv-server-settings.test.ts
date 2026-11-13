@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {maintenance} from './helpers/owner-server-settings.mjs';
+import {tvServerSettingsFacts} from '../src-next/screens/settings-live/server/tv-server-values';
+import {settingsSpecMessages} from '../../../packages/i18n/src/catalog/en-US/next/settings-spec';
 import {settingsSpec, settingsRowIndex} from '../../../packages/client-core/src/presentation/settings-spec';
 import {settingsBinding, settingsBindingPatch, applySettingsBindingPatch} from '../../../packages/client-core/src/presentation/settings-bindings';
 import {tvCustomChoiceValue, tvServerSettingGroups, tvServerSettingsSources, type TVServerSettingsState} from '../src-next/screens/settings-live/server/tv-server-settings-model';
@@ -163,28 +165,16 @@ test('a number sheet steps within the row’s range and refuses a value off its 
   assert.deepEqual(saved, [120]);
 });
 
-for (const memoryAvailable of [true, false]) test(`Streaming on TV uses an explicit preference and always keeps its disk folder (${memoryAvailable})`, () => {
-  const capacity = {hardware: {devices: [{id: 'drm-0a1b', name: 'Intel UHD 770', inUse: true}]}, temporaryDirectory: {path: '/var/portico/transcode', fallback: false, memoryPath: '/dev/shm', memoryAvailable, ready: true}} as any;
+test('Streaming on TV offers a folder and the one server-wide tone-map choice', () => {
   const allIds = [...section('streaming').groups!, ...section('streaming').advanced!.groups!].flatMap(group => group.rows.flatMap(row => [row.id, ...(row.children ?? []).map(child => child.id)]));
   const configured = configuration(...allIds.map(id => field(id, null)));
-  for (const transcodeLocation of ['memory', 'disk']) {
-    const drafts = {runtime: {conversionMode: 'all', hardwareSelection: 'drm-0a1b', hardwareDecode: true, transcodeLocation, memoryCap: 'half', temporaryDirectory: '/mnt/fast/convert'}, connectivity: {}};
-    const streaming = state('streaming', drafts, {capacity, configuration: configured});
-    const main = items(streaming);
-    const location = main.find(item => item.id === 'streaming.transcodeLocation') as any;
-    assert.equal(location.value, transcodeLocation);
-    assert.deepEqual(location.options.map((option: any) => option.value), ['memory', 'disk']);
-    assert.ok(location.options.every((option: any) => !option.disabled), 'memory preference remains valid on a disk-only host');
-    assert.equal(location.row.help, memoryAvailable ? settingsRowIndex.get('streaming.transcodeLocation')!.row.help : 'next.settings.streaming.memoryUnavailable');
-    assert.equal((items(streaming, true).find(item => item.id === 'streaming.memoryCap') as any)?.value, transcodeLocation === 'memory' ? 'half' : undefined);
-    const folder = main.find(item => item.id === 'streaming.transcodeFolder') as any;
-    assert.deepEqual([folder.kind, folder.value], ['folder', '/mnt/fast/convert']);
-    const device = items(streaming, true).find(item => item.id === 'streaming.hardware') as any;
-    assert.deepEqual(device.options.map((option: any) => [option.value, !!option.plain]), [['auto', false], ['software', false], ['drm-0a1b', true]]);
-    assert.equal(device.value, 'drm-0a1b');
-    assert.ok(items(streaming, true).some(item => item.id === 'streaming.hardwareDecode'));
-    const noCapacity = items(state('streaming', drafts, {configuration: configured})).find(item => item.id === 'streaming.transcodeLocation') as any;
-    assert.equal(noCapacity.value, transcodeLocation);
-    assert.equal(noCapacity.row.help, 'next.settings.streaming.memoryUnavailable');
-  }
+  const drafts = {runtime: {conversionMode: 'all', temporaryDirectory: '/mnt/fast/convert', hdrToneMappingAlgorithm: 'hable'}, connectivity: {}};
+  const streaming = state('streaming', drafts, {configuration: configured});
+  const folder = items(streaming).find(item => item.id === 'streaming.transcodeFolder') as any;
+  assert.deepEqual([folder.kind, folder.value], ['folder', '/mnt/fast/convert']);
+  assert.equal(items(streaming).some(item => item.id === 'streaming.transcodeLocation'), false);
+  const tone = items(streaming, true).find(item => item.id === 'streaming.toneMappingMethod') as any;
+  assert.equal(tone.value, 'hable');
+  assert.deepEqual(tone.options.map((option: any) => option.value), ['hable', 'mobius', 'reinhard', 'gamma', 'linear', 'clip', 'off']);
+  assert.equal(items(streaming, true).some(item => item.id === 'streaming.memoryCap' || item.id === 'streaming.toneMapping'), false);
 });

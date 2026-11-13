@@ -38,36 +38,11 @@ test('saving and disabled matrix rows remain readable while their native control
   assert.doesNotMatch(html, /\binert=/);
 });
 
-test('memory preference remains selectable with an unavailable note and an independent disk folder', async () => {
-  const {hardwareRowState} = await import('../src/screens/settings/hardware/hardware-rows.ts');
-  const row = settingsRowIndex.get('streaming.transcodeLocation')!.row;
-  assert.equal(row.control.default, 'memory');
-  assert.deepEqual(row.control.options?.map(option => option.value), ['memory', 'disk']);
-  assert.equal(row.children?.[0].enableWhen, undefined);
-  for (const memoryAvailable of [false, true]) for (const stored of ['memory', 'disk', undefined]) {
-    const snapshot = {phase: 'ready', capacity: {hardware: {devices: []}, temporaryDirectory: {
-      path: '/srv/transcode', ready: true, freeBytes: null, fallback: false, memoryPath: '/dev/shm', memoryAvailable,
-    }}} as any;
-    const state = hardwareRowState(row.id, snapshot, stored)!;
-    assert.equal(state.value, stored ?? 'memory');
-    assert.equal(state.defaultValue, 'memory');
-    assert.equal(state.help, memoryAvailable ? undefined : 'Memory is unavailable on this server.');
-    assert.ok(state.choices?.every(option => !option.locked));
-    const changed: unknown[] = [];
-    const props = {...common, holder: {groups: [{rows: [row]}]}, state: (entry: SettingsRow) => entry.id === row.id ? state : {present: true, value: '/srv/transcode'},
-      change: (_row: SettingsRow, value: unknown) => {changed.push(value);}};
-    const controls = (node: any): any[] => Array.isArray(node) ? node.flatMap(controls)
-      : !node?.props ? [] : typeof node.type === 'function' && ['Group', 'Row'].includes(node.type.name)
-        ? controls(node.type(node.props)) : [node, ...controls(node.props.children)];
-    const select = controls(SettingsRows(props)).find(node => node.props.options?.some((option: any) => option.value === 'memory'));
-    assert.ok(select);
-    assert.equal(select.props.value, stored ?? 'memory');
-    assert.equal(select.props.options.find((option: any) => option.value === 'memory').disabled, false);
-    select.props.onValueChange('memory');select.props.onValueChange('disk');
-    assert.deepEqual(changed, ['memory', 'disk']);
-    const html = renderToStaticMarkup(createElement(SettingsRows, props));
-    if (!memoryAvailable) assert.match(html, /Memory is unavailable on this server\./);
-    assert.match(html, /id="streaming.transcodeFolder"/);
-    assert.doesNotMatch(html, /id="streaming.transcodeFolder"[^>]*aria-disabled="true"/);
-  }
+test('the conversion folder stays available without a location-mode choice', () => {
+  const row = settingsRowIndex.get('streaming.transcodeFolder')!.row;
+  assert.equal(settingsRowIndex.has('streaming.transcodeLocation'), false);
+  assert.equal(settingsRowIndex.has('streaming.memoryCap'), false);
+  const html = renderToStaticMarkup(createElement(SettingsRows, {...common, holder: {groups: [{rows: [row]}]}, state: () => ({present: true, value: '/srv/transcode'})}));
+  assert.match(html, /id="streaming.transcodeFolder"/);
+  assert.doesNotMatch(html, /id="streaming.transcodeFolder"[^>]*aria-disabled="true"/);
 });

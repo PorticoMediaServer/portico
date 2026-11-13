@@ -24,7 +24,7 @@ type FormView = Readonly<{draft?: Readonly<Record<string, unknown>>; loading: bo
 /** Owner-only: the page's spec rows that have a client-core binding, drawn with the TV kit.
  * tv-more 23: one sheet is one decision, so each committed choice is saved at once. */
 export function TVServerSettingsPage({page, ports, runtime}: {page: TVEditablePage; ports: NativeSettingsLivePorts; runtime: NativeShellRuntime}) {
-  const group = useStorageForms(ports, tvPageForms[page], runtime.reportError);
+  const group = useStorageForms(ports, tvPageForms[page], runtime.reportError, page === 'streaming');
   return group ? <Page key={group.mount} page={page} group={group} ports={ports} runtime={runtime}/> : <StateView title={runtime.text.t('status.loading')}/>;
 }
 
@@ -49,8 +49,8 @@ function Page({page, group, ports, runtime}: {page: TVEditablePage; group: Stora
   const [advanced, setAdvanced] = useState(false), [custom, setCustom] = useState<ReadonlySet<string>>(new Set());
   const loadConfiguration = useCallback(() => {
     if (!lifetime.current()) return;
-    void readOwnerConfiguration(api).then(parseSettingsConfiguration).then(value => {if (lifetime.current()) {setConfiguration(value); setConfigurationError(undefined);}}, error => {if (lifetime.current()) setConfigurationError(error);});
-  }, [api, lifetime]);
+    void (group.readConfiguration ? group.readConfiguration() : readOwnerConfiguration(api).then(parseSettingsConfiguration)).then(value => {if (lifetime.current()) {setConfiguration(value); setConfigurationError(undefined);}}, error => {if (lifetime.current()) setConfigurationError(error);});
+  }, [api, lifetime, group]);
   useEffect(loadConfiguration, [loadConfiguration]);
   // Capacity supplies memory admission and the adapters this host found.
   // The location preference and disk folder remain independent runtime settings.

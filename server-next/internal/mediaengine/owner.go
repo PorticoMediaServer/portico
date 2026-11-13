@@ -9,8 +9,7 @@ import (
 
 // The owner's Settings › Streaming, as the planner and the streams read them. They are read
 // at every plan and at every conversion's admission, so a change applies to the next play
-// with no restart. A server on which nothing was ever saved has the document's defaults,
-// which plan exactly as the engine did before it read any settings.
+// with no restart. A server with nothing saved uses the document's defaults.
 
 // owner is the owner's streaming settings as they are now.
 func (e *Engine) owner() settings.StreamingSettings { return settings.Streaming.Get(e.settings) }
@@ -58,7 +57,9 @@ func delivery(owner settings.StreamingSettings) streaming.DeliveryConfiguration 
 	c.SoftwareDecode = !owner.HardwareDecoding
 	c.MaxConversions = owner.ConversionsAtOnce
 	c.MaxSoftwareConversions = owner.ProcessorConversionsAtOnce
-	c.ToneMapping = owner.ToneMapping
+	c.MaxHardwareConversions = owner.HardwareConversionsAtOnce
+	c.TranscodeLocation = "disk"
+	c.ToneMapping = owner.ToneMappingMethod != "off"
 	c.SoftwarePreset = owner.EncoderSpeed
 	c.PlanningPolicy = owner.PlanningPolicy
 	c.RemuxEnabled = owner.Repackaging
@@ -66,7 +67,9 @@ func delivery(owner settings.StreamingSettings) streaming.DeliveryConfiguration 
 	c.ThrottleBufferSeconds = owner.ConvertAheadSeconds
 	c.PlayedRetentionSeconds = owner.KeepForRewindingSeconds
 	c.SessionStorageMiB = owner.SpacePerStreamMiB
-	c.MemoryCap = owner.MemoryLimit
+	if c.ToneMapping {
+		c.ToneMapAlgorithm = owner.ToneMappingMethod
+	}
 	return c.Normalized()
 }
 
