@@ -133,18 +133,59 @@ func (e *Engine) measureLive(ctx context.Context, in *live.Input) (mediafacts.Fa
 		return mediafacts.Facts{}, err
 	}
 	defer os.Remove(file.Name())
+	defer file.Close()
 	read, cancel := context.WithTimeout(ctx, liveMeasureFor)
-	in.Read(read, time.Time{}, &capped{w: file, left: liveMeasure, full: cancel})
-	cancel()
-	file.Close()
-	if info, statErr := os.Stat(file.Name()); statErr != nil || info.Size() == 0 {
-		// The channel sent nothing in that time, or stopped.
-		if ctx.Err() != nil {
-			return mediafacts.Facts{}, ctx.Err()
+	defer cancel()
+	// Most channels describe their tracks in the first second. Keep the old full
+	// measurement when that first sample cannot establish the playback facts.
+	early, endEarly := context.WithTimeout(read, time.Second)
+	var began time.Time
+	in.ReadFrom(early, time.Time{}, &capped{w: file, left: 256 << 10, full: endEarly}, func(at time.Time) { began = at })
+	endEarly()
+	probe, endProbe := context.WithTimeout(read, 2*time.Second)
+	facts, err := e.probe.Inspect(probe, file.Name())
+	endProbe()
+	complete := err == nil && facts.VideoCodec != "" && facts.AudioCodec != ""
+	for _, stream := range facts.Streams {
+		d := stream.Detail
+		switch stream.Type {
+		case "video":
+			complete = complete && stream.Codec != "" && d.Width > 0 && d.Height > 0 && d.FrameRate > 0 && d.PixelFormat != "" && d.BitDepth > 0
+			// These codecs can carry HDR facts in later frames; a header-only
+			// observation cannot establish their absence from the short sample.
+			complete = complete && d.Profile != "" && d.InterlaceAnalysis != ""
+			complete = complete && !mediafacts.NeedsFrameHDR(stream) && (d.BitDepth <= 8 || stream.ColorTransfer != "")
+			if stream.Codec == "h264" {
+				complete = complete && d.Profile != "" && d.Level > 0
+			}
+		case "audio":
+			complete = complete && stream.Codec != "" && stream.Channels > 0 && stream.ChannelLayout != "" && d.SampleRate > 0
+			if stream.Codec == "aac" {
+				complete = complete && d.Profile != ""
+			}
 		}
-		return mediafacts.Facts{}, playback.ErrSourceUnavailable
 	}
-	facts, err := e.probe.Inspect(ctx, file.Name())
+	if !complete {
+		// Replay the same beginning, rather than appending a duplicate of it or
+		// losing the rest of the chunk that reached the early byte limit.
+		if err := file.Truncate(0); err != nil {
+			return mediafacts.Facts{}, err
+		}
+		if _, err := file.Seek(0, io.SeekStart); err != nil {
+			return mediafacts.Facts{}, err
+		}
+		in.Read(read, began, &capped{w: file, left: liveMeasure, full: cancel})
+		cancel()
+		file.Close()
+		if info, statErr := os.Stat(file.Name()); statErr != nil || info.Size() == 0 {
+			// The channel sent nothing in that time, or stopped.
+			if ctx.Err() != nil {
+				return mediafacts.Facts{}, ctx.Err()
+			}
+			return mediafacts.Facts{}, playback.ErrSourceUnavailable
+		}
+		facts, err = e.probe.Inspect(ctx, file.Name())
+	}
 	if err != nil || facts.VideoCodec == "" && facts.AudioCodec == "" {
 		return mediafacts.Facts{}, playback.ErrSourceUnavailable
 	}
