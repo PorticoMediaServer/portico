@@ -93,7 +93,10 @@ test('Storage answers for its own rows and leaves every other row to the shared 
     assert.deepEqual(storageRowState(row(id), live), {present: true}, `${id} draws once the server has answered`);
   }
   for (const id of pendingServerRows) assert.deepEqual(storageRowState(row(id), live), {present: false}, `${id} has no drawn control yet`);
-  for (const id of ['storage.analysisSpace', 'storage.keepFiles', 'storage.keepNotifications']) assert.equal(storageRowState(row(id), live), undefined, id);
+  for (const id of ['storage.analysisSpace', 'storage.keepNotifications']) assert.equal(storageRowState(row(id), live), undefined, id);
+  // Keep generated files and Prepared downloads draw once the keeping read answers (#3208); its other children wait for their caches.
+  for (const id of ['storage.keepFiles', 'storage.keepDownloads']) {assert.deepEqual(storageRowState(row(id), live), {present: false}, id); assert.deepEqual(storageRowState(row(id), {...live, keeping: true}), {present: true}, id);}
+  for (const id of ['storage.keepConversions', 'storage.keepPrepared', 'storage.keepSubtitles', 'storage.keepTrickplay']) assert.deepEqual(storageRowState(row(id), {...live, keeping: true}), {present: false}, id);
   // A link whose drawn target is a mock page would be a dead control, so it stays absent.
   const keepHistory = row('storage.keepHistory');
   assert.deepEqual(storageRowState({...keepHistory, control: {...keepHistory.control, to: 'owner-server.html#f9'}}, live), {present: false});

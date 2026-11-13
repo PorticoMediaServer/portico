@@ -81,12 +81,14 @@
 .profileCard b { display: block; font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
 .profileCard small { display: block; font-size: 13px; color: var(--color-text-tertiary); margin-top: 2px; }
 .profileCard > svg { margin-left: auto; color: var(--color-line-strong); }
-.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 28px; padding: 18px 22px; border-top: 1px solid var(--color-line-soft); position: relative; line-height: normal; }
+/* A row's label is never squeezed to a word a line: it keeps at least 40% (up to 220px) and a wide control gives way. */
+.row { display: grid; grid-template-columns: minmax(min(40%, 220px), 1fr) minmax(0, max-content); align-items: center; gap: 28px; padding: 18px 22px; border-top: 1px solid var(--color-line-soft); position: relative; line-height: normal; }
 .row:first-child { border-top: 0; }
 .row[data-stacked] { grid-template-columns: 1fr; gap: 14px; }
 .rowLabel > b { display: block; font-size: 16px; font-weight: 600; }
 .rowLabel > p { margin: 4px 0 0; font-size: 14px; line-height: 1.45; color: var(--color-text-tertiary); max-width: 600px; }
-.rowControl { display: flex; align-items: center; gap: 12px; justify-content: flex-end; }
+.rowControl { display: flex; align-items: center; gap: 12px; justify-content: flex-end; min-width: 0; }
+.rowControl > * { min-width: 0; max-width: 100%; }
 .row[data-stacked] .rowControl { justify-content: flex-start; }
 .row[data-dependent] { padding-left: 58px; }
 .row[data-dependent]::before { content: ''; position: absolute; left: 31px; top: -1px; height: calc(50% + 1px); width: 14px; border-left: 2px solid var(--color-line); border-bottom: 2px solid var(--color-line); border-bottom-left-radius: 9px; }

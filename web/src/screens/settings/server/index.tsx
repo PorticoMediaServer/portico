@@ -6,9 +6,9 @@ import {Icon} from '../../../kit/Icon';
 import type {SettingsPageSnapshot} from '../Settings';
 import type {ServerBackupSource} from '../backup-source';
 import {StorageBackupFolder, StorageBackupNow, StorageBackups, StorageRestoreFile, type BackupSurfaceProps} from './Backups';
-import {SettingsCacheSource} from './cache-source';
 import {EmptyCache} from './EmptyCache';
 import {StorageDataFolder, StorageUsage} from './StorageUsage';
+import {KeepingSelect} from './Keeping';
 import {DownloadsUsage} from '../server-storage/DownloadsUsage';
 import {DownloadRemovalSource} from '../server-storage/download-removal-source';
 import {DownloadsUsageSource} from '../server-storage/downloads-usage-source';
@@ -37,14 +37,13 @@ export type SettingsServerOptions = Readonly<{
 
 /** Owner-only Storage facts and controls. One shared sweep feeds both drawn rows. */
 export function createServerSettingsSurfaces(options: SettingsServerOptions): SettingsServerSurfaces {
-  const cache = new SettingsCacheSource(options.transport, options.isCurrent, options.reportError);
   const downloads = new DownloadsUsageSource(options.transport, options.isCurrent, options.reportError);
   const downloadRemoval = new DownloadRemovalSource(options.transport, downloads, options.isCurrent, options.reportError);
-  const storage = new SettingsStorageSource(options.transport, options.serverId, options.isCurrent, options.reportError);
+  const storage = new SettingsStorageSource(options.transport, options.isCurrent, options.reportError);
   const backups: BackupSurfaceProps = {source: options.backups, subscribe: options.subscribe, isCurrent: options.isCurrent, scopeKey: options.scopeKey, reportError: options.reportError};
   const facts = (): StorageRowFacts => {
     const snapshot = options.backups.getSnapshot();
-    return {live: options.isCurrent(), backups: !!snapshot.backups, dataDirectoryOnNetwork: storage.getSnapshot().report?.stateDirectoryOnNetwork, backupsReadable: snapshot.backups?.readable};
+    return {live: options.isCurrent(), backups: !!snapshot.backups, dataDirectoryOnNetwork: storage.getSnapshot().storage?.sharedDrive, keeping: !!storage.getSnapshot().keeping, backupsReadable: snapshot.backups?.readable};
   };
   let cachedPage: {base: SettingsPageSnapshot; facts: ReturnType<typeof storage.getSnapshot>; value: SettingsPageSnapshot} | undefined;
   const pageSnapshot = (base: SettingsPageSnapshot): SettingsPageSnapshot => {
@@ -61,7 +60,8 @@ export function createServerSettingsSurfaces(options: SettingsServerOptions): Se
       if (target && text) return <button type="button" className={styles.sectionLink} onClick={() => {if (options.isCurrent()) options.openTarget(target);}}>{text}<Icon name="i-right" size={16} /></button>;
       const label = state.label ?? row.label;
       return row.id === 'storage.networkNotice' ? <span className={styles.storageWarning} role="status">{t('next.settings.storage.sharedDrive')}</span>
-        : row.id === 'storage.emptyCache' ? <EmptyCache source={cache}/>
+        : row.id === 'storage.emptyCache' ? <EmptyCache source={storage}/>
+        : row.id === 'storage.keepFiles' || row.id === 'storage.keepDownloads' ? <KeepingSelect source={storage} row={row} label={label} />
         : row.id === 'storage.dataFolder' ? <StorageDataFolder source={storage} label={label} />
         : row.id === 'storage.usage' ? <StorageUsage source={storage} label={label} />
         : row.id === 'storage.downloads' ? <DownloadsUsage source={downloads} removal={downloadRemoval} label={label} />
@@ -75,6 +75,6 @@ export function createServerSettingsSurfaces(options: SettingsServerOptions): Se
     rowState: row => storageRowState(row, facts()),
     pageSnapshot,
     subscribe: storage.subscribe,
-    dispose: () => {downloadRemoval.dispose();cache.dispose();downloads.dispose();storage.dispose();},
+    dispose: () => {downloadRemoval.dispose();downloads.dispose();storage.dispose();},
   };
 }
