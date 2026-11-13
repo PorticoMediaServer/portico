@@ -40,6 +40,8 @@ type Scanner struct {
 	// a book's package, a comic's ComicInfo, its sidecar files), where neither a match nor a
 	// person's edit has taken those details over.
 	AllFiles bool
+	// OnlyPathID, when nonzero, limits the walk and probing to that membership of the library.
+	OnlyPathID int64
 	// Pictures takes a copy of each picture found beside the media. With none, those
 	// pictures are listed as files and never become artwork.
 	Pictures Pictures
@@ -94,6 +96,9 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) (Stats, error) {
 	}
 	paths := map[int64]error{}
 	for _, p := range lib.Paths {
+		if s.OnlyPathID != 0 && p.ID != s.OnlyPathID {
+			continue
+		}
 		if p.RemoteID != 0 && s.Scheduled && !r.due(p) {
 			// Not listed this time, so nothing in it is compared, changed or marked missing.
 			continue
@@ -110,7 +115,7 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) (Stats, error) {
 	}
 	if r.reads() {
 		if lib.Kind == db.LibraryAudiobooks {
-			if err := s.DB.RereadAudioWithoutPackets(ctx, lib.ID); err != nil {
+			if err := s.DB.RereadFolderAudioWithoutPackets(ctx, lib.ID, s.OnlyPathID); err != nil {
 				return r.stats, err
 			}
 		}

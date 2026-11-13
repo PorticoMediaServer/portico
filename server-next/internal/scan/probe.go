@@ -57,7 +57,7 @@ var (
 func (r *run) probe() error {
 	// How many files there are to read is counted once, here: it includes what an earlier
 	// scan left unread, which the walk of this one did not see as new.
-	unread, err := r.s.DB.UnprobedCount(r.ctx, r.lib.ID)
+	unread, err := r.s.DB.UnprobedFolderCount(r.ctx, r.lib.ID, r.s.OnlyPathID)
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func (r *run) probe() error {
 	}
 	var after int64
 	for {
-		files, err := r.s.DB.UnprobedFiles(r.ctx, r.lib.ID, after, r.batch)
+		files, err := r.s.DB.UnprobedFolderFiles(r.ctx, r.lib.ID, r.s.OnlyPathID, after, r.batch)
 		if err != nil || len(files) == 0 {
 			if err == nil {
 				r.stats.Unread = 0
