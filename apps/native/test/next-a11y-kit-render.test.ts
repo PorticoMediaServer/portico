@@ -282,5 +282,44 @@ test('wide card and episode row titles take two lines on phone and one on TV', a
     const wide = f.host.render(() => media.WideCard({title, caption: [{id: 'left', text: '4 s left'}], onNavigate() {}}));
     const row = f.host.render(() => media.EpisodeTile({title, label: [{id: 'episode', text: 'Episode 1'}], layout: 'row', onNavigate() {}}));
     assert.deepEqual([lines(wide), lines(row)], isTV ? [1, 1] : [2, 2], isTV ? 'TV' : 'phone');
+    // The 16:9 card's scrim grows with its words: it starts 20 pt above the title block, never later than the drawn .45.
+    const art = (tree: any) => {const frame = nodes(tree).find(node => node.type === 'CardFrame'); return nodes(frame.props.children(idle));};
+    const words = art(wide).find(node => node.props.onLayout && flatten(node.props.style).position === 'absolute');
+    assert.equal(art(wide).find(node => node.type === 'Scrim').props.start, undefined, 'before layout: the drawn scrim');
+    if (isTV) {assert.equal(words, undefined, 'TV keeps its fixed scrim'); continue;}
+    const height = theme.spec.card.width.wide[theme.platform] * 9 / 16;
+    words.props.onLayout({nativeEvent: {layout: {y: height * .4}}});
+    const grown = f.host.render(() => media.WideCard({title, caption: [{id: 'left', text: '4 s left'}], onNavigate() {}}));
+    assert.equal(art(grown).find(node => node.type === 'Scrim').props.start, (height * .4 - 20) / height);
+    words.props.onLayout({nativeEvent: {layout: {y: height * .8}}});
+    const short = f.host.render(() => media.WideCard({title, caption: [{id: 'left', text: '4 s left'}], onNavigate() {}}));
+    assert.equal(art(short).find(node => node.type === 'Scrim').props.start, .45);
   }
+});
+
+// Desk B on the two-line titles: under a poster the caption has a fixed reserve, so its facts stay one line and the
+// facts at the end that do not fit drop out whole; rows with room wrap; TV keeps its one-line ellipsis.
+test('card facts: drop keeps one measured line, wrap moves whole facts down, cut is the fixed-slot default', async () => {
+  const f = fixture(1.3);
+  const {Parts, Caption} = await screenModule(new URL('../src-next/kit/cards/primitives.tsx', import.meta.url), {
+    ...f.common, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n}, './model': cardModel,
+    '../browse/useTouchHold': {useTouchHold: () => ({phase: 'idle', consumePress: () => false, end() {}, cancel() {}, handlers: {onTouchStart() {}, onTouchMove() {}, onTouchEnd() {}, onTouchCancel() {}}})},
+    '../../platform/haptics': {}, '../../platform/menu-key': {registerFocusedMenu: () => () => {}},
+    '../Icon': {Icon: 'Icon'}, '../selection/index': {SelectionHoldFeedback: 'SelectionHoldFeedback'}, '../focus': {...f.common['../focus'], useFocusWaiting: () => false},
+  });
+  const parts = [{id: 'kind', text: 'Show'}, {id: 'seasons', text: '12 seasons'}, {id: 'year', text: '2026'}];
+  const drop = () => {const element = Parts({parts, fit: 'drop'}); return element.type(element.props);};
+  let box = f.host.render(drop);
+  const style = flatten(box.props.style), first = nodes(box).find(node => node.type === 'Text');
+  assert.deepEqual([style.flexWrap, style.overflow], ['wrap', 'hidden'], 'facts that do not fit wrap out of the one-line box');
+  assert.ok(style.height > 0, 'before measuring, the box is one line at the system text size');
+  first.props.onLayout({nativeEvent: {layout: {height: 21}}});
+  box = f.host.render(drop);
+  assert.equal(flatten(box.props.style).height, 21, 'then exactly the first fact\'s measured line');
+  const wrap = flatten(f.host.render(() => Parts({parts, fit: 'wrap'})).props.style);
+  assert.deepEqual([wrap.flexWrap, wrap.height], ['wrap', undefined]);
+  const cut = flatten(f.host.render(() => Parts({parts})).props.style);
+  assert.equal(cut.flexWrap, undefined);
+  const caption = nodes(f.host.render(() => Caption({title: 'Twelve Winters at the Observatory', caption: parts})));
+  assert.equal(caption.find(node => node.type === Parts)?.props.fit, 'drop', 'a poster caption drops whole facts on phone');
 });
