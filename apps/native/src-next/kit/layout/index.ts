@@ -1,4 +1,6 @@
 export {Lockup} from './Lockup';
+export {CoverHero} from './CoverHero';
+export type {CoverHeroProps, CoverHeroLayout, CoverHeroShape, CoverHeroCover, CoverHeroLink} from './CoverHero';
 export type {LockupProps} from './Lockup';
 export {Hero, HeroMetadata, HeroSurface} from './Hero';
 export type {HeroProps} from './Hero';

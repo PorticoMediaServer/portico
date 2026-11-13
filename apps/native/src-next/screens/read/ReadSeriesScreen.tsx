@@ -5,6 +5,7 @@ import {generatedCoverTint} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {ReadingItem} from '../../../../../packages/client-core/src';
 import {Artwork, AmbientArt, GeneratedCover, StandardBackdrop} from '../../kit/artwork';
+import {CoverHero} from '../../kit/layout/CoverHero';
 import {Button, Focusable} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {WindowedGrid} from '../../kit/layout';
@@ -91,43 +92,25 @@ export function ReadSeriesScreen({controller, route, comic, context, runtime, on
           style={{flex: 1, width: '100%', maxWidth: 900, alignSelf: 'center'}}
           onScrollOffset={offset => setCollapsed(current => {const next = heroHeight > 0 && offset > heroHeight - 50; return next === current ? current : next;})}
           header={<View style={{paddingTop: Math.max(96, insets.top + 56)}}>
-        <View style={{alignItems: 'center', paddingHorizontal: 20}} onLayout={event => {
-          const next = Math.round(event.nativeEvent.layout.height);
-          if (next > 0 && next !== heroHeight) setHeroHeight(next);
-        }}>
-          <View style={{width: 280, height: 214}}>
-            {stack.length ? stack.map((item, index) => {
-              const left = stack.length === 1 ? 76 : stack.length === 2 ? 36 + index * 80 : [4, 72, 146][index]!;
-              const top = stack.length === 3 ? [18, 6, 14][index]! : 12;
-              const rotate = stack.length === 1 ? '0deg' : stack.length === 2 ? (index ? '5deg' : '-5deg') : ['-9deg', '-2deg', '7deg'][index]!;
-              return <View key={item.id} style={{position: 'absolute', left, top, width: 128, height: 192, borderRadius: 7, overflow: 'hidden',
-                transform: [{rotate}], backgroundColor: theme.colors.raised, shadowColor: theme.colors.shadow, shadowOpacity: .6, shadowRadius: 24, shadowOffset: {width: 0, height: 14}, elevation: index + 4}}>
-                {runtime.artwork(item.coverUrl) ? <Artwork source={runtime.artwork(item.coverUrl)} width={128} height={192}/>
-                  : <GeneratedCover title={item.title} author={item.author?.value} tint={generatedCoverTint(item.title)} glyph={initial(item.title)} width={128} height={192}/>}
-              </View>;
-            }) : <View style={{position: 'absolute', left: 76, top: 12, width: 128, height: 192, borderRadius: 7, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-              {cover ? <Artwork source={cover} width={128} height={192} priority/> : <GeneratedCover title={title} author={authors[0]} tint={tint} glyph={initial(title)} width={128} height={192}/>}
-            </View>}
-          </View>
-          <Text accessibilityRole="header" numberOfLines={2} style={[browseType(theme, 34, 800, -.02, phone ? 34 : 'normal'), {color: theme.colors.text, textAlign: 'center', marginTop: 14}]}>{title}</Text>
-          {authors.length || total !== undefined ? <View style={{flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 12, rowGap: phone ? 6 : 4, marginTop: 10}}>
-            {authors.length ? <Text numberOfLines={2} style={[browseType(theme, 13, 700), {color: theme.colors.text, textAlign: 'center'}]}>{defaultI18n.list(authors)}</Text> : null}
-            {total !== undefined ? <Text style={[browseType(theme, 13, 600), {color: theme.colors.textSecondary}]}>{t(comic ? 'next.reader.volumeCount' : 'next.kit.books', {count: total})}</Text> : null}
-          </View> : null}
-          {comic && (state.direction === 'rtl' || state.direction === 'ltr') ? <View style={{flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10, paddingHorizontal: 8, paddingVertical: 3,
-            borderRadius: 12, borderWidth: 1, borderColor: alpha(theme.colors.text, .24)}}>
-            <Icon name={state.direction === 'rtl' ? 'i-rtl' : 'i-ltr'} size={13} color={theme.colors.textSecondary}/>
-            <Text style={[browseType(theme, 11.5, 600), {color: theme.colors.textSecondary}]}>{t(state.direction === 'rtl' ? 'next.reader.directionRtl' : 'next.reader.directionLtr')}</Text>
-          </View> : null}
+        {/* phone-read 4/4c: the kit's cover hero, the first volumes fanned over the title. */}
+        <View style={{paddingHorizontal: 20}}>
+          <CoverHero layout="stack" shape="fan" title={title} onHeight={next => {if (next !== heroHeight) setHeroHeight(next);}}
+            covers={stack.length ? stack.map(item => ({key: item.id, source: runtime.artwork(item.coverUrl),
+              fallback: <GeneratedCover title={item.title} author={item.author?.value} tint={generatedCoverTint(item.title)} glyph={initial(item.title)} width={128} height={192}/>}))
+              : [{key: 'series', source: cover, fallback: <GeneratedCover title={title} author={authors[0]} tint={tint} glyph={initial(title)} width={128} height={192}/>}]}
+            facts={[...(authors.length ? [defaultI18n.list(authors)] : []), ...(total !== undefined ? [t(comic ? 'next.reader.volumeCount' : 'next.kit.books', {count: total})] : [])]}
+            marks={comic && (state.direction === 'rtl' || state.direction === 'ltr') ? <View style={{flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 3,
+              borderRadius: 12, borderWidth: 1, borderColor: alpha(theme.colors.text, .24)}}>
+              <Icon name={state.direction === 'rtl' ? 'i-rtl' : 'i-ltr'} size={13} color={theme.colors.textSecondary}/>
+              <Text style={[browseType(theme, 11.5, 600), {color: theme.colors.textSecondary}]}>{t(state.direction === 'rtl' ? 'next.reader.directionRtl' : 'next.reader.directionLtr')}</Text>
+            </View> : undefined}
+            actions={<Button icon="i-book" disabled={!readable} onPress={() => {if (readable) void controller.open(readable).catch(runtime.reportError);}} style={{alignSelf: 'stretch'}}>
+              {readLabel}
+            </Button>}
+            under={progression !== undefined ? <View style={{alignSelf: 'stretch', height: 4, borderRadius: 2, marginTop: 10, backgroundColor: alpha(theme.colors.text, .18)}}>
+              <View style={{width: `${progression * 100}%`, height: 4, borderRadius: 2, backgroundColor: theme.colors.accentStrong}}/>
+            </View> : undefined}/>
         </View>
-        <View style={{paddingHorizontal: 20, marginTop: 18}}>
-          <Button icon="i-book" disabled={!readable} onPress={() => {if (readable) void controller.open(readable).catch(runtime.reportError);}} style={{alignSelf: 'stretch'}}>
-            {readLabel}
-          </Button>
-        </View>
-        {progression !== undefined ? <View style={{height: 4, borderRadius: 2, marginHorizontal: 20, marginTop: 10, backgroundColor: alpha(theme.colors.text, .18)}}>
-          <View style={{width: `${progression * 100}%`, height: 4, borderRadius: 2, backgroundColor: theme.colors.accentStrong}}/>
-        </View> : null}
         <ReadingSelectionToolbar port={actions} runtime={runtime}/>
         <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 24, marginBottom: 10, paddingHorizontal: 20}}>
           <Text style={[browseType(theme, 19, 700, -.015), {color: theme.colors.text}]}>{t(comic ? 'next.reader.volumes' : 'next.kit.booksInSeries')}</Text>
