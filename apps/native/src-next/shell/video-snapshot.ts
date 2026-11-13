@@ -47,7 +47,11 @@ export class NativeVideoSnapshotCapture {
       if (!image) return;
       if (!current() || !sameFence(image.fence, fence)) {await this.release(image); return;}
       this.retained = image; this.options.changed(this, image);
-    }).catch(error => {if (current()) this.options.reportError(error);}).finally(() => {
+    }).catch(error => {
+      // A transition frame is optional; keep the existing artwork when none can be captured.
+      const unavailable = error instanceof Error && ('code' in error ? error.code : error.message) === 'snapshot_unavailable';
+      if (current() && !unavailable) this.options.reportError(error);
+    }).finally(() => {
       if (this.pending?.controller === controller) this.pending = undefined;
       if (this.inFlight === work) this.inFlight = undefined;
     });
