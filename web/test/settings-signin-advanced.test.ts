@@ -18,7 +18,7 @@ test('a change goes to the policy PATCH with the configuration\'s revision; a co
   const controller = read('../src/screens/settings/controller.ts');
   assert.match(controller, /if \(isSignInPolicyRow\(row\.id\)\) \{await this\.writeSignInPolicy\(row, value\); return;\}/);
   assert.match(controller, /await patchSignInPolicy\(this\.options\.api, configuration\.signInPolicyRevision, signInPolicyWith\(values, row\.id, value\), this\.lifetime\.signal\);/);
-  assert.match(controller, /if \(!signInPolicyConflict\(error\)\) throw error;\n\s+await this\.readConfiguration\(\);/);
+  assert.match(controller, /if \(!signInPolicyConflict\(error\)\) throw error;\n\s+await this\.readConfiguration\(\)\.catch\(\(\) => \{\}\);/);
 });
 
 test('Sign-in loads the controller too (configuration and server band), and its snapshot renews on either change', () => {

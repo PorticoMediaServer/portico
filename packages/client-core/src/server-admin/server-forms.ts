@@ -9,6 +9,7 @@ import {certificateClaimed} from './secure-connection.ts';
 import type {HttpLocalApi} from '../index.ts';
 import {DraftForm, type Loaded} from './draft-form.ts';
 import {callServer} from '../query/server-api.ts';
+import {putSettingsDocument, type SettingsDocumentAPI} from '../settings-document.ts';
 
 /**
  * The server's settings documents as draft forms (`draft-form.ts`), one per document, for the
@@ -22,7 +23,7 @@ import {callServer} from '../query/server-api.ts';
 export type ServerFormId = 'runtime' | 'connectivity' | 'remote' | 'certificate' | 'alerts' | 'liveDefaults' | 'recording' | 'maintenance' | 'logs' | 'segments';
 
 export type ServerFormDeps = Readonly<{
-  api: Pick<HttpLocalApi, 'request'>;
+  api: SettingsDocumentAPI;
   console: ConsoleClient;
   /** The server every administration answer must name. */
   serverId: string;
@@ -293,18 +294,19 @@ export function withListEntry(list: readonly string[], typed: string): readonly 
   return !entry || list.includes(entry) ? list : [...list, entry];
 }
 
-/**
- * A named settings document on the rebuilt server (`GET/PUT /v1/admin/settings/{name}`, owner only): its values are the
- * form, written whole. A server without that document answers not found, and the form stays absent.
- */
+/** A rebuilt settings document: carry its revision and send only the edited fields. */
 export function namedSettingsForm(deps: ServerFormDeps, name: string): DraftForm<Record<string, unknown>, Record<string, unknown>> {
-  const values = (raw: unknown): Record<string, unknown> => {
-    const document = raw as {values?: unknown} | null;
-    if (!document || typeof document.values !== 'object' || document.values === null || Array.isArray(document.values)) throw Object.assign(new Error('invalid_settings_document'), {code: 'invalid_settings_document'});
-    return {...document.values as Record<string, unknown>};
+  const loaded = (raw: unknown): Loaded<Record<string, unknown>, {etag: string}> => {
+    const document = raw as {values?: unknown; etag?: unknown} | null;
+    if (!document || typeof document.etag !== 'string' || !/^"[0-9]+"$/.test(document.etag) ||
+      typeof document.values !== 'object' || document.values === null || Array.isArray(document.values)) throw Object.assign(new Error('invalid_settings_document'), {code: 'invalid_settings_document'});
+    return {value: {...document.values as Record<string, unknown>}, status: {etag: document.etag}};
   };
   return new DraftForm<Record<string, unknown>, Record<string, unknown>>({
-    load: async signal => {const read = await orAbsent(callServer(deps.api, 'GET /v1/admin/settings/{name}', {id: name, signal}).then(values)); return read && {value: read, status: read};},
-    save: async draft => {const saved = values(await callServer(deps.api, 'PUT /v1/admin/settings/{name}', {id: name, body: draft})); return {value: saved, status: saved};},
+    load: signal => orAbsent(callServer(deps.api, 'GET /v1/admin/settings/{name}', {id: name, signal}).then(loaded)),
+    save: async (draft, saved, status) => {
+      const change = Object.fromEntries(Object.entries(draft).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(saved[key])));
+      return loaded(await putSettingsDocument(deps.api, name, typeof status?.etag === 'string' ? status.etag : '', change));
+    },
   });
 }
