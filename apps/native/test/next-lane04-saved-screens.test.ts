@@ -18,7 +18,7 @@ function fixture(phone = true) {
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 24, bottom: 12})},
     '../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'error'})},
     '../../kit/theme': {useTheme: () => theme(phone)}, '../../kit/browse/presentation': {browseType: (_: any, fontSize: number) => ({fontSize}), alpha: (color: string) => color},
-    '../../kit/browse': {SortMenu: 'SortMenu'}, '../../kit/cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard'},
+    '../../kit/browse': {SortMenu: 'SortMenu'}, '../home/browse-label': {homeBrowseLabel: (value: {id: string}) => `label:${value.id}`}, '../../kit/cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard'},
     '../../kit/cards/primitives': {CardFrame: 'CardFrame', Parts: 'Parts'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', AmbientArt: 'AmbientArt', MediaArt: 'MediaArt', PersonCircle: 'PersonCircle'},
     '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable', Switch: 'Switch', Tabs: 'Tabs'},
     '../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {StateView: 'StateView', LoadingBoundary: 'LoadingBoundary', SkeletonBlock: 'SkeletonBlock'},
@@ -58,6 +58,8 @@ test('Saved SortMenu offers all fields and only dispatches their explicit offere
   const menu = f.host.render(() => SavedSortMenu({sorts: projection.sorts, sort: 'title', direction: 'desc', scope: 'saved', onChange: (...args: unknown[]) => changes.push(args)}));
   assert.equal(menu.type, 'SortMenu'); assert.deepEqual(menu.props.sorts.map((value: any) => value.id), ['title', 'added']);
   assert.deepEqual(menu.props.value, {field: 'title', direction: 'desc', flippable: true, reshufflable: false});
+  // The shared browse label names each order in words ("Date added"), never the raw id "added" (12 Nov phone walk).
+  assert.equal(menu.props.label({id: 'added', labelKey: 'sort.added'}), 'label:added');
   menu.props.onValueChange({field: 'added', direction: 'desc'}); menu.props.onValueChange({field: 'added', direction: 'asc'});
   menu.props.onValueChange({field: 'unknown', direction: 'asc'}); assert.deepEqual(changes, [['added', 'desc']]);
 });
