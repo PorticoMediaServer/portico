@@ -55,4 +55,4 @@ div.annotation:hover { background: transparent; }
 @media (max-width: 1023px) and (min-width: 600px) { .panel { width: 360px; } }
 @media (pointer: coarse) { .tabs button { height: 44px; } .chapter { min-height: 52px; } .more { opacity: 1; } }
 /* phone-read .hlit: a little tighter in the sheet. */
-@media (max-width: 599px) { .annotation { padding: 10px 14px 10px 22px; } .annotation::before { top: 12px; bottom: 12px; } .annotation q { font-size: 14.5px; line-height: 1.5; } }
+@media (max-width: 599px) { .section { padding: 10px 24px 4px; font-size: 12.5px; } .annotation { padding: 10px 14px 10px 22px; } .annotation::before { top: 12px; bottom: 12px; } .annotation q { font-size: 14.5px; line-height: 1.5; } }

@@ -1,4 +1,4 @@
-import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
+import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject} from 'react';
 import {defaultI18n} from '@i18n';
 import type {ReadingPreferences} from '@portico/client-core';
 import {createWindowedCollection, type WindowedCollection} from '@core/collections/index.ts';
@@ -245,7 +245,9 @@ function FixedPagesWindow({controller, authority, reportError, format, count, cu
  * Zoom, fit and page pairing for fixed pages. Each choice is a live engine override in
  * this session, exactly like the display panel: closing the book restores the defaults.
  */
-export function FixedPageMenus({controller, authority, reportError, format, open, onOpenChange, anchorRef, directionRef, moreRef}: Fixed & Readonly<{
+export function FixedPageMenus({controller, authority, reportError, format, open, onOpenChange, anchorRef, directionRef, moreRef, titleItems}: Fixed & Readonly<{
+  /** The book's own items, first in a compact document's ⋯ More (phone-read 12). */
+  titleItems?: ReactNode;
   open: 'zoom' | 'direction' | 'more' | undefined; onOpenChange: (open: 'zoom' | 'direction' | 'more' | undefined) => void;
   anchorRef: RefObject<HTMLElement | null>; directionRef: RefObject<HTMLElement | null>; moreRef: RefObject<HTMLElement | null>;
 }>) {
@@ -259,6 +261,7 @@ export function FixedPageMenus({controller, authority, reportError, format, open
   const fits: readonly ReaderFit[] = format === 'pdf' ? ['page', 'width', 'spread'] : ['page', 'width', 'height'];
   return <>
     <Menu open={open === 'zoom' || open === 'more'} onOpenChange={value => onOpenChange(value ? open : undefined)} title={t(open === 'more' ? 'next.controls.more' : 'next.reader.zoom')} anchorRef={open === 'more' ? moreRef : anchorRef}>
+      {open === 'more' && titleItems && <>{titleItems}<MenuSeparator/></>}
       <MenuItem onSelect={() => apply({kind: 'scale', value: Math.max(0.05, Math.round((scale / 1.25) * 100) / 100)})} disabled={snapshot.status !== 'ready' || !zoom || scale <= 0.05}>{t('next.reader.zoomOut')}</MenuItem>
       <MenuItem onSelect={() => apply({kind: 'scale', value: Math.min(8, Math.round(scale * 1.25 * 100) / 100)})} disabled={snapshot.status !== 'ready' || !zoom || scale >= 8}>{t('next.reader.zoomIn')}</MenuItem>
       <MenuSeparator/>

@@ -9,7 +9,16 @@ const definite = new Set(['personal_state_conflict', 'personal_needs_resolution'
 
 /** An explicit profile mark. Saved location and publication progress stay with
  * the existing Reader, and uncertain writes keep their original body/op ID. */
-export function ReadMarkAction({client, itemId, isCurrent, reportError}: {client: ReadingClient; itemId: string; isCurrent: () => boolean; reportError: (error: unknown) => void}) {
+export function ReadMarkAction(props: ReadMarkInputs & Readonly<{client: ReadingClient}>) {
+  const mark = useReadMark(props);
+  if (!mark) return null;
+  return <Button variant="glass" icon="i-check" iconOnly aria-label={mark.label} title={mark.label} aria-pressed={mark.read} disabled={mark.busy} onClick={mark.press}/>;
+}
+
+type ReadMarkInputs = Readonly<{client: ReadingClient | undefined; itemId: string; isCurrent: () => boolean; reportError: (error: unknown) => void}>;
+/** The title's read mark and the press that flips it, for the book page's button and the reader's
+ * ⋯ More alike; null while it is unknown or not this profile's to set. */
+export function useReadMark({client, itemId, isCurrent, reportError}: ReadMarkInputs): Readonly<{label: string; read: boolean; busy: boolean; press: () => void}> | null {
   const inputs = useRef({client, itemId, isCurrent, reportError}); inputs.current = {client, itemId, isCurrent, reportError};
   const opening = useRef<Opening | undefined>(undefined), [view, setView] = useState<View>({});
   // Publish synchronously as well as through React: an old event closure must
@@ -33,13 +42,14 @@ export function ReadMarkAction({client, itemId, isCurrent, reportError}: {client
     finally {held.busy = false;}
   }, [current, publish]);
   useLayoutEffect(() => {
+    if (!client) {opening.current = undefined; publish({}); return;}
     const held: Opening = {client, itemId, controller: new AbortController(), live: true, busy: false, needsRead: true};
     opening.current = held; publish({opening: held});
     if (client.canMarkRead(itemId)) void load(held);
     return () => {held.live = false; held.controller.abort(); if (opening.current === held) opening.current = undefined;};
   }, [client, itemId, load, publish]);
   const held = view.opening, mark = view.mark;
-  if (!held || !current(held) || !client.canMarkRead(itemId) || view.unavailable || !mark && !view.failed) return null;
+  if (!held || !client || !current(held) || !client.canMarkRead(itemId) || view.unavailable || !mark && !view.failed) return null;
   const renderedView = view, renderedCommand = held.command, renderedNeedsRead = held.needsRead;
   const press = async () => {
     if (!current(held) || held.busy || currentView.current !== renderedView || renderedView.opening !== held || renderedView.mark !== mark
@@ -68,5 +78,5 @@ export function ReadMarkAction({client, itemId, isCurrent, reportError}: {client
     } finally {held.busy = false;}
   };
   const label = defaultI18n.t(view.failed ? 'next.states.tryAgain' : mark?.read ? 'next.reader.markUnread' : 'next.reader.markRead');
-  return <Button variant="glass" icon="i-check" iconOnly aria-label={label} title={label} aria-pressed={mark?.read} disabled={view.busy} onClick={() => {void press();}}/>;
+  return {label, read: mark?.read === true, busy: view.busy === true, press: () => {void press();}};
 }

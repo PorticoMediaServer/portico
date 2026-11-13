@@ -174,4 +174,6 @@ export const readerMessages = {
   'next.reader.marksBoth': '{highlights} and {bookmarks}, the same on every device you read on.',
   'next.reader.marksOne': '{marks}, the same on every device you read on.',
   'next.reader.openInReader': 'Open in reader',
+  'next.reader.leftInBook': '{duration} left in the book',
+  'next.reader.bookDetails': 'Book details',
 } as const satisfies Record<`next.reader.${string}`, string>;
