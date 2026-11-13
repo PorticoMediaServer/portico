@@ -127,7 +127,7 @@ export class BrowseSession<T> {
       catch (error) {if (!this.retired && this.options.current() && !signal.aborted && ended(error)) this.end(error); throw error;}
       finally {lifetime.dispose();}
     }
-    const list = libraryItemQuery({id: this.query.libraryId, kind: this.query.capabilities.library.kind}, this.query.pivot, this.query.nodes, this.query.sorts);
+    const list = libraryItemQuery({id: this.query.libraryId, kind: this.query.capabilities?.library?.kind}, this.query.pivot, this.query.nodes, this.query.sorts);
     try {
       // The count is its own request and no page waits for it; until it answers the list is "at least this long".
       this.counting ??= countItems(api, list, this.life.signal)
