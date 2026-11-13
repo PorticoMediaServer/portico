@@ -52,7 +52,8 @@ function DashboardView({bindings: b, embedded = false, initialSection, phone = f
   // Now playing and the status follow the server's activity change (admin.sessions); a slow timer only while the feed is down.
   const status = useDashboardRead(b, statusLoad, allowed && b.role === 'owner', 30000, undefined, true);
   const sessionsLoad = useCallback((signal: AbortSignal) => readNowPlaying(b, signal), [b]);
-  const sessions = useDashboardRead(b, sessionsLoad, allowed, 30000, undefined, true);
+  // The server sends its activity change to the owner alone: an administrator's Now playing keeps its timed re-read.
+  const sessions = useDashboardRead(b, sessionsLoad, allowed, b.role === 'owner' ? 30000 : 10000, undefined, b.role === 'owner');
   const liveLoad = useCallback((signal: AbortSignal) => b.read.telemetry('live', signal), [b]);
   const live = useDashboardRead(b, liveLoad, onServer.load && allowed && b.role === 'owner' && !phone, 2000);
   const [healthRange, setHealthRange] = useState<'10m' | '1h' | '24h'>('1h');

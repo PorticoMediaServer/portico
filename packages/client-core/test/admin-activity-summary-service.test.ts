@@ -132,6 +132,19 @@ test('the server\'s activity change reads the summary again, and the slow fallba
   h.feed.connected = false; await h.clock.advance(30_000); assert.equal(h.requests.length, 3, 'feed down: the fallback reads');
   stop(); h.service.dispose();
 });
+test('a hint while the page is hidden reads nothing; the page reads once when it is shown again', async () => {
+  let hidden = false; const shown = new Set<() => void>();
+  const visibility = {hidden: () => hidden, onVisible: (fn: () => void) => {shown.add(fn); return () => {shown.delete(fn);};}};
+  const requests: unknown[] = [], clock = new Clock(), feed = new Feed();
+  const http = {send: async (request: unknown) => {requests.push(request); return ok();}};
+  const service = new ActivitySummaryService({source: new Source({http, scope: {...scope}}), timers: clock, timeoutMs: 5000, visibility});
+  service.setActive(true); service.attach(feed); await service.load(); assert.equal(requests.length, 1);
+  hidden = true; feed.emit('admin.sessions'); feed.emit('admin.sessions'); await clock.advance(5000);
+  assert.equal(requests.length, 1, 'hidden: no read');
+  hidden = false; for (const fn of [...shown]) fn(); await clock.advance(1000);
+  assert.equal(requests.length, 2, 'shown: one read for the hints it missed');
+  service.dispose(); assert.equal(shown.size, 0, 'nothing left listening');
+});
 test('observation revisions compare all nanoseconds and never replace a newer summary with an older completion', async () => {
   const h = harness((_r, n) => ok(wire({observedAt: n === 1 ? '2026-10-22T07:00:00.000000002Z' : '2026-10-22T07:00:00.000000001Z'})));
   h.activate(); await h.service.load(); await h.service.load();
