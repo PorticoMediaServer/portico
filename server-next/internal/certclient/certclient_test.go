@@ -192,25 +192,25 @@ func TestEveryRefusalWaitsAndTellsTheOwner(t *testing.T) {
 		says    string
 	}{
 		{name: "Portico Services busy", refuse: &refusal{503, "busy", "Portico Services is busy. Try again later.", 120, ""}, atLeast: 120 * time.Second,
-			says: "Portico Services is busy. Trying again at "},
+			says: "Portico Services is busy."},
 		{name: "the server's orders today", refuse: &refusal{429, "slow_down", "This server has ordered its certificate too many times today. It can order again later.", 3600, "/orders"},
-			atLeast: time.Hour, says: "This server has ordered its certificate too many times today. It can order again later. Portico will ask again at "},
+			atLeast: time.Hour, says: "This server has ordered its certificate too many times today. It can order again later."},
 		{name: "the account's orders today", refuse: &refusal{429, "slow_down", "This account's servers have ordered too many certificates today. They can order again later.", 7200, "/orders"},
-			atLeast: 2 * time.Hour, says: "This account's servers have ordered too many certificates today. They can order again later. Portico will ask again "},
+			atLeast: 2 * time.Hour, says: "This account's servers have ordered too many certificates today. They can order again later."},
 		{name: "replaced twice this week", refuse: &refusal{429, "replacement_limit", "This server has replaced its certificate twice this week. It can replace it again later.", 3 * 86400, "/orders"},
-			atLeast: 24 * time.Hour, says: "This server has replaced its certificate twice this week. It can replace it again later. Portico will ask again on "},
+			atLeast: 24 * time.Hour, says: "This server has replaced its certificate twice this week. It can replace it again later."},
 		{name: "the ordinary call limit", refuse: &refusal{429, "slow_down", "Too many requests. Try again later.", 60, ""}, atLeast: 60 * time.Second,
-			says: "Portico Services is busy. Trying again at "},
+			says: "Portico Services is busy."},
 		{name: "signed a moment before the link", refuse: &refusal{401, "signed_before_link", "This request was signed before this server was linked.", 0, ""},
 			atLeast: 30 * time.Second, says: "Getting your secure address. This usually takes under a minute."},
 		{name: "a Portico Services that issues no certificates", refuse: &refusal{503, "certificates_unavailable",
 			"This Portico Services does not issue certificates.", 6 * 3600, "/orders"}, atLeast: 6 * time.Hour,
-			says: "This Portico Services isn't issuing certificates right now. Your Portico address works without one; Enhanced Security waits for it. Portico will ask again at "},
+			says: "This Portico Services isn't issuing certificates right now. Your Portico address works without one; Enhanced Security waits for it."},
 		{name: "the authority paused", paused: true, atLeast: 10 * time.Minute,
 			says: "The certificate can't be issued just now. Portico will keep trying; nothing is needed from you."},
-		{name: "unreachable", down: true, atLeast: 30 * time.Second, says: "Portico Services can't be reached. Trying again at "},
+		{name: "unreachable", down: true, atLeast: 30 * time.Second, says: "Portico Services can't be reached."},
 		{name: "the server's clock is out", clock: 3 * time.Hour, atLeast: 30 * time.Second,
-			says: "This server's clock is 3 hours out, so Portico Services can't accept its requests. Correct the clock; Portico will try again at "},
+			says: "This server's clock is 3 hours out, so Portico Services can't accept its requests. Correct the clock."},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			r := newRig(t)
@@ -228,7 +228,7 @@ func TestEveryRefusalWaitsAndTellsTheOwner(t *testing.T) {
 			}
 			next := r.c.Step(context.Background())
 			s := r.c.Status()
-			if next.Sub(r.now) < c.atLeast || !strings.HasPrefix(s.Message, c.says) || s.NextTryAt == nil {
+			if next.Sub(r.now) < c.atLeast || s.Message != c.says || s.NextTryAt == nil || !s.NextTryAt.Equal(next) {
 				t.Fatalf("waits %v and says %q", next.Sub(r.now), s.Message)
 			}
 			// Nothing is installed, so Enhanced security goes on waiting.
@@ -244,6 +244,9 @@ func TestEveryRefusalWaitsAndTellsTheOwner(t *testing.T) {
 			r.c.Step(context.Background())
 			if len(r.f.calls) != calls {
 				t.Fatal("it asked again before the wait was over")
+			}
+			if restored := r.c.Status(); restored.NextTryAt == nil || !restored.NextTryAt.Equal(next) {
+				t.Fatal("restart lost the actual retry time", restored)
 			}
 		})
 	}
@@ -317,5 +320,33 @@ func TestAServerThatIsNoLongerLinkedAsksNothing(t *testing.T) {
 	r.now = r.now.Add(80 * 24 * time.Hour) // past its renewal
 	if next := r.c.Step(context.Background()); !next.IsZero() || len(r.f.calls) != calls {
 		t.Fatal("a server that is no longer linked asked Portico Services for something")
+	}
+}
+
+func TestCertificateRenewalFactsKeepTheGoodCertificateAndRememberTheActualAttempt(t *testing.T) {
+	r := newRig(t)
+	r.c.Linked(r.linkedAt)
+	r.until("issued")
+	before := r.c.Status()
+	if before.LastAttemptAt == nil || before.LastProblem != "" || before.ExpiresAt == nil {
+		t.Fatal(before)
+	}
+	r.now = renewAt(r.c.leaf).Add(time.Second)
+	r.f.refuse = []refusal{{503, "busy", "Portico Services is busy.", 120, "/orders"}}
+	r.c.Step(context.Background())
+	failed := r.c.Status()
+	if failed.LastAttemptAt == nil || !failed.LastAttemptAt.Equal(r.now) || !strings.Contains(failed.LastProblem, "busy") {
+		t.Fatal(failed)
+	}
+	if !failed.CertificateReady || r.served("203-0-113-1."+failed.NameSpace+"."+Zone) == nil {
+		t.Fatal("a refused renewal took away the installed certificate")
+	}
+	r.restart()
+	r.c.Linked(r.linkedAt)
+	r.c.Step(context.Background())
+	restored := r.c.Status()
+	if restored.LastAttemptAt == nil || !restored.LastAttemptAt.Equal(*failed.LastAttemptAt) ||
+		restored.LastProblem != "Portico Services is busy." || strings.Contains(restored.LastProblem, "Trying again") {
+		t.Fatal("restart lost the last real attempt or its reason", restored)
 	}
 }
