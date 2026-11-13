@@ -324,8 +324,9 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
     {active && environment === 'web' && snapshot.status === 'ready' && <ReaderBrowserHint visible={presentation === 'phone' && !panel && !fixedMenu && !currentHit && snapshot.selection === null && !hint}/>}
     {active && fixed && <FixedPageMenus controller={controller} authority={authority} format={publication.format} reportError={engineError}
       open={fixedMenu} onOpenChange={setFixedMenu} anchorRef={zoomAnchor} directionRef={directionAnchor} moreRef={moreAnchor}
-      titleItems={compactDocument && title ? <ReaderTitleItems title={title} mark={mark} onVersions={() => setVersions(true)} onClose={() => setFixedMenu(undefined)}/> : undefined}/>}
-    {active && title && !compactDocument && <Menu open={fixedMenu === 'more'} onOpenChange={open => setFixedMenu(open ? 'more' : undefined)} title={t('next.controls.more')} anchorRef={moreAnchor}>
+      titleItems={title ? <ReaderTitleItems title={title} mark={mark} onVersions={() => setVersions(true)} onClose={() => setFixedMenu(undefined)}/> : undefined} zoomInMore={compactDocument}/>}
+    {/* A fixed-page book's More is the fixed-page menu above; a reflowable book's is this one. One menu either way. */}
+    {active && title && !fixed && <Menu open={fixedMenu === 'more'} onOpenChange={open => setFixedMenu(open ? 'more' : undefined)} title={t('next.controls.more')} anchorRef={moreAnchor}>
       <ReaderTitleItems title={title} mark={mark} onVersions={() => setVersions(true)} onClose={() => setFixedMenu(undefined)}/></Menu>}
     {active && title && <ReaderVersionDialog title={title} open={versions} onOpenChange={setVersions} returnFocusRef={moreAnchor}/>}
   </>;

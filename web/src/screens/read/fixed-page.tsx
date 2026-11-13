@@ -245,9 +245,11 @@ function FixedPagesWindow({controller, authority, reportError, format, count, cu
  * Zoom, fit and page pairing for fixed pages. Each choice is a live engine override in
  * this session, exactly like the display panel: closing the book restores the defaults.
  */
-export function FixedPageMenus({controller, authority, reportError, format, open, onOpenChange, anchorRef, directionRef, moreRef, titleItems}: Fixed & Readonly<{
-  /** The book's own items, first in a compact document's ⋯ More (phone-read 12). */
+export function FixedPageMenus({controller, authority, reportError, format, open, onOpenChange, anchorRef, directionRef, moreRef, titleItems, zoomInMore = false}: Fixed & Readonly<{
+  /** The book's own items: the whole ⋯ More of a fixed-page book, one menu on every layout. */
   titleItems?: ReactNode;
+  /** A compact document (phone PDF) has no zoom control of its own, so its zoom choices sit under the book's in More (phone-read 12). */
+  zoomInMore?: boolean;
   open: 'zoom' | 'direction' | 'more' | undefined; onOpenChange: (open: 'zoom' | 'direction' | 'more' | undefined) => void;
   anchorRef: RefObject<HTMLElement | null>; directionRef: RefObject<HTMLElement | null>; moreRef: RefObject<HTMLElement | null>;
 }>) {
@@ -261,7 +263,9 @@ export function FixedPageMenus({controller, authority, reportError, format, open
   const fits: readonly ReaderFit[] = format === 'pdf' ? ['page', 'width', 'spread'] : ['page', 'width', 'height'];
   return <>
     <Menu open={open === 'zoom' || open === 'more'} onOpenChange={value => onOpenChange(value ? open : undefined)} title={t(open === 'more' ? 'next.controls.more' : 'next.reader.zoom')} anchorRef={open === 'more' ? moreRef : anchorRef}>
-      {open === 'more' && titleItems && <>{titleItems}<MenuSeparator/></>}
+      {open === 'more' && titleItems}
+      {open === 'more' && titleItems && zoomInMore && <MenuSeparator/>}
+      {(open === 'zoom' || zoomInMore) && <>
       <MenuItem onSelect={() => apply({kind: 'scale', value: Math.max(0.05, Math.round((scale / 1.25) * 100) / 100)})} disabled={snapshot.status !== 'ready' || !zoom || scale <= 0.05}>{t('next.reader.zoomOut')}</MenuItem>
       <MenuItem onSelect={() => apply({kind: 'scale', value: Math.min(8, Math.round(scale * 1.25 * 100) / 100)})} disabled={snapshot.status !== 'ready' || !zoom || scale >= 8}>{t('next.reader.zoomIn')}</MenuItem>
       <MenuSeparator/>
@@ -269,6 +273,7 @@ export function FixedPageMenus({controller, authority, reportError, format, open
       <MenuSeparator/>
       <MenuItem disabled={snapshot.status !== 'ready' || !zoom} selected={!preferences.twoPages} onSelect={() => override({twoPages: false})}>{t('next.reader.onePage')}</MenuItem>
       <MenuItem disabled={snapshot.status !== 'ready' || !zoom} selected={preferences.twoPages} onSelect={() => override({twoPages: true})}>{t('next.reader.twoPages')}</MenuItem>
+      </>}
     </Menu>
     {(format === 'cbz' || format === 'cbr') && <Menu open={open === 'direction'} onOpenChange={value => onOpenChange(value ? 'direction' : undefined)} title={t('next.reader.direction')} anchorRef={directionRef}>
       {(['file', 'ltr', 'rtl', 'vertical'] as const).map(direction => <MenuItem key={direction} selected={preferences.comicDirection === direction}
