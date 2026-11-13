@@ -5,8 +5,10 @@ import {TitleFactsLine} from './TitleParts';
 import styles from './cover-hero.module.css';
 
 /** portrait: a book or comic (2:3); periodical: a magazine or newspaper issue (3:4); square: an
- * audiobook or its series; round: an author. */
-export type CoverHeroShape = 'portrait' | 'periodical' | 'square' | 'round';
+ * audiobook or its series; artist: a person's page, a music artist or an audiobook author
+ * (desktop-listen #artist: a 640px hero, the circle large on the right, the name lower left;
+ * phone-app r5: a 164px circle over the name). */
+export type CoverHeroShape = 'portrait' | 'periodical' | 'square' | 'artist';
 
 /** A presentation model, not a transport DTO. Unknown fields remain absent. */
 export type CoverHeroProps = Readonly<{
@@ -35,10 +37,12 @@ export type CoverHeroProps = Readonly<{
  * author (listen 8). Phones stack it, centred. */
 export function CoverHero({title, titleStyle, eyebrow, byline, facts, cover, shape = 'portrait', fallback, stack, ambient, palette, description, opening, actions, overflow, under}: CoverHeroProps) {
   const fanned = stack?.slice(0, 3);
-  return <div className={styles.heroRegion}>
-    {(ambient || palette) && <AmbientArt className={styles.ambient} treatment="wash" source={ambient} palette={palette}/>}
-    <header className={styles.hero} data-stack={fanned?.length || undefined}>
+  const artist = shape === 'artist';
+  return <div className={styles.heroRegion} data-shape={shape}>
+    {(ambient || palette) && <AmbientArt className={styles.ambient} treatment={artist ? 'artist' : 'wash'} source={ambient} palette={palette}/>}
+    <header className={styles.hero} data-shape={shape} data-stack={fanned?.length || undefined}>
       <div className={styles.cover} data-shape={shape} data-stack={fanned?.length || undefined}>
+        {artist && ambient && <AmbientArt className={styles.discGlow} treatment="cover" source={ambient}/>}
         {fanned?.length ? fanned.map((source, index) => <Artwork key={`${source.key}:${index}`} source={source} alt="" fit="cover" className={`${styles.coverImage} ${styles.stackedCover}`} />)
           : <Artwork source={cover} alt={title} fallback={fallback} fit="cover" className={styles.coverImage} />}
       </div>

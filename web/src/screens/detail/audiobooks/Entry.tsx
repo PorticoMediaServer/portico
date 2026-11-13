@@ -7,7 +7,7 @@ import type {ContentEntry, ContentProjection} from '@core/library-content.ts';
 import type {RelationPage} from '@core/relation-rows.ts';
 import {Menu, MenuItem} from '../../../kit/overlays';
 import {OwnerMetadataGroup} from '../OwnerMetadataGroup';
-import {Artwork, GeneratedCover, PersonCircle, type ArtworkSource} from '../../../kit/artwork';
+import {Artwork, GeneratedCover, PersonCircle, nameInitials, type ArtworkSource} from '../../../kit/artwork';
 import {generatedCoverTint} from '@design';
 import {CoverHero, CoverHeroLink} from '../../../kit/title/CoverHero';
 import {Button, Chip} from '../../../kit/controls';
@@ -192,10 +192,10 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
       {!onMore && phone && <AudiobookMore binding={binding} page={page} entry={entity}/>}
     </nav>
     <CoverHero title={entity.displayTitle ?? entity.title} titleStyle={(entity.displayTitle ?? entity.title).length > 24 ? 'long' : undefined}
-      shape={author ? 'round' : 'square'} cover={author ? undefined : binding.context.artwork.foreground(cover, 464, 1)}
+      shape={author ? 'artist' : 'square'} cover={author ? undefined : binding.context.artwork.foreground(cover, 464, 1)}
       fallback={author ? <PersonCircle width="100%" height="100%" initialsSize={phone ? 44 : 80} alt={entity.title}
         covers={cover ? [binding.context.artwork.foreground(cover, 464, 1)].filter(source => !!source) as ArtworkSource[] : []}
-        initials={entity.title.split(/\s+/u).filter(Boolean).slice(0, 2).map(word => Array.from(word)[0]).join('')}/>
+        initials={nameInitials(entity.title)}/>
         : <GeneratedCover title={entity.title} author={entity.author} glyph={Array.from(entity.title.trim())[0] ?? ''} tint={generatedCoverTint(entity.title)}/>}
       ambient={binding.context.artwork.ambient(cover)} palette={generatedCoverTint(entity.title)}
       eyebrow={book && series ? <><button type="button" onClick={() => run(() => filters.series && seriesTarget ? binding.openSeries(page, series, seriesTarget.name) : open(series))}>{series.title}</button>{seriesTarget?.position && t('title.bookInSeries', {number: seriesTarget.position})}</>
