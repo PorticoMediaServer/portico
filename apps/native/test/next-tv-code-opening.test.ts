@@ -183,6 +183,7 @@ async function accountEntry(f: Awaited<ReturnType<typeof fixture>>, prepare: () 
   };
   // Unvisited native/credential branches may import names, but an unexpected
   // invocation fails loudly; no omitted guard/service is silently a no-op.
+  Object.assign(modules, {'../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}});
   const strict = new Proxy(modules, {get: (all, module: string) => all[module] ?? new Proxy({}, {
     get: (_, name: string) => function unexpectedBoundary() {throw new Error(`Unvisited fixture boundary: ${module}:${name}`);},
   })});

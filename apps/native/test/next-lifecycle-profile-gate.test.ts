@@ -11,6 +11,8 @@ import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+// The picker draws in its layout's beforeActions; the PIN screen is one shared piece whose slots hold the rest.
+const parts = (tree: any): any[] => tree?.type === 'PhoneWhosWatching' ? [...nodes(tree.props.picker), ...nodes(tree.props.children)] : tree?.type === 'PhoneProfilePIN' ? [tree, ...nodes(tree.props.remember), ...nodes(tree.props.status), ...nodes(tree.props.hints)] : nodes(tree?.props.beforeActions);
 const settle = async () => {for (let i = 0; i < 6; i++) await new Promise(resolve => setImmediate(resolve));};
 const server = {serverId: 's1', name: 'Portico demo', signIn: 'local' as const};
 const viewer = (profileId: string, familyId: string) => ({accountId: 'a1', profileId, role: 'owner', familyId});
@@ -45,7 +47,7 @@ async function gate(rememberProfiles: boolean, isTV = false, refuse = false) {
     '../../platform/native-session-lifecycle': {nativeSessionLifecycle: () => ({lifecycle, ports})},
     '../../platform/profile-recovery': {NativeProfileRecovery: class {}, temporaryRecoveryApi: () => undefined},
     '../../platform/accounts': {nativeAccounts: {}}, '../../platform/account-authority': {hostedUrl: 'https://hosted.example'},
-    '../../platform/server-connections': {nativeNetworkFetch: fetch}, './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PIN'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
+    '../../platform/server-connections': {nativeNetworkFetch: fetch}, './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
   });
   const host = createFabricHookHost(() => {tree = LifecycleProfileGate();});
   await act(() => host.mount());
@@ -56,19 +58,19 @@ test('the launch picker lists the server\'s profiles; a PIN profile opens the PI
   const g = await gate(true);
   try {
     assert.equal(g.tree().props.testID, 'lifecycle-profiles');
-    const picker = nodes(g.tree().props.beforeActions).find(node => node.type === 'Picker');
+    const picker = parts(g.tree()).find(node => node.type === 'Picker');
     assert.deepEqual(picker.props.profiles.map((p: {id: string}) => p.id), ['main', 'alex']);
     assert.equal(picker.props.preferredProfileId, 'main');
     await act(async () => {picker.props.onSelect('alex'); await settle();});
     await g.host.rerender();
     assert.equal(g.tree().props.testID, 'lifecycle-profile-pin');
-    const remember = nodes(g.tree().props.beforeActions).find(node => node.type === 'Remember');
+    const remember = parts(g.tree()).find(node => node.type === 'Remember');
     assert.ok(remember, 'Remember this profile on this device is offered');
     assert.equal(remember.props.checked, false, 'unticked until chosen');
     await act(() => remember.props.onChange(true));
     await g.host.rerender();
-    const pin = nodes(g.tree().props.beforeActions).find(node => node.type === 'PIN');
-    await act(async () => {pin.props.onComplete('1234'); await settle();});
+    const pin = parts(g.tree()).find(node => node.type === 'PhoneProfilePIN');
+    await act(async () => {pin.props.onSubmit('1234'); await settle();});
     assert.deepEqual(g.selects.map(({serverId, profileId, pin, remember}) => ({serverId, profileId, pin, remember})), [{serverId: 's1', profileId: 'alex', pin: '1234', remember: true}]);
     const s = g.lifecycle.getSnapshot().state;
     assert.equal(s.kind, 'ready'); assert.equal(s.kind === 'ready' && s.remembered, true);
@@ -78,12 +80,12 @@ test('the launch picker lists the server\'s profiles; a PIN profile opens the PI
 test('with Remember PIN for Off the PIN screen offers no Remember row and never sends remember', async () => {
   const g = await gate(false);
   try {
-    const picker = nodes(g.tree().props.beforeActions).find(node => node.type === 'Picker');
+    const picker = parts(g.tree()).find(node => node.type === 'Picker');
     await act(async () => {picker.props.onSelect('alex'); await settle();});
     await g.host.rerender();
-    assert.equal(nodes(g.tree().props.beforeActions).some(node => node.type === 'Remember'), false);
-    const pin = nodes(g.tree().props.beforeActions).find(node => node.type === 'PIN');
-    await act(async () => {pin.props.onComplete('1234'); await settle();});
+    assert.equal(parts(g.tree()).some(node => node.type === 'Remember'), false);
+    const pin = parts(g.tree()).find(node => node.type === 'PhoneProfilePIN');
+    await act(async () => {pin.props.onSubmit('1234'); await settle();});
     assert.equal(g.selects[0]?.remember, false);
   } finally {await g.host.unmount(); g.lifecycle.dispose();}
 });
@@ -91,7 +93,7 @@ test('with Remember PIN for Off the PIN screen offers no Remember row and never 
 test('the current no-PIN profile opens without a request', async () => {
   const g = await gate(true);
   try {
-    const picker = nodes(g.tree().props.beforeActions).find(node => node.type === 'Picker');
+    const picker = parts(g.tree()).find(node => node.type === 'Picker');
     await act(async () => {picker.props.onSelect('main'); await settle();});
     assert.equal(g.selects.length, 0);
     assert.equal(g.lifecycle.getSnapshot().state.kind, 'ready');
@@ -114,7 +116,7 @@ test('on TV the PIN form carries Remember this profile on this device exactly wh
   }
 });
 
-const remembering = (g: Awaited<ReturnType<typeof gate>>) => nodes(g.tree().props.beforeActions).find(node => node.type === 'Remember');
+const remembering = (g: Awaited<ReturnType<typeof gate>>) => parts(g.tree()).find(node => node.type === 'Remember');
 
 test('Who\'s watching offers Remember this profile on this device under the faces only where the server allows it', async () => {
   for (const allowed of [true, false]) {
@@ -134,7 +136,7 @@ test('a ticked no-PIN profile is remembered when chosen; unticked it is not', as
     try {
       if (ticked) {await act(() => remembering(g).props.onChange(true)); await g.host.rerender();}
       assert.equal(remembering(g).props.checked, ticked);
-      const picker = nodes(g.tree().props.beforeActions).find(node => node.type === 'Picker');
+      const picker = parts(g.tree()).find(node => node.type === 'Picker');
       // The held profile is Demo; Alex has a PIN, so add a no-PIN second profile through a fresh gate below. Here, choose the current profile.
       await act(async () => {picker.props.onSelect('main'); await settle();});
       assert.equal(g.selects.length, ticked ? 1 : 0, ticked ? 'the tick on the current profile signs in afresh so the server can remember it' : 'an untouched tap just returns');
@@ -147,25 +149,25 @@ test('the picker\'s tick carries to the PIN page, is sent only with the PIN, and
   const g = await gate(true);
   try {
     await act(() => remembering(g).props.onChange(true)); await g.host.rerender();
-    const picker = nodes(g.tree().props.beforeActions).find(node => node.type === 'Picker');
+    const picker = parts(g.tree()).find(node => node.type === 'Picker');
     await act(async () => {picker.props.onSelect('alex'); await settle();});
     await g.host.rerender();
     assert.equal(g.tree().props.testID, 'lifecycle-profile-pin');
     assert.equal(g.selects.length, 0, 'choosing a PIN profile sends nothing');
     assert.equal(remembering(g).props.checked, true, 'the PIN page arrives ticked');
     // Going back keeps the choice and sends nothing.
-    const back = g.tree().props.secondaryAction;
-    await act(() => back.onPress()); await g.host.rerender();
+    // "‹ Profiles" on the PIN screen.
+    await act(() => g.tree().props.onBack()); await g.host.rerender();
     assert.equal(g.tree().props.testID, 'lifecycle-profiles');
     assert.equal(g.selects.length, 0, 'cancelling sends nothing');
     assert.equal(remembering(g).props.checked, true);
     // Unticking on the PIN page is honoured.
-    const again = nodes(g.tree().props.beforeActions).find(node => node.type === 'Picker');
+    const again = parts(g.tree()).find(node => node.type === 'Picker');
     await act(async () => {again.props.onSelect('alex'); await settle();});
     await g.host.rerender();
     await act(() => remembering(g).props.onChange(false)); await g.host.rerender();
-    const pin = nodes(g.tree().props.beforeActions).find(node => node.type === 'PIN');
-    await act(async () => {pin.props.onComplete('1234'); await settle();});
+    const pin = parts(g.tree()).find(node => node.type === 'PhoneProfilePIN');
+    await act(async () => {pin.props.onSubmit('1234'); await settle();});
     assert.deepEqual(g.selects.map(({profileId, pin, remember}) => ({profileId, pin, remember})), [{profileId: 'alex', pin: '1234', remember: false}]);
   } finally {await g.host.unmount(); g.lifecycle.dispose();}
 });
@@ -222,12 +224,12 @@ test('on TV a digit pressed during the 400 ms after a refusal is kept, not wiped
 test('on a phone a refusal does not wipe the PIN field later', async () => {
   const g = await gate(false, false, true);
   try {
-    const picker = nodes(g.tree().props.beforeActions).find(node => node.type === 'Picker');
+    const picker = parts(g.tree()).find(node => node.type === 'Picker');
     await act(async () => {picker.props.onSelect('alex'); await settle();});
     await g.host.rerender();
-    const entry = () => nodes(g.tree().props.beforeActions).find(node => node.type === 'PIN');
+    const entry = () => parts(g.tree()).find(node => node.type === 'PhoneProfilePIN');
     await act(() => entry().props.onChange('1111'));
-    await act(async () => {entry().props.onComplete('1111'); await settle();});
+    await act(async () => {entry().props.onSubmit('1111'); await settle();});
     await g.host.rerender();
     await act(() => entry().props.onChange('3'));
     await act(async () => {await new Promise(resolve => setTimeout(resolve, 450));});

@@ -19,6 +19,8 @@ import {screenModule} from './helpers/screen-harness.mjs';
 
 const theme = createTheme({isTV: false, width: 390});
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+// The pickers and the PIN screen are shared pieces whose slots hold what layouts kept in beforeActions.
+const parts = (tree: any): any[] => tree?.type === 'PhoneWhosWatching' ? [...nodes(tree.props.picker), ...nodes(tree.props.children)] : tree?.type === 'PhoneProfilePIN' ? [tree, ...nodes(tree.props.remember), ...nodes(tree.props.status), ...nodes(tree.props.hints)] : nodes(tree?.props.beforeActions);
 const directory = [
   {id: 'one', name: 'One', baseUrl: 'https://one.test', publicKey: 'key', policyRevision: 0, presence: {online: true, lastSeenAt: null}},
   {id: 'two', name: 'Two', baseUrl: 'https://two.test', publicKey: 'key', policyRevision: 0, presence: {online: true, lastSeenAt: null}},
@@ -71,7 +73,7 @@ test('a directory connect is fenced to its attempt: Choose another and a success
     '../../tv/auth': {TVProfilePINForm: 'PIN', TVForgotPINHandoff: 'Forgot', TVFrontDoor: 'Front', TVCodePresenter: 'Code',
       TVCredentialForm: 'Credentials', TVVerificationForm: 'Factor', TVRequiredSetupHandoff: 'Required'},
     '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'},
-    './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './RememberProfileRow': {RememberProfileRow: 'Remember'}, './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'Phone'},
+    './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'}, './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'Phone'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     './PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
     './NativeSetup': {NativeSetup: 'NativeSetup'},
@@ -86,7 +88,7 @@ test('a directory connect is fenced to its attempt: Choose another and a success
     assert.equal(tree.type, 'Phone'); await act(() => tree.props.onPortico());
     await act(() => host.rerender());
     assert.equal(tree.type, 'Layout'); assert.equal(tree.props.title, defaultI18n.t('portico.landing.pickTitle'));
-    const rows = () => nodes(tree.props.beforeActions).filter(node => node.type === 'Focusable');
+    const rows = () => parts(tree).filter(node => node.type === 'Focusable');
     assert.equal(rows().length, 2);
 
     await act(async () => {rows()[0].props.onPress(); await host.rerender();});

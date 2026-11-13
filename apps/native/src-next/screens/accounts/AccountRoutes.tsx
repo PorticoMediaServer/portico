@@ -37,6 +37,7 @@ import {useTheme} from '../../kit/theme';
 import {AccountEntry} from './AccountEntry';
 import {createAccountDownloadsEntry, type AccountDownloadsEntry} from './downloads-entry';
 import {PhonePINEntry} from './PhonePINEntry';
+import {PhoneProfilePIN} from './PhoneProfilePIN';
 import {completeTVLinkCode, formatTVLinkCode} from './account-form-values';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';
 import {PhoneServerChooser} from './PhoneServerChooser';
@@ -369,6 +370,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
           {problem ? <FormError>{problem}</FormError> : null}
           {notice ? <Text accessibilityLiveRegion="polite" style={[theme.type.caption, {color: theme.colors.textSecondary, marginTop: 8}]}>{notice}</Text> : null}
         </View> : null;
+  const failureLine = error ? <FormError placement="inline">{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</FormError> : undefined;
   return <>
     {embedded ? <View testID="settings-profile-management" style={{gap: 8}}>
       <View style={{borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
@@ -381,17 +383,19 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
       </View>
       {problem && !managedId ? <FormError placement="inline">{problem}</FormError> : null}
       <BottomSheet open={!!managedId && !!active && manage} onOpenChange={open => {if (!open && !activeTicket.current && managementCurrent() && !retirement) {retireEditor(); setManagedId(undefined); closeDeletion();}}} title={active?.name} dismissOnBack={!actionBusy} dismissOnGesture={!actionBusy} dismissOnOutsidePress={!actionBusy}>{managementActions}</BottomSheet>
-    </View> : <StateLayout testID="accounts-profile-switch" title={profile ? t('profile.pinTitle', {name: profile.name}) : t('profiles.title')}
-      beforeActions={<View style={{alignSelf: 'stretch', marginBottom: 20}}>{profile ? <><PhonePINEntry value={pin} onChange={setPin} onComplete={value => {void choose(profile.id, value);}} busy={busy} error={!!error}/>
-        <View style={{alignItems: 'center', marginTop: 8}}><Button align="center" variant="link" disabled={busy} onPress={() => {void startRecovery();}}>{t('pin.forgot')}</Button></View></> : <>
+    </View> : profile ? <PhoneProfilePIN testID="accounts-profile-switch" profile={{name: profile.name, face: {initial: [...profile.name][0] ?? '', color: profile.art, source: avatarSource(profile.id)}}}
+      value={pin} onChange={setPin} onSubmit={value => {void choose(profile.id, value);}} busy={busy} rejected={!!error}
+      status={failureLine}
+      onForgot={() => {void startRecovery();}} onBack={back}/>
+    : <StateLayout testID="accounts-profile-switch" title={t('profiles.title')}
+      beforeActions={<View style={{alignSelf: 'stretch', marginBottom: 20}}><>
         <ProfilePicker focusScope={theme.isTV && lease?.live.value && lease.route === route ? `tv.account.profiles.${JSON.stringify([lease.authority, lease.revision])}` : undefined} focusBusy={busy} profiles={profiles.map(value => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: value.art, primary: value.primary, pinRequired: value.pinRequired, disabled: busy, source: avatarSource(value.id)}))}
           selectedId={current?.viewer.profileId} preferredProfileId={theme.isTV && lease ? profileFocus.get(lease) : undefined}
-          onFocusChange={id => {if (id && lease) profileFocus.set(lease, id);}} showTitle={false} onSelect={id => {const value = profiles.find(item => item.id === id)!;
+          onFocusChange={id => {if (id && lease) profileFocus.set(lease, id);}} showTitle={false} {...(manage && profiles.length < 8 ? {onAdd: openAddition} : {})} onSelect={id => {const value = profiles.find(item => item.id === id)!;
             if (id === current?.viewer.profileId) onBack(); else if (value.pinRequired) {setProfile(value); setPin(''); setError(undefined);} else void choose(id);}}/>
-        {manage && profiles.length < 8 ? <View style={{flexDirection: 'row', marginTop: 12}}><Button size="compact" variant="glass" icon="i-plus" onPress={openAddition}>{t('profile.add')}</Button></View> : null}
         {managementActions}
-        </>}
-        {!!error && <FormError placement="inline">{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</FormError>}
+        </>
+        {failureLine}
         {errorRefresh}</View>}
       secondaryAction={{id: 'back', label: t('action.back'), disabled: busy, onPress: back}}/>}
     <Dialog testID="profile-add" open={additionCurrent()} onOpenChange={open => {if (!open) closeAddition();}} title={t('profile.addTitle')}

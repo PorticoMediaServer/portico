@@ -6,11 +6,14 @@ import {useTheme} from '../../kit/theme';
 export type PhonePINEntryProps = Readonly<{
   value: string; onChange: (value: string) => void; onComplete?: (value: string) => void;
   busy?: boolean; error?: boolean; label?: string; autoFocus?: boolean; testID?: string;
+  /** False when the screen draws its own number pad: a hardware keyboard and code autofill still reach the field, the on-screen keyboard stays down
+   * (`inputMode` 'none': React Native's TextInput ignores showSoftInputOnFocus whenever an inputMode is given). */
+  softKeyboard?: boolean;
 }>;
 
 /** Auth15's four boxes over one real numeric input: the platform number pad and
  * password-manager one-time-code fill reach it, and the fourth digit submits once. */
-export function PhonePINEntry({value, onChange, onComplete, busy = false, error = false, label = defaultI18n.t('pin.fourDigit'), autoFocus = true, testID}: PhonePINEntryProps) {
+export function PhonePINEntry({value, onChange, onComplete, busy = false, error = false, label = defaultI18n.t('pin.fourDigit'), autoFocus = true, testID, softKeyboard = true}: PhonePINEntryProps) {
   const theme = useTheme(), input = useRef<TextInput>(null), submitted = useRef<string | undefined>(undefined);
   useEffect(() => {if (!value) submitted.current = undefined;}, [value]);
   const change = (next: string) => {
@@ -28,8 +31,8 @@ export function PhonePINEntry({value, onChange, onComplete, busy = false, error 
       </View>)}
     </View>
     <TextInput ref={input} testID={testID ? `${testID}-input` : undefined} accessibilityLabel={label} value={value} onChangeText={change} editable={!busy}
-      keyboardType="number-pad" inputMode="numeric" autoComplete="one-time-code" textContentType="oneTimeCode"
-      maxLength={4} secureTextEntry caretHidden autoFocus={autoFocus}
+      keyboardType="number-pad" inputMode={softKeyboard ? 'numeric' : 'none'} autoComplete="one-time-code" textContentType="oneTimeCode"
+      maxLength={4} secureTextEntry caretHidden autoFocus={autoFocus} showSoftInputOnFocus={softKeyboard}
       style={[StyleSheet.absoluteFill, {opacity: 0}]}/>
   </View>;
 }

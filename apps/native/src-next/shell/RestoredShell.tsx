@@ -58,6 +58,7 @@ function ProfileGateHost({onReady}: {onReady: () => void}) {
   return choosingProfile(state) ? <LifecycleProfileGate/> : null;
 }
 import {createNativeStartupRecovery, startupRetrySeconds, startupWait, type NativeStartupWait} from './startup-recovery';
+import {afterEntry} from './after-entry';
 
 type RestoreState = Readonly<{phase: 'loading' | 'ready' | 'ended'; runtime?: RestoredNativeShellRuntime; error?: unknown}>;
 type RecoveryPause = 'accounts' | 'downloads' | 'invitation';
@@ -318,6 +319,13 @@ export function RestoredShell() {
   const chooseAccounts = () => {if (renderedCurrent() && renderedRoot?.canRecover?.()) {renderedRoot.pauseRecovery?.('accounts'); setShowAccounts(previous => renderedCurrent() ? true : previous);}};
   const serverName = serverDisplay?.attempt === attempt ? serverDisplay.name : undefined;
   const bootHidden = useCallback(() => {logBootMilestone('boot-hidden', {ready: state.phase === 'ready'}); focusRecoveryTitle();}, [focusRecoveryTitle, state.phase]);
+  // Add profile or Manage profiles on Who's watching: once the main profile is open, go to Profiles (`after-entry.ts`).
+  useEffect(() => {
+    const context = state.phase === 'ready' ? state.runtime?.firstLibraryContext : undefined;
+    if (!context?.current()) return;
+    const route = afterEntry.take();
+    if (route) context.navigation.open(route, context.authority());
+  }, [state.phase, state.runtime]);
   const renderContent = () => {
   // A successful confirmed reset invalidates installation metadata. Only its
   // original closed recovery UI may remain to say restart/reopen; no old shell

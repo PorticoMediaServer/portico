@@ -19,12 +19,15 @@ import {screenModule} from './helpers/screen-harness.mjs';
 
 const theme = createTheme({isTV: false, width: 390});
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+// The picker draws in its layout's beforeActions; the PIN screen is one shared piece whose slots hold the rest.
+const parts = (tree: any): any[] => tree?.type === 'PhoneWhosWatching' ? [...nodes(tree.props.picker), ...nodes(tree.props.children)] : tree?.type === 'PhoneProfilePIN' ? [tree, ...nodes(tree.props.remember), ...nodes(tree.props.status)] : nodes(tree?.props.beforeActions);
 function backOwner() {
   const listeners = new Set<() => boolean>();
   return {listeners, api: {addEventListener: (_: string, handler: () => boolean) => {listeners.add(handler); return {remove: () => listeners.delete(handler)};}}};
 }
 
 
+const afterEntryLog: string[] = [];
 const open = {id: 'open', name: 'Open profile', art: 'blue', primary: true, pinRequired: false};
 const locked = {id: 'locked', name: 'Locked profile', art: 'mint', primary: false, pinRequired: true};
 
@@ -76,7 +79,7 @@ async function entry(canRemember: boolean) {
     '../../platform/tv-sign-in': {}, '../../platform/account-authority': {}, '../../tv/auth': {},
     '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'},
     './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'Phone'},
-    './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
+    './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request: (route: {kind: string}) => {afterEntryLog.push('request:' + route.kind);}, clear: () => {afterEntryLog.push('clear');}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
     './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     './PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
@@ -92,8 +95,8 @@ async function entry(canRemember: boolean) {
   const credentials = nodes(tree.props.beforeActions).filter(n => n.type === 'Field');
   await act(() => {credentials[0].props.onChangeText('person'); credentials[1].props.onChangeText('test password');});
   await act(() => tree.props.primaryAction.onPress());
-  const remember = () => nodes(tree.props.beforeActions).find(n => n.type === 'Remember');
-  const picker = () => nodes(tree.props.beforeActions).find(n => n.type === 'Picker');
+  const remember = () => parts(tree).find(n => n.type === 'Remember');
+  const picker = () => parts(tree).find(n => n.type === 'Picker');
   return {calls, host, tree: () => tree, remember, picker, complete: () => complete};
 }
 
@@ -126,10 +129,10 @@ test('a ticked PIN profile sends nothing until its PIN: the tick carries to the 
     await act(() => f.picker().props.onSelect('locked'));
     assert.deepEqual(f.calls.filter(call => call.startsWith('select:')), [], 'choosing a PIN profile sends nothing');
     assert.equal(f.remember().props.checked, true, 'the PIN page arrives ticked');
-    const pin = nodes(f.tree().props.beforeActions).find(n => n.type === 'PhonePIN');
-    await act(() => pin.props.onComplete('0000'));
+    const pin = parts(f.tree()).find(n => n.type === 'PhoneProfilePIN');
+    await act(() => pin.props.onSubmit('0000'));
     assert.equal(f.complete(), 0, 'a wrong PIN opens nothing');
-    await act(() => pin.props.onComplete('1234'));
+    await act(() => pin.props.onSubmit('1234'));
     assert.deepEqual(f.calls.filter(call => call.startsWith('select:')), ['select:locked:0000:true', 'select:locked:1234:true']);
     assert.equal(f.complete(), 1);
   } finally {await f.host.unmount();}
@@ -140,8 +143,37 @@ test('the PIN page offers no checkbox where the server does not remember, and se
   try {
     await act(() => f.picker().props.onSelect('locked'));
     assert.equal(f.remember(), undefined);
-    const pin = nodes(f.tree().props.beforeActions).find(n => n.type === 'PhonePIN');
-    await act(() => pin.props.onComplete('1234'));
+    const pin = parts(f.tree()).find(n => n.type === 'PhoneProfilePIN');
+    await act(() => pin.props.onSubmit('1234'));
     assert.deepEqual(f.calls.filter(call => call.startsWith('select:')), ['select:locked:1234:false']);
   } finally {await f.host.unmount();}
+});
+
+test('on the phone "‹ Profiles" on the PIN screen goes back to Who\'s watching, not to the front door', async () => {
+  const f = await entry(false);
+  try {
+    await act(() => f.picker().props.onSelect('locked'));
+    assert.equal(f.tree().type, 'PhoneProfilePIN');
+    await act(() => f.tree().props.onBack());
+    assert.ok(f.picker(), 'the profiles are shown again');
+    assert.deepEqual(f.calls.filter(call => call.startsWith('select:')), [], 'nothing was sent');
+  } finally {await f.host.unmount();}
+});
+
+test('Add profile and Manage profiles on Who\'s watching open the main profile and ask the shell for Profiles; picking another profile drops that', async () => {
+  const f = await entry(false);
+  try {
+    const picker = f.picker();
+    assert.equal(typeof picker.props.onAdd, 'function'); assert.equal(typeof picker.props.onManage, 'function');
+    afterEntryLog.length = 0;
+    await act(() => picker.props.onManage());
+    assert.deepEqual(afterEntryLog, ['request:profiles']);
+    assert.deepEqual(f.calls.filter(call => call.startsWith('select:')), ['select:open::false'], 'the main profile, which has no PIN, opens at once');
+  } finally {await f.host.unmount();}
+  const g = await entry(false);
+  try {
+    afterEntryLog.length = 0;
+    await act(() => g.picker().props.onSelect('locked'));
+    assert.deepEqual(afterEntryLog, ['clear'], 'choosing a profile to watch is not managing');
+  } finally {await g.host.unmount();}
 });
