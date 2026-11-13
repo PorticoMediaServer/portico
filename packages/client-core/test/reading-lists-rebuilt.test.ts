@@ -63,3 +63,16 @@ test('a series lists its volumes in volume order', async () => {
   assert.deepEqual(Object.fromEntries(calls[0].searchParams), {series: 'itm_series', sort: 'order', limit: '30'});
   assert.deepEqual(page.items.map(item => item.id), ['itm_1', 'itm_2']);
 });
+
+test('Discover\'s New issues are the library\'s newest magazine issues by issue date, the row going on from its own cursor', async () => {
+  const {calls, reading} = server(url => url.searchParams.get('publication') === 'magazine'
+    ? {items: [wire('itm_dec', 'book', {releaseDate: '1929-12', series: {id: 'itm_amazing', kind: 'series', title: 'Amazing Stories'}}), wire('itm_undated', 'book')], ...(url.searchParams.has('cursor') ? {} : {nextCursor: 'more'})}
+    : {items: [wire('itm_a', 'book')]});
+  const discover = await reading.discover({libraryId: 'lib_books', limit: 20, newIssuesLimit: 12});
+  const asked = calls.find(url => url.searchParams.get('publication') === 'magazine')!;
+  assert.deepEqual([asked.searchParams.get('sort'), asked.searchParams.get('order'), asked.searchParams.get('limit')], ['release', 'desc', '12']);
+  assert.deepEqual(discover.newIssueCards.map(card => [card.item.id, card.issueDate, card.item.series?.name]), [['itm_dec', '1929-12', 'Amazing Stories']], 'an issue with no date is not an issue');
+  assert.equal(discover.rows.find(row => row.key === 'new-issues')?.nextCursor, 'more');
+  const next = await reading.discoverRow('new-issues', {libraryId: 'lib_books', cursor: 'more', limit: 12});
+  assert.equal(calls.at(-1)!.searchParams.get('cursor'), 'more'); assert.equal(next.newIssueCards.length, 1); assert.equal(next.row.nextCursor, undefined);
+});

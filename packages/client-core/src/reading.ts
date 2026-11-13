@@ -1,4 +1,4 @@
-import {rebuiltPeriodicalGroups, rebuiltPeriodicalIssues} from './reading-periodicals-rebuilt.ts';
+import {rebuiltNewIssues, rebuiltPeriodicalGroups, rebuiltPeriodicalIssues} from './reading-periodicals-rebuilt.ts';
 import {validReadingCover} from './reading-cover.ts';
 import {serverPath} from './query/server-api.ts';
 import {rebuiltReadingContinue, rebuiltReadingPage, rebuiltReadingSeries} from './reading-lists-rebuilt.ts';
@@ -631,18 +631,25 @@ export class ReadingClient {
     if (options.libraryId !== undefined && !id(options.libraryId) || !integer(options.limit ?? 50, 1, 100)) fail('invalid_request');
     return rebuiltReadingPage(this.#rebuilt, {libraryId: options.libraryId, cursor: options.cursor, limit: options.limit ?? 50}, signal);
   }
-  /** A Read library's Discover: its recently added titles. The series, short reads, new issues and
-   * newspaper rows have no read on the rebuilt server yet and are not drawn (a stopgap while those
-   * reads are built, not a deferral). */
+  /** A Read library's Discover: its recently added titles and its newest magazine issues. The
+   * series, short reads and newspaper rows have no read on the rebuilt server yet and are not drawn
+   * (a stopgap while those reads are built, not a deferral). */
   async discover(options: Readonly<{libraryId?: string; limit?: number; seriesLimit?: number; shortReadsLimit?: number; newIssuesLimit?: number; newspaperLimit?: number}> = {}, signal?: AbortSignal): Promise<ReadingDiscover & {newIssueCards: readonly ReadingPeriodicalIssue[]; newspaperCard?: ReadingPeriodicalGroup; previewMarks: ReadingPreviewMarks}> {
     if (options.libraryId !== undefined && !id(options.libraryId) || !integer(options.limit ?? 20, 1, 100)) fail('invalid_request');
-    const page = await rebuiltReadingPage(this.#rebuilt, {libraryId: options.libraryId, limit: options.limit ?? 20, sort: 'added'}, signal);
-    return {rows: [{key: 'recent', items: page.items, ...(page.nextCursor ? {nextCursor: page.nextCursor} : {})}], newIssueCards: [], previewMarks: marks(page.items)};
+    const [page, issues] = await Promise.all([rebuiltReadingPage(this.#rebuilt, {libraryId: options.libraryId, limit: options.limit ?? 20, sort: 'added'}, signal),
+      options.libraryId && options.newIssuesLimit ? rebuiltNewIssues(this.#rebuilt, options.libraryId, {limit: options.newIssuesLimit}, signal) : undefined]);
+    return {rows: [{key: 'recent', items: page.items, ...(page.nextCursor ? {nextCursor: page.nextCursor} : {})},
+      ...(issues?.issues.length ? [{key: 'new-issues' as const, items: [], ...(issues.nextCursor ? {nextCursor: issues.nextCursor} : {})}] : [])],
+      newIssueCards: issues?.issues ?? [], previewMarks: marks(page.items)};
   }
   /** One Discover row alone, its next page from that row's own `nextCursor`. Only Recently added
    * has a read on the rebuilt server; any other row is empty. */
   async discoverRow(row: ReadingDiscoverRowKey, options: Readonly<{libraryId?: string; cursor?: string; limit?: number}> = {}, signal?: AbortSignal): Promise<Readonly<{row: ReadingDiscover['rows'][number]; newIssueCards: readonly ReadingPeriodicalIssue[]; previewMarks: ReadingPreviewMarks}>> {
     if (!discoverRows.includes(row) || options.libraryId !== undefined && !id(options.libraryId) || !integer(options.limit ?? 20, 1, 100)) fail('invalid_request');
+    if (row === 'new-issues' && options.libraryId) {
+      const issues = await rebuiltNewIssues(this.#rebuilt, options.libraryId, {cursor: options.cursor, limit: options.limit ?? 20}, signal);
+      return Object.freeze({row: {key: row, items: [], ...(issues.nextCursor ? {nextCursor: issues.nextCursor} : {})}, newIssueCards: issues.issues, previewMarks: new Map()});
+    }
     if (row !== 'recent') return Object.freeze({row: {key: row, items: []}, newIssueCards: [], previewMarks: new Map()});
     const page = await rebuiltReadingPage(this.#rebuilt, {libraryId: options.libraryId, cursor: options.cursor, limit: options.limit ?? 20, sort: 'added'}, signal);
     return Object.freeze({row: {key: 'recent', items: page.items, ...(page.nextCursor ? {nextCursor: page.nextCursor} : {})}, newIssueCards: [], previewMarks: marks(page.items)});
