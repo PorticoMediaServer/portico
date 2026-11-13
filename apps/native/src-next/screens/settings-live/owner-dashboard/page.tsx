@@ -159,10 +159,11 @@ function OwnerHeader({t, role, serverName, health, updated}: OwnerDashboardPageP
     <Text accessibilityRole="header" style={[shellType(40, 800, 'normal', -.04), {color: theme.colors.text, marginTop: 14}]}>{t('next.dashboard.title')}</Text>
     <View style={{flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 14, marginTop: 14}}>
       <Text style={[shellType(19, 800, 'normal', -.02), {color: theme.colors.text}]}>{serverName}</Text>
-      <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
+      {/* An administrator's header makes no health claim: it is given no status (console rule 4). */}
+      {health.status ? <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
         <View style={{width: 8, height: 8, borderRadius: 4, backgroundColor: health.degraded ? theme.colors.amber : theme.colors.healthy}}/>
         <Text style={[shellType(14, 700), {color: theme.colors.text}]}>{health.status}</Text>
-      </View>
+      </View> : null}
     </View>
     {health.line ? <Text style={[shellType(13.5, 400), {color: theme.colors.textSecondary, marginTop: 6}]}>{health.line}</Text> : null}
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10}}>

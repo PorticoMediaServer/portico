@@ -15,7 +15,6 @@
 .note { grid-column: 1 / -1; background: var(--color-raised); padding: 12px 16px 14px; font-size: var(--type-fixed-size-13px); line-height: var(--type-fixed-line-1point-45); color: var(--color-text-tertiary); }
 .feedback { color: var(--color-text-secondary); font-size: var(--type-fixed-size-13px); }
 .feedback button { color: var(--color-text); cursor: pointer; }
-.dot { position: absolute; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: var(--color-accent-strong); box-shadow: 0 0 0 2px var(--color-raised); }
 button.tile { border: 0; width: 100%; text-align: left; font: inherit; cursor: pointer; }
 button.tile:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; z-index: 1; }
 .detailBody { padding: 0 0 24px; }
@@ -24,20 +23,13 @@ button.tile:focus-visible { outline: 3px solid var(--color-focus); outline-offse
 .big span { color: var(--color-text-tertiary); font-size: var(--type-fixed-size-13px); }
 .detailSegment { margin: 14px 18px 0; }
 .detailMessage { margin: 18px; color: var(--color-text-secondary); font-size: var(--type-fixed-size-13px); overflow-wrap: anywhere; }
-.chart { margin: 14px 18px 0; position: relative; height: 170px; padding-left: 38px; }
-.chartPlot { position: relative; width: 100%; height: 100%; }
-.chartPlot svg { width: 100%; height: 100%; overflow: visible; display: block; }
-.gridline { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent); }
-.gridline span { position: absolute; left: 0; top: -8px; width: 32px; font-size: var(--type-fixed-size-11point-5px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
-.detailDot { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--color-accent-strong); box-shadow: 0 0 0 2px var(--color-raised); }
-.axis { display: flex; justify-content: space-between; margin: 8px 18px 0 56px; font-size: var(--type-fixed-size-12px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); }
+.chart { margin: 14px 18px 0; }
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; margin: 18px 18px 0; border-radius: 12px; overflow: hidden; background: color-mix(in srgb, var(--color-text) 8%, transparent); }
 .stats > div { min-width: 0; background: var(--color-raised-high); padding: 10px 12px 11px; }
 .stats small { display: block; font-size: var(--type-fixed-size-12px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); }
 .stats b { display: block; margin-top: 2px; font-size: var(--type-fixed-size-18px); font-weight: var(--type-fixed-weight-800); letter-spacing: var(--type-fixed-tracking-minus-point-01em); overflow-wrap: anywhere; }
 .stats em { display: block; font-style: normal; font-size: var(--type-fixed-size-11point-5px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); margin-top: 1px; }
 
-.baseline { border-top-color: color-mix(in srgb, var(--color-text) 16%, transparent); }
 @media (max-width: 599px) {
   .detailHeader h2 { font-size: var(--type-fixed-size-19px); }
   .big { margin: 0; padding: 2px 20px 0; gap: 10px; }

@@ -32,6 +32,7 @@ test('niceScale uses the drawing steps instead of fractional quarters of the dat
   assert.deepEqual(niceScale(8), {top: 8, ticks: [0, 2, 4, 6, 8]});
   assert.deepEqual(niceScale(9), {top: 10, ticks: [0, 2.5, 5, 7.5, 10]});
   assert.deepEqual(loadScale('conversions', 3.2), {top: 4, ticks: [0, 1, 2, 3, 4]});
+  assert.equal(loadScale('processor', 99).top, 100, 'a percentage never draws past 100');
 });
 test('frame numeric formatter boundaries and cardinality match', () => {
   assert.equal(fmtMbps(8), '8.0 Mbps'); assert.equal(fmtMbps(100.4), '100 Mbps'); assert.equal(fmtPct(7), '7.0%');

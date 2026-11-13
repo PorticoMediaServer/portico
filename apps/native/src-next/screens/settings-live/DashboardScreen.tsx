@@ -57,7 +57,8 @@ export function NativeDashboardScreen({controller, ports, runtime, deniedFallbac
   if (!theme.isTV) return <NativeOwnerDashboardPhone controller={controller} ports={ports} runtime={runtime} inline={inline}/>;
   // The rebuilt server's facts: needs attention while any alert is major, free space and the database's size.
   const health = state.health ?? {degraded: false};
-  const facts: ServerFact[] = state.health ? [{id: 'state', text: t(health.degraded ? 'next.shell.health.attention' : 'next.shell.health.normal'), tone: health.degraded ? 'warning' : 'normal'}] : [];
+  // Only the owner's header says how the server is: an administrator is sent only some alerts (console rule 4).
+  const facts: ServerFact[] = state.health && state.admission === 'owner' ? [{id: 'state', text: t(health.degraded ? 'next.shell.health.attention' : 'next.shell.health.normal'), tone: health.degraded ? 'warning' : 'normal'}] : [];
   if (health.uptimeSeconds !== undefined) facts.push({id: 'uptime', text: t('settings.server.health.upFor', {duration: defaultI18n.duration(health.uptimeSeconds)})});
   if (health.freeBytes !== undefined) facts.push({id: 'free', text: t('settings.server.health.free', {bytes: formatBytes(health.freeBytes)})});
   if (health.databaseBytes !== undefined) facts.push({id: 'database', text: t('settings.server.health.database', {bytes: formatBytes(health.databaseBytes)})});

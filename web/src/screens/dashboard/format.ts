@@ -18,7 +18,8 @@ export function niceScale(max: number, target = 4): ChartScale {
 export function loadScale(kind: DashboardLoadKind, max: number): ChartScale {
   return kind === 'conversions'
     ? {top: Math.max(3, Math.ceil(max)), ticks: Array.from({length: Math.max(3, Math.ceil(max)) + 1}, (_, i) => i)}
-    : niceScale(max * (kind === 'bandwidth' ? 1.06 : 1.12), 4);
+    // A percentage never draws past 100 (owner-dashboard: a true 0 to 100 axis).
+    : niceScale(kind === 'processor' || kind === 'memory' ? Math.min(100, max * 1.12) : max * (kind === 'bandwidth' ? 1.06 : 1.12), 4);
 }
 /** Drawing fmtMbps/fmtPct/fmtDur/fmtHrs; only their unit text goes through the catalogue. */
 export const fmtMbps = (v: number): string => t('next.dashboard.mbps', {value: v >= 100 ? String(Math.round(v)) : defaultI18n.number(v, {minimumFractionDigits: 1, maximumFractionDigits: 1})});
