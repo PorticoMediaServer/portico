@@ -118,7 +118,8 @@ export function AmbientArt({source, sources, foreground, palette, treatment = 'h
   const cover = treatment === 'cover' || treatment === 'artist';
   const music = treatment === 'music';
   const person = treatment === 'person';
-  const maskedHero = theme.isTV && treatment === 'hero';
+  // TV: a title page fades its art into the ambient wash as Home's hero does; a side scrim to ink left a hard edge where the art began.
+  const maskedHero = theme.isTV && (treatment === 'hero' || treatment === 'title');
   const list = (sources ?? (source ? [source] : [])).slice(0, 3);
   const sourceIdentity = JSON.stringify(list.map(item => item.cacheKey));
   const empty = !foreground && list.length === 0, fallbackReported = useRef(false);

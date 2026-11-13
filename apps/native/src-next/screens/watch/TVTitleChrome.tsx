@@ -28,14 +28,24 @@ export function TVTitleBackdrop({source, foreground, browsing}: {source?: Ambien
   </View>;
 }
 
-export function TVTitleCompactHeader({title, browsing, children}: {title: string; browsing: boolean; children: ReactNode}) {
-  const theme = useTheme(), fade = useBrowseOpacity(browsing);
+export function TVTitleCompactHeader({title, browsing, top, children}: {title: string; browsing: boolean;
+  /** Where browsed rows start: the band above it is ink, so nothing that scrolls up is drawn behind the title and tabs. */
+  top: number; children: ReactNode}) {
+  const theme = useTheme(), fade = useBrowseOpacity(browsing), gradient = useId();
   // W-17: while browsing, its tabs are the strip's real stops, so the header lets their presses through.
   return <Animated.View pointerEvents={browsing ? 'box-none' : 'none'} accessibilityElementsHidden={!browsing} importantForAccessibility={browsing ? 'auto' : 'no-hide-descendants'}
-    testID="watch-title-compact" style={[{position: 'absolute', left: 200, right: 96, top: 66, zIndex: 4}, fade]}>
-    <Text numberOfLines={1} accessibilityRole="header" style={[nativeType({size: 62, weight: 800, lineHeight: 62, tracking: -.035}, theme.textScale),
-      {color: theme.colors.text, textShadowOffset: {width: 0, height: 2}, textShadowRadius: 30, textShadowColor: '#07101899'}]}>{title}</Text>
-    <View style={{marginTop: 42}}>{children}</View>
+    testID="watch-title-compact" style={[{position: 'absolute', left: 0, right: 0, top: 0, height: top, zIndex: 4}, fade]}>
+    <Svg pointerEvents="none" width="100%" height={top} accessible={false} style={{position: 'absolute', left: 0, top: 0}}>
+      <Defs><LinearGradient id={gradient} x1="0" y1="0" x2="0" y2="1">
+        <Stop offset="0" stopColor={theme.colors.ink} stopOpacity={.96}/><Stop offset="0.9" stopColor={theme.colors.ink} stopOpacity={.96}/><Stop offset="1" stopColor={theme.colors.ink} stopOpacity={0}/>
+      </LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#${gradient})`}/>
+    </Svg>
+    <View pointerEvents="box-none" style={{position: 'absolute', left: 200, right: 96, top: 60}}>
+      {/* A line taller than the type, so descenders are not cut off; the tabs keep their place. */}
+      <Text numberOfLines={1} accessibilityRole="header" style={[nativeType({size: 62, weight: 800, lineHeight: 74, tracking: -.035}, theme.textScale),
+        {color: theme.colors.text, textShadowOffset: {width: 0, height: 2}, textShadowRadius: 30, textShadowColor: '#07101899'}]}>{title}</Text>
+      <View style={{marginTop: 36}}>{children}</View>
+    </View>
   </Animated.View>;
 }
 

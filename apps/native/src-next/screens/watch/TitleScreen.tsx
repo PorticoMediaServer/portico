@@ -161,7 +161,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
     if (!target) return;
     const cell = target.anchor ? cells.current.get(target.anchor) : undefined;
     if (target.browsing && (!bodyTop.current || !cell)) return;
-    const y = target.browsing ? Math.max(0, bodyTop.current + cell!.y - 252) : 0;
+    const y = target.browsing ? Math.max(0, bodyTop.current + cell!.y - tvBrowseTop) : 0;
     const key = `${target.anchor ?? 'hero'}:${y}`;
     if (tvAligned.current === key) return;
     tvAligned.current = key; scroll.current?.scrollTo({y, animated: !motion.reduce});
@@ -201,7 +201,8 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
     }
   };
   const restoreTab = theme.isTV ? undefined : snapshot.place.tab;
-  useLayoutEffect(() => {pendingAnchor.current = controller.memory.getSnapshot().anchor; cells.current.clear();}, [controller, restoreTab, snapshot.place.seasonId, snapshot.place.group, viewport.width, viewport.height, bodyWidth]);
+  // A new season (or tab, group, size) lays the body out again: the TV alignment is redone too, or a restore under it leaves the browsed row low.
+  useLayoutEffect(() => {pendingAnchor.current = controller.memory.getSnapshot().anchor; cells.current.clear(); tvAligned.current = '';}, [controller, restoreTab, snapshot.place.seasonId, snapshot.place.group, viewport.width, viewport.height, bodyWidth]);
   if (snapshot.retired) return null;
   const title = workspace?.show.title ?? snapshot.entry.displayTitle ?? detail?.item.title ?? snapshot.entry.title;
   const backdrop = workspace?.show.backdropUrl ?? detail?.item.backdropUrl ?? snapshot.entry.backdropUrl;
@@ -464,7 +465,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
           </Focusable></TitleRegion> : null}
           <View style={tabletWatch ? {flexDirection: 'row', alignItems: 'flex-end', gap: 24} : undefined}>
           <View style={tabletWatch ? {flex: 1, minWidth: 0} : undefined}>
-          <Text accessibilityRole="header" numberOfLines={theme.isTV && !props.watch ? undefined : 2} style={[props.watch ? nativeType({size: 28, weight: 800, tracking: -.035, lineHeight: 30.8}, theme.textScale)
+          <Text accessibilityRole="header" numberOfLines={2} style={[props.watch ? nativeType({size: 28, weight: 800, tracking: -.035, lineHeight: 30.8}, theme.textScale)
             : theme.isTV ? theme.type.lockup : wide ? nativeType({size: 64, weight: 800, tracking: -.045, lineHeight: 64}, theme.textScale)
             : nativeType({size: phoneTitle ? 46 : 40, weight: 800, tracking: phoneTitle ? -.045 : -.04, lineHeight: phoneTitle ? 43.24 : 43}, theme.textScale), {color: theme.colors.text, textAlign: centered || phoneTitle ? 'center' : undefined, marginBottom: props.watch ? 5 : theme.isTV ? 22 : phoneTitle ? 10 : 12}]}>{title}</Text>
           {props.watch && watchIdentity?.subtitle.length ? <Text numberOfLines={1} style={[nativeType({size: 15, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text, marginBottom: 6}]}>{watchIdentity.subtitle.map(part => part.text).join(' ')}</Text> : null}
@@ -515,7 +516,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
     });
   };
   const bodyNode = (
-      <View onLayout={event => {bodyTop.current = event.nativeEvent.layout.y; restore(); alignTV();}} style={{paddingLeft: theme.isTV ? 200 : 20, paddingRight: theme.isTV ? 96 : 20, paddingTop: 20, paddingBottom: theme.isTV ? Math.max(60, viewport.height - 600) : 60, gap: 20}}>
+      <View onLayout={event => {bodyTop.current = event.nativeEvent.layout.y; restore(); alignTV();}} style={{paddingLeft: theme.isTV ? 200 : 20, paddingRight: theme.isTV ? 96 : 20, paddingTop: 20, paddingBottom: theme.isTV ? viewport.height - tvBrowseTop : 60, gap: 20}}>
         {props.selectionBar}
         {(theme.isTV || selectedTab === 'episodes') && workspace && (theme.isTV ? cell('episodes', <TVEpisodeBrowser focus={regions.episodes} requestedSeasonId={snapshot.workspace?.phase === 'loading' ? snapshot.workspace.route?.selectedSeasonId : undefined} seasons={snapshot.seasons} selectedSeasonId={workspace.selected.seasonId ?? null}
           groups={workspace.groups} selectedGroup={workspace.selected.group} requestedGroup={snapshot.workspace?.phase === 'loading' ? snapshot.workspace.route?.group : undefined}
@@ -665,7 +666,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
         style={{backgroundColor: theme.isTV ? 'transparent' : theme.colors.ink, opacity: theme.isTV && tvBrowsing ? 0 : 1, paddingLeft: theme.isTV ? 200 : 0, paddingRight: theme.isTV ? 96 : 0}}>{tabs}</View>
       {bodyNode}
     </ScrollView>}{pinnedBar ?? header}
-    {theme.isTV && <TVTitleCompactHeader title={title} browsing={tvBrowsing}>{compactTabs}</TVTitleCompactHeader>}
+    {theme.isTV && <TVTitleCompactHeader title={title} browsing={tvBrowsing} top={tvBrowseTop}>{compactTabs}</TVTitleCompactHeader>}
     {!theme.isTV && <NativeSeasonsSheet open={!!seasonsSheet} onOpenChange={value => {if (value) openSeasons(); else closeSeasons();}}
       seasons={snapshot.seasons} total={workspace?.seasonTotalCount ?? snapshot.seasons.length} selectedId={workspace?.selected.seasonId ?? null}
       onSelect={id => {const lease = seasonsSheet; closeSeasons(); if (lease) void controller.season(id, lease).catch(props.reportError);}}
@@ -701,6 +702,10 @@ function TitleRegion({children, style, ...config}: Partial<FocusRegionProps>) {
 }
 
 /** The retained touch title keeps its original ancestry; TV animates its hero copy. */
+/** TV: while browsing, the focused row's top sits here, under the compact title and tabs (tv.html frame 6). Rows can always
+ * reach it (the body leaves room under the last one), and what scrolls above it is hidden behind the header's ink band. */
+const tvBrowseTop = 252;
+
 function TitleHeroCopy({browsing, style, children}: React.ComponentProps<typeof TVTitleHeroCopy>) {
   const {isTV} = useTheme();
   return isTV ? <TVTitleHeroCopy browsing={browsing} style={style}>{children}</TVTitleHeroCopy> : <View style={style}>{children}</View>;

@@ -45,7 +45,12 @@ test('W-17: the sticky header lets its tabs work only while browsing', async () 
     '../../kit/artwork': {AmbientArt: 'AmbientArt'}, '../../kit/theme': {nativeType: () => ({}), useTheme: () => ({textScale: 1, colors: {text: 't'}})},
     '../../kit/useMotion': {useMotion: () => ({reduce: true, timing: () => ({duration: 0}), duration: () => 0})},
   });
-  const header = (browsing: boolean) => h.render(() => TVTitleCompactHeader({title: 'Blade Runner', browsing, children: 'tabs'})) as any;
+  const header = (browsing: boolean) => h.render(() => TVTitleCompactHeader({title: 'Blade Runner', browsing, top: 252, children: 'tabs'})) as any;
   assert.equal(header(true).props.pointerEvents, 'box-none');
   assert.equal(header(false).props.pointerEvents, 'none');
+  // Browsed rows scroll up under it: the header is an ink band from the top down to where they start, so no row is ever
+  // drawn behind the title or the tabs.
+  const browsing = header(true), band = browsing.props.children[0];
+  assert.deepEqual([browsing.props.style[0].top, browsing.props.style[0].height], [0, 252]);
+  assert.deepEqual([band.type, band.props.height, band.props.style.top], ['Svg', 252, 0]);
 });
