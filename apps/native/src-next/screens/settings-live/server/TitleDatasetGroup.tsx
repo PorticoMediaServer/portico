@@ -7,7 +7,8 @@ import {shellType} from '../../../kit/shell/visual';
 import {useTheme} from '../../../kit/theme';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeSettingsLivePorts} from '../ports';
-import {LibraryGroup, LibraryRow, SectionTitle} from '../owner-libraries/controls';
+import {SettingsGroup, SettingsRow} from '../../../kit/shell';
+import {SectionTitle} from '../owner-libraries/controls';
 import {useFormState, useStorageForms, useStorageSet, type StorageForms} from './storage/forms';
 import {TVSwitchRow} from './TVSettingRows';
 
@@ -45,9 +46,9 @@ function Group({group, runtime, tv}: {group: StorageForms; runtime: NativeShellR
   </View>;
   return <>
     {title && <SectionTitle>{t(title)}</SectionTitle>}
-    <LibraryGroup>
-      <LibraryRow first label={label} help={help}
-        trailing={<Switch testID={ROW} accessibilityLabel={label} checked={on} disabled={save.saving} onCheckedChange={change}/>}/>
-    </LibraryGroup>
+    <SettingsGroup>
+      <SettingsRow first label={label} description={help}
+        control={<Switch testID={ROW} accessibilityLabel={label} checked={on} disabled={save.saving} onCheckedChange={change}/>}/>
+    </SettingsGroup>
   </>;
 }

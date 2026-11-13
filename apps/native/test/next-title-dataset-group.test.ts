@@ -5,7 +5,7 @@ import {settingsRowIndex} from '../../../packages/client-core/src/presentation/s
 
 // Settings › Metadata › Recommendations on phone and TV (B2 R6).
 type Node = {type: any; props: Record<string, any>};
-const nodes = (node: any): Node[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.trailing)] : [];
+const nodes = (node: any): Node[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.control)] : [];
 const byId = (node: unknown, id: string) => nodes(node).find(value => value.props.testID === id);
 const t = (id: string) => id;
 
@@ -21,7 +21,7 @@ async function fixture(on: boolean | undefined, tv = false, saving = false) {
     '../../../../../../packages/client-core/src/presentation/settings-spec': {settingsRowIndex},
     '../../../kit/controls/Switch': {Switch: 'Switch'}, '../../../kit/shell/visual': {shellType: () => ({})},
     '../../../kit/theme': {useTheme: () => ({colors: {textTertiary: '#999', raised: '#222'}})},
-    '../owner-libraries/controls': {LibraryGroup: 'LibraryGroup', LibraryRow: 'LibraryRow', SectionTitle: 'SectionTitle'},
+    '../owner-libraries/controls': {SectionTitle: 'SectionTitle'}, '../../../kit/shell': {SettingsGroup: 'SettingsGroup', SettingsRow: 'SettingsRow'},
     './storage/forms': {useStorageForms: () => group, useFormState: () => ({draft}), useStorageSet: () => ({saving})},
     './TVSettingRows': {TVSwitchRow: 'TVSwitchRow'},
   });
@@ -38,7 +38,7 @@ test('the switch shows the owner setting, on when never saved, and saves a chang
     assert.equal(control.type, 'Switch');
     assert.equal(control.props.checked, shown, `stored ${stored}`);
     assert.ok(nodes(tree).some(value => value.type === 'SectionTitle'), 'the Recommendations heading');
-    assert.ok(nodes(tree).some(value => value.type === 'LibraryRow' && value.props.label === row.label && value.props.help === row.help));
+    assert.ok(nodes(tree).some(value => value.type === 'SettingsRow' && value.props.label === row.label && value.props.description === row.help));
   }
   const f = await fixture(true);
   byId(f.render(), 'metadata.titleDataset')!.props.onCheckedChange(false);

@@ -4,7 +4,7 @@ import {presentError} from '../../../../../../packages/client-core/src/presentat
 import {settingsRowIndex} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import type {defaultI18n} from '../../../../../../packages/i18n/src';
 import {Select} from '../../../kit/controls/Select';
-import {LibraryGroup, LibraryRow} from './controls';
+import {SettingsGroup, SettingsRow} from '../../../kit/shell';
 import {episodeThumbnailChange, episodeThumbnailLibrary} from '../server/metadata-setting-values';
 import {NativeMetadataController} from '../server/metadata-controller';
 
@@ -26,13 +26,13 @@ function EpisodeRow({controller, libraryId, disabled, t}: {controller: NativeMet
   const row = settingsRowIndex.get('libraries.episodeThumbs')!.row;
   const library = settings ? episodeThumbnailLibrary(settings, libraryId) : undefined;
   if (settings && !library && state.error === undefined) return null;
-  return <LibraryGroup style={{marginTop: 12}}><LibraryRow first label={t(row.label)} help={state.error === undefined ? row.help && t(row.help) : presentError(state.error, 'library').body}
-    trailing={library ? <Select testID="libraries.episodeThumbs" accessibilityLabel={t(row.label)} disabled={disabled || state.busy || state.needsReload} value={library.episodeThumbnailMode}
+  return <SettingsGroup style={{marginTop: 12}}><SettingsRow first label={t(row.label)} description={state.error === undefined ? row.help && t(row.help) : presentError(state.error, 'library').body}
+    control={library ? <Select testID="libraries.episodeThumbs" accessibilityLabel={t(row.label)} disabled={disabled || state.busy || state.needsReload} value={library.episodeThumbnailMode}
       options={(row.control.options ?? []).map(option => ({value: String(option.value), label: t(option.label)}))} onValueChange={value => {
         if (!settings || disabled) return;
         const change = episodeThumbnailChange(settings, libraryId, value); if (change) void controller.save(settings, {libraries: change.libraries});
       }}/>
       : undefined}/>
-    {state.error !== undefined && <LibraryRow label={t('action.tryAgain')} onPress={state.busy ? undefined : () => {void controller.load();}}/>}
-  </LibraryGroup>;
+    {state.error !== undefined && <SettingsRow navigates label={t('action.tryAgain')} onPress={state.busy ? undefined : () => {void controller.load();}}/>}
+  </SettingsGroup>;
 }

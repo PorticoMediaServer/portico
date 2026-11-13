@@ -1,5 +1,5 @@
 import React, {useState} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {View} from 'react-native';
 import type {LibraryContentApi} from '../../../../../../packages/client-core/src/library-content';
 import type {InventorySource, SourceSettings} from '../../../../../../packages/client-core/src/library-inventory';
 import {defaultI18n} from '../../../../../../packages/i18n/src/index';
@@ -9,8 +9,8 @@ import {Select} from '../../../kit/controls/Select';
 import {Switch} from '../../../kit/controls/Switch';
 import {TextField} from '../../../kit/controls/TextField';
 import {useTheme} from '../../../kit/theme';
-import {shellType} from '../../../kit/shell/visual';
-import {LibraryGroup, LibraryRow, SectionTitle} from './controls';
+import {SettingsGroup, SettingsRow} from '../../../kit/shell';
+import {SectionTitle} from './controls';
 import {FolderSourcePicker, type LibraryFolderChoice} from './FolderSourcePicker';
 import type {NativeSettingsLivePorts} from '../ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
@@ -34,24 +34,24 @@ export function AddFolderPage({api, serverName, source, expectedRevision, onSave
   return <View style={{flex: 1}}>
     <FormScrollView contentContainerStyle={{paddingHorizontal: 20, paddingBottom: 24}} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
       <SectionTitle>{t('next.ownerLibraries.addFolder.path')}</SectionTitle>
-      <LibraryGroup><LibraryRow first icon="i-folder" label={path || t('server.chooseFolder')} help={path ? undefined : t('next.ownerLibraries.addFolder.help')} onPress={() => setExploring(true)}/></LibraryGroup>
+      <SettingsGroup><SettingsRow navigates first icon="i-folder" label={path || t('server.chooseFolder')} description={path ? undefined : t('next.ownerLibraries.addFolder.help')} onPress={() => setExploring(true)}/></SettingsGroup>
 
       <SectionTitle>{t('next.ownerLibraries.addFolder.name')}</SectionTitle>
       <TextField focusId="owner-libraries-folder-name" value={name} onChangeText={setName} maxLength={100} placeholder={t('next.ownerLibraries.addFolder.namePlaceholder')} accessibilityLabel={t('next.ownerLibraries.addFolder.name')}/>
 
       <SectionTitle>{t('next.ownerLibraries.addFolder.location')}</SectionTitle>
-      <LibraryGroup><LibraryRow first label={t('next.ownerLibraries.addFolder.location')}
-        trailing={<Select testID="owner-libraries-folder-location" accessibilityLabel={t('next.ownerLibraries.addFolder.location')} value={classification} options={[
+      <SettingsGroup><SettingsRow first label={t('next.ownerLibraries.addFolder.location')}
+        control={<Select testID="owner-libraries-folder-location" accessibilityLabel={t('next.ownerLibraries.addFolder.location')} value={classification} options={[
           {value: 'local', label: t('web.libraries.localDisk'), description: t('next.ownerLibraries.addFolder.localHint')},
-          {value: 'network', label: t('web.libraries.networkShare'), description: t('next.ownerLibraries.addFolder.networkHint')}]} onValueChange={value => setClassification(value === 'network' ? 'network' : 'local')}/>}/></LibraryGroup>
+          {value: 'network', label: t('web.libraries.networkShare'), description: t('next.ownerLibraries.addFolder.networkHint')}]} onValueChange={value => setClassification(value === 'network' ? 'network' : 'local')}/>}/></SettingsGroup>
 
       <SectionTitle>{t('next.ownerLibraries.addFolder.links')}</SectionTitle>
-      <LibraryGroup><LibraryRow first label={t('next.ownerLibraries.addFolder.follow')} help={t('next.ownerLibraries.addFolder.followHelp')}
-        trailing={<Switch testID="owner-libraries-folder-follow" checked={follow} accessibilityLabel={t('next.ownerLibraries.addFolder.follow')} onCheckedChange={setFollow}/>}/></LibraryGroup>
+      <SettingsGroup><SettingsRow first label={t('next.ownerLibraries.addFolder.follow')} description={t('next.ownerLibraries.addFolder.followHelp')}
+        control={<Switch testID="owner-libraries-folder-follow" checked={follow} accessibilityLabel={t('next.ownerLibraries.addFolder.follow')} onCheckedChange={setFollow}/>}/></SettingsGroup>
 
       <SectionTitle>{t('next.ownerLibraries.addFolder.rescan')}</SectionTitle>
-      <LibraryGroup><LibraryRow first label={t('next.ownerLibraries.addFolder.rescan')}
-        trailing={<Select testID="owner-libraries-folder-interval" accessibilityLabel={t('next.ownerLibraries.addFolder.rescan')} value={String(interval)} options={ownerLibraryIntervals.map(value => ({value: String(value.seconds), label: t(value.label, value.values)}))} onValueChange={value => setInterval(Number(value))}/>}/></LibraryGroup>
+      <SettingsGroup><SettingsRow first label={t('next.ownerLibraries.addFolder.rescan')}
+        control={<Select testID="owner-libraries-folder-interval" accessibilityLabel={t('next.ownerLibraries.addFolder.rescan')} value={String(interval)} options={ownerLibraryIntervals.map(value => ({value: String(value.seconds), label: t(value.label, value.values)}))} onValueChange={value => setInterval(Number(value))}/>}/></SettingsGroup>
 
       {error !== undefined && <FormError placement="field">{error instanceof Error ? error.message : t('next.ownerLibraries.saveFailed')}</FormError>}
     </FormScrollView>

@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {artworkLimitText, openSubtitlesSummary, type MetadataAnimeTitles, type MetadataFallbackLanguage, type MetadataRefreshPolicy, type MetadataSettings} from '../../../../../../packages/client-core/src/metadata-settings';
-import {settingsSpec, settingsRowIndex, type SettingsRow} from '../../../../../../packages/client-core/src/presentation/settings-spec';
+import {settingsSpec, settingsRowIndex, type SettingsRow as SpecRow} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {Button} from '../../../kit/controls/Button';
 import {Select} from '../../../kit/controls/Select';
@@ -14,7 +14,8 @@ import {useTheme} from '../../../kit/theme';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeSettingsLivePorts} from '../ports';
 import {useSettingsRequestScope} from '../use-settings-request-scope';
-import {LibraryGroup, LibraryRow, SectionTitle} from '../owner-libraries/controls';
+import {SettingsGroup, SettingsRow} from '../../../kit/shell';
+import {SectionTitle} from '../owner-libraries/controls';
 import {NativeAdvancedSection} from './AdvancedSection';
 import {NativeTitleDatasetGroup} from './TitleDatasetGroup';
 import {NativeMetadataController, type MetadataPatch} from './metadata-controller';
@@ -44,13 +45,13 @@ export function NativeServerMetadata(props: Props) {
 function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, current}: Props & {controller: NativeMetadataController; current: () => boolean}) {
   const theme = useTheme(), t = runtime.text.t as typeof defaultI18n.t;
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot), settings = state.data;
-  const [editing, setEditing] = useState<{row: SettingsRow; original: MetadataSettings; key: CredentialKey}>(), [text, setText] = useState('');
+  const [editing, setEditing] = useState<{row: SpecRow; original: MetadataSettings; key: CredentialKey}>(), [text, setText] = useState('');
   const [confirmRefresh, setConfirmRefresh] = useState(false);
   const disabled = state.busy || state.needsReload;
   const save = (patch: MetadataPatch) => {if (settings && current()) void controller.save(settings, patch);};
   const row = (id: string) => settingsRowIndex.get(id)!.row;
   const groupTitle = (index: number) => {const title = section?.groups?.[index]?.title; return title ? t(title) : '';};
-  const options = (definition: SettingsRow, value: string) => {
+  const options = (definition: SpecRow, value: string) => {
     const offered = (definition.control.options ?? []).map(option => ({value: String(option.value), label: t(option.label), description: option.hint ? t(option.hint) : undefined}));
     if (!offered.some(option => option.value === value)) offered.push({value, label: value, description: undefined});
     return offered;
@@ -58,14 +59,14 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
   const toggle = (id: string, value: boolean | undefined, patch: (value: boolean) => MetadataPatch, first = false) => {
     if (value === undefined) return null;
     const definition = row(id);
-    return <LibraryRow key={id} first={first} label={t(definition.label)} help={definition.help ? t(definition.help) : undefined}
-      trailing={<Switch testID={id} accessibilityLabel={t(definition.label)} checked={value} disabled={disabled} onCheckedChange={next => save(patch(next))}/>}/>;
+    return <SettingsRow key={id} first={first} label={t(definition.label)} description={definition.help ? t(definition.help) : undefined}
+      control={<Switch testID={id} accessibilityLabel={t(definition.label)} checked={value} disabled={disabled} onCheckedChange={next => save(patch(next))}/>}/>;
   };
   const select = (id: string, value: string | undefined, patch: (value: string) => MetadataPatch, first = false, help?: string) => {
     if (value === undefined) return null;
     const definition = row(id);
-    return <LibraryRow key={id} first={first} label={t(definition.label)} help={help ?? (definition.help ? t(definition.help) : undefined)}
-      trailing={<Select testID={id} accessibilityLabel={t(definition.label)} value={value} disabled={disabled} options={options(definition, value)} style={{maxWidth: 220}} onValueChange={next => {
+    return <SettingsRow key={id} first={first} label={t(definition.label)} description={help ?? (definition.help ? t(definition.help) : undefined)}
+      control={<Select testID={id} accessibilityLabel={t(definition.label)} value={value} disabled={disabled} options={options(definition, value)} style={{maxWidth: 220}} onValueChange={next => {
         if (definition.control.options?.some(option => String(option.value) === next)) save(patch(next));
       }}/>} />;
   };
@@ -73,8 +74,8 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
     const definition = row(id), key = credentialKeys[id]!;
     const status = key === 'openSubtitlesUsername' ? settings?.openSubtitlesUsername || 'No account set' : configured ? 'Your own value is saved' : key === 'tmdbReadToken' && settings?.tmdbCredentialUnreadable ? t('server.metadata.keyUnreadable') : key === 'tmdbReadToken' || key === 'tvdbProjectKey' ? t('server.metadata.keyOurs')
       : key === 'acoustidKey' && settings?.advanced?.acoustidKeySource === 'environment' ? t('server.metadata.acoustidServer') : 'Not set up';
-    return <LibraryRow key={id} first={first} label={t(definition.label)} help={definition.help ? t(definition.help) : undefined} value={status}
-      trailing={<Button variant="text" size="xs" disabled={disabled} onPress={() => {if (settings && current()) {setEditing({row: definition, original: settings, key}); setText(key === 'openSubtitlesUsername' ? settings.openSubtitlesUsername : '');}}}>{t('web.metadataLookup.change')}</Button>}/>;
+    return <SettingsRow key={id} first={first} label={t(definition.label)} description={definition.help ? t(definition.help) : undefined} value={status}
+      control={<Button variant="text" size="xs" disabled={disabled} onPress={() => {if (settings && current()) {setEditing({row: definition, original: settings, key}); setText(key === 'openSubtitlesUsername' ? settings.openSubtitlesUsername : '');}}}>{t('web.metadataLookup.change')}</Button>}/>;
   };
   if (!settings) return state.error !== undefined ? <StateView {...runtime.error(state.error, () => {void controller.load();}, 'server-console')}/>
     : <StateView title={t('next.ownerLibraries.loading')}/>;
@@ -86,31 +87,31 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
       <ServerHeader serverName={ports.context.serverName} viewerRole="owner" audience="owner" variant="phone" style={{marginBottom: 12}}/>
       {!compactHeader && <Text accessibilityRole="header" style={[settingsPageHeading(theme), {color: theme.colors.text}]}>{t('settings.server.metadata')}</Text>}
       {state.error !== undefined && <StateView variant="inline" {...runtime.error(state.error, () => {void controller.load();}, 'server-console')}/>}
-      <SectionTitle>{groupTitle(0)}</SectionTitle><LibraryGroup>
+      <SectionTitle>{groupTitle(0)}</SectionTitle><SettingsGroup>
         {toggle('metadata.online', settings.onlineLookups, onlineLookups => ({onlineLookups}), true)}
         {toggle('metadata.adult', settings.includeAdult, includeAdult => ({includeAdult}), settings.onlineLookups === undefined)}
-        <LibraryRow label={t(row('metadata.perLibrary').label)} help={row('metadata.perLibrary').help ? t(row('metadata.perLibrary').help!) : undefined} onPress={onLibraries}/>
-      </LibraryGroup>
-      {(settings.defaultLanguage !== undefined || settings.defaultRegion !== undefined) && <><SectionTitle>{groupTitle(1)}</SectionTitle><LibraryGroup>
+        <SettingsRow navigates label={t(row('metadata.perLibrary').label)} description={row('metadata.perLibrary').help ? t(row('metadata.perLibrary').help!) : undefined} onPress={onLibraries}/>
+      </SettingsGroup>
+      {(settings.defaultLanguage !== undefined || settings.defaultRegion !== undefined) && <><SectionTitle>{groupTitle(1)}</SectionTitle><SettingsGroup>
         {select('metadata.language', settings.defaultLanguage, defaultLanguage => ({defaultLanguage}), true)}
         {select('metadata.region', settings.defaultRegion, defaultRegion => ({defaultRegion}), settings.defaultLanguage === undefined)}
-      </LibraryGroup></>}
-      <SectionTitle>{groupTitle(2)}</SectionTitle><LibraryGroup>
+      </SettingsGroup></>}
+      <SectionTitle>{groupTitle(2)}</SectionTitle><SettingsGroup>
         {credential('metadata.tmdb', settings.tmdbCredentialConfigured, true)}
         {settings.tvdbCredentialConfigured !== undefined && credential('metadata.tvdb', settings.tvdbCredentialConfigured)}
-        <LibraryRow label={t(row('metadata.noKey').label)} help={row('metadata.noKey').help ? t(row('metadata.noKey').help!) : undefined} value={row('metadata.noKey').control.text ? t(row('metadata.noKey').control.text!) : undefined}/>
-      </LibraryGroup>
-      {(settings.artworkPreference !== undefined || settings.artworkLanguage !== undefined) && <><SectionTitle>{groupTitle(3)}</SectionTitle><LibraryGroup>
+        <SettingsRow label={t(row('metadata.noKey').label)} description={row('metadata.noKey').help ? t(row('metadata.noKey').help!) : undefined} value={row('metadata.noKey').control.text ? t(row('metadata.noKey').control.text!) : undefined}/>
+      </SettingsGroup>
+      {(settings.artworkPreference !== undefined || settings.artworkLanguage !== undefined) && <><SectionTitle>{groupTitle(3)}</SectionTitle><SettingsGroup>
         {select('metadata.artworkPrefer', settings.artworkPreference, value => ({artworkPreference: value as MetadataSettings['artworkPreference']}), true)}
         {select('metadata.artworkLanguage', settings.artworkLanguage, value => ({artworkLanguage: value as MetadataSettings['artworkLanguage']}), settings.artworkPreference === undefined)}
-      </LibraryGroup></>}
-      <SectionTitle>{groupTitle(4)}</SectionTitle><LibraryGroup>
+      </SettingsGroup></>}
+      <SectionTitle>{groupTitle(4)}</SectionTitle><SettingsGroup>
         {credential('metadata.osKey', settings.openSubtitlesKeyConfigured, true)}
         {credential('metadata.osUser', !!settings.openSubtitlesUsername)}
         {credential('metadata.osPass', settings.openSubtitlesPasswordConfigured)}
-        <LibraryRow label={t(row('metadata.osStatus').label)} help={subtitles.downloads} value={subtitles.text}/>
-        <LibraryRow label={t(row('metadata.osTest').label)} trailing={<Button variant="glass" size="xs" disabled={disabled} onPress={() => {if (current()) void controller.checkOpenSubtitles(settings);}}>{t(row('metadata.osTest').control.label!)}</Button>}/>
-      </LibraryGroup>
+        <SettingsRow label={t(row('metadata.osStatus').label)} description={subtitles.downloads} value={subtitles.text}/>
+        <SettingsRow label={t(row('metadata.osTest').label)} control={<Button variant="glass" size="xs" disabled={disabled} onPress={() => {if (current()) void controller.checkOpenSubtitles(settings);}}>{t(row('metadata.osTest').control.label!)}</Button>}/>
+      </SettingsGroup>
       <NativeTitleDatasetGroup ports={ports} runtime={runtime}/>
       {/* Each Advanced row is offered only when the server sends its field, and a group only when it has a row. */}
       {(() => {
@@ -122,24 +123,24 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
         const summary = [settings.localArtworkLimitBytes !== undefined ? `${artworkLimitText(settings.localArtworkLimitBytes)} GB` : '',
           settings.artworkMaxEdge !== undefined ? `${settings.artworkMaxEdge} px` : '', advanced?.castPhotos === false ? t('server.metadata.castPhotosOff') : ''].filter(Boolean).join(' · ');
         return <NativeAdvancedSection testID="server-metadata-advanced" summary={summary}>
-          {refreshing && <><SectionTitle>{advancedTitle(0)}</SectionTitle><LibraryGroup>
+          {refreshing && <><SectionTitle>{advancedTitle(0)}</SectionTitle><SettingsGroup>
             {select('metadata.refresh', advanced?.refreshPolicy, value => ({refreshPolicy: value as MetadataRefreshPolicy}), true)}
-            {advanced?.refreshAll && <LibraryRow first={advanced.refreshPolicy === undefined} label={t(row('metadata.refreshAll').label)} help={advanced.refreshAll.running ? t('server.metadata.refreshAllRunning') : row('metadata.refreshAll').help ? t(row('metadata.refreshAll').help!) : undefined}
-              trailing={<Button testID="metadata.refreshAll" variant="glass" size="xs" disabled={disabled} onPress={() => {if (current()) setConfirmRefresh(true);}}>{t(row('metadata.refreshAll').control.label!)}</Button>}/>}
-          </LibraryGroup></>}
-          {languages && <><SectionTitle>{advancedTitle(1)}</SectionTitle><LibraryGroup>
+            {advanced?.refreshAll && <SettingsRow first={advanced.refreshPolicy === undefined} label={t(row('metadata.refreshAll').label)} description={advanced.refreshAll.running ? t('server.metadata.refreshAllRunning') : row('metadata.refreshAll').help ? t(row('metadata.refreshAll').help!) : undefined}
+              control={<Button testID="metadata.refreshAll" variant="glass" size="xs" disabled={disabled} onPress={() => {if (current()) setConfirmRefresh(true);}}>{t(row('metadata.refreshAll').control.label!)}</Button>}/>}
+          </SettingsGroup></>}
+          {languages && <><SectionTitle>{advancedTitle(1)}</SectionTitle><SettingsGroup>
             {select('metadata.fallbackLanguage', advanced?.fallbackLanguage, value => ({fallbackLanguage: value as MetadataFallbackLanguage}), true)}
             {select('metadata.animeTitles', advanced?.animeTitles, value => ({animeTitles: value as MetadataAnimeTitles}), advanced?.fallbackLanguage === undefined)}
-          </LibraryGroup></>}
-          {artwork && <><SectionTitle>{advancedTitle(2)}</SectionTitle><LibraryGroup>
+          </SettingsGroup></>}
+          {artwork && <><SectionTitle>{advancedTitle(2)}</SectionTitle><SettingsGroup>
             {settings.localArtworkLimitBytes !== undefined && select('metadata.artworkLimit', artworkLimitText(settings.localArtworkLimitBytes), value => ({localArtworkLimitBytes: Number(value) * 2 ** 30}), true,
               t('server.metadata.artworkUsedHelp', {used: artworkLimitText(settings.localArtworkUsedBytes ?? 0)}))}
             {settings.artworkMaxEdge !== undefined && select('metadata.artworkSize', settings.artworkMaxEdge === 1280 ? 'small' : settings.artworkMaxEdge === 2560 ? 'large' : 'standard', value => ({artworkMaxEdge: value === 'small' ? 1280 : value === 'large' ? 2560 : 1920}), settings.localArtworkLimitBytes === undefined)}
             {toggle('metadata.castPhotos', advanced?.castPhotos, castPhotos => ({castPhotos}), settings.localArtworkLimitBytes === undefined && settings.artworkMaxEdge === undefined)}
-          </LibraryGroup></>}
-          {music && <><SectionTitle>{advancedTitle(3)}</SectionTitle><LibraryGroup>
+          </SettingsGroup></>}
+          {music && <><SectionTitle>{advancedTitle(3)}</SectionTitle><SettingsGroup>
             {credential('metadata.acoustid', advanced?.acoustidKeyConfigured === true, true)}
-          </LibraryGroup></>}
+          </SettingsGroup></>}
         </NativeAdvancedSection>;
       })()}
     </ScrollView>

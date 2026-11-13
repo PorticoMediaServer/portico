@@ -12,7 +12,7 @@ import {BottomSheet} from '../../../kit/overlays/BottomSheet';
 import {Icon} from '../../../kit/Icon';
 import {useTheme} from '../../../kit/theme';
 import {alpha, shellType} from '../../../kit/shell/visual';
-import {LibraryGroup, LibraryRow} from './controls';
+import {SettingsGroup, SettingsRow} from '../../../kit/shell';
 
 import {appendExplorerPage, explorerEntries, toggleExplorerSelection, type ExplorerFolder, type ExplorerSelectionMode} from './folder-explorer-model';
 export type {ExplorerFolder} from './folder-explorer-model';
@@ -93,16 +93,16 @@ export function FolderExplorer({open, onOpenChange, api, title, subtitle, chosen
         <Button variant="icon" size="xs" icon="i-disk" accessibilityLabel={t('next.ownerLibraries.explorer.places')} onPress={() => choose('')}/>
       </View>
 
-      {error !== undefined && <LibraryGroup><LibraryRow icon="i-alert" label={t('next.ownerLibraries.explorer.failed')} help={t('next.ownerLibraries.explorer.failedHelp')} onPress={() => setRetry(value => value + 1)} trailing={<Text style={[shellType(13.5, 700), {color: theme.colors.accentStrong}]}>{t('action.tryAgain')}</Text>} first/></LibraryGroup>}
+      {error !== undefined && <SettingsGroup><SettingsRow icon="i-alert" label={t('next.ownerLibraries.explorer.failed')} description={t('next.ownerLibraries.explorer.failedHelp')} control={<Button variant="glass" size="xs" onPress={() => setRetry(value => value + 1)}>{t('action.tryAgain')}</Button>} first/></SettingsGroup>}
 
-      {!page?.path && (page?.roots?.length ?? 0) > 0 && <LibraryGroup>
-        {page!.roots.map((root, index) => <LibraryRow key={root.path} first={index === 0} icon="i-disk" label={root.name || root.path} help={root.description || root.path} onPress={() => choose(root.path)}/>)}
-      </LibraryGroup>}
+      {!page?.path && (page?.roots?.length ?? 0) > 0 && <SettingsGroup>
+        {page!.roots.map((root, index) => <SettingsRow navigates key={root.path} first={index === 0} icon="i-disk" label={root.name || root.path} description={root.description || root.path} onPress={() => choose(root.path)}/>)}
+      </SettingsGroup>}
 
-      {page?.path && here && <LibraryGroup>
-        <LibraryRow first icon="i-folder" label={t('next.ownerLibraries.explorer.addThisFolder')} help={page.path}
-          trailing={<ExplorerCheck checked={has(here)} onPress={() => add(here)} label={t('next.ownerLibraries.explorer.addThisFolder')}/>}/>
-      </LibraryGroup>}
+      {page?.path && here && <SettingsGroup>
+        <SettingsRow first icon="i-folder" label={t('next.ownerLibraries.explorer.addThisFolder')} description={page.path}
+          control={<ExplorerCheck checked={has(here)} onPress={() => add(here)} label={t('next.ownerLibraries.explorer.addThisFolder')}/>}/>
+      </SettingsGroup>}
 
       <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 2}}>
         <Text style={[shellType(13, 700), {color: theme.colors.textTertiary, flex: 1}]}>{selectionMode === 'file-or-folder' ? t('next.ownerLibraries.explorer.filesAndFolders') : t('next.ownerLibraries.explorer.folders')}</Text>
@@ -111,9 +111,9 @@ export function FolderExplorer({open, onOpenChange, api, title, subtitle, chosen
       </View>
 
       </View>}
-      ListEmptyComponent={page || loading ? <LibraryGroup><LibraryRow first label={loading ? t('next.ownerLibraries.explorer.reading') : selectionMode === 'file-or-folder' ? t('next.ownerLibraries.explorer.noFilesOrFolders') : t('next.ownerLibraries.explorer.noFolders')}/></LibraryGroup> : null}
+      ListEmptyComponent={page || loading ? <SettingsGroup><SettingsRow first label={loading ? t('next.ownerLibraries.explorer.reading') : selectionMode === 'file-or-folder' ? t('next.ownerLibraries.explorer.noFilesOrFolders') : t('next.ownerLibraries.explorer.noFolders')}/></SettingsGroup> : null}
       ListFooterComponent={<View style={{gap: 12, paddingTop: 8}}>
-        {page?.nextCursor ? <LibraryGroup><LibraryRow first label={t(loading ? 'next.ownerLibraries.explorer.reading' : 'next.ownerLibraries.explorer.more')} onPress={loading ? undefined : loadMore}/></LibraryGroup> : null}
+        {page?.nextCursor ? <SettingsGroup><SettingsRow navigates first label={t(loading ? 'next.ownerLibraries.explorer.reading' : 'next.ownerLibraries.explorer.more')} onPress={loading ? undefined : loadMore}/></SettingsGroup> : null}
 
       {page?.truncated && <Text style={[shellType(12.5, 500, 17.5), {color: theme.colors.textTertiary, paddingHorizontal: 4}]}>{t('next.ownerLibraries.explorer.truncated')}</Text>}
 

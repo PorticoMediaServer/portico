@@ -8,7 +8,7 @@ import {settingsSpec} from '../../../packages/client-core/src/presentation/setti
 import * as model from '../src-next/screens/settings-live/owner-libraries/library-settings-model.ts';
 
 type Node = {type: unknown; props: Record<string, any>};
-const elements = (node: any): Node[] => Array.isArray(node) ? node.flatMap(elements) : node?.props ? [node, ...elements(node.props.children), ...elements(node.props.trailing), ...elements(node.props.footer)] : [];
+const elements = (node: any): Node[] => Array.isArray(node) ? node.flatMap(elements) : node?.props ? [node, ...elements(node.props.children), ...elements(node.props.control), ...elements(node.props.footer)] : [];
 const find = (node: unknown, id: string) => elements(node).find(element => element.props.testID === id);
 const t = (id: string) => id;
 
@@ -25,7 +25,7 @@ async function fixture(tab: string, kind: string, facts: Record<string, unknown>
     },
     '../../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../../kit/controls/FormError': formErrorModule, '../../../kit/controls/Button': {Button: 'Button'}, '../../../kit/controls/Select': {Select: 'Select'},
     '../../../kit/controls/Switch': {Switch: 'Switch'}, '../../../kit/controls/TextField': {TextField: 'TextField'}, '../../../kit/overlays/BottomSheet': {BottomSheet: 'BottomSheet'},
-    '../../../kit/theme': {useTheme: () => ({colors: {record: '#f00'}, type: {caption: {}}})}, './controls': {LibraryGroup: 'LibraryGroup', LibraryRow: 'LibraryRow', SectionTitle: 'SectionTitle'},
+    '../../../kit/theme': {useTheme: () => ({colors: {record: '#f00'}, type: {caption: {}}})}, './controls': {SectionTitle: 'SectionTitle'}, '../../../kit/shell': {SettingsGroup: 'SettingsGroup', SettingsRow: 'SettingsRow'},
     './library-settings-model': model,
   });
   const saves: unknown[] = [];

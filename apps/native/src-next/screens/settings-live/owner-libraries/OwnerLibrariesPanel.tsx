@@ -35,7 +35,8 @@ import type {NativeSettingsLivePorts} from '../ports';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import {AddFolderPage} from './AddFolderPage';
 import {AddLibraryPage, MetadataAgentChoice} from './AddLibraryPage';
-import {LibraryGroup, LibraryRow, SectionTitle} from './controls';
+import {SettingsGroup, SettingsRow} from '../../../kit/shell';
+import {SectionTitle} from './controls';
 import {LibrarySettingsRows} from './LibrarySettingsRows';
 import {libraryListState} from './library-settings-model';
 import {NativeOwnerLibrariesController, sonicPageLease, type NativeOwnerLibrariesSnapshot, type SonicPageLease} from './controller';
@@ -150,14 +151,14 @@ export function NativeOwnerLibrariesPanel({ports, runtime, initialLibraryId, lif
       </View>
       <MissingTitlesTab ports={ports} runtime={runtime} t={runtime.text.t as Translate}/>
       {state.directory.phase === 'error' && <StateView {...runtime.error(state.directory.error, () => {void controller.refresh();}, 'server-console')}/>}
-      {libraryListState(state.directory.phase, libraries.length) === 'empty' && <LibraryGroup style={{marginTop: 12}}>
-        <LibraryRow first label={t('next.ownerLibraries.empty')} help={t('next.ownerLibraries.emptyHelp')}/>
-      </LibraryGroup>}
-      <LibraryGroup style={{marginTop: 14}}>
+      {libraryListState(state.directory.phase, libraries.length) === 'empty' && <SettingsGroup style={{marginTop: 12}}>
+        <SettingsRow first label={t('next.ownerLibraries.empty')} description={t('next.ownerLibraries.emptyHelp')}/>
+      </SettingsGroup>}
+      <SettingsGroup style={{marginTop: 14}}>
         {libraries.map((value: ManagedLibrary, index: number) => <LibraryListRow key={value.id} library={value} first={index === 0} t={t} runtime={runtime}
           state={ownerLibraryState(value, {t, locale: runtime.text.locale, short: true})} onOpen={() => open(value.id)} onMenu={() => {setMenuOnPage(false); setLibraryMenu(value);}}/>)}
         {libraryListState(state.directory.phase, libraries.length) === 'loading' && <View accessibilityLabel={t('next.ownerLibraries.loading')} accessibilityRole="progressbar" style={{padding: 14, gap: 16}}>{[0, 1, 2].map(row => <View key={row} style={{flexDirection: 'row', alignItems: 'center', gap: 12}}><SkeletonBlock width={62} height={66}/><View style={{flex: 1, gap: 8}}><SkeletonBlock width="70%" height={18}/><SkeletonBlock width="45%" height={13}/></View></View>)}</View>}
-      </LibraryGroup>
+      </SettingsGroup>
       <Text style={[shellType(12, 500, 17), {color: theme.colors.textTertiary, marginTop: 12, paddingHorizontal: 4}]}>{t('next.ownerLibraries.moveHint')}</Text>
     </ScrollView>
     <Menu open={Boolean(libraryMenu)} onOpenChange={() => setLibraryMenu(undefined)} title={libraryMenu?.name}
@@ -243,17 +244,17 @@ function LibraryPage({api, library, document, state, tab, tabChange, t, runtime,
 
 function GeneralTab({library, document, t, renameLibrary, removeLibrary, busy, save}: {library: ManagedLibrary; document?: LibraryAdminDocument; t: Translate; renameLibrary: () => void; removeLibrary: () => void; busy: boolean; save: (patch: Partial<LibrarySettings>) => void}) {
   return <>
-    <LibraryGroup>
-      <LibraryRow first label={t('next.ownerLibraries.nameLabel')} value={library.name} onPress={renameLibrary}/>
-      <LibraryRow label={t('web.libraries.type')} value={t(ownerLibraryKind(library.kind).label)}/>
-      <LibraryRow label={t('next.ownerLibraries.whoCanSee')} help={ownerLibraryAudience(library, t)}/>
-    </LibraryGroup>
+    <SettingsGroup>
+      <SettingsRow navigates first label={t('next.ownerLibraries.nameLabel')} value={library.name} onPress={renameLibrary}/>
+      <SettingsRow label={t('web.libraries.type')} value={t(ownerLibraryKind(library.kind).label)}/>
+      <SettingsRow label={t('next.ownerLibraries.whoCanSee')} description={ownerLibraryAudience(library, t)}/>
+    </SettingsGroup>
     {document && <LibrarySettingsRows tab="general" document={document} busy={busy} t={t} save={save}/>}
     {document && <ContinueWatchingGroup document={document} busy={busy} t={t} save={save}/>}
     <SectionTitle>{t('server.library.remove')}</SectionTitle>
-    <LibraryGroup>
-      <LibraryRow first icon="i-trash" tone="danger" minHeight={64} label={t('server.library.removeRow')} help={t('server.library.removeHelp')} onPress={removeLibrary}/>
-    </LibraryGroup>
+    <SettingsGroup>
+      <SettingsRow navigates first icon="i-trash" destructive style={{minHeight: 64}} label={t('server.library.removeRow')} description={t('server.library.removeHelp')} onPress={removeLibrary}/>
+    </SettingsGroup>
   </>;
 }
 
@@ -263,10 +264,10 @@ function FoldersTab({state, retry, t, addFolder, folderMenu}: {state: NativeOwne
     <SectionTitle action={<Focusable accessibilityRole="button" accessibilityLabel={t('web.libraries.addFolder')} disabled={!state.inventory || state.inventoryError !== undefined} onPress={state.inventory && state.inventoryError === undefined ? addFolder : undefined} focusKind="chip" focusRadius={8} hitSlop={10}><Text style={[shellType(13.5, 700), {color: theme.colors.accentStrong}]}>{t('web.libraries.addFolder')}</Text></Focusable>}>{t('next.ownerLibraries.folders')}</SectionTitle>
     {state.inventoryError !== undefined && <><FormError placement="inline">{presentError(state.inventoryError, 'library').body}</FormError><Button variant="glass" onPress={retry}>{t('action.tryAgain')}</Button></>}
     {state.inventoryLoading && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('web.libraries.loadingOne')}</Text>}
-    {source && <LibraryGroup>
-      {!source.length && <LibraryRow first label={t('web.libraries.noFolders')}/>}
-      {source.map((folder, index) => <LibraryRow key={folder.id} first={index === 0} icon="i-folder" label={folder.name || folder.path} help={`${folder.path} · ${ownerFolderLocation(folder, t)}`} value={ownerFolderState(folder, t)} onPress={() => folderMenu(folder)}/>)}
-    </LibraryGroup>}
+    {source && <SettingsGroup>
+      {!source.length && <SettingsRow first label={t('web.libraries.noFolders')}/>}
+      {source.map((folder, index) => <SettingsRow navigates key={folder.id} first={index === 0} icon="i-folder" label={folder.name || folder.path} description={`${folder.path} · ${ownerFolderLocation(folder, t)}`} value={ownerFolderState(folder, t)} onPress={() => folderMenu(folder)}/>)}
+    </SettingsGroup>}
   </>;
 }
 
@@ -285,19 +286,19 @@ function ContinueWatchingGroup({document, busy, t, save}: {document: LibraryAdmi
   if (!ids.some(eligible)) return null;
   return <>
     <SectionTitle>{t('next.ownerLibraries.continueWatching')}</SectionTitle>
-    <LibraryGroup>
-      {eligible('libraries.cwWeeks') && <LibraryRow first label={t('next.ownerLibraries.continue.weeks')} trailing={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.weeks')} value={String(value.weeks)}
+    <SettingsGroup>
+      {eligible('libraries.cwWeeks') && <SettingsRow first label={t('next.ownerLibraries.continue.weeks')} control={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.weeks')} value={String(value.weeks)}
         options={numericOptions([4, 8, 16, 26, 52, 104], value.weeks, weekLabel)} onValueChange={next => update({weeks: Number(next)})}/>}/>}
-      {eligible('libraries.cwMax') && <LibraryRow first={!eligible('libraries.cwWeeks')} label={t('next.ownerLibraries.continue.maximum')} trailing={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.maximum')} value={String(value.maximumItems)}
+      {eligible('libraries.cwMax') && <SettingsRow first={!eligible('libraries.cwWeeks')} label={t('next.ownerLibraries.continue.maximum')} control={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.maximum')} value={String(value.maximumItems)}
         options={numericOptions([20, 40, 100, 200], value.maximumItems, n => defaultI18n.number(n))} onValueChange={next => update({maximumItems: Number(next)})}/>}/>}
-      {eligible('libraries.cwPremieres') && <LibraryRow label={t('next.ownerLibraries.continue.premieres')} help={t('next.ownerLibraries.continue.premieresHelp')}
-        trailing={<Switch disabled={busy} checked={value.includeSeasonPremieres} accessibilityLabel={t('next.ownerLibraries.continue.premieres')} onCheckedChange={next => update({includeSeasonPremieres: next})}/>}/>}
-      {eligible('libraries.cwWatched') && <LibraryRow label={t('next.ownerLibraries.continue.watchedAt')} help={t('next.ownerLibraries.continue.watchedAtHelp')} trailing={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.watchedAt')} value={String(value.videoPlayedThreshold)}
+      {eligible('libraries.cwPremieres') && <SettingsRow label={t('next.ownerLibraries.continue.premieres')} description={t('next.ownerLibraries.continue.premieresHelp')}
+        control={<Switch disabled={busy} checked={value.includeSeasonPremieres} accessibilityLabel={t('next.ownerLibraries.continue.premieres')} onCheckedChange={next => update({includeSeasonPremieres: next})}/>}/>}
+      {eligible('libraries.cwWatched') && <SettingsRow label={t('next.ownerLibraries.continue.watchedAt')} description={t('next.ownerLibraries.continue.watchedAtHelp')} control={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.watchedAt')} value={String(value.videoPlayedThreshold)}
         options={numericOptions([80, 85, 90, 95, 100], value.videoPlayedThreshold, percentLabel)} onValueChange={next => update({videoPlayedThreshold: Number(next)})}/>}/>}
-      {eligible('libraries.cwRule') && <LibraryRow label={t('next.ownerLibraries.continue.rule')} help={t('next.ownerLibraries.continue.ruleHelp')} trailing={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.rule')} value={value.videoCompletion}
+      {eligible('libraries.cwRule') && <SettingsRow label={t('next.ownerLibraries.continue.rule')} description={t('next.ownerLibraries.continue.ruleHelp')} control={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.rule')} value={value.videoCompletion}
         options={[{value: 'earliest', label: t('next.ownerLibraries.continue.earliest')}, {value: 'threshold', label: t('next.ownerLibraries.continue.threshold')}, {value: 'credits', label: t('next.ownerLibraries.continue.credits'), description: t('next.ownerLibraries.continue.creditsHelp')}]}
         onValueChange={next => {if (next === 'earliest' || next === 'threshold' || next === 'credits') update({videoCompletion: next});}}/>}/>}
-    </LibraryGroup>
+    </SettingsGroup>
   </>;
 }
 
@@ -307,13 +308,13 @@ function MetadataTab({document, metadata, busy, t, save, saveAgent, fetchLyrics,
   return <>
     {metadata && metadata.agents.length > 0 && <>
       <SectionTitle>{t('next.ownerLibraries.metadataSource')}</SectionTitle>
-      <LibraryGroup>{metadata.agents.map((option, index) => <MetadataAgentChoice key={option.id} option={option} first={index === 0} checked={option.id === metadata.agent} onPress={() => {if (!busy && option.id !== metadata.agent) saveAgent(option.id);}}/>)}</LibraryGroup>
+      <SettingsGroup>{metadata.agents.map((option, index) => <MetadataAgentChoice key={option.id} option={option} first={index === 0} checked={option.id === metadata.agent} onPress={() => {if (!busy && option.id !== metadata.agent) saveAgent(option.id);}}/>)}</SettingsGroup>
       <Text style={[shellType(12.5, 500, 17.5), {color: theme.colors.textTertiary, marginTop: 8, paddingHorizontal: 4}]}>{t('next.ownerLibraries.metadataHelp')}</Text>
     </>}
     <LibrarySettingsRows tab="metadata" document={document} busy={busy || !!state.lyricsBusy} t={t} save={save} fetchLyrics={current => fetchLyrics(document, () => parentCurrent() && current())}/>
     {state.lyricsError !== undefined && <FormError placement="inline">{presentError(state.lyricsError, 'library').body}</FormError>}
     {state.lyricsJob && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{jobStateName(t, id => defaultI18n.has(id), state.lyricsJob.state)}</Text>}
-    <LibraryGroup style={{marginTop: 18}}><LibraryRow first label={t('server.library.ownKeys')} help={t('server.library.ownKeysHelp')}/></LibraryGroup>
+    <SettingsGroup style={{marginTop: 18}}><SettingsRow first label={t('server.library.ownKeys')} description={t('server.library.ownKeysHelp')}/></SettingsGroup>
   </>;
 }
 
@@ -321,11 +322,11 @@ function AttentionTab({state, t, more}: {state: NativeOwnerLibrariesSnapshot; t:
   const theme = useTheme();
   return <>
     <Text style={[shellType(13, 400, 18.5), {color: theme.colors.textSecondary, marginBottom: 12}]}>{t('next.ownerLibraries.unmatchedLede')}</Text>
-    <LibraryGroup>
-      {!state.unmatched.length && <LibraryRow first label={t(state.unmatchedLoading ? 'web.libraries.loadingOne' : 'next.ownerLibraries.unmatchedEmpty')}/>}
-      {state.unmatched.map((issue, index) => <LibraryRow key={issue.assetId} first={index === 0} icon="i-note" label={issue.sourceName} help={issue.code}/>)}
-      {state.unmatchedCursor ? <LibraryRow label={t('next.ownerLibraries.showMore')} onPress={more}/> : null}
-    </LibraryGroup>
+    <SettingsGroup>
+      {!state.unmatched.length && <SettingsRow first label={t(state.unmatchedLoading ? 'web.libraries.loadingOne' : 'next.ownerLibraries.unmatchedEmpty')}/>}
+      {state.unmatched.map((issue, index) => <SettingsRow key={issue.assetId} first={index === 0} icon="i-note" label={issue.sourceName} description={issue.code}/>)}
+      {state.unmatchedCursor ? <SettingsRow navigates label={t('next.ownerLibraries.showMore')} onPress={more}/> : null}
+    </SettingsGroup>
   </>;
 }
 
@@ -358,54 +359,52 @@ function ScanningTab({api, library, document, metadata, state, t, locale, skippe
       </View>
       <Button variant="glass" size="xs" trailingIcon="i-right" onPress={dashboard} style={{alignSelf: 'flex-start', marginLeft: 28}}>{t('next.ownerLibraries.openDashboard')}</Button>
     </View>}
-    <LibraryGroup style={{marginTop: 12}}>
-      <LibraryRow first label={t('next.ownerLibraries.lastScan')} value={ownerLibraryState(library, {t, locale}).text}
-        trailing={active ? <Button variant="glass" size="xs" onPress={cancel}>{t('web.libraries.cancelScan')}</Button> : undefined}/>
-      <LibraryRow label={t('next.ownerLibraries.filesSkippedTitle')} help={t('next.ownerLibraries.filesSkippedHelp')} value={t('next.ownerLibraries.filesCount', {count: skippedCount})} onPress={skipped}/>
-    </LibraryGroup>
-    <LibraryGroup style={{marginTop: 12}}>
-      <LibraryRow first label={t('next.ownerLibraries.introsAndCredits')} trailing={<Select testID="owner-libraries-segments" accessibilityLabel={t('next.ownerLibraries.introsAndCredits')} value={settings.segmentDetection}
+    <SettingsGroup style={{marginTop: 12}}>
+      <SettingsRow first label={t('next.ownerLibraries.lastScan')} value={ownerLibraryState(library, {t, locale}).text}
+        control={active ? <Button variant="glass" size="xs" onPress={cancel}>{t('web.libraries.cancelScan')}</Button> : undefined}/>
+      <SettingsRow navigates label={t('next.ownerLibraries.filesSkippedTitle')} description={t('next.ownerLibraries.filesSkippedHelp')} value={t('next.ownerLibraries.filesCount', {count: skippedCount})} onPress={skipped}/>
+    </SettingsGroup>
+    <SettingsGroup style={{marginTop: 12}}>
+      <SettingsRow first label={t('next.ownerLibraries.introsAndCredits')} control={<Select testID="owner-libraries-segments" accessibilityLabel={t('next.ownerLibraries.introsAndCredits')} value={settings.segmentDetection}
         options={[{value: 'server', label: t('next.ownerLibraries.introsFollow')}, {value: 'standard', label: t('settings.server.segmentMode.standard')}, {value: 'thorough', label: t('settings.server.segmentMode.thorough')}, {value: 'off', label: t('settings.server.segmentMode.off')}]}
         onValueChange={value => save({segmentDetection: value as LibrarySettings['segmentDetection']})}/>}/>
-      <LibraryRow label={t('next.ownerLibraries.metadataSource')} value={metadata?.agent === 'local' ? t('next.ownerLibraries.metadataLocal') : t('next.ownerLibraries.on')}/>
-    </LibraryGroup>
+      <SettingsRow label={t('next.ownerLibraries.metadataSource')} value={metadata?.agent === 'local' ? t('next.ownerLibraries.metadataLocal') : t('next.ownerLibraries.on')}/>
+    </SettingsGroup>
     <LibrarySettingsRows tab="scanning" document={document} busy={state.busy} t={t} save={save}/>
     {(document.libraryKind === 'tv' || document.libraryKind === 'anime') && <EpisodeThumbnailsRow api={api} libraryId={document.libraryId} parentCurrent={parentCurrent} disabled={state.busy} t={t}/>}
-    {(state.strm || state.strmError !== undefined) && <LibraryGroup style={{marginTop: 12}}>
-      <LibraryRow first label={t('next.settingsSpec.server.libraries.panels.library.tabs.4.groups.0.rows.1.label')}
-        help={state.strmError !== undefined ? presentError(state.strmError, 'library').body : t('next.settingsSpec.server.libraries.panels.library.tabs.4.groups.0.rows.1.help')}
-        trailing={state.strm ? <Switch testID="libraries.strm" checked={state.strm.enabled} disabled={state.busy || !pageLease || state.strmError !== undefined}
+    {(state.strm || state.strmError !== undefined) && <SettingsGroup style={{marginTop: 12}}>
+      <SettingsRow first label={t('next.settingsSpec.server.libraries.panels.library.tabs.4.groups.0.rows.1.label')}
+        description={state.strmError !== undefined ? presentError(state.strmError, 'library').body : t('next.settingsSpec.server.libraries.panels.library.tabs.4.groups.0.rows.1.help')}
+        control={state.strm ? <Switch testID="libraries.strm" checked={state.strm.enabled} disabled={state.busy || !pageLease || state.strmError !== undefined}
           accessibilityLabel={t('next.settingsSpec.server.libraries.panels.library.tabs.4.groups.0.rows.1.label')}
           onCheckedChange={enabled => {if (pageLease && state.strm) strmChange(enabled, document, state.strm, pageLease);}}/>
           : undefined}/>
-      {state.strmError !== undefined && <LibraryRow label={t('action.tryAgain')} onPress={state.busy ? undefined : () => strmRetry(document)}/>}
-    </LibraryGroup>}
-    {(toggle || sonicLine || sonicErrorText || (state.sonicNeedsReload && sonic)) && <LibraryGroup style={{marginTop: 12}}>
-      {toggle && <LibraryRow first label={t('next.settingsSpec.server.libraries.panels.library.tabs.3.groups.0.rows.5.label')} help={t('next.settingsSpec.server.libraries.panels.library.tabs.3.groups.0.rows.5.help')}
-        trailing={<Switch testID="owner-libraries-sonic" checked={toggle.current === true} disabled={state.sonicBusy || state.sonicNeedsReload} accessibilityLabel={t('next.settingsSpec.server.libraries.panels.library.tabs.3.groups.0.rows.5.label')} onCheckedChange={enabled => {if (pageLease) sonicToggle(enabled, document, sonic!, pageLease);}}/>}/>}
-      {sonicLine ? <LibraryRow first={!toggle} label={t('next.settingsSpec.server.libraries.panels.library.tabs.3.groups.0.rows.5.children.0.label')}
-        help={state.sonicRetryUnavailable && sonicUnavailable ? t('next.settings.librarySonic.retryUnavailable') : sonicErrorText}
-        value={<Text style={[shellType(14.5), {color: sonicLine.tone === 'warn' ? theme.colors.amber : sonicLine.tone === 'ok' ? theme.colors.healthy : theme.colors.textSecondary}]}>{sonicLine.text}</Text>}
-        trailing={(sonicUnavailable || state.sonicNeedsReload) && !state.sonicBusy ? <Button variant="glass" size="xs" onPress={() => {if (!pageLease) return; if (state.sonicNeedsReload) sonicReload(document, sonic!, pageLease); else sonicRetry(document, sonic!, pageLease);}}>{t('action.tryAgain')}</Button> : undefined}/>
-                : sonicErrorText ? <LibraryRow first label={t('next.settingsSpec.server.libraries.panels.library.tabs.3.groups.0.rows.5.children.0.label')} value={<Text accessibilityRole="alert" style={[shellType(13, 600, 18), {color: theme.colors.record}]}>{sonicErrorText}</Text>}
-          trailing={state.sonicNeedsReload && sonic && !state.sonicBusy ? <Button variant="glass" size="xs" onPress={() => {if (pageLease) sonicReload(document, sonic!, pageLease);}}>{t('action.tryAgain')}</Button> : undefined}/>
-          : state.sonicNeedsReload && sonic ? <LibraryRow first={!toggle} label={t('next.settingsSpec.server.libraries.panels.library.tabs.3.groups.0.rows.5.children.0.label')} trailing={!state.sonicBusy ? <Button variant="glass" size="xs" onPress={() => {if (pageLease) sonicReload(document, sonic!, pageLease);}}>{t('action.tryAgain')}</Button> : undefined}/> : null}
-    </LibraryGroup>}
-    <LibraryGroup style={{marginTop: 12}}>
-      {document.sources.map((folder, index) => <LibraryRow key={folder.id} first={index === 0} label={t('next.ownerLibraries.rescan', {folder: folder.name || folder.path})} value={ownerLibraryInterval(folder.intervalSeconds, t)}/>)}
-    </LibraryGroup>
-    <LibraryGroup style={{marginTop: 12}}>
-      <LibraryRow first icon="i-refresh" label={t('next.ownerLibraries.scanAll')} help={t('next.ownerLibraries.scanAllHelp')} onPress={scanAll}/>
-    </LibraryGroup>
+      {state.strmError !== undefined && <SettingsRow navigates label={t('action.tryAgain')} onPress={state.busy ? undefined : () => strmRetry(document)}/>}
+    </SettingsGroup>}
+    {(toggle || sonicLine || sonicErrorText || (state.sonicNeedsReload && sonic)) && <SettingsGroup style={{marginTop: 12}}>
+      {toggle && <SettingsRow first label={t('next.settingsSpec.server.libraries.panels.library.tabs.3.groups.0.rows.5.label')} description={t('next.settingsSpec.server.libraries.panels.library.tabs.3.groups.0.rows.5.help')}
+        control={<Switch testID="owner-libraries-sonic" checked={toggle.current === true} disabled={state.sonicBusy || state.sonicNeedsReload} accessibilityLabel={t('next.settingsSpec.server.libraries.panels.library.tabs.3.groups.0.rows.5.label')} onCheckedChange={enabled => {if (pageLease) sonicToggle(enabled, document, sonic!, pageLease);}}/>}/>}
+      {sonicLine ? <SettingsRow first={!toggle} label={t('next.settingsSpec.server.libraries.panels.library.tabs.3.groups.0.rows.5.children.0.label')}
+        description={state.sonicRetryUnavailable && sonicUnavailable ? t('next.settings.librarySonic.retryUnavailable') : sonicErrorText}
+        control={<View style={{flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1}}><Text style={[shellType(14.5), {color: sonicLine.tone === 'warn' ? theme.colors.amber : sonicLine.tone === 'ok' ? theme.colors.healthy : theme.colors.textSecondary}]}>{sonicLine.text}</Text>{(sonicUnavailable || state.sonicNeedsReload) && !state.sonicBusy ? <Button variant="glass" size="xs" onPress={() => {if (!pageLease) return; if (state.sonicNeedsReload) sonicReload(document, sonic!, pageLease); else sonicRetry(document, sonic!, pageLease);}}>{t('action.tryAgain')}</Button> : undefined}</View>}/>
+                : sonicErrorText ? <SettingsRow first label={t('next.settingsSpec.server.libraries.panels.library.tabs.3.groups.0.rows.5.children.0.label')} control={<View style={{flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1}}><Text accessibilityRole="alert" style={[shellType(13, 600, 18), {color: theme.colors.record}]}>{sonicErrorText}</Text>{state.sonicNeedsReload && sonic && !state.sonicBusy ? <Button variant="glass" size="xs" onPress={() => {if (pageLease) sonicReload(document, sonic!, pageLease);}}>{t('action.tryAgain')}</Button> : undefined}</View>}/>
+          : state.sonicNeedsReload && sonic ? <SettingsRow first={!toggle} label={t('next.settingsSpec.server.libraries.panels.library.tabs.3.groups.0.rows.5.children.0.label')} control={!state.sonicBusy ? <Button variant="glass" size="xs" onPress={() => {if (pageLease) sonicReload(document, sonic!, pageLease);}}>{t('action.tryAgain')}</Button> : undefined}/> : null}
+    </SettingsGroup>}
+    <SettingsGroup style={{marginTop: 12}}>
+      {document.sources.map((folder, index) => <SettingsRow key={folder.id} first={index === 0} label={t('next.ownerLibraries.rescan', {folder: folder.name || folder.path})} value={ownerLibraryInterval(folder.intervalSeconds, t)}/>)}
+    </SettingsGroup>
+    <SettingsGroup style={{marginTop: 12}}>
+      <SettingsRow navigates first icon="i-refresh" label={t('next.ownerLibraries.scanAll')} description={t('next.ownerLibraries.scanAllHelp')} onPress={scanAll}/>
+    </SettingsGroup>
   </>;
 }
 
 function AdvancedTab({document, t, owner, busy, save}: {document?: LibraryAdminDocument; t: Translate; owner: boolean; busy: boolean; save: (patch: Partial<LibrarySettings>) => void}) {
   if (!document || !owner || !document.eligibleControls.includes('libraries.allowDelete')) return null;
-  return <LibraryGroup style={{marginTop: 4}}>
-    <LibraryRow first label={t('next.ownerLibraries.allowDeletion')} help={t('next.ownerLibraries.allowDeletionHelp')}
-      trailing={<Switch testID="owner-libraries-deletion" disabled={busy} checked={document.settings.allowMediaDeletion} accessibilityLabel={t('next.ownerLibraries.allowDeletion')} onCheckedChange={next => save({allowMediaDeletion: next})}/>}/>
-  </LibraryGroup>;
+  return <SettingsGroup style={{marginTop: 4}}>
+    <SettingsRow first label={t('next.ownerLibraries.allowDeletion')} description={t('next.ownerLibraries.allowDeletionHelp')}
+      control={<Switch testID="owner-libraries-deletion" disabled={busy} checked={document.settings.allowMediaDeletion} accessibilityLabel={t('next.ownerLibraries.allowDeletion')} onCheckedChange={next => save({allowMediaDeletion: next})}/>}/>
+  </SettingsGroup>;
 }
 
 function SkippedSheet({open, onOpenChange, state, t, scan, more}: {open: boolean; onOpenChange: (open: boolean) => void; state: NativeOwnerLibrariesSnapshot; t: Translate; scan: () => void; more: () => void}) {
@@ -456,7 +455,7 @@ function RemoveFolderSheet({open, onOpenChange, source, busy, error, t, remove}:
 }
 
 function RenameSheet({open, onOpenChange, library, busy, error, t, save}: {open: boolean; onOpenChange: (open: boolean) => void; library: ManagedLibrary; busy: boolean; error?: unknown; t: Translate; save: (name: string) => void}) {
-  const theme = useTheme(), [name, setName] = useState(library.name);
+  const [name, setName] = useState(library.name);
   useEffect(() => {if (open) setName(library.name);}, [open, library.name]);
   const valid = name.trim().length > 0 && name.trim() !== library.name;
   return <BottomSheet open={open} onOpenChange={next => onOpenChange(next)} title={t('next.ownerLibraries.renameTitle')}
