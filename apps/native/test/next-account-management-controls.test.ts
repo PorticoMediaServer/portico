@@ -182,6 +182,30 @@ test('touch server chooser receives the existing certificate store and confirmat
   } finally {await host.unmount();}
 });
 
+test('adding a server completes when publication withdraws the borrowed downloads entry', async () => {
+  const f = await fixture(); let tree: any, fallbackDownloads: any = {current: () => true}, completed = 0;
+  const host = createFabricHookHost(() => {tree = f.ServersRoute({fallbackDownloads, onComplete: () => {completed++;}});});
+  const add = () => nodes(tree).find(value => value.type === 'PhoneServerChooser').props.onAdd();
+  await act(() => host.mount());
+  try {
+    await act(add);
+    assert.equal(tree.type, 'AccountEntry');
+    const accepted = tree.props.onComplete;
+    assert.equal(tree.props.downloads, fallbackDownloads);
+    // Publishing the new selected profile retires the former profile's optional download entry.
+    fallbackDownloads = undefined; await act(() => host.rerender());
+    assert.equal(tree.props.downloads, undefined);
+    await act(accepted);
+    assert.equal(completed, 1, 'the completed sign-in must hand back to the shell');
+    await act(add);
+    const next = tree.props.onComplete;
+    await act(accepted);
+    assert.equal(completed, 1, 'a former add cannot complete a different add');
+    await act(next);
+    assert.equal(completed, 2);
+  } finally {await host.unmount();}
+});
+
 test('PIN cell presenter can edit New or Repeat without submitting and keeps the numeric native input', async () => {
   const {PhonePINEntry} = await screenModule(new URL('../src-next/screens/accounts/PhonePINEntry.tsx', import.meta.url), {
     react: {...React, default: React},

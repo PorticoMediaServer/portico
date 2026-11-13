@@ -549,7 +549,8 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
   const [addGeneration, setAddGeneration] = useState(0);
   type AddOpening = {active: boolean; generation: number; context?: NativeShellBootstrapContext; fallback?: AccountDownloadsEntry; downloads?: AccountDownloadsEntry; disposeDownloads?: () => void};
   const addOwner = useRef<AddOpening | undefined>(undefined), [committedAdd, setCommittedAdd] = useState<AddOpening>();
-  const panelRef = useRef(panel); panelRef.current = panel;
+  const panelRef = useRef(panel), addIntent = useRef({generation: addGeneration, context});
+  panelRef.current = panel; addIntent.current = {generation: addGeneration, context};
   if (addOwner.current && (panel !== 'add' || addOwner.current.context !== context || addOwner.current.generation !== addGeneration || addOwner.current.fallback !== fallbackDownloads)) addOwner.current.active = false;
   useLayoutEffect(() => {
     if (panel !== 'add') return;
@@ -583,7 +584,11 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
   const errorView = error ? <FormError placement="block">{presentError(error, 'account').body}</FormError> : null;
   const layout = (title: string, body?: string, before?: React.ReactNode, primary?: ReturnType<typeof action>, more?: React.ReactNode) => <StateLayout testID="accounts-servers" title={title} body={body}
     beforeActions={<>{before}{errorView}</>} primaryAction={primary} secondaryAction={panel !== 'servers' || onBack ? {id: 'back', label: t('action.back'), disabled: busy, onPress: cancel} : undefined}>{more}</StateLayout>;
-  if (panel === 'add') return <AccountEntry key={addGeneration} downloads={addCurrent() ? committedAdd?.downloads : undefined} onSetupComplete={onSetupComplete} initialStage="address" onBack={() => {if (addCurrent()) close();}} onComplete={() => {if (addCurrent()) {close(); onComplete?.();}}}/>;
+  if (panel === 'add') return <AccountEntry key={addGeneration} downloads={addCurrent() ? committedAdd?.downloads : undefined} onSetupComplete={onSetupComplete} initialStage="address" onBack={() => {if (addCurrent()) close();}} onComplete={() => {
+    // Successful publication can retire the borrowed Downloads entry before this callback.
+    if (!alive.current || panelRef.current !== 'add' || !addOwner.current || addIntent.current.generation !== addGeneration || addIntent.current.context !== context) return;
+    close(); onComplete?.();
+  }}/>;
   if (panel === 'sign-out-account') return layout(t('accounts.signOut.portico'), undefined, undefined,
     action('sign-out-account', t('action.signOut'), async () => {await nativeAccounts.signOutPorticoAccount(accountScope!); close(); onComplete?.();}));
   if (panel === 'consent-kind') return layout(t('settings.linkTV'), t('linkTV.enterCode'), <View style={{gap: 12, alignSelf: 'stretch', marginBottom: 20}}>
