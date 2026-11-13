@@ -4,7 +4,7 @@ import {passwordStrength} from '@core/password-strength.ts';
 import {Button} from '../controls/Button';
 import {TextField} from '../controls/Fields';
 import {Icon, type IconName} from '../Icon';
-import {AuthError, AuthLinks, AuthStage} from './AuthStage';
+import {AuthActions, AuthError, AuthLinks, AuthStage} from './AuthStage';
 import styles from './accounts.module.css';
 
 const t = defaultI18n.t;
@@ -95,8 +95,8 @@ export function InvitationUnavailable({otherAccount = false, onBack, onDifferent
     <div className={styles.invitationFailureIcon}><Icon name={otherAccount ? 'i-userx' : 'i-clock'} size={34} /></div>
     <h2>{t(otherAccount ? 'accounts.invitation.otherAccountTitle' : 'accounts.invitation.expiredTitle')}</h2>
     <p>{t(otherAccount ? 'web.directJoin.forAccount' : 'accounts.invitation.expiredBody')}</p>
-    {otherAccount && <Button variant="primary" onClick={onDifferentAccount}>{t('accounts.move.differentAccount')}</Button>}
-    <Button variant="glass" onClick={onBack}>{t('web.hostedAccount.back')}</Button>
+    <AuthActions>{otherAccount && <Button variant="primary" onClick={onDifferentAccount}>{t('accounts.move.differentAccount')}</Button>}
+    <Button variant="glass" onClick={onBack}>{t('web.hostedAccount.back')}</Button></AuthActions>
     {!otherAccount && <small>{t('accounts.invitation.expiryHelp')}</small>}
   </AuthStage>;
 }

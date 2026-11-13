@@ -61,9 +61,10 @@
 .signInLabel > span { grid-area: 1 / 1; transition: opacity var(--motion-quick) var(--ease-out); }
 .signInLabel > [aria-hidden="true"] { opacity: 0; }
 .form [data-variant="auth"]:has(input[aria-invalid="true"]) > div { box-shadow: inset 0 0 0 1.5px var(--color-danger); }
-.handoffSubmit { width: 100%; }
+.actions { display: flex; flex-direction: column; gap: 12px; align-self: stretch; }
+.actions > button { width: 100%; justify-content: center; }
 .links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 26px; margin-top: 22px; font-size: 15px; line-height: normal; font-weight: 700; }
-.links a, .links button { color: var(--color-accent-strong); text-decoration: none; background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+.links a, .links button { color: var(--color-accent-strong); text-decoration: none; background: none; border: 0; padding: 0; font: inherit; cursor: pointer; text-align: left; }
 .links [data-quiet] { color: var(--color-text-secondary); }
 .challengeHelp { margin: 12px 0 10px; color: var(--color-text-tertiary); font-size: 13px; line-height: 1.5; }
 .challengeHelp button { border: 0; padding: 0; background: none; color: var(--color-accent-strong); font: inherit; font-weight: 700; cursor: pointer; }

@@ -11,7 +11,7 @@ import type {BrowserAccountEntry} from '../../platform/account-entry';
 import {browserAppSessions} from '../../platform/server-connections';
 import {browserAccountOrigin} from '../../platform/account-origin';
 import {moveReconnected, rememberMoveReconnected} from '../../platform/move-reconnected';
-import {AuthError, AuthStage, LocalServerSignIn, PorticoServerSignIn} from '../../kit/accounts';
+import {AuthActions, AuthError, AuthStage, LocalServerSignIn, PorticoServerSignIn} from '../../kit/accounts';
 import {RequiredPasswordDialog} from '../../kit/accounts/RequiredSetup';
 import {ServerChallenge} from '../../kit/accounts/ServerChallenge';
 import {Button} from '../../kit/controls';
@@ -189,8 +189,8 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
   if (failure instanceof ApiError && failure.code === 'move_collision' && failure.current) return <AuthStage>
     <h1>{defaultI18n.t('accounts.move.collision')}</h1>
     <p>{defaultI18n.t('accounts.move.collisionBody', {server: failure.current.serverName, username: failure.current.existingUsername})}</p>
-    <Button variant="primary" disabled={busy} onClick={reauthenticate}>{defaultI18n.t('accounts.move.differentAccount')}</Button>
-    <Button variant="ghost" disabled={busy} onClick={cancel}>{defaultI18n.t('action.back')}</Button>
+    <AuthActions><Button variant="primary" disabled={busy} onClick={reauthenticate}>{defaultI18n.t('accounts.move.differentAccount')}</Button>
+    <Button variant="ghost" disabled={busy} onClick={cancel}>{defaultI18n.t('action.back')}</Button></AuthActions>
   </AuthStage>;
   const moveMode = state.phase === 'move-local' ? 'local' : state.phase === 'move-portico' ? 'portico' : state.phase === 'move-code' ? 'code'
     : memberView && currentMember && (memberView.mode === 'old-password' ? state.phase === 'portico' : state.phase === 'password' || state.phase === 'portico') ? memberView.mode : undefined;
@@ -224,7 +224,7 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
     <p role="status">{defaultI18n.t(state.phase === 'profiles' || state.phase === 'ready' ? 'auth.loadingProfiles' : 'status.loading')}</p>
   </AuthStage>;
   // Never an empty page: with nothing to say, Switch server is still offered.
-  return <AuthStage legal={false}><AuthError error={failure} />{Boolean(failure) && <Button onClick={reauthenticate}>{defaultI18n.t('action.tryAgain')}</Button>}
-    <Button onClick={cancel}>{defaultI18n.t('settings.switchServer')}</Button>
+  return <AuthStage legal={false}><AuthError error={failure} /><AuthActions>{Boolean(failure) && <Button onClick={reauthenticate}>{defaultI18n.t('action.tryAgain')}</Button>}
+    <Button onClick={cancel}>{defaultI18n.t('settings.switchServer')}</Button></AuthActions>
   </AuthStage>;
 }

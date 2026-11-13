@@ -4,7 +4,7 @@ import type {IdentityProvider} from '@core/hosted-security.ts';
 import {passwordStrength} from '@core/password-strength.ts';
 import {presentError} from '@core/presentation/errors.ts';
 import {Icon, type IconName} from '../Icon';
-import {AuthStage} from './AuthStage';
+import {AuthActions, AuthStage} from './AuthStage';
 import {ProfileAvatarFace} from '../shell/AccountSurfaces';
 import styles from './services-auth.module.css';
 
@@ -39,7 +39,7 @@ export function ServicesStrength({password, id}: {password: string; id: string})
     {label && <span>{label}</span>}
   </div>;
 }
-export function ServicesActions({children}: {children: ReactNode}) { return <div className={styles.actions}>{children}</div>; }
+export function ServicesActions({children}: {children: ReactNode}) { return <AuthActions className={styles.actions}>{children}</AuthActions>; }
 export function ServicesLabel({children, detail}: {children: ReactNode; detail?: ReactNode}) { return <span className={styles.label}>{children}{detail && <small>{detail}</small>}</span>; }
 export function ServicesStateIcon({tone = 'success', icon = 'i-check', size = 34}: {tone?: 'success' | 'warning' | 'error' | 'info'; icon?: IconName; size?: number}) {
   return <span className={styles.stateIcon} data-tone={tone}><Icon name={icon} size={size} /></span>;

@@ -72,8 +72,7 @@
 .signup .lead { margin-bottom: 22px; }
 .quiet { font-size: 13.5px; line-height: 1.5; color: var(--color-text-tertiary); margin: 18px 0 0; }
 .quiet a { color: var(--color-text-secondary); font-weight: 700; text-decoration: none; }
-.actions { display: flex; flex-direction: column; gap: 12px; }
-.actions > button { width: 100%; justify-content: center; }
+/* The stack itself is AuthActions; the Portico Account pages add only their dimmed disabled primary. */
 .actions > button[data-variant="primary"]:disabled:not([aria-busy="true"]) { background: rgba(237,245,250,.16); color: var(--color-text-tertiary); }
 .reset form > .actions { margin-top: 8px; }
 .backLink { margin-top: 18px; font-size: 15px; line-height: normal; font-weight: 700; }

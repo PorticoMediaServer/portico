@@ -6,7 +6,7 @@ import {router} from '../../router';
 import {profileSettingsDestination} from '../../route-registry-destination';
 import {hasTwoStepSetup} from '../../platform/two-step-continuation';
 import {createBrowserAccountEntry, type BrowserAccountEntry} from '../../platform/account-entry';
-import {AuthError, AuthStage} from '../../kit/accounts';
+import {AuthActions, AuthError, AuthStage} from '../../kit/accounts';
 import {Button} from '../../kit/controls';
 import {AccountIdentityFailure} from './AccountIdentityFailure';
 import {currentServedServerOrigin, forgetDestination} from '../../platform/served-origin';
@@ -48,8 +48,8 @@ function BoundProfiles({entry}: {entry: BrowserAccountEntry}) {
   });
   if (identityFailure) return <AccountIdentityFailure binding={identityFailure}/>;
   if (state.error && !state.snapshot) return <AuthStage legal={false}><AuthError error={state.error} />
-    <Button onClick={() => void entry.loadProfiles()}>{defaultI18n.t('action.tryAgain')}</Button>
-    <Button onClick={switchServer}>{defaultI18n.t('settings.switchServer')}</Button></AuthStage>;
+    <AuthActions><Button onClick={() => void entry.loadProfiles()}>{defaultI18n.t('action.tryAgain')}</Button>
+    <Button onClick={switchServer}>{defaultI18n.t('settings.switchServer')}</Button></AuthActions></AuthStage>;
   return <AccountProfilesView key={epoch} binding={binding} onSwitchServer={switchServer} focusProfileId={focus} />;
 }
 export default defineWebScreen({id: 'profiles', component: ProfilesScreen, chrome: 'standalone'});
