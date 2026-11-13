@@ -355,9 +355,23 @@ static NSString *PorticoSafeFileName(NSString *value) {
   entry[@"dir"] = [self directoryFor:identifier].absoluteString;
   entry[@"publicationGeneration"] = [self publicationGeneration:identifier].value;
   [entry removeObjectForKey:@"grantUrl"];
+  if (entry[@"files"]) {
+    NSMutableArray *files=[NSMutableArray new];
+    for (NSDictionary *part in entry[@"files"]) { NSMutableDictionary *copy=[part mutableCopy]; [copy removeObjectForKey:@"url"]; [files addObject:copy]; }
+    entry[@"files"]=files;
+  }
   [entry removeObjectForKey:@"retargeted"];
   [entry removeObjectForKey:@"resumed"];
   return entry;
+}
+- (NSMutableDictionary *)currentFile:(NSMutableDictionary *)entry {
+  NSArray *files=entry[@"files"]; NSUInteger index=[entry[@"fileIndex"] unsignedIntegerValue];
+  return index<files.count ? files[index] : entry;
+}
+- (double)bytesBefore:(NSDictionary *)entry {
+  NSArray *files=entry[@"files"]; double bytes=0;
+  for (NSUInteger i=0;i<MIN(files.count,[entry[@"fileIndex"] unsignedIntegerValue]);i++) bytes+=[files[i][@"bytes"] doubleValue];
+  return bytes;
 }
 - (BOOL)saveManifest {
   // An unread manifest is never replaced by what little this launch knows.
@@ -412,8 +426,8 @@ static NSString *PorticoSafeFileName(NSString *value) {
   dispatch_async(_queue, ^{ [self ifLoaded:^{
     NSMutableDictionary *entry = self->_entries[identifier];
     if (!PorticoDownloadAcceptsTask(entry, task.taskIdentifier)) return;
-    entry[@"bytesDone"] = @(total);
-    if (expected > 0) entry[@"bytes"] = @(expected);
+    entry[@"bytesDone"] = @([self bytesBefore:entry]+total);
+    if (!entry[@"files"] && expected > 0) entry[@"bytes"] = @(expected);
     entry[@"state"] = @"downloading";
     BOOL waited = [entry[@"waiting"] length] > 0;
     entry[@"waiting"] = @"";
@@ -496,18 +510,19 @@ static NSString *PorticoSafeFileName(NSString *value) {
   NSMutableDictionary *entry = self->_entries[identifier];
   if (!entry || [entry[@"state"] isEqual:@"ready"]) { [[NSFileManager defaultManager] removeItemAtURL:holding error:nil]; return; }
   [self retirePublicationGeneration:identifier];
-  NSString *expected = [entry[@"sha256"] isKindOfClass:NSString.class] ? entry[@"sha256"] : @"";
+  NSMutableDictionary *part=[self currentFile:entry];
+  NSString *expected = [part[@"sha256"] isKindOfClass:NSString.class] ? part[@"sha256"] : @"";
   NSString *actual = [self digestOf:holding];
   NSNumber *length = nil; [holding getResourceValue:&length forKey:NSURLFileSizeKey error:nil];
-  if (actual.length != 64 || ![length isEqualToNumber:entry[@"bytes"]] || (expected.length && ![actual isEqualToString:expected.lowercaseString])) {
+  if (actual.length != 64 || ![length isEqualToNumber:part[@"bytes"]] || (expected.length && ![actual isEqualToString:expected.lowercaseString])) {
     [[NSFileManager defaultManager] removeItemAtURL:holding error:nil];
     [[NSFileManager defaultManager] removeItemAtURL:[self resumeURLFor:identifier] error:nil];
     entry[@"state"] = @"failed"; entry[@"error"] = @"verification_failed"; entry[@"waiting"] = @"";
     [self saveManifest]; [self changed:identifier force:YES];
     return;
   }
-  entry[@"sha256"] = actual;
-  NSURL *final = [[self directoryFor:identifier] URLByAppendingPathComponent:PorticoSafeFileName(entry[@"fileName"])];
+  if (!entry[@"files"]) entry[@"sha256"] = actual;
+  NSURL *final = [[self directoryFor:identifier] URLByAppendingPathComponent:PorticoSafeFileName(part[@"fileName"])];
   [[NSFileManager defaultManager] removeItemAtURL:final error:nil];
   if (![[NSFileManager defaultManager] moveItemAtURL:holding toURL:final error:nil]) {
     [[NSFileManager defaultManager] removeItemAtURL:holding error:nil];
@@ -529,8 +544,24 @@ static NSString *PorticoSafeFileName(NSString *value) {
   }
   [[NSFileManager defaultManager] removeItemAtURL:[self resumeURLFor:identifier] error:nil];
   NSNumber *size = [[NSFileManager defaultManager] attributesOfItemAtPath:final.path error:nil][NSFileSize];
+  NSArray *files=entry[@"files"];
+  if (files.count) {
+    part[@"actualSha256"]=actual; part[@"file"]=final.lastPathComponent;
+    NSUInteger next=[entry[@"fileIndex"] unsignedIntegerValue]+1;
+    if (next<files.count) {
+      entry[@"fileIndex"]=@(next); entry[@"bytesDone"]=@([self bytesBefore:entry]);
+      if ([self saveManifest]) { [self beginTransfer:entry identifier:identifier url:[NSURL URLWithString:files[next][@"url"]] resolve:^(id value) {}]; return; }
+      entry[@"state"]=@"failed"; entry[@"error"]=@"transfer_failed"; [self changed:identifier force:YES]; return;
+    }
+    NSMutableArray *rows=[NSMutableArray new];
+    for (NSMutableDictionary *file in files) { [rows addObject:[NSString stringWithFormat:@"%@:%@",file[@"bytes"],file[@"actualSha256"]]]; [file removeObjectForKey:@"url"]; }
+    NSData *record=[[rows componentsJoinedByString:@"\n"] dataUsingEncoding:NSUTF8StringEncoding];
+    unsigned char digest[CC_SHA256_DIGEST_LENGTH]; CC_SHA256(record.bytes,(CC_LONG)record.length,digest);
+    NSMutableString *hex=[NSMutableString new]; for (int i=0;i<CC_SHA256_DIGEST_LENGTH;i++) [hex appendFormat:@"%02x",digest[i]];
+    entry[@"sha256"]=hex; entry[@"file"]=files.firstObject[@"file"]; size=entry[@"bytes"];
+  } else entry[@"file"]=final.lastPathComponent;
   entry[@"state"] = @"ready"; entry[@"error"] = @""; entry[@"waiting"] = @""; entry[@"bytes"] = size ?: @0; entry[@"bytesDone"] = size ?: @0;
-  entry[@"file"] = final.lastPathComponent; entry[@"completedAt"] = @((long long)(NSDate.date.timeIntervalSince1970 * 1000));
+   entry[@"completedAt"] = @((long long)(NSDate.date.timeIntervalSince1970 * 1000));
   // SEC-22: the address has done its job; a finished download keeps no token.
   [entry removeObjectForKey:@"grantUrl"];
   if (![self saveManifest]) {
@@ -618,7 +649,8 @@ static NSString *PorticoSafeFileName(NSString *value) {
 - (void)start:(NSDictionary *)request resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
   NSString *identifier = request[@"id"];
   NSURL *url = [request[@"url"] isKindOfClass:NSString.class] ? [NSURL URLWithString:request[@"url"]] : nil;
-  if (!PorticoSafeIdentifier(identifier) || !url || !([url.scheme isEqual:@"https"] || [url.scheme isEqual:@"http"])) { reject(@"invalid_download", @"The download request is invalid.", nil); return; }
+  if (!PorticoSafeIdentifier(identifier) || !url || !([url.scheme isEqual:@"https"] || [url.scheme isEqual:@"http"]) ||
+      (request[@"files"] && !PorticoDownloadValidFiles(request[@"files"]))) { reject(@"invalid_download", @"The download request is invalid.", nil); return; }
   // Continue and retry both arrive here, so an earlier task for the same
   // download is ended first: two tasks writing one file is worse than starting
   // again. Cancelling without resume data is deliberate — the blob below is the
@@ -633,6 +665,7 @@ static NSString *PorticoSafeFileName(NSString *value) {
 // same owner turn. No queued continuation may recreate an absent or replaced entry.
 - (void)resume:(NSDictionary *)request resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
   NSString *identifier = request[@"id"];
+  if (request[@"files"] && !PorticoDownloadValidFiles(request[@"files"])) { reject(@"invalid_download", @"The download request is invalid.", nil); return; }
   NSString *generation = [request[@"expectedGeneration"] isKindOfClass:NSString.class] ? request[@"expectedGeneration"] : nil;
   if (!PorticoSafeIdentifier(identifier) || ![self isGeneration:generation currentFor:identifier]
       || [self->_entries[identifier][@"state"] isEqual:@"removed"]) {
@@ -654,9 +687,33 @@ static NSString *PorticoSafeFileName(NSString *value) {
   NSMutableDictionary *entry = self->_entries[identifier] ?: [NSMutableDictionary new];
   if ([entry[@"state"] isEqual:@"ready"]) { self->_entries[identifier] = entry; resolve([self published:identifier]); return; }
   [self retirePublicationGeneration:identifier];
-  // The bytes already fetched belong to one exact file.
-  NSString *wanted = [request[@"sha256"] isKindOfClass:NSString.class] ? [request[@"sha256"] lowercaseString] : @"";
-  BOOL sameFile = wanted.length ? [entry[@"sha256"] isKindOfClass:NSString.class] && [[entry[@"sha256"] lowercaseString] isEqual:wanted] : [request[@"sourceId"] isKindOfClass:NSString.class] && [request[@"sourceId"] length] > 0 && [entry[@"sourceId"] isEqual:request[@"sourceId"]] && [entry[@"bytes"] isEqual:request[@"bytes"]];
+  NSDictionary *previousFile=[[self currentFile:entry] copy];
+  if (request[@"files"]) {
+    NSArray *incoming=request[@"files"], *old=entry[@"files"];
+    BOOL same=old.count==incoming.count;
+    for (NSUInteger n=0;same && n<incoming.count;n++) for (NSString *key in @[@"sourceId",@"bytes",@"sha256",@"fileName"]) if (![old[n][key] isEqual:incoming[n][key]]) same=NO;
+    if (!same) { for (NSDictionary *file in old) [[NSFileManager defaultManager] removeItemAtURL:[[self directoryFor:identifier] URLByAppendingPathComponent:PorticoSafeFileName(file[@"fileName"])] error:nil];
+      [[NSFileManager defaultManager] removeItemAtURL:[self resumeURLFor:identifier] error:nil]; entry[@"fileIndex"]=@0; }
+    NSMutableArray *files=[NSMutableArray new];
+    for (NSUInteger n=0;n<incoming.count;n++) { NSMutableDictionary *file=[incoming[n] mutableCopy];
+      if (same) for (NSString *key in @[@"actualSha256",@"file"]) if (old[n][key]) file[key]=old[n][key]; [files addObject:file]; }
+    entry[@"files"]=files;
+    for (NSUInteger n=0;n<[entry[@"fileIndex"] unsignedIntegerValue];n++) {
+      NSDictionary *part=files[n]; NSURL *path=[[self directoryFor:identifier] URLByAppendingPathComponent:PorticoSafeFileName(part[@"file"])];
+      NSNumber *size=[[NSFileManager defaultManager] attributesOfItemAtPath:path.path error:nil][NSFileSize];
+      if (![size isEqual:part[@"bytes"]]) { entry[@"fileIndex"]=@(n); [[NSFileManager defaultManager] removeItemAtURL:[self resumeURLFor:identifier] error:nil]; break; }
+    }
+  } else if (entry[@"files"]) {
+    for (NSDictionary *part in entry[@"files"]) [[NSFileManager defaultManager] removeItemAtURL:[[self directoryFor:identifier] URLByAppendingPathComponent:PorticoSafeFileName(part[@"fileName"])] error:nil];
+    [entry removeObjectForKey:@"files"]; [entry removeObjectForKey:@"fileIndex"];
+    [[NSFileManager defaultManager] removeItemAtURL:[self resumeURLFor:identifier] error:nil];
+  }
+  NSDictionary *file=request[@"files"] ? [self currentFile:entry] : request;
+  if (request[@"files"]) url=[NSURL URLWithString:file[@"url"]];
+  // Resume bytes belong to the current part, not the title's aggregate size.
+  NSString *wanted = [file[@"sha256"] isKindOfClass:NSString.class] ? [file[@"sha256"] lowercaseString] : @"";
+  BOOL sameFile = wanted.length ? [previousFile[@"sha256"] isKindOfClass:NSString.class] && [[previousFile[@"sha256"] lowercaseString] isEqual:wanted] :
+    [file[@"sourceId"] isKindOfClass:NSString.class] && [file[@"sourceId"] length]>0 && [previousFile[@"sourceId"] isEqual:file[@"sourceId"]] && [previousFile[@"bytes"] isEqual:file[@"bytes"]];
   for (NSString *key in @[@"itemId", @"title", @"subtitle", @"quality", @"fileName", @"sha256", @"sourceId", @"contentType", @"meta"]) if ([request[key] isKindOfClass:NSString.class]) entry[key] = request[key];
   entry[@"id"] = identifier;
   entry[@"bytes"] = [request[@"bytes"] isKindOfClass:NSNumber.class] ? request[@"bytes"] : @0;
@@ -692,13 +749,13 @@ static NSString *PorticoSafeFileName(NSString *value) {
       resume = nil;
     }
   }
-  if (!resume.length) entry[@"bytesDone"] = @0;
+  if (!resume.length) entry[@"bytesDone"] = @([self bytesBefore:entry]);
   entry[@"grantUrl"] = address;
   NSURLSessionDownloadTask *task = resume.length ? [[self session] downloadTaskWithResumeData:resume] : nil;
   BOOL resumed = task != nil;
   // Resume data the system will not take (a moved one included) is let go: the transfer begins again.
   if (!task) {
-    if (resume.length) { [[NSFileManager defaultManager] removeItemAtURL:resumeURL error:nil]; entry[@"bytesDone"] = @0; [entry removeObjectForKey:@"retargeted"]; }
+    if (resume.length) { [[NSFileManager defaultManager] removeItemAtURL:resumeURL error:nil]; entry[@"bytesDone"] = @([self bytesBefore:entry]); [entry removeObjectForKey:@"retargeted"]; }
     task = [[self session] downloadTaskWithRequest:[self requestFor:url]];
     entry[@"cellularAllowed"] = @(self->_cellular);
   }
@@ -709,7 +766,7 @@ static NSString *PorticoSafeFileName(NSString *value) {
   entry[@"taskIdentifier"] = @(task.taskIdentifier);
   self->_activeTasks[identifier] = task;
   task.taskDescription = identifier;
-  if ([request[@"bytes"] isKindOfClass:NSNumber.class]) task.countOfBytesClientExpectsToReceive = [request[@"bytes"] longLongValue];
+  if ([file[@"bytes"] isKindOfClass:NSNumber.class]) task.countOfBytesClientExpectsToReceive = [file[@"bytes"] longLongValue];
   [task resume];
   [self saveManifest]; [self changed:identifier force:YES];
   resolve([self published:identifier]);
@@ -1137,6 +1194,42 @@ static BOOL PorticoPublicationStateName(NSString *name) {
     if (![entry[@"state"] isEqual:@"ready"] || ![file isKindOfClass:NSString.class]) { reject(@"not_ready", @"This download is not ready to play.", nil); return; }
     NSURL *url = [[self directoryFor:identifier] URLByAppendingPathComponent:PorticoSafeFileName(file)];
     if (![[NSFileManager defaultManager] fileExistsAtPath:url.path]) { reject(@"missing_file", @"This download’s file is missing. Remove it and download it again.", nil); return; }
+    NSArray *files=entry[@"files"];
+    if (files.count) {
+      BOOL converted=![entry[@"quality"]isEqual:@"original"];
+      NSMutableArray<NSURL *> *urls=[NSMutableArray new];
+      NSMutableArray<NSNumber *> *lengths=[NSMutableArray new];
+      NSMutableArray<AVURLAsset *> *assets=[NSMutableArray new];
+      dispatch_group_t reads=dispatch_group_create();
+      for (NSDictionary *part in files) {
+        NSURL *partURL=[[self directoryFor:identifier] URLByAppendingPathComponent:PorticoSafeFileName(part[@"file"])];
+        NSNumber *size=[[NSFileManager defaultManager] attributesOfItemAtPath:partURL.path error:nil][NSFileSize];
+        if (![size isEqualToNumber:part[@"bytes"]]) { reject(@"missing_file", @"This download’s file is missing. Remove it and download it again.", nil); return; }
+        [urls addObject:partURL]; [lengths addObject:@([part[converted?@"measuredDurationSeconds":@"durationSeconds"] doubleValue])];
+      }
+      for (NSUInteger n=0;n<files.count;n++) if (lengths[n].doubleValue<=0) {
+        AVURLAsset *asset=[AVURLAsset URLAssetWithURL:urls[n] options:nil]; [assets addObject:asset];
+        dispatch_group_enter(reads);
+        [asset loadValuesAsynchronouslyForKeys:@[@"duration"] completionHandler:^{
+          double duration=CMTimeGetSeconds(asset.duration)-(converted?0:[files[n][@"startSeconds"] doubleValue]);
+          dispatch_async(self->_queue,^{ lengths[n]=@(isfinite(duration) ? MAX(0,duration) : 0); dispatch_group_leave(reads); });
+        }];
+      }
+      dispatch_group_notify(reads,self->_queue,^{
+        (void)assets; NSMutableArray *parts=[NSMutableArray new]; double at=0;
+        for (NSUInteger n=0;n<files.count;n++) {
+          NSMutableDictionary *part=files[n]; double offset=!converted&&part[@"offsetSeconds"] ? [part[@"offsetSeconds"] doubleValue] : at;
+          if(converted)part[@"measuredDurationSeconds"]=lengths[n];
+          NSMutableDictionary *local=[@{@"url":urls[n].absoluteString,@"offsetSeconds":@(offset),@"durationSeconds":lengths[n],@"startSeconds":@([part[@"startSeconds"] doubleValue])} mutableCopy];
+          if (part[@"endSeconds"]) local[@"endSeconds"]=part[@"endSeconds"];
+          if(converted&&part[@"offsetSeconds"])local[@"sourceOffsetSeconds"]=part[@"offsetSeconds"]; [parts addObject:local];
+          at=offset+lengths[n].doubleValue;
+        }
+        if(converted&&self->_entries[identifier]==entry)[self saveManifest];
+        resolve(@{@"url":urls.firstObject.absoluteString,@"durationSeconds":@(at),@"parts":parts});
+      });
+      return;
+    }
     // The player's timeline needs the length before the first frame, so read it from the file.
     AVURLAsset *asset = [AVURLAsset URLAssetWithURL:url options:nil];
     [asset loadValuesAsynchronouslyForKeys:@[@"duration"] completionHandler:^{

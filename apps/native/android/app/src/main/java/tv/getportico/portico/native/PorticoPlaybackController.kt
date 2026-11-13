@@ -106,6 +106,7 @@ internal class PorticoPlaybackController(private val context: Context) {
   private var currentBinding: Map<String, Any?>? = null
   private var command: Map<String, Any?>? = null
   private var source: String? = null
+  private var downloadedParts = emptyList<PorticoLocalPart>()
   private var intentId = 0L
   private var itemInstanceId = ""
   private var desiredPaused = true
@@ -289,6 +290,9 @@ internal class PorticoPlaybackController(private val context: Context) {
     if (lease == null || bound["lease"] != lease) return "Playback lease is no longer active."
     if (command["paused"] !is Boolean) return "Invalid paused flag."
     val next = command["source"] as? String
+    val nextParts = try { PorticoLocalParts.read(command["localParts"], next ?: "") { address ->
+      parse(address)?.let { PorticoMpvSupport.allowedLocalSource(context, it) } == true
+    } } catch (_: Exception) { return "Invalid downloaded files." }
     val rate = number(command["rate"])
     if (next == null || rate == null) return "Invalid playback command."
     for (field in listOf("intentId", "generation")) if (!positiveInteger(bound[field])) return "Invalid playback binding."
@@ -354,6 +358,7 @@ internal class PorticoPlaybackController(private val context: Context) {
     timelineOriginMs = if (linear) number(clock) else null
     commandRevision = revision
     currentBinding = bound
+    downloadedParts = nextParts
     apply(command)
     attachmentListeners.toList().forEach { it() }
     return null
@@ -603,6 +608,8 @@ internal class PorticoPlaybackController(private val context: Context) {
     audioSources.remove(engine)
     if (original != null) audioSources[engine] = original
     val mediaItem = MediaItem.Builder().setUri(url).setTag(original).build()
+    val parts = downloadedParts
+
     itemInstanceId = UUID.randomUUID().toString()
     hasPlayed = false
     previousProgress = Double.NaN
@@ -623,6 +630,17 @@ internal class PorticoPlaybackController(private val context: Context) {
     val resuming = (number(listeningSeek?.get("positionSeconds")) ?: 0.0) > 0
     val wanted = index != null && PorticoSeekIndex.cached(address) == null && (start != C.TIME_UNSET || routeResume || resuming || index.container == "adts")
     unindexedMedia = null
+    if (parts.isNotEmpty()) {
+      val items = parts.map { part ->
+        val clip = MediaItem.ClippingConfiguration.Builder().setStartPositionMs((part.start * 1000).toLong())
+        part.end?.let { clip.setEndPositionMs((it * 1000).toLong()) }
+        MediaItem.Builder().setUri(part.url).setClippingConfiguration(clip.build()).build()
+      }
+      val (item, position) = PorticoLocalParts.target(parts, if (start == C.TIME_UNSET) 0.0 else start / 1000.0)
+      engine.setMediaItems(items, item, position)
+      engine.prepare()
+      return
+    }
     if (!wanted) {
       engine.setMediaItem(mediaItem, start)
       engine.prepare()
@@ -952,8 +970,12 @@ internal class PorticoPlaybackController(private val context: Context) {
       engine.prepare()
       return
     }
-    engine.seekTo(position)
+    val parts = localParts()
+    if (parts.isEmpty()) engine.seekTo(position)
+    else { val (item, at) = PorticoLocalParts.target(parts, target); engine.seekTo(item, at) }
   }
+
+  private fun localParts() = downloadedParts
 
   private fun finishSeek() {
     val wait = seekWait ?: return
@@ -1403,7 +1425,7 @@ internal class PorticoPlaybackController(private val context: Context) {
       val start = windowStartMs(engine) ?: return Double.NaN
       return (start + engine.currentPosition - origin) / 1000.0
     }
-    return engine.currentPosition / 1000.0
+    return (localParts().getOrNull(engine.currentMediaItemIndex)?.offset ?: 0.0) + engine.currentPosition / 1000.0
   }
 
   private fun windowStartMs(engine: ExoPlayer): Long? {
@@ -1476,7 +1498,7 @@ internal class PorticoPlaybackController(private val context: Context) {
     override fun run() {
       if (!ticking) return
       val engine = player
-      if (engine != null && subtitles.overlayActive && engine.currentMediaItem != null) subtitles.tick(engine.currentPosition * 1000)
+      if (engine != null && subtitles.overlayActive && engine.currentMediaItem != null) subtitles.tick(if (downloadedParts.isEmpty()) engine.currentPosition * 1000 else (PorticoLocalParts.sourceTime(downloadedParts, sourcePosition()) * 1_000_000).toLong())
       main.postDelayed(this, 50)
     }
   }

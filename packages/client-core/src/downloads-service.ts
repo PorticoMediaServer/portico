@@ -24,7 +24,7 @@ export function downloadCopyReference(id: string): {downloadId: string; itemId: 
   if (end < 1 || !Number.isSafeInteger(length) || length < 1 || length >= rest.length || !/^[A-Za-z0-9_-]+$/.test(rest)) throw new Error(unreadableServerResponse);
   return {downloadId: rest.slice(0, length), itemId: rest.slice(length)};
 }
-const titleFacts = (title: ServerTitle): DownloadTitle => ({kind: title.kind === 'book' ? 'ebook' : title.kind === 'audiobook' ? 'book' : title.kind === 'track' ? 'song' : title.kind === 'issue' ? 'comic' : title.kind, title: title.title, parentTitle: title.parentTitle ?? '', parentId: '', groupId: '', groupTitle: '', groupNumber: title.seasonNumber ?? null, number: title.episodeNumber ?? null, artist: title.artist ?? '', year: 0, durationSeconds: 0, onServer: true});
+const titleFacts = (title: ServerTitle): DownloadTitle => ({kind: title.kind === 'book' ? 'ebook' : title.kind === 'audiobook' ? 'audiobook_file' : title.kind === 'track' ? 'song' : title.kind === 'issue' ? 'comic' : title.kind, title: title.title, parentTitle: title.parentTitle ?? '', parentId: '', groupId: '', groupTitle: '', groupNumber: title.seasonNumber ?? null, number: title.episodeNumber ?? null, artist: title.artist ?? '', year: 0, durationSeconds: 0, onServer: true});
 export function downloadPreparation(download: Download, title: ServerTitle, profileId = ''): DownloadPreparation {
   const state = download.paused ? 'paused' : title.state === 'waiting' ? 'queued' : title.state === 'preparing' ? 'running' : title.state === 'leftOut' ? 'unavailable' : title.state === 'ready' || title.state === 'expired' || title.state === 'failed' ? title.state : 'queued';
   const total = title.sizeBytes ?? title.totalBytes ?? 0, done = title.doneBytes ?? 0;
@@ -42,16 +42,29 @@ function requestFacts(download: Download, profileId: string): DownloadRequest {
     items: (download.items ?? []).map(title => ({itemId: title.itemId, reason: title.reason, preparation: downloadPreparation(download, title, profileId)})), nextCursor: ''};
 }
 export function downloadedBundle(copyId: string, downloaded: DownloadedItem): DownloadBundle {
-  const item = downloaded.item;
+  const item = downloaded.item, version = item.versions?.find(v => v.id === downloaded.versionId);
+  const groups = new Map<string, typeof downloaded.subtitles>();
+  const perPart = new Map<string, number>();
+  for (const subtitle of downloaded.subtitles.filter(s => s.url)) {
+    // Converted files carry a separate plain caption file for each part. A language/role
+    // remains one choice through the title, including repeated tracks in the same language.
+    const facts = JSON.stringify([subtitle.language, subtitle.title, subtitle.forced, subtitle.sdh]);
+    const countKey = `${subtitle.part}:${facts}`, ordinal = perPart.get(countKey) ?? 0;
+    perPart.set(countKey, ordinal + 1);
+    const key = subtitle.part && subtitle.format === 'vtt' ? `${facts}:${ordinal}` : subtitle.id;
+    const group = groups.get(key) ?? []; group.push(subtitle); groups.set(key, group);
+  }
   return {preparationId: copyId, itemId: item.id, quality: downloaded.quality, qualityLabel: downloaded.quality,
     title: {...titleFacts({itemId: item.id, kind: item.kind, title: item.title, state: 'ready'}), year: item.year ?? 0, durationSeconds: (item.durationMs ?? 0) / 1000, parentId: item.parentId ?? '', parentTitle: item.parent?.title ?? ''}, overview: item.summary ?? '',
     media: {container: downloaded.files[0]?.container ?? '', videoCodec: '', audioCodec: '', width: 0, height: 0}, artwork: [],
     chapters: downloaded.chapters.map((c, index) => ({index, title: c.title ?? '', startSeconds: c.startMs / 1000, endSeconds: (downloaded.chapters[index + 1]?.startMs ?? item.durationMs ?? c.startMs) / 1000})),
     markers: downloaded.markers.map(m => ({kind: m.type, startSeconds: m.startMs / 1000, endSeconds: m.endMs / 1000, automatic: m.automaticSafe})),
     audio: downloaded.audio.map((a, index) => ({index: Number(a.id) || index, language: a.language ?? '', title: a.title ?? '', codec: a.codec, channels: a.channels ?? 0, default: a.default ?? false})),
-    subtitles: downloaded.subtitles.filter(s => s.url).map(s => {
+    subtitles: [...groups.values()].map(group => {
+      const s = group[0]!;
       const form = s.format === 'srt' ? 'vtt' : s.format === 'ssa' ? 'ass' : s.format === 'sup' ? 'pgs' : s.format;
-      return {id: s.id, revision: 1, language: s.language ?? '', title: s.title ?? '', default: s.default, forced: s.forced, files: {[form]: {path: s.url!, contentType: 'application/octet-stream'}}};
+      return {id: s.id, revision: 1, language: s.language ?? '', title: s.title ?? '', default: s.default, forced: s.forced, files: {[form]: {path: s.url!, contentType: 'application/octet-stream'}},
+        ...(s.part ? {partFiles: group.map(part => ({path: part.url!, offsetSeconds: (version?.parts[(part.part ?? 1) - 1]?.offsetMs ?? 0) / 1000}))} : {})};
     })};
 }
 
@@ -167,11 +180,23 @@ export class DownloadsService {
   }
   async grant(preparation: Pick<DownloadPreparation, 'id'>, _renew?: string): Promise<DownloadGrant> {
     const {downloadId, itemId} = downloadCopyReference(preparation.id), downloaded = await readDownloadedItem(this.api, downloadId, itemId, this.lifetime.signal);
-    if (downloaded.files.length !== 1) throw Object.assign(new Error(downloadReasonMessage('several_files')), {code: 'several_files'});
-    const f = downloaded.files[0];
-    if (!Number.isSafeInteger(f.sizeBytes) || f.sizeBytes < 1 || !downloaded.versionId || downloaded.quality !== 'original' && !/^[a-f0-9]{64}$/.test(f.sha256 ?? '')) throw new Error(unreadableServerResponse);
-    return {preparationId: preparation.id, itemId, url: f.url, token: '', issuedAt: '', expiresAt: '', renewAfterSeconds: 0, renewed: false,
-      artifact: {kind: downloaded.quality === 'original' ? 'source' : 'prepared', ref: downloaded.versionId, sha256: f.sha256 ?? '', bytes: f.sizeBytes, estimated: false, container: f.container ?? '', fileName: `${downloaded.item.title}.${f.container ?? 'bin'}`, contentType: ''}};
+    if (!downloaded.files.length || !downloaded.versionId) throw new Error(unreadableServerResponse);
+    const version = downloaded.item.versions?.find(v => v.id === downloaded.versionId);
+    const files = downloaded.files.map((f, index) => {
+      if (!Number.isSafeInteger(f.sizeBytes) || f.sizeBytes < 1 || downloaded.quality !== 'original' && !/^[a-f0-9]{64}$/.test(f.sha256 ?? '')) throw new Error(unreadableServerResponse);
+      const part = version?.parts[index], offset = part?.offsetMs, end = version?.parts[index + 1]?.offsetMs ?? version?.durationMs;
+      return {url: f.url, artifact: {kind: downloaded.quality === 'original' ? 'source' as const : 'prepared' as const, ref: downloaded.versionId,
+        sha256: f.sha256 ?? '', bytes: f.sizeBytes, estimated: false, container: f.container ?? '',
+        fileName: downloaded.files.length > 1 ? `part-${String(index + 1).padStart(4, '0')}.${f.container ?? 'bin'}` : `${downloaded.item.title}.${f.container ?? 'bin'}`, contentType: ''},
+        ...(offset !== undefined ? {offsetSeconds: offset / 1000} : {}),
+        ...(offset !== undefined && end !== undefined && end > offset ? {durationSeconds: (end - offset) / 1000} : part?.durationMs ? {durationSeconds: part.durationMs / 1000} : {}),
+        ...(downloaded.quality === 'original' && part?.startMs !== undefined ? {startSeconds: part.startMs / 1000} : {}),
+        ...(downloaded.quality === 'original' && part?.endMs !== undefined ? {endSeconds: part.endMs / 1000} : {})};
+    });
+    const bytes = files.reduce((total, file) => total + file.artifact.bytes, 0);
+    if (!Number.isSafeInteger(bytes)) throw new Error(unreadableServerResponse);
+    return {preparationId: preparation.id, itemId, url: files[0]!.url, token: '', issuedAt: '', expiresAt: '', renewAfterSeconds: 0, renewed: false,
+      artifact: files.length === 1 ? files[0]!.artifact : {...files[0]!.artifact, bytes, sha256: ''}, files};
   }
   async bundle(preparation: Pick<DownloadPreparation, 'id'>, signal?: AbortSignal): Promise<DownloadBundle> {
     const {downloadId, itemId} = downloadCopyReference(preparation.id); return downloadedBundle(preparation.id, await readDownloadedItem(this.api, downloadId, itemId, signal));

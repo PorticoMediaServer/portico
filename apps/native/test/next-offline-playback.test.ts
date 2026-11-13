@@ -184,3 +184,19 @@ test('a server-next copy uses the actual native artifact and current viewer perm
   x.setEntries([{...entry, owner: 'another viewer'}]);
   await assert.rejects(x.owner.prepare(entry, () => true));
 });
+
+
+test('multipart local media keeps one whole-title session and never lends its files to another owner', async () => {
+  const x = setup();
+  const parts = [{url: x.media.fileUrl, offsetSeconds: 0, durationSeconds: 100, startSeconds: 0},
+    {url: 'file:///private/Downloads/copy/part-2.mp4', offsetSeconds: 100, durationSeconds: 500, startSeconds: 2}];
+  x.setLoad(async () => ({...x.media, parts}));
+  const source = await x.owner.prepare(x.entry, () => true), session = source.session();
+  assert.equal(session.duration, 600); assert.equal(session.resumeSeconds, 42);
+  assert.deepEqual(x.owner.mediaParts(session), parts);
+  await x.api.localPlayback.progressPlayback(session.id, {...observed, positionSeconds: 130});
+  assert.equal(x.progress[0]?.positionSeconds, 130); assert.deepEqual(x.network, []);
+  x.setSession({...x.getSession()!, viewer: {...x.getSession()!.viewer, profileId: 'other'}});
+  assert.equal(x.owner.mediaParts(session), undefined);
+  x.owner.dispose();
+});

@@ -215,7 +215,11 @@ class PorticoDownloads(context: ReactApplicationContext) : PorticoEventModule(co
     val file = fileOr(identifier, promise) ?: return@post
     val result = Arguments.createMap()
     result.putString("url", Uri.fromFile(file).toString())
-    result.putDouble("durationSeconds", PorticoDownloadCenter.durationSeconds(file))
+    val parts = PorticoDownloadCenter.localParts(identifier)
+    if (parts == null) { promise.reject("missing_file", "This download’s file is missing. Remove it and download it again."); return@post }
+    if (parts.isNotEmpty()) result.putArray("parts", Arguments.makeNativeArray(parts))
+    val duration = parts.lastOrNull()?.let { (it["offsetSeconds"] as Number).toDouble() + (it["durationSeconds"] as Number).toDouble() }
+    result.putDouble("durationSeconds", duration ?: PorticoDownloadCenter.durationSeconds(file))
     promise.resolve(result)
   }
   @ReactMethod fun publicationOpen(handle: String, identifier: String, owner: String, digest: String, promise: Promise) = PorticoDownloadCenter.post {

@@ -1,3 +1,4 @@
+import type {LocalPart} from '../../../platform/local-playback';
 import type {
   PlaybackService,
   PlaybackSnapshot,
@@ -5,6 +6,7 @@ import type {
 import {serviceText} from '../../../../../packages/client-core/src/presentation/service-text';
 import type {PassthroughFormats} from './passthrough-formats';
 const isLocalSource = (url: string | undefined): boolean => !!url && url.startsWith('file://');
+export type NativeMediaSource = string | Readonly<{url: string; localParts: readonly LocalPart[]}>;
 export type NativeLease = Readonly<{ lease: string; instanceId: string }>;
 export type NativeBinding = Readonly<{
   lease: string;
@@ -60,6 +62,7 @@ export class NativePlaybackCoordinator {
   private routeReady=true;
   private routeRevision=0;
   private routeSource='';
+  private routeParts?: readonly LocalPart[];
   private listeners = new Set<() => void>();
   private unsubscribe?: () => void;
   private unsubscribeFacts?: () => void;
@@ -67,13 +70,13 @@ export class NativePlaybackCoordinator {
   private service: PlaybackService;
   private transport: NativePlaybackTransport;
   private ownerId: () => string;
-  private source: (snapshot: PlaybackSnapshot) => string;
+  private source: (snapshot: PlaybackSnapshot) => NativeMediaSource;
   private accept: (fact: any) => void;
   constructor(
     service: PlaybackService,
     transport: NativePlaybackTransport,
     ownerId: () => string,
-    source: (snapshot: PlaybackSnapshot) => string,
+    source: (snapshot: PlaybackSnapshot) => NativeMediaSource,
     accept: (fact: any) => void,
     engines?: EngineSelection,
   ) {
@@ -192,7 +195,7 @@ export class NativePlaybackCoordinator {
     this.lease = null;
     this.binding = null;
     this.lastSemantic = '';
-    this.routeSource='';
+    this.routeSource=''; this.routeParts=undefined;
     this.acquiring = false;
     this.publish();
     if (lease) {
@@ -268,7 +271,7 @@ export class NativePlaybackCoordinator {
       && localTrackBinding.sessionId===binding.sessionId && localTrackBinding.generation===binding.generation
       ? {revision:(this.localAudioTrack as any).revision,catalogRevision:(this.localAudioTrack as any).catalogRevision,trackId:(this.localAudioTrack as any).trackId} : null;
     const candidate=this.connected()?this.source(state):'';
-    if(candidate)this.routeSource=candidate;
+    if(candidate) { this.routeSource=typeof candidate==='string'?candidate:candidate.url; this.routeParts=typeof candidate==='string'?undefined:candidate.localParts; }
     if(!this.routeSource)return;
     const semantic = {
       binding,
@@ -277,6 +280,7 @@ export class NativePlaybackCoordinator {
       ...(this.passthrough ? {passthrough: this.passthrough} : {}),
       listeningOwner:listening?.owner??null,
       source: this.routeSource,
+      ...(state.session.mode==='local' && this.routeParts?.length ? {localParts:this.routeParts} : {}),
       connectionState:this.connected()?'ready':'verifying',
       routeRevision:this.routeRevision,
       paused:

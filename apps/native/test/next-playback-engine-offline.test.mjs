@@ -25,7 +25,8 @@ const {NativePlaybackCoordinator} = await sourceModule(new URL('../src-next/plat
 const {NativePlaybackRuntime} = await sourceModule(new URL('../src-next/platform/playback/runtime.ts', import.meta.url), {
   '../../../../../packages/client-core/src/query/catalogue-reads': catalogueReads,
   'react-native': {AppState: {}, NativeModules: {}},
-  './start-failure': {startFailureHttp: unused}, './capacity-retry': {capacityRetryHttp: unused}, './listening-controls': {createNativeListeningReadPort: unused},
+  './start-failure': {startFailureHttp: unused}, './capacity-retry': {capacityRetryHttp: unused},
+  './listening-controls': {createNativeListeningReadPort: unused, createNativeOfflineListeningReadPort: unused, nativeOfflineListeningData: unused},
   '../../../../../packages/client-core/src/index': {PlaybackService: unused}, '../../../../../packages/client-core/src/detail': {DetailService: unused}, '../../shell/freshness': {viewerQueriesFor: unused},
   '../../../../../packages/client-core/src/media-item': {parseMediaItem: unused}, '../../../../../packages/client-core/src/items': {entryFromItem: unused, readItem: unused}, '../../../../../packages/contracts/src/routes': {encodedRoutePath: unused, routePath: unused},
   '../../../../../packages/client-core/src/playback-v1/sessions': {SessionsClient: unused}, '../../../../../packages/client-core/src/playback-v1/local-http': {localV1Http: unused},
@@ -63,7 +64,7 @@ function clock() {
       if (!job) break; jobs.delete(job[0]); time = job[1].at; job[1].fn();} time = end;}, jobs};
 }
 
-async function fixture(engine = 'mpv', local = false, withOptions = true) {
+async function fixture(engine = 'mpv', local = false, withOptions = true, parts) {
   const runtime = Object.create(NativePlaybackRuntime.prototype), timers = clock(), commands = [], observations = [], listeners = new Set();
   let current = true, listener, sequence = 0, reportedAudio, probes = 0;
   const state = {intentId: 1, playbackRun: 1, phase: 'ready', intent: 'playing', itemId: 'item', positionSeconds: 30,
@@ -84,7 +85,7 @@ async function fixture(engine = 'mpv', local = false, withOptions = true) {
     return {lease: `lease-${instances}`, instanceId: currentInstance};
   }, release: async () => {},
     command: async command => {commands.push(command);}, subscribe(fn) {listener = fn; return () => {listener = undefined;};}};
-  const coordinator = new NativePlaybackCoordinator(service, transport, () => 'owner', () => state.session.streamUrl, fact => runtime.acceptFact(fact),
+  const coordinator = new NativePlaybackCoordinator(service, transport, () => 'owner', () => parts ? {url: state.session.streamUrl, localParts: parts} : state.session.streamUrl, fact => runtime.acceptFact(fact),
     {initial: engine, choose: () => engine, transport: () => transport});
   Object.assign(runtime, {lastPlayState: state.intent, routeWasReady: true, retired: false, factDepth: 0, factPublication: false, playback: service, coordinator, expanded: true, displaySubtitles: true,
     options: withOptions ? {itemId: 'item', versions: [{id: 'version', audio: [{id: 'a1'}, {id: 'a7'}]}]} : undefined,
@@ -338,3 +339,15 @@ test('the speed asked of the player stands while it reports none, and a paused r
   assert.equal(f.runtime.effectiveRate, 1.25, 'a paused player reports rate 0: the speed shown stays the one it plays at');
 });
 
+
+
+test('the offline coordinator sends the whole private file list unchanged across engine replacement', async t => {
+  const parts = [{url: 'file:///Downloads/copy/media', offsetSeconds: 0, durationSeconds: 100, startSeconds: 0},
+    {url: 'file:///Downloads/copy/second', offsetSeconds: 100, durationSeconds: 200, startSeconds: 0}];
+  const f = await fixture('mpv', true, true, parts); t.after(() => f.dispose());
+  assert.deepEqual(plain(f.commands.at(-1).localParts), parts);
+  await f.switchTo('native');
+  assert.deepEqual(plain(f.commands.at(-1).localParts), parts);
+  assert.equal(f.commands.at(-1).source, parts[0].url);
+  assert.equal(f.commands.at(-1).binding.sessionId, 'local:copy:1');
+});

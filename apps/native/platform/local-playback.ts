@@ -1,6 +1,7 @@
 import type {PlaybackApi, PlaybackSession} from '../../../packages/client-core/src/index';
 import type {OfflineExtras} from './offline-downloads';
 
+export type LocalPart = Readonly<{url: string; offsetSeconds: number; durationSeconds: number; startSeconds: number; endSeconds?: number; sourceOffsetSeconds?: number}>;
 export type LocalMedia = Readonly<{
   /** The download entry, for the offline journal. */
   entryId: string;
@@ -12,6 +13,7 @@ export type LocalMedia = Readonly<{
   extras?: OfflineExtras;
   /** `file://` URL of the downloaded file. */
   fileUrl: string;
+  parts?: readonly LocalPart[];
   durationSeconds: number;
   startSeconds: number;
 }>;

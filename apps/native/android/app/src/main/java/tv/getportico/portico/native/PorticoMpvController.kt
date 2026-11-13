@@ -80,6 +80,8 @@ internal class PorticoMpvController(private val context: Context) {
   private var binding: Map<String, Any?>? = null
   private var command: Map<String, Any?>? = null
   private var source: String? = null
+  private var downloadedParts = emptyList<PorticoLocalPart>()
+  private var subtitleTimelineShift = Double.NaN
   private var intentId = 0L
   private var itemInstanceId = ""
   private var desiredPaused = true
@@ -282,6 +284,10 @@ internal class PorticoMpvController(private val context: Context) {
   fun accept(value: Map<String, Any?>?): String? {
     if (invalidated) return "Playback controller is closed."
     val command = value ?: return "Invalid playback binding."
+    val nextParts = try { PorticoLocalParts.read(command["localParts"], command["source"] as? String ?: "") { address ->
+      PorticoMpvSupport.parse(address)?.let { PorticoMpvSupport.allowedLocalSource(context, it) } == true
+    } } catch (_: Exception) { return "Invalid downloaded files." }
+
     if (command["matchFrameRate"] != null && command["matchFrameRate"] != "auto" && command["matchFrameRate"] != "off") return "Invalid display matching choice."
     val binding = PorticoMpvSupport.map(command["binding"]) ?: return "Invalid playback binding."
     val lease = this.lease
@@ -358,6 +364,7 @@ internal class PorticoMpvController(private val context: Context) {
     }
     commandRevision = revision
     this.binding = binding
+    downloadedParts = nextParts
     apply(command)
     attachmentListeners.toList().forEach { it() }
     return null
@@ -670,7 +677,9 @@ internal class PorticoMpvController(private val context: Context) {
     }
     sessionPlayer.changed()
     if (url.scheme?.lowercase() == "file") {
-      startLoad(url.path ?: "", epoch)
+      val parts = downloadedParts
+      val address = if (parts.isEmpty()) url.path ?: "" else PorticoLocalParts.edl(parts) { Uri.parse(it).path ?: "" }
+      startLoad(address, epoch)
       return
     }
     relay.clearFailure()
@@ -719,8 +728,10 @@ internal class PorticoMpvController(private val context: Context) {
       }
     } else if (start != null && start > 0) options["start"] = PorticoMpvSupport.decimal(start)
     val media = PorticoMpvSupport.parse(source)
-    referencesAllowed = media != null && media.scheme?.lowercase() != "file" && (media.path ?: "").lowercase().endsWith(".m3u8")
-    if (referencesAllowed) {
+    val localPlaylist = address.startsWith("edl://")
+    referencesAllowed = localPlaylist || media != null && media.scheme?.lowercase() != "file" && (media.path ?: "").lowercase().endsWith(".m3u8")
+    if (referencesAllowed) options["access-references"] = "yes"
+    if (referencesAllowed && !localPlaylist) {
       options["access-references"] = "yes"
       options["demuxer-lavf-format"] = "hls"
     }
@@ -733,7 +744,16 @@ internal class PorticoMpvController(private val context: Context) {
   private fun handle(epoch: Int, event: PorticoMpvEvent, next: PorticoMpvSnapshot) {
     if (epoch != loadEpoch || !fileRequested || invalidated || lease == null) return
     if (event is PorticoMpvEvent.FastTick) {
-      subtitleOverlay.tick((event.time * 1_000_000).toLong())
+      val sourceTime = PorticoLocalParts.sourceTime(downloadedParts, event.time)
+      subtitleOverlay.tick((sourceTime * 1_000_000).toLong())
+      val shift = event.time - sourceTime
+      if (engineSubtitleKey != null && shift != subtitleTimelineShift) {
+        val subtitles = scoped(command?.get("subtitles")); val render = PorticoMpvSupport.map(subtitles?.get("render"))
+        if (subtitles != null && render != null) PorticoMpvSupport.originalSubtitleDelay(subtitles, render)?.toDoubleOrNull()?.let {
+          core?.set("sub-delay", PorticoMpvSupport.decimal(it + shift))
+        }
+      }
+      subtitleTimelineShift = shift
       return
     }
     val before = snapshot
@@ -1492,7 +1512,7 @@ internal class PorticoMpvController(private val context: Context) {
           val track = embeddedTrack
               ?: address?.let { all.firstOrNull { candidate -> candidate["external-filename"] == it } }?.let { PorticoMpvSupport.trackId(it) }
           if (track != null && snapshot.sid != track.toString()) core?.set("sid", track.toString())
-          core?.set("sub-delay", offset)
+          core?.set("sub-delay", PorticoMpvSupport.decimal(offset.toDouble() + (currentPosition().takeIf { it.isFinite() }?.let { it - PorticoLocalParts.sourceTime(downloadedParts, it) } ?: 0.0)))
           return
         }
         clearEngineSubtitle()
@@ -1500,7 +1520,7 @@ internal class PorticoMpvController(private val context: Context) {
         engineSubtitleKey = key
         updateOutput()
         if (startEngineSubtitle(render, key, subtitles)) {
-          core?.set("sub-delay", offset)
+          core?.set("sub-delay", PorticoMpvSupport.decimal(offset.toDouble() + (currentPosition().takeIf { it.isFinite() }?.let { it - PorticoLocalParts.sourceTime(downloadedParts, it) } ?: 0.0)))
           overlayOff()
           emit("subtitleStatus", "")
           return

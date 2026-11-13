@@ -25,6 +25,19 @@ int main(void) {@autoreleasepool {
   NSMutableDictionary *none = PorticoDownloadManifestEntries(nil);
   check(none != nil && none.count == 0, "no manifest restores an empty list");
 
+  NSMutableDictionary *original=[entry(@"original",@"downloading",@"",@42) mutableCopy];
+  original[@"sourceId"]=@"media_book";
+  check(PorticoDownloadManifestEntries(json(@{@"original":original}))!=nil,"an unfinished original restores before its local digest exists");
+  NSMutableArray *parts=[NSMutableArray new];
+  for (int n=1;n<=2;n++) [parts addObject:@{@"fileName":[NSString stringWithFormat:@"part-%d.mp3",n],@"sourceId":[NSString stringWithFormat:@"media_book_%d",n],
+    @"sha256":@"",@"bytes":@21,@"url":@"https://server.invalid/part"}];
+  original[@"files"]=parts; original[@"fileIndex"]=@0;
+  NSMutableDictionary *multipart=PorticoDownloadManifestEntries(json(@{@"original":original}));
+  check([multipart[@"original"][@"files"] count]==2,"all unfinished parts restore in order");
+  check([multipart[@"original"][@"files"][0] isKindOfClass:NSMutableDictionary.class],"the owner can update a restored part");
+  original[@"state"]=@"ready";
+  check(PorticoDownloadManifestEntries(json(@{@"original":original}))==nil,"Ready still requires the verified local digest");
+
   // Every valid entry comes back whole, in every state, and mutable for the owner.
   NSMutableDictionary *stored = [NSMutableDictionary new];
   NSArray *states = @[@"downloading", @"paused", @"failed", @"ready", @"removed"];

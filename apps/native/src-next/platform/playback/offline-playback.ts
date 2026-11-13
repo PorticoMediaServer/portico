@@ -68,6 +68,9 @@ export class NativeOfflinePlayback {
     const held = this.admitted(session);
     return held?.media.fileUrl;
   }
+  mediaParts(session: PlaybackSession): LocalMedia['parts'] {
+    return this.admitted(session)?.media.parts;
+  }
   private admitted(session: PlaybackSession) {
     const held = [...this.sessions.values()].find(value => value.sessionId === session.id && value.generation === session.generation);
     return held && session.mode === 'local' && session.streamUrl === held.media.fileUrl && held.source.current() ? held : undefined;
@@ -128,9 +131,12 @@ export class NativeOfflinePlayback {
     const media = Object.freeze({...await this.device.localMedia(before)}), live = currentEntry();
     if (this.disposed || !isCurrent() || !live || media.entryId !== entry.id || media.itemId !== entry.itemId || !text(media.playId)
       || !Number.isFinite(media.durationSeconds) || media.durationSeconds < 0 || !Number.isFinite(media.startSeconds) || media.startSeconds < 0) throw unavailable();
-    let url: URL;
-    try { url = new URL(media.fileUrl); } catch { throw unavailable(); }
-    if (url.protocol !== 'file:' || url.hostname !== '' || !url.pathname.startsWith('/') || url.search || url.hash) throw unavailable();
+    const fileUrl = (value: string) => {
+      try {const url = new URL(value); return url.protocol === 'file:' && url.hostname === '' && url.pathname.startsWith('/') && !url.search && !url.hash;}
+      catch {return false;}
+    };
+    if (!fileUrl(media.fileUrl) || media.parts && (media.parts.length < 2 || media.parts[0]?.url !== media.fileUrl || media.parts.some(part =>
+      !fileUrl(part.url) || ![part.offsetSeconds, part.durationSeconds, part.startSeconds].every(value => Number.isFinite(value) && value >= 0) || part.sourceOffsetSeconds !== undefined && (!Number.isFinite(part.sourceOffsetSeconds) || part.sourceOffsetSeconds < 0)))) throw unavailable();
     const make = this.local.session(media);
     const metadata = Object.freeze({title: live.title, kind: live.kind ?? live.info?.kind, libraryId: live.libraryId});
     const source: NativeOfflineSource = Object.freeze({owner, entryId: entry.id, itemId: entry.itemId, preparationId, artifact, media, metadata,

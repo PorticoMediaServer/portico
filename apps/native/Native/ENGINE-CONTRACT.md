@@ -526,3 +526,6 @@ clocks remain absolute; an expired policy cannot be overwritten by successor pro
 A source-bound Pause remains available during committed handover, without promoting it;
 other guarded source commands refuse that ambiguous transition. These are policy and source
 custody rules, not measurements of rendered audio or runtime qualification.
+
+
+Downloaded titles with several files keep one binding, whole-title clock and progress journal. `localParts` accompanies only an admitted local source: ordered private file URLs, packet-derived offsets and lengths, and any cue range. Every file is confined to Downloads before opening. Media3 uses clipped media items, mpv an internally built EDL, and Apple advances items natively; neither transfer nor playback needs JavaScript to advance to the next file. A multipart download becomes ready only after every file is verified; its local artifact identity is SHA-256 of the ordered `bytes:actualSha256` lines, with aggregate bytes. It is a copy identity, not a digest claimed for any one media file.
