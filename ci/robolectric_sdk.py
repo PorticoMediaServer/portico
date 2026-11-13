@@ -35,8 +35,9 @@ def provision(directory, sdk):
         # download or checksum fails setup; no test is skipped or retried.
         subprocess.run([
             'curl', '--fail', '--location', '--silent', '--show-error',
-            '--retry', '3', '--retry-max-time', '120', '--connect-timeout', '15',
-            '--max-time', '120', '--output', str(pending), f'{REPOSITORY}/{version}/{name}',
+            '--retry', '2', '--retry-delay', '2', '--retry-max-time', '1800',
+            '--connect-timeout', '15',
+            '--max-time', '600', '--output', str(pending), f'{REPOSITORY}/{version}/{name}',
         ], check=True)
         checked(pending, digest)
         pending.replace(target)
