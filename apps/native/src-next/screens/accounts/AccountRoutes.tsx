@@ -47,7 +47,7 @@ import {TVProfilePINForm, TVForgotPINHandoff, TVProfileSwitchPage, TVWhosWatchin
 import {registerBack} from '../../kit/navigation/back';
 
 const t = defaultI18n.t;
-type Panel = 'servers' | 'add' | 'sign-out-server' | 'sign-out-account' | 'consent-kind' | 'consent-code' | 'consent-review' | 'consent-done';
+type Panel = 'servers' | 'add' | 'sign-out-server' | 'forget-server' | 'sign-out-account' | 'consent-kind' | 'consent-code' | 'consent-review' | 'consent-done';
 
 /** Genuine account destinations for the current authority. Shell media routes and Home
  * remain with their existing owners. Runtime disposal retires every private view below. */
@@ -608,10 +608,12 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
   const deviceNoun = Platform.isTV ? Platform.OS === 'ios' ? 'device.noun.appleTV' : String((Platform.constants as {Manufacturer?: string}).Manufacturer ?? '').toLowerCase() === 'amazon' ? 'device.noun.fireTV' : 'device.noun.androidTV'
     : Platform.OS === 'ios' ? (Platform as {isPad?: boolean}).isPad ? 'device.noun.iPad' : 'device.noun.iPhone' : Math.min(Dimensions.get('screen').width, Dimensions.get('screen').height) >= 600 ? 'device.noun.tablet' : 'device.noun.phone';
   const selectedServer = !!captured && servers?.selectedServerId === captured.session.connection.pin.serverId;
-  const signOutSheet = captured ? <BottomSheet open={panel === 'sign-out-server'} onOpenChange={open => {if (!open) {setRemoveDownloads(false); close();}}} testID="accounts-sign-out-sheet"
-    title={t('settings.signOutConfirm.title', {server: captured.name, device: t(deviceNoun)})}
+  // Sign out and Forget share one confirmation: the same downloads choice, a different title, line and action.
+  const forgetting = panel === 'forget-server';
+  const signOutSheet = captured ? <BottomSheet open={panel === 'sign-out-server' || forgetting} onOpenChange={open => {if (!open) {setRemoveDownloads(false); close();}}} testID="accounts-sign-out-sheet"
+    title={forgetting ? t('connection.identity.forgetTitle', {server: captured.name}) : t('settings.signOutConfirm.title', {server: captured.name, device: t(deviceNoun)})}
     footer={<View style={{gap: 10}}>
-      <Focusable focusId="sign-out-confirm" accessibilityRole="button" accessibilityLabel={t('action.signOut')} disabled={busy}
+      <Focusable focusId="sign-out-confirm" accessibilityRole="button" accessibilityLabel={forgetting ? t('connection.identity.forgetAction') : t('action.signOut')} disabled={busy}
         onPress={() => {void run(async () => {
           if (removeDownloads && selectedServer) await removeCapturedServerDownloads(captured, {
             selected: () => nativeAppSessions.selected(),
@@ -623,14 +625,18 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
               if (live) await offlineDownloads.remove(live);
             },
           });
-          await nativeAccounts.signOutServer(captured.session.connection.pin.serverId, captured.session.connection.session.sessionFamilyId);
+          const pin = captured.session.connection.pin, familyId = captured.session.connection.session.sessionFamilyId;
+          // Forget is local and never contacts the server, so it works for a sign-in that ended or a server that's gone.
+          if (forgetting) await nativeAccounts.forgetServer({serverId: pin.serverId, familyId, fingerprint: pin.fingerprint});
+          else await nativeAccounts.signOutServer(pin.serverId, familyId);
           setRemoveDownloads(false); close(); onComplete?.();
         });}} focusRadius={12} focusTreatment="none"
         style={{height: 54, borderRadius: 12, backgroundColor: `${theme.colors.danger}24`, alignItems: 'center', justifyContent: 'center'}}>
-        <Text style={[theme.type.button, {color: theme.colors.danger}]}>{t('action.signOut')}</Text>
+        <Text style={[theme.type.button, {color: theme.colors.danger}]}>{forgetting ? t('connection.identity.forgetAction') : t('action.signOut')}</Text>
       </Focusable>
       <Button focusId="sign-out-cancel" variant="text" disabled={busy} onPress={() => {setRemoveDownloads(false); close();}} textStyle={{color: theme.colors.textSecondary}}>{t('action.cancel')}</Button>
     </View>}>
+    {forgetting && <Text style={[theme.type.body, {color: theme.colors.textSecondary, marginBottom: 6}]}>{t('accounts.servers.forgetBody', {server: captured.name})}</Text>}
     <Text style={[theme.type.body, {color: theme.colors.textSecondary, marginBottom: 14}]}>{t('settings.signOutConfirm.bodyDownloads')}</Text>
     {selectedServer && <Focusable focusId="sign-out-remove-downloads" accessibilityRole="checkbox" accessibilityState={{checked: removeDownloads}} accessibilityLabel={t('settings.signOutConfirm.removeDownloads')}
       onPress={() => setRemoveDownloads(value => !value)} focusRadius={6} focusTreatment="none" style={{flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8}}>
@@ -648,6 +654,12 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
       if (!found || found.connection.session.sessionFamilyId !== value.familyId || found.connection.pin.fingerprint !== value.fingerprint)
         throw Object.assign(new Error('native_server_changed'), {code: 'cancelled'});
       setCaptured({session: found, name: value.name}); setPanel('sign-out-server');
+    });}}
+    onForget={value => {void run(async () => {
+      const state = await nativeAppSessions.read(), found = state.servers.find(item => item.connection.pin.serverId === value.id);
+      if (!found || found.connection.session.sessionFamilyId !== value.familyId || found.connection.pin.fingerprint !== value.fingerprint)
+        throw Object.assign(new Error('native_server_changed'), {code: 'cancelled'});
+      setCaptured({session: found, name: value.name}); setPanel('forget-server');
     });}}
     onRefresh={() => {void run(async () => {const value = await nativeAccounts.snapshot(); if (alive.current) setServers(value);});}}
     onAdd={() => {void run(async () => {openAdd();});}}
@@ -667,6 +679,12 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
       if (!found || found.connection.session.sessionFamilyId !== value.familyId || found.connection.pin.fingerprint !== value.fingerprint)
         throw Object.assign(new Error('native_server_changed'), {code: 'cancelled'});
       setCaptured({session: found, name: value.name}); setPanel('sign-out-server');
+    });}}
+    onForget={value => {void run(async () => {
+      const state = await nativeAppSessions.read(), found = state.servers.find(item => item.connection.pin.serverId === value.id);
+      if (!found || found.connection.session.sessionFamilyId !== value.familyId || found.connection.pin.fingerprint !== value.fingerprint)
+        throw Object.assign(new Error('native_server_changed'), {code: 'cancelled'});
+      setCaptured({session: found, name: value.name}); setPanel('forget-server');
     });}}
     onRefresh={() => {void run(async () => {const value = await nativeAccounts.snapshot(); if (alive.current) setServers(value);});}}
     onAdd={() => {void run(async () => {openAdd();});}}

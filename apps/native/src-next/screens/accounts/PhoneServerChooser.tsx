@@ -15,10 +15,23 @@ import {TopBar} from '../../kit/layout/TopBar';
 type Snapshot = Awaited<ReturnType<typeof nativeAccounts.snapshot>>;
 export type PhoneServerRow = Snapshot['servers'][number];
 
+/** What tells a saved server apart under its name: where this device reaches it when another saved server has
+ * the same name, otherwise how it is signed in to. Phone and TV rows both draw this. */
+export function serverRowDetail(server: PhoneServerRow): string {return server.sharesName ? server.address : defaultI18n.t(server.labelKey);}
+
+/** A saved server's actions: Forget always (local, always works), Sign out only while its sign-in is live. */
+export function serverMenuItems(server: PhoneServerRow, act: {signOut: (server: PhoneServerRow) => void; forget: (server: PhoneServerRow) => void}) {
+  const t = defaultI18n.t;
+  return [
+    ...(server.signedIn ? [{id: 'sign-out', label: t('accounts.signOut.server', {server: server.name}), onSelect: () => act.signOut(server)}] : []),
+    {id: 'forget', label: t('connection.identity.forget', {server: server.name}), onSelect: () => act.forget(server)},
+  ];
+}
+
 /** Connect22's phone list. Session capture, switching and sign-out remain with ServersRoute. */
-export function PhoneServerChooser({snapshot, busy, error, onBack, onSelect, onSignOut, onRefresh, onAdd, footer, certificates}: {
+export function PhoneServerChooser({snapshot, busy, error, onBack, onSelect, onSignOut, onForget, onRefresh, onAdd, footer, certificates}: {
   snapshot?: Snapshot; busy: boolean; error?: React.ReactNode; onBack?: () => void;
-  onSelect: (server: PhoneServerRow) => void; onSignOut: (server: PhoneServerRow) => void;
+  onSelect: (server: PhoneServerRow) => void; onSignOut: (server: PhoneServerRow) => void; onForget: (server: PhoneServerRow) => void;
   onRefresh: () => void; onAdd: () => void; footer?: React.ReactNode; certificates?: React.ReactNode;
 }) {
   const theme = useTheme(), insets = useSafeAreaInsets(), t = defaultI18n.t;
@@ -30,11 +43,11 @@ export function PhoneServerChooser({snapshot, busy, error, onBack, onSelect, onS
   ];
   const row = (server: PhoneServerRow, selected = false) => <View key={server.id} style={{flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: theme.colors.lineSoft}}>
     <Focusable testID={`phone-server-${server.id}`} disabled={busy} accessibilityRole="button" accessibilityState={{selected}}
-      accessibilityLabel={server.name} accessibilityHint={t(server.labelKey)} onPress={() => onSelect(server)}
+      accessibilityLabel={server.name} accessibilityHint={serverRowDetail(server)} onPress={() => onSelect(server)}
       style={{flex: 1, minHeight: 60, paddingVertical: 12, paddingLeft: 14, flexDirection: 'row', alignItems: 'center', gap: 12}}>
       <View style={{width: 30, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.raised}}><Icon name="i-server" size={18} color={theme.colors.accentStrong}/></View>
       <View style={{flex: 1, gap: 3}}><Text style={[shellType(15, selected ? 700 : 600), {color: theme.colors.text}]}>{server.name}</Text>
-        <Text style={[shellType(12.5, 400, 17), {color: theme.colors.textSecondary}]}>{t(server.labelKey)}</Text></View>
+        <Text style={[shellType(12.5, 400, 17), {color: theme.colors.textSecondary}]}>{serverRowDetail(server)}</Text></View>
       {!selected && <Icon name="i-right" size={16} color={theme.colors.textTertiary}/>}
     </Focusable>
     <Button testID={`phone-server-menu-${server.id}`} variant="icon" iconOnly size="compact" icon="i-more" disabled={busy}
@@ -60,6 +73,6 @@ export function PhoneServerChooser({snapshot, busy, error, onBack, onSelect, onS
       {footer != null && footer !== false && <View style={{marginTop: 20}}>{footer}</View>}
     </ScrollView>
     <Menu open={Boolean(menu)} onOpenChange={open => {if (!open) setMenu(undefined);}} presentation="sheet" title={menu?.name}
-      items={menu ? [{id: 'sign-out', label: t('accounts.signOut.server', {server: menu.name}), onSelect: () => {const server = menu; setMenu(undefined); onSignOut(server);}}] : []}/>
+      items={menu ? serverMenuItems(menu, {signOut: server => {setMenu(undefined); onSignOut(server);}, forget: server => {setMenu(undefined); onForget(server);}}) : []}/>
   </View>;
 }

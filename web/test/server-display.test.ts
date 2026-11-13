@@ -37,3 +37,11 @@ test('unverified or cancelled display work cannot publish metadata',async()=>{
  const f=fixture();f.display.remember({getRouteConnection:()=>({pin,getSnapshot:()=>({phase:'probing'})})} as never,'Portico demo');assert.equal(f.memory.size,0);
  const abort=new AbortController();abort.abort();await assert.rejects(f.display.choices([source],abort.signal));assert.equal(f.calls.length,0);assert.equal(f.memory.size,0);
 });
+test('two saved servers with the same name each carry where this browser reaches them, as a detail, never as the name',async()=>{
+ const memory=new Map<string,string>([['portico.server-display.v1:server_a',JSON.stringify({version:1,name:'Portico'})],['portico.server-display.v1:server_b',JSON.stringify({version:1,name:'Portico'})],['portico.server-display.v1:server_c',JSON.stringify({version:1,name:'Cottage'})]]);
+ const storage={getItem:(key:string)=>memory.get(key)??null,setItem:()=>{}};
+ const display=new BrowserServerDisplay(storage,()=>({}) as never,(async()=>{throw new Error('offline');}) as never);
+ const at=(serverId:string,origin:string)=>({pin:{serverId,publicKey:'k',fingerprint:'f'},origin,signIn:'local' as const});
+ assert.deepEqual(await display.choices([at('server_a','http://127.0.0.1:32511'),at('server_b','https://nas.example:32500'),at('server_c','https://cottage.example')],new AbortController().signal),[
+  {id:'server_a',label:'Portico',detail:'127.0.0.1:32511'},{id:'server_b',label:'Portico',detail:'nas.example:32500'},{id:'server_c',label:'Cottage'}]);
+});

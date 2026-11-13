@@ -8,7 +8,9 @@ import {routePath} from '../../../packages/contracts/src/routes.ts';
 
 type StoragePort = Pick<Storage, 'getItem' | 'setItem'>;
 export type ServerDisplaySource = Readonly<{pin:ServerPin;origin:string;signIn:SignInKind}>;
-export type ServerDisplayChoice = Readonly<{id:string;label:string}>;
+/** `detail` is where this browser reaches the server (host and port), given only when another saved server has
+ * the same name: the one thing that tells the two apart. It is never used as a name. */
+export type ServerDisplayChoice = Readonly<{id:string;label:string;detail?:string}>;
 const validName=(value:unknown):value is string=>typeof value==='string'&&value.trim().length>0&&value.length<=120&&!/[\p{Cc}\p{Cf}]/u.test(value);
 const key=(serverId:string)=>'portico.server-display.v1:'+serverId;
 
@@ -45,7 +47,9 @@ export class BrowserServerDisplay {
    }
   };
   try{await Promise.all(Array.from({length:Math.min(4,sources.length)},worker));signal.throwIfAborted();
-   return sources.flatMap(source=>{const label=this.read(source.pin.serverId);return label?[{id:source.pin.serverId,label}]:[];});
+   const named=sources.flatMap(source=>{const label=this.read(source.pin.serverId);return label?[{source,label}]:[];});
+   const count=new Map<string,number>();for(const {label} of named)count.set(label,(count.get(label)??0)+1);
+   return named.map(({source,label})=>(count.get(label)??0)>1?{id:source.pin.serverId,label,detail:hostOf(source.origin)}:{id:source.pin.serverId,label});
   }finally{clearTimeout(timer);signal.removeEventListener('abort',abort);controller.abort();}
  }
 }
@@ -53,3 +57,5 @@ let instance:BrowserServerDisplay|undefined;
 export function browserServerDisplay(){
  return instance??=new BrowserServerDisplay({getItem:key=>localStorage.getItem(key),setItem:(key,value)=>localStorage.setItem(key,value)},()=>({storage:{read:async()=>undefined,change:async()=>{throw new Error('Display metadata cannot write credentials.');}}}));
 }
+
+function hostOf(origin:string):string{try{return new URL(origin).host;}catch{return origin;}}

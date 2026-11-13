@@ -21,6 +21,7 @@ test('the TV server chooser keeps its actions in a row, Down goes Refresh server
     '../../../../../packages/i18n/src': {defaultI18n},
     '../../kit/artwork': {ColourBackdrop: 'ColourBackdrop'},
     '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'},
+    './PhoneServerChooser': {serverRowDetail: (server: any) => server.sharesName ? server.address : defaultI18n.t(server.labelKey)},
     '../../kit/focus': {FocusProvider: 'FocusProvider', FocusRegion: 'FocusRegion'},
     '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/theme': {nativeType: () => ({}), useTheme: () => ({isTV: true, textScale: 1,
