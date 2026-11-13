@@ -20,12 +20,11 @@
 .guideHeader { position: relative; padding: 122px var(--shell-gutter) 0; display: flex; align-items: flex-end; gap: 20px; }
 .guidePhoneView { flex-shrink: 0; margin-left: auto; }
 .guideHeader h1 { margin: 0; font-size: calc(var(--type-lockup-long-size) - 4px); line-height: calc(.95em); font-weight: var(--type-lockup-long-weight); letter-spacing: var(--type-lockup-long-tracking); }
-.guideHeader .guideSwitcher { min-width: 0; height: 40px; padding: 0 12px 0 16px; gap: 8px; border-radius: 10px; margin-bottom: 2px;
+.guideSwitcher.guideSwitcher { min-width: 0; height: 40px; padding: 0 12px 0 16px; gap: 8px; border-radius: 10px; margin-bottom: 2px;
   background: color-mix(in srgb, var(--color-text) 12%, transparent); backdrop-filter: blur(var(--glass-blur)); font-size: calc(var(--type-body-size) - 0px); }
-.guideHeader .guideSwitcher:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 20%, transparent); }
+.guideSwitcher.guideSwitcher:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 20%, transparent); }
 .guideSource { line-height: normal; margin: 0 0 10px auto; display: flex; gap: 12px; font-size: calc(var(--type-body-size) - 1px); color: var(--color-text-tertiary); }
 .guideSource strong { color: var(--color-text-secondary); font-weight: var(--type-row-heading-weight); }
-.guideTabs { margin-top: 26px; }
 .guideTabList { padding: 0 var(--shell-gutter); }
 .guideTabs .guideTabList button { font-size: var(--type-tab-size); }
 .guideTabNote { margin-left: 10px; font-size: var(--type-caption-size); font-weight: var(--type-row-heading-weight); color: var(--color-record); }
@@ -110,8 +109,6 @@
 .guideNowLine { position: absolute; top: -6px; bottom: 0; width: 2px; margin-left: -1px; background: var(--color-accent-strong); box-shadow: 0 0 14px color-mix(in srgb, var(--color-accent-strong) 55%, transparent); pointer-events: none; z-index: -1; }
 .guideKbd { line-height: normal; margin: 0; padding: 18px var(--shell-gutter) 44px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
 @media (max-width: 1023px) {
-  .guideHeader { padding-top: 44px; flex-wrap: wrap; }
-  .guideHeader h1 { font-size: var(--type-banner-title-size); line-height: calc(1.15em); letter-spacing: calc(var(--type-lockup-long-tracking) + .01em); }
   .guideSource { display: none; }
   .guideTime { flex-wrap: wrap; margin-top: 22px; }
   .guideRight { flex-wrap: wrap; }
@@ -123,7 +120,7 @@
 }
 @media (max-width: 599px) {
   .guideHeader, .guideChips, .guideTime { padding-inline: var(--shell-gutter); }
-  .guideHeader { gap: 8px; flex-wrap: nowrap; }
+  .guideHeader { padding-top: 44px; gap: 8px; flex-wrap: nowrap; }
   .guideHeader h1 { font-size: var(--type-title-size); }
   .guideRecordings { flex: none; }
   .guideTabs { display: none; }

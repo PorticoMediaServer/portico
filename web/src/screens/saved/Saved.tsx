@@ -12,7 +12,7 @@ import {serverTextLabel} from '@core/presentation/server-text.ts';
 import {shapeFor} from '@core/presentation/card-shape.ts';
 import {dependsOn} from '@core/freshness-hub.ts';
 import {Button, Chip, Tabs, Switch} from '../../kit/controls';
-import {FiltersButton, SortMenu, ViewToggle} from '../../kit/browse';
+import {FiltersButton, LibraryHeader, SortMenu, ViewToggle} from '../../kit/browse';
 import {MenuRow, Popover} from '../../kit/overlays';
 import {PlaylistMosaic, PosterCard, SquareCard, NewPlaylistCard, type CardSelection} from '../../kit/cards';
 import {AmbientArt, CoverMosaic, type AmbientArtSource, type ArtworkSource} from '../../kit/artwork';
@@ -139,9 +139,10 @@ export function SavedScreen(bindings: SavedBindings) {
       action={active === 'playlists' && runtime.saved.getSnapshot().projection?.actions?.includes('create_playlist')
         ? <Button variant="icon" size="small" icon="i-plus" iconOnly aria-label={t('web.saved.newPlaylist')} onClick={() => setCreating({viewKey, kind: 'playlist'})} />
         : active === 'collections' ? <Button variant="icon" size="small" icon="i-plus" iconOnly aria-label={t('web.saved.newCollection')} onClick={() => setCreating({viewKey, kind: 'collection'})} /> : undefined} /> : phone ? null : <>
-      <header className={styles.header}><h1>{t('saved.title')}</h1></header>
-      <Tabs className={styles.tabs} listClassName={styles.tabsList} value={active} aria-label={t('web.saved.sections')} onValueChange={value => { if (value in tabLabels) effects.selectRoute({view: value as keyof typeof tabLabels}); }}
-        items={tabs.map(tab => ({value: tab, label: t(tabLabels[tab])}))} />
+      <LibraryHeader className={styles.wideHeader} name={t('saved.title')} switcher={null}>
+        <Tabs listClassName={styles.tabsList} value={active} aria-label={t('web.saved.sections')} onValueChange={value => { if (value in tabLabels) effects.selectRoute({view: value as keyof typeof tabLabels}); }}
+          items={tabs.map(tab => ({value: tab, label: t(tabLabels[tab])}))} />
+      </LibraryHeader>
     </>}
     {route.view === 'downloads' ? localUsable && bindings.localDownloads
       ? <LocalDownloads key={viewKey} port={bindings.localDownloads} operations={operations} effects={effects} server={<ServerDownloads service={runtime.downloads} operations={operations} effects={effects} artwork={bindings.preparationArtwork} online={bindings.online} embedded managed={!!effects.saveReadyPreparation} />} /> : server

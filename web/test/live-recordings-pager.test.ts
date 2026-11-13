@@ -9,6 +9,7 @@ const loader = registerHooks({load(url, context, next) {
   if (url.endsWith('.module.css')) return module('export default new Proxy({}, {get:(_,k)=>String(k)});');
   if (url.endsWith('/kit/controls/index.ts')) return module("export const Button='button',Chip='chip',Segmented='segmented',Select='select';");
   if (url.endsWith('/kit/overlays/index.ts')) return module("export const Banner='banner',Dialog='dialog',Menu='menu',SidePanel='panel';");
+  if (url.endsWith('/kit/browse/index.ts')) return module("export const LibraryHeader='library-header';");
   if (url.endsWith('/kit/artwork/index.ts')) return module("export const ChannelMark='channel';");
   if (url.endsWith('/kit/states/index.ts')) return module("export const StateView='state';");
   if (url.endsWith('/src/router.tsx')) return module('export const router={};');
