@@ -56,7 +56,9 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
     needsIdentityCode() {return false;}
     async inspectLocalIdentity() {return {};}
     async confirmLocal() {events.push('confirm-identity');}
-    serverOrigin() {return 'https://public.example';}
+    // As on a Portico Accounts server before any sign-in connects to it: no API, so no origin from it.
+    serverOrigin(): string {throw Object.assign(new Error('native_sign_in_authority_changed'), {code: 'identity_mismatch'});}
+    inspectedOrigin() {return 'https://public.example';}
     serverDescriptor() {return {id: 'public-server', name: 'Verified name', signIn: 'portico', move: 'to_portico', moveEndsAt: new Date(Date.now() + 5 * 86_400_000).toISOString()};}
     async createMemberMove(kind: string) {events.push('move:' + kind); const move = moveController(kind, moveCalls); moves.push(move); return move;}
     dispose() {events.push('dispose-command');}

@@ -110,6 +110,14 @@ export class NativeServerSignIn {
     if (!this.api || !this.server) throw mismatch();
     return routeOrigin(this.api.baseUrl);
   }
+  /** The address that answered as this server when it was inspected, before any sign-in connects to
+   * it (a Portico Accounts server's page has none yet): for showing a phone where to go, never for sending. */
+  inspectedOrigin(): string {
+    this.assertCurrent();
+    const origin = this.probe.getSnapshot().origin;
+    if (!this.server || !origin) throw mismatch();
+    return routeOrigin(origin);
+  }
   assertSignInTarget(serverId: string, fingerprint: string) {
     this.assertCurrent(); const pin = this.api?.getRouteConnection()?.pin;
     if (!pin || this.server?.id !== serverId || pin.serverId !== serverId || pin.fingerprint !== fingerprint) throw mismatch();
