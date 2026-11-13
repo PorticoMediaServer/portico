@@ -131,6 +131,7 @@ test('the shared touch entry menu composes offered Play, My List, playlist and r
     playEntry: () => calls.push('play'), personal: () => calls.push('watchlist'), addToPlaylist: () => calls.push('playlist'),
     extraEntry: (opening: unknown, id: string) => {assert.equal(opening, value); calls.push(id);}};
   const {NativeWatchOverlays} = await screenModule(new URL('../src-next/screens/watch/WatchOverlays.tsx', import.meta.url), {
+    '../../../../../packages/client-core/src/presentation/kit-model/technical': {},
     react: h.react, 'react-native': {Modal: 'Modal', Platform: {isTV: false}, ScrollView: 'ScrollView', StyleSheet: {}, Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
     '../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../../../../packages/client-core/src/administration': {}, '../../../../../packages/client-core/src/title-identity': {},
     '../../../../../packages/client-core/src/presentation/kit-model/text': {}, '../../shell/model': {}, '../../kit/controls': {Button: 'Button', TextField: 'TextField'},

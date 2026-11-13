@@ -1,10 +1,10 @@
 import React, {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {Modal, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {deletionAllowed} from '../../../../../packages/client-core/src/administration';
 import {mergeExplanation} from '../../../../../packages/client-core/src/title-identity';
 import {nativeFileInfoFile, nativeSplitCandidates} from './file-info';
 import {durationText} from '../../../../../packages/client-core/src/presentation/kit-model/text';
+import {bytesText} from '../../../../../packages/client-core/src/presentation/kit-model/technical';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {shellLayout} from '../../shell/model';
 import {Button, TextField} from '../../kit/controls';
@@ -73,16 +73,17 @@ function ManageSurface({value, presenters, common}: {value: NativeWatchOverlay; 
   const file = snapshot && value.fileId ? nativeFileInfoFile(snapshot, value.fileId)?.file : undefined;
   const heading = value.phase === 'delete' ? t('title.deleteVersion.title') : value.phase === 'split' || value.phase === 'split-pick' ? t('title.split.title') : t(value.other ? 'web.merge.title' : 'title.merge.action');
   const from = value.other && (value.keep === value.other.id ? entry : value.other);
-  const retry = () => {if (value.phase === 'delete') void presenters.previewDelete(); else if (value.phase === 'merge') void presenters.search(words); else void presenters.split();};
+  const retry = () => {if (value.phase === 'delete') {if (value.preview) void presenters.deleteVersion(); else void presenters.previewDelete();} else if (value.phase === 'merge') void presenters.search(words); else void presenters.split();};
+  const failure = value.error ? common.error(value.error, retry, 'detail') : undefined;
   const body = <View style={{gap: 16}}>
-    {!!value.error && <StateView variant="inline" {...common.error(value.error, retry, 'detail')}/>}
+    {failure && <StateView variant="inline" {...failure} body={value.phase === 'delete' && value.refusal || failure.body}/>}
     {value.phase === 'delete' ? <>
       {!value.preview && !value.error && <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{t('deleteMedia.checking')}</Text>}
-      {value.preview && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('title.deleteVersion.body', {size: value.preview.totalBytesText})}</Text>}
+      {!!value.preview?.deleteRefusal && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{value.preview.deleteRefusal}</Text>}
+      {value.preview && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('title.deleteVersion.body', {size: bytesText(value.preview.bytes, t) ?? ''})}</Text>}
       {file?.path && <Text selectable style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{file.path}</Text>}
-      {value.preview && (deletionAllowed(value.preview) ? <TextField testID="watch-delete-version-confirmation" label={t(value.preview.confirmationKind === 'count' ? 'deleteMedia.typeCount' : 'deleteMedia.typeTitle', {count: value.preview.confirmation})}
-        description={value.preview.confirmationKind === 'title' ? value.preview.confirmation : undefined} value={value.confirmation} onChangeText={presenters.confirmation} editable={!value.busy} autoCapitalize="none" autoCorrect={false}/>
-        : <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('deleteMedia.disabled')}</Text>)}
+      {value.preview && !value.preview.deleteRefusal && <TextField testID="watch-delete-version-confirmation" label={t('deleteMedia.typeTitle')}
+        description={value.preview.title} value={value.confirmation} onChangeText={presenters.confirmation} editable={!value.busy} autoCapitalize="none" autoCorrect={false}/>}
     </> : value.phase === 'split-pick' ? (snapshot ? nativeSplitCandidates(snapshot) : []).filter(candidate => candidate.file?.available !== false).map(candidate => <Button key={candidate.occurrence} focusId={`watch-split-file-${candidate.id}`} testID={`watch-split-file-${candidate.id}`} variant="glass" onPress={() => presenters.chooseSplit(candidate.occurrence)}>{candidate.file?.path ?? t('next.kit.version', {number: candidate.ordinal})}</Button>)
       : value.phase === 'split' ? <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{named(entry)}{'\n'}{file?.path}{'\n\n'}{t('title.split.body')}</Text>
         : !value.other ? <><TextField testID="watch-merge-search" label={t('title.merge.find')} value={words} onChangeText={setWords} maxLength={200} autoCorrect={false}/>
@@ -93,7 +94,7 @@ function ManageSurface({value, presenters, common}: {value: NativeWatchOverlay; 
   </View>;
   const footer = <View style={{flexDirection: 'row', justifyContent: 'flex-end', gap: 10}}>
     <Button focusId="watch-manage-cancel" testID="watch-manage-cancel" variant="glass" disabled={value.busy} onPress={presenters.backToInfo}>{t('action.cancel')}</Button>
-    {value.phase === 'delete' ? <Button focusId="watch-delete-version" testID="watch-delete-version" variant="primary" disabled={value.busy || !value.preview || !deletionAllowed(value.preview) || value.confirmation.trim() !== value.preview.confirmation} onPress={() => {void presenters.deleteVersion();}}>{t('action.delete')}</Button>
+    {value.phase === 'delete' ? !value.preview?.deleteRefusal && <Button focusId="watch-delete-version" testID="watch-delete-version" variant="danger" disabled={value.busy || !value.preview || value.confirmation.trim() !== value.preview.title} onPress={() => {void presenters.deleteVersion();}}>{t('action.delete')}</Button>
       : value.phase === 'split' ? <Button focusId="watch-split-confirm" testID="watch-split-confirm" disabled={value.busy} onPress={() => {void presenters.split();}}>{t('title.split.confirm')}</Button>
         : value.phase === 'merge' && value.other ? <Button focusId="watch-merge-confirm" testID="watch-merge-confirm" disabled={value.busy} onPress={() => {void presenters.merge();}}>{t('web.selection.merge')}</Button> : null}
   </View>;
