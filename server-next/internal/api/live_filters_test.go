@@ -44,7 +44,8 @@ func channelNames(page []LiveChannel) []string {
 func TestTheGuideFiltersBySourceAndGroupWithinWhatTheProfileMaySee(t *testing.T) {
 	s, owner, members := seededWith(t, 600, 4)
 	everything, filmsAndMusic := members[0], members[2]
-	fake := fakeProvider(t, s.now())
+	guideNow := s.now()
+	fake := fakeProvider(t, guideNow)
 	cable := addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("Cable"),
 		Config: &live.LiveSourceConfig{PlaylistURL: fake.URL + "/playlist.m3u", GuideURL: fake.URL + "/guide.xml.gz"}})
 	mine := addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("Mine"), Audience: new("owner"),
@@ -85,6 +86,24 @@ func TestTheGuideFiltersBySourceAndGroupWithinWhatTheProfileMaySee(t *testing.T)
 	want(everything, "", "Cable live 2/0 Films:1 News:1 through", "Library Channels library 1/0 through")
 	want(owner, "", "Cable live 2/0 Films:1 News:1 through", "Mine live 1/0 Sports:1", "Library Channels library 1/0 through")
 	want(filmsAndMusic, "", "Cable live 2/0 Films:1 News:1 through")
+	// Coverage comes from the retained programmes, including an already populated guide cache.
+	for _, src := range page(owner, "").Sources {
+		switch src.ID {
+		case cable.ID:
+			wantFrom := guideNow.Add(-30 * time.Minute).Truncate(time.Second)
+			if src.GuideFrom == nil || !src.GuideFrom.Equal(wantFrom) {
+				t.Errorf("Cable's guide begins at %v, want %v", src.GuideFrom, wantFrom)
+			}
+		case mine.ID:
+			if src.GuideFrom != nil {
+				t.Errorf("a source with no programmes has a guide start: %v", src.GuideFrom)
+			}
+		case "library":
+			if src.GuideFrom == nil || src.GuideThrough == nil || !src.GuideFrom.Before(*src.GuideThrough) {
+				t.Errorf("the Library Channel's actual guide range is missing: %+v", src)
+			}
+		}
+	}
 	// A favourite is counted; a hidden channel leaves the counts unless hidden ones are asked for.
 	cableChannels := page(everything, "?source="+cable.ID).Items
 	status(t, s, "PUT", "/v1/live/channels/"+cableChannels[0].ID+"/state", everything, LiveChannelMarks{Hidden: true})

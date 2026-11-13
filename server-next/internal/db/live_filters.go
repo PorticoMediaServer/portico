@@ -86,11 +86,12 @@ type LiveLibraryEntry struct {
 	Group            string
 	Libraries        []string
 	ScheduledThrough time.Time
+	ScheduledFrom    time.Time
 	Favorite, Hidden bool
 }
 
 // ReadLiveFilters reads the filter menu's makings in three reads: one count of the visible
-// sources' channels in use by source and group, which reads no row of the profile's; the
+// sources' channels in use by source, group and listings source, which reads no row of the profile's; the
 // profile's own marks, which are few; and the Library Channels, which are few.
 func (d *DB) ReadLiveFilters(ctx context.Context, v Viewer, owner bool) (LiveFilters, error) {
 	var out LiveFilters
@@ -107,7 +108,7 @@ func (d *DB) ReadLiveFilters(ctx context.Context, v Viewer, owner bool) (LiveFil
 		max(ifnull(c.guide_source_id, 0)) FROM channels c INDEXED BY channels_in_use_by_group
 		WHERE c.kind = 1 AND c.state = 1 AND c.missing_since_at IS NULL
 		AND c.source_id IN (SELECT id FROM live_sources WHERE paused = 0 AND (@owner OR audience = 'everyone'))
-		GROUP BY c.source_id, c.group_name`, args,
+		GROUP BY c.source_id, c.group_name, c.guide_source_id`, args,
 		func(g *LiveGroupCount) []any {
 			return []any{&g.SourceID, &g.Group, &g.Channels, &g.MinGuide, &g.MaxGuide}
 		}); err != nil {
@@ -120,18 +121,22 @@ func (d *DB) ReadLiveFilters(ctx context.Context, v Viewer, owner bool) (LiveFil
 	}
 	type row struct {
 		group, libraries string
-		through          int64
+		from, through    int64
 		favorite, hidden bool
 	}
 	rows, err := queryAll(ctx, tx, `SELECT ifnull(c.group_name, ''), ifnull(l.libraries, '[]'), ifnull(l.scheduled_through_at, 0),
+		ifnull((SELECT min(starts_at) FROM channel_schedule WHERE channel_id = c.id), 0),
 		ifnull(pc.favorite, 0), ifnull(pc.hidden, 0) FROM channels c JOIN library_channels l ON l.channel_id = c.id
 		LEFT JOIN profile_channels pc ON pc.profile_id = @profile AND pc.channel_id = c.id WHERE c.kind = 2 AND `+inUse, args,
-		func(r *row) []any { return []any{&r.group, &r.libraries, &r.through, &r.favorite, &r.hidden} })
+		func(r *row) []any { return []any{&r.group, &r.libraries, &r.through, &r.from, &r.favorite, &r.hidden} })
 	if err != nil {
 		return out, err
 	}
 	for _, r := range rows {
 		e := LiveLibraryEntry{Group: r.group, Libraries: parseLibraries(r.libraries), Favorite: r.favorite, Hidden: r.hidden}
+		if r.from != 0 {
+			e.ScheduledFrom = time.UnixMilli(r.from).UTC()
+		}
 		if r.through != 0 {
 			e.ScheduledThrough = time.UnixMilli(r.through)
 		}
