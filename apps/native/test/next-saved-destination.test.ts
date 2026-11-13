@@ -9,8 +9,8 @@ function response(path: string) {
   const url = new URL(path, 'https://test.invalid');
   if (url.pathname.endsWith('/saved/summary')) return {serverId: scope.serverId, viewerFence: 'summary-fence', revision: {catalog: 1, viewer: 1},
     myList: {posters: 12, squares: 3}, favorites: {posters: 21, squares: 3}, playlists: 3, collections: 11, savedViews: 6};
-  if (url.pathname.includes('saved-pins')) return {serverId: scope.serverId, viewerFence: 'pins-fence', revision: 1,
-    order: [{kind: 'collection', id: 'second-by-name', name: 'Zebra', pinRevision: 1}, {kind: 'playlist', id: 'first-by-name', name: 'Alpha', pinRevision: 2}]};
+  if (url.pathname === '/v1/preferences') return {effective: {pins: ['collection:second-by-name', 'playlist:first-by-name']}};
+  if (url.pathname === '/v1/lists' && url.searchParams.has('ids')) return {items: [{id: 'first-by-name', kind: 'playlist', name: 'Alpha'}, {id: 'second-by-name', kind: 'collection', name: 'Zebra'}]};
   if (url.pathname.includes('saved-resources')) return {serverId: scope.serverId, viewerFence: 'resources-fence', revision: 1,
     resources: [], nextCursor: url.searchParams.get('kind') === 'collection' ? 'next-resource-page' : ''};
   const view = url.searchParams.get('view')!;
@@ -39,8 +39,11 @@ test('the Saved hub reads the summary, one page per drawn My List shape and the 
     assert.deepEqual(pages.map(path => query(path).get('kind')).sort(), ['artist,album,track', 'movie,show,season,episode,audiobook,book,comic,series,collection'],
       'the poster window and the wide My List squares window are separate reads of real kinds, never a mixed first page');
     assert.ok(asked.filter(path => query(path).get('limit') === '1').every(path => query(path).get('total') === 'true'), 'every count is a counted read of one title');
-    assert.equal(asked.filter(path => path.startsWith('/v1/lists?')).length, 1, 'the landing totals read the lists once');
-    assert.equal(calls.filter(path => path.includes('saved-pins')).length, 1, 'the genuine pin order is read once');
+    assert.equal(asked.filter(path => path.startsWith('/v1/lists?') && !query(path).has('ids')).length, 1, 'the landing totals read the lists once');
+    assert.equal(asked.filter(path => path.startsWith('/v1/preferences?')).length, 1, 'the genuine pin order is read once');
+    const names = asked.filter(path => path.startsWith('/v1/lists?') && query(path).has('ids'));
+    assert.equal(names.length, 1, 'both pin names are read together');
+    assert.deepEqual(query(names[0]).get('ids')?.split(','), ['second-by-name', 'first-by-name']);
     assert.ok(asked.every(path => !path.includes('cursor=')), 'the hub does not scan directories or whole libraries');
     assert.deepEqual(snapshot.pins.map(pin => pin.id), ['second-by-name', 'first-by-name']);
     assert.equal(savedProjectionCount(snapshot.myList), 12);
@@ -67,6 +70,7 @@ test('retiring the actual viewer aborts pending reads and clears all private hub
   for (const read of pending) read.resolve(response(read.path));
   await loading;
   assert.equal(hub.getSnapshot(), closed, 'late reads cannot recreate the retired profile view');
+  assert.ok(pending.every(read => !read.path.startsWith('/v1/lists?ids=')), 'a late preference response cannot start a names read after retirement');
 });
 
 test('an authenticated producer failure is retained as an error, not an empty Saved success', async () => {

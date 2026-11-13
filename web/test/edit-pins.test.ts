@@ -14,7 +14,7 @@ test('Edit pins pins a library in the profile preference, preserving the saved p
       if (method === 'PATCH') {const next = body as {scope: string; values: {pins: string[]}}; assert.equal(next.scope, 'profile-server'); pins = next.values.pins;}
       return {effective: {pins}} as T;
     }
-    if (path === '/v1/lists/kept') return {id: 'kept', kind: 'collection', name: 'Kept'} as T;
+    if (path.startsWith('/v1/lists?')) return {items: [{id: 'kept', kind: 'collection', name: 'Kept'}]} as T;
     throw new Error('unexpected ' + path);
   }};
   const controller = new PinsController({api, serverId: 'server', current: () => true, libraryIds: () => ['lib_a', 'lib_b'], requestId: async () => 'op'});

@@ -69,12 +69,13 @@ test('all pin entries use one real route factory and Back retires its captured c
   assert.equal(registrations.get('library-edit-pins'), createNativeHandheldPinsModule);
   const libraries = [{id: 'actual', name: 'Actual', kind: 'movie'}], calls: string[] = [];
   const context = {current: () => true, authority: () => authority, session: () => ({viewer: {...authority, authority: 'local'}}), navigation, libraries: () => libraries,
-    api: {request: async (path: string) => {calls.push(path); return path.endsWith('library-navigation') ? {revision: 1, pinnedLibraryIds: ['actual']}
-      : {serverId: 'server', viewerFence: 'actual-viewer', revision: 1, order: []};}}};
+    api: {request: async (path: string) => {calls.push(path); assert.equal(path, '/v1/preferences?deviceClass=web');
+      return {effective: {pins: ['library:actual']}};}}};
   const module = createNativeHandheldPinsModule(context);
   navigation.open({kind: 'library-edit-pins', libraryId: 'actual'}, authority);
   const view = module.render(navigation.getSnapshot().route), controller = view.props.controller;
   await controller.load(); assert.equal(controller.getSnapshot().phase, 'ready');
+  assert.deepEqual(controller.getSnapshot().libraries?.pinnedLibraryIds, ['actual']);
   view.props.onClose(); const retired = controller.getSnapshot(); assert.equal(retired.libraries, undefined);
   await controller.pinLibrary('actual', false); assert.equal(calls.length, 2);
   navigation.open({kind: 'edit-pins'}, authority);

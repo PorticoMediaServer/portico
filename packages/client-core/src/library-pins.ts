@@ -1,3 +1,4 @@
+import {throwIfAborted} from './abort-lifetime.ts';
 import {callServer} from './query/server-api.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import {firstOfEach,keepReadable} from './tolerant.ts';
@@ -80,7 +81,11 @@ function pinsOf(raw:unknown):readonly string[]{
  if(!pins.every(pin=>id(pin)&&pin.length<=128)||new Set(pins).size!==pins.length)bad();
  return Object.freeze([...pins] as string[]);
 }
-const readPins=async(api:PinsApi,signal?:AbortSignal)=>pinsOf(await callServer(api,'GET /v1/preferences',{query:{deviceClass:'web'},signal}));
+async function readPins(api:PinsApi,signal?:AbortSignal):Promise<readonly string[]>{
+ const raw=await callServer(api,'GET /v1/preferences',{query:{deviceClass:'web'},signal});
+ throwIfAborted(signal);
+ return pinsOf(raw);
+}
 async function savePins(api:PinsApi,pins:readonly string[]):Promise<readonly string[]>{
  if(pins.length>200)bad('That pin arrangement cannot be saved.');
  return pinsOf(await callServer(api,'PATCH /v1/preferences',{body:{scope:'profile-server',deviceClass:'web',values:{pins:[...pins]}}}));
@@ -99,20 +104,24 @@ function replacePins(pins:readonly string[],matches:(pin:string)=>boolean,next:r
 }
 const savedPin=(pin:string)=>kinds.some(kind=>pin.startsWith(kind+':'));
 
-/** Resolve each pinned id directly: a pin never disappears just because its list is beyond page one.
- * Deleted or no-longer-visible lists are absent; a failed read still fails the read, never an unpin. */
+/** Read the order once, then name all saved pins with one bounded list lookup.
+ * Deleted or no-longer-visible lists are absent; a failed read never unpins them. */
 export async function readPinOrder(api:PinsApi,serverId:string,signal?:AbortSignal):Promise<PinOrder>{
  const entries=resourceEntries(await readPins(api,signal));
- const listed=await Promise.all(entries.map(async entry=>{
-  let list:unknown;
-  try{list=await callServer(api,'GET /v1/lists/{id}',{id:entry.id,signal});}
-  catch(error){if((error as {status?:unknown}|null)?.status===404)return undefined;throw error;}
-  return keepReadable('library-pins','lists',[list],row=>{
-   if(!obj(row)||row.id!==entry.id||row.kind!==(entry.kind==='view'?'saved_view':entry.kind)||!str(row.name,512))bad();
-   return {...entry,name:row.name,pinRevision:0};
-  })[0];
- }));
- return freeze({serverId,viewerFence:'viewer',revision:0,order:listed.filter((entry):entry is PinnedResource=>entry!==undefined)});
+ if(!entries.length)return freeze({serverId,viewerFence:'viewer',revision:0,order:[]});
+ const page=await callServer(api,'GET /v1/lists',{query:{ids:[...new Set(entries.map(entry=>entry.id))].join(','),limit:200},signal});
+ throwIfAborted(signal);
+ if(!obj(page))bad();
+ const lists=firstOfEach('library-pins','lists',keepReadable('library-pins','lists',rows(page.items,200),row=>{
+  if(!obj(row)||!id(row.id)||!str(row.kind,32)||!str(row.name,512))bad();
+  return {id:row.id,kind:row.kind,name:row.name};
+ }),row=>row.id);
+ const named=new Map(lists.map(list=>[list.id,list]));
+ const order=entries.flatMap(entry=>{
+  const list=named.get(entry.id);
+  return list?.kind===(entry.kind==='view'?'saved_view':entry.kind)?[{...entry,name:list.name,pinRevision:0}]:[];
+ });
+ return freeze({serverId,viewerFence:'viewer',revision:0,order});
 }
 /** Saves an arrangement, leaving pins not named here (including unavailable lists) pinned. */
 export async function savePinOrder(api:PinsApi,serverId:string,expectedRevision:number,order:readonly PinOrderEntry[]):Promise<PinOrder>{

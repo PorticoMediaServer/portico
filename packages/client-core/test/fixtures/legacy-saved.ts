@@ -49,6 +49,8 @@ export function legacySavedRequest(request: Request, options: LegacySavedOptions
     const url = new URL(path, 'https://legacy.invalid'), q = url.searchParams, at = url.pathname;
     const old = (oldPath: string, oldMethod = 'GET', oldBody?: unknown) => request(oldPath, oldMethod, oldBody, signal);
     const page = (cursor: string | null) => new URLSearchParams({limit: '40', ...(cursor ? {cursor} : {})});
+    // Pin names use the rebuilt server's exact-id lookup, not an old directory walk.
+    if (at === '/v1/lists' && method === 'GET' && q.has('ids')) return request(path, method, body, signal);
     if (at === '/v1/lists' && method === 'GET' && (q.get('kind') === 'collection' || q.get('kind') === 'saved_view')) {
       const kind = q.get('kind') === 'saved_view' ? 'view' : 'collection';
       const doc = await old('/v1/saved-resources?' + new URLSearchParams({limit: '40', ...(q.get('cursor') ? {cursor: q.get('cursor')!} : {}), kind}));
