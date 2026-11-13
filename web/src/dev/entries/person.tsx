@@ -102,8 +102,8 @@ const fixtures: Readonly<Record<'desktop' | 'phone', Fixture>> = Object.freeze({
 function pageFor(fixture: Fixture, role: string | null, kind: string | null, limit: number) {
   const byRole = fixture.credits.filter(credit => {
     const roles = credit.roles as readonly Role[];
-    return role === 'cast' ? roles.some(item => /^(acting|cast)$/i.test(item.department))
-      : role === 'crew' ? roles.some(item => !/^(acting|cast)$/i.test(item.department)) : true;
+    return role === 'cast' ? roles.some(item => /^(acting|guest stars|cast)$/i.test(item.department))
+      : role === 'crew' ? roles.some(item => !/^(acting|guest stars|cast)$/i.test(item.department)) : true;
   });
   const selected = byRole.filter(credit => kind === null || (credit.media as {kind?: string}).kind === kind);
   return {items: selected.slice(0, limit).map(credit => {

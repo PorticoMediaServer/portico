@@ -118,6 +118,10 @@ test('Filters apply to every department row: Cast keeps the acting row, Crew the
   assert.deepEqual(ids('cast'), ['department:Acting']);
   assert.deepEqual(ids('crew'), ['department:Directing', 'department:Production']);
   assert.deepEqual(personDepartments({groups: [{id: 'department:Cast', department: 'Cast', total: 1}]} as any, 'cast').map(group => group.id), ['department:Cast'], 'the server counts "Cast" as cast too');
+  // Guest-star credits are their own TV row, named Guest stars, and belong to the Cast filter.
+  const guests = {groups: [{id: 'role:actor', department: 'Acting', total: 2}, {id: 'role:guest', department: 'Guest stars', total: 1}, {id: 'role:director', department: 'Directing', total: 1}]} as any;
+  assert.deepEqual(personDepartments(guests, 'cast').map(group => group.department), ['Acting', 'Guest stars']);
+  assert.deepEqual(personDepartments(guests, 'crew').map(group => group.department), ['Directing']);
 });
 
 test('a department page whose total is not the department total never seeds its window (a server that ignored department)', async () => {
