@@ -143,8 +143,12 @@ func (d *DB) PlaybackItem(ctx context.Context, v Viewer, publicID string) (Playb
 			continue
 		}
 		r := &ItemRef{}
-		if err := tx.QueryRowContext(ctx, `SELECT public_id, kind, title, index_number FROM items WHERE id = ?`, ref.id).
-			Scan(&r.PublicID, &r.Kind, &r.Title, &r.Index); err != nil {
+		err := tx.QueryRowContext(ctx, `SELECT r.public_id, r.kind, r.title, r.index_number FROM items r WHERE r.id = ? AND `+acc.visible("r"), ref.id).
+			Scan(&r.PublicID, &r.Kind, &r.Title, &r.Index)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
 			return out, err
 		}
 		*ref.into = r
@@ -330,7 +334,7 @@ func (d *DB) VisibleTitles(ctx context.Context, v Viewer, itemIDs []int64) (map[
 	if err != nil {
 		return nil, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT i.id, i.title, i.kind, ifnull((SELECT r.title FROM items r WHERE r.id = i.root_id), '')
+	rows, err := tx.QueryContext(ctx, `SELECT i.id, i.title, i.kind, ifnull((SELECT r.title FROM items r WHERE r.id = i.root_id AND `+acc.visible("r")+`), '')
 		FROM items i WHERE i.id IN `+intList(itemIDs)+` AND `+acc.visible("i"), v.args()...)
 	if err != nil {
 		return nil, err

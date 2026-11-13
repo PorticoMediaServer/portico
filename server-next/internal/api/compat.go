@@ -739,7 +739,8 @@ func (s *Server) compatImage(r *http.Request, values []string) (any, error) {
 // an owner or administrator allowed to see everyone. Home Assistant reads these; they say they
 // cannot be controlled from there, because its controls also browse and start playback.
 func (s *Server) compatSessions(r *http.Request, c Caller) (any, error) {
-	sessions, err := s.streamsSeenBy(r.Context(), db.Viewer{UserID: c.UserID, ProfileID: c.ProfileID}, compatSeesEveryone(c))
+	everyone := compatSeesEveryone(c)
+	sessions, err := s.streamsSeenBy(r.Context(), db.Viewer{UserID: c.UserID, ProfileID: c.ProfileID}, everyone)
 	if err != nil {
 		return nil, err
 	}
@@ -757,7 +758,8 @@ func (s *Server) compatSessions(r *http.Request, c Caller) (any, error) {
 		if p.Visible {
 			item := map[string]any{"Id": compat.ID(p.Item.PublicID), "Name": p.Item.Title, "Type": compat.Kind(p.Item.Kind.String()),
 				"RunTimeTicks": compat.Ticks(p.Item.DurationMS)}
-			if p.Item.Root != nil {
+			if p.Item.Root != nil && (everyone ||
+				s.db.SeesItem(r.Context(), db.Viewer{UserID: c.UserID, ProfileID: c.ProfileID}, p.Item.Root.PublicID) == nil) {
 				item["SeriesName"], item["SeriesId"] = p.Item.Root.Title, compat.ID(p.Item.Root.PublicID)
 			}
 			stream["NowPlayingItem"] = item
