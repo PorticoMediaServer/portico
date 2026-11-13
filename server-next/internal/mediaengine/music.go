@@ -22,12 +22,9 @@ import (
 //
 // The measurement is made the first time a file is planned this way and kept with the file
 // (files.audio_exact), so it is made once for each song a listener really plays, and never
-// by a scan. A plan waits a short while for it; if it takes longer, this play is planned the
-// ordinary way and the measurement carries on beside it, so the next play of the file has
-// it. A scan that reads the file again clears what was kept.
-
-// musicWait is how long a plan waits for a file to be measured.
-const musicWait = 3 * time.Second
+// by a scan. Track preparation waits within its request lifetime, so even the first track
+// has an exact plan. Audiobooks keep the bounded wait: perfect joins are not required there.
+// A scan that reads the file again clears it.
 
 // measuredMusic is one file's measurement, done or under way.
 type measuredMusic struct {
@@ -37,8 +34,7 @@ type measuredMusic struct {
 	err   error
 }
 
-// measured returns a music file's exact facts, and false when they are not there in time
-// or the file cannot be measured.
+// measured waits for exact music facts; cancellation or a failed measurement returns false.
 func (e *Engine) measured(ctx context.Context, fileID int64, path string, place db.FileOnDisk) (*measuredMusic, bool) {
 	key := fmt.Sprint(path, "\x00", place.Size, "\x00", place.ModifiedNS)
 	e.mu.Lock()
@@ -68,12 +64,9 @@ func (e *Engine) measured(ctx context.Context, fileID int64, path string, place 
 		}()
 	}
 	e.mu.Unlock()
-	wait := time.NewTimer(musicWait)
-	defer wait.Stop()
 	select {
 	case <-m.done:
 		return m, m.err == nil
-	case <-wait.C:
 	case <-ctx.Done():
 	}
 	return nil, false
@@ -89,7 +82,13 @@ func (e *Engine) musicPlan(ctx context.Context, r playback.PlanRequest, request 
 		remoteID != 0 || len(r.Failures) > 0 {
 		return nil
 	}
-	m, ok := e.measured(ctx, r.Version.FileID, path, place)
+	measureCtx := ctx
+	if r.Item.Kind == db.KindAudiobook {
+		var cancel context.CancelFunc
+		measureCtx, cancel = context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+	}
+	m, ok := e.measured(measureCtx, r.Version.FileID, path, place)
 	if !ok {
 		return nil
 	}

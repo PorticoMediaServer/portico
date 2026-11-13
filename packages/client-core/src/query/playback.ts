@@ -7,12 +7,12 @@ import {throwIfAborted} from '../abort-lifetime.ts';
 import type {OriginalChannelStart} from '../playback-v1/channel-control.ts';
 
 type PlaybackApi = {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
-/** The playback features the server offers beyond sessions and queues. The rebuilt server offers
- * none yet: no hand-over to the system audio players (they still speak the old server's queue and
- * progress messages) and no prepared gapless joins, so audio plays in the app's own player. */
-export function readPlaybackCapabilities(_api: PlaybackApi, signal?: AbortSignal): Promise<unknown> {
+/** Prepared audio joins are advertised by the rebuilt server's existing system document.
+ * The legacy native listening owner remains off: it uses the old queue/progress protocol. */
+export function readPlaybackCapabilities(api: PlaybackApi, signal?: AbortSignal): Promise<unknown> {
   throwIfAborted(signal);
-  return Promise.resolve({features: {}});
+  return api.request<{capabilities?: string[]}>(routePath('get_system'), 'GET', undefined, signal).then(system =>
+    ({features: system.capabilities?.includes('queue-transitions') ? {queueTransitions: 'enabled'} : {}}));
 }
 /** The admitted subtitle plan supplies the exact font/line document capability. */
 export function readPlaybackSubtitleFonts(api: PlaybackApi, path: string, signal?: AbortSignal): Promise<unknown> {

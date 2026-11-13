@@ -79,7 +79,7 @@ func (s *Server) systemRoutes() {
 		if kind == "portico" {
 			methods = []string{"portico"}
 		}
-		out := System{ID: s.id, Name: s.serverName(), APIMajor: APIMajor, Capabilities: []string{},
+		out := System{ID: s.id, Name: s.serverName(), APIMajor: APIMajor, Capabilities: []string{"queue-transitions"},
 			SetupRequired: !hasUsers, SignInMethods: methods, SignIn: kind, AtHome: s.fromHome(r)}
 		out.PorticoOrigin = s.publicPorticoOrigin()
 		if move, moving, err := s.db.CurrentMove(r.Context()); err != nil {
