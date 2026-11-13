@@ -17,7 +17,7 @@ export function OwnerStatisticsSection({summary, error, period, onPeriod, onRetr
   const played = ownerBarRows(summary?.mostPlayed ?? [], 'played');
   const active = ownerBarRows(summary?.mostActive ?? [], 'active');
   return <OwnerSection title={t('settings.server.statistics')}>
-    <Segmented testID="owner-statistics-period" accessibilityLabel={t('web.telemetry.period')} value={period} onValueChange={value => onPeriod(value as OwnerViewingPeriod)} style={{alignSelf: 'stretch', marginBottom: 12}} itemProps={() => ({style: {flex: 1}})}
+    <Segmented testID="owner-statistics-period" accessibilityLabel={t('web.telemetry.period')} value={period} onValueChange={value => onPeriod(value as OwnerViewingPeriod)} fill style={{marginBottom: 12}}
       items={OWNER_VIEWING_PERIODS.map(id => ({value: id, label: t(ownerViewingPeriodLabel(id))}))}/>
     {error !== undefined && !summary ? <OwnerCalm icon="i-warn" tone="error" title={t('next.shell.activityError')} action={{label: t('next.shell.tryAgain'), onPress: onRetry}}/> : null}
     {!summary && error === undefined ? <OwnerCalm icon="i-clock" title={t('next.states.loading')}/> : null}

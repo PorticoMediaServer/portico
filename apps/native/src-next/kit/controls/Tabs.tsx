@@ -23,7 +23,10 @@ export type TabsProps = {
   itemProps?: (item: TabItem) => Omit<FocusableProps, 'children'>;
   testID?: string;
 };
-export type SegmentedProps = Omit<TabsProps, 'contentContainerStyle'> & {variant?: 'glass' | 'browse' | 'phone'};
+export type SegmentedProps = Omit<TabsProps, 'contentContainerStyle'> & {variant?: 'glass' | 'browse' | 'phone';
+  /** Stretch across the row, each segment growing from its own label's width (never equal widths that cut a longer label);
+   *  segments that cannot fit at a large text size move to a second line whole, never breaking a word. */
+  fill?: boolean};
 
 /** Native icon/custom labels live in a View; plain text receives the kit typography. */
 function ChoiceLabel({children, style, wrap = false, count, countStyle}: {children: React.ReactNode; style: StyleProp<TextStyle>; wrap?: boolean; count?: string | number; countStyle?: StyleProp<TextStyle>}) {
@@ -72,14 +75,14 @@ export function Tabs({items, value, defaultValue, onValueChange, disabled, passi
   </View>;
 }
 
-export function Segmented({items, value, defaultValue, onValueChange, variant = 'glass', disabled, accessibilityLabel, style, itemProps, testID}: SegmentedProps) {
+export function Segmented({items, value, defaultValue, onValueChange, variant = 'glass', fill = false, disabled, accessibilityLabel, style, itemProps, testID}: SegmentedProps) {
   const theme = useTheme();
   const [current, setCurrent] = useControlValue(value, defaultValue ?? enabledChoice(items) ?? '', onValueChange);
   const phone = variant === 'phone';
   const height = theme.isTV ? 64 : phone ? 28 : 34;
   const slop = minimumHitSlop(height + 6, theme.isTV);
   return <View accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel} testID={testID}
-    style={[styles.segmented, {alignSelf: theme.isTV ? 'stretch' : 'flex-start', borderRadius: theme.isTV ? 18 : phone ? 9 : 11, padding: theme.isTV ? 8 : 3, gap: theme.isTV ? 8 : 0,
+    style={[styles.segmented, fill && {flexWrap: 'wrap'}, {alignSelf: theme.isTV || fill ? 'stretch' : 'flex-start', borderRadius: theme.isTV ? 18 : phone ? 9 : 11, padding: theme.isTV ? 8 : 3, gap: theme.isTV ? 8 : 0,
       backgroundColor: theme.isTV ? colorAlpha(theme.colors.text, .06) : variant === 'glass' ? theme.colors.ink : phone ? theme.colors.raisedBright : theme.colors.raisedHigh,
       borderColor: variant === 'glass' ? theme.colors.line : 'transparent', borderWidth: !theme.isTV && variant === 'glass' ? 1 : 0}, style]}>
     {items.map(item => {
@@ -90,13 +93,13 @@ export function Segmented({items, value, defaultValue, onValueChange, variant = 
         disabled={blocked} focusKind="row" focusRadius={theme.isTV ? 12 : phone ? 7 : 8} focusInset
         hitSlop={childProps?.hitSlop ?? {top: slop, bottom: slop}}
         onPress={event => {if (!blocked) {setCurrent(item.value); childProps?.onPress?.(event);}}}
-        style={state => [styles.segment, {minHeight: height, borderRadius: theme.isTV ? 12 : phone ? 7 : 8, paddingHorizontal: theme.isTV ? 20 : phone ? 11 : 14,
-          flex: theme.isTV ? 1 : undefined, borderWidth: theme.isTV ? 1.5 : 0, borderColor: theme.isTV && selected ? colorAlpha(theme.colors.accentStrong, .7) : 'transparent',
+        style={state => [styles.segment, {minHeight: height, borderRadius: theme.isTV ? 12 : phone ? 7 : 8, paddingHorizontal: theme.isTV ? 20 : fill ? 6 : phone ? 11 : 14,
+          ...(theme.isTV ? {flex: 1} : fill ? {flexGrow: 1, flexShrink: 0, flexBasis: 'auto' as const} : {}), borderWidth: theme.isTV ? 1.5 : 0, borderColor: theme.isTV && selected ? colorAlpha(theme.colors.accentStrong, .7) : 'transparent',
           backgroundColor: !theme.isTV && selected ? variant === 'browse' ? theme.colors.raisedBright : colorAlpha(theme.colors.text, .16) : 'transparent', opacity: blocked ? .45 : 1},
           typeof childProps?.style === 'function' ? childProps.style(state) : childProps?.style]}>
         {state => <>
           {theme.isTV ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, {borderRadius: 12, backgroundColor: selected ? colorAlpha(theme.colors.accent, state.focused ? .4 : .26) : state.focused ? colorAlpha(theme.colors.text, .2) : 'transparent'}]} /> : null}
-          <ChoiceLabel wrap={theme.fontScale > 1} style={[theme.type.button, {color: selected || state.focused ? theme.colors.text : theme.isTV ? theme.colors.textSecondary : theme.colors.textTertiary, fontSize: (theme.isTV ? 24 : phone ? 13 : 14) * theme.textScale}]}>{item.label}</ChoiceLabel>
+          <ChoiceLabel wrap={!theme.isTV || theme.fontScale > 1} style={[theme.type.button, {textAlign: 'center'}, {color: selected || state.focused ? theme.colors.text : theme.isTV ? theme.colors.textSecondary : theme.colors.textTertiary, fontSize: (theme.isTV ? 24 : phone ? 13 : 14) * theme.textScale}]}>{item.label}</ChoiceLabel>
         </>}
       </Focusable>;
     })}
