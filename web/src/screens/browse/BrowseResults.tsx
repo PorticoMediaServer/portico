@@ -8,7 +8,6 @@ import {durationText} from '@core/presentation/kit-model/text.ts';
 import type {BrowseSortSelection} from '@core/browse.ts';
 import type {ContentEntry} from '@core/library-content.ts';
 import {AlphabetRail, WindowedGrid, fillHeightBelow, observeShellClearance, type WindowedGridHandle} from '../../kit/layout';
-import {gridColumns} from '../../kit/layout/geometry';
 import {Skeleton, StateView} from '../../kit/states';
 import {Artwork, GeneratedArt} from '../../kit/artwork';
 import {Button} from '../../kit/controls';
@@ -98,12 +97,12 @@ export function BrowseResults(props: BrowseResultsProps) {
   // Frame #collections draws three 16:9 series tiles at 24px: a page of about ten groups reads as
   // banners, not as seven poster columns. Every other grid fills its columns to the gutter.
   const tiles = shape === 'collection' && !list, gap = tiles ? 24 : gridGap;
-  const painted = tiles ? 3 : size.width > 0 ? gridColumns(size.width, cardWidth, gridGap) : 1;
-  // Fill the grid's own content box so every row reaches the gutter. The hundredth of a pixel
-  // keeps the canonical column count exactly `painted` when the grid re-derives it from this width.
+  // Tiles are three across the grid's own content box; every other grid is the kit grid's `fill` (columns of at
+  // least `cardWidth` stretched to both gutters) and a list is one full-width column. The hundredth of a pixel
+  // keeps the tiles' column count at three when the grid derives it again from this width.
   const overflow = size.grid > 0 ? Math.max(0, size.width - size.grid) : 0;
-  const width = list ? Math.max(1, size.grid || size.width) : size.grid > 0 ? (size.grid - (painted - 1) * gap) / painted - .01 : cardWidth;
-  const height = musicGenres ? 152 : width / ratio + (shape === 'collection' ? 0 : gridCaption);
+  const tileWidth = size.grid > 0 ? (size.grid - 2 * gap) / 3 - .01 : cardWidth;
+  const rowHeight = list ? music ? 56 : 70 : (width: number) => musicGenres ? 152 : width / ratio + (shape === 'collection' ? 0 : gridCaption);
   const gutter = {'--grid-overflow': `${overflow}px`} as CSSProperties;
   if (failed) return <StateView variant="page" title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: controller.retry}}/>;
   return <div className={styles.results} ref={root} data-view={view} data-music={music || undefined} data-reading={reading || undefined} data-shape={tiles ? 'collection' : undefined} data-empty={snapshot.total === 0 ? '' : undefined} style={gutter}>
@@ -115,10 +114,10 @@ export function BrowseResults(props: BrowseResultsProps) {
       </div>;
     })}{!reading && !music && <span aria-label={t('next.cards.watched')} role="columnheader"/>}<span/></div>}
     <WindowedGrid collection={controller.collection} ref={grid} label={props.label} height={size.height} retainRemovals paintScope={controller} empty={props.empty}
-      cardWidth={width} rowHeight={list ? music ? 56 : 70 : height} gap={list ? 0 : gap} rowGap={list ? 0 : tiles ? 24 : gridRowGap} reducedMotion={props.reducedMotion}
-      onVisibleRange={range} renderPlaceholder={() => <Skeleton height={list ? 54 : musicGenres ? 152 : width / ratio} width={list ? '100%' : width}/>}
+      cardWidth={tiles ? tileWidth : cardWidth} fullWidth={list} fill={!list && !tiles} rowHeight={rowHeight} gap={list ? 0 : gap} rowGap={list ? 0 : tiles ? 24 : gridRowGap} reducedMotion={props.reducedMotion}
+      onVisibleRange={range} renderPlaceholder={(_, width) => <Skeleton height={list ? 54 : musicGenres ? 152 : width / ratio} width={list ? '100%' : width}/>}
       renderItem={(member, context) => list ? <BrowseListRow {...props} member={member} index={context.index} reading={reading} music={music}/> : <BrowseEntryCard entry={member.entry} actions={props.actions(member, context.index)} artwork={props.artwork} env={props.env}
-        width={width} family={props.familyForEntry?.(member.entry) ?? state.capabilities?.library.kind} mixed={controller.source.libraryId === '*'} visible order={context.index} group={controller.source.libraryId} backdrops={props.backdrops}/>} />
+        width={context.width} family={props.familyForEntry?.(member.entry) ?? state.capabilities?.library.kind} mixed={controller.source.libraryId === '*'} visible order={context.index} group={controller.source.libraryId} backdrops={props.backdrops}/>} />
     {state.sort?.field === 'title' && anchors.length > 0 && !tiles && <AlphabetRail anchors={anchors} visibleRange={visible} onJump={anchor => grid.current?.scrollToIndex(anchor.index)} platform={phone ? 'phone' : 'desktop'} className={styles.rail}/>}
   </div>;
 }
