@@ -95,6 +95,13 @@ func (s *Service) LibraryProviders(kind string) []LibraryMetadataProvider {
 	return choices
 }
 
+// Remove stops new lookups from using a provider after its owner key is cleared.
+func (s *Service) Remove(name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.Providers, name)
+}
+
 // Asks reports whether a library (a public id) has a provider to ask: one that uses local
 // metadata only, or whose provider this server has no key for, has none.
 func (s *Service) Asks(ctx context.Context, library string) (bool, error) {
