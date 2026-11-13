@@ -63,3 +63,39 @@ test('hidden empty art waits for visibility and a later empty interval gets a fr
     assert.equal(r.fallback, 2); assert.equal(r.decoded, 0);
   } finally {await r.close();}
 });
+
+test('a failed v2 wash falls back once and later pictures on that server use v1 for the app session', async () => {
+  const source = (server: string, hash: string) => ({variant: 'ambient-v2', maxEdge: 64, version: hash,
+    url: `/v1/images/${hash}?size=ambient-v2`, uri: `https://${server}/v1/images/${hash}?size=ambient-v2`,
+    cacheKey: `${server}/viewer/session/${hash}/ambient-v2`, headers: {Authorization: 'fixture-authority'}});
+  const first = source('legacy.test', 'a'.repeat(64));
+  const r = await rig(); let failed = 0; const statuses: string[] = [];
+  await r.mount({source: first, onError: () => failed++, onStatusChange: (status: string) => statuses.push(status)});
+  try {
+    assert.equal(r.artwork()[0].props.source.variant, 'ambient-v2');
+    await act(() => r.artwork()[0].props.onStatusChange('error'));
+    assert.deepEqual(statuses, [], 'v2 failure is not terminal while v1 can load');
+    await act(() => r.artwork()[0].props.onError(first));
+    const fallback = r.artwork()[0].props.source;
+    assert.equal(fallback.variant, 'ambient-v1');
+    assert.equal(fallback.uri, first.uri.replace('ambient-v2', 'ambient-v1'));
+    assert.equal(fallback.url, first.url.replace('ambient-v2', 'ambient-v1'));
+    assert.notEqual(fallback.cacheKey, first.cacheKey);
+    assert.deepEqual(fallback.headers, first.headers);
+    assert.equal(failed, 0, 'v2 failure first tries v1');
+    await act(() => r.artwork()[0].props.onReady(fallback));
+    assert.equal(r.decoded, 1);
+    await act(() => r.artwork()[0].props.onStatusChange('error'));
+    await act(() => r.artwork()[0].props.onError(fallback));
+    assert.deepEqual(statuses, ['error']);
+    assert.equal(failed, 1, 'v1 failure is terminal');
+    assert.equal(r.artwork()[0].props.source.uri, fallback.uri);
+    await r.update({source: source('legacy.test', 'b'.repeat(64))});
+    assert.equal(r.artwork()[0].props.source.variant, 'ambient-v1', 'the next picture skips v2');
+    await r.update({source: source('current.test', 'c'.repeat(64))});
+    assert.equal(r.artwork()[0].props.source.variant, 'ambient-v2', 'another server still uses v2');
+    await r.close();
+    await r.mount({source: source('legacy.test', 'd'.repeat(64))});
+    assert.equal(r.artwork()[0].props.source.variant, 'ambient-v1', 'a new surface remembers the server');
+  } finally {await r.close();}
+});
