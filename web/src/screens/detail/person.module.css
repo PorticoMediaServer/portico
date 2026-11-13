@@ -63,7 +63,8 @@
 
 .chips > button[data-variant='quick'] { height: 38px; }
 
-.groups { display: flex; flex-wrap: wrap; gap: 72px; padding: 26px 64px 0; }
+/* The kind sections are the shared rows (desktop-detail frame 7); the rows keep their own gutter and spacing. */
+.groups { padding-top: 26px; }
 /* H05: credits that are not grouped by role sit in the same page gutter as the groups and the toolbar. */
 .credits { padding: 26px 64px 0; }
 
@@ -73,8 +74,6 @@
 
 .groupCount { font-size: var(--person-group-count-size); font-weight: var(--person-group-count-weight); color: var(--color-text-tertiary); }
 
-.track { padding-top: 12px; }
-
 .note { display: flex; align-items: center; gap: 10px; margin: 40px 64px 0; font-size: var(--person-note-size); line-height: normal; color: var(--color-text-tertiary); }
 
 .note svg { color: var(--color-accent-strong); flex: none; }
@@ -82,6 +81,8 @@
 .wideGrid { margin-top: 12px; }
 
 .placeholder { display: block; aspect-ratio: 2/3; border-radius: 12px; background: var(--color-raised); }
+
+.placeholder[data-square] { aspect-ratio: 1; }
 
 @media(max-width:1023px) { .person { padding-bottom: 110px; }
 
