@@ -189,3 +189,6 @@
   .state[data-state='idle'] > i { display: none; }
   .stateWide { display: none; } .stateNarrow { display: inline; }
 }
+.trashRule {display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px;}
+.trashRule input {width: 88px;}
+.trashHelp {margin: 12px 0 0; font-size: var(--type-caption-size); line-height: var(--type-body-line); color: var(--color-text-secondary);}
