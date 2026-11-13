@@ -18,9 +18,8 @@ export type AccountMoveCode=Readonly<{accountId:string;username:string;code:stri
 export type AccountMoveConfirmation=Readonly<{kind:'local';signIn:DirectSignIn}|{kind:'portico';move:AccountMove}>;
 export type MoveCredential=Readonly<{ticket:string;code?:never}|{code:string;ticket?:never}>;
 export type MoveCollisionDetails=Readonly<{existingUsername:string;serverName:string}>;
-/** Legacy Sign-in DTO/parser/client for native SignInPage until its rebuilt-server adaptation removes them. */
-export type SignInSettings=Readonly<{signIn:SignInKind;owner:Readonly<{accountId:string;username:string;displayName:string;email?:string}>;move:AccountMove|null;webPath:'/settings?scope=server&section=signin'}>;
-export type OwnerSignInSettings=Readonly<{signIn:SignInKind;owner:Readonly<{accountId:string;username:string;email?:string}>;move:Readonly<{to:SignInKind;since:string}>|null}>;
+/** `move.waiting`: how many accounts still wait, from the server's list; `total`: everyone the move began with, only when the server recorded it. */
+export type OwnerSignInSettings=Readonly<{signIn:SignInKind;owner:Readonly<{accountId:string;username:string;email?:string}>;move:Readonly<{to:SignInKind;since:string;waiting:number;total?:number}>|null}>;
 export type MoveClientOptions=Readonly<{
  serverId:string;isCurrent:()=>boolean;
  /** Platform uses its explicit transport and the captured issuing authority. Never another family. */
@@ -46,13 +45,6 @@ export function parseMoveCollisionDetails(raw:unknown):MoveCollisionDetails{
  if(!obj(raw)||!text(raw.existingUsername,64)||!text(raw.serverName,120)||Object.keys(raw).some(key=>!['existingUsername','serverName'].includes(key)))invalid();
  return Object.freeze({existingUsername:raw.existingUsername,serverName:raw.serverName});
 }
-export function parseSignInSettings(raw:unknown):SignInSettings{
- if(!obj(raw)||!['portico','local'].includes(String(raw.signIn))||!obj(raw.owner)||!Object.hasOwn(raw,'move')||raw.webPath!=='/settings?scope=server&section=signin')invalid();
- const owner=raw.owner;if(!text(owner.accountId,128)||!text(owner.username,64)||typeof owner.displayName!=='string'||owner.displayName.length>120||/[\p{Cc}\p{Cf}]/u.test(owner.displayName)||owner.email!==undefined&&!text(owner.email,254))invalid();
- const move=raw.move===null?null:parseAccountMove(raw.move);
- if(move&&(move.stage==='moving_to_local'&&raw.signIn!=='local'||move.stage==='moving_to_portico'&&raw.signIn!=='portico'))invalid();
- return Object.freeze({signIn:raw.signIn as SignInKind,owner:Object.freeze({accountId:owner.accountId,username:owner.username,displayName:owner.displayName,...(owner.email===undefined?{}:{email:owner.email as string})}),move,webPath:raw.webPath});
-}
 export function parseOwnerSignInSettings(raw:unknown):OwnerSignInSettings{
  if(!obj(raw)||!['portico','local'].includes(String(raw.kind))||!obj(raw.owner))invalid();
  const owner=raw.owner;
@@ -60,7 +52,9 @@ export function parseOwnerSignInSettings(raw:unknown):OwnerSignInSettings{
  let move:OwnerSignInSettings['move']=null;
  if(raw.move!==undefined){
   if(!obj(raw.move)||!['portico','local'].includes(String(raw.move.to)))invalid();
-  move=Object.freeze({to:raw.move.to as SignInKind,since:expiry(raw.move.since)});
+  if(raw.waiting!==undefined&&!Array.isArray(raw.waiting))invalid();
+  const total=raw.move.total;
+  move=Object.freeze({to:raw.move.to as SignInKind,since:expiry(raw.move.since),waiting:Array.isArray(raw.waiting)?raw.waiting.length:0,...(typeof total==='number'&&Number.isSafeInteger(total)&&total>0?{total}:{})});
  }
  return Object.freeze({signIn:raw.kind as SignInKind,owner:Object.freeze({accountId:owner.id,username:owner.username,...(owner.email===undefined?{}:{email:owner.email as string})}),move});
 }
@@ -167,16 +161,6 @@ export class MemberAccountMoveClient extends MoveTransport {
  }
 }
 /** Phones/TV use this surface only. The producer still rechecks live owner + main profile. */
-export class ReadOnlySignInClient extends MoveTransport {
- private readonly capabilities:()=>ManagementCapabilities;
- constructor(api:ProfileAPI,options:Pick<MoveClientOptions,'serverId'|'isCurrent'|'timeoutMs'>&{capabilities:()=>ManagementCapabilities}){
-  super(api,{...options,retireLateGrant:async()=>{}});this.capabilities=options.capabilities;
- }
- read(signal?:AbortSignal):Promise<SignInSettings>{
-  if(this.capabilities().manageSignIn!==true)throw new CodedError('forbidden','Sign-in settings require the owner’s main profile.');
-  return this.call(routePath('get_sign_in_settings'),'GET',undefined,raw=>{if(this.capabilities().manageSignIn!==true)ended();return parseSignInSettings(raw);},signal);
- }
-}
 export class OwnerSignInSettingsClient extends MoveTransport {
  private readonly capabilities:()=>ManagementCapabilities;
  constructor(api:ProfileAPI,options:Pick<MoveClientOptions,'serverId'|'isCurrent'|'timeoutMs'>&{capabilities:()=>ManagementCapabilities}){
@@ -185,6 +169,11 @@ export class OwnerSignInSettingsClient extends MoveTransport {
  read(signal?:AbortSignal):Promise<OwnerSignInSettings>{
   if(this.capabilities().manageSignIn!==true)throw new CodedError('forbidden','Sign-in settings require the owner’s main profile.');
   return this.call(serverPath('GET /v1/admin/sign-in'),'GET',undefined,raw=>{if(this.capabilities().manageSignIn!==true)ended();return parseOwnerSignInSettings(raw);},signal);
+ }
+ /** Finish now (`POST /v1/admin/sign-in/finish`, the owner's own session): the accounts still waiting become "didn't move"; their profiles and history are kept. Answers how many. */
+ finish(signal?:AbortSignal):Promise<number>{
+  if(this.capabilities().manageSignIn!==true)throw new CodedError('forbidden','Sign-in settings require the owner’s main profile.');
+  return this.call(serverPath('POST /v1/admin/sign-in/finish'),'POST',{},raw=>{if(!obj(raw)||typeof raw.notMoved!=='number'||!Number.isSafeInteger(raw.notMoved)||raw.notMoved<0)invalid();return raw.notMoved;},signal);
  }
 }
 export class AccountMoveClient extends MoveTransport {

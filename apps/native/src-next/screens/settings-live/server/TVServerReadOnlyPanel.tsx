@@ -6,7 +6,7 @@ import {settingsSpec} from '../../../../../../packages/client-core/src/presentat
 import {settingsBinding, readSettingsBinding} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import {parseSettingsConfiguration} from '../../../../../../packages/client-core/src/settings-configuration';
 import {parseMetadataSettings} from '../../../../../../packages/client-core/src/metadata-settings';
-import {parseSignInSettings} from '../../../../../../packages/client-core/src/account-move';
+import {parseOwnerSignInSettings} from '../../../../../../packages/client-core/src/account-move';
 import {signInLabelKey} from '../../../../../../packages/client-core/src/sign-in';
 import {listApiKeys, listWebhooks} from '../../../../../../packages/client-core/src/api-access';
 import {fetchPlayHistory} from '../../../../../../packages/client-core/src/play-history';
@@ -55,7 +55,7 @@ export function TVServerReadOnlyPanel({page, ports, runtime, lifetime, statusOnl
     setSnapshot(undefined); setError(undefined);
     const load = async (): Promise<Snapshot> => {
       if (page === 'signin') {
-        const settings = parseSignInSettings(await readOwnerSignInSettings({request:read}));
+        const settings = parseOwnerSignInSettings(await readOwnerSignInSettings({request:read}));
         return {facts: [
           {id: 'signin.method', label: label(settings.signIn === 'local' ? 'signin.methodLocal' : 'signin.method'), value: t(signInLabelKey(settings.signIn))},
           {id: 'signin.owner', label: label(settings.signIn === 'local' ? 'signin.ownerLocal' : 'signin.owner'), value: settings.owner.username},
