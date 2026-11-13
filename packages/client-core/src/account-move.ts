@@ -18,7 +18,9 @@ export type AccountMoveCode=Readonly<{accountId:string;username:string;code:stri
 export type AccountMoveConfirmation=Readonly<{kind:'local';signIn:DirectSignIn}|{kind:'portico';move:AccountMove}>;
 export type MoveCredential=Readonly<{ticket:string;code?:never}|{code:string;ticket?:never}>;
 export type MoveCollisionDetails=Readonly<{existingUsername:string;serverName:string}>;
+/** Legacy Sign-in DTO/parser/client for native SignInPage until its rebuilt-server adaptation removes them. */
 export type SignInSettings=Readonly<{signIn:SignInKind;owner:Readonly<{accountId:string;username:string;displayName:string;email?:string}>;move:AccountMove|null;webPath:'/settings?scope=server&section=signin'}>;
+export type OwnerSignInSettings=Readonly<{signIn:SignInKind;owner:Readonly<{accountId:string;username:string;email?:string}>;move:Readonly<{to:SignInKind;since:string}>|null}>;
 export type MoveClientOptions=Readonly<{
  serverId:string;isCurrent:()=>boolean;
  /** Platform uses its explicit transport and the captured issuing authority. Never another family. */
@@ -50,6 +52,17 @@ export function parseSignInSettings(raw:unknown):SignInSettings{
  const move=raw.move===null?null:parseAccountMove(raw.move);
  if(move&&(move.stage==='moving_to_local'&&raw.signIn!=='local'||move.stage==='moving_to_portico'&&raw.signIn!=='portico'))invalid();
  return Object.freeze({signIn:raw.signIn as SignInKind,owner:Object.freeze({accountId:owner.accountId,username:owner.username,displayName:owner.displayName,...(owner.email===undefined?{}:{email:owner.email as string})}),move,webPath:raw.webPath});
+}
+export function parseOwnerSignInSettings(raw:unknown):OwnerSignInSettings{
+ if(!obj(raw)||!['portico','local'].includes(String(raw.kind))||!obj(raw.owner))invalid();
+ const owner=raw.owner;
+ if(!text(owner.id,128)||!text(owner.username,64)||owner.email!==undefined&&!text(owner.email,254))invalid();
+ let move:OwnerSignInSettings['move']=null;
+ if(raw.move!==undefined){
+  if(!obj(raw.move)||!['portico','local'].includes(String(raw.move.to)))invalid();
+  move=Object.freeze({to:raw.move.to as SignInKind,since:expiry(raw.move.since)});
+ }
+ return Object.freeze({signIn:raw.kind as SignInKind,owner:Object.freeze({accountId:owner.id,username:owner.username,...(owner.email===undefined?{}:{email:owner.email as string})}),move});
 }
 export function parseAccountMove(raw:unknown):AccountMove{
  if(!obj(raw)||!text(raw.id,128)||!['portico','local'].includes(String(raw.from))||!['portico','local'].includes(String(raw.to))||raw.from===raw.to||typeof raw.startOver!=='boolean'||!['preview','moving_to_portico','moving_to_local','complete','cancelled'].includes(String(raw.stage))||!count(raw.revision)||raw.revision<1||!text(raw.serverName,120)||typeof raw.ownAddressRequired!=='boolean')invalid();
@@ -162,6 +175,16 @@ export class ReadOnlySignInClient extends MoveTransport {
  read(signal?:AbortSignal):Promise<SignInSettings>{
   if(this.capabilities().manageSignIn!==true)throw new CodedError('forbidden','Sign-in settings require the owner’s main profile.');
   return this.call(routePath('get_sign_in_settings'),'GET',undefined,raw=>{if(this.capabilities().manageSignIn!==true)ended();return parseSignInSettings(raw);},signal);
+ }
+}
+export class OwnerSignInSettingsClient extends MoveTransport {
+ private readonly capabilities:()=>ManagementCapabilities;
+ constructor(api:ProfileAPI,options:Pick<MoveClientOptions,'serverId'|'isCurrent'|'timeoutMs'>&{capabilities:()=>ManagementCapabilities}){
+  super(api,{...options,retireLateGrant:async()=>{}});this.capabilities=options.capabilities;
+ }
+ read(signal?:AbortSignal):Promise<OwnerSignInSettings>{
+  if(this.capabilities().manageSignIn!==true)throw new CodedError('forbidden','Sign-in settings require the owner’s main profile.');
+  return this.call(serverPath('GET /v1/admin/sign-in'),'GET',undefined,raw=>{if(this.capabilities().manageSignIn!==true)ended();return parseOwnerSignInSettings(raw);},signal);
  }
 }
 export class AccountMoveClient extends MoveTransport {

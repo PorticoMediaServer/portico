@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {AccountMoveClient,MemberAccountMoveClient,ReadOnlySignInClient,parseSignInSettings,parseAccountMove,parseMovePasswordTicket,parseMoveCodePreview,parseAccountMoveCodes,consumeMoveCodeFragment,consumeAccountMoveFragment,accountMoveLink} from '../src/account-move.ts';
+import {AccountMoveClient,MemberAccountMoveClient,OwnerSignInSettingsClient,parseOwnerSignInSettings,parseAccountMove,parseMovePasswordTicket,parseMoveCodePreview,parseAccountMoveCodes,consumeMoveCodeFragment,consumeAccountMoveFragment,accountMoveLink} from '../src/account-move.ts';
 import {HttpLocalApi} from '../src/index.ts';
 import {parseServerSignIn} from '../src/sign-in.ts';
 import {makeMemberResetCode} from '../src/account-reset.ts';
@@ -52,11 +52,11 @@ test('link fragments are scrubbed synchronously, exact and memory-only',()=>{
  assert.throws(()=>consumeMoveCodeFragment({pathname:'/sign-in',search:'?code='+code,hash:''},history));assert.equal(kept.at(-1),'/sign-in');
 });
 test('read-only Sign-in is live owner/main-profile data; denied capability makes no request and late capability loss drops private owner facts',async()=>{
- const status={signIn:'local',owner:{accountId:'owner',username:'alice',displayName:'Alice',email:'alice@example.test'},move,webPath:'/settings?scope=server&section=signin'};
- assert.equal(parseSignInSettings(status).owner.email,'alice@example.test');
- for(const patch of [{signIn:'mixed'},{owner:{...status.owner,username:''}},{webPath:'/settings/server/signin'},{move:undefined}])assert.throws(()=>parseSignInSettings({...status,...patch}));
+ const status={kind:'local',owner:{id:'owner',username:'alice',email:'alice@example.test'},move:{to:'local',since:'2026-11-13T04:00:00Z'},waiting:[]};
+ assert.equal(parseOwnerSignInSettings(status).owner.email,'alice@example.test');
+ for(const patch of [{kind:'mixed'},{owner:{...status.owner,username:''}},{move:{to:'unknown',since:status.move.since}},{move:{to:'local',since:'yesterday'}}])assert.throws(()=>parseOwnerSignInSettings({...status,...patch}));
  let allowed=false,calls=0,answer!:(v:unknown)=>void;
- const client=new ReadOnlySignInClient({request:()=>{calls++;return new Promise(resolve=>{answer=resolve;}) as any;}},{serverId:'server',isCurrent:()=>true,capabilities:()=>({manageAccount:allowed,managePeople:allowed,manageServer:allowed,manageSignIn:allowed})});
+ const client=new OwnerSignInSettingsClient({request:()=>{calls++;return new Promise(resolve=>{answer=resolve;}) as any;}},{serverId:'server',isCurrent:()=>true,capabilities:()=>({manageAccount:allowed,managePeople:allowed,manageServer:allowed,manageSignIn:allowed})});
  assert.throws(()=>client.read(),{code:'forbidden'});assert.equal(calls,0);allowed=true;
  const pending=client.read();allowed=false;answer(status);await assert.rejects(pending,{code:'cancelled'});client.dispose();
 });

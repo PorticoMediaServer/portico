@@ -19,6 +19,7 @@ export type SettingsBindingValue=Readonly<{current:unknown;effective:unknown;def
 export type SettingsBindingPatch=Readonly<{form:SettingsBindingForm;values:Readonly<Record<string,unknown>>}>;
 const bindings:Readonly<Record<string,SettingsBinding>>={
  'remote.identityCode':{form:'connectivityStatus',key:'identityCode',readOnly:true},
+ 'signin.dataFolder':{form:'signInPolicy',key:'dataFolder',readOnly:true},
  // Sign-in › Advanced (#713): read from the configuration rows, written only through sign-in-policy.ts.
  'signin.stayLength':{form:'signInPolicy',key:'staySignedInDays',codec:'number-choice'},
  'signin.pinRemember':{form:'signInPolicy',key:'pinRememberDays',codec:'number-choice'},

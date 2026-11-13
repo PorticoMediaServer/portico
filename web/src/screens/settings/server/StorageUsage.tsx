@@ -31,7 +31,12 @@ export function StorageDataFolder({source, label}: RowProps) {
   const state = useStorage(source);
   if (state.phase === 'error') return <Failure source={source} />;
   if (state.phase !== 'ready' || !state.report) return <p role="status">{t('next.settings.loading')}</p>;
-  return <code className={styles.storagePath} aria-label={label}>{state.report.stateDirectory}</code>;
+  return <StorageFolderPath path={state.report.stateDirectory} label={label} />;
+}
+
+/** The data-folder fact, also used by Sign-in’s reset-file instructions. */
+export function StorageFolderPath({path, label}: Readonly<{path: string; label: string}>) {
+  return <code className={styles.storagePath} aria-label={label}>{path}</code>;
 }
 
 /** What's using space, by the server's own data-folder layout. */

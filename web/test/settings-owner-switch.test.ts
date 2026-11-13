@@ -102,7 +102,7 @@ test('preview cancellation and guarded Server cancellation are explicit commands
 test('the mounted Sign-in source is inert and exposes only actual kind/owner facts', async () => {
   let calls = 0, current = true;
   const source = new SignInSettingsSource({request: async <T>() => {
-    calls++;return {signIn: 'local', owner: {accountId: 'owner', username: 'actual_owner', displayName: 'Actual owner'}, move: null, webPath: '/settings?scope=server&section=signin'} as T;
+    calls++;return {kind: 'local', owner: {id: 'owner', username: 'actual_owner'}, waiting: []} as T;
   }}, {serverId: 'server', signIn: 'local', isCurrent: () => current, capabilities: () => ({manageAccount: true, managePeople: true, manageServer: true, manageSignIn: true}), onAuthorityChanged: () => {throw new Error('Unexpected authority change');}});
   try {
     assert.equal(calls, 0);await source.load();assert.equal(source.rowState('signin.ownerLocal')?.displayValue, 'actual_owner');

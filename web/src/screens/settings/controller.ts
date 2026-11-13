@@ -415,7 +415,7 @@ export class SettingsController {
       if (this.current()) {this.rowErrors.set(row.id, error); this.publish({saveState: undefined}); this.options.reportError(error);}
     } finally {this.writing = false; this.publish({});}
   };
-  /** Sign-in › Advanced (#713): the complete nine-value policy with the configuration's policy revision. A revision
+  /** Sign-in › Advanced: the applicable policy values with the configuration's read revision. A revision
    * conflict re-reads the configuration, so the rows show what is current rather than an error. */
   private writeSignInPolicy = async (row: SettingsRow, value: SettingsValue) => {
     const configuration = this.configuration, values = signInPolicyValues(configuration);
