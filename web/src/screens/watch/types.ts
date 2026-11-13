@@ -21,7 +21,7 @@ export type WatchBindings = Readonly<{
   skips: Readonly<{back: number; forward: number}>;
   reportError: (error: unknown) => void;
 }>;
-export type WatchPanel = 'options' | 'subtitles-audio' | 'subtitles' | 'audio' | 'quality' | 'speed' | 'episodes' | 'queue' | 'play-on' | 'info' | 'file-info' | 'versions' | 'equalizer';
+export type WatchPanel = 'options' | 'subtitles-audio' | 'subtitles' | 'audio' | 'quality' | 'speed' | 'episodes' | 'chapters' | 'queue' | 'play-on' | 'info' | 'file-info' | 'versions' | 'equalizer';
 export type WatchPanelContext = Readonly<{
   panel: WatchPanel | null;
   snapshot: WebPlaybackRuntimeSnapshot;
