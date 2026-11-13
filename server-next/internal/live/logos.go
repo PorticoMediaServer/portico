@@ -119,7 +119,7 @@ func (s *Service) channelLogo(ctx context.Context, client *http.Client, address 
 	if err != nil {
 		return "", err
 	}
-	request.Header.Set("User-Agent", "Portico")
+	request.Header.Set("User-Agent", Document.Get(s.Settings).IdentifyAs())
 	response, err := client.Do(request)
 	if err != nil {
 		return "", fmt.Errorf("the logo address could not be reached")

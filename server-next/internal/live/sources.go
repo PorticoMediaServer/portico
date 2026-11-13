@@ -221,7 +221,7 @@ func (s *Service) fetch(ctx context.Context, address string, limit int64) (io.Re
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "Portico")
+	req.Header.Set("User-Agent", Document.Get(s.Settings).IdentifyAs())
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("the address could not be reached")
