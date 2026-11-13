@@ -3,7 +3,8 @@ import fixture from './owner-dashboard.fixture.json';
 import {useWindowDimensions, View} from 'react-native';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {AdminSession, StreamAction} from '../../../../../../packages/client-core/src/playback-v1/types';
-import type {Alert, Job} from '../../../../../../packages/client-core/src/console';
+import type {Job} from '../../../../../../packages/client-core/src/console';
+import type {DashboardAlert} from '../../../screens/settings-live/dashboard-controller';
 import type {PlaySummary} from '../../../../../../packages/client-core/src/play-history';
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
 import type {Gallery} from '../../gallery-registry';
@@ -60,9 +61,11 @@ function scaleSession(index: number): AdminSession {
 }
 const scaleSessions: readonly AdminSession[] = Array.from({length: 48}, (_, index) => scaleSession(index));
 
-const alerts: readonly Alert[] = [
-  {id: 'alert-storage', code: 'low_storage', severity: 'critical', status: 'open', params: {}, firstAt: now - 7_200_000, lastAt: now - 120_000, occurrences: 2, revision: 1},
-  {id: 'alert-upload', code: 'upload-budget-exhausted', severity: 'warning', status: 'open', params: {}, firstAt: now - 3_600_000, lastAt: now - 600_000, occurrences: 3, revision: 1},
+// The rebuilt server's Dashboard alerts: one it can fix, and one on a drive that cannot limit who opens the folder.
+const alerts: readonly DashboardAlert[] = [
+  {code: 'storage_nearly_full', severity: 'critical', major: true, params: {}, action: {kind: 'storage', target: ''}},
+  {code: 'data_folder_readable', severity: 'warning', major: false, params: {path: '/srv/portico', owner: 'portico'}, action: {kind: 'fix-permissions', target: ''}},
+  {code: 'data_folder_readable', severity: 'warning', major: false, params: {path: '/mnt/usb/portico', owner: 'portico', reason: 'not_kept_here', message: fixture.notKeptHereMessage}, action: {kind: 'none', target: ''}},
 ];
 
 const jobs: readonly Job[] = [
@@ -88,7 +91,7 @@ function specimen(scale: boolean, expanded: boolean, move = false) {
   return function OwnerDashboardSpecimen() {
     const {height} = useWindowDimensions();
     const [showAll, setShowAll] = useState(expanded), [showMove, setShowMove] = useState(move);
-    const theme = useTheme(), env = {t, locale: defaultI18n.region.formatLocale}, health = ownerHealthLine(undefined, undefined, t);
+    const theme = useTheme(), env = {t, locale: defaultI18n.region.formatLocale}, health = ownerHealthLine(undefined, t);
     const list = scale ? scaleSessions : sessions;
     // The page is drawn edge to edge in the frames; the dev host's gutter is cancelled here, once.
     return <View style={{height, backgroundColor: theme.colors.ink, marginHorizontal: -theme.gutter}}>
@@ -97,9 +100,9 @@ function specimen(scale: boolean, expanded: boolean, move = false) {
           streams={list.slice(0, 10).map(value => ({view: ownerStreamView(value, env)}))} streamTotals={scale ? scaleTotals : {streams: 2, paused: 0, converting: 1, bandwidthKbps: 8000, people: 2, atHome: 1, away: 1}}
           expanded={showAll} allStreams={showAll ? list.map(value => ({view: ownerStreamView(value, env)})) : []}
           people={scale ? '37 people · 30 at home, 7 away' : '2 people · 1 at home, 1 away'}
-          alerts={alerts.map(value => ownerAlertView(value, t, defaultI18n.has))} update={{latest: '0.2.0', current: '0.1.0', notesURL: 'https://example.com/portico/0.2.0', checking: false, checkFailed: false}} jobs={jobs.map(value => ownerJobView(value, t, defaultI18n.has))}
+          alerts={alerts.map((value, index) => ownerAlertView(value, index, t, defaultI18n.has))} update={{latest: '0.2.0', current: '0.1.0', notesURL: 'https://example.com/portico/0.2.0', checking: false, checkFailed: false}} jobs={jobs.map(value => ownerJobView(value, t, defaultI18n.has))}
           telemetry={telemetry} healthWindow="1h" summary={summary} viewingPeriod="7d"
-          onBack={() => {}} onRetry={() => {}} onHealthWindow={() => {}} onViewingPeriod={() => {}} onAcknowledge={() => {}} onFixPermissions={() => {}} onJobMenu={() => {}} onStop={() => {}} onStreamMenu={() => {}}
+          onBack={() => {}} onRetry={() => {}} onHealthWindow={() => {}} onViewingPeriod={() => {}} onFixPermissions={() => {}} onJobMenu={() => {}} onStop={() => {}} onStreamMenu={() => {}}
           onShowAll={() => setShowAll(true)} onShowFewer={() => setShowAll(false)} onRetryAll={() => {}}/>
       {showMove ? <OwnerMoveSheet session={scaleSessions[4]} t={t} busy={false} onCancel={() => setShowMove(false)} onMove={() => setShowMove(false)}/> : null}
     </View>;

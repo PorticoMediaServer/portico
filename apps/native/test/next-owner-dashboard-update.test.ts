@@ -86,6 +86,8 @@ async function phone(admission: 'owner' | 'administrator') {
   }
   const card = await cardModule(h.react);
   const {NativeOwnerDashboardPhone} = await screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/use-owner-dashboard.tsx', import.meta.url), {
+    '../../../../../../packages/client-core/src/admin/data-folder': {dataFolderConfirmText: () => ''},
+    '../../../../../../packages/client-core/src/http': {ApiError: class extends Error {}},
     react: h.react, 'react-native': {View: 'View', Linking: {openURL: async (url: string) => {opened.push(url);}}}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 0})},
     '../../../../../../packages/client-core/src/server-clock': {serverNow: () => 0}, '../../../../../../packages/i18n/src': {defaultI18n: {has: () => true}},
     '../../../../../../packages/client-core/src/timer': {repeat: () => ({stop() {}})}, '../../../../../../packages/client-core/src/server-admin/now-playing': nowPlaying,

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaultI18n} from '../../../packages/i18n/src';
-import type {Alert, Job} from '../../../packages/client-core/src/console';
+import type {Job} from '../../../packages/client-core/src/console';
+import type {DashboardAlert} from '../src-next/screens/settings-live/dashboard-controller';
 import type {AdminSession} from '../../../packages/client-core/src/playback-v1/types';
 import type {TelemetryReading} from '../../../packages/client-core/src/telemetry';
 import {
@@ -20,7 +21,6 @@ function session(overrides: Partial<AdminSession> = {}): AdminSession {
   }) as AdminSession;
 }
 
-const measurement = (facts: Record<string, {state: string; value: unknown}>) => ({name: 'health', observedAt: 1, freshUntil: 2, facts});
 
 test('Ruling 4 route facts name Original, Repackaged and Converted with its height', () => {
   assert.equal(ownerStreamView(session({decision: {video: {action: 'direct', reasons: []}, audio: {action: 'direct', reasons: []}}}), env).facts.find(part => part.id === 'route')?.text, 'Original');
@@ -55,19 +55,17 @@ test('a channel stream states when it started and has no position bar', () => {
   assert.equal(view.progress, undefined);
 });
 
-test('Health keeps the measured sentence and degrades honestly', () => {
-  const healthy = ownerHealthLine(measurement({uptime: {state: 'available', value: 518_400}}), measurement({stateVolumeAvailable: {state: 'available', value: 1_288_490_188_800}, databaseBytes: {state: 'available', value: 432_013_312}}), t);
+test('Health says the free space and the database\'s size, and needs attention while an alert is major', () => {
+  const healthy = ownerHealthLine({degraded: false, freeBytes: 1_288_490_188_800, databaseBytes: 432_013_312}, t);
   assert.equal(healthy.facts.degraded, false);
   assert.equal(healthy.status, 'Running normally');
-  assert.match(healthy.line, /^Up for 6d 0h/);
   assert.match(healthy.line, /free ·/);
   assert.match(healthy.line, /Database /);
-  const degraded = ownerHealthLine(measurement({database: {state: 'unavailable', value: null}}), undefined, t);
+  const degraded = ownerHealthLine({degraded: true}, t);
   assert.equal(degraded.facts.degraded, true);
   assert.equal(degraded.status, 'The database needs attention');
   assert.equal(degraded.line, '');
 });
-
 test('a server that just started says so only while its uptime is small', () => {
   assert.equal(ownerIsNewServer(120), true);
   assert.equal(ownerIsNewServer(901), false);
@@ -121,21 +119,23 @@ test('a task shows real progress only from a published total, else its state', (
   assert.equal(queued.icon, 'i-image');
 });
 
-test('alerts are named from the catalogue and the permissions warning keeps its own copy', () => {
-  const alert: Alert = {id: 'a', code: 'state-permissions', severity: 'warning', status: 'open', params: {}, firstAt: 1, lastAt: 2, occurrences: 1, revision: 1};
-  const view = ownerAlertView(alert, t, defaultI18n.has);
-  assert.equal(view.title, 'Other accounts on this computer can read Portico data');
-  assert.match(view.body ?? '', /Fixing permissions keeps Portico’s files readable only by your account/);
+test('alerts are the rebuilt server\'s in the web\'s words; Fix permissions only when the server can fix it', () => {
+  const fixable: DashboardAlert = {code: 'data_folder_readable', severity: 'warning', major: false, params: {path: '/srv/portico', owner: 'portico'}, action: {kind: 'fix-permissions', target: ''}};
+  const view = ownerAlertView(fixable, 0, t, defaultI18n.has);
+  assert.equal(view.title, 'Other accounts can read the data folder');
   assert.equal(view.permissions, true);
-  assert.equal(view.acknowledged, false);
+  assert.deepEqual([view.owner, view.path], ['portico', '/srv/portico']);
   assert.equal(view.severity, 'Warning');
-  const acked = ownerAlertView({...alert, code: 'low_storage', status: 'acknowledged', occurrences: 3}, t, defaultI18n.has);
-  assert.equal(acked.title, 'Storage is running low');
-  assert.equal(acked.acknowledged, true);
-  assert.match(acked.meta, /Seen 3 times · last /);
-  assert.match(acked.meta, /Acknowledged$/);
+  // On a drive that cannot keep who may open a folder the server says why, and nothing is offered.
+  const message = 'This drive cannot limit who opens the folder.';
+  const none = ownerAlertView({...fixable, params: {...fixable.params, reason: 'not_kept_here', message}, action: {kind: 'none', target: ''}}, 1, t, defaultI18n.has);
+  assert.equal(none.permissions, false);
+  assert.equal(none.body, message);
+  // A code this app does not know reads as the server's message, or as needing attention.
+  assert.equal(ownerAlertView({...fixable, code: 'something_new', params: {message: 'A new thing happened'}}, 2, t, defaultI18n.has).title, 'A new thing happened');
+  assert.equal(ownerAlertView({...fixable, code: 'something_new', params: {}}, 3, t, defaultI18n.has).title, 'The server needs attention');
+  assert.equal(ownerAlertView({...fixable, code: 'storage_nearly_full', severity: 'critical', major: true, params: {}}, 4, t, defaultI18n.has).tone, 'danger');
 });
-
 test('viewing statistics carry the four figures and the real Converted share', () => {
   const figures = ownerStatistics({period: '7d', timeZone: 'UTC', from: '2026-10-17T00:00:00.000Z', until: '2026-10-24T16:00:00.000Z', buckets: [], plays: 46, people: 4, watchedMs: 31 * 3_600_000, converted: 7, mostPlayed: [], mostActive: []}, t);
   assert.deepEqual(figures.map(figure => figure.value), ['46', '4', '31.0', '7']);

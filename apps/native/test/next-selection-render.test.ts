@@ -1380,7 +1380,7 @@ for (const role of ['administrator', 'owner'] as const) test(`TV Dashboard ${rol
   const dashboard = await screenModule(new URL('../src-next/screens/settings-live/DashboardScreen.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': await import('react-native'),
     '../../../../../packages/i18n/src': {defaultI18n},
-    '../../../../../packages/client-core/src/server-admin/dashboard': await import('../../../packages/client-core/src/server-admin/dashboard.ts'),
+    '../../../../../packages/client-core/src/admin/dashboard-alert-words': await import('../../../packages/client-core/src/admin/dashboard-alert-words.ts'),
     '../../../../../packages/client-core/src/presentation/content': await import('../../../packages/client-core/src/presentation/content.ts'),
     '../../../../../packages/client-core/src/server-admin/console-catalogue': await import('../../../packages/client-core/src/server-admin/console-catalogue.ts'),
     '../../../../../packages/client-core/src/server-admin/now-playing': await import('../../../packages/client-core/src/server-admin/now-playing.ts'),
@@ -1404,7 +1404,9 @@ for (const role of ['administrator', 'owner'] as const) test(`TV Dashboard ${rol
   const calls: (string | undefined)[] = [], jobCalls: (string | undefined)[] = [];
   const controller = new NativeDashboardController(lifetime, () => role, {
     sessions: {list: async cursor => {calls.push(cursor); return cursor ? new Promise((resolve, fail) => {complete = resolve; reject = fail;}) : {items: [session('first'), ...Array.from({length: 9}, (_, i) => session(`first${i + 1}`))] as never[], nextCursor: 'next', totals, revision: 'rev-1', scope: {serverId: 'server', viewerFence: 'fence'}};}},
-    console: {measurement: async name => ({name, observedAt: 1, freshUntil: 30001, facts: {}}), alerts: async () => [], jobs: async cursor => {jobCalls.push(cursor); return {items: [{id: cursor ? 'later' : 'first', kind: 'scan', revision: 1}] as never[], nextCursor: cursor ? '' : 'job-next'};}, dispose() {}},
+    // The rebuilt server's Dashboard read lists its tasks all at once: there is no next page of jobs.
+    status: async () => {jobCalls.push('status'); return {observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 1, items: [{id: 'first', kind: 'scan', phase: 'reading', state: 'running'}]}, nowPlaying: {}, backups: {}, openReports: 0} as never;},
+    storage: async () => ({dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'}) as never,
   });
   const runtime = {text: {t: defaultI18n.t, locale: 'en-US'}, error: feedback.error, artwork: () => undefined};
   let sessionEvent: (() => void) | undefined, resyncEvent: (() => void) | undefined;
@@ -1417,11 +1419,9 @@ for (const role of ['administrator', 'owner'] as const) test(`TV Dashboard ${rol
     const identities = ofType(row, 'Text').flatMap(element => React.Children.toArray(element.props.children)).filter(value => ['person', 'profile', 'device'].includes(String(value)));
     assert.deepEqual(identities, ['person', 'profile', 'device'], 'TV identity leads with username, then a differing profile, then device');
     if (role === 'owner') {
-      const jobMore = ofType(panel.tree, Focusable).find(element => element.props.testID === 'dashboard-jobs-more')!; assert.ok(jobMore);
-      await withNativeControl(jobMore, host => host.props.onPress()); await act(() => {});
-      assert.ok(ofType(panel.tree, Focusable).find(element => element.props.testID === 'dashboard-job-later'));
-      // ConsoleClient.jobs takes the first-page cursor as '' (its own default), not undefined.
-      assert.deepEqual(jobCalls, ['', 'job-next']);
+      assert.ok(ofType(panel.tree, Focusable).find(element => element.props.testID === 'dashboard-job-first'));
+      assert.equal(ofType(panel.tree, Focusable).find(element => element.props.testID === 'dashboard-jobs-more'), undefined, 'no next page of jobs');
+      assert.deepEqual(jobCalls, ['status']);
     } else assert.deepEqual(jobCalls, []);
     const initialMore = ofType(panel.tree, Focusable).find(element => element.props.testID === 'dashboard-sessions-more')!;
     await withNativeControl(initialMore, host => host.props.onPress()); await act(() => {});

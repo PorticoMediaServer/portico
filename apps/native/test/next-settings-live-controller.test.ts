@@ -222,7 +222,6 @@ test('DVR access revocation clears private aggregates and refuses late page publ
   const pending = controller.load(); fixture.revoke(); finish(fixture.page); await pending;
   assert.equal(controller.getSnapshot().accessDenied, true);
   assert.equal(controller.getSnapshot().summary, undefined);
-  assert.equal(controller.getSnapshot().storage, undefined);
   assert.equal(controller.getSnapshot().page, undefined);
   assert.equal(controller.getSnapshot().loading, false);
   controller.dispose(); lifetime.dispose();
@@ -316,7 +315,9 @@ function dashboardReaders() {
   const calls: string[] = [];
   const readers: NativeDashboardReaders = {
     sessions: {list: async (_cursor, limit) => {calls.push(`sessions:${limit}`); return {items: [], nextCursor: undefined, total: 0, totals: {streams: 0, paused: 0, converting: 0, bandwidthKbps: 0, people: 0, atHome: 0, away: 0}, revision: 'rev-1', scope: {serverId: 'server', viewerFence: 'sessions-fence'}};}},
-    console: {measurement: async name => {calls.push(name); return {name, observedAt: 1, freshUntil: 30001, facts: {}};}, alerts: async () => {calls.push('alerts'); return [];}, jobs: async () => {calls.push('jobs'); return {items: [], nextCursor: ''};}, dispose() {}},
+    // The rebuilt server's reads: the Dashboard read and the data folder's storage.
+    status: async () => {calls.push('status'); return {observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 0, items: []}, nowPlaying: {}, backups: {}, openReports: 0} as never;},
+    storage: async () => {calls.push('storage'); return {dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [{name: 'database', bytes: 10}], measuredAt: '2026-11-12T00:00:00Z'} as never;},
   };
   return {calls, readers};
 }
@@ -343,19 +344,18 @@ test('Dashboard removes owner-only facts before a demoted viewer read finishes',
   let admission: NativeDashboardAdmission = 'owner';
   const controller = new NativeDashboardController(lifetime, () => admission, readers);
   await controller.refresh();
-  assert.equal(controller.getSnapshot().health?.name, 'health');
+  assert.deepEqual(controller.getSnapshot().health, {degraded: false, freeBytes: 50, databaseBytes: 10});
   let finish!: (page: Awaited<ReturnType<NativeDashboardReaders['sessions']['list']>>) => void;
   readers.sessions.list = () => new Promise(resolve => {finish = resolve;});
   admission = 'administrator';
   const pending = controller.refresh();
   assert.equal(controller.getSnapshot().admission, 'administrator');
   assert.equal(controller.getSnapshot().health, undefined);
-  assert.equal(controller.getSnapshot().storage, undefined);
   assert.deepEqual(controller.getSnapshot().alerts, []);
   assert.deepEqual(controller.getSnapshot().jobs, []);
   finish({items: [], nextCursor: undefined, totals: {streams: 0, paused: 0, converting: 0, bandwidthKbps: 0, people: 0, atHome: 0, away: 0}, revision: 'rev-1', scope: {serverId: 'server', viewerFence: 'sessions-fence'}});
   await pending;
-  assert.deepEqual(calls, ['sessions:10', 'health', 'storage', 'alerts', 'jobs']);
+  assert.deepEqual(calls, ['sessions:10', 'status', 'storage']);
   controller.dispose(); lifetime.dispose();
 });
 

@@ -278,5 +278,6 @@
       "artist": "The Weeknd",
       "album": "After Hours"
     }
-  ]
+  ],
+  "notKeptHereMessage": "This drive cannot limit who opens the folder. Move Portico’s data folder to a drive that can."
 }
