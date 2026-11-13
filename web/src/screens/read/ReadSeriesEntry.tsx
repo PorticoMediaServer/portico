@@ -134,7 +134,7 @@ function LiveSeriesRows({resources, context, retry}: {resources: Resources; cont
     <Row heading={title ? t(resources.comic ? 'next.reader.volumes' : 'next.kit.booksInSeries') : t('library.tab.series')} platform={width < 600 ? 'phone-web' : 'desktop'}
       subtitle={title && total !== undefined ? t(resources.comic ? 'next.reader.volumeCount' : 'next.kit.books', {count: total}) : undefined}
       actions={title && canSelect ? <Button size="small" variant="ghost" aria-pressed={selection !== undefined}
-        onClick={() => setSelection(selection === undefined ? new Map() : undefined)}><span className={styles.markedLabel}>{t('next.selection.select')}{canEdit && <ServerMark size={22}/>}</span></Button> : undefined}>
+        onClick={() => setSelection(selection === undefined ? new Map() : undefined)}>{t('next.selection.select')}{canEdit && <ServerMark size={22}/>}</Button> : undefined}>
     {selection && canSelect && <ReadSelectionBar context={context} selection={selection} kind={resources.comic ? 'comic' : 'ebook'}
       current={item => resources.bindings.authority.isCurrent() && resources.rows.collection.residentItems().includes(item)}
       onExit={() => setSelection(undefined)} onEdit={anchor => {bulkAnchor.current = anchor; setBulk(Object.freeze([...selection.values()]));}}/>}
