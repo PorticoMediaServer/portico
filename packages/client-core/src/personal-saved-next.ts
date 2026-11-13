@@ -55,9 +55,10 @@ export async function clearHistory(api: ServerRequester, bound: SavedScope, oper
 const collectionCard = (list: List) => ({artworkPaths: list.covers.map(images => images.poster ?? images.cover ?? images.thumb).filter(Boolean).slice(0, 4), samples: [], shape: 'posters', onHome: false});
 /** One collection as `personal-saved.ts` reads it. Only its maker changes it (rule 28). */
 /** `pins`: the profile's pins, or undefined when they could not be read (Pin is then not offered). */
-function collectionOf(bound: SavedScope, list: List, card = false, pins?: readonly string[]): Record<string, unknown> {
+function collectionOf(bound: SavedScope, list: List, pins?: readonly string[]): Record<string, unknown> {
   const owner = list.role === 'owner';
-  return {...(card ? collectionCard(list) : {}), serverId: bound.serverId, viewerFence: 'viewer', id: list.id, kind: 'collection', name: list.name, summary: list.description ?? '',
+  // The server's covers on the page too, as on its card: the page's header art is the collection's own.
+  return {...collectionCard(list), serverId: bound.serverId, viewerFence: 'viewer', id: list.id, kind: 'collection', name: list.name, summary: list.description ?? '',
     visibility: list.everyone ? 'server' : 'private', revision: revisionOf(list), role: owner ? 'owner' : 'viewer', entryCount: list.count,
     actions: [...(owner ? ['update', 'delete', 'entries', 'reorder'] : []), ...(pins ? ['pin'] : [])], status: 'ready', invalidComponents: [],
     pinned: !!pins?.includes('collection:' + list.id), pinRevision: 0, shares: []};
@@ -69,7 +70,7 @@ export async function readDirectory(api: SavedNextApi, bound: SavedScope, kind: 
     readProfilePins(api, signal)]);
   if (!page || !Array.isArray(page.items)) throw new CodedError('invalid_saved', 'The saved lists could not be read.');
   return {serverId: bound.serverId, viewerFence: 'viewer', revision: 0, nextCursor: page.nextCursor ?? '',
-    resources: page.items.filter(list => list.kind === wire).map(list => kind === 'view' ? viewCard(bound, list, pins) : collectionOf(bound, list, true, pins))};
+    resources: page.items.filter(list => list.kind === wire).map(list => kind === 'view' ? viewCard(bound, list, pins) : collectionOf(bound, list, pins))};
 }
 /** A saved view's card: music views draw square art. */
 function viewCard(bound: SavedScope, list: List, pins?: readonly string[]): Record<string, unknown> {
@@ -143,7 +144,7 @@ export async function readResource(api: SavedNextApi, bound: SavedScope, resourc
   const ids = entries.map(entry => entry.id), lastEntry = last?.items[0]?.entryId;
   const first = mark ? mark.first : ids[0];
   const nextCursor = page.nextCursor ? markCursor({start: start + entries.length, ...(ids.length ? {previous: ids.at(-1)} : {}), ...(first ? {first} : {}), cursor: page.nextCursor}) : '';
-  return {nextCursor, resource: collectionOf(bound, list, false, pins), entries, query: {sort, category: filter, direction}, totalCount: page.total ?? entries.length, start,
+  return {nextCursor, resource: collectionOf(bound, list, pins), entries, query: {sort, category: filter, direction}, totalCount: page.total ?? entries.length, start,
     sorts: Object.keys(pageSorts).map(id => ({id, labelKey: 'sort.' + id, directions: id === 'position' ? ['asc'] : ['asc', 'desc']})),
     filters: [{id: 'filter', labelKey: 'saved.filter', options: ['all', 'unwatched', 'inProgress', 'watched'].map(id => ({id, label: filterLabels[id], count: 0}))}],
     ...(manual && lastEntry ? {order: {...(mark?.previous ? {previous: mark.previous} : {}), last: lastEntry}} : {})};

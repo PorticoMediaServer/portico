@@ -136,6 +136,7 @@ test('a collection opens in its own order, and is made visible to everyone namin
   await saved.select({view: 'resource', resourceId: 'col'} as never);
   const shot = saved.getSnapshot();
   assert.deepEqual(shot.entries.map(entry => entry.media?.id), ['a', 'b', 'c']);
+  assert.deepEqual(shot.resource?.artworkPaths, ['/art/a'], 'the page has the server\'s covers, as its card does');
   assert.deepEqual(shot.page?.order, {last: 'le3'});
   assert.equal(await saved.mutate({action: 'update', visibility: 'server'}), true);
   const sent = s.calls.find(call => call.method === 'PATCH')!;
