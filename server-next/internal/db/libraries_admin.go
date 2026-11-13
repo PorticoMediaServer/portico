@@ -371,18 +371,14 @@ func (d *DB) VersionDeletion(ctx context.Context, v Viewer, versionID string) (D
 }
 
 func (d *DB) deletion(ctx context.Context, v Viewer, where, id string, version bool) (Deletion, error) {
+	var out Deletion
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return Deletion{}, err
+		return out, err
 	}
 	defer tx.Rollback()
-	return readDeletion(ctx, tx, v, where, id, version)
-}
-
-func readDeletion(ctx context.Context, tx *sql.Tx, v Viewer, where, id string, version bool) (Deletion, error) {
-	var out Deletion
 	var options sql.NullString
-	err := tx.QueryRowContext(ctx, `SELECT i.id, i.library_id, i.title, l.options, ifnull(i.parent_id, 0), ifnull(i.root_id, 0)
+	err = tx.QueryRowContext(ctx, `SELECT i.id, i.library_id, i.title, l.options, ifnull(i.parent_id, 0), ifnull(i.root_id, 0)
 		FROM items i JOIN libraries l ON l.id = i.library_id WHERE `+where, id).
 		Scan(&out.ItemID, &out.LibraryID, &out.Title, &options, &out.ParentID, &out.RootID)
 	if errors.Is(err, sql.ErrNoRows) {
