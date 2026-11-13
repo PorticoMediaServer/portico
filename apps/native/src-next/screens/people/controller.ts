@@ -1,4 +1,4 @@
-import {readPerson, type PersonPage, type PersonRole} from '../../../../../packages/client-core/src/people';
+import {actingDepartment, readPerson, type PersonPage, type PersonRole} from '../../../../../packages/client-core/src/people';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRoute} from '../../shell/routes';
@@ -19,15 +19,11 @@ export type NativePersonSnapshot = Readonly<{
   error?: unknown;
 }>;
 
-/** The server's own split of credits into Cast and Crew (catalog `personDepartmentFilter`): Cast is the acting (or
- * cast) department, Crew every other one. */
-const castDepartment = (department: string) => ['acting', 'cast'].includes(department.toLowerCase());
-
 /** The departments the TV page draws a row each for (tv-detail frame 10, `f9`): the server groups all credits by
  * department only when a person has more than one. Filters apply to every row (the frame's caption): Cast keeps the
  * acting row, Crew the others. The groups are the person's whatever the filter, so the split is the client's. */
 export function personDepartments(page: PersonPage | undefined, role: PersonRole = 'all'): readonly Readonly<{id: string; department: string; total: number}>[] {
-  return (page?.groups ?? []).flatMap(group => group.department && group.total > 0 && (role === 'all' || castDepartment(group.department) === (role === 'cast'))
+  return (page?.groups ?? []).flatMap(group => group.department && group.total > 0 && (role === 'all' || actingDepartment(group.department) === (role === 'cast'))
     ? [{id: group.id, department: group.department, total: group.total}] : []);
 }
 

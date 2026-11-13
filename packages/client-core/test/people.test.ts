@@ -50,7 +50,7 @@ test('people directory keeps the people it can read and refuses foreign servers'
 test('person paths are server addresses the client only assembles',()=>{
  assert.equal(personPath('p 1',{role:'cast',limit:10}),'/v1/items?person=p+1&limit=10&total=true&creditGroup=acting');
  assert.match(personPath('p1',{role:'crew'}),/creditGroup=crew/);
- assert.match(personPath('p1',{department:'Cast'}),/role=guest/);
+ assert.match(personPath('p1',{department:'Guest stars'}),/role=guest/);
  assert.match(personPath('p1',{department:'Directing'}),/role=director/);
  assert.match(personPath('p1',{department:'Crew'}),/role=crew/);
  assert.equal(personPortraitPath('p1'),'/v1/people/p1/portrait?size=thumbnail');
@@ -84,15 +84,20 @@ test('readPerson requests exactly what it validates',async()=>{
  assert.deepEqual(parsed.credits.map(c=>c.media.id),['mixed','guest','crew']);
  assert.deepEqual(parsed.credits[0].roles,[{role:'Ada',department:'Acting'},{role:'Director',department:'Directing'}]);
  assert.equal(parsed.credits[1].creditKind,'cast');assert.equal(parsed.credits[1].character,'Visitor');
- assert.deepEqual(parsed.groups.map(g=>[g.department,g.total]),[['Acting',1],['Cast',1],['Directing',1],['Crew',1]]);
+ assert.deepEqual(parsed.groups.map(g=>[g.department,g.total]),[['Acting',1],['Guest stars',1],['Directing',1],['Crew',1]]);
  assert.equal(parsed.groups.some(group=>group.kind),false,'kind totals do not activate desktop sections before their design is ready');
  assert.deepEqual((await readPerson(api,scope,'person-1',{role:'cast'})).credits.map(c=>c.media.id),['mixed','guest']);
  const crew=await readPerson(api,scope,'person-1',{role:'crew'});
  assert.equal(crew.pageInfo.total,2);assert.equal(crew.credits[0].role,'Director');assert.equal(crew.credits[0].character,'');
  assert.equal(crew.credits[0].roles.length,2,'every role stays under its title');
- assert.deepEqual((await readPerson(api,scope,'person-1',{department:'Cast'})).credits.map(c=>c.media.id),['guest']);
+ assert.deepEqual((await readPerson(api,scope,'person-1',{department:'Guest stars'})).credits.map(c=>c.media.id),['guest']);
  const changed={request:async<T>(path:string)=>{if(path.startsWith('/v1/people/'))return facts as T;throw Object.assign(new Error('changed'),{code:'cursor_expired'});}};
  await assert.rejects(readPerson(changed,scope,'person-1',{cursor:'old'}),{code:'invalid_cursor'});
+});
+test('guest stars are their own department, and Acting and Guest stars are both the Cast filter',async()=>{
+ const {actingDepartment}=await import('../src/people.ts');
+ assert.equal(actingDepartment('Guest stars'),true);assert.equal(actingDepartment('Acting'),true);assert.equal(actingDepartment('Cast'),true);
+ assert.equal(actingDepartment('Directing'),false);assert.equal(actingDepartment('Production'),false);
 });
 test('a bulk personal intent is one bounded request answered row by row',()=>{
  const body=personalBatchBody('op-1',[{itemId:'a',watchlisted:true},{itemId:'b',watched:true,favorite:true}]);
