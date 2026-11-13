@@ -37,7 +37,7 @@ func (d *DB) MoreAudiobooks(ctx context.Context, v Viewer, itemID string) ([]Ite
 		return nil, err
 	}
 	// Read newest first through the library's index of when titles were added.
-	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns+` FROM items i INDEXED BY items_by_added`+stateJoin+`
+	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+` FROM items i INDEXED BY items_by_added`+stateJoin+`
 		i.library_id = @library AND i.kind = @kind AND i.id <> @id AND `+acc.visible("i")+`
 		AND i.id NOT IN (SELECT o.related_item_id FROM item_relations r JOIN item_relations o ON o.item_id = r.item_id AND o.kind = r.kind
 			WHERE r.related_item_id = @id AND r.kind = @series)

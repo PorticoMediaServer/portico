@@ -713,7 +713,7 @@ func (s *searcher) load(rows []int64) (map[int64]Item, map[int64]Person, error) 
 	itemIDs, personIDs := splitRows(rows)
 	items, people := map[int64]Item{}, map[int64]Person{}
 	if len(itemIDs) > 0 {
-		found, err := s.tx.QueryContext(s.ctx, `SELECT `+itemColumns+` FROM json_each(@ids) j CROSS JOIN items i ON i.id = j.value`+stateJoin+s.acc.visible("i"),
+		found, err := s.tx.QueryContext(s.ctx, `SELECT `+itemColumns(s.acc)+` FROM json_each(@ids) j CROSS JOIN items i ON i.id = j.value`+stateJoin+s.acc.visible("i"),
 			s.args(itemIDs)...)
 		if err != nil {
 			return nil, nil, err
