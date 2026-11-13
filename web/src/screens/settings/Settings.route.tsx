@@ -487,7 +487,7 @@ export function SettingsEntry() {
     // the same bounded storage report the Storage page reads, only when the owner
     // may manage this server.
     const signinStorage = route.section === 'signin' && role === 'owner' && identity.primaryProfile === true && identity.capabilities?.manageServer === true
-      ? new SettingsStorageSource(api, viewer.serverId, current, reportError) : undefined;
+      ? new SettingsStorageSource(api, current, reportError) : undefined;
     const intros = route.section === 'segments' && identity.primaryProfile === true && identity.capabilities?.manageServer === true && (role === 'owner' || role === 'admin')
       ? new SegmentIntrosSource({api: api, isCurrent: current, reportError}) : undefined;
     const live = route.section === 'live' && role === 'owner' && identity.primaryProfile === true && identity.capabilities?.manageServer === true
