@@ -1,5 +1,5 @@
 import {useRouteLibrary} from '../browse/route-library';
-import {forwardIdentity} from '../detail/context';
+import {forwardIdentity, runScreenCommand} from '../detail/context';
 import {ReadGroupSavedAction} from './ReadGroupSavedAction';
 import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties} from 'react';
 import {defaultI18n} from '@i18n';
@@ -26,6 +26,7 @@ import {createReadBindings} from './bindings';
 import {createReadingSeriesCollection, type ReadingContinueItem, type ReadingLibraryItem} from './library-collection';
 import {readChosenDestination} from './navigation';
 import styles from './entry.module.css';
+import itemStyles from './read-item.module.css';
 
 const {t} = defaultI18n;
 type Captured = NonNullable<ReturnType<typeof useProtectedWebScreenContext>>;
@@ -36,6 +37,21 @@ type Resources = Readonly<{id: string; context: Captured['context']; artwork: Ca
 export function ReadSeriesEntry({captured: provided, libraryId, seriesId}: {captured?: Captured; libraryId: string; seriesId: string}) {
   const original = useProtectedWebScreenContext(), captured = provided ?? original;
   return captured ? <BoundSeries key={JSON.stringify([libraryId, seriesId])} captured={captured} libraryId={libraryId} seriesId={seriesId}/> : null;
+}
+/** A phone has no library header over a series, so the page keeps the book page's own Back above
+ *  the hero, the loading skeleton and the failure state alike. It returns where the series was
+ *  opened from (the Series tab); opened directly, it goes to the library's Series tab. */
+function SeriesPhoneBack({captured, libraryId}: {captured: Captured; libraryId: string}) {
+  const href = useLocation({select: location => location.href}), width = useShellWidth();
+  const context = useCommittedLibraryScreenContext(captured, href, () => router.state.location.href === href);
+  if (width >= 600 || !context?.effects.back) return null;
+  return <div className={itemStyles.phoneTopBar}>
+    <Button size="small" variant="icon" icon="i-left" iconOnly aria-label={t('next.states.back')} onClick={() => runScreenCommand(context, () => {
+      if (!context.isCurrent()) return;
+      if (router.history.canGoBack()) {context.effects.back?.(); return;}
+      void router.navigate({to: '/library/$libraryId', params: {libraryId}, search: {view: 'browse', pivot: 'series'}}).catch(context.effects.reportError);
+    })}/>
+  </div>;
 }
 function BoundSeries({captured, libraryId, seriesId}: {captured: Captured; libraryId: string; seriesId: string}) {
   const kind = useRouteLibrary(captured.context, libraryId)?.kind;
@@ -56,8 +72,9 @@ function BoundSeries({captured, libraryId, seriesId}: {captured: Captured; libra
       reportError: error => {if (bindings.authority.isCurrent()) effects.reportError(error);}});
     return () => {off(); rows.dispose(); void bindings.dispose().catch(() => {});};
   }, [captured.context, libraryId, seriesId, kind, retry]);
-  if (retired) return <StateView variant="page" title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => setRetry(value => value + 1)}}/>;
-  return resources && resources.context === captured.context ? <SeriesRows resources={resources} captured={captured} retry={() => setRetry(value => value + 1)}/> : <Skeleton quiet height={320}/>;
+  const back = <SeriesPhoneBack captured={captured} libraryId={libraryId}/>;
+  if (retired) return <>{back}<StateView variant="page" title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: () => setRetry(value => value + 1)}}/></>;
+  return <>{back}{resources && resources.context === captured.context ? <SeriesRows resources={resources} captured={captured} retry={() => setRetry(value => value + 1)}/> : <Skeleton quiet height={320}/>}</>;
 }
 /** The holder acquires the committed context; the live body below always receives one. */
 function SeriesRows({resources, captured, retry}: {resources: Resources; captured: Captured; retry: () => void}) {
