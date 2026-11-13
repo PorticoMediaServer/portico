@@ -1,53 +1,53 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseSettingsConfiguration} from '../src/settings-configuration.ts';
-import {isSignInPolicyRow, patchSignInPolicy, signInPolicyConflict, signInPolicyRows, signInPolicyValues, signInPolicyWith} from '../src/sign-in-policy.ts';
+import {readOwnerSignInConfiguration,signInPolicyRows,isSignInPolicyRow,signInPolicyValues,signInPolicyWith,patchSignInPolicy,signInPolicyConflict} from '../src/sign-in-policy.ts';
+import {readSettingsBinding,settingsBinding} from '../src/presentation/settings-bindings.ts';
 
-const field = (id: string, key: string, current: unknown) => ({id, key, current, effective: current, default: current, source: 'default', configOnly: false, applicationMode: 'hot'});
-const nine = [
-  field('signin.stayLength', 'signin.stay_signed_in_days', 90), field('signin.pinRemember', 'signin.pin_remember_days', 30),
-  field('signin.passwordAttempts', 'signin.password_attempts', 'standard'), field('signin.pinAttempts', 'signin.pin_attempts', 'standard'),
-  field('signin.passwordLength', 'signin.password_min_length', 8), field('signin.resetCodeLife', 'signin.member_reset_code_minutes', 60),
-  field('signin.requireTwoStep', 'signin.require_two_step', 'nobody'), field('signin.rememberAccounts', 'signin.remember_accounts', true),
-  field('signin.endedKeep', 'signin.ended_sessions_days', 90),
-];
-const document = {revision: 3, registryRevision: 'r', path: '/srv/portico.toml', signInPolicyRevision: '7', fields: nine};
+const document={name:'sign-in',etag:'"7"',values:{staySignedInDays:30,pinRememberDays:0,requireTwoStep:'admins'},defaults:{staySignedInDays:90,pinRememberDays:30,requireTwoStep:'nobody'}};
+const api={request:async<T>(path:string)=>path==='/v1/admin/settings/sign-in'?document as T:{dataFolder:'/fixture/data'} as T};
 
-test('the configuration keeps the sign-in policy revision (#713)', () => {
-  const parsed = parseSettingsConfiguration({scope: {}, data: document});
-  assert.equal(parsed.signInPolicyRevision, '7');
-  assert.throws(() => parseSettingsConfiguration({...document, signInPolicyRevision: 7}));
-  assert.throws(() => parseSettingsConfiguration({...document, signInPolicyRevision: ''}));
-  // Required, like any other field the contract requires.
-  assert.throws(() => parseSettingsConfiguration({...document, signInPolicyRevision: undefined}));
+test('rebuilt Sign-in reads only supported policy rows',async()=>{
+ const calls:string[]=[];
+ const config=await readOwnerSignInConfiguration({request:async<T>(path:string,...rest:unknown[])=>{calls.push(path);return api.request<T>(path);}});
+ assert.deepEqual(calls,['/v1/admin/settings/sign-in']);
+ assert.deepEqual(Object.keys(signInPolicyRows).sort(),['signin.pinRemember','signin.requireTwoStep','signin.stayLength']);
+ assert.equal(isSignInPolicyRow('signin.passwordAttempts'),false);
+ assert.equal(config.signInPolicyRevision,'"7"');
+ const values=signInPolicyValues(config)!;
+ assert.deepEqual(values,{staySignedInDays:30,pinRememberDays:0,requireTwoStep:'administrators'});
+ assert.deepEqual(signInPolicyWith(values,'signin.stayLength','365'),{...values,staySignedInDays:365});
+ assert.throws(()=>signInPolicyWith(values,'signin.stayLength','31'));
+ for(const id of ['signin.passwordAttempts','signin.pinAttempts','signin.passwordLength','signin.resetCodeLife','signin.rememberAccounts','signin.endedKeep']){
+  assert.equal(readSettingsBinding(settingsBinding(id)!,{configuration:config},id),undefined);
+ }
 });
 
-test('the nine rows read as the typed policy, and a change sends the complete object', async () => {
-  assert.deepEqual(Object.keys(signInPolicyRows).sort(), ['signin.endedKeep', 'signin.passwordAttempts', 'signin.passwordLength', 'signin.pinAttempts', 'signin.pinRemember', 'signin.rememberAccounts', 'signin.requireTwoStep', 'signin.resetCodeLife', 'signin.stayLength']);
-  assert.equal(isSignInPolicyRow('signin.stayLength'), true); assert.equal(isSignInPolicyRow('signin.dataFolder'), false);
-  const values = signInPolicyValues(parseSettingsConfiguration(document))!;
-  assert.deepEqual(values, {staySignedInDays: 90, pinRememberDays: 30, passwordAttempts: 'standard', pinAttempts: 'standard', passwordMinLength: 8,
-    memberResetCodeMinutes: 60, requireTwoStep: 'nobody', rememberAccounts: true, endedSessionsDays: 90});
-  // Select controls hand numbers over as strings; the policy takes numbers.
-  assert.deepEqual(signInPolicyWith(values, 'signin.stayLength', '365'), {...values, staySignedInDays: 365});
-  assert.deepEqual(signInPolicyWith(values, 'signin.pinRemember', '0'), {...values, pinRememberDays: 0});
-  assert.deepEqual(signInPolicyWith(values, 'signin.requireTwoStep', 'everyone'), {...values, requireTwoStep: 'everyone'});
-  assert.deepEqual(signInPolicyWith(values, 'signin.rememberAccounts', false), {...values, rememberAccounts: false});
-  assert.throws(() => signInPolicyWith(values, 'signin.stayLength', 'soon'));
-  // Any missing or malformed row means no write.
-  assert.equal(signInPolicyValues(parseSettingsConfiguration({...document, fields: nine.slice(1)})), undefined);
-  assert.equal(signInPolicyValues(parseSettingsConfiguration({...document, fields: [{...nine[0]!, current: 'ninety'}, ...nine.slice(1)]})), undefined);
-  const calls: unknown[][] = [];
-  await patchSignInPolicy({request: async (...args: unknown[]) => {calls.push(args); return {};}}, '7', {...values, staySignedInDays: 30});
-  assert.deepEqual(calls[0]!.slice(0, 3), ['/v1/admin/sign-in/policy', 'PATCH', {expectedRevision: '7', values: {...values, staySignedInDays: 30}}]);
+test('policy writes name the read revision and translate the existing administrator choice',async()=>{
+ const config=await readOwnerSignInConfiguration(api),values=signInPolicyValues(config)!;
+ let sent:unknown[]=[];
+ await patchSignInPolicy({...api,requestRaw:async(...args:any[])=>{sent=args;return {status:200,headers:{},body:document};}},config.signInPolicyRevision,values);
+ assert.deepEqual(sent.slice(0,2),['/v1/admin/settings/sign-in','PUT']);
+ assert.deepEqual((sent[2] as any).headers,{'If-Match':'"7"'});
+ assert.deepEqual((sent[2] as any).body,{staySignedInDays:30,pinRememberDays:0,requireTwoStep:'admins'});
+ await assert.rejects(patchSignInPolicy(api,config.signInPolicyRevision,values),{code:'unsupported'});
+ await assert.rejects(patchSignInPolicy({...api,requestRaw:async()=>({status:412,headers:{},body:{error:{code:'changed_elsewhere',message:'Read again.'}}})},config.signInPolicyRevision,values),{code:'changed_elsewhere'});
+ assert.equal(signInPolicyConflict({code:'changed_elsewhere'}),true);
+ assert.equal(signInPolicyConflict({status:412}),false);
 });
 
-test('a revision mismatch is a conflict to re-read, not an error', () => {
-  assert.equal(signInPolicyConflict({status: 412, code: 'revision_mismatch'}), true);
-  assert.equal(signInPolicyConflict({code: 'revision_mismatch'}), true);
-  // The code decides, not the status: another 409 or 412 is not this conflict.
-  assert.equal(signInPolicyConflict({status: 412}), false);
-  assert.equal(signInPolicyConflict({status: 409, code: 'conflict'}), false);
-  assert.equal(signInPolicyConflict({status: 403, code: 'not_permitted'}), false);
-  assert.equal(signInPolicyConflict({code: 'factor_setup_required'}), false);
+test('a malformed or missing fact cannot become a guessed setting',async()=>{
+ await assert.rejects(readOwnerSignInConfiguration({request:async<T>(path:string)=>path.endsWith('/sign-in')?{...document,values:{}} as T:{dataFolder:'/fixture/data'} as T}));
+ assert.equal(signInPolicyValues(undefined),undefined);
+ const config=await readOwnerSignInConfiguration(api);
+ assert.equal(signInPolicyValues({...config,fields:config.fields.filter(f=>f.id!=='signin.pinRemember')}),undefined);
+});
+
+// Portico Accounts own two-step; its absent row must not prevent the other saves.
+test('Portico sign-in saves applicable rows without sending its account-owned two-step policy',async()=>{
+ const config=await readOwnerSignInConfiguration({request:async<T>(path:string)=>path.endsWith('/sign-in')?{...document,notApplicable:{requireTwoStep:'Set on each Portico Account.'}} as T:{dataFolder:'/fixture/data'} as T});
+ const values=signInPolicyValues(config)!;
+ assert.deepEqual(values,{staySignedInDays:30,pinRememberDays:0});
+ let body:unknown;
+ await patchSignInPolicy({...api,requestRaw:async(_path,_method,options)=>{body=options?.body;return {status:200,headers:{},body:document};}},config.signInPolicyRevision,signInPolicyWith(values,'signin.stayLength','90'));
+ assert.deepEqual(body,{staySignedInDays:90,pinRememberDays:0});
 });

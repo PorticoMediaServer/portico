@@ -1,5 +1,5 @@
 import type {QuietRefreshOutcome} from '@core/freshness-actions.ts';
-import {ReadOnlySignInClient, type SignInSettings} from '@core/account-move.ts';
+import {OwnerSignInSettingsClient, type OwnerSignInSettings} from '@core/account-move.ts';
 import type {ManagementCapabilities, ProfileAPI} from '@core/profile-management.ts';
 import type {SignInKind} from '@core/app-sessions.ts';
 import {defaultI18n} from '@i18n';
@@ -7,7 +7,7 @@ import type {SettingPresentation} from '../../kit/settings';
 import type {SettingsOwnerSwitch} from './owner-switch';
 import type {LocalOwnerTransferSource} from './local-owner-transfer';
 
-type Snapshot = Readonly<{loading: boolean; document?: SignInSettings; error?: unknown}>;
+type Snapshot = Readonly<{loading: boolean; document?: OwnerSignInSettings; error?: unknown}>;
 const empty: Snapshot = Object.freeze({loading: true});
 export type SignInSettingsSourceOptions = Readonly<{
   serverId: string; signIn: SignInKind; isCurrent: () => boolean;
@@ -23,7 +23,7 @@ export type SignInSettingsSourceOptions = Readonly<{
 export class SignInSettingsSource {
   readonly ownerSwitch?: SettingsOwnerSwitch;
   readonly localOwnerTransfer?: LocalOwnerTransferSource;
-  private readonly client: ReadOnlySignInClient;
+  private readonly client: OwnerSignInSettingsClient;
   private readonly listeners = new Set<() => void>();
   private readonly lifetime = new AbortController();
   private snapshot: Snapshot = empty;
@@ -32,7 +32,7 @@ export class SignInSettingsSource {
   private quietRead?: AbortController;
   invalidateQuiet = () => {this.quietRead?.abort();this.quietRead=undefined;};
   constructor(api: ProfileAPI, private readonly options: SignInSettingsSourceOptions) {
-    this.client = new ReadOnlySignInClient(api, options);
+    this.client = new OwnerSignInSettingsClient(api, options);
     this.ownerSwitch = options.ownerSwitch;
     this.localOwnerTransfer = options.localOwnerTransfer;
   }

@@ -6,7 +6,7 @@ import {signInPolicyRows} from '@core/sign-in-policy.ts';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-test('the nine Advanced rows bind to the configuration\'s policy rows, never to a settings form', () => {
+test('the supported Advanced rows bind to the configuration\'s policy rows, never to a settings form', () => {
   for (const id of Object.keys(signInPolicyRows)) {
     const binding = settingsBinding(id);
     assert.equal(binding?.form, 'signInPolicy', id);
