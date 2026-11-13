@@ -1,7 +1,10 @@
 .group { margin: 44px 0 0; min-width: 0; }
 .group:first-child { margin-top: 28px; }
-.groupHeading { display: flex; align-items: center; gap: 16px; margin: 0 0 12px; }
-.groupHeading h3 { flex: 1; font-size: 20px; font-weight: 700; letter-spacing: -.015em; margin: 0; }
+/* The actions are one group beside the title; where they don't fit (People's Add account and Invite someone at 390)
+   they move under it together rather than run off the page. */
+.groupHeading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 0 0 12px; }
+.groupHeading h3 { flex: 1 1 auto; font-size: 20px; font-weight: 700; letter-spacing: -.015em; margin: 0; }
+.groupActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 100%; }
 .groupHeading h3 small { margin-left: 12px; color: var(--color-text-tertiary); font-size: 13px; font-weight: 600; letter-spacing: normal; }
 .groupRows { background: var(--color-raised); border-radius: 14px; overflow: hidden; }
 .groupDescription { margin: -6px 0 14px; max-width: 74ch; font-size: var(--type-synopsis-size); line-height: 1.5; color: var(--color-text-secondary); }
