@@ -332,6 +332,31 @@ test('local cancellation forgets an unanswered create without creating again', a
   assert.deepEqual(record?.retired, []);
 });
 
+test('only a collected but unadopted local grant is abandoned, once', async (t) => {
+  clock(t);
+  const {SetupCodeService} = await import('../src/setup-code.ts');
+  const signedOut: string[] = [];
+  const service = (grant?: string) => {
+    let record: import('../src/setup-code.ts').SetupCodeJournal<string> | undefined = {
+      version: 1, authority: 'local:srv', revision: 0, retired: [], current: {requestId: '00000000-0000-4000-8000-000000000001',
+        authorization: {...authorization, deviceCode: 's'.repeat(43), interval: 5}, nextPollAt: 0, grant}};
+    return new SetupCodeService<string>('local:srv', {
+      create: async () => {throw new Error('Unexpected create');},
+      poll: async () => {throw new Error('Unexpected poll');},
+      abandoned: entry => {if (entry.grant) signedOut.push(entry.grant);},
+    }, {change: async update => (record = update(record))});
+  };
+  const adopted = service('adopted');
+  await adopted.start();
+  assert.equal(await adopted.complete('adopted'), true);
+  await adopted.cancel();
+  const uncollected = service();
+  await uncollected.start(); await uncollected.cancel();
+  const abandoned = service('just-collected');
+  await abandoned.start(); await abandoned.cancel(); await abandoned.cancel();
+  assert.deepEqual(signedOut, ['just-collected']);
+});
+
 test('slowdown never shortens a longer advertised protocol interval', async (t) => {
   const advance = clock(t);
   let polls = 0;
