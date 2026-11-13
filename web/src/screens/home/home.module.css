@@ -1,7 +1,4 @@
 .home { min-height: 100dvh; }
-/* The frame's hero wash is the full-height blurred backdrop; the shared treatment fades it
-   below 30%, which darkens the drawn lower hero. Desktop Home restores the drawn wash. */
-.heroAmbient [class*='washLayer'] { -webkit-mask-image: none; mask-image: none; overflow-x: clip; overflow-y: visible; }
 /* mock.html#extras: a poster-only hero uses its poster for the wash and a sharp side poster. */
 .heroPoster { position: absolute; inset: 0; overflow: hidden; background: var(--color-ink); }
 .heroPosterWash { position: absolute; inset: -20%; width: 140%; height: 140%; opacity: .55; }

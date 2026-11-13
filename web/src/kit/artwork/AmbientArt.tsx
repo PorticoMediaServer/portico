@@ -13,12 +13,13 @@ export function ColourBackdrop({className}: ColourBackdropProps) {
 
 /** Bounded card washes contain no sharp art, scrims, controls or readiness overrides. */
 export type AmbientArtTreatment = 'hero' | 'title' | 'phone' | 'cover' | 'wash' | 'library' | 'library-phone' | 'artist' | 'poster'
-  | 'resume' | 'resume-phone' | 'library-row' | 'collection-tile' | 'session-audio';
+  | 'resume' | 'resume-phone' | 'library-row' | 'collection-tile' | 'session-audio' | 'listening';
 
 export type AmbientArtProps = ArtStyleProps & Readonly<{
   source?: AmbientArtSource | null; sources?: readonly AmbientArtSource[];
   foreground?: ArtworkSource | null; palette?: ArtworkPalette;
-  treatment?: AmbientArtTreatment;
+  /** Every wash names its style; none is assumed. */
+  treatment: AmbientArtTreatment;
   visible?: boolean; arrivalDurationMs?: number; position?: string;
   /** Static dimensions and position of the fixed masked foreground frame. */
   foregroundFrameStyle?: CSSProperties;
@@ -28,7 +29,7 @@ export type AmbientArtProps = ArtStyleProps & Readonly<{
 }>;
 
 /** One continuous masked surface; sharp art and tiny preblur remain independent requests. */
-export function AmbientArt({source, sources, foreground, palette, treatment = 'hero', visible = true, arrivalDurationMs, foregroundFrameStyle, foregroundStyle, position, onReady, onError, onStatusChange, className, style, width, height}: AmbientArtProps) {
+export function AmbientArt({source, sources, foreground, palette, treatment, visible = true, arrivalDurationMs, foregroundFrameStyle, foregroundStyle, position, onReady, onError, onStatusChange, className, style, width, height}: AmbientArtProps) {
   const ambient = (sources ?? (source ? [source] : [])).slice(0, 3).filter(item => item.variant === 'ambient-v1' && item.maxEdge === 64 && /^[a-f0-9]{64}$/.test(item.version));
   const colourStyle = palette ? {'--art-first': palette.first, '--art-second': palette.second} as CSSProperties : undefined;
   return <div aria-hidden="true" className={artClass(styles.ambient, styles[treatment], className)} style={artSize({width, height, style: {...colourStyle, ...style}})}>

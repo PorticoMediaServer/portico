@@ -55,7 +55,7 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
   const sleepAt = snapshot.playback?.listeningDeadlines?.sleepAtMs, sleepLeft = typeof sleepAt === 'number' ? Math.max(0, (sleepAt - Date.now()) / 1000) : undefined;
   const sleepStops = sleepLeft !== undefined && sleepLeft >= 60 ? t('web.player.sleepStops', {time: durationText(sleepLeft, t) ?? ''}) : undefined;
   return <section className={styles.frame} aria-label={t('player.nowPlayingTitle', {title})} tabIndex={-1} data-watch-audiobook data-phone={phone || undefined}>
-    <AmbientArt source={ambient} className={`${ambientStyles.ambient}${phone ? ` ${ambientStyles.phone}` : ''}`}/>
+    <AmbientArt treatment="listening" source={ambient} className={`${ambientStyles.ambient}${phone ? ` ${ambientStyles.phone}` : ''}`}/>
     <header className={styles.top}>
       <Button variant={phone ? 'ghost' : 'glass'} icon="i-down" aria-label={t('player.minimize')} onClick={onCollapse}/>
       {/* phone-app 15: on a phone "Playing from" sits centred over its source, on two lines. */}
