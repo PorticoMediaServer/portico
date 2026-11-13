@@ -1,3 +1,4 @@
+import {joinDownloadedVtt} from '../platform/offline-subtitle-files';
 /** The subtitle files kept beside a download: their names, which belong together, and the form a track is played from. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -59,4 +60,12 @@ test('the form closest to how the track was authored wins; with nothing here the
   assert.equal(storedSubtitle(both, names(['sub-s9-4.vtt']), dir)!.format, 'vtt');
   assert.equal(storedSubtitle(both, names([]), dir), undefined);
   assert.equal(storedSubtitle(both, names(['sub-s9-4.pgs']), ''), undefined, 'no folder, no file');
+});
+
+
+test('part captions keep their markup and cue settings after joining onto the title clock', () => {
+  const text = 'WEBVTT\n\n00:00:00.100 --> 00:00:01.000 line:0\n<i>Hello</i>\n';
+  const joined = joinDownloadedVtt([{text, offsetSeconds: 0}, {text, offsetSeconds: 1.01}]);
+  assert.equal(joined.match(/WEBVTT/g)?.length, 1);
+  assert.ok(joined.includes('00:00:01.110 --> 00:00:02.010 line:0\n<i>Hello</i>'));
 });

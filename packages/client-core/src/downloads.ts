@@ -59,11 +59,12 @@ export type DownloadPage = Readonly<{items: readonly DownloadPreparation[]; next
  * `renewAfterSeconds` is when to renew a transfer that is still unfinished. Renewing (`renew` with
  * this `token`) keeps the same address, so a transfer the device's own downloader is holding
  * carries on under it. */
-export type DownloadGrant = Readonly<{preparationId: string; itemId: string; url: string; token: string; issuedAt: string; expiresAt: string; renewAfterSeconds: number; renewed: boolean; artifact: DownloadArtifact}>;
+export type DownloadGrantPart = Readonly<{url: string; artifact: DownloadArtifact; offsetSeconds?: number; durationSeconds?: number; startSeconds?: number; endSeconds?: number}>;
+export type DownloadGrant = Readonly<{preparationId: string; itemId: string; url: string; token: string; issuedAt: string; expiresAt: string; renewAfterSeconds: number; renewed: boolean; artifact: DownloadArtifact; files?: readonly DownloadGrantPart[]}>;
 /** One file that travels with a download; use the server's relative bundle path
  * under the download grant, independently of live subtitle media addresses. */
 export type DownloadBundleFile = Readonly<{path: string; contentType: string}>;
-export type DownloadBundleSubtitle = Readonly<{id: string; revision: number; language: string; title: string; default: boolean; forced: boolean; files: Readonly<Record<string, DownloadBundleFile>>;
+export type DownloadBundleSubtitle = Readonly<{id: string; revision: number; language: string; title: string; default: boolean; forced: boolean; files: Readonly<Record<string, DownloadBundleFile>>; partFiles?: readonly Readonly<{path: string; offsetSeconds: number}>[];
   /** An image track's line count and how many are forced (PGS, VobSub), as `/lines` answers it while streaming. */
   lines?: Readonly<{forced: number; total: number}>}>;
 export type DownloadBundleChapter = Readonly<{index: number; title: string; startSeconds: number; endSeconds: number; /** The chapter's thumbnail, when the library makes them. */ image?: DownloadBundleFile}>;

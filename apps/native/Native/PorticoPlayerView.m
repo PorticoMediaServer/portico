@@ -39,7 +39,7 @@ static NSMapTable<NSNumber *,UIView *> *PorticoSnapshotViews;
  if(_presentationMissing&&[self recoverPresentation])_presentationMissing=NO;
  if(!_lease.length||![_lease isEqual:_controller.lease]||!self.window||!_controller.subtitleOverlay.active){_richSubtitle.image=nil;return;}
  CGRect video=_layer.videoRect;if(CGRectIsEmpty(video))return;CGFloat scale=self.window.screen.scale;
- [_controller.subtitleOverlay renderAtSourceTime:_controller.currentSourcePosition size:CGSizeMake(video.size.width*scale,video.size.height*scale)];
+ [_controller.subtitleOverlay renderAtSourceTime:_controller.currentSubtitlePosition size:CGSizeMake(video.size.width*scale,video.size.height*scale)];
 }
 - (void)attachLayer {
  BOOL valid=_lease.length&&[_lease isEqual:_controller.lease];

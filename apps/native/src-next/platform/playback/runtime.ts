@@ -5,7 +5,7 @@ import {AppState, NativeModules, type View} from 'react-native';
 import type {RefObject} from 'react';
 import {startFailureHttp, type NativePlaybackStartFailure} from './start-failure';
 import {capacityRetryHttp, type NativePlaybackCapacityWait} from './capacity-retry';
-import {createNativeListeningReadPort} from './listening-controls';
+import {createNativeListeningReadPort, createNativeOfflineListeningReadPort, nativeOfflineListeningData} from './listening-controls';
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import {PlaybackService, type LocalSession, type PlaybackSession} from '../../../../../packages/client-core/src/index';
 import {signInHolds} from './paint-authority';
@@ -287,7 +287,7 @@ export class NativePlaybackRuntime {
         if (!state.session) return '';
         if (state.session.mode === 'local') {
           const url = this.offline?.mediaUrl(state.session);
-          if (url) return url;
+          if (url) {const parts=this.offline?.mediaParts(state.session); return parts?.length ? {url,localParts:parts} : url;}
           if (state.phase !== 'error') this.playback.fail(state.intentId, serviceText('downloads.offline.notPlayableHere')); return '';
         }
         try { return options.api.mediaUrl(state.session.streamUrl); }
@@ -1081,6 +1081,18 @@ export class NativePlaybackRuntime {
 
   /** Read-only audiobook facts. Mutation signatures remain with Media's accepting owner API. */
   listeningRead = (fence: PlaybackFence, lifetime: NativePlaybackReadLifetime): NativeListeningReadPort | undefined => {
+    if (fence.kind === 'local') {
+      const source = this.offlineSource, libraryId = source?.metadata.libraryId;
+      if (!source || source.metadata.kind !== 'audiobook_file' || !libraryId || !this.matches(fence) || !source.current()
+        || lifetime.signal.aborted || !lifetime.isCurrent()) return;
+      const current = () => this.currentAuthority() && this.offlineSource === source && source.current() && this.matches(fence);
+      return createNativeOfflineListeningReadPort({lifetime, current,
+        data: nativeOfflineListeningData(fence, libraryId, source.media.durationSeconds, source.media.extras?.bundle?.chapters ?? []),
+        facts: () => ({rate: {selected: this.chosenRate, supported: this.supportedRates},
+          preferences: {phase: 'ready', values: null, audiobook: this.o.settings().audiobook}}),
+        subscribe: [this.subscribe, listener => this.o.subscribeAuthority(listener), listener => this.o.subscribeSettings(listener)],
+      });
+    }
     if (fence.kind !== 'queue' || !this.matches(fence) || lifetime.signal.aborted || !lifetime.isCurrent()) return;
     const original = this.currentSession(), principal = this.o.session(), context = this.queue.listening.getSnapshot().context, occurrence = original?.queue;
     const native = this.playback.getSnapshot().nativeListening, connection = this.o.api.getRouteConnection(), route = this.o.api.getRouteSnapshot();

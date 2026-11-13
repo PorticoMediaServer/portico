@@ -10,7 +10,8 @@ import {nativeDynamicRangeMatchingAvailable} from './dynamic-range-matching';
 import {chooseEngine, localRuleFacts, parseEngineFeatures, type EngineFeatures, type EngineKind} from './engine-choice';
 import {NativePlaybackCoordinator, type NativePlaybackTransport} from './NativePlaybackCoordinator';
 import {NativeOfflinePlayback, type NativeOfflinePlaybackDevice, type NativeOfflineSource} from './offline-playback';
-import type {NativePlaybackSettings} from './types';
+import type {NativePlaybackReadLifetime, NativePlaybackSettings} from './types';
+import {createNativeOfflineListeningReadPort, nativeOfflineListeningData} from './listening-controls';
 import {NativeOfflineTracks, type NativeLocalTracksSnapshot} from './offline-tracks';
 import type {PlaybackChoices} from '../../../../../packages/client-core/src/playback-v1/choices';
 import {captionStyle} from './caption-style';
@@ -35,6 +36,7 @@ export function createNativeReceiptOnlyPlayback(options: Readonly<{
   let closed = false, epoch = 0, surface: object | undefined, pending: AbortController | undefined;
   let source: NativeOfflineSource | undefined, sourceEntry: OfflineEntry | undefined;
   let tracks: NativeOfflineTracks | undefined;
+  let rateOverride: number | undefined, supportedRates: readonly number[] = [];
   const current = () => {try {return !closed && options.isCurrent() && options.identity.current();} catch {return false;}};
   if (!current()) throw cancelled();
   const id = NativeModules.PorticoRuntime?.playbackRequestId as (() => string) | undefined;
@@ -55,9 +57,18 @@ export function createNativeReceiptOnlyPlayback(options: Readonly<{
   let snapshot = Object.freeze({...playback.getSnapshot(), localTracks: undefined as NativeLocalTracksSnapshot | undefined});
   const publish = () => {snapshot = Object.freeze({...playback.getSnapshot(), localTracks: tracks?.getSnapshot()}); listeners.forEach(listener => listener());};
   const coordinator = new NativePlaybackCoordinator(playback, transports.native, id,
-    state => {try {return current() && state.session ? admission.mediaUrl(state.session) ?? '' : '';} catch {dispose(); return ''; }},
+    state => {try {
+      const url = current() && state.session ? admission.mediaUrl(state.session) : undefined;
+      if (!url || !state.session) return '';
+      const localParts = admission.mediaParts(state.session);
+      return localParts?.length ? {url, localParts} : url;
+    } catch {dispose(); return ''; }},
     fact => {
       check(); if (!current() || !source) return;
+      if (Array.isArray(fact.supportedRates)) {
+        const rates = fact.supportedRates.filter((rate: unknown): rate is number => typeof rate === 'number' && Number.isFinite(rate) && rate >= .5 && rate <= 3);
+        if (rates.length !== supportedRates.length || rates.some((rate: number, index: number) => rate !== supportedRates[index])) {supportedRates = Object.freeze(rates); publish();}
+      }
       const state = playback.getSnapshot();
       if (mediaRecovered(fact, state.positionSeconds) || fact.type === 'ended') playback.recovering(state.intentId, false);
       const trackResult = tracks?.accept(fact);
@@ -78,6 +89,7 @@ export function createNativeReceiptOnlyPlayback(options: Readonly<{
   let offIdentity = () => {}, offDevice = () => {}, offSettings = () => {}, offPlayback = () => {}, offCoordinator = () => {};
   const retirePlay = () => {
     const operation = ++epoch, previous = pending; pending = undefined; source = undefined; sourceEntry = undefined; tracks = undefined; previous?.abort();
+    rateOverride = undefined; supportedRates = [];
     if (epoch !== operation) return; coordinator.stop();
     if (epoch !== operation) return; playback.leave(false);
     if (epoch === operation) publish();
@@ -89,7 +101,7 @@ export function createNativeReceiptOnlyPlayback(options: Readonly<{
   const configure = () => {
     if (!current()) {dispose(); return;}
     const settings = options.settings(), state = playback.getSnapshot();
-    const rate = source?.metadata.kind === 'audiobook_file' ? settings.audiobookRate : source?.metadata.kind === 'song' ? 1 : settings.videoRate;
+    const rate = source?.metadata.kind === 'audiobook_file' ? rateOverride ?? settings.audiobookRate : source?.metadata.kind === 'song' ? 1 : settings.videoRate;
     if (!Number.isFinite(rate) || rate <= 0) {dispose(); return;}
     if (source && state.session && admission.mediaUrl(state.session)) {
       const previous = tracks?.getSnapshot().binding;
@@ -141,6 +153,7 @@ export function createNativeReceiptOnlyPlayback(options: Readonly<{
       // only in their own microtask after the retiring call stack has unwound.
       const opening = surface, operation = ++epoch, previous = pending, controller = new AbortController();
       pending = controller; source = undefined; sourceEntry = undefined; tracks = undefined; previous?.abort();
+      rateOverride = undefined; supportedRates = [];
       const abort = () => controller.abort(); lifetime.signal.addEventListener('abort', abort, {once: true});
       const active = () => current() && surface === opening && epoch === operation && !controller.signal.aborted && !lifetime.signal.aborted && lifetime.isCurrent();
       try {
@@ -174,6 +187,20 @@ export function createNativeReceiptOnlyPlayback(options: Readonly<{
       return open(entry, lifetime);
     },
     seek: (expected: LocalPlaybackFence, seconds: number) => control(expected, () => playback.seek(seconds)),
+    setRate: (expected: LocalPlaybackFence, rate: number) => control(expected, () => {
+      if (source?.metadata.kind !== 'audiobook_file' || !supportedRates.includes(rate)) return;
+      rateOverride = rate; playback.setPlaybackRate(rate); configure(); publish();
+    }),
+    listeningRead: (expected: LocalPlaybackFence, lifetime: NativePlaybackReadLifetime) => {
+      const libraryId = source?.metadata.libraryId;
+      if (!matches(expected) || source?.metadata.kind !== 'audiobook_file' || !libraryId || lifetime.signal.aborted || !lifetime.isCurrent()) return;
+      return createNativeOfflineListeningReadPort({lifetime, current: () => matches(expected),
+        data: nativeOfflineListeningData(expected, libraryId, source.media.durationSeconds, source.media.extras?.bundle?.chapters ?? []),
+        facts: () => ({rate: {selected: rateOverride ?? options.settings().audiobookRate, supported: supportedRates},
+          preferences: {phase: 'ready', values: null, audiobook: options.settings().audiobook}}),
+        subscribe: [listener => {listeners.add(listener); return () => {listeners.delete(listener);};}],
+      });
+    },
     current, fence, subscribe: (listener: () => void) => {if (closed) return () => {}; listeners.add(listener); return () => {listeners.delete(listener);};},
     close: (expected: LocalPlaybackFence) => control(expected, retirePlay), dispose,
   });

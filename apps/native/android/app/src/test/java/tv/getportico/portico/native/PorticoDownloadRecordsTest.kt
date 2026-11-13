@@ -88,6 +88,20 @@ class PorticoDownloadRecordsTest {
   }
 
   @Test
+  fun anUnfinishedOriginalRestoresBeforeItsLocalDigestExists() {
+    val original = entry("book").apply { put("sha256", ""); put("sourceId", "media_book") }
+    check(decodeDownloadManifest(mapOf("book" to original)).getValue("book")["state"] == "paused")
+    val files = (1..2).map { n -> hashMapOf<String, Any?>("fileName" to "part-$n.mp3", "sourceId" to "media_book_$n",
+        "sha256" to "", "bytes" to 21.0, "url" to "https://server.invalid/part$n") }
+    original["files"] = files; original["fileIndex"] = 0.0
+    check((decodeDownloadManifest(mapOf("book" to original)).getValue("book")["files"] as List<*>).size == 2)
+    original["state"] = "ready"
+    var refused = false
+    try { decodeDownloadManifest(mapOf("book" to original)) } catch (_: IllegalStateException) { refused = true }
+    check(refused, { "Ready still requires the verified local digest" })
+  }
+
+  @Test
   fun malformedManifestMembersRefuseTheWholeRead() {
     val original = entry("kept")
     for (bad in listOf<Any?>(null, emptyList<Any?>(), entry("wrong-id"), entry("bad", "unknown"), entry("bad").apply { put("bytes", -1.0) })) {

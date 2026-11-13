@@ -154,6 +154,7 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
       setPicture(previous => image ? {owner, authority, image} : previous?.owner === owner ? undefined : previous);
     }},
   }), [adapter, authority, runtime]);
+  const localListening = snapshot.fence?.kind === 'local';
   const listeningPorts = useMemo(() => {
     const lifetime = listeningLifetime;
     if (!lifetime) return undefined;
@@ -180,7 +181,7 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
           if (lifetime.signal.aborted || !lifetime.isCurrent() || !current.fence || !sameFence(current.fence, fence)) return;
           await adapter.playBookChapter!(fence, chapterId);
         }} : {}),
-        ...(adapter.setSleepTimer ? {setSleepTimer: async (fence: PlaybackFence, choice: NativeSleepChoice) => {
+        ...(adapter.setSleepTimer && !localListening ? {setSleepTimer: async (fence: PlaybackFence, choice: NativeSleepChoice) => {
           const current = adapter.getSnapshot();
           if (lifetime.signal.aborted || !lifetime.isCurrent() || !current.fence || !sameFence(current.fence, fence)) return;
           await adapter.setSleepTimer!(fence, choice);
@@ -200,7 +201,7 @@ export function NativePlaybackLayer({adapter, runtime, authority, contentInset, 
           void adapter.editQueue!(fence, {queueId, expectedRevision, intent}, lifetime).catch(runtime.reportError);
         }}} : {}),
     };
-  }, [listeningLifetime, adapter, snapshot.capabilities.retry, snapshot.capabilities.cast, snapshot.capabilities.queueEdit, runtime]);
+  }, [listeningLifetime, localListening, adapter, snapshot.capabilities.retry, snapshot.capabilities.cast, snapshot.capabilities.queueEdit, runtime]);
   const playOn = runtime.playOn;
   const playOnState = useSyncExternalStore(playOn?.subscribe ?? noListeningSubscribe, playOn?.getSnapshot ?? noPlayOnState);
   const action = useMemo(() => {

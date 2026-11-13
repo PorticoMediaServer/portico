@@ -48,6 +48,7 @@
 @property(class,nonatomic,weak) PorticoPlaybackController *shared;
 @property(nonatomic,readonly) BOOL listeningActive;
 - (double)currentSourcePosition;
+- (double)currentSubtitlePosition;
 /** OS-02: the chosen subtitles are drawn by the app, so PiP and AirPlay won't carry them. */
 @property(nonatomic,readonly) BOOL subtitleOverlayActive;
 @end

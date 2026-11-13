@@ -1,3 +1,4 @@
+import {downloadReasonMessage} from '@core/downloads.ts';
 import {forwardIdentity} from '../detail/context';
 import {createSavedCatalogueSelection, savedCatalogueEntry} from './catalogue-selection';
 import {useRef, useLayoutEffect, useMemo, useState, useSyncExternalStore} from 'react';
@@ -154,6 +155,7 @@ function CommittedSaved({captured, lease, appearance, choice, setChoice}: {captu
         active.throwIfAborted();if (!current()) throw new DOMException('Saved download changed', 'AbortError');
         const grant = await runtime.downloads.grant(preparation);
         active.throwIfAborted();if (!current()) throw new DOMException('Saved download changed', 'AbortError');
+        if (grant.files && grant.files.length > 1) throw new Error(downloadReasonMessage('several_files'));
         window.location.assign(context.api.mediaUrl(grant.url));
       },
       reportError,

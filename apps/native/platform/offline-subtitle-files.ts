@@ -74,3 +74,17 @@ export function storedSubtitle(track: DownloadBundleSubtitle, saved: ReadonlySet
     ...(track.lines ? {lines: track.lines} : {}),
   });
 }
+
+
+/** Converted part captions become one plain track on the title's clock, keeping its markup. */
+export function joinDownloadedVtt(parts: readonly Readonly<{text: string; offsetSeconds: number}>[]): string {
+  const stamp = (value: string, offset: number) => {
+    const fields = value.split(':').map(Number);
+    let seconds = offset; for (let n = 0; n < fields.length; n++) seconds += fields[n]! * 60 ** (fields.length - n - 1);
+    const ms = Math.round(seconds * 1000);
+    return `${String(Math.floor(ms / 3600000)).padStart(2, '0')}:${String(Math.floor(ms / 60000) % 60).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`;
+  };
+  return 'WEBVTT\n\n' + parts.map(part => part.text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').replace(/^WEBVTT[^\n]*\n/, '').trim()
+    .replace(/^(\d{2,}:\d{2}(?::\d{2})?\.\d{3})([ \t]+-->[ \t]+)(\d{2,}:\d{2}(?::\d{2})?\.\d{3})/gm,
+      (_line, from: string, arrow: string, to: string) => stamp(from, part.offsetSeconds) + arrow + stamp(to, part.offsetSeconds))).join('\n\n') + '\n';
+}

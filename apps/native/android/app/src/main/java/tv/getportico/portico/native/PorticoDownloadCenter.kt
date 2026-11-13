@@ -75,7 +75,7 @@ internal object PorticoDownloadCenter {
     val progress = PorticoDownloadProgress(PorticoDownloadCenter::post) { reached ->
       val entry = PorticoDownloadCenter.accepts(id, this)
       if (entry != null) {
-        entry["bytesDone"] = reached.toDouble()
+        entry["bytesDone"] = PorticoDownloadCenter.completedBytes(entry) + reached.toDouble()
         entry["state"] = "downloading"
         entry["waiting"] = ""
         PorticoDownloadCenter.changed(id, false)
@@ -169,6 +169,12 @@ internal object PorticoDownloadCenter {
   private fun root(): File = File(app.noBackupFilesDir, "Downloads").also { it.mkdirs() }
   private fun directory(id: String) = File(root(), id)
   private fun partial(id: String) = File(directory(id), "partial.part")
+  @Suppress("UNCHECKED_CAST")
+  private fun files(entry: Map<String, Any?>): List<MutableMap<String, Any?>> = (entry["files"] as? List<MutableMap<String, Any?>>).orEmpty()
+  private fun fileIndex(entry: Map<String, Any?>) = (entry["fileIndex"] as? Number)?.toInt() ?: 0
+  private fun currentFile(entry: MutableMap<String, Any?>) = files(entry).getOrNull(fileIndex(entry)) ?: entry
+  private fun completedBytes(entry: Map<String, Any?>) = files(entry).take(fileIndex(entry)).sumOf { (it["bytes"] as Number).toDouble() }
+
 
   private fun save(): Boolean = try { loaded && manifest.write(PorticoListeningOwner.json(entries)) } catch (_: Exception) { false }
 
@@ -193,6 +199,7 @@ internal object PorticoDownloadCenter {
     copy["publicationGeneration"] = publicationGeneration(id, entries.getValue(id))
     // The address is a credential: it is used here and never handed back.
     copy.remove("grantUrl")
+    if (entry["files"] != null) copy["files"] = files(entry).map { HashMap(it).apply { remove("url") } }
     return copy
   }
 
@@ -220,6 +227,26 @@ internal object PorticoDownloadCenter {
     val entry = entries[id] ?: HashMap()
     if (entry["state"] == "removed") return null
     if (entry["state"] == "ready") return published(id, entry)
+    if (request["files"] != null) {
+      val incoming = try { decodeDownloadFiles(request["files"]) } catch (_: Exception) { return null }
+      if (incoming.sumOf { (it["bytes"] as Number).toDouble() } != bytes.toDouble()) return null
+      val previous = files(entry)
+      val same = previous.size == incoming.size && previous.indices.all { n ->
+        (previous[n]["bytes"] as Number).toLong() == (incoming[n]["bytes"] as Number).toLong() &&
+            listOf("sourceId", "sha256", "fileName").all { previous[n][it] == incoming[n][it] }
+      }
+      if (!same) { previous.forEach { File(directory(id), safeFileName(it["fileName"] as? String)).delete() }; partial(id).delete(); entry["fileIndex"] = 0 }
+      else incoming.indices.forEach { n -> for (key in listOf("actualSha256", "file")) previous[n][key]?.let { incoming[n][key] = it } }
+      entry["files"] = incoming
+      val missing = incoming.take(fileIndex(entry)).indexOfFirst { part ->
+        val file = File(directory(id), safeFileName(part["file"] as? String))
+        !file.isFile || file.length() != (part["bytes"] as Number).toLong()
+      }
+      if (missing >= 0) { entry["fileIndex"] = missing; partial(id).delete() }
+    } else if (files(entry).isNotEmpty()) {
+      files(entry).forEach { File(directory(id), safeFileName(it["fileName"] as? String)).delete() }
+      entry.remove("files"); entry.remove("fileIndex"); partial(id).delete()
+    }
     retirePublicationGeneration(id)
     // Continue and retry both arrive here: an earlier transfer for the same download ends first.
     active.remove(id)?.let { it.stopped = "superseded"; it.call?.cancel() }
@@ -229,12 +256,12 @@ internal object PorticoDownloadCenter {
     for (key in TEXT_FIELDS) (request[key] as? String)?.let { entry[key] = it }
     entry["id"] = id
     entry["bytes"] = bytes.toDouble()
-    entry["bytesDone"] = (if (partial(id).isFile) partial(id).length() else 0L).toDouble()
+    entry["bytesDone"] = completedBytes(entry) + (if (partial(id).isFile) partial(id).length() else 0L).toDouble()
     entry["error"] = ""
     entry["intent"] = "run"
     if (entry["addedAt"] == null) entry["addedAt"] = System.currentTimeMillis().toDouble()
     entries[id] = entry
-    begin(id, url, entry)
+    begin(id, currentFile(entry)["url"] as? String ?: url, entry)
     // Started by the person with the app in front: on Android 14 and later the job that carries it
     // on is a user-initiated data transfer, which the system does not cut off after ten minutes.
     if (active[id] != null || entry["waiting"] == "wifi") PorticoDownloadJob.schedule(app, cellular, userInitiated = true)
@@ -251,9 +278,10 @@ internal object PorticoDownloadCenter {
   /** Starts, or starts again, moving one entry's bytes from `url`. */
   private fun begin(id: String, url: String, entry: MutableMap<String, Any?>) {
     active.remove(id)?.let { it.stopped = "superseded"; it.call?.cancel() }
-    val digest = (entry["sha256"] as? String)?.lowercase() ?: ""
-    val bytes = PorticoMpvSupport.integer(entry["bytes"])
-    if (digest.isNotEmpty() && !SHA256.matches(digest) || digest.isEmpty() && !safeIdentifier(entry["sourceId"] as? String) || bytes == null || bytes <= 0) {
+    val file = currentFile(entry)
+    val digest = (file["sha256"] as? String)?.lowercase() ?: ""
+    val bytes = PorticoMpvSupport.integer(file["bytes"])
+    if (digest.isNotEmpty() && !SHA256.matches(digest) || digest.isEmpty() && !safeIdentifier(file["sourceId"] as? String) || bytes == null || bytes <= 0) {
       entry["state"] = "failed"; entry["error"] = "verification_failed"; entry["waiting"] = ""
       save(); changed(id, true); release()
       return
@@ -270,16 +298,17 @@ internal object PorticoDownloadCenter {
     PorticoDownloadService.keepAlive(app)
     PorticoDownloadJob.schedule(app, cellular)
     directory(id).mkdirs()
-    val final = File(directory(id), safeFileName(entry["fileName"] as? String))
+    val final = File(directory(id), safeFileName(file["fileName"] as? String))
     // Cancellation closes the HTTP call asynchronously. The next attempt must wait for that
     // worker to close its file before inspecting, truncating or appending the partial file.
     fileWork.execute(id) verifyFile@ {
       if (transfer.stopped != null) return@verifyFile
-      val verified = verifiedDownloadFile(final, bytes, digest) { transfer.stopped != null }
+      val actual = if (final.isFile && final.length() == bytes) downloadFileDigest(final) { transfer.stopped != null } else ""
+      val verified = SHA256.matches(actual) && (digest.isEmpty() || actual == digest) && transfer.stopped == null
       post {
         if (transfer.stopped != null || accepts(id, transfer) == null) return@post
         when (downloadStart(verified, cellular, ::onCellular)) {
-          DownloadStart.ADOPT -> finish(id, transfer, final, null, digest)
+          DownloadStart.ADOPT -> finish(id, transfer, final, null, actual)
           DownloadStart.WAIT_FOR_WIFI -> hold(id, transfer, "wifi")
           DownloadStart.TRANSFER -> {
             transfer.networkStarted = true
@@ -669,6 +698,27 @@ internal object PorticoDownloadCenter {
     return if (file.isFile) file else "missing_file"
   }
 
+  fun localParts(id: String?): List<Map<String, Any?>>? {
+    val entry = entries[id] ?: return null
+    var at = 0.0
+    val converted = entry["quality"] != "original"
+    val parts = files(entry).map { part ->
+      val file = File(directory(id!!), safeFileName(part["file"] as? String))
+      if (!file.isFile || file.length() != (part["bytes"] as Number).toLong()) return null
+      val start = (part["startSeconds"] as? Number)?.toDouble() ?: 0.0
+      val length = if (converted) ((part["measuredDurationSeconds"] as? Number)?.toDouble() ?: durationSeconds(file)).also { part["measuredDurationSeconds"] = it }
+          else (part["durationSeconds"] as? Number)?.toDouble() ?: (durationSeconds(file) - start).coerceAtLeast(0.0)
+      val offset = if (converted) at else (part["offsetSeconds"] as? Number)?.toDouble() ?: at
+      at = offset + length
+      hashMapOf<String, Any?>("url" to android.net.Uri.fromFile(file).toString(), "startSeconds" to start, "durationSeconds" to length, "offsetSeconds" to offset).apply {
+        part["endSeconds"]?.let { put("endSeconds", it) }
+        if (converted) part["offsetSeconds"]?.let { put("sourceOffsetSeconds", it) }
+      }
+    }
+    if (converted) save()
+    return parts
+  }
+
   /** Resolve only an exact ready owned download; never a caller supplied path. */
   fun publication(identifier: String, owner: String, digest: String): Pair<File, () -> Boolean>? {
     val entry = entries[identifier] ?: return null
@@ -787,15 +837,29 @@ internal object PorticoDownloadCenter {
     }
     if (error == "verification_failed") part.delete()
     if (error == null) {
-      val final = File(directory(id), safeFileName(entry["fileName"] as? String))
+      val file = currentFile(entry)
+      val final = File(directory(id), safeFileName(file["fileName"] as? String))
       if (part != final) final.delete()
       if (part == final || part.renameTo(final)) {
         val size = final.length().toDouble()
-        entry["sha256"] = digest
-        entry["state"] = "ready"; entry["error"] = ""; entry["bytes"] = size; entry["bytesDone"] = size
-        entry["file"] = final.name
+        val ordered = files(entry)
+        if (ordered.isNotEmpty()) {
+          file["actualSha256"] = digest; file["file"] = final.name
+          val next = fileIndex(entry) + 1
+          if (next < ordered.size) {
+            entry["fileIndex"] = next
+            entry["bytesDone"] = completedBytes(entry)
+            if (save()) { begin(id, ordered[next]["url"] as String, entry); return }
+            entry["state"] = "failed"; entry["error"] = "transfer_failed"; changed(id, true); release(); return
+          }
+          val manifest = ordered.joinToString("\n") { "${it["bytes"]}:${it["actualSha256"]}" }
+          entry["sha256"] = java.security.MessageDigest.getInstance("SHA-256").digest(manifest.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+          entry["file"] = ordered.first()["file"]
+          ordered.forEach { it.remove("url") }
+        } else { entry["sha256"] = digest; entry["file"] = final.name }
+        val total = if (ordered.isEmpty()) size else ordered.sumOf { (it["bytes"] as Number).toDouble() }
+        entry["state"] = "ready"; entry["error"] = ""; entry["bytes"] = total; entry["bytesDone"] = total
         entry["completedAt"] = System.currentTimeMillis().toDouble()
-        // The grant address has done its job; a finished download keeps no token.
         entry.remove("grantUrl")
       } else { part.delete(); error = "storage_full" }
     }

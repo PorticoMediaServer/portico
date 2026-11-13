@@ -9,7 +9,7 @@ import {publicationUTF8, openOfflineReadingSession, publicationBinding, nativePu
 import {decodeGetReadingSessionsSessionIdProgressResponse, decodePutReadingSessionsSessionIdProgressResponse} from '../../../packages/contracts/src';
 import {parseReadingOfflineRefresh, readingOfflineRefreshLimit} from '../../../packages/client-core/src/reading-offline-refresh';
 import type {ReadingLocation, ReadingProgress, ReadingSavedProgress} from '../../../packages/client-core/src/reading';
-import {storedSubtitle, subtitleExtraFiles, type StoredSubtitle} from './offline-subtitle-files';
+import {storedSubtitle, subtitleExtraFiles, subtitleExtraName, joinDownloadedVtt, type StoredSubtitle} from './offline-subtitle-files';
 import {receiptTime, serverReceiptFloor} from './receipt-clock';
 import {NativeEventEmitter, NativeModules, Platform} from 'react-native';
 import {nativeRouteCrypto} from '../src-next/platform/server-connections';
@@ -184,7 +184,7 @@ const native = NativeModules.PorticoDownloads as undefined | {
   setMeta(id: string, meta: string): Promise<void>; setMetas(metas: Record<string, string>): Promise<void>;
   storage(): Promise<{freeBytes: number; usedBytes: number; totalBytes?: number; storedBytes?: number; allocatedBytes?: number}>; setCellular(allowed: boolean): Promise<void>;
   readState(): Promise<string>; writeState(json: string): Promise<void>;
-  localFile(id: string): Promise<{url: string; durationSeconds: number}>;
+  localFile(id: string): Promise<{url: string; durationSeconds: number; parts?: LocalMedia['parts']}>;
   writeExtra(id: string, name: string, text: string): Promise<void>; readExtra(id: string, name: string): Promise<string>;
   publicationStateOpen(handle: string, id: string, generation: string, expected: string): Promise<void>;
   publicationStateRead(handle: string, name: string): Promise<string>;
@@ -1132,7 +1132,7 @@ export class OfflineDownloads {
   }
   private async transferDownload(target: {id: string; itemId: string; quality: string}, held: Meta, owner: string, api: Api, service: DownloadsService, generation: number, continuing: boolean, current: () => OfflineEntry | undefined, incarnationCurrent: () => boolean) {
     const described = await service.downloaded(target.id); current();
-    if (described.item.id !== target.itemId || described.files.length !== 1) throw new Error(downloadReasonMessage('several_files'));
+    if (described.item.id !== target.itemId || !described.files.length) throw new Error(downloadReasonMessage('several_files'));
     await this.syncDownloads(generation); current();
     if (!this.stored.permissions[owner] || this.stored.permissions[owner] <= this.receiptNow()) throw new Error(serviceText('downloads.offline.needsCheckIn'));
     const grant = await service.grant(target); const entry = current();
@@ -1147,7 +1147,9 @@ export class OfflineDownloads {
     if (!native) return;
     const described = await service.downloaded(id), bundle = downloadedBundle(id, described);
     if (generation !== this.generation || !this.all.some(e => e.id === id)) return;
-    await native.writeExtra(id, 'bundle.json', JSON.stringify(bundle));
+    const cached = {...bundle, subtitles: bundle.subtitles.map(track => ({...track, partFiles: undefined,
+      files: Object.fromEntries(Object.entries(track.files).map(([form, file]) => [form, {...file, path: `extras/${subtitleExtraName(track.id, track.revision, form)}`}]))}))};
+    await native.writeExtra(id, 'bundle.json', JSON.stringify(cached));
     const saved = new Set(this.metas.get(id)?.extras ?? []);
     const files: [string, string][] = Object.entries(described.item.images).filter(([role]) => ['poster', 'cover', 'backdrop'].includes(role));
     let complete = true;
@@ -1158,14 +1160,25 @@ export class OfflineDownloads {
       if (outcome === 'saved') saved.add(name); else if (outcome !== 'missing') complete = false;
     }
     // The existing subtitle cache names its files by track identity.
-    for (let index = 0; index < bundle.subtitles.length; index++) {
-      const source = described.subtitles.filter(s => s.url)[index];
-      if (!source?.url) continue;
-      for (const [name] of subtitleExtraFiles(bundle.subtitles[index])) {
-        const outcome = await native.fetchExtra(id, name, source.url).catch(() => 'later');
+    for (const track of bundle.subtitles) {
+      for (const [name, url] of subtitleExtraFiles(track)) {
+        if (track.partFiles?.length) {
+          const captions: {text: string; offsetSeconds: number}[] = [];
+          for (const [part, file] of track.partFiles.entries()) {
+            const stored = `${name}-part-${part + 1}`;
+            const outcome = await native.fetchExtra(id, stored, file.path).catch(() => 'later');
+            if (generation !== this.generation || !this.all.some(e => e.id === id)) return;
+            if (outcome !== 'saved') {complete = false; break;}
+            captions.push({text: await native.readExtra(id, stored), offsetSeconds: file.offsetSeconds});
+          }
+          if (captions.length === track.partFiles.length) {await native.writeExtra(id, name, joinDownloadedVtt(captions)); saved.add(name);}
+          continue;
+        }
+        const outcome = await native.fetchExtra(id, name, url).catch(() => 'later');
         if (generation !== this.generation || !this.all.some(e => e.id === id)) return;
         if (outcome === 'saved') {
-          if (source.format === 'srt') {try {await native.writeExtra(id, name, downloadedSubtitleText('srt', await native.readExtra(id, name)));} catch {complete = false; continue;}}
+          const source = described.subtitles.find(s => s.id === track.id);
+          if (source?.format === 'srt') {try {await native.writeExtra(id, name, downloadedSubtitleText('srt', await native.readExtra(id, name)));} catch {complete = false; continue;}}
           saved.add(name);
         } else if (outcome !== 'missing') complete = false;
       }
@@ -1177,7 +1190,14 @@ export class OfflineDownloads {
     const lines = meta.title ? downloadTitleLines(meta.title) : {title: '', subtitle: ''};
     this.metas.set(target.id, meta);
     const request = {
-      id: target.id, url: api.mediaUrl(grant.url), fileName: grant.artifact.fileName, bytes: grant.artifact.bytes, sha256: grant.artifact.sha256,
+      id: target.id, url: grant.files ? grant.url : api.mediaUrl(grant.url),
+      ...(grant.files && grant.files.length > 1 ? {files: grant.files.map((file, index) => ({url: file.url, bytes: file.artifact.bytes, sha256: file.artifact.sha256, fileName: file.artifact.fileName,
+        sourceId: `${file.artifact.ref}_${index + 1}`,
+        ...(file.offsetSeconds !== undefined ? {offsetSeconds: file.offsetSeconds} : {}),
+        ...(file.durationSeconds !== undefined ? {durationSeconds: file.durationSeconds} : {}),
+        ...(file.startSeconds !== undefined ? {startSeconds: file.startSeconds} : {}),
+        ...(file.endSeconds !== undefined ? {endSeconds: file.endSeconds} : {})}))} : {}),
+      fileName: grant.artifact.fileName, bytes: grant.artifact.bytes, sha256: grant.artifact.sha256,
       sourceId: grant.artifact.ref, contentType: grant.artifact.contentType, itemId: target.itemId, title: lines.title, subtitle: lines.subtitle, quality: target.quality, meta: JSON.stringify(meta),
       ...(continuing ? {expectedGeneration: this.publicationStateGenerations.get(continuing)} : {}),
     };
@@ -1961,11 +1981,23 @@ export class OfflineDownloads {
     if (!native?.localFile) throw new Error(serviceText('downloads.offline.notPlayableHere'));
     const file = await native.localFile(entry.id);
     current();
-    const extras=await this.extras(entry),live=current();
+    let extras=await this.extras(entry); const live=current();
+    if (extras.bundle && file.parts?.some(p => p.sourceOffsetSeconds !== undefined && p.sourceOffsetSeconds !== p.offsetSeconds)) {
+      // Chapters and markers arrive on the original clock; a converted file has its own length.
+      const parts = file.parts;
+      const position = (seconds: number) => {
+        let part = parts[0]!;
+        for (const candidate of parts) {if (seconds < (candidate.sourceOffsetSeconds ?? candidate.offsetSeconds)) break; part = candidate;}
+        return part.offsetSeconds + Math.max(0, Math.min(part.durationSeconds, seconds - (part.sourceOffsetSeconds ?? part.offsetSeconds)));
+      };
+      extras = {...extras, bundle: {...extras.bundle, title: {...extras.bundle.title, durationSeconds: file.durationSeconds},
+        chapters: extras.bundle.chapters.map(c => ({...c, startSeconds: position(c.startSeconds), endSeconds: position(c.endSeconds)})),
+        markers: extras.bundle.markers.map(m => ({...m, startSeconds: position(m.startSeconds), endSeconds: position(m.endSeconds)}))}};
+    }
     const latestReason=this.playable(live);if(latestReason)throw new Error(latestReason);
     const playId = 'play_' + random();
     this.playing.set(entry.id, playId);
-    return {entryId: live.id, itemId: live.itemId, playId, fileUrl: file.url, durationSeconds: Math.max(0, Number(file.durationSeconds) || 0), startSeconds: this.resumePoint(live), extras};
+    return {entryId: live.id, itemId: live.itemId, playId, fileUrl: file.url, ...(file.parts?.length ? {parts: file.parts} : {}), durationSeconds: Math.max(0, Number(file.durationSeconds) || 0), startSeconds: this.resumePoint(live), extras};
   }
   /** What came with a download: its description, chapters, markers and audio tracks as the server
    * described them, and its subtitle tracks as files on this device. */

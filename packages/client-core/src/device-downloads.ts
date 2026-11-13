@@ -35,7 +35,7 @@ export const readDownloadedItem = (api: ServerRequester & {mediaUrl?(path: strin
   callServer(api, 'GET /v1/downloads/{id}/items/{itemId}', {id: downloadId, ids: {itemId}, signal}).then(item => {
     if (!api.mediaUrl) return item;
     const url = (path: string) => api.mediaUrl!(path);
-    return {...item, item: {...item.item, images: Object.fromEntries(Object.entries(item.item.images).map(([role, path]) => [role, url(path)]))},
+    return {...item, files: item.files.map(file => ({...file, url: url(file.url)})), item: {...item.item, images: Object.fromEntries(Object.entries(item.item.images).map(([role, path]) => [role, url(path)]))},
       subtitles: item.subtitles.map(subtitle => subtitle.url ? {...subtitle, url: url(subtitle.url)} : subtitle)};
   });
 /** Asks for a download. Out of reach, the outbox keeps it and the call rejects with `OutboxWaiting`. */

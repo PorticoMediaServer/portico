@@ -62,10 +62,15 @@ internal fun decodeDownloadManifest(value: Any?): HashMap<String, MutableMap<Str
     val entry = raw as? Map<*, *> ?: error("read_failed")
     check(entry.keys.all { it is String } && entry["id"] == key)
     check(entry["state"] in listOf("downloading", "paused", "failed", "ready", "removed"))
-    check((entry["sha256"] as? String)?.lowercase()?.matches(Regex("^[a-f0-9]{64}$")) == true)
+    val digest = entry["sha256"] as? String
+    check(digest?.lowercase()?.matches(Regex("^[a-f0-9]{64}$")) == true ||
+        digest == "" && entry["state"] != "ready" && (entry["sourceId"] as? String)?.matches(Regex("^[A-Za-z0-9_-]{1,160}$")) == true)
+    val files = entry["files"]?.let(::decodeDownloadFiles)
+    if (files != null) check(((entry["fileIndex"] as? Number)?.toInt() ?: -1) in files.indices)
     val bytes = (entry["bytes"] as? Number)?.toDouble() ?: error("read_failed")
     check(bytes.isFinite() && bytes >= 1 && bytes <= 9007199254740991.0 && Math.floor(bytes) == bytes)
     @Suppress("UNCHECKED_CAST") val copy = HashMap(entry as Map<String, Any?>)
+    if (files != null) copy["files"] = files
     if (copy["state"] == "downloading") { copy["state"] = "paused"; copy["error"] = ""; copy["waiting"] = "" }
     result[key] = copy
   }
@@ -89,4 +94,30 @@ internal fun commitDownloadEntry(
   if (save()) return true
   if (previous == null) entries.remove(id) else entries[id] = previous
   return false
+}
+
+
+/** Ordered files of one download; keep the whole record unreadable if a member is corrupt. */
+internal fun decodeDownloadFiles(value: Any?): List<MutableMap<String, Any?>> {
+  val files = value as? List<*> ?: error("read_failed")
+  check(files.size > 1)
+  return files.map { raw ->
+    val file = raw as? Map<*, *> ?: error("read_failed")
+    check(file.keys.all { it is String })
+    val name = file["fileName"] as? String ?: error("read_failed")
+    check(name.matches(Regex("^[A-Za-z0-9._-]{1,160}$")) && name != "." && name != "..")
+    val bytes = (file["bytes"] as? Number)?.toDouble() ?: error("read_failed")
+    check(bytes.isFinite() && bytes > 0 && bytes <= 9007199254740991.0 && Math.floor(bytes) == bytes)
+    check((file["sourceId"] as? String)?.matches(Regex("^[A-Za-z0-9_-]{1,160}$")) == true)
+    check((file["sha256"] as? String)?.matches(Regex("^(?:[a-f0-9]{64})?$")) == true)
+    val url = file["url"] as? String
+    check(url?.startsWith("http://") == true || url?.startsWith("https://") == true ||
+        (file["actualSha256"] as? String)?.matches(Regex("^[a-f0-9]{64}$")) == true)
+    for (key in listOf("offsetSeconds", "durationSeconds", "startSeconds", "endSeconds")) if (file[key] != null) {
+      val seconds = (file[key] as? Number)?.toDouble() ?: error("read_failed")
+      check(seconds.isFinite() && seconds >= 0)
+    }
+    @Suppress("UNCHECKED_CAST")
+    HashMap(file as Map<String, Any?>)
+  }
 }

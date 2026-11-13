@@ -66,7 +66,7 @@ export async function offlineFixture(options = {}) {
     async removeGeneration(id, generation) {if (entries.get(id)?.publicationGeneration !== generation) throw Object.assign(new Error('generation_changed'), {code: 'generation_changed'}); await native.remove(id);},
     async setMeta(id, meta) {const entry = entries.get(id); if (!entry) throw new Error('not_found'); entry.meta = meta; emit(entry);},
     async setMetas(metas) {for (const [id, meta] of Object.entries(metas)) if (entries.has(id)) await native.setMeta(id, meta);},
-    async readExtra() {return '';}, async writeExtra() {}, async fetchExtra() {return 'missing';},
+    async readExtra(_id, _name) {return '';}, async writeExtra(_id, _name, _value) {}, async fetchExtra(_id, _name, _url) {return 'missing';},
     async localFile(id) {if (!entries.has(id)) throw new Error('not_found'); return {url: 'file:///downloads/' + id, durationSeconds: 100};},
   };
   const seed = (id, itemId = 'item', extra = {}) => {

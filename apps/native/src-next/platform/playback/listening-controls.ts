@@ -2,9 +2,76 @@ import {PlayerChaptersService, type PlayerChaptersTarget} from '../../../../../p
 import type {LibraryContentApi, ContentScope} from '../../../../../packages/client-core/src/library-content';
 import type {NativeListeningReadPort, NativeListeningReadSnapshot, NativePlaybackReadLifetime} from './types';
 import {encodedRoutePath} from '../../../../../packages/contracts/src/routes';
+import type {LocalPlaybackFence} from '../../../../../packages/player-core/src';
+import type {DownloadBundleChapter} from '../../../../../packages/client-core/src/downloads';
 
 type Facts = Extract<NativeListeningReadSnapshot, {phase: 'current'}>;
 type ReadFacts = Pick<Facts, 'rate' | 'preferences'>;
+
+/** One chapter timeline for both the normal player and the cold-launch opening. */
+export function nativeOfflineListeningData(fence: LocalPlaybackFence, libraryId: string, duration: number,
+  cached: readonly DownloadBundleChapter[]): NonNullable<Facts['chapters']['data']> {
+  const sourceId = fence.artifact.sha256;
+  const chapters = Object.freeze(cached.map((chapter, index) => Object.freeze({id: `${sourceId}:${index}`, index: index + 1,
+    title: chapter.title, startSeconds: chapter.startSeconds, endSeconds: chapter.endSeconds})));
+  return Object.freeze({scope: Object.freeze({serverId: fence.playback.scope.serverId, libraryId, itemId: fence.itemId,
+    viewerFence: JSON.stringify(fence.playback.scope), sessionId: fence.sessionId, generation: fence.generation, sourceId}),
+    revision: sourceId, status: chapters.length ? 'available' : 'none', reason: null, duration,
+    totalCount: chapters.length, nextCursor: '', chapters});
+}
+
+/** The same controls over an admitted download. Its chapters already live on this device. */
+export function createNativeOfflineListeningReadPort(options: Readonly<{
+  data: NonNullable<Facts['chapters']['data']>;
+  lifetime: NativePlaybackReadLifetime;
+  current: () => boolean;
+  facts: () => ReadFacts;
+  subscribe: readonly ((listener: () => void) => () => void)[];
+}>): NativeListeningReadPort {
+  const listeners = new Set<() => void>(), offs: (() => void)[] = [];
+  let retired = false, offset = 0;
+  let snapshot: NativeListeningReadSnapshot = Object.freeze({phase: 'retired'});
+  const notify = () => {for (const listener of [...listeners]) {try {listener();} catch { /* An observer cannot retain this reader. */ }}};
+  const retire = () => {
+    if (retired) return;
+    retired = true; snapshot = Object.freeze({phase: 'retired'});
+    options.lifetime.signal.removeEventListener('abort', retire);
+    for (const off of offs.splice(0)) {try {off();} catch { /* Retire every original subscription. */ }}
+    notify(); listeners.clear();
+  };
+  const current = () => {
+    try {if (!retired && (options.lifetime.signal.aborted || !options.lifetime.isCurrent() || !options.current())) retire();}
+    catch {retire();}
+    return !retired;
+  };
+  const update = () => {
+    if (!current()) return;
+    const data = options.data, next = offset + 100;
+    let facts: ReadFacts;
+    try {facts = options.facts();} catch {retire(); return;}
+    if (!current()) return;
+    snapshot = Object.freeze({phase: 'current', ...facts, chapters: Object.freeze({phase: 'ready',
+      pagination: Object.freeze({cursor: offset ? String(offset) : null, canPrevious: offset > 0}),
+      data: Object.freeze({...data, chapters: Object.freeze(data.chapters.slice(offset, next)), nextCursor: next < data.chapters.length ? String(next) : ''}),
+    })});
+    notify();
+  };
+  const page = async (at: number) => {
+    if (!current()) throw new Error('native_listening_read_retired');
+    offset = at; update();
+  };
+  options.lifetime.signal.addEventListener('abort', retire, {once: true});
+  for (const subscribe of options.subscribe) {
+    if (retired) break;
+    const off = subscribe(update); if (retired) off(); else offs.push(off);
+  }
+  update();
+  return Object.freeze({current, getSnapshot: () => {current(); return snapshot;},
+    subscribe: (listener: () => void) => {if (retired) return () => {}; listeners.add(listener); return () => {listeners.delete(listener);};},
+    readChapters: () => page(0), readNextChapterPage: () => page(offset + 100 < options.data.chapters.length ? offset + 100 : offset),
+    readPreviousChapterPage: () => page(Math.max(0, offset - 100)), dispose: retire,
+  });
+}
 
 /** One read lease over existing listening/native facts and the canonical chapter reader.
  * This intentionally contains no playback/policy commands, timer or start/retry adapter. */
