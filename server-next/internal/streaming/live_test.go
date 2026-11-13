@@ -316,7 +316,6 @@ func TestASecondDevicesLiveConversionIsHeldToTheLimit(t *testing.T) {
 // from there; the same moment asked again, as a player reloading its playlist does, does not.
 func TestALiveConversionStopsWhenIdleAndStartsAgainFromAMoment(t *testing.T) {
 	idle := liveIdle
-	liveIdle = 2 * time.Second
 	t.Cleanup(func() { liveIdle = idle })
 	rig := newMediaRig(t)
 	path := rig.broadcast("air.ts", false)
@@ -326,10 +325,19 @@ func TestALiveConversionStopsWhenIdleAndStartsAgainFromAMoment(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := rig.livePlaylistUntil("lvs_idle", "", func(p livePlaylist) bool { return len(p.segments) >= 2 })
+	// Encoding startup is not part of the deliberately short idle-stop check.
+	rig.streams.hls.mu.Lock()
+	liveIdle = 2 * time.Second
+	rig.streams.hls.mu.Unlock()
 	deadline := time.Now().Add(20 * time.Second)
 	for {
 		rig.streams.hls.mu.Lock()
 		stopped := rig.streams.live["lvs_idle"].cancel == nil
+		if stopped {
+			// The short cutoff has proved idle stopping. A fresh encode may take longer
+			// than two seconds; later reloads test seeking, not another idle resume.
+			liveIdle = idle
+		}
 		rig.streams.hls.mu.Unlock()
 		if stopped {
 			break
@@ -349,9 +357,15 @@ func TestALiveConversionStopsWhenIdleAndStartsAgainFromAMoment(t *testing.T) {
 	if again.segments[0] == first.segments[0] {
 		t.Fatal("a moment outside the playlist did not start the conversion again")
 	}
-	reads := channel.readCount()
+	// Runs are scheduled under this mutex; input readers start asynchronously.
+	rig.streams.hls.mu.Lock()
+	runs := rig.streams.live["lvs_idle"].runs
+	rig.streams.hls.mu.Unlock()
 	rig.livePlaylistUntil("lvs_idle", "?at="+at, func(p livePlaylist) bool { return true })
-	if channel.readCount() != reads {
+	rig.streams.hls.mu.Lock()
+	reloadedRuns := rig.streams.live["lvs_idle"].runs
+	rig.streams.hls.mu.Unlock()
+	if reloadedRuns != runs {
 		t.Fatal("the same moment asked again started the conversion again")
 	}
 	rig.streams.StopLive("lvs_idle")
