@@ -29,13 +29,20 @@ jobs:
         run: npm ci --no-audit --no-fund --legacy-peer-deps --workspaces=false
         working-directory: apps/native
       - name: Restore checksum-pinned Robolectric SDKs
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        id: robolectric-cache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
         with:
           path: ${{ runner.temp }}/robolectric-sdk
           key: robolectric-sdk-${{ runner.os }}-${{ hashFiles('ci/robolectric-sdk.json') }}
       - name: Provision Robolectric SDKs before tests start
         id: robolectric-sdk
         run: python3 ci/robolectric_sdk.py --directory "$RUNNER_TEMP/robolectric-sdk"
+      - name: Save checked Robolectric SDKs before tests run
+        if: ${{ steps.robolectric-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/robolectric-sdk
+          key: ${{ steps.robolectric-cache.outputs.cache-primary-key }}
       - name: JVM tests for Android and Fire OS
         if: ${{ !cancelled() && steps.native-deps.outcome == 'success' && steps.robolectric-sdk.outcome == 'success' }}
         # A unit-test JVM never links or packages libmpv. Keep production media
@@ -45,7 +52,7 @@ jobs:
         run: ./gradlew --no-daemon --continue --init-script "$GITHUB_WORKSPACE/ci/robolectric-offline.gradle" :app:testGoogleDebugUnitTest :app:testFiretvDebugUnitTest -x :portico-mpv:stageMediaEngine
         working-directory: apps/native/android
       - name: Production Android transport, layout and URL-route harnesses
-        if: ${{ !cancelled() && steps.native-deps.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.native-deps.outcome == 'success' && steps.robolectric-sdk.outcome == 'success' }}
         env:
           PORTICO_ANDROID_TEST_OUT_DIR: ${{ runner.temp }}/android-harnesses
         run: python3 scripts/run-android-harnesses.py
@@ -55,7 +62,7 @@ jobs:
         run: ./gradlew --no-daemon :app:assembleGoogleDebug :app:assembleFiretvDebug -PreactNativeArchitectures=x86_64
         working-directory: apps/native/android
       - name: Retain per-suite Android results
-        if: ${{ always() }}
+        if: ${{ always() && steps.robolectric-sdk.outcome == 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: android-jvm-and-transport

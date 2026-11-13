@@ -31,6 +31,12 @@ class RobolectricSdk(unittest.TestCase):
         with patch('robolectric_sdk.subprocess.run', side_effect=self.download) as fetch:
             self.assertEqual(provision(self.directory, self.sdk), self.target)
             fetch.assert_called_once()
+            args = fetch.call_args.args[0]
+            self.assertEqual(args[args.index('--retry') + 1], '2')
+            attempt = int(args[args.index('--max-time') + 1])
+            budget = int(args[args.index('--retry-max-time') + 1])
+            self.assertGreaterEqual(attempt, 600)
+            self.assertGreaterEqual(budget, 3 * attempt)
         with patch('robolectric_sdk.subprocess.run', side_effect=AssertionError('network used')):
             self.assertEqual(provision(self.directory, self.sdk), self.target)
 
