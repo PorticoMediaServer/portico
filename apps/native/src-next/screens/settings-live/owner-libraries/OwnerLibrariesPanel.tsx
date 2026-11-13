@@ -60,6 +60,12 @@ export function NativeOwnerLibrariesPanel({ports, runtime, initialLibraryId, lif
         const value = await (lifetime ? lifetime.request(next => originalApi.request<T>(path, method, body, next), signal) : originalApi.request<T>(path, method, body, signal));
         requireCurrent(); return value;
       },
+      requestRaw: async (path, method, options) => {
+        requireCurrent();
+        const send = (signal?: AbortSignal) => originalApi.requestRaw(path, method, {...options, signal});
+        const value = await (lifetime ? lifetime.request(send, options?.signal) : send(options?.signal));
+        requireCurrent(); return value;
+      },
     };
     return {api, retire: () => {active = false;}};
   }, [context, lifetime, authority]);

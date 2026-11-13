@@ -1,9 +1,10 @@
 import {encodedRoutePath} from '../../contracts/src/route-paths.ts';
 import {routeBody} from '../../contracts/src/routes.ts';
-import {kindMetadataAgentsPath, metadataAgentPath} from './server-admin/metadata-agent.ts';
+import {kindMetadataAgentsPath, metadataAgentPath, writeLibraryMetadataAgent} from './server-admin/metadata-agent.ts';
+import type {LibraryContentApi} from './library-content.ts';
 import type {OwnerRequestApi} from './owner-requests.ts';
 export const readOwnerMetadataAgent = <T = unknown>(api: OwnerRequestApi, id: string, signal?: AbortSignal): Promise<T> => api.request<T>(metadataAgentPath(id), 'GET', undefined, signal);
-export const writeOwnerMetadataAgent = <T = unknown>(api: OwnerRequestApi, id: string, body: unknown, signal?: AbortSignal): Promise<T> => api.request<T>(metadataAgentPath(id), 'PUT', body, signal);
+export const writeOwnerMetadataAgent = <T = unknown>(api: LibraryContentApi, id: string, body: unknown, signal?: AbortSignal): Promise<T> => writeLibraryMetadataAgent<T>(api, id, body, signal);
 export const readOwnerSkippedFiles = <T = unknown>(api: OwnerRequestApi, id: string, job: string, after: number, signal: AbortSignal): Promise<T> => {
   const path = encodedRoutePath('get_scan_issues', {id: encodeURIComponent(id), job: encodeURIComponent(job)});
   return api.request<T>(path + '?' + new URLSearchParams({after: String(after), limit: '40'}), 'GET', undefined, signal);

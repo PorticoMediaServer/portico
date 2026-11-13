@@ -57,7 +57,7 @@ export function LibrariesPanel({api, service, onEdit, onError, serverName, artwo
     void readOwnerMetadataAgent(api, menuLibrary.id).then(raw => {
       if (!live) return;
       const agent = parseMetadataAgent(raw);
-      setAgentFact({api, library: menuLibrary, online: agent.libraryId === menuLibrary.id && agent.libraryKind === menuLibrary.kind && agent.agent === 'online'});
+      setAgentFact({api, library: menuLibrary, online: agent.libraryId === menuLibrary.id && agent.libraryKind === menuLibrary.kind && agent.agent !== 'local'});
     }).catch(() => {if (live) setAgentFact({api, library: menuLibrary, online: false});});
     return () => {live = false;};
   }, [api, menuLibrary]);

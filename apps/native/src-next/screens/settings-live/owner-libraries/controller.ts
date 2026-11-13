@@ -404,12 +404,11 @@ export class NativeOwnerLibrariesController {
     return done === true;
   }
 
-  /** The metadata source is its own resource with its own revision; a conflict re-reads rather than retries blind. */
+  /** Metadata shares the library's revision; a conflict re-reads rather than retries blind. */
   async saveAgent(agent: string): Promise<boolean> {
     const current = this.state.metadata;
     if (!current) return false;
-    const request = <T,>(path: string, method?: string, body?: unknown) => this.api.request<T>(path, method, body);
-    const done = await this.command(() => saveMetadataAgent(request, current, current.libraryId, agent).then(value => {this.publish({metadata: value, saved: this.state.saved + 1}); return true;}));
+    const done = await this.command(() => saveMetadataAgent(this.api, current, current.libraryId, agent).then(value => {this.publish({metadata: value, saved: this.state.saved + 1}); return true;}));
     if (done !== true) await this.reloadAgent();
     return done === true;
   }
