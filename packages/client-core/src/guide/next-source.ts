@@ -181,7 +181,7 @@ export async function nextGuideSummaries(api: ServerRequester, signal?: AbortSig
 export async function readNextGuideSummaries(api: ServerRequester, includeHidden: boolean, signal?: AbortSignal): Promise<GuideSourceSummaries> {
   const page = await readChannels(api, {hidden: includeHidden}, undefined, signal);
   const sources = channelSources(page).map((source, position): GuideSourceSummary => ({id: source.id, name: source.name, generation: '', publishedAt: '',
-    availableStart: '', availableEnd: source.guideThrough ?? '', provenance: source.kind === 'library' ? 'library-channel' : 'live-source',
+    availableStart: source.guideFrom ?? '', availableEnd: source.guideThrough ?? '', provenance: source.kind === 'library' ? 'library-channel' : 'live-source',
     refreshState: source.outOfDate ? 'stale' : 'ready', position, recordAvailable: source.kind !== 'library', guideDays: 0, channelCount: source.channels,
     favoriteCount: Math.min(source.favorites, source.channels), groups: source.groups.map(group => group.name), groupCounts: source.groups, unavailableReasons: {}}));
   return Object.freeze({viewerFence: '', revision: '', sources: Object.freeze(sources)});

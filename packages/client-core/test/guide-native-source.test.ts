@@ -64,3 +64,21 @@ test('disposing the viewer reader rejects a late programme response', async () =
  finish({...programme(1),channel:channel(1),canRecord:true,reminder:false,airings:[]});
  await assert.rejects(pending,error=>(error as Error).name==='AbortError');
 });
+
+
+test('native reminder commands use the programme id, own cancellation and show the two-minute due window', async () => {
+ const paths:unknown[]=[];
+ const startsAt=new Date(Date.now()+60_000).toISOString(), endsAt=new Date(Date.now()+3600_000).toISOString();
+ const api={request:async<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>=>{
+  assert.ok(signal);assert.equal(signal.aborted,false);paths.push([path,method,body]);return undefined as T;
+ }};
+ const features=new GuideFeatureClient(api,'server');
+ try{
+  const airing={channel:{id:'ch-3',sourceId:'server',provenance:'live-source' as const,generation:'1',name:'Three',number:'3',group:''},
+   programme:{id:'p-3',channelId:'ch-3',title:'Soon',start:startsAt,end:endsAt,lineage:'interval-only' as const,seriesId:'',episodeId:'',newEvidence:'unknown' as const,description:''}};
+  const reminder=await features.remindProgramme(airing);
+  assert.equal(reminder.id,'p-3');assert.equal(reminder.revision,0);assert.equal(reminder.due,true);
+  await features.dismissProgramme(reminder);
+  assert.deepEqual(paths,[['/v1/live/reminders/p-3','PUT',undefined],['/v1/live/reminders/p-3','DELETE',undefined]]);
+ }finally{features.dispose();}
+});

@@ -7,9 +7,9 @@ import {GestureDetector} from 'react-native-gesture-handler';
 import Animated, {useAnimatedStyle, type SharedValue} from 'react-native-reanimated';
 import Svg, {Defs, LinearGradient, Pattern, Rect, Stop} from 'react-native-svg';
 import {defaultRecordingOptions} from '../../../../../packages/client-core/src/dvr';
-import {dayPrimeTime, stripDays} from '../../../../../packages/client-core/src/channel-guide';
+import {dayPrimeTime} from '../../../../../packages/client-core/src/channel-guide';
 import {episodeLabel, programmeFactParts, programmeTimeRange} from '../../../../../packages/client-core/src/presentation/kit-model';
-import {legacyChannel, legacyChannelRow, legacyProgramme, legacyProgram, layoutRow, nowNext, pxPerMsFor, rulerTicks, floorTo, localDayStart, SLOT_MS, type GuideChannelRow, type GuideProgram, type GuideCell} from '../../../../../packages/client-core/src/guide';
+import {legacyChannel, legacyChannelRow, legacyProgramme, legacyProgram, layoutRow, nowNext, guideDayMenu, guideRange, pxPerMsFor, rulerTicks, floorTo, localDayStart, SLOT_MS, type GuideChannelRow, type GuideProgram, type GuideCell} from '../../../../../packages/client-core/src/guide';
 import {GuideFeatureClient, type GuideAiring, type GuideReminder} from '../../../../../packages/client-core/src/guide/directory';
 import type {RecordingDraft} from '../../../../../packages/client-core/src/dvr';
 import {Button, Chip, Focusable, Segmented, Select} from '../../kit/controls';
@@ -216,7 +216,7 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
     return () => {live = false;};
   }, [selected?.program?.id, features]); // eslint-disable-line react-hooks/exhaustive-deps
   const remind = (airing: GuideAiring, existing: GuideReminder | undefined) => {
-    const work = existing ? features.dismiss(existing).then(() => undefined) : features.remind(airing, 0);
+    const work = existing ? features.dismissProgramme(existing).then(() => undefined) : features.remindProgramme(airing);
     void work.then(value => {
       if (!controller.lifetime.current()) return;
       if (!existing && value) setReminders(current => new Map(current).set(value.airing.programme.id, value));
@@ -284,8 +284,8 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
   const clock = useMemo(() => nativeGuideClock(locale, state.options.timezone, hour12, theme.isTV), [locale, state.options.timezone, hour12, theme.isTV]);
   const goNow = () => setStart(floorTo(now, SLOT_MS) - (theme.isTV || phoneChrome ? SLOT_MS : 0));
   const nowX = (now - start) * px, inNowSpan = now >= start && now < end;
-  const daysCount = Math.max(0, ...(source ? [source] : state.sources).map(value => value.guideDays));
-  const days = stripDays(now, state.options.timezone, Math.max(1, daysCount));
+  const range = guideRange(selectedSources), days = guideDayMenu(now, start, state.options.timezone, range);
+  const daysCount = range.start !== undefined && range.end !== undefined ? days.length : 0;
   const today = localDayStart(now, state.options.timezone), currentDay = localDayStart(start, state.options.timezone);
   const open = (channel: GuideChannelRow, program?: GuideProgram, node?: View | null) => {selectedOpener.current = node ?? null; setRecordError(undefined); controller.clearMutationError(); setSelected({channel, program});};
   const openChannelMenu = (channel: GuideChannelRow, node?: View | null) => {

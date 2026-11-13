@@ -1,5 +1,5 @@
 import {readNativeProgramme} from './native-source.ts';
-import {readReminders} from '../live-tv.ts';
+import {readReminders, setReminder} from '../live-tv.ts';
 import {serverNow} from '../server-clock.ts';
 import {readNextGuideSummaries} from './next-source.ts';
 import {routePath,encodedRoutePath} from "../../../contracts/src/route-paths.ts";
@@ -88,8 +88,16 @@ export class GuideFeatureClient{
   const page=await this.currentRead(signal=>readReminders(this.api,undefined,signal));
   const byId=new Map(airings.map(airing=>[airing.programme.id,airing]));
   return {revision:'',nextCursor:page.nextCursor??'',items:page.items.flatMap(item=>{
-   const airing=byId.get(item.programme);return airing?[{id:item.programme,revision:0,airing,due:serverNow()>=Date.parse(item.startsAt)}]:[];
+   const airing=byId.get(item.programme);return airing?[{id:item.programme,revision:0,airing,due:serverNow()>=Date.parse(item.startsAt)-120_000}]:[];
   })};
+ }
+ /** A reminder belongs to its real programme id; the rebuilt PUT/DELETE are idempotent. */
+ async remindProgramme(airing:GuideAiring):Promise<GuideReminder>{
+  await this.currentRead(signal=>setReminder(this.api,airing.programme.id,true,signal));
+  return {id:airing.programme.id,revision:0,airing,due:serverNow()>=Date.parse(airing.programme.start)-120_000};
+ }
+ async dismissProgramme(value:GuideReminder):Promise<void>{
+  await this.currentRead(signal=>setReminder(this.api,value.airing.programme.id,false,signal));
  }
  async airings(query:GuideAiringsQuery):Promise<GuideAirings>{const params=new URLSearchParams();for(const [key,value]of Object.entries(query))if(value!==undefined)params.set(key,String(value));return parseGuideAirings(await this.read(routePath('get_guide_airings')+'?'+params,'airings'));}
  async nowNext(onNow:boolean,query:{kind?:'all'|'live-source'|'library-channel';sourceId?:string;group?:string;cursor?:string;limit?:number}={}):Promise<GuideNowNextPage>{
