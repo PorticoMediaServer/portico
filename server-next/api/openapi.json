@@ -913,6 +913,9 @@
           "next": {
             "$ref": "#/components/schemas/NextVolume"
           },
+          "openingLines": {
+            "type": "string"
+          },
           "pages": {
             "items": {
               "type": "string"
@@ -3763,6 +3766,9 @@
             "$ref": "#/components/schemas/ItemRef"
           },
           "rootId": {
+            "type": "string"
+          },
+          "rootTitle": {
             "type": "string"
           },
           "series": {
@@ -12577,6 +12583,12 @@
       },
       "Storage": {
         "properties": {
+          "conversions": {
+            "items": {
+              "$ref": "#/components/schemas/StorageLocation"
+            },
+            "type": "array"
+          },
           "dataFolder": {
             "type": "string"
           },
@@ -12599,6 +12611,12 @@
             "format": "date-time",
             "type": "string"
           },
+          "recordings": {
+            "items": {
+              "$ref": "#/components/schemas/StorageLocation"
+            },
+            "type": "array"
+          },
           "sharedDrive": {
             "type": "boolean"
           }
@@ -12610,7 +12628,68 @@
           "freeBytes",
           "level",
           "folders",
+          "conversions",
+          "recordings",
           "measuredAt"
+        ],
+        "type": "object"
+      },
+      "StorageCacheReport": {
+        "properties": {
+          "bytes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bytes"
+        ],
+        "type": "object"
+      },
+      "StorageKeeping": {
+        "properties": {
+          "preparedDownloadsDays": {
+            "type": "integer"
+          },
+          "preset": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "preset",
+          "preparedDownloadsDays"
+        ],
+        "type": "object"
+      },
+      "StorageKeepingEdit": {
+        "properties": {
+          "preparedDownloadsDays": {
+            "type": "integer"
+          },
+          "preset": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "StorageLocation": {
+        "properties": {
+          "bytes": {
+            "type": "integer"
+          },
+          "external": {
+            "type": "boolean"
+          },
+          "folder": {
+            "type": "string"
+          },
+          "problem": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "folder",
+          "bytes",
+          "external"
         ],
         "type": "object"
       },
@@ -18878,6 +18957,122 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Storage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/storage/cache": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageCacheReport"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/storage/cache/empty": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageCacheReport"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/storage/keeping": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageKeeping"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StorageKeepingEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageKeeping"
                 }
               }
             },

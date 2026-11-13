@@ -263,6 +263,7 @@ export interface BlockedNetworkPage {
 
 export interface BookAnswer {
   itemId: string;
+  openingLines?: string;
   version: string;
   versions: BookVersion[];
   format: string;
@@ -1119,6 +1120,7 @@ export interface Item {
   releaseDate?: string;
   parentId?: string;
   rootId?: string;
+  rootTitle?: string;
   index?: number;
   parentIndex?: number;
   durationMs?: number;
@@ -3776,7 +3778,30 @@ export interface Storage {
   freeBytes: number;
   level: string;
   folders: FolderUsage[];
+  conversions: StorageLocation[];
+  recordings: StorageLocation[];
   measuredAt: string;
+}
+
+export interface StorageCacheReport {
+  bytes: number;
+}
+
+export interface StorageKeeping {
+  preset: string;
+  preparedDownloadsDays: number;
+}
+
+export interface StorageKeepingEdit {
+  preset?: string;
+  preparedDownloadsDays?: number;
+}
+
+export interface StorageLocation {
+  folder: string;
+  bytes: number;
+  external: boolean;
+  problem?: string;
 }
 
 export interface Stream {
@@ -4291,6 +4316,10 @@ export interface Routes {
   'GET /v1/admin/statistics': {access: 'owner'; request: undefined; response: Statistics};
   'GET /v1/admin/updates': {access: 'owner'; request: undefined; response: State};
   'POST /v1/admin/updates/check': {access: 'owner'; request: undefined; response: State};
+  'GET /v1/admin/storage/cache': {access: 'owner'; request: undefined; response: StorageCacheReport};
+  'POST /v1/admin/storage/cache/empty': {access: 'owner'; request: undefined; response: StorageCacheReport};
+  'GET /v1/admin/storage/keeping': {access: 'owner'; request: undefined; response: StorageKeeping};
+  'PUT /v1/admin/storage/keeping': {access: 'owner'; request: StorageKeepingEdit; response: StorageKeeping};
   'GET /v1/admin/storage': {access: 'owner'; request: undefined; response: Storage};
   'GET /v1/admin/data-folder/permissions': {access: 'owner'; request: undefined; response: DataFolderPermissions};
   'POST /v1/admin/data-folder/permissions/fix': {access: 'owner'; request: undefined; response: DataFolderPermissions};
