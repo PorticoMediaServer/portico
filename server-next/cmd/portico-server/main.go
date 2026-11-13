@@ -26,6 +26,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaengine"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/titledata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/reading"
 	"github.com/PorticoMediaServer/portico/server-next/internal/storagepaths"
 	"github.com/PorticoMediaServer/portico/server-next/internal/webapp"
 )
@@ -36,7 +37,7 @@ var version = "dev"
 func main() {
 	// The sandbox around ffmpeg and ffprobe starts this same binary again as its helper.
 	// That must be answered before anything else, flags included.
-	for _, helper := range []func([]string) (bool, error){decoder.RunHelper, mediaexec.RunHelper} {
+	for _, helper := range []func([]string) (bool, error){reading.RunHelper, decoder.RunHelper, mediaexec.RunHelper} {
 		if handled, err := helper(os.Args[1:]); handled {
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
