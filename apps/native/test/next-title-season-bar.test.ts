@@ -12,7 +12,7 @@ async function bar(platform: 'phone' | 'tablet' | 'tv') {
     '../../kit/controls': {Button: 'Button', Switch: 'Switch'}, '../../kit/overlays': {Menu: 'Menu'},
     '../../kit/theme': {useTheme: () => ({isTV: platform === 'tv', platform, type: {caption: {}, bodyStrong: {}}, colors: {textTertiary: '#888', textSecondary: '#aaa'}})}});
   const changes: boolean[] = [], opened: string[] = [];
-  const render = (owner: boolean) => nodes(h.render(() => TitleSeasonBar({label: 'Unassigned absolute episodes', count: '3 episodes', onSeasons() {}, hideWatched: false, onHideWatched: value => changes.push(value),
+  const render = (owner: boolean) => nodes(h.render(() => TitleSeasonBar({label: 'Unassigned absolute episodes', count: '3 episodes', onSeasons() {}, hideWatched: false, onHideWatched: (value: boolean) => changes.push(value),
     settings: owner ? {label: 'More', onPress: () => opened.push('settings')} : undefined})));
   return Object.assign(render, {changes, opened});
 }
