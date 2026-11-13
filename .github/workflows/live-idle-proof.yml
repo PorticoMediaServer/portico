@@ -1,0 +1,54 @@
+name: Live idle repeated proof
+on:
+  pull_request:
+    paths:
+      - server-next/internal/streaming/live_test.go
+      - .github/workflows/live-idle-proof.yml
+permissions:
+  contents: read
+jobs:
+  live-idle-30:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      PORTICO_REQUIRE_DECODER_SANDBOX: '1'
+      PORTICO_FFMPEG: /usr/bin/ffmpeg
+      PORTICO_FFPROBE: /usr/bin/ffprobe
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: server-next/go.mod
+          cache-dependency-path: server-next/go.sum
+      - name: Prepare the same confined FFmpeg used by server CI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg bubblewrap
+          for setting in kernel.apparmor_restrict_unprivileged_userns=0 kernel.unprivileged_userns_clone=1; do
+            key=${setting%%=*}
+            if [ -e "/proc/sys/${key//.//}" ]; then sudo sysctl -w "$setting"; fi
+          done
+          bwrap --unshare-all --die-with-parent --ro-bind / / --proc /proc --dev /dev --cap-drop ALL /bin/true
+          ffmpeg -version | head -n 1
+      - name: Try the unchanged test before audiobook PR 3291
+        continue-on-error: true
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/live-before" 1365aa3d293db32e3bfd0d3714ca0f173820e940
+          cd "$RUNNER_TEMP/live-before/server-next"
+          set -o pipefail
+          go test -p 2 ./internal/streaming -run '^TestALiveConversionStopsWhenIdleAndStartsAgainFromAMoment$' -v -count=30 -failfast -timeout=12m | tee "$RUNNER_TEMP/live-before.log"
+      - name: Prove the corrected idle and reload checks thirty times
+        run: |
+          cd server-next
+          set -o pipefail
+          go test -p 2 ./internal/streaming -run '^TestALiveConversionStopsWhenIdleAndStartsAgainFromAMoment$' -v -count=30 -timeout=12m | tee "$RUNNER_TEMP/live-after.log"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: live-idle-proof
+          path: |
+            ${{ runner.temp }}/live-before.log
+            ${{ runner.temp }}/live-after.log
