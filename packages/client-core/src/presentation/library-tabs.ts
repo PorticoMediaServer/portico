@@ -1,4 +1,4 @@
-import type {BrowseCapabilities} from '../browse.ts';
+import type {BrowseCapabilities, BrowseNode} from '../browse.ts';
 import type {MessageId} from '../../../i18n/src/index.ts';
 
 /**
@@ -149,4 +149,11 @@ export function artistReleaseGroups<T extends {role?: string}>(entries: readonly
     {id: 'appearances', label: 'title.appearsOn', entries: entries.filter(e => e.role === 'appearance')},
   ];
   return groups.filter(g => g.entries.length);
+}
+
+/** A reading library's author, as its Authors tab opens them: the Books grid filtered by the author's person id
+ * (the item list takes it as `author=`), on every client. */
+export function authorPredicate(value: string): BrowseNode {
+  if (!value) throw new Error('invalid_request');
+  return {variant: 'predicate', field: 'author', operator: 'equals', value};
 }

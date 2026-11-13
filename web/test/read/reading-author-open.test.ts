@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {componentModule} from '../helpers/component-harness.mjs';
 import {createRenderer} from '../helpers/interaction-harness.mjs';
 import {redirectOnce} from '../../src/shell/navigation.ts';
-import {authorPredicate} from '../../src/screens/read/facets.ts';
+import {authorPredicate} from '../../../packages/client-core/src/presentation/library-tabs.ts';
 
 // An author's card in a Reading library opens the books grid filtered to them. The library page
 // redraws while the router is on its way, each time with a new navigate; the redirect is asked once

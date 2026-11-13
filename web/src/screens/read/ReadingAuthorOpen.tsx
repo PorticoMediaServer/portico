@@ -2,7 +2,7 @@ import {useEffect, useRef} from 'react';
 import {Skeleton} from '../../kit/states';
 import {redirectOnce, type RedirectMemory} from '../../shell/navigation';
 import type {LibraryScreenSearch} from '../browse/route-search';
-import {authorPredicate} from './facets';
+import {authorPredicate} from '@core/presentation/library-tabs.ts';
 
 /** An author's card in a Reading library opens the books grid filtered to them (the name is
  * remembered from the Authors list), replacing this address so Back returns to Authors. It asks

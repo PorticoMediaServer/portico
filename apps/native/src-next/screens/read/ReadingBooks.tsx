@@ -11,7 +11,7 @@ import type {BrowseLabels} from '../../kit/browse';
 import {BrowseToolbar, FilteredEmpty} from '../../kit/browse';
 import {Button, Chip, Focusable} from '../../kit/controls';
 import {MediaArt} from '../../kit/artwork';
-import {PosterCard} from '../../kit/cards';
+import {CircleCard, PosterCard} from '../../kit/cards';
 import {Parts} from '../../kit/cards/primitives';
 import {cardAccessibilityLabel} from '../../kit/cards/model';
 import {AlphabetRail, WindowedGrid, type WindowedGridHandle} from '../../kit/layout';
@@ -30,7 +30,8 @@ import {libraryAppliedFilters} from '../library/applied-filters';
 import {NativeLibraryDestination, nativeLibraryEntryKey} from '../library/model';
 import {LibraryFilters} from '../library/LibraryFilters';
 import type {NativeLibraryFilterDraft} from '../library/filters';
-import type {NativeReadOrigin} from './eligibility';
+import {openNativeReadSeries, type NativeReadOrigin} from './eligibility';
+import {audiobookAuthorInitials} from '../destinations/audiobooks/presentation';
 import {nativeReadingDownloadOffer, nativeReadingRowLifetime, type NativeReadingPageOpening, type NativeReadingDownloadOffer} from './reading-page-opening';
 import {PhoneReadingBookCard, PhoneReadingBookCover} from './PhoneReadingBookCard';
 import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
@@ -46,13 +47,17 @@ type BooksLease = Readonly<{origin: NativeReadOrigin; family: string; life: Abor
  * Browse toolbar over real capabilities and quick filters — with the real
  * Filters panel docked beside it in landscape. A card opens the item's own
  * Reading book page; this surface never opens the reader itself. */
-export function NativeReadingBooks({context, runtime, library, tab, owner, labels, filterWidth = 360, onCount, opening, onDownload}: {
+export function NativeReadingBooks({context, runtime, library, tab, owner, labels, filterWidth = 360, onCount, opening, onDownload, onAuthor, startQuery}: {
   context: NativeShellBootstrapContext; runtime: NativeShellRuntime; library: Library; /** The browsable tab the server's own reading pivots published. */ tab: LibraryTab;
   owner: boolean; labels: BrowseLabels; filterWidth?: number; opening: NativeReadingPageOpening;
   onDownload?: (offer: NativeReadingDownloadOffer) => void;
   /** tablet-read#1b: the wide header shows the count of this grid's view, tagged
    * with the owner of the mount that reported it. */
   onCount?: (owner: object, text: string | undefined) => void;
+  /** The Authors tab: an author's card opens the Books grid filtered to them (the web's reading Authors, #3278). */
+  onAuthor?: (personId: string) => void;
+  /** Applied once, when the grid is first ready: the author an Authors card opened it for. */
+  startQuery?: readonly BrowseNode[];
 }) {
   const theme = useTheme(), phone = theme.platform === 'phone', dimensions = useWindowDimensions(), pageWidth = usePageWidth(), lifetime = useMemo(() => nativeDestinationLifetime(context), [context]);
   const current = useCallback(() => opening.isCurrent() && lifetime.current() && context.libraries().some(value => value.id === library.id && value.kind === library.kind),
@@ -79,6 +84,11 @@ export function NativeReadingBooks({context, runtime, library, tab, owner, label
     return () => {next?.life.abort(); if (held.current === next) held.current = undefined;};
   }, [context, library.id, opening, tab, renderedRoute, renderedRevision]);
   useEffect(() => {void destination.load(); return () => destination.dispose();}, [destination]);
+  const started = useRef<object | undefined>(undefined);
+  useEffect(() => {
+    if (!startQuery?.length || started.current === destination || state.phase !== 'ready' || !state.capabilities) return;
+    started.current = destination; destination.setQuery(startQuery);
+  }, [destination, startQuery, state.phase, state.capabilities]);
   useEffect(() => () => filters?.dispose(), [filters]);
   const collection = state.collection, capabilities = state.capabilities, sort = state.sort, pivot = state.tab.pivot;
   const pageStore = useMemo(() => ({subscribe: (notify: () => void) => collection ? collection.subscribe(notify) : noopSubscribe(),
@@ -211,6 +221,23 @@ export function NativeReadingBooks({context, runtime, library, tab, owner, label
               renderPlaceholder={() => list ? <View style={{width: rowWidth, height: 70, backgroundColor: theme.colors.raised}}/>
                 : <View style={{width: cardWidth, height: cardWidth * 1.5, borderRadius: 10, backgroundColor: theme.colors.raised}}/>}
               renderItem={(entry: ContentEntry) => {
+                // The Authors and Series tabs list people and series on this same grid: an author opens the Books grid
+                // filtered to them, a series its reading series page; neither is a book to select, read or download.
+                if (entry.kind === 'author') {
+                  const portrait = runtime.artwork(entry.posterUrl), openAuthor = () => onAuthor?.(entry.navigation?.entityId ?? entry.id);
+                  if (list) return <ReadingListRow entry={entry} width={rowWidth} runtime={runtime} onOpen={openAuthor} phone={phone}/>;
+                  return <CircleCard person testID={`reading-author-${entry.id}`} title={entry.title} width={cardWidth} titleLines={2}
+                    art={{covers: portrait ? [portrait] : [], initials: audiobookAuthorInitials(entry.title), alt: entry.title}}
+                    onNavigate={openAuthor}/>;
+                }
+                if (entry.kind === 'book_series') {
+                  const openSeries = () => {if (lease) void openNativeReadSeries(context, {libraryId: library.id, seriesId: entry.navigation?.entityId ?? entry.id}, lease.origin, lease.life.signal).catch(runtime.reportError);};
+                  if (list) return <ReadingListRow entry={entry} width={rowWidth} runtime={runtime} onOpen={openSeries} phone={phone}/>;
+                  const text = homeCardText(entry, false, runtime.text);
+                  return phone ? <PhoneReadingBookCard testID={`reading-series-${entry.id}`} title={entry.displayTitle ?? entry.title} width={cardWidth}
+                    artwork={runtime.artwork(entry.posterUrl)} onOpen={openSeries}/>
+                    : <PosterCard testID={`reading-series-${entry.id}`} title={text.title} caption={text.caption} width={cardWidth} artwork={runtime.artwork(entry.posterUrl)} visible onNavigate={openSeries}/>;
+                }
                 const open = () => {if (lease) openBook(lease, entry);};
                 const download = onDownload && nativePublicationReadsAvailable() ? () => {if (lease) downloadBook(lease, entry);} : undefined;
                 const offered = lease ? {item: entry, lifetime: rowLifetime(lease, entry), open, download} : undefined;
