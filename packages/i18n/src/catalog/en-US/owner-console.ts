@@ -84,6 +84,8 @@ export const ownerConsoleMessages = {
   'server.live.map.channel': 'Channel',
   'server.live.map.fromSource': 'From source',
   'server.live.map.number': 'Number',
+  'server.live.map.guideSource': 'Listings source',
+  'web.liveSource.channelNumberInvalid': 'Use a channel number such as 5 or 5.1.',
   'server.live.map.guideId': 'Guide listing ID',
   'server.live.map.hidden': 'Hidden',
   'server.live.saved': 'Saved.',
