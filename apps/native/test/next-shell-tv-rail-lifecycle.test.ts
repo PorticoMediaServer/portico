@@ -368,15 +368,22 @@ test('the real rail declares current-page entry and semantic Right return; nativ
   assert.equal(region.props.edges.right, ids.row('continue'));
   // Apple TV enters the closed rail by geometry, on whichever item is level with the page's focus: entering from the page
   // goes on to the current page's item, as Android TV's nextFocusLeft does. Android asks nothing.
-  const asked: string[] = [], focusRegion = registry.focusRegion;
+  // The redirect waits a frame and is sent only while focus is still in the rail.
+  const asked: string[] = [], focusRegion = registry.focusRegion, frames: (() => void)[] = [], raf = (globalThis as any).requestAnimationFrame;
   registry.focusRegion = (id: string) => {asked.push(id); return true;};
+  (globalThis as any).requestAnimationFrame = (run: () => void) => frames.push(run);
+  const flush = () => {for (const run of frames.splice(0)) run();};
   try {
-    region.props.onFocusChange(true); region.props.onFocusChange(false);
+    region.props.onFocusChange(true); region.props.onFocusChange(false); flush();
     assert.deepEqual(asked, [], 'Android TV enters by nextFocusLeft and is not redirected');
     platform.OS = 'ios';
-    region.props.onFocusChange(true); region.props.onFocusChange(true);
+    registry.didFocus({regionId: ids.rail, childId: 'search'});
+    region.props.onFocusChange(true); region.props.onFocusChange(true); flush();
     assert.deepEqual(asked, [ids.rail], 'Apple TV: entering the rail from the page goes to its entry, once');
-  } finally {region.props.onFocusChange(false); registry.focusRegion = focusRegion; platform.OS = 'android';}
+    region.props.onFocusChange(false); asked.length = 0;
+    region.props.onFocusChange(true); registry.didFocus({regionId: 'route-title-play', childId: 'play'}); flush();
+    assert.deepEqual(asked, [], 'Apple TV: focus that only passed through the rail on its way to the page is not pulled back');
+  } finally {region.props.onFocusChange(false); registry.focusRegion = focusRegion; platform.OS = 'android'; (globalThis as any).requestAnimationFrame = raf;}
   changes.length = 0;
   const search = nodes(tree).find(node => node.type === 'Focusable' && node.props.focusId === 'search');
   const controls = (value: unknown) => nodes(value).filter(node => node.type === 'Focusable');
