@@ -628,13 +628,17 @@ func (d *DB) ResetToLocalSignIn(ctx context.Context, r LocalReset) (SessionState
 				return err
 			}
 		}
-		res, err := tx.Exec(`UPDATE users SET state = 'waiting', updated_at = ? WHERE id <> ? AND state = 'active'`, at, ownerID)
+		_, err := tx.Exec(`UPDATE users SET state = 'waiting', updated_at = ? WHERE id <> ? AND state = 'active'`, at, ownerID)
 		if err != nil {
 			return err
 		}
-		if waiting, _ := res.RowsAffected(); waiting > 0 {
+		var total int
+		if err := tx.QueryRow(`SELECT count(*) FROM users WHERE state = 'waiting' AND id <> ?`, ownerID).Scan(&total); err != nil {
+			return err
+		}
+		if total > 0 {
 			// People waiting to move, as the setup area records a switch that has some.
-			if err := saveJSONSetting(tx, "sign_in_move", map[string]any{"to": "local", "at": at}, at); err != nil {
+			if err := saveJSONSetting(tx, "sign_in_move", map[string]any{"to": "local", "at": at, "total": total}, at); err != nil {
 				return err
 			}
 		}

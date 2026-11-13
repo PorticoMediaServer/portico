@@ -39,6 +39,8 @@ type MoveState struct {
 	// To is "local" or "portico".
 	To    string    `json:"to"`
 	Since time.Time `json:"since"`
+	// Total is fixed when the move begins; absent for older moves.
+	Total *int `json:"total,omitempty"`
 }
 
 // WaitingAccount is one person who has not moved yet.
@@ -238,7 +240,7 @@ func (s *Server) signInState(r *http.Request, _ None) (SignInState, error) {
 	if move, moving, err := s.db.CurrentMove(ctx); err != nil {
 		return SignInState{}, err
 	} else if moving {
-		out.Move = &MoveState{To: move.To, Since: move.At.UTC()}
+		out.Move = &MoveState{To: move.To, Since: move.At.UTC(), Total: move.Total}
 	}
 	waiting, err := s.db.WaitingAccounts(ctx, now)
 	for _, w := range waiting {
