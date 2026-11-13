@@ -63,6 +63,3 @@ export function missingRemovalTime(row: Readonly<{missingSince: string; removedA
   return since + days! * 86_400_000;
 }
 
-export function downloadPerson(row: Readonly<{accountName?: string; profileName?: string}>): Readonly<{name: string; profile?: string}> {
-  return {name: row.accountName || '—', ...(row.profileName && row.profileName !== row.accountName ? {profile: row.profileName} : {})};
-}
