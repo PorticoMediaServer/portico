@@ -1,6 +1,7 @@
 export {Button, ResumeButton} from './Button';
 export type {ButtonProps, ResumeButtonProps} from './Button';
 export {Chip} from './Chip';
+export {FormError} from './FormError';
 export type {ChipProps} from './Chip';
 export {Focusable} from './Focusable';
 export type {FocusableProps, ControlState} from './Focusable';

@@ -1,3 +1,4 @@
+import {formErrorModule} from './helpers/form-error.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {React, fabricHost} from './helpers/fabric-host.mjs';
@@ -11,7 +12,7 @@ const {AppErrorBoundary} = await screenModule(new URL('../src-next/shell/AppErro
   'react-native': {BackHandler: {addEventListener: () => ({remove() {}})}, Platform: {OS: 'android'}, Text: 'Text'},
   '../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
   '../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: ''})},
-  '../kit/states': {StateLayout: 'StateLayout'},
+  '../kit/states': {StateLayout: 'StateLayout'}, '../kit/controls/FormError': formErrorModule,
   '../kit/theme': {useTheme: () => ({isTV: false, type: {caption: {}}, colors: {danger: 'red'}})},
   '../platform/clipboard': {copyText: async () => {}},
   '../platform/tv-menu': {captureTVMenuKey: () => () => {}},

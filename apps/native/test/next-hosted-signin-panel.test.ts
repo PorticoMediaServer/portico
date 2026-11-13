@@ -1,3 +1,4 @@
+import {FormError, formErrorModule} from './helpers/form-error.mjs';
 import test from 'node:test';
 import * as hostedSecurity from '../../../packages/client-core/src/hosted-security';
 import assert from 'node:assert/strict';
@@ -42,7 +43,7 @@ async function fixture({hosted = true, matching = true, hasPassword = true, prov
     react: host.react, 'react-native': {NativeModules: {PorticoAccountAuth: bridge}, Text: 'Text', View: 'View'},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string) => key}},
     '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'presented'})},
-    '../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'},
+    '../../kit/controls': {FormError, Button: 'Button', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'},
     '../../kit/theme': {useTheme: () => theme}, '../../platform/clipboard': {copyText: async () => {}}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
   });
   class Controller {
@@ -57,7 +58,7 @@ async function fixture({hosted = true, matching = true, hasPassword = true, prov
     react: host.react, 'react-native': {NativeModules: {PorticoAccountAuth: bridge}, Text: 'Text', View: 'View', Linking: {openURL: async (url: string) => {if (openFails) throw new Error('no_browser'); opened.push(url);}}},
     '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: (error: unknown, audience: string) => {presented.push([error, audience]); return {body: 'Security read failed'};}},
     '../../../../../packages/contracts/src/hosted/routes': {routePath},
-    '../../kit/controls': {Button: 'Button'}, '../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/theme': {useTheme: () => theme},
+    '../../kit/controls': {FormError, Button: 'Button'}, '../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/theme': {useTheme: () => theme},
     '../../platform/accounts': {nativeAccounts: {accountCredentials: () => {credentialReads++; return credentials;}}},
     '../../platform/account-authority': {hostedUrl: 'https://accounts.example.invalid'}, '../../platform/account-security': {NativeAccountSecurity: Controller},
     '../../platform/account-work': accountWork,  '../../platform/server-connections': {nativeNetworkFetch: async (input: string, init: RequestInit) => {
@@ -145,7 +146,7 @@ test('Security read failures use presentError and remain visible', async () => {
   try {
     f.reply(async () => {throw failure;}); f.sheet().props.onFinished(); await f.settle();
     assert.deepEqual(f.presented, [[failure, 'portico-account']]);
-    assert.ok(nodes(f.tree()).some(node => node.props.accessibilityRole === 'alert' && node.props.children[0] === 'Security read failed'));
+    assert.ok(nodes(f.tree()).some(node => (node.props.accessibilityRole === 'alert' || node.type === FormError) && [node.props.children].flat().includes('Security read failed')));
   } finally {f.dispose();}
 });
 
@@ -153,7 +154,7 @@ test('R-21: a Portico Account page that cannot open says so instead of doing not
   const f = await fixture({matching: false, kind: 'password'});
   try {
     f.failOpening(); f.find('settings-manage-portico-account').props.onPress(); await f.settle();
-    assert.ok(nodes(f.tree()).some(node => node.type === 'Text' && node.props.accessibilityRole === 'alert' && [node.props.children].flat().includes('Security read failed')));
+    assert.ok(nodes(f.tree()).some(node => (node.type === FormError || node.type === 'Text' && node.props.accessibilityRole === 'alert') && [node.props.children].flat().includes('Security read failed')));
     assert.equal(f.presented.at(-1)?.[1], 'portico-account');
   } finally {f.dispose();}
 });

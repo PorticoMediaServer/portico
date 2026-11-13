@@ -5,7 +5,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {ColourBackdrop} from '../../kit/artwork';
-import {Button, TextField} from '../../kit/controls';
+import {Button, TextField, FormError} from '../../kit/controls';
 import {nativeType, useTheme} from '../../kit/theme';
 import type {NativeMemberAccountMove} from '../../platform/member-account-move';
 
@@ -33,9 +33,9 @@ export function PhoneMovePassword<Result>({controller, serverName, onBack}: {
         {color: theme.colors.text, marginBottom: 8}]}>{t('accounts.move.oldSignIn')}</Text>
       <Text style={[nativeType({size: 14.5, lineHeight: 21.75, weight: 400, tracking: 0}, theme.textScale),
         {color: theme.colors.textSecondary, marginBottom: 20}]}>{t('accounts.move.oldSignInBody', {server: serverName})}</Text>
-      {state.error != null && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 12}]}>
+      {state.error != null && <FormError placement="block">
         {presentError(state.error, 'sign-in').body}
-      </Text>}
+      </FormError>}
       <TextField label={t('accounts.signIn.username')} value={username} onChangeText={setUsername} editable={!state.busy}
         autoCapitalize="none" autoCorrect={false} autoComplete="username" textContentType="username" returnKeyType="next" onSubmitEditing={() => {if (!state.busy) passwordInput.current?.focus();}}
         fieldStyle={{height: 48, borderRadius: 11}} style={{fontSize: 16 * theme.textScale}} containerStyle={{marginBottom: 12}}/>
@@ -58,7 +58,7 @@ export function PhoneMovePassword<Result>({controller, serverName, onBack}: {
       <Text style={[theme.type.caption, {color: theme.colors.textTertiary, marginTop: 14}]}>{t('accounts.move.oldPasswordHelp')}</Text>
     </FormScrollView>
     <View style={{position: 'absolute', top: Math.max(50, insets.top), left: 12, height: 48, justifyContent: 'center'}}>
-      <Button variant="text" icon="i-left" iconSize={22} disabled={state.busy} onPress={back}>{t('accounts.signIn.back')}</Button>
+      <Button variant="link" icon="i-left" iconSize={22} disabled={state.busy} onPress={back}>{t('accounts.signIn.back')}</Button>
     </View>
   </View>;
 }

@@ -2,7 +2,7 @@ import React, {useLayoutEffect, useRef, useState, useSyncExternalStore} from 're
 import {ScrollView, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {Button} from '../../kit/controls';
+import {Button, FormError} from '../../kit/controls';
 import {BottomSheet} from '../../kit/overlays';
 import {useTheme} from '../../kit/theme';
 import {ColourBackdrop} from '../../kit/artwork';
@@ -79,11 +79,11 @@ export function PhoneAccountWorkspace({createSource, username, onDone, onFind, o
         </>}
         {state.phase === 'loading' && <Quiet>{label(t('status.loading'))}</Quiet>}
         {state.phase === 'failed' && <>
-          <Text accessibilityRole="alert" style={[theme.type.body, {color: theme.colors.danger}]}>{state.failure}</Text>
+          <FormError placement="inline">{state.failure}</FormError>
           <Button onPress={() => {if (current() && state.page !== 'menu') void source?.open(state.page);}}>{t('action.tryAgain')}</Button>
         </>}
         {state.security && source && <PhoneAccountSecurity workspace={source} security={state.security}/>}
-        {(commandFailure || state.mutationFailure) && <Text accessibilityRole="alert" style={[theme.type.body, {color: theme.colors.danger}]}>{commandFailure || state.mutationFailure}</Text>}
+        {(commandFailure || state.mutationFailure) && <FormError placement="inline">{commandFailure || state.mutationFailure}</FormError>}
         {state.notice && <Text accessibilityRole="alert" style={[theme.type.body, {color: theme.colors.text}]}>{state.notice}</Text>}
         {state.sessions?.map(row => {
           // Name, app and last use are what the device's app reported; an unknown fact is left out, never guessed.
@@ -133,7 +133,7 @@ export function PhoneAccountWorkspace({createSource, username, onDone, onFind, o
           command(() => captured.kind === 'server' ? source!.leaveServer(captured.row) : captured.kind === 'others' ? source!.revokeOtherSessions() : source!.revokeSession(captured.row));}}>
           {confirm?.kind === 'server' ? t('web.hostedAccount.leaveServer') : confirm?.kind === 'others' ? t('web.hostedAccount.signOutOthers') : t('action.signOut')}</Button></View>}>
       {label(confirm?.kind === 'server' ? t('web.hostedAccount.leaveBody', {server: confirm.row.name}) : confirm?.kind === 'others' ? t('services.workspace.signOutOthersAppBody') : t('web.hostedAccount.signOutBody'))}
-      {(commandFailure || state.mutationFailure) && <Text accessibilityRole="alert" style={[theme.type.body, {color: theme.colors.danger}]}>{commandFailure || state.mutationFailure}</Text>}
+      {(commandFailure || state.mutationFailure) && <FormError placement="inline">{commandFailure || state.mutationFailure}</FormError>}
     </BottomSheet>
   </View>;
 }

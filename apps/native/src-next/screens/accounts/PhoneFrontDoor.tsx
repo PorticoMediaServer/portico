@@ -58,7 +58,7 @@ export function PhoneFrontDoor({busy, error, onPortico, onLocal, onInvitation}: 
           style={{alignSelf: 'stretch', height: 48, borderRadius: 11, paddingHorizontal: 20}} textStyle={{fontSize: 16 * theme.textScale}}>{t('accounts.signIn.portico')}</Button>
         <Button testID="accounts-welcome-local" variant="glass" disabled={busy} onPress={onLocal}
           style={{alignSelf: 'stretch', height: 48, borderRadius: 11, paddingHorizontal: 20}} textStyle={{fontSize: 16 * theme.textScale}}>{t('accounts.signIn.local')}</Button>
-        {onInvitation && <Button testID="accounts-welcome-invitation" variant="text" disabled={busy} onPress={onInvitation}>{t('services.start.join')}</Button>}
+        {onInvitation && <Button testID="accounts-welcome-invitation" variant="link" disabled={busy} onPress={onInvitation}>{t('services.start.join')}</Button>}
       </View>
     </ScrollView>
   </View>;

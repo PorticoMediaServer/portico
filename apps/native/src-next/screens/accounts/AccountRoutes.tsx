@@ -29,7 +29,7 @@ import {sameAuthority, type ShellAuthority} from '../../shell/model';
 import {nativeShellRoutes, type NativeRouteFactory} from '../../shell/route-registry';
 import {StateLayout, StateView} from '../../kit/states';
 import {ProfileFace, ProfilePicker} from '../../kit/artwork';
-import {Button, Focusable, TextField} from '../../kit/controls';
+import {Button, Focusable, TextField, FormError} from '../../kit/controls';
 import {BottomSheet, Dialog} from '../../kit/overlays';
 import {Icon} from '../../kit/Icon';
 import {offlineDownloads, offlineOwnerKey} from '../../../platform/offline-downloads';
@@ -319,7 +319,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
     serverAddress={context.api.baseUrl} server={{id: context.account.serverId, signIn: context.account.account.hostedAccountId ? 'portico' : 'local'}} onBack={back}/>
     : profile ? <TVProfilePINForm
     profile={{id: profile.id, name: profile.name, initial: [...profile.name][0] ?? '', color: profile.art, primary: profile.primary, pinRequired: true}}
-    code={pin} onCodeChange={setPin} busy={busy} error={error ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</Text> : undefined}
+    code={pin} onCodeChange={setPin} busy={busy} error={error ? <FormError placement="inline">{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</FormError> : undefined}
     onSubmit={value => {void choose(profile.id, value);}} onBack={back}
     onForgotPIN={() => {if (!busy) {cancelWrongPin(); setPin(''); setError(undefined); setForgotPIN(true);}}}/>
     : <TVWhosWatching testID="accounts-profile-switch">
@@ -328,7 +328,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
         selectedId={current?.viewer.profileId} preferredProfileId={lease ? profileFocus.get(lease) : undefined}
         onFocusChange={id => {if (id && lease) profileFocus.set(lease, id);}} onSelect={id => {const value = profiles.find(item => item.id === id)!;
           if (id === current?.viewer.profileId) back(); else if (value.pinRequired) {setProfile(value); setPin(''); setError(undefined);} else void choose(id);}}/>
-      {!!error && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginTop: 16}]}>{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</Text>}
+      {!!error && <FormError>{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</FormError>}
       {errorRefresh}
     </TVWhosWatching>}
   </TVProfileSwitchPage>;
@@ -366,7 +366,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
               void runAction(async ({manager}) => {const preview = await manager.previewDelete(active); if (lease.current() && managementCurrent()) {const next = {preview, management}; deletionRef.current = next; deleteNameRef.current = ''; setDeletion(next); setDeleteName('');}});
             }}>{t('profile.delete')}</Button>}
           </View>
-          {problem ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginTop: 8}]}>{problem}</Text> : null}
+          {problem ? <FormError>{problem}</FormError> : null}
           {notice ? <Text accessibilityLiveRegion="polite" style={[theme.type.caption, {color: theme.colors.textSecondary, marginTop: 8}]}>{notice}</Text> : null}
         </View> : null;
   return <>
@@ -379,11 +379,11 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
         </Focusable>)}
         {manage && profiles.length < 8 && <ProfileActionRow testID="settings-profile-add" label={t('profile.add')} onPress={openAddition}/>}
       </View>
-      {problem && !managedId ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{problem}</Text> : null}
+      {problem && !managedId ? <FormError placement="inline">{problem}</FormError> : null}
       <BottomSheet open={!!managedId && !!active && manage} onOpenChange={open => {if (!open && !activeTicket.current && managementCurrent() && !retirement) {retireEditor(); setManagedId(undefined); closeDeletion();}}} title={active?.name} dismissOnBack={!actionBusy} dismissOnGesture={!actionBusy} dismissOnOutsidePress={!actionBusy}>{managementActions}</BottomSheet>
     </View> : <StateLayout testID="accounts-profile-switch" title={profile ? t('profile.pinTitle', {name: profile.name}) : t('profiles.title')}
       beforeActions={<View style={{alignSelf: 'stretch', marginBottom: 20}}>{profile ? <><PhonePINEntry value={pin} onChange={setPin} onComplete={value => {void choose(profile.id, value);}} busy={busy} error={!!error}/>
-        <View style={{alignItems: 'center', marginTop: 8}}><Button variant="text" disabled={busy} onPress={() => {void startRecovery();}}>{t('pin.forgot')}</Button></View></> : <>
+        <View style={{alignItems: 'center', marginTop: 8}}><Button variant="link" disabled={busy} onPress={() => {void startRecovery();}}>{t('pin.forgot')}</Button></View></> : <>
         <ProfilePicker focusScope={theme.isTV && lease?.live.value && lease.route === route ? `tv.account.profiles.${JSON.stringify([lease.authority, lease.revision])}` : undefined} focusBusy={busy} profiles={profiles.map(value => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: value.art, primary: value.primary, pinRequired: value.pinRequired, disabled: busy, source: avatarSource(value.id)}))}
           selectedId={current?.viewer.profileId} preferredProfileId={theme.isTV && lease ? profileFocus.get(lease) : undefined}
           onFocusChange={id => {if (id && lease) profileFocus.set(lease, id);}} showTitle={false} onSelect={id => {const value = profiles.find(item => item.id === id)!;
@@ -391,7 +391,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
         {manage && profiles.length < 8 ? <View style={{flexDirection: 'row', marginTop: 12}}><Button size="compact" variant="glass" icon="i-plus" onPress={openAddition}>{t('profile.add')}</Button></View> : null}
         {managementActions}
         </>}
-        {!!error && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</Text>}
+        {!!error && <FormError placement="inline">{profilePinFailureText(error) ?? presentError(error, 'profiles').body}</FormError>}
         {errorRefresh}</View>}
       secondaryAction={{id: 'back', label: t('action.back'), disabled: busy, onPress: back}}/>}
     <Dialog testID="profile-add" open={additionCurrent()} onOpenChange={open => {if (!open) closeAddition();}} title={t('profile.addTitle')}
@@ -415,7 +415,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
         <Text style={[theme.type.captionStrong, {color: theme.colors.text}]}>{t('profile.pinRepeat')}</Text>
         <PhonePINEntry testID="profile-pin-again" label={t('profile.pinRepeat')} value={pinAgain} onChange={value => {if (edit?.kind === 'pin' && editorCurrent() && !activeTicket.current) {editDraftRef.current = {...editDraftRef.current, again: value}; setPinAgain(value);}}} busy={actionBusy} autoFocus={false}/>
       </View>}
-      {problem ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginTop: 12}]}>{problem}</Text> : null}
+      {problem ? <FormError>{problem}</FormError> : null}
     </Dialog>
     <Dialog testID="profile-remove-pin" open={!!removePin && editorCurrent()} onOpenChange={open => {if (!open) closeEdit();}} title={t('profile.removePinConfirm.title', {name: removePin?.name ?? ''})} description={t('profile.removePinConfirm.body', {name: removePin?.name ?? ''})}
       footer={<View style={{flexDirection: 'row', gap: 8}}><Button focusId="cancel" variant="glass" disabled={actionBusy} onPress={closeEdit}>{t('action.cancel')}</Button><Button focusId="remove-pin" loading={actionBusy} onPress={removePinAction}>{t('profile.removePin')}</Button></View>}><View/></Dialog>
@@ -442,7 +442,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
         {retirement !== 'removed' && deletion?.preview.savedResources ? <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('profile.deleteConfirm.savedItems', {count: deletion.preview.savedResources})}</Text> : null}
       </View>
       {retirement !== 'removed' ? <TextField label={t('profile.name')} description={deletion?.preview.name ?? profiles.find(value => value.id === deletion?.preview.profileId)?.name} value={deleteName} onChangeText={value => {if (deletionCurrent() && !activeTicket.current) {deleteNameRef.current = value; setDeleteName(value);}}} editable={!actionBusy}/> : null}
-      {problem ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{problem}</Text> : null}
+      {problem ? <FormError placement="inline">{problem}</FormError> : null}
     </BottomSheet>
     {limitsProfile && limitsLease && editorCurrent() ? <ProfileLimitsSheet profile={limitsProfile} lease={limitsLease} serverOwner={context.account.account.role === 'owner'} identityFor={identityForLimits} onClose={closeEdit} onSaved={() => {if (editorCurrent()) {setNotice(t('limits.saved', {name: limitsProfile.name})); closeEdit();}}}/> : null}
   </>;
@@ -580,7 +580,7 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
     cancel(); return true;
   }, {scope: 'surface'}); return () => subscription();});
   const action = (id: string, label: string, work: () => Promise<void>, disabled = false) => ({id, label, disabled: busy || disabled, loading: busy, onPress: () => {void run(work);}});
-  const errorView = error ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 12}]}>{presentError(error, 'account').body}</Text> : null;
+  const errorView = error ? <FormError placement="block">{presentError(error, 'account').body}</FormError> : null;
   const layout = (title: string, body?: string, before?: React.ReactNode, primary?: ReturnType<typeof action>, more?: React.ReactNode) => <StateLayout testID="accounts-servers" title={title} body={body}
     beforeActions={<>{before}{errorView}</>} primaryAction={primary} secondaryAction={panel !== 'servers' || onBack ? {id: 'back', label: t('action.back'), disabled: busy, onPress: cancel} : undefined}>{more}</StateLayout>;
   if (panel === 'add') return <AccountEntry key={addGeneration} downloads={addCurrent() ? committedAdd?.downloads : undefined} onSetupComplete={onSetupComplete} initialStage="address" onBack={() => {if (addCurrent()) close();}} onComplete={() => {if (addCurrent()) {close(); onComplete?.();}}}/>;

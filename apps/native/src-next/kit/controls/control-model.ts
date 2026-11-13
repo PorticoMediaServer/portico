@@ -1,7 +1,9 @@
 import {buttonSpec, chipSpec, focusSpec, targets, typeScale} from '@portico/design';
 
 export type ControlPlatform = 'phone' | 'tablet' | 'web' | 'tv';
-export type ButtonVariant = 'primary' | 'glass' | 'text' | 'icon' | 'danger';
+/** `link`: a sentence link (design/ui-v1 `.links a`), bare text on the content edge that wraps; `text`
+ * stays the padded text action that footers and toolbars size themselves. */
+export type ButtonVariant = 'primary' | 'glass' | 'text' | 'link' | 'icon' | 'danger';
 export type ButtonSize = 'hero' | 'compact' | 'small' | 'xs' | 'episode' | 'dock';
 export type FocusKind = 'button' | 'row' | 'chip' | 'card';
 export type ChipVariant = 'default' | 'quick' | 'facet' | 'applied' | 'pill';
@@ -11,7 +13,10 @@ export function progressFraction(value: number): number {
 }
 
 /** Page-local measurements are kept in the kit, beside their source map. */
-export function buttonGeometry(size: ButtonSize, platform: ControlPlatform, variant: ButtonVariant = 'primary') {
+export type ButtonGeometry = Readonly<{height: number; radius: number; paddingX: number; gap: number; icon: number; fontSize: number}>;
+export function buttonGeometry(size: ButtonSize, platform: ControlPlatform, variant: ButtonVariant = 'primary'): ButtonGeometry {
+  // A TV link keeps the text recipe's padding for its focus face.
+  if (variant === 'link') return platform === 'tv' ? buttonGeometry(size, platform, 'text') : {...buttonGeometry(size, platform, 'text'), paddingX: 0};
   if (platform === 'web' && variant === 'icon') return {height: 40, radius: 20, paddingX: 0, gap: 0, icon: 22, fontSize: 15};
   if (platform === 'web' && variant === 'text') return {height: 32, radius: 8, paddingX: 10, gap: 6, icon: 16, fontSize: 13.5};
   if (size === 'hero') return {

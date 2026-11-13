@@ -1,4 +1,5 @@
 // @fabric-react
+import {FormError, formErrorModule} from './helpers/form-error.mjs';
 import * as accountWork from '../src-next/platform/account-work';
 import * as tvApprovalCredentials from '../src-next/screens/accounts/tv-approval-credentials';
 import * as tvApprovalFinalization from '../src-next/screens/accounts/tv-approval-finalization';
@@ -64,7 +65,7 @@ test('the phone sign-in picker offers the account recovery, keeps its own operat
     '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
     '../../../../../packages/client-core/src/presentation/errors': {presentError: (_: unknown, context: string) => {contexts.push(context); return {body: `${context} failure`, silent: false};}},
     '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateLayout: 'Layout'},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
+    '../../kit/controls': {FormError, Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
     '../../kit/Icon': {Icon: 'Icon'},
     '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {}}, '../../platform/server-sign-in': {NativeServerSignIn: SignIn},
     '../../platform/portico-sign-in': {}, '../../platform/server-connections': {browseNearby: async () => []},
@@ -92,7 +93,7 @@ test('the phone sign-in picker offers the account recovery, keeps its own operat
     assert.equal(tree.type, 'Layout');
     const pin = nodes(tree.props.beforeActions).find(n => n.type === 'PhonePIN');
     assert.ok(pin, 'the protected profile uses the four-box phone PIN entry');
-    const forgot = () => nodes(tree.props.beforeActions).find(n => n.type === 'Button' && n.props.variant === 'text');
+    const forgot = () => nodes(tree.props.beforeActions).find(n => n.type === 'Button' && n.props.variant === 'link');
     assert.equal(forgot().props.children, defaultI18n.t('pin.forgot'));
 
     await act(() => forgot().props.onPress());
@@ -188,7 +189,7 @@ test('a wrong profile PIN uses the profile error context and clears the boxes', 
     '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
     '../../../../../packages/client-core/src/presentation/errors': {presentError: (_: unknown, context: string) => {contexts.push(context); return {body: `${context} failure`, silent: false};}},
     '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateLayout: 'Layout'},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
+    '../../kit/controls': {FormError, Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
     '../../kit/Icon': {Icon: 'Icon'},
     '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {}}, '../../platform/server-sign-in': {NativeServerSignIn: SignIn},
     '../../platform/portico-sign-in': {}, '../../platform/server-connections': {browseNearby: async () => []},
@@ -215,7 +216,7 @@ test('a wrong profile PIN uses the profile error context and clears the boxes', 
     await act(() => nodes(tree.props.beforeActions).find(n => n.type === 'Picker').props.onSelect(profile.id));
     await act(() => nodes(tree.props.beforeActions).find(n => n.type === 'PhonePIN').props.onComplete('9999'));
     assert.equal(contexts.at(-1), 'profiles', 'the picker PIN failure is not presented as a generic sign-in failure');
-    assert.ok(nodes(tree.props.beforeActions).some(n => n.type === 'Text' && n.props.children === 'profiles failure'));
+    assert.ok(nodes(tree.props.beforeActions).some(n => (n.type === 'Text' || n.type === FormError) && n.props.children === 'profiles failure'));
     assert.equal(nodes(tree.props.beforeActions).find(n => n.type === 'PhonePIN').props.value, '');
     assert.equal(nodes(tree.props.beforeActions).find(n => n.type === 'PhonePIN').props.error, true);
   } finally {await host.unmount();}

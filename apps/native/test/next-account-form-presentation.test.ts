@@ -1,4 +1,5 @@
 // @fabric-react
+import {FormError, formErrorModule} from './helpers/form-error.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
@@ -66,7 +67,7 @@ test('new-password strength uses all four shared-policy segments and the exact l
 test('owner reset shows the file name and expands every system’s documented location', async context => {
   const {PhoneOwnerReset} = await screenModule(new URL('../src-next/screens/accounts/PhoneOwnerReset.tsx', import.meta.url), {
     react, 'react-native': {View: 'View', Text: 'Text'}, '../../../../../packages/i18n/src': {defaultI18n: copy},
-    '../../kit/states': {StateLayout: 'State'}, '../../kit/controls': {TextField: 'Field', Button: 'Button'}, '../../kit/theme': {useTheme: () => theme},
+    '../../kit/states': {StateLayout: 'State'}, '../../kit/controls': {FormError, TextField: 'Field', Button: 'Button'}, '../../kit/theme': {useTheme: () => theme},
     './PhoneAccountForm': {PhoneAccountForm: 'Form'}, './reset-file-paths': resetPaths,
   });
   let tree: any; const host = createFabricHookHost(() => {tree = PhoneOwnerReset({phase: 'code', serverName: 'Server', code: '', onCodeChange() {}, busy: false,
@@ -86,7 +87,7 @@ for (const os of ['ios', 'android'] as const) {
   test(`auth TextField keeps autofill and native input inside the ${os} glass treatment`, async context => {
     const changed: string[] = []; let tree: any, nativeBlur = true, appearance: 'auth' | 'default' = 'auth';
     const spec = {height: {phone: 44}, radius: {phone: 8}, paddingX: {phone: 12}, borderWidth: {phone: 1}, search: {focusAlpha: .2}};
-    const {TextField} = await screenModule(new URL('../src-next/kit/controls/TextField.tsx', import.meta.url), {
+    const {TextField} = await screenModule(new URL('../src-next/kit/controls/TextField.tsx', import.meta.url), {'./FormError': formErrorModule,
       react, 'react-native': {View: 'View', Text: 'Text', TextInput: 'TextInput', Platform: {OS: os}, StyleSheet: {create: (value: unknown) => value, flatten, absoluteFill: {position: 'absolute', inset: 0}}},
       '@portico/design': {fieldSpec: spec}, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => theme, fontFamilies: {400: 'regular', 500: 'medium', 600: 'semibold'}},
       './control-model': {colorAlpha: (color: string, alpha: number) => color + ':' + alpha},

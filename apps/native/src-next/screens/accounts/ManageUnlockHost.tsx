@@ -5,7 +5,7 @@ import {presentError} from '../../../../../packages/client-core/src/presentation
 import {nativeSessionLifecycle, unlockNativeManagement} from '../../platform/native-session-lifecycle';
 import {nativeManageGate} from '../../platform/manage-gate';
 import {Dialog} from '../../kit/overlays';
-import {Button} from '../../kit/controls';
+import {Button, FormError} from '../../kit/controls';
 import {useTheme} from '../../kit/theme';
 import {PhonePINEntry} from './PhonePINEntry';
 import {profilePinFailureText} from './profile-pin-failure';
@@ -47,6 +47,6 @@ export function ManageUnlockHost() {
     dismissOnBack={!busy} dismissOnGesture={!busy} dismissOnOutsidePress={!busy}
     footer={<Button focusId="cancel" variant="glass" disabled={busy} onPress={() => setOpen(false)}>{t('action.cancel')}</Button>}>
     <PhonePINEntry testID="manage-unlock-pin" value={pin} onChange={setPin} onComplete={value => {void submit(value);}} busy={busy} error={!!error}/>
-    {failure ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginTop: 8}]}>{failure}</Text> : null}
+    {failure ? <FormError>{failure}</FormError> : null}
   </Dialog>;
 }

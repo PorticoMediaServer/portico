@@ -94,7 +94,9 @@ export const field = {
   placeholder: 'placeholder' as ColorToken,
   label: {role: 'captionStrong' as TypeRole, color: 'textSecondary' as ColorToken, gap: same(8, 8)},
   help: {role: 'caption' as TypeRole, color: 'textTertiary' as ColorToken},
-  error: {role: 'caption' as TypeRole, color: 'danger' as ColorToken, icon: 'error'},
+  /** The error line under a field or above a form (design/ui-v1 `.help.err`: 13/600 in danger; 6 px under
+   * what it is about, 14 px before what follows when it heads a form). Native draws it once, `kit/controls/FormError`. */
+  error: {role: 'captionStrong' as TypeRole, color: 'danger' as ColorToken, icon: 'error', gap: same(6, 10), blockGap: same(14, 20)},
   /** Keyboard focus shows the focus ring (focus.offsetOuter) on top of the accent border. No glow. */
   focusGlow: false,
   search: {height: all(80, 44, 44, 80), radius: all(18, 12, 12, 16), paddingX: all(26, 12, 12, 24), gap: all(18, 10, 10, 16), focusRing: 4, focusAlpha: 0.16},

@@ -1,3 +1,4 @@
+import {FormError, formErrorModule} from './helpers/form-error.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buttonSpec, fieldSpec, focusSpec} from '@portico/design';
@@ -77,7 +78,7 @@ test('reading-card long press opens the item menu (which offers Download) and it
   const f = fixture(), menus: unknown[] = [];
   const {PhoneReadingBookCard} = await screenModule(new URL('../src-next/screens/read/PhoneReadingBookCard.tsx', import.meta.url), {
     react: f.common.react, 'react-native': f.native, '@portico/design': {}, '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/artwork': {GeneratedCover: 'GeneratedCover', MediaArt: 'MediaArt'}, '../../kit/controls': {Focusable: 'Focusable'},
+    '../../kit/artwork': {GeneratedCover: 'GeneratedCover', MediaArt: 'MediaArt'}, '../../kit/controls': {FormError, Focusable: 'Focusable'},
     '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
     '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => f.theme}, '../../kit/cards/model': cardModel,
   });
@@ -111,7 +112,7 @@ test('text buttons keep authored default geometry and grow/wrap only when text i
 test('single-line fields keep text scaling enabled and release the fixed parent height at large text', async () => {
   for (const scale of [1, 2.5]) {
     const f = fixture(scale);
-    const {TextField} = await screenModule(new URL('../src-next/kit/controls/TextField.tsx', import.meta.url), {
+    const {TextField} = await screenModule(new URL('../src-next/kit/controls/TextField.tsx', import.meta.url), {'./FormError': formErrorModule,
       ...f.common, '@portico/design': {fieldSpec}, './control-model': controlModel, '../Icon': {Icon: 'Icon'},
       '../overlays/OverlayPaintContext': liveOverlayPaint, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: false})},
     });
@@ -129,7 +130,7 @@ test('single-line fields keep text scaling enabled and release the fixed parent 
 test('Select retains one list scroller and matches its native option pitch to OS text scale', async () => {
   for (const scale of [1, 2.5]) {
     const f = fixture(scale);
-    const {Select} = await screenModule(new URL('../src-next/kit/controls/Select.tsx', import.meta.url), {
+    const {Select} = await screenModule(new URL('../src-next/kit/controls/Select.tsx', import.meta.url), {'./FormError': formErrorModule,
       ...f.common, '../../../../../packages/i18n/src/index': {defaultI18n}, '../Icon': {Icon: 'Icon'}, './Focusable': {Focusable: 'Focusable'},
       '../overlays/surface': {Dialog: 'Dialog'}, './control-model': controlModel,
       './useControlValue': {useControlValue: (value: any, initial: any) => [value ?? initial, () => {}]},
@@ -246,7 +247,7 @@ test('a closed Select keeps its value visible in a row with no width to give it'
   // Walk, 1 Nov: in a settings row's trailing slot the value (flex: 1) collapsed to nothing.
   // settings.html `.sel`: at least 176 wide, the value then the chevron spaced apart.
   const f = fixture(1);
-  const {Select} = await screenModule(new URL('../src-next/kit/controls/Select.tsx', import.meta.url), {
+  const {Select} = await screenModule(new URL('../src-next/kit/controls/Select.tsx', import.meta.url), {'./FormError': formErrorModule,
     ...f.common, '../../../../../packages/i18n/src/index': {defaultI18n}, '../Icon': {Icon: 'Icon'}, './Focusable': {Focusable: 'Focusable'},
     '../overlays/surface': {Dialog: 'Dialog'}, './control-model': controlModel,
     './useControlValue': {useControlValue: (value: any, initial: any) => [value ?? initial, () => {}]},
