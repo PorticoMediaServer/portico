@@ -173,13 +173,9 @@ const DownmixITULimited = "itu_limited"
 // the viewer's resolved position. Planning is a pure function of it, which is
 // what makes the decision matrix testable without a database.
 type DeliveryInput struct {
-	Disc bool
-	// Joined is a title in several files that the server plays as one: there is no single
-	// original to hand the device. JoinedPartsDiffer says its files are not encoded alike,
-	// so they cannot be copied into one stream.
-	Joined, JoinedPartsDiffer bool
-	BurnIn                    bool
-	Server                    *decoder.ToolchainFacts
+	Disc   bool
+	BurnIn bool
+	Server *decoder.ToolchainFacts
 	// Source and Client are the full facts. When Source is nil the flat fields
 	// below describe a source whose detail was never observed, and a zero Client
 	// is the built-in baseline; both are how older call sites and tests read.
@@ -541,9 +537,6 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 		if in.Disc {
 			rejections = append(rejections, RouteRejection{RejectContainer, "disc_reader_required"})
 		}
-		if in.Joined {
-			rejections = append(rejections, RouteRejection{RejectContainer, "parts_joined_by_server"})
-		}
 		rejections = append(rejections, audioRules...)
 		rejections = append(rejections, pictureRules...)
 		if policy.DirectPlay == "never" {
@@ -598,11 +591,9 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 	}
 	conversionAllowed := cfg.AudioConversionAllowed(in.TranscodingEnabled) && policy.Transcode != "never"
 
-	// Route 2: both streams copied into HLS. For sound alone this is only a title in several
-	// files that the server joins (an audiobook in parts): there is no one original to give
-	// the device, and copying the parts into one stream keeps the sound as it is.
+	// Route 2: both streams copied into HLS.
 	remuxable := false
-	if !audioOnly || in.Joined {
+	if !audioOnly {
 		rejections := excluded(DeliveryCopyRemux)
 		rejections = append(rejections, audioRules...)
 		rejections = append(rejections, pictureRules...)
@@ -616,9 +607,6 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 		}
 		transport, r := bestSourceCopyTransport(transports, client, video, audio, in.Target.AllowHDR, in.Server)
 		rejections = append(rejections, r...)
-		if in.JoinedPartsDiffer {
-			rejections = append(rejections, RouteRejection{RejectAudioCodec, "joined_parts_differ"})
-		}
 		// remuxable describes the source and the device, not the preferences:
 		// it is what decides which refusal a closed policy is reported as.
 		remuxable = len(r) == 0 && len(pictureRules) == 0 && len(audioRules) == 0
@@ -854,9 +842,6 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 		p.VideoAction, p.AudioAction = "copy", "copy"
 		if audio == nil {
 			p.AudioAction = "none"
-		}
-		if audioOnly {
-			p.VideoAction = "none"
 		}
 		p.AudioChannels = 0
 		return p, nil

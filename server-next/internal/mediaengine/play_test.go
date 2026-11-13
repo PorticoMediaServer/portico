@@ -41,8 +41,6 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-const testPlayerPassword = "a long enough test password"
-
 // house is a whole server over real HTTP, put together the way cmd/portico-server does it,
 // with the owner signed in on the main profile.
 type house struct {
@@ -164,7 +162,7 @@ func newHouseWith(t *testing.T, ffmpeg, ffprobe string) (*house, *db.DB, *remote
 	}
 	var owner api.SignInResponse
 	h.call("POST", "/v1/setup/owner", api.SetupOwnerRequest{SetupCode: strings.TrimSpace(string(code)), Username: "owner",
-		Password: testPlayerPassword, Device: api.DeviceInfo{InstallationID: strings.Repeat("a", 32), Name: "Test player"}}, &owner, 200)
+		Password: "a long enough test password", Device: api.DeviceInfo{InstallationID: strings.Repeat("a", 32), Name: "Test player"}}, &owner, 200)
 	h.token = owner.Session.AccessToken
 	var session api.Session
 	h.call("POST", "/v1/profiles/"+owner.Profiles[0].ID+"/select", api.ProfileSelect{}, &session, 200)

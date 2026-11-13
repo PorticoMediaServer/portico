@@ -3,7 +3,6 @@ package streaming
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"math"
@@ -74,7 +73,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		s.output = "building"
 	}
 	h.mu.Unlock()
-	input, remoteInput, e := h.openWindowInput(ctx, id, delivery, float64(from)*HLSSegmentSeconds)
+	input, remoteInput, e := h.openWindowInput(ctx, id, delivery)
 	if e != nil {
 		if ctx.Err() == nil {
 			h.failedWith(ctx, id, FailureSourceUnreadable, "")
@@ -144,7 +143,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		}
 		position = timeline.Boundaries[from]
 	}
-	if input.InputAt != nil || timeline != nil || input.Until > 0 || grid && delivery != nil && delivery.OutputContainer == "fmp4_hls" {
+	if input.InputAt != nil || timeline != nil || grid && delivery != nil && delivery.OutputContainer == "fmp4_hls" {
 		staging = filepath.Join(dir, "window-"+strconv.Itoa(from))
 		_ = os.RemoveAll(staging)
 		if e = os.MkdirAll(staging, 0700); e != nil {
@@ -163,11 +162,6 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 	}
 	defer cleanupBurn()
 	fragmentClock := &convertedFragmentClock{}
-	batchUntil := HLSMaxSegments
-	if input.Until > 0 {
-		batchUntil = int(math.Round(input.Until / HLSSegmentSeconds))
-		fragmentClock.until = batchUntil
-	}
 	// The threads the run's software video encode is given, set by run before it builds.
 	encodeThreads := 0
 	build := func(plan *DeliveryPlan) ([]string, []decoder.HardwareStage, error) {
@@ -180,7 +174,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		if plan != nil && plan.VideoAction == "copy" {
 			args = append(args, "-fflags", "+genpts+discardcorrupt")
 		}
-		if grid && from > 0 && input.InputAt == nil && !input.Positioned {
+		if grid && from > 0 && input.InputAt == nil {
 			// Input-side seek, so the decoder skips rather than decodes-and-drops.
 			// A copy window seeks a hair past its keyframe: the demuxer lands on
 			// the index entry at or before the target, and rounding the target
@@ -220,47 +214,8 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			path = url
 			residual = int64(math.Round(position*1000)) - at
 		}
-		joinedSound := ""
-		if len(input.Joined) > 0 {
-			// Parts not encoded alike: each from the part holding the start is an input of its
-			// own, the first sought within it, and FFmpeg's concat filter joins them into the
-			// one sound the conversion encodes (the conversion's own sound filter after it).
-			first := 0
-			for first+1 < len(input.Joined) && input.Joined[first+1].Offset <= position {
-				first++
-			}
-			var filter strings.Builder
-			for n, part := range input.Joined[first:] {
-				if n == 0 && position > part.Offset {
-					args = append(args, "-ss", strconv.FormatFloat(position-part.Offset, 'f', 6, 64))
-				}
-				args = append(args, readerOptions...)
-				args = append(args, "-i", part.Path)
-				fmt.Fprintf(&filter, "[%d:a:0]", n)
-			}
-			fmt.Fprintf(&filter, "concat=n=%d:v=0:a=1", len(input.Joined)-first)
-			for i := 0; i+1 < len(codecArgs); i++ {
-				if codecArgs[i] == "-af" {
-					filter.WriteString("," + codecArgs[i+1])
-					codecArgs = append(codecArgs[:i:i], codecArgs[i+2:]...)
-					break
-				}
-			}
-			args = append(args, "-filter_complex", filter.String()+"[joined]")
-			joinedSound = "[joined]"
-		} else {
-			args = append(args, readerOptions...)
-			args = append(args, "-i", path)
-		}
-		// A title in parts: the run starts this far into its input (an output seek, which keeps
-		// the first frame at or after the start under its own time), and ends where its batch
-		// of parts does.
-		if input.Skip > 0 {
-			args = append(args, "-ss", strconv.FormatFloat(input.Skip, 'f', 6, 64))
-		}
-		if input.Until > position {
-			args = append(args, "-t", strconv.FormatFloat(input.Until-position, 'f', 6, 64))
-		}
+		args = append(args, readerOptions...)
+		args = append(args, "-i", path)
 		args = append(args, extraInput...)
 		if input.InputAt != nil {
 			// Burn-in may already occupy input 1. Chapters are the final input.
@@ -278,9 +233,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		// The plan names the programme audio by absolute stream index. A plan
 		// without a choice (an older session) takes the first track, as before.
 		audioMap := "0:a:0?"
-		if joinedSound != "" {
-			audioMap = joinedSound
-		} else if plan != nil && plan.AudioStream >= 0 {
+		if plan != nil && plan.AudioStream >= 0 {
 			audioMap = "0:" + strconv.Itoa(plan.AudioStream)
 		}
 		switch {
@@ -574,7 +527,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			_ = os.RemoveAll(staging)
 			_ = os.MkdirAll(staging, 0700)
 		}
-		fragmentClock = &convertedFragmentClock{until: fragmentClock.until}
+		fragmentClock = &convertedFragmentClock{}
 		beforeRetry := highestProducedSegment(dir, from)
 		h.mu.Lock()
 		if w := h.windows[id]; w == owned {
@@ -677,7 +630,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			}
 		} else {
 			if staging != "" {
-				produced = promoteCopyRange(staging, dir, from, batchUntil, e == nil)
+				produced = promoteCopySegments(staging, dir, from, e == nil)
 			} else {
 				produced = highestProducedSegment(dir, from)
 			}
@@ -776,11 +729,7 @@ func (h *HLS) watchWindow(
 						return false
 					}
 				} else {
-					until := HLSMaxSegments
-					if fragmentClock.until > 0 {
-						until = fragmentClock.until
-					}
-					produced = promoteCopyRange(staging, dir, from, until, false)
+					produced = promoteCopySegments(staging, dir, from, false)
 				}
 			} else {
 				produced = highestProducedSegment(dir, from)
