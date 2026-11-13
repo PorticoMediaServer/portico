@@ -2,8 +2,6 @@ import {readEventState} from '../../platform/event-resync';
 import React from 'react';
 import {Platform} from 'react-native';
 import {InboxService} from '../../../../../packages/client-core/src/inbox';
-import {parseNotificationSummary} from '../../../../../packages/client-core/src/notifications';
-import {routePath} from '../../../../../packages/contracts/src/routes';
 import {nativeRouteCrypto} from '../../platform/server-connections';
 import {nativeShellRoutes, type NativeRouteRenderer} from '../../shell/route-registry';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
@@ -11,9 +9,6 @@ import type {NativeShellRoute} from '../../shell/routes';
 import {NativeScreenLifetime} from '../settings-live/lifetime';
 import {NativeNotificationsScreen} from './NotificationsScreen';
 import {viewerQueriesFor} from '../../shell/freshness';
-
-const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
-const invalid = () => Object.assign(new Error('invalid_notifications_response'), {code: 'invalid_response'});
 
 export type NotificationsRetirement = Readonly<{
   subscribe: (listener: () => void) => () => void;
@@ -62,20 +57,6 @@ export function createNativeNotificationsRenderer(context: NativeShellBootstrapC
       retire(error);
       return error;
     };
-    const check = (raw: unknown, requestedAudience?: string) => {
-      if (!object(raw) || !('data' in raw)) throw invalid();
-      const scope = raw.scope;
-      if (!object(scope)) throw invalid();
-      if (typeof scope.serverId !== 'string' || typeof scope.viewerFence !== 'string') throw invalid();
-      if (scope.serverId !== authority.serverId) throw scopeChanged();
-      // The fence's shape is checked, never compared with another read's: the server re-authorizes
-      // every request, and a role or identity change is the shell's to follow (CLIENT-DATA-REVIEW §4.4).
-      if (!/^[a-f0-9]{64}$/.test(scope.viewerFence)) throw invalid();
-      if (requestedAudience !== undefined) {
-        const data = raw.data;
-        if (!object(data) || typeof data.audience !== 'string' || data.audience !== requestedAudience) throw invalid();
-      }
-    };
     const api = {request: async <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
       if (retired) throw scopeChanged();
       const raw = await lifetime.request(next => (!method || method === 'GET')
@@ -84,25 +65,16 @@ export function createNativeNotificationsRenderer(context: NativeShellBootstrapC
       // A concurrent response may have retired this session while this read was
       // in flight. Never hand that raw body to the service or the retained screen.
       if (retired) throw scopeChanged();
-      const route = path.split('?')[0];
-      const query = new URLSearchParams(path.includes('?') ? path.slice(path.indexOf('?') + 1) : '');
-      if (route === routePath('get_notifications_inbox')) check(raw, query.get('audience') ?? undefined);
-      else if (route === routePath('get_notifications_unread_count')) {
-        if (!object(raw)) throw invalid();
-        parseNotificationSummary(raw.data);
-        check(raw, query.get('audience') ?? undefined);
-      } else if (route === routePath('post_notifications_inbox_actions')) {
-        const audience = object(body) && typeof body.audience === 'string' ? body.audience : undefined;
-        check(raw, audience);
-      } else check(raw);
+      // The rebuilt inbox answers a plain page (and empty successful writes).
+      // This captured API and lifetime own the viewer; the core reader owns the response shape.
       return raw;
     }};
     const operationId = () => [...nativeRouteCrypto.random(16)].map(byte => byte.toString(16).padStart(2, '0')).join('');
     // Both audiences read through the viewer's cache: a view opened again shows at once, and a
     // change made in one is read again in the other.
     const queries = viewerQueriesFor(context.api, {serverId: authority.serverId});
-    // A cached read is shared, so it is read with the cache's own requester; the envelope checks this
-    // screen's requester makes travel with it, and another server's answer still retires this screen.
+    // Shared first pages use the shell's viewer-bound requester. Continuations and writes
+    // use this screen's lifetime; closing one screen must not abort another screen's shared read.
     const onScopeChanged = () => {scopeChanged();};
     profile = new InboxService(api, operationId, {queries, onScopeChanged});
     admin = new InboxService(api, operationId, {queries, onScopeChanged});

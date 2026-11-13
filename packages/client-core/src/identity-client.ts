@@ -55,8 +55,20 @@ export class IdentityClient{
  }
  async removeAvatar(profileId:string):Promise<void>{await this.api.request(encodedRoutePath("delete_direct_profiles_id_avatar", {"id": id(profileId)}),'DELETE');}
  avatar(raw:unknown):ProfileAvatar{return parseProfileAvatar(raw);}
- /** Every profile's current picture version in one read; a profile with none is absent. */
- async avatars(signal?:AbortSignal):Promise<readonly ProfileAvatar[]>{const raw=await this.api.request<{items?:unknown}>(routePath("get_direct_profile_avatars"),'GET',undefined,signal);if(!Array.isArray(raw?.items)||raw.items.length>64)throw new Error(unreadableServerResponse);return Object.freeze(raw.items.map(parseProfileAvatar));}
+ /** Pictures already named by the account's profile list; absent pictures stay absent.
+  * The rebuilt server gives a versioned URL, not the old upload receipt's metadata. */
+ async avatars(signal?:AbortSignal):Promise<readonly ProfileAvatar[]>{
+  const raw=await callServer(this.api,'GET /v1/profiles',{signal});
+  if(!Array.isArray(raw?.items)||raw.items.length>64)throw new CodedError('invalid_response',unreadableServerResponse);
+  return Object.freeze(raw.items.flatMap((profile:unknown)=>{
+   if(!profile||typeof profile!=='object'||Array.isArray(profile))throw new CodedError('invalid_response',unreadableServerResponse);
+   const row=profile as {id?:unknown;avatar?:unknown};
+   if(row.avatar===undefined||row.avatar==='')return [];
+   const match=typeof row.avatar==='string'&&row.avatar.length<=512?/^\/v1\/profiles\/([A-Za-z0-9_-]{1,128})\/avatar(?:\?v=[a-z0-9]+)?$/.exec(row.avatar):null;
+   if(!match||match[1]!==row.id)throw new CodedError('invalid_response',unreadableServerResponse);
+   return [Object.freeze({profileId:match[1]!,url:row.avatar as string})];
+  }));
+ }
  /** The server sniffs, crops and re-encodes the picture itself; the type sent here is only a courtesy. */
  async uploadAvatar(profileId:string,picture:Blob|ArrayBuffer|Uint8Array,contentType:string):Promise<ProfileAvatar>{
   if(!this.upload)throw new Error('This device can’t send pictures.');

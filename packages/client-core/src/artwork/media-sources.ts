@@ -125,7 +125,7 @@ export function channelLogoArtworkSource(id: string, revision: number | undefine
 }
 
 export function memberProfileAvatarArtworkSource(accountId: string, avatar: ProfileAvatar | undefined, pixels: number, identity: AmbientArtworkIdentity) {
-  if (!avatar || !Number.isSafeInteger(avatar.version) || avatar.version < 1) return undefined;
+  if (!avatar || typeof avatar.version !== 'number' || !Number.isSafeInteger(avatar.version) || avatar.version < 1) return undefined;
   const url = encodedRoutePath('get_admin_access_members_id_profiles_profile_avatar', {id: encodeURIComponent(accountId), profileId: encodeURIComponent(avatar.profileId)}) + '?v=' + avatar.version;
   if (avatar.url !== url) return undefined;
   const size = pixels <= 64 ? 64 : pixels <= 160 ? 160 : 512;
