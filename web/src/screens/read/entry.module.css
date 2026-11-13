@@ -20,17 +20,17 @@
 /* desktop-read 1/1b: the library's own rows and its bounded content share the
    drawn row rhythm (the kit owns .rows/.row; only the grid's gutter is ours). */
 .library { position: relative; min-height: 100%; }
-/* A page's own heading (a periodical's name, a series not yet named) and its first grid sit on the
-   page's gutter and rhythm, as the series heading does. */
-.library > h2 { margin: 24px var(--shell-gutter) 8px; font-size: var(--type-fixed-size-20px); font-weight: var(--type-fixed-weight-700); color: var(--color-text); }
+/* A page's first grid sits below the tabs with room, as the series heading gives its grid. */
 .library > .books:first-child { padding-top: 24px; }
 .books { position: relative; margin: 0 var(--shell-gutter); }
 /* J-29: a Reading library with nothing in it still starts at the page's gutter. */
 .emptyLibrary { margin: 0 var(--shell-gutter); padding-top: 20px; }
 
 /* phone-read 4/4c: the series' own name and count head its volume grid. */
-.seriesHeading { display: flex; align-items: baseline; gap: 10px; margin: 24px var(--shell-gutter) 8px; }
-.seriesHeading h2 { margin: 0; font-size: var(--type-fixed-size-20px); font-weight: var(--type-fixed-weight-700); color: var(--color-text); }
+/* A page's own heading (a periodical's name; a series not yet named) is drawn as the series heading. */
+.seriesHeading, .library > h2 { display: flex; align-items: baseline; gap: 10px; margin: 24px var(--shell-gutter) 8px; }
+.seriesHeading h2 { margin: 0; }
+.seriesHeading h2, .library > h2 { font-size: var(--type-fixed-size-20px); font-weight: var(--type-fixed-weight-700); color: var(--color-text); }
 .seriesHeading span { font-size: var(--type-fixed-size-14px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); }
 
 .dateFilter { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px var(--shell-gutter); }
