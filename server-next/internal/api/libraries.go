@@ -604,6 +604,10 @@ func (s *Server) editLibrary(r *http.Request, req LibraryEdit) (AdminLibrary, er
 	if err != nil {
 		return AdminLibrary{}, err
 	}
+	shownLanguage, _ := s.libraryLanguage(lib.Kind, lib.MetadataProvider, lib.Language)
+	if req.Language != nil && (*req.Language == lib.Language || *req.Language == shownLanguage) {
+		req.Language = nil // An echoed stored or displayed value is not a new language choice.
+	}
 	edit := db.LibraryEdit{Name: req.Name, Language: req.Language, Folders: req.Folders}
 	edit.MetadataProvider, edit.Region = req.MetadataProvider, req.Region
 	if req.MetadataProvider != nil {

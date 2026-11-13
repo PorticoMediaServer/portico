@@ -42,7 +42,7 @@ func (s *Server) checkLibraryProvider(kind, name string) error {
 	return ErrField("metadataProvider", "This metadata provider does not serve this kind of library.")
 }
 
-// libraryLanguage uses the same advertised choices for validation and defaults. Empty means default.
+// libraryLanguage returns the default for blank or unsupported values; an unsupported value also carries a validation error.
 func (s *Server) libraryLanguage(kind, name, language string) (string, error) {
 	name = (db.LibrarySource{Kind: kind, Provider: name}).ProviderName()
 	for _, provider := range s.metadata.LibraryProviders(kind) {
@@ -55,7 +55,7 @@ func (s *Server) libraryLanguage(kind, name, language string) (string, error) {
 		if slices.Contains(provider.Languages, language) {
 			return language, nil
 		}
-		break
+		return provider.DefaultLanguage, ErrField("language", "Choose a language offered by this metadata provider.")
 	}
 	return "", ErrField("language", "Choose a language offered by this metadata provider.")
 }
@@ -66,9 +66,7 @@ func (s *Server) libraryOut(r *http.Request, l db.AdminLibrary) (AdminLibrary, e
 		Revision: strconv.FormatInt(l.Revision, 10)}
 	out.MetadataProvider = (db.LibrarySource{Kind: l.Kind, Provider: l.MetadataProvider}).ProviderName()
 	out.MetadataProviders = s.metadata.LibraryProviders(l.Kind)
-	if out.Language == "" {
-		out.Language, _ = s.libraryLanguage(l.Kind, out.MetadataProvider, "")
-	}
+	out.Language, _ = s.libraryLanguage(l.Kind, out.MetadataProvider, l.Language)
 	if l.Kind == db.LibraryMovies || l.Kind == db.LibraryShows || l.Kind == db.LibraryAnime {
 		out.Region = &l.Region
 	}
