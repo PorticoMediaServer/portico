@@ -15,7 +15,8 @@ import {accountReturnFinish, accountReturnStart, httpsOrigin, keepAccountReturn,
 import {listedReturn, readServerReturnAsk} from '../src/services/AccountServerReturn.tsx';
 
 const origin = 'https://66-94-102-39.ptc-lik6kb74q4cwxmcuravq.portico.direct:32510', serverId = 'srv_' + 'A'.repeat(43), hosted = 'https://web.getportico.tv';
-const challenge = 'c'.repeat(43), note = {payload: btoa(JSON.stringify({kind: 'portico.identity.v1', accountId: 'acct', serverId, challenge})).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_'), signature: 's', keyId: 'k'};
+// Shaped like a real server's challenge, which has dots in it.
+const challenge = 'c'.repeat(40) + '.' + 'd'.repeat(40) + '.e_f-g', note = {payload: btoa(JSON.stringify({kind: 'portico.identity.v1', accountId: 'acct', serverId, challenge})).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_'), signature: 's', keyId: 'k'};
 const tab = new Map<string, string>();
 Object.assign(globalThis, {sessionStorage: {getItem: (k: string) => tab.get(k) ?? null, setItem: (k: string, v: string) => {tab.set(k, v);}, removeItem: (k: string) => {tab.delete(k);}}});
 test.beforeEach(() => {tab.clear(); setInstallationIdentity({installationId: 'i'.repeat(43), name: 'Test browser', platform: 'web', app: 'portico', appVersion: '1'});});
