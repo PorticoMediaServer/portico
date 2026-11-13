@@ -100,7 +100,10 @@ export interface NativeShellRuntime {
   /** TV: `covered` comes from the shell's layer stack (true unless a route is the top layer); `hostRef` is the route layer's host. */
   renderRoutes: (options?: Readonly<{covered?: boolean; hostRef?: React.Ref<import('react-native').View>;
     /** TV: the closed rail drawn over a pushed page and under that page's own sheets. */
-    rail?: ReactNode}>) => ReactNode;
+    rail?: ReactNode;
+    /** TV: wraps the route pages only (not the rail), with the open rail's shift (tv.html f2), so a pushed page moves out from under
+     * the rail as the base page does. */
+    wrapPages?: (pages: ReactNode) => ReactNode}>) => ReactNode;
   stacks?: NativeTouchStacksPort;
   /** Persistent watch chrome above the one native picture surface. */
   renderWatch?: () => ReactNode;

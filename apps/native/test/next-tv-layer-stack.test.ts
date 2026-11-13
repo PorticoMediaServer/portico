@@ -310,6 +310,39 @@ test('step 4: preferredFocus asks once on both platforms; a layout change on tvO
   }
 });
 
+test('tvOS: a page uncovered in the commit that asks for its start gets one more ask on the next frame, only while focus has not moved', async () => {
+  const frames: (() => void)[] = [], previousFrame = globalThis.requestAnimationFrame, previousCancel = globalThis.cancelAnimationFrame;
+  globalThis.requestAnimationFrame = ((callback: () => void) => frames.push(callback)) as typeof requestAnimationFrame;
+  globalThis.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame;
+  const nextFrame = () => {for (const run of frames.splice(0)) run();};
+  try {
+    for (const dropped of [true, false]) {
+      const kit = await tvFocusKit({platform: 'tvos', assume: {uncoverDropsFirstAsk: dropped, coverMovesFocus: false}}), {e, engine, focus, Stop} = kit;
+      const registry = focus.createFocusRegistry();
+      const Shell = ({open}: {open: boolean}) => e(focus.FocusProvider, {registry},
+        e(focus.CoveredLayer, {covered: open, style: {position: 'absolute', inset: 0}},
+          e(focus.FocusRegion, {id: 'home.row', orientation: 'horizontal', style: {position: 'absolute', left: 200, top: 700, flexDirection: 'row'}}, e(Stop, {id: 'card'}))),
+        e(focus.CoveredLayer, {covered: !open, style: {position: 'absolute', inset: 0}},
+          open ? e(focus.FocusRegion, {id: 'title.actions', orientation: 'horizontal', style: {position: 'absolute', left: 200, top: 500, flexDirection: 'row', gap: 20}},
+            e(Stop, {id: 'play', preferredFocus: true}), e(Stop, {id: 'more'})) : null));
+      await engine.render(e(Shell, {open: false}));
+      await engine.focus('card');
+      await engine.render(e(Shell, {open: true}));
+      if (dropped) {
+        assert.equal(engine.focused, 'card', 'the ask sent as the page was uncovered is dropped: focus is on the covered page');
+        nextFrame(); await engine.settle();
+        assert.equal(engine.focused, 'play', 'the next frame asks again and the page opens on its start');
+      } else {
+        assert.equal(engine.focused, 'play', 'the first ask lands');
+        await engine.press('right');
+        assert.equal(engine.focused, 'more');
+        nextFrame(); await engine.settle();
+        assert.equal(engine.focused, 'more', 'focus moved since the ask: the next frame never takes it back');
+      }
+    }
+  } finally {globalThis.requestAnimationFrame = previousFrame; globalThis.cancelAnimationFrame = previousCancel;}
+});
+
 test('a TV page Modal hold: the shell sees it held while it is, and a page that changed under it is asked for its own entry', () => {
   let identity = 'profile-a', entries = 0, notified = 0;
   const offPage = provideTVPage({identity: () => identity, enter: () => {entries++;}});

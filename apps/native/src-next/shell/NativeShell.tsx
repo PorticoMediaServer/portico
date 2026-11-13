@@ -224,7 +224,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   const sidebarRevision = useRef(0);
   const sidebarLifetime = useRef<object | undefined>(undefined);
   const avatarRef = useRef<View>(null), opening = useRef(0), alive = useRef<{runtime: NativeShellRuntime} | undefined>(undefined);
-  const shift = useSharedValue(0), dim = useSharedValue(0);
+  const shift = useSharedValue(0), opened = useSharedValue(0);
   const current = useCallback(() => alive.current?.runtime === runtime && !runtime.retirementSignal?.aborted && sameAuthority(snapshot.authority, runtime.getSnapshot().authority), [runtime, snapshot.authority]);
   useEffect(() => {
     const lifetime = alive, pending = opening, session = {runtime};
@@ -303,8 +303,9 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     if (!value) {railRelease.current?.(); railRelease.current = undefined;}
     // tv.html f2 moves the copy's left edge from200 to470. The frame wins the stale220 token.
     shift.value = motion.transforms ? withTiming(value ? 270 : 0, motion.timing('standard')) : value ? 270 : 0;
-    dim.value = withTiming(value ? .42 : 0, motion.timing('standard'));
-  }, [dim, motion, registry, shift]);
+    // motion.html 4.2: the scrim's darkness follows the same timing as the slide, so closed and open cross-fade.
+    opened.value = withTiming(value ? 1 : 0, motion.timing('standard'));
+  }, [motion, opened, registry, shift]);
   useEffect(() => {
     if (!theme.isTV) return;
     return runtime.registerTVRailBack?.(() => {
@@ -335,8 +336,9 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   }, [accountOpen, chromeHidden, current, expanded, ids.rail, registry, runtime, theme.isTV, tvListeningPresent]);
   useEffect(() => {if (!motion.transforms) shift.value = railExpanded ? 270 : 0;}, [motion.transforms, railExpanded, shift]);
   const pageStyle = useAnimatedStyle(() => ({transform: [{translateX: shift.value}]}));
+  const openScrim = useAnimatedStyle(() => ({opacity: opened.value}));
+  const closedScrim = useAnimatedStyle(() => ({opacity: 1 - opened.value}));
   const initialTitleStyle = useAnimatedStyle(() => ({opacity: initialTitle?.value ?? 1}));
-  const dimStyle = useAnimatedStyle(() => ({opacity: dim.value}));
   const barHeight = layout.tabs && !chromeHidden ? phoneBarHeight(insets.bottom, landscapePhone) : 0;
   // foldable3e/3f: the phone bar leaves only on medium; the dock floats at the foot.
   const sideNavigation = layout.rail || layout.kind === 'desktop';
@@ -390,7 +392,10 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   const railShown = topLayer === 'page' ? snapshot.contentVisible !== false : routeRail;
   const routeRailLayer = theme.isTV && railShown && !snapshot.selectionActive && !chromeHidden ? <View pointerEvents="box-none" style={{position: 'absolute', left: layout.left, top: layout.top,
     width: layout.width, height: layout.height, transformOrigin: 'top left', transform: [{scale: layout.scale}]}}>
-    <Animated.View pointerEvents="none" style={[{position: 'absolute', inset: 0, backgroundColor: theme.colors.ink}, dimStyle]}/>
+    {/* The rail's one scrim: the closed rail's own fade, cross-fading to the open panel running into one even dim over the page
+        (tv.html f2). Plain views with a gradient and no input: tvOS's focus engine looks through them. */}
+    <Animated.View pointerEvents="none" style={[{position: 'absolute', inset: 0, experimental_backgroundImage: tvRailScrim(theme.colors.ink, false)}, closedScrim]}/>
+    <Animated.View pointerEvents="none" style={[{position: 'absolute', inset: 0, experimental_backgroundImage: tvRailScrim(theme.colors.ink, true)}, openScrim]}/>
     {tvRail}
   </View> : undefined;
   const content = <>
@@ -435,11 +440,20 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
     })()}
     {runtime.renderWatch && <View pointerEvents="box-none" style={{position: 'absolute', inset: 0, zIndex: theme.layers.player + 1}}>
       {theme.isTV ? <CoveredSignal covered={pageModalOpen}>{runtime.renderWatch()}</CoveredSignal> : runtime.renderWatch()}</View>}
-    {theme.isTV ? <CoveredSignal covered={pageModalOpen}>{runtime.renderRoutes({covered: !topLayer?.startsWith('route:') && !pageInRouteLayer.current, hostRef: routeLayer, rail: routeRailLayer})}</CoveredSignal> : <Animated.View pointerEvents={initialPlayer ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer}
+    {theme.isTV ? <CoveredSignal covered={pageModalOpen}>{runtime.renderRoutes({covered: !topLayer?.startsWith('route:') && !pageInRouteLayer.current, hostRef: routeLayer, rail: routeRailLayer, wrapPages: routeRail ? pages => <Animated.View pointerEvents="box-none" style={[{position: 'absolute', inset: 0}, pageStyle]}>{pages}</Animated.View> : undefined})}</CoveredSignal> : <Animated.View pointerEvents={initialPlayer ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer}
       importantForAccessibility={initialPlayer ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', inset: 0}, initialTitleStyle]}>{runtime.renderRoutes()}</Animated.View>}
     <ShellUnreachableLine reachability={runtime.reachability} serverName={snapshot.serverName} layout={layout}
       hidden={!!snapshot.mediaExpanded || tvListeningPresent || (stacks ? immersiveRoute(stackTop) : false)}/>
     {runtime.renderSelection()}
     {runtime.renderDownloads?.()}
   </View></NativeStackSlotsProvider>;
+}
+
+/** The rail's one scrim (tv.html f1/f2). Closed: the rail's own fade, gone by its 260 edge. Open: the 560 panel, then the page
+ * dimmed evenly to the right edge, so nothing under or beside it reads as cut. */
+export function tvRailScrim(ink: string, open: boolean): string {
+  const at = (alpha: number) => `${ink.slice(0, 7)}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`;
+  return open
+    ? `linear-gradient(to right, ${at(.99)} 0px, ${at(.96)} 370px, ${at(.42)} 560px, ${at(.42)} 100%)`
+    : `linear-gradient(to right, ${at(.78)} 0px, ${at(.42)} 117px, ${at(0)} 260px)`;
 }

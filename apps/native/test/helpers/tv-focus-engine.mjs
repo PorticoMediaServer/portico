@@ -54,7 +54,10 @@ const flatten = style => Array.isArray(style) ? Object.assign({}, ...style.map(f
 
 export async function tvFocusEngine({platform = 'android', width = 1920, height = 1080, assume = {}} = {}) {
   const android = platform === 'android';
-  const assumptions = {blockedFocusStays: true, coverMovesFocus: true, propSettersRepeat: true, ...assume};
+  // uncoverDropsFirstAsk (tvOS, seen on the simulator 12 Nov): a guide made focusable again in a commit is not yet
+  // focusable natively for a focus request sent in that same commit, so the request is dropped and focus stays put.
+  const assumptions = {blockedFocusStays: true, coverMovesFocus: true, propSettersRepeat: true, uncoverDropsFirstAsk: false, ...assume};
+  let justUncovered = new Set();
   const errors = [], log = [], backHandlers = [], keyListeners = new Set();
   const publicInstances = new Map();
   /** Per-host native state that outlives commits: guide destinations and memory, tvOS guide existence. */
@@ -87,6 +90,7 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
         handleFocusGuide(tag);
       }
       if (!was.hasTVPreferredFocus && now.hasTVPreferredFocus) request(tag, 'preferred'); // both: on change to true
+      if (!android && old && was.tvFocusable === false && now.tvFocusable !== false) justUncovered.add(tag);
     }
     for (const tag of previous.keys()) if (!nodes.has(tag)) state.delete(tag);
     const closed = [...previous.keys()].filter(tag => previous.get(tag).type === MODAL && !nodes.has(tag));
@@ -261,6 +265,9 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
     if (!nodes.has(tag)) return;
     if (!android && dismissing()) {log.push({why: `${why}-ignored-dismissing`, target: tag}); return;} // D14
     if (!android) rootPreferred = tag; // focusSelf sets the root's preferred view (RCTViewComponentView.mm:198-211)
+    if (!android && assumptions.uncoverDropsFirstAsk && justUncovered.size) {
+      for (let at = tag; at !== undefined; at = parents.get(at)) if (justUncovered.has(at)) {log.push({why: `${why}-dropped-uncovering`, target: tag}); return;}
+    }
     const target = resolve(tag);
     if (target === undefined || !reachable(target)) return;
     const window = windowOf(target);
@@ -359,6 +366,7 @@ export async function tvFocusEngine({platform = 'android', width = 1920, height 
     const delivered = events; events = [];
     for (const {tag, name} of delivered) if (nodes.has(tag)) fire(tag, name, {nativeEvent: {target: tag}});
     const batch = commands; commands = []; for (const command of batch) runRequest(command);
+    justUncovered = new Set();
   };
   const settle = async () => {
     for (let n = 0; n < 40; n++) {
