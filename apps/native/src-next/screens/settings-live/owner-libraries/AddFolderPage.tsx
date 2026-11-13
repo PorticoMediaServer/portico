@@ -4,6 +4,7 @@ import type {LibraryContentApi} from '../../../../../../packages/client-core/src
 import type {InventorySource, SourceSettings} from '../../../../../../packages/client-core/src/library-inventory';
 import {defaultI18n} from '../../../../../../packages/i18n/src/index';
 import {Button} from '../../../kit/controls/Button';
+import {FormError} from '../../../kit/controls/FormError';
 import {Select} from '../../../kit/controls/Select';
 import {Switch} from '../../../kit/controls/Switch';
 import {TextField} from '../../../kit/controls/TextField';
@@ -52,7 +53,7 @@ export function AddFolderPage({api, serverName, source, expectedRevision, onSave
       <LibraryGroup><LibraryRow first label={t('next.ownerLibraries.addFolder.rescan')}
         trailing={<Select testID="owner-libraries-folder-interval" accessibilityLabel={t('next.ownerLibraries.addFolder.rescan')} value={String(interval)} options={ownerLibraryIntervals.map(value => ({value: String(value.seconds), label: t(value.label, value.values)}))} onValueChange={value => setInterval(Number(value))}/>}/></LibraryGroup>
 
-      {error !== undefined && <Text accessibilityRole="alert" style={[shellType(13, 600, 18), {color: theme.colors.record, marginTop: 16}]}>{error instanceof Error ? error.message : t('next.ownerLibraries.saveFailed')}</Text>}
+      {error !== undefined && <FormError placement="field">{error instanceof Error ? error.message : t('next.ownerLibraries.saveFailed')}</FormError>}
     </FormScrollView>
     <View style={{flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingVertical: 12, borderTopWidth: 1, borderTopColor: theme.colors.lineSoft, backgroundColor: theme.colors.ink}}>
       <Button variant="glass" size="small" disabled={busy} onPress={onCancel}>{t('action.cancel')}</Button>

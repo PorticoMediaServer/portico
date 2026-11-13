@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {formErrorModule} from './helpers/form-error.mjs';
 import assert from 'node:assert/strict';
 import {screenModule} from './helpers/screen-harness.mjs';
 import {lifecycleHooks} from './helpers/owner-server-settings.mjs';
@@ -22,7 +23,7 @@ async function fixture(tab: string, kind: string, facts: Record<string, unknown>
       readLibrarySettingsBinding: (id: string, original: unknown) => {assert.equal(original, document); return id in facts ? {current: facts[id]} : undefined;},
       patchLibrarySettingsBinding: (id: string, value: unknown, original: unknown) => {assert.equal(original, document); if (failure) throw failure; writes.push([id, value]); return {written: id, value};},
     },
-    '../../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../../kit/controls/Button': {Button: 'Button'}, '../../../kit/controls/Select': {Select: 'Select'},
+    '../../../../../../packages/i18n/src': {defaultI18n: {t}}, '../../../kit/controls/FormError': formErrorModule, '../../../kit/controls/Button': {Button: 'Button'}, '../../../kit/controls/Select': {Select: 'Select'},
     '../../../kit/controls/Switch': {Switch: 'Switch'}, '../../../kit/controls/TextField': {TextField: 'TextField'}, '../../../kit/overlays/BottomSheet': {BottomSheet: 'BottomSheet'},
     '../../../kit/theme': {useTheme: () => ({colors: {record: '#f00'}, type: {caption: {}}})}, './controls': {LibraryGroup: 'LibraryGroup', LibraryRow: 'LibraryRow', SectionTitle: 'SectionTitle'},
     './library-settings-model': model,
@@ -65,9 +66,10 @@ test('library patch failures use the shared error presenter without exposing the
   const failure = new Error('internal_fixture_diagnostic');
   const f = await fixture('general', 'movie', {'libraries.collections': false}, failure);
   elements(find(f.render(), 'libraries.collections')).find(node => node.type === 'Switch')!.props.onCheckedChange(true);
-  const alert = elements(f.render()).find(node => node.props.accessibilityRole === 'alert');
+  // Said in the kit's shared error line.
+  const alert = elements(f.render()).find(node => node.type === formErrorModule.FormError || node.props.accessibilityRole === 'alert');
   assert.ok(alert);
-  assert.deepEqual(alert.props.children, [presentError(failure, 'library', {operation: 'save'}).body]);
+  assert.deepEqual([alert.props.children].flat(), [presentError(failure, 'library', {operation: 'save'}).body]);
   assert.doesNotMatch(String(alert.props.children), /internal_fixture_diagnostic/);
   assert.equal(f.saves.length, 0);
 });

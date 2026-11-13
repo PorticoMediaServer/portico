@@ -11,7 +11,7 @@ import {Linking, Text, View} from 'react-native';
 import {dataFolderConfirmText} from '../../../../../../packages/client-core/src/admin/data-folder';
 import {ApiError} from '../../../../../../packages/client-core/src/http';
 import {SettingsUpdatesSource, type UpdatesSnapshot} from '../../../../../../packages/client-core/src/server-admin/updates-source';
-import {Button, TextField} from '../../../kit/controls';
+import {Button, FormError, TextField} from '../../../kit/controls';
 import {BottomSheet, Menu, type MenuEntry} from '../../../kit/overlays';
 import {useTheme} from '../../../kit/theme';
 import {usePullRefresh} from '../../../kit/states/usePullRefresh';
@@ -177,7 +177,7 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
           finally {setBusy(false);}
         })();
       }}>{t('next.dashboard.fixPermissions')}</Button></View>}>
-      {refusal ? <Text accessibilityRole="alert" style={{color: theme.colors.record}}>{refusal}</Text> : null}
+      {refusal ? <FormError placement="inline">{refusal}</FormError> : null}
     </BottomSheet>
   </>;
 }
