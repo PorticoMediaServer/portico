@@ -48,6 +48,7 @@ export type TemporaryDirectory={path:string;ready:boolean;freeBytes:number|null;
  memoryAvailable:boolean};
 export type TranscodePreset={id:string;label:string;height:number;videoKbps:number;audioKbps:number};
 export type RuntimeDependency={path:string;version:string;ok:boolean};
+/** Legacy screen DTO: retained until Settings Hardware uses OwnerStreamingHardware. */
 export type TranscodeCapacity={
  enabled:boolean;hardware:HardwareStatus;sessions:SessionCounts;hdrToneMapping:ToneMappingStatus;
  directStreamRemux:boolean;x264Preset:string;planningPolicy:string;throttleBufferMs:number;playedRetentionMs:number;

@@ -49,6 +49,7 @@ import {GeneralMessage, GeneralRestart} from './server/GeneralTools';
 import {SettingsHardwareSource} from './hardware/hardware-source';
 import {HardwareDevices, TestHardware, TranscodeFolder} from './hardware/HardwareRows';
 import {hardwareEligible, hardwareRowIds, hardwareRowState} from './hardware/hardware-rows';
+import {OwnerStreamingSettings} from '@core/server-admin/streaming-settings.ts';
 import {hardwareSelectionChoices} from '@core/presentation/hardware-selection.ts';
 import {presetEnginesAvailable} from './server/engines';
 import {LibraryFolders} from './libraries/LibraryFolders';
@@ -304,6 +305,7 @@ export function SettingsEntry() {
       return binding.form !== 'library' && binding.form !== 'remote' && binding.form !== 'managedRoute';
     };
     const options: SettingsControllerOptions = {api: api, readConfiguration: route.scope === 'server' && route.section === 'signin' ? signal => readOwnerSignInConfiguration(api, signal) : undefined, queries: context.freshness.queries, serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId]),
+      streaming: route.scope === 'server' && route.section === 'streaming' ? new OwnerStreamingSettings(api) : undefined,
       role, mainProfile: identity.primaryProfile === true,
       capabilities: {manageServer: identity.capabilities?.manageServer === true, managePeople: identity.capabilities?.managePeople === true, manageSignIn: identity.capabilities?.manageSignIn === true},
       preferences: snapshot, reader, isCurrent: current, reportError, reading: readingSettingsAdapter,
