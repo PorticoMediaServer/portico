@@ -45,11 +45,12 @@ export function OwnerTag({identity, variant = 'badge', size = 'standard', classN
 
 export type ServerHeaderProps = {
   serverName: string;
-  health?: 'normal' | 'attention';
   facts?: readonly FactPart[];
   className?: string;
   t?: ShellTranslate;
-} & ({viewerRole: 'owner'; audience: ServerAudience} | {viewerRole: 'administrator'; audience: 'administrators'});
+  // Only the owner's header says how the server is: an administrator is sent only some alerts, so a health word
+  // there would claim what they are not told (console rule 4).
+} & ({viewerRole: 'owner'; audience: ServerAudience; health?: 'normal' | 'attention'} | {viewerRole: 'administrator'; audience: 'administrators'; health?: never});
 
 /** Layout only: admission and the list of facts remain with the real settings model. */
 export function ServerHeader({serverName, viewerRole, audience, health, facts = [], className, t = defaultTranslate}: ServerHeaderProps) {

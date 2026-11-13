@@ -19,7 +19,8 @@ test('history preserves actual empty points, partial endpoints and music count u
  const out=parseDashboardHistory(raw);
  assert.equal(out.buckets[0].kinds.length,0);assert.equal(out.quietestStartHour,null);
  assert.throws(()=>parseDashboardHistory({...raw,top:[{itemId:'album',title:'Album',plays:2,people:3,countUnit:'track_plays'}]}));
- assert.deepEqual(DASHBOARD_LOAD_RANGES,['live','12h','24h','7d','30d','90d','1y','all']);
+ // Rule 12: the load as it is now and over the last 24 hours.
+ assert.deepEqual(DASHBOARD_LOAD_RANGES,['live','24h']);
  assert.deepEqual(DASHBOARD_LOAD_SERIES.bandwidth.metrics,['awayMbps','homeMbps']);
 });
 test('session source projection rejects nested capabilities and never fabricates hardware',()=>{

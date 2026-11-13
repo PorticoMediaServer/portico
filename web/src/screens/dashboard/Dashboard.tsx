@@ -44,7 +44,7 @@ export function DashboardScreen(props: DashboardScreenProps) {
 }
 /** The panels whose reads are on the rebuilt server. Server load and the statistics join when their own
  * screens move; until then they are left out rather than shown failing. */
-const onServer = {load: false, statistics: false} as const;
+const onServer = {load: true, statistics: false} as const;
 function DashboardView({bindings: b, embedded = false, initialSection, phone = false, chrome}: DashboardScreenProps) {
   const current = useDashboardAuthority(b);
   const ref = useRef<HTMLDivElement>(null), allowed = current && b.isMainProfile() && (b.role === 'owner' || b.role === 'admin');
@@ -56,7 +56,11 @@ function DashboardView({bindings: b, embedded = false, initialSection, phone = f
   const sessions = useDashboardRead(b, sessionsLoad, allowed, b.role === 'owner' ? 30000 : 10000, undefined, b.role === 'owner');
   const liveLoad = useCallback((signal: AbortSignal) => b.read.telemetry('live', signal), [b]);
   const live = useDashboardRead(b, liveLoad, onServer.load && allowed && b.role === 'owner' && !phone, 2000);
-  const [healthRange, setHealthRange] = useState<'10m' | '1h' | '24h'>('1h');
+  // The wide Load section's last 24 hours (rule 12), read only while it is shown.
+  const [loadRange, setLoadRange] = useState<'live' | '24h'>('live');
+  const dayLoad = useCallback((signal: AbortSignal) => b.read.telemetry('24h', signal), [b]);
+  const day = useDashboardRead(b, dayLoad, onServer.load && allowed && b.role === 'owner' && !phone && loadRange === '24h', 60000);
+  const [healthRange, setHealthRange] = useState<'live' | '24h'>('live');
   const healthLoad = useCallback((signal: AbortSignal) => b.read.telemetry(healthRange, signal), [b, healthRange]);
   const health = useDashboardRead(b, healthLoad, onServer.load && allowed && b.role === 'owner' && phone, 2000);
   const serverLoad = useCallback((signal: AbortSignal) => b.read.server(signal), [b]);
@@ -67,8 +71,8 @@ function DashboardView({bindings: b, embedded = false, initialSection, phone = f
   useEffect(() => {if (sessions.value && !sessions.loading) setUpdatedAt(Date.now());}, [sessions.value, sessions.loading]);
   useEffect(() => {if (!phone && initialSection) ref.current?.querySelector(`[data-dashboard-section="${initialSection}"]`)?.scrollIntoView({block: 'start'});}, [initialSection, phone]);
   if (!allowed) return null;
-  const failed = sessions.failed || b.role === 'owner' && (status.failed || onServer.load && (phone ? health.failed : live.failed) || onServer.statistics && (accounts.failed || report.state.failed));
-  const retry = () => {sessions.refresh(); if (b.role === 'owner') {status.refresh(); if (phone) health.refresh(); else live.refresh(); report.state.refresh(); accounts.refresh(); server.refresh();}};
+  const failed = sessions.failed || b.role === 'owner' && (status.failed || onServer.load && (phone ? health.failed : live.failed || loadRange === '24h' && day.failed) || onServer.statistics && (accounts.failed || report.state.failed));
+  const retry = () => {sessions.refresh(); if (b.role === 'owner') {status.refresh(); if (phone) health.refresh(); else {live.refresh(); if (loadRange === '24h') day.refresh();} report.state.refresh(); accounts.refresh(); server.refresh();}};
   /* settings.html's Dashboard (lead, 4 Nov): Alerts, Now playing, Server load, the statistics, then Background tasks, quiet or busy. */
   const groupedQuiet = !phone && !failed && b.role === 'owner';
   const sections = phone
@@ -76,7 +80,7 @@ function DashboardView({bindings: b, embedded = false, initialSection, phone = f
         {b.role === 'owner' && <><Status bindings={b} status={status} phone /><Tasks status={status} phone />{onServer.load && <PhoneHealth reading={health.value} loading={health.loading} failed={health.failed} range={healthRange} onRangeChange={range => {if (b.isCurrent()) setHealthRange(range);}} onRetry={health.refresh} />}{onServer.statistics && <div data-dashboard-section="activity"><PhoneStatistics bindings={b} report={report} /></div>}</>}</>
     : <>{b.role === 'owner' && <Status bindings={b} status={status} />}
         <div data-dashboard-section="streams"><NowPlaying bindings={b} state={sessions} /></div>
-        {b.role === 'owner' && <>{onServer.load && <div className={quietStyles.slot} data-dashboard-quiet-slot="load"><Load bindings={b} report={report} live={live} /></div>}{onServer.statistics && <div data-dashboard-section="activity"><Analytics bindings={b} report={report} accounts={accounts} /></div>}<div className={quietStyles.slot} data-dashboard-quiet-slot="tasks"><Tasks status={status} /></div></>}</>;
+        {b.role === 'owner' && <>{onServer.load && <div className={quietStyles.slot} data-dashboard-quiet-slot="load"><Load bindings={b} live={live} day={day} range={loadRange} onRange={setLoadRange} /></div>}{onServer.statistics && <div data-dashboard-section="activity"><Analytics bindings={b} report={report} accounts={accounts} /></div>}<div className={quietStyles.slot} data-dashboard-quiet-slot="tasks"><Tasks status={status} /></div></>}</>;
   if (phone) return <PhonePage chrome={chrome ?? {serverName: '', audience: b.role === 'owner' ? 'owner' : 'administrators'}} server={server.value}
     updatedAt={updatedAt} onBack={() => {if (history.length > 1) history.back(); else b.effects.openHome();}} onRefresh={retry} initialSection={initialSection}>
     {failed && !sessions.value ? <ReadFeedback openHome={b.effects.openHome} height={420} state={{failed: true, loading: false, refresh: retry}} /> : sections}
@@ -133,30 +137,30 @@ function NowPlaying({bindings: b, state, phone = false}: {bindings: DashboardBin
     <ToastHost toast={toast} onDismiss={() => showToast(null)} />
   </Section>;
 }
-const seriesNames: Record<string, MessageId> = {awayMbps: 'next.dashboard.away', homeMbps: 'next.dashboard.home', processCPU: 'next.dashboard.portico', cpu: 'next.dashboard.system', processMemory: 'next.dashboard.portico', memory: 'next.dashboard.system', hardwareConversions: 'next.dashboard.hardware', softwareConversions: 'next.dashboard.software'};
+const seriesNames: Record<string, MessageId> = {awayMbps: 'next.dashboard.away', homeMbps: 'next.dashboard.home', processCPU: 'next.dashboard.portico', cpu: 'next.dashboard.system', processMemory: 'next.dashboard.portico', memory: 'next.dashboard.system', hardwareConversions: 'next.dashboard.hardware', softwareConversions: 'next.dashboard.software', conversions: 'next.dashboard.conversions'};
 type LoadKind = keyof typeof DASHBOARD_LOAD_SERIES;
 const loadKinds = Object.keys(DASHBOARD_LOAD_SERIES) as LoadKind[];
 function loadSeries(reading: TelemetryReading | undefined, kind: LoadKind): ChartSeries[] {
   if (!reading) return [];
   return DASHBOARD_LOAD_SERIES[kind].metrics.filter(metric => reading.status[metric]?.status !== 'unavailable' && reading.series[metric]?.length).map(metric => ({key: metric, label: t(seriesNames[metric]), points: reading.series[metric]}));
 }
-function Load({bindings: b, report, live, phone = false}: {bindings: DashboardBindings; report: DashboardReportController; live: LiveState; phone?: boolean}) {
-  const [kind, setKind] = useState<LoadKind>('bandwidth'), id = useId(), range = report.query.window;
-  const historical = {...report.state, value: report.state.value?.load};
+function Load({bindings: b, live, day, range, onRange, phone = false}: {bindings: DashboardBindings; live: LiveState; day: LiveState; range: 'live' | '24h'; onRange: (range: 'live' | '24h') => void; phone?: boolean}) {
+  const [kind, setKind] = useState<LoadKind>('bandwidth'), id = useId();
+  const historical = day;
   useEffect(() => {if (live.value && !loadSeries(live.value, kind).length) {const available = loadKinds.find(k => loadSeries(live.value, k).length); if (available) setKind(available);}}, [live.value, kind]);
   const detail = range === 'live' ? live : historical, series = loadSeries(detail.value, kind);
   const format = (value: number, selected = kind) => selected === 'bandwidth' ? fmtMbps(value) : selected === 'conversions' ? t(range === 'live' ? 'next.dashboard.running' : 'next.dashboard.averageCount', {value: range === 'live' ? String(Math.round(value)) : value.toFixed(1)}) : fmtPct(value);
   return <Section phone={phone} title={t('next.dashboard.load')}>
-    {phone && <div className={styles.phoneRange}><Range phone load label={t('next.dashboard.load')} value={range} values={DASHBOARD_LOAD_RANGES} onChange={value => report.change({window: value as typeof range})} /></div>}
+    {phone && <div className={styles.phoneRange}><Range phone load label={t('next.dashboard.load')} value={range} values={DASHBOARD_LOAD_RANGES} onChange={value => onRange(value as typeof range)} /></div>}
     <ReadFeedback height={118} openHome={b.effects.openHome} state={live} /><div className={phone ? styles.phoneTiles : styles.tiles} role="tablist" aria-label={t('next.dashboard.load')}>{loadKinds.map(k => {
       const available = loadSeries(live.value, k); if (!available.length) return null;
       const current = loadTileValue(live.value!, k);
       return <button type="button" className={styles.tile} key={k} id={`${id}-${k}`} role="tab" aria-selected={kind === k} aria-controls={`${id}-panel`} tabIndex={kind === k ? 0 : -1} onClick={() => setKind(k)} onKeyDown={event => {
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return; event.preventDefault();
         const keys = loadKinds.filter(key => loadSeries(live.value, key).length), next = keys[(keys.indexOf(k) + (event.key === 'ArrowLeft' ? keys.length - 1 : 1)) % keys.length]; setKind(next); document.getElementById(`${id}-${next}`)?.focus();
-      }}><span>{t(`next.dashboard.${k}`)}</span>{current !== undefined && <strong>{k === 'conversions' ? String(Math.round(current)) : defaultI18n.number(current, {minimumFractionDigits: 1, maximumFractionDigits: 1})}<small>{t(k === 'bandwidth' ? 'next.dashboard.unit.mbps' : k === 'conversions' ? 'next.dashboard.unit.running' : 'next.dashboard.unit.percent')}</small></strong>}<small>{available.map(s => <span key={s.key} data-series={s.key}><i />{k === 'bandwidth' ? `${s.label} ${s.points.at(-1)!.v.toFixed(1)}` : k === 'conversions' ? t(s.key === 'hardwareConversions' ? 'next.dashboard.hardwareCount' : 'next.dashboard.processorCount', {value: Math.round(s.points.at(-1)!.v)}) : s.key === 'cpu' || s.key === 'memory' ? t('next.dashboard.systemCurrent', {value: s.points.at(-1)!.v.toFixed(1)}) : t('next.dashboard.portico')}</span>)}</small><Chart interval={live.value!} kind={k} title={t(`next.dashboard.${k}`)} series={available} format={n => format(n, k)} step={k === 'conversions'} compact /></button>;
+      }}><span>{t(`next.dashboard.${k}`)}</span>{current !== undefined && <strong>{k === 'conversions' ? String(Math.round(current)) : defaultI18n.number(current, {minimumFractionDigits: 1, maximumFractionDigits: 1})}<small>{t(k === 'bandwidth' ? 'next.dashboard.unit.mbps' : k === 'conversions' ? 'next.dashboard.unit.running' : 'next.dashboard.unit.percent')}</small></strong>}{k !== 'conversions' && <small>{available.map(s => <span key={s.key} data-series={s.key}><i />{k === 'bandwidth' ? `${s.label} ${s.points.at(-1)!.v.toFixed(1)}` : s.key === 'cpu' || s.key === 'memory' ? t('next.dashboard.systemCurrent', {value: s.points.at(-1)!.v.toFixed(1)}) : t('next.dashboard.portico')}</span>)}</small>}<Chart interval={live.value!} kind={k} title={t(`next.dashboard.${k}`)} series={available} format={n => format(n, k)} step={k === 'conversions'} compact /></button>;
     })}</div>
-    <div className={`${styles.card} ${styles.loadDetail}`} style={{'--load-index': loadKinds.indexOf(kind)} as CSSProperties} role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-${kind}`}><div className={styles.heading}><h4>{t(`next.dashboard.${kind}`)}</h4>{!phone && <div className={styles.filters}><Range load value={range} values={DASHBOARD_LOAD_RANGES} onChange={value => report.change({window: value as typeof range})} /></div>}</div>
+    <div className={`${styles.card} ${styles.loadDetail}`} style={{'--load-index': loadKinds.indexOf(kind)} as CSSProperties} role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-${kind}`}><div className={styles.heading}><h4>{t(`next.dashboard.${kind}`)}</h4>{!phone && <div className={styles.filters}><Range load value={range} values={DASHBOARD_LOAD_RANGES} onChange={value => onRange(value as typeof range)} /></div>}</div>
       <ReadFeedback height={250} openHome={b.effects.openHome} state={detail} />{detail.value && <Chart interval={detail.value} kind={kind} title={t(`next.dashboard.${kind}`)} series={series} format={format} formatAverage={value => kind === 'conversions' ? value.toFixed(1) : format(value)} step={kind === 'conversions' && range === 'live'} />}
     </div>
   </Section>;

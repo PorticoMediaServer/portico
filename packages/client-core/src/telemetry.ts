@@ -10,10 +10,11 @@ import {parseReportInterval,type ReportInterval} from './report-context.ts';
  * and limits stay exact.
  */
 import {keepReadable,noteSkipped,oneOfOr} from './tolerant.ts';
+import {callServer,type ServerRequester} from './query/server-api.ts';
 export type MetricStatus='available'|'limited'|'unavailable';
 export type Metric={status:MetricStatus;value:number;detail?:string};
-export type MetricName='cpu'|'memory'|'diskRead'|'diskWrite'|'netIn'|'netOut'|'gpuUsage'|'gpuMemory'|'gpuEncoder'|'processCPU'|'processMemory'|'homeMbps'|'awayMbps'|'hardwareConversions'|'softwareConversions';
-export const METRIC_NAMES:MetricName[]=['cpu','memory','diskRead','diskWrite','netIn','netOut','gpuUsage','gpuMemory','gpuEncoder','processCPU','processMemory','homeMbps','awayMbps','hardwareConversions','softwareConversions'];
+export type MetricName='cpu'|'memory'|'diskRead'|'diskWrite'|'netIn'|'netOut'|'gpuUsage'|'gpuMemory'|'gpuEncoder'|'processCPU'|'processMemory'|'homeMbps'|'awayMbps'|'hardwareConversions'|'softwareConversions'|'conversions';
+export const METRIC_NAMES:MetricName[]=['cpu','memory','diskRead','diskWrite','netIn','netOut','gpuUsage','gpuMemory','gpuEncoder','processCPU','processMemory','homeMbps','awayMbps','hardwareConversions','softwareConversions','conversions'];
 export type TelemetryWindow='today'|'live'|'12h'|'24h'|'7d'|'30d'|'90d'|'1y'|'all'|'10m'|'1h';
 export const TELEMETRY_WINDOWS:TelemetryWindow[]=['today','live','12h','24h','7d','30d','90d','1y','all','10m','1h'];
 export type TelemetrySample={at:number;metrics:Record<MetricName,Metric>;memoryUsedBytes:number;memoryTotalBytes:number;gpuDevice?:string;gpuProvider?:string};
@@ -154,4 +155,27 @@ export function parseTranscodeCapacity(value:unknown):TranscodeCapacity{
  if(!Array.isArray(c.warnings)||c.warnings.length>20)invalid();
  const warnings=keepReadable('transcode-capacity','warnings',c.warnings,(w:unknown)=>text(w,512)?w:undefined);
  return {...c,hardware:{...hardware,probes,devices,formats,lastError,lastTest},temporaryDirectory:{...directory,...directoryFacts},hdrToneMapping:{...tone,status:toneStatus},presets,dependencies,warnings} as TranscodeCapacity;
+}
+
+/**
+ * The server's load on the rebuilt server (console rule 12): `GET /v1/admin/load` for `live` (the last two minutes as
+ * sampled) or `24h` (hourly averages, the current hour last and partial). The charts start again after a restart.
+ * It is read as the reading the Dashboard's charts already draw: a metric the server sends is available with its last
+ * value; one it leaves out (it cannot measure it here) is unavailable. Conversions are the server's one total.
+ */
+export async function readServerLoad(api:ServerRequester,range:'live'|'24h',signal?:AbortSignal):Promise<TelemetryReading>{
+ const raw:unknown=await callServer(api,'GET /v1/admin/load',{query:{range},signal});
+ const v=raw as {period?:unknown;from?:unknown;until?:unknown;observedAt?:unknown;buckets?:unknown;series?:unknown}|null;
+ const time=(x:unknown)=>typeof x==='string'&&Number.isFinite(Date.parse(x))?x:undefined;
+ if(!v||!time(v.from)||!time(v.until)||!time(v.observedAt)||!v.series||typeof v.series!=='object'||!Array.isArray(v.buckets))throw Object.assign(new Error('invalid_load'),{code:'invalid_load'});
+ const zone=(()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';}catch{return 'UTC';}})();
+ const series={} as Record<MetricName,TelemetryPoint[]>,status={} as Record<MetricName,Metric>;
+ const sent=v.series as Record<string,unknown>;
+ for(const name of METRIC_NAMES){
+  const points=Array.isArray(sent[name])?(sent[name] as unknown[]).flatMap(p=>{const q=p as {t?:unknown;v?:unknown}|null;const t=q&&time(q.t);return t&&typeof q!.v==='number'&&Number.isFinite(q!.v)?[{t:Date.parse(t),v:q!.v as number}]:[];}):[];
+  series[name]=points;
+  status[name]=points.length?{status:'available',value:points[points.length-1]!.v}:{status:'unavailable',value:0};
+ }
+ const buckets=(v.buckets as unknown[]).flatMap(b=>{const q=b as {start?:unknown;end?:unknown;partial?:unknown}|null;return q&&time(q.start)&&time(q.end)?[{start:q.start as string,end:q.end as string,partial:q.partial===true}]:[];});
+ return {window:range,period:range,timeZone:zone,from:v.from as string,until:v.until as string,buckets,series,status,observedAt:Date.parse(v.observedAt as string)} as TelemetryReading;
 }

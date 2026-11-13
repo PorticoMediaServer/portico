@@ -21,12 +21,13 @@ export type DashboardPeople=GetAdminPlayHistoryPeopleResponse;
 export type DashboardReport=GetAdminDashboardReportResponse;
 export type DashboardReportFilters=PlayHistoryFilters & Readonly<{window:(typeof DASHBOARD_LOAD_RANGES)[number]|'today';peoplePeriod:PlayHistoryFilters["period"];topPeriod:PlayHistoryFilters["period"];topKind:DashboardTopKind;topAccountId?:string;peopleCursor?:string;peopleLimit?:number;tableCursor?:string;tableLimit?:number}>;
 export type DashboardTopKind='movies'|'tv'|'music';
-export const DASHBOARD_LOAD_RANGES=['live','12h','24h','7d','30d','90d','1y','all'] as const;
+/** Rule 12: the load as it is now and over the last 24 hours; the charts start again after a restart. */
+export const DASHBOARD_LOAD_RANGES=['live','24h'] as const;
 export const DASHBOARD_LOAD_SERIES={
  bandwidth:{unit:'mbps',metrics:['awayMbps','homeMbps']},
  processor:{unit:'percent',metrics:['processCPU','cpu']},
  memory:{unit:'percent',metrics:['processMemory','memory']},
- conversions:{unit:'count',metrics:['hardwareConversions','softwareConversions']},
+ conversions:{unit:'count',metrics:['conversions']},
 } as const;
 const whole=(v:number)=>Number.isSafeInteger(v)&&v>=0;
 function invalid():never {throw Object.assign(new Error('Invalid Dashboard data.'),{code:'invalid_dashboard_data'});}
