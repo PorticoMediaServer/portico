@@ -81,13 +81,6 @@ export async function pollLocalTVAuthorization<T = unknown>(api: ViewerRequester
     throw error;
   }
 }
-export async function cancelLocalTVAuthorization<T = unknown>(api: ViewerRequester, deviceCode: string, signal?: AbortSignal): Promise<T> {
-  const [code, deviceSecret] = deviceCode.split(':');
-  await callServer(api, 'DELETE /v1/auth/codes/{id}', {id: code, body: {deviceSecret}, signal}).catch(error => {
-    if (!(error instanceof ApiError && error.status === 404 && error.code === 'code_not_found')) throw error;
-  });
-  return undefined as T;
-}
 /** The same local approval read for the account screen, web device page and receiver link. */
 export async function reviewLocalTVAuthorization(api: ViewerRequester, code: string, signal?: AbortSignal): Promise<SetupPreview> {
   const userCode = normalizeSetupCode(code);

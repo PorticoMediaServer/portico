@@ -151,25 +151,3 @@ func (d *DB) CollectTVSignIn(ctx context.Context, pollHash string, session NewSe
 	out.Stamp = stamp
 	return out, err
 }
-
-// CancelTVSignIn retires only the code whose long secret the TV holds, even after
-// approval. The code and its collection request stop together; repeating is safe.
-func (d *DB) CancelTVSignIn(ctx context.Context, codeHash, pollHash string, now time.Time) error {
-	return d.write(ctx, User, func(tx *sql.Tx) error {
-		var payload string
-		if err := tx.QueryRow(`SELECT payload FROM auth_codes WHERE code_hash = ? AND kind = 'tv_code'`, codeHash).Scan(&payload); errors.Is(err, sql.ErrNoRows) {
-			return ErrNotFound
-		} else if err != nil {
-			return err
-		}
-		var code tvCode
-		if err := json.Unmarshal([]byte(payload), &code); err != nil {
-			return err
-		}
-		if code.Poll != pollHash {
-			return ErrNotFound
-		}
-		_, err := tx.Exec(`UPDATE auth_codes SET used_at = COALESCE(used_at, ?) WHERE code_hash IN (?, ?) AND kind IN ('tv_code', 'tv_poll')`, now.UnixMilli(), codeHash, pollHash)
-		return err
-	})
-}

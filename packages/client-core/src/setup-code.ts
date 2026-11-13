@@ -37,7 +37,8 @@ export interface SetupCodeApi<T> {
   readonly gate?: HostedGate;
   create(requestId: string, signal: AbortSignal, kind?: HostedRequestKind): Promise<DeviceAuthorization>;
   poll(entry: SetupCodeEntry<T>, signal: AbortSignal, checkpoint: (grant:T)=>Promise<void>): Promise<T>;
-  cancel(entry: SetupCodeEntry<T>, signal: AbortSignal, kind?: HostedRequestKind): Promise<void>;
+  // Omit when cancelling only forgets the code and the server lets it expire.
+  cancel?(entry: SetupCodeEntry<T>, signal: AbortSignal, kind?: HostedRequestKind): Promise<void>;
   forgotten?(entry: SetupCodeEntry<T>): void;
   displayed?(entry: SetupCodeEntry<T> | undefined): void;
 }
@@ -65,8 +66,8 @@ function validAuthorization(value: DeviceAuthorization) {
 }
 /** One durable owner of an activation operation. It resumes create/redeem after
  * crashes, keeps the last valid QR/code through replacement failures, and never
- * exposes a poll secret to presentation. Cancellation receipts are quarantined
- * until the authority confirms revocation, independently of a new visible code. */
+ * exposes a poll secret to presentation. Where remote cancellation is supported,
+ * pending cleanup stays protected until the authority confirms it. */
 export class SetupCodeService<T> {
   private journal?: SetupCodeJournal<T>;
   private state: SetupCodeSnapshot<T> = {phase: 'idle'};
@@ -267,8 +268,14 @@ export class SetupCodeService<T> {
   }
   private async cleanup(kind:HostedRequestKind='automatic') {
     this.cleanupAfter = Date.now() + 30_000;
+    const cancel = this.api.cancel;
+    if (!cancel) {
+      if (this.journal?.retired.length || this.journal?.creating?.cancelled)
+        await this.change(record => ({...record, retired: [], creating: record.creating?.cancelled ? undefined : record.creating}));
+      return;
+    }
     const entry = this.journal?.retired[0];
-    if(entry){try {await this.bounded(signal => this.request(kind, () => this.api.cancel(entry, signal, kind)));
+    if(entry){try {await this.bounded(signal => this.request(kind, () => cancel.call(this.api, entry, signal, kind)));
       await this.change(record => ({...record, retired: record.retired.filter(old => old.requestId !== entry.requestId)}));
       this.api.forgotten?.(entry);
     } catch { /* The protected cancellation receipt survives an outage. */ }}
@@ -281,7 +288,7 @@ export class SetupCodeService<T> {
         validAuthorization(authorization);
         const retired:SetupCodeEntry<T>={requestId:creating.requestId,authorization,nextPollAt:0};
         await this.change(record=>record.creating?.requestId===creating.requestId?{...record,creating:undefined,retired:record.retired.some(v=>v.requestId===retired.requestId)?record.retired:[...record.retired,retired]}:record);
-        await this.bounded(signal=>this.request(kind,()=>this.api.cancel(retired,signal,kind)));
+        await this.bounded(signal=>this.request(kind,()=>cancel.call(this.api,retired,signal,kind)));
         await this.change(record=>({...record,retired:record.retired.filter(v=>v.requestId!==retired.requestId)}));
         this.api.forgotten?.(retired);
       }catch(error){

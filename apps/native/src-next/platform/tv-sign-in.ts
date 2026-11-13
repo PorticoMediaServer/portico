@@ -1,4 +1,4 @@
-import {revokeCurrentSession, createHostedTVAuthorizationApi, cancelHostedTVAuthorization, cancelLocalTVAuthorization, createHostedTVAuthorization, createLocalTVAuthorization, pollHostedTVAuthorization, pollLocalTVAuthorization} from '../../../../packages/client-core/src/query/connection-operations.ts';
+import {createHostedTVAuthorizationApi, cancelHostedTVAuthorization, createHostedTVAuthorization, createLocalTVAuthorization, pollHostedTVAuthorization, pollLocalTVAuthorization} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {NativeModules} from 'react-native';
 import {HttpLocalApi, type HostedSession, type LocalSession, type DeviceAuthorization} from '../../../../packages/client-core/src';
 import {SetupCodeService, type SetupCodeStorage, type SetupCodeJournal} from '../../../../packages/client-core/src/setup-code';
@@ -37,10 +37,6 @@ export function createNativeLocalTVSignIn(server: ServerSignIn, api: HttpLocalAp
     poll: async (entry, signal) => {
       const session = parseLocalSession(await pollLocalTVAuthorization(api, entry.authorization.deviceCode, signal), {authority: 'local', serverId: server.id});
       if (session.installationId !== installed.installationId || installationIdentity() !== installed) throw invalid(); return session;
-    },
-    cancel: async (entry, signal) => {
-      await cancelLocalTVAuthorization<void>(api, entry.authorization.deviceCode, signal);
-      if (entry.grant) await revokeCurrentSession(api.withAccessToken(entry.grant.accessToken), signal);
     },
   }, storage('local:' + server.id), requestId);
 }

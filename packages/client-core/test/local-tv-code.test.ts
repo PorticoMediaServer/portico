@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {setInstallationIdentity} from '../src/installation.ts';
-import {createLocalTVAuthorization, pollLocalTVAuthorization, cancelLocalTVAuthorization} from '../src/query/connection-operations.ts';
+import {createLocalTVAuthorization, pollLocalTVAuthorization} from '../src/query/connection-operations.ts';
 import type {DeviceAuthorization} from '../src/device-authorization.ts';
 import {ApiError} from '../src/index.ts';
 
-test('local TV journal adapts create, pending, approval and cancellation to the rebuilt protocol', async () => {
+test('local TV journal adapts create, pending and approval to the rebuilt protocol', async () => {
   const device = {installationId: 'i'.repeat(43), name: 'Living room', platform: 'tvos', app: 'Portico', appVersion: '1'};
   setInstallationIdentity(device);
   const calls: unknown[][] = [], secret = 's'.repeat(43), session = {accessToken: 'synthetic'};
@@ -23,8 +23,6 @@ test('local TV journal adapts create, pending, approval and cancellation to the 
     assert.deepEqual(calls[0], ['/v1/auth/codes', 'POST', {device}, signal]);
     await assert.rejects(pollLocalTVAuthorization(api, code.deviceCode, signal), {code: 'authorization_pending'});
     approved = true; assert.equal(await pollLocalTVAuthorization(api, code.deviceCode, signal), session);
-    await cancelLocalTVAuthorization(api, code.deviceCode, signal);
-    assert.deepEqual(calls.at(-1), ['/v1/auth/codes/2345-ABCD', 'DELETE', {deviceSecret: secret}, signal]);
     for (const [from, to] of [['code_expired', 'expired_token'], ['sign_in_denied', 'access_denied']])
       await assert.rejects(pollLocalTVAuthorization({request: async () => {throw new ApiError(410, from, 'ended');}}, code.deviceCode), {code: to});
   } finally {setInstallationIdentity(undefined);}
