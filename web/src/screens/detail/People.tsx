@@ -1,6 +1,6 @@
 import {Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import type {DetailCredit, DetailProjection} from '@core/detail.ts';
-import {PersonCircle} from '../../kit/artwork';
+import {PersonCircle, nameInitials} from '../../kit/artwork';
 import {Button} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {Dialog} from '../../kit/overlays';
@@ -20,7 +20,7 @@ function Person({credit, binding, data}: {credit: DetailCredit; binding: DetailB
   const art = binding.context.artwork.foreground(credit.portraitUrl, 208, 1);
   return <button type="button" disabled={!credit.personId} onClick={() => runScreenCommand(binding.context, () => {
     binding.current(data); if (credit.personId) binding.context.effects.openEntry({id: credit.personId, kind: 'person', title: credit.name, navigation: {view: 'person', entityId: credit.personId}});
-  })}><PersonCircle covers={art ? [art] : []} initials={credit.name.split(/\s+/).slice(0, 2).map(word => word[0]).join('')} alt="" /><b>{credit.name}</b>{credit.role && <small>{credit.role}</small>}</button>;
+  })}><PersonCircle covers={art ? [art] : []} initials={nameInitials(credit.name)} alt="" /><b>{credit.name}</b>{credit.role && <small>{credit.role}</small>}</button>;
 }
 const castCredit = (credit: DetailCredit) => credit.department.toLowerCase() === 'acting' || credit.department.toLowerCase() === 'cast';
 export function CreditNames({binding, data, credits}: {binding: DetailBindings; data: DetailProjection; credits: readonly DetailCredit[]}) {
@@ -74,7 +74,7 @@ function ShowPerson({credit, binding, data}: {credit: WorkspaceShowCredit; bindi
   const art = binding.context.artwork.foreground(credit.portraitUrl, 208, 1);
   return <button type="button" disabled={!credit.id} onClick={() => runScreenCommand(binding.context, () => {
     binding.current(data); if (credit.id) binding.context.effects.openEntry({id: credit.id, kind: 'person', title: credit.name, navigation: {view: 'person', entityId: credit.id}});
-  })}><PersonCircle covers={art ? [art] : []} initials={credit.name.split(/\s+/).filter(Boolean).slice(0, 2).map(word => Array.from(word)[0]).join('')} alt="" /><b>{credit.name}</b>{(credit.role || credit.department) && <small>{credit.role || credit.department}</small>}</button>;
+  })}><PersonCircle covers={art ? [art] : []} initials={nameInitials(credit.name)} alt="" /><b>{credit.name}</b>{(credit.role || credit.department) && <small>{credit.role || credit.department}</small>}</button>;
 }
 
 /** The workspace producer publishes the show's complete cast and crew, not a credit preview. */

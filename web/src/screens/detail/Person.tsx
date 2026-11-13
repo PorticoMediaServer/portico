@@ -4,7 +4,7 @@ import {personSectionLabel, type PersonPage, type PersonCredit} from '@core/peop
 import type {ContentEntry} from '@core/library-content.ts';
 import {Chip, Button} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
-import {AmbientArt, PersonCircle} from '../../kit/artwork';
+import {AmbientArt, PersonCircle, nameInitials} from '../../kit/artwork';
 import {PosterCard, SquareCard} from '../../kit/cards';
 import {WindowedGrid, Lockup, Shelf} from '../../kit/layout';
 import {StateView} from '../../kit/states';
@@ -28,7 +28,7 @@ export function PersonScreen({binding, personId}: PersonScreenProps) {
   useEffect(() => setFull(false), [personId]);
   if (!snapshot.page) return snapshot.phase === 'error' ? <ScreenProblem context={binding.context} error={snapshot.error} retry={() => runScreenCommand(binding.context, () => binding.retry(snapshot))} /> : <DetailLoading />;
   const page = snapshot.page, {person} = page, art = binding.context.artwork;
-  const initials = person.name.split(/\s+/).filter(Boolean).slice(0, 2).map(word => Array.from(word)[0]).join('');
+  const initials = nameInitials(person.name);
   const born = date(person.birthDate), died = date(person.deathDate);
   const covers = person.knownFor.length > 0 ? Array.from({length: 4}, (_, index) => person.knownFor[index % person.knownFor.length]).flatMap(entry => { const source = art.foreground(entry.posterUrl, 320, 2 / 3); return source ? [source] : []; }) : [];
   const titles = page.pageInfo.total;

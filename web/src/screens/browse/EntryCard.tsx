@@ -6,7 +6,7 @@ import {shapeFor} from '@core/presentation/card-shape.ts';
 import {homeCardSubject} from '../home/model';
 import {cardText} from '@portico/client-core/kit-model';
 import type {TextEnvironment} from '@portico/client-core/kit-model';
-import {GeneratedCover} from '../../kit/artwork';
+import {GeneratedCover, nameInitials} from '../../kit/artwork';
 import {CircleCard, CollectionTile, CoverCard, GenreTile, PosterCard, ResumeCard, SquareCard, type CardSelection} from '../../kit/cards';
 import {continueBookFacts} from '@core/presentation/continue-books.ts';
 import {homeContinuationCard} from '@core/presentation/home-continuation.ts';
@@ -51,7 +51,7 @@ export function BrowseEntryCard({entry, actions, artwork, env, width, family, mi
   if (entry.kind === 'collection') return <CollectionTile {...props} artwork={backdrops ? artwork.foreground(entry.backdropUrl, width * devicePixelRatio, 16 / 9, {group, order}) : undefined}
     ambient={backdrops ? artwork.ambient(entry.backdropUrl, {group, order}) : undefined}
     covers={(entry.artworkPaths ?? []).slice(0, 4).flatMap((path, index) => {const cover = artwork.foreground(path, 90 * devicePixelRatio, 2 / 3, {group, order: order * 4 + index});return cover ? [cover] : [];})}/>;
-  if (entry.kind === 'artist' || shape === 'circle') return <CircleCard {...props} covers={(entry.artworkPaths?.length ? entry.artworkPaths : entry.posterUrl ? [entry.posterUrl] : []).slice(0, 4).flatMap(path => {const cover = artwork.foreground(path, width * devicePixelRatio, 1, {group, order});return cover ? [cover] : [];})} initials={title.trim().split(/\s+/).slice(0, 2).map(word => Array.from(word)[0] ?? '').join('')} variant={entry.kind === 'artist' ? 'artist' : 'person'}/>;
+  if (entry.kind === 'artist' || shape === 'circle') return <CircleCard {...props} covers={(entry.artworkPaths?.length ? entry.artworkPaths : entry.posterUrl ? [entry.posterUrl] : []).slice(0, 4).flatMap(path => {const cover = artwork.foreground(path, width * devicePixelRatio, 1, {group, order});return cover ? [cover] : [];})} initials={nameInitials(title)} variant={entry.kind === 'artist' ? 'artist' : 'person'}/>;
   // desktop-read 2/2c: a Reading title is drawn as a book cover — 2:3, its own left spine, and
   // the typographic generated cover when the file carries no artwork. It never takes a play
   // action: an ebook or comic has no playback, and opening it is the detail page's own action.
