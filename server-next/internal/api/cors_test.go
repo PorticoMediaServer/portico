@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -257,18 +258,40 @@ func TestNothingChangesOutsideTheAPI(t *testing.T) {
 	}
 }
 
-// The browser's shared transport adds these protocol/device headers before a server
-// can answer a sign-in or read. Keep the preflight aligned with the client declarations.
+// Scan every client-core and web source, so adding a request header in a new
+// module cannot silently break the hosted web app's cross-origin preflight.
 func TestBrowserClientHeadersFitTheCORSPreflight(t *testing.T) {
 	required := []string{"Authorization", "Content-Type", "Idempotency-Key", "If-Match", "If-None-Match", "Range", "Last-Event-ID", "Cache-Control"}
 	custom := regexp.MustCompile(`['"]((?:Portico-|X-Portico-)[A-Za-z0-9-]+)['"]`)
-	for _, file := range []string{"http.ts", "delivery.ts", "installation.ts"} {
-		source, err := os.ReadFile(filepath.Join("..", "..", "..", "packages", "client-core", "src", file))
+	sourceFile := regexp.MustCompile(`\.[cm]?[jt]sx?$`)
+	notMediaRequests := map[string]bool{
+		// These belong to Portico Services, not a media server.
+		"Portico-Refresh": true, "X-Portico-Completion": true, "X-Portico-Continuation": true,
+		"X-Portico-CSRF-Cookie": true, "X-Portico-Platform": true, "X-Portico-Version": true,
+		// Reading consumes these response headers; it never sends them.
+		"Portico-Mutation-Key": true, "Portico-Mutation-Recovered": true,
+	}
+	for _, tree := range []string{"packages/client-core/src", "web/src"} {
+		err := filepath.WalkDir(filepath.Join("..", "..", "..", filepath.FromSlash(tree)), func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() || !sourceFile.MatchString(path) {
+				return nil
+			}
+			source, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			for _, match := range custom.FindAllSubmatch(source, -1) {
+				if name := string(match[1]); !notMediaRequests[name] {
+					required = append(required, name)
+				}
+			}
+			return nil
+		})
 		if err != nil {
 			t.Fatal(err)
-		}
-		for _, match := range custom.FindAllSubmatch(source, -1) {
-			required = append(required, string(match[1]))
 		}
 	}
 	s := openTestServer(t, filepath.Join(t.TempDir(), "main.db"))
