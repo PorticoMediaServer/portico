@@ -51,3 +51,12 @@ test('rebuilt title pages keep each season and version without an envelope',asyn
  assert.deepEqual(title.seasons[0].entries.map(e=>e.itemId),['e1','e2']);
  assert.equal(title.seasons[0].entries[0].versionName,'1080p');
 });
+
+import {remeasureAllSegments,retryUnreadableSegments} from '../src/segment-review.ts';
+test('bulk measurement actions use the rebuilt server routes and return queued counts',async()=>{
+ const calls:unknown[]=[];
+ const api={request:async(...args:unknown[])=>{calls.push(args);return {changed:3};}} as any;
+ assert.equal(await remeasureAllSegments(api),3);
+ assert.equal(await retryUnreadableSegments(api),3);
+ assert.deepEqual(calls,[['/v1/admin/segments/redetect','POST',{}],['/v1/admin/segments/retry','POST',{}]]);
+});
