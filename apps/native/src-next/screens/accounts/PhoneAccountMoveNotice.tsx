@@ -14,25 +14,31 @@ export type PhoneAccountMoveNoticeState =
   | Readonly<{kind: 'linked'; onChooseProfile: () => void}>
   | Readonly<{kind: 'to-portico'; serverName: string; onContinue: () => void; onCreateAccount: () => void}>
   | Readonly<{kind: 'to-local'; serverName: string; onEnterCode: () => void; onChooseServer: () => void}>
-  | Readonly<{kind: 'collision'; details: MoveCollisionDetails; onDifferentAccount: () => void; onBack: () => void}>;
+  | Readonly<{kind: 'collision'; details: MoveCollisionDetails; onDifferentAccount: () => void; onBack: () => void}>
+  /** The move's own confirm: the server account, the server and the Portico Account, each from a
+   * trusted source (the server's answer, its verified system name, the held account). Only Move moves. */
+  | Readonly<{kind: 'confirm'; serverName: string; username: string; account: string; onMove: () => void; onNotYou: () => void; onCancel: () => void}>;
 
 /** Connect 41c, 42a/c, 44a and 45a. No credential or move proof enters this view. */
 export function PhoneAccountMoveNotice({state, busy = false}: {state: PhoneAccountMoveNoticeState; busy?: boolean}) {
   const theme = useTheme(), insets = useSafeAreaInsets(), t = defaultI18n.t;
-  const linked = state.kind === 'linked', collision = state.kind === 'collision', local = state.kind === 'to-local';
-  const color = linked ? theme.colors.healthy : collision ? theme.colors.danger : local ? theme.colors.accentStrong : theme.colors.amber;
+  const linked = state.kind === 'linked', collision = state.kind === 'collision', local = state.kind === 'to-local', confirm = state.kind === 'confirm';
+  const color = linked ? theme.colors.healthy : collision ? theme.colors.danger : local || confirm ? theme.colors.accentStrong : theme.colors.amber;
   const icon: IconName = linked ? 'i-check' : collision ? 'i-userx' : local ? 'i-server' : 'i-person';
   const title = linked ? t('accounts.move.linked') : collision ? t('accounts.move.collision')
+    : state.kind === 'confirm' ? t('accounts.move.porticoQuestion', {username: state.username, server: state.serverName, account: state.account})
     : t(local ? 'accounts.move.toLocal' : 'accounts.move.toPortico', {server: state.serverName});
-  const body = linked ? t('accounts.move.linkedBody') : collision
+  const body = linked ? t('accounts.move.linkedBody') : state.kind === 'confirm' ? t('accounts.move.porticoConfirm', {username: state.username, server: state.serverName, account: state.account}) : collision
     ? t('accounts.move.collisionBody', {server: state.details.serverName, username: state.details.existingUsername})
     : t(local ? 'accounts.move.askForCode' : 'accounts.move.linkBody');
   const action = state.kind === 'linked' ? {label: t('accounts.move.chooseProfile'), press: state.onChooseProfile}
     : state.kind === 'collision' ? {label: t('accounts.move.differentAccount'), press: state.onDifferentAccount}
     : state.kind === 'to-local' ? {label: t('accounts.move.haveCode'), press: state.onEnterCode}
+    : state.kind === 'confirm' ? {label: t('accounts.move.porticoAction'), press: state.onMove}
     : {label: t('accounts.signIn.continuePortico'), press: state.onContinue};
   const secondary = state.kind === 'to-portico' ? {label: t('accounts.move.createAccount'), press: state.onCreateAccount}
-    : state.kind === 'collision' ? {label: t('accounts.signIn.back'), press: state.onBack} : undefined;
+    : state.kind === 'collision' ? {label: t('accounts.signIn.back'), press: state.onBack}
+    : state.kind === 'confirm' ? {label: t('accounts.invitation.notYou'), press: state.onNotYou} : undefined;
   const safePadding = Math.max(112, insets.top + 42, insets.bottom + 64);
   return <View testID={`accounts-move-${state.kind}`} style={{flex: 1, backgroundColor: theme.colors.ink}}>
     <ColourBackdrop shape="top"/>
@@ -55,6 +61,9 @@ export function PhoneAccountMoveNotice({state, busy = false}: {state: PhoneAccou
     </ScrollView>
     {state.kind === 'to-local' && <View style={{position: 'absolute', bottom: Math.max(44, insets.bottom + 16), left: 30, right: 30}}>
       <Button variant="text" disabled={busy} onPress={state.onChooseServer}>{t('accounts.signIn.anotherServer')}</Button>
+    </View>}
+    {state.kind === 'confirm' && <View style={{position: 'absolute', bottom: Math.max(44, insets.bottom + 16), left: 30, right: 30}}>
+      <Button variant="text" disabled={busy} onPress={state.onCancel}>{t('action.cancel')}</Button>
     </View>}
   </View>;
 }

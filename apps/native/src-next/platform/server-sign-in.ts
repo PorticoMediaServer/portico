@@ -59,7 +59,8 @@ export class NativeServerSignIn {
   static parseShortInvitationEntry = NativeLocalInvitation.parseShortEntry;
   static formatInvitationCode = NativeLocalInvitation.formatCode;
   static invitationUnavailable(error: unknown) {return error instanceof NativeInvitationUnavailable;}
-  readonly probe = new ServerSignInProbe(nativeNetworkFetch);
+  // Reads a server's move (`move`, `moveEndsAt`), now that its screens are here.
+  readonly probe = new ServerSignInProbe(nativeNetworkFetch, undefined, true);
   private readonly controller = new AbortController();
   private readonly installation = installationIdentity();
   private api?: HttpLocalApi;
