@@ -8,8 +8,7 @@ import {Focusable} from '../kit/controls';
 import {Icon} from '../kit/Icon';
 import type {ProfileOption} from '../kit/artwork';
 import {useTheme} from '../kit/theme';
-import {BarSurface} from '../kit/layout/TopBar';
-import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
+import {BarScrim, BarSurface} from '../kit/layout/TopBar';
 import {phoneHeaderGeometry} from './model';
 import type {NativeShellSnapshot} from './runtime';
 import {ActivityGlyph, activityGlyphLabel} from './ActivityGlyph';
@@ -24,7 +23,7 @@ export function PhoneHomeHeader({profile, unread, avatarRef, onProfile, viewerRo
   // Clip the backdrop to the header like the tab bar: Android's BlurView otherwise dims the
   // whole screen under it once Home scrolls (walk, 1 Nov).
   return <View pointerEvents="box-none" style={{position: 'absolute', left: 0, right: 0, top: 0, paddingTop: geometry.top, paddingHorizontal: 20, height: geometry.height, overflow: 'hidden', zIndex: theme.layers.navigation, flexDirection: 'row', alignItems: 'center'}}>
-    {!scrolled && <Svg pointerEvents="none" accessible={false} width="100%" height="100%" style={{position: 'absolute', inset: 0}}><Defs><LinearGradient id="native-home-header" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={theme.colors.ink} stopOpacity={.75}/><Stop offset="1" stopColor={theme.colors.ink} stopOpacity={0}/></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#native-home-header)"/></Svg>}
+    {!scrolled && <BarScrim/>}
     {scrolled && <BarSurface/>}
     <Image accessible accessibilityLabel={defaultI18n.t('next.platform.appName')} source={require('../../assets/wordmark.png')} resizeMode="contain" style={{...headerWordmark.phone, flexShrink: 0}}/>
     <View style={{marginLeft: 'auto', flexDirection: 'row', gap: 16, alignItems: 'center'}}>{castControl}
