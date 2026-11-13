@@ -3,24 +3,19 @@ import assert from 'node:assert/strict';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import type {PreferenceSnapshot} from '@core/preferences.ts';
 import {PreferencesReader} from '@core/preferences-reader.ts';
-import {settingsSpec} from '@core/presentation/settings-spec.ts';
+import {settingsSpec, settingsRowIndex} from '@core/presentation/settings-spec.ts';
 import {SettingsController} from '../src/screens/settings/controller.ts';
 import type {SettingsLibraryFolderEdit} from '../src/screens/settings/library-folders-source.ts';
 
 const section = settingsSpec.find(item => item.scope === 'server' && item.id === 'libraries')!;
-function document(id: string, revision = 7) {
-  return {id, name: id, kind: 'movies', revision: String(revision), metadataProvider: 'local', metadataProviders: [{id: 'local', available: true}],
-    folders: [], options: {depth: 'basic', watch: true, allowDelete: false, groupSeries: true}};
+function document(id: string, revision = 41) {
+  return {id, revision: String(revision), name: id, kind: 'movies', metadataProvider: 'local', metadataProviders: [{id: 'local', available: true}],
+    options: {depth: 'basic', allowDelete: false, watch: true}, folders: [{id: 'folder', path: '/media', available: true}]};
 }
-function inventory(libraryId: string, revision = 41) {
-  return {scope: {serverId: 'server', viewerFence: 'fence-1'}, libraryId, revision,
-    sources: [{id: 'folder', libraryId, kind: 'local', name: 'Folder', path: '/media', resolvedPath: '/media', classification: 'local', generation: 1, health: 'healthy', enabled: true, followSymlinks: false, identityConfirmed: true, intervalMs: 3600000, nextScanAt: '', lastCompleteAt: '', lastProgressAt: ''}],
-    policy: {tier: 'basic', revision: 1, operations: []}};
-}
-function fixture(request: LibraryContentApi['request'], access: Partial<{role: 'owner' | 'admin' | 'member'; manageServer: boolean; mainProfile: boolean}> = {}) {
+function fixture(request: LibraryContentApi['request'], access: Partial<{role: 'owner' | 'admin' | 'member'; manageServer: boolean; mainProfile: boolean}> = {}, requestRaw?: LibraryContentApi['requestRaw']) {
   let current = true;
   const calls: string[] = [];
-  const api: LibraryContentApi = {request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => {calls.push(path);return request<T>(path, method, body, signal);}};
+  const api: LibraryContentApi = {requestRaw, request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => {calls.push(path);return request<T>(path, method, body, signal);}};
   const preferences: PreferenceSnapshot = {deviceClass: 'web', registry: {revision: 'test', fields: []}, documents: [], effective: {}, effectiveSource: {}, clampedFields: [], registryRevision: 'test'};
   const reader = new PreferencesReader(api);
   const controller = new SettingsController({api, serverId: 'server', viewerId: 'viewer', role: access.role ?? 'admin', mainProfile: access.mainProfile ?? true,
@@ -33,10 +28,10 @@ function fixture(request: LibraryContentApi['request'], access: Partial<{role: '
 const selected = {section, panelId: 'library', recordId: 'selected'};
 
 test('the controller selects and clears its one folder source with the library panel', async () => {
-  const f = fixture(async <T>(path: string) => (path.endsWith('/inventory-config') ? inventory(path.includes('/other') ? 'other' : 'selected') : document(path.includes('/other') ? 'other' : 'selected')) as T);
+  const f = fixture(async <T>(path: string) => document(path.endsWith('/other') ? 'other' : 'selected') as T);
   try {
     await f.controller.loadContext(selected);
-    assert.deepEqual(f.calls, ['/v1/admin/libraries/selected', '/v1/admin/libraries/selected/inventory-config']);
+    assert.deepEqual(f.calls, ['/v1/admin/libraries/selected', '/v1/admin/libraries/selected']);
     assert.equal(f.controller.folders.getSnapshot().libraryId, 'selected');
     assert.equal(f.controller.folders.getSnapshot().config?.revision, 41);
     assert.equal(f.controller.folders.getSnapshot().config?.sources[0].path, '/media');
@@ -46,33 +41,33 @@ test('the controller selects and clears its one folder source with the library p
     await f.controller.loadContext({section});
     assert.deepEqual(f.controller.folders.getSnapshot(), {loading: false, mutation: 'idle'});
     assert.deepEqual(f.controller.folders.getSnapshot().config, undefined);
-    assert.deepEqual(f.calls.filter(path => path.endsWith('/inventory-config')).length, 2);
+    assert.deepEqual(f.calls.length, 4);
   } finally {f.controller.dispose();f.reader.dispose();}
 });
 
 test('a non-library context or a different panel never reads folders', async () => {
-  const f = fixture(async <T>(path: string) => (path.endsWith('/inventory-config') ? inventory('selected') : document('selected')) as T);
+  const f = fixture(async <T>(path: string) => document('selected') as T);
   try {
     await f.controller.loadContext({section});
     const dashboard = settingsSpec.find(item => item.scope === 'server' && item.id === 'dashboard')!;
     await f.controller.loadContext({section: dashboard, panelId: 'library', recordId: 'selected'});
-    assert.deepEqual(f.calls.filter(path => path.endsWith('/inventory-config')), []);
+    assert.deepEqual(f.calls, []);
     assert.deepEqual(f.controller.folders.getSnapshot(), {loading: false, mutation: 'idle'});
   } finally {f.controller.dispose();f.reader.dispose();}
 });
 
 test('disposing or retiring the controller suppresses a held folder read', async () => {
   for (const close of ['dispose', 'retire'] as const) {
-    let release!: (value: unknown) => void, signal: AbortSignal | undefined;
+    let release!: (value: unknown) => void, signal: AbortSignal | undefined, reads = 0;
     const f = fixture(async <T>(path: string, _method?: string, _body?: unknown, captured?: AbortSignal) => {
-      if (path.endsWith('/inventory-config')) {signal = captured;return new Promise(resolve => {release = resolve;}) as Promise<T>;}
+      if (++reads === 2) {signal = captured;return new Promise(resolve => {release = resolve;}) as Promise<T>;}
       return document('selected') as T;
     });
     const pending = f.controller.loadContext(selected);
     if (close === 'dispose') f.controller.dispose();
     else f.retire();
     assert.equal(signal?.aborted, close === 'dispose');
-    release(inventory('selected'));
+    release(document('selected'));
     await pending;
     assert.deepEqual(f.controller.folders.getSnapshot(), {loading: false, mutation: 'idle'});
     assert.equal(f.controller.folders.getSnapshot().libraryId, undefined);
@@ -80,19 +75,43 @@ test('disposing or retiring the controller suppresses a held folder read', async
   }
 });
 
-const edit: SettingsLibraryFolderEdit = {name: 'Folder', path: '/media/new', classification: 'local', followSymlinks: false, intervalSeconds: 900, acceptReplacement: false};
+const edit: SettingsLibraryFolderEdit = {path: '/media/new'};
 test('a denied controller gives its folder port no IO or authority', async () => {
   for (const access of [{role: 'member' as const}, {manageServer: false}, {mainProfile: false}]) {
-    const f = fixture(async <T>(path: string) => (path.endsWith('/inventory-config') ? inventory('selected') : document('selected')) as T, access);
+    const f = fixture(async <T>(path: string) => document('selected') as T, access);
     try {
       await f.controller.folders.select('selected');
       await f.controller.folders.refresh();
       assert.equal(await f.controller.folders.save('selected', undefined, edit), false);
       assert.equal(await f.controller.folders.remove('selected', 'folder'), false);
       await f.controller.loadContext(selected);
-      assert.deepEqual(f.calls.filter(path => path.endsWith('/inventory-config')), []);
+      assert.deepEqual(f.calls, []);
       assert.deepEqual(f.controller.folders.getSnapshot(), {loading: false, mutation: 'idle'});
       assert.equal(f.controller.folders.config('selected'), undefined);
     } finally {f.controller.dispose();f.reader.dispose();}
   }
+});
+
+
+test('General and folder edits keep the same library revision; an already-open editor retains its original version', async () => {
+  let server = document('selected'), writes = 0;
+  const f = fixture(async <T>() => server as T, {}, async (_path, _method, options) => {
+    assert.deepEqual(options?.headers, {'If-Match': '"' + server.revision + '"'});writes++;
+    const patch = options?.body as {options?: typeof server.options; folders?: string[]};
+    server = {...server, revision: String(Number(server.revision) + 1), ...(patch.options ? {options: patch.options} : {}),
+      ...(patch.folders ? {folders: patch.folders.map(path => ({id: path, path, available: true}))} : {})};
+    return {status: 200, headers: {}, body: server};
+  });
+  const turn = () => new Promise(resolve => setImmediate(resolve));
+  try {
+    await f.controller.loadContext(selected);
+    const watch = settingsRowIndex.get('libraries.watch')!.row;
+    f.controller.change(watch, false, selected);await turn();
+    assert.equal(f.controller.rowState(watch, selected).value, false);assert.equal(f.controller.folders.config('selected')?.revision, 42);
+    assert.equal(await f.controller.folders.save('selected', undefined, {path: '/new'}, 41), false);
+    assert.equal(writes, 1, 'an editor opened before the General save cannot overwrite it with a newer revision');
+    assert.equal(await f.controller.folders.save('selected', undefined, {path: '/new'}, 42), true);await turn();
+    f.controller.change(watch, true, selected);await turn();assert.equal(writes, 3);
+    assert.equal(f.controller.rowState(watch, selected).value, true);assert.equal(f.controller.folders.config('selected')?.revision, 44);
+  } finally {f.controller.dispose();f.reader.dispose();}
 });

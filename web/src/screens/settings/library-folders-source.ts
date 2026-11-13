@@ -1,16 +1,17 @@
 import type {ContentScope, LibraryContentApi} from '@core/library-content.ts';
-import {readLibraryInventoryConfig, type InventoryConfig, type SourceSettings} from '@core/library-inventory.ts';
-import {removeLibraryFolder, saveLibraryFolder} from '@core/server-admin/libraries.ts';
+import {readOwnerLibraryInventoryConfig as readLibraryInventoryConfig, type InventoryConfig, type SourceSettings} from '@core/library-inventory.ts';
+import {settingsSaveConflict} from '@core/settings-document.ts';
+import {removeOwnerLibraryFolder as removeLibraryFolder, saveOwnerLibraryFolder as saveLibraryFolder, scanLibraryFolder, checkLibraryFolder} from '@core/server-admin/libraries.ts';
 
-/** The canonical folder fields, with the inventory-config revision captured by this source. */
+/** The canonical folder fields, with the library revision captured by this source. */
 export type SettingsLibraryFolderEdit = Omit<SourceSettings, 'expectedRevision'>;
 export type SettingsLibraryFolderMutation = 'idle' | 'pending' | 'rejected' | 'reconciliation' | 'ambiguous';
 export type SettingsLibraryFoldersSnapshot = Readonly<{libraryId?: string; config?: InventoryConfig; loading: boolean; error?: unknown; mutation: SettingsLibraryFolderMutation}>;
 const empty: SettingsLibraryFoldersSnapshot = Object.freeze({loading: false, mutation: 'idle'});
 /** Refusals that definitely did not apply; anything else may have been accepted. */
-const definite = ['invalid_request', 'source_busy', 'source_changed', 'source_already_configured', 'library_configuration_conflict', 'stale_continuation', 'not_found', 'forbidden', 'unauthorized'];
+const definite = ['invalid_request', 'source_busy', 'source_changed', 'source_already_configured', 'library_configuration_conflict', 'stale_continuation', 'unsupported', 'not_found', 'forbidden', 'unauthorized'];
 
-/** One explicitly selected library's read-only configuration and its canonical folder commands. It is the producer's inventory revision, never a Settings revision. */
+/** One explicitly selected library's read-only configuration and its canonical folder commands. Settings and folder membership share the same library revision. */
 export class SettingsLibraryFoldersSource {
   private readonly bound: ContentScope;
   private state = empty;
@@ -55,17 +56,25 @@ export class SettingsLibraryFoldersSource {
     if (this.commanding) return this.commanding.then(() => undefined);
     return this.read(libraryId);
   };
-  /** Add (`sourceId` omitted) or update exactly the captured folder membership, at the captured inventory revision. */
-  save = (libraryId: string, sourceId: string | undefined, edit: SettingsLibraryFolderEdit): Promise<boolean> => {
+  /** Add (`sourceId` omitted) or update exactly the captured folder membership, at the captured library revision. */
+  save = (libraryId: string, sourceId: string | undefined, edit: SettingsLibraryFolderEdit, revision?: number): Promise<boolean> => {
     const captured = this.captured(libraryId);
     if (!captured || (sourceId !== undefined && !captured.sources.some(item => item.id === sourceId))) return Promise.resolve(false);
-    return this.command(libraryId, captured, signal => saveLibraryFolder(this.api, libraryId, sourceId, {...edit, expectedRevision: captured.revision}, signal));
+    return this.command(libraryId, captured, signal => saveLibraryFolder(this.api, libraryId, sourceId, {...edit, expectedRevision: revision ?? captured.revision}, signal));
   };
-  /** Remove exactly a captured folder at the captured inventory revision. */
-  remove = (libraryId: string, sourceId: string): Promise<boolean> => {
+  /** Remove exactly a captured folder at the captured library revision. */
+  remove = (libraryId: string, sourceId: string, revision?: number): Promise<boolean> => {
     const captured = this.captured(libraryId);
     if (!captured || !captured.sources.some(item => item.id === sourceId)) return Promise.resolve(false);
-    return this.command(libraryId, captured, signal => removeLibraryFolder(this.api, libraryId, sourceId, captured.revision, signal));
+    return this.command(libraryId, captured, signal => removeLibraryFolder(this.api, libraryId, sourceId, revision ?? captured.revision, signal));
+  };
+  scan = (libraryId: string, sourceId: string): Promise<boolean> => {
+    const captured = this.captured(libraryId);
+    return captured?.sources.some(source => source.id === sourceId) ? this.command(libraryId, captured, signal => scanLibraryFolder(this.api, libraryId, sourceId, signal)) : Promise.resolve(false);
+  };
+  check = (libraryId: string, sourceId: string): Promise<boolean> => {
+    const captured = this.captured(libraryId);
+    return captured?.sources.some(source => source.id === sourceId) ? this.command(libraryId, captured, signal => checkLibraryFolder(this.api, libraryId, sourceId, signal)) : Promise.resolve(false);
   };
   private read(libraryId: string): Promise<void> {
     this.request?.abort();
@@ -90,6 +99,11 @@ export class SettingsLibraryFoldersSource {
         await write(request.signal);
       } catch (error) {
         if (!this.ownsCommand(request, libraryId)) return false;
+        if (settingsSaveConflict(error)) {
+          const config = await readLibraryInventoryConfig(this.api, this.bound, libraryId, request.signal).catch(() => undefined);
+          if (this.ownsCommand(request, libraryId)) this.publish({libraryId, config, loading: false, mutation: config ? 'rejected' : 'reconciliation', error});
+          return false;
+        }
         const code = this.code(error);
         if (code === 'unauthorized' || code === 'forbidden') this.publish({libraryId, loading: false, mutation: 'rejected', error});
         else if (definite.includes(code ?? '')) this.publish({libraryId, config: captured, loading: false, mutation: 'rejected', error});
