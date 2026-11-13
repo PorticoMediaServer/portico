@@ -357,3 +357,17 @@ test('a track number grows with its digits on one line, and shows the level mete
   const playing = f.host.render(() => tracks.TrackNumber({number: 10, width: 18, size: 14, playing: true}));
   assert.equal(nodes(playing).some(node => node.type === 'Text'), false, 'the meter takes the number\'s place');
 });
+
+// TV draws its own track row; the phone number cell above never reaches it.
+test('a ranked song row on TV is the TV track row, untouched by the phone number cell', async () => {
+  const f = fixture(), theme = createTheme({isTV: true, width: 1920, fontScale: 1});
+  const tracks = await screenModule(new URL('../src-next/kit/browse/Tracks.tsx', import.meta.url), {
+    ...f.common, '../theme': {useTheme: () => theme, nativeType, fontFamilies}, '../../../../../packages/i18n/src': {defaultI18n}, '../controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'},
+    '../Icon': {Icon: 'Icon'}, '../cards/primitives': {CardFrame: 'CardFrame'}, '../cards/model': cardModel,
+    './presentation': {alpha: (value: string) => value, browseType: () => ({})},
+  });
+  const row = {id: 'song', number: 10, text: {title: 'Song', caption: [{id: 'album', text: 'Album'}], detail: []}};
+  const element = f.host.render(() => tracks.SongRow({row, ranked: true, onPlay() {}, onEnter() {}}));
+  assert.equal(element.type.name, 'TVTrackRow');
+  assert.equal(nodes(element).some(node => node.type === tracks.TrackNumber), false);
+});
