@@ -65,6 +65,9 @@ type BookVersion struct {
 	ID     string `json:"id"`
 	Format string `json:"format"`
 	Name   string `json:"name,omitempty"`
+	// Fingerprint names this file as the book's own Fingerprint does, so the app can tell whether
+	// the copy a highlight was made on is still kept (10-reading rule 27).
+	Fingerprint string `json:"fingerprint"`
 }
 
 // BookProblem is why a book cannot be read: format_not_supported, remote_storage,
@@ -116,7 +119,7 @@ func (s *Server) openBook(r *http.Request, _ None) (BookAnswer, error) {
 		out.Next = &NextVolume{ID: book.Next.PublicID, Title: book.Next.Title, Index: book.Next.Index}
 	}
 	for _, v := range book.Versions {
-		out.Versions = append(out.Versions, BookVersion{ID: v.PublicID, Format: reading.VersionFormat(v), Name: v.Name})
+		out.Versions = append(out.Versions, BookVersion{ID: v.PublicID, Format: reading.VersionFormat(v), Name: v.Name, Fingerprint: reading.Fingerprint(v.Size, v.ModifiedNS)})
 	}
 	if opened.Problem != nil {
 		out.Unreadable = &BookProblem{Code: bookProblemCode(opened.Problem), Message: opened.Problem.Error()}

@@ -54,9 +54,13 @@ func TestAPlaceInABook(t *testing.T) {
 		t.Fatalf("the same file opened at %s (exact %v)", again.Place, again.PlaceExact)
 	}
 	for _, v := range book.Versions {
+		// Each version names its own file, as the opened one does (10-reading rule 27).
+		if v.ID == book.Version && v.Fingerprint != book.Fingerprint || v.ID != book.Version && (v.Fingerprint == "" || v.Fingerprint == book.Fingerprint) {
+			t.Fatalf("version %s fingerprint %q, opened %s %q", v.ID, v.Fingerprint, book.Version, book.Fingerprint)
+		}
 		if v.Format == "pdf" {
-			if pdf := get[BookAnswer](t, b.s, b.owner.AccessToken, "/v1/items/"+nineteen+"/book?version="+v.ID); pdf.PlaceExact || pdf.Place == nil {
-				t.Fatalf("another version should open near the place: %s (exact %v)", pdf.Place, pdf.PlaceExact)
+			if pdf := get[BookAnswer](t, b.s, b.owner.AccessToken, "/v1/items/"+nineteen+"/book?version="+v.ID); pdf.PlaceExact || pdf.Place == nil || pdf.Fingerprint != v.Fingerprint {
+				t.Fatalf("another version should open near the place: %s (exact %v, fingerprint %q)", pdf.Place, pdf.PlaceExact, pdf.Fingerprint)
 			}
 		}
 	}
