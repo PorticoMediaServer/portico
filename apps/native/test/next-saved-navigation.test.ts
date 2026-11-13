@@ -119,7 +119,7 @@ test('retirement aborts a pending Saved request and late private pages never rep
   let changes = 0; controller.activation.subscribe(() => {changes++;});
   f.retire(); const closed = controller.source.getSnapshot();
   assert.equal(changes, 1); assert.deepEqual(closed, {phase: 'idle'}); assert.ok(f.signals.every(signal => signal.aborted));
-  assert.equal(finishes.length, 6, 'the directory page and the landing totals (the lists and four counted reads) were all in flight');
+  assert.equal(finishes.length, 7, 'the directory page, the profile\'s pins and the landing totals (the lists and four counted reads) were all in flight');
   for (const finish of finishes) finish({serverId: 'server', viewerFence: 'old-fence', revision: 7, resources: [], nextCursor: ''});
   await loading; assert.equal(controller.source.getSnapshot(), closed); assert.equal(controller.activation.getSnapshot().visible, false);
   assert.throws(() => createNativeSavedViewController(f.context, target, async () => 'unused'), /authority_required/);
