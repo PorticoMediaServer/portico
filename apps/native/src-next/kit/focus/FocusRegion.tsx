@@ -130,7 +130,7 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
     if (!preferred) {asked.current = false; return;}
     if (asked.current || disabled || preferredBlocked) return;
     asked.current = true; if (native.current) registry?.notePreferred?.(native.current); requestNativeFocus(native.current);
-  }, [disabled, native, preferred, preferredBlocked]);
+  }, [disabled, native, preferred, preferredBlocked, registry]);
   const config = regionId ? registry?.config(regionId) : undefined;
   const inherited = registry && regionId ? inheritedEdges(registry, regionId) : {};
   // Edge props below also point at neighbour regions from destinations(); a
