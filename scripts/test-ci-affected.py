@@ -146,7 +146,7 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(ci.route(Path("packages/player-core/test/choices.test.ts"), True),
                          "packages/player-core")
         self.assertEqual(ci.route(Path("web/test/viewer-storage.test.ts"), True), "web")
-        self.assertEqual(ci.route(Path("server/receiver/cast/test/cast.test.ts"), False), ".")
+        self.assertEqual(ci.route(Path("server-next/receiver/cast/test/cast.test.ts"), False), ".")
 
     def test_portable_tooling_routes_and_explicit_desktop_scope(self):
         for file in ('smoke/lib/creds.test.mjs', 'smoke/android/secure-field.test.mjs',

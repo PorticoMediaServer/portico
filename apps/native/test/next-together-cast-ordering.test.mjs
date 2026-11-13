@@ -16,7 +16,8 @@ const player=await load('packages/player-core/src/index.ts');
 const offered=await load('apps/native/src-next/platform/play-on/cast-offered.ts');
 const {NativeCastCaller}=await screenModule(new URL('apps/native/src-next/platform/play-on/cast.ts',root),{
  react:{default:{}},'react-native':{NativeModules:{},Platform:{isTV:false}},
- '../../../../../packages/client-core/src/connection-policy':connection,
+ '../../../../../packages/client-core/src/presentation/service-text':{serviceText:id=>id},
+  '../../../../../packages/client-core/src/connection-policy':connection,
  '../../../../../packages/client-core/src/cast':cast,
  '../../../../../packages/player-core/src':player,
  './cast-transport':{},'./cast-controller-storage':{},'./cast-offered':offered,

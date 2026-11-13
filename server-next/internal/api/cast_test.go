@@ -10,6 +10,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playqueue"
+	"github.com/PorticoMediaServer/portico/server-next/receiver"
 )
 
 // A local server has no Google Cast: nothing answers and the server does not say it has it.
@@ -37,7 +38,7 @@ func TestCastOnlyWithPorticoAccounts(t *testing.T) {
 
 	ctx := context.Background()
 	th.s.db.SaveSetting(ctx, "sign_in_kind", "portico_account", th.clock.Now())
-	th.s.db.SaveSetting(ctx, castApplicationSetting, "ABCD1234", th.clock.Now())
+	setCastApplication(t)
 	call(t, th.s, "GET", "/v1/system", "", nil, &system)
 	var config CastConfig
 	if call(t, th.s, "GET", "/v1/cast/config", phone, nil, &config); config.ApplicationID != "ABCD1234" || !slices.Contains(system.Capabilities, "cast") {
@@ -77,7 +78,7 @@ func pairCast(t *testing.T, th *theatre) SignInResponse {
 	t.Helper()
 	ctx := context.Background()
 	th.s.db.SaveSetting(ctx, "sign_in_kind", "portico_account", th.clock.Now())
-	th.s.db.SaveSetting(ctx, castApplicationSetting, "ABCD1234", th.clock.Now())
+	setCastApplication(t)
 	var code CastCode
 	call(t, th.s, "POST", "/v1/cast/codes", th.owner.AccessToken, nil, &code)
 	var paired SignInResponse
@@ -149,5 +150,97 @@ func TestCastReachesOnlyItsOwnPlayback(t *testing.T) {
 	}
 	if code := status(t, th.s, "DELETE", "/v1/auth/session", tv, nil); code != 204 {
 		t.Errorf("the receiver signing itself out answered %d", code)
+	}
+}
+
+// Moving to a TV does not spend a second stream slot. Its source keeps playing
+// until the receiver reports actual playback; a later start gets no exemption.
+func TestCastMovesTheCallersPlaybackOnlyWhenTheReceiverPlays(t *testing.T) {
+	th := newTheatre(t)
+	ctx := context.Background()
+	phone := th.owner.AccessToken
+	th.s.db.SaveSetting(ctx, "sign_in_kind", "portico_account", th.clock.Now())
+	setCastApplication(t)
+	source := th.play(phone, th.film)
+	status(t, th.s, "PATCH", "/v1/admin/playback/stream-limits", phone, StreamLimits{PerPerson: 1})
+	var code CastCode
+	if w := call(t, th.s, "POST", "/v1/cast/codes", phone, CastCodeRequest{SourceSessionID: source.ID}, &code); w.Code != 200 {
+		t.Fatal(w.Code, w.Body)
+	}
+	var paired SignInResponse
+	call(t, th.s, "POST", "/v1/cast/redeem", "", CastRedeem{Code: code.Code, Device: device(7)}, &paired)
+	tv := paired.Session.AccessToken
+	got, session := th.start(tv, "cast-move", PlaybackStart{ItemID: th.film})
+	if got != 201 {
+		t.Fatalf("moving at the one-stream limit: %d", got)
+	}
+	var old PlaybackSession
+	call(t, th.s, "GET", "/v1/playback/sessions/"+source.ID, phone, nil, &old)
+	if old.State != "playing" {
+		t.Fatal("source stopped before TV played")
+	}
+	if w := status(t, th.s, "PUT", "/v1/playback/sessions/"+session.ID+"/progress", tv, PlaybackProgress{State: "playing", PositionMs: 1000, PlayClockMs: 1000}); w != 200 {
+		t.Fatal(w)
+	}
+	call(t, th.s, "GET", "/v1/playback/sessions/"+source.ID, phone, nil, &old)
+	if old.State != "ended" {
+		t.Fatal("source kept playing after TV played")
+	}
+	if got := status(t, th.s, "DELETE", "/v1/playback/sessions/ps_no_longer_known", tv, nil); got != 204 {
+		t.Fatalf("repeated unknown stop: %d", got)
+	}
+}
+
+func TestCastStaticReceiverIsServedByTheRebuiltServer(t *testing.T) {
+	th := newTheatre(t)
+	for _, path := range []string{"/receiver/cast/", "/receiver/cast/receiver.js", "/receiver/cast/assets/OFL.txt"} {
+		w := serve(th.s, newRequest("GET", path, "", nil))
+		if w.Code != 200 || w.Body.Len() == 0 {
+			t.Fatalf("%s: %d", path, w.Code)
+		}
+	}
+}
+
+func setCastApplication(t *testing.T) {
+	t.Helper()
+	before := receiver.ApplicationID
+	t.Cleanup(func() { receiver.ApplicationID = before })
+	receiver.ApplicationID = "ABCD1234"
+}
+func TestCastWithNoLinkedApplicationIsNotOffered(t *testing.T) {
+	th := newTheatre(t)
+	th.s.db.SaveSetting(context.Background(), "sign_in_kind", "portico_account", th.clock.Now())
+	var config CastConfig
+	if w := call(t, th.s, "GET", "/v1/cast/config", th.owner.AccessToken, nil, &config); w.Code != 200 || config.ApplicationID != "" {
+		t.Fatal(w.Code, config)
+	}
+	var system System
+	call(t, th.s, "GET", "/v1/system", "", nil, &system)
+	if slices.Contains(system.Capabilities, "cast") {
+		t.Fatal("an empty build id offers Cast")
+	}
+	if got := status(t, th.s, "POST", "/v1/cast/codes", th.owner.AccessToken, nil); got != 404 {
+		t.Fatal(got)
+	}
+}
+
+func TestTheSharedCastPageCanReachOnlyAnOfferedCastServer(t *testing.T) {
+	th := newTheatre(t)
+	ask := func() string {
+		r := newRequest("OPTIONS", "/v1/cast/redeem", "", nil)
+		r.Header.Set("Origin", receiver.Origin)
+		r.Header.Set("Access-Control-Request-Method", "POST")
+		return serve(th.s, r).Header().Get("Access-Control-Allow-Origin")
+	}
+	if got := ask(); got != "" {
+		t.Fatal("local accounts allow the hosted Cast page", got)
+	}
+	th.s.db.SaveSetting(context.Background(), "sign_in_kind", "portico_account", th.clock.Now())
+	if got := ask(); got != "" {
+		t.Fatal("an unconfigured build allows the hosted Cast page", got)
+	}
+	setCastApplication(t)
+	if got := ask(); got != receiver.Origin {
+		t.Fatal("the registered receiver origin cannot reach this Cast server", got)
 	}
 }

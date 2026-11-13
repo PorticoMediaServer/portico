@@ -9,6 +9,7 @@ import type {LocalSession} from '../../../../../packages/client-core/src';
 import {sameFence, type DockPlayback, type QueuePlaybackFence, type RemoteDock} from '../../../../../packages/player-core/src';
 import {castTransport,validCastAttachment} from './cast-transport';
 import {castControllerStorage, castControllerStorageReady} from './cast-controller-storage';
+import {serviceText} from '../../../../../packages/client-core/src/presentation/service-text';
 import {castOffered} from './cast-offered';
 import type {NativePlaybackAdapter, NativePlaybackRuntimeSnapshot, PlaybackAuthority} from '../playback/types';
 
@@ -85,10 +86,10 @@ export class NativeCastCaller {
       ...(routes?.pin.publicKey&&original.deviceId?{controllerContext:{origin,publicKey:routes.pin.publicKey,serverId:original.viewer.serverId,
         authority:original.viewer.authority,accountId:original.viewer.accountId,profileId:original.viewer.profileId,senderDeviceId:original.deviceId,senderFamilyId:original.sessionFamilyId}}:{}),
       describe:async itemId=>{
-        const item=await readReceiverItem<{id?:unknown;title?:unknown;posterUrl?:unknown;kind?:unknown}>({request: this.request.bind(this)}, itemId, 'GET');
+        const item=await readReceiverItem<{id?:unknown;title?:unknown;images?:Readonly<Record<string,string>>;kind?:unknown}>({request: this.request.bind(this)}, itemId, 'GET');
         if(item.id!==itemId||typeof item.title!=='string'||!item.title)return;
-        const title=item.title.slice(0,300),kind=item.kind==='song'?'music':item.kind==='audiobook_file'?'audiobook':['movie','episode','extra'].includes(String(item.kind))?'video':undefined;
-        this.descriptions.set(itemId,Object.freeze({title,...(kind?{kind}:{}),...(typeof item.posterUrl==='string'&&item.posterUrl.startsWith('/v1/')?{posterUrl:item.posterUrl}:{})}));
+        const title=item.title.slice(0,300),kind=item.kind==='track'?'music':item.kind==='audiobook'?'audiobook':['movie','episode','extra'].includes(String(item.kind))?'video':undefined;
+        this.descriptions.set(itemId,Object.freeze({title,...(kind?{kind}:{}),...(typeof item.images?.poster==='string'&&item.images.poster.startsWith('/v1/')?{posterUrl:item.images.poster}:{})}));
         while(this.descriptions.size>4)this.descriptions.delete(this.descriptions.keys().next().value!);
         return title;
       },
@@ -116,7 +117,7 @@ export class NativeCastCaller {
       if(generation!==undefined&&!this.cancelChooser)void this.resume(device,generation);
     },()=>{/* Missing SDK session/proof leaves explicit pairing available. */});
     void Promise.all([this.bridge.available(), readCastConfiguration({request: this.request.bind(this)})]).then(
-      ([available, config]) => {if (this.viewerCurrent()) controller.setAvailable(castOffered(available, config.applicationId, this.bridge?.applicationId));},
+      ([available,config])=>{if(!this.viewerCurrent())return;const offered=castOffered(available,config.applicationId,this.bridge?.applicationId);if(available&&typeof config.applicationId==='string'&&config.applicationId.trim()&&!offered)this.options.reportError(Object.assign(new Error(serviceText('cast.error.applicationMismatch')),{code:'cast_application_mismatch'}));controller.setAvailable(offered);},
       () => {if (this.viewerCurrent()) controller.setAvailable(false);});
   }
   subscribe = (listener: () => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
@@ -384,7 +385,7 @@ export class NativeCastCaller {
       const item=await readReceiverItem<{id?:string;kind?:string;title?:string;libraryId?:string;posterUrl?:string}>({request: this.request.bind(this)}, report.itemId, 'GET');
       if(!current()||!localUnchanged()||item.id!==report.itemId||typeof item.title!=='string'||!['song','audiobook_file','movie','episode','extra'].includes(item.kind??''))return;
       const entry:ContentEntry=Object.freeze({id:item.id,kind:item.kind as ContentEntry['kind'],title:item.title,
-        ...(typeof item.libraryId==='string'?{libraryId:item.libraryId}:{}),...(typeof item.posterUrl==='string'&&item.posterUrl.startsWith('/v1/')?{posterUrl:item.posterUrl}:{}),
+        ...(typeof item.libraryId==='string'?{libraryId:item.libraryId}:{}),...(typeof item.images?.poster==='string'&&item.images.poster.startsWith('/v1/')?{posterUrl:item.images.poster}:{}),
         playback:Object.freeze({itemId:item.id,startSeconds:report.positionSeconds})});
       const latestAttachment=await this.bridge?.current();
       if(latestAttachment?.attachmentId!==expected.attachmentId||!current()||!localUnchanged())return;
@@ -401,7 +402,7 @@ export class NativeCastCaller {
     const item=await readReceiverItem<{id?:string;kind?:string;title?:string;libraryId?:string;posterUrl?:string}>({request: this.request.bind(this)}, report.itemId, 'GET');
     if(!current()||item.id!==report.itemId||typeof item.title!=='string'||!['song','audiobook_file','movie','episode','extra'].includes(item.kind??''))return;
     const entry:ContentEntry=Object.freeze({id:item.id,kind:item.kind as ContentEntry['kind'],title:item.title,
-      ...(typeof item.libraryId==='string'?{libraryId:item.libraryId}:{}),...(typeof item.posterUrl==='string'&&item.posterUrl.startsWith('/v1/')?{posterUrl:item.posterUrl}:{}),
+      ...(typeof item.libraryId==='string'?{libraryId:item.libraryId}:{}),...(typeof item.images?.poster==='string'&&item.images.poster.startsWith('/v1/')?{posterUrl:item.images.poster}:{}),
       playback:Object.freeze({itemId:item.id,startSeconds:report.positionSeconds})});
     await source.adapter.start({entry,target:entry.playback!,startIntent:'explicit',...(report.versionId?{versionId:report.versionId}:{}),lifetime:{signal:this.abort.signal,isCurrent:()=>this.source===source&&this.viewerCurrent()&&this.state.cast.phase==='off'&&this.receiver===report}});
     await this.dismiss();

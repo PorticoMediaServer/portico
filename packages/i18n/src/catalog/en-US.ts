@@ -1602,6 +1602,7 @@ export const enUS = {
   'cast.takeover.body': '{requester} wants to play on the TV. Allow?',
   'cast.takeover.deny': 'Don’t allow',
   'cast.someone': 'Someone',
+  'cast.error.applicationMismatch': 'This app and server use different Cast receivers. Update the app and server.',
   'cast.error.noCode': 'The server didn’t issue a pairing code. Try again.',
   'cast.error.noAnswer': 'The TV didn’t answer. Try again.',
   'cast.error.refused': 'The TV didn’t accept the connection. Try again.',

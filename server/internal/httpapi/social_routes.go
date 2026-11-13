@@ -19,7 +19,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server/internal/recordingaccess"
 	"github.com/PorticoMediaServer/portico/server/internal/social"
 	"github.com/PorticoMediaServer/portico/server/internal/supervise"
-	"github.com/PorticoMediaServer/portico/server/receiver"
 )
 
 // A receiver's held inbox read: how long it waits when it does not say, and the
@@ -158,7 +157,6 @@ func (d Dependencies) socialRoutes(mux *http.ServeMux) {
 		defer cancel()
 		_ = store.ResumeSweeperIfLive(ctx)
 	})
-	d.serveCastBundle(mux)
 }
 
 type socialHandle func(string, http.HandlerFunc)
@@ -1045,36 +1043,7 @@ func (d Dependencies) castRoutes(handle socialHandle, viewer socialViewer, store
 		}
 		write(w, 200, map[string]any{"protocolVersion": social.Protocol, "applicationId": body.ApplicationID, "receiverUrl": "/receiver/cast/"})
 	})
-	// The Cast receiver application is a static bundle compiled into the server
-	// binary, so every GOOS and the Docker image serve the identical bytes with
-	// no build step and no external host.
 }
-
-func (d Dependencies) serveCastBundle(mux *http.ServeMux) {
-	files := http.StripPrefix("/receiver/", http.FileServerFS(receiver.Files()))
-	mux.Handle("GET /receiver/cast/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// CAF loads its player from gstatic and injects player styles. Media and
-		// credentials remain on this server; only Google's Cast host may frame it.
-		policy := castReceiverCSP
-		if r.URL.Path == "/receiver/cast/" || r.URL.Path == "/receiver/cast/index.html" {
-			policy = castReceiverPageCSP
-		}
-		w.Header().Set("Content-Security-Policy", policy)
-		w.Header().Del("X-Frame-Options") // CSP supplies the narrower Cast exception.
-		files.ServeHTTP(w, r)
-	}))
-}
-
-const castReceiverCSP = "default-src 'none'; script-src 'self' https://www.gstatic.com/cast/; style-src 'self' 'unsafe-inline'; connect-src 'self' https://www.gstatic.com/cast/; img-src 'self' blob: data:; font-src 'self'; media-src 'self' blob:; worker-src 'self' blob:; frame-ancestors https://www.gstatic.com; base-uri 'none'; object-src 'none'; form-action 'self'"
-
-// CAF 3.0.0156 loads Google's hosted Shaka 4.15.56 itself. Only the receiver
-// document permits that script path and its empty caption style (CSSOM rules
-// are not hash-bound). Page attributes/nonempty styles stay blocked; assets and
-// every other page retain policy.
-var castReceiverPageCSP = strings.Replace(strings.Replace(castReceiverCSP,
-	"script-src 'self' https://www.gstatic.com/cast/;",
-	"script-src 'self' https://www.gstatic.com/cast/ https://ajax.googleapis.com/ajax/libs/shaka-player/4.15.56/;", 1),
-	"style-src 'self' 'unsafe-inline';", "style-src 'self'; style-src-elem 'self' https://www.gstatic.com 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=';", 1)
 
 // socialPlayback is the social store's view of v1 sessions (B8a): a handoff's
 // source and a group's host session, with the item's restrictions applied to a

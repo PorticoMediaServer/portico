@@ -110,7 +110,7 @@ class IntegrationTests(unittest.TestCase):
         vets=[c for c in calls if c[0][:1]==['sh'] and 'vet-go.sh' in c[0][1]]
         self.assertEqual(len(builds),4); self.assertEqual(len(vets),4)
         self.assertEqual({c[0][4] for c in builds},{'', 'portico_rar7z,portico_cb7'})
-        generator=next(i for i,c in enumerate(calls) if c[0]==['node',str(ROOT/'scripts/cast/generate.mjs')])
+        generator=next(i for i,c in enumerate(calls) if c[0]==['node',str(ROOT/'server-next/receiver/generate-cast-text.mjs'),'--check'])
         drift=next(i for i,c in enumerate(calls) if c[0]==['git','diff','--exit-code'])
         self.assertLess(generator,drift)
 

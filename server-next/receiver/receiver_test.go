@@ -45,3 +45,22 @@ func TestEmbeddedCastPresentationResources(t *testing.T) {
 		})
 	}
 }
+
+func TestReceiverHeadersAndPrivateBuildFiles(t *testing.T) {
+	for _, scheme := range []string{"http", "https"} {
+		for _, path := range []string{"/receiver/cast/", "/receiver/cast/receiver.js", "/receiver/cast/not-found", "/receiver/cast/test/receiver.test.cjs"} {
+			w := httptest.NewRecorder()
+			Handler().ServeHTTP(w, httptest.NewRequest("GET", scheme+"://server.example"+path, nil))
+			if !strings.Contains(w.Header().Get("Content-Security-Policy"), "font-src 'self'") || w.Header().Get("X-Frame-Options") != "" || w.Header().Get("Referrer-Policy") != "no-referrer" || w.Header().Get("X-Content-Type-Options") != "nosniff" {
+				t.Fatalf("%s: %v", path, w.Header())
+			}
+			if strings.Contains(path, "not-found") || strings.Contains(path, "/test/") {
+				if w.Code != 404 {
+					t.Fatal(path, w.Code)
+				}
+			} else if w.Code != 200 {
+				t.Fatal(path, w.Code)
+			}
+		}
+	}
+}

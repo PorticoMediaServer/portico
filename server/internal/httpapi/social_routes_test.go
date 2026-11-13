@@ -1234,18 +1234,6 @@ func TestSocialCastBootstrapRedeemReconnectAndScoping(t *testing.T) {
 	}
 }
 
-func TestSocialCastReceiverBundleIsServed(t *testing.T) {
-	f := socialHTTP(t)
-	for _, path := range []string{"/receiver/cast/", "/receiver/cast/receiver.js"} {
-		r := httptest.NewRequest("GET", path, nil)
-		w := httptest.NewRecorder()
-		f.h.ServeHTTP(w, r)
-		if w.Code != 200 || w.Body.Len() == 0 {
-			t.Fatalf("receiver bundle %s: %d", path, w.Code)
-		}
-	}
-}
-
 // Mutate authority exactly after the first frame, without timing-dependent goroutines.
 type revokingStreamWriter struct {
 	*httptest.ResponseRecorder
