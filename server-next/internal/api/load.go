@@ -15,7 +15,8 @@ import (
 
 // Load is the server's load over a range. Series are by name: cpu and memory (the whole
 // machine, percent), processCPU and processMemory (Portico's own process, percent), homeMbps
-// and awayMbps (the bitrates of the streams playing), conversions (streams being converted).
+// and awayMbps (the bitrates of the streams playing), conversions (running encoders),
+// hardwareConversions and processorConversions (those encoders split by execution).
 // A series this machine cannot measure is absent.
 type Load struct {
 	// Period is live or 24h.
@@ -46,7 +47,7 @@ const liveWindow = 2 * time.Minute
 
 // loadRoutes starts sampling the server's load and registers its read.
 func (s *Server) loadRoutes(ctx context.Context) {
-	load := &console.Load{Now: func() time.Time { return s.now() }, Streams: s.streamLoad}
+	load := &console.Load{Now: func() time.Time { return s.now() }, Streams: s.streamLoad, ConversionKinds: s.conversionLoad}
 	go load.Run(ctx)
 	Handle(s, "GET /v1/admin/load", Owner, func(r *http.Request, _ None) (Load, error) {
 		now := s.now().UTC()
@@ -94,4 +95,11 @@ func (s *Server) streamLoad() (homeKbps, awayKbps, conversions int) {
 		}
 	}
 	return homeKbps, awayKbps, conversions
+}
+
+func (s *Server) conversionLoad() (hardware, processor int) {
+	if engine, ok := s.playback.Engine().(interface{ ConversionLoad() (int, int) }); ok {
+		return engine.ConversionLoad()
+	}
+	return 0, 0
 }

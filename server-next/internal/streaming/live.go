@@ -349,6 +349,9 @@ func (s *Streams) liveConvert(ctx context.Context, l *liveConversion, run int, f
 	})
 	job := mediaexec.Job{Executable: h.binary, Args: args, Files: []*os.File{reader}, WriteDirs: []string{l.dir},
 		Hardware: conversionJobHardware(plan, stages)}
+	started, finished := h.conversionCount()
+	defer finished()
+	ctx = childprocess.WithStarted(ctx, func() { started(conversionKind(plan, args, stages)) })
 	var diagnostic string
 	if h.execute != nil {
 		err, diagnostic = h.execute(ctx, job)
@@ -361,6 +364,7 @@ func (s *Streams) liveConvert(ctx context.Context, l *liveConversion, run int, f
 		err = childprocess.Run(ctx, cmd)
 		diagnostic = sanitizeConverterOutput(tail.String(), h.root, h.memoryRoot)
 	}
+	finished()
 	// The converter is gone: closing its end lets a reading blocked on a full pipe return.
 	reader.Close()
 	stopRead()

@@ -332,6 +332,8 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 	}
 	fallbackLaunch := false
 	run := func(plan *DeliveryPlan) (error, string) {
+		started, finished := h.conversionCount()
+		defer finished()
 		// A software encode for playback takes its share of the machine for as long as its
 		// converter runs (decoder.ReservePlaybackEncode).
 		release := func() {}
@@ -361,8 +363,12 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 					releaseRemote = release
 				}
 				return subtitles.WindowCommand{Args: args, Hardware: conversionJobHardware(plan, stages), Stderr: said,
-					Started: func() { h.recordConversionStart(ctx, id, plan, args, stages, fallbackLaunch) }}, err
+					Started: func() {
+						started(conversionKind(plan, args, stages))
+						h.recordConversionStart(ctx, id, plan, args, stages, fallbackLaunch)
+					}}, err
 			})
+			finished()
 			releaseRemote()
 			if err == nil {
 				return nil, sanitizeConverterOutput(said.String(), path, h.root, h.memoryRoot)
@@ -449,8 +455,12 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		}
 		tail := &tailWriter{limit: 4096}
 		cmd.Stderr = tail
-		launchCtx := childprocess.WithStarted(processCtx, func() { h.recordConversionStart(ctx, id, plan, args, stages, fallbackLaunch) })
+		launchCtx := childprocess.WithStarted(processCtx, func() {
+			started(conversionKind(plan, args, stages))
+			h.recordConversionStart(ctx, id, plan, args, stages, fallbackLaunch)
+		})
 		err = childprocess.Run(launchCtx, cmd)
+		finished()
 		if err == nil && input.Validate != nil {
 			err = validateOwnedInput(processCtx, input.Validate)
 		}

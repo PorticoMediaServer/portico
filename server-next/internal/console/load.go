@@ -25,7 +25,9 @@ type Streams func() (homeKbps, awayKbps, conversions int)
 // Load samples the server's load and keeps it.
 type Load struct {
 	Streams Streams
-	Now     func() time.Time
+	// ConversionKinds gives actual running hardware/processor encoders, when available.
+	ConversionKinds func() (hardware, processor int)
+	Now             func() time.Time
 
 	mu      sync.Mutex
 	machine machine
@@ -71,6 +73,11 @@ func (l *Load) Sample() {
 		home, away, conversions := l.Streams()
 		values["homeMbps"], values["awayMbps"] = float64(home)/1000, float64(away)/1000
 		values["conversions"] = float64(conversions)
+	}
+	if l.ConversionKinds != nil {
+		hardware, processor := l.ConversionKinds()
+		values["hardwareConversions"], values["processorConversions"] = float64(hardware), float64(processor)
+		values["conversions"] = float64(hardware + processor)
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
