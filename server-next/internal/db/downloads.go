@@ -415,7 +415,8 @@ func (d *DB) DeleteDownload(ctx context.Context, profileID int64, publicID strin
 
 // DropDownloadTitle takes one title out of a profile's request, so it is not fetched again and
 // the device is told to remove it. It returns the copy the title used, if any. Dropping a
-// title that is not in the request, or already dropped, succeeds.
+// title that is not in the request, or already dropped, succeeds. An empty request goes too,
+// except a lasting keep-next rule, so asking for a removed download makes a fresh request.
 func (d *DB) DropDownloadTitle(ctx context.Context, profileID int64, downloadPublicID, itemPublicID string, now time.Time) ([]int64, error) {
 	var copies []int64
 	err := d.write(ctx, User, func(tx *sql.Tx) error {
@@ -434,7 +435,13 @@ func (d *DB) DropDownloadTitle(ctx context.Context, profileID int64, downloadPub
 		if n, _ := res.RowsAffected(); n > 0 {
 			_, err = tx.ExecContext(ctx, `UPDATE downloads SET updated_at = ? WHERE public_id = ? AND profile_id = ?`, now.UnixMilli(),
 				downloadPublicID, profileID)
+			if err != nil {
+				return err
+			}
 		}
+		_, err = tx.ExecContext(ctx, `DELETE FROM downloads WHERE public_id = ? AND profile_id = ? AND keep_next IS NULL
+			AND NOT EXISTS (SELECT 1 FROM download_items x WHERE x.download_id = downloads.id AND x.state <> 2)`,
+			downloadPublicID, profileID)
 		return err
 	})
 	return copies, err
