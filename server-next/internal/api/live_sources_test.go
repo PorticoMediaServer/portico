@@ -166,6 +166,41 @@ func TestAPlaylistAndItsGuideComeIn(t *testing.T) {
 		t.Fatalf("after a refresh On now reads %+v", now)
 	}
 
+	listings := addSource(t, s, owner, LiveSourceSave{Kind: "guide", Name: new("Other listings"), Config: &live.LiveSourceConfig{GuideURL: fake.URL + "/guide.xml.gz"}})
+	cfg := get[LiveSource](t, s, owner, "/v1/admin/live/sources/"+src.ID).Config
+	cfg.GuideSource = listings.ID
+	cfg.Numbering, cfg.FirstNumber = "sequential", 0
+	if code := status(t, s, "PATCH", "/v1/admin/live/sources/"+src.ID, owner, LiveSourceSave{Config: &cfg}); code != 200 {
+		t.Fatalf("choosing listings: %d", code)
+	}
+	if got := get[LiveSource](t, s, owner, "/v1/admin/live/sources/"+src.ID); got.Config.FirstNumber != 1 {
+		t.Fatalf("the implicit starting number: %+v", got.Config)
+	}
+	if err := s.sources.Refresh(context.Background(), src.ID); err != nil {
+		t.Fatal(err)
+	}
+	mapped := get[Page[LiveSourceChannel]](t, s, owner, "/v1/admin/live/sources/"+src.ID+"/channels")
+	if len(mapped.Items) != 2 || mapped.Items[0].GuideSource != listings.ID || mapped.Items[0].SourceKey == "" {
+		t.Fatalf("chosen listings and source keys: %+v", mapped)
+	}
+
+	cfg.PlaylistURL, cfg.Uploaded = "", true
+	replacement := "#EXTM3U\n#EXTINF:-1 tvg-id=\"replacement\",Uploaded replacement\nhttp://streams.invalid/replacement.ts\n"
+	if code := status(t, s, "PATCH", "/v1/admin/live/sources/"+src.ID, owner, LiveSourceSave{Config: &cfg, Playlist: replacement}); code != 200 {
+		t.Fatalf("replacing an uploaded playlist: %d", code)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		items := get[Page[LiveChannel]](t, s, everything, "/v1/live/channels").Items
+		if len(items) == 1 && items[0].Name == "Uploaded replacement" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the replacement was not imported: %+v", items)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
 	// Only me: the owner's channels leave everyone else's guide; paused, they leave the owner's too.
 	if code := status(t, s, "PATCH", "/v1/admin/live/sources/"+src.ID, owner, LiveSourceSave{Audience: new("owner")}); code != 200 {
 		t.Fatalf("changing the audience answered %d", code)

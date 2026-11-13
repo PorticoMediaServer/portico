@@ -1,114 +1,69 @@
-import {readOwnerSourceConfiguration, writeOwnerSourceConfiguration, importOwnerSourceLogos} from '@core/owner-requests.ts';
+import {callServer, serverPath} from '@core/query/server-api.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
-import {parseEnvelope, parseLiveSourceDocument, type LiveSourceDocument, type LiveSourceSettings} from '@core/administration.ts';
+import type {LiveSource, LiveSourceSave} from '../../../../../packages/contracts/src/next/api.ts';
 import {rebaseDraft, type QuietRefreshOutcome} from '@core/freshness-actions.ts';
-import {lanConfirmationRoots} from '@core/linear-api.ts';
-import {confirmRoots} from '../../live/owner/checked';
-import {channelRequestID} from '@core/live-source-draft.ts';
 import {OwnerStore, errorFacts} from '../../live/owner/lifetime';
-type SourceSettingsApi = LibraryContentApi;
-export type SourceSettingsSnapshot = Readonly<{loading: boolean; saving: boolean; document?: LiveSourceDocument; draft?: LiveSourceSettings; error?: unknown; saved?: boolean; logoBusy?: boolean; logoResult?: Readonly<{requested: number; imported: number; skipped: number}>}>;
-
-/** One mounted source configuration, over the existing administration document.
- * The list remains the sole source directory; this model never invents one. */
+export type SourceSettingsDraft = Pick<LiveSource,'name'|'audience'|'tunerCount'|'paused'|'config'> & {username:string;password:string;playlist?:string;guide?:string};
+type Document = Readonly<{source:LiveSource;etag:string;imagesEnabled:boolean}>;
+export type SourceSettingsSnapshot=Readonly<{loading:boolean;saving:boolean;reading?:boolean;document?:Document;draft?:SourceSettingsDraft;error?:unknown;saved?:boolean;uncertain?:boolean;logoBusy?:boolean;logoResult?:Readonly<{requested:number;imported:number;skipped:number}>}>;
+const from=(source:LiveSource):SourceSettingsDraft=>({name:source.name,audience:source.audience,tunerCount:source.tunerCount,paused:source.paused,config:{...source.config},username:'',password:''});
 export class SourceSettingsController extends OwnerStore<SourceSettingsSnapshot> {
-  private quietSerial = 0;
-  private quietRead?: AbortController;
-  private uncertain = false;
-  quietBlocked = () => this.snapshot.loading || this.snapshot.saving || !!this.snapshot.logoBusy || this.uncertain;
-  invalidateQuiet = () => {++this.quietSerial;this.quietRead?.abort();this.quietRead = undefined;};
-  private operations = new Map<string, string>();
-  constructor(private api: SourceSettingsApi, private serverId: string, readonly sourceId: string, current: () => boolean,
-    reportError: (error: unknown) => void, private makeId = channelRequestID) {
-    super(Object.freeze({loading: false, saving: false}), current, reportError);
-    if (!/^[a-f0-9]{48}$/.test(sourceId)) throw new Error('live_source_identity_invalid');
+ private quietSerial=0;private quietRead?:AbortController;private uncertain=false;
+ constructor(private api:LibraryContentApi,_serverId:string,readonly sourceId:string,current:()=>boolean,reportError:(error:unknown)=>void,_makeId?:()=>string){super({loading:false,saving:false},current,reportError);}
+ quietBlocked=()=>this.snapshot.loading||this.snapshot.saving||!!this.snapshot.logoBusy||!!this.snapshot.reading||this.uncertain;
+ invalidateQuiet=()=>{++this.quietSerial;this.quietRead?.abort();this.quietRead=undefined;};
+ private async request(method:'GET'|'PATCH',signal?:AbortSignal,body?:LiveSourceSave,etag?:string):Promise<Document>{
+  if(!this.api.requestRaw)throw {code:'invalid_response'};
+  const answer=await this.api.requestRaw(serverPath('GET /v1/admin/live/sources/{id}',{id:this.sourceId}),method,{signal,body,...(etag?{headers:{'If-Match':etag},singleAttempt:true}:{})});
+  if(answer.status>=400){const error=(answer.body as {error?:{code?:string;message?:string}})?.error;throw {status:answer.status,code:error?.code};}
+  const source=answer.body as LiveSource,revision=answer.headers.etag??answer.headers.ETag;
+  if(!source||source.id!==this.sourceId||!source.config||typeof source.name!=='string'||!/^"[0-9]+"$/.test(revision??''))throw {code:'invalid_response'};
+  let imagesEnabled=this.snapshot.document?.imagesEnabled??true;
+  if(method==='GET'){if(!this.isActive()||signal?.aborted)throw {code:'cancelled'};const settings=await callServer(this.api,'GET /v1/admin/settings/{name}',{id:'live',signal});imagesEnabled=(settings.values as {importImages?:boolean}).importImages!==false;}
+  return {source,etag:revision!,imagesEnabled};
+ }
+ async load(){if(!this.isActive()||this.snapshot.saving||this.snapshot.logoBusy)return;this.invalidateQuiet();const attempt=this.begin();this.publish({...this.snapshot,loading:true,error:undefined});if(!this.valid(attempt))return;
+  try{const document=await this.request('GET',attempt.abort.signal);if(this.valid(attempt)){this.uncertain=false;this.publish({loading:false,saving:false,document,draft:from(document.source)});}}
+  catch(error){if(this.valid(attempt))this.fail(error,{...this.snapshot,loading:false,error:errorFacts(error)});}
+ }
+ refreshQuietly=async():Promise<QuietRefreshOutcome>=>{
+  if(!this.isActive()||this.quietBlocked())return {kind:'deferred'};
+  this.invalidateQuiet();const serial=this.quietSerial,read=this.quietRead=new AbortController(),base=this.snapshot.document;
+  const owns=()=>this.isActive()&&!read.signal.aborted&&serial===this.quietSerial&&!this.quietBlocked()&&this.snapshot.document===base;
+  try{const document=await this.request('GET',read.signal);if(!owns())return {kind:'deferred'};const local=this.snapshot.draft;
+   if(base&&local&&document.etag!==base.etag&&(local.username||local.password||local.playlist||local.guide))return {kind:'conflict'};
+   const merged=base&&local?rebaseDraft(from(base.source),local,from(document.source)):{merged:from(document.source),conflict:false};
+   if(merged.conflict)return {kind:'conflict'};this.publish({...this.snapshot,document,draft:merged.merged});return {kind:'adopted'};
+  }catch(error){if(!owns())return {kind:'deferred'};if([401,403].includes(errorFacts(error).status??0))this.fail(error,this.snapshot);return {kind:'unreadable',error};}
+  finally{if(this.quietRead===read)this.quietRead=undefined;}
+ };
+ edit(patch:Partial<SourceSettingsDraft>){if(this.isActive()&&!this.snapshot.saving&&!this.snapshot.logoBusy&&!this.snapshot.reading&&this.snapshot.draft&&!this.uncertain)this.publish({...this.snapshot,draft:{...this.snapshot.draft,...patch},error:undefined,saved:false});}
+ discard(){if(this.isActive()&&!this.quietBlocked()&&this.snapshot.document)this.publish({...this.snapshot,draft:from(this.snapshot.document.source),error:undefined});}
+ async upload(field:'playlist'|'guide',read:()=>Promise<string>){
+  if(!this.isActive()||this.quietBlocked()||!this.snapshot.draft)return;
+  this.invalidateQuiet();const attempt=this.begin();this.publish({...this.snapshot,reading:true,error:undefined});if(!this.valid(attempt))return;
+  try{const text=await read();if(!this.valid(attempt))return;
+   if(new TextEncoder().encode(text).length>128*1024*1024)throw {code:'body_too_large',status:413};
+   const draft=this.snapshot.draft!;this.publish({...this.snapshot,reading:false,draft:{...draft,[field]:text,config:{...draft.config,...(field==='playlist'?{uploaded:true,playlistUrl:''}:{guideUploaded:true,guideUrl:'',guideSource:''})}},saved:false});
+  }catch(error){if(this.valid(attempt))this.fail(error,{...this.snapshot,reading:false,error:errorFacts(error)});}
+ }
+ async save(){
+  const {document,draft}=this.snapshot;if(!this.isActive()||this.quietBlocked()||!document||!draft||JSON.stringify(from(document.source))===JSON.stringify(draft))return false;
+  this.invalidateQuiet();const attempt=this.begin(),base=from(document.source),body:LiveSourceSave={};
+  for(const key of ['name','audience','paused','tunerCount','config'] as const)if(JSON.stringify(draft[key])!==JSON.stringify(base[key]))Object.assign(body,{[key]:draft[key]});
+  if(draft.username||draft.password)body.signIn={username:draft.username,password:draft.password};if(draft.playlist)body.playlist=draft.playlist;if(draft.guide)body.guide=draft.guide;
+  if(new TextEncoder().encode(JSON.stringify(body)).length>128*1024*1024){this.publish({...this.snapshot,error:{code:'body_too_large',status:413}});return false;}
+  this.publish({...this.snapshot,saving:true,error:undefined});if(!this.valid(attempt))return false;
+  try{const saved=await this.request('PATCH',attempt.abort.signal,body,document.etag);if(!this.valid(attempt))return false;this.publish({loading:false,saving:false,document:saved,draft:from(saved.source),saved:true});return true;}
+  catch(error){if(!this.valid(attempt))return false;const facts=errorFacts(error);this.uncertain=![400,401,403,409,412,422].includes(facts.status??0);this.fail(error,{...this.snapshot,saving:false,error:facts,uncertain:this.uncertain});
+   if(this.valid(attempt)&&(this.uncertain||facts.status===412)){try{const latest=await this.request('GET',attempt.abort.signal);if(this.valid(attempt)){this.uncertain=false;this.publish({...this.snapshot,document:latest,draft:from(latest.source),error:facts,uncertain:false});}}catch{/* Keep the original refusal. */}}
+   return false;
   }
-  private checked(raw: unknown) {
-    const doc = parseEnvelope(raw, this.serverId, parseLiveSourceDocument).result;
-    if (doc.sourceId !== this.sourceId) throw new Error('live_source_identity_changed');
-    return doc;
-  }
-  /** After a save that got no answer, the form shows what the server has now. */
-  private async readAgain() {
-    try {
-      const document = this.checked(await readOwnerSourceConfiguration(this.api, this.sourceId));
-      if (!this.isActive() || !this.uncertain || this.snapshot.saving) return;
-      this.uncertain = false;this.publish({...this.snapshot, document, draft: document.settings});
-    } catch { /* still out of reach: the error stays, and Save or reload reads again */ }
-  }
-  refreshQuietly = async (): Promise<QuietRefreshOutcome> => {
-    if (!this.isActive() || this.quietBlocked()) return {kind: 'deferred'};
-    this.invalidateQuiet();const serial = this.quietSerial, read = this.quietRead = new AbortController(), base = this.snapshot.document;
-    const owns = () => this.isActive() && !read.signal.aborted && serial === this.quietSerial && !this.quietBlocked() && this.snapshot.document === base;
-    try {
-      const raw = await readOwnerSourceConfiguration(this.api, this.sourceId, read.signal);
-      if (!owns()) return {kind: 'deferred'};
-      const document = this.checked(raw), local = this.snapshot.draft;
-      const rebased = base && local ? rebaseDraft(base.settings, local, document.settings) : {merged: document.settings, conflict: false};
-      if (rebased.conflict) return {kind: 'conflict'};
-      this.publish({...this.snapshot, document, draft: rebased.merged});
-      return {kind: 'adopted'};
-    } catch (error) {
-      if (!owns()) return {kind: 'deferred'};
-      if ([401,403].includes(errorFacts(error).status ?? 0)) this.fail(error, this.snapshot);
-      return {kind: 'unreadable', error};
-    } finally {if (this.quietRead === read) this.quietRead = undefined;};
-  };
-  async load() {
-    if (!this.isActive() || this.snapshot.saving || this.snapshot.logoBusy) return;
-    this.invalidateQuiet();const attempt = this.begin();this.publish({...this.snapshot, loading: true, error: undefined});if (!this.valid(attempt)) return;
-    try {
-      const raw = await readOwnerSourceConfiguration(this.api, this.sourceId, attempt.abort.signal);if (!this.valid(attempt)) return;
-      const document = this.checked(raw);this.uncertain = false;this.publish({loading: false, saving: false, document, draft: document.settings});
-    } catch (error) {if (this.valid(attempt)) this.fail(error, {...this.snapshot, loading: false, error: errorFacts(error)});}
-  }
-  edit(patch: Partial<LiveSourceSettings>) {
-    if (!this.isActive() || this.snapshot.saving || this.snapshot.logoBusy || !this.snapshot.document || !this.snapshot.draft) return;
-    const parsed = parseLiveSourceDocument({...this.snapshot.document, settings: {...this.snapshot.draft, ...patch}}).settings;
-    const remote = patch.remote ?? this.snapshot.draft.remote;
-    const draft = {...parsed, ...(remote ? {remote: {...parsed.remote!,
-      ...(remote.username === undefined ? {} : {username: remote.username}),
-      ...(remote.password === undefined ? {} : {password: remote.password}),
-      ...(remote.confirmedLanRoots ? {confirmedLanRoots: remote.confirmedLanRoots} : {}),
-    }} : {})};
-    this.publish({...this.snapshot, draft, error: undefined, saved: false});
-  }
-  discard() {if (this.isActive() && !this.snapshot.saving && this.snapshot.document) {this.invalidateQuiet();this.publish({...this.snapshot, draft: this.snapshot.document.settings, error: undefined});}}
-  async save() {
-    const {document, draft} = this.snapshot;
-    if (!this.isActive() || this.snapshot.loading || this.snapshot.saving || this.snapshot.logoBusy || !document || !draft || JSON.stringify(document.settings) === JSON.stringify(draft)) return false;
-    this.invalidateQuiet();const attempt = this.begin();this.publish({...this.snapshot, saving: true, error: undefined});
-    try {
-      if (!this.valid(attempt)) return false;
-      const body = {expectedRevision: document.revision, operationId: this.makeId(), settings: draft};
-      const saved = this.checked(await writeOwnerSourceConfiguration(this.api, this.sourceId, body, attempt.abort.signal));
-      if (!this.valid(attempt)) return false;
-      this.uncertain = false;this.operations.clear();this.publish({loading: false, saving: false, document: saved, draft: saved.settings, saved: true});return this.valid(attempt);
-    } catch (error) {
-      // No answer: the save may or may not have happened, so the form reads the source again.
-      this.uncertain = ![400,401,403,409,412,422].includes(errorFacts(error).status ?? 0);
-      let roots: readonly string[] | undefined;
-      try {const candidate = lanConfirmationRoots(error);roots = candidate ? confirmRoots(candidate) : undefined;} catch {roots = undefined;}
-      if (this.valid(attempt)) {this.fail(error, {...this.snapshot, saving: false, error: {...errorFacts(error), ...(roots ? {confirmRoots: roots} : {})}});if (this.uncertain) void this.readAgain();}
-      return false;
-    }
-  }
-  async importLogos() {
-    const doc = this.snapshot.document;
-    if (!this.isActive() || !doc || this.snapshot.loading || this.snapshot.saving || this.snapshot.logoBusy || !doc.effectiveLogoImport.enabled || JSON.stringify(doc.settings) !== JSON.stringify(this.snapshot.draft)) return;
-    this.invalidateQuiet();const attempt = this.begin(), key = `logos:${this.sourceId}:${doc.revision}`;
-    let operationId = this.operations.get(key);if (!operationId) {operationId = this.makeId();this.operations.set(key, operationId);}
-    this.publish({...this.snapshot, logoBusy: true, logoResult: undefined, error: undefined});if (!this.valid(attempt)) return;
-    try {
-      const raw = await importOwnerSourceLogos(this.api, this.sourceId, {operationId}, attempt.abort.signal);
-      if (!this.valid(attempt)) return;
-      const result = parseEnvelope(raw, this.serverId, value => {
-        if (!value || typeof value !== 'object') throw {code: 'invalid_response'};
-        const v = value as Record<string, unknown>, number = (n: unknown) => {if (typeof n !== 'number' || !Number.isSafeInteger(n) || n < 0 || n > 100000) throw {code: 'invalid_response'};return n;};
-        return Object.freeze({requested: number(v.requested), imported: number(v.imported), skipped: number(v.skipped)});
-      }).result;
-      this.uncertain = false;this.operations.delete(key);this.publish({...this.snapshot, logoBusy: false, logoResult: result});
-    } catch (error) {this.uncertain = ![400,401,403,409,412,422].includes(errorFacts(error).status ?? 0);if (this.valid(attempt)) this.fail(error, {...this.snapshot, logoBusy: false, error: errorFacts(error)});}
-  }
-  override dispose() {this.invalidateQuiet();this.operations?.clear();super.dispose();}
+ }
+ async importLogos(replaceExisting=false){if(!this.isActive()||this.quietBlocked()||!this.snapshot.document||JSON.stringify(this.snapshot.draft)!==JSON.stringify(from(this.snapshot.document.source)))return;
+  this.invalidateQuiet();const attempt=this.begin();this.publish({...this.snapshot,logoBusy:true,error:undefined,logoResult:undefined});if(!this.valid(attempt))return;
+  try{const logoResult=await callServer(this.api,'POST /v1/admin/live/sources/{id}/logos',{id:this.sourceId,body:{replaceExisting},signal:attempt.abort.signal});if(this.valid(attempt))this.publish({...this.snapshot,logoBusy:false,logoResult});}
+  catch(error){if(this.valid(attempt))this.fail(error,{...this.snapshot,logoBusy:false,error:errorFacts(error)});}
+ }
+ override dispose(){this.invalidateQuiet();super.dispose();}
 }

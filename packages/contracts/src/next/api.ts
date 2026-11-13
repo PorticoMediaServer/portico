@@ -1829,6 +1829,7 @@ export interface LiveSource {
 
 export interface LiveSourceChannel {
   id: string;
+  sourceKey: string;
   name: string;
   number: string;
   sourceNumber?: string;
@@ -1861,6 +1862,7 @@ export interface LiveSourceChannelPage {
 }
 
 export interface LiveSourceConfig {
+  guideSource?: string;
   playlistUrl?: string;
   uploaded?: boolean;
   guideUrl?: string;
@@ -4698,6 +4700,7 @@ export interface Routes {
   'PATCH /v1/admin/live/sources/{id}': {access: 'owner'; request: LiveSourceSave; response: LiveSource};
   'DELETE /v1/admin/live/sources/{id}': {access: 'owner'; request: undefined; response: undefined};
   'POST /v1/admin/live/sources/{id}/refresh': {access: 'owner'; request: undefined; response: LiveSource};
+  'POST /v1/admin/live/sources/{id}/logos': {access: 'owner'; request: LiveSourceLogoImport; response: LiveLogoResult};
   'GET /v1/admin/live/sources/{id}/channels': {access: 'owner'; request: undefined; response: LiveSourceChannelPage};
   'PATCH /v1/admin/live/sources/{id}/channels': {access: 'owner'; request: LiveSourceChannelEdits; response: undefined};
   'GET /v1/live/streams/{grant}/{file}': {access: 'public'; request: undefined; response: undefined};
@@ -4756,3 +4759,6 @@ export interface Routes {
   'POST /v1/music/mixes/{id}/playlist': {access: 'withProfile'; request: MusicMixSave; response: ListCreated};
   'GET /v1/music/mixes': {access: 'withProfile'; request: undefined; response: MusicMixPage};
 }
+
+export interface LiveSourceLogoImport {replaceExisting: boolean}
+export interface LiveLogoResult {requested: number; imported: number; skipped: number}
