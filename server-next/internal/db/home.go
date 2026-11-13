@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -75,7 +76,80 @@ func (d *DB) continueRow(ctx context.Context, v Viewer, reading, library string)
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	if reading == "NOT IN" {
+		if items, err = continueNext(ctx, tx, v, acc, library, items); err != nil {
+			return nil, err
+		}
+	}
 	return items, loadImages(ctx, tx, items)
+}
+
+// continueNext offers the next episode between plays. Candidates come from the profile's
+// recent watched episodes; each next episode is one seek in that show's episode order.
+func continueNext(ctx context.Context, tx *sql.Tx, v Viewer, acc access, library string, items []Item) ([]Item, error) {
+	type recentEpisode struct{ root, last, season, number, at int64 }
+	recent, err := queryAll(ctx, tx, `SELECT root, last, season, number, at FROM (
+		SELECT e.root_id AS root, e.id AS last, ifnull(e.parent_index, 0) AS season,
+			ifnull(e.index_number, 0) AS number, p.last_played_at AS at,
+			row_number() OVER (PARTITION BY e.root_id ORDER BY p.last_played_at DESC,
+				e.parent_index DESC, e.index_number DESC, e.id DESC) AS chosen
+		FROM user_item_state p CROSS JOIN items e ON e.id = p.item_id
+		WHERE p.profile_id = @viewer_profile AND p.played = 1 AND p.last_played_at > @since
+			AND p.last_played_at > ifnull(p.continue_dismissed_at, 0)
+			AND e.kind = @episode AND e.root_id IS NOT NULL AND `+acc.visible("e")+`
+			AND (@library = '' OR e.library_id = (SELECT id FROM libraries WHERE public_id = @library))
+			AND NOT EXISTS (SELECT 1 FROM user_item_state done
+				WHERE done.profile_id = @viewer_profile AND done.item_id = e.root_id AND done.played = 1)
+		) WHERE chosen = 1 ORDER BY at DESC LIMIT `+fmt.Sprint(homeRowSize),
+		append(v.args(), sql.Named("since", time.Now().Add(-continueWindow).UnixMilli()), sql.Named("episode", KindEpisode), sql.Named("library", library)),
+		func(e *recentEpisode) []any { return []any{&e.root, &e.last, &e.season, &e.number, &e.at} })
+	if err != nil {
+		return nil, err
+	}
+	seen, activity := map[int64]bool{}, map[int64]int64{}
+	for _, item := range items {
+		activity[item.ID] = item.State.LastPlayedAt
+		if item.Kind == KindEpisode {
+			seen[item.RootID] = true
+		}
+	}
+	if len(recent) == 0 {
+		return items, nil
+	}
+	nextEpisode, err := tx.PrepareContext(ctx, `SELECT `+itemColumns(acc)+`, @at > ifnull(s.continue_dismissed_at, 0)`+itemFrom+`
+            i.root_id = @root AND i.kind = @episode
+			AND (ifnull(i.parent_index, 0), ifnull(i.index_number, 0), i.id) > (@season, @number, @last)
+			AND (@season = 0 OR ifnull(i.parent_index, 0) > 0) AND `+acc.visible("i")+`
+            AND ifnull(s.played, 0) = 0
+			ORDER BY i.parent_index, i.index_number, i.id LIMIT 1`)
+	if err != nil {
+		return nil, err
+	}
+	defer nextEpisode.Close()
+	for _, previous := range recent {
+		if seen[previous.root] {
+			continue
+		}
+		var next Item
+		var notDismissed bool
+		err := scanItem(nextEpisode.QueryRowContext(ctx,
+			append(v.args(), sql.Named("root", previous.root), sql.Named("episode", KindEpisode), sql.Named("at", previous.at),
+				sql.Named("season", previous.season), sql.Named("number", previous.number), sql.Named("last", previous.last))...), &next, &notDismissed)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if notDismissed {
+			items = append(items, next)
+			activity[next.ID] = previous.at
+		}
+	}
+	slices.SortFunc(items, func(a, b Item) int {
+		return cmp.Or(cmp.Compare(activity[b.ID], activity[a.ID]), cmp.Compare(a.ID, b.ID))
+	})
+	return items[:min(len(items), homeRowSize)], nil
 }
 
 // RecentlyAdded lists the newest titles across the libraries the viewer may see: films and
