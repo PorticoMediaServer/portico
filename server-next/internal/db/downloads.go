@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -625,6 +626,7 @@ func (d *DB) KeepTitles(ctx context.Context, downloadID int64, keep []int64, add
 // PersonDownloads is one account's downloads, for the owner's Storage page.
 type PersonDownloads struct {
 	UserPublicID string
+	DownloadIDs  []string
 	Username     string
 	Titles       int
 	// CopiesBytes is what the server's copies for the account's requests take, each once.
@@ -635,6 +637,7 @@ type PersonDownloads struct {
 // per account; the copies are summed per account.
 func (d *DB) DownloadsByPerson(ctx context.Context) ([]PersonDownloads, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT u.public_id, u.username, count(x.item_id),
+ (SELECT json_group_array(e.public_id) FROM downloads e JOIN profiles q ON q.id=e.profile_id WHERE q.user_id=u.id),
 		(SELECT ifnull(sum(pm.size), 0) FROM prepared_media pm WHERE pm.id IN (SELECT y.prepared_id FROM download_items y
 			JOIN downloads e ON e.id = y.download_id JOIN profiles q ON q.id = e.profile_id WHERE q.user_id = u.id))
 		FROM users u JOIN profiles p ON p.user_id = u.id JOIN downloads d ON d.profile_id = p.id
@@ -646,7 +649,11 @@ func (d *DB) DownloadsByPerson(ctx context.Context) ([]PersonDownloads, error) {
 	out := []PersonDownloads{}
 	for rows.Next() {
 		var p PersonDownloads
-		if err := rows.Scan(&p.UserPublicID, &p.Username, &p.Titles, &p.CopiesBytes); err != nil {
+		var downloadIDs string
+		if err := rows.Scan(&p.UserPublicID, &p.Username, &p.Titles, &downloadIDs, &p.CopiesBytes); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(downloadIDs), &p.DownloadIDs); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
