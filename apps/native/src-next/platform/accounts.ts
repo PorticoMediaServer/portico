@@ -165,7 +165,9 @@ export class NativeAccounts {
       throw Object.assign(new Error('native_account_changed'), {code: 'account_changed'});
     const removed = await nativeAppSessions.signOutPorticoAccount({origin: hostedUrl, accountId: expected.accountId});
     // CredentialSessionService persists its own revocation journal for offline retry.
-    await credentials.logoutIfCurrent(expected); await this.revoke(removed);
+    await credentials.logoutIfCurrent(expected);
+    // Local sign-out is complete. An unreachable server cannot turn it into a failure.
+    void this.revoke(removed).catch(() => {});
     }
     finally {if (active) this.finishFence();}
   }
