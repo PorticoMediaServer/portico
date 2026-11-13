@@ -17,7 +17,7 @@ export function LibraryHeader({name, counts, switcher, menu, ambient, children, 
     {ambient && <div className={styles.headerAmbient} aria-hidden="true">{ambient}</div>}
     <div className={styles.libraryIdentity}><div><div className={styles.libraryName}><h1>{name}</h1>{switcher}</div>
       {!!counts?.length && <p className={styles.libraryCounts}>{counts.map(part => <span key={part.id}>{part.text}</span>)}</p>}</div>
-      {menu && <div className={styles.libraryEnd}>{menu}</div>}</div>{children}
+      {menu && <div className={styles.libraryEnd}>{menu}</div>}</div>{children && <div className={styles.headerNav}>{children}</div>}
   </header>;
 }
 export type StickyBrowseHeaderProps = Omit<LibraryHeaderProps, 'counts' | 'platform'> & Readonly<{onLibraries: () => void; sticky?: boolean; topInset?: number}>;

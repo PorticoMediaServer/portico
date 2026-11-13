@@ -156,9 +156,8 @@
 .historyRow time { font-size: calc(var(--type-caption-size) * 14 / 13); color: var(--color-text-secondary); text-align: right; font-variant-numeric: tabular-nums; }
 .header { position: relative; z-index: var(--layer-content); padding: 116px var(--shell-gutter) 0; }
 .header h1 { margin: 0; font-size: calc(var(--type-lockup-size) * 28 / 23); line-height: calc(var(--type-lockup-size) * 28 / 23); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-lockup-tracking); }
-/* collections.html .dw .phd h1: 56px, line-height 1 and the authored -.045em, desktop only. */
-@media (min-width: 1024px) { .header h1 { font-size: var(--type-fixed-size-56px); line-height: var(--type-fixed-line-1); letter-spacing: var(--type-fixed-tracking-minus-point-045em); } }
-.tabs { position: relative; z-index: var(--layer-content); margin-top: 28px; }
+/* From 600 px the page title is the kit LibraryHeader (56 px, as every library page); .header is the phone directory's. */
+.wideHeader { z-index: var(--layer-content); }
 .tabsList { gap: 34px; padding: 0 var(--shell-gutter); }
 .downloadColumns { position: relative; z-index: var(--layer-content); display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 0 48px; padding: 0 var(--shell-gutter); }
 .downloadColumns > div { min-width: 0; }
@@ -238,9 +237,7 @@
   .historyRow { grid-template-columns: 120px minmax(0, 1fr) 90px; gap: 16px; }
   .historyArt { width: 120px; height: 68px; }
   .historyRow > div:nth-child(3) { display: none; }
-  .header { padding: 32px 24px 0; }
-  .header h1 { font-size: var(--type-display-size); }
-  .tabsList { padding: 0 24px; gap: 24px; }
+  .tabsList { padding: 0 var(--shell-gutter); gap: 24px; }
   .downloadColumns { padding: 0 24px; grid-template-columns: minmax(0, 1fr); }
   .downloadSide { padding-top: 24px; }
   .serverDownloads { padding: 0 24px; }
