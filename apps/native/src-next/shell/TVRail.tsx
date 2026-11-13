@@ -65,7 +65,9 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
   // current page's item, as Android TV's nextFocusLeft does.
   const opened = useRef(false);
   const focusChanged = useCallback((owns: boolean) => {
-    if (owns && !opened.current && Platform.OS === 'ios') registry.focusRegion(ids.rail);
+    // A frame later and only if focus is still in the rail: focus that only passed through it (dropped there while a page
+    // opened, then asked onto that page's start) must not be pulled back to the rail.
+    if (owns && !opened.current && Platform.OS === 'ios') requestAnimationFrame(() => {if (registry.capture()?.regionId === ids.rail) registry.focusRegion(ids.rail);});
     opened.current = owns; changeRef.current(owns);
   }, [registry, ids.rail]);
   React.useEffect(() => {if (!motion.transforms) expanded.value = open ? 1 : 0;}, [expanded, motion.transforms, open]);

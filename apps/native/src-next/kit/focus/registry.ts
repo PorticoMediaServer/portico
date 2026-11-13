@@ -273,7 +273,15 @@ export function createFocusRegistry() {
     if (r && !r.owner && !r.host && !r.children.size && active?.regionId === id && !isRetained(id)) {active = undefined; emit([id], undefined, 'focus');}
     prune(id);
   });
+  // The last control that asked for itself as its page's start (preferredFocus), with a counter, so the layer stack
+  // can tell a page that names its own start from one that does not.
+  let preferred: Readonly<{host: FocusHost; seq: number}> | undefined, preferredSeq = 0;
   return {
+    /** A control's own start ask (useFocusTarget's preferred). */
+    notePreferred(host: FocusHost) {preferred = {host, seq: ++preferredSeq};},
+    /** The latest start ask, and the counter to compare later asks against. */
+    preferredAsk: () => preferred,
+    preferredCount: () => preferredSeq,
     subscribe(listener: () => void) {listeners.add(listener); return () => {listeners.delete(listener);};},
     getSnapshot: () => revision,
     subscribeRegion,

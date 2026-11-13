@@ -10,7 +10,7 @@ export type TVLayerSpec = Readonly<{
    * whether a request was sent; the stack asks again as elements attach, within its wait. */
   claim?: () => boolean;
 }>;
-type Registry = Pick<FocusRegistry, 'capture' | 'focus' | 'restore' | 'retain' | 'subscribe'>;
+type Registry = Pick<FocusRegistry, 'capture' | 'focus' | 'restore' | 'retain' | 'subscribe'> & Partial<Pick<FocusRegistry, 'preferredAsk' | 'preferredCount'>>;
 type Clock = Readonly<{later: (run: () => void, ms: number) => unknown; cancel: (handle: unknown) => void}>;
 const realClock: Clock = {later: (run, ms) => setTimeout(run, ms), cancel: handle => clearTimeout(handle as ReturnType<typeof setTimeout>)};
 /** How long a layer waits for the element it is owed to attach (a windowed grid re-projecting, a page re-enabling its cards). */
@@ -30,7 +30,7 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
   let layers: readonly TVLayerSpec[] = [];
   const openers = new Map<string, Readonly<{snapshot: FocusSnapshot; release: () => void}>>();
   const listeners = new Set<() => void>();
-  let revision = 0, pending: (() => void) | undefined, disposed = false;
+  let revision = 0, pending: (() => void) | undefined, disposed = false, seenPreferred = registry.preferredCount?.() ?? 0;
   const same = (a: FocusSnapshot | undefined, b: FocusSnapshot | undefined) => a?.regionId === b?.regionId && a?.childId === b?.childId;
   const emit = () => {revision++; for (const listener of [...listeners]) listener();};
   const drop = (key: string) => {const saved = openers.get(key); openers.delete(key); saved?.release();};
@@ -38,7 +38,7 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
   /** Keep asking until focus has moved off where it was when the layer changed (or is already on what the layer is
    * owed), or the wait runs out. A request that cannot land yet (nothing attached) is asked again as each element
    * attaches; nothing polls frames. A request never re-enters itself through the focus event it causes. */
-  const settle = (ask: () => boolean, last: () => void, owed?: FocusSnapshot) => {
+  const settle = (ask: () => boolean, last: () => void, owed?: FocusSnapshot, once = false) => {
     pending?.();
     const before = registry.capture();
     const done = () => {
@@ -49,7 +49,9 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
     let finished = false, asking = false, granted = false;
     const finish = () => {if (finished) return; finished = true; off(); clock.cancel(timer); if (pending === finish) pending = undefined;};
     const tryAsk = () => {if (asking || finished) return; asking = true; try {granted = ask() || granted;} finally {asking = false;} if (done()) finish();};
-    const off = registry.subscribe(() => {if (finished || asking) return; if (done()) finish(); else tryAsk();});
+    // A claim on a page's named start (`once`) is sent again only if focus fell outside every layer: repeating it on every
+    // registry change floods the native side with requests that race the page's own. Other claims ask again as elements attach.
+    const off = registry.subscribe(() => {if (finished || asking) return; if (done()) finish(); else {const now = registry.capture(); if (!once || !granted || now && outside(now)) tryAsk();}});
     const timer = clock.later(() => {if (finished) return; finish(); if (!done()) last();}, wait);
     pending = finish;
     // Always ask once: the registry can still name the old element when focus went somewhere it does not track.
@@ -58,19 +60,19 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
   const host = (key: string) => layers.find(layer => layer.key === key)?.host?.();
   const claim = (key: string) => {
     const target = layers.find(layer => layer.key === key);
-    const ask = target?.claim ?? (target?.host ? () => requestNativeFocus(host(key)) : undefined);
+    // A page that asked for its own start since the last layer change (Play on a title page) is claimed on that control,
+    // not on the layer's host: the host would land on what the layer remembered from an earlier page.
+    const start = registry.preferredAsk?.(), named = start && start.seq > seenPreferred ? start.host : undefined;
+    const ask = target?.claim ?? (named ? () => requestNativeFocus(named) : target?.host ? () => requestNativeFocus(host(key)) : undefined);
     if (!ask) return;
     // At the deadline, a layer whose focus is still outside it (or never moved) asks once more.
-    settle(ask, () => {const now = registry.capture(); if (!now || outside(now)) ask();});
+    settle(ask, () => {const now = registry.capture(); if (!now || outside(now)) ask();}, undefined, !!named && !target?.claim);
   };
   const restore = (key: string, snapshot: FocusSnapshot) => settle(
     () => registry.focus(snapshot),
     () => {if (!registry.restore(snapshot)) requestNativeFocus(host(key));}, snapshot);
 
-  return {
-    /** The layers present now, bottom first. Call after the commit that painted them (a layout effect), so a
-     * layer uncovered by that commit can already take focus. */
-    sync(next: readonly TVLayerSpec[]) {
+  const syncLayers = (next: readonly TVLayerSpec[]) => {
       if (disposed) return;
       const before = layers.at(-1)?.key, after = next.at(-1)?.key;
       const present = new Set(next.map(layer => layer.key));
@@ -90,6 +92,14 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
       const saved = openers.get(after);
       if (saved) {openers.delete(after); restore(after, saved.snapshot); saved.release(); return;}
       if (before !== undefined) claim(after);
+    };
+
+  return {
+    /** The layers present now, bottom first. Call after the commit that painted them (a layout effect), so a
+     * layer uncovered by that commit can already take focus. */
+    sync(next: readonly TVLayerSpec[]) {
+      // Start asks made up to this layer change are the old page's; a later one names the new page's start.
+      try {syncLayers(next);} finally {seenPreferred = registry.preferredCount?.() ?? 0;}
     },
     top: (): string | undefined => layers.at(-1)?.key,
     isTop: (key: string): boolean => layers.at(-1)?.key === key,
