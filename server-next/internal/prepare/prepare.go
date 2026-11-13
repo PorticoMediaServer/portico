@@ -81,6 +81,7 @@ type Service struct {
 type making struct {
 	done, total int64
 	stop        context.CancelFunc
+	finished    chan struct{}
 }
 
 // New makes the service. Run must be called for copies to be made.
@@ -237,7 +238,14 @@ func (s *Service) fill(ctx context.Context) {
 		}
 		work, stop := context.WithCancel(ctx)
 		s.mu.Lock()
-		s.running[p.ID] = &making{stop: stop}
+		// A cleanup may have removed the row while this tick waited for the lock.
+		if _, err := s.DB.PreparedByID(ctx, p.ID); err != nil {
+			s.mu.Unlock()
+			stop()
+			continue
+		}
+		finished := make(chan struct{})
+		s.running[p.ID] = &making{stop: stop, finished: finished}
 		s.mu.Unlock()
 		go func() {
 			defer s.kick()
@@ -245,6 +253,7 @@ func (s *Service) fill(ctx context.Context) {
 			s.make(work, p)
 			s.mu.Lock()
 			delete(s.running, p.ID)
+			close(finished)
 			s.mu.Unlock()
 		}()
 	}
