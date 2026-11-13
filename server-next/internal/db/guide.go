@@ -67,6 +67,12 @@ func openGuideOnce(ctx context.Context, path string) (*guideDB, error) {
 			return nil, err
 		}
 	}
+	// The source summary reads its first covered instant without walking every programme.
+	// IF NOT EXISTS also upgrades an existing guide cache, without waiting for a refresh.
+	if _, err := write.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS programmes_start ON programmes (source_id, starts_at)`); err != nil {
+		write.Close()
+		return nil, err
+	}
 	// The guide file is never checkpointed by a helper: let SQLite do it as it goes.
 	write.ExecContext(ctx, `PRAGMA wal_autocheckpoint = 1000`)
 	read, err := open(path, "ro", 4, 4<<10)
@@ -161,6 +167,19 @@ func (d *DB) GuideCopyMatches(ctx context.Context, channelID int64, channelPubli
 		return false, err
 	}
 	return mainCount == guideCount && mainEnd == guideEnd, nil
+}
+
+// GuideStart is the earliest programme held for a source, read through its start index.
+// An empty guide returns the zero time.
+func (d *DB) GuideStart(ctx context.Context, sourceID int64) (time.Time, error) {
+	var start sql.NullInt64
+	if err := d.guide.read.QueryRowContext(ctx, `SELECT min(starts_at) FROM programmes WHERE source_id = ?`, sourceID).Scan(&start); err != nil {
+		return time.Time{}, err
+	}
+	if !start.Valid {
+		return time.Time{}, nil
+	}
+	return time.UnixMilli(start.Int64).UTC(), nil
 }
 
 // GuideProgrammes reads one channel's programmes that end after from and start before to.

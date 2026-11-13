@@ -40,6 +40,8 @@ type LiveChannelSource struct {
 	// GuideThrough is how far the guide reaches for these channels, when it is known: the end
 	// of the source's last listing, or for Library Channels the earliest end of a schedule.
 	GuideThrough *time.Time `json:"guideThrough,omitempty"`
+	// GuideFrom is the earliest programme currently held for this source.
+	GuideFrom *time.Time `json:"guideFrom,omitempty"`
 	// OutOfDate says the source's last refresh, or that of the source its listings come from,
 	// failed: the guide shown is older.
 	OutOfDate bool `json:"outOfDate,omitempty"`
@@ -194,6 +196,13 @@ func (s *Server) liveFilterSources(ctx context.Context, v db.Viewer, lv db.LiveV
 			if guide == 0 {
 				continue
 			}
+			from, err := s.db.GuideStart(ctx, guide)
+			if err != nil {
+				return nil, err
+			}
+			if !from.IsZero() && (c.out.GuideFrom == nil || from.Before(*c.out.GuideFrom)) {
+				c.out.GuideFrom = &from
+			}
 			if through := reach(guide); through != nil && (c.out.GuideThrough == nil || through.After(*c.out.GuideThrough)) {
 				c.out.GuideThrough = through
 			}
@@ -207,6 +216,10 @@ func (s *Server) liveFilterSources(ctx context.Context, v db.Viewer, lv db.LiveV
 	for _, e := range f.Library {
 		if !librarychannels.Visible(lv, e.Libraries) || e.Hidden && !withHidden {
 			continue
+		}
+		from := e.ScheduledFrom
+		if !from.IsZero() && (library.out.GuideFrom == nil || from.Before(*library.out.GuideFrom)) {
+			library.out.GuideFrom = &from
 		}
 		library.out.Channels++
 		if e.Favorite {
