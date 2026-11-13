@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type {LibraryAdminDocument, LibrarySettings} from '@core/administration.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import {SettingsLibraryFoldersSource, type SettingsLibraryFolderEdit} from '../src/screens/settings/library-folders-source.ts';
 import {SettingsLibrarySource} from '../src/screens/settings/library-source.ts';
@@ -56,12 +55,9 @@ test('the selected library keeps the server order, path and resolved path exactl
 });
 
 test('the folder configuration carries the inventory revision, never the Settings document revision', async () => {
-  const settings: LibrarySettings = {scanDepth: 'basic', groupCollections: true, localTags: 'prefer', lyricsSource: 'files', titleSource: 'tags', episodeNumbering: 'absolute', findExtras: true, sortIgnoreArticles: true, refreshMode: 'replace_unlocked', acoustidEnabled: false,
-    continueWatching: {weeks: 16, maximumItems: 40, includeSeasonPremieres: true, videoPlayedThreshold: 95, videoCompletion: 'earliest'}, allowMediaDeletion: false, monitorChanges: true, providers: [], analysis: ['probe', 'local_metadata', 'subtitle_discovery'],
-    navigation: {trickplayIntervalMs: 10000, trickplayTileWidth: 320, trickplayMaxTiles: 1080, chapterThumbnailMode: 'embedded', videoPreviewEnabled: false, videoPreviewMs: 30000}, segmentDetection: 'server'};
-  const document = (libraryId: string, revision: number): LibraryAdminDocument => ({libraryId, libraryName: libraryId, libraryKind: 'anime', revision, digest: 'actual-document',
-    eligibleControls: ['libraries.scrubSpacing', 'libraries.episodeNumbering'], audience: {everyone: false, accounts: 3}, actions: ['scan', 'rename'],
-    settings, defaults: {...settings, continueWatching: {...settings.continueWatching, weeks: 8}}, analysisMatrix: {costClasses: [], operations: []}, availableProviders: [], enumerations: {}, sources: []});
+  const document = (id: string, revision: number) => ({id, name: id, kind: 'movies', revision: String(revision),
+    metadataProvider: 'local', metadataProviders: [{id: 'local', available: true}], folders: [],
+    options: {depth: 'basic', watch: true, allowDelete: false, groupSeries: true}});
   const calls: string[] = [];
   const request = async <T>(path: string) => {
     calls.push(path);
@@ -74,7 +70,7 @@ test('the folder configuration carries the inventory revision, never the Setting
     assert.equal(library.document('selected')?.revision, 7);
     // The existing write contract already states expectedRevision is inventory-config.revision, never settings.revision.
     assert.equal(f.folders.config('selected')?.revision, 41);
-    assert.deepEqual(calls, ['/v1/admin/libraries/selected/settings', '/v1/admin/libraries/selected/inventory-config']);
+    assert.deepEqual(calls, ['/v1/admin/libraries/selected', '/v1/admin/libraries/selected/inventory-config']);
     assert.deepEqual(Object.keys(f.folders.getSnapshot()).sort(), ['config', 'libraryId', 'loading', 'mutation']);
   } finally {f.folders.dispose();library.dispose();}
 });
