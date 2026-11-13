@@ -55,7 +55,7 @@ export function TopBar({back, overArtwork = false, title, leadingTitle, center, 
     <View pointerEvents="box-none" style={styles.row}>
       {back && (overArtwork
         ? <RoundBarButton testID={back.testID} icon="i-left" label={back.label} disabled={back.disabled} onPress={back.onPress}/>
-        : <Focusable testID={back.testID} accessibilityRole="button" accessibilityLabel={back.label} disabled={back.disabled} onPress={back.onPress} style={styles.back}>
+        : <Focusable testID={back.testID} accessibilityRole="button" accessibilityLabel={back.label} disabled={back.disabled} onPress={back.onPress} hitSlop={{top: 3, bottom: 3}} style={styles.back}>
           <View style={styles.backContent}>
             <Icon name="i-left" size={22} color={theme.colors.textSecondary}/>
             <Text numberOfLines={1} style={[shellType(16, 600), {color: theme.colors.textSecondary, flexShrink: 1}]}>{back.label}</Text>

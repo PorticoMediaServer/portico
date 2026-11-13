@@ -36,7 +36,7 @@ import {usePlatformPosture} from '../../platform/platformPosture';
 import {mediumRailMetrics} from '../../shell/model';
 import {usePageInset} from '../../kit/layout/page-inset';
 import {TVRow} from '../../kit/layout/TVRow';
-import {RoundBarButton} from '../../kit/layout/TopBar';
+import {RoundBarButton, TopBar} from '../../kit/layout/TopBar';
 
 export type NativeTitleScreenProps = Readonly<{
   controller: NativeTitleController;
@@ -128,7 +128,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
   // width beside the rail.
   const centered = !theme.isTV && theme.platform === 'tablet' && !props.watch;
   const phoneTitle = !theme.isTV && !wide && !centered && !props.watch;
-  const headerHeight = (phoneTitle ? 48 : 50) + insets.top;
+  const headerHeight = 44 + insets.top;
   // foldable3g splits the watch page's own sections across the two book pages.
   const titleOnly = props.watch?.sections === 'title', episodesOnly = props.watch?.sections === 'episodes';
   const leftWidth = twoPane ? divider - inset : pageWidth, rightWidth = twoPane ? viewport.width - divider : pageWidth;
@@ -255,13 +255,11 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
   const toggle = () => {const watch = props.watch, fence = watch?.source.fence;
     if (watch && fence && !watch.source.retired && sameFence(watch.playback.getSnapshot().fence, fence)) void watch.playback.toggle(fence).catch(props.reportError);
   };
-  const chromeButton = (testID: string, icon: 'i-left' | 'i-cast', label: string, onPress: () => void, anchorRef?: React.RefObject<View | null>) => phoneTitle
-    ? <RoundBarButton ref={anchorRef} testID={testID} icon={icon} label={label} onPress={onPress}/>
-    : <Button ref={anchorRef} testID={testID} variant={icon === 'i-left' ? 'icon' : 'glass'} icon={icon} iconOnly accessibilityLabel={label} onPress={onPress}/>;
-  const headerFor = (showTitle: boolean) => !theme.isTV && !props.watch && <View testID="watch-title-header" style={{position: 'absolute', top: 0, left: 0, right: 0, height: headerHeight, paddingTop: insets.top, flexDirection: 'row', alignItems: 'center', paddingHorizontal: phoneTitle ? 12 : 10, zIndex: 10, backgroundColor: collapsed ? theme.colors.ink : 'transparent'}}>
-    {chromeButton('watch-title-back', 'i-left', t('action.back'), props.back)}
-    {collapsed && showTitle && <Text numberOfLines={1} style={[theme.type.bodyStrong, {flex: 1, textAlign: 'center', color: theme.colors.text}]}>{title}</Text>}
-    {props.onPlayOn ? <View style={{marginLeft: 'auto'}}>{chromeButton('watch-title-play-on', 'i-cast', t('next.dock.native.playOnMenu'), () => props.onPlayOn?.(titlePlayOn), titlePlayOn)}</View> : null}
+  // The shared phone top bar (kit/layout/TopBar): round glass back and Play on over the art; once the
+  // page scrolls past the hero it pins the bar surface and the title, as every pushed page's bar does.
+  const headerFor = (showTitle: boolean) => !theme.isTV && !props.watch && <View testID="watch-title-header" pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10}}>
+    <TopBar overArtwork surface={collapsed} back={{label: t('action.back'), onPress: props.back, testID: 'watch-title-back'}} title={collapsed && showTitle ? title : undefined}
+      trailing={props.onPlayOn ? <RoundBarButton ref={titlePlayOn} testID="watch-title-play-on" icon="i-cast" label={t('next.dock.native.playOnMenu')} onPress={() => props.onPlayOn?.(titlePlayOn)}/> : undefined}/>
   </View>;
   const header = headerFor(true);
   const removeContinue = () => {

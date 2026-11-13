@@ -61,13 +61,11 @@ test('title chrome allocates the current safe area and keeps real Back and Play 
   for (const top of [0, 50, 59]) {
     f.insets.top = top;
     const tree = f.render(), header = find(tree, 'watch-title-header');
-    assert.equal(style(header).height, 48 + top);
-    assert.equal(style(header).paddingTop, top);
-    const back = find(header, 'watch-title-back'), cast = find(header, 'watch-title-play-on');
-    // The shared round glass control over art (kit/layout/TopBar: 38 pt, blur 18 under ink .45).
-    assert.equal(back.type, 'RoundBarButton'); assert.equal(back.props.icon, 'i-left');
+    // The shared top bar (kit/layout/TopBar) owns the safe area and the 44 pt row: round glass back and Play on over the art.
+    const bar = descendants(header).find(node => node.type === 'TopBar'), cast = bar.props.trailing;
+    assert.equal(bar.props.overArtwork, true); assert.equal(bar.props.back.testID, 'watch-title-back');
     assert.equal(cast.type, 'RoundBarButton'); assert.equal(cast.props.icon, 'i-cast');
-    back.props.onPress(); assert.equal(f.calls.pop(), 'back');
+    bar.props.back.onPress(); assert.equal(f.calls.pop(), 'back');
     cast.props.ref.current = {nativeTag: 18}; cast.props.onPress();
     assert.equal(f.calls.pop(), cast.props.ref, 'Play on receives the actual opener ref');
   }
@@ -90,8 +88,10 @@ test('the compact phone hero centers its copy and puts wide Play, actions and sy
   }
   const scroll = descendants(tree).find(node => node.type === 'Scroll' && node.props.onScroll);
   const move = (y: number) => scroll.props.onScroll({nativeEvent: {contentOffset: {y}, contentSize: {height: 2000}, layoutMeasurement: {height: 844}}});
-  move(297); assert.equal(style(find(f.render(), 'watch-title-header')).backgroundColor, 'transparent');
-  move(299); assert.equal(style(find(f.render(), 'watch-title-header')).backgroundColor, '#071018');
+  // Past the hero (396 less the 44 pt bar and the safe area) the bar pins its surface and the title.
+  const bar = () => descendants(find(f.render(), 'watch-title-header')).find(node => node.type === 'TopBar');
+  move(301); assert.equal(bar().props.surface, false); assert.equal(bar().props.title, undefined);
+  move(303); assert.equal(bar().props.surface, true); assert.ok(bar().props.title);
 });
 
 test('the expanded tablet preserves its title layout, labels Watched and insets the pinned bar', async () => {

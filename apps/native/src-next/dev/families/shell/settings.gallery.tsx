@@ -8,7 +8,8 @@ import {Select} from '../../../kit/controls/Select';
 import {Switch} from '../../../kit/controls/Switch';
 import {Button} from '../../../kit/controls/Button';
 import {useTheme} from '../../../kit/theme';
-import {ChoiceCards, ChoiceMatrix, DefaultHint, LanguageList, LargeTitleHeader, PushedNavBar, SettingsNav, SettingsRow, SettingsSheet, ShortcutTiles, SubtitlePreview, ProfileAvatar} from '../../../kit/shell';
+import {ChoiceCards, ChoiceMatrix, DefaultHint, LanguageList, LargeTitleHeader, SettingsNav, SettingsRow, SettingsSheet, ShortcutTiles, SubtitlePreview, ProfileAvatar} from '../../../kit/shell';
+import {TopBar} from '../../../kit/layout/TopBar';
 import type {SettingsNavPage, LanguageOption} from '../../../kit/shell';
 
 function Frame({children}: {children: ReactNode}) {
@@ -60,7 +61,7 @@ function SettingsSheetGallery() {
     {id: 'notifications', label: defaultI18n.t('next.shell.notifications'), icon: 'i-bell' as const, onPress: () => setMessage(defaultI18n.t('next.shell.notifications'))},
     {id: 'together', label: defaultI18n.t('next.shell.watchTogether'), icon: 'i-people' as const, onPress: () => setMessage(defaultI18n.t('next.shell.watchTogether'))},
   ];
-  return <Frame><Button size="small" onPress={() => setOpen(true)}>{defaultI18n.t('next.shell.settings')}</Button><PushedNavBar title={defaultI18n.t('next.shell.settings')} backLabel={defaultI18n.t('action.back')} onBack={() => setOpen(false)}/><Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{message}</Text><SettingsSheet open={open} onOpenChange={setOpen} detents={[height - 62]} profile={<View style={{padding: 16}}><ProfileAvatar profile={fixture.profiles[0]} size={54} onPress={() => setMessage(fixture.profiles[0].name)}/></View>} shortcuts={<ShortcutTiles actions={actions}/>}><SettingsNav accountPages={accountPages} serverPages={[]} viewerRole="owner" serverName={fixture.profiles[0].name} selectedId={selected} onNavigate={id => {setSelected(id); setMessage(accountPages.find(page => page.id === id)?.label ?? '');}}/></SettingsSheet></Frame>;
+  return <Frame><Button size="small" onPress={() => setOpen(true)}>{defaultI18n.t('next.shell.settings')}</Button><TopBar safeArea={false} title={defaultI18n.t('next.shell.settings')} back={{label: defaultI18n.t('action.back'), onPress: () => setOpen(false)}}/><Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{message}</Text><SettingsSheet open={open} onOpenChange={setOpen} detents={[height - 62]} profile={<View style={{padding: 16}}><ProfileAvatar profile={fixture.profiles[0]} size={54} onPress={() => setMessage(fixture.profiles[0].name)}/></View>} shortcuts={<ShortcutTiles actions={actions}/>}><SettingsNav accountPages={accountPages} serverPages={[]} viewerRole="owner" serverName={fixture.profiles[0].name} selectedId={selected} onNavigate={id => {setSelected(id); setMessage(accountPages.find(page => page.id === id)?.label ?? '');}}/></SettingsSheet></Frame>;
 }
 function wrap(Render: () => ReactNode) {return function GalleryRender() {return <OverlaysProvider><Render/></OverlaysProvider>;};}
 const galleries: readonly Gallery[] = [
