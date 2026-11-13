@@ -203,10 +203,8 @@ func (s backendSpec) supported() bool {
 // unknown value is refused rather than silently replaced.
 var ToneMapAlgorithms = []string{"clip", "linear", "gamma", "reinhard", "hable", "mobius"}
 
-// DefaultToneMapAlgorithm is mobius: it keeps the picture's ordinary brightness as
-// it is and only folds in the highlights above it. Hable, the earlier default,
-// left a whole film about a third darker than its standard-range grade.
-const DefaultToneMapAlgorithm = "mobius"
+// DefaultToneMapAlgorithm is the server-wide default for HDR conversion.
+const DefaultToneMapAlgorithm = "hable"
 
 func ValidToneMapAlgorithm(a string) bool {
 	for _, v := range ToneMapAlgorithms {
