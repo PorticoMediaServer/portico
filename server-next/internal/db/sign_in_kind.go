@@ -32,6 +32,8 @@ type Move struct {
 	At time.Time `json:"-"`
 	// AtMs is At as stored.
 	AtMs int64 `json:"at"`
+	// Total is the number of accounts asked to move; absent on moves begun before it was recorded.
+	Total *int `json:"total,omitempty"`
 }
 
 // ErrAccountWaiting: the password was right, but the account waits to move to Portico Accounts.
@@ -162,7 +164,11 @@ func (d *DB) SwitchSignIn(ctx context.Context, sw Switch) (SessionState, error) 
 			if _, err := tx.Exec(`UPDATE users SET state = 'waiting', updated_at = ? WHERE id <> ? AND state = 'active'`, at, sw.OwnerID); err != nil {
 				return err
 			}
-			raw, _ := json.Marshal(Move{To: sw.To, AtMs: at})
+			var total int
+			if err := tx.QueryRow(`SELECT count(*) FROM users WHERE state = 'waiting' AND id <> ?`, sw.OwnerID).Scan(&total); err != nil {
+				return err
+			}
+			raw, _ := json.Marshal(Move{To: sw.To, AtMs: at, Total: &total})
 			if err := putSetting(tx, MoveKey, string(raw), at); err != nil {
 				return err
 			}

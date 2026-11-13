@@ -132,7 +132,7 @@ func TestSwitchToLocalSignIn(t *testing.T) {
 
 	var state SignInState
 	call(t, s, "GET", "/v1/admin/sign-in", owner, nil, &state)
-	if state.Kind != "local" || state.Move == nil || len(state.Waiting) != 2 {
+	if state.Kind != "local" || state.Move == nil || state.Move.Total == nil || *state.Move.Total != 2 || len(state.Waiting) != 2 {
 		t.Fatalf("the Sign-in page says %+v", state)
 	}
 	var code MoveCodeOut

@@ -140,6 +140,11 @@ func TestTheOwnerCanSwitchToLocalSignInFromTheDataFolder(t *testing.T) {
 	if p.works(sam) {
 		t.Error("after the switch a sign-in made with a Portico Account still works")
 	}
+	var move SignInState
+	call(t, p.s, "GET", "/v1/admin/sign-in", onMain(t, p.s, in).AccessToken, nil, &move)
+	if move.Move == nil || move.Move.Total == nil || *move.Move.Total != 1 || len(move.Waiting) != 1 {
+		t.Fatalf("data-folder reset move: %+v, waiting %+v", move.Move, move.Waiting)
+	}
 	if code := status(t, p.s, "POST", "/v1/auth/portico/challenge", "", PorticoChallengeRequest{}); code != 409 {
 		t.Errorf("after the switch the server still gives Portico challenges: %d", code)
 	}

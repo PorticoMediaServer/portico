@@ -619,7 +619,7 @@ routes, the cap on members' tokens). Already built under their own addresses and
 
 | Route | Who | Purpose |
 |---|---|---|
-| `GET /v1/admin/sign-in` | Owner | The kind of sign-in, the owner, a switch in progress and who is waiting |
+| `GET /v1/admin/sign-in` | Owner | The kind of sign-in, the owner, a switch in progress and who is waiting. New switches include the fixed starting account count as `move.total`; older switches omit it |
 | `POST /v1/admin/sign-in/preview` | Owner, from the main profile, on the web | What a switch or Start over would do, with this server's real numbers. Changes nothing. For a switch to Portico Accounts with a `returnUrl`, `approval` carries the approval in full, as setup's does |
 | `POST /v1/admin/sign-in/switch` | Owner, from the main profile, on the web | Confirm: a username and password for local sign-in, or the approval that came back for Portico Accounts; the server's name typed for Start over. Everyone is signed out |
 | `POST /v1/admin/sign-in/finish` | Owner | Finish now: accounts still waiting are turned off as "Didn't move" |
