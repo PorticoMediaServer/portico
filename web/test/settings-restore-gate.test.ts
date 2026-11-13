@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {restoreReady, sentAsConfirmed} from '../src/screens/settings/server/restore-gate.ts';
+import {restoreReady, sentAsConfirmed} from '../../packages/client-core/src/server-admin/restore-gate.ts';
 
 test('Restore is offered only with the word typed exactly, a password, and a backup that passed its check', () => {
   const ok = {checked: true, busy: false, password: 'pw', typed: 'restore', word: 'restore'};
