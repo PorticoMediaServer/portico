@@ -192,7 +192,10 @@ export function WatchPlayback({binding, context, surfaces, geometry, live}: Watc
   const receiverCount = useSyncExternalStore(cast?.receivers?.subscribe ?? noSubscription, () => cast?.receivers?.getSnapshot().items.length ?? 0, noReceivers);
   useEffect(() => {if (cast && queueRun && !transport) cast.receivers?.refresh();}, [cast, queueRun, transport]);
   const castAvailable = !!cast && playOnOffered({castAvailable: remoteState?.cast.available === true, airPlayAvailable: remoteState?.airPlayAvailable === true, queueRun, receivers: receiverCount});
-  const remotePlaying = remoteState?.remote?.phase === 'playing';
+  // This browser plays too while one of the account's devices still plays (a Play here whose stop failed). Then the
+  // device does not hold the screen: this browser's own player and bar are shown, and the device is a line with its Stop.
+  const alongside = remoteState?.remote?.kind === 'portico' && !!snapshot?.presentation && !snapshot.disposed;
+  const remotePlaying = remoteState?.remote?.phase === 'playing' && !alongside;
   const media = useMemo(() => new PlaybackMediaOwner<HTMLVideoElement>(), []);
   const cache = useMemo(() => new PlaybackPresentations(runtime), [runtime]);
   const dockPanelsCurrent = useCallback(() => context?.isCurrent() === true && cast?.controller.getSnapshot().remote?.phase !== 'playing', [context, cast]);
@@ -401,7 +404,7 @@ export function WatchPlayback({binding, context, surfaces, geometry, live}: Watc
   const videoGesture = useVideoGesture(binding, snapshot, phone && activeVideo && !snapshot?.nativeVideoSurfaceActive
     && !fullscreen && !pipActive && !drawnSurfaces.modal && !remoteState?.remote, videoCurrent, dockSlot, expandedSlot, musicBar);
   return <div ref={host} className={styles.dock} data-phone={phone} data-shell-dock data-watch-playback-host data-music-expanded={!phone && expanded && !remotePlaying && snapshot?.presentation?.kind === 'music' ? 'true' : undefined}>
-    {snapshot && dockBinding && <div ref={musicBar} className={styles.localDock} data-covered={!!remote} data-music-retained={!!musicMotion.scope || undefined} data-video-retained={videoGesture.retain && expanded || undefined} inert={expanded && !remotePlaying || undefined} aria-hidden={expanded && !remotePlaying || undefined}><DockHost state={snapshot.dock} presentations={presentations} binding={dockBinding} layout={phone ? 'phone' : 'desktop'} artSlotRef={dockSlot} videoSurface={!!activeVideo} artworkSurface={!!musicMotion.scope} retainExpandedMusic={!!musicMotion.scope} retainExpandedVideo={videoGesture.retain} videoGesture={videoGesture.port} videoGestureActive={videoGesture.active} starting={starting} />
+    {snapshot && dockBinding && <div ref={musicBar} className={styles.localDock} data-covered={!!remote && !alongside} data-music-retained={!!musicMotion.scope || undefined} data-video-retained={videoGesture.retain && expanded || undefined} inert={expanded && !remotePlaying || undefined} aria-hidden={expanded && !remotePlaying || undefined}><DockHost state={snapshot.dock} presentations={presentations} binding={dockBinding} layout={phone ? 'phone' : 'desktop'} artSlotRef={dockSlot} videoSurface={!!activeVideo} artworkSurface={!!musicMotion.scope} retainExpandedMusic={!!musicMotion.scope} retainExpandedVideo={videoGesture.retain} videoGesture={videoGesture.port} videoGestureActive={videoGesture.active} starting={starting} />
       {!expanded && !remote && noticeIdentity && <CurrentListeningNotice key={noticeIdentity} snapshot={snapshot} phone={phone}/>}
       <DockNotice notice={currentNotice} nowMs={now} binding={dockBinding} phone={phone} /></div>}
     <MediaSurface gesturePaint={videoGesture.paint} finished={snapshot?.presentation?.finished} expanded={expanded} dockSlot={dockSlot} expandedSlot={expandedSlot} hidden={!activeVideo} nativeRenderActive={snapshot?.nativeVideoSurfaceActive} className={styles.surface}>
@@ -419,7 +422,7 @@ export function WatchPlayback({binding, context, surfaces, geometry, live}: Watc
       publishDockPanels={publishDockPanels} dockPanelsCurrent={dockPanelsCurrent} subscribeDockPanels={subscribeDockPanels}
       surfaces={drawnSurfaces} geometry={geometry} live={live}
       windowPort={windowPort} />}
-    {cast && binding && visuals && <div className={styles.remote}><CastPlayback controller={cast.controller} visuals={visuals} phone={phone} anchorRef={castAnchor} reportError={binding.reportError} receivers={cast.receivers} linkTv={cast.linkTv} /></div>}
+    {cast && binding && visuals && <div className={styles.remote}><CastPlayback controller={cast.controller} visuals={visuals} phone={phone} anchorRef={castAnchor} reportError={binding.reportError} receivers={cast.receivers} linkTv={cast.linkTv} alongside={alongside} /></div>}
   </div>;
 }
 function playbackIdentityLabel(presentations: readonly DockPresentation[], key: string | undefined) { return presentations.find(value => fenceKey(value.fence) === key)?.identity.title ?? defaultI18n.t('next.dock.nowPlaying'); }

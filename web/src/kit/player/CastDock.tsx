@@ -9,9 +9,15 @@ import type {CastPlayerProps} from './types';
 import dock from '../dock/dock.module.css';
 
 /** Cast has the dock before local video/music. All commands carry the exact remote revision. */
-export function CastDock({controller, snapshot, visuals, phone, reportError, t = defaultI18n.t}: CastPlayerProps) {
+export function CastDock({controller, snapshot, visuals, phone, reportError, alongside, t = defaultI18n.t}: CastPlayerProps) {
   const remote = snapshot.remote;
   if (!remote || snapshot.disposed) return null;
+  // Both playing (a Play here whose stop failed): this browser's own player and bar keep the screen, and the device
+  // is one line above the bar, with what failed and its Stop, so both stay in reach. A device that has stopped needs no line.
+  if (alongside && remote.kind === 'portico') return remote.phase === 'playing' ? <div className={dock.alongside} role="status" data-cast-alongside data-phone={phone || undefined}>
+    <span>{t('next.dock.stillPlayingOn', {device: remote.deviceName ?? ''})}{remote.problem && <> · {remote.problem}</>}</span>
+    <Button variant="glass" size="xs" onClick={() => controller.stop(remote)}>{t('next.dock.stop')}</Button>
+  </div> : null;
   const bound = remote.itemId && visuals.itemId === remote.itemId ? visuals : undefined;
   const playing = remote.phase === 'playing', terminal = ['stopped', 'replaced', 'error'].includes(remote.phase);
   // The phone-player 7b remote opens from the bar for a Cast device and for one of the account's Portico devices.
