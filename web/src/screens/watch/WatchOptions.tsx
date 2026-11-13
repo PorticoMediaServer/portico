@@ -6,7 +6,7 @@ import {Icon, type IconName} from '../../kit/Icon';
 import {BottomSheet,Dialog,Menu} from '../../kit/overlays';
 import type {WatchPanelContext} from './types';
 import {phoneOptionRows,type WatchPanelModel,type WatchRadioChoice} from './panel-model';
-import {videoChapters} from '@core/presentation/video-chapters.ts';
+import {videoChapterOffer, videoChapters} from '@core/presentation/video-chapters.ts';
 import styles from './panels.module.css';
 
 type Section = 'subtitles' | 'audio' | 'quality' | 'speed';
@@ -102,7 +102,7 @@ export function WatchOptions({model,context,i18n,reportError,openSettings,info}:
   ...(context.available?.includes('episodes')?[{id:'episodes',label:t('next.dock.queue'),icon:'i-queue' as const,...(upNext?{value:upNext}:{}),action:()=>context.show('episodes')}]
     :context.available?.includes('queue')?[{id:'queue',label:t('next.dock.queue'),icon:'i-queue' as const,...(upNext?{value:upNext}:{}),action:()=>context.show('queue')}]:[]),
   // A title with chapters but no episodes: its Chapters drawer (INTEGRATION.md §7), as on desktop's controls row.
-  ...(!context.available?.includes('episodes')&&videoChapters(context.snapshot.options?.chapters,context.snapshot.presentation?.durationSeconds??0,0,n=>String(n)).length>0?[{id:'chapters',label:t('player.opt.chapters'),icon:'i-list' as const,action:()=>context.show('chapters')}]:[]),
+  ...(videoChapterOffer(videoChapters(context.snapshot.options?.chapters,context.snapshot.presentation?.durationSeconds??0,0,n=>String(n)),!!context.available?.includes('episodes'),context.snapshot.presentation?.durationSeconds??0).drawer?[{id:'chapters',label:t('player.opt.chapters'),icon:'i-list' as const,action:()=>context.show('chapters')}]:[]),
   ...(info?[{id:'info',label:t('next.info.title'),icon:'i-info' as const,action:()=>context.show('info')}]:[]),
   ...(context.reportProblem?[{id:'report',label:context.reportProblem.label,icon:'i-flag' as const,action:context.reportProblem.action}]:[]),
  ];
