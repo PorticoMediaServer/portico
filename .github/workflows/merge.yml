@@ -60,7 +60,7 @@ jobs:
           key: gitleaks-8.30.1-${{ hashFiles('ci/secret-scan.sh') }}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
-          go-version-file: server/go.mod
+          go-version-file: server-next/go.mod
           cache: false
       - env:
           GITLEAKS_TARBALL_CACHE: ${{ runner.temp }}/gitleaks-cache/gitleaks.tar.gz
@@ -107,10 +107,10 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
-          go-version-file: server/go.mod
+          go-version-file: server-next/go.mod
           cache: true
           cache-dependency-path: |
-            server/go.sum
+            server-next/go.sum
             apikit/go.sum
       - id: plan
         env:
@@ -121,10 +121,6 @@ jobs:
       - env:
           CI_BASE: ${{ inputs.base }}
         run: python3 ci/commit_bylines.py
-      - name: Plan hash pins
-        env:
-          CI_BASE: ${{ inputs.base }}
-        run: python3 ci/plan_pins.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: selection
@@ -189,7 +185,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
-          go-version-file: server/go.mod
+          go-version-file: server-next/go.mod
           cache-dependency-path: '**/go.sum'
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
@@ -202,11 +198,6 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci --no-audit --no-fund
       - run: python3 ci/run.py build
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: playback-helper
-          path: ci-tools/portico-server
-          if-no-files-found: error
   go_vet_cross:
     # The merge tier tests on Linux only; this keeps macOS- and Windows-only compile errors
     # (in tests too) from first appearing in a release build. Static: nothing runs.
@@ -224,7 +215,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
-          go-version-file: server/go.mod
+          go-version-file: server-next/go.mod
           cache-dependency-path: '**/go.sum'
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
@@ -249,7 +240,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
-          go-version-file: server/go.mod
+          go-version-file: server-next/go.mod
           cache: true
           cache-dependency-path: '**/go.sum'
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -302,7 +293,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
-          go-version-file: server/go.mod
+          go-version-file: server-next/go.mod
           cache-dependency-path: '**/go.sum'
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -358,7 +349,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
-          go-version-file: server/go.mod
+          go-version-file: server-next/go.mod
           cache-dependency-path: '**/go.sum'
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:

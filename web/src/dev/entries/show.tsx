@@ -3,7 +3,7 @@ import {RouterProvider, createMemoryHistory} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import type {HttpLocalApi, Library, LocalSession, Viewer} from '@core/index.ts';
 import {parsePreferenceSnapshot} from '@core/preferences.ts';
-import bootstrapWire from '../../../../server/testdata/contracts/get-preferences.json?raw';
+import bootstrapWire from '../../../../packages/client-core/test/fixtures/preferences.json?raw';
 import type {EventsClient} from '@core/playback-v1/events.ts';
 import type {ShellArtwork} from '../../shell/artwork';
 import {createArtworkRuntime} from '../../kit/artwork/source';

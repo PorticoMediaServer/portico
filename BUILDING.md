@@ -4,7 +4,7 @@ This is for people who want to read the code, run it or work on it. If you just 
 
 ## What you need
 
-- Go, at the version in `server/go.mod`
+- Go, at the version in `server-next/go.mod`
 - Node.js 24 and npm. CI, releases and the container image all use the exact version in `.node-version`.
 - Make
 - FFmpeg and FFprobe, for playback and transcoding
@@ -52,10 +52,10 @@ Some features, like the CBR and CB7 comic readers, only compile with specific Go
 - **Capability tags** (`portico_rar7z,portico_cb7`) turn on those readers. `make`, CI and development builds all use them.
 - **Release tags** add `release` on top. Only the sealed release builder and the container image use them.
 
-A plain `go build ./cmd/server` leaves those readers out. To build exactly what CI builds:
+A plain `go build ./cmd/portico-server` leaves those readers out. To build exactly what CI builds:
 
 ```sh
-(cd server && go build -tags "$(../scripts/release-build-tags.py --capability)" -o ../dist/portico-server ./cmd/server)
+(cd server-next && go build -tags "$(../scripts/release-build-tags.py --capability)" -o ../dist/portico-server ./cmd/portico-server)
 ```
 
 CI fails if a build, test or vet command drops the capability tags (`scripts/test-official-build-tags.py`), so a plain `-tags release` is treated as a bug.
@@ -66,12 +66,12 @@ Run focused checks while you work:
 
 ```sh
 (cd web && npx tsc --noEmit)
-(cd server && GOFLAGS=-p=2 go test ./internal/naming -run Test)
+(cd server-next && GOFLAGS=-p=2 go test ./internal/api -run Test)
 npm run check:native
 npm run check:vega
 ```
 
-`make test` runs the wider Go and client suites and can take a while. `scripts/vet-go.sh` handles some known warnings from the bundled SQLite driver. Check a package's own instructions before running its media or performance tests.
+`make test` runs the wider Go and client suites and can take a while. `scripts/vet-go.sh` passes the same capability tags to the Go analyzers. Check a package's own instructions before running its media or performance tests.
 
 Passing tests don't prove playback works on real devices, or that an install works as a service.
 
@@ -87,7 +87,7 @@ Toolchains and signing only run for releases. See [ci/README.md](ci/README.md).
 
 | Path | What it is |
 | --- | --- |
-| `server` | The server (Go module `github.com/PorticoMediaServer/portico/server`), with its API reference in `server/api` |
+| `server-next` | The server (Go module `github.com/PorticoMediaServer/portico/server-next`), with its API reference in `server-next/api/openapi.json` |
 | `web` | The web app every server includes |
 | `apps/native`, `apps/vega`, `apps/desktop` | The phone, tablet and TV apps, the Vega TV app, and the desktop app |
 | `packages/client-core` | Client logic shared by the web and native apps |

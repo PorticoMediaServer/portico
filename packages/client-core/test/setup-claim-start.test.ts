@@ -9,7 +9,7 @@ import {verifySetupClaimStart, type SetupStartExpectation} from '../src/setup-cl
 
 // Public interoperability seed from the existing canonical Go fixture. New
 // setup proofs are signed here; this is not an installed claim or a grant.
-const vector = JSON.parse(readFileSync(new URL('../../../server/internal/claimweb/testdata/owner_start.json', import.meta.url), 'utf8'));
+const vector = JSON.parse(readFileSync(new URL('fixtures/owner-start.json', import.meta.url), 'utf8'));
 const parent = JSON.parse(vector.claimPayload), owner = JSON.parse(vector.startPayload);
 const key = createPrivateKey({key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), Buffer.alloc(32, 0x42)]), format: 'der', type: 'pkcs8'});
 const now = Date.parse('2030-01-02T03:04:07Z');

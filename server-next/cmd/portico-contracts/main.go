@@ -73,7 +73,7 @@ func generate() (types, openAPI []byte, err error) {
 		if r.Status != 0 {
 			status = fmt.Sprint(r.Status)
 		}
-		routes = append(routes, route{r.Pattern, method, path, accessNames[r.Access], g.use(r.Request), g.use(r.Response), status})
+		routes = append(routes, route{r.Pattern, method, path, accessNames[r.Access], g.use(r.Request), g.use(r.Response), status, string(r.Scope)})
 	}
 	// Every refusal has this one shape, whichever route it comes from.
 	g.use(reflect.TypeFor[api.Error]())
@@ -92,6 +92,7 @@ type route struct {
 	// request and response are shape names, or "" for none.
 	request, response string
 	status            string // the status of a reply with a body
+	scope             string
 }
 
 type generator struct {
@@ -389,7 +390,12 @@ func (g *generator) openAPI(routes []route) []byte {
 	}
 	paths := object{}
 	for _, r := range routes {
-		op := object{"x-access": r.access}
+		audience := "Integrations"
+		if r.scope == string(api.ScopeSession) {
+			audience = "Clients"
+		}
+		id := strings.NewReplacer("/", "_", "{", "", "}", "", "-", "_").Replace(strings.ToLower(r.method) + r.path)
+		op := object{"operationId": id, "tags": []string{audience}, "x-audience": audience, "x-access": r.access, "x-scope": r.scope}
 		params := []object{}
 		for _, m := range pathParam.FindAllStringSubmatch(r.path, -1) {
 			params = append(params, object{"name": m[1], "in": "path", "required": true, "schema": object{"type": "string"}})

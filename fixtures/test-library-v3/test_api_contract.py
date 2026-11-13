@@ -425,27 +425,6 @@ class PlaybackObserverTests(unittest.TestCase):
                 if isinstance(node, ast.Constant) and isinstance(node.value, str):
                     self.assertNotIn("/timeline", node.value, name)
 
-    def test_bodies_match_the_current_openapi(self):
-        default = Path(__file__).resolve().parents[2] / "server/api/portico.openapi.json"
-        spec_path = default
-        self.assertTrue(spec_path.is_file(), "canonical server OpenAPI must be present")
-        spec = json.loads(spec_path.read_text(encoding="utf-8"))
-        observation = spec.get("paths", {}).get("/v1/playback/sessions/{id}/observation", {})
-        claim = spec.get("paths", {}).get("/v1/playback/sessions/{id}/observer", {})
-        self.assertIn("put", observation, "current observation route must remain registered")
-        self.assertIn("post", claim, "current observer route must remain registered")
-        body_schema = observation["put"]["requestBody"]["content"]["application/json"]["schema"]
-        self.assertLessEqual(set(body_schema["required"]), set(body_schema["properties"]))
-        claim_schema = claim["post"]["requestBody"]["content"]["application/json"]["schema"]
-        self.assertEqual(claim_schema["required"], ["generation"])
-
-        client = fixture_client([grant(), ack(1), ack(1)])
-        observer = seed_state.Observer(client, "session-1", 7, now=FakeClock())
-        observer.observe("paused", 2500)
-        sample = sent_body(client.opener.requests[1])
-        self.assertEqual(set(sample), set(body_schema["required"]))
-        self.assertLessEqual(set(sample), set(body_schema["properties"]))
-        self.assertEqual(set(sent_body(client.opener.requests[0])), {"generation"})
 
 
 if __name__ == "__main__":

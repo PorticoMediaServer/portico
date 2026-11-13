@@ -348,6 +348,10 @@ export interface CastCode {
   expiresAt: string;
 }
 
+export interface CastCodeRequest {
+  sourceSessionId?: string;
+}
+
 export interface CastConfig {
   applicationId: string;
 }
@@ -564,6 +568,11 @@ export interface DevicePage {
   nextCursor?: string;
 }
 
+export interface DiscoveryInterface {
+  name: string;
+  addresses: string[];
+}
+
 export interface Download {
   id: string;
   deviceId: string;
@@ -726,6 +735,12 @@ export interface DvrAiring {
   alreadyBooked: boolean;
 }
 
+export interface DvrFolderStatus {
+  folder: string;
+  state: string;
+  problem?: string;
+}
+
 export interface DvrGroup {
   key: string;
   title: string;
@@ -743,7 +758,6 @@ export interface DvrGroupPage {
 }
 
 export interface DvrOverview {
-  freeOnDriveBytes: number;
   rules: number;
   groups: number;
   upcoming: number;
@@ -755,6 +769,7 @@ export interface DvrOverview {
   keepRule: string;
   folderOk: boolean;
   canRecord: boolean;
+  freeOnDriveBytes: number;
   usedBytes: number;
   floorBytes: number;
   capBytes: number;
@@ -859,11 +874,6 @@ export interface DvrRuleSave {
   paused?: boolean;
 }
 
-export interface DvrTunerUse {
-  channel: string;
-  using: string;
-}
-
 export interface DvrTunerSource {
   sourceId: string;
   sourceName: string;
@@ -873,6 +883,11 @@ export interface DvrTunerSource {
   conflicts: number;
   active: DvrTunerUse[];
   upcoming: DvrRecording[];
+}
+
+export interface DvrTunerUse {
+  channel: string;
+  using: string;
 }
 
 export interface DvrTuners {
@@ -1311,6 +1326,8 @@ export interface KeptFile {
 }
 
 export interface Key {
+  state?: string;
+  revokedAt?: string;
   id: string;
   name: string;
   scopes: string[];
@@ -1585,6 +1602,8 @@ export interface LibraryMetadataProvider {
   id: string;
   available: boolean;
   reason?: string;
+  languages?: string[];
+  defaultLanguage?: string;
 }
 
 export interface LibraryOptions {
@@ -3166,6 +3185,12 @@ export interface RcloneShown {
   path?: string;
 }
 
+export interface ReachabilityAddress {
+  address: string;
+  port: number;
+  reachable: boolean;
+}
+
 export interface ReceiverAnswer {
   answer: string;
   sessionId?: string;
@@ -3278,6 +3303,9 @@ export interface RemoteAccessSave extends RemoteAccessSettings {
 }
 
 export interface RemoteAccessSettings {
+  advertisedInterface: string;
+  interfaces?: DiscoveryInterface[];
+  interfaceNote?: string;
   remoteAccess: string;
   remoteSecurity: string;
   secureConnections: string;
@@ -3298,11 +3326,14 @@ export interface RemoteAccessSettings {
 }
 
 export interface RemoteAccessStatus {
+  outside?: RemoteOutsideCheck;
   thisDevice: ThisDevice;
   refused: RefusedAddress[];
   remoteSecurity: RemoteSecurity;
   warnings: Warning[];
   certificate: OwnCertificateStatus;
+  managedCertificate?: RemoteManagedCertificate;
+  listener?: RemoteListenerFacts;
   router: PortMappingStatus;
   routerIPv6: PortMappingStatus;
   publicAddress: PublicAddressAnswer;
@@ -3329,6 +3360,27 @@ export interface RemoteLimits {
   connections: number;
   perSecond: number;
   downloadBytesPerSecond?: number;
+}
+
+export interface RemoteListenerFacts {
+  address: string;
+  port: number;
+}
+
+export interface RemoteManagedCertificate {
+  state: string;
+  name?: string;
+  ready: boolean;
+  expiresAt?: string;
+  lastAttemptAt?: string;
+  nextTryAt?: string;
+  problem?: string;
+}
+
+export interface RemoteOutsideCheck {
+  checkedAt?: string;
+  addresses?: ReachabilityAddress[];
+  problem?: string;
 }
 
 export interface RemoteSecurity {
@@ -4653,7 +4705,7 @@ export interface Routes {
   'PUT /v1/groups/{id}/me': {access: 'withProfile'; request: GroupMe; response: Room};
   'DELETE /v1/groups/{id}/me': {access: 'withProfile'; request: undefined; response: undefined};
   'GET /v1/cast/config': {access: 'withProfile'; request: undefined; response: CastConfig};
-  'POST /v1/cast/codes': {access: 'withProfile'; request: undefined; response: CastCode};
+  'POST /v1/cast/codes': {access: 'withProfile'; request: CastCodeRequest; response: CastCode};
   'POST /v1/cast/redeem': {access: 'public'; request: CastRedeem; response: SignInResponse};
   'GET /v1/items/{id}/download-options': {access: 'withProfile'; request: undefined; response: DownloadOptions};
   'GET /v1/downloads': {access: 'withProfile'; request: undefined; response: DownloadPage};
@@ -4703,8 +4755,9 @@ export interface Routes {
   'PATCH /v1/admin/live/sources/{id}/channels': {access: 'owner'; request: LiveSourceChannelEdits; response: undefined};
   'GET /v1/live/streams/{grant}/{file}': {access: 'public'; request: undefined; response: undefined};
   'GET /v1/live/streams/{grant}': {access: 'public'; request: undefined; response: undefined};
-  'GET /v1/dvr': {access: 'withProfile'; request: undefined; response: DvrOverview};
   'GET /v1/dvr/groups': {access: 'withProfile'; request: undefined; response: DvrGroupPage};
+  'GET /v1/admin/dvr/folder': {access: 'owner'; request: undefined; response: DvrFolderStatus};
+  'GET /v1/dvr': {access: 'withProfile'; request: undefined; response: DvrOverview};
   'GET /v1/dvr/recordings': {access: 'withProfile'; request: undefined; response: DvrRecordingPage};
   'POST /v1/dvr/recordings': {access: 'withProfile'; request: DvrRecordingBook; response: DvrRecording};
   'GET /v1/dvr/recordings/{id}': {access: 'withProfile'; request: undefined; response: DvrRecording};
@@ -4714,7 +4767,6 @@ export interface Routes {
   'POST /v1/dvr/rules': {access: 'withProfile'; request: DvrRuleSave; response: DvrRule};
   'PATCH /v1/dvr/rules/{id}': {access: 'withProfile'; request: DvrRuleSave; response: DvrRule};
   'DELETE /v1/dvr/rules/{id}': {access: 'withProfile'; request: undefined; response: undefined};
-  'GET /v1/admin/dvr/folder': {access: 'owner'; request: undefined; response: DvrFolderStatus};
   'GET /v1/admin/dvr/tuners': {access: 'owner'; request: undefined; response: DvrTuners};
   'GET /v1/live/programmes/{id}': {access: 'withProfile'; request: undefined; response: LiveProgrammeDetail};
   'GET /v1/live/reminders': {access: 'withProfile'; request: undefined; response: LiveReminderOutPage};
@@ -4758,5 +4810,3 @@ export interface Routes {
   'POST /v1/music/mixes/{id}/playlist': {access: 'withProfile'; request: MusicMixSave; response: ListCreated};
   'GET /v1/music/mixes': {access: 'withProfile'; request: undefined; response: MusicMixPage};
 }
-
-export interface DvrFolderStatus {folder: string; state: string; problem?: string}

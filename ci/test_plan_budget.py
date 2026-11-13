@@ -104,7 +104,7 @@ class ShortTierBudget(unittest.TestCase):
     """
 
     def writer_inventory(self):
-        package = 'github.com/PorticoMediaServer/portico/server/internal/store/writer'
+        package = 'github.com/PorticoMediaServer/portico/apikit/internal/store/writer'
         heavies = {
             'TestCrashReplayInventoryBatchEveryStepWidth8A': 445.0,
             'TestCrashReplayInventoryBatchEveryStepWidth8B': 436.0,
@@ -157,7 +157,7 @@ class ShortTierBudget(unittest.TestCase):
         # A promoted inventory is priced by the measured full table the caller
         # supplies, not by the short baseline that omits most of its parents.
         promoted = dict(durations)
-        promoted['github.com/PorticoMediaServer/portico/server/internal/store/writer.TestBatch000'] = 700.0
+        promoted['github.com/PorticoMediaServer/portico/apikit/internal/store/writer.TestBatch000'] = 700.0
         self.assertEqual(plan.balance_short(tests, durations, names, large_durations=promoted),
                          plan.balance_short_large(tests, promoted, names))
 

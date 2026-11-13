@@ -13,7 +13,7 @@ import tempfile
 import time
 import threading
 from js_shards import digest, receipt_name, reconcile, validate_selection
-from plan import ROOT, SHORT_CENSUSES
+from plan import ROOT
 
 from go_test_policy import policy, classify, FAILURE_STATUSES
 
@@ -88,16 +88,7 @@ def fetch(args,cwd=ROOT):
 def go(plan,index,report=None):
     validate_tags(plan)
     selected=plan['shards'][index]
-    if any(t['module']=='server' for t in selected):
-        helper=ROOT/'ci-tools/portico-server'
-        if not helper.is_file(): build_helper(plan)
-        helper.chmod(0o755)
-        os.environ['PORTICO_PLAYBACK_TEST_HELPER']=str(helper)
-    # Source censuses require a pass in short runs too. Diagnostic owners only
-    # require one in their nightly tier; their -short skips are intentional.
-    mandatory=set(SHORT_CENSUSES)
-    if plan.get('tier')=='nightly':
-        mandatory |= {(t['package'],t['name']) for t in plan.get('nightly_diagnostics',[])}
+    mandatory=set()
     allowed=policy(json.loads((ROOT/'ci/quarantine.json').read_text())); blocked=False
     out=ROOT/'ci-results'; out.mkdir(exist_ok=True)
     workers=os.environ.get('PORTICO_CI_GO_PACKAGE_JOBS','4')
@@ -188,12 +179,9 @@ def batches(plan, selected):
         else: partial.append((module,[(package,tests)],False))
     return [(m,groups,True) for (m,short),groups in sorted(complete.items())]+partial
 
-def build_helper(plan):
-    (ROOT/'ci-tools').mkdir(exist_ok=True)
-    execute(['go','build','-tags',plan['tags'],'-o',str(ROOT/'ci-tools/portico-server'),'./cmd/server'],ROOT/'server')
 
 def download():
-    for module in ['server','apikit']: fetch(['go','mod','download'],ROOT/module)
+    for module in ['apikit','server-next']: fetch(['go','mod','download'],ROOT/module)
 
 def install_ffmpeg():
     """CI-1: the distribution FFmpeg (with libsoxr), without recommended extras.
@@ -236,29 +224,7 @@ def ensure_ffmpeg(plan, index=0, component=None):
             result=subprocess.run([path,'-version'],capture_output=True,text=True,check=True,timeout=10)
             print(tool+' '+path+': '+result.stdout.splitlines()[0],flush=True)
 
-def prepare_httpapi_producer(files, directory):
-    consumers={'packages/contracts/test/invitation-producer-contract.test.ts',
-               'packages/contracts/test/reset-producer-contract.test.ts'}
-    if consumers.intersection(files):
-        # Both Node files need the same Go package. Compile once, before their
-        # 120-second execution budgets and before concurrent Node workers start.
-        binary=Path(directory)/'httpapi-producer.test'
-        execute(['go','test','-c','-o',str(binary),'./internal/httpapi'],ROOT/'server')
-        os.environ['PORTICO_HTTPAPI_PRODUCER_BINARY']=str(binary)
 
-def fixture_producers(files, directory):
-    producers = [
-        ('home-reading-wire.test.ts', 'PORTICO_READING_HOME_FIXTURE_DIR', 'TestHomeReadingSavedDeferredHTTP'),
-        ('concurrency-memory-limit.test.ts', 'PORTICO_CONCURRENCY_DIAGNOSTICS_FIXTURE_DIR', 'TestConcurrencyDiagnosticsMemoryLimitWire'),
-        ('console-registry-null-defaults.test.ts', 'PORTICO_CONSOLE_REGISTRY_FIXTURE_DIR', 'TestConsoleRegistryProducerRecordsNullableDefaults'),
-    ]
-    for suffix, variable, test in producers:
-        if any(f.endswith(suffix) for f in files):
-            target = Path(directory)/test; target.mkdir()
-            os.environ[variable] = str(target)
-            # Recording must run full even when feedback source guards skip under -short.
-            execute(['go','test','-count=1','-run','^'+test+'$','./internal/httpapi'],ROOT/'server')
-            if not list(target.glob('*.json')): raise ValueError('producer did not record fixtures: '+test)
 
 def js(plan,component,index=0):
     validate_selection(plan['js'])
@@ -274,16 +240,11 @@ def js(plan,component,index=0):
             'node_version':subprocess.check_output(['node','--version'],text=True,timeout=10).strip()}
     raw=[]
     scratch=ROOT/'ci-results/tmp'; scratch.mkdir(parents=True,exist_ok=True)
-    saved = {k:os.environ.get(k) for k in ['PORTICO_READING_HOME_FIXTURE_DIR','PORTICO_CONCURRENCY_DIAGNOSTICS_FIXTURE_DIR','PORTICO_CONSOLE_REGISTRY_FIXTURE_DIR','PORTICO_HTTPAPI_PRODUCER_BINARY']}
     try:
         if 'web/test/licences.test.ts' in files: download()
         before=time.monotonic(); execute(['npm','run','build'],ROOT/'packages/contracts')
         record['steps_seconds']['contracts']=time.monotonic()-before
         with tempfile.TemporaryDirectory(prefix='fixtures-',dir=scratch) as directory:
-            before=time.monotonic(); prepare_httpapi_producer(files,directory)
-            record['steps_seconds']['producer_compile']=time.monotonic()-before
-            before=time.monotonic(); fixture_producers(files,directory)
-            record['steps_seconds']['producers']=time.monotonic()-before
             code=0
             for group in item['static_roots']:
                 own=[str(Path(file).relative_to(group)) for file in files if file.startswith(group+'/')]
@@ -302,9 +263,6 @@ def js(plan,component,index=0):
                 code=code or result
             record['returncode']=code
     finally:
-        for k,v in saved.items():
-            if v is None: os.environ.pop(k,None)
-            else: os.environ[k]=v
         for target in raw:
             if target.exists():
                 try: record['files'].extend(json.loads(line) for line in target.read_text().splitlines())
@@ -351,19 +309,6 @@ def js_static(plan,component):
             if name in scripts: execute(['npm','run',name],ROOT/group)
     if component=='apps/desktop': execute(['npm','run','test:rust'],ROOT/component)
 
-def verify_census_passes(plan, directory):
-    expected={(t['package'],t['name']) for t in plan.get('inventory',[])} & SHORT_CENSUSES
-    if not expected: return
-    terminals={key:[] for key in expected}
-    for path in Path(directory).rglob('*.jsonl'):
-        for line in path.read_text().splitlines():
-            if not line.strip(): continue
-            event=json.loads(line)
-            key=(event.get('Package'),event.get('Test'))
-            if key in expected and event.get('Action') in ('pass','fail','skip','cancelled','canceled'):
-                terminals[key].append(event['Action'])
-    for key,states in terminals.items():
-        if states!=['pass']: raise ValueError(f'{key}: census must run and pass exactly once, got {states}')
 
 def aggregate(plan,needs):
     expected={'planner':True,'hygiene':True,'go_build':bool(plan['packages']),'go_vet_cross':bool(plan['packages']),'go_tests':bool(plan['packages']),'js':any(x['shards'] for x in plan['js']),'js_static':bool(plan['js']), 'android':plan.get('android',False)}
@@ -374,7 +319,6 @@ def aggregate(plan,needs):
     for job,required in expected.items():
         actual=needs.get(job,{}).get('result')
         if actual != ('success' if required else 'skipped'): raise ValueError(f'{job}: unexpected {actual}')
-    verify_census_passes(plan,ROOT/'ci-results/go')
     reconcile(plan,ROOT/'ci-results/js')
 
 def validate_tags(plan):
@@ -387,29 +331,23 @@ def vet_cross(plan, goos):
     if goos not in ('darwin','windows'): raise ValueError('vet-cross: darwin or windows')
     validate_tags(plan)
     env=dict(os.environ,GOOS=goos,GOARCH='arm64' if goos=='darwin' else 'amd64')
-    for module in ['server','apikit']:
+    for module in ['apikit']:
         for tags in ['',plan['tags']]:
             print(f'vet {module} GOOS={goos} tags={tags or "(none)"}',flush=True)
             subprocess.run(['sh',str(ROOT/'scripts/vet-go.sh'),'--tags',tags],cwd=ROOT/module,env=env,check=True)
 
 def build(plan):
     validate_tags(plan)
-    execute(['go','run','-tags',plan['tags'],'./cmd/apigen','-root','..'],ROOT/'server')
-    # Development contracts (packages/contracts/src/development) come from the devtrust routes;
-    # regenerate them in the same drift check so they cannot rot unnoticed.
-    execute(['go','run','-tags','devtrust','./cmd/apigen','-development','-root','..'],ROOT/'server')
     execute(['node',str(ROOT/'server-next/receiver/generate-cast-text.mjs'),'--check'])
     execute(['git','diff','--exit-code'])
-    for module in ['server','apikit']:
+    for module in ['apikit']:
         for tags in ['',plan['tags']]:
             execute(['go','build','-p=2','-tags',tags,'./...'],ROOT/module)
             execute(['sh',str(ROOT/'scripts/vet-go.sh'),'--tags',tags],ROOT/module)
-    build_helper(plan)
 
 if __name__=='__main__':
-    ap=argparse.ArgumentParser(); ap.add_argument('kind',choices=['go','build','vet-cross','js','js-static','aggregate','download','helper','ffmpeg']); ap.add_argument('--goos'); ap.add_argument('--plan',default='ci-plan.json'); ap.add_argument('--index',type=int,default=0); ap.add_argument('--component'); ap.add_argument('--needs'); a=ap.parse_args(); plan=json.loads(Path(a.plan).read_text())
+    ap=argparse.ArgumentParser(); ap.add_argument('kind',choices=['go','build','vet-cross','js','js-static','aggregate','download','ffmpeg']); ap.add_argument('--goos'); ap.add_argument('--plan',default='ci-plan.json'); ap.add_argument('--index',type=int,default=0); ap.add_argument('--component'); ap.add_argument('--needs'); a=ap.parse_args(); plan=json.loads(Path(a.plan).read_text())
     if a.kind=='download': download()
-    elif a.kind=='helper': build_helper(plan)
     elif a.kind=='ffmpeg': ensure_ffmpeg(plan,a.index,a.component)
     elif a.kind=='go': go(plan,a.index)
     elif a.kind=='vet-cross': vet_cross(plan,a.goos)

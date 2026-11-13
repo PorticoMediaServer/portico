@@ -45,7 +45,7 @@ Not every platform has a signed or store build yet, even where the source suppor
 
 | Folder | What it is |
 | --- | --- |
-| `server/` | The media server and its API, written in Go |
+| `server-next/` | The media server and its API, written in Go |
 | `web/` | The web app every server includes |
 | `apps/native/` | Phone, tablet, Apple TV, Android TV and Fire TV apps |
 | `apps/vega/` | The app for Amazon's Vega TVs |
@@ -60,7 +60,7 @@ The Portico Services infrastructure lives in a separate private repository. The 
 
 Owners can create API keys, and members can create personal tokens where the owner allows it. The local API covers title lookups, changed-path reports, webhooks, an event feed and an MCP endpoint for AI assistants. None of it needs Portico Services.
 
-- [API guide](server/api/guide/README.md)
+- [API reference](server-next/api/openapi.json)
 - [Libraries, naming and matching](docs/libraries.md)
 
 ## Bugs, ideas and contributions
