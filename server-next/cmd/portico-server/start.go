@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/buildinfo"
 	"github.com/PorticoMediaServer/portico/server-next/internal/supervise"
 )
 
@@ -22,8 +24,7 @@ var (
 // otherwise fills in the data folder when none was given.
 func packagedStart(listen string, data *string) (done bool, err error) {
 	if *showVersion {
-		fmt.Println(version)
-		return true, nil
+		return true, json.NewEncoder(os.Stdout).Encode(buildinfo.Info())
 	}
 	if *check {
 		// The check says only what it found. It is not the server, and "the server stopped"
