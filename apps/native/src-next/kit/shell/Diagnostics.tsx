@@ -31,7 +31,8 @@ export function Sparkline({samples, width, height = 46, min, max, endDot = false
     })}
   </Svg>;
 }
-export type StatTile = Readonly<{id: string; label: string; value: string; samples?: readonly (number | null)[]; min?: number; max?: number}>;
+/** `note`: one short line under the value (Conversions' hardware and processor split). */
+export type StatTile = Readonly<{id: string; label: string; value: string; note?: string; samples?: readonly (number | null)[]; min?: number; max?: number}>;
 export function StatTiles({tiles, columns, width, mode = 'health', onTilePress, testID}: {testID?: string; tiles: readonly StatTile[]; columns?: number; width: number; mode?: 'health' | 'viewing'; onTilePress?: (id: string) => void}) {
   const theme = useTheme();
   const phone = theme.platform === 'phone';
@@ -39,6 +40,7 @@ export function StatTiles({tiles, columns, width, mode = 'health', onTilePress, 
   const tileWidth = (width - (actualColumns - 1) * 2) / actualColumns;
   return <View style={{width, flexDirection: 'row', flexWrap: 'wrap', gap: 2, borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.lineSoft}}>{tiles.map(tile => {const content = <>
     <View style={{flexDirection: mode === 'health' && !phone ? 'row' : 'column', justifyContent: 'space-between', alignItems: mode === 'health' && !phone ? 'baseline' : 'flex-start'}}><Text style={[shellType(13.5), {color: mode === 'health' ? theme.colors.textSecondary : theme.colors.textTertiary}]}>{tile.label}</Text><Text style={[shellType(mode === 'health' ? phone ? 24 : 20 : 34, 800, phone ? mode === 'health' ? 26.4 : 37.4 : 'normal', mode === 'health' ? phone ? -.02 : -.01 : -.03), {color: theme.colors.text, marginTop: phone ? 3 : mode === 'viewing' ? 4 : 0}]}>{tile.value}</Text></View>
+    {tile.note ? <Text numberOfLines={2} style={[shellType(12.5, 500, 17.5), {color: theme.colors.textTertiary, marginTop: 2}]}>{tile.note}</Text> : null}
     {tile.samples && tile.min !== undefined && tile.max !== undefined && <View style={{marginTop: 8}}><Sparkline samples={tile.samples} width={tileWidth - (phone ? 28 : 36)} height={phone ? 40 : 46} min={tile.min} max={tile.max} endDot/></View>}
   </>;
     const style = {width: tileWidth, backgroundColor: theme.colors.raised, paddingHorizontal: phone ? mode === 'health' ? 14 : 16 : mode === 'health' ? 18 : 20, paddingTop: phone ? 14 : mode === 'health' ? 16 : 18, paddingBottom: phone ? mode === 'health' ? 10 : 15 : mode === 'health' ? 10 : 18};

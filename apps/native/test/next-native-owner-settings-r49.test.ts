@@ -92,6 +92,14 @@ test('Health tiles leave out a metric the server cannot measure and scale to the
   assert.deepEqual(ownerHealthTiles(undefined, t), []);
 });
 
+test('the Conversions tile says how many run on hardware and how many on the processor (rule 12)', () => {
+  const r = reading() as any;
+  r.status = {...r.status, conversions: {status: 'available', value: 3}, hardwareConversions: {status: 'available', value: 2}, processorConversions: {status: 'available', value: 1}};
+  r.series = {...r.series, conversions: [{t: 1, v: 3}, {t: 2, v: 3}]};
+  const tile = ownerHealthTiles(r, t).find(item => item.id === 'conversions');
+  assert.equal(tile?.value, '3'); assert.equal(tile?.note, '2 hardware · 1 processor');
+});
+
 test('the opened Health tile uses a true 0–100 axis for percentages and its own points for the figures', () => {
   const detail = ownerHealthDetail(reading(), 'cpu', t);
   assert.ok(detail);

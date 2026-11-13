@@ -51,6 +51,7 @@ export const dashboardMessages = {
   'next.dashboard.software': 'Processor',
   'next.dashboard.hardwareCount': '{value} hardware',
   'next.dashboard.processorCount': '{value} processor',
+  'next.dashboard.conversionSplit': '{hardware} hardware · {processor} processor',
   'next.dashboard.average': 'Averages',
   'next.dashboard.averageCount': '{value} on average',
   'next.dashboard.running': '{value} running',
