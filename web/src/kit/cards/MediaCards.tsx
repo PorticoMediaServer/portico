@@ -64,6 +64,8 @@ export type CoverCardProps = MediaCardProps & Readonly<{
   titleLines?: 1 | 2;
 }>;
 export function CoverCard({kind = 'book', generated, titleLines, watchedLabel, ...props}: CoverCardProps) {
+  // A title wraps to a second line before it is cut in a grid, as a poster card's does (desktop-read 2c `.pgrid .card .t`).
+  titleLines ??= props.context === 'grid' || props.density === 'grid' ? 2 : 1;
   const book = kind === 'book' || kind === 'comic';
   const artworkRef = useRef<HTMLSpanElement>(null);
   return <CardFrame {...props} watchedLabel={watchedLabel} artworkRef={artworkRef} playIconSize={20} kind="cover" playIcon="i-book" className={cx(book && !generated && styles.spine, !book && styles.periodical, kind === 'newspaper' && styles.newspaper, props.className)}>
