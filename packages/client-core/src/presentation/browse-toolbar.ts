@@ -39,6 +39,17 @@ const HIDDEN = new Set(['title', 'entityKind', 'memberOf', 'person', 'list']);
 /** Decade is Year with a coarser step; the Year control offers decades as presets. */
 const FOLDED_INTO_YEAR = new Set(['decade']);
 
+/** A reading library: books or comics (the server and the web name the kind singular or plural). */
+export const readingLibraryKind = (libraryKind: string): boolean => ['book', 'books', 'comic', 'comics'].includes(libraryKind);
+/** The words for a play-state quick filter follow the library's kind, here and nowhere else, so the
+ * filter row and a saved view's summary read the same: music is played or unplayed (area 6 rule
+ * 5), a book or comic unread or finished (desktop-read 1b), a film, show or audiobook watched. */
+export function playStateWord(libraryKind: string, quickId: string): 'next.kit.browse.unplayed' | 'next.kit.browse.played' | 'next.kit.browse.unread' | 'next.kit.browse.finished' | undefined {
+  if (libraryKind === 'music') return quickId === 'unwatched' ? 'next.kit.browse.unplayed' : quickId === 'watched' ? 'next.kit.browse.played' : undefined;
+  if (readingLibraryKind(libraryKind)) return quickId === 'unwatched' ? 'next.kit.browse.unread' : quickId === 'watched' ? 'next.kit.browse.finished' : undefined;
+  return undefined;
+}
+
 export function toolbarGroupOf(fieldId: string): ToolbarGroupId {
   if (ACTIVITY.has(fieldId)) return 'activity';
   if (FILE.has(fieldId)) return 'file';

@@ -1,6 +1,6 @@
 import type {BrowseCapabilities, BrowseFieldCapability, BrowseNode, BrowseQuickFilter, BrowseSortCapability, BrowseSortSelection} from '../../browse.ts';
 import {part, type FactPart, type KitMessageId, type TextEnvironment} from './text.ts';
-import {orderToolbarPredicates} from '../browse-toolbar.ts';
+import {orderToolbarPredicates, playStateWord, readingLibraryKind} from '../browse-toolbar.ts';
 
 export type BrowseToolbarEnvironment = TextEnvironment & Readonly<{
   owner?: boolean;
@@ -33,12 +33,6 @@ const videoQuick = ['unwatched', 'in-progress', 'favorites', 'watchlist'];
 const musicQuick = ['unwatched', 'watched', 'favorites'];
 // desktop-read 1b / phone-read 2: a reading library's row is Unread, In progress, Finished, My List.
 const readQuick = ['unwatched', 'in-progress', 'watched', 'watchlist'];
-const reading = (libraryKind: string) => ['book', 'books', 'comic', 'comics'].includes(libraryKind);
-/** The play-state words follow the library's kind, in this one place: music is played or unplayed
- * (area 6 rule 5), a book or comic read or not (desktop-read 1b), a film, show or audiobook watched. */
-const playStateCopy = (libraryKind: string, id: string): KitMessageId | undefined =>
-  libraryKind === 'music' ? (id === 'unwatched' ? 'next.kit.browse.unplayed' : id === 'watched' ? 'next.kit.browse.played' : undefined)
-    : reading(libraryKind) ? (id === 'unwatched' ? 'next.kit.browse.unread' : id === 'watched' ? 'next.kit.browse.finished' : undefined) : undefined;
 const quickCopy = {
   'in-progress': 'next.kit.browse.inProgress', unwatched: 'next.kit.browse.unwatched', watched: 'next.kit.browse.watched',
   favorites: 'next.kit.browse.favorites', watchlist: 'next.kit.browse.myList', available: 'next.kit.browse.available', missing: 'next.kit.browse.unavailable',
@@ -93,7 +87,7 @@ export function browseToolbarModel(capabilities: BrowseCapabilities, libraryKind
   const visible = fields.filter(f => !internal.has(f.id) && !(f.id === 'decade' && fields.some(f => f.id === 'year')));
   const groups = (['title', 'activity', 'file'] as const).map(id => Object.freeze({id, fields: Object.freeze(visible.filter(f => (activity.has(f.id) ? 'activity' : file.has(f.id) ? 'file' : 'title') === id)
     .sort((a, b) => rank(fieldOrder, a.id) - rank(fieldOrder, b.id)))})).filter(group => group.fields.length > 0);
-  const order = libraryKind === 'music' ? musicQuick : reading(libraryKind) ? readQuick : videoQuick;
+  const order = libraryKind === 'music' ? musicQuick : readingLibraryKind(libraryKind) ? readQuick : videoQuick;
   const offered = capabilities.quickFilters.filter(q => offeredNode(q.query, fields));
   const quick = order.flatMap(id => {
     const q = offered.find(q => q.id === id);
@@ -101,7 +95,7 @@ export function browseToolbarModel(capabilities: BrowseCapabilities, libraryKind
   });
   const modelQuick = (q: BrowseQuickFilter): BrowseQuickModel => {
     const key = Object.hasOwn(quickCopy, q.id) ? quickCopy[q.id as keyof typeof quickCopy] : undefined;
-    const label = playStateCopy(libraryKind, q.id) ?? key;
+    const label = playStateWord(libraryKind, q.id) ?? key;
     return Object.freeze({...q, ...(label ? {label: part('label', env.t(label), 'context')} : {}), active: predicates.some(p => sameNode(p, q.query))});
   };
   const sorts = capabilities.sorts.filter(s => (!pivot?.sorts || pivot.sorts.includes(s.id)) && (env.owner === true || s.id !== 'fileSize') && (env.scope === 'group' || !s.requiresGroup))
