@@ -38,7 +38,7 @@ function Specimen() {
     <ServicesActions><Button variant="primary" onClick={() => record('continue')}>{defaultI18n.t('action.continue')}</Button></ServicesActions></ServicesAuthStage>;
   if (frame === 'move-not-portico') return <MoveNotPortico server="Portico demo" onBack={() => record('back')} />;
   if (frame === '4b-http') return <PorticoServerSignIn serverName="Portico demo" plainHttp onContinue={() => record('hosted')} onRecovery={() => record('recovery')} />;
-  if (frame === '4b-http-secure') return <PorticoServerSignIn serverName="Portico demo" plainHttp onSecure={() => record('secure')} onContinue={() => record('hosted')} onRecovery={() => record('recovery')} />;
+  if (frame === '4b-http-secure') return <PorticoServerSignIn serverName={new URLSearchParams(location.search).get('server') ?? 'Portico demo'} plainHttp onSecure={() => record('secure')} onContinue={() => record('hosted')} onRecovery={() => record('recovery')} />;
   if (frame === '5-return') return <ServerReturnCard server="Portico demo" address="66-94-102-39.ptc-example.portico.direct:32510" username="nana_r"
     onContinue={() => record('continue')} onCancel={() => record('cancel')} onNotYou={() => record('not-you')} />;
   // Auth18 on a Portico Accounts server: the Portico Account's password, checked by Portico Services.

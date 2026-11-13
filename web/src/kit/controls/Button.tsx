@@ -24,8 +24,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
 export type ResumeButtonProps = ButtonProps & {progress: number; remaining?: ReactNode};
 /** What a Resume button leaves out when its label would be cut (a phone's row beside round buttons, phone-detail and
- * phone-read 3): first the time left or percent, then the icon. The label and the progress line always stay. */
-type ResumeDrop = 0 | 1 | 2;
+ * phone-read 3): first the time left or percent, then the icon; only then does the label wrap (3). The label and the
+ * progress line always stay. */
+type ResumeDrop = 0 | 1 | 2 | 3;
 export const ResumeButton = forwardRef<HTMLButtonElement, ResumeButtonProps>(function ResumeButton({progress, remaining, children, variant = 'primary', icon = 'i-play', className, ...props}, ref) {
   const own = useRef<HTMLButtonElement | null>(null), [drop, setDrop] = useState<ResumeDrop>(0);
   const attach = useCallback((node: HTMLButtonElement | null) => {
@@ -39,7 +40,7 @@ export const ResumeButton = forwardRef<HTMLButtonElement, ResumeButtonProps>(fun
     const fit = () => {
       let level: ResumeDrop = 0;
       button.dataset.drop = '0';
-      while (level < 2 && label.scrollWidth > label.clientWidth + .5) { level = (level + 1) as ResumeDrop; button.dataset.drop = String(level); }
+      while (level < 3 && label.scrollWidth > label.clientWidth + .5) { level = (level + 1) as ResumeDrop; button.dataset.drop = String(level); }
       setDrop(level);
     };
     fit();
