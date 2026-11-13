@@ -92,9 +92,11 @@ test('Discover and a series\' volumes read on a phone, and a retired sign-in sen
   const seen: URL[] = []; let current = true;
   runtime.networkRequest = async (_id: string, url: string, method: string, headers: Record<string, string>) => {
     const at = new URL(url); seen.push(at);
-    assert.equal(method, 'GET'); assert.equal(at.pathname, '/v1/items');
+    assert.equal(method, 'GET'); assert.ok(['/v1/items', '/v1/items/itm_series'].includes(at.pathname));
     assert.equal(new Headers(headers).get('Authorization'), 'Bearer throwaway-test-token');
     assert.equal(nativeReadingPolicy(url, method), undefined, 'a list is ordinary JSON, not book bytes');
+    if (at.pathname === '/v1/items/itm_series') return {status: 200, headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: 'itm_series', kind: 'series', title: 'Harbour Tales', counts: {children: 2, leaves: 2, unwatchedLeaves: 1}})};
     return {status: 200, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(at.searchParams.has('cursor') ? {items: []} : {items: [wire('one')], nextCursor: 'more'})};
   };
   const api = new HttpLocalApi(origin, 'throwaway-test-token', nativeServerFetch('s'));
@@ -104,10 +106,12 @@ test('Discover and a series\' volumes read on a phone, and a retired sign-in sen
     assert.deepEqual(discover.rows.map(row => [row.key, row.items.map(item => item.id), row.nextCursor]), [['recent', ['one'], 'more']]);
     const series = await client.series('comics', 'itm_series', {limit: 30});
     assert.deepEqual(series.items.map(item => item.id), ['one']);
+    assert.equal(series.overview?.title, 'Harbour Tales');
     assert.deepEqual((await client.series('comics', 'itm_series', {limit: 30, cursor: series.nextCursor})).items, []);
-    assert.equal(seen[1].searchParams.get('series'), 'itm_series'); assert.equal(seen[2].searchParams.get('cursor'), 'more');
+    const volumes = seen.filter(url => url.searchParams.has('series'));
+    assert.equal(volumes[0].searchParams.get('series'), 'itm_series'); assert.equal(volumes[1].searchParams.get('cursor'), 'more');
     current = false;
     await assert.rejects(client.series('comics', 'itm_series', {limit: 30}), error => error instanceof ReadingError && error.code === 'cancelled');
-    assert.equal(seen.length, 3, 'a retired sign-in sends nothing more');
+    assert.equal(seen.length, 5, 'a retired sign-in sends nothing more');
   } finally {client.dispose();}
 });
