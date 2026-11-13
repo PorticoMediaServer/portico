@@ -4,6 +4,7 @@ import type {ReaderSurfaceInput} from '@portico/reader-core';
 import {Icon, type IconName} from '../Icon';
 import {useReducedMotion, useRetained} from '../overlays/shared';
 import {ReaderPanel, ReaderPanelOpenContext} from './ReaderPanel';
+import {SeekLine} from '../media/SeekLine';
 import {fixedPageClearance} from './page-clearance';
 import {observedProgress, readerInteractiveTarget, readKeyTurn, readTapTurn, type ReadDirection, type ReadTurn} from './interaction';
 import styles from './reader.module.css';
@@ -203,15 +204,10 @@ export function ReaderChrome({title, subtitle, copy, chapter, pages, remainingIn
         {customFixedFooter ? fixedPageFooter : <>
         <div className={styles.position}>{chapter && <b>{chapter}</b>}{pages && <small>{pages}</small>}</div>
         <div className={styles.progressGroup}>
-          {progress !== undefined && <div className={styles.progress} dir={direction === 'rtl' ? 'rtl' : 'ltr'}>
-            <span className={styles.track}><i className={styles.fill} style={{width: `${progress * 100}%`}} />
-              {chapters.map(mark => { const start = observedProgress(mark.start), end = observedProgress(mark.end); return start === undefined ? null : <span key={mark.id}>
-                <i className={styles.chapterMark} style={{insetInlineStart: `${start * 100}%`}} />
-                {mark.current && end !== undefined && end > start && <i className={styles.currentChapter} style={{insetInlineStart: `${start * 100}%`, width: `${(end - start) * 100}%`}} />}
-              </span>; })}<i className={styles.knob} style={{insetInlineStart: `${progress * 100}%`}} /></span>
-            {onSeek && <input type="range" aria-label={copy.progress} aria-valuetext={pages ?? percent} min={0} max={1} step={0.0001} value={progress}
-              onChange={event => { const value = observedProgress(event.currentTarget.valueAsNumber); if (value !== undefined) onSeek(value); }} />}
-          </div>}
+          {progress !== undefined && <SeekLine variant="reader" value={progress} dir={direction === 'rtl' ? 'rtl' : 'ltr'}
+            marks={chapters.flatMap(mark => { const start = observedProgress(mark.start), end = observedProgress(mark.end); return start === undefined ? [] : [{id: mark.id, start, ...(end === undefined ? {} : {end}), ...(mark.current ? {current: true} : {})}]; })}
+            input={onSeek ? {'aria-label': copy.progress, 'aria-valuetext': pages ?? percent, min: 0, max: 1, step: 0.0001, value: progress,
+              onChange: event => { const value = observedProgress(event.currentTarget.valueAsNumber); if (value !== undefined) onSeek(value); }} : undefined} />}
         </div>
         <div className={styles.remaining}>{remainingInSection && <b>{remainingInSection}</b>}{(percent || remainingInBook) && <small>{percent && <span>{percent}</span>}{remainingInBook && <span>{remainingInBook}</span>}</small>}</div>
         </>}
