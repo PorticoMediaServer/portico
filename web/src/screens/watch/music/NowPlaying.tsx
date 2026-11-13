@@ -134,7 +134,7 @@ export function WatchMusicNowPlaying({binding, snapshot, expanded, onCollapse, p
     runtime={binding.runtime} port={equalizer} {...(isCurrent?{isCurrent}:{})} {...(scope?{scope}:{})}
     close={()=>closeEq(eqReceipt)} openSettings={()=>{if(!open)return;void router.navigate({to:'/settings',search:()=>({scope:'account' as const,section:'music'})});}}/>:null;
   const panel=eqOpen?eqPanel:listening?<><ListeningTabs host={listening}/><ListeningPanels host={listening} snapshot={snapshot} reportError={binding.reportError} artwork={binding.artwork} policyInTransport/></>:<StateView title={t('player.queueUnavailable')}/>;
-  return <section ref={motion?.scope ? motion.frame : undefined} className={styles.frame} data-music-motion-owned={!!motion?.scope || undefined} inert={!open || undefined} aria-hidden={!open || undefined} aria-label={t('next.music.nowPlaying')} tabIndex={-1} data-watch-music data-phone={phone || undefined}>
+  return <section ref={motion?.scope ? motion.frame : undefined} className={`portico-backdrop ${styles.frame}`} data-music-motion-owned={!!motion?.scope || undefined} inert={!open || undefined} aria-hidden={!open || undefined} aria-label={t('next.music.nowPlaying')} tabIndex={-1} data-watch-music data-phone={phone || undefined}>
     <AmbientArt source={binding.artwork.ambient(presentation.posterUrl ?? presentation.backdropUrl)} className={`${ambientStyles.ambient}${phone ? ` ${ambientStyles.phone}` : ''}`}/>
     <header className={styles.top}>
       <button type="button" className={styles.round} aria-label={t('player.minimize')} onClick={onCollapse}><Icon name="i-down" size={22} /></button>
