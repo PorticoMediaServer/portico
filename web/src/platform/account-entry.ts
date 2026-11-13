@@ -740,7 +740,7 @@ export class BrowserAccountEntry {
   const opened=await this.inspect(origin);if(!opened)return;
   const state=this.state,api=opened.api,op={signal:this.controller!.signal,current:opened.current};
   if(!record||record.state!==returned.state||record.origin!==origin||state.phase!=='portico'||state.server?.id!==record.serverId){
-   this.publish({...state,error:new CodedError('return_not_this_tab','This sign-in was started in another tab, or more than ten minutes ago. Continue to sign in again.')});return;
+   this.publish({...state,error:new CodedError('return_not_this_tab','This sign-in was started in another tab, more than ten minutes ago, or was already used.')});return;
   }
   this.publish({...state,busy:true,error:undefined});
   try{
