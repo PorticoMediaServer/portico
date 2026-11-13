@@ -5,7 +5,6 @@ import type {ReadingPeriodicalType, ReadingPeriodicalIssue, ReadingYearChoice, R
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
 import {CoverCard} from '../../kit/cards';
-import {GeneratedCover} from '../../kit/artwork';
 import {generatedCoverTint} from '@design';
 import {Select, TextField} from '../../kit/controls';
 import {WindowedGrid, fillHeightBelow, observeShellClearance} from '../../kit/layout';
@@ -18,8 +17,8 @@ import {NewspaperCalendar} from './NewspaperCalendar';
 import styles from './entry.module.css';
 
 const {t} = defaultI18n;
-/** Generated art is the drawn fallback for a periodical or issue without artwork, as for books. */
-const generated = (title: string) => <GeneratedCover title={title} glyph={Array.from(title)[0] ?? ''} tint={generatedCoverTint(title)}/>;
+/** The kit card's own generated cover, for a periodical or issue without artwork, as for books. */
+const generated = (title: string) => ({title, glyph: Array.from(title)[0] ?? '', tint: generatedCoverTint(title)});
 type Captured = NonNullable<ReturnType<typeof useProtectedWebScreenContext>>;
 type Common = Readonly<{context: Captured['context']; bindings: ReturnType<typeof createReadBindings>; libraryId: string; kind: ReadingPeriodicalType; issueDate?: string; year?: string; month?: string; reportError: (error: unknown) => void}>;
 type Groups = Common & Readonly<{mode: 'groups'; pages: ReturnType<typeof createReadingPeriodicalGroupsCollection>}>;
@@ -91,7 +90,7 @@ function GroupRows({resources, retry}: {resources: Groups; retry: () => void}) {
   return <section className={styles.library}><GridFrame>{(height, width) => <WindowedGrid collection={resources.pages.collection} label={t(resources.kind === 'magazine' ? 'library.tab.magazines' : 'library.tab.newspapers')}
     height={height} cardWidth={width} rowHeight={width * 4 / 3 + 66} gap={20} rowGap={30} renderPlaceholder={() => <Skeleton width={width} height={width * 4 / 3}/>}
     renderItem={group => <CoverCard kind={resources.kind} context="grid" density="grid" visible
-      artwork={resources.context.artwork.foreground(group.latest.item.coverUrl, 380, 3 / 4)} fallback={generated(group.name)}
+      artwork={resources.context.artwork.foreground(group.latest.item.coverUrl, 380, 3 / 4)} generated={generated(group.name)}
       model={{title: group.name, caption: [{id: 'date', text: calendarDate(defaultI18n, group.latest.issueDate), role: 'identity'}, {id: 'issues', text: t('next.reader.issueCount', {count: group.issueCount}), role: 'identity'}]}}
       playLabel={t('next.reader.read')} onPlay={group.latest.item.inventoryAvailable ? () => {
         if (resources.bindings.authority.isCurrent()) void router.navigate(readChosenDestination(group.latest.item.id)).catch(resources.reportError);
@@ -111,7 +110,7 @@ function IssueRows({resources, retry}: {resources: Issues; retry: () => void}) {
     isCurrent={() => resources.bindings.authority.isCurrent() && resources.pages.collection.getSnapshot().status === 'ready'} reportError={resources.reportError}/>}<GridFrame>{(height, width) => <WindowedGrid collection={resources.pages.collection} label={name ?? t(resources.kind === 'magazine' ? 'library.tab.magazines' : 'library.tab.newspapers')}
     height={height} cardWidth={width} rowHeight={width * 4 / 3 + 66} gap={20} rowGap={30} renderPlaceholder={() => <Skeleton width={width} height={width * 4 / 3}/>}
     renderItem={issue => <CoverCard kind={resources.kind} context="grid" density="grid" visible
-      artwork={resources.context.artwork.foreground(issue.item.coverUrl, 380, 3 / 4)} fallback={generated(issue.item.title)}
+      artwork={resources.context.artwork.foreground(issue.item.coverUrl, 380, 3 / 4)} generated={generated(issue.item.title)}
       model={{title: issue.item.title, caption: [{id: 'date', text: calendarDate(defaultI18n, issue.issueDate), role: 'identity'}]}}
       disabled={!issue.item.inventoryAvailable} playLabel={t('next.reader.read')} onNavigate={() => open(issue, false)} onPlay={issue.item.inventoryAvailable ? () => open(issue, true) : undefined}/>}/>}</GridFrame></section>;
 }
