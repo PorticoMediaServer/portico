@@ -5,10 +5,8 @@ import {mountQuietInput, SettingsOpenContext} from '../../settings/quiet-refresh
 import {useContext, type ReactNode, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import type {LibraryContentApi} from '@core/library-content.ts';
-import {ConsoleClient} from '@core/console.ts';
 import {ownerLiveDefaultsForm} from '@core/server-admin/live-defaults.ts';
-import {recordingForm} from '@core/server-admin/server-forms.ts';
-import {channelRequestID} from '@core/live-source-draft.ts';
+import {ownerRecordingDefaultsForm} from '@core/server-admin/owner-dvr-settings.ts';
 import {errorMessage} from '@core/presentation/errors.ts';
 import {Button} from '../../../kit/controls';
 import {Dialog} from '../../../kit/overlays';
@@ -60,7 +58,7 @@ export function createOwnerSources(options: OwnerSourcesOptions) {
   const api = withRequestRaw(reader, options.api.requestRaw?.bind(options.api), () => {if (!current()) throw {code: 'cancelled'};});
   const sources = new LiveSourceController(api, options.serverId, current, reportError);
   const defaults = new AutoSaveForm(ownerLiveDefaultsForm(api), current, reportError);
-  const recording = new AutoSaveForm(recordingForm({api, serverId: options.serverId, console: new ConsoleClient(api, {serverId: options.serverId, viewerId: options.viewerId}), operationId: channelRequestID}), current, reportError);
+  const recording = new AutoSaveForm(ownerRecordingDefaultsForm(api), current, reportError);
   const permissions = new RecordingPermissionsController(api, options.serverId, current, reportError);
   const rules = new RecordingRulesController(api, options.serverId, permissions, current, reportError);
   const tuners = new TunerController(api, options.serverId, current, reportError);
@@ -199,9 +197,7 @@ export function OwnerSourcesPage({source, libraryChannels}: {source: OwnerSource
     if (!liveDraft.discoveryEnabled) advancedSummary.push(t('web.dvrSettings.discovery'));
   }
   if (recordingDraft) {
-    if (recordingDraft.prePaddingMs !== 60000 || recordingDraft.postPaddingMs !== 180000) advancedSummary.push(t('next.settingsSpec.server.live.groups.6.rows.0.label'));
-    if (recordingDraft.folderTemplate || recordingDraft.movieFolderTemplate) advancedSummary.push(t('next.settingsSpec.server.live.advanced.groups.4.rows.0.label'));
-    if (recordingDraft.keepPolicy.mode !== 'keep-all') advancedSummary.push(t('next.settingsSpec.server.live.advanced.groups.4.rows.3.label'));
+    if (recordingDraft.beforeMs !== 60000 || recordingDraft.afterMs !== 180000) advancedSummary.push(t('next.settingsSpec.server.live.groups.6.rows.0.label'));
   }
   if (storageDraft) {
     if (storageDraft.retentionDays || storageDraft.episodeLimit) advancedSummary.push(t('next.settingsSpec.server.live.groups.6.rows.2.label'));
