@@ -51,7 +51,7 @@
 /* desktop-listen #book: the album hero (cover 340, the copy beside it, bottom-aligned), the
    chapters beside About this book, then More audiobooks. Under the desktop top bar the hero
    starts clear of the bar, as on the album page; the phone layout above is unchanged. */
-.page[data-layout='desktop'] { padding: 24px var(--shell-gutter, 40px) 90px; }
+.page[data-layout='desktop'] { padding: 24px var(--shell-gutter) 90px; }
 :global([data-navigation='topbar']) .page[data-layout='desktop'] { padding-top: calc(var(--shell-top, 76px) + 64px); }
 :global([data-navigation='topbar']) .page[data-layout='desktop'] .nav { display: none; }
 .page[data-layout='desktop'] .nav { position: static; height: auto; padding: 0 0 12px; }
@@ -80,9 +80,9 @@
 /* The author page on desktop, as the music artist page (J-7, desktop-listen #artist): a 640px hero with the
    author's circle large on the right and the name at the lower left, then the books beside Details. */
 .page[data-layout='desktop'][data-audiobook-view='author'] { padding-top: 0; }
-.page[data-layout='desktop'][data-audiobook-view='author'] .hero { position: relative; display: block; height: 640px; margin: 0 calc(-1 * var(--shell-gutter, 40px)); }
+.page[data-layout='desktop'][data-audiobook-view='author'] .hero { position: relative; display: block; height: 640px; margin: 0 calc(-1 * var(--shell-gutter)); }
 .page[data-layout='desktop'][data-audiobook-view='author'] .disc { position: absolute; top: 132px; right: 140px; width: 380px; height: 380px; }
-.page[data-layout='desktop'][data-audiobook-view='author'] .copy { position: absolute; left: var(--shell-gutter, 40px); bottom: 60px; width: 760px; max-width: calc(100% - 2 * var(--shell-gutter, 40px)); }
+.page[data-layout='desktop'][data-audiobook-view='author'] .copy { position: absolute; left: var(--shell-gutter); bottom: 60px; width: 760px; max-width: calc(100% - 2 * var(--shell-gutter)); }
 .page[data-layout='desktop'][data-audiobook-view='author'] .split { padding-top: 24px; }
 .page[data-layout='desktop'][data-audiobook-view='book_series'] .split { grid-template-columns: minmax(0, 1fr); }
 .page[data-layout='desktop'] .sectionHead { margin: 0 0 12px; }
@@ -101,7 +101,7 @@
 .page[data-layout='desktop'] .chapterProgress { left: 68px; right: 118px; bottom: 12px; }
 .chapter[data-done] .chapterTitle, .chapter[data-done] .number { color: var(--color-text-tertiary); }
 /* A row carries its own gutter; inside this padded page it bleeds back to the edge (as on the album page). */
-.page[data-layout='desktop'] > [data-layout-row] { margin: 56px calc(-1 * var(--shell-gutter, 40px)) 0; }
+.page[data-layout='desktop'] > [data-layout-row] { margin: 56px calc(-1 * var(--shell-gutter)) 0; }
 /* desktop-listen's book page: the real total names the next chapters page. */
 .showAll { margin-top: 14px; }
 /* desktop-listen's book page: the narrator opens Books filtered by that narrator. */

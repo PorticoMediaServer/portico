@@ -5,7 +5,7 @@
 .heroArt { position: absolute; inset: 0; }
 
 /* kit.css .t-hero .copy: 620 wide, so the credits wrap before the art is fully revealed (K-06). */
-.copy { position: absolute; z-index: 1; left: 64px; bottom: 64px; width: 620px; max-width: calc(100% - 128px); }
+.copy { position: absolute; z-index: 1; left: var(--shell-gutter); bottom: 64px; width: 620px; max-width: calc(100% - 2 * var(--shell-gutter)); }
 
 .copy h1 { margin: 0 0 20px; }
 
@@ -34,21 +34,21 @@
 .phoneHeroArt { position: absolute; inset: 0; }
 .phoneHeroArt::after { inset: 0 0 -140px; background: linear-gradient(180deg,color-mix(in srgb,var(--color-ink) 50%,transparent) 0,transparent 16%,transparent 36%,color-mix(in srgb,var(--color-ink) 80%,transparent) 68%,color-mix(in srgb,var(--color-ink) 55%,transparent) 84%,transparent 100%); }
 .phoneHeroArt > span { -webkit-mask-image: linear-gradient(180deg,var(--color-ink) 48%,transparent 100%); mask-image: linear-gradient(180deg,var(--color-ink) 48%,transparent 100%); }
-.phoneCopy { position: absolute; z-index: 1; left: 20px; right: 20px; bottom: 4px; text-align: center; }
+.phoneCopy { position: absolute; z-index: 1; left: var(--shell-gutter); right: var(--shell-gutter); bottom: 4px; text-align: center; }
 .phoneCopy h1 { margin: 0 0 10px; }
 .phoneCopy > div { justify-content: center; gap: 6px 12px; margin: 0; }
 .phoneCopy .inlineLink { box-shadow: none; }
-.phoneHero > .actions { position: relative; margin: 0; padding: 18px 20px 0; }
+.phoneHero > .actions { position: relative; margin: 0; padding: 18px var(--shell-gutter) 0; }
 .actions[data-phone-title] { gap: 10px; flex-wrap: nowrap; }
 .actions[data-phone-title] > button:not([data-icon-only]) { flex: 1; min-width: 0; padding-left: 12px; padding-right: 12px; }
-.phoneHero .phoneSynopsis[data-variant=hero] { position: relative; margin: 16px 20px 0; font-size: var(--type-synopsis-size); line-height: var(--type-synopsis-line); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.phoneResume { position: relative; margin: 16px 20px 0; }
+.phoneHero .phoneSynopsis[data-variant=hero] { position: relative; margin: 16px var(--shell-gutter) 0; font-size: var(--type-synopsis-size); line-height: var(--type-synopsis-line); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.phoneResume { position: relative; margin: 16px var(--shell-gutter) 0; }
 .phoneProgress { height: 4px; overflow: hidden; background: color-mix(in srgb,var(--color-text) 16%,transparent); }
 .phoneProgress > span { display: block; height: 100%; background: var(--color-accent-strong); transform-origin: left; }
 .phoneRemaining { display: flex; align-items: center; margin-top: 4px; font-size: var(--type-meta-size); font-weight: var(--type-see-all-weight); color: var(--color-text-secondary); }
 .phoneRemaining > button { margin-left: auto; height: 36px; padding: 0; color: var(--color-accent-strong); font-size: var(--type-starring-size); }
 
-.sticky { position: sticky; top: 76px; z-index: var(--layer-hero-navigation); padding: 0 64px; display: flex; align-items: center; gap: 26px; background: transparent; border-bottom: 1px solid var(--color-line); }
+.sticky { position: sticky; top: 76px; z-index: var(--layer-hero-navigation); padding: 0 var(--shell-gutter); display: flex; align-items: center; gap: 26px; background: transparent; border-bottom: 1px solid var(--color-line); }
 .tabStrip { margin-bottom: -1px; }
 
 .pinnedDesktopTitle { display: none; font-size: var(--type-row-heading-size); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-title-tracking); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -68,7 +68,7 @@
 .sticky[data-stuck] [role="tab"] { display: flex; align-items: center; padding: 0; font-size: var(--detail-stuck-tab-size); }
 .sticky[data-stuck] [role="tab"][data-state="active"]::after { inset: auto 0 0; }
 
-.details { display: grid; grid-template-columns: 360px 1fr; gap: 64px; padding: 32px 64px 80px; }
+.details { display: grid; grid-template-columns: 360px 1fr; gap: 64px; padding: 32px var(--shell-gutter) 80px; }
 
 .details h2, .sectionHeading { font-size: var(--type-detail-heading-size); font-weight: var(--type-row-heading-weight); margin: 0 0 16px; }
 
@@ -119,7 +119,7 @@
 
 .people small { font-size: var(--type-caption-size); color: var(--color-text-tertiary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.loading { display: grid; gap: 20px; padding: 100px 64px 50px; }
+.loading { display: grid; gap: 20px; padding: 100px var(--shell-gutter) 50px; }
 .panelLoading { display: grid; gap: 20px; min-height: 180px; }
 
 .manageBody { display: grid; gap: 12px; }
@@ -142,17 +142,17 @@
 
 @media(max-width:1023px) { .hero { height: 640px; }
 
-.copy { left: 20px; bottom: 30px; width: auto; max-width: calc(100% - 40px); }
+.copy { left: var(--shell-gutter); bottom: 30px; width: auto; max-width: calc(100% - 2 * var(--shell-gutter)); }
 
 .credits { display: none; }
 
 .actions { gap: 8px; }
 
-.sticky { top: 44px; padding: 0 20px; }
+.sticky { top: 44px; padding: 0 var(--shell-gutter); }
 
 .sticky > .pinnedDesktopTitle,.sticky[data-stuck] > .pinnedDesktopTitle,.sticky > .pinnedRule,.sticky[data-stuck] > .pinnedRule,.sticky > .actions,.sticky[data-stuck] > .actions { display: none; }
 
-.details { padding: 24px 20px 110px; display: block; }
+.details { padding: 24px var(--shell-gutter) 110px; display: block; }
 
 .details > section + section { margin-top: 36px; }
 
@@ -164,7 +164,7 @@
 
 .people button > :first-child { width: 80px; height: 80px; }
 
-.loading { padding: 80px 20px 40px; }
+.loading { padding: 80px var(--shell-gutter) 40px; }
  }
 @media(prefers-reduced-motion:reduce) { .page * { scroll-behavior: auto; }
  }
@@ -182,7 +182,7 @@
 .moreOpen { background: color-mix(in srgb, var(--color-text) 24%, transparent); }
 
 /* phone-detail frames 1 and 6: one quiet row naming this version's audio and subtitle mode. */
-.preplay { display: flex; align-items: center; gap: 14px; width: calc(100% - 40px); height: 40px; margin: 14px 20px 0; padding: 0 10px 0 12px; border: 0; border-radius: 10px; background: color-mix(in srgb, var(--color-text) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 8%, transparent); font-family: inherit; font-size: var(--type-caption-strong-size); line-height: var(--type-caption-strong-line); font-weight: var(--type-caption-strong-weight); color: var(--color-text-secondary); text-align: left; cursor: pointer; }
+.preplay { display: flex; align-items: center; gap: 14px; width: calc(100% - 2 * var(--shell-gutter)); height: 40px; margin: 14px var(--shell-gutter) 0; padding: 0 10px 0 12px; border: 0; border-radius: 10px; background: color-mix(in srgb, var(--color-text) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 8%, transparent); font-family: inherit; font-size: var(--type-caption-strong-size); line-height: var(--type-caption-strong-line); font-weight: var(--type-caption-strong-weight); color: var(--color-text-secondary); text-align: left; cursor: pointer; }
 .preplay > span { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .preplay > span > svg { flex: none; color: var(--color-text-tertiary); }
 .preplay > svg:last-child { flex: none; margin-left: auto; color: var(--color-text-tertiary); }
@@ -203,4 +203,4 @@
 
 /* J-23: the reason under a disabled Play when the title's file can't be reached. */
 .unplayable { margin: 10px 0 0; font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-text-secondary); }
-@media (max-width: 1023px) { .unplayable { margin-inline: 20px; } }
+@media (max-width: 1023px) { .unplayable { margin-inline: var(--shell-gutter); } }

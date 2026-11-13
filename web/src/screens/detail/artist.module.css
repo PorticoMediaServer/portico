@@ -66,7 +66,7 @@
   .facts { grid-template-columns: 88px 1fr; }
 }
 @media (max-width: 599px) {
-  .page { padding: 12px 16px 64px; }
+  .page { padding: 12px var(--shell-gutter) 64px; }
   /* phone-app #r5 (.alb.art): a 164px circle, the name at 30px, one centred meta row. */
   .hero { gap: 18px; align-items: center; text-align: center; }
   .disc { width: 164px; height: 164px; }

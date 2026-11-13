@@ -1,4 +1,4 @@
-.search { position: relative; padding: 108px 64px 80px; }
+.search { position: relative; padding: 108px var(--shell-gutter) 80px; }
 
 
 .field,.chips,.results { position: relative; }
@@ -116,7 +116,7 @@
 
 .skeletonBlock,.placeholder { display: block; aspect-ratio: 2/3; border-radius: 12px; background: var(--color-raised); }
 
-@media(max-width:1023px) { .search { padding: 80px 20px 110px; }
+@media(max-width:1023px) { .search { padding: 80px var(--shell-gutter) 110px; }
 
 .results { gap: 30px 20px; padding-top: 24px; }
 

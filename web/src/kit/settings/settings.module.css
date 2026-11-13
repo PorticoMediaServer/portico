@@ -167,14 +167,14 @@
 @media (min-width: 600px) and (max-width: 1023px) {
   .workspace { grid-template-columns: 280px minmax(0, 1fr); gap: 0; padding: 0; }
   .master { padding: 46px 14px 20px; border-right: 1px solid var(--color-line); background: color-mix(in srgb, var(--color-ink) 50%, transparent); }
-  .detail { padding: 46px 24px 40px; }
+  .detail { padding: 46px var(--shell-gutter) 40px; }
   .master > aside { width: 100%; }
   .pageHeading h1 { font-size: 40px; }
 }
 @media (max-width: 599px) {
   .workspace { display: block; padding: 16px 0 40px; }
   .workspace[data-compact-page] .master, .workspace:not([data-compact-page]) .detail { display: none; }
-  .detail { padding-inline: 16px; }
+  .detail { padding-inline: var(--shell-gutter); }
   .compactBack { display: block; margin: 0 -8px 16px; }
   .compactDone { border: 0; background: none; padding: 0 6px; height: 38px; font: inherit; font-size: 16px; font-weight: var(--type-button-weight); color: var(--color-accent-strong); cursor: pointer; }
   .compactDone:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; border-radius: 6px; }
