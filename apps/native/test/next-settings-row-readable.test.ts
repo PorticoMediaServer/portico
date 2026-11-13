@@ -9,7 +9,7 @@ const targeting: {value: any} = {value: {}};
 const {SettingsRow} = await screenModule(new URL('../src-next/kit/shell/SettingsControls.tsx', import.meta.url), {
   react, 'react-native': {StyleSheet: {absoluteFill: {}}, Text: 'Text', View: 'View'},
   '../../../../../packages/i18n/src/index': {defaultI18n: {t: (id: string) => id}},
-  '../controls/Focusable': {Focusable: 'Focusable'}, '../controls/Select': {Select: 'Select'}, '../overlays/Menu': {Menu: 'Menu'},
+  '../controls/Focusable': {Focusable: 'Focusable'}, '../controls/Select': {Select: 'Select'}, '../controls/row-control': {RowControlContext: {Provider: 'RowControlProvider', value: false}}, '../overlays/Menu': {Menu: 'Menu'},
   '../artwork/Artwork': {Artwork: 'Artwork'}, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => ({isTV: television, colors: new Proxy({}, {get: () => '#000'}), type: {}, textScale: 1})},
   '../focus/registry': {focusTestID: (a: string, b: string) => `${a}.${b}`}, './HighlightedText': {HighlightedText: 'HighlightedText'},
   './visual': {alpha: () => '#000', shellType: () => ({})},
@@ -89,5 +89,16 @@ test('settings.html: on phones and tablets the row a result opened carries the o
       assert.equal(flash?.props.serial, 4); assert.equal(flash?.props.reveal, reveal);
       assert.ok(!nodes(SettingsRow({testID: 'other', label: 'Other', control: 'select'})).some(node => node.type === 'SettingsRowFlash'));
     });
+  } finally {television = true;}
+});
+
+// settings.html phone frames: the label keeps at least half the row; the control draws as the row's value.
+test('on a touch screen a row hands its control the inline value form and keeps half the row for the label', () => {
+  television = false;
+  try {
+    const find = (node: any, type: string): any => !node || typeof node !== 'object' ? undefined : node.type === type ? node : [node.props?.children].flat(Infinity).map(child => find(child, type)).find(Boolean);
+    const provider = find(SettingsRow({label: 'Rewind when resuming', control: 'control'}), 'RowControlProvider');
+    assert.equal(provider?.props.value, true);
+    assert.equal([provider.props.children].flat()[0].props.style.maxWidth, '50%');
   } finally {television = true;}
 });

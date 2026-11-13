@@ -289,7 +289,7 @@ test('real owner Select retains its chosen row and original opener through a gen
   react:{...React,default:React},'react-native':{FlatList:'FlatList',Text:'Text',View:'View',StyleSheet:{create:(value:unknown)=>value}},
   '../../../../../packages/i18n/src/index':{defaultI18n},'../Icon':{Icon:'Icon'},'../overlays/surface':{Dialog:'Dialog'},
   '../theme':{useTheme:()=>createTheme({isTV:true,width:1280}),fontFamilies:{700:'Font'},nativeType:()=>({})},'./Focusable':{Focusable:'Focusable'},
-  './control-model':await import('../src-next/kit/controls/control-model'),'./useControlValue':await import('../src-next/kit/controls/useControlValue')});
+  './control-model':await import('../src-next/kit/controls/control-model'),'./row-control':await import('../src-next/kit/controls/row-control'),'./useControlValue':await import('../src-next/kit/controls/useControlValue')});
  const f=await presenter();let props=f.select().props,outer:any,tree:any;
  // Preserve the actual Select/NativeSelect hook hosts and native opener across
  // the changed offered options. Only platform endpoints and Dialog are inert.

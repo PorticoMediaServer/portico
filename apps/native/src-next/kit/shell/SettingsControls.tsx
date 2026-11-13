@@ -3,6 +3,7 @@ import {StyleSheet, Text, View, type StyleProp, type ViewStyle} from 'react-nati
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
 import {Focusable} from '../controls/Focusable';
 import {Select, type SelectOption} from '../controls/Select';
+import {RowControlContext} from '../controls/row-control';
 import {Menu} from '../overlays/Menu';
 import {Artwork} from '../artwork/Artwork';
 import type {ArtworkSource} from '../artwork/types';
@@ -53,7 +54,8 @@ export function SettingsRow({label, highlightQuery, description, scope, control,
       {description && <Text numberOfLines={tv ? 2 : undefined} style={[shellType(tv ? 20 : 12.5, tv ? 400 : 500, tv ? 29 : 17.5), {color: theme.colors.textTertiary, marginTop: 3}]}>{description}</Text>}
       {scope && <Text style={[shellType(tv ? 18 : 12, 600), {color: theme.colors.textTertiary, marginTop: 3}]}>{scope}</Text>}
     </View>
-    {control ?? (toggle ? <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants">{toggle.visual}</View> : value && <Text style={[shellType(tv ? 22 : 14.5), {color: destructive ? theme.colors.record : theme.colors.textSecondary, maxWidth: tv ? 340 : 170}]}>{value}</Text>)}
+    {/* The label keeps at least half the row; on a touch screen the control draws as the row's value (RowControlContext). */}
+    {control !== undefined && !tv ? <RowControlContext.Provider value><View style={{flexShrink: 1, maxWidth: '50%', alignItems: 'flex-end'}}>{control}</View></RowControlContext.Provider> : control ?? (toggle ? <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants">{toggle.visual}</View> : value && <Text style={[shellType(tv ? 22 : 14.5), {color: destructive ? theme.colors.record : theme.colors.textSecondary, maxWidth: tv ? 340 : 170}]}>{value}</Text>)}
     {onPress && !control && !toggle && <Icon name="i-updown" size={tv ? 26 : 18} color={destructive ? theme.colors.record : theme.colors.textTertiary}/>}
   </>;
   const layout: StyleProp<ViewStyle> = [{flexDirection: 'row', alignItems: 'center', gap: tv ? 20 : 12, paddingHorizontal: tv ? 24 : 14, paddingVertical: tv ? 12 : 8, paddingLeft: dependent ? tv ? 64 : 58 : tv ? 24 : 14, minHeight: tv ? 80 : 48, borderTopWidth: first ? 0 : 1, borderTopColor: theme.colors.lineSoft, borderRadius: tv ? 18 : 0, backgroundColor: lit ? alpha(theme.colors.accent, .16) : 'transparent'}, style];
@@ -68,9 +70,12 @@ export function DefaultHint({value, onReset, changed, testID}: {testID?: string;
 }
 export type ChoiceMatrixRow = Readonly<{id: string; label: string; value: string; defaultHint?: ReactNode}>;
 export function ChoiceMatrix({rows, options, onChange, testID}: {testID?: string; rows: readonly ChoiceMatrixRow[]; options: readonly SelectOption[]; onChange: (id: string, value: string) => void}) {
-  const theme = useTheme();
-  if (theme.platform === 'phone' || theme.isTV) return <View>{rows.map((row, index) => <SettingsRow key={row.id} label={row.label} first={index === 0} control={<Select testID={controlID(testID, 'row', row.id)} accessibilityLabel={row.label} value={row.value} options={options} onValueChange={value => onChange(row.id, value)} style={{backgroundColor: 'transparent', paddingHorizontal: 0}}/>}/>)}</View>;
-  return <View style={{backgroundColor: theme.colors.raised, borderRadius: 14, overflow: 'hidden'}}>
+  const theme = useTheme(), [width, setWidth] = useState(0);
+  // The radio table draws only where its label column keeps 200 points beside the 104-point option columns (an iPad mini's
+  // Settings pane is too narrow for it); otherwise each row is a settings row with its choice as the value.
+  const table = !theme.isTV && theme.platform !== 'phone' && width >= 200 + options.length * 104;
+  if (!table) return <View onLayout={event => setWidth(event.nativeEvent.layout.width)}>{rows.map((row, index) => <SettingsRow key={row.id} label={row.label} first={index === 0} control={<Select testID={controlID(testID, 'row', row.id)} accessibilityLabel={row.label} value={row.value} options={options} onValueChange={value => onChange(row.id, value)} style={{backgroundColor: 'transparent', paddingHorizontal: 0}}/>}/>)}</View>;
+  return <View onLayout={event => setWidth(event.nativeEvent.layout.width)} style={{backgroundColor: theme.colors.raised, borderRadius: 14, overflow: 'hidden'}}>
     <View style={{flexDirection: 'row', paddingTop: 18, paddingBottom: 8}}><View style={{flex: 1}}/>{options.map(option => <Text key={option.value} style={[shellType(14, 700), {color: theme.colors.textSecondary, width: 104, textAlign: 'center'}]}>{option.label}</Text>)}</View>
     {rows.map(row => <View key={row.id} accessibilityRole="radiogroup" accessibilityLabel={row.label} style={{flexDirection: 'row', minHeight: 52, borderTopWidth: 1, borderTopColor: theme.colors.lineSoft}}>
       <View style={{flex: 1, paddingVertical: 16, paddingHorizontal: 22}}><Text style={[shellType(16), {color: theme.colors.text}]}>{row.label}</Text>{row.defaultHint}</View>

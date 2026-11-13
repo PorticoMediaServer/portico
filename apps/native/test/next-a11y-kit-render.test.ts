@@ -131,7 +131,7 @@ test('Select retains one list scroller and matches its native option pitch to OS
     const f = fixture(scale);
     const {Select} = await screenModule(new URL('../src-next/kit/controls/Select.tsx', import.meta.url), {
       ...f.common, '../../../../../packages/i18n/src/index': {defaultI18n}, '../Icon': {Icon: 'Icon'}, './Focusable': {Focusable: 'Focusable'},
-      '../overlays/surface': {Dialog: 'Dialog'}, './control-model': controlModel,
+      '../overlays/surface': {Dialog: 'Dialog'}, './control-model': controlModel, './row-control': {RowControlContext: {value: false}},
       './useControlValue': {useControlValue: (value: any, initial: any) => [value ?? initial, () => {}]},
     });
     const outer = f.host.render(() => Select({open: true, options: [{value: 'first', label: 'First'}, {value: 'second', label: 'Second'}]}));
@@ -248,7 +248,7 @@ test('a closed Select keeps its value visible in a row with no width to give it'
   const f = fixture(1);
   const {Select} = await screenModule(new URL('../src-next/kit/controls/Select.tsx', import.meta.url), {
     ...f.common, '../../../../../packages/i18n/src/index': {defaultI18n}, '../Icon': {Icon: 'Icon'}, './Focusable': {Focusable: 'Focusable'},
-    '../overlays/surface': {Dialog: 'Dialog'}, './control-model': controlModel,
+    '../overlays/surface': {Dialog: 'Dialog'}, './control-model': controlModel, './row-control': {RowControlContext: {value: false}},
     './useControlValue': {useControlValue: (value: any, initial: any) => [value ?? initial, () => {}]},
   });
   const outer = f.host.render(() => Select({value: 'second', options: [{value: 'first', label: 'First'}, {value: 'second', label: 'Same as the metadata language'}]}));
