@@ -1536,6 +1536,7 @@ export interface LibraryEdit {
 }
 
 export interface LibraryFolder {
+  id: string;
   path: string;
   source?: string;
   available: boolean;
@@ -1694,6 +1695,7 @@ export interface LiveChannelSource {
   favorites: number;
   groups: LiveChannelGroup[];
   guideThrough?: string;
+  guideFrom?: string;
   outOfDate?: boolean;
 }
 
@@ -2192,6 +2194,8 @@ export interface MetadataSettings {
   includeAdult: boolean;
   tmdbCredentialConfigured: boolean;
   tmdbCredentialUnreadable?: boolean;
+  tvdbCredentialConfigured: boolean;
+  tvdbCredentialUnreadable?: boolean;
   openSubtitlesKeyConfigured: boolean;
   openSubtitlesUsername: string;
   openSubtitlesPasswordConfigured: boolean;
@@ -2202,6 +2206,7 @@ export interface MetadataSettingsChange {
   expectedRevision?: number;
   includeAdult?: boolean;
   tmdbReadToken?: string;
+  tvdbProjectKey?: string;
   openSubtitlesApiKey?: string;
   openSubtitlesUsername?: string;
   openSubtitlesPassword?: string;
@@ -3480,6 +3485,7 @@ export interface ScanCounts {
 
 export interface ScanRequest {
   allFiles?: boolean;
+  folder?: string;
 }
 
 export interface ScanStatus {

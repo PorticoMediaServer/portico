@@ -5103,6 +5103,9 @@
           "available": {
             "type": "boolean"
           },
+          "id": {
+            "type": "string"
+          },
           "lastScanAt": {
             "format": "date-time",
             "type": "string"
@@ -5127,6 +5130,7 @@
           }
         },
         "required": [
+          "id",
           "path",
           "available",
           "watched",
@@ -5612,6 +5616,10 @@
               "$ref": "#/components/schemas/LiveChannelGroup"
             },
             "type": "array"
+          },
+          "guideFrom": {
+            "format": "date-time",
+            "type": "string"
           },
           "guideThrough": {
             "format": "date-time",
@@ -7347,12 +7355,19 @@
           },
           "tmdbCredentialUnreadable": {
             "type": "boolean"
+          },
+          "tvdbCredentialConfigured": {
+            "type": "boolean"
+          },
+          "tvdbCredentialUnreadable": {
+            "type": "boolean"
           }
         },
         "required": [
           "revision",
           "includeAdult",
           "tmdbCredentialConfigured",
+          "tvdbCredentialConfigured",
           "openSubtitlesKeyConfigured",
           "openSubtitlesUsername",
           "openSubtitlesPasswordConfigured",
@@ -7378,6 +7393,9 @@
             "type": "string"
           },
           "tmdbReadToken": {
+            "type": "string"
+          },
+          "tvdbProjectKey": {
             "type": "string"
           }
         },
@@ -11525,6 +11543,9 @@
         "properties": {
           "allFiles": {
             "type": "boolean"
+          },
+          "folder": {
+            "type": "string"
           }
         },
         "type": "object"
