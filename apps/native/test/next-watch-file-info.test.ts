@@ -31,7 +31,8 @@ test('owner and administrator see every path; split targets whole versions, incl
     assert.deepEqual(nativeSplitCandidates(session.getSnapshot()).map(v => [v.id, v.occurrence]), [['g1', 'g1'], ['g2', 'g2']]);
     assert.equal(nativeFileInfoFile(session.getSnapshot(), 'g1:1')?.file.id, 'g1');
     assert.deepEqual(view.model.owner!.actions.map(a => a.id), ['split-versions', 'merge-title']);
-    assert.equal(view.locations!.some(l => l.actions.length > 0), false, 'no Delete until the server can preview this version');
+    // Delete is on (the confirm draws every preview impact): the owner gets it on the first file of each whole version only.
+    assert.deepEqual(view.locations!.map(l => l.actions.map(a => a.id).join()), role === 'owner' ? ['delete-version', '', 'delete-version'] : ['', '', ''], role);
     session.retire(); assert.deepEqual(calls, ['GET /v1/items/movie', 'GET /v1/items/movie/files', 'GET /v1/items/movie/playback-options']);
   }
 });

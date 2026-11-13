@@ -86,11 +86,16 @@ test('a refused version preview has its own sentence, no title field or Delete; 
   try {
     assert.ok(nodes.some(node => node.type === 'Text' && node.props.children === reason));
     assert.equal(nodes.some(node => node.type === 'TextField' || node.props.testID === 'watch-delete-version'), false);
+    const copy = () => nodes.filter(node => node.type === 'Text').map(node => [node.props.children].flat(Infinity).filter(part => typeof part === 'string' || typeof part === 'number').join(''));
+    assert.equal(copy().some(text => /list entr|other people|goes too|stays/.test(text)), false, 'under a refusal nothing is listed as going');
     await host.rerender(); assert.equal(reads, 0, 'rendering never asks for another preview');
     delete value.preview.deleteRefusal; value.error = new Error('opaque'); value.refusal = reason;
     await host.rerender();
     assert.equal(nodes.find(node => node.type === 'StateView')?.props.body, reason);
     assert.equal(nodes.find(node => node.props.testID === 'watch-delete-version')?.props.variant, 'danger');
+    // Every impact the preview carries (rule 65, as the web's #3407): this title goes (its only version), list entries, other people's marks.
+    for (const line of [/This title goes too/, /3 list entries go/, /4 saved places and marks of other people go/, /deleted from disk/]) assert.ok(copy().some(text => line.test(text)), String(line));
+    assert.ok(copy().some(text => text.includes(entry.title) && /goes too/.test(text)));
   } finally {await host.unmount();}
 });
 

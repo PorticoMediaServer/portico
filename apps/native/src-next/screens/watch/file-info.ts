@@ -7,8 +7,8 @@ import type {FileInfoModel, ManageAction, TextEnvironment} from '../../../../../
 
 export const nativeFileInfoMergeGroups: Readonly<Partial<Record<string, SearchGroup>>> = Object.freeze({movie: 'movies', show: 'shows', episode: 'episodes', song: 'songs', album: 'albums', artist: 'artists', book: 'books', author: 'authors'});
 
-/** Kept off until the screen shows every impact in the version preview (03-scanning rule 65). */
-export const NATIVE_VERSION_DELETE = false;
+/** On: the confirm shows every impact in the version preview (03-scanning rule 65, the web's #3407). */
+export const NATIVE_VERSION_DELETE = true;
 
 /** One file the owner sees under its version: its exact occurrence, path and actions. */
 export type NativeFileInfoLocation = Readonly<{id: string; versionId: string; path?: string; actions: readonly ManageAction[]}>;

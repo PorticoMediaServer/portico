@@ -123,11 +123,12 @@ test('a wrong occurrence, or withdrawn manage authority in the resident surface,
   } finally {withheld.dispose();}
 });
 
-test('native Delete stays gated until the confirm draws every preview impact', async () => {
+test('an owner\'s Delete opens the confirm and reads the version preview once', async () => {
   const d = await fixture();
   try {
-    const count = d.calls.length; d.presenters.manageFile(d.capture, 'delete-version', occurrence); await drain();
-    assert.equal(d.presenters.getSnapshot()?.phase, 'file-info'); assert.equal(d.calls.length, count);
+    d.presenters.manageFile(d.capture, 'delete-version', occurrence); await drain();
+    assert.equal(d.presenters.getSnapshot()?.phase, 'delete');
+    assert.equal(d.calls.filter(call => call.path.startsWith('/v1/admin/versions/') && call.path.endsWith('/deletion')).length, 1);
   } finally {d.dispose();}
 });
 
