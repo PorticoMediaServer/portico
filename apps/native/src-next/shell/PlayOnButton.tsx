@@ -33,7 +33,9 @@ export function PlayOnButton({playOn, variant, onPress, testID = 'play-on-top-ba
   useEffect(() => {playOn?.readDirectory();}, [playOn]);
   const {visible, device} = playOnButtonState(state);
   if (!playOn || !visible) return null;
-  const label = device ? defaultI18n.t('player.playingOn', {name: device}) : defaultI18n.t('playOn.topBar');
+  const playing = !!state?.remote?.device || state?.cast?.cast.phase === 'casting';
+  const label = device ? playing ? defaultI18n.t('player.playingOn', {name: device})
+    : state?.chosen?.kind === 'cast' ? defaultI18n.t('playOn.nextPlaysOnCast') : defaultI18n.t('playOn.nextPlaysOn', {device}) : defaultI18n.t('playOn.topBar');
   const open = () => {if (onPress) onPress(ref); else playOn.open(ref);};
   if (variant === 'round') return <RoundBarButton ref={ref} testID={testID} icon="i-cast" label={label} active={!!device} onPress={open}/>;
   return <Focusable ref={ref} testID={testID} accessibilityRole="button" accessibilityLabel={label} onPress={open} focusRadius={19} style={{width: 38, height: 38, borderRadius: 19}}>
