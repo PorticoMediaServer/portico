@@ -1,3 +1,6 @@
+import {readNativeProgramme} from './native-source.ts';
+import {readReminders} from '../live-tv.ts';
+import {serverNow} from '../server-clock.ts';
 import {readNextGuideSummaries} from './next-source.ts';
 import {routePath,encodedRoutePath} from "../../../contracts/src/route-paths.ts";
 import {GUIDE_PROTOCOL, parseGuideProgramme, parseGuideChannels, parseGuideSources, type ChannelApi, type GuideChannel, type GuideSource,type GuideProgramme} from '../channel-guide.ts';
@@ -70,10 +73,23 @@ export class GuideFeatureClient{
  private api:ChannelApi;private serverId:string;private closed=false;private requests=new Set<AbortController>();
  constructor(api:ChannelApi,serverId:string){this.api=api;this.serverId=serverId;}
  dispose(){this.closed=true;for(const request of this.requests)request.abort();this.requests.clear();}
- private async read(path:string,field:string,method='GET',body?:unknown):Promise<unknown>{
+ private async currentRead<T>(read:(signal:AbortSignal)=>Promise<T>):Promise<T>{
   if(this.closed)throw new Error(unreadableServerResponse);const controller=new AbortController();this.requests.add(controller);
-  try{const raw=await this.api.request<unknown>(path,method,body,controller.signal);if(this.closed||controller.signal.aborted||!object(raw)||raw.protocolVersion!==GUIDE_PROTOCOL||raw.serverId!==this.serverId||!(field in raw))invalid();return raw[field];}
+  try{const raw=await read(controller.signal);if(this.closed||controller.signal.aborted)invalid();return raw;}
   catch(error){if(object(error)&&(error.status===401||error.status===403))this.dispose();throw error;}finally{this.requests.delete(controller);}
+ }
+ private async read(path:string,field:string,method='GET',body?:unknown):Promise<unknown>{
+  const raw=await this.currentRead(signal=>this.api.request<unknown>(path,method,body,signal));
+  if(!object(raw)||raw.protocolVersion!==GUIDE_PROTOCOL||raw.serverId!==this.serverId||!(field in raw))invalid();return raw[field];
+ }
+ /** Modern reads used by native; the legacy command methods below move in the command slice. */
+ programme(id:string){return this.currentRead(signal=>readNativeProgramme(this.api,id,signal));}
+ async remindersFor(airings:readonly GuideAiring[]):Promise<GuideReminders>{
+  const page=await this.currentRead(signal=>readReminders(this.api,undefined,signal));
+  const byId=new Map(airings.map(airing=>[airing.programme.id,airing]));
+  return {revision:'',nextCursor:page.nextCursor??'',items:page.items.flatMap(item=>{
+   const airing=byId.get(item.programme);return airing?[{id:item.programme,revision:0,airing,due:serverNow()>=Date.parse(item.startsAt)}]:[];
+  })};
  }
  async airings(query:GuideAiringsQuery):Promise<GuideAirings>{const params=new URLSearchParams();for(const [key,value]of Object.entries(query))if(value!==undefined)params.set(key,String(value));return parseGuideAirings(await this.read(routePath('get_guide_airings')+'?'+params,'airings'));}
  async nowNext(onNow:boolean,query:{kind?:'all'|'live-source'|'library-channel';sourceId?:string;group?:string;cursor?:string;limit?:number}={}):Promise<GuideNowNextPage>{

@@ -52,15 +52,20 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
   const shell: any = {authority, destination: route.destination, contentVisible: true, mediaExpanded: false, serverName: 'Portico demo'};
   const listen = (fn: () => void) => {listeners.add(fn); return () => {listeners.delete(fn);};};
   const lifetime = new NativeScreenLifetime({authority: () => authority, current: () => true, subscribeAuthority: listen});
+  let channelReads = 0;
+  const rows = sources.flatMap(source => Array.from({length: source.channelCount}, (_, n) => ({id: `${source.id}-${n}`, name: `Channel ${n}`,
+    number: String(n + 1), kind: source.provenance === 'library-channel' ? 'library' : 'source', favorite: n < source.favoriteCount, hidden: false})));
   const api = {request: async <T,>(path: string) => {
-    if (hangChannels && path.startsWith('/v1/guide/channels')) return new Promise<T>(() => {});
-    if (path.startsWith('/v1/live/channels?')) return {items: [], sources: sources.map(source => ({id: source.id, name: source.name,
-      kind: source.provenance === 'library-channel' ? 'library' : 'live', channels: source.channelCount, favorites: source.favoriteCount, groups: source.groupCounts,
-      outOfDate: ['degraded', 'credentials-required', 'stale'].includes(source.refreshState), guideThrough: source.availableEnd}))} as T;
-    const filtered = path.includes('group=') || path.includes('favorites=true');
-    const query = new URLSearchParams(path.split('?')[1] ?? ''), total = filtered ? filteredTotal : 14;
-    return {protocolVersion: '1.0', serverId: 'server', viewerFence: 'guide', revision: 'one', sources,
-      directory: {viewerFence: 'guide', revision: 'one', total, offset: Number(query.get('offset') ?? 0), limit: Number(query.get('limit') ?? 50), channels: [], sources}} as T;
+    if (path.startsWith('/v1/live/channels')) {
+      if (hangChannels && channelReads++ > 0) return new Promise<T>(() => {});
+      const query = new URL(path, 'https://server').searchParams;
+      const filtered = query.has('group') || query.get('favorites') === 'true';
+      return {items: filtered ? rows.slice(0, filteredTotal) : rows, sources: sources.map(source => ({id: source.id, name: source.name,
+        kind: source.provenance === 'library-channel' ? 'library' : 'live', channels: source.channelCount, favorites: source.favoriteCount, groups: source.groupCounts,
+        outOfDate: ['degraded', 'credentials-required', 'stale'].includes(source.refreshState), guideThrough: source.availableEnd}))} as T;
+    }
+    if (path.startsWith('/v1/live/guide?')) return {items: rows.map(channel => ({channel, programmes: []}))} as T;
+    throw new Error('Unexpected read '+path);
   }};
   const controller = new NativeLiveController(lifetime, api, 'America/Halifax'); await controller.loadSources();
   const account: DirectSnapshot = {authority: 'local', serverId: 'server', canManage: role === 'owner',
@@ -76,10 +81,11 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
     useWindowDimensions: () => ({width: theme.width, height: height ?? 1080})};
   const controls = {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable', Segmented: 'Segmented', Select: 'Select'};
   const focus = {FocusRegion: 'Region', FocusItem: 'FocusItem', useCovered: () => false, useFocusRegistry: () => ({subscribe, cellPosition: () => undefined, attachedFocus: () => undefined, focus: () => true})};
+  let opened: {channel: any; programme: any};
   class FakeFeatures {
     dispose() {}
-    async reminders() {return {items: []};}
-    async airings() {return {groups: [{airings: later}]};}
+    async remindersFor() {return {items: []};}
+    async programme() {return {...opened, channel: {...opened.channel, programmes: [opened.programme]}, airings: later};}
     async remind() {return undefined;}
     async dismiss() {return undefined;}
   }
@@ -116,6 +122,7 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
   const open = async (channel: any, program: any) => {
     const row = find('VirtualizedList') ?? all().find(node => node.type === 'VirtualizedList');
     const element = row.props.renderItem({item: 0});
+    opened = {channel, programme: program};
     element.props.onOpen(guide.legacyChannelRow(channel), program && guide.legacyProgram(program)); await host.settle();
     await host.settle();
   };

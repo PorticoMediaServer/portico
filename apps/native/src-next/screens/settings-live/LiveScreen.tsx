@@ -9,7 +9,7 @@ import Svg, {Defs, LinearGradient, Pattern, Rect, Stop} from 'react-native-svg';
 import {defaultRecordingOptions} from '../../../../../packages/client-core/src/dvr';
 import {dayPrimeTime, stripDays} from '../../../../../packages/client-core/src/channel-guide';
 import {episodeLabel, programmeFactParts, programmeTimeRange} from '../../../../../packages/client-core/src/presentation/kit-model';
-import {legacyChannel, legacyProgramme, legacyProgram, layoutRow, nowNext, pxPerMsFor, rulerTicks, floorTo, localDayStart, SLOT_MS, type GuideChannelRow, type GuideProgram, type GuideCell} from '../../../../../packages/client-core/src/guide';
+import {legacyChannel, legacyChannelRow, legacyProgramme, legacyProgram, layoutRow, nowNext, pxPerMsFor, rulerTicks, floorTo, localDayStart, SLOT_MS, type GuideChannelRow, type GuideProgram, type GuideCell} from '../../../../../packages/client-core/src/guide';
 import {GuideFeatureClient, type GuideAiring, type GuideReminder} from '../../../../../packages/client-core/src/guide/directory';
 import type {RecordingDraft} from '../../../../../packages/client-core/src/dvr';
 import {Button, Chip, Focusable, Segmented, Select} from '../../kit/controls';
@@ -204,12 +204,17 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
     if (!selected) {setLater([]); setLaterRecordings(new Map()); return;}
     let live = true;
     setLaterRecordings(new Map());
-    const raw = legacyChannel(selected.channel), at = serverNow();
-    void features.reminders().then(value => {if (live) setReminders(new Map(value.items.map(item => [item.airing.programme.id, item])));}, () => {});
-    if (raw) void features.airings({channelId: raw.id, sourceId: raw.sourceId, kind: raw.provenance, start: new Date(at).toISOString(), end: new Date(at + 12 * 3600e3).toISOString(), limit: 8})
-      .then(page => {if (live) setLater(page.groups.flatMap(group => group.airings).filter(airing => airing.programme.id !== selected.program?.id).slice(0, 4));}, () => {});
+    const programmeId = selected.program?.id;
+    if (programmeId) void features.programme(programmeId).then(async detail => {
+      if (!live) return;
+      const current = {channel: detail.channel, programme: detail.programme}, airings = detail.airings.filter(airing => airing.programme.id !== programmeId).slice(0, 4);
+      setLater(airings);
+      setSelected(value => value?.program?.id === programmeId ? {...value, channel: legacyChannelRow(detail.channel), program: legacyProgram(detail.programme)} : value);
+      const reminders = await features.remindersFor([current, ...airings]);
+      if (live) setReminders(new Map(reminders.items.map(item => [item.airing.programme.id, item])));
+    }).catch(error => {if (live && controller.lifetime.current()) runtime.reportError(error);});
     return () => {live = false;};
-  }, [selected?.channel.id, selected?.program?.id, features]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selected?.program?.id, features]); // eslint-disable-line react-hooks/exhaustive-deps
   const remind = (airing: GuideAiring, existing: GuideReminder | undefined) => {
     const work = existing ? features.dismiss(existing).then(() => undefined) : features.remind(airing, 0);
     void work.then(value => {

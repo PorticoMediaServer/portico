@@ -165,3 +165,22 @@ test('until the re-read answers, a card whose programme has ended keeps that pro
   assert.equal(shown.props.title, 'Late news');
   assert.ok(shown.props.progress > .99, 'at its end');
 });
+
+
+test('On now uses one rebuilt read, keeps the canonical channel identity and follows no continuation', async () => {
+  const paths: string[] = [], at = serverNow();
+  const row = new NativeSearchOnNow({serverId: 's', current: () => true, api: {request: async <T,>(path: string): Promise<T> => {
+    paths.push(path);
+    assert.equal(path, '/v1/live/now');
+    return {items: Array.from({length: 50}, (_, n) => ({channel: {id: `ch-${n}`, name: `Channel ${n}`, number: String(n), kind: 'source', favorite: n === 0, hidden: false},
+      now: {id: `p-${n}`, title: `Show ${n}`, startsAt: new Date(at - 60_000).toISOString(), endsAt: new Date(at + 60_000).toISOString()}})), nextCursor: 'more'} as T;
+  }}});
+  try {
+    await row.load();
+    assert.equal(row.getSnapshot().phase, 'ready');
+    assert.equal(row.getSnapshot().cards.length, 4);
+    assert.equal(row.getSnapshot().cards[0].channel.sourceId, 'server');
+    assert.equal(row.getSnapshot().cards[0].programmes[0].title, 'Show 0');
+    assert.equal(paths.length, 1);
+  } finally {row.dispose();}
+});
