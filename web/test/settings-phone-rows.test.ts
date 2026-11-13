@@ -7,9 +7,11 @@ const shell = readFileSync(new URL('../src/kit/shell/settings.module.css', impor
 const server = readFileSync(new URL('../src/screens/settings/server/server.module.css', import.meta.url), 'utf8');
 const phone = (css: string) => css.slice(css.lastIndexOf('@media (max-width: 599px) {'));
 
-test('at phone width a row with a help line and a select, or a path value, stacks its control under the label', () => {
+// Desk B on #3317: one rule, a select row stacks at phone width whether or not it has a help line.
+test('at phone width a row with a select, help line or not, or a path value, stacks its control under the label', () => {
   const rules = phone(shell);
-  assert.match(rules, /\.row:has\(> \.rowLabel > p\):has\(> \.rowControl \[role='combobox'\]\), \.row\[data-path\], \.row:has\(> \.rowControl :is\(code, pre\)\) \{ grid-template-columns: minmax\(0, 1fr\);/);
+  assert.match(rules, /\.row:has\(> \.rowControl \[role='combobox'\]\), \.row\[data-path\], \.row:has\(> \.rowControl :is\(code, pre\)\) \{ grid-template-columns: minmax\(0, 1fr\);/);
+  assert.doesNotMatch(rules, /\.rowLabel > p\):has\(> \.rowControl \[role='combobox'\]\)/, 'no select row waits for a help line to stack');
   // Nothing truncates a select's value or forces a share on short rows.
   assert.doesNotMatch(rules, /minmax\(45%/);
 });
