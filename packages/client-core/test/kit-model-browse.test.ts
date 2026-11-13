@@ -78,6 +78,16 @@ test('Songs offers distinct Unplayed and Played quick toggles and keeps other re
 });
 
 // desktop-browse#3 :377 caption, :402 exact field order, notes/browse.md Sort menu.
+test('a reading library says Unread and Finished in the read frames order; films and audiobooks keep Watched', () => {
+  // desktop-read 1b, phone-read 2: Unread, In progress, Finished, My List; area 6 rule 5: audiobooks have Watched.
+  const capabilities = caps();
+  for (const kind of ['book', 'books', 'comic', 'comics']) {
+    const model = browseToolbarModel(capabilities, kind, [], titleSort, env);
+    assert.deepEqual(model.quick.map(q => [q.id, q.label?.text]), [['unwatched', 'Unread'], ['in-progress', 'In progress'], ['watched', 'Finished'], ['watchlist', 'My List']], kind);
+  }
+  for (const kind of ['movie', 'audiobook', 'audiobooks']) assert.equal(browseToolbarModel(capabilities, kind, [], titleSort, env).quick[0]?.label?.text, 'Unwatched', kind);
+});
+
 test('sorts use the designed order, retain expensive flags, and expose File size only to a real owner', () => {
   const capabilities = caps();
   const model = browseToolbarModel(capabilities, 'movie', [], {field: 'year', direction: 'desc'}, env);
