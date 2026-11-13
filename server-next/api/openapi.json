@@ -5998,6 +5998,25 @@
         ],
         "type": "object"
       },
+      "LiveLogoResult": {
+        "properties": {
+          "imported": {
+            "type": "integer"
+          },
+          "requested": {
+            "type": "integer"
+          },
+          "skipped": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requested",
+          "imported",
+          "skipped"
+        ],
+        "type": "object"
+      },
       "LiveOnNow": {
         "properties": {
           "channel": {
@@ -6308,12 +6327,16 @@
           "number": {
             "type": "string"
           },
+          "sourceKey": {
+            "type": "string"
+          },
           "sourceNumber": {
             "type": "string"
           }
         },
         "required": [
           "id",
+          "sourceKey",
           "name",
           "number",
           "broughtIn",
@@ -6398,6 +6421,9 @@
             },
             "type": "array"
           },
+          "guideSource": {
+            "type": "string"
+          },
           "guideUploaded": {
             "type": "boolean"
           },
@@ -6423,6 +6449,17 @@
             "type": "boolean"
           }
         },
+        "type": "object"
+      },
+      "LiveSourceLogoImport": {
+        "properties": {
+          "replaceExisting": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "replaceExisting"
+        ],
         "type": "object"
       },
       "LiveSourcePage": {
@@ -18705,6 +18742,59 @@
         "responses": {
           "204": {
             "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
+      }
+    },
+    "/v1/admin/live/sources/{id}/logos": {
+      "post": {
+        "operationId": "post_v1_admin_live_sources_id_logos",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveSourceLogoImport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveLogoResult"
+                }
+              }
+            },
+            "description": "OK"
           },
           "default": {
             "content": {

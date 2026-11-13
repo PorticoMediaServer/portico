@@ -62,6 +62,7 @@ type LiveSourcePreview struct {
 // LiveSourceChannel is one channel on the owner's channel map.
 type LiveSourceChannel struct {
 	ID           string   `json:"id"`
+	SourceKey    string   `json:"sourceKey"`
 	Name         string   `json:"name"`
 	Number       string   `json:"number"`
 	SourceNumber string   `json:"sourceNumber,omitempty"`
@@ -106,6 +107,7 @@ func (s *Server) liveSourceRoutes() {
 	Handle(s, "PATCH /v1/admin/live/sources/{id}", Owner, s.saveLiveSource).BodyLimit = maxUpload
 	Handle(s, "DELETE /v1/admin/live/sources/{id}", Owner, s.deleteLiveSource)
 	Handle(s, "POST /v1/admin/live/sources/{id}/refresh", Owner, s.refreshLiveSource)
+	Handle(s, "POST /v1/admin/live/sources/{id}/logos", Owner, s.importSourceLogos)
 	Handle(s, "GET /v1/admin/live/sources/{id}/channels", Owner, s.listSourceChannels)
 	Handle(s, "PATCH /v1/admin/live/sources/{id}/channels", Owner, s.editSourceChannels)
 }
@@ -159,6 +161,12 @@ func checkSource(save *db.LiveSourceSave, cfg *live.LiveSourceConfig, req LiveSo
 	}
 	if cfg.RefreshHours != 0 && (cfg.RefreshHours < 1 || cfg.RefreshHours > 168) {
 		return ErrField("config.refreshHours", "Refresh every 1 to 168 hours.")
+	}
+	if cfg.Numbering == "sequential" && cfg.FirstNumber == 0 {
+		cfg.FirstNumber = 1
+	}
+	if cfg.Numbering == "sequential" && (cfg.FirstNumber < 1 || cfg.FirstNumber > 99999) {
+		return ErrField("config.firstNumber", "Start with a channel number from 1 to 99999.")
 	}
 	if cfg.Numbering != "" && cfg.Numbering != "source" && cfg.Numbering != "sequential" {
 		return ErrField("config.numbering", "Number channels as the source sends them, or in order.")
@@ -227,6 +235,11 @@ func (s *Server) createLiveSource(r *http.Request, req LiveSourceSave) (LiveSour
 	cfg := live.LiveSourceConfig{}
 	if req.Config != nil {
 		cfg = *req.Config
+	}
+	if cfg.GuideSource != "" {
+		if _, err := s.db.LiveSource(r.Context(), cfg.GuideSource); err != nil {
+			return LiveSource{}, ErrField("config.guideSource", "Choose an existing listings source.")
+		}
 	}
 	if err := checkSource(&save, &cfg, req, true); err != nil {
 		return LiveSource{}, err
@@ -332,6 +345,11 @@ func (s *Server) saveLiveSource(r *http.Request, req LiveSourceSave) (LiveSource
 		}
 		cfg.Uploaded, cfg.GuideUploaded = cfg.Uploaded || uploaded && cfg.PlaylistURL == "", cfg.GuideUploaded || guideUploaded && cfg.GuideURL == ""
 	}
+	if cfg.GuideSource != "" {
+		if _, err := s.db.LiveSource(ctx, cfg.GuideSource); err != nil {
+			return LiveSource{}, ErrField("config.guideSource", "Choose an existing listings source.")
+		}
+	}
 	if err := checkSource(&save, &cfg, req, false); err != nil {
 		return LiveSource{}, err
 	}
@@ -345,7 +363,21 @@ func (s *Server) saveLiveSource(r *http.Request, req LiveSourceSave) (LiveSource
 	if err := s.keepUploads(src.PublicID, req); err != nil {
 		return LiveSource{}, err
 	}
-	return s.liveSourceOut(saved), nil
+	out := s.liveSourceOut(saved)
+	if (req.Playlist != "" || req.Guide != "") && !saved.Paused {
+		// A replacement file is already here; do not wait for the next scheduled import.
+		refreshing := s.sources.Refreshing(saved.ID)
+		s.goBackground(func() {
+			if refreshing {
+				_ = s.sources.Refresh(s.liveContext, saved.PublicID)
+			}
+			if err := s.sources.Refresh(s.liveContext, saved.PublicID); err != nil {
+				s.log.Warn("refreshing a replaced Live TV source failed", "source", saved.PublicID, "error", err)
+			}
+		})
+		out.State = "refreshing"
+	}
+	return out, nil
 }
 
 func (s *Server) deleteLiveSource(r *http.Request, _ None) (None, error) {
@@ -404,7 +436,7 @@ func (s *Server) listSourceChannels(r *http.Request, _ None) (Page[LiveSourceCha
 			out.NextCursor = encodeOpaque(liveCursor{Number: rows[n-1].Number, ID: rows[n-1].ID})
 			break
 		}
-		item := LiveSourceChannel{ID: row.PublicID, Name: row.Name, Number: formatNumber(row.Number), Group: row.Group,
+		item := LiveSourceChannel{ID: row.PublicID, SourceKey: row.SourceKey, Name: row.Name, Number: formatNumber(row.Number), Group: row.Group,
 			BroughtIn: row.State != db.ChannelNotIn, Hidden: row.State == db.ChannelHidden, Missing: row.Missing, GuideSource: row.GuideSource,
 			GuideKey: row.GuideKey, Edited: row.Edited}
 		if row.SourceNumber != 0 {
@@ -444,4 +476,24 @@ func (s *Server) editSourceChannels(r *http.Request, req LiveSourceChannelEdits)
 // LiveTunerSearch is the existing Find tuners request; zero uses two seconds.
 type LiveTunerSearch struct {
 	WindowMS int `json:"windowMs"`
+}
+
+// LiveSourceLogoImport explicitly brings in missing logos, optionally replacing held logos.
+type LiveSourceLogoImport struct {
+	ReplaceExisting bool `json:"replaceExisting"`
+}
+
+func (s *Server) importSourceLogos(r *http.Request, req LiveSourceLogoImport) (live.LiveLogoResult, error) {
+	src, err := s.db.LiveSource(r.Context(), r.PathValue("id"))
+	if err != nil {
+		return live.LiveLogoResult{}, sourceError(err)
+	}
+	if !live.Document.Get(s.settings).ImportImages {
+		return live.LiveLogoResult{}, ErrInvalid("Turn on Logos and program pictures before importing logos.")
+	}
+	result, err := s.sources.ImportLogos(r.Context(), src, req.ReplaceExisting)
+	if errors.Is(err, live.ErrSourceRefreshing) {
+		return result, refusal(http.StatusConflict, "source_refreshing", "Wait for the source to finish refreshing.", false)
+	}
+	return result, err
 }
