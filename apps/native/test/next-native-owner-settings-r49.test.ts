@@ -136,9 +136,10 @@ test('alerts are the rebuilt server\'s in the web\'s words; Fix permissions only
   assert.equal(ownerAlertView({...fixable, code: 'something_new', params: {}}, 3, t, defaultI18n.has).title, 'The server needs attention');
   assert.equal(ownerAlertView({...fixable, code: 'storage_nearly_full', severity: 'critical', major: true, params: {}}, 4, t, defaultI18n.has).tone, 'danger');
 });
-test('viewing statistics carry the four figures and the real Converted share', () => {
-  const figures = ownerStatistics({period: '7d', timeZone: 'UTC', from: '2026-10-17T00:00:00.000Z', until: '2026-10-24T16:00:00.000Z', buckets: [], plays: 46, people: 4, watchedMs: 31 * 3_600_000, converted: 7, mostPlayed: [], mostActive: []}, t);
-  assert.deepEqual(figures.map(figure => figure.value), ['46', '4', '31.0', '7']);
+test('viewing statistics carry the range\'s totals per day and the real Converted share (rule 86)', () => {
+  const figures = ownerStatistics({totals: {plays: 46, playedMs: 31 * 3_600_000, bytes: 1_500_000_000, converted: 7}, mostPlayed: [], mostActive: []}, t);
+  assert.deepEqual(figures.map(figure => figure.id), ['plays', 'hours', 'data', 'converted']);
+  assert.deepEqual(figures.map(figure => figure.value).filter((_, i) => i !== 2), ['46', '31.0', '7']);
   assert.equal(figures[3].note, '15% of plays');
   assert.deepEqual(ownerStatistics(undefined, t), []);
 });

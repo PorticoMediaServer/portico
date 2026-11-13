@@ -175,9 +175,10 @@ export const dashboardMessages = {
   // Shipped by portico-react-native; carried into the canonical catalogue (REL-SHARED-CATALOGUE).
   'next.dashboard.range.live': 'Live',
   'next.dashboard.range.24h': '24 hours',
-  'next.dashboard.range.today': 'Today',
   'next.dashboard.range.7d': '7 days',
   'next.dashboard.range.30d': '30 days',
+  'next.dashboard.range.90d': '90 days',
+  'next.dashboard.range.1y': '1 year',
   'next.dashboard.range.all': 'All time',
   'next.dashboard.streamsLabel': 'Streams',
   'next.dashboard.streamsPaused': '{count} paused',

@@ -5,13 +5,12 @@ import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {AdminSession, StreamAction} from '../../../../../../packages/client-core/src/playback-v1/types';
 import type {Job} from '../../../../../../packages/client-core/src/console';
 import type {DashboardAlert} from '../../../screens/settings-live/dashboard-controller';
-import type {PlaySummary} from '../../../../../../packages/client-core/src/play-history';
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
 import type {Gallery} from '../../gallery-registry';
 import {useTheme} from '../../../kit/theme';
 import {OwnerDashboardPage} from '../../../screens/settings-live/owner-dashboard/page';
 import {OwnerMoveSheet} from '../../../screens/settings-live/owner-dashboard/move-sheet';
-import {ownerAlertView, ownerHealthLine, ownerJobView, ownerStreamView, type OwnerSessionTotals} from '../../../screens/settings-live/owner-dashboard/model';
+import {ownerAlertView, ownerHealthLine, ownerJobView, ownerStreamView, type OwnerSessionTotals, type OwnerViewing} from '../../../screens/settings-live/owner-dashboard/model';
 
 const t = defaultI18n.t;
 const now = Date.now();
@@ -80,11 +79,10 @@ const telemetry: TelemetryReading = {
   status: {cpu: {status: 'available', value: 18}, memory: {status: 'available', value: 41}, homeMbps: {status: 'available', value: 11.2}, awayMbps: {status: 'available', value: 8}, conversions: {status: 'available', value: 1}} as TelemetryReading['status'],
   series: {cpu: series(18, 6, 1), memory: series(41, 3, 2), homeMbps: series(11, 3, 3), awayMbps: series(8, 2, 4), conversions: series(1, 0, 5)} as TelemetryReading['series'],
 };
-const summary: PlaySummary = {
-  period: '7d', timeZone: 'UTC', from: new Date(now - 604_800_000).toISOString(), until: new Date(Math.floor(now / 900_000) * 900_000).toISOString(), buckets: [],
-  plays: 46, people: 4, watchedMs: 31 * 3_600_000, converted: 7,
-  mostPlayed: [{name: 'The Last of Us', plays: 12}, {name: 'Severance', plays: 9}, {name: 'Spirited Away', plays: 6}],
-  mostActive: [{name: 'sam_k', plays: 18}, {name: 'demo', plays: 14}, {name: 'priya.n', plays: 9}],
+const summary: OwnerViewing = {
+  totals: {plays: 46, playedMs: 31 * 3_600_000, bytes: 92_000_000_000, converted: 7},
+  mostPlayed: [{name: 'The Last of Us', plays: 12, watchedMs: 0}, {name: 'Severance', plays: 9, watchedMs: 0}, {name: 'Spirited Away', plays: 6, watchedMs: 0}],
+  mostActive: [{name: 'sam_k', plays: 18, watchedMs: 0}, {name: 'demo', plays: 14, watchedMs: 0}, {name: 'priya.n', plays: 9, watchedMs: 0}],
 };
 
 function specimen(scale: boolean, expanded: boolean, move = false) {
@@ -101,7 +99,7 @@ function specimen(scale: boolean, expanded: boolean, move = false) {
           expanded={showAll} allStreams={showAll ? list.map(value => ({view: ownerStreamView(value, env)})) : []}
           people={scale ? '37 people · 30 at home, 7 away' : '2 people · 1 at home, 1 away'}
           alerts={alerts.map((value, index) => ownerAlertView(value, index, t, defaultI18n.has))} update={{latest: '0.2.0', current: '0.1.0', notesURL: 'https://example.com/portico/0.2.0', checking: false, checkFailed: false}} jobs={jobs.map(value => ownerJobView(value, t, defaultI18n.has))}
-          telemetry={telemetry} healthWindow="live" summary={summary} viewingPeriod="7d"
+          telemetry={telemetry} healthWindow="live" summary={summary} viewingPeriod="30d"
           onBack={() => {}} onRetry={() => {}} onHealthWindow={() => {}} onViewingPeriod={() => {}} onFixPermissions={() => {}} onJobMenu={() => {}} onStop={() => {}} onStreamMenu={() => {}}
           onShowAll={() => setShowAll(true)} onShowFewer={() => setShowAll(false)} onRetryAll={() => {}}/>
       {showMove ? <OwnerMoveSheet session={scaleSessions[4]} t={t} busy={false} onCancel={() => setShowMove(false)} onMove={() => setShowMove(false)}/> : null}
