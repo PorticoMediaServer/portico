@@ -19,26 +19,22 @@ test('unknown zero or unknown middle point never becomes a measured line or stat
   assert.equal(healthPlot(r.series.cpu, 0, 10), undefined); assert.equal(healthDetail(r.series.cpu, 0, 10, true), undefined);
 });
 
-test('known CPU and disk history preserve available zero and real limited detail', () => {
-  const r = reading(); r.status.cpu = {status: 'available', value: 0}; r.status.diskRead = {status: 'limited', value: 5, detail: 'partial volume'};
+test('known processor and memory history preserve available zero and real limited detail', () => {
+  const r = reading(); r.status.cpu = {status: 'available', value: 0}; r.status.memory = {status: 'limited', value: 5, detail: 'partial reading'};
   r.series.cpu = [point(1, 0, 'available'), point(2, 3, 'available')];
-  r.series.diskRead = [point(1, 0, 'available'), point(2, 5, 'limited', 'partial volume')];
-  const tiles = healthTiles(r), cpu = tiles.find(item => item.metric === 'cpu')!, disk = tiles.find(item => item.metric === 'diskRead')!;
+  r.series.memory = [point(1, 0, 'available'), point(2, 5, 'limited', 'partial reading')];
+  const tiles = healthTiles(r), cpu = tiles.find(item => item.metric === 'cpu')!, memory = tiles.find(item => item.metric === 'memory')!;
   assert.equal(cpu.history, 'samples'); assert.equal(cpu.points[0].v, 0); assert.equal(healthDetail(cpu.points, 0, 10, true)?.low, 0);
-  assert.equal(disk.points[1].detail, 'partial volume'); assert.equal(disk.limited, true); assert.deepEqual(disk.details, ['partial volume']);
+  assert.equal(memory.points[1].detail, 'partial reading'); assert.equal(memory.limited, true); assert.deepEqual(memory.details, ['partial reading']);
 });
 
-test('viewer rates use current metrics and retain paired provenance, refusing gaps', () => {
-  const r = reading(); r.status.homeMbps = {status: 'available', value: 0}; r.status.awayMbps = {status: 'limited', value: 2, detail: 'limited away'};
-  r.series.homeMbps = [point(1, 0, 'available'), point(2, 1, 'limited', 'limited home')];
-  r.series.awayMbps = [point(1, 0, 'available'), point(2, 2, 'limited', 'limited away')];
-  let viewer = healthTiles(r).find(item => item.metric === 'netOut')!;
-  assert.equal(viewer.value, '2 Mbps'); assert.equal(viewer.points[0].v, 0); assert.equal(viewer.points[1].status, 'limited');
-  assert.match(viewer.points[1].detail!, /limited home/); assert.match(viewer.points[1].detail!, /limited away/);
-  r.series.awayMbps[1] = point(3, 2, 'available'); viewer = healthTiles(r).find(item => item.metric === 'netOut')!;
-  assert.equal(viewer.value, '2 Mbps'); assert.equal(viewer.history, 'gap'); assert.equal(healthDetail(viewer.points, 0, 10, false), undefined);
-  r.series.awayMbps[1] = point(2, 2); viewer = healthTiles(r).find(item => item.metric === 'netOut')!;
-  assert.equal(viewer.history, 'gap'); assert.deepEqual(viewer.points, []);
+test('bandwidth at home and away are their own tiles, as console rule 12 names them', () => {
+  const r = reading(); r.status.homeMbps = {status: 'available', value: 0}; r.status.awayMbps = {status: 'available', value: 2.5};
+  r.series.homeMbps = [point(1, 0, 'available'), point(2, 1, 'available')];
+  r.series.awayMbps = [point(1, 0, 'available'), point(2, 2.5, 'available')];
+  const tiles = healthTiles(r), home = tiles.find(item => item.metric === 'homeMbps')!, away = tiles.find(item => item.metric === 'awayMbps')!;
+  assert.equal(home.value, '0.0 Mbps', 'a measured zero is shown, not hidden'); assert.equal(away.value, '2.5 Mbps');
+  assert.equal(home.label, 'next.dashboard.bandwidthHome'); assert.equal(away.history, 'samples');
 });
 
 // Parser and presenter assertions cover the returned point set, not raw-series completeness:

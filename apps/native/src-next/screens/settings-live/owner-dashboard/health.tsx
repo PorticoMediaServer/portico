@@ -7,7 +7,6 @@ import {StatTiles} from '../../../kit/shell';
 import {useTheme} from '../../../kit/theme';
 import {alpha, shellType} from '../../../kit/shell/visual';
 import {when} from '../../../../../../packages/client-core/src/server-admin/console-words';
-import {formatBytes} from '../../../../../../packages/client-core/src/presentation/content';
 import type {LoadTile} from '../../../../../../packages/client-core/src/server-admin/dashboard';
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
 import {OwnerCalm, OwnerSection} from './parts';
@@ -41,7 +40,7 @@ function HealthChart({detail, t}: {detail: NonNullable<ReturnType<typeof ownerHe
   const line = points.map((point, index) => `${index ? 'L' : 'M'}${x(point).toFixed(1)},${y(point.v).toFixed(1)}`).join(' ');
   const percent = detail.unit === 'percent';
   const axis = [detail.max, (detail.max + detail.min) / 2, detail.min];
-  const value = (amount: number) => percent ? `${Math.round(amount)}%` : detail.unit === 'rate' ? `${formatBytes(amount)}/s` : String(Math.round(amount));
+  const value = (amount: number) => percent ? `${Math.round(amount)}%` : detail.unit === 'mbps' ? t('next.dashboard.mbps', {value: amount.toFixed(1)}) : String(Math.round(amount));
   return <>
     <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 6}}><Text style={[shellType(34, 800, 'normal', -.03), {color: theme.colors.text}]}>{detail.value}</Text><Text style={[shellType(13, 600), {color: theme.colors.textTertiary}]}>{t('next.dashboard.nowValue')}</Text></View>
     <View onLayout={event => setWidth(event.nativeEvent.layout.width)} style={{height: height + 2, marginTop: 14}}>

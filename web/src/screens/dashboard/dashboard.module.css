@@ -112,9 +112,9 @@
 .retention { padding: 16px 20px; border-radius: var(--radius-overlay); background: var(--color-raised); }
 .retention summary { cursor: pointer; }
 .dashboard [data-series='home'], .dashboard [data-series='homeMbps'] { --series-color: var(--color-gold); color: var(--color-gold); }
-.dashboard [data-series='softwareConversions'] { --series-color: var(--color-amber); color: var(--color-amber); }
+.dashboard [data-series='conversions'] { --series-color: var(--color-amber); color: var(--color-amber); }
 .dashboard [data-series='cpu'], .dashboard [data-series='memory'], .dashboard [data-series='tv'] { --series-color: var(--color-lilac); color: var(--color-lilac); }
-.dashboard [data-series='movies'], .dashboard [data-series='away'], .dashboard [data-series='awayMbps'], .dashboard [data-series='hardwareConversions'], .dashboard [data-series='processCPU'], .dashboard [data-series='processMemory'] { --series-color: var(--color-accent-strong); color: var(--color-accent-strong); }
+.dashboard [data-series='movies'], .dashboard [data-series='away'], .dashboard [data-series='awayMbps'], .dashboard [data-series='processCPU'], .dashboard [data-series='processMemory'] { --series-color: var(--color-accent-strong); color: var(--color-accent-strong); }
 .dashboard [data-series='music'] { --series-color: var(--color-healthy); color: var(--color-healthy); }
 .dashboard [data-series='audiobooks'] { --series-color: var(--color-gold); }
 .dashboard [data-series='live'] { --series-color: var(--color-rose); }

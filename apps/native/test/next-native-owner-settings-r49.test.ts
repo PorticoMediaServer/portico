@@ -86,10 +86,10 @@ function reading(overrides: Partial<TelemetryReading> = {}): TelemetryReading {
 
 test('Health tiles leave out a metric the server cannot measure and scale to their own points', () => {
   const tiles = ownerHealthTiles(reading(), t);
-  assert.deepEqual(tiles.map(tile => tile.id), ['cpu', 'netOut']);
-  assert.deepEqual(tiles.map(tile => tile.label), ['Processor', 'Sent to viewers']);
+  // Rule 12's tiles: bandwidth at home and away, processor, memory, conversions. Network out is not one of them.
+  assert.deepEqual(tiles.map(tile => tile.id), ['cpu']);
+  assert.deepEqual(tiles.map(tile => tile.label), ['Processor']);
   assert.equal(tiles[0].value, '18%');
-  assert.equal(tiles[1].value, '14 MB/s');
   assert.ok((tiles[0].max ?? 0) > 18 && (tiles[0].max ?? 0) < 20);
   assert.deepEqual(ownerHealthTiles(undefined, t), []);
 });

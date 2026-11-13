@@ -7,10 +7,10 @@ import {healthDetail, healthPlot, healthTiles} from './health-presentation';
 import styles from './phone-health.module.css';
 
 const t = defaultI18n.t;
-export type HealthRange = '10m' | '1h' | '24h';
+/** Rule 12: the load as it is now and over the last 24 hours. */
+export type HealthRange = 'live' | '24h';
 const ranges = [
-  {value: '10m', label: 'web.telemetry.window10m'},
-  {value: '1h', label: 'web.telemetry.window1h'},
+  {value: 'live', label: 'next.dashboard.live'},
   {value: '24h', label: 'web.telemetry.window24h'},
 ] as const;
 
@@ -60,7 +60,7 @@ export function PhoneHealth({reading, loading, failed, range, onRangeChange, onR
       </button>;
     })}{shortHistory && <div className={styles.note}>{t('next.dashboard.healthLater')}</div>}</div> : <div className={styles.feedback}>{t('server.health.loadNotMeasured')}</div>)}
     <Dialog open={selected !== undefined} onOpenChange={open => {if (!open) setSelected(undefined);}} title={selectedLabel} returnFocusRef={opener} headerClassName={styles.detailHeader} bodyClassName={styles.detailBody}>
-      {selectedTile && <div className={styles.big}><b>{selectedTile.value}</b>{range === '10m' && <span>{t('next.dashboard.nowValue')}</span>}</div>}
+      {selectedTile && <div className={styles.big}><b>{selectedTile.value}</b>{range === 'live' && <span>{t('next.dashboard.nowValue')}</span>}</div>}
       {selectedTile?.limited && <div className={styles.detailMessage}>{selectedTile.details.length ? selectedTile.details.join(' · ') : t('next.remoteSources.state.limited')}</div>}
       <div className={`${styles.segment} ${styles.detailSegment}`} role="group" aria-label={t('web.telemetry.period')}>
         {ranges.map(item => <button key={item.value} type="button" aria-pressed={range === item.value} onClick={() => onRangeChange(item.value)}>{t(item.label)}</button>)}

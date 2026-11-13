@@ -5,7 +5,6 @@
 import type {Measurement} from '../console.ts';
 import type {Metric, MetricName} from '../telemetry.ts';
 import type {MessageId} from '../../../i18n/src/index.ts';
-import {formatBytes} from '../presentation/content.ts';
 
 type Fact = Measurement['facts'][string];
 const measured = (f?: Fact) => !!f && (f.state === 'available' || f.state === 'measured' || f.state === 'ok' || f.state === 'limited') && f.value !== null && f.value !== undefined;
@@ -24,19 +23,19 @@ export function healthFacts(health?: Measurement, storage?: Measurement): Health
   };
 }
 
-export type LoadTile = Readonly<{metric: MetricName; label: MessageId; unit: 'percent' | 'rate'}>;
+export type LoadTile = Readonly<{metric: MetricName; label: MessageId; unit: 'percent' | 'mbps' | 'count'}>;
 
-/** The load tiles, in the order they are shown. */
+/** The load tiles, in the order they are shown: what console rule 12 names and the rebuilt server measures. */
 export const LOAD_TILES: readonly LoadTile[] = [
-  {metric: 'cpu', label: 'web.telemetry.metricCpu', unit: 'percent'}, {metric: 'memory', label: 'web.telemetry.metricMemory', unit: 'percent'},
-  {metric: 'netOut', label: 'web.telemetry.metricNetOut', unit: 'rate'}, {metric: 'diskRead', label: 'web.telemetry.metricDiskRead', unit: 'rate'},
-  {metric: 'gpuUsage', label: 'web.telemetry.metricGpu', unit: 'percent'}, {metric: 'gpuEncoder', label: 'web.telemetry.metricEncoder', unit: 'percent'},
+  {metric: 'homeMbps', label: 'next.dashboard.bandwidthHome', unit: 'mbps'}, {metric: 'awayMbps', label: 'next.dashboard.bandwidthAway', unit: 'mbps'},
+  {metric: 'cpu', label: 'next.dashboard.processor', unit: 'percent'}, {metric: 'memory', label: 'next.dashboard.memory', unit: 'percent'},
+  {metric: 'conversions', label: 'next.dashboard.conversions', unit: 'count'},
 ];
 
 /** A tile's current value in words; a metric this server cannot measure is a dash, never zero. */
 export function loadValue(tile: LoadTile, status?: Metric): string {
   if (!status || status.status === 'unavailable') return '—';
-  return tile.unit === 'percent' ? `${Math.round(status.value)}%` : `${formatBytes(status.value)}/s`;
+  return tile.unit === 'percent' ? `${Math.round(status.value)}%` : tile.unit === 'mbps' ? `${status.value.toFixed(1)} Mbps` : String(Math.round(status.value));
 }
 
 /** The load tiles a server can fill: one it cannot measure is left out, never drawn empty (hide what is absent). */
