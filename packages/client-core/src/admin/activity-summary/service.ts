@@ -2,6 +2,7 @@ import {routePath} from '../../../../contracts/src/route-paths.ts';
 import {utcOrderKey} from '../../local-session.ts';
 import {call} from '../../playback-v1/http.ts';
 import type {EventsClient} from '../../playback-v1/events.ts';
+import type {PageVisibility} from '../../playback-service.ts';
 type ActivityEvents = Pick<EventsClient, 'on' | 'onResync'> & Partial<Pick<EventsClient, 'resyncReads' | 'onResyncRead' | 'getStatus'>>;
 import {parseActivitySummary,parseDashboardSessions} from './parser.ts';
 import {dependsOn} from '../../freshness-hub.ts';
@@ -65,11 +66,15 @@ export class ActivitySummaryService {
   private retryAt = -Infinity;
   private releases: (() => void)[] = [];
   private readEvents?: ActivityEvents;
+  private visibility?: PageVisibility;
+  private releaseVisibility = () => {};
 
-  constructor(options: {source: ActivitySummarySourceStore; timers?: ActivitySummaryTimers; timeoutMs?: number; /** The viewer's cache: the summary is read through it, so every owner shares one read and a reopened popover shows at once. */ queries?: ViewerQueries}) {
+  constructor(options: {source: ActivitySummarySourceStore; timers?: ActivitySummaryTimers; timeoutMs?: number; /** A hidden page reads nothing on a hint; it reads once when shown again. */ visibility?: PageVisibility; /** The viewer's cache: the summary is read through it, so every owner shares one read and a reopened popover shows at once. */ queries?: ViewerQueries}) {
     this.source = options.source; this.queries = options.queries;
     this.timers = options.timers ?? defaults;
     this.timeoutMs = options.timeoutMs ?? 10_000;
+    // Stream starts and stops each send a hint: a hidden page keeps one waiting and reads it once it is shown.
+    this.visibility = options.visibility; this.releaseVisibility = options.visibility?.onVisible(() => this.schedule()) ?? (() => {});
     if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 60_000) throw new Error('invalid_activity_timeout');
     this.syncSource();
     this.releaseSource = this.source.subscribe(() => {
@@ -135,9 +140,9 @@ export class ActivitySummaryService {
     this.schedule();
   }
   private schedule(): void {
-    if (!this.pending || this.reading || this.timer !== undefined || !this.eligible()) return;
+    if (!this.pending || this.reading || this.timer !== undefined || !this.eligible() || this.visibility?.hidden()) return;
     const delay = Math.max(0, this.lastStart + 1000 - this.timers.now(), this.retryAt - this.timers.now());
-    this.timer = this.timers.setTimer(() => { this.timer = undefined; if (this.pending) void this.read(undefined, true); }, delay);
+    this.timer = this.timers.setTimer(() => { this.timer = undefined; if (!this.pending) return; if (this.visibility?.hidden()) return; void this.read(undefined, true); }, delay);
   }
   /** One explicit read: the viewer's cached summary when nothing it was built from has moved, else the server's. Concurrent callers share it. Hints during the read schedule one trailing read. */
   load = (): Promise<void> => this.read(undefined, false);
@@ -238,7 +243,7 @@ export class ActivitySummaryService {
   }
   dispose(): void {
     if (this.disposed) return;
-    this.stopRead(); this.releaseFeed(); this.releaseSource();
+    this.stopRead(); this.releaseFeed(); this.releaseSource(); this.releaseVisibility();
     this.current = undefined; this.observed = undefined;
     this.disposed = true; this.publish(unavailable); this.listeners.clear();
   }

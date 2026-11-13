@@ -3,6 +3,7 @@ import {useShellFacts} from './fact-hooks';
 import {useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {ACTIVITY_FALLBACK_READ_MS, ActivitySummaryService, type ActivitySummarySource, type ActivitySummarySourceStore} from '@core/admin/activity-summary/index.ts';
 import {localV1Http} from '@core/playback-v1/local-http.ts';
+import {documentVisibility} from '../platform/playback/page-visibility';
 import type {TimeEnvironment} from '@core/presentation/kit-model/index.ts';
 import {TopBarActivity, type ActivityPanelView} from '../kit/shell';
 import type {ShellAssemblyContext} from './bootstrap';
@@ -27,7 +28,7 @@ export function createOwnerActivity(context: ShellAssemblyContext, time: TimeEnv
   };
   function OwnerActivity({presentation = 'topbar', className}: OwnerActivityProps) {
     useShellFacts(context);
-    const service = useMemo(() => new ActivitySummaryService({source, queries: context.freshness?.queries}), []);
+    const service = useMemo(() => new ActivitySummaryService({source, queries: context.freshness?.queries, visibility: documentVisibility}), []);
     const snapshot = useSyncExternalStore(service.subscribe, service.getSnapshot, service.getSnapshot);
     const [open, setOpen] = useState(false);
     useEffect(() => {

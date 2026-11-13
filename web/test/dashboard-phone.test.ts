@@ -6,7 +6,7 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {transformTsx} from './transform-tsx.mjs';
 
 // The drawn phone Dashboard is its own page: this suite renders the composition, not a browser.
-const state = {authority: true, value: undefined as unknown};
+const state = {authority: true, value: undefined as unknown, reads: [] as {enabled: boolean; everyMs: number; fallback: boolean}[]};
 Object.assign(globalThis, {__dashboardPhoneTest: state});
 registerHooks({
   resolve(specifier, context, next) {
@@ -16,7 +16,7 @@ registerHooks({
   load(url, context, next) {
     if (url === 'dashboard-phone:read') return {format: 'module', source: `
       export const useDashboardAuthority = () => globalThis.__dashboardPhoneTest.authority;
-      export const useDashboardRead = () => ({loading: false, failed: false, value: globalThis.__dashboardPhoneTest.value, refresh: () => {}});
+      export const useDashboardRead = (_b, _load, enabled, everyMs = 0, _changes, fallback = false) => {globalThis.__dashboardPhoneTest.reads.push({enabled, everyMs, fallback}); return {loading: false, failed: false, value: globalThis.__dashboardPhoneTest.value, refresh: () => {}};};
       export const useDashboardAccounts = () => ({loading: false, failed: false, refresh: () => {}, items: []});
     `, shortCircuit: true};
     if (url.endsWith('.module.css')) return {format: 'module', source: 'export default new Proxy({}, {get: (_, key) => String(key)});', shortCircuit: true};
@@ -152,3 +152,14 @@ test('desktop and phone keep unknown alerts and non-fixable data-folder explanat
     assert.doesNotMatch(html, /not_kept_here|>Troubleshooting<|>Storage &amp; backups<|>Fix permissions</);
   }
 });
+
+test('Now playing follows the server\'s activity change for the owner alone; an administrator, who gets no such change, keeps the timed re-read', () => {
+  for (const [role, everyMs, fallback] of [['owner', 30000, true], ['admin', 10000, false]] as const) {
+    Object.assign(state, {authority: true, value: {...readValue, ...page}, reads: []});
+    renderToStaticMarkup(createElement(DashboardScreen, {bindings: bindings(role) as never}));
+    // The Dashboard's reads in order: status (owner only), then Now playing.
+    const sessions = state.reads[1]!;
+    assert.deepEqual([sessions.enabled, sessions.everyMs, sessions.fallback], [true, everyMs, fallback], role);
+  }
+});
+
