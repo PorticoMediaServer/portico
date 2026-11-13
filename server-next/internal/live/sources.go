@@ -37,6 +37,8 @@ type LiveSourceConfig struct {
 	// ServerURL is an Xtream provider's address, TunerURL an HDHomeRun's.
 	ServerURL string `json:"serverUrl,omitempty"`
 	TunerURL  string `json:"tunerUrl,omitempty"`
+	// GuideSource chooses another saved source for listings; empty uses this source or the automatic guide.
+	GuideSource string `json:"guideSource,omitempty"`
 	// RefreshHours is how often the guide is refreshed: 6 unless set, 1 to 168.
 	RefreshHours int `json:"refreshHours,omitempty"`
 	// Groups and Channels are what comes in: none named is everything.

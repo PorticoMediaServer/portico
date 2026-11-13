@@ -260,6 +260,7 @@ func (d *DB) ImportSourceChannels(ctx context.Context, sourceID int64, channels 
 type SourceChannelRow struct {
 	ID           int64
 	PublicID     string
+	SourceKey    string
 	Name         string
 	Number       int
 	SourceNumber int
@@ -278,7 +279,7 @@ func (d *DB) SourceChannels(ctx context.Context, sourceID int64, afterNumber int
 
 // FindSourceChannels searches the source map without requiring the app to read every page.
 func (d *DB) FindSourceChannels(ctx context.Context, sourceID int64, afterNumber int, afterID int64, limit int, query string) ([]SourceChannelRow, error) {
-	rows, err := d.read.QueryContext(ctx, `SELECT c.id, c.public_id, c.name, c.number, ifnull(c.source_number, 0), ifnull(c.group_name, ''), c.state,
+	rows, err := d.read.QueryContext(ctx, `SELECT c.id, c.public_id, c.source_key, c.name, c.number, ifnull(c.source_number, 0), ifnull(c.group_name, ''), c.state,
 		ifnull(g.public_id, ''), ifnull(c.guide_key, ''), ifnull(c.edited, '[]'), c.missing_since_at IS NOT NULL
 		FROM channels c LEFT JOIN live_sources g ON g.id = c.guide_source_id
 		WHERE c.source_id = ? AND (c.number, c.id) > (?, ?)
@@ -292,7 +293,7 @@ func (d *DB) FindSourceChannels(ctx context.Context, sourceID int64, afterNumber
 	for rows.Next() {
 		var r SourceChannelRow
 		var edited string
-		if err := rows.Scan(&r.ID, &r.PublicID, &r.Name, &r.Number, &r.SourceNumber, &r.Group, &r.State, &r.GuideSource, &r.GuideKey,
+		if err := rows.Scan(&r.ID, &r.PublicID, &r.SourceKey, &r.Name, &r.Number, &r.SourceNumber, &r.Group, &r.State, &r.GuideSource, &r.GuideKey,
 			&edited, &r.Missing); err != nil {
 			return nil, err
 		}
