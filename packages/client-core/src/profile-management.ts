@@ -92,9 +92,11 @@ export function parseManagedProfiles(raw:unknown,readable=false):readonly Manage
  * `role` and `canManage` are this sign-in's: only the account's main profile manages anything. */
 function accountSnapshot(serverId:string,account:unknown,profileRows:unknown,role:string,canManage:boolean,readable=false):DirectSnapshot{
  if(!text(serverId,128)||!obj(account)||!text(account.id,128)||!text(account.username,64)||!['owner','admin','member'].includes(account.role as string))invalid();
+ if(account.hostedAccountId!==undefined&&!text(account.hostedAccountId,256))invalid();
  const profiles=parseManagedProfiles(profileRows,readable),primary=profiles.find(p=>p.primary);if(!primary)invalid();
  const staff=canManage&&(role==='owner'||role==='admin');
- return Object.freeze({authority:'local',serverId,account:Object.freeze({id:account.id,username:account.username,primaryProfileId:primary.id,role:account.role as DirectAccount['role'],disabled:false,allowedLibraries:Object.freeze([])}),
+ return Object.freeze({authority:'local',serverId,account:Object.freeze({id:account.id,username:account.username,primaryProfileId:primary.id,role:account.role as DirectAccount['role'],disabled:false,allowedLibraries:Object.freeze([]),
+  ...(typeof account.hostedAccountId==='string'?{hostedAccountId:account.hostedAccountId}:{})}),
   profiles,capabilities:Object.freeze({manageAccount:canManage,managePeople:staff,manageServer:staff,manageSignIn:canManage&&role==='owner'}),canManage,rememberProfiles:false});
 }
 /** Reads what `readDirectAccount` fetched (`GET /v1/me` and `GET /v1/profiles`) for the server the caller is signed in to. */
