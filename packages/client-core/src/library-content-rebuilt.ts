@@ -116,7 +116,7 @@ async function holderPage(api: ServerRequester, route: ContentRoute, bound: Cont
   const artist = route.view === 'album' && item?.parent?.kind === 'artist' && item.parent.id ? {artist: Object.freeze({id: item.parent.id, name: item.parent.title})} : {};
   // An author's page counts their titles in this library (its Books section's total), not the
   // person's titles across every library and kind the people answer counts.
-  const books = person && !page.next && wanted[0]?.id === 'books' && typeof lists[0]?.total === 'number' ? {count: lists[0].total} : {};
+  const books = person && wanted[0]?.id === 'books' && typeof lists[0]?.total === 'number' ? {count: lists[0].total} : {};
   const entity = found ? (({playback: _ignored, ...rest}) => Object.freeze({...rest, ...artist, ...books}))(found as Record<string, unknown> & {playback?: unknown}) as typeof found : undefined;
   const start = page.next ? undefined : page.at ?? 0;
   const sections = wanted.flatMap((holderSection, n) => {
