@@ -16,7 +16,7 @@ test('the sign-in view never draws an empty page, and an ended sign-in signs in 
   const source = read('../src/screens/accounts/AccountSignInView.tsx');
   assert.match(source, /else if \(state\.phase === 'welcome' && state\.ended\) \{/);
   assert.match(source, /if \(destination\.to === 'sign-in'\) void entry\.inspect\(destination\.origin\);/);
-  assert.match(source, /<Button onClick=\{cancel\}>\{defaultI18n\.t\('settings\.switchServer'\)\}<\/Button>\n  <\/AuthStage>;\n\}/, 'Switch server is offered even with nothing to say');
+  assert.match(source, /<Button onClick=\{cancel\}>\{defaultI18n\.t\('settings\.switchServer'\)\}<\/Button>(<\/AuthActions>)?\n  <\/AuthStage>;\n\}/, 'Switch server is offered even with nothing to say');
 });
 
 test('an ended saved sign-in in the chooser opens sign-in for its address instead of a dead Try again', () => {

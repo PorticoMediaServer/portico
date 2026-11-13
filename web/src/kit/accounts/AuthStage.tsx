@@ -29,6 +29,10 @@ export function AuthStage({children, layout = 'column', service = false, topRigh
   </section>;
 }
 export function AuthLinks({children}: {children: ReactNode}) { return <div className={styles.links}>{children}</div>; }
+/** The one button stack of the sign-in and Portico Account pages (design/ui-v1 `.btnrow`: 12 apart, full width). */
+export function AuthActions({children, className}: {children: ReactNode; className?: string}) {
+  return <div className={className ? `${styles.actions} ${className}` : styles.actions}>{children}</div>;
+}
 
 /** The auth1d preparing state shares the public stage's colour-only backdrop. */
 export function AuthLoading({children}: {children: ReactNode}) {

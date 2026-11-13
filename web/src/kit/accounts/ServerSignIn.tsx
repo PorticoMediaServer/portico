@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react';
 import {defaultI18n} from '@i18n';
 import {Button} from '../controls/Button';
 import {TextField} from '../controls/Fields';
-import {AuthError, AuthLinks, AuthPasswordField, AuthStage} from './AuthStage';
+import {AuthActions, AuthError, AuthLinks, AuthPasswordField, AuthStage} from './AuthStage';
 import {Icon} from '../Icon';
 import {signInRetryClock, signInRetrySeconds} from './sign-in-retry';
 import styles from './accounts.module.css';
@@ -54,8 +54,8 @@ export function PorticoServerSignIn({serverName, busy, error, moving = false, mo
   return <AuthStage phoneShape="top"><p className={styles.eyebrow}>{t('accounts.signIn.to')}</p><h1>{serverName}</h1>
     {/* HTTPS comes straight back here (option 2); plain HTTP can't be sent a note, so it says where that works. */}
     <p className={styles.lede}>{t(plainHttp ? 'accounts.signIn.handoffBody' : 'accounts.signIn.handoffReturnBody', {server: serverName})}</p>{plainHttp && <p className={styles.lede}>{t('accounts.signIn.handoffPlainHttp', {server: serverName})}</p>}<AuthError error={error} />
-    {plainHttp && onSecure && <Button className={styles.handoffSubmit} variant="primary" disabled={busy} onClick={onSecure}>{t('accounts.signIn.openSecure', {server: serverName})}</Button>}
-    <Button className={styles.handoffSubmit} variant={plainHttp && onSecure ? undefined : 'primary'} loading={busy} onClick={onContinue}>{t(plainHttp ? 'accounts.signIn.handoffHosted' : 'accounts.signIn.handoff')}</Button>
+    <AuthActions>{plainHttp && onSecure && <Button variant="primary" disabled={busy} onClick={onSecure}>{t('accounts.signIn.openSecure', {server: serverName})}</Button>}
+    <Button variant={plainHttp && onSecure ? undefined : 'primary'} loading={busy} onClick={onContinue}>{t(plainHttp ? 'accounts.signIn.handoffHosted' : 'accounts.signIn.handoff')}</Button></AuthActions>
     {moving && <p className={styles.lede}>{t('accounts.move.toPortico', {server: serverName})}</p>}
     <AuthLinks><button type="button" data-quiet disabled={!onRecovery || busy} onClick={onRecovery}>{t('accounts.signIn.cannotUsePortico')}</button>
       {moving && moveDays !== undefined && onOldPassword && <button type="button" data-quiet disabled={busy} onClick={onOldPassword}>{t('accounts.move.oldPasswordAction', {days: moveDays})}</button>}
