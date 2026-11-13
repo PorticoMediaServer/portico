@@ -199,6 +199,9 @@ func (d *DB) PlaybackItem(ctx context.Context, v Viewer, publicID string) (Playb
 		pv.Tracks = append(pv.Tracks, downloaded...)
 		out.Versions = append(out.Versions, pv)
 	}
+	if out.Kind == KindAudiobook && len(out.Versions) > 0 {
+		out.DurationMS = out.Versions[0].DurationMS
+	}
 	return out, nil
 }
 
@@ -839,6 +842,14 @@ type FileOnDisk struct {
 	Read bool
 	// AudioExact is a music file's exact measurement as KeepAudioExact kept it, or "".
 	AudioExact string
+	// DurationMS is the file's length as its probe stored it, 0 while it has not been probed:
+	// the same length a book's part shows as its own on the title's page.
+	DurationMS int64
+	// AudioShape is the codec, sample rate, channels and channel layout of the file's first
+	// sound track as the probe stored them, "" while it has not been probed. Two files can be
+	// joined as they are only when theirs are the same.
+	AudioShape     string
+	PacketLengthUS int64
 }
 
 // KeepAudioExact keeps a music file's exact measurement with the file, if the file is still
@@ -855,9 +866,13 @@ func (d *DB) KeepAudioExact(ctx context.Context, fileID int64, file FileOnDisk, 
 func (d *DB) FileOnDisk(ctx context.Context, fileID int64) (FileOnDisk, error) {
 	var out FileOnDisk
 	err := d.read.QueryRowContext(ctx, `SELECT rtrim(lp.path, '/') || '/' || CASE WHEN dir.rel_path = '' THEN '' ELSE dir.rel_path || '/' END || f.name,
-		f.size, f.modified_ns, f.probed_at IS NOT NULL, ifnull(f.audio_exact, '') FROM files f JOIN directories dir ON dir.id = f.directory_id
+		f.size, f.modified_ns, f.probed_at IS NOT NULL, ifnull(f.audio_exact, ''), ifnull(f.duration_ms, 0), ifnull(json_extract(f.extra, '$.packets.lengthUs'), 0),
+		ifnull((SELECT ifnull(s.codec, '') || '|' || ifnull(s.sample_rate, 0) || '|' || ifnull(s.channels, 0) || '|' || ifnull(s.channel_layout, '')
+			FROM media_streams s WHERE s.file_id = f.id AND s.kind = ? ORDER BY s.stream_index LIMIT 1), '')
+		FROM files f JOIN directories dir ON dir.id = f.directory_id
 		JOIN library_paths lp ON lp.id = dir.library_path_id
-		WHERE f.id = ? AND f.missing_since_at IS NULL AND lp.remote_source_id IS NULL`, fileID).Scan(&out.Path, &out.Size, &out.ModifiedNS, &out.Read, &out.AudioExact)
+		WHERE f.id = ? AND f.missing_since_at IS NULL AND lp.remote_source_id IS NULL`, StreamAudio, fileID).Scan(&out.Path, &out.Size, &out.ModifiedNS, &out.Read, &out.AudioExact,
+		&out.DurationMS, &out.PacketLengthUS, &out.AudioShape)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, ErrNotFound
 	}

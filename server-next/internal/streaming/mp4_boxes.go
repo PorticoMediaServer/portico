@@ -153,8 +153,10 @@ func mp4SoundTracks(init []byte) map[uint32]bool {
 // point instead, as the picture is, moved it by up to one audio frame at every
 // segment and left a gap or an overlap there.
 type soundClock struct {
-	next int
-	end  map[uint32]uint64
+	// offset keeps the first copied audio packet's sub-frame place on the grid.
+	offset float64
+	next   int
+	end    map[uint32]uint64
 }
 
 // rebaseFragments restores the absolute clock the MP4 segment muxer discards.
@@ -327,7 +329,11 @@ func rebaseFragments(init, media []byte, position float64, index int, clock *sou
 	}
 	starts := map[uint32]uint64{}
 	for _, s := range stamps {
-		base := uint64(math.Round(position * float64(scales[s.track])))
+		at := position
+		if clock != nil && sound[s.track] {
+			at += clock.offset
+		}
+		base := uint64(math.Round(at * float64(scales[s.track])))
 		hasComposition := false
 		for _, c := range compositions {
 			if c.track == s.track {
