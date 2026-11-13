@@ -11,7 +11,7 @@ async function fixture(authorized = true, isTV = false) {
   const effects: (() => void)[] = [], cleanups = new Set<() => void>();
   const effect = (fn: () => (() => void) | undefined, deps: unknown[]) => {const slot = host.react.useRef(undefined); if (!slot.current || deps.some((value, index) => value !== slot.current.deps[index])) {const previous = slot.current?.cleanup; const next: any = {deps}; slot.current = next; effects.push(() => {previous?.(); const cleanup = fn(); next.cleanup = cleanup; if (cleanup) cleanups.add(cleanup);});}};
   Object.assign(host.react, {useEffect: effect}); Object.assign(host.react.default, {useEffect: effect});
-  let alive = true, reads = 0, disposed = 0, resolve: (value: unknown) => void = () => {};
+  let alive = true, reads = 0, disposed = 0, finishes = 0, resolve: (value: unknown) => void = () => {};
   const result = new Promise(value => {resolve = value;});
   const visits: string[] = [], pages: string[] = [], options: any[] = [];
   const api = {baseUrl: 'http://selected-server.invalid:8096'};
@@ -20,7 +20,8 @@ async function fixture(authorized = true, isTV = false) {
   const {NativeServerSignIn} = await screenModule(new URL('../src-next/screens/settings-live/server/SignInPage.tsx', import.meta.url), {
     react: host.react, 'react-native-qrcode-svg': {default: 'QRCode'},
     'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView', Linking: {openURL: async (url: string) => {visits.push(url);}}},
-    '../../../../../../packages/client-core/src/account-move': {ReadOnlySignInClient: class {constructor(transport: unknown, input: unknown) {assert.equal(transport, api); options.push(input);} read() {reads++; return result;} dispose() {disposed++;}}},
+    '../../../../../../packages/client-core/src/account-move': {OwnerSignInSettingsClient: class {constructor(transport: unknown, input: unknown) {assert.equal(transport, api); options.push(input);} read() {reads++; return result;} finish() {finishes++; return Promise.resolve(3);} dispose() {disposed++;}}},
+    '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../../../../packages/i18n/src': {defaultI18n: {date: (value: string) => `date:${value}`}},
     '../../../../../../packages/client-core/src/sign-in': {serverSignInSettingsURL: (origin: string) => {assert.equal(origin, api.baseUrl); return new URL('/settings?scope=server&section=signin', origin).href;}},
     '../../../kit/controls': {Button: 'Button'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'},
     './page-layout': {settingsPageInset: () => ({}), settingsPageHeading: () => ({})}, '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/states': {StateView: 'StateView'}, '../../../kit/theme': {useTheme: () => ({colors: {}, isTV})},
@@ -28,8 +29,8 @@ async function fixture(authorized = true, isTV = false) {
   });
   const props = {ports: {context}, runtime: {text: {t: (id: string) => id}, error: () => ({title: 'failure'})}, onOpenPage: (id: string) => pages.push(id)};
   const render = () => {let tree = host.render(() => NativeServerSignIn(props)); if (effects.length) {effects.splice(0).forEach(run => run()); tree = host.render(() => NativeServerSignIn(props));} return tree;};
-  return {render, visits, pages, options, reads: () => reads, disposed: () => disposed, end: () => {alive = false;}, unmount: () => {cleanups.forEach(fn => fn());},
-    reply: async (move = {stage: 'complete', to: 'local', waiting: 0, people: 4, profiles: 5}) => {resolve({signIn: 'local', owner: {username: 'Owner'}, move}); await Promise.resolve(); await Promise.resolve();}};
+  return {render, visits, pages, options, reads: () => reads, finishes: () => finishes, disposed: () => disposed, end: () => {alive = false;}, unmount: () => {cleanups.forEach(fn => fn());},
+    reply: async (move: unknown = null) => {resolve({signIn: 'local', owner: {username: 'Owner'}, move}); await Promise.resolve(); await Promise.resolve();}};
 }
 
 test('Native Sign-in reads server facts and opens only the selected server web settings on an explicit action', async () => {
@@ -38,7 +39,7 @@ test('Native Sign-in reads server facts and opens only the selected server web s
     f.render(); assert.equal(f.reads(), 1); assert.deepEqual(f.visits, []);
     assert.equal(f.options[0].serverId, 'server'); assert.equal(f.options[0].isCurrent(), true);
     await f.reply(); const tree = f.render();
-    assert.ok(words(tree).includes('accounts.settings.moveComplete')); assert.ok(!words(tree).includes('Moving to local sign-in'));
+    assert.ok(!nodes(tree).some(node => node.props.testID === 'server-signin-move'), 'no move, no move part');
     const open = nodes(tree).find(node => node.props.testID === 'server-signin-open-web')!;
     assert.ok(open); open.props.onPress();
     assert.deepEqual(f.visits, ['http://selected-server.invalid:8096/settings?scope=server&section=signin']);
@@ -56,14 +57,31 @@ test('Sign-in refuses missing authority and discards a reply after the original 
   finally {stale.unmount();}
 });
 
-test('Moving progress uses real counts and TV hands off to the selected server URL', async () => {
+test('A move shows its direction, since when and how many wait; the bar only with a recorded total; Finish now asks first', async () => {
   const f = await fixture(true, true);
   try {
-    f.render(); await f.reply({stage: 'moving_to_local', to: 'local', waiting: 2, people: 4, profiles: 5});
+    f.render(); await f.reply({to: 'local', since: '2026-11-12T10:00:00Z', waiting: 2});
+    let tree = f.render();
+    assert.ok(words(tree).includes('accounts.settings.movingToLocal')); assert.ok(words(tree).includes('accounts.settings.waitingCount'));
+    assert.ok(words(tree).includes('accounts.settings.movingSince'));
+    assert.equal(nodes(tree).find(node => node.props.testID === 'server-signin-progress'), undefined, 'no total, no bar and no "of"');
+    const open = nodes(tree).find(node => node.type === 'Button' && words(node.props.children) === 'accounts.settings.openPeople')!;
+    open.props.onPress(); assert.deepEqual(f.pages, ['people']);
+    assert.equal(nodes(tree).find(node => node.type === 'QRCode').props.value, 'http://selected-server.invalid:8096/settings?scope=server&section=signin');
+    const finishRow = nodes(tree).find(node => node.type === 'SettingsRow' && node.props.label === 'accounts.settings.notMovedTitle')!;
+    finishRow.props.control.props.onPress(); tree = f.render();
+    const sheet = nodes(tree).find(node => node.props.testID === 'server-signin-finish')!;
+    assert.equal(sheet.props.open, true); assert.equal(f.finishes(), 0, 'nothing is finished before the confirmation');
+    assert.deepEqual(f.visits, []);
+  } finally {f.unmount();}
+});
+
+test('With a recorded total the move draws "N of M people waiting" and its bar', async () => {
+  const f = await fixture(true, true);
+  try {
+    f.render(); await f.reply({to: 'portico', since: '2026-11-12T10:00:00Z', waiting: 2, total: 4});
     const tree = f.render(), progress = nodes(tree).find(node => node.props.testID === 'server-signin-progress');
     assert.deepEqual(progress.props.accessibilityValue, {min: 0, max: 4, now: 2});
-    assert.ok(words(tree).includes('accounts.settings.codesOnWeb'));
-    assert.equal(nodes(tree).find(node => node.type === 'QRCode').props.value, 'http://selected-server.invalid:8096/settings?scope=server&section=signin');
-    assert.deepEqual(f.visits, []);
+    assert.ok(words(tree).includes('accounts.settings.waiting')); assert.ok(words(tree).includes('accounts.settings.movingToPortico'));
   } finally {f.unmount();}
 });

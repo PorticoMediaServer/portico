@@ -129,3 +129,12 @@ test('on the rebuilt server a member\'s move code is checked with POST /v1/auth/
   client.dispose();
  }finally{setInstallationIdentity(undefined);}
 });
+
+test('a move in progress keeps how many still wait, and the total only when the server recorded one', () => {
+  const base = {kind: 'local', owner: {id: 'usr_1', username: 'owner'}, waiting: [{id: 'usr_2'}, {id: 'usr_3'}]};
+  const counted = parseOwnerSignInSettings({...base, move: {to: 'local', since: '2026-11-12T10:00:00Z'}});
+  assert.equal(counted.move?.waiting, 2); assert.equal(counted.move?.total, undefined);
+  const totalled = parseOwnerSignInSettings({...base, move: {to: 'local', since: '2026-11-12T10:00:00Z', total: 5}});
+  assert.equal(totalled.move?.total, 5);
+  assert.equal(parseOwnerSignInSettings({...base}).move, null);
+});
