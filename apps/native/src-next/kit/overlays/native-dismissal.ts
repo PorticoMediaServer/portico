@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {Platform} from 'react-native';
 import {LAYER_FOCUS_WAIT_MS} from '../focus/layer-stack';
 
@@ -65,12 +65,24 @@ type Presentation = Readonly<{
   /** UIKit dismissed it by itself while shown (D16). */
   gone: boolean;
 }>;
-export function useNativeModalPresence(present: boolean, shown = present, wait = LAYER_FOCUS_WAIT_MS): Readonly<{mounted: boolean; visible: boolean; onDismiss: () => void; key: number}> {
+/** Every presentation still leaving on iOS, across overlays: from the start of its exit (`closing`: it runs its own
+ * exit while its `Modal` is still shown) until UIKit reports it gone. UIKit drops a `Modal` presented over one that is
+ * then dismissed, or while another is still being dismissed, so a new one waits for all of them: a menu's item that opens a confirmation sheet would otherwise
+ * open nothing (iPhone, Switch server › ⋯ › Sign out). Each leaving presentation is retired by its own report or fallback. */
+const leavingModals = new Set<object>(), leavingListeners = new Set<() => void>();
+const leavingChanged = () => {for (const listener of [...leavingListeners]) listener();};
+const subscribeLeaving = (listener: () => void) => {leavingListeners.add(listener); return () => {leavingListeners.delete(listener);};};
+const leavingCount = () => leavingModals.size;
+
+export function useNativeModalPresence(present: boolean, shown = present, wait = LAYER_FOCUS_WAIT_MS, closing = false): Readonly<{mounted: boolean; visible: boolean; onDismiss: () => void; key: number}> {
   const ios = Platform.OS === 'ios';
   const [state, setState] = useState<Presentation>({token: 0, shown: false, leaving: false, gone: false});
   let now = state;
   // The Modal's own edge, decided in render so that `mounted` holds on the same commit that hides it.
-  const ask = shown && present && !state.leaving;
+  // A new presentation also waits while another overlay's Modal is still leaving (iOS); its own leaving is not counted.
+  const own = useRef<object | null>(null);
+  const others = useSyncExternalStore(subscribeLeaving, leavingCount, leavingCount) - (own.current ? 1 : 0);
+  const ask = shown && present && !state.leaving && (state.shown || !ios || others === 0);
   if (ask !== state.shown) {
     now = ask ? {token: state.token + 1, shown: true, leaving: false, gone: false} // a new presentation
       : {...state, shown: false, leaving: ios && !state.gone, gone: false}; // its dismissal starts
@@ -80,6 +92,12 @@ export function useNativeModalPresence(present: boolean, shown = present, wait =
     : current.leaving ? {...current, leaving: false}
     : current.shown && !current.gone ? {...current, gone: true} : current), []);
   const token = now.token, onDismiss = useMemo(() => () => report(token), [report, token]);
+  const holding = ios && (state.leaving || closing && state.shown);
+  useEffect(() => {
+    if (!holding) return;
+    const entry = {}; own.current = entry; leavingModals.add(entry); leavingChanged();
+    return () => {if (own.current === entry) own.current = null; if (leavingModals.delete(entry)) leavingChanged();};
+  }, [holding, state.token]);
   useEffect(() => {
     if (!state.leaving) return;
     const leaving = state.token;

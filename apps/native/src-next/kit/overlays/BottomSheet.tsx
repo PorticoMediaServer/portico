@@ -73,7 +73,7 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
   const sideProgress = useSharedValue(0);
   // A modal sheet's Modal is gone (focus back, onExited) only once the platform says so (useNativeModalPresence); an
   // inline sheet has no Modal.
-  const exiting = usePresence(open, motion.reduce ? 160 : theme.isTV ? 240 : 500), native = useNativeModalPresence(host !== 'inline' && exiting);
+  const exiting = usePresence(open, motion.reduce ? 160 : theme.isTV ? 240 : 500), native = useNativeModalPresence(host !== 'inline' && exiting, host !== 'inline' && exiting, undefined, host !== 'inline' && exiting && !open);
   const present = host === 'inline' ? exiting : native.mounted;
   const exitedRef = useRef(onExited); exitedRef.current = onExited;
   const wasPresent = useRef(present);

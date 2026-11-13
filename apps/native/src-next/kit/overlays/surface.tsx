@@ -90,7 +90,7 @@ function CenteredDialog({open, onOpenChange, title, headerContext, description, 
   const scrimStyle = useScrimStyle(animation.progress);
   const dismiss = (reason: OverlayReason) => {if ((reason !== 'back' && reason !== 'escape') || dismissOnBack) onOpenChange(false, reason);};
   // Its Modal is gone (and focus goes back) only once the platform says so (useNativeModalPresence).
-  const native = useNativeModalPresence(animation.present);
+  const native = useNativeModalPresence(animation.present, animation.present, undefined, animation.present && !open);
   useOverlayLifecycle(native.mounted, true, dismiss, initialFocusRef ?? closeRef, returnFocusRef, animation.enterMs, testID, restoreFocus);
   if (!native.mounted || !paint.visible) return null;
   const width = suppliedWidth ?? (size === 'md' ? theme.isTV ? 900 : 480 : theme.spec.overlay.width[size][theme.platform]);
