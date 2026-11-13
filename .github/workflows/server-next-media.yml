@@ -19,7 +19,7 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
           ffmpeg -version | head -3
-      - name: Repeat the three affected real-file tests
+      - name: Check the final file-limit and 300-part books
         working-directory: server-next
         env:
           PORTICO_AUDIOBOOK_EVIDENCE: '${{ runner.temp }}/audiobook-evidence'
@@ -29,10 +29,10 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p "$PORTICO_AUDIOBOOK_EVIDENCE"
-          go test -json -count=30 -failfast -timeout=27m -run '^(TestABatchJoinIsInaudible|TestAMultiFileAudiobookPlaysAsOneBook|TestAMixedBookCrossesABatch)$' ./internal/mediaengine | tee "$PORTICO_AUDIOBOOK_EVIDENCE/tests.jsonl"
+          go test -json -count=1 -failfast -timeout=8m -run '^(TestABookOfThreeHundredPartsPlays|TestBooksAtTheFileLimitPlay)$' ./internal/mediaengine | tee "$PORTICO_AUDIOBOOK_EVIDENCE/tests.jsonl"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: audiobook-clock-evidence
+          name: audiobook-file-limit-evidence
           path: '${{ runner.temp }}/audiobook-evidence'
           retention-days: 3
