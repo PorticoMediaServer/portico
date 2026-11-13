@@ -23,21 +23,30 @@ var loopback = netip.MustParseAddr("127.0.0.1")
 
 // fakePMP answers PCP, or NAT-PMP only (answering PCP with NAT-PMP's "unsupported version").
 type fakePMP struct {
-	conn    *net.UDPConn
-	pcp     bool
-	mu      sync.Mutex
-	asked   []string // "map 32400->32500 for 7200s", "delete 32400"
-	refuse  bool
-	assigns int // an external port other than the one asked for, when not 0
-	nonces  map[uint16]string
+	external netip.Addr
+	conn     *net.UDPConn
+	pcp      bool
+	mu       sync.Mutex
+	asked    []string // "map 32400->32500 for 7200s", "delete 32400"
+	refuse   bool
+	assigns  int // an external port other than the one asked for, when not 0
+	nonces   map[uint16]string
 }
 
 func newFakePMP(t *testing.T, pcp bool) *fakePMP {
-	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	return newFakePMPAt(t, pcp, loopback)
+}
+
+func newFakePMPAt(t *testing.T, pcp bool, ip netip.Addr) *fakePMP {
+	conn, err := net.ListenUDP("udp", net.UDPAddrFromAddrPort(netip.AddrPortFrom(ip, 0)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &fakePMP{conn: conn, pcp: pcp}
+	external := netip.MustParseAddr("198.51.100.7")
+	if ip.Is6() {
+		external = ip
+	}
+	f := &fakePMP{conn: conn, pcp: pcp, external: external}
 	t.Cleanup(func() { conn.Close() })
 	go f.serve()
 	return f
@@ -66,6 +75,9 @@ func (f *fakePMP) serve() {
 		case req[0] == 2 && n == 60:
 			resp = make([]byte, 60)
 			resp[0], resp[1] = 2, 0x81
+			if f.external.Is6() && (netip.AddrFrom16([16]byte(req[8:24])) != from.AddrPort().Addr() || [16]byte(req[44:60]) != [16]byte{}) {
+				resp[3] = 2 // The client must name its own IPv6 source, with an IPv6 hint.
+			}
 			life := binary.BigEndian.Uint32(req[4:])
 			internal, external := binary.BigEndian.Uint16(req[40:]), binary.BigEndian.Uint16(req[42:])
 			f.mu.Lock()
@@ -93,7 +105,7 @@ func (f *fakePMP) serve() {
 			resp[36] = 6
 			binary.BigEndian.PutUint16(resp[40:], internal)
 			binary.BigEndian.PutUint16(resp[42:], external)
-			copy(resp[44:60], netip.AddrFrom16(netip.MustParseAddr("198.51.100.7").As16()).AsSlice())
+			copy(resp[44:60], netip.AddrFrom16(f.external.As16()).AsSlice())
 			if life == 0 {
 				f.note(fmt.Sprintf("delete %d", internal))
 			} else {
@@ -122,24 +134,33 @@ func (f *fakePMP) serve() {
 
 // fakeUPnP is an Internet Gateway Device: an SSDP responder and its HTTP control point.
 type fakeUPnP struct {
-	ssdp      *net.UDPConn
-	http      net.Listener
-	location  string // what the SSDP answer points at
-	permanent bool   // only permanent mappings (error 725 for a lease)
-	mu        sync.Mutex
-	asked     []string
+	ipv6        bool
+	pinhole     string
+	allowed     bool
+	firewallOff bool
+	malformed   bool
+	ssdp        *net.UDPConn
+	http        net.Listener
+	location    string // what the SSDP answer points at
+	permanent   bool   // only permanent mappings (error 725 for a lease)
+	mu          sync.Mutex
+	asked       []string
 }
 
 func newFakeUPnP(t *testing.T) *fakeUPnP {
-	ssdp, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	return newFakeUPnPAt(t, loopback)
+}
+
+func newFakeUPnPAt(t *testing.T, ip netip.Addr) *fakeUPnP {
+	ssdp, err := net.ListenUDP("udp", net.UDPAddrFromAddrPort(netip.AddrPortFrom(ip, 0)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := net.Listen("tcp", net.JoinHostPort(ip.String(), "0"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &fakeUPnP{ssdp: ssdp, http: ln}
+	f := &fakeUPnP{ssdp: ssdp, http: ln, ipv6: ip.Is6(), allowed: true}
 	f.location = "http://" + ln.Addr().String() + "/desc.xml"
 	srv := &http.Server{Handler: http.HandlerFunc(f.handle), ReadHeaderTimeout: time.Second}
 	go srv.Serve(ln)
@@ -165,11 +186,18 @@ func newFakeUPnP(t *testing.T) *fakeUPnP {
 func (f *fakeUPnP) ssdpAddr() netip.AddrPort { return f.ssdp.LocalAddr().(*net.UDPAddr).AddrPort() }
 
 func (f *fakeUPnP) handle(w http.ResponseWriter, r *http.Request) {
-	const service = "urn:schemas-upnp-org:service:WANIPConnection:1"
+	service := "urn:schemas-upnp-org:service:WANIPConnection:1"
+	if f.ipv6 {
+		service = ipv6FirewallService
+	}
 	if r.URL.Path == "/desc.xml" {
 		fmt.Fprintf(w, `<?xml version="1.0"?><root><device><deviceList><device><deviceList><device><serviceList>
 <service><serviceType>%s</serviceType><controlURL>/ctl/IPConn</controlURL></service>
 </serviceList></device></deviceList></device></deviceList></device></root>`, service)
+		return
+	}
+	if f.ipv6 {
+		f.handleIPv6(w, r)
 		return
 	}
 	body, _ := io.ReadAll(r.Body)

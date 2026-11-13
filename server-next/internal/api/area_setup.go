@@ -32,7 +32,8 @@ type setupArea struct {
 	certs *tlsport.Store
 	// ports asks the home router to open the public port. It asks nothing until
 	// ServeNetwork runs it, which tests never do.
-	ports *portmap.Mapper
+	ports  *portmap.Mapper
+	ports6 *portmap.Mapper
 	// public finds the server's public address from outside services; like ports, it asks
 	// nothing until ServeNetwork runs it.
 	public *publicaddr.Finder
@@ -66,6 +67,13 @@ func (s *Server) startSetup(ctx context.Context) error {
 	s.access.ownCertificateUsable = func() bool { return s.certs.Status().State == "ok" }
 	s.access.homeKnown = func() bool { return len(s.networks().Home) > 0 }
 	s.ports = portmap.New(s.networkLog, nil)
+	s.ports6 = portmap.NewIPv6(s.networkLog, func() portmap.Router {
+		s.access.mu.RLock()
+		bound := s.access.listenIP
+		s.access.mu.RUnlock()
+		return portmap.DefaultIPv6Router(bound)
+	})
+	s.ports6.OnChange = s.addressesChanged
 	s.public = publicaddr.New(s.networkLog)
 	// A new public address, or a change of this machine's own, changes the addresses the
 	// server publishes; the signed document is sent again through OnAddressesChange.
@@ -73,7 +81,10 @@ func (s *Server) startSetup(ctx context.Context) error {
 		s.networkLog.Info("this server's public address changed", "address", address)
 		s.addressesChanged()
 	}
-	s.public.OnLocalChange = s.addressesChanged
+	s.public.OnLocalChange = func() {
+		s.ports6.Check()
+		s.addressesChanged()
+	}
 	if err := s.loadRemoteAccess(ctx); err != nil {
 		return err
 	}

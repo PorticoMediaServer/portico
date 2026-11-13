@@ -24,6 +24,9 @@ import (
 type Router struct {
 	// Gateway is the router's address. Invalid means it could not be found.
 	Gateway netip.Addr
+	// Client is the global IPv6 address on the default route's interface. IPv6
+	// control requests must originate there, as does the port being opened.
+	Client netip.Addr
 	// PMPPort is the router's NAT-PMP and PCP port (5351). SSDP is where UPnP's search is
 	// sent (239.255.255.250:1900).
 	PMPPort int
@@ -32,6 +35,9 @@ type Router struct {
 
 // Status is the router's answer as it stands.
 type Status struct {
+	// ClientAddress ties the answer to its source when the API publishes it.
+	// It is an internal observation, not another address advertised to apps.
+	ClientAddress netip.Addr `json:"-"`
 	// State is "off", "trying", "open" or "failed".
 	State string `json:"state"`
 	// Protocol is the one the router answered: "PCP", "NAT-PMP" or "UPnP".
@@ -55,8 +61,12 @@ const (
 
 // Mapper keeps the server's port open on the router while the owner wants it.
 type Mapper struct {
-	log    *slog.Logger
-	router func() Router
+	ipv6 bool
+	// OnChange publishes a completed answer. Set before Run; it is called
+	// without the mapper lock so the callback may read Status.
+	OnChange func()
+	log      *slog.Logger
+	router   func() Router
 
 	mu       sync.Mutex
 	want     bool
@@ -175,6 +185,13 @@ func (m *Mapper) round(ctx context.Context) time.Duration {
 	m.mu.Lock()
 	want, internal, external, held := m.want, m.internal, m.external, m.held
 	m.mu.Unlock()
+	if m.ipv6 && held != nil {
+		r := m.router()
+		if r.Gateway != held.router.Gateway || r.Client != held.router.Client {
+			m.remove(ctx)
+			held = nil
+		}
+	}
 	if held != nil && (!want || held.internal != internal || held.asked != external) {
 		m.remove(ctx)
 	}
@@ -191,15 +208,21 @@ func (m *Mapper) round(ctx context.Context) time.Duration {
 		problem := "The router did not open the port: " + err.Error() + ". Turn port mapping off and forward the port by hand if it never works."
 		if errors.Is(err, errUnsupported) {
 			problem = "The router did not answer PCP, NAT-PMP or UPnP. Turn on UPnP in the router, or turn port mapping off and forward the port by hand."
+			if m.ipv6 {
+				problem = "The router did not answer IPv6 PCP or UPnP firewall control. Turn port mapping off to handle the IPv6 firewall by hand."
+			}
 		} else if errors.Is(err, errNoRouter) {
 			problem = "The router could not be found from this server's network settings."
+			if m.ipv6 {
+				problem = "This server has no usable public IPv6 address and router on its default network route."
+			}
 		}
 		m.setStatus(Status{State: "failed", Problem: problem, At: now}, nil)
 		m.log.Warn("the router did not open the server's port", "problem", problem)
 		return 0
 	}
 	got.internal, got.asked = internal, external
-	st := Status{State: "open", Protocol: got.protocol, ExternalPort: got.externalPort, At: now}
+	st := Status{State: "open", Protocol: got.protocol, ExternalPort: got.externalPort, ClientAddress: got.router.Client, At: now}
 	if got.externalIP.IsValid() {
 		st.ExternalIP = got.externalIP.String()
 	}
@@ -218,10 +241,13 @@ func (m *Mapper) round(ctx context.Context) time.Duration {
 // renewed or removed.
 func (m *Mapper) setStatus(st Status, held *mapping) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.status = st
 	if held != nil {
 		m.held = held
+	}
+	m.mu.Unlock()
+	if m.OnChange != nil && st.State != "trying" {
+		m.OnChange()
 	}
 }
 
@@ -231,18 +257,29 @@ var errNoRouter = errors.New("no router")
 // in another protocol: it understood and said no.
 func (m *Mapper) ask(ctx context.Context, internal, external int, life time.Duration) (mapping, error) {
 	r := m.router()
-	if !r.Gateway.IsValid() {
+	if !r.Gateway.IsValid() || m.ipv6 && !r.Client.IsValid() {
 		return mapping{}, errNoRouter
 	}
 	pmp := netip.AddrPortFrom(r.Gateway, uint16(r.PMPPort))
 	// A renewal of the mapping held carries its nonce.
 	var nonce []byte
 	m.mu.Lock()
+	held := m.held
 	if m.held != nil && m.held.protocol == "PCP" && m.held.internal == internal && m.held.asked == external {
 		nonce = m.held.nonce
 	}
 	m.mu.Unlock()
-	got, err := pcp(ctx, pmp, internal, external, life, nonce)
+	got, err := pcp(ctx, pmp, internal, external, life, nonce, r.Client)
+	if m.ipv6 {
+		if errors.Is(err, errUnsupported) {
+			got, err = ipv6Pinhole(ctx, r, internal, life, held)
+		}
+		if err == nil && (!got.externalIP.Is6() || got.externalIP.Is4In6()) {
+			err = errors.New("the router did not return an IPv6 address")
+		}
+		got.router = r
+		return got, err
+	}
 	if errors.Is(err, errUnsupported) {
 		got, err = natPMP(ctx, pmp, internal, external, life)
 	}
@@ -253,6 +290,7 @@ func (m *Mapper) ask(ctx context.Context, internal, external int, life time.Dura
 		}
 		got, err = upnp(ctx, r.SSDP, r.Gateway, local, internal, external, life)
 	}
+	got.router = r
 	return got, err
 }
 
@@ -265,7 +303,10 @@ func (m *Mapper) remove(ctx context.Context) {
 	if held == nil {
 		return
 	}
-	r := m.router()
+	r := held.router
+	if !r.Gateway.IsValid() {
+		r = m.router()
+	}
 	if !r.Gateway.IsValid() {
 		return
 	}
@@ -273,12 +314,14 @@ func (m *Mapper) remove(ctx context.Context) {
 	var err error
 	switch held.protocol {
 	case "PCP":
-		_, err = pcp(ctx, pmp, held.internal, held.externalPort, 0, held.nonce)
+		_, err = pcp(ctx, pmp, held.internal, held.externalPort, 0, held.nonce, r.Client)
 	case "NAT-PMP":
 		_, err = natPMP(ctx, pmp, held.internal, 0, 0)
 	case "UPnP":
 		local, _ := localAddrTowards(r.Gateway)
 		_, err = upnp(ctx, r.SSDP, r.Gateway, local, held.internal, held.externalPort, 0)
+	case "UPnP IPv6":
+		_, err = ipv6Pinhole(ctx, r, held.internal, 0, held)
 	}
 	if err != nil {
 		m.log.Warn("the router did not close the server's port; it closes by itself when its time runs out", "error", err)

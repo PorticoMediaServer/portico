@@ -33,7 +33,7 @@ const maxHomeAddresses = 4
 
 // PublishedAddress is one address apps may use to reach the server.
 type PublishedAddress struct {
-	// Address is an IPv4 address; Port the port to use at it.
+	// Address is an IP address; Port the port to use at it.
 	Address string `json:"address"`
 	Port    int    `json:"port"`
 	// Home is true for an address on the server's home networks, used by devices at home.
@@ -72,7 +72,22 @@ func (s *Server) PublishedAddresses() []PublishedAddress {
 			}
 		}
 	}
-	return publish(home, port, public, publicPort, s.porticoZone())
+	out := publish(home, port, public, publicPort, s.porticoZone())
+	if v.RemoteAccess == "on" && v.IPv6 && !s.ipv6ListenerMissing() {
+		opening := s.ports6.Status()
+		ip, _ := netip.ParseAddr(opening.ExternalIP)
+		current := s.ports6.ClientAddress()
+		port6, source := opening.ExternalPort, opening.ClientAddress
+		if v.PortMapping == "off" {
+			// The owner handles the router, as for manually forwarded IPv4.
+			ip = current
+			port6, source = port, current
+		}
+		if (opening.State == "open" || v.PortMapping == "off") && source == current && routableIPv6(ip) {
+			out = append(out, PublishedAddress{Address: ip.String(), Port: port6, Name: porticoName(ip, s.porticoZone())})
+		}
+	}
+	return out
 }
 
 // publish lists the home addresses, each at the port the server listens on, then the public
@@ -96,6 +111,10 @@ var sharedAddressSpace = netip.MustParsePrefix("100.64.0.0/10")
 // public address is published rather than one nobody can reach.
 func routable(ip netip.Addr) bool {
 	return ip.Is4() && ip.IsGlobalUnicast() && !ip.IsPrivate() && !sharedAddressSpace.Contains(ip)
+}
+
+func routableIPv6(ip netip.Addr) bool {
+	return ip.Is6() && !ip.Is4In6() && ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLinkLocalUnicast()
 }
 
 // towardsRouter is this machine's address on the way to the router, or none.
@@ -156,10 +175,11 @@ func homeAddresses(mine []interfaceAddress, first netip.Addr, networks auth.Netw
 
 // porticoName is the Portico name for ip under zone ("<name space>.portico.direct"), or "".
 func porticoName(ip netip.Addr, zone string) string {
-	if zone == "" || !ip.Is4() {
+	if zone == "" || !ip.IsValid() {
 		return ""
 	}
-	return strings.ReplaceAll(ip.String(), ".", "-") + "." + zone
+	label := strings.ReplaceAll(ip.String(), ".", "-")
+	return strings.ReplaceAll(label, ":", "-") + "." + zone
 }
 
 // underOwnZone reports whether address ("host:port") is a name in this server's own Portico

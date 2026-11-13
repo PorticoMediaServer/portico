@@ -66,9 +66,8 @@ type RemoteAccessSettings struct {
 	PortMapping string `json:"portMapping"`
 	// PublicPort is the port people outside connect to.
 	PublicPort int `json:"publicPort"`
-	// IPv6 is meant to let connections in over IPv6 too. It is not built yet: no IPv6 opening
-	// is asked of the router. So it is always off, a save that turns it on is refused, and
-	// IPv6Note says so in one line for the screens to show beside the switch. The note is not saved.
+	// IPv6 also opens the router for this server's native IPv6 listener. IPv6Note
+	// carries a current opening problem and is not saved.
 	IPv6     bool   `json:"ipv6"`
 	IPv6Note string `json:"ipv6Note,omitempty"`
 	// OwnAddress is the owner's own domain, with a certificate for it or a reverse proxy in front.
@@ -115,9 +114,6 @@ type OwnAddress struct {
 	CertificateFile string `json:"certificateFile"`
 	KeyFile         string `json:"keyFile"`
 }
-
-// ipv6NotYet is what the IPv6 switch says until the server can open IPv6 on the router.
-const ipv6NotYet = "IPv6 is not available yet."
 
 const (
 	remoteAccessKey   = "remote-access"
@@ -240,6 +236,7 @@ type remoteState struct {
 	onAddressesChange func()
 	// listenPort is the port the server listens on, the one the router forwards to.
 	listenPort int
+	listenIP   netip.Addr
 	// networkStarted distinguishes a loopback-only listener from one not opened yet.
 	networkStarted bool
 	// finder announces the server to apps at home while Find this server at home is on.
@@ -297,7 +294,10 @@ func (s *Server) applyCertificate(v RemoteAccessSettings) {
 	if err != nil {
 		s.networkLog.Error("could not tell whether this server has an owner", "error", err)
 	}
-	s.ports.Set(owned && v.RemoteAccess == "on" && v.PortMapping == "automatic", s.listenPort(), v.PublicPort)
+	mapPort := owned && v.RemoteAccess == "on" && v.PortMapping == "automatic"
+	s.ports.Set(mapPort, s.listenPort(), v.PublicPort)
+	// IPv6 opens the actual listening port: there is no translated public port.
+	s.ports6.Set(mapPort && v.IPv6 && !s.ipv6ListenerMissing(), s.listenPort(), s.listenPort())
 	// The public address is asked of outside services under the same conditions, mapping or not.
 	s.public.Set(owned && v.RemoteAccess == "on" && s.listenPort() != 0)
 	s.access.mu.RLock()
@@ -312,9 +312,11 @@ func (s *Server) applyCertificate(v RemoteAccessSettings) {
 // and finds its public address, each while the owner's settings ask for it, until ctx ends.
 // port is the port the server listens on, or 0 when nothing outside this machine can reach it:
 // then nothing is announced, the router is never asked and no outside service either.
-func (s *Server) ServeNetwork(ctx context.Context, port int) {
+// bound is the listener's actual address, so an IPv4-only bind never opens or advertises IPv6.
+func (s *Server) ServeNetwork(ctx context.Context, port int, bound netip.Addr) {
 	s.access.mu.Lock()
 	s.access.listenPort = port
+	s.access.listenIP = bound
 	s.access.networkStarted = true
 	s.access.mu.Unlock()
 	// Apps at home find the server by its announcement, which needs a port they can reach.
@@ -331,6 +333,7 @@ func (s *Server) ServeNetwork(ctx context.Context, port int) {
 	if port != 0 {
 		s.goBackground(func() { s.public.Run(ctx) })
 	}
+	s.goBackground(func() { s.ports6.Run(ctx) })
 	s.ports.Run(ctx)
 }
 
@@ -479,8 +482,6 @@ func (s *Server) loadRemoteAccess(ctx context.Context) error {
 		if json.Unmarshal([]byte(raw), &v) != nil {
 			return errors.New("the stored remote access settings are damaged")
 		}
-		// IPv6 is not built yet: a document saved with it on reads as off.
-		v.IPv6 = false
 		if field, _ := v.problem(); field != "" {
 			return errors.New("the stored remote access settings are damaged at " + field)
 		}
@@ -539,7 +540,8 @@ type RemoteAccessStatus struct {
 	// Certificate is the owner's own certificate: none, served, or what is wrong with it.
 	Certificate OwnCertificateStatus `json:"certificate"`
 	// Router is what the home router last said about opening the public port.
-	Router PortMappingStatus `json:"router"`
+	Router     PortMappingStatus `json:"router"`
+	RouterIPv6 PortMappingStatus `json:"routerIPv6"`
 	// PublicAddress is this server's public IPv4 address as at least two outside services
 	// (Cloudflare, Google, Amazon, icanhazip; none of them Portico's) agree it is.
 	PublicAddress PublicAddressAnswer `json:"publicAddress"`
@@ -610,7 +612,7 @@ func (s *Server) remoteAccessRoutes() {
 		_, saved, err := s.db.SettingDocument(r.Context(), remoteAccessKey)
 		v, _ := s.access.current()
 		v.revision = revision(saved)
-		v.Warning, v.IPv6Note = s.dlnaWarning(v.DLNA), ipv6NotYet
+		v.Warning, v.IPv6Note = s.dlnaWarning(v.DLNA), s.ipv6OpeningNote(v)
 		return v, err
 	})
 	Handle(s, "PUT /v1/admin/settings/remote-access", Owner, s.saveRemoteAccess)
@@ -630,8 +632,12 @@ func (s *Server) remoteAccessRoutes() {
 		s.certs.Check()
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
-		s.ports.CheckNow(ctx)
+		var checks sync.WaitGroup
+		checks.Add(2)
+		go func() { defer checks.Done(); s.ports.CheckNow(ctx) }()
+		go func() { defer checks.Done(); s.ports6.CheckNow(ctx) }()
 		s.public.CheckNow(ctx)
+		checks.Wait()
 		return s.remoteStatus(r), nil
 	})
 }
@@ -639,9 +645,14 @@ func (s *Server) remoteAccessRoutes() {
 func (s *Server) remoteStatus(r *http.Request) RemoteAccessStatus {
 	v, allowed := s.access.current()
 	sec := s.access.security(v, allowed, s.setupFinished(), false)
+	router6 := s.ports6.Status()
+	if v.RemoteAccess == "on" && v.IPv6 && s.ipv6ListenerMissing() {
+		router6.State, router6.Problem = "failed", ipv6ListenerNote
+	}
 	return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.fromHome(r), Address: s.remoteHost(r)},
 		Refused: s.access.refusedList(), RemoteSecurity: sec, Warnings: s.warnings(v, sec, s.networks()),
 		Certificate: OwnCertificateStatus(s.certs.Status()), Router: PortMappingStatus(s.ports.Status()), PublicAddress: PublicAddressAnswer(s.public.Answer()),
+		RouterIPv6:   PortMappingStatus(router6),
 		IdentityCode: s.identity.code(), Addresses: s.PublishedAddresses()}
 }
 
@@ -716,9 +727,6 @@ func cleanRemoteAccess(v *RemoteAccessSettings) error {
 	}
 	v.OwnAddress.Domain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(v.OwnAddress.Domain), "."))
 	v.IPv6Note = ""
-	if v.IPv6 {
-		return ErrField("ipv6", ipv6NotYet)
-	}
 	if field, message := v.problem(); field != "" {
 		return ErrField(field, message)
 	}
@@ -803,8 +811,27 @@ func (s *Server) applyRemoteAccess(r *http.Request, req RemoteAccessSave, match 
 	// a change the owner makes here does not wait out the gap between address changes.
 	s.porticoChangedByOwner()
 	v.revision = revision(saved)
-	v.Warning, v.IPv6Note = s.dlnaWarning(v.DLNA), ipv6NotYet
+	v.Warning, v.IPv6Note = s.dlnaWarning(v.DLNA), s.ipv6OpeningNote(v)
 	return v, nil
+}
+
+func (s *Server) ipv6OpeningNote(v RemoteAccessSettings) string {
+	if v.IPv6 {
+		if s.ipv6ListenerMissing() {
+			return ipv6ListenerNote
+		}
+		return s.ports6.Status().Problem
+	}
+	return ""
+}
+
+const ipv6ListenerNote = "This server's listening address does not accept public IPv6 connections."
+
+func (s *Server) ipv6ListenerMissing() bool {
+	s.access.mu.RLock()
+	defer s.access.mu.RUnlock()
+	ip := s.access.listenIP
+	return s.access.networkStarted && (!ip.Is6() || !ip.IsUnspecified() && !routableIPv6(ip))
 }
 
 // saveRemoteAccess replaces the whole document. A save that would refuse the connection
