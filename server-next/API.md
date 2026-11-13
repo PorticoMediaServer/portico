@@ -723,7 +723,7 @@ follows its libraries).
 | `GET /v1/admin/audit` | Owner | The activity record, kept a year |
 | `GET /v1/admin/reports`, `GET /v1/admin/reports/{id}`, `PATCH /v1/admin/reports/{id}`, `DELETE /v1/admin/reports/{id}`, `GET /v1/admin/reports/{id}/log` | Owner | Problem and crash reports: read, set the status and reply (the reply arrives as a notice), delete, download the app's log |
 | `GET /v1/admin/capabilities`, `POST /v1/admin/permissions/fix` | Owner | What this server can do and why not; fix the data folder's permissions |
-| `POST /v1/admin/support-export` | Owner | Prepare and download a support export in one request; it is not kept |
+| `POST /v1/admin/support-export` | Owner | Prepare and download a streamed ZIP in one request; it is not kept. `days` (1–30, default 7) stays valid; `windowMinutes` selects exactly 60, 360, 1440, 4320 or 10080 instead. Optional `components`: `runtime` (messages), `client` (consented report app logs), `audit` (activity), `snapshot` (settings and capabilities); default runtime/audit/snapshot. Paths are hidden unless `includePaths`; secrets are always hidden |
 | `POST /v1/admin/notifications` | Owner for `audience=everyone`; a key allowed Administer for `audience=admins` | Message everyone; or a tool's notice to the owner and administrators |
 | `PUT /v1/admin/libraries/order` | Owner | The order of libraries everyone sees (counted with Libraries) |
 | `GET /v1/admin/skipped` | Owner | Files skipped (Troubleshooting): every library's files the last scans could not use, in one list, 40 at a time by cursor, each with its library and the reason (counted with Libraries) |
