@@ -11,10 +11,10 @@ import {settingsRowIndex, settingsSpec} from '@core/presentation/settings-spec.t
 
 const settings: LibrarySettings = {scanDepth: 'basic', groupCollections: true, localTags: 'prefer', lyricsSource: 'files', titleSource: 'tags', episodeNumbering: 'absolute', findExtras: true, sortIgnoreArticles: true, refreshMode: 'replace_unlocked', acoustidEnabled: false,
   continueWatching: {weeks: 16, maximumItems: 40, includeSeasonPremieres: true, videoPlayedThreshold: 95, videoCompletion: 'earliest'}, allowMediaDeletion: false, monitorChanges: true, providers: [], analysis: ['probe', 'local_metadata', 'subtitle_discovery'],
-  navigation: {trickplayIntervalMs: 10000, trickplayTileWidth: 320, trickplayMaxTiles: 1080, chapterThumbnailMode: 'embedded', videoPreviewEnabled: false, videoPreviewMs: 30000}, segmentDetection: 'server'};
+  navigation: {trickplayIntervalMs: 16000, trickplayTileWidth: 320, trickplayMaxTiles: 1080, chapterThumbnailMode: 'embedded', videoPreviewEnabled: false, videoPreviewMs: 30000}, segmentDetection: 'server'};
 function document(libraryId: string, revision = 7): LibraryAdminDocument {
-  return {libraryId, libraryName: libraryId, libraryKind: 'anime', revision, digest: 'actual-document', eligibleControls: ['libraries.cwWeeks', 'libraries.episodeNumbering'], audience: {everyone: false, accounts: 3}, actions: ['scan', 'rename'],
-    settings, defaults: {...settings, continueWatching: {...settings.continueWatching, weeks: 8}}, analysisMatrix: {costClasses: [], operations: []}, availableProviders: [], enumerations: {}, sources: []};
+  return {libraryId, libraryName: libraryId, libraryKind: 'anime', revision, digest: 'actual-document', eligibleControls: ['libraries.scrubSpacing', 'libraries.episodeNumbering'], audience: {everyone: false, accounts: 3}, actions: ['scan', 'rename'],
+    settings, defaults: {...settings, navigation: {...settings.navigation, trickplayIntervalMs: 8000}}, analysisMatrix: {costClasses: [], operations: []}, availableProviders: [], enumerations: {}, sources: []};
 }
 function inventory(libraryId: string, revision = 3) {
   return {scope: {serverId: 'server', viewerFence: 'fence-test'}, libraryId, revision,
@@ -35,11 +35,11 @@ test('Library state requires explicit selection and uses only producer defaults 
     assert.deepEqual(calls, []);assert.equal(f.source.document(), undefined);
     await f.source.select('selected');
     assert.deepEqual(calls, ['/v1/admin/libraries/selected/settings']);
-    assert.equal(f.source.read('selected', 'libraries.cwWeeks')?.current, 16);
-    assert.equal(f.source.read('selected', 'libraries.cwWeeks')?.default, 8);
+    assert.equal(f.source.read('selected', 'libraries.scrubSpacing')?.current, 16);
+    assert.equal(f.source.read('selected', 'libraries.scrubSpacing')?.default, 8);
     assert.equal(f.source.document('selected')?.audience.accounts, 3);
     assert.equal(f.source.read('selected', 'libraries.allowDelete'), undefined);
-    assert.equal(f.source.read('unselected', 'libraries.cwWeeks'), undefined);
+    assert.equal(f.source.read('unselected', 'libraries.scrubSpacing'), undefined);
     await f.source.select('selected');assert.equal(calls.length, 1);
     await f.source.select();assert.equal(f.source.document('selected'), undefined);
   } finally {f.source.dispose();}
@@ -72,18 +72,18 @@ test('Library save uses original CAS and complete canonical settings, adopts onl
   try {
     await f.source.select('selected');
     hold = new Promise(resolve => {release = resolve;});
-    const saving = f.source.change('selected', 'libraries.cwWeeks', 20);
+    const saving = f.source.change('selected', 'libraries.scrubSpacing', 20);
     assert.equal(f.source.getSnapshot().saving, true);
-    assert.equal(f.source.read('selected', 'libraries.cwWeeks')?.current, 16);
-    await f.source.change('selected', 'libraries.cwWeeks', 30);assert.equal(writes.length, 1);
+    assert.equal(f.source.read('selected', 'libraries.scrubSpacing')?.current, 16);
+    await f.source.change('selected', 'libraries.scrubSpacing', 30);assert.equal(writes.length, 1);
     assert.equal(writes[0].expectedRevision, 7);assert.ok(writes[0].operationId);
     assert.equal(writes[0].settings.episodeNumbering, 'absolute');
-    assert.deepEqual(writes[0].settings.navigation, settings.navigation);
+    assert.deepEqual(writes[0].settings.navigation, {...settings.navigation, trickplayIntervalMs: 20000});
     release();await saving;hold = undefined;
-    assert.equal(f.source.read('selected', 'libraries.cwWeeks')?.current, 20);
-    await f.source.reset('selected', 'libraries.cwWeeks');
-    assert.equal(writes[1].expectedRevision, 8);assert.equal(writes[1].settings.continueWatching.weeks, 8);
-    assert.equal(f.source.read('selected', 'libraries.cwWeeks')?.current, 8);
+    assert.equal(f.source.read('selected', 'libraries.scrubSpacing')?.current, 20);
+    await f.source.reset('selected', 'libraries.scrubSpacing');
+    assert.equal(writes[1].expectedRevision, 8);assert.equal(writes[1].settings.navigation.trickplayIntervalMs, 8000);
+    assert.equal(f.source.read('selected', 'libraries.scrubSpacing')?.current, 8);
     await assert.rejects(f.source.change('selected', 'libraries.allowDelete', true));assert.equal(writes.length, 2);
   } finally {f.source.dispose();}
 });
@@ -96,9 +96,9 @@ test('an ambiguous or conflicting save removes its old revision until a genuine 
   });
   try {
     await f.source.select('selected');
-    await assert.rejects(f.source.change('selected', 'libraries.cwWeeks', 20), failure);
+    await assert.rejects(f.source.change('selected', 'libraries.scrubSpacing', 20), failure);
     assert.equal(f.source.document('selected'), undefined);assert.equal(f.source.getSnapshot().error, failure);
-    assert.equal(await f.source.change('selected', 'libraries.cwWeeks', 24), false, 'nothing is saved over a library that has not been read again');assert.equal(writes, 1);
+    assert.equal(await f.source.change('selected', 'libraries.scrubSpacing', 24), false, 'nothing is saved over a library that has not been read again');assert.equal(writes, 1);
     await f.source.select('selected');assert.equal(f.source.document('selected')?.revision, 8);assert.equal(writes, 1);
   } finally {f.source.dispose();}
 });
@@ -107,7 +107,7 @@ test('foreign library answers and retired authority cannot publish facts or star
   let calls = 0;
   const f = fixture(async <T>() => {calls++;return document('foreign') as T;});
   await f.source.select('selected');assert.equal(f.source.document('selected'), undefined);assert.equal(f.errors.length, 1);
-  f.retire();await f.source.select('foreign');await f.source.change('selected', 'libraries.cwWeeks', 20);
+  f.retire();await f.source.select('foreign');await f.source.change('selected', 'libraries.scrubSpacing', 20);
   assert.equal(calls, 1);assert.equal(f.source.getSnapshot().document, undefined);f.source.dispose();
 });
 
@@ -119,7 +119,7 @@ test('closing or disposing during a save aborts it without exposing a late new r
       return document('selected', method === 'PUT' ? 8 : 7) as T;
     });
     try {
-      await f.source.select('selected');const pending = f.source.change('selected', 'libraries.cwWeeks', 20);
+      await f.source.select('selected');const pending = f.source.change('selected', 'libraries.scrubSpacing', 20);
       if (close === 'select') await f.source.select();else f.source.dispose();
       assert.equal(signal?.aborted, true);release();assert.equal(await pending, false);
       assert.equal(f.source.document('selected'), undefined);assert.deepEqual(f.errors, []);
@@ -144,7 +144,7 @@ test('the existing Settings panel loads only its actual record and dispatches ch
     environment: {platform: 'web', os: 'browser'}, eligibility: {hasEngine: () => false, library: () => undefined},
     reading: {read: () => {throw new Error('Unexpected Reading read');}, patch: () => {throw new Error('Unexpected Reading write');}},
   });
-  const selected = {section, panelId: 'library', recordId: 'selected'}, row = settingsRowIndex.get('libraries.cwWeeks')!.row;
+  const selected = {section, panelId: 'library', recordId: 'selected'}, row = settingsRowIndex.get('libraries.scrubSpacing')!.row;
   try {
     assert.deepEqual(calls, []);
     assert.equal(controller.rowState(row, selected).present, false);
@@ -238,11 +238,11 @@ test('Sonic selection retirement suppresses a late answer and removal of its pro
       return sonic as T;
     }
     if (method === 'PUT') offered = false;
-    return {...document('selected', method === 'PUT' ? 8 : 7), libraryKind: 'music', eligibleControls: ['libraries.cwWeeks', ...(offered ? ['libraries.sonicAnalysis'] : [])], settings: method === 'PUT' ? (body as {settings: LibrarySettings}).settings : settings} as T;
+    return {...document('selected', method === 'PUT' ? 8 : 7), libraryKind: 'music', eligibleControls: ['libraries.scrubSpacing', ...(offered ? ['libraries.sonicAnalysis'] : [])], settings: method === 'PUT' ? (body as {settings: LibrarySettings}).settings : settings} as T;
   });
   try {
     await f.source.select('selected');
-    await f.source.change('selected', 'libraries.cwWeeks', 24);
+    await f.source.change('selected', 'libraries.scrubSpacing', 24);
     assert.equal(f.source.getSnapshot().sonic, undefined);assert.equal(f.source.read('selected', 'libraries.sonicAnalysis'), undefined);
     await f.source.select();offered = true;await f.source.select('selected');
     const pending = f.source.change('selected', 'libraries.sonicAnalysis', true);await f.source.select();
@@ -257,5 +257,5 @@ test('quiet selected library settings bypass selection cache and preserve unrela
 
 test('selected library quiet reads cannot overwrite a write that starts and finishes during I/O',async()=>{
  let held=false,release!:(value:LibraryAdminDocument)=>void;const f=fixture(async<T>(_path:string,method?:string,body?:any)=>{if(method==='PUT')return {...document('selected',8),settings:body.settings} as T;if(held)return new Promise(resolve=>{release=resolve;}) as Promise<T>;return document('selected') as T;});
- try{await f.source.select('selected');held=true;const pending=f.source.refreshSettings();await f.source.change('selected','libraries.cwWeeks',20);const before=f.source.getSnapshot();release(document('selected',99));assert.deepEqual(await pending,{kind:'deferred'});assert.equal(f.source.getSnapshot(),before);assert.equal(f.source.getSnapshot().document?.revision,8);}finally{f.source.dispose();}
+ try{await f.source.select('selected');held=true;const pending=f.source.refreshSettings();await f.source.change('selected','libraries.scrubSpacing',20);const before=f.source.getSnapshot();release(document('selected',99));assert.deepEqual(await pending,{kind:'deferred'});assert.equal(f.source.getSnapshot(),before);assert.equal(f.source.getSnapshot().document?.revision,8);}finally{f.source.dispose();}
 });

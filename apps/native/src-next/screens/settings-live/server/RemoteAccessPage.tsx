@@ -183,8 +183,7 @@ function RemoteAccessPage({group, ports, runtime, compactHeader}: {group: Storag
           onChangeText={value => forms.connectivity.set(current => ({...current, trustedProxies: parseLines(value)}))}/>
         <TextField label={t('web.connectivity.homeNetworks')} description={t('settings.server.homeNetworksHelp')} value={lines(connectivity.lanNetworks)} multiline
           onChangeText={value => forms.connectivity.set(current => ({...current, lanNetworks: parseLines(value)}))}/>
-        <TextField testID="remote-access-connection-limit" label={t('web.connectivity.connectionLimit')} description={t('settings.server.connectionLimitHelp')} value={connectivity.connectionLimit ? String(connectivity.connectionLimit) : ''} placeholder={t('settings.server.automatic')} keyboardType="number-pad"
-          onChangeText={value => {if (!value.trim()) {forms.connectivity.set(current => ({...current, connectionLimit: 0})); return;} const next = Number(value); if (Number.isInteger(next) && next >= 1 && next <= 65536) forms.connectivity.set(current => ({...current, connectionLimit: next}));}}/>
+
           {remoteState.loadError !== undefined && <StateView variant="inline" {...runtime.error(remoteState.loadError, () => {void forms.remote.load();}, 'server-console')}/>}
         </NativeAdvancedSection>
         {state.dirty ? <View style={{flexDirection: 'row', gap: 8, marginTop: 16}}>
