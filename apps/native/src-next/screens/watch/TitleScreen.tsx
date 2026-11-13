@@ -36,7 +36,7 @@ import {usePlatformPosture} from '../../platform/platformPosture';
 import {mediumRailMetrics} from '../../shell/model';
 import {usePageInset} from '../../kit/layout/page-inset';
 import {TVRow} from '../../kit/layout/TVRow';
-import {RoundBarButton, TopBar} from '../../kit/layout/TopBar';
+import {BarSurface, RoundBarButton, TopBar} from '../../kit/layout/TopBar';
 
 export type NativeTitleScreenProps = Readonly<{
   controller: NativeTitleController;
@@ -317,8 +317,10 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
   // so the scroll composition, anchors and every lease above are untouched.
   const pinned = collapsed && !theme.isTV && !props.watch && (wide || centered);
   const pinnedBar = pinned ? <View testID="watch-title-pinned-bar" style={{position: 'absolute', top: 0, left: 0, right: 0, height: 56 + insets.top, paddingTop: insets.top, zIndex: 11,
-    flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, backgroundColor: theme.colors.ink, borderBottomWidth: 1, borderBottomColor: theme.colors.line}}
+    flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10}}
     onLayout={event => setPinnedWidth(event.nativeEvent.layout.width)}>
+    {/* tablet.html 7: the shared translucent bar surface (blur under ink, one hairline), not flat navy. */}
+    <BarSurface/>
     <Button testID="watch-title-back" variant="icon" icon="i-left" iconOnly accessibilityLabel={t('action.back')} onPress={props.back}/>
     <Text numberOfLines={1} style={[theme.type.bodyStrong, {fontSize: 18, fontWeight: '800', color: theme.colors.text, minWidth: 0, flexShrink: 1,
       maxWidth: pinnedWidth ? Math.max(96, Math.min(260, Math.round(pinnedWidth * 0.24))) : 180}]}>{title}</Text>
