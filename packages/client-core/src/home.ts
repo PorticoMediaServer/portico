@@ -7,6 +7,7 @@ import type {Home} from '../../contracts/src/next/api.ts';
 import {entryFromItem, entriesFromItems, readHomeRows} from './items.ts';
 import {parseBrowseNode, type BrowseNode, type BrowseSortSelection} from './browse.ts';
 import {firstOfEach, keepReadable, noteSkipped, oneOfOr} from './tolerant.ts';
+import {callServer} from './query/server-api.ts';
 import {parseGuideChannels, parseGuideSources, type GuideChannel, type GuideSource} from './channel-guide.ts';
 
 export type HomeArtworkShape = 'poster' | 'square' | 'landscape';
@@ -49,7 +50,11 @@ export type HomeRow = Readonly<{
   id: string; title: string; titleText?: ServerText; kind: string; artworkShape: HomeArtworkShape; explanation?: string; why?:ServerText; whyTitles?:readonly Readonly<{id:string;name:string}>[]; displayTargets?:readonly Readonly<{membershipId:string;entryId:string}>[]; endpoint: string;
   /** `for_you` on the personal rows: the layout arranges and hides them together as the row `for_you`. */
   family?: string;
+  /** A saved view's row the server sent without its titles (it fills only the first few): `viewRead` says how to read
+   * them, and HomeService.demand reads them when the row comes near the screen. */
   deferred?: boolean; children?: readonly HomeRow[];
+  /** A saved view's row: its library and query, `GET /v1/items?library={library}&{query}`. */
+  viewRead?: HomeViewRead;
   reason?:HomeReason; resumes?:readonly HomeResume[]; collection?:HomeCollection; live?:HomeLive; period?:HomePeriod; subtitleText?:ServerText;
   platforms?:readonly ('web'|'phone'|'tv')[];
   seeAll?: HomeSeeAll;
@@ -350,17 +355,31 @@ function oneSelectionIdentity(slide: HomeSpotlight, rows: readonly HomeRow[]): H
   return Object.freeze({...slide, entry: Object.freeze({...slide.entry, homeActions: Object.freeze({...actions, selection})})});
 }
 
-/** Home as the server composes it for this profile: the rows it sends, in its order. A row with nothing in it is not sent. */
+export type HomeViewRead = Readonly<{library: string; query: string}>;
+/** As many titles as the server puts in a saved view's row when it fills one itself. */
+export const HOME_VIEW_ROW_LENGTH = 20;
+/** A deferred saved-view row's titles: one read of its library with its own query (API.md, GET /v1/home). */
+export async function readHomeViewRow(api: HomeApi, read: HomeViewRead, signal?: AbortSignal): Promise<readonly ContentEntry[]> {
+  const query = {...Object.fromEntries(new URLSearchParams(read.query)), library: read.library, limit: HOME_VIEW_ROW_LENGTH};
+  const page = await callServer(api, 'GET /v1/items', {query, signal});
+  if (!page || !Array.isArray(page.items)) invalid();
+  return Object.freeze(firstOfEach('home', 'entries', entriesFromItems(page.items as never), entry => entry.id));
+}
+
+/** Home as the server composes it for this profile: the rows it sends, in its order. A row with nothing in it is not
+ * sent, except a saved view's row the server deferred: it is kept, empty, with how to read its titles. */
 export function homeDocument(home: Home): HomeDocument {
   const rows = firstOfEach('home', 'rows', keepReadable('home', 'rows', home.rows, raw => {
     const row = raw as Home['rows'][number];
     if (!id(row.id)) return undefined;
     const entries = Object.freeze(firstOfEach('home', 'entries', entriesFromItems(row.items), entry => entry.id));
-    if (!entries.length) return undefined;
+    const viewRead = typeof row.library === 'string' && row.library && typeof row.query === 'string' ? Object.freeze({library: row.library, query: row.query}) : undefined;
+    const deferred = !entries.length && row.deferred === true && !!viewRead;
+    if (!entries.length && !deferred) return undefined;
     const always = row.id.startsWith('continue');
     return Object.freeze({id: row.id, title: words(row.title, 1024), kind: row.id, artworkShape: oneOfOr('home', 'row.artworkShape', row.shape, shapes, 'poster'),
       endpoint: '', privacySensitivity: '', policyState: '', priority: 0, required: always, hideable: !always, reorderable: true, critical: false, cursorCapable: false,
-      entries, start: 0, limit: entries.length, hasMore: false, nextCursor: ''}) as HomeRow;
+      entries, start: 0, limit: entries.length, hasMore: false, nextCursor: '', ...(viewRead ? {viewRead} : {}), ...(deferred ? {deferred: true} : {})}) as HomeRow;
   }), row => row.id);
   const spotlight = firstOfEach('home', 'spotlight', keepReadable('home', 'spotlight', home.spotlight ?? [], raw => {
     const slide = raw as NonNullable<Home['spotlight']>[number];

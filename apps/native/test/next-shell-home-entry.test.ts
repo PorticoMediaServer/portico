@@ -59,7 +59,7 @@ async function fixture() {
   const listeners = new Set<() => void>();
   let snapshot: any = {phase: 'loading'}, currentAuthority = authority, selectionActive = false;
   const home = {subscribe: (listener: () => void) => {listeners.add(listener); return () => {listeners.delete(listener);};}, getSnapshot: () => snapshot,
-    load: async () => {}, recoverDroppedRows: async () => {}, setRowDemand() {}, registerWindow() {}, subscribeRowPages: () => () => {}, rowPageReceipt: () => undefined};
+    load: async () => {}, recoverDroppedRows: async () => {}, setRowDemand() {}, demand() {}, registerWindow() {}, subscribeRowPages: () => () => {}, rowPageReceipt: () => undefined};
   const runtime = {home, getSnapshot: () => ({authority: currentAuthority, libraries: [], selectionActive}), text: {t: defaultI18n.t, locale: 'en-US'},
     registerScrollToTop: () => () => {}, registerTVPageBack: () => () => {}, reportError(error: unknown) {throw error;}, actions: {}, playback: {}};
   const useFocusAnchor = () => React.useMemo(() => ({scrollRef: {current: null}, offset: {value: 0}, repeating: false, stop() {}, move() {}, anchor() {}}), []);
