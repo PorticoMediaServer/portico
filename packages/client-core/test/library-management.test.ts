@@ -75,6 +75,7 @@ test('a new library keeps its kind, folders and selected metadata source, langua
   await s.createLibrary({name: ' Shows ', kind: 'tv', folders: ['/media/tv/', '/mnt/more'], metadataAgent: 'local', metadataLanguage: 'fr', metadataRegion: 'CA'});
   assert.deepEqual(calls.find(c => c.method === 'POST')?.body, {name: 'Shows', kind: 'shows', folders: ['/media/tv', '/mnt/more'], metadataProvider: 'local', language: 'fr', region: 'CA'});
   assert.equal(s.getSnapshot().mutation.phase, 'complete');
+  assert.equal(s.getSnapshot().selectedLibraryId, 'lib_new', 'the phone can open the library returned by the create');
   assert.equal(s.getSnapshot().directory.phase, 'ready', 'the list is read again after it');
 });
 

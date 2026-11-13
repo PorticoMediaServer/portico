@@ -14,4 +14,5 @@ export const fetchOwnerLibraryLyricsContract = <T = unknown>(api: OwnerRequestAp
 
 /** Metadata choices for the original Add Library effect. Keep its omitted method,
  * promise identity and caller-owned parser/retirement ordering. */
-export const readOwnerKindMetadataAgents = <T = unknown>(api: OwnerRequestApi, kind: string): Promise<T> => api.request<T>(kindMetadataAgentsPath(kind));
+export const readOwnerKindMetadataAgents = <T = unknown>(api: OwnerRequestApi, kind: string, signal?: AbortSignal): Promise<T> => signal
+  ? api.request<T>(kindMetadataAgentsPath(kind), 'GET', undefined, signal) : api.request<T>(kindMetadataAgentsPath(kind));
