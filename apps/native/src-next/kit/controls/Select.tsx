@@ -90,7 +90,7 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
       {rowLabel !== undefined
         ? <><Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, {fontFamily: fontFamilies[700], color: theme.colors.text, flex: 1, minWidth: 0}, textStyle]}>{rowLabel}</Text>
           <Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, {fontFamily: fontFamilies[700], color: theme.colors.textTertiary, flexShrink: 1}, textStyle]}>{selected?.label ?? placeholder}</Text></>
-        : inline ? <Text numberOfLines={2} style={[nativeType({size: 14.5, weight: 500, lineHeight: 'normal', tracking: 0}, theme.textScale), {color: selected ? theme.colors.accent : theme.colors.textTertiary, textAlign: 'right', flexShrink: 1}, textStyle]}>{selected?.label ?? placeholder}</Text>
+        : inline ? <Text style={[nativeType({size: 14.5, weight: 500, lineHeight: 'normal', tracking: 0}, theme.textScale), {color: selected ? theme.colors.accent : theme.colors.textTertiary, textAlign: 'right', flexShrink: 1}, textStyle]}>{selected?.label ?? placeholder}</Text>
         : <Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, styles.value, {fontFamily: fontFamilies[700], color: selected ? theme.colors.text : theme.colors.textTertiary}, textStyle]}>{selected?.label ?? placeholder}</Text>}
       <Icon name="i-updown" size={theme.isTV ? 26 : inline ? 15 : 18} color={inline ? theme.colors.accent : theme.colors.textTertiary} />
     </Focusable>
