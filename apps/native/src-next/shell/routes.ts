@@ -73,7 +73,10 @@ export const nativeEntryRoute = (entry: ContentEntry): NativeShellRoute => {
     return Object.freeze({kind: 'shell', destination: {kind: 'library', libraryId: entry.libraryId, tab: 'releases',
       definition: Object.freeze({libraryId: entry.libraryId, pivot: browse.pivot, query: browse.query ?? null, sort: browse.sort, presentation: 'grid'})}} as const);
   }
-  // A reading library's series opens the reading series page (the browse grid names it so), not the audiobook one.
+  // A reading library's series opens the reading series page, and a magazine's or newspaper's run its periodical page
+  // (the card names it from the series' publication), not the audiobook series page.
+  if (entry.kind === 'book_series' && entry.navigation?.view === 'series' && entry.libraryId && (entry.navigation.pivot === 'magazines' || entry.navigation.pivot === 'newspapers'))
+    return Object.freeze({kind: 'read-periodical', libraryId: entry.libraryId, groupId: entry.navigation.entityId ?? entry.id, publicationType: entry.navigation.pivot === 'magazines' ? 'magazine' : 'newspaper'});
   if (entry.kind === 'book_series' && entry.navigation?.view === 'series' && entry.libraryId) return Object.freeze({kind: 'read-series', libraryId: entry.libraryId, seriesId: entry.navigation.entityId ?? entry.id});
   return entry.kind === 'album' || entry.kind === 'artist' ? Object.freeze({kind: 'music', entry})
     : entry.kind === 'book' ? Object.freeze({kind: 'book', entry})

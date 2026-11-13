@@ -19,11 +19,23 @@ test('catalogue routes preserve real owners and refuse unsupported fallthrough',
 });
 
 test("a reading library's series card opens the reading series page; an audiobook series keeps the audiobook page", () => {
-  // The browse grid names a book or comic library's series with the reading series navigation (client-core readingSeries).
+  // A book or comic library's series card carries the reading series navigation (client-core entryFromItem, from its publication).
   const reading = {...entry('book_series'), navigation: {view: 'series', entityId: 'actual'}} as ContentEntry;
   assert.equal(nativeEntryRouteSupported(reading), true);
   assert.deepEqual(nativeEntryRoute(reading), {kind: 'read-series', libraryId: 'library', seriesId: 'actual'});
   const audiobook = {...entry('book_series'), navigation: {view: 'book_series', entityId: 'actual'}} as ContentEntry;
   assert.equal(nativeEntryRoute(audiobook).kind, 'audiobook');
   assert.equal(nativeEntryRoute(entry('book_series')).kind, 'audiobook', 'no navigation: the audiobook page, as before');
+  // A magazine's or newspaper's run opens its periodical page.
+  assert.deepEqual(nativeEntryRoute({...reading, navigation: {view: 'series', entityId: 'itm_m', pivot: 'magazines'}} as ContentEntry),
+    {kind: 'read-periodical', libraryId: 'library', groupId: 'itm_m', publicationType: 'magazine'});
+  assert.deepEqual(nativeEntryRoute({...reading, navigation: {view: 'series', entityId: 'itm_d', pivot: 'newspapers'}} as ContentEntry),
+    {kind: 'read-periodical', libraryId: 'library', groupId: 'itm_d', publicationType: 'newspaper'});
+});
+
+test("a reading series or periodical page takes the rebuilt server's item ids, and only URL-safe ones", async () => {
+  // A rebuilt series id (itm_…) once failed the old 43-character check, so the series page drew nothing.
+  const {readingRouteId} = await import('../src-next/screens/read/platform.ts');
+  for (const id of ['itm_5c6x6e3jzejgb5wz', 'a'.repeat(43), 'A-b_9']) assert.equal(readingRouteId(id), true, id);
+  for (const id of ['', 'itm/../x', 'itm 1', 'itm?x', 'a'.repeat(129)]) assert.equal(readingRouteId(id), false, id);
 });

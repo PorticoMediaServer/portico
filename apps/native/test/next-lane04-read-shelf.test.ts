@@ -11,6 +11,7 @@ async function fixture() {
   const route = {kind: 'read-book', libraryId: 'library', item: book}, manifest = {itemId: 'book', sourceId: 'source', format: 'pdf', metadata: {title: 'Book'}};
   let respond = async (): Promise<any> => ({items: [book, one], nextCursor: 'continuation'}), calls = 0;
   const {NativeReadBook} = await screenModule(new URL('../src-next/screens/read/read-book-model.ts', import.meta.url), {
+    './platform': await import('../src-next/screens/read/platform.ts'),
     react: {default: {}}, '../../../../../packages/client-core/src': {ReadingError: class extends Error {}}, '../../shell/model': {sameAuthority: (a: unknown, b: unknown) => a === b},
     '../../platform/server-connections': {nativeRouteCrypto: {random: () => new Uint8Array(16)}},
     '../../../../../packages/client-core/src/presentation/errors': {presentError: (error: Error) => ({category: error.message === 'offline' ? 'offline' : 'unexpected'})},

@@ -28,6 +28,9 @@ const holderViews: Readonly<Record<string, ContentView>> = {show: 'show', season
  * undefined for a title drawn on the ordinary title page. The same map a card's navigation uses. */
 export const holderViewOf = (kind: string): ContentView | undefined => holderViews[itemKindOf(kind)];
 
+/** The periodical page a magazine's or newspaper's run opens, by its publication. */
+const periodicalPivots: Readonly<Record<string, 'magazines' | 'newspapers'>> = {magazine: 'magazines', newspaper: 'newspapers'};
+
 /** A half-star rating out of five, as the screens show it; the server keeps it out of ten. */
 const stars = (rating: number | undefined): number | undefined => rating === undefined ? undefined : rating / 2;
 
@@ -59,7 +62,12 @@ export function entryFromItem(item: Item, libraryId?: string): ContentEntry | un
     // profile may not see is named by neither.
     show: item.kind === 'episode' ? item.root ? {id: item.root.id, name: item.root.title} : item.rootId && item.rootTitle ? {id: item.rootId, name: item.rootTitle} : undefined : undefined,
     ...numbered,
-    navigation: {view: view ?? 'item', entityId: item.id},
+    // A book or comic library's series names its publication (its run of issues names it, the server's rule), so it
+    // opens the reading series page, or a magazine's or newspaper's periodical page, on every client and in every list;
+    // an audiobook series names none and keeps its own page.
+    navigation: item.kind === 'series' && typeof item.publicationType === 'string'
+      ? {view: 'series', entityId: item.id, ...(periodicalPivots[item.publicationType] ? {pivot: periodicalPivots[item.publicationType]} : {})}
+      : {view: view ?? 'item', entityId: item.id},
     // An album's own read carries the server's summary of its songs' format; list rows do not.
     badges: item.kind === 'album' ? albumAudioBadges(item.albumAudio) : undefined,
     albumAudio: item.kind === 'album' && item.albumAudio ? item.albumAudio : undefined,
