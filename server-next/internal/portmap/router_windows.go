@@ -65,7 +65,10 @@ func windowsRouter(family uint16, bound netip.Addr) Router {
 }
 
 func windowsIPv6Client(rows []windows.MibUnicastIpAddressRow, luid uint64, bound netip.Addr) netip.Addr {
+	// Windows marks both stable and temporary SLAAC identifiers as random. Among
+	// those, prefer the earliest-created address; real Windows behaviour remains unproved.
 	var temporary netip.Addr
+	var oldest uint64
 	for _, row := range rows {
 		if row.InterfaceLuid != luid || row.SkipAsSource != 0 || row.DadState != windows.IpDadStatePreferred || row.PreferredLifetime == 0 {
 			continue
@@ -77,8 +80,9 @@ func windowsIPv6Client(rows []windows.MibUnicastIpAddressRow, luid uint64, bound
 		if row.SuffixOrigin != windows.IpSuffixOriginRandom {
 			return ip
 		}
-		if !temporary.IsValid() {
-			temporary = ip
+		created := uint64(row.CreationTimeStamp.HighDateTime)<<32 | uint64(row.CreationTimeStamp.LowDateTime)
+		if !temporary.IsValid() || created < oldest {
+			temporary, oldest = ip, created
 		}
 	}
 	return temporary
