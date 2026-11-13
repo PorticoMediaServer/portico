@@ -58,6 +58,26 @@ export function TVManagementHandoff({url, onBack}: {url: string; onBack: () => v
   </View>;
 }
 
+/** During a move to Portico Accounts (P2-66): the TV never takes an old password with the remote,
+ * so it hands the move to a phone at the server's own sign-in page, where the old sign-in or the
+ * owner's move code proves the member. Afterwards they sign in here the Portico way. */
+export function TVMoveHandoff(props: Readonly<{serverName: string; url: string; onBack: () => void}>) {
+  return <FocusProvider><MoveHandoff {...props}/></FocusProvider>;
+}
+function MoveHandoff(props: Readonly<{serverName: string; url: string; onBack: () => void}>) {
+  const theme = useTheme(), material = glassRecipe(), address = publicTVHandoffAddress(props.url), id = 'tv.auth.move';
+  if (address.pathname !== '/sign-in' || address.search) throw new Error('native_tv_move_url_invalid');
+  useHandoffBack(props.onBack);
+  useDestinationEntryFocus({visible: true, intent: 'enter', revision: 0}, {regionId: id, childId: 'back'});
+  return <TVAuthLayout testID="tv-move-handoff" portico eyebrow={props.serverName}
+    heading={defaultI18n.t('next.auth.tv.moveOnPhone')} body={defaultI18n.t('next.auth.tv.moveBody', {server: props.serverName})}
+    aside={handoffCodeCard(theme, address, 'next.auth.tv.handoffHint', material.nativeBlur, 'tv-move-card')}>
+    <FocusRegion id={id} entry="back" order={['back']} style={{flexDirection: 'row'}}>
+      <Button focusId="back" onPress={props.onBack} style={{height: 72, paddingHorizontal: 38, borderRadius: 14}}>{defaultI18n.t('action.back')}</Button>
+    </FocusRegion>
+  </TVAuthLayout>;
+}
+
 export type TVRequiredSetupHandoffProps = Readonly<{
   serverName: string; requirement: 'password' | 'two-step'; url: string; portico?: boolean; busy: boolean;
   /** Canonical §31 copy; the session owner chooses the password-first result. */
