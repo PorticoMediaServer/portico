@@ -863,7 +863,19 @@ export interface DvrTunerUse {
   using: string;
 }
 
+export interface DvrTunerSource {
+  sourceId: string;
+  sourceName: string;
+  tunerCount: number;
+  paused: boolean;
+  inUse: number;
+  conflicts: number;
+  active: DvrTunerUse[];
+  upcoming: DvrRecording[];
+}
+
 export interface DvrTuners {
+  sources: DvrTunerSource[];
   inUse: DvrTunerUse[];
   conflicts: DvrRecording[];
 }
@@ -1800,6 +1812,7 @@ export interface LiveSignIn {
 }
 
 export interface LiveSource {
+  revision: string;
   id: string;
   kind: string;
   name: string;

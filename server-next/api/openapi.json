@@ -2885,6 +2885,51 @@
         },
         "type": "object"
       },
+      "DvrTunerSource": {
+        "properties": {
+          "sourceId": {
+            "type": "string"
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "tunerCount": {
+            "type": "integer"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "inUse": {
+            "type": "integer"
+          },
+          "conflicts": {
+            "type": "integer"
+          },
+          "active": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DvrTunerUse"
+            }
+          },
+          "upcoming": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DvrRecording"
+            }
+          }
+        },
+        "required": [
+          "sourceId",
+          "sourceName",
+          "tunerCount",
+          "paused",
+          "inUse",
+          "conflicts",
+          "active",
+          "upcoming"
+        ],
+        "type": "object"
+      },
       "DvrTunerUse": {
         "properties": {
           "channel": {
@@ -2913,9 +2958,16 @@
               "$ref": "#/components/schemas/DvrTunerUse"
             },
             "type": "array"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DvrTunerSource"
+            }
           }
         },
         "required": [
+          "sources",
           "inUse",
           "conflicts"
         ],
@@ -6039,6 +6091,9 @@
           "report": {
             "$ref": "#/components/schemas/LiveSourceReport"
           },
+          "revision": {
+            "type": "string"
+          },
           "state": {
             "type": "string"
           },
@@ -6047,6 +6102,7 @@
           }
         },
         "required": [
+          "revision",
           "id",
           "kind",
           "name",

@@ -14,9 +14,11 @@ import (
 // LiveSource is a source of channels or listings as the owner's Sources page shows it. Its
 // sign-in is never shown: HasSignIn says one is stored.
 type LiveSource struct {
-	ID   string `json:"id"`
-	Kind string `json:"kind"` // playlist, xtream, hdhomerun or guide
-	Name string `json:"name"`
+	// Revision is the version shown by the directory, also returned as the source ETag.
+	Revision string `json:"revision"`
+	ID       string `json:"id"`
+	Kind     string `json:"kind"` // playlist, xtream, hdhomerun or guide
+	Name     string `json:"name"`
 	// Audience is everyone or owner: who may watch its channels.
 	Audience   string                 `json:"audience"`
 	TunerCount int                    `json:"tunerCount"`
@@ -109,7 +111,7 @@ func (s *Server) liveSourceRoutes() {
 }
 
 func (s *Server) liveSourceOut(src db.LiveSource) LiveSource {
-	out := LiveSource{ID: src.PublicID, Kind: src.Kind, Name: src.Name, Audience: src.Audience, TunerCount: src.TunerCount, Paused: src.Paused,
+	out := LiveSource{Revision: strconv.FormatInt(src.Revision, 10), ID: src.PublicID, Kind: src.Kind, Name: src.Name, Audience: src.Audience, TunerCount: src.TunerCount, Paused: src.Paused,
 		State: src.State, LastError: src.LastError, HasSignIn: len(src.Secret) > 0, revision: src.Revision}
 	json.Unmarshal([]byte(src.Config), &out.Config)
 	out.Config.PlaylistURL, out.Config.GuideURL = live.Masked(out.Config.PlaylistURL), live.Masked(out.Config.GuideURL)

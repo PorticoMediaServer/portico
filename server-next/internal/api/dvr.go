@@ -124,10 +124,24 @@ type DvrTunerUse struct {
 	Using   string `json:"using"`
 }
 
+// DvrTunerSource counts channel inputs and lists their current and upcoming uses.
+type DvrTunerSource struct {
+	SourceID   string `json:"sourceId"`
+	SourceName string `json:"sourceName"`
+	TunerCount int    `json:"tunerCount"`
+	Paused     bool   `json:"paused"`
+	// InUse counts distinct channel inputs, not viewers sharing them.
+	InUse     int            `json:"inUse"`
+	Conflicts int            `json:"conflicts"`
+	Active    []DvrTunerUse  `json:"active"`
+	Upcoming  []DvrRecording `json:"upcoming"`
+}
+
 // DvrTuners is the owner's Tuners page: what is using them now, and the clashes ahead.
 type DvrTuners struct {
-	InUse     []DvrTunerUse  `json:"inUse"`
-	Conflicts []DvrRecording `json:"conflicts"`
+	Sources   []DvrTunerSource `json:"sources"`
+	InUse     []DvrTunerUse    `json:"inUse"`
+	Conflicts []DvrRecording   `json:"conflicts"`
 }
 
 func (s *Server) dvrRoutes() {
@@ -644,9 +658,18 @@ func (s *Server) dvrTuners(r *http.Request, _ None) (DvrTuners, error) {
 	if err != nil {
 		return DvrTuners{}, err
 	}
-	out := DvrTuners{InUse: []DvrTunerUse{}, Conflicts: []DvrRecording{}}
+	out := DvrTuners{InUse: []DvrTunerUse{}, Conflicts: []DvrRecording{}, Sources: []DvrTunerSource{}}
+	bySource := map[int64]int{}
 	for _, src := range sources {
-		for channel, uses := range s.tuners.Using(src.ID) {
+		if src.Kind == "guide" {
+			continue
+		}
+		using := s.tuners.Using(src.ID)
+		bySource[src.ID] = len(out.Sources)
+		out.Sources = append(out.Sources, DvrTunerSource{SourceID: src.PublicID, SourceName: src.Name, TunerCount: src.TunerCount, Paused: src.Paused,
+			InUse: len(using), Active: []DvrTunerUse{}, Upcoming: []DvrRecording{}})
+		index := len(out.Sources) - 1
+		for channel, uses := range using {
 			name, err := s.db.ChannelName(ctx, channel)
 			if err != nil && !errors.Is(err, db.ErrNotFound) {
 				return DvrTuners{}, err
@@ -656,7 +679,9 @@ func (s *Server) dvrTuners(r *http.Request, _ None) (DvrTuners, error) {
 				if !u.Record {
 					using = "A viewer: " + u.Name
 				}
-				out.InUse = append(out.InUse, DvrTunerUse{Channel: name, Using: using})
+				entry := DvrTunerUse{Channel: name, Using: using}
+				out.InUse = append(out.InUse, entry)
+				out.Sources[index].Active = append(out.Sources[index].Active, entry)
 			}
 		}
 	}
@@ -668,9 +693,25 @@ func (s *Server) dvrTuners(r *http.Request, _ None) (DvrTuners, error) {
 	if err != nil {
 		return DvrTuners{}, err
 	}
+	channelSources := map[int64]int64{}
 	for _, rec := range upcoming {
+		row := s.withMay(r, s.recordingOut(ctx, rec, true, nil), rec, "")
+		source, known := channelSources[rec.ChannelID]
+		if !known {
+			_, source, _, err = s.db.ChannelLocator(ctx, rec.ChannelID)
+			if err != nil && !errors.Is(err, db.ErrNotFound) {
+				return DvrTuners{}, err
+			}
+			channelSources[rec.ChannelID] = source
+		}
+		if index, present := bySource[source]; present {
+			out.Sources[index].Upcoming = append(out.Sources[index].Upcoming, row)
+			if losers[rec.ID] {
+				out.Sources[index].Conflicts++
+			}
+		}
 		if losers[rec.ID] {
-			out.Conflicts = append(out.Conflicts, s.withMay(r, s.recordingOut(ctx, rec, true, nil), rec, ""))
+			out.Conflicts = append(out.Conflicts, row)
 		}
 	}
 	return out, nil

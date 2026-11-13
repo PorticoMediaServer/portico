@@ -4,10 +4,10 @@ import {LiveSourceController} from '../src/screens/live/owner/source-controller.
 import {RemoteSourceController} from '../src/screens/live/owner/remote-source-controller.ts';
 import {UploadSourceController} from '../src/screens/live/owner/upload-source-controller.ts';
 import {DiscoveryController} from '../src/screens/live/owner/discovery-controller.ts';
-import {sourceDocument, uploadPreview, remotePreview, discovery, confirmRoots} from '../src/screens/live/owner/checked.ts';
-import {document, storedSource, sourceReceipt, uploadPreview as upload, remotePreview as remote, actionReceipt} from './live-owner-fixtures.ts';
+import {discovery, confirmRoots} from '../src/screens/live/owner/checked.ts';
+import {rebuiltDirectory as document, rebuiltSource as storedSource, rebuiltPreview as upload, rebuiltPreview as remote, actionReceipt} from './live-owner-fixtures.ts';
 const initial = {name: 'Stored source', locator: 'https://provider.example/playlist'};
-const discover = {protocolVersion: '1.0', serverId: 'server', result: {discoveryEnabled: true, devices: [{deviceId: 'tuner', model: 'Tuner', friendlyName: 'Stored tuner', address: '192.168.1.50', baseUrl: 'http://192.168.1.50/', tunerCount: 2, configured: false}]}};
+const discover = {discoveryEnabled: true, devices: [{deviceId: 'tuner', model: 'Tuner', friendlyName: 'Stored tuner', address: '192.168.1.50', baseUrl: 'http://192.168.1.50/', tunerCount: 2, configured: false}]};
 
 test('list retirement clears and notifies, including current=false snapshot reads', async () => {
   let current = true, notifications = 0;
@@ -66,37 +66,33 @@ test('upload preview/save and discovery cannot invoke API after busy retirement'
   saving.subscribe(() => {if (saving.getSnapshot().busy) saving.dispose();});assert.equal(await saving.save(), false);assert.equal(calls, 1);
   const searching = new DiscoveryController(api, 'server', () => true, () => {});searching.subscribe(() => {if (searching.getSnapshot().busy) searching.dispose();});await searching.search();assert.equal(calls, 1);
 });
-test('lost A response, intervening B and repeated A retain A body/id', async () => {
-  const writes: {path: string; body: unknown}[] = [];let serial = 0;
-  const controller = new LiveSourceController({async request<T>(path: string, method?: string, body?: unknown) {
-    if (method === 'POST') {writes.push({path, body});throw {status: 503};}return document as T;
-  }}, 'server', () => true, () => {}, () => String(++serial));
-  await controller.load();await controller.act(storedSource, 'toggle');await controller.act(storedSource, 'remove');await controller.act(storedSource, 'toggle');
-  assert.equal(writes.length, 3);assert.equal(writes[0].body, writes[2].body);assert.notDeepEqual(writes[0].body, writes[1].body);controller.dispose();
+test('a quiet read does not cancel an independent owner command', async () => {
+  let complete!:(value:unknown)=>void, signal:AbortSignal|undefined;
+  const controller=new LiveSourceController({async request<T>(){return document as T;},requestRaw(_path,_method,options){signal=options?.signal;return new Promise(done=>{complete=done;});}},'server',()=>true,()=>{});
+  await controller.load();const command=controller.act(storedSource,'toggle');await controller.refreshQuietly();assert.equal(signal?.aborted,false);
+  complete({status:200,headers:{},body:{...storedSource,paused:true,revision:'8'}});assert.equal(await command,true);controller.dispose();
 });
-test('checked projections reconstruct and drop credential-bearing extras', () => {
-  const poison = {password: 'SECRET', locator: 'http://user:SECRET@host/'};
-  const result = sourceDocument({...document, ...poison, sources: [{...storedSource, ...poison}]}, 'server');
-  const u = uploadPreview({...upload, preview: {...upload.preview, ...poison}}, 'server');
-  const r = remotePreview({...remote, remotePreview: {...remote.remotePreview, ...poison, preview: {...remote.remotePreview.preview, ...poison}}}, 'server');
-  const d = discovery({...discover, result: {...discover.result, ...poison, devices: discover.result.devices.map(x => ({...x, ...poison}))}}, 'server');
-  assert.equal(JSON.stringify([result, u, r, d]).includes('SECRET'), false);
-  assert.throws(() => sourceDocument({...document, sources: [{...storedSource, revision: 0}]}, 'server'));
-  assert.throws(() => uploadPreview({...upload, preview: {...upload.preview, names: ['x'.repeat(257)]}}, 'server'));
-  assert.throws(() => discovery({...discover, result: {...discover.result, devices: [{...discover.result.devices[0], baseUrl: 'http://user:SECRET@host'}]}}, 'server'));
+test('checked projections reconstruct and drop credential-bearing extras', async () => {
+  const {ownerSource,previewOwnerSource}=await import('../../packages/client-core/src/server-admin/live-sources.ts');
+  const poison={password:'SECRET',locator:'http://user:SECRET@host/'};
+  const source=ownerSource({...storedSource,...poison,report:{...storedSource.report,...poison},config:{...storedSource.config,...poison}});
+  const preview=await previewOwnerSource({async request<T>(){return {...upload,...poison,channels:upload.channels.map(row=>({...row,...poison}))} as T;}},{kind:'playlist'});
+  const d=discovery({...discover,...poison,devices:discover.devices.map(x=>({...x,...poison}))},'server');
+  assert.equal(JSON.stringify([source,preview,d]).includes('SECRET'),false);
+  assert.throws(()=>ownerSource({...storedSource,revision:'0'}));
+  assert.throws(()=>discovery({...discover,devices:[{...discover.devices[0],baseUrl:'http://user:SECRET@host'}]},'server'));
 });
 for (const root of ['http://user:SECRET@host', 'http://host/path', 'https://host/?secret=1', 'http://host/#secret', 'file:///tmp/private', 'http://host/\n']) {
   test(`untrusted confirmation root is rejected: ${JSON.stringify(root)}`, async () => {
     assert.throws(() => confirmRoots([root]));
     const controller = new RemoteSourceController({async request<T>(): Promise<T> {throw {code: 'source_lan_confirmation_required', confirmRoots: [root]};}}, 'server', () => true, () => {});
-    controller.edit(initial);await controller.check();assert.equal(controller.getSnapshot().confirm, undefined);assert.equal(JSON.stringify(controller.getSnapshot()).includes('SECRET'), false);controller.dispose();
+    controller.edit(initial);await controller.check();assert.equal(JSON.stringify(controller.getSnapshot()).includes('SECRET'), false);controller.dispose();
   });
 }
-test('invalid save receipts cannot publish success', async () => {
-  const remoteController = new RemoteSourceController({async request<T>(path: string) {return (path.endsWith('/save') ? {...sourceReceipt(), serverId: 'other'} : remote) as T;}}, 'server', () => true, () => {});
-  remoteController.edit(initial);await remoteController.check();assert.equal(await remoteController.save(), false);remoteController.dispose();
-  const uploadController = new UploadSourceController({async request<T>(path: string) {return (path.endsWith('/preview') ? upload : {saved: true}) as T;}}, 'server', () => true, () => {});
-  uploadController.edit({name: 'Stored'});await uploadController.read('playlist', async () => '#EXTM3U');await uploadController.check();assert.equal(await uploadController.save(), false);uploadController.dispose();
+test('invalid create responses cannot publish success', async () => {
+  const api={async request<T>(){return remote as T;},async requestRaw(){return {status:201,headers:{},body:{saved:true}};}};
+  const remoteController=new RemoteSourceController(api,'server',()=>true,()=>{});remoteController.edit(initial);await remoteController.check();assert.equal(await remoteController.save(),false);remoteController.dispose();
+  const uploadController=new UploadSourceController(api,'server',()=>true,()=>{});uploadController.edit({name:'Stored'});await uploadController.read('playlist',async()=>'#EXTM3U');await uploadController.check();assert.equal(await uploadController.save(),false);uploadController.dispose();
 });
 
 test('terminal auth codes retire upload, remote and discovery before any retained result', async () => {

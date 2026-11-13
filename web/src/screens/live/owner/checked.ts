@@ -1,6 +1,5 @@
 import {defaultI18n} from '@i18n';
 import {parseRemoteSourcePreview, type RemoteSourcePreview} from '@core/linear-api.ts';
-import type {OwnerLiveSource, SourceDocument} from './source-controller';
 const bad = (): never => {throw new Error('live_owner_response_invalid');};
 export const record = (v: unknown): Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : bad();
 export const text = (v: unknown, max = 256): string => typeof v === 'string' && v.length <= max && !/[\x00-\x1f\x7f]/.test(v) ? v : bad();
@@ -15,7 +14,7 @@ function diagnostics(raw: unknown) {
   const v = record(raw);
   return Object.freeze({skippedChannels: count(v.skippedChannels, 100000000), skippedProgrammes: count(v.skippedProgrammes, 100000000), adjustedProgrammes: count(v.adjustedProgrammes, 100000000), examples: Object.freeze(list(v.examples ?? [], 10).map(x => text(x)).filter(key => key.startsWith('live.import.') && defaultI18n.has(key)))});
 }
-export function source(raw: unknown): OwnerLiveSource {
+export function source(raw: unknown) {
   const v = record(raw), revision = count(v.revision);if (revision < 1) bad();
   // The server states how it keeps this source current. Absent (an older
   // server) stays unknown; it is never inferred from a refresh row.
@@ -24,7 +23,7 @@ export function source(raw: unknown): OwnerLiveSource {
     tunerCount: count(v.tunerCount, 256), tunerCountMode: choice(v.tunerCountMode, ['', 'defaulted', 'configured', 'discovered', 'unlimited'] as const), generation: id(v.generation),
     publishedAt: instant(v.publishedAt, true), channels: count(v.channels, 100000), programmes: count(v.programmes, 10000000), ...(v.diagnostics === undefined ? {} : {diagnostics: diagnostics(v.diagnostics)})});
 }
-export function sourceDocument(raw: unknown, serverId: string): SourceDocument {
+export function sourceDocument(raw: unknown, serverId: string) {
   const v = envelope(raw, serverId), sources = list(v.sources, 10000).map(source), ids = new Set(sources.map(x => x.id));if (ids.size !== sources.length) bad();
   const refresh = list(v.refresh, 10000).map(raw => {const r = record(raw), sourceId = id(r.sourceId);if (!ids.has(sourceId)) bad();return Object.freeze({sourceId,
     state: choice(r.state, ['healthy', 'degraded', 'credentials-required', 'refreshing'] as const), errorCode: typeof r.errorCode === 'string' && /^[a-z0-9_]{0,128}$/.test(r.errorCode) ? r.errorCode : bad(), nextRefresh: instant(r.nextRefresh, true), failures: count(r.failures)});});
@@ -49,9 +48,9 @@ export function origin(raw: unknown): string {
   return url.origin;
 }
 export function confirmRoots(raw: unknown): readonly string[] {const roots = list(raw, 8).map(origin);if (!roots.length) bad();return Object.freeze([...new Set(roots)]);}
-export function discovery(raw: unknown, serverId: string) {
-  const v = record(envelope(raw, serverId).result);
-  return Object.freeze({discoveryEnabled: flag(v.discoveryEnabled), devices: Object.freeze(list(v.devices, 256).map(raw => {
+export function discovery(raw: unknown, _serverId: string) {
+  const v = record(raw);
+  return Object.freeze({discoveryEnabled: flag(v.discoveryEnabled), ...(typeof v.message === 'string' ? {message: text(v.message, 1024)} : {}), devices: Object.freeze(list(v.devices, 256).map(raw => {
     const r = record(raw), baseUrl = origin(r.baseUrl);return Object.freeze({deviceId: text(r.deviceId, 128), model: text(r.model, 128), friendlyName: text(r.friendlyName),
       address: new URL(baseUrl).hostname, baseUrl, tunerCount: count(r.tunerCount, 256), configured: flag(r.configured)});
   }))});

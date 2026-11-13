@@ -1,7 +1,6 @@
 import {Fragment, useState} from 'react';
 import {defaultI18n} from '@i18n';
 import {importSkipped, liveSourceState} from '@core/server-admin/live-words.ts';
-import {canRefreshSource} from '@core/server-admin/panel-logic.ts';
 import {Button} from '../../../kit/controls';
 import {Menu} from '../../../kit/overlays';
 import {Icon} from '../../../kit/Icon';
@@ -37,22 +36,23 @@ export function SourceList({snapshot, refresh, add, configure, channels, act}: S
     {!snapshot.document && snapshot.loading && <p role="status">{t('status.loadingThing', {thing: t('server.thing.liveSources')})}</p>}
     {snapshot.document && !snapshot.document.sources.length && <div className={styles.empty}><span className={styles.emptyIcon} aria-hidden="true"><Icon name="i-tv" size={24}/></span><h4>{t('live.noSources')}</h4><p>{t('web.liveTv.noSourcesHelp')}</p><Button variant="primary" size="small" icon="i-plus" onClick={() => setAddOpen(true)}>{t('web.liveTv.addSource')}</Button></div>}
     {!!snapshot.document?.sources.length && <div className={styles.sources}>{snapshot.document.sources.map(source => {
-      const status = snapshot.document!.refresh.find(value => value.sourceId === source.id);
-      const state = liveSourceState(source, status);
-      const notice = importSkipped(t, defaultI18n.has, source.diagnostics);
+
+      const state = liveSourceState(source, undefined);
+      const notice = importSkipped(t, defaultI18n.has, source.report);
+      const reasons = [...new Set([...(notice?.reasons ?? []), ...(source.report?.examples ?? []).filter(line => !line.startsWith('live.import.'))])];
       // An upload is a saved manual import with no refresh loop, so it has no
       // refresh command even if a stale status entry named it.
-      const refreshable = source.acquisition !== 'upload' && canRefreshSource(source, snapshot.document!.refresh);
-      const facts = [t('server.live.channelCount', {count: source.channels}),
-        source.programmes ? t('server.live.programCount', {count: source.programmes}) : '',
-        source.tunerCount ? t(source.tunerCountMode === 'discovered' ? 'web.liveTv.tunersDetected' : 'server.live.tunerCount', {count: source.tunerCount}) : '',
-        source.publishedAt ? t('server.live.guideUpdated', {when: defaultI18n.dateTime(source.publishedAt)}) : '',
-        status?.errorCode ? t('web.console.refreshFailed') : '',
+      const refreshable = source.acquisition !== 'upload' && !source.paused && source.state !== 'refreshing';
+      const facts = [source.report ? t('server.live.channelCount', {count: source.report.channels}) : '',
+        source.report?.programmes ? t('server.live.programCount', {count: source.report.programmes}) : '',
+        source.tunerCount ? t('server.live.tunerCount', {count: source.tunerCount}) : '',
+        source.refreshedAt ? t('server.live.guideUpdated', {when: defaultI18n.dateTime(source.refreshedAt)}) : '',
+        source.lastError ? t('web.console.refreshFailed') : '',
       ].filter(Boolean);
-      return <Fragment key={source.id}><div className={styles.source} data-paused={source.state === 'disabled' || undefined}>
+      return <Fragment key={source.id}><div className={styles.source} data-paused={source.paused || undefined}>
         <span className={styles.sourceIcon}><Icon name="i-tv" size={22}/></span>
         <div className={styles.facts}><b>{source.name}</b><p>{facts.map((fact, index) => <span key={index}>{fact}</span>)}</p></div>
-        <span className={styles.badge} data-tone={state.tone} data-live={state.live || undefined} data-paused={source.state === 'disabled' || undefined} role={state.live ? 'status' : undefined}>{t(state.id)}</span>
+        <span className={styles.badge} data-tone={state.tone} data-live={state.live || undefined} data-paused={source.paused || undefined} role={state.live ? 'status' : undefined}>{t(state.id)}</span>
         <Button size="small" disabled={!!snapshot.busy} onClick={() => configure(source)}>{t('web.liveTv.sourceSettings')}</Button>
         <Menu open={menu === source.id} onOpenChange={open => setMenu(open ? source.id : undefined)} title={source.name}
           trigger={<Button variant="icon" size="small" icon="i-more" iconOnly disabled={!!snapshot.busy} aria-label={t('server.row.actions', {name: source.name})}/>}
@@ -61,10 +61,10 @@ export function SourceList({snapshot, refresh, add, configure, channels, act}: S
             {id: 'channels', label: t('web.liveTv.channelsAndNumbers'), onSelect: () => channels(source)},
             {id: 'separator', separator: true},
             ...(refreshable ? [{id: 'refresh', label: t('web.liveTv.refreshGuideNow'), onSelect: () => act(source, 'refresh')}] : []),
-            {id: 'toggle', label: t(source.state === 'disabled' ? 'web.liveTv.enableSource' : 'web.liveTv.pauseSource'), onSelect: () => act(source, 'toggle')},
+            {id: 'toggle', label: t(source.paused ? 'web.liveTv.enableSource' : 'web.liveTv.pauseSource'), onSelect: () => act(source, 'toggle')},
             {id: 'remove', label: t('web.liveTv.removeSource'), destructive: true, onSelect: () => act(source, 'remove')},
           ]}/>
-      </div>{notice && <div className={styles.notice}><Icon name="i-warn" size={18}/><div><b>{source.name}</b><p>{[notice.summary, ...notice.reasons].join(' ')}</p></div></div>}</Fragment>;
+      </div>{notice && <div className={styles.notice}><Icon name="i-warn" size={18}/><div><b>{source.name}</b><p>{[notice.summary, ...reasons].join(' ')}</p></div></div>}</Fragment>;
     })}</div>}
   </section>;
 }
