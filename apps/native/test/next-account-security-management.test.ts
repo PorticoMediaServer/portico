@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {linkNativeAbortSignals} from '../../../packages/client-core/src/native-abort-signals.ts';
 import {screenModule} from './helpers/screen-harness.mjs';
 
 const deferred = () => {let resolve!: (value?: unknown) => void; const promise = new Promise(resolveValue => {resolve = resolveValue;}); return {promise, resolve};};
@@ -12,6 +13,11 @@ async function fixture(security = initialSecurity) {
   let result: any = {accountId: 'account', familyId: 'family', status: 'complete'};
   let held: Promise<unknown> | undefined, rejection: unknown;
   const client = {
+    changePassword: async (proof: unknown, password: string) => {calls.push(['password', proof, password]); if (rejection) throw rejection; if (held) await held;},
+    beginTwoStep: async () => ({secret: 'fixture-secret', qrAddress: 'otpauth://fixture'}),
+    confirmTwoStep: async () => ({recoveryCodes: result.recoveryCodes}),
+    turnOffTwoStep: async () => {},
+    newRecoveryCodes: async () => ({recoveryCodes: result.recoveryCodes}),
     passwordProof: async (...args: unknown[]) => {calls.push(['proof', ...args]); if (rejection) throw rejection; return {proof: 'fixture-proof'};},
     action: async (...args: unknown[]) => {calls.push(['action', ...args]); if (held) await held; return result;},
     confirm: async (...args: unknown[]) => {calls.push(['confirm', ...args]); return result;},
@@ -20,10 +26,12 @@ async function fixture(security = initialSecurity) {
   };
   const {NativeAccountSecurity} = await screenModule(new URL('../src-next/platform/account-security.ts', import.meta.url), {
     react: {default: {}},
+    '../../../../packages/client-core/src/portico-services-native': {porticoAccountForCall: () => client, porticoApiError: (error: unknown) => error},
+    '../../../../packages/client-core/src/native-abort-signals': {linkNativeAbortSignals},
     'react-native': {NativeModules: {PorticoAccountAuth: {newBinding: async () => 'a'.repeat(43), newRequestId: async () => 'operation-1234567890'}}},
     '../../../../packages/client-core/src': {ApiError, HttpLocalApi: class {}},
     '../../../../packages/client-core/src/account-notifications': {AccountNotificationsClient: class {}},
-    '../../../../packages/client-core/src/hosted-security': {securityPurposeNeedsProof: (purpose: string) => ['password_set_or_change', 'email_change', 'mfa_enroll', 'mfa_disable', 'recovery_codes'].includes(purpose)},
+    '../../../../packages/client-core/src/hosted-security': {parseSecurityResult: (value: unknown) => value, securityPurposeNeedsProof: (purpose: string) => ['password_set_or_change', 'email_change', 'mfa_enroll', 'mfa_disable', 'recovery_codes'].includes(purpose)},
     '../../../../packages/client-core/src/presentation/errors': {presentError: (error: Error) => ({body: error.message})},
     '../../../../packages/client-core/src/provider-security-proof': {reconfirmWithProvider: () => {throw new Error('a password account never confirms with a provider');}, providerRecentProof: () => {throw new Error('unexpected provider proof');}},
     './account-work': {accountExpectation: (value: typeof session) => ({accountId: value.account.id, familyId: value.familyId, accessToken: value.accessToken}),
@@ -49,12 +57,10 @@ test('security sends no request until submit and preserves the original credenti
   const first = f.service.submit({password: 'fixture-old', factor: 'fixture-factor', newPassword: 'fixture-new'});
   for (let i = 0; i < 10; i++) await Promise.resolve();
   await f.service.submit({password: 'different', newPassword: 'different'});
-  assert.equal(f.calls.filter(value => value[0] === 'action').length, 1);
-  const proof: any[] = f.calls.find(value => value[0] === 'proof')!;
-  const action: any[] = f.calls.find(value => value[0] === 'action')!;
-  assert.equal(proof[1], action[1]); assert.equal(action[1].purpose, 'password_set_or_change');
-  assert.equal(proof[2], 'fixture-old'); assert.equal(proof[3], 'fixture-factor');
-  assert.equal(action[2], 'fixture-proof'); assert.equal(action[3], 'fixture-new');
+  assert.equal(f.calls.filter(value => value[0] === 'password').length, 1);
+  const action = f.calls.find(value => value[0] === 'password')!;
+  assert.deepEqual(action[1], {currentPassword: 'fixture-old', twoStepCode: 'fixture-factor'});
+  assert.equal(action[2], 'fixture-new');
   pending.resolve(); await first; assert.equal(f.service.getSnapshot().step, 'done');
   const count = f.calls.length; await f.service.submit(); assert.equal(f.calls.length, count, 'a completed sheet cannot resubmit');
   f.service.dispose();
@@ -69,7 +75,7 @@ test('closed and replaced security openings cannot publish or sign out a success
   assert.equal(f.service.getSnapshot().kind, 'email'); assert.equal(f.service.getSnapshot().busy, false);
   assert.equal(f.calls.filter(value => value[0] === 'sign-out').length, 0);
   f.replace(); await f.service.submit({password: 'fixture-old', email: 'new@example.invalid'});
-  assert.equal(f.calls.filter(value => value[0] === 'action').length, 1);
+  assert.equal(f.calls.filter(value => value[0] === 'password').length, 1);
   f.service.dispose();
 });
 
@@ -104,8 +110,8 @@ test('a definitive password refusal leaves fields editable for a corrected origi
   f.service.open('password'); await f.service.submit({password: 'incorrect', newPassword: 'fixture-new'});
   assert.equal(f.service.getSnapshot().locked, false);
   f.reject(undefined); await f.service.submit({password: 'corrected', newPassword: 'fixture-new'});
-  const proofs = f.calls.filter(value => value[0] === 'proof');
-  assert.equal(proofs[0][2], 'incorrect'); assert.equal(proofs[1][2], 'corrected');
+  const changes = f.calls.filter(value => value[0] === 'password');
+  assert.equal((changes[0][1] as any).currentPassword, 'incorrect'); assert.equal((changes[1][1] as any).currentPassword, 'corrected');
   assert.equal(f.service.getSnapshot().step, 'done');
   f.service.dispose();
 });

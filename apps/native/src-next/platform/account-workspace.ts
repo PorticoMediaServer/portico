@@ -1,10 +1,10 @@
 import {createNativeAccountWorkspaceRequest} from '../../../../packages/client-core/src/query/hosted-account-transport';
-import {readHostedSecurity, readHostedServers} from '../../../../packages/client-core/src/query/connection-operations';
+import {readHostedServers} from '../../../../packages/client-core/src/query/connection-operations';
 import {parseServerPresence, type HostedServer} from '../../../../packages/client-core/src';
 import type {AccountSessionScope} from '../../../../packages/client-core/src/account-sessions';
-import {porticoAccountSessions, type PorticoSessionRow} from '../../../../packages/client-core/src/portico-services-native';
+import {porticoAccountSessions, readPorticoAccountSecurity, type PorticoSessionRow} from '../../../../packages/client-core/src/portico-services-native';
 import {AccountNotificationsClient, type AccountNotification} from '../../../../packages/client-core/src/account-notifications';
-import {parseSecurityState, type SecurityState} from '../../../../packages/client-core/src/hosted-security';
+import {type SecurityState} from '../../../../packages/client-core/src/hosted-security';
 import {presentError} from '../../../../packages/client-core/src/presentation/errors';
 import {leavePorticoServer} from '../../../../packages/client-core/src/portico-servers';
 import {hostedUrl} from './account-authority';
@@ -62,7 +62,15 @@ export class NativeAccountWorkspace {
     try {
       this.assertEpoch(epoch); const request = this.requestFor(epoch);
       let content: Pick<AccountWorkspaceSnapshot, 'security' | 'sessions' | 'servers' | 'notifications'>;
-      if (page === 'security') content = {security: parseSecurityState(await readHostedSecurity({request}), this.scope)};
+      if (page === 'security') {
+        const session = this.credentials.getSnapshot().session; if (!session) throw changed();
+        const request = new AbortController(), timer = setTimeout(() => request.abort(), 15000); this.requests.add(request);
+        try {
+          content = {security: await nativeAccountRead(this.credentials,
+            issued => readPorticoAccountSecurity(issued.accessToken, hostedUrl, this.scope, nativeNetworkFetch, request.signal),
+            {expected: accountExpectation(session), signal: request.signal, isCurrent: () => this.current() && epoch === this.epoch})};
+        } finally {clearTimeout(timer); this.requests.delete(request);}
+      }
       else if (page === 'servers') {
         const answer = await readHostedServers<{items: HostedServer[]}>({request});
         if (!answer || !Array.isArray(answer.items) || answer.items.some(row => !row || typeof row.id !== 'string' || !row.id || typeof row.name !== 'string' || !row.name)) throw new Error('native_account_servers_invalid');

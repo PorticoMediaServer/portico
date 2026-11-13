@@ -5,7 +5,7 @@
 import {porticoAccount, ServicesError, type Device, type HeldSignIn, type Tokens} from './portico-account.ts';
 import {ApiError, type HostedSession} from './http.ts';
 import type {CredentialApi} from './credentials.ts';
-import {MFARequiredError, type IdentityOptions, type MFAChallenge, type Registration} from './hosted-security.ts';
+import {MFARequiredError, parseSecurityState, type AccountScope, type SecurityState, type IdentityOptions, type MFAChallenge, type Registration} from './hosted-security.ts';
 import {serverNow} from './server-clock.ts';
 
 /** A sign-in lasts 90 days from last use; every renewal starts the 90 days again. */
@@ -148,4 +148,21 @@ export function porticoAccountSessions(accessToken: string, origin: string, fetc
     end: (id: string, signal?: AbortSignal) => refused(account.signOutDevice(id, signal)),
     endOthers: (signal?: AbortSignal) => refused(account.signOutOthers(signal)),
   });
+}
+
+/** One captured account call; the existing native lifetime owns cancellation. */
+export function porticoAccountForCall(accessToken: string, origin: string, fetcher: typeof fetch, signal?: AbortSignal) {
+  return porticoAccount(heldFor(accessToken), origin, {fetcher: (url, init) => fetcher(url, {...init, signal})});
+}
+
+/** The rebuilt Services reads, adapted to the native security page's existing view model.
+ * The captured family is local authority; Services' account id must match it. */
+export async function readPorticoAccountSecurity(accessToken: string, origin: string, scope: AccountScope, fetcher: typeof fetch = fetch, signal?: AbortSignal): Promise<SecurityState> {
+  const account = porticoAccountForCall(accessToken, origin, fetcher, signal);
+  const [person, twoStep] = await refused(Promise.all([account.account(signal), account.twoStep()]));
+  if (!person || person.id !== scope.accountId || !Array.isArray(person.providers) || !twoStep)
+    throw new ApiError(502, 'invalid_response', 'portico_services_security_unreadable');
+  return parseSecurityState({...scope, contactAddress: person.email, privateEmail: false, hasPassword: person.hasPassword,
+    mfaEnabled: twoStep.on, recoveryCodesRemaining: twoStep.recoveryCodesLeft,
+    providers: person.providers.filter(value => value === 'google' || value === 'apple').map(provider => ({id: provider, provider}))}, scope);
 }

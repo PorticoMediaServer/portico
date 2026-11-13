@@ -32,6 +32,8 @@ async function fixture(security = initialSecurity) {
     confirm: async (...args: unknown[]) => {calls.push(['confirm', ...args]); return result;},
   };
   const {NativeAccountSecurity} = await screenModule(new URL('../src-next/platform/account-security.ts', import.meta.url), {
+    '../../../../packages/client-core/src/portico-services-native': {},
+    '../../../../packages/client-core/src/native-abort-signals': {},
     react: {default: {}}, 'react-native': {NativeModules: {PorticoAccountAuth: bridge}},
     '../../../../packages/client-core/src': {ApiError, HttpLocalApi: class {}},
     '../../../../packages/client-core/src/account-notifications': {AccountNotificationsClient: class {}},
