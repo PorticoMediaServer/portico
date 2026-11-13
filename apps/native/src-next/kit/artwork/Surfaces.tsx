@@ -1,4 +1,4 @@
-import React, {useEffect, useLayoutEffect, useRef} from 'react';
+import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {Animated, StyleSheet, View} from 'react-native';
 import Reanimated from 'react-native-reanimated';
 import Svg, {Defs, LinearGradient, RadialGradient, Rect, Stop} from 'react-native-svg';
@@ -115,11 +115,15 @@ function PersonScrim() {
   </Svg>;
 }
 
+// Capability memory lasts for this app session, shared by all native ambient surfaces.
+const ambientV1Servers = new Set<string>();
+
 /** Continuous ambient wash and independently sharp foreground, with Q43's cheap TV representation. */
 export function AmbientArt({source, sources, foreground, palette, treatment = 'hero', width, height, visible = true, priority = false, arrivalDurationMs, position, style, foregroundFrameStyle, foregroundStyle, foregroundFraction, foregroundFade, onReady, onFallbackReady, onError, onStatusChange, testID}: AmbientArtProps) {
   const theme = useTheme();
   const reduce = useReducedMotion();
   const fallbackOpacity = useRef(new Animated.Value(1)).current;
+  const [, retryAmbient] = useState(0);
   const phone = treatment === 'phone' || (theme.layoutMode === 'phone' && (treatment === 'hero' || treatment === 'title'));
   const desktop = theme.layoutMode === 'desktop' && (treatment === 'hero' || treatment === 'title');
   const foregroundWidth = desktop ? treatment === 'title' ? theme.spec.hero.backdrop.titleWidthFraction.web : theme.spec.hero.backdrop.widthFraction.web : theme.spec.hero.backdrop.widthFraction.tv;
@@ -136,7 +140,11 @@ export function AmbientArt({source, sources, foreground, palette, treatment = 'h
   const phoneTitle = theme.platform === 'phone' && treatment === 'title' && !!foreground;
   // phone-app `.amb-l` with no backdrop (album and artist pages): the same wash, nothing over it.
   const pageWash = theme.platform === 'phone' && treatment === 'page';
-  const list = (sources ?? (source ? [source] : [])).slice(0, 3);
+  const list = (sources ?? (source ? [source] : [])).slice(0, 3).map(ambient => {
+    if (ambient.variant !== 'ambient-v2' || !ambientV1Servers.has(new URL(ambient.uri).origin)) return ambient;
+    return {...ambient, variant: 'ambient-v1' as const, url: ambient.url.replace('size=ambient-v2', 'size=ambient-v1'),
+      uri: ambient.uri.replace('size=ambient-v2', 'size=ambient-v1'), cacheKey: JSON.stringify([ambient.cacheKey, 'ambient-v1'])};
+  });
   const sourceIdentity = JSON.stringify(list.map(item => item.cacheKey));
   const empty = !foreground && list.length === 0, fallbackReported = useRef(false);
   useLayoutEffect(() => {
@@ -176,8 +184,14 @@ export function AmbientArt({source, sources, foreground, palette, treatment = 'h
           Animated.timing(fallbackOpacity, {toValue: 0, duration: artworkArrivalDuration(arrivalDurationMs, theme.motion.standard, reduce, false), useNativeDriver: true}).start();
           if (!foreground) onReady?.(decoded);
         }
-      }} onError={!foreground && index === 0 ? onError : undefined}
+      }} onError={failed => {
+        if (ambient.variant === 'ambient-v2') {
+          ambientV1Servers.add(new URL(ambient.uri).origin);
+          retryAmbient(value => value + 1);
+        } else if (!foreground && index === 0) onError?.(failed);
+      }}
         onStatusChange={status => {
+          if (status === 'error' && ambient.variant === 'ambient-v2') return; // v1 gets its turn first.
           if (index === 0 && status === 'error') {fallbackOpacity.stopAnimation(); fallbackOpacity.setValue(1);}
           if (!foreground && index === 0) onStatusChange?.(status);
         }}
