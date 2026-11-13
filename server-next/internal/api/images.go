@@ -36,7 +36,24 @@ func (s *Server) imageRoutes() {
 			s.writeError(w, r, ErrInvalid("Give w and h as whole numbers of pixels."))
 			return
 		}
-		data, contentType, err := s.artwork.Read(r.PathValue("id"), width, height)
+		variant := r.URL.Query().Get("size")
+		if variant != "" && variant != "small" && variant != "large" && variant != artwork.AmbientVariant || len(r.URL.Query()["size"]) > 1 {
+			s.writeError(w, r, ErrInvalid("Give size as small, large or ambient-v1."))
+			return
+		}
+		var data []byte
+		var contentType string
+		var err error
+		if variant == artwork.AmbientVariant {
+			data, contentType, err = s.artwork.ReadAmbient(r.PathValue("id"))
+		} else {
+			if variant == "small" {
+				width, height = 1, 1
+			} else if variant == "large" {
+				width, height = 0, 0
+			}
+			data, contentType, err = s.artwork.Read(r.PathValue("id"), width, height)
+		}
 		switch {
 		case errors.Is(err, artwork.ErrNotFound), err == nil && !strings.HasPrefix(contentType, "image/"):
 			s.writeError(w, r, ErrNotFound())
@@ -48,7 +65,7 @@ func (s *Server) imageRoutes() {
 		w.Header().Set("Content-Type", contentType)
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
-		w.Header().Set("ETag", `"`+r.PathValue("id")+"-"+strconv.Itoa(len(data))+`"`)
+		w.Header().Set("ETag", `"`+r.PathValue("id")+"-"+variant+"-"+strconv.Itoa(len(data))+`"`)
 		http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(data))
 	})
 }

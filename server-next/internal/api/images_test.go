@@ -40,6 +40,31 @@ func TestAnItemsPictureCanBeFetched(t *testing.T) {
 	if w.Code != 200 || w.Header().Get("Content-Type") != "image/jpeg" || err != nil || got.Width != 533 || got.Height != 800 {
 		t.Fatalf("the poster at w=300: %d %s %dx%d %v", w.Code, w.Header().Get("Content-Type"), got.Width, got.Height, err)
 	}
+	ambient := fetch(address + "?size=ambient-v1")
+	config, format, err := image.DecodeConfig(bytes.NewReader(ambient.Body.Bytes()))
+	if ambient.Code != 200 || format != "png" || config.Width != 42 || config.Height != 64 || err != nil || ambient.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("ambient: %d, %dx%d %s %v", ambient.Code, config.Width, config.Height, format, err)
+	}
+	if ambient.Header().Get("ETag") == w.Header().Get("ETag") || !bytes.Contains([]byte(ambient.Header().Get("Cache-Control")), []byte("immutable")) {
+		t.Fatal("ambient did not have its own immutable cache identity")
+	}
+	conditional := httptest.NewRequest("GET", address+"?size=ambient-v1", nil)
+	conditional.Header.Set("If-None-Match", ambient.Header().Get("ETag"))
+	cached := httptest.NewRecorder()
+	s.ServeHTTP(cached, conditional)
+	if cached.Code != 304 {
+		t.Fatalf("cached ambient: %d", cached.Code)
+	}
+	if w := fetch(address + "?size=ambient-v2"); w.Code != 400 {
+		t.Fatalf("unknown variant answered %d", w.Code)
+	}
+	for variant, edge := range map[string]int{"small": 800, "large": 1500} {
+		w := fetch(address + "?size=" + variant)
+		cfg, _, err := image.DecodeConfig(w.Body)
+		if w.Code != 200 || err != nil || cfg.Height != edge {
+			t.Fatalf("sharp %s: %d, height %d, %v", variant, w.Code, cfg.Height, err)
+		}
+	}
 	if w := fetch(address + "?w=wide"); w.Code != 400 {
 		t.Errorf("a size that is not a number answered %d", w.Code)
 	}
