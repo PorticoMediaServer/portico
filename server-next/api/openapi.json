@@ -2443,6 +2443,24 @@
         ],
         "type": "object"
       },
+      "DvrFolderStatus": {
+        "type": "object",
+        "properties": {
+          "folder": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "problem": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "folder",
+          "state"
+        ]
+      },
       "DvrGroup": {
         "properties": {
           "exceptions": {
@@ -15429,6 +15447,24 @@
           }
         },
         "x-access": "owner"
+      }
+    },
+    "/v1/admin/dvr/folder": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DvrFolderStatus"
+                }
+              }
+            }
+          }
+        },
+        "x-access": "owner",
+        "operationId": "GET /v1/admin/dvr/folder"
       }
     },
     "/v1/admin/dvr/tuners": {

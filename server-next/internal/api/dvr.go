@@ -146,6 +146,7 @@ type DvrTuners struct {
 
 func (s *Server) dvrRoutes() {
 	s.dvrGroupRoutes()
+	Handle(s, "GET /v1/admin/dvr/folder", Owner, s.readDvrFolder)
 	Handle(s, "GET /v1/dvr", WithProfile, s.dvrSummary)
 	Handle(s, "GET /v1/dvr/recordings", WithProfile, s.listRecordings)
 	Handle(s, "POST /v1/dvr/recordings", WithProfile, s.bookRecording)
