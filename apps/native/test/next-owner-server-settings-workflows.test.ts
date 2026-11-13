@@ -20,7 +20,7 @@ const chrome = {'./NetworkInterfaceRow': {NativeNetworkInterfaceRow: 'NetworkInt
 
 test('General exposes backed Advanced controls and one Background speed setting, with draft-aware update checks', async () => {
   const feed = 'https://example.invalid/releases';
-  const fixture = await formsFixture({runtime: {name: 'Server', 'updates.feedUrl': feed}, maintenance: maintenance(), alerts: {storageWarningPercent: 15, storageCriticalPercent: 5, certificateWarningDays: 14, noticeAudience: {scan: 'both', storage: 'both', certificate: 'both', recording: 'off', feedback: 'both'}}}), host = lifecycleHooks();
+  const fixture = await formsFixture({runtime: {name: 'Server', 'updates.feedUrl': feed}, maintenance: maintenance(), alerts: {storageWarningPercent: 15, storageCriticalPercent: 5, certificateWarningDays: 14, serverNoticesTo: 'owner'}}), host = lifecycleHooks();
   const configuration = {path: '/config/portico.toml', fields: [{id: 'general.updateFeed', current: feed, effective: feed, default: feed, configOnly: false}]};
   const api = {request: async (path: string) => path === routePath('get_settings_configuration') ? configuration : {version: '0.0-test', newer: false, install: 'manual', checkedAt: '2026-10-01T00:00:00Z'}};
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/GeneralPage.tsx', import.meta.url), {
@@ -35,9 +35,9 @@ test('General exposes backed Advanced controls and one Background speed setting,
   const controls = () => nodes(render()).filter((node: any) => node.type === 'Setting');
   for (const id of ['general.updateChecks', 'general.backgroundSpeed', 'general.updateFeed']) assert.ok(controls().some((node: any) => node.props.row.id === id), id);
   // The alert thresholds (critical 5 below warning 15 is valid) and who sees each notice are Advanced rows.
-  for (const id of ['general.alertStorageWarn', 'general.alertStorageCritical', 'general.alertCertificateDays', 'general.noticeAudience']) assert.ok(controls().some((node: any) => node.props.row.id === id), id);
-  controls().find((node: any) => node.props.row.id === 'general.noticeAudience').props.onChange({scan: 'owner', storage: 'both', certificate: 'both', recording: 'off', feedback: 'both'});
-  assert.equal(fixture.group.forms.alerts.getSnapshot().draft.noticeAudience.scan, 'owner');
+  for (const id of ['general.alertStorageWarn', 'general.alertStorageCritical', 'general.alertCertificateDays', 'general.serverNoticesTo']) assert.ok(controls().some((node: any) => node.props.row.id === id), id);
+  controls().find((node: any) => node.props.row.id === 'general.serverNoticesTo').props.onChange('owner-and-admins');
+  assert.equal(fixture.group.forms.alerts.getSnapshot().draft.serverNoticesTo, 'owner-and-admins');
   assert.equal(fixture.group.forms.alerts.getSnapshot().problem, undefined);
   assert.equal(nodes(render()).filter((node: any) => node.type === 'Advanced').length, 1);
   controls().find((node: any) => node.props.row.id === 'general.backgroundSpeed').props.onChange('fast');assert.equal(fixture.group.forms.maintenance.getSnapshot().draft.backgroundSpeed, 'fast');

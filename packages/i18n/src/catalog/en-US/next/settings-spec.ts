@@ -1,5 +1,8 @@
 export const settingsSpecMessages = {
   "next.settings.streaming.toneMappingOff": "Off",
+  "next.settings.general.serverNoticesTo": "Server notices go to",
+  "next.settings.general.noticesOwner": "The owner",
+  "next.settings.general.noticesOwnerAdmins": "The owner and administrators",
   "next.settingsSpec.account.profile.title": "Profile & account",
   "next.settingsSpec.account.profile.groups.0.title": "Profiles",
   "next.settingsSpec.account.profile.groups.0.rows.0.label": "Profiles",

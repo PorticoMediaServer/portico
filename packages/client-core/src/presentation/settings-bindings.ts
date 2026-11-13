@@ -13,7 +13,7 @@ import type {ReadingPreferences} from '../preference-effects.ts';
 
 /** `awayLimit`: the same connectivity value as `connectivity`, read optionally for a page that only shows it. */
 export type SettingsBindingForm='signInPolicy'|'runtime'|'connectivity'|'awayLimit'|'connectivityStatus'|'maintenance'|'alerts'|'preferences'|'device'|'remote'|'managedRoute'|'logs'|'library'|'metadata'|'segments';
-export type SettingsBinding=Readonly<{form:SettingsBindingForm;key:string;scope?:PreferenceScope;readOnly?:boolean;scale?:number;codec?:'insecure-connections'|'history-retention'|'number-choice'|'unlimited'|'domain'|'interface'|'remote-policy'|'away-quality'|'update-checks'|'window-mode'|'days'|'log-retention'|'still-watching'|'missing-rule'|'music-quality-choice'|'video-quality-choice'|'inherited-watched-threshold'|'surround'|'player-engine'|'tv-support'|'boolean'|'artwork-size'|'notice-audience'|'hardware-selection';fields?:Readonly<Record<string,string>>;window?:'heavy'|'backup'}>;
+export type SettingsBinding=Readonly<{form:SettingsBindingForm;key:string;scope?:PreferenceScope;readOnly?:boolean;scale?:number;codec?:'insecure-connections'|'history-retention'|'number-choice'|'unlimited'|'domain'|'interface'|'remote-policy'|'away-quality'|'update-checks'|'window-mode'|'days'|'log-retention'|'still-watching'|'missing-rule'|'music-quality-choice'|'video-quality-choice'|'inherited-watched-threshold'|'surround'|'player-engine'|'tv-support'|'boolean'|'artwork-size'|'server-notices'|'notice-audience'|'hardware-selection';fields?:Readonly<Record<string,string>>;window?:'heavy'|'backup'}>;
 export type SettingsBindingSources=Readonly<{configuration?:SettingsConfiguration;preferences?:PreferenceSnapshot;forms?:Readonly<Partial<Record<SettingsBindingForm,Readonly<Record<string,unknown>>>>>;device?:Readonly<Record<string,unknown>>;deviceDefaults?:Readonly<Record<string,unknown>>}>;
 export type SettingsBindingValue=Readonly<{current:unknown;effective:unknown;default:unknown;source:string;configOnly:boolean;applicationMode?:string}>;
 export type SettingsBindingPatch=Readonly<{form:SettingsBindingForm;values:Readonly<Record<string,unknown>>}>;
@@ -123,6 +123,7 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'general.alertStorageWarn':{form:'alerts',key:'storageWarningPercent',codec:'number-choice'},
  'general.alertStorageCritical':{form:'alerts',key:'storageCriticalPercent',codec:'number-choice'},
  'general.alertCertificateDays':{form:'alerts',key:'certificateWarningDays',codec:'number-choice'},
+ 'general.serverNoticesTo':{form:'alerts',key:'serverNoticesTo',codec:'server-notices'},
  'general.noticeAudience':{form:'alerts',key:'noticeAudience',codec:'notice-audience'},
  'storage.analysisSpace':{form:'runtime',key:'analysisStorageGiB',codec:'number-choice'},
  'storage.analysisStage':{form:'runtime',key:'analysisStageStorageMiB',codec:'number-choice'},
@@ -279,6 +280,7 @@ function presented(binding:SettingsBinding,v:unknown,sources:SettingsBindingSour
  if(binding.codec==='music-quality-choice')return typeof v==='string'&&canonicalMusicQualityLadder.some(q=>q.id===v)?(v==='cd-quality'?'cd':v):undefined;
  if(binding.codec==='video-quality-choice')return binding.key==='quality.downloads'&&v==='ask'?'ask':typeof v==='string'&&canonicalQualityLadder.some(q=>q.id===v)&&(!downloadQualityKey(binding.key)||v!=='automatic')?(v==='2160p'?'4k':v):undefined;
  if(binding.codec==='artwork-size')return v===1280?'small':v===1920?'standard':v===2560?'large':undefined;
+ if(binding.codec==='server-notices')return v==='owner'||v==='owner-and-admins'?v:undefined;
  if(binding.codec==='notice-audience')return validNoticeAudience(v)?v:undefined;
  if(binding.codec==='hardware-selection')return validHardwareSelection(v)?v:undefined;
  if(binding.codec==='boolean')return typeof v==='boolean'?v:undefined;
@@ -413,6 +415,7 @@ export function settingsBindingPatch(binding:SettingsBinding,value:unknown,sourc
  }
  if(binding.codec==='boolean'&&typeof value!=='boolean')throw new Error('Invalid setting value.');
  if(binding.codec==='insecure-connections'&&value!=='never'&&value!=='local'&&value!=='always')throw new Error('Invalid setting value.');
+ if(binding.codec==='server-notices'&&value!=='owner'&&value!=='owner-and-admins')throw new Error('Invalid notice audience.');
  if(binding.codec==='notice-audience'){if(!validNoticeAudience(value))throw new Error('Invalid setting matrix.');raw={...value};}
  if(binding.codec==='hardware-selection'&&!validHardwareSelection(value))throw new Error('Invalid setting value.');
  if(binding.codec==='surround'){if(value!=='asis'&&value!=='stereo')throw new Error('Invalid setting value.');raw=value==='stereo';}
