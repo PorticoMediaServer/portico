@@ -18,7 +18,7 @@ export function OwnerHealthSection({reading, error, window, onWindow, note, onRe
   const detail = opened && reading ? ownerHealthDetail(reading, opened as LoadTile['metric'], t) : undefined;
   const selectedTile = tiles.find(tile => tile.id === opened);
   return <OwnerSection title={t('settings.server.health')}>
-    <Segmented testID="owner-health-window" accessibilityLabel={t('web.telemetry.period')} value={window} onValueChange={value => onWindow(value as OwnerHealthWindow)} style={{alignSelf: 'stretch', marginBottom: 12}} itemProps={() => ({style: {flex: 1}})}
+    <Segmented testID="owner-health-window" accessibilityLabel={t('web.telemetry.period')} value={window} onValueChange={value => onWindow(value as OwnerHealthWindow)} fill style={{marginBottom: 12}}
       items={OWNER_HEALTH_WINDOWS.map(id => ({value: id, label: t(ownerHealthWindowLabel(id))}))}/>
     {error !== undefined && !reading ? <OwnerCalm icon="i-gauge" tone="error" title={t('next.shell.activityError')} action={{label: t('next.shell.tryAgain'), onPress: onRetry}}/> : null}
     {!reading && error === undefined ? <OwnerCalm icon="i-gauge" title={t('next.states.loading')}/> : null}
