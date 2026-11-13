@@ -1384,6 +1384,7 @@ export class NativePlaybackRuntime {
     }
     const baseRate = this.local(fence).kind === 'audiobook' ? settings.audiobookRate : this.local(fence).kind === 'music' ? 1 : settings.videoRate;
     const rate = this.choices.get('speed', fence.playback, baseRate);
+    this.chosenRate = rate;
     const style = captionStyle(this.subtitleStyles.read(fence, {
       ...settings.subtitles,
       size: this.choices.get('subtitleSize', fence.playback, settings.subtitles.size),
@@ -1467,7 +1468,6 @@ export class NativePlaybackRuntime {
     }
     this.readForcedImage(fence, forcedPath);
     if (subtitles && this.forcedImageAvailable(fence) && this.choices.get('forcedOnly', fence.playback, false)) subtitles = {...subtitles, forcedOnly: true};
-    this.chosenRate = rate;
     this.coordinator.setOptions(rate, null, subtitles);
     const version = this.options?.versions.find(value => value.id === session?.versionId);
     this.path.setAutomatic(session?.presentation.quality.mode === 'automatic' ? {steps: automaticSteps(this.options?.qualities ?? []), originalKbps: version?.bitrateKbps} : null);
