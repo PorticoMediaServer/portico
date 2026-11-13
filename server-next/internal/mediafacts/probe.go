@@ -79,6 +79,8 @@ type Source struct {
 	Facts
 }
 type Probe struct {
+	// CodecSetup asks the existing playback probe for setup hashes; scans leave it off.
+	CodecSetup bool
 	ReadGuard  func(context.Context, string) error
 	Binary     string
 	Supervisor *processpool.Supervisor
@@ -104,7 +106,11 @@ func (b *boundedBuffer) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 func (p Probe) Inspect(ctx context.Context, path string) (Facts, error) {
-	return p.inspect(ctx, path, []string{"-protocol_whitelist", "file,pipe", "-format_whitelist", mediaexec.LocalInputFormats})
+	options := []string{"-protocol_whitelist", "file,pipe", "-format_whitelist", mediaexec.LocalInputFormats}
+	if p.CodecSetup {
+		options = append(options, "-show_data_hash", "sha256")
+	}
+	return p.inspect(ctx, path, options)
 }
 
 // InspectScan applies bounded local-media probing and rejects network protocols.
@@ -222,6 +228,9 @@ func decodeMediaProbe(data []byte) (Facts, error) {
 			Tags     map[string]string `json:"tags"`
 		} `json:"format"`
 		Streams []struct {
+			CodecSetupHash string            `json:"extradata_hash"`
+			CodecSetupSize int               `json:"extradata_size"`
+			TimeBase       string            `json:"time_base"`
 			Index          *int              `json:"index"`
 			Channels       int               `json:"channels"`
 			ChannelLayout  string            `json:"channel_layout"`
@@ -303,7 +312,8 @@ func decodeMediaProbe(data []byte) (Facts, error) {
 				factDetail.AudioDescription = s.Disposition.VisualImpaired != 0
 				f.Streams = append(f.Streams, Stream{Index: *s.Index, Type: s.Type, Codec: streamText(s.Codec, 64), Language: streamText(s.Tags["language"], 32), Title: streamText(s.Tags["title"], 200),
 					Channels: s.Channels, ChannelLayout: streamText(s.ChannelLayout, 64), Default: s.Disposition.Default != 0, Forced: s.Disposition.Forced != 0, ColorTransfer: streamText(s.ColorTransfer,
-						32), ColorPrimaries: streamText(s.ColorPrimaries, 32), HearingImpaired: s.Disposition.HearingImpaired != 0, Commentary: s.Disposition.Comment != 0, Detail: factDetail})
+						32), ColorPrimaries: streamText(s.ColorPrimaries, 32), HearingImpaired: s.Disposition.HearingImpaired != 0, Commentary: s.Disposition.Comment != 0, Detail: factDetail,
+					CodecSetupHash: streamText(s.CodecSetupHash, 80), CodecSetupSize: s.CodecSetupSize, TimeBase: streamText(s.TimeBase, 32)})
 			}
 		}
 		if s.Type == "video" && f.VideoCodec == "" {
