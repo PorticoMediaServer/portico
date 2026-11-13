@@ -4,7 +4,7 @@ import {screenModule} from './helpers/screen-harness.mjs';
 
 // Owner, 13 Nov: Play on in the phone and tablet top bars. It is shown only where there is somewhere to play (never a
 // dead control), and while a device is chosen or playing it is drawn in the accent colour and says where.
-const t = (key: string, values?: Record<string, string>) => values ? `${key}:${Object.values(values).join(',')}` : key;
+const t = (key: string, values?: Record<string, string>) => values ? `${key}:${key === 'playOn.nextPlaysOn' ? values.device : Object.values(values).join(',')}` : key;
 async function button() {
   return screenModule(new URL('../src-next/shell/PlayOnButton.tsx', import.meta.url), {
     react: {default: {createElement: (type: unknown, props: any, ...children: unknown[]) => ({type, props: {...props, children: children.length > 1 ? children : children[0]}})}, useEffect() {}, useRef: () => ({current: null}), useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read()}, 'react-native': {View: 'View'},
@@ -39,7 +39,10 @@ test('the button opens the one Play on sheet from itself, round over art and pla
   round.props.onPress(); assert.equal(opened.pop(), round.props.ref, 'the sheet opens from the button itself');
   state = {...state, chosen: {kind: 'device', device: tv}};
   const chosen = PlayOnButton({playOn: live, variant: 'round'});
-  assert.deepEqual([chosen.props.active, chosen.props.label], [true, 'player.playingOn:Living room TV'], 'accent and the device it plays on (phone-player 7, .gr.on-tv)');
+  assert.deepEqual([chosen.props.active, chosen.props.label], [true, 'playOn.nextPlaysOn:Living room TV'], 'a choice keeps the accent but promises the next play');
+  state = {...state, remote: {device: 'Kitchen iPad'}};
+  assert.equal(PlayOnButton({playOn: live, variant: 'round'}).props.label, 'player.playingOn:Kitchen iPad', 'real remote playback still says Playing on');
+  state = {...state, remote: undefined};
   const plain = PlayOnButton({playOn: live, variant: 'plain'});
-  assert.deepEqual([plain.type, plain.props.accessibilityLabel], ['Focusable', 'player.playingOn:Living room TV']);
+  assert.deepEqual([plain.type, plain.props.accessibilityLabel], ['Focusable', 'playOn.nextPlaysOn:Living room TV']);
 });
