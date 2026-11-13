@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {routePath} from '../../contracts/src/routes.ts';
-import {ambientArtworkSource} from '../src/artwork/ambient.ts';
+import {ambientArtworkSource, ambientArtworkSourceV2} from '../src/artwork/ambient.ts';
 import {artworkWidthBucket, artworkSizeBuckets} from '../src/artwork/buckets.ts';
 
 const identity = {serverId: 'server', viewerId: 'profile', authorityKey: 'session:1'};
@@ -32,6 +32,11 @@ test('metadata subject and source version survive canonical query ordering', () 
 
 test('cache identity is separated by source revision, variant and current authority', () => {
   const a = ambientArtworkSource(item + '?v=' + version, identity)!;
+  const v2 = ambientArtworkSourceV2(item + '?v=' + version, identity)!;
+  assert.equal(v2.url, item + '?size=ambient-v2&v=' + version);
+  assert.equal(v2.variant, 'ambient-v2');
+  assert.notEqual(v2.cacheKey, a.cacheKey);
+  assert.deepEqual(ambientArtworkSourceV2(v2.url, identity), v2);
   for (const next of [{...identity, serverId: 'other'}, {...identity, viewerId: 'other'}, {...identity, authorityKey: 'session:2'}]) {
     assert.notEqual(ambientArtworkSource(item + '?v=' + version, next)!.cacheKey, a.cacheKey);
   }
@@ -54,7 +59,7 @@ test('foreground width policy retains all existing buckets and never selects amb
 });
 
 
-test('hash artwork supplies the same ambient-v1 contract on every client', () => {
+test('hash artwork keeps the v1 default and separates native v2 cache identity', () => {
   // A content-addressed source needs no separate v query.
   const hash = 'f3b328908bf58db21b2a3acd5569e80a548de5cff8755a6fb1c7a984600ebc69';
   const url = '/v1/images/' + hash;
@@ -63,6 +68,10 @@ test('hash artwork supplies the same ambient-v1 contract on every client', () =>
   assert.equal(ambient.version, hash);
   assert.equal(ambient.variant, 'ambient-v1');
   assert.equal(ambient.maxEdge, 64);
+  const v2 = ambientArtworkSourceV2(url, identity)!;
+  assert.equal(v2.url, url + '?size=ambient-v2');
+  assert.equal(v2.version, hash);
+  assert.notEqual(v2.cacheKey, ambient.cacheKey);
   for (const suffix of ['?w=800&h=450', '?size=small', '?size=large', '?size=ambient-v1']) {
     assert.deepEqual(ambientArtworkSource(url + suffix, identity), ambient);
   }

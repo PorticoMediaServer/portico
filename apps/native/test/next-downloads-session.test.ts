@@ -97,7 +97,7 @@ const bootModules: Record<string, Record<string, unknown>> = {
   '../../../../packages/client-core/src/playback-v1/events': {EventsClient: class {onResync = subscribe; on = subscribe; onAny = subscribe; prime = async () => false;}},
   '../../../../packages/client-core/src/playback-v1/local-http': {localV1Http: (value: unknown) => value},
   '../../../../packages/client-core/src/event-feed': {runEventFeed: subscribe, nativeEventStream: () => noop},
-  '../../../../packages/client-core/src/artwork': {ambientArtworkSource: noop},
+  '../../../../packages/client-core/src/artwork': {ambientArtworkSource: noop, ambientArtworkSourceV2: noop},
   '../platform/user-mutations': {
     nativeStopScope,
     NativeStopStore: class extends NativeStopStore {constructor() {super(active.mutationBridge);}},

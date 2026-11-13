@@ -11,7 +11,7 @@ export type AmbientArtworkSource = Readonly<{
   url: string;
   cacheKey: string;
   version: string;
-  variant: 'ambient-v1';
+  variant: 'ambient-v1' | 'ambient-v2';
   maxEdge: 64;
 }>;
 
@@ -29,6 +29,15 @@ const artworkPatterns = [
  * No renderer, fetch, title selection, palette or colour is supplied here.
  */
 export function ambientArtworkSource(artworkUrl: string | null | undefined, identity: AmbientArtworkIdentity): AmbientArtworkSource | null {
+  return ambientSource(artworkUrl, identity, 'ambient-v1');
+}
+
+/** Native apps use the server's saturated wash; the web keeps v1 and its own filters. */
+export function ambientArtworkSourceV2(artworkUrl: string | null | undefined, identity: AmbientArtworkIdentity): AmbientArtworkSource | null {
+  return ambientSource(artworkUrl, identity, 'ambient-v2');
+}
+
+function ambientSource(artworkUrl: string | null | undefined, identity: AmbientArtworkIdentity, variant: AmbientArtworkSource['variant']): AmbientArtworkSource | null {
   if (!artworkUrl || artworkUrl.length > 4096 || !artworkUrl.startsWith('/') || artworkUrl.startsWith('//') || /[\s\\#\x00-\x1f\x7f]/.test(artworkUrl)) return null;
   if (![identity.serverId, identity.viewerId, identity.authorityKey].every(value => typeof value === 'string' && value.length > 0 && value.length <= 512 && !/[\x00-\x1f\x7f]/.test(value))) return null;
   const [path, query = ''] = artworkUrl.split('?');
@@ -54,14 +63,14 @@ export function ambientArtworkSource(artworkUrl: string | null | undefined, iden
     if (bytes > 160 || /[\x00-\x1f\x7f]/.test(subject)) return null;
   }
   for (const key of ['w', 'h', 'sd', 'ld', 'r']) params.delete(key);
-  params.set('size', 'ambient-v1');
+  params.set('size', variant);
   params.sort();
   const url = path + '?' + params.toString();
   return Object.freeze({
     url,
     cacheKey: JSON.stringify([identity.serverId, identity.viewerId, identity.authorityKey, url]),
     version,
-    variant: 'ambient-v1',
+    variant,
     maxEdge: 64,
   });
 }

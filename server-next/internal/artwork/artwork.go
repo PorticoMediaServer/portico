@@ -240,7 +240,7 @@ func shrink(from *image.RGBA, edge int) *image.RGBA {
 
 // Sweep removes the pictures nothing uses any more: every one stored before a time whose id
 // used does not name. used calls yield with every id in use, in ascending order; a picture
-// stored since the time is kept, as one just stored may not be recorded yet. All three sizes go. It returns how many pictures it removed.
+// stored since the time is kept, as one just stored may not be recorded yet. All stored sizes go. It returns how many pictures it removed.
 func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) error) (int, error) {
 	prefixes, err := os.ReadDir(s.dir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -297,7 +297,7 @@ func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) e
 			continue
 		}
 		removed++
-		for _, size := range []string{"small", "large", AmbientVariant} {
+		for _, size := range []string{"small", "large", AmbientVariant, AmbientVariantV2} {
 			if err := os.Remove(s.place(id, size)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return 0, err
 			}
