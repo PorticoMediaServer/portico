@@ -96,3 +96,13 @@ test('a Books or Comics library offers its Authors and Series lists as tabs', ()
     [['discover', ''], ['series', 'series'], ['browse', ''], ['authors', 'author']]);
   assert.deepEqual(tabs({kind: 'books', views: [{kind: 'book'}], filters: []}), [['discover', ''], ['browse', '']]);
 });
+
+// 10-reading rule 43: a Books library where this profile may see magazines or newspapers offers
+// them after its books, ahead of Authors and Series (the read-web frames).
+test('a Books library offers Magazines and Newspapers where it has them', () => {
+  const caps = (views: string[]) => parseBrowseCapabilities(libraryBrowseCapabilities({id: 'lib', name: 'L', kind: 'books', sorts: [{id: 'title', order: 'asc'}],
+    views: views.map(kind => ({kind})), filters: [{id: 'author', type: 'person'}]} as never, '')).pivots.map(pivot => [pivot.id, pivot.facetSource?.field ?? '']);
+  assert.deepEqual(caps(['book', 'series', 'magazine', 'newspaper']),
+    [['books', ''], ['magazines', 'publicationType'], ['newspapers', 'publicationType'], ['authors', 'author'], ['series', 'series']]);
+  assert.deepEqual(caps(['book', 'magazine']).map(([id]) => id), ['books', 'magazines', 'authors']);
+});

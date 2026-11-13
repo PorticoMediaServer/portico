@@ -20,6 +20,11 @@
 /* desktop-read 1/1b: the library's own rows and its bounded content share the
    drawn row rhythm (the kit owns .rows/.row; only the grid's gutter is ours). */
 .library { position: relative; min-height: 100%; }
+/* A page's own heading (a periodical's name, a series not yet named) and its first grid sit on the
+   page's gutter and rhythm, as the series heading does. */
+.library > h2 { margin: 24px var(--shell-gutter, var(--gutter-desktop)) 8px; font-size: var(--type-fixed-size-20px); font-weight: var(--type-fixed-weight-700); color: var(--color-text); }
+@media (max-width: 1023px) { .library > h2 { margin-inline: 20px; } }
+.library > .books:first-child { padding-top: 24px; }
 .books { position: relative; margin: 0 var(--shell-gutter, var(--gutter-desktop)); }
 @media (max-width: 1023px) { .books { margin-inline: 20px; } }
 /* J-29: a Reading library with nothing in it still starts at the page's gutter. */
