@@ -28,7 +28,7 @@ import type {BrowseLabels} from '../../kit/browse';
 import {NativeReadingBooks} from './ReadingBooks';
 import {ReadingFacetList} from './ReadingFacetList';
 import {openNativeReadSeries} from './eligibility';
-import {readingFacetRequest} from '../../../../../packages/client-core/src/query/reading-facets';
+import {authorPredicate, readingFacetRequest} from '../../../../../packages/client-core/src/query/reading-facets';
 import {LibraryCompactHeader, LibraryTabs} from '../library/LibraryScreen';
 import {isReadingLibraryKind} from './platform';
 import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
@@ -256,7 +256,7 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
     {!opening ? <View style={{flex: 1}}>{loading}</View> : tab === 'discover' ? discover
       : (tab === 'authors' || tab === 'series') && gridTab ? <ReadingFacetList key={tab} libraryId={libraryId} field={tab === 'authors' ? 'author' : 'series'} pivot={gridTab.pivot ?? 'books'}
         request={facetRequest} runtime={runtime} onChoose={choice => {
-          if (tab === 'authors') {setAuthorQuery([{variant: 'predicate', field: 'author', operator: 'equals', value: choice.value}]); setTab('browse');}
+          if (tab === 'authors') {setAuthorQuery([authorPredicate(choice.value)]); setTab('browse');}
           else void openNativeReadSeries(opening.context, {libraryId, seriesId: choice.seriesId ?? choice.value}, opening.origin).catch(runtime.reportError);
         }}/>
       : !theme.isTV && gridTab && library ? <NativeReadingBooks key={authorQuery ? JSON.stringify(authorQuery) : 'all'} query={authorQuery} context={scopedContext} opening={opening} runtime={runtime} library={library} tab={gridTab} labels={labels}

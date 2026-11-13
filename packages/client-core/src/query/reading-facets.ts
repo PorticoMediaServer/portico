@@ -5,6 +5,12 @@ import type {BrowseFacetPage, BrowseNode} from '../browse.ts';
 export type ReadingFacetField = 'author' | 'series';
 /** The captured shell's own API request, never a second transport. */
 export type FacetRequest = ((path: string, method: 'GET', body: undefined, signal: AbortSignal) => Promise<unknown>) & Pick<LibraryContentApi, 'requestRaw'> & Readonly<{isCurrent?: () => boolean}>;
+/** An author facet value is the filter: the author's person id from the library's Authors list,
+ * which the item list takes as `author=` (web and phone). */
+export function authorPredicate(value: string): BrowseNode {
+  if (!value) throw new Error('invalid_request');
+  return {variant: 'predicate', field: 'author', operator: 'equals', value};
+}
 /** The facet request over an app's own API, current while `isCurrent` says so (the phone's
  * Authors and Series tabs). */
 export const readingFacetRequest = (api: Pick<LibraryContentApi, 'request' | 'requestRaw'>, isCurrent: () => boolean): FacetRequest =>

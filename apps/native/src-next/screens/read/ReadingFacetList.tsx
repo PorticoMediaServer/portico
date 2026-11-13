@@ -10,8 +10,10 @@ import {useTheme} from '../../kit/theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {ReadingLoading} from './ReadingLoading';
 
-type Choice = Readonly<{value: string; label: string; count: number; seriesId?: string}>;
+type Choice = Readonly<{value: string; label: string; count: number; countIsLowerBound?: boolean; seriesId?: string}>;
 const page = 100;
+/** How many titles it holds; a count the server only knows a floor for says so, as on the web ("100+"). */
+const count = (choice: Choice) => defaultI18n.number(choice.count) + (choice.countIsLowerBound ? '+' : '');
 
 /** A Read library's Authors or Series tab on the phone and tablet (phone-read frames): its people
  * by the author role or its series, each with how many titles it holds, read a page at a time
@@ -34,12 +36,12 @@ export function ReadingFacetList({libraryId, field, pivot, request, runtime, onC
   return <ReadingLoading ready={!loading || values.length > 0} skeleton={null} style={{flex: 1}}>
     <FlatList data={values} keyExtractor={choice => choice.value} contentContainerStyle={{paddingHorizontal: theme.gutter, paddingBottom: insets.bottom + 40}}
       onEndReached={() => {if (!loading && total !== undefined && values.length < total) load(values.length);}}
-      ListEmptyComponent={loading ? null : <Text style={[browseType(theme, 15, 500), {color: theme.colors.textTertiary, paddingVertical: 24}]}>{defaultI18n.t('title.nothingHere')}</Text>}
+      ListEmptyComponent={loading ? null : <StateView variant="inline" title={defaultI18n.t('title.nothingHere')}/>}
       renderItem={({item}) => <Focusable testID={`reading-${field}-${item.value}`} accessibilityRole="button" focusKind="row"
-        accessibilityLabel={`${item.label}, ${defaultI18n.number(item.count)}`} onPress={() => onChoose(item)}
+        accessibilityLabel={`${item.label}, ${count(item)}`} onPress={() => onChoose(item)}
         style={{minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.line}}>
         <Text numberOfLines={1} style={[browseType(theme, 15, 500), {color: theme.colors.text, flex: 1}]}>{item.label}</Text>
-        <Text style={[browseType(theme, 14, 500), {color: theme.colors.textTertiary}]}>{defaultI18n.number(item.count)}</Text>
+        <Text style={[browseType(theme, 14, 500), {color: theme.colors.textTertiary}]}>{count(item)}</Text>
       </Focusable>}/>
   </ReadingLoading>;
 }
