@@ -50,7 +50,9 @@ export function entryFromItem(item: Item, libraryId?: string): ContentEntry | un
     seasonCount: item.kind === 'show' ? counts?.children : undefined,
     available: item.available, missing: item.available === false ? true : undefined,
     genres: item.tags?.filter(tag => tag.kind === 'genre').map(tag => tag.name),
-    show: item.kind === 'episode' && item.root ? {id: item.root.id, name: item.root.title} : undefined,
+    // An episode names its show: from the title's own page (root), or on a list from rootTitle beside rootId; a show the
+    // profile may not see is named by neither.
+    show: item.kind === 'episode' ? item.root ? {id: item.root.id, name: item.root.title} : item.rootId && item.rootTitle ? {id: item.rootId, name: item.rootTitle} : undefined : undefined,
     ...numbered,
     navigation: {view: view ?? 'item', entityId: item.id},
     playback: view ? undefined : {itemId: item.id, ...(state?.positionMs ? {startSeconds: Math.round(state.positionMs / 1000)} : {})},
