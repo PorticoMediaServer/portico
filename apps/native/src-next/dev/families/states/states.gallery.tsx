@@ -270,7 +270,7 @@ function RealAmbientLoadingTitle() {
   const handle = globalThis.__PORTICO_NATIVE_STATES_ARTWORK__;
   const [status, setStatus] = useState<ArtworkStatus>('queued');
   const [playing, setPlaying] = useState(false);
-  if (!handle || handle.ambient.variant !== 'ambient-v1' || handle.ambient.maxEdge !== 64 || !handle.ambient.version) throw new Error('The native states artwork evidence handle is required.');
+  if (!handle || (handle.ambient.variant !== 'ambient-v1' && handle.ambient.variant !== 'ambient-v2') || handle.ambient.maxEdge !== 64 || !handle.ambient.version) throw new Error('The native states artwork evidence handle is required.');
   return <Canvas><View testID={`states-real-artwork-${status}`} style={{flex: 1}}>
     {playing ? <StateView testID={`${prefix}.view`} title={handle.title} primaryAction={{id: 'back', label: t('action.back'), onPress: () => setPlaying(false)}} /> : <TitleSkeleton testID={`${prefix}.title`} elapsedMs={1000}
       pressed={{title: handle.title, art: {source: handle.ambient, foreground: handle.foreground, onStatusChange: setStatus}}}

@@ -215,3 +215,59 @@ func TestAmbientIsPreblurredAndOlderPicturesGetAStoredCopy(t *testing.T) {
 		t.Fatal("sweep left orphan ambient:", err)
 	}
 }
+
+// The native wash adds colour once, preserves greys, and never changes the web's v1 bytes.
+func TestAmbientV2SaturationLeavesV1Unchanged(t *testing.T) {
+	s := New(t.TempDir())
+	for i, colour := range []color.RGBA{{96, 128, 160, 255}, {128, 128, 128, 255}} {
+		id := []string{"1111111111111111", "2222222222222222"}[i]
+		source := image.NewRGBA(image.Rect(0, 0, 8, 8))
+		for y := 0; y < 8; y++ {
+			for x := 0; x < 8; x++ {
+				source.SetRGBA(x, y, colour)
+			}
+		}
+		var input bytes.Buffer
+		if err := png.Encode(&input, source); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Put(id, input.Bytes()); err != nil {
+			t.Fatal(err)
+		}
+		v1, _, err := s.ReadAmbient(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(s.place(id, AmbientVariantV2)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatal("v2 must be lazy", err)
+		}
+		v2, kind, err := s.ReadAmbientV2(id)
+		if err != nil || kind != "image/png" {
+			t.Fatalf("v2: %s %v", kind, err)
+		}
+		if i == 1 && !bytes.Equal(v1, v2) {
+			t.Fatal("v2 changed a grey picture")
+		}
+		if i == 0 {
+			span := func(data []byte) uint32 {
+				img, _, err := image.Decode(bytes.NewReader(data))
+				if err != nil {
+					t.Fatal(err)
+				}
+				r, g, b, _ := img.At(0, 0).RGBA()
+				return max(r, g, b) - min(r, g, b)
+			}
+			if bytes.Equal(v1, v2) || span(v2) <= span(v1) {
+				t.Fatal("v2 did not increase colour saturation")
+			}
+		}
+		after, _, err := s.ReadAmbient(id)
+		if err != nil || !bytes.Equal(v1, after) {
+			t.Fatal("v2 changed v1's stored bytes", err)
+		}
+		cached, _, err := s.ReadAmbientV2(id)
+		if err != nil || !bytes.Equal(v2, cached) {
+			t.Fatal("v2 changed on a warm read", err)
+		}
+	}
+}
