@@ -115,14 +115,6 @@ export async function readPerson(api:LibraryContentApi,scope:ContentScope,person
    if(!object(r)||!id(r.role)||!count(r.titleCount))invalid();
    return {id:'role:'+r.role,department:departments[r.role]??r.role,total:r.titleCount};
   });
-  const kindCounts=(facts as {kindCounts?:unknown}).kindCounts??{};
-  if(!object(kindCounts))invalid();
-  const cardKinds:Readonly<Record<string,string>>={track:'song',audiobook:'book',book:'ebook',issue:'comic',series:'book_series'};
-  const kindGroups=keepReadable('people','groups',Object.entries(kindCounts),row=>{
-   const [kind,total]=row as [string,unknown];
-   if(!id(kind)||!count(total))invalid();
-   return {id:'kind:'+kind,kind:cardKinds[kind]??kind,total};
-  });
   const knownFor=keepReadable('people','knownFor',array((facts as {knownFor?:unknown}).knownFor??[],MAX_KNOWN_FOR),item=>{
    if(!object(item))invalid();
    const entry=entryFromItem(item as unknown as Item);if(!entry)invalid();return entry;
@@ -150,7 +142,7 @@ export async function readPerson(api:LibraryContentApi,scope:ContentScope,person
   // bound to the caller's scope; refused server cursors still restart the existing pagers.
   return parsePersonPage({serverId:scope.serverId,viewerFence:scope.viewerId,revision:{catalog:0,viewer:0},
    person:{id:facts.id,name:facts.name,biography:facts.biography,birthDate:facts.birthDate,deathDate:facts.deathDate,birthPlace:facts.birthplace,
-    portraitUrl:facts.images?.portrait??facts.images?.thumb,roles:[...new Set(groups.map(group=>group.department==='Cast'?'Acting':group.department))],knownFor,revision:0},groups:[...groups,...kindGroups],credits,
+    portraitUrl:facts.images?.portrait??facts.images?.thumb,roles:[...new Set(groups.map(group=>group.department==='Cast'?'Acting':group.department))],knownFor,revision:0},groups,credits,
    pageInfo:{total:options.role==='crew'?crewTotal:raw.total,nextCursor:raw.nextCursor}},scope,{role:options.role,limit,personId});
  }catch(error){
   if((error as {code?:unknown})?.code==='cursor_expired')throw new Failure('invalid_cursor','This list changed. Read it again.');
