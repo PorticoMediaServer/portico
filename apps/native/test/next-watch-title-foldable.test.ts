@@ -61,7 +61,7 @@ test('a folded sideways title page divides on the hinge while the upright one st
     assert.ok(descendants(left).some(node => node.type === 'TitlePeople'), 'the cast sits on the left page');
     assert.equal(descendants(left).some(node => node.type === 'Tabs'), false, 'the tabs are not on the left page');
     assert.equal(nodes.filter(node => node.type === 'Tabs').length, 1);
-    assert.equal(nodes.filter(node => node.type === 'Text' && node.props.children === 'The Last of Us').length, 1);
+    assert.equal(nodes.filter(node => node.type === 'Lockup' && node.props.title === 'The Last of Us').length, 1);
     width = 626; height = 890;
     posture = {status: 'available', window: {width: 626, height: 890}, folds: [{bounds: {left: 313, top: 0, right: 313, bottom: 890}, orientation: 'vertical', state: 'flat', isSeparating: false, occlusion: 'none'}]};
     await host.rerender();

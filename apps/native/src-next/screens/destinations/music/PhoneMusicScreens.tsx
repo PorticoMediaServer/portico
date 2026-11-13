@@ -24,6 +24,7 @@ import {MusicScrollView, MusicWindow, MusicShelf} from './MusicWindow';
 import type {NativeSavedSelectionPort} from '../../saved/SavedScreen';
 import {SelectionCircle} from '../../../kit/selection';
 import {TVRow} from '../../../kit/layout/TVRow';
+import {Lockup} from '../../../kit/layout/Lockup';
 import {TopBar, RoundBarButton} from '../../../kit/layout/TopBar';
 
 const t = defaultI18n.t;
@@ -213,7 +214,7 @@ export function PhoneAlbumScreen({controller, entry, runtime, actions, openEntry
           </View>
           <View style={{flex: 1, minWidth: 0}}>
             <Text style={[browseType(theme, 14.5, 600), {color: theme.colors.textSecondary, marginBottom: 8}]}>{t('next.browse.native.album')}</Text>
-            <Text accessibilityRole="header" numberOfLines={2} style={[browseType(theme, 80, 800, -.045, 78.4), {color: theme.colors.text, marginBottom: 16}]}>{title}</Text>
+            <Lockup title={title} size={80} style={{lineHeight: 78.4 * theme.textScale, letterSpacing: -.045 * 80 * theme.textScale, marginBottom: 16}}/>
             {entry.artist?.name ? <Focusable accessibilityRole="link" onPress={() => {const artist = controller.artistEntry(); if (artist) openEntry(artist);}}
               style={{minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'flex-start'}}>
               <ArtistCircle covers={art ? [art] : []} initials={entry.artist.name.split(/\s+/).slice(0, 2).map(word => [...word][0]).join('')} alt={entry.artist.name} size={28} visible/>
@@ -267,7 +268,7 @@ export function PhoneAlbumScreen({controller, entry, runtime, actions, openEntry
           shadowColor: theme.colors.shadow, shadowOffset: {width: 0, height: 30}, shadowOpacity: .9, shadowRadius: 30}}>
           <Artwork source={art} width={phoneMusicGeometry.albumCover} height={phoneMusicGeometry.albumCover} priority fallback={art ? undefined : missingArt({title, author: entry.artist?.name, shape: 'square', width: phoneMusicGeometry.albumCover, height: phoneMusicGeometry.albumCover})}/>
         </View>
-        <Text accessibilityRole="header" numberOfLines={2} style={[browseType(theme, phoneMusicGeometry.albumTitle, 800, -.035), {color: theme.colors.text, textAlign: 'center', marginTop: 20}]}>{title}</Text>
+        <Lockup title={title} size={phoneMusicGeometry.albumTitle} style={{textAlign: 'center', marginTop: 20}}/>
         {entry.artist?.name ? <Text numberOfLines={1} style={[browseType(theme, phoneMusicGeometry.albumArtist, 700), {color: theme.colors.accentStrong, marginTop: 4}]}>{entry.artist.name}</Text> : null}
         {facts.length ? <Facts facts={facts}/> : null}
         <MusicFormatBadges badges={snapshot.albumDetails?.badges} size="phone"/>
@@ -327,7 +328,7 @@ export function PhoneArtistScreen({controller, entry, runtime, actions, openEntr
       <MusicScrollView contentContainerStyle={{paddingTop: 56, paddingBottom: 100}} showsVerticalScrollIndicator={false}>
         <View style={{alignItems: 'center', paddingHorizontal: 32}}>
           <ArtistCircle covers={covers} rings={[3]} initials={[...entry.title.trim()][0] ?? ''} alt={entry.title} size={220} visible/>
-          <Text accessibilityRole="header" numberOfLines={2} style={[browseType(theme, 58, 800, -.04, 61), {color: theme.colors.text, textAlign: 'center', marginTop: 20}]}>{entry.title}</Text>
+          <Lockup title={entry.title} size={58} style={{lineHeight: 61 * theme.textScale, letterSpacing: -.04 * 58 * theme.textScale, textAlign: 'center', marginTop: 20}}/>
           {facts.length ? <Facts facts={facts} strongFirst={false}/> : null}
           <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 20}}>
             <Button style={{height: phoneMusicGeometry.actionHeight, borderRadius: phoneMusicGeometry.actionRadius, paddingHorizontal: 24}} icon="i-play" textStyle={browseType(theme, 15, 700)} onPress={() => {void controller.play().catch(runtime.reportError);}}>{t('entry.play')}</Button>
@@ -372,7 +373,7 @@ export function PhoneArtistScreen({controller, entry, runtime, actions, openEntr
     <MusicScrollView contentContainerStyle={{paddingTop: Math.max(phoneMusicGeometry.artistTop, insets.top + 56), paddingBottom: 40}} showsVerticalScrollIndicator={false}>
       <View style={{alignItems: 'center', paddingHorizontal: 20}}>
         <ArtistCircle covers={covers} rings={[3]} initials={[...entry.title.trim()][0] ?? ''} alt={entry.title} size={phoneMusicGeometry.artistCircle} visible/>
-        <Text accessibilityRole="header" numberOfLines={2} style={[browseType(theme, phoneMusicGeometry.artistTitle, 800, -.035), {color: theme.colors.text, textAlign: 'center', marginTop: 18}]}>{entry.title}</Text>
+        <Lockup title={entry.title} size={phoneMusicGeometry.artistTitle} style={{textAlign: 'center', marginTop: 18}}/>
         {facts.length ? <Facts facts={facts} strongFirst={false}/> : null}
       </View>
       <View style={{paddingHorizontal: 20, marginTop: 18}}><MusicActions controller={controller} entry={entry} runtime={runtime} actions={actions} moreRef={more} roundMore/></View>
