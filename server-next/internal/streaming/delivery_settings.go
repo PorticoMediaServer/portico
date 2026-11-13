@@ -65,7 +65,7 @@ const (
 	PlanningMaximumCompatible   = "maximum_compatibility"
 	PlanningMinimizeServerWork  = "minimize_server_work"
 	DefaultThrottleBufferSecond = 60
-	DefaultPlayedRetention      = 300
+	DefaultPlayedRetention      = 180
 )
 
 // PlanningPolicies is the published domain for the owner setting.

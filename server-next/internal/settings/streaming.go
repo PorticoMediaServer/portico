@@ -41,6 +41,14 @@ type StreamingSettings struct {
 	// HDR. With it off such a picture is converted without it and looks washed out; that is
 	// for troubleshooting.
 	ToneMapping bool `json:"toneMapping"`
+	// ConvertAheadSeconds paces a converter once it is this far ahead of the viewer.
+	ConvertAheadSeconds int `json:"convertAheadSeconds"`
+	// KeepForRewindingSeconds retains played pieces; 0 keeps none behind the current piece.
+	KeepForRewindingSeconds int `json:"keepForRewindingSeconds"`
+	// SpacePerStreamMiB bounds one stream's generated output, removing old pieces first.
+	SpacePerStreamMiB int `json:"spacePerStreamMiB"`
+	// MemoryLimit bounds aggregate RAM output, with the existing spill to disk when full.
+	MemoryLimit string `json:"memoryLimit"`
 	// ConversionFolder is a folder of the owner's choosing for conversions; empty is the
 	// server's own data folder. The server keeps a folder of its own inside it and never
 	// empties anything else. It applies to streams started after it is saved.
@@ -63,7 +71,8 @@ var GraphicsDevices = []string{"nvenc", "qsv", "vaapi", "videotoolbox", "amf"}
 
 // Streaming is the streaming settings document. Playback and the media engine read it.
 var Streaming = Define("streaming", StreamingSettings{ConvertWhenNeeded: ConvertPictureAndSound, GraphicsDevice: "automatic",
-	HardwareDecoding: true, ToneMapping: true}, checkStreaming)
+	HardwareDecoding: true, ToneMapping: true, ConvertAheadSeconds: 60, KeepForRewindingSeconds: 180,
+	SpacePerStreamMiB: 4096, MemoryLimit: "quarter"}, checkStreaming)
 
 func checkStreaming(s *StreamingSettings) error {
 	switch s.ConvertWhenNeeded {
@@ -86,6 +95,18 @@ func checkStreaming(s *StreamingSettings) error {
 	}
 	if !slices.Contains([]int{0, 1, 2, 3, 4, 6}, s.ProcessorConversionsAtOnce) {
 		return &Invalid{Field: "processorConversionsAtOnce", Message: "Choose no limit, 1, 2, 3, 4 or 6 conversions."}
+	}
+	if !slices.Contains([]int{20, 60, 120, 300, 600}, s.ConvertAheadSeconds) {
+		return &Invalid{Field: "convertAheadSeconds", Message: "Choose 20, 60, 120, 300 or 600 seconds."}
+	}
+	if !slices.Contains([]int{0, 60, 180, 600, 1800, 3600}, s.KeepForRewindingSeconds) {
+		return &Invalid{Field: "keepForRewindingSeconds", Message: "Choose no keeping, 1, 3, 10, 30 or 60 minutes."}
+	}
+	if !slices.Contains([]int{1024, 2048, 4096, 8192, 16384, 32768}, s.SpacePerStreamMiB) {
+		return &Invalid{Field: "spacePerStreamMiB", Message: "Choose 1, 2, 4, 8, 16 or 32 GB."}
+	}
+	if !slices.Contains([]string{"quarter", "half", "2gb", "4gb", "8gb", "16gb"}, s.MemoryLimit) {
+		return &Invalid{Field: "memoryLimit", Message: "Choose a quarter or half of free memory, or one of the listed sizes."}
 	}
 	s.ConversionFolder, s.FFmpegProgram = strings.TrimSpace(s.ConversionFolder), strings.TrimSpace(s.FFmpegProgram)
 	for _, f := range []struct{ name, value string }{{"conversionFolder", s.ConversionFolder}, {"ffmpegProgram", s.FFmpegProgram}} {

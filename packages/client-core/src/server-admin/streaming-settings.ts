@@ -17,6 +17,10 @@ const rows: Readonly<Record<string, readonly [DocumentName | 'limits', string]>>
   'streaming.maxConversions': ['streaming', 'conversionsAtOnce'],
   'streaming.maxSoftwareConversions': ['streaming', 'processorConversionsAtOnce'],
   'streaming.maxBackgroundConversions': ['streaming', 'backgroundConversionsAtOnce'],
+  'streaming.convertAhead': ['streaming', 'convertAheadSeconds'],
+  'streaming.rewindKeep': ['streaming', 'keepForRewindingSeconds'],
+  'streaming.sessionSpace': ['streaming', 'spacePerStreamMiB'],
+  'streaming.memoryCap': ['streaming', 'memoryLimit'],
   'streaming.toneMapping': ['streaming', 'toneMapping'],
   'streaming.transcodeFolder': ['streaming', 'conversionFolder'],
   'streaming.ffmpegPath': ['streaming', 'ffmpegProgram'],
@@ -87,6 +91,7 @@ export class OwnerStreamingSettings {
     if (key === 'graphicsDevice') raw = raw === 'auto' ? 'automatic' : raw === 'software' ? 'processor' : raw;
     if (key === 'awayMusicKbps') raw = raw === 'original' ? 0 : raw === 'cd-quality' ? 1411 : Number(raw);
     if (key === 'uploadSpeedKbps' || key === 'total') raw ??= 0;
+    if (key === 'convertAheadSeconds' || key === 'keepForRewindingSeconds') raw = Number(raw) / 1000;
     if (key === 'endPausedVideoAfterMs') raw = Number(raw) * 60000;
     if (name === 'limits') {
       await callServer(this.api, 'PATCH /v1/admin/playback/stream-limits', {body: {[key]: raw}, signal});

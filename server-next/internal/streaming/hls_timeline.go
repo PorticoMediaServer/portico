@@ -229,7 +229,7 @@ func highestProducedSegment(dir string, start int) int {
 // played slot on every segment request; the work per request stays proportional
 // to how far the viewer advanced, not to how far they have come.
 func prunePlayedSegments(dir string, from, served, retentionSeconds int) (int, int) {
-	if retentionSeconds <= 0 || served <= 0 {
+	if retentionSeconds < 0 || served <= 0 {
 		return 0, from
 	}
 	keep := (retentionSeconds + HLSSegmentSeconds - 1) / HLSSegmentSeconds

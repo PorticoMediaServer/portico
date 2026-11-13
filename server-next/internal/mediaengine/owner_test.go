@@ -204,3 +204,29 @@ func TestSavingTheProcessorConversionLimitReachesAdmission(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestSavedWorkingSpaceSettingsReachTheStream(t *testing.T) {
+	ctx := context.Background()
+	d, err := db.Open(ctx, filepath.Join(t.TempDir(), "main.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	st, _, err := settings.Open(ctx, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := delivery(settings.Streaming.Get(st)); got.PlayedRetentionSeconds != 180 {
+		t.Fatal(got)
+	}
+	if _, err := st.Write(ctx, 0, "streaming", json.RawMessage(`{"convertAheadSeconds":120,"keepForRewindingSeconds":0,"spacePerStreamMiB":8192,"memoryLimit":"half"}`), -1, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	got := delivery(settings.Streaming.Get(st))
+	if got.ThrottleBufferSeconds != 120 || got.PlayedRetentionSeconds != 0 || got.SessionStorageMiB != 8192 || got.MemoryCap != "half" {
+		t.Fatal(got)
+	}
+	if _, err := st.Write(ctx, 0, "streaming", json.RawMessage(`{"keepForRewindingSeconds":300}`), -1, time.Now()); err == nil {
+		t.Fatal("an unoffered keeping time was saved")
+	}
+}

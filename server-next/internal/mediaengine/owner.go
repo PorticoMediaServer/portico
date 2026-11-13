@@ -59,6 +59,10 @@ func delivery(owner settings.StreamingSettings) streaming.DeliveryConfiguration 
 	c.MaxConversions = owner.ConversionsAtOnce
 	c.MaxSoftwareConversions = owner.ProcessorConversionsAtOnce
 	c.ToneMapping = owner.ToneMapping
+	c.ThrottleBufferSeconds = owner.ConvertAheadSeconds
+	c.PlayedRetentionSeconds = owner.KeepForRewindingSeconds
+	c.SessionStorageMiB = owner.SpacePerStreamMiB
+	c.MemoryCap = owner.MemoryLimit
 	return c.Normalized()
 }
 

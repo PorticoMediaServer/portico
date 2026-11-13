@@ -384,9 +384,6 @@ func (h *HLS) enforceGlobalBudgetMeasured(ctx context.Context, measured map[stri
 	// least likely to be wanted again.
 	sort.Slice(candidates, func(i, j int) bool { return candidates[i].served.Before(candidates[j].served) })
 	retention := time.Duration(h.configuration().PlayedRetentionSeconds) * time.Second
-	if retention <= 0 {
-		retention = time.Duration(DefaultPlayedRetention) * time.Second
-	}
 	for _, c := range candidates {
 		if total <= hlsGlobalByteBudget || ctx.Err() != nil {
 			return
