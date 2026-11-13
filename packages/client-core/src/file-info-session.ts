@@ -1,8 +1,8 @@
 import type {Item, ItemFiles, PlaybackOptions, Stream} from '../../contracts/src/next/api.ts';
 import {callServer, type ServerRequester} from './query/server-api.ts';
 import {unreadableServerResponse} from './server-messages.ts';
-import type {FileInfoRows} from './file-info-windows.ts';
-import type {FileInfoDiscPage, FileInfoFileRow, FileInfoGroupRow, FileInfoHeadTrackRow, FileInfoSurface, FileInfoTrackLane, FileInfoTrackRow} from './file-info-pages.ts';
+import type {FileInfoDiscTitle} from './detail.ts';
+import type {FileInfoRows, FileInfoFileRow, FileInfoGroupRow, FileInfoHeadTrackRow, FileInfoSurface, FileInfoTrackLane, FileInfoTrackRow} from './file-info-pages.ts';
 
 export type FileInfoLane<Row> = Readonly<{status: 'loading' | 'preparing' | 'ready' | 'failed'; rows?: FileInfoRows<Row>; total?: number; error?: unknown}>;
 export type {FileInfoTrackLane};
@@ -11,7 +11,7 @@ export type FileInfoSnapshot = Readonly<{
   tracks: ReadonlyMap<string, FileInfoLane<FileInfoTrackRow>>;
   headTracks: ReadonlyMap<string, FileInfoLane<FileInfoHeadTrackRow>>;
   members: ReadonlyMap<string, FileInfoLane<FileInfoFileRow>>;
-  disc?: FileInfoLane<FileInfoDiscPage['titles'][number]> & Readonly<{occurrence?: string; discKind?: FileInfoDiscPage['discKind']}>;
+  disc?: FileInfoLane<FileInfoDiscTitle> & Readonly<{occurrence?: string; discKind?: 'bluray' | 'dvd'}>;
 }>;
 export const fileInfoTrackKey = (id: string, lane: FileInfoTrackLane) => `${lane}:${id}`;
 /** App card kinds that have their own versions, including a multipart audiobook. */
