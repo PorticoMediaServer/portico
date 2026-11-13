@@ -6,6 +6,7 @@ import * as geometry from '../src-next/kit/overlays/geometry.ts';
 import * as overlayStack from '../src-next/kit/overlays/overlay-stack.ts';
 import {liveOverlayPaint, screenModule} from './helpers/screen-harness.mjs';
 
+const layerCovered = {value: false};
 async function overlayHost(isTV: boolean) {
   const backHandlers = new Set<() => boolean>();
   const keyHandlers = new Set<unknown>();
@@ -20,7 +21,7 @@ async function overlayHost(isTV: boolean) {
     '../../platform/overlay-keys': {registerOverlayKeys: (handler: unknown) => {
       keyHandlers.add(handler); return () => keyHandlers.delete(handler);
     }},
-    '../theme': {}, '../focus': {...focus, useOptionalFocusRegistry: () => undefined},
+    '../theme': {}, '../focus': {...focus, useOptionalFocusRegistry: () => undefined, useLayerCovered: () => layerCovered.value},
     './geometry': geometry, './overlay-stack': overlayStack,
   });
   return {mod, backHandlers, keyHandlers};
@@ -88,3 +89,20 @@ for (const isTV of [false, true]) {
     } finally {await session.unmount(); t.mock.timers.reset();}
   });
 }
+
+for (const isTV of [true, false]) test(`${isTV ? 'TV' : 'Phone'}: an overlay whose own layer gets covered (Watch live from a programme panel) ${isTV ? 'closes and gives no focus back into that layer' : 'is left to its caller'}`, async t => {
+  t.mock.timers.enable({apis: ['setTimeout']});
+  const {mod} = await overlayHost(isTV), calls: string[] = [], reasons: string[] = [];
+  const safe = {requestTVFocus() {calls.push('watch');}}, opener = {requestTVFocus() {calls.push('programme');}};
+  let open = true;
+  layerCovered.value = false;
+  const session = await mountHook(() => mod.useOverlayLifecycle(open, true, (reason: string) => reasons.push(reason), {current: safe}, {current: opener}));
+  try {
+    t.mock.timers.tick(0);
+    assert.deepEqual(calls, ['watch']);
+    layerCovered.value = true; await session.rerender();
+    assert.deepEqual(reasons, isTV ? ['action'] : [], 'the player covering the page closes the panel on TV');
+    open = false; await session.rerender();
+    assert.deepEqual(calls, isTV ? ['watch'] : ['watch', 'programme'], 'no focus is sent into the covered page: the player keeps it');
+  } finally {layerCovered.value = false; await session.unmount(); t.mock.timers.reset();}
+});

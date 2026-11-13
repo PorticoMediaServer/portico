@@ -18,14 +18,15 @@ async function fixture(){
  const navigation=new NativeShellNavigation(authority,()=>authority);navigation.top({kind:'live'},authority);const origin=navigation.getSnapshot().route;
  const route={kind:'channel' as const,sourceId:'actual-source',channelId:'actual-channel'};navigation.open(route,authority);
  const authorityListeners=new Set<()=>void>();
- const runtime={getSnapshot:()=>({fence}),startChannel:async(value:any)=>{request=value;attempts++;await new Promise<void>((done,fail)=>{resolve=done;reject=fail;});}};
+ const listeners=new Set<()=>void>(),notify=()=>{for(const listener of [...listeners])listener();};
+ const runtime={getSnapshot:()=>({fence}),subscribe:(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener);};},startChannel:async(value:any)=>{request=value;attempts++;await new Promise<void>((done,fail)=>{resolve=done;reject=fail;});}};
  const context={current:()=>live,navigation,subscribeAuthority:(listener:()=>void)=>{authorityListeners.add(listener);return()=>authorityListeners.delete(listener);},playback:{runtime}};
  let output:any,retry:()=>void=()=>{};const title={renderError:(error:unknown,again:()=>void)=>{retry=again;return React.createElement('Error',{error});}};
  const host=createFabricHookHost(()=>{output=NativeWatchChannelRoute({context,route,title});});await act(()=>host.mount());
  const back=()=>nodes(output).find(node=>node.type==='TopBar'&&node.props.back?.testID==='native-channel-back').props.back.onPress;
  const admitted={kind:'channel',channelKind:'live-source',sourceId:route.sourceId,channelId:route.channelId,channelGeneration:'source-g',sessionId:'session',generation:1,playback:{scope:{serverId:'server'},run:'original'}};
  return {navigation,origin,route,host,request:()=>request,back,attempts:()=>attempts,retry:()=>retry,output:()=>output,
-  accept:(value=admitted)=>{fence=value;request.onAccepted?.(value);},resolve:()=>resolve(),reject:(error:Error)=>reject(error),
+  accept:(value=admitted)=>{fence=value;request.onAccepted?.(value);notify();},end:()=>{fence=undefined;notify();},resolve:()=>resolve(),reject:(error:Error)=>reject(error),
   retire:()=>{live=false;for(const listener of authorityListeners)listener();},dispose:async ()=>{resolve();await host.unmount();navigation.dispose();}};
 }
 for(const retirement of ['navigation','authority','unmount'] as const)test(`pending real channel route owns Back and original caller: ${retirement}`,async()=>{
@@ -62,6 +63,21 @@ test('TV keeps its existing pending/error outlet and does not consume a touch la
  finally{await f.dispose();platform.isTV=false;}
 });
 
+
+test('TV: the launch page goes once its channel has played and its player has gone, so Back from the player returns to the guide',async()=>{
+ platform.isTV=true;const f=await fixture();try{
+  const launch=f.navigation.getSnapshot();f.accept();await act(()=>f.resolve());
+  assert.equal(f.navigation.getSnapshot(),launch,'while the channel plays the page stays, for a zap to replace');
+  await act(()=>f.end());
+  assert.equal(f.navigation.getSnapshot().route,f.origin,'the player gone: back on the guide it was started from');
+ }finally{await f.dispose();platform.isTV=false;}
+});
+test('TV: a start that never played keeps its page and its failure',async()=>{
+ platform.isTV=true;const f=await fixture();try{
+  const launch=f.navigation.getSnapshot();await act(()=>f.reject(new Error('failure')));await act(()=>f.end());
+  assert.equal(f.navigation.getSnapshot(),launch);assert(nodes(f.output()).some(node=>node.type==='Error'));
+ }finally{await f.dispose();platform.isTV=false;}
+});
 
 test('mocked late admission after successful return consumes once; unsuccessful return never authorizes a late receipt',async()=>{
  for(const completed of [true,false]){const f=await fixture();try{

@@ -352,3 +352,26 @@ test('auto-skip Undo inside the policy window uses the policy, with or without a
     assert.deepEqual(undos, [fence]); assert.deepEqual(seeks, []);
   } finally {await host.unmount(); controls.dispose(); isTV = previousTV;}
 });
+
+test('TV: the remote\'s channel keys step a live channel as the on-screen channel buttons do; other playback ignores them', async () => {
+  const channel = playbackFence({kind: 'channel', playback: {scope: {serverId: 'server', accountId: 'account', profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane', authority: 'local'}, run: 1},
+    sessionId: 'session', channelKind: 'live-source', sourceId: 'source', channelId: 'channel', channelGeneration: 'g', generation: 1});
+  for (const live of [true, false]) {
+    const current = live ? channel : fence, controls = new NativeWatchControls(true), tunes: unknown[] = [];
+    const row = {kind: 'live', id: 'channel', sourceId: 'source', number: '2', name: 'Harbour Light', tuneAvailable: true, recordAvailable: false, mark: {text: 'HL', seed: 'channel'}, group: '', favorite: false, guide: 'full'};
+    const previous = {channel: {...row, id: 'one', number: '1'}, step: -1, programmes: []}, next = {channel: {...row, id: 'three', number: '3'}, step: 1, programmes: []};
+    const guideState = {fence: current, phase: 'ready', open: false, busy: false, rows: [previous, {channel: row, step: 0, programmes: []}, next], previous, next, timezone: 'UTC'};
+    const liveGuide = {subscribe: () => () => {}, getSnapshot: () => guideState, restoreProof: () => () => true, tune: async (target: unknown) => {tunes.push(target);}, close() {}, fullGuide() {}};
+    const source = {fence: current, retired: false, dock: {local: {expanded: true}}, queue: {}, capabilities: {play: true, pause: true, seek: true},
+      playback: {intent: 'playing', positionSeconds: 30, duration: 60, ...(live ? {linear: {name: row.name, media: {liveEdgeUs: '60000000'}, programme: {title: 'A Window onto Quiet Worlds', startMs: 0, endMs: 3600000}}} : {})}};
+    controls.source(current, {expanded: true, autoHide: true, hiddenByPanel: false, paused: false, scrubbing: false, focusHeld: false});
+    const host = createFabricHookHost(() => {NativeWatchChrome({source, controls, playback: {getSnapshot: () => source}, text: {t: defaultI18n.t}, quality: 'Original', width: 1920, height: 1080, compact: false, skipBackSeconds: 10, skipForwardSeconds: 30,
+      onMinimize() {}, onPanel() {}, liveGuide, reportError(error: unknown) {throw error;}});});
+    await host.mount();
+    try {
+      event!({eventType: 'channelUp', eventKeyAction: 0}); event!({eventType: 'channelUp', eventKeyAction: 1});
+      event!({eventType: 'channelDown', eventKeyAction: 0}); event!({eventType: 'channelDown', eventKeyAction: 1});
+      assert.deepEqual(tunes, live ? [next, previous] : [], live ? 'up is the next channel, down the previous, with the controls hidden' : 'not a live channel');
+    } finally {await host.unmount(); controls.dispose();}
+  }
+});

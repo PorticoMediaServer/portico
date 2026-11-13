@@ -60,6 +60,21 @@ export function NativeWatchChannelRoute({context, route, title}: {context: Nativ
       }).catch(failure => {if (current()) setError(failure);});
     return () => {controller.abort(); offRoute(); offAuthority();};
   }, [context, route, page, attempt]);
+  // TV keeps this launch page under the player so a zap can replace it. Once this channel has played and its player has
+  // gone, the page goes too: Back from the player returns to the guide it was started from, with its rail and focus,
+  // not to this empty page. A failed start keeps the page, which then shows the failure.
+  useEffect(() => {
+    if (!Platform.isTV) return;
+    const runtime = context.playback.runtime;
+    let played = false;
+    const check = () => {
+      const fence = runtime.getSnapshot().fence;
+      if (fence?.kind === 'channel' && fence.sourceId === route.sourceId && fence.channelId === route.channelId) {played = true; return;}
+      if (played && page.current()) page.pop();
+    };
+    check();
+    return runtime.subscribe(check);
+  }, [context, route, page]);
   const failure = error ? title.renderError(error, () => {if (page.current()) setAttempt(value => value + 1);}) : null;
   return Platform.isTV ? failure : <View style={{flex: 1}}>
     <TopBar back={{label: defaultI18n.t('action.back'), onPress: page.pop, testID: 'native-channel-back'}}/>
