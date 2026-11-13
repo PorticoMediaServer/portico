@@ -99,7 +99,7 @@ test('a book page reads its library, first author, cover, series, kind and summa
     credits: [{personId: 'per_editor', name: 'An Editor', role: 'editor'}, {personId: 'per_frank', name: 'Frank Herbert', role: 'author'}, {personId: 'per_brian', name: 'Brian Herbert', role: 'author'}]})), {
     libraryId: 'lib_books', author: 'Frank Herbert', authorId: 'per_frank', coverUrl: '/v1/images/dune',
     series: {id: 'itm_chronicles', name: 'Dune Chronicles', libraryId: 'lib_books', number: 1},
-    publicationType: {value: 'book', source: 'file'}, description: 'Arrakis.'});
+    publicationType: {value: 'book'}, description: 'Arrakis.'});
   assert.deepEqual(rebuiltBookFacts(wire('itm_plain', 'book', {summary: '  ', images: {poster: 'https://elsewhere.example/x.jpg'}, credits: [{name: 'No id', role: 'author'}]})), {libraryId: 'lib_books'},
     'a blank summary, a picture off the server and an author with no person id are left out');
 });
