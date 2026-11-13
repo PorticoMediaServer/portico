@@ -12,9 +12,10 @@ import {useAcceptedArrival} from '../browse/use-arrival';
 import styles from './layout.module.css';
 
 export type WindowedGridHandle = {scrollToIndex: (index: number, options?: {focus?: boolean}) => void};
-export type GridItemContext = Readonly<{index: number; key: string; focused: boolean}>;
+/** `width` is the card width the grid drew (with `fill`, the stretched width). */
+export type GridItemContext = Readonly<{index: number; key: string; focused: boolean; width: number}>;
 export type WindowedGridProps<T> = {
-  collection: WindowedCollection<T>; renderItem: (item: T, context: GridItemContext) => ReactNode; renderPlaceholder: (index: number) => ReactNode;
+  collection: WindowedCollection<T>; renderItem: (item: T, context: GridItemContext) => ReactNode; renderPlaceholder: (index: number, width: number) => ReactNode;
   label: string; height: number | string; cardWidth: number;
   /** A row's height, or how tall a row is for the width its cards are drawn at (with `fill`). */
   rowHeight: number | ((cardWidth: number) => number);
@@ -106,7 +107,7 @@ export function WindowedGrid<T>({collection, renderItem, renderPlaceholder, labe
     for (const index of gridRenderIndices(range.renderFirst, range.renderLast, total, pinnedIndex)) {
       const slot = collection.slotAt(index);
       if (slot.kind === 'item') keys.add(slot.key);
-      const content = slot.kind === 'item' ? renderItem(slot.item, {index, key: slot.key, focused: slot.key === focused}) : renderPlaceholder(index);
+      const content = slot.kind === 'item' ? renderItem(slot.item, {index, key: slot.key, focused: slot.key === focused, width: cardWidth}) : renderPlaceholder(index, cardWidth);
       // Capture the original content and focus callback together. Pixel scrolling only
       // repositions their wrappers; a new page/generation/callback still rebuilds them.
       const onFocusCapture = () => {if (slot.kind === 'item') {setFocused(slot.key);onItemFocus?.(slot.item, index);}};
