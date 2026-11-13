@@ -13,8 +13,8 @@ function elements(value: any): Element[] {
   if (Array.isArray(value)) return value.flatMap(elements);
   return React.isValidElement<Record<string, any>>(value) ? [value, ...elements(value.props.children)] : [];
 }
-async function button(os: 'android' | 'ios', isTV: boolean) {
-  const theme = createTheme({isTV, width: isTV ? 1920 : 390});
+async function button(os: 'android' | 'ios', isTV: boolean, fontScale = 1) {
+  const theme = createTheme({isTV, width: isTV ? 1920 : 390, fontScale});
   const {Button, ResumeButton} = await screenModule(new URL('../src-next/kit/controls/Button.tsx', import.meta.url), {
     react: {...React, default: React}, '@portico/design': {buttonSpec},
     'react-native': {Platform: {OS: os, isTV}, View: 'View', Text: 'Text', ActivityIndicator: 'ActivityIndicator', StyleSheet: {create: (s: any) => s, flatten, absoluteFill: {position: 'absolute', inset: 0}}},
@@ -126,5 +126,14 @@ test('explicit glyph color reaches leading, trailing and loading glyphs without 
       assert.ok(nodes.filter(node => node.type === 'Text').every(node => flatten(node.props.style).color === '#9e9e9e'));
       assert.equal(Object.hasOwn(actual.host(variant, {iconColor: '#828282'}).props, 'iconColor'), false, 'the presentation prop never leaks to Focusable');
     }
+  }
+});
+
+test('Android phone glass that grows with large text sizes its faces to their content, so the native blur cannot fill the screen', async () => {
+  for (const [fontScale, grows] of [[1, 1], [1.24, 0], [2, 0]] as const) {
+    const actual = await button('android', false, fontScale);
+    const face: Element = actual.host('glass').props.children({focused: false, hovered: false, pressed: false});
+    const blur = face.props.children as Element, layout = blur.props.children as Element;
+    for (const node of [face, blur, layout]) assert.equal(flatten(node.props.style).flexGrow, grows, `font scale ${fontScale}`);
   }
 });
