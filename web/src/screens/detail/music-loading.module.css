@@ -7,7 +7,7 @@
 .content { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 72px; min-height: 320px; padding-top: 52px; }
 .tracks, .details { display: grid; align-content: start; gap: 16px; }
 .loading[data-kind=artist] .hero { min-height: 640px; grid-template-columns: minmax(0, 1fr); }
-.loading[data-kind=artist] .art { position: absolute; top: 132px; right: calc(140px - var(--shell-gutter, 40px)); width: 380px; height: 380px; }
+.loading[data-kind=artist] .art { position: absolute; top: 132px; right: calc(140px - var(--shell-gutter)); width: 380px; height: 380px; }
 .loading[data-kind=artist] .copy { width: min(760px, 70%); padding-bottom: 60px; }
 @media(max-width:1023px) {
   .hero { grid-template-columns: 260px minmax(0, 1fr); gap: 32px; min-height: 260px; }

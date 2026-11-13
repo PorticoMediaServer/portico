@@ -20,18 +20,15 @@
 /* desktop-read 1/1b: the library's own rows and its bounded content share the
    drawn row rhythm (the kit owns .rows/.row; only the grid's gutter is ours). */
 .library { position: relative; min-height: 100%; }
-.books { position: relative; margin: 0 var(--shell-gutter, var(--gutter-desktop)); }
-@media (max-width: 1023px) { .books { margin-inline: 20px; } }
+.books { position: relative; margin: 0 var(--shell-gutter); }
 /* J-29: a Reading library with nothing in it still starts at the page's gutter. */
-.emptyLibrary { margin: 0 var(--shell-gutter, var(--gutter-desktop)); padding-top: 20px; }
-@media (max-width: 1023px) { .emptyLibrary { margin-inline: 20px; } }
+.emptyLibrary { margin: 0 var(--shell-gutter); padding-top: 20px; }
 
 /* phone-read 4/4c: the series' own name and count head its volume grid. */
-.seriesHeading { display: flex; align-items: baseline; gap: 10px; margin: 24px var(--shell-gutter, var(--gutter-desktop)) 8px; }
+.seriesHeading { display: flex; align-items: baseline; gap: 10px; margin: 24px var(--shell-gutter) 8px; }
 .seriesHeading h2 { margin: 0; font-size: var(--type-fixed-size-20px); font-weight: var(--type-fixed-weight-700); color: var(--color-text); }
 .seriesHeading span { font-size: var(--type-fixed-size-14px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); }
-@media (max-width: 1023px) { .seriesHeading { margin-inline: 20px; } }
 
-.dateFilter { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px var(--shell-gutter, var(--gutter-desktop)); }
+.dateFilter { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px var(--shell-gutter); }
 
 .dateFilter > div { flex: 1 1 180px; min-width: 0; max-width: 320px; }

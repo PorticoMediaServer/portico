@@ -1,5 +1,5 @@
 /* desktop-read 2b and phone-read 2: Collection follows the Server-tinted Edit action. */
-.bar { display: flex; align-items: center; gap: 10px; margin: 20px var(--shell-gutter, var(--gutter-desktop)); padding: 8px 12px; border-radius: 12px; background: var(--color-ink); box-shadow: 0 0 0 1px var(--color-line); }
+.bar { display: flex; align-items: center; gap: 10px; margin: 20px var(--shell-gutter); padding: 8px 12px; border-radius: 12px; background: var(--color-ink); box-shadow: 0 0 0 1px var(--color-line); }
 .bar b { white-space: nowrap; }
 .bar small { display: block; color: var(--color-text-tertiary); font-size: var(--type-caption-size); font-weight: var(--type-fixed-weight-500); }
 .actions { display: flex; align-items: center; gap: 4px; }

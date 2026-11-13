@@ -1,4 +1,8 @@
 @import "./kit/backdrop.css";
+/* The page edge for every page, the shell's own gutter by default: 20 px on a phone, the shared
+   desktop value from 1024 px (--page-gutter). Pages drawn outside the shell (a phone's film, show and
+   book pages, the reader) take it from here; the shell sets its own per navigation mode. */
+:root { --shell-gutter: var(--page-gutter); }
 html { color-scheme: dark; background: var(--color-ink); color: var(--color-text); font-family: var(--font); -webkit-font-smoothing: antialiased; }
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; font-size: var(--type-body-size); line-height: var(--type-body-line); }

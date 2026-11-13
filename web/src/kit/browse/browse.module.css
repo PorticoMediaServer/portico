@@ -8,7 +8,7 @@
 }
 .libraryHeader { position: relative; isolation: isolate; }
 .headerAmbient { position: absolute; inset: 0 0 auto; height: 560px; pointer-events: none; z-index: -1; }
-.libraryIdentity { position: relative; display: flex; align-items: center; gap: 14px; padding: 112px var(--shell-gutter, var(--gutter-desktop)) 0; }
+.libraryIdentity { position: relative; display: flex; align-items: center; gap: 14px; padding: 112px var(--shell-gutter) 0; }
 .libraryName { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .libraryName h1 { margin: 0; font-size: 56px; line-height: 1; font-weight: 800; letter-spacing: -.045em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .libraryCounts { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 12px; font-size: 15px; color: var(--browse-muted); }
@@ -30,7 +30,7 @@
 .ownerLabel { display: flex; align-items: center; gap: 8px; color: var(--color-accent-strong); font-size: 12px; font-weight: 700; min-height: 34px; }
 .ownerLabel > :last-child { margin-left: auto; }
 .toolbar { position: relative; z-index: var(--layer-sticky); }
-.toolbarMain { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 8px; padding: 20px var(--shell-gutter, var(--gutter-desktop)) 0; }
+.toolbarMain { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 8px; padding: 20px var(--shell-gutter) 0; }
 .toolbarMain > * { flex-shrink: 0; }
 .toolbarMain button { white-space: nowrap; }
 .filtersButton { height: 40px; padding: 0 14px; border-radius: 10px; font-size: 14.5px; gap: 8px; }
@@ -51,7 +51,7 @@
 .viewToggle button { min-width: 38px; width: 38px; height: 34px; border-radius: 8px; color: var(--browse-muted); }
 .viewToggle button[aria-pressed=true] { background: var(--color-raised-bright); color: var(--browse-text); box-shadow: 0 1px 2px #0005; }
 .saveView { height: 40px; padding: 0 12px; border-radius: 10px; font-size: 14.5px; font-weight: 700; color: var(--browse-secondary); }
-.applied { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 14px var(--shell-gutter, var(--gutter-desktop)) 0; }
+.applied { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 14px var(--shell-gutter) 0; }
 .appliedChip { border: 0; height: 34px; padding: 0 7px 0 14px; border-radius: 17px; display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 14px; font-weight: 700; color: var(--browse-text); background: var(--color-raised-bright); cursor: pointer; transition: background 160ms var(--ease-out); }
 .appliedField, .appliedOperator { color: var(--browse-muted); font-weight: 600; }
 .appliedValue + .appliedValue { margin-left: 3px; }
@@ -135,7 +135,7 @@
 .filterBuilder[data-platform=tv] .expandedName { font-size: 24px; }
 .filterBuilder[data-platform=tv] .facetChips { gap: 12px; }
 .filterBuilder[data-platform=tv] .facetChips > button { height: 56px; border-radius: 12px; padding-inline: 20px; font-size: 22px; }
-.filteredEmpty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 70px var(--shell-gutter, var(--gutter-desktop)) 0; }
+.filteredEmpty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 70px var(--shell-gutter) 0; }
 .ghostPosters { position: relative; width: 220px; height: 150px; margin-bottom: 30px; }
 .ghostPosters > span { position: absolute; bottom: 0; left: 50%; width: 84px; height: 126px; margin-left: -42px; border-radius: 10px; background: linear-gradient(var(--color-raised-high), var(--color-raised)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 8%, transparent), 0 18px 30px -16px #000; }
 .ghostPosters > span:first-child { transform: translateX(-62px) rotate(-9deg); opacity: .55; }

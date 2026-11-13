@@ -1,5 +1,5 @@
 /* desktop-listen's artist page on the current kit. */
-.page { padding: 24px var(--shell-gutter, 40px) 80px; color: var(--color-text); }
+.page { padding: 24px var(--shell-gutter) 80px; color: var(--color-text); }
 .bar { display: flex; align-items: center; gap: 12px; min-height: 44px; }
 /* desktop-listen#artist: under the desktop top bar the 640px hero runs from the top of the page,
    under the bar, with no back row. The rail and phone keep their back row. */
@@ -8,9 +8,9 @@
 :global([data-navigation='topbar']) .hero { margin-top: 0; }
 /* A row carries its own gutter; inside this padded page it bleeds back to the edge so its heading
    and first card sit on the page gutter, not twice it. */
-.page > [data-layout-row] { margin-inline: calc(-1 * var(--shell-gutter, 40px)); }
+.page > [data-layout-row] { margin-inline: calc(-1 * var(--shell-gutter)); }
 .barTitle { font-size: var(--type-body-size); font-weight: var(--type-caption-strong-weight); color: var(--color-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hero { position: relative; height: 640px; margin: 8px calc(-1 * var(--shell-gutter, 40px)) 32px; overflow: hidden; }
+.hero { position: relative; height: 640px; margin: 8px calc(-1 * var(--shell-gutter)) 32px; overflow: hidden; }
 .disc { position: absolute; z-index: var(--layer-content); top: 132px; right: 140px; width: 380px; height: 380px; border-radius: 50%; }
 .disc::before, .disc::after { content: ''; position: absolute; border-radius: 50%; pointer-events: none; }
 .disc::before { inset: -26px; box-shadow: inset 0 0 0 1px color-mix(in srgb,var(--color-text) 14%,transparent); }
@@ -23,7 +23,7 @@
   .disc > :last-child { box-shadow: 0 50px 90px -30px color-mix(in srgb,var(--color-shadow) 90%,transparent), 0 0 0 1px color-mix(in srgb,var(--color-text) 10%,transparent); }
 }
 /* The copy stops 48px short of the disc (right 140 + 380), so a title never runs under it. */
-.copy { position: absolute; z-index: var(--layer-art-label); left: var(--shell-gutter, 40px); bottom: 60px; min-width: 0; width: min(760px, calc(100% - var(--shell-gutter, 40px) - 568px)); }
+.copy { position: absolute; z-index: var(--layer-art-label); left: var(--shell-gutter); bottom: 60px; min-width: 0; width: min(760px, calc(100% - var(--shell-gutter) - 568px)); }
 .kind { margin: 0 0 12px; font-size: var(--type-fixed-size-15px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-secondary); }
 /* desktop-listen#artist: .lockup.xl 104px/.94; a long name takes the album's long size, 68px/.98. */
 .title { --artist-title-size: calc(var(--type-fixed-size-16px) * 6.5); margin-bottom: 22px; font-size: var(--artist-title-size); font-weight: var(--type-lockup-weight); line-height: var(--type-fixed-line-point-94); letter-spacing: var(--type-fixed-tracking-minus-point-045em); text-wrap: balance; overflow-wrap: anywhere; }
@@ -49,7 +49,7 @@
 /* 1024-1279: no frame; a smaller disc nearer the edge, and one type step down. */
 @media (max-width: 1279px) {
   .disc { top: 172px; right: 64px; width: 300px; height: 300px; }
-  .copy { width: min(760px, calc(100% - var(--shell-gutter, 40px) - 412px)); }
+  .copy { width: min(760px, calc(100% - var(--shell-gutter) - 412px)); }
   .title { --artist-title-size: calc(var(--type-fixed-size-21px) * 4); }
   .title[data-long] { --artist-title-size: var(--type-fixed-size-56px); }
   .split { grid-template-columns: minmax(0, 1fr) 280px; gap: 40px; }

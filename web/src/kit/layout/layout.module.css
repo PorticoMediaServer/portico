@@ -3,7 +3,7 @@
 .titleLink { color: inherit; text-decoration: none; border-radius: 6px; transition: opacity var(--motion-quick) var(--ease-out); }
 @media (hover: hover) { .titleLink:hover { opacity: .86; } }
 .titleLink:focus-visible { outline: var(--spec-focus-ring-width-web) solid var(--color-focus); outline-offset: 6px; }
-.hero { position: relative; height: 720px; isolation: isolate; --layout-gutter: var(--shell-gutter, var(--gutter-desktop)); }
+.hero { position: relative; height: 720px; isolation: isolate; --layout-gutter: var(--shell-gutter); }
 .slide { position: absolute; inset: 0; opacity: 0; transition: opacity var(--motion-hero) var(--ease-out); pointer-events: none; }
 .slide[data-active='true'] { opacity: 1; pointer-events: auto; }
 /* mock.html#hero: the blurred wash is not cut off at the hero's foot; it carries on under
@@ -40,7 +40,7 @@
 @keyframes timer { to { transform: scaleX(1); } }
 .hero[data-platform='phone-app'], .hero[data-platform='phone-web'] { height: 560px; }
 .hero[data-platform='phone-web'] { height: 486px; }
-.hero[data-platform^='phone'] .copy { left: 20px; right: 20px; bottom: 24px; width: auto; text-align: center; }
+.hero[data-platform^='phone'] .copy { left: var(--layout-gutter); right: var(--layout-gutter); bottom: 24px; width: auto; text-align: center; }
 .hero[data-platform^='phone'][data-navigation='true'] .copy { bottom: 48px; }
 .hero[data-platform^='phone'] .reason { margin-bottom: 8px; }
 .hero[data-platform^='phone'] .reason { justify-content: center; }
@@ -72,7 +72,7 @@
 .heroProgress { display: inline-flex; align-items: center; gap: 14px; color: var(--color-text); font-weight: 700; }
 .progressTrack { display: inline-block; width: 160px; height: 6px; border-radius: 6px; background: rgba(237,245,250,.22); overflow: hidden; }
 .progressTrack i { display: block; height: 100%; background: var(--color-accent-strong); border-radius: 6px; transform-origin: left; }
-.row { --layout-gutter: var(--shell-gutter, var(--gutter-desktop)); position: relative; margin-top: 44px; }
+.row { --layout-gutter: var(--shell-gutter); position: relative; margin-top: 44px; }
 .row:first-child { margin-top: 0; }
 /* Rows and heroes sit on the shell's one page-edge gutter (20 px on a phone, 28 px beside the rail). */
 .rowHead { display: flex; align-items: baseline; gap: 14px; padding: 0 var(--layout-gutter); margin-bottom: 14px; }
@@ -94,7 +94,7 @@
 .arrow:disabled { pointer-events: none; visibility: hidden; }
 .row[data-platform^='phone'] { margin-top: 28px; }
 .row[data-platform^='phone'] .rowHead { margin-bottom: 4px; }
-.row[data-platform^='phone'] .track { padding: 8px 20px 10px; gap: 12px; }
+.row[data-platform^='phone'] .track { padding: 8px var(--layout-gutter) 10px; gap: 12px; }
 .row[data-platform^='phone'] .rowHead h2 { display: flex; align-items: center; gap: 1px; }
 .row[data-platform^='phone'] .rowHead h2 svg { color: var(--color-text-tertiary); }
 .row[data-platform='tv'] { --layout-gutter: var(--gutter-tv); }
@@ -120,7 +120,7 @@
 .alphabet[data-platform='phone'] button::before { inset-inline: -12px; }
 .alphabet[data-platform='phone'] button[data-current='true'] { color: var(--color-ink); background: radial-gradient(circle, var(--color-accent-strong) 8px, transparent 8px); }
 .alphabet[data-platform='phone'] .band { display: none; }
-.flow { position: relative; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 52px 40px; padding: 40px var(--shell-gutter, var(--gutter-desktop)) 0; }
+.flow { position: relative; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 52px 40px; padding: 40px var(--shell-gutter) 0; }
 .flowSection { flex: none; min-width: 0; max-width: 100%; }
 .flowSection { animation: layout-arrive var(--motion-quick) var(--ease-out) both; transition: opacity var(--motion-quick) var(--ease-in); }
 .flowSection[data-leaving='true'] { opacity: 0; }

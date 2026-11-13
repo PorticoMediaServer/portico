@@ -4,7 +4,7 @@
 .footerButton.footerButton.footerButton { border-radius: 12px; }
 
 .onNow { position: relative; margin-top: 30px; }
-.nowViewport { overflow-x: auto; overflow-y: hidden; margin-inline: var(--shell-gutter, var(--gutter-desktop)); padding-block: 8px 16px; scrollbar-width: none; }
+.nowViewport { overflow-x: auto; overflow-y: hidden; margin-inline: var(--shell-gutter); padding-block: 8px 16px; scrollbar-width: none; }
 .nowViewport::-webkit-scrollbar { display: none; }
 .nowSpace { position: relative; height: 204px; }
 .nowSlot { position: absolute; top: 0; width: 344px; }
@@ -15,9 +15,9 @@
 .facts { display: flex; flex-wrap: wrap; gap: 10px; color: var(--color-text-secondary); }
 /* ---- Guide screen: desktop-live.html#live-guide ---- */
 .guideScreen { position: relative; min-height: 100vh; }
-.guideState { padding: 122px var(--shell-gutter, var(--gutter-desktop)) 72px; }
-.guideProblem { padding: 16px var(--shell-gutter, var(--gutter-desktop)) 0; }
-.guideHeader { position: relative; padding: 122px var(--shell-gutter, var(--gutter-desktop)) 0; display: flex; align-items: flex-end; gap: 20px; }
+.guideState { padding: 122px var(--shell-gutter) 72px; }
+.guideProblem { padding: 16px var(--shell-gutter) 0; }
+.guideHeader { position: relative; padding: 122px var(--shell-gutter) 0; display: flex; align-items: flex-end; gap: 20px; }
 .guidePhoneView { flex-shrink: 0; margin-left: auto; }
 .guideHeader h1 { margin: 0; font-size: calc(var(--type-lockup-long-size) - 4px); line-height: calc(.95em); font-weight: var(--type-lockup-long-weight); letter-spacing: var(--type-lockup-long-tracking); }
 .guideHeader .guideSwitcher { min-width: 0; height: 40px; padding: 0 12px 0 16px; gap: 8px; border-radius: 10px; margin-bottom: 2px;
@@ -26,16 +26,16 @@
 .guideSource { line-height: normal; margin: 0 0 10px auto; display: flex; gap: 12px; font-size: calc(var(--type-body-size) - 1px); color: var(--color-text-tertiary); }
 .guideSource strong { color: var(--color-text-secondary); font-weight: var(--type-row-heading-weight); }
 .guideTabs { margin-top: 26px; }
-.guideTabList { padding: 0 var(--shell-gutter, var(--gutter-desktop)); }
+.guideTabList { padding: 0 var(--shell-gutter); }
 .guideTabs .guideTabList button { font-size: var(--type-tab-size); }
 .guideTabNote { margin-left: 10px; font-size: var(--type-caption-size); font-weight: var(--type-row-heading-weight); color: var(--color-record); }
-.guideChips { position: relative; display: flex; gap: 8px; padding: 22px var(--shell-gutter, var(--gutter-desktop)) 0; overflow-x: auto; scrollbar-width: none; }
+.guideChips { position: relative; display: flex; gap: 8px; padding: 22px var(--shell-gutter) 0; overflow-x: auto; scrollbar-width: none; }
 .guideChips::-webkit-scrollbar { display: none; }
 .guideChips .guideChip { height: 38px; padding: 0 14px; gap: 7px; border-radius: 10px; font-size: calc(var(--type-body-size) - .5px); font-weight: var(--type-chip-weight); color: var(--color-text-secondary); }
 .guideChips .guideChip > svg { color: var(--color-accent-strong); }
 .guideChips .guideChip[data-selected] { background: color-mix(in srgb, var(--color-accent) 20%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-strong) 62%, transparent); color: var(--color-text); }
 .guideChips .guideChip[data-selected]:hover:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 28%, transparent); }
-.guideTime { position: relative; display: flex; align-items: center; gap: 12px; padding: 0 var(--shell-gutter, var(--gutter-desktop)); margin-top: 36px; }
+.guideTime { position: relative; display: flex; align-items: center; gap: 12px; padding: 0 var(--shell-gutter); margin-top: 36px; }
 .guideTime .guideDay { min-width: 0; height: 40px; padding: 0 12px 0 14px; gap: 8px; border-radius: 10px; background: var(--color-raised-high); font-size: calc(var(--type-body-size) - .5px); }
 .guideTime .guideSort { min-width: 0; height: 40px; padding: 0 12px; gap: 8px; border-radius: 10px; background: transparent; box-shadow: inset 0 0 0 1px var(--color-line); font-size: calc(var(--type-body-size) - .5px); }
 .guideTime .guideSort:hover:not(:disabled) { background: var(--color-raised-high); }
@@ -50,7 +50,7 @@
 .guideTime .guideView button > svg { width: 18px; height: 18px; }
 .guide { position: relative; margin-top: 16px; padding-bottom: 8px; touch-action: pan-y; }
 .guideRuler { display: flex; height: 44px; }
-.guideCorner { width: var(--guide-column); flex: none; padding-left: var(--shell-gutter, var(--gutter-desktop)); display: flex; align-items: center; font-size: var(--type-caption-size); font-weight: var(--type-caption-strong-weight); color: var(--color-text-tertiary); }
+.guideCorner { width: var(--guide-column); flex: none; padding-left: var(--shell-gutter); display: flex; align-items: center; font-size: var(--type-caption-size); font-weight: var(--type-caption-strong-weight); color: var(--color-text-tertiary); }
 .guideCornerNow { padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
 .guideLane { position: relative; flex: 1; min-width: 0; height: 100%; overflow: hidden; mask-image: linear-gradient(90deg, var(--color-shadow) calc(100% - 180px), transparent); }
 .guideTick { position: absolute; top: 8px; bottom: 8px; display: flex; align-items: center; padding-left: 10px; border-left: 1px solid var(--color-line); white-space: nowrap; color: var(--color-text-tertiary); font-size: var(--type-caption-size); font-weight: var(--type-caption-strong-weight); font-variant-numeric: tabular-nums; }
@@ -64,7 +64,7 @@
   background: linear-gradient(90deg, color-mix(in srgb, var(--color-ink) 38%, transparent), color-mix(in srgb, var(--color-ink) 12%, transparent)); }
 .guideRows { position: relative; }
 .guideRow { position: absolute; left: 0; right: 0; height: var(--guide-row); display: flex; }
-.guideChannel { width: var(--guide-column); flex: none; padding: 0 14px 0 var(--shell-gutter, var(--gutter-desktop)); display: flex; align-items: center; gap: 12px; min-width: 0; position: relative; }
+.guideChannel { width: var(--guide-column); flex: none; padding: 0 14px 0 var(--shell-gutter); display: flex; align-items: center; gap: 12px; min-width: 0; position: relative; }
 .guideChannelMore { margin-left: auto; flex: none; opacity: 0; transition: opacity var(--motion-quick) var(--ease-out); }
 .guideRow:hover .guideChannelMore, .guideRow:focus-within .guideChannelMore, .guideChannelMore[aria-expanded='true'] { opacity: 1; }
 @media (hover: none) { .guideChannelMore:not(:focus-visible):not([aria-expanded='true']) { pointer-events: none; } }
@@ -108,7 +108,7 @@
 .guideProgress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 .guideProgress i { display: block; height: 100%; background: var(--color-accent-strong); }
 .guideNowLine { position: absolute; top: -6px; bottom: 0; width: 2px; margin-left: -1px; background: var(--color-accent-strong); box-shadow: 0 0 14px color-mix(in srgb, var(--color-accent-strong) 55%, transparent); pointer-events: none; z-index: -1; }
-.guideKbd { line-height: normal; margin: 0; padding: 18px var(--shell-gutter, var(--gutter-desktop)) 44px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
+.guideKbd { line-height: normal; margin: 0; padding: 18px var(--shell-gutter) 44px; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
 @media (max-width: 1023px) {
   .guideHeader { padding-top: 44px; flex-wrap: wrap; }
   .guideHeader h1 { font-size: var(--type-banner-title-size); line-height: calc(1.15em); letter-spacing: calc(var(--type-lockup-long-tracking) + .01em); }
@@ -122,7 +122,7 @@
   .guideCellDetail { font-size: calc(var(--type-label-size) - 2px); }
 }
 @media (max-width: 599px) {
-  .guideHeader, .guideChips, .guideTime { padding-inline: var(--shell-gutter, var(--gutter-desktop)); }
+  .guideHeader, .guideChips, .guideTime { padding-inline: var(--shell-gutter); }
   .guideHeader { gap: 8px; flex-wrap: nowrap; }
   .guideHeader h1 { font-size: var(--type-title-size); }
   .guideRecordings { flex: none; }
@@ -136,7 +136,7 @@
 }
 
 /* ---- Guide list state: desktop-live.html#live-list ---- */
-.guideListState { position: relative; margin: 18px var(--shell-gutter, var(--gutter-desktop)) 52px; }
+.guideListState { position: relative; margin: 18px var(--shell-gutter) 52px; }
 .guideListRows { position: relative; }
 .guideListHead, .guideListRow { display: grid; grid-template-columns: 250px 1.3fr 1fr 1fr 150px; gap: 24px; align-items: center; padding: 0 18px; }
 .guideListHead { height: 40px; font-size: var(--type-caption-size); font-weight: var(--type-caption-strong-weight); color: var(--color-text-tertiary); border-bottom: 1px solid var(--color-line); }
@@ -276,15 +276,15 @@
 }
 
 /* ---- Recordings door: desktop-live.html#live-upcoming and #live-recorded ---- */
-.recordingsBar { position: relative; z-index: var(--layer-content); display: flex; align-items: flex-end; gap: 20px; padding: 22px var(--shell-gutter, var(--gutter-desktop)) 0; }
+.recordingsBar { position: relative; z-index: var(--layer-content); display: flex; align-items: flex-end; gap: 20px; padding: 22px var(--shell-gutter) 0; }
 .recordingsChips { display: flex; flex-wrap: wrap; gap: 8px; }
 .recordingsScope { flex: none; }
 .recordingsChip { height: 38px; padding: 0 14px; font-size: calc(var(--type-body-size) * 29 / 30); gap: 7px; color: var(--color-text-secondary); }
 .recordingsChip[data-selected] { background: color-mix(in srgb, var(--color-accent) 20%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-strong) 62%, transparent); color: var(--color-text); }
 .storageButton { margin-left: auto; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; text-align: right; border-radius: 10px; }
 .storageButton:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
-.recordingsBanner { position: relative; z-index: var(--layer-content); margin: 12px var(--shell-gutter, var(--gutter-desktop)) 0; }
-.recBody { position: relative; z-index: 1; padding: 10px var(--shell-gutter, var(--gutter-desktop)) 56px; }
+.recordingsBanner { position: relative; z-index: var(--layer-content); margin: 12px var(--shell-gutter) 0; }
+.recBody { position: relative; z-index: 1; padding: 10px var(--shell-gutter) 56px; }
 .recSection { margin-top: 22px; }
 .recSection h2 { display: flex; align-items: baseline; gap: 12px; margin: 0 0 8px; font-size: var(--type-subheading-size); font-weight: var(--type-row-heading-weight); letter-spacing: var(--type-episode-title-tracking); }
 .recSection h2 span { font-size: var(--type-chip-size); font-weight: var(--type-micro-weight); color: var(--color-text-tertiary); }
@@ -365,7 +365,7 @@
   .recordedSortLabel { margin-left: auto; }
 }
 @media (max-width: 599px) {
-  .recordingsBar, .recordingsBanner, .recBody { padding-inline: var(--shell-gutter, var(--gutter-desktop)); }
+  .recordingsBar, .recordingsBanner, .recBody { padding-inline: var(--shell-gutter); }
   .recRow { grid-template-columns: 84px minmax(0, 1fr); gap: 12px; }
   .recArt { grid-row: span 2; }
   .recRight { grid-column: 1 / -1; }

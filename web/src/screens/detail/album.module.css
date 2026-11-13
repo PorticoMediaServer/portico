@@ -1,5 +1,5 @@
 /* desktop-listen's album page, lifted onto the current kit. */
-.page { position: relative; isolation: isolate; padding: 24px var(--shell-gutter, 40px) 80px; color: var(--color-text); }
+.page { position: relative; isolation: isolate; padding: 24px var(--shell-gutter) 80px; color: var(--color-text); }
 .bar { display: flex; align-items: center; gap: 12px; min-height: 44px; }
 /* desktop-listen#album: under the desktop top bar there is no back row; the hero starts at 148px
    (bar 76 + 72), clear of the bar. The rail and phone keep their back row. */
@@ -7,7 +7,7 @@
 :global([data-navigation='topbar']) .bar { display: none; }
 /* A row carries its own gutter; inside this padded page it bleeds back to the edge so its heading
    and first card sit on the page gutter, not twice it. */
-.page > [data-layout-row] { margin-inline: calc(-1 * var(--shell-gutter, 40px)); }
+.page > [data-layout-row] { margin-inline: calc(-1 * var(--shell-gutter)); }
 .barTitle { font-size: var(--type-body-size); font-weight: var(--type-caption-strong-weight); color: var(--color-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hero { display: flex; align-items: flex-end; gap: 56px; margin: 8px 0 28px; }
 .art { position: relative; flex: none; width: 340px; height: 340px; border-radius: 12px; background: var(--color-raised); }
