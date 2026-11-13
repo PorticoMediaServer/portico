@@ -2,7 +2,7 @@ import {headerWordmark} from '../kit/shell/brand';
 import React, {useCallback, useMemo, useRef, useSyncExternalStore} from 'react';
 import {motionRules} from '@portico/design';
 import {findNodeHandle, Image, Platform, ScrollView, Text, View} from 'react-native';
-import Svg, {Defs, LinearGradient, Rect, Stop, Path} from 'react-native-svg';
+import Svg, {Path} from 'react-native-svg';
 import Animated, {useAnimatedStyle, useSharedValue, withDelay, withTiming} from 'react-native-reanimated';
 import {defaultI18n} from '../../../../packages/i18n/src';
 import type {Library} from '../../../../packages/client-core/src';
@@ -71,8 +71,6 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
   React.useEffect(() => {if (!motion.transforms) expanded.value = open ? 1 : 0;}, [expanded, motion.transforms, open]);
   const panel = useAnimatedStyle(() => ({transform: [{translateX: (expanded.value - 1) * (spec.openWidth - spec.width)}]}));
   const counter = useAnimatedStyle(() => ({transform: [{translateX: (1 - expanded.value) * (spec.openWidth - spec.width)}]}));
-  const openShade = useAnimatedStyle(() => ({opacity: expanded.value}));
-  const closedShade = useAnimatedStyle(() => ({opacity: 1 - expanded.value}));
   const labels = useAnimatedStyle(() => ({opacity: labelOpacity.value, transform: motion.transforms ? [{translateX: -8 * (1 - labelOpacity.value)}] : []}));
   const entries: RailEntry[] = [
     {key: 'search', icon: 'i-search', label: defaultI18n.t('web.shell.search'), destination: {kind: 'search'}},
@@ -92,27 +90,21 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
     </Focusable>;
   };
   return <View pointerEvents="box-none" style={{position: 'absolute', left: 0, top: 0, bottom: 0, width: open ? spec.openWidth : spec.width, zIndex: theme.layers.navigation}}>
-    {/* motion.html 4.2: the panel's darkness follows the same shared value as its slide, so the
-        closed and open gradients cross-fade instead of stepping when the state flips. */}
-    {/* tv.html `.rail`: the closed rail's own 260-wide scrim, so a card passing under it is
-        darkened as in the mock. Drawn unslid (inside the sliding panel only its faint tail showed). */}
-    <Animated.View pointerEvents="none" style={[{position: 'absolute', left: 0, top: 0, bottom: 0, width: spec.width}, closedShade]}>
-      <Svg width="100%" height="100%" style={{position: 'absolute', inset: 0}}><Defs><LinearGradient id="native-rail" x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={theme.colors.ink} stopOpacity={.78}/><Stop offset={.45} stopColor={theme.colors.ink} stopOpacity={.42}/><Stop offset="1" stopColor={theme.colors.ink} stopOpacity={0}/></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#native-rail)"/></Svg>
-    </Animated.View>
-    <Animated.View pointerEvents="none" style={[{position: 'absolute', inset: 0, width: spec.openWidth}, panel]}>
-      <Animated.View style={[{position: 'absolute', inset: 0}, openShade]}>
-        <Svg width="100%" height="100%"><Defs><LinearGradient id="native-rail-open" x1="0" y1="0" x2="1" y2="0"><Stop offset="0" stopColor={theme.colors.ink} stopOpacity={.99}/><Stop offset={.66} stopColor={theme.colors.ink} stopOpacity={.96}/><Stop offset="1" stopColor={theme.colors.ink} stopOpacity={0}/></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#native-rail-open)"/></Svg>
-      </Animated.View>
-    </Animated.View>
+    {/* The rail's scrim is the shell's one rail scrim (NativeShell `tvRailScrim`), not drawn here. */}
     <FocusRegion id={ids.rail} entry={ids.destination(destination)} entryPolicy="entry" orientation="vertical"
       order={[...entries.map(entry => entry.key), 'settings', ids.profile]} edges={{right: returnRegion}} onFocusChange={focusChanged}
       accessibilityLabel={defaultI18n.t('next.home.native.mainNavigation')} style={{flex: 1}}>
     <Animated.View style={[{flex: 1, width: spec.openWidth, paddingLeft: spec.insetLeft, paddingTop: spec.paddingTop, paddingBottom: spec.paddingBottom}, panel]}>
-      <Animated.View style={[{flex: 1}, counter, dimmed && !open ? {opacity: .5} : null]}>
+      {/* Closed, the column ends at the page's 200 gutter: anything wider (the 512-wide entry list) lies over the page's first
+          column, and tvOS refuses focus to what it covers. Open, it takes the panel's width. */}
+      <Animated.View style={[{flex: 1}, counter, open ? null : {width: tvRailClosedColumn, overflow: 'hidden'}, dimmed && !open ? {opacity: .5} : null]}>
         <View accessible={false} style={{height: 40, marginLeft: 16, marginBottom: 64}}>
           {open ? <Image source={require('../../assets/wordmark.png')} resizeMode="contain" style={{...headerWordmark.tvRail, flexShrink: 0, position: 'absolute', top: (40 - headerWordmark.tvRail.height) / 2}}/> : <RailBrandSymbol/>}
         </View>
-        <ScrollView style={{flex: 1, marginLeft: -24}} contentContainerStyle={{gap: spec.itemGap, paddingLeft: 24}} showsVerticalScrollIndicator={false}>{entries.map(item)}</ScrollView>
+        {/* The list scrolls, so it clips: room on every side for the focused item's glow, so the glow fades out instead of ending
+            at the list's edge. */}
+        <ScrollView style={{flex: 1, marginLeft: -24, marginRight: -tvRailGlow, marginVertical: -tvRailGlow}}
+          contentContainerStyle={{gap: spec.itemGap, paddingLeft: 24, paddingRight: tvRailGlow, paddingVertical: tvRailGlow}} showsVerticalScrollIndicator={false}>{entries.map(item)}</ScrollView>
         <View style={{gap: spec.itemGap, paddingTop: 8}}>
           {item({key: 'settings', label: defaultI18n.t('settings.title'), icon: 'i-settings', destination: {kind: 'settings'}})}
           <Focusable ref={profileRef} {...returnProps} focusId={ids.profile} testID={focusTestID(ids.rail, ids.profile)} accessibilityRole="button" accessibilityLabel={defaultI18n.t('next.home.native.profileAndServer')} onPress={onProfile} focusRadius={14}
@@ -128,6 +120,11 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
     </Animated.View></FocusRegion>
   </View>;
 }
+
+/** Closed, the rail's column (from its 72 inset) ends at the page's 200 gutter. */
+const tvRailClosedColumn = 200 - 72; // the page gutter less the rail's insetLeft (spec.navigation.tv)
+/** Room around the rail list for a focused item's glow. */
+const tvRailGlow = 40;
 
 /** The canonical brandSymbol asset paths, using the elements supplied by the Metro SVG adapter. */
 function RailBrandSymbol() {

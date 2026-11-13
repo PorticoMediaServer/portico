@@ -1,5 +1,5 @@
 import React, {createContext, forwardRef, useCallback, useContext, useLayoutEffect, useMemo, useRef, useSyncExternalStore} from 'react';
-import {findNodeHandle, TVFocusGuideView, View, type FocusGuideMethods, type ViewProps} from 'react-native';
+import {findNodeHandle, Platform, TVFocusGuideView, View, type FocusGuideMethods, type ViewProps} from 'react-native';
 import {useTheme} from '../theme';
 import {createFocusHandleResolver, createFocusRegistry, focusTestID, requestNativeFocus, type FocusAddress, type FocusHost, type FocusRegionConfig, type FocusRegistry} from './registry';
 import type {FocusCell} from './cell-navigation';
@@ -129,8 +129,22 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
   useLayoutEffect(() => {
     if (!preferred) {asked.current = false; return;}
     if (asked.current || disabled || preferredBlocked) return;
-    asked.current = true; requestNativeFocus(native.current);
-  }, [disabled, native, preferred, preferredBlocked]);
+    asked.current = true;
+    const before = registry?.capture();
+    requestNativeFocus(native.current);
+    // tvOS: a page uncovered in this commit becomes focusable natively only once the commit is on screen, so this ask can be
+    // dropped, and focus stays on the covered page underneath, where no key moves it. Ask once more on the next frame, but
+    // only if focus is still where it was before the ask: if the ask landed, or the person has pressed a key and moved focus
+    // since, the re-ask never happens. Focus is never taken back from the person.
+    if (Platform?.OS !== 'ios' || !Platform.isTV || typeof requestAnimationFrame !== 'function') return;
+    const host = native.current;
+    const frame = requestAnimationFrame(() => {
+      const now = registry?.capture();
+      if (native.current !== host || now?.regionId !== before?.regionId || now?.childId !== before?.childId) return;
+      requestNativeFocus(host);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [disabled, native, preferred, preferredBlocked, registry]);
   const config = regionId ? registry?.config(regionId) : undefined;
   const inherited = registry && regionId ? inheritedEdges(registry, regionId) : {};
   // Edge props below also point at neighbour regions from destinations(); a
