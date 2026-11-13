@@ -8,7 +8,8 @@ import type {BrowseCapabilities} from '../../../../../packages/client-core/src/b
 import {readLibrarySummaries, type LibrarySummary} from '../../../../../packages/client-core/src/library-summary';
 import {readingDuration} from '../../../../../packages/client-core/src/reading-manifest-facts';
 import {libraryTabs, readingTabModel, type LibraryTabId} from '../../../../../packages/client-core/src/presentation/library-tabs';
-import {GeneratedCover, StandardBackdrop} from '../../kit/artwork';
+import {GeneratedCover, StandardBackdrop, type ArtworkSource} from '../../kit/artwork';
+import {PhoneReadingBookCover} from './PhoneReadingBookCard';
 import {ReadResumeCard} from '../../kit/cards';
 import {Focusable} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
@@ -187,17 +188,18 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
       {discoveryState.continueItems.map(row => <ReadingMenuAnchor key={row.item.id}>{anchorRef => {const offered = readingOffer(row.item, 'discover'); return <ReadResumeCard testID={`reading-continue-${row.item.id}`} width={tablet ? 392 : 296} height={tablet ? 176 : 150}
         title={row.item.title} caption={authorPart(row.item)} detail={resumeDetail(row.progress)}
         progress={Math.min(0.999, Math.max(0, row.progress.location.progression))} palette={tint(row.item.title)}
+        artwork={runtime.artwork(row.item.coverUrl)}
         artworkFallback={<View accessible={false} importantForAccessibility="no-hide-descendants">{cover(row.item, tablet ? 99 : 81, tablet ? 148 : 122)}</View>}
         disabled={row.item.inventoryAvailable !== true} onNavigate={() => openDiscover(row.item)} menuAnchorRef={anchorRef} selection={offered ? readingActions.selection(offered) : undefined}
         onMore={offered ? () => readingActions.actions.show({...offered, anchorRef}) : undefined}/>;}}</ReadingMenuAnchor>)}
     </DiscoveryRow> : null}
     {discoveryState.recent.length ? <DiscoveryRow title={defaultI18n.t('home.row.recentlyAdded')} first={!discoveryState.continueItems.length} onSeeAll={() => setTab('browse')}
       onNearEnd={() => {void discovery.more('recent').catch(runtime.reportError);}}>
-      {discoveryState.recent.map(item => <DiscoveryCoverCard key={item.id} item={item} width={tablet ? 142 : 118} onOpen={openDiscover} offer={readingOffer(item, 'discover')} actions={readingActions}/>)}
+      {discoveryState.recent.map(item => <DiscoveryCoverCard key={item.id} item={item} artwork={runtime.artwork(item.coverUrl)} width={tablet ? 142 : 118} onOpen={openDiscover} offer={readingOffer(item, 'discover')} actions={readingActions}/>)}
     </DiscoveryRow> : null}
     {discoveryState.shortReads.length ? <DiscoveryRow title={defaultI18n.t('next.reader.shortReads')} sub={defaultI18n.t('next.reader.underThreeHours')}
       onNearEnd={() => {void discovery.more('short-reads').catch(runtime.reportError);}}>
-      {discoveryState.shortReads.map(row => <DiscoveryCoverCard key={row.item.id} item={row.item} width={tablet ? 142 : 118} onOpen={openDiscover} offer={readingOffer(row.item, 'discover')} actions={readingActions}
+      {discoveryState.shortReads.map(row => <DiscoveryCoverCard key={row.item.id} item={row.item} artwork={runtime.artwork(row.item.coverUrl)} width={tablet ? 142 : 118} onOpen={openDiscover} offer={readingOffer(row.item, 'discover')} actions={readingActions}
         detail={defaultI18n.t('next.reader.aboutDuration', {duration: defaultI18n.duration(readingDuration(row.estimatedSeconds))})}/>)}
     </DiscoveryRow> : null}
   </ScrollView>;
@@ -209,7 +211,7 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
         gap={gap} rowGap={gap} gutter={theme.gutter} paddingTop={theme.gutter} paddingBottom={insets.bottom + 40} style={{flex: 1}}
         header={booksState.phase === 'ready' && !booksState.items.length ? empty : undefined}
         renderPlaceholder={() => <ReadingGridSkeleton width={width} columns={1} gutter={0} rows={1}/>}
-        renderItem={item => <DiscoveryCoverCard item={item} width={width} onOpen={openBooks} offer={readingOffer(item, 'books')} actions={readingActions}/>}/>
+        renderItem={item => <DiscoveryCoverCard item={item} artwork={runtime.artwork(item.coverUrl)} width={width} onOpen={openBooks} offer={readingOffer(item, 'books')} actions={readingActions}/>}/>
     </ReadingLoading>
   </View>;
   const pivots: Readonly<Record<string, string>> = {book: 'books', ebook: 'books', comic: 'titles', magazine: 'titles', newspaper: 'titles'};
@@ -283,14 +285,14 @@ function DiscoveryRow({title, sub, first = false, onSeeAll, onNearEnd, children}
 /** One sparse-metadata cover: the drawn portrait art with the title and author
  * under it, using the catalogue's canonical generated cover. Books and comics
  * are drawn 2:3; a magazine or newspaper issue is drawn 3:4. */
-function DiscoveryCoverCard({item, width, detail, onOpen, offer, actions}: {item: ReadingItem; width: number; detail?: string; offer?: NativeReadingActionOffer; actions: ReturnType<typeof useReadingActions>; onOpen: (item: ReadingItem) => void}) {
+function DiscoveryCoverCard({item, artwork, width, detail, onOpen, offer, actions}: {item: ReadingItem; artwork?: ArtworkSource; width: number; detail?: string; offer?: NativeReadingActionOffer; actions: ReturnType<typeof useReadingActions>; onOpen: (item: ReadingItem) => void}) {
   const anchor = useRef<View>(null), selection = offer ? actions.selection(offer) : undefined;
   const theme = useTheme(), periodical = item.publicationType?.value === 'magazine' || item.publicationType?.value === 'newspaper';
   const height = periodical ? width * 4 / 3 : width * 3 / 2, unavailable = item.inventoryAvailable !== true;
   return <Focusable testID={`reading-item-${item.id}`} accessibilityRole="button" accessibilityLabel={detail ? `${item.title}. ${detail}` : item.title} focusKind="row"
     ref={anchor} disabled={unavailable} accessibilityState={unavailable ? {disabled: true} : undefined} onPress={selection?.active ? selection.onToggle : () => onOpen(item)}
     onLongPressAction={offer ? () => actions.actions.show({...offer, anchorRef: anchor}) : undefined} style={{width}}>
-    <View accessible={false} importantForAccessibility="no-hide-descendants" style={{width, height, borderRadius: 10, overflow: 'hidden', borderWidth: selection?.selected ? 2 : 0, borderColor: theme.colors.accentStrong}}>{cover(item, width, height)}
+    <View accessible={false} importantForAccessibility="no-hide-descendants" style={{width, height, borderRadius: 10, overflow: 'hidden', borderWidth: selection?.selected ? 2 : 0, borderColor: theme.colors.accentStrong}}>{/* The item's own picture, the generated cover only when it has none or it fails. */}<PhoneReadingBookCover title={item.title} author={item.author?.value} artwork={artwork} width={width} height={height}/>
       {selection?.active ? <SelectionCircle selected={selection.selected} selecting interactive={false} accessibilityLabel={item.title}
         style={{position: 'absolute', right: 7, bottom: 7}}/> : null}
     </View>
