@@ -124,10 +124,11 @@ const (
 	MarkerCredits MarkerKind = 3
 	MarkerRecap   MarkerKind = 4
 	MarkerAdvert  MarkerKind = 5
+	MarkerOutro   MarkerKind = 6
 )
 
 var markerKindNames = map[MarkerKind]string{
-	MarkerChapter: "chapter", MarkerIntro: "intro", MarkerCredits: "credits", MarkerRecap: "recap", MarkerAdvert: "advert",
+	MarkerChapter: "chapter", MarkerIntro: "intro", MarkerCredits: "credits", MarkerRecap: "recap", MarkerAdvert: "advert", MarkerOutro: "outro",
 }
 
 func (k MarkerKind) String() string { return markerKindNames[k] }

@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {parseSegmentStatus,parseSegmentTitle,parseSegmentTitles,approveSegments,editSegmentMarker} from '../src/segment-review.ts';
+import {parseSegmentStatus,parseSegmentTitle,parseSegmentTitles,approveSegments,editSegmentMarker,readSegmentTitle,remeasureAllSegments,retryUnreadableSegments} from '../src/segment-review.ts';
 const envelope=(result:unknown)=>({protocolVersion:'1.0',serverId:'server',result});
 const files={pending:1,complete:20,failed:0,unsupported:2};
 test('status keeps every readable library and the server mode',()=>{
@@ -40,4 +40,22 @@ test('positions read and print as minutes and seconds',()=>{
  assert.equal(parseSegmentClock('0:01:23'),'83000000');
  assert.equal(parseSegmentClock('1:75'),null);
  assert.equal(parseSegmentClock('abc'),null);
+});
+
+test('whole-server measure and retry actions use the rebuilt owner routes',async()=>{
+ const paths:string[]=[];
+ const api={request:async(path:string,method:string,body:unknown)=>{paths.push(path);assert.equal(method,'POST');assert.deepEqual(body,{});return {changed:2};}} as any;
+ assert.equal(await remeasureAllSegments(api),2);
+ assert.equal(await retryUnreadableSegments(api),2);
+ assert.deepEqual(paths,['/v1/admin/segments/redetect','/v1/admin/segments/retry']);
+});
+
+test('rebuilt title pages keep each season and version without an envelope',async()=>{
+ const paths:string[]=[];
+ const entry=(n:number)=>({itemId:`e${n}`,title:'Episode',versionName:'1080p',number:n,durationUS:'1500000000',state:'complete',errorCode:'',sourceId:`version${n}`,sourceRevision:'r1',mappingRevision:'map',markerRevision:0,markers:[]});
+ const api={request:async(path:string)=>{paths.push(path);return {id:'show',title:'Show',kind:'show',libraryId:'tv',mode:'standard',nextCursor:paths.length===1?'100':'',seasons:[{number:1,title:'',entries:[entry(paths.length)]}]};}} as any;
+ const title=await readSegmentTitle(api,'show');
+ assert.deepEqual(paths,['/v1/admin/segments/titles/show','/v1/admin/segments/titles/show?cursor=100']);
+ assert.deepEqual(title.seasons[0].entries.map(e=>e.itemId),['e1','e2']);
+ assert.equal(title.seasons[0].entries[0].versionName,'1080p');
 });

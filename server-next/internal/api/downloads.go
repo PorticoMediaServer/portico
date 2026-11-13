@@ -799,8 +799,8 @@ func (s *Server) downloadedItem(r *http.Request, _ None) (DownloadedItem, error)
 			out.Chapters = append(out.Chapters, PlaybackChapter{StartMs: m.StartMS, Title: m.Title})
 			continue
 		}
-		out.Markers = append(out.Markers, PlaybackMarker{ID: m.Kind.String() + "-" + strconv.FormatInt(m.StartMS, 10), Type: m.Kind.String(),
-			StartMs: m.StartMS, EndMs: m.EndMS, Confidence: markerConfidence[m.Source], AutomaticSafe: m.Source.Trusted()})
+		out.Markers = append(out.Markers, PlaybackMarker{ID: m.Kind.String() + "-" + strconv.FormatInt(m.StartMS, 10), Type: playbackMarkerType(m.Kind),
+			StartMs: m.StartMS, EndMs: m.EndMS, Confidence: markerConfidence[m.Source], AutomaticSafe: m.AutomaticSafe})
 	}
 	if title.Kind == db.KindTrack {
 		if out.Lyrics, err = s.lyricsOf(ctx, v, title.ItemPublicID); err != nil {

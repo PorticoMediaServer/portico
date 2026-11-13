@@ -364,11 +364,16 @@ func versions(ctx context.Context, tx *sql.Tx, itemID int64) ([]Version, error) 
 			}
 		}
 		placeParts(m.Parts)
-		if m.Markers, err = queryAll(ctx, tx, `SELECT kind, source, start_ms, end_ms, ifnull(title, '') FROM media_markers
-			WHERE media_id = ? ORDER BY start_ms`, []any{m.id},
-			func(k *Marker) []any { return []any{&k.Kind, &k.Source, &k.StartMS, &k.EndMS, &k.Title} }); err != nil {
+		if m.Markers, err = queryAll(ctx, tx, `SELECT kind, source, start_ms, end_ms, ifnull(title, ''),confidence,provenance FROM media_markers
+			WHERE media_id = ? AND dismissed = 0 ORDER BY start_ms`, []any{m.id},
+			func(k *Marker) []any {
+				return []any{&k.Kind, &k.Source, &k.StartMS, &k.EndMS, &k.Title, &k.Confidence, &k.Provenance}
+			}); err != nil {
 			return nil, err
 		}
+	}
+	if err := projectSegmentMarkers(ctx, tx, itemID, out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }

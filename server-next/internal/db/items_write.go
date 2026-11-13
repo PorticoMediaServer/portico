@@ -202,15 +202,6 @@ type ImportPart struct {
 	EndMS   *int64
 }
 
-// Marker is a chapter or a skippable span of a version.
-type Marker struct {
-	Kind    MarkerKind
-	Source  MarkerSource
-	StartMS int64
-	EndMS   int64
-	Title   string
-}
-
 // ImportStats says what one import did. RowsWritten counts every row inserted, updated or
 // deleted, so an unchanged rescan reports zero.
 type ImportStats struct {

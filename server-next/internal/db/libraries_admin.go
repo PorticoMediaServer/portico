@@ -218,6 +218,11 @@ func (d *DB) EditLibrary(ctx context.Context, publicID string, edit LibraryEdit)
 }
 
 func (o LibraryOptions) check() error {
+	switch o.SegmentDetection {
+	case "", "server", "off", "standard", "thorough":
+	default:
+		return invalid("unknown intro and credits detection mode")
+	}
 	switch o.Depth {
 	case "", DepthFiles, DepthBasic, DepthComplete:
 	default:

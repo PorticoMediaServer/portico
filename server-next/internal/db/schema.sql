@@ -390,9 +390,13 @@ CREATE TABLE media_markers (
   start_ms INTEGER NOT NULL CHECK (start_ms >= 0),
   end_ms   INTEGER NOT NULL,
   title    TEXT,
+  dismissed INTEGER NOT NULL DEFAULT 0 CHECK (dismissed IN (0, 1)),
+  confidence REAL NOT NULL DEFAULT 0,
+  provenance TEXT NOT NULL DEFAULT '',
   CHECK (end_ms >= start_ms)
 );
 CREATE INDEX media_markers_media ON media_markers (media_id, start_ms);
+
 
 -- Genres, studios, networks, countries, labels, moods.
 CREATE TABLE tags (

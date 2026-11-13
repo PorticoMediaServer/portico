@@ -39,9 +39,10 @@ const (
 
 // LibraryOptions are the owner's choices for one library, stored as JSON.
 type LibraryOptions struct {
-	Depth       string    `json:"depth,omitempty"`
-	Trash       TrashRule `json:"trash"`
-	AllowDelete bool      `json:"allowDelete,omitempty"`
+	SegmentDetection string    `json:"segmentDetection,omitempty"`
+	Depth            string    `json:"depth,omitempty"`
+	Trash            TrashRule `json:"trash"`
+	AllowDelete      bool      `json:"allowDelete,omitempty"`
 	// NoWatch turns off watching the library's folders for changes.
 	NoWatch bool `json:"noWatch,omitempty"`
 	// RescanMinutes is how often the library's local folders are scanned by themselves; 0 is

@@ -59,7 +59,7 @@ function subtitlePlan(session: Session, version: MediaVersion): SubtitlePlan {
 /** The skippable spans of the version playing (intro, recap, credits) as the player's skip prompts
  * and its Up next card read them. A kind the player has no prompt for is left out. */
 export function segmentMarkers(options: PlaybackOptions, versionId: string, generation: number): SegmentMarkerSet {
-  const kinds: Readonly<Record<string, SegmentMarker['kind']>> = {intro: 'intro', recap: 'recap', credits: 'credits', commercial: 'commercial'};
+  const kinds: Readonly<Record<string, SegmentMarker['kind']>> = {intro: 'intro', recap: 'recap', credits: 'credits', commercial: 'commercial', outro: 'outro'};
   const markers = options.markers.flatMap((m): SegmentMarker[] => kinds[m.type] && m.endMs > m.startMs && m.id
     ? [Object.freeze({id: m.id, kind: kinds[m.type]!, startSeconds: m.startMs / 1000, endSeconds: m.endMs / 1000, automaticSafe: m.automaticSafe})] : []);
   return Object.freeze({sourceId: versionId, revision: String(generation), markers: Object.freeze(markers.sort((a, b) => a.startSeconds - b.startSeconds))});
