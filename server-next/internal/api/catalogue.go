@@ -299,7 +299,11 @@ func (s *Server) catalogueRoutes() {
 		if err == nil {
 			err = s.fillViewRows(r, rows)
 		}
-		return Home{Rows: shownRows(rows)}, err
+		if err != nil {
+			return Home{}, err
+		}
+		spotlight, err := s.homeSpotlight(r, continuing)
+		return Home{Rows: shownRows(rows), Spotlight: spotlight}, err
 	})
 	Handle(s, "PUT /v1/items/{id}/state", WithProfile, func(r *http.Request, req StateRequest) (StateReply, error) {
 		if req.MadeAgoMs < 0 || req.MadeAgoMs > db.MaxEditAge.Milliseconds() {

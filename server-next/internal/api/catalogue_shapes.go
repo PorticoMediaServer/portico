@@ -379,7 +379,29 @@ type FacetValue struct {
 
 // Home is the Home screen, composed by the server. An app draws the rows it is given.
 type Home struct {
-	Rows []HomeRow `json:"rows"`
+	Rows      []HomeRow       `json:"rows"`
+	Spotlight []HomeSpotlight `json:"spotlight,omitempty"`
+}
+
+// HomeSpotlight is one server-selected hero, with a truthful reason and a show's play target.
+type HomeSpotlight struct {
+	Play         bool                `json:"play"`
+	MyList       bool                `json:"myList"`
+	Entry        Item                `json:"entry"`
+	Reason       HomeSpotlightReason `json:"reason"`
+	ResumeTarget *Item               `json:"resumeTarget,omitempty"`
+}
+
+// HomeSpotlightReason uses an existing catalogue label; it never claims a recommendation.
+type HomeSpotlightReason struct {
+	Kind string            `json:"kind"`
+	Text HomeSpotlightText `json:"text"`
+}
+
+// HomeSpotlightText is a catalogue key and its English fallback.
+type HomeSpotlightText struct {
+	Code     string `json:"code"`
+	Fallback string `json:"fallback"`
 }
 
 // HomeRow is one row. Shape says how to draw its cards: "landscape" or "poster". Reason is the

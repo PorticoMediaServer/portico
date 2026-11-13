@@ -3252,6 +3252,12 @@
               "$ref": "#/components/schemas/HomeRow"
             },
             "type": "array"
+          },
+          "spotlight": {
+            "items": {
+              "$ref": "#/components/schemas/HomeSpotlight"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -3300,6 +3306,62 @@
           "title",
           "shape",
           "items"
+        ],
+        "type": "object"
+      },
+      "HomeSpotlight": {
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/Item"
+          },
+          "myList": {
+            "type": "boolean"
+          },
+          "play": {
+            "type": "boolean"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/HomeSpotlightReason"
+          },
+          "resumeTarget": {
+            "$ref": "#/components/schemas/Item"
+          }
+        },
+        "required": [
+          "play",
+          "myList",
+          "entry",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "HomeSpotlightReason": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "text": {
+            "$ref": "#/components/schemas/HomeSpotlightText"
+          }
+        },
+        "required": [
+          "kind",
+          "text"
+        ],
+        "type": "object"
+      },
+      "HomeSpotlightText": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "fallback": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "fallback"
         ],
         "type": "object"
       },
