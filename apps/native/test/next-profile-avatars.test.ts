@@ -98,14 +98,14 @@ test('picture sources follow a changed verified route and stay absent during its
   const host = createFabricHookHost(() => { useAvatarRoute(api); source = profilePictureSource(api, 'token', avatar, 160); });
   t.after(() => host.unmount()); await host.mount(); assert.equal(source, undefined);
   await act(async () => { await connection.resolve(); });
-  assert.deepEqual(source, {uri: lan + avatar.url + '&size=160', headers: {Authorization: 'Bearer token'}});
+  assert.deepEqual(source, {uri: lan + avatar.url + '&size=small', headers: {Authorization: 'Bearer token'}});
   assert.equal(profilePictureSource(api, 'token', {...avatar, url: 'https://elsewhere.test/picture'}, 160), undefined);
   assert.equal(profilePictureSource(api, undefined, avatar, 160), undefined);
   connection.rememberPaired(alternate); allowed = alternate;
   await act(async () => { connection.networkChanged('wifi-2'); });
   assert.equal(source, undefined, 'no bearer-bearing image while the next route is unverified');
   await act(async () => { release(); await connection.resolve(); });
-  assert.deepEqual(source, {uri: alternate + avatar.url + '&size=160', headers: {Authorization: 'Bearer token'}});
+  assert.deepEqual(source, {uri: alternate + avatar.url + '&size=small', headers: {Authorization: 'Bearer token'}});
 });
 
 test('upload rejects invalid sizes and paths before sending; full-size binary data survives encoding', async () => {

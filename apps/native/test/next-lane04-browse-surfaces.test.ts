@@ -111,7 +111,7 @@ test('phone Notifications uses the shared transparent sheet while tablet retains
     '../../platform/event-resync': {recoverEventState: () => () => {}},
   });
   const feed = {subscribe: () => () => {}, getSnapshot: () => ({})};
-  const pending = h.render(() => NativeNotificationsScreen({context: {}, route: {kind: 'notifications'}, runtime: {text: {t}}, profileService: feed, adminService: feed, retirement: {subscribe: () => () => {}, getSnapshot: () => undefined}}));
+  const pending = h.render(() => NativeNotificationsScreen({context: {}, route: {kind: 'notifications'}, runtime: {text: {t}}, profileService: feed, retirement: {subscribe: () => () => {}, getSnapshot: () => undefined}}));
   const sheet = h.render(() => pending.type(pending.props));
   assert.equal(sheet.type, 'BottomSheet'); assert.equal(sheet.props.open, true);
   assert.deepEqual(sheet.props.detents, [782]);

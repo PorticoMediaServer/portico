@@ -3,7 +3,7 @@ import React, {useEffect, useLayoutEffect, useState, useSyncExternalStore} from 
 import {FlatList, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {noticeWords, readsAdminInbox, type Notification, type NotificationAction} from '../../../../../packages/client-core/src/notifications';
+import {noticeWords, type Notification, type NotificationAction} from '../../../../../packages/client-core/src/notifications';
 import type {InboxAction, InboxService, InboxView} from '../../../../../packages/client-core/src/inbox';
 import {Button, Tabs} from '../../kit/controls';
 import {Icon, type IconName} from '../../kit/Icon';
@@ -37,26 +37,21 @@ type NotificationsLease = Readonly<{
   authority: ReturnType<NativeShellBootstrapContext['authority']>;
   origin: ShellDestination;
   profile: InboxService;
-  admin: InboxService;
   retirement: Retirement;
   live: {value: boolean};
 }>;
 
-/** phone-app 9/21: the server's inbox, split by the audience envelopes it returns.
- * The profile feed is always this viewer's. The account-admin feed is requested for the
- * account's owner or an administrator, the same rule the server enforces (N5-2). Every word is either the
- * server's own notice or the catalogue; no notice is made up on the device. */
-export function NativeNotificationsScreen({context, route, runtime, profileService, adminService, retirement}: {
+/** One inbox for the current profile. Server notices reach the owner and, when the
+ * owner chooses, administrators through that same inbox (12-console rule 78). */
+export function NativeNotificationsScreen({context, route, runtime, profileService, retirement}: {
   context: NativeShellBootstrapContext;
   route: NativeShellRoute;
   runtime: NativeShellRuntime;
   profileService: InboxService;
-  adminService: InboxService;
   retirement: Retirement;
 }) {
   const theme = useTheme(), t = runtime.text.t, insets = useSafeAreaInsets();
   const profile = useSyncExternalStore(profileService.subscribe, profileService.getSnapshot);
-  const admin = useSyncExternalStore(adminService.subscribe, adminService.getSnapshot);
   const retired = useSyncExternalStore(retirement.subscribe, retirement.getSnapshot);
   const [view, setView] = useState<InboxView>('unread');
   const [chosen, setChosen] = useState<Notification>(), [report, setReport] = useState<string>();
@@ -70,14 +65,14 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
       route, revision: context.navigation.getSnapshot().revision,
       authority: Object.freeze({...context.authority()}),
       origin: context.navigation.getSnapshot().destination,
-      profile: profileService, admin: adminService, retirement, live,
+      profile: profileService, retirement, live,
     });
     setLease(next);
     return () => {
       live.value = false;
       setLease(current => current === next ? undefined : current);
     };
-  }, [adminService, context, profileService, retirement, route]);
+  }, [context, profileService, retirement, route]);
 
   // The captured route/revision/authority and the lease's own live flag, without the
   // retirement check. Only the retirement fallback's Back uses this; it must still be
@@ -96,12 +91,8 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
     void lease.profile.load('profile', view);
   }, [lease, retired, view]);
   useEffect(() => {
-    if (!lease || retired || !readsAdminInbox(context.account.account.role)) return;
-    void lease.admin.load('account-admin', view);
-  }, [context, lease, retired, view]);
-  useEffect(() => {
     if (!lease || retired) return;
-    // OW-5: a change hint rereads each inbox quietly, skipping the echo of its own write and
+    // OW-5: a change hint rereads the inbox quietly, skipping the echo of its own write and
     // waiting for a write that is still out rather than cancelling it.
     const refresh = (event: {revision?: string}) => {
       // The exact `current()` test, inlined: this subscription may only load while the layout
@@ -113,21 +104,19 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
         && lease.retirement.getSnapshot() === undefined;
       if (!live) return;
       lease.profile.refresh(event.revision);
-      if (readsAdminInbox(context.account.account.role)) lease.admin.refresh(event.revision);
     };
-    const recover = async (service: InboxService, audience: 'profile' | 'account-admin', signal: AbortSignal) => {
+    const recover = async (signal: AbortSignal) => {
       const live = lease.live.value && sameAuthority(lease.authority, context.authority())
         && context.navigation.getSnapshot().revision === lease.revision && context.navigation.getSnapshot().route === lease.route
         && lease.retirement.getSnapshot() === undefined;
       if (!live || signal.aborted) return;
-      await service.load(audience, view);
+      await lease.profile.load('profile', view);
       if (signal.aborted || !lease.live.value) return;
-      const error = service.getSnapshot().error;
+      const error = lease.profile.getSnapshot().error;
       if (error) throw error;
     };
     const offs = [context.events.on('notification.changed', refresh),
-      recoverEventState(context.events, ({signal}) => recover(lease.profile, 'profile', signal))];
-    if (readsAdminInbox(context.account.account.role)) offs.push(recoverEventState(context.events, ({signal}) => recover(lease.admin, 'account-admin', signal)));
+      recoverEventState(context.events, ({signal}) => recover(signal))];
     return () => {for (const off of offs) off();};
   }, [context, lease, retired, view]);
 
@@ -135,19 +124,17 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
   if (retired) return <NotificationsFrame testID="native-notifications-retired" title={t('next.shell.notifications')} onClose={close}>
     <StateView icon="i-warn" title={t('notifications.error.load')} primaryAction={{id: 'back', label: t('action.back'), onPress: () => {if (routeLive()) context.navigation.back(context.authority());}}}/>
   </NotificationsFrame>;
-  if (!lease || lease.profile !== profileService || lease.admin !== adminService || lease.retirement !== retirement) return <NotificationsFrame testID="native-notifications-pending" title={t('next.shell.notifications')} onClose={close}/>;
+  if (!lease || lease.profile !== profileService || lease.retirement !== retirement) return <NotificationsFrame testID="native-notifications-pending" title={t('next.shell.notifications')} onClose={close}/>;
 
   const hasLiveTV = runtime.getSnapshot().hasLiveTV;
-  const adminRequested = readsAdminInbox(context.account.account.role);
   const viewLive = (service: InboxService, viewAt: InboxView) => current()
-    && (service === lease.profile || service === lease.admin)
+    && service === lease.profile
     && service.getSnapshot().view === viewAt;
   const noticeLive = (service: InboxService, viewAt: InboxView, notice: Notification) => {
     const snapshot = service.getSnapshot();
     return viewLive(service, viewAt) && snapshot.items.some(item =>
       item.id === notice.id && item.audience === notice.audience && item.revision === notice.revision);
   };
-  const serviceFor = (notice: Notification) => notice.audience === 'account-admin' ? lease.admin : lease.profile;
 
   const changeView = (next: string) => {
     if (!current() || lease.profile.getSnapshot().view !== view) return;
@@ -156,19 +143,16 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
   const reload = () => {
     if (!current() || lease.profile.getSnapshot().view !== view) return;
     void lease.profile.load('profile', view);
-    if (adminRequested) void lease.admin.load('account-admin', view);
   };
   const words = (notice: Notification) => noticeWords(notice, {has: defaultI18n.has, t: runtime.text.t});
-  const adminVisible = adminRequested && admin.phase === 'ready' && admin.audiences.includes('account-admin');
-  const unread = profile.counts.unread + (adminVisible ? admin.counts.unread : 0);
-  const busy = profile.busy || (adminVisible && admin.busy);
-  const error = profile.error ?? (adminRequested ? admin.error : undefined);
-  const loading = profile.phase === 'loading' || (adminRequested && admin.phase === 'loading');
-  const ready = profile.phase === 'ready' && (!adminRequested || admin.phase === 'ready');
-  const items = [...profile.items, ...(adminVisible ? admin.items : [])];
+  const unread = profile.counts.unread;
+  const busy = profile.busy;
+  const error = profile.error;
+  const loading = profile.phase === 'loading';
+  const ready = profile.phase === 'ready';
+  const items = profile.items;
   const sections = [
-    {id: 'profile', title: t('notifications.audience.profile'), tag: undefined, service: lease.profile, state: profile},
-    ...(adminVisible ? [{id: 'admin', title: t('notifications.audience.admin'), tag: t('next.shell.ownerOnly'), service: lease.admin, state: admin}] : []),
+    {id: 'profile', title: t('notifications.audience.profile'), service: lease.profile, state: profile},
   ].filter(section => section.state.items.length > 0);
   type Section = (typeof sections)[number];
   type Row = Readonly<{kind: 'heading'; key: string; section: Section}> | Readonly<{kind: 'more'; key: string; section: Section}> | Readonly<{kind: 'notice'; key: string; section: Section; notice: Notification; first: boolean; last: boolean}>;
@@ -183,7 +167,7 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
   const routeAvailable = (targetRoute: NativeShellRoute) =>
     targetRoute.kind === 'shell' && targetRoute.destination.kind === 'home' ? true : nativeMenuRouteAvailable(targetRoute);
   const openAction = (notice: Notification, targetRoute: NativeShellRoute, viewAt: InboxView) => {
-    const service = serviceFor(notice);
+    const service = lease.profile;
     if (!noticeLive(service, viewAt, notice) || !routeAvailable(targetRoute)) return;
     // Mark read while this original notice and route lease are still current, then
     // navigate only if that is still true. The read is an independent command, not
@@ -194,7 +178,7 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
   };
   // OW-1: Dismiss archives the notice; Scan again starts the library's scan and marks the notice read.
   const runCommand = (notice: Notification, command: NotificationCommandTarget, viewAt: InboxView) => {
-    const service = serviceFor(notice);
+    const service = lease.profile;
     if (!noticeLive(service, viewAt, notice)) return;
     if (command.kind === 'archive') {void service.apply('archive', [notice.id]).catch(runtime.reportError); return;}
     if (command.kind === 'report') {setReport(command.reportId); void service.apply('read', [notice.id]).catch(runtime.reportError); return;}
@@ -208,14 +192,13 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
   });
   const apply = (notice: Notification, action: InboxAction, viewAt: InboxView) => {
     setChosen(undefined);
-    const service = serviceFor(notice);
+    const service = lease.profile;
     if (!noticeLive(service, viewAt, notice)) return;
     void service.apply(action, [notice.id]).catch(runtime.reportError);
   };
   const markAll = () => {
     if (!current()) return;
     if (viewLive(lease.profile, view)) void lease.profile.readAll().catch(runtime.reportError);
-    if (adminVisible && viewLive(lease.admin, view)) void lease.admin.readAll().catch(runtime.reportError);
   };
   const chosenWords = chosen ? words(chosen) : undefined;
   const menu: readonly MenuEntry[] = chosen ? [
@@ -251,19 +234,16 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
       renderItem={({item: row}) => {
         if (row.kind === 'heading') return <View testID={`notifications-section-${row.section.id}`} style={{flexDirection: 'row', alignItems: 'baseline', gap: 8, paddingHorizontal: 20, marginTop: 12, marginBottom: 8}}>
           <Text style={[shellType(13, 700), {color: theme.colors.textTertiary}]}>{row.section.title}</Text>
-          {row.section.tag && <Text style={[shellType(12, 700), {color: theme.colors.textTertiary}]}>{row.section.tag}</Text>}
         </View>;
         if (row.kind === 'more') return <View style={{alignItems: 'center', marginTop: 10}}><Button align="center" testID={`notifications-more-${row.section.id}`} variant="glass" size="small" loading={row.section.state.busy}
           onPress={() => {if (!viewLive(row.section.service, view)) return; void row.section.service.more().catch(runtime.reportError);}}>{t('notifications.loadMore')}</Button></View>;
-        const {notice, first, last, section} = row, message = words(notice), radius = {
+        const {notice, first, last} = row, message = words(notice), radius = {
           borderTopLeftRadius: first ? 14 : 0, borderTopRightRadius: first ? 14 : 0, borderBottomLeftRadius: last ? 14 : 0, borderBottomRightRadius: last ? 14 : 0};
-        // Each row draws its own slice of the section's raised card (and the admin outline).
+        // Each row draws its own slice of the section's raised card.
         return <View style={{marginHorizontal: 16, overflow: 'hidden', backgroundColor: theme.colors.raised, ...radius}}>
           <NotificationItem testID={`notification-${notice.id}`} separator={!first} notification={notice} title={message.title} body={message.body} when={defaultI18n.relativeTime(notice.createdAt)}
             subject={<Icon name={sourceIcon(notice.source)} size={18} color={notice.severity === 'critical' ? theme.colors.record : notice.severity === 'warning' ? theme.colors.amber : theme.colors.textSecondary}/>}
-            actions={actionsFor(notice, view)} menuLabel={t('next.shell.native.moreOptions')} onMenu={() => {const service = serviceFor(notice); if (!noticeLive(service, view, notice)) return; setChosen(notice);}} style={{opacity: notice.read && view !== 'archived' ? .7 : 1}}/>
-          {section.id === 'admin' && <View pointerEvents="none" accessible={false} style={{position: 'absolute', inset: 0, ...radius, borderColor: 'rgba(92,179,226,.28)',
-            borderLeftWidth: 1, borderRightWidth: 1, borderTopWidth: first ? 1 : 0, borderBottomWidth: last ? 1 : 0}}/>}
+            actions={actionsFor(notice, view)} menuLabel={t('next.shell.native.moreOptions')} onMenu={() => {const service = lease.profile; if (!noticeLive(service, view, notice)) return; setChosen(notice);}} style={{opacity: notice.read && view !== 'archived' ? .7 : 1}}/>
         </View>;
       }}/>
     <Menu testID="notification-actions" open={chosen !== undefined} onOpenChange={open => {if (!open) setChosen(undefined);}} presentation="sheet"

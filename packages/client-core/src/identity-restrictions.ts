@@ -3,7 +3,7 @@ import {unreadableServerResponse} from './server-messages.ts';
 /** Profile pictures, two-step state and the pre-sign-in descriptor. A profile's limits are in
  * profile-restrictions.ts; the server decides what a profile sees and a client never filters for it. */
 export type {RatingValue,RatingSystem,ProfileRestrictions} from './profile-restrictions.ts';
-export type ProfileAvatar=Readonly<{profileId:string;version:number;updatedAt:string;sourceMime:string;url:string}>;
+export type ProfileAvatar=Readonly<{profileId:string;url:string;version?:number;updatedAt?:string;sourceMime?:string}>;
 export type TwoFactorState=Readonly<{enabled:boolean;pendingEnrolment:boolean;recoveryCodesRemaining:number}>;
 export type AuthCapabilities=Readonly<{serverId:string;serverName:string;setupRequired:boolean;methods:readonly string[];selfRegistration:'off'|'invite-only'|'open';quickConnect:boolean;twoFactor:boolean;hostedAttach:boolean}>;
 

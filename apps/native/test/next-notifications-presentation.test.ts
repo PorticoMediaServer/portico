@@ -16,11 +16,11 @@ const theme = {platform: 'phone', isTV: false, fontScale: 1, textScale: 1, gutte
 const i18n = {t: (key: string) => key, has: () => true, number: String, relativeTime: () => 'Yesterday'};
 const shellType = (fontSize: number, weight = 600) => ({fontSize, fontWeight: String(weight)});
 
-test('notification sections use a count slot, intra-section separators and the approved server outline', async () => {
+test('personal and server notices share one inbox count and section', async () => {
   const {NativeNotificationsScreen} = await screenModule(new URL('../src-next/screens/notifications/NotificationsScreen.tsx', import.meta.url), {'./OwnFeedbackReport': {OwnFeedbackReport: 'OwnFeedbackReport'}, './notification-route': await import('../src-next/screens/notifications/notification-route.ts'), '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'}, 
     react, 'react-native': native, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0})},
     '../../../../../packages/i18n/src': {defaultI18n: i18n},
-    '../../../../../packages/client-core/src/notifications': {noticeWords: (notice: any) => ({title: notice.id, body: 'Notice'}), readsAdminInbox: (role: string) => role === 'owner' || role === 'admin'},
+    '../../../../../packages/client-core/src/notifications': {noticeWords: (notice: any) => ({title: notice.id, body: 'Notice'})},
     '../../kit/controls': {Button: 'Button', Tabs: 'Tabs'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/overlays': {Menu: 'Menu'}, '../../kit/shell': {NotificationItem: 'NotificationItem'},
     '../../kit/states': {Quiet: ({children}: any) => children, StateView: 'StateView'}, '../../kit/shell/visual': {shellType},
@@ -33,8 +33,7 @@ test('notification sections use a count slot, intra-section separators and the a
     const state = {phase: 'ready', audiences: [audience], counts: {unread: items.length}, items, view: 'unread', more: false, busy: false};
     return {subscribe: () => () => {}, getSnapshot: () => state, load: async () => {}, readAll: async () => {}};
   };
-  const profileService = service('profile', [item('one', 'profile'), item('two', 'profile')]);
-  const adminService = service('account-admin', [item('server', 'account-admin')]);
+  const profileService = service('profile', [item('one', 'profile'), item('two', 'profile'), item('server', 'profile')]);
   const authority = {serverId: 'server'}, route = {kind: 'notifications'};
   const navigation = {route, revision: 1, destination: {kind: 'settings'}};
   const context = {authority: () => authority, account: {account: {role: 'owner'}},
@@ -42,7 +41,7 @@ test('notification sections use a count slot, intra-section separators and the a
   const runtime = {getSnapshot: () => ({hasLiveTV: false}), text: i18n};
   const retirement = {subscribe: () => () => {}, getSnapshot: () => undefined};
   let tree: any;
-  const host = createFabricHookHost(() => {tree = NativeNotificationsScreen({context, route, runtime, profileService, adminService, retirement});});
+  const host = createFabricHookHost(() => {tree = NativeNotificationsScreen({context, route, runtime, profileService, retirement});});
   await host.mount(); await host.flush();
   try {
     const tabs = all(tree).find(node => node.type === 'Tabs');
@@ -51,22 +50,17 @@ test('notification sections use a count slot, intra-section separators and the a
     // LR09: headings, notices and Load more are stable keyed rows of one viewport list.
     const list = all(tree).find(node => node.type === 'FlatList');
     assert.deepEqual(list.props.data.map((row: any) => list.props.keyExtractor(row)),
-      ['heading:profile', 'notice:profile:one', 'notice:profile:two', 'heading:admin', 'notice:admin:server']);
+      ['heading:profile', 'notice:profile:one', 'notice:profile:two', 'notice:profile:server']);
     const drawn = list.props.data.map((row: any) => list.props.renderItem({item: row}));
     const rows = all(drawn).filter(node => node.type === 'NotificationItem');
-    assert.deepEqual(rows.map(node => [node.props.notification.id, node.props.separator]), [['one', false], ['two', true], ['server', false]]);
+    assert.deepEqual(rows.map(node => [node.props.notification.id, node.props.separator]), [['one', false], ['two', true], ['server', true]]);
     assert.ok(all(drawn[0]).some(node => node.props.testID === 'notifications-section-profile'));
-    assert.ok(all(drawn[3]).some(node => node.props.testID === 'notifications-section-admin'));
-    const outlines = (node: any) => all(node).filter(child => flatten(child.props.style).borderColor === 'rgba(92,179,226,.28)');
-    assert.equal(outlines(drawn.slice(0, 3)).length, 0);
-    assert.equal(outlines(drawn[4]).length, 1);
-    const outline = flatten(outlines(drawn[4])[0].props.style);
-    assert.deepEqual([outline.borderLeftWidth, outline.borderRightWidth, outline.borderTopWidth, outline.borderBottomWidth], [1, 1, 1, 1], 'a one-notice section is outlined all round');
-    assert.equal(outlines(drawn[4])[0].props.pointerEvents, 'none');
+    assert.ok(!all(drawn).some(node => node.props.testID === 'notifications-section-admin'));
     // The section card is drawn in slices: rounded only at its first and last notice.
     const card = (row: any) => flatten(row.props.style);
     assert.equal(card(drawn[1]).borderTopLeftRadius, 14); assert.equal(card(drawn[1]).borderBottomLeftRadius, 0);
-    assert.equal(card(drawn[2]).borderTopLeftRadius, 0); assert.equal(card(drawn[2]).borderBottomLeftRadius, 14);
+    assert.equal(card(drawn[2]).borderTopLeftRadius, 0); assert.equal(card(drawn[2]).borderBottomLeftRadius, 0);
+    assert.equal(card(drawn[3]).borderBottomLeftRadius, 14);
     const bar = all(tree).find(node => node.type === 'PhoneServerPageHeader' || node.type === 'TopBar');
     assert.equal(bar.props.trailing.props.testID, 'notifications-mark-all');
     assert.equal(flatten(bar.props.trailing.props.textStyle).fontSize, 15);

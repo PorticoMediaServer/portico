@@ -1,6 +1,6 @@
 import {readDirectAccount} from '../../../../packages/client-core/src/query/connection-operations.ts';
 import {HomeService, type HomeSnapshot} from '../../../../packages/client-core/src/home-service';
-import {InboxService} from '../../../../packages/client-core/src/inbox';
+import {readUnreadNotices} from '../../../../packages/client-core/src/notifications-next';
 import {PreferencesReader} from '../../../../packages/client-core/src/preferences-reader';
 import type {DeviceClass, PreferencePatch, PreferenceScope, PreferenceSnapshot} from '../../../../packages/client-core/src/preferences';
 import {fetchGuideSourceSummaries} from '../../../../packages/client-core/src/guide/directory';
@@ -44,15 +44,13 @@ const opaqueFence = (fence: string): boolean => !!fence && fence.length <= 256 &
 export class NativeShellBootstrapServices {
   readonly home: HomeService;
   private readonly preferences: PreferencesReader;
-  private readonly inbox: InboxService;
+  private readonly inbox: Pick<HttpLocalApi, 'request'>;
   private readonly controllers = new Set<AbortController>();
   private readonly fences = new Map<Domain, string>();
   /** H-11: the Home manifest's privacy fence (or its viewer fence on older servers) owns retirement. */
   private disposed = false;
   private guideDenied = false;
   private guideAccepted = false;
-  private inboxLoaded = false;
-  private inboxFailure?: unknown;
   private snapshot?: Facts;
   private reading?: Promise<Facts>;
   private readingController?: AbortController;
@@ -68,20 +66,11 @@ export class NativeShellBootstrapServices {
     this.api = api; this.options = options;
     nativeShellDirectViewer(options.viewer);
     this.preferences = new PreferencesReader({request: <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => this.call<T>('preferences', path, method, body, signal, this.preferenceRequestBatch)});
-    this.inbox = new InboxService({request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
-      const batch = this.unreadController;
-      const noteCancelled = () => {if (batch === this.unreadController && !batch?.signal.aborted) this.inboxFailure = cancelled();};
-      signal?.addEventListener('abort', noteCancelled, {once: true});
-      try {
-        const raw = await this.call<T>('inbox', path, method, body, signal);
-        // refreshUnread intentionally swallows malformed answers as well as transport
-        // failures. Check the inbox's shape before that forgiving boundary.
-        if (path.split('?')[0] === '/v1/notifications' && (!object(raw) || !Array.isArray(raw.items) || !Number.isSafeInteger(raw.unreadCount) || (raw.unreadCount as number) < 0)) throw invalid();
-        return raw;
-      }
-      catch (error) {if (batch === this.unreadController && !batch?.signal.aborted) this.inboxFailure = error; throw error;}
-      finally {signal?.removeEventListener('abort', noteCancelled);}
-    }});
+    this.inbox = {request: async <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
+      const raw = await this.call<T>('inbox', path, method, body, signal);
+      if (!object(raw) || !Array.isArray(raw.items) || !Number.isSafeInteger(raw.unreadCount) || (raw.unreadCount as number) < 0) throw invalid();
+      return raw;
+    }};
     // Home's document is read once at a time (E-mobile-01 cold launch): a load and the quiet
     // re-reads that arrive while it runs share one request.
     const homeReads = createSharedReads(), logHomeRead = createHomeReadLog();
@@ -191,26 +180,12 @@ export class NativeShellBootstrapServices {
     return account;
   };
   private async readInbox(): Promise<number> {
-    // The rebuilt server has no notifications yet: no badge, as on the web.
     if (this.inboxAbsent) return 0;
-    const batch = this.unreadController;
-    const currentRead = () => {this.assertCurrent(); if (batch !== this.unreadController || batch?.signal.aborted) throw cancelled();};
-    this.inboxFailure = undefined;
-    // Every inbox answer lists the audiences this viewer may read, so the profile read
-    // alone tells an owner or administrator that the badge counts account-admin too (N5-2).
-    if (!this.inboxLoaded) {
-      await this.inbox.load('profile'); currentRead();
-      if (notOnThisServer(this.inboxFailure)) {this.inboxAbsent = true; this.inboxFailure = undefined; return 0;}
-      if (this.inboxFailure) throw this.inboxFailure;
-      if (this.inbox.getSnapshot().phase !== 'ready') throw invalid();
-      this.inboxLoaded = true;
+    try {return await readUnreadNotices(this.inbox, this.unreadController?.signal);}
+    catch (error) {
+      if (notOnThisServer(error)) {this.inboxAbsent = true; return 0;}
+      throw error;
     }
-    await this.inbox.refreshUnread(); currentRead();
-    // InboxService intentionally preserves the badge on failure. Bootstrap must still
-    // report that failed read and must never mistake a swallowed denial for success.
-    if (notOnThisServer(this.inboxFailure)) {this.inboxAbsent = true; this.inboxFailure = undefined; return 0;}
-    if (this.inboxFailure) throw this.inboxFailure;
-    return this.inbox.getSnapshot().unread;
   }
   private inboxAbsent = false;
   private async readGuide() {
@@ -319,7 +294,7 @@ export class NativeShellBootstrapServices {
     this.readingController?.abort();
     this.unreadController?.abort(); this.guideController?.abort();
     for (const controller of this.controllers) controller.abort();
-    this.controllers.clear(); this.preferences.dispose(); this.inbox.dispose(); this.home.dispose();
-    this.snapshot = undefined; this.inboxFailure = undefined; this.fences.clear();
+    this.controllers.clear(); this.preferences.dispose(); this.home.dispose();
+    this.snapshot = undefined; this.fences.clear();
   };
 }
