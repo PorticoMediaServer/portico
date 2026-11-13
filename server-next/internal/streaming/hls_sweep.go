@@ -95,6 +95,9 @@ func (h *HLS) activeSnapshot() []string {
 func (h *HLS) cancelSession(id string) {
 	h.mu.Lock()
 	cancels := []context.CancelFunc{}
+	if s := h.streams[id]; s != nil && s.bookAhead != nil {
+		cancels = append(cancels, s.bookAhead.cancel)
+	}
 	for key, cancel := range h.active {
 		if producerSession(key) == id {
 			cancels = append(cancels, cancel)
@@ -110,6 +113,11 @@ func (h *HLS) cancelSession(id string) {
 func (h *HLS) cancelAll() {
 	h.mu.Lock()
 	cancels := make([]context.CancelFunc, 0, len(h.active))
+	for _, s := range h.streams {
+		if s.bookAhead != nil {
+			cancels = append(cancels, s.bookAhead.cancel)
+		}
+	}
 	for _, cancel := range h.active {
 		cancels = append(cancels, cancel)
 	}
