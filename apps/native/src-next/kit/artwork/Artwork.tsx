@@ -15,7 +15,7 @@ type ScheduledProps = ArtworkProps & {source: ArtworkSource; boxWidth: number; b
  * reduced motion and cached art keep their own timing. */
 export const ArtworkArrivalContext = createContext<number | undefined>(undefined);
 
-function ScheduledImage({source, boxWidth, boxHeight, alt, fit = 'cover', resizeMode, position, zoom = 1, saturation = 1, brightness = 1, blurRadius, filter, priority = false, arrivalDurationMs, sized = false, imageStyle, imageOverlay, onReady, onLoad, onError, onStatusChange}: ScheduledProps) {
+function ScheduledImage({source, boxWidth, boxHeight, alt, fit = 'cover', resizeMode, position, zoom = 1, saturation = 1, brightness = 1, blurRadius, filter, priority = false, arrivalDurationMs, sized = false, imageStyle, imageOverlay, onReady, onLoad, onSize, onError, onStatusChange}: ScheduledProps) {
   const placement = useArtworkPlacement();
   // The request URL is chosen before anything is keyed on it: two boxes that need different
   // slots of one picture are two images, and one slot is one image wherever it appears.
@@ -37,10 +37,10 @@ function ScheduledImage({source, boxWidth, boxHeight, alt, fit = 'cover', resize
   if (!decoded) displayedAttempt.current = slot.attempt;
   const requestAttempt = displayedAttempt.current;
   const opacity = useRef(new Animated.Value(slot.cached ? 1 : 0)).current;
-  const callbacks = useRef({source, onReady, onLoad, onError, onStatusChange});
+  const callbacks = useRef({source, onReady, onLoad, onSize, onError, onStatusChange});
   const live = useRef(true);
   const reportedFailure = useRef(false);
-  callbacks.current = {source, onReady, onLoad, onError, onStatusChange};
+  callbacks.current = {source, onReady, onLoad, onSize, onError, onStatusChange};
   const status = slot.gaveUp ? 'error' : decoded && admitted && !slot.recovering ? 'ready' : slot.active ? 'loading' : 'queued';
   useEffect(() => {
     callbacks.current.onStatusChange?.(status);
@@ -81,7 +81,7 @@ function ScheduledImage({source, boxWidth, boxHeight, alt, fit = 'cover', resize
   const loaded = (event: Parameters<NonNullable<React.ComponentProps<typeof Image>['onLoad']>>[0]) => {
     if (!live.current || currentAttempt.current !== attemptIdentity) return;
     const natural = event.nativeEvent.source;
-    if (natural?.width > 0 && natural.height > 0) setIntrinsic({width: natural.width, height: natural.height});
+    if (natural?.width > 0 && natural.height > 0) {setIntrinsic({width: natural.width, height: natural.height}); callbacks.current.onSize?.({width: natural.width, height: natural.height});}
     slot.loaded();
     reportedFailure.current = false;
     setDecoded(true);

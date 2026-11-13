@@ -168,13 +168,14 @@ test('TV cards retain a sole native target and only the current enabled focused 
   } finally {await a.host.unmount(); await b.host.unmount();}
 });
 
-test('scheduled native Image callbacks reject an old retry and an unmounted source; visibility mounts no probe', async t => {
+test('scheduled native Image callbacks (natural size included) reject an old retry and an unmounted source; visibility mounts no probe', async t => {
   t.mock.timers.enable({apis: ['setTimeout']});
   state.theme = createTheme({isTV: false, width: 390});
   const calls: string[] = [];
   state.slot = {active: true, recovering: false, gaveUp: false, cached: false, attempt: 0, loaded: () => calls.push('loaded'), failed: () => calls.push('failed')};
   const source = {uri: 'https://current.example/art', cacheKey: 'current-authority'};
-  const props = {source, width: 120, height: 180, onReady: () => calls.push('ready'), onError: () => calls.push('error')};
+  const props = {source, width: 120, height: 180, onReady: () => calls.push('ready'), onError: () => calls.push('error'),
+    onSize: (size: {width: number; height: number}) => calls.push(`size ${size.width}x${size.height}`)};
   const frame = await mount(Artwork, {...props, visible: false});
   try {
     assert.equal(nodes(frame.tree).filter(node => typeof node.type === 'function').length, 0);
@@ -190,10 +191,10 @@ test('scheduled native Image callbacks reject an old retry and an unmounted sour
       original.props.onLoad({nativeEvent: {source: {width: 240, height: 360}}}); assert.deepEqual(calls, []);
       const actual = picture(image.tree);
       actual.props.onLoad({nativeEvent: {source: {width: 240, height: 360}}}); await image.host.flush();
-      assert.deepEqual(calls, ['loaded'], 'decode completes before the actual placed-art arrival turn');
+      assert.deepEqual(calls, ['size 240x360', 'loaded'], 'the natural size is reported once known; decode completes before the actual placed-art arrival turn');
       t.mock.timers.tick(0); await image.host.flush();
-      assert.deepEqual(calls, ['loaded', 'ready']);
-      await image.host.unmount(); actual.props.onError(); assert.deepEqual(calls, ['loaded', 'ready']);
+      assert.deepEqual(calls, ['size 240x360', 'loaded', 'ready']);
+      await image.host.unmount(); actual.props.onError(); assert.deepEqual(calls, ['size 240x360', 'loaded', 'ready']);
     } finally {await image.host.unmount();}
   } finally {await frame.host.unmount();}
 });
