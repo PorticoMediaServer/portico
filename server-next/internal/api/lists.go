@@ -254,7 +254,23 @@ func (s *Server) lists(r *http.Request, _ None) (Page[List], error) {
 	if err != nil {
 		return Page[List]{}, err
 	}
-	lists, next, err := s.db.Lists(r.Context(), viewer(r), kind, query.Get("cursor"), limit)
+	var ids []string
+	if query.Has("ids") {
+		ids = strings.Split(query.Get("ids"), ",")
+		if len(ids) > 200 {
+			return Page[List]{}, ErrField("ids", "Name at most 200 lists.")
+		}
+		for _, id := range ids {
+			if strings.TrimSpace(id) == "" || len(id) > 128 {
+				return Page[List]{}, ErrField("ids", "Send comma-separated list ids.")
+			}
+		}
+		// A bounded lookup returns every matching id unless the caller asks for a smaller page.
+		if limit == 0 {
+			limit = len(ids)
+		}
+	}
+	lists, next, err := s.db.ListsWithIDs(r.Context(), viewer(r), kind, query.Get("cursor"), limit, ids)
 	out := Page[List]{Items: make([]List, len(lists)), NextCursor: next}
 	for n, l := range lists {
 		out.Items[n] = listShape(l)
