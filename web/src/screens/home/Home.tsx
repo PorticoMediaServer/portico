@@ -85,7 +85,7 @@ export function HomeHeroArtwork({slide, context, platform, artwork, appearance, 
     <span className={styles.heroPosterArt}><Artwork source={artwork.foreground(poster, 740 * devicePixelRatio, 2 / 3, {group: 'home-hero-poster-art', order: context.index, priority: 'high', large: true})} alt="" visible={context.visible}/></span>
   </div>;
   if (treatment === 'panel') return <span className={styles.heroPanelBackdrop}><Artwork source={artwork.foreground(backdrop, heroPixels, 16 / 9, {group: 'home-hero-panel', order: context.index})} alt="" visible={context.visible} onReady={context.onReady} onError={context.onError}/></span>;
-  return <AmbientArt className={platform === 'desktop' ? styles.heroAmbient : undefined} source={artwork.ambient(backdrop, {group: 'home-hero', order: context.index, priority: 'high'})}
+  return <AmbientArt source={artwork.ambient(backdrop, {group: 'home-hero', order: context.index, priority: 'high'})}
     foreground={artwork.foreground(backdrop, heroPixels, 16 / 9, {group: 'home-hero', order: context.index, priority: 'high', large: true})}
     treatment={platform === 'desktop' ? 'hero' : 'phone'} visible={context.visible} onReady={context.onReady} onError={context.onError} />;
 }
