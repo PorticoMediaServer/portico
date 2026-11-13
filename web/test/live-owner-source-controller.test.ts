@@ -69,3 +69,18 @@ test('a quiet read cannot overwrite a newer owner action', async () => {
   const before = controller.getSnapshot();finish({items: [{...source, name: 'Stale'}]});
   assert.deepEqual(await pending, {kind: 'deferred'});assert.equal(controller.getSnapshot(), before);controller.dispose();
 });
+
+test('an uploaded source can refresh its saved playlist and guide now', async () => {
+  const uploaded = {...source, config: {uploaded: true, guideUploaded: true}};
+  const calls: string[] = [];
+  const controller = new LiveSourceController({async request<T>(path: string, method?: string) {
+    calls.push(`${method ?? 'GET'} ${path}`);
+    return (method === 'POST' ? uploaded : {items: [uploaded]}) as T;
+  }}, 'server', () => true, () => {});
+  await controller.load();
+  const row = controller.getSnapshot().document!.sources[0]!;
+  assert.equal(row.acquisition, 'upload');
+  assert.equal(await controller.act(row, 'refresh'), true);
+  assert.deepEqual(calls, ['GET /v1/admin/live/sources', `POST /v1/admin/live/sources/${source.id}/refresh`, 'GET /v1/admin/live/sources']);
+  controller.dispose();
+});

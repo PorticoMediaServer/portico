@@ -41,7 +41,7 @@ export class LiveSourceController extends OwnerStore<SourceSnapshot> {
     if (!this.isActive() || this.snapshot.busy) return false;
     const stored = this.snapshot.document?.sources.find(row => row.id === source.id && row.revision === source.revision);
     if (!stored) return false;
-    if (action === 'refresh' && (stored.acquisition === 'upload' || stored.paused || stored.state === 'refreshing')) return false;
+    if (action === 'refresh' && (stored.paused || stored.state === 'refreshing')) return false;
     this.invalidateQuiet();const attempt = this.begin();this.publish({...this.snapshot, busy: stored.id, error: undefined});
     if (!this.valid(attempt)) return false;
     try {
