@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
+	"github.com/PorticoMediaServer/portico/server-next/internal/discovery"
 	"github.com/PorticoMediaServer/portico/server-next/internal/portmap"
 )
 
@@ -60,8 +61,9 @@ func (s *Server) PublishedAddresses() []PublishedAddress {
 			}
 		}
 	}
-	home := homeAddresses(mine, towardsRouter(portmap.DefaultRouter().Gateway), s.networks())
 	v, _ := s.access.current()
+	preferred := discovery.PreferredInterface(v.AdvertisedInterface, discovery.Interfaces())
+	home := advertisedHomeAddresses(mine, towardsRouter(portmap.DefaultRouter().Gateway), s.networks(), preferred)
 	public, publicPort := "", v.PublicPort
 	if v.RemoteAccess == "on" {
 		public = s.public.Answer().Address
@@ -153,6 +155,20 @@ func virtualInterface(name string) bool {
 // homeAddresses are the private IPv4 addresses among mine that are on the home networks and not
 // on a virtual interface, the one used towards the router first, at most maxHomeAddresses.
 func homeAddresses(mine []interfaceAddress, first netip.Addr, networks auth.Networks) []netip.Addr {
+	return advertisedHomeAddresses(mine, first, networks, "")
+}
+
+func advertisedHomeAddresses(mine []interfaceAddress, first netip.Addr, networks auth.Networks, preferred string) []netip.Addr {
+	if preferred != "" {
+		out := []netip.Addr{}
+		for _, m := range mine {
+			if m.name == preferred && m.addr.Is4() && m.addr.IsPrivate() && networks.AtHome(m.addr) && len(out) < maxHomeAddresses {
+				out = append(out, m.addr)
+			}
+		}
+		return out
+	}
+
 	usable := func(ip netip.Addr) bool {
 		return ip.Is4() && ip.IsPrivate() && networks.AtHome(ip)
 	}
