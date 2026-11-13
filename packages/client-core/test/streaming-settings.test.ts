@@ -81,3 +81,21 @@ test('Hardware uses rebuilt read/test routes and retains both measured HDR cases
   assert.deepEqual(calls, [['/v1/admin/hardware', 'GET'], ['/v1/admin/hardware/test', 'POST']]);
   await assert.rejects(readOwnerStreamingHardware({request: async <T>() => ({...state, toneMappingWithoutMasteringData: undefined}) as T}));
 });
+
+test('the processor cap appears only when honoured and saves independently of other conversion limits', async () => {
+  const f = fixture();
+  const source = new OwnerStreamingSettings({...f.api, request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    const doc: any = await f.api.request(path, method, body);
+    if (path.endsWith('/settings/streaming')) {
+      doc.values = {...doc.values, processorConversionsAtOnce: 2};
+      doc.defaults = {...doc.defaults, processorConversionsAtOnce: 0};
+    }
+    return doc;
+  }});
+  const configuration = await source.readConfiguration();
+  const value = readSettingsBinding(settingsBinding('streaming.maxSoftwareConversions')!, {configuration}, 'streaming.maxSoftwareConversions');
+  assert.equal(value?.current, '2');
+  assert.equal(value?.default, 'unlimited');
+  await source.save('streaming.maxSoftwareConversions', '4');
+  assert.deepEqual(f.calls.at(-1)?.body, {processorConversionsAtOnce: 4});
+});

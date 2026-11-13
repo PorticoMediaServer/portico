@@ -167,3 +167,40 @@ func TestSavingTheDeviceSettingChangesWhatAThumbnailIsPlannedWith(t *testing.T) 
 		t.Fatalf("with Automatic saved again a profile 5 thumbnail does not use the device: %s %v", args, err)
 	}
 }
+
+// The saved processor-only cap reaches the existing software admission limit,
+// while leaving the total and graphics limits alone. Invalid choices change nothing.
+func TestSavingTheProcessorConversionLimitReachesAdmission(t *testing.T) {
+	ctx := context.Background()
+	d, err := db.Open(ctx, filepath.Join(t.TempDir(), "main.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	st, _, err := settings.Open(ctx, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := delivery(settings.Streaming.Get(st)); got.MaxSoftwareConversions != 0 {
+		t.Fatal(got)
+	}
+	if _, err := st.Write(ctx, 0, "streaming", json.RawMessage(`{"processorConversionsAtOnce":3}`), -1, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	got := delivery(settings.Streaming.Get(st))
+	if got.MaxSoftwareConversions != 3 || got.MaxConversions != 0 || got.MaxHardwareConversions != 0 {
+		t.Fatal(got)
+	}
+	if _, err := st.Write(ctx, 0, "streaming", json.RawMessage(`{"processorConversionsAtOnce":5}`), -1, time.Now()); err == nil {
+		t.Fatal("an unoffered cap was saved")
+	}
+	if got := delivery(settings.Streaming.Get(st)); got.MaxSoftwareConversions != 3 {
+		t.Fatal(got)
+	}
+	if _, err := st.Write(ctx, 0, "streaming", json.RawMessage(`{"processorConversionsAtOnce":0}`), -1, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if got := delivery(settings.Streaming.Get(st)); got.MaxSoftwareConversions != 0 {
+		t.Fatal(got)
+	}
+}
