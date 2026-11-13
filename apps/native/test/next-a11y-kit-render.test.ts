@@ -338,3 +338,22 @@ test('a circle with no picture draws the shared initials of its name; with a pic
   assert.deepEqual(letters({alt: 'Orchestra', covers: [{cacheKey: 'portrait'}]}), []);
   assert.deepEqual(letters({alt: 'Orchestra', initials: 'Q'}), ['Q']);
 });
+
+// 13 Nov art-library sweep (T12): at the largest text an album's track "10" broke into "1" over "0" in a fixed 18 pt column.
+test('a track number grows with its digits on one line, and shows the level meter while playing', async () => {
+  const f = fixture(2.5);
+  const tracks = await screenModule(new URL('../src-next/kit/browse/Tracks.tsx', import.meta.url), {
+    ...f.common, '../../../../../packages/i18n/src': {defaultI18n}, '../controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'},
+    '../Icon': {Icon: 'Icon'}, '../cards/primitives': {CardFrame: 'CardFrame'}, '../cards/model': cardModel,
+    './presentation': {alpha: (value: string) => value, browseType: () => ({})},
+  });
+  const cell = f.host.render(() => tracks.TrackNumber({number: 10, width: 18, size: 14}));
+  assert.equal(flatten(cell.props.style).width, undefined, 'a minimum, never a fixed width');
+  assert.ok(flatten(cell.props.style).minWidth > 18, 'at 2.5x text two digits need more than the 18 pt column');
+  const single = f.host.render(() => tracks.TrackNumber({number: 9, digits: 2, width: 18, size: 14}));
+  assert.equal(flatten(single.props.style).minWidth, flatten(cell.props.style).minWidth, 'row 9 is as wide as row 10, so titles line up');
+  const digits = nodes(cell).find(node => node.type === 'Text');
+  assert.deepEqual([digits.props.numberOfLines, digits.props.children], [1, 10]);
+  const playing = f.host.render(() => tracks.TrackNumber({number: 10, width: 18, size: 14, playing: true}));
+  assert.equal(nodes(playing).some(node => node.type === 'Text'), false, 'the meter takes the number\'s place');
+});

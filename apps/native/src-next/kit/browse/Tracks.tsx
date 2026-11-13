@@ -56,9 +56,18 @@ function trackLabel(row: TrackRowData): string {
     [row.playing ? t('next.kit.session.playing') : row.current ? t('profile.current') : undefined, row.done ? t('title.finished') : undefined]);
 }
 
-function LevelMeter() {
+export function LevelMeter() {
   const theme = useTheme();
   return <View accessible={false} style={{height: 14, width: 18, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 2}}>{[8, 14, 10].map((height, index) => <View key={index} style={{height, width: 3, borderRadius: 1, backgroundColor: theme.colors.accentStrong}}/>)}</View>;
+}
+
+/** A track's number column: at least `width` wide and as wide as the list's longest number (`digits`) at the system text
+ * size, on one line, so "10" never breaks into "1" over "0" and every row's title starts at the same place; the level
+ * meter in its place while the track plays. */
+export function TrackNumber({number, digits = String(number).length, playing, width, size, weight = 600}: {number: number | string; digits?: number; playing?: boolean; width: number; size: number; weight?: 600 | 700}) {
+  const theme = useTheme();
+  // Tabular digits are about .6 em wide.
+  return <View style={{minWidth: Math.max(width, Math.ceil(digits * size * 0.6 * theme.textScale * theme.fontScale)), alignItems: 'center'}}>{playing ? <LevelMeter/> : <Text numberOfLines={1} style={[browseType(theme, size, weight), {color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{number}</Text>}</View>;
 }
 
 /** tv-more6/8: the whole 84 dp row owns focus and its focused Menu action. */
@@ -96,7 +105,7 @@ export function SongRow({row, onPlay, onMore, selection, selected = false, onSel
       accessibilityLabel={onSelectionChange ? trackLabel(row) : t('next.browse.native.play', {title: trackLabel(row)})} style={{flex: 1, height: grow ? undefined : '100%'}} pressableStyle={{flex: 1, justifyContent: 'center'}}>
       {() =>
       <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 20 : 14, flex: 1, minWidth: 0}}>
-        {ranked && row.number !== undefined && <View style={{width: 22, alignItems: 'center'}}>{row.playing ? <LevelMeter/> : <Text style={[browseType(theme, tv ? 22 : 15, 700), {color: theme.colors.textTertiary}]}>{row.number}</Text>}</View>}
+        {ranked && row.number !== undefined && <TrackNumber number={row.number} playing={row.playing} width={22} size={tv ? 22 : 15} weight={700}/>}
         {row.artwork && <View style={{width: tv ? 72 : ranked ? 46 : 44, height: tv ? 72 : ranked ? 46 : 44, borderRadius: 6, overflow: 'hidden'}}>{row.artwork}</View>}
         <View style={{flex: 1, minWidth: 0}}>
           <Text numberOfLines={grow ? undefined : 1} style={[browseType(theme, tv ? 24 : 15, 700), {color: row.playing ? theme.colors.accentStrong : theme.colors.text}]}>{row.text.title}</Text>
