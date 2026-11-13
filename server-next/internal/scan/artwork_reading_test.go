@@ -140,3 +140,44 @@ func TestReadingArchiveCoversRespectPathsAndSizeLimit(t *testing.T) {
 		t.Fatalf("an oversized cover was read: %d bytes, %v", len(data), err)
 	}
 }
+
+func TestReviewGenreFolderPictureIsNotAnArtistPortrait(t *testing.T) {
+	f := newFixture(t, db.LibraryMusic)
+	f.s.Pictures = pictures{}
+	f.tagged("Jazz/Kind of Blue/01.mp3", "TIT2", "So What", "TPE1", "Miles Davis", "TALB", "Kind of Blue")
+	f.tagged("Jazz/Time Out/01.mp3", "TIT2", "Take Five", "TPE1", "Dave Brubeck", "TALB", "Time Out")
+	f.put("Jazz/folder.jpg", picture(t, 11))
+	f.scan()
+	for _, name := range []string{"Miles Davis", "Dave Brubeck"} {
+		if image := shown(f.titles(db.KindArtist)[name], db.ImagePortrait); image != nil {
+			t.Errorf("%s got the genre folder's picture as portrait: %+v", name, image)
+		}
+	}
+}
+
+func TestReviewSeriesCoverStaysIssueOneAfterLaterIssueArrives(t *testing.T) {
+	f := newFixture(t, db.LibraryComics)
+	f.s.Pictures = pictures{}
+	f.put("Saga/Saga 001.cbz", zipped(t, [2]string{"1.png", string(picture(t, 31))}))
+	f.scan()
+	if image := shown(f.titles(db.KindSeries)["Saga"], db.ImageCover); image == nil || image.Width != 31 {
+		t.Fatalf("series first cover: %+v", image)
+	}
+	f.put("Saga/Saga 002.cbz", zipped(t, [2]string{"1.png", string(picture(t, 32))}))
+	f.scan()
+	series := f.titles(db.KindSeries)["Saga"]
+	if image := shown(series, db.ImageCover); image == nil || image.Width != 31 {
+		t.Errorf("series cover moved to a later issue: %+v", image)
+	}
+	candidates, err := f.d.Pictures(ctx, series.PublicID, db.ImageCover)
+	if err != nil || len(candidates) != 1 {
+		t.Fatalf("later issue added a series cover: %+v, %v", candidates, err)
+	}
+	f.put("Saga/Saga 003.cbz", zipped(t, [2]string{"1.png", string(picture(t, 33))}))
+	f.s.AllFiles = true
+	f.scan()
+	candidates, err = f.d.Pictures(ctx, series.PublicID, db.ImageCover)
+	if err != nil || len(candidates) != 1 || candidates[0].Width != 31 {
+		t.Fatalf("Scan all files added later issue covers: %+v, %v", candidates, err)
+	}
+}
