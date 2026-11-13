@@ -5,7 +5,7 @@ import type {SettingPresentation} from '../../../kit/settings';
 import {Icon} from '../../../kit/Icon';
 import type {SettingsPageSnapshot} from '../Settings';
 import type {ServerBackupSource} from '../backup-source';
-import {StorageBackupFolder, StorageBackupNow, StorageBackups, StorageRestoreFile, type BackupSurfaceProps} from './Backups';
+import {StorageBackupFolder, StorageBackupNow, StorageBackupPassphrase, StorageBackups, StorageRestoreFile, type BackupSurfaceProps} from './Backups';
 import {EmptyCache} from './EmptyCache';
 import {StorageDataFolder, StorageUsage} from './StorageUsage';
 import {KeepingSelect} from './Keeping';
@@ -58,7 +58,8 @@ export function createServerSettingsSurfaces(options: SettingsServerOptions): Se
     special: (row, state) => {
       const target = linkTarget(row), text = row.control.label && t(row.control.label);
       if (target && text) return <button type="button" className={styles.sectionLink} onClick={() => {if (options.isCurrent()) options.openTarget(target);}}>{text}<Icon name="i-right" size={16} /></button>;
-      const label = state.label ?? row.label;
+      // A row's spec label is a message key; the drawn controls are named with its words.
+      const label = state.label ?? t(row.label);
       return row.id === 'storage.networkNotice' ? <span className={styles.storageWarning} role="status">{t('next.settings.storage.sharedDrive')}</span>
         : row.id === 'storage.emptyCache' ? <EmptyCache source={storage}/>
         : row.id === 'storage.keepFiles' || row.id === 'storage.keepDownloads' ? <KeepingSelect source={storage} row={row} label={label} />
@@ -68,6 +69,7 @@ export function createServerSettingsSurfaces(options: SettingsServerOptions): Se
         : row.id === 'storage.backupKeysNote' ? <span className={styles.storageNote}>{t('next.settings.backup.keysNotice')}</span>
         : row.id === 'storage.backupFolder' ? <StorageBackupFolder {...backups} api={options.transport} />
         : row.id === 'storage.backupNow' ? <StorageBackupNow {...backups} />
+        : row.id === 'storage.backupPassphrase' ? <StorageBackupPassphrase {...backups} label={label} />
         : row.id === 'storage.backups' ? <StorageBackups {...backups} />
         : row.id === 'storage.restoreFile' ? <StorageRestoreFile {...backups} api={options.transport} />
         : undefined;
