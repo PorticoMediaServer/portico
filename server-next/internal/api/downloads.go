@@ -450,7 +450,7 @@ func (s *Server) titlesShape(ctx context.Context, v db.Viewer, list []db.Downloa
 	if err != nil {
 		return nil, err
 	}
-	keep := time.Duration(s.downloads.Owner().KeepDays) * 24 * time.Hour
+	keep := time.Duration(storageDocument.Get(s.settings).PreparedKeepDays()) * 24 * time.Hour
 	out := make([]Download, 0, len(list))
 	for _, dl := range list {
 		if _, visible := places[dl.ItemID]; dl.ItemID != 0 && !visible {

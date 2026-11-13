@@ -70,6 +70,7 @@ type Service struct {
 	mu sync.Mutex
 	// running is every copy being made now, by row id.
 	running map[int64]*making
+	reading map[int64]int
 	// usable says the encoder was found; found once.
 	usable *bool
 	// warnedFull is when the log last said copies wait for disk room.
@@ -473,7 +474,11 @@ func (c *counting) Write(b []byte) (int, error) {
 // any file in the prepared folder that no copy names. A download that waited for a removed
 // copy reads as expired, with Try again. Copies already on people's devices are not touched.
 func (s *Service) Tidy(ctx context.Context) error {
-	keep := time.Duration(Document.Get(s.Settings).KeepDays) * 24 * time.Hour
+	keep := time.Duration(settings.Storage.Get(s.Settings).PreparedKeepDays()) * 24 * time.Hour
+	files, err := s.copyFiles()
+	if err != nil {
+		return err
+	}
 	for ctx.Err() == nil {
 		unused, err := s.DB.UnusedPrepared(ctx, s.Now().Add(-keep), 100)
 		if err != nil || len(unused) == 0 {
@@ -493,8 +498,7 @@ func (s *Service) Tidy(ctx context.Context) error {
 		}
 		for _, p := range unused {
 			// The copy's files and the subtitles written beside it.
-			matches, _ := filepath.Glob(filepath.Join(s.Folder, p.PublicID+"[.-]*"))
-			for _, file := range matches {
+			for _, file := range files[p.PublicID] {
 				os.Remove(file)
 			}
 		}
