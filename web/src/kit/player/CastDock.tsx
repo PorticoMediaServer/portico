@@ -27,6 +27,9 @@ export function CastDock({controller, snapshot, visuals, phone, reportError, t =
     {(!terminal || phone) && <span className={dock.castMark} data-pending={!playing && !terminal || undefined}>{playing || terminal ? <Icon name={phone ? 'i-tvdev' : 'i-cast'} size={phone ? 18 : 24} /> : <span className={dock.ring} />}</span>}</span>;
   const identity = <>{art}<span className={dock.identityText}><b>{bound?.identity?.title ?? remote.title}</b><small data-status={remote.phase} aria-live="polite">{phone && playing ? <>{remote.deviceName}<span className={dock.gap} />{position}</> : phone && remote.phase === 'stopped' && remote.positionKnown ? t('next.dock.stoppedAt', {position}) : status}</small></span></>;
   const skip = (delta: number) => controller.seek(remote, Math.max(0, remote.positionSeconds + delta));
+  // Rule 27: a Portico device's bar has Next when its queue has one, and Subtitles & audio from its own tracks.
+  const tracks = remote.kind === 'portico' ? !!(remote.tracks?.audio.length || remote.tracks?.subtitles.length) : !!(snapshot.cast.audioTracks.length || snapshot.cast.textTracks.length);
+  const next = playing && remote.kind === 'portico' && remote.next ? <Control icon="i-next" label={t('next.dock.next')} onClick={() => controller.next(remote)} /> : null;
   const main = <Control primary={!phone} icon={remote.paused ? 'i-play' : 'i-pause'} label={t(remote.paused ? 'next.dock.play' : 'next.dock.pause')} disabled={!playing || !remote.positionKnown} onClick={() => controller.toggle(remote)} />;
   const terminalActions = <div className={dock.terminalActions}>
     {canContinue && <Button variant="primary" size="dock" icon={phone ? undefined : 'i-play'} onClick={() => { void controller.continueHere(remote).catch(reportError); }} aria-label={t('next.dock.continueHere', {position})}>{t(phone ? 'next.dock.continue' : 'next.dock.continueHere', {position})}</Button>}
@@ -38,7 +41,7 @@ export function CastDock({controller, snapshot, visuals, phone, reportError, t =
     </div>
     {terminal ? terminalActions : phone && !playing ? <Control icon="i-stop" label={t('next.dock.stopConnecting')} onClick={() => controller.stop(remote)} /> : <div className={phone ? dock.transport : dock.middle}>
       <div className={dock.transport}><Control icon={phone ? 'i-rew' : 'i-back'} skip={back} label={t('next.dock.back', {seconds: back})} disabled={!playing || !remote.positionKnown || !back} onClick={() => skip(-back)} />{main}
-        {phone ? <Control icon="i-stop" label={t(playing ? 'next.dock.stop' : 'next.dock.stopConnecting')} onClick={() => controller.stop(remote)} /> : <Control icon="i-fwd" skip={forward} label={t('next.dock.forward', {seconds: forward})} disabled={!playing || !remote.positionKnown || !forward} onClick={() => skip(forward)} />}</div>
+        {phone ? <Control icon="i-stop" label={t(playing ? 'next.dock.stop' : 'next.dock.stopConnecting')} onClick={() => controller.stop(remote)} /> : <Control icon="i-fwd" skip={forward} label={t('next.dock.forward', {seconds: forward})} disabled={!playing || !remote.positionKnown || !forward} onClick={() => skip(forward)} />}{!phone && next}</div>
       {!phone && <div className={dock.scrub} style={!playing ? {opacity: .35} : undefined}><span>{position}</span><span className={dock.track}>
         <i style={{transform: `scaleX(${remote.durationSeconds > 0 ? Math.min(1, remote.positionSeconds / remote.durationSeconds) : 0})`}} />
         <input type="range" min={0} max={Math.max(1, remote.durationSeconds)} step={1} value={Math.min(remote.positionSeconds, remote.durationSeconds || 0)} disabled={!playing || !remote.durationSeconds}
@@ -46,7 +49,7 @@ export function CastDock({controller, snapshot, visuals, phone, reportError, t =
       </span><span>{duration}</span></div>}
     </div>}
     {!terminal && !phone && <div className={dock.endControls}>
-      {playing && !!(snapshot.cast.audioTracks.length || snapshot.cast.textTracks.length) && <Control icon="d-cc" label={t('next.dock.subtitlesAudio')} onClick={() => controller.openTracks(remote)} />}
+      {playing && tracks && <Control icon="d-cc" label={t('next.dock.subtitlesAudio')} onClick={() => controller.openTracks(remote)} />}
       <Button variant="glass" size="dock" onClick={() => controller.stop(remote)}>{t('next.dock.stop')}</Button>
       {panel && <Control icon="i-up" label={t('next.dock.castControls')} onClick={() => controller.openRemote(remote)} />}
     </div>}

@@ -1,6 +1,10 @@
 import type {AccountStream, ReceiverItem, ReceiverRequest as WireRequest, Routes} from '../../contracts/src/next/api.ts';
 import {serviceProblem, serviceText} from './presentation/service-text.ts';
 import {serverNow} from './server-clock.ts';
+import {parseOptions} from './playback-v1/types.ts';
+import {audioTrackLabel} from './playback-service.ts';
+import {subtitleTrackNames} from './presentation/title-files.ts';
+import {defaultI18n} from '../../i18n/src/index.ts';
 
 /** Playing on another of the account's devices, and being that device (area 8, rules 21 to 30).
  *
@@ -50,6 +54,8 @@ export type RemoteStream = Readonly<{
    * the asking profile may not see that title. */
   next?: Readonly<{itemId: string; title: string}>;
 }>;
+/** The tracks another device can switch between and those in use; `subtitleId` null is subtitles off. */
+export type RemoteTracks = Readonly<{audio: readonly Readonly<{id: string; name: string}>[]; subtitles: readonly Readonly<{id: string; name: string}>[]; audioId?: string; subtitleId?: string | null}>;
 export function parseRemoteStream(value: unknown): RemoteStream | undefined {
   const v = value as Partial<AccountStream> | null;
   if (!v || typeof v !== 'object' || !str(v.id)) return undefined;
@@ -224,6 +230,8 @@ export class HandoffController {
       }
       switch (asked.state) {
         case 'playing':
+          // What moved with it (rule 26) is what it now plays, as far as this device can know.
+          this.picks = {...(source.audioTrackId ? {audioId: source.audioTrackId} : {}), ...(source.subtitleTrackId !== undefined ? {subtitleId: source.subtitleTrackId || null} : {})};
           this.controlGuard = controlGuard;
           this.publish({phase: 'done', receiverPlaybackId: asked.sessionId, message: serviceText('playOn.playingOn', device)});
           void this.refreshRemote();
@@ -266,6 +274,7 @@ export class HandoffController {
    * as a move: a device that remembers this sign-in answers by itself, otherwise its person is
    * asked. This device's own playback carries on. Resolves true once the bar follows it. */
   async control(target: PlayOnDevice, guard: RemoteGuard = () => true): Promise<boolean> {
+    this.picks = undefined;
     const playing = target.playing;
     if (!playing || playing.state === 'ended') return false;
     this.run?.abort();
@@ -313,6 +322,32 @@ export class HandoffController {
     return this.command({seek: {positionMs: Math.round(positionSeconds * 1000)}});
   }
   next() {return this.command({skip: 'next'});}
+  /** Chooses the other device's audio or subtitle track (rule 27); `null` is subtitles off. The device carries it out. */
+  async audio(trackId: string) {const done = await this.command({audio: {trackId}}); if (done) this.picks = {...this.picks, audioId: trackId}; return done;}
+  async subtitles(trackId: string | null) {const done = await this.command({subtitles: {trackId}}); if (done) this.picks = {...this.picks, subtitleId: trackId}; return done;}
+  /** The tracks in use on the other device, as far as this device knows them: what it sent when it moved the playback
+   * there, then what it chose from the bar. The server tells a controlling device neither its version nor its picks. */
+  private picks?: Readonly<{audioId?: string; subtitleId?: string | null}>;
+  /** The audio and subtitle tracks the other device can switch between, named as this app names them: those of the
+   * version a start of its title plays, which is the one it plays unless someone chose another there. Undefined when
+   * the title can't be read (this profile may not see it). */
+  async remoteTracks(): Promise<RemoteTracks | undefined> {
+    const id = this.state.receiverPlaybackId, itemId = this.state.remote?.itemId;
+    if (!id || !itemId) return undefined;
+    try {
+      const options = parseOptions(await this.call(this.controlGuard, 'GET /v1/items/{id}/playback-options', {id: itemId}));
+      if (this.state.receiverPlaybackId !== id) return undefined;
+      const version = options.versions.find(v => v.id === options.preferred?.versionId) ?? options.versions[0];
+      if (!version) return undefined;
+      const names = subtitleTrackNames(version.subtitles.map(track => ({id: track.id, language: track.language, title: track.title, format: track.format, forced: track.forced, hearingImpaired: track.sdh})), defaultI18n.t);
+      const picks = this.picks;
+      return Object.freeze({
+        audio: Object.freeze(version.audio.map((track, index) => Object.freeze({id: track.id, name: audioTrackLabel(track, index + 1)}))),
+        subtitles: Object.freeze(version.subtitles.map(track => Object.freeze({id: track.id, name: names.get(track.id) ?? track.id}))),
+        ...(picks?.audioId ? {audioId: picks.audioId} : {}), ...(picks && picks.subtitleId !== undefined ? {subtitleId: picks.subtitleId} : {}),
+      });
+    } catch {return undefined;}
+  }
   stop() {return this.command();}
   /** A command for the other device: it carries it out itself. A refusal shows the server's words. */
   private command(change?: Readonly<Record<string, unknown>>): Promise<boolean> {

@@ -18,7 +18,8 @@ function fixture() {
   const receivers: PlayOnReceiversPort = {
     getSnapshot: () => ({phase: 'ready', items: [], ...(remote ? {remote} : {})}), subscribe: listener => {listeners.add(listener); return () => {listeners.delete(listener);};},
     refresh: () => {}, send: async () => false, control: async () => true,
-    toggle: () => {portCalls.push('toggle');}, seek: seconds => {portCalls.push('seek ' + seconds);}, stop: () => {portCalls.push('stop');}, dismiss: () => {portCalls.push('dismiss'); remote = undefined; for (const l of [...listeners]) l();},
+    toggle: () => {portCalls.push('toggle');}, seek: seconds => {portCalls.push('seek ' + seconds);}, stop: () => {portCalls.push('stop');},
+    next: () => {portCalls.push('next');}, audio: id => {portCalls.push('audio ' + id);}, subtitles: id => {portCalls.push('subtitles ' + id);}, dismiss: () => {portCalls.push('dismiss'); remote = undefined; for (const l of [...listeners]) l();},
   };
   let timer: (() => void) | undefined;
   const controller = new PlayOnController({sender, runtime, receivers, isCurrent: () => true, reportError: error => {throw error;},
@@ -64,3 +65,22 @@ test('a stopped bar goes by itself after a while; an old button cannot act on a 
   assert.equal(f.portCalls.at(-1), 'dismiss');
   assert.equal(f.controller.getSnapshot().remote, undefined);
 });
+
+test('rule 27: a Portico device\'s bar has Next while its queue has one, and its own audio and subtitles', () => {
+  const f = fixture();
+  f.set({...tv, next: {title: 'Next Film'}, tracks: {audio: [{id: 'a1', name: 'English'}, {id: 'a2', name: 'French'}], subtitles: [{id: 's1', name: 'English'}], audioId: 'a1', subtitleId: null}});
+  const remote = f.controller.getSnapshot().remote!;
+  assert.deepEqual([remote.next?.title, remote.tracks?.audio.length], ['Next Film', 2]);
+  f.controller.next(remote); f.controller.audio(remote, 'a2'); f.controller.subtitles(remote, 's1'); f.controller.subtitles(remote, null);
+  f.controller.audio(remote, 'a9'); f.controller.audio(remote, 3);
+  assert.deepEqual(f.portCalls, ['next', 'audio a2', 'subtitles s1', 'subtitles null'], 'only its own tracks, by their ids; nothing else is sent');
+  f.controller.openTracks(remote);
+  assert.equal(f.controller.getSnapshot().panel, 'tracks', 'Subtitles & audio opens its tracks');
+  f.set({...tv});
+  const plain = f.controller.getSnapshot().remote!;
+  f.controller.next(plain); f.controller.closePanel(); f.controller.openTracks(plain);
+  assert.equal(f.portCalls.at(-1), 'subtitles null', 'no Next without a next title');
+  assert.equal(f.controller.getSnapshot().panel, null, 'no tracks panel without tracks');
+  assert.deepEqual(f.castCalls, []);
+});
+

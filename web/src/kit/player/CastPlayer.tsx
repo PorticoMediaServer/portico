@@ -1,4 +1,5 @@
 import {defaultI18n} from '@i18n';
+import {TrackChoices} from '../media';
 import {AmbientArt, Artwork} from '../artwork';
 import {Button, Slider} from '../controls';
 import {Icon} from '../Icon';
@@ -46,17 +47,20 @@ export function CastPlayer({controller, snapshot, visuals, phone, returnFocusRef
   </Dialog>;
 }
 
-export function CastTracks({controller, snapshot, returnFocusRef, t = defaultI18n.t}: CastPlayerProps) {
+export function CastTracks({controller, snapshot, returnFocusRef, reportError, t = defaultI18n.t}: CastPlayerProps) {
   const remote = snapshot.remote;
   if (!remote) return null;
+  // The player's own track rows (kit TrackChoices), for a Cast device or one of the account's Portico devices, with the
+  // ones in use checked where they are known.
+  const portico = remote.kind === 'portico' ? remote.tracks : undefined;
+  const row = (id: string, name: string, selected: boolean) => ({id, primary: name, fullName: name, selected});
+  const text = portico ? portico.subtitles.map(track => row(track.id, track.name, portico.subtitleId === track.id)) : snapshot.cast.textTracks.map(track => row(String(track.id), track.name || track.language, false));
+  const audio = portico ? portico.audio.map(track => row(track.id, track.name, portico.audioId === track.id)) : snapshot.cast.audioTracks.map(track => row(String(track.id), track.name || track.language, false));
+  const id = (value: string) => portico ? value : Number(value);
   return <Dialog open={snapshot.panel === 'tracks' && remote.phase === 'playing'} onOpenChange={() => controller.closePanel()} title={t('next.dock.subtitlesAudio')} returnFocusRef={returnFocusRef}>
-    {!!snapshot.cast.textTracks.length && <section className={styles.trackGroup}><h3>{t('next.cast.subtitles')}</h3>
-      <button type="button" onClick={() => controller.subtitles(remote, null)}>{t('next.controls.off')}</button>
-      {snapshot.cast.textTracks.map(track => <button type="button" key={track.id} onClick={() => controller.subtitles(remote, track.id)}>{track.name || track.language}</button>)}
-    </section>}
-    {!!snapshot.cast.audioTracks.length && <section className={styles.trackGroup}><h3>{t('next.cast.audio')}</h3>
-      {snapshot.cast.audioTracks.map(track => <button type="button" key={track.id} onClick={() => controller.audio(remote, track.id)}>{track.name || track.language}</button>)}
-    </section>}
+    {!!text.length && <TrackChoices title={t('next.cast.subtitles')} reportError={reportError} t={t}
+      choices={[row('off', t('next.controls.off'), portico?.subtitleId === null), ...text]} onSelect={value => controller.subtitles(remote, value === 'off' ? null : id(value))} />}
+    {!!audio.length && <TrackChoices title={t('next.cast.audio')} reportError={reportError} t={t} choices={audio} onSelect={value => controller.audio(remote, id(value))} />}
   </Dialog>;
 }
 
