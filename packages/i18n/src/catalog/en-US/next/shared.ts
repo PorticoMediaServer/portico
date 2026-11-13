@@ -101,6 +101,7 @@ export const shared = {
   'next.kit.kbps': '{rate} kbps',
   'next.kit.fps': '{rate} fps',
   'next.kit.bitDepth': '{bits, number}-bit',
+  'next.kit.khz': '{rate} kHz',
   'next.kit.dimensions': '{width, number, ::group-off} × {height, number, ::group-off}',
   'next.kit.fileInfo': 'File info',
   'next.kit.fileInfo.sdh': 'SDH',

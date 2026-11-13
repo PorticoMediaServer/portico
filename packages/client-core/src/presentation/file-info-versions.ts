@@ -1,3 +1,4 @@
+import {albumAudioRows} from './kit-model/album-audio.ts';
 import {fileInfoBytesValue, type FileInfoFileRow, type FileInfoGroupRow, type FileInfoHeadTrackRow, type FileInfoTrackRow} from '../file-info-pages.ts';
 import {fileInfoModel, type FileFacts, type FileInfoModel, type TrackFacts} from './kit-model/index.ts';
 import type {TextEnvironment} from './kit-model/text.ts';
@@ -58,7 +59,7 @@ export type FileInfoPanelPolicy = Readonly<{
 /** The File info panel's model from one opening's resident windows: versions in the server's order
  * and numbering, each with its resident tracks, and for an owner the listed files of each version.
  * Split is the server's global answer (`surface.canSplit`), never a count of resident rows. */
-export function fileInfoPanelModel(snapshot: FileInfoSnapshot, policy: FileInfoPanelPolicy, env: TextEnvironment): FileInfoModel | undefined {
+function versionsPanelModel(snapshot: FileInfoSnapshot, policy: FileInfoPanelPolicy, env: TextEnvironment): FileInfoModel | undefined {
   const groups = snapshot.groups.rows?.rows, files = snapshot.files?.rows?.rows, surface = snapshot.surface;
   if (files && surface) {
     // A flat-file surface lists each file with its own raw tracks; its owner sees each file's path.
@@ -78,4 +79,9 @@ export function fileInfoPanelModel(snapshot: FileInfoSnapshot, policy: FileInfoP
     locations: groups.flatMap(group => (snapshot.members.get(group.id)?.rows?.rows ?? []).map((file, index) => ({id: file.occurrence, versionId: group.id, path: file.path, canDelete: manage.delete && policy.delete === true && index === 0}))),
     canSplit: manage.split && surface.canSplit && policy.split, canMerge: manage.merge && policy.merge,
   }} : {audience: 'viewer'}, env, policy.context);
+}
+
+export function fileInfoPanelModel(snapshot: FileInfoSnapshot, policy: FileInfoPanelPolicy, env: TextEnvironment): FileInfoModel | undefined {
+  const model = versionsPanelModel(snapshot, policy, env), album = albumAudioRows(snapshot.album, env, policy.context);
+  return model && album ? Object.freeze({...model, album}) : model;
 }

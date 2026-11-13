@@ -1,3 +1,4 @@
+import type {AlbumAudioFacts} from './presentation/kit-model/album-audio.ts';
 import {callServer, serverPath} from './query/server-api.ts';
 import {entriesFromItems} from './items.ts';
 import {parseMusicTechnicalFacts, type MusicTechnicalFacts} from './music-facts.ts';
@@ -47,6 +48,8 @@ export type ContentEntry = Readonly<{
   readingMark?: ReadingEntryMark;
   audioFacts?: MusicTechnicalFacts;
   badges?: readonly MusicFormatBadge[];
+  /** An album's own read: the format its songs share, as the server summarises them (File info, music-plus frame 7). */
+  albumAudio?: AlbumAudioFacts;
   publicationType?: 'book' | 'magazine' | 'newspaper';
   dateBased?:boolean;special?:boolean;new?:boolean; show?:Readonly<{id:string;name:string}>;
   favorite?:boolean;releaseDate?:string;artistType?:'Group'|'Person';albumCount?:number;displayTitle?:string;narrators?:readonly string[];series?:readonly Readonly<{name:string;position?:string}>[];publisher?:string;language?:string;edition?:string;publishedYear?:number;bookProgress?:BookProgress;
@@ -221,6 +224,13 @@ function entry(v: unknown): ContentEntry {
   if (v.audioFacts !== undefined && v.kind === 'song') {
     const facts = parseMusicTechnicalFacts(v.audioFacts);
     if (facts) row.audioFacts = facts; else left('entry.audioFacts', v.audioFacts);
+  }
+  if (v.albumAudio !== undefined && v.kind === 'album') {
+    const a = v.albumAudio as Record<string, unknown> | null, whole = (n: unknown) => n === undefined || typeof n === 'number' && Number.isSafeInteger(n) && n > 0;
+    if (a && typeof a === 'object' && typeof a.state === 'string' && (a.codec === undefined || typeof a.codec === 'string' && a.codec.length <= 64)
+      && whole(a.bitDepth) && whole(a.sampleRate) && whole(a.channels) && whole(a.bitrate))
+      row.albumAudio = Object.freeze(Object.fromEntries(Object.entries({state: a.state, codec: a.codec, bitDepth: a.bitDepth, sampleRate: a.sampleRate, channels: a.channels, bitrate: a.bitrate}).filter(([, value]) => value !== undefined))) as AlbumAudioFacts;
+    else left('entry.albumAudio', v.albumAudio);
   }
   if (v.badges !== undefined && v.kind === 'album') {
     const badges = parseMusicBadges(v.badges);
