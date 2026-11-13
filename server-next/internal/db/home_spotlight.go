@@ -40,7 +40,7 @@ func (d *DB) Spotlight(ctx context.Context, v Viewer) ([]Item, error) {
 			if rated < sparseRated {
 				from, may = "items i INDEXED BY items_by_rating", "(1"+acc.rated("i", "")+acc.unblocked("i")+acc.filled("i")+")"
 			}
-			rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns+` FROM `+from+`
+			rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+` FROM `+from+`
     LEFT JOIN user_item_state s ON s.item_id = i.id AND s.profile_id = @viewer_profile
     WHERE i.library_id = @library AND i.kind = @kind AND `+may+`
     AND i.available = 1 AND (i.kind != @show OR i.leaf_count > 0) AND ifnull(s.hidden, 0) = 0

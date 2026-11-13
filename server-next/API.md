@@ -111,6 +111,8 @@ Assistant) are a separate short document and are not counted here.
 
 ### Browse, search and Home (21)
 
+Item cards carry `rootTitle` alongside `rootId`: the existing root's title (a show's name for an episode; an album or artist for music, according to its stored hierarchy). It is omitted without a root or when that root is hidden from the viewer; the item itself and its visibility do not change.
+
 | Route | Purpose |
 |---|---|
 | `GET /v1/libraries`, `GET /v1/libraries/{id}` | Libraries you may see; one library with its views, sorts and filters |
