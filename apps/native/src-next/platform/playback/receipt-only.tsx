@@ -1,5 +1,6 @@
+import {nativePlaybackView} from './native-surface';
 import React, {useLayoutEffect, useState, useSyncExternalStore} from 'react';
-import {NativeEventEmitter, NativeModules, Platform, UIManager, requireNativeComponent, type HostComponent, type ViewProps} from 'react-native';
+import {NativeEventEmitter, NativeModules, Platform, UIManager, type ViewProps} from 'react-native';
 import {serviceText} from '../../../../../packages/client-core/src/presentation/service-text';
 import {PlaybackService} from '../../../../../packages/client-core/src';
 import type {LocalPlaybackFence} from '../../../../../packages/player-core/src';
@@ -22,7 +23,6 @@ type EngineModule = Readonly<{
 type SurfaceProps = ViewProps & {lease: string; surfaceActive?: boolean};
 const names = {native: {module: 'PorticoPlaybackModule', event: 'PorticoPlaybackFact', view: 'PorticoPlayer'},
   mpv: {module: 'PorticoMpvPlaybackModule', event: 'PorticoMpvPlaybackFact', view: 'PorticoMpvPlayer'}} as const;
-const views: Partial<Record<EngineKind, HostComponent<SurfaceProps>>> = {};
 const cancelled = () => Object.assign(new Error('receipt_playback_closed'), {name: 'AbortError', code: 'cancelled'});
 
 /** Receipt-owned local playback, with no server session, Home authority, queue,
@@ -130,7 +130,7 @@ export function createNativeReceiptOnlyPlayback(options: Readonly<{
       const ticket = {}; surface = ticket; setTicket(ticket); coordinator.start();
       return () => {if (surface === ticket) {surface = undefined; retirePlay();}};
     }, []);
-    const View = views[engine] ??= requireNativeComponent<SurfaceProps>(names[engine].view);
+    const View = nativePlaybackView<SurfaceProps>(names[engine].view);
     const ownsSurface = !!ticket && surface === ticket && current();
     return <View lease={ownsSurface ? lease : ''} pointerEvents="none" accessible={false} {...(Platform.OS === 'android' ? {surfaceActive: ownsSurface && !!lease} : {})} style={{flex: 1}} />;
   }

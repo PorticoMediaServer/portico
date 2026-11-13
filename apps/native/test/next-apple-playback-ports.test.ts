@@ -85,7 +85,7 @@ const modules = {
   './dynamic-range-matching': {nativeDynamicRangeMatchingAvailable: () => false}, './capability-readiness': capabilityReadiness,
   './capability-document.ios': {deviceCapabilityDocument: () => ({})},
   './NativeListeningAdapter': {NativeListeningV1Adapter: class {}},
-  './runtime': {NativePlaybackRuntime: FakeRuntime},
+  './native-surface': {nativePlaybackView: () => 'PorticoPlayer'}, './runtime': {NativePlaybackRuntime: FakeRuntime},
   './scope-http': {PlaybackScopeHttp: class {constructor() {}}},
   './subtitle-file-picker.ios': {appleSubtitleFilePicker: () => {}},
   '../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({supported: false})}},

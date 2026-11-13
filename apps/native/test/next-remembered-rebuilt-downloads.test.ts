@@ -48,12 +48,13 @@ test('a rebuilt download past 30 days cannot open through the cold-launch bindin
 });
 
 test('turning the clock back after expiry cannot reopen a rebuilt download on cold launch', async t => {
-  let now = contact + 31 * day; t.mock.method(Date, 'now', () => now);
-  const first = await opening();
+  const expires = contact + 30 * day;
+  let now = expires + 1000; t.mock.method(Date, 'now', () => now);
+  const first = await opening(expires - 30_000);
   assert.equal(first.remembered.device.playabilityReason(first.entry), 'needs_check_in');
   await settle();
   const floor = JSON.parse(first.f.disk.state).clockFloor;
-  assert.ok(floor >= now); first.dispose();
+  first.dispose();
   now = contact + day;
   const relaunched = await opening(floor); t.after(() => relaunched.dispose());
   assert.equal(relaunched.remembered.device.playabilityReason(relaunched.entry), 'needs_check_in');

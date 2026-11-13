@@ -47,6 +47,10 @@ async function surfaceFixture(os = 'android') {
     queue: {playEntry: () => {throw new Error('queue.playEntry is not configured in this surface fixture');}},
   };
   const dynamicRange = await screenModule(new URL('../src-next/platform/playback/dynamic-range-matching.ts', import.meta.url), {react: {...React, default: React}, 'react-native': {Platform: {OS: os, isTV: true}, NativeModules: {PorticoPlaybackModule: {}}}});
+  const surface = await screenModule(new URL('../src-next/platform/playback/native-surface.ts', import.meta.url), {
+    react: {...React, default: React},
+    'react-native': {requireNativeComponent: (name: string) => {requested.push(name); return name;}},
+  });
   const {createNativeShellPlaybackAdapter} = await screenModule(new URL('../src-next/platform/playback/native.tsx', import.meta.url), {
     react: {...React, default: React},
     'react-native': {
@@ -65,7 +69,7 @@ async function surfaceFixture(os = 'android') {
     './engine-media': {planEngineOf() {}, requiredSubtitleRendering() {}},
     './capability-document': {deviceCapabilityDocument: () => ({})},
     '../../../platform/offline-downloads': {offlineDownloads},
-    './NativeListeningAdapter': {}, './runtime': {NativePlaybackRuntime: class {constructor(options: {offlineDevice: unknown}) {assert.equal(options.offlineDevice, offlineDownloads); return runtime;}}},
+    './NativeListeningAdapter': {}, './native-surface': surface, './runtime': {NativePlaybackRuntime: class {constructor(options: {offlineDevice: unknown}) {assert.equal(options.offlineDevice, offlineDownloads); return runtime;}}},
     './scope-http': {PlaybackScopeHttp: class {}}, '../video-snapshot': {createVideoSnapshotCapture: () => ({})},
   });
   const adapter = createNativeShellPlaybackAdapter({

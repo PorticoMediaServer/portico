@@ -109,7 +109,7 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
     './engine-choice': {chooseEngine() {}, parseEngineFeatures: () => ({})}, './engine-media': {planEngineOf() {}, requiredSubtitleRendering() {}},
     './capability-document': {deviceCapabilityDocument: () => ({})}, './NativeListeningAdapter': {},
     '../../../platform/offline-downloads': {offlineDownloads},
-    './runtime': {NativePlaybackRuntime: class {constructor() {return runtime;}}}, './scope-http': {PlaybackScopeHttp: class {}},
+    './native-surface': {nativePlaybackView: () => NativeHost}, './runtime': {NativePlaybackRuntime: class {constructor() {return runtime;}}}, './scope-http': {PlaybackScopeHttp: class {}},
     '../video-snapshot': {createVideoSnapshotCapture: () => ({cancel() {}, dispose() {}})}});
   const adapter = createNativeShellPlaybackAdapter({appVersion: 'test', api: {},
     session: () => ({viewer: {authority: 'local', profileId: 'profile'}}), authority: () => runtime.getSnapshot().authority,

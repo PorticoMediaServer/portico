@@ -83,7 +83,7 @@ const modules = {
   './engine-media': {planEngineOf: () => 'native', requiredSubtitleRendering: () => false},
   './capability-document': {deviceCapabilityDocument: () => ({})},
   './NativeListeningAdapter': {NativeListeningV1Adapter: class {}},
-  './runtime': {NativePlaybackRuntime: FakeRuntime},
+  './native-surface': {nativePlaybackView: () => 'PorticoPlayer'}, './runtime': {NativePlaybackRuntime: FakeRuntime},
   './scope-http': {PlaybackScopeHttp: class {constructor() {}}},
   './dynamic-range-matching': {nativeDynamicRangeMatchingAvailable: () => false}, './capability-readiness': capabilityReadiness,
   '../video-snapshot': {createVideoSnapshotCapture: () => ({})},
