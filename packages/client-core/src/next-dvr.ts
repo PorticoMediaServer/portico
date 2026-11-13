@@ -9,14 +9,14 @@
  * says: free and used space, the space kept free and the most recordings may take, about how many hours are left, the keep
  * rule, the forecast for the next two weeks of bookings, and whether the recordings folder can be written.
  *
- * The facts beyond the generated contract (#2947) are read as optional, so a server that does not send them is read as before.
+ * Additional storage facts are optional; recording groups and summary counts come from the server's aggregate reads.
  */
 import type {DvrRecording, DvrRule} from '../../contracts/src/next/api.ts';
 import type {GuideProgramme} from './channel-guide.ts';
 import type {DeletePreview, DVRPage, DVRSummary, DVRView, Recording, RecordingDetail, RecordingGroups, RecordingRule, RecordingState, RuleConfig, RulePreview} from './dvr.ts';
 import {changeRecording, changeRule, endRecording, readDvr, readRecording, readRecordings, readRules, removeRule, type DvrOverview} from './live-tv.ts';
 import {readItem} from './items.ts';
-import type {ServerRequester} from './query/server-api.ts';
+import {callServer, type ServerRequester} from './query/server-api.ts';
 
 /** What the Storage tab shows: only what the server says (the optional facts only when it says them). */
 export type RecordingSpace = Readonly<{freeBytes: number; hoursLeft: number; keepRule: string; writeHealthy: boolean;
@@ -72,9 +72,6 @@ export function nextRule(answer: DvrRule): RecordingRule {
   return {id: rule.id, revision: 0, config, reconcileState: rule.paused ? 'paused' : 'active', diagnostic: '', updatedAt: '',
     ...(rule.channel && rule.channelName ? {channel: {id: rule.channel, name: rule.channelName, number: ''}} : {})};
 }
-/** The most pages read of the recordings made (for the Recorded tab) or of the rules (for their count). */
-const PAGES = 20;
-
 /** A rule's choices as the server takes them. A keep choice of 0 clears it (the owner's default then applies). */
 function ruleChange(config: RuleConfig) {
   return {newOnly: config.episodes === 'new', priority: config.options.priority, paused: !config.enabled, anyChannel: config.allowedChannels.length === 0,
@@ -105,19 +102,6 @@ export class NextDVRClient {
     try { return await work(this.signal); }
     catch (error) { const status = (error as {status?: number} | null)?.status; if (status === 401 || status === 403 && !command) this.accessChanged?.(); throw error; }
   }
-  /** Every page of a list, up to PAGES of them. */
-  private async every<T>(read: (cursor: string | undefined, signal: AbortSignal) => Promise<{items: T[]; nextCursor?: string}>): Promise<T[]> {
-    const out: T[] = [];
-    let cursor: string | undefined;
-    for (let page = 0; page < PAGES; page++) {
-      const answer = await this.call(signal => read(cursor, signal));
-      out.push(...answer.items);
-      if (!(cursor = answer.nextCursor)) break;
-    }
-    return out;
-  }
-  /** The recordings that were made, ordered by title then newest first, so one title's recordings stay together. */
-  private made() { return this.every((cursor, signal) => readRecordings(this.api, {recorded: true, everyone: this.everyone}, cursor, signal)); }
   /** Everyone's recordings rather than this profile's own (rule 48): the server answers it for any profile that may watch. */
   everyone = false;
   /**
@@ -146,35 +130,29 @@ export class NextDVRClient {
     const page = (recordings: Recording[], rules: RecordingRule[], next = '') => ({recordings, rules, nextCursor: next, revision: 0, captureAvailable: true,
       captureUnavailableReason: '', deletionAvailable: true, usage: {bytes: 0, pendingDeleteBytes: 0, recordings: recordings.length}});
     if (view === 'rules') {
-      const answer = await this.call(signal => readRules(this.api, false, cursor || undefined, signal));
+      const answer = await this.call(signal => readRules(this.api, this.everyone, cursor || undefined, signal));
       return page([], answer.items.map(nextRule), answer.nextCursor);
     }
-    if (view === 'recorded') return page(await this.shown((await this.made()).filter(one => !group || one.title === group)), []);
+    if (view === 'recorded') {
+      const answer = await this.call(signal => callServer(this.api, 'GET /v1/dvr/recordings', {signal,
+        query: {state: 'recorded', scope: this.everyone ? 'everyone' : undefined, cursor: cursor || undefined, group: group || undefined}}));
+      return page(await this.shown(answer.items), [], answer.nextCursor);
+    }
     const answer = await this.call(signal => readRecordings(this.api, {history: view === 'history', everyone: this.everyone}, cursor || undefined, signal));
     return page(await this.shown(answer.items), [], answer.nextCursor);
   }
   async summary(): Promise<DVRSummary> {
-    // The server gives no count of rules or titles: they are counted from its lists.
-    const [answer, groups] = await Promise.all([this.call(signal => readDvr(this.api, signal)), this.groups()]);
-    const dvr = answer as OverviewFacts;
-    // A profile that may watch but not record has no rules to read (the server refuses it): it counts none.
-    const rules = dvr.canRecord ? await this.every((cursor, signal) => readRules(this.api, false, cursor, signal)) : [];
-    return {upcoming: dvr.upcoming, recorded: dvr.recorded, rules: rules.length, conflicts: dvr.conflicts, groups: groups.groups.length, unwatched: dvr.unwatched,
+    const dvr = await this.call(signal => callServer(this.api, 'GET /v1/dvr', {
+      query: {scope: this.everyone ? 'everyone' : undefined}, signal}));
+    return {upcoming: dvr.upcoming, recorded: dvr.recorded, rules: dvr.rules, conflicts: dvr.conflicts, groups: dvr.groups, unwatched: dvr.unwatched,
       ...(typeof dvr.everyonesRecordings === 'boolean' ? {everyonesRecordings: dvr.everyonesRecordings} : {})};
   }
-  /** The Recorded tab's titles: the recordings made, grouped by title, newest first (or by title). */
-  async groups(sort: 'recent' | 'title' | 'oldest' = 'recent', _cursor = ''): Promise<RecordingGroups> {
-    const byTitle = new Map<string, DvrRecording[]>();
-    const recordings = await this.made(), libraryId = await this.library(recordings);
-    for (const recording of recordings) byTitle.set(recording.title, [...byTitle.get(recording.title) ?? [], recording]);
-    const groups = [...byTitle].map(([title, recordings]) => {
-      const latest = recordings.reduce((a, b) => a.startsAt > b.startsAt ? a : b);
-      const unwatched = (recordings as BookingFacts[]).filter(one => typeof one.mayChange === 'boolean' && one.itemId && one.watched !== true).length;
-      return {key: title, title, recordings: recordings.length, unwatched, kept: recordings.filter(one => one.keep).length,
-        exceptions: recordings.filter(one => one.state === 'partial').length, latest: latest.startsAt, recording: nextRecording(latest, libraryId)};
-    });
-    groups.sort((a, b) => sort === 'title' ? a.title.localeCompare(b.title) : sort === 'oldest' ? a.latest.localeCompare(b.latest) : b.latest.localeCompare(a.latest));
-    return {groups, nextCursor: '', revision: 0};
+  /** One server page of titles, with its full counts and genuine newest recording. */
+  async groups(sort: 'recent' | 'title' | 'oldest' = 'recent', cursor = ''): Promise<RecordingGroups> {
+    const answer = await this.call(signal => callServer(this.api, 'GET /v1/dvr/groups', {
+      query: {sort, cursor: cursor || undefined, scope: this.everyone ? 'everyone' : undefined}, signal}));
+    const libraryId = await this.library(answer.items.map(group => group.recording));
+    return {groups: answer.items.map(group => ({...group, recording: nextRecording(group.recording, libraryId)})), nextCursor: answer.nextCursor ?? '', revision: 0};
   }
   async detail(recordingId: string): Promise<RecordingDetail> {
     const recording = await this.call(signal => readRecording(this.api, recordingId, signal)) as BookingFacts;

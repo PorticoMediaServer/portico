@@ -15,19 +15,16 @@ test('each new-server booking state reads as the state the recordings screens dr
   assert.equal(nextRecording(booking()).bytes, 0, 'the server gives no size');
 });
 
-test('the rule count is every page of rules, since the server gives no count', async () => {
+test('summary reads the server aggregates once, without scanning groups, recordings or rules', async () => {
   const paths: string[] = [];
   const api = {async request<T>(path: string): Promise<T> {
     paths.push(path);
-    const url = new URL(path, 'http://x');
-    if (url.pathname === '/v1/dvr') return {upcoming: 2, recorded: 1, unwatched: 0, conflicts: 0, freeBytes: 1, hoursLeft: 1, keepRule: '', folderOk: true, canRecord: true} as T;
-    if (url.pathname === '/v1/dvr/recordings') return {items: []} as T;
-    const rule = (id: string) => ({id, title: id, source: 'lsr', byTitle: true, newOnly: true, priority: 0, paused: false});
-    return (url.searchParams.get('cursor') ? {items: [rule('c')]} : {items: [rule('a'), rule('b')], nextCursor: 'p2'}) as T;
+    assert.equal(path, '/v1/dvr');
+    return {upcoming: 2, recorded: 9000, unwatched: 7, rules: 2345, groups: 3000, conflicts: 0, canRecord: true} as T;
   }};
   const summary = await new NextDVRClient(api).summary();
-  assert.deepEqual([summary.rules, summary.upcoming, summary.groups], [3, 2, 0]);
-  assert.ok(paths.includes('/v1/dvr/rules?cursor=p2'));
+  assert.deepEqual([summary.rules, summary.upcoming, summary.groups, summary.recorded], [2345, 2, 3000, 9000]);
+  assert.deepEqual(paths, ['/v1/dvr']);
 });
 
 test('a recording that was made plays from the Recorded TV library, which is read once from one of its titles', async () => {
@@ -62,7 +59,7 @@ test('Everyone\'s asks the server for every profile\'s recordings; a profile tha
   const paths: string[] = [];
   const api = {async request<T>(path: string): Promise<T> {
     paths.push(path);
-    if (path === '/v1/dvr') return {upcoming: 1, recorded: 0, unwatched: 0, conflicts: 0, freeBytes: 1, hoursLeft: 1, keepRule: '', folderOk: true, canRecord: false} as T;
+    if (new URL(path,'https://server').pathname === '/v1/dvr') return {upcoming: 1, recorded: 0, unwatched: 0, rules: 0, groups: 0, conflicts: 0, freeBytes: 1, hoursLeft: 1, keepRule: '', folderOk: true, canRecord: false} as T;
     return {items: []} as T;
   }};
   const client = new NextDVRClient(api);
@@ -71,7 +68,8 @@ test('Everyone\'s asks the server for every profile\'s recordings; a profile tha
   assert.ok(paths.includes('/v1/dvr/recordings?scope=everyone'));
   assert.equal((await client.summary()).rules, 0);
   assert.ok(!paths.some(path => path.startsWith('/v1/dvr/rules')), 'the rules read a profile may not make is never sent');
-  assert.ok(paths.includes('/v1/dvr/recordings?state=recorded&scope=everyone'));
+  assert.ok(paths.includes('/v1/dvr?scope=everyone'));
+  assert.equal(paths.length,2,'the summary adds one read, not a recordings scan');
 });
 
 // Review desk B, #2896 round two.
@@ -134,11 +132,48 @@ test('Delete says what it removes as the server has it now: its size and whether
 });
 
 test('Storage and the counts carry the server\'s space facts and whether everyone\'s recordings may be seen', async () => {
-  const dvr = {upcoming: 1, recorded: 0, unwatched: 0, conflicts: 0, freeBytes: 1e12, hoursLeft: 300, keepRule: 'Until space is needed', folderOk: true, canRecord: false,
+  const dvr = {upcoming: 1, recorded: 0, unwatched: 0, rules: 0, groups: 0, conflicts: 0, freeBytes: 1e12, hoursLeft: 300, keepRule: 'Until space is needed', folderOk: true, canRecord: false,
     usedBytes: 2e11, floorBytes: 5e10, capBytes: 0, keepDays: 30, keepNewest: 0, upcomingBytes: 4e10, upcomingHours: 12, everyonesRecordings: false};
   const api = {async request<T>(path: string): Promise<T> { return (path === '/v1/dvr' ? dvr : {items: []}) as T; }};
   const client = new NextDVRClient(api);
   const space = await client.storage();
   assert.deepEqual([space.usedBytes, space.floorBytes, space.capBytes, space.upcomingBytes, space.upcomingHours], [2e11, 5e10, 0, 4e10, 12]);
   assert.equal((await client.summary()).everyonesRecordings, false);
+});
+
+
+test('groups keep the server counts and cursor with one scoped page read', async () => {
+  const paths: string[] = [];
+  const latest = booking({id: 'latest', state: 'recorded', itemId: 'item', libraryId: 'lib', mayChange: true} as Partial<DvrRecording>);
+  const api = {async request<T>(path: string): Promise<T> {
+    paths.push(path);
+    const query = new URL(path, 'https://server');
+    assert.equal(query.pathname, '/v1/dvr/groups');
+    assert.equal(query.searchParams.get('sort'), 'oldest');
+    assert.equal(query.searchParams.get('cursor'), 'group/2');
+    assert.equal(query.searchParams.get('scope'), 'everyone');
+    return {items: [{key: 'News', title: 'News', recordings: 2300, unwatched: 12, kept: 8, exceptions: 4, latest: latest.startsAt, recording: latest}], nextCursor: 'group/3'} as T;
+  }};
+  const client = new NextDVRClient(api);client.everyone = true;
+  const page = await client.groups('oldest', 'group/2');
+  assert.deepEqual([page.groups[0].recordings, page.groups[0].unwatched, page.groups[0].exceptions], [2300, 12, 4]);
+  assert.equal(page.groups[0].recording.libraryId, 'lib');
+  assert.equal(page.nextCursor, 'group/3');assert.equal(paths.length, 1);
+});
+
+test('recorded group members use the exact server filter and its next page, without a directory scan', async () => {
+  const paths: string[] = [];
+  const api = {async request<T>(path: string): Promise<T> {
+    paths.push(path);
+    const query = new URL(path, 'https://server');
+    assert.equal(query.pathname, '/v1/dvr/recordings');
+    assert.equal(query.searchParams.get('state'), 'recorded');
+    assert.equal(query.searchParams.get('group'), 'News & Sport/Today');
+    assert.equal(query.searchParams.get('cursor'), 'members/2');
+    assert.equal(query.searchParams.get('scope'), 'everyone');
+    return {items: [booking({state: 'recorded', itemId: 'item', libraryId: 'lib'} as Partial<DvrRecording>)], nextCursor: 'members/3'} as T;
+  }};
+  const client = new NextDVRClient(api);client.everyone = true;
+  const page = await client.list('recorded', 'members/2', 'recent', 'News & Sport/Today');
+  assert.equal(page.nextCursor, 'members/3');assert.equal(page.recordings.length, 1);assert.equal(paths.length, 1);
 });

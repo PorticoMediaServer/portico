@@ -24,7 +24,7 @@ function setup(options: {total?: number; answer?: (call: Call) => unknown; noPre
     if (answer instanceof Error) throw answer;
     if (answer !== undefined) return answer as T;
     const url = new URL(path, 'http://unit.invalid');
-    if (url.pathname === '/v1/dvr') return {upcoming: 8, recorded: 20, unwatched: 5, conflicts: 1, freeBytes: 412e9, hoursLeft: 230, keepRule: 'until-space-needed',
+    if (url.pathname === '/v1/dvr') return {rules: rows.length, groups: 0, upcoming: 8, recorded: 20, unwatched: 5, conflicts: 1, freeBytes: 412e9, hoursLeft: 230, keepRule: 'until-space-needed',
       folderOk: true, canRecord: true} as T;
     if (url.pathname === '/v1/live/channels') return {items: [], sources: [{id: 'lsr_1', name: 'Stored provider', kind: 'live', channels: 14, favorites: 0, groups: [],
       guideThrough: '2026-10-27T00:00:00Z'}]} as T;

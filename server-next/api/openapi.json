@@ -2443,6 +2443,63 @@
         ],
         "type": "object"
       },
+      "DvrGroup": {
+        "properties": {
+          "exceptions": {
+            "type": "integer"
+          },
+          "kept": {
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "latest": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "recording": {
+            "$ref": "#/components/schemas/DvrRecording"
+          },
+          "recordings": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "unwatched": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "recordings",
+          "unwatched",
+          "kept",
+          "exceptions",
+          "latest",
+          "recording"
+        ],
+        "type": "object"
+      },
+      "DvrGroupPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DvrGroup"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "DvrOverview": {
         "properties": {
           "canRecord": {
@@ -2466,6 +2523,9 @@
           "freeBytes": {
             "type": "integer"
           },
+          "groups": {
+            "type": "integer"
+          },
           "hoursLeft": {
             "type": "integer"
           },
@@ -2479,6 +2539,9 @@
             "type": "string"
           },
           "recorded": {
+            "type": "integer"
+          },
+          "rules": {
             "type": "integer"
           },
           "unwatched": {
@@ -2498,6 +2561,8 @@
           }
         },
         "required": [
+          "rules",
+          "groups",
           "upcoming",
           "recorded",
           "unwatched",
@@ -21889,6 +21954,33 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DvrOverview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "withProfile"
+      }
+    },
+    "/v1/dvr/groups": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DvrGroupPage"
                 }
               }
             },
