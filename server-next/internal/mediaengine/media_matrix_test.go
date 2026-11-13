@@ -340,7 +340,7 @@ func newMatrix(t *testing.T, ffmpeg, ffprobe string) *matrix {
 		t.Fatal(err)
 	}
 	previous := decoder.CurrentToolchain()
-	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(data, "transcodes"), FFmpeg: ffmpeg, FFprobe: ffprobe})
+	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(data, "transcodes"), FFmpeg: ffmpeg, FFprobe: ffprobe, Settings: handler.Settings()})
 	if err != nil {
 		t.Fatal(err)
 	}

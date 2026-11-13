@@ -117,6 +117,18 @@ func probeDetailLine(detail string) string {
 	return ""
 }
 
+// busyHardwareProbe recognizes resource refusals, never a generic driver failure.
+func busyHardwareProbe(detail string) bool {
+	detail = strings.ToLower(detail)
+	for _, phrase := range []string{"device busy", "resource temporarily unavailable", "too many concurrent sessions",
+		"all encoder sessions", "all encode sessions", "mfx_wrn_device_busy", "openencodesessionex failed: out of memory"} {
+		if strings.Contains(detail, phrase) {
+			return true
+		}
+	}
+	return false
+}
+
 // noteProbeObservation keeps the verdict for the Owner-facing hardware facts and
 // writes the same diagnosis to the message log. A failed probe is a warning with
 // its reason and the tool's last line; a working one is a single info line.
@@ -142,15 +154,23 @@ func noteProbeObservation(out HardwareProbe, detail string) {
 	hardwareProbeLog.last[key] = observation
 	hardwareProbeLog.Unlock()
 	line := probeDetailLine(observation.Detail)
+	fallback := "New conversions fall back to a working graphics device or the processor."
+	if observation.Reason == ProbeBusy {
+		if out.Available {
+			fallback = "Conversions keep using the last working result."
+		}
+		log.Printf("warn: [playback] Could not test %s on %s now: %s. %s", observation.Backend, deviceLabel(observation.Device), line, fallback)
+		return
+	}
 	if observation.Available {
 		log.Printf("info: [playback] %s on %s works as %s.", observation.Backend, deviceLabel(observation.Device), observation.Encoder)
 		return
 	}
 	if line == "" {
-		log.Printf("warn: [playback] %s on %s failed its probe: %s.", observation.Backend, deviceLabel(observation.Device), observation.Reason)
+		log.Printf("warn: [playback] %s on %s failed its probe: %s. %s", observation.Backend, deviceLabel(observation.Device), observation.Reason, fallback)
 		return
 	}
-	log.Printf("warn: [playback] %s on %s failed its probe: %s. %s", observation.Backend, deviceLabel(observation.Device), observation.Reason, line)
+	log.Printf("warn: [playback] %s on %s failed its probe: %s. %s %s", observation.Backend, deviceLabel(observation.Device), observation.Reason, line, fallback)
 }
 
 // LastProbeObservation answers what the last probe of one backend and device
