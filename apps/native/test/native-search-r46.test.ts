@@ -52,7 +52,7 @@ async function mount(snapshot: any, landing: any, text = defaultI18n) {
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 47, bottom: 34, left: 0, right: 0})},
     '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src/presentation/search-model': {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topSearchResult, topResultKindLabel},
-    '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/cards': {GenreTile: 'GenreTile'}, '../../kit/cards/primitives': {CardFrame: 'CardFrame'},
+    '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/cards': {GenreTile: 'GenreTile'}, '../../kit/cards/primitives': {CardFrame: 'CardFrame', Parts: 'Parts'},
     '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable', TextField: 'TextField'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'},
     '../../kit/overlays': {Banner: 'Banner'}, '../../kit/states': {GridSkeleton: 'GridSkeleton', StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': {browseType}, '../../kit/theme': {useTheme: () => theme},
@@ -214,8 +214,10 @@ test('phone Search draws the frame 8 results: counted type chips, the 178px top 
     const body = nodes(childFn(frame)(state(frame)));
     const artStyle = flatten(body.find(node => node.type === 'View' && flatten(node.props.style).overflow === 'hidden')!.props.style);
     assert.deepEqual([artStyle.width, artStyle.height, artStyle.borderRadius], [width, height, 6], `${id} keeps its drawn art slot`);
-    const captions = texts(body).filter(node => flatten(node.props.style).fontSize === 12.5);
-    assert.deepEqual(captions.map(node => label(node)), homeCardText(entry, false, env).caption.map(part => part.text));
+    // The row's facts are the kit's shared fact line (a fact that does not fit moves to the next line whole).
+    const caption = body.find(node => node.type === 'Parts');
+    assert.equal(flatten(caption?.props.style).fontSize, 12.5);
+    assert.deepEqual((caption?.props.parts ?? []).map((part: any) => part.text), homeCardText(entry, false, env).caption.map(part => part.text));
   }
   // The Shows row is omitted: its only result already leads the page as the Top result.
   assert.equal(find(props => props.entry === show && props.width === undefined), undefined);
