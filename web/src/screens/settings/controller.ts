@@ -1,3 +1,4 @@
+import type {OwnerStreamingSettings} from '@core/server-admin/streaming-settings.ts';
 import {ownerAwayLimitForm} from '@core/owner-settings-policy.ts';
 import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {troubleshootingParts, troubleshootingRowShown} from './server/troubleshooting/parts';
@@ -78,6 +79,7 @@ export type SettingsControllerOptions = Readonly<{
   preferences: PreferenceSnapshot; reader: PreferencesReader; readConfiguration?: (signal: AbortSignal) => Promise<SettingsConfiguration>; isCurrent: () => boolean; reportError: (error: unknown) => void;
   eligibility: SettingsEligibility; reading: ReadingSettingsAdapter; environment: SettingsEnvironment;
   device?: SettingsDevicePort;
+  streaming?: OwnerStreamingSettings;
 }>;
 
 /** One selected session owns every document and pending write. No constructor fetches. */
@@ -174,7 +176,7 @@ export class SettingsController {
   }
   private current = () => !this.closed && this.options.isCurrent();
   private readConfiguration = async () => {
-    const configuration = await (this.options.readConfiguration?.(this.lifetime.signal) ?? this.console.configuration()).catch(error => {
+    const configuration = await (this.options.streaming?.readConfiguration(this.lifetime.signal) ?? this.options.readConfiguration?.(this.lifetime.signal) ?? this.console.configuration()).catch(error => {
       // The rebuilt server has no configuration document: its settings move page by page.
       if (notOnThisServer(error)) return undefined;
       throw error;
@@ -284,6 +286,7 @@ export class SettingsController {
       displayValue: option ? defaultI18n.t(option.label) : typeof current === 'boolean' ? defaultI18n.t(current ? 'next.settings.on' : 'next.settings.off') : typeof current === 'object' ? JSON.stringify(current) : String(current),
       disabled: this.writing || this.libraryRow(context) && this.library.getSnapshot().saving || !this.current(), saving: this.writing || this.libraryRow(context) && this.library.getSnapshot().saving,
       readOnly: row.id === 'storage.backupPassphrase' || settingsBinding(row.id)?.readOnly === true || settingsBinding(row.id)?.form === 'device' && !canWriteDeviceSettings(this.options.device) || row.id === 'device.appVersion' || row.id === 'device.name' && (!settingsBinding(row.id) || !canWriteDeviceSettings(this.options.device) || this.options.device?.getSnapshot().facts.name?.readOnly === true),
+      help: this.options.streaming?.problemFor(row.id),
       error: this.rowErrors.has(row.id) ? settingsRowErrorText(this.rowErrors.get(row.id)) : undefined};
   };
   configurationMatches = (query: string) => this.configuration && this.options.role === 'owner' && this.options.mainProfile ? searchConfiguration(withSignInHashStrength(this.configuration, query), query).filter(field => configurationFieldEligible(field, this.eligible) && (settingsRowIndex.has(field.id) || settingsSpec.some(section => section.configOnly.some(item => item.key === field.key)))).map(field => ({...field, label: settingsRowIndex.has(field.id) ? defaultI18n.t(settingsRowIndex.get(field.id)!.row.label) : defaultI18n.t(settingsSpec.flatMap(section => section.configOnly).find(item => item.key === field.key)!.label), path: this.configuration!.path})) : [];
@@ -307,7 +310,7 @@ export class SettingsController {
     const formIds = new Set([...settingsRowIndex.values()].filter(location => location.section === section && this.eligible(location.row))
       .map(location => settingsBinding(location.row.id)?.form)
       .map(id => id === 'connectivityStatus' ? 'connectivity' : id)
-      .filter((id): id is NonNullable<typeof id> => id !== undefined && !!this.forms[id]));
+      .filter((id): id is NonNullable<typeof id> => id !== undefined && !!this.forms[id] && !this.options.streaming));
     // A form whose route the rebuilt server does not have yet leaves its rows out (they have no value) instead of
     // failing the section: its settings move page by page.
     const reads = [...formIds].map(id => ({id: `form/${id}`, load: async () => {const form = this.forms[id]!;await form.load();const error = form.error();if (error && !notOnThisServer(error)) throw error;}}));
@@ -323,7 +326,7 @@ export class SettingsController {
     if (!this.current() || !this.sectionVisible(section)) return [];
     const formIds = new Set([...settingsRowIndex.values()].filter(location => location.section === section && this.eligible(location.row))
       .map(location => settingsBinding(location.row.id)?.form).map(id => id === 'connectivityStatus' ? 'connectivity' : id)
-      .filter((id): id is NonNullable<typeof id> => id !== undefined && !!this.forms[id]));
+      .filter((id): id is NonNullable<typeof id> => id !== undefined && !!this.forms[id] && !this.options.streaming));
     const inputs: QuietInput[] = [...formIds].map(id => {
       const form = this.forms[id]!, key = `form/${id}`;
       return {id: key, cancel:form.invalidateQuiet, subscribe: this.subscribe, blocked: () => this.inputActive || this.writing || form.blocked(), settlement: form.settlement,
@@ -334,7 +337,7 @@ export class SettingsController {
         blocked:()=>this.inputActive || this.writing,settlement:()=>this.writeSerial,
         refresh:async()=>{
           if(!this.current() || this.inputActive || this.writing || !this.sectionReads.hasRead('configuration'))return {kind:'deferred'};
-          return this.quietRead('configuration',(client,signal)=>(this.options.readConfiguration?.(signal) ?? client.configuration()).catch(error=>{if(notOnThisServer(error))return undefined;throw error;}),configuration=>{this.configuration=configuration;},this.writeSerial);
+          return this.quietRead('configuration',(client,signal)=>(this.options.streaming?.readConfiguration(signal) ?? this.options.readConfiguration?.(signal) ?? client.configuration()).catch(error=>{if(notOnThisServer(error))return undefined;throw error;}),configuration=>{this.configuration=configuration;},this.writeSerial);
         }});
       inputs.push({id:'header/storage',cancel:()=>this.cancelQuietRead('header/storage'),subscribe:this.subscribe,
         blocked:()=>!this.headerLoaded,
@@ -364,6 +367,18 @@ export class SettingsController {
     if (this.writing || !this.current() || !state.present || state.readOnly) return;
     ++this.writeSerial;this.cancelQuietRead('configuration');this.writing = true; this.rowErrors.delete(row.id); this.publish({saveState: 'saving'});
     try {
+      if (this.options.streaming?.has(row.id)) {
+        try {await this.options.streaming.save(row.id, value, this.lifetime.signal);}
+        catch (error) {
+          if ((error as {code?: string})?.code !== 'changed_elsewhere') throw error;
+          await this.readConfiguration();
+          if (this.current()) this.publish({saveState: undefined});
+          return;
+        }
+        await this.readConfiguration();
+        if (this.current()) this.publish({saveState: 'saved'});
+        return;
+      }
       if (isSignInPolicyRow(row.id)) {await this.writeSignInPolicy(row, value); return;}
       if (row.id === 'storage.backupFolder' || row.id === 'storage.backupArtwork') {
         if (row.id === 'storage.backupFolder' && typeof value !== 'string' || row.id === 'storage.backupArtwork' && typeof value !== 'boolean') throw new Error('invalid_backup_setting');
