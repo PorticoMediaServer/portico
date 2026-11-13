@@ -68,7 +68,8 @@ export function rebuiltBookFacts(item: Record<string, unknown>) {
     ...(author ? {author: author.name, authorId: author.personId} : {}),
     ...(coverUrl ? {coverUrl} : {}),
     ...(series ? {series: Object.freeze({id: series.id as string, name: series.title as string, libraryId: libraryId!, ...(number === undefined ? {} : {number})})} : {}),
-    ...(text(wire.publicationType, 32) ? {publicationType: Object.freeze({value: wire.publicationType, source: 'file'})} : {}),
+    // The server says what kind of publication it is, not where that came from, so no source is claimed.
+    ...(text(wire.publicationType, 32) ? {publicationType: Object.freeze({value: wire.publicationType})} : {}),
     ...(text(wire.summary, 16384) && wire.summary.trim() ? {description: wire.summary} : {}),
   });
 }

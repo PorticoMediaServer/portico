@@ -34,7 +34,7 @@ import type {Viewer} from './index.ts';
 
 export type ReadingScope = Readonly<{viewer: Readonly<Viewer>; isCurrent: () => boolean; signal?: AbortSignal}>;
 type Immutable<T> = T extends readonly (infer V)[] ? readonly Immutable<V>[] : T extends object ? {readonly [K in keyof T]: Immutable<T[K]>} : T;
-export type ReadingManifest = Immutable<PostReadingSessionsResponse & {canAnnotate?: true; canSaveFile?: true; conversion?:ReadingConversion; metadata: PostReadingSessionsResponse['metadata'] & ReadingManifestFacts}>;
+export type ReadingManifest = Immutable<PostReadingSessionsResponse & {canAnnotate?: true; canSaveFile?: true; conversion?:ReadingConversion; metadata: Omit<PostReadingSessionsResponse['metadata'], 'publicationType'> & ReadingManifestFacts}>;
 /** Optional source capability is withheld unless the actual response says literal true. */
 export function parseReadingManifest(raw: unknown): ReadingManifest {
   const {canAnnotate: decodedCapability, canSaveFile: decodedSaveCapability, ...value} = withReadingConversion(raw,value=>withReadingManifestFacts(value, decodePostReadingSessionsResponse)) as PostReadingSessionsResponse & {metadata: PostReadingSessionsResponse['metadata'] & ReadingManifestFacts; canAnnotate?: unknown; canSaveFile?: unknown; conversion?:ReadingConversion};
