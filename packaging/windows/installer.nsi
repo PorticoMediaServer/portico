@@ -54,14 +54,10 @@ service_stopped:
   StrCpy $0 "C:\ProgramData"
   StrCpy $0 "$0\Portico"
   CreateDirectory "$0"
-  CreateDirectory "$0 Transcode"
   nsExec::ExecToLog /TIMEOUT=60000 '"$INSTDIR\portico-server.exe" --service-install'
   Pop $2
   StrCmp $2 "0" 0 install_failed
   nsExec::ExecToLog 'icacls.exe "$0" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "NT SERVICE\${SERVICE_NAME}:(OI)(CI)F"'
-  Pop $2
-  StrCmp $2 "0" 0 install_failed
-  nsExec::ExecToLog 'icacls.exe "$0 Transcode" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "NT SERVICE\${SERVICE_NAME}:(OI)(CI)F"'
   Pop $2
   StrCmp $2 "0" 0 install_failed
   nsExec::ExecToLog 'netsh.exe advfirewall firewall delete rule name="Portico Media Server"'
