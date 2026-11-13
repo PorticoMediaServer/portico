@@ -1,3 +1,4 @@
+import {readOwnerSignInConfiguration} from '@core/sign-in-policy.ts';
 import {ownerItemArtworkPath, uploadOwnerProfileAvatar, uploadOwnerMemberAvatar} from '@core/owner-upload-requests.ts';
 import {openOwnerLogEvents} from '@core/owner-diagnostics-requests.ts';
 import {dependsOn} from '@core/freshness-hub.ts';
@@ -302,7 +303,7 @@ export function SettingsEntry() {
       if (binding.form === 'preferences') return hasWebPreferenceEffect(row);
       return binding.form !== 'library' && binding.form !== 'remote' && binding.form !== 'managedRoute';
     };
-    const options: SettingsControllerOptions = {api: api, queries: context.freshness.queries, serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId]),
+    const options: SettingsControllerOptions = {api: api, readConfiguration: route.scope === 'server' && route.section === 'signin' ? signal => readOwnerSignInConfiguration(api, signal) : undefined, queries: context.freshness.queries, serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId]),
       role, mainProfile: identity.primaryProfile === true,
       capabilities: {manageServer: identity.capabilities?.manageServer === true, managePeople: identity.capabilities?.managePeople === true, manageSignIn: identity.capabilities?.manageSignIn === true},
       preferences: snapshot, reader, isCurrent: current, reportError, reading: readingSettingsAdapter,
