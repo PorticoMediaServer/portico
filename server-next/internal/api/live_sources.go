@@ -91,6 +91,12 @@ type LiveSourceChannelEdit struct {
 const maxUpload = 128 << 20
 
 func (s *Server) liveSourceRoutes() {
+	Handle(s, "POST /v1/admin/live-sources/discover", Owner, func(r *http.Request, req LiveTunerSearch) (live.LiveTunerDiscovery, error) {
+		if req.WindowMS < 0 || req.WindowMS > 10000 {
+			return live.LiveTunerDiscovery{}, ErrField("windowMs", "Choose a search window of up to 10 seconds.")
+		}
+		return s.sources.DiscoverTuners(r.Context(), time.Duration(req.WindowMS)*time.Millisecond)
+	})
 	Handle(s, "GET /v1/admin/live/sources", Owner, s.listLiveSources)
 	Handle(s, "POST /v1/admin/live/sources", Owner, s.createLiveSource).BodyLimit = maxUpload
 	Handle(s, "POST /v1/admin/live/sources/preview", Owner, s.previewLiveSource).BodyLimit = maxUpload
@@ -427,4 +433,9 @@ func (s *Server) editSourceChannels(r *http.Request, req LiveSourceChannelEdits)
 		edits = append(edits, e)
 	}
 	return None{}, sourceError(s.db.EditSourceChannels(r.Context(), src.ID, edits, s.now()))
+}
+
+// LiveTunerSearch is the existing Find tuners request; zero uses two seconds.
+type LiveTunerSearch struct {
+	WindowMS int `json:"windowMs"`
 }
