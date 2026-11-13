@@ -11,7 +11,7 @@ const history={...interval,buckets:interval.buckets.map(b=>({...b,kinds:[]})),bu
 const people={...interval,items:[],nextCursor:''};
 const table={...interval,entries:[],total:0,nextCursor:''};
 const summary={...interval,plays:0,people:0,watchedMs:0,converted:0,mostPlayed:[],mostActive:[]};
-const metricNames=['cpu','memory','diskRead','diskWrite','netIn','netOut','gpuUsage','gpuMemory','gpuEncoder','processCPU','processMemory','homeMbps','awayMbps','hardwareConversions','softwareConversions'];
+const metricNames=['cpu','memory','diskRead','diskWrite','netIn','netOut','gpuUsage','gpuMemory','gpuEncoder','processCPU','processMemory','homeMbps','awayMbps','hardwareConversions','processorConversions'];
 const load={...interval,window:'today',observedAt:Date.parse(context.until),series:Object.fromEntries(metricNames.map(n=>[n,[]])),status:Object.fromEntries(metricNames.map(n=>[n,{status:'unavailable',value:0}]))};
 test('canonical capture floors completed quarters once per transaction and requires device IANA',()=>{
  assert.deepEqual(context,{timeZone:'Asia/Kathmandu',until:'2026-10-22T18:15:00.000Z'});

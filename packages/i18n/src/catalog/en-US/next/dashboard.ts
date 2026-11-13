@@ -49,6 +49,8 @@ export const dashboardMessages = {
   'next.dashboard.away': 'Away',
   'next.dashboard.hardware': 'Hardware',
   'next.dashboard.software': 'Processor',
+  'next.dashboard.hardwareCount': '{value} hardware',
+  'next.dashboard.processorCount': '{value} processor',
   'next.dashboard.average': 'Averages',
   'next.dashboard.averageCount': '{value} on average',
   'next.dashboard.running': '{value} running',
