@@ -78,11 +78,13 @@ func (e *Engine) testHardware(t *toolset, force bool) {
 		for _, old := range previous {
 			found := false
 			for _, current := range devices {
-				found = found || current.ID == old.ID
+				found = found || current.ID == old.ID && current.Path == old.Path
 			}
 			if !found {
 				for _, backend := range old.Backends {
-					decoder.NoteHardwareDeviceStopped(backend, old.Path)
+					t.hardware.ForgetDevice(backend, old.Path)
+					// The driver's default may have named this adapter too.
+					t.hardware.ForgetDevice(backend, "")
 				}
 			}
 		}

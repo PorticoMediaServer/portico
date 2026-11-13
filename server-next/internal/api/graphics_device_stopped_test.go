@@ -64,7 +64,7 @@ func TestGraphicsDeviceAlertLastsUntilAWorkingRetest(t *testing.T) {
 		for _, alert := range get[Dashboard](t, s, owner, "/v1/admin/dashboard").Alerts {
 			if alert.Code == "graphics_device_stopped" {
 				found++
-				if alert.Action.Kind != "streaming" || !alert.Major || alert.Params["message"] == "" {
+				if alert.Action.Kind != "streaming" || alert.Major || alert.Severity != "warning" || alert.Params["message"] == "" {
 					t.Fatalf("alert: %+v", alert)
 				}
 			}
@@ -104,6 +104,9 @@ func TestGraphicsDeviceAlertLastsUntilAWorkingRetest(t *testing.T) {
 	read(false)
 	// The conversion's confirmed hardware failure uses the same alert and ordinary fallback circuit.
 	decoder.RecordHardwareDeviceFailure(backend, device)
+	read(false)
+	decoder.RecordHardwareDeviceFailure(backend, device)
+	read(false)
 	decoder.RecordHardwareDeviceFailure(backend, device)
 	read(true)
 	mode = "working"

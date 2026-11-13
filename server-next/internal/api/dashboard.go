@@ -292,7 +292,7 @@ func (s *Server) alerts(libraries []db.AdminLibrary, sources []db.RemoteSource) 
 	}
 	for _, p := range decoder.ProbeObservations() {
 		if p.Stopped {
-			add("graphics_device_stopped", "major", map[string]string{"backend": p.Backend, "device": p.Device,
+			add("graphics_device_stopped", "warning", map[string]string{"backend": p.Backend, "device": p.Device,
 				"message": "A graphics device stopped working. Conversions use another graphics device or the processor."}, "streaming", "", 0)
 			break
 		}

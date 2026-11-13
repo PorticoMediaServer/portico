@@ -111,7 +111,16 @@ func TestHardwareReadAndSelectionUseTheSamePhysicalProbes(t *testing.T) {
 		case <-release:
 		case <-ctx.Done():
 		}
-		return devices[:1] // The previously working second card has been removed.
+		// One adapter moved to a new selector; the other was removed.
+		current := devices[0]
+		current.Path = "first-card-new-path"
+		return []decoder.HardwareDevice{current}
+	}
+	for range 3 {
+		decoder.RecordHardwareDeviceFailure(decoder.BackendNVENC, "second-card")
+	}
+	if p, _ := decoder.LastProbeObservation(decoder.BackendNVENC, "second-card"); !p.Stopped {
+		t.Fatal("fixture did not stop second card")
 	}
 	e.TestHardware()
 	<-entered
@@ -130,7 +139,22 @@ func TestHardwareReadAndSelectionUseTheSamePhysicalProbes(t *testing.T) {
 	if calls.Load() <= before {
 		t.Fatal("Test hardware reused the previous verdicts")
 	}
-	if p, ok := decoder.LastProbeObservation(decoder.BackendNVENC, "second-card"); !ok || !p.Stopped {
-		t.Fatalf("discovery lost a working card without raising its alert: %+v", p)
+	for _, path := range []string{"first-card", "second-card"} {
+		if p, ok := decoder.LastProbeObservation(decoder.BackendNVENC, path); ok || p.Stopped {
+			t.Fatalf("removed selector kept its alert: %+v", p)
+		}
+	}
+	if p, _ := decoder.LastProbeObservation(decoder.BackendNVENC, "first-card-new-path"); p.Stopped {
+		t.Fatal("new selector inherited the old alert")
+	}
+	// A reappearing selector is probed anew and has neither its old circuit nor
+	// its former working history: a failed first probe must not alert.
+	before = calls.Load()
+	probe := detector.Probe(ctx, path, decoder.BackendNVENC, "first-card")
+	if calls.Load() == before || probe.Reason == decoder.ProbeCircuitOpen {
+		t.Fatal("reappearing card reused retired state", probe)
+	}
+	if p, _ := decoder.LastProbeObservation(decoder.BackendNVENC, "first-card"); p.Stopped {
+		t.Fatal("reappearing card inherited its old alert")
 	}
 }
