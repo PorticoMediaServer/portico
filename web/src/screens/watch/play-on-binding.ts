@@ -2,7 +2,7 @@ import {subscribePresentation} from '../../shell/fact-hooks';
 import type {ShellFactsSource} from '../../shell/fact-source';
 import {defaultI18n} from '@i18n';
 import {shellLanguage} from '../../shell/settings';
-import type {ItemResponse} from '@core/media-item.ts';
+import type {ContentEntry} from '@core/library-content.ts';
 import type {CastMetadata} from '@core/cast/index.ts';
 import {WebCastSender} from '../../platform/cast';
 import {PlayOnController, mediaAirPlayPort} from '../../platform/playback/play-on';
@@ -46,7 +46,7 @@ export type WatchPlaybackContext = Pick<ShellAssemblyContext, 'api' | 'freshness
 export function createWatchPlayOn(context: WatchPlaybackContext, binding: WatchBindings, video: HTMLVideoElement, applicationId?: string) {
   const life = new AbortController(), authority = binding.runtime.getSnapshot().authority;
   const originalSession={...context.session(),viewer:{...context.session().viewer}},pin=context.api.getRouteConnection()?.pin,originalOrigin=new URL(context.api.baseUrl).origin;
-  const items = new Map<string, ItemResponse>();
+  const items = new Map<string, ContentEntry>();
   const isCurrent = () => {
     const viewer = context.session().viewer;
     return !life.signal.aborted && new URL(context.api.baseUrl).origin===originalOrigin && context.session().sessionFamilyId===originalSession.sessionFamilyId && context.session().deviceId===originalSession.deviceId && context.api.getRouteConnection()?.pin.publicKey===pin?.publicKey && context.isCurrent() && !binding.runtime.getSnapshot().disposed && context.epoch === authority.epoch

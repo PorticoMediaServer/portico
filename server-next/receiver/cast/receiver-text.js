@@ -1,5 +1,5 @@
 // Canonical receiver catalogue ac35269baf21d49a4ca65fa393cb862e097feb8d72b9ff9070329e3d6c7f56f9; formatter 6d1d104075b7bc1f85a36b628212119ffc89c50468b63ea27781e5b660e9b24c.
-// Regenerate: node server/receiver/generate-cast-text.mjs
+// Regenerate: node server-next/receiver/generate-cast-text.mjs
 (function () {
 'use strict';
 /**

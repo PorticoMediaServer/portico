@@ -13,14 +13,14 @@ from ratchet_runtime import RatchetRuntime, active_runtime
 ROOT = Path(__file__).resolve().parent.parent
 SCANNER = ROOT / 'ci/client_api_sites.mjs'
 SOURCE_ROOTS = ('web/', 'apps/native/', 'apps/desktop/', 'apps/vega/',
-                'packages/player-core/', 'packages/reader-core/', 'website/', 'server/receiver/cast/')
+                'packages/player-core/', 'packages/reader-core/', 'website/', 'server/receiver/cast/', 'server-next/receiver/cast/')
 EXTENSIONS = {'.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.kt', '.java', '.swift', '.m', '.mm', '.rs'}
 
 
 def production(path):
     return (path.startswith(SOURCE_ROOTS) and Path(path).suffix in EXTENSIONS
             and not re.search(r'(?:^|/)(?:tests?|__tests__|scripts|node_modules|build|dist|Pods|dev)/|\.(?:test|spec|browser|capture)\.|\.d\.[cm]?ts$', path)
-            and not (path.startswith('server/receiver/cast/') and re.search(r'(?:^|/)(?:contracts|schemas|decoders|routes)\.(?:js|ts)$', path))
+            and not (path.startswith(('server/receiver/cast/', 'server-next/receiver/cast/')) and re.search(r'(?:^|/)(?:contracts|schemas|decoders|routes)\.(?:js|ts)$', path))
             and not re.search(r'/(?:ds-[^/]+|.*\.specimen)\.tsx$', path))
 
 

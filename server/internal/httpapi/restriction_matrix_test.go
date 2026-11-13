@@ -471,7 +471,6 @@ func restrictionRoutes() map[string]restrictionRoute {
 		"GET /health/live":                                   exempt(reasonNoTitles),
 		"GET /health/ready":                                  exempt(reasonNoTitles),
 		"GET /v1/subtitle-fonts/cjk":                         exempt(reasonNoTitles),
-		"GET /receiver/cast/":                                exempt("static Cast receiver page"),
 		"GET /v1/attribution":                                exempt(reasonNoTitles),
 		"GET /v1/auth/services-reachability":                 exempt(reasonNoTitles),
 		"GET /v1/auth/capabilities":                          exempt(reasonNoTitles),
