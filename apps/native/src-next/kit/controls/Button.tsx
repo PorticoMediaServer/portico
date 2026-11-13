@@ -21,6 +21,8 @@ export type ButtonProps = Omit<FocusableProps, 'children'> & {
   /** Providing a loading state reserves its icon slot, keeping both label and width stable. */
   loading?: boolean;
   textStyle?: StyleProp<TextStyle>;
+  /** Lines the label may take before it is cut (default 1); the face grows to hold them. Larger text always wraps. */
+  labelLines?: number;
 };
 
 export type ResumeButtonProps = ButtonProps & {progress: number; remaining?: React.ReactNode};
@@ -29,10 +31,11 @@ const paddingKeys = ['padding', 'paddingHorizontal', 'paddingVertical', 'padding
 
 const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonContent({
   variant = 'primary', size = 'hero', children, icon, trailingIcon, iconSize, iconColor, iconOnly = variant === 'icon', loading,
-  disabled, style, textStyle, accessibilityState, hitSlop, progress, remaining, ...props
+  disabled, style, textStyle, labelLines = 1, accessibilityState, hitSlop, progress, remaining, ...props
 }, ref) {
   const theme = useTheme();
   const grow = !iconOnly && (theme.fontScale > 1 || theme.textScale > 1);
+  const fluid = grow || (!iconOnly && labelLines > 1);
   const geometry = buttonGeometry(size, theme.platform, variant);
   const nativeStyle = StyleSheet.flatten(typeof style === 'function' ? undefined : style);
   const height = typeof nativeStyle?.height === 'number' ? nativeStyle.height : geometry.height;
@@ -63,7 +66,7 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
       return [styles.button, {height, paddingHorizontal: iconOnly ? 0 : geometry.paddingX,
         width: iconOnly ? height : undefined, borderRadius: radius,
         opacity: disabled ? buttonSpec.disabledOpacity : 1}, supplied,
-        grow ? {height: undefined, minHeight: Math.max(minimum, typeof resolved?.minHeight === 'number' ? resolved.minHeight : 0), paddingVertical: resolved?.paddingVertical ?? 4} : undefined,
+        fluid ? {height: undefined, minHeight: Math.max(minimum, typeof resolved?.minHeight === 'number' ? resolved.minHeight : 0), paddingVertical: resolved?.paddingVertical ?? 4} : undefined,
         androidGlass ? styles.androidHost : undefined];
     }}>
     {state => {
@@ -75,7 +78,7 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
         {icon || loading !== undefined ? <View style={{width: glyphSize, height: glyphSize, alignItems: 'center', justifyContent: 'center'}}>
           {loading ? <ActivityIndicator size={glyphSize} color={glyphColor} /> : icon ? <Icon name={icon} size={glyphSize} color={glyphColor} /> : null}
         </View> : null}
-        {!iconOnly ? <Text {...labelObservation.textProps} numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={labelStyle}>{children}</Text> : null}
+        {!iconOnly ? <Text {...labelObservation.textProps} numberOfLines={grow ? undefined : labelLines} ellipsizeMode="tail" style={labelStyle}>{children}</Text> : null}
         {inline && fraction !== undefined && !iconOnly ? <View style={[styles.inlineTrack, {backgroundColor: colorAlpha(white ? theme.colors.ink : theme.colors.text, .16)}]}><View style={[styles.fill, {width: `${fraction * 100}%`, backgroundColor: white ? theme.colors.accent : theme.colors.accentStrong}]} /></View> : null}
         {remaining !== undefined && !iconOnly ? <>
           <Text numberOfLines={grow ? undefined : 1} style={[theme.type.button, {fontSize: (theme.isTV ? 22 : geometry.fontSize) * theme.textScale, color: white ? colorAlpha(theme.colors.ink, .66) : theme.colors.textTertiary, flexShrink: grow ? 1 : undefined}, textStyle]}>{remaining}</Text>
@@ -84,7 +87,7 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
       </View>;
       const edge = fraction !== undefined && !inline ? <View pointerEvents="none" style={[styles.edgeTrack, {borderBottomLeftRadius: suppliedStyle?.borderRadius ?? radius, borderBottomRightRadius: suppliedStyle?.borderRadius ?? radius, backgroundColor: colorAlpha(white ? theme.colors.ink : theme.colors.text, .14)}]}><View style={[styles.fill, {width: `${fraction * 100}%`, backgroundColor: white ? theme.colors.accent : theme.colors.accentStrong}]} /></View> : null;
       if (androidGlass) {
-        const padding: ViewStyle = {paddingHorizontal: iconOnly ? 0 : geometry.paddingX, paddingVertical: grow ? 4 : undefined};
+        const padding: ViewStyle = {paddingHorizontal: iconOnly ? 0 : geometry.paddingX, paddingVertical: fluid ? 4 : undefined};
         for (const key of paddingKeys) if (suppliedStyle?.[key] !== undefined) padding[key] = suppliedStyle[key];
         // Android's backdrop capture skips a BlurView and its descendants. Keep the complete
         // face inside that subtree, so its own text, tint and progress cannot feed the blur.
