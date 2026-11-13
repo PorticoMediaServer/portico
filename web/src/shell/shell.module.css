@@ -5,7 +5,7 @@
 .shell[data-navigation='topbar'] { --shell-top: 76px; }
 .shell[data-has-dock='true'] { padding-bottom: calc(var(--shell-tab-height) + 78px); }
 .shell[data-desktop='true'][data-has-dock='true'] { padding-bottom: 92px; }
-.shell[data-navigation='rail'], .shell[data-navigation='sidebar'] { --shell-tab-height: 0px; --shell-gutter: 24px; --shell-nav-width: 84px; padding-left: var(--shell-nav-width); padding-bottom: 0; }
+.shell[data-navigation='rail'], .shell[data-navigation='sidebar'] { --shell-tab-height: 0px; --shell-gutter: 28px; --shell-nav-width: 84px; padding-left: var(--shell-nav-width); padding-bottom: 0; }
 .shell[data-navigation='sidebar'] { --shell-nav-width: 248px; --shell-gutter: 32px; }
 .shell[data-navigation='tabs'] :global([data-home-document]:has([data-with-hero='false'])) { padding-top: 56px; }
 .shell[data-navigation='topbar'] :global([data-home-document]:has([data-with-hero='false'])) { padding-top: 76px; }

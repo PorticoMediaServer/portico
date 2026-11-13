@@ -1,5 +1,5 @@
 .stage { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--color-ink); }
-.headerTabs { margin-top: 22px; padding-inline: var(--page-gutter, 64px); }
+.headerTabs { margin-top: 22px; padding-inline: var(--shell-gutter, var(--gutter-desktop)); }
 .phoneTabs { padding-inline: 20px; }
 .toolbarCrop { padding-top: 0; }
 .tableCrop { padding: 0; }

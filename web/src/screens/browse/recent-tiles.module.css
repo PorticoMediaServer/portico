@@ -31,7 +31,7 @@
 .tile[data-playing] .title { color: var(--color-accent-strong); }
 .tile:focus-visible { outline:3px solid var(--color-focus); outline-offset:3px; }
 @media (min-width:1024px) {
-  .section { --layout-gutter:clamp(32px,calc(32px + (100vw - 1024px) * .076923),64px); }
+  .section { --layout-gutter:var(--shell-gutter, var(--gutter-desktop)); }
   .heading { padding:0 var(--layout-gutter); margin-bottom:14px; }
   .grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; padding:4px var(--layout-gutter) 0; }
   .tile { gap:16px; height:76px; border-radius:10px; background:color-mix(in srgb, var(--color-text) 7%, transparent); }

@@ -56,7 +56,7 @@
 .phone .titleWords h1 { font-size: 46px; line-height: .94; margin: 0 0 12px; }
 .phone .titleWords > .block { margin: 0 auto; }
 .phone .titleActions { gap: 10px; margin-top: 0; }
-@media (min-width: 1024px) and (max-width: 1439px) { .heroWords, .titleWords { left: clamp(32px,calc(32px + (100vw - 1024px) / 13),64px); } }
+@media (min-width: 1024px) and (max-width: 1439px) { .heroWords, .titleWords { left: var(--shell-gutter, var(--gutter-desktop)); } }
 @media (prefers-reduced-motion: reduce) { .arrived, .block { animation-duration: var(--motion-reduced); } .sheen { background: var(--color-raised); } }
 :global([data-reduce-motion=true]) .arrived, :global([data-reduce-motion=true]) .block { animation-duration: var(--motion-reduced); }
 :global([data-reduce-motion=true]) .sheen { background: var(--color-raised); }
