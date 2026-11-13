@@ -69,7 +69,7 @@ export function parseAccountSession(v:unknown,mode:AccountMode):HostedSession {
  if(mode==='browser'&&Object.hasOwn(v,'refreshToken'))return invalid();
  const expiresAt=timestamp(v.expiresAt),refreshExpiresAt=timestamp(v.refreshExpiresAt);
  if(Date.parse(expiresAt)>Date.parse(refreshExpiresAt))return invalid();
- return{account:{id:identifier(v.account.id),username:text(v.account.username,32),displayName:text(v.account.displayName,2048)},accessToken:text(v.accessToken,16384),familyId:identifier(v.familyId),expiresAt,refreshExpiresAt,...(mode==='native'?{refreshToken:text(v.refreshToken,16384)}:{})};
+ return{account:{id:identifier(v.account.id),username:text(v.account.username,32),displayName:v.account.displayName===''?'':text(v.account.displayName,2048)},accessToken:text(v.accessToken,16384),familyId:identifier(v.familyId),expiresAt,refreshExpiresAt,...(mode==='native'?{refreshToken:text(v.refreshToken,16384)}:{})};
 }
 export function parseRecentProof(v:unknown,expected?:AccountScope):RecentProof {if(!object(v))return invalid();const scope=scoped(v);if(expected&&!sameAccountScope(scope,expected))return invalid();return{...scope,proof:text(v.proof,256),expiresAt:timestamp(v.expiresAt)};}
 export function parseSecurityState(v:unknown,expected:AccountScope):SecurityState {
