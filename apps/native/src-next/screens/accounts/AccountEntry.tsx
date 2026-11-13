@@ -1668,7 +1668,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     <BootWaitLine active={busy} serverName={server!.name} testID="accounts-profile-wait"/></>);
   }
   if (theme.isTV && stage === 'tv-move-handoff' && server) return <TVMoveHandoff serverName={server.name}
-    url={new URL('/sign-in', operation.current!.serverOrigin()).href} onBack={back}/>;
+    url={new URL('/sign-in', operation.current!.inspectedOrigin()).href} onBack={back}/>;
   if (theme.isTV && stage === 'profile-forgot-pin') return <TVForgotPINHandoff profileName={profile!.name}
     serverAddress={operation.current!.serverOrigin()} server={{id: server!.id, signIn: server!.signIn}} onBack={back}/>;
   if (theme.isTV && stage === 'profile-pin') return <TVProfilePINForm
