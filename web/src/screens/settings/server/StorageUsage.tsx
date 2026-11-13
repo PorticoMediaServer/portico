@@ -17,7 +17,7 @@ function Failure({source}: {source: SettingsStorageSource}) {
 
 /** The data folder's parts as the server names them (#3300), in the page's words. */
 const partNames: Readonly<Record<string, readonly [MessageId, MessageId]>> = {
-  database: ['server.space.database', 'server.space.databaseHelp'], artwork: ['server.space.metadata', 'server.space.metadataHelp'],
+  database: ['server.space.database', 'server.space.databaseHelp'], artwork: ['server.space.artwork', 'server.space.artworkHelp'],
   conversions: ['server.space.conversions', 'server.space.conversionsInside'], logs: ['server.space.logs', 'server.space.logsHelp'],
   backups: ['server.space.backups', 'server.space.backupsHelp'], reports: ['server.space.reports', 'server.space.reportsHelp'],
   'title-data': ['server.space.titleData', 'server.space.titleDataHelp'], keys: ['server.space.keys', 'server.space.keysHelp'],

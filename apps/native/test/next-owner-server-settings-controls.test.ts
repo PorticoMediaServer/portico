@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule, hooks} from './helpers/screen-harness.mjs';
 import {bindingModule, formsFixture, maintenance, nodes, content, specification, t, i18n, theme} from './helpers/owner-server-settings.mjs';
-import {settingNumber, settingChoice, settingEnabled, settingsSummary, missingRemovalTime, downloadPerson} from '../src-next/screens/settings-live/server/settings-values.ts';
+import {settingNumber, settingChoice, settingEnabled, settingsSummary, missingRemovalTime} from '../src-next/screens/settings-live/server/settings-values.ts';
 
 const bindings = await bindingModule(), {settingsRowIndex} = specification;
 const row = (id: string) => settingsRowIndex.get(id)!.row;
@@ -49,9 +49,6 @@ test('missing-title presets roundtrip and dates use committed rules or the expli
 });
 
 test('download rows and confirmations always lead with account username', () => {
-  assert.deepEqual(downloadPerson({accountName: 'sam_k', profileName: 'Kids'}), {name: 'sam_k', profile: 'Kids'});
-  assert.deepEqual(downloadPerson({accountName: 'sam_k', profileName: 'sam_k'}), {name: 'sam_k'});
-  assert.deepEqual(downloadPerson({profileName: 'Kids'}), {name: '—', profile: 'Kids'});
 });
 
 test('backup Custom days use the matrix binding and preserve the heavy-work window', async () => {

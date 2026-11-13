@@ -1,61 +1,25 @@
-import {decodeGetDownloadUsageResponse} from '../../../contracts/src/decoders.ts';
-import {routePath} from '../../../contracts/src/route-paths.ts';
-import type {GetDownloadUsageResponse} from '../../../contracts/src/types.ts';
-import type {CacheTransport as StorageTransport} from './cache-source.ts';
+import type {DownloadsByPerson} from '../../../contracts/src/next/api.ts';
+import {callServer, type ServerRequester} from '../query/server-api.ts';
 
-export type DownloadsUsageRow = Readonly<GetDownloadUsageResponse['profiles'][number]>;
-export type UsagePage = Readonly<{rows: readonly DownloadsUsageRow[]; next: string}>;
-export type DownloadsUsageSnapshot = Readonly<{phase: 'idle' | 'loading' | 'ready' | 'error'; page?: UsagePage; previous: boolean}>;
-const empty: DownloadsUsageSnapshot = Object.freeze({phase: 'idle', previous: false});
+/**
+ * Storage's Downloads part on the rebuilt server: each person's prepared downloads (titles and bytes), the copies' total
+ * and the room left under the server's limit when it has one (`GET /v1/admin/downloads`, owner only).
+ */
+export type DownloadsUsage = DownloadsByPerson;
+export function readDownloadsByPerson(api: ServerRequester, signal?: AbortSignal): Promise<DownloadsUsage> {
+  return callServer(api, 'GET /v1/admin/downloads', {signal});
+}
 
-/** One explicit, bounded owner-page read. No claims or offline permissions are changed. */
-export class DownloadsUsageSource {
-  private state = empty;
-  private readonly listeners = new Set<() => void>();
-  private readonly lifetime = new AbortController();
-  private flight?: AbortController;
-  private cursor = '';
-  private lastDirection: 'initial' | 'next' | 'previous' = 'initial';
-  private history: string[] = [];
-  constructor(private readonly api: StorageTransport, private readonly isCurrent: () => boolean, private readonly reportError: (error: unknown) => void) {}
-  private current() {return !this.lifetime.signal.aborted && this.isCurrent();}
-  private owns(request: AbortController) {return this.current() && this.flight === request && !request.signal.aborted;}
-  getSnapshot = () => this.current() ? this.state : empty;
-  subscribe = (listener: () => void) => {this.listeners.add(listener);return () => {this.listeners.delete(listener);};};
-  private publish(state: DownloadsUsageSnapshot) {if (this.current()) {this.state = Object.freeze(state);for (const listener of this.listeners) listener();}}
-  load = async (direction: 'initial' | 'retry' | 'refresh' | 'next' | 'previous' = 'initial'): Promise<void> => {
-    const retry = direction === 'retry' || direction === 'refresh';
-    if (direction === 'refresh') direction = 'initial';
-    if (direction === 'retry') direction = this.lastDirection;
-    if (!this.current() || this.flight || direction === 'initial' && !retry && this.state.phase !== 'idle') return;
-    const next = direction === 'next' ? this.state.page?.next : direction === 'previous' ? this.history.at(-1) : this.cursor;
-    if (next === undefined || direction === 'next' && !next || direction === 'previous' && !this.history.length) return;
-    this.lastDirection = direction;
-    const request = new AbortController();this.flight = request;
-    // dispose() aborts this exact flight together with the source lifetime.
-    const signal = request.signal;
-    this.publish({...this.state, phase: 'loading'});
-    try {
-      if (!this.owns(request)) return;
-      const raw = await this.api.request<unknown>(routePath('get_download_usage') + '?scope=server&limit=64&cursor=' + encodeURIComponent(next), 'GET', undefined, signal);
-      if (!this.owns(request)) return;
-      const result = decodeGetDownloadUsageResponse(raw);
-      if (result.profiles.length > 64 || result.profilesNextCursor.length > 1024 || result.profilesNextCursor && result.profilesNextCursor === next) throw new Error('invalid_download_usage_page');
-      if (direction === 'next') this.history.push(this.cursor);
-      else if (direction === 'previous') this.history.pop();
-      this.cursor = next;
-      const rows = Object.freeze(result.profiles.map(row => Object.freeze({...row})));
-      this.publish({phase: 'ready', previous: this.history.length > 0, page: Object.freeze({rows, next: result.profilesNextCursor})});
-    } catch (error) {
-      if (this.owns(request)) {
-        const refusal = (error && typeof error === 'object' ? error : {}) as {status?: number; code?: string};
-        if (refusal.status === 401 || refusal.status === 403 || ['unauthorized', 'forbidden', 'not_permitted'].includes(refusal.code ?? '')) {
-          this.publish(empty);this.dispose();this.reportError(new Error('download_usage_denied'));
-        } else this.publish({...this.state, phase: 'error'});
-      }
-    }
-    finally {if (this.flight === request) this.flight = undefined;}
-  };
-  refresh = () => this.load('refresh');
-  dispose() {this.lifetime.abort();this.flight?.abort();this.flight = undefined;this.state = empty;this.history = [];this.listeners.clear();}
+/**
+ * Clear the copies the server prepared for one person (`DELETE /v1/admin/members/{id}/downloads`, owner only; downloads
+ * rule 47): their requests and the files already on their devices are kept, and the server prepares again when needed.
+ * Answers 'in-use' when a transfer for them is running (409 download_in_use) and nothing was changed.
+ */
+export async function clearPreparedCopies(api: ServerRequester, userId: string, signal?: AbortSignal): Promise<'cleared' | 'in-use'> {
+  try {await callServer(api, 'DELETE /v1/admin/members/{id}/downloads', {id: userId, signal}); return 'cleared';}
+  catch (error) {
+    const refused = error as {status?: number; code?: string} | null;
+    if (refused?.status === 409 && (refused.code === undefined || refused.code === 'download_in_use')) return 'in-use';
+    throw error;
+  }
 }

@@ -35,3 +35,16 @@ test('one load serves every Storage row, and a keeping change takes the server\'
   assert.deepEqual(source.getSnapshot().keeping, {preset: 'custom', preparedDownloadsDays: 7});
   source.dispose();
 });
+
+test('clearing a person\'s prepared copies answers in-use while a transfer runs, and nothing else is hidden (rule 47)', async () => {
+  const {clearPreparedCopies} = await import('../../packages/client-core/src/server-admin/downloads-usage-source.ts');
+  const paths: string[] = [];
+  let answer: unknown = undefined;
+  const api = {request: async <T>(path: string, method?: string): Promise<T> => {paths.push(`${method} ${path}`); if (answer) throw answer; return undefined as T;}};
+  assert.equal(await clearPreparedCopies(api, 'usr_1'), 'cleared');
+  assert.deepEqual(paths, ['DELETE /v1/admin/members/usr_1/downloads']);
+  answer = Object.assign(new Error('in use'), {status: 409, code: 'download_in_use'});
+  assert.equal(await clearPreparedCopies(api, 'usr_1'), 'in-use');
+  answer = Object.assign(new Error('gone'), {status: 500});
+  await assert.rejects(clearPreparedCopies(api, 'usr_1'));
+});
