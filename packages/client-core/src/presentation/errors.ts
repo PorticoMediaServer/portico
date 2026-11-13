@@ -213,6 +213,8 @@ const codeBodies: Record<string, MessageId> = {
   source_capacity_unavailable: 'error.live.tunersBusy',
   // A picture chosen for a channel's logo that is too large to send.
   image_too_large: 'server.channels.logoTooLarge',
+  // Option 2: a returned Portico Account sign-in for another tab, an old one, or one already used.
+  return_not_this_tab: 'accounts.signIn.returnNotThisTab',
   // Playback that ended before a control sent to it arrived (the owner's Pause, a remote's Stop).
   session_ended: 'error.sessionEnded',
 };

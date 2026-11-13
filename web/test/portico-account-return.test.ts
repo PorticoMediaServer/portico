@@ -9,6 +9,8 @@ import {AppSessionStore, type AppSessionRecord} from '@core/app-sessions.ts';
 import {rememberNativeSession} from '@core/server-connections.ts';
 import {parseServerSignIn, type ServerSignInProbe} from '@core/sign-in.ts';
 import {setInstallationIdentity} from '@core/installation.ts';
+import {presentError} from '@core/presentation/errors.ts';
+import {defaultI18n} from '@i18n';
 import {BrowserAccountEntry} from '../src/platform/account-entry.ts';
 import {dispatchPorticoReturn} from '../src/platform/portico-return-dispatch.ts';
 import {accountReturnFinish, accountReturnStart, httpsOrigin, keepAccountReturn, readReturnFragment, takeAccountReturn} from '../src/platform/portico-account-return.ts';
@@ -66,8 +68,8 @@ test('the name and address shown come from the signed list; a foreign, look-alik
   const servers = [{serverId, name: 'Portico Lanes', addresses: ['https://home.example', origin]}];
   assert.deepEqual(listedReturn(servers, ask), {name: 'Portico Lanes', address: new URL(origin).host});
   for (const to of ['https://evil.example', origin.replace('.portico.direct', '.portico.direct.evil.example'), origin.replace(':32510', ':32511'), origin.replace('https://66', 'https://67')])
-    assert.equal(listedReturn(servers, {...ask, to}), 'address_unknown', to);
-  assert.equal(listedReturn(servers, {...ask, serverId: 'srv_' + 'B'.repeat(43)}), 'not_listed');
+    assert.deepEqual(listedReturn(servers, {...ask, to}), {refused: 'address_unknown', name: 'Portico Lanes'}, to);
+  assert.deepEqual(listedReturn(servers, {...ask, serverId: 'srv_' + 'B'.repeat(43)}), {refused: 'not_listed'});
   assert.deepEqual(listedReturn([{serverId, name: 'Den', addresses: ['https://den.example:443']}], {...ask, to: 'https://den.example'}), {name: 'Den', address: 'den.example'}, 'the default port as browsers write it');
 });
 
@@ -142,6 +144,7 @@ test('a note for another tab, a replayed note, a mismatched state or another add
     await f.entry.finishPorticoReturn(arrive());
     assert.deepEqual(f.sent, [], name);
     assert.equal((f.entry.getSnapshot().error as {code?: string})?.code, 'return_not_this_tab', name);
+    assert.equal(presentError(f.entry.getSnapshot().error, 'sign-in', {operation: 'action', i18n: defaultI18n}).messageId, 'accounts.signIn.returnNotThisTab', `${name}: said in its own sentence`);
     assert.equal(f.entry.getSnapshot().phase, 'portico', `${name}: Continue is offered again`);
     assert.equal(tab.size, 0, `${name}: nothing left behind`);
     f.entry.dispose();

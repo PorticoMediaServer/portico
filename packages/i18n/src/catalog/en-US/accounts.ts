@@ -73,6 +73,7 @@ export const accountMessages = {
   'accounts.signIn.handoffPlainHttp': 'To sign in with your Portico Account here, open {server} at its secure address.',
   'accounts.signIn.handoffHosted': 'Continue at web.getportico.tv',
   'accounts.signIn.openSecure': 'Open {server} at its secure address',
+  'accounts.signIn.returnNotThisTab': 'This sign-in was started in another tab, or more than ten minutes ago, or was already used. Choose Continue to Portico Account to sign in again.',
   'accounts.invitation.handoffPlainHttp': 'This page uses plain HTTP, which web.getportico.tv can’t open. There, enter {server}’s secure address with this code.',
   'accounts.signIn.handoff': 'Continue to Portico Account',
   'accounts.signIn.submit': 'Sign in',

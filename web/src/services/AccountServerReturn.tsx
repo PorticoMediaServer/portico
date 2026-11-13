@@ -26,11 +26,12 @@ export function readServerReturnAsk(search: string): ServerReturnAsk | undefined
 /** The listed server this ask names, from the account's signed list, and the listed address that is
  * exactly `to`. The name and address shown come only from here, never from the link. */
 export type ListedReturn = Readonly<{name: string; address: string}>;
-export function listedReturn(servers: readonly Readonly<{serverId: string; name: string; addresses: readonly string[]}>[], ask: ServerReturnAsk): ListedReturn | 'not_listed' | 'address_unknown' {
+export type RefusedReturn = Readonly<{refused: 'not_listed'} | {refused: 'address_unknown'; name: string}>;
+export function listedReturn(servers: readonly Readonly<{serverId: string; name: string; addresses: readonly string[]}>[], ask: ServerReturnAsk): ListedReturn | RefusedReturn {
   const server = servers.find(entry => entry.serverId === ask.serverId);
-  if (!server) return 'not_listed';
+  if (!server) return Object.freeze({refused: 'not_listed'});
   const address = server.addresses.map(listed => {try {return new URL(listed).origin;} catch {return '';}}).find(origin => origin === ask.to);
-  return address ? Object.freeze({name: server.name, address: new URL(address).host}) : 'address_unknown';
+  return address ? Object.freeze({name: server.name, address: new URL(address).host}) : Object.freeze({refused: 'address_unknown', name: server.name});
 }
 
 /** `/servers/return`: a server's own HTTPS page sent the person here to sign in with their Portico
@@ -50,7 +51,7 @@ export function AccountServerReturn() {
   return <ServerReturnConfirm ask={ask} />;
 }
 
-type Loaded = Readonly<{username: string; listed: ListedReturn | 'not_listed' | 'address_unknown'}>;
+type Loaded = Readonly<{username: string; listed: ListedReturn | RefusedReturn}>;
 function ServerReturnConfirm({ask}: {ask: ServerReturnAsk}) {
   const {t} = servicesI18n();
   const [loaded, setLoaded] = useState<Loaded>(), [failure, setFailure] = useState<unknown>(), [attempt, setAttempt] = useState(0);
@@ -73,19 +74,17 @@ function ServerReturnConfirm({ask}: {ask: ServerReturnAsk}) {
   if (!loaded) return <ServicesAuthStage><></></ServicesAuthStage>;
   const {listed} = loaded;
   // Services refuses an unregistered address too (`return_address_unknown`); this page doesn't ask.
-  const refused = typeof listed === 'string' ? listed : error instanceof ServicesError && error.code === 'return_address_unknown' ? 'address_unknown'
+  const name = 'name' in listed ? listed.name : undefined;
+  const refused = 'refused' in listed ? listed.refused : error instanceof ServicesError && error.code === 'return_address_unknown' ? 'address_unknown'
     : error instanceof ServicesError && error.code === 'server_unknown' ? 'not_listed' : undefined;
-  if (refused) {
-    const name = typeof listed === 'string' ? undefined : listed.name;
-    return <ServicesAuthStage variant="state">
-      <ServicesStateIcon tone="warning" icon="i-warn" />
-      <ServicesNotice tone="error">{refused === 'not_listed' || !name ? t('next.account.serverReturn.notListed') : t('next.account.serverReturn.addressUnknown', {server: name})}</ServicesNotice>
-      <ServicesActions>
-        {refused === 'address_unknown' && name && <Button variant="primary" onClick={() => goTo(`/servers?open=${encodeURIComponent(ask.serverId)}`)}>{t('next.account.serverReturn.openHere', {server: name})}</Button>}
-        <Button onClick={() => goTo('/servers')}>{t('next.account.serverReturn.chooseServer')}</Button>
-      </ServicesActions>
-    </ServicesAuthStage>;
-  }
+  if (refused) return <ServicesAuthStage variant="state">
+    <ServicesStateIcon tone="warning" icon="i-warn" />
+    <ServicesNotice tone="error">{refused === 'not_listed' || !name ? t('next.account.serverReturn.notListed') : t('next.account.serverReturn.addressUnknown', {server: name})}</ServicesNotice>
+    <ServicesActions>
+      {refused === 'address_unknown' && name && <Button variant="primary" onClick={() => goTo(`/servers?open=${encodeURIComponent(ask.serverId)}`)}>{t('next.account.serverReturn.openHere', {server: name})}</Button>}
+      <Button onClick={() => goTo('/servers')}>{t('next.account.serverReturn.chooseServer')}</Button>
+    </ServicesActions>
+  </ServicesAuthStage>;
   const shown = listed as ListedReturn;
   const proceed = run(async () => {
     const answer = await services.serverReturnIdentity(ask.serverId, ask.challenge, ask.to);
