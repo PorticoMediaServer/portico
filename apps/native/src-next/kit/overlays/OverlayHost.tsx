@@ -101,7 +101,7 @@ export function useOverlayLifecycle(open: boolean, modal: boolean, dismiss: (rea
   const insideCovered = useLayerCovered(), layerCovered = (Platform as typeof Platform | undefined)?.isTV === true && insideCovered;
   const coveredRef = useRef(layerCovered);
   coveredRef.current = layerCovered;
-  useLayoutEffect(() => {if (open && layerCovered) dismissRef.current('action');}, [open, layerCovered]);
+  useLayoutEffect(() => {if (open && layerCovered) dismissRef.current('covered');}, [open, layerCovered]);
   useLayoutEffect(() => {
     if (!open) return;
     const opener = registry?.capture();

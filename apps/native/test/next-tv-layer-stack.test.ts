@@ -174,6 +174,31 @@ test('a restore is not ended by the platform putting focus on the layer\'s first
   assert.equal(time.size(), 0);
 });
 
+test('a restore whose element cannot take focus by its deadline takes it once at the platform\'s next recovery, and only within the late window', () => {
+  for (const expire of [false, true]) {
+    const registry = createFocusRegistry(), time = clock(), log: string[] = [];
+    const stack = createTVLayerStack(registry, time);
+    const cell = {regionId: 'grid', childId: 'cell'}, picker = {regionId: 'toolbar', childId: 'source'};
+    let blocked = true;
+    registry.configure({id: 'toolbar', order: ['source']}); registry.attach(picker, host(log, 'source', () => registry.didFocus(picker)));
+    registry.configure({id: 'grid', order: ['cell']}); registry.attach(cell, host(log, 'cell', () => {if (!blocked) registry.didFocus(cell);}));
+    registry.didFocus(cell);
+    stack.sync([{key: 'page'}]); stack.sync([{key: 'page'}, {key: 'player'}]);
+    const pause = {regionId: 'player.transport', childId: 'pause'};
+    registry.configure({id: 'player.transport', order: ['pause']}); registry.attach(pause, host(log, 'pause')); registry.didFocus(pause);
+    registry.attach(pause, null);
+    stack.sync([{key: 'page'}]);
+    time.fire();
+    assert.notEqual(registry.capture()?.childId, 'cell', 'the picture is still going: nothing has landed by the deadline');
+    if (expire) time.fire();
+    blocked = false; log.length = 0;
+    registry.didFocus(picker);
+    assert.equal(registry.capture()?.childId, expire ? 'source' : 'cell', expire ? 'after the late window the platform\'s focus stays' : 'Android\'s recovery onto the first control is taken back once');
+    registry.didFocus(picker);
+    assert.equal(log.filter(name => name === 'cell').length, expire ? 0 : 1, 'asked once, never again');
+  }
+});
+
 test('the shell derives one layer per route occurrence above the page, then the player and the listening screen', () => {
   const navigation = (stack: any[]) => ({subscribe: () => () => {}, getSnapshot: () => ({route: stack.at(-1).route, revision: 0, authority: {} as any}), presentationStack: () => stack});
   const home = {occurrence: '0', route: {kind: 'shell', destination: {kind: 'home'}}};

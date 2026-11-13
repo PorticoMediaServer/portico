@@ -101,7 +101,7 @@ for (const isTV of [true, false]) test(`${isTV ? 'TV' : 'Phone'}: an overlay who
     t.mock.timers.tick(0);
     assert.deepEqual(calls, ['watch']);
     layerCovered.value = true; await session.rerender();
-    assert.deepEqual(reasons, isTV ? ['action'] : [], 'the player covering the page closes the panel on TV');
+    assert.deepEqual(reasons, isTV ? ['covered'] : [], 'the player covering the page closes the panel on TV, as covered (not done)');
     open = false; await session.rerender();
     assert.deepEqual(calls, isTV ? ['watch'] : ['watch', 'programme'], 'no focus is sent into the covered page: the player keeps it');
   } finally {layerCovered.value = false; await session.unmount(); t.mock.timers.reset();}

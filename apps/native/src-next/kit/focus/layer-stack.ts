@@ -15,6 +15,8 @@ type Clock = Readonly<{later: (run: () => void, ms: number) => unknown; cancel: 
 const realClock: Clock = {later: (run, ms) => setTimeout(run, ms), cancel: handle => clearTimeout(handle as ReturnType<typeof setTimeout>)};
 /** How long a layer waits for the element it is owed to attach (a windowed grid re-projecting, a page re-enabling its cards). */
 export const LAYER_FOCUS_WAIT_MS = 1000;
+/** How long after its deadline a restore still takes back the platform's own recovery once (see `settle`). */
+export const LATE_RESTORE_MS = 4000;
 
 /**
  * The TV layer stack (TV-FOCUS-REVIEW §5). Exactly one layer is on top; every other is covered. When a layer is
@@ -55,8 +57,17 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
     // A claim on a page's named start (`once`) is sent again only if focus fell outside every layer: repeating it on every
     // registry change floods the native side with requests that race the page's own. Other claims ask again as elements attach.
     const off = registry.subscribe(() => {if (finished || asking) return; if (done()) finish(); else {const now = registry.capture(); if (!once || !granted || now && outside(now)) tryAsk();}});
-    const timer = clock.later(() => {if (finished) return; finish(); if (!done()) last();}, wait);
+    const timer = clock.later(() => {if (finished) return; finish(); if (!done()) {last(); if (strict) late();}}, wait);
     pending = finish;
+    // A restore whose element could not take focus yet (Android TV still tearing down the player's picture) asks once more
+    // at the next focus change inside the layer within LATE_RESTORE_MS: that change is the platform's own recovery
+    // (the layer's first control), not where the person was.
+    const late = () => {
+      const stop = () => {offLate(); clock.cancel(expiry); if (pending === stop) pending = undefined;};
+      const offLate = registry.subscribe(() => {const now = registry.capture(); if (!now || done()) {stop(); return;} if (outside(now)) return; stop(); ask();});
+      const expiry = clock.later(stop, LATE_RESTORE_MS);
+      pending = stop;
+    };
     // Always ask once: the registry can still name the old element when focus went somewhere it does not track.
     tryAsk();
   };
