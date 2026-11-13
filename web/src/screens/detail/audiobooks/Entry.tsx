@@ -7,7 +7,9 @@ import type {ContentEntry, ContentProjection} from '@core/library-content.ts';
 import type {RelationPage} from '@core/relation-rows.ts';
 import {Menu, MenuItem} from '../../../kit/overlays';
 import {OwnerMetadataGroup} from '../OwnerMetadataGroup';
-import {Artwork, AmbientArt} from '../../../kit/artwork';
+import {Artwork, GeneratedCover, PersonCircle, type ArtworkSource} from '../../../kit/artwork';
+import {generatedCoverTint} from '@design';
+import {CoverHero, CoverHeroLink} from '../../../kit/title/CoverHero';
 import {Button, Chip} from '../../../kit/controls';
 import {Icon} from '../../../kit/Icon';
 import {createAudiobookBindings, type AudiobookBindings, type AudiobookTarget} from './bindings';
@@ -30,6 +32,15 @@ type Operation = Readonly<{binding: AudiobookBindings; page: ContentProjection; 
 /** One committed binding lease per original context/library/view/entity, retired synchronously by
  * the layout effect that made it. Only a lease that still matches the live token and the inputs it
  * was made for is published, so a stale body can never render under new ones. */
+
+/** The audiobook page's facts on the shared facts line: a series' or author's book count, the
+ * length, a book's chapter count. */
+function heroFacts(count: number | undefined, length: string | undefined, chapters: number | undefined) {
+  return [...(count !== undefined ? [{id: 'count', text: t('next.kit.books', {count}), role: 'value' as const}] : []),
+    ...(length ? [{id: 'duration', text: length, role: 'context' as const}] : []),
+    ...(chapters !== undefined ? [{id: 'chapters', text: t('title.chapterCount', {count: chapters}), role: 'context' as const}] : [])];
+}
+
 export function AudiobookEntry({context, target, onMore}: Props) {
   const {libraryId, view, entityId} = target, key = JSON.stringify([libraryId, view, entityId]);
   const [lease, setLease] = useState<Lease>();
@@ -174,29 +185,26 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
   });
   const open = (entry: ContentEntry) => run(() => binding.open(page, entry));
   return <article className={styles.page} data-audiobook-view={page.scope.view} data-layout={phone ? 'phone' : 'desktop'}>
-    <AmbientArt className={styles.ambient} treatment={phone ? 'phone' : 'wash'} source={binding.context.artwork.ambient(cover)}/>
     <nav className={styles.nav}>
       {binding.context.effects.back && <Button variant="ghost" icon="i-left" iconOnly aria-label={t('action.back')} onClick={() => run(() => {binding.current(page);binding.context.effects.back?.();})}/>}
       {onMore && <Button variant="ghost" icon="i-more" iconOnly aria-label={t('card.more', {title: entity.title})} onClick={event => run(() => {binding.current(page);onMore(entity, event.currentTarget);})}/>}
       {/* Phones keep the drawn bar's More; the desktop page draws it in the action row. */}
       {!onMore && phone && <AudiobookMore binding={binding} page={page} entry={entity}/>}
     </nav>
-    <header className={styles.hero}>
-      <div className={author ? styles.disc : styles.cover}><Artwork source={binding.context.artwork.foreground(cover, 464, 1)} alt=""/>{author && <b>{entity.title.split(/\s+/u).filter(Boolean).slice(0, 2).map(word => word[0]).join('')}</b>}</div>
-      <div className={styles.copy}>
-      {book && series ? <p className={styles.eyebrowLine}><button className={styles.eyebrow} onClick={() => run(() => filters.series && seriesTarget ? binding.openSeries(page, series, seriesTarget.name) : open(series))}>{series.title}</button>{seriesTarget?.position && t('title.bookInSeries', {number: seriesTarget.position})}</p> : !book && <p className={styles.eyebrow}>{t(author ? 'filter.field.author' : 'library.tab.series')}</p>}
-      <h1 data-long={(entity.displayTitle ?? entity.title).length > 24 || undefined}>{entity.displayTitle ?? entity.title}</h1>
-      {phone && entity.author && (authorEntry ? <button className={styles.author} onClick={() => open(authorEntry)}>{entity.author}</button> : <div className={styles.author}>{entity.author}</div>)}
-      <div className={styles.meta}>
-        {/* Desktop draws the author first in the byline, white and bold; phones keep it on its own line. */}
-        {!phone && entity.author && <strong>{authorEntry ? <button className={styles.bylineLink} onClick={() => open(authorEntry)}>{entity.author}</button> : entity.author}</strong>}
+    <CoverHero title={entity.displayTitle ?? entity.title} titleStyle={(entity.displayTitle ?? entity.title).length > 24 ? 'long' : undefined}
+      shape={author ? 'round' : 'square'} cover={author ? undefined : binding.context.artwork.foreground(cover, 464, 1)}
+      fallback={author ? <PersonCircle width="100%" height="100%" initialsSize={phone ? 44 : 80} alt={entity.title}
+        covers={cover ? [binding.context.artwork.foreground(cover, 464, 1)].filter(source => !!source) as ArtworkSource[] : []}
+        initials={entity.title.split(/\s+/u).filter(Boolean).slice(0, 2).map(word => Array.from(word)[0]).join('')}/>
+        : <GeneratedCover title={entity.title} author={entity.author} glyph={Array.from(entity.title.trim())[0] ?? ''} tint={generatedCoverTint(entity.title)}/>}
+      ambient={binding.context.artwork.ambient(cover)} palette={generatedCoverTint(entity.title)}
+      eyebrow={book && series ? <><button type="button" onClick={() => run(() => filters.series && seriesTarget ? binding.openSeries(page, series, seriesTarget.name) : open(series))}>{series.title}</button>{seriesTarget?.position && t('title.bookInSeries', {number: seriesTarget.position})}</>
+        : !book ? t(author ? 'filter.field.author' : 'library.tab.series') : undefined}
+      byline={<>{entity.author && <CoverHeroLink onOpen={authorEntry ? () => open(authorEntry) : undefined}>{entity.author}</CoverHeroLink>}
         {book && !!entity.narrators?.length && <span><Narrators names={entity.narrators} linked={filters.narrator} locale={serviceI18n().locale}
-          onOpen={name => run(() => binding.openNarrator(page, name))}/></span>}
-        {!book && entity.count !== undefined && <strong>{t('next.kit.books', {count: entity.count})}</strong>}
-        {entity.duration !== undefined && <span>{duration(entity.duration)}</span>}
-        {book && chapterCount !== undefined && <span>{t('title.chapterCount', {count: chapterCount})}</span>}
-      </div>
-    <div className={styles.actions}>
+          onOpen={name => run(() => binding.openNarrator(page, name))}/></span>}</>}
+      facts={heroFacts(!book ? entity.count : undefined, duration(entity.duration), book ? chapterCount : undefined)}
+      actions={<>
       {canPlay && <Button className={styles.primary} variant="primary" icon="i-play" onClick={() => run(() => binding.primary(page))}>{label}</Button>}
       {unplayable && <Button className={styles.primary} variant="primary" icon="i-play" disabled aria-describedby={`${entity.id}-unplayable`}>{t('entry.play')}</Button>}
       {book && page.listening?.actions.includes('play') && <Button variant="glass" disabled={unplayable} onClick={() => run(() => binding.primary(page, true))}>{t('action.startOver')}</Button>}
@@ -211,11 +219,11 @@ function AudiobookBody({binding, onMore}: {binding: AudiobookBindings; onMore?: 
         }}/>}
       {!book && !author && primaryBook && <Button className={styles.round} icon="i-retry" iconOnly aria-label={t('action.startOver')} onClick={() => open(primaryBook)}/>}
       {!onMore && !phone && <AudiobookMore binding={binding} page={page} entry={entity} variant="glass"/>}
-    </div>
+      </>}
+      under={(unplayable || book && remaining) ? <>
     {unplayable && <p id={`${entity.id}-unplayable`} className={styles.unplayable}>{t('title.fileUnavailable')}</p>}
     {book && remaining && <div className={styles.progress}>{ratio !== undefined && <span><i style={{width: `${Math.min(1, Math.max(0, ratio)) * 100}%`}}/></span>}{t('title.resumeRemaining', {remaining})}</div>}
-      </div>
-    </header>
+      </> : undefined}/>
     <div className={styles.split}>
     {book && <aside className={styles.aside}>
       {!phone && <h2 className={styles.asideTitle}>{t('title.aboutThisBook')}</h2>}
