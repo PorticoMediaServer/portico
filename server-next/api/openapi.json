@@ -45,6 +45,9 @@
       },
       "AccountStream": {
         "properties": {
+          "audioTrackId": {
+            "type": "string"
+          },
           "current": {
             "type": "boolean"
           },
@@ -79,7 +82,13 @@
           "state": {
             "type": "string"
           },
+          "subtitle": {
+            "$ref": "#/components/schemas/SubtitleInForce"
+          },
           "title": {
+            "type": "string"
+          },
+          "versionId": {
             "type": "string"
           }
         },
@@ -636,6 +645,15 @@
         ],
         "type": "object"
       },
+      "BackgroundWorkState": {
+        "properties": {
+          "pausedUntil": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Backup": {
         "properties": {
           "artwork": {
@@ -1004,6 +1022,9 @@
       },
       "BookVersion": {
         "properties": {
+          "fingerprint": {
+            "type": "string"
+          },
           "format": {
             "type": "string"
           },
@@ -1016,7 +1037,36 @@
         },
         "required": [
           "id",
-          "format"
+          "format",
+          "fingerprint"
+        ],
+        "type": "object"
+      },
+      "Capability": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "area",
+          "name",
+          "state"
         ],
         "type": "object"
       },
@@ -3152,6 +3202,25 @@
         ],
         "type": "object"
       },
+      "HardwareFactFormat": {
+        "properties": {
+          "decode": {
+            "type": "boolean"
+          },
+          "encode": {
+            "type": "boolean"
+          },
+          "format": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "format",
+          "decode",
+          "encode"
+        ],
+        "type": "object"
+      },
       "Health": {
         "properties": {
           "status": {
@@ -3681,6 +3750,9 @@
           "parentIndex": {
             "type": "integer"
           },
+          "publicationType": {
+            "type": "string"
+          },
           "ratings": {
             "$ref": "#/components/schemas/Ratings"
           },
@@ -3719,6 +3791,9 @@
               "$ref": "#/components/schemas/Media"
             },
             "type": "array"
+          },
+          "wordCount": {
+            "type": "integer"
           },
           "year": {
             "type": "integer"
@@ -6197,6 +6272,9 @@
             },
             "type": "object"
           },
+          "kind": {
+            "type": "string"
+          },
           "level": {
             "type": "string"
           },
@@ -6211,6 +6289,7 @@
         "required": [
           "time",
           "level",
+          "kind",
           "message"
         ],
         "type": "object"
@@ -7000,6 +7079,9 @@
             "type": "array"
           },
           "originalTitle": {
+            "type": "string"
+          },
+          "publicationType": {
             "type": "string"
           },
           "releaseDate": {
@@ -7979,6 +8061,9 @@
           "birthplace": {
             "type": "string"
           },
+          "crewTitleCount": {
+            "type": "integer"
+          },
           "deathDate": {
             "type": "string"
           },
@@ -7990,6 +8075,18 @@
               "type": "string"
             },
             "type": "object"
+          },
+          "kindCounts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "knownFor": {
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            },
+            "type": "array"
           },
           "name": {
             "type": "string"
@@ -9342,12 +9439,16 @@
       },
       "ProfilePIN": {
         "properties": {
+          "challenge": {
+            "type": "string"
+          },
           "code": {
             "type": "string"
           },
           "currentPassword": {
             "type": "string"
           },
+          "identity": {},
           "pin": {
             "type": "string"
           }
@@ -11457,6 +11558,20 @@
         ],
         "type": "object"
       },
+      "ServerCapabilities": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Capability"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "ServerDevice": {
         "allOf": [
           {
@@ -12613,6 +12728,95 @@
         ],
         "type": "object"
       },
+      "StreamingHardwareDevice": {
+        "properties": {
+          "formats": {
+            "items": {
+              "$ref": "#/components/schemas/HardwareFactFormat"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "inUse": {
+            "type": "boolean"
+          },
+          "method": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "toneMapping": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "inUse",
+          "formats",
+          "toneMapping"
+        ],
+        "type": "object"
+      },
+      "StreamingHardwareFault": {
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "remedy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "StreamingHardwareState": {
+        "properties": {
+          "checking": {
+            "type": "boolean"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/StreamingHardwareDevice"
+            },
+            "type": "array"
+          },
+          "formats": {
+            "items": {
+              "$ref": "#/components/schemas/HardwareFactFormat"
+            },
+            "type": "array"
+          },
+          "lastError": {
+            "$ref": "#/components/schemas/StreamingHardwareFault"
+          },
+          "lastTest": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "toneMapping": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "checking",
+          "devices",
+          "formats",
+          "toneMapping"
+        ],
+        "type": "object"
+      },
       "SubtitleDownload": {
         "properties": {
           "ref": {
@@ -12781,6 +12985,9 @@
             "type": "string"
           },
           "name": {
+            "type": "string"
+          },
+          "porticoOrigin": {
             "type": "string"
           },
           "setupRequired": {
@@ -13589,6 +13796,83 @@
         "x-access": "owner"
       }
     },
+    "/v1/admin/background/pause": {
+      "delete": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackgroundWorkState"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackgroundWorkState"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackgroundWorkState"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/backups": {
       "get": {
         "responses": {
@@ -13957,6 +14241,33 @@
         "x-access": "admin"
       }
     },
+    "/v1/admin/capabilities": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerCapabilities"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/collections/{id}": {
       "delete": {
         "parameters": [
@@ -14195,6 +14506,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FolderList"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/hardware": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamingHardwareState"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/hardware/test": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamingHardwareState"
                 }
               }
             },
@@ -18448,7 +18813,7 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "x-access": "admin"
       }
     },
     "/v1/admin/statistics": {
