@@ -7,11 +7,11 @@
  * The editor reads `GET /v1/home?hidden=include`: every row in its place, a hidden one with its title,
  * `hidden: true` and no items. Home itself reads without the query and never sees hidden rows.
  */
-import {homeDocument, type HomeLayout, type HomeLayoutView, type HomeLayoutRowView} from './home.ts';
+import {homeDocument, homeViewResourceId, type HomeLayout, type HomeLayoutView, type HomeLayoutRowView} from './home.ts';
 import {parsePreferenceSnapshot, type DeviceClass} from './preferences.ts';
 import {callServer, type ServerRequester} from './query/server-api.ts';
 
-const ORDER = 'home.rowOrder', HIDDEN = 'home.hiddenRowIds';
+const ORDER = 'home.rowOrder', HIDDEN = 'home.hiddenRowIds', VIEWS = 'home.savedViews';
 const kept = (error: unknown) => (error as {code?: unknown} | null)?.code === 'sync_pending';
 const list = (value: unknown): readonly string[] => Array.isArray(value) ? Object.freeze(value.filter((id): id is string => typeof id === 'string')) : Object.freeze([]);
 
@@ -31,9 +31,12 @@ export async function readHomeLayoutSettings(api: ServerRequester, deviceClass: 
   return Object.freeze({revision: 0, rowOrder, hiddenRowIds, rows: Object.freeze(rows)});
 }
 
-/** Saves the order and the hidden rows (`null` for both takes the layout away, which is Reset). */
+/** Saves the order and the hidden rows (`null` takes the layout away, which is Reset). The server builds a saved
+ * view's row only from `home.savedViews`, so the views on Home are saved there too, in Home's order: a view added
+ * in Customize stays on Home, and one taken out goes. */
 export async function saveHomeLayoutSettings(api: ServerRequester, deviceClass: DeviceClass, layout: Readonly<{rowOrder: readonly string[]; hiddenRowIds: readonly string[]}> | null, signal?: AbortSignal): Promise<HomeLayout> {
-  const values = layout ? {[ORDER]: [...layout.rowOrder], [HIDDEN]: [...layout.hiddenRowIds]} : {[ORDER]: null, [HIDDEN]: null};
+  const views = layout?.rowOrder.flatMap(id => homeViewResourceId(id) ?? []);
+  const values = layout ? {[ORDER]: [...layout.rowOrder], [HIDDEN]: [...layout.hiddenRowIds], [VIEWS]: views} : {[ORDER]: null, [HIDDEN]: null, [VIEWS]: null};
   try {await callServer(api, 'PATCH /v1/preferences', {body: {scope: 'profile-server', deviceClass, values}, signal});}
   // Kept on this device while the server is out of reach: it is sent later, and Home follows then.
   catch (error) {if (!kept(error)) throw error;}
