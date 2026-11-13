@@ -108,8 +108,10 @@ function PersonCreditGrid({binding, page, kind, total, heading, phone, showHeadi
   const state = useSyncExternalStore(collection.subscribe, collection.getSnapshot, collection.getSnapshot);
   const titleMenu = useTitleMenu(binding.context);
   const current = () => lease.current() && binding.context.isCurrent();
-  const cardWidth = phone ? 112.66 : 190, gap = phone ? 10 : 16, rowHeight = phone ? 211 : 354, rowGap = phone ? 16 : 30;
-  const grid = <WindowedGrid className={phone ? styles.phoneGrid : styles.wideGrid} collection={collection} label={heading} cardWidth={cardWidth} rowHeight={rowHeight} rowGap={rowGap} gap={gap} height={phone ? 438 : 'calc(100vh - 240px)'} style={phone ? {width: 358, marginLeft: 16} : undefined}
+  // Phone: three or more columns of at least 100 px fill the page between its gutters (phone-detail frame), each
+  // poster 2:3 with room for the title and one role under it.
+  const cardWidth = phone ? 100 : 190, gap = phone ? 10 : 16, rowHeight = phone ? (width: number) => width * 3 / 2 + 42 : 354, rowGap = phone ? 16 : 30;
+  const grid = <WindowedGrid className={phone ? styles.phoneGrid : styles.wideGrid} collection={collection} label={heading} cardWidth={cardWidth} rowHeight={rowHeight} rowGap={rowGap} gap={gap} height={phone ? 438 : 'calc(100vh - 240px)'} fill={phone}
     renderPlaceholder={index => <span className={styles.placeholder} key={index} />}
     renderItem={(credit: PersonCredit) => <CreditCard binding={binding} page={page} lease={lease} credit={credit} phone={phone} titleMenu={titleMenu} current={current} />} />;
   return <section className={phone ? styles.phoneGroup : styles.group} data-person-group={kind ?? 'all'}>
