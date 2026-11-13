@@ -8,7 +8,7 @@ async function topBar() {
   const module = await screenModule(new URL('../src-next/kit/layout/TopBar.tsx', import.meta.url), {
     react: (() => {const react = {...h.react.default, forwardRef: (render: unknown) => render}; return {...react, default: react};})(), 'react-native': {StyleSheet: {absoluteFill: {position: 'absolute'}, create: (styles: object) => styles}, Text: 'Text', View: 'View'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 59, bottom: 34, left: 0, right: 0})},
-    '../../platform/native-blur': {BlurView: 'BlurView'}, '../../platform/glass': {glassRecipe: () => ({nativeBlur: true})},
+    'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'}, '../../platform/native-blur': {BlurView: 'BlurView'}, '../../platform/glass': {glassRecipe: () => ({nativeBlur: true})},
     '../controls/Focusable': {Focusable: 'Focusable'}, '../Icon': {Icon: 'Icon'}, '../theme': {useTheme: () => theme},
     '../shell/visual': {alpha: (color: string, value: number) => `${color}/${value}`, shellType: (size: number, weight: number) => ({fontSize: size, fontWeight: weight})},
   });
@@ -45,4 +45,17 @@ test('the bar surface draws the blur first and the .82 ink tint above it, with o
   assert.equal(blur.type, 'BlurView');
   assert.equal(flat(tint.props.style).backgroundColor, '#071018/0.82');
   assert.equal(flat(surface.props.style).borderBottomWidth, 1);
+});
+
+// 12 Nov: the Home header's gradient was an SVG 100% wide inside 20 pt padding, so it stopped 40 pt short of the
+// right edge (a hard seam over the backdrop). The scrim is its own full-bleed layer, unpadded.
+test('the bar scrim covers the whole bar: an unpadded full-bleed layer, ink .75 fading to clear', async () => {
+  const {module, render} = await topBar();
+  const scrim = render(() => module.BarScrim());
+  assert.equal(flat(scrim.props.style).position, 'absolute');
+  assert.equal(flat(scrim.props.style).paddingHorizontal, undefined);
+  const svg = [scrim.props.children].flat()[0];
+  assert.deepEqual([svg.props.width, svg.props.height], ['100%', '100%']);
+  const stops = nodes(svg).filter(node => node.type === 'Stop').map(node => node.props.stopOpacity);
+  assert.deepEqual(stops, [.75, 0]);
 });

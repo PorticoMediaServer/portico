@@ -1,6 +1,7 @@
 import React, {type ReactNode} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {BlurView} from '../../platform/native-blur';
 import {glassRecipe} from '../../platform/glass';
 import {Focusable} from '../controls/Focusable';
@@ -19,6 +20,19 @@ export function BarSurface({hairline = true}: {hairline?: boolean}) {
   return <View pointerEvents="none" style={[StyleSheet.absoluteFill, {overflow: 'hidden'}, hairline ? {borderBottomWidth: 1, borderBottomColor: alpha(theme.colors.text, .07)} : null]}>
     {glassRecipe().nativeBlur && <BlurView pointerEvents="none" style={StyleSheet.absoluteFill} blurType="dark" blurAmount={24} reducedTransparencyFallbackColor={theme.colors.ink}/>}
     <View style={[StyleSheet.absoluteFill, {backgroundColor: alpha(theme.colors.ink, .82)}]}/>
+  </View>;
+}
+
+/**
+ * phone-app `.ph-top` before a page scrolls: ink at .75 fading to clear, so the wordmark and buttons read over the
+ * hero and the backdrop. Its own full-bleed layer, so it spans the whole bar whatever padding the bar's row has.
+ */
+export function BarScrim() {
+  const theme = useTheme();
+  return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <Svg accessible={false} width="100%" height="100%"><Defs><LinearGradient id="portico-bar-scrim" x1="0" y1="0" x2="0" y2="1">
+      <Stop offset="0" stopColor={theme.colors.ink} stopOpacity={.75}/><Stop offset="1" stopColor={theme.colors.ink} stopOpacity={0}/>
+    </LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#portico-bar-scrim)"/></Svg>
   </View>;
 }
 

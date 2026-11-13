@@ -100,7 +100,7 @@ const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)
   : /(^|\/)shell\/freshness$|^\.\/freshness$/.test(source) ? shellFreshness
   : /(^|\/)kit\/layout\/page-inset$/.test(source) ? pageInsetLeaf(react, native)
   // The shared phone top bar (kit/layout/TopBar) and the Settings sheet's page header draw as named elements.
-  : /(^|\/)kit\/layout\/TopBar$/.test(source) ? {TopBar: 'TopBar', BarSurface: 'BarSurface', RoundBarButton: 'RoundBarButton'}
+  : /(^|\/)kit\/layout\/TopBar$/.test(source) ? {TopBar: 'TopBar', BarSurface: 'BarSurface', BarScrim: 'BarScrim', RoundBarButton: 'RoundBarButton'}
   : /(^|\/)server\/PhoneServerPageHeader$/.test(source) ? {PhoneServerPageHeader: 'PhoneServerPageHeader'}
   : /(^|\/)navigation\/rail-hold$/.test(source) ? railHoldLeaf(react)
   : /(^|\/)focus\/replacement-refocus$/.test(source) ? {useReplacementRefocus: replacementRefocusHook(react)}
