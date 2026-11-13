@@ -18,6 +18,8 @@ export type CoverHeroProps = Readonly<{
   /** Drawn before the facts on their line: the author, the narrators. */
   byline?: ReactNode;
   facts: readonly FactPart[];
+  /** Drawn after the facts on their line: an album's quality badges. */
+  metaEnd?: ReactNode;
   cover?: ArtworkSource; shape?: CoverHeroShape;
   /** Drawn when there is no cover: the generated cover, or an author's initials. */
   fallback: ReactNode;
@@ -35,7 +37,7 @@ export type CoverHeroProps = Readonly<{
 /** The cover beside the copy, one element for every page whose subject is a cover: a book
  * (desktop-read 3/3c/5, phone-read 3/3c/12, tablet-read 2/2c), an audiobook, its series and its
  * author (listen 8). Phones stack it, centred. */
-export function CoverHero({title, titleStyle, eyebrow, byline, facts, cover, shape = 'portrait', fallback, stack, ambient, palette, description, opening, actions, overflow, under}: CoverHeroProps) {
+export function CoverHero({title, titleStyle, eyebrow, byline, facts, metaEnd, cover, shape = 'portrait', fallback, stack, ambient, palette, description, opening, actions, overflow, under}: CoverHeroProps) {
   const fanned = stack?.slice(0, 3);
   const artist = shape === 'artist';
   return <div className={styles.heroRegion} data-shape={shape}>
@@ -49,7 +51,7 @@ export function CoverHero({title, titleStyle, eyebrow, byline, facts, cover, sha
       <div className={styles.copy}>
         {eyebrow && <div className={styles.eyebrow}>{eyebrow}</div>}
         <h1 className={styles.title} data-style={titleStyle}>{title}</h1>
-        {(byline || facts.length > 0) && <div className={styles.meta}>{byline}{facts.length > 0 && <TitleFactsLine parts={facts}/>}</div>}
+        {(byline || facts.length > 0 || metaEnd) && <div className={styles.meta}>{byline}{facts.length > 0 && <TitleFactsLine parts={facts}/>}{metaEnd}</div>}
         {description && <div className={styles.description}>{description}</div>}
         {!description && opening && <div className={styles.opening}><span>{opening.label}</span><p>{opening.text}</p></div>}
         <div className={styles.actions}>{actions}{overflow}</div>
@@ -61,7 +63,18 @@ export function CoverHero({title, titleStyle, eyebrow, byline, facts, cover, sha
 
 /** A link-like name in the byline. `person` draws the name with its initials in a small circle
  * before it, as an author is drawn (desktop-read 3, phone-read 3). */
-export function CoverHeroLink({onOpen, person, children}: Readonly<{onOpen?: () => void; person?: string; children: ReactNode}>) {
-  const content = <>{person && <PersonCircle className={styles.face} size={28} initialsSize={11} initials={nameInitials(person)} alt=""/>}{children}</>;
+export function CoverHeroLink({onOpen, href, person, picture, children}: Readonly<{onOpen?: () => void;
+  /** A real address, so the link can be opened in a new tab; a plain click still opens it here. */
+  href?: string;
+  person?: string;
+  /** A small round picture before the name instead of initials (an album's own cover beside its artist). */
+  picture?: ArtworkSource;
+  children: ReactNode}>) {
+  const content = <>{picture ? <span className={styles.face} aria-hidden="true"><Artwork source={picture} alt="" fit="cover" width="100%" height="100%"/></span>
+    : person && <PersonCircle className={styles.face} size={28} initialsSize={11} initials={nameInitials(person)} alt=""/>}{children}</>;
+  if (href) return <a className={styles.link} href={href} onClick={event => {
+    if (!onOpen || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault(); onOpen();
+  }}>{content}</a>;
   return onOpen ? <button type="button" className={styles.link} onClick={onOpen}>{content}</button> : <span className={styles.link}>{content}</span>;
 }
