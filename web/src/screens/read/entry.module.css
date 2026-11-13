@@ -1,6 +1,3 @@
-.seriesSelect { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; padding: 6px 10px; border: 0; border-radius: 8px;
-  background: color-mix(in srgb, var(--color-text) 8%, transparent); color: var(--color-text-secondary); font: inherit; font-size: var(--type-fixed-size-13px); cursor: pointer; }
-.seriesSelect[aria-pressed='true'] { background: color-mix(in srgb, var(--color-accent-strong) 18%, transparent); color: var(--color-text); }
 .loading { position: relative; min-height: 100dvh; }
 /* An opening book shows the standard backdrop, then after 300 ms the kit's quiet ring (DESIGN.md
    "Boot and loading": 30 px, 3 px, one turn a second; under reduced motion it breathes instead). */
@@ -26,13 +23,9 @@
 /* J-29: a Reading library with nothing in it still starts at the page's gutter. */
 .emptyLibrary { margin: 0 var(--shell-gutter); padding-top: 20px; }
 
-/* phone-read 4/4c: the series' own name and count head its volume grid. */
-/* A page's own heading (a periodical's name; a series not yet named) is drawn as the series heading. */
-.seriesHeading, .library > h2 { display: flex; align-items: baseline; gap: 10px; margin: 24px var(--shell-gutter) 8px; }
-.seriesHeading h2 { margin: 0; }
-.seriesHeading h2, .library > h2 { font-size: var(--type-fixed-size-20px); font-weight: var(--type-fixed-weight-700); color: var(--color-text); }
-.seriesHeading span { font-size: var(--type-fixed-size-14px); font-weight: var(--type-fixed-weight-600); color: var(--color-text-tertiary); }
 
 .dateFilter { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px var(--shell-gutter); }
 
 .dateFilter > div { flex: 1 1 180px; min-width: 0; max-width: 320px; }
+/* A label with the server's mark after it keeps the two on one line. */
+.markedLabel { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }

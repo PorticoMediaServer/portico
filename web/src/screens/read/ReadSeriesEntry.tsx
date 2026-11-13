@@ -11,7 +11,7 @@ import type {ScreenContext} from '../detail/context';
 import {router} from '../../router';
 import {CoverCard} from '../../kit/cards';
 import {Button} from '../../kit/controls';
-import {WindowedGrid, fillHeightBelow, observeShellClearance} from '../../kit/layout';
+import {Row, WindowedGrid, fillHeightBelow, observeShellClearance} from '../../kit/layout';
 import {CoverHero, CoverHeroLink} from '../../kit/title/CoverHero';
 import {GeneratedCover} from '../../kit/artwork';
 import type {ArtworkSource} from '../../kit/artwork';
@@ -129,10 +129,12 @@ function LiveSeriesRows({resources, context, retry}: {resources: Resources; cont
       stack={seriesCovers}
       ambient={resources.artwork.ambient(coverItem?.coverUrl)} palette={tint}
       actions={<><Button variant="primary" icon="i-book" onClick={start} disabled={!target}>{actionLabel}</Button>{state.status === 'ready' && <ReadGroupSavedAction client={resources.bindings.client} libraryId={resources.libraryId} groupKind="series" seriesId={resources.seriesId} isCurrent={() => resources.bindings.authority.isCurrent() && resources.rows.collection.getSnapshot().status === 'ready'} reportError={report}/>}</>}/>
-      <div className={styles.seriesHeading}><h2>{t(resources.comic ? 'next.reader.volumes' : 'next.kit.booksInSeries')}</h2>
-        {total === undefined ? null : <span>{t(resources.comic ? 'next.reader.volumeCount' : 'next.kit.books', {count: total})}</span>}
-        {canSelect && <button type="button" className={styles.seriesSelect} aria-pressed={selection !== undefined}
-          onClick={() => setSelection(selection === undefined ? new Map() : undefined)}>{t('next.selection.select')}{canEdit && <ServerMark size={22}/>}</button>}</div></> : <h2>{t('library.tab.series')}</h2>}
+</> : null}
+    {/* desktop-read 4, phone-read 4: the volumes' heading is the kit row's, as every row's is. */}
+    <Row heading={title ? t(resources.comic ? 'next.reader.volumes' : 'next.kit.booksInSeries') : t('library.tab.series')} platform={width < 600 ? 'phone-web' : 'desktop'}
+      subtitle={title && total !== undefined ? t(resources.comic ? 'next.reader.volumeCount' : 'next.kit.books', {count: total}) : undefined}
+      actions={title && canSelect ? <Button size="small" variant="ghost" aria-pressed={selection !== undefined}
+        onClick={() => setSelection(selection === undefined ? new Map() : undefined)}><span className={styles.markedLabel}>{t('next.selection.select')}{canEdit && <ServerMark size={22}/>}</span></Button> : undefined}>
     {selection && canSelect && <ReadSelectionBar context={context} selection={selection} kind={resources.comic ? 'comic' : 'ebook'}
       current={item => resources.bindings.authority.isCurrent() && resources.rows.collection.residentItems().includes(item)}
       onExit={() => setSelection(undefined)} onEdit={anchor => {bulkAnchor.current = anchor; setBulk(Object.freeze([...selection.values()]));}}/>}
@@ -147,6 +149,7 @@ function LiveSeriesRows({resources, context, retry}: {resources: Resources; cont
         onPlay={item.inventoryAvailable ? () => {if (resources.bindings.authority.isCurrent()) void router.navigate(readChosenDestination(item.id)).catch(report);} : undefined}
         playLabel={t('next.reader.read')}
         selection={canSelect ? {active: selection !== undefined, checked: selection?.has(item.id) ?? false, onToggle: () => toggle(item), onExit: () => setSelection(undefined)} : undefined}/>} /></div>
+    </Row>
     {bulk && canEdit && <ReadBulkMetadata context={forwardIdentity(context, {isCurrent: () => context.isCurrent() && !!bulk && resources.bindings.authority.isCurrent() && bulk.every(item => resources.rows.collection.residentItems().includes(item))})}
       items={bulk} kind={resources.comic ? 'comic' : 'ebook'} anchor={bulkAnchor} onClose={() => {setBulk(undefined); setSelection(undefined);}}/>}
   </section>;
