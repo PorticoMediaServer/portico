@@ -22,14 +22,14 @@ type SelectionDeletion struct {
 	// Count is how many titles were selected.
 	Count int `json:"count"`
 	// Titles is every title that would go: the selected ones, everything under them, and
-	// the other titles played from the same files.
+	// emptied holders and other titles played from the same files.
 	Titles      int   `json:"titles"`
 	Files       int   `json:"files"`
 	Bytes       int64 `json:"bytes"`
 	ListEntries int   `json:"listEntries"`
 	// OtherPeople is how many saved places and marks of other profiles go with the titles.
 	OtherPeople int `json:"otherPeople"`
-	// AlsoRemoves are titles outside the selection that are played from the same files.
+	// AlsoRemoves are emptied holders and titles outside the selection played from the same files.
 	AlsoRemoves []TitleRef `json:"alsoRemoves"`
 }
 
@@ -99,48 +99,16 @@ func (s *Server) selection(r *http.Request, req SelectionDelete) ([]db.Deletion,
 }
 
 func (s *Server) previewSelectionDeletion(r *http.Request, req SelectionDelete) (SelectionDeletion, error) {
-	out := SelectionDeletion{Count: len(req.IDs), AlsoRemoves: []TitleRef{}}
 	all, err := s.selection(r, req)
 	if err != nil {
-		return out, err
+		return SelectionDeletion{}, err
 	}
-	selected := map[string]bool{}
-	for _, id := range req.IDs {
-		selected[id] = true
+	impact, err := s.db.SelectionDeletionPreview(r.Context(), s.viewer(r), all)
+	if err != nil {
+		return SelectionDeletion{}, libraryError(err)
 	}
-	holders := map[int64]bool{}
-	for _, del := range all {
-		holders[del.ItemID] = true
-	}
-	files := map[int64]bool{}
-	for _, del := range all {
-		// A title selected together with the show, season or album that holds it is already
-		// counted, with everything on it, under that holder.
-		if !holders[del.ParentID] && !holders[del.RootID] {
-			out.Titles += del.Titles
-			out.ListEntries += del.ListEntries
-			out.OtherPeople += del.OtherStates
-		}
-		for _, f := range del.Files {
-			if !files[f.ID] {
-				files[f.ID] = true
-				out.Files++
-				out.Bytes += f.Size
-			}
-		}
-		// A title that shares a file with a selected one is named once, unless it is itself selected.
-		for _, other := range titleRefs(del.Others) {
-			already := false
-			for _, have := range out.AlsoRemoves {
-				already = already || have.ID == other.ID
-			}
-			if !selected[other.ID] && !already {
-				out.AlsoRemoves = append(out.AlsoRemoves, other)
-				out.Titles++
-			}
-		}
-	}
-	return out, nil
+	return SelectionDeletion{Count: len(req.IDs), Titles: impact.Titles, Files: len(impact.Files), Bytes: impact.Bytes,
+		ListEntries: impact.ListEntries, OtherPeople: impact.OtherStates, AlsoRemoves: titleRefs(impact.AlsoRemoves)}, nil
 }
 
 // deleteSelection deletes the files of every selected title from disk and removes the

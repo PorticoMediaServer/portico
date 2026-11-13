@@ -860,14 +860,12 @@ func settledDeletionPreview(del db.DeletionImpact) DeletionPreview {
 		ListEntries: del.ListEntries, OtherPeople: del.OtherStates, AlsoRemoves: titleRefs(del.AlsoRemoves)}
 }
 
-func deletionPreview(del db.Deletion) DeletionPreview {
+func alsoRemovedTitles(del db.Deletion) []TitleRef {
 	others := del.Others
 	if del.MediaID != 0 {
 		others = slices.DeleteFunc(slices.Clone(others), func(o db.SharedTitle) bool { return !o.RemovesTitle })
 	}
-	also := titleRefs(others)
-	return DeletionPreview{Title: del.Title, Titles: del.Titles + len(also), Files: len(del.Files), Bytes: del.Bytes, ListEntries: del.ListEntries,
-		OtherPeople: del.OtherStates, AlsoRemoves: also}
+	return titleRefs(others)
 }
 
 func titleRefs(others []db.SharedTitle) []TitleRef {
@@ -975,7 +973,7 @@ func (s *Server) deleteFiles(r *http.Request, del db.Deletion) (DeletionResult, 
 		return out, err
 	}
 	if out.Removed = len(out.Kept) == 0; out.Removed {
-		out.AlsoRemoved = deletionPreview(del).AlsoRemoves
+		out.AlsoRemoved = alsoRemovedTitles(del)
 	}
 	return out, nil
 }

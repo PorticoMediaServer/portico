@@ -358,7 +358,7 @@ type Deletion struct {
 	MediaID     int64 // set when one version is being deleted
 	Title       string
 	AllowDelete bool
-	Titles      int // the title and everything under it
+	Titles      int // impact counts below are filled only by a deletion preview
 	Files       []DiskFile
 	Bytes       int64
 	ListEntries int
@@ -416,14 +416,8 @@ func (d *DB) deletion(ctx context.Context, v Viewer, where, id string, version b
 			return out, err
 		}
 		medias, args = `SELECT ?`, []any{out.MediaID}
-		out.Titles = 0
-	} else {
-		if err := tx.QueryRowContext(ctx, subtreeSQL+`SELECT count(*), (SELECT count(*) FROM list_entries e JOIN t ON t.id = e.item_id),
-			(SELECT count(*) FROM user_item_state s JOIN t ON t.id = s.item_id WHERE s.profile_id <> ?) FROM t`, out.ItemID, v.ProfileID).
-			Scan(&out.Titles, &out.ListEntries, &out.OtherStates); err != nil {
-			return out, err
-		}
 	}
+
 	rows, err := tx.QueryContext(ctx, `SELECT f.id, lp.path, d.rel_path, f.name, f.size, f.modified_ns, lp.remote_source_id IS NOT NULL
 		FROM files f JOIN directories d ON d.id = f.directory_id JOIN library_paths lp ON lp.id = d.library_path_id
 		WHERE f.missing_since_at IS NULL AND (f.id IN (SELECT p.file_id FROM media_parts p WHERE p.media_id IN (`+medias+`))
@@ -474,27 +468,18 @@ func (d *DB) deletion(ctx context.Context, v Viewer, where, id string, version b
 	}
 
 	if version {
-		// A title loses its list entries and saved state only when the selected or
-		// shared files take its last version. A surviving version keeps that state.
-		affected := map[int64]int{out.ItemID: 1}
+		// The deletion result names a shared title only when its last version goes.
+		// Preview impact counts come exclusively from the rolled-back deletion.
+		affected := map[int64]int{}
 		for _, other := range out.Others {
 			affected[other.ItemID]++
 		}
 		for item, removed := range affected {
-			var total, entries, states int
-			err := tx.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM media WHERE item_id = ?),
-				(SELECT count(*) FROM list_entries WHERE item_id = ?),
-				(SELECT count(*) FROM user_item_state WHERE item_id = ? AND profile_id <> ?)`, item, item, item, v.ProfileID).Scan(&total, &entries, &states)
-			if err != nil {
+			var total int
+			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM media WHERE item_id = ?`, item).Scan(&total); err != nil {
 				return out, err
 			}
 			if total != removed {
-				continue
-			}
-			out.ListEntries += entries
-			out.OtherStates += states
-			if item == out.ItemID {
-				out.Titles = 1
 				continue
 			}
 			for n := range out.Others {
