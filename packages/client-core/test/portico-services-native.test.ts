@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PorticoServicesAccountClient, PorticoServicesCredentialApi, emailedCode, porticoAccountSessions, porticoSessionRows} from '../src/portico-services-native.ts';
+import {PorticoServicesAccountClient, PorticoServicesCredentialApi, emailedCode, porticoAccountSessions, porticoSessionRows, readPorticoAccountSecurity} from '../src/portico-services-native.ts';
 import {MFARequiredError} from '../src/hosted-security.ts';
 import {ApiError, CredentialSessionService, type CredentialRecord} from '../src/index.ts';
 import {presentError} from '../src/presentation/errors.ts';
@@ -160,4 +160,20 @@ test('a renewal Services refuses ends the apps\' sign-in and says so; one that c
     if (reached) { assert.equal(after.session, undefined); assert.equal(after.ended, true, 'the apps say the sign-in has ended'); }
     else { assert.equal(after.session?.familyId, 'family-1', 'the sign-in is kept, to renew again later'); assert.equal(after.ended, undefined); }
   }
+});
+
+
+test('native security reads the rebuilt account and two-step routes with the Services access token', async () => {
+  const s = services({
+    'GET /v1/account': () => [200, {...account, hasPassword: true, providers: [], twoStep: true}],
+    'GET /v1/account/two-step': () => [200, {on: true, recoveryCodesLeft: 7}],
+  });
+  const scope = {accountId: account.id, familyId: 'held-family'};
+  const state = await readPorticoAccountSecurity('pat_fixture', origin, scope, s.fetcher);
+  assert.equal(state.hasPassword, true); assert.equal(state.mfaEnabled, true); assert.equal(state.recoveryCodesRemaining, 7);
+  assert.equal(state.accountId, account.id); assert.equal(state.familyId, scope.familyId);
+  assert.deepEqual(s.calls.map(call => call.route).sort(), ['GET /v1/account', 'GET /v1/account/two-step']);
+  assert.ok(s.calls.every(call => call.headers.Authorization === 'Bearer pat_fixture'));
+  const wrong = services({'GET /v1/account': () => [200, {...account, id: 'another-account', providers: []}], 'GET /v1/account/two-step': () => [200, {on: false, recoveryCodesLeft: 0}]});
+  await assert.rejects(readPorticoAccountSecurity('pat_fixture', origin, scope, wrong.fetcher), {code: 'invalid_response'});
 });

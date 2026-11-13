@@ -1,9 +1,11 @@
+import {linkNativeAbortSignals} from '../../../../packages/client-core/src/native-abort-signals';
+import {porticoAccountForCall, porticoApiError} from '../../../../packages/client-core/src/portico-services-native';
 import {requestHostedAccountExport} from '../../../../packages/client-core/src/query/hosted-account-transport';
 import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {NativeModules} from 'react-native';
 import {ApiError, HttpLocalApi} from '../../../../packages/client-core/src';
 import {AccountNotificationsClient, type AccountExportJob} from '../../../../packages/client-core/src/account-notifications';
-import {securityPurposeNeedsProof, type AccountScope, type DeletionPreview, type HostedAccountClient, type SecurityIntent, type SecurityResult, type SecurityState} from '../../../../packages/client-core/src/hosted-security';
+import {securityPurposeNeedsProof, parseSecurityResult, type AccountScope, type DeletionPreview, type HostedAccountClient, type SecurityIntent, type SecurityResult, type SecurityState} from '../../../../packages/client-core/src/hosted-security';
 import {presentError} from '../../../../packages/client-core/src/presentation/errors';
 import {providerRecentProof, reconfirmWithProvider, type ProviderReconfirmation} from '../../../../packages/client-core/src/provider-security-proof';
 import type {NativeAccounts} from './accounts';
@@ -60,9 +62,42 @@ export class NativeAccountSecurity {
     this.opening = {kind, controller: new AbortController(), busy: false};
     this.publish({kind, step: 'form', busy: false});
   }
+  private directSecurity(opening: Opening) {
+    return this.security.hasPassword && ['password', 'mfa-on', 'mfa-off', 'codes'].includes(opening.kind);
+  }
+  private async directCommand(opening: Opening, input: NativeAccountSecurityInput) {
+    this.assert(opening); const session = this.credentials.getSnapshot().session;
+    if (!session) throw changed();
+    const request = new AbortController(), linked = linkNativeAbortSignals([opening.controller.signal, request.signal]);
+    const timer = setTimeout(() => request.abort(), 15000), signal = linked.signal;
+    const confirming = opening.kind === 'mfa-on' && this.state.step === 'mfa';
+    opening.input ??= Object.freeze({...input});
+    const chosen = opening.input, proof = {currentPassword: chosen.password ?? '', twoStepCode: chosen.factor ?? ''};
+    this.publish({...this.state, locked: true});
+    const answer = await nativeAccountWork(this.credentials, async issued => {
+      const account = porticoAccountForCall(issued.accessToken, hostedUrl, nativeNetworkFetch, signal);
+      try {
+        if (confirming) return await account.confirmTwoStep(input.code ?? '');
+        if (opening.kind === 'password') return await account.changePassword(proof, chosen.newPassword ?? '');
+        if (opening.kind === 'mfa-on') return await account.beginTwoStep(proof);
+        if (opening.kind === 'mfa-off') return await account.turnOffTwoStep(proof);
+        return await account.newRecoveryCodes(proof);
+      } catch (error) {throw porticoApiError(error);}
+    }, {expected: accountExpectation(session), signal, isCurrent: () => this.owns(opening)})
+      .finally(() => {clearTimeout(timer); linked.dispose();});
+    this.assert(opening);
+    const result: SecurityResult = {...this.scope, status: 'complete'};
+    if (answer && 'secret' in answer) {
+      result.secret = answer.secret; result.otpAuthUri = answer.qrAddress;
+      opening.input = undefined;
+      this.publish({kind: opening.kind, step: 'mfa', busy: true, result: parseSecurityResult(result, this.scope)}); return;
+    }
+    if (answer && 'recoveryCodes' in answer) result.recoveryCodes = answer.recoveryCodes;
+    await this.accept(opening, parseSecurityResult(result, this.scope));
+  }
   private async prepare(opening: Opening) {
     this.assert(opening);
-    if (opening.client && opening.operationId) return;
+    if (this.directSecurity(opening) || opening.client && opening.operationId) return;
     const bridge = NativeModules.PorticoAccountAuth;
     if (!opening.client) {
       const binding: unknown = await bridge.newBinding(); this.assert(opening);
@@ -102,6 +137,7 @@ export class NativeAccountSecurity {
     if (this.state.step === 'codes' || this.state.step === 'done' || this.state.step === 'export') return;
     return this.run(async opening => {
       const signal = opening.controller.signal, kind = opening.kind;
+      if (this.directSecurity(opening)) {await this.directCommand(opening, input); return;}
       if (kind === 'delete') {
         if (!opening.preview) {
           const preview = await this.work(opening, (token, client) => client.deletionPreview(opening.operationId!, token, signal));
