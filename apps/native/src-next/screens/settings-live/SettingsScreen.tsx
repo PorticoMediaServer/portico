@@ -25,7 +25,7 @@ import {nextIcons} from '../../../../../packages/design/src/next-icons';
 import {Button, Focusable, Select, Switch, TextField} from '../../kit/controls';
 import {FocusRegion, useCovered, useFocusRegistry} from '../../kit/focus';
 import {Icon, type IconName} from '../../kit/Icon';
-import {ChoiceMatrix, SettingsRow, SettingsRowTargetContext, SettingsSheet, SettingsSearchResults, LanguageList, ShortcutTiles, type LanguageOption, type SettingsRowTargeting} from '../../kit/shell';
+import {ChoiceMatrix, SettingsRow, SettingsRowTargetContext, SettingsSectionLabel, SettingsSheet, SettingsSearchResults, LanguageList, ShortcutTiles, type LanguageOption, type SettingsRowTargeting} from '../../kit/shell';
 import {ProfileFace, StandardBackdrop} from '../../kit/artwork';
 import {shellType} from '../../kit/shell/visual';
 import {useTheme} from '../../kit/theme';
@@ -411,7 +411,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
                 {sheetShortcuts.length > 0 && <ShortcutTiles testID="settings-shortcuts" actions={sheetShortcuts}/>}
               </>}
               <FocusRegion id={column} entry={orderedPages[0].id} order={orderedPages.map(value => value.id)} orientation="vertical" edges={{left: ids.rail, right: rows, up: searchField}} onLayout={enter}>
-                <Text style={[shellType(theme.isTV ? 20 : 13, 600), {color: theme.colors.textTertiary, marginLeft: 20, marginBottom: 10}]}>{t('settings.heading.account')}</Text>
+                <SettingsSectionLabel label={t('settings.heading.account')} first={!compact}/>
                 {theme.isTV
                   ? tvPageGroups.map((group, index) => <React.Fragment key={group.join('-')}>
                       {index > 0 && <View style={{height: 26}}/>}

@@ -197,7 +197,7 @@ const custom = (id: SettingsCustomId, label?: MessageId, only: Only = {}): Autho
 
 const accountPages: readonly AuthoredPage[] = [
   {
-    id: 'profile', title: 'settings.page.profile', icon: 'profile', sections: [
+    id: 'profile', title: 'settings.page.profile', icon: 'user', sections: [
       {id: 'who', rows: [custom('identity', 'settings.row.identity')]},
       // Direct-sign-in servers manage profiles, sessions and two-step here; a Portico Account manages its own on the account site.
       {id: 'profiles', title: 'settings.section.profiles', rows: [custom('profiles', 'settings.section.profiles')], needs: c => !!c.localAccount || !!c.hostedAccount},
@@ -255,7 +255,7 @@ const accountPages: readonly AuthoredPage[] = [
     ],
   },
   {
-    id: 'languages', title: 'settings.page.audioSubtitles', icon: 'subtitles', sections: [
+    id: 'languages', title: 'settings.page.audioSubtitles', icon: 'cc', sections: [
       {id: 'audio', title: 'settings.section.audio', rows: [
         pref('playback.preferredAudioLanguages', 'pref.label.playback.preferredAudioLanguages', {type: 'languages'}, {help: 'settings.help.audioLanguages'}),
       ]},
@@ -521,7 +521,7 @@ const accountPages: readonly AuthoredPage[] = [
     ],
   },
   {
-    id: 'device', title: 'settings.page.device', icon: 'tvDevice', sections: [
+    id: 'device', title: 'settings.page.device', icon: 'monitor', sections: [
       {id: 'device', rows: [
         custom('deviceName', 'settings.row.deviceName', {needs: c => !!c.deviceName}),
         {kind: 'action', id: 'linkTV', label: 'settings.linkTV', help: 'settings.linkTVHelp', icon: 'tvDevice', platforms: ['web', 'phone']},
@@ -657,7 +657,7 @@ const serverPages: readonly AuthoredPage[] = [
       panel('webhooks', 'server.webhooks', 'api.webhooks.title', {tab: 'webhooks'}),
       panel('assistants', 'server.assistants', 'settings.server.assistants', {tab: 'assistants'}),
     ]},
-  {id: 'streaming', title: 'settings.server.playback', icon: 'transcode', sections: [
+  {id: 'streaming', title: 'settings.server.playback', icon: 'swap', sections: [
     panel('status', 'server.transcodeStatus'),
     {id: 'away', title: 'next.settingsSpec.server.streaming.groups.0.title', rows: [
       setting('runtime', 'musicAwayQuality', 'next.settingsSpec.server.streaming.groups.0.rows.1.label', {type: 'choice', choices: [
@@ -697,7 +697,7 @@ const serverPages: readonly AuthoredPage[] = [
       setting('connectivity', 'pausedSessionTimeoutMinutes', 'web.connectivity.pausedLimit', {type: 'choice', choices: PAUSED_MINUTES.map(value => ({value, label: (value === 0 ? 'web.connectivity.pausedNever' : value === 60 ? 'web.connectivity.pausedHour' : value % 60 === 0 ? 'web.connectivity.pausedHours' : 'web.connectivity.pausedMinutes') as MessageId, labelValues: {count: value % 60 === 0 ? value / 60 : value}}))}, {help: 'web.connectivity.pausedLimitHelp'}),
     ]},
   ]},
-  {id: 'remote', title: 'settings.server.remote', icon: 'network', sections: [
+  {id: 'remote', title: 'settings.server.remote', icon: 'wifi', sections: [
     panel('status', 'server.remoteStatus'),
     // Secure connection (Justin, 15 Oct): status, what it does, on/off and the owner's own
     // certificate, in plain words. With a Portico Account it is on from the start; without one
@@ -789,7 +789,7 @@ const serverPages: readonly AuthoredPage[] = [
       custom('server.missingTitles'),
     ]},
   ]},
-  {id: 'schedule', title: 'settings.server.schedule', icon: 'calendar', sections: [
+  {id: 'schedule', title: 'settings.server.schedule', icon: 'cal', sections: [
     panel('jobs', 'server.jobs', 'settings.server.jobs'),
     panel('windows', 'server.windows', 'settings.server.windows', {description: 'settings.server.windowsLede'}),
     {id: 'priority', rows: [

@@ -67,7 +67,7 @@ async function fixture(isTV = false, owner = false, io?: {effects: (() => unknow
     '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
     '../../kit/focus': {FocusRegion: 'FocusRegion', useCovered: () => false, useFocusRegistry: () => ({capture: () => focus.region ? {regionId: focus.region, childId: 'control'} : undefined, focus: (address: unknown) => {focus.calls.push(address); return true;}, entryAddress: () => undefined, subscribe: () => () => {}, getSnapshot: () => 0})},
     '../../kit/Icon': {Icon: 'Icon'},
-    '../../kit/shell': {SettingsRowTargetContext: {Provider: 'TargetProvider'}, SettingsSheet: 'SettingsSheet', SettingsRow: 'SettingsRow', SettingsSearchResults: 'SettingsSearchResults', LanguageList: 'LanguageList', ShortcutTiles: 'ShortcutTiles'},
+    '../../kit/shell': {SettingsRowTargetContext: {Provider: 'TargetProvider'}, SettingsSheet: 'SettingsSheet', SettingsRow: 'SettingsRow', SettingsSearchResults: 'SettingsSearchResults', LanguageList: 'LanguageList', ShortcutTiles: 'ShortcutTiles', SettingsSectionLabel: 'SettingsSectionLabel'},
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfileFace: 'ProfileFace'},
     '../../kit/shell/visual': {alpha,shellType: (fontSize: number, fontWeight: number) => ({fontSize, fontWeight})},
     '../../kit/theme': {useTheme: () => theme},
