@@ -14,7 +14,7 @@
  */
 import type {Home, Item as WireItem, ItemPage} from '../../contracts/src/next/api.ts';
 import {callServer, type ServerRequester} from './query/server-api.ts';
-import type {ReadingContinueItem, ReadingItem} from './reading.ts';
+import type {ReadingContinueItem, ReadingItem, ReadingSeriesOverview} from './reading.ts';
 
 /** Every readable title in a library: books, single comics and comic issues. */
 const readable = 'book,comic,issue';
@@ -63,9 +63,14 @@ export async function rebuiltReadingPage(api: ServerRequester, options: Readonly
 
 /** A series' volumes, in volume order. */
 export async function rebuiltReadingSeries(api: ServerRequester, seriesId: string, options: Readonly<{cursor?: string; limit: number}>, signal?: AbortSignal):
-  Promise<Readonly<{items: ReadingItem[]; nextCursor?: string}>> {
-  const page = await callServer(api, 'GET /v1/items', {signal, query: {series: seriesId, sort: 'order', limit: options.limit, cursor: options.cursor}}) as ItemPage;
-  return {items: items(page?.items), ...(text(page?.nextCursor, 4096) ? {nextCursor: page.nextCursor} : {})};
+  Promise<Readonly<{items: ReadingItem[]; nextCursor?: string; overview?: ReadingSeriesOverview}>> {
+  const [page, series] = await Promise.all([
+    callServer(api, 'GET /v1/items', {signal, query: {series: seriesId, sort: 'order', limit: options.limit, cursor: options.cursor}}),
+    callServer(api, 'GET /v1/items/{id}', {id: seriesId, signal}),
+  ]);
+  return {items: items(page?.items), ...(text(page?.nextCursor, 4096) ? {nextCursor: page.nextCursor} : {}),
+    ...(series.kind === 'series' && text(series.title) && series.counts ? {overview: {id: series.id, title: series.title,
+      total: series.counts.leaves, completed: series.counts.leaves - series.counts.unwatchedLeaves}} : {})};
 }
 
 /** The titles in progress, most recent first: a library's own Continue reading, or Home's

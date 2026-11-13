@@ -57,9 +57,14 @@ test('Continue reading is the library landing row, or Home\'s, each title with t
   assert.equal(everywhere.items.length, 2);
 });
 
-test('a series lists its volumes in volume order', async () => {
-  const {calls, reading} = server(() => ({items: [wire('itm_1', 'issue'), wire('itm_2', 'issue')]}));
+test('a series names itself and lists its volumes in volume order', async () => {
+  const {calls, reading} = server(url => url.pathname === '/v1/items/itm_series'
+    ? wire('itm_series', 'series', {title: 'Harbour Tales', counts: {children: 3, leaves: 3, unwatchedLeaves: 2}})
+    : {items: [wire('itm_1', 'issue'), wire('itm_2', 'issue')], nextCursor: 'more'});
   const page = await reading.series('lib_books', 'itm_series', {limit: 30});
   assert.deepEqual(Object.fromEntries(calls[0].searchParams), {series: 'itm_series', sort: 'order', limit: '30'});
   assert.deepEqual(page.items.map(item => item.id), ['itm_1', 'itm_2']);
+  assert.equal(calls[1].pathname, '/v1/items/itm_series');
+  assert.deepEqual(page.overview, {id: 'itm_series', title: 'Harbour Tales', total: 3, completed: 1});
+  assert.equal(page.nextCursor, 'more');
 });
