@@ -17,3 +17,13 @@ test('catalogue routes preserve real owners and refuse unsupported fallthrough',
     assert.equal(nativeEntryRouteSupported(entry(kind)), false, kind);
   assert.equal(nativeEntryRouteSupported({...entry('collection'), libraryId: undefined}), false);
 });
+
+test("a reading library's series card opens the reading series page; an audiobook series keeps the audiobook page", () => {
+  // The browse grid names a book or comic library's series with the reading series navigation (client-core readingSeries).
+  const reading = {...entry('book_series'), navigation: {view: 'series', entityId: 'actual'}} as ContentEntry;
+  assert.equal(nativeEntryRouteSupported(reading), true);
+  assert.deepEqual(nativeEntryRoute(reading), {kind: 'read-series', libraryId: 'library', seriesId: 'actual'});
+  const audiobook = {...entry('book_series'), navigation: {view: 'book_series', entityId: 'actual'}} as ContentEntry;
+  assert.equal(nativeEntryRoute(audiobook).kind, 'audiobook');
+  assert.equal(nativeEntryRoute(entry('book_series')).kind, 'audiobook', 'no navigation: the audiobook page, as before');
+});
