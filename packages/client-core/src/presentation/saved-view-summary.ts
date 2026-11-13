@@ -1,7 +1,7 @@
 import {BrowseQueryBuilder, type BrowseCapabilities, type BrowseFieldCapability, type BrowseNode} from '../browse.ts';
 import type {SavedDefinition} from '../personal-saved.ts';
 import type {I18n} from '../../../i18n/src/index.ts';
-import {activeRangePreset, appliedFilterLabel, browseNameId, browseValueLabel, orderToolbarPredicates, rangePresets, sortDirectionKind} from './browse-toolbar.ts';
+import {activeRangePreset, appliedFilterLabel, browseNameId, playStateWord, browseValueLabel, orderToolbarPredicates, rangePresets, sortDirectionKind} from './browse-toolbar.ts';
 
 /** `list` is optional so an older narrowed caller stays source-compatible; the
  * catalogue's guarded formatter is used whenever it is present. */
@@ -50,7 +50,7 @@ export function savedViewSummary(definition: SavedDefinition, capabilities: Brow
       if (!label) return;
       const quick = capabilities.quickFilters.find(value => 'field' in value.query && same(node, value.query));
       if (quick) {
-        const key = text.has(quick.labelKey) ? quick.labelKey : quickNames[quick.id];
+        const key = playStateWord(capabilities.library.kind, quick.id) ?? (text.has(quick.labelKey) ? quick.labelKey : quickNames[quick.id]);
         if (!key || !text.has(key)) return;
         words.push(text.t(key));continue;
       }

@@ -121,3 +121,13 @@ test('a Hermes build without Intl.ListFormat still renders the summary and sugge
     intl.ListFormat = saved;
   }
 });
+
+test('a saved view names its play-state filter as the library row does: Unread in books, Unplayed in music', () => {
+  const kinded = (kind: string) => ({...caps, library: {...caps.library, kind}}) as typeof caps;
+  const unread = definition(node('playState', 'equals', 'unplayed'));
+  assert.equal(savedViewSummary(unread, kinded('book'), defaultI18n)?.conditions, 'Unread');
+  assert.equal(savedViewSummary(unread, kinded('music'), defaultI18n)?.conditions, 'Unplayed');
+  assert.equal(savedViewSummary(unread, kinded('audiobook'), defaultI18n)?.conditions, 'Unwatched');
+  // The row and the summary take their words from the same place.
+  assert.deepEqual(browseToolbarModel(kinded('book'), 'book', [], {field: 'title', direction: 'asc'}, {t: (id, values) => defaultI18n.t(id, values), locale: 'en-US'}).quick.find(q => q.id === 'unwatched')?.label?.text, 'Unread');
+});
