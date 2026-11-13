@@ -1,5 +1,5 @@
 /* listening-notices frames 2 and 3: the expanded web Now playing host. */
-.frame { position: fixed; inset: 0; z-index: var(--layer-art-label); display: block; padding: 0; overflow-x: hidden; overflow-y: auto; color: var(--color-text); background-color: var(--color-ink); background-image: var(--backdrop-glows); background-size: var(--backdrop-glows-size); background-repeat: no-repeat; }
+.frame { position: fixed; inset: 0; z-index: var(--layer-art-label); display: block; padding: 0; overflow-x: hidden; overflow-y: auto; color: var(--color-text); }
 .top { position: absolute; z-index: var(--layer-hero-navigation); inset: 0 0 auto; height: 84px; display: flex; align-items: center; gap: 16px; padding: 0 32px; }
 .round { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%; color: var(--color-text); background: color-mix(in srgb, var(--color-text) 10%, transparent); cursor: pointer; }
 .from { min-width: 0; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-fixed-size-14px); color: var(--color-text-secondary); }
