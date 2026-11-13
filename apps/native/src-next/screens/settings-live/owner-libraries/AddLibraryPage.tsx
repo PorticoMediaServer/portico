@@ -1,9 +1,10 @@
 import {readOwnerKindMetadataAgents} from '../../../../../../packages/client-core/src/owner-library-requests';
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Text, View} from 'react-native';
 import type {LibraryContentApi} from '../../../../../../packages/client-core/src/library-content';
 import type {ManagedLibrary} from '../../../../../../packages/client-core/src/library-management';
-import {parseKindMetadataAgents, type MetadataAgentOption} from '../../../../../../packages/client-core/src/server-admin/metadata-agent';
+import {localMetadataChoices, parseKindMetadataAgents, type KindMetadataAgents} from '../../../../../../packages/client-core/src/server-admin/metadata-agent';
+import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
 import type {MessageId} from '../../../../../../packages/i18n/src/index';
 import {defaultI18n} from '../../../../../../packages/i18n/src/index';
 import {Button} from '../../../kit/controls/Button';
@@ -24,7 +25,7 @@ import {LibraryKindTiles} from './LibraryKindTiles';
 import {ownerLibraryKind} from './presentation';
 import {FormScrollView} from '../../../platform/keyboard';
 
-export type AddLibraryInput = Readonly<{name: string; kind: ManagedLibrary['kind']; folders: readonly string[]; expectedRemoteSource?: ExpectedRemoteSource; metadataAgent?: 'online' | 'local'; metadataLanguage?: string}>;
+export type AddLibraryInput = Readonly<{name: string; kind: ManagedLibrary['kind']; folders: readonly string[]; expectedRemoteSource?: ExpectedRemoteSource; metadataAgent?: string; metadataLanguage?: string}>;
 
 /** Settings › Server › Libraries › Add library, as one page (frame 17). */
 export function AddLibraryPage({api, serverName, onCreate, onCancel, busy, error, firstRun = false, ports, runtime}: {api: LibraryContentApi; serverName: string; onCreate: (input: AddLibraryInput) => void; onCancel: () => void; busy: boolean; error?: unknown; firstRun?: boolean; ports?: NativeSettingsLivePorts; runtime?: NativeShellRuntime}) {
@@ -32,21 +33,27 @@ export function AddLibraryPage({api, serverName, onCreate, onCancel, busy, error
   const [kind, setKind] = useState<ManagedLibrary['kind']>('movie'), [name, setName] = useState(defaultI18n.t('next.ownerLibraries.kind.movie')), [touched, setTouched] = useState(false);
   const [choice, setChoice] = useState<LibraryFolderChoice>({folders: []}), [exploring, setExploring] = useState(false);
   const folders = choice.folders;
-  const [agents, setAgents] = useState<readonly MetadataAgentOption[]>([]), [agent, setAgent] = useState('online'), [language, setLanguage] = useState<string>();
+  const [metadata, setMetadata] = useState<KindMetadataAgents>(), [metadataError, setMetadataError] = useState<unknown>();
+  const [agent, setAgent] = useState(''), [language, setLanguage] = useState<string>();
+  const chosenByOwner = useRef<string | undefined>(undefined);
+  const agents = useMemo(() => metadata?.libraryKind === kind ? metadata.agents : [], [metadata, kind]);
 
   useEffect(() => {
-    if (firstRun) return;
+    const request = new AbortController();
     let alive = true;
-    readOwnerKindMetadataAgents(api, kind).then(parseKindMetadataAgents).then(
-      value => {if (!alive) return; setAgents(value.agents); const chosen = value.agents.find(option => option.id === 'online') ?? value.agents[0];
-        if (chosen) {setAgent(current => value.agents.some(option => option.id === current) ? current : chosen.id); setLanguage(chosen.defaultLanguage);}},
-      () => {if (alive) setAgents([]);});
-    return () => {alive = false;};
-  }, [api, kind, firstRun]);
+    setMetadata(undefined); setMetadataError(undefined);
+    readOwnerKindMetadataAgents(api, kind, request.signal).then(raw => parseKindMetadataAgents(raw, kind)).then(
+      value => {if (!alive) return; setMetadata(value); const chosen = value.agents.find(option => option.id === chosenByOwner.current)
+          ?? value.agents.find(option => option.available !== false) ?? value.agents[0];
+        if (chosen) {setAgent(chosen.id); setLanguage(chosen.defaultLanguage);}},
+      error => {if (alive) {setMetadata(localMetadataChoices(kind)); setAgent('local'); setLanguage(undefined); setMetadataError(error);}});
+    return () => {alive = false; request.abort();};
+  }, [api, kind]);
 
-  const chosenAgent = useMemo(() => agents.find(option => option.id === agent), [agents, agent]);
+  const chosenAgent = agents.find(option => option.id === agent);
   const chooseKind = (next: ManagedLibrary['kind']) => {setKind(next); if (!touched) setName(t(ownerLibraryKind(next).label));};
-  const valid = name.trim().length > 0 && folders.length > 0;
+  const valid = name.trim().length > 0 && folders.length > 0 && agents.some(option => option.id === agent);
+  const formError = error ?? metadataError;
   return <View style={{flex: 1}}>
     <FormScrollView contentContainerStyle={{paddingHorizontal: 20, paddingBottom: 24}} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
       <Text style={[shellType(13.5, 400, 19), {color: theme.colors.textSecondary}]}>{t('web.libraries.addLede')}</Text>
@@ -68,8 +75,7 @@ export function AddLibraryPage({api, serverName, onCreate, onCancel, busy, error
 
       {agents.length > 0 && <>
         <SectionTitle>{t('next.ownerLibraries.metadataSource')}</SectionTitle>
-        <SettingsGroup>{agents.map((option, index) => <MetadataAgentChoice key={option.id} option={option} first={index === 0} checked={option.id === agent} onPress={() => {setAgent(option.id); setLanguage(option.defaultLanguage);}}/>)}</SettingsGroup>
-        <Text style={[shellType(12.5, 500, 17.5), {color: theme.colors.textTertiary, marginTop: 8, paddingHorizontal: 4}]}>{t('web.metadataSource.saved')}</Text>
+        <SettingsGroup>{agents.map((option, index) => <MetadataAgentChoice key={option.id} option={option} first={index === 0} checked={option.id === agent} onPress={() => {chosenByOwner.current = option.id; setAgent(option.id); setLanguage(option.defaultLanguage);}}/>)}</SettingsGroup>
       </>}
 
       {language !== undefined && chosenAgent && chosenAgent.languages.length > 0 && <>
@@ -78,11 +84,11 @@ export function AddLibraryPage({api, serverName, onCreate, onCancel, busy, error
           control={<Select testID="owner-libraries-add-language" accessibilityLabel={t('next.ownerLibraries.addLibrary.language')} value={language} options={chosenAgent.languages.map(code => ({value: code, label: languageName(code, key => defaultI18n.has(key) ? defaultI18n.t(key) : undefined)}))} onValueChange={setLanguage}/>}/></SettingsGroup>
       </>}
 
-      {error !== undefined && <FormError placement="field">{error instanceof Error ? error.message : t('next.ownerLibraries.saveFailed')}</FormError>}
+      {formError !== undefined && <FormError placement="field">{presentError(formError, 'library', {operation: error !== undefined ? 'save' : 'load'}).body}</FormError>}
     </FormScrollView>
     <View style={{flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingVertical: 12, borderTopWidth: 1, borderTopColor: theme.colors.lineSoft, backgroundColor: theme.colors.ink}}>
       <Button variant="glass" size="small" disabled={busy} onPress={onCancel}>{t(firstRun ? 'web.setup.skip' : 'action.cancel')}</Button>
-      <Button size="small" loading={busy} disabled={!valid || busy} onPress={() => onCreate({name: name.trim(), kind, folders: folders.map(folder => folder.path), ...(!firstRun && agent ? {metadataAgent: agent as 'online' | 'local'} : {}), ...(!firstRun && language ? {metadataLanguage: language} : {})})} style={{flex: 1}}>{t(firstRun ? 'web.setup.addLibraryScan' : 'web.empty.addLibrary')}</Button>
+      <Button size="small" loading={busy} disabled={!valid || busy} onPress={() => onCreate({name: name.trim(), kind, folders: folders.map(folder => folder.path), metadataAgent: agent, ...(language ? {metadataLanguage: language} : {})})} style={{flex: 1}}>{t(firstRun ? 'web.setup.addLibraryScan' : 'web.empty.addLibrary')}</Button>
     </View>
     <FolderSourcePicker open={exploring} onOpenChange={setExploring} api={api} serverName={serverName} ports={firstRun ? undefined : ports} runtime={firstRun ? undefined : runtime}
       chosen={choice} onUse={setChoice}/>

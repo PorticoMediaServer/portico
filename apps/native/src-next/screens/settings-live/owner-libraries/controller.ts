@@ -363,7 +363,7 @@ export class NativeOwnerLibrariesController {
   scanAll(): Promise<void | undefined> {return this.command(() => this.management.scan('full'));}
 
   /** Creates the library from the real form, then opens it so its first scan is visible in place. */
-  async create(input: Readonly<{name: string; kind: ManagedLibrary['kind']; folders: readonly string[]; expectedRemoteSource?: ExpectedRemoteSource; metadataAgent?: 'online' | 'local'; metadataLanguage?: string}>): Promise<string | undefined> {
+  async create(input: Readonly<{name: string; kind: ManagedLibrary['kind']; folders: readonly string[]; expectedRemoteSource?: ExpectedRemoteSource; metadataAgent?: string; metadataLanguage?: string}>): Promise<string | undefined> {
     const done = await this.command(async () => {await this.management.createLibrary(input); return this.management.getSnapshot().selectedLibraryId ?? undefined;});
     if (done) {await this.refresh(); await this.load(done);}
     return done ?? undefined;

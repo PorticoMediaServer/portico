@@ -1,4 +1,3 @@
-import {encodedRoutePath} from "../../../contracts/src/route-paths.ts";
 import {serverPath} from '../query/server-api.ts';
 import type {LibraryContentApi} from '../library-content.ts';
 import type {ErrorBody} from '../../../contracts/src/next/api.ts';
@@ -40,19 +39,24 @@ function parseAgentOption(a: Record<string, unknown>): MetadataAgentOption | nul
   });
 }
 
+function providerOptions(raw: unknown): readonly Record<string, unknown>[] {
+  if (!Array.isArray(raw)) throw new Error('Invalid metadata choices.');
+  const names: Readonly<Record<string, string>> = {tmdb: 'TMDB', tvdb: 'TheTVDB', musicbrainz: 'MusicBrainz', anilist: 'AniList', local: 'Local only'};
+  return raw.slice(0, 16).map((value: unknown) => {
+    const p = value as Record<string, unknown> | null;
+    if (!p || typeof p.id !== 'string' || typeof p.available !== 'boolean') throw new Error('Invalid metadata choices.');
+    return {...p, name: names[p.id] ?? p.id, description: p.available ? '' : text(p.reason, 600), providers: p.id === 'local' ? [] : [p.id]};
+  });
+}
+
 /** Reads the server's answer; throws on one without what a change needs. */
 export function parseMetadataAgent(raw: unknown): LibraryMetadataAgent {
   let o = raw as Record<string, unknown> | null;
   if (o && typeof o.metadataProvider === 'string') {
     if (!Array.isArray(o.metadataProviders) || !text(o.id, 128) || !text(o.kind, 32) || typeof o.revision !== 'string' || !/^[0-9]+$/.test(o.revision)) throw new Error('Invalid metadata source.');
     const kinds: Readonly<Record<string, string>> = {movies: 'movie', shows: 'tv', audiobooks: 'audiobook', books: 'book', comics: 'comic'};
-    const names: Readonly<Record<string, string>> = {tmdb: 'TMDB', tvdb: 'TheTVDB', musicbrainz: 'MusicBrainz', anilist: 'AniList', local: 'Local only'};
     o = {...o, libraryId: o.id, libraryKind: kinds[String(o.kind)] ?? o.kind, revision: Number(o.revision), agent: o.metadataProvider,
-      agents: o.metadataProviders.slice(0, 16).map((value: unknown) => {
-        const p = value as Record<string, unknown> | null;
-        if (!p || typeof p.id !== 'string' || typeof p.available !== 'boolean') throw new Error('Invalid metadata source.');
-        return {...p, name: names[p.id] ?? p.id, description: p.available ? '' : text(p.reason, 600), providers: p.id === 'local' ? [] : [p.id]};
-      })};
+      agents: providerOptions(o.metadataProviders)};
   }
   if (!o || typeof o !== 'object' || typeof o.revision !== 'number' || !Number.isSafeInteger(o.revision) || o.revision < 1 || !text(o.agent, 64) || !Array.isArray(o.agents)) throw new Error('Invalid metadata source.');
   const agents: MetadataAgentOption[] = [];
@@ -67,12 +71,17 @@ export function parseMetadataAgent(raw: unknown): LibraryMetadataAgent {
   return Object.freeze({libraryId: text(o.libraryId, 128), libraryKind: text(o.libraryKind, 32), revision: o.revision, agent: o.agent as string, agents: Object.freeze(agents), ...(language ? {language} : {}), ...(typeof o.region === 'string' ? {region: o.region} : {})});
 }
 
-/** The choices before a library exists (`GET /v1/library-kinds/{kind}/metadata-agents`). */
+/** The chosen kind's choices from the owner libraries list, even before any library exists. */
 export type KindMetadataAgents = Readonly<{libraryKind: string; agents: readonly MetadataAgentOption[]}>;
 
 /** Reads the kind's choices; throws only when `agents` isn't an array or is empty after parsing. */
-export function parseKindMetadataAgents(raw: unknown): KindMetadataAgents {
-  const o = raw as Record<string, unknown> | null;
+export function parseKindMetadataAgents(raw: unknown, kind?: string): KindMetadataAgents {
+  let o = raw as Record<string, unknown> | null;
+  if (kind !== undefined && o && typeof o.metadataProviders === 'object' && o.metadataProviders !== null) {
+    const kinds: Readonly<Record<string, string>> = {movie: 'movies', tv: 'shows', anime: 'anime', music: 'music', audiobook: 'audiobooks', book: 'books', comic: 'comics'};
+    const choices = (o.metadataProviders as Record<string, unknown>)[kinds[kind] ?? kind];
+    o = {libraryKind: kind, agents: providerOptions(choices)};
+  }
   if (!o || typeof o !== 'object' || !Array.isArray(o.agents)) throw new Error('Invalid metadata choices.');
   const agents: MetadataAgentOption[] = [];
   for (const a of (o.agents as unknown[]).slice(0, 16)) {
@@ -85,9 +94,14 @@ export function parseKindMetadataAgents(raw: unknown): KindMetadataAgents {
   return Object.freeze({libraryKind: text(o.libraryKind, 32), agents: Object.freeze(agents)});
 }
 
+/** Local files need no provider registration, so a failed choices read cannot block creation. */
+export function localMetadataChoices(kind: string): KindMetadataAgents {
+  return parseKindMetadataAgents({libraryKind: kind, agents: providerOptions([{id: 'local', available: true}])});
+}
+
 export const metadataAgentPath = (libraryId: string) => serverPath('GET /v1/admin/libraries/{id}', {id: libraryId});
 
-export const kindMetadataAgentsPath = (kind: string) => encodedRoutePath("get_library_kinds_kind_metadata_agents", {"kind": encodeURIComponent(kind)});
+export const kindMetadataAgentsPath = (_kind: string) => serverPath('GET /v1/admin/libraries');
 
 /** A local command; the writer moves its revision to If-Match, never the server body. */
 export const metadataAgentChange = (current: LibraryMetadataAgent, agent: MetadataAgentId, region?: string) => ({expectedRevision: current.revision, agent, ...(region === undefined ? {} : {region})});
