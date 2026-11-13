@@ -251,6 +251,7 @@ func timeParam(r *http.Request, name string, fallback time.Time) (time.Time, err
 func (s *Server) programmes(ctx context.Context, v db.Viewer, lv db.LiveViewer, channels []db.LiveChannel, from, to time.Time, most int) ([][]LiveProgramme, error) {
 	all := make([][]db.GuideProgramme, len(channels))
 	var ids []int64
+	named := map[int64]bool{}
 	for n, c := range channels {
 		if c.Kind == db.ChannelFromSource && (c.GuideSource == 0 || c.GuideKey == "") {
 			continue // no listings: source 0 is the Library Channels' and is never read for a source's channel
@@ -261,22 +262,25 @@ func (s *Server) programmes(ctx context.Context, v db.Viewer, lv db.LiveViewer, 
 		}
 		all[n] = rows
 		for _, p := range rows {
-			if p.ItemID != 0 {
+			if p.ItemID != 0 && !named[p.ItemID] {
+				named[p.ItemID] = true
 				ids = append(ids, p.ItemID)
 			}
 		}
 	}
-	seen, err := s.db.VisibleItems(ctx, v, ids)
+	// The schedule and its title read stay shared. Check both the programme and
+	// any show whose name it borrows before shaping this viewer's answer.
+	current, err := s.db.ProgrammeTitles(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	// A Library Channel's programme is shown from the title as it is now, and only when the row
-	// is still the title the schedule named: a row id can be used again after a delete.
-	var shown []int64
-	for id := range seen {
-		shown = append(shown, id)
+	for _, title := range current {
+		if title.ShowID != 0 && !named[title.ShowID] {
+			named[title.ShowID] = true
+			ids = append(ids, title.ShowID)
+		}
 	}
-	current, err := s.db.ProgrammeTitles(ctx, shown)
+	seen, err := s.db.VisibleItems(ctx, v, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -289,10 +293,14 @@ func (s *Server) programmes(ctx context.Context, v db.Viewer, lv db.LiveViewer, 
 			switch {
 			case channels[n].Kind == db.ChannelFromLibrary && p.ItemID == 0:
 				item.Slate = true
-			case channels[n].Kind == db.ChannelFromLibrary && seen[p.ItemID] != p.ProgrammeKey, channels[n].Kind == db.ChannelFromSource && !rated(lv, p.RatingAge):
+			case channels[n].Kind == db.ChannelFromLibrary && (seen[p.ItemID] != p.ProgrammeKey || current[p.ItemID].PublicID != p.ProgrammeKey),
+				channels[n].Kind == db.ChannelFromSource && !rated(lv, p.RatingAge):
 				item.NotAvailable = true
 			case channels[n].Kind == db.ChannelFromLibrary:
 				t := current[p.ItemID]
+				if t.ShowID != 0 && seen[t.ShowID] == "" {
+					t.Title, t.EpisodeTitle = t.EpisodeTitle, ""
+				}
 				item.Title, item.EpisodeTitle, item.Season, item.Episode = t.Title, t.EpisodeTitle, t.Season, t.Episode
 				item.Summary, item.Rating, item.ItemID = t.Summary, t.ContentRating, t.PublicID
 			default:
