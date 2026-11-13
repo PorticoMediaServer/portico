@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"io"
 	"net/netip"
-	"os"
 	"strconv"
 	"strings"
 
@@ -27,23 +26,13 @@ func NewIPv6(log *slog.Logger, router func() Router) *Mapper {
 // It is also the address used when the owner handles the firewall by hand.
 func (m *Mapper) ClientAddress() netip.Addr { return m.router().Client }
 
-// DefaultIPv6Router reads Linux's default IPv6 route and a global address
+// DefaultIPv6Router reads the default IPv6 route and a global address
 // on that interface. No guessed address or address from another interface is used.
 func DefaultIPv6Router(bound netip.Addr) Router {
 	if bound.IsValid() && (!bound.Is6() || bound.Is4In6()) {
 		return Router{}
 	}
-	routes, err := os.Open("/proc/net/ipv6_route")
-	if err != nil {
-		return Router{}
-	}
-	defer routes.Close()
-	addresses, err := os.Open("/proc/net/if_inet6")
-	if err != nil {
-		return Router{}
-	}
-	defer addresses.Close()
-	return readIPv6Router(routes, addresses, bound)
+	return defaultIPv6Router(bound)
 }
 
 func ipv6Hex(s string) netip.Addr {
@@ -108,4 +97,9 @@ func readIPv6Router(routes, addresses io.Reader, bound netip.Addr) Router {
 		return r
 	}
 	return Router{}
+}
+
+func usableRouterClient(ip, bound netip.Addr) bool {
+	return ip.Is6() && !ip.Is4In6() && ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLinkLocalUnicast() &&
+		(!bound.IsValid() || bound.IsUnspecified() || ip == bound)
 }
