@@ -83,7 +83,8 @@ export function FolderExplorer({open, onOpenChange, api, title, subtitle, chosen
       renderItem={({item: entry, index}) => <ExplorerFolderRow entry={entry} first={index === 0} last={index === folders.length - 1}
         checked={has(entry)} multiple={multiple} onOpen={() => entry.kind === 'directory' ? choose(entry.path) : add(entry)} onCheck={() => add(entry)}/>}
       ListHeaderComponent={<View style={{gap: 12, paddingBottom: 8}}>
-      <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
+      {/* The sheet draws its body edge to edge and each row pads itself; the lines between rows take the rows' 14 pt. */}
+      <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14}}>
         <Button variant="icon" size="xs" icon="i-left" accessibilityLabel={t('next.ownerLibraries.explorer.up')} disabled={!page?.parent || page.parent === page.path} onPress={() => page?.parent && choose(page.parent)}/>
         {editing ? <TextField focusId="owner-libraries-explorer-path" value={typed} onChangeText={setTyped} autoFocus returnKeyType="go" onSubmitEditing={() => {if (typed.trim()) choose(typed.trim());}} containerStyle={{flex: 1}} accessibilityLabel={t('next.ownerLibraries.explorer.path')} showSoftInputOnFocus/>
           : <Focusable accessibilityRole="button" accessibilityLabel={t('next.ownerLibraries.explorer.path')} onPress={() => {setEditing(true); setTyped(page?.path ?? '');}} focusKind="row" focusRadius={10} style={{flex: 1, minHeight: 38, justifyContent: 'center', paddingHorizontal: 10, borderRadius: 10, backgroundColor: theme.colors.raised}}>
@@ -104,7 +105,7 @@ export function FolderExplorer({open, onOpenChange, api, title, subtitle, chosen
           control={<ExplorerCheck checked={has(here)} onPress={() => add(here)} label={t('next.ownerLibraries.explorer.addThisFolder')}/>}/>
       </SettingsGroup>}
 
-      <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 2}}>
+      <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14}}>
         <Text style={[shellType(13, 700), {color: theme.colors.textTertiary, flex: 1}]}>{selectionMode === 'file-or-folder' ? t('next.ownerLibraries.explorer.filesAndFolders') : t('next.ownerLibraries.explorer.folders')}</Text>
         <Text style={[shellType(12.5, 600), {color: theme.colors.textTertiary}]}>{t('next.ownerLibraries.explorer.showHidden')}</Text>
         <Switch testID={testID ? `${testID}-hidden` : undefined} checked={hidden} accessibilityLabel={t('next.ownerLibraries.explorer.showHidden')} onCheckedChange={setHidden}/>
@@ -115,16 +116,16 @@ export function FolderExplorer({open, onOpenChange, api, title, subtitle, chosen
       ListFooterComponent={<View style={{gap: 12, paddingTop: 8}}>
         {page?.nextCursor ? <SettingsGroup><SettingsRow navigates first label={t(loading ? 'next.ownerLibraries.explorer.reading' : 'next.ownerLibraries.explorer.more')} onPress={loading ? undefined : loadMore}/></SettingsGroup> : null}
 
-      {page?.truncated && <Text style={[shellType(12.5, 500, 17.5), {color: theme.colors.textTertiary, paddingHorizontal: 4}]}>{t('next.ownerLibraries.explorer.truncated')}</Text>}
+      {page?.truncated && <Text style={[shellType(12.5, 500, 17.5), {color: theme.colors.textTertiary, paddingHorizontal: 14}]}>{t('next.ownerLibraries.explorer.truncated')}</Text>}
 
-      {picked.length > 0 && <View style={{gap: 8}}>
-        <Text style={[shellType(12.5, 700), {color: theme.colors.textTertiary, paddingHorizontal: 4}]}>{t('next.ownerLibraries.explorer.chosen')}</Text>
+      {picked.length > 0 && <View style={{gap: 8, paddingHorizontal: 14}}>
+        <Text style={[shellType(12.5, 700), {color: theme.colors.textTertiary}]}>{t('next.ownerLibraries.explorer.chosen')}</Text>
         <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 8}}>{picked.map(folder => <Focusable key={folder.path} accessibilityRole="button" accessibilityLabel={`${folder.name}, ${t('next.ownerLibraries.explorer.removeChosen')}`} onPress={() => setPicked(current => current.filter(value => value.path !== folder.path))} focusKind="chip" focusRadius={14}
           style={{flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '100%', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 14, backgroundColor: alpha(theme.colors.text, .08)}}>
           <Icon name="i-folder" size={14}/><Text numberOfLines={1} style={[shellType(12.5, 600), {color: theme.colors.text, flexShrink: 1}]}>{folder.path}</Text><Icon name="i-x" size={12}/>
         </Focusable>)}</View>
       </View>}
-      {selectionMode === 'folders' && <Text style={[shellType(12, 500, 17), {color: theme.colors.textTertiary, paddingHorizontal: 4}]}>{t('next.ownerLibraries.explorer.disksOnly')}</Text>}
+      {selectionMode === 'folders' && <Text style={[shellType(12, 500, 17), {color: theme.colors.textTertiary, paddingHorizontal: 14}]}>{t('next.ownerLibraries.explorer.disksOnly')}</Text>}
     </View>}/>
   </BottomSheet>;
 }
