@@ -26,7 +26,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaengine"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/titledata"
-	"github.com/PorticoMediaServer/portico/server-next/internal/storagepaths"
 	"github.com/PorticoMediaServer/portico/server-next/internal/webapp"
 )
 
@@ -139,15 +138,7 @@ func run(log *slog.Logger) (err error) {
 	go handler.AnnounceDLNA(ctx, *listen)
 	// The media engine plans and runs the streams. Its conversions folder is emptied at start:
 	// no stream outlives a restart.
-	// Conversions start in the data folder. In a container whose /transcode is a mount (every
-	// compose file maps one, so that conversions can sit on a fast disk), they start there, in
-	// a folder of the server's own. The owner's choice in Settings wins over both.
-	conversions := filepath.Join(*data, "transcodes")
-	if _, docker := os.Stat("/.dockerenv"); docker == nil || os.Getenv("PORTICO_CONTAINER") == "1" {
-		if mounts, err := storagepaths.CurrentMounts(); err == nil && storagepaths.IsMount("/transcode", mounts) {
-			conversions = filepath.Join("/transcode", "portico-conversions")
-		}
-	}
+	conversions := conversionFolder(*data, log)
 	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: conversions, Log: log.With("log_kind", "playback"),
 		Kept: filepath.Join(*data, "ffmpeg-abilities.json"), Remote: handler.RemoteSources().Open, Settings: handler.Settings()})
 	if err != nil {

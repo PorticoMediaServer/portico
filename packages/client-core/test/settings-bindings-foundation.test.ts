@@ -98,15 +98,10 @@ test('chapter labels toggle writes the segments settings document\'s boolean (#3
  assert.equal(readSettingsBinding(binding,{forms:{segments:patch.values}})?.current,false);
 });
 
-test('conversion preference and its disk folder have independent runtime bindings',()=>{
- const location=settingsBinding('streaming.transcodeLocation')!,folder=settingsBinding('streaming.transcodeFolder')!;
- assert.deepEqual(location,{form:'runtime',key:'transcodeLocation'});
+test('the conversion folder has one runtime binding',()=>{
+ const folder=settingsBinding('streaming.transcodeFolder')!;
  assert.equal(folder.key,'temporaryDirectory');
- const sources={forms:{runtime:{transcodeLocation:'memory',temporaryDirectory:'/transcode'}}};
- assert.equal(readSettingsBinding(location,sources)?.current,'memory');
- assert.equal(readSettingsBinding(folder,sources)?.current,'/transcode');
- assert.deepEqual(settingsBindingPatch(location,'disk'),{form:'runtime',values:{transcodeLocation:'disk'}});
- assert.deepEqual(settingsBindingPatch(location,'memory'),{form:'runtime',values:{transcodeLocation:'memory'}});
+ assert.equal(readSettingsBinding(folder,{forms:{runtime:{temporaryDirectory:'/transcode'}}})?.current,'/transcode');
  assert.deepEqual(settingsBindingPatch(folder,'/disk'),{form:'runtime',values:{temporaryDirectory:'/disk'}});
 });
 
@@ -117,4 +112,9 @@ test('How much to convert names cheapest and compatibility routes honestly in bo
  }
  assert.deepEqual(settingsBindingPatch(binding,'least'),{form:'runtime',values:{planningPolicy:'maximum_fidelity'}});
  assert.deepEqual(settingsBindingPatch(binding,'most'),{form:'runtime',values:{planningPolicy:'maximum_compatibility'}});
+});
+
+test('Automatic is the hardware cap default; other conversion limits still say No limit',()=>{
+ assert.equal(readSettingsBinding(settingsBinding('streaming.maxHardwareConversions')!,{forms:{runtime:{maxHardwareSessions:0}}})?.current,'auto');
+ assert.equal(readSettingsBinding(settingsBinding('streaming.maxSoftwareConversions')!,{forms:{runtime:{maxSoftwareSessions:0}}})?.current,'unlimited');
 });

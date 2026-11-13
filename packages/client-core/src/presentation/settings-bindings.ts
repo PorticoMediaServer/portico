@@ -66,10 +66,7 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'general.updateFeed':{form:'runtime',key:'updates.feedUrl'},
  'updates.channel':{form:'runtime',key:'updates.releaseChannel'},
  'streaming.allowConversion':{form:'runtime',key:'conversionMode'},
- // The drawn Conversion location is one stored directory: "separate" writes no
- // path, "memory" writes the platform's RAM file system, and the child folder
- // row writes the chosen one. The three-way choice is projected by the page
- // from the capacity facts, never stored as a second setting.
+ // The location preference never erases the owner's chosen disk/spill folder.
  'streaming.transcodeFolder':{form:'runtime',key:'temporaryDirectory'},
  'streaming.outputFormat':{form:'runtime',key:'outputFormat'},
  'streaming.musicAwayQuality':{form:'runtime',key:'musicAwayQuality',codec:'music-quality-choice'},
@@ -83,7 +80,6 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  // The drawn Device selector needs the checked opaque device-ID producer.
  // hardwareBackend names a method and cannot represent this decision; the
  // former free-text streaming.hardwareDevice row is retired by 812.
- 'streaming.toneMapping':{form:'runtime',key:'hdrToneMapping'},
  'streaming.toneMappingMethod':{form:'runtime',key:'hdrToneMappingAlgorithm'},
  'streaming.encoderSpeed':{form:'runtime',key:'x264Preset'},
  'streaming.repackage':{form:'runtime',key:'directStreamRemux'},
@@ -93,8 +89,6 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'streaming.convertAhead':{form:'runtime',key:'throttleBufferMs',scale:1000,codec:'number-choice'},
  'streaming.rewindKeep':{form:'runtime',key:'playedRetentionMs',scale:1000,codec:'number-choice'},
  'streaming.sessionSpace':{form:'runtime',key:'sessionStorageMiB',codec:'number-choice'},
- 'streaming.transcodeLocation':{form:'runtime',key:'transcodeLocation'},
- 'streaming.memoryCap':{form:'runtime',key:'memoryCap'},
  'streaming.maxConversions':{form:'runtime',key:'maxConcurrentSessions',codec:'unlimited'},
  'streaming.maxHardwareConversions':{form:'runtime',key:'maxHardwareSessions',codec:'unlimited'},
  'streaming.maxSoftwareConversions':{form:'runtime',key:'maxSoftwareSessions',codec:'unlimited'},
@@ -299,7 +293,7 @@ function presented(binding:SettingsBinding,v:unknown,sources:SettingsBindingSour
  if(binding.codec==='domain')return v?`https://${String(v)}`:'';
  if(binding.codec==='interface')return v||'all';
  if(binding.codec==='remote-policy')return v==='allow'?'anyone':v==='owner-only'?'owner':undefined;
- if(binding.codec==='unlimited')return v===0||v===null?'unlimited':String(v);
+ if(binding.codec==='unlimited')return v===0||v===null?(binding.key==='maxHardwareSessions'?'auto':'unlimited'):String(v);
  if(binding.codec==='days'&&Array.isArray(v)){const chosen=v;return Object.fromEntries(days.map(d=>[d,chosen.includes(d)?'runs':'skips']));}
  if(binding.codec==='log-retention'&&Array.isArray(v)){const entries=v as {category:string;days:number}[];return Object.fromEntries(categories.map(k=>[k,String(entries.find(r=>r.category===k)?.days??'default')]));}
  if(binding.scale){if(v===0&&binding.key==='uploadCapacityKbps')return null;v=typeof v==='number'?v/binding.scale:v;}

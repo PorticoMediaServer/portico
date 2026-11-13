@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -34,13 +35,11 @@ type StreamingSettings struct {
 	ConversionsAtOnce int `json:"conversionsAtOnce"`
 	// ProcessorConversionsAtOnce limits picture conversions on the processor alone; 0 is no limit.
 	ProcessorConversionsAtOnce int `json:"processorConversionsAtOnce"`
+	// HardwareConversionsAtOnce caps each observed graphics device; 0 uses its own capacity.
+	HardwareConversionsAtOnce int `json:"hardwareConversionsAtOnce"`
 	// BackgroundConversionsAtOnce caps prepared copies made in the background, independently
 	// of plays. Zero adds no owner cap; work already running completes.
 	BackgroundConversionsAtOnce int `json:"backgroundConversionsAtOnce"`
-	// ToneMapping converts an HDR picture to standard range for a screen that cannot show
-	// HDR. With it off such a picture is converted without it and looks washed out; that is
-	// for troubleshooting.
-	ToneMapping bool `json:"toneMapping"`
 	// EncoderSpeed is the processor encoder's speed/size trade-off.
 	EncoderSpeed string `json:"encoderSpeed"`
 	// PlanningPolicy chooses the cheapest route or more conversion for compatibility.
@@ -55,10 +54,10 @@ type StreamingSettings struct {
 	KeepForRewindingSeconds int `json:"keepForRewindingSeconds"`
 	// SpacePerStreamMiB bounds one stream's generated output, removing old pieces first.
 	SpacePerStreamMiB int `json:"spacePerStreamMiB"`
-	// MemoryLimit bounds aggregate RAM output, with the existing spill to disk when full.
-	MemoryLimit string `json:"memoryLimit"`
-	// ConversionFolder is a folder of the owner's choosing for conversions; empty is the
-	// server's own data folder. The server keeps a folder of its own inside it and never
+	// ToneMappingMethod controls software and CUDA; Intel drivers choose their own curve.
+	ToneMappingMethod string `json:"toneMappingMethod"`
+	// ConversionFolder is a folder of the owner's choosing for conversions; empty uses the
+	// default conversion folder. The server keeps a folder of its own inside it and never
 	// empties anything else. It applies to streams started after it is saved.
 	ConversionFolder string `json:"conversionFolder"`
 	// FFmpegProgram is the full path of the ffmpeg to convert with; empty is the one the
@@ -79,9 +78,9 @@ var GraphicsDevices = []string{"nvenc", "qsv", "vaapi", "videotoolbox", "amf"}
 
 // Streaming is the streaming settings document. Playback and the media engine read it.
 var Streaming = Define("streaming", StreamingSettings{ConvertWhenNeeded: ConvertPictureAndSound, GraphicsDevice: "automatic",
-	HardwareDecoding: true, ToneMapping: true, EncoderSpeed: "veryfast", PlanningPolicy: "maximum_fidelity",
+	HardwareDecoding: true, EncoderSpeed: "veryfast", PlanningPolicy: "maximum_fidelity",
 	Repackaging: true, ConversionFormat: "auto", ConvertAheadSeconds: 60, KeepForRewindingSeconds: 180,
-	SpacePerStreamMiB: 4096, MemoryLimit: "quarter"}, checkStreaming)
+	SpacePerStreamMiB: 4096, ToneMappingMethod: "hable"}, checkStreaming)
 
 func checkStreaming(s *StreamingSettings) error {
 	switch s.ConvertWhenNeeded {
@@ -123,8 +122,11 @@ func checkStreaming(s *StreamingSettings) error {
 	if !slices.Contains([]int{1024, 2048, 4096, 8192, 16384, 32768}, s.SpacePerStreamMiB) {
 		return &Invalid{Field: "spacePerStreamMiB", Message: "Choose 1, 2, 4, 8, 16 or 32 GB."}
 	}
-	if !slices.Contains([]string{"quarter", "half", "2gb", "4gb", "8gb", "16gb"}, s.MemoryLimit) {
-		return &Invalid{Field: "memoryLimit", Message: "Choose a quarter or half of free memory, or one of the listed sizes."}
+	if !slices.Contains([]int{0, 1, 2, 3, 5, 8}, s.HardwareConversionsAtOnce) {
+		return &Invalid{Field: "hardwareConversionsAtOnce", Message: "Choose Automatic, 1, 2, 3, 5 or 8 conversions per device."}
+	}
+	if !slices.Contains([]string{"off", "clip", "linear", "gamma", "reinhard", "hable", "mobius"}, s.ToneMappingMethod) {
+		return &Invalid{Field: "toneMappingMethod", Message: "Choose one of the listed tone-mapping methods."}
 	}
 	s.ConversionFolder, s.FFmpegProgram = strings.TrimSpace(s.ConversionFolder), strings.TrimSpace(s.FFmpegProgram)
 	for _, f := range []struct{ name, value string }{{"conversionFolder", s.ConversionFolder}, {"ffmpegProgram", s.FFmpegProgram}} {
@@ -141,6 +143,22 @@ func checkStreaming(s *StreamingSettings) error {
 		if f.value < 0 || f.value > 1000 {
 			return &Invalid{Field: f.name, Message: "Give a number of conversions, or 0 for no limit."}
 		}
+	}
+	return nil
+}
+
+// Keep an earlier owner's Off choice when reading the former boolean setting.
+func (s *StreamingSettings) UnmarshalJSON(raw []byte) error {
+	type plain StreamingSettings
+	value := struct {
+		*plain
+		LegacyToneMapping *bool `json:"toneMapping"`
+	}{plain: (*plain)(s)}
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return err
+	}
+	if value.LegacyToneMapping != nil && !*value.LegacyToneMapping {
+		s.ToneMappingMethod = "off"
 	}
 	return nil
 }

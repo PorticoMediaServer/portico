@@ -61,7 +61,11 @@ func TestEachStreamingSettingChangesExactlyWhatItIsFor(t *testing.T) {
 			func(c streaming.DeliveryConfiguration) bool { return c.SoftwareDecode }},
 		"three conversions at once": {func(s *settings.StreamingSettings) { s.ConversionsAtOnce = 3 }, []string{"MaxConversions"},
 			func(c streaming.DeliveryConfiguration) bool { return c.MaxConversions == 3 }},
-		"tone mapping off": {func(s *settings.StreamingSettings) { s.ToneMapping = false }, []string{"ToneMapping"},
+		"one conversion per graphics device": {func(s *settings.StreamingSettings) { s.HardwareConversionsAtOnce = 1 }, []string{"MaxHardwareConversions"},
+			func(c streaming.DeliveryConfiguration) bool { return c.MaxHardwareConversions == 1 }},
+		"software and CUDA tone-mapping method": {func(s *settings.StreamingSettings) { s.ToneMappingMethod = "reinhard" }, []string{"ToneMapAlgorithm"},
+			func(c streaming.DeliveryConfiguration) bool { return c.ToneMapAlgorithm == "reinhard" }},
+		"tone mapping off": {func(s *settings.StreamingSettings) { s.ToneMappingMethod = "off" }, []string{"ToneMapping"},
 			func(c streaming.DeliveryConfiguration) bool { return !c.ToneMapping }},
 		// These three are not the planner's: the away limits and the upload speed are applied
 		// where a play is admitted (playback/away.go), the folder and program by SetConversion.
@@ -233,6 +237,14 @@ func TestSavedConversionPolicyReachesThePlanner(t *testing.T) {
 }
 
 func TestSavedWorkingSpaceSettingsReachTheStream(t *testing.T) {
+	prior := settings.Streaming.Get(nil)
+	if prior.ToneMappingMethod != "hable" {
+		t.Fatal(prior)
+	}
+	if err := json.Unmarshal([]byte(`{"toneMapping":false,"conversionFolder":"/chosen"}`), &prior); err != nil || prior.ToneMappingMethod != "off" || prior.ConversionFolder != "/chosen" {
+		t.Fatal(prior, err)
+	}
+
 	ctx := context.Background()
 	d, err := db.Open(ctx, filepath.Join(t.TempDir(), "main.db"))
 	if err != nil {
@@ -246,11 +258,11 @@ func TestSavedWorkingSpaceSettingsReachTheStream(t *testing.T) {
 	if got := delivery(settings.Streaming.Get(st)); got.PlayedRetentionSeconds != 180 {
 		t.Fatal(got)
 	}
-	if _, err := st.Write(ctx, 0, "streaming", json.RawMessage(`{"convertAheadSeconds":120,"keepForRewindingSeconds":0,"spacePerStreamMiB":8192,"memoryLimit":"half"}`), -1, time.Now()); err != nil {
+	if _, err := st.Write(ctx, 0, "streaming", json.RawMessage(`{"convertAheadSeconds":120,"keepForRewindingSeconds":0,"spacePerStreamMiB":8192}`), -1, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	got := delivery(settings.Streaming.Get(st))
-	if got.ThrottleBufferSeconds != 120 || got.PlayedRetentionSeconds != 0 || got.SessionStorageMiB != 8192 || got.MemoryCap != "half" {
+	if got.ThrottleBufferSeconds != 120 || got.PlayedRetentionSeconds != 0 || got.SessionStorageMiB != 8192 {
 		t.Fatal(got)
 	}
 	if _, err := st.Write(ctx, 0, "streaming", json.RawMessage(`{"keepForRewindingSeconds":300}`), -1, time.Now()); err == nil {

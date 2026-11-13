@@ -819,9 +819,13 @@ func (m *matrix) play(t *testing.T, name, path, item string, subtitles map[strin
 		mean, black, clipped := brightness(m.frame(t, 3, "-i", files[0]))
 		wantMean, wantBlack, wantClipped, tolerance, floor := 110.0, 0.3, 0.1, 90.0, 0.5
 		if !s.owner {
-			// The processor's tone map gives the test picture about 111 against 124 for its
-			// SDR original; before #2728 it gave 80, a third darker, which this now fails.
+			// Mobius gives this test picture about 111 against 124 for its SDR original.
 			tolerance, floor = 45, 0.75
+			// The owner chose Hable as the default on 13 November. Its filmic curve
+			// deliberately gives this synthetic picture about 80, rather than Mobius's 111.
+			if plan.ToneMapAlgorithm == "hable" {
+				floor = 0.60
+			}
 			wantMean, wantBlack, wantClipped = brightness(m.frame(t, 3, "-f", "lavfi", "-i", fmt.Sprintf("testsrc2=size=%dx%d:rate=24:duration=4", video.Width, video.Height)))
 		}
 		// Not black and not washed out, and for the test picture about as bright as the SDR

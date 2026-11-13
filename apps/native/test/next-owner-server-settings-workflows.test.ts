@@ -9,7 +9,6 @@ import {certificateProblemMessage, retryCertificate} from '../../../packages/cli
 import {defaultI18n} from '../../../packages/i18n/src/index.ts';
 
 import type {DraftForm} from '../../../packages/client-core/src/server-admin/draft-form.ts';
-import * as transcodeLocation from '../../../packages/client-core/src/presentation/transcode-location.ts';
 // The JavaScript fixture builds this dictionary from the supplied form IDs.
 type Fixture = Awaited<ReturnType<typeof untypedFormsFixture>> & {group: {forms: Record<string, DraftForm<any, any>>}};
 const formsFixture = (...args: Parameters<typeof untypedFormsFixture>) => untypedFormsFixture(...args) as Promise<Fixture>;
@@ -211,7 +210,8 @@ test('The passphrase is asked twice before it protects new backups, and turning 
   f.stop();
 });
 
-for (const memoryAvailable of [true, false]) test(`Streaming keeps memory preference selectable with host availability (${memoryAvailable})`, async () => {
+test('Streaming edits its folder and server-wide tone-map method', async () => {
+  const memoryAvailable = false;
   const fixture = await formsFixture({runtime: {conversionMode: 'all', hardwareSelection: 'auto', hardwareDecode: true, hdrToneMapping: true, hdrToneMappingAlgorithm: 'hable', x264Preset: 'veryfast', planningPolicy: 'minimize_server_work', directStreamRemux: true, outputFormat: 'auto', maxConcurrentSessions: 0, maxHardwareSessions: 0, maxSoftwareSessions: 0, maxBackgroundSessions: 0, serverCap: 0, throttleBufferMs: 60000, playedRetentionMs: 180000, sessionStorageMiB: 4096, memoryCap: 'quarter', transcodeLocation: 'disk', ffmpegPath: '', temporaryDirectory: '/transcode'}, connectivity: {uploadCapacityKbps: 0, remoteBitrateLimitKbps: 8000, pausedSessionTimeoutMinutes: 0}}), host = lifecycleHooks();
   const capacity = {hardware: {effective: 'vaapi', devices: [{id: 'drm-0a1b', name: 'Intel UHD 770', inUse: true}]}, temporaryDirectory: {path: '/tmp/transcode', ready: true, freeBytes: 12000, memoryPath: '/dev/shm', memoryAvailable}};
   const section = specification.settingsSpec.find((value: any) => value.scope === 'server' && value.id === 'streaming');
@@ -220,13 +220,15 @@ for (const memoryAvailable of [true, false]) test(`Streaming keeps memory prefer
   let hardwareTests = 0, finish: ((value: unknown) => void) | undefined;
   class Lifetime {authority = fixture.group.context.authority(); current = fixture.group.context.current; assert() {assert.ok(this.current());} request = (run: any) => run(new AbortController().signal);dispose() {}}
   class Console {transcodeCapacity = async () => capacity;dispose() {}}
+  class Streaming {form = (id: string) => fixture.group.forms[id];readConfiguration = async () => configuration;}
   const {FormSet} = await import('../../../packages/client-core/src/server-admin/draft-form.ts');
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/StreamingPage.tsx', import.meta.url), {
     ...chrome, react: host.react, '../../../../../../packages/contracts/src/routes': {routePath}, '../../../../../../packages/client-core/src/settings-configuration': {parseSettingsConfiguration: (value: unknown) => value}, '../../../platform/server-connections': {nativeRouteCrypto: {random: () => new Uint8Array(24)}},
     '../../../../../../packages/client-core/src/hardware': {testHardware: () => {hardwareTests++;return new Promise(resolve => {finish = resolve;});}}, '../../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../../../../../packages/client-core/src/console': {ConsoleClient: Console}, '../../../../../../packages/client-core/src/server-admin/draft-form': {FormSet},
     '../../../../../../packages/client-core/src/server-admin/server-forms': {createServerForm: (id: string) => fixture.group.forms[id], withFormValue: (draft: object, key: string, value: unknown) => ({...draft, [key]: value})}, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
+    '../../../../../../packages/client-core/src/server-admin/streaming-settings': {OwnerStreamingSettings: Streaming},
+    '../../../../../../packages/client-core/src/home-selection/list-destinations': {withRequestRaw: (api: unknown) => api},
     './StreamingHardware': {NativeStreamingHardware: 'Hardware'}, '../lifetime': {NativeScreenLifetime: Lifetime},
-    '../../../../../../packages/client-core/src/presentation/transcode-location': transcodeLocation,
     '../../../../../../packages/client-core/src/presentation/hardware-selection': await import('../../../packages/client-core/src/presentation/hardware-selection.ts'),
   });
   (fixture.group.context as any).api = {request: async () => configuration};
@@ -234,37 +236,19 @@ for (const memoryAvailable of [true, false]) test(`Streaming keeps memory prefer
   render();host.flush();await settle();
   const tree = render(), controls = nodes(tree).filter((node: any) => node.type === 'Setting');
   assert.equal(nodes(tree).filter((node: any) => node.type === 'Advanced').length, 1);
-  for (const id of ['streaming.toneMapping', 'streaming.toneMappingMethod', 'streaming.encoderSpeed', 'streaming.whenCantPlay', 'streaming.repackage', 'streaming.maxConversions', 'streaming.awayExact', 'streaming.ffmpegPath']) assert.ok(controls.some((node: any) => node.props.row.id === id), id);
+  for (const id of ['streaming.toneMappingMethod', 'streaming.encoderSpeed', 'streaming.whenCantPlay', 'streaming.repackage', 'streaming.maxConversions', 'streaming.awayExact', 'streaming.ffmpegPath']) assert.ok(controls.some((node: any) => node.props.row.id === id), id);
   // Device lists Automatic, Processor only and each adapter the hardware report found; the
   // memory limit is drawn, and usable only while the location is memory.
   const device = controls.find((node: any) => node.props.row.id === 'streaming.hardware');
   assert.deepEqual(device.props.row.control.options.map((option: any) => option.value), ['auto', 'software', 'drm-0a1b']);
   assert.ok(controls.some((node: any) => node.props.row.id === 'streaming.hardwareDecode'));
-  const memoryCap = () => nodes(render()).find((node: any) => node.type === 'Setting' && node.props.row.id === 'streaming.memoryCap');
-  assert.equal(memoryCap()?.props.value, 'quarter');assert.equal(memoryCap()?.props.disabled, true, 'the memory limit waits for the memory location');
+  assert.equal(controls.some((node: any) => ['streaming.memoryCap', 'streaming.transcodeLocation', 'streaming.toneMapping'].includes(node.props.row.id)), false);
   device.props.onChange('drm-0a1b');
   assert.equal(fixture.group.forms.runtime.getSnapshot().draft.hardwareSelection, 'drm-0a1b');
-  const location = controls.find((node: any) => node.props.row.id === 'streaming.transcodeLocation');
-  assert.ok(location);assert.equal(location.props.value, 'disk');
-  assert.deepEqual(location.props.row.control.options.map((option: any) => option.value), ['memory', 'disk']);
-  assert.ok(location.props.row.control.options.every((option: any) => !option.locked));
-  assert.equal(location.props.row.help, memoryAvailable ? section!.groups![2].rows[1].help : 'next.settings.streaming.memoryUnavailable');
-  const folder = () => nodes(render()).find((node: any) => node.type === 'Setting' && node.props.row.id === 'streaming.transcodeFolder');
-  assert.equal(folder().props.disabled, false);assert.equal(folder().props.value, '/transcode');
-  location.props.onChange('memory');
-  assert.equal(fixture.group.forms.runtime.getSnapshot().draft.transcodeLocation, 'memory');
-  assert.equal(fixture.group.forms.runtime.getSnapshot().draft.temporaryDirectory, '/transcode');
-  assert.equal(memoryCap()?.props.disabled, false, 'the memory preference enables its limit even when this host uses disk');
-  memoryCap()!.props.onChange('2gb');assert.equal(fixture.group.forms.runtime.getSnapshot().draft.memoryCap, '2gb');
-  assert.equal(folder().props.disabled, false, 'the disk folder remains accessible under memory');
-  folder().props.onChange('/mnt/disk');
+  const folder = controls.find((node: any) => node.props.row.id === 'streaming.transcodeFolder');
+  assert.equal(folder.props.disabled, false); assert.equal(folder.props.value, '/transcode');
+  folder.props.onChange('/mnt/disk');
   assert.equal(fixture.group.forms.runtime.getSnapshot().draft.temporaryDirectory, '/mnt/disk');
-  assert.equal(fixture.group.forms.runtime.getSnapshot().draft.transcodeLocation, 'memory');
-  location.props.onChange('disk');
-  assert.equal(fixture.group.forms.runtime.getSnapshot().draft.transcodeLocation, 'disk');
-  assert.equal(fixture.group.forms.runtime.getSnapshot().draft.temporaryDirectory, '/mnt/disk');
-  assert.equal(memoryCap()?.props.disabled, true);
-  assert.equal(folder().props.disabled, false);
   controls.find((node: any) => node.props.row.id === 'streaming.repackage').props.onChange(false);assert.equal(fixture.group.forms.runtime.getSnapshot().draft.directStreamRemux, false);
   assert.equal(hardwareTests, 0);const hardware = nodes(tree).find((node: any) => node.type === 'Hardware');hardware.props.onTest();hardware.props.onTest();assert.equal(hardwareTests, 1);finish!(capacity);await settle();host.dispose();fixture.stop();
 });
@@ -294,7 +278,8 @@ test('History mounts real list/filter wiring and its named retention choices wri
   host.dispose();fixture.stop();
 });
 
-for (const memoryAvailable of [true, false]) test(`TV Streaming saves its explicit preference and independent disk folder (${memoryAvailable})`, async () => {
+test('TV Streaming saves its chosen conversion folder', async () => {
+  const memoryAvailable = false;
   const fixture = await formsFixture({runtime: {conversionMode: 'all', transcodeLocation: 'disk', temporaryDirectory: '/disk', memoryCap: 'quarter'}, connectivity: {}}), host = lifecycleHooks();
   const section = specification.settingsSpec.find((value: any) => value.scope === 'server' && value.id === 'streaming')!;
   const allRows = [...section.groups!, ...section.advanced!.groups!].flatMap((group: any) => values.settingRows(group.rows));
@@ -316,18 +301,8 @@ for (const memoryAvailable of [true, false]) test(`TV Streaming saves its explic
   const render = () => host.render(() => {const outer = module.TVServerSettingsPage({page: 'streaming', ports: {context: fixture.group.context}, runtime});return outer.type(outer.props);});
   const row = (id: string) => nodes(render()).find((node: any) => node.props.testID === id);
   render();host.flush();await settle();
-  assert.equal(row('streaming.transcodeLocation').props.value, 'disk');
-  assert.equal(row('streaming.transcodeLocation').props.description, memoryAvailable ? section.groups![2].rows[1].help : 'next.settings.streaming.memoryUnavailable');
-  assert.ok(row('streaming.transcodeLocation').props.options.every((option: any) => !option.disabled));
-  row('streaming.transcodeLocation').props.onChange('memory');await settle();
-  assert.equal(fixture.group.forms.runtime.getSnapshot().draft.transcodeLocation, 'memory');
-  assert.equal(fixture.group.forms.runtime.getSnapshot().draft.temporaryDirectory, '/disk');
-  assert.equal(row('streaming.transcodeLocation').props.value, 'memory');
-  row('streaming.transcodeFolder').props.onChoose('/fast');await settle();
-  assert.equal(fixture.group.forms.runtime.getSnapshot().draft.temporaryDirectory, '/fast');
-  assert.equal(fixture.group.forms.runtime.getSnapshot().draft.transcodeLocation, 'memory');
-  row('streaming.transcodeLocation').props.onChange('disk');await settle();
-  assert.equal(fixture.group.forms.runtime.getSnapshot().draft.transcodeLocation, 'disk');
+  assert.equal(row('streaming.transcodeLocation'), undefined);
+  row('streaming.transcodeFolder').props.onChoose('/fast'); await settle();
   assert.equal(fixture.group.forms.runtime.getSnapshot().draft.temporaryDirectory, '/fast');
   host.dispose();fixture.stop();
 });

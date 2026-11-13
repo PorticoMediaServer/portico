@@ -4,7 +4,7 @@ import {settingsSpec, settingsRowIndex, settingsDesignRevision} from '../../pack
 import {settingsSpecMessages} from '../../packages/i18n/src/catalog/en-US/next/settings-spec.ts';
 
 test('the approved structure preserves all sections and the exact General-first server order', () => {
-  assert.equal(settingsDesignRevision, '812dacacc70e296ac870ec36d1a37a485eaeb8ed');
+  assert.equal(settingsDesignRevision, 'cb97a49a54df5658c78b0c8ab2dcddc20a2ad7e4');
   assert.equal(settingsSpec.length, 25);
   assert.deepEqual(settingsSpec.filter(section => section.scope === 'server').map(section => section.id), ['general','dashboard','history','libraries','remote-sources','metadata','segments','live','people','signin','remote','integrations','streaming','storage','troubleshooting']);
   assert.ok(settingsRowIndex.size > 400);
@@ -24,6 +24,14 @@ test('drawn sample rows, secrets, facts and successful action results cannot shi
     if (c.type === 'status') assert.equal('text' in c, false);
     if (c.type === 'text' && c.secret) assert.equal(c.default, '');
   }
+});
+test('conversions use a folder and one server-wide tone-map choice with Hable as default', () => {
+  assert.equal(settingsRowIndex.has('streaming.transcodeLocation'), false);
+  assert.equal(settingsRowIndex.has('streaming.memoryCap'), false);
+  assert.equal(settingsRowIndex.get('streaming.transcodeFolder')!.row.control.type, 'folder');
+  assert.equal(settingsRowIndex.get('streaming.toneMappingMethod')!.row.control.default, 'hable');
+  assert.equal(settingsRowIndex.has('streaming.toneMapping'), false);
+  assert.equal(settingsRowIndex.get('streaming.rewindKeep')!.row.control.default, '180');
 });
 test('all preset references and dependent rows resolve through one canonical index', () => {
   for (const {row} of settingsRowIndex.values()) {
