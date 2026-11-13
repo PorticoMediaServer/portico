@@ -282,7 +282,7 @@ test('wide card and episode row titles take two lines on phone and one on TV', a
     };
     const wide = f.host.render(() => media.WideCard({title, caption: [{id: 'left', text: '4 s left'}], onNavigate() {}}));
     const row = f.host.render(() => media.EpisodeTile({title, label: [{id: 'episode', text: 'Episode 1'}], layout: 'row', onNavigate() {}}));
-    assert.deepEqual([lines(wide), lines(row)], isTV ? [1, 1] : [2, 2], isTV ? 'TV' : 'phone');
+    assert.deepEqual([lines(wide), lines(row)], isTV ? [1, 1] : [3, 2], isTV ? 'TV' : 'phone: a 16:9 card wraps to three lines inside its art (owner, 13 Nov)');
     // The 16:9 card's scrim grows with its words: it starts 20 pt above the title block, never later than the drawn .45.
     const art = (tree: any) => {const frame = nodes(tree).find(node => node.type === 'CardFrame'); return nodes(frame.props.children(idle));};
     const words = art(wide).find(node => node.props.onLayout && flatten(node.props.style).position === 'absolute');
