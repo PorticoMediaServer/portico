@@ -12,6 +12,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/opensubtitles"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tmdb"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/tvdb"
 	"github.com/PorticoMediaServer/portico/server-next/internal/secrets"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
@@ -25,6 +26,7 @@ import (
 // The rows the owner's keys are sealed in, each sealed to its own name.
 const (
 	settingTMDBKey = "metadata.key.tmdb"
+	settingTVDBKey = "metadata.key.tvdb"
 	// settingOpenSubtitles holds the OpenSubtitles API key and account (openSubtitlesAccount).
 	settingOpenSubtitles = "metadata.key.opensubtitles"
 )
@@ -42,6 +44,9 @@ type MetadataSettings struct {
 	// longer open (its key file was lost or replaced since): Portico's key is in use until the
 	// owner enters theirs again.
 	TMDBCredentialUnreadable bool `json:"tmdbCredentialUnreadable,omitempty"`
+	// TheTVDB is available only while the owner's project key can be opened.
+	TVDBCredentialConfigured bool `json:"tvdbCredentialConfigured"`
+	TVDBCredentialUnreadable bool `json:"tvdbCredentialUnreadable,omitempty"`
 	// The owner's OpenSubtitles API key and account, which subtitle search needs (definition
 	// area 7, rule 67): whether a key and a password are saved, and the account's username.
 	OpenSubtitlesKeyConfigured      bool   `json:"openSubtitlesKeyConfigured"`
@@ -52,13 +57,14 @@ type MetadataSettings struct {
 }
 
 // MetadataSettingsChange is a save of the page. A field left out keeps its value. An empty key
-// removes the owner's own, and Portico's is used again.
+// removes the owner's own: TMDB uses Portico's key; TheTVDB becomes unavailable.
 type MetadataSettingsChange struct {
 	// ExpectedRevision is the revision the page read; a page saved since is refused (412).
 	// Left out, the save is made over whatever is there.
 	ExpectedRevision *int64  `json:"expectedRevision,omitempty"`
 	IncludeAdult     *bool   `json:"includeAdult,omitempty"`
 	TMDBReadToken    *string `json:"tmdbReadToken,omitempty"`
+	TVDBProjectKey   *string `json:"tvdbProjectKey,omitempty"`
 	// The OpenSubtitles key, username and password. An empty username removes the account and
 	// its password; a new username without a password leaves none saved.
 	OpenSubtitlesAPIKey   *string `json:"openSubtitlesApiKey,omitempty"`
@@ -70,11 +76,13 @@ type MetadataSettingsChange struct {
 type providerKeys struct {
 	mu   sync.Mutex
 	box  *secrets.Box
+	tvdb string // the owner's TheTVDB project key, or ""
 	tmdb string // the owner's own TMDB token, or ""
 	// unreadable names the rows holding a key this server cannot open.
 	unreadable map[string]bool
 	// tmdbHost is TMDB's address; a stand-in's for testing.
 	tmdbHost string
+	tvdbHost string
 	// subtitles is the owner's OpenSubtitles key and account, and checked what Test connection
 	// last found. subtitleHost and subtitleEvery are OpenSubtitles' address and spacing; a
 	// stand-in's for testing.
@@ -102,6 +110,7 @@ func (s *Server) metadataSettingsPage() (MetadataSettings, error) {
 	// The document's revision is 0 until its first save; the page's starts at 1.
 	return MetadataSettings{Revision: doc.Revision + 1, IncludeAdult: metadata.Document.Get(s.settings).IncludeAdult,
 		TMDBCredentialConfigured: s.keys.tmdb != "", TMDBCredentialUnreadable: s.keys.unreadable[settingTMDBKey],
+		TVDBCredentialConfigured: s.keys.tvdb != "", TVDBCredentialUnreadable: s.keys.unreadable[settingTVDBKey],
 		OpenSubtitlesKeyConfigured: s.keys.subtitles.APIKey != "", OpenSubtitlesUsername: s.keys.subtitles.Username,
 		OpenSubtitlesPasswordConfigured: s.keys.subtitles.Password != "", OpenSubtitles: s.subtitleStatus()}, nil
 }
@@ -125,7 +134,7 @@ func (s *Server) saveMetadataSettings(r *http.Request, req MetadataSettingsChang
 		path  string
 		value *string
 		limit int
-	}{{"tmdbReadToken", req.TMDBReadToken, 2048}, {"openSubtitlesApiKey", req.OpenSubtitlesAPIKey, 256},
+	}{{"tmdbReadToken", req.TMDBReadToken, 2048}, {"tvdbProjectKey", req.TVDBProjectKey, 256}, {"openSubtitlesApiKey", req.OpenSubtitlesAPIKey, 256},
 		{"openSubtitlesUsername", req.OpenSubtitlesUsername, 100}, {"openSubtitlesPassword", req.OpenSubtitlesPassword, 256}} {
 		if f.value == nil {
 			continue
@@ -158,6 +167,16 @@ func (s *Server) saveMetadataSettings(r *http.Request, req MetadataSettingsChang
 		s.keys.tmdb = *req.TMDBReadToken
 		delete(s.keys.unreadable, settingTMDBKey)
 		s.useTMDB()
+		s.keys.mu.Unlock()
+	}
+	if req.TVDBProjectKey != nil {
+		if err := s.saveKey(r.Context(), settingTVDBKey, *req.TVDBProjectKey); err != nil {
+			return MetadataSettings{}, err
+		}
+		s.keys.mu.Lock()
+		s.keys.tvdb = *req.TVDBProjectKey
+		delete(s.keys.unreadable, settingTVDBKey)
+		s.useTVDB()
 		s.keys.mu.Unlock()
 	}
 	if err := s.saveSubtitleAccount(r.Context(), req); err != nil {
@@ -203,8 +222,13 @@ func (s *Server) loadProviderKeys(ctx context.Context) error {
 		return err
 	}
 	s.keys.box, s.keys.tmdbHost, s.keys.unreadable = box, tmdb.Origin, map[string]bool{}
+	s.keys.tvdbHost = tvdb.Origin
 	s.keys.subtitleHost, s.keys.subtitleEvery = opensubtitles.Origin, opensubtitles.Every
 	key, err := s.openKey(ctx, settingTMDBKey)
+	if err != nil {
+		return err
+	}
+	tvdbKey, err := s.openKey(ctx, settingTVDBKey)
 	if err != nil {
 		return err
 	}
@@ -214,11 +238,12 @@ func (s *Server) loadProviderKeys(ctx context.Context) error {
 	}
 	s.keys.mu.Lock()
 	defer s.keys.mu.Unlock()
-	s.keys.tmdb = key
+	s.keys.tmdb, s.keys.tvdb = key, tvdbKey
 	if account != "" {
 		json.Unmarshal([]byte(account), &s.keys.subtitles)
 	}
 	s.useTMDB()
+	s.useTVDB()
 	s.useSubtitles()
 	return nil
 }
@@ -240,4 +265,21 @@ func (s *Server) UseTMDBHost(origin string) {
 	defer s.keys.mu.Unlock()
 	s.keys.tmdbHost = origin
 	s.useTMDB()
+}
+
+// useTVDB is called with keys.mu held. There is no built-in TheTVDB credential.
+func (s *Server) useTVDB() {
+	if s.keys.tvdb == "" {
+		s.metadata.Remove("tvdb")
+		return
+	}
+	s.metadata.Use(tvdb.New(s.keys.tvdb, s.keys.tvdbHost, tvdb.Every))
+}
+
+// UseTVDBHost points TheTVDB at a stand-in for testing.
+func (s *Server) UseTVDBHost(origin string) {
+	s.keys.mu.Lock()
+	defer s.keys.mu.Unlock()
+	s.keys.tvdbHost = origin
+	s.useTVDB()
 }

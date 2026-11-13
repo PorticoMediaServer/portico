@@ -26,7 +26,9 @@ var (
 	}{
 		{regexp.MustCompile(`^(?:www\.)?themoviedb\.org/(movie|tv)/([0-9]+)`), "tmdb", map[string]string{"movie": "movie", "tv": "show"}},
 		{regexp.MustCompile(`^(?:www\.|m\.)?imdb\.com/(?:[a-z]{2}/)?title/(tt[0-9]+)`), "imdb", nil},
-		{regexp.MustCompile(`^(?:www\.)?thetvdb\.com/.*?(?:[?&]id=|/series/)([0-9]+)`), "tvdb", nil},
+		{regexp.MustCompile(`^(?:www\.)?thetvdb\.com/(series|movies)/([a-z0-9]+(?:-[a-z0-9]+)*)(?:/|[?#]|$)`), "tvdb",
+			map[string]string{"series": "show", "movies": "movie"}},
+		{regexp.MustCompile(`^(?:www\.)?thetvdb\.com/[^?]*\?(?:[^#]*&)?id=([0-9]+)(?:&|$)`), "tvdb", nil},
 		{regexp.MustCompile(`^(?:www\.)?anilist\.co/anime/([0-9]+)`), "anilist", nil},
 	}
 )
