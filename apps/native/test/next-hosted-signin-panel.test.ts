@@ -7,7 +7,7 @@ import {NativeScreenLifetime} from '../src-next/screens/settings-live/lifetime.t
 import * as securityScope from '../src-next/screens/settings-live/native-account-security.ts';
 import * as accountWork from '../src-next/platform/account-work.ts';
 import {parseSecurityState} from '../../../packages/client-core/src/hosted-security.ts';
-import {routePath} from '../../../packages/contracts/src/hosted/routes.ts';
+import {readPorticoAccountSecurity} from '../../../packages/client-core/src/portico-services-native.ts';
 
 const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree?.props ? [tree, ...nodes(tree.props.children), ...nodes(tree.props.control)] : [];
 
@@ -57,14 +57,18 @@ async function fixture({hosted = true, matching = true, hasPassword = true, prov
   const {NativeHostedSignInPanel} = await screenModule(new URL('../src-next/screens/settings-live/NativeHostedSignInPanel.tsx', import.meta.url), {
     react: host.react, 'react-native': {NativeModules: {PorticoAccountAuth: bridge}, Text: 'Text', View: 'View', Linking: {openURL: async (url: string) => {if (openFails) throw new Error('no_browser'); opened.push(url);}}},
     '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: (error: unknown, audience: string) => {presented.push([error, audience]); return {body: 'Security read failed'};}},
-    '../../../../../packages/contracts/src/hosted/routes': {routePath},
+    '../../../../../packages/client-core/src/portico-services-native': {readPorticoAccountSecurity},
     '../../kit/controls': {FormError, Button: 'Button'}, '../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/theme': {useTheme: () => theme},
     '../../platform/accounts': {nativeAccounts: {accountCredentials: () => {credentialReads++; return credentials;}}},
     '../../platform/account-authority': {hostedUrl: 'https://accounts.example.invalid'}, '../../platform/account-security': {NativeAccountSecurity: Controller},
     '../../platform/account-work': accountWork,  '../../platform/server-connections': {nativeNetworkFetch: async (input: string, init: RequestInit) => {
       const url = new URL(input), token = new Headers(init.headers).get('Authorization')?.replace(/^Bearer /, '');
       calls.push([url.origin, token, url.pathname + url.search, init.method, undefined, init.signal]);
-      return new Response(JSON.stringify(await reply()), {status: 200, headers: {'Content-Type': 'application/json'}});
+      const state: any = await reply();
+      const answer = url.pathname === '/v1/account' ? {id: state.accountId, email: state.contactAddress, hasPassword: state.hasPassword, providers: state.providers.map((value: any) => value.provider)}
+        : url.pathname === '/v1/account/two-step' ? {on: state.mfaEnabled, recoveryCodesLeft: state.recoveryCodesRemaining} : undefined;
+      assert(answer, 'no retired Services routes');
+      return new Response(JSON.stringify(answer), {status: 200, headers: {'Content-Type': 'application/json'}});
     }},
     '../accounts/PhoneAccountSecurity': {AccountSecuritySheet: 'AccountSecuritySheet', accountSecurityAvailability: shared.accountSecurityAvailability}, './native-account-security': securityScope,
   });
@@ -83,11 +87,11 @@ async function fixture({hosted = true, matching = true, hasPassword = true, prov
 test('Hosted Settings reads the matching Portico account, opens the shared task, and refreshes after completion', async () => {
   const f = await fixture();
   try {
-    assert.equal(f.calls.length, 1); assert.deepEqual(f.calls[0].slice(0, 4), ['https://accounts.example.invalid', 'fixture-token', routePath('account_security_get'), 'GET']);
+    assert.equal(f.calls.length, 2); assert.deepEqual(f.calls.map(call => call.slice(0, 4)), ['/v1/account', '/v1/account/two-step'].map(path => ['https://accounts.example.invalid', 'fixture-token', path, 'GET']));
     assert.deepEqual(f.controllers[0].scope, {accountId: 'portico-account', familyId: 'portico-family'});
     assert.equal(f.find('settings-panel-password').props.label, 'settings.row.password');
     f.find('account-security-password').props.onPress(); assert.deepEqual(f.controllers[0].opened, ['password']);
-    f.sheet().props.onFinished(); await f.settle(); assert.equal(f.calls.length, 2); assert.equal(f.controllers[0].disposed, true);
+    f.sheet().props.onFinished(); await f.settle(); assert.equal(f.calls.length, 4); assert.equal(f.controllers[0].disposed, true);
   } finally {f.dispose();}
 });
 
@@ -120,14 +124,15 @@ test('H09: without this account’s Portico session the app says who the server 
   }
 });
 
-test('Provider-only controls share workspace availability, including recovery codes', async () => {
+test('Password-less Settings actions are unavailable even when a provider bridge is ready', async () => {
   for (const providerReady of [false, true]) {
     const f = await fixture({hasPassword: false, providerReady, kind: 'twoStep'});
     try {
       assert.equal(f.find('settings-panel-twoStep').props.value, 'web.hostedSecurity.on');
-      assert.equal(f.find('account-security-mfa-off').props.disabled, !providerReady);
-      assert.equal(f.find('account-security-codes').props.disabled, !providerReady);
-      f.find('account-security-codes').props.onPress(); assert.deepEqual(f.controllers[0].opened, providerReady ? ['codes'] : []);
+      assert.equal(f.find('account-security-mfa-off'), undefined);
+      assert.equal(f.find('account-security-codes'), undefined);
+      assert(JSON.stringify(f.tree()).includes('account.security.appUnavailable'));
+      assert.deepEqual(f.controllers[0].opened, []);
     } finally {f.dispose();}
   }
 });
@@ -139,7 +144,7 @@ test('A Portico family change disposes the controller and never adopts a return 
     f.session({account: {id: 'portico-account'}, familyId: 'other-family', accessToken: 'other-token'});
     assert.equal(f.controllers[0].disposed, true); assert.equal(f.sheet(), undefined);
     f.session({account: {id: 'portico-account'}, familyId: 'portico-family', accessToken: 'fixture-token'});
-    oldAction(); oldFinish(); await f.settle(); assert.equal(f.calls.length, 1); assert.deepEqual(f.controllers[0].opened, []);
+    oldAction(); oldFinish(); await f.settle(); assert.equal(f.calls.length, 2); assert.deepEqual(f.controllers[0].opened, []);
   } finally {f.dispose();}
 });
 
@@ -147,7 +152,8 @@ test('Security read failures use presentError and remain visible', async () => {
   const f = await fixture(), failure = new Error('fixture failure');
   try {
     f.reply(async () => {throw failure;}); f.sheet().props.onFinished(); await f.settle();
-    assert.deepEqual(f.presented, [[failure, 'portico-account']]);
+    assert.equal(f.presented.length, 1);
+    assert.equal(f.presented[0][0].code, 'network'); assert.equal(f.presented[0][1], 'portico-account');
     assert.ok(nodes(f.tree()).some(node => (node.props.accessibilityRole === 'alert' || node.type === FormError) && [node.props.children].flat().includes('Security read failed')));
     // Try again sits in a focus region, which needs a stable testID of its own: without one, or with the
     // same one in Password and Two-step side by side, the app stopped with "Something went wrong".
@@ -170,7 +176,7 @@ test('R-21: a Portico Account page that cannot open says so instead of doing not
 });
 
 // Justin, 1 Nov: a Google- or Apple-only account never sees Set a password in Settings either.
-test('A Google-only account: no Password row until More sign-in options shows Password, Not set, Add a password', async () => {
+test('A Google-only Settings account shows an unavailable Password row after More sign-in options', async () => {
   const f = await fixture({hasPassword: false, kind: 'password'});
   try {
     assert.equal(f.find('settings-panel-password'), undefined, 'no Password row until it is asked for');
@@ -181,8 +187,8 @@ test('A Google-only account: no Password row until More sign-in options shows Pa
     assert.equal(f.find('settings-more-sign-in'), undefined, 'the link goes away');
     const row = f.find('settings-panel-password');
     assert.equal(row.props.label, 'settings.row.password'); assert.equal(row.props.value, 'web.hostedSecurity.notSet');
-    const add = f.find('account-security-password');
-    assert.deepEqual([add.props.children].flat(), ['web.hostedSecurity.addPassword']);
-    add.props.onPress(); assert.deepEqual(f.controllers.at(-1)!.opened, ['password'], 'the set-password task');
+    assert.equal(f.find('account-security-password'), undefined);
+    assert(JSON.stringify(row).includes('account.security.appUnavailable'));
+    assert.deepEqual(f.controllers.at(-1)!.opened, []);
   } finally {f.dispose();}
 });

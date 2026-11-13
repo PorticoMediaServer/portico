@@ -40,7 +40,7 @@ export function PhoneAccountSecurity({workspace, security}: {workspace: NativeAc
   const group = (name: string, children: React.ReactNode) => <View style={{gap: 10}}><Text accessibilityRole="header" style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{name}</Text>
     <View style={{borderRadius: 14, backgroundColor: theme.colors.raised, padding: 14, gap: 14}}>{children}</View></View>;
   const action = (kind: NativeAccountSecurityKind, label: string, disabled = false) => !security.hasPassword || ['email', 'export'].includes(kind)
-    ? text(t('error.unavailable'), true) : <Button testID={`account-security-${kind}`} variant="glass" size="compact" disabled={!source || disabled} onPress={() => open(kind)}>{label}</Button>;
+    ? text(t('account.security.appUnavailable'), true) : <Button testID={`account-security-${kind}`} variant="glass" size="compact" disabled={!source || disabled} onPress={() => open(kind)}>{label}</Button>;
   const row = (name: string, detail: string, control?: React.ReactNode) => <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12}}>
     <View style={{flex: 1, minWidth: 150, gap: 4}}>{text(name)}{text(detail, true)}</View>{control}
   </View>;
@@ -54,7 +54,7 @@ export function PhoneAccountSecurity({workspace, security}: {workspace: NativeAc
         : row(t('web.password'), t(security.hasPassword ? 'web.hostedSecurity.on' : 'web.hostedSecurity.off'), action('password', security.hasPassword ? t('web.hostedSecurity.change') : t('account.setPassword'), credentialLocked))}
       {row(t('web.hostedSecurity.email'), security.contactAddress || t('web.hostedSecurity.notSet'), action('email', t('web.hostedSecurity.change'), credentialLocked))}
       {security.providers.map(provider => <View key={provider.id}>{text(t(provider.provider === 'apple' ? 'accounts.provider.apple' : 'accounts.provider.google'))}{text(t('web.hostedSecurity.connected'), true)}</View>)}
-      {!security.hasPassword && text(t('error.unavailable'), true)}
+      {!security.hasPassword && text(t('account.security.appUnavailable'), true)}
     </>)}
     {providerOnly && !moreSignIn && <Button testID="account-security-more-sign-in" variant="text" size="compact" style={{alignSelf: 'flex-start', marginTop: -4}}
       onPress={() => setMoreSignIn(true)}>{t('web.hostedSecurity.moreSignInOptions')}</Button>}
@@ -64,7 +64,7 @@ export function PhoneAccountSecurity({workspace, security}: {workspace: NativeAc
     </>)}
     {group(t('services.security.yourData'), row(t('web.account.export.button'), t('web.account.export.help'), action('export', t('web.account.export.download'))))}
     <View style={{gap: 12, marginTop: 8}}>{text(t('web.deleteAccount.title'))}
-      {text(t('error.unavailable'), true)}
+      {text(t('account.security.appUnavailable'), true)}
       <Button testID="account-security-delete" variant="glass" style={{backgroundColor: `${theme.colors.danger}24`}} textStyle={{color: theme.colors.danger}} disabled onPress={() => open('delete')}>{t('web.deleteAccount.action')}</Button>
     </View>
     <AccountSecuritySheet security={security} source={source} onFinished={() => {void workspace.open('security');}}/>

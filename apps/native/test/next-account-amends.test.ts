@@ -86,7 +86,7 @@ test('security controller failures reach presentError and the alert while unavai
 
 test('security deletion help preserves profiles and history and names affected and blocking servers', async context => {
   const f = await securityFixture(context); await f.recover();
-  assert.ok(words(f.tree()).includes(defaultI18n.t('error.unavailable')));
+  assert.ok(words(f.tree()).includes(defaultI18n.t('account.security.appUnavailable')));
   await f.state({kind: 'delete', step: 'deletion', busy: false, preview: {
     canDelete: false, ownedServers: [{id: 'own', name: 'Owned server'}], affectedServers: [{id: 'member', name: 'Shared server'}],
   }});
@@ -150,7 +150,7 @@ test('a Google-only account: no Password row; More sign-in options, under the gr
   assert.ok(words(f.tree()).includes(defaultI18n.t('web.password') + defaultI18n.t('web.hostedSecurity.notSet')), 'Password, Not set');
   assert.equal(byTestID('account-security-password'), undefined);
   assert.equal(byTestID('account-security-mfa-on'), undefined);
-  assert.ok(words(f.tree()).includes(defaultI18n.t('error.unavailable')));
+  assert.ok(words(f.tree()).includes(defaultI18n.t('account.security.appUnavailable')));
 });
 
 test('a password account keeps Change and has no More sign-in options', async context => {

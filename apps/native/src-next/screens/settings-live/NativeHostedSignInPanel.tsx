@@ -1,8 +1,7 @@
 import React, {useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {Linking, NativeModules, Text, View} from 'react-native';
-import {createHostedAccountApi} from '../../../../../packages/client-core/src/query/hosted-account-transport';
-import {readHostedSecurity} from '../../../../../packages/client-core/src/query/connection-operations';
-import {parseSecurityState, providerOnlySignIn} from '../../../../../packages/client-core/src/hosted-security';
+import {readPorticoAccountSecurity} from '../../../../../packages/client-core/src/portico-services-native';
+import {providerOnlySignIn} from '../../../../../packages/client-core/src/hosted-security';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {Button, FormError} from '../../kit/controls';
 import {SettingsRow} from '../../kit/shell';
@@ -69,8 +68,8 @@ export function NativeHostedSignInPanel({kind, context, lifetime, t, runtime}: N
       const timer = setTimeout(abort, 15000);
       try {
         const session = credentials.getSnapshot().session!;
-        const state = await nativeAccountRead(credentials, async value => parseSecurityState(
-          await readHostedSecurity(createHostedAccountApi(credentials, value, nativeNetworkFetch), request.signal), scope),
+        const state = await nativeAccountRead(credentials, value => readPorticoAccountSecurity(
+          value.accessToken, hostedUrl, scope, nativeNetworkFetch, request.signal),
         {expected: accountExpectation(session), signal: request.signal, isCurrent: current});
         if (!current()) return;
         controller = new NativeAccountSecurity(nativeAccounts, scope, state, current); setSource(controller);
@@ -102,8 +101,9 @@ export function NativeHostedSignInPanel({kind, context, lifetime, t, runtime}: N
   </>;
   const ready = opening?.current() ? source : undefined, security = ready?.security;
   const locked = security ? accountSecurityAvailability(security, NativeModules.PorticoAccountAuth).credentialLocked : true;
-  const action = (task: NativeAccountSecurityKind, label: string) => ready && <Button testID={`account-security-${task}`} variant="glass" size="compact" disabled={locked}
-    onPress={() => {if (!locked && opening?.current() && ready.current()) ready.open(task);}}>{label}</Button>;
+  const action = (task: NativeAccountSecurityKind, label: string) => ready && (!security?.hasPassword
+    ? <Text style={[shellType(14.5), {color: theme.colors.textSecondary}]}>{t('account.security.appUnavailable')}</Text> : <Button testID={`account-security-${task}`} variant="glass" size="compact" disabled={locked}
+    onPress={() => {if (!locked && opening?.current() && ready.current()) ready.open(task);}}>{label}</Button>);
   const providerOnly = kind === 'password' && security ? providerOnlySignIn(security) : undefined;
   // A Google- or Apple-only account has no Password row until More sign-in options shows it.
   if (providerOnly && !moreSignIn) return <>

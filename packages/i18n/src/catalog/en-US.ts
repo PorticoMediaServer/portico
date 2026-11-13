@@ -267,6 +267,7 @@ export const enUS = {
   'error.account.unreachableRetrying': 'Portico Accounts aren’t answering right now. Portico keeps trying.',
   'error.account.timeout': 'Your Portico Account took too long to answer. Try again in a moment.',
   'error.account.busy': 'Portico Accounts are busy right now. Try again in a moment.',
+  'account.security.appUnavailable': 'This isn’t available in the app yet.',
   'error.account.unavailable': 'This isn’t available from your Portico Account right now.',
   'error.authentication': 'Sign in again to continue.',
   'error.permission': 'Your profile doesn’t have access to this. Ask the server’s owner if you think it should.',
