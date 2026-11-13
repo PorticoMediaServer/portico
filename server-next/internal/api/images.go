@@ -37,8 +37,9 @@ func (s *Server) imageRoutes() {
 			return
 		}
 		variant := r.URL.Query().Get("size")
-		if variant != "" && variant != "small" && variant != "large" && variant != artwork.AmbientVariant || len(r.URL.Query()["size"]) > 1 {
-			s.writeError(w, r, ErrInvalid("Give size as small, large or ambient-v1."))
+		if variant != "" && variant != "small" && variant != "large" && variant != artwork.AmbientVariant &&
+			variant != artwork.AmbientVariantV2 || len(r.URL.Query()["size"]) > 1 {
+			s.writeError(w, r, ErrInvalid("Give size as small, large, ambient-v1 or ambient-v2."))
 			return
 		}
 		var data []byte
@@ -46,6 +47,8 @@ func (s *Server) imageRoutes() {
 		var err error
 		if variant == artwork.AmbientVariant {
 			data, contentType, err = s.artwork.ReadAmbient(r.PathValue("id"))
+		} else if variant == artwork.AmbientVariantV2 {
+			data, contentType, err = s.artwork.ReadAmbientV2(r.PathValue("id"))
 		} else {
 			if variant == "small" {
 				width, height = 1, 1

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {artworkArrivalDuration, artworkAttemptSource, artworkFrame, boundedCovers, circleArtworkFrames, coverAspect, mixColour} from '../src-next/kit/artwork/model.ts';
+import {ambientArtworkSourceV2} from '../../../packages/client-core/src/artwork/ambient.ts';
 import {nativeAmbientSource} from '../src-next/kit/artwork/source.ts';
 import type {AmbientArtworkSource} from '../../../packages/client-core/src/artwork/index.ts';
 
@@ -46,6 +47,11 @@ test('ambient binding preserves exact canonical representation and authority ide
   assert.equal(result?.url, source.url); assert.equal(result?.cacheKey, source.cacheKey);
   assert.equal(result?.variant, 'ambient-v1'); assert.equal(result?.maxEdge, 64); assert.equal(result?.version, source.version);
   assert.equal(result?.uri, 'https://fixture.invalid' + source.url);
+  const v2 = ambientArtworkSourceV2('/v1/images/' + 'a'.repeat(64), {serverId: 'server', viewerId: 'viewer', authorityKey: 'session'})!;
+  const nativeV2 = nativeAmbientSource(v2, url => 'https://fixture.invalid' + url);
+  assert.equal(nativeV2?.variant, 'ambient-v2');
+  assert.equal(nativeV2?.uri, 'https://fixture.invalid' + v2.url);
+  assert.equal(nativeV2?.cacheKey, v2.cacheKey);
   assert.equal(nativeAmbientSource(undefined, () => {throw new Error('must not resolve absent art');}), undefined);
   assert.equal(nativeAmbientSource(source, () => undefined), undefined);
 });

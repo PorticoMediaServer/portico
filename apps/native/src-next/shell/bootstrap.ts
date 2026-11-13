@@ -21,7 +21,7 @@ import {EventsClient} from '../../../../packages/client-core/src/playback-v1/eve
 import {localV1Http} from '../../../../packages/client-core/src/playback-v1/local-http';
 import {nativeEventStream, runEventFeed} from '../../../../packages/client-core/src/event-feed';
 import {openEventStream} from '../platform/event-stream';
-import {ambientArtworkSource} from '../../../../packages/client-core/src/artwork';
+import {ambientArtworkSourceV2} from '../../../../packages/client-core/src/artwork';
 import {resolveShellMediaUrl} from '../../../../packages/client-core/src/shell-media';
 import type {HttpLocalApi, LocalSession, Library} from '../../../../packages/client-core/src';
 import {beginRestoreTrace, markRestore} from './restore-trace';
@@ -628,7 +628,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         if (!path || !current()) return undefined;
         const uri = resolve(path);
         return uri ? {uri, cacheKey: JSON.stringify([scopeIdentity, uri]), headers: {Authorization: `Bearer ${session!.accessToken}`}} : undefined;
-      }, ambient: path => current() ? nativeAmbientSource(ambientArtworkSource(path, {serverId: authority.serverId, viewerId: authority.profileId, authorityKey: scopeIdentity}), resolve, {Authorization: `Bearer ${session!.accessToken}`}) : undefined,
+      }, ambient: path => current() ? nativeAmbientSource(ambientArtworkSourceV2(path, {serverId: authority.serverId, viewerId: authority.profileId, authorityKey: scopeIdentity}), resolve, {Authorization: `Bearer ${session!.accessToken}`}) : undefined,
       dispose, refresh};
     // Spreading the bindings evaluates their account getter. Keep that private menu
     // behind the live authority too, instead of retaining the copied menu on retirement.

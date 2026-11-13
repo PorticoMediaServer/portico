@@ -55,7 +55,11 @@ func TestAnItemsPictureCanBeFetched(t *testing.T) {
 	if cached.Code != 304 {
 		t.Fatalf("cached ambient: %d", cached.Code)
 	}
-	if w := fetch(address + "?size=ambient-v2"); w.Code != 400 {
+	v2 := fetch(address + "?size=ambient-v2")
+	if v2.Code != 200 || v2.Header().Get("Content-Type") != "image/png" || v2.Header().Get("ETag") == ambient.Header().Get("ETag") {
+		t.Fatalf("v2 has no separate PNG cache identity: %d", v2.Code)
+	}
+	if w := fetch(address + "?size=ambient-v3"); w.Code != 400 {
 		t.Fatalf("unknown variant answered %d", w.Code)
 	}
 	for variant, edge := range map[string]int{"small": 800, "large": 1500} {

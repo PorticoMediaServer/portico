@@ -17,10 +17,18 @@ import (
 
 // AmbientVariant is the clients' tiny, preblurred PNG, separate from sharp sizes.
 const AmbientVariant = "ambient-v1"
+const AmbientVariantV2 = "ambient-v2"
+
+// phone-app.html: album and title pages use .amb-l img { filter: ... saturate(1.5) }.
+const ambientV2Saturation = 1.5
 
 // ambient uses the original ambient-v1 treatment: at most 64 pixels on the long
 // edge, never enlarged, then three separable box-blur passes of radius four.
 func ambient(source image.Image) ([]byte, error) {
+	return ambientPNG(source, false)
+}
+
+func ambientPNG(source image.Image, saturate bool) ([]byte, error) {
 	w, h := source.Bounds().Dx(), source.Bounds().Dy()
 	if edge := max(w, h); edge > 64 {
 		w, h = max(1, w*64/edge), max(1, h*64/edge)
@@ -33,6 +41,17 @@ func ambient(source image.Image) ([]byte, error) {
 	for pass := 0; pass < 3; pass++ {
 		ambientBoxPass(b, a, true)
 		ambientBoxPass(a, b, false)
+	}
+	if saturate {
+		// CSS saturate's sRGB matrix, applied to premultiplied channels; preserve alpha.
+		for i := 0; i < len(a.Pix); i += 4 {
+			p := a.Pix[i : i+4]
+			grey := .213*float64(p[0]) + .715*float64(p[1]) + .072*float64(p[2])
+			for c := 0; c < 3; c++ {
+				value := grey + ambientV2Saturation*(float64(p[c])-grey)
+				p[c] = uint8(min(float64(p[3]), max(0, value)) + .5)
+			}
+		}
 	}
 	var out bytes.Buffer
 	err := png.Encode(&out, a)
@@ -63,10 +82,19 @@ func ambientBoxPass(dst, src *image.RGBA, horizontal bool) {
 // ReadAmbient serves a stored variant. Pictures from before this variant existed
 // get it once from their stored small copy, then use the same file on every read.
 func (s *Store) ReadAmbient(id string) ([]byte, string, error) {
+	return s.readAmbient(id, AmbientVariant)
+}
+
+// ReadAmbientV2 lazily makes the native wash from the stored sharp copy, never from v1.
+func (s *Store) ReadAmbientV2(id string) ([]byte, string, error) {
+	return s.readAmbient(id, AmbientVariantV2)
+}
+
+func (s *Store) readAmbient(id, variant string) ([]byte, string, error) {
 	if !ValidID(id) {
 		return nil, "", ErrNotFound
 	}
-	place := s.place(id, AmbientVariant)
+	place := s.place(id, variant)
 	data, err := os.ReadFile(place)
 	if !errors.Is(err, fs.ErrNotExist) {
 		return data, "image/png", err
@@ -85,7 +113,7 @@ func (s *Store) ReadAmbient(id string) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	data, err = ambient(source)
+	data, err = ambientPNG(source, variant == AmbientVariantV2)
 	if err == nil {
 		err = atomicfile.Write(place, data, 0o644)
 	}
