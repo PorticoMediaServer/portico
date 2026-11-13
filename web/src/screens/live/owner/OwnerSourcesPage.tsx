@@ -204,8 +204,8 @@ export function OwnerSourcesPage({source, libraryChannels}: {source: OwnerSource
     if (recordingDraft.keepPolicy.mode !== 'keep-all') advancedSummary.push(t('next.settingsSpec.server.live.advanced.groups.4.rows.3.label'));
   }
   if (storageDraft) {
-    if (storageDraft.retentionDays || storageDraft.episodeLimit) advancedSummary.push(t('next.settingsSpec.server.live.groups.6.rows.2.label'));
-    if (storageDraft.floorBytes !== 10e9 || storageDraft.capBytes) advancedSummary.push(t('next.settingsSpec.server.live.groups.7.rows.1.label'));
+    if (storageDraft.keepDays || storageDraft.keepNewest) advancedSummary.push(t('next.settingsSpec.server.live.groups.6.rows.2.label'));
+    if (storageDraft.floorBytes !== 10 * 1024**3 || storageDraft.capBytes) advancedSummary.push(t('next.settingsSpec.server.live.groups.7.rows.1.label'));
   }
   return <>
     {!!snapshot.error && <p role="alert" className={styles.error}>{errorMessage(snapshot.error)}</p>}

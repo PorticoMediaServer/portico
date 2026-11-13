@@ -7,5 +7,6 @@ function loaded(raw:unknown):OwnerDvrDocument{
  if(!value||!/^"[0-9]+"$/.test(doc.etag)||typeof value.folder!=='string'||typeof value.stopViewers!=='boolean'||['beforeMs','afterMs','floorBytes','capBytes','keepDays','keepNewest'].some(key=>!Number.isSafeInteger(value[key as keyof OwnerDvrSettings])))throw new Error('invalid_recording_settings');
  return {value,status:{etag:doc.etag}};
 }
+export function readRecordingStorage(api:SettingsDocumentAPI,signal?:AbortSignal){return callServer(api,'GET /v1/dvr',{signal});}
 export async function readOwnerDvrSettings(api:SettingsDocumentAPI,signal?:AbortSignal){return loaded(await callServer(api,'GET /v1/admin/settings/{name}',{id:'dvr',signal}));}
 export async function saveOwnerDvrSettings(api:SettingsDocumentAPI,current:OwnerDvrDocument,change:Partial<OwnerDvrSettings>,signal?:AbortSignal){return loaded(await putSettingsDocument(api,'dvr',current.status.etag,change,signal));}

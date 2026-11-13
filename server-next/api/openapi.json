@@ -2520,6 +2520,10 @@
       },
       "DvrOverview": {
         "properties": {
+          "freeOnDriveBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
           "canRecord": {
             "type": "boolean"
           },
@@ -2579,6 +2583,7 @@
           }
         },
         "required": [
+          "freeOnDriveBytes",
           "rules",
           "groups",
           "upcoming",

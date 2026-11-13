@@ -99,6 +99,8 @@ type DvrOverview struct {
 	KeepRule  string `json:"keepRule"`
 	FolderOK  bool   `json:"folderOk"`
 	CanRecord bool   `json:"canRecord"`
+	// FreeOnDriveBytes is free drive space before applying the recording floor and cap.
+	FreeOnDriveBytes int64 `json:"freeOnDriveBytes"`
 	// UsedBytes is what the recordings take together.
 	UsedBytes int64 `json:"usedBytes"`
 	// FloorBytes is the free space recording always leaves on the drive; CapBytes, above 0, is
@@ -319,7 +321,10 @@ func (s *Server) dvrSummary(r *http.Request, _ None) (DvrOverview, error) {
 		}
 	}
 	if free, err := diskspace.Free(opts.Folder); err == nil {
-		out.FreeBytes, out.FolderOK = max(free-opts.Floor, 0), true
+		out.FreeOnDriveBytes, out.FreeBytes, out.FolderOK = free, max(free-opts.Floor, 0), true
+		if opts.Cap > 0 {
+			out.FreeBytes = min(out.FreeBytes, max(opts.Cap-out.UsedBytes, 0))
+		}
 		out.HoursLeft = int(out.FreeBytes / bytesPerHour)
 	}
 	return out, nil
