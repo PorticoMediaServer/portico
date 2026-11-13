@@ -113,7 +113,7 @@ func (s *Server) restoreRoutes() {
 		}
 		// Unpacked once; the database that will be put in place is the one checked, and its
 		// mark is checked over the very bytes unpacked.
-		err = backup.StageKeeping(r.Context(), archive, s.backups.DataDir, name, s.now(), req.NotMadeHereConfirmed, keep)
+		err = backup.StageKeepingWithPassphrase(r.Context(), archive, s.backups.DataDir, name, s.now(), req.NotMadeHereConfirmed, keep, req.Passphrase)
 		if errors.Is(err, backup.ErrNotMadeHere) {
 			return RestoreStaged{}, s.notMadeHere()
 		}
@@ -138,6 +138,9 @@ func (s *Server) restoreRoutes() {
 }
 
 func backupRefusal(err error) error {
+	if errors.Is(err, backup.ErrPassphrase) {
+		return ErrField("passphrase", "Enter the passphrase used to make this backup.")
+	}
 	var damaged *backup.ErrDamaged
 	if errors.As(err, &damaged) {
 		return refusal(http.StatusUnprocessableEntity, "backup_refused", damaged.Error(), false)

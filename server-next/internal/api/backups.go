@@ -31,11 +31,11 @@ type Backups struct {
 	// server has not restarted within an hour of staging it. Cancel is
 	// DELETE /v1/admin/backups/restore.
 	PendingRestore *backup.Pending `json:"pendingRestore,omitempty"`
-	// Readable says that anyone with a backup file can read the working credentials inside it
-	// (the server's keys, remote sources' sign-ins and the key file that opens them): no
-	// backup here has a passphrase. ReadableMeans says what that lets them do, for the page
-	// to say in plain words: sign in to this server as the owner, and use the remote storage
-	// sign-ins.
+	// Protected is whether future backups require the passphrase. Existing backup
+	// files keep their own protection, reported by each item's Protected field.
+	// Readable is its inverse: without protection anyone holding a new backup can
+	// read its working credentials. ReadableMeans names what those credentials allow.
+	Protected     bool     `json:"protected"`
 	Readable      bool     `json:"readable"`
 	ReadableMeans []string `json:"readableMeans"`
 }
@@ -50,8 +50,9 @@ func (b BackupStarted) reply(http.Header) int { return http.StatusAccepted }
 // BackupInspect names a backup to check whole: a listed one by ID, or a file chosen in the
 // folder explorer by its full Path.
 type BackupInspect struct {
-	ID   string `json:"id,omitempty"`
-	Path string `json:"path,omitempty"`
+	ID         string `json:"id,omitempty"`
+	Path       string `json:"path,omitempty"`
+	Passphrase string `json:"passphrase,omitempty"`
 }
 
 // BackupInspection is what a backup holds and what restoring it would do.
@@ -72,12 +73,22 @@ type BackupInspection struct {
 func (s *Server) Backups() *backup.Service { return s.backups }
 
 func (s *Server) backupRoutes() {
+	Handle(s, "PUT /v1/admin/backups/passphrase", Owner, func(r *http.Request, req BackupPassphrase) (None, error) {
+		if len(req.Passphrase) > 1024 {
+			return None{}, ErrField("passphrase", "Use a passphrase of at most 1024 bytes.")
+		}
+		if err := s.backups.SetPassphrase(req.Passphrase); err != nil {
+			return None{}, err
+		}
+		return None{}, s.db.RecordBackup(r.Context(), CallerFrom(r.Context()).UserID, "backup.protection", "", s.now())
+	})
 	Handle(s, "GET /v1/admin/backups", Owner, func(r *http.Request, _ None) (Backups, error) {
 		// Asked before the folder is read: a backup that finishes in between is then either
 		// still shown as running or already in the list, never missing from both.
 		running := s.backups.Running()
 		list, err := s.backups.List()
-		out := Backups{Items: list, Running: running, Folder: s.backups.Folder(), Readable: true,
+		protected := s.backups.Protected()
+		out := Backups{Items: list, Running: running, Folder: s.backups.Folder(), Readable: !protected, Protected: protected,
 			ReadableMeans: []string{"sign_in_as_owner", "use_remote_storage_sign_ins"}, FolderWritable: s.backups.FolderWritable(),
 			PendingRestore: backup.WaitingRestore(s.backups.DataDir, s.now())}
 		if out.Items == nil {
@@ -156,7 +167,10 @@ func (s *Server) inspectBackup(r *http.Request, req BackupInspect) (BackupInspec
 	default:
 		return BackupInspection{}, ErrInvalid("Name a listed backup by id, or a backup file by its path.")
 	}
-	contents, err := backup.Inspect(r.Context(), archive, s.backups.DataDir)
+	contents, err := backup.InspectWithPassphrase(r.Context(), archive, s.backups.DataDir, req.Passphrase)
+	if errors.Is(err, backup.ErrPassphrase) {
+		return BackupInspection{}, ErrField("passphrase", "Enter the passphrase used to make this backup.")
+	}
 	var damaged *backup.ErrDamaged
 	if errors.As(err, &damaged) {
 		return BackupInspection{}, refusal(http.StatusUnprocessableEntity, "backup_refused", damaged.Error(), false)
@@ -171,4 +185,9 @@ func (s *Server) inspectBackup(r *http.Request, req BackupInspect) (BackupInspec
 		out.KeyFiles = []string{}
 	}
 	return out, nil
+}
+
+// BackupPassphrase is write-only; empty turns protection off for future backups.
+type BackupPassphrase struct {
+	Passphrase string `json:"passphrase"`
 }

@@ -172,6 +172,8 @@ type Backup struct {
 	Artwork  bool `json:"artwork"`
 	// Mark is made over the archive with this server's key; see mark.go.
 	Mark string `json:"mark,omitempty"`
+	// Protected says restoring this particular backup requires its passphrase.
+	Protected bool `json:"protected"`
 }
 
 // Service makes and keeps backups.
@@ -393,6 +395,11 @@ func (s *Service) Wait() { s.making.Wait() }
 // and the pictures people uploaded; then its description. Nothing is in the backup folder
 // under its name until all of it has been written.
 func (s *Service) make(ctx context.Context, id string, scheduled bool) error {
+	protection, err := s.archiveProtection()
+	if err != nil {
+		return err
+	}
+	defer protection.clear()
 	// The database is copied on its own disk, inside the data folder: the copy runs a step at
 	// a time on the connection that writes, and a slow backup drive must never hold that.
 	if free, err := diskspace.Free(s.DataDir); err == nil {
@@ -422,7 +429,7 @@ func (s *Service) make(ctx context.Context, id string, scheduled bool) error {
 		return fmt.Errorf("the copy failed its check: %w", err)
 	}
 	desc := Backup{ID: id, CreatedAt: s.Now().UTC(), Scheduled: scheduled, Version: s.Version, Credentials: []string{CredentialServerKeys},
-		Artwork: Document.Get(s.Settings).IncludeArtwork}
+		Artwork: Document.Get(s.Settings).IncludeArtwork, Protected: protection != nil}
 	if has, err := s.DB.HasRemoteSources(ctx); err == nil && has {
 		desc.Credentials = append(desc.Credentials, CredentialSourceSignIns)
 	}
@@ -473,7 +480,7 @@ func (s *Service) make(ctx context.Context, id string, scheduled bool) error {
 		}
 		partial := filepath.Join(folder, makingPrefix+id+".tar.gz")
 		defer os.Remove(partial)
-		if err := s.writeArchive(ctx, partial, files, scheduled); err != nil {
+		if err := s.writeProtectedArchive(ctx, partial, files, scheduled, protection); err != nil {
 			return err
 		}
 		info, err := os.Stat(partial)
@@ -582,11 +589,30 @@ func (s *Service) pictures(ctx context.Context, all bool) ([]archived, error) {
 }
 
 func (s *Service) writeArchive(ctx context.Context, path string, files []archived, scheduled bool) error {
+	protection, err := s.archiveProtection()
+	if err != nil {
+		return err
+	}
+	defer protection.clear()
+	return s.writeProtectedArchive(ctx, path, files, scheduled, protection)
+}
+
+func (s *Service) writeProtectedArchive(ctx context.Context, path string, files []archived, scheduled bool, protection *archiveKeyMaterial) error {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return err
 	}
-	zw, _ := gzip.NewWriterLevel(f, gzip.BestSpeed)
+	var output io.Writer = f
+	var encrypted *encryptedWriter
+	if protection != nil {
+		encrypted, err = newEncryptedWriter(f, protection)
+		if err != nil {
+			f.Close()
+			return err
+		}
+		output = encrypted
+	}
+	zw, _ := gzip.NewWriterLevel(output, gzip.BestSpeed)
 	tw := tar.NewWriter(zw)
 	write := func(a archived) error {
 		src, err := os.Open(a.path)
@@ -621,7 +647,11 @@ func (s *Service) writeArchive(ctx context.Context, path string, files []archive
 			return fmt.Errorf("adding %s: %w", a.name, err)
 		}
 	}
-	err = errors.Join(tw.Close(), zw.Close(), f.Sync(), f.Close())
+	err = errors.Join(tw.Close(), zw.Close())
+	if encrypted != nil && err == nil {
+		err = encrypted.Close()
+	}
+	err = errors.Join(err, f.Sync(), f.Close())
 	return err
 }
 
