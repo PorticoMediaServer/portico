@@ -5,6 +5,8 @@ export const shared = {
   'next.auth.tv.requiredTwoStepBody': '{server} asks for two-step verification on this account. Turn it on from your phone or computer, then sign in again.',
   'next.auth.tv.requiredPasswordBody': '{server} asks for a new password on this account. Choose one from your phone or computer, then sign in again.',
   'next.auth.tv.handoffHint': 'Scan the code with your phone, or go to this address on a computer.',
+  'next.auth.tv.moveOnPhone': 'Move your account on your phone',
+  'next.auth.tv.moveBody': 'Open {server}’s sign-in page on your phone, sign in with your old username and password or the move code from the owner, and move your account to your Portico Account. Then choose Continue with Portico Account here.',
   'next.auth.tv.forgotPINBody': 'Manage profiles, PINs and two-step verification on your phone or computer.',
   'next.auth.tv.forgotPINPorticoBody': 'Reset this PIN on your phone or computer: sign in to your Portico Account, choose this profile, then Forgot PIN?',
   // Drawn playback clocks: desktop-player f1 and phone-player r4 (812dacac).
