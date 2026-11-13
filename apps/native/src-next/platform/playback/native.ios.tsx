@@ -1,7 +1,8 @@
+import {nativePlaybackView} from './native-surface';
 import {readUserMutationClockOffset} from '../../../../../packages/client-core/src/query/user-mutation-clock';
 import {nativeStopScope} from '../native-stop-scope';
 import React, {useCallback, useEffect, useRef, useSyncExternalStore, type ComponentRef} from 'react';
-import {AppState, NativeEventEmitter, NativeModules, Platform, UIManager, findNodeHandle, requireNativeComponent, type HostComponent, type ViewProps} from 'react-native';
+import {AppState, NativeEventEmitter, NativeModules, Platform, UIManager, findNodeHandle, type HostComponent, type ViewProps} from 'react-native';
 import {CapabilityPublisher} from '../../../../../packages/client-core/src/playback-v1/options';
 import {NativeCapabilityReadiness} from './capability-readiness';
 import {localV1Http} from '../../../../../packages/client-core/src/playback-v1/local-http';
@@ -31,7 +32,6 @@ type EngineModule = NativeListeningBridge & {
   purgeAudioCache?: () => Promise<unknown>;
 };
 type NativeSurfaceProps = ViewProps & {lease: string; pictureInPictureRequest: number; pictureInPictureBinding: NativeBinding | null; autoPictureInPicture: boolean};
-let appleSurfaceView: HostComponent<NativeSurfaceProps> | undefined;
 function viewAvailable(name: string): boolean { try { return !!UIManager.hasViewManagerConfig(name); } catch { return false; } }
 function moduleConstants(module: EngineModule) { try { return module.getConstants?.() ?? module; } catch { return module; } }
 function transport(module: EngineModule, event: string): NativePlaybackTransport {
@@ -48,7 +48,7 @@ export function createNativeShellPlaybackAdapter(options: NativePlaybackFactoryO
   const pipSupported = (NativeModules.PorticoRuntime as {getConstants?: () => Record<string, unknown>} | undefined)?.getConstants?.().pictureInPictureSupported === true;
   if (!native || !requestId || !viewAvailable(names.native.view)) throw new Error(serviceText('player.nativeHandoverFailed'));
   // One host component for this adapter lifetime. Presentation changes only its bounds.
-  const SurfaceView = appleSurfaceView ??= requireNativeComponent<NativeSurfaceProps>(names.native.view);
+  const SurfaceView = nativePlaybackView<NativeSurfaceProps>(names.native.view);
   const nativeFeatures = parseEngineFeatures(moduleConstants(native).features);
   const nativeTransport = transport(native, names.native.fact);
   const viewer = options.session()?.viewer;

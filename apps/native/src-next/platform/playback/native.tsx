@@ -1,7 +1,8 @@
+import {nativePlaybackView} from './native-surface';
 import {readUserMutationClockOffset} from '../../../../../packages/client-core/src/query/user-mutation-clock';
 import {nativeStopScope} from '../native-stop-scope';
 import React, {useCallback, useEffect, useRef, useSyncExternalStore, type ComponentRef} from 'react';
-import {AppState, Dimensions, NativeEventEmitter, NativeModules, Platform, UIManager, findNodeHandle, requireNativeComponent, type HostComponent, type ViewProps} from 'react-native';
+import {AppState, Dimensions, NativeEventEmitter, NativeModules, Platform, UIManager, findNodeHandle, type HostComponent, type ViewProps} from 'react-native';
 import {CapabilityPublisher} from '../../../../../packages/client-core/src/playback-v1/options';
 import {NativeCapabilityReadiness} from './capability-readiness';
 import {localV1Http} from '../../../../../packages/client-core/src/playback-v1/local-http';
@@ -32,7 +33,6 @@ type EngineModule = NativeListeningBridge & {
   purgeAudioCache?: () => Promise<unknown>;
 };
 type NativeSurfaceProps = ViewProps & {lease: string; surfaceActive?: boolean; pictureInPictureRequest?: number; pictureInPictureBinding?: unknown; autoPictureInPicture?: boolean};
-const views: Partial<Record<EngineKind, HostComponent<NativeSurfaceProps>>> = {};
 function viewAvailable(name: string): boolean { try { return !!UIManager.hasViewManagerConfig(name); } catch { return false; } }
 function moduleConstants(module: EngineModule) { try { return module.getConstants?.() ?? module; } catch { return module; } }
 function transport(module: EngineModule, event: string): NativePlaybackTransport {
@@ -122,7 +122,7 @@ export function createNativeShellPlaybackAdapter(options: NativePlaybackFactoryO
     useEffect(() => runtime.attachSurface(owner.current), []);
     useEffect(() => { runtime.setSubtitleDisplay(subtitlesVisible && !docked); }, [subtitlesVisible, docked]);
     const kind = state.engine;
-    const SurfaceView = views[kind] ??= requireNativeComponent<NativeSurfaceProps>(names[kind].view);
+    const SurfaceView = nativePlaybackView<NativeSurfaceProps>(names[kind].view);
     const target = docked ? dockBounds : expandedBounds;
     const bounds = target && [target.x, target.y, target.width, target.height].every(Number.isFinite) && target.width > 0 && target.height > 0 ? target : undefined;
     const visible = !!bounds && !!state.fence && !!state.lease;

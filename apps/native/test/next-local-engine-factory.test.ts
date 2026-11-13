@@ -25,7 +25,7 @@ async function factory({available = true, setting = 'automatic', container, subt
     '../../../../../packages/client-core/src/presentation/service-text': {serviceText: (key: string) => key},
     './engine-choice': engineChoice, './engine-media': engineMedia,
     './capability-document': {deviceCapabilityDocument: () => ({})}, './NativeListeningAdapter': {},
-    './runtime': {NativePlaybackRuntime: class {constructor(options: unknown) {captured = options;return runtime;}}},
+    './native-surface': {nativePlaybackView: () => 'PorticoPlayer'}, './runtime': {NativePlaybackRuntime: class {constructor(options: unknown) {captured = options;return runtime;}}},
     './scope-http': {PlaybackScopeHttp: class {dispose() {}}}, './dynamic-range-matching': {nativeDynamicRangeMatchingAvailable: () => false}, './capability-readiness': capabilityReadiness,
     '../../../platform/offline-downloads': {offlineDownloads: {}}, '../video-snapshot': {createVideoSnapshotCapture: () => ({})},
   });

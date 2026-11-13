@@ -1664,7 +1664,11 @@ export class OfflineDownloads {
     if (entry.downloadId) {
       if (this.entryOwner(entry) !== offlineOwnerKey(viewer)) return 'other_profile';
       const until = this.stored.permissions[offlineOwnerKey(viewer)];
-      return !until ? 'needs_setup' : this.receiptNow() >= until ? 'needs_check_in' : null;
+      if (!until) return 'needs_setup';
+      if (this.receiptNow() < until) return null;
+      // Remember expiry even inside the clock floor's usual one-minute write interval.
+      if (this.stored.clockFloor < until) {this.stored.clockFloor = until; void this.persist();}
+      return 'needs_check_in';
     }
     if (!entry.receipt || !this.verified.has(signedIdentity(entry.receipt))) return 'needs_setup';
     const now = this.receiptNow();

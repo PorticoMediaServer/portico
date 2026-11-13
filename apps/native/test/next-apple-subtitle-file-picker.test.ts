@@ -112,7 +112,7 @@ test('the actual Apple factory injects only the installed platform picker into i
       './dynamic-range-matching': {nativeDynamicRangeMatchingAvailable: () => false}, './capability-readiness': capabilityReadiness,
       './capability-document.ios': {deviceCapabilityDocument: () => ({})},
       './NativeListeningAdapter': {},
-      './runtime': {NativePlaybackRuntime: class {constructor(options: unknown) {captured = options;return runtime;}}},
+      './native-surface': {nativePlaybackView: () => 'PorticoPlayer'}, './runtime': {NativePlaybackRuntime: class {constructor(options: unknown) {captured = options;return runtime;}}},
       './scope-http': {PlaybackScopeHttp: class {dispose() {}}},
       './subtitle-file-picker.ios': {appleSubtitleFilePicker: actual},
       '../../../platform/offline-downloads': {offlineDownloads: {getSnapshot: () => ({supported: false})}},
