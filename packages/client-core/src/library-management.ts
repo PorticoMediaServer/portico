@@ -148,8 +148,8 @@ export class LibraryManagementService{
  async reconcile(){this.active();const id=this.state.selectedLibraryId,filter=this.state.jobFilter;await Promise.all([this.loadLibraries(),this.loadJobs(filter),...(id?[this.resource(id,true)]:[])]);}
  /** `metadataAgent`: the library's metadata source, `online` (the server's default) or `local` (local metadata only), applied before the first scan. */
   /** Creates a library on the rebuilt server (`POST /v1/admin/libraries`), which starts its first scan itself.
-  * Home and every library list read their libraries again. `metadataAgent` and `metadataLanguage` are not on the server's create yet and are not sent. */
- createLibrary(input:{expectedRemoteSource?:ExpectedRemoteSource;name:string;kind:ManagedLibrary['kind'];path?:string;folders?:readonly string[];metadataAgent?:'online'|'local';metadataLanguage?:string;/** Not on the rebuilt server: a new library is always scanned. */scanAfter?:boolean}):Promise<void>{
+  * Home and every library list read their libraries again. Online keeps the server's default provider; local selects none. */
+ createLibrary(input:{expectedRemoteSource?:ExpectedRemoteSource;name:string;kind:ManagedLibrary['kind'];path?:string;folders?:readonly string[];metadataAgent?:string;metadataLanguage?:string;metadataRegion?:string;/** Not on the rebuilt server: a new library is always scanned. */scanAfter?:boolean}):Promise<void>{
   this.active();
   const folders=(input.folders?.length?[...input.folders]:input.path?[typedServerPath(input.path)]:[]).map(cleanServerPath).filter(Boolean);
   if(!object(input)||!text(input.name,100)||!input.name.trim()||new TextEncoder().encode(input.name.trim()).length>100||!(input.kind in serverLibraryKinds)||!folders.length||folders.length>64||!folders.every(path=>text(path,8192)&&path))throw new Error('Check the library name, kind and server source path.');
@@ -159,7 +159,8 @@ export class LibraryManagementService{
   const api={request:<T,>(path:string,method?:string,body?:unknown)=>this.api.request<T>(path,method,body,c.signal)};
   const promise=(async()=>{
    try{
-    const made=await callServer(api,'POST /v1/admin/libraries',{body:{name:input.name.trim(),kind:serverLibraryKinds[input.kind],folders}});
+    const made=await callServer(api,'POST /v1/admin/libraries',{body:{name:input.name.trim(),kind:serverLibraryKinds[input.kind],folders,
+     ...(input.metadataAgent&&input.metadataAgent!=='online'?{metadataProvider:input.metadataAgent}:{}),...(input.metadataLanguage?{language:input.metadataLanguage}:{}),...(input.metadataRegion!==undefined?{region:input.metadataRegion}:{})}});
     if(!object(made)||!id(made.id))invalid();
     if(this.disposed||epoch!==this.epoch||c.signal.aborted)return;
     this.queries?.moved([dependsOn.libraries]);

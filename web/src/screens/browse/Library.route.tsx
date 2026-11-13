@@ -338,7 +338,7 @@ function ContextLibrary(props: BoundLibraryProps & {context: ScreenContext; pres
       try {agent = parseMetadataAgent(raw);} catch {withhold(); return;}
       // A read that answers for another library or kind is not this library's fact.
       if (agent.libraryId !== library.id || agent.libraryKind !== library.kind) {withhold(); return;}
-      setAgentFact({key: agentKey, context, online: agent.agent === 'online'});
+      setAgentFact({key: agentKey, context, online: agent.agent !== 'local'});
     }, withhold).catch(withhold);
     return () => {live = false;};
   }, [resources, library.id, library.kind, agentKey, context]);

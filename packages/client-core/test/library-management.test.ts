@@ -69,11 +69,11 @@ test('a library is read by its own address; scan, Scan all files, Cancel and ren
   ]);
 });
 
-test('a new library is created with the server\'s word for its kind and every chosen folder', async () => {
+test('a new library keeps its kind, folders and selected metadata source, language and region', async () => {
   const {api, calls} = server(call => call.method === 'POST' && call.path === '/v1/admin/libraries' ? library('lib_new') : undefined);
   const s = make(api);
-  await s.createLibrary({name: ' Shows ', kind: 'tv', folders: ['/media/tv/', '/mnt/more']});
-  assert.deepEqual(calls.find(c => c.method === 'POST')?.body, {name: 'Shows', kind: 'shows', folders: ['/media/tv', '/mnt/more']});
+  await s.createLibrary({name: ' Shows ', kind: 'tv', folders: ['/media/tv/', '/mnt/more'], metadataAgent: 'local', metadataLanguage: 'fr', metadataRegion: 'CA'});
+  assert.deepEqual(calls.find(c => c.method === 'POST')?.body, {name: 'Shows', kind: 'shows', folders: ['/media/tv', '/mnt/more'], metadataProvider: 'local', language: 'fr', region: 'CA'});
   assert.equal(s.getSnapshot().mutation.phase, 'complete');
   assert.equal(s.getSnapshot().directory.phase, 'ready', 'the list is read again after it');
 });
