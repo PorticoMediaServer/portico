@@ -62,6 +62,7 @@ test('phone first-library editor reads choices, changes kind and sends AniList b
     all(view, 'Focusable').find((node: any) => node.props.accessibilityLabel === 'AniList').props.onPress();
     all(view, 'FolderSourcePicker')[0].props.onUse({folders: [{path: '/media/anime', name: 'Anime'}]}); view = paint();
     const create = all(view, 'Button').find((node: any) => node.props.children.includes('web.setup.addLibraryScan'));
+    assert.equal(create.props.labelLines, 2, 'the first-run label wraps beside Skip rather than end in "…" (deferred row 247)');
     assert.equal(create.props.disabled, false); await create.props.onPress();
     assert.equal(f.posts.length, 1); assert.equal(f.posts[0].metadataProvider, 'anilist'); assert.equal(f.posts[0].kind, 'anime');
     assert.equal(f.service.getSnapshot().selectedLibraryId, 'created');

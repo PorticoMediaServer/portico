@@ -88,7 +88,8 @@ export function AddLibraryPage({api, serverName, onCreate, onCancel, busy, error
     </FormScrollView>
     <View style={{flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingVertical: 12, borderTopWidth: 1, borderTopColor: theme.colors.lineSoft, backgroundColor: theme.colors.ink}}>
       <Button variant="glass" size="small" disabled={busy} onPress={onCancel}>{t(firstRun ? 'web.setup.skip' : 'action.cancel')}</Button>
-      <Button size="small" loading={busy} disabled={!valid || busy} onPress={() => onCreate({name: name.trim(), kind, folders: folders.map(folder => folder.path), metadataAgent: agent, ...(language ? {metadataLanguage: language} : {})})} style={{flex: 1}}>{t(firstRun ? 'web.setup.addLibraryScan' : 'web.empty.addLibrary')}</Button>
+      {/* The first-run label is a sentence: it wraps to a second line beside Skip rather than end in "…" (deferred row 247). */}
+      <Button size="small" labelLines={2} loading={busy} disabled={!valid || busy} onPress={() => onCreate({name: name.trim(), kind, folders: folders.map(folder => folder.path), metadataAgent: agent, ...(language ? {metadataLanguage: language} : {})})} style={{flex: 1}}>{t(firstRun ? 'web.setup.addLibraryScan' : 'web.empty.addLibrary')}</Button>
     </View>
     <FolderSourcePicker open={exploring} onOpenChange={setExploring} api={api} serverName={serverName} ports={firstRun ? undefined : ports} runtime={firstRun ? undefined : runtime}
       chosen={choice} onUse={setChoice}/>
