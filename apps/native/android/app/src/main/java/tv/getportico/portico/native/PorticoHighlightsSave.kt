@@ -112,11 +112,13 @@ class PorticoHighlightsSave(private val context: ReactApplicationContext) : Reac
   }
   /** Fixed JSON diagnostics only, sharing the existing physical writer custody. */
   @ReactMethod fun saveDiagnostics(id: String, kind: String, json: String, promise: Promise) {
-    if (!Regex("^[A-Za-z0-9_-]{32}$").matches(id) || kind !in listOf("report", "support") || json.length > 8388608) { promise.reject("invalid_diagnostics", "Invalid diagnostics export"); return }
+    if (!Regex("^[A-Za-z0-9_-]{32}$").matches(id) || kind !in listOf("report", "support", "account") || json.length > 8388608) { promise.reject("invalid_diagnostics", "Invalid diagnostics export"); return }
     try {
       val parser = org.json.JSONTokener(json)
       val document = parser.nextValue() as? org.json.JSONObject ?: throw IllegalArgumentException()
-      if (parser.nextClean() != 0.toChar() || document.opt("id") !is String || (kind == "report" && document.opt("body") !is String) || (kind == "support" && document.opt("manifest") !is org.json.JSONObject)) throw IllegalArgumentException()
+      // An account export (#3431) is only that document: its format and its account's id, never anything else under that name.
+      val exportDocument = document.opt("format") == "portico.account-export.v2" && (document.opt("account") as? org.json.JSONObject)?.opt("id") is String
+      if (parser.nextClean() != 0.toChar() || (if (kind == "account") !exportDocument else document.opt("id") !is String) || (kind == "report" && document.opt("body") !is String) || (kind == "support" && document.opt("manifest") !is org.json.JSONObject)) throw IllegalArgumentException()
     } catch (_: Exception) { promise.reject("invalid_diagnostics", "Invalid diagnostics export"); return }
     synchronized(gate) {
       if (closed || custody != null || nextCode > 65534 || diagnosticsIds.size >= 4096 || diagnosticsIds.contains(id)) { promise.reject("diagnostics_busy", "Save unavailable"); return }
