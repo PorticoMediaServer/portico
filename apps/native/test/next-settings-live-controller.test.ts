@@ -92,12 +92,12 @@ test('Guide elapsed fill ends at the actual now line after the drawn gutter and 
   assert.equal(nativeGuideElapsedWidth(2, 176, 400), 176);
 });
 
-test('guide favorite waits for receipt and retries the exact operation key and selected revision', async () => {
+test('guide favorite waits for the modern answer and retries the same captured marks', async () => {
   const owner = authority(), lifetime = new NativeScreenLifetime(owner), sent: unknown[] = [];
   let finish!: (value: unknown) => void, generated = 0;
   const api: ChannelApi = {request: <T>(_path: string, method?: string, body?: unknown) => {
-    if (method === 'POST') {sent.push(body); if (sent.length === 1) return Promise.reject(new Error('unknown transport outcome')); return new Promise<T>(resolve => {finish = value => resolve(value as T);});}
-    return Promise.resolve({protocolVersion: '1.0', serverId: 'server', viewerFence: 'guide-domain-fence', revision: 'directory1', sources: []} as T);
+    if (method === 'PUT') {assert.equal(_path, '/v1/live/channels/channel/state');sent.push(body); if (sent.length === 1) return Promise.reject(new Error('unknown transport outcome')); return new Promise<T>(resolve => {finish = value => resolve(value as T);});}
+    return Promise.resolve({items: [], sources: []} as T);
   }};
   const controller = new NativeLiveController(lifetime, api, 'America/Halifax'), channel = legacyChannelRow(guideChannel());
   const requestId = async () => {generated++; return 'ab'.repeat(24);};
@@ -108,16 +108,16 @@ test('guide favorite waits for receipt and retries the exact operation key and s
   await Promise.resolve(); await Promise.resolve();
   assert.equal(controller.getSnapshot().mutating, true);
   assert.equal(await controller.channelPreference(channel, {favorite: true, hidden: false}, requestId), undefined);
-  assert.equal(generated, 1);
+  assert.equal(generated, 0, 'the idempotent state PUT needs no receipt key');
   assert.deepEqual(sent, [
-    {requestId: 'ab'.repeat(24), sourceId: 'source', channelId: 'channel', expectedRevision: 7, favorite: true, hidden: false},
-    {requestId: 'ab'.repeat(24), sourceId: 'source', channelId: 'channel', expectedRevision: 7, favorite: true, hidden: false},
+    {favorite: true, hidden: false},
+    {favorite: true, hidden: false},
   ]);
   assert.equal(channel.favorite, false);
-  finish({protocolVersion: '1.0', serverId: 'server', revision: 8});
+  finish({favorite: true, hidden: false});
   const committed = await pending;
   assert.equal(committed?.favorite, true);
-  assert.equal(committed && legacyChannel(committed)?.preferenceRevision, 8);
+  assert.equal(committed && legacyChannel(committed)?.preferenceRevision, 0);
   assert.equal(controller.getSnapshot().mutationError, undefined);
   controller.dispose(); lifetime.dispose();
 });
@@ -130,20 +130,22 @@ test('guide refuses a late favorite receipt after profile authority changes', as
   const pending = controller.channelPreference(channel, {favorite: true, hidden: false}, async () => 'cd'.repeat(24));
   await Promise.resolve(); await Promise.resolve();
   owner.replace({profileId: 'other', viewerFence: 'other-home-fence'});
-  finish({protocolVersion: '1.0', serverId: 'server', revision: 8});
+  finish({favorite: true, hidden: false});
   assert.equal(await pending, undefined);
   assert.equal(channel.favorite, false);
   controller.dispose(); lifetime.dispose();
 });
 
-test('a failed native operation-key generation sends no mutation and can be retried', async () => {
+test('modern guide marks need no native operation-key generation', async () => {
   const lifetime = new NativeScreenLifetime(authority());
-  let requests = 0;
-  const api: ChannelApi = {request: async <T>() => {requests++; return {protocolVersion: '1.0', serverId: 'server', revision: 8} as T;}};
+  let writes = 0;
+  const api: ChannelApi = {request: async <T>(_path: string, method?: string) => {
+    if (method === 'PUT') {writes++; return {favorite: true, hidden: false} as T;}
+    return {items: [], sources: []} as T;
+  }};
   const controller = new NativeLiveController(lifetime, api, 'America/Halifax'), channel = legacyChannelRow(guideChannel());
-  assert.equal(await controller.channelPreference(channel, {favorite: true, hidden: false}, async () => {throw new Error('native random unavailable');}), undefined);
-  assert.equal(requests, 0);
-  const result = await controller.channelPreference(channel, {favorite: true, hidden: false}, async () => 'ef'.repeat(24));
+  const result = await controller.channelPreference(channel, {favorite: true, hidden: false}, async () => {throw new Error('native random unavailable');});
+  assert.equal(writes, 1);
   assert.equal(result?.favorite, true);
   controller.dispose(); lifetime.dispose();
 });

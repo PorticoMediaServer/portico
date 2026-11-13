@@ -1,3 +1,4 @@
+import * as guideRangeModel from '../../../packages/client-core/src/guide/range';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
@@ -101,7 +102,7 @@ async function guideFixture(width = 1180, screenReader = false, facts: Readonly<
     '../../../../../packages/client-core/src/dvr': {defaultRecordingOptions: {}},
     '../../../../../packages/client-core/src/channel-guide': {dayPrimeTime: (value: number) => value, stripDays: () => [0, 86_400_000]},
     '../../../../../packages/client-core/src/presentation/kit-model': {episodeLabel: () => undefined, programmeFactParts: () => [], programmeTimeRange: () => undefined},
-    '../../../../../packages/client-core/src/guide': {legacyChannel: (value: any) => value, floorTo: (value: number) => value, localDayStart: () => 0, SLOT_MS: 1_800_000, pxPerMsFor: () => 1 / 15_000, rulerTicks: () => [], nowNext: () => ({now: programme}), layoutRow: () => [{kind: 'programme', program: programme, start: programme.start, end: programme.end, x: 0, width: 200}]},
+    '../../../../../packages/client-core/src/guide': {...guideRangeModel, legacyChannel: (value: any) => value, floorTo: (value: number) => value, localDayStart: () => 0, SLOT_MS: 1_800_000, pxPerMsFor: () => 1 / 15_000, rulerTicks: () => [], nowNext: () => ({now: programme}), layoutRow: () => [{kind: 'programme', program: programme, start: programme.start, end: programme.end, x: 0, width: 200}]},
     '../../../../../packages/client-core/src/guide/directory': {GuideFeatureClient: class {}},
     '../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable', Segmented: 'Segmented', Select: 'Select'},
     '../../kit/focus': {FocusItem: 'FocusItem', FocusRegion: 'FocusRegion', useCovered: () => false, useFocusRegistry: () => ({attachedFocus: () => undefined})},

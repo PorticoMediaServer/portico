@@ -24,7 +24,7 @@ const choice = (c: ChannelChoice = {}) => ({...(c.favorites ? {favorites: true} 
  * and whether it is out of date. Absent from a server without the follow-up: the filters then offer All and Favorites only.
  */
 export type ChannelSourceSummary = Readonly<{id: string; name: string; kind: 'live' | 'library'; channels: number; favorites: number;
-  groups: readonly Readonly<{name: string; count: number}>[]; guideThrough?: string; outOfDate?: boolean}>;
+  groups: readonly Readonly<{name: string; count: number}>[]; guideFrom?: string; guideThrough?: string; outOfDate?: boolean}>;
 export function channelSources(page: unknown): ChannelSourceSummary[] {
   const raw = (page as {sources?: unknown} | null)?.sources;
   if (!Array.isArray(raw)) return [];
@@ -35,6 +35,7 @@ export function channelSources(page: unknown): ChannelSourceSummary[] {
     const groups = Array.isArray(source.groups) ? source.groups.flatMap(group => typeof (group as {name?: unknown})?.name === 'string'
       ? [{name: (group as {name: string}).name, count: count((group as {count?: unknown}).count)}] : []) : [];
     return [{id: source.id, name: source.name, kind: source.kind === 'library' ? 'library' : 'live', channels: count(source.channels), favorites: count(source.favorites), groups,
+      ...(typeof source.guideFrom === 'string' ? {guideFrom: source.guideFrom} : {}),
       ...(typeof source.guideThrough === 'string' ? {guideThrough: source.guideThrough} : {}), ...(source.outOfDate === true ? {outOfDate: true} : {})}];
   });
 }
