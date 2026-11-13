@@ -166,3 +166,8 @@ export async function readPorticoAccountSecurity(accessToken: string, origin: st
     mfaEnabled: twoStep.on, recoveryCodesRemaining: twoStep.recoveryCodesLeft,
     providers: person.providers.filter(value => value === 'google' || value === 'apple').map(provider => ({id: provider, provider}))}, scope);
 }
+
+/** An account read, used on return from the hosted reset page to reconcile this device's sign-in. */
+export function readPorticoAccount(accessToken: string, origin: string, fetcher: typeof fetch, signal: AbortSignal) {
+  return refused(porticoAccount(heldFor(accessToken), origin, {fetcher}).account(signal));
+}
