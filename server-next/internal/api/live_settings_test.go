@@ -18,15 +18,18 @@ import (
 func TestLiveAndRecordingDefaultsApplyWithoutRestart(t *testing.T) {
 	s := newTestServer(t)
 	owner := onMainProfile(t, s).AccessToken
+	if initial := live.Document.Get(s.sources.Settings); initial.BufferSeconds != 8 || initial.IdentifyAs() != "Portico" {
+		t.Fatalf("live defaults: %+v", initial)
+	}
 	save := func(name string, value any) {
 		t.Helper()
 		if w := call(t, s, "PUT", "/v1/admin/settings/"+name, owner, value, nil); w.Code != 200 {
 			t.Fatalf("%s settings: %d %s", name, w.Code, w.Body)
 		}
 	}
-	save("live", json.RawMessage(`{"rewindMinutes":60,"retrySeconds":90,"guideDays":3}`))
+	save("live", json.RawMessage(`{"rewindMinutes":60,"retrySeconds":90,"guideDays":3,"bufferSeconds":3,"userAgent":"Provider-client"}`))
 	tuning := live.Document.Get(s.sources.Settings).Tuning()
-	if tuning.Stretch != time.Hour || tuning.Retry != 90*time.Second || tuning.MaxBytes != live.DefaultTuning.MaxBytes {
+	if tuning.Buffer != 3*time.Second || tuning.UserAgent != "Provider-client" || tuning.Stretch != time.Hour || tuning.Retry != 90*time.Second || tuning.MaxBytes != live.DefaultTuning.MaxBytes {
 		t.Fatalf("tuner defaults: %+v", tuning)
 	}
 	first, second := filepath.Join(t.TempDir(), "first"), filepath.Join(t.TempDir(), "second")
@@ -48,7 +51,7 @@ func TestLiveAndRecordingDefaultsApplyWithoutRestart(t *testing.T) {
 	if err != nil || live.Document.Get(reopened).GuideDays != 3 {
 		t.Fatalf("saved live defaults after reopen: %v", err)
 	}
-	for _, body := range []string{`{"rewindMinutes":9}`, `{"guideDays":5}`} {
+	for _, body := range []string{`{"rewindMinutes":9}`, `{"guideDays":5}`, `{"bufferSeconds":121}`, `{"userAgent":"one\r\ntwo"}`} {
 		if code := status(t, s, "PUT", "/v1/admin/settings/live", owner, json.RawMessage(body)); code != 422 {
 			t.Errorf("invalid live defaults answered %d", code)
 		}

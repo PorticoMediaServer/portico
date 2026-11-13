@@ -216,6 +216,10 @@ func TestAnXtreamSignInIsNeverShownAndATunerSaysItsTuners(t *testing.T) {
 // a moment in the rewind stretch, and its address stops working when the session ends.
 func TestWatchingASourcesChannelSharesItsTuner(t *testing.T) {
 	s, owner, members := seededWith(t, 50, 2)
+	// This test checks sharing/sign-in and short stream reads; buffering has its own controlled-clock test.
+	if code := status(t, s, "PUT", "/v1/admin/settings/live", owner, map[string]int{"bufferSeconds": 0}); code != 200 {
+		t.Fatalf("turning off the fixture's initial buffer: %d", code)
+	}
 	fake := fakeProvider(t, s.now())
 	t.Cleanup(s.tuners.Close) // before the fake source closes, which waits for its streams
 	src := addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("Antenna"), TunerCount: new(1), Config: &live.LiveSourceConfig{PlaylistURL: fake.URL + "/tuned.m3u"}})
@@ -282,6 +286,10 @@ func TestWatchingASourcesChannelSharesItsTuner(t *testing.T) {
 // no stored row and no answer ever holds.
 func TestAnXtreamChannelPlaysWithItsSealedSignIn(t *testing.T) {
 	s, owner, _ := seededWith(t, 50, 0)
+	// This test checks sharing/sign-in and short stream reads; buffering has its own controlled-clock test.
+	if code := status(t, s, "PUT", "/v1/admin/settings/live", owner, map[string]int{"bufferSeconds": 0}); code != 200 {
+		t.Fatalf("turning off the fixture's initial buffer: %d", code)
+	}
 	fake := fakeProvider(t, s.now())
 	t.Cleanup(s.tuners.Close)
 	addSource(t, s, owner, LiveSourceSave{Kind: "xtream", Name: new("Provider"), Config: &live.LiveSourceConfig{ServerURL: fake.URL + "/xtream"},

@@ -34,16 +34,18 @@ func (e *NoTuner) Error() string { return "every tuner is busy" }
 // how long a source that stops sending is tried again before the channel is said to have
 // stopped.
 type Tuning struct {
-	Stretch  time.Duration
-	MaxBytes int64
-	Retry    time.Duration
+	Buffer    time.Duration
+	UserAgent string
+	Stretch   time.Duration
+	MaxBytes  int64
+	Retry     time.Duration
 }
 
 // DefaultTuning is the owner's defaults: 30 minutes of rewind but never more than 1.5 GB a
 // channel (30 minutes of a broadcast HD channel is about 4 GB, so the rewind of such a
 // channel is shorter), and 60 seconds of retrying. The server reads the owner's live document
 // for the stretch and retry time.
-var DefaultTuning = Tuning{Stretch: 30 * time.Minute, MaxBytes: 1536 << 20, Retry: 60 * time.Second}
+var DefaultTuning = Tuning{Buffer: 8 * time.Second, UserAgent: "Portico", Stretch: 30 * time.Minute, MaxBytes: 1536 << 20, Retry: 60 * time.Second}
 
 const (
 	segmentLength = 4 * time.Second
@@ -304,7 +306,11 @@ func (in *Input) read(ctx context.Context) (delivered bool, _ error) {
 	if err != nil {
 		return false, err
 	}
-	req.Header.Set("User-Agent", "Portico")
+	agent := in.t.tuning().UserAgent
+	if agent == "" {
+		agent = "Portico"
+	}
+	req.Header.Set("User-Agent", agent)
 	resp, err := in.t.client.Do(req)
 	if err != nil {
 		return false, err

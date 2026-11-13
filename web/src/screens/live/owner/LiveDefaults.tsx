@@ -1,13 +1,14 @@
 import {useSyncExternalStore} from 'react';
 import {defaultI18n, type MessageId} from '@i18n';
-import type {LiveDefaults as Defaults, parseLiveDefaultsDocument} from '@core/administration.ts';
+import type {OwnerLiveDefaults as Defaults, LiveDefaultsStatus} from '@core/server-admin/live-defaults.ts';
 import {Button, Select, Switch, TextField} from '../../../kit/controls';
 import type {AutoSaveForm} from './auto-save-form';
-import {bufferingPresets, matchingPreset} from './settings-presets';
+import {matchingPreset} from './settings-presets';
 import {LiveSettingRow} from './LiveSettingRow';
 import styles from './owner.module.css';
 const t = defaultI18n.t;
-type DefaultsForm = AutoSaveForm<Defaults, ReturnType<typeof parseLiveDefaultsDocument>>;
+type DefaultsForm = AutoSaveForm<Defaults, LiveDefaultsStatus>;
+const bufferingPresets={balanced:{bufferSeconds:8,retrySeconds:60},smooth:{bufferSeconds:20,retrySeconds:180},live:{bufferSeconds:3,retrySeconds:30}} as const;
 
 export function LiveDefaults({form, isCurrent, advanced = false}: {form: DefaultsForm; isCurrent: () => boolean; advanced?: boolean}) {
   const state = useSyncExternalStore(form.subscribe, form.getSnapshot, form.getSnapshot), draft = state.draft;
@@ -19,18 +20,12 @@ export function LiveDefaults({form, isCurrent, advanced = false}: {form: Default
   const buffering = matchingPreset(bufferingPresets, draft);
   if (advanced) return <>
     <section className={styles.section}><div className={styles.heading}><h3>{t('next.settingsSpec.server.live.advanced.groups.0.title')}</h3></div><div className={styles.sources}>
-      {number('web.dvrSettings.buffer', draft.streamBufferMs / 1000, 8, 0, 120, value => set({streamBufferMs: value * 1000}), 'settings.unit.seconds', 'web.dvrSettings.bufferHelp')}
-      {number('web.dvrSettings.retryWindow', draft.retryWindowMs / 1000, 60, 5, 600, value => set({retryWindowMs: value * 1000}), 'settings.unit.seconds', 'web.dvrSettings.retryWindowHelp')}
-      {number('web.dvrSettings.guideDays', draft.guideDays, 7, 1, 21, guideDays => set({guideDays}), 'settings.unit.days')}
+      {number('web.dvrSettings.buffer', draft.bufferSeconds, 8, 0, 120, value => set({bufferSeconds:value}), 'settings.unit.seconds', 'web.dvrSettings.bufferHelp')}
+      {number('web.dvrSettings.retryWindow', draft.retrySeconds, 60, 0, 600, value => set({retrySeconds:value}), 'settings.unit.seconds', 'web.dvrSettings.retryWindowHelp')}
       <LiveSettingRow label={t('web.dvrSettings.userAgent')} help={t('web.dvrSettings.userAgentHelp')} value={draft.userAgent} defaultValue="" reset={() => set({userAgent: ''})}><TextField value={draft.userAgent} maxLength={200} variant="setting" disabled={state.saving}
         aria-label={t('web.dvrSettings.userAgent')} onChange={event => set({userAgent: event.currentTarget.value})}/></LiveSettingRow>
       <LiveSettingRow label={t('web.dvrSettings.discovery')} help={t('web.dvrSettings.discoveryHelp')} value={draft.discoveryEnabled} defaultValue={true} reset={() => set({discoveryEnabled: true})}><Switch checked={draft.discoveryEnabled} disabled={state.saving} aria-label={t('web.dvrSettings.discovery')}
         onCheckedChange={discoveryEnabled => set({discoveryEnabled})}/></LiveSettingRow>
-    </div></section>
-    <section className={styles.section}><div className={styles.heading}><h3>{t('server.live.limits')}</h3></div><div className={styles.sources}>
-      {number('server.live.limitChannels', draft.importLimits.channels, 50000, 1, 100000, channels => set({importLimits: {...draft.importLimits, channels}}))}
-      {number('server.live.limitProgrammes', draft.importLimits.programmes, 5000000, 1, 10000000, programmes => set({importLimits: {...draft.importLimits, programmes}}))}
-      {number('server.live.limitSize', draft.importLimits.bytes / 1048576, 512, 1, 1024, bytes => set({importLimits: {...draft.importLimits, bytes: bytes * 1048576}}), 'settings.unit.mb')}
     </div></section>
   </>;
   return <section className={styles.section}><div className={styles.heading}><h3>{t('web.dvrSettings.liveDefaults')}</h3></div><div className={styles.sources}>
@@ -44,11 +39,11 @@ export function LiveDefaults({form, isCurrent, advanced = false}: {form: Default
         options={[...[3, 7, 14].map((value, index) => ({value: String(value), label: t(`next.settingsSpec.server.live.groups.1.rows.1.control.options.${index}.label` as MessageId)})), {value: 'custom', disabled: true, label: t('next.settingsSpec.server.live.groups.1.rows.0.control.options.3.label')}]}
         onValueChange={value => {const guideDays = Number(value);if ([3, 7, 14].includes(guideDays)) set({guideDays});}}/>
     </LiveSettingRow>
-    {draft.timeshiftMinutes !== undefined && <LiveSettingRow label={t('next.settingsSpec.server.live.groups.1.rows.2.label')} help={t('next.settingsSpec.server.live.groups.1.rows.2.help')} value={draft.timeshiftMinutes} defaultValue={30} reset={() => set({timeshiftMinutes: 30})}>
-      <Select value={String(draft.timeshiftMinutes)} disabled={state.saving} aria-label={t('next.settingsSpec.server.live.groups.1.rows.2.label')}
-        options={[10, 30, 60, 120].map((value, index) => ({value: String(value), label: t(`next.settingsSpec.server.live.groups.1.rows.2.control.options.${index}.label` as MessageId)}))}
-        onValueChange={value => {const minutes = Number(value);if (minutes === 10 || minutes === 30 || minutes === 60 || minutes === 120) set({timeshiftMinutes: minutes});}}/>
+    {draft.rewindMinutes !== undefined && <LiveSettingRow label={t('next.settingsSpec.server.live.groups.1.rows.2.label')} help={t('next.settingsSpec.server.live.groups.1.rows.2.help')} value={draft.rewindMinutes} defaultValue={30} reset={() => set({rewindMinutes: 30})}>
+      <Select value={String(draft.rewindMinutes)} disabled={state.saving} aria-label={t('next.settingsSpec.server.live.groups.1.rows.2.label')}
+        options={[...[10,30,60,120].map((value,index)=>({value:String(value),label:t(`next.settingsSpec.server.live.groups.1.rows.2.control.options.${index}.label` as MessageId)})),...([10,30,60,120].includes(draft.rewindMinutes)?[]:[{value:String(draft.rewindMinutes),label:`${draft.rewindMinutes} ${t('settings.unit.minutes')}`}])]}
+        onValueChange={value => {const minutes = Number(value);if (minutes === 10 || minutes === 30 || minutes === 60 || minutes === 120) set({rewindMinutes: minutes});}}/>
     </LiveSettingRow>}
-    <LiveSettingRow label={t('next.settingsSpec.server.live.groups.1.rows.3.label')} value={draft.logoImport} defaultValue={true} reset={() => set({logoImport: true})}><Switch checked={draft.logoImport} disabled={state.saving} aria-label={t('next.settingsSpec.server.live.groups.1.rows.3.label')} onCheckedChange={logoImport => set({logoImport})}/></LiveSettingRow>
+    <LiveSettingRow label={t('next.settingsSpec.server.live.groups.1.rows.3.label')} value={draft.importImages} defaultValue={true} reset={() => set({importImages: true})}><Switch checked={draft.importImages} disabled={state.saving} aria-label={t('next.settingsSpec.server.live.groups.1.rows.3.label')} onCheckedChange={importImages => set({importImages})}/></LiveSettingRow>
   </div>{!!state.saveError && <Button size="small" disabled={state.saving} onClick={() => {if (isCurrent()) void form.save();}}>{t('action.tryAgain')}</Button>}</section>;
 }

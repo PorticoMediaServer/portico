@@ -97,6 +97,7 @@ func (s *Service) tunerFacts(ctx context.Context, device *LiveTunerDevice) {
 		client.Transport = copy
 	}
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	req.Header.Set("User-Agent", Document.Get(s.Settings).IdentifyAs())
 	resp, err := client.Do(req)
 	if err != nil {
 		return

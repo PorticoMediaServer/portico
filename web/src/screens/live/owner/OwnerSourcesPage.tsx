@@ -6,7 +6,8 @@ import {useContext, type ReactNode, useEffect, useLayoutEffect, useRef, useState
 import {defaultI18n} from '@i18n';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import {ConsoleClient} from '@core/console.ts';
-import {liveDefaultsForm, recordingForm} from '@core/server-admin/server-forms.ts';
+import {ownerLiveDefaultsForm} from '@core/server-admin/live-defaults.ts';
+import {recordingForm} from '@core/server-admin/server-forms.ts';
 import {channelRequestID} from '@core/live-source-draft.ts';
 import {errorMessage} from '@core/presentation/errors.ts';
 import {Button} from '../../../kit/controls';
@@ -58,7 +59,7 @@ export function createOwnerSources(options: OwnerSourcesOptions) {
   }};
   const api = withRequestRaw(reader, options.api.requestRaw?.bind(options.api), () => {if (!current()) throw {code: 'cancelled'};});
   const sources = new LiveSourceController(api, options.serverId, current, reportError);
-  const defaults = new AutoSaveForm(liveDefaultsForm({api, serverId: options.serverId, console: new ConsoleClient(api, {serverId: options.serverId, viewerId: options.viewerId}), operationId: channelRequestID}), current, reportError);
+  const defaults = new AutoSaveForm(ownerLiveDefaultsForm(api), current, reportError);
   const recording = new AutoSaveForm(recordingForm({api, serverId: options.serverId, console: new ConsoleClient(api, {serverId: options.serverId, viewerId: options.viewerId}), operationId: channelRequestID}), current, reportError);
   const permissions = new RecordingPermissionsController(api, options.serverId, current, reportError);
   const rules = new RecordingRulesController(api, options.serverId, permissions, current, reportError);
@@ -191,12 +192,11 @@ export function OwnerSourcesPage({source, libraryChannels}: {source: OwnerSource
   const advancedSummary: string[] = [];
   const liveDraft = defaults.draft, recordingDraft = recordingDefaults.draft, storageDraft = recordingStorage.draft;
   if (liveDraft) {
-    if (liveDraft.streamBufferMs !== 8000) advancedSummary.push(t('web.dvrSettings.buffer'));
-    if (liveDraft.retryWindowMs !== 60000) advancedSummary.push(t('web.dvrSettings.retryWindow'));
+    if (liveDraft.bufferSeconds !== 8) advancedSummary.push(t('web.dvrSettings.buffer'));
+    if (liveDraft.retrySeconds !== 60) advancedSummary.push(t('web.dvrSettings.retryWindow'));
     if (liveDraft.guideDays !== 7) advancedSummary.push(t('web.dvrSettings.guideDays'));
     if (liveDraft.userAgent) advancedSummary.push(t('web.dvrSettings.userAgent'));
     if (!liveDraft.discoveryEnabled) advancedSummary.push(t('web.dvrSettings.discovery'));
-    if (liveDraft.importLimits.channels !== 50000 || liveDraft.importLimits.programmes !== 5000000 || liveDraft.importLimits.bytes !== 512 * 1048576) advancedSummary.push(t('server.live.limits'));
   }
   if (recordingDraft) {
     if (recordingDraft.prePaddingMs !== 60000 || recordingDraft.postPaddingMs !== 180000) advancedSummary.push(t('next.settingsSpec.server.live.groups.6.rows.0.label'));
