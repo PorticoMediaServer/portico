@@ -75,14 +75,7 @@ const noGrid: BrowseState = Object.freeze({phase: 'loading', predicates: [], que
 const noGridSnapshot = () => noGrid;
 type PeriodicalTab = Readonly<{id: 'magazines' | 'newspapers'; label: 'library.tab.magazines' | 'library.tab.newspapers'; pivot: 'magazines' | 'newspapers'; shows: 'periodicals'; publicationType: ReadingPeriodicalType}>;
 type ReadingTab = LibraryTab | PeriodicalTab;
-/** The Magazines and Newspapers tabs are not offered until the rebuilt server reads a title's
- * publication type (a stopgap while that read is built, not a deferral). */
 function readingTabs(capabilities: BrowseCapabilities | undefined, kind: string): readonly ReadingTab[] {
-  const offered = (tabs: readonly ReadingTab[]) => tabs.filter(tab => tab.shows !== 'periodicals');
-  const all = allReadingTabs(capabilities, kind), kept = offered(all);
-  return kept.length ? kept : all;
-}
-function allReadingTabs(capabilities: BrowseCapabilities | undefined, kind: string): readonly ReadingTab[] {
   const base = readingTabModel(capabilities) ?? libraryTabs(kind);
   if (!capabilities || capabilities.library.kind !== 'book') return base;
   const out: ReadingTab[] = [base.find(tab => tab.id === 'discover') ?? base[0]!];
