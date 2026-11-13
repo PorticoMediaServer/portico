@@ -14,6 +14,7 @@ const rows: Readonly<Record<string, readonly [DocumentName | 'limits', string]>>
   'streaming.hardware': ['streaming', 'graphicsDevice'],
   'streaming.hardwareDecode': ['streaming', 'hardwareDecoding'],
   'streaming.maxConversions': ['streaming', 'conversionsAtOnce'],
+  'streaming.maxSoftwareConversions': ['streaming', 'processorConversionsAtOnce'],
   'streaming.maxBackgroundConversions': ['streaming', 'backgroundConversionsAtOnce'],
   'streaming.toneMapping': ['streaming', 'toneMapping'],
   'streaming.transcodeFolder': ['streaming', 'conversionFolder'],
@@ -63,6 +64,7 @@ export class OwnerStreamingSettings {
       const doc = name === 'limits' ? undefined : documents[name];
       const values = doc ? doc.values : limits, defaults = doc ? doc.defaults : {total: 0, endPausedVideoAfterMs: 0};
       if (!object(values) || !object(defaults)) return invalid();
+      if (doc && !Object.hasOwn(values, key) && !Object.hasOwn(defaults, key)) continue;
       const current = shown(id, values[key] ?? (name === 'limits' ? 0 : invalid()));
       const original = shown(id, defaults[key]);
       if (current === undefined || original === undefined) invalid();
