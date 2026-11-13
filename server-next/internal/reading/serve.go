@@ -34,6 +34,11 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 		return
 	}
 	ctx := r.Context()
+	if strings.HasPrefix(file, "pages/") {
+		bounded, cancel := context.WithTimeout(ctx, 90*time.Second)
+		defer cancel()
+		ctx = bounded
+	}
 	ok, maySave, err := s.allowed(ctx, token, g)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "Something went wrong.")
@@ -125,18 +130,19 @@ func (s *Service) ServeMedia(w http.ResponseWriter, r *http.Request, token, file
 			return
 		}
 		sendEntry(w, f, a, part.Path, part.Type)
-	case strings.HasPrefix(file, "pages/") && format == FormatCBZ:
+	case strings.HasPrefix(file, "pages/") && comicFormat(format):
 		deadline(w)
 		n, err := strconv.Atoi(strings.TrimPrefix(file, "pages/"))
 		width, werr := strconv.Atoi(r.URL.Query().Get("w"))
 		if r.URL.Query().Get("w") == "" {
 			width, werr = 0, nil
 		}
-		a, aerr := openArchive(f.at, f.size)
+		a, aerr := openBookArchive(ctx, f, format)
 		if aerr != nil {
 			damaged(w, f, "book_damaged", aerr.Error())
 			return
 		}
+		defer a.close()
 		c, cerr := readComic(a)
 		if err != nil || cerr != nil || n < 0 || n >= len(c.pages) || werr != nil || width < 0 {
 			writeError(w, http.StatusNotFound, "not_found", "This is not available.")
@@ -293,6 +299,10 @@ func fileType(format string) string {
 		return "application/pdf"
 	case FormatEPUB:
 		return "application/epub+zip"
+	case FormatCBR:
+		return "application/vnd.comicbook-rar"
+	case FormatCB7:
+		return "application/x-7z-compressed"
 	case FormatCBZ:
 		return "application/vnd.comicbook+zip"
 	}
