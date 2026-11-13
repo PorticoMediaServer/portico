@@ -63,12 +63,17 @@ const recordingColumns = `r.id, r.public_id, ifnull(r.channel_id, 0), r.channel_
 	ifnull(r.reason, ''), ifnull(r.choice, ''), r.in_guide, r.keep, r.created_at, r.updated_at`
 
 func scanRecording(row interface{ Scan(...any) error }) (Recording, error) {
+	return scanRecordingWithPrefix(row)
+}
+
+func scanRecordingWithPrefix(row rowScanner, prefix ...any) (Recording, error) {
 	var r Recording
 	var also string
 	var starts, ends, before, after, created, updated int64
-	err := row.Scan(&r.ID, &r.PublicID, &r.ChannelID, &r.ChannelName, &r.RuleID, &r.ProfileID, &r.BookedBy, &also, &r.ItemID, &r.ProgrammeKey,
+	fields := []any{&r.ID, &r.PublicID, &r.ChannelID, &r.ChannelName, &r.RuleID, &r.ProfileID, &r.BookedBy, &also, &r.ItemID, &r.ProgrammeKey,
 		&r.SeriesKey, &r.Title, &r.EpisodeTitle, &r.Season, &r.Episode, &r.Details, &starts, &ends, &before, &after, &r.Priority, &r.State,
-		&r.Reason, &r.Choice, &r.InGuide, &r.Keep, &created, &updated)
+		&r.Reason, &r.Choice, &r.InGuide, &r.Keep, &created, &updated}
+	err := row.Scan(append(prefix, fields...)...)
 	json.Unmarshal([]byte(also), &r.AlsoWantedBy)
 	r.Details, r.Rating, r.RatingAge = readDetails(r.Details)
 	r.StartsAt, r.EndsAt, r.CreatedAt, r.UpdatedAt = time.UnixMilli(starts), time.UnixMilli(ends), time.UnixMilli(created), time.UnixMilli(updated)
@@ -191,6 +196,7 @@ type RecordingQuery struct {
 	Made       bool
 	AfterTitle string
 	Limit      int
+	Group      *string // an exact Recorded group title, including an empty title
 }
 
 // Recordings reads a page. Upcoming reads recordings_upcoming in start order; history reads
@@ -219,6 +225,10 @@ func (d *DB) Recordings(ctx context.Context, q RecordingQuery) ([]Recording, err
 	if q.ProfileID != 0 {
 		where += ` AND (r.profile_id = ? OR EXISTS (SELECT 1 FROM json_each(r.also_wanted_by) w WHERE w.value = ?))`
 		args = append(args, q.ProfileID, q.ProfilePub)
+	}
+	if q.Group != nil {
+		where += ` AND r.title = ?`
+		args = append(args, *q.Group)
 	}
 	rows, err := d.read.QueryContext(ctx, `SELECT `+recordingColumns+` FROM recordings r WHERE `+where+` ORDER BY `+order+` LIMIT ?`,
 		append(args, q.Limit)...)
