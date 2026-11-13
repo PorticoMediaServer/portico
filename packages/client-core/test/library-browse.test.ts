@@ -49,7 +49,7 @@ test('the advertised In progress filter reaches reading and watch rows, the shar
     const caps = parseBrowseCapabilities(libraryBrowseCapabilities(wire, pivot!));
     const model = browseToolbarModel(caps, caps.library.kind, [], {field: 'title', direction: 'asc'}, {t: defaultI18n.t, locale: 'en-US', textEntry: false});
     assert.deepEqual(model.quick.map(q => q.label?.text), kind === 'books' || kind === 'comics'
-      ? ['Unread', 'In progress', 'Finished', 'My List'] : ['Unwatched', 'In progress', 'Favorites', 'My List']);
+      ? ['Unread', 'In progress', 'Finished', 'My List'] : ['Unplayed', 'In progress', 'Favorites', 'My List']);
     const built = new BrowseQueryBuilder(caps, pivot!).quickFilter('in-progress').build();
     const query = libraryItemQuery(wire, pivot!, [built.query!], []);
     assert.equal(query.inProgress, true);

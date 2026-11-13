@@ -76,7 +76,7 @@ func (s *Server) mcpTools(r *http.Request, c Caller) []mcp.Tool {
 		{Name: "list_titles", Description: "List the titles of a library, 50 at a time, newest added first.",
 			InputSchema: mcp.Schema([]string{"library"}, map[string]string{"library": "The library's id, from list_libraries.",
 				"kind": "Only this kind: movie, show, episode, artist, album, track, book or audiobook.", "cursor": "From the previous answer, for the next 50.",
-				"unwatched": "(boolean) Only titles not yet watched."}),
+				"unwatched": "(boolean) Only unplayed titles."}),
 			Run: func(_ context.Context, raw json.RawMessage) (any, error) {
 				var a struct {
 					Library, Kind, Cursor string

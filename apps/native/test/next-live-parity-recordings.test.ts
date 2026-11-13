@@ -201,7 +201,7 @@ test('recording rows draw no ⋯ on any platform; touch keeps tap for details an
   }
 });
 
-test('a show’s recordings say Kept or Unwatched; other lists do not', async () => {
+test('a show’s recordings say Kept or Unplayed; other lists do not', async () => {
   const f = await fixture({isTV: false, role: 'member', canManage: false}); try {
     const facts = (tree: any) => elements(tree).filter(node => node.type === 'ScreenText').map(node => node.props.children).filter((value: unknown) => typeof value === 'string');
     const draw = async (query: object, recording: any) => {
@@ -212,10 +212,10 @@ test('a show’s recordings say Kept or Unwatched; other lists do not', async ()
     };
     const show = {view: 'recorded', group: 'show'};
     assert.ok((await draw(show, row({keep: true, watched: false}))).includes('Kept'));
-    assert.ok((await draw(show, row({watched: false}))).includes('Unwatched'));
-    const watched = await draw(show, row({watched: true})); assert.ok(!watched.includes('Watched') && !watched.includes('Unwatched'), 'frame 22 draws Kept or Unwatched only');
-    const unknown = await draw(show, row({watched: null})); assert.ok(!unknown.includes('Unwatched') && !unknown.includes('Kept'));
-    const plain = await draw({view: 'history'}, row({keep: true, watched: false})); assert.ok(!plain.includes('Kept') && !plain.includes('Unwatched'));
+    assert.ok((await draw(show, row({watched: false}))).includes('Unplayed'));
+    const watched = await draw(show, row({watched: true})); assert.ok(!watched.includes('Watched') && !watched.includes('Unplayed'), 'frame 22 draws Kept or Unplayed only');
+    const unknown = await draw(show, row({watched: null})); assert.ok(!unknown.includes('Unplayed') && !unknown.includes('Kept'));
+    const plain = await draw({view: 'history'}, row({keep: true, watched: false})); assert.ok(!plain.includes('Kept') && !plain.includes('Unplayed'));
   } finally {await f.close();}
 });
 

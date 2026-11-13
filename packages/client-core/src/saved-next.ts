@@ -28,7 +28,7 @@ const shapeKinds: Readonly<Record<'posters' | 'squares', string>> = {posters: 'm
 export const listFilters: Readonly<Record<string, Readonly<Record<string, string | boolean>>>> = {all: {}, unwatched: {watched: false}, inProgress: {inProgress: 'true'}, watched: {watched: true}, favorites: {favorite: true}};
 const listSorts: Readonly<Record<string, string>> = {title: 'title', added: 'added', year: 'year', duration: 'duration'};
 export const pageSorts: Readonly<Record<string, string>> = {position: 'order', title: 'title', year: 'year', duration: 'duration'};
-export const filterLabels: Readonly<Record<string, string>> = {all: 'All', unwatched: 'Unwatched', inProgress: 'In progress', watched: 'Watched', favorites: 'Favorites'};
+export const filterLabels: Readonly<Record<string, string>> = {all: 'All', unwatched: 'Unplayed', inProgress: 'In progress', watched: 'Watched', favorites: 'Favorites'};
 const navigation = [{id: 'watchlist', labelKey: 'saved.watchlist', view: 'watchlist'}, {id: 'favorites', labelKey: 'saved.favorites', view: 'favorites'}, {id: 'playlists', labelKey: 'saved.playlists', view: 'playlists'}];
 const notYet = (): never => {throw new CodedError('not_available', 'This is not available on this server yet.');};
 export const revisionOf = (list: Pick<List, 'revision'>) => {const n = Number(list.revision); return Number.isSafeInteger(n) && n >= 0 ? n : 0;};

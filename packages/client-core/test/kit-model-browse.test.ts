@@ -51,7 +51,7 @@ test('movie quick toggles follow the drawn order and preserve the server queries
   const capabilities = caps();
   const model = browseToolbarModel(capabilities, 'movie', [], titleSort, env);
   assert.deepEqual(ids(model.quick), ['unwatched', 'in-progress', 'favorites', 'watchlist']);
-  assert.deepEqual(model.quick.map(q => q.label?.text), ['Unwatched', 'In progress', 'Favorites', 'My List']);
+  assert.deepEqual(model.quick.map(q => q.label?.text), ['Unplayed', 'In progress', 'Favorites', 'My List']);
   assert.deepEqual(ids(model.filterQuick), ['watched', 'available', 'missing']);
   for (const quick of [...model.quick, ...model.filterQuick]) {
     const source = capabilities.quickFilters.find(q => q.id === quick.id)!;
@@ -85,7 +85,7 @@ test('a reading library says Unread and Finished in the read frames order; films
     const model = browseToolbarModel(capabilities, kind, [], titleSort, env);
     assert.deepEqual(model.quick.map(q => [q.id, q.label?.text]), [['unwatched', 'Unread'], ['in-progress', 'In progress'], ['watched', 'Finished'], ['watchlist', 'My List']], kind);
   }
-  for (const kind of ['movie', 'audiobook', 'audiobooks']) assert.equal(browseToolbarModel(capabilities, kind, [], titleSort, env).quick[0]?.label?.text, 'Unwatched', kind);
+  for (const kind of ['movie', 'audiobook', 'audiobooks']) assert.equal(browseToolbarModel(capabilities, kind, [], titleSort, env).quick[0]?.label?.text, 'Unplayed', kind);
 });
 
 test('sorts use the designed order, retain expensive flags, and expose File size only to a real owner', () => {

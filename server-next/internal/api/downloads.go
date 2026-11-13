@@ -361,7 +361,7 @@ func (s *Server) askDownload(r *http.Request, req DownloadAsk) (Download, error)
 	case (req.ItemID == "") == (req.ListID == ""):
 		return Download{}, ErrField("itemId", "Say which title, show, season, album, artist or playlist to download.")
 	case !slices.Contains([]string{"all", "unwatched", "next"}, req.Selection):
-		return Download{}, ErrField("selection", "The selection is all, unwatched or next.")
+		return Download{}, ErrField("selection", "Choose all titles, unplayed titles or the next titles.")
 	case req.KeepNext != 0 && (req.Selection != "next" || !slices.Contains([]int{1, 3, 5}, req.KeepNext)):
 		return Download{}, ErrField("keepNext", "Keep the next 1, 3 or 5, with the selection next.")
 	case req.VersionID != "" && req.ListID != "":
@@ -526,7 +526,7 @@ func (s *Server) changeDownload(r *http.Request, req DownloadChange) (Download, 
 			return Download{}, downloadError(err)
 		}
 		if dl.Selection != "next" {
-			return Download{}, ErrField("keepNext", "Keeping the next ones is for a download of the next unwatched titles.")
+			return Download{}, ErrField("keepNext", "Keeping the next ones is for a download of the next unplayed titles.")
 		}
 	}
 	if req.Paused != nil || req.KeepNext != nil {
