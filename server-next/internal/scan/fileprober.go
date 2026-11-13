@@ -177,6 +177,7 @@ func FromMedia(found mediafacts.Facts) Facts {
 			}
 		case "audio":
 			stream.Kind = db.StreamAudio
+			stream.BitDepth = d.BitsPerSample
 		case "subtitle":
 			stream.Kind = db.StreamSubtitle
 		default:

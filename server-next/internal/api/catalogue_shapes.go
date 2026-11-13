@@ -151,19 +151,31 @@ type Item struct {
 	EntryID string `json:"entryId,omitempty"`
 
 	// On GET /v1/items/{id} only.
-	OriginalTitle string            `json:"originalTitle,omitempty"`
-	Summary       string            `json:"summary,omitempty"`
-	Tagline       string            `json:"tagline,omitempty"`
-	Edition       string            `json:"edition,omitempty"`
-	Available     *bool             `json:"available,omitempty"`
-	Parent        *ItemRef          `json:"parent,omitempty"`
-	Root          *ItemRef          `json:"root,omitempty"`
-	Series        *ItemRef          `json:"series,omitempty"`
-	Tags          []Tag             `json:"tags,omitempty"`
-	ExternalIDs   map[string]string `json:"externalIds,omitempty"`
-	Credits       []Credit          `json:"credits,omitempty"`
-	CreditTotal   *int              `json:"creditTotal,omitempty"`
-	Versions      []Media           `json:"versions,omitempty"`
+	OriginalTitle string             `json:"originalTitle,omitempty"`
+	Summary       string             `json:"summary,omitempty"`
+	Tagline       string             `json:"tagline,omitempty"`
+	Edition       string             `json:"edition,omitempty"`
+	Available     *bool              `json:"available,omitempty"`
+	Parent        *ItemRef           `json:"parent,omitempty"`
+	Root          *ItemRef           `json:"root,omitempty"`
+	Series        *ItemRef           `json:"series,omitempty"`
+	Tags          []Tag              `json:"tags,omitempty"`
+	ExternalIDs   map[string]string  `json:"externalIds,omitempty"`
+	Credits       []Credit           `json:"credits,omitempty"`
+	CreditTotal   *int               `json:"creditTotal,omitempty"`
+	Versions      []Media            `json:"versions,omitempty"`
+	AlbumAudio    *AlbumAudioSummary `json:"albumAudio,omitempty"`
+}
+
+// AlbumAudioSummary is present only on an album item read. State is common, mixed or unknown.
+// Common facts omit anything not known for every visible song; bitrate is for lossy audio only.
+type AlbumAudioSummary struct {
+	State      string `json:"state"`
+	Codec      string `json:"codec,omitempty"`
+	BitDepth   int    `json:"bitDepth,omitempty"`
+	SampleRate int    `json:"sampleRate,omitempty"`
+	Channels   int    `json:"channels,omitempty"`
+	Bitrate    int64  `json:"bitrate,omitempty"`
 }
 
 // ItemRef names the season or show an item belongs to, enough to draw a breadcrumb.
@@ -548,6 +560,10 @@ func detailShape(d db.ItemDetail) Item {
 	out := itemShape(d.Item)
 	out.OriginalTitle, out.Summary, out.Tagline, out.Edition = d.OriginalTitle, d.Summary, d.Tagline, d.Edition
 	out.Available, out.CreditTotal = &d.Available, &d.CreditTotal
+	if a := d.AlbumAudio; a != nil {
+		out.AlbumAudio = &AlbumAudioSummary{State: a.State, Codec: a.Codec, BitDepth: a.BitDepth,
+			SampleRate: a.SampleRate, Channels: a.Channels, Bitrate: a.Bitrate}
+	}
 	if d.CriticRating != 0 {
 		if out.Ratings == nil {
 			out.Ratings = &Ratings{}
