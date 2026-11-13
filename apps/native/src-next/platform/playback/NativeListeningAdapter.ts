@@ -88,11 +88,10 @@ export class NativeListeningV1Adapter implements NativeListeningV1Control {
  private bridge:NativeListeningBridge;private principal:ListeningPrincipal;private bearer:()=>string;private id:()=>string;private subscribe:(sink:(event:unknown)=>void)=>()=>void;
  private route?:{getSnapshot:()=>RouteSnapshot;subscribe:(listener:()=>void)=>()=>void};
  private originalMutationScope?:NativeStopScope;
- private mutationClock?:()=>Promise<number>;
  private mutationScope?:()=>NativeStopScope|undefined;
  private epoch=0;private policyAttempt=0;private policy?:NativeListeningPolicy;
  private current?:{owner:string;sessionId:string;sink:(event:NativeListeningV1Event)=>void;sequence:number;last?:NativeListeningV1Event;ancestor?:string;unsubscribe:()=>void};
- constructor(options:{mutationClock?:()=>Promise<number>;mutationScope?:()=>NativeStopScope|undefined;route?:{getSnapshot:()=>RouteSnapshot;subscribe:(listener:()=>void)=>()=>void};bridge:NativeListeningBridge;principal:ListeningPrincipal;bearer:()=>string;id:()=>string;subscribe:(sink:(event:unknown)=>void)=>()=>void}){const scope=options.mutationScope?.();this.originalMutationScope=scope?Object.freeze({...scope}):undefined;this.mutationClock=options.mutationClock;this.mutationScope=options.mutationScope;this.route=options.route;this.bridge=options.bridge;this.principal=listeningPrincipal(options.principal);this.bearer=options.bearer;this.id=options.id;this.subscribe=options.subscribe;}
+ constructor(options:{mutationScope?:()=>NativeStopScope|undefined;route?:{getSnapshot:()=>RouteSnapshot;subscribe:(listener:()=>void)=>()=>void};bridge:NativeListeningBridge;principal:ListeningPrincipal;bearer:()=>string;id:()=>string;subscribe:(sink:(event:unknown)=>void)=>()=>void}){const scope=options.mutationScope?.();this.originalMutationScope=scope?Object.freeze({...scope}):undefined;this.mutationScope=options.mutationScope;this.route=options.route;this.bridge=options.bridge;this.principal=listeningPrincipal(options.principal);this.bearer=options.bearer;this.id=options.id;this.subscribe=options.subscribe;}
  async adopt(context:NativeListeningV1Context,sink:(event:NativeListeningV1Event)=>void){
   if(!this.bridge.adoptListeningSession)throw new Error('This app version can’t hand audio to the system player.');
   const playbackRun=context.playbackRun,epoch=++this.epoch,previous=this.current;this.current=undefined;
@@ -101,15 +100,13 @@ export class NativeListeningV1Adapter implements NativeListeningV1Control {
   const active:NonNullable<NativeListeningV1Adapter['current']>={owner:this.id(),sessionId:context.session.id,sink,sequence:0,unsubscribe:()=>{}};this.current=active;
   active.unsubscribe=this.subscribe(raw=>{if(this.current!==active||(raw as any)?.owner!==active.owner)return;try{this.accept(active,raw);}catch(error){this.fail(active,error);}});
   try{
-   const offset=this.mutationClock?await this.mutationClock():0;
-   if(!Number.isSafeInteger(offset))throw new Error('mutation_clock');
    if(this.current!==active)return;
    const scope=this.mutationScope?.();
    if(this.mutationScope&&(!scope||!this.originalMutationScope||(['serverId','origin','authority','accountId','profileId','familyId','deviceId'] as const).some(key=>scope[key]!==this.originalMutationScope![key])))throw Object.assign(new Error('mutation_scope_changed'),{code:'mutation_scope_changed'});
    const capturedScope=scope?Object.freeze({...scope}):undefined;
    const route=this.route?.getSnapshot();
    const raw=await this.bridge.adoptListeningSession({owner:active.owner,origin:this.principal.origin,transport:route?{ready:route.phase==='ready',origin:route.origin,revision:route.revision}:undefined,principalKey:principalKey(this.principal),
-    mutationClockOffsetMs:offset,mutationScope:capturedScope,session:context.session,...(playbackRun===undefined?{}:{playbackRun}),queueId:context.queueId,queueRevision:context.queueRevision,durationSeconds:context.durationSeconds,lastSeq:context.lastSeq,...(context.observerEpoch?{observerEpoch:context.observerEpoch}:{}),leaseMs:context.leaseMs,transitions:context.transitions,intent:context.intent,policy:this.policy??null,accessToken:this.bearer()});
+    mutationScope:capturedScope,session:context.session,...(playbackRun===undefined?{}:{playbackRun}),queueId:context.queueId,queueRevision:context.queueRevision,durationSeconds:context.durationSeconds,lastSeq:context.lastSeq,...(context.observerEpoch?{observerEpoch:context.observerEpoch}:{}),leaseMs:context.leaseMs,transitions:context.transitions,intent:context.intent,policy:this.policy??null,accessToken:this.bearer()});
    if(this.current!==active)return;
    this.accept(active,raw);
    if(this.route){const update=()=>{if(this.current!==active)return;const r=this.route!.getSnapshot();if(!this.bridge.listeningRoute){this.fail(active,new Error('Native route handoff is unavailable.'));return;}void this.bridge.listeningRoute(active.owner,{ready:r.phase==='ready',origin:r.origin,revision:r.revision}).catch(error=>this.fail(active,error));};const off=this.route.subscribe(update),offEvent=active.unsubscribe;active.unsubscribe=()=>{off();offEvent();};update();}
