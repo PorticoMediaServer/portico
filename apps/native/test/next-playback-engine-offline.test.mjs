@@ -16,6 +16,7 @@ import * as failures from '../src-next/platform/playback/playback-failure.ts';
 import * as styles from '../src-next/platform/playback/subtitle-style-choices.ts';
 import * as intent from '../src-next/platform/playback/start-intent.ts';
 import * as videoPolicy from '../src-next/platform/playback/video-policy.ts';
+import {sameFence} from '../../../packages/player-core/src/identity.ts';
 
 const unused = () => {throw new Error('Unexpected boundary call in the focused engine test.');};
 const serviceText = key => key;
@@ -43,7 +44,7 @@ const {NativePlaybackRuntime} = await sourceModule(new URL('../src-next/platform
   '../../../../../packages/client-core/src/presentation/service-text': {serviceText},
   '../../../../../packages/client-core/src/server-clock': {serverNow: () => Date.now()},
   '../../../../../packages/player-core/src': {PlaybackDock: unused, PlayerSessionChoices: unused, activeSegment: unused, skipsAutomatically: unused,
-    skipTarget: unused, parseQueueSnapshot: unused, playbackFence: unused, sameFence: unused, sameScope: unused},
+    skipTarget: unused, parseQueueSnapshot: unused, playbackFence: unused, sameFence, sameScope: unused},
   './NativePlaybackCoordinator': {NativePlaybackCoordinator}, './external-presentation': external,
   './native-playback': {NativePlayback: unused, automaticSteps: unused}, './scope-http': {PlaybackScopeHttp: unused},
   './paint-authority': await import('../src-next/platform/playback/paint-authority.ts'),
@@ -138,6 +139,22 @@ test('local rate facts agree with the speed configured on the engine', async t =
   f.runtime.applyOptions(); await drain();
   assert.equal(f.commands.at(-1).rate, 1.5);
   assert.equal(f.runtime.chosenRate, 1.5, 'the offline listening reader must publish the selected engine rate');
+});
+
+test('online and downloaded titles keep Play and seek available at the end', async t => {
+  for (const local of [false, true]) {
+    const f = await fixture('native', local); t.after(() => f.dispose());
+    const fence = {...f.runtime.fence(), itemId: 'item'};
+    f.accepted.presentation.decision = {};
+    Object.assign(f.state, {phase: 'ended', intent: 'paused', positionSeconds: 120, duration: 120});
+    f.runtime.fence = () => fence; f.runtime.matches = expected => expected === fence;
+    f.runtime.queue = {getSnapshot: () => ({}), chapterTarget() {}, bookChaptersView: () => null};
+    f.runtime.dock = {getSnapshot: () => ({})}; f.runtime.videoPolicy = {getSnapshot: () => ({})};
+    f.runtime.subtitleStyles.read = () => ({});
+    f.runtime.snapshot = f.runtime.makeSnapshot(1);
+    assert.equal(f.runtime.snapshot.capabilities.play, true);
+    assert.equal(f.runtime.snapshot.capabilities.seek, true);
+  }
 });
 
 test('direct mpv starts with its accepted audio before options arrive and refuses contradictory offers', async t => {
