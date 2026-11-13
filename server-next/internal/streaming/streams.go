@@ -76,6 +76,11 @@ type StartRequest struct {
 	Size     int64
 	Modified time.Time
 	Source   Source
+	// Parts, for a title in several files that plays as one (an audiobook in parts), are its
+	// files in order, the first of them in place of Path. The stream runs across all of them
+	// on one clock, so every position in it is a place in the whole title. Plan it with
+	// PlanRequest.Joined and the whole title's length.
+	Parts []JoinedPart
 	// PositionMs is where the viewer starts, so the converter starts there too.
 	PositionMs int64
 	// Subtitles are the text subtitles offered in the playlist, the selected one
@@ -233,6 +238,11 @@ func (s *Streams) Start(ctx context.Context, r StartRequest) (Stream, error) {
 	if source == nil {
 		source = libraryFile{path: r.Path, size: r.Size, modified: r.Modified, roots: s.libraries}
 	}
+	var open inputOpener
+	if len(r.Parts) > 1 {
+		first := r.Parts[0]
+		source, open = libraryFile{path: first.Path, size: first.Size, modified: first.Modified, roots: s.libraries}, joinedInput(r.Parts, s.libraries)
+	}
 	// A file that cannot be opened is refused now, in plain words, not as a
 	// failed conversion a moment later.
 	probe, _, _, err := source.Open(ctx)
@@ -248,6 +258,7 @@ func (s *Streams) Start(ctx context.Context, r StartRequest) (Stream, error) {
 		id: token(), session: r.SessionID, grant: token(), mode: mode, source: source, plan: &plan, request: r.Request,
 		duration: plan.Duration, text: append([]TextRenditionPlan{}, r.Subtitles...), burn: r.Burn, burnLoad: r.BurnLoad,
 		changed: make(chan struct{}), replaced: r.Replaced, failedHook: r.Failed, served: -1, audio: r.Audio, seekIndex: r.SeekIndex,
+		openInput: open,
 	}
 	s.Stop(r.SessionID)
 	if err := s.install(st); err != nil {
@@ -393,6 +404,10 @@ func (s *Streams) stop(st *stream) {
 		delete(s.bySession, st.session)
 	}
 	waits := []<-chan struct{}{}
+	if st.bookAhead != nil {
+		st.bookAhead.cancel()
+		waits = append(waits, st.bookAhead.done)
+	}
 	for key, cancel := range h.active {
 		if producerSession(key) == st.id {
 			if w := h.windows[key]; w != nil {
@@ -585,4 +600,6 @@ func (h *HLS) emptyMemory() error {
 
 // inputOpener opens a stream's source for one converter run. It exists for
 // sources that are not one library file, such as a disc title.
-type inputOpener func(context.Context) (*PlaybackInput, subtitles.WindowInput, error)
+// position is where the run starts in the title, in seconds: an opener may start its input
+// there itself (PlaybackInput.Positioned).
+type inputOpener func(ctx context.Context, position float64) (*PlaybackInput, subtitles.WindowInput, error)
