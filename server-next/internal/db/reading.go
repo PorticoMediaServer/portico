@@ -11,11 +11,12 @@ import (
 // Book is what opening a book needs: its versions' files, and whether the reader may save
 // the original file.
 type Book struct {
-	ID       int64
-	PublicID string
-	Kind     ItemKind
-	Title    string
-	Versions []BookVersion
+	ID           int64
+	PublicID     string
+	Kind         ItemKind
+	Title        string
+	OpeningLines string
+	Versions     []BookVersion
 	// MaySave says the profile, and its account, may download, which is what saving the
 	// book's own file needs.
 	MaySave bool
@@ -63,10 +64,10 @@ func (d *DB) Book(ctx context.Context, v Viewer, publicID string) (Book, error) 
 	}
 	err = tx.QueryRowContext(ctx, `SELECT i.id, i.public_id, i.kind, i.title,
 		(SELECT p.allow_downloads AND u.allow_downloads FROM profiles p JOIN users u ON u.id = p.user_id WHERE p.id = @viewer_profile),
-		ifnull(s.position_text, '')
+		ifnull(s.position_text, ''), ifnull(json_extract(i.extra, '$.openingLines'), '')
 		FROM items i LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id
 		WHERE i.public_id = @id AND `+acc.visible("i"), append(v.args(), sql.Named("id", publicID))...).
-		Scan(&out.ID, &out.PublicID, &out.Kind, &out.Title, &out.MaySave, &out.Place)
+		Scan(&out.ID, &out.PublicID, &out.Kind, &out.Title, &out.MaySave, &out.Place, &out.OpeningLines)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && !out.Kind.Reading() {
 		return Book{}, ErrNotFound
 	}

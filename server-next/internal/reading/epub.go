@@ -29,11 +29,13 @@ type Contents struct {
 
 // epub is what the reader needs to know about an EPUB before it asks for any part of it.
 type epub struct {
-	parts     []Part
-	byPath    map[string]Part
-	spine     []string
-	contents  []Contents
-	direction string
+	parts                         []Part
+	byPath                        map[string]Part
+	spine                         []string
+	contents                      []Contents
+	direction                     string
+	openingSkip                   map[string]bool
+	openingStart, openingFragment string
 }
 
 const (
@@ -80,14 +82,20 @@ func readEPUB(a *archive) (*epub, error) {
 			TOC       string `xml:"toc,attr"`
 			Direction string `xml:"page-progression-direction,attr"`
 			Items     []struct {
-				IDRef string `xml:"idref,attr"`
+				IDRef      string `xml:"idref,attr"`
+				Linear     string `xml:"linear,attr"`
+				Properties string `xml:"properties,attr"`
 			} `xml:"itemref"`
 		} `xml:"spine"`
+		Guide []struct {
+			Type string `xml:"type,attr"`
+			Href string `xml:"href,attr"`
+		} `xml:"guide>reference"`
 	}
 	if err := decode(raw, &pkg); err != nil {
 		return nil, errDamaged
 	}
-	book := &epub{byPath: map[string]Part{}}
+	book := &epub{byPath: map[string]Part{}, openingSkip: map[string]bool{}}
 	// The reader in the app reads the book as its EPUB engine does, from the container to the
 	// package document, so those two are parts of the book too.
 	for _, doc := range [][2]string{{"META-INF/container.xml", "application/xml"}, {opfPath, "application/oebps-package+xml"}} {
@@ -122,6 +130,7 @@ func readEPUB(a *archive) (*epub, error) {
 	for _, ref := range pkg.Spine.Items {
 		if name, ok := byID[ref.IDRef]; ok {
 			book.spine = append(book.spine, name)
+			book.openingSkip[name] = ref.Linear == "no" || frontMatter(ref.Properties)
 		}
 	}
 	if len(book.spine) == 0 {
@@ -134,8 +143,14 @@ func readEPUB(a *archive) (*epub, error) {
 	for _, name := range book.spine {
 		inSpine[name] = true
 	}
+	for _, ref := range pkg.Guide {
+		book.openingHint(path.Dir(opfPath), ref.Type, ref.Href, inSpine)
+	}
 	if nav != "" {
 		book.contents = navContents(a, nav, inSpine)
+		if raw, err := a.read(nav, maxXMLSize); err == nil {
+			book.openingLandmarks(raw, path.Dir(nav), inSpine)
+		}
 	}
 	if len(book.contents) == 0 && ncx != "" {
 		book.contents = ncxContents(a, ncx, inSpine)

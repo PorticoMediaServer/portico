@@ -85,8 +85,7 @@ type ItemKey struct {
 
 // ImportItem is one item as the scan understands it. Keys must name it uniquely within the
 // library; Parent is a key of the item that holds it, which is in this batch or already stored.
-// Descriptive fields are written when the item is first created. After that they belong to
-// metadata matching and to people's edits, and a rescan leaves them alone.
+// Descriptive fields belong to metadata matching and people's edits after creation; rescans leave them alone.
 type ImportItem struct {
 	Kind          ItemKind
 	Keys          []ItemKey
@@ -101,6 +100,7 @@ type ImportItem struct {
 	// (PublicationBook, PublicationMagazine, PublicationNewspaper).
 	Publication     int
 	WordCount       *int
+	OpeningLines    *string
 	IndexNumber     *int
 	ParentIndex     *int
 	AddedAt         int64 // 0 means now
