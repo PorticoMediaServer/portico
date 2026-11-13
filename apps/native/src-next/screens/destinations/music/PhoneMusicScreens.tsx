@@ -214,7 +214,7 @@ export function PhoneAlbumScreen({controller, entry, runtime, actions, openEntry
           </View>
           <View style={{flex: 1, minWidth: 0}}>
             <Text style={[browseType(theme, 14.5, 600), {color: theme.colors.textSecondary, marginBottom: 8}]}>{t('next.browse.native.album')}</Text>
-            <Lockup title={title} size={80} style={{lineHeight: 78.4 * theme.textScale, letterSpacing: -.045 * 80 * theme.textScale, marginBottom: 16}}/>
+            <Lockup title={title} size={80} lineRatio={78.4 / 80} tracking={-.045} style={{marginBottom: 16}}/>
             {entry.artist?.name ? <Focusable accessibilityRole="link" onPress={() => {const artist = controller.artistEntry(); if (artist) openEntry(artist);}}
               style={{minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'flex-start'}}>
               <ArtistCircle covers={art ? [art] : []} initials={entry.artist.name.split(/\s+/).slice(0, 2).map(word => [...word][0]).join('')} alt={entry.artist.name} size={28} visible/>
@@ -328,7 +328,7 @@ export function PhoneArtistScreen({controller, entry, runtime, actions, openEntr
       <MusicScrollView contentContainerStyle={{paddingTop: 56, paddingBottom: 100}} showsVerticalScrollIndicator={false}>
         <View style={{alignItems: 'center', paddingHorizontal: 32}}>
           <ArtistCircle covers={covers} rings={[3]} initials={[...entry.title.trim()][0] ?? ''} alt={entry.title} size={220} visible/>
-          <Lockup title={entry.title} size={58} style={{lineHeight: 61 * theme.textScale, letterSpacing: -.04 * 58 * theme.textScale, textAlign: 'center', marginTop: 20}}/>
+          <Lockup title={entry.title} size={58} lineRatio={61 / 58} tracking={-.04} style={{textAlign: 'center', marginTop: 20}}/>
           {facts.length ? <Facts facts={facts} strongFirst={false}/> : null}
           <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 20}}>
             <Button style={{height: phoneMusicGeometry.actionHeight, borderRadius: phoneMusicGeometry.actionRadius, paddingHorizontal: 24}} icon="i-play" textStyle={browseType(theme, 15, 700)} onPress={() => {void controller.play().catch(runtime.reportError);}}>{t('entry.play')}</Button>

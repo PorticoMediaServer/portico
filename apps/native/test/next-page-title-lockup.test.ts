@@ -8,8 +8,8 @@ import {hooks, screenModule} from './helpers/screen-harness.mjs';
 // `.lockup` 46, `.lockup.md` 42, unclamped; one further step from the type scale (display, 34) for a very long title; up to
 // four lines, and only past four does it end with an ellipsis.
 const flat = (style: any): any => Array.isArray(style) ? Object.assign({}, ...style.flat(Infinity).filter(Boolean)) : style ?? {};
-async function lockup(isTV = false) {
-  const h = hooks(), theme = createTheme({isTV, width: isTV ? 1920 : 375});
+async function lockup(isTV = false, width = isTV ? 1920 : 375) {
+  const h = hooks(), theme = createTheme({isTV, width});
   const module = await screenModule(new URL('../src-next/kit/layout/Lockup.tsx', import.meta.url), {
     react: h.react, 'react-native': {Text: 'Text'}, '@portico/design': design, '../theme': {nativeType, useTheme: () => theme}, './types': {},
   });
@@ -44,10 +44,29 @@ test('a word wider than the line takes the next size down instead of breaking in
   assert.equal(flat(title.props.style).fontSize, 30);
   title.props.onTextLayout({nativeEvent: {lines: [{text: 'Maximiliana '}, {text: 'Konstantinopoulo'}, {text: 'u-Abernathy and the '}, {text: 'Northern Island Ensemble'}]}});
   title = draw({title: name, size: 30});
-  assert.equal(flat(title.props.style).fontSize, design.typeScale.handheld.title.size, 'the type scale\'s next title size (26)');
+  assert.equal(flat(title.props.style).fontSize, module.smallerStep(30), 'the type scale\'s next title size below 30');
+  assert.equal(module.smallerStep(30), 28);
   assert.equal(title.props.onTextLayout, undefined, 'once: it does not keep stepping');
   const whole = draw({title: sixty});
   whole.props.onTextLayout({nativeEvent: {lines: [{text: 'The Night the Ferry Did '}, {text: 'Not Come Back to the '}, {text: 'Northern Island'}]}});
   assert.equal(flat(draw({title: sixty}).props.style).fontSize, 34, 'breaks at spaces change nothing');
-  assert.deepEqual([46, 42, 34, 30].map(module.smallerStep), [42, 34, 26, 26]);
+  assert.deepEqual([46, 42, 34, 30].map(size => module.smallerStep(size)), [42, 40, 32, 28], 'the handheld scale\'s title sizes, from the title\'s own size');
+});
+
+// Desk B on #3435: an iPad 1024 pt or wider lays out in the desktop column. Its page titles keep the four-line limit and the
+// word rule (not the phone length steps), and a frame-sized title steps by the scale with its line height scaled.
+test('a wide tablet title keeps four lines and the word rule; a frame-sized title steps by the scale with its line height', async () => {
+  const wide = await lockup(false, 1180);
+  const title = wide.draw({title: sixty, size: 64, lineRatio: 1, tracking: -.045});
+  assert.deepEqual([flat(title.props.style).fontSize, flat(title.props.style).lineHeight, title.props.numberOfLines], [64, 64, 4]);
+  assert.equal(typeof title.props.onTextLayout, 'function', 'the word rule runs in the desktop column too');
+  title.props.onTextLayout({nativeEvent: {lines: [{text: 'The Night the Ferry Did Not Co'}, {text: 'me Back to the Northern Island'}]}});
+  const stepped = flat(wide.draw({title: sixty, size: 64, lineRatio: 1, tracking: -.045}).props.style);
+  const next = wide.module.smallerStep(64, 'desktop');
+  assert.ok(next < 64 && next >= 26, `64 steps to the desktop scale's next title size (${next}), not to 46 by default`);
+  assert.deepEqual([stepped.fontSize, stepped.lineHeight], [next, next], 'the line height keeps the frame\'s ratio at the new size');
+  const album = wide.draw({title: 'Album', size: 80, lineRatio: 78.4 / 80, tracking: -.045});
+  assert.deepEqual([flat(album.props.style).fontSize, flat(album.props.style).lineHeight, flat(album.props.style).letterSpacing], [80, 78.4, -.045 * 80]);
+  const home = wide.draw({title: sixty});
+  assert.equal(flat(home.props.style).fontSize, design.typeScale.desktop.lockup.size, 'no phone length steps on a wide tablet');
 });
