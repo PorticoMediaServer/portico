@@ -1,6 +1,6 @@
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
-import {readPlaybackGuide} from '../../../../../packages/client-core/src/query/playback';
-import {parseChannelGuide, type GuideRoute, type ChannelGuide} from '../../../../../packages/client-core/src/channel-guide';
+import {readNativeProgramme} from '../../../../../packages/client-core/src/guide/native-source';
+import type {ChannelGuide} from '../../../../../packages/client-core/src/channel-guide';
 import {legacyChannel, legacyChannelRow, legacyProgramme, legacyProgram} from '../../../../../packages/client-core/src/guide/legacy-source';
 import type {GuideChannelRow, GuideProgram} from '../../../../../packages/client-core/src/guide/types';
 import {defaultRecordingOptions, type DVRCommandLifetime, type Recording} from '../../../../../packages/client-core/src/dvr';
@@ -71,16 +71,10 @@ export class NativeTVLiveActions {
   }
   private async read(opening: NonNullable<NativeTVLiveActions['opening']>, signal: AbortSignal) {
     if (!this.current(opening) || signal.aborted) throw retired();
-    const target = opening.source.target, options = opening.source.query, now = serverNow();
-    const route: GuideRoute = {kind: target.kind, sourceId: target.sourceId, timezone: options.timezone, search: options.search ?? '',
-      start: new Date(now).toISOString(), end: new Date(now + 3 * 3600_000).toISOString(),
-      ...(options.group ? {group: options.group} : {}), ...(options.favorites !== undefined ? {favorites: options.favorites} : {}), ...(options.includeHidden ? {includeHidden: true} : {})};
-    const query = new URLSearchParams({kind: route.kind, sourceId: route.sourceId, timezone: route.timezone, search: route.search,
-      start: route.start, end: route.end, channels: target.channelId, limit: '1', cursor: ''});
-    if (route.favorites !== undefined) query.set('favorites', String(route.favorites));if (route.includeHidden) query.set('includeHidden', 'true');if (route.group) query.set('group', route.group);
-    const response = await readPlaybackGuide(opening.source.api, query, signal);
+    const target = opening.source.target;
+    const detail = await readNativeProgramme(opening.source.api, opening.projected.id, signal);
     if (!this.current(opening) || signal.aborted) throw retired();
-    const guide = parseChannelGuide(response, opening.source.authority.serverId, route);
+    const guide = {channels: [detail.channel]};
     const {channel, programme} = liveActionOffer(guide, target, opening.projected);
     return {channel: legacyChannelRow(channel), programme: legacyProgram(programme)};
   }

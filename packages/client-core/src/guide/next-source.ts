@@ -54,6 +54,7 @@ const GUIDE_PAGES = 40;
 
 export function nextGuideSource(api: ServerRequester, choice: ChannelChoice = {}): GuideDataSource {
   let channels: Walk<GuideChannelRow> = {items: [], done: false};
+  let channelTotal: number | undefined;
   let windows = new Map<string, Walk<[string, GuideProgram[]]> & {seen: Set<string>}>();
   const more = <T,>(walk: Walk<T>, read: (cursor: string | undefined) => Promise<{items: T[]; nextCursor?: string}>) => {
     walk.reading ??= read(walk.cursor).then(page => {walk.items.push(...page.items); walk.cursor = page.nextCursor; walk.done = !page.nextCursor;})
@@ -61,14 +62,24 @@ export function nextGuideSource(api: ServerRequester, choice: ChannelChoice = {}
     return walk.reading;
   };
   return {
-    reset() { channels = {items: [], done: false}; windows = new Map(); },
+    reset() { channels = {items: [], done: false}; channelTotal = undefined; windows = new Map(); },
     async channels(from: number, limit: number, signal: AbortSignal): Promise<ChannelPage> {
       const walk = channels;
       while (walk.items.length < from + limit && !walk.done) {
-        await more(walk, cursor => readChannels(api, choice, cursor, signal).then(page => ({items: page.items.map(nextChannelRow), nextCursor: page.nextCursor})));
+        await more(walk, async cursor => {
+          const page = await readChannels(api, choice, cursor, signal);
+          // Sources summarize the same hidden-channel choice on the first page. The native guide
+          // needs this exact count before it has scrolled through every cursor page.
+          if (Array.isArray((page as {sources?: unknown}).sources) && !(choice.favorites && choice.group)) {
+            const sources = channelSources(page).filter(source => !choice.source || source.id === choice.source);
+            channelTotal = sources.reduce((total, source) => total + (choice.group
+              ? source.groups.find(group => group.name === choice.group)?.count ?? 0 : choice.favorites ? source.favorites : source.channels), 0);
+          }
+          return {items: page.items.map(nextChannelRow), nextCursor: page.nextCursor};
+        });
       }
-      // Past the last page the total is known; before it, one more row says there is more to scroll to.
-      return {items: walk.items.slice(from, from + limit), total: walk.done ? walk.items.length : walk.items.length + 1};
+      // Without source summaries, keep the existing continuation hint until the last page.
+      return {items: walk.items.slice(from, from + limit), total: walk.done ? walk.items.length : channelTotal ?? walk.items.length + 1};
     },
     async programs(channelIds: readonly string[], start: number, end: number, signal: AbortSignal) {
       const key = `${start}:${end}`;

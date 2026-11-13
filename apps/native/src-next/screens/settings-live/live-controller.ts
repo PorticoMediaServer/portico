@@ -1,7 +1,9 @@
+import {nativeGuideSource} from '../../../../../packages/client-core/src/guide/native-source';
+import {readNextGuideSummaries} from '../../../../../packages/client-core/src/guide/next-source';
 import type {LibraryContentApi} from '../../../../../packages/client-core/src/library-content';
 import {saveChannelPreference} from '../../../../../packages/client-core/src/channel-guide';
-import {fetchGuideSourceSummaries, type GuideSourceSummary} from '../../../../../packages/client-core/src/guide/directory';
-import {legacyChannel, legacyChannelRow, legacyGuideSource, type LegacyGuideOptions} from '../../../../../packages/client-core/src/guide/legacy-source';
+import type {GuideSourceSummary} from '../../../../../packages/client-core/src/guide/directory';
+import {legacyChannel, legacyChannelRow, type LegacyGuideOptions} from '../../../../../packages/client-core/src/guide/legacy-source';
 import type {GuideChannelRow} from '../../../../../packages/client-core/src/guide/types';
 import {GuideWindowStore, type GuideViewport} from '../../../../../packages/client-core/src/guide/store';
 import {NativeScreenLifetime, NativeScreenStore, screenScopeEnded} from './lifetime';
@@ -34,7 +36,7 @@ export class NativeLiveController extends NativeScreenStore<NativeLiveSnapshot> 
     this.store = this.makeStore(options);
   }
   private makeStore(options: LegacyGuideOptions) {
-    return new GuideWindowStore({source: legacyGuideSource(this.api, this.lifetime.authority.serverId, options), maxInFlight: 2, maxChannelPages: 4, maxTiles: 16});
+    return new GuideWindowStore({source: nativeGuideSource(this.api, options), maxInFlight: 2, maxChannelPages: 4, maxTiles: 16});
   }
   get guide(): GuideWindowStore {return this.store;}
   private sourceKey(options: LegacyGuideOptions): string {return nativeGuideEntryKey(options);}
@@ -77,7 +79,7 @@ export class NativeLiveController extends NativeScreenStore<NativeLiveSnapshot> 
     this.lifetime.assert();
     if (this.disposed) return;
     this.store.dispose();
-    const state = this.getSnapshot(), options = {...state.options, ...change};
+    const state = this.getSnapshot(), options = {...state.options, ...change, ...(change.includeServerHidden !== undefined ? {includeHidden: change.includeServerHidden} : {})};
     const sourceChanged = this.sourceKey(options) !== this.sourceKey(state.options);
     if (sourceChanged && change.sort === undefined) options.sort = this.sourceChoices.get(this.sourceKey(options))?.sort ?? 'number';
     const view = sourceChanged ? this.sourceChoices.get(this.sourceKey(options))?.view : state.view;
@@ -85,7 +87,7 @@ export class NativeLiveController extends NativeScreenStore<NativeLiveSnapshot> 
     this.store = this.makeStore(options);
     this.publish({...state, options, view, revision: state.revision + 1});
     if (this.viewport) {this.viewport = {...this.viewport, firstRow: 0, lastRow: this.viewport.lastRow - this.viewport.firstRow}; if (this.memoryReady) this.store.setViewport(this.viewport);}
-    // Showing or hiding server-hidden channels changes the sources and groups too.
+    // This choice shows the viewer’s own hidden channels; owner-hidden channels stay absent.
     if (change.includeServerHidden !== undefined && !!change.includeServerHidden !== !!state.options.includeServerHidden) {this.refreshSources = undefined; void this.loadSources();}
   }
   loadSources(): Promise<void> {
@@ -95,7 +97,7 @@ export class NativeLiveController extends NativeScreenStore<NativeLiveSnapshot> 
     const flight: Promise<void> = (async () => {
       try {
         await this.prepareMemory(); this.lifetime.assert(); if (this.disposed) return;
-        const result = await fetchGuideSourceSummaries(this.api, this.lifetime.authority.serverId, this.getSnapshot().options.timezone, this.lifetime.signal, hidden);
+        const result = await readNextGuideSummaries(this.api, hidden, this.lifetime.signal);
         // A summary read for the other Show hidden choice is never published.
         if (!this.disposed && this.lifetime.current() && !!this.getSnapshot().options.includeServerHidden === hidden) this.publish({...this.getSnapshot(), sources: result.sources, loading: false, error: undefined});
       } catch (error) {if (!this.disposed && this.lifetime.current() && !!this.getSnapshot().options.includeServerHidden === hidden) this.publish({...this.getSnapshot(), loading: false, error});}

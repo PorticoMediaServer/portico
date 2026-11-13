@@ -1,3 +1,6 @@
+import * as nativeGuide from '../../../packages/client-core/src/guide/native-source.ts';
+import * as liveTV from '../../../packages/client-core/src/live-tv.ts';
+import * as clock from '../../../packages/client-core/src/server-clock.ts';
 import * as nextGuide from '../../../packages/client-core/src/guide/next-source.ts';
 import test, {type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,7 +34,7 @@ const preferences = await screenModule(new URL('../../../packages/client-core/sr
   '../../contracts/src/routes.ts': routes, '../../contracts/src/route-paths.ts': routes, './preferences.ts': preferenceValues, './query/server-api.ts': serverApi, './abort-lifetime.ts': abortLifetime,
 });
 const guide = await screenModule(new URL('../../../packages/client-core/src/guide/directory.ts', import.meta.url), {
-  react, './next-source.ts': nextGuide,
+  react, './next-source.ts': nextGuide, './native-source.ts': nativeGuide, '../live-tv.ts': liveTV, '../server-clock.ts': clock,
   '../../../contracts/src/routes.ts': routes, '../../../contracts/src/route-paths.ts': routes, '../server-messages.ts': messages, '../tolerant.ts': tolerant,
   // These tests use an empty, genuinely parsed source directory; detailed
   // channel/programme parsing is outside the resource lifetime under test.
