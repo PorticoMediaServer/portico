@@ -6,7 +6,8 @@ import type {ContentScope, LibraryContentApi} from '@core/library-content.ts';
 import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {patchLibrarySettingsBinding, readLibrarySettingsBinding, patchLibrarySonicSettingsBinding, readLibrarySonicSettingsBinding} from '@core/presentation/settings-bindings.ts';
 import {randomId} from '@core/random-id.ts';
-import {readLibrarySettings, saveLibrarySettings} from '@core/server-admin/libraries.ts';
+import {readOwnerLibrarySettings as readLibrarySettings, saveOwnerLibrarySettings as saveLibrarySettings} from '@core/server-admin/libraries.ts';
+import {settingsSaveConflict} from '@core/settings-document.ts';
 import {notOnThisServer} from '@core/query/server-api.ts';
 import {readLibrarySonic, retryLibrarySonic, saveLibrarySonic, type LibrarySonicDocument} from '@core/server-admin/library-sonic.ts';
 
@@ -15,7 +16,7 @@ import {readLibrarySonic, retryLibrarySonic, saveLibrarySonic, type LibrarySonic
 export type SettingsLibrarySnapshot = Readonly<{libraryId?: string; document?: LibraryAdminDocument; sonic?: LibrarySonicDocument; loading: boolean; saving: boolean; error?: unknown}>;
 const empty: SettingsLibrarySnapshot = Object.freeze({loading: false, saving: false});
 
-/** One explicitly selected library. A settings revision never becomes a folder revision. */
+/** One explicitly selected library; settings and folders share its AdminLibrary revision. */
 export class SettingsLibrarySource {
   private state = empty;
   private request?: AbortController;
@@ -114,7 +115,10 @@ export class SettingsLibrarySource {
       requireCurrent();
       this.publish({libraryId, document, sonic: this.offersSonic(document) ? this.state.sonic : undefined, loading: false, saving: false});return true;
     } catch (error) {
-      if (this.owns(request, libraryId)) {this.publish({libraryId, loading: false, saving: false, error});throw error;}
+      if (this.owns(request, libraryId)) {
+        const document = settingsSaveConflict(error) ? await readLibrarySettings(this.api, libraryId, request.signal).catch(() => undefined) : undefined;
+        if (this.owns(request, libraryId)) {this.publish({libraryId, document, loading: false, saving: false, error});throw error;}
+      }
     } finally {if (this.request === request) this.request = undefined;}
     return false;
   }

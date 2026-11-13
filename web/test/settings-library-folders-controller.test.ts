@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type {LibraryAdminDocument, LibrarySettings} from '@core/administration.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import type {PreferenceSnapshot} from '@core/preferences.ts';
 import {PreferencesReader} from '@core/preferences-reader.ts';
@@ -9,12 +8,9 @@ import {SettingsController} from '../src/screens/settings/controller.ts';
 import type {SettingsLibraryFolderEdit} from '../src/screens/settings/library-folders-source.ts';
 
 const section = settingsSpec.find(item => item.scope === 'server' && item.id === 'libraries')!;
-const settings: LibrarySettings = {scanDepth: 'basic', groupCollections: true, localTags: 'prefer', lyricsSource: 'files', titleSource: 'tags', episodeNumbering: 'absolute', findExtras: true, sortIgnoreArticles: true, refreshMode: 'replace_unlocked', acoustidEnabled: false,
-  continueWatching: {weeks: 16, maximumItems: 40, includeSeasonPremieres: true, videoPlayedThreshold: 95, videoCompletion: 'earliest'}, allowMediaDeletion: false, monitorChanges: true, providers: [], analysis: ['probe', 'local_metadata', 'subtitle_discovery'],
-  navigation: {trickplayIntervalMs: 10000, trickplayTileWidth: 320, trickplayMaxTiles: 1080, chapterThumbnailMode: 'embedded', videoPreviewEnabled: false, videoPreviewMs: 30000}, segmentDetection: 'server'};
-function document(libraryId: string, revision = 7): LibraryAdminDocument {
-  return {libraryId, libraryName: libraryId, libraryKind: 'anime', revision, digest: 'actual-document', eligibleControls: ['libraries.scrubSpacing'], audience: {everyone: false, accounts: 3}, actions: ['scan'],
-    settings, defaults: {...settings, continueWatching: {...settings.continueWatching, weeks: 8}}, analysisMatrix: {costClasses: [], operations: []}, availableProviders: [], enumerations: {}, sources: []};
+function document(id: string, revision = 7) {
+  return {id, name: id, kind: 'movies', revision: String(revision), metadataProvider: 'local', metadataProviders: [{id: 'local', available: true}],
+    folders: [], options: {depth: 'basic', watch: true, allowDelete: false, groupSeries: true}};
 }
 function inventory(libraryId: string, revision = 41) {
   return {scope: {serverId: 'server', viewerFence: 'fence-1'}, libraryId, revision,
@@ -37,10 +33,10 @@ function fixture(request: LibraryContentApi['request'], access: Partial<{role: '
 const selected = {section, panelId: 'library', recordId: 'selected'};
 
 test('the controller selects and clears its one folder source with the library panel', async () => {
-  const f = fixture(async <T>(path: string) => (path.endsWith('/inventory-config') ? inventory(path.includes('/other/') ? 'other' : 'selected') : document(path.includes('/other/') ? 'other' : 'selected')) as T);
+  const f = fixture(async <T>(path: string) => (path.endsWith('/inventory-config') ? inventory(path.includes('/other') ? 'other' : 'selected') : document(path.includes('/other') ? 'other' : 'selected')) as T);
   try {
     await f.controller.loadContext(selected);
-    assert.deepEqual(f.calls, ['/v1/admin/libraries/selected/settings', '/v1/admin/libraries/selected/inventory-config']);
+    assert.deepEqual(f.calls, ['/v1/admin/libraries/selected', '/v1/admin/libraries/selected/inventory-config']);
     assert.equal(f.controller.folders.getSnapshot().libraryId, 'selected');
     assert.equal(f.controller.folders.getSnapshot().config?.revision, 41);
     assert.equal(f.controller.folders.getSnapshot().config?.sources[0].path, '/media');
