@@ -64,7 +64,7 @@ export function PhoneAccountSecurity({workspace, security}: {workspace: NativeAc
     {group(t('services.security.yourData'), row(t('web.account.export.button'), t('web.account.export.help'), action('export', t('web.account.export.download'))))}
     <View style={{gap: 12, marginTop: 8}}>{text(t('web.deleteAccount.title'))}
       {text(t('web.deleteAccount.help'), true)}
-      <Button testID="account-security-delete" variant="glass" style={{backgroundColor: `${theme.colors.danger}24`}} textStyle={{color: theme.colors.danger}} disabled={!source} onPress={() => open('delete')}>{t('web.deleteAccount.action')}</Button>
+      <Button testID="account-security-delete" variant="glass" style={{backgroundColor: `${theme.colors.danger}24`}} textStyle={{color: theme.colors.danger}} disabled onPress={() => open('delete')}>{t('web.deleteAccount.action')}</Button>
     </View>
     <AccountSecuritySheet security={security} source={source} onFinished={() => {void workspace.open('security');}}/>
   </>;

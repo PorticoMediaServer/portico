@@ -19,6 +19,8 @@ async function fixture(security = initialSecurity) {
     acceptDeletion: async (...args: unknown[]) => {calls.push(['delete', ...args]); return {accountDeleted: true};},
   };
   const {NativeAccountSecurity} = await screenModule(new URL('../src-next/platform/account-security.ts', import.meta.url), {
+    '../../../../packages/client-core/src/portico-services-native': {},
+    '../../../../packages/client-core/src/native-abort-signals': {},
     react: {default: {}},
     'react-native': {NativeModules: {PorticoAccountAuth: {newBinding: async () => 'a'.repeat(43), newRequestId: async () => 'operation-1234567890'}}},
     '../../../../packages/client-core/src': {ApiError, HttpLocalApi: class {}},
@@ -107,17 +109,5 @@ test('a definitive password refusal leaves fields editable for a corrected origi
   const proofs = f.calls.filter(value => value[0] === 'proof');
   assert.equal(proofs[0][2], 'incorrect'); assert.equal(proofs[1][2], 'corrected');
   assert.equal(f.service.getSnapshot().step, 'done');
-  f.service.dispose();
-});
-
-test('account deletion uses preview and exact typed account confirmation, without a password proof', async () => {
-  const f = await fixture(); f.service.open('delete'); await f.service.submit();
-  assert.equal(f.service.getSnapshot().step, 'deletion');
-  await f.service.submit({confirmation: 'someone-else@example.invalid'});
-  assert.equal(f.calls.filter(value => value[0] === 'delete').length, 0);
-  await f.service.submit({confirmation: 'person@example.invalid'});
-  assert.equal(f.calls.filter(value => value[0] === 'delete').length, 1);
-  assert.equal(f.calls.filter(value => value[0] === 'proof').length, 0);
-  assert.deepEqual(f.calls.find(value => value[0] === 'sign-out'), ['sign-out', {accountId: 'account', familyId: 'family'}]);
   f.service.dispose();
 });

@@ -1,5 +1,6 @@
 import {requestHostedAccountExport} from '../../../../packages/client-core/src/query/hosted-account-transport';
-import {serverNow} from '../../../../packages/client-core/src/server-clock';
+import {deletePorticoAccount} from '../../../../packages/client-core/src/portico-services-native';
+import {linkNativeAbortSignals} from '../../../../packages/client-core/src/native-abort-signals';
 import {NativeModules} from 'react-native';
 import {ApiError, HttpLocalApi} from '../../../../packages/client-core/src';
 import {AccountNotificationsClient, type AccountExportJob} from '../../../../packages/client-core/src/account-notifications';
@@ -62,7 +63,7 @@ export class NativeAccountSecurity {
   }
   private async prepare(opening: Opening) {
     this.assert(opening);
-    if (opening.client && opening.operationId) return;
+    if (opening.kind === 'delete' || opening.client && opening.operationId) return;
     const bridge = NativeModules.PorticoAccountAuth;
     if (!opening.client) {
       const binding: unknown = await bridge.newBinding(); this.assert(opening);
@@ -98,21 +99,28 @@ export class NativeAccountSecurity {
     }}
     finally {opening.busy = false; if (this.owns(opening)) this.publish({...this.state, busy: false});}
   }
+  /** Called only by the deletion confirmation after these inputs have been typed for it. */
+  deleteAccount(password: string, twoStepCode = '') {
+    if (this.opening?.kind !== 'delete') throw changed();
+    return this.submit({password, factor: twoStepCode});
+  }
+  private async deleteCommand(opening: Opening, password: string, twoStepCode: string) {
+    this.assert(opening); const session = this.credentials.getSnapshot().session;
+    if (!session) throw changed();
+    if (!this.security.hasPassword || !password || this.security.mfaEnabled && !twoStepCode.trim()) throw new ApiError(422, 'invalid_input', 'portico_services_deletion_proof_required');
+    const request = new AbortController(), linked = linkNativeAbortSignals([opening.controller.signal, request.signal]);
+    const timer = setTimeout(() => request.abort(), 15000);
+    await nativeAccountWork(this.credentials, issued => deletePorticoAccount(issued.accessToken, hostedUrl, nativeNetworkFetch,
+      password, twoStepCode, linked.signal), {expected: accountExpectation(session), signal: linked.signal, isCurrent: () => this.owns(opening)})
+      .finally(() => {clearTimeout(timer); linked.dispose();});
+    this.assert(opening); await this.owner.signOutPorticoAccount(this.scope);
+  }
   async submit(input: NativeAccountSecurityInput = {}) {
+    const deletionInput = Object.freeze({...input});
     if (this.state.step === 'codes' || this.state.step === 'done' || this.state.step === 'export') return;
     return this.run(async opening => {
       const signal = opening.controller.signal, kind = opening.kind;
-      if (kind === 'delete') {
-        if (!opening.preview) {
-          const preview = await this.work(opening, (token, client) => client.deletionPreview(opening.operationId!, token, signal));
-          this.assert(opening); opening.preview = preview; this.publish({kind, step: 'deletion', busy: true, preview}); return;
-        }
-        const expected = this.security.contactAddress || this.credentials.getSnapshot().session?.account.username;
-        if (!opening.preview.canDelete || Date.parse(opening.preview.expiresAt) <= serverNow() || !expected || input.confirmation?.trim() !== expected) throw new Error('native_account_deletion_confirmation_required');
-        const receipt = await this.work(opening, (token, client) => client.acceptDeletion(opening.preview!, input.confirmation!, token, signal));
-        this.assert(opening); if (!receipt.accountDeleted) throw new Error('native_account_deletion_unconfirmed');
-        await this.owner.signOutPorticoAccount(this.scope); return;
-      }
+      if (kind === 'delete') {await this.deleteCommand(opening, deletionInput.password ?? '', deletionInput.factor ?? ''); return;}
       if (kind === 'export') {
         this.assert(opening); const session = this.credentials.getSnapshot().session;
         if (!session || !opening.client) throw changed();
