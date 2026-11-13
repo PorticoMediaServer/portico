@@ -22,15 +22,15 @@ var Storage = Define("storage", StorageSettings{WarnPercent: 10, MajorPercent: 5
 	return nil
 })
 
-// PreparedKeepDays is how long a reusable download copy goes unused before it is removed.
-// Stream working files are retired with their stream, not kept for future plays.
-func (s StorageSettings) PreparedKeepDays() int {
+// PlayedRetentionSeconds keeps recently viewed conversion output for seeking
+// back without converting it again. Downloads have their own keeping time.
+func (s StorageSettings) PlayedRetentionSeconds() int {
 	switch s.KeepGeneratedFiles {
 	case "short":
-		return 14
+		return 60
 	case "long":
-		return 90
+		return 1800
 	default:
-		return 30
+		return 300
 	}
 }
