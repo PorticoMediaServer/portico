@@ -135,7 +135,8 @@ function WholeCover({cover, width, height, look, priority = false, elevation, gl
     </View> : null}
     <View style={{...box, borderRadius: look.radius, shadowColor: theme.colors.shadow, ...look.shadow, ...(elevation === undefined ? {} : {elevation})}}>
       <View style={{...box, borderRadius: look.radius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-        {source ? <Artwork source={source} width={box.width} height={box.height} priority={priority}
+        {/* The generated cover stays under the picture while it loads, and shows if it is refused or broken. */}
+        {source ? <Artwork source={source} width={box.width} height={box.height} priority={priority} fallback={cover.fallback}
           onSize={natural => setFound({key: source.cacheKey, aspect: natural.width / natural.height})}/> : cover.fallback}
       </View>
     </View>

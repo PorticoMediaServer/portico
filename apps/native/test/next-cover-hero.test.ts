@@ -40,6 +40,10 @@ test('no picture draws the generated cover; an author is the person circle with 
   const whole = nodes(hero).find(node => node.type?.name === 'WholeCover'), drawn = nodes(ui.render(() => whole.type(whole.props)));
   assert.equal(drawn.some(node => node.type === 'Artwork'), false);
   assert.ok(drawn.some(node => [node.props.children].flat().includes('Generated')));
+  // A picture that is slow, refused or broken: the kit image draws its fallback, which is the generated cover.
+  const withPicture = nodes(ui.render(() => CoverHero({layout: 'stack', shape: 'square', title: 'Book', covers: [{key: 'c', source: {cacheKey: 'gone'}, fallback: 'Generated'}]})))
+    .find(node => node.type?.name === 'WholeCover');
+  assert.equal(nodes(ui.render(() => withPicture.type(withPicture.props))).find(node => node.type === 'Artwork').props.fallback, 'Generated');
   const author = nodes(ui.render(() => CoverHero({layout: 'stack', shape: 'person', title: 'Andy Weir', person: {covers: [], initials: 'AW'}})));
   const circle = author.find(node => node.type === 'PersonCircle');
   assert.deepEqual([circle.props.size, circle.props.initials], [150, 'AW']);
@@ -54,4 +58,28 @@ test('one table of sizes: a phone stacks, a wide tablet draws the row', async ()
   assert.equal(style(row).flexDirection, 'row');
   const whole = nodes(row).find(node => node.type?.name === 'WholeCover');
   assert.deepEqual([whole.props.width, whole.props.height], [206, 309]);
+});
+
+test('a fan places one, two or three volumes as phone-read 4 draws them, each drawn whole', async () => {
+  const {ui, CoverHero} = await kit();
+  const placed = (count: number) => {
+    const covers = Array.from({length: count}, (_, index) => ({key: `v${index}`, source: {cacheKey: `art${index}`}, fallback: `Generated ${index}`}));
+    const fan = nodes(ui.render(() => CoverHero({layout: 'stack', shape: 'fan', title: 'Series', covers})));
+    const slots = fan.filter(node => node.type?.name === 'WholeCover');
+    return slots.map(slot => {
+      const holder = fan.find(node => [node.props.children].flat().includes(slot))!;
+      return {left: style(holder).left, top: style(holder).top, rotate: style(holder).transform?.[0]?.rotate, size: [slot.props.width, slot.props.height]};
+    });
+  };
+  assert.deepEqual(placed(1), [{left: 76, top: 12, rotate: '0deg', size: [128, 192]}]);
+  assert.deepEqual(placed(2).map(p => [p.left, p.top, p.rotate]), [[36, 12, '-5deg'], [116, 12, '5deg']]);
+  assert.deepEqual(placed(3).map(p => [p.left, p.top, p.rotate]), [[4, 18, '-9deg'], [72, 6, '-2deg'], [146, 14, '7deg']]);
+  assert.equal(placed(5).length, 3, 'never more than three volumes');
+  // Each volume is the whole-cover piece: a landscape volume keeps its own shape inside its 128 x 192 slot.
+  const fan = nodes(ui.render(() => CoverHero({layout: 'stack', shape: 'fan', title: 'Series', covers: [{key: 'v', source: {cacheKey: 'wide'}, fallback: 'Generated'}]})));
+  const slot = fan.find(node => node.type?.name === 'WholeCover');
+  const draw = () => nodes(ui.render(() => slot.type(slot.props)));
+  draw().find(node => node.type === 'Artwork').props.onSize({width: 1500, height: 1000});
+  const artwork = draw().find(node => node.type === 'Artwork');
+  assert.deepEqual([artwork.props.width, artwork.props.height, artwork.props.fallback], [128, 85, 'Generated']);
 });
