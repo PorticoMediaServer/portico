@@ -7,7 +7,8 @@ import {router} from '../../router';
 import {CoverCard} from '../../kit/cards';
 import {generatedCoverTint} from '@design';
 import {Select, TextField} from '../../kit/controls';
-import {WindowedGrid, fillHeightBelow, observeShellClearance} from '../../kit/layout';
+import {Row, WindowedGrid, fillHeightBelow, observeShellClearance} from '../../kit/layout';
+import {useWindowWidth} from '../../kit/theme';
 import {Skeleton, StateView} from '../../kit/states';
 import {useShellWidth} from '../../shell/viewport';
 import {createReadBindings} from './bindings';
@@ -99,18 +100,21 @@ function GroupRows({resources, retry}: {resources: Groups; retry: () => void}) {
 }
 function IssueRows({resources, retry}: {resources: Issues; retry: () => void}) {
   const state = useSyncExternalStore(resources.pages.collection.subscribe, resources.pages.collection.getSnapshot, resources.pages.collection.getSnapshot);
-  const name = resources.pages.collection.residentItems()[0]?.item.series?.name;
+  const name = resources.pages.collection.residentItems()[0]?.item.series?.name, phone = useWindowWidth() < 600;
   if (state.status === 'error') return <Failure retry={retry}/>;
   if (state.status === 'ready' && state.total === 0) return <StateView title={t('title.nothingHere')}/>;
   const open = (issue: ReadingPeriodicalIssue, read: boolean) => {
     if (!resources.bindings.authority.isCurrent()) return;
     void router.navigate(read ? readChosenDestination(issue.item.id) : {to: '/item/$itemId', params: {itemId: issue.item.id}}).catch(resources.reportError);
   };
-  return <section className={styles.library}>{name && <h2>{name}</h2>}{state.status === 'ready' && <ReadGroupSavedAction client={resources.bindings.client} libraryId={resources.libraryId} groupKind={resources.kind} seriesId={resources.seriesId}
-    isCurrent={() => resources.bindings.authority.isCurrent() && resources.pages.collection.getSnapshot().status === 'ready'} reportError={resources.reportError}/>}<GridFrame>{(height, width) => <WindowedGrid collection={resources.pages.collection} label={name ?? t(resources.kind === 'magazine' ? 'library.tab.magazines' : 'library.tab.newspapers')}
+  const saved = state.status === 'ready' ? <ReadGroupSavedAction client={resources.bindings.client} libraryId={resources.libraryId} groupKind={resources.kind} seriesId={resources.seriesId}
+    isCurrent={() => resources.bindings.authority.isCurrent() && resources.pages.collection.getSnapshot().status === 'ready'} reportError={resources.reportError}/> : null;
+  // desktop-read 5: a periodical's name heads its issues as the kit row's heading, its My List beside it.
+  const grid = <GridFrame>{(height, width) => <WindowedGrid collection={resources.pages.collection} label={name ?? t(resources.kind === 'magazine' ? 'library.tab.magazines' : 'library.tab.newspapers')}
     height={height} cardWidth={width} rowHeight={width * 4 / 3 + 66} gap={20} rowGap={30} renderPlaceholder={() => <Skeleton width={width} height={width * 4 / 3}/>}
     renderItem={issue => <CoverCard kind={resources.kind} context="grid" density="grid" visible
       artwork={resources.context.artwork.foreground(issue.item.coverUrl, 380, 3 / 4)} generated={generated(issue.item.title)}
       model={{title: issue.item.title, caption: [{id: 'date', text: calendarDate(defaultI18n, issue.issueDate), role: 'identity'}]}}
-      disabled={!issue.item.inventoryAvailable} playLabel={t('next.reader.read')} onNavigate={() => open(issue, false)} onPlay={issue.item.inventoryAvailable ? () => open(issue, true) : undefined}/>}/>}</GridFrame></section>;
+      disabled={!issue.item.inventoryAvailable} playLabel={t('next.reader.read')} onNavigate={() => open(issue, false)} onPlay={issue.item.inventoryAvailable ? () => open(issue, true) : undefined}/>}/>}</GridFrame>;
+  return <section className={styles.library}>{name ? <Row heading={name} platform={phone ? 'phone-web' : 'desktop'} actions={saved ?? undefined}>{grid}</Row> : <>{saved}{grid}</>}</section>;
 }
