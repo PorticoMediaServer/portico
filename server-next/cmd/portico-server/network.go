@@ -24,6 +24,7 @@ func serveNetwork(ctx context.Context, srv *http.Server, handler *api.Server, fa
 	}
 	// The one port answers plain HTTP and, once the owner gives a certificate for their own
 	// address, HTTPS too. A renewed certificate is picked up without a restart.
+	handler.ListeningOn(ln.Addr())
 	certs := handler.Certificates()
 	go certs.Run(ctx.Done())
 	tlsConfig := &tls.Config{GetCertificate: certs.GetCertificate, MinVersion: tls.VersionTLS12, NextProtos: []string{"http/1.1"}}

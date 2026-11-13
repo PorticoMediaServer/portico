@@ -69,6 +69,9 @@ type Status struct {
 	CertificateReady bool       `json:"certificateReady"`
 	ExpiresAt        *time.Time `json:"expiresAt,omitempty"`
 	NextTryAt        *time.Time `json:"nextTryAt,omitempty"`
+	// LastAttemptAt is the last actual certificate order or progress request, not a timer tick.
+	LastAttemptAt *time.Time `json:"lastAttemptAt,omitempty"`
+	LastProblem   string     `json:"lastProblem,omitempty"`
 }
 
 // Client is the certificate side of a linked server.
@@ -213,6 +216,17 @@ func (c *Client) set(s Status) {
 		expires := c.leaf.NotAfter.UTC()
 		s.ExpiresAt = &expires
 	}
+	if s.State == "waiting" && s.Message != msgPaused {
+		c.state.LastProblem = s.Message
+	}
+	if s.State == "issued" {
+		c.state.LastProblem = ""
+	}
+	if !c.state.LastAttemptAt.IsZero() {
+		at := c.state.LastAttemptAt.UTC()
+		s.LastAttemptAt = &at
+	}
+	s.LastProblem = c.state.LastProblem
 	changed := s.State != c.status.State || s.Message != c.status.Message || s.CertificateReady != c.status.CertificateReady ||
 		s.NameSpace != c.status.NameSpace
 	c.status = s
