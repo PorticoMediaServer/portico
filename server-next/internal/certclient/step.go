@@ -50,10 +50,10 @@ const (
 	msgQueued      = "Portico is issuing certificates for a lot of new servers. Yours is about %d minutes away. Nothing is needed from you."
 	msgPaused      = "The certificate can't be issued just now. Portico will keep trying; nothing is needed from you."
 	msgFailed      = "The certificate couldn't be issued. Portico will try again."
-	msgUnreachable = "Portico Services can't be reached. Trying again %s."
-	msgBusy        = "Portico Services is busy. Trying again %s."
-	msgNoIssuing   = "This Portico Services isn't issuing certificates right now. Your Portico address works without one; Enhanced Security waits for it. Portico will ask again %s."
-	msgClock       = "This server's clock is %s out, so Portico Services can't accept its requests. Correct the clock; Portico will try again %s."
+	msgUnreachable = "Portico Services can't be reached."
+	msgBusy        = "Portico Services is busy."
+	msgNoIssuing   = "This Portico Services isn't issuing certificates right now. Your Portico address works without one; Enhanced Security waits for it."
+	msgClock       = "This server's clock is %s out, so Portico Services can't accept its requests. Correct the clock."
 	msgUnlinked    = "This server is no longer linked to Portico Services, so it has no Portico address. Link it again, or switch to local sign-in."
 )
 
@@ -105,7 +105,7 @@ func (c *Client) step(ctx context.Context, now time.Time) time.Time {
 			return next
 		}
 		if !validNameSpace.MatchString(answer.NameSpace) {
-			return c.retry(now, fmt.Sprintf(msgUnreachable, at(now.Add(time.Minute), now)))
+			return c.retry(now, msgUnreachable)
 		}
 		if c.state.NameSpace != "" && answer.NameSpace != c.state.NameSpace {
 			// Its certificate is for the old name space and no longer usable.
@@ -189,7 +189,7 @@ func (c *Client) follow(answer orderAnswer, key *ecdsa.PrivateKey, now time.Time
 func (c *Client) retry(now time.Time, message string) time.Time {
 	next := now.Add(schedule.ChangeRetry.Wait(c.failures, jitter()))
 	c.failures++
-	c.set(Status{State: "waiting", Message: strings.Replace(message, "%s", at(next, now), 1), NextTryAt: &next})
+	c.set(Status{State: "waiting", Message: message, NextTryAt: &next})
 	return next
 }
 
@@ -202,10 +202,10 @@ const longestWait = 24 * time.Hour
 var validNameSpace = regexp.MustCompile(`^ptc-[a-z2-7]{20}$`)
 
 // wait obeys Portico Services' Retry-After, which sets the pace in place of the backoff, up to
-// longestWait. message says it, given when the next try is.
-func (c *Client) wait(now time.Time, retryAfter time.Duration, message func(when string) string) time.Time {
+// longestWait. The problem has no retry time; NextTryAt is the live schedule.
+func (c *Client) wait(now time.Time, retryAfter time.Duration, message string) time.Time {
 	next := now.Add(min(schedule.After(retryAfter), longestWait))
-	c.set(Status{State: "waiting", Message: message(at(next, now)), NextTryAt: &next})
+	c.set(Status{State: "waiting", Message: message, NextTryAt: &next})
 	return next
 }
 
@@ -273,21 +273,21 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any, now
 		c.set(Status{State: "unlinked", Message: msgUnlinked})
 		return time.Time{}, false
 	case "busy":
-		return c.wait(now, retryAfter, func(when string) string { return fmt.Sprintf(msgBusy, when) }), false
+		return c.wait(now, retryAfter, msgBusy), false
 	case "certificates_unavailable":
 		// This Portico Services has no certificate authority. Nothing was queued; it is asked
 		// again only when it says, never on the short backoff.
 		if retryAfter == 0 {
 			retryAfter = 6 * time.Hour
 		}
-		return c.wait(now, retryAfter, func(when string) string { return fmt.Sprintf(msgNoIssuing, when) }), false
+		return c.wait(now, retryAfter, msgNoIssuing), false
 	case "slow_down", "replacement_limit":
 		if f.Error.Code == "slow_down" && !(method == "POST" && strings.HasSuffix(path, "/orders")) {
 			// The ordinary call limits: nothing to say beyond "busy".
-			return c.wait(now, retryAfter, func(when string) string { return fmt.Sprintf(msgBusy, when) }), false
+			return c.wait(now, retryAfter, msgBusy), false
 		}
 		// An order limit: Portico Services' own message says which, in plain words.
-		return c.wait(now, retryAfter, func(when string) string { return f.Error.Message + " Portico will ask again " + when + "." }), false
+		return c.wait(now, retryAfter, f.Error.Message), false
 	case "too_early":
 		if !c.usable(now) && !c.early {
 			// No usable certificate here, so it is not too early for this server: say so.
@@ -314,7 +314,7 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any, now
 		c.failures++
 		if date, err := http.ParseTime(res.Header.Get("Date")); err == nil {
 			if off := now.Sub(date).Abs(); off > time.Minute {
-				c.set(Status{State: "waiting", Message: fmt.Sprintf(msgClock, plain(off), at(next, now)), NextTryAt: &next})
+				c.set(Status{State: "waiting", Message: fmt.Sprintf(msgClock, plain(off)), NextTryAt: &next})
 				return next, false
 			}
 		}
@@ -336,15 +336,6 @@ func (c *Client) again(now time.Time) time.Time {
 		return now
 	}
 	return c.retry(now, msgWorking)
-}
-
-// at says when, for the owner: "at 14:32" today, otherwise "on 14 November at 09:12".
-func at(t, now time.Time) string {
-	t, now = t.Local(), now.Local()
-	if t.YearDay() == now.YearDay() && t.Year() == now.Year() {
-		return "at " + t.Format("15:04")
-	}
-	return "on " + t.Format("2 January at 15:04")
 }
 
 // plain says a clock difference in words.

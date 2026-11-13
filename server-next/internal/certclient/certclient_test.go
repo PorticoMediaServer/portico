@@ -342,7 +342,8 @@ func TestCertificateRenewalFactsKeepTheGoodCertificateAndRememberTheActualAttemp
 	r.c.Linked(r.linkedAt)
 	r.c.Step(context.Background())
 	restored := r.c.Status()
-	if restored.LastAttemptAt == nil || !restored.LastAttemptAt.Equal(*failed.LastAttemptAt) || restored.LastProblem != failed.LastProblem {
+	if restored.LastAttemptAt == nil || !restored.LastAttemptAt.Equal(*failed.LastAttemptAt) ||
+		restored.LastProblem != "Portico Services is busy." || strings.Contains(restored.LastProblem, "Trying again") {
 		t.Fatal("restart lost the last real attempt or its reason", restored)
 	}
 }
