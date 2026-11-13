@@ -46,6 +46,7 @@ const fields: Readonly<Record<string, Readonly<{id: string; facet?: string} & Re
 };
 const quick: readonly Readonly<{id: string; labelKey: string; field: string; value: string | boolean}>[] = [
   {id: 'unwatched', labelKey: 'filter.unwatched', field: 'playState', value: 'unplayed'},
+  {id: 'in-progress', labelKey: 'next.kit.browse.inProgress', field: 'playState', value: 'in-progress'},
   {id: 'watched', labelKey: 'filter.watched', field: 'playState', value: 'played'},
   {id: 'favorites', labelKey: 'filter.favorites', field: 'favorite', value: true},
   {id: 'watchlist', labelKey: 'filter.watchlist', field: 'watchlisted', value: true},
@@ -65,11 +66,13 @@ export function libraryBrowseCapabilities(library: WireLibrary, pivotId: string)
   const offered = pivots.filter(pivot => offers(library, pivot));
   // `latest` is a show's newest episode (the Recently aired tab); music's newest track has no name in the app yet.
   const sorts = (library.sorts ?? []).filter(sort => sortIds[sort.id] && (sort.id !== 'latest' || ['shows', 'anime'].includes(library.kind))).map(sort => ({id: sortIds[sort.id]!, labelKey: 'sort.' + sortIds[sort.id], directions: ['asc', 'desc'], defaultDirection: sort.order === 'desc' ? 'desc' : 'asc', applicableKinds: []}));
+  const progress = library.kind !== 'music' && library.filters?.some(filter => filter.id === 'inProgress');
   const filters = (library.filters ?? []).flatMap(filter => {
     const known = fields[filter.id];
     if (!known) return [];
     const {facet, ...field} = known;
-    return [{...field, cost: 'indexed', applicableKinds: [], ...(filter.values?.length ? {allowedValues: filter.values} : {}), ...(facet ? {facetSource: {endpoint: serverPath('GET /v1/facets'), field: facet}} : {})}];
+    const values = filter.values?.length ? filter.values : filter.id === 'watched' && progress ? ['unplayed', 'in-progress', 'played'] : undefined;
+    return [{...field, cost: 'indexed', applicableKinds: [], ...(values ? {allowedValues: values} : {}), ...(facet ? {facetSource: {endpoint: serverPath('GET /v1/facets'), field: facet}} : {})}];
   });
   const shaped = offered.map(pivot => {
     // The people list is in name order only, with no filters.
@@ -91,7 +94,7 @@ export function libraryBrowseCapabilities(library: WireLibrary, pivotId: string)
     .map(kind => ({...list(kind + 's', 'publicationType'), facetSource: {endpoint: routePattern('get_reading_periodical_groups'), field: 'publicationType'}}));
   const all = library.kind === 'comics' ? [...series, ...shaped, ...authors] : [...shaped, ...periodicals, ...authors, ...series];
   return {library: {id: library.id, name: library.name, kind: libraryKind(library.kind), defaultView: ''}, pivots: all, resolvedPivot: shaped.find(pivot => pivot.id === pivotId) ?? null,
-    fields: filters, sorts, quickFilters: quick.filter(each => filters.some(filter => filter.id === each.field)).map(each => ({id: each.id, labelKey: each.labelKey, query: {variant: 'predicate', field: each.field, operator: 'equals', value: each.value}})),
+    fields: filters, sorts, quickFilters: quick.filter(each => (each.id !== 'in-progress' || progress) && filters.some(filter => filter.id === each.field)).map(each => ({id: each.id, labelKey: each.labelKey, query: {variant: 'predicate', field: each.field, operator: 'equals', value: each.value}})),
     queryLimits: limits};
 }
 
@@ -157,6 +160,7 @@ export function libraryItemQuery(library: Readonly<{id: string; views?: WireLibr
     // A series, from the Series list or a link to it: the server's series list takes one.
     else if (field === 'series' && ['in', 'contains-any', 'equals'].includes(operator) && query.series === undefined) query.series = String(one(value));
     else if (field === 'playState' && operator === 'equals' && (value === 'played' || value === 'unplayed')) query.watched = value === 'played';
+    else if (field === 'playState' && operator === 'equals' && value === 'in-progress') query.inProgress = true;
     else if (field === 'favorite' && operator === 'equals' && typeof value === 'boolean') query.favorite = value;
     else if (field === 'watchlisted' && operator === 'equals' && typeof value === 'boolean') query.inList = value;
     else if (field === 'year' && query.year === undefined) {
@@ -195,6 +199,7 @@ export function libraryQueryControls(query: string): Readonly<{pivot: string; no
     if (name === 'genre') nodes.push({variant: 'predicate', field: 'genre', operator: 'equals', value});
     else if (name === 'resolution') nodes.push({variant: 'predicate', field: 'resolution', operator: 'equals', value});
     else if (name === 'watched' && (value === 'true' || value === 'false')) nodes.push({variant: 'predicate', field: 'playState', operator: 'equals', value: value === 'true' ? 'played' : 'unplayed'});
+    else if (name === 'inProgress' && value === 'true') nodes.push({variant: 'predicate', field: 'playState', operator: 'equals', value: 'in-progress'});
     else if ((name === 'favorite' || name === 'inList') && (value === 'true' || value === 'false')) nodes.push({variant: 'predicate', field: name === 'favorite' ? 'favorite' : 'watchlisted', operator: 'equals', value: value === 'true'});
     else if (name === 'year') {
       const [from, to] = value.split('..').map(Number);
