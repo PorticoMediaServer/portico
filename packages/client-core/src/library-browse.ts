@@ -85,7 +85,11 @@ export function libraryBrowseCapabilities(library: WireLibrary, pivotId: string)
     defaultSort: [], sorts: [], filters: [], facetSource: {endpoint: routePattern('get_library_facets'), field}});
   const authors = reading && filters.some(filter => filter.id === 'author') ? [list('authors', 'author')] : [];
   const series = reading && library.views?.some(view => view.kind === 'series') ? [list('series', 'series')] : [];
-  const all = library.kind === 'comics' ? [...series, ...shaped, ...authors] : [...shaped, ...authors, ...series];
+  // Magazines and Newspapers, where this profile may see some (10-reading rule 43): each lists its
+  // periodicals, opening their issues by year or editions by date.
+  const periodicals = library.kind !== 'books' ? [] : (['magazine', 'newspaper'] as const).filter(kind => library.views?.some(view => view.kind === kind))
+    .map(kind => ({...list(kind + 's', 'publicationType'), facetSource: {endpoint: routePattern('get_reading_periodical_groups'), field: 'publicationType'}}));
+  const all = library.kind === 'comics' ? [...series, ...shaped, ...authors] : [...shaped, ...periodicals, ...authors, ...series];
   return {library: {id: library.id, name: library.name, kind: libraryKind(library.kind), defaultView: ''}, pivots: all, resolvedPivot: shaped.find(pivot => pivot.id === pivotId) ?? null,
     fields: filters, sorts, quickFilters: quick.filter(each => filters.some(filter => filter.id === each.field)).map(each => ({id: each.id, labelKey: each.labelKey, query: {variant: 'predicate', field: each.field, operator: 'equals', value: each.value}})),
     queryLimits: limits};
