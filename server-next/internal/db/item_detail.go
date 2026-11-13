@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 )
 
 // ItemDetail is everything the detail page of one item shows.
@@ -103,7 +102,7 @@ func placeParts(parts []Part) {
 	if len(parts) < 2 {
 		return
 	}
-	if copied(parts) {
+	if packetParts(parts) {
 		var at int64
 		for n := range parts {
 			offset := (at + 500) / 1000
@@ -123,21 +122,18 @@ func placeParts(parts []Part) {
 	}
 }
 
-// copied says a version's parts are played by copying their packets one after another: each
-// part a whole file, each one's sound encoded as the first's (codec, sample rate, channels
-// and layout), and each one's packets measured.
-func copied(parts []Part) bool {
-	shape := func(p Part) string {
-		for _, s := range p.Streams {
-			if s.Kind == StreamAudio {
-				return fmt.Sprintf("%s|%d|%d|%s", s.Codec, s.SampleRate, s.Channels, s.ChannelLayout)
-			}
-		}
-		return ""
-	}
-	first := shape(parts[0])
+// packetParts says whole audio files have packet lengths for the book's common clock.
+// Copied parts retain encoder padding; converted parts fill it before joining.
+func packetParts(parts []Part) bool {
 	for _, p := range parts {
-		if p.packetsUS == nil || *p.packetsUS <= 0 || p.StartMS != nil || p.EndMS != nil || first == "" || shape(p) != first {
+		if p.packetsUS == nil || *p.packetsUS <= 0 || p.StartMS != nil || p.EndMS != nil {
+			return false
+		}
+		audio := false
+		for _, s := range p.Streams {
+			audio = audio || s.Kind == StreamAudio
+		}
+		if !audio {
 			return false
 		}
 	}
@@ -367,7 +363,7 @@ func versions(ctx context.Context, tx *sql.Tx, itemID int64) ([]Version, error) 
 			}
 		}
 		placeParts(m.Parts)
-		if len(m.Parts) > 1 && copied(m.Parts) {
+		if len(m.Parts) > 1 && packetParts(m.Parts) {
 			var total int64
 			for _, part := range m.Parts {
 				total += *part.packetsUS

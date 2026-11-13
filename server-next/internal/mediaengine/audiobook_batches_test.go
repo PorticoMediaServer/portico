@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -406,6 +407,14 @@ func TestAMixedBookCrossesABatch(t *testing.T) {
 	}
 	if _, err := (&scan.Scanner{DB: d, Prober: scan.FileProber{}}).Scan(context.Background(), libs[0]); err != nil {
 		t.Fatal(err)
+	}
+	var page api.Item
+	h.call("GET", "/v1/items/"+ids[0], nil, &page, 200)
+	for part, p := range page.Versions[0].Parts {
+		want := int64(math.Round(float64(part) * partPacketSeconds * 1000))
+		if p.OffsetMs == nil || *p.OffsetMs != want {
+			t.Fatalf("part %d page offset: %v, want %d ms on the playback clock", part+1, p.OffsetMs, want)
+		}
 	}
 	var session api.PlaybackSession
 	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: ids[0]}, &session, 201)
