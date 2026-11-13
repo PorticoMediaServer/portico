@@ -21,7 +21,7 @@ async function music(platform = 'tablet') {
     '../../../../../../packages/client-core/src/presentation/kit-model': {cardText: () => ({detail: [{id: 'duration', text: '3:00'}]})},
     '../../../kit/artwork': {missingArt: () => undefined, StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', AmbientArt: 'AmbientArt', ArtistCircle: 'ArtistCircle'},
     '../../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'}, '../../../kit/cards': {CircleCard: 'CircleCard', SquareCard: 'SquareCard'},
-    '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/browse/presentation': {browseType: type, alpha: (color: string, opacity: number) => `${color}/${opacity}`},
+    '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/browse': {TrackNumber: 'TrackNumber'}, '../../../kit/browse/presentation': {browseType: type, alpha: (color: string, opacity: number) => `${color}/${opacity}`},
     '../../../kit/theme': {useTheme: () => theme}, './MusicSectionControls': {MusicSectionControls: 'PageControls'},
     '../../../../../../packages/client-core/src/presentation/library-tabs': {artistReleaseGroups: () => []}, './MusicErrorView': {MusicErrorView: 'Error'},
     './MusicFormatBadges': {MusicFormatBadges: 'Badges'}, './use-playing-item': {usePlayingItem: () => 'song'},
@@ -85,7 +85,7 @@ async function audiobook(kind: 'book' | 'author') {
   const common = {react: ui.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})}, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
     '../../../kit/artwork': {missingArt: () => undefined, StandardBackdrop: 'StandardBackdrop', AmbientArt: 'AmbientArt', Artwork: 'Artwork', PersonCircle: 'PersonCircle'}, '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable'},
-    '../../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../../kit/browse/presentation': {alpha: (color: string, opacity: number) => `${color}/${opacity}`, browseType: type},
+    '../../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../../kit/browse': {TrackNumber: 'TrackNumber'}, '../../../kit/browse/presentation': {alpha: (color: string, opacity: number) => `${color}/${opacity}`, browseType: type},
     '../../../kit/theme': {useTheme: () => theme}, '../music/MusicWindow': musicWindowStub};
   const screen = kind === 'book'
     ? await screenModule(new URL('../src-next/screens/destinations/audiobooks/BookScreen.tsx', import.meta.url), {...common,

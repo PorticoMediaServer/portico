@@ -4,6 +4,6 @@ export {BrowseToolbar, FiltersButton, QuickToggle, SortMenu, ViewToggle, CardSiz
 export {FilterBuilder, FieldTile, FacetChips, MatchMode} from './Filters';
 export {FilteredEmpty, RelaxSuggestions} from './FilteredEmpty';
 export type {RelaxSuggestion} from './FilteredEmpty';
-export {TrackTable, TrackRow, SongRow} from './Tracks';
+export {TrackTable, TrackRow, SongRow, TrackNumber} from './Tracks';
 export type {TrackRowData, TrackTableProps, TrackSelection, TrackColumn} from './Tracks';
 export type {BrowsePlatform, BrowseLabels, LibraryChoice, LibraryHeaderProps, BrowseToolbarProps, AppliedFilterChip, FilterBuilderProps, FilterFieldState, FilterFieldValue, FacetValue, MatchModeValue} from './types';
