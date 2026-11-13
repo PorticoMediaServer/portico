@@ -1,26 +1,7 @@
 name: Apple simulator builds (report only)
 on:
-  pull_request:
-    paths:
-      - apps/native/ios/**
-      - apps/native/tvos/**
-      - apps/native/Native/**
-      - apps/native/modules/**
-      - apps/native/**/Podfile*
-      - apps/native/**/*.podspec
-      - apps/native/**/*.swift
-      - apps/native/**/*.m
-      - apps/native/**/*.mm
-      - apps/native/**/*.h
-      - apps/native/scripts/patch-*.mjs
-      - apps/native/scripts/patches/**
-      - apps/native/scripts/stage-apple-reader.mjs
-      - apps/native/package*.json
-      - apps/native/react-native.config.js
-      - apps/native/metro.apple.config.js
-      - package-lock.json
-      - third_party/apple-subtitles/**
-      - .github/workflows/apple-build.yml
+  schedule:
+    - cron: '43 5 * * *'
   workflow_dispatch:
 permissions:
   contents: read
@@ -29,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   simulators:
-    # Deliberately separate from ci/required until several runs establish cost and stability.
+    # Report-only nightly/manual builds; deliberately outside ci/required.
     runs-on: macos-26
     timeout-minutes: 120
     env:
@@ -81,11 +62,6 @@ jobs:
         run: |
           (cd apps/native/ios && pod install --deployment)
           (cd apps/native/tvos && pod install --deployment)
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
-        with:
-          path: ${{ runner.temp }}/apple-derived
-          key: apple-derived-xcode26.6-${{ hashFiles('package-lock.json', 'apps/native/package-lock.json', 'apps/native/**/Podfile*', 'apps/native/**/*.podspec', 'apps/native/scripts/patch*', 'apps/native/scripts/patches/**', 'third_party/apple-subtitles/sources.lock.json', 'third_party/apple-subtitles/jellyfin-ffmpeg.source.lock.json', 'third_party/apple-subtitles/build-apple.sh', 'third_party/apple-subtitles/lib/**', 'third_party/apple-subtitles/core/**', 'third_party/apple-subtitles/prepare-ffmpeg-source.py') }}-${{ github.sha }}
-          restore-keys: apple-derived-xcode26.6-${{ hashFiles('package-lock.json', 'apps/native/package-lock.json', 'apps/native/**/Podfile*', 'apps/native/**/*.podspec', 'apps/native/scripts/patch*', 'apps/native/scripts/patches/**', 'third_party/apple-subtitles/sources.lock.json', 'third_party/apple-subtitles/jellyfin-ffmpeg.source.lock.json', 'third_party/apple-subtitles/build-apple.sh', 'third_party/apple-subtitles/lib/**', 'third_party/apple-subtitles/core/**', 'third_party/apple-subtitles/prepare-ffmpeg-source.py') }}-
       - name: Compile iOS and tvOS simulator Debug apps
         run: |
           export NODE_BINARY="$(command -v node)"
