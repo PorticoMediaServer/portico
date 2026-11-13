@@ -53,9 +53,10 @@ export async function clearHistory(api: ServerRequester, bound: SavedScope, oper
  */
 const collectionCard = (list: List) => ({artworkPaths: list.covers.map(images => images.poster ?? images.cover ?? images.thumb).filter(Boolean).slice(0, 4), samples: [], shape: 'posters', onHome: false});
 /** One collection as `personal-saved.ts` reads it. Only its maker changes it (rule 28). */
-function collectionOf(bound: SavedScope, list: List, card = false): Record<string, unknown> {
+function collectionOf(bound: SavedScope, list: List): Record<string, unknown> {
   const owner = list.role === 'owner';
-  return {...(card ? collectionCard(list) : {}), serverId: bound.serverId, viewerFence: 'viewer', id: list.id, kind: 'collection', name: list.name, summary: list.description ?? '',
+  // The server's covers on the page too, as on its card: the page's header art is the collection's own.
+  return {...collectionCard(list), serverId: bound.serverId, viewerFence: 'viewer', id: list.id, kind: 'collection', name: list.name, summary: list.description ?? '',
     visibility: list.everyone ? 'server' : 'private', revision: revisionOf(list), role: owner ? 'owner' : 'viewer', entryCount: list.count,
     actions: owner ? ['update', 'delete', 'entries', 'reorder'] : [], status: 'ready', invalidComponents: [], pinned: false, pinRevision: 0, shares: []};
 }
@@ -65,7 +66,7 @@ export async function readDirectory(api: SavedNextApi, bound: SavedScope, kind: 
   const page: ListPage = await callServer(api, 'GET /v1/lists', {query: {kind: wire, limit: PAGE, cursor: cursor ?? undefined}, signal});
   if (!page || !Array.isArray(page.items)) throw new CodedError('invalid_saved', 'The saved lists could not be read.');
   return {serverId: bound.serverId, viewerFence: 'viewer', revision: 0, nextCursor: page.nextCursor ?? '',
-    resources: page.items.filter(list => list.kind === wire).map(list => kind === 'view' ? viewCard(bound, list) : collectionOf(bound, list, true))};
+    resources: page.items.filter(list => list.kind === wire).map(list => kind === 'view' ? viewCard(bound, list) : collectionOf(bound, list))};
 }
 /** A saved view's card: music views draw square art. */
 function viewCard(bound: SavedScope, list: List): Record<string, unknown> {
