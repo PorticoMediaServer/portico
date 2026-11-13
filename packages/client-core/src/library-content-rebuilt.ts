@@ -182,7 +182,7 @@ async function audiobookPage(api: ServerRequester, route: ContentRoute, bound: C
   const id = route.entityId ?? '';
   const [item, library] = await Promise.all([callServer(api, 'GET /v1/items/{id}', {id, signal}) as Promise<Item>, kindOf(api, route.libraryId, signal)]);
   const found = item?.id === id && item.kind === 'audiobook' ? entryFromItem(item, route.libraryId) : undefined;
-  const libraryId = route.libraryId, version = item?.versions?.[0];
+  const libraryId = route.libraryId, version = item?.versions?.find(version => version.available !== false);
   const play = (startMs: number) => Object.freeze({itemId: id, startSeconds: Math.max(0, startMs) / 1000});
   const durationOf = (ms?: number) => ms && ms > 0 ? Math.round(ms / 1000) : undefined;
   const seconds = (startMs?: number, endMs?: number) => startMs !== undefined && endMs !== undefined && endMs > startMs ? Math.round((endMs - startMs) / 1000) : undefined;

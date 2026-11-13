@@ -2,12 +2,14 @@ package api
 
 import (
 	"context"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/compat"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
@@ -83,5 +85,16 @@ func TestItemKeepsMissingVersionFactsWithoutOfferingMissingPlayback(t *testing.T
 		if err != nil || len(playable.Versions) != 1-removed {
 			t.Fatalf("playback offered a missing version: %+v, %v", playable.Versions, err)
 		}
+	}
+}
+
+func TestCompatMediaSourcesSkipMissingVersions(t *testing.T) {
+	s := newTestServer(t)
+	out := map[string]any{}
+	item := Item{ID: "film", Versions: []Media{{ID: "missing", Available: false, Parts: []Part{}}, {ID: "playable", Available: true, Parts: []Part{}}}}
+	s.compatSources(httptest.NewRequest("GET", "/", nil), item, out)
+	sources := out["MediaSources"].([]map[string]any)
+	if len(sources) != 1 || sources[0]["Id"] != compat.ID("playable") {
+		t.Fatalf("missing version offered as a media source: %+v", sources)
 	}
 }

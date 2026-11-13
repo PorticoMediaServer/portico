@@ -2023,6 +2023,7 @@ export interface Me {
 }
 
 export interface Media {
+  available: boolean;
   id: string;
   name?: string;
   edition?: string;
