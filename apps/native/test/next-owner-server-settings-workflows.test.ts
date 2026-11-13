@@ -6,7 +6,6 @@ import {bindingModule, formsFixture as untypedFormsFixture, lifecycleHooks, main
 import * as values from '../src-next/screens/settings-live/server/settings-values.ts';
 import {secureConnectionView} from '../../../packages/client-core/src/server-admin/secure-connection.ts';
 import {certificateProblemMessage, retryCertificate} from '../../../packages/client-core/src/certificates.ts';
-import {restoreRecoveryDetails, restoreRecoveryNotice} from '../../../packages/client-core/src/backups.ts';
 import {defaultI18n} from '../../../packages/i18n/src/index.ts';
 
 import type {DraftForm} from '../../../packages/client-core/src/server-admin/draft-form.ts';
@@ -92,96 +91,124 @@ test('Remote access edits the certificate switch, keeps own address on main, and
   host.dispose();fixture.stop();
 });
 
-async function backupsFixture(translate = t) {
-  const host = lifecycleHooks(), backup = {id: 'backup-1', createdAt: '2026-10-01T00:00:00Z', kind: 'scheduled', schemaVersion: 4, serverVersion: '0.1-test', bytes: 1024, path: '/backups/one.ptb'};
-  let active = true, prepared: unknown, restored: unknown, deleted: unknown, cancelled = 0;
-  const state: any = {busy: false, document: {backups: [backup], running: {jobId: 'j', phase: 'copying_database', bytesDone: 500, bytesTotal: 1000}}};
-  const selection = {encrypted: true, isCurrent: () => active};
+// Storage › Backups on the rebuilt server (ServerBackupSource, as the web's Backups.tsx).
+async function backupsFixture() {
+  const host = lifecycleHooks(), real = await import('../../../packages/client-core/src/server-admin/server-backups.ts');
+  // The tab's own parts (restore, passphrase, waiting restore) each render on a hook host of their own.
+  let active = host;
+  const children = new Map<string, ReturnType<typeof lifecycleHooks>>();
+  const react: any = Object.fromEntries(Object.keys(host.react).filter(key => key !== 'default').map(key => [key, (...args: any[]) => (active.react as any)[key](...args)]));
+  react.default = react;
+  const expand = (value: any): any => Array.isArray(value) ? value.map(expand) : !value || typeof value !== 'object' || !value.props ? value
+    : typeof value.type === 'function' ? part(value) : {...value, props: Object.fromEntries(Object.entries(value.props).map(([key, child]) => [key, typeof child === 'object' ? expand(child) : child]))};
+  const part = (element: any) => {
+    let child = children.get(element.type.name);
+    if (!child) {child = lifecycleHooks(); children.set(element.type.name, child);}
+    const previous = active; active = child;
+    try {const out = child.render(() => element.type(element.props)); child.flush(); return expand(out);} finally {active = previous;}
+  };
+  const item = {id: 'backup-1', createdAt: '2026-10-01T00:00:00Z', scheduled: true, version: '0.1-test', size: 1024, protected: true};
+  const state: any = {busy: false, list: [real.backupSummary(item as any)], settings: {days: [], hour: 3, keep: 7, folder: '/backups', includeArtwork: false},
+    backups: {items: [item], folder: '/backups', folderWritable: true, protected: false, readable: true, readableMeans: []}};
+  const calls: any[] = [];
+  let inspectAnswer: (target: unknown, phrase?: string) => Promise<unknown> = async () => ({madeHere: true, restoring: ['server_restarts']});
   class Source {
-    getSnapshot = () => state;load = async () => {};dispose() {}cancelRestoreSelection() {cancelled++;}
-    async prepareRestore(value: unknown) {prepared = value;return selection;}
-    async restore(value: unknown, secret: unknown) {restored = {value, secret};return true;}
-    async remove(id: string) {deleted = id;return true;}
+    constructor(_api: unknown, _current: unknown, private notify: () => void) {}
+    getSnapshot = () => state; load = async () => {}; dispose() {}
+    backupNow = async () => {calls.push(['backupNow']);};
+    remove = async (id: string) => {calls.push(['remove', id]);};
+    setFolder = async (folder: string) => {calls.push(['setFolder', folder]);};
+    saveSettings = async (change: unknown) => {calls.push(['saveSettings', change]);};
+    setPassphrase = async (phrase: string) => {calls.push(['setPassphrase', phrase]);};
+    inspect = (target: unknown, _signal?: AbortSignal, phrase?: string) => {calls.push(['inspect', target, phrase]); return inspectAnswer(target, phrase);};
+    restore = async (target: unknown, proof: unknown) => {calls.push(['restore', target, proof]); return {};};
+    restartAsks = async () => {calls.push(['restartAsks']); return {playing: 2, canRestart: true};};
+    restart = async () => {calls.push(['restart']); return true;};
+    cancelRestore = async () => {calls.push(['cancelRestore']);};
   }
-  class Lifetime {current = () => active;request = (run: any) => run(new AbortController().signal);dispose() {active = false;}}
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/storage/BackupsTab.tsx', import.meta.url), {
-    react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../../../packages/client-core/src/server-admin/backup-source': {SettingsBackupSource: Source}, '../../../../../../../packages/client-core/src/backups': {isAuthenticationFailure: () => false, restoreRecoveryDetails, restoreRecoveryNotice}, '../../../../../../../packages/contracts/src/routes': {routePath}, '../../../../../../../packages/client-core/src/presentation/settings-spec': specification,
-    '../../../../../../../packages/client-core/src/administration': {backupProgressFraction: (value: any) => value.bytesTotal > 0 ? value.bytesDone / value.bytesTotal : undefined}, '../../../../../../../packages/client-core/src/server-admin/console-words': {sentence: (value: string) => value.replaceAll('_', ' '), when: String}, '../../../../../../../packages/i18n/src': {defaultI18n: i18n},
-    '../../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'TextField'}, '../../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../owner-libraries/FolderExplorer': {FolderExplorer: 'FolderExplorer'}, '../AdvancedSection': {NativeAdvancedSection: 'Advanced'}, '../../../../kit/shell/visual': {shellType: () => ({})}, '../../../../kit/theme': {useTheme: () => theme}, '../../lifetime': {NativeScreenLifetime: Lifetime, screenScopeEnded: () => new Error('ended')}, './space-source': {nativeStorageOwner: () => active}, './BackupFolder': {NativeBackupFolder: 'BackupFolder'}, './BackupProtection': {NativeBackupProtection: 'Protection'},
+    react, 'react-native': {Text: 'Text', View: 'View'},
+    '../../../../../../../packages/client-core/src/server-admin/server-backups': {...real, ServerBackupSource: Source},
+    '../../../../../../../packages/client-core/src/server-admin/restore-gate': await import('../../../packages/client-core/src/server-admin/restore-gate.ts'),
+    '../../../../../../../packages/client-core/src/server-admin/console-words': {when: String},
+    '../../../../../../../packages/i18n/src': {defaultI18n},
+    '../../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', TextField: 'TextField'}, '../../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'},
+    '../../owner-libraries/FolderExplorer': {FolderExplorer: 'FolderExplorer'}, '../AdvancedSection': {NativeAdvancedSection: 'Advanced'},
+    '../../../../kit/shell/visual': {shellType: () => ({})}, '../../../../kit/theme': {useTheme: () => theme}, './space-source': {nativeStorageOwner: () => true},
   });
-  const ports = {context: {authority: () => ({serverId: 'server'}), api: {request: async () => ({})}}, requestId: () => 'operation'};
-  const render = () => host.render(() => {const outer = module.BackupsTab({ports, runtime, t: translate, advancedContent: {type: 'Limits', props: {}}});return outer ? outer.type(outer.props) : null;});
-  render();host.flush();render();host.flush();
-  return {host, state, render, selection, backup, snapshot: () => ({prepared, restored, deleted, cancelled}), stop: () => {active = false;host.dispose();}};
+  const ports = {context: {api: {request: async () => ({})}}};
+  const render = () => expand(host.render(() => {const outer = module.BackupsTab({ports, runtime, t, advancedContent: {type: 'Limits', props: {}}}); return outer ? outer.type(outer.props) : null;}));
+  render(); host.flush(); render(); host.flush();
+  const sheet = (title: string) => nodes(render()).find((node: any) => node.type === 'BottomSheet' && node.props.title === title);
+  const footerButton = (title: string, label: string) => nodes(sheet(title).props.footer).find((node: any) => node.type === 'Button' && content(node) === label);
+  const field = (title: string, label: string) => nodes(sheet(title)).find((node: any) => node.type === 'TextField' && node.props.label === label);
+  return {host, state, render, calls, sheet, footerButton, field, answer: (next: typeof inspectAnswer) => {inspectAnswer = next;}, stop: () => {for (const child of children.values()) child.dispose(); host.dispose();}};
 }
 
-test('Backups paints actual progress/metadata and keeps typed deletion behind the row menu', async () => {
-  const fixture = await backupsFixture(), tree = fixture.render();
-  assert.match(content(nodes(tree)), /50%/);assert.match(content(nodes(tree)), /web\.maintenance\.backupSchema/);assert.match(content(nodes(tree)), /Scheduled/);
-  assert.equal(nodes(tree).filter((node: any) => node.type === 'Advanced').length, 1);
-  nodes(tree).find((node: any) => node.props.testID === 'server-backup-backup-1').props.onPress();
-  const menu = nodes(fixture.render()).find((node: any) => node.type === 'Menu');menu.props.items.find((item: any) => item.id === 'delete').onSelect();
-  const deletion = () => nodes(fixture.render()).find((node: any) => node.type === 'BottomSheet' && node.props.title === 'web.maintenance.deleteBackupTitle');
-  const erase = () => nodes(deletion().props.footer).find((node: any) => node.props.variant === 'danger');
-  assert.equal(erase().props.disabled, true);erase().props.onPress();await settle();assert.equal(fixture.snapshot().deleted, undefined);
-  nodes(deletion()).find((node: any) => node.type === 'TextField').props.onChangeText('delete');assert.equal(erase().props.disabled, false);erase().props.onPress();await settle();assert.equal(fixture.snapshot().deleted, 'backup-1');fixture.stop();
+test('Backups lists what the rebuilt server says and keeps typed deletion behind the row menu', async () => {
+  const f = await backupsFixture(), copy = content(nodes(f.render()));
+  for (const text of ['/backups', 'web.maintenance.backupKindScheduled', 'server.backups.madeBy', 'server.backups.protected']) assert.ok(copy.includes(text), text);
+  assert.equal(nodes(f.render()).filter((node: any) => node.type === 'Advanced').length, 1);
+  nodes(f.render()).find((node: any) => node.props.testID === 'server-backup-backup-1').props.onPress();
+  nodes(f.render()).find((node: any) => node.type === 'Menu').props.items.find((item: any) => item.id === 'delete').onSelect();
+  const erase = () => f.footerButton('web.maintenance.deleteBackupTitle', 'action.delete');
+  assert.equal(erase().props.disabled, true);
+  nodes(f.sheet('web.maintenance.deleteBackupTitle')).find((node: any) => node.type === 'TextField').props.onChangeText('delete');
+  erase().props.onPress(); await settle();
+  assert.deepEqual(f.calls.filter(call => call[0] === 'remove'), [['remove', 'backup-1']]);
+  f.stop();
 });
 
-test('Backups shows the manual pause warning, pressure failure and recovery outcome', async () => {
-  const fixture = await backupsFixture();
-  fixture.state.document.running.kind = 'manual';
-  assert.match(content(nodes(fixture.render())), /web\.maintenance\.backupMayPause/);
-  fixture.state.document.running.kind = 'scheduled';
-  assert.doesNotMatch(content(nodes(fixture.render())), /web\.maintenance\.backupMayPause/);
-  fixture.state.document.running = undefined;
-  fixture.state.document.lastBackup = {jobId: 'j', outcome: 'failed', errorCode: 'backup_busy'};
-  assert.match(content(nodes(fixture.render())), /web\.maintenance\.backupBusy/);
-  for (const [recovery, message] of [
-    [{indexesRebuilt: true}, 'restoreRepaired'],
-    [{salvaged: true}, 'restoreRecovered'],
-    [{salvaged: true, damagedTables: ['libraries']}, 'restorePartial'],
-  ] as const) {
-    fixture.state.document.lastRestore = {outcome: 'restored', recovery};
-    assert.ok(content(nodes(fixture.render())).includes(`web.maintenance.${message}`));
-  }
-  fixture.stop();
+test('A protected backup opens with its passphrase, then restores with the word, password and phrase, which are not kept', async () => {
+  const f = await backupsFixture();
+  nodes(f.render()).find((node: any) => node.props.testID === 'server-backup-backup-1').props.onPress();
+  nodes(f.render()).find((node: any) => node.type === 'Menu').props.items.find((item: any) => item.id === 'restore').onSelect();
+  f.render(); f.host.flush();
+  const title = 'web.maintenance.restoreTitle', phrase = 'next.settings.backup.passphrase';
+  assert.equal(f.calls.some(call => call[0] === 'inspect'), false, 'a listed protected backup asks for its phrase before any check');
+  f.field(title, phrase).props.onChangeText('test-only-phrase');
+  nodes(f.sheet(title)).find((node: any) => node.type === 'Button' && content(node) === 'server.backups.openBackup').props.onPress(); await settle();
+  assert.deepEqual(f.calls.find(call => call[0] === 'inspect'), ['inspect', {id: 'backup-1'}, 'test-only-phrase']);
+  const confirm = () => f.footerButton(title, 'web.maintenance.restoreConfirm');
+  assert.equal(confirm().props.disabled, true);
+  f.field(title, 'web.deleteAccount.typeLabel').props.onChangeText('server.backups.restoreWord');
+  f.field(title, 'server.backups.password').props.onChangeText('test-only-password');
+  assert.equal(confirm().props.disabled, false);
+  confirm().props.onPress(); await settle();
+  assert.deepEqual(f.calls.find(call => call[0] === 'restore'), ['restore', {id: 'backup-1'}, {password: 'test-only-password', code: undefined, notMadeHereConfirmed: false, passphrase: 'test-only-phrase'}]);
+  assert.equal(f.sheet(title).props.open, false);
+  f.stop();
 });
 
-test('Backups exposes bounded precise manifest damage in completed and restarting restores', async () => {
-  const fixture = await backupsFixture(defaultI18n.t);
-  const recovery = {indexesRebuilt: true, manifestDamage: {count: 25, missingFiles: 2, regionsTruncated: true, unverifiedDatabase: true,
-    regions: Array.from({length: 20}, () => ({firstLine: 4, lastLine: 4, startByte: 500, endByte: 600, reason: 'payload_hash_mismatch'}))}};
-  fixture.state.document.running = undefined;
-  fixture.state.document.lastRestore = {outcome: 'restored', recovery};
-  const assertDamage = () => {
-    const tree = fixture.render(), copy = content(nodes(tree));
-    assert.match(copy, /Portico restored the readable parts of this backup/);
-    assert.match(copy, /Backup damage: 25 regions; 2 files could not be restored/);
-    assert.equal(nodes(tree).filter((node: any) => node.type === 'Text' && content(node) === 'Lines 4–4, bytes [500, 600): Payload hash mismatch.').length, 20);
-    assert.match(copy, /Showing 20 of 25 damaged regions/);
-    assert.match(copy, /could not be verified against the backup manifest/);
-    assert.doesNotMatch(copy, /Nothing was lost|recovered all of it/);
-  };
-  assertDamage();
-  fixture.state.restorePhase = 'restarting';fixture.state.staged = {validation: {recovery}};
-  fixture.state.document.lastRestore = undefined;assertDamage();
-  fixture.state.restorePhase = undefined;fixture.state.document.lastRestore = {outcome: 'rolled_back', recovery};
-  assert.doesNotMatch(content(nodes(fixture.render())), /Backup damage|readable parts/);
-  fixture.stop();
+test('A restore waiting for a restart asks the server first, then restarts; Cancel drops it', async () => {
+  const f = await backupsFixture();
+  f.state.backups = {...f.state.backups, pendingRestore: {backup: 'one.ptb', stagedAt: '2026-10-02T00:00:00Z'}};
+  f.render(); f.host.flush(); await settle();
+  const pending = () => nodes(f.render()).find((node: any) => node.props.testID === 'server-backup-pending');
+  nodes(pending()).find((node: any) => node.type === 'Button' && content(node) === 'server.backups.restartNow').props.onPress(); await settle();
+  f.footerButton('server.backups.restartTitle', 'server.backups.restartNow').props.onPress(); await settle();
+  assert.ok(f.calls.some(call => call[0] === 'restart'));
+  nodes(pending()).find((node: any) => node.type === 'Button' && content(node) === 'server.backups.cancelRestore').props.onPress(); await settle();
+  assert.ok(f.calls.some(call => call[0] === 'cancelRestore'));
+  assert.equal(nodes(f.render()).find((node: any) => node.props.testID === 'server-backup-now').props.disabled, true, 'no new backup while a restore waits');
+  f.stop();
 });
 
-test('Restore picker retains its candidate through the encrypted step and closing fences stale choices', async () => {
-  const fixture = await backupsFixture();fixture.state.document.running = undefined;
-  const restore = () => nodes(fixture.render()).find((node: any) => node.type === 'Button' && content(node) === 'web.maintenance.restoreFromFile');
-  restore().props.onPress();
-  const picker = nodes(fixture.render()).find((node: any) => node.type === 'FolderExplorer');assert.equal(picker.props.selectionMode, 'file-or-folder');assert.equal(picker.props.multiple, false);
-  picker.props.onUse([{path: '/backups/chosen.ptb', name: 'chosen.ptb'}]);picker.props.onOpenChange(false);
-  const sheet = () => nodes(fixture.render()).find((node: any) => node.type === 'BottomSheet' && node.props.title === 'web.maintenance.restoreTitle');
-  assert.equal(sheet().props.open, true);
-  const confirm = () => nodes(sheet().props.footer).find((node: any) => node.type === 'Button' && content(node) === 'web.maintenance.restoreConfirm');
-  confirm().props.onPress();await settle();assert.deepEqual(fixture.snapshot().prepared, {path: '/backups/chosen.ptb'});assert.equal(fixture.snapshot().restored, undefined);
-  nodes(sheet()).find((node: any) => node.type === 'TextField').props.onChangeText('test-only-passphrase');confirm().props.onPress();await settle();assert.deepEqual(fixture.snapshot().restored, {value: fixture.selection, secret: 'test-only-passphrase'});
-  restore().props.onPress();const stale = nodes(fixture.render()).find((node: any) => node.type === 'FolderExplorer');stale.props.onOpenChange(false);stale.props.onUse([{path: '/wrong.ptb', name: 'wrong.ptb'}]);assert.equal(sheet().props.open, false);fixture.stop();
+test('The passphrase is asked twice before it protects new backups, and turning it off asks first', async () => {
+  const f = await backupsFixture(), protect = 'next.settings.backup.protectTitle';
+  nodes(f.render()).find((node: any) => node.props.testID === 'server-backup-passphrase').props.onCheckedChange(true);
+  const save = () => f.footerButton(protect, 'next.settings.backup.protect');
+  f.field(protect, 'next.settings.backup.passphrase').props.onChangeText('test-only-phrase');
+  f.field(protect, 'next.settings.backup.repeat').props.onChangeText('test-only-other');
+  assert.equal(save().props.disabled, true);
+  f.field(protect, 'next.settings.backup.repeat').props.onChangeText('test-only-phrase');
+  save().props.onPress(); await settle();
+  assert.deepEqual(f.calls.filter(call => call[0] === 'setPassphrase'), [['setPassphrase', 'test-only-phrase']]);
+  f.state.backups = {...f.state.backups, protected: true};
+  nodes(f.render()).find((node: any) => node.props.testID === 'server-backup-passphrase').props.onCheckedChange(false);
+  f.footerButton('server.backups.passphraseOffTitle', 'server.backups.passphraseOff').props.onPress(); await settle();
+  assert.deepEqual(f.calls.filter(call => call[0] === 'setPassphrase').at(-1), ['setPassphrase', '']);
+  f.stop();
 });
 
 for (const memoryAvailable of [true, false]) test(`Streaming keeps memory preference selectable with host availability (${memoryAvailable})`, async () => {

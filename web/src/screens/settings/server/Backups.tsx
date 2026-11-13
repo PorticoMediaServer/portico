@@ -7,7 +7,7 @@ import {Button, Switch, TextField} from '../../../kit/controls';
 import {Dialog} from '../../../kit/overlays/Dialog';
 import {useRetained} from '../../../kit/overlays';
 import {BackupConfirmationDialog, BackupList, ServerFolderPicker, SettingsAction} from '../../../kit/settings';
-import {restoreReady, sentAsConfirmed} from './restore-gate';
+import {restoreReady, sentAsConfirmed} from '@core/server-admin/restore-gate.ts';
 import styles from './server.module.css';
 
 const t = defaultI18n.t;
