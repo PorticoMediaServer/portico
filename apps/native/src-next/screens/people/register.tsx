@@ -109,7 +109,7 @@ function PersonHost({entry, runtime, back}: {entry: Entry; runtime: NativeShellR
     return () => clearTimeout(timer);
   }, [state.phase]);
   return place(<View pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible} importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'}
-    style={{position: 'absolute', inset: 0, display: active.visible || stacked ? 'flex' : 'none'}}><StandardBackdrop/>
+    style={{position: 'absolute', inset: 0, display: active.visible || stacked ? 'flex' : 'none'}}>{theme.isTV && <StandardBackdrop/>}
     {state.phase === 'ready' && state.page && entry.window && entry.actions && 'role' in state.group ? <PersonScreen focusScope={entry.focusScope} page={state.page} role={state.group.role} collection={entry.window.collection}
       runtime={runtime} actions={entry.actions} selection={entry.selection} groups={entry.groupWindows?.map(group => ({id: group.id, department: group.department, total: group.total, collection: group.window.collection}))} onRole={role => {void entry.source.select({role});}} onBack={back}/>
       // W-2 sweep: the full-page state, below Back and the status bar, as a title that couldn't load.

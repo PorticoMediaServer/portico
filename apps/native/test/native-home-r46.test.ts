@@ -254,6 +254,12 @@ test('phone Home wires the drawn row rhythm, the 13 px sub-line and the live row
   for (const wrapper of wrappers) assert.deepEqual(wrapper.props.style, {marginTop: 28}, 'phone-app.html .phone .row margin-top 28');
   assert.equal(descendants(tree).filter(node => node.type === 'View' && node.props.style?.height === 560).length, 0, 'no spotlight: no empty 560 px hero block');
   assert.equal(descendants(tree).filter(node => node.type === 'View' && node.props.style?.height === 104).length, 1, 'no spotlight: the rows start under the 104 px phone header');
+  // With a spotlight the hero comes back at its drawn 560 px (final3-phone-01).
+  const lit = hooks(), litHome = (await homeModule(() => currentTheme, rows, lit.react)).HomeScreen;
+  const litRuntime = {...runtime, home: {...runtime.home, getSnapshot: () => ({document: {rows, spotlight: [{entry, reason: 'Because you watched'}], serverId: 'actual', viewerFence: 'viewer'}, phase: 'ready'})}};
+  const litTree = lit.render(() => litHome({runtime: litRuntime, authority, bottomInset: 84}));
+  assert.equal(descendants(litTree).filter(node => node.type === 'View' && node.props.style?.height === 560).length, 1, 'with a spotlight: the 560 px hero block');
+  assert.equal(descendants(litTree).filter(node => node.type === 'View' && node.props.style?.height === 104).length, 0);
   const scroller = descendants(tree).find(node => node.type === 'ScrollView');
   assert.equal(scroller.props.contentContainerStyle.paddingBottom, 96, 'drawn end padding over the 84 px bar');
   const row = descendants(tree).find(node => node.type === 'Row');

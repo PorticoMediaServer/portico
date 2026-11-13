@@ -425,7 +425,7 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
     onClose={() => filterDraft?.dispose()} onSave={view => actions.saveView(destination, view)}/>;
   return <View testID={`native-library-${encodeURIComponent(state.library.id)}`} pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
     importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} onLayout={event => setAreaWidth(event.nativeEvent.layout.width)}
-    style={{flex: 1}}><StandardBackdrop/>
+    style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     {wash}
     <View style={{flex: 1, flexDirection: docked ? 'row' : 'column'}}>
       <View style={{flex: 1}}>
@@ -444,7 +444,7 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
           : state.collection ? <View style={{flex: 1}}>
             <LibraryGrid {...props} selection={selection} source={state} paneWidth={gridWidth} tablet={tabletLayout} expanded={expanded} filtersOpen={filterState?.open ?? false} onFilters={openFilters} dockedFilters={docked}
               entryRequest={entryRequest} onEntered={onEntered} entryCovered={emptyShown}/>
-            {emptyShown && <View testID="library-empty-page" style={{position: 'absolute', inset: 0}}><StandardBackdrop/>
+            {emptyShown && <View testID="library-empty-page" style={{position: 'absolute', inset: 0}}>{theme.isTV && <StandardBackdrop/>}
               <LibraryEmpty runtime={runtime} regionId={emptyRegion} upRegionId={ids.libraryTabs(state.library.id)} firstCardRegion={firstCardRegion}
                 surface={state.tab.shows} libraryName={state.library.name} firstScanning={firstScanning} onActivity={props.firstScan?.openActivity}
                 onLeave={() => {if (!empty) setEmptyHeld(false);}}/>

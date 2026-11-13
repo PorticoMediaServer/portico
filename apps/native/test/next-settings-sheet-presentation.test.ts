@@ -29,7 +29,7 @@ async function fixture() {
     './geometry': {releaseSheet, resistSheet, sheetHeights}, './surface': {alpha: (value: string) => value, FocusBoundary: 'FocusBoundary', PanelBackground: 'PanelBackground', SurfaceHeader: 'SurfaceHeader', usePresence: (open: boolean) => open},
   });
   const {SettingsSheet} = await screenModule(new URL('../src-next/kit/shell/SettingsShell.tsx', import.meta.url), {
-    ...common, '../controls/Focusable': {Focusable: 'Focusable'}, '../overlays/BottomSheet': {BottomSheet}, '../Icon': {Icon: 'Icon'}, '../focus/registry': {focusTestID: (prefix: string, key: string) => `${prefix}:${key}`},
+    ...common, '../controls/Focusable': {Focusable: 'Focusable'}, '../overlays/BottomSheet': {BottomSheet}, '../artwork': {StandardBackdrop: 'StandardBackdrop'}, '../Icon': {Icon: 'Icon'}, '../focus/registry': {focusTestID: (prefix: string, key: string) => `${prefix}:${key}`},
     './HighlightedText': {HighlightedText: 'HighlightedText'}, './visual': {alpha: (value: string) => value, shellType: () => ({})}, './ServerIdentity': {ServerHeader: 'ServerHeader'}, './authority': {canSeeServerPage: () => true},
   });
   const child = {type: 'DraftEditor', props: {testID: 'retained-draft', children: []}}, onOpenChange = (...args: any[]) => dismissals.push(args);

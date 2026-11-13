@@ -3,6 +3,7 @@ import {Platform, StyleSheet, View} from 'react-native';
 import Animated, {Easing, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
 import {ScreenStack, ScreenStackItem, type StackAnimationTypes} from 'react-native-screens';
 import {NativeStackSlotOutlet, type NativeStackSlots} from '../kit/navigation/stack-slot';
+import {StandardBackdrop} from '../kit/artwork';
 import {isModalRoot, type NativeRoutePresentation, type NativeShellRoute, type NativeTabStack} from './routes';
 import type {NativeTouchStacksPort} from './runtime';
 
@@ -114,6 +115,8 @@ function Stack({id, presentations, modal, tabActive, active, port, slots, tier, 
       return <ScreenStackItem key={key} screenId={key} headerConfig={{hidden: true}} stackPresentation="push" stackAnimation={animation}
         gestureEnabled={index > 0} onDismissed={index > 0 ? event => dismissed(event.nativeEvent.dismissCount) : undefined}
         style={StyleSheet.absoluteFill} contentStyle={{flex: 1, backgroundColor: modal && index === 0 ? 'transparent' : background}}>
+        {/* DESIGN.md "One standard backdrop": every page sits on the same full-window backdrop, drawn here once; pages are transparent over it. */}
+        {!(modal && index === 0) && <StandardBackdrop/>}
         {content}
       </ScreenStackItem>;
     })}

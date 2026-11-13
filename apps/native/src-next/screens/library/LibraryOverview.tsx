@@ -25,7 +25,7 @@ export function NativeLibraryOverview({directory, runtime, activation, openLibra
   useEffect(() => {if (active.visible) void directory.load(true).catch(runtime.reportError);}, [active.visible, active.revision, directory, runtime]);
   useEffect(() => runtime.registerScrollToTop({kind: 'libraries'}, () => scroll.current?.scrollTo({y: 0, animated: !theme.reduceMotion})), [runtime, theme.reduceMotion]);
   return <View testID="native-libraries-overview" pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
-    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}} onLayout={event => setSurface(event.nativeEvent.layout.width)}><StandardBackdrop/>
+    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}} onLayout={event => setSurface(event.nativeEvent.layout.width)}>{theme.isTV && <StandardBackdrop/>}
     <ScrollView ref={scroll} contentContainerStyle={{paddingTop: Math.max(58, insets.top), paddingBottom: 28}}>
       <View style={{flexDirection: 'row', alignItems: 'baseline', marginHorizontal: 20, marginBottom: 18}}>
         <Text accessibilityRole="header" style={[browseType(theme, 36, 800, -.035, 39), {color: theme.colors.text, flex: 1}]}>{defaultI18n.t('pins.libraries')}</Text>

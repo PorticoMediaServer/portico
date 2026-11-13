@@ -62,6 +62,8 @@ export type BottomSheetProps = SurfaceProps & {
   presentation?: 'sheet' | 'page';
   /** Called once the closing surface has finished its exit and left the tree. */
   onExited?: () => void;
+  /** Drawn behind everything on the sheet's surface (Settings draws the standard backdrop here, under its header too). */
+  surfaceBackground?: React.ReactNode;
   /** A custom header can draw its own grabber within its authored height. */
   showGrabber?: boolean;
   /** Visible heights in points, sorted by the component. The controlled detent is an index. */

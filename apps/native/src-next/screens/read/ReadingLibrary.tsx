@@ -220,7 +220,7 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
     // the shell rail is already outside this view.
     const next = Math.round(event.nativeEvent.layout.width);
     if (next > 0 && next !== paneWidth) setPaneWidth(next);
-  }}><StandardBackdrop/>
+  }}>{theme.isTV && <StandardBackdrop/>}
     {tablet ? <View style={{paddingTop: insets.top + 6, paddingHorizontal: theme.gutter}}>
       <Focusable accessibilityRole="button" focusKind="row" accessibilityLabel={defaultI18n.t('next.browse.native.libraries')} onPress={onBack}
         style={{height: 44, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start'}}>

@@ -95,7 +95,7 @@ export function OwnerDashboardPage(props: OwnerDashboardPageProps) {
     const sticks = y + bar >= headerTop.current;
     setStuck(previous => previous === sticks ? previous : sticks);
   };
-  return <View style={{flex: 1}}><StandardBackdrop/>
+  return <View style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     <ServerBand viewerRole={role} audience="administrators" height={400}/>
     <ScrollView testID="owner-dashboard-scroll" refreshControl={props.refreshControl} scrollEventThrottle={16} onScroll={onScroll} contentContainerStyle={{paddingTop: bar + 8, paddingBottom: 80}}>
       <OwnerHeader {...props}/>

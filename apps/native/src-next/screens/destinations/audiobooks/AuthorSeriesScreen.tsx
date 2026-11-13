@@ -186,7 +186,7 @@ export function AuthorSeriesScreen({controller, entry, runtime, actions, openEnt
       </View> : null}
     </View>
   </>;
-  return <View testID={tv ? 'native-tv-audiobook-collection' : 'native-phone-audiobook-collection'} style={{flex: 1}}><StandardBackdrop/>
+  return <View testID={tv ? 'native-tv-audiobook-collection' : 'native-phone-audiobook-collection'} style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     <View pointerEvents="none" style={{position: 'absolute', inset: 0, overflow: 'hidden'}}>
       {runtime.ambient(coverPath) ? <AmbientArt source={runtime.ambient(coverPath)} treatment="title" style={{position: 'absolute', inset: 0}}/> : null}
       <View style={{position: 'absolute', inset: 0, backgroundColor: alpha(theme.colors.ink, .45)}}/>

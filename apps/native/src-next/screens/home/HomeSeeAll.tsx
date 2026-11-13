@@ -158,7 +158,7 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
       <View style={{marginLeft: tv ? 'auto' : 8}}>{countLabel}</View>
     </View>}
   </View>;
-  return <View testID="home-see-all" style={{flex: 1}}><StandardBackdrop/>
+  return <View testID="home-see-all" style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     {artwork && <View pointerEvents="none" style={{position: 'absolute', inset: 0, opacity: .26}}><AmbientArt source={runtime.ambient(artwork.backdropUrl ?? artwork.posterUrl)} treatment="hero" visible={active}/></View>}
     <FocusRegion id={gridId} entry="play" enabled={active} style={{flex: 1}}>
       {(tv || !!data.error) && <>{header}{toolbar}</>}

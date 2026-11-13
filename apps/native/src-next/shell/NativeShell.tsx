@@ -8,6 +8,7 @@ import {DockClearanceProvider} from '../kit/dock/DockClearance';
 import {ListeningCoverProvider, useListeningTabBarPaint} from '../kit/dock/ListeningCoverBridge';
 import {SurfacePaintHost} from '../kit/overlays/SurfacePaintHost';
 import {AccountMenu} from '../kit/shell';
+import {StandardBackdrop} from '../kit/artwork';
 import {useTheme} from '../kit/theme';
 import {useMotion} from '../kit/useMotion';
 import {registerTVMenuFallback} from '../platform/menu-key';
@@ -353,7 +354,8 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
    * from Libraries, or Settings (the modal stack's transparent root over the live page). */
   const renderShellPage = ({presentation, top, tabActive, modal}: NativeStackPage) => {
     const page = presentation.route.kind === 'shell' ? presentation.route.destination : presentation.destination;
-    if (modal) return <View style={{flex: 1, paddingLeft: sideNavigation ? sideWidth : 0, paddingBottom: settingsSheet ? 0 : pageBottom, backgroundColor: settingsSheet ? 'transparent' : theme.colors.ink}}>
+    if (modal) return <View style={{flex: 1, paddingLeft: sideNavigation ? sideWidth : 0, paddingBottom: settingsSheet ? 0 : pageBottom}}>
+      {!settingsSheet && <StandardBackdrop/>}
       {runtime.renderDestination(page, openLibrary)}
     </View>;
     return <View style={{flex: 1, paddingLeft: sideNavigation ? sideWidth : 0}}>
