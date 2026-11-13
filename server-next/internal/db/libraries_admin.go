@@ -3,9 +3,9 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"path"
-	"slices"
 	"strings"
 	"time"
 )
@@ -424,26 +424,34 @@ func (d *DB) deletion(ctx context.Context, v Viewer, where, id string, version b
 	if err := rows.Close(); err != nil {
 		return out, err
 	}
-	for _, f := range out.Files {
-		others, err := tx.QueryContext(ctx, `SELECT DISTINCT i.id, m.id, i.public_id, i.title FROM media_parts p JOIN media m ON m.id = p.media_id
-			JOIN items i ON i.id = m.item_id WHERE p.file_id = ? AND m.id NOT IN (`+medias+`) ORDER BY i.id`, append([]any{f.ID}, args...)...)
-		if err != nil {
-			return out, err
-		}
-		for others.Next() {
-			var o SharedTitle
-			if err := others.Scan(&o.ItemID, &o.MediaID, &o.PublicID, &o.Title); err != nil {
-				others.Close()
-				return out, err
-			}
-			if !slices.ContainsFunc(out.Others, func(have SharedTitle) bool { return have.MediaID == o.MediaID }) {
-				out.Others = append(out.Others, o)
-			}
-		}
-		if err := others.Close(); err != nil {
-			return out, err
-		}
+	fileIDs := make([]int64, len(out.Files))
+	for n, file := range out.Files {
+		fileIDs[n] = file.ID
 	}
+	encoded, err := json.Marshal(fileIDs)
+	if err != nil {
+		return out, err
+	}
+	// Expand the selected media once, then find all shared versions in one read.
+	others, err := tx.QueryContext(ctx, `WITH selected AS MATERIALIZED (`+medias+`)
+        SELECT DISTINCT i.id, m.id, i.public_id, i.title FROM media_parts p JOIN media m ON m.id = p.media_id
+        JOIN items i ON i.id = m.item_id WHERE p.file_id IN (SELECT value FROM json_each(?))
+        AND m.id NOT IN (SELECT * FROM selected) ORDER BY i.id, m.id`, append(args, string(encoded))...)
+	if err != nil {
+		return out, err
+	}
+	for others.Next() {
+		var o SharedTitle
+		if err := others.Scan(&o.ItemID, &o.MediaID, &o.PublicID, &o.Title); err != nil {
+			others.Close()
+			return out, err
+		}
+		out.Others = append(out.Others, o)
+	}
+	if err := others.Close(); err != nil {
+		return out, err
+	}
+
 	if version {
 		// A title loses its list entries and saved state only when the selected or
 		// shared files take its last version. A surviving version keeps that state.
