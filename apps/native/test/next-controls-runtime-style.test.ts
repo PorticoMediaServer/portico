@@ -374,3 +374,15 @@ test('inert outgoing paint dominates TV focusableWhenDisabled and ignores retain
     } finally {await control.host.unmount();}
   }
 });
+
+test('a Button sits at the start of its parent unless it says where: align sets its alignSelf, and its own style still wins', async () => {
+  const {Button} = await controls();
+  for (const [align, expected] of [[undefined, 'flex-start'], ['start', 'flex-start'], ['center', 'center'], ['end', 'flex-end'], ['stretch', 'stretch']] as const) {
+    const button = await mount(Button, {size: 'hero', children: 'Forgot PIN?', ...(align ? {align} : {})});
+    try {assert.equal(nativeStyle(button.native()).alignSelf, expected, String(align));}
+    finally {await button.host.unmount();}
+  }
+  const told = await mount(Button, {size: 'hero', children: 'Own style', align: 'center', style: {alignSelf: 'flex-end'}});
+  try {assert.equal(nativeStyle(told.native()).alignSelf, 'flex-end');}
+  finally {await told.host.unmount();}
+});

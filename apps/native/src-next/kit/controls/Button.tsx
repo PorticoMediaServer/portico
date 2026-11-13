@@ -21,6 +21,8 @@ export type ButtonProps = Omit<FocusableProps, 'children'> & {
   /** Providing a loading state reserves its icon slot, keeping both label and width stable. */
   loading?: boolean;
   textStyle?: StyleProp<TextStyle>;
+  /** Where the button sits across its parent. React Native would stretch it, so the kit's own default is 'start' (content width); a centring parent's button says 'center'. */
+  align?: 'start' | 'center' | 'end' | 'stretch';
 };
 
 export type ResumeButtonProps = ButtonProps & {progress: number; remaining?: React.ReactNode};
@@ -29,7 +31,7 @@ const paddingKeys = ['padding', 'paddingHorizontal', 'paddingVertical', 'padding
 
 const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonContent({
   variant = 'primary', size = 'hero', children, icon, trailingIcon, iconSize, iconColor, iconOnly = variant === 'icon', loading,
-  disabled, style, textStyle, accessibilityState, hitSlop, progress, remaining, ...props
+  disabled, style, textStyle, accessibilityState, hitSlop, progress, remaining, align = 'start', ...props
 }, ref) {
   const theme = useTheme();
   // A link's label is a sentence: it wraps rather than cutting off, at every text size, unless it is given a height.
@@ -64,7 +66,7 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
       const minimum = typeof resolved?.height === 'number' ? resolved.height : height;
       return [styles.button, {height, paddingHorizontal: iconOnly ? 0 : geometry.paddingX,
         width: iconOnly ? height : undefined, borderRadius: radius,
-        opacity: disabled ? buttonSpec.disabledOpacity : 1}, supplied,
+        opacity: disabled ? buttonSpec.disabledOpacity : 1}, align === 'start' ? undefined : {alignSelf: align === 'center' ? 'center' : align === 'end' ? 'flex-end' : 'stretch'}, supplied,
         grow ? {height: undefined, minHeight: Math.max(minimum, typeof resolved?.minHeight === 'number' ? resolved.minHeight : 0), paddingVertical: resolved?.paddingVertical ?? 4} : undefined,
         androidGlass ? styles.androidHost : undefined];
     }}>
