@@ -543,6 +543,11 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		}
 	}
 	plan, err := e.planWithHardware(ctx, tools, request)
+	if err == nil && plan.ToneMap && plan.HardwareBackend != "software" && !facts.FrameHDRObserved {
+		facts = e.observeToneMappingSource(ctx, path, place, remoteID, facts)
+		request.File.Streams = facts.Streams
+		plan, err = e.planWithHardware(ctx, tools, request)
+	}
 	if err != nil && !errors.Is(err, streaming.ErrTranscodingDisabled) && owner.ConversionMode != "all" {
 		// Nothing plays under the owner's "Convert when needed". If it would with converting
 		// allowed, that setting is the reason, and the viewer is told so, not that the device

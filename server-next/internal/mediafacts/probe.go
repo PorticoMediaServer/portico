@@ -34,6 +34,7 @@ type AudioFileMetadata struct {
 }
 
 type Facts struct {
+	FrameHDRObserved    bool                 `json:"-"`
 	Packets             *Packets             `json:"-"`
 	AudioFileMetadata   *AudioFileMetadata   `json:"-"`
 	DiscAlternate       bool                 `json:"-"`

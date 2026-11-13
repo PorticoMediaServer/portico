@@ -137,10 +137,11 @@ func (p DeliveryPlan) conversionGraph(burn *decoder.BurnIn, threads int) (decode
 		BurnIn:    burn,
 		Toolchain: decoder.CurrentToolchain(),
 		Probe: decoder.HardwareProbe{
-			Backend:       decoder.HardwareBackend(p.HardwareBackend),
-			Available:     p.HardwareBackend != "" && p.HardwareBackend != string(decoder.BackendSoftware),
-			NativeFilters: p.HardwareNative,
-			Device:        p.HardwareDevice,
+			Backend:                 decoder.HardwareBackend(p.HardwareBackend),
+			Available:               p.HardwareBackend != "" && p.HardwareBackend != string(decoder.BackendSoftware),
+			NativeFilters:           p.HardwareNative,
+			ToneMapWithoutMastering: p.HardwareNative,
+			Device:                  p.HardwareDevice,
 		},
 		ToneMap:          p.ToneMap,
 		ToneMapAlgorithm: p.ToneMapAlgorithm,
@@ -157,6 +158,9 @@ func (p DeliveryPlan) conversionGraph(burn *decoder.BurnIn, threads int) (decode
 		AudioSampleRate:  p.AudioSampleRate,
 		SourceVideoCodec: p.SourceVideoCodec,
 		SoftwareThreads:  threads,
+	}
+	if p.Trace != nil && p.Trace.Video != nil {
+		request.SourceHasMasteringDisplay = p.Trace.Video.MasterDisplay != ""
 	}
 	if p.ConversionToolchain != nil {
 		request.Toolchain = p.ConversionToolchain
