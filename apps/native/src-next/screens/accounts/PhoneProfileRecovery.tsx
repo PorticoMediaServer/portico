@@ -51,7 +51,7 @@ export function PhoneProfileRecovery({controller, profileName, username, onOpen,
     const title = t('accounts.profiles.forgotTitle', {profile: profileName}), cancel = {id: 'cancel', label: t('action.cancel'), disabled: state.busy, onPress: onClose};
     if (!portico || portico.phase === 'loading') return <StateLayout testID="accounts-pin-recovery-portico" title={title} body={t('status.loading')} secondaryAction={cancel}/>;
     if (portico.phase === 'failed') return <StateLayout testID="accounts-pin-recovery-portico" title={title} body={t('accounts.profiles.forgotBody')}
-      beforeActions={<Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 12}]}>{presentError(portico.error, 'profiles').body}</Text>}
+      beforeActions={<FormError placement="block">{presentError(portico.error, 'profiles').body}</FormError>}
       primaryAction={{id: 'retry', label: t('action.tryAgain'), onPress: () => setAttempt(value => value + 1)}} secondaryAction={cancel}/>;
     const {account, source} = portico.value;
     const refusedForPassword = (state.error as {code?: unknown} | undefined)?.code === 'account_password_required';

@@ -24,7 +24,7 @@ async function mount(account: {username: string; hasPassword: boolean; twoStep: 
     'react-native': {Linking: {openURL: async (url: string) => {opened.push(url);}}, Text: 'Text', View: 'View'},
     '../../../../../packages/i18n/src': {defaultI18n: {t: (key: string, values?: unknown) => values ? `${key}:${JSON.stringify(values)}` : key}},
     '../../../../../packages/client-core/src/presentation/errors': {presentError: (error: Error) => ({body: error.message})},
-    '../../kit/states': {StateLayout: 'StateLayout'}, '../../kit/controls': {Button: 'Button', TextField: 'TextField'},
+    '../../kit/states': {StateLayout: 'StateLayout'}, '../../kit/controls': {Button: 'Button', TextField: 'TextField', FormError: 'FormError'},
     '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
     '../../platform/profile-recovery': {nativePorticoRecovery: portico}, '../../platform/account-authority': {hostedUrl: 'https://web.getportico.tv'},
     './PhonePINEntry': {PhonePINEntry: 'PINEntry'},
@@ -69,7 +69,7 @@ test('an account with no password is told to set one, also when Services refuses
 test('a failed read of the Portico Account is said in the step, and Try again reads it again', async () => {
   const app = await mount({username: 'ada', hasPassword: true, twoStep: false}, {failFirst: true});
   try {
-    assert.ok(nodes(app.tree()).some(node => node.type === 'Text' && node.props.children === 'Portico Services cannot be reached'));
+    assert.ok(nodes(app.tree()).some(node => node.type === 'FormError' && node.props.children === 'Portico Services cannot be reached'), 'said in the shared error line');
     await act(() => app.tree().props.primaryAction.onPress()); await act(async () => {});
     assert.ok(field(app.tree(), 'accounts.profiles.porticoPassword'), 'read again, the form is shown');
     assert.equal(field(app.tree(), 'accounts.profiles.porticoTwoStep'), undefined, 'no code field when two-step is off');
