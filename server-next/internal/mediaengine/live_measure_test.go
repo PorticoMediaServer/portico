@@ -19,23 +19,43 @@ import (
 )
 
 func TestLiveMeasurementKeepsCollectingWhenEarlyVideoSizeIsMissing(t *testing.T) {
+	measureLiveSample(t, "size")
+}
+
+func TestLiveMeasurementKeepsTheFullCadenceWhenTheEarlyRateAndFieldOrderChange(t *testing.T) {
+	facts := measureLiveSample(t, "cadence")
+	video := facts.Streams[0].Detail
+	if video.FrameRate != 59.94 || !video.Interlaced {
+		t.Fatalf("cached the early progressive 29.97 fps sample instead of the full interlaced 59.94 fps sample: %+v", video)
+	}
+}
+
+func measureLiveSample(t *testing.T, sample string) mediafacts.Facts {
+	t.Helper()
 	dir := t.TempDir()
 	probe := filepath.Join(dir, "probe")
-	// Both samples identify the codecs, but only the full sample has the size
-	// needed by the playback decision. Record what was actually probed.
+	// Early codecs alone do not establish the size or cadence. The full sample
+	// supplies those facts; record what was actually probed.
 	script := `#!/bin/sh
 for file do :; done
 size=$(wc -c < "$file")
 printf '%s\n' "$size" >> "$(dirname "$0")/sizes"
 height=0
-if [ "$size" -ge 3145728 ]; then height=360; fi
+average=25/1
+declared=25/1
+field=progressive
+if [ MODE = cadence ]; then height=360; average=30000/1001; declared=60000/1001; fi
+if [ "$size" -ge 3145728 ]; then
+ height=360
+ if [ MODE = cadence ]; then average=60000/1001; field=tt; fi
+fi
 printf '{"format":{"format_name":"mpegts","duration":"8"},"streams":[
 {"index":0,"codec_type":"video","codec_name":"h264","profile":"High",
 "level":30,"width":640,"height":%s,"pix_fmt":"yuv420p",
-"avg_frame_rate":"25/1","field_order":"progressive"},
-{"index":1,"codec_type":"audio","codec_name":"aac","profile":"LC","channels":2,"channel_layout":"stereo","sample_rate":"48000"}]}' "$height"
+"avg_frame_rate":"%s","r_frame_rate":"%s","field_order":"%s"},
+{"index":1,"codec_type":"audio","codec_name":"aac","profile":"LC","channels":2,"channel_layout":"stereo","sample_rate":"48000"}]}' "$height" "$average" "$declared" "$field"
 `
-	if err := os.WriteFile(probe, []byte(script), 0o700); err != nil {
+	if err := os.WriteFile(probe, []byte(strings.ReplaceAll(script, "MODE", sample)), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -84,4 +104,5 @@ printf '{"format":{"format_name":"mpegts","duration":"8"},"streams":[
 	if err != nil || early <= 0 || early > 256<<10 || sizes[1] != fmt.Sprint(liveMeasure) {
 		t.Fatalf("did not keep the existing full measurement: %q", raw)
 	}
+	return facts
 }

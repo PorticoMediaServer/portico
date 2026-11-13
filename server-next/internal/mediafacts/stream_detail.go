@@ -27,6 +27,10 @@ const (
 // fact conservatively rather than as a match.
 type StreamDetail struct {
 	StreamBreadth
+	// Probe-only rates let a short live sample prove it agrees with the declared
+	// cadence. They are not persisted or substituted for the measured FrameRate.
+	AverageFrameRate  string  `json:"-"`
+	DeclaredFrameRate string  `json:"-"`
 	MaxBitRate        int64   `json:"maxBitRate,omitempty"`
 	HDR10Plus         bool    `json:"hdr10Plus,omitempty"`
 	Profile           string  `json:"profile,omitempty"`
@@ -196,6 +200,7 @@ func streamDetail(kind, codec string, width, height int, s probeStreamDetail) St
 	case "video":
 		d.PixelFormat = streamText(s.PixelFormat, 32)
 		d.ChromaSubsampling = chromaSubsampling(s.PixelFormat)
+		d.AverageFrameRate, d.DeclaredFrameRate = s.AvgFrameRate, s.RealFrameRate
 		d.FrameRate, d.FrameRateNumerator, d.FrameRateDenominator = VideoProbeFrameRate(s.AvgFrameRate, s.RealFrameRate)
 		d.BitDepth = VideoProbeBitDepth(s.BitsRaw, s.PixelFormat)
 		if width > 0 && height > 0 && width <= 65536 && height <= 65536 {

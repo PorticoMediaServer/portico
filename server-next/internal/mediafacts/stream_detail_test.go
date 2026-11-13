@@ -76,6 +76,9 @@ func TestInspectRecordsDetailForRealMedia(t *testing.T) {
 	if video == nil || audio == nil {
 		t.Fatalf("streams missing: %+v", facts.Streams)
 	}
+	if video.Detail.AverageFrameRate != "25/1" || video.Detail.DeclaredFrameRate != "25/1" {
+		t.Fatalf("raw probe rates were lost: %+v", video.Detail)
+	}
 	if video.Detail.BitDepth != 8 || video.Detail.FrameRate != 25 || video.Detail.Height != 180 || video.Detail.DynamicRange != RangeSDR || video.Detail.Profile == "" {
 		t.Fatalf("video detail %+v", video.Detail)
 	}
@@ -86,6 +89,7 @@ func TestInspectRecordsDetailForRealMedia(t *testing.T) {
 	restored.DecodeDetail(video.EncodeDetail())
 	expected := video.Detail
 	expected.StreamBreadth = StreamBreadth{}
+	expected.AverageFrameRate, expected.DeclaredFrameRate = "", ""
 	if restored.Detail != expected {
 		t.Fatalf("detail did not survive storage: %+v", restored.Detail)
 	}
