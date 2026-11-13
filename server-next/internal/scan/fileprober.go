@@ -167,7 +167,7 @@ func FromMedia(found mediafacts.Facts) Facts {
 	for _, s := range found.Streams {
 		d := s.Detail
 		stream := db.Stream{Codec: s.Codec, Profile: d.Profile, Language: s.Language, Title: s.Title, Default: s.Default, Forced: s.Forced,
-			HearingImpaired: s.HearingImpaired, Commentary: s.Commentary, ObjectAudio: d.ObjectAudio, HDR10Plus: d.HDR10Plus,
+			HearingImpaired: s.HearingImpaired, Commentary: s.Commentary, ObjectAudio: d.ObjectAudio,
 			Bitrate: d.BitRate, Channels: s.Channels, ChannelLayout: s.ChannelLayout, SampleRate: d.SampleRate}
 		switch s.Type {
 		case "video":

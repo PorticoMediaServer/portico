@@ -47,10 +47,9 @@ func TestScannedStreamFactsReachFileInfoAndPlaybackChoices(t *testing.T) {
 	id := get[ItemPage](t, s, owner, "/v1/items?library="+lib.PublicID+"&kind=movie").Items[0].ID
 	// Previously dropped facts cannot be recovered from the old stored rows alone.
 	old := get[Item](t, s, owner, "/v1/items/"+id).Versions[0].Parts[0].Streams
-	if old[0].HDR10Plus || old[1].Commentary || old[1].ObjectAudio != "" {
+	if old[1].Commentary || old[1].ObjectAudio != "" {
 		t.Fatalf("unobserved features were invented: %+v", old)
 	}
-	probe.facts.Streams[0].Detail.HDR10Plus = true
 	probe.facts.Streams[1].Commentary = true
 	probe.facts.Streams[1].Detail.ObjectAudio = "atmos"
 	probe.facts.Streams[2].Detail.ObjectAudio = "dtsx"
@@ -66,14 +65,14 @@ func TestScannedStreamFactsReachFileInfoAndPlaybackChoices(t *testing.T) {
 		t.Fatalf("Scan all files did not read the facts: %d, %v", probe.calls, err)
 	}
 	streams := get[Item](t, s, owner, "/v1/items/"+id).Versions[0].Parts[0].Streams
-	if streams[0].HDR != "hdr10" || !streams[0].HDR10Plus || streams[1].ObjectAudio != "atmos" || !streams[1].Commentary || streams[2].ObjectAudio != "dtsx" {
+	if streams[0].HDR != "hdr10" || streams[1].ObjectAudio != "atmos" || !streams[1].Commentary || streams[2].ObjectAudio != "dtsx" {
 		t.Fatalf("File info lost probed facts: %+v", streams)
 	}
 	choices := get[PlaybackOptions](t, s, owner, "/v1/items/"+id+"/playback-options").Versions[0]
-	if !choices.Video[0].HDR10Plus || choices.Audio[0].ObjectAudio != "atmos" || !choices.Audio[0].Commentary || choices.Audio[1].ObjectAudio != "dtsx" {
+	if choices.Audio[0].ObjectAudio != "atmos" || !choices.Audio[0].Commentary || choices.Audio[1].ObjectAudio != "dtsx" {
 		t.Fatalf("playback choices lost probed facts: %+v", choices)
 	}
-	if choices.Audio[2].ObjectAudio != "" || choices.Audio[2].Commentary || streams[3].HDR10Plus {
+	if choices.Audio[2].ObjectAudio != "" || choices.Audio[2].Commentary {
 		t.Fatalf("plain stream gained an unobserved fact: %+v", choices.Audio[2])
 	}
 }

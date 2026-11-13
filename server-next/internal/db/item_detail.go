@@ -377,11 +377,11 @@ func streams(ctx context.Context, tx *sql.Tx, fileID int64) ([]Stream, error) {
 	return queryAll(ctx, tx, `SELECT kind, ifnull(codec, ''), ifnull(profile, ''), ifnull(language, ''), ifnull(title, ''), is_default,
 		is_forced, is_hearing_impaired, ifnull(bitrate, 0), ifnull(width, 0), ifnull(height, 0), ifnull(frame_rate, 0),
 		ifnull(bit_depth, 0), ifnull(hdr, ''), ifnull(channels, 0), ifnull(channel_layout, ''), ifnull(sample_rate, 0),
-		ifnull(json_extract(extra, '$.commentary'), 0), ifnull(json_extract(extra, '$.hdr10Plus'), 0), ifnull(json_extract(extra, '$.objectAudio'), '')
+		ifnull(json_extract(extra, '$.commentary'), 0), ifnull(json_extract(extra, '$.objectAudio'), '')
 		FROM media_streams WHERE file_id = ? ORDER BY stream_index`, []any{fileID},
 		func(s *Stream) []any {
 			return []any{&s.Kind, &s.Codec, &s.Profile, &s.Language, &s.Title, &s.Default, &s.Forced, &s.HearingImpaired, &s.Bitrate,
-				&s.Width, &s.Height, &s.FrameRate, &s.BitDepth, &s.HDR, &s.Channels, &s.ChannelLayout, &s.SampleRate, &s.Commentary, &s.HDR10Plus, &s.ObjectAudio}
+				&s.Width, &s.Height, &s.FrameRate, &s.BitDepth, &s.HDR, &s.Channels, &s.ChannelLayout, &s.SampleRate, &s.Commentary, &s.ObjectAudio}
 		})
 }
 
