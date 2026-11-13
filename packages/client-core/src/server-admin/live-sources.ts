@@ -15,7 +15,7 @@ function sourceReport(raw: unknown): import('../../../contracts/src/next/api.ts'
 }
 export function ownerSource(value: unknown): OwnerSource {
  if (!object(value) || typeof value.id !== 'string' || !value.id || typeof value.name !== 'string' || typeof value.kind !== 'string' || typeof value.state !== 'string' || typeof value.revision !== 'string' || !/^[1-9][0-9]*$/.test(value.revision) || typeof value.paused !== 'boolean' || typeof value.tunerCount !== 'number' || !Number.isSafeInteger(value.tunerCount) || !object(value.config) || typeof value.hasSignIn !== 'boolean') return invalid();
- const config = Object.fromEntries(Object.entries(value.config).filter(([name]) => ['playlistUrl','uploaded','guideUrl','guideUploaded','serverUrl','tunerUrl','refreshHours','groups','channels','numbering','firstNumber'].includes(name)));
+ const config = Object.fromEntries(Object.entries(value.config).filter(([name]) => ['playlistUrl','uploaded','guideUrl','guideUploaded','serverUrl','tunerUrl','refreshHours','groups','channels','numbering','firstNumber','guideSource'].includes(name)));
  const upload = (config.uploaded || config.guideUploaded) && !config.playlistUrl && !config.guideUrl && !config.serverUrl && !config.tunerUrl;
  return Object.freeze({id: value.id, name: value.name, kind: value.kind, state: value.state, revision: value.revision, paused: value.paused, tunerCount: value.tunerCount, audience: value.audience, hasSignIn: value.hasSignIn,
   config: Object.freeze(config), ...(value.report ? {report: sourceReport(value.report)} : {}), ...(value.lastError ? {lastError: value.lastError} : {}), ...(value.refreshedAt ? {refreshedAt: value.refreshedAt} : {}), acquisition: upload ? 'upload' : 'remote'}) as OwnerSource;

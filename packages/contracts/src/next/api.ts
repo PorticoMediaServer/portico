@@ -1799,6 +1799,12 @@ export interface LiveGuideRow {
   programmes: LiveProgramme[];
 }
 
+export interface LiveLogoResult {
+  requested: number;
+  imported: number;
+  skipped: number;
+}
+
 export interface LiveOnNow {
   channel: LiveChannel;
   now?: LiveProgramme;
@@ -1880,6 +1886,7 @@ export interface LiveSource {
 
 export interface LiveSourceChannel {
   id: string;
+  sourceKey: string;
   name: string;
   number: string;
   sourceNumber?: string;
@@ -1918,11 +1925,16 @@ export interface LiveSourceConfig {
   guideUploaded?: boolean;
   serverUrl?: string;
   tunerUrl?: string;
+  guideSource?: string;
   refreshHours?: number;
   groups?: string[];
   channels?: string[];
   numbering?: string;
   firstNumber?: number;
+}
+
+export interface LiveSourceLogoImport {
+  replaceExisting: boolean;
 }
 
 export interface LiveSourcePage {
@@ -4782,6 +4794,7 @@ export interface Routes {
   'PATCH /v1/admin/live/sources/{id}': {access: 'owner'; request: LiveSourceSave; response: LiveSource};
   'DELETE /v1/admin/live/sources/{id}': {access: 'owner'; request: undefined; response: undefined};
   'POST /v1/admin/live/sources/{id}/refresh': {access: 'owner'; request: undefined; response: LiveSource};
+  'POST /v1/admin/live/sources/{id}/logos': {access: 'owner'; request: LiveSourceLogoImport; response: LiveLogoResult};
   'GET /v1/admin/live/sources/{id}/channels': {access: 'owner'; request: undefined; response: LiveSourceChannelPage};
   'PATCH /v1/admin/live/sources/{id}/channels': {access: 'owner'; request: LiveSourceChannelEdits; response: undefined};
   'GET /v1/live/streams/{grant}/{file}': {access: 'public'; request: undefined; response: undefined};
