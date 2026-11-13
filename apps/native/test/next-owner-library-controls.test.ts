@@ -45,7 +45,8 @@ test('Metadata renders every published field and excludes the music-only control
   const facts = {'libraries.titlesFrom': 'tmdb', 'libraries.language': 'en', 'libraries.region': 'US', 'libraries.localTags': 'prefer', 'libraries.titleSource': 'tags',
     'libraries.episodeNumbering': 'aired', 'libraries.extras': true, 'libraries.sortArticles': true, 'libraries.refreshMode': 'replace_unlocked', 'libraries.lyrics': 'files', 'libraries.acoustid': true};
   const f = await fixture('metadata', 'tv', facts), tree = f.render();
-  for (const id of Object.keys(facts).filter(id => id !== 'libraries.lyrics' && id !== 'libraries.acoustid')) assert.ok(find(tree, id), id);
+  for (const id of Object.keys(facts).filter(id => id !== 'libraries.lyrics' && id !== 'libraries.acoustid' && id !== 'libraries.titlesFrom')) assert.ok(find(tree, id), id);
+  assert.equal(find(tree, 'libraries.titlesFrom'), undefined);
   assert.equal(find(tree, 'libraries.lyrics'), undefined); assert.equal(find(tree, 'libraries.acoustid'), undefined);
   find(tree, 'libraries.language')!.props.onValueChange('fr');
   assert.deepEqual(f.writes, [['libraries.language', 'fr']]);

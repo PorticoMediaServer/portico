@@ -1,4 +1,6 @@
 import type {ExpectedRemoteSource} from './remote-source-selection.ts';
+import {serverPath} from './query/server-api.ts';
+import {ownerLibrary,libraryFolders} from './server-admin/library-document.ts';
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
 /** Local/mounted inventory administration. No provider credentials, persistent
@@ -22,9 +24,9 @@ export type ScanOperation=typeof scanOperations[number];
  * so a policy read and written back never loses an operation a newer server added. */
 export type ScanPolicy=Readonly<{tier:ScanTier;revision:number;operations:readonly string[]}>;
 const operationId=(v:unknown):v is string=>typeof v==='string'&&/^[a-z0-9_]{1,64}$/.test(v);
-export type InventorySource=Readonly<{id:string;libraryId:string;kind:string;name:string;path:string;resolvedPath:string;classification:'local'|'network';generation:number;health:string;enabled:boolean;followSymlinks:boolean;identityConfirmed:boolean;intervalSeconds:number;nextScanAt:string;lastCompleteAt:string;lastProgressAt:string}>;
-export type SourceSettings=Readonly<{expectedRemoteSource?:ExpectedRemoteSource;name:string;path:string;classification:'local'|'network';followSymlinks:boolean;intervalSeconds:number;expectedRevision:number;acceptReplacement:boolean;/** false: attach without the automatic scan. */scanAfter?:boolean}>;
-export type InventoryConfig=Readonly<{scope:Readonly<{serverId:string;viewerFence:string}>;libraryId:string;revision:number;sources:readonly InventorySource[];policy:ScanPolicy}>;
+export type InventorySource=Readonly<{eligibleControls?:readonly string[];remoteSource?:string;id:string;libraryId:string;kind:string;name:string;path:string;resolvedPath:string;classification:'local'|'network';generation:number;health:string;enabled:boolean;followSymlinks:boolean;identityConfirmed:boolean;intervalSeconds:number;nextScanAt:string;lastCompleteAt:string;lastProgressAt:string}>;
+export type SourceSettings=Readonly<{expectedRemoteSource?:ExpectedRemoteSource;name?:string;path:string;classification?:'local'|'network';followSymlinks?:boolean;intervalSeconds?:number;expectedRevision:number;acceptReplacement?:boolean;/** false: attach without the automatic scan. */scanAfter?:boolean}>;
+export type InventoryConfig=Readonly<{eligibleSourceControls?:readonly string[];scope:Readonly<{serverId:string;viewerFence:string}>;libraryId:string;revision:number;sources:readonly InventorySource[];policy:ScanPolicy}>;
 export type InventoryObject=Readonly<{id:string;sourceId:string;assetId:string;itemId:string;title:string;relativePath:string;revision:string;state:string;size:number;modifiedNs:number;missingSince:string;analysisState:string;analysisError:string;unsupportedReason:string}>;
 export type InventoryFilter=Readonly<{sourceId?:string;state?:''|'available'|'missing'|'unsupported'}>;
 export type InventoryObjects=Readonly<{scope:Readonly<{serverId:string;viewerFence:string}>;libraryId:string;sourceId:string;revision:number;items:readonly InventoryObject[];nextCursor:string}>;
@@ -287,6 +289,12 @@ export function inventoryStatusMessage(value:ViewerInventoryStatus):string {
  if(value.sources.some(s=>s.status==='complete_with_warnings'))return 'Scan completed with warnings. Some media may have limited details.';
  if(value.sources.every(s=>s.status==='not_scanned'))return 'This library has not been scanned yet.';
  return '';
+}
+
+/** The native owner page reads folder members from the rebuilt library. */
+export async function readOwnerLibraryInventoryConfig(api:LibraryContentApi,bound:ContentScope,libraryId:string,signal?:AbortSignal):Promise<InventoryConfig>{
+ assert(id(libraryId));
+ return libraryFolders(ownerLibrary(await api.request<unknown>(serverPath('GET /v1/admin/libraries/{id}',{id:libraryId}),'GET',undefined,signal),libraryId),bound);
 }
 
 /** Settings needs the bounded source/configuration snapshot, without inventory rows. */

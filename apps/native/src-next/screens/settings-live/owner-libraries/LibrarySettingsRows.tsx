@@ -42,6 +42,8 @@ export function LibrarySettingsRows({tab, document, busy, t, save, fetchLyrics}:
     catch (problem) {setError(presentError(problem, 'library', {operation: 'save'}).body);}
   };
   const rowVisible = (row: SpecRow) => {
+    // MetadataAgentChoice already owns this setting on the native page.
+    if (row.id === 'libraries.titlesFrom') return false;
     if (row.control.type === 'action') return row.id === 'libraries.fetchLyrics' && !!fetchLyrics && document.libraryKind === 'music' && document.eligibleControls.includes('libraries.lyrics') && document.settings.lyricsSource === 'lrclib';
     if (!libraryRowVisible(row.id, document) || read(row.id) === undefined) return false;
     if (tab === 'general' && row.id !== 'libraries.collections') return false;

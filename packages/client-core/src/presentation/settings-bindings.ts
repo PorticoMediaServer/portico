@@ -495,7 +495,7 @@ const libraryAnalysisRows=['local_metadata','subtitle_discovery','checksum','wav
 function libraryRowValue(rowId:string,settings:LibrarySettings,doc:LibraryAdminDocument):unknown{
  const binding=libraryScalarBindings[rowId];if(binding)return presented(binding,at(settings,binding.key),{});
  switch(rowId){
- case 'libraries.scanDepth':return libraryScanDepth(settings);
+ case 'libraries.scanDepth':return doc.serverLibrary?settings.scanDepth:libraryScanDepth(settings);
  case 'libraries.analysisSteps':return Object.fromEntries(libraryAnalysisRows.filter(id=>doc.analysisMatrix.operations.some(op=>op.id===id)).map(id=>[id,settings.analysis.includes(id)?'run':'skip']));
  case 'libraries.scrub':{if(!settings.analysis.includes('trickplay'))return 'off';const n=settings.navigation;return n.trickplayIntervalMs===10000&&n.trickplayTileWidth===320?'standard':n.trickplayIntervalMs===5000&&n.trickplayTileWidth===320?'smooth':n.trickplayIntervalMs===20000&&n.trickplayTileWidth===240?'compact':'custom';}
  case 'libraries.chapterPictures':return settings.analysis.includes('chapter_images')&&settings.navigation.chapterThumbnailMode==='generated'?'generated':!settings.analysis.includes('chapter_images')&&settings.navigation.chapterThumbnailMode==='embedded'?'embedded':'custom';
@@ -532,7 +532,7 @@ export function patchLibrarySettingsBinding(rowId:string,value:unknown,document:
  if(!document.eligibleControls.includes(rowId))throw new Error('This library does not offer that setting.');if(value==='custom')throw new Error('Custom is derived.');const settings=document.settings,binding=libraryScalarBindings[rowId];
  if(binding)return applySettingsBindingPatch(settings,settingsBindingPatch(binding,value));
  switch(rowId){
- case 'libraries.scanDepth':if(value==='file_list_only'||value==='basic'||value==='complete')return setLibraryScanDepth(settings,value);break;
+ case 'libraries.scanDepth':if(value==='file_list_only'||value==='basic'||value==='complete')return document.serverLibrary?{...settings,scanDepth:value}:setLibraryScanDepth(settings,value);break;
  case 'libraries.scrub':if(value==='off'||value==='standard'||value==='smooth'||value==='compact')return setLibrarySeekPreviews(settings,value);break;
  case 'libraries.chapterPictures':if(value==='generated'||value==='embedded')return setLibraryAnalysis(settings,document.analysisMatrix,'chapter_images',value==='generated');break;
  case 'libraries.scrubMax':{const n=Number(value);if(n===1||n===2||n===3||n===4||n===6)return setLibraryPreviewHours(settings,n);break;}
@@ -562,6 +562,7 @@ export function libraryKindForChoice(choice:string):(typeof libraryCreateKinds)[
 const libraryFolderFields:Readonly<Record<string,keyof SourceSettings>>={'libraries.folderPath':'path','libraries.folderName':'name','libraries.location':'classification','libraries.rescan':'intervalSeconds','libraries.symlinks':'followSymlinks'};
 const folderIntervals:Readonly<Record<string,number>>={'15m':900,'1h':3600,'6h':21600,'1d':86400,'never':0};
 export function readLibrarySourceSettingsBinding(rowId:string,source:InventorySource):SettingsBindingValue|undefined{
+ if(source.eligibleControls&&!source.eligibleControls.includes(rowId))return undefined;
  const key=libraryFolderFields[rowId];if(!key||key==='expectedRevision'||key==='acceptReplacement')return undefined;
  const raw=source[key as keyof InventorySource];const current=rowId==='libraries.rescan'?Object.entries(folderIntervals).find(([,n])=>n===raw)?.[0]??'custom':raw;
  return {current,effective:current,default:undefined,source:'library-source',configOnly:false};
