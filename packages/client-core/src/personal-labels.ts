@@ -7,7 +7,7 @@ export function personalChoiceLabel(field:string,value:unknown):string {
   if(typeof value==='boolean') {
     if(field==='watchlisted'||field==='watchlist')return value?'In My List':'Not in My List';
     if(field==='favorite')return value?'Favorite':'Not a favorite';
-    if(field==='watched')return value?'Watched':'Unwatched';
+    if(field==='watched')return value?'Watched':'Unplayed';
     return value?'On':'Off';
   }
   return value===null?'Not set':'Saved choice';

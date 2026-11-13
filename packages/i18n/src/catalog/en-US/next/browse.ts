@@ -93,7 +93,7 @@ export const browseMessages = {
   'next.browse.emptyInList': 'in My List',
   'next.browse.emptyNotInList': 'not in My List',
   'next.browse.emptyWatched': 'watched',
-  'next.browse.emptyUnwatched': 'unwatched',
+  'next.browse.emptyUnwatched': 'unplayed',
   'next.browse.emptyBoth': 'both {first} and {second}',
   'next.browse.emptyFrom': 'from the {decade}',
   /** Decades by operator: none-of "anything but the 1990s or 2000s", a range "from the 1990s to the 2000s". */

@@ -408,7 +408,7 @@ try {
       await page.getByRole('button', {name: 'Save'}).click();
       await until('The rating', async () => (await stateOf(film)).rating === 7);
       await page.reload({waitUntil: 'domcontentloaded'});
-      await page.getByRole('button', {name: 'Mark as unwatched'}).waitFor();
+      await page.getByRole('button', {name: 'Mark as unplayed'}).waitFor();
       if (await pressed('My List') !== 'true') throw new Error('My List was not kept.');
     });
     await step('a change made in one window shows in another without a reload', async () => {
@@ -416,7 +416,7 @@ try {
       try {
         const openFilm = async window => {
           await window.goto(`${origin}/item/${film}`, {waitUntil: 'domcontentloaded'});
-          await window.getByRole('button', {name: 'Mark as unwatched'}).waitFor();
+          await window.getByRole('button', {name: 'Mark as unplayed'}).waitFor();
         };
         // A new window signs in and chooses its profile once; after that an address opens straight to its page.
         await signIn(second);
@@ -424,7 +424,7 @@ try {
         await shell(second).waitFor();
         await openFilm(second);
         await openFilm(page);
-        await page.getByRole('button', {name: 'Mark as unwatched'}).click();
+        await page.getByRole('button', {name: 'Mark as unplayed'}).click();
         await second.getByRole('button', {name: 'Mark as watched'}).waitFor({timeout: 15000});
       } finally {await other.close();}
     });

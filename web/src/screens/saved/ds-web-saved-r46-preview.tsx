@@ -75,7 +75,7 @@ function contentPage(view: 'watchlist' | 'favorites', shape: 'posters' | 'square
       {id: 'progress', labelKey: 'sort.progress', directions: ['asc', 'desc']},
     ],
     filters: [{id: 'filter', labelKey: 'saved.filter', options: [
-      {id: 'all', label: 'All', count: filterTotals.all}, {id: 'unwatched', label: 'Unwatched', count: filterTotals.unwatched}, {id: 'inProgress', label: 'In progress', count: filterTotals.inProgress}, // lint-strings-allow: server-published wire values, not screen copy
+      {id: 'all', label: 'All', count: filterTotals.all}, {id: 'unwatched', label: 'Unplayed', count: filterTotals.unwatched}, {id: 'inProgress', label: 'In progress', count: filterTotals.inProgress}, // lint-strings-allow: server-published wire values, not screen copy
     ]}],
     sections: [{id: 'entries', type: 'grid', heading: {key: 'saved.entries', fallback: 'Entries'}, entries, totalCount: entries.length, nextCursor: ''}],
   };

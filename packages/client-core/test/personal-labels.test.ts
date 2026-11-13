@@ -23,7 +23,7 @@ test('choice labels describe ratings and booleans', () => {
   assert.equal(personalChoiceLabel('favorite', true), 'Favorite');
   assert.equal(personalChoiceLabel('favorite', false), 'Not a favorite');
   assert.equal(personalChoiceLabel('watched', true), 'Watched');
-  assert.equal(personalChoiceLabel('watched', false), 'Unwatched');
+  assert.equal(personalChoiceLabel('watched', false), 'Unplayed');
   assert.equal(personalChoiceLabel('other', true), 'On');
   assert.equal(personalChoiceLabel('other', false), 'Off');
   assert.equal(personalChoiceLabel('other', null), 'Not set');

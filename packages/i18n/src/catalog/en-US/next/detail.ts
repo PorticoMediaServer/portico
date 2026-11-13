@@ -19,7 +19,7 @@ export const detailMessages = {
   'next.detail.seasonOptions': '{season} options',
   'next.detail.playSeason': 'Play season',
   'next.detail.markSeasonWatched': 'Mark season as watched',
-  'next.detail.markSeasonUnwatched': 'Mark season as unwatched',
+  'next.detail.markSeasonUnwatched': 'Mark season as unplayed',
   'next.detail.episodeDisplay': 'Episode display…',
   'next.detail.episodeOrder': 'Episode order',
   'next.detail.reverseEpisodeOrder': 'Reverse episode order',

@@ -11,7 +11,7 @@ export const selectionNativeMessages = {
   'next.selection.native.action.myList': 'My List',
   'next.selection.native.action.watched': 'Watched',
   'next.selection.native.markWatched': 'Mark watched',
-  'next.selection.native.action.unwatched': 'Mark unwatched',
+  'next.selection.native.action.unwatched': 'Mark unplayed',
   'next.selection.native.action.collection': 'Add to collection…',
   'next.selection.native.action.favorite': 'Add to Favorites',
   'next.selection.native.action.removeMyList': 'Remove from My List',
