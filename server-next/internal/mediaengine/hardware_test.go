@@ -111,7 +111,7 @@ func TestHardwareReadAndSelectionUseTheSamePhysicalProbes(t *testing.T) {
 		case <-release:
 		case <-ctx.Done():
 		}
-		return devices
+		return devices[:1] // The previously working second card has been removed.
 	}
 	e.TestHardware()
 	<-entered
@@ -129,5 +129,8 @@ func TestHardwareReadAndSelectionUseTheSamePhysicalProbes(t *testing.T) {
 	}
 	if calls.Load() <= before {
 		t.Fatal("Test hardware reused the previous verdicts")
+	}
+	if p, ok := decoder.LastProbeObservation(decoder.BackendNVENC, "second-card"); !ok || !p.Stopped {
+		t.Fatalf("discovery lost a working card without raising its alert: %+v", p)
 	}
 }

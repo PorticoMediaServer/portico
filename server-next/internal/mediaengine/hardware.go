@@ -72,8 +72,20 @@ func (e *Engine) testHardware(t *toolset, force bool) {
 			return
 		}
 		e.mu.Lock()
+		previous := t.devices
 		t.devices = devices
 		e.mu.Unlock()
+		for _, old := range previous {
+			found := false
+			for _, current := range devices {
+				found = found || current.ID == old.ID
+			}
+			if !found {
+				for _, backend := range old.Backends {
+					decoder.NoteHardwareDeviceStopped(backend, old.Path)
+				}
+			}
+		}
 		if !t.converter {
 			return
 		}
