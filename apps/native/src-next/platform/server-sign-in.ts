@@ -114,9 +114,11 @@ export class NativeServerSignIn {
    * it (a Portico Accounts server's page has none yet): for showing a phone where to go, never for sending. */
   inspectedOrigin(): string {
     this.assertCurrent();
-    const origin = this.probe.getSnapshot().origin;
-    if (!this.server || !origin) throw mismatch();
-    return routeOrigin(origin);
+    // Only a finished lookup whose answer is the server held here: a lookup in flight records its
+    // address before anything has answered, and that address must never reach a QR.
+    const lookup = this.probe.getSnapshot();
+    if (!this.server || lookup.phase !== 'ready' || !lookup.origin || lookup.server?.id !== this.server.id) throw mismatch();
+    return routeOrigin(lookup.origin);
   }
   assertSignInTarget(serverId: string, fingerprint: string) {
     this.assertCurrent(); const pin = this.api?.getRouteConnection()?.pin;
