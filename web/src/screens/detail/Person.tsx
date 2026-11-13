@@ -1,11 +1,11 @@
 import {t, locale} from './text';
-import {useEffect, useLayoutEffect, useState, useSyncExternalStore} from 'react';
-import type {PersonPage, PersonCredit} from '@core/people.ts';
+import {useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {personSectionLabel, type PersonPage, type PersonCredit} from '@core/people.ts';
 import type {ContentEntry} from '@core/library-content.ts';
 import {Chip, Button} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {AmbientArt, PersonCircle} from '../../kit/artwork';
-import {PosterCard} from '../../kit/cards';
+import {PosterCard, SquareCard} from '../../kit/cards';
 import {WindowedGrid, Lockup, Shelf} from '../../kit/layout';
 import {StateView} from '../../kit/states';
 import {useShellWidth} from '../../shell/viewport';
@@ -20,7 +20,6 @@ import {runScreenCommand} from './context';
 import {useTitleMenu} from '../../shell/title-menu';
 
 const date = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat(locale(), {year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC'}).format(new Date(`${value}T12:00:00Z`)) : undefined;
-const groupHeading = (kind: string | undefined) => t(kind === 'movie' ? 'search.chip.movies' : kind === 'show' ? 'search.chip.shows' : 'web.person.credits');
 
 export type PersonScreenProps = {binding: PersonBindings; personId: string};
 export function PersonScreen({binding, personId}: PersonScreenProps) {
@@ -75,7 +74,7 @@ export function PersonScreen({binding, personId}: PersonScreenProps) {
     {phone
       ? titles > 0 && <PersonCredits binding={binding} page={page} total={titles} heading={t('web.person.credits')} phone showHeading={false} />
       : page.groups.some(group => group.kind && group.total > 0) && snapshot.role === 'all'
-        ? <div className={styles.groups} data-person-groups>{page.groups.filter(group => group.kind && group.total > 0).map(group => <PersonCredits key={group.id} binding={binding} page={page} kind={group.kind} total={group.total} heading={groupHeading(group.kind)} phone={false} />)}</div>
+        ? <div className={styles.groups} data-person-groups>{page.groups.filter(group => group.kind && group.total > 0).map(group => <PersonCredits key={group.id} binding={binding} page={page} kind={group.kind} total={group.total} heading={t(personSectionLabel(group.kind))} phone={false} />)}</div>
         : titles > 0 && <div className={styles.credits} data-person-credits><PersonCredits binding={binding} page={page} total={titles} heading={t('web.person.credits')} phone={false} /></div>}
     {!phone && titles > 0 && <p className={styles.note} data-person-note><Icon name="i-info" size={18} />{t('web.person.serverNote')}</p>}
   </article>;
@@ -102,35 +101,67 @@ function PersonCredits(props: PersonCreditsProps) {
     return lease.release;
   }, [binding, page, kind]);
   const owned = published && published.binding === binding && published.page === page && published.kind === kind && published.lease.current() ? published.lease : undefined;
-  return owned ? <PersonCreditGrid {...props} lease={owned}/> : null;
+  return owned ? props.kind !== undefined && !props.phone ? <PersonCreditRow {...props} lease={owned}/> : <PersonCreditGrid {...props} lease={owned}/> : null;
 }
 function PersonCreditGrid({binding, page, kind, total, heading, phone, showHeading = true, lease}: PersonCreditsProps & {lease: CreditLease}) {
   const collection = lease.collection;
   const state = useSyncExternalStore(collection.subscribe, collection.getSnapshot, collection.getSnapshot);
   const titleMenu = useTitleMenu(binding.context);
   const current = () => lease.current() && binding.context.isCurrent();
-  const columns = Math.max(1, Math.min(total, 4));
-  const grouped = kind !== undefined && !phone;
   const cardWidth = phone ? 112.66 : 190, gap = phone ? 10 : 16, rowHeight = phone ? 211 : 354, rowGap = phone ? 16 : 30;
-  const captions = (credit: PersonCredit) => credit.roles.length > 0
-    ? credit.roles.map((role, index) => creditRole(role, `role-${index}`))
-    : [];
-  const grid = <WindowedGrid className={phone ? styles.phoneGrid : grouped ? styles.grid : styles.wideGrid} collection={collection} label={heading} cardWidth={cardWidth} rowHeight={rowHeight} rowGap={rowGap} gap={gap} height={phone ? 438 : grouped ? rowHeight : 'calc(100vh - 240px)'} style={phone ? {width: 358, marginLeft: 16} : grouped ? {width: columns * cardWidth + (columns - 1) * gap} : undefined}
+  const grid = <WindowedGrid className={phone ? styles.phoneGrid : styles.wideGrid} collection={collection} label={heading} cardWidth={cardWidth} rowHeight={rowHeight} rowGap={rowGap} gap={gap} height={phone ? 438 : 'calc(100vh - 240px)'} style={phone ? {width: 358, marginLeft: 16} : undefined}
     renderPlaceholder={index => <span className={styles.placeholder} key={index} />}
-    renderItem={(credit: PersonCredit) => {
-      const model = entryCard(credit.media, {t, locale: locale()}), roles = captions(credit);
-      const extraCaption = roles.map(role => [role.part]);
-      const extraPresentation = phone ? [] : roles.map(role => role.presentation);
-      const textPresentation: CardTextPresentation | undefined = !phone && extraPresentation.some(Boolean) ? {extraCaption: extraPresentation} : undefined;
-      return <PosterCard className={phone ? styles.phoneCreditCard : undefined} model={{title: model.title, caption: [], progress: model.progress}} context="detail" textPresentation={textPresentation}
-        artwork={binding.context.artwork.foreground(credit.media.posterUrl, 380, 2 / 3)} watched={credit.media.watched} extraCaption={extraCaption}
-        onMore={anchor => { const onPlay = titleMenu.play(credit.media, current); titleMenu.open(anchor, {entry: credit.media, title: credit.media.displayTitle ?? credit.media.title, current, ...(onPlay ? {onPlay} : {})}); }}
-        onNavigate={() => runScreenCommand(binding.context, () => {if (!lease.current()) throw new DOMException('Person credit opening retired', 'AbortError');binding.open(page, credit);})} />;
-    }} />;
+    renderItem={(credit: PersonCredit) => <CreditCard binding={binding} page={page} lease={lease} credit={credit} phone={phone} titleMenu={titleMenu} current={current} />} />;
   return <section className={phone ? styles.phoneGroup : styles.group} data-person-group={kind ?? 'all'}>
     {showHeading && <h2>{heading}{total !== undefined && <span className={styles.groupCount}>{total}</span>}</h2>}
     {state.status === 'error' && <ScreenFailure retry={() => {if (lease.current()) collection.retry();}} />}
-    {grouped ? <div className={styles.track}>{grid}</div> : grid}
+    {grid}
     {titleMenu.menu}
   </section>;
+}
+
+/** One kind section of the desktop page (desktop-detail frame 7): the shared row, paged from the
+ * section's own server list as it scrolls. It shows a page more than has been reached, never the
+ * whole list, so a long career stays a bounded row. */
+function PersonCreditRow({binding, page, kind, total, heading, lease}: PersonCreditsProps & {lease: CreditLease}) {
+  const collection = lease.collection, pageSize = collection.pageSize;
+  const state = useSyncExternalStore(collection.subscribe, collection.getSnapshot, collection.getSnapshot);
+  const titleMenu = useTitleMenu(binding.context);
+  const current = () => lease.current() && binding.context.isCurrent();
+  const [reach, setReach] = useState(0);
+  const length = Math.min(state.total ?? total, reach + pageSize);
+  useEffect(() => { collection.ensureRange(0, Math.max(0, Math.min(length, pageSize) - 1)); }, [collection, length, pageSize]);
+  const slots = useMemo(() => Array.from({length}, (_, index) => index), [length]);
+  const square = kind === 'album' || kind === 'track' || kind === 'audiobook';
+  return <>
+    <Shelf data-person-group={kind} focusScope={lease} heading={heading} subtitle={t('web.person.titles', {count: state.total ?? total})} items={slots} getKey={String} itemWidth={190}
+      onVisibleRange={(first, last) => { if (last < 0) return; collection.ensureRange(Math.max(0, first), last); setReach(value => Math.max(value, last + 1)); }}
+      renderItem={index => <CreditSlot collection={collection} index={index} square={square} render={credit => <CreditCard binding={binding} page={page} lease={lease} credit={credit} phone={false} titleMenu={titleMenu} current={current} />} />} />
+    {state.status === 'error' && <ScreenFailure retry={() => {if (lease.current()) collection.retry();}} />}
+    {titleMenu.menu}
+  </>;
+}
+
+/** One place in a section row: its card once its page has arrived, a placeholder until then. */
+function CreditSlot({collection, index, square, render}: {collection: CreditLease['collection']; index: number; square: boolean; render: (credit: PersonCredit) => ReactNode}) {
+  const pageIndex = collection.pageOf(index);
+  useSyncExternalStore(useCallback(listener => collection.subscribePage(pageIndex, listener), [collection, pageIndex]), () => collection.getPageVersion(pageIndex));
+  const credit = collection.itemAt(index);
+  return credit ? render(credit) : <span className={styles.placeholder} data-square={square || undefined} />;
+}
+
+/** A credit's card with every role the person has on the title under it (browse rule 26). Albums,
+ * songs and audiobooks are square, as in every other row of titles; the rest are posters. */
+function CreditCard({binding, page, lease, credit, phone, titleMenu, current}: {binding: PersonBindings; page: PersonPage; lease: CreditLease; credit: PersonCredit; phone: boolean; titleMenu: ReturnType<typeof useTitleMenu>; current: () => boolean}) {
+  const model = entryCard(credit.media, {t, locale: locale()}), roles = credit.roles.map((role, index) => creditRole(role, `role-${index}`));
+  const extraCaption = roles.map(role => [role.part]);
+  const extraPresentation = phone ? [] : roles.map(role => role.presentation);
+  const textPresentation: CardTextPresentation | undefined = !phone && extraPresentation.some(Boolean) ? {extraCaption: extraPresentation} : undefined;
+  const square = !phone && ['album', 'book', 'song'].includes(credit.media.kind);
+  // An episode names its show and a song its artist: the title alone does not say which it is.
+  const props = {model: {title: model.title, caption: ['episode', 'song'].includes(credit.media.kind) ? model.caption : [], progress: model.progress}, context: 'detail' as const, textPresentation, extraCaption, watched: credit.media.watched,
+    artwork: binding.context.artwork.foreground(credit.media.posterUrl, 380, square ? 1 : 2 / 3),
+    onMore: (anchor: HTMLButtonElement) => { const onPlay = titleMenu.play(credit.media, current); titleMenu.open(anchor, {entry: credit.media, title: credit.media.displayTitle ?? credit.media.title, current, ...(onPlay ? {onPlay} : {})}); },
+    onNavigate: () => runScreenCommand(binding.context, () => {if (!lease.current()) throw new DOMException('Person credit opening retired', 'AbortError');binding.open(page, credit);})};
+  return square ? <SquareCard {...props} variant={credit.media.kind === 'book' ? 'audiobook' : 'music'} /> : <PosterCard className={phone ? styles.phoneCreditCard : undefined} {...props} />;
 }
