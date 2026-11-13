@@ -153,14 +153,35 @@ export function ArtFrame({children, width, height, radius, focused, selected, ho
   </Animated.View>;
 }
 
-export function Parts({parts = [], style, gap = 8, strong = false}: {parts?: readonly FactPart[]; style?: StyleProp<TextStyle>; gap?: number; strong?: boolean}) {
+/**
+ * A card's fact line. `fit` says what happens when the facts do not fit on one line:
+ * - `cut` (TV and fixed slots): each fact ellipsizes;
+ * - `wrap` (rows with room: episode and search rows): a fact that does not fit moves to the next line whole;
+ * - `drop` (under a poster or square, where a grid gives the caption a fixed height): the line stays one line and the
+ *   facts at the end that do not fit are left out whole (owner's rule: a secondary fact gives way first). The hidden
+ *   facts stay in the card's spoken details.
+ */
+export function Parts({parts = [], style, gap = 8, strong = false, fit = 'cut'}: {parts?: readonly FactPart[]; style?: StyleProp<TextStyle>; gap?: number; strong?: boolean; fit?: 'cut' | 'wrap' | 'drop'}) {
   const t = useTheme();
   if (!parts.length) return null;
-  // Phone and tablet: a fact that does not fit beside the others moves to the next line whole (owner's cut-text rule).
-  return <View style={{flexDirection: 'row', flexWrap: t.isTV ? 'nowrap' : 'wrap', alignItems: 'baseline', columnGap: gap, rowGap: 2, minWidth: 0, overflow: 'hidden'}}>{parts.map(part => <Text key={part.id} numberOfLines={1} ellipsizeMode="tail" style={[
-    t.type.cardSubtitle, {color: t.colors.textTertiary, flexShrink: part.role === 'context' ? 0 : 1},
-    (strong || part.role === 'identity' || part.role === 'status') && {fontFamily: t.type.captionStrong.fontFamily, color: part.role === 'status' ? t.colors.accentStrong : t.colors.textSecondary}, style,
-  ]}>{part.text}</Text>)}</View>;
+  const textStyle = (part: FactPart) => factStyle(t, part, strong, style);
+  if (fit === 'drop') return <OneLineParts parts={parts} gap={gap} textStyle={textStyle}/>;
+  return <View style={{flexDirection: 'row', alignItems: 'baseline', minWidth: 0, overflow: 'hidden', ...(fit === 'wrap' ? {flexWrap: 'wrap', columnGap: gap, rowGap: 2} : {gap})}}>{parts.map(part =>
+    <Text key={part.id} numberOfLines={1} ellipsizeMode="tail" style={textStyle(part)}>{part.text}</Text>)}</View>;
+}
+
+const factStyle = (t: Theme, part: FactPart, strong: boolean, style: StyleProp<TextStyle>): StyleProp<TextStyle> => [
+  t.type.cardSubtitle, {color: t.colors.textTertiary, flexShrink: part.role === 'context' ? 0 : 1},
+  (strong || part.role === 'identity' || part.role === 'status') && {fontFamily: t.type.captionStrong.fontFamily, color: part.role === 'status' ? t.colors.accentStrong : t.colors.textSecondary}, style,
+];
+
+/** `drop`: the facts wrap, and the box is one line tall, so whatever wrapped is clipped away whole. Its height is the first
+ * fact's own measured line (system text size included); until then, the style's line at the system scale. */
+function OneLineParts({parts, gap, textStyle}: {parts: readonly FactPart[]; gap: number; textStyle: (part: FactPart) => StyleProp<TextStyle>}) {
+  const t = useTheme(), [line, setLine] = useState<number>();
+  const first = StyleSheet.flatten(textStyle(parts[0])), estimate = (first.lineHeight ?? (first.fontSize ?? 12) * 1.3) * t.fontScale;
+  return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: gap, rowGap: 2, minWidth: 0, overflow: 'hidden', height: line ?? estimate}}>{parts.map((part, index) =>
+    <Text key={part.id} numberOfLines={1} ellipsizeMode="tail" onLayout={index === 0 ? event => {const height = event.nativeEvent.layout.height; if (height !== line) setLine(height);} : undefined} style={textStyle(part)}>{part.text}</Text>)}</View>;
 }
 
 export function Caption({title, titleLines, caption, detail, density, titleTextStyle, titleMargin, captionTextStyle, selected, centered, focused, tvRestingSecondary, lines = titleLines ?? 1}: Pick<CardProps, 'title' | 'titleLines' | 'caption' | 'detail' | 'density' | 'titleTextStyle' | 'titleMargin' | 'captionTextStyle'> & {selected?: boolean; centered?: boolean; focused?: boolean; tvRestingSecondary?: boolean; lines?: number}) {
@@ -168,7 +189,7 @@ export function Caption({title, titleLines, caption, detail, density, titleTextS
   const compact = density === 'grid' && !t.isTV;
   return <View accessibilityElementsHidden={waiting} importantForAccessibility={waiting ? 'no-hide-descendants' : 'auto'} style={{opacity: waiting ? 0 : 1, marginTop: titleMargin ?? (compact ? 7 : t.spec.card.titleMargin[t.platform]), gap: t.spec.card.subtitleMargin[t.platform], alignItems: centered ? 'center' : undefined}}>
     <Text numberOfLines={lines} ellipsizeMode="tail" style={[t.type.cardTitle, compact && titleStyle(t, 12.5, 600), {color: selected ? t.colors.accentStrong : t.isTV && tvRestingSecondary && !focused ? t.colors.textSecondary : t.colors.text, textAlign: centered ? 'center' : 'left'}, titleTextStyle]}>{title}</Text>
-    <Parts parts={caption} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} /><Parts parts={detail} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} />
+    <Parts parts={caption} fit={t.isTV ? 'cut' : 'drop'} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} /><Parts parts={detail} fit={t.isTV ? 'cut' : 'drop'} style={[compact && titleStyle(t, 11.5, 600), captionTextStyle]} />
   </View>;
 }
 
