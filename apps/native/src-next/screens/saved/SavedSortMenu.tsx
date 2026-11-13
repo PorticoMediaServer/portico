@@ -1,5 +1,5 @@
 import React, {useMemo} from 'react';
-import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
+import {homeBrowseLabel} from '../home/browse-label';
 import {SortMenu} from '../../kit/browse';
 
 type Sort = Readonly<{id: string; labelKey: string; directions: readonly ('asc' | 'desc')[]}>;
@@ -18,7 +18,7 @@ export function SavedSortMenu({sorts, sort, direction, onChange, scope, label, f
   const order = direction === 'desc' || direction === 'asc' ? direction : active.defaultDirection;
   return <SortMenu scope={scope} focusId={focusId} sorts={offers} value={{field: active.id, direction: active.directions.includes(order) ? order : active.defaultDirection,
     flippable: active.directions.length > 1, reshufflable: false}}
-    label={value => label?.(value) ?? (defaultI18n.has(value.labelKey as MessageId) ? defaultI18n.t(value.labelKey as MessageId) : value.id)}
+    label={value => label?.(value) ?? homeBrowseLabel(value)}
     onValueChange={value => {const offered = offers.find(choice => choice.id === value.field);
       if (offered?.directions.includes(value.direction)) onChange(value.field, value.direction);}}/>;
 }
