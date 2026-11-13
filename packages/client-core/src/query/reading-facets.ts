@@ -5,6 +5,10 @@ import type {BrowseFacetPage, BrowseNode} from '../browse.ts';
 export type ReadingFacetField = 'author' | 'series';
 /** The captured shell's own API request, never a second transport. */
 export type FacetRequest = ((path: string, method: 'GET', body: undefined, signal: AbortSignal) => Promise<unknown>) & Pick<LibraryContentApi, 'requestRaw'> & Readonly<{isCurrent?: () => boolean}>;
+/** The facet request over an app's own API, current while `isCurrent` says so (the phone's
+ * Authors and Series tabs). */
+export const readingFacetRequest = (api: Pick<LibraryContentApi, 'request' | 'requestRaw'>, isCurrent: () => boolean): FacetRequest =>
+  Object.assign((path: string, _method: 'GET', _body: undefined, signal: AbortSignal) => api.request(path, 'GET', undefined, signal), {requestRaw: api.requestRaw?.bind(api), isCurrent});
 export type FacetPageOptions = Readonly<{
   libraryId: string;
   field: ReadingFacetField;

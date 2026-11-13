@@ -34,7 +34,7 @@ const bookRouteCurrent = (context: NativeShellBootstrapContext, route: BookRoute
   && typeof route.item.id === 'string' && route.item.id.length > 0
   && typeof route.item.sourceId === 'string' && route.item.sourceId.length > 0;
 const seriesRouteCurrent = (context: NativeShellBootstrapContext, route: SeriesRoute): boolean =>
-  !!readingLibrary(context, route.libraryId) && /^[A-Za-z0-9_-]{43}$/.test(route.seriesId);
+  !!readingLibrary(context, route.libraryId) && /^[A-Za-z0-9_-]{1,128}$/.test(route.seriesId); // a series id as the rebuilt server gives it
 const periodicalRouteCurrent = (context: NativeShellBootstrapContext, route: PeriodicalRoute): boolean => {
   const library = readingLibrary(context, route.libraryId);
   return !!library && library.kind === 'book' && /^[A-Za-z0-9_-]{43}$/.test(route.groupId)

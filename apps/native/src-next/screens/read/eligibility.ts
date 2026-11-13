@@ -90,7 +90,7 @@ export async function openNativeReadingDetail(context: NativeReadNavigationConte
       item = Object.freeze({
         id: target.itemId, libraryId: target.libraryId, title: manifest.metadata.title || target.title,
         format: manifest.format, sourceId: target.sourceId, inventoryAvailable: true as const,
-        ...(series && series.libraryId === target.libraryId && /^[A-Za-z0-9_-]{43}$/.test(series.id)
+        ...(series && series.libraryId === target.libraryId && readingSeriesId.test(series.id)
           ? {series: Object.freeze({id: series.id, name: series.name, source: series.source, ...(series.number === undefined ? {} : {number: series.number})})} : {}),
       });
     } finally {try {await session.close();} catch (error) {closeError = error;}}
@@ -100,11 +100,13 @@ export async function openNativeReadingDetail(context: NativeReadNavigationConte
     return openNativeReadBook(context, {libraryId: target.libraryId, item, stillCurrent: suppliedCurrent}, origin, signal);
   } finally {client.dispose();}
 }
+/** A series id as the rebuilt server gives it (itm_…). */
+const readingSeriesId = /^[A-Za-z0-9_-]{1,128}$/;
 /** The series page only admits a signed series of this library that currently
  * returns real members; a label hash, a stale id or an unready series cannot open it. */
 export async function openNativeReadSeries(context: NativeReadNavigationContext, target: Readonly<{libraryId: string; seriesId: string}>, origin: NativeReadOrigin, signal?: AbortSignal): Promise<boolean> {
   const selected = context.session();
-  if (signal?.aborted || !selected || !context.current() || !originCurrent(context, origin) || !/^[A-Za-z0-9_-]{43}$/.test(target.seriesId)) return false;
+  if (signal?.aborted || !selected || !context.current() || !originCurrent(context, origin) || !readingSeriesId.test(target.seriesId)) return false;
   const destination: NativeShellRoute = {kind: 'read-series', libraryId: target.libraryId, seriesId: target.seriesId};
   if (!context.navigation.allows(destination)) return false;
   const current = () => originCurrent(context, origin) && context.session()?.sessionFamilyId === selected.sessionFamilyId;
