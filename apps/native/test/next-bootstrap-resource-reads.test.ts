@@ -4,31 +4,18 @@ import * as clock from '../../../packages/client-core/src/server-clock.ts';
 import * as nextGuide from '../../../packages/client-core/src/guide/next-source.ts';
 import test, {type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
-import * as notifications from '../../../packages/client-core/src/notifications.ts';
 import * as notificationsNext from '../../../packages/client-core/src/notifications-next.ts';
 import * as preferenceValues from '../../../packages/client-core/src/preferences.ts';
 import * as serverApi from '../../../packages/client-core/src/query/server-api.ts';
 import * as tolerant from '../../../packages/client-core/src/tolerant.ts';
 import * as messages from '../../../packages/client-core/src/server-messages.ts';
 import {screenModule} from './helpers/screen-harness.mjs';
-import * as installation from '../../../packages/client-core/src/installation.ts';
-import * as freshnessHub from '../../../packages/client-core/src/freshness-hub.ts';
-import * as queryKeys from '../../../packages/client-core/src/query/keys.ts';
-import * as queryUntil from '../../../packages/client-core/src/query/until.ts';
 import * as abortLifetime from '../../../packages/client-core/src/abort-lifetime.ts';
 
 const routePath = (name: string) => '/test/' + name;
 const unsupported = () => {throw new Error('Unexpected bootstrap-resource test path');};
 const react = {default: {}};
 const routes = {routePath, encodedRoutePath: unsupported, routeBody: (_name: string, body: unknown) => body};
-// Run the actual core coalescing and forgiving-inbox boundaries. Only omitted
-// generated path resolution and display-only error copy are replaced.
-const inbox = await screenModule(new URL('../../../packages/client-core/src/inbox.ts', import.meta.url), {
-  react,
-  '../../contracts/src/routes.ts': routes, '../../contracts/src/route-paths.ts': routes, './random-id.ts': {randomId: () => 'operation'}, './installation.ts': installation, './notifications.ts': notifications, './notifications-next.ts': notificationsNext,
-  './freshness-hub.ts': freshnessHub, './query/keys.ts': queryKeys, './query/until.ts': queryUntil,
-  './presentation/service-text.ts': {serviceProblem: () => 'Request failed', serviceText: (key: string) => key},
-});
 const preferences = await screenModule(new URL('../../../packages/client-core/src/preferences-reader.ts', import.meta.url), {
   react,
   '../../contracts/src/routes.ts': routes, '../../contracts/src/route-paths.ts': routes, './preferences.ts': preferenceValues, './query/server-api.ts': serverApi, './abort-lifetime.ts': abortLifetime,
@@ -51,7 +38,7 @@ class HomePort {
 const {NativeShellBootstrapServices} = await screenModule(new URL('../src-next/shell/bootstrap-services.ts', import.meta.url), {
   react, './shared-read': await import('../src-next/shell/shared-read.ts'), './account-binding': await import('../src-next/shell/account-binding.ts'), './home-read-log': await import('../src-next/shell/home-read-log.ts'),
   '../../../../packages/client-core/src/home-service': {HomeService: HomePort},
-  '../../../../packages/client-core/src/inbox': inbox, '../../../../packages/client-core/src/notifications': notifications,
+  '../../../../packages/client-core/src/notifications-next': notificationsNext,
   '../../../../packages/client-core/src/preferences-reader': preferences, '../../../../packages/client-core/src/query/server-api': serverApi, '../../../../packages/client-core/src/guide/directory': guide,
   '../../../../packages/client-core/src/profile-management': {parseDirectSnapshot: unsupported}, '../../../../packages/contracts/src/routes': routes,
 });
@@ -176,4 +163,10 @@ test('cancelling an event preference GET leaves a concurrent Settings PATCH inde
   get.finish(); patch.finish(); await assert.rejects(refresh, abortError);
   assert.equal((await save).effective['playback.defaultSpeed'], 1.5);
   assert.equal(f.ended(), 0); assert.deepEqual(f.calls.map(request => request.method), ['GET', 'PATCH']);
+});
+
+test('the native bootstrap badge reads the rebuilt profile inbox, not the old inbox or count routes', async context => {
+  const f = fixture(context);
+  assert.equal(await f.services.readUnread(new AbortController().signal), 2);
+  assert.deepEqual(f.calls.map(call => [call.method, call.path]), [['GET', '/v1/notifications?view=unread']]);
 });

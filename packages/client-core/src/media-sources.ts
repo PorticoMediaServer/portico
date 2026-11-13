@@ -12,7 +12,7 @@ export function resolvePublishedDownloadUrl(api: MediaUrlApi, path: string) {
 export function profilePictureSource(api: MediaUrlApi | undefined, token: string | undefined, avatar: ProfileAvatar | undefined, pixels: number): ProfilePictureSource | undefined {
   if (!api || !token || !avatar) return undefined;
   try {
-    const path = `${avatar.url}${avatar.url.includes('?') ? '&' : '?'}size=${Math.round(pixels)}`;
+    const path = `${avatar.url}${avatar.url.includes('?') ? '&' : '?'}size=${pixels > 160 ? 'large' : 'small'}`;
     const uri = api.mediaUrl(path);
     return uri ? {uri, headers: {Authorization: `Bearer ${token}`}} : undefined;
   } catch { return undefined; }
