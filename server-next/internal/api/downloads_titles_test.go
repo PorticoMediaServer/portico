@@ -154,4 +154,38 @@ func TestATitleTakenOutOfADownloadIsRemovedAndStaysOut(t *testing.T) {
 		}
 	}
 	drop("dl_none", rig.film)
+
+	// An empty lasting rule still waits for the next episode; it is not a removed download.
+	for _, title := range titles {
+		drop(next.ID, title.ItemID)
+	}
+	if empty := get[Download](t, rig.s, rig.owner, "/v1/downloads/"+next.ID); empty.Counts.Titles != 0 || empty.KeepNext != 3 {
+		t.Fatalf("removing the last held title cancelled its lasting rule: %+v", empty)
+	}
+}
+
+func TestARemovedDownloadCanBeAskedForAgain(t *testing.T) {
+	rig := newDownloadRig(t)
+	ask := DownloadAsk{ItemID: rig.film, Quality: "original"}
+	code, first := rig.ask(rig.owner, ask)
+	if code != 201 {
+		t.Fatalf("asking answered %d %+v", code, first)
+	}
+	if w := call(t, rig.s, "DELETE", "/v1/downloads/"+first.ID+"/items/"+rig.film, rig.owner, nil, nil); w.Code != 204 {
+		t.Fatalf("removing the download answered %d: %s", w.Code, w.Body)
+	}
+	if w := call(t, rig.s, "GET", "/v1/downloads/"+first.ID, rig.owner, nil, nil); w.Code != 404 {
+		t.Fatalf("the removed request still answered %d: %s", w.Code, w.Body)
+	}
+	code, fresh := rig.ask(rig.owner, ask)
+	if code != 201 || fresh.ID == first.ID || fresh.Counts.Titles != 1 || fresh.Counts.Ready != 1 {
+		t.Fatalf("asking after removal answered %d %+v", code, fresh)
+	}
+	if code, again := rig.ask(rig.owner, ask); code != 200 || again.ID != fresh.ID {
+		t.Fatalf("asking twice for the active download answered %d %+v", code, again)
+	}
+	var item DownloadedItem
+	if w := call(t, rig.s, "GET", "/v1/downloads/"+fresh.ID+"/items/"+rig.film, rig.owner, nil, &item); w.Code != 200 || len(item.Files) != 1 {
+		t.Fatalf("the newly requested file answered %d: %s", w.Code, w.Body)
+	}
 }
