@@ -350,10 +350,12 @@ type Deletion struct {
 
 // SharedTitle is a version of another title played from a file that is being deleted.
 type SharedTitle struct {
-	ItemID   int64
-	MediaID  int64
-	PublicID string
-	Title    string
+	// RemovesTitle is computed for a version preview: this title has no version left after the affected versions go.
+	RemovesTitle bool
+	ItemID       int64
+	MediaID      int64
+	PublicID     string
+	Title        string
 }
 
 const subtreeSQL = `WITH RECURSIVE t(id) AS (SELECT ? UNION ALL SELECT i.id FROM items i JOIN t ON i.parent_id = t.id) `
@@ -442,6 +444,38 @@ func (d *DB) deletion(ctx context.Context, v Viewer, where, id string, version b
 			return out, err
 		}
 	}
+	if version {
+		// A title loses its list entries and saved state only when the selected or
+		// shared files take its last version. A surviving version keeps that state.
+		affected := map[int64]int{out.ItemID: 1}
+		for _, other := range out.Others {
+			affected[other.ItemID]++
+		}
+		for item, removed := range affected {
+			var total, entries, states int
+			err := tx.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM media WHERE item_id = ?),
+				(SELECT count(*) FROM list_entries WHERE item_id = ?),
+				(SELECT count(*) FROM user_item_state WHERE item_id = ? AND profile_id <> ?)`, item, item, item, v.ProfileID).Scan(&total, &entries, &states)
+			if err != nil {
+				return out, err
+			}
+			if total != removed {
+				continue
+			}
+			out.ListEntries += entries
+			out.OtherStates += states
+			if item == out.ItemID {
+				out.Titles = 1
+				continue
+			}
+			for n := range out.Others {
+				if out.Others[n].ItemID == item {
+					out.Others[n].RemovesTitle = true
+				}
+			}
+		}
+	}
+
 	return out, nil
 }
 

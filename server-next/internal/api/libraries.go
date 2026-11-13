@@ -492,6 +492,7 @@ func (s *Server) libraryRoutes() {
 	Handle(s, "GET /v1/admin/libraries/{id}/missing", Owner, s.missingTitles)
 	Handle(s, "DELETE /v1/admin/libraries/{id}/missing", Owner, s.emptyTrash)
 	Handle(s, "GET /v1/admin/items/{id}/deletion", Owner, s.previewItemDeletion)
+	Handle(s, "GET /v1/admin/versions/{id}/deletion", Owner, s.previewVersionDeletion)
 	Handle(s, "DELETE /v1/admin/items/{id}", Owner, s.deleteItem).with(ScopeLibrary)
 	Handle(s, "DELETE /v1/admin/versions/{id}", Owner, s.deleteVersion).with(ScopeLibrary)
 }
@@ -815,8 +816,25 @@ func (s *Server) previewItemDeletion(r *http.Request, _ None) (DeletionPreview, 
 	if err != nil {
 		return DeletionPreview{}, libraryError(err)
 	}
-	return DeletionPreview{Title: del.Title, Titles: del.Titles + len(del.Others), Files: len(del.Files), Bytes: del.Bytes, ListEntries: del.ListEntries,
-		OtherPeople: del.OtherStates, AlsoRemoves: titleRefs(del.Others)}, nil
+	return deletionPreview(del), nil
+}
+
+func (s *Server) previewVersionDeletion(r *http.Request, _ None) (DeletionPreview, error) {
+	del, err := s.db.VersionDeletion(r.Context(), s.viewer(r), r.PathValue("id"))
+	if err != nil {
+		return DeletionPreview{}, libraryError(err)
+	}
+	return deletionPreview(del), nil
+}
+
+func deletionPreview(del db.Deletion) DeletionPreview {
+	others := del.Others
+	if del.MediaID != 0 {
+		others = slices.DeleteFunc(slices.Clone(others), func(o db.SharedTitle) bool { return !o.RemovesTitle })
+	}
+	also := titleRefs(others)
+	return DeletionPreview{Title: del.Title, Titles: del.Titles + len(also), Files: len(del.Files), Bytes: del.Bytes, ListEntries: del.ListEntries,
+		OtherPeople: del.OtherStates, AlsoRemoves: also}
 }
 
 func titleRefs(others []db.SharedTitle) []TitleRef {
@@ -924,7 +942,7 @@ func (s *Server) deleteFiles(r *http.Request, del db.Deletion) (DeletionResult, 
 		return out, err
 	}
 	if out.Removed = len(out.Kept) == 0; out.Removed {
-		out.AlsoRemoved = titleRefs(del.Others)
+		out.AlsoRemoved = deletionPreview(del).AlsoRemoves
 	}
 	return out, nil
 }
