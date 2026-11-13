@@ -52,7 +52,9 @@ export class FileInfoSession {
   private versions?: Promise<readonly Version[]>;
   private offered?: Promise<PlaybackOptions>;
   private readonly abort = () => this.retire();
-  constructor(private readonly options: FileInfoSessionOptions) {
+  private readonly options: FileInfoSessionOptions;
+  constructor(options: FileInfoSessionOptions) {
+    this.options = options;
     options.signal?.addEventListener('abort', this.abort, {once: true});
     if (options.signal?.aborted) this.retire();
   }
