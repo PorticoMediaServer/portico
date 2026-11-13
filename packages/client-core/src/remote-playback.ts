@@ -63,14 +63,13 @@ export function parseRemoteStream(value: unknown): RemoteStream | undefined {
   const v = value as Partial<AccountStream> | null;
   if (!v || typeof v !== 'object' || !str(v.id)) return undefined;
   const state = v.state === 'playing' || v.state === 'paused' || v.state === 'ended' ? v.state : 'other';
-  const wire = value as {next?: {itemId?: unknown; title?: unknown}; versionId?: unknown; audioTrackId?: unknown; subtitle?: {trackId?: unknown} | null};
-  const next = wire.next;
+  const next = v.next as {itemId?: unknown; title?: unknown} | undefined;
   return Object.freeze({sessionId: v.id!, deviceName: str(v.deviceName), state, positionMs: ms(v.positionMs),
     ...(str(v.itemId) ? {itemId: v.itemId} : {}), ...(str(v.title) ? {title: v.title} : {}),
     ...(ms(v.durationMs) > 0 ? {durationMs: ms(v.durationMs)} : {}),
     ...(next && str(next.itemId) && str(next.title) ? {next: Object.freeze({itemId: next.itemId as string, title: next.title as string})} : {}),
-    ...(str(wire.versionId) ? {versionId: wire.versionId as string, subtitleId: wire.subtitle && str(wire.subtitle.trackId) ? wire.subtitle.trackId as string : null,
-      ...(str(wire.audioTrackId) ? {audioTrackId: wire.audioTrackId as string} : {})} : {})});
+    ...(str(v.versionId) ? {versionId: v.versionId!, subtitleId: v.subtitle && str(v.subtitle.trackId) ? v.subtitle.trackId : null,
+      ...(str(v.audioTrackId) ? {audioTrackId: v.audioTrackId!} : {})} : {})});
 }
 
 /** One of the account's other open devices. */

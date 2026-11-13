@@ -15,5 +15,8 @@ export type CastPlayerProps = Readonly<{
   returnFocusRef?: RefObject<HTMLElement | null>; reportError: (error: unknown) => void;
   /** Portico televisions from the server's directory, and the TV sign-in code flow. */
   receivers?: PlayOnReceiversPort; linkTv?: PlayOnLinkPort;
+  /** This browser plays too (a Play here whose stop failed): its own player and bar keep the screen, and the device
+   * is a line above the bar with its Stop. */
+  alongside?: boolean;
 }>;
 export type PlayOnPanelProps = Pick<CastPlayerProps, 'controller' | 'snapshot' | 'phone' | 'reportError' | 't' | 'receivers' | 'linkTv'> & Readonly<{anchorRef: RefObject<HTMLElement | null>}>;

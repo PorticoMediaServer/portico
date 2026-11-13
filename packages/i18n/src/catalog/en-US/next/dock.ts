@@ -52,6 +52,7 @@ export const dockMessages = {
   'next.dock.connecting': 'Connecting to {device}…',
   'next.dock.waiting': 'Waiting for the person watching to allow it',
   'next.dock.onDevice': 'Playing on {device}',
+  'next.dock.stillPlayingOn': 'Still playing on {device}',
   'next.dock.stopped': 'Stopped playing on the TV.',
   'next.dock.stoppedAt': 'Stopped at {position}',
   'next.dock.replaced': 'Now playing from another device.',
