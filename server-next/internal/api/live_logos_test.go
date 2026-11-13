@@ -117,6 +117,25 @@ func TestSourceChannelLogosAreHeldByTheServerAndRespectItsImageChoice(t *testing
 	if got := get[Page[LiveChannel]](t, s, owner, "/v1/live/channels").Items; got[0].Logo != changed[0].Logo {
 		t.Fatal("turning importing off cleared a held logo")
 	}
+	if code := status(t, s, "POST", "/v1/admin/live/sources/"+src.ID+"/logos", owner, LiveSourceLogoImport{}); code != 400 {
+		t.Fatalf("manual importing with images off: %d", code)
+	}
+	if _, err := s.settings.Write(context.Background(), 1, "live", json.RawMessage(`{"importImages":true}`), -1, s.now()); err != nil {
+		t.Fatal(err)
+	}
+	var imported live.LiveLogoResult
+	if w := call(t, s, "POST", "/v1/admin/live/sources/"+src.ID+"/logos", owner, LiveSourceLogoImport{}, &imported); w.Code != 200 || imported.Imported != 0 || reads.Load() != 3 {
+		t.Fatalf("missing-only logos: %d %+v, reads %d", w.Code, imported, reads.Load())
+	}
+	version.Store(0)
+	replaced := call(t, s, "POST", "/v1/admin/live/sources/"+src.ID+"/logos", owner, LiveSourceLogoImport{ReplaceExisting: true}, &imported)
+	if replaced.Code != 200 || imported.Requested != 4 || imported.Imported != 2 || imported.Skipped != 2 || reads.Load() != 4 {
+		t.Fatalf("replacing logos: %d %+v, reads %d", replaced.Code, imported, reads.Load())
+	}
+
+	if got := get[Page[LiveChannel]](t, s, owner, "/v1/live/channels").Items; got[0].Logo != channels[0].Logo {
+		t.Fatal("manual replacement did not update a held logo whose URL stayed the same")
+	}
 	if len(get[Page[LiveChannel]](t, s, owner, "/v1/live/channels").Items) != 4 {
 		t.Fatal("a bad or disabled logo lost a channel")
 	}

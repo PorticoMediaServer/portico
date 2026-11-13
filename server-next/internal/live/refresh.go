@@ -201,6 +201,13 @@ func (s *Service) refresh(ctx context.Context, src db.LiveSource) (LiveSourceRep
 			}
 		}
 	}
+	if cfg.GuideSource != "" {
+		chosen, err := s.db.LiveSource(ctx, cfg.GuideSource)
+		if err != nil {
+			return report, 0, errors.New("the chosen listings source is unavailable")
+		}
+		guideSource = chosen.ID
+	}
 	if src.Kind == "guide" {
 		return report, 0, nil
 	}

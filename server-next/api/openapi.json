@@ -5858,6 +5858,25 @@
         ],
         "type": "object"
       },
+      "LiveLogoResult": {
+        "type": "object",
+        "properties": {
+          "requested": {
+            "type": "integer"
+          },
+          "imported": {
+            "type": "integer"
+          },
+          "skipped": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "requested",
+          "imported",
+          "skipped"
+        ]
+      },
       "LiveOnNow": {
         "properties": {
           "channel": {
@@ -6170,10 +6189,14 @@
           },
           "sourceNumber": {
             "type": "string"
+          },
+          "sourceKey": {
+            "type": "string"
           }
         },
         "required": [
           "id",
+          "sourceKey",
           "name",
           "number",
           "broughtIn",
@@ -6281,9 +6304,23 @@
           },
           "uploaded": {
             "type": "boolean"
+          },
+          "guideSource": {
+            "type": "string"
           }
         },
         "type": "object"
+      },
+      "LiveSourceLogoImport": {
+        "type": "object",
+        "properties": {
+          "replaceExisting": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "replaceExisting"
+        ]
       },
       "LiveSourcePage": {
         "properties": {
@@ -17823,6 +17860,44 @@
           }
         },
         "x-access": "owner"
+      }
+    },
+    "/v1/admin/live/sources/{id}/logos": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveLogoResult"
+                }
+              }
+            }
+          }
+        },
+        "x-access": "owner",
+        "operationId": "POST /v1/admin/live/sources/{id}/logos",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveSourceLogoImport"
+              }
+            }
+          }
+        }
       }
     },
     "/v1/admin/live/sources/{id}/refresh": {
