@@ -186,7 +186,7 @@ export function ServerDirectoryExplorer({open, onOpenChange, api, onChoose, onCh
       <span className={styles.pickerPlaceCopy}><b>{root.name}</b><small>{root.description || root.path}</small></span>
     </button>;
   const title = t(onChooseMany ? 'next.ownerLibraries.explorer.title' : 'next.settings.chooseFolder'), subtitle = serverName?.trim() ? t('next.ownerLibraries.explorer.subtitle', {server: serverName.trim()}) : t('next.settings.folderBreadcrumbs') as string;
-  return <><Dialog open={open} onOpenChange={changeOpen} size="lg" width={1000} responsive={false} showCloseButton={!phone} returnFocusRef={returnFocusRef} className={styles.explorer} bodyClassName={styles.explorerBody} footerClassName={styles.explorerFooter} title={title} description={subtitle}
+  return <><Dialog footerDismisses open={open} onOpenChange={changeOpen} size="lg" width={1000} responsive={false} showCloseButton={!phone} returnFocusRef={returnFocusRef} className={styles.explorer} bodyClassName={styles.explorerBody} footerClassName={styles.explorerFooter} title={title} description={subtitle}
     footer={<>
       {onChooseMany ? <ChosenServerFolders paths={chosen} onRemove={toggle}/> : null}
       <Button onClick={() => changeOpen(false)}>{t('next.settings.cancel')}</Button>

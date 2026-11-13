@@ -80,7 +80,7 @@ function PrivacyAction({row, state, api, serverId, viewerId, reportError, curren
     {failed && <span className={styles.failure} role="alert">{t(failureCopy[id])}</span>}
     <Button ref={opener} variant="glass" size="xs" disabled={!present} loading={busy}
       onClick={() => {if (confirm) setConfirming(true); else void run();}}>{label}</Button>
-    {confirm && <Dialog open={confirming} onOpenChange={open => {if (!busy) setConfirming(open);}} title={`${verb}?`} description={confirm}
+    {confirm && <Dialog footerDismisses open={confirming} onOpenChange={open => {if (!busy) setConfirming(open);}} title={`${verb}?`} description={confirm}
       initialFocusRef={cancel} returnFocusRef={opener} footer={<><Button ref={cancel} size="small" disabled={busy} onClick={() => setConfirming(false)}>{t('next.settings.cancel')}</Button><Button variant="primary" size="small" loading={busy} onClick={() => {void run();}}>{verb}</Button></>}>
       <span />
     </Dialog>}

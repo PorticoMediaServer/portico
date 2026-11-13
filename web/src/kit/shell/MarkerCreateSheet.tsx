@@ -57,7 +57,7 @@ export function CreateMarkerSheet({duration, busy = false, onSave, onCancel, onP
     if (from === undefined || duration <= 0 || from < 0 || from > duration) return;
     onPreviewAt(Math.max(0, from - 3));
   };
-  return <BottomSheet open onOpenChange={open => {if (!open) onCancel();}} title={t('web.segments.addTitle')} footerClassName={styles.sheetActs}
+  return <BottomSheet footerDismisses open onOpenChange={open => {if (!open) onCancel();}} title={t('web.segments.addTitle')} footerClassName={styles.sheetActs}
     footer={phone ? <><Button variant="primary" size="compact" disabled={busy || !valid} onClick={save}>{t('next.shell.save')}</Button><Button variant="glass" size="compact" disabled={busy} onClick={onCancel}>{t('next.shell.cancel')}</Button></> : <><Button variant="glass" size="compact" disabled={busy} onClick={onCancel}>{t('next.shell.cancel')}</Button><Button variant="primary" size="compact" disabled={busy || !valid} onClick={save}>{t('next.shell.save')}</Button></>}>
     <div className={styles.adjustSheet}>
       <Select label={t('web.segments.kindLabel')} placeholder={t('web.segments.chooseType')} value={kind} disabled={busy} options={segmentEditKinds.map(value => ({value, label: t('web.segments.kind', {kind: value})}))}

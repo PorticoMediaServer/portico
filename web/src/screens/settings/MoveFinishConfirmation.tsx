@@ -38,7 +38,7 @@ export function MoveFinishConfirmation(props: {
     finally {ticket.pending = false; setBusy(value => value === ticket ? undefined : value);}
   };
   const pending = lease !== undefined && busy === lease;
-  return <Dialog open size="sm" title={t('accounts.settings.finishNow')} onOpenChange={open => {if (!open) close();}}
+  return <Dialog footerDismisses open size="sm" title={t('accounts.settings.finishNow')} onOpenChange={open => {if (!open) close();}}
     dismissOnBack={!pending} dismissOnOutsidePress={!pending} showCloseButton={!pending}
     footer={<><Button size="small" disabled={pending} onClick={close}>{t('action.cancel')}</Button>
       <Button size="small" variant="primary" loading={pending} disabled={!lease || !current(lease)} onClick={() => void confirm()}>{t('accounts.settings.finishNow')}</Button></>}>

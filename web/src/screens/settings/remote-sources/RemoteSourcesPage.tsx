@@ -285,7 +285,7 @@ function ManageSourceDialog({api, source, isCurrent, onClose, onContinue}: Reado
     const next = await changeRemoteSource(api, source.id, {name: name.trim(), preset, limits, ...replaced});
     if (isCurrent()) {setShown(next); setSecret('');}
   });
-  return <Dialog open onOpenChange={open => {if (!open && !busy) onClose();}} title={shown.name}
+  return <Dialog footerDismisses open onOpenChange={open => {if (!open && !busy) onClose();}} title={shown.name}
     footer={<><Button size="compact" variant="glass" onClick={onClose}>{t('next.remoteSources.cancel')}</Button><Button size="compact" variant="primary" loading={busy} disabled={!name.trim()} onClick={save}>{t('next.remoteSources.save')}</Button></>}>
     <div className={styles.fields}>
       <p><SourceStatus source={shown}/> {shown.problem}</p>

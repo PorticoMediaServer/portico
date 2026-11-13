@@ -111,7 +111,7 @@ export function LocalChangeOwnerDialog({open, port, onClose, onError}: {
     })();
   };
   const ready = Boolean(password && !busy && (!drawn.port.opening.twoStep || code.trim()) && (mode === 'existing' ? selected : username.trim() && name.trim() && newPassword));
-  return <Dialog open={open} onOpenChange={value => {if (!value) close();}} width={560} title={t('next.settingsSpec.server.signin.groups.0.rows.5.label')}
+  return <Dialog footerDismisses open={open} onOpenChange={value => {if (!value) close();}} width={560} title={t('next.settingsSpec.server.signin.groups.0.rows.5.label')}
     dismissOnBack={!busy} dismissOnOutsidePress={!busy} showCloseButton={!busy}
     footer={<>
       <Button variant="glass" disabled={busy} onClick={close}>{t('action.cancel')}</Button>

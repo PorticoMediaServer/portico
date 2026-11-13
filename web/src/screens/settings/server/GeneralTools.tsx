@@ -56,7 +56,7 @@ export function GeneralMessage({api, isCurrent, reportError, disabled, label}: T
       {sent && <span role="status" className={styles.storageNote}>{t('server.broadcast.sent')}</span>}
       {failed && <span role="alert" className={styles.backupFailure}>{t('error.unavailable')}</span>}
     </div>
-    <Dialog open={open} title={t('server.messageEveryone')} description={t('web.broadcast.lede')} onOpenChange={value => {if (!value) close();}}
+    <Dialog footerDismisses open={open} title={t('server.messageEveryone')} description={t('web.broadcast.lede')} onOpenChange={value => {if (!value) close();}}
       footer={<><Button size="compact" variant="glass" disabled={busy} onClick={close}>{t('action.cancel')}</Button>
         <Button size="compact" variant="primary" loading={busy} disabled={busy || !title.trim() || !body.trim() || problem !== ''} onClick={send}>{t('feedback.send')}</Button></>}>
       <div className={styles.composerFields}>
@@ -102,7 +102,7 @@ export function GeneralRestart({api, isCurrent, reportError, disabled, label, co
       {state === 'waiting' && <span role="status" className={styles.storageNote}>{t('web.maintenance.restartingTitle')}</span>}
       {state === 'failed' && <span role="alert" className={styles.backupFailure}>{t('server.restart.failed')}</span>}
     </div>
-    <Dialog open={open} title={t('server.restart.title')} onOpenChange={value => {if (!value) close();}}
+    <Dialog footerDismisses open={open} title={t('server.restart.title')} onOpenChange={value => {if (!value) close();}}
       footer={<><Button size="compact" variant="glass" disabled={busy} onClick={close}>{t('action.cancel')}</Button>
         <Button size="compact" variant="primary" loading={busy} disabled={busy} onClick={restart}>{t('web.maintenance.serverRestart')}</Button></>}>
       <p>{confirm ?? t('server.restart.body')}</p>

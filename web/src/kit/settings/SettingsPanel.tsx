@@ -23,7 +23,7 @@ export type SettingsPanelProps = Readonly<{
 
 export function SettingsPanel({open, onClose, title, description, audience, tabs, selectedTab, onTabChange, children, saveState, error, returnFocusRef, create, confirm, dismissOnBack, showCloseButton}: SettingsPanelProps) {
   const id = useId(), initial = useRef<HTMLElement | null>(null);
-  return <Dialog open={open} onOpenChange={value => {if (!value) onClose();}} title={<>
+  return <Dialog footerDismisses open={open} onOpenChange={value => {if (!value) onClose();}} title={<>
     <span className={styles.panelIdentity}><ServerMark size={34} /><span><b>{t('next.shell.server')}</b><small>{audience}</small></span></span>
     <span className={styles.panelTitle}><span className={styles.panelTitleText}>{title}</span><span className={styles.saveState} role="status" data-state={saveState}>{saveState === 'saving' ? t('next.settings.saving') : saveState === 'saved' ? <><Icon name="i-check" size={15} />{t('next.settings.saved')}</> : null}</span></span>
   </>} description={description} placement="right" width={720} className={[styles.panel, tabs?.length ? styles.tabbedPanel : undefined].filter(Boolean).join(' ')} headerClassName={styles.panelHeader} bodyClassName={styles.panelBody} footerClassName={styles.panelFooter}

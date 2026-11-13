@@ -161,7 +161,7 @@ function StartOver({confirm, primary, onStart}: {confirm: boolean; primary: bool
   const [open, setOpen] = useState(false);
   return <>
     <Button variant={primary ? 'primary' : 'glass'} size="hero" onClick={() => {if (confirm) setOpen(true); else onStart();}}>{t('web.setup.startOver')}</Button>
-    {confirm && <Dialog open={open} onOpenChange={setOpen} title={t('web.setup.startOverTitle')}
+    {confirm && <Dialog footerDismisses open={open} onOpenChange={setOpen} title={t('web.setup.startOverTitle')}
       footer={<><Button size="small" onClick={() => setOpen(false)}>{t('action.cancel')}</Button>
         <Button size="small" variant="glass" className={styles.danger} onClick={() => {setOpen(false);onStart();}}>{t('web.setup.startOver')}</Button></>}>
       <p>{t('web.setup.startOverBody')}</p>

@@ -234,7 +234,7 @@ export function OwnerSourcesPage({source, libraryChannels}: {source: OwnerSource
       if (sourceCurrent() && modalRef.current === modal && !latest.busy && !latest.loading && selected && (selected.state !== 'disabled') !== enabled) void source.sources.act(selected, 'toggle');
     }} close={close} changed={() => {if (sourceCurrent() && modalRef.current === modal) void source.sources.load();}}/>}
     {modal?.kind === 'channels' && <ChannelMapDialog controller={modal.controller} name={modal.source.name} close={close}/>}
-    {modal?.kind === 'remove' && <Dialog open title={t('web.liveTv.removeTitle', {name: modal.source.name})} description={t('web.liveTv.removeBody')} onOpenChange={open => {if (!open) close();}}
+    {modal?.kind === 'remove' && <Dialog footerDismisses open title={t('web.liveTv.removeTitle', {name: modal.source.name})} description={t('web.liveTv.removeBody')} onOpenChange={open => {if (!open) close();}}
       footer={<><Button size="small" variant="text" onClick={close}>{t('action.cancel')}</Button><Button size="small" variant="primary" loading={!!snapshot.busy} onClick={() => {if (sourceCurrent()) void source.sources.act(modal.source, 'remove').then(ok => {if (ok && sourceCurrent()) closeExact(modal);});}}>{t('web.liveTv.removeSource')}</Button></>}><></></Dialog>}
   </>;
 }

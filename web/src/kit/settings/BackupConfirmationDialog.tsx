@@ -48,7 +48,7 @@ function Confirmation({open, mode, backup, submit, onClose, onFailure, isCurrent
     }
   };
   const when = <b>{t('server.backups.restoreWhich', {when: format.dateTime(backup.createdAt)})}</b>;
-  return <Dialog open={open} onOpenChange={open => {if (!open) close();}} title={t(mode === 'restore' ? 'web.maintenance.restoreTitle' : 'web.maintenance.deleteBackupTitle')}
+  return <Dialog footerDismisses open={open} onOpenChange={open => {if (!open) close();}} title={t(mode === 'restore' ? 'web.maintenance.restoreTitle' : 'web.maintenance.deleteBackupTitle')}
     initialFocusRef={cancel} returnFocusRef={returnFocusRef} bodyClassName={styles.backupConfirmation}
     footer={<><Button ref={cancel} size="small" onClick={close}>{t('next.settings.cancel')}</Button><SettingsAction size="small" appearance={mode === 'delete' ? 'danger' : 'primary'} loading={busy} disabled={busy || mode === 'delete' && typed !== word} onClick={() => {void confirm();}}>{t(mode === 'restore' ? 'web.maintenance.restoreConfirm' : 'web.maintenance.deleteBackupConfirm')}</SettingsAction></>}>
     {mode === 'restore' ? <>{when}<p>{t('web.maintenance.restoreBody')}</p></> : <><p>{t('server.backups.deleteBody')}</p>{when}<TextField label={t('web.deleteAccount.typeLabel', {value: word})} value={typed} disabled={busy} autoComplete="off" onChange={event => setTyped(event.currentTarget.value)} /></>}

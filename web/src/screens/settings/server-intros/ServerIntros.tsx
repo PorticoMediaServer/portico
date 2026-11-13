@@ -170,7 +170,7 @@ export function ServerIntros({source, modeRows, advancedRows, onPreview}: {sourc
         </div>
       </div>}
     </section>
-    <Dialog open={!!confirmingDetect} onOpenChange={next => {if (!next) {const open = detectCommitted.current;if (open && open === confirmingDetect) {detectCommitted.current = undefined;setConfirmingDetect(undefined);}}}} size="sm" role="alertdialog" title={t('web.segments.detectAgain')} description={t('web.segments.detectAgainHelp')}
+    <Dialog footerDismisses open={!!confirmingDetect} onOpenChange={next => {if (!next) {const open = detectCommitted.current;if (open && open === confirmingDetect) {detectCommitted.current = undefined;setConfirmingDetect(undefined);}}}} size="sm" role="alertdialog" title={t('web.segments.detectAgain')} description={t('web.segments.detectAgainHelp')}
       footer={<><Button variant="glass" size="compact" disabled={busy} onClick={() => {const open = detectCommitted.current;if (!open || open !== confirmingDetect) return;detectCommitted.current = undefined;setConfirmingDetect(undefined);}}>{t('next.shell.cancel')}</Button>
         <Button variant="primary" size="compact" disabled={busy} onClick={() => {const open = detectCommitted.current;if (!open || open !== confirmingDetect) return;detectCommitted.current = undefined;setConfirmingDetect(undefined);void open.source.detectAgain(open.title);}}>{t('web.segments.detectAgain')}</Button></>}>{null}</Dialog>
     <ToastHost toast={toast} onDismiss={() => setToast(null)} />

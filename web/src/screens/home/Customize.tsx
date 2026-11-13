@@ -101,7 +101,7 @@ export function HomeCustomizeDialog({controller, createSavedViews, isCurrent, co
   };
   const error = state.error && !state.conflict ? presentError(state.error, 'home', {operation: state.phase === 'load-error' ? 'load' : 'save'}) : undefined;
   return <>
-    <Dialog open onOpenChange={open => {if (!open && !busy) cancel();}} title={picking ? t('home.customize.addView') : t('home.customize.action')}
+    <Dialog footerDismisses open onOpenChange={open => {if (!open && !busy) cancel();}} title={picking ? t('home.customize.addView') : t('home.customize.action')}
       description={picking ? t('home.customize.chooseView') : t('home.customize.subtitle')} width={520} className={styles.dialog} bodyClassName={styles.body} footerClassName={styles.footer}
       returnFocusRef={returnFocusRef} dismissOnOutsidePress={!busy} dismissOnBack={!busy && !moving}
       footer={picking ? <Button variant="glass" onClick={() => setPicking(false)}>{t('action.cancel')}</Button> : <><Button variant="text" className={styles.reset} disabled={busy || state.phase !== 'ready'} onClick={() => setResetting(true)}>{t('action.resetToDefault')}</Button><span className={styles.spacer}/>
@@ -118,7 +118,7 @@ export function HomeCustomizeDialog({controller, createSavedViews, isCurrent, co
       </>}
     </Dialog>
     {moving?.pointer !== undefined && draft && <div className={`${styles.row} ${styles.floating}`} aria-hidden inert style={{top: moving.top, left: moving.left, width: moving.width}}>{showRow(moving.id, moving.target, true)}</div>}
-    <Dialog open={resetting} onOpenChange={setResetting} title={t('confirm.resetHome.title')} description={t('confirm.resetHome.body')} role="alertdialog" width={460}
+    <Dialog footerDismisses open={resetting} onOpenChange={setResetting} title={t('confirm.resetHome.title')} description={t('confirm.resetHome.body')} role="alertdialog" width={460}
       dismissOnOutsidePress={!busy} dismissOnBack={!busy}
       footer={<><Button variant="glass" disabled={busy} onClick={() => setResetting(false)}>{t('action.cancel')}</Button><Button variant="primary" loading={state.pending === 'reset'} disabled={busy || !isCurrent()} onClick={() => {void controller.reset().then(saved => {if (saved) onClose();else setResetting(false);});}}>{t('action.reset')}</Button></>}>{null}</Dialog>
   </>;

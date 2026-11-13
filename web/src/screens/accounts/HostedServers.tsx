@@ -251,7 +251,7 @@ function Chooser({who, flow, saved}: {who: Account; flow: ServicesDirectoryFlow<
       onOpen={id => {const item = state.items.find(value => value.id === id); if (item) void flow.open(item, state);}} onRefresh={() => void flow.refresh(state)}
       onAccount={() => goTo('/account')} onJoin={() => goTo('/servers#join')} onSetup={() => goTo('/servers#setup')} onLocal={() => goTo('/servers#local')}
       onDifferentAccount={signOut} onRemove={id => {const item = state.items.find(value => value.id === id); if (item) startRemoval(item);}} />
-    {removing && <Dialog open onOpenChange={open => {if (!open && !working) setRemoving(undefined);}} size="sm" role="alertdialog"
+    {removing && <Dialog footerDismisses open onOpenChange={open => {if (!open && !working) setRemoving(undefined);}} size="sm" role="alertdialog"
       title={t(removing.server.ownedByMe ? 'web.chooser.removeTitle' : 'web.chooser.leaveTitle', {server: removing.server.name})}
       footer={<><Button onClick={() => setRemoving(undefined)} disabled={working}>{t('accounts.profiles.cancel')}</Button>
         <Button variant="primary" loading={working} onClick={() => void remove(removing)}>{t(removing.server.ownedByMe ? 'web.chooser.removeServer' : 'web.chooser.leaveServer')}</Button></>}>

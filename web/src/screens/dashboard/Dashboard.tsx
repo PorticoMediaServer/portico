@@ -188,7 +188,7 @@ function Status({bindings: b, status, phone = false}: {bindings: DashboardBindin
       }
     } finally {setBusy(undefined);}
   };
-  const confirmation = <Dialog open={!!confirm} onOpenChange={open => {if (!open && !busy) {setConfirm(undefined); setRefusal('');}}}
+  const confirmation = <Dialog footerDismisses open={!!confirm} onOpenChange={open => {if (!open && !busy) {setConfirm(undefined); setRefusal('');}}}
     title={t('next.dashboard.fixPermissions')} description={confirm ? dataFolderConfirmText(confirm.params.owner ?? '', confirm.params.path ?? '') : undefined}
     footer={<><Button variant="glass" disabled={!!busy} onClick={() => setConfirm(undefined)}>{t('next.dashboard.cancel')}</Button><Button disabled={!!busy} onClick={() => void fix()}>{t('next.dashboard.fixPermissions')}</Button></>}>
     {refusal && <p role="alert">{refusal}</p>}

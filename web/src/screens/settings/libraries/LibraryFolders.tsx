@@ -82,7 +82,7 @@ export function LibraryFolders({libraryId, api, queries, scope, isCurrent, onErr
     <FolderEditor api={api} serverName={serverName} open={!!editing} onOpenChange={open => { if (!open && !lifetime.current?.running) setEditing(undefined); }} source={editing}
       busy={busy} onSave={edit => { if (!editing) return;
         void run(() => service.saveSource(editing.id, {...edit, expectedRevision: config.revision, acceptReplacement: false}), () => setEditing(undefined)); }} />
-    <Dialog open={!!removing} onOpenChange={open => { if (!open && !lifetime.current?.running) setRemoving(undefined); }} size="sm" role="alertdialog"
+    <Dialog footerDismisses open={!!removing} onOpenChange={open => { if (!open && !lifetime.current?.running) setRemoving(undefined); }} size="sm" role="alertdialog"
       title={t('next.settings.libraries.removeFolderTitle')} description={t('next.settingsSpec.server.libraries.panels.library.tabs.1.groups.0.rows.0.control.itemActions.1.confirm')}
       footer={<><Button disabled={busy} onClick={() => { if (!lifetime.current?.running) setRemoving(undefined); }}>{t('next.settings.cancel')}</Button>
         <Button variant="primary" loading={busy} disabled={busy || !removing || confirmation !== removing.name} onClick={() => { if (!removing || confirmation !== removing.name) return; void run(() => service.removeSource(removing.id, config.revision), () => setRemoving(undefined)); }}>
@@ -110,7 +110,7 @@ function FolderEditor({api, serverName, open, onOpenChange, source, initialPath,
     if (source) { setName(source.name); setPath(source.path); setInterval(String(source.intervalSeconds)); return; }
     if (initialPath) { const parts = initialPath.split(/[\\/]/).filter(Boolean); setName(parts[parts.length - 1] ?? ''); setPath(initialPath); setInterval('0'); }
   }, [source, initialPath]);
-  return <><Dialog open={open} onOpenChange={next => { if (!busy) onOpenChange(next); }} size="md" title={t(source ? 'next.settings.libraries.editFolder' : 'next.settingsSpec.server.libraries.panels.library.tabs.1.groups.0.rows.0.control.addLabel')}
+  return <><Dialog footerDismisses open={open} onOpenChange={next => { if (!busy) onOpenChange(next); }} size="md" title={t(source ? 'next.settings.libraries.editFolder' : 'next.settingsSpec.server.libraries.panels.library.tabs.1.groups.0.rows.0.control.addLabel')}
     footer={<><Button disabled={busy} onClick={() => { if (!busy) onOpenChange(false); }}>{t('next.settings.cancel')}</Button>
       <Button variant="primary" loading={busy} disabled={busy || !name.trim() || !path.trim()} onClick={() => {
         onSave({name: name.trim(), path: path.trim(), classification,

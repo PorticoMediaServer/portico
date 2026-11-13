@@ -150,7 +150,7 @@ export function SettingsScreen({bindings, route, navigate, openDetail = false}: 
       saveState={snapshot.saveState} tabs={panelSpec.tabs?.map(tab => ({id: tab.id, title: t(tab.title), content: rows(tab, {...panelContext, tabId: tab.id})}))} selectedTab={panel.tab} onTabChange={value => setPanel(current => current && {...current, tab: value})}>
       {rows(tab ?? panelSpec, panelContext)}
     </SettingsPanel>}
-    {shownConfirming && <Dialog open={!!confirming} title={t(shownConfirming.row.label)} onOpenChange={open => {if (!open) setConfirming(undefined);}}
+    {shownConfirming && <Dialog footerDismisses open={!!confirming} title={t(shownConfirming.row.label)} onOpenChange={open => {if (!open) setConfirming(undefined);}}
       footer={<><Button onClick={() => setConfirming(undefined)}>{t('action.cancel')}</Button>
         <Button variant="primary" onClick={() => {const pending = shownConfirming; setConfirming(undefined);
           if (rowState(pending.row, pending.context).present) bindings.change(pending.row, pending.value, pending.context);}}>{t('settings.confirm.change')}</Button></>}>

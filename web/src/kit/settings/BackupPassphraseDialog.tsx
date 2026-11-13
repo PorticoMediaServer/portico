@@ -56,7 +56,7 @@ function Passphrase({open, mode, onClose, submit, onDone, onFailure, returnFocus
       if (request.current === controller) {request.current = undefined;setBusy(false);}
     }
   };
-  return <Dialog open={open} onOpenChange={value => {if (!value) close();}} initialFocusRef={input} returnFocusRef={returnFocusRef}
+  return <Dialog footerDismisses open={open} onOpenChange={value => {if (!value) close();}} initialFocusRef={input} returnFocusRef={returnFocusRef}
     title={t(mode === 'protect' ? 'next.settings.backup.protectTitle' : mode === 'change' ? 'next.settings.backup.changeTitle' : 'next.settings.backup.restoreTitle')}
     footer={<><Button size="small" onClick={close}>{t('next.settings.cancel')}</Button><Button size="small" variant="primary" loading={busy} disabled={!ready} onClick={() => {void save();}}>{t(mode === 'protect' ? 'next.settings.backup.protect' : mode === 'change' ? 'action.save' : 'next.settings.backup.restore')}</Button></>}>
     <form className={styles.passphraseFields} onSubmit={event => {event.preventDefault();void save();}}>

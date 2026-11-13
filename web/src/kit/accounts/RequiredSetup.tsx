@@ -22,7 +22,7 @@ export function RequiredTwoStepDialog({enrolment, busy, error, onConfirm, onCanc
   useEffect(() => {life.current = true; return () => {life.current = false;};}, []);
   // Clipboard errors are visible only in the still-mounted original dialog.
   const copy = async () => {try {await navigator.clipboard.writeText(enrolment.secret);} catch (failure) {if (life.current) setLocalError(failure);}};
-  return <Dialog open title={t('web.hostedSecurity.addToAuthenticator')} description={t('web.hostedSecurity.enterKey')}
+  return <Dialog footerDismisses open title={t('web.hostedSecurity.addToAuthenticator')} description={t('web.hostedSecurity.enterKey')}
     showCloseButton={false} className={styles.dialog} onOpenChange={open => {if (!open) {life.current = false; setCode(''); onCancel();}}}
     footer={<><Button disabled={busy} onClick={() => {life.current = false; setCode(''); onCancel();}}>{t('action.cancel')}</Button>
       <Button variant="primary" disabled={code.length !== 6} loading={busy} onClick={() => {if (code.length === 6 && !busy) onConfirm(code);}}>{t('web.hostedSecurity.confirm')}</Button></>}>
@@ -45,7 +45,7 @@ export function RequiredRecoveryCodesDialog({codes, onDone}: {codes: readonly st
       const link = document.createElement('a'); link.href = url; link.download = 'portico-recovery-codes.txt'; link.click();
     } catch (failure) {setError(failure);} finally {if (url) URL.revokeObjectURL(url);}
   };
-  return <Dialog open title={t('web.hostedSecurity.newCodesTitle')} description={t('services.security.codesBody')}
+  return <Dialog footerDismisses open title={t('web.hostedSecurity.newCodesTitle')} description={t('services.security.codesBody')}
     showCloseButton={false} className={styles.dialog} onOpenChange={open => {if (!open) onDone();}}
     footer={<Button variant="primary" onClick={onDone}>{t('action.done')}</Button>}>
     <AuthError error={error} /><ServicesRecoveryCodes codes={codes} onCopy={copy} onDownload={download} />
@@ -59,7 +59,7 @@ export function RequiredPasswordDialog({busy, error, onChange, onCancel}: {
   const [current, setCurrent] = useState(''), [next, setNext] = useState('');
   const form = useId(), input = useRef<HTMLInputElement>(null), ready = Boolean(current) && passwordStrength(next).acceptable;
   const clear = () => {setCurrent(''); setNext('');};
-  return <Dialog open title={t('account.changePasswordTitle')} description={t('web.hostedSecurity.othersSignedOut')}
+  return <Dialog footerDismisses open title={t('account.changePasswordTitle')} description={t('web.hostedSecurity.othersSignedOut')}
     initialFocusRef={input} showCloseButton={false} className={styles.dialog} onOpenChange={open => {if (!open) {clear(); onCancel();}}}
     footer={<><Button disabled={busy} onClick={() => {clear(); onCancel();}}>{t('action.cancel')}</Button>
       <Button variant="primary" type="submit" form={form} disabled={!ready} loading={busy}>{t('account.changePasswordTitle')}</Button></>}>

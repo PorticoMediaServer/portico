@@ -51,7 +51,7 @@ export function LibraryTrash({libraryId, api, isCurrent, label}: Readonly<{
     ? t('next.ownerLibraries.missingRemovedNextScan') : t('next.ownerLibraries.missingRemovedOn', {date: defaultI18n.date(removedAt)});
   return <>
     <Button variant="glass" size="small" onClick={() => {if (isCurrent()) setOpen(true);}}>{label}</Button>
-    <Dialog open={open} onOpenChange={setOpen} size="lg" width={640} title={t('next.ownerLibraries.missingTitle')} description={t('next.ownerLibraries.missingLede')} footer={<>
+    <Dialog footerDismisses open={open} onOpenChange={setOpen} size="lg" width={640} title={t('next.ownerLibraries.missingTitle')} description={t('next.ownerLibraries.missingLede')} footer={<>
       <Button onClick={() => setOpen(false)}>{t('next.overlays.close')}</Button>
       {trash && trash.total > 0 && <Button variant="primary" disabled={busy} onClick={() => {setTyped(''); setConfirming(true);}}>{t('next.ownerLibraries.emptyTrash')}</Button>}
     </>}>
@@ -67,7 +67,7 @@ export function LibraryTrash({libraryId, api, isCurrent, label}: Readonly<{
         {trash.total > trash.items.length && <p className={styles.trashHelp}>{t('next.ownerLibraries.missingMore', {shown: trash.items.length, count: trash.total})}</p>}
       </>}
     </Dialog>
-    <Dialog open={confirming && !!trash} onOpenChange={value => {if (!value) setConfirming(false);}} size="sm" role="alertdialog" title={t('next.ownerLibraries.emptyTrashTitle')}
+    <Dialog footerDismisses open={confirming && !!trash} onOpenChange={value => {if (!value) setConfirming(false);}} size="sm" role="alertdialog" title={t('next.ownerLibraries.emptyTrashTitle')}
       description={trash ? t('next.ownerLibraries.emptyTrashBody', {count: trash.total, library: trash.name}) : ''} footer={<>
         <Button disabled={busy} onClick={() => setConfirming(false)}>{t('next.settings.cancel')}</Button>
         <Button variant="primary" loading={busy} disabled={busy || !trash || typed.trim() !== String(trash.total)} onClick={() => {void empty();}}>{t('next.ownerLibraries.emptyTrash')}</Button>
@@ -124,7 +124,7 @@ export function LibraryTrashRule({libraryId, api, isCurrent, label}: Readonly<{l
         <Button disabled={busy || !daysValid || dayCount === trash.rule.days} onClick={() => choose({mode: 'days', days: dayCount})}>{t('next.settings.apply')}</Button>
       </>}
     </>}
-    <Dialog open={!!asking && !!trash} onOpenChange={value => {if (!value) setAsking(undefined);}} size="sm" role="alertdialog"
+    <Dialog footerDismisses open={!!asking && !!trash} onOpenChange={value => {if (!value) setAsking(undefined);}} size="sm" role="alertdialog"
       title={asking ? t('next.ownerLibraries.ruleRemovesTitle', {count: asking.count}) : ''}
       description={asking && trash ? t('next.ownerLibraries.ruleRemovesBody', {count: asking.count, library: trash.name}) : ''} footer={<>
         <Button disabled={busy} onClick={() => setAsking(undefined)}>{t('next.settings.cancel')}</Button>

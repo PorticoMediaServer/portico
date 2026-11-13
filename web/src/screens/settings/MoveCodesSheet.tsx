@@ -66,7 +66,7 @@ export function MoveCodesSheet({codes, serverName, address, isCurrent, onClose, 
   if (!current()) return null;
   const publicWitness = publicQR && publicQR.ticket === committed ? publicQR : undefined;
   const receiptWitness = qr && qr.ticket === committed ? qr : undefined;
-  return <Dialog open title={t('accounts.move.sheetTitle')} width={760} className={styles.sheet}
+  return <Dialog footerDismisses open title={t('accounts.move.sheetTitle')} width={760} className={styles.sheet}
     onOpenChange={value => {if (!value) close();}} footer={<>
       <Button onClick={() => {void copy();}}>{t('accounts.move.copyList')}</Button>
       <Button onClick={() => {if (current()) window.print();}}>{t('accounts.move.print')}</Button>

@@ -17,7 +17,7 @@ export function FeedbackDialog({snapshot, title, problem, onChange, onSubmit, on
   const id = useId(), state = snapshot.service, draft = snapshot.draft, kinds = feedbackKinds();
   const kind = kinds.find(value => value.id === draft.kind);
   const sent = state.phase === 'sent', sending = state.phase === 'sending';
-  return <Dialog open title={t(sent ? 'feedback.sentTitle' : 'feedback.title')}
+  return <Dialog footerDismisses open title={t(sent ? 'feedback.sentTitle' : 'feedback.title')}
     description={!sent && title ? t('feedback.about', {title}) : undefined}
     width={sent ? 460 : 520} onOpenChange={open => {if (!open) onClose();}}
     footer={sent ? <Button variant="primary" onClick={onClose}>{t('action.done')}</Button> : <>

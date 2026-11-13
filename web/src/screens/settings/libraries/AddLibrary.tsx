@@ -47,7 +47,7 @@ export function AddLibrary({open, onOpenChange, api, service, onError, initialKi
     finally {submitting.current = false; setBusy(false);}
   };
   return <>
-    <Dialog open={open} onOpenChange={value => {if (!submitting.current) onOpenChange(value);}} dismissOnBack={!busy} dismissOnOutsidePress={!busy} showCloseButton={!busy} size="md" title={t('next.settingsSpec.server.libraries.panels.newLibrary.title')}
+    <Dialog footerDismisses open={open} onOpenChange={value => {if (!submitting.current) onOpenChange(value);}} dismissOnBack={!busy} dismissOnOutsidePress={!busy} showCloseButton={!busy} size="md" title={t('next.settingsSpec.server.libraries.panels.newLibrary.title')}
       footer={<><Button disabled={busy} onClick={() => {if (!submitting.current) onOpenChange(false);}}>{t('next.settings.cancel')}</Button>
         <Button variant="primary" loading={busy} disabled={busy || !name.trim() || !paths.length} onClick={() => { void create(); }}>{t('next.settingsSpec.server.libraries.panels.newLibrary.footer.primary')}</Button></>}>
       <div className={styles.form}>

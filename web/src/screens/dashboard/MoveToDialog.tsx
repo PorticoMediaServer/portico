@@ -30,7 +30,7 @@ export function MoveToDialog(props: MoveToDialogProps) {
   const duration = valid ? formatClock(durationMs / 1000) : undefined;
   const original = valid ? formatClock(positionMs / 1000) : undefined;
   const rangeStyle = valid && durationMs > 0 ? {'--progress': `${preview / durationMs * 100}%`, '--original': `${positionMs / durationMs * 100}%`} as CSSProperties : undefined;
-  return <Dialog open onOpenChange={open => {if (!open && !busy) onCancel();}}
+  return <Dialog footerDismisses open onOpenChange={open => {if (!open && !busy) onCancel();}}
     title={t('web.nowPlaying.moveTitle', {title})} description={t('next.dashboard.moveBody', {viewer, device})}
     showCloseButton={false} dismissOnBack={!busy} dismissOnOutsidePress={!busy}
     headerClassName={styles.header} bodyClassName={styles.body} footerClassName={styles.footer}

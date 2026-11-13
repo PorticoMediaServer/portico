@@ -80,7 +80,7 @@ function TriageDialog({report, source, onClose}: Readonly<{report: FeedbackRepor
   };
   const sentFrom = feedbackSentFrom(loaded);
   const meta = t('web.feedback.reportedMeta', {when: defaultI18n.dateTime(loaded.createdAt), status: statusLabel(loaded.status)});
-  return <Dialog open onOpenChange={value => {if (!value) close();}} size="lg" title={categoryLabel(loaded)} initialFocusRef={cancel}
+  return <Dialog footerDismisses open onOpenChange={value => {if (!value) close();}} size="lg" title={categoryLabel(loaded)} initialFocusRef={cancel}
     footer={<><Button ref={cancel} size="small" onClick={close}>{t('next.settings.cancel')}</Button>
       <SettingsAction size="small" appearance="primary" loading={busy} disabled={busy || saved} onClick={() => {void save();}}>{t('web.feedback.updateReport')}</SettingsAction></>}>
     {error && <p className={styles.failure} role="alert">{t('error.unconfirmedChange')}</p>}

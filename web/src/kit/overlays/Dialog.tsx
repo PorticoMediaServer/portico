@@ -25,11 +25,13 @@ export type DialogProps = OverlaySurfaceProps & OverlayContentSlots & {
   responsive?: boolean;
   /** Phone sheets stack their actions full width, action first (account28/29). Off by default. */
   stackFooter?: boolean;
+  /** The footer holds the way out (a Cancel, Close or Done): a phone sheet then shows no header Done. Off by default. */
+  footerDismisses?: boolean;
 };
 
 export function Dialog({responsive = true, ...props}: DialogProps) {
   const phone = usePhone();
-  if (responsive && phone) return <BottomSheet {...props} fitContent />;
+  if (responsive && phone) return <BottomSheet {...props} fitContent dialog />;
   return <DesktopDialog {...props} />;
 }
 
@@ -52,12 +54,12 @@ function DesktopDialog({open, onOpenChange, title, headerAction, children, descr
         onEscapeKeyDown={event => { if (!dismissOnBack) event.preventDefault(); else reason.current = 'escape'; }}
         onPointerDownOutside={event => { if (!dismissOnOutsidePress) event.preventDefault(); else reason.current = 'outside'; }}
         onInteractOutside={event => { if (!dismissOnOutsidePress) event.preventDefault(); }}>
-        <header className={headerClassName}><RadixDialog.Title className={styles.dialogTitle}>{title}</RadixDialog.Title>
+        <header className={classes(styles.dialogHeader, headerClassName)}><RadixDialog.Title className={styles.dialogTitle}>{title}</RadixDialog.Title>
         {headerAction}
         {showCloseButton && <Button variant="icon" size="small" iconOnly icon="i-x" iconSize={closeIconSize} aria-label={closeLabel ?? defaultI18n.t('next.overlays.close')} className={styles.dialogClose} onClick={() => onOpenChange(false, 'close-button')} />}</header>
         {description !== undefined && <RadixDialog.Description id={`${id}-description`} className={styles.dialogDescription}>{description}</RadixDialog.Description>}
         <div className={classes(styles.dialogBody, bodyClassName)}>{children}</div>
-        {footer !== undefined && <footer className={classes(styles.dialogFooter, footerClassName)}>{footer}</footer>}
+        {footer !== undefined && footer !== null && footer !== false && <footer className={classes(styles.dialogFooter, footerClassName)}>{footer}</footer>}
       </RadixDialog.Content>
     </RadixDialog.Portal>}
   </RadixDialog.Root>;

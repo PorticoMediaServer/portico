@@ -44,7 +44,7 @@ export function LibraryDeleteSurface({session, options, onClose}: {session: Libr
   }, [owner, producer, options, tooMany]);
   const close = () => {session.lifetime.abort(); producer.close(); onClose();};
   const run = () => {void (state.phase === 'uncertain' ? producer.retry() : producer.confirm());};
-  if (state.phase === 'uncertain' || state.phase === 'error') return <Dialog open onOpenChange={open => {if (!open) close();}}
+  if (state.phase === 'uncertain' || state.phase === 'error') return <Dialog footerDismisses={state.phase !== 'uncertain'} open onOpenChange={open => {if (!open) close();}}
     title={t('next.selection.delete')} returnFocusRef={anchor}
     footer={<Button onClick={() => {if (state.phase === 'uncertain') run(); else {close();}}}>{t(state.phase === 'uncertain' ? 'next.states.tryAgain' : 'next.selection.done')}</Button>}>
     <p role="alert">{t(state.phase === 'uncertain' ? 'next.selection.deleteUncertain' : 'next.selection.deleteFailed')}</p>

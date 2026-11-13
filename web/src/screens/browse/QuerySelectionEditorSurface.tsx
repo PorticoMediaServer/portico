@@ -35,7 +35,7 @@ export function QuerySelectionEditorSurface({session, options, onClose}: {sessio
   };
   const target = session.operation.target;
   if (target.mode !== 'query' || target.summary.types.length !== 1) return null;
-  if (result) return <Dialog open onOpenChange={open => {if (!open) close();}} title={t('next.selection.edit')} returnFocusRef={anchor}
+  if (result) return <Dialog footerDismisses open onOpenChange={open => {if (!open) close();}} title={t('next.selection.edit')} returnFocusRef={anchor}
     footer={<Button onClick={close}>{t('next.selection.done')}</Button>}>
     <p role="status">{t('next.selection.bulkResult', {updated: result.updated, failed: result.failed})}</p>
   </Dialog>;

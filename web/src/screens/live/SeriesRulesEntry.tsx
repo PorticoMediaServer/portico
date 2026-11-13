@@ -124,7 +124,7 @@ function BoundRules({lease, onView}: {lease: SeriesRulesLease; onView?: (view: '
     tail={<>{state.nextCursor && !state.error && <MoreRules binding={binding} cursor={state.nextCursor}/>}
       {state.error !== undefined && <Banner action={{label: t('next.states.tryAgain'), onAction: () => {if (lease.current()) void binding.load().catch(() => {});}}}>{dvrMessage(state.error)}</Banner>}
       {!state.view.rules.length && <StateView title={t('web.dvr.empty.rules')} body={t('web.dvr.empty.rulesBody')} primary={{id: 'guide', label: t('web.dvr.openGuide'), onPress: onGuide}}/>}</>}/>
-    <Dialog open={!!deleteOpening} onOpenChange={open => {if (!open && deleteOpening) dismissDelete(deleteOpening);}}
+    <Dialog footerDismisses open={!!deleteOpening} onOpenChange={open => {if (!open && deleteOpening) dismissDelete(deleteOpening);}}
       title={t('web.dvr.deleteRuleTitle', {name: deleteOpening?.request.rule.title ?? ''})} description={t('web.dvr.deleteRuleBody')} width={440}
       footer={<><Button variant="glass" disabled={busy || !deleteOpening?.live} onClick={() => {if (deleteOpening) dismissDelete(deleteOpening);}}>{t('action.cancel')}</Button>
         <Button className={styles.delete} variant="ghost" loading={busy} disabled={!deleteOpening?.live} onClick={() => {if (deleteOpening && !busy) void confirmDelete(deleteOpening);}}>{t('web.dvr.deleteRuleAction')}</Button></>}>

@@ -36,7 +36,7 @@ export function ProfileOtherSignOut({command, isCurrent, onFailure, disabled}: {
       if (!live.current || latest.current.disabled || !latest.current.isCurrent() || active.current?.claimed) return;
       const attempt: Attempt = {command: latest.current.command, claimed: false};active.current = attempt;setConfirmation(attempt);setBusy(false);
     }}>{t('next.settingsSpec.account.profile.groups.8.rows.0.control.label')}</Button>
-    {confirmation && <Dialog children={null} open={active.current === confirmation && confirmation.command === command} size="sm" returnFocusRef={trigger} title={t('next.settingsSpec.account.profile.groups.8.rows.0.label')}
+    {confirmation && <Dialog footerDismisses children={null} open={active.current === confirmation && confirmation.command === command} size="sm" returnFocusRef={trigger} title={t('next.settingsSpec.account.profile.groups.8.rows.0.label')}
       description={t('next.settingsSpec.account.profile.groups.8.rows.0.control.confirm')}
       dismissOnOutsidePress={!busy} dismissOnBack={!busy} showCloseButton={!busy} onOpenChange={value => {if (!value) close(confirmation);}}
       footer={<><Button size="small" disabled={busy} onClick={() => close(confirmation)}>{t('action.cancel')}</Button>

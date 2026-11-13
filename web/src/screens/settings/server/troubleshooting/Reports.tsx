@@ -66,7 +66,7 @@ export function ReportsPanel(props: ReportsPanelProps) {
     {state.records && <Records records={state.records.items} lane={state.records.lane} next={state.records.next} onLane={lane => {void props.source.selectLane(lane);}}
       onOlder={() => {void props.source.moreRecords();}} onLatest={() => {void props.source.latestRecords();}} />}
     {reading?.source === props.source && <ReadReport key={reading.report.id} report={reading.report} source={props.source} onClose={() => setReading(undefined)} />}
-    {confirm?.source === props.source && confirmation.current === confirm && <Dialog open onOpenChange={open => {if (!open) closeConfirmation();}} title={t('server.reports.deleteTitle')}
+    {confirm?.source === props.source && confirmation.current === confirm && <Dialog footerDismisses open onOpenChange={open => {if (!open) closeConfirmation();}} title={t('server.reports.deleteTitle')}
       footer={<><Button size="small" onClick={closeConfirmation}>{t('next.settings.cancel')}</Button><SettingsAction size="small" appearance="danger"
         onClick={() => {if (confirmation.current !== confirm || owner.current !== props.source) return;const selected = confirm.report;closeConfirmation();void props.source.remove(selected.id, selected);}}>{t('web.diagnostics.clientReportDelete')}</SettingsAction></>}>
       <p>{t('server.reports.deleteBody')}</p>
@@ -131,7 +131,7 @@ function ReadReport({report, source, onClose}: Readonly<{report: ClientReport; s
       .catch(() => {if (life.request === request && !request.signal.aborted) setFailed(true);});
   }, [report, source, life]);
   const text = failed ? t('next.states.pageFailedBody') : body === undefined ? t('next.settings.loading') : body || t('server.reports.empty');
-  return <Dialog open onOpenChange={open => {if (!open) close();}} size="lg" title={t('server.reports.title')} initialFocusRef={done} returnFocusRef={done}
+  return <Dialog footerDismisses open onOpenChange={open => {if (!open) close();}} size="lg" title={t('server.reports.title')} initialFocusRef={done} returnFocusRef={done}
     footer={<><Button size="small" disabled={!current()} onClick={() => {void download();}}>{t('web.diagnostics.clientReportDownload')}</Button><Button ref={done} size="small" onClick={close}>{t('next.settings.done')}</Button></>}>
     <p className={styles.reportMeta}><MetadataFacts parts={[sender(report), defaultI18n.dateTime(report.receivedAt), defaultI18n.bytes(report.bytes)]} /></p>
     {downloadFailed && <p role="alert" className={styles.failure}>{t('next.states.pageFailedBody')}</p>}

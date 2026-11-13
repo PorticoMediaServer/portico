@@ -20,7 +20,7 @@ export function Licences({open, onOpenChange}: {open: boolean; onOpenChange: (op
     return () => {current = false;};
   }, [open, retry]);
   const detail = data && selected ? licenceDetail(data, selected) : undefined;
-  return <Dialog open={open} onOpenChange={onOpenChange} size="lg" title={detail?.component.name ?? t('licenses.title')}
+  return <Dialog footerDismisses open={open} onOpenChange={onOpenChange} size="lg" title={detail?.component.name ?? t('licenses.title')}
     footer={<Button onClick={() => onOpenChange(false)}>{t('next.overlays.close')}</Button>}>
     {failed ? <div role="alert"><p>{t('licenses.unavailable')}</p><Button onClick={() => setRetry(value => value + 1)}>{t('next.states.tryAgain')}</Button></div>
       : !data ? <p role="status">{t('licenses.loading')}</p>

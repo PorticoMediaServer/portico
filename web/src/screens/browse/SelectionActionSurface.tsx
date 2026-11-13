@@ -32,7 +32,7 @@ export function SelectionActionSurface({model, onClose, onOptionsChange}: Readon
     : music ? canonicalMusicQualityLadder.map(row => musicQualityPresentation(row.id, false, defaultI18n))
       : canonicalQualityLadder.map(row => qualityPresentation(row.id, false, defaultI18n));
   const shownError = state.errorCode ? presentError({code: state.errorCode}, deleting ? 'library' : 'downloads', {operation: 'action'}).body : '';
-  return <Dialog open onOpenChange={open => {if (!open) onClose();}} title={title} accessibilityLabel={title}
+  return <Dialog footerDismisses open onOpenChange={open => {if (!open) onClose();}} title={title} accessibilityLabel={title}
     width={520} className={styles.deleteDialog} bodyClassName={styles.deleteBody} footerClassName={styles.deleteFooter}
     initialFocusRef={input} footer={<>
       <Button size="compact" variant="glass" onClick={onClose}>{t('next.states.close')}</Button>
