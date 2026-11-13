@@ -3,7 +3,7 @@ import {Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
-import {AmbientArt, Artwork, PersonCircle, StandardBackdrop, missingArt} from '../../../kit/artwork';
+import {AmbientArt, Artwork, PersonCircle, StandardBackdrop, missingArt, useWholeBox} from '../../../kit/artwork';
 import {CoverHero} from '../../../kit/layout/CoverHero';
 import {Button, Focusable} from '../../../kit/controls';
 import {FocusRegion} from '../../../kit/focus';
@@ -26,6 +26,7 @@ function BookRow({entry, runtime, tv, position, separated, focusId, onOpen, onPl
   onOpen: () => void; onPlay: () => void; onMore: () => void; onFocus: () => void;
 }) {
   const theme = useTheme(), art = runtime.artwork(entry.posterUrl), progress = entry.bookProgress;
+  const slot = tv ? 128 : 66, {box, onSize} = useWholeBox(tv ? undefined : art, slot, slot);
   const left = progress?.remainingMs === undefined ? undefined : seconds(progress.remainingMs / 1000);
   const readBy = entry.narrators?.length ? t('next.kit.readBy', {name: defaultI18n.list(entry.narrators)}) : undefined;
   // The book's own bar is book-wide only: a part's position is not a fraction of
@@ -45,15 +46,18 @@ function BookRow({entry, runtime, tv, position, separated, focusId, onOpen, onPl
     style={tv ? {height: 168, paddingHorizontal: 20, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 32}
       : {height: '100%', flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10, marginRight: -6}}>
     {!tv && separated ? <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 80, right: 0, height: 1, backgroundColor: alpha(theme.colors.line, .35)}}/> : null}
-    <View style={{width: tv ? 128 : 66, height: tv ? 128 : 66, borderRadius: tv ? 10 : 7, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-      <Artwork source={art} width={tv ? 128 : 66} height={tv ? 128 : 66} fallback={art ? undefined : missingArt({title: entry.title, shape: 'square', width: tv ? 128 : 66, height: tv ? 128 : 66})}/>
+    {/* A cover is never cropped: in its 66 pt slot it keeps its own shape, whole and centred (TV keeps its square). */}
+    <View style={{width: slot, height: slot, alignItems: 'center', justifyContent: 'center'}}>
+    <View style={{...box, borderRadius: tv ? 10 : 7, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
+      <Artwork source={art} width={box.width} height={box.height} onSize={onSize} fallback={art ? undefined : missingArt({title: entry.title, shape: 'square', width: slot, height: slot})}/>
       {ratio === undefined ? null : <View style={{position: 'absolute', left: tv ? 8 : 5, right: tv ? 8 : 5, bottom: tv ? 8 : 5, height: tv ? 6 : 3, borderRadius: 3, overflow: 'hidden', backgroundColor: alpha(theme.colors.ink, .55)}}>
         <View style={{width: `${Math.max(0, Math.min(1, ratio)) * 100}%`, height: tv ? 6 : 3, backgroundColor: theme.colors.accentStrong}}/>
       </View>}
     </View>
+    </View>
     <View style={{flex: 1, minWidth: 0, gap: tv ? 5 : 3}}>
       {position ? <Text numberOfLines={1} style={[browseType(theme, tv ? 20 : 12, 700), {color: theme.colors.accentStrong}]}>{t('next.reader.bookNumber', {number: position})}</Text> : null}
-      <Text numberOfLines={1} style={[browseType(theme, tv ? 32 : 15.5, 700, tv ? 0 : -.01), {color: theme.colors.text}]}>{entry.title}</Text>
+      <Text numberOfLines={tv ? 1 : 2} style={[browseType(theme, tv ? 32 : 15.5, 700, tv ? 0 : -.01), {color: theme.colors.text}]}>{entry.title}</Text>
       {tv ? <>
         {readBy ? <Text numberOfLines={1} style={[browseType(theme, 22, 400), {color: theme.colors.textTertiary}]}>{readBy}</Text> : null}
         {tvLine ? <Text numberOfLines={1} style={[browseType(theme, 22, 600), {color: theme.colors.accentStrong}]}>{tvLine}</Text> : null}
@@ -110,7 +114,8 @@ export function AuthorSeriesScreen({controller, entry, runtime, actions, openEnt
   // collections 44/45 draw the first rows at 560; a longer shelf keeps its rows
   // reachable by growing the canvas instead of clipping them at the frame's height.
   const canvasHeight = Math.max(1120, 560 + books.length * 168 + Math.max(0, books.length - 1) * 10 + 64);
-  const phoneRow = Math.ceil(86 * Math.max(1, theme.fontScale));
+  // Room for the book number, a two-line title (titles wrap before they are cut) and who read it.
+  const phoneRow = Math.ceil(100 * Math.max(1, theme.fontScale));
   // TV keeps its own composition (collections 44/45); the TV lane moves it onto the kit's cover hero.
   const tvHero = <>
     {series ? <View style={{position: 'absolute', left: 200, top: 120, width: 380, height: 380}}>

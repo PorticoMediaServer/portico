@@ -371,3 +371,27 @@ test('a ranked song row on TV is the TV track row, untouched by the phone number
   assert.equal(element.type.name, 'TVTrackRow');
   assert.equal(nodes(element).some(node => node.type === tracks.TrackNumber), false);
 });
+
+// Owner's rule: a cover is never cropped. A 2:3 cover in a square card keeps its shape, whole and centred, and the card's
+// frame takes that shape (no bars); TV keeps its square tiles. The box comes from the kit's one rule (useWholeBox).
+test('a square card draws a 2:3 cover whole in its own shape once the picture\'s size is known; TV keeps the square', async () => {
+  for (const isTV of [false, true]) {
+    const f = fixture(), theme = isTV ? createTheme({isTV: true, width: 1920, fontScale: 1}) : f.theme;
+    const common = {...f.common, '../theme': {useTheme: () => theme, nativeType, fontFamilies}};
+    const whole = await screenModule(new URL('../src-next/kit/artwork/WholeCover.tsx', import.meta.url), {...common, './Artwork': {Artwork: 'Artwork'}, './Surfaces': {AmbientArt: 'AmbientArt'}});
+    const media = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
+      ...common, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n},
+      '../artwork/index': {GeneratedCoverClearance: {Provider: 'Provider'}, MediaArt: 'MediaArt', missingArt: () => undefined, useWholeBox: whole.useWholeBox},
+      '../controls/Focusable': {Focusable: 'Focusable'}, '../selection/index': {SelectionCircle: 'SelectionCircle'},
+      './primitives': {CardFrame: 'CardFrame', ArtFrame: 'ArtFrame', Badge: 'Badge', Caption: 'Caption', CardAction: 'CardAction', Progress: 'Progress', Scrim: 'Scrim', Parts: 'Parts', titleStyle: () => ({})},
+    });
+    const draw = () => {const card = f.host.render(() => media.SquareCard({title: 'An Atlas', width: 120, artwork: {uri: '/cover', cacheKey: 'cover'}, onNavigate() {}})); return nodes(card.props.children(idle));};
+    const art = draw().find(node => node.type === 'MediaArt');
+    assert.deepEqual([art.props.width, art.props.height], [120, 120], 'before the picture arrives the cover fills its slot');
+    if (isTV) {assert.equal(art.props.onSize, undefined, 'TV keeps its square tiles'); continue;}
+    art.props.onSize({width: 1000, height: 1500});
+    const after = draw(), frame = after.find(node => node.type === 'ArtFrame');
+    assert.deepEqual([frame.props.width, frame.props.height], [80, 120], 'a 2:3 cover is 80 x 120 in a 120 slot: whole, no bars');
+    assert.deepEqual([after.find(node => node.type === 'MediaArt').props.width, after.find(node => node.type === 'MediaArt').props.height], [80, 120]);
+  }
+});

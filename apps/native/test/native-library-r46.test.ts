@@ -43,7 +43,7 @@ async function libraryScreen(width: number, isTV = false) {
     '../../kit/browse/presentation': {alpha, browseType: (used: any, size: number, weight = 600, tracking = 0) => ({fontSize: size * used.textScale, fontWeight: weight, letterSpacing: tracking * size})},
     '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/layout': {WindowedGrid: 'WindowedGrid', AlphabetRail: 'AlphabetRail', Row: 'Row'},
-    './discover-cells': {discoverCell: () => ({art: 300, caption: 72})},
+    '../../../../../packages/client-core/src/presentation/card-shape': await import('../../../packages/client-core/src/presentation/card-shape.ts'), './discover-cells': {discoverCell: () => ({art: 300, caption: 72})},
     '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0}, '../../kit/states': {StateView: 'StateView'},
     '../../kit/theme': {useTheme: () => theme},
     '../../kit/useMotion': {useMotion: () => ({transforms: false, timing: () => ({})})},

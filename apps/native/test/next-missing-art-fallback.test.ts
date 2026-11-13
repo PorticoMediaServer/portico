@@ -21,7 +21,7 @@ async function modules() {
   const cards = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
     react: reactModule, 'react-native': {StyleSheet: {absoluteFill: {}}, Text: 'Text', View: 'View'}, 'react-native-svg': {default: 'Svg', Text: 'SvgText'},
     '../../../../../packages/i18n/src/index': {defaultI18n: {t: (key: string) => key}}, '../theme': {useTheme: () => theme},
-    '../artwork/index': {MediaArt: 'MediaArt', CircleArt: 'CircleArt', PersonCircle: 'PersonCircle', GeneratedCoverClearance: {Provider: 'Provider'}, missingArt: art.missingArt},
+    '../artwork/index': {useWholeBox: (_source: unknown, width: number, height: number) => ({box: {width, height}, onSize: undefined}), MediaArt: 'MediaArt', CircleArt: 'CircleArt', PersonCircle: 'PersonCircle', GeneratedCoverClearance: {Provider: 'Provider'}, missingArt: art.missingArt},
     '../controls/Focusable': {Focusable: 'Focusable'}, '../selection/index': {SelectionCircle: 'SelectionCircle'},
     './primitives': {ArtFrame: 'ArtFrame', Badge: 'Badge', Caption: 'Caption', CardAction: 'CardAction', CardFrame: 'CardFrame', Parts: 'Parts', Progress: 'Progress', Scrim: 'Scrim', titleStyle: () => ({})},
   });

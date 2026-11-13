@@ -17,11 +17,18 @@ export type WholeCoverProps = Readonly<{cover: WholeCoverSource; width: number; 
 /** The slot is a bound: once the picture's own size is known the cover takes its own shape inside it,
  *  centred, so nothing is cut and no bars are drawn; until then, and for the fallback, it fills the slot.
  *  The shadow sits on an outer view so iOS does not clip it with the rounded corners. */
-export function WholeCover({cover, width, height, look, priority = false, elevation, glow}: WholeCoverProps) {
-  const theme = useTheme(), source = cover.source ?? undefined;
+/** The box a cover takes inside its slot once the picture's own size is known: its own shape, as large as the slot allows.
+ *  Until then (and with no picture) it is the slot. One rule for the cover heroes, the cards and the row thumbnails. */
+export function useWholeBox(source: ArtworkSource | null | undefined, width: number, height: number) {
   const [found, setFound] = useState<Readonly<{key: string; aspect: number}>>();
   const aspect = source && found?.key === source.cacheKey ? found.aspect : undefined;
   const box = aspect === undefined ? {width, height} : aspect < width / height ? {width: Math.round(height * aspect), height} : {width, height: Math.round(width / aspect)};
+  const onSize = source ? (natural: Readonly<{width: number; height: number}>) => setFound({key: source.cacheKey, aspect: natural.width / natural.height}) : undefined;
+  return {box, onSize};
+}
+
+export function WholeCover({cover, width, height, look, priority = false, elevation, glow}: WholeCoverProps) {
+  const theme = useTheme(), source = cover.source ?? undefined, {box, onSize} = useWholeBox(source, width, height);
   // The glow follows the drawn cover's own shape, so a narrower cover never sits in a square panel.
   const glowBox = {width: Math.round(box.width * 1.14), height: Math.round(box.height * 1.14)};
   return <View style={{width, height, alignItems: 'center', justifyContent: 'center'}}>
@@ -32,7 +39,7 @@ export function WholeCover({cover, width, height, look, priority = false, elevat
       <View style={{...box, borderRadius: look.radius, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
         {/* The generated cover stays under the picture while it loads, and shows if it is refused or broken. */}
         {source ? <Artwork source={source} width={box.width} height={box.height} priority={priority} fallback={cover.fallback}
-          onSize={natural => setFound({key: source.cacheKey, aspect: natural.width / natural.height})}/> : cover.fallback}
+          onSize={onSize}/> : cover.fallback}
       </View>
     </View>
   </View>;
