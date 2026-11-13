@@ -371,31 +371,6 @@ func jobOut(r *http.Request, j db.Job) *Job {
 // (the owner's ruling), so what changed while it was off waits for a scan.
 const watchNote = "Changes made while the server was off are picked up at the next scheduled scan or Scan now, not when the server starts."
 
-func (s *Server) libraryOut(r *http.Request, l db.AdminLibrary) (AdminLibrary, error) {
-	out := AdminLibrary{ID: l.PublicID, Name: l.Name, Kind: l.Kind, Language: l.Language, Folders: s.foldersOut(l.Library, l.Folders),
-		Options: libraryOptionsOut(l.Options), LastScanStartedAt: timePtr(l.ScanStartedAt), LastScanFinishedAt: timePtr(l.ScanFinishedAt),
-		Revision: strconv.FormatInt(l.Revision, 10)}
-	out.MetadataProvider = (db.LibrarySource{Kind: l.Kind, Provider: l.MetadataProvider}).ProviderName()
-	out.MetadataProviders = s.metadata.LibraryProviders(l.Kind)
-	if l.Kind == db.LibraryMovies || l.Kind == db.LibraryShows || l.Kind == db.LibraryAnime {
-		out.Region = &l.Region
-	}
-	if !l.Options.NoWatch {
-		out.WatchNote = watchNote
-	}
-	job, err := s.db.JobFor(r.Context(), db.JobScan, l.PublicID)
-	if err != nil && !errors.Is(err, db.ErrNotFound) {
-		return out, err
-	}
-	out.Scanning = err == nil && (job.State == db.JobWaiting || job.State == db.JobRunning)
-	hashes, err := s.db.LibraryCoverHashes(r.Context(), l.Library)
-	out.LibraryCoverURLs = []string{}
-	for _, hash := range hashes {
-		out.LibraryCoverURLs = append(out.LibraryCoverURLs, "/v1/images/"+hash)
-	}
-	return out, err
-}
-
 // library finds the library a route names, or answers not found.
 func (s *Server) library(r *http.Request) (db.AdminLibrary, error) {
 	found, err := s.db.AdminLibraries(r.Context(), r.PathValue("id"))
@@ -585,6 +560,10 @@ func (s *Server) createLibrary(r *http.Request, req LibraryCreate) (AdminLibrary
 			return AdminLibrary{}, err
 		}
 	}
+	language, err := s.libraryLanguage(req.Kind, req.MetadataProvider, req.Language)
+	if err != nil {
+		return AdminLibrary{}, err
+	}
 	key := r.Header.Get("Idempotency-Key")
 	if len(key) > 128 {
 		return AdminLibrary{}, ErrInvalid("The Idempotency-Key is at most 128 characters.")
@@ -599,7 +578,7 @@ func (s *Server) createLibrary(r *http.Request, req LibraryCreate) (AdminLibrary
 		return AdminLibrary{}, err
 	}
 	caller := CallerFrom(r.Context())
-	n := db.NewLibrary{Name: req.Name, Kind: req.Kind, Language: req.Language, Folders: req.Folders, RemoteFolders: remoteFolders,
+	n := db.NewLibrary{Name: req.Name, Kind: req.Kind, Language: language, Folders: req.Folders, RemoteFolders: remoteFolders,
 		UserID: caller.UserID, IdempotencyKey: key, RequestHash: requestHash(req)}
 	n.MetadataProvider, n.Region = req.MetadataProvider, req.Region
 	if req.Options != nil {
@@ -631,6 +610,24 @@ func (s *Server) editLibrary(r *http.Request, req LibraryEdit) (AdminLibrary, er
 		if err := s.checkLibraryProvider(lib.Kind, *req.MetadataProvider); err != nil {
 			return AdminLibrary{}, err
 		}
+	}
+	if req.Language != nil || req.MetadataProvider != nil {
+		provider, language := lib.MetadataProvider, lib.Language
+		if req.MetadataProvider != nil {
+			provider = *req.MetadataProvider
+		}
+		if req.Language != nil {
+			language = *req.Language
+		}
+		language, err = s.libraryLanguage(lib.Kind, provider, language)
+		if err != nil && req.Language == nil {
+			language, err = s.libraryLanguage(lib.Kind, provider, "")
+		}
+		if err != nil {
+			return AdminLibrary{}, err
+		}
+		// Keep the language check and provider choice on the same library revision.
+		edit.Language, edit.Revision = &language, lib.Revision
 	}
 	// An edit made on a copy of the library that has since changed is refused, when the app
 	// says which copy it was made on.

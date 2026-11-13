@@ -62,9 +62,11 @@ func (s *Service) Use(p Provider) {
 
 // LibraryMetadataProvider is one choice the definition offers and whether its implementation is registered now.
 type LibraryMetadataProvider struct {
-	ID        string `json:"id"`
-	Available bool   `json:"available"`
-	Reason    string `json:"reason,omitempty"`
+	ID              string   `json:"id"`
+	Available       bool     `json:"available"`
+	Reason          string   `json:"reason,omitempty"`
+	Languages       []string `json:"languages,omitempty"`
+	DefaultLanguage string   `json:"defaultLanguage,omitempty"`
 }
 
 // LibraryProviders reads runtime availability from the same map as Asks; local files need no provider.
@@ -84,6 +86,16 @@ func (s *Service) LibraryProviders(kind string) []LibraryMetadataProvider {
 	choices := make([]LibraryMetadataProvider, 0, len(names))
 	for _, name := range names {
 		choice := LibraryMetadataProvider{ID: name, Available: name == db.ProviderLocal || s.Providers[name] != nil}
+		switch name {
+		case "tmdb", "tvdb":
+			// The 28 video metadata languages in the Libraries settings spec.
+			choice.Languages = []string{"en", "ar", "zh", "cs", "da", "nl", "fi", "fr", "de", "el", "he", "hi", "hu", "it",
+				"ja", "ko", "no", "pl", "pt", "ro", "ru", "sk", "es", "sv", "th", "tr", "uk", "vi"}
+			choice.DefaultLanguage = "en"
+		case "anilist":
+			// Native titles alone are not a translated title-and-description language.
+			choice.Languages, choice.DefaultLanguage = []string{"en"}, "en"
+		}
 		if !choice.Available {
 			choice.Reason = "This metadata provider is not available on this server."
 			if name == "tvdb" {
