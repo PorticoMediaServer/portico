@@ -152,3 +152,20 @@ test('authentication after a failed initial read never calls the account service
  available=true;await service.authenticate(async()=>{calls++;return session();});
  assert.equal(calls,1);assert.equal(service.getSnapshot().phase,'ready');
 });
+
+
+test('an optional empty display name survives native and browser session and credential reads', async () => {
+ const {parseNativeCredentialRecord, parseBrowserCredentialRecord}=await import('../src/credential-format.ts');
+ const {parseAccountSession}=await import('../src/hosted-security.ts');
+ const held={...session(),account:{...session().account,displayName:''}};
+ const native={version:1,revocations:[],active:{session:held,authority:held.refreshToken,context:{}}};
+ const {refreshToken: _refresh,...browserSession}=held;
+ const browser={version:1,revocations:[],active:{session:{...browserSession,accessToken:''},authority:{familyId:held.familyId},context:{}}};
+ assert.equal(parseNativeCredentialRecord(native).active!.session.account.displayName,'');
+ assert.equal(parseBrowserCredentialRecord(browser).active!.session.account.displayName,'');
+ assert.equal(parseAccountSession(held,'native').account.displayName,'');
+ assert.equal(parseAccountSession(browserSession,'browser').account.displayName,'');
+ const bad={...held,account:{...held.account,displayName:'bad\u0000name'}};
+ assert.throws(()=>parseNativeCredentialRecord({...native,active:{...native.active,session:bad}}));
+ assert.throws(()=>parseAccountSession(bad,'native'));
+});

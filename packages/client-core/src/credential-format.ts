@@ -24,7 +24,7 @@ function session(raw:unknown,mode:'native'|'browser',stored:boolean):HostedSessi
  if(!currentUTCTimestamp(raw.expiresAt)||!currentUTCTimestamp(raw.refreshExpiresAt)||utcOrderKey(raw.expiresAt)>utcOrderKey(raw.refreshExpiresAt)||!object(raw.account))invalid();
  keys(raw.account,['id','username','displayName']);
  const common={familyId,expiresAt:raw.expiresAt,refreshExpiresAt:raw.refreshExpiresAt,
-  account:{id:text(raw.account.id),username:text(raw.account.username),displayName:text(raw.account.displayName,2048)}};
+  account:{id:text(raw.account.id),username:text(raw.account.username),displayName:raw.account.displayName===''?'':text(raw.account.displayName,2048)}};
  if(mode==='native')return {...common,accessToken:text(raw.accessToken,16384),refreshToken:text(raw.refreshToken,16384)};
  if(raw.refreshToken!==undefined||typeof raw.accessToken!=='string'||raw.accessToken.length>16384||/[\x00-\x1f\x7f]/.test(raw.accessToken)||(stored&&raw.accessToken!==''))invalid();
  // Browser persistence intentionally contains coordination metadata, never access/refresh credentials.
