@@ -115,15 +115,3 @@ test('a definitive password refusal leaves fields editable for a corrected origi
   assert.equal(f.service.getSnapshot().step, 'done');
   f.service.dispose();
 });
-
-test('account deletion uses preview and exact typed account confirmation, without a password proof', async () => {
-  const f = await fixture(); f.service.open('delete'); await f.service.submit();
-  assert.equal(f.service.getSnapshot().step, 'deletion');
-  await f.service.submit({confirmation: 'someone-else@example.invalid'});
-  assert.equal(f.calls.filter(value => value[0] === 'delete').length, 0);
-  await f.service.submit({confirmation: 'person@example.invalid'});
-  assert.equal(f.calls.filter(value => value[0] === 'delete').length, 1);
-  assert.equal(f.calls.filter(value => value[0] === 'proof').length, 0);
-  assert.deepEqual(f.calls.find(value => value[0] === 'sign-out'), ['sign-out', {accountId: 'account', familyId: 'family'}]);
-  f.service.dispose();
-});

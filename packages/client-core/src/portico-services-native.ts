@@ -171,3 +171,11 @@ export async function readPorticoAccountSecurity(accessToken: string, origin: st
 export function readPorticoAccount(accessToken: string, origin: string, fetcher: typeof fetch, signal: AbortSignal) {
   return refused(porticoAccount(heldFor(accessToken), origin, {fetcher}).account(signal));
 }
+
+/** Delete only after the password and, when enabled, the two-step code typed for this action. */
+export async function deletePorticoAccount(accessToken: string, origin: string, fetcher: typeof fetch,
+  password: string, twoStepCode: string, signal: AbortSignal): Promise<void> {
+  if (!password) throw new ApiError(422, 'invalid_password', 'portico_services_password_required');
+  const account = porticoAccount(heldFor(accessToken), origin, {fetcher: (url, init) => fetcher(url, {...init, signal})});
+  await refused(account.deleteAccount({currentPassword: password, twoStepCode}));
+}
