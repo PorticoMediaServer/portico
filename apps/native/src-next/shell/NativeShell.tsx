@@ -122,7 +122,8 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   pageInRouteLayer.current = theme.isTV && destination.kind === 'search';
   /** TV-FOCUS-REVIEW §5: one layer stack owns which full-screen layer is on top, what is covered, and where focus
    * goes when a layer opens over another or closes (W-9, W-12). */
-  const layers = useMemo(() => theme.isTV ? createTVLayerStack(registry) : undefined, [registry, theme.isTV]);
+  const railRegion = useRef(ids.rail); railRegion.current = ids.rail;
+  const layers = useMemo(() => theme.isTV ? createTVLayerStack(registry, undefined, undefined, focus => focus.regionId === railRegion.current) : undefined, [registry, theme.isTV]);
   useEffect(() => () => layers?.dispose(), [layers]);
   const navigationPort = runtime.navigation;
   const routeLayerKeys = useSyncExternalStore(navigationPort?.subscribe ?? noStacks, () => tvRouteLayerKeys(navigationPort), () => '[]');

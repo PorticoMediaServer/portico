@@ -23,7 +23,10 @@ export const LAYER_FOCUS_WAIT_MS = 1000;
  * attaches, then its row, region or neighbours, then the layer itself. It replaces the shell's per-case page and
  * route memories, claim loops and frame-counted returns.
  */
-export function createTVLayerStack(registry: Registry, clock: Clock = realClock, wait = LAYER_FOCUS_WAIT_MS) {
+export function createTVLayerStack(registry: Registry, clock: Clock = realClock, wait = LAYER_FOCUS_WAIT_MS,
+  /** Focus that is in no layer (the side rail, drawn beside them). Android TV's recovery can drop focus there when a layer
+   * covers the one under it before the new layer can take focus; landing there is not the new layer taking focus. */
+  outside: (snapshot: FocusSnapshot) => boolean = () => false) {
   let layers: readonly TVLayerSpec[] = [];
   const openers = new Map<string, Readonly<{snapshot: FocusSnapshot; release: () => void}>>();
   const listeners = new Set<() => void>();
@@ -41,7 +44,7 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
     const done = () => {
       const now = registry.capture();
       // Already on what it is owed counts only once a request for it was actually sent.
-      return !!now && (!same(now, before) || granted && !!owed && (same(now, owed) || owed.entityId !== undefined && now.entityId === owed.entityId && now.regionId === owed.regionId));
+      return !!now && (!same(now, before) && !outside(now) || granted && !!owed && (same(now, owed) || owed.entityId !== undefined && now.entityId === owed.entityId && now.regionId === owed.regionId));
     };
     let finished = false, asking = false, granted = false;
     const finish = () => {if (finished) return; finished = true; off(); clock.cancel(timer); if (pending === finish) pending = undefined;};
@@ -57,7 +60,8 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
     const target = layers.find(layer => layer.key === key);
     const ask = target?.claim ?? (target?.host ? () => requestNativeFocus(host(key)) : undefined);
     if (!ask) return;
-    settle(ask, () => {});
+    // At the deadline, a layer whose focus is still outside it (or never moved) asks once more.
+    settle(ask, () => {const now = registry.capture(); if (!now || outside(now)) ask();});
   };
   const restore = (key: string, snapshot: FocusSnapshot) => settle(
     () => registry.focus(snapshot),
