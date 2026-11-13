@@ -320,7 +320,7 @@ const query = (path: string, values: Readonly<Record<string, string | number | u
 };
 
 /** The rebuilt server's answer to GET /v1/items/{id}/book: how to read one version of a book. */
-type BookAnswer = Readonly<{itemId: string; version: string; versions: readonly Readonly<{id: string; format: string; name?: string}>[];
+type BookAnswer = Readonly<{itemId: string; version: string; versions: readonly Readonly<{id: string; format: string; name?: string; fingerprint?: string}>[];
   format: string; fingerprint: string; size: number; unreadable?: Readonly<{code: string; message: string}>; mediaUrl?: string; saveUrl?: string;
   direction?: string; parts?: readonly Readonly<{path: string; type: string; size: number}>[]; spine?: readonly string[];
   contents?: readonly Readonly<{title: string; part: string; fragment?: string; depth: number}>[]; pages?: readonly string[]}>;
@@ -702,7 +702,9 @@ export class ReadingClient {
     }) as unknown as ReadingManifest;
     this.check(signal);
     const state = isRecord(item.state) ? item.state : {};
-    const session = new ReadingSession(this, manifest, {mediaUrl: book.mediaUrl, saveUrl: book.saveUrl}, typeof state.position === 'string' ? state.position : '');
+    // The book's copies still kept, when the server names every one (10-reading rule 27).
+    const kept = book.versions.every(v => typeof v.fingerprint === 'string' && v.fingerprint) ? new Set(book.versions.map(v => v.fingerprint!)) : undefined;
+    const session = new ReadingSession(this, manifest, {mediaUrl: book.mediaUrl, saveUrl: book.saveUrl}, typeof state.position === 'string' ? state.position : '', kept);
     this.#sessions.add(session); return session;
   }
   /** A book's address again, for an open book whose address has ended. */
@@ -746,8 +748,10 @@ export class ReadingSession {
   #access: BookAccess;
   #renewal: Promise<void> | undefined;
   #annotationRevision = 0;
-  constructor(client: ReadingClient, manifest: ReadingManifest, access: BookAccess, _place: string) {
-    this.#client = client; this.manifest = frozen(manifest); this.signal = this.#life.signal; this.#access = access;
+  /** The fingerprints of the book's copies still kept; undefined when the server does not say. */
+  #kept: ReadonlySet<string> | undefined;
+  constructor(client: ReadingClient, manifest: ReadingManifest, access: BookAccess, _place: string, kept?: ReadonlySet<string>) {
+    this.#client = client; this.manifest = frozen(manifest); this.signal = this.#life.signal; this.#access = access; this.#kept = kept;
     this.#retire = () => this.retire(client.signal.reason); client.signal.addEventListener('abort', this.#retire, {once: true});
     Object.freeze(this);
   }
@@ -935,7 +939,8 @@ export class ReadingSession {
     return {saved: true, progress: {location, observedAt: Date.now(), revision: expectedRevision + 1, sourceId: this.manifest.sourceId, sourceRevision: this.manifest.revision, stale: false}};
   };
   /** The profile's bookmarks, highlights and notes made in this file. Those made in an earlier
-   * copy of the book carry earlierCopy so the screen can try their words or list them separately. */
+   * copy of the book carry earlierCopy so the screen can try their words or list them separately,
+   * and earlierCopyGone when that copy is no longer kept, so a highlight found here may move here. */
   annotations = async (cursor = '', _revision?: number, signal?: AbortSignal): Promise<ReadingAnnotationsPage> => {
     this.#check();
     if (cursor) return Object.freeze({sourceId: this.manifest.sourceId, sourceRevision: this.manifest.revision, revision: this.#annotationRevision, entries: [], nextCursor: ''});
@@ -952,7 +957,7 @@ export class ReadingSession {
           const earlierCopy = row.madeOn !== this.manifest.revision;
           if (!earlierCopy) validateLocation(location, this.manifest);
           const extra = isRecord(row.extra) ? row.extra : {};
-          entries.push(Object.freeze({...(earlierCopy ? {earlierCopy: true as const} : {}), id: row.id, kind: row.kind === 'highlight' ? 'highlight' : 'bookmark', location,
+          entries.push(Object.freeze({...(earlierCopy ? {earlierCopy: true as const} : {}), ...(earlierCopy && this.#kept && !this.#kept.has(String(row.madeOn)) ? {earlierCopyGone: true as const} : {}), id: row.id, kind: row.kind === 'highlight' ? 'highlight' : 'bookmark', location,
             text: typeof row.text === 'string' ? row.text : '', note: typeof row.note === 'string' ? row.note : '',
             colour: (typeof row.color === 'string' ? row.color : '') as '' | 'yellow' | 'green' | 'blue' | 'pink',
             ...(Array.isArray(extra.rects) ? {rects: Object.freeze(extra.rects as {x: number; y: number; width: number; height: number}[])} : {}),

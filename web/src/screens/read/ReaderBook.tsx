@@ -93,15 +93,18 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
   const fixed = publication.format !== 'epub', comic = isReaderComicFormat(publication.format);
   const notes = useReaderAnnotations(book.annotations, controller, authority, active, snapshot.status === 'ready');
   const annotationLease=useAnnotationLease(notes.service);
-  usePlaceEarlierCopies(notes.service, controller, active && snapshot.status === 'ready');
-  // 10-reading rule 22: the profile's highlights made in this file are drawn in the page.
+  // 10-reading rule 27: earlier-copy highlights whose words are found in this copy, for this open.
+  const placed = usePlaceEarlierCopies(notes.service, controller, active && snapshot.status === 'ready', publication.source.id + ':' + publication.source.revision);
+  // 10-reading rules 22 and 27: the profile's highlights made in this file are drawn in the page, and
+  // those from an earlier copy where their words were found.
   useEffect(() => {
     controller.setMarks(notes.state.entries.flatMap(entry => {
-      if (entry.kind !== 'highlight' || entry.earlierCopy || !entry.colour) return [];
-      try {return [{id: entry.id, colour: entry.colour, location: readerLocationFromReading(entry.location), ...(entry.rects ? {rects: entry.rects} : {})}];}
+      const at = entry.earlierCopy ? placed.get(entry.id) : entry.location;
+      if (entry.kind !== 'highlight' || !entry.colour || !at) return [];
+      try {return [{id: entry.id, colour: entry.colour, location: readerLocationFromReading(at), ...(entry.rects && !entry.earlierCopy ? {rects: entry.rects} : {})}];}
       catch {return [];}
     }));
-  }, [controller, notes.state.entries]);
+  }, [controller, notes.state.entries, placed]);
   const listSignal=annotationPanel.current.signal;
   if(!active)annotationPanel.current.abort();
   useLayoutEffect(()=>{const original=annotationPanel.current;return()=>original.abort();},[]);
@@ -238,7 +241,7 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
       ...(notes.service ? [{id:'bookmarks',label:t('next.reader.bookmarks')},{id:'highlights',label:t('next.reader.highlights')}] : [])]}
     selected={annotationPane ?? (fixed && !snapshot.toc.length ? 'pages' : fixedPane === 'pages' ? 'pages' : 'contents')}
     onSelect={selected => {if (selected === 'bookmarks' || selected === 'highlights' || selected === 'pages' || selected === 'contents') setFixedPane(selected);}} onClose={() => setPanel(undefined)} footer={(environment === 'web' || !!saveHighlights) && annotationPane === 'highlights' && notes.service ? <ReaderHighlightsExport key={publication.source.id + publication.source.revision} service={notes.service} signal={listSignal} nativeSave={environment === 'native' ? saveHighlights : undefined} title={publication.metadata.title} author={publication.metadata.author} reportError={reportError}/> : undefined}>
-    {annotationPane && notes.service ? <ReaderAnnotationList key={fixedPane} signal={listSignal} kind={annotationPane === 'bookmarks' ? 'bookmark' : 'highlight'} service={notes.service} state={notes.state} controller={controller} reportError={reportError}/>
+    {annotationPane && notes.service ? <ReaderAnnotationList key={fixedPane} placed={placed} signal={listSignal} kind={annotationPane === 'bookmarks' ? 'bookmark' : 'highlight'} service={notes.service} state={notes.state} controller={controller} reportError={reportError}/>
       : !fixed || snapshot.toc.length > 0 && fixedPane === 'contents' ? <ReaderContents entries={contents(snapshot.toc)}/>
         : <FixedPagesPanel controller={controller} authority={authority} format={publication.format} reportError={engineError} onNavigate={() => {if (presentation === 'phone') setPanel(undefined);}}/>}
   </ReaderPanel>

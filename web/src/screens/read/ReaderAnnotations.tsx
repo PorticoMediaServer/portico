@@ -41,14 +41,27 @@ function settled(service: ReadingAnnotationService, signal: AbortSignal): Promis
     const off = service.subscribe(check); signal.addEventListener('abort', check, {once: true}); check();
   });
 }
-/** 10-reading rule 27: a highlight from an earlier copy of this book is placed where its words are
- * found in this copy, at the match nearest where it was, and saved there, once per opened book.
- * One whose words are not found stays listed under "From an earlier copy of this book". The
- * search reads up to 1,024 characters, so a longer highlight stays listed. */
-export function usePlaceEarlierCopies(service: ReadingAnnotationService | undefined, controller: ReadingController, ready: boolean) {
+/** The search reads at most this many matches; words found this often or more are not placed. */
+const placeLimit = 200;
+type Remembered = Record<string, ReadingAnnotation['location'] | null>;
+const remembered = (key: string): Remembered => {try {const value = JSON.parse(globalThis.localStorage?.getItem(key) ?? '{}'); return value && typeof value === 'object' ? value : {};} catch {return {};}};
+const remember = (key: string, value: Remembered) => {try {globalThis.localStorage?.setItem(key, JSON.stringify(value));} catch { /* without storage the next open searches again */ }};
+/**
+ * 10-reading rule 27: a highlight from an earlier copy of this book is looked for by its words in
+ * this copy. It is placed only when the search returned every match (fewer than 200), at the one
+ * nearest where it was. While the copy it was made on is still kept (another version), it is drawn
+ * here for this open only, never saved, so it stays where it was in that copy. When that copy is
+ * gone (its file replaced or removed), it is moved here by saving it on this copy. One not placed
+ * stays listed under "From an earlier copy of this book". What each search found is remembered in
+ * this browser per copy and highlight, so a book is searched once per copy, not on every open.
+ * The search reads up to 1,024 characters, so a longer highlight stays listed.
+ */
+export function usePlaceEarlierCopies(service: ReadingAnnotationService | undefined, controller: ReadingController, ready: boolean, copy: string): ReadonlyMap<string, ReadingAnnotation['location']> {
+  const [placed, setPlaced] = useState<ReadonlyMap<string, ReadingAnnotation['location']>>(new Map());
   useEffect(() => {
     if (!service || !ready) return;
-    const life = new AbortController(), tried = new Set<string>();
+    const life = new AbortController(), key = 'portico.reader.earlierCopy.v1:' + copy, memory = remembered(key), shown = new Map<string, ReadingAnnotation['location']>(), tried = new Set<string>();
+    setPlaced(new Map());
     void (async () => {
       for (;;) {
         const state = await settled(service, life.signal);
@@ -56,17 +69,27 @@ export function usePlaceEarlierCopies(service: ReadingAnnotationService | undefi
           && entry.text.trim() && entry.text.length <= 1024 && !tried.has(entry.id));
         if (!state || !next) return;
         tried.add(next.id);
-        let best: ReaderLocation | undefined;
-        for await (const hit of controller.search(next.text, {signal: life.signal, limit: 20})) {
-          if (hit.location?.format === 'epub' && (!best || Math.abs(hit.location.progression - next.location.progression) < Math.abs(best.progression - next.location.progression))) best = hit.location;
+        const memoryKey = next.id + '@' + next.updatedAt;
+        let found = memory[memoryKey];
+        if (found === undefined) {
+          let best: ReaderLocation | undefined, count = 0;
+          for await (const hit of controller.search(next.text, {signal: life.signal, limit: placeLimit})) {
+            count++;
+            if (hit.location?.format === 'epub' && (!best || Math.abs(hit.location.progression - next.location.progression) < Math.abs(best.progression - next.location.progression))) best = hit.location;
+          }
+          if (life.signal.aborted) return;
+          found = best && count < placeLimit ? readingLocationFromReader(best) : null;
+          memory[memoryKey] = found; remember(key, memory);
         }
-        if (!best || life.signal.aborted) continue;
-        await service.write({id: next.id, kind: 'highlight', location: readingLocationFromReader(best), text: next.text, note: next.note, colour: next.colour},
+        if (!found) continue;
+        if (next.earlierCopyGone) await service.write({id: next.id, kind: 'highlight', location: found, text: next.text, note: next.note, colour: next.colour},
           {revision: state.revision, signal: life.signal, isCurrent: () => !life.signal.aborted});
+        else {shown.set(next.id, found); setPlaced(new Map(shown));}
       }
     })().catch(() => { /* a search or save that fails leaves the highlight listed from the earlier copy */ });
     return () => life.abort();
-  }, [service, controller, ready]);
+  }, [service, controller, ready, copy]);
+  return placed;
 }
 const colours = ['yellow','green','blue','pink'] as const;
 const colourLabels = {yellow:'next.reader.annotationYellow',green:'next.reader.annotationGreen',blue:'next.reader.annotationBlue',pink:'next.reader.annotationPink'} as const;
@@ -157,11 +180,12 @@ export function bookmarkPlace(location:ReadingAnnotation['location'],toc:readonl
   }else if(typeof location.pageIndex==='number')return t('next.reader.pageLabel',{page:defaultI18n.number(location.pageIndex+1)});
   return Number.isFinite(location.progression)?defaultI18n.percent(location.progression):t('next.reader.bookmarks');
 }
-export function ReaderAnnotationList({kind,service,state,controller,reportError,signal}: {kind:'bookmark'|'highlight';service:ReadingAnnotationService;state:ReadingAnnotationState;controller:ReadingController;reportError:(error:unknown)=>void;signal:AbortSignal}) {
+export function ReaderAnnotationList({kind,service,state,controller,reportError,signal,placed}: {kind:'bookmark'|'highlight';service:ReadingAnnotationService;state:ReadingAnnotationState;controller:ReadingController;reportError:(error:unknown)=>void;signal:AbortSignal;
+  /** Earlier-copy highlights found in this copy for this open: listed with the others, not editable here. */ placed?:ReadonlyMap<string,ReadingAnnotation['location']>}) {
   const lease=useAnnotationLease(signal);
   const {opening,open,close}=useNoteOpening();
   const toc=useSyncExternalStore(controller.subscribe,()=>controller.getSnapshot().toc,()=>controller.getSnapshot().toc);
-  const all=state.entries.filter(entry=>entry.kind===kind),entries=all.filter(entry=>!entry.earlierCopy),earlier=all.filter(entry=>entry.earlierCopy),busy=state.loading||state.saving||state.revision===undefined;
+  const all=state.entries.filter(entry=>entry.kind===kind),entries=all.filter(entry=>!entry.earlierCopy||placed?.has(entry.id)),earlier=all.filter(entry=>entry.earlierCopy&&!placed?.has(entry.id)),busy=state.loading||state.saving||state.revision===undefined;
   const owns=(entry:ReadingAnnotation)=>live(lease)&&!signal.aborted&&service.current()&&service.getSnapshot().entries.includes(entry);
   return <div className={styles.list}>
     {!!state.error&&<p role="alert">{t('next.reader.annotationFailed')}</p>}
@@ -169,11 +193,11 @@ export function ReaderAnnotationList({kind,service,state,controller,reportError,
     {state.loading&&<p role="status">{t('status.loading')}</p>}
     {!state.loading&&!state.error&&state.revision!==undefined&&!all.length&&<p>{t('next.reader.annotationEmpty')}</p>}
     {entries.map(entry=><article key={entry.id} data-colour={entry.colour}>
-      <button type="button" className={styles.anchor} onClick={()=>{if(owns(entry)&&lease)void controller.navigate({kind:'location',location:readerLocationFromReading(entry.location)},AbortSignal.any([signal,lease.life.signal])).catch(error=>{if(owns(entry))reportError(error);});}}>
+      <button type="button" className={styles.anchor} onClick={()=>{if(owns(entry)&&lease)void controller.navigate({kind:'location',location:readerLocationFromReading(placed?.get(entry.id)??entry.location)},AbortSignal.any([signal,lease.life.signal])).catch(error=>{if(owns(entry))reportError(error);});}}>
         {entry.text||bookmarkPlace(entry.location,toc)}
       </button>
       {entry.note&&<p>{entry.note}</p>}<time dateTime={new Date(entry.updatedAt).toISOString()}>{defaultI18n.dateTime(entry.updatedAt)}</time>
-      <Button disabled={busy} onClick={()=>{if(owns(entry)&&state.revision!==undefined)open({id:randomId(),owner:service,life:new AbortController(),content:entry,member:entry,revision:state.revision});}}>{t('next.reader.annotationEdit')}</Button>
+      {!entry.earlierCopy&&<Button disabled={busy} onClick={()=>{if(owns(entry)&&state.revision!==undefined)open({id:randomId(),owner:service,life:new AbortController(),content:entry,member:entry,revision:state.revision});}}>{t('next.reader.annotationEdit')}</Button>}
       <Button disabled={busy} onClick={()=>{if(owns(entry)&&lease)void service.write({id:entry.id,remove:true},{revision:state.revision,signal:AbortSignal.any([signal,lease.life.signal]),isCurrent:()=>owns(entry)});}}>{t('next.reader.annotationDelete')}</Button>
     </article>)}
     {/* 10-reading rule 27: one from an earlier copy whose words are not found in this one is kept here, with its words and note, and can only be removed. */}
