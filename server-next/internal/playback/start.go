@@ -649,18 +649,3 @@ func (s *Service) Limits(ctx context.Context) (Limits, error) {
 	json.Unmarshal([]byte(value), &out)
 	return out, nil
 }
-
-// SetLimits replaces the owner's stream limits. Lowering one never cuts off anyone already
-// playing: a limit is only looked at when something starts.
-func (s *Service) SetLimits(ctx context.Context, l Limits) error {
-	if l.Total < 0 || l.PerPerson < 0 || l.EndPausedVideoAfterMs < 0 {
-		return &Invalid{Field: "limits", Message: "A limit is a whole number, or 0 for none."}
-	}
-	for _, n := range l.People {
-		if n < 0 {
-			return &Invalid{Field: "people", Message: "A limit is a whole number, or 0 for none."}
-		}
-	}
-	value, _ := json.Marshal(l)
-	return s.db.SaveSetting(ctx, limitsKey, string(value), s.now())
-}

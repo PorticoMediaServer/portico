@@ -82,7 +82,7 @@ func TestMovingPlaybackToAnotherDevice(t *testing.T) {
 	th := newTheatre(t)
 	phone := th.owner.AccessToken
 	tv := onMain(t, th.s, signIn(t, th.s, 1)).AccessToken
-	if code := status(t, th.s, "PUT", "/v1/admin/playback/stream-limits", phone, StreamLimits{PerPerson: 1}); code != 200 {
+	if code := status(t, th.s, "PATCH", "/v1/admin/playback/stream-limits", phone, StreamLimits{PerPerson: 1}); code != 200 {
 		t.Fatalf("setting a stream limit answered %d", code)
 	}
 	var opened ReceiverOpen
@@ -241,7 +241,7 @@ func TestAFailedMoveLeavesTheAccountAsItWas(t *testing.T) {
 	th := newTheatre(t)
 	phone := th.owner.AccessToken
 	tv := onMain(t, th.s, signIn(t, th.s, 1)).AccessToken
-	if code := status(t, th.s, "PUT", "/v1/admin/playback/stream-limits", phone, StreamLimits{PerPerson: 1}); code != 200 {
+	if code := status(t, th.s, "PATCH", "/v1/admin/playback/stream-limits", phone, StreamLimits{PerPerson: 1}); code != 200 {
 		t.Fatalf("setting a stream limit answered %d", code)
 	}
 	var opened ReceiverOpen

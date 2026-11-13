@@ -11,18 +11,17 @@ import (
 // accounts' overrides. An absent account inherits; zero means unlimited.
 const StreamLimitsSetting = "playback.streams"
 
-// SetAccountStreamLimits changes only the named accounts, atomically in the settings row.
-// A null entry removes that override. JSON merge-patch preserves the other accounts and all
-// server-wide limits.
-func (d *DB) SetAccountStreamLimits(ctx context.Context, people map[string]*int, now time.Time) (string, error) {
-	if len(people) == 0 {
+// PatchStreamLimits changes only the named fields and accounts, atomically in the settings
+// row. A null account removes that override; other accounts and fields are preserved.
+func (d *DB) PatchStreamLimits(ctx context.Context, fields map[string]any, now time.Time) (string, error) {
+	if len(fields) == 0 {
 		value, _, err := d.Setting(ctx, StreamLimitsSetting)
 		if value == "" {
 			value = "{}"
 		}
 		return value, err
 	}
-	patch, err := json.Marshal(map[string]any{"people": people})
+	patch, err := json.Marshal(fields)
 	if err != nil {
 		return "", err
 	}

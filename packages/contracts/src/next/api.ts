@@ -3754,8 +3754,11 @@ export interface StreamLimits {
   endPausedVideoAfterMs?: number;
 }
 
-export interface StreamLimitsPeopleEdit {
-  people: Record<string, number | null>;
+export interface StreamLimitsEdit {
+  total?: number;
+  perPerson?: number;
+  people?: Record<string, number | null>;
+  endPausedVideoAfterMs?: number;
 }
 
 export interface StreamStop {
@@ -4153,8 +4156,7 @@ export interface Routes {
   'PUT /v1/playback/sessions/{id}/progress': {access: 'withProfile'; request: PlaybackProgress; response: PlaybackLease};
   'DELETE /v1/playback/sessions/{id}': {access: 'withProfile'; request: PlaybackStop; response: undefined};
   'GET /v1/admin/playback/stream-limits': {access: 'owner'; request: undefined; response: StreamLimits};
-  'PUT /v1/admin/playback/stream-limits': {access: 'owner'; request: StreamLimits; response: StreamLimits};
-  'PATCH /v1/admin/playback/stream-limits': {access: 'owner'; request: StreamLimitsPeopleEdit; response: StreamLimits};
+  'PATCH /v1/admin/playback/stream-limits': {access: 'owner'; request: StreamLimitsEdit; response: StreamLimits};
   'POST /v1/queues': {access: 'withProfile'; request: QueueCreate; response: QueueCreated};
   'GET /v1/queues': {access: 'withProfile'; request: undefined; response: QueuePage};
   'GET /v1/queues/{id}': {access: 'withProfile'; request: undefined; response: Queue};
