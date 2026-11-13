@@ -23,6 +23,7 @@ export function checkServerUpdates(api: ServerRequester, signal?: AbortSignal): 
 export function latestVersionLine(updates: ServerUpdates, t: (id: 'next.dashboard.updateAvailable' | 'web.maintenance.updateAvailable' | 'web.maintenance.upToDate', values?: Record<string, string>) => string): string {
   if (updates.error) return updates.error;
   if (updates.newer) return updates.newest?.version ? t('next.dashboard.updateAvailable', {version: updates.newest.version}) : t('web.maintenance.updateAvailable');
+  if (!updates.checkedAt && !updates.error) return '';
   return t('web.maintenance.upToDate');
 }
 
