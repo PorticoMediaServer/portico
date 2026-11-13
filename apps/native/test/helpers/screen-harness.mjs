@@ -6,6 +6,7 @@ import * as preparingCleanup from '../../../../packages/client-core/src/playback
 import * as subtitleUploads from '../../../../packages/client-core/src/playback-v1/subtitle-upload.ts';
 import * as ownerSettingsPolicy from '../../../../packages/client-core/src/owner-settings-policy.ts';
 import * as ownerRequests from '../../../../packages/client-core/src/owner-requests.ts';
+import * as serverUpdates from '../../../../packages/client-core/src/server-admin/server-updates.ts';
 import * as ownerLibraryRequests from '../../../../packages/client-core/src/owner-library-requests.ts';
 import * as ownerUploadRequests from '../../../../packages/client-core/src/owner-upload-requests.ts';
 import * as ownerAccountClients from '../../../../packages/client-core/src/owner-account-clients.ts';
@@ -89,6 +90,7 @@ const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)
   : /(^|\/)server-clock(\.ts)?$/.test(source) && /client-core\/src\/server-clock|^\.\/server-clock/.test(source) ? serverClock
   : /(^|\/)owner-settings-policy(?:\.ts)?$/.test(source) ? ownerSettingsPolicy
   : /(^|\/)owner-requests(?:\.ts)?$/.test(source) ? ownerRequests
+  : /client-core\/src\/server-admin\/server-updates(?:\.ts)?$/.test(source) ? serverUpdates
   : /(^|\/)owner-library-requests(?:\.ts)?$/.test(source) ? ownerLibraryRequests
   : /(^|\/)owner-upload-requests(?:\.ts)?$/.test(source) ? ownerUploadRequests
   : /(^|\/)owner-account-clients(?:\.ts)?$/.test(source) ? ownerAccountClients

@@ -1,5 +1,5 @@
 import {readOwnerOptionalConfiguration} from '../../../../../packages/client-core/src/owner-settings-policy';
-import {readOwnerUpdates} from '../../../../../packages/client-core/src/owner-requests';
+import {readServerUpdates, updatePillShown} from '../../../../../packages/client-core/src/server-admin/server-updates';
 import {useTVVoiceSearch} from './use-tv-voice-search';
 import {tvGroupEdges, tvSettingsResultGroups} from './tv-settings-focus';
 import {passthroughFormats} from '../../platform/playback/passthrough-formats';
@@ -43,7 +43,6 @@ import {setNativeScreenChromeHidden} from '../../shell/chrome';
 import {Screen, useScreenBack, useScreenEntry} from './Screen';
 import {registerBack} from '../../kit/navigation/back';
 import {nativeSettingsActionTarget} from './settings-actions';
-import {parseUpdateReport} from '../../../../../packages/client-core/src/administration';
 import type {NativeShellRoute} from '../../shell/routes';
 import {parseSettingsConfiguration} from '../../../../../packages/client-core/src/settings-configuration';
 import {readSettingsBinding, settingsBinding, type SettingsBindingValue} from '../../../../../packages/client-core/src/presentation/settings-bindings';
@@ -324,13 +323,16 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
   // owner-dashboard 1b/1c: on a phone the Dashboard is reached from a card above the shortcuts, not a Server row.
   const dashboardCard = compact && !theme.isTV && serverPages.some(value => value.id === 'dashboard');
   const serverGroupPages = dashboardCard ? serverPages.filter(value => value.id !== 'dashboard') : serverPages;
-  // The card's Update pill: the owner's update report, read once per showing; any failure just leaves the pill off.
+  // The card's Update pill: whether the server says a newer build is out, read once per showing. Any failure,
+  // including an answer this app cannot read, just leaves the pill off; the catch comes after the read so nothing
+  // thrown while reading the answer goes unhandled.
   const [updatePending, setUpdatePending] = useState(false);
   useEffect(() => {
     if (!dashboardCard || !managesServer) {setUpdatePending(false); return;}
     let live = true;
-    void controller.lifetime.request(next => readOwnerUpdates<unknown>(ports.context.api, next))
-      .then(raw => {if (live && controller.lifetime.current()) setUpdatePending(parseUpdateReport(raw).updateAvailable);}, () => {});
+    void controller.lifetime.request(next => readServerUpdates(ports.context.api, next))
+      .then(updates => {if (live && controller.lifetime.current()) setUpdatePending(updatePillShown(updates));})
+      .catch(() => {});
     return () => {live = false;};
   }, [controller, dashboardCard, managesServer, ports]);
   const sheetShortcuts = shell.account.actions.filter(action => action.id !== 'settings').map(action => ({...action,
