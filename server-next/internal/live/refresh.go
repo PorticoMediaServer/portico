@@ -206,6 +206,8 @@ func (s *Service) refresh(ctx context.Context, src db.LiveSource) (LiveSourceRep
 	}
 	rows := make([]db.SourceChannel, 0, len(pulled.Channels))
 	next := max(cfg.FirstNumber, 1)
+	logos := map[string]string{}
+	images := Document.Get(s.Settings).ImportImages
 	for _, c := range pulled.Channels {
 		row := db.SourceChannel{Key: c.Key, Name: c.Name, Group: c.Group, GuideSource: guideSource, GuideKey: c.GuideKey, Locator: c.Locator,
 			Logo: c.Logo, BroughtIn: brought(cfg, c)}
@@ -229,6 +231,18 @@ func (s *Service) refresh(ctx context.Context, src db.LiveSource) (LiveSourceRep
 			row.Number = row.SourceNumber
 		}
 		if row.BroughtIn {
+			if images && c.Logo != "" {
+				hash, seen := logos[c.Logo]
+				if !seen {
+					var err error
+					hash, err = s.channelLogo(ctx, c.Logo)
+					if err != nil {
+						s.log.Warn("channel logo unavailable", "source", src.PublicID, "error", err)
+					}
+					logos[c.Logo] = hash
+				}
+				row.LogoHash = hash
+			}
 			report.Channels++
 		}
 		rows = append(rows, row)

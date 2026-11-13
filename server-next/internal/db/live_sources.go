@@ -185,6 +185,7 @@ type SourceChannel struct {
 	GuideKey     string
 	Locator      string
 	Logo         string
+	LogoHash     string
 	BroughtIn    bool
 }
 
@@ -210,10 +211,10 @@ func (d *DB) ImportSourceChannels(ctx context.Context, sourceID int64, channels 
 				}
 				if errors.Is(err, sql.ErrNoRows) {
 					_, err = tx.Exec(`INSERT INTO channels (public_id, kind, source_id, source_key, name, sort_name, number, source_number,
-						group_name, state, guide_source_id, guide_key, locator, logo_url, updated_at)
-						VALUES (?, ?, ?, ?, ?, ?, ?, nullif(?, 0), nullif(?, ''), ?, nullif(?, 0), nullif(?, ''), ?, nullif(?, ''), ?)`,
+						group_name, state, guide_source_id, guide_key, locator, logo_url, logo_hash, updated_at)
+						VALUES (?, ?, ?, ?, ?, ?, ?, nullif(?, 0), nullif(?, ''), ?, nullif(?, 0), nullif(?, ''), ?, nullif(?, ''), nullif(?, ''), ?)`,
 						NewID("chn"), ChannelFromSource, sourceID, c.Key, c.Name, sorttext.Key(c.Name, "", ""), c.Number, c.SourceNumber,
-						c.Group, state, c.GuideSource, c.GuideKey, c.Locator, c.Logo, now.UnixMilli())
+						c.Group, state, c.GuideSource, c.GuideKey, c.Locator, c.Logo, c.LogoHash, now.UnixMilli())
 					if err != nil {
 						return err
 					}
@@ -231,10 +232,11 @@ func (d *DB) ImportSourceChannels(ctx context.Context, sourceID int64, channels 
 					number = CASE WHEN ? THEN ? ELSE number END, source_number = nullif(?, 0), group_name = nullif(?, ''),
 					state = CASE WHEN ? THEN state WHEN ? THEN ? ELSE ? END,
 					guide_source_id = CASE WHEN ? THEN nullif(?, 0) ELSE guide_source_id END, guide_key = CASE WHEN ? THEN nullif(?, '') ELSE guide_key END,
-					locator = ?, logo_url = nullif(?, ''), missing_since_at = NULL, updated_at = ? WHERE id = ?`,
+					locator = ?, logo_hash = CASE WHEN ? = '' THEN NULL ELSE coalesce(nullif(?, ''), logo_hash) END,
+					logo_url = nullif(?, ''), missing_since_at = NULL, updated_at = ? WHERE id = ?`,
 					name, c.Name, name, sorttext.Key(c.Name, "", ""), number, c.Number, c.SourceNumber, c.Group,
 					keepState, c.BroughtIn, ChannelInUse, ChannelNotIn, listings, c.GuideSource, listings, c.GuideKey,
-					c.Locator, c.Logo, now.UnixMilli(), id); err != nil {
+					c.Locator, c.Logo, c.LogoHash, c.Logo, now.UnixMilli(), id); err != nil {
 					return err
 				}
 			}
