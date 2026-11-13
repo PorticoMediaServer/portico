@@ -93,6 +93,9 @@ export interface AdminLibrary {
   name: string;
   kind: string;
   language?: string;
+  metadataProvider: string;
+  metadataProviders: LibraryMetadataProvider[];
+  region?: string;
   folders: LibraryFolder[];
   options: LibraryOptions;
   watchNote?: string;
@@ -1515,6 +1518,8 @@ export interface LibraryCreate {
   name: string;
   kind: string;
   language?: string;
+  metadataProvider?: string;
+  region?: string;
   folders: string[];
   remoteFolders?: RemoteFolderRef[];
   options?: LibraryOptions;
@@ -1523,6 +1528,8 @@ export interface LibraryCreate {
 export interface LibraryEdit {
   name?: string;
   language?: string;
+  metadataProvider?: string;
+  region?: string;
   folders?: string[];
   remoteFolders?: RemoteFolderRef[];
   options?: LibraryOptions;
@@ -1537,6 +1544,12 @@ export interface LibraryFolder {
   watched: boolean;
   scanEveryMinutes: number;
   notice?: string;
+}
+
+export interface LibraryMetadataProvider {
+  id: string;
+  available: boolean;
+  reason?: string;
 }
 
 export interface LibraryOptions {
@@ -1857,6 +1870,29 @@ export interface LiveSourceSave {
   signIn?: LiveSignIn;
   playlist?: string;
   guide?: string;
+}
+
+export interface LiveTunerDevice {
+  deviceId: string;
+  model: string;
+  friendlyName: string;
+  address: string;
+  baseUrl: string;
+  lineupUrl: string;
+  tunerCount: number;
+  firmwareVersion: string;
+  configured: boolean;
+}
+
+export interface LiveTunerDiscovery {
+  devices: LiveTunerDevice[];
+  searchedFor: string;
+  discoveryEnabled: boolean;
+  message?: string;
+}
+
+export interface LiveTunerSearch {
+  windowMs: number;
 }
 
 export interface LiveWindow {
@@ -4610,6 +4646,7 @@ export interface Routes {
   'GET /v1/live/guide': {access: 'withProfile'; request: undefined; response: LiveGuide};
   'GET /v1/live/now': {access: 'withProfile'; request: undefined; response: LiveOnNowPage};
   'PUT /v1/live/channels/{id}/state': {access: 'withProfile'; request: LiveChannelMarks; response: LiveChannelMarks};
+  'POST /v1/admin/live-sources/discover': {access: 'owner'; request: LiveTunerSearch; response: LiveTunerDiscovery};
   'GET /v1/admin/live/sources': {access: 'owner'; request: undefined; response: LiveSourcePage};
   'POST /v1/admin/live/sources': {access: 'owner'; request: LiveSourceSave; response: LiveSource};
   'POST /v1/admin/live/sources/preview': {access: 'owner'; request: LiveSourceSave; response: LiveSourcePreview};
