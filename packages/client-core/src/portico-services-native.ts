@@ -149,3 +149,12 @@ export function porticoAccountSessions(accessToken: string, origin: string, fetc
     endOthers: (signal?: AbortSignal) => refused(account.signOutOthers(signal)),
   });
 }
+
+/** An address change uses inline proof, then the code emailed to that new address. */
+export function porticoAccountEmail(accessToken: string, origin: string, fetcher: typeof fetch, signal: AbortSignal) {
+  const account = porticoAccount(heldFor(accessToken), origin, {fetcher: (url, init) => fetcher(url, {...init, signal})});
+  return {
+    ask: (password: string, factor: string, email: string) => refused(account.askEmailChange({currentPassword: password, twoStepCode: factor}, email)),
+    confirm: (email: string, code: string) => refused(account.confirmEmailChange(email, emailedCode(code))),
+  };
+}

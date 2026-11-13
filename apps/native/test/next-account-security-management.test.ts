@@ -19,6 +19,8 @@ async function fixture(security = initialSecurity) {
     acceptDeletion: async (...args: unknown[]) => {calls.push(['delete', ...args]); return {accountDeleted: true};},
   };
   const {NativeAccountSecurity} = await screenModule(new URL('../src-next/platform/account-security.ts', import.meta.url), {
+    '../../../../packages/client-core/src/portico-services-native': {},
+    '../../../../packages/client-core/src/native-abort-signals': {},
     react: {default: {}},
     'react-native': {NativeModules: {PorticoAccountAuth: {newBinding: async () => 'a'.repeat(43), newRequestId: async () => 'operation-1234567890'}}},
     '../../../../packages/client-core/src': {ApiError, HttpLocalApi: class {}},
