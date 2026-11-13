@@ -615,7 +615,7 @@ type LimitReached struct {
 func (e *LimitReached) Error() string { return "stream limit reached" }
 
 // limitsKey is the settings row the stream limits are kept in.
-const limitsKey = db.StreamLimitsSetting
+const limitsKey = "playback.streams"
 
 // Limits are the owner's caps on streams. Zero means no limit, which is the default. A
 // stream is one device playing; a paused one counts until it ends.
@@ -648,4 +648,19 @@ func (s *Service) Limits(ctx context.Context) (Limits, error) {
 	// A value this build cannot read is no limit, not a server that plays nothing.
 	json.Unmarshal([]byte(value), &out)
 	return out, nil
+}
+
+// SetLimits replaces the owner's stream limits. Lowering one never cuts off anyone already
+// playing: a limit is only looked at when something starts.
+func (s *Service) SetLimits(ctx context.Context, l Limits) error {
+	if l.Total < 0 || l.PerPerson < 0 || l.EndPausedVideoAfterMs < 0 {
+		return &Invalid{Field: "limits", Message: "A limit is a whole number, or 0 for none."}
+	}
+	for _, n := range l.People {
+		if n < 0 {
+			return &Invalid{Field: "people", Message: "A limit is a whole number, or 0 for none."}
+		}
+	}
+	value, _ := json.Marshal(l)
+	return s.db.SaveSetting(ctx, limitsKey, string(value), s.now())
 }

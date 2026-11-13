@@ -3,7 +3,7 @@ import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../packages/i18n/src';
 import {canResetSecureRecords, resetSecureRecords, restartApp} from '../platform/secure-records';
 import {StateLayout} from '../kit/states';
-import {Button} from '../kit/controls';
+import {Button, FormError} from '../kit/controls';
 import {Dialog} from '../kit/overlays';
 import {useTheme} from '../kit/theme';
 import {createSecureRecordsRecovery, secureRecordsRecoveryIdle} from './secure-records-recovery';
@@ -36,7 +36,7 @@ export function SecureRecordsRecovery({opening}: {opening: OriginalRoot}) {
         <Button testID="secure-records-reset-confirm" disabled={busy || !recovery} loading={busy} textStyle={{color: theme.colors.danger}}
           onPress={() => {void recovery?.confirm();}}>{t('signIn.reset.confirm')}</Button>
       </View>}>
-      {state.failed ? <Text accessibilityRole="alert" style={[theme.type.body, {color: theme.colors.danger}]}>{t('signIn.reset.failed')}</Text> : null}
+      {state.failed ? <FormError placement="inline">{t('signIn.reset.failed')}</FormError> : null}
       {busy ? <Text accessibilityLiveRegion="polite" style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('signIn.reset.working')}</Text> : null}
     </Dialog>
   </>;

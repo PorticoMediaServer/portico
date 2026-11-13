@@ -21,7 +21,7 @@
    640px tall, so without this its fade stopped short and the hero ended on a line (H04). */
 .hero .wash { inset: 0; height: auto; }
 
-.copy { position: absolute; z-index: var(--layer-art-label); left: var(--shell-gutter); bottom: 44px; width: 720px; }
+.copy { position: absolute; z-index: var(--layer-art-label); left: 64px; bottom: 44px; width: 720px; }
 
 .portrait { position: absolute; z-index: var(--layer-content); right: 150px; top: 130px; width: 340px; height: 340px; border-radius: 50%; box-shadow: 0 50px 90px -30px color-mix(in srgb, var(--color-shadow) 90%, transparent), 0 0 0 1px color-mix(in srgb, var(--color-text) 12%, transparent); }
 
@@ -53,7 +53,7 @@
 
 .source { display: inline; font-size: var(--person-source-size); line-height: normal; color: var(--color-text-tertiary); }
 
-.toolbar { position: relative; z-index: var(--layer-row-arrow); display: flex; align-items: center; gap: 14px; height: 40px; padding: 0 var(--shell-gutter); }
+.toolbar { position: relative; z-index: var(--layer-row-arrow); display: flex; align-items: center; gap: 14px; height: 40px; padding: 0 64px; }
 
 .toolbarHeading { margin: 0; font-size: var(--person-toolbar-heading-size); font-weight: var(--person-toolbar-heading-weight); line-height: normal; letter-spacing: var(--person-toolbar-heading-tracking); color: var(--color-text); }
 
@@ -63,10 +63,9 @@
 
 .chips > button[data-variant='quick'] { height: 38px; }
 
-/* The kind sections are the shared rows (desktop-detail frame 7); the rows keep their own gutter and spacing. */
-.groups { padding-top: 26px; }
-/* H05: the hero text, toolbar, flat list and note sit in the shell gutter, the one the kit rows and hero use. */
-.credits { padding: 26px var(--shell-gutter) 0; }
+.groups { display: flex; flex-wrap: wrap; gap: 72px; padding: 26px 64px 0; }
+/* H05: credits that are not grouped by role sit in the same page gutter as the groups and the toolbar. */
+.credits { padding: 26px 64px 0; }
 
 .group { min-width: 0; }
 
@@ -74,7 +73,9 @@
 
 .groupCount { font-size: var(--person-group-count-size); font-weight: var(--person-group-count-weight); color: var(--color-text-tertiary); }
 
-.note { display: flex; align-items: center; gap: 10px; margin: 40px var(--shell-gutter) 0; font-size: var(--person-note-size); line-height: normal; color: var(--color-text-tertiary); }
+.track { padding-top: 12px; }
+
+.note { display: flex; align-items: center; gap: 10px; margin: 40px 64px 0; font-size: var(--person-note-size); line-height: normal; color: var(--color-text-tertiary); }
 
 .note svg { color: var(--color-accent-strong); flex: none; }
 
@@ -82,11 +83,9 @@
 
 .placeholder { display: block; aspect-ratio: 2/3; border-radius: 12px; background: var(--color-raised); }
 
-.placeholder[data-square] { aspect-ratio: 1; }
-
 @media(max-width:1023px) { .person { padding-bottom: 110px; }
 
-.hero { height: auto; overflow: visible; padding: 98px var(--shell-gutter) 0; }
+.hero { height: auto; overflow: visible; padding: 98px 20px 0; }
 
 .hero .wash { height: 560px; }
 
@@ -112,13 +111,13 @@
 
 .copy .phoneReadMore[data-size='small'] { display: flex; width: max-content; height: auto; margin: 0 auto 0 0; padding: 0; border-radius: 0; font-size: var(--person-phone-ghost-size); font-weight: var(--person-phone-ghost-weight); color: var(--color-text); justify-content: flex-start; }
 
-.phoneCreditsHeader { display: flex; align-items: baseline; justify-content: space-between; margin: 12px var(--shell-gutter) 10px; }
+.phoneCreditsHeader { display: flex; align-items: baseline; justify-content: space-between; margin: 12px 20px 10px; }
 
 .phoneCreditsHeader h2 { margin: 0; font-size: var(--person-phone-credits-heading-size); font-weight: var(--person-phone-credits-heading-weight); line-height: normal; letter-spacing: var(--person-phone-credits-heading-tracking); }
 
 .phoneCreditsHeader span { font-size: var(--person-phone-credits-count-size); font-weight: var(--person-phone-credits-count-weight); line-height: normal; color: var(--color-text-tertiary); }
 
-.phoneChips { display: flex; align-items: center; gap: 8px; padding: 0 var(--shell-gutter); }
+.phoneChips { display: flex; align-items: center; gap: 8px; padding: 0 20px; }
 
 .phoneChips > button { height: 34px; padding: 0 13px; border-radius: 9px; font-size: var(--person-phone-chip-size); }
 
@@ -128,9 +127,9 @@
 
 .phoneGroup { padding: 0; }
 
-.phoneGrid { margin: 12px var(--shell-gutter) 0; }
+.phoneGrid { margin-top: 12px; }
 
-.phoneCreditCard { --cards-width: 100%; --type-card-title-size: 12.5px; }
+.phoneCreditCard { --cards-width: 112.66px; --type-card-title-size: 12.5px; }
 
 .phoneCreditCard [class*='caption'] { margin-top: 7px; }
 

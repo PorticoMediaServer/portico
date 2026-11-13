@@ -23,9 +23,7 @@ import {Dialog, Menu, MenuGroup, MenuItem} from '../../kit/overlays';
 import {usePhone} from '../../kit/overlays/shared';
 import {runScreenCommand} from '../detail/context';
 import {Skeleton} from '../../kit/states';
-import {ReadBookFacts, ReadBookSections} from '../../kit/reader/ReadBookHero';
-import {CoverHero, CoverHeroLink} from '../../kit/title/CoverHero';
-import {GeneratedCover} from '../../kit/artwork';
+import {ReadBookFacts, ReadBookHero, ReadBookSections} from '../../kit/reader/ReadBookHero';
 import {readBookTitleStyle} from '../../kit/reader/book-title';
 import {ServerMark} from '../../kit/shell';
 import {useLibraryScreenContext} from '../browse/screen-context';
@@ -252,16 +250,12 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
     ...(metadata.wordCount !== undefined ? [{id: 'words', label: t('next.reader.wordsLabel'), value: defaultI18n.number(metadata.wordCount)}] : []),
     ...(manifest.format === 'cbz' && manifest.pageNames?.length ? [{id: 'pages', label: t('next.reader.pagesStrip'), value: defaultI18n.number(manifest.pageNames.length)}] : []),
   ]}/>;
-  return <>{phoneBack}<CoverHero cover={context.artwork.foreground(manifest.metadata.coverUrl, 784, 2 / 3)} title={title}
-    shape={metadata.publicationType?.value === 'magazine' || metadata.publicationType?.value === 'newspaper' ? 'periodical' : 'portrait'} titleStyle={readBookTitleStyle(title, !!metadata.openingLines)}
-    fallback={<GeneratedCover title={title} author={author} glyph={Array.from(title.trim())[0] ?? ''} tint={tint}/>}
-    byline={author ? <CoverHeroLink>{author}</CoverHeroLink> : undefined}
-    eyebrow={seriesPresentation ? <button type="button" onClick={seriesPresentation.onOpen}>{seriesPresentation.label}</button> : undefined} facts={[
+  return <>{phoneBack}<ReadBookHero cover={context.artwork.foreground(manifest.metadata.coverUrl, 784, 2 / 3)} title={title} titleStyle={readBookTitleStyle(title, !!metadata.openingLines)} author={author ? {name: author} : undefined} series={seriesPresentation} facts={[
       ...(metadata.wordCount !== undefined ? [{id: 'words', text: t('next.reader.wordCount', {count: metadata.wordCount}), role: 'context' as const}] : []),
       ...(metadata.pageCount !== undefined ? [{id: 'pages', text: t('next.reader.pageCount', {count: metadata.pageCount}), role: 'context' as const}] : []),
       ...(metadata.estimatedSeconds !== undefined && metadata.estimatedSeconds > 0 ? [{id: 'estimate', text: t('next.reader.aboutDuration', {duration: defaultI18n.duration(readingDuration(metadata.estimatedSeconds))}), role: 'context' as const}] : []),
     ]} opening={metadata.openingLines ? {label: t('next.reader.openingLines'), text: metadata.openingLines} : undefined}
-    ambient={context.artwork.ambient(manifest.metadata.coverUrl)} palette={tint}
+    ambient={<span className={styles.ambient} style={{'--read-tint-first': tint.first, '--read-tint-second': tint.second} as CSSProperties} aria-hidden="true"/>}
     actions={<>{progression !== undefined && progression > 0 ? <ResumeButton className={styles.primary} icon="i-book" progress={progression} remaining={defaultI18n.percent(progression)} onClick={() => open()}>{t('next.cards.read')}</ResumeButton>
       : <Button className={styles.primary} variant="primary" icon="i-book" onClick={() => open()}>{t('next.reader.read')}</Button>}{detail.client && <ReadSavedAction client={detail.client} itemId={eligibility.itemId} isCurrent={factsCurrent} reportError={error => errorSink.current(error)}/>}{detail.client && <ReadMarkAction client={detail.client} itemId={eligibility.itemId} isCurrent={factsCurrent} reportError={error => errorSink.current(error)}/>}</>}
     overflow={<><Button ref={editorAnchor} variant="glass" icon="i-more" iconOnly aria-label={t('next.controls.more')} onClick={() => {if (factsCurrent()) setMore(value => !value);}}/>

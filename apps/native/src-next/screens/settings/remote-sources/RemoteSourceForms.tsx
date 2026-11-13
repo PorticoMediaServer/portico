@@ -9,6 +9,7 @@ import {useTheme} from '../../../kit/theme';
 import {StandardBackdrop} from '../../../kit/artwork';
 import {FormScrollView} from '../../../platform/keyboard';
 import type {NativeRemoteSourcesController} from './controller';
+import {FormError} from '../../../kit/controls';
 
 type Translate = typeof defaultI18n.t;
 /** A folder chosen on a source, for a library. */
@@ -47,7 +48,7 @@ export function Page({title, t, busy, onCancel, children, footer, wizardStep}: {
 }
 export function Problem({message}: {message?: string}) {
   const theme = useTheme();
-  return message ? <Text accessibilityRole="alert" style={[theme.type.body, {color: theme.colors.danger}]}>{message}</Text> : null;
+  return message ? <FormError placement="inline">{message}</FormError> : null;
 }
 function Choice({label, hint, picked, onPress}: {label: string; hint?: string; picked: boolean; onPress: () => void}) {
   return <Button variant={picked ? 'primary' : 'glass'} onPress={onPress} accessibilityState={{selected: picked}}>{hint ? `${label} · ${hint}` : label}</Button>;

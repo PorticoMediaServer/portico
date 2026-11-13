@@ -23,8 +23,6 @@ export type CastRemoteView = CastRemoteToken & Readonly<{
   kind?: 'portico';
   /** A Portico device's next title and tracks (rule 27). */
   next?: Readonly<{title: string}>; tracks?: RemoteTracks;
-  /** What a command to a Portico device that failed says (a stop it refused), until it is stopped or dismissed. */
-  problem?: string;
 }>;
 /** One of the account's other open devices; `playing` is what it plays now (no title when this
  * profile may not see it), which this browser can take control of (rule 28). */
@@ -33,7 +31,7 @@ export type PlayOnReceiver = Readonly<{id: string; name: string; detail?: string
 export type PlayOnPorticoRemote = Readonly<{sessionId: string; deviceName: string; itemId?: string; title?: string;
   positionKnown: boolean; positionSeconds: number; durationSeconds: number; paused: boolean; stopped: boolean;
   /** What its queue plays next, for Next on the bar; and the tracks it can switch between (rule 27). */
-  next?: Readonly<{title: string}>; tracks?: RemoteTracks; problem?: string}>;
+  next?: Readonly<{title: string}>; tracks?: RemoteTracks}>;
 /** The receiver directory and one proven handoff. `send` resolves true only after the
  * television has proved it is playing; the caller then stops only the fenced run. */
 /** AU-1: whether Play on can do anything, so the button and the panel agree (desktop-player.html: "With neither, the
@@ -60,9 +58,6 @@ export type PlayOnReceiversPort = Readonly<{
   stop?(): void;
   /** Lets the bar go; the device carries on as it is. */
   dismiss?(): void;
-  /** Play here (rule 27): stops the device, then lets the bar go, once this browser plays it. False when the device
-   * could not be stopped: its bar stays, saying what failed. */
-  handBack?(): Promise<boolean>;
 }>;
 export type PlayOnLinkPreview = Readonly<{requestId: string; userCode: string; deviceName: string; platform?: string}>;
 /** Signing a television in with the code it shows: review the device, then allow or deny. */
@@ -143,7 +138,7 @@ export class PlayOnController {
     const remote: CastRemoteView = Object.freeze({id: 'portico:' + r.sessionId, sequence: ++this.sequence, kind: 'portico' as const,
       phase: r.stopped ? 'stopped' as const : 'playing' as const, confirmed: true, ...(r.itemId ? {itemId: r.itemId} : {}), ...(r.title ? {title: r.title} : {}),
       deviceName: r.deviceName, positionKnown: r.positionKnown, positionSeconds: r.positionSeconds, durationSeconds: r.durationSeconds, paused: r.paused,
-      ...(r.next ? {next: r.next} : {}), ...(r.tracks ? {tracks: r.tracks} : {}), ...(r.problem ? {problem: r.problem} : {})});
+      ...(r.next ? {next: r.next} : {}), ...(r.tracks ? {tracks: r.tracks} : {})});
     this.publish({remote});
     if (r.stopped) this.terminal(); else this.clearExpiry();
   };
@@ -293,7 +288,7 @@ export class PlayOnController {
     const remote = this.state.remote;
     return remote && token.id === remote.id && token.sequence === remote.sequence ? remote : undefined;
   }
-  openRemote(token: CastRemoteToken): void { const remote = this.requireRemote(token); if (remote?.phase === 'playing') this.publish({panel: 'remote'}); }
+  openRemote(token: CastRemoteToken): void { const remote = this.requireRemote(token); if (remote?.phase === 'playing' && !this.portico(remote)) this.publish({panel: 'remote'}); }
   openTracks(token: CastRemoteToken): void {
     const remote = this.requireRemote(token);
     if (remote?.phase !== 'playing') return;
@@ -339,20 +334,6 @@ export class PlayOnController {
     ++this.serial; this.attempt = undefined; this.describedItem = undefined; this.clearExpiry(); this.dismissing = true;
     try { this.options.sender.dismiss(); } finally { this.dismissing = false; }
     this.publish({cast: this.options.sender.getSnapshot(), remote: undefined, panel: null}); }
-  /** Rule 27's Play here while one of the account's Portico devices still plays: this browser plays the title from the
-   * place the device had reached, and only then is the device stopped, so it never stops in both places. */
-  async playHere(token: CastRemoteToken): Promise<void> {
-    const remote = this.requireRemote(token);
-    if (!remote || !this.portico(remote) || remote.phase !== 'playing' || !remote.positionKnown || !remote.itemId) return;
-    const position = remote.positionSeconds, itemId = remote.itemId;
-    this.publish({panel: null});
-    await this.options.runtime.play(itemId, position);
-    if (!this.requireRemote(token)) return;
-    // The bar goes only once the device has stopped; a device that would not stop keeps its bar, saying why, so the
-    // title never plays in two places with nothing left to stop it.
-    if (await this.options.receivers?.handBack?.() === false) return;
-    this.clearExpiry(); this.publish({remote: undefined, panel: null});
-  }
   async continueHere(token: CastRemoteToken): Promise<void> {
     const remote = this.requireRemote(token);
     if (!remote || !remote.confirmed || !remote.positionKnown || remote.phase !== 'stopped' || !remote.itemId) return;

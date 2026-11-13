@@ -1,4 +1,5 @@
 // @fabric-react
+import {FormError, formErrorModule} from './helpers/form-error.mjs';
 import * as accountWork from '../src-next/platform/account-work';
 import {presentError} from '../../../packages/client-core/src/presentation/errors';
 import {routeOrigin} from '../../../packages/client-core/src/route-identity';
@@ -73,7 +74,7 @@ async function fixture(initialStage: 'welcome' | 'address' = 'welcome', options:
     './PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
     './NativeSetup': {NativeSetup: 'NativeSetup'},
     './directory-chooser': directoryChooser,
-    '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {Button: 'Button', TextField: 'Field'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
+    '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {FormError, Button: 'Button', TextField: 'Field'}, '../../kit/Icon': {Icon: 'Icon'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
     '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {accountCredentials: () => credentials}}, '../../platform/server-sign-in': {NativeServerSignIn: SignIn}, '../../platform/portico-sign-in': {NativePorticoSignIn: Portico},
     '../../platform/server-connections': {browseNearby: async () => {events.push('discovery'); return [];}}, '../../platform/tv-sign-in': {}, '../../platform/account-authority': {},
     '../../tv/auth': {}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './RememberProfileRow': {RememberProfileRow: 'Remember'}, './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'}, './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'PhoneFrontDoor'}, 'react-native-qrcode-svg': {default: 'QR'},
@@ -208,10 +209,25 @@ test('a TV that reaches a server nobody has set up says where setup happens and 
     assert.equal(f.tree().props.secondaryAction.id, 'back');
     const before = nodes(f.tree().props.beforeActions);
     const field = before.find((node: any) => node.type === 'Field');
-    const notices = before.filter((node: any) => node.type === 'Text' && node.props.accessibilityRole === 'alert');
+    const notices = before.filter((node: any) => (node.type === FormError || node.type === 'Text' && node.props.accessibilityRole === 'alert'));
     assert.equal(field.props.value, 'https://public.example', 'the drawn field, and so its native input, is not replaced or cleared');
     assert.deepEqual(notices.map((node: any) => node.props.children), ['Set up this server from a phone or a browser.']);
     assert.equal(notices.some((node: any) => node.props.children === defaultI18n.t('error.unknown')), false, 'the generic refusal is not shown');
     assert.ok(before.indexOf(field) < before.indexOf(notices[0]), 'the notice sits under the address field it belongs to');
+  } finally {await f.host.unmount();}
+});
+
+test('a refused Portico sign-in is said there, and not carried to Use a local server when the person turns to it', async () => {
+  const refused = {then: (_: unknown, reject: (error: unknown) => void) => reject(Object.assign(new Error('refused'), {code: 'invalid'}))};
+  const f = await fixture('welcome', {providers: true, providerTransaction: refused});
+  try {
+    await act(() => f.tree().props.onPortico());
+    assert.equal(f.tree().type, 'PhoneAccountSignIn');
+    await act(() => f.tree().props.onProvider('google'));
+    assert.ok(f.tree().props.error, 'the refusal is said on the sign-in form');
+    await act(() => f.tree().props.onLocal());
+    assert.equal(f.stages.at(-1), 'address');
+    const alerts = nodes(f.tree().props.beforeActions).filter((node: any) => node.type === FormError || node.props?.accessibilityRole === 'alert');
+    assert.deepEqual(alerts, [], 'Use a local server starts clean');
   } finally {await f.host.unmount();}
 });

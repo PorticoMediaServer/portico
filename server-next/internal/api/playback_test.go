@@ -433,7 +433,7 @@ func TestStreamLimits(t *testing.T) {
 	second := th.play(tv, th.eps[0])
 	third := th.play(tablet, th.song)
 	owner := th.owner.AccessToken
-	if code := status(t, th.s, "PATCH", "/v1/admin/playback/stream-limits", owner, StreamLimits{PerPerson: 2}); code != 200 {
+	if code := status(t, th.s, "PUT", "/v1/admin/playback/stream-limits", owner, StreamLimits{PerPerson: 2}); code != 200 {
 		t.Fatalf("setting the limit answered %d", code)
 	}
 	// Lowering the limit below what is playing ends nothing, and a change is not a new stream.
@@ -464,7 +464,7 @@ func TestStreamLimits(t *testing.T) {
 
 	// A person's own number wins over the default, and nobody's lifts the server's.
 	limits := StreamLimits{Total: 2, PerPerson: 1, People: map[string]int{th.owner.Viewer.AccountID: 5}}
-	status(t, th.s, "PATCH", "/v1/admin/playback/stream-limits", owner, limits)
+	status(t, th.s, "PUT", "/v1/admin/playback/stream-limits", owner, limits)
 	w = serve(th.s, newRequest("POST", "/v1/playback/sessions", phone, PlaybackStart{ItemID: th.song}))
 	if w.Code != 409 || !strings.Contains(w.Body.String(), "server_stream_limit_reached") {
 		t.Fatalf("a start at the server's limit answered %d: %s", w.Code, w.Body)

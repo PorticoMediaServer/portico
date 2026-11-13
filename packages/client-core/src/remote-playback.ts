@@ -53,9 +53,6 @@ export type RemoteStream = Readonly<{
   /** What the device's queue plays after this; absent with no queue, at its last entry, or when
    * the asking profile may not see that title. */
   next?: Readonly<{itemId: string; title: string}>;
-  /** The version it plays and the tracks in use there, when the asking profile may see the title. With a versionId,
-   * subtitleId null is subtitles off; without one the device has not said. */
-  versionId?: string; audioTrackId?: string; subtitleId?: string | null;
 }>;
 /** The tracks another device can switch between and those in use; `subtitleId` null is subtitles off. */
 export type RemoteTracks = Readonly<{audio: readonly Readonly<{id: string; name: string}>[]; subtitles: readonly Readonly<{id: string; name: string}>[]; audioId?: string; subtitleId?: string | null}>;
@@ -63,14 +60,11 @@ export function parseRemoteStream(value: unknown): RemoteStream | undefined {
   const v = value as Partial<AccountStream> | null;
   if (!v || typeof v !== 'object' || !str(v.id)) return undefined;
   const state = v.state === 'playing' || v.state === 'paused' || v.state === 'ended' ? v.state : 'other';
-  const wire = value as {next?: {itemId?: unknown; title?: unknown}; versionId?: unknown; audioTrackId?: unknown; subtitle?: {trackId?: unknown} | null};
-  const next = wire.next;
+  const next = (value as {next?: {itemId?: unknown; title?: unknown}}).next;
   return Object.freeze({sessionId: v.id!, deviceName: str(v.deviceName), state, positionMs: ms(v.positionMs),
     ...(str(v.itemId) ? {itemId: v.itemId} : {}), ...(str(v.title) ? {title: v.title} : {}),
     ...(ms(v.durationMs) > 0 ? {durationMs: ms(v.durationMs)} : {}),
-    ...(next && str(next.itemId) && str(next.title) ? {next: Object.freeze({itemId: next.itemId as string, title: next.title as string})} : {}),
-    ...(str(wire.versionId) ? {versionId: wire.versionId as string, subtitleId: wire.subtitle && str(wire.subtitle.trackId) ? wire.subtitle.trackId as string : null,
-      ...(str(wire.audioTrackId) ? {audioTrackId: wire.audioTrackId as string} : {})} : {})});
+    ...(next && str(next.itemId) && str(next.title) ? {next: Object.freeze({itemId: next.itemId as string, title: next.title as string})} : {})});
 }
 
 /** One of the account's other open devices. */
@@ -237,7 +231,7 @@ export class HandoffController {
       switch (asked.state) {
         case 'playing':
           // What moved with it (rule 26) is what it now plays, as far as this device can know.
-          this.picks = {itemId: source.itemId, ...(source.audioTrackId ? {audioId: source.audioTrackId} : {}), ...(source.subtitleTrackId !== undefined ? {subtitleId: source.subtitleTrackId || null} : {}), unconfirmed: 0};
+          this.picks = {itemId: source.itemId, ...(source.audioTrackId ? {audioId: source.audioTrackId} : {}), ...(source.subtitleTrackId !== undefined ? {subtitleId: source.subtitleTrackId || null} : {})};
           this.controlGuard = controlGuard;
           this.publish({phase: 'done', receiverPlaybackId: asked.sessionId, message: serviceText('playOn.playingOn', device)});
           void this.refreshRemote();
@@ -317,7 +311,6 @@ export class HandoffController {
       const page = await this.call<{items?: unknown[]}>(this.controlGuard, 'GET /v1/playback/sessions');
       if (this.state.receiverPlaybackId !== id) return false;
       const remote = (page.items ?? []).map(parseRemoteStream).find(s => s?.sessionId === id);
-      this.settlePicks(remote);
       this.publish({remote: remote ?? (this.state.remote ? Object.freeze({...this.state.remote, state: 'ended' as const}) : undefined)});
       return !!remote && remote.state !== 'ended';
     } catch {return false;}
@@ -334,42 +327,28 @@ export class HandoffController {
   async subtitles(trackId: string | null) {const itemId = this.state.remote?.itemId, done = await this.command({subtitles: {trackId}}); if (done) this.pick(itemId, {subtitleId: trackId}); return done;}
   /** A choice belongs to the title it was made on: after Next, or when the device's queue moves on, it no longer says what plays. */
   private pick(itemId: string | undefined, change: Readonly<{audioId?: string; subtitleId?: string | null}>): void {
-    this.picks = itemId ? {...(this.picks?.itemId === itemId ? this.picks : {}), ...change, itemId, unconfirmed: 0} : undefined;
+    this.picks = itemId ? {...(this.picks?.itemId === itemId ? this.picks : {}), ...change, itemId} : undefined;
   }
-  /** What this device sent or chose that the other device has not reported yet. The device's own report (its version
-   * and tracks in use) is what plays; a choice stands in only until a report shows it, or two reports pass without it. */
-  private picks?: Readonly<{itemId: string; audioId?: string; subtitleId?: string | null; unconfirmed: number}>;
-  private settlePicks(remote: RemoteStream | undefined): void {
-    const picks = this.picks;
-    if (!picks || !remote?.versionId || remote.itemId !== picks.itemId) return;
-    const shown = (picks.audioId === undefined || picks.audioId === remote.audioTrackId) && (picks.subtitleId === undefined || picks.subtitleId === remote.subtitleId);
-    this.picks = shown || picks.unconfirmed >= 1 ? undefined : {...picks, unconfirmed: picks.unconfirmed + 1};
-  }
-  /** The tracks in use on the other device: its own report, with a choice made here that it has not reported yet. */
-  inUse(): Readonly<{audioId?: string; subtitleId?: string | null}> {
-    const remote = this.state.remote, picks = remote?.itemId && this.picks?.itemId === remote.itemId ? this.picks : undefined;
-    return Object.freeze({
-      ...(remote?.versionId ? {...(remote.audioTrackId ? {audioId: remote.audioTrackId} : {}), subtitleId: remote.subtitleId ?? null} : {}),
-      ...(picks?.audioId ? {audioId: picks.audioId} : {}), ...(picks && picks.subtitleId !== undefined ? {subtitleId: picks.subtitleId} : {}),
-    });
-  }
+  /** The tracks in use on the other device, as far as this device knows them: what it sent when it moved the playback
+   * there, then what it chose from the bar. The server tells a controlling device neither its version nor its picks. */
+  private picks?: Readonly<{itemId: string; audioId?: string; subtitleId?: string | null}>;
   /** The audio and subtitle tracks the other device can switch between, named as this app names them: those of the
-   * version it reports playing, else the one a start of its title plays. Undefined when the title can't be read (this
-   * profile may not see it). */
+   * version a start of its title plays, which is the one it plays unless someone chose another there. Undefined when
+   * the title can't be read (this profile may not see it). */
   async remoteTracks(): Promise<RemoteTracks | undefined> {
     const id = this.state.receiverPlaybackId, itemId = this.state.remote?.itemId;
     if (!id || !itemId) return undefined;
     try {
       const options = parseOptions(await this.call(this.controlGuard, 'GET /v1/items/{id}/playback-options', {id: itemId}));
       if (this.state.receiverPlaybackId !== id) return undefined;
-      const playing = this.state.remote?.versionId;
-      const version = options.versions.find(v => v.id === playing) ?? options.versions.find(v => v.id === options.preferred?.versionId) ?? options.versions[0];
+      const version = options.versions.find(v => v.id === options.preferred?.versionId) ?? options.versions[0];
       if (!version) return undefined;
       const names = subtitleTrackNames(version.subtitles.map(track => ({id: track.id, language: track.language, title: track.title, format: track.format, forced: track.forced, hearingImpaired: track.sdh})), defaultI18n.t);
+      const picks = this.picks?.itemId === itemId ? this.picks : undefined;
       return Object.freeze({
         audio: Object.freeze(version.audio.map((track, index) => Object.freeze({id: track.id, name: audioTrackLabel(track, index + 1)}))),
         subtitles: Object.freeze(version.subtitles.map(track => Object.freeze({id: track.id, name: names.get(track.id) ?? track.id}))),
-        ...this.inUse(),
+        ...(picks?.audioId ? {audioId: picks.audioId} : {}), ...(picks && picks.subtitleId !== undefined ? {subtitleId: picks.subtitleId} : {}),
       });
     } catch {return undefined;}
   }

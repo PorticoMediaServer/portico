@@ -60,11 +60,11 @@ export function PhoneAccountSignIn({busy, error, providers, passwordEnabled, reg
             textStyle={{fontSize: 16 * theme.textScale, fontWeight: '700', ...(busy || !username || !password ? {color: theme.colors.textTertiary} : {})}}
             onPress={() => {if (!busy && username && password) onContinue();}}>{t('action.continue')}</Button>
           <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20, marginTop: 14}}>
-            {recovery && <Button testID="accounts-auth-forgot" variant="text" size="compact" disabled={busy} textStyle={{fontSize: 14 * theme.textScale, fontWeight: '700'}} onPress={onForgot}>{t('auth.forgotPassword')}</Button>}
-            {registration && <Button testID="accounts-auth-create" variant="text" size="compact" disabled={busy} textStyle={{fontSize: 14 * theme.textScale, fontWeight: '700'}} onPress={onCreate}>{t('auth.createAccount')}</Button>}
+            {recovery && <Button testID="accounts-auth-forgot" variant="link" size="compact" disabled={busy} textStyle={{fontSize: 14 * theme.textScale, fontWeight: '700'}} onPress={onForgot}>{t('auth.forgotPassword')}</Button>}
+            {registration && <Button testID="accounts-auth-create" variant="link" size="compact" disabled={busy} textStyle={{fontSize: 14 * theme.textScale, fontWeight: '700'}} onPress={onCreate}>{t('auth.createAccount')}</Button>}
           </View>
         </>}
-        <Button testID="accounts-auth-local" variant="text" size="compact" disabled={busy} style={{marginTop: 10, alignSelf: 'center'}} textStyle={{fontSize: 14 * theme.textScale, fontWeight: '700', color: theme.colors.textSecondary}}
+        <Button testID="accounts-auth-local" variant="link" size="compact" disabled={busy} style={{marginTop: 10, alignSelf: 'center'}} textStyle={{fontSize: 14 * theme.textScale, fontWeight: '700', color: theme.colors.textSecondary}}
           onPress={onLocal}>{t('auth.signInDirectly')}</Button>
         <LegalAgreement style={[nativeType({size: 12, lineHeight: 18, weight: 400, tracking: 0}, theme.textScale), {color: theme.colors.textTertiary, textAlign: 'center', marginTop: 'auto', paddingTop: 24}]}
           linkStyle={{color: theme.colors.accentStrong}} onOpenLink={onOpenLink}/>

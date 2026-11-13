@@ -193,7 +193,7 @@ session is unknown (`404`), and the app starts again by itself where it was.
 | `DELETE /v1/admin/items/{id}/subtitles/{subtitleId}` | The owner and administrators remove a downloaded subtitle (`d…` ids in the title's list) |
 | `GET /v1/items/{id}/lyrics` | A song's lyrics: those kept with the song first (`pasted`, from its `tags`, or the `provider`'s with the credit "Lyrics provided by LRCLIB"), then files beside it, timed lines in order |
 | `PUT /v1/admin/items/{id}/lyrics`, `POST /v1/admin/items/{id}/lyrics/fetch` | The owner and administrators paste a song's lyrics (plain or LRC, at most 256 KB, text that can be shown), which everyone sees and no fetch replaces; or fetch one song's from LRCLIB, in any library. Fetch missing lyrics for a library is the `fetch_lyrics` job; a music library's `options.lyrics` (`lrclib`) looks up the songs each scan adds |
-| `GET /v1/admin/playback/stream-limits`, `PATCH /v1/admin/playback/stream-limits` | The owner's stream limits and paused-video timeout: saves change only named fields and accounts; null removes an account override to inherit the default, 0 is unlimited (Never for the timeout). Returns the resulting limits |
+| `GET /v1/admin/playback/stream-limits`, `PUT /v1/admin/playback/stream-limits` | The owner's stream limits: in total, per person, and for one person |
 
 ### Device capability document
 
@@ -604,7 +604,7 @@ Documents: `general` (server name, when heavy work runs (`heavyWork`: `hours` `a
 playback reads when a play starts away from home and may refuse it for, the
 conversion folder, the graphics device, hardware decoding, `conversionsAtOnce` and
 `backgroundConversionsAtOnce` (0 means no owner cap; a save leaves active work alone), End paused video
-after), `storage` (the free-space warnings), `backups`, `logs`,
+after), `storage` (Keep generated files, the free-space warnings), `backups`, `logs`,
 `notices` (who gets server notices, keeping times for notices and Play history), `downloads`
 (on or off, highest quality, space, how long prepared copies are kept), `title_data`
 (Enhanced Recommendations on or off, and a copy's address), `live` and `dvr`,
@@ -711,9 +711,7 @@ follows its libraries).
 | `GET /v1/admin/hardware`, `POST /v1/admin/hardware/test` | Owner | Graphics devices, the formats each handles, tone mapping, the last test and error; test now, with no restart |
 | `GET /v1/admin/data-folder/permissions`, `POST /v1/admin/data-folder/permissions/fix` | Owner | Whether other accounts on the computer can open the data folder (its own mode only; never on Windows), who owns it, and whether Fix permissions can be made (`fixable`, else `reason`: `not_kept_here` for a drive that does not keep who may open a folder, `not_folder_owner`, `read_only_file_system`). Fix permissions takes the group's and everyone else's bits off that one folder, nothing beneath it, and looks again: a change the drive did not keep is refused (`not_kept_here`), as is a folder swapped in meanwhile (`folder_changed`). While it is open the Dashboard has the `data_folder_readable` alert with the folder and its owner; where no fix can be made its action is `none` and it says why |
 | `GET /v1/admin/capabilities` | Owner | What this server can do (Troubleshooting): FFmpeg, each graphics backend tried and Vulkan, the folders it writes to (data, conversions, backups, recordings) and the decoder's protection, each `works`, `does_not_work`, `checking` or `not_used`, with why not. From what the server found out at its start or the owner's last change; nothing is run to answer it, and the folders are looked at at most once a minute |
-| `GET /v1/admin/storage` | Owner | What uses space in the data folder, plus `conversions` and `recordings` locations (`folder`, `bytes`, `external`, and `problem` when a location cannot be measured). Includes old destinations still holding streams or recordings. A location inside the data folder is already counted in `folders`. Sizes are reused for ten minutes; a destination change or Empty cache refreshes them |
-| `GET /v1/admin/storage/cache` | Owner | `{bytes}` that Empty cache can free now: ready copies no download request names, and abandoned conversion output. Live streams, producers, readers and open media/subtitle transfers are excluded |
-| `POST /v1/admin/storage/cache/empty` | Owner | Frees that disk cache with no restart and returns `{bytes}` removed. Rechecks ownership and use before removal; fresh activity can reduce the preview. Originals, recordings, artwork, uploaded subtitles, markers, keys, logs and backups are untouched |
+| `GET /v1/admin/storage`, `POST /v1/admin/storage/cache/empty` | Owner | What uses space, folder by folder; empty the cache of what Portico can rebuild, with no restart |
 | `GET /v1/admin/backups`, `POST /v1/admin/backups`, `DELETE /v1/admin/backups/{id}` | Owner | The backups in the backup folder, and which working credentials a backup holds (the server's keys, source sign-ins, a remote source's key file); back up now (a job); delete one |
 | `POST /v1/admin/backups/inspect`, `POST /v1/admin/backups/restore` | Owner, not on a TV; restore also needs the password or PIN again | Check a listed backup or a path whole before restoring; restore (a job, then a restart; everyone signs in again). One that fails its check is refused whole. On a server linked to a Portico Account the owner has no password, so `approval` takes its place: a fresh approval by the owning Portico Account, started with `POST /v1/admin/portico/link` and sent here. The server links again with it as "Link again" does, so it works once and only for the owning account; without one the answer is `403 portico_approval_required`. The link the approval made is carried across the restore: the restored server starts on it and sends its document at once. A backup from before the server used Portico Accounts puts back a server with local sign-in, which tells Portico Services once that it has left |
 | `DELETE /v1/admin/upgrade-copy` | Owner | Remove the copy kept before the last upgrade |
@@ -803,17 +801,3 @@ them is nothing: the last deliberate edit wins, a `2xx` means it happened, and r
 ### Returning a Portico Account sign-in to this server’s own page
 
 A Services identity with `audience` is accepted only when it is an HTTPS origin this server serves (its approved addresses or its own Portico zone at a served port), the request arrives at that same host and port over HTTPS, and its browser `Origin` is that origin. Forwarded scheme/host count only from a configured trusted proxy. A foreign or missing Origin, another host/port, HTTP or an address belonging to another server refuses the note before exchange. The challenge remains one-use. Notes without audience continue to support the hosted-web and native sign-in paths. The page must still bind its return to its own tab/state before sending the note; the server never receives the fragment.
-
-`GET` and `PUT /v1/admin/storage/keeping` expose Keep generated files as a derived
-`preset` (`balanced`, `short`, `long`, or `custom`) and the one supported child today,
-`preparedDownloadsDays`. A preset saves 30, 14, or 90 days into `downloads.keepDays`;
-setting that child to 7 or 365 days reads back as Custom. Either route uses the same
-stored value, with choices 7, 14, 30 (default), 90, and 365. PUT sends either `preset`
-or `preparedDownloadsDays`; Custom is derived, not saved. ETag/If-Match is the downloads
-settings revision, so a change through either route is visible to the other.
-
-Conversion files, unused converted copies, fetched-subtitle cache and seek-bar previews
-have no reusable cache with day-based keeping in this server yet; no inert child settings
-are stored or returned for them. Those rows arrive with the corresponding caches. Conversion
-working files keep their existing playback lifetime and are removed with their stream.
-Empty cache always spares copies that any download request still names, even before a fetch.

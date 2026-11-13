@@ -11,7 +11,7 @@ import type {ReadingController, ReadingPublication, ReaderErrorCode, ReaderLocat
 import {useShellWidth} from '../../shell/viewport';
 import {useWindowHeight} from '../../kit/theme';
 import {Skeleton, StateView} from '../../kit/states';
-import {ReaderContents, ReaderPanel, ReaderPanelEmpty, type ReaderContentsEntry} from '../../kit/reader/ReaderPanel';
+import {ReaderContents, ReaderPanel, type ReaderContentsEntry} from '../../kit/reader/ReaderPanel';
 import {ReaderDisplayMark} from '../../kit/reader/ReaderDisplayMark';
 import {ReaderSearch, type ReaderSearchHit} from '../../kit/reader/ReaderSearch';
 import {readerToolbarOrder, readingDirection, type ReadDirection} from '../../kit/reader/interaction';
@@ -242,8 +242,7 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
     selected={annotationPane ?? (fixed && !snapshot.toc.length ? 'pages' : fixedPane === 'pages' ? 'pages' : 'contents')}
     onSelect={selected => {if (selected === 'bookmarks' || selected === 'highlights' || selected === 'pages' || selected === 'contents') setFixedPane(selected);}} onClose={() => setPanel(undefined)} footer={(environment === 'web' || !!saveHighlights) && annotationPane === 'highlights' && notes.service ? <ReaderHighlightsExport key={publication.source.id + publication.source.revision} service={notes.service} signal={listSignal} nativeSave={environment === 'native' ? saveHighlights : undefined} title={publication.metadata.title} author={publication.metadata.author} reportError={reportError}/> : undefined}>
     {annotationPane && notes.service ? <ReaderAnnotationList key={fixedPane} placed={placed} signal={listSignal} kind={annotationPane === 'bookmarks' ? 'bookmark' : 'highlight'} service={notes.service} state={notes.state} controller={controller} reportError={reportError}/>
-      : !fixed || snapshot.toc.length > 0 && fixedPane === 'contents' ? snapshot.toc.length > 0 || snapshot.status !== 'ready' ? <ReaderContents entries={contents(snapshot.toc)}/>
-        : <ReaderPanelEmpty>{t('next.reader.contentsEmpty')}</ReaderPanelEmpty>
+      : !fixed || snapshot.toc.length > 0 && fixedPane === 'contents' ? <ReaderContents entries={contents(snapshot.toc)}/>
         : <FixedPagesPanel controller={controller} authority={authority} format={publication.format} reportError={engineError} onNavigate={() => {if (presentation === 'phone') setPanel(undefined);}}/>}
   </ReaderPanel>
     : panel === 'search' ? <ReaderPanel label={t('next.reader.search')} returnFocusRef={anchor} tabs={[{id: 'search', label: t('next.reader.search')}]}

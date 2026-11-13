@@ -222,8 +222,12 @@ export class SettingsPeopleClient {
   /** Sets accounts' own stream numbers in the owner's limits, keeping everything else in them. Only the owner may. */
   private async setStreams(accountIds: readonly string[], mode: string | undefined, count: number | undefined): Promise<StreamLimits> {
     if (mode !== 'inherit' && mode !== 'unlimited' && !(mode === 'limit' && Number.isSafeInteger(count) && count! >= 1 && count! <= 1000)) invalid();
-    const people = Object.fromEntries(accountIds.map(id => [id, mode === 'inherit' ? null : mode === 'unlimited' ? 0 : count!]));
-    return this.call(s => callServer(this.api, 'PATCH /v1/admin/playback/stream-limits', {body: {people}, signal: s}));
+    const current = await this.call(s => callServer(this.api, 'GET /v1/admin/playback/stream-limits', {signal: s})) ?? {};
+    const people: Record<string, number> = {...current.people};
+    for (const id of accountIds) {if (mode === 'inherit') delete people[id]; else people[id] = mode === 'unlimited' ? 0 : count!;}
+    const body: StreamLimits = {...current, people};
+    await this.call(s => callServer(this.api, 'PUT /v1/admin/playback/stream-limits', {body, signal: s}));
+    return body;
   }
   /** The stream count goes to the owner's stream limits; the rest to the account's own limits, naming only what changed.
    * An account whose limits the server does not keep has only the stream count: anything else is refused. */

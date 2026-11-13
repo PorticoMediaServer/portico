@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,9 +20,22 @@ import (
 // The free-space warnings are the `storage` settings document.
 
 // StorageSettings is the owner's `storage` settings document.
-type StorageSettings = settings.StorageSettings
+type StorageSettings struct {
+	// WarnPercent and MajorPercent are how little free space on the data folder's disk is a
+	// warning and a major problem.
+	WarnPercent  int `json:"warnPercent"`
+	MajorPercent int `json:"majorPercent"`
+}
 
-var storageDocument = settings.Storage
+var storageDocument = settings.Define("storage", StorageSettings{WarnPercent: 10, MajorPercent: 5}, func(s *StorageSettings) error {
+	if s.WarnPercent < 1 || s.WarnPercent > 50 {
+		return &settings.Invalid{Field: "warnPercent", Message: "Choose 1 to 50 percent."}
+	}
+	if s.MajorPercent < 1 || s.MajorPercent > s.WarnPercent {
+		return &settings.Invalid{Field: "majorPercent", Message: "Choose 1 percent up to the warning's."}
+	}
+	return nil
+})
 
 // Storage is the storage page.
 type Storage struct {
@@ -36,10 +48,6 @@ type Storage struct {
 	// Level is ok, warning or major, by the owner's free-space warnings.
 	Level   string        `json:"level"`
 	Folders []FolderUsage `json:"folders"`
-	// These locations are separate facts. A location inside DataFolder is already
-	// counted in Folders and must not be added to the data-folder total again.
-	Conversions []StorageLocation `json:"conversions"`
-	Recordings  []StorageLocation `json:"recordings"`
 	// MeasuredAt is when the folders were last measured: the sizes are reused for 10
 	// minutes. Free space is read at each request.
 	MeasuredAt time.Time `json:"measuredAt"`
@@ -60,44 +68,26 @@ const storageKept = 10 * time.Minute
 
 // storageCache is the last reading of the data folder's sizes.
 type storageCache struct {
-	locations string
-	mu        sync.Mutex
-	at        time.Time
-	read      Storage
+	mu   sync.Mutex
+	at   time.Time
+	read Storage
 }
 
 func (s *Server) storageRoutes(dataDir string) {
 	cache := &storageCache{}
-	s.storageCacheRoutes(cache)
-	s.storageKeepingRoutes()
 	Handle(s, "GET /v1/admin/storage", Owner, func(r *http.Request, _ None) (Storage, error) {
-		conversions, recordings, err := s.storageLocations(r.Context())
-		if err != nil {
-			return Storage{}, err
-		}
-		key := strings.Join(conversions, "\x00") + "\x00\x00" + strings.Join(recordings, "\x00")
 		cache.mu.Lock()
 		defer cache.mu.Unlock()
-		if cache.at.IsZero() || cache.locations != key || s.now().Sub(cache.at) > storageKept {
+		if cache.at.IsZero() || s.now().Sub(cache.at) > storageKept {
 			read, err := storageUsage(r.Context(), dataDir)
 			if err != nil {
 				return Storage{}, err
 			}
-			read.Conversions, err = measureStorageLocations(r.Context(), read.DataFolder, conversions)
-			if err != nil {
-				return Storage{}, err
-			}
-			read.Recordings, err = measureStorageLocations(r.Context(), read.DataFolder, recordings)
-			if err != nil {
-				return Storage{}, err
-			}
-			cache.read, cache.at, cache.locations = read, s.now(), key
+			cache.read, cache.at = read, s.now()
 		}
 		// Free space is read every time: it is one call, and the warning must be current.
 		out := cache.read
 		out.Folders = slices.Clone(out.Folders)
-		out.Conversions = slices.Clone(out.Conversions)
-		out.Recordings = slices.Clone(out.Recordings)
 		out.DiskBytes, _ = diskspace.Total(out.DataFolder)
 		out.FreeBytes, _ = diskspace.Free(out.DataFolder)
 		out.Level, out.MeasuredAt = level(out, storageDocument.Get(s.settings)), cache.at.UTC()

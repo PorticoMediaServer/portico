@@ -126,16 +126,7 @@ type File struct {
 	ETag        string
 	ContentType string
 	// Name is a file name for a browser to save it as.
-	Name      string
-	release   func()
-	closeOnce sync.Once
-}
-
-func (f *File) Close() error {
-	if f.release != nil {
-		defer f.closeOnce.Do(f.release)
-	}
-	return f.Closer.Close()
+	Name string
 }
 
 // ErrGone says the address no longer works: expired, or the title is no longer the
@@ -151,7 +142,7 @@ var ErrNotReady = errors.New("this copy is not ready yet")
 // atHome says the request came from the home network: an account held to home, or outside
 // its viewing hours, fetches nothing (db.ErrAwayFromHome, db.ErrOutsideHours), however long
 // the address itself still has.
-func (s *Service) Open(ctx context.Context, token, name string, atHome bool) (out *File, err error) {
+func (s *Service) Open(ctx context.Context, token, name string, atHome bool) (*File, error) {
 	held, ok := s.take(token)
 	if !ok {
 		return nil, ErrGone
@@ -174,19 +165,6 @@ func (s *Service) Open(ctx context.Context, token, name string, atHome bool) (ou
 	}
 	if visible, err := s.DB.Visible(ctx, held.viewer, title.ItemID); err != nil || !visible {
 		return nil, ErrGone
-	}
-	if title.Prepared != nil && title.Prepared.State == db.PreparedReady && dl.Quality != Original {
-		release, err := s.Prepare.ReadCopy(ctx, title.Prepared.ID)
-		if err != nil {
-			return nil, ErrGone
-		}
-		defer func() {
-			if out == nil || err != nil {
-				release()
-			} else {
-				out.release = release
-			}
-		}()
 	}
 	kind, rest, _ := strings.Cut(name, "/")
 	switch kind {

@@ -12697,33 +12697,6 @@
         },
         "type": "object"
       },
-      "StreamLimitsEdit": {
-        "properties": {
-          "endPausedVideoAfterMs": {
-            "type": "integer"
-          },
-          "people": {
-            "additionalProperties": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "type": "object"
-          },
-          "perPerson": {
-            "type": "integer"
-          },
-          "total": {
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
       "StreamStop": {
         "properties": {
           "message": {
@@ -17564,12 +17537,12 @@
         },
         "x-access": "owner"
       },
-      "patch": {
+      "put": {
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/StreamLimitsEdit"
+                "$ref": "#/components/schemas/StreamLimits"
               }
             }
           },

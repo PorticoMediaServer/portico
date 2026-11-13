@@ -37,7 +37,7 @@ func TestALiveChannelWatchedIsAStream(t *testing.T) {
 	}
 
 	// At a server limit of one, the channel watched leaves no room for a title or another channel.
-	if code := status(t, th.s, "PATCH", "/v1/admin/playback/stream-limits", owner, StreamLimits{Total: 1}); code != 200 {
+	if code := status(t, th.s, "PUT", "/v1/admin/playback/stream-limits", owner, StreamLimits{Total: 1}); code != 200 {
 		t.Fatalf("setting the limit answered %d", code)
 	}
 	if code, _ := th.start(owner, "", PlaybackStart{ItemID: th.film}); code == 201 || code == 202 {
@@ -46,7 +46,7 @@ func TestALiveChannelWatchedIsAStream(t *testing.T) {
 	if code := status(t, th.s, "POST", "/v1/playback/sessions", owner, PlaybackStart{Channel: channels[1].ID}); code == 201 {
 		t.Fatal("a second channel past the server's limit started")
 	}
-	if code := status(t, th.s, "PATCH", "/v1/admin/playback/stream-limits", owner, map[string]int{"total": 0}); code != 200 {
+	if code := status(t, th.s, "PUT", "/v1/admin/playback/stream-limits", owner, StreamLimits{}); code != 200 {
 		t.Fatalf("lifting the limit answered %d", code)
 	}
 
@@ -81,7 +81,7 @@ func TestTwoStartsAtOnceAtALimitOfOneLetOneIn(t *testing.T) {
 	owner := th.owner.AccessToken
 	addSource(t, th.s, owner, LiveSourceSave{Kind: "playlist", Name: new("Antenna"), TunerCount: new(2), Config: &live.LiveSourceConfig{PlaylistURL: fake.URL + "/tuned.m3u"}})
 	channels := get[Page[LiveChannel]](t, th.s, owner, "/v1/live/channels").Items
-	if code := status(t, th.s, "PATCH", "/v1/admin/playback/stream-limits", owner, StreamLimits{Total: 1}); code != 200 {
+	if code := status(t, th.s, "PUT", "/v1/admin/playback/stream-limits", owner, StreamLimits{Total: 1}); code != 200 {
 		t.Fatalf("setting the limit answered %d", code)
 	}
 	tv, den := onMain(t, th.s, signIn(t, th.s, 2)).AccessToken, onMain(t, th.s, signIn(t, th.s, 3)).AccessToken
@@ -120,7 +120,7 @@ func TestAChannelIsInTheListShownAtAStreamLimit(t *testing.T) {
 	owner := th.owner.AccessToken
 	addSource(t, th.s, owner, LiveSourceSave{Kind: "playlist", Name: new("Antenna"), TunerCount: new(2), Config: &live.LiveSourceConfig{PlaylistURL: fake.URL + "/tuned.m3u"}})
 	channels := get[Page[LiveChannel]](t, th.s, owner, "/v1/live/channels").Items
-	if code := status(t, th.s, "PATCH", "/v1/admin/playback/stream-limits", owner, StreamLimits{PerPerson: 1}); code != 200 {
+	if code := status(t, th.s, "PUT", "/v1/admin/playback/stream-limits", owner, StreamLimits{PerPerson: 1}); code != 200 {
 		t.Fatalf("setting the limit answered %d", code)
 	}
 	tv, phone := onMain(t, th.s, signIn(t, th.s, 2)).AccessToken, onMain(t, th.s, signIn(t, th.s, 3)).AccessToken

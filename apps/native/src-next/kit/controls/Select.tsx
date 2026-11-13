@@ -7,6 +7,7 @@ import {fontFamilies, nativeType, useTheme} from '../theme';
 import {Focusable, type FocusableProps} from './Focusable';
 import {colorAlpha, enabledChoice} from './control-model';
 import {useControlValue} from './useControlValue';
+import {FormError} from './FormError';
 
 export type SelectOption = {
   value: string;
@@ -88,7 +89,7 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
         : <Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, styles.value, {fontFamily: fontFamilies[700], color: selected ? theme.colors.text : theme.colors.textTertiary}, textStyle]}>{selected?.label ?? placeholder}</Text>}
       <Icon name="i-updown" size={theme.isTV ? 26 : 18} color={theme.colors.textTertiary} />
     </Focusable>
-    {error !== undefined ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{error}</Text>
+    {error !== undefined ? <FormError placement="inline">{error}</FormError>
       : description !== undefined ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{description}</Text> : null}
     <Dialog open={isOpen} onOpenChange={next => setOpen(next)} headerContext={pickerContext} title={pickerTitle ?? title} description={pickerDescription} scrollable={false}
       footer={pickerFooter ?? (theme.isTV && !blocked ? <PickerHint /> : undefined)} accessibilityLabel={accessibilityLabel}

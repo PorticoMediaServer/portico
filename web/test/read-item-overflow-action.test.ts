@@ -11,7 +11,7 @@ test('W-4: a book, comic or magazine page keeps its More control on the actions 
   const entry = source('../src/screens/read/ReadItemEntry.tsx');
   assert.match(entry, /overflow=\{<><Button ref=\{editorAnchor\} variant="glass" icon="i-more"/);
   assert.doesNotMatch(entry, /\bunder=\{/, 'More is never handed to the hero\'s second-line slot');
-  assert.match(source('../src/kit/title/CoverHero.tsx'), /<div className=\{styles\.actions\}>\{actions\}\{overflow\}<\/div>/,
+  assert.match(source('../src/kit/reader/ReadBookHero.tsx'), /<div className=\{styles\.actions\}>\{actions\}\{overflow\}<\/div>/,
     'the overflow control renders inside the one actions row');
 });
 

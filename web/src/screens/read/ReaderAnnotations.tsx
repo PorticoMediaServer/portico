@@ -8,8 +8,6 @@ import type {ReadingPreferences} from '@portico/client-core';
 import type {ReaderMountAuthority} from './mount';
 import {Button} from '../../kit/controls';
 import {Dialog} from '../../kit/overlays/Dialog';
-import {Menu, MenuItem} from '../../kit/overlays';
-import {ReaderAnnotations, ReaderBookmarks, ReaderPanelEmpty, ReaderPanelSection} from '../../kit/reader/ReaderPanel';
 import styles from './annotations.module.css';
 const t = defaultI18n.t;
 const blank: ReadingAnnotationState = Object.freeze({entries: [], nextCursor: '', loading: false, saving: false});
@@ -175,12 +173,6 @@ export function ReaderAnnotationActions({service, snapshot, controller, onSearch
 /** Where a text-less bookmark is: its chapter's title from the book's contents, else its page, else
  * how far through the book it is. An EPUB's saved section is a package path (OEBPS/chapter3.xhtml),
  * never shown (SRV-A2). */
-/** The chapter a mark is in, when the contents name it. */
-function bookmarkChapter(location:ReadingAnnotation['location'],toc:readonly ReaderTocItem[]):string|undefined {
-  if(location.format!=='epub')return typeof location.pageIndex==='number'?t('next.reader.pageLabel',{page:defaultI18n.number(location.pageIndex+1)}):undefined;
-  const find=(items:readonly ReaderTocItem[]):string|undefined=>{for(const item of items){if(item.location.format==='epub'&&location.section!==undefined&&item.location.section===location.section)return item.label;const inner=item.children&&find(item.children);if(inner)return inner;}return undefined;};
-  return find(toc);
-}
 export function bookmarkPlace(location:ReadingAnnotation['location'],toc:readonly ReaderTocItem[]):string {
   if(location.format==='epub'){
     const find=(items:readonly ReaderTocItem[]):string|undefined=>{for(const item of items){if(item.location.format==='epub'&&location.section!==undefined&&item.location.section===location.section)return item.label;const inner=item.children&&find(item.children);if(inner)return inner;}return undefined;};
@@ -195,28 +187,27 @@ export function ReaderAnnotationList({kind,service,state,controller,reportError,
   const toc=useSyncExternalStore(controller.subscribe,()=>controller.getSnapshot().toc,()=>controller.getSnapshot().toc);
   const all=state.entries.filter(entry=>entry.kind===kind),entries=all.filter(entry=>!entry.earlierCopy||placed?.has(entry.id)),earlier=all.filter(entry=>entry.earlierCopy&&!placed?.has(entry.id)),busy=state.loading||state.saving||state.revision===undefined;
   const owns=(entry:ReadingAnnotation)=>live(lease)&&!signal.aborted&&service.current()&&service.getSnapshot().entries.includes(entry);
-  const [menu,setMenu]=useState<Readonly<{entry:ReadingAnnotation;anchor:HTMLButtonElement}>>();
-  const go=(entry:ReadingAnnotation)=>{if(owns(entry)&&lease)void controller.navigate({kind:'location',location:readerLocationFromReading(placed?.get(entry.id)??entry.location)},AbortSignal.any([signal,lease.life.signal])).catch(error=>{if(owns(entry))reportError(error);});};
-  const more=(entry:ReadingAnnotation)=>({onMore:(anchor:HTMLButtonElement)=>{if(owns(entry))setMenu({entry,anchor});},moreLabel:t('next.controls.more')});
-  const when=(entry:ReadingAnnotation)=>defaultI18n.date(entry.updatedAt,'medium');
-  const highlight=(entry:ReadingAnnotation,navigable:boolean)=>({id:entry.id,quote:entry.text||defaultI18n.percent(entry.location.progression),note:entry.note||undefined,
-    chapter:bookmarkChapter(entry.location,toc),date:when(entry),colour:entry.colour||'yellow',...(navigable?{onNavigate:()=>go(entry)}:{}),...more(entry)} as const);
-  const remove=(entry:ReadingAnnotation)=>{setMenu(undefined);if(owns(entry)&&lease)void service.write({id:entry.id,remove:true},{revision:state.revision,signal:AbortSignal.any([signal,lease.life.signal]),isCurrent:()=>owns(entry)});};
   return <div className={styles.list}>
-    {!!state.error&&<ReaderPanelEmpty role="alert">{t('next.reader.annotationFailed')}</ReaderPanelEmpty>}
+    {!!state.error&&<p role="alert">{t('next.reader.annotationFailed')}</p>}
     {!!state.error&&<Button disabled={state.loading||state.saving} onClick={()=>{if(live(lease)&&!signal.aborted)void service.load();}}>{t('next.reader.annotationReload')}</Button>}
-    {state.loading&&<ReaderPanelEmpty role="status">{t('status.loading')}</ReaderPanelEmpty>}
-    {!state.loading&&!state.error&&state.revision!==undefined&&!all.length&&<ReaderPanelEmpty>{t('next.reader.annotationEmpty')}</ReaderPanelEmpty>}
-    {kind==='bookmark'?<ReaderBookmarks entries={entries.map(entry=>({id:entry.id,place:bookmarkPlace(entry.location,toc),excerpt:entry.note||undefined,date:when(entry),onNavigate:()=>go(entry),...more(entry)}))}/>
-      :<ReaderAnnotations entries={entries.map(entry=>highlight(entry,true))}/>}
+    {state.loading&&<p role="status">{t('status.loading')}</p>}
+    {!state.loading&&!state.error&&state.revision!==undefined&&!all.length&&<p>{t('next.reader.annotationEmpty')}</p>}
+    {entries.map(entry=><article key={entry.id} data-colour={entry.colour}>
+      <button type="button" className={styles.anchor} onClick={()=>{if(owns(entry)&&lease)void controller.navigate({kind:'location',location:readerLocationFromReading(placed?.get(entry.id)??entry.location)},AbortSignal.any([signal,lease.life.signal])).catch(error=>{if(owns(entry))reportError(error);});}}>
+        {entry.text||bookmarkPlace(entry.location,toc)}
+      </button>
+      {entry.note&&<p>{entry.note}</p>}<time dateTime={new Date(entry.updatedAt).toISOString()}>{defaultI18n.dateTime(entry.updatedAt)}</time>
+      {!entry.earlierCopy&&<Button disabled={busy} onClick={()=>{if(owns(entry)&&state.revision!==undefined)open({id:randomId(),owner:service,life:new AbortController(),content:entry,member:entry,revision:state.revision});}}>{t('next.reader.annotationEdit')}</Button>}
+      <Button disabled={busy} onClick={()=>{if(owns(entry)&&lease)void service.write({id:entry.id,remove:true},{revision:state.revision,signal:AbortSignal.any([signal,lease.life.signal]),isCurrent:()=>owns(entry)});}}>{t('next.reader.annotationDelete')}</Button>
+    </article>)}
     {/* 10-reading rule 27: one from an earlier copy whose words are not found in this one is kept here, with its words and note, and can only be removed. */}
-    {earlier.length>0&&<ReaderPanelSection>{t('next.reader.earlierCopy')}</ReaderPanelSection>}
-    {earlier.length>0&&<ReaderAnnotations entries={earlier.map(entry=>highlight(entry,false))}/>}
+    {earlier.length>0&&<h3>{t('next.reader.earlierCopy')}</h3>}
+    {earlier.map(entry=><article key={entry.id} data-colour={entry.colour}>
+      <p>{entry.text||defaultI18n.percent(entry.location.progression)}</p>
+      {entry.note&&<p>{entry.note}</p>}<time dateTime={new Date(entry.updatedAt).toISOString()}>{defaultI18n.dateTime(entry.updatedAt)}</time>
+      <Button disabled={busy} onClick={()=>{if(owns(entry)&&lease)void service.write({id:entry.id,remove:true},{revision:state.revision,signal:AbortSignal.any([signal,lease.life.signal]),isCurrent:()=>owns(entry)});}}>{t('next.reader.annotationDelete')}</Button>
+    </article>)}
     {state.nextCursor&&<Button disabled={busy} onClick={()=>{if(live(lease)&&!signal.aborted)void service.load(true);}}>{t('next.reader.annotationMore')}</Button>}
-    {menu&&<Menu open onOpenChange={open=>{if(!open)setMenu(undefined);}} anchorRef={{current:menu.anchor}} returnFocusRef={{current:menu.anchor}} title={menu.entry.text||bookmarkPlace(menu.entry.location,toc)}>
-      {!menu.entry.earlierCopy&&<MenuItem icon="i-note2" disabled={busy} onSelect={()=>{const entry=menu.entry;setMenu(undefined);if(owns(entry)&&state.revision!==undefined)open({id:randomId(),owner:service,life:new AbortController(),content:entry,member:entry,revision:state.revision});}}>{t('next.reader.annotationEdit')}</MenuItem>}
-      <MenuItem icon="i-trash" disabled={busy} onSelect={()=>remove(menu.entry)}>{t('next.reader.annotationDelete')}</MenuItem>
-    </Menu>}
     {opening?.owner===service&&lease&&<AnnotationNoteEditor key={opening.id} opening={opening} service={service} state={state} signal={AbortSignal.any([signal,lease.life.signal])} onClose={()=>close(opening)}/>}
   </div>;
 }

@@ -1,4 +1,5 @@
 // @fabric-react
+import {FormError, formErrorModule} from './helpers/form-error.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
@@ -39,7 +40,7 @@ async function fixture(isTV: boolean) {
     '../Icon': {Icon: 'Icon'}, './Focusable': {Focusable}, './control-model': controlModel, './useControlValue': {useControlValue}};
   const {Chip} = await screenModule(new URL('../src-next/kit/controls/Chip.tsx', import.meta.url), shared);
   const {Segmented} = await screenModule(new URL('../src-next/kit/controls/Tabs.tsx', import.meta.url), shared);
-  const {TextField} = await screenModule(new URL('../src-next/kit/controls/TextField.tsx', import.meta.url), {...shared, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({})}});
+  const {TextField} = await screenModule(new URL('../src-next/kit/controls/TextField.tsx', import.meta.url), {'./FormError': formErrorModule, ...shared, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({})}});
   const {Button} = await screenModule(new URL('../src-next/kit/controls/Button.tsx', import.meta.url), {...shared, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({})}});
   const {FilterBuilder} = await screenModule(new URL('../src-next/kit/browse/Filters.tsx', import.meta.url), {
     '@react-native-masked-view/masked-view': {default: 'MaskedView'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},

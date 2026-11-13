@@ -15,13 +15,9 @@ export type WindowedGridHandle = {scrollToIndex: (index: number, options?: {focu
 export type GridItemContext = Readonly<{index: number; key: string; focused: boolean}>;
 export type WindowedGridProps<T> = {
   collection: WindowedCollection<T>; renderItem: (item: T, context: GridItemContext) => ReactNode; renderPlaceholder: (index: number) => ReactNode;
-  label: string; height: number | string; cardWidth: number;
-  /** A row's height, or how tall a row is for the width its cards are drawn at (with `fill`). */
-  rowHeight: number | ((cardWidth: number) => number);
+  label: string; height: number | string; cardWidth: number; rowHeight: number;
   /** One column as wide as the grid (a table's rows); `cardWidth` is then ignored. */
-  fullWidth?: boolean;
-  /** As many columns of at least `cardWidth` as fit, stretched so every row reaches both edges. */
-  fill?: boolean; gap?: number; rowGap?: number; overscanRows?: number; stickyOffset?: number;
+  fullWidth?: boolean; gap?: number; rowGap?: number; overscanRows?: number; stickyOffset?: number;
   /** Position once after this collection total and viewport are observed. */
   initialIndex?: number;
   /** One active pointer interaction may outlive its visible row window. */
@@ -41,7 +37,7 @@ const livePaintSlots = (root: HTMLElement): readonly HTMLElement[] => [...root.c
 const emptyPaint = (root: HTMLElement): readonly HTMLElement[] => root.hasChildNodes() ? [root] : [];
 const reducedAt = (node: HTMLElement | null) => typeof document !== 'undefined' && (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
   || !!node?.closest('[data-reduce-motion="true"]') || document.documentElement.dataset.reduceMotion === 'true' || document.body.dataset.reduceMotion === 'true');
-export function WindowedGrid<T>({collection, renderItem, renderPlaceholder, label, height, cardWidth: drawnWidth, fullWidth = false, fill = false, rowHeight: drawnHeight, gap = 20, rowGap = 30, overscanRows = 1, stickyOffset = 0,
+export function WindowedGrid<T>({collection, renderItem, renderPlaceholder, label, height, cardWidth: drawnWidth, fullWidth = false, rowHeight, gap = 20, rowGap = 30, overscanRows = 1, stickyOffset = 0,
   initialIndex, pinnedIndex, onVisibleRange, onItemFocus, reducedMotion = false, retainRemovals = false, paintScope, empty, ref, className, style}: WindowedGridProps<T>) {
   const initialPosition = useRef<WindowedCollection<T> | undefined>(undefined);
   const root = useRef<HTMLDivElement>(null), pendingFocus = useRef<number | null>(null), [viewport, setViewport] = useState({width: 0, height: 0, top: 0});
@@ -50,11 +46,8 @@ export function WindowedGrid<T>({collection, renderItem, renderPlaceholder, labe
   useLayoutEffect(() => {pendingFocus.current = null;setFocused(null);}, [focusOwner]);
   const snapshot = useSyncExternalStore(collection.subscribe, collection.getSnapshot, collection.getSnapshot);
   // A full-width grid is one column the width of its viewport, never a sentinel card width.
-  const columns = fullWidth ? 1 : gridColumns(viewport.width, drawnWidth, gap);
-  // A filled grid's cards share the viewport; the hundredth of a pixel keeps the column count when it is derived again.
-  const cardWidth = fullWidth ? Math.max(0, viewport.width) : fill && viewport.width > 0 ? (viewport.width - (columns - 1) * gap) / columns - .01 : drawnWidth;
-  const rowHeight = typeof drawnHeight === 'function' ? drawnHeight(cardWidth) : drawnHeight;
-  const total = snapshot.total ?? collection.pageSize, pitch = rowHeight + rowGap;
+  const cardWidth = fullWidth ? Math.max(0, viewport.width) : drawnWidth;
+  const total = snapshot.total ?? collection.pageSize, columns = fullWidth ? 1 : gridColumns(viewport.width, cardWidth, gap), pitch = rowHeight + rowGap;
   const logicalHeight = Math.max(0, Math.ceil(total / columns) * pitch - rowGap), scrollHeight = Math.min(MAX_SCROLL_HEIGHT, logicalHeight);
   const usableHeight = Math.max(1, viewport.height - stickyOffset), maxPhysical = Math.max(1, scrollHeight - usableHeight), maxLogical = Math.max(1, logicalHeight - usableHeight);
   const logicalTop = viewport.top * maxLogical / maxPhysical;

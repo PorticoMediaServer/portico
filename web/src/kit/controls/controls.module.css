@@ -221,8 +221,6 @@
 
 .slider {position: relative; display: inline-flex; align-items: center; width: 84px; height: 24px; flex: none; touch-action: none; user-select: none; cursor: pointer;}
 .sliderTrack {position: relative; height: 4px; border-radius: 4px; flex: 1; background: color-mix(in srgb, var(--color-text) 20%, transparent);}
-/* The player variant is a position scrub: it spans what it sits in (a volume slider keeps 84 px). */
-.slider[data-variant="player"] {width: 100%;}
 .slider[data-variant="player"] .sliderTrack {border-radius: 2px;}
 .sliderFill {position: absolute; height: 100%; border-radius: inherit; background: var(--color-text);}
 .sliderThumb {display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--color-text); box-shadow: 0 2px 8px color-mix(in srgb, var(--color-shadow) 50%, transparent); opacity: 0; transition: opacity 140ms var(--ease-out);}

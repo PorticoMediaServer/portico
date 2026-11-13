@@ -39,9 +39,7 @@ test('bulk Keep removes only the stream edit while explicit inherit and unlimite
 test('a stream change is written into the owner stream limits, and the other limits it cannot keep are refused',async()=>{
  let stored:any={perPerson:2,people:{other:1}};
  const client=new SettingsPeopleClient({request:async(path,method,body)=>{
-  assert.equal(path,'/v1/admin/playback/stream-limits');assert.equal(method,'PATCH');
-  assert.deepEqual(body,{people:{'real-person':0}});
-  stored={...stored,people:{...stored.people,...(body as {people:Record<string,number>}).people}};return stored;
+  assert.equal(path,'/v1/admin/playback/stream-limits');if(method==='PUT')stored=body;return stored;
  }},()=>true);
  try {
   const saved=await client.limits(person,peopleStreamLimits.patch(person,'unlimited'));

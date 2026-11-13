@@ -15,7 +15,6 @@ export const dockMessages = {
   'next.dock.close': 'Close',
   'next.dock.previous': 'Previous',
   'next.dock.next': 'Next',
-  'next.dock.playHere': 'Play here',
   'next.dock.previousNamed': 'Previous: {title}',
   'next.dock.nextNamed': 'Next: {title}',
   'next.dock.previousEpisode': 'Previous episode',

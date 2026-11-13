@@ -1,4 +1,5 @@
 // @fabric-react
+import {FormError, formErrorModule} from './helpers/form-error.mjs';
 import * as hostedSecurity from '../../../packages/client-core/src/hosted-security';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -56,7 +57,7 @@ async function securityFixture(context: import('node:test').TestContext, given?:
     react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View', NativeModules: {}},
     '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: (...args: unknown[]) => {presented.push(args); return {body: 'Security could not be opened.'};}},
-    '../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'},
+    '../../kit/controls': {FormError, Button: 'Button', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'},
     '../../kit/theme': {useTheme: () => ({type: {body: {}, captionStrong: {}}, colors: {danger: '#f00'}})},
     '../../platform/clipboard': {copyText: async () => {}}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
   });
@@ -74,12 +75,12 @@ async function securityFixture(context: import('node:test').TestContext, given?:
 test('security controller failures reach presentError and the alert while unavailable actions stay disabled', async context => {
   const f = await securityFixture(context);
   assert.deepEqual(f.presented, [[f.failure, 'portico-account']]);
-  assert.ok(nodes(f.tree()).some(node => node.props.accessibilityRole === 'alert' && node.props.children === 'Security could not be opened.'));
+  assert.ok(nodes(f.tree()).some(node => (node.props.accessibilityRole === 'alert' || node.type === FormError) && node.props.children === 'Security could not be opened.'));
   const deletion = () => nodes(f.tree()).find(node => node.props.testID === 'account-security-delete');
   assert.equal(deletion().props.disabled, true);
   await f.recover();
   assert.equal(deletion().props.disabled, false);
-  assert.equal(nodes(f.tree()).some(node => node.props.accessibilityRole === 'alert'), false);
+  assert.equal(nodes(f.tree()).some(node => (node.props.accessibilityRole === 'alert' || node.type === FormError)), false);
 });
 
 test('security deletion help preserves profiles and history and names affected and blocking servers', async context => {
@@ -110,7 +111,7 @@ test('the shared sheet keeps provider password input through factor verification
     react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View', NativeModules: {}},
     '../../../../../packages/i18n/src': {defaultI18n},
     '../../../../../packages/client-core/src/hosted-security': hostedSecurity, '../../../../../packages/client-core/src/presentation/errors': {presentError: () => {throw new Error('unexpected presentation');}},
-    '../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'},
+    '../../kit/controls': {FormError, Button: 'Button', TextField: 'TextField'}, '../../kit/overlays': {BottomSheet: 'BottomSheet'},
     '../../kit/theme': {useTheme: () => ({type: {body: {}}, colors: {text: '#fff'}})},
     '../../platform/clipboard': {copyText: async () => {}}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'},
   });

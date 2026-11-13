@@ -1,4 +1,4 @@
-import {createContext, useCallback, useContext, useEffect, useId, useRef, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject} from 'react';
+import {createContext, useCallback, useContext, useEffect, useId, useRef, type ReactNode, type RefObject} from 'react';
 import {Icon} from '../Icon';
 import {BottomSheet} from '../overlays/BottomSheet';
 import {usePhone, usePresence, useSurfaceMotion} from '../overlays/shared';
@@ -72,51 +72,16 @@ export function ReaderContents({entries}: Readonly<{entries: readonly ReaderCont
 
 export type ReaderAnnotationEntry = Readonly<{
   id: string; quote: string; note?: string; chapter?: string; page?: string; date?: string;
-  colour: 'yellow' | 'blue' | 'green' | 'pink';
-  /** Absent for a highlight that cannot be shown in this copy (an earlier copy's words not found). */
-  onNavigate?: () => void;
+  colour: 'yellow' | 'blue' | 'green' | 'pink'; onNavigate: () => void;
   onMore?: (anchor: HTMLButtonElement) => void; moreLabel?: string;
 }>;
-/** A row's ⋯: its own actions (edit the note, remove), shown on hover or focus, always on touch. */
-function RowMore({onMore, label}: Readonly<{onMore?: (anchor: HTMLButtonElement) => void; label?: string}>) {
-  return onMore ? <button type="button" className={styles.more} aria-label={label} onClick={event => onMore(event.currentTarget)}><Icon name="i-more" size={20} /></button> : null;
-}
-const moreKeys = (onMore: ((anchor: HTMLButtonElement) => void) | undefined) => ({
-  onContextMenu: (event: MouseEvent<HTMLButtonElement>) => { if (!onMore) return; event.preventDefault(); onMore(event.currentTarget); },
-  onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => { if (onMore && (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10')) { event.preventDefault(); onMore(event.currentTarget); } },
-});
-/** Highlights in the side panel or sheet (desktop-read .hlit, phone-read .hlit): the colour bar, the
- * words in the reader's serif, the note, then where and when. */
 export function ReaderAnnotations({entries}: Readonly<{entries: readonly ReaderAnnotationEntry[]}>) {
-  return <div className={styles.rows}>{entries.map(entry => {
-    const content = <><q>{entry.quote}</q>{entry.note && <span className={styles.note}><Icon name="i-note2" size={16} />{entry.note}</span>}
-      <span className={styles.where}>{entry.chapter && <span>{entry.chapter}</span>}{entry.page && <span>{entry.page}</span>}{entry.date && <span className={styles.date}>{entry.date}</span>}</span></>;
-    return <div key={entry.id} className={styles.annotationWrap} data-more={entry.onMore ? true : undefined}>
-      {entry.onNavigate ? <button type="button" className={styles.annotation} data-colour={entry.colour} onClick={entry.onNavigate} {...moreKeys(entry.onMore)}>{content}</button>
-        : <div className={styles.annotation} data-colour={entry.colour}>{content}</div>}
-      <RowMore onMore={entry.onMore} label={entry.moreLabel} />
-    </div>;
-  })}</div>;
-}
-
-export type ReaderBookmarkEntry = Readonly<{id: string; place: string; excerpt?: string; date?: string; onNavigate: () => void; onMore?: (anchor: HTMLButtonElement) => void; moreLabel?: string}>;
-/** Bookmarks (desktop-read .bmk): the mark, where it is, its note, and when. */
-export function ReaderBookmarks({entries}: Readonly<{entries: readonly ReaderBookmarkEntry[]}>) {
-  return <div className={styles.rows}>{entries.map(entry => <div key={entry.id} className={styles.annotationWrap} data-more={entry.onMore ? true : undefined}>
-    <button type="button" className={styles.bookmark} onClick={entry.onNavigate} {...moreKeys(entry.onMore)}>
-      <Icon name="i-bookmark-f" size={18} /><span className={styles.bookmarkText}><b>{entry.place}</b>{entry.excerpt && <small>{entry.excerpt}</small>}</span>
-      {entry.date && <span className={styles.when}>{entry.date}</span>}
+  return <div>{entries.map(entry => <div key={entry.id} className={styles.annotationWrap}>
+    <button type="button" className={styles.annotation} data-colour={entry.colour} onClick={entry.onNavigate}
+      onContextMenu={event => { if (!entry.onMore) return; event.preventDefault(); entry.onMore(event.currentTarget); }}
+      onKeyDown={event => { if (entry.onMore && (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10')) { event.preventDefault(); entry.onMore(event.currentTarget); } }}>
+      <q>{entry.quote}</q>{entry.note && <span className={styles.note}><Icon name="i-note" size={16} />{entry.note}</span>}
+      <span className={styles.where}>{entry.chapter && <span>{entry.chapter}</span>}{entry.page && <span>{entry.page}</span>}{entry.date && <span className={styles.date}>{entry.date}</span>}</span>
     </button>
-    <RowMore onMore={entry.onMore} label={entry.moreLabel} />
   </div>)}</div>;
-}
-
-/** A heading inside a panel's list (desktop-read .psec). */
-export function ReaderPanelSection({children}: Readonly<{children: ReactNode}>) {
-  return <h3 className={styles.section}>{children}</h3>;
-}
-
-/** One line in a panel with nothing to list yet, or still reading it. */
-export function ReaderPanelEmpty({children, role}: Readonly<{children: ReactNode; role?: 'status' | 'alert'}>) {
-  return <p className={styles.empty} role={role}>{children}</p>;
 }

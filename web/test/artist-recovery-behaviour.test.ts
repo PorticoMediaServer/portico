@@ -66,9 +66,9 @@ test('Artist Back and retry keep their committed entry and never adopt successor
     '@i18n': {defaultI18n: {region: {formatLocale: 'en'}}}, './text': {t},
     '@core/library-content.ts': {LibraryContentService: Service, readListeningSimilar: () => Promise.resolve({entries: []})},
     '@core/freshness-hub.ts': {dependsOn: {libraries: 'libraries'}}, '../../platform/freshness': {useFreshDocument() {}, usePageMemory: () => pageMemory},
-    '../../kit/controls': {Button: 'Button', Chip: 'Chip'}, '../../kit/cards': {SquareCard: 'SquareCard'}, '../../kit/artwork': {PersonCircle: 'PersonCircle', nameInitials: (name: string) => name.slice(0, 1)}, '../../kit/title/CoverHero': {CoverHero: 'CoverHero'},
+    '../../kit/controls': {Button: 'Button', Chip: 'Chip'}, '../../kit/cards': {SquareCard: 'SquareCard'}, '../../kit/artwork': {AmbientArt: 'AmbientArt', CircleArt: 'CircleArt'},
     '@core/presentation/server-text.ts': {serverTextLabel: (_i18n: unknown, heading: any) => heading?.fallback ?? ''}, '@core/presentation/service-text.ts': {serviceI18n: () => ({})},
-    '../../kit/title/TitleParts': {TitleFactsLine: 'TitleFactsLine', TitleProse: 'TitleProse'},
+    '../../kit/layout': {Lockup: 'Lockup'}, '../../kit/title/TitleParts': {TitleFactsLine: 'TitleFactsLine', TitleProse: 'TitleProse'},
     '../../kit/browse': {TrackTable: 'TrackTable'}, '../../kit/overlays': {Menu: 'Menu'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../shell/viewport': {useShellWidth: () => 1440}, './context': {...identity, screenLifetime, runScreenCommand},
     '../detail/context': identity, '../../shell/title-menu': {useTitleMenu: () => ({open() {}, menu: null, play: () => undefined})},
@@ -121,9 +121,9 @@ test('Artist Back and retry keep their committed entry and never adopt successor
   const late = services.at(-1), reportCount = reports.length; location = {href: location.href}; router.state.location = location; view = render(); view = render();
   late.snapshot = {phase: 'ready', projection: {entity: {id: artistId, kind: 'artist'}, scope: {libraryId, view: 'artist', entityId: artistId}, revision: {catalog: 1, viewer: 1}}, appended: [], error: null}; late.resolve(); view = await settle();
   assert.equal(reports.length, reportCount, 'retired success cannot report or publish to successor');
-  assert.equal(all(view, 'CoverHero').length, 0, 'late original artist cannot render in successor');
+  assert.equal(all(view, 'Lockup').length, 0, 'late original artist cannot render in successor');
   const fresh = services.at(-1); fresh.snapshot = {phase: 'ready', projection: {entity: {id: artistId, kind: 'artist', title: 'Real artist'}, scope: {libraryId, view: 'artist', entityId: artistId}, revision: {catalog: 1, viewer: 1}, sections: []}, appended: [], error: null}; fresh.resolve(); view = await settle();
-  assert.equal(all(view, 'CoverHero')[0].props.title, 'Real artist'); assert.ok(back(view));
+  assert.equal(all(view, 'Lockup')[0].props.title, 'Real artist'); assert.ok(back(view));
   assert.ok(all(view, 'span').some((node: any) => node.props.children?.includes?.('Real artist')), 'bar shows the admitted artist title');
   // The music library's artist view publishes its albums as 'releases' (the listening contract).
   const album = {id: 'release', kind: 'album', libraryId, title: 'Release'}, albums = {id: 'releases', entries: [album], nextCursor: 'next-release', totalCount: 2};
@@ -136,7 +136,7 @@ test('Artist Back and retry keep their committed entry and never adopt successor
   assert.equal(more.props.disabled, false);
   more.props.onClick(); view = render();
   assert.deepEqual(fresh.pages, ['releases']);
-  assert.equal(all(view, 'CoverHero')[0].props.title, 'Real artist', 'the page stays mounted while the serialized source fetches a shelf page');
+  assert.equal(all(view, 'Lockup')[0].props.title, 'Real artist', 'the page stays mounted while the serialized source fetches a shelf page');
   assert.equal(nextPage(view).props.disabled, true);
   const final = {...albums, entries: [...albums.entries, {...album, id: 'second-release'}], nextCursor: ''};
   fresh.snapshot = {...fresh.snapshot, phase: 'ready', projection: {...fresh.snapshot.projection, sections: [final]}, appended: [final]};

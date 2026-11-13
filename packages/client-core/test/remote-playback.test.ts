@@ -8,9 +8,7 @@ import {serverEventsFrom} from '../src/server-events.ts';
  * through its own `api`; every change is told to the account's devices on their feeds. */
 type Device = {signIn: string; deviceId: string; name: string; profile: string; open: boolean; off?: boolean; allowed: Set<string>; feed: Feed};
 type Request = {id: string; kind: 'play' | 'control'; from: Device; to: Device; state: string; failed?: string; play?: Record<string, unknown>; moving?: string; sessionId?: string; createdAt: number};
-type Session = {id: string; signIn: string; itemId: string; state: 'playing' | 'paused' | 'ended'; positionMs: number; command?: Record<string, unknown>;
-  /** What the device reports playing (#3180): its version, and its tracks in use there; subtitleId null is off. */
-  playing?: {versionId: string; audioTrackId?: string; subtitleId: string | null}};
+type Session = {id: string; signIn: string; itemId: string; state: 'playing' | 'paused' | 'ended'; positionMs: number; command?: Record<string, unknown>};
 const fail = (status: number, code: string) => Object.assign(new Error(code), {status, code});
 
 class Feed implements RemoteEvents {
@@ -116,8 +114,7 @@ class StandIn {
     if (path === '/v1/playback/sessions' && method === 'GET')
       return {items: [...this.sessions.values()].filter(s => s.state !== 'ended').map(s => {const dev = this.devices.find(x => x.signIn === s.signIn)!;
         return {id: s.id, deviceId: dev.deviceId, deviceName: dev.name, kind: 'vod', state: s.state, positionMs: s.positionMs, startedAt: 'x', current: s.signIn === d.signIn,
-          ...(this.visible[d.profile]!.has(s.itemId) ? {itemId: s.itemId, title: 'Title ' + s.itemId, ...(s.playing ? {versionId: s.playing.versionId,
-            ...(s.playing.audioTrackId ? {audioTrackId: s.playing.audioTrackId} : {}), ...(s.playing.subtitleId ? {subtitle: {trackId: s.playing.subtitleId, kind: 'text', delivery: 'sidecar'}} : {})} : {})} : {})};})};
+          ...(this.visible[d.profile]!.has(s.itemId) ? {itemId: s.itemId, title: 'Title ' + s.itemId} : {})};})};
     if ((m = path.match(/^\/v1\/playback\/sessions\/([^/]+)$/))) {
       const s = this.sessions.get(m[1]!);
       if (!s) throw fail(404, 'not_found');
@@ -477,35 +474,3 @@ test('a track choice belongs to its title: when the TV moves on to the next titl
   assert.deepEqual([next?.audioId, next?.subtitleId], [undefined, undefined], 'nothing checked that it was not told on this title');
 });
 
-
-test('the bar starts from what the TV reports playing; a choice stands in until the TV reports it, or two reports pass without it', async t => {
-  const server = new StandIn(), tvDevice = server.device('Living room'), phoneDevice = server.device('Phone');
-  const allowed = memoryAllowedDevices(); allowed.add(phoneDevice.signIn);
-  const tv = television(server, tvDevice, {allowed}); t.after(() => tv.host.dispose());
-  await until('the TV to open', () => tvDevice.open);
-  const {controller, sessionId} = phone(server, phoneDevice); t.after(() => controller.dispose());
-  await controller.refresh();
-  assert.equal(await controller.send(controller.getSnapshot().receivers[0]!, source(sessionId)), true);
-  await until('the TV\'s title to be read', () => controller.getSnapshot().remote?.itemId === 'movie');
-  const session = server.sessions.get(controller.getSnapshot().receiverPlaybackId!)!;
-  // Someone on the TV switched to English audio with English subtitles.
-  session.playing = {versionId: 'ver_1', audioTrackId: 'a1', subtitleId: 's1'};
-  await controller.refreshRemote();
-  assert.deepEqual(controller.inUse(), {audioId: 'a2', subtitleId: null}, 'one report against what was sent may be stale: it still stands');
-  await controller.refreshRemote();
-  assert.deepEqual(controller.getSnapshot().remote && [controller.getSnapshot().remote!.versionId, controller.getSnapshot().remote!.audioTrackId, controller.getSnapshot().remote!.subtitleId], ['ver_1', 'a1', 's1']);
-  let tracks = await controller.remoteTracks();
-  assert.deepEqual([tracks?.audioId, tracks?.subtitleId], ['a1', 's1'], 'what the TV reports, not what was sent to it');
-  // A choice from the bar shows at once, before the TV reports it.
-  assert.equal(await controller.subtitles(null), true);
-  assert.equal(controller.inUse().subtitleId, null);
-  await controller.refreshRemote();
-  assert.equal(controller.inUse().subtitleId, null, 'one report without it: the choice still stands');
-  session.playing = {versionId: 'ver_1', audioTrackId: 'a1', subtitleId: null};
-  await controller.refreshRemote();
-  assert.deepEqual(controller.inUse(), {audioId: 'a1', subtitleId: null}, 'reported: the TV\'s own report again');
-  // A choice the TV never carries out gives way to its report after two reports.
-  assert.equal(await controller.audio('a2'), true);
-  await controller.refreshRemote(); assert.equal(controller.inUse().audioId, 'a2');
-  await controller.refreshRemote(); assert.equal(controller.inUse().audioId, 'a1', 'the TV still plays English');
-});

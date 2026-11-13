@@ -7,11 +7,11 @@ import {router} from '../../router';
 import type {FactPart} from '@core/presentation/kit-model';
 import {clockText} from '@core/presentation/kit-model/text.ts';
 import {LibraryContentService, readListeningSimilar, type ContentEntry, type ContentProjection, type ContentSection, type LibraryContentApi} from '@core/library-content.ts';
-import {PersonCircle, nameInitials} from '../../kit/artwork';
-import {CoverHero} from '../../kit/title/CoverHero';
+import {AmbientArt, CircleArt} from '../../kit/artwork';
 import {Button, Chip} from '../../kit/controls';
 import {serverTextLabel} from '@core/presentation/server-text.ts';
 import {serviceI18n} from '@core/presentation/service-text.ts';
+import {Lockup} from '../../kit/layout';
 import {TitleFactsLine, TitleProse} from '../../kit/title/TitleParts';
 import {ScreenProblem} from './ScreenProblem';
 import {TrackTable, type TrackRowData} from '../../kit/browse';
@@ -166,10 +166,16 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
   const hasDetails = !!artist.overview || details.length > 0;
   return <div data-layout={phone ? 'phone' : 'desktop'}>
     {bar}
-    {/* desktop-listen #artist, phone-app r5: the kit's cover hero, artist variant, as an audiobook author's page. */}
-    <div className={styles.heroBleed}><CoverHero title={artist.title} titleStyle={long ? 'long' : undefined} shape="artist" eyebrow={t('filter.field.artist')} facts={facts}
-      cover={discArt} fallback={<PersonCircle width="100%" height="100%" initialsSize={phone ? 44 : 80} initials={nameInitials(artist.title)} alt="" />} ambient={context.artwork.ambient(cover)}
-      actions={<>
+    <header className={styles.hero}>
+      {!phone && <AmbientArt className={styles.ambient} treatment="artist" source={context.artwork.ambient(cover)} />}
+      <span className={styles.disc}>{phone ? <AmbientArt className={styles.phoneDiscAmbient} treatment="phone" source={context.artwork.ambient(cover)} foreground={discArt} /> : <AmbientArt className={styles.discGlow} treatment="cover" source={context.artwork.ambient(cover)} />}
+        <CircleArt covers={discArt ? [discArt] : []} initials={artist.title.split(/\s+/).filter(Boolean).slice(0, 2).map(word => Array.from(word)[0]).join('')} alt="" /></span>
+      <div className={styles.copy}>
+        <p className={styles.kind}>{t('filter.field.artist')}</p>
+        <Lockup title={artist.title} long={long} platform={phone ? 'phone-web' : 'desktop'} className={styles.title}
+          style={{fontSize: undefined, fontWeight: undefined, lineHeight: undefined, letterSpacing: undefined}}/>
+        <div className={styles.meta}><TitleFactsLine parts={facts}/></div>
+        <div className={styles.actions}>
           {playArtist && <>
             <Button variant="primary" icon="i-play" onClick={() => runScreenCommand(context, () => {
               if (!witness()) throw new DOMException('Artist playback changed', 'AbortError');
@@ -182,7 +188,9 @@ function ArtistBody({context, libraryId, artistId, lease, retry, back}: {context
           </>}
           {(context.effects.playRadio || context.effects.editMetadata) && <Button ref={more} variant="glass" icon="i-more" iconOnly aria-label={t('card.more', {title: artist.title})}
             onClick={event => {if (witness()) setMenu({page: projection, anchor: event.currentTarget});}}/>}
-        </>}/></div>
+        </div>
+      </div>
+    </header>
     {menu?.page === projection && <Menu open onOpenChange={open => {if (!open) setMenu(current => current === menu ? undefined : current);}} anchorRef={{current: menu.anchor}} returnFocusRef={{current: menu.anchor}} title={artist.title}>
       <MusicEntryMenu context={context} seed={{id: artist.id, title: artist.title}} signal={lease.signal} current={witness}/>
       <OwnerMetadataGroup separated={!!context.effects.playRadio} context={context} anchor={() => menu.anchor}

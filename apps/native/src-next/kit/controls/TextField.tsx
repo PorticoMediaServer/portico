@@ -7,6 +7,7 @@ import {colorAlpha} from './control-model';
 import {useFocusTarget} from '../focus';
 import {useOverlayPaintMode} from '../overlays/OverlayPaintContext';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
+import {FormError} from './FormError';
 
 export type TextFieldProps = TextInputProps & {
   focusId?: string;
@@ -90,7 +91,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
       </View>
       {ring}
     </View> : <View style={faceStyle}>{content}{ring}</View>}
-    {error !== undefined ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={[theme.type.caption, {color: theme.colors.danger}]}>{error}</Text>
+    {error !== undefined ? <FormError placement="inline">{error}</FormError>
       : description !== undefined ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{description}</Text> : null}
   </View>;
 });

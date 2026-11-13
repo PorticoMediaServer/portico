@@ -17,13 +17,7 @@ function server(options: {limits?: unknown; limitsStatus?: number} = {}) {
     if (path.startsWith('/v1/admin/members/')) return (method === 'DELETE' ? undefined : {...members.find(m => m.id === decodeURIComponent(path.split('/')[4]))!, ...(body as object)}) as T;
     if (path === '/v1/admin/playback/stream-limits') {
       if (options.limitsStatus) throw Object.assign(new Error('refused'), {status: options.limitsStatus});
-      if (method === 'PATCH') {
-        const people = {...limits.people};
-        for (const [id, count] of Object.entries((body as {people: Record<string, number | null>}).people)) {
-          if (count === null) delete people[id]; else people[id] = count;
-        }
-        limits = {...limits, people};
-      }
+      if (method === 'PUT') limits = body;
       return limits as T;
     }
     if (path === '/v1/admin/sessions') return {items: [{username: 'amy', kind: 'audio', state: 'playing'}, {username: 'cam', kind: 'vod', state: 'paused'}]} as T;
@@ -74,9 +68,7 @@ test('notes and role are one PATCH each, and the stream count is set in the owne
   assert.equal(amy.limits.maxStreams, 4); assert.equal(amy.effectiveMaxStreams, 4);
   await client.notes(amy, 'Sister'); await client.role(amy, 'admin');
   assert.deepEqual(s.calls.filter(call => call.method === 'PATCH').map(call => call.body), [{notes: 'Sister'}, {role: 'admin'}]);
-  const beforeLimit = s.calls.length;
   const saved = await client.limits(amy, {...amy.limits, maxStreamsMode: 'inherit', maxStreams: 0});
-  assert.deepEqual(s.calls.slice(beforeLimit), [{path: '/v1/admin/playback/stream-limits', method: 'PATCH', body: {people: {amy: null}}}], 'one delta write without reading and replacing everyone’s limits');
   assert.deepEqual(s.limits(), {perPerson: 2, people: {cam: 0}, total: 10});
   assert.deepEqual([saved.limits.maxStreamsMode, saved.effectiveMaxStreams], ['inherit', 2]);
   const before = s.calls.length;
@@ -94,9 +86,8 @@ test('bulk is one request per account, and bulk access refuses what the server d
   assert.deepEqual(s.calls.map(call => [call.method, call.path, call.body]), [['PATCH', '/v1/admin/members/amy', {disabled: true}], ['PATCH', '/v1/admin/members/ben', {disabled: true}]]);
   s.calls.length = 0;
   await client.bulk(rows, 'access', {allowedLibraries: ['lib-films'], maxStreamsMode: 'limit', maxStreams: 1});
-  assert.deepEqual(s.calls.filter(call => call.path.startsWith('/v1/admin/members/') && call.method === 'PATCH').map(call => call.body), [{allLibraries: false, libraries: ['lib-films']}, {allLibraries: false, libraries: ['lib-films']}]);
+  assert.deepEqual(s.calls.filter(call => call.method === 'PATCH').map(call => call.body), [{allLibraries: false, libraries: ['lib-films']}, {allLibraries: false, libraries: ['lib-films']}]);
   assert.deepEqual(s.limits().people, {amy: 1, ben: 1, cam: 0});
-  assert.deepEqual(s.calls.filter(call => call.path === '/v1/admin/playback/stream-limits'), [{path: '/v1/admin/playback/stream-limits', method: 'PATCH', body: {people: {amy: 1, ben: 1}}}]);
   s.calls.length = 0;
   await assert.rejects(client.bulk(rows, 'access', {allowRemote: false}), /not available/);
   assert.equal(s.calls.length, 0);

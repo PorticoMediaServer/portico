@@ -59,7 +59,7 @@ test('a first-run hint makes the reader surface/chrome inert and withholds porta
 
 
 const {FixedPageFooter} = await import('../../src/screens/read/fixed-page.tsx');
-const {CoverHero} = await import('../../src/kit/title/CoverHero.tsx');
+const {ReadBookHero} = await import('../../src/kit/reader/ReadBookHero.tsx');
 test('compact PDF footer draws observed labels, range and Pages/Contents/Fit pills without a thumbnail strip', () => {
   const snapshot: any = {status: 'ready', location: {format: 'pdf', page: 2, progression: .25, chapter: 'Actual heading'}, metadata: {pageCount: 9}, toc: [{title: 'Actual heading'}], zoom: {fit: 'width', scale: 1}};
   const controller: any = {subscribe: () => () => {}, getSnapshot: () => snapshot};
@@ -71,9 +71,9 @@ test('compact PDF footer draws observed labels, range and Pages/Contents/Fit pil
 });
 test('series stack uses at most three supplied covers and never creates missing volumes', () => {
   const sources = Array.from({length: 5}, (_, index) => ({key: `cover-${index}`, scheduler: {} as any}));
-  const base = {title: 'Actual series', facts: [], actions: null, fallback: null};
-  const html = renderToStaticMarkup(createElement(CoverHero, {...base, stack: sources}));
+  const base = {title: 'Actual series', facts: [], actions: null};
+  const html = renderToStaticMarkup(createElement(ReadBookHero, {...base, seriesCovers: sources}));
   assert.match(html, /data-stack="3"/);assert.equal((html.match(/stackedCover/g) ?? []).length, 3);
-  const missing = renderToStaticMarkup(createElement(CoverHero, {...base, stack: []}));
+  const missing = renderToStaticMarkup(createElement(ReadBookHero, {...base, seriesCovers: []}));
   assert.doesNotMatch(missing, /data-stack=|stackedCover/);
 });

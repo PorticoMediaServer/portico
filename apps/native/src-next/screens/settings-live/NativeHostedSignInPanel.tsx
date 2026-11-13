@@ -4,7 +4,7 @@ import {createHostedAccountApi} from '../../../../../packages/client-core/src/qu
 import {readHostedSecurity} from '../../../../../packages/client-core/src/query/connection-operations';
 import {parseSecurityState, providerOnlySignIn} from '../../../../../packages/client-core/src/hosted-security';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
-import {Button} from '../../kit/controls';
+import {Button, FormError} from '../../kit/controls';
 import {SettingsRow} from '../../kit/shell';
 import {shellType} from '../../kit/shell/visual';
 import {useTheme} from '../../kit/theme';
@@ -98,7 +98,7 @@ export function NativeHostedSignInPanel({kind, context, lifetime, t, runtime}: N
       label={t('settings.row.porticoAccount')} value={context.account.account.username}
       control={<Button testID="settings-manage-portico-account" variant="glass" size="compact"
         onPress={() => {if (lifetime.current() && context.current()) void Linking.openURL(`${hostedUrl}/account?tab=security`).catch(error => {if (lifetime.current()) setFailure(presentError(error, 'portico-account').body);});}}>{t('web.signIn.manage')}</Button>}/>
-    {failure && <View style={{padding: 14}}><Text accessibilityRole="alert" style={[shellType(14, 400, 20), {color: theme.colors.danger}]}>{failure}</Text></View>}
+    {failure && <View style={{padding: 14}}><FormError placement="inline">{failure}</FormError></View>}
   </>;
   const ready = opening?.current() ? source : undefined, security = ready?.security;
   const locked = security ? accountSecurityAvailability(security, NativeModules.PorticoAccountAuth).credentialLocked : true;
@@ -109,7 +109,7 @@ export function NativeHostedSignInPanel({kind, context, lifetime, t, runtime}: N
   if (providerOnly && !moreSignIn) return <>
     <View style={{paddingHorizontal: 14, paddingVertical: 10}}><Button testID="settings-more-sign-in" variant="text" size="compact" style={{alignSelf: 'flex-start'}}
       onPress={() => setMoreSignIn(true)}>{t('web.hostedSecurity.moreSignInOptions')}</Button></View>
-    {failure && <View style={{padding: 14}}><Text accessibilityRole="alert" style={[shellType(14, 400, 20), {color: theme.colors.danger}]}>{failure}</Text></View>}
+    {failure && <View style={{padding: 14}}><FormError placement="inline">{failure}</FormError></View>}
     {security && <AccountSecuritySheet security={security} source={ready} onFinished={() => {if (opening?.current()) void opening.refresh();}}/>}
   </>;
   return <>
@@ -120,7 +120,7 @@ export function NativeHostedSignInPanel({kind, context, lifetime, t, runtime}: N
           {action(security.mfaEnabled ? 'mfa-off' : 'mfa-on', t(security.mfaEnabled ? 'web.hostedSecurity.turnOff' : 'web.twoStep.turnOn'))}</View> : undefined}/>
     {kind === 'twoStep' && security?.mfaEnabled && <SettingsRow testID="settings-panel-recovery-codes" label={t('web.hostedSecurity.recoveryCodes')}
       control={action('codes', t('web.hostedSecurity.makeCodes'))}/>}
-    {failure && <View style={{padding: 14, gap: 12}}><Text accessibilityRole="alert" style={[shellType(14, 400, 20), {color: theme.colors.danger}]}>{failure}</Text>
+    {failure && <View style={{padding: 14, gap: 12}}><FormError placement="inline">{failure}</FormError>
       {opening?.current() && <Button variant="glass" size="compact" onPress={() => {void opening.refresh();}}>{t('action.tryAgain')}</Button>}</View>}
     {security && <AccountSecuritySheet security={security} source={ready} onFinished={() => {if (opening?.current()) void opening.refresh();}}/>}
   </>;
