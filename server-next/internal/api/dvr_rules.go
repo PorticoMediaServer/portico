@@ -7,14 +7,17 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/live"
 )
 
 // DvrRule is a series rule.
 type DvrRule struct {
-	ID      string `json:"id"`
-	Title   string `json:"title"`
-	Source  string `json:"source"`
-	Channel string `json:"channel,omitempty"`
+	ProfileID   string `json:"profileId"`
+	ProfileName string `json:"profileName"`
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Source      string `json:"source"`
+	Channel     string `json:"channel,omitempty"`
 	// ChannelName is the channel's name, sent with Channel.
 	ChannelName string `json:"channelName,omitempty"`
 	ByTitle     bool   `json:"byTitle"` // the guide has no series id: it matches by title on the same channel
@@ -33,8 +36,9 @@ type DvrRule struct {
 // DvrRulePreview is what a rule being made or edited would record over the next 14 days:
 // how many airings, and the first of them.
 type DvrRulePreview struct {
-	Matches int         `json:"matches"`
-	Airings []DvrAiring `json:"airings"`
+	NewOnlyAvailable bool        `json:"newOnlyAvailable"`
+	Matches          int         `json:"matches"`
+	Airings          []DvrAiring `json:"airings"`
 }
 
 // DvrAiring is one airing a rule would record. AlreadyBooked says it is booked already.
@@ -55,6 +59,8 @@ func (r DvrRule) reply(http.Header) int { return r.status }
 // the series on every channel of its source; Channel (a channel's id, on a change) follows it
 // on that one channel of the same source.
 type DvrRuleSave struct {
+	// ProfileID is an owner choosing another permitted profile on creation.
+	ProfileID   string  `json:"profileId,omitempty"`
 	Programme   string  `json:"programme,omitempty"`
 	AnyChannel  *bool   `json:"anyChannel,omitempty"`
 	Channel     *string `json:"channel,omitempty"`
@@ -82,7 +88,7 @@ func ruleOut(rule db.RecordingRule, source, channel string) DvrRule {
 }
 
 func (s *Server) listRules(r *http.Request, _ None) (Page[DvrRule], error) {
-	if _, err := s.liveAllowed(r, true); err != nil {
+	if _, err := s.ruleAccess(r); err != nil {
 		return Page[DvrRule]{}, err
 	}
 	profile := viewer(r).ProfileID
@@ -126,12 +132,41 @@ func (s *Server) ruleNamed(ctx context.Context, rule db.RecordingRule) (DvrRule,
 	}
 	out := ruleOut(rule, source, channel)
 	out.ChannelName = name
+	profile, err := s.db.ProfileNames(ctx, rule.ProfileID)
+	if err != nil {
+		return DvrRule{}, err
+	}
+	out.ProfileID, out.ProfileName = profile.PublicID, profile.Name
 	return out, nil
 }
 
 // rulePreview is what a rule would record, as far as the viewer may know: airings on channels
 // it may watch, within its rating limit.
 func (s *Server) rulePreview(r *http.Request, lv db.LiveViewer, rule db.RecordingRule) (*DvrRulePreview, error) {
+	v := viewer(r)
+	if rule.ProfileID != v.ProfileID {
+		profile, err := s.db.ProfileNames(r.Context(), rule.ProfileID)
+		if err != nil {
+			return nil, err
+		}
+		v, err = s.db.DvrRuleViewer(r.Context(), profile.PublicID)
+		if errors.Is(err, db.ErrNotFound) {
+			return &DvrRulePreview{Airings: []DvrAiring{}}, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		lv, err = s.db.ViewerLive(r.Context(), v)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if !lv.Record || !lv.LiveTV {
+		return &DvrRulePreview{Airings: []DvrAiring{}}, nil
+	}
+	return s.rulePreviewFor(r, lv, rule, v)
+}
+func (s *Server) rulePreviewFor(r *http.Request, lv db.LiveViewer, rule db.RecordingRule, v db.Viewer) (*DvrRulePreview, error) {
 	ctx := r.Context()
 	airings, err := s.recorder.RuleAirings(ctx, rule, s.now())
 	if err != nil {
@@ -145,7 +180,7 @@ func (s *Server) rulePreview(r *http.Request, lv db.LiveViewer, rule db.Recordin
 		}
 		ok, known := watchable[a.Channel.ID]
 		if !known {
-			ch, err := s.db.LiveChannelByID(ctx, viewer(r), a.Channel.PublicID)
+			ch, err := s.db.LiveChannelByID(ctx, v, a.Channel.PublicID)
 			if err != nil && !errors.Is(err, db.ErrNotFound) {
 				return nil, err
 			}
@@ -154,6 +189,9 @@ func (s *Server) rulePreview(r *http.Request, lv db.LiveViewer, rule db.Recordin
 		}
 		if !ok {
 			continue
+		}
+		if a.Programme.Flags&(live.FlagNew|live.FlagRepeat) != 0 {
+			out.NewOnlyAvailable = true
 		}
 		out.Matches++
 		if len(out.Airings) < 10 {
@@ -238,23 +276,23 @@ func applyRule(rule *db.RecordingRule, req DvrRuleSave) error {
 // the guide has none, the same title on the same channel. With ?preview=true it answers what
 // it would record and makes nothing.
 func (s *Server) createRule(r *http.Request, req DvrRuleSave) (DvrRule, error) {
-	lv, err := s.liveAllowed(r, true)
+	v, lv, err := s.ruleTarget(r, req.ProfileID)
 	if err != nil {
 		return DvrRule{}, err
 	}
 	ctx := r.Context()
-	ch, p, err := s.programme(ctx, viewer(r), lv, req.Programme)
+	ch, p, err := s.programme(ctx, v, lv, req.Programme)
 	if err != nil {
 		return DvrRule{}, err
 	}
 	if ch.Kind != db.ChannelFromSource {
 		return DvrRule{}, ErrConflict("cannot_record", "This program can't be recorded.")
 	}
-	rule := db.RecordingRule{ProfileID: viewer(r).ProfileID, SourceID: ch.SourceID, ChannelID: ch.ID, SeriesKey: p.SeriesKey, Title: p.Title}
+	rule := db.RecordingRule{ProfileID: v.ProfileID, SourceID: ch.SourceID, ChannelID: ch.ID, SeriesKey: p.SeriesKey, Title: p.Title}
 	if req.AnyChannel != nil && *req.AnyChannel && p.SeriesKey != "" {
 		rule.ChannelID = 0
 	}
-	if req.NewOnly != nil && *req.NewOnly && p.Flags == 0 {
+	if req.NewOnly != nil && *req.NewOnly && p.Flags&(live.FlagNew|live.FlagRepeat) == 0 {
 		return DvrRule{}, ErrField("newOnly", "This guide doesn't say which episodes are new.")
 	}
 	if err := applyRule(&rule, req); err != nil {
@@ -263,7 +301,10 @@ func (s *Server) createRule(r *http.Request, req DvrRuleSave) (DvrRule, error) {
 	if r.URL.Query().Get("preview") == "true" {
 		out, err := s.ruleNamed(ctx, rule)
 		if err == nil {
-			out.Preview, err = s.rulePreview(r, lv, rule)
+			out.Preview, err = s.rulePreviewFor(r, lv, rule, v)
+			if out.Preview != nil && p.Flags&(live.FlagNew|live.FlagRepeat) != 0 {
+				out.Preview.NewOnlyAvailable = true
+			}
 		}
 		return out, err
 	}
@@ -282,7 +323,7 @@ func (s *Server) createRule(r *http.Request, req DvrRuleSave) (DvrRule, error) {
 // changeRule edits a rule: its channel choice and options (its title and source stay). With
 // ?preview=true it answers what the edited rule would record and saves nothing.
 func (s *Server) changeRule(r *http.Request, req DvrRuleSave) (DvrRule, error) {
-	lv, err := s.liveAllowed(r, true)
+	lv, err := s.ruleAccess(r)
 	if err != nil {
 		return DvrRule{}, err
 	}
@@ -326,7 +367,7 @@ func (s *Server) changeRule(r *http.Request, req DvrRuleSave) (DvrRule, error) {
 }
 
 func (s *Server) deleteRule(r *http.Request, _ None) (None, error) {
-	if _, err := s.liveAllowed(r, true); err != nil {
+	if _, err := s.ruleAccess(r); err != nil {
 		return None{}, err
 	}
 	ctx := r.Context()
@@ -341,4 +382,27 @@ func (s *Server) deleteRule(r *http.Request, _ None) (None, error) {
 		return None{}, ErrNotPermitted()
 	}
 	return None{}, s.db.DeleteRule(ctx, rule.PublicID, r.URL.Query().Get("bookings") == "cancel", s.now())
+}
+
+// Owners can manage other profiles' rules even when their own recording switch is off.
+func (s *Server) ruleAccess(r *http.Request) (db.LiveViewer, error) {
+	return s.liveAllowed(r, CallerFrom(r.Context()).Role != "owner")
+}
+func (s *Server) ruleTarget(r *http.Request, profile string) (db.Viewer, db.LiveViewer, error) {
+	v := viewer(r)
+	if profile != "" {
+		if CallerFrom(r.Context()).Role != "owner" {
+			return v, db.LiveViewer{}, ErrNotPermitted()
+		}
+		var err error
+		v, err = s.db.DvrRuleViewer(r.Context(), profile)
+		if err != nil {
+			return v, db.LiveViewer{}, refuse(err)
+		}
+	}
+	lv, err := s.db.ViewerLive(r.Context(), v)
+	if err == nil && (!lv.Record || !lv.LiveTV) {
+		err = ErrNotPermitted()
+	}
+	return v, lv, err
 }
