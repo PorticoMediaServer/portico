@@ -21,6 +21,11 @@ import (
 // otherwise the name is the title and a folder above is the author.
 func (r *run) bookUnits(f *folder) []unit {
 	runs := datedIssueRuns(f)
+	byName := map[string][]*found{}
+	for _, file := range f.media {
+		name := stem(file.entry.Name)
+		byName[name] = append(byName[name], file)
+	}
 	var units []unit
 	for _, file := range f.media {
 		if !file.touched() && !r.rereads(file) {
@@ -55,10 +60,17 @@ func (r *run) bookUnits(f *folder) []unit {
 			}
 		}
 		bookTitle := firstOf(d["album"], name)
+		keys := []db.ItemKey{db.FileKey(r.path.ID, file.rel, 0)}
+		// Unchanged formats are not imported again, but their file keys still identify the
+		// book a later format belongs to, even when only its EPUB carries an author or title.
+		for _, other := range byName[stem(file.entry.Name)] {
+			if other != file {
+				keys = append(keys, db.FileKey(r.path.ID, other.rel, 0))
+			}
+		}
 		item := db.ImportItem{Kind: db.KindBook, Title: bookTitle, Year: d.year(), Summary: d["description"], Tags: genreTags(d),
-			Credits: credits(db.RoleAuthor, authors),
-			Keys: []db.ItemKey{db.FileKey(r.path.ID, file.rel, 0),
-				{Kind: db.KeyName, Key: "book|" + fold(bookTitle) + "|" + fold(strings.Join(authors, ","))}},
+			Credits:  credits(db.RoleAuthor, authors),
+			Keys:     append(keys, db.ItemKey{Kind: db.KeyName, Key: "book|" + fold(bookTitle) + "|" + fold(strings.Join(authors, ","))}),
 			Versions: []db.ImportVersion{{Name: strings.TrimPrefix(strings.ToLower(path.Ext(file.rel)), "."), Parts: []db.ImportPart{{File: file.ref()}}}}}
 		given(&item, fieldIf(d["album"] != "", db.FieldTitle), fieldIf(d.year() > 0, db.FieldYear), fieldIf(d["description"] != "", db.FieldSummary),
 			fieldIf(len(item.Tags) > 0, db.FieldGenres), fieldIf(len(d.names("authors", "author")) > 0, db.FieldCredits))
