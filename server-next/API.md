@@ -190,6 +190,7 @@ session is unknown (`404`), and the app starts again by itself where it was.
 | `GET /v1/items/{id}/lyrics` | A song's lyrics: those kept with the song first (`pasted`, from its `tags`, or the `provider`'s with the credit "Lyrics provided by LRCLIB"), then files beside it, timed lines in order |
 | `PUT /v1/admin/items/{id}/lyrics`, `POST /v1/admin/items/{id}/lyrics/fetch` | The owner and administrators paste a song's lyrics (plain or LRC, at most 256 KB, text that can be shown), which everyone sees and no fetch replaces; or fetch one song's from LRCLIB, in any library. Fetch missing lyrics for a library is the `fetch_lyrics` job; a music library's `options.lyrics` (`lrclib`) looks up the songs each scan adds |
 | `GET /v1/admin/playback/stream-limits`, `PUT /v1/admin/playback/stream-limits` | The owner's stream limits: in total, per person, and for one person |
+| `PATCH /v1/admin/playback/stream-limits` | Owner only: change just the accounts named in `people`, preserving the other accounts and server-wide limits. A number sets an override (0 is unlimited); null removes it to inherit the per-person default. Returns the resulting limits; `PUT` still replaces the whole document |
 
 ### Device capability document
 
