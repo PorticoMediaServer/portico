@@ -684,6 +684,9 @@ func (s *Server) compatSources(r *http.Request, it Item, out map[string]any) {
 	}
 	sources := []map[string]any{}
 	for _, v := range versions {
+		if !v.Available {
+			continue
+		}
 		streams := []map[string]any{}
 		for _, part := range v.Parts {
 			for _, st := range part.Streams {

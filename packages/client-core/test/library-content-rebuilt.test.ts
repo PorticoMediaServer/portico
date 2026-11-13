@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LibraryContentService, libraryContentPages} from '../src/library-content.ts';
 import {withQueries} from './fixtures/viewer-queries.ts';
+import {detailProjection} from '../src/detail.ts';
+import type {Item} from '../src/items.ts';
 
 const scope = {viewerId: JSON.stringify(['hosted', 'account', 'profile']), serverId: 'server'};
 const film = (id: string) => ({id, kind: 'movie', title: `Film ${id}`, images: {poster: `/v1/images/${id}`}});
@@ -332,4 +334,30 @@ test('a book of one file without chapters is one row for the whole book, and off
     [['chapter', 'The Martian', 600, {itemId: 'bk_1', startSeconds: 0}]]);
   assert.equal(snap.projection?.listening?.resume, undefined, 'nothing listened to yet: Play, not Resume');
   nav.dispose();
+});
+
+
+test('an audiobook uses the available version for its chapter rows and play positions', async t => {
+  const versions = [
+    {id: 'missing', available: false, parts: [{size: 1, streams: []}], markers: [{kind: 'chapter', startMs: 0, endMs: 600_000, title: 'Missing chapter'}]},
+    {id: 'playable', available: true, parts: [{size: 1, streams: []}], markers: [
+      {kind: 'chapter', startMs: 0, endMs: 120_000, title: 'Available one'}, {kind: 'chapter', startMs: 120_000, endMs: 600_000, title: 'Available two'}]},
+  ];
+  const nav = service(audiobookApi({versions})); t.after(() => nav.dispose());
+  await nav.select({libraryId: 'lib_a', view: 'book', entityId: 'bk_1'});
+  assert.equal(nav.getSnapshot().phase, 'ready');
+  const chapters = nav.getSnapshot().sections.find(section => section.id === 'chapters')!.entries;
+  assert.deepEqual(chapters.map(entry => [entry.title, entry.playback?.startSeconds]), [['Available one', 0], ['Available two', 120]]);
+  assert.deepEqual(versions.map(version => version.id), ['missing', 'playable']);
+});
+
+test('detail markers come from the first available version', () => {
+  const item: Item = {id: 'film', kind: 'movie', libraryId: 'lib_a', title: 'Film', addedAt: '', images: {}, durationMs: 120_000,
+    state: {watched: false, playCount: 0, favorite: false, inList: false, notInterested: false}, versions: [
+      {id: 'missing', available: false, parts: [], markers: [{kind: 'intro', startMs: 0, endMs: 10_000, title: 'Missing intro'}]},
+      {id: 'playable', available: true, parts: [], markers: [{kind: 'credits', startMs: 90_000, endMs: 110_000, title: 'Available credits'}]},
+    ]};
+  assert.deepEqual(detailProjection(item, scope).markers, [
+    {id: 'credits-0', kind: 'credits', startSeconds: 90, endSeconds: 110, automaticSafe: false},
+  ]);
 });

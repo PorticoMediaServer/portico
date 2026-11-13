@@ -6552,6 +6552,9 @@
           "audioCodec": {
             "type": "string"
           },
+          "available": {
+            "type": "boolean"
+          },
           "bitrate": {
             "type": "integer"
           },
@@ -6599,6 +6602,7 @@
           }
         },
         "required": [
+          "available",
           "id",
           "parts"
         ],
