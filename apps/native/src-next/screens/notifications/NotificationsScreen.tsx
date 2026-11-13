@@ -253,7 +253,7 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
           <Text style={[shellType(13, 700), {color: theme.colors.textTertiary}]}>{row.section.title}</Text>
           {row.section.tag && <Text style={[shellType(12, 700), {color: theme.colors.textTertiary}]}>{row.section.tag}</Text>}
         </View>;
-        if (row.kind === 'more') return <View style={{alignItems: 'center', marginTop: 10}}><Button testID={`notifications-more-${row.section.id}`} variant="glass" size="small" loading={row.section.state.busy}
+        if (row.kind === 'more') return <View style={{alignItems: 'center', marginTop: 10}}><Button align="center" testID={`notifications-more-${row.section.id}`} variant="glass" size="small" loading={row.section.state.busy}
           onPress={() => {if (!viewLive(row.section.service, view)) return; void row.section.service.more().catch(runtime.reportError);}}>{t('notifications.loadMore')}</Button></View>;
         const {notice, first, last, section} = row, message = words(notice), radius = {
           borderTopLeftRadius: first ? 14 : 0, borderTopRightRadius: first ? 14 : 0, borderBottomLeftRadius: last ? 14 : 0, borderBottomRightRadius: last ? 14 : 0};

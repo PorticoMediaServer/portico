@@ -134,7 +134,7 @@ export function LifecycleProfileGate() {
       <PhonePINEntry value={code} onChange={setCode} onComplete={send} busy={busy} error={!!state.rejected}/>
       {status}
       {state.canRemember && <RememberProfileRow focusId="lifecycle-remember-profile" checked={remember} onChange={setRemember} disabled={busy}/>}
-      <View style={{alignItems: 'center', marginTop: 8}}><Button variant="link" disabled={busy || !connection} onPress={openRecovery}>{t('pin.forgot')}</Button></View>
+      <View style={{alignItems: 'center', marginTop: 8}}><Button align="center" variant="link" disabled={busy || !connection} onPress={openRecovery}>{t('pin.forgot')}</Button></View>
       {wait}
     </View>}
     primaryAction={{id: 'profile-pin', label: t('action.continue'), disabled: busy || !/^\d{4}$/.test(code), loading: busy, onPress: () => send(code)}}

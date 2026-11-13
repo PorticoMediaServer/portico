@@ -93,7 +93,7 @@ export function NowPlayingLyrics({read, target, positionSeconds, playing, onSeek
   return <View testID={testID} style={{flex: 1, minHeight: 0}}>
     {snapshot.error ? <View style={{alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingVertical: 18}}>
       <Text style={[browseType(theme, 13.5, 500), {textAlign: 'center', color: theme.colors.textSecondary}]}>{snapshot.error}</Text>
-      <Button focusId="retry" testID={`${testID}-retry`} variant="glass" size="small" icon="i-restart" onPress={() => {void service.refresh();}}>{t('action.tryAgain')}</Button>
+      <Button align="center" focusId="retry" testID={`${testID}-retry`} variant="glass" size="small" icon="i-restart" onPress={() => {void service.refresh();}}>{t('action.tryAgain')}</Button>
     </View> : null}
     {!document && !snapshot.busy && !snapshot.error ? message(snapshot.data?.resources.length ? t('player.chooseLyrics') : t('player.noLyrics')) : null}
     {resources.map(resource => <Focusable key={resource.id} focusKind="row" focusRadius={10}
