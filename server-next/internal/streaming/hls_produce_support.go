@@ -328,6 +328,14 @@ func (h *HLS) copyTimelineFor(
 		h.mu.Unlock()
 		return t, nil
 	}
+	if s := h.streams[id]; s != nil && len(s.parts) > 1 {
+		local, ok := s.source.(libraryFile)
+		h.mu.Unlock()
+		if !ok {
+			return nil, errCopyTimeline
+		}
+		return h.joinedVideoTimeline(ctx, s.parts, local.roots)
+	}
 	key := timelineKey{}
 	if s := h.streams[id]; s != nil && s.plan != nil && window == nil && input.InputAt == nil {
 		key = timelineKey{s.plan.SourceID, s.plan.SourceSize, s.plan.SourceModifiedNS}

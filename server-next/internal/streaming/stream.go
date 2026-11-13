@@ -59,6 +59,7 @@ type stream struct {
 	audio       *AudioPlan
 	seekIndex   *audiofacts.SeekIndex
 	bookAhead   *bookCopyAhead
+	parts       []JoinedPart
 	// cues holds each text subtitle once it has been read, by Resource.
 	cues map[string]*textCues
 	// openInput replaces opening source as one file, and disc keeps the output on
