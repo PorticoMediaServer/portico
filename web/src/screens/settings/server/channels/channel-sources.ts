@@ -59,6 +59,6 @@ export function createSources(ports: Pick<LibraryChannelsPageProps, 'api' | 'ser
 }
 
 /** Preserve the live library getter and notifier when the route adds a deep link. */
-export function forwardChannelPorts(ports: LibraryChannelsPageProps, extra: Partial<LibraryChannelsPageProps>): LibraryChannelsPageProps {
+export function forwardChannelPorts<T extends {subscribe?: (listener:()=>void)=>()=>void;libraries:LibraryChannelsPageProps['libraries']}, E extends object>(ports:T, extra:E):T&E {
   return {...ports,...extra,subscribe:ports.subscribe,get libraries() {return ports.libraries;}};
 }

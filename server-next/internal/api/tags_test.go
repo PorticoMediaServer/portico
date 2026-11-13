@@ -61,6 +61,19 @@ func TestTagsFollowWhatEachProfileMaySee(t *testing.T) {
 		for _, tag := range all(token, "200") {
 			shown[tag.ID] = true
 		}
+		selected := get[TagPage](t, s, token, "/v1/tags?limit=200&ids="+everything[0].ID+","+labels[0].PublicID)
+		wanted := map[string]bool{everything[0].ID: true, labels[0].PublicID: true}
+		for _, tag := range selected.Items {
+			if !wanted[tag.ID] || !shown[tag.ID] {
+				t.Fatalf("selected tag lookup leaked or added %+v", tag)
+			}
+			delete(wanted, tag.ID)
+		}
+		for id := range wanted {
+			if shown[id] {
+				t.Fatalf("selected visible tag %s was omitted", id)
+			}
+		}
 		for _, tag := range everything {
 			titles, err := s.db.Items(ctx, v, db.ItemQuery{Tag: tag.ID, Limit: 1, WithTotal: true})
 			if err != nil {

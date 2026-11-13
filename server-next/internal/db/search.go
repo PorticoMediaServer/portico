@@ -47,12 +47,14 @@ var (
 // SearchQuery is what to search for. Kind is one of the group names ("movie", "person", ...)
 // or empty for the first results of every group.
 type SearchQuery struct {
-	Text   string
-	Kind   string
-	Sort   string
-	Desc   bool
-	Cursor string
-	Limit  int
+	// Library limits a picker to one visible library; empty searches the server.
+	Library string
+	Text    string
+	Kind    string
+	Sort    string
+	Desc    bool
+	Cursor  string
+	Limit   int
 }
 
 // SearchGroup is the results of one kind. People is filled for the "person" group and Items
@@ -292,6 +294,14 @@ func (d *DB) Search(ctx context.Context, v Viewer, q SearchQuery) (SearchResults
 		return fail(err)
 	}
 	defer done()
+	if q.Library != "" {
+		var libraryID int64
+		err := s.tx.QueryRowContext(ctx, `SELECT id FROM libraries WHERE public_id = ? AND `+s.acc.libraryVisible("id"), q.Library).Scan(&libraryID)
+		if err != nil {
+			return fail(notFound(err))
+		}
+		s.acc.allLibraries, s.acc.libraries = false, []int64{libraryID}
+	}
 	var totals map[int64]searchTotal
 	if q.Cursor == "" {
 		if totals, err = s.totals(); err != nil {

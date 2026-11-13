@@ -2903,12 +2903,6 @@
       },
       "DvrRule": {
         "properties": {
-          "profileId": {
-            "type": "string"
-          },
-          "profileName": {
-            "type": "string"
-          },
           "byTitle": {
             "type": "boolean"
           },
@@ -2944,6 +2938,12 @@
           },
           "priority": {
             "type": "integer"
+          },
+          "profileId": {
+            "type": "string"
+          },
+          "profileName": {
+            "type": "string"
           },
           "source": {
             "type": "string"
@@ -2984,9 +2984,6 @@
       },
       "DvrRulePreview": {
         "properties": {
-          "newOnlyAvailable": {
-            "type": "boolean"
-          },
           "airings": {
             "items": {
               "$ref": "#/components/schemas/DvrAiring"
@@ -2995,6 +2992,9 @@
           },
           "matches": {
             "type": "integer"
+          },
+          "newOnlyAvailable": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -3006,9 +3006,6 @@
       },
       "DvrRuleSave": {
         "properties": {
-          "profileId": {
-            "type": "string"
-          },
           "anyChannel": {
             "type": "boolean"
           },
@@ -3035,6 +3032,9 @@
           },
           "priority": {
             "type": "integer"
+          },
+          "profileId": {
+            "type": "string"
           },
           "programme": {
             "type": "string"
@@ -4711,6 +4711,9 @@
           "problem": {
             "type": "string"
           },
+          "revision": {
+            "type": "string"
+          },
           "scheduledThrough": {
             "format": "date-time",
             "type": "string"
@@ -4732,6 +4735,7 @@
           }
         },
         "required": [
+          "revision",
           "id",
           "name",
           "number",
@@ -4804,9 +4808,13 @@
           },
           "recipe": {
             "$ref": "#/components/schemas/LibraryChannelRecipe"
+          },
+          "revision": {
+            "type": "string"
           }
         },
         "required": [
+          "revision",
           "id",
           "name",
           "library",
@@ -5295,7 +5303,7 @@
         ],
         "type": "object"
       },
-      "LibraryChannelTemplatePage": {
+      "LibraryChannelTemplateChoices": {
         "properties": {
           "items": {
             "items": {
@@ -5303,12 +5311,23 @@
             },
             "type": "array"
           },
-          "nextCursor": {
+          "moodAvailable": {
+            "type": "boolean"
+          },
+          "moodLabels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "timeZone": {
             "type": "string"
           }
         },
         "required": [
-          "items"
+          "items",
+          "timeZone",
+          "moodAvailable"
         ],
         "type": "object"
       },
@@ -18122,7 +18141,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LibraryChannelTemplatePage"
+                  "$ref": "#/components/schemas/LibraryChannelTemplateChoices"
                 }
               }
             },
