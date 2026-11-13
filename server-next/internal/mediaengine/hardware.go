@@ -76,15 +76,17 @@ func (e *Engine) testHardware(t *toolset, force bool) {
 		t.devices = devices
 		e.mu.Unlock()
 		for _, old := range previous {
-			found := false
+			found, moved := false, false
 			for _, current := range devices {
-				found = found || current.ID == old.ID && current.Path == old.Path
+				if current.ID == old.ID {
+					found, moved = true, current.Path != old.Path
+				}
 			}
-			if !found {
-				for _, backend := range old.Backends {
+			for _, backend := range old.Backends {
+				if moved {
 					t.hardware.ForgetDevice(backend, old.Path)
-					// The driver's default may have named this adapter too.
-					t.hardware.ForgetDevice(backend, "")
+				} else if !found {
+					decoder.NoteHardwareDeviceStopped(backend, old.Path)
 				}
 			}
 		}
