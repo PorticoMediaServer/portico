@@ -185,9 +185,9 @@ export function AmbientArt({source, sources, foreground, palette, treatment = 'h
     const title = theme.spec.hero.phoneTitle;
     return <View pointerEvents="none" accessible={false} testID={testID} style={[StyleSheet.absoluteFillObject, {width, height}, style]}>
       <View testID={testID ? `${testID}-wash` : undefined} style={{position: 'absolute', top: 0, left: 0, right: 0, height: Math.max(height ?? 0, title.wash.height)}}>
-        <ArtworkAlphaMask leftOpaqueAt={0} bottomOpaqueAt={1 - title.wash.opaqueTo}><View style={[StyleSheet.absoluteFillObject, {overflow: 'hidden'}]}>{fallback}{washes}</View></ArtworkAlphaMask>
+        <ArtworkAlphaMask leftOpaqueAt={0} bottomOpaqueAt={1 - title.wash.opaqueAt}><View style={[StyleSheet.absoluteFillObject, {overflow: 'hidden'}]}>{fallback}{washes}</View></ArtworkAlphaMask>
       </View>
-      <ArtworkAlphaMask leftOpaqueAt={0} bottomOpaqueAt={1 - title.artOpaqueTo}>{sharp}</ArtworkAlphaMask>
+      <ArtworkAlphaMask leftOpaqueAt={0} bottomOpaqueAt={1 - title.artOpaqueAt}>{sharp}</ArtworkAlphaMask>
       <OverlayStops id="phone-title-overlay" stops={title.overlay}/>
     </View>;
   }
