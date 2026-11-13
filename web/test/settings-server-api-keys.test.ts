@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {ApiCredential} from '../../packages/client-core/src/api-access.ts';
 import {routePath} from '../../packages/contracts/src/routes.ts';
-import {SettingsApiKeysSource} from '../src/screens/settings/server/integrations/api-keys-source.ts';
+import {SettingsApiKeysSource} from '../../packages/client-core/src/server-admin/api-keys-source.ts';
 const key: ApiCredential = {id: 'key-1', kind: 'key', name: 'Automation', scopes: ['read'], hint: '1234', createdAt: '2026-10-22T19:00:00Z', state: 'active', member: {accountId: 'owner', username: 'Owner', profileId: 'profile', profile: 'Owner'}};
 const page = {items: [key], limit: 100, total: 1};
 const options = {scopes: [{id: 'read'}, {id: 'admin'}], maximumKeys: 20, maximumTokens: 20, tokensAllowed: true, requestsPerMinute: 600, queryParameter: 'api_key'};

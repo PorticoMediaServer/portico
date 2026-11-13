@@ -18,8 +18,11 @@ import (
 
 // Key is a credential made for a tool. Its secret is not part of it.
 type Key struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	// State and RevokedAt are supplied by the owner’s API-key history.
+	State     string     `json:"state,omitempty"`
+	RevokedAt *time.Time `json:"revokedAt,omitempty"`
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
 	// Scopes are read, playback, library and admin; admin includes the others.
 	Scopes     []string   `json:"scopes"`
 	CreatedAt  time.Time  `json:"createdAt"`
@@ -71,7 +74,7 @@ func (s *Server) keyRoutes() {
 		Handle(s, "POST "+path, SignedIn, func(r *http.Request, req KeyCreate) (KeyCreated, error) { return s.createKey(r, k, req) })
 		Handle(s, "DELETE "+path+"/{id}", SignedIn, func(r *http.Request, _ None) (None, error) { return s.revokeKey(r, k) })
 	}
-	Handle(s, "GET /v1/admin/api-keys", Owner, func(r *http.Request, _ None) (Page[Key], error) { return s.listKeys(r, apiKeys) }).Scope = ScopeSession
+	Handle(s, "GET /v1/admin/api-keys", Owner, func(r *http.Request, _ None) (Page[Key], error) { return s.ownerAPIKeys(r) }).Scope = ScopeSession
 	Handle(s, "POST /v1/admin/api-keys", Owner, func(r *http.Request, req KeyCreate) (KeyCreated, error) { return s.createKey(r, apiKeys, req) }).Scope = ScopeSession
 	Handle(s, "DELETE /v1/admin/api-keys/{id}", Owner, func(r *http.Request, _ None) (None, error) { return s.revokeKey(r, apiKeys) }).Scope = ScopeSession
 }
