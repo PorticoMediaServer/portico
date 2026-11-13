@@ -1,6 +1,7 @@
-import React, {forwardRef, useCallback, useEffect, useRef} from 'react';
+import React, {forwardRef, useCallback, useEffect, useRef, useContext} from 'react';
 import {FlatList, StyleSheet, Text, View, type StyleProp, type TextStyle} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
+import {RowControlContext} from './row-control';
 import {Icon} from '../Icon';
 import {Dialog} from '../overlays/surface';
 import {fontFamilies, nativeType, useTheme} from '../theme';
@@ -64,6 +65,8 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
   }, [ref]);
   const blocked = disabled || focusedValue === undefined;
   const title = rowLabel ?? label ?? accessibilityLabel ?? selected?.label ?? placeholder;
+  // In a settings row on a touch screen the select is the row's value: accent text and the up/down mark, no box.
+  const inline = useContext(RowControlContext) && !theme.isTV && rowLabel === undefined && label === undefined;
   return <View style={styles.container}>
     {label !== undefined ? <Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{label}</Text> : null}
     <Focusable {...props} ref={setRef} accessibilityRole="combobox" accessibilityLabel={accessibilityLabel ?? (typeof label === 'string' ? label : undefined)}
@@ -77,6 +80,7 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
         // settings.html `.sel`: at least 176 wide off TV, the value then the chevron spaced apart.
         // A value that took the row's leftover width (flex: 1) collapsed to nothing in a row's
         // trailing slot, which has none (walk, 1 Nov).
+        if (inline) return [styles.trigger, {minHeight: 44, gap: 4, justifyContent: 'flex-end', borderColor: 'transparent', opacity: blocked ? .45 : 1}, supplied, {backgroundColor: 'transparent', paddingHorizontal: 0}];
         return [styles.trigger, {height: theme.isTV ? 64 : 44, borderRadius: theme.isTV ? 14 : 10, minWidth: theme.isTV ? undefined : 176,
           paddingHorizontal: theme.isTV ? 20 : 16, gap: theme.isTV ? 20 : 14,
           borderColor: error ? theme.colors.danger : isOpen ? theme.colors.accent : 'transparent',
@@ -86,8 +90,9 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
       {rowLabel !== undefined
         ? <><Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, {fontFamily: fontFamilies[700], color: theme.colors.text, flex: 1, minWidth: 0}, textStyle]}>{rowLabel}</Text>
           <Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, {fontFamily: fontFamilies[700], color: theme.colors.textTertiary, flexShrink: 1}, textStyle]}>{selected?.label ?? placeholder}</Text></>
+        : inline ? <Text numberOfLines={2} style={[nativeType({size: 14.5, weight: 500, lineHeight: 'normal', tracking: 0}, theme.textScale), {color: selected ? theme.colors.accent : theme.colors.textTertiary, textAlign: 'right', flexShrink: 1}, textStyle]}>{selected?.label ?? placeholder}</Text>
         : <Text numberOfLines={grow ? undefined : 1} ellipsizeMode="tail" style={[theme.type.bodyStrong, styles.value, {fontFamily: fontFamilies[700], color: selected ? theme.colors.text : theme.colors.textTertiary}, textStyle]}>{selected?.label ?? placeholder}</Text>}
-      <Icon name="i-updown" size={theme.isTV ? 26 : 18} color={theme.colors.textTertiary} />
+      <Icon name="i-updown" size={theme.isTV ? 26 : inline ? 15 : 18} color={inline ? theme.colors.accent : theme.colors.textTertiary} />
     </Focusable>
     {error !== undefined ? <FormError placement="inline">{error}</FormError>
       : description !== undefined ? <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{description}</Text> : null}
