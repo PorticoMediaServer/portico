@@ -32,7 +32,7 @@ test('policy writes name the read revision and translate the existing administra
  await assert.rejects(patchSignInPolicy(api,config.signInPolicyRevision,values),{code:'unsupported'});
  await assert.rejects(patchSignInPolicy({...api,requestRaw:async()=>({status:412,headers:{},body:{error:{code:'changed_elsewhere',message:'Read again.'}}})},config.signInPolicyRevision,values),{code:'changed_elsewhere'});
  assert.equal(signInPolicyConflict({code:'changed_elsewhere'}),true);
- assert.equal(signInPolicyConflict({status:412}),false);
+ assert.equal(signInPolicyConflict({status:412}),true);
 });
 
 test('a malformed or missing fact cannot become a guessed setting',async()=>{

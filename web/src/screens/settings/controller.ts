@@ -1,4 +1,6 @@
 import type {OwnerStreamingSettings} from '@core/server-admin/streaming-settings.ts';
+import {settingsSaveConflict} from '@core/settings-document.ts';
+import {presentError} from '@core/presentation/errors.ts';
 import {ownerAwayLimitForm} from '@core/owner-settings-policy.ts';
 import type {ViewerQueries} from '@core/query/viewer-queries.ts';
 import {troubleshootingParts, troubleshootingRowShown} from './server/troubleshooting/parts';
@@ -61,7 +63,7 @@ function documentForm<T extends object, S>(form: DraftForm<T, S>): DocumentForm 
       const state = form.getSnapshot();
       if (!state.saved || state.saving) throw new Error('settings_document_unavailable');
       form.set(draft => applySettingsBindingPatch(draft as Record<string, unknown>, {form: 'runtime', values}) as T);
-      await form.save();
+      try { await form.save(); } catch (error) {if (settingsSaveConflict(error)) form.discard(); throw error;}
     },
   };
 }
@@ -98,6 +100,7 @@ function withSignInHashStrength(configuration: SettingsConfiguration, query: str
 /** A refused save names its reason where the server gives one the owner can act on: Require two-step verification
  * refused with `factor_setup_required` (#713) asks the owner to turn it on for their own account first. */
 function settingsRowErrorText(error: unknown): string {
+  if (settingsSaveConflict(error)) return presentError(error, 'settings', {operation: 'save'}).body;
   const code = error && typeof error === 'object' ? (error as {code?: unknown}).code : undefined;
   return defaultI18n.t(code === 'factor_setup_required' ? 'error.factorSetupRequired' : 'next.states.pageFailedBody');
 }
@@ -370,10 +373,9 @@ export class SettingsController {
       if (this.options.streaming?.has(row.id)) {
         try {await this.options.streaming.save(row.id, value, this.lifetime.signal);}
         catch (error) {
-          if ((error as {code?: string})?.code !== 'changed_elsewhere') throw error;
-          await this.readConfiguration();
-          if (this.current()) this.publish({saveState: undefined});
-          return;
+          if (!settingsSaveConflict(error)) throw error;
+          await this.readConfiguration().catch(() => {});
+          throw error;
         }
         await this.readConfiguration();
         if (this.current()) this.publish({saveState: 'saved'});
@@ -429,11 +431,11 @@ export class SettingsController {
       if ([...patches.keys()].some(id => id !== 'device')) await this.readConfiguration();
       this.publish({saveState: 'saved'});
     } catch (error) {
-      if (this.current()) {this.rowErrors.set(row.id, error); this.publish({saveState: undefined}); this.options.reportError(error);}
+      if (this.current()) {this.rowErrors.set(row.id, error); this.publish({saveState: undefined}); if (!settingsSaveConflict(error)) this.options.reportError(error);}
     } finally {this.writing = false; this.publish({});}
   };
   /** Sign-in › Advanced: the applicable policy values with the configuration's read revision. A revision
-   * conflict re-reads the configuration, so the rows show what is current rather than an error. */
+   * conflict re-reads the configuration and keeps the refusal on the edited row. */
   private writeSignInPolicy = async (row: SettingsRow, value: SettingsValue) => {
     const configuration = this.configuration, values = signInPolicyValues(configuration);
     if (!values || !configuration) throw new Error('settings_binding_unavailable');
@@ -441,9 +443,8 @@ export class SettingsController {
       await patchSignInPolicy(this.options.api, configuration.signInPolicyRevision, signInPolicyWith(values, row.id, value), this.lifetime.signal);
     } catch (error) {
       if (!signInPolicyConflict(error)) throw error;
-      await this.readConfiguration();
-      if (this.current()) this.publish({saveState: undefined});
-      return;
+      await this.readConfiguration().catch(() => {});
+      throw error;
     }
     if (!this.current()) return;
     await this.readConfiguration();

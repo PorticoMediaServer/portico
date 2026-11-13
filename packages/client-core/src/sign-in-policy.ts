@@ -1,7 +1,8 @@
-import {serverPath, callServer} from './query/server-api.ts';
+import {callServer} from './query/server-api.ts';
 import type {SettingsConfiguration, ConfigurationValue} from './settings-configuration.ts';
 import type {HttpLocalApi} from './index.ts';
-import {CodedError, unreadableServerResponse} from './server-messages.ts';
+import {putSettingsDocument, settingsSaveConflict, type SettingsDocumentAPI} from './settings-document.ts';
+import {unreadableServerResponse} from './server-messages.ts';
 
 /** Only policy settings the rebuilt server currently honours are published. */
 export type SignInPolicyValues = Readonly<{staySignedInDays:number;pinRememberDays:number;requireTwoStep?:'nobody'|'administrators'|'everyone'}>;
@@ -50,19 +51,10 @@ export function signInPolicyWith(values:SignInPolicyValues,rowId:string,value:un
  const next=typed(key,value);if(next===undefined)throw new Error('sign_in_policy_value_invalid');
  return Object.freeze({...values,[key]:next});
 }
-export type SignInPolicyAPI=Pick<HttpLocalApi,'request'>&Partial<Pick<HttpLocalApi,'requestRaw'>>;
+export type SignInPolicyAPI=SettingsDocumentAPI;
 /** The save carries the read ETag and never silently overwrites another device. */
 export async function patchSignInPolicy(api:SignInPolicyAPI,expectedRevision:string,values:SignInPolicyValues,signal?:AbortSignal):Promise<unknown>{
- if(!api.requestRaw)throw new CodedError('unsupported','This app cannot save sign-in settings safely.');
- if(!/^"[0-9]+"$/.test(expectedRevision))invalid();
  const body={...values,...(values.requireTwoStep===undefined?{}:{requireTwoStep:values.requireTwoStep==='administrators'?'admins':values.requireTwoStep})};
- const result=await api.requestRaw(serverPath('PUT /v1/admin/settings/{name}',{id:'sign-in'}),'PUT',{headers:{'If-Match':expectedRevision},body,signal});
- if(result.status>=400){
-  const error=object(result.body)&&object(result.body.error)?result.body.error:{};
-  throw Object.assign(new Error(typeof error.message==='string'?error.message:unreadableServerResponse),{status:result.status,code:error.code});
- }
- return result.body;
+ return putSettingsDocument(api,'sign-in',expectedRevision,body,signal);
 }
-export function signInPolicyConflict(error:unknown):boolean{
- return object(error)&&error.code==='changed_elsewhere';
-}
+export const signInPolicyConflict = settingsSaveConflict;

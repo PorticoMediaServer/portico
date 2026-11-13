@@ -1,4 +1,5 @@
 import {useLayoutEffect, useState, useSyncExternalStore} from 'react';
+import {withRequestRaw} from '../../../../../../../packages/client-core/src/home-selection/list-destinations';
 import {ConsoleClient, type ConsoleAPI} from '../../../../../../../packages/client-core/src/console';
 import {isAuthenticationFailure} from '../../../../../../../packages/client-core/src/backups';
 import {FormSet, type DraftForm, type FormState} from '../../../../../../../packages/client-core/src/server-admin/draft-form';
@@ -41,7 +42,7 @@ export function createStorageForms(context: NativeShellBootstrapContext, ids: re
   }};
   const authority = context.authority();
   consoleClient = new ConsoleClient(api, {serverId: authority.serverId, viewerId: authority.profileId});
-  const deps: ServerFormDeps = {api, console: consoleClient, serverId: authority.serverId, operationId: operationHex};
+  const deps: ServerFormDeps = {api: withRequestRaw(api, originalApi.requestRaw?.bind(originalApi), requireCurrent), console: consoleClient, serverId: authority.serverId, operationId: operationHex};
   for (const id of ids) {const form = createServerForm(id, deps);forms[id] = form;offs.push(set.add(id, form));}
   return {mount: ++nextMount, context, forms: forms as Record<ServerFormId, DraftForm<any, any>>, set, dispose};
 }

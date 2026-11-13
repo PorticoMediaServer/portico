@@ -1,9 +1,10 @@
+import {putSettingsDocument} from '../settings-document.ts';
 import {throwIfAborted} from '../abort-lifetime.ts';
 import type {HttpLocalApi} from '../index.ts';
-import {callServer, serverPath} from '../query/server-api.ts';
+import {callServer} from '../query/server-api.ts';
 import type {ConfigurationValue, SettingsConfiguration} from '../settings-configuration.ts';
 import {settingsBinding, settingsBindingPatch} from '../presentation/settings-bindings.ts';
-import {CodedError, unreadableServerResponse} from '../server-messages.ts';
+import {unreadableServerResponse} from '../server-messages.ts';
 
 type DocumentName = 'streaming' | 'downloads';
 const rows: Readonly<Record<string, readonly [DocumentName | 'limits', string]>> = {
@@ -89,13 +90,7 @@ export class OwnerStreamingSettings {
       await callServer(this.api, 'PATCH /v1/admin/playback/stream-limits', {body: {[key]: raw}, signal});
       return;
     }
-    if (!this.api.requestRaw) throw new CodedError('unsupported', unreadableServerResponse);
     const etag = this.etags.get(name); if (!etag) return invalid();
-    const answer = await this.api.requestRaw(serverPath('PUT /v1/admin/settings/{name}', {id: name}), 'PUT',
-      {headers: {'If-Match': etag}, body: {[key]: raw}, signal});
-    if (answer.status >= 400) {
-      const error = object(answer.body) && object(answer.body.error) ? answer.body.error : {};
-      throw Object.assign(new Error(typeof error.message === 'string' ? error.message : unreadableServerResponse), {status: answer.status, code: error.code});
-    }
+    await putSettingsDocument(this.api, name, etag, {[key]: raw}, signal);
   };
 }
