@@ -38,7 +38,7 @@ import {useTitleArtworkClaim, useTitleCopyEntrance} from './title-artwork-motion
 import type {SourceArtClaim} from '../../kit/cards/source-art-transition';
 import {useLayoutMotion} from '../../kit/layout/motion';
 import motionStyles from './title-hero-motion.module.css';
-import {FileManagement} from './FileManagement';
+import {FileManagement, withVersionDeletion} from './FileManagement';
 import {copyLink} from '../../shell/copy-link';
 import {TitleFileInfo, type FileInfoManageContext} from './TitleFileInfo';
 import {TitleTabs} from './TitleTabs';
@@ -280,7 +280,8 @@ function TitleMore({binding, data}: {binding: DetailBindings; data: DetailProjec
   };
   useEffect(() => { setDownloadView(undefined); return () => { downloadRef.current?.request.abort(); downloadRef.current = undefined; }; }, [data]);
 
-  useEffect(() => { setOpen(false); setFileOpen(false); setManage(undefined); }, [data]);
+  // A changed title page closes what was open; a delete preview still on its way is stopped and never reused.
+  useEffect(() => { setOpen(false); setFileOpen(false); setManage(held => { held?.deletion?.dispose(); return undefined; }); }, [data]);
   useEffect(() => () => {versionRead.current?.abort();versionChoice.current?.abort();}, [data]);
   useEffect(() => {
     if (!open || !binding.context.effects.chooseVersion || !data.actions.some(action => action.enabled && action.playback?.itemId === data.item.id && action.id !== 'start_over')) return;
@@ -360,8 +361,8 @@ function TitleMore({binding, data}: {binding: DetailBindings; data: DetailProjec
     <ToastHost toast={linkToast} onDismiss={() => setLinkToast(null)} />
     {rating && <TitleRating binding={binding} data={data} returnFocusRef={trigger} onClose={() => setRating(false)} />}
     {fileOpen && <TitleFileInfo binding={binding} data={data} surface="file" phone={phone} returnFocusRef={trigger}
-      onClose={() => setFileOpen(false)} onManage={context => runScreenCommand(binding.context, () => { setFileOpen(false); setManage(context); })} />}
-    {manage && <FileManagement binding={binding} data={data} manage={manage} onClose={() => setManage(undefined)} returnFocusRef={trigger} />}
+      onClose={() => setFileOpen(false)} onManage={context => runScreenCommand(binding.context, () => { setFileOpen(false); setManage(withVersionDeletion(binding, data, context)); })} />}
+    {manage && <FileManagement binding={binding} data={data} manage={manage} onClose={() => { manage.deletion?.dispose(); setManage(undefined); }} returnFocusRef={trigger} />}
   </>;
 }
 

@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
 import {useViewerQueries} from '../../platform/freshness';
-import {deletionAllowed, type VersionDeletePreview} from '@core/administration.ts';
+import {VersionDeletionOpening, type VersionDeletionState} from './version-deletion';
+import {bytesText} from '@core/presentation/kit-model/technical.ts';
 import type {DetailProjection} from '@core/detail.ts';
 import type {ContentEntry} from '@core/library-content.ts';
 import {canMergeTitles, mergeExplanation} from '@core/title-identity.ts';
@@ -32,39 +33,54 @@ export function FileManagement(props: Props) {
   return action === 'delete-version' ? <DeleteVersion {...props} /> : action === 'split-versions' ? <SplitVersion {...props} /> : <MergeTitle {...props} />;
 }
 
-function DeleteVersion({binding, data, manage, onClose, returnFocusRef}: Props) {
-  const file = manage.action.fileId ? manage.files.get(manage.action.fileId) : undefined;
-  const [preview, setPreview] = useState<VersionDeletePreview>(), [typed, setTyped] = useState(''), [failed, setFailed] = useState(false), [refused, setRefused] = useState<unknown>(), [busy, setBusy] = useState(false), [kept, setKept] = useState<'file_changed' | 'file_not_removed'>();
-  const request = useRef<AbortController | undefined>(undefined), [operationId] = useState(() => crypto.randomUUID());
-  const read = useCallback(() => {
-    request.current?.abort(); const controller = request.current = new AbortController();
-    setPreview(undefined); setFailed(false); setTyped('');
-    if (file) void binding.previewDelete(data, file, controller.signal).then(value => { if (!controller.signal.aborted) setPreview(value); }, error => { if (!controller.signal.aborted) { setFailed(true); binding.context.effects.reportError(error); } });
-  }, [binding, data, file]);
-  useEffect(() => { read(); return () => request.current?.abort(); }, [read]);
+/** The press of Delete this version… starts its preview, once (version-deletion.ts); any other manage action is as it was. */
+export function withVersionDeletion(binding: DetailBindings, data: DetailProjection, context: FileInfoManageContext): FileInfoManageContext {
+  const file = context.action.action === 'delete-version' && context.action.fileId ? context.files.get(context.action.fileId) : undefined;
+  return file ? {...context, deletion: new VersionDeletionOpening(signal => binding.previewDelete(data, file, signal), binding.context.effects.reportError)} : context;
+}
+
+/** Delete this version… (owner only): what it takes, from the server's preview of this exact version (asked once, by the
+ * press that opened this), then the delete. The owner types the title to confirm, and Delete is the destructive button,
+ * never the default action. */
+export function DeleteVersion({binding, data, manage, onClose, returnFocusRef}: Props) {
+  const file = manage.action.fileId ? manage.files.get(manage.action.fileId) : undefined, opening = manage.deletion;
+  const state = useSyncExternalStore(opening?.subscribe ?? noSubscription, opening?.getSnapshot ?? missing, opening?.getSnapshot ?? missing);
+  const preview = state.phase === 'ready' ? state.preview : undefined;
+  const [typed, setTyped] = useState(''), [refused, setRefused] = useState<unknown>(), [busy, setBusy] = useState(false), [kept, setKept] = useState(false);
+  const request = useRef<AbortController | undefined>(undefined);
+  useEffect(() => () => request.current?.abort(), []);
   const close = () => { if (!busy) { request.current?.abort(); onClose(); } };
+  const confirmed = !!preview && typed.trim() === preview.title;
   const confirm = async () => {
-    if (!preview || !deletionAllowed(preview) || typed.trim() !== preview.confirmation || busy) return;
-    const controller = request.current = new AbortController(); setBusy(true); setRefused(undefined); setKept(undefined);
+    if (!preview || !confirmed || busy) return;
+    const controller = request.current = new AbortController(); setBusy(true); setRefused(undefined); setKept(false);
     try {
-      const result = await binding.deleteVersion(data, preview, typed.trim(), operationId, controller.signal);
+      const result = await binding.deleteVersion(data, preview, controller.signal);
       if (controller.signal.aborted) return;
-      const retained = result.receipts.find(value => !value.removed);
-      if (retained) setKept(retained.code === 'file_changed' ? 'file_changed' : 'file_not_removed');
+      if (result.filesRetained) setKept(true);
       else { onClose(); await binding.service.refresh(); }
     } catch (error) { if (!controller.signal.aborted) { setRefused(error ?? true); binding.context.effects.reportError(error); } }
     finally { if (!controller.signal.aborted) setBusy(false); }
   };
+  const going = preview ? [...(preview.titles > preview.alsoRemoves.length ? [preview.title] : []), ...preview.alsoRemoves.map(title => title.title)] : [];
   return <Dialog footerDismisses open onOpenChange={value => { if (!value) close(); }} title={t('title.deleteVersion.title')} description={data.item.title} width={500} returnFocusRef={returnFocusRef}
-    dismissOnOutsidePress={!busy} dismissOnBack={!busy} showCloseButton={!busy} footer={<><Button variant="ghost" size="compact" disabled={busy} onClick={close}>{t('action.cancel')}</Button><Button size="compact" disabled={!preview || !deletionAllowed(preview) || typed.trim() !== preview.confirmation} loading={busy} onClick={() => { void confirm(); }}>{t('action.delete')}</Button></>}>
-    {failed && <ScreenFailure retry={read} />}{refused !== undefined && <ManageRefusal error={refused} fallback="web.manage.deleteRefused" retry={() => { void confirm(); }} />}
-    {kept && <p role="alert">{t(kept === 'file_changed' ? 'deleteMedia.fileChanged' : 'deleteMedia.fileNotRemoved')}</p>}
-    {!preview && !failed && <p role="status">{t('deleteMedia.checking')}</p>}
-    {preview && <div className={styles.manageBody}><TitleProse>{t('title.deleteVersion.body', {size: preview.totalBytesText})}</TitleProse>{file?.path && <p className={styles.path}>{file.path}</p>}
-      {deletionAllowed(preview) ? <TextField label={preview.confirmationKind === 'count' ? t('deleteMedia.typeCount', {count: preview.confirmation}) : t('deleteMedia.typeTitle')} description={preview.confirmationKind === 'title' ? preview.confirmation : undefined} value={typed} onChange={event => setTyped(event.currentTarget.value)} autoComplete="off" disabled={busy} /> : <p>{t('deleteMedia.disabled')}</p>}
+    dismissOnOutsidePress={!busy} dismissOnBack={!busy} showCloseButton={!busy} footer={<><Button variant="ghost" size="compact" disabled={busy} onClick={close}>{t('action.cancel')}</Button><Button variant="destructive" size="compact" disabled={!confirmed || kept} loading={busy} onClick={() => { void confirm(); }}>{t('action.delete')}</Button></>}>
+    {state.phase === 'failed' && <ManageRefusal error={state.error} fallback="web.manage.deletePreviewFailed" retry={() => opening?.retry()} />}
+    {refused !== undefined && <ManageRefusal error={refused} fallback="web.manage.deleteRefused" retry={() => { void confirm(); }} />}
+    {kept && <p role="alert">{t('web.deleteVersion.kept')}</p>}
+    {state.phase === 'checking' && <p role="status" aria-busy="true" className={styles.checking}>{t('deleteMedia.checking')}</p>}
+    {preview && <div className={styles.manageBody}>
+      <TitleProse><b>{t('web.deleteVersion.files', {count: preview.files, size: bytesText(preview.bytes, environment.t) ?? ''})}</b> {t('web.deleteVersion.disk')}</TitleProse>
+      {file?.path && <p className={styles.path}>{file.path}</p>}
+      {going.length ? <TitleProse>{t('web.deleteVersion.titlesGo', {count: going.length})} {going.join(', ')}</TitleProse> : <TitleProse>{t('web.deleteVersion.titleStays', {title: preview.title})}</TitleProse>}
+      {preview.listEntries > 0 && <TitleProse>{t('web.deleteVersion.listEntries', {count: preview.listEntries})}</TitleProse>}
+      {preview.otherPeople > 0 && <TitleProse>{t('web.deleteVersion.otherPeople', {count: preview.otherPeople})}</TitleProse>}
+      <TextField label={t('deleteMedia.typeTitle')} description={preview.title} value={typed} onChange={event => setTyped(event.currentTarget.value)} autoComplete="off" disabled={busy || kept} />
     </div>}
   </Dialog>;
 }
+const noSubscription = () => () => {};
+const missing = (): VersionDeletionState => ({phase: 'failed', error: undefined});
 
 function SplitVersion({binding, data, manage, onClose, returnFocusRef}: Props) {
   const [fileId, setFileId] = useState<string>(), [busy, setBusy] = useState(false), [notFound, setNotFound] = useState(false), [refused, setRefused] = useState<unknown>();

@@ -52,6 +52,8 @@ export type FileInfoPanelPolicy = Readonly<{
   manageSurface: 'desktop' | 'phone';
   /** The caller's own gates on top of the server's: a kind that can be split, a surface that merges. */
   split: boolean; merge: boolean;
+  /** Delete this version…, on a surface that has the version deletion preview and confirm (web). Off unless asked for. */
+  delete?: boolean;
 }>;
 /** The File info panel's model from one opening's resident windows: versions in the server's order
  * and numbering, each with its resident tracks, and for an owner the listed files of each version.
@@ -63,7 +65,7 @@ export function fileInfoPanelModel(snapshot: FileInfoSnapshot, policy: FileInfoP
     const raw = (file: FileInfoFileRow, lane: 'audio' | 'subtitles') => snapshot.tracks.get(fileInfoTrackKey(file.occurrence, lane))?.rows?.rows;
     const manage = surface.manage;
     return fileInfoModel(files.map(file => fileInfoFileFacts(file, raw(file, 'audio'), raw(file, 'subtitles'))), manage ? {audience: 'owner', manageSurface: policy.manageSurface, ownerFacts: {
-      locations: files.map(file => ({id: file.occurrence, path: file.path, canDelete: manage.delete})),
+      locations: files.map(file => ({id: file.occurrence, path: file.path, canDelete: manage.delete && policy.delete === true})),
       canSplit: manage.split && surface.canSplit && policy.split, canMerge: manage.merge && policy.merge,
     }} : {audience: 'viewer'}, env, policy.context);
   }
@@ -72,7 +74,8 @@ export function fileInfoPanelModel(snapshot: FileInfoSnapshot, policy: FileInfoP
     ? snapshot.tracks.get(fileInfoTrackKey(group.headOccurrence, lane))?.rows?.rows : snapshot.headTracks.get(fileInfoTrackKey(group.id, lane))?.rows?.rows;
   const manage = surface.manage;
   return fileInfoModel(groups.map(group => fileInfoVersionFacts(group, tracks(group, 'audio'), tracks(group, 'subtitles'))), manage ? {audience: 'owner', manageSurface: policy.manageSurface, ownerFacts: {
-    locations: groups.flatMap(group => (snapshot.members.get(group.id)?.rows?.rows ?? []).map(file => ({id: file.occurrence, versionId: group.id, path: file.path, canDelete: manage.delete}))),
+    // One Delete per whole version, on its first file: a version in several files is deleted together, never one part.
+    locations: groups.flatMap(group => (snapshot.members.get(group.id)?.rows?.rows ?? []).map((file, index) => ({id: file.occurrence, versionId: group.id, path: file.path, canDelete: manage.delete && policy.delete === true && index === 0}))),
     canSplit: manage.split && surface.canSplit && policy.split, canMerge: manage.merge && policy.merge,
   }} : {audience: 'viewer'}, env, policy.context);
 }

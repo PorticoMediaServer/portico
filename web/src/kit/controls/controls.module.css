@@ -20,6 +20,8 @@
 .button:active:not(:disabled) {transform: scale(.97);}
 .button[data-variant="primary"] {background: var(--color-text); color: var(--color-ink);}
 .button[data-variant="primary"]:hover:not(:disabled) {background: var(--color-white);}
+.button[data-variant="destructive"] {background: var(--color-record); color: #2a0808;}
+.button[data-variant="destructive"]:hover:not(:disabled) {background: #f58a8a;}
 .button[data-variant="glass"] {background: var(--glass-fill); backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));}
 .button[data-variant="glass"]:hover:not(:disabled) {background: var(--glass-hover-fill);}
 .buttonLabel {min-width: 0; overflow-wrap: anywhere; text-wrap: balance;}
