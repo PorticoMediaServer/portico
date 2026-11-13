@@ -414,14 +414,18 @@ try {
       await page.getByText(/^0 of \d+ watched$/).waitFor();
       if (!requests.has('POST /v1/items/state:undo 204')) throw new Error('The server was not asked to undo.');
     });
-    await step('a show, a season and an album opened by their address land on their own pages, once', async () => {
+    await step('a show, a season, an album, an artist and a book series opened by their address land on their own pages, once', async () => {
       const token = (await ownerToken()).token, get = async path => (await fetch(serverOrigin + path, {headers: {Authorization: 'Bearer ' + token}})).json();
       const libraries = (await get('/v1/libraries')).items ?? [];
       const first = async (kind, query) => (await get(`/v1/items?${query}&kind=${kind}&limit=1`)).items?.[0];
-      const tv = libraries.find(library => library.kind === 'shows'), music = libraries.find(library => library.kind === 'music');
+      const tv = libraries.find(library => library.kind === 'shows'), music = libraries.find(library => library.kind === 'music'), books = libraries.find(library => library.kind === 'books');
       const show = tv && await first('show', 'library=' + tv.id), season = show && await first('season', 'parent=' + show.id);
-      const album = music && await first('album', 'library=' + music.id);
-      for (const [view, item] of [['show', show], ['season', season], ['album', album]]) {
+      const album = music && await first('album', 'library=' + music.id), artist = music && await first('artist', 'library=' + music.id);
+      // The seed has no audiobooks; a book series only when it grouped some books. The kinds come from one client-core
+      // map (item-holder-page.test.ts checks every kind), so these stand for the rest.
+      const series = books && await first('series', 'library=' + books.id);
+      for (const [view, item, optional] of [['show', show], ['season', season], ['album', album], ['artist', artist], ['book_series', series, true]]) {
+        if (!item && optional) {console.log(`  (the seed has no ${view})`); continue;}
         if (!item) throw new Error(`The seed has no ${view}.`);
         let navigations = 0; const count = frame => {if (frame === page.mainFrame()) navigations++;};
         page.on('framenavigated', count);

@@ -14,6 +14,7 @@ import {createReadBindings, ReadItemEntry, type ReadItemEligibility} from '../re
 import {resolveItemRead} from './read-resolution';
 import {DetailLoading} from './Loading';
 import {holderPage} from './model';
+import type {ContentView} from '@core/library-content.ts';
 import {redirectOnce, type RedirectMemory} from '../../shell/navigation';
 import {ScreenProblem} from './ScreenProblem';
 
@@ -36,7 +37,7 @@ function OrdinaryItem({context, itemId, redirect, artworkClaim}: {context: Scree
   });
   useEffect(() => {
     if (!holder || !lease?.live || !context.isCurrent()) return;
-    const view = holder.slice(0, holder.indexOf(':')) as 'show' | 'season' | 'album', libraryId = holder.slice(holder.indexOf(':') + 1);
+    const view = holder.slice(0, holder.indexOf(':')) as ContentView, libraryId = holder.slice(holder.indexOf(':') + 1);
     redirectOnce(redirect, `${itemId}|${holder}`, () => {
       void router.navigate({to: '/library/$libraryId', params: {libraryId}, search: {view, entityId: itemId}, replace: true}).catch(context.effects.reportError);
     });
