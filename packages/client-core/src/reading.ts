@@ -641,7 +641,7 @@ export class ReadingClient {
   async discover(options: Readonly<{libraryId?: string; limit?: number; seriesLimit?: number; shortReadsLimit?: number; newIssuesLimit?: number; newspaperLimit?: number}> = {}, signal?: AbortSignal): Promise<ReadingDiscover & {newIssueCards: readonly ReadingPeriodicalIssue[]; newspaperCard?: ReadingPeriodicalGroup; previewMarks: ReadingPreviewMarks}> {
     if (options.libraryId !== undefined && !id(options.libraryId) || !integer(options.limit ?? 20, 1, 100)) fail('invalid_request');
     const [page, issues] = await Promise.all([rebuiltReadingPage(this.#rebuilt, {libraryId: options.libraryId, limit: options.limit ?? 20, sort: 'added'}, signal),
-      options.libraryId && options.newIssuesLimit ? rebuiltNewIssues(this.#rebuilt, options.libraryId, {limit: options.newIssuesLimit}, signal) : undefined]);
+      options.libraryId && options.newIssuesLimit ? rebuiltNewIssues(this.#rebuilt, options.libraryId, {limit: options.newIssuesLimit}, signal).catch(() => undefined) : undefined]);
     return {rows: [{key: 'recent', items: page.items, ...(page.nextCursor ? {nextCursor: page.nextCursor} : {})},
       ...(issues?.issues.length ? [{key: 'new-issues' as const, items: [], ...(issues.nextCursor ? {nextCursor: issues.nextCursor} : {})}] : [])],
       newIssueCards: issues?.issues ?? [], previewMarks: marks(page.items)};
