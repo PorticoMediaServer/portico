@@ -318,8 +318,15 @@ func TestALostFileMakesItsTitleMissingUntilItReturns(t *testing.T) {
 	if stats.FilesGone != 2 || f.detail(alien.PublicID).Available || f.detail(kill.PublicID).Available {
 		t.Fatalf("lost files should make their titles missing: %+v", stats)
 	}
-	if heat := f.detail(f.film("Heat").PublicID); !heat.Available || len(heat.Versions) != 1 {
-		t.Errorf("Heat lost one of two versions and should still play: %d versions, available %v", len(heat.Versions), heat.Available)
+	heat := f.detail(f.film("Heat").PublicID)
+	available := 0
+	for _, version := range heat.Versions {
+		if version.Available {
+			available++
+		}
+	}
+	if !heat.Available || len(heat.Versions) != 2 || available != 1 {
+		t.Errorf("Heat should retain both versions with only one available: %+v", heat)
 	}
 	missing, total, err := f.d.MissingItems(ctx, f.lib.ID, 50)
 	if err != nil || total != 2 || len(missing) != 2 {
