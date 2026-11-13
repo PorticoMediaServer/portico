@@ -74,8 +74,9 @@ test('title chrome allocates the current safe area and keeps real Back and Play 
 test('the compact phone hero centers its copy and puts wide Play, actions and synopsis below the artwork', async () => {
   const f = await fixture(), tree = f.render(), hero = find(tree, 'watch-title-hero');
   assert.equal(style(hero).height, 396);
-  const lockup = descendants(hero).find(node => node.type === 'Text' && node.props.accessibilityRole === 'header');
-  assert.equal(style(lockup).fontSize, 46); assert.equal(style(lockup).textAlign, 'center'); assert.equal(style(lockup).marginBottom, 10);
+  // The one page title (kit Lockup): on a phone it takes the frames' steps (46, 42, 34) and wraps; it is never sized here.
+  const lockup = descendants(hero).find(node => node.type === 'Lockup');
+  assert.equal(lockup.props.size, undefined); assert.equal(style(lockup).textAlign, 'center'); assert.equal(style(lockup).marginBottom, 10);
   assert.equal(style(descendants(hero).find(node => node.type === 'Text' && node.props.children[0] === '2026')).fontSize, 13);
   assert.equal(find(hero, 'watch-title-play'), undefined);
   assert.equal(descendants(hero).some(node => node.type === 'Text' && node.props.children[0] === 'The actual synopsis.'), false);
