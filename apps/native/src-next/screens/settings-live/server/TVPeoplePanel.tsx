@@ -81,11 +81,11 @@ export function TVPeoplePanel({ports, runtime, lifetime}: {ports: NativeSettings
       const last = when(account.lastActiveAt);
       const status = account.disabled ? t('next.tvPeople.turnedOff') : live ?? (last ? t('next.tvPeople.lastActive', {when: last}) : undefined);
       return row(`account:${account.accountId}`, name, meta, status);
-    }) : state.members.loaded && <StateView title={t('next.tvPeople.noAccounts')}/>} {sectionTail('members', state.members)}</>)}
+    }) : state.members.loaded && <StateView title={t('next.tvPeople.noAccounts')}/>}{sectionTail('members', state.members)}</>)}
     {group('invitations', 'next.tvPeople.invitations', <>{state.invitations.items.length ? state.invitations.items.map((invitation, index) => {
       const title = t(invitation.role === 'admin' ? 'next.tvPeople.invitationForAdmin' : 'next.tvPeople.invitationForMember');
       const expires = expiry(invitation.expiresAt);
       return row(`invitation:${invitation.id}`, title, expires ? [expires] : [], t('next.tvPeople.notUsed'));
-    }) : state.invitations.loaded && <StateView title={t('next.tvPeople.noInvitations')}/>} {sectionTail('invitations', state.invitations)}</>)}
+    }) : state.invitations.loaded && <StateView title={t('next.tvPeople.noInvitations')}/>}{sectionTail('invitations', state.invitations)}</>)}
   </View>;
 }
