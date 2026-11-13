@@ -9,10 +9,9 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
-	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
-func TestCacheRemovalAndGeneratedKeepingUseOnlyReusableCopies(t *testing.T) {
+func TestCacheRemovalAndDownloadKeepingUseOnlyReusableCopies(t *testing.T) {
 	d, film, _ := filmLibrary(t)
 	clock := time.Now()
 	s := service(t, d, t.TempDir(), func() time.Time { return clock })
@@ -37,10 +36,10 @@ func TestCacheRemovalAndGeneratedKeepingUseOnlyReusableCopies(t *testing.T) {
 		}
 		return p
 	}
-	policy := func(word string) {
+	policy := func(days int) {
 		t.Helper()
-		raw, _ := json.Marshal(map[string]string{"keepGeneratedFiles": word})
-		if _, err := s.Settings.Write(ctx, 0, settings.Storage.Name(), raw, -1, clock); err != nil {
+		raw, _ := json.Marshal(map[string]int{"keepDays": days})
+		if _, err := s.Settings.Write(ctx, 0, Document.Name(), raw, -1, clock); err != nil {
 			t.Fatal(err)
 		}
 		if err := s.Tidy(ctx); err != nil {
@@ -58,9 +57,9 @@ func TestCacheRemovalAndGeneratedKeepingUseOnlyReusableCopies(t *testing.T) {
 	if err := os.WriteFile(subtitle, []byte("words"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	policy("long")
+	policy(90)
 	if _, err := d.PreparedByID(ctx, old.ID); err != nil {
-		t.Fatal("Longer did not retain a 60-day copy", err)
+		t.Fatal("90 days did not retain a 60-day copy", err)
 	}
 	if bytes, err := s.CachedCopies(ctx, false); err != nil || bytes != 8 {
 		t.Fatalf("preview: %d %v, want copy plus subtitles only", bytes, err)
@@ -84,17 +83,17 @@ func TestCacheRemovalAndGeneratedKeepingUseOnlyReusableCopies(t *testing.T) {
 		t.Fatalf("a recently made unused copy should be clearable: %d %v", bytes, err)
 	}
 	old = makeCopy("240p", db.PreparedReady, 60*24*time.Hour)
-	policy("balanced")
+	policy(30)
 	if _, err := d.PreparedByID(ctx, old.ID); err != db.ErrNotFound {
-		t.Fatal("Balanced did not expire a 60-day copy", err)
+		t.Fatal("30 days did not expire a 60-day copy", err)
 	}
 	old = makeCopy("240p", db.PreparedReady, 20*24*time.Hour)
-	policy("balanced")
+	policy(30)
 	if _, err := d.PreparedByID(ctx, old.ID); err != nil {
-		t.Fatal("Balanced expired a 20-day copy", err)
+		t.Fatal("30 days expired a 20-day copy", err)
 	}
-	policy("short")
+	policy(14)
 	if _, err := d.PreparedByID(ctx, old.ID); err != db.ErrNotFound {
-		t.Fatal("Shorter did not expire a 20-day copy", err)
+		t.Fatal("14 days did not expire a 20-day copy", err)
 	}
 }

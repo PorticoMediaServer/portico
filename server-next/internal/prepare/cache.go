@@ -8,7 +8,7 @@ import (
 )
 
 // CachedCopies measures or removes reusable copies, including their extracted subtitles.
-// Running and queued work, and copies whose bytes are being fetched, stay put.
+// Any copy a download request still names, queued/running work and open reads stay put.
 func (s *Service) CachedCopies(ctx context.Context, empty bool) (int64, error) {
 	var after, bytes int64
 	var files map[string][]string
