@@ -131,6 +131,7 @@ function subtitleAndFontComponents(read: (rel: string) => string): CollectedComp
  * text is preserved separately; this only labels it. */
 export function classifyGoLicence(text: string): string {
   const wording = text.replace(/\s+/g, ' ');
+  if (/Mozilla Public License,? version 2\.0/i.test(wording)) return 'MPL-2.0';
   if (/Apache License/.test(wording)) return 'Apache-2.0';
   if (/Permission is hereby granted, free of charge/.test(wording)) return 'MIT';
   if (/Redistribution and use in source and binary forms/.test(wording)) {
@@ -149,8 +150,8 @@ function goModules(): {path: string; version: string; dir: string}[] {
   if (!tags) throw new Error('licences: scripts/release-build-tags.py returned an empty capability list');
   const found = new Map<string, {path: string; version: string; dir: string}>();
   for (const goos of ['linux', 'darwin', 'windows']) for (const goarch of ['amd64', 'arm64']) {
-    const out = execFileSync('go', ['list', '-deps', `-tags=${tags}`, '-f', '{{with .Module}}{{.Path}}\t{{.Version}}\t{{.Dir}}{{end}}', './cmd/server'], {
-      cwd: path.join(root, 'server'), encoding: 'utf8', env: {...process.env, GOOS: goos, GOARCH: goarch, GOFLAGS: '-mod=readonly', GOPROXY: 'off'},
+    const out = execFileSync('go', ['list', '-deps', `-tags=${tags}`, '-f', '{{with .Module}}{{.Path}}\t{{.Version}}\t{{.Dir}}{{end}}', './cmd/portico-server'], {
+      cwd: path.join(root, 'server-next'), encoding: 'utf8', env: {...process.env, GOOS: goos, GOARCH: goarch, GOFLAGS: '-mod=readonly', GOWORK: 'off', GOPROXY: 'off'},
     });
     for (const line of out.split('\n')) {
       const [p, version, dir] = line.split('\t');
@@ -162,28 +163,31 @@ function goModules(): {path: string; version: string; dir: string}[] {
 }
 
 function serverComponents(read: (rel: string) => string, licenceText: string): CollectedComponent[] {
-  read('server/go.mod');
-  read('server/go.sum');
+  read('server-next/go.mod');
+  read('server-next/go.sum');
   // The tag list decides which modules are linked, so it is a generation input.
   read('scripts/release-build-tags.py');
   const out: CollectedComponent[] = [];
   const goroot = execFileSync('go', ['env', 'GOROOT'], {encoding: 'utf8'}).trim();
   const goVersion = execFileSync('go', ['env', 'GOVERSION'], {encoding: 'utf8'}).trim().replace(/^go/, '');
-  const toolchain = read('server/go.mod').match(/^toolchain go(\S+)/m)?.[1] ?? read('server/go.mod').match(/^go (\S+)/m)?.[1];
+  const toolchain = read('server-next/go.mod').match(/^toolchain go(\S+)/m)?.[1] ?? read('server-next/go.mod').match(/^go (\S+)/m)?.[1];
   out.push({id: 'go:std', name: 'Go standard library', version: toolchain ?? goVersion, licence: 'BSD-3-Clause', group: 'server', text: folderLicence(goroot), url: 'https://go.dev'});
   for (const m of goModules()) {
     const text = folderLicence(m.dir);
     if (!text) throw new Error(`licences: Go module ${m.path} has no licence file in ${m.dir}`);
-    const licence = classifyGoLicence(text);
-    out.push({id: `go:${m.path}@${m.version}`, name: m.path, version: m.version, licence: m.path === 'modernc.org/sqlite' ? 'BSD-3-Clause; SQLite is public domain' : licence, group: 'server', text, url: `https://pkg.go.dev/${m.path}@${m.version}`});
+    // Label the module's own licence, not a licence mentioned in a bundled
+    // third-party notice. The complete notice text still travels below.
+    const own = licenceFiles(readdirSync(m.dir))[0];
+    if (!own) throw new Error(`licences: Go module ${m.path} has no own licence`);
+    const licence = classifyGoLicence(readOutside(path.join(m.dir, own)));
+    const label = m.path === 'modernc.org/libc' ? licence + '; ported code retains its source notices' : licence;
+    out.push({id: `go:${m.path}@${m.version}`, name: m.path, version: m.version, licence: m.path === 'modernc.org/sqlite' ? 'BSD-3-Clause; SQLite is public domain' : label, group: 'server', text, url: `https://pkg.go.dev/${m.path}@${m.version}`});
   }
-  out.push({id: 'server:sqlite-driver', name: 'SQLite driver (adapted copy)', licence: 'BSD-3-Clause', group: 'server', text: read('server/internal/thirdparty/sqlite/LICENSE'), url: 'https://gitlab.com/cznic/sqlite'});
-  out.push({id: 'server:image-scaler', name: 'Image scaling code from Go', licence: 'BSD-3-Clause', group: 'server', text: read('server/internal/imagework/SCALE_LICENSE'), url: 'https://cs.opensource.google/go/x/image'});
   const fonts: [string, string, string, string][] = [
-    ['DejaVu Sans', 'server/internal/mediaexec/fonts/LICENSE', 'Bitstream Vera / Arev font terms; DejaVu changes public domain', 'https://dejavu-fonts.github.io'],
-    ['Noto Sans CJK JP', 'server/internal/mediaexec/fonts/NotoCJK-LICENSE', 'OFL-1.1', 'https://github.com/notofonts/noto-cjk'],
-    ['Noto Sans Devanagari (server)', 'server/internal/mediaexec/fonts/NotoSansDevanagari-LICENSE', 'OFL-1.1', 'https://github.com/notofonts/devanagari'],
-    ['Noto Sans Thai (server)', 'server/internal/mediaexec/fonts/NotoSansThai-LICENSE', 'OFL-1.1', 'https://github.com/notofonts/thai'],
+    ['DejaVu Sans', 'server-next/internal/mediaexec/fonts/LICENSE', 'Bitstream Vera / Arev font terms; DejaVu changes public domain', 'https://dejavu-fonts.github.io'],
+    ['Noto Sans CJK JP', 'server-next/internal/mediaexec/fonts/NotoCJK-LICENSE', 'OFL-1.1', 'https://github.com/notofonts/noto-cjk'],
+    ['Noto Sans Devanagari (server)', 'server-next/internal/mediaexec/fonts/NotoSansDevanagari-LICENSE', 'OFL-1.1', 'https://github.com/notofonts/devanagari'],
+    ['Noto Sans Thai (server)', 'server-next/internal/mediaexec/fonts/NotoSansThai-LICENSE', 'OFL-1.1', 'https://github.com/notofonts/thai'],
   ];
   for (const [name, file, licence, url] of fonts) out.push({id: `server-font:${name}`, name, licence, group: 'server', text: read(file), url});
   const ffmpeg = JSON.parse(read('third_party/ffmpeg/sources.lock.json'));
