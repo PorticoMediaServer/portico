@@ -69,18 +69,22 @@ test("a reading library's series card opens the reading series page in every lis
   const state = {watched: false, playCount: 0, favorite: false, inList: false, notInterested: false};
   const reading = {id: 'itm_r', kind: 'series', title: 'Saga', libraryId: 'lib_comics', images: {}, state, addedAt: '', publicationType: 'book'};
   const audiobook = {id: 'itm_a', kind: 'series', title: 'Tides', libraryId: 'lib_audio', images: {}, state, addedAt: ''};
-  const views = (entries: readonly {navigation?: {view: string; entityId?: string}}[]) => entries.map(entry => entry.navigation);
-  const want = [{view: 'series', entityId: 'itm_r'}, {view: 'book_series', entityId: 'itm_a'}];
+  // A magazine's or newspaper's run of issues opens its periodical page, as the library's Magazines and Newspapers tabs do.
+  const monthly = {...reading, id: 'itm_m', title: 'Monthly', libraryId: 'lib_books', publicationType: 'magazine'};
+  const daily = {...reading, id: 'itm_d', title: 'Daily', libraryId: 'lib_books', publicationType: 'newspaper'};
+  const views = (entries: readonly {navigation?: {view: string; entityId?: string; pivot?: string}}[]) => entries.map(entry => entry.navigation);
+  const want = [{view: 'series', entityId: 'itm_r'}, {view: 'book_series', entityId: 'itm_a'},
+    {view: 'series', entityId: 'itm_m', pivot: 'magazines'}, {view: 'series', entityId: 'itm_d', pivot: 'newspapers'}];
   // The card itself.
-  assert.deepEqual(views([entryFromItem(reading as never)!, entryFromItem(audiobook as never)!]), want);
+  assert.deepEqual(views([reading, audiobook, monthly, daily].map(item => entryFromItem(item as never)!)), want);
   // Home's rows.
-  assert.deepEqual(views(homeDocument({rows: [{id: 'recently_added', title: 'Recently Added', shape: 'poster', items: [reading, audiobook]}]} as never).rows[0]!.entries), want);
+  assert.deepEqual(views(homeDocument({rows: [{id: 'recently_added', title: 'Recently Added', shape: 'poster', items: [reading, audiobook, monthly, daily]}]} as never).rows[0]!.entries), want);
   // A library's Discover rows.
-  const api = {request: async <T>(path: string): Promise<T> => (path.endsWith('/landing') ? {rows: [{id: 'recently_added', title: 'Recently Added', items: [reading, audiobook]}]}
+  const api = {request: async <T>(path: string): Promise<T> => (path.endsWith('/landing') ? {rows: [{id: 'recently_added', title: 'Recently Added', items: [reading, audiobook, monthly, daily]}]}
     : {id: 'lib_comics', name: 'Comics', kind: 'comics'}) as T};
   const discover = await rebuiltContent(api, {libraryId: 'lib_comics', view: 'discover'}, {viewerId: 'prf', serverId: 'srv'}, 40);
   assert.deepEqual(views(discover.sections[0]!.entries as never), want);
   // Search rows, through the same card.
-  const found = await readSearch({request: async <T>(): Promise<T> => ({groups: [{kind: 'book', items: [reading, audiobook]}]}) as T} as never, {q: 'saga'}, 12) as {groups: {items: {navigation?: {view: string; entityId?: string}}[]}[]};
+  const found = await readSearch({request: async <T>(): Promise<T> => ({groups: [{kind: 'book', items: [reading, audiobook, monthly, daily]}]}) as T} as never, {q: 'saga'}, 12) as {groups: {items: {navigation?: {view: string; entityId?: string}}[]}[]};
   assert.deepEqual(views(found.groups[0]!.items), want);
 });

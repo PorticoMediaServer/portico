@@ -73,7 +73,8 @@ export type ContentEntry = Readonly<{
   removed?:boolean;
   artworkPaths?: readonly string[];
   yearMin?:number; yearMax?:number; origin?:'automatic'|'owner';
-  navigation?: Readonly<{ view: ContentView | 'item' | 'playlist' | 'radio'; entityId?: string; category?: string; browse?: ContentSeeAll }>;
+  /** `pivot`: a reading library's periodical page (a magazine's or newspaper's run of issues) beside its series view. */
+  navigation?: Readonly<{ view: ContentView | 'item' | 'playlist' | 'radio'; entityId?: string; category?: string; browse?: ContentSeeAll; pivot?: 'magazines' | 'newspapers' }>;
   playback?: Readonly<{ itemId: string; startSeconds?: number }>;
   /** An episode's air date (YYYY-MM-DD): show workspace pages, and episode rows of a browse page. */
   airDate?: string;

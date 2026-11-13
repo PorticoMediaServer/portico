@@ -537,8 +537,9 @@ func itemShape(it db.Item) Item {
 	if it.Kind.Reading() {
 		out.PublicationType, out.WordCount = db.PublicationName(it.Publication), it.WordCount
 	}
-	// A book or comic library's series names its publication too, by the same rule, so every client
-	// opens it as a reading series; an audiobook series is unchanged.
+	// A book or comic library's series names its publication too (a book library's run by its issues,
+	// G6: periodicals live only in Books), so every client opens it as a reading series or a periodical;
+	// an audiobook series is unchanged.
 	if it.Kind == db.KindSeries && (it.SeriesLibraryKind == db.LibraryBooks || it.SeriesLibraryKind == db.LibraryComics) {
 		out.PublicationType = db.PublicationName(it.Publication)
 	}

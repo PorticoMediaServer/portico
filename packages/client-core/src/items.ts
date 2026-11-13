@@ -24,6 +24,9 @@ export const itemKindOf = (kind: string): string => Object.entries(entryKinds).f
 /** The page a card that holds other titles opens; a title that plays opens its own page. */
 const holderViews: Readonly<Record<string, ContentView>> = {show: 'show', season: 'season', artist: 'artist', album: 'album', audiobook: 'book', series: 'book_series', collection: 'collection'};
 
+/** The periodical page a magazine's or newspaper's run opens, by its publication. */
+const periodicalPivots: Readonly<Record<string, 'magazines' | 'newspapers'>> = {magazine: 'magazines', newspaper: 'newspapers'};
+
 /** A half-star rating out of five, as the screens show it; the server keeps it out of ten. */
 const stars = (rating: number | undefined): number | undefined => rating === undefined ? undefined : rating / 2;
 
@@ -54,9 +57,12 @@ export function entryFromItem(item: Item, libraryId?: string): ContentEntry | un
     // profile may not see is named by neither.
     show: item.kind === 'episode' ? item.root ? {id: item.root.id, name: item.root.title} : item.rootId && item.rootTitle ? {id: item.rootId, name: item.rootTitle} : undefined : undefined,
     ...numbered,
-    // A book or comic library's series names its publication (the server's rule for reading titles), so it opens the
-    // reading series page on every client and in every list; an audiobook series names none and keeps its own page.
-    navigation: {view: item.kind === 'series' && typeof item.publicationType === 'string' ? 'series' : view ?? 'item', entityId: item.id},
+    // A book or comic library's series names its publication (its run of issues names it, the server's rule), so it
+    // opens the reading series page, or a magazine's or newspaper's periodical page, on every client and in every list;
+    // an audiobook series names none and keeps its own page.
+    navigation: item.kind === 'series' && typeof item.publicationType === 'string'
+      ? {view: 'series', entityId: item.id, ...(periodicalPivots[item.publicationType] ? {pivot: periodicalPivots[item.publicationType]} : {})}
+      : {view: view ?? 'item', entityId: item.id},
     playback: view ? undefined : {itemId: item.id, ...(state?.positionMs ? {startSeconds: Math.round(state.positionMs / 1000)} : {})},
   };
   for (const key of Object.keys(entry)) if (entry[key] === undefined || entry[key] === null) delete entry[key];

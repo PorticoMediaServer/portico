@@ -26,6 +26,11 @@ test("a reading library's series card opens the reading series page; an audioboo
   const audiobook = {...entry('book_series'), navigation: {view: 'book_series', entityId: 'actual'}} as ContentEntry;
   assert.equal(nativeEntryRoute(audiobook).kind, 'audiobook');
   assert.equal(nativeEntryRoute(entry('book_series')).kind, 'audiobook', 'no navigation: the audiobook page, as before');
+  // A magazine's or newspaper's run opens its periodical page.
+  assert.deepEqual(nativeEntryRoute({...reading, navigation: {view: 'series', entityId: 'itm_m', pivot: 'magazines'}} as ContentEntry),
+    {kind: 'read-periodical', libraryId: 'library', groupId: 'itm_m', publicationType: 'magazine'});
+  assert.deepEqual(nativeEntryRoute({...reading, navigation: {view: 'series', entityId: 'itm_d', pivot: 'newspapers'}} as ContentEntry),
+    {kind: 'read-periodical', libraryId: 'library', groupId: 'itm_d', publicationType: 'newspaper'});
 });
 
 test("a reading series or periodical page takes the rebuilt server's item ids, and only URL-safe ones", async () => {

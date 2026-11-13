@@ -41,8 +41,8 @@ type Item struct {
 	// SeriesLibraryKind is a series' library's kind (books, comics or audiobooks), so a card can open a
 	// reading series as one; it is empty for every other item.
 	SeriesLibraryKind string
-	Images          []Image
-	State           State
+	Images            []Image
+	State             State
 	// For an item that holds others: how many playable items under it the viewer may see, and
 	// how many of those are watched. A show is watched when the two are equal and not zero.
 	Leaves        int
@@ -255,7 +255,7 @@ func (c *listCursor) fits(spec sortSpec) bool {
 // itemColumns reads names only for roots the viewer may see. An episode can have
 // a lower rating than its show, so visibility of the item alone is not enough.
 func itemColumns(acc access) string {
-	return `i.id, i.public_id, i.kind, i.title, i.sort_title, ifnull(i.year, 0), ifnull(i.release_date, ''), i.publication, i.word_count, i.added_at,
+	return `i.id, i.public_id, i.kind, i.title, i.sort_title, ifnull(i.year, 0), ifnull(i.release_date, ''), ` + itemPublication(acc) + `, i.word_count, i.added_at,
 	ifnull(i.duration_ms, 0), i.index_number, i.parent_index, i.child_count, ifnull(i.content_rating, ''),
 	ifnull(i.community_rating, 0), ifnull(i.parent_id, 0), ifnull(i.root_id, 0),
 	ifnull((SELECT public_id FROM items WHERE id = i.parent_id), ''), ifnull((SELECT public_id FROM items WHERE id = i.root_id), ''),
@@ -263,6 +263,15 @@ func itemColumns(acc access) string {
 	CASE WHEN i.kind = ` + strconv.Itoa(int(KindSeries)) + ` THEN ifnull((SELECT kind FROM libraries WHERE id = i.library_id), '') ELSE '' END,
 	ifnull((SELECT title FROM items root WHERE root.id = i.root_id AND ` + acc.visible("root") + `), ''),
 	ifnull((SELECT album.id FROM items album WHERE i.kind = 7 AND album.id = i.parent_id AND album.kind = 6 AND ` + acc.visible("album") + `), 0), ` + stateColumns
+}
+
+// itemPublication is a title's publication: its own, or for a series in a book library the one its run
+// of issues names (seriesPublication), so a magazine's run reads as a magazine. Periodicals live only in
+// book libraries (the owner's decision G6, 22 Oct: "magazines and newspapers go in Books"), so a comic
+// library's series keeps the ordinary value and opens as a reading series.
+func itemPublication(acc access) string {
+	return `CASE WHEN i.kind = ` + strconv.Itoa(int(KindSeries)) + ` AND (SELECT kind FROM libraries WHERE id = i.library_id) = '` + LibraryBooks +
+		`' THEN ` + seriesPublication(acc, "i") + ` ELSE i.publication END`
 }
 
 const stateJoin = ` LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id WHERE `
