@@ -1,4 +1,7 @@
 export const integrationMessages={
+  'next.ownerKeys.created': 'Created {when}',
+  'next.ownerKeys.once': 'Shown once. Copy this key now; Portico cannot show it again.',
+
  'integrations.compatibility.title':'Integrations compatibility',
  'integrations.compatibility.help':'Connect automation and monitoring tools to Portico. Off by default. Players use the Portico API.',
  'integrations.appPasswords.title':'App passwords',

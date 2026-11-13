@@ -1,2 +1,2 @@
-export {SettingsApiKeysSource} from '@core/server-admin/api-keys-source.ts';
-export type {ApiKeyDraft, ApiKeysSnapshot} from '@core/server-admin/api-keys-source.ts';
+export {OwnerApiKeysSource as SettingsApiKeysSource} from '@core/server-admin/owner-api-keys.ts';
+export type {OwnerApiKey, OwnerKeyIssued} from '@core/server-admin/owner-api-keys.ts';
