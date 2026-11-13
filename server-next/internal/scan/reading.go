@@ -124,7 +124,8 @@ func (r *run) comicUnits(f *folder) []unit {
 	}
 	var units []unit
 	seriesImages := r.readingPictures(f, nil, true)
-	for _, file := range f.media {
+	sort.SliceStable(f.media, func(i, j int) bool { return natural(f.media[i].rel) < natural(f.media[j].rel) })
+	for n, file := range f.media {
 		if !file.touched() && !r.rereads(file) && !f.sidecarChanged(stem(file.entry.Name), true) {
 			continue
 		}
@@ -134,11 +135,12 @@ func (r *run) comicUnits(f *folder) []unit {
 		// A comic's own ComicInfo.xml gives its title, date, summary, writers and genres. A
 		// changed comic that cannot be read now keeps what it has.
 		images := r.readingPictures(f, file, f.rel == "")
-		d, embedded, read := r.embedded(file, len(images) == 0 || len(seriesImages) == 0)
+		seriesFallback := n == 0 && len(seriesImages) == 0
+		d, embedded, read := r.embedded(file, len(images) == 0 || seriesFallback)
 		if len(images) == 0 {
 			images = embedded
 		}
-		if len(seriesImages) == 0 {
+		if seriesFallback {
 			seriesImages = embedded
 		}
 		if r.rereads(file) && !read {

@@ -134,8 +134,8 @@ func (r *run) album(f *folder, folder string, lead *found, tags audiotags.Tags, 
 		// A compilation folder may contain several tagged artists; it must not join them.
 		if fold(path.Base(artistFolder)) == fold(artist) {
 			artistItem.Keys = append(artistItem.Keys, db.FolderKey(r.path.ID, artistFolder))
+			artistItem.Images = r.artistPictures(artistFolder)
 		}
-		artistItem.Images = r.artistPictures(artistFolder)
 	}
 	// A title from tags never beats a provider's (rule 6): it names the artist, album or song
 	// while it is unmatched or in a local-only library, and only album.nfo's is the files' own.

@@ -536,7 +536,14 @@ func (im *importer) importItem(it *ImportItem, stats *ImportStats) error {
 			return err
 		}
 	} else if len(it.Images) > 0 {
-		if err := im.localImages(found.id, it.Images); err != nil {
+		// Only file-backed scan artwork is updated here; unlinked seed pictures are initial data.
+		var images []ImportImage
+		for _, image := range it.Images {
+			if image.File != nil {
+				images = append(images, image)
+			}
+		}
+		if err := im.localImages(found.id, images); err != nil {
 			return err
 		}
 	}
