@@ -423,9 +423,9 @@ func (s *Server) porticoPublished() []hosted.Address {
 	starting := !s.access.networkStarted
 	s.access.mu.RUnlock()
 	v, _ := s.access.current()
-	if v.RemoteAccess == "on" && (starting || s.listenPort() != 0 && s.public.Answer().Address == "") {
+	if v.RemoteAccess == "on" && (starting || s.listenPort() != 0 && s.public.Answer().CheckedAt.IsZero()) {
 		// Services already holds the last published routes. Do not erase them while
-		// a restart opens the listener and finds its public address again.
+		// a restart opens the listener and makes its first public-address lookup.
 		return nil
 	}
 	out := []hosted.Address{}
