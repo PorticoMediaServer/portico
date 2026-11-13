@@ -13,7 +13,7 @@ const i18n = {t: (key: string) => key, number: String, duration: (value: number)
 const runtime = {artwork: () => ({cacheKey: 'art'}), ambient: () => ({cacheKey: 'ambient'}), text: {locale: 'en-US'}, reportError: (error: unknown) => {throw error;}};
 
 async function music(platform = 'tablet') {
-  const ui = hooks(), theme = {platform, layoutMode: 'phone', isTV: false, colors}, react: any = {...ui.react, useId: () => 'wash'}; react.default = react;
+  const ui = hooks(), theme = {platform, layoutMode: 'phone', isTV: false, colors, textScale: 1, fontScale: 1}, react: any = {...ui.react, useId: () => 'wash'}; react.default = react;
   // A child row renders in its own hook space, so the screen's hooks and the row's never share slots.
   const child = hooks(); let active = ui;
   for (const name of ['useRef', 'useState', 'useMemo', 'useCallback', 'useEffect', 'useSyncExternalStore', 'useContext']) react[name] = (...args: any[]) => (active.react as any)[name](...args);
@@ -41,7 +41,7 @@ async function music(platform = 'tablet') {
   const props: any = {controller, entry, runtime, selection, actions: {menu: (...args: any[]) => menus.push(args)}, openEntry: (value: any) => opened.push(value), onBack() {}};
   const tree = ui.render(() => module.PhoneAlbumScreen(props));
   const renderChild = (node: any) => {active = child; try {return child.render(() => node.type(node.props));} finally {active = ui;}};
-  return {tree, song, artist, controller, selection, renderChild, enter, toggle, menus, opened, counts: () => ({plays, favorites, starts, selected}), ui};
+  return {tree, song, artist, controller, selection, renderChild, enter, toggle, menus, opened, counts: () => ({plays, favorites, starts, selected}), ui, module};
 }
 
 test('tablet album matches hero/table metrics and exposes the canonical artist link and Select toolbar', async () => {
@@ -132,4 +132,25 @@ test('author header, book rows and grouped details retain their specified hierar
   assert.ok(nodes(first).some(node => style(node).left === 5 && style(node).height === 3));
   assert.ok(all.some(node => style(node).borderRadius === 14 && style(node).marginHorizontal === -4 && style(node).backgroundColor === colors.raised));
   assert.ok(all.some(node => node.type === 'Text' && content(node) === 'next.kit.narrators' && style(node).fontSize === 15.5));
+});
+
+// 13 Nov iPad walk: in iPad mini portrait the tablet album's track titles were cut to "A L…" beside fixed Plays and Duration
+// columns. The title keeps a real share; Plays gives way first, then Duration; the favourite and More always stay.
+test('the tablet song table keeps the title a real share: Plays drops first, then Duration', async () => {
+  const f = await music();
+  const columns = f.module.songTableColumns;
+  assert.deepEqual(columns(0), {plays: true, duration: true}, 'before measuring, the full table');
+  assert.deepEqual(columns(700), {plays: true, duration: true});
+  assert.deepEqual(columns(420), {plays: false, duration: true}, 'a short row drops Plays first');
+  assert.deepEqual(columns(320), {plays: false, duration: false}, 'then Duration; the title keeps 40 % and 160 pt');
+  assert.deepEqual(columns(700, 2), {plays: false, duration: true}, 'at large text the columns need more room: Plays goes first');
+  assert.deepEqual(columns(500, 2), {plays: false, duration: false});
+  const header = nodes(f.tree).find(node => node.type?.name === 'SongTableHeader');
+  assert.equal(typeof header.props.onWidth, 'function', 'the one table header measures the table');
+  const element = nodes(nodes(f.tree).find(node => node.type === 'MusicWindow').props.renderItem(f.song, 0)).find(node => node.type?.name === 'TabletSongLine');
+  assert.deepEqual(element.props.columns, header.props.columns, 'rows and header share one set of columns');
+  const narrow = f.renderChild({type: element.type, props: {...element.props, columns: {plays: false, duration: false}}});
+  const texts = nodes(narrow).filter(node => node.type === 'Text').map(node => [node.props.children].flat().join(''));
+  assert.ok(texts.includes('Song'), 'the title is drawn'); assert.equal(texts.includes('3:00'), false, 'no Duration column');
+  assert.ok(nodes(narrow).some(node => node.props?.icon === 'i-heart'), 'the favourite stays');
 });

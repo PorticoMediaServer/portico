@@ -195,6 +195,7 @@ export function PhoneAlbumScreen({controller, entry, runtime, actions, openEntry
   const theme = useTheme(), insets = useSafeAreaInsets(), snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot), playingId = usePlayingItem(runtime);
   useSyncExternalStore(selection?.subscribe ?? noSubscribe, selection?.getSnapshot ?? noRevision);
   const art = runtime.artwork(entry.posterUrl), more = useRef<NativeView>(null), [collapsed, setCollapsed] = useState(false);
+  const [tableWidth, setTableWidth] = useState(0), columns = songTableColumns(tableWidth, theme.textScale * theme.fontScale);
   const minutes = snapshot.songDurationSeconds === undefined ? undefined : Math.max(1, Math.round(snapshot.songDurationSeconds / 60));
   const facts = [
     entry.year === undefined ? undefined : defaultI18n.number(entry.year, {useGrouping: false}),
@@ -241,14 +242,8 @@ export function PhoneAlbumScreen({controller, entry, runtime, actions, openEntry
         <View style={{flexDirection: 'row', gap: 40, paddingHorizontal: 32, marginTop: 34}}>
           <View style={{flex: 1, minWidth: 0}}>
             {selection?.start && controller.selectionProjection() ? <View style={{alignItems: 'flex-end', marginBottom: 10}}><Chip icon="i-check" onPress={() => selection.start?.()}>{t('next.selection.select')}</Chip></View> : null}
-            <View style={{flexDirection: 'row', alignItems: 'center', height: 42, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: theme.colors.line}}>
-              <Text style={[browseType(theme, 13, 600), {width: 36, color: theme.colors.textTertiary}]}>#</Text>
-              <Text style={[browseType(theme, 13, 600), {flex: 1, color: theme.colors.textTertiary}]}>{t('next.browse.native.title')}</Text>
-              <Text style={[browseType(theme, 13, 600), {width: 62, textAlign: 'right', color: theme.colors.textTertiary}]}>{t('next.browse.native.plays')}</Text>
-              <Text style={[browseType(theme, 13, 600), {width: 70, textAlign: 'right', color: theme.colors.textTertiary}]}>{t('next.browse.duration')}</Text>
-              <View style={{width: 88}}/>
-            </View>
-            <MusicWindow items={snapshot.songs} itemHeight={60} renderItem={(song,index)=><View onFocus={()=>{controller.focusSong(song,snapshot.songPage);if(index>=snapshot.songs.length-10)void controller.nextSongs(snapshot.songPage);}} onBlur={()=>controller.blurSong(song,snapshot.songPage)}><TabletSongLine song={song} index={snapshot.songPage.offset+index} digits={trackDigits(snapshot.songs, snapshot.songPage.offset)} runtime={runtime} controller={controller} actions={actions} playingId={playingId} selection={selection}/></View>}/>
+            <SongTableHeader columns={columns} onWidth={setTableWidth}/>
+            <MusicWindow items={snapshot.songs} itemHeight={60} renderItem={(song,index)=><View onFocus={()=>{controller.focusSong(song,snapshot.songPage);if(index>=snapshot.songs.length-10)void controller.nextSongs(snapshot.songPage);}} onBlur={()=>controller.blurSong(song,snapshot.songPage)}><TabletSongLine song={song} columns={columns} index={snapshot.songPage.offset+index} digits={trackDigits(snapshot.songs, snapshot.songPage.offset)} runtime={runtime} controller={controller} actions={actions} playingId={playingId} selection={selection}/></View>}/>
             <MusicSectionControls id="album-songs" section={snapshot.songPage} next={()=>{void controller.nextSongs(snapshot.songPage);}} previous={()=>{void controller.previousSongs(snapshot.songPage);}} retry={()=>{void controller.retrySongs(snapshot.songPage);}} refresh={()=>{void controller.refreshSongs(snapshot.songPage);}}/>
           </View>
           {details.length ? <View style={{width: 250}}>
@@ -288,20 +283,42 @@ export function PhoneAlbumScreen({controller, entry, runtime, actions, openEntry
   </View>;
 }
 
-function TabletSongLine({song, index, digits, runtime, controller, actions, playingId, selection}: {
-  song: ContentEntry; index: number; digits?: number; runtime: NativeShellRuntime; controller: NativeTVMusicController; actions: Actions; playingId?: string; selection?: NativeSavedSelectionPort;
+/** The tablet song table's secondary columns. The title keeps a real share of the row (at least 40 % and 160 pt, at the
+ * system text size); when the row is short Plays gives way first, then Duration; the favourite and More always stay. */
+export type SongColumns = Readonly<{plays: boolean; duration: boolean}>;
+export function songTableColumns(width: number, scale = 1): SongColumns {
+  if (width <= 0) return {plays: true, duration: true};
+  const fixed = 16 + 36 * scale + 88, title = Math.max(160 * scale, width * .4), plays = 62 * scale, duration = 70 * scale;
+  if (width - fixed - plays - duration >= title) return {plays: true, duration: true};
+  return {plays: false, duration: width - fixed - duration >= title};
+}
+
+/** The one header of the tablet song table (album and artist pages), with the same columns as its rows. */
+function SongTableHeader({columns, onWidth}: {columns: SongColumns; onWidth: (width: number) => void}) {
+  const theme = useTheme(), scale = theme.textScale * theme.fontScale;
+  return <View onLayout={event => onWidth(event.nativeEvent.layout.width)} style={{flexDirection: 'row', alignItems: 'center', minHeight: 42, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: theme.colors.line}}>
+    <Text style={[browseType(theme, 13, 600), {width: 36 * scale, color: theme.colors.textTertiary}]}>#</Text>
+    <Text numberOfLines={1} style={[browseType(theme, 13, 600), {flex: 1, color: theme.colors.textTertiary}]}>{t('next.browse.native.title')}</Text>
+    {columns.plays ? <Text numberOfLines={1} style={[browseType(theme, 13, 600), {width: 62 * scale, textAlign: 'right', color: theme.colors.textTertiary}]}>{t('next.browse.native.plays')}</Text> : null}
+    {columns.duration ? <Text numberOfLines={1} style={[browseType(theme, 13, 600), {width: 70 * scale, textAlign: 'right', color: theme.colors.textTertiary}]}>{t('next.browse.duration')}</Text> : null}
+    <View style={{width: 88}}/>
+  </View>;
+}
+
+function TabletSongLine({song, index, digits, columns = {plays: true, duration: true}, runtime, controller, actions, playingId, selection}: {
+  song: ContentEntry; index: number; digits?: number; columns?: SongColumns; runtime: NativeShellRuntime; controller: NativeTVMusicController; actions: Actions; playingId?: string; selection?: NativeSavedSelectionPort;
 }) {
   const theme = useTheme(), title = song.displayTitle ?? song.title, playing = playingId === song.id, anchor = useRef<NativeView>(null), picked = selection?.item(song);
   const model = useMemo(() => cardText({id: song.id, kind: 'song', title, artist: song.artist?.name, album: song.album?.name, durationSeconds: song.duration}, 'song-row', runtime.text), [song, title, runtime.text]);
-  const duration = model.detail.find(part => part.id === 'duration')?.text;
+  const duration = model.detail.find(part => part.id === 'duration')?.text, scale = theme.textScale * theme.fontScale;
   return <Focusable ref={anchor} accessibilityRole={picked?.active ? 'checkbox' : 'button'} accessibilityState={{checked: picked?.active ? picked.selected : undefined}} accessibilityLabel={t(picked?.active ? 'card.select' : 'next.browse.native.play', {title})} focusKind="row" focusRadius={10}
     onLongPressAction={() => actions.menu(song, anchor, picked?.onEnter)} onPress={() => {if (picked?.active) picked.onToggle(); else void controller.play(song.id).catch(runtime.reportError);}}
     style={{height: 60, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', borderRadius: 10, backgroundColor: playing ? alpha(theme.colors.text, .08) : undefined}}>
     {picked?.active ? <SelectionCircle selected={picked.selected} selecting interactive={false} variant="row" size={24} accessibilityLabel={t('card.select', {title})}/> : null}
-    <TrackNumber number={song.trackNumber ?? index + 1} digits={digits} playing={playing} width={36} size={14}/>
+    <TrackNumber number={song.trackNumber ?? index + 1} digits={digits} playing={playing} width={36 * scale} size={14}/>
     <Text numberOfLines={1} style={[browseType(theme, 16, 600), {flex: 1, color: playing ? theme.colors.accentStrong : theme.colors.text}]}>{title}</Text>
-    {song.plays !== undefined ? <Text style={[browseType(theme, 14, 400), {width: 62, textAlign: 'right', color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{defaultI18n.number(song.plays)}</Text> : <View style={{width: 62}}/>}
-    {duration ? <Text style={[browseType(theme, 14, 400), {width: 70, textAlign: 'right', color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{duration}</Text> : <View style={{width: 70}}/>}
+    {columns.plays ? song.plays !== undefined ? <Text numberOfLines={1} style={[browseType(theme, 14, 400), {width: 62 * scale, textAlign: 'right', color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{defaultI18n.number(song.plays)}</Text> : <View style={{width: 62 * scale}}/> : null}
+    {columns.duration ? duration ? <Text numberOfLines={1} style={[browseType(theme, 14, 400), {width: 70 * scale, textAlign: 'right', color: theme.colors.textTertiary, fontVariant: ['tabular-nums']}]}>{duration}</Text> : <View style={{width: 70 * scale}}/> : null}
     <Button variant="text" iconOnly icon={controller.songFavorite(song) ? 'i-heart-f' : 'i-heart'} iconColor={controller.songFavorite(song) ? theme.colors.accentStrong : theme.colors.textTertiary} iconSize={20}
       style={{width: 44, height: 44, flexShrink: 0}} accessibilityLabel={t(controller.songFavorite(song) ? 'entry.removeFromFavorites' : 'entry.addToFavorites')} accessibilityState={{checked: controller.songFavorite(song)}}
       disabled={controller.songFavoritePending(song)} onPress={() => {void controller.toggleSongFavorite(song).catch(runtime.reportError);}}/>
@@ -317,6 +334,7 @@ export function PhoneArtistScreen({controller, entry, runtime, actions, openEntr
   const theme = useTheme(), insets = useSafeAreaInsets(), snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot), playingId = usePlayingItem(runtime);
   useSyncExternalStore(selection?.subscribe ?? noSubscribe, selection?.getSnapshot ?? noRevision);
   const more = useRef<NativeView>(null), [collapsed, setCollapsed] = useState(false);
+  const [tableWidth, setTableWidth] = useState(0), columns = songTableColumns(tableWidth, theme.textScale * theme.fontScale);
   const releases=useMemo(()=>artistReleaseGroups(snapshot.albums),[snapshot.albums]);
   const covers = useMemo(() => snapshot.albums.flatMap(album => {const source = runtime.artwork(album.posterUrl); return source ? [source] : [];}), [snapshot.albums, runtime]);
   const facts = [
@@ -346,14 +364,8 @@ export function PhoneArtistScreen({controller, entry, runtime, actions, openEntr
         {selection?.start && controller.selectionProjection() ? <View style={{alignItems: 'flex-end', paddingHorizontal: 32, marginTop: 24}}><Chip icon="i-check" onPress={() => selection.start?.()}>{t('next.selection.select')}</Chip></View> : null}
         {snapshot.songs.length ? <View style={{marginTop: 32, paddingHorizontal: 32}}>
           <Text style={[browseType(theme, 19, 700), {color: theme.colors.text, marginBottom: 8}]}>{t('music.topSongs')}</Text>
-          <View style={{flexDirection: 'row', alignItems: 'center', height: 42, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: theme.colors.line}}>
-            <Text style={[browseType(theme, 13, 600), {width: 36, color: theme.colors.textTertiary}]}>#</Text>
-            <Text style={[browseType(theme, 13, 600), {flex: 1, color: theme.colors.textTertiary}]}>{t('next.browse.native.title')}</Text>
-            <Text style={[browseType(theme, 13, 600), {width: 62, textAlign: 'right', color: theme.colors.textTertiary}]}>{t('next.browse.native.plays')}</Text>
-            <Text style={[browseType(theme, 13, 600), {width: 70, textAlign: 'right', color: theme.colors.textTertiary}]}>{t('next.browse.duration')}</Text>
-            <View style={{width: 88}}/>
-          </View>
-          <MusicWindow items={snapshot.songs} itemHeight={60} renderItem={(song, index) => <TabletSongLine song={song} index={index} digits={trackDigits(snapshot.songs)} runtime={runtime} controller={controller} actions={actions} playingId={playingId} selection={selection}/>}/>
+          <SongTableHeader columns={columns} onWidth={setTableWidth}/>
+          <MusicWindow items={snapshot.songs} itemHeight={60} renderItem={(song, index) => <TabletSongLine song={song} columns={columns} index={index} digits={trackDigits(snapshot.songs)} runtime={runtime} controller={controller} actions={actions} playingId={playingId} selection={selection}/>}/>
         </View> : null}
         {releases.map(group=><View key={group.id} style={{marginTop:28,paddingHorizontal:32}}>
           <Text style={[browseType(theme,19,700),{color:theme.colors.text,marginBottom:10}]}>{t(group.label)}</Text>
