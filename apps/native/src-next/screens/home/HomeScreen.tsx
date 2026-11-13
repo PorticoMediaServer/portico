@@ -42,7 +42,7 @@ import {nativeType, useTheme, type Theme} from '../../kit/theme';
 import {homeActionDiagnostics} from '../../platform/home-action-diagnostics';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {MusicMixesRow} from '../destinations/music/MusicMixesRow';
-import {phoneHeaderGeometry, sameAuthority, type ShellAuthority} from '../../shell/model';
+import {phoneHeaderGeometry, sameAuthority, shellLayout, type ShellAuthority, type ShellLayout} from '../../shell/model';
 import {HomeHeroFacts, HomeRemoteHint} from './HomeHeroFacts';
 import {authorizedHome, homeCardText, homePlayTarget, homeRowHasContent, pageAtVisibleEnd, platformRows} from './model';
 import {TvHomeRecovery} from './TvHomeRecovery';
@@ -71,9 +71,10 @@ export function homeHeroBlock(theme: Theme, heroHeight: number, preview: boolean
   return theme.isTV ? (preview ? 588 : 820) : theme.platform === 'tablet' ? heroHeight : theme.layoutMode === 'phone' && theme.platform === 'phone' ? heroHeight : theme.layoutMode === 'desktop' ? heroHeight : 588;
 }
 
-/** With no spotlight (the rebuilt server sends none yet) Home draws no hero: rows start under the phone header, or under the safe area. */
-export function homeTopWithoutHero(theme: Theme, topInset: number): number {
-  return theme.layoutMode === 'phone' && theme.platform === 'phone' ? phoneHeaderGeometry(topInset, false).height : Math.max(topInset, 20);
+/** With no spotlight Home draws no hero: rows start under the phone header where the shell draws one (its own
+ * `shellLayout` kind, so a sideways phone agrees with the header), or under the safe area. */
+export function homeTopWithoutHero(layout: ShellLayout['kind'], topInset: number): number {
+  return layout === 'phone' ? phoneHeaderGeometry(topInset, false).height : Math.max(topInset, 20);
 }
 
 /**
@@ -266,7 +267,7 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
     return {row, presentation, width, height, slotHeight: measuredRows.layout === rowLayoutKey ? measuredRows.boxes.get(row.id)?.height ?? estimatedHeight : estimatedHeight};
   });
   const noHero = !theme.isTV && !document?.spotlight.length;
-  const heroBlock = (preview: boolean) => noHero ? homeTopWithoutHero(theme, insets.top) : homeHeroBlock(theme, heroHeight, preview);
+  const heroBlock = (preview: boolean) => noHero ? homeTopWithoutHero(shellLayout(windowWidth, windowHeight, theme.isTV).kind, insets.top) : homeHeroBlock(theme, heroHeight, preview);
   let rowY = heroBlock(rows.some(row => row.id === focus?.rowId && row.entries.some(entry => entry.id === focus?.entryId)));
   const spacing = homeRowSpacing(theme);
   const rowBoxes: readonly HomeRowBox[] = rowModels.map(({row, slotHeight}) => {
