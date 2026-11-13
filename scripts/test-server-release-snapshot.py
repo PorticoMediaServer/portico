@@ -15,15 +15,15 @@ spec.loader.exec_module(builder)
 
 class ServerSnapshotTests(unittest.TestCase):
     def test_component_module_identity(self):
-        self.assertEqual(builder.module_path('server'), 'github.com/PorticoMediaServer/portico/server')
+        self.assertEqual(builder.module_path('server'), 'github.com/PorticoMediaServer/portico/server-next')
         self.assertEqual(builder.module_path('hosted'), 'portico.local/hosted')
 
     def test_actual_sibling_inputs_are_captured_hashed_and_tamper_evident(self):
         with tempfile.TemporaryDirectory() as directory:
             stage = pathlib.Path(directory) / 'sealed'
-            digest, rows = builder.capture_source(ROOT / 'server', stage, b'fixture public root')
+            digest, rows = builder.capture_source(ROOT / 'server-next', stage, b'fixture public root')
             inventory = {row['path']: row['sha256'] for row in rows}
-            self.assertEqual((stage / 'source').resolve(), stage / 'server')
+            self.assertEqual((stage / 'source').resolve(), stage / 'server-next')
             for name in builder.TEST_INPUTS:
                 base = ROOT / name
                 paths = sorted(base.rglob('*')) if base.is_dir() else [base]
@@ -32,9 +32,8 @@ class ServerSnapshotTests(unittest.TestCase):
                         relative = str(path.relative_to(ROOT))
                         self.assertEqual((stage / relative).read_bytes(), path.read_bytes())
                         self.assertEqual(inventory['../' + relative], hashlib.sha256(path.read_bytes()).hexdigest())
-            self.assertIn('../apikit/go.mod', inventory)
-            self.assertIn('../go.work', inventory)
-            self.assertEqual((stage / 'go.work').read_bytes(), (ROOT / 'go.work').read_bytes())
+            self.assertFalse((stage / 'apikit').exists())
+            self.assertFalse((stage / 'go.work').exists())
             self.assertIn('../root-public-key.pem', inventory)
             for name in builder.TEST_INPUTS:
                 base = stage / name
@@ -52,11 +51,8 @@ class ServerSnapshotTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             repo, stage = root / 'repo', root / 'sealed'
-            (repo / 'server').mkdir(parents=True)
-            (repo / 'server/go.mod').write_text('module github.com/PorticoMediaServer/portico/server\n')
-            (repo / 'apikit').mkdir()
-            (repo / 'apikit/go.mod').write_text('module github.com/PorticoMediaServer/portico/apikit\n')
-            (repo / 'go.work').write_text('go 1.26.10\n\nuse (\n ./server\n ./apikit\n)\n')
+            (repo / 'server-next').mkdir(parents=True)
+            (repo / 'server-next/go.mod').write_text('module github.com/PorticoMediaServer/portico/server-next\n')
             dependency = repo / 'writer.mjs'
             dependency.write_text('before')
             copy = builder.shutil.copyfile
@@ -67,9 +63,9 @@ class ServerSnapshotTests(unittest.TestCase):
                     dependency.write_text('after')
                 return result
 
-            with patch.object(builder, 'ROOT', repo), patch.object(builder, 'TEST_INPUTS', ('go.work', 'writer.mjs')), patch.object(builder.shutil, 'copyfile', edit_while_copying):
+            with patch.object(builder, 'ROOT', repo), patch.object(builder, 'TEST_INPUTS', ('writer.mjs',)), patch.object(builder.shutil, 'copyfile', edit_while_copying):
                 with self.assertRaisesRegex(ValueError, 'changed during capture'):
-                    builder.capture_source(repo / 'server', stage, b'public root')
+                    builder.capture_source(repo / 'server-next', stage, b'public root')
 
 
 if __name__ == '__main__':

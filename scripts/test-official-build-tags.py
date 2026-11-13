@@ -32,11 +32,12 @@ RUNNER = ROOT / "scripts/runner-test.sh"
 AFFECTED = ROOT / "scripts/ci-affected.py"
 VET = ROOT / "scripts/vet-go.sh"
 LICENCES = ROOT / "web/scripts/licences.ts"
-CAPABILITY = ROOT / "server/internal/readingcap/capability.go"
-CLASSIC = ROOT / "server/internal/reading/archive_classic.go"
+CAPABILITY = ROOT / "server-next/internal/reading/classic_seven.go"
+CLASSIC = ROOT / "server-next/internal/reading/classic.go"
 
 OFFICIAL = (
     "Dockerfile",
+    ".github/workflows/release.yml",
     "ci/plan.py",
     "ci/run.py",
     "ci/release-staged/server-release.yml",
@@ -93,18 +94,22 @@ def audit(sources, required):
         missing = sorted(required - helper()["tags"](defaults[0]))
         if missing:
             problems.append("Dockerfile: PORTICO_GO_TAGS default %r drops %s" % (defaults[0], ", ".join(missing)))
-    server_builds = [line for line in dockerfile.splitlines() if "go build" in line and "./cmd/server" in line]
+    server_builds = [line for line in dockerfile.splitlines() if "go build" in line and "./cmd/portico-server" in line]
     if not server_builds:
         problems.append("Dockerfile: no server build command found")
     for line in server_builds:
         if '-tags "$PORTICO_GO_TAGS"' not in line:
             problems.append("Dockerfile: the server build does not pass -tags \"$PORTICO_GO_TAGS\"")
 
+    release = sources['.github/workflows/release.yml']
+    if 'matrix: {mode: [default, readers]}' not in release or 'release-build-tags.py --capability' not in job(release,'gate') or 'go test -tags "$tags"' not in job(release,'gate'):
+        problems.append('release gate: complete default and capability suites must test server-next')
+
     planner = sources['ci/plan.py']
     runner = sources['ci/run.py']
     if "'scripts/release-build-tags.py','--capability'" not in planner:
         problems.append('ci planner: the tag list does not come from the capability helper')
-    if "'go','list','-json','-tags',tags" not in planner:
+    if "'go','list','-json','-tags',listing_tags" not in planner:
         problems.append('ci planner: inventory drops capability tags')
     if "'--capability','--check',plan['tags']" not in runner or 'validate_tags(plan)' not in runner:
         problems.append('ci runner: tags do not fail closed')
@@ -238,7 +243,7 @@ class OfficialBuildTagTests(unittest.TestCase):
     def test_the_reader_modules_are_direct_pinned_requirements(self):
         # Both readers are imported by server source, so neither may be marked
         # indirect; the strict source pin is the version named here.
-        text = (ROOT / "server/go.mod").read_text()
+        text = (ROOT / "server-next/go.mod").read_text()
         for module, version in (("github.com/bodgit/sevenzip", "v1.6.5"),
                                 ("github.com/nwaples/rardecode/v2", "v2.4.5")):
             line = next((line for line in text.splitlines()
@@ -246,15 +251,15 @@ class OfficialBuildTagTests(unittest.TestCase):
             self.assertIn(version, line, module)
             self.assertNotIn("// indirect", line, module)
 
-    def test_cb7_tag_does_not_open_the_in_process_reader(self):
-        # The ruling authorises the tag, not a second reader: CB7 still requires
-        # its platform gate and the bounded worker, and the in-process path refuses.
-        capability = CAPABILITY.read_text()
+    def test_cb7_tag_keeps_the_decoder_in_the_bounded_worker(self):
+        # The shipped decoder is build-gated and runs behind the bounded worker.
+        seven = CAPABILITY.read_text()
         classic = CLASSIC.read_text()
-        self.assertIn("func CB7() bool { return buildEnabled() && platformSupportsCB7() }", capability)
-        self.assertIn('format == "cbr"', classic)
-        self.assertIn("CB7 stays closed", classic)
-        self.assertIn("archiveFormatError(format)", classic)
+        self.assertTrue(seven.startswith('//go:build portico_cb7'))
+        self.assertIn('github.com/bodgit/sevenzip', seven)
+        self.assertIn('exec.CommandContext', classic)
+        self.assertIn('archiveMode', classic)
+        self.assertIn('archiveLimits', classic)
 
     def test_every_official_command_carries_the_tag(self):
         self.assertEqual(audit(read_sources(), self.tags["required"]()), [])

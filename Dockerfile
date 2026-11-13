@@ -4,7 +4,7 @@
 # both written down here rather than left to whoever deploys it.
 #
 # 1. PID 1. The server handles SIGTERM correctly — signal.NotifyContext in
-#    cmd/server/main.go — so running it as PID 1 shuts down cleanly. What it
+#    cmd/portico-server/main.go — so running it as PID 1 shuts down cleanly. What it
 #    cannot do as PID 1 is reap. The media pipeline runs ffmpeg and ffprobe as
 #    children of the server and, on Unix, in their own process groups so a
 #    cancelled request kills the whole group. If one of those children forks
@@ -24,7 +24,7 @@
 #    default seccomp and AppArmor profiles usually refuse them). Where it can't,
 #    the server still plays, records and converts, with the baseline
 #    restrictions, and Server › Logs & diagnostics says so and why
-#    (server/internal/mediaexec). PORTICO_DECODER_SANDBOX=required
+#    (server-next/internal/mediaexec). PORTICO_DECODER_SANDBOX=required
 #    makes media jobs fail instead; =off skips the sandbox.
 
 FROM node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0 AS web
@@ -36,10 +36,9 @@ COPY third_party/hls.js ./third_party/hls.js
 # The subtitle renderer and its fonts: the web build copies them, unchanged, into the application.
 COPY third_party/libass-wasm ./third_party/libass-wasm
 COPY third_party/subtitle-fonts ./third_party/subtitle-fonts
-COPY server ./server
-COPY apikit ./apikit
+COPY server-next ./server-next
 COPY scripts/container-release.mjs ./scripts/container-release.mjs
-COPY Dockerfile go.work ./
+COPY Dockerfile ./
 ARG PORTICO_VERSION
 ARG PORTICO_BUILT_AT
 RUN PORTICO_VERSION="$PORTICO_VERSION" PORTICO_BUILT_AT="$PORTICO_BUILT_AT" node scripts/container-release.mjs
@@ -53,21 +52,20 @@ RUN test -z "$(env | grep '^VITE_')" && test -z "$(find . -maxdepth 1 -name '.en
 RUN cp /out/portico-build.json /out/web/portico-build.json
 
 FROM golang:1.26.10-bookworm@sha256:632dff7351799a5a9954a48dc06670ade72ee44e8c351cdc0e5a57af2fea21af AS build
-WORKDIR /src/server
+WORKDIR /src/server-next
 # Official Go build tags, from scripts/release-build-tags.py. The default is the
 # release argument for the same list; a CI guard (scripts/test-official-build-tags.py)
 # fails when this default and the helper disagree or when a build drops the tag.
 ARG PORTICO_GO_TAGS=release,portico_rar7z,portico_cb7
 COPY trust/hosted-root-public-key.pem /identity/root-public-key.pem
 COPY scripts/inspect-hosted-root.go /identity/inspect-hosted-root.go
-COPY go.work /src/go.work
-COPY apikit /src/apikit
-COPY server/go.mod server/go.sum ./
+COPY server-next/go.mod server-next/go.sum ./
 RUN test "$(go env GOVERSION)" = "go$(sed -n 's/^go //p' go.mod)" && go mod download
-COPY server ./
+COPY server-next ./
 COPY --from=web /out/build.env /identity/build.env
-ENV CGO_ENABLED=0
-RUN ROOT_KEY=$(go run /identity/inspect-hosted-root.go /identity/root-public-key.pem) && test -n "$ROOT_KEY" && . /identity/build.env && go build -tags "$PORTICO_GO_TAGS" -buildvcs=false -mod=readonly -trimpath -ldflags "-s -w -X github.com/PorticoMediaServer/portico/server/internal/hostedtrust.OfficialRoot=$ROOT_KEY -X github.com/PorticoMediaServer/portico/server/internal/buildinfo.Version=$VERSION -X github.com/PorticoMediaServer/portico/server/internal/buildinfo.BuildID=$BUILD_ID -X github.com/PorticoMediaServer/portico/server/internal/buildinfo.SourceDigest=$SOURCE_DIGEST -X github.com/PorticoMediaServer/portico/server/internal/buildinfo.BuiltAt=$BUILT_AT" -o /out/portico-server ./cmd/server
+ARG PORTICO_CAST_APPLICATION_ID=
+ENV CGO_ENABLED=0 GOWORK=off
+RUN case "$PORTICO_CAST_APPLICATION_ID" in ""|????????) ;; *) echo "Invalid Cast application id" >&2; exit 1;; esac && case "$PORTICO_CAST_APPLICATION_ID" in *[!0-9A-Fa-f]*) exit 1;; esac && ROOT_KEY=$(go run /identity/inspect-hosted-root.go /identity/root-public-key.pem) && test -n "$ROOT_KEY" && . /identity/build.env && go build -tags "$PORTICO_GO_TAGS" -buildvcs=false -mod=readonly -trimpath -ldflags "-s -w -X github.com/PorticoMediaServer/portico/server-next/internal/hosted.OfficialRoot=$ROOT_KEY -X github.com/PorticoMediaServer/portico/server-next/internal/buildinfo.Version=$VERSION -X github.com/PorticoMediaServer/portico/server-next/internal/buildinfo.BuildID=$BUILD_ID -X github.com/PorticoMediaServer/portico/server-next/internal/buildinfo.SourceDigest=$SOURCE_DIGEST -X github.com/PorticoMediaServer/portico/server-next/internal/buildinfo.BuiltAt=$BUILT_AT -X github.com/PorticoMediaServer/portico/server-next/internal/buildinfo.Proof=PORTICO_RELEASE_V2:$SOURCE_DIGEST:$BUILD_ID:$VERSION:$ROOT_KEY:END -X github.com/PorticoMediaServer/portico/server-next/receiver.ApplicationID=$PORTICO_CAST_APPLICATION_ID" -o /out/portico-server ./cmd/portico-server
 
 # The qualified FFmpeg bundle for the architecture this image is being built
 # for. A multi-architecture build supplies one bundle per architecture, in
@@ -156,9 +154,9 @@ FROM runtime-drivers AS runtime-base
 RUN mkdir -p /config /transcode
 COPY packaging/docker/entrypoint.sh /usr/local/bin/portico-entrypoint
 COPY LICENSE THIRD-PARTY-NOTICES.md /usr/share/doc/portico/
-COPY server/internal/imagework/SCALE_LICENSE /usr/share/doc/portico/licenses/image-scaling.txt
-COPY server/internal/thirdparty/sqlite/LICENSE /usr/share/doc/portico/licenses/sqlite-driver.txt
-COPY server/internal/mediaexec/fonts/LICENSE /usr/share/doc/portico/licenses/decoder-fonts.txt
+COPY web/src/generated/licences.json /usr/share/doc/portico/licenses/dependencies.json
+COPY server-next/internal/mediaexec/fonts/LICENSE /usr/share/doc/portico/licenses/decoder-fonts.txt
+COPY server-next/internal/mediaexec/fonts/*-LICENSE /usr/share/doc/portico/licenses/decoder-fonts/
 COPY third_party/hls.js/LICENSE /usr/share/doc/portico/licenses/hls-js.txt
 COPY web/src/kit/fonts/OFL.txt /usr/share/doc/portico/licenses/manrope.txt
 COPY packages/design/LICENSE-LUCIDE /usr/share/doc/portico/licenses/lucide.txt

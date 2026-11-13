@@ -123,9 +123,9 @@ class BuilderRefusals(unittest.TestCase):
         source, build, version, root = 'a' * 64, '20261101T000000Z-abcdef12', '0.0.1', 'R' * 43
         marker = f'PORTICO_RELEASE_V2:{source}:{build}:{version}:{root}:END'.encode()
         artifact = self.dir / 'portico-server'
-        info = json.dumps({'Path': 'github.com/PorticoMediaServer/portico/server/cmd/server',
+        info = json.dumps({'Path': 'github.com/PorticoMediaServer/portico/server-next/cmd/portico-server',
                            'Settings': [{'Key': '-trimpath', 'Value': 'true'}, {'Key': '-tags', 'Value': 'release'}]})
-        prefix = 'github.com/PorticoMediaServer/portico/server/internal/buildinfo.'
+        prefix = 'github.com/PorticoMediaServer/portico/server-next/internal/buildinfo.'
         with mock.patch.object(subprocess, 'check_output', return_value=info):
             # A marker alone isn't enough: the root must also be in the binary outside it.
             artifact.write_bytes(b'ELF...' + marker + b'...')
@@ -135,7 +135,7 @@ class BuilderRefusals(unittest.TestCase):
             artifact.write_bytes(b'ELF...' + root.encode() + b'...' + marker + b'...')
             embedded, _ = self.builder['artifact_identity'](artifact)
             self.assertEqual((embedded[prefix + 'SourceDigest'], embedded[prefix + 'BuildID'], embedded[prefix + 'Version']), (source, build, version))
-            self.assertEqual(embedded['github.com/PorticoMediaServer/portico/server/internal/hostedtrust.OfficialRoot'], root)
+            self.assertEqual(embedded['github.com/PorticoMediaServer/portico/server-next/internal/hosted.OfficialRoot'], root)
             artifact.write_bytes(root.encode() + marker + marker.replace(b'0.0.1', b'0.0.2'))
             with self.assertRaises(ValueError):
                 self.builder['artifact_identity'](artifact)

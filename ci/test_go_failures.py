@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
+from go_test_policy import check_suite
 from run import FAILURE_STATUSES, FailureOutput, classify, go, run_go
 
 
@@ -78,6 +79,36 @@ class Classification(unittest.TestCase):
                     with self.assertRaises(SystemExit) as error: go(plan, 0)
                     self.assertEqual(error.exception.code, 1)
                     run.assert_called_once()
+
+
+class WholeReleaseSuite(unittest.TestCase):
+    data = {'status': 'approved', 'entries': [{'package': 'p', 'test': 'TestA', 'owner': 'Justin Ehler',
+            'engine': 'development', 'expires': '2099-12-01', 'reason': 'fixture engine lacks libsoxr'}]}
+
+    def check(self, stream, code, engine='development'):
+        return check_suite('\n'.join(map(json.dumps, stream)), code, self.data, engine)
+
+    def test_only_the_named_development_failure_is_accepted(self):
+        self.assertEqual(len(self.check(events('fail'), 1)), 1)
+        self.assertEqual(self.check(events(), 0), [])
+        unknown = [{**e, 'Test': 'TestB'} if e.get('Test') else e for e in events('fail')]
+        for stream, code in [(unknown, 1), (events('fail') + [{'Package': 'p', 'Output': 'panic: broken'}], 1),
+                             (events('fail')[:-1], 1), (events(), 1), (events(), -9)]:
+            with self.subTest(stream=stream, code=code), self.assertRaises(ValueError):
+                self.check(stream, code)
+
+    def test_qualified_runs_require_a_pass_not_a_waiver_or_skip(self):
+        self.assertEqual(self.check(events(), 0, ''), [])
+        for action in ['fail', 'skip']:
+            with self.subTest(action=action), self.assertRaises(ValueError):
+                self.check(events(action), int(action == 'fail'), '')
+        with self.assertRaises(ValueError):
+            self.check([{'Package': 'p', 'Action': 'pass'}], 0, '')
+
+    def test_broken_json_and_empty_output_never_pass(self):
+        for text in ['', 'broken', '{}']:
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                check_suite(text, 0, self.data, 'development')
 
 
 class LiveFailureReporting(unittest.TestCase):

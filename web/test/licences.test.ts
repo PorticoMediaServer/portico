@@ -13,7 +13,7 @@ const REGENERATE = 'run: node --experimental-strip-types web/scripts/licences.ts
 
 test('the licence list is current: every inventory it was generated from is unchanged', () => {
   assert.ok(Object.keys(data.inputs).includes('package-lock.json'));
-  assert.ok(Object.keys(data.inputs).includes('server/go.sum'));
+  assert.ok(Object.keys(data.inputs).includes('server-next/go.sum'));
   for (const [rel, digest] of Object.entries(data.inputs)) {
     const now = createHash('sha256').update(readFileSync(new URL(rel, root))).digest('hex');
     assert.equal(now, digest, `${rel} changed since web/src/generated/licences.json was generated; ${REGENERATE}`);

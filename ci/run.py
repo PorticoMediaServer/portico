@@ -15,57 +15,7 @@ import threading
 from js_shards import digest, receipt_name, reconcile, validate_selection
 from plan import ROOT, SHORT_CENSUSES
 
-def policy(data, today=None, engine=None):
-    today=today or datetime.date.today(); entries={}
-    # An entry scoped to an engine ("development": the release gate on a development-engine
-    # release, PORTICO_CI_ENGINE=development) applies only to runs on that engine; everywhere else,
-    # merge CI and qualified-engine releases included, the test runs and must pass.
-    engine=os.environ.get('PORTICO_CI_ENGINE','') if engine is None else engine
-    for e in data['entries']:
-        if not all(e.get(k) for k in ['package','test','owner','expires','reason']): raise ValueError('incomplete quarantine')
-        if e.get('engine') not in (None,'development'): raise ValueError('unknown quarantine engine')
-        if datetime.date.fromisoformat(e['expires']) < today: raise ValueError('expired quarantine')
-        if e.get('engine') and e['engine']!=engine: continue
-        key=(e['package'],e['test'])
-        if key in entries: raise ValueError('duplicate quarantine')
-        entries[key]=e
-    if entries and data.get('status')!='approved': raise ValueError('quarantine not approved')
-    return entries
-
-FAILURE_STATUSES = frozenset({'test_failed', 'timeout', 'panic_or_race', 'build_failed',
-                              'incomplete_events', 'infrastructure'})
-
-
-def classify(events, expected, returncode, allowed, required_pass=(), *, stderr='', timed_out=False,
-             incomplete=False, infrastructure=False):
-    terminals={}; failures=set(); started=set(); package_terminal=None
-    timeout=timed_out; dangerous=False; build_failed=False
-    for e in events:
-        output=e.get('Output','')
-        if re.match(r'^panic: test timed out after',output): timeout=True
-        if re.match(r'^WARNING: DATA RACE',output): dangerous=True
-        if e.get('Action')=='build-fail' or re.match(r'^FAIL\s+.*\[build failed\]',output): build_failed=True
-        if re.match(r'^(?:panic: |fatal error:)',output):
-            name=e.get('Test')
-            terminal=next((x.get('Action') for x in reversed(events) if x.get('Test')==name and x.get('Action') in ['pass','fail','skip']),None)
-            if terminal not in ['pass','skip']: dangerous=True
-        name=e.get('Test'); action=e.get('Action')
-        if name and action=='run': started.add(name)
-        if not name and action in ['pass','fail','skip']: package_terminal=action
-        if name and action in ['pass','fail','skip']: terminals[name]=action
-        if name and action=='fail': failures.add(name.split('/')[0])
-    if timeout or re.search(r'^panic: test timed out after',stderr,re.M): return 'timeout'
-    if dangerous or re.search(r'^(?:WARNING: DATA RACE|panic: |fatal error:)',stderr,re.M): return 'panic_or_race'
-    if build_failed or (returncode and re.search(r'^# \S+',stderr,re.M)): return 'build_failed'
-    if infrastructure or returncode not in (0,1): return 'infrastructure'
-    if incomplete or package_terminal is None or any(t not in terminals for t in set(expected)|started): return 'incomplete_events'
-    for name in required_pass:
-        exact=[e['Action'] for e in events if e.get('Test')==name and e.get('Action') in ('pass','fail','skip','cancelled','canceled')]
-        if package_terminal!='pass' or exact!=['pass']: return 'test_failed'
-    if failures:
-        if returncode!=1 or package_terminal!='fail': return 'infrastructure'
-        return 'quarantined' if failures.issubset(allowed) else 'test_failed'
-    return 'pass' if returncode==0 and package_terminal in ['pass','skip'] else 'infrastructure'
+from go_test_policy import policy, classify, FAILURE_STATUSES
 
 
 class FailureOutput:

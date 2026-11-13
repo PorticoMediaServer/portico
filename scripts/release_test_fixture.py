@@ -23,9 +23,11 @@ SCRIPTS = (
 PORTABLE_INPUTS = (
     "LICENSE", "THIRD-PARTY-NOTICES.md", "packaging/portable",
     "packaging/linux", "packaging/windows",
-    "server/internal/imagework/SCALE_LICENSE",
-    "server/internal/thirdparty/sqlite/LICENSE",
-    "server/internal/mediaexec/fonts/LICENSE", "third_party/hls.js/LICENSE",
+    "web/src/generated/licences.json",
+    "server-next/internal/mediaexec/fonts/LICENSE",
+    "server-next/internal/mediaexec/fonts/NotoCJK-LICENSE",
+    "server-next/internal/mediaexec/fonts/NotoSansDevanagari-LICENSE",
+    "server-next/internal/mediaexec/fonts/NotoSansThai-LICENSE", "third_party/hls.js/LICENSE",
     "third_party/reader", "packages/reader-core/assets/OFL.txt",
     "web/src/kit/fonts/OFL.txt", "packages/design/LICENSE-LUCIDE",
 )
