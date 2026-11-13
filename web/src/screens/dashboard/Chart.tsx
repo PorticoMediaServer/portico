@@ -10,11 +10,12 @@ const t = defaultI18n.t;
 /** Keyboard and pointer inspect the same actual sample. Missing samples stay gaps. */
 export function Chart({title, series, format, formatAverage = format, step = false, compact = false, stacked = false, legend = true, kind = 'bandwidth', interval}: {interval: ReportInterval; kind?: DashboardLoadKind; /** Off where the page gives its own figures under the chart (Health's lowest, average, highest). */ legend?: boolean; title: string; series: readonly ChartSeries[]; format: (value: number) => string; formatAverage?: (value: number) => string; step?: boolean; stacked?: boolean; compact?: boolean}) {
   const id = useId().replace(/:/g, ''), [selected, select] = useState<number | undefined>();
-  // The chart draws at the width it is given, so its labels keep their real size on a phone (912 is the desktop frame).
+  // Narrower than the desktop frame (912), the chart draws at the width it is given, so its labels keep their real size on a
+  // phone; at 912 and wider it draws the desktop frame and scales it, exactly as before.
   const box = useRef<HTMLDivElement>(null), [W, setW] = useState(912), drawn = series.some(s => s.points.length > 0);
   useLayoutEffect(() => {
     const element = box.current; if (compact || !element || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(([entry]) => {const width = Math.round(entry?.contentRect.width ?? 0); if (width > 0) setW(Math.max(240, width));});
+    const observer = new ResizeObserver(([entry]) => {const width = Math.round(entry?.contentRect.width ?? 0); if (width > 0) setW(Math.min(912, Math.max(240, width)));});
     observer.observe(element); return () => observer.disconnect();
   }, [compact, drawn]);
   const stamps = [...new Set(series.flatMap(s => s.points.map(p => p.t)))].sort((a, b) => a - b);
