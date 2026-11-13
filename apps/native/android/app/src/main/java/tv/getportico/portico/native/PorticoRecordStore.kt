@@ -13,6 +13,7 @@ import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.UnrecoverableKeyException
 import javax.crypto.Cipher
+import javax.crypto.AEADBadTagException
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
@@ -40,7 +41,8 @@ internal class RecordKeyLostException : IllegalStateException("The record key is
  * One file per record under the app's no-backup directory, sealed with AES-256-GCM by a key that
  * never leaves the Android Keystore. The record's service and account are bound into the seal, so
  * a file moved to another name does not open. A write lands by atomic rename and is read back
- * before it is reported as saved. Ambiguous read failures never repair a record; a confirmed
+ * before it is reported as saved. A confirmed tag mismatch drops only that unreadable record.
+ * Ambiguous read failures never repair a record; a confirmed
  * missing or permanently invalidated store key resets all records together. Where the system
  * cannot say for certain that the key is gone, the reset waits for the person to ask for it.
  *
@@ -108,7 +110,13 @@ internal class PorticoRecordStore(
       val cipher = Cipher.getInstance(TRANSFORMATION)
       cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_BYTES * 8, sealed, 1, IV_BYTES))
       cipher.updateAAD(binding(service, account))
-      RecordRead.Value(cipher.doFinal(sealed, 1 + IV_BYTES, sealed.size - 1 - IV_BYTES))
+      val plain = try { cipher.doFinal(sealed, 1 + IV_BYTES, sealed.size - 1 - IV_BYTES) }
+      catch (_: AEADBadTagException) {
+        // Restored ciphertext can outlive its Keystore key. Only this record's authentication
+        // failure proves it cannot open; key preparation and availability errors keep it.
+        return if (environment.delete(file)) RecordRead.Missing else RecordRead.Unreadable
+      }
+      RecordRead.Value(plain)
     } catch (_: Exception) {
       RecordRead.Unreadable
     }

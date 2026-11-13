@@ -5,6 +5,7 @@ import java.io.IOException
 import java.security.InvalidKeyException
 import java.security.UnrecoverableKeyException
 import javax.crypto.SecretKey
+import javax.crypto.AEADBadTagException
 import javax.crypto.spec.SecretKeySpec
 import org.junit.Assert.*
 import org.junit.Rule
@@ -185,14 +186,14 @@ class PorticoRecordStoreTest {
     }
   }
 
-  @Test fun damagedCiphertextAndALaterMissingKeyDoNotAuthorizeReset() {
+  @Test fun aTagMismatchDropsOnlyThatRecordAndALaterMissingKeyDoesNotResetTheStore() {
     val fixture = seeded()
     val file = File(File(fixture.root, PorticoRecordStore.CREDENTIALS),
         PorticoRecordStore.hex(java.security.MessageDigest.getInstance("SHA-256").digest("account".toByteArray())))
     val changed = file.readBytes().also { it[it.lastIndex] = (it.last().toInt() xor 1).toByte() }
     file.writeBytes(changed)
-    val before = fixture.files()
-    assertSame(RecordRead.Unreadable, fixture.reopen().read(PorticoRecordStore.CREDENTIALS, "account"))
+    val before = fixture.files() - file.relativeTo(fixture.root).path
+    assertSame(RecordRead.Missing, fixture.reopen().read(PorticoRecordStore.CREDENTIALS, "account"))
     assertPreserved(fixture, before)
 
     fixture.environment.clearEvents()
@@ -202,6 +203,31 @@ class PorticoRecordStoreTest {
     assertFalse(fixture.store.write(PorticoRecordStore.CREDENTIALS, "new account", "new".toByteArray()))
     assertSame(RecordRead.Unreadable, fixture.store.read(PorticoRecordStore.QUEUES, "queue"))
     assertPreserved(fixture, before)
+  }
+
+  @Test fun restoredCiphertextWithAnotherKeyBecomesMissingButTransientFailuresKeepIt() {
+    val fixture = seeded()
+    val download = File(fixture.root.parentFile, "download.mp4").apply { writeText("downloaded media") }
+    fixture.environment.heldKey = SecretKeySpec(ByteArray(32) { 99 }, "AES")
+    val store = fixture.reopen()
+    assertFalse(store.prepareSecureRecords())
+    fixture.environment.clearEvents()
+    val before = fixture.files()
+    fixture.environment.readFailure = IOException("Keystore temporarily unavailable")
+    assertSame(RecordRead.Unreadable, store.read(PorticoRecordStore.QUEUES, "queue"))
+    assertPreserved(fixture, before)
+    fixture.environment.readFailure = AEADBadTagException("key service, not record decryption")
+    assertSame(RecordRead.Unreadable, store.read(PorticoRecordStore.QUEUES, "queue"))
+    assertPreserved(fixture, before)
+    fixture.environment.readFailure = null
+    assertSame(RecordRead.Missing, store.read(PorticoRecordStore.QUEUES, "queue"))
+    assertEquals(1, fixture.files().size)
+    assertSame(RecordRead.Missing, store.read(PorticoRecordStore.CREDENTIALS, "account"))
+    assertTrue(fixture.files().isEmpty())
+    assertEquals("downloaded media", download.readText())
+    assertTrue(store.write(PorticoRecordStore.QUEUES, "queue", "new sign-in".toByteArray()))
+    assertEquals("new sign-in", (store.read(PorticoRecordStore.QUEUES, "queue") as RecordRead.Value).bytes.toString(Charsets.UTF_8))
+    assertFalse(fixture.environment.events.any { it.startsWith("delete-records:") || it.startsWith("delete-key:") || it.startsWith("create-key:") })
   }
 
   @Test fun anUnrecognizedResetMarkerCannotAuthorizeDeletion() {
