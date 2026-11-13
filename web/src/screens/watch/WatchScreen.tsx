@@ -8,7 +8,7 @@ import {Button, Slider} from '../../kit/controls';
 import {Menu, PanelPresence, useLeavingPresence, type MenuEntry} from '../../kit/overlays';
 import {KeyboardShortcuts} from '../../kit/states';
 import {LossNotice, SeekLine} from '../../kit/media';
-import {videoChapters} from '@core/presentation/video-chapters.ts';
+import {videoChapterOffer, videoChapters} from '@core/presentation/video-chapters.ts';
 import {WatchChaptersDrawer} from './ChaptersDrawer';
 import {dispatchWatch, watchClock, watchIsPortrait, watchLineValue, watchSeek, watchSeekBounds, watchShortcutTarget, watchStepIntent, type WatchIntent} from './model';
 import {settledPlaybackChanged, settledPlaybackKey, type SettledPlayback} from './screen-state';
@@ -194,7 +194,7 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
   }, [expanded, clearTimer, pictureInput]);
   useEffect(() => { if (panel || more || shortcuts) pictureInput.cancel(); }, [panel, more, shortcuts, pictureInput]);
   const showPanel = (next: WatchPanel, anchor?: HTMLButtonElement) => {
-    if (next === 'chapters' ? !chapters.length : !surfaces?.available.includes(next)) return;
+    if (next === 'chapters' ? !chapterOffer.drawer : !surfaces?.available.includes(next)) return;
     if (next === 'play-on' && surfaces?.playOn) {setMore(false);surfaces.playOn.open(anchor);reveal();return;}
     if (anchor) panelAnchor.current = anchor;
     setMore(false); setPanel(next); reveal();
@@ -288,8 +288,9 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
   const bounds = watchSeekBounds(snapshot), position = presentation?.positionSeconds ?? 0, duration = presentation?.durationSeconds ?? 0;
   const activeScrub = scrub && fence && sameFence(scrub.fence, fence) && scrub.snapshot.authority === snapshot.authority ? scrub : null;
   const drawnPosition = activeScrub?.seconds ?? position;
-  // A title with chapters but no episodes: ticks on the line and the Chapters drawer (INTEGRATION.md §7).
-  const chapters = surfaces?.available.includes('episodes') ? [] : videoChapters(snapshot.options?.chapters, duration, position, number => t('next.watch.chapterNumber', {number}));
+  // Every title's chapters are ticks on the line; only one without episodes also gets the Chapters drawer (INTEGRATION.md §7).
+  const chapters = videoChapters(snapshot.options?.chapters, duration, position, number => t('next.watch.chapterNumber', {number}));
+  const chapterOffer = videoChapterOffer(chapters, !!surfaces?.available.includes('episodes'), duration);
   const previewSeconds = activeScrub?.seconds ?? hoverSeconds;
   const buffered = bufferedSegments(fence ? binding.runtime.bufferedRanges(fence) : [], bounds);
   const hoverPercent = bounds && previewSeconds !== null ? Math.min(100, Math.max(0, (previewSeconds - bounds.start) / (bounds.end - bounds.start) * 100)) : null;
@@ -467,7 +468,7 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
             hover={hoverPercent === null ? null : hoverPercent / 100}
             hoverLabel={!preview && previewSeconds !== null ? watchClock(previewSeconds) : undefined}
             marks={duration > 0 ? [...(presentation?.policy?.markers ?? []).map(marker => ({id: marker.id, kind: marker.kind, start: marker.startSeconds / duration, end: marker.endSeconds / duration, ...(marker.kind === 'credits' ? {fromEnd: true} : {})})),
-              ...chapters.filter(chapter => chapter.startSeconds > 0).map(chapter => ({id: chapter.id, kind: 'chapter', start: chapter.startSeconds / duration}))] : []}
+              ...chapterOffer.ticks] : []}
             overlay={preview && bounds && previewSeconds !== null ? <ScrubPreview frame={preview.frame} source={preview.source} seconds={previewSeconds} phone={mobile}
               percent={(previewSeconds - bounds.start) / (bounds.end - bounds.start) * 100} /> : undefined}
             input={{tabIndex: 0, min: bounds?.start ?? 0,
@@ -512,7 +513,7 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
           <div className={styles.controls}>
             <div className={styles.leading}>{surfaces?.available.includes('episodes')
               ? <Button size="small" variant="glass" icon="i-stack" onClick={event => showPanel('episodes', event.currentTarget)}>{t('next.controls.episodes')}</Button>
-              : <>{chapters.length > 0 && <Button size="small" variant="glass" icon="i-list" onClick={event => showPanel('chapters', event.currentTarget)}>{t('player.opt.chapters')}</Button>}
+              : <>{chapterOffer.drawer && <Button size="small" variant="glass" icon="i-list" onClick={event => showPanel('chapters', event.currentTarget)}>{t('player.opt.chapters')}</Button>}
                 {surfaces?.available.includes('queue') && <Button size="small" variant="glass" icon="i-queue" onClick={event => showPanel('queue', event.currentTarget)}>{t('player.queue')}</Button>}</>}</div>
             {playbackFailed ? <span aria-hidden="true" /> : transport}
             <div className={styles.trailing}>
