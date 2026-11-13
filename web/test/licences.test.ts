@@ -66,3 +66,10 @@ test('libc keeps its own BSD label and the complete ported-code notices', {skip:
     assert.ok(text.includes(complete), `${name} must ship completely in dependencies.json`);
   }
 });
+
+test('compress states its primary BSD licence and the Apache package exception', () => {
+  const component = data.components.find(c => c.name === 'github.com/klauspost/compress')!;
+  assert.equal(component.licence, 'BSD-3-Clause; some packages Apache-2.0');
+  assert.match(data.texts[component.text!]!, /Apache License/);
+  assert.match(data.texts[component.text!]!, /Klaus Post/);
+});
