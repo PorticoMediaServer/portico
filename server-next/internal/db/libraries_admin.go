@@ -69,6 +69,39 @@ func (d *DB) AdminLibraries(ctx context.Context, publicID string) ([]AdminLibrar
 	return out, rows.Err()
 }
 
+// LibraryCoverHashes samples at most 64 recent titles per cover-bearing kind, using
+// items_by_added, then images_item. A sparse or artless library never needs a full walk.
+func (d *DB) LibraryCoverHashes(ctx context.Context, library Library) ([]string, error) {
+	kinds := map[string][]ItemKind{
+		LibraryMovies: {KindMovie}, LibraryShows: {KindShow}, LibraryAnime: {KindMovie, KindShow},
+		LibraryMusic: {KindAlbum}, LibraryAudiobooks: {KindAudiobook}, LibraryBooks: {KindBook}, LibraryComics: {KindComic, KindIssue},
+	}[library.Kind]
+	var parts []string
+	var args []any
+	for _, kind := range kinds {
+		parts = append(parts, `SELECT * FROM (SELECT id, added_at FROM items
+			WHERE library_id = ? AND kind = ? ORDER BY added_at DESC, id DESC LIMIT 64)`)
+		args = append(args, library.ID, kind)
+	}
+	rows, err := d.read.QueryContext(ctx, `WITH recent AS MATERIALIZED (`+strings.Join(parts, ` UNION ALL `)+`)
+		SELECT DISTINCT (SELECT file_hash FROM images WHERE item_id = recent.id AND role IN (1, 6)
+			AND selected = 1 AND file_hash IS NOT NULL AND file_hash != '' ORDER BY role, id LIMIT 1) AS hash
+		FROM recent WHERE hash IS NOT NULL ORDER BY added_at DESC, id DESC LIMIT 4`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var hash string
+		if err := rows.Scan(&hash); err != nil {
+			return nil, err
+		}
+		out = append(out, hash)
+	}
+	return out, rows.Err()
+}
+
 // LibraryEdit changes a library. Fields left nil stay as they are. Folders, when given, is the
 // whole list: a folder no longer in it leaves the library with its titles.
 type LibraryEdit struct {
