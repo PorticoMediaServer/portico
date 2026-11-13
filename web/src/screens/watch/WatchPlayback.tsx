@@ -3,7 +3,7 @@ import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useS
 import {defaultI18n} from '@i18n';
 import {playbackIdentity} from '@core/presentation/kit-model/index.ts';
 import {sameFence, type PlaybackFence} from '../../../../packages/player-core/src/index.ts';
-import {itemSubject} from '../../platform/playback/subject';
+import {entrySubject} from '../../platform/playback/subject';
 import type {WebPlaybackRuntimeSnapshot, WebShellPlaybackRuntime} from '../../platform/playback';
 import {playOnOffered, type PlayOnSnapshot} from '../../platform/playback/play-on';
 import {CastPlayback} from '../../kit/player';
@@ -398,7 +398,7 @@ export function WatchPlayback({binding, context, surfaces, geometry, live}: Watc
   const item = visualId ? cast?.item(visualId) : undefined;
   const source = remote?.source?.fence.kind === 'queue' && remote.source.fence.itemId === visualId ? remote.source : undefined;
   const described = remote && remote.itemId === visualId ? remote.metadata : undefined;
-  const subject = item ? itemSubject(item) : source?.subject;
+  const subject = item ? entrySubject(item) : source?.subject;
   const visuals = binding ? {itemId: subject ? visualId : undefined, identity: subject ? playbackIdentity(subject, 'full', binding.environment) : undefined,
     artwork: subject ? binding.artwork.foreground(item?.posterUrl ?? item?.backdropUrl ?? source?.posterUrl ?? source?.backdropUrl ?? described?.artworkPath, 256, 16 / 9, {group: 'playback', priority: 'high'}) : undefined,
     skipBackSeconds: binding.skips.back, skipForwardSeconds: binding.skips.forward} : undefined;

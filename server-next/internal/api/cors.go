@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/PorticoMediaServer/portico/server-next/receiver"
 )
 
 // Which web pages, other than the ones this server serves itself, may read its answers.
@@ -61,7 +63,12 @@ func (s *Server) crossOrigin(w http.ResponseWriter, r *http.Request) bool {
 	// The answer depends on who asks, so nothing that keeps answers may hand one origin's to another.
 	w.Header().Add("Vary", "Origin")
 	origin := r.Header.Get("Origin")
-	if origin == "" || !s.originAllowed(origin) {
+	allowed := s.originAllowed(origin)
+	if origin == receiver.Origin {
+		_, err := s.castApplication(r.Context())
+		allowed = err == nil
+	}
+	if origin == "" || !allowed {
 		return false
 	}
 	// The origin itself, never "*", and never Access-Control-Allow-Credentials: the browser

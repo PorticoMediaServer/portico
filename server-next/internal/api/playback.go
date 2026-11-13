@@ -340,6 +340,9 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 	if len(req.DiscTitle) > 0 && string(req.DiscTitle) != "null" {
 		return PlaybackSession{}, notYet("disc_playback_unavailable", "This server can't play discs yet.")
 	}
+	if c := CallerFrom(r.Context()); c.Role == roleCast {
+		in.Moving = s.castMoving(c.SessionID, req.ItemID)
+	}
 	if req.RequestID != "" {
 		// Playback moving here from another device: what that device plays still runs until
 		// this one plays, and the two are one stream meanwhile.
@@ -360,6 +363,9 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 		// The move ended while this device was starting: it is undone, as a failed move is.
 		s.playback.Stop(r.Context(), session.ID, in.Caller.Viewer.UserID, 0, nil)
 		return PlaybackSession{}, ErrConflict("move_over", "This move was cancelled or ran out of time.")
+	}
+	if c := CallerFrom(r.Context()); c.Role == roleCast {
+		s.castStarted(c.SessionID, req.ItemID, session.ID)
 	}
 	out := sessionOut(session)
 	switch {
@@ -436,6 +442,9 @@ func (s *Server) reportPlayback(r *http.Request, req PlaybackProgress) (Playback
 		playback.Report{State: req.State, PositionMs: req.PositionMs, PlayedMs: req.PlayClockMs})
 	if err != nil {
 		return PlaybackLease{}, playbackError(err)
+	}
+	if req.State == playback.StatePlaying && CallerFrom(r.Context()).Role == roleCast {
+		s.castPlaying(r.Context(), c.SignInID, c.Viewer.UserID, r.PathValue("id"))
 	}
 	return PlaybackLease{ExpiresAt: session.LeaseUntil.UTC(), ReportEveryMs: session.ReportEvery().Milliseconds(),
 		Generation: session.Generation}, nil

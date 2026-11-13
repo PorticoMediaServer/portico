@@ -1,3 +1,4 @@
+import {serverPath} from './server-api.ts';
 import {reviewLocalTVAuthorization, decideLocalTVAuthorization} from './connection-operations.ts';
 import {routePath, routePattern, encodedRoutePath} from '../../../contracts/src/routes.ts';
 import type {ItemResponse} from '../media-item.ts';
@@ -20,7 +21,7 @@ export async function readTogetherItem(api: ReceiverApi, id: string, signal?: Ab
   return raw;
 }
 export function readCastConfiguration(api: ReceiverApi): Promise<{applicationId?: unknown}> {
-  return api.request(routePath('social_get_v1_cast_configuration'));
+  return api.request(serverPath('GET /v1/cast/config'));
 }
 
 /** The existing phone-side Quick Connect review, with its original bounded projection. */

@@ -2,8 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -145,81 +143,4 @@ func TestCastIssuanceFailureKeepsTheCode(t *testing.T) {
 		t.Fatalf("retired authority could start pairing: %v", e)
 	}
 
-}
-
-// SV-012: the receiver bundle this server ships speaks this server's routes.
-// Every API path literal in receiver.js is inventoried here with the method it
-// is sent with, and each must be a registered route (401/400 without a
-// credential, never 404/405).
-func TestCastReceiverCallsRegisteredRoutes(t *testing.T) {
-	f := socialHTTP(t)
-	w := f.as("", "GET", "/receiver/cast/receiver.js", nil)
-	if w.Code != 200 {
-		t.Fatalf("receiver bundle %d", w.Code)
-	}
-	source := w.Body.String()
-	calls := map[string][]string{
-		"/v1/cast/preview":                    {"POST"},
-		"/v1/cast/controllers/check":          {"POST"},
-		"/v1/cast/controllers/register":       {"POST"},
-		"/v1/cast/redeem":                     {"POST"},
-		"/v1/cast/reconnect":                  {"POST"},
-		"/v1/me/devices/current/capabilities": {"PUT"},
-		"/v1/playback/sessions":               {"POST"},
-		"/v1/playback/sessions/":              {"PATCH", "DELETE"},
-		"/v1/items/":                          {"GET"},
-		"/v1/queues/":                         {"GET"},
-		"/v1/user-mutations/":                 {"GET"},
-		"/v1/user-mutations/policy":           {"GET"},
-		// A pairing the television took and then could not use: it undoes its own.
-		"/v1/cast/devices/": {"DELETE"},
-	}
-	suffixed := map[string][][2]string{"/v1/playback/sessions/": {{"POST", "/observer"}, {"PUT", "/observation"}}, "/v1/queues/": {{"POST", ":advance"}}}
-	for _, m := range regexp.MustCompile(`'(/v\d+/[^'?]*)`).FindAllStringSubmatch(source, -1) {
-		if _, ok := calls[m[1]]; !ok && m[1] != "/observer" && m[1] != "/observation" {
-			t.Errorf("receiver.js calls %s, which this test doesn't inventory", m[1])
-		}
-	}
-	probe := func(method, path string) {
-		t.Helper()
-		w := f.as("", method, path, map[string]any{})
-		if w.Code == 404 || w.Code == 405 {
-			t.Errorf("%s %s is not a registered route: %d %s", method, path, w.Code, w.Body.String())
-		}
-	}
-	for path, methods := range calls {
-		if !strings.Contains(source, "'"+path) {
-			t.Errorf("receiver.js no longer calls %s", path)
-		}
-		for _, method := range methods {
-			// Pairing and re-pairing carry no session. Everything else the
-			// receiver sends, it sends with a paired screen's session, which
-			// may make only the requests castTargetRoute lists.
-			// Item identity and queue completion need the actual current
-			// occurrence, not a blanket path grant. Their credential-bound
-			// checks live in TestCastReceiverCurrentOccurrenceRoutes.
-			if path != "/v1/cast/preview" && path != "/v1/cast/redeem" && path != "/v1/cast/reconnect" && path != "/v1/items/" && path != "/v1/queues/" {
-				target := path
-				if strings.HasSuffix(path, "/") {
-					target += "ps_probe"
-				}
-				if !castTargetRoute(method, target) {
-					t.Errorf("receiver.js sends %s %s, which a paired screen's session may not", method, target)
-				}
-				for _, route := range suffixed[path] {
-					if !castTargetRoute(route[0], target+route[1]) {
-						t.Errorf("receiver.js sends %s %s, which a paired screen's session may not", route[0], target+route[1])
-					}
-				}
-			}
-			if strings.HasSuffix(path, "/") {
-				probe(method, path+"ps_probe")
-				for _, route := range suffixed[path] {
-					probe(route[0], path+"ps_probe"+route[1])
-				}
-				continue
-			}
-			probe(method, path)
-		}
-	}
 }

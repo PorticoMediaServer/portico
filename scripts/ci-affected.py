@@ -1628,7 +1628,7 @@ def route(relative, native):
         return "web"
     if parts[0] == "packages" and len(parts) > 2:
         return "/".join(parts[:2])
-    if parts[:4] == ("server", "receiver", "cast", "test"):
+    if parts[:4] == ("server-next", "receiver", "cast", "test"):
         return "."
     if parts[:2] == ("scripts", "test") or parts[0] in {"smoke", "tools"}:
         # Portable repository tooling regressions run from the repository root: the

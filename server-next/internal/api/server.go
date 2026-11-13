@@ -85,6 +85,7 @@ type Server struct {
 	consoleArea
 	setupArea
 	toolsArea
+	castArea
 	togetherArea
 	downloadsArea
 	readingArea

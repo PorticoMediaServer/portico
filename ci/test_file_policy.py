@@ -35,7 +35,7 @@ class FilePolicyTests(unittest.TestCase):
 
     def test_former_exemptions_follow_both_thresholds(self):
         names = ['fixtures/asset.bin', 'third_party/asset.bin', 'packages/contracts/src/types.ts',
-                 'packages/contracts/src/schemas.ts', 'server/receiver/cast/contracts.js',
+                 'packages/contracts/src/schemas.ts', 'server-next/receiver/cast/contracts.js',
                  'server/api/portico.openapi.json', 'server/internal/persistence/migrations/0001_baseline.sql',
                  'server/internal/mediaexec/fonts/NotoSansCJKjp-Regular.otf']
         with tempfile.TemporaryDirectory() as folder:

@@ -15,7 +15,7 @@ test('receiver operations preserve paths, method defaults, normalized bodies and
   await links.decide('request', ' 2345abcd ', 'approve', {signal});
   assert.deepEqual(calls, [
     ['/v1/items/item%2Fa', 'GET', undefined, signal],
-    ['/v1/cast/configuration'],
+    ['/v1/cast/config'],
     ['/v1/auth/codes/2345-ABCD', 'GET', undefined, signal],
     ['/v1/auth/codes/2345-ABCD/approve', 'POST', {deny: false}, signal],
   ]);
