@@ -726,7 +726,25 @@ export interface DvrAiring {
   alreadyBooked: boolean;
 }
 
+export interface DvrGroup {
+  key: string;
+  title: string;
+  recordings: number;
+  unwatched: number;
+  kept: number;
+  exceptions: number;
+  latest: string;
+  recording: DvrRecording;
+}
+
+export interface DvrGroupPage {
+  items: DvrGroup[];
+  nextCursor?: string;
+}
+
 export interface DvrOverview {
+  rules: number;
+  groups: number;
   upcoming: number;
   recorded: number;
   unwatched: number;
@@ -4672,6 +4690,7 @@ export interface Routes {
   'GET /v1/live/streams/{grant}/{file}': {access: 'public'; request: undefined; response: undefined};
   'GET /v1/live/streams/{grant}': {access: 'public'; request: undefined; response: undefined};
   'GET /v1/dvr': {access: 'withProfile'; request: undefined; response: DvrOverview};
+  'GET /v1/dvr/groups': {access: 'withProfile'; request: undefined; response: DvrGroupPage};
   'GET /v1/dvr/recordings': {access: 'withProfile'; request: undefined; response: DvrRecordingPage};
   'POST /v1/dvr/recordings': {access: 'withProfile'; request: DvrRecordingBook; response: DvrRecording};
   'GET /v1/dvr/recordings/{id}': {access: 'withProfile'; request: undefined; response: DvrRecording};

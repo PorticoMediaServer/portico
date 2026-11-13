@@ -8,7 +8,7 @@ import type {ChannelApi} from '@core/channel-guide.ts';
 type Call = Readonly<{path: string; method: string; body?: unknown}>;
 const booking = (id: string, patch: Record<string, unknown> = {}) => ({id, channel: 'ch_1', title: 'Airing', startsAt: '2026-11-12T20:00:00Z',
   endsAt: '2026-11-12T21:00:00Z', padBeforeMs: 0, padAfterMs: 0, priority: 0, state: 'scheduled', inGuide: true, keep: false, fromRule: false, ...patch});
-const dvr = (patch: Record<string, unknown> = {}) => ({upcoming: 3, recorded: 12, unwatched: 4, conflicts: 1, freeBytes: 300e9, hoursLeft: 40,
+const dvr = (patch: Record<string, unknown> = {}) => ({rules: 1, groups: 2, upcoming: 3, recorded: 12, unwatched: 4, conflicts: 1, freeBytes: 300e9, hoursLeft: 40,
   keepRule: 'until-space-needed', folderOk: true, canRecord: true, ...patch});
 const tick = async () => { for (let n = 0; n < 6; n++) await new Promise<void>(done => setTimeout(done, 0)); };
 
@@ -33,7 +33,9 @@ test('each tab reads its own route: Upcoming, History, Storage and the Recorded 
     if (pathname === '/v1/dvr') return dvr();
     if (pathname === '/v1/dvr/rules') return {items: []};
     if (pathname === '/v1/items/itm_1') return {id: 'itm_1', libraryId: 'lib_recorded'};
-    // The Recorded tab's own read: only the recordings that were made, ordered by title.
+    if (pathname === '/v1/dvr/groups') return {items: [
+      {key:'Film',title:'Film',recordings:100,unwatched:10,kept:2,exceptions:1,latest:'2026-11-12T20:00:00Z',recording:booking('h3',{state:'partial',title:'Film'})},
+      {key:'News',title:'News',recordings:200,unwatched:20,kept:4,exceptions:0,latest:'2026-11-12T20:00:00Z',recording:booking('h1',{state:'recorded',title:'News',itemId:'itm_1'})}], nextCursor:'titles/2'};
     if (searchParams.get('state') === 'recorded') return {items: [booking('h3', {state: 'partial', title: 'Film'}), booking('h1', {state: 'recorded', title: 'News', itemId: 'itm_1'})]};
     if (searchParams.get('state') === 'history') return {items: [booking('h1', {state: 'recorded', title: 'News', itemId: 'itm_1'}), booking('h2', {state: 'failed', title: 'News'}),
       booking('h3', {state: 'partial', title: 'Film'})]};
@@ -48,8 +50,10 @@ test('each tab reads its own route: Upcoming, History, Storage and the Recorded 
   assert.deepEqual(c.getSnapshot().storage, {freeBytes: 300e9, hoursLeft: 40, keepRule: 'until-space-needed', writeHealthy: true});
   // Recorded: the recordings that were made, by title, each naming its title in the Recorded TV library.
   const groups = await c.readGroups('title');
-  assert.deepEqual(groups.groups.map(group => [group.title, group.recordings, group.exceptions]), [['Film', 1, 1], ['News', 1, 0]]);
+  assert.deepEqual(groups.groups.map(group => [group.title, group.recordings, group.exceptions]), [['Film', 100, 1], ['News', 200, 0]]);
   assert.deepEqual([groups.groups[1]!.recording.itemId, groups.groups[1]!.recording.libraryId], ['itm_1', 'lib_recorded']);
+  assert.equal(groups.nextCursor, 'titles/2');
+  assert.equal(calls.some(call => route(call).searchParams.get('state') === 'recorded'), false, 'a title page never scans the recordings directory');
   // Besides the DVR routes, one title is read once to learn the Recorded TV library that plays it.
   assert.ok(calls.every(call => route(call).pathname.startsWith('/v1/dvr') || route(call).pathname === '/v1/items/itm_1'));
   assert.equal(calls.filter(call => route(call).pathname === '/v1/items/itm_1').length, 1);
