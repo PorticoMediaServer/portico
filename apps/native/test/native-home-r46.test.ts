@@ -95,7 +95,7 @@ test('the confirmed Appearance card size and backdrop switch reach the drawn Hom
   const rows = [{id: 'new_movies', kind: 'new', artworkShape: 'poster', title: 'New on your server', entries: [entry], nextCursor: ''}];
   const document = {rows, spotlight: [{entry, reason: {kind: 'featured', text: {fallback: 'Because you watched Inside Out'}}}], serverId: 'actual', viewerFence: 'viewer'};
   const runtime = (appearance: Record<string, unknown>) => ({
-    home: {setRowDemand() {}, subscribe() {}, getSnapshot: () => ({document, phase: 'ready'}), more() {}, revalidate: async () => {}, recoverDroppedRows: async () => {}, retry: async () => {}},
+    home: {setRowDemand() {}, demand() {}, subscribe() {}, getSnapshot: () => ({document, phase: 'ready'}), more() {}, revalidate: async () => {}, recoverDroppedRows: async () => {}, retry: async () => {}},
     getSnapshot: () => ({authority, libraries: [], selectionActive: false}), selection: () => ({}), text: {t: defaultI18n.t, locale: 'en-US'},
     registerScrollToTop: () => () => {}, artwork: (path: string) => ({uri: `art:${path}`}), ambient: (path: string) => ({uri: `ambient:${path}`}),
     setHomeWindow() {}, playback: undefined, actions: {navigate() {}, play() {}, more() {}, seeAll() {}, customize() {}}, reportError() {}, onArtworkError() {}, renderHomeEmpty: () => null, error: () => ({}),
@@ -135,7 +135,7 @@ test('a row with nothing under its heading is not drawn at all', async () => {
   assert.equal(homeRowHasContent(rows[3]), false, 'a cursor alone draws nothing, so its heading goes too');
   const h = hooks(), authority = {serverId: 'actual', viewerFence: 'viewer'};
   const runtime = {
-    home: {setRowDemand() {}, subscribe() {}, getSnapshot: () => ({document: {rows, spotlight: [], serverId: 'actual', viewerFence: 'viewer'}, phase: 'ready'}), more() {}, revalidate: async () => {}, recoverDroppedRows: async () => {}, retry: async () => {}},
+    home: {setRowDemand() {}, demand() {}, subscribe() {}, getSnapshot: () => ({document: {rows, spotlight: [], serverId: 'actual', viewerFence: 'viewer'}, phase: 'ready'}), more() {}, revalidate: async () => {}, recoverDroppedRows: async () => {}, retry: async () => {}},
     getSnapshot: () => ({authority, libraries: [], selectionActive: false}), selection: () => ({}), text: {t: defaultI18n.t, locale: 'en-US'},
     registerScrollToTop: () => () => {}, artwork: () => undefined, ambient: () => undefined, setHomeWindow() {}, playback: undefined,
     actions: {navigate() {}, play() {}, more() {}, seeAll() {}, customize() {}}, reportError() {}, onArtworkError() {}, renderHomeEmpty: () => null, error: () => ({}),
@@ -216,7 +216,7 @@ test('resolved empty TV Home retains its authored actionless composition', async
   let opened = 0;
   const emptyCopy = {type: 'EmptyCopy', props: {}};
   const runtime = {
-    home: {setRowDemand() {}, subscribe() {}, getSnapshot: () => ({document, phase: 'ready'}), more() {}, revalidate: async () => {}, recoverDroppedRows: async () => {}, retry: async () => {}},
+    home: {setRowDemand() {}, demand() {}, subscribe() {}, getSnapshot: () => ({document, phase: 'ready'}), more() {}, revalidate: async () => {}, recoverDroppedRows: async () => {}, retry: async () => {}},
     getSnapshot: () => ({authority, libraries: [], selectionActive: false}), selection: () => ({}), text: defaultI18n,
     registerScrollToTop: () => () => {}, artwork: () => undefined, ambient: () => undefined, setHomeWindow() {}, playback: undefined,
     actions: {navigate() {}, play() {}, more() {}, seeAll() {}, customize() {opened++;}}, reportError() {}, onArtworkError() {},
@@ -241,7 +241,7 @@ test('phone Home wires the drawn row rhythm, the 13 px sub-line and the live row
   ];
   const h = hooks(), authority = {serverId: 'actual', viewerFence: 'viewer'};
   const runtime = {
-    home: {setRowDemand() {}, subscribe() {}, getSnapshot: () => ({document: {rows, spotlight: [], serverId: 'actual', viewerFence: 'viewer'}, phase: 'ready'}), more() {}, revalidate: async () => {}, recoverDroppedRows: async () => {}, retry: async () => {}},
+    home: {setRowDemand() {}, demand() {}, subscribe() {}, getSnapshot: () => ({document: {rows, spotlight: [], serverId: 'actual', viewerFence: 'viewer'}, phase: 'ready'}), more() {}, revalidate: async () => {}, recoverDroppedRows: async () => {}, retry: async () => {}},
     getSnapshot: () => ({authority: {serverId: 'actual', viewerFence: 'viewer'}, libraries: [], selectionActive: false}),
     selection: () => ({}), text: {t: defaultI18n.t, locale: 'en-US'}, registerScrollToTop: () => () => {},
     artwork: () => undefined, ambient: () => undefined, setHomeWindow() {}, playback: undefined,
@@ -289,7 +289,7 @@ test('Home replaces server reason/action words when the confirmed translator cha
   let current = translated('CA');
   const text = {get t() {return current;}, locale: 'en-US'};
   const runtime = {
-    home: {setRowDemand() {}, subscribe() {}, getSnapshot: () => ({document, phase: 'ready'}), more() {}, revalidate: async () => {}, recoverDroppedRows: async () => {}, retry: async () => {}},
+    home: {setRowDemand() {}, demand() {}, subscribe() {}, getSnapshot: () => ({document, phase: 'ready'}), more() {}, revalidate: async () => {}, recoverDroppedRows: async () => {}, retry: async () => {}},
     getSnapshot: () => ({authority, libraries: [], selectionActive: false}), selection: () => ({}), text,
     registerScrollToTop: () => () => {}, artwork: () => undefined, ambient: () => undefined, setHomeWindow() {}, playback: undefined,
     actions: {navigate() {}, play() {}, more() {}, seeAll() {}, customize() {}}, reportError() {}, onArtworkError() {}, renderHomeEmpty: () => null, error: () => ({}),
@@ -319,7 +319,7 @@ test('TV Home passes the current runtime translator into the focused preview hin
     let current = translated('CA');
     const text = {get t() {return current;}, locale: 'en-US'};
     const runtime = {
-      home: {setRowDemand() {}, subscribe() {}, getSnapshot: () => ({document, phase: 'ready'}), more() {}, revalidate: async () => {}, recoverDroppedRows: async () => {}, retry: async () => {}},
+      home: {setRowDemand() {}, demand() {}, subscribe() {}, getSnapshot: () => ({document, phase: 'ready'}), more() {}, revalidate: async () => {}, recoverDroppedRows: async () => {}, retry: async () => {}},
       getSnapshot: () => ({authority, libraries: [], selectionActive: false}), selection: () => ({}), text,
       registerScrollToTop: () => () => {}, artwork: () => undefined, ambient: () => undefined, setHomeWindow() {}, playback: undefined,
       actions: {navigate() {}, play() {}, more() {}, seeAll() {}, customize() {}}, reportError() {}, onArtworkError() {}, renderHomeEmpty: () => null, error: () => ({}),
@@ -353,7 +353,7 @@ async function homeBackFixture(initial: any, prior?: {regionId: string; childId:
   let state = {phase: 'ready', document: initial}, tree: any, moves = 0, requests = 0;
   const scrolled: boolean[] = [], vertical = {scrollRef: {}, offset: {value: 180}, repeating: false, stop() {}, move() {moves++;}, anchor() {}};
   if (prior) registry.didFocus(prior);
-  const runtime: any = {home: {setRowDemand() {}, subscribe: () => () => {}, getSnapshot: () => state, load: async () => {}, recoverDroppedRows: async () => {}, more: async () => {}},
+  const runtime: any = {home: {setRowDemand() {}, demand() {}, subscribe: () => () => {}, getSnapshot: () => state, load: async () => {}, recoverDroppedRows: async () => {}, more: async () => {}},
     getSnapshot: () => snapshot, text: defaultI18n, selection: () => ({}), artwork() {}, ambient() {}, setHomeWindow() {}, reportError(error: unknown) {throw error;}, onArtworkError() {},
     renderHomeEmpty: () => ({type: 'EmptyCopy', props: {}}), actions: {customize() {assert.fail('no empty-state command');}},
     registerTVPageBack: (back: () => boolean) => {callbacks.push(back); backs.add(back); return () => {backs.delete(back);};}, registerScrollToTop: () => () => {}};
@@ -424,7 +424,7 @@ test('libraries that did not load show one quiet banner with Try again, never th
   const emptyCopy = {type: 'EmptyCopy', props: {}};
   let retried = 0;
   const runtime = (librariesUnavailable: boolean) => ({
-    home: {setRowDemand() {}, subscribe() {}, getSnapshot: () => ({document, phase: 'ready'}), more() {}, revalidate: async () => {}, recoverDroppedRows: async () => {}, retry: async () => {}},
+    home: {setRowDemand() {}, demand() {}, subscribe() {}, getSnapshot: () => ({document, phase: 'ready'}), more() {}, revalidate: async () => {}, recoverDroppedRows: async () => {}, retry: async () => {}},
     subscribe: () => () => {}, getSnapshot: () => ({authority, libraries: [], librariesUnavailable, selectionActive: false}), selection: () => ({}), text: defaultI18n,
     registerScrollToTop: () => () => {}, artwork: () => undefined, ambient: () => undefined, setHomeWindow() {}, playback: undefined,
     actions: {navigate() {}, play() {}, more() {}, seeAll() {}, customize() {}}, reportError() {}, onArtworkError() {},

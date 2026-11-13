@@ -162,6 +162,7 @@ export function HomeScreen(bindings: HomeBindings) {
 
 type Spotlight = Omit<ReturnType<typeof homeSpotlights>[number], 'reason'> & HeroCandidate & {causalReason: HomeReason; source: HomeSpotlight};
 const noSubscription = () => () => {};
+const noMore = () => {};
 const noMixes = () => undefined;
 export function HomeView({service, customization, document, nowMs, onMore, refreshLive, artwork, effects, selection, time, reducedMotion, appearance, musicMixes, musicMixesMore, notice}: HomeBindings & {document: HomeDocument; nowMs: number; onMore: (rowId: string) => void; refreshLive: () => void}) {
   const width = useShellWidth(), layout = homeLayout(width), {platform, sizeClass} = layout;
@@ -174,6 +175,15 @@ export function HomeView({service, customization, document, nowMs, onMore, refre
     return () => { for (const cleanup of cleanups) cleanup?.(); };
   }, [document.spotlight, hero.visible, selection]);
   const rows = document.rows.filter(row => !row.platforms || row.platforms.includes('web'));
+  // A saved view's row the server deferred is read when it comes near the screen, and the read stops if it leaves.
+  const near = useRef(new Set<string>());
+  const onNear = useCallback((rowId: string, isNear: boolean) => {
+    const set = near.current;
+    if (set.has(rowId) === isNear) return;
+    if (isNear) set.add(rowId); else set.delete(rowId);
+    service.demand(set);
+  }, [service]);
+  useEffect(() => service.demand(near.current), [service, document]);
   const mixesAfter = rows.findIndex(row => row.id === 'listen_next');
   const mixes = musicMixes ? <MusicMixesRow binding={musicMixes} artwork={artwork} more={musicMixesMore} sizeClass={sizeClass}
     reducedMotion={appearance?.reducedMotion ?? reducedMotion} reportError={effects.reportError}/> : null;
@@ -203,7 +213,7 @@ export function HomeView({service, customization, document, nowMs, onMore, refre
     {notice}
     {selection.toolbar}
     <div className={styles.rows} data-with-hero={candidates.length > 0}>
-      {rows.map((row, index) => <Fragment key={row.id}><HomeRowView focusScope={service} row={row} rowIndex={index} platform={platform} layout={layout} nowMs={nowMs} refreshLive={refreshLive} onMore={() => onMore(row.id)}
+      {rows.map((row, index) => <Fragment key={row.id}><HomeRowView focusScope={service} row={row} rowIndex={index} platform={platform} layout={layout} nowMs={nowMs} refreshLive={refreshLive} onMore={() => onMore(row.id)} onNear={onNear}
         artwork={artwork} effects={effects} selection={selection} time={time} appearance={appearance} reducedMotion={appearance?.reducedMotion ?? reducedMotion} />{index === mixesAfter && mixes}</Fragment>)}
       {mixesAfter < 0 && mixes}
       {/* J-22 review: an empty Home is one block, icon, title, sentence and Customize Home right under it. */}
@@ -216,7 +226,9 @@ export function HomeView({service, customization, document, nowMs, onMore, refre
 }
 
 type HomeRowProps = HomePresentation & {focusScope: object; row: HomeRow; rowIndex: number; platform: LayoutPlatform; layout: ReturnType<typeof homeLayout>; nowMs: number; onMore: () => void; refreshLive: () => void};
-function HomeRowView(props: HomeRowProps) {
+/** How far ahead of the screen a deferred row is read, so its titles are there by the time it scrolls in. */
+const NEAR_MARGIN = '800px 0px';
+function HomeRowView({onNear, ...props}: HomeRowProps & {onNear: (rowId: string, near: boolean) => void}) {
   const {row, rowIndex, selection, refreshLive} = props;
   const interest = useVisible(), [range, setRange] = useState<readonly [number, number]>(props.row.collection ? [0, 0] : [-1, -1]);
   const onRange = useCallback((first: number, last: number) => setRange(before => before[0] === first && before[1] === last ? before : [first, last]), []);
@@ -228,7 +240,14 @@ function HomeRowView(props: HomeRowProps) {
     if (!liveCurrent) { refreshLive(); return; }
     return selection.registerWindow(row, rowIndex, range[0], range[1]);
   }, [interest.visible, liveCurrent, refreshLive, selection, row, rowIndex, range]);
-  return <div ref={interest.ref} className={styles.rowSlot} data-home-row={props.row.id}><HomeRowContents {...props} nowMs={props.row.live ? nowMs : props.nowMs} onRange={onRange} /></div>;
+  const deferred = !!row.deferred, rowId = row.id, slot = interest.ref;
+  useEffect(() => {
+    const target = slot.current; if (!deferred || !target) return;
+    const observer = new IntersectionObserver(entries => onNear(rowId, entries.some(entry => entry.isIntersecting)), {rootMargin: NEAR_MARGIN});
+    observer.observe(target);
+    return () => { observer.disconnect(); onNear(rowId, false); };
+  }, [deferred, rowId, onNear, slot]);
+  return <div ref={interest.ref} className={styles.rowSlot} data-home-row={props.row.id} data-deferred={deferred || undefined}><HomeRowContents {...props} nowMs={props.row.live ? nowMs : props.nowMs} onRange={onRange} /></div>;
 }
 function HomeRowContents({row, rowIndex, platform, layout, nowMs, onMore, onRange, focusScope, ...bindings}: HomeRowProps & {onRange: (first: number, last: number) => void}) {
   const env = {t, locale: bindings.time.locale};
@@ -260,8 +279,9 @@ function HomeRowContents({row, rowIndex, platform, layout, nowMs, onMore, onRang
   if (row.collection) {
     return <VisibleCollection row={row} rowIndex={rowIndex} {...bindings} />;
   }
-  if (!row.entries.length) return null;
-  return <PagedShelf {...header} focusScope={focusScope} items={row.entries} hasMore={!!row.nextCursor} continuation={row.nextCursor} onMore={onMore} cardWidth={cardWidth} artworkRatio={books ? cardWidth / (180 * scale) : ranked ? cardWidth / ((platform === 'desktop' ? 255 : 174) * scale) : wide ? 16 / 9 : square ? 1 : 2 / 3} getKey={entry => entry.id} reducedMotion={bindings.reducedMotion} onVisibleRange={onRange}
+  // A deferred row draws its heading and the shelf's one pending card until its titles arrive (HomeService.demand).
+  if (!row.entries.length && !row.deferred) return null;
+  return <PagedShelf {...header} focusScope={focusScope} items={row.entries} hasMore={!!row.nextCursor || !!row.deferred} continuation={row.nextCursor} onMore={row.deferred ? noMore : onMore} cardWidth={cardWidth} artworkRatio={books ? cardWidth / (180 * scale) : ranked ? cardWidth / ((platform === 'desktop' ? 255 : 174) * scale) : wide ? 16 / 9 : square ? 1 : 2 / 3} getKey={entry => entry.id} reducedMotion={bindings.reducedMotion} onVisibleRange={onRange}
     renderItem={(entry, context) => books ? <VisibleBookCard entry={entry} row={row} rowIndex={rowIndex} index={context.index} {...bindings} /> : <VisibleCard entry={entry} row={row} rowIndex={rowIndex} index={context.index} platform={platform} layout={layout} {...bindings} />} />;
 }
 

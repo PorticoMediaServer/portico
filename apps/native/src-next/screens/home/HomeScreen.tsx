@@ -344,6 +344,9 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
     }, plan.delayMs);
     liveTimer.current = {expiry: plan.expiry, timer};
   }, [active, clearLiveTimer, current, document, foreground, rowDemand, runtime]);
+  // Saved views on Home past the first few arrive deferred: the demanded rows (mounted, plus the drawn pending ones) are
+  // read by client-core's HomeService, one read per row, stopped when a row stops being demanded.
+  useEffect(() => {runtime.home.demand(active && foreground && current() ? JSON.parse(rowDemand) as string[] : []);}, [active, current, foreground, rowDemand, runtime]);
   const updateViewport = useCallback((y: number) => {
     if (startModel.actionless) return;
     setHeroVisible(y < heroHeight);

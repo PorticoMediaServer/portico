@@ -13,7 +13,7 @@
  */
 import {readHomeLayoutSettings, saveHomeLayoutSettings} from './home-layout-settings.ts';
 import type {DeviceClass} from './preferences.ts';
-import {fetchHome, type HomeApi, type HomeDocument, type HomeLayout, type HomeLayoutView} from './home.ts';
+import {fetchHome, readHomeViewRow, type HomeApi, type HomeDocument, type HomeLayout, type HomeLayoutView, type HomeRow} from './home.ts';
 
 /** `deviceClass`: the kind of device this app is, which a settings save names (Customize Home is saved as settings). */
 export type HomeServiceOptions = Readonly<{timeoutMs?: number; deviceClass?: DeviceClass}>;
@@ -47,6 +47,8 @@ export function mergeHomeDocument(shown: HomeDocument, fresh: HomeDocument): Hom
   let changed = shown.rows.length !== fresh.rows.length;
   const rows = fresh.rows.map((row, index) => {
     const old = before.get(row.id);
+    // A saved view's row already read keeps its titles when a re-read sends it deferred again.
+    if (row.deferred && old && !old.deferred && sameJson(old.viewRead, row.viewRead)) { if (shown.rows[index] !== old) changed = true; return old; }
     if (old && sameJson(old, row)) { if (shown.rows[index] !== old) changed = true; return old; }
     changed = true;
     if (!old) return row;
@@ -63,6 +65,9 @@ export class HomeService {
   /** Each explicit load starts a new one; an answer for an older one is dropped. */
   private generation = 0;
   private reading?: {controller: AbortController; promise: Promise<void>};
+  /** Deferred rows being read, and rows whose read failed while they stayed near (asked again once they leave and return). */
+  private rowReads = new Map<string, AbortController>();
+  private failedRows = new Set<string>();
   private disposed = false;
   private readonly api: () => HomeApi;
   private readonly timeoutMs: number;
@@ -97,6 +102,7 @@ export class HomeService {
     if (this.disposed) return Promise.resolve();
     if (this.reading && !options.clear) return this.reading.promise;
     this.reading?.controller.abort();
+    this.stopRowReads();
     const mine = ++this.generation, controller = new AbortController();
     this.publish({phase: 'loading', error: undefined, ...(options.clear ? {document: undefined} : {})});
     const promise = this.read(controller.signal).then(document => {
@@ -125,6 +131,33 @@ export class HomeService {
     return 'adopted';
   }
   async revalidate(context?: {signal?: AbortSignal; settle?: () => Promise<void>}): Promise<void> { await this.refresh(context); }
+
+  /** The rows near the screen, as the app sees them. A saved view's row the server deferred is read once while it is
+   * near (GET /v1/items with the row's own library and query); a row that leaves has its read stopped. A row whose
+   * titles come back empty is taken out, as the server leaves out an empty row. One read per row at a time. */
+  demand(rowIds: Iterable<string>): void {
+    if (this.disposed) return;
+    const wanted = new Set(rowIds);
+    for (const [id, controller] of this.rowReads) if (!wanted.has(id)) { controller.abort(); this.rowReads.delete(id); }
+    for (const id of this.failedRows) if (!wanted.has(id)) this.failedRows.delete(id);
+    for (const row of this.state.document?.rows ?? []) if (wanted.has(row.id) && row.deferred && row.viewRead && !this.rowReads.has(row.id) && !this.failedRows.has(row.id)) this.readRow(row);
+  }
+  private stopRowReads(): void { for (const controller of this.rowReads.values()) controller.abort(); this.rowReads.clear(); this.failedRows.clear(); }
+  private readRow(row: HomeRow): void {
+    const controller = new AbortController(), mine = this.generation, read = row.viewRead!;
+    this.rowReads.set(row.id, controller);
+    void readHomeViewRow(this.api(), read, controller.signal).then(entries => {
+      const document = this.state.document;
+      if (controller.signal.aborted || mine !== this.generation || this.disposed || !document) return;
+      const at = document.rows.findIndex(each => each.id === row.id && each.deferred && sameJson(each.viewRead, read));
+      if (at < 0) return;
+      const {deferred: _pending, ...was} = document.rows[at]!;
+      const filled: HomeRow = Object.freeze({...was, entries, limit: entries.length});
+      const rows = entries.length ? document.rows.map((each, index) => index === at ? filled : each) : document.rows.filter((_, index) => index !== at);
+      this.publish({document: Object.freeze({...document, rows: Object.freeze(rows)})});
+    }, () => { if (!controller.signal.aborted && mine === this.generation) this.failedRows.add(row.id); })
+      .finally(() => { if (this.rowReads.get(row.id) === controller) this.rowReads.delete(row.id); });
+  }
 
   /** Rows arrive whole, so there is never a further page. */
   async more(rowId: string): Promise<HomePageOutcome> {
@@ -181,6 +214,7 @@ export class HomeService {
     this.disposed = true;
     this.generation++;
     this.reading?.controller.abort();
+    this.stopRowReads();
     this.listeners.clear();
   }
 }
