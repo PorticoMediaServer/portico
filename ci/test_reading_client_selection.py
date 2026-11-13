@@ -24,7 +24,7 @@ class ReadingClientSelection(unittest.TestCase):
             return json.dumps({'ImportPath': 'github.com/PorticoMediaServer/portico/server/internal/httpapi',
                                'Dir': str(ROOT / 'server/internal/httpapi'), 'TestGoFiles': files})
         with patch('plan.command', side_effect=command), patch('plan.components', return_value=([], False)):
-            plan = make_plan(['packages/client-core/test/reading-http.integration.mjs'])
+            plan = make_plan(['packages/client-core/test/reading-http.integration.mjs'], tier='nightly')
         self.assertIn('reading_client_integration', plan['tags'].split(','))
         self.assertIn('TestReadingHTTPClientPublication', [t['name'] for t in plan['inventory']])
 

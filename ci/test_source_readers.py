@@ -101,12 +101,12 @@ class Planning(unittest.TestCase):
         if args[0] == 'python3': return 'tags\n'
         return self.listed(Path(cwd).name)
 
-    def plan(self, paths, tier='short', owned=True):
+    def plan(self, paths, tier='nightly', owned=True):
         with patch('plan.command', side_effect=self.fake), patch('plan.components', return_value=([], owned)):
             return plan.make_plan(paths, tier=tier)
 
     def test_ingestion_change_runs_the_census_and_the_other_source_guards_only_for_those_packages(self):
-        for tier in ['short', 'merge']:
+        for tier in ['nightly']:
             result = self.plan(['server/internal/ingestion/path_presence.go'], tier)
             names = {(t['package'].rsplit('/', 1)[-1], t['name']) for t in result['inventory']}
             self.assertIn(('persistence', 'TestSeparateFolderIndexCensusClassifiesInventoryObjectWrites'), names)
@@ -137,7 +137,7 @@ class Planning(unittest.TestCase):
 
     def test_a_full_plan_ignores_the_manifest(self):
         with patch('plan.command', side_effect=self.fake), patch('plan.components', return_value=([], True)):
-            result = plan.make_plan([], full=True, tier='merge')
+            result = plan.make_plan([], full=True, tier='nightly')
         self.assertEqual(result['source_reader_tests'], [])
         self.assertIn('TestSeparateFolderMinimalCursorSchema', {t['name'] for t in result['inventory']})
 

@@ -13,6 +13,15 @@ import source_readers
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPONENTS = ['web', 'packages', 'apps/native', 'apps/vega', 'apps/desktop', 'website']
+# Reference-server bridges/contracts are retained on disk, but do not judge PRs or queue entries.
+REFERENCE_SERVER_JS_TESTS = {
+    'packages/client-core/test/repair-public-contract.test.ts',
+    'packages/client-core/test/final-batch/home-reading-wire.test.ts',
+    'packages/contracts/test/contracts.test.ts',
+    'packages/contracts/test/registered-return-producer.test.ts',
+    'packages/contracts/test/final-batch/concurrency-memory-limit.test.ts',
+    'packages/contracts/test/final-batch/console-registry-null-defaults.test.ts',
+}
 # Full (merge/nightly) Go shards are planned from measured parent weights so no
 # single `go test` batch approaches its -timeout. A shard runs one complete-package
 # command (-p=GO_PACKAGE_WORKERS) and then its split packages in a worker pool.
@@ -395,13 +404,15 @@ def make_plan(paths, full=False, tier="short"):
     selected, go = components(paths,full); go_fallbacks=[]; inventory=[]; exemptions=[]; packages=[]; modules=[]
     # Go-owned means the change itself reaches Go (server/ or apikit/, contracts, the root). A change that
     # only reaches a test reading its files (packages/i18n, web/public) selects just those tests.
-    go_owned=go; readers={} if full else source_readers.select([p for p in paths if not p.startswith('server-next/')]); reader_tests={}; go=go or bool(readers)
+    go_owned=go; readers={} if full else source_readers.select([p for p in paths if not p.startswith('server-next/')])
+    if tier != 'nightly': readers={k:v for k,v in readers.items() if not k.startswith('server/')}
+    reader_tests={}; go=go or bool(readers)
     full_packages=set()
     tags=command(['python3','scripts/release-build-tags.py','--capability']).strip()
     if go:
         # Include the real HTTP/client boundary in build-aware test discovery.
         listing_tags = tags + ',reading_client_integration'
-        for module in ['server','apikit']:
+        for module in (['server','apikit'] if tier == 'nightly' else ['apikit']):
             raw=command(['go','list','-json','-tags',listing_tags,'./...'], ROOT/module)
             listed=[p for p in decode_stream(raw) if not re.search(r'/server/internal/store(?:/|$)', p['ImportPath'])]
             for p in listed: p['module']=module
@@ -480,6 +491,7 @@ def make_plan(paths, full=False, tier="short"):
     for component in selected:
         roots=list((ROOT/'packages').iterdir()) if component=='packages' else [ROOT/component]
         files=sorted(str(f.relative_to(ROOT)) for root in roots for f in root.rglob('*') if f.is_file() and re.search(r'\.test\.(?:[cm]?js|tsx?)$',f.name) and not any(x in f.parts for x in ['node_modules','third_party','dist','build']))
+        if tier != 'nightly': files=[f for f in files if f not in REFERENCE_SERVER_JS_TESTS]
         if tier=='short' and not full and component!='website':
             js_reasons[component]={}
             files=affected_js(ROOT,paths,files,diagnostics=js_reasons[component])
