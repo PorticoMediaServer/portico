@@ -973,6 +973,7 @@ export interface HistoryPage {
 
 export interface Home {
   rows: HomeRow[];
+  spotlight?: HomeSpotlight[];
 }
 
 export interface HomeRow {
@@ -986,6 +987,24 @@ export interface HomeRow {
   query?: string;
   nextCursor?: string;
   deferred?: boolean;
+}
+
+export interface HomeSpotlight {
+  play: boolean;
+  myList: boolean;
+  entry: Item;
+  reason: HomeSpotlightReason;
+  resumeTarget?: Item;
+}
+
+export interface HomeSpotlightReason {
+  kind: string;
+  text: HomeSpotlightText;
+}
+
+export interface HomeSpotlightText {
+  code: string;
+  fallback: string;
 }
 
 export interface HostedNotice {

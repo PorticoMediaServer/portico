@@ -4,7 +4,7 @@ import {unreadableServerResponse} from './server-messages.ts';
 /** Server-composed home rows. Clients render membership, order and policy as published; they never rank, hide or page a row themselves. */
 import {validateContentEntry, type ContentEntry} from './library-content.ts';
 import type {Home} from '../../contracts/src/next/api.ts';
-import {entriesFromItems, readHomeRows} from './items.ts';
+import {entryFromItem, entriesFromItems, readHomeRows} from './items.ts';
 import {parseBrowseNode, type BrowseNode, type BrowseSortSelection} from './browse.ts';
 import {firstOfEach, keepReadable, noteSkipped, oneOfOr} from './tolerant.ts';
 import {parseGuideChannels, parseGuideSources, type GuideChannel, type GuideSource} from './channel-guide.ts';
@@ -349,7 +349,20 @@ export function homeDocument(home: Home): HomeDocument {
       endpoint: '', privacySensitivity: '', policyState: '', priority: 0, required: always, hideable: !always, reorderable: true, critical: false, cursorCapable: false,
       entries, start: 0, limit: entries.length, hasMore: false, nextCursor: ''}) as HomeRow;
   }), row => row.id);
-  return Object.freeze({rows: Object.freeze(rows), spotlight: Object.freeze([]), layout: Object.freeze({revision: 0, rowOrder: Object.freeze(rows.map(row => row.id)), hiddenRowIds: Object.freeze([])})});
+  const spotlight = firstOfEach('home', 'spotlight', keepReadable('home', 'spotlight', home.spotlight ?? [], raw => {
+    const slide = raw as NonNullable<Home['spotlight']>[number];
+    const card = entryFromItem(slide.entry), target = slide.resumeTarget ? entryFromItem(slide.resumeTarget) : undefined;
+    const reason = parseServerText(slide.reason?.text);
+    if (!card || !reason || slide.resumeTarget && !target) return undefined;
+    const play = slide.play === true, myList = slide.myList === true;
+    const homeActions: HomeActions = Object.freeze({play, myList, details: true, queue: false, playlist: false, collection: false, favorite: false,
+      watched: false, played: false, rating: false, editMetadata: false, refreshMetadata: false, delete: false, download: false,
+      state: Object.freeze({watchlisted: slide.entry.state.inList, favorite: slide.entry.state.favorite, watched: slide.entry.state.watched,
+        rating: slide.entry.state.rating ?? null, personalRevision: slide.entry.state.updatedAt ? Date.parse(slide.entry.state.updatedAt) : 0, containerRevision: 0}),
+      selection: Object.freeze({play, myList, queue: false, playlist: false, collection: false, favorite: false, watched: false, download: false, edit: false, refresh: false, delete: false})});
+    return Object.freeze({entry: Object.freeze({...card, homeActions}), reason: Object.freeze({kind: slide.reason.kind, text: reason}), ...(target ? {resumeTarget: target} : {})});
+  }), slide => slide.entry.id);
+  return Object.freeze({rows: Object.freeze(rows), spotlight: Object.freeze(spotlight), layout: Object.freeze({revision: 0, rowOrder: Object.freeze(rows.map(row => row.id)), hiddenRowIds: Object.freeze([])})});
 }
 
 function pageQuery(page: HomeRowPage): string {

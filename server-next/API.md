@@ -147,6 +147,8 @@ Assistant) are a separate short document and are not counted here.
 | `POST /v1/jobs` kind `set_state` | Any profile: set watched, favourite, My List, Not interested or rating on every title in a view it sees. `target.filter` is the view's `GET /v1/items` query; `params` are the state fields |
 | `POST /v1/jobs` kind `add_view_to_list` | Any profile: add every title of a view it sees to a playlist or collection it may change, in the view's own order (its `sort` and `order` kept). `target.filter` is the view's `GET /v1/items` query; `params` is `{"list": id}`. The finished job's `error` says how many were added and were in it already; taken up again after a restart it adds nothing twice |
 
+Home's `spotlight` holds up to five distinct films or shows, newest added first (id breaks ties), from the profile's visible libraries and within its rating and label limits. Missing titles, empty shows, non-video items and this profile's Not interested titles are not featured. The reason is Recently added, without a recommendation claim. Each entry has its existing artwork, genres, year, runtime when known and at most 300 characters of synopsis; only these few titles get detail metadata. `play` and `myList` are the server's offers for the hero. A show's `resumeTarget` is its current Continue Watching episode, otherwise its first visible, available unwatched regular episode (first regular episode if all are watched); specials are offered only when already in progress. No duplicate slides fill a sparse library.
+
 ### Playback (34)
 
 The rest of playback is listed route by route as it is built. Its resources and count are
