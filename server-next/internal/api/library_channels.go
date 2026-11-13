@@ -21,6 +21,8 @@ import (
 // LibraryChannel is a Library Channel as the owner's list and editor show it. The editor's
 // read adds the whole builder and the channel's health, and carries an ETag.
 type LibraryChannel struct {
+	// Revision is the ETag version of this row, also available in paginated reads.
+	Revision    string `json:"revision"`
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Number      int    `json:"number"`
@@ -127,6 +129,7 @@ type LibraryChannelPreviewProgramme struct {
 
 // LibraryChannelBlockPreset is a block the owner saved to reuse on any Library Channel.
 type LibraryChannelBlockPreset struct {
+	Revision    string                               `json:"revision"`
 	ID          string                               `json:"id"`
 	Name        string                               `json:"name"`
 	Description string                               `json:"description,omitempty"`
@@ -216,7 +219,7 @@ func stateWord(ch db.LibraryChannel, now time.Time) string {
 func (s *Server) libraryChannelOut(ch db.LibraryChannel, b *librarychannels.LibraryChannelBuilder, detail bool) LibraryChannel {
 	out := LibraryChannel{ID: ch.PublicID, Name: ch.Name, Number: ch.Number, On: ch.On, Description: ch.Description, Summary: ch.Description,
 		TimeZone: ch.TimeZone, Libraries: ch.Libraries, State: stateWord(ch, s.now()), Problem: ch.Problem, Titles: ch.Titles,
-		revision: ch.Revision}
+		revision: ch.Revision, Revision: strconv.FormatInt(ch.Revision, 10)}
 	if ch.LogoHash != "" {
 		out.Logo = "/v1/images/" + ch.LogoHash
 	}
@@ -511,17 +514,28 @@ func (s *Server) orderLibraryChannels(r *http.Request, req LibraryChannelOrder) 
 // enough is how many matching titles a template needs to be offered.
 const enough = 3
 
-func (s *Server) channelTemplates(r *http.Request, _ None) (Page[LibraryChannelTemplate], error) {
+// LibraryChannelTemplateChoices also supplies the real default zone and conditional Mood choice.
+type LibraryChannelTemplateChoices struct {
+	Items         []LibraryChannelTemplate `json:"items"`
+	TimeZone      string                   `json:"timeZone"`
+	MoodAvailable bool                     `json:"moodAvailable"`
+	MoodLabels    map[string]string        `json:"moodLabels,omitempty"`
+}
+
+func (s *Server) channelTemplates(r *http.Request, _ None) (LibraryChannelTemplateChoices, error) {
 	ctx := r.Context()
 	kinds, err := s.db.LibraryKinds(ctx)
 	if err != nil {
-		return Page[LibraryChannelTemplate]{}, err
+		return LibraryChannelTemplateChoices{}, err
 	}
-	out := Page[LibraryChannelTemplate]{Items: []LibraryChannelTemplate{}}
+	out := LibraryChannelTemplateChoices{Items: []LibraryChannelTemplate{}, TimeZone: s.serverZone(), MoodAvailable: s.db.HasTitleData()}
+	if out.MoodLabels, err = s.db.ChannelMoodLabels(ctx); err != nil {
+		return LibraryChannelTemplateChoices{}, err
+	}
 	for _, t := range librarychannels.Templates(kinds) {
 		count, err := s.channels.CountUpTo(ctx, &t.Builder.LibraryChannelSelection, enough)
 		if err != nil {
-			return Page[LibraryChannelTemplate]{}, err
+			return LibraryChannelTemplateChoices{}, err
 		}
 		item := LibraryChannelTemplate{Key: t.Key, Name: t.Name, Description: t.Description, Available: count >= enough, Builder: t.Builder}
 		if !item.Available {
@@ -567,7 +581,7 @@ func (s *Server) previewLibraryChannel(r *http.Request, req LibraryChannelPrevie
 }
 
 func presetOut(p db.BlockPreset) (LibraryChannelBlockPreset, error) {
-	out := LibraryChannelBlockPreset{ID: p.PublicID, Name: p.Name, Description: p.Description, Library: p.Library, revision: p.Revision}
+	out := LibraryChannelBlockPreset{ID: p.PublicID, Name: p.Name, Description: p.Description, Library: p.Library, revision: p.Revision, Revision: strconv.FormatInt(p.Revision, 10)}
 	return out, json.Unmarshal([]byte(p.Recipe), &out.Recipe)
 }
 

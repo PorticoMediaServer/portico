@@ -1,120 +1,73 @@
-import {dependsOn} from '@core/freshness-hub.ts';
-import {useFreshness} from '../../../../platform/freshness';
-import {mountQuietInput, SettingsOpenContext} from '../../quiet-refresh';
-import {useContext, useEffect, useCallback, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {useContext,useEffect,useLayoutEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
 import {useLocation} from '@tanstack/react-router';
-import {settingsRoute} from '../../../../kit/settings/search';
 import {defaultI18n} from '@i18n';
-import type {LibraryChannel, LibraryChannelTemplate} from '@core/library-channels.ts';
+import type {Library} from '@core/index.ts';
+import type {LibraryContentApi} from '@core/library-content.ts';
+import {dependsOn} from '@core/freshness-hub.ts';
+import {errorMessage} from '@core/presentation/errors.ts';
+import {removeOwnerChannelLogo} from '@core/server-admin/owner-library-channels.ts';
+import {useFreshness} from '../../../../platform/freshness';
+import {mountQuietInput,SettingsOpenContext} from '../../quiet-refresh';
+import {settingsRoute} from '../../../../kit/settings/search';
 import {Button} from '../../../../kit/controls';
-import {Dialog} from '../../../../kit/overlays';
-import {LibraryChannels, type ChannelAction} from './LibraryChannels';
-import {ChannelEditor} from './ChannelEditor';
-import {BlockPresets} from './BlockPresets';
-import type {LibraryChannelsPageProps} from './types';
+import {Dialog,Menu} from '../../../../kit/overlays';
+import {Icon} from '../../../../kit/Icon';
+import {ChannelMark} from '../../../../kit/artwork/ChannelMark';
+import {channelMonograms} from '@core/presentation/kit-model/channels.ts';
+import type {ArtworkSource} from '../../../../kit/artwork/types';
+import {OwnerChannelSource,type Channel} from './owner-channel-source';
+import {OwnerChannelEditor} from './OwnerChannelEditor';
+import {OwnerPresets} from './OwnerHours';
 import styles from './channels.module.css';
-import {createSources, forwardChannelPorts} from './channel-sources';
-
-const t = defaultI18n.t;
-let editorSequence = 0;
-type Sources = ReturnType<typeof createSources>;
-type Modal = Readonly<{kind: 'logo' | 'delete'; channel: LibraryChannel}>;
-
-/** Mounted only with the real captured primary-owner/manageServer admission. */
-export function LibraryChannelsPage(input: LibraryChannelsPageProps | Readonly<{ports: LibraryChannelsPageProps}>) {
-  const props = 'ports' in input ? input.ports : input;
-  const [,redrawFacts]=useState(0);
-  useEffect(()=>props.subscribe?.(()=>redrawFacts(value=>value+1)),[props]);
-  const location = useLocation();
-  const initialChannelId = settingsRoute(Object.fromEntries(new URLSearchParams(location.searchStr)), () => true).channelId;
-  const {api, serverId, isCurrent, reportError, uploadLogo} = props;
-  const [sources, setSources] = useState<Sources>();
-  useLayoutEffect(() => {
-    const next = createSources({api, serverId, isCurrent, reportError, uploadLogo});setSources(next);
-    return () => next.dispose();
-  }, [api, serverId, isCurrent, reportError, uploadLogo]);
-  return sources?.current() && isCurrent() ? <ChannelPageBody key={serverId} sources={sources} ports={forwardChannelPorts(props,{initialChannelId})}/> : null;
+const t=defaultI18n.t;
+export type OwnerChannelPorts={api:LibraryContentApi;serverId:string;isCurrent:()=>boolean;reportError:(error:unknown)=>void;libraries:readonly Library[];subscribe?:(listener:()=>void)=>()=>void;logo:(channel:Channel)=>ArtworkSource|undefined;sampleArt?:(id:string)=>ArtworkSource|undefined;uploadLogo:(id:string,file:File,signal:AbortSignal)=>Promise<Channel>};
+export function LibraryChannelsPage(input:OwnerChannelPorts|{ports:OwnerChannelPorts}){
+ const ports='ports' in input?input.ports:input,[source,setSource]=useState<OwnerChannelSource>(),[,redraw]=useState(0),location=useLocation();
+ useEffect(()=>ports.subscribe?.(()=>redraw(v=>v+1)),[ports]);
+ useLayoutEffect(()=>{const next=new OwnerChannelSource(ports.api,ports.isCurrent,ports.reportError);setSource(next);return()=>next.dispose();},[ports.api,ports.serverId,ports.isCurrent,ports.reportError]);
+ const channelId=settingsRoute(Object.fromEntries(new URLSearchParams(location.searchStr)),()=>true).channelId;
+ return source&&source.isActive()?<ChannelBody key={ports.serverId} ports={ports} source={source} channelId={channelId}/>:null;
 }
-
-function ChannelPageBody({sources, ports}: Readonly<{sources: Sources; ports: LibraryChannelsPageProps}>) {
-  const {hub}=useFreshness();
-  const visibility=useContext(SettingsOpenContext);
-  useEffect(() => {
-    const interest=mountQuietInput(hub,'settings/channels',[dependsOn.list('libraryChannels'),dependsOn.settings('server'),dependsOn.libraries],
-      {id:'directory-health-editor',refresh:sources.refreshQuiet,cancel:()=>{sources.reader.invalidateQuiet();sources.editor.invalidateQuiet();},subscribe:sources.subscribe,blocked:sources.blocked,settlement:sources.settlement},visibility);
-    return () => interest.dispose();
-  },[hub,sources,visibility]);
-  const reader = useSyncExternalStore(sources.reader.subscribe, sources.reader.getSnapshot, sources.reader.getSnapshot);
-  const deepLink = useRef<string | undefined>(undefined);
-  const editor = useSyncExternalStore(sources.editor.subscribe, sources.editor.getSnapshot, sources.editor.getSnapshot);
-  const action = useSyncExternalStore(sources.actions.subscribe, sources.actions.getSnapshot, sources.actions.getSnapshot);
-  const logo = useSyncExternalStore(sources.logos.subscribe, sources.logos.getSnapshot, sources.logos.getSnapshot);
-  const presets = useSyncExternalStore(sources.presets.subscribe, sources.presets.getSnapshot, sources.presets.getSnapshot);
-  const [presetToken, setPresetToken] = useState<{id:number}>();
-  const [modal, setModal] = useState<Modal>(), [editorToken, setEditorToken] = useState<{id: number; creating: boolean}>();
-  const lastCreating = useRef(false), moving = useRef(false);
-  const [reordering, setReordering] = useState(false), [reorderError, setReorderError] = useState(false), [announcement, setAnnouncement] = useState('');
-  const view = useMemo<{active: boolean; source: Sources; modal?: Modal; editor?: object; preset?: object}>(() => ({active: true, source: sources}), [sources]);
-  useLayoutEffect(() => {view.active = true;return () => {view.active = false;view.modal = undefined;view.editor = undefined;view.preset = undefined;};}, [view]);
-  const current = useCallback(() => view.active && view.source === sources && sources.current(), [view, sources]);
-  const editorCurrent = useCallback(() => current() && editorToken !== undefined && view.editor === editorToken, [current, editorToken, view]);
-  const presetCurrent = useCallback(() => current() && presetToken !== undefined && view.preset === presetToken, [current, presetToken, view]);
-  const openPresets = () => {if (!current() || moving.current || sources.presets.getSnapshot().busy) return;const token = {id:++editorSequence};view.preset = token;setPresetToken(token);};
-  const closePresets = () => {if (!presetCurrent() || sources.presets.getSnapshot().busy) return;view.preset = undefined;setPresetToken(undefined);};
-  const blocked = reordering || presets.busy || !!presets.pending || presets.reconcile || editor.busy || action.busy || logo.busy || !!editor.pending || !!action.pending || !!logo.pending || editor.phase !== 'closed';
-  const create = (template?: LibraryChannelTemplate) => {
-    if (!current() || blocked || moving.current) return;
-    const token = {id: ++editorSequence, creating: true};lastCreating.current = true;view.editor = token;setEditorToken(token);
-    if (template) sources.editor.template(template, ports.timeZone);else void sources.editor.blank(ports.timeZone);
-  };
-  const closeEditor = () => {if (!editorCurrent() || sources.editor.getSnapshot().busy) return;sources.editor.close();view.editor = undefined;setEditorToken(undefined);};
-  const close = () => {if (!current() || view.modal !== modal || sources.actions.getSnapshot().busy || sources.logos.getSnapshot().busy) return;view.modal = undefined;sources.setOpeningBlocked(false);setModal(undefined);};
-  const actionOn = useCallback((channel: LibraryChannel, kind: ChannelAction) => {
-    if (!current() || blocked || moving.current || !sources.reader.getSnapshot().channels?.includes(channel)) return;
-    if (kind === 'edit') {const token = {id: ++editorSequence, creating: false};lastCreating.current = false;view.editor = token;setEditorToken(token);sources.editor.edit(channel);}
-    else if (kind === 'logo' || kind === 'delete') {const next = {kind, channel};sources.setOpeningBlocked(true);view.modal = next;setModal(next);}
-    else void sources.actions.perform(channel, kind === 'up' || kind === 'down' ? 'move' : kind, kind === 'up' ? -1 : kind === 'down' ? 1 : undefined);
-  }, [current, blocked, sources, view]);
-  useLayoutEffect(() => {
-    const id = ports.initialChannelId;
-    if (!id || deepLink.current === id || reader.phase !== 'ready' || blocked || !current()) return;
-    deepLink.current = id;
-    const channel = reader.channels?.find(value => value.config.id === id);
-    if (channel) actionOn(channel, 'edit');
-  }, [ports.initialChannelId, reader, blocked, current, actionOn]);
-  const reorder = async (channel: LibraryChannel, target: number) => {
-    if (!current() || blocked || moving.current) return;
-    moving.current = true;setReordering(true);setReorderError(false);setAnnouncement('');
-    try {
-      const done = await sources.actions.moveTo(channel, target);
-      if (current()) {
-        setReorderError(!done);
-        if (done) setAnnouncement(t('next.settings.moved', {name: channel.config.name, position: target + 1, count: sources.reader.getSnapshot().channels?.length ?? 0}));
-      }
-    } catch {if (current()) setReorderError(true);}
-    finally {moving.current = false;if (current()) setReordering(false);}
-  };
-  useLayoutEffect(() => {sources.setOpeningBlocked(!!modal);return () => sources.setOpeningBlocked(false);},[sources,modal]);
-  const held = modal && current() && view.modal === modal ? modal : undefined;
-  const selected = () => !!held && current() && view.modal === held && sources.reader.getSnapshot().channels?.includes(held.channel) === true;
-  const remove = async () => {const captured = held;if (!captured || captured.kind !== 'delete' || !selected()) return;const done = await sources.actions.perform(captured.channel, 'delete');if (done && current() && view.modal === captured) close();};
-  const chooseLogo = async (file: File | undefined) => {const captured = held;if (!captured || captured.kind !== 'logo' || !file || !selected()) return;const done = await sources.logos.choose(captured.channel, file);if (done && current() && view.modal === captured) close();};
-  if (!current()) return null;
-  return <>
-    {editor.pending && editor.phase === 'closed' && <div className={styles.warning} role="alert"><p>{t('error.unconfirmedChange')}</p><Button size="small" onClick={() => {if (!current() || sources.editor.getSnapshot().busy) return;const token = {id: ++editorSequence, creating: lastCreating.current};view.editor = token;setEditorToken(token);sources.editor.resume();}}>{t('action.tryAgain')}</Button></div>}
-    {action.error && <div className={styles.warning} role="alert"><p>{t(action.pending ? 'error.unconfirmedChange' : 'error.unavailable')}</p>{action.pending && <Button size="small" disabled={action.busy} onClick={() => {if (current()) void sources.actions.retry();}}>{t('action.tryAgain')}</Button>}</div>}
-    {logo.error && <div className={styles.warning} role="alert"><p>{t(logo.pending ? 'error.unconfirmedChange' : 'web.libraryChannels.logoSaveFailed')}</p>{logo.pending && <Button size="small" disabled={logo.busy} onClick={() => {if (current()) void sources.logos.retry();}}>{t('action.tryAgain')}</Button>}</div>}
-    {(presets.pending || presets.reconcile) && !presetToken && <div className={styles.warning} role="alert"><p>{t('error.unconfirmedChange')}</p><Button size="small" disabled={presets.busy} onClick={openPresets}>{t('action.tryAgain')}</Button></div>}
-    {reorderError && <p role="alert" className={styles.warning}>{t('error.unavailable')}</p>}
-    <span className={styles.srOnly} role="status">{announcement}</span>
-    <LibraryChannels source={sources.reader} isCurrent={current} busy={blocked} logo={channel => ports.logo(channel, sources.logos.revision(channel.config.id))} create={create} action={actionOn} reorder={(channel, target) => {void reorder(channel, target);}}/>
-    {editorToken && <ChannelEditor key={editorToken.id} creating={editorToken.creating} sampleArt={ports.sampleArt} source={sources.editor} api={ports.api} reportError={sources.report} openPresets={() => {if (editorCurrent()) openPresets();}} presets={sources.presets} libraries={ports.libraries} isCurrent={editorCurrent} close={closeEditor}/>}
-    {presetToken && <BlockPresets key={presetToken.id} source={sources.presets} api={ports.api} libraries={ports.libraries} isCurrent={presetCurrent} reportError={sources.report} close={closePresets}/>}
-    <Dialog footerDismisses open={held?.kind === 'delete'} title={t('web.libraryChannels.deleteTitle', {name: held?.channel.config.name ?? ''})} description={t('web.libraryChannels.deleteBody')} onOpenChange={value => {if (!value) close();}} dismissOnBack={!action.busy} dismissOnOutsidePress={!action.busy} showCloseButton={!action.busy}
-      footer={<><Button size="compact" variant="glass" disabled={action.busy} onClick={close}>{t('action.cancel')}</Button><Button size="compact" variant="glass" className={styles.danger} disabled={action.busy} onClick={() => {void remove();}}>{t('web.libraryChannels.delete')}</Button></>}><></></Dialog>
-    <Dialog footerDismisses open={held?.kind === 'logo'} title={t('web.libraryChannels.uploadLogo')} onOpenChange={value => {if (!value) close();}} dismissOnBack={!logo.busy} dismissOnOutsidePress={!logo.busy} showCloseButton={!logo.busy}
-      footer={<Button size="compact" variant="glass" disabled={logo.busy} onClick={close}>{t('action.cancel')}</Button>}>
-      {held?.kind === 'logo' && <input key={`${held.channel.config.id}/${held.channel.revision}`} type="file" accept="image/jpeg,image/png,image/webp" aria-label={t('web.libraryChannels.uploadLogo')} disabled={logo.busy || !!logo.pending} onChange={event => {const file = event.target.files?.[0];void chooseLogo(file);event.target.value = '';}}/>}
-    </Dialog>
-  </>;
+function stateLabel(row:Channel){return t(!row.on?'web.libraryChannels.offState':row.state==='onAir'?'web.libraryChannels.onAir':row.state==='building'?'web.libraryChannels.healthBeingMade':row.state==='needsSchedule'?'web.ownerChannels.needsSchedule':'web.ownerChannels.needsAttention');}
+function ChannelBody({ports,source,channelId}:{ports:OwnerChannelPorts;source:OwnerChannelSource;channelId?:string}){
+ const state=useSyncExternalStore(source.subscribe,source.getSnapshot,source.getSnapshot),{hub}=useFreshness(),visibility=useContext(SettingsOpenContext),opened=useRef<string>(),list=useRef<HTMLUListElement>(null),drag=useRef<{id:string;rows:readonly Channel[];to:number;pointer:number}>();
+ const [newMenu,setNewMenu]=useState(false),[rowMenu,setRowMenu]=useState<string>(),[modal,setModal]=useState<{row:Channel;kind:'remove'|'logo'|'regenerate'}>(),[presets,setPresets]=useState(false),[drop,setDrop]=useState<string>();
+ useEffect(()=>{void source.load();},[source]);
+ useEffect(()=>{const interest=mountQuietInput(hub,'settings/channels',[dependsOn.list('libraryChannels'),dependsOn.settings('server'),dependsOn.libraries],{id:'owner-directory',refresh:source.refreshQuietly,cancel:source.invalidateQuiet,subscribe:source.subscribe,blocked:()=>source.quietBlocked()||!!modal||presets},visibility);return()=>interest.dispose();},[hub,source,visibility,modal,presets]);
+ useEffect(()=>{if(channelId&&opened.current!==channelId&&state.choices&&!state.busy&&!state.loading){opened.current=channelId;void source.openId(channelId);}},[source,channelId,state.choices,state.busy,state.loading]);
+ const lookup=useMemo(()=>({api:ports.api,current:source.isActive,report:ports.reportError,moodLabels:state.choices?.moodAvailable?state.choices.moodLabels:undefined}),[source,ports.api,ports.reportError,state.choices]);
+ if(!source.isActive())return null;
+ const locked=state.busy||state.loading||!!state.editor||!!state.presetEditor||state.uncertain||state.pendingCreate||state.pendingPreset,busy=!!locked,health=state.health;
+ const video=ports.libraries.filter(row=>['movie','tv','anime'].includes(row.kind));
+ // Each Library Channel is its own guide source: this row is its complete collision domain.
+ const marks=channelMonograms({kind:'complete-authorized',channels:state.channels.map(row=>({sourceId:row.id,id:row.id,name:row.name}))});
+ const close=()=>{if(!state.busy)setModal(undefined);},run=()=>{if(!modal||busy||!source.getSnapshot().channels.includes(modal.row))return;void source.action(modal.row,modal.kind==='remove'?'remove':'regenerate').then(()=>{if(source.isActive())setModal(undefined);});};
+ const move=(row:Channel,to:number)=>{if(!busy&&source.isActive())void source.moveTo(row,to);};
+ const templateItems=[{id:'templates',label:t('server.channels.templates'),section:true},...(state.choices?.items??[]).map(row=>({id:row.key,label:row.name,description:row.available?undefined:t('server.channels.notEnough'),disabled:!row.available,onSelect:()=>source.blank(row)})),{id:'blank',label:t('web.libraryChannels.startFromScratch'),onSelect:()=>source.blank()}];
+ return <div className={styles.page}><div className={styles.heading}><h3>{t('channels.custom.name')}</h3><Menu open={newMenu} onOpenChange={setNewMenu} title={t('builder.newTitle')} items={templateItems} trigger={<Button size="small" variant="primary" disabled={busy||!state.choices}>{t('builder.newTitle')}</Button>}/></div>
+  {!!state.error&&<p role="alert" className={styles.warning}>{errorMessage(state.error)} <Button size="small" disabled={state.busy||state.loading} onClick={()=>void source.load()}>{t('action.refresh')}</Button></p>}
+  {state.loading&&<p role="status">{t('status.loading')}</p>}{state.pendingCreate&&!state.editor&&<Button size="small" disabled={state.busy} onClick={()=>source.resume()}>{t('action.tryAgain')}</Button>}
+  {!state.loading&&!state.channels.length&&<div className={styles.empty}><h3>{t('builder.empty.title')}</h3><p>{t('builder.empty.body')}</p><Button size="small" disabled={busy||!state.choices} onClick={()=>source.blank()}>{t('builder.empty.create')}</Button></div>}
+  <ul ref={list} className={styles.list}>{state.channels.map((row,index)=><li className={styles.row} key={row.id} data-channel-row={row.id} data-drop-target={drop===row.id||undefined}>
+   <button type="button" className={styles.grip} disabled={busy} aria-label={t('next.settings.reorder',{name:row.name})} onKeyDown={event=>{if(busy||!['ArrowUp','ArrowDown','Home','End'].includes(event.key))return;event.preventDefault();move(row,event.key==='Home'?0:event.key==='End'?state.channels.length-1:index+(event.key==='ArrowUp'?-1:1));}}
+    onPointerDown={event=>{if(busy||event.button!==0)return;event.preventDefault();event.currentTarget.focus();event.currentTarget.setPointerCapture(event.pointerId);drag.current={id:row.id,rows:state.channels,to:index,pointer:event.pointerId};}}
+    onPointerMove={event=>{const held=drag.current;if(!held||held.pointer!==event.pointerId)return;if(busy||held.rows!==state.channels||!source.isActive()){drag.current=undefined;setDrop(undefined);return;}const rows=[...(list.current?.querySelectorAll<HTMLElement>('[data-channel-row]')??[])],to=rows.findIndex(v=>{const box=v.getBoundingClientRect();return event.clientY>=box.top&&event.clientY<box.bottom;});if(to>=0){held.to=to;setDrop(state.channels[to]!.id);}}}
+    onPointerUp={event=>{const held=drag.current;drag.current=undefined;setDrop(undefined);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);if(held&&held.pointer===event.pointerId&&held.rows===state.channels&&held.id===row.id)move(row,held.to);}} onPointerCancel={()=>{drag.current=undefined;setDrop(undefined);}} onLostPointerCapture={()=>{drag.current=undefined;setDrop(undefined);}}><Icon name="i-grip" size={18}/></button>
+   <ChannelMark mark={marks.get(row.id)!.get(row.id)!} source={ports.logo(row)} size={44}/><div className={styles.channelText}><b>{row.name}</b><p>{[row.summary,t('server.channels.titles',{count:row.titles}),row.scheduledThrough?t('server.channels.through',{when:defaultI18n.dateTime(row.scheduledThrough)}):undefined].filter(Boolean).join(' · ')}</p></div><span className={styles.badge} data-state={row.state==='onAir'?'ready':row.on?'degraded':'off'}>{stateLabel(row)}</span>
+   <Menu open={rowMenu===row.id} onOpenChange={open=>setRowMenu(open?row.id:undefined)} title={row.name} trigger={<Button size="small" variant="icon" icon="i-more" iconOnly disabled={busy} aria-label={t('server.row.actions',{name:row.name})}/>} items={[
+    {id:'edit',label:t('web.selection.edit'),onSelect:()=>void source.open(row)},{id:'health',label:t('web.libraryChannels.checkHealth'),onSelect:()=>void source.health(row)},
+    {id:'logo',label:t('web.libraryChannels.uploadLogo'),onSelect:()=>setModal({row,kind:'logo'})},{id:'toggle',label:t(row.on?'web.libraryChannels.turnOff':'web.libraryChannels.turnOn'),onSelect:()=>void source.action(row,'toggle')},
+    {id:'regenerate',label:t('web.libraryChannels.regenSchedule'),onSelect:()=>setModal({row,kind:'regenerate'})},{id:'up',label:t('web.profile.moveUp'),disabled:index===0,onSelect:()=>move(row,index-1)},
+    {id:'down',label:t('web.profile.moveDown'),disabled:index===state.channels.length-1&&!state.cursor,onSelect:()=>move(row,index+1)},{id:'remove',label:t('web.libraryChannels.delete'),destructive:true,onSelect:()=>setModal({row,kind:'remove'})}]}/>
+  </li>)}</ul>
+  {state.cursor&&<Button size="small" disabled={busy} onClick={()=>void source.load(true)}>{t('action.showMore')}</Button>}<Button size="small" disabled={busy} onClick={()=>{setPresets(true);void source.presets();}}>{t('builder.preset.title')}</Button>
+  {state.editor&&<OwnerChannelEditor key={state.editor.key} source={source} editor={state.editor} lookup={lookup} libraries={video} manage={()=>{setPresets(true);void source.presets();}} sampleArt={ports.sampleArt}/>}
+  {presets&&<OwnerPresets source={source} lookup={lookup} libraries={video} close={()=>{if(!state.busy)setPresets(false);}}/>}
+  {health&&<Dialog footerDismisses open title={health.name} description={t('web.libraryChannels.healthLede')} onOpenChange={open=>{if(!open)source.closeHealth();}} footer={<Button size="small" onClick={()=>source.closeHealth()}>{t('action.done')}</Button>}><div className={styles.health}><p className={health.health?.onAir?styles.healthy:styles.warning}>{health.health?.message||stateLabel(health)}</p><dl className={styles.facts}>{[
+   ['web.libraryChannels.healthSchedule',health.health?.reaches?defaultI18n.dateTime(health.health.reaches):t('web.libraryChannels.healthNotGenerated')],['web.libraryChannels.healthPrograms',health.health?.programmes??0],['web.libraryChannels.healthCandidates',health.health?.titles??0],['web.libraryChannels.healthUnresolved',health.health?.unplaceable??0],['web.libraryChannels.healthNewSchedule',t(health.health?.building?'web.libraryChannels.healthBeingMade':'web.libraryChannels.healthUpToDate')]
+  ].map(([label,value])=><div key={label}><dt>{t(label as Parameters<typeof t>[0])}</dt><dd>{value}</dd></div>)}</dl></div></Dialog>}
+  {modal&&<Dialog footerDismisses open title={t(modal.kind==='logo'?'web.libraryChannels.uploadLogo':modal.kind==='remove'?'web.libraryChannels.deleteTitle':'web.libraryChannels.regenSchedule',{name:modal.row.name})} description={modal.kind==='remove'?t('web.libraryChannels.deleteBody'):modal.kind==='regenerate'?t('web.ownerChannels.regenerateBody'):undefined} onOpenChange={open=>{if(!open)close();}} footer={<><Button size="small" disabled={state.busy} onClick={close}>{t('action.cancel')}</Button>{modal.kind!=='logo'&&<Button size="small" variant="primary" disabled={busy} onClick={run}>{t(modal.kind==='remove'?'web.libraryChannels.delete':'web.libraryChannels.regenSchedule')}</Button>}</>}>
+   {modal.kind==='logo'&&<><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" aria-label={t('web.libraryChannels.uploadLogo')} disabled={busy} onChange={event=>{const file=event.currentTarget.files?.[0];event.currentTarget.value='';if(file&&!busy)void source.logo(modal.row,signal=>ports.uploadLogo(modal.row.id,file,signal)).then(()=>{if(source.isActive())setModal(undefined);});}}/>{modal.row.logo&&<Button size="small" disabled={busy} onClick={()=>void source.logo(modal.row,async signal=>{await removeOwnerChannelLogo(ports.api,modal.row.id,signal);return modal.row;}).then(()=>{if(source.isActive())setModal(undefined);})}>{t('builder.remove')}</Button>}</>}
+  </Dialog>}
+ </div>;
 }

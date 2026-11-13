@@ -4628,6 +4628,9 @@
       },
       "LibraryChannel": {
         "properties": {
+          "revision": {
+            "type": "string"
+          },
           "builder": {
             "$ref": "#/components/schemas/LibraryChannelBuilder"
           },
@@ -4685,6 +4688,7 @@
           }
         },
         "required": [
+          "revision",
           "id",
           "name",
           "number",
@@ -4743,6 +4747,9 @@
       },
       "LibraryChannelBlockPreset": {
         "properties": {
+          "revision": {
+            "type": "string"
+          },
           "description": {
             "type": "string"
           },
@@ -4760,6 +4767,7 @@
           }
         },
         "required": [
+          "revision",
           "id",
           "name",
           "library",
@@ -5245,6 +5253,32 @@
           "description",
           "available",
           "builder"
+        ],
+        "type": "object"
+      },
+      "LibraryChannelTemplateChoices": {
+        "properties": {
+          "moodLabels": {
+            "additionalProperties": {"type": "string"},
+            "type": "object"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryChannelTemplate"
+            },
+            "type": "array"
+          },
+          "moodAvailable": {
+            "type": "boolean"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "timeZone",
+          "moodAvailable"
         ],
         "type": "object"
       },
@@ -17426,7 +17460,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LibraryChannelTemplatePage"
+                  "$ref": "#/components/schemas/LibraryChannelTemplateChoices"
                 }
               }
             },

@@ -39,6 +39,11 @@ type tagCursor struct {
 // reads it, or a load run at 400,000 passes 300 ms, start a profile limited to a few
 // libraries from item_tags_library instead.
 func (d *DB) VisibleTags(ctx context.Context, v Viewer, all bool, kind, cursor string, limit int) (TagPage, error) {
+	return d.VisibleTagsMatching(ctx, v, all, kind, cursor, limit, nil)
+}
+
+// VisibleTagsMatching also reads the names of selected identities without walking unrelated tags.
+func (d *DB) VisibleTagsMatching(ctx context.Context, v Viewer, all bool, kind, cursor string, limit int, only []string) (TagPage, error) {
 	var page TagPage
 	after := tagCursor{}
 	if cursor != "" {
@@ -76,6 +81,10 @@ func (d *DB) VisibleTags(ctx context.Context, v Viewer, all bool, kind, cursor s
 		}
 	}
 	where := `EXISTS (` + in + `)` + notBlocked
+	if only != nil {
+		where += ` AND t.public_id IN (SELECT value FROM json_each(@only))`
+	}
+	onlyJSON, _ := json.Marshal(only)
 	if kind != "" {
 		where += ` AND t.kind = @kind`
 	}
@@ -88,7 +97,7 @@ func (d *DB) VisibleTags(ctx context.Context, v Viewer, all bool, kind, cursor s
 	}
 	rows, err := queryAll(ctx, tx, `SELECT t.public_id, t.kind, t.name, t.norm_name FROM tags t WHERE `+where+`
 		ORDER BY t.kind, t.norm_name LIMIT @limit`,
-		[]any{sql.Named("kind", kind), sql.Named("k", after.Kind), sql.Named("n", after.Name), sql.Named("limit", limit+1)},
+		[]any{sql.Named("kind", kind), sql.Named("k", after.Kind), sql.Named("n", after.Name), sql.Named("limit", limit+1), sql.Named("only", string(onlyJSON))},
 		func(r *row) []any { return []any{&r.PublicID, &r.Kind, &r.Name, &r.norm} })
 	if err != nil {
 		return page, err

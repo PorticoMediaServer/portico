@@ -81,7 +81,7 @@ func (s *Server) searchRoutes() {
 	// search at the top of the profile's recent searches.
 	Handle(s, "GET /v1/search", WithProfile, func(r *http.Request, _ None) (SearchResults, error) {
 		query := r.URL.Query()
-		q := db.SearchQuery{Text: query.Get("q"), Kind: query.Get("kind"), Sort: query.Get("sort"), Cursor: query.Get("cursor")}
+		q := db.SearchQuery{Library: query.Get("library"), Text: query.Get("q"), Kind: query.Get("kind"), Sort: query.Get("sort"), Cursor: query.Get("cursor")}
 		var err error
 		if q.Limit, err = limitParam(query); err != nil {
 			return SearchResults{}, err
