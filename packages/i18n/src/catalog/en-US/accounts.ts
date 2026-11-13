@@ -102,6 +102,7 @@ export const accountMessages = {
   'accounts.profiles.cancel': 'Cancel',
   'accounts.profiles.onServer': 'Who’s watching on {server}?',
   'accounts.profiles.serverContext': 'On {server}',
+  'accounts.servers.forgetBody': 'This removes {server} from this device. You’ll need to sign in again to use it.',
   'accounts.profiles.retry': 'Try again',
   'accounts.servers.title': 'Your servers',
   'accounts.servers.local': 'Local servers',

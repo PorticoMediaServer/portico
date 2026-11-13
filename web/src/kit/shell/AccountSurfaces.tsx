@@ -48,7 +48,7 @@ export type AccountMenuActions = Readonly<{
 export type AccountMenuProps = Readonly<{
   open: boolean; onOpenChange: OverlayChange; trigger: ReactElement; current: ProfileIdentity;
   primary: boolean; accountFacts: readonly FactPart[]; profiles: readonly ProfileIdentity[];
-  serverChoices?:readonly {id:string;label:string;onSelect:()=>void}[]; actions: AccountMenuActions; signOutLabel?:string; serverAction?: ReactNode; notificationCount?: number; notificationDot?: boolean; t?: ShellTranslate;
+  serverChoices?:readonly {id:string;label:string;detail?:string;onSelect:()=>void}[]; actions: AccountMenuActions; signOutLabel?:string; serverAction?: ReactNode; notificationCount?: number; notificationDot?: boolean; t?: ShellTranslate;
 }>;
 export function AccountMenu({open, onOpenChange, trigger, current, primary, accountFacts, profiles, actions, serverChoices, signOutLabel, serverAction, notificationCount, notificationDot = false, t = tDefault}: AccountMenuProps) {
   const choose = (profile: ProfileIdentity) => actions.switchProfile(profile);
@@ -61,7 +61,7 @@ export function AccountMenu({open, onOpenChange, trigger, current, primary, acco
     </div>
     {serverAction}
     <MenuSeparator />
-    {serverChoices?.length ? <MenuGroup label={t('next.shell.switchServerMenu')}>{serverChoices.map(server=><MenuItem key={server.id} className={styles.menuAction} icon="i-server" onSelect={server.onSelect}>{server.label}</MenuItem>)}</MenuGroup> : <MenuItem className={styles.menuAction} icon="i-server" onSelect={actions.switchServer}>{t('next.shell.switchServerMenu')}</MenuItem>}
+    {serverChoices?.length ? <MenuGroup label={t('next.shell.switchServerMenu')}>{serverChoices.map(server=><MenuItem key={server.id} className={styles.menuAction} icon="i-server" description={server.detail} onSelect={server.onSelect}>{server.label}</MenuItem>)}</MenuGroup> : <MenuItem className={styles.menuAction} icon="i-server" onSelect={actions.switchServer}>{t('next.shell.switchServerMenu')}</MenuItem>}
     {actions.switchToLocalSignIn && <MenuItem className={styles.menuAction} icon="i-switch" onSelect={actions.switchToLocalSignIn}>{t('next.shell.switchToLocalSignIn')}</MenuItem>}
     <MenuItem className={styles.menuAction} icon="i-gear" onSelect={actions.settings}>{t('next.shell.settings')}</MenuItem>
     {actions.notifications && <MenuItem className={styles.menuAction} icon="i-bell" onSelect={actions.notifications} aria-label={notificationCount === undefined ? t('next.shell.notifications') : t('next.shell.notificationsUnread', {count: notificationCount})}><span className={styles.notificationAction}>{t('next.shell.notifications')}{notificationCount !== undefined && notificationCount > 0 ? <span className={styles.notificationCount}>{notificationCount}</span> : notificationDot ? <span className={styles.notificationMenuDot} aria-hidden="true" /> : undefined}</span></MenuItem>}

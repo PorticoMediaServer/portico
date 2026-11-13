@@ -1,3 +1,5 @@
+import {serverNow} from '../../../../packages/client-core/src/server-clock';
+import {savedServerRows} from './saved-server-rows';
 import {clearNativeAppLog} from './app-log';
 import {createHostedAccountApi} from '../../../../packages/client-core/src/query/hosted-account-transport';
 import {readHostedAccountIdentity, readViewerIdentity} from '../../../../packages/client-core/src/query/connection-operations.ts';
@@ -59,11 +61,8 @@ export class NativeAccounts {
     const generation = this.generation; this.assertCurrent(generation);
     const state = await nativeAppSessions.read(); this.assertCurrent(generation);
     const names = await readNativeServerDisplays(state.servers); this.assertCurrent(generation);
-    return Object.freeze({selectedServerId: state.selectedServerId, servers: Object.freeze(state.servers.map(value => Object.freeze({
-      id: value.connection.pin.serverId, name: names.find(name => name.serverId === value.connection.pin.serverId)!.name, signIn: value.signIn,
-      familyId: value.connection.session.sessionFamilyId, fingerprint: value.connection.pin.fingerprint,
-      labelKey: signInLabelKey(value.signIn),
-    })))});
+    return Object.freeze({selectedServerId: state.selectedServerId, servers: savedServerRows(state.servers,
+      serverId => names.find(name => name.serverId === serverId)!.name, signInLabelKey, serverNow())});
   }
   /** Capture before credentials begin; canonical admission refuses every stale completion. */
   async admission(signIn: NewServerConnection['signIn'], hostedAccount?: PorticoAccountScope): Promise<NewServerConnection> {

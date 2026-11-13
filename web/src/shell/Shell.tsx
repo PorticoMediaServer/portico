@@ -56,7 +56,7 @@ export type ShellProps = Readonly<{
   reachability?: Readonly<{getSnapshot: () => 'reachable' | 'unreachable'; subscribe: (listener: () => void) => () => void}>;
   onSignOut: () => void; onSwitchProfile?:(profileId:string,pin:string,signal:AbortSignal)=>Promise<void>;
   /** PR-1: management refusals for this sign-in; each one asks for the open profile's PIN (choosing it again unlocks management). */
-  manageGate?: ManageGate; onSwitchServer?:(serverId:string,expectedRevision?:number)=>Promise<void>; savedServers?:readonly {id:string;label:string}[];
+  manageGate?: ManageGate; onSwitchServer?:(serverId:string,expectedRevision?:number)=>Promise<void>; savedServers?:readonly {id:string;label:string;detail?:string}[];
   onFeedback?: () => void;
   /** The edits kept on this device while the server is out of reach; the shell shows how many are waiting. */
   outbox?: Outbox;

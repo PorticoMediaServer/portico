@@ -1,7 +1,7 @@
 import React, {useCallback, useState} from 'react';
 import {findNodeHandle, ScrollView, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import type {PhoneServerRow} from './PhoneServerChooser';
+import {serverRowDetail, type PhoneServerRow} from './PhoneServerChooser';
 import type {nativeAccounts} from '../../platform/accounts';
 import {ColourBackdrop} from '../../kit/artwork';
 import {Button, Focusable} from '../../kit/controls';
@@ -16,7 +16,7 @@ type Snapshot = Awaited<ReturnType<typeof nativeAccounts.snapshot>>;
 /** Connect24. Presence is omitted until a real directory observation exists. */
 export function TVServerChooser(props: {
   snapshot?: Snapshot; busy: boolean; error?: React.ReactNode; owner: boolean; onBack?: () => void;
-  onSelect: (row: PhoneServerRow) => void; onSignOut: (row: PhoneServerRow) => void;
+  onSelect: (row: PhoneServerRow) => void; onSignOut: (row: PhoneServerRow) => void; onForget: (row: PhoneServerRow) => void;
   onRefresh: () => void; onAdd: () => void; certificates?: React.ReactNode; footer?: React.ReactNode;
 }) {
   return <FocusProvider><Chooser {...props}/></FocusProvider>;
@@ -24,13 +24,13 @@ export function TVServerChooser(props: {
 /** Connect24 starts focus on the first server row; Down moves server to server, then Refresh
  * servers and Use a local server, then the footer's Link a TV. The two actions sit side by side as
  * drawn, so Down from Refresh is pointed at Use a local server (the caption's order); Up from
- * either returns to the server rows. A server's Forget sits right of its row (Right reaches it,
- * Left returns) and is not on the vertical path. Back is the remote key. A pending switch,
+ * either returns to the server rows. A server's Sign out (only while its sign-in is live) and Forget sit right
+ * of its row (Right reaches them, Left returns) and are not on the vertical path. Back is the remote key. A pending switch,
  * sign-out or refresh detaches every control, so the chooser asks for that start again when the
  * run ends. */
-function Chooser({snapshot, busy, error, owner, onSelect, onSignOut, onRefresh, onAdd, certificates, footer}: {
+function Chooser({snapshot, busy, error, owner, onSelect, onSignOut, onForget, onRefresh, onAdd, certificates, footer}: {
   snapshot?: Snapshot; busy: boolean; error?: React.ReactNode; owner: boolean; onBack?: () => void;
-  onSelect: (row: PhoneServerRow) => void; onSignOut: (row: PhoneServerRow) => void;
+  onSelect: (row: PhoneServerRow) => void; onSignOut: (row: PhoneServerRow) => void; onForget: (row: PhoneServerRow) => void;
   onRefresh: () => void; onAdd: () => void; certificates?: React.ReactNode; footer?: React.ReactNode;
 }) {
   const theme = useTheme(), t = defaultI18n.t;
@@ -56,12 +56,13 @@ function Chooser({snapshot, busy, error, owner, onSelect, onSignOut, onRefresh, 
       <Icon name="i-server" size={28} color={theme.colors.accentStrong}/>
       <View style={{flex: 1, gap: 6}}>
         <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{value.name}</Text>
-        <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t(value.labelKey)}</Text>
+        <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{serverRowDetail(value)}</Text>
       </View>
       {connected && owner && <Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{t('accounts.settings.owner')}</Text>}
       {!connected && <Icon name="i-right" size={26} color={theme.colors.textTertiary}/>}
     </Focusable>
-    <Button focusId={`signout:${value.id}`} variant="text" size="small" disabled={busy} onPress={() => onSignOut(value)}>{t('accounts.signOut.server', {server: value.name})}</Button>
+    {value.signedIn && <Button focusId={`signout:${value.id}`} variant="text" size="small" disabled={busy} onPress={() => onSignOut(value)}>{t('accounts.signOut.server', {server: value.name})}</Button>}
+    <Button focusId={`forget:${value.id}`} variant="text" size="small" disabled={busy} onPress={() => onForget(value)}>{t('connection.identity.forget', {server: value.name})}</Button>
   </View>;
   return <View testID="tv-server-chooser" style={{flex: 1, backgroundColor: theme.colors.ink}}>
     <ColourBackdrop shape="side" fill/>
