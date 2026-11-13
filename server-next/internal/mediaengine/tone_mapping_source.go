@@ -17,8 +17,8 @@ import (
 
 // HEVC mastering metadata can live on decoded frames, absent from the header
 // probe. Read one frame only when an SDR conversion needs the distinction.
-// Failure keeps the conservative processor tone mapping and can be retried;
-// successful observations share the existing file-version facts cache.
+// A completed or failed attempt shares the existing file-version facts cache,
+// so an unreadable first frame delays only the first Play of that version.
 func (e *Engine) observeToneMappingSource(ctx context.Context, path string, place db.FileOnDisk, remoteID int64, facts mediafacts.Facts) mediafacts.Facts {
 	video := streaming.SourceFromFacts(streaming.FileFacts{Streams: facts.Streams}).Video
 	if video == nil || video.MasterDisplay != "" {
@@ -34,6 +34,17 @@ func (e *Engine) observeToneMappingSource(ctx context.Context, path string, plac
 	if stream < 0 {
 		return facts
 	}
+	key := fmt.Sprint(remoteID, "\x00", path, "\x00", place.Size, "\x00", place.ModifiedNS)
+	e.mu.Lock()
+	if known := e.facts[key]; known.FrameHDRChecked {
+		e.mu.Unlock()
+		return known
+	}
+	// Publish the attempt before reading. Another Play can use the processor
+	// immediately; success below replaces this with the measured metadata.
+	facts.FrameHDRChecked = true
+	e.facts[key] = facts
+	e.mu.Unlock()
 	file, closeFile, err := e.toneMappingInput(ctx, place, remoteID)
 	if err != nil {
 		return facts
@@ -57,7 +68,6 @@ func (e *Engine) observeToneMappingSource(ctx context.Context, path string, plac
 	if err != nil {
 		return facts
 	}
-	key := fmt.Sprint(remoteID, "\x00", path, "\x00", place.Size, "\x00", place.ModifiedNS)
 	raw, err := decoder.RunAnalysisProbe(ctx, e.processes, "playback-hdr:"+key, binary, bridge.URL(), reservation,
 		decoder.AnalysisProbeSpec{Kind: decoder.ProbeFrameHDR, StreamIndex: &video.Index})
 	if err != nil {
@@ -68,7 +78,6 @@ func (e *Engine) observeToneMappingSource(ctx context.Context, path string, plac
 	if mediafacts.ApplyFrameHDR(raw, &facts.Streams[stream].Detail) != nil {
 		return facts
 	}
-	facts.FrameHDRObserved = true
 	e.mu.Lock()
 	e.facts[key] = facts
 	e.mu.Unlock()
