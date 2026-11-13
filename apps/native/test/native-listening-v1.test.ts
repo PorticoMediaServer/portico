@@ -369,12 +369,12 @@ for (const [path, make] of policyAdapters) {
   });
 }
 
-test('handover captures original-family scope and calibrated native key clock', async () => {
+test('handover captures original-family scope without a server clock read', async () => {
  const x=bridge(),scope={serverId:'srv',origin:'https://portico.test',authority:'local',accountId:'acc',profileId:'pro',familyId:'original-family'};
- const adapter=new NativeListeningV1Adapter({bridge:x.b,principal:{origin:'https://portico.test',serverId:'srv',authority:'local',accountId:'acc',profileId:'pro'},mutationScope:()=>scope,mutationClock:async()=>-600000,bearer:()=> 'token',id:()=> 'owner-1',subscribe:x.subscribe});
+ const adapter=new NativeListeningV1Adapter({bridge:x.b,principal:{origin:'https://portico.test',serverId:'srv',authority:'local',accountId:'acc',profileId:'pro'},mutationScope:()=>scope,bearer:()=> 'token',id:()=> 'owner-1',subscribe:x.subscribe});
  await adapter.adopt({session:session('s1') as never,queueId:'q1',queueRevision:'7',durationSeconds:200,lastSeq:2,leaseMs:118000,transitions:true,intent:'playing'},()=>{});
  const context=x.calls.find(c=>c.name==='adopt')!.args[0] as Record<string,unknown>;
- assert.deepEqual(context.mutationScope,scope);assert.equal(context.mutationClockOffsetMs,-600000);
+ assert.deepEqual(context.mutationScope,scope);assert.equal('mutationClockOffsetMs' in context,false);
  await adapter.detach(false);
 });
 test('native pending/review/not-queued Stop is explicit and retains a rejected draft',async()=>{
@@ -386,10 +386,10 @@ test('native pending/review/not-queued Stop is explicit and retains a rejected d
   await assert.rejects(adapter.detach(true),(error:any)=>error.code===(state==='pending'?'mutation_pending':'mutation_not_queued')&&error.draft===draft);
  }
 });
-test('a family change during policy clock read never hands the successor credential to old owner',async()=>{
- const x=bridge();let familyId='original';let release!:()=>void;
- const clock=new Promise<void>(resolve=>{release=resolve;});
- const adapter=new NativeListeningV1Adapter({bridge:x.b,principal:{origin:'https://portico.test',serverId:'srv',authority:'local',accountId:'acc',profileId:'pro'},mutationScope:()=>({origin:'https://portico.test',serverId:'srv',authority:'local',accountId:'acc',profileId:'pro',familyId}),mutationClock:async()=>{await clock;return 0;},bearer:()=> 'current-token',id:()=> 'owner-1',subscribe:x.subscribe});
- const adopting=adapter.adopt({session:session('s1') as never,queueId:'q1',queueRevision:'7',durationSeconds:200,lastSeq:2,leaseMs:118000,transitions:true,intent:'playing'},()=>{});
- familyId='successor';release();await assert.rejects(adopting,{code:'mutation_scope_changed'});assert.equal(x.calls.some(c=>c.name==='adopt'),false);
+test('a changed family never hands the successor credential to an old owner',async()=>{
+ const x=bridge();let familyId='original';
+ const adapter=new NativeListeningV1Adapter({bridge:x.b,principal:{origin:'https://portico.test',serverId:'srv',authority:'local',accountId:'acc',profileId:'pro'},mutationScope:()=>({origin:'https://portico.test',serverId:'srv',authority:'local',accountId:'acc',profileId:'pro',familyId}),bearer:()=> 'current-token',id:()=> 'owner-1',subscribe:x.subscribe});
+ familyId='successor';
+ await assert.rejects(adapter.adopt({session:session('s1') as never,queueId:'q1',queueRevision:'7',durationSeconds:200,lastSeq:2,leaseMs:118000,transitions:true,intent:'playing'},()=>{}),{code:'mutation_scope_changed'});
+ assert.equal(x.calls.some(c=>c.name==='adopt'),false);
 });

@@ -1,5 +1,4 @@
 import {nativePlaybackView} from './native-surface';
-import {readUserMutationClockOffset} from '../../../../../packages/client-core/src/query/user-mutation-clock';
 import {nativeStopScope} from '../native-stop-scope';
 import React, {useCallback, useEffect, useRef, useSyncExternalStore, type ComponentRef} from 'react';
 import {AppState, Dimensions, NativeEventEmitter, NativeModules, Platform, UIManager, findNodeHandle, type HostComponent, type ViewProps} from 'react-native';
@@ -85,7 +84,7 @@ export function createNativeShellPlaybackAdapter(options: NativePlaybackFactoryO
   const capabilitiesEvent = capabilitiesModule ? new NativeEventEmitter(capabilitiesModule).addListener('portico.capabilities', () => { void publishCapabilities(); }) : undefined;
   const emitter = new NativeEventEmitter(native as never);
   const listening = typeof native.adoptListeningSession === 'function' ? new NativeListeningV1Adapter({
-    bridge: native, mutationClock: () => readUserMutationClockOffset(options.api), mutationScope: () => nativeStopScope(options.api.baseUrl, options.api.getOutboxSession()), route: options.api.getRouteConnection(),
+    bridge: native, mutationScope: () => nativeStopScope(options.api.baseUrl, options.api.getOutboxSession()), route: options.api.getRouteConnection(),
     principal: {origin: options.api.baseUrl, serverId: viewer.serverId, authority: viewer.authority as 'local' | 'hosted', accountId: viewer.accountId, profileId: viewer.profileId},
     bearer: () => options.session()?.accessToken ?? '', id: requestId,
     subscribe: sink => { const subscription = emitter.addListener('PorticoListeningSnapshot', sink); return () => subscription.remove(); },

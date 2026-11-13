@@ -8,11 +8,10 @@ export {nativeStopScope, sameNativeStopScope, type NativeStopScope} from './nati
 
 /**
  * The system audio player (Kotlin and Objective-C) sends its own stop when listening ends from the
- * lock screen or a notification, with no JavaScript running. It still speaks the present server's
- * older stop protocol, and keeps its stops in a native store of its own. This file is the little
- * that store needs from JavaScript: which sign-in is active, and clearing out stops that are done.
+ * lock screen or a notification, with no JavaScript running: the server's plain stop with the final
+ * position, kept in a native store of its own until it is answered. This file is the little that
+ * store needs from JavaScript: which sign-in is active, and clearing out stops that are done.
  * Everything else a person does while out of reach goes through the outbox (`outbox-store.ts`).
- * This goes when the native players send a plain stop.
  */
 export interface NativeUserMutationBridge {
   userMutationTransaction(operation: 'read' | 'cas' | 'scope' | 'retireScope', payload: string): Promise<string | boolean>;

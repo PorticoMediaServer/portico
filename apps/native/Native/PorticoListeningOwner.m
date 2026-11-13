@@ -211,7 +211,7 @@ static NSDictionary *V1DecodePlan(NSDictionary *presentation){
  if(queueId!=NSNull.null&&queueId&&(!V1ID(queueId)||!V1Revision(queueRevision))){if(error)*error=ListeningError(@"listening_queue_invalid");return NO;}
  if(!ListeningNumber(context[@"lastSeq"],0,9007199254740991.0,YES)||!ListeningNumber(context[@"leaseMs"],0,120000,NO)||!ListeningNumber(context[@"durationSeconds"],0,1e9,NO)||![@[@"playing",@"paused"] containsObject:context[@"intent"]]||!ListeningBool(context[@"transitions"])){if(error)*error=ListeningError(@"listening_handover_invalid");return NO;}
  if(_owner)[self retire:_owner stop:NO];
- _mutationIssuedBaseMs=Wall()*1000+[context[@"mutationClockOffsetMs"] doubleValue];_mutationClockMono=Mono();
+ _mutationIssuedBaseMs=Wall()*1000;_mutationClockMono=Mono();
  _mutationScope=V1Dictionary(context[@"mutationScope"]);_stopDisposition=nil;
  _owner=[owner copy];_chapterSteps=nil;_origin=[origin copy];_token=[token copy];_journalKey=[@"listening-v1:" stringByAppendingString:principal];
  _pausedAt=0;_wasPlaying=NO;_session=[session copy];_audible=nil;_end=nil;_queueHeader=nil;
@@ -1146,31 +1146,6 @@ static BOOL ListeningConsecutiveOnAlbum(NSString *album,NSInteger disc,NSInteger
  if(retry){NSScanner *scan=[NSScanner scannerWithString:retry];long long seconds=0;if([scan scanLongLong:&seconds]&&scan.isAtEnd&&seconds>=0)delay=MAX(delay,seconds*1000.0);else{NSDateFormatter *f=[NSDateFormatter new];f.locale=[[NSLocale alloc]initWithLocaleIdentifier:@"en_US_POSIX"];f.timeZone=[NSTimeZone timeZoneForSecondsFromGMT:0];f.dateFormat=@"EEE, dd MMM yyyy HH:mm:ss zzz";NSDate *date=[f dateFromString:retry];if(date)delay=MAX(delay,date.timeIntervalSince1970*1000-(_mutationIssuedBaseMs+(Mono()-_mutationClockMono)*1000));}}
  return delay;
 }
-- (void)lookupStop:(NSDictionary *)entry token:(NSString *)token origin:(NSString *)origin floor:(double)floor {
- if(![self stopAuthorized:entry]){[self publishStop:@{@"key":entry[@"key"],@"state":@"quarantined",@"code":@"mutation_scope_changed"}];return;}
- PorticoListeningRequest *request=[PorticoListeningRequest new];request.timeout=10;request.byteLimit=65536;
- __weak PorticoListeningRequest *weak=request;
- request.completion=^(NSInteger status,id value,double started){
-  NSDictionary *raw=V1Dictionary(value);if(V1Dictionary(raw[@"data"]))raw=raw[@"data"];
-  NSArray *statuses=@[@"applied",@"already_stopped",@"deleted",@"removed",@"partial",@"conflict",@"invalid",@"terminal"];
-  BOOL fields=YES;for(NSString *field in @[@"revision",@"generation",@"positionMs"])if(raw[field]&&!ListeningNumber(raw[field],0,9007199254740991.0,YES))fields=NO;
-  if(raw[@"generation"]&&[raw[@"generation"] doubleValue]>2147483647)fields=NO;
-  if(raw[@"targetId"]&&(!Text(raw[@"targetId"])||[raw[@"targetId"] lengthOfBytesUsingEncoding:NSUTF8StringEncoding]>128))fields=NO;
-  if(raw[@"positionStatus"]&&![@[@"",@"applied",@"already_stopped",@"not_renderer",@"policy_rejected",@"unchanged"] containsObject:raw[@"positionStatus"]])fields=NO;
-  if(fields&&status>=200&&status<300&&[raw[@"key"] isEqual:entry[@"key"]]&&[raw[@"operation"] isEqual:@"stop_playback_session"]&&[statuses containsObject:raw[@"status"]]&&ListeningNumber(raw[@"committedMs"],0,9007199254740991.0,YES)&&ListeningNumber(raw[@"expiresMs"],[raw[@"committedMs"] doubleValue],9007199254740991.0,YES)){
-   NSMutableDictionary *receipt=[NSMutableDictionary new];for(NSString *field in @[@"key",@"operation",@"status",@"targetId",@"revision",@"generation",@"positionMs",@"positionStatus",@"committedMs",@"expiresMs"])if(raw[field])receipt[field]=raw[field];
-   BOOL rejected=[@[@"partial",@"conflict",@"invalid",@"terminal"] containsObject:raw[@"status"]]||[raw[@"positionStatus"] isEqual:@"policy_rejected"];
-   [self finishStop:entry change:@{@"state":rejected?@"review":@"confirmed",@"receipt":receipt,@"errorCode":[raw[@"positionStatus"] isEqual:@"policy_rejected"]?@"final_position_rejected":rejected?@"mutation_needs_review":@""}];return;
-  }
-  NSString *code=V1ErrorCode(value);
-  if(status>=400&&status<500&&status!=429&&!(status==404&&[code isEqual:@"receipt_unknown"])){
-   [self finishStop:entry change:@{@"state":(status==401||status==403)?@"quarantined":@"review",@"errorCode":code.length?code:@"mutation_needs_review"}];return;
-  }
-  double delay=MAX(floor,[self stopRetryFloor:weak.responseHeaders]);
-  [self finishStop:entry change:@{@"state":@"pending",@"dueMs":@(MIN(9007199254740991.0,Wall()*1000+delay)),@"errorCode":@"mutation_pending"}];
- };
- [request start:[NSURL URLWithString:[origin stringByAppendingFormat:@"/v1/user-mutations/%@",entry[@"key"]]] token:token body:nil method:@"GET"];
-}
 - (NSDictionary *)reserveStop:(NSString *)owner position:(double)position {
  NSDictionary *scope=_mutationScope;NSString *session=_session[@"id"];id generation=_session[@"presentation"][@"generation"];
  if(!scope||!V1ID(session)||!ListeningNumber(generation,0,9007199254740991.0,YES)){[self publishStop:@{@"state":@"not_queued",@"code":@"mutation_scope_changed"}];return nil;}
@@ -1179,7 +1154,8 @@ static BOOL ListeningConsecutiveOnAlbum(NSString *album,NSInteger disc,NSInteger
  long long now=llround(Wall()*1000),issued=llround(_mutationIssuedBaseMs+(Mono()-_mutationClockMono)*1000);NSString *key=[NSString stringWithFormat:@"p251_%lld_%@",issued,nonce],*identity=[NSString stringWithFormat:@"stop:%@:%@",session,generation],*path=[@"/v1/playback/sessions/" stringByAppendingString:session];
  NSDictionary *engine=[_controller listeningSnapshot],*binding=V1Dictionary(engine[@"binding"]);
  BOOL evidence=[binding[@"sessionId"] isEqual:session]&&[binding[@"generation"] isEqual:generation]&&[engine[@"observed"] boolValue]&&![engine[@"seeking"] boolValue];
- NSDictionary *body=evidence?@{@"generation":generation,@"positionMs":@((long long)llround(MAX(0,isfinite(position)?position:0)*1000))}:@{@"generation":generation};
+ // The stop carries the final position when the engine was showing this session; the server keeps it.
+ NSDictionary *body=evidence?@{@"positionMs":@((long long)llround(MAX(0,isfinite(position)?position:0)*1000))}:@{};
  NSDictionary *input=@{@"operation":@"stop_playback_session",@"method":@"DELETE",@"path":path,@"target":identity,@"body":body,@"headers":@{}};
  NSString *fingerprint=[[NSString alloc]initWithData:[NSJSONSerialization dataWithJSONObject:input options:(NSJSONWritingSortedKeys|NSJSONWritingWithoutEscapingSlashes) error:nil] encoding:NSUTF8StringEncoding];
  NSDictionary *entry=@{@"nativeStopOwner":owner,@"key":key,@"operation":@"stop_playback_session",@"method":@"DELETE",@"path":path,@"target":identity,@"intentId":identity,@"fingerprint":fingerprint,@"scope":scope,@"body":body,@"headers":@{@"Idempotency-Key":key},@"state":@"pending",@"attempts":@1,@"dueMs":@(now),@"leaseOwner":[@"native:" stringByAppendingString:key],@"leaseUntilMs":@(now+30000)};
@@ -1194,9 +1170,12 @@ static BOOL ListeningConsecutiveOnAlbum(NSString *album,NSInteger disc,NSInteger
  PorticoListeningRequest *request=[PorticoListeningRequest new];request.timeout=10;request.headers=entry[@"headers"];request.byteLimit=65536;
  __weak PorticoListeningRequest *weak=request;
  request.completion=^(NSInteger status,id value,double started){
+  // A stop is safe to send again, and one for a session the server no longer knows stops fine:
+  // any 2xx is the stop, a refusal is shown for review, and no answer is tried again later.
+  if(status>=200&&status<300){[self finishStop:entry change:@{@"state":@"confirmed",@"errorCode":@""}];return;}
   if(status>=400&&status<500&&status!=429){NSMutableDictionary *change=[@{@"state":(status==401||status==403)?@"quarantined":@"review",@"errorCode":V1ErrorCode(value).length?V1ErrorCode(value):@"mutation_needs_review"} mutableCopy];if([@[@400,@409,@412,@422] containsObject:@(status)])change[@"terminalProof"]=@{@"kind":@"refused",@"httpStatus":@(status),@"code":change[@"errorCode"]};[self finishStop:entry change:change];return;}
-  // A response alone is never the persisted result; even a timeout is looked up.
-  [self lookupStop:entry token:token origin:origin floor:[self stopRetryFloor:weak.responseHeaders]];
+  double delay=MAX(1000,[self stopRetryFloor:weak.responseHeaders]);
+  [self finishStop:entry change:@{@"state":@"pending",@"dueMs":@(MIN(9007199254740991.0,Wall()*1000+delay)),@"errorCode":@"mutation_pending"}];
  };
  [request start:[NSURL URLWithString:[origin stringByAppendingString:entry[@"path"]]] token:token body:entry[@"body"] method:@"DELETE"];
 }
