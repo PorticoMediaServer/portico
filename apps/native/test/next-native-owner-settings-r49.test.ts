@@ -63,7 +63,7 @@ test('Health says the free space and the database\'s size, and needs attention w
   assert.match(healthy.line, /Database /);
   const degraded = ownerHealthLine({degraded: true}, t);
   assert.equal(degraded.facts.degraded, true);
-  assert.equal(degraded.status, 'The database needs attention');
+  assert.equal(degraded.status, 'Needs attention', 'a major alert, not only the database: the web\'s word');
   assert.equal(degraded.line, '');
 });
 test('a server that just started says so only while its uptime is small', () => {
