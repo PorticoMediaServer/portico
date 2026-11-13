@@ -178,7 +178,16 @@ func porticoName(ip netip.Addr, zone string) string {
 	if zone == "" || !ip.IsValid() {
 		return ""
 	}
-	label := strings.ReplaceAll(ip.String(), ".", "-")
+	raw := ip.String()
+	// Services expands edge compression so an IPv6 DNS label never ends in a dash.
+	if ip.Is6() && (strings.HasPrefix(raw, "::") || strings.HasSuffix(raw, "::")) {
+		b, words := ip.As16(), make([]string, 8)
+		for i := range words {
+			words[i] = strconv.FormatUint(uint64(b[2*i])<<8|uint64(b[2*i+1]), 16)
+		}
+		raw = strings.Join(words, ":")
+	}
+	label := strings.ReplaceAll(raw, ".", "-")
 	return strings.ReplaceAll(label, ":", "-") + "." + zone
 }
 

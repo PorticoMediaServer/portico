@@ -105,3 +105,9 @@ func TestEnhancedAnswersAtThePublishedPorticoName(t *testing.T) {
 		t.Errorf("the published name answered %d once the Portico address was set", code)
 	}
 }
+
+func TestIPv6NameUsesServicesCanonicalEdgeCompression(t *testing.T) {
+	if got := porticoName(netip.MustParseAddr("2606:4700::"), "fixture.portico.direct"); got != "2606-4700-0-0-0-0-0-0.fixture.portico.direct" {
+		t.Fatal(got)
+	}
+}
