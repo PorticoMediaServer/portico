@@ -50,3 +50,14 @@ test("Home's phone hero and title washes with no backdrop (music, books, Now Pla
     assert.equal(all.some(node => node.props?.testID === 'hero-wash'), false, `${treatment}, backdrop ${backdrop}`);
   }
 });
+
+// W2 (lead's ruling 13 Nov): the phone album and artist pages drew a private copy of `.amb-l` with an extra ink layer at
+// .45 over it, which turned the cover's colour grey. They now draw the kit's wash, `page`: the same 760 pt .42 wash, nothing over it.
+test('a phone page with no backdrop of its own (album, artist) draws only the kit wash', async () => {
+  const {all, theme} = await render(402, 'page', false), spec = theme.spec.hero.phoneTitle;
+  const wash = all.find(node => node.props.testID === 'hero-wash');
+  assert.equal(flat(wash.props.style).height, spec.wash.height);
+  assert.deepEqual(all.filter(node => node.type === 'ArtworkAlphaMask').map(node => node.props.bottomOpaqueAt), [1 - spec.wash.opaqueAt], 'one mask: the wash fading out');
+  assert.equal(all.some(node => node.props?.id === 'phone-title-overlay'), false, 'no ink overlay');
+  assert.ok(nodes(wash).some(node => node.type === 'View' && flat(node.props.style).opacity === spec.wash.alpha));
+});
