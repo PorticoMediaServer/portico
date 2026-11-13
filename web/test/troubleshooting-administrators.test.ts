@@ -49,14 +49,15 @@ test('an administrator may call only the access kinds named for it; an unknown o
 });
 
 test('every route a Troubleshooting part names is a published route', () => {
-  const published = new Set(routes.map(route => route.id as string));
+  const api=JSON.parse(readFileSync(new URL('../../server-next/api/openapi.json',import.meta.url),'utf8'));
+  const published = new Set([...routes.map(route => route.id as string),...Object.entries(api.paths).flatMap(([path,methods])=>Object.keys(methods as object).map(method=>`${method.toUpperCase()} ${path}`))]);
   for (const [part, ids] of Object.entries(troubleshootingRoutes)) for (const id of ids) assert.ok(published.has(id), `${part}: ${id}`);
 });
 
 test('an administrator gets Messages and stuck files (spec: "Administrators see Messages and stuck files"); the owner gets every part', () => {
   assert.deepEqual([...troubleshootingParts('admin')].sort(), ['messages', 'stuckFiles']);
   // Stuck files light up from routes.ts alone: its one route publishes admin_scope.
-  assert.deepEqual(troubleshootingRoutes.stuckFiles, ['get_catalogue_failures']);
+  assert.deepEqual(troubleshootingRoutes.stuckFiles, ['GET /v1/admin/skipped']);
   assert.equal(serverTierMayCall('get_catalogue_failures', 'admin'), true);
   assert.ok(!troubleshootingRoutes.reports.includes('get_catalogue_failures' as never), 'stuck files are not gated by the owner\'s app logs');
   assert.equal(troubleshootingRowShown('troubleshooting.reports', 'admin'), true, 'the reports row opens stuck files for an administrator');
@@ -111,19 +112,19 @@ test('an administrator\'s Reports source reads only the stuck files; the owner\'
   const read = async (sections?: {reports: boolean; stuckFiles: boolean}) => {
     const paths: string[] = [];
     const api = {request: async <T>(path: string) => {paths.push(path.split('?')[0]!);
-      return (path.includes('catalogue/failures') ? {scope: {serverId: 'server', viewerFence: 'f'}, data: {failures: [], more: false}} : {items: [], nextCursor: ''}) as T;}};
+      return ({items: [], nextCursor: ''}) as T;}};
     const source = new SettingsReportsSource(api as never, 'server', 'viewer', () => true, () => {}, sections);
     await source.load();source.dispose();
     return paths;
   };
-  assert.deepEqual(await read({reports: false, stuckFiles: true}), ['/v1/admin/catalogue/failures']);
+  assert.deepEqual(await read({reports: false, stuckFiles: true}), ['/v1/admin/skipped']);
   const owner = await read();
-  assert.ok(owner.includes('/v1/admin/catalogue/failures') && owner.includes('/v1/admin/diagnostics/client-logs'), owner.join(' '));
+  assert.ok(owner.includes('/v1/admin/skipped') && owner.includes('/v1/admin/reports'), owner.join(' '));
 });
 
 test('a stuck-files-only Reports viewer draws stuck files alone, and says when none are stuck', async () => {
   const {ReportsPanel} = await import('../src/screens/settings/server/troubleshooting/Reports.tsx');
-  const snapshot = {phase: 'ready', reports: [], setAside: {failures: [], more: false}};
+  const snapshot = {phase: 'ready', reports: [], setAside: {items: []}};
   const source = {getSnapshot: () => snapshot, load: async () => {}, checkSetAside: async () => {}} as never;
   const html = renderToStaticMarkup(createElement(ReportsPanel, {source, subscribe: () => () => {}, isCurrent: () => true, downloadBase: '', reportError: () => {}, appLogs: false}));
   assert.match(html, /No files are stuck\./);

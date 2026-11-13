@@ -722,6 +722,18 @@ export class HttpLocalApi {
       return value as T;
     });
   }
+  /** A consented app log is plain text, read through the same authenticated exchange as JSON. */
+  async readReportLog(id: string, input?: AbortSignal): Promise<string> {
+    const path = serverPath('GET /v1/admin/reports/{id}/log', {id});
+    return withinDeadline(requestDeadlineMs(path, 'GET'), input, async signal => {
+      const response = await this.exchange(path, 'GET', undefined, signal);
+      if (!response.ok) await this.readAnswered(response, signal);
+      if (response.headers.get('Content-Type')?.split(';')[0] !== 'text/plain') throw new Error(unreadableServerResponse);
+      const text = await response.text();
+      throwIfAborted(signal);
+      return text;
+    });
+  }
   /** The owner's support ZIP is streamed by the server, not a JSON export receipt. */
   async downloadSupportExport(body: Readonly<Record<string, unknown>>, input?: AbortSignal): Promise<Blob> {
     return withinDeadline(60000, input, async signal => {

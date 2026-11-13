@@ -2,9 +2,8 @@ import {MetadataFacts} from '../../../../kit/MetadataFacts';
 import {useLayoutEffect, useMemo, useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {defaultI18n, type MessageId} from '@i18n';
 import {Tabs as TabsPrimitive} from 'radix-ui';
-import {type ClientReport} from '@core/client-reports.ts';
-import type {EvidenceRecord} from '@core/console.ts';
-import type {CatalogueFailure} from '@core/freshness.ts';
+import type {AppReport as ClientReport, OwnerRecord} from '@core/server-admin/owner-app-logs.ts';
+import type {ServerSkippedFile} from '../../../../../../packages/contracts/src/next/api.ts';
 import {sentence, when} from '@core/server-admin/console-words.ts';
 import {Button} from '../../../../kit/controls';
 import {Icon} from '../../../../kit/Icon';
@@ -29,14 +28,14 @@ export type ReportsPanelProps = Readonly<{
 
 const LANES: readonly Readonly<{id: RecordLane; label: MessageId}>[] = Object.freeze([
   {id: 'runtime', label: 'web.logs.laneServer'},
-  {id: 'client', label: 'web.logs.laneClient'},
   {id: 'audit', label: 'web.logs.laneAudit'},
 ]);
 const LEVELS: Readonly<Record<string, MessageId>> = Object.freeze({info: 'next.settings.levelInfo', warn: 'next.settings.levelWarn', error: 'next.settings.levelError', debug: 'next.settings.levelDebug'});
 const levelLabel = (severity: string | undefined) => t(LEVELS[severity ?? ''] ?? 'next.settings.levelInfo');
 const senderIcon = (deviceClass: string): 'i-phone' | 'i-tv' | 'i-laptop' | 'i-monitor' =>
   /phone|tablet|mobile/i.test(deviceClass) ? 'i-phone' : /tv|console/i.test(deviceClass) ? 'i-tv' : /laptop/i.test(deviceClass) ? 'i-laptop' : 'i-monitor';
-const sender = (report: ClientReport) => [report.platform, report.deviceClass, report.appVersion].filter(Boolean).join(' ') || t('server.reports.unknownSender');
+const sender = (report: ClientReport) => {const context=report.context as Record<string,unknown>|undefined;return [report.deviceName,context?.platform,context?.app,context?.appVersion].filter(value=>typeof value==='string'&&value).join(' ')||report.reporter||t('server.reports.unknownSender');};
+const reportText=(report:ClientReport&{log?:string})=>[report.message,report.context?JSON.stringify(report.context,null,2):'',report.log].filter(Boolean).join('\n\n');
 
 /** The drawn Reports tab: client reports, the titles a rebuild set aside, and the server's records by lane. */
 export function ReportsPanel(props: ReportsPanelProps) {
@@ -51,7 +50,7 @@ export function ReportsPanel(props: ReportsPanelProps) {
   if (state.phase === 'idle' || state.phase === 'loading' && !state.reports.length) return <p role="status">{t('next.settings.loading')}</p>;
   const appLogs = props.appLogs !== false;
   if (!appLogs) return <div className={styles.reports}>
-    <SetAside failures={state.setAside?.failures ?? []} more={state.setAside?.more ?? false} onCheck={() => {void props.source.checkSetAside();}} />
+    <SetAside failures={state.setAside?.items ?? []} more={!!state.setAside?.next} onCheck={() => {void props.source.checkSetAside();}} onMore={() => {void props.source.checkSetAside(true);}} />
   </div>;
   return <div className={styles.reports}>
     <section className={styles.panel}>
@@ -62,7 +61,7 @@ export function ReportsPanel(props: ReportsPanelProps) {
       </ul> : <p className={styles.none}>{t('server.reports.none')}</p>}
       {state.next && <div className={styles.pager}><Button variant="glass" size="small" onClick={() => {void props.source.more();}}>{t('server.showMore')}</Button></div>}
     </section>
-    {state.setAside && state.setAside.failures.length > 0 && <SetAside failures={state.setAside.failures} more={state.setAside.more} onCheck={() => {void props.source.checkSetAside();}} />}
+    {state.setAside && state.setAside.items.length > 0 && <SetAside failures={state.setAside.items} more={!!state.setAside.next} onCheck={() => {void props.source.checkSetAside();}} onMore={() => {void props.source.checkSetAside(true);}} />}
     {state.records && <Records records={state.records.items} lane={state.records.lane} next={state.records.next} onLane={lane => {void props.source.selectLane(lane);}}
       onOlder={() => {void props.source.moreRecords();}} onLatest={() => {void props.source.latestRecords();}} />}
     {reading?.source === props.source && <ReadReport key={reading.report.id} report={reading.report} source={props.source} onClose={() => setReading(undefined)} />}
@@ -87,7 +86,6 @@ function useReportDownload(source: SettingsReportsSource, report: ClientReport, 
     try {
       const value = await source.read(report.id, request.signal, report);
       if (!current()) return;
-      if (value.body === undefined) throw new Error('report_body_unavailable');
       const url = URL.createObjectURL(new Blob([JSON.stringify(value)], {type: 'application/json'}));
       const link = document.createElement('a');link.href = url;link.download = 'portico-client-report.json';
       try {if (current()) {document.body.appendChild(link);link.click();}} finally {link.remove();URL.revokeObjectURL(url);}
@@ -100,13 +98,13 @@ function useReportDownload(source: SettingsReportsSource, report: ClientReport, 
 function ReportRow({report, source, disabled, onRead, onDelete}: Readonly<{report: ClientReport; source: SettingsReportsSource; disabled: boolean; onRead: () => void; onDelete: () => void}>) {
   const [open, setOpen] = useState<object>(), active = useRef<object | undefined>(undefined), anchor = useRef<HTMLButtonElement>(null);
   const {download, failed} = useReportDownload(source, report);
-  const title = sender(report), whenText = defaultI18n.dateTime(report.receivedAt), size = defaultI18n.bytes(report.bytes);
+  const title = sender(report), whenText = defaultI18n.dateTime(report.createdAt);
   const close = () => {active.current = undefined;setOpen(undefined);};
   const choose = (action: () => void) => {if (!open || active.current !== open || disabled || !source.listed(report)) return;action();close();};
   useLayoutEffect(() => {active.current = undefined;setOpen(undefined);return () => {active.current = undefined;};}, [source, report]);
   return <li className={styles.reportRow}>
-    <Icon name={senderIcon(report.deviceClass)} size={20} />
-    <div className={styles.reportText}><b>{title}</b><small>{whenText} {size}</small>{failed && <small role="alert">{t('next.states.pageFailedBody')}</small>}</div>
+    <Icon name={senderIcon(String((report.context as Record<string,unknown>|undefined)?.platform??''))} size={20} />
+    <div className={styles.reportText}><b>{title}</b><small>{whenText}</small>{failed && <small role="alert">{t('next.states.pageFailedBody')}</small>}</div>
     <Button variant="glass" size="small" disabled={disabled} onClick={() => {if (source.listed(report)) onRead();}}>{t('server.reports.read')}</Button>
     <Button ref={anchor} size="small" variant="icon" icon="i-more" iconOnly aria-label={t('next.home.moreFor', {title})} disabled={disabled} onClick={() => {if (open) close();else if (source.listed(report)) {const next = {};active.current = next;setOpen(next);}}} />
     <Menu open={!!open && !disabled} onOpenChange={value => {if (!value) close();}} anchorRef={anchor} title={title} returnFocusRef={anchor} items={[
@@ -127,47 +125,37 @@ function ReadReport({report, source, onClose}: Readonly<{report: ClientReport; s
   useEffect(() => {
     const request = life.request;
     if (!request) return;
-    void source.read(report.id, request.signal, report).then(value => {if (life.request === request && !request.signal.aborted) setBody(value.body ?? '');})
+    void source.read(report.id, request.signal, report).then(value => {if (life.request === request && !request.signal.aborted) setBody(reportText(value));})
       .catch(() => {if (life.request === request && !request.signal.aborted) setFailed(true);});
   }, [report, source, life]);
   const text = failed ? t('next.states.pageFailedBody') : body === undefined ? t('next.settings.loading') : body || t('server.reports.empty');
   return <Dialog footerDismisses open onOpenChange={open => {if (!open) close();}} size="lg" title={t('server.reports.title')} initialFocusRef={done} returnFocusRef={done}
     footer={<><Button size="small" disabled={!current()} onClick={() => {void download();}}>{t('web.diagnostics.clientReportDownload')}</Button><Button ref={done} size="small" onClick={close}>{t('next.settings.done')}</Button></>}>
-    <p className={styles.reportMeta}><MetadataFacts parts={[sender(report), defaultI18n.dateTime(report.receivedAt), defaultI18n.bytes(report.bytes)]} /></p>
+    <p className={styles.reportMeta}><MetadataFacts parts={[sender(report), defaultI18n.dateTime(report.createdAt)]} /></p>
     {downloadFailed && <p role="alert" className={styles.failure}>{t('next.states.pageFailedBody')}</p>}
     <pre className={styles.log}>{text}</pre>
   </Dialog>;
 }
 
-/** Titles a catalogue rebuild could not finish; the server tries them again by itself. */
-function SetAside({failures, more, onCheck}: Readonly<{failures: readonly CatalogueFailure[]; more: boolean; onCheck: () => void}>) {
-  return <section className={styles.panel}>
-    <div className={styles.panelHead}><h3>{t('server.setAside.title')} <span className={styles.tag}>{t('next.settings.administratorsSee')}</span></h3></div>
-    <p className={styles.lede}>{t('server.setAside.lede')}</p>
-    {failures.length === 0 ? <p className={styles.none}>{t('next.settings.stuckFilesNone')}</p> : <ul className={styles.rows}>{failures.map((failure, index) => <li key={`${failure.domain}-${failure.entityId ?? index}`} className={styles.setAsideRow}>
-      <Icon name="i-alert" size={20} />
-      <div className={styles.reportText}><b>{failure.title || t('server.setAside.untitled')}</b>
-        <small>{t('server.setAside.tried', {count: failure.attempts, when: defaultI18n.dateTime(failure.failedAt)})}</small></div>
-      <p className={styles.reason}>{failure.reason}</p>
-    </li>)}</ul>}
-    {more && <p className={styles.note}>{t('server.setAside.more')}</p>}
-    <div><Button variant="glass" size="small" onClick={onCheck}>{t('server.setAside.check')}</Button></div>
-  </section>;
+/** Files skipped by scans, with the library, path and actual reason. */
+function SetAside({failures,more,onCheck,onMore}:{failures:readonly ServerSkippedFile[];more:boolean;onCheck:()=>void;onMore:()=>void}){
+ return <section className={styles.panel}><div className={styles.panelHead}><h3>{t('next.settings.troubleshootingStuckFiles')} <span className={styles.tag}>{t('next.settings.administratorsSee')}</span></h3></div><p className={styles.lede}>{t('next.settings.troubleshootingStuckFilesHelp')}</p>
+  {!failures.length?<p className={styles.none}>{t('next.settings.stuckFilesNone')}</p>:<ul className={styles.rows}>{failures.map((file,index)=><li key={`${file.libraryId}-${file.path}-${index}`} className={styles.setAsideRow}><Icon name="i-alert" size={20}/><div className={styles.reportText}><b>{file.libraryName}</b><small>{file.path}</small></div><p className={styles.reason}>{file.message}</p></li>)}</ul>}
+  <div><Button variant="glass" size="small" onClick={onCheck}>{t('server.setAside.check')}</Button>{more&&<Button variant="glass" size="small" onClick={onMore}>{t('server.showMore')}</Button>}</div></section>;
 }
 
 /** What the server noted, by lane, a page at a time. */
-function Records({records, lane, next, onLane, onOlder, onLatest}: Readonly<{records: readonly EvidenceRecord[]; lane: RecordLane; next?: string; onLane: (lane: RecordLane) => void; onOlder: () => void; onLatest: () => void}>) {
+function Records({records, lane, next, onLane, onOlder, onLatest}: Readonly<{records: readonly OwnerRecord[]; lane: RecordLane; next?: string; onLane: (lane: RecordLane) => void; onOlder: () => void; onLatest: () => void}>) {
   return <TabsPrimitive.Root value={lane} onValueChange={value => {const entry = LANES.find(entry => entry.id === value);if (entry) onLane(entry.id);}} asChild><section className={styles.panel}>
     <div className={styles.panelHead}><h3>{t('settings.server.records')}</h3></div>
     <p className={styles.lede}>{t('next.settings.recordsHelp')}</p>
     <TabsPrimitive.List className={styles.lanes} aria-label={t('settings.server.records')}>{LANES.map(entry => <TabsPrimitive.Trigger key={entry.id} value={entry.id}
       className={styles.lane}>{t(entry.label)}</TabsPrimitive.Trigger>)}</TabsPrimitive.List>
     <TabsPrimitive.Content value={lane} className={styles.lanePanel}>
-    {records.length ? <ul className={styles.rows}>{records.map(record => <li key={record.sequence} className={styles.recordRow}>
-      <span className={styles.level} data-level={record.severity ?? 'info'}>{levelLabel(record.severity)}</span>
-      <div className={styles.reportText}><b>{sentence(record.code ?? record.action ?? '—')}{record.component ? <span className={styles.component}> {sentence(record.component)}</span> : null}</b>
-        <small><MetadataFacts parts={[when(record.at), ...Object.entries(record.fields ?? {}).map(([key, value]) => `${sentence(key)} ${value}`)]} /></small></div>
-      <span className={styles.sequence}>#{record.sequence}</span>
+    {records.length ? <ul className={styles.rows}>{records.map((record,index) => <li key={index} className={styles.recordRow}>
+      {record.level&&<span className={styles.level} data-level={record.level}>{levelLabel(record.level)}</span>}
+      <div className={styles.reportText}><b>{record.message}{record.kind ? <span className={styles.component}> {sentence(record.kind)}</span> : null}</b>
+        <small><MetadataFacts parts={[when(Date.parse(record.at)),record.actor,record.target,record.detail, ...Object.entries(record.attrs ?? {}).map(([key, value]) => `${sentence(key)} ${value}`)]} /></small></div>
     </li>)}</ul> : <p className={styles.none}>{t('settings.server.records.none')}</p>}
     <div className={styles.pager}><Button variant="glass" size="small" onClick={onLatest}>{t('next.settings.recordsLatest')}</Button>
       <Button variant="glass" size="small" disabled={!next} onClick={onOlder}>{t('next.settings.recordsOlder')}</Button></div>
