@@ -74,7 +74,7 @@ function MoveHandoff(props: Readonly<{serverName: string; url: string; onBack: (
   if (address.pathname !== '/sign-in' || address.search) throw new Error('native_tv_move_url_invalid');
   useHandoffBack(props.onBack);
   useDestinationEntryFocus({visible: true, intent: 'enter', revision: 0}, {regionId: id, childId: 'back'});
-  return <TVAuthLayout testID="tv-move-handoff" portico eyebrow={props.serverName}
+  return <TVAuthLayout testID="tv-move-handoff" portico={false} eyebrow={props.serverName}
     heading={defaultI18n.t('next.auth.tv.moveOnPhone')} body={defaultI18n.t('next.auth.tv.moveBody', {server: props.serverName})}
     aside={handoffCodeCard(theme, address, 'next.auth.tv.handoffHint', material.nativeBlur, 'tv-move-card')}>
     <FocusRegion id={id} entry="back" order={['back']} style={{flexDirection: 'row'}}>
