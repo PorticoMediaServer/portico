@@ -45,7 +45,8 @@ func (s *Service) DiscoverTuners(ctx context.Context, window time.Duration) (Liv
 	if window <= 0 || window > 10*time.Second {
 		window = 2 * time.Second
 	}
-	devices, err := discoverTuners(ctx, window, tunerTargets())
+	targets, prefixes := tunerTargets()
+	devices, err := discoverTuners(ctx, window, targets, prefixes)
 	if err != nil {
 		return out, err
 	}
@@ -146,7 +147,7 @@ func tunerReply(packet []byte) bool {
 	return strings.HasPrefix(lower, "http/1.1 200") && (strings.Contains(lower, "hdhomerun") || strings.Contains(lower, "silicondust"))
 }
 
-func discoverTuners(ctx context.Context, window time.Duration, targets []netip.AddrPort) ([]LiveTunerDevice, error) {
+func discoverTuners(ctx context.Context, window time.Duration, targets []netip.AddrPort, prefixes []netip.Prefix) ([]LiveTunerDevice, error) {
 	conn, err := net.ListenUDP("udp4", &net.UDPAddr{})
 	if err != nil {
 		return nil, err
@@ -184,7 +185,7 @@ func discoverTuners(ctx context.Context, window time.Duration, targets []netip.A
 			return nil, err
 		}
 		ip := from.Addr().Unmap()
-		if seen[ip] || !ip.Is4() || !(ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLoopback()) || !tunerReply(buf[:n]) {
+		if seen[ip] || !ip.Is4() || !tunerReplyFrom(buf[:n], ip, prefixes) {
 			continue
 		}
 		seen[ip] = true
@@ -194,17 +195,21 @@ func discoverTuners(ctx context.Context, window time.Duration, targets []netip.A
 	return devices, nil
 }
 
-func tunerTargets() []netip.AddrPort {
-	targets := []netip.AddrPort{netip.MustParseAddrPort("255.255.255.255:65001"), netip.MustParseAddrPort("239.255.255.250:1900")}
+func tunerTargets() (targets []netip.AddrPort, prefixes []netip.Prefix) {
+	targets = []netip.AddrPort{netip.MustParseAddrPort("255.255.255.255:65001"), netip.MustParseAddrPort("239.255.255.250:1900")}
 	interfaces, _ := net.Interfaces()
 	for _, iface := range interfaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagBroadcast == 0 {
+		if iface.Flags&net.FlagUp == 0 {
 			continue
 		}
 		addresses, _ := iface.Addrs()
 		for _, address := range addresses {
 			prefix, err := netip.ParsePrefix(address.String())
-			if err != nil || !prefix.Addr().Is4() || prefix.Bits() > 30 {
+			if err != nil || !prefix.Addr().Is4() {
+				continue
+			}
+			prefixes = append(prefixes, prefix.Masked())
+			if iface.Flags&net.FlagBroadcast == 0 || prefix.Bits() > 30 {
 				continue
 			}
 			ip := prefix.Addr().As4()
@@ -215,5 +220,15 @@ func tunerTargets() []netip.AddrPort {
 			targets = append(targets, netip.AddrPortFrom(netip.AddrFrom4(ip), 65001))
 		}
 	}
-	return targets
+	return targets, prefixes
+}
+
+// Only directly connected networks may supply discovery facts. Private ranges
+// alone also include routed/VPN networks and cloud metadata endpoints.
+func tunerReplyFrom(packet []byte, ip netip.Addr, prefixes []netip.Prefix) bool {
+	directlyConnected := ip.IsLoopback()
+	for _, prefix := range prefixes {
+		directlyConnected = directlyConnected || prefix.Contains(ip)
+	}
+	return directlyConnected && tunerReply(packet)
 }
