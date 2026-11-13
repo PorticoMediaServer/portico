@@ -1058,8 +1058,10 @@ export class PlaybackService {
 
     if (this.snapshot.phase === "ended" && this.snapshot.itemId) {
       // Replay: the same title again with the choices it was playing with.
-      const last = this.lastPlay?.itemId === this.snapshot.itemId && !this.lastPlay.local ? this.lastPlay : undefined;
-      void this.play(this.snapshot.itemId, this.endedSeekPosition ?? 0, last?.prepared, last?.quality, last?.audioStream, last?.choices);
+      const last = this.lastPlay?.itemId === this.snapshot.itemId ? this.lastPlay : undefined;
+      if (last?.local) void this.playLocal(this.snapshot.itemId, last.local, this.endedSeekPosition ?? 0,
+        {...last.localContext, initialIntent: 'playing'}).catch(() => {});
+      else void this.play(this.snapshot.itemId, this.endedSeekPosition ?? 0, last?.prepared, last?.quality, last?.audioStream, last?.choices);
       return;
     }
     if (this.snapshot.phase === "starting" || this.snapshot.phase === "ready") {

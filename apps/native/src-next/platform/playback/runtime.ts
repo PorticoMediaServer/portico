@@ -795,7 +795,7 @@ export class NativePlaybackRuntime {
   startOffline = (entry: OfflineEntry, lifetime: NativeOfflinePlaybackLifetime): Promise<void> =>
     this.watchedStart({title: entry.title, ...(entry.artworkUrl ? {localArtwork: entry.artworkUrl} : {})},
       () => this.startOffline(entry, this.retryLifetime()), () => this.startOfflineNow(entry, lifetime));
-  private startOfflineNow = async (entry: OfflineEntry, lifetime: NativeOfflinePlaybackLifetime): Promise<void> => {
+  private startOfflineNow = async (entry: OfflineEntry, lifetime: NativeOfflinePlaybackLifetime, startSeconds?: number): Promise<void> => {
     const admitted = () => !lifetime.signal.aborted && this.currentAuthority() && lifetime.isCurrent();
     const retired = () => Object.assign(new Error('cancelled'), {name: 'AbortError'});
     if (!admitted()) throw retired();
@@ -816,7 +816,7 @@ export class NativePlaybackRuntime {
       this.bindOffline(source);
       this.expanded = !audioKind(source.metadata.kind);
       this.preparing = true;
-      await this.playback.playLocal(source.itemId, () => this.makeOfflineSession(source), undefined, {signal: controller.signal, isCurrent: current});
+      await this.playback.playLocal(source.itemId, () => this.makeOfflineSession(source), startSeconds, {signal: controller.signal, isCurrent: current});
       const session = this.playback.getSnapshot().session;
       accepted = !!session && this.offlineSource === source && !!this.offline.mediaUrl(session);
       if (!accepted) {
@@ -1523,6 +1523,7 @@ export class NativePlaybackRuntime {
     // A book part with known chapters moves by chapter, across parts (MU-7).
     const chapterPrevious = fence?.kind === 'queue' ? this.queue.chapterTarget('previous') : undefined, chapterNext = fence?.kind === 'queue' ? this.queue.chapterTarget('next') : undefined;
     const ready = !!fence && !this.retired && (playback.phase === 'ready' || playback.phase === 'starting');
+    const ended = !!fence && !this.retired && fence.kind !== 'channel' && playback.phase === 'ended';
     const session = this.currentSession();
     const localTracks = fence?.kind === 'local' ? this.localTracks?.getSnapshot() : undefined;
     const offered = view?.window;
@@ -1567,7 +1568,7 @@ export class NativePlaybackRuntime {
       ...(this.o.pictureInPictureControls ? {pictureInPicture: Object.freeze({request: this.pictureRequests, active: this.pictureAttempt?.state === 'active', state: this.pictureState, automatic: !this.retired && this.o.settings().autoPictureInPicture !== false,
         ...(this.pictureBinding && externalPresentationBinding && sameNativePresentation(this.pictureBinding, externalPresentationBinding) ? {binding: this.pictureBinding} : {})})} : {}), retired: this.retired,
       bookChapters: fence?.kind === 'queue' ? this.queue.bookChaptersView() : null,
-      capabilities: Object.freeze({queueSelection: queueSelectionReady, queueEdit: queueEditReady, queuePolicy: ready && fence?.kind === 'queue' && !!view && session?.queue?.queueId === view.queue.id && view.queue.currentEntryId === fence.entryId, retry: playback.phase === 'error' && !this.preparing && fence?.kind === 'queue' && session?.kind === 'vod' && session.presentation.subtitle?.delivery !== 'other' && view?.queue.currentEntryId === fence.entryId && view.queue.entries.some(entry => entry.id === fence.entryId && !entry.hidden && !entry.removed), play: ready && playback.intent === 'paused' || playback.phase === 'ended' && fence?.kind === 'queue' && !this.retired, pause: ready && playback.intent === 'playing', stop: !!fence, seek: ready && (seekWindow ? seekWindow.endSeconds > seekWindow.startSeconds : playback.duration > 0),
+      capabilities: Object.freeze({queueSelection: queueSelectionReady, queueEdit: queueEditReady, queuePolicy: ready && fence?.kind === 'queue' && !!view && session?.queue?.queueId === view.queue.id && view.queue.currentEntryId === fence.entryId, retry: playback.phase === 'error' && !this.preparing && fence?.kind === 'queue' && session?.kind === 'vod' && session.presentation.subtitle?.delivery !== 'other' && view?.queue.currentEntryId === fence.entryId && view.queue.entries.some(entry => entry.id === fence.entryId && !entry.hidden && !entry.removed), play: ready && playback.intent === 'paused' || ended, pause: ready && playback.intent === 'playing', stop: !!fence, seek: (ready || ended) && (seekWindow ? seekWindow.endSeconds > seekWindow.startSeconds : playback.duration > 0),
         previous: ready && fence?.kind === 'queue' && (chapterPrevious !== undefined ? !!chapterPrevious : playback.positionSeconds > 3 || currentIndex > 0), next: ready && fence?.kind === 'queue' && (chapterNext !== undefined ? !!chapterNext : !!view && view.next.reason !== 'end'), cast: ready && fence?.kind === 'queue' && !!this.o.openDestinations,
         // The system route picker moves the retained player; Portico adds no second transport.
         airPlayVideo: ready && fence?.kind === 'queue' && localPicture?.kind === 'video' && !this.path.controller.getSnapshot().changing
@@ -1748,7 +1749,7 @@ export class NativePlaybackRuntime {
     if (!this.matches(fence)) return;
     const state = this.playback.getSnapshot();
     // At the end, Play plays the title again from its start, as the end card's Play again does.
-    if (state.phase === 'ended' && fence.kind === 'queue') { await this.replay(fence); return; }
+    if (state.phase === 'ended' && fence.kind !== 'channel') { await this.replay(fence); return; }
     if (state.intent === 'playing') this.playback.pause(); else this.playback.resume();
   };
   selectQueuedEntry = async (fence: PlaybackFence, request: V1QueuedEntrySelection, lifetime: NativePlaybackReadLifetime): Promise<void> => {
@@ -1831,7 +1832,8 @@ export class NativePlaybackRuntime {
     if (!this.matches(fence)) return;
     if (fence.kind === 'channel') { this.channelControl?.retry(); return; }
     if (fence.kind === 'local') {
-      if (this.playback.getSnapshot().phase === 'error') await this.playback.retry();
+      if (this.playback.getSnapshot().phase === 'ended') await this.restartOffline(fence, 0);
+      else if (this.playback.getSnapshot().phase === 'error') await this.playback.retry();
       else {this.playback.seek(0); this.playback.resume();}
       return;
     }
@@ -1844,6 +1846,12 @@ export class NativePlaybackRuntime {
     else await this.queue.playItem(fence.itemId, 0, undefined, undefined, undefined,
       session?.discTitle ? {versionId: session.versionId, discTitle: session.discTitle} : undefined);
   };
+  private restartOffline(fence: Extract<PlaybackFence, {kind: 'local'}>, seconds: number): Promise<void> {
+    const entry = this.o.offlineDevice?.getSnapshot().entries.find(value => value.id === fence.entryId);
+    if (!entry) throw new Error(serviceText('downloads.offline.notPlayableHere'));
+    // A replay is a fresh local play, admitted again without the original row's lifetime.
+    return this.startOfflineNow(entry, this.retryLifetime(), seconds);
+  }
   trickplay = async (fence: PlaybackFence, signal: AbortSignal): Promise<TrickplaySet | null> => {
     // A download plays from its own kept sheets, with no server in reach (queue 6).
     if (fence.kind === 'local') {
@@ -1870,6 +1878,14 @@ export class NativePlaybackRuntime {
     if (!this.matches(fence) || !Number.isFinite(seconds) || seconds < 0 || !this.snapshot.capabilities.seek) return;
     const window = this.snapshot.seekWindow;
     if (fence.kind === 'channel' && (!window || seconds < window.startSeconds || seconds > window.endSeconds)) return;
+    const ended = this.playback.getSnapshot().phase === 'ended';
+    if (ended && fence.kind === 'local') {await this.restartOffline(fence, seconds); return;}
+    if (ended && fence.kind === 'queue') {
+      const session = this.currentSession();
+      await this.queue.playItem(fence.itemId, seconds, undefined, undefined, undefined,
+        session?.discTitle ? {versionId: session.versionId, discTitle: session.discTitle} : undefined);
+      return;
+    }
     this.playback.seek(seconds);
   };
   skip = async (fence: PlaybackFence, seconds: number): Promise<void> => { if (this.matches(fence) && Number.isFinite(seconds)) await this.seek(fence, Math.max(0, this.playback.getSnapshot().positionSeconds + seconds)); };

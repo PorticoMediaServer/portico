@@ -17,6 +17,21 @@ function setup(options:PlaybackOptions={}){
  return {service,stopped,remoteCreates:()=>remoteCreates};
 }
 
+test('Play after a local title ends reopens its admitted file, from zero or a chosen earlier position', async () => {
+ const x=setup();let serial=0;
+ const make=()=>local(`local:entry:${++serial}`);
+ const finish=()=>{const s=x.service.getSnapshot();x.service.ready(s.intentId);x.service.seekApplied(s.intentId,s.pendingSeek!.revision,0,'playing');x.service.fact(s.intentId,120,'ended');};
+ try {
+  await x.service.playLocal('download',make,0,{initialIntent:'paused'});finish();
+  x.service.resume();await tick();
+  assert.equal(serial,2);assert.equal(x.service.getSnapshot().session?.id,'local:entry:2');
+  assert.equal(x.service.getSnapshot().pendingSeek?.positionSeconds,0);assert.equal(x.service.getSnapshot().intent,'playing');
+  finish();x.service.seek(110);x.service.resume();await tick();
+  assert.equal(serial,3);assert.equal(x.service.getSnapshot().pendingSeek?.positionSeconds,110);
+  assert.equal(x.remoteCreates(),0,'a replay must never ask the server for a local title');
+ }finally{x.service.leave();}
+});
+
 test('a canceled or retired local caller cannot replace accepted playback or call its maker',async()=>{
  const x=setup();try{
   await x.service.playLocal('original',()=>local());const before=x.service.getSnapshot();let made=0;

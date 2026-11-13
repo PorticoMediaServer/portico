@@ -9,6 +9,6 @@ const runtime = readFileSync(new URL('../src-next/platform/playback/runtime.ts',
 // to an older copy of runtime.ts.
 test('Play at the end of a film is offered and replays the title through the player\'s own replay', () => {
   const toggle = /toggle = async \(fence: PlaybackFence\): Promise<void> => \{[\s\S]*?\n  \};/.exec(runtime)?.[0] ?? '';
-  assert.match(toggle, /state\.phase === 'ended' && fence\.kind === 'queue'\) \{ await this\.replay\(fence\); return; \}/);
-  assert.match(runtime, /play: ready && playback\.intent === 'paused' \|\| playback\.phase === 'ended' && fence\?\.kind === 'queue' && !this\.retired/);
+  assert.match(toggle, /state\.phase === 'ended' && fence\.kind !== 'channel'\) \{ await this\.replay\(fence\); return; \}/);
+  assert.match(runtime, /play: ready && playback\.intent === 'paused' \|\| ended/);
 });
