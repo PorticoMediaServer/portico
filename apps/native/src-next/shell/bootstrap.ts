@@ -107,7 +107,7 @@ export type NativeShellBootstrapContext = Readonly<{
   navigation: NativeShellNavigation;
 }>;
 /** Only the integrated family/action owners supply these implementations; never fallback no-ops. */
-export type NativeShellBindings = Pick<NativeShellRuntime, 'notice' | 'actions' | 'mixes' | 'musicDiscover' | 'listeningPlaylist' | 'listeningQueuePolicy' | 'listeningSongDetail' | 'selection' | 'setHomeWindow' | 'homeMenuRow' | 'renderSelection' | 'renderRoutes' | 'stacks' | 'renderWatch' | 'libraryMenu' | 'renderDestination' | 'renderHomeEmpty' | 'renderDownloads' | 'openServers' | 'connectionFacts' | 'error' | 'reportError' | 'onDestination' | 'scrollToTop' | 'registerScrollToTop' | 'registerTVPageBack' | 'registerTVRouteBack' | 'registerTVRailBack' | 'onArtworkError' | 'castControl' | 'ownerActivity'> & {
+export type NativeShellBindings = Pick<NativeShellRuntime, 'notice' | 'actions' | 'mixes' | 'musicDiscover' | 'listeningPlaylist' | 'listeningQueuePolicy' | 'listeningSongDetail' | 'selection' | 'setHomeWindow' | 'homeMenuRow' | 'renderSelection' | 'renderRoutes' | 'stacks' | 'renderWatch' | 'libraryMenu' | 'renderDestination' | 'renderHomeEmpty' | 'renderDownloads' | 'openServers' | 'connectionFacts' | 'error' | 'reportError' | 'onDestination' | 'scrollToTop' | 'registerScrollToTop' | 'registerTVPageBack' | 'registerTVRouteBack' | 'registerTVRailBack' | 'onArtworkError' | 'ownerActivity'> & {
   account: NativeShellSnapshot['account'];
   getState: () => Pick<NativeShellSnapshot, 'destination' | 'railDestination' | 'contentVisible' | 'selectionActive' | 'homeObscured' | 'homeVisible'>;
   attach: (runtime: NativeShellRuntime) => void;

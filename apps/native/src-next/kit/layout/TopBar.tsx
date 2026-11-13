@@ -37,13 +37,13 @@ export function BarScrim() {
 }
 
 /** phone-detail's round control over a page's own artwork: a 38 pt glass circle (blur under ink at .45). */
-export const RoundBarButton = React.forwardRef<View, {icon: IconName; label: string; onPress: () => void; testID?: string; disabled?: boolean}>(function RoundBarButton({icon, label, onPress, testID, disabled}, ref) {
+export const RoundBarButton = React.forwardRef<View, {icon: IconName; label: string; onPress: () => void; testID?: string; disabled?: boolean; active?: boolean}>(function RoundBarButton({icon, label, onPress, testID, disabled, active = false}, ref) {
   const theme = useTheme();
   return <Focusable ref={ref} testID={testID} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} hitSlop={3} focusRadius={19} style={styles.round}>
     <View pointerEvents="none" style={{flex: 1, borderRadius: 19, overflow: 'hidden'}}>
       <BlurView blurType="dark" blurAmount={18} overlayColor="transparent" reducedTransparencyFallbackColor={theme.colors.ink} style={{flex: 1}}>
         <View collapsable={false} style={{flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.ink, .45)}}>
-          <Icon name={icon} size={22} color={theme.colors.text}/>
+          <Icon name={icon} size={22} color={active ? theme.colors.accentStrong : theme.colors.text}/>
         </View>
       </BlurView>
     </View>

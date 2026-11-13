@@ -111,7 +111,18 @@ export function NativePlayOnSheets({controller, artwork, ambient, airPlayVideo, 
   const helperStyle = [nativeType({size: tablet ? 12.5 : 13, weight: 500, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary, marginTop: 1}];
   const airPlayReady = hasAirPlay && airPlayVideo && !state.sending && !castState?.transferPending
     && !['connecting', 'pairing', 'waiting', 'casting'].includes(castState?.phase ?? '');
+  const chosenDevice = state.chosen?.kind === 'device' ? state.chosen.device.id : undefined, here = !state.chosen && !state.remote && castState?.phase !== 'casting';
   const directory = <View style={{paddingVertical: tablet ? 0 : 8}}>
+    {/* This device first: what plays here stays here, and choosing it ends a choice made from the top bar. */}
+    <Focusable focusId="play-on-this-device" testID="play-on-this-device" focusKind="row" accessibilityRole="button" accessibilityState={{selected: here}}
+      accessibilityLabel={t('device.thisDevice')} disabled={state.sending} onPress={() => controller.choose(undefined)}
+      style={({focused}) => ({...rowStyle, backgroundColor: focused ? 'rgba(237,245,250,.12)' : 'transparent'})}>
+      <Icon name={tablet ? 'i-tablet' : 'i-phone'} size={tablet ? 22 : 24} color={theme.colors.textSecondary}/>
+      <View style={{flex: 1}}><Text style={titleStyle}>{t('device.thisDevice')}</Text></View>
+      {here && <Icon name="i-check" size={18} color={theme.colors.accentStrong}/>}
+    </Focusable>
+    {state.chosen && <Text testID="play-on-next" style={[...helperStyle, {paddingHorizontal: 12, paddingBottom: 4}]}>{state.chosen.kind === 'cast'
+      ? t('playOn.nextPlaysOnCast') : t('playOn.nextPlaysOn', {device: state.chosen.device.displayName})}</Text>}
     {airPlayReady && <View testID="play-on-airplay" style={rowStyle}>
       <Icon name="i-airplay" size={tablet ? 22 : 24} color={theme.colors.textSecondary}/>
       <View style={{flex: 1}}><Text style={titleStyle}>{t('playOn.airplay')}</Text><Text style={helperStyle}>{t('playOn.airplaySubtitle')}</Text></View>
@@ -119,11 +130,11 @@ export function NativePlayOnSheets({controller, artwork, ambient, airPlayVideo, 
     </View>}
     {castState?.available && <Focusable focusId="play-on-cast" testID="play-on-cast" focusKind="row" accessibilityRole="button"
       accessibilityLabel={t('playOn.googleCast')} disabled={state.sending || castState.transferPending || ['connecting', 'pairing', 'waiting'].includes(castState.phase)}
-      onPress={castState.phase === 'casting' ? controller.openCastRemote : controller.startCast}
+      onPress={castState.phase === 'casting' ? controller.openCastRemote : () => controller.choose('cast')}
       style={({focused}) => ({...rowStyle, backgroundColor: focused ? 'rgba(237,245,250,.12)' : 'transparent'})}>
       <Icon name="i-cast" size={tablet ? 22 : 24} color={theme.colors.textSecondary}/><View style={{flex: 1}}>
         <Text style={titleStyle}>{t('playOn.googleCast')}</Text><Text style={helperStyle}>{t('playOn.chooseDevice')}</Text>
-      </View><Icon name="i-right" size={18} color={theme.colors.textTertiary}/>
+      </View><Icon name={state.chosen?.kind === 'cast' ? 'i-check' : 'i-right'} size={18} color={state.chosen?.kind === 'cast' ? theme.colors.accentStrong : theme.colors.textTertiary}/>
     </Focusable>}
     {castState && (['connecting', 'pairing', 'waiting'].includes(castState.phase) || castState.transferPending) && <View style={{flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 12}}>
       <Text style={[theme.type.body, {flex: 1, color: theme.colors.textSecondary}]}>{castState.phase === 'connecting' ? t('playOn.chooseDevice') : castState.phase === 'waiting' ? t('cast.waitingForAllow') : t('playOn.connectingTo', {device: castState.deviceName ?? t('cast.theTV')})}</Text>
@@ -136,7 +147,7 @@ export function NativePlayOnSheets({controller, artwork, ambient, airPlayVideo, 
     {state.directoryPhase === 'error' && <Text style={[theme.type.body, {color: theme.colors.textSecondary, paddingVertical: 14}]}>{state.directoryError || t('playOn.devicesUnavailable')}</Text>}
     {state.receivers.map(receiver => <Focusable key={receiver.id} focusId={`play-on-${receiver.id}`} testID={`play-on-${receiver.id}`} focusKind="row" accessibilityRole="button"
       accessibilityLabel={`${receiver.displayName}, ${t('playOn.porticoDevice')}`}
-      disabled={state.sending || castState?.transferPending || castState?.phase === 'casting'} onPress={() => {void controller.send(receiver);}}
+      disabled={state.sending || castState?.transferPending || castState?.phase === 'casting'} onPress={() => controller.choose(receiver)}
       style={({focused}) => ({...rowStyle, backgroundColor: focused ? 'rgba(237,245,250,.12)' : 'transparent'})}>
       <Icon name={receiverIcon(receiver.platform)} size={tablet ? 22 : 24} color={theme.colors.textSecondary}/>
       <View style={{flex: 1}}><Text style={titleStyle}>{receiver.displayName}</Text>
@@ -148,7 +159,7 @@ export function NativePlayOnSheets({controller, artwork, ambient, airPlayVideo, 
       </View>
       {receiver.playing && receiver.playing.state !== 'ended' ? <Button testID={`play-on-control-${receiver.id}`} variant="glass" size="compact" accessibilityLabel={t('playOn.controlDevice', {device: receiver.displayName})}
         disabled={state.sending || castState?.transferPending || castState?.phase === 'casting'} onPress={() => {void controller.control(receiver);}}>{t('playOn.control')}</Button>
-        : <Icon name="i-right" size={18} color={theme.colors.textTertiary}/>}
+        : chosenDevice === receiver.id ? <Icon name="i-check" size={18} color={theme.colors.accentStrong}/> : <Icon name="i-right" size={18} color={theme.colors.textTertiary}/>}
     </Focusable>)}
     {state.directoryPhase === 'ready' && !state.receivers.length && <Text style={[theme.type.body, {color: theme.colors.textTertiary, paddingVertical: 14}]}>{t('playOn.noDevices')}</Text>}
     {tablet && <View style={{height: 1, marginVertical: 6, marginHorizontal: 10, backgroundColor: 'rgba(237,245,250,.08)'}}/>}

@@ -23,6 +23,7 @@ import type {NativeShellRuntime, NativeShellSnapshot} from './runtime';
 import type {NativeShellRoute} from './routes';
 import {PhoneTabBar} from './PhoneTabBar';
 import {PhoneHomeHeader} from './PhoneHomeHeader';
+import {PlayOnButton} from './PlayOnButton';
 import {MediumRail} from './MediumRail';
 import {pageInsetElement} from '../kit/layout/page-inset';
 import {TVRail} from './TVRail';
@@ -352,7 +353,10 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   // On TV the page is covered whenever another layer is on top (the stack's one answer).
   const baseHidden = theme.isTV ? topLayer !== 'page' : snapshot.contentVisible === false || !!snapshot.mediaExpanded;
   const homePage = (active: boolean, obscured: boolean) => <HomeScreen runtime={runtime} authority={snapshot.authority} active={active} heroObscured={obscured} railExpanded={railExpanded} bottomInset={homeBottom} onScrolledChange={setHomeScrolled} holdRailDim={holdRailDim} releaseRailDim={releaseRailDim}/>;
-  const phoneHomeHeader = <PhoneHomeHeader profile={snapshot.profile} unread={snapshot.unreadNotifications} avatarRef={avatarRef} onProfile={() => navigate({kind: 'settings'})} viewerRole={snapshot.account.viewerRole} serverAction={snapshot.account.serverAction} castControl={runtime.castControl} activity={runtime.ownerActivity} scrolled={homeScrolled}/>;
+  // tablet 2: on a tablet's Home, Play on floats as a round glass button at the top right over the hero.
+  const tabletHomePlayOn = <View pointerEvents="box-none" style={{position: 'absolute', top: Math.max(insets.top, 24) + 20, right: 20, zIndex: theme.layers.navigation}}>
+    <PlayOnButton playOn={runtime.playOn} variant="round"/></View>;
+  const phoneHomeHeader = <PhoneHomeHeader profile={snapshot.profile} unread={snapshot.unreadNotifications} avatarRef={avatarRef} onProfile={() => navigate({kind: 'settings'})} viewerRole={snapshot.account.viewerRole} serverAction={snapshot.account.serverAction} castControl={<PlayOnButton playOn={runtime.playOn} variant="plain"/>} activity={runtime.ownerActivity} scrolled={homeScrolled}/>;
   /** One shell destination inside its stack screen: a tab's first screen, a library opened
    * from Libraries, or Settings (the modal stack's transparent root over the live page). */
   const renderShellPage = ({presentation, top, tabActive, modal}: NativeStackPage) => {
@@ -365,6 +369,7 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
       {page.kind === 'home' ? <>
         {homePage(top && !snapshot.mediaExpanded && snapshot.homeVisible, !!snapshot.homeObscured || settingsPage)}
         {layout.kind === 'phone' && tabActive && !snapshot.selectionActive && !chromeHidden && phoneHomeHeader}
+        {layout.kind === 'tablet' && tabActive && !snapshot.selectionActive && !chromeHidden && tabletHomePlayOn}
       </> : <View style={{flex: 1, paddingBottom: pageBottom}}>{runtime.renderDestination(page, openLibrary)}</View>}
     </View>;
   };
@@ -419,7 +424,8 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
             else if (next.kind === 'library') openLibrary(next.libraryId); else navigate(next, next.kind !== 'libraries');
           }}
           onProfile={() => setAccountOpen(true)}/>}
-        {!stacks && destination.kind === 'home' && layout.kind === 'phone' && <PhoneHomeHeader profile={snapshot.profile} unread={snapshot.unreadNotifications} avatarRef={avatarRef} onProfile={() => navigate({kind: 'settings'})} viewerRole={snapshot.account.viewerRole} serverAction={snapshot.account.serverAction} castControl={runtime.castControl} activity={runtime.ownerActivity} scrolled={homeScrolled}/>}
+        {!stacks && destination.kind === 'home' && layout.kind === 'tablet' && tabletHomePlayOn}
+        {!stacks && destination.kind === 'home' && layout.kind === 'phone' && <PhoneHomeHeader profile={snapshot.profile} unread={snapshot.unreadNotifications} avatarRef={avatarRef} onProfile={() => navigate({kind: 'settings'})} viewerRole={snapshot.account.viewerRole} serverAction={snapshot.account.serverAction} castControl={<PlayOnButton playOn={runtime.playOn} variant="plain"/>} activity={runtime.ownerActivity} scrolled={homeScrolled}/>}
         {layout.tabs && <Animated.View pointerEvents={snapshot.mediaExpanded ? 'none' : 'box-none'} accessibilityElementsHidden={snapshot.mediaExpanded}
           importantForAccessibility={snapshot.mediaExpanded ? 'no-hide-descendants' : 'auto'} onLayout={event => listeningTabBar.measure(event.nativeEvent.layout.height)}
           style={[{position: 'absolute', left: 0, right: 0, bottom: 0, height: barHeight, zIndex: theme.layers.sticky}, listeningTabBar.style]}>

@@ -184,8 +184,6 @@ export interface NativeShellRuntime {
   lyricsEnabled?: () => boolean;
   /** Direction-specific audiobook step; absent callers retain their old step. */
   skipForwardSeconds?: number;
-  /** Only installed when a real device destination control exists. */
-  castControl?: ReactNode;
   /** The owner's server activity (owner-dashboard 1a), on a phone or tablet only; absent for everyone else. */
   ownerActivity?: NativeOwnerActivity;
   desktopActivity?: ReactNode;
