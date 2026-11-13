@@ -88,18 +88,9 @@ func (l *List) dest() []any {
 		&l.Owned, &l.CanEdit, &l.Count, &l.Revision, &l.CreatedAt, &l.UpdatedAt, &l.sortName, &l.Everyone, &l.LibraryPublicID, &l.Query}
 }
 
-// unrestricted says the viewer sees every title of every library, so a list's stored entry
-// count is also the viewer's.
-func (a access) unrestricted() bool {
-	return a.known && a.allLibraries && a.maxAge == nil && len(a.blockedTags) == 0
-}
-
-// countSQL counts the entries of the list with alias l that the viewer may see. For a viewer
-// who sees everything it is the count kept on the row, so a list of any size costs nothing.
+// countSQL counts the list's current entries with the same visibility as its item read.
+// Item deletion cascades to list_entries, so a stored entry count can be out of date.
 func (a access) countSQL() string {
-	if a.unrestricted() {
-		return "l.entry_count"
-	}
 	return `(SELECT count(*) FROM list_entries ce CROSS JOIN items i ON i.id = ce.item_id WHERE ce.list_id = l.id AND ` + a.visible("i") + `)`
 }
 
