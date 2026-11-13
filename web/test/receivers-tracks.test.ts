@@ -10,7 +10,11 @@ function receivers(read: () => Promise<unknown>) {
   const r = new WatchReceivers({api: {request: async () => ({})} as never, runtime: {subscribe: () => () => {}} as never, isCurrent: () => true} as never);
   let reads = 0;
   (r as any).handoff = {getSnapshot: () => snapshot, subscribe: (l: () => void) => {listeners.add(l); return () => listeners.delete(l);},
-    remoteTracks: async () => {reads++; return read();}, audio: async () => true, subtitles: async () => true, release() {}, dispose() {}};
+    remoteTracks: async () => {reads++; return read();}, release() {}, dispose() {},
+    // As client-core's controller: the device's report, then a choice made here.
+    audio: async (id: string) => {picks.audioId = id; return true;}, subtitles: async (id: string | null) => {picks.subtitleId = id; return true;},
+    inUse: () => ({...(snapshot.remote.versionId ? {audioId: snapshot.remote.audioTrackId, subtitleId: snapshot.remote.subtitleId ?? null} : {}), ...picks})};
+  const picks: {audioId?: string; subtitleId?: string | null} = {};
   const report = async (change: object = {}) => {snapshot = {...snapshot, remote: {...snapshot.remote, ...change}}; r.refreshPresentation(); await new Promise(resolve => setImmediate(resolve));};
   return {r, report, reads: () => reads};
 }
@@ -30,4 +34,15 @@ test('a choice moves the check on the tracks already read; the list is not read 
   f.r.audio('a2'); f.r.subtitles('s1'); await new Promise(resolve => setImmediate(resolve)); await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual([f.r.getSnapshot().remote?.tracks?.audioId, f.r.getSnapshot().remote?.tracks?.subtitleId], ['a2', 's1']);
   assert.equal(f.reads(), 1);
+});
+
+test('the check marks start from what the device reports playing, and follow its later reports', async () => {
+  const f = receivers(async () => ({audio: [{id: 'a1', name: 'English'}, {id: 'a2', name: 'French'}], subtitles: [{id: 's1', name: 'English'}]}));
+  await f.report({versionId: 'v1', audioTrackId: 'a2', subtitleId: 's1'});
+  assert.deepEqual([f.r.getSnapshot().remote?.tracks?.audioId, f.r.getSnapshot().remote?.tracks?.subtitleId], ['a2', 's1']);
+  await f.report({subtitleId: null});
+  assert.equal(f.r.getSnapshot().remote?.tracks?.subtitleId, null, 'subtitles turned off on the device');
+  assert.equal(f.reads(), 1, 'the lists are not read again for a new report');
+  await f.report({versionId: 'v2'});
+  assert.equal(f.reads(), 2, 'another version has its own lists');
 });

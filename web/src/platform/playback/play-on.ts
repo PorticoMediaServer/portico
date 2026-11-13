@@ -58,6 +58,8 @@ export type PlayOnReceiversPort = Readonly<{
   stop?(): void;
   /** Lets the bar go; the device carries on as it is. */
   dismiss?(): void;
+  /** Play here (rule 27): stops the device, then lets the bar go, once this browser plays it. */
+  handBack?(): Promise<void>;
 }>;
 export type PlayOnLinkPreview = Readonly<{requestId: string; userCode: string; deviceName: string; platform?: string}>;
 /** Signing a television in with the code it shows: review the device, then allow or deny. */
@@ -288,7 +290,7 @@ export class PlayOnController {
     const remote = this.state.remote;
     return remote && token.id === remote.id && token.sequence === remote.sequence ? remote : undefined;
   }
-  openRemote(token: CastRemoteToken): void { const remote = this.requireRemote(token); if (remote?.phase === 'playing' && !this.portico(remote)) this.publish({panel: 'remote'}); }
+  openRemote(token: CastRemoteToken): void { const remote = this.requireRemote(token); if (remote?.phase === 'playing') this.publish({panel: 'remote'}); }
   openTracks(token: CastRemoteToken): void {
     const remote = this.requireRemote(token);
     if (remote?.phase !== 'playing') return;
@@ -334,6 +336,16 @@ export class PlayOnController {
     ++this.serial; this.attempt = undefined; this.describedItem = undefined; this.clearExpiry(); this.dismissing = true;
     try { this.options.sender.dismiss(); } finally { this.dismissing = false; }
     this.publish({cast: this.options.sender.getSnapshot(), remote: undefined, panel: null}); }
+  /** Rule 27's Play here while one of the account's Portico devices still plays: this browser plays the title from the
+   * place the device had reached, and only then is the device stopped, so it never stops in both places. */
+  async playHere(token: CastRemoteToken): Promise<void> {
+    const remote = this.requireRemote(token);
+    if (!remote || !this.portico(remote) || remote.phase !== 'playing' || !remote.positionKnown || !remote.itemId) return;
+    const position = remote.positionSeconds, itemId = remote.itemId;
+    this.publish({panel: null});
+    await this.options.runtime.play(itemId, position);
+    if (this.requireRemote(token)) {this.clearExpiry(); this.publish({remote: undefined, panel: null}); await this.options.receivers?.handBack?.();}
+  }
   async continueHere(token: CastRemoteToken): Promise<void> {
     const remote = this.requireRemote(token);
     if (!remote || !remote.confirmed || !remote.positionKnown || remote.phase !== 'stopped' || !remote.itemId) return;

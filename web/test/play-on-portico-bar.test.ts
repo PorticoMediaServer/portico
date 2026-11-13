@@ -19,7 +19,7 @@ function fixture() {
     getSnapshot: () => ({phase: 'ready', items: [], ...(remote ? {remote} : {})}), subscribe: listener => {listeners.add(listener); return () => {listeners.delete(listener);};},
     refresh: () => {}, send: async () => false, control: async () => true,
     toggle: () => {portCalls.push('toggle');}, seek: seconds => {portCalls.push('seek ' + seconds);}, stop: () => {portCalls.push('stop');},
-    next: () => {portCalls.push('next');}, audio: id => {portCalls.push('audio ' + id);}, subtitles: id => {portCalls.push('subtitles ' + id);}, dismiss: () => {portCalls.push('dismiss'); remote = undefined; for (const l of [...listeners]) l();},
+    next: () => {portCalls.push('next');}, handBack: async () => {portCalls.push('hand back'); remote = undefined; for (const l of [...listeners]) l();}, audio: id => {portCalls.push('audio ' + id);}, subtitles: id => {portCalls.push('subtitles ' + id);}, dismiss: () => {portCalls.push('dismiss'); remote = undefined; for (const l of [...listeners]) l();},
   };
   let timer: (() => void) | undefined;
   const controller = new PlayOnController({sender, runtime, receivers, isCurrent: () => true, reportError: error => {throw error;},
@@ -36,7 +36,8 @@ test('the bar shows "Playing on" the Portico device, and its buttons control tha
   assert.deepEqual({kind: remote.kind, phase: remote.phase, deviceName: remote.deviceName, title: remote.title, position: remote.positionSeconds}, {kind: 'portico', phase: 'playing', deviceName: 'Living room TV', title: 'Walk Film', position: 90});
   f.controller.toggle(remote); f.controller.seek(remote, 500); f.controller.openRemote(remote);
   assert.deepEqual(f.portCalls, ['toggle', 'seek 180'], 'a seek past the end lands at the end');
-  assert.equal(f.controller.getSnapshot().panel, null, 'no Cast remote panel for a Portico device');
+  assert.equal(f.controller.getSnapshot().panel, 'remote', 'the phone-player 7b remote opens for a Portico device too');
+  f.controller.closePanel();
   f.controller.stop(f.controller.getSnapshot().remote!);
   assert.deepEqual(f.portCalls.at(-1), 'stop');
   assert.deepEqual(f.castCalls, [], 'the Cast sender is never asked');
@@ -82,5 +83,18 @@ test('rule 27: a Portico device\'s bar has Next while its queue has one, and its
   assert.equal(f.portCalls.at(-1), 'subtitles null', 'no Next without a next title');
   assert.equal(f.controller.getSnapshot().panel, null, 'no tracks panel without tracks');
   assert.deepEqual(f.castCalls, []);
+});
+
+test('rule 27: Play here while the device still plays starts it here from the device\'s place, and only then stops it there', async () => {
+  const f = fixture();
+  f.set({...tv, positionSeconds: 754});
+  await f.controller.playHere(f.controller.getSnapshot().remote!);
+  assert.deepEqual(f.played, [['itm_1', 754]], 'here, from where the device was');
+  assert.deepEqual(f.portCalls, ['hand back'], 'then the device is stopped and let go');
+  assert.equal(f.controller.getSnapshot().remote, undefined, 'the bar goes');
+  const g = fixture();
+  g.set({...tv, positionKnown: false});
+  await g.controller.playHere(g.controller.getSnapshot().remote!);
+  assert.deepEqual([g.played, g.portCalls], [[], []], 'nothing without a known place');
 });
 
