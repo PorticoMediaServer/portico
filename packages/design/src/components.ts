@@ -299,6 +299,13 @@ export const hero = {
     phoneOverlay: [{at: 0, alpha: 0}, {at: 0.38, alpha: 0}, {at: 0.62, alpha: 0.7}, {at: 1, alpha: 0.96}] as readonly ScrimStop[],
     tvLeft: [{at: 0, alpha: 0.86}, {at: 0.3, alpha: 0.62}, {at: 0.56, alpha: 0.12}, {at: 0.7, alpha: 0}] as readonly ScrimStop[],
   },
+  /** phone-detail `.th` and `.amb-l`: the backdrop fades out by alpha (opaque to 48 %), an ink overlay runs past the hero and
+   * ends clear, and behind both the blurred backdrop washes the top 760 pt at .42, opaque to 25 % and clear at its end. */
+  phoneTitle: {
+    artOpaqueTo: 0.48,
+    overlay: [{at: 0, alpha: 0.5}, {at: 0.16, alpha: 0}, {at: 0.36, alpha: 0}, {at: 0.68, alpha: 0.8}, {at: 0.84, alpha: 0.55}, {at: 1, alpha: 0}] as readonly ScrimStop[],
+    wash: {height: 760, alpha: 0.42, opaqueTo: 0.25},
+  },
   paddingX: all(64, 20, 20, 200),
   copy: {width: all(600, 350, 350, 960), titleWidth: all(620, 350, 350, 960), homeBottom: all(150, 24, 24, 0), titleBottom: all(64, 4, 4, 0)},
   identity: {eyebrow: 'eyebrow' as TypeRole, title: 'lockup' as TypeRole, longTitle: 'lockupLong' as TypeRole, gap: same(20, 22)},

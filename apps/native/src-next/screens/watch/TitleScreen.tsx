@@ -654,7 +654,8 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
     }} scrollEventThrottle={32}>
       {!episodesOnly && heroNode}
       <View accessibilityElementsHidden={pinned || theme.isTV && tvBrowsing} importantForAccessibility={pinned || theme.isTV && tvBrowsing ? 'no-hide-descendants' : 'auto'}
-        style={{backgroundColor: theme.isTV ? 'transparent' : theme.colors.ink, opacity: theme.isTV && tvBrowsing ? 0 : 1, paddingLeft: theme.isTV ? 200 : 0, paddingRight: theme.isTV ? 96 : 0}}>{tabs}</View>
+        // At rest the tabs sit on the page's art wash (W1); they take the ink only once the bar has pinned and content runs under them.
+        style={{backgroundColor: theme.isTV || !pinned ? 'transparent' : theme.colors.ink, opacity: theme.isTV && tvBrowsing ? 0 : 1, paddingLeft: theme.isTV ? 200 : 0, paddingRight: theme.isTV ? 96 : 0}}>{tabs}</View>
       {bodyNode}
     </ScrollView>}{pinnedBar ?? header}
     {theme.isTV && <TVTitleCompactHeader title={title} browsing={tvBrowsing} top={tvBrowseTop}>{compactTabs}</TVTitleCompactHeader>}
