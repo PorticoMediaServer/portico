@@ -66,7 +66,7 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
   const blocked = disabled || focusedValue === undefined;
   const title = rowLabel ?? label ?? accessibilityLabel ?? selected?.label ?? placeholder;
   // In a settings row on a touch screen the select is the row's value: accent text and the up/down mark, no box.
-  const inline = useContext(RowControlContext) && !theme.isTV && rowLabel === undefined && label === undefined;
+  const row = useContext(RowControlContext), inline = !!row && !theme.isTV && rowLabel === undefined && label === undefined;
   return <View style={styles.container}>
     {label !== undefined ? <Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{label}</Text> : null}
     <Focusable {...props} ref={setRef} accessibilityRole="combobox" accessibilityLabel={accessibilityLabel ?? (typeof label === 'string' ? label : undefined)}
@@ -80,7 +80,7 @@ const NativeSelect = forwardRef<View, SelectProps & {rich: boolean}>(function Na
         // settings.html `.sel`: at least 176 wide off TV, the value then the chevron spaced apart.
         // A value that took the row's leftover width (flex: 1) collapsed to nothing in a row's
         // trailing slot, which has none (walk, 1 Nov).
-        if (inline) return [styles.trigger, {minHeight: 44, gap: 4, justifyContent: 'flex-end', borderColor: 'transparent', opacity: blocked ? .45 : 1}, supplied, {backgroundColor: 'transparent', paddingHorizontal: 0}];
+        if (inline) return [styles.trigger, {minHeight: 44, gap: 4, justifyContent: 'flex-end', borderColor: 'transparent', opacity: blocked ? .45 : 1}, supplied, {backgroundColor: 'transparent', paddingHorizontal: 0, ...(row?.maxWidth ? {maxWidth: row.maxWidth} : {})}];
         return [styles.trigger, {height: theme.isTV ? 64 : 44, borderRadius: theme.isTV ? 14 : 10, minWidth: theme.isTV ? undefined : 176,
           paddingHorizontal: theme.isTV ? 20 : 16, gap: theme.isTV ? 20 : 14,
           borderColor: error ? theme.colors.danger : isOpen ? theme.colors.accent : 'transparent',
