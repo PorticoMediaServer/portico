@@ -92,21 +92,22 @@ test('hardware view uses only supplied devices/formats and invokes its test call
   assert.equal(tests, 0);nodes(tree).find((node: any) => node.props.testID === 'server-streaming-test-hardware').props.onPress();assert.equal(tests, 1);
 });
 
-test('Segments exposes every supported Advanced control, preserves review, and omits unsupported bulk actions', async () => {
-  const values = {'library.segmentDetection': 'standard', 'segments.viewerConfidencePercent': 50, 'segments.automaticConfidencePercent': 85, 'segments.useChapterNames': true, 'segments.introWindow': 'usual', 'segments.creditsWindow': 'usual', 'segments.filmCreditsWindow': 'usual', 'segments.shortestEpisode': 2, 'segments.shortestFilm': 10, 'segments.tvMode': 'server', 'segments.animeMode': 'server', 'segments.movieMode': 'server'};
-  const fixture = await formsFixture({runtime: values}), host = hooks();
+test('Segments exposes every Advanced control the segments document has (the per-kind library matrix is per library now), preserves review, and draws the bulk actions for the owner', async () => {
+  const values = {mode: 'standard', viewerConfidencePercent: 50, automaticConfidencePercent: 85, useChapterNames: true, introWindow: 'usual', creditsWindow: 'usual', filmCreditsWindow: 'usual', shortestEpisodeMinutes: 2, shortestFilmMinutes: 10};
+  const fixture = await formsFixture({segments: values}), host = hooks();
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/SegmentsPage.tsx', import.meta.url), {
     react: host.react, 'react-native': {Text: 'Text', View: 'View', ScrollView: 'ScrollView'}, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
     '../../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../../kit/controls/Button': {Button: 'Button'}, '../../../kit/states': {StateView: 'StateView'}, '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/theme': {useTheme: () => theme},
-    './AdvancedSection': {NativeAdvancedSection: 'Advanced'}, './SettingControl': {NativeSettingControl: 'Setting'}, './settings-values': {settingEnabled, settingsSummary}, './storage/space-source': {nativeStorageOwner: (context: any) => context.current()}, './storage/forms': fixture.hooks,
+    './AdvancedSection': {NativeAdvancedSection: 'Advanced'}, '../../../../../../packages/client-core/src/segment-review': {remeasureAllSegments: async () => ({}), retryUnreadableSegments: async () => ({})}, '../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}, './SettingControl': {NativeSettingControl: 'Setting'}, './settings-values': {settingEnabled, settingsSummary}, './storage/space-source': {nativeStorageOwner: (context: any) => context.current()}, './storage/forms': fixture.hooks,
   });
   const ports = {context: fixture.group.context, renderSettingsPanel: () => ({type: 'Review', props: {}})}, runtime = {text: {t}, reportError: assert.fail};
   const render = () => host.render(() => {const outer = module.NativeServerSegments({ports, runtime});return outer.type(outer.props);});
   const tree = render(), controls = nodes(tree).filter((node: any) => node.type === 'Setting');
-  assert.equal(controls.length, 10);assert.equal(nodes(tree).filter((node: any) => node.type === 'Advanced').length, 1);assert.equal(nodes(tree).filter((node: any) => node.type === 'Review').length, 1);
-  assert.ok(!controls.some((node: any) => ['segments.keepOld', 'segments.redetectAll', 'segments.retryFailed'].includes(node.props.row.id)));
-  controls.find((node: any) => node.props.row.id === 'segments.chapters').props.onChange(false);assert.equal(fixture.group.forms.runtime.getSnapshot().draft['segments.useChapterNames'], false);
-  controls.find((node: any) => node.props.row.id === 'segments.libraryModes').props.onChange({tv: 'server', anime: 'off', movies: 'thorough'});assert.equal(fixture.group.forms.runtime.getSnapshot().draft['segments.animeMode'], 'off');fixture.stop();
+  assert.equal(controls.length, 9);assert.equal(nodes(tree).filter((node: any) => node.type === 'Advanced').length, 1);assert.equal(nodes(tree).filter((node: any) => node.type === 'Review').length, 1);
+  assert.ok(!controls.some((node: any) => node.props.row.id === 'segments.keepOld'));
+  // The spec draws the two bulk actions on every platform: the phone has them for the owner (#3337).
+  assert.deepEqual(nodes(tree).filter((node: any) => node.type?.name === 'SegmentsBulkAction' || node.props?.row?.id === 'segments.redetectAll' && node.type !== 'Setting').map((node: any) => node.props.row.id).filter((id: string, index: number, all: string[]) => all.indexOf(id) === index), ['segments.redetectAll', 'segments.retryFailed']);
+  controls.find((node: any) => node.props.row.id === 'segments.chapters').props.onChange(false);assert.equal(fixture.group.forms.segments.getSnapshot().draft.useChapterNames, false);
 });
 
 test('a folder row names the bound directory and picks one through the shared explorer', async () => {

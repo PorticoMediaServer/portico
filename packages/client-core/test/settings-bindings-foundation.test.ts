@@ -88,14 +88,14 @@ test('folder units and create kinds remain canonical and preserve inventory revi
 });
 
 
-test('chapter labels toggle writes the real runtime boolean',()=>{
+test('chapter labels toggle writes the segments settings document\'s boolean (#3255)',()=>{
  const binding=settingsBinding('segments.chapters')!;
- assert.equal(binding.key,'segments.useChapterNames');
- const sources={forms:{runtime:{'segments.useChapterNames':true}}};
+ assert.equal(binding.key,'useChapterNames');
+ const sources={forms:{segments:{useChapterNames:true}}};
  assert.equal(readSettingsBinding(binding,sources)?.current,true);
  const patch=settingsBindingPatch(binding,false,sources);
- assert.deepEqual(patch,{form:'runtime',values:{'segments.useChapterNames':false}});
- assert.equal(readSettingsBinding(binding,{forms:{runtime:patch.values}})?.current,false);
+ assert.deepEqual(patch,{form:'segments',values:{useChapterNames:false}});
+ assert.equal(readSettingsBinding(binding,{forms:{segments:patch.values}})?.current,false);
 });
 
 test('conversion preference and its disk folder have independent runtime bindings',()=>{
