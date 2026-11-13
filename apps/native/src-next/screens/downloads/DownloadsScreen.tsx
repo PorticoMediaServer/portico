@@ -62,6 +62,8 @@ export function DownloadsScreen({device, runtime, copy, back, openTitle, service
   const [pickingLimit, setPickingLimit] = useState(false), [pending, setPending] = useState(false);
   const [paneWidth, setPaneWidth] = useState(0);
   const [removingOthers, setRemovingOthers] = useState<OthersOpening>();
+  // 09-downloads rule 30: removing a download asks first, then deletes it from the device at once.
+  const [removing, setRemoving] = useState<OfflineEntry>(), removeAfterMenu = useRef<OfflineEntry | undefined>(undefined);
   const alive = useRef(true), operation = useRef(0), scroll = useRef<ScrollView>(null), limitRef = useRef<View>(null);
   const removeOthersOpening = useRef<OthersOpening | undefined>(undefined), removeOthersTicket = useRef<object | undefined>(undefined), mounted = useRef(false);
   useEffect(() => {const lifetime = alive, tickets = operation; lifetime.current = true; return () => {lifetime.current = false; tickets.current++;};}, [device]);
@@ -173,10 +175,15 @@ export function DownloadsScreen({device, runtime, copy, back, openTitle, service
     <Chip testID="downloads-remove-other-profiles" disabled={pending || snapshot.otherBytes <= 0} onPress={openRemoveOthers}>{t('action.remove')}</Chip>
   </View>;
   const firstMenuAction = useRef<View>(null);
+  const sheetMenu = dimensions.width < 600 && !theme.isTV;
   const menuItems: MenuAction[] = menu ? [
     ...(menu.state !== 'ready' ? [{id: 'resume', label: t('action.tryAgain'), icon: 'i-retry' as const, onSelect: () => run(() => device.resume(menu))}] : []),
     {id: 'title', label: t('web.downloads.goToTitle'), icon: 'i-film', onSelect: () => openTitle(menu)},
-    {id: 'remove', label: t(copy.removeFromPhone), icon: 'i-trash', destructive: true, onSelect: () => run(() => device.remove(menu))},
+    {id: 'remove', label: t(copy.removeFromPhone), icon: 'i-trash', destructive: true, onSelect: () => {
+      // The phone's menu is a sheet: the confirm opens once it has left, as one sheet may not open while another closes.
+      if (sheetMenu) removeAfterMenu.current = menu; else setRemoving(menu);
+      setEntryMenu(undefined);
+    }},
   ] : [];
   const openMenu = useCallback((entry: OfflineEntry, anchor: RefObject<View | null>) => setEntryMenu({entry, anchor}), []);
   const playEntry = useCallback((entry: OfflineEntry) => {if (device.openOffline) run(() => device.openOffline!(entry));}, [device, run]);
@@ -246,7 +253,8 @@ export function DownloadsScreen({device, runtime, copy, back, openTitle, service
         </View>
       </>}
     </ScrollView>
-    {dimensions.width < 600 && !theme.isTV ? <BottomSheet testID="downloads-entry-menu" title={undefined} open={!!menu} onOpenChange={open => {if (!open) setEntryMenu(undefined);}}
+    {sheetMenu ? <BottomSheet testID="downloads-entry-menu" title={undefined} open={!!menu} onOpenChange={open => {if (!open) setEntryMenu(undefined);}}
+      onExited={() => {const entry = removeAfterMenu.current; removeAfterMenu.current = undefined; if (entry) setRemoving(entry);}}
       initialFocusRef={firstMenuAction} returnFocusRef={entryMenu?.anchor} accessibilityLabel={menu?.title} headerContent={menu && <DownloadMenuContext entry={menu} copy={copy}/>}
       showClose={false} fitContent scrollable={false}>
       <View style={{paddingBottom: Math.max(26, insets.bottom)}}>{menuItems.map((action, index) => <Focusable key={action.id} ref={index === 0 ? firstMenuAction : undefined} testID={`downloads-entry-menu-item-${action.id}`}
@@ -262,6 +270,9 @@ export function DownloadsScreen({device, runtime, copy, back, openTitle, service
     <SavedConfirmSheet open={!!removingOthers} title={t('confirm.removeOthers.title')} action={t('action.remove')} destructive busy={pending}
       body={removingOthers ? `${t('downloads.othersOnDevice', {size: defaultI18n.bytes(removingOthers.bytes)})} ${t('confirm.removeOthers.body')}` : ''}
       testID="downloads-remove-other-profiles-confirm" onClose={closeRemoveOthers} onConfirm={confirmRemoveOthers}/>
+    <SavedConfirmSheet open={!!removing} title={t('confirm.removeDownload.title')} action={t(copy.removeFromPhone)} destructive busy={pending}
+      body={removing?.title ? t('confirm.removeDownload.body', {title: removing.title}) : t('confirm.removeDownload.bodyUntitled')}
+      testID="downloads-remove-confirm" onClose={() => setRemoving(undefined)} onConfirm={() => {const entry = removing; setRemoving(undefined); if (entry) run(() => device.remove(entry));}}/>
   </View>;
 }
 

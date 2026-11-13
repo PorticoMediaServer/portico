@@ -106,6 +106,54 @@ test('Cached artwork consumer rejects late retired identities and does not rerea
   effects.forEach(value => value.cleanup?.());
 });
 
+// 09-downloads rule 30 (Sol phone lane's device proof found Remove deleting at once): removing a download asks first.
+test('Remove from this phone asks first with the shared confirm, and removes only that download on confirm', async () => {
+  const theme = createTheme({width: 390, isTV: false});
+  const current = entry(), removed: unknown[] = [];
+  let opened = 0; void opened;
+  const snapshot = {supported: true, ready: true, entries: [current], settings: {}, usedBytes: 1, freeBytes: 100, otherBytes: 0};
+  const device = {getSnapshot: () => snapshot, subscribe: () => () => {}, open: async () => {opened++;},
+    playabilityReason: () => null, remove: async (value: unknown) => {removed.push(value);}};
+  const {DownloadsScreen} = await screenModule(new URL('../src-next/screens/downloads/DownloadsScreen.tsx', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390})},
+    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})}, '../../../../../packages/i18n/src': {defaultI18n},
+    '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/controls': {Chip: 'Chip', Focusable: 'Focusable', Switch: 'Switch'},
+    '../../kit/cards/primitives': {CardFrame: 'CardFrame'}, '../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../kit/states': {StateView: 'StateView'}, '../../kit/Icon': {Icon: 'Icon'},
+    '../../kit/browse/presentation': {browseType: () => ({}), alpha: () => ''}, '../../kit/theme': {useTheme: () => theme},
+    './inventory': downloadInventory,
+    './presentation': {downloadEntryIdentity, downloadGroups, downloadRowText, downloadStorageSegments, downloadTransferProgress}, './useDownloadArtwork': {useDownloadArtwork: () => ({})},
+    './useReadingFacts': await screenModule(new URL('../src-next/screens/downloads/useReadingFacts.ts', import.meta.url), {react: {...React, default: React}}),
+    '../saved/SavedForms': await screenModule(new URL('../src-next/screens/saved/SavedForms.tsx', import.meta.url), {
+      '../../kit/focus': {FocusRegion: 'FocusRegion', useFocusRegistry: () => undefined}, '../../kit/browse/presentation': {browseType: () => ({})}, '../search/TVKeyboard': {NativeTVKeyboard: 'NativeTVKeyboard'},
+      react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../packages/i18n/src': {defaultI18n},
+      '../../kit/controls': {Button: 'Button', Switch: 'Switch', TextField: 'TextField'}, '../../kit/overlays': {Banner: 'Banner', BottomSheet: 'BottomSheet', Dialog: 'Dialog'},
+      '../../kit/theme': {useTheme: () => theme}}),
+  });
+  function nodes(node: any): any[] {
+    if (Array.isArray(node)) return node.flatMap(nodes);
+    return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.children)] : [];
+  }
+  const screen = await mount(DownloadsScreen, {device, runtime: {text}, copy, back() {}, openTitle() {}});
+  try {
+    const find = (test: (node: any) => boolean) => nodes(screen.tree).find(test);
+    find(node => node.type?.type?.name === 'DownloadInventoryWindow').props.onMenu(current, {current: null});
+    await screen.host.rerender();
+    find(node => node.props?.testID === 'downloads-entry-menu-item-remove').props.onPress();
+    await screen.host.rerender();
+    assert.deepEqual(removed, [], 'choosing Remove deletes nothing yet');
+    assert.equal(find(node => node.props?.testID === 'downloads-remove-confirm').props.open, false, 'the confirm waits for the menu sheet to leave');
+    find(node => node.props?.testID === 'downloads-entry-menu').props.onExited();
+    await screen.host.rerender();
+    const confirm = find(node => node.type?.name === 'SavedConfirmSheet' && node.props.testID === 'downloads-remove-confirm');
+    assert.equal(confirm.props.open, true); assert.equal(confirm.props.destructive, true);
+    assert.equal(confirm.props.title, defaultI18n.t('confirm.removeDownload.title'));
+    assert.equal(confirm.props.body, defaultI18n.t('confirm.removeDownload.body', {title: current.title}));
+    confirm.props.onConfirm(); await screen.host.rerender();
+    assert.deepEqual(removed, [current], 'confirming removes that download at once');
+    assert.equal(find(node => node.props?.testID === 'downloads-remove-confirm').props.open, false);
+  } finally {await screen.host.unmount();}
+});
+
 test('Downloads rows use the shared hold/menu boundary with their actual native anchor and current playability', async () => {
   const theme = createTheme({width: 390, isTV: false});
   const current = entry(), calls: unknown[] = [];
