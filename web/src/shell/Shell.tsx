@@ -14,6 +14,7 @@ import {PhoneSelectionProvider, PhoneSelectionSlot, usePhoneSelectionPresent} fr
 import {MenuItem,Dialog} from '../kit/overlays';
 import {TextField,Button} from '../kit/controls';
 import {activeLibraryId, isLibraryLocation, rememberLibrary, rememberedLibrary, showOwnerActivity} from './model';
+import {noteLibraryVisit, titleLibrary} from './title-library';
 import {useShellScrolled} from './viewport';
 import {useSizeClass, useCoarsePointer, useWindowScrollAnchor} from '../kit/theme';
 import type {ManagementCapabilities} from '@core/profile-management.ts';
@@ -162,8 +163,10 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, insecureR
     let id: string;
     try { id = decodeURIComponent(pathname.slice('/library/'.length).split('/')[0]); } catch { return; }
     rememberLibrary(libraryMemory(), viewer, identity.libraries, id);
+    noteLibraryVisit(id);
   }, [pathname, viewer, identity.libraries]);
-  const activeLibrary = activeLibraryId(pathname, rememberedLibrary(libraryMemory(), viewer, identity.libraries));
+  const opened = useSyncExternalStore(titleLibrary.subscribe, titleLibrary.getSnapshot);
+  const activeLibrary = activeLibraryId(pathname, opened);
   useEffect(() => { setAccountOpen(false); setMoreOpen(false); }, [pathname]);
   const openLibraries = () => {
     const id = rememberedLibrary(libraryMemory(), viewer, identity.libraries);

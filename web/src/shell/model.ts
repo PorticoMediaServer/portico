@@ -26,12 +26,13 @@ export function rememberLibrary(storage: LibraryMemoryStorage | undefined, scope
 }
 export function showOwnerActivity(role: string, desktop: boolean): boolean { return role === 'owner' && desktop; }
 export function isLibraryLocation(path: string): boolean { return path === '/libraries' || path.startsWith('/library/'); }
-/** Title and person pages stay inside the library that opened them; a bare direct visit claims none. */
-export function activeLibraryId(path: string, remembered: string | undefined): string | undefined {
-  if (path.startsWith('/library/')) {
-    try { return decodeURIComponent(path.slice('/library/'.length).split('/')[0]) || undefined; } catch { return undefined; }
-  }
-  return remembered && (path.startsWith('/item/') || path.startsWith('/person/')) ? remembered : undefined;
+/** A title page marks its own library once its identity arrives; a person page keeps the last
+ * library claimed in this page session, so a direct visit claims none. */
+export function activeLibraryId(path: string, opened: Readonly<{title?: Readonly<{itemId: string; libraryId: string}>; last?: string}> = {}): string | undefined {
+  const segment = (prefix: string) => { try { return decodeURIComponent(path.slice(prefix.length).split('/')[0]) || undefined; } catch { return undefined; } };
+  if (path.startsWith('/library/')) return segment('/library/');
+  if (path.startsWith('/item/')) { const itemId = segment('/item/'); return itemId && opened.title?.itemId === itemId ? opened.title.libraryId : undefined; }
+  return path.startsWith('/person/') ? opened.last : undefined;
 }
 export function shellGutter(width: number): number { return width < 1024 ? 20 : Math.min(64, 32 + (width - 1024) / 13); }
 
