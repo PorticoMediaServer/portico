@@ -11,7 +11,8 @@ function sdk() {
   const scripts: {src: string; async: boolean; errors: Set<() => void>; remove(): void}[] = [];
   let timer = 0, picks = 0, current: CastSession | null = null, pick: (() => Promise<unknown>) | undefined;
   let name = '  Living room  ', acknowledge = false, ended: boolean | undefined;
-  const reply = (body: unknown) => { for (const listener of [...listeners]) listener('urn:x-cast:tv.getportico.portico', JSON.stringify(body)); };
+  const channel={bindingId:'binding',controllerGeneration:1,connectionGeneration:1};
+  const reply = (body: any) => {if(body.type==='paired')body={controller:channel,...body};if(body.type==='status')body={controller:channel,...(body.itemId?{occurrence:{sessionId:'receiver-'+body.itemId,generation:1,itemId:body.itemId}}:{}),...body}; for (const listener of [...listeners]) listener('urn:x-cast:tv.getportico.portico', JSON.stringify(body)); };
   const session: CastSession = {
     getCastDevice: () => ({friendlyName: name, label: 'actual-sdk-id'}),
     sendMessage: async (_namespace, command) => {
@@ -45,7 +46,7 @@ function sdk() {
     setTimeout: fn => { timers.set(++timer, fn); return timer; }, clearTimeout: id => { timers.delete(id); },
     requestIdleCallback: fn => { idle.set(++timer, fn); return timer; }, cancelIdleCallback: id => { idle.delete(id); },
   };
-  const api = {request: async <T,>(path: string, method?: string, body?: unknown) => { requests.push({path, method, body}); return {bootstrap: {code: 'ABC123'}} as T; }};
+  const api = {request: async <T,>(path: string, method?: string, body?: unknown) => { requests.push({path, method, body}); return {code: 'ABC123'} as T; }};
   return {browser, framework, messages, requests, options, scripts, timers, idle, api, reply, listeners, contextListeners,
     get picks() { return picks; }, get ended() { return ended; },
     set name(value: string) { name = value; }, set acknowledge(value: boolean) { acknowledge = value; },
@@ -142,7 +143,7 @@ test('the native picker opens synchronously; casting waits for the correlated re
   assert(load); assert.notEqual(service.getSnapshot().phase, 'casting');
   assert.deepEqual(load.queue, {queueId: 'q-1', entryId: 'entry-1'});
   assert(!JSON.stringify(h.messages).includes('secret.example'));
-  assert.deepEqual(h.requests[0], {path: '/v1/cast/bootstrap', method: 'POST', body: {protocolVersion: '1.0', receiverId: 'actual-sdk-id', displayName: 'Living room'}});
+  assert.deepEqual(h.requests[0], {path: '/v1/cast/codes', method: 'POST', body: undefined});
   h.reply({type: 'loaded', requestId: 'stale-id', itemId: 'item-1'});
   assert.notEqual(service.getSnapshot().phase, 'casting');
   h.reply({type: 'loaded', requestId: load.requestId, itemId: 'item-1'});
@@ -155,9 +156,9 @@ test('SDK names are trimmed and bounded; a missing name omits registration and c
   for (const name of ['   ', `  ${'x'.repeat(80)}  `]) {
     const {h, service} = await prepared(t); h.name = name; h.acknowledge = true;
     assert.equal(await service.start('item', {title: 'Song'}, 0), true);
-    const body = (h.requests[0] as {body: Record<string, unknown>}).body;
-    if (!name.trim()) { assert(!('displayName' in body)); assert.equal(service.getSnapshot().device, undefined); }
-    else { assert.equal(body.displayName, 'x'.repeat(64)); assert.equal(service.getSnapshot().device?.name, 'x'.repeat(64)); }
+    assert.equal(h.requests[0].body,undefined);
+    if (!name.trim()) assert.equal(service.getSnapshot().device,undefined);
+    else assert.equal(service.getSnapshot().device?.name,'x'.repeat(64));
     service.stop();
   }
 });
@@ -241,17 +242,17 @@ test('a same-item successor occurrence never borrows the predecessor’s clock',
   h.reply({type: 'status', controller, occurrence: successor, itemId: 'item'});
   assert.equal(service.getSnapshot().receiver?.positionSeconds, 12, 'the same occurrence keeps its last complete clock');
 
-  // A new controller is a different occurrence witness even when it names the same session/item.
+  // A controller stamp never changes without another one-use code; injected renewal stamps are refused.
   const successorController = {bindingId: 'binding', controllerGeneration: 2, connectionGeneration: 1};
   h.reply({type: 'status', controller: successorController, occurrence: successor, itemId: 'item'});
-  assert.deepEqual(service.getSnapshot().remoteIdentity, {controller: successorController, occurrence: successor});
-  assert.equal(service.getSnapshot().receiver, undefined, 'a new controller’s clock is unknown until it reports');
+  assert.deepEqual(service.getSnapshot().remoteIdentity,{controller,occurrence:successor});
+  assert.equal(service.getSnapshot().receiver?.positionSeconds,12);
 
   // Stop/replacement still retains the last complete clock for the continuation offer.
   h.reply({type: 'status', controller: successorController, occurrence: successor, itemId: 'item', positionSeconds: 20, durationSeconds: 180, paused: true});
   h.reply({type: 'replaced'});
   assert.equal(service.getSnapshot().phase, 'replaced');
-  assert.deepEqual(service.getSnapshot().receiver, {itemId: 'item', positionSeconds: 20, durationSeconds: 180, paused: true});
+  assert.deepEqual(service.getSnapshot().receiver, {itemId: 'item', positionSeconds: 12, durationSeconds: 180, paused: false});
 });
 
 test('a delayed picker reads the current source clock only immediately before starting', async t => {

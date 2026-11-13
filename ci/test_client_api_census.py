@@ -32,7 +32,7 @@ class ClientApiCensus(unittest.TestCase):
                   'apps/desktop/src-tauri/src/request.rs','apps/vega/src/bridge/runtime.ts']:
             self.assertTrue(production(p),p)
         for p in ['packages/client-core/src/x.ts','web/test/x.test.ts','apps/native/scripts/tool.ts',
-                  'apps/native/test/probe.kt','server/receiver/cast/contracts.js']:
+                  'apps/native/test/probe.kt','server-next/receiver/cast/contracts.js']:
             self.assertFalse(production(p),p)
 
 

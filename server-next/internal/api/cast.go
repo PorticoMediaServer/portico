@@ -9,6 +9,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/receiver"
 )
 
 // Google Cast. By the owner's ruling a server signed in with local accounts has no Google
@@ -27,13 +28,14 @@ const roleCast = "cast"
 // Portico Accounts. Absent means local accounts.
 const signInKindPortico = "portico_account"
 
-// castApplicationSetting holds the Google Cast application id the apps register the
-// receiver under. Who writes it is not decided yet (see the pull request).
-const castApplicationSetting = "cast.application_id"
-
 // CastConfig is the answer of GET /v1/cast/config.
 type CastConfig struct {
 	ApplicationID string `json:"applicationId"`
+}
+
+// CastCodeRequest names the caller's own playback when it is moving to the TV.
+type CastCodeRequest struct {
+	SourceSessionID string `json:"sourceSessionId,omitempty"`
 }
 
 // CastCode is a pairing code for the receiver the phone is casting to.
@@ -58,18 +60,37 @@ func (s *Server) castOffered(ctx context.Context) (bool, error) {
 }
 
 func (s *Server) castRoutes() {
+	s.mux.Handle("GET /receiver/cast/", receiver.Handler())
 	Handle(s, "GET /v1/cast/config", WithProfile, func(r *http.Request, _ None) (CastConfig, error) {
-		id, err := s.castApplication(r.Context())
-		return CastConfig{ApplicationID: id}, err
+		offered, err := s.castOffered(r.Context())
+		if err != nil {
+			return CastConfig{}, err
+		}
+		if !offered {
+			return CastConfig{}, ErrNotFound()
+		}
+		return CastConfig{ApplicationID: receiver.ApplicationID}, nil
 	}).Scope = ScopeSession
-	Handle(s, "POST /v1/cast/codes", WithProfile, func(r *http.Request, _ None) (CastCode, error) {
+	Handle(s, "POST /v1/cast/codes", WithProfile, func(r *http.Request, req CastCodeRequest) (CastCode, error) {
 		ctx, now := r.Context(), s.now()
 		if _, err := s.castApplication(ctx); err != nil {
 			return CastCode{}, err
 		}
 		c := CallerFrom(ctx)
 		out := CastCode{Code: auth.NewCode(2), ExpiresAt: now.Add(castCodeLife).UTC()}
-		return out, s.db.StartCast(ctx, castCodeHash(out.Code), c.UserID, c.ProfileID, out.ExpiresAt, now)
+		var move castMove
+		if req.SourceSessionID != "" {
+			source, err := s.playback.Get(req.SourceSessionID, viewer(r), c.SessionID)
+			if err != nil {
+				return CastCode{}, refuse(err)
+			}
+			move = castMove{source: source.ID, item: source.Item.PublicID, until: out.ExpiresAt}
+		}
+		err := s.db.StartCast(ctx, castCodeHash(out.Code), c.UserID, c.ProfileID, out.ExpiresAt, now)
+		if err == nil && move.source != "" {
+			s.castRemember(castCodeHash(out.Code), move)
+		}
+		return out, err
 	}).Scope = ScopeSession
 	Handle(s, "POST /v1/cast/redeem", Public, s.redeemCast)
 }
@@ -83,22 +104,16 @@ func (s *Server) castApplication(ctx context.Context) (string, error) {
 	if !offered {
 		return "", ErrNotFound()
 	}
-	id, ok, err := s.db.Setting(ctx, castApplicationSetting)
-	if err != nil {
-		return "", err
-	}
-	if !ok || id == "" {
+	if receiver.ApplicationID == "" {
 		return "", ErrNotFound()
 	}
-	return id, nil
+	return receiver.ApplicationID, nil
 }
 
 func (s *Server) redeemCast(r *http.Request, req CastRedeem) (SignInResponse, error) {
 	ctx, now := r.Context(), s.now()
-	if offered, err := s.castOffered(ctx); err != nil {
+	if _, err := s.castApplication(ctx); err != nil {
 		return SignInResponse{}, err
-	} else if !offered {
-		return SignInResponse{}, ErrNotFound()
 	}
 	limits := s.sourceLimit(r)
 	if wait, err := s.db.LimitWait(ctx, now, limits...); err != nil {
@@ -117,6 +132,7 @@ func (s *Server) redeemCast(r *http.Request, req CastRedeem) (SignInResponse, er
 	if err != nil {
 		return SignInResponse{}, err
 	}
+	s.castRedeemed(castCodeHash(req.Code), st.ID)
 	// Only the sign-in: the receiver is told nothing of the account or its other profiles.
 	return SignInResponse{Session: s.session(st, now, refresh)}, nil
 }
@@ -162,6 +178,16 @@ func (s *Server) castMay(r *http.Request, pattern string, c Caller) (bool, error
 		return id == "current", nil
 	case strings.HasPrefix(path, "/v1/playback/sessions/"):
 		_, err := s.playback.Get(id, db.Viewer{UserID: c.UserID, ProfileID: c.ProfileID}, c.SessionID)
+		if err != nil && pattern == "DELETE /v1/playback/sessions/{id}" {
+			// A repeated stop after the ended session was swept is still successful.
+			// An existing session on another device stays forbidden.
+			for _, other := range s.playback.AccountSessions(c.UserID) {
+				if other.ID == id {
+					return false, nil
+				}
+			}
+			return true, nil
+		}
 		return err == nil, nil
 	case strings.HasPrefix(path, "/v1/queues/"):
 		return s.ownQueue(r.Context(), c, id)

@@ -91,7 +91,7 @@ class PlaybackCompatibility(unittest.TestCase):
             command = execute.call_args.args[0]
             self.assertEqual(command[:3], ['node','--test','--test-concurrency=2'])
             for file in ['receiver.test.cjs','text.test.cjs']:
-                self.assertIn(str(ROOT/'server/receiver/cast/test'/file),command)
+                self.assertIn(str(ROOT/'server-next/receiver/cast/test'/file),command)
             self.assertTrue(execute.call_args.kwargs['check'])
             execute.side_effect = subprocess.CalledProcessError(1,command)
             with self.assertRaises(subprocess.CalledProcessError):

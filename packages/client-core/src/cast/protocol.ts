@@ -4,7 +4,7 @@ import {apiRoot} from "../../../contracts/src/routes.ts";
 import {artworkRenditionFor} from '../artwork/renditions.ts';
 /**
  * The Portico Cast channel (`urn:x-cast:tv.getportico.cast`), shared by every sender. The receiver
- * is `server/receiver/cast/receiver.js`.
+ * is `server-next/receiver/cast/receiver.js`.
  *
  * The television never receives the sender's sign-in or a media address: it gets a short code the
  * server issued (`POST /v1/cast/bootstrap`), redeems it for its own credential against `origin`,
@@ -18,7 +18,7 @@ export const CAST_PAIR_TIMEOUT_MS = 35_000;
 export const CAST_TAKEOVER_WINDOW_MS = 30_000;
 
 /** What the TV shows while it prepares, and what Cast's own player labels the title with. */
-export type CastMetadata = Readonly<{title: string; subtitle?: string; seriesTitle?: string; season?: number; episode?: number; kind?: string; artworkPath?: string}>;
+export type CastMetadata = Readonly<{title: string; subtitle?: string; artist?:string;albumTitle?:string;seriesTitle?: string; season?: number; episode?: number; kind?: string; artworkPath?: string}>;
 
 export type CastTrack = Readonly<{id: number; language: string; name: string}>;
 
@@ -46,6 +46,7 @@ export function castChoiceFields(choices: CastChoices | undefined): Record<strin
 
 /** Sender → receiver. */
 export type CastCommand =
+  | {type:'cancel-load';requestId:string;controller?:CastControllerStamp}
   | {type: 'pair'; code: string; origin: string; displayName: string}
   | ({type: 'load'; itemId: string; startSeconds: number;controller?:CastControllerStamp} & Record<string, string | number | CastQueueRef | CastControllerStamp | undefined>)
   | {type:'adopt'|'renewal-ack';bindingId:string;attemptId:string;ticket:string;controlToken:string}
@@ -134,6 +135,8 @@ const castArtworkBox = Object.freeze({width: 560, height: 560, dpr: 1, fit: 'cov
 export function castMetadataFields(meta: CastMetadata): Record<string, string | number> {
   const out: Record<string, string | number> = {title: meta.title.slice(0, 200)};
   if (meta.subtitle) out.subtitle = meta.subtitle.slice(0, 200);
+  if(meta.artist)out.artist=meta.artist.slice(0,200);
+  if(meta.albumTitle)out.albumTitle=meta.albumTitle.slice(0,200);
   if (meta.seriesTitle) out.seriesTitle = meta.seriesTitle.slice(0, 200);
   if (Number.isInteger(meta.season)) out.season = meta.season!;
   if (Number.isInteger(meta.episode)) out.episode = meta.episode!;
