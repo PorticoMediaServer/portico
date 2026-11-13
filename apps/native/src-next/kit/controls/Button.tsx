@@ -1,4 +1,4 @@
-import React, {forwardRef} from 'react';
+import React, {forwardRef, useState} from 'react';
 import {ActivityIndicator, Platform, StyleSheet, Text, View, type TextStyle, type ViewStyle, type StyleProp} from 'react-native';
 import {buttonSpec} from '@portico/design';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
@@ -21,7 +21,8 @@ export type ButtonProps = Omit<FocusableProps, 'children'> & {
   /** Providing a loading state reserves its icon slot, keeping both label and width stable. */
   loading?: boolean;
   textStyle?: StyleProp<TextStyle>;
-  /** Lines the label may take before it is cut (default 1); the face grows to hold them. Larger text always wraps. */
+  /** The most lines the label may take before it is cut. Off TV a label wraps rather than ending in "…" (the web's rule,
+   *  #3275), so this is a cap, not a default; TV keeps its one-line slots unless given more. */
   labelLines?: number;
   /** Where the button sits across its parent. React Native would stretch it, so the kit's own default is 'start' (content width); a centring parent's button says 'center'. */
   align?: 'start' | 'center' | 'end' | 'stretch';
@@ -33,13 +34,21 @@ const paddingKeys = ['padding', 'paddingHorizontal', 'paddingVertical', 'padding
 
 const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonContent({
   variant = 'primary', size = 'hero', children, icon, trailingIcon, iconSize, iconColor, iconOnly = variant === 'icon', loading,
-  disabled, style, textStyle, labelLines = 1, accessibilityState, hitSlop, progress, remaining, align = 'start', ...props
+  disabled, style, textStyle, labelLines, accessibilityState, hitSlop, progress, remaining, align = 'start', ...props
 }, ref) {
   const theme = useTheme();
   // A link's label is a sentence: it wraps rather than cutting off, at every text size, unless it is given a height.
   const linkWraps = variant === 'link' && !theme.isTV && typeof StyleSheet.flatten(typeof style === 'function' ? undefined : style)?.height !== 'number';
   const grow = !iconOnly && (linkWraps || theme.fontScale > 1 || theme.textScale > 1);
-  const fluid = grow || (!iconOnly && labelLines > 1);
+  // Off TV a button's height is a minimum and its label wraps instead of being cut (owner's rule: a control's label is never cut).
+  const wraps = !iconOnly && !theme.isTV;
+  const fluid = grow || wraps || (!iconOnly && (labelLines ?? 1) > 1);
+  // A Resume button sheds before it wraps, in the web's order: the time left first, then its icon (#3240, #3275).
+  const [shed, setShed] = useState<Readonly<{key: string; level: number}>>(), label = typeof children === 'string' ? children : '';
+  const shedKey = `${label}|${typeof remaining === 'string' ? remaining : ''}`, level = wraps && remaining !== undefined && shed?.key === shedKey ? shed.level : 0;
+  const onLabelLayout = wraps && remaining !== undefined && level < 2 ? (event: {nativeEvent: {lines: readonly unknown[]}}) => {
+    if (event.nativeEvent.lines.length > 1) setShed({key: shedKey, level: level + 1});
+  } : undefined;
   const geometry = buttonGeometry(size, theme.platform, variant);
   const nativeStyle = StyleSheet.flatten(typeof style === 'function' ? undefined : style);
   const height = typeof nativeStyle?.height === 'number' ? nativeStyle.height : geometry.height;
@@ -79,12 +88,13 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
       if (typeof __DEV__ !== 'undefined' && __DEV__) fillObservation.recordDeclaredStyle(StyleSheet.flatten(fillStyle));
       const fill = <View ref={fillObservation.ref} style={fillStyle} />;
       const content = <View pointerEvents="none" style={[styles.content, {gap: suppliedStyle?.columnGap ?? suppliedStyle?.gap ?? geometry.gap}]}>
-        {icon || loading !== undefined ? <View style={{width: glyphSize, height: glyphSize, alignItems: 'center', justifyContent: 'center'}}>
+        {(icon && level < 2) || loading !== undefined ? <View style={{width: glyphSize, height: glyphSize, alignItems: 'center', justifyContent: 'center'}}>
           {loading ? <ActivityIndicator size={glyphSize} color={glyphColor} /> : icon ? <Icon name={icon} size={glyphSize} color={glyphColor} /> : null}
         </View> : null}
-        {!iconOnly ? <Text {...labelObservation.textProps} numberOfLines={grow ? undefined : labelLines} ellipsizeMode="tail" style={labelStyle}>{children}</Text> : null}
+        {!iconOnly ? <Text {...labelObservation.textProps} numberOfLines={theme.isTV ? grow ? undefined : labelLines ?? 1 : labelLines} ellipsizeMode="tail"
+          textBreakStrategy="balanced" onTextLayout={onLabelLayout} style={labelStyle}>{children}</Text> : null}
         {inline && fraction !== undefined && !iconOnly ? <View style={[styles.inlineTrack, {backgroundColor: colorAlpha(white ? theme.colors.ink : theme.colors.text, .16)}]}><View style={[styles.fill, {width: `${fraction * 100}%`, backgroundColor: white ? theme.colors.accent : theme.colors.accentStrong}]} /></View> : null}
-        {remaining !== undefined && !iconOnly ? <>
+        {remaining !== undefined && !iconOnly && level < 1 ? <>
           <Text numberOfLines={grow ? undefined : 1} style={[theme.type.button, {fontSize: (theme.isTV ? 22 : geometry.fontSize) * theme.textScale, color: white ? colorAlpha(theme.colors.ink, .66) : theme.colors.textTertiary, flexShrink: grow ? 1 : undefined}, textStyle]}>{remaining}</Text>
         </> : null}
         {trailingIcon ? <Icon name={trailingIcon} size={glyphSize} color={glyphColor} /> : null}
