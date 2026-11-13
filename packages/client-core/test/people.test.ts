@@ -31,7 +31,7 @@ test('one credit that cannot be read is left out, and a person reads neutrally w
  assert.deepEqual(parsed.person,{id:'person-1',name:'Ada Lovelace',sortName:'',biography:'',birthDate:'',deathDate:'',portraitUrl:'',roles:['Acting'],knownFor:[media('a')],providerIds:{tmdb:'42'},revision:3});
 });
 test('known-for and credit pages stay bounded and consistent with pageInfo',()=>{
- assert.throws(()=>parsePersonPage(page({person:person({knownFor:Array.from({length:9},(_,i)=>media('k'+i))})}),scope,{limit:40,personId:'person-1'}));
+ assert.throws(()=>parsePersonPage(page({person:person({knownFor:Array.from({length:13},(_,i)=>media('k'+i))})}),scope,{limit:40,personId:'person-1'}));
  assert.throws(()=>parsePersonPage(page({credits:Array.from({length:41},(_,i)=>({media:media('c'+i),role:'r',character:'c',department:'Acting',creditKind:'cast'}))}),scope,{limit:40,personId:'person-1'}));
  assert.throws(()=>parsePersonPage(page({pageInfo:{total:1,nextCursor:7}}),scope,{limit:40,personId:'person-1'}));
  assert.equal(parsePersonPage(page({pageInfo:{total:0,nextCursor:''}}),scope,{limit:40,personId:'person-1'}).pageInfo.total,1);
@@ -62,6 +62,8 @@ test('person paths are server addresses the client only assembles',()=>{
 test('readPerson requests exactly what it validates',async()=>{
  const paths:string[]=[];
  const facts={id:'person-1',name:'Ada',biography:'A biography',birthplace:'London',images:{portrait:'/v1/images/portrait'},titleCount:3,crewTitleCount:2,
+  knownFor:Array.from({length:12},(_,i)=>({id:'known-'+i,kind:'movie',title:'Known '+i,images:{poster:'/v1/images/known-'+i}})),
+  kindCounts:{movie:2,episode:1,book:4,audiobook:5,track:6},
   roles:[{role:'actor',titleCount:1},{role:'guest',titleCount:1},{role:'director',titleCount:1},{role:'crew',titleCount:1}]};
  const credit=(role:string,character?:string)=>({personId:'person-1',name:'Ada',role,character});
  const films=[{id:'mixed',kind:'movie',title:'Mixed',credits:[credit('actor','Ada'),credit('director'),{personId:'someone-else',name:'Other actor',role:'actor'}]},
@@ -77,10 +79,13 @@ test('readPerson requests exactly what it validates',async()=>{
  assert.deepEqual(skippedParts(),before,'another person’s readable credit is ignored quietly');
  assert.deepEqual(paths,['/v1/people/person-1','/v1/items?person=person-1&limit=40&total=true']);
  assert.equal(parsed.person.birthPlace,'London');assert.equal(parsed.person.portraitUrl,'/v1/images/portrait');
- assert.deepEqual(parsed.person.knownFor,[]);assert.deepEqual(parsed.credits.map(c=>c.media.id),['mixed','guest','crew']);
+ assert.deepEqual(parsed.person.knownFor.map(entry=>entry.id),facts.knownFor.map(item=>item.id));
+ assert.equal(parsed.person.knownFor[0].posterUrl,'/v1/images/known-0');
+ assert.deepEqual(parsed.credits.map(c=>c.media.id),['mixed','guest','crew']);
  assert.deepEqual(parsed.credits[0].roles,[{role:'Ada',department:'Acting'},{role:'Director',department:'Directing'}]);
  assert.equal(parsed.credits[1].creditKind,'cast');assert.equal(parsed.credits[1].character,'Visitor');
- assert.deepEqual(parsed.groups.map(g=>[g.department,g.total]),[['Acting',1],['Cast',1],['Directing',1],['Crew',1]]);
+ assert.deepEqual(parsed.groups.filter(g=>g.department).map(g=>[g.department,g.total]),[['Acting',1],['Cast',1],['Directing',1],['Crew',1]]);
+ assert.deepEqual(parsed.groups.filter(g=>g.kind).map(g=>[g.kind,g.total]),[['movie',2],['episode',1],['ebook',4],['book',5],['song',6]]);
  assert.deepEqual((await readPerson(api,scope,'person-1',{role:'cast'})).credits.map(c=>c.media.id),['mixed','guest']);
  const crew=await readPerson(api,scope,'person-1',{role:'crew'});
  assert.equal(crew.pageInfo.total,2);assert.equal(crew.credits[0].role,'Director');assert.equal(crew.credits[0].character,'');
