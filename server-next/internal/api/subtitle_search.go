@@ -163,6 +163,22 @@ func subtitleError(err error) error {
 	return nil
 }
 
+// A download of a recent search result must still satisfy the profile's limits now.
+func (s *Server) subtitleSearchAccess(r *http.Request) error {
+	item, err := s.db.Item(r.Context(), viewer(r), r.PathValue("id"))
+	if err != nil {
+		return refuse(err)
+	}
+	if item.Kind == db.KindEpisode && item.RootPublicID != "" {
+		if err := s.db.SeesItem(r.Context(), viewer(r), item.RootPublicID); errors.Is(err, db.ErrNotFound) {
+			return refusal(http.StatusForbidden, "not_permitted", "Not available on this profile", false)
+		} else if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Server) searchSubtitles(r *http.Request, _ None) (SubtitleResults, error) {
 	out := SubtitleResults{Items: []SubtitleResult{}, Credit: subtitleCredit}
 	var languages []string
@@ -177,16 +193,8 @@ func (s *Server) searchSubtitles(r *http.Request, _ None) (SubtitleResults, erro
 	if len(languages) == 0 || len(languages) > 10 {
 		return out, ErrField("languages", "Give one to ten languages.")
 	}
-	item, err := s.db.Item(r.Context(), viewer(r), r.PathValue("id"))
-	if err != nil {
-		return out, refuse(err)
-	}
-	if item.Kind == db.KindEpisode && item.RootPublicID != "" {
-		if err := s.db.SeesItem(r.Context(), viewer(r), item.RootPublicID); errors.Is(err, db.ErrNotFound) {
-			return out, refusal(http.StatusForbidden, "not_permitted", "Not available on this profile", false)
-		} else if err != nil {
-			return out, err
-		}
+	if err := s.subtitleSearchAccess(r); err != nil {
+		return out, err
 	}
 	found, err := s.metadata.SearchSubtitles(r.Context(), viewer(r), r.PathValue("id"), languages)
 	if err != nil {
@@ -212,6 +220,9 @@ func (s *Server) downloadSubtitle(r *http.Request, req SubtitleDownload) (ItemSu
 	chosen, ok := s.subtitleSearches.find(searchKey{CallerFrom(r.Context()).ProfileID, r.PathValue("id")}, req.Ref, s.now())
 	if !ok {
 		return ItemSubtitle{}, ErrField("ref", "Search again and choose a result.")
+	}
+	if err := s.subtitleSearchAccess(r); err != nil {
+		return ItemSubtitle{}, err
 	}
 	// The provider's own release name is shown to everyone too: one that cannot be shown is left out.
 	chosen.Release = strings.TrimSpace(chosen.Release)
