@@ -50,6 +50,8 @@ type Item struct {
 	Credits []Credit
 
 	sortTitle string
+	// imageParentID is a track's album only when this viewer may see that album.
+	imageParentID int64
 	// sortValues are the item's values in the sort it was listed by, for the next cursor.
 	sortValues []any
 }
@@ -254,7 +256,8 @@ func itemColumns(acc access) string {
 	ifnull(i.community_rating, 0), ifnull(i.parent_id, 0), ifnull(i.root_id, 0),
 	ifnull((SELECT public_id FROM items WHERE id = i.parent_id), ''), ifnull((SELECT public_id FROM items WHERE id = i.root_id), ''),
 	(SELECT public_id FROM libraries WHERE id = i.library_id),
-	ifnull((SELECT title FROM items root WHERE root.id = i.root_id AND ` + acc.visible("root") + `), ''), ` + stateColumns
+	ifnull((SELECT title FROM items root WHERE root.id = i.root_id AND ` + acc.visible("root") + `), ''),
+	ifnull((SELECT album.id FROM items album WHERE i.kind = 7 AND album.id = i.parent_id AND album.kind = 6 AND ` + acc.visible("album") + `), 0), ` + stateColumns
 }
 
 const stateJoin = ` LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id WHERE `
@@ -265,7 +268,7 @@ const itemFrom = ` FROM items i` + stateJoin
 func (it *Item) dest() []any {
 	return append([]any{&it.ID, &it.PublicID, &it.Kind, &it.Title, &it.sortTitle, &it.Year, &it.ReleaseDate, &it.Publication, &it.WordCount, &it.AddedAt,
 		&it.DurationMS, &it.IndexNumber, &it.ParentIndex, &it.ChildCount, &it.ContentRating, &it.CommunityRating,
-		&it.ParentID, &it.RootID, &it.ParentPublicID, &it.RootPublicID, &it.LibraryID, &it.RootTitle}, it.State.dest()...)
+		&it.ParentID, &it.RootID, &it.ParentPublicID, &it.RootPublicID, &it.LibraryID, &it.RootTitle, &it.imageParentID}, it.State.dest()...)
 }
 
 func scanItem(row interface{ Scan(...any) error }, it *Item, extra ...any) error {
@@ -911,28 +914,41 @@ func idList(items []Item) string {
 	return "(" + strings.Join(ids, ", ") + ")"
 }
 
-// loadImages attaches each item's chosen pictures.
+// loadImages attaches chosen pictures, falling back to a visible album for a track with none.
 func loadImages(ctx context.Context, tx *sql.Tx, items []Item) error {
 	if len(items) == 0 {
 		return nil
 	}
+	byID := map[int64][]Image{}
+	for _, item := range items {
+		byID[item.ID] = nil
+		if item.imageParentID != 0 {
+			byID[item.imageParentID] = nil
+		}
+	}
+	ids := make([]int64, 0, len(byID))
+	for id := range byID {
+		ids = append(ids, id)
+	}
 	rows, err := tx.QueryContext(ctx, `SELECT item_id, id, role, ifnull(file_hash, ''), ifnull(width, 0), ifnull(height, 0),
-		ifnull(placeholder, '') FROM images WHERE item_id IN `+idList(items)+` AND selected = 1 ORDER BY item_id, role`)
+		ifnull(placeholder, '') FROM images WHERE item_id IN `+intList(ids)+` AND selected = 1 ORDER BY item_id, role`)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
-	byID := map[int64]*Item{}
-	for n := range items {
-		byID[items[n].ID] = &items[n]
-	}
 	for rows.Next() {
 		var itemID int64
 		var image Image
 		if err := rows.Scan(&itemID, &image.ID, &image.Role, &image.FileHash, &image.Width, &image.Height, &image.Placeholder); err != nil {
 			return err
 		}
-		byID[itemID].Images = append(byID[itemID].Images, image)
+		byID[itemID] = append(byID[itemID], image)
+	}
+	for n := range items {
+		items[n].Images = byID[items[n].ID]
+		if len(items[n].Images) == 0 {
+			items[n].Images = byID[items[n].imageParentID]
+		}
 	}
 	return rows.Err()
 }
