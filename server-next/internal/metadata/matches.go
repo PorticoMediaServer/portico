@@ -97,6 +97,10 @@ func (s *Service) Matches(ctx context.Context, itemID, query string, year int, r
 			}
 			return []Candidate{candidate(record)}, nil
 		}
+		// AniList ids have no cross-provider mapping; never fall back to a different provider.
+		if r.Provider == "anilist" {
+			return nil, ErrUnknownRef
+		}
 		// Another provider's id: the library's provider answers the one title it knows by it.
 		found, err := p.Search(ctx, Query{Kind: kind, IDs: []Ref{{Provider: r.Provider, Kind: kind, ID: r.ID}}, Locale: locale,
 			IncludeAdult: s.setting().IncludeAdult})
