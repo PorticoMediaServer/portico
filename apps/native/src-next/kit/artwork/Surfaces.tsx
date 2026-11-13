@@ -132,9 +132,10 @@ export function AmbientArt({source, sources, foreground, palette, treatment = 'h
   // phone-detail `.th` and `.amb-l` (W1): on a phone title page the backdrop fades out by alpha and the blurred backdrop
   // washes the top of the page behind it, past the hero, so the page takes its colour from the art and no edge shows.
   // Only a title page that has a backdrop (film, show, collection): other "title" callers keep their own washes.
-  const phoneTitle = theme.layoutMode === 'phone' && treatment === 'title' && !!foreground;
+  // `platform`, not `layoutMode`: a tablet lays out as handheld too, and its title page is not the phone frame.
+  const phoneTitle = theme.platform === 'phone' && treatment === 'title' && !!foreground;
   // phone-app `.amb-l` with no backdrop (album and artist pages): the same wash, nothing over it.
-  const pageWash = theme.layoutMode === 'phone' && treatment === 'page';
+  const pageWash = theme.platform === 'phone' && treatment === 'page';
   const list = (sources ?? (source ? [source] : [])).slice(0, 3);
   const sourceIdentity = JSON.stringify(list.map(item => item.cacheKey));
   const empty = !foreground && list.length === 0, fallbackReported = useRef(false);

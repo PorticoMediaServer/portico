@@ -13,7 +13,7 @@ const i18n = {t: (key: string) => key, number: String, duration: (value: number)
 const runtime = {artwork: () => ({cacheKey: 'art'}), ambient: () => ({cacheKey: 'ambient'}), text: {locale: 'en-US'}, reportError: (error: unknown) => {throw error;}};
 
 async function music(platform = 'tablet') {
-  const ui = hooks(), theme = {platform, layoutMode: platform === 'phone' ? 'phone' : 'medium', isTV: false, colors}, react: any = {...ui.react, useId: () => 'wash'}; react.default = react;
+  const ui = hooks(), theme = {platform, layoutMode: 'phone', isTV: false, colors}, react: any = {...ui.react, useId: () => 'wash'}; react.default = react;
   const module = await screenModule(new URL('../src-next/screens/destinations/music/PhoneMusicScreens.tsx', import.meta.url), {
     react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
