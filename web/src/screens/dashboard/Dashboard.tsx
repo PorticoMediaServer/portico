@@ -23,7 +23,6 @@ import {PhoneHealth} from './PhoneHealth';
 import {DashboardQuiet} from './DashboardQuiet';
 import quietStyles from './dashboard-quiet.module.css';
 import {Analytics} from './Analytics';
-import {useDashboardReport, type DashboardReportController} from './use-report';
 import {readNowPlaying} from './pages';
 import {PhonePage, PhoneStatistics, type DashboardPhoneChrome} from './phone';
 import {ProgressRing} from '../../kit/shell/Activity';
@@ -43,9 +42,6 @@ export function DashboardScreen(props: DashboardScreenProps) {
   const b = props.bindings;
   return <DashboardView key={JSON.stringify([b.scope.serverId, b.scope.viewerId, b.role])} {...props} />;
 }
-/** The panels whose reads are on the rebuilt server. Server load and the statistics join when their own
- * screens move; until then they are left out rather than shown failing. */
-const onServer = {load: true, statistics: false} as const;
 function DashboardView({bindings: b, embedded = false, initialSection, phone = false, chrome}: DashboardScreenProps) {
   const current = useDashboardAuthority(b);
   const ref = useRef<HTMLDivElement>(null), allowed = current && b.isMainProfile() && (b.role === 'owner' || b.role === 'admin');
@@ -56,32 +52,31 @@ function DashboardView({bindings: b, embedded = false, initialSection, phone = f
   // The server sends its activity change to the owner alone: an administrator's Now playing keeps its timed re-read.
   const sessions = useDashboardRead(b, sessionsLoad, allowed, b.role === 'owner' ? 30000 : 10000, undefined, b.role === 'owner');
   const liveLoad = useCallback((signal: AbortSignal) => b.read.telemetry('live', signal), [b]);
-  const live = useDashboardRead(b, liveLoad, onServer.load && allowed && b.role === 'owner' && !phone, 2000);
+  const live = useDashboardRead(b, liveLoad, allowed && b.role === 'owner' && !phone, 2000);
   // The wide Load section's last 24 hours (rule 12), read only while it is shown.
   const [loadRange, setLoadRange] = useState<'live' | '24h'>('live');
   const dayLoad = useCallback((signal: AbortSignal) => b.read.telemetry('24h', signal), [b]);
-  const day = useDashboardRead(b, dayLoad, onServer.load && allowed && b.role === 'owner' && !phone && loadRange === '24h', 60000);
+  const day = useDashboardRead(b, dayLoad, allowed && b.role === 'owner' && !phone && loadRange === '24h', 60000);
   const [healthRange, setHealthRange] = useState<'live' | '24h'>('live');
   const healthLoad = useCallback((signal: AbortSignal) => b.read.telemetry(healthRange, signal), [b, healthRange]);
-  const health = useDashboardRead(b, healthLoad, onServer.load && allowed && b.role === 'owner' && phone, 2000);
+  const health = useDashboardRead(b, healthLoad, allowed && b.role === 'owner' && phone, healthRange === 'live' ? 2000 : 60000);
   const serverLoad = useCallback((signal: AbortSignal) => b.read.server(signal), [b]);
   const server = useDashboardRead<DashboardServerHeader>(b, serverLoad, allowed && b.role === 'owner' && phone, 60000);
-  const report = useDashboardReport(b, onServer.statistics && allowed && b.role === 'owner');
-  const accounts = useDashboardAccounts(b, onServer.statistics && allowed && b.role === 'owner' && !phone);
+  const accounts = useDashboardAccounts(b, allowed && b.role === 'owner' && !phone);
   const [updatedAt, setUpdatedAt] = useState(() => Date.now());
   useEffect(() => {if (sessions.value && !sessions.loading) setUpdatedAt(Date.now());}, [sessions.value, sessions.loading]);
   useEffect(() => {if (!phone && initialSection) ref.current?.querySelector(`[data-dashboard-section="${initialSection}"]`)?.scrollIntoView({block: 'start'});}, [initialSection, phone]);
   if (!allowed) return null;
-  const failed = sessions.failed || b.role === 'owner' && (status.failed || onServer.load && (phone ? health.failed : live.failed || loadRange === '24h' && day.failed) || onServer.statistics && (accounts.failed || report.state.failed));
-  const retry = () => {sessions.refresh(); if (b.role === 'owner') {status.refresh(); if (phone) health.refresh(); else {live.refresh(); if (loadRange === '24h') day.refresh();} report.state.refresh(); accounts.refresh(); server.refresh();}};
+  const failed = sessions.failed || b.role === 'owner' && (status.failed || (phone ? health.failed : live.failed || loadRange === '24h' && day.failed || accounts.failed));
+  const retry = () => {sessions.refresh(); if (b.role === 'owner') {status.refresh(); if (phone) health.refresh(); else {live.refresh(); if (loadRange === '24h') day.refresh();} accounts.refresh(); server.refresh();}};
   /* settings.html's Dashboard (lead, 4 Nov): Alerts, Now playing, Server load, the statistics, then Background tasks, quiet or busy. */
   const groupedQuiet = !phone && !failed && b.role === 'owner';
   const sections = phone
     ? <><div data-dashboard-section="streams"><NowPlaying bindings={b} state={sessions} phone /></div>
-        {b.role === 'owner' && <><Status bindings={b} status={status} phone /><Tasks status={status} phone />{onServer.load && <PhoneHealth reading={health.value} loading={health.loading} failed={health.failed} range={healthRange} onRangeChange={range => {if (b.isCurrent()) setHealthRange(range);}} onRetry={health.refresh} />}{onServer.statistics && <div data-dashboard-section="activity"><PhoneStatistics bindings={b} report={report} /></div>}</>}</>
+        {b.role === 'owner' && <><Status bindings={b} status={status} phone /><Tasks status={status} phone />{<PhoneHealth reading={health.value} loading={health.loading} failed={health.failed} range={healthRange} onRangeChange={range => {if (b.isCurrent()) setHealthRange(range);}} onRetry={health.refresh} />}<div data-dashboard-section="activity"><PhoneStatistics bindings={b} /></div></>}</>
     : <>{b.role === 'owner' && <Status bindings={b} status={status} />}
         <div data-dashboard-section="streams"><NowPlaying bindings={b} state={sessions} /></div>
-        {b.role === 'owner' && <>{onServer.load && <div className={quietStyles.slot} data-dashboard-quiet-slot="load"><Load bindings={b} live={live} day={day} range={loadRange} onRange={setLoadRange} /></div>}{onServer.statistics && <div data-dashboard-section="activity"><Analytics bindings={b} report={report} accounts={accounts} /></div>}<div className={quietStyles.slot} data-dashboard-quiet-slot="tasks"><Tasks status={status} /></div></>}</>;
+        {b.role === 'owner' && <><div className={quietStyles.slot} data-dashboard-quiet-slot="load"><Load bindings={b} live={live} day={day} range={loadRange} onRange={setLoadRange} /></div><div data-dashboard-section="activity"><Analytics bindings={b} accounts={accounts} /></div><div className={quietStyles.slot} data-dashboard-quiet-slot="tasks"><Tasks status={status} /></div></>}</>;
   if (phone) return <PhonePage chrome={chrome ?? {serverName: '', audience: b.role === 'owner' ? 'owner' : 'administrators'}} server={server.value}
     updatedAt={updatedAt} onBack={() => {if (history.length > 1) history.back(); else b.effects.openHome();}} onRefresh={retry} initialSection={initialSection}>
     {failed && !sessions.value ? <ReadFeedback openHome={b.effects.openHome} height={420} state={{failed: true, loading: false, refresh: retry}} /> : sections}

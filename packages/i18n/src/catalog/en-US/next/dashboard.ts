@@ -80,6 +80,8 @@ export const dashboardMessages = {
   'next.dashboard.people': 'Top people',
   'next.dashboard.timeWatched': 'Time watched',
   'next.dashboard.timePlayed': 'Time played',
+  'next.dashboard.dataSent': 'Data sent',
+  'next.dashboard.countedFrom': 'Counted from the latest {count, number} plays, since {date}.',
   'next.dashboard.total': 'Total',
   'next.dashboard.busiest': 'Busiest times',
   'next.dashboard.quietest': 'Quietest',

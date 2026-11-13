@@ -37,7 +37,7 @@ const readValue = {status: {}, series: {}, summary: {plays: 46, people: 4, watch
 function bindings(role: 'owner' | 'admin' | 'member' = 'owner') {
   return {
     scope, role, context, isCurrent: () => true, isMainProfile: () => true,
-    read: {sessions: async () => page as never, status: async () => readValue as never, telemetry: async () => ({} as never), report: async () => ({} as never), people: async () => ({} as never), plays: async () => ({} as never), server: async () => ({facts: []})},
+    read: {sessions: async () => page as never, status: async () => readValue as never, telemetry: async () => ({} as never), statistics: async () => ({} as never), summary: async () => ({} as never), plays: async () => ({} as never), server: async () => ({facts: []})},
     effects: {transport: async () => {}, stop: async () => {}, openHistory() {}, openHome() {}, openSettings() {}, reportError() {}},
     artwork: () => undefined, dispose() {},
   };
@@ -63,8 +63,8 @@ test('the phone Dashboard is a page: its own bar and server header over the stan
   assert.match(html, /Portico demo/);
   assert.match(html, />Updated a few seconds ago</);
   assert.match(html, />Refresh<\/button>/);
-  // Health reads the rebuilt server's load (rule 12); Viewing statistics come back when the statistics move.
-  assert.deepEqual(headings(html).slice(0, 5), ['>Now playing<', '>Alerts<', '>Background activity<', '>Health<']);
+  // Health reads the rebuilt server's load (rule 12); Viewing statistics its totals per day (rule 86).
+  assert.deepEqual(headings(html).slice(0, 5), ['>Now playing<', '>Alerts<', '>Background activity<', '>Health<', '>Viewing statistics<']);
   assert.doesNotMatch(html, /class="dashboard"/);
 });
 
@@ -72,8 +72,8 @@ test('the desktop Dashboard keeps its Settings composition and its own section o
   Object.assign(state, {authority: true, value: {...readValue, ...page}});
   const html = renderToStaticMarkup(createElement(DashboardScreen, {bindings: bindings() as never, embedded: true}));
   assert.doesNotMatch(html, /data-dashboard-page|class="phoneBar"|>Updated a few seconds ago</);
-  // Server load reads the rebuilt server (rule 12); the statistics come back when they move.
-  assert.deepEqual(headings(html).slice(0, 5), ['>Now playing<', '>Server load<', '>Background tasks<']);
+  // Server load (rule 12), then the statistics (rules 13 and 86), then Background tasks.
+  assert.deepEqual(headings(html).slice(0, 6), ['>Now playing<', '>Server load<', '>Top people<', '>Play history<', '>Top played<', '>Background tasks<']);
   assert.doesNotMatch(html, /class="phoneSession"|data-dashboard-page/);
 });
 

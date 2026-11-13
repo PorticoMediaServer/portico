@@ -5,7 +5,7 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {defaultI18n} from '@i18n';
 import {fmtHrs, formatHourOrdinal, formatQuietHours, heatMapLabels} from '../src/screens/dashboard/format.ts';
 import {hours, quietestHours} from '../src/screens/dashboard/model.ts';
-import {Analytics} from '../src/screens/dashboard/Analytics.tsx';
+import {Busiest} from '../src/screens/dashboard/Analytics.tsx';
 
 /** PERF-WEB-003 / web-render-006: the 7 × 24 heat map rebuilt one UTC weekday
  * `Intl.DateTimeFormat` per cell on every pointer-state render. The table is one
@@ -66,27 +66,17 @@ test('the table costs three formatters for all 38 labels, not one per cell', () 
 });
 
 test('the analytics heat map renders 168 cells from one formatter of each shape', () => {
-  const busiestTimes = Array.from({length: 7}, (_, day) => Array.from({length: 24}, (_, hour) => (day * 24 + hour) % 5 === 0 ? (hour + 1) * 60_000 : 0));
+  // Busiest times count plays from Play history (rule 13).
+  const busiestTimes = Array.from({length: 7}, (_, day) => Array.from({length: 24}, (_, hour) => (day * 24 + hour) % 5 === 0 ? hour + 1 : 0));
   const quiet = quietestHours(busiestTimes);
   assert.equal(typeof quiet, 'number');
-  const interval = {timeZone: 'UTC', from: '2025-10-27T00:00:00.000Z', until: '2026-10-27T00:00:00.000Z'};
-  const history = {...interval, period: '1y', topKind: 'movies', top: [], quietestStartHour: quiet,
-    busiestTimes, buckets: [{start: interval.from, end: interval.until, partial: false, kinds: [{kind: 'movies', plays: 4, watchedMs: 7_200_000}]}]};
-  const people = {...interval, period: '7d', nextCursor: '', buckets: [], items: [{accountId: 'sam', username: 'sam_k', profiles: ['Sam'], plays: 4, watchedMs: 7_200_000, kinds: [{kind: 'movies', plays: 4, watchedMs: 7_200_000}]}]};
-  const report = {
-    query: {period: '1y', window: 'live', peoplePeriod: '7d', topPeriod: '30d', topKind: 'movies', peopleLimit: 100},
-    change: () => {},
-    state: {loading: false, failed: false, refresh: () => {}, value: {history, people, topPlayed: {...interval, period: '1y', items: []}}},
-  };
-  const bindings = {role: 'owner', scope: {serverId: 'server', viewerId: 'viewer'}, effects: {openHome: () => {}}, artwork: () => undefined};
-  const accounts = {items: [{accountId: 'sam', username: 'sam_k'}], loading: false, failed: false, refresh: () => {}};
-
-  const {value: html, counts} = counted(() => renderToStaticMarkup(createElement(Analytics, {bindings, report, accounts} as never)));
+  const summary = {people: [], titles: [], busiest: busiestTimes, window: 20000};
+  const {value: html, counts} = counted(() => renderToStaticMarkup(createElement(Busiest, {summary})));
   const labels = heatMapLabels();
   const cells = [...html.matchAll(/<rect [^>]*class="heatCell"[^>]*aria-label="([^"]*)"/g)].map(match => match[1]);
   // The rendered aria-labels are the old per-cell expression, in day-then-hour order.
   assert.equal(cells.length, 168);
-  assert.deepEqual(cells, busiestTimes.flatMap((day, d) => day.map((ms, hour) => `${weekdayText(defaultI18n.locale, 'long', d)} ${hourText(defaultI18n.locale, hour)}: ${fmtHrs(hours(ms))}`)));
+  assert.deepEqual(cells, busiestTimes.flatMap((day, d) => day.map((count, hour) => `${weekdayText(defaultI18n.locale, 'long', d)} ${hourText(defaultI18n.locale, hour)}: ${defaultI18n.t('next.dashboard.plays', {count})}`)));
   // Column headings and the 3-hour axis ticks are the same entries.
   assert.deepEqual([...html.matchAll(/<text x="32" [^>]*>([^<]*)<\/text>/g)].map(match => match[1]), [...labels.weekdayShort]);
   assert.deepEqual([...html.matchAll(/<text x="[\d.]+" y="197">([^<]*)<\/text>/g)].map(match => match[1]), hourColumns.map(hour => labels.hour[hour]));
