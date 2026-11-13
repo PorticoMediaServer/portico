@@ -129,9 +129,14 @@ func removeItem(b *batchTx, libraryID, id, now int64) error {
 	// The item cascade removes list entries too. Store each affected list's surviving count
 	// in this same transaction, including repeated entries and entries of descendants.
 	if _, err := b.exec(subtree+`UPDATE lists SET entry_count = (SELECT count(*) FROM list_entries e
-		WHERE e.list_id = lists.id AND e.item_id NOT IN (SELECT id FROM t))
-		WHERE id IN (SELECT e.list_id FROM list_entries e JOIN t ON t.id = e.item_id)`, id); err != nil {
+        WHERE e.list_id = lists.id AND e.item_id NOT IN (SELECT id FROM t))
+        WHERE id IN (SELECT e.list_id FROM list_entries e JOIN t ON t.id = e.item_id)`, id); err != nil {
 		return err
+	}
+	if b.previewRemoval != nil {
+		if err := b.previewRemoval(id); err != nil {
+			return err
+		}
 	}
 	if _, err := b.exec(`DELETE FROM items WHERE id = ?`, id); err != nil {
 		return err

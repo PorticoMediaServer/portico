@@ -263,10 +263,20 @@ func TestDeleteNamesWhatSharesAFileAndRefusesAMissingDisk(t *testing.T) {
 		t.Fatalf("episodes: %+v; want the two the file holds", both)
 	}
 	item := "/v1/admin/items/" + both[0].ID
+	detail := get[Item](t, s, owner, "/v1/items/"+both[0].ID)
+	expected := map[string]bool{both[1].ID: true, detail.ParentID: true, detail.RootID: true}
 	var preview DeletionPreview
-	if w := call(t, s, "GET", item+"/deletion", owner, nil, &preview); w.Code != 200 || preview.Titles != 2 || preview.Files != 1 ||
-		len(preview.AlsoRemoves) != 1 || preview.AlsoRemoves[0].ID != both[1].ID {
+	if w := call(t, s, "GET", item+"/deletion", owner, nil, &preview); w.Code != 200 || preview.Titles != 4 || preview.Files != 1 || len(preview.AlsoRemoves) != 3 {
 		t.Fatalf("delete preview: %d %s", w.Code, w.Body)
+	}
+	for _, other := range preview.AlsoRemoves {
+		if !expected[other.ID] {
+			t.Fatalf("unexpected removal: %+v", other)
+		}
+		delete(expected, other.ID)
+	}
+	if len(expected) != 0 {
+		t.Fatalf("missing shared episode or empty holder: %+v", expected)
 	}
 
 	// The disk goes away: its folder is there and empty.
