@@ -4,28 +4,28 @@
 
 .phoneHero { position: relative; margin-bottom: 24px; }
 .phonePicture { position: relative; height: 330px; }
-.phoneCopy { position: absolute; z-index: 1; left: 20px; right: 20px; bottom: 4px; text-align: center; }
+.phoneCopy { position: absolute; z-index: 1; left: var(--shell-gutter); right: var(--shell-gutter); bottom: 4px; text-align: center; }
 .phoneCopy h1 { margin: 0 0 10px; }
 .phoneCopy > div { justify-content: center; gap: 6px 12px; margin: 0; font-size: var(--type-fixed-size-13px); }
-.phoneHero .heroActions { position: relative; margin: 0; padding: 18px 20px 0; flex-wrap: nowrap; gap: 10px; }
+.phoneHero .heroActions { position: relative; margin: 0; padding: 18px var(--shell-gutter) 0; flex-wrap: nowrap; gap: 10px; }
 .phoneHero .heroActions > button:not([data-icon-only]) { flex: 1; min-width: 0; padding-left: 12px; padding-right: 12px; }
-.phoneHero .phoneSynopsis[data-variant=hero] { position: relative; margin: 16px 20px 0; font-size: var(--type-synopsis-size); line-height: var(--type-synopsis-line); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.phoneHero .starring { position: relative; margin: 8px 20px 0; }
+.phoneHero .phoneSynopsis[data-variant=hero] { position: relative; margin: 16px var(--shell-gutter) 0; font-size: var(--type-synopsis-size); line-height: var(--type-synopsis-line); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.phoneHero .starring { position: relative; margin: 8px var(--shell-gutter) 0; }
 
 @media(min-width:600px) and (max-width:1023px) {
   .phonePicture { height: 560px; }
   .phonePicture .phoneArt::after { inset: 0; background: linear-gradient(180deg,transparent 40%,color-mix(in srgb,var(--color-ink) 70%,transparent) 66%,color-mix(in srgb,var(--color-ink) 96%,transparent) 100%); }
-  .phoneCopy { left: 40px; right: 40px; bottom: 20px; }
+  .phoneCopy { left: var(--shell-gutter); right: var(--shell-gutter); bottom: 20px; }
   .phoneCopy h1 { margin-bottom: 12px; }
   .phoneCopy > div { font-size: var(--type-fixed-size-15px); }
-  .phoneHero .heroActions { padding: 0 40px; justify-content: center; }
+  .phoneHero .heroActions { padding: 0 var(--shell-gutter); justify-content: center; }
   .phoneHero .heroActions > button:not([data-icon-only]) { flex: none; padding-left: 20px; padding-right: 20px; }
   .phoneHero .heroActions > button[data-variant=primary] { flex: 0 1 300px; }
   .phoneHero .phoneSynopsis[data-variant=hero] { max-width: 600px; margin: 16px auto 0; padding: 0 28px; text-align: center; font-size: var(--type-fixed-size-15point-5px); line-height: var(--type-fixed-line-1point-55); -webkit-line-clamp: 3; }
   .phoneHero .starring { text-align: center; }
 }
 
-.episodes { padding: 28px 64px 82px; }
+.episodes { padding: 28px var(--shell-gutter) 82px; }
 
 .toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
 
@@ -78,7 +78,7 @@
 
 .paging { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
 
-@media(max-width:1023px) { .episodes { padding: 20px 20px 110px; }
+@media(max-width:1023px) { .episodes { padding: 20px var(--shell-gutter) 110px; }
 
 .toolbar { flex-wrap: wrap; gap: 12px; }
 
@@ -108,7 +108,7 @@
 }
 
 /* Frame 4: the show's Details tab, its cast and crew, and the owner's Server panel. */
-.detailsTab { padding: 32px 64px 74px; }
+.detailsTab { padding: 32px var(--shell-gutter) 74px; }
 
 .detailsGrid { display: grid; grid-template-columns: 360px minmax(0,1fr); gap: 64px; }
 
@@ -198,7 +198,7 @@
 
 .preview span + span { color: var(--color-text-secondary); font-weight: var(--type-caption-strong-weight); }
 
-@media(max-width:1023px) { .detailsTab { padding: 24px 20px 110px; }
+@media(max-width:1023px) { .detailsTab { padding: 24px var(--shell-gutter) 110px; }
 
 .expanded { margin-top: -24px; }
 
