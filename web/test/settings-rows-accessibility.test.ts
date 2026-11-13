@@ -41,8 +41,8 @@ test('saving and disabled matrix rows remain readable while their native control
 test('memory preference remains selectable with an unavailable note and an independent disk folder', async () => {
   const {hardwareRowState} = await import('../src/screens/settings/hardware/hardware-rows.ts');
   const row = settingsRowIndex.get('streaming.transcodeLocation')!.row;
-  assert.equal(row.control.default, 'memory');
-  assert.deepEqual(row.control.options?.map(option => option.value), ['memory', 'disk']);
+  assert.equal(row.control.default, 'separate');
+  assert.deepEqual(row.control.options?.map(option => option.value), ['separate', 'memory', 'folder']);
   assert.equal(row.children?.[0].enableWhen, undefined);
   for (const memoryAvailable of [false, true]) for (const stored of ['memory', 'disk', undefined]) {
     const snapshot = {phase: 'ready', capacity: {hardware: {devices: []}, temporaryDirectory: {

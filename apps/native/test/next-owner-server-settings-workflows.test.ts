@@ -219,7 +219,7 @@ for (const memoryAvailable of [true, false]) test(`Streaming keeps memory prefer
   assert.equal(fixture.group.forms.runtime.getSnapshot().draft.hardwareSelection, 'drm-0a1b');
   const location = controls.find((node: any) => node.props.row.id === 'streaming.transcodeLocation');
   assert.ok(location);assert.equal(location.props.value, 'disk');
-  assert.deepEqual(location.props.row.control.options.map((option: any) => option.value), ['memory', 'disk']);
+  assert.deepEqual(location.props.row.control.options.map((option: any) => option.value), ['separate', 'memory', 'folder']);
   assert.ok(location.props.row.control.options.every((option: any) => !option.locked));
   assert.equal(location.props.row.help, memoryAvailable ? section!.groups![2].rows[1].help : 'next.settings.streaming.memoryUnavailable');
   const folder = () => nodes(render()).find((node: any) => node.type === 'Setting' && node.props.row.id === 'streaming.transcodeFolder');
@@ -299,8 +299,8 @@ for (const memoryAvailable of [true, false]) test(`TV Streaming saves its explic
   row('streaming.transcodeFolder').props.onChoose('/fast');await settle();
   assert.equal(fixture.group.forms.runtime.getSnapshot().draft.temporaryDirectory, '/fast');
   assert.equal(fixture.group.forms.runtime.getSnapshot().draft.transcodeLocation, 'memory');
-  row('streaming.transcodeLocation').props.onChange('disk');await settle();
-  assert.equal(fixture.group.forms.runtime.getSnapshot().draft.transcodeLocation, 'disk');
+  row('streaming.transcodeLocation').props.onChange('folder');await settle();
+  assert.equal(fixture.group.forms.runtime.getSnapshot().draft.transcodeLocation, 'folder');
   assert.equal(fixture.group.forms.runtime.getSnapshot().draft.temporaryDirectory, '/fast');
   host.dispose();fixture.stop();
 });
