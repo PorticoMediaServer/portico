@@ -6,12 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/serverlog"
 )
 
@@ -48,8 +51,13 @@ type LogDetailState struct {
 // SupportExportRequest asks for a support export of the last Days days (1 to 30, 7 when
 // absent). File paths are replaced unless IncludePaths.
 type SupportExportRequest struct {
-	Days         int  `json:"days,omitempty"`
-	IncludePaths bool `json:"includePaths,omitempty"`
+	Days int `json:"days,omitempty"`
+	// WindowMinutes is the chosen 1h, 6h, 24h, 3d or 7d window. When present it replaces Days.
+	WindowMinutes int `json:"windowMinutes,omitempty"`
+	// Components are runtime (messages), client (consented app logs), audit (activity),
+	// and snapshot (settings and capabilities). Absent: runtime, audit and snapshot.
+	Components   []string `json:"components,omitempty"`
+	IncludePaths bool     `json:"includePaths,omitempty"`
 }
 
 const (
@@ -156,6 +164,23 @@ func (s *Server) logRoutes() {
 		if req.Days < 1 || req.Days > 30 {
 			s.writeError(w, r, ErrField("days", "Choose 1 to 30 days."))
 			return
+		}
+		if req.WindowMinutes != 0 && !slices.Contains([]int{60, 360, 1440, 4320, 10080}, req.WindowMinutes) {
+			s.writeError(w, r, ErrField("windowMinutes", "Choose 1 hour, 6 hours, 24 hours, 3 days or 7 days."))
+			return
+		}
+		if req.Components == nil {
+			req.Components = []string{"runtime", "audit", "snapshot"}
+		}
+		if len(req.Components) == 0 || len(req.Components) > 4 {
+			s.writeError(w, r, ErrField("components", "Choose at least one export component."))
+			return
+		}
+		for i, component := range req.Components {
+			if !slices.Contains([]string{"runtime", "client", "audit", "snapshot"}, component) || slices.Contains(req.Components[:i], component) {
+				s.writeError(w, r, ErrField("components", "Choose server records, app logs, settings changes or the health snapshot."))
+				return
+			}
 		}
 		s.supportExport(w, r, req)
 	})
@@ -276,7 +301,12 @@ func cleanValues(raw json.RawMessage, clean func(string) string) json.RawMessage
 // without secrets and what this server is. It is made as it is sent and never kept. It holds
 // no media, no database and no credentials.
 func (s *Server) supportExport(w http.ResponseWriter, r *http.Request, req SupportExportRequest) {
-	from := s.now().AddDate(0, 0, -req.Days)
+	to := s.now()
+	from := to.AddDate(0, 0, -req.Days)
+	if req.WindowMinutes != 0 {
+		from = to.Add(-time.Duration(req.WindowMinutes) * time.Minute)
+	}
+	includes := func(part string) bool { return slices.Contains(req.Components, part) }
 	clean := func(text string) string {
 		text = serverlog.Clean(text)
 		if req.IncludePaths {
@@ -295,21 +325,24 @@ func (s *Server) supportExport(w http.ResponseWriter, r *http.Request, req Suppo
 	}
 	server := add("server.json")
 	server.Encode(map[string]any{"version": s.version, "id": s.id, "os": runtime.GOOS, "arch": runtime.GOARCH, "processors": runtime.NumCPU(),
-		"go": runtime.Version(), "madeAt": s.now().UTC(), "days": req.Days, "pathsIncluded": req.IncludePaths})
-	settingsOut := map[string]json.RawMessage{}
-	for _, name := range s.settings.Names() {
-		if doc, err := s.settings.Read(name); err == nil {
-			settingsOut[name] = cleanValues(doc.Values, clean)
+		"go": runtime.Version(), "madeAt": to.UTC(), "from": from.UTC(), "to": to.UTC(), "components": req.Components, "pathsIncluded": req.IncludePaths})
+	if includes("snapshot") {
+		settingsOut := map[string]json.RawMessage{}
+		for _, name := range s.settings.Names() {
+			if doc, err := s.settings.Read(name); err == nil {
+				settingsOut[name] = cleanValues(doc.Values, clean)
+			}
 		}
+		add("settings.json").Encode(settingsOut)
+		capabilities, _ := json.Marshal(s.serverCapabilities(r.Context()))
+		add("capabilities.json").Encode(cleanValues(capabilities, clean))
 	}
-	add("settings.json").Encode(settingsOut)
-	capabilities, _ := json.Marshal(s.serverCapabilities(r.Context()))
-	add("capabilities.json").Encode(cleanValues(capabilities, clean))
-	if s.serverLog != nil {
+
+	if includes("runtime") && s.serverLog != nil {
 		messages := add("messages.jsonl")
 		for _, file := range s.serverLog.Files(from) {
 			serverlog.Lines(file, func(e serverlog.Entry) {
-				if e.Time.Before(from) {
+				if e.Time.Before(from) || e.Time.After(to) {
 					return
 				}
 				line := logLine(e)
@@ -321,25 +354,54 @@ func (s *Server) supportExport(w http.ResponseWriter, r *http.Request, req Suppo
 			})
 		}
 	}
-	activity := add("activity.jsonl")
-	var after int64
-	for written := 0; written < 100_000; {
-		list, err := s.db.ActivityRecord(r.Context(), "", after, 1000)
-		if err != nil {
-			s.log.Error("the activity record could not be read for a support export", "error", err)
-			return
+	if includes("audit") {
+		activity := add("activity.jsonl")
+		var after int64
+		for written := 0; written < 100_000; {
+			list, err := s.db.ActivityRecord(r.Context(), "", after, 1000)
+			if err != nil {
+				s.log.Error("the activity record could not be read for a support export", "error", err)
+				break
+			}
+			for _, a := range list {
+				if a.At.Before(from) || a.At.After(to) {
+					continue
+				}
+				activity.Encode(ActivityEntry{At: a.At.UTC(), Actor: a.Actor, Action: a.Action, Target: clean(a.Target), Detail: clean(a.Detail)})
+				written++
+			}
+			if len(list) < 1000 || list[len(list)-1].At.Before(from) {
+				break
+			}
+			after = list[len(list)-1].ID
 		}
-		for _, a := range list {
-			if a.At.Before(from) {
+	}
+	if includes("client") {
+		logs := add("app-logs.jsonl")
+		var after int64
+		for {
+			reports, err := s.db.Reports(r.Context(), db.ReportQuery{After: after, Limit: 1000})
+			if err != nil {
+				s.log.Error("app logs could not be read for a support export", "error", err)
 				return
 			}
-			activity.Encode(ActivityEntry{At: a.At.UTC(), Actor: a.Actor, Action: a.Action, Target: clean(a.Target), Detail: clean(a.Detail)})
-			written++
+			for _, report := range reports {
+				if report.CreatedAt.Before(from) || report.CreatedAt.After(to) || report.LogHash == "" {
+					continue
+				}
+				raw, err := os.ReadFile(s.reportLogPath(report.LogHash))
+				if err != nil {
+					continue
+				}
+				if log := supportAppLog(raw, from, to); log != "" {
+					logs.Encode(map[string]any{"reportId": report.PublicID, "createdAt": report.CreatedAt.UTC(), "log": log})
+				}
+			}
+			if len(reports) < 1000 || reports[len(reports)-1].CreatedAt.Before(from) {
+				break
+			}
+			after = reports[len(reports)-1].ID
 		}
-		if len(list) < 1000 {
-			return
-		}
-		after = list[len(list)-1].ID
 	}
 }
 
