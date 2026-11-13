@@ -211,6 +211,7 @@ export function SettingsEntry() {
     const requestLyrics: typeof originalApi.requestLyrics = async <T,>(path: string, method?: string, body?: unknown, input?: AbortSignal): Promise<T> => {
       assert();const value = await originalApi.requestLyrics<T>(path, method, body, signal(input));assert();return value;
     };
+    const readReportLog: typeof originalApi.readReportLog = async (id, input) => {assert();const value = await originalApi.readReportLog(id, signal(input));assert();return value;};
     const routeFetch: typeof originalApi.routeFetch = async (input, options) => {
       assert();const value = await originalApi.routeFetch(input, {...options, signal: signal(options?.signal)});assert();return value;
     };
@@ -227,6 +228,7 @@ export function SettingsEntry() {
       if (property === 'requestBounded') return requestBounded;
       if (property === 'requestLyrics') return requestLyrics;
       if (property === 'routeFetch') return routeFetch;
+      if (property === 'readReportLog') return readReportLog;
       const value = Reflect.get(target, property, target);
       if (typeof value !== 'function') return value;
       const held = methods.get(property);

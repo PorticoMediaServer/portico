@@ -1,5 +1,6 @@
 import type {RouteId} from '../../../../../../packages/contracts/src/route-paths.ts';
-import {serverTierMayCallAll, type ServerTier} from '@core/server-admin/route-access.ts';
+import type {Routes} from '../../../../../../packages/contracts/src/next/api.ts';
+import {serverTierMayCall, type ServerTier} from '@core/server-admin/route-access.ts';
 
 /**
  * The parts of Troubleshooting and the routes each one calls. Who sees a part is never listed
@@ -13,18 +14,24 @@ export const troubleshootingRoutes = Object.freeze({
   logSettings: ['patch_admin_logs_settings'],
   feedback: ['get_admin_feedback_reports', 'get_admin_feedback_reports_id', 'post_admin_feedback_reports_id_status'],
   // App logs the apps sent, with the server's records: drawn on the Reports viewer.
-  reports: ['get_client_logs', 'get_client_log', 'download_client_log', 'delete_client_log', 'get_admin_console_diagnostics_lane', 'post_admin_console_diagnostics_capture'],
+  reports: ['GET /v1/admin/reports', 'GET /v1/admin/reports/{id}', 'GET /v1/admin/reports/{id}/log', 'DELETE /v1/admin/reports/{id}', 'GET /v1/admin/logs', 'GET /v1/admin/audit'],
   // Stuck files (titles a rebuild set aside): on the same viewer, and its own part, because the spec
   // gives administrators "Messages and stuck files" while app logs stay the owner's.
-  stuckFiles: ['get_catalogue_failures'],
+  stuckFiles: ['GET /v1/admin/skipped'],
   support: ['get_capability_report', 'get_admin_console_alerts', 'get_console_registry', 'post_admin_console_exports', 'get_admin_console_exports_id'],
-} satisfies Record<string, readonly RouteId[]>);
+} satisfies Record<string, readonly (RouteId | keyof Routes)[]>);
+
+// These parts use the rebuilt route table; the literal access values are checked against it.
+const rebuiltAccess={
+ 'GET /v1/admin/reports':'owner','GET /v1/admin/reports/{id}':'owner','GET /v1/admin/reports/{id}/log':'owner','DELETE /v1/admin/reports/{id}':'owner',
+ 'GET /v1/admin/logs':'admin','GET /v1/admin/audit':'owner','GET /v1/admin/skipped':'admin',
+} as const satisfies {[K in keyof Routes]?:Routes[K]['access']};
 
 export type TroubleshootingPart = keyof typeof troubleshootingRoutes;
 
 /** The parts of Troubleshooting this tier may use. */
 export function troubleshootingParts(tier: ServerTier): ReadonlySet<TroubleshootingPart> {
-  return new Set((Object.keys(troubleshootingRoutes) as TroubleshootingPart[]).filter(part => serverTierMayCallAll(troubleshootingRoutes[part], tier)));
+  return new Set((Object.keys(troubleshootingRoutes) as TroubleshootingPart[]).filter(part => troubleshootingRoutes[part].every(id=>{const access=rebuiltAccess[id as keyof typeof rebuiltAccess];return access?tier==='owner'||access==='admin':serverTierMayCall(id as RouteId,tier);})));
 }
 
 /** The part each Troubleshooting row belongs to, so search never offers a row this tier's page does not draw. */
