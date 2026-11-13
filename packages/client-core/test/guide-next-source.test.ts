@@ -90,13 +90,15 @@ test('source summaries keep watchable sources available even when the profile hi
  const paths:string[]=[],stop=new AbortController();
  const api={request:async<T>(path:string,method?:string,_body?:unknown,signal?:AbortSignal):Promise<T>=>{
   paths.push(path);assert.equal(method,'GET');assert.equal(signal,stop.signal);
-  return {items:[],sources:[{id:'antenna',name:'Antenna',kind:'live',channels:12,favorites:2,groups:[{name:'News',count:3}],guideThrough:'2026-11-15T00:00:00Z',outOfDate:true},
+  return {items:[],sources:[{id:'antenna',name:'Antenna',kind:'live',channels:12,favorites:2,groups:[{name:'News',count:3}],guideFrom:'2026-11-12T00:00:00Z',guideThrough:'2026-11-15T00:00:00Z',outOfDate:true},
    {id:'library',name:'Library Channels',kind:'library',channels:1,favorites:0,groups:[]}]} as T;
  }};
  const result=await fetchGuideSourceSummaries(api,'server','America/Halifax',stop.signal);
  assert.deepEqual(paths,['/v1/live/channels?hidden=true']);
  assert.deepEqual(result.sources.map(source=>[source.id,source.provenance,source.channelCount,source.favoriteCount]),[['antenna','live-source',12,2],['library','library-channel',1,0]]);
  assert.deepEqual(result.sources[0].groupCounts,[{name:'News',count:3}]);
+ assert.equal(result.sources[0].availableStart,'2026-11-12T00:00:00Z');
+ assert.equal(result.sources[1].availableStart,'','an unknown start stays unknown');
  assert.equal(result.sources[0].refreshState,'stale');assert.equal(result.sources[0].availableEnd,'2026-11-15T00:00:00Z');
 });
 

@@ -62,7 +62,7 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
       const filtered = query.has('group') || query.get('favorites') === 'true';
       return {items: filtered ? rows.slice(0, filteredTotal) : rows, sources: sources.map(source => ({id: source.id, name: source.name,
         kind: source.provenance === 'library-channel' ? 'library' : 'live', channels: source.channelCount, favorites: source.favoriteCount, groups: source.groupCounts,
-        outOfDate: ['degraded', 'credentials-required', 'stale'].includes(source.refreshState), guideThrough: source.availableEnd}))} as T;
+        outOfDate: ['degraded', 'credentials-required', 'stale'].includes(source.refreshState), guideFrom: source.availableStart, guideThrough: source.availableEnd}))} as T;
     }
     if (path.startsWith('/v1/live/guide?')) return {items: rows.map(channel => ({channel, programmes: []}))} as T;
     throw new Error('Unexpected read '+path);
@@ -86,8 +86,8 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
     dispose() {}
     async remindersFor() {return {items: []};}
     async programme() {return {...opened, channel: {...opened.channel, programmes: [opened.programme]}, airings: later};}
-    async remind() {return undefined;}
-    async dismiss() {return undefined;}
+    async remindProgramme() {return undefined;}
+    async dismissProgramme() {return undefined;}
   }
   const recordingListeners = new Set<() => void>(), summaryReads: number[] = [];
   let recordingSnapshot: any = {error: new Error('record_failed')};
