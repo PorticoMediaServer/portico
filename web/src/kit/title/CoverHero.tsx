@@ -1,6 +1,6 @@
 import type {ReactNode} from 'react';
 import type {FactPart} from '@core/presentation/kit-model';
-import {AmbientArt, Artwork, PersonCircle, nameInitials, type AmbientArtSource, type ArtworkPalette, type ArtworkSource} from '../artwork';
+import {AmbientArt, Artwork, PersonCircle, WholeArtwork, nameInitials, type AmbientArtSource, type ArtworkPalette, type ArtworkSource} from '../artwork';
 import {TitleFactsLine} from './TitleParts';
 import styles from './cover-hero.module.css';
 
@@ -46,6 +46,7 @@ export function CoverHero({title, titleStyle, eyebrow, byline, facts, metaEnd, c
       <div className={styles.cover} data-shape={shape} data-stack={fanned?.length || undefined}>
         {artist && ambient && <AmbientArt className={styles.discGlow} treatment="cover" source={ambient}/>}
         {fanned?.length ? fanned.map((source, index) => <Artwork key={`${source.key}:${index}`} source={source} alt="" fit="cover" className={`${styles.coverImage} ${styles.stackedCover}`} />)
+          : shape === 'square' ? <WholeArtwork source={cover} alt={title} fallback={fallback} fit="cover" className={styles.coverImage} />
           : <Artwork source={cover} alt={title} fallback={fallback} fit="cover" className={styles.coverImage} />}
       </div>
       <div className={styles.copy}>
