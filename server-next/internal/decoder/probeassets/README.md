@@ -19,10 +19,12 @@ runs at startup: the decoder embeds the clip and exposes only a private
 temporary copy, read-only, to its bounded probe process.
 
 hdr10-unmastered.hevc has the same five PQ frames without mastering-display
-or content-light side data, as found in HDR files that do not carry it. A tone
-mapper must handle both clips to be reported as usable for HDR conversions.
-If either fails, Portico uses software tone mapping with the working hardware
-encoder. This keeps the device's yes/no capability truthful for both inputs.
+or content-light side data, as found in HDR files that do not carry it. The two
+tone-mapping results are kept independently. A title uses the result
+matching its measured source mastering metadata: a device that needs that
+metadata still tone-maps mastered releases in hardware. A failed case uses
+software tone mapping with the working hardware encoder. Hardware reports
+both facts rather than treating the two inputs as one capability.
 
 Recreate the second clip without encoding:
 

@@ -12,8 +12,9 @@ import (
 // session identity: the same request always produces the same argument graph.
 type ConversionRequest struct {
 	// Source facts are never inferred from the requested output codec/depth.
-	SourceVideoCodec string
-	SourceBitDepth   int
+	SourceVideoCodec          string
+	SourceBitDepth            int
+	SourceHasMasteringDisplay bool
 	// HDR10+ carry is explicit intent over measured source facts. Empty intent
 	// keeps the encoder's default-off behavior, regardless of bundle capability.
 	HDR10PlusIntent HDR10PlusEncoding
@@ -259,7 +260,11 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 		if err != nil {
 			return out, err
 		}
-		native := backend != BackendSoftware && spec.scale != nil && (r.ToneMap && r.Probe.NativeFilters && spec.toneMap != nil || !r.ToneMap && (r.Probe.ScaleFilters || r.Probe.NativeFilters))
+		nativeFilters := r.Probe.ScaleFilters || r.Probe.NativeFilters
+		if r.ToneMap {
+			nativeFilters = r.Probe.NativeToneMapping(r.SourceHasMasteringDisplay || target.MasterDisplay != "") && spec.toneMap != nil
+		}
+		native := backend != BackendSoftware && spec.scale != nil && nativeFilters
 		// A subtitle burn-in used to download the picture on purpose. When the
 		// device's own composite passed its probe, the frames stay where they
 		// are and the device blends the subtitle surface in instead.
@@ -270,7 +275,7 @@ func BuildConversion(r ConversionRequest) (ConversionGraph, error) {
 		if r.DisableHardwareDecode {
 			native = false
 		}
-		if r.ToneMap && target.SourceRange == "hlg" && backend == BackendVAAPI && target.MasterDisplay == "" {
+		if r.ToneMap && target.SourceRange == "hlg" && backend == BackendVAAPI && !r.SourceHasMasteringDisplay && target.MasterDisplay == "" {
 			native = false
 		}
 		if r.Toolchain != nil && r.ToneMap {

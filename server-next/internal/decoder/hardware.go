@@ -90,22 +90,23 @@ const (
 // HardwareProbe is the cached result of one bounded encode. NativeFilters says
 // whether the backend's own tone-map/scale filters ran, not merely its encoder.
 type HardwareProbe struct {
-	BurnInFilters      bool            `json:"-"`
-	DeinterlaceFilters bool            `json:"-"`
-	DecodeCodecs       map[string]bool `json:"-"`
-	SelectedDeviceID   string          `json:"-"`
-	Backend            HardwareBackend `json:"backend"`
-	Available          bool            `json:"available"`
-	Reason             string          `json:"reason"`
-	Encoder            string          `json:"encoder,omitempty"`
-	NativeFilters      bool            `json:"nativeFilters"`
-	ScaleFilters       bool            `json:"scaleFilters"`
-	ToneMapFilters     bool            `json:"toneMapFilters"`
-	OutputEncoders     map[string]bool `json:"outputEncoders,omitempty"`
-	OutputQuality      map[string]bool `json:"outputQuality,omitempty"`
-	Device             string          `json:"device,omitempty"`
-	Identity           string          `json:"identity"`
-	DurationMS         int64           `json:"durationMs"`
+	BurnInFilters           bool            `json:"-"`
+	DeinterlaceFilters      bool            `json:"-"`
+	DecodeCodecs            map[string]bool `json:"-"`
+	SelectedDeviceID        string          `json:"-"`
+	Backend                 HardwareBackend `json:"backend"`
+	Available               bool            `json:"available"`
+	Reason                  string          `json:"reason"`
+	Encoder                 string          `json:"encoder,omitempty"`
+	NativeFilters           bool            `json:"nativeFilters"`
+	ScaleFilters            bool            `json:"scaleFilters"`
+	ToneMapFilters          bool            `json:"toneMapFilters"`
+	ToneMapWithoutMastering bool            `json:"toneMapWithoutMastering"`
+	OutputEncoders          map[string]bool `json:"outputEncoders,omitempty"`
+	OutputQuality           map[string]bool `json:"outputQuality,omitempty"`
+	Device                  string          `json:"device,omitempty"`
+	Identity                string          `json:"identity"`
+	DurationMS              int64           `json:"durationMs"`
 }
 
 type backendSpec struct {
@@ -284,7 +285,7 @@ func hardwareRuntimeIdentity(ctx context.Context, executable string) (string, er
 
 func invalidHardwareObservation(out HardwareProbe, reason string) HardwareProbe {
 	out.Available, out.Reason, out.Identity = false, reason, ""
-	out.NativeFilters, out.ScaleFilters, out.ToneMapFilters, out.DeinterlaceFilters = false, false, false, false
+	out.NativeFilters, out.ScaleFilters, out.ToneMapFilters, out.ToneMapWithoutMastering, out.DeinterlaceFilters = false, false, false, false, false
 	out.OutputEncoders, out.OutputQuality, out.DecodeCodecs = nil, nil, nil
 	return out
 }
@@ -393,17 +394,6 @@ func (d *HardwareDetector) runInput(ctx context.Context, executable string, args
 		return d.Run(ctx, cmd)
 	}
 	return cmd.Run()
-}
-
-// HDR files can lack mastering-display side data. Test both cases before
-// promising hardware tone mapping; VA-API may accept only the mastered case.
-func (d *HardwareDetector) probeVAAPIFilters(ctx context.Context, executable string, args []string) error {
-	for _, clip := range [][]byte{hdrProbeClip, hdrUnmasteredProbeClip} {
-		if err := d.probeHDRFilters(ctx, executable, append([]string{}, args...), clip); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // Mount only this private fixture, with no source or output authority.
@@ -550,8 +540,11 @@ func (d *HardwareDetector) probe(ctx context.Context, executable string, backend
 		chain := spec.toneMap(DefaultToneMapAlgorithm) + "," + spec.scale(120)
 		bounded, cancel = context.WithTimeout(ctx, timeout)
 		args := probeArgs(spec, device, chain)
-		out.NativeFilters = runner.probeVAAPIFilters(bounded, executable, args) == nil
+		out.NativeFilters = runner.probeHDRFilters(bounded, executable, args, hdrProbeClip) == nil
 		out.ToneMapFilters = out.NativeFilters
+		cancel()
+		bounded, cancel = context.WithTimeout(ctx, timeout)
+		out.ToneMapWithoutMastering = runner.probeHDRFilters(bounded, executable, probeArgs(spec, device, chain), hdrUnmasteredProbeClip) == nil
 		cancel()
 	}
 	if out.Available {
@@ -767,4 +760,12 @@ func (d *HardwareDetector) Report(ctx context.Context, executable, device string
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Backend < out[j].Backend })
 	return out
+}
+
+// NativeToneMapping chooses the measured case of this source, not its SDR output.
+func (p HardwareProbe) NativeToneMapping(hasMasteringData bool) bool {
+	if hasMasteringData {
+		return p.NativeFilters
+	}
+	return p.ToneMapWithoutMastering
 }

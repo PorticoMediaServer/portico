@@ -939,6 +939,9 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 	p.HardwareDevice = selectedHardware.Device
 	if selectedHardware.Available {
 		p.HardwareBackend, p.HardwareNative = string(selectedHardware.Backend), selectedHardware.NativeFilters
+		if p.ToneMap {
+			p.HardwareNative = selectedHardware.NativeToneMapping(video != nil && video.MasterDisplay != "")
+		}
 		if !p.ToneMap {
 			p.HardwareNative = p.HardwareNative || selectedHardware.ScaleFilters
 		}

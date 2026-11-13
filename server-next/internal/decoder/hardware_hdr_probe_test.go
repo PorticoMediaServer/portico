@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestToneMappingProbeRequiresHDRWithoutMasteringMetadata(t *testing.T) {
+func TestToneMappingProbeKeepsMasteredAndUnmasteredResultsSeparate(t *testing.T) {
 	if !backendSpecs[BackendVAAPI].supported() {
 		t.Skip("VA-API requires Linux")
 	}
@@ -39,7 +39,31 @@ func TestToneMappingProbeRequiresHDRWithoutMasteringMetadata(t *testing.T) {
 		return nil
 	}}
 	probe := d.Probe(context.Background(), fakeFFmpeg(t), BackendVAAPI, "")
-	if !mastered || !unmastered || !probe.Available || !probe.ScaleFilters || probe.NativeFilters || probe.ToneMapFilters {
-		t.Fatalf("a metadata-dependent tone mapper must keep encoding/scaling but report no tone mapping: %+v; clips=%v,%v", probe, mastered, unmastered)
+	if !mastered || !unmastered || !probe.Available || !probe.ScaleFilters || !probe.NativeFilters || !probe.ToneMapFilters || probe.ToneMapWithoutMastering {
+		t.Fatalf("a metadata-dependent tone mapper must keep its working mastered result and reject only the unmastered case: %+v; clips=%v,%v", probe, mastered, unmastered)
+	}
+}
+
+func TestToneMappingSelectsTheMeasuredSourceMetadataCase(t *testing.T) {
+	if !backendSpecs[BackendVAAPI].supported() {
+		t.Skip("VA-API requires Linux")
+	}
+	probe := HardwareProbe{Backend: BackendVAAPI, Available: true, NativeFilters: true, ToneMapFilters: true}
+	for _, mastered := range []bool{true, false} {
+		target := ConversionTarget{VideoCodec: "h264", BitDepth: 8, DynamicRange: "sdr", SourceRange: "hdr10", ToneMap: true}
+		graph, err := BuildConversion(ConversionRequest{ConvertVideo: true, ToneMap: true, SourceHasMasteringDisplay: mastered, Target: &target, Probe: probe})
+		if err != nil {
+			t.Fatal(err)
+		}
+		args := strings.Join(graph.Video, " ")
+		if strings.Contains(args, "tonemap_vaapi=") != mastered || !strings.Contains(args, "h264_vaapi") {
+			t.Fatal(mastered, args)
+		}
+		if !mastered && !strings.Contains(args, "tonemap=") {
+			t.Fatal("unmastered source lost software tone mapping", args)
+		}
+		if target.MasterDisplay != "" {
+			t.Fatal("SDR output gained HDR mastering metadata", target)
+		}
 	}
 }

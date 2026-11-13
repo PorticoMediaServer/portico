@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
@@ -24,6 +25,9 @@ const (
 type AnalysisProbeSpec struct {
 	Kind         AnalysisProbeKind
 	PhysicalLock *os.File
+	// StreamIndex is the observed input stream index, not an FFmpeg selector.
+	// Nil retains the first-video recipe used by background analysis.
+	StreamIndex *int
 }
 
 type probeRecipe struct {
@@ -88,7 +92,22 @@ func RunAnalysisProbe(
 		}
 		return nil, ErrInvalidConfiguration
 	}
-	cmd, err := probeJobCommand(executable, input, reservation, recipe.args(input), true, libraries...)
+	args := recipe.args(input)
+	if spec.StreamIndex != nil {
+		if *spec.StreamIndex < 0 {
+			if reservation != nil {
+				_ = reservation.Close()
+			}
+			return nil, ErrInvalidConfiguration
+		}
+		for i := range args {
+			if args[i] == "-select_streams" {
+				args[i+1] = strconv.Itoa(*spec.StreamIndex)
+				break
+			}
+		}
+	}
+	cmd, err := probeJobCommand(executable, input, reservation, args, true, libraries...)
 	if err != nil {
 		if reservation != nil {
 			_ = reservation.Close()

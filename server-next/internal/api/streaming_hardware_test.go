@@ -13,7 +13,8 @@ type hardwareEngine struct {
 }
 
 func (e *hardwareEngine) HardwareState(context.Context) mediaengine.StreamingHardwareState {
-	return mediaengine.StreamingHardwareState{Checking: e.tests != 0, Devices: []mediaengine.StreamingHardwareDevice{{ID: "gpu-one", Name: "Observed GPU"}}}
+	device := mediaengine.StreamingHardwareDevice{ID: "gpu-one", Name: "Observed GPU", ToneMappingWithMasteringData: true}
+	return mediaengine.StreamingHardwareState{Checking: e.tests != 0, ToneMappingWithMasteringData: true, Devices: []mediaengine.StreamingHardwareDevice{device}}
 }
 func (e *hardwareEngine) TestHardware() { e.tests++ }
 
@@ -29,6 +30,9 @@ func TestOwnerReadsAndTestsHardwareWithoutARestart(t *testing.T) {
 	var state mediaengine.StreamingHardwareState
 	if w := call(t, s, "GET", "/v1/admin/hardware", owner, nil, &state); w.Code != 200 || len(state.Devices) != 1 || state.Devices[0].ID != "gpu-one" || engine.tests != 0 {
 		t.Fatalf("read: %d %s", w.Code, w.Body)
+	}
+	if !state.ToneMappingWithMasteringData || state.ToneMappingWithoutMasteringData || !state.Devices[0].ToneMappingWithMasteringData {
+		t.Fatal("the two tone-mapping cases were collapsed", state)
 	}
 	if w := call(t, s, "POST", "/v1/admin/hardware/test", owner, nil, &state); w.Code != 200 || !state.Checking || engine.tests != 1 {
 		t.Fatalf("test: %d %s", w.Code, w.Body)

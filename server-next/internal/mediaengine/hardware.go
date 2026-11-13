@@ -11,13 +11,14 @@ import (
 
 // StreamingHardwareDevice is a discovered adapter and only its measured codec cells.
 type StreamingHardwareDevice struct {
-	ID          string                       `json:"id"`
-	Name        string                       `json:"name"`
-	Method      string                       `json:"method,omitempty"`
-	InUse       bool                         `json:"inUse"`
-	Formats     []decoder.HardwareFactFormat `json:"formats"`
-	Problem     string                       `json:"problem,omitempty"`
-	ToneMapping bool                         `json:"toneMapping"`
+	ID                              string                       `json:"id"`
+	Name                            string                       `json:"name"`
+	Method                          string                       `json:"method,omitempty"`
+	InUse                           bool                         `json:"inUse"`
+	Formats                         []decoder.HardwareFactFormat `json:"formats"`
+	Problem                         string                       `json:"problem,omitempty"`
+	ToneMappingWithMasteringData    bool                         `json:"toneMappingWithMasteringData"`
+	ToneMappingWithoutMasteringData bool                         `json:"toneMappingWithoutMasteringData"`
 }
 
 type StreamingHardwareFault struct {
@@ -28,12 +29,13 @@ type StreamingHardwareFault struct {
 
 // StreamingHardwareState is the owner's Hardware read. Reading never launches a child.
 type StreamingHardwareState struct {
-	Checking    bool                         `json:"checking"`
-	Devices     []StreamingHardwareDevice    `json:"devices"`
-	Formats     []decoder.HardwareFactFormat `json:"formats"`
-	ToneMapping bool                         `json:"toneMapping"`
-	LastTest    *time.Time                   `json:"lastTest,omitempty"`
-	LastError   *StreamingHardwareFault      `json:"lastError,omitempty"`
+	Checking                        bool                         `json:"checking"`
+	Devices                         []StreamingHardwareDevice    `json:"devices"`
+	Formats                         []decoder.HardwareFactFormat `json:"formats"`
+	ToneMappingWithMasteringData    bool                         `json:"toneMappingWithMasteringData"`
+	ToneMappingWithoutMasteringData bool                         `json:"toneMappingWithoutMasteringData"`
+	LastTest                        *time.Time                   `json:"lastTest,omitempty"`
+	LastError                       *StreamingHardwareFault      `json:"lastError,omitempty"`
 }
 
 // TestHardware starts one bounded re-test beside serving. Repeated taps share that test.
@@ -218,7 +220,8 @@ func (e *Engine) HardwareState(ctx context.Context) StreamingHardwareState {
 			row.Method = string(p.Backend)
 			row.InUse = selected.SelectedDeviceID == d.ID && selected.Backend == p.Backend
 			row.Formats = decoder.ComposeHardwareFacts(nil, known, "auto", &p).Formats
-			row.ToneMapping = p.ToneMapFilters
+			row.ToneMappingWithMasteringData = p.ToneMapFilters
+			row.ToneMappingWithoutMasteringData = p.ToneMapWithoutMastering
 			if row.InUse {
 				break
 			}
@@ -240,7 +243,9 @@ func (e *Engine) HardwareState(ctx context.Context) StreamingHardwareState {
 		configured = "software"
 	}
 	facts := decoder.ComposeHardwareFacts(devices, probes, configured, &selected)
-	out.Formats, out.ToneMapping = facts.Formats, selected.ToneMapFilters
+	out.Formats = facts.Formats
+	out.ToneMappingWithMasteringData = selected.ToneMapFilters
+	out.ToneMappingWithoutMasteringData = selected.ToneMapWithoutMastering
 	if facts.LastTest != 0 {
 		at := time.Unix(facts.LastTest, 0).UTC()
 		out.LastTest = &at

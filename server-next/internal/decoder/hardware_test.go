@@ -182,7 +182,7 @@ func TestVAAPIToneMapLeavesTheMatrixToTheChip(t *testing.T) {
 			continue
 		}
 		graph, err := BuildConversion(ConversionRequest{ConvertVideo: true, ToneMap: true,
-			Probe: HardwareProbe{Backend: backend, Available: backend != BackendSoftware, NativeFilters: true}})
+			Probe: HardwareProbe{Backend: backend, Available: backend != BackendSoftware, NativeFilters: true, ToneMapWithoutMastering: true}})
 		if err != nil {
 			t.Fatal(backend, err)
 		}
