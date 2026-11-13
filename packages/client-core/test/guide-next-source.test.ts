@@ -1,7 +1,9 @@
+import {readPlayerGuide} from '../src/guide/player-guide.ts';
+import {legacyChannel} from '../src/guide/legacy-source.ts';
 import {fetchGuideSourceSummaries} from '../src/guide/directory.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {liveChannel, nextChannelRow, nextGuideSource} from '../src/guide/next-source.ts';
+import {liveChannel, nextChannelRow, nextGuideSource, NEXT_CHANNEL_SOURCE} from '../src/guide/next-source.ts';
 
 const channel = (n: number) => ({id: `ch_${n}`, name: `Channel ${n}`, number: String(n), kind: 'live', favorite: false, hidden: false});
 const programme = (n: number) => ({id: `pg_${n}`, startsAt: '2026-11-12T18:00:00Z', endsAt: '2026-11-12T19:00:00Z', title: `Show ${n}`, season: 1, episode: n});
@@ -96,4 +98,26 @@ test('source summaries keep watchable sources available even when the profile hi
  assert.deepEqual(result.sources.map(source=>[source.id,source.provenance,source.channelCount,source.favoriteCount]),[['antenna','live-source',12,2],['library','library-channel',1,0]]);
  assert.deepEqual(result.sources[0].groupCounts,[{name:'News',count:3}]);
  assert.equal(result.sources[0].refreshState,'stale');assert.equal(result.sources[0].availableEnd,'2026-11-15T00:00:00Z');
+});
+
+
+test('player guide keeps only two neighbours each side and maps rebuilt channel identities and programmes', async () => {
+ const requests:string[]=[], signal=new AbortController().signal;
+ const channels=Array.from({length:11},(_,i)=>({id:'ch-'+i,name:'Channel '+i,number:String(i),kind:i===6?'library':'source',favorite:false,hidden:false}));
+ const api={request:async<T>(path:string,_method?:string,_body?:unknown,actualSignal?:AbortSignal):Promise<T>=>{
+  assert.equal(actualSignal,signal);requests.push(path);
+  if(path.startsWith('/v1/live/channels?'))return {items:channels} as T;
+  const query=new URL(path,'https://test').searchParams;
+  return {items:channels.map(channel=>({channel,programmes:[{id:'p-'+channel.id,title:'On now',startsAt:query.get('from'),endsAt:query.get('to')}]}))} as T;
+ }};
+ const options={kind:'all' as const,sourceId:'',timezone:'UTC',group:'News',favorites:true,includeHidden:true,sort:'name' as const};
+ const rows=await readPlayerGuide(api,'ch-5',options,signal);
+ assert.deepEqual(rows.map(row=>[row.channel.id,row.step]),[['ch-3',-2],['ch-4',-1],['ch-5',0],['ch-6',1],['ch-7',2]]);
+ assert.equal(legacyChannel(rows[2].channel)?.sourceId,NEXT_CHANNEL_SOURCE);
+ assert.equal(legacyChannel(rows[3].channel)?.sourceId,'ch-6');
+ const window={from:new Date('2026-11-13T00:00:00Z'),to:new Date('2026-11-13T03:00:00Z')};
+ const guide=await readPlayerGuide(api,'ch-5',options,signal,window);
+ assert.equal(guide[2].programmes[0].title,'On now');assert.equal(guide[2].programmes[0].start,window.from.getTime());
+ assert.equal(requests.length,2);assert.ok(requests[1].startsWith('/v1/live/guide?'));
+ for(const path of requests){const query=new URL(path,'https://test').searchParams;assert.equal(query.get('around'),'ch-5');assert.equal(query.get('hidden'),'true');assert.equal(query.get('group'),'News');assert.equal(query.get('favorites'),'true');assert.equal(query.get('sort'),'name');assert.equal(query.has('cursor'),false);}
 });

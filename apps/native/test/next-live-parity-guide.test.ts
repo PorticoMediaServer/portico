@@ -53,7 +53,10 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
   const listen = (fn: () => void) => {listeners.add(fn); return () => {listeners.delete(fn);};};
   const lifetime = new NativeScreenLifetime({authority: () => authority, current: () => true, subscribeAuthority: listen});
   const api = {request: async <T,>(path: string) => {
-    if (hangChannels && path.includes('channels')) return new Promise<T>(() => {});
+    if (hangChannels && path.startsWith('/v1/guide/channels')) return new Promise<T>(() => {});
+    if (path.startsWith('/v1/live/channels?')) return {items: [], sources: sources.map(source => ({id: source.id, name: source.name,
+      kind: source.provenance === 'library-channel' ? 'library' : 'live', channels: source.channelCount, favorites: source.favoriteCount, groups: source.groupCounts,
+      outOfDate: ['degraded', 'credentials-required', 'stale'].includes(source.refreshState), guideThrough: source.availableEnd}))} as T;
     const filtered = path.includes('group=') || path.includes('favorites=true');
     const query = new URLSearchParams(path.split('?')[1] ?? ''), total = filtered ? filteredTotal : 14;
     return {protocolVersion: '1.0', serverId: 'server', viewerFence: 'guide', revision: 'one', sources,

@@ -67,19 +67,20 @@ test('phone Edit channel names the Library Channel in Settings Live', () => {
 
 import {NativeLiveController} from '../src-next/screens/settings-live/live-controller';
 
-test('native Show hidden channels asks for server visibility without enabling profile-hidden rows', async () => {
+test('source availability includes profile-hidden channels without asking for owner-hidden channels', async () => {
   const scope = {serverId: 'server', accountId: 'owner', profileId: 'main', epoch: 'session', viewerFence: 'fence'};
   const lifetime = new NativeScreenLifetime({authority: () => scope, current: () => true, subscribeAuthority: () => () => {}});
   const requests: string[] = [];
   const controller = new NativeLiveController(lifetime, {async request<T>(path: string): Promise<T> {
     requests.push(path);
-    return {protocolVersion: '1.0', serverId: 'server', viewerFence: 'fence', revision: 'r1', sources: []} as T;
+    return {items: [], sources: []} as T;
   }}, 'UTC');
   controller.select({includeServerHidden: true});
   await controller.loadSources();
   assert.equal(controller.getSnapshot().options.includeServerHidden, true);
   const query = new URL(requests[0]!, 'https://server').searchParams;
-  assert.equal(query.get('includeServerHidden'), 'true');
-  assert.equal(query.has('includeHidden'), false);
+  assert.equal(new URL(requests[0]!, 'https://server').pathname, '/v1/live/channels');
+  assert.equal(query.get('hidden'), 'true');
+  assert.equal(query.has('includeServerHidden'), false);
   controller.dispose();lifetime.dispose();
 });

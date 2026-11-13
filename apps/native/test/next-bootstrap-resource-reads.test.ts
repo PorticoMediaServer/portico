@@ -1,3 +1,4 @@
+import * as nextGuide from '../../../packages/client-core/src/guide/next-source.ts';
 import test, {type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
 import * as notifications from '../../../packages/client-core/src/notifications.ts';
@@ -30,7 +31,7 @@ const preferences = await screenModule(new URL('../../../packages/client-core/sr
   '../../contracts/src/routes.ts': routes, '../../contracts/src/route-paths.ts': routes, './preferences.ts': preferenceValues, './query/server-api.ts': serverApi, './abort-lifetime.ts': abortLifetime,
 });
 const guide = await screenModule(new URL('../../../packages/client-core/src/guide/directory.ts', import.meta.url), {
-  react,
+  react, './next-source.ts': nextGuide,
   '../../../contracts/src/routes.ts': routes, '../../../contracts/src/route-paths.ts': routes, '../server-messages.ts': messages, '../tolerant.ts': tolerant,
   // These tests use an empty, genuinely parsed source directory; detailed
   // channel/programme parsing is outside the resource lifetime under test.
@@ -71,14 +72,14 @@ function fixture(context: TestContext) {
   const held: {resource: Resource; method: string; pending: ReturnType<typeof deferred<unknown>>; request?: Request}[] = [];
   const reply = (request: Request): unknown => {
     if (request.resource === 'preferences') return preferenceData(request.method === 'PATCH' ? 1.5 : 1, request.method === 'PATCH' ? 2 : 1);
-    if (request.resource === 'guide') return {protocolVersion: '1.0', serverId: 'server', viewerFence: 'guide-fence', revision: 'guide-1', sources: []};
+    if (request.resource === 'guide') return {items: [], sources: []};
     if (request.resource === 'home') return {serverId: 'server', viewerFence: 'home-fence', rows: []};
     // The rebuilt server's inbox: the profile's notices with the unread count, and no envelope.
     return {items: [], unreadCount: counts.unread};
   };
   const api = {request: async (path: string, method = 'GET', body?: unknown, signal?: AbortSignal) => {
     assert.ok(signal, 'native services must supply their owned cancellation signal');
-    const resource: Resource = path.startsWith('/v1/notifications') ? 'unread' : path.includes('guide_') ? 'guide' : path.includes('preferences') ? 'preferences' : path.includes('get_home') ? 'home' : unsupported();
+    const resource: Resource = path.startsWith('/v1/notifications') ? 'unread' : path.startsWith('/v1/live/channels') ? 'guide' : path.includes('preferences') ? 'preferences' : path.includes('get_home') ? 'home' : unsupported();
     const request = {resource, method, path, signal, startedAborted: signal.aborted, body}; calls.push(request);
     const hold = held.find(value => value.resource === resource && value.method === method && !value.request);
     if (hold) {hold.request = request; return hold.pending.promise;}

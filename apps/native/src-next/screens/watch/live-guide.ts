@@ -1,9 +1,7 @@
 import {serverNow} from '../../../../../packages/client-core/src/server-clock';
 import {sameFence, type ChannelPlaybackFence} from '../../../../../packages/player-core/src';
-import {legacyChannel, legacyChannelRow, legacyGuideSource, type LegacyGuideOptions} from '../../../../../packages/client-core/src/guide/legacy-source';
-import {parseChannelGuide, type GuideRoute} from '../../../../../packages/client-core/src/channel-guide';
-import {readPlaybackGuide} from '../../../../../packages/client-core/src/query/playback';
-import {fetchGuideSourceSummaries} from '../../../../../packages/client-core/src/guide/directory';
+import {legacyChannel, type LegacyGuideOptions} from '../../../../../packages/client-core/src/guide/legacy-source';
+import {readPlayerGuide} from '../../../../../packages/client-core/src/guide/player-guide';
 import type {GuideChannelRow, GuideProgram} from '../../../../../packages/client-core/src/guide/types';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeChannelGuideOrigin} from '../../platform/playback/types';
@@ -20,7 +18,7 @@ const sameTarget = (a: GuideChannelRow, b: GuideChannelRow) => identity(a) !== '
   && a.number === b.number && a.name === b.name && legacyChannel(a)?.generation === legacyChannel(b)?.generation;
 const aborted = () => Object.assign(new Error('Live guide opening retired'), {name: 'AbortError'});
 
-/** Four bounded neighbor reads, never a lineup scan. One opening owns its reads,
+/** One bounded channel read, never a lineup scan. One opening owns its reads,
  * advertised targets and tune; a successor cannot inherit any of its callbacks. */
 export class NativeTVLiveGuide {
   private state = empty;
@@ -66,7 +64,7 @@ export class NativeTVLiveGuide {
       if (!this.current(opening) || signal?.aborted) throw aborted();
       return value;
     }};
-    return {api, source: legacyGuideSource(api, opening.authority.serverId, opening.options)};
+    return {api};
   }
   private update = () => {
     if (this.disposed || this.opening && this.current(this.opening)) return;
@@ -102,37 +100,14 @@ export class NativeTVLiveGuide {
     void this.load(opening);
   };
   private async load(opening: NonNullable<NativeTVLiveGuide['opening']>) {
-    const {api, source} = this.source(opening), signal = opening.controller.signal;
+    const {api} = this.source(opening), signal = opening.controller.signal;
     try {
-      const directory = await fetchGuideSourceSummaries(api, opening.authority.serverId, opening.options.timezone, signal);
-      if (!directory.sources.some(row => row.id === opening.fence.sourceId && row.provenance === opening.fence.channelKind && row.generation === opening.fence.channelGeneration)) throw new Error('channel_source_unavailable');
-      if (!opening.origin) {
-        const sourceId = opening.fence.sourceId;
-        if (!sourceId) throw new Error('channel_source_unavailable');
-        const now = serverNow(), route: GuideRoute = {kind: opening.fence.channelKind, sourceId, timezone: opening.options.timezone, search: '',
-          start: new Date(now).toISOString(), end: new Date(now + 3 * 3600_000).toISOString()};
-        const query = new URLSearchParams({kind: route.kind, sourceId, timezone: route.timezone, search: route.search, start: route.start, end: route.end, channels: opening.fence.channelId, limit: '1', cursor: ''});
-        const guide = parseChannelGuide(await readPlaybackGuide(api, query, signal), opening.authority.serverId, route);
-        if (!this.current(opening)) return;
-        const channel = guide.channels[0];
-        // The guide document and the sources directory compute different viewer fences (the guide's is the
-        // live authority's own; the directory hashes it with the library and restriction fences), so they
-        // never match: the channel is matched by id, source, provenance and generation instead.
-        if (guide.channels.length !== 1 || !channel || channel.id !== opening.fence.channelId
-          || channel.sourceId !== opening.fence.sourceId || channel.provenance !== opening.fence.channelKind || channel.generation !== opening.fence.channelGeneration
-          || !channel.tuneAvailable || channel.hidden) throw new Error('channel_source_unavailable');
-        opening.origin = Object.freeze({row: legacyChannelRow(channel), options: opening.options});
-      }
-      const rows: NativeLiveGuideRow[] = [{channel: opening.origin.row, step: 0, programmes: []}], seen = new Set([identity(opening.origin.row)]);
-      for (const direction of [-1, 1] as const) {
-        let anchor = opening.origin.row;
-        for (let distance = 1; distance <= 2; distance++) {
-          const channel = await source.neighbor!(anchor, direction, signal);
-          if (!channel || seen.has(identity(channel))) break;
-          seen.add(identity(channel));rows.push({channel, step: direction * distance, programmes: []});anchor = channel;
-        }
-      }
-      rows.sort((a, b) => a.step - b.step);
+      const rows = await readPlayerGuide(api, opening.fence.channelId, opening.options, signal);
+      const channel = rows.find(row => row.step === 0)?.channel, raw = channel && legacyChannel(channel);
+      if (!channel || !raw || raw.id !== opening.fence.channelId || raw.sourceId !== opening.fence.sourceId
+        || raw.provenance !== opening.fence.channelKind || raw.generation !== opening.fence.channelGeneration
+        || !raw.tuneAvailable || (raw.hidden && !opening.options.includeHidden)) throw new Error('channel_source_unavailable');
+      opening.origin = Object.freeze({row: channel, options: opening.options});
       if (!this.current(opening)) return;
       this.publish({...this.state, phase: 'ready', rows, previous: rows.find(row => row.step === -1), next: rows.find(row => row.step === 1)});
       if (this.panel && this.state.open) void this.programmes(opening, this.panel);
@@ -143,19 +118,15 @@ export class NativeTVLiveGuide {
     const {api} = this.source(opening), signal = panel.signal, rows = this.state.rows;
     const stop = () => panel.abort();opening.controller.signal.addEventListener('abort', stop, {once: true});
     try {
-      const complete = await Promise.all(rows.map(async row => {
-        const raw = legacyChannel(row.channel)!;
-        const named = legacyGuideSource(api, opening.authority.serverId, {...opening.options, kind: raw.provenance, sourceId: raw.sourceId});
-        // Only the five named rows and a bounded current programme window.
-        try {
-          const now = serverNow(), programmes = await named.programs([raw.id], now, now + 3 * 60 * 60 * 1000, signal);
-          return {...row, programmes: programmes[raw.id] ?? []};
-        } catch (error) {if (current()) this.publish({...this.state, error});return row;}
-      }));
+      const now = serverNow();
+      const fresh = await readPlayerGuide(api, opening.fence.channelId, opening.options, signal,
+        {from: new Date(now), to: new Date(now + 3 * 3600_000)});
+      const complete = rows.map(row => ({...row, programmes: fresh.find(value => sameTarget(value.channel, row.channel))?.programmes ?? []}));
       if (!current()) return;
       complete.sort((a, b) => a.step - b.step);
       this.publish({...this.state, phase: 'ready', rows: complete, previous: complete.find(row => row.step === -1), next: complete.find(row => row.step === 1)});
-    } finally {opening.controller.signal.removeEventListener('abort', stop);}
+    } catch (error) {if (current()) this.publish({...this.state, error});}
+    finally {opening.controller.signal.removeEventListener('abort', stop);}
   }
   open = () => {
     const opening = this.opening;
@@ -194,13 +165,13 @@ export class NativeTVLiveGuide {
     const current = () => this.current(opening) && this.command === command && !command.controller.signal.aborted;
     opening.busy = true;this.publish({...this.state, busy: true, error: undefined});
     try {
-      const {api, source} = this.source(opening), signal = command.controller.signal;
-      let target: GuideChannelRow | undefined = opening.origin.row;
-      for (let step = 0; step < Math.abs(advertised.step) && target; step++) target = await source.neighbor!(target, advertised.step < 0 ? -1 : 1, signal);
-      if (!target || !sameTarget(target, advertised.channel)) throw new Error('channel_lineup_changed');
+      const {api} = this.source(opening), signal = command.controller.signal;
+      const fresh = await readPlayerGuide(api, opening.fence.channelId, opening.options, signal);
+      const anchor = fresh.find(row => row.step === 0)?.channel;
+      const target = fresh.find(row => row.step === advertised.step)?.channel;
+      if (!anchor || !sameTarget(anchor, opening.origin.row) || !target || !sameTarget(target, advertised.channel)) throw new Error('channel_lineup_changed');
       const raw = legacyChannel(target)!;
-      const directory = await fetchGuideSourceSummaries(api, opening.authority.serverId, opening.options.timezone, signal);
-      if (!zapSourcesListed(directory, opening.fence, raw)) throw new Error('channel_source_unavailable');
+      if (!raw.tuneAvailable || (raw.hidden && !opening.options.includeHidden)) throw new Error('channel_source_unavailable');
       if (!current()) return;
       const route = {kind: 'channel' as const, sourceId: raw.sourceId, channelId: raw.id,
         guide: Object.freeze({row: target, options: opening.options}), tune: {fence: opening.fence, sourceGeneration: raw.generation}};
@@ -220,13 +191,4 @@ export class NativeTVLiveGuide {
     }
   };
   dispose() {this.disposed = true;this.panel?.abort();this.panel = undefined;this.command?.controller.abort();this.command = undefined;this.opening?.controller.abort();this.opening = undefined;for (const off of this.off) off();this.listeners.clear();}
-}
-
-/** Zapping (channel up/down) may tune only while the guide directory still lists both the opening's
- * source and the target's, each at its generation. Step 7: a moved viewer fence on this directory read
- * is a newer answer, not a refusal; a read the server refuses (401/403) never gets here. */
-export function zapSourcesListed(directory: Readonly<{sources: readonly Readonly<{id: string; provenance: string; generation: string}>[]}>,
-  fence: Readonly<{sourceId?: string; channelKind: string; channelGeneration: string}>, raw: Readonly<{sourceId: string; provenance: string; generation: string}>): boolean {
-  return directory.sources.some(row => row.id === fence.sourceId && row.provenance === fence.channelKind && row.generation === fence.channelGeneration)
-    && directory.sources.some(row => row.id === raw.sourceId && row.provenance === raw.provenance && row.generation === raw.generation);
 }
