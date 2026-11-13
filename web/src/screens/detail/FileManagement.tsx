@@ -30,8 +30,8 @@ function DeleteVersion({binding, data, manage, onClose, returnFocusRef}: Props) 
   const read = useCallback(() => {
     request.current?.abort(); const controller = request.current = new AbortController();
     setPreview(undefined); setFailed(false); setTyped('');
-    if (file) void binding.previewDelete(data, manage.opening, file, controller.signal).then(value => { if (!controller.signal.aborted) setPreview(value); }, error => { if (!controller.signal.aborted) { setFailed(true); binding.context.effects.reportError(error); } });
-  }, [binding, data, manage.opening, file]);
+    if (file) void binding.previewDelete(data, file, controller.signal).then(value => { if (!controller.signal.aborted) setPreview(value); }, error => { if (!controller.signal.aborted) { setFailed(true); binding.context.effects.reportError(error); } });
+  }, [binding, data, file]);
   useEffect(() => { read(); return () => request.current?.abort(); }, [read]);
   const close = () => { if (!busy) { request.current?.abort(); onClose(); } };
   const confirm = async () => {
@@ -71,7 +71,7 @@ function SplitVersion({binding, data, manage, onClose, returnFocusRef}: Props) {
     try {
       const occurrence = occurrenceOf(fileId);
       if (!occurrence) throw new DOMException('Version changed', 'AbortError');
-      const entry = await binding.splitVersion(data, manage.opening, occurrence, controller.signal);
+      const entry = await binding.splitVersion(data, occurrence, controller.signal);
       if (controller.signal.aborted) return;
       onClose(); binding.context.effects.openEntry(entry);
     } catch (error) {
@@ -108,7 +108,7 @@ function MergeTitle({binding, data, manage, onClose, returnFocusRef}: Props) {
     if (!candidate || busy) return;
     const controller = request.current = new AbortController(); setBusy(true); setFailed(false);
     try {
-      const entry = await binding.mergeTitle(data, manage.opening, candidate, keepId, controller.signal, manage.sourceOccurrence);
+      const entry = await binding.mergeTitle(data, candidate, keepId, controller.signal);
       if (!controller.signal.aborted) { onClose(); binding.context.effects.openEntry(entry); }
     } catch (error) { if (!controller.signal.aborted) { setFailed(true); binding.context.effects.reportError(error); } }
     finally { if (!controller.signal.aborted) setBusy(false); }

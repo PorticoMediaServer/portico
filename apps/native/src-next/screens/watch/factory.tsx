@@ -90,6 +90,7 @@ export type NativeVersionDestination = NativeVersionChooserController;
 export type NativeVersionsOpening = Readonly<{capture: NativeWatchCapture; live: () => boolean}>;
 export type NativeWatchFactoryPorts = Readonly<{
   api: HttpLocalApi;
+  role?: string;
   scope: DetailScope;
   authority: ShellAuthority;
   current: () => ShellAuthority;
@@ -232,15 +233,9 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
   };
   /** File info opens from the accepted Detail the menu showed: its opening, never a newer one.
    * The first window of versions is read before the panel shows, as the whole read was before. */
-  const fileInfo = async (captured: NativeWatchCapture, detail?: DetailProjection): Promise<void> => {
+  const fileInfo = async (captured: NativeWatchCapture, _detail?: DetailProjection): Promise<void> => {
     if (!captured.entry.libraryId || !current(captured)) return;
-    // The title page's live Detail is the newest accepted one; a later accepted Detail is a new opening.
-    const live = [...controllers.values()].find(controller => titleKey(controller.entry) === titleKey(captured.entry))?.getSnapshot().detail?.data ?? undefined;
-    if (live?.item.id === captured.entry.id && live.fileInfoOpening) detail = live;
-    const token = detail?.item.id === captured.entry.id ? detail.fileInfoOpening : undefined;
-    // A Detail that is not ready yet carries no opening; reading it again will.
-    if (!detail || !token) throw Object.assign(new Error('file_info_unavailable'), {code: 'metadata_unavailable', retryable: true});
-    const session = new FileInfoSession({api: ports.api, opening: {token, scope: ports.scope, target: {libraryId: detail.scope.libraryId, itemId: detail.scope.itemId}, revision: {catalog: 0, viewer: 0}},
+    const session = new FileInfoSession({api: ports.api, itemId: captured.entry.id, role: ports.role ?? 'member',
       isCurrent: () => current(captured)});
     try {
       // Playable items read versions; any other kind reads its flat files.

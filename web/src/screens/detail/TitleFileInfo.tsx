@@ -11,17 +11,14 @@ import {ScreenFailure} from './Detail';
 import {DetailLoading} from './Loading';
 import {t, environment} from './text';
 
-/** What an owner's Delete, Split or Merge was chosen from: the opening, and the versions and
- * files that were on screen. Commands send the exact occurrence; the server rechecks the rest. */
+/** The versions and files that were on screen when the manager chose an action. */
 export type FileInfoManageContext = Readonly<{
-  action: FileInfoAction; opening: string; surface: FileInfoSurface;
+  action: FileInfoAction; surface: FileInfoSurface;
   /** The files that were listed, by exact occurrence. */
   files: ReadonlyMap<string, FileInfoFileRow>;
-  /** What Split can make a title of: a version that is one file on its own, or any flat file. */
+  /** Split always names a whole version, including all its parts. */
   splitCandidates: readonly Readonly<{id: string; occurrence: string; facts: FileFacts}>[];
-  /** The title's one file, when the whole list is known to be exactly one: the exact source a Merge
-   * of this title away proves. Absent when there are more, or more could follow. */
-  sourceOccurrence?: string;
+
 }>;
 type Props = {
   binding: DetailBindings; data: DetailProjection; surface: 'file' | 'titles'; phone: boolean;
@@ -118,13 +115,11 @@ function Opened({session, binding, data, surface, phone, returnFocusRef, onClose
       binding.current(data);
       const files = new Map<string, FileInfoFileRow>(), candidates: {id: string; occurrence: string; facts: FileFacts}[] = [];
       for (const entry of entries ?? []) {
-        if (entry.file) { files.set(entry.file.occurrence, entry.file); candidates.push({id: entry.id, occurrence: entry.file.occurrence, facts: fileInfoFileFacts(entry.file)}); continue; }
+        if (entry.file) { files.set(entry.file.occurrence, entry.file); candidates.push({id: entry.id, occurrence: entry.file.id, facts: fileInfoFileFacts(entry.file)}); continue; }
         const listed = snapshot.members.get(entry.group!.id)?.rows?.rows ?? [];
         for (const file of listed) files.set(file.occurrence, file);
-        if (entry.group!.memberCount === 1) candidates.push({id: entry.id, occurrence: listed[0]?.occurrence ?? entry.head, facts: fileInfoVersionFacts(entry.group!)});
+        candidates.push({id: entry.id, occurrence: entry.id, facts: fileInfoVersionFacts(entry.group!)});
       }
-      const whole = lane?.rows && !lane.rows.more && !lane.rows.earlier && entries?.length === 1 ? entries[0]! : undefined;
-      const single = whole && (whole.file ? whole.file.occurrence : whole.group!.memberCount === 1 && files.size === 1 ? [...files.keys()][0] : undefined);
-      onManage(Object.freeze({action, opening: session.opening.token, surface: snapshot.surface!, files, splitCandidates: Object.freeze(candidates), ...(single ? {sourceOccurrence: single} : {})}));
+      onManage(Object.freeze({action, surface: snapshot.surface!, files, splitCandidates: Object.freeze(candidates)}));
     }} />;
 }

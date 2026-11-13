@@ -9,7 +9,7 @@ import {deletionAllowed} from '../../../packages/client-core/src/administration.
 import {mergeExplanation} from '../../../packages/client-core/src/title-identity.ts';
 import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 import {nativeFileInfoFile, nativeSplitCandidates} from '../src-next/screens/watch/file-info.ts';
-import {fakeSession, groupRow, groupsPage, memberRow, membersPage, ownerSurface} from './helpers/file-info-windows.ts';
+import {fakeSession} from './helpers/file-info-windows.ts';
 import {shellLayout} from '../src-next/shell/model.ts';
 import * as titleMenu from '../src-next/kit/overlays/title-menu.ts';
 import {nativeWatchMenuGroups} from '../src-next/screens/watch/menu-model.ts';
@@ -48,8 +48,7 @@ function targets(value: any): any[] {
   return [...(node.type === 'Button' || node.type === 'TextField' ? [node] : []), ...targets(node.props.children), ...targets(node.props.footer), ...targets(node.props.headerContent)];
 }
 // The owner's File info session, as the factory opens it: one version of one file, read from the server's windows.
-const {session} = fakeSession(path => path.includes('/groups/members') ? membersPage('qm', 'g1', [memberRow('asset', 'asset', {path: '/actual/asset.mkv'})])
-  : groupsPage('qg', ownerSurface, [groupRow(1, {headOccurrence: 'asset'})]));
+const {session} = fakeSession();
 await session.groups(); await session.members('g1');
 const entry = {id: 'actual-title', kind: 'movie', title: 'Actual title', libraryId: 'actual-library'}, other = {...entry, id: 'other-title'};
 const model = {files: [], owner: {heading: 'Manage files', locations: [{id: 'asset', actions: [{id: 'delete-version', label: 'Delete'}]}], actions: [{id: 'split-title', label: 'Split'}, {id: 'merge-title', label: 'Merge'}]}};

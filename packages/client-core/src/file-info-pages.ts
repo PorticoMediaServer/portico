@@ -30,7 +30,7 @@ export type FileInfoBytes = Readonly<{value?: number; exact?: string}>;
 /** One exact file occurrence. It grants nothing: every command revalidates current rights.
  * `duration` (seconds) is absent when the server could not represent it (`unrepresentable`). */
 export type FileInfoFileRow = Readonly<{
-  occurrence: string; itemId: string; id: string; path?: string; size: FileInfoBytes; container: string;
+  occurrence: string; itemId: string; id: string; path?: string; missingSinceAt?: string; size: FileInfoBytes; container: string;
   duration?: number; durationUnrepresentable?: true; bitRate?: number; available: boolean; partIndex: number; edition?: string;
   video?: FileInfoVideo; disc?: DiscMediaFacts; audioCount: number; subtitleCount: number;
 }>;

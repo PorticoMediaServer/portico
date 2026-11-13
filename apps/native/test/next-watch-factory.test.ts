@@ -14,7 +14,7 @@ import {NativeTitleController} from '../src-next/screens/watch/title-controller.
 import {NativeTitleStarts} from '../src-next/screens/watch/title-starts.ts';
 import {NativeWatchControls} from '../src-next/screens/watch/controls.ts';
 import {FileInfoSession, fileInfoUsesGroups} from '../../../packages/client-core/src/file-info-session.ts';
-import {groupRow, groupsPage, ownerSurface} from './helpers/file-info-windows.ts';
+import {item as fileItem} from './helpers/file-info-windows.ts';
 import {readNativePlaybackInfo} from '../src-next/screens/watch/playback-info.ts';
 import type {NativePlaybackAdapter} from '../src-next/platform/playback/types.ts';
 import {infoWords} from './helpers/playback-info.ts';
@@ -64,11 +64,7 @@ const authority = {serverId: 'server', accountId: 'account', profileId: 'profile
 const entry = {id: 'episode', kind: 'episode', title: 'Actual episode', libraryId: 'library', playback: {itemId: 'episode', startSeconds: 17}};
 const fence = playbackFence({kind: 'queue', playback: {scope: {serverId: 'server', accountId: 'account', profileId: 'profile', controllerId: 'controller', controllerEpoch: 'epoch', commandLaneId: 'lane', authority: 'local'}, run: 1}, sessionId: 'session', itemId: 'episode', sourceId: 'v1', entryId: 'entry', generation: 1});
 const offered = {itemId: 'episode', resume: {positionMs: 17000, partIndex: 0}, versions: [{id: 'v1', video: [{id: 'p1', codec: 'hevc', width: 3840, height: 2160}]}, {id: 'v2', video: [{id: 'p2', codec: 'h264', width: 1920, height: 1080, interlaced: false}]}]};
-/** The accepted Detail the menu showed: its `fileInfoOpening` is the only way into File info. */
-const withOpening = {item: {id: 'episode', kind: 'episode', title: 'Actual episode'}, scope: {serverId: 'server', libraryId: 'library', itemId: 'episode', viewerFence: 'viewer'},
-  revision: {catalog: 1, viewer: 1}, fileInfoOpening: 'o1'} as any;
-const itemFence = {serverId: 'server', libraryId: 'library', itemId: 'episode', viewerFence: 'viewer'};
-const episodeGroups = (queryId = 'q1', window: Record<string, unknown> = {}) => ({...groupsPage(queryId, ownerSurface, [groupRow(1)], window), scope: itemFence, detail: {scope: itemFence, revision: withOpening.revision}});
+const episodeItem = {...fileItem, id: 'episode'};
 function deferred<T>() {let resolve!: (value: T) => void; const promise = new Promise<T>(done => {resolve = done;}); return {promise, resolve};}
 function fixture(hasDestination = true, readSession?: NativePlaybackAdapter['readSession'], extra: {titleActions?: unknown; owner?: boolean; download?: boolean; isTV?: boolean} = {}) {
   const playbackListeners = new Set<() => void>(), routeListeners = new Set<() => void>(), authorityListeners = new Set<() => void>();
@@ -220,21 +216,20 @@ test('one/duplicate/removed versions never grant a chooser; options failure keep
     await d.screens.menu(entry, () => current);
     assert.equal(typeof d.menus[0][1].fileInfo, 'function');
     assert.equal(d.menus[0][1].differentVersion, undefined);
-    current = false; await d.menus[0][1].fileInfo(withOpening);
+    current = false; await d.menus[0][1].fileInfo(undefined);
     assert.equal(d.requests.length, 1, 'a stale capture reads nothing');
   } finally {d.screens.dispose();}
 });
 
-test('File info without an accepted opening rejects as unavailable and reads nothing', async () => {
-  for (const detail of [undefined, {...withOpening, fileInfoOpening: undefined}, {...withOpening, item: {...withOpening.item, id: 'another'}}]) {
-    const d = fixture();
-    try {
-      await d.screens.menu(entry, () => true);
-      const before = d.requests.length;
-      await assert.rejects(d.menus[0][1].fileInfo(detail), (error: any) => error.code === 'metadata_unavailable' && error.retryable === true);
-      assert.equal(d.requests.length, before); assert.equal(d.fileInfos.length, 0);
-    } finally {d.screens.dispose();}
-  }
+test('File info opens from the captured item without an obsolete Detail opening token', async () => {
+  const d = fixture();
+  try {
+    await d.screens.menu(entry, () => true);
+    d.respond(async () => episodeItem);
+    await d.menus[0][1].fileInfo();
+    assert.equal(d.fileInfos.length, 1);
+    assert.equal(d.requests.at(-1)?.path, '/v1/items/episode');
+  } finally {d.screens.dispose();}
 });
 
 test('a failed first window is thrown, not opened, and an aborted one opens nothing', async () => {
@@ -242,16 +237,16 @@ test('a failed first window is thrown, not opened, and an aborted one opens noth
   try {
     await d.screens.menu(entry, () => true);
     d.respond(async () => new Response(JSON.stringify({code: 'server_error'}), {status: 500}) as unknown);
-    await assert.rejects(d.menus[0][1].fileInfo(withOpening));
+    await assert.rejects(d.menus[0][1].fileInfo(undefined));
     assert.equal(d.fileInfos.length, 0);
   } finally {d.screens.dispose();}
   const held = deferred<unknown>(), e = fixture();
   try {
     await e.screens.menu(entry, () => true);
     e.respond(async () => held.promise);
-    const reading = e.menus[0][1].fileInfo(withOpening);
+    const reading = e.menus[0][1].fileInfo(undefined);
     await new Promise(resolve => setImmediate(resolve));
-    e.authority(); held.resolve(episodeGroups());
+    e.authority(); held.resolve(episodeItem);
     await reading;
     assert.equal(e.fileInfos.length, 0);
   } finally {e.screens.dispose();}
@@ -263,7 +258,7 @@ test('menu forwards the measured card ref and retains the real owner lifetime', 
     await d.screens.menu(entry, () => memberCurrent, anchor);
     assert.equal(d.menus[0][2], anchor);
     assert.equal(d.menus[0][0].entry, entry);
-    memberCurrent = false; await d.menus[0][1].fileInfo(withOpening);
+    memberCurrent = false; await d.menus[0][1].fileInfo(undefined);
     assert.equal(d.requests.length, 1, 'a stale capture reads nothing');
     assert.equal(d.fileInfos.length, 0);
   } finally {d.screens.dispose();}

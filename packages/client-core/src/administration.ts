@@ -1,5 +1,6 @@
 import type {GuideChannelMark} from './channel-guide.ts';
-import type {FileInfoActionProof} from './file-info-pages.ts';
+import {callServer} from './query/server-api.ts';
+import {CodedError} from './server-messages.ts';
 import {parsePersistedRemoteConfiguration, type PersistedRemoteConfiguration} from './linear-api.ts';
 import {parseInventorySource,type InventorySource} from './library-inventory.ts';
 import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
@@ -463,14 +464,20 @@ export function parseVersionDeletePreview(raw:unknown):VersionDeletePreview{
  if(!object(raw)||!filled(raw.assetId,128)||!text(raw.previewKey,64)||!/^[0-9a-f]{64}$/.test(raw.previewKey)||preview.targets.length!==1||preview.totalFiles!==1||preview.targets[0].files.length!==1||preview.targets[0].files[0].assetId!==raw.assetId)invalid('version delete preview');
  return Object.freeze({...preview,assetId:raw.assetId,previewKey:raw.previewKey});
 }
+/** Version DELETE is owner-only. The old file-occurrence preview route no longer exists. */
 export function versionDeletionService(request:<T>(path:string,method?:string,body?:unknown)=>Promise<T>){
- const path=(item:string,asset:string)=>encodedRoutePath("delete_title_version", {"id": encodeURIComponent(item), "fileId": encodeURIComponent(asset)});
- // From File info, `fileInfo` names the exact occurrence of the accepted opening; the route's
- // item and file must be that occurrence's. The server refuses a stale opening before any change.
- const proof=(fileInfo?:FileInfoActionProof)=>fileInfo?{fileInfo:{opening:fileInfo.opening,occurrence:fileInfo.occurrence}}:{};
  return Object.freeze({
-  async preview(item:string,asset:string,fileInfo?:FileInfoActionProof){return parseVersionDeletePreview(await request<unknown>(encodedRoutePath("preview_delete_title_version", {"id": encodeURIComponent(item), "fileId": encodeURIComponent(asset)}),'POST',fileInfo?proof(fileInfo):undefined));},
-  async remove(preview:VersionDeletePreview,confirmation:string,operationId:string,fileInfo?:FileInfoActionProof){return parseDeleteResult(await request<unknown>(path(preview.targets[0].itemId,preview.assetId),'DELETE',{confirmation,operationId,previewKey:preview.previewKey,...proof(fileInfo)}));},
+  async preview(_item:string,_version:string):Promise<VersionDeletePreview>{
+   throw new CodedError('version_delete_preview_unavailable', 'The server does not publish a version deletion preview.');
+  },
+  async remove(preview:VersionDeletePreview,confirmation:string,_operationId:string):Promise<DeleteResult>{
+   if(preview.targets.length!==1||!deletionAllowed(preview)||confirmation!==preview.confirmation||!filled(preview.assetId,256))invalid('version delete');
+   const out=await callServer({request}, 'DELETE /v1/admin/versions/{id}', {id:preview.assetId});
+   if(!object(out)||!Array.isArray(out.kept)||!count(out.filesDeleted)||!count(out.bytes))invalid('version delete result');
+   const kept=out.kept.length>0,target=preview.targets[0];
+   return Object.freeze({revision:0,removed:kept?0:1,failed:kept?1:0,bytesDeleted:out.bytes,filesRetained:kept,
+    receipts:[{itemId:target.itemId,title:target.title,removed:!kept,filesDeleted:out.filesDeleted,filesKept:out.kept.length,bytes:out.bytes,code:kept?'file_not_removed':''}]});
+  },
  });
 }
 

@@ -289,7 +289,7 @@ export function createNativeWatchModule(context: NativeShellBootstrapContext, bi
     },
     presentation: bindings.presentation,
   };
-  const screens = createNativeWatchScreens({...bindings, api: context.api,
+  const screens = createNativeWatchScreens({...bindings, api: context.api, role: context.session()?.viewer.role,
     scope: detailScope,
     authority, current: context.authority, isCurrent: current, subscribeCurrent: context.subscribeAuthority,
     // N5-6: the server Share and Copy link speak for: Portico Account or local, and its own address.

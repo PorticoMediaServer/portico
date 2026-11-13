@@ -35,7 +35,7 @@ export function nativeFileInfoView(snapshot: FileInfoSnapshot, kind: string, tex
 export function nativeFileInfoShowVersion(session: FileInfoSession, group: FileInfoGroupRow): void {
   const snapshot = session.getSnapshot();
   for (const lane of ['audio', 'subtitles'] as const) {
-    if ((lane === 'audio' ? group.audioCount : group.subtitleCount) > 0 && !snapshot.headTracks.has(fileInfoTrackKey(group.id, lane))) session.headTracks(group.id, lane);
+    if (!snapshot.headTracks.has(fileInfoTrackKey(group.id, lane))) session.headTracks(group.id, lane);
   }
   if (snapshot.surface?.manage && !snapshot.members.has(group.id)) session.members(group.id);
 }
@@ -59,14 +59,7 @@ export function nativeFileInfoFile(snapshot: FileInfoSnapshot, occurrence: strin
   return undefined;
 }
 
-/** Versions that are one file on their own, the only ones Split can make a title of. Their file is
- * the listed one; a version whose files were not read yet is named by its head. */
+/** Split names a whole version, including one made of several files. */
 export function nativeSplitCandidates(snapshot: FileInfoSnapshot): readonly Readonly<{id: string; ordinal: number; occurrence: string; file?: FileInfoFileRow}>[] {
-  // Every flat file stands on its own; numbered by its place in the list.
-  const flat = snapshot.files?.rows?.rows;
-  if (flat) return Object.freeze(flat.map((file, index) => Object.freeze({id: file.occurrence, ordinal: index + 1, occurrence: file.occurrence, file})));
-  return Object.freeze((snapshot.groups.rows?.rows ?? []).filter(group => group.memberCount === 1).map(group => {
-    const file = snapshot.members.get(group.id)?.rows?.rows[0];
-    return Object.freeze({id: group.id, ordinal: group.ordinal, occurrence: file?.occurrence ?? group.headOccurrence, ...(file ? {file} : {})});
-  }));
+  return Object.freeze((snapshot.groups.rows?.rows ?? []).map(group => ({id: group.id, ordinal: group.ordinal, occurrence: group.id})));
 }

@@ -64,8 +64,6 @@ export type DetailProjection = Readonly<{
   /** When the title's last file went from disk (RFC 3339). Present only while the title has no file: it is shown, cannot be played, and comes back when a file that is the same title appears. */
   missingSince?: string;
   scope: Readonly<{ serverId: string; libraryId: string; itemId: string }>;
-  /** Opaque opening for this exact Detail's File info lanes; present once the title is ready. */
-  fileInfoOpening?: string;
   item: Readonly<DetailItem>;
   personal: PersonalState;
   actions: readonly DetailAction[];
