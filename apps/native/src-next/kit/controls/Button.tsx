@@ -93,8 +93,9 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
       if (androidGlass) {
         const padding: ViewStyle = {paddingHorizontal: iconOnly ? 0 : geometry.paddingX, paddingVertical: fluid ? 4 : undefined};
         for (const key of paddingKeys) if (suppliedStyle?.[key] !== undefined) padding[key] = suppliedStyle[key];
-        // A fluid button (no set height: it grows with its text) sizes its faces to their content; growing to fill, the native blur filled the screen (Android, large text).
-        const face = fluid ? [styles.androidFace, styles.fluidFace] : styles.androidFace;
+        // A fluid button (no set height: it grows with its text) sizes its faces to their content, never shorter than the button
+        // itself (a two-line chip at normal text); growing to fill, the native blur filled the screen (Android, large text).
+        const face = fluid ? [styles.androidFace, styles.fluidFace, {minHeight: Math.max(typeof suppliedStyle?.height === 'number' ? suppliedStyle.height : height, typeof suppliedStyle?.minHeight === 'number' ? suppliedStyle.minHeight : 0)}] : styles.androidFace;
         // Android's backdrop capture skips a BlurView and its descendants. Keep the complete
         // face inside that subtree, so its own text, tint and progress cannot feed the blur.
         return <View pointerEvents="none" style={[face, {borderRadius: suppliedStyle?.borderRadius ?? radius, overflow: 'hidden'}]}>

@@ -135,5 +135,16 @@ test('Android phone glass that grows with large text sizes its faces to their co
     const face: Element = actual.host('glass').props.children({focused: false, hovered: false, pressed: false});
     const blur = face.props.children as Element, layout = blur.props.children as Element;
     for (const node of [face, blur, layout]) assert.equal(flatten(node.props.style).flexGrow, grows, `font scale ${fontScale}`);
+    if (!grows) for (const node of [face, blur, layout]) assert.ok(flatten(node.props.style).minHeight > 0, 'never shorter than the button');
+  }
+});
+
+test('a two-line glass chip at normal text keeps its glass the full height of the chip', async () => {
+  const actual = await button('android', false, 1);
+  const face: Element = actual.host('glass', {size: 'small', labelLines: 2, style: {height: 42}}).props.children({focused: false, hovered: false, pressed: false});
+  const blur = face.props.children as Element, layout = blur.props.children as Element;
+  for (const node of [face, blur, layout]) {
+    assert.equal(flatten(node.props.style).flexGrow, 0, 'sized to its content');
+    assert.equal(flatten(node.props.style).minHeight, 42, 'but never shorter than the 42 pt chip');
   }
 });
