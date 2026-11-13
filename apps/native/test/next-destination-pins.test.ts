@@ -3,55 +3,55 @@ import assert from 'node:assert/strict';
 import {NativeDestinationPins} from '../src-next/screens/destinations/pins.ts';
 import type {PinsApi} from '../../../packages/client-core/src/library-pins.ts';
 
-const navigationPath = '/v1/me/library-navigation', pinsPath = '/v1/saved-pins/order';
-const resource = {kind: 'collection' as const, id: 'actual', name: 'Actual collection', pinRevision: 4};
-const pins = (order = [resource], revision = 1) => ({serverId: 'server', viewerFence: 'actual-viewer', revision, order});
+const resource = {kind: 'collection', id: 'actual', name: 'Actual collection', pinRevision: 0};
+const preferences = (libraries = ['a'], hasResource = true) => ({effective: {pins: [...libraries.map(id => 'library:' + id), ...(hasResource ? ['collection:actual'] : [])]}});
+const list = {id: resource.id, kind: resource.kind, name: resource.name};
 const options = {serverId: 'server', current: () => true, libraryIds: () => ['a', 'b', 'c'], requestId: async () => 'actual-operation-id'};
 
-test('pinning retries the real revision conflict and publishes only the server arrangement', async () => {
-  let navigation = {revision: 1, pinnedLibraryIds: ['a']}, conflict = true;
+test('pinning preserves saved resources and publishes the confirmed profile preference', async () => {
+  let stored = preferences();
   const writes: unknown[] = [];
   const api: PinsApi = {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
-    if (path === pinsPath) return pins() as T;
-    assert.equal(path, navigationPath);
-    if (method === 'PUT') {
+    if (path === '/v1/lists/actual') return list as T;
+    assert.ok(path.startsWith('/v1/preferences'));
+    if (method === 'PATCH') {
       writes.push(body);
-      if (conflict) {conflict = false; navigation = {revision: 2, pinnedLibraryIds: ['c', 'a']}; throw Object.assign(new Error('changed'), {code: 'revision_conflict'});}
-      assert.deepEqual(body, {expectedRevision: 2, pinnedLibraryIds: ['c', 'a', 'b']});
-      navigation = {revision: 3, pinnedLibraryIds: ['c', 'a', 'b']};
+      assert.deepEqual(body, {scope: 'profile-server', deviceClass: 'web', values: {pins: ['library:c', 'library:a', 'collection:actual', 'library:b']}});
+      stored = {effective: {pins: (body as {values: {pins: string[]}}).values.pins}};
     }
-    return navigation as T;
+    return stored as T;
   }};
   const controller = new NativeDestinationPins({...options, api});
   try {
     const initial = controller.load(); assert.equal(initial, controller.load()); await initial;
+    stored = preferences(['c', 'a']); // Another device changed the pins before this tap.
     let duplicate: Promise<void> | undefined;
     const off = controller.subscribe(() => {if (controller.getSnapshot().busy) duplicate = controller.pinLibrary('b', true);});
     const saving = controller.pinLibrary('b', true);
     assert.deepEqual(controller.getSnapshot().libraries?.pinnedLibraryIds, ['a'], 'no optimistic arrangement');
     assert.equal(duplicate, saving, 'subscriber reentry borrows the in-flight operation');
     await saving; off();
-    assert.equal(writes.length, 2);
-    assert.deepEqual(controller.getSnapshot().libraries, navigation);
+    assert.equal(writes.length, 1);
+    assert.deepEqual(controller.getSnapshot().libraries, {revision: 0, pinnedLibraryIds: ['c', 'a', 'b']});
     assert.equal(controller.getSnapshot().busy, false);
   } finally {controller.dispose();}
 });
 
-test('a removed pin cannot reuse an old revision, and a delayed native request ID cannot write for a retired viewer', async () => {
-  let current = true, order = [resource], issued = 0, release!: (id: string) => void;
+test('a removed pin is not written again, and a delayed native request ID cannot write for a retired viewer', async () => {
+  let current = true, hasResource = true, issued = 0, release!: (id: string) => void;
   let entered!: () => void; const requestStarted = new Promise<void>(resolve => {entered = resolve;});
   const writes: unknown[] = [];
   const api: PinsApi = {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
-    if (method === 'PUT') {writes.push(body); return {pinned: false, pinRevision: 5} as T;}
-    return (path === navigationPath ? {revision: 1, pinnedLibraryIds: ['a']} : pins(order)) as T;
+    if (method === 'PATCH') writes.push(body);
+    return (path === '/v1/lists/actual' ? list : preferences(['a'], hasResource)) as T;
   }};
   const controller = new NativeDestinationPins({...options, api, current: () => current, requestId: () => {
     issued++; return new Promise<string>(resolve => {release = resolve; entered();});
   }});
   await controller.load(); const entry = controller.getSnapshot().resources!.order[0];
-  order = []; await controller.unpinResource(entry);
+  hasResource = false; await controller.unpinResource(entry);
   assert.equal(issued, 0); assert.deepEqual(writes, [], 'absent current pin never falls back to the old row');
-  order = [resource]; await controller.load();
+  hasResource = true; await controller.load();
   const next = controller.unpinResource(controller.getSnapshot().resources!.order[0]);
   await requestStarted;
   current = false; const retired = controller.getSnapshot(); release('actual-operation-id'); await next;
@@ -63,8 +63,8 @@ test('a removed pin cannot reuse an old revision, and a delayed native request I
 test('retiring an in-flight pin read aborts its actual request and never publishes a late response', async () => {
   let current = true;
   const pending: {signal?: AbortSignal; finish: () => void}[] = [];
-  const api: PinsApi = {request: <T>(path: string, _method?: string, _body?: unknown, signal?: AbortSignal): Promise<T> => new Promise(resolve => {
-    pending.push({signal, finish: () => resolve((path === navigationPath ? {revision: 1, pinnedLibraryIds: ['a']} : pins()) as T)});
+  const api: PinsApi = {request: <T>(_path: string, _method?: string, _body?: unknown, signal?: AbortSignal): Promise<T> => new Promise(resolve => {
+    pending.push({signal, finish: () => resolve(preferences() as T)});
   })};
   const controller = new NativeDestinationPins({...options, api, current: () => current});
   const loading = controller.load(); await new Promise<void>(resolve => setImmediate(resolve));
@@ -74,24 +74,25 @@ test('retiring an in-flight pin read aborts its actual request and never publish
   assert.equal(controller.getSnapshot(), retired); assert.equal(retired.libraries, undefined);
 });
 
-test('a drag drop places the real library before its captured target identity under the latest CAS revision', async () => {
-  let navigation = {revision: 1, pinnedLibraryIds: ['a', 'b', 'c']};
+test('a drag drop places the real library before its captured target identity using the latest preference', async () => {
+  let stored = preferences(['a', 'b', 'c']);
   const writes: unknown[] = [];
   const api: PinsApi = {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
-    if (path === pinsPath) return pins() as T;
-    if (method === 'PUT') {
-      writes.push(body); assert.deepEqual(body, {expectedRevision: 2, pinnedLibraryIds: ['a', 'c', 'b']});
-      navigation = {revision: 3, pinnedLibraryIds: ['a', 'c', 'b']};
+    if (path === '/v1/lists/actual') return list as T;
+    if (method === 'PATCH') {
+      writes.push(body);
+      assert.deepEqual(body, {scope: 'profile-server', deviceClass: 'web', values: {pins: ['library:a', 'library:c', 'library:b', 'collection:actual']}});
+      stored = preferences(['a', 'c', 'b']);
     }
-    return navigation as T;
+    return stored as T;
   }};
   const controller = new NativeDestinationPins({...options, api});
   try {
     await controller.load();
-    navigation = {revision: 2, pinnedLibraryIds: ['c', 'a', 'b']};
+    stored = preferences(['c', 'a', 'b']);
     await controller.placeLibrary('a', 'c');
     assert.equal(writes.length, 1);
-    assert.deepEqual(controller.getSnapshot().libraries, navigation);
+    assert.deepEqual(controller.getSnapshot().libraries, {revision: 0, pinnedLibraryIds: ['a', 'c', 'b']});
     await controller.placeLibrary('a', 'c'); assert.equal(writes.length, 1, 'an unchanged position does not make a second write');
   } finally {controller.dispose();}
 });

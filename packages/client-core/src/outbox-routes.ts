@@ -11,8 +11,7 @@ const kinds = {
   personal: ['put_items_itemId_reading_favorite', 'put_items_itemId_reading_mark', 'put_items_itemId_reading_my_list', 'put_reading_group_my_list',
     'post_libraries_libraryId_reading_mark_all', 'delete_reading_saved_group_reference', 'post_channels_preferences', 'post_library_channels_preferences'],
   list: ['post_playlists', 'patch_playlists_id', 'delete_playlists_id', 'post_playlists_id_entries', 'delete_playlists_id_entries_entryId', 'reorder_playlist_window',
-    'post_saved_resources', 'patch_saved_resources_id', 'delete_saved_resources_id', 'put_saved_resources_id_entries', 'reorder_saved_collection',
-    'put_saved_pins_order', 'put_saved_pins_kind_id'],
+    'post_saved_resources', 'patch_saved_resources_id', 'delete_saved_resources_id', 'put_saved_resources_id_entries', 'reorder_saved_collection'],
   stop: ['stop_playback_session'],
 } as const;
 export type OutboxKind = keyof typeof kinds | 'settings' | 'download';

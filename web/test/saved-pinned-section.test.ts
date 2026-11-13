@@ -53,10 +53,11 @@ test('closing Edit pins reads the pins again after a read already out, so a pin 
   const held: (() => void)[] = [];
   let hold = true, gets = 0;
   const api = {request: async <T>(path: string): Promise<T> => {
-    if (path === '/v1/me/library-navigation') return {pinnedLibraryIds: [], revision: 1} as T;
+    if (path === '/v1/lists/c1') return {id: 'c1', kind: 'collection', name: 'Toy Story'} as T;
+    assert.ok(path.startsWith('/v1/preferences'));
     gets++;
-    // The answer is the order at the time the server read it, as a delayed response would be.
-    const answer = {serverId: 'server', viewerFence: 'fence', revision: gets, order};
+    // Capture the pins before holding this preference response.
+    const answer = {effective: {pins: order.map(entry => entry.kind + ':' + entry.id)}};
     if (hold) await new Promise<void>(resolve => held.push(resolve));
     return answer as T;
   }};
@@ -69,11 +70,11 @@ test('closing Edit pins reads the pins again after a read already out, so a pin 
   const refreshed = reader.refresh();
   held.splice(0).forEach(resolve => resolve());
   await first; await refreshed;
-  assert.equal(gets, 2, 'the close asks for its own read after the one already out');
+  assert.equal(gets, 4, 'both readers ask again after the reads already out');
   assert.deepEqual(reader.getSnapshot().resources?.order, [], 'the removed pin stays removed');
-  // With nothing out, a refresh is one read.
+  // With nothing out, each reader refreshes once.
   await reader.refresh();
-  assert.equal(gets, 3);
+  assert.equal(gets, 6);
   reader.dispose();
 });
 

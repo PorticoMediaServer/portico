@@ -12,7 +12,7 @@ function destination(paths: string[], savedResponse: (path: string) => unknown) 
   const api = {request: async (path: string) => {paths.push(path);
     if (path.includes('/v1/content')) return savedResponse(path);
     if (path.includes('/saved/summary')) throw Object.assign(new Error('summary unavailable'), {code: 'invalid_response'});
-    if (path.includes('/saved-pins/order')) throw Object.assign(new Error('pins unavailable'), {code: 'invalid_response'});
+    if (path.startsWith('/v1/preferences')) throw Object.assign(new Error('pins unavailable'), {code: 'invalid_response'});
     throw new Error(`unexpected ${path}`);
   }};
   api.request = legacySavedRequest(api.request as never) as typeof api.request;

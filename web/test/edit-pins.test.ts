@@ -5,27 +5,27 @@ import {PinsController} from '../src/screens/pins/pins-controller.ts';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-test('Edit pins pins a library on the viewer\'s own navigation, at the revision it read', async () => {
-  let revision = 0, pinned: string[] = [];
+test('Edit pins pins a library in the profile preference, preserving the saved pins', async () => {
+  let pins = ['collection:kept'];
   const calls: string[] = [];
   const api = {request: async <T>(path: string, method = 'GET', body?: unknown): Promise<T> => {
     calls.push(`${method} ${path}`);
-    if (path === '/v1/me/library-navigation') {
-      if (method === 'PUT') {const next = body as {expectedRevision: number; pinnedLibraryIds: string[]}; assert.equal(next.expectedRevision, revision); pinned = next.pinnedLibraryIds; revision++;}
-      return {pinnedLibraryIds: pinned, revision} as T;
+    if (path.startsWith('/v1/preferences')) {
+      if (method === 'PATCH') {const next = body as {scope: string; values: {pins: string[]}}; assert.equal(next.scope, 'profile-server'); pins = next.values.pins;}
+      return {effective: {pins}} as T;
     }
-    if (path.startsWith('/v1/saved-pins/order')) return {serverId: 'server', viewerFence: 'fence', revision: 1, order: []} as T;
+    if (path === '/v1/lists/kept') return {id: 'kept', kind: 'collection', name: 'Kept'} as T;
     throw new Error('unexpected ' + path);
   }};
   const controller = new PinsController({api, serverId: 'server', current: () => true, libraryIds: () => ['lib_a', 'lib_b'], requestId: async () => 'op'});
   await controller.load();
   await controller.pinLibrary('lib_b', true);
-  assert.deepEqual(pinned, ['lib_b']);
+  assert.deepEqual(pins, ['collection:kept', 'library:lib_b']);
   assert.deepEqual(controller.getSnapshot().libraries?.pinnedLibraryIds, ['lib_b']);
-  assert.ok(calls.includes('PUT /v1/me/library-navigation'));
+  assert.ok(calls.includes('PATCH /v1/preferences'));
   // A library that isn't this viewer's is never pinned.
   await controller.pinLibrary('lib_other', true);
-  assert.deepEqual(pinned, ['lib_b']);
+  assert.deepEqual(pins, ['collection:kept', 'library:lib_b']);
   controller.dispose();
 });
 
