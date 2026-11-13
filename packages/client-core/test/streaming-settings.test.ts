@@ -123,3 +123,27 @@ test('the conversion controls read and save the actual engine settings, includin
   assert.deepEqual(f.calls.filter(c => c.method === 'PUT').map(c => c.body),
     [{encoderSpeed: 'fast'}, {planningPolicy: 'maximum_fidelity'}, {repackaging: true}, {conversionFormat: 'auto'}]);
 });
+
+test('working space reads seconds and saves the same seconds without changing the other limits', async () => {
+  const f = fixture();
+  const values = {convertAheadSeconds: 120, keepForRewindingSeconds: 0, spacePerStreamMiB: 8192, memoryLimit: 'half'};
+  const defaults = {convertAheadSeconds: 60, keepForRewindingSeconds: 180, spacePerStreamMiB: 4096, memoryLimit: 'quarter'};
+  const source = new OwnerStreamingSettings({...f.api, request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    const doc: any = await f.api.request(path, method, body);
+    if (path.endsWith('/settings/streaming')) {doc.values = {...doc.values, ...values}; doc.defaults = {...doc.defaults, ...defaults};}
+    return doc;
+  }});
+  const configuration = await source.readConfiguration();
+  const read = (id: string) => readSettingsBinding(settingsBinding(id)!, {configuration}, id);
+  assert.equal(read('streaming.convertAhead')?.current, '120');
+  assert.equal(read('streaming.rewindKeep')?.current, '0');
+  assert.equal(read('streaming.rewindKeep')?.default, '180');
+  assert.equal(read('streaming.sessionSpace')?.current, '8192');
+  assert.equal(read('streaming.memoryCap')?.current, 'half');
+  await source.save('streaming.convertAhead', '600');
+  await source.save('streaming.rewindKeep', '180');
+  await source.save('streaming.sessionSpace', '16384');
+  await source.save('streaming.memoryCap', '4gb');
+  assert.deepEqual(f.calls.filter(c => c.method === 'PUT').map(c => c.body),
+    [{convertAheadSeconds: 600}, {keepForRewindingSeconds: 180}, {spacePerStreamMiB: 16384}, {memoryLimit: '4gb'}]);
+});

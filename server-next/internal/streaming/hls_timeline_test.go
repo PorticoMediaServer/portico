@@ -139,10 +139,6 @@ func TestHLSPlayedRetentionPrunesBehindThePlayhead(t *testing.T) {
 	if inside, _ := prunePlayedSegments(dir, 0, 10, 300); inside != 0 {
 		t.Fatal("pruned inside the retention window")
 	}
-	// Retention off keeps everything.
-	if off, _ := prunePlayedSegments(dir, 0, 59, 0); off != 0 {
-		t.Fatal("pruned with retention disabled")
-	}
 }
 
 func TestHLSTimelineManifestIsWrittenAtomicallyAndIdempotently(t *testing.T) {
@@ -171,7 +167,7 @@ func TestHLSTimelineManifestIsWrittenAtomicallyAndIdempotently(t *testing.T) {
 
 func TestThrottleAndRetentionDefaults(t *testing.T) {
 	cfg := DefaultDeliveryConfiguration()
-	if cfg.ThrottleBufferSeconds != 60 || cfg.PlayedRetentionSeconds != 300 {
+	if cfg.ThrottleBufferSeconds != 60 || cfg.PlayedRetentionSeconds != 180 {
 		t.Fatal("published defaults changed", cfg.ThrottleBufferSeconds, cfg.PlayedRetentionSeconds)
 	}
 	// Out-of-range stored values fall back per field rather than failing.
@@ -183,10 +179,33 @@ func TestThrottleAndRetentionDefaults(t *testing.T) {
 		SoftwarePreset:         "nonsense",
 		PlanningPolicy:         "nonsense",
 	}.Normalized()
-	if broken.ThrottleBufferSeconds != 60 || broken.PlayedRetentionSeconds != 300 || broken.HardwareBackend != "auto" || broken.PlanningPolicy != PlanningMaximumFidelity {
+	if broken.ThrottleBufferSeconds != 60 || broken.PlayedRetentionSeconds != 180 || broken.HardwareBackend != "auto" || broken.PlanningPolicy != PlanningMaximumFidelity {
 		t.Fatal("invalid configuration was not repaired", broken)
 	}
 	if deliveryConfiguration(nil).ThrottleBufferSeconds != 60 {
 		t.Fatal("nil settings source did not fall back to the defaults")
+	}
+}
+
+// "Not kept" frees played pieces, keeping the piece currently being served and the future.
+func TestNoRewindKeepingFreesOnlyPiecesBehindTheViewer(t *testing.T) {
+	dir := t.TempDir()
+	for i := 0; i < 10; i++ {
+		if err := os.WriteFile(filepath.Join(dir, hlsSegmentFile(i)), []byte("piece"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	removed, from := prunePlayedSegments(dir, 0, 5, 0)
+	if removed != 5 || from != 5 {
+		t.Fatal(removed, from)
+	}
+	for i := 0; i < 10; i++ {
+		_, err := os.Stat(filepath.Join(dir, hlsSegmentFile(i)))
+		if i < 5 && !os.IsNotExist(err) || i >= 5 && err != nil {
+			t.Fatal(i, err)
+		}
+	}
+	if removed, from := prunePlayedSegments(dir, from, 5, 0); removed != 0 || from != 5 {
+		t.Fatal(removed, from)
 	}
 }
