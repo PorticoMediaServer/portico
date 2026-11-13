@@ -4,9 +4,10 @@ import {RemoteSourceService, type AnalysisPolicy} from '../../../../../../packag
 import type {ExpectedRemoteSource} from '../../../../../../packages/client-core/src/remote-source-selection';
 import {LibraryManagementService, type LibraryManagementSnapshot, type ManagedLibrary} from '../../../../../../packages/client-core/src/library-management';
 import {fetchEpisodeIssues, type EpisodeIssue} from '../../../../../../packages/client-core/src/library-management';
-import {LibraryInventoryService, type InventoryConfig, type SourceSettings} from '../../../../../../packages/client-core/src/library-inventory';
+import {type InventoryConfig, type SourceSettings} from '../../../../../../packages/client-core/src/library-inventory';
 import type {ViewerQueries} from '../../../../../../packages/client-core/src/query/viewer-queries';
-import {readLibrarySettings, reorderLibraries, saveLibrarySettings} from '../../../../../../packages/client-core/src/server-admin/libraries';
+import {readOwnerLibrarySettings, readOwnerLibraryInventoryConfig, reorderLibraries, saveOwnerLibrarySettings, saveOwnerLibraryFolder, removeOwnerLibraryFolder, scanLibraryFolder, checkLibraryFolder} from '../../../../../../packages/client-core/src/server-admin/libraries';
+import {settingsSaveConflict} from '../../../../../../packages/client-core/src/settings-document';
 import {readScanIssues, type ScanIssues} from '../../../../../../packages/client-core/src/scan-issues';
 import {removeLibrary} from '../../../../../../packages/client-core/src/title-identity';
 import {parseMetadataAgent, saveMetadataAgent, type LibraryMetadataAgent} from '../../../../../../packages/client-core/src/server-admin/metadata-agent';
@@ -67,7 +68,6 @@ const empty: NativeOwnerLibrariesSnapshot = {directory: blankDirectory, selected
 export class NativeOwnerLibrariesController {
   private management: LibraryManagementService;
   private remotePolicy: RemoteSourceService;
-  private inventory?: LibraryInventoryService;
   private api: LibraryContentApi;
   private scope: ContentScope;
   private state: NativeOwnerLibrariesSnapshot = empty;
@@ -75,8 +75,8 @@ export class NativeOwnerLibrariesController {
   private disposed = false;
   private generation = 0;
   private unsubscribe?: () => void;
-  private unsubscribeInventory?: () => void;
   private sonicRequest?: AbortController;
+  private libraryRequest?: AbortController;
   private strmRead = 0;
   private lyricsKeys = new Map<string, string>();
   private lyricsFlight = false;
@@ -108,9 +108,10 @@ export class NativeOwnerLibrariesController {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
-    this.unsubscribe?.(); this.unsubscribeInventory?.();
+    this.unsubscribe?.();
     this.sonicRequest?.abort(); this.sonicRequest = undefined;
-    this.inventory?.dispose(); this.management.dispose(); this.remotePolicy.dispose(); this.listeners.clear();
+    this.libraryRequest?.abort();
+    this.management.dispose(); this.remotePolicy.dispose(); this.listeners.clear();
   }
 
   private command<T>(work: () => Promise<T>): Promise<T | undefined> {
@@ -131,15 +132,13 @@ export class NativeOwnerLibrariesController {
   async load(libraryId: string): Promise<void> {
     if (this.disposed) return;
     const generation = ++this.generation;
-    this.inventory?.dispose(); this.unsubscribeInventory?.();
+    this.libraryRequest?.abort(); this.libraryRequest = new AbortController();
     this.sonicRequest?.abort(); this.sonicRequest = undefined;
-    const inventory = new LibraryInventoryService({api: this.api, scope: this.scope, libraryId, queries: this.queries});
-    this.inventory = inventory; this.unsubscribeInventory = inventory.subscribe(() => this.acceptInventory(generation));
     this.publish({inventory: undefined, inventoryLoading: true, inventoryError: undefined, document: undefined, lyricsJob: undefined, lyricsError: undefined, lyricsBusy: false, selectedId: libraryId, strm: undefined, strmError: undefined, detail: 'loading', detailError: undefined, skipped: undefined, skippedError: undefined, unmatched: Object.freeze([]), unmatchedCursor: '', sonic: undefined, sonicError: undefined, sonicErrorOperation: undefined, sonicNeedsReload: false, sonicBusy: false, sonicRetryUnavailable: false});
     try {
       await this.management.selectLibrary(libraryId);
       if (this.disposed || generation !== this.generation) return;
-      const [document, , , metadata] = await Promise.all([readLibrarySettings(this.api, libraryId), inventory.refresh(false), this.loadUnmatched(libraryId, '', generation),
+      const [document, , , metadata] = await Promise.all([readOwnerLibrarySettings(this.api, libraryId, this.libraryRequest.signal), this.loadInventory(libraryId, generation), this.loadUnmatched(libraryId, '', generation),
         readOwnerMetadataAgent(this.api, libraryId).then(parseMetadataAgent, () => undefined)]);
       if (this.disposed || generation !== this.generation) return;
       this.publish({document, metadata, detail: 'ready'});
@@ -153,7 +152,7 @@ export class NativeOwnerLibrariesController {
 
   /** STRM analysis is a separate revisioned resource, never a LibrarySettings field. */
   private async loadStrm(document: LibraryAdminDocument, generation: number): Promise<void> {
-    if (!['movie', 'tv', 'anime'].includes(document.libraryKind)) return;
+    if (!document.eligibleControls?.includes('libraries.strm')) return;
     const read = ++this.strmRead;
     try {
       const strm = await this.remotePolicy.policy(document.libraryId);
@@ -183,7 +182,7 @@ export class NativeOwnerLibrariesController {
 
   /** Sonic status is its own original-owner read, separate from the library document and never its permission. */
   private async loadSonic(document: LibraryAdminDocument, generation: number): Promise<void> {
-    if (document.libraryKind !== 'music' || this.disposed || generation !== this.generation || this.state.selectedId !== document.libraryId || this.state.document !== document) return;
+    if (!document.eligibleControls?.includes('libraries.sonicAnalysis') || document.libraryKind !== 'music' || this.disposed || generation !== this.generation || this.state.selectedId !== document.libraryId || this.state.document !== document) return;
     const request = new AbortController();
     this.sonicRequest?.abort(); this.sonicRequest = request;
     try {
@@ -274,15 +273,17 @@ export class NativeOwnerLibrariesController {
     return this.residentSonic(document, sonic, generation, lease) && !this.state.sonicBusy && !this.state.sonicNeedsReload;
   }
 
-  private acceptInventory(generation: number) {
-    if (this.disposed || generation !== this.generation || !this.inventory) return;
-    const snapshot = this.inventory.getSnapshot();
-    this.publish({inventory: snapshot.error || snapshot.loading ? undefined : snapshot.config ?? undefined, inventoryLoading: snapshot.loading, inventoryError: snapshot.error ?? undefined});
+  private async loadInventory(libraryId: string, generation: number): Promise<void> {
+    try {
+      const inventory = await readOwnerLibraryInventoryConfig(this.api, this.scope, libraryId, this.libraryRequest?.signal);
+      if (!this.disposed && generation === this.generation) this.publish({inventory, inventoryLoading: false, inventoryError: undefined});
+    } catch (error) {if (!this.disposed && generation === this.generation) this.publish({inventory: undefined, inventoryLoading: false, inventoryError: error});}
   }
 
   async reloadInventory(): Promise<void> {
-    if (this.disposed || !this.inventory || this.state.inventoryLoading) return;
-    await this.inventory.refresh();
+    if (this.disposed || this.state.inventoryLoading || !this.state.selectedId) return;
+    this.publish({inventoryLoading: true, inventoryError: undefined});
+    await this.loadInventory(this.state.selectedId, this.generation);
   }
 
   /** Keep the operation key after an uncertain answer; a repeat gesture recovers the same job. */
@@ -397,9 +398,21 @@ export class NativeOwnerLibrariesController {
       if (!document || document.libraryId !== libraryId) return false;
       // One save, one request. A save that gets no answer fails here, and the page reads the library again.
       requireCurrent();
-      const value = await saveLibrarySettings(this.api, document, {...document.settings, ...patch}, this.requestId());
-      requireCurrent();
-      this.publish({document: value, saved: this.state.saved + 1}); return true;
+      try {
+        const value = await saveOwnerLibrarySettings(this.api, document, {...document.settings, ...patch}, this.requestId());
+        requireCurrent();
+        this.publish({document: value, saved: this.state.saved + 1,
+          ...(value.serverLibrary ? {metadata: parseMetadataAgent(value.serverLibrary), inventory: this.state.inventory ? {...this.state.inventory,
+            revision: value.revision, policy: {...this.state.inventory.policy, revision: value.revision, tier: value.settings.scanDepth}} : undefined} : {})});
+        return true;
+      } catch (error) {
+        if (settingsSaveConflict(error)) {
+          const fresh = await readOwnerLibrarySettings(this.api, libraryId).catch(() => undefined);
+          requireCurrent();
+          this.publish({document: fresh});
+        }
+        throw error;
+      }
     });
     return done === true;
   }
@@ -409,7 +422,8 @@ export class NativeOwnerLibrariesController {
     const current = this.state.metadata;
     if (!current) return false;
     const done = await this.command(() => saveMetadataAgent(this.api, current, current.libraryId, agent).then(value => {this.publish({metadata: value, saved: this.state.saved + 1}); return true;}));
-    if (done !== true) await this.reloadAgent();
+    if (done === true) await this.load(current.libraryId);
+    else await this.reloadAgent();
     return done === true;
   }
 
@@ -421,17 +435,18 @@ export class NativeOwnerLibrariesController {
   }
 
   async saveFolder(sourceId: string | undefined, input: SourceSettings): Promise<boolean> {
-    const inventory = this.inventory;
-    if (!inventory) return false;
-    const done = await this.command(() => inventory.saveSource(sourceId, input).then(value => value));
+    const id = this.state.selectedId;
+    if (!id || !this.state.inventory) return false;
+    const done = await this.command(() => saveOwnerLibraryFolder(this.api, id, sourceId, input).then(() => true));
+    if (done) await this.load(id);
     return done === true;
   }
 
   async removeFolder(sourceId: string): Promise<boolean> {
-    const revision = this.state.inventory?.revision;
-    if (!revision) return false;
-    const inventory = this.inventory;
-    const done = await this.command(() => inventory ? inventory.removeSource(sourceId, revision) : Promise.resolve(false));
+    const id = this.state.selectedId, revision = this.state.inventory?.revision;
+    if (!id || !revision) return false;
+    const done = await this.command(() => removeOwnerLibraryFolder(this.api, id, sourceId, revision).then(() => true));
+    if (done) await this.load(id);
     return done === true;
   }
 
@@ -446,14 +461,14 @@ export class NativeOwnerLibrariesController {
   }
 
   async scanFolder(sourceId: string): Promise<boolean> {
-    const inventory = this.inventory;
-    const done = await this.command(() => inventory ? inventory.scanSource(sourceId) : Promise.resolve(false));
+    const id = this.state.selectedId;
+    const done = await this.command(() => id ? scanLibraryFolder(this.api, id, sourceId).then(() => true) : Promise.resolve(false));
     return done === true;
   }
 
   async checkFolder(sourceId: string): Promise<boolean> {
-    const inventory = this.inventory;
-    const done = await this.command(() => inventory ? inventory.checkSource(sourceId) : Promise.resolve(false));
+    const id = this.state.selectedId;
+    const done = await this.command(() => id ? checkLibraryFolder(this.api, id, sourceId).then(() => true) : Promise.resolve(false));
     return done === true;
   }
 

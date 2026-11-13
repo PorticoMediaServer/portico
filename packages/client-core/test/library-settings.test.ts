@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {LibraryAdminDocument,LibrarySettings} from '../src/administration.ts';
 import {libraryScanDepth,setLibraryScanDepth,setLibrarySeekPreviews,setLibraryPreviewHours} from '../src/server-admin/library-policy.ts';
-import {reorderLibraries,saveLibraryFolder} from '../src/server-admin/libraries.ts';
+import {reorderLibraries,saveLibraryFolder,saveOwnerLibraryFolder} from '../src/server-admin/libraries.ts';
 
 const settings:LibrarySettings={scanDepth:'basic',groupCollections:true,localTags:'prefer',lyricsSource:'files',titleSource:'tags',episodeNumbering:'season',findExtras:true,sortIgnoreArticles:true,refreshMode:'replace_unlocked',acoustidEnabled:false,continueWatching:{weeks:16,maximumItems:40,includeSeasonPremieres:true,videoPlayedThreshold:95,videoCompletion:'earliest'},allowMediaDeletion:false,monitorChanges:true,providers:[],analysis:['probe','local_metadata','subtitle_discovery'],navigation:{trickplayIntervalMs:10000,trickplayTileWidth:320,trickplayMaxTiles:1080,chapterThumbnailMode:'embedded',videoPreviewEnabled:false,videoPreviewMs:30000},segmentDetection:'server'};
 
@@ -71,4 +71,27 @@ test('MOB-111: a folder can be attached without its automatic scan; omission kee
  assert.equal((bodies[0] as {scanAfter?:boolean}).scanAfter,false);
  assert.equal('scanAfter' in (bodies[1] as object),false);
  await assert.rejects(saveLibraryFolder(api,'library',undefined,{...input,scanAfter:'no' as never}));
+});
+
+test('unsupported folder options are refused before any write, including attach without scanning',async()=>{
+ let calls=0;const api={request:async<T>()=>{calls++;return {} as T;}};
+ for(const extra of [{name:'Label'},{classification:'network'},{followSymlinks:true},{intervalSeconds:900},{scanAfter:false}]){
+  await assert.rejects(saveOwnerLibraryFolder(api,'library',undefined,{path:'/media',expectedRevision:7,...extra} as never),(error: any)=>error.code==='unsupported');
+ }
+ assert.equal(calls,0);
+});
+
+test('folder membership preserves the other local and remote folders and carries the library version',async()=>{
+ const library={id:'library',name:'Library',kind:'movies',revision:'7',metadataProvider:'local',metadataProviders:[{id:'local',available:true}],
+  options:{depth:'basic',allowDelete:false,trash:{mode:'manual'},rescanMinutes:0},folders:[
+   {id:'disk',path:'/media',available:true},{id:'remote',path:'films',source:'remote-source',available:true}]};
+ const signal=new AbortController().signal;let writes=0;
+ const api={request:async<T>()=>library as T,requestRaw:async(path:string,method:string,options:any)=>{
+  writes++;assert.equal(path,'/v1/admin/libraries/library');assert.equal(method,'PATCH');assert.equal(options.signal,signal);
+  assert.deepEqual(options.headers,{'If-Match':'"7"'});
+  assert.deepEqual(options.body,{folders:['/media','/new'],remoteFolders:[{source:'remote-source',path:'films'}]});
+  return {status:200,headers:{},body:{...library,revision:'8',folders:[...library.folders,{id:'new',path:'/new',available:true}]}};
+ }};
+ const source=await saveOwnerLibraryFolder(api,'library',undefined,{path:'/new',expectedRevision:7},signal);
+ assert.equal(source.id,'new');assert.equal(writes,1);
 });
