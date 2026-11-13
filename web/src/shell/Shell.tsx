@@ -165,7 +165,7 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, insecureR
     rememberLibrary(libraryMemory(), viewer, identity.libraries, id);
     noteLibraryVisit(id);
   }, [pathname, viewer, identity.libraries]);
-  const opened = useSyncExternalStore(titleLibrary.subscribe, titleLibrary.getSnapshot);
+  const opened = useSyncExternalStore(titleLibrary.subscribe, titleLibrary.getSnapshot, titleLibrary.getSnapshot);
   const activeLibrary = activeLibraryId(pathname, opened);
   useEffect(() => { setAccountOpen(false); setMoreOpen(false); }, [pathname]);
   const openLibraries = () => {
