@@ -324,6 +324,12 @@ type AccountStream struct {
 	// Next is what that device's queue plays after this, for "Next up": only a title the
 	// asking profile may see, and absent when nothing follows.
 	Next *AccountStreamNext `json:"next,omitempty"`
+
+	// The playing version and effective tracks, only when the title is visible.
+	// With a versionId, no subtitle means subtitles are off.
+	VersionID    string                    `json:"versionId,omitempty"`
+	AudioTrackID string                    `json:"audioTrackId,omitempty"`
+	Subtitle     *playback.SubtitleInForce `json:"subtitle,omitempty"`
 }
 
 // AccountStreamNext is the title a device's queue plays next.

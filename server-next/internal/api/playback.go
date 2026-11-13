@@ -466,6 +466,7 @@ func (s *Server) accountPlayback(r *http.Request, _ None) (AccountPlayback, erro
 			State: v.State, PositionMs: v.PositionMs, StartedAt: v.StartedAt.UTC(), Current: v.SignInID == c.SignInID}
 		if v.Visible {
 			stream.ItemID, stream.Title, stream.DurationMs = v.Item.PublicID, v.Title, v.Item.DurationMS
+			stream.VersionID, stream.AudioTrackID, stream.Subtitle = v.VersionID, v.Plan.AudioTrackID, v.Plan.Subtitle
 		}
 		if stream.Next, err = s.nextUp(r.Context(), c.Viewer, v.Session); err != nil {
 			return AccountPlayback{}, err
@@ -490,6 +491,7 @@ func streamOut(v playback.Session, titles map[int64]string, signInID int64) Acco
 		State: v.State, PositionMs: v.PositionMs, StartedAt: v.StartedAt.UTC(), Current: v.SignInID == signInID}
 	if title, ok := titles[v.Item.ID]; ok {
 		stream.ItemID, stream.Title, stream.DurationMs = v.Item.PublicID, title, v.Item.DurationMS
+		stream.VersionID, stream.AudioTrackID, stream.Subtitle = v.VersionID, v.Plan.AudioTrackID, v.Plan.Subtitle
 	}
 	return stream
 }
