@@ -399,8 +399,8 @@ func TestADeviceIsToldToRemoveWhatItsProfileLost(t *testing.T) {
 	if w := call(t, rig.s, "DELETE", "/v1/admin/members/"+byPerson.Items[0].UserID+"/downloads", rig.owner, nil, nil); w.Code != 204 {
 		t.Fatalf("removing their downloads answered %d", w.Code)
 	}
-	if after := get[DownloadsByPerson](t, rig.s, rig.owner, "/v1/admin/downloads"); len(after.Items) != 0 {
-		t.Fatalf("their downloads were kept: %+v", after.Items)
+	if after := get[DownloadsByPerson](t, rig.s, rig.owner, "/v1/admin/downloads"); len(after.Items) != 1 || after.Items[0].CopiesBytes != 0 {
+		t.Fatalf("cleanup must keep requests and free prepared copies: %+v", after.Items)
 	}
 }
 

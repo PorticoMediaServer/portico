@@ -9,10 +9,10 @@ import (
 // ErrReading leaves an in-flight transfer and its request alone.
 var ErrReading = errors.New("a prepared download is being fetched; try again when the transfer has finished")
 
-// ExpireDownload frees this request's unshared copies, not the person's files.
-func (s *Service) ExpireDownload(ctx context.Context, publicID string) error {
+// ExpirePersonDownloads frees this person's unshared copies, not the person's files.
+func (s *Service) ExpirePersonDownloads(ctx context.Context, publicID string) error {
 	s.mu.Lock()
-	copies, err := s.DB.DownloadCopies(ctx, publicID)
+	copies, err := s.DB.PersonDownloadCopies(ctx, publicID)
 	if err != nil {
 		s.mu.Unlock()
 		return err
@@ -27,7 +27,7 @@ func (s *Service) ExpireDownload(ctx context.Context, publicID string) error {
 		ids = append(ids, p.ID)
 		names[p.ID] = p.PublicID
 	}
-	removed, err := s.DB.ExpireDownloadCopies(ctx, publicID, ids)
+	removed, err := s.DB.ExpirePersonDownloadCopies(ctx, publicID, ids)
 	if err != nil {
 		s.mu.Unlock()
 		return err

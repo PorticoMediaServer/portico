@@ -34,23 +34,15 @@ func (s *Server) downloadRoutes() {
 		route.Scope = ScopeSession
 	}
 	Handle(s, "GET /v1/admin/downloads", Owner, s.downloadsByPerson)
-	Handle(s, "DELETE /v1/admin/downloads/{id}", Admin, func(r *http.Request, _ None) (None, error) {
-		err := s.prepare.ExpireDownload(r.Context(), r.PathValue("id"))
-		if errors.Is(err, prepare.ErrReading) {
-			return None{}, ErrConflict("download_in_use", "A prepared download is being fetched. Try again when the transfer has finished.")
-		}
-		return None{}, err
-	})
 	Handle(s, "DELETE /v1/admin/members/{id}/downloads", Owner, s.removePersonDownloads)
 }
 
 // PersonDownloads is one person's downloads on the owner's Storage page.
 type PersonDownloads struct {
-	UserID      string   `json:"userId"`
-	DownloadIDs []string `json:"downloadIds"`
-	Username    string   `json:"username"`
-	Titles      int      `json:"titles"`
-	CopiesBytes int64    `json:"copiesBytes"`
+	UserID      string `json:"userId"`
+	Username    string `json:"username"`
+	Titles      int    `json:"titles"`
+	CopiesBytes int64  `json:"copiesBytes"`
 }
 
 // DownloadsByPerson is the owner's view of downloads: by person, and the server's copies in
@@ -68,7 +60,7 @@ func (s *Server) downloadsByPerson(r *http.Request, _ None) (DownloadsByPerson, 
 	}
 	out := DownloadsByPerson{Items: make([]PersonDownloads, 0, len(people))}
 	for _, p := range people {
-		out.Items = append(out.Items, PersonDownloads{UserID: p.UserPublicID, DownloadIDs: p.DownloadIDs, Username: p.Username, Titles: p.Titles, CopiesBytes: p.CopiesBytes})
+		out.Items = append(out.Items, PersonDownloads{UserID: p.UserPublicID, Username: p.Username, Titles: p.Titles, CopiesBytes: p.CopiesBytes})
 	}
 	if out.CopiesBytes, err = s.db.PreparedSpace(r.Context()); err != nil {
 		return out, err
@@ -77,13 +69,12 @@ func (s *Server) downloadsByPerson(r *http.Request, _ None) (DownloadsByPerson, 
 	return out, err
 }
 
-// removePersonDownloads is "Remove their downloads": their requests go and the server's
-// copies nobody else asked for are freed. It does not reach into any device; to take
-// downloads away from someone, turn Downloads off for them.
+// removePersonDownloads frees the person's prepared server copies, preserving
+// requests and files already held on devices. Other people's shared copies stay.
 func (s *Server) removePersonDownloads(r *http.Request, _ None) (None, error) {
-	copies, err := s.db.RemovePersonDownloads(r.Context(), r.PathValue("id"))
-	for _, id := range copies {
-		s.prepare.Stop(id)
+	err := s.prepare.ExpirePersonDownloads(r.Context(), r.PathValue("id"))
+	if errors.Is(err, prepare.ErrReading) {
+		return None{}, ErrConflict("download_in_use", "A prepared download is being fetched. Try again when the transfer has finished.")
 	}
 	return None{}, refuse(err)
 }

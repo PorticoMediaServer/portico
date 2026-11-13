@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 )
 
@@ -13,10 +12,11 @@ func TestOwnerDownloadCleanupKeepsDevicesAndSharedCopies(t *testing.T) {
 	ctx := context.Background()
 	_, first := rig.ask(rig.owner, DownloadAsk{ItemID: rig.film, Quality: "240p"})
 	rig.waitReady(rig.owner, first.ID)
-	browser := onMain(t, rig.s, signIn(t, rig.s, 3)).AccessToken
+	sam := addMember(t, rig.s, rig.owner, "sam", "member")
+	browser := signInAs(t, rig.s, "sam", testPassword, 3).AccessToken
 	_, second := rig.ask(browser, DownloadAsk{ItemID: rig.film, Quality: "240p"})
 	rig.waitReady(browser, second.ID)
-	copies, err := rig.s.db.DownloadCopies(ctx, first.ID)
+	copies, err := rig.s.db.PersonDownloadCopies(ctx, sam.ID)
 	if err != nil || len(copies) != 1 {
 		t.Fatal(copies, err)
 	}
@@ -26,16 +26,22 @@ func TestOwnerDownloadCleanupKeepsDevicesAndSharedCopies(t *testing.T) {
 		t.Fatal("no prepared files", err)
 	}
 	usage := get[DownloadsByPerson](t, rig.s, rig.owner, "/v1/admin/downloads")
-	if len(usage.Items) != 1 || !slices.Contains(usage.Items[0].DownloadIDs, first.ID) || !slices.Contains(usage.Items[0].DownloadIDs, second.ID) {
+	var ownerID string
+	for _, person := range usage.Items {
+		if person.UserID != sam.ID {
+			ownerID = person.UserID
+		}
+	}
+	if ownerID == "" {
 		t.Fatal(usage)
 	}
 	addMember(t, rig.s, rig.owner, "member", "member")
 	member := signInAs(t, rig.s, "member", testPassword, 4).AccessToken
-	route := "/v1/admin/downloads/"
-	if code := status(t, rig.s, "DELETE", route+first.ID, member, nil); code != 403 {
+	route := func(id string) string { return "/v1/admin/members/" + id + "/downloads" }
+	if code := status(t, rig.s, "DELETE", route(ownerID), member, nil); code != 403 {
 		t.Fatal(code)
 	}
-	if code := status(t, rig.s, "DELETE", route+first.ID, rig.owner, nil); code != 204 {
+	if code := status(t, rig.s, "DELETE", route(ownerID), rig.owner, nil); code != 204 {
 		t.Fatal(code)
 	}
 	if got := get[Download](t, rig.s, rig.owner, "/v1/downloads/"+first.ID); got.Items[0].State != "expired" {
@@ -48,14 +54,17 @@ func TestOwnerDownloadCleanupKeepsDevicesAndSharedCopies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code := status(t, rig.s, "DELETE", route+second.ID, rig.owner, nil); code != 409 {
+	if code := status(t, rig.s, "DELETE", route(sam.ID), rig.owner, nil); code != 409 {
 		release()
 		t.Fatal(code)
 	}
 	release()
 	addMember(t, rig.s, rig.owner, "admin", "admin")
 	admin := signInAs(t, rig.s, "admin", testPassword, 5).AccessToken
-	if code := status(t, rig.s, "DELETE", route+second.ID, admin, nil); code != 204 {
+	if code := status(t, rig.s, "DELETE", route(sam.ID), admin, nil); code != 403 {
+		t.Fatal(code)
+	}
+	if code := status(t, rig.s, "DELETE", route(sam.ID), rig.owner, nil); code != 204 {
 		t.Fatal(code)
 	}
 	for _, file := range files {
