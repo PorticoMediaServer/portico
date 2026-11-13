@@ -11,16 +11,17 @@
   --control-height: var(--spec-button-hero-height-web); --control-radius: var(--spec-button-hero-radius-web);
   --control-inset: var(--spec-button-hero-padding-x-web); --control-gap: var(--spec-button-hero-gap-web); --control-icon: var(--spec-button-hero-icon-web);
   position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; max-width: 100%;
-  height: var(--control-height); border-radius: var(--control-radius); padding: 0 var(--control-inset); gap: var(--control-gap);
+  /* A control's label is never cut: past the room it has, it wraps and the button grows (owner rule, 12 Nov). */
+  min-height: var(--control-height); border-radius: var(--control-radius); padding: 6px var(--control-inset); gap: var(--control-gap);
   font-size: var(--type-button-size); line-height: var(--type-button-line); font-weight: var(--type-button-weight); letter-spacing: var(--type-button-tracking);
-  white-space: nowrap; transition: transform 160ms var(--ease-out), background 160ms var(--ease-out);
+  text-align: center; transition: transform 160ms var(--ease-out), background 160ms var(--ease-out);
 }
 .button:active:not(:disabled) {transform: scale(.97);}
 .button[data-variant="primary"] {background: var(--color-text); color: var(--color-ink);}
 .button[data-variant="primary"]:hover:not(:disabled) {background: var(--color-white);}
 .button[data-variant="glass"] {background: var(--glass-fill); backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));}
 .button[data-variant="glass"]:hover:not(:disabled) {background: var(--glass-hover-fill);}
-.buttonLabel {min-width: 0; overflow: hidden; text-overflow: ellipsis;}
+.buttonLabel {min-width: 0; overflow-wrap: anywhere; text-wrap: balance;}
 .button > .glyph, .spinner {width: var(--control-icon); height: var(--control-icon); flex: none;}
 .button[data-size="compact"] {--control-height: 46px; font-size: var(--type-compact-button-size); line-height: var(--type-compact-button-line);}
 .button[data-size="small"] {--control-height: 42px; --control-radius: 10px; --control-inset: 18px; --control-gap: 8px; --control-icon: 18px; font-size: 15px;}
@@ -42,7 +43,9 @@
 .resume .buttonLabel {display: contents;}
 .resumeLabel {min-width: 0; overflow: hidden; text-overflow: ellipsis;}
 /* When the label would be cut: the time left goes first, then the icon (ResumeButton). */
-.resume[data-drop="1"] .remaining, .resume[data-drop="2"] .remaining, .resume[data-drop="2"] > .glyph {display: none;}
+.resume[data-drop="1"] .remaining, .resume[data-drop="2"] .remaining, .resume[data-drop="2"] > .glyph, .resume[data-drop="3"] .remaining, .resume[data-drop="3"] > .glyph {display: none;}
+/* A Resume button sheds first (above) and only then wraps. */
+.resume:not([data-drop="3"]) .resumeLabel {white-space: nowrap;}
 .remaining {margin-left: calc(var(--control-gap) + 2px); font-weight: 600; color: color-mix(in srgb, var(--color-ink) 60%, transparent);}
 .resume[data-variant="glass"] .remaining {color: var(--color-text-tertiary);}
 .progress {position: absolute; inset: auto 0 0; height: 4px; background: color-mix(in srgb, var(--color-ink) 14%, transparent); pointer-events: none;}
