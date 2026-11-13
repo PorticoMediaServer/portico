@@ -23,7 +23,7 @@ export function WatchUpNextPrompt({binding, snapshot, artwork, environment, expa
   const still = offer?.next.stillUrl;
   const offeredArt = useMemo(() => artwork.foreground(still, 176, 16 / 9, {group: 'playback', priority: 'high'}), [artwork, still]);
   const displayed = expanded && offer ? {offer, snapshot, binding, artwork: offeredArt, environment} : undefined;
-  const key = displayed ? `${displayed.offer.prompt.offer.id}|${displayed.offer.next.entryId}|${displayed.offer.next.queueRevision}` : undefined;
+  const key = displayed ? `${displayed.offer.prompt?.offer.id ?? 'end'}|${displayed.offer.next.entryId}|${displayed.offer.next.queueRevision}` : undefined;
   const presence = usePromptPresence(displayed, key, promptScope(snapshot, expanded, binding), reduced);
   const motionRef = usePromptMotion(presence.phase, presence.paintKey, reduced);
   const shown = presence.present, next = shown?.offer.next;
@@ -31,14 +31,15 @@ export function WatchUpNextPrompt({binding, snapshot, artwork, environment, expa
   // desktop-player f4/f4s and phone-player f6: the same offer, compact on a phone.
   if (!shown || !next) return null;
   const {offer: currentOffer, snapshot: shownSnapshot, binding: shownBinding, artwork: source, environment: shownEnvironment} = shown;
-  const {prompt, countdown, progress} = currentOffer, marker = prompt.offer.marker, t = defaultI18n.t;
+  // The end of an episode (prompt null) offers the next one after the countdown; there are no credits left to watch.
+  const {prompt, countdown, progress} = currentOffer, marker = prompt?.offer.marker, scene = !!prompt?.sceneAfterCredits, t = defaultI18n.t;
   const duration = durationText(next.durationMs === undefined ? undefined : next.durationMs / 1000, shownEnvironment.t);
   const episode = next.episode ? shownEnvironment.t('next.kit.episodeCode', {season: next.episode.seasonNumber, episode: next.episode.number}) : undefined;
-  const when = countdown ? countdown.automatic ? t('player.upNext.playingIn', {seconds: countdown.seconds})
-    : t(prompt.sceneAfterCredits ? 'player.upNext.startsAfterScene' : 'player.upNext.startsIn', {time: watchClock(countdown.seconds)}) : undefined;
-  const act = (kind: 'play-now' | 'watch-credits') => {void dispatchWatchNext(shownBinding, shownSnapshot, kind).catch(shownBinding.reportError);};
+  const when = countdown ? countdown.automatic ? t('player.upNext.playingIn', {seconds: Math.ceil(countdown.seconds)})
+    : t(scene ? 'player.upNext.startsAfterScene' : 'player.upNext.startsIn', {time: watchClock(countdown.seconds)}) : undefined;
+  const act = (kind: 'play-now' | 'watch-credits' | 'not-now') => {void dispatchWatchNext(shownBinding, shownSnapshot, kind).catch(shownBinding.reportError);};
   const skip = () => {if (marker) void dispatchWatchMarker(shownBinding, shownSnapshot, {kind: 'skip', markerId: marker.id}).catch(shownBinding.reportError);};
-  return <WatchPromptRetirement active={presence.phase === 'in'} paintKey={presence.paintKey} element={motionRef}><div key={presence.paintKey} ref={motionRef} role="group" aria-label={t('player.upNext.duringCredits')} className={`${styles.card} ${motion.prompt}`} data-layout={layout} data-controls-visible={drawnControls} data-watch-up-next data-scene-after={prompt.sceneAfterCredits}
+  return <WatchPromptRetirement active={presence.phase === 'in'} paintKey={presence.paintKey} element={motionRef}><div key={presence.paintKey} ref={motionRef} role="group" aria-label={t('player.upNext.duringCredits')} className={`${styles.card} ${motion.prompt}`} data-layout={layout} data-controls-visible={drawnControls} data-watch-up-next data-scene-after={scene} data-up-next-end={!prompt || undefined}
     data-prompt-phase={presence.phase} inert={presence.phase === 'out'} aria-hidden={presence.phase === 'out' || undefined} style={promptSnapStyle}>
     <div className={styles.row}>
       <div className={styles.still}><Artwork source={source} alt="" /></div>
@@ -50,9 +51,10 @@ export function WatchUpNextPrompt({binding, snapshot, artwork, environment, expa
     {progress !== undefined && <div className={styles.meter} aria-hidden="true"><i style={{width: `${progress * 100}%`}} /></div>}
     <div className={styles.actions}>
       <button type="button" className={styles.play} onClick={() => act('play-now')}><WatchPromptGlyph kind="play" size={18} />{t('player.upNext.playNow')}</button>
-      {prompt.sceneAfterCredits && marker && <button type="button" onClick={skip}><WatchPromptGlyph kind="next" size={18} />{t('player.skip', {kind: marker.kind})}</button>}
-      <button type="button" onClick={() => act('watch-credits')}>{t('player.upNext.watchCredits')}</button>
+      {scene && marker && <button type="button" onClick={skip}><WatchPromptGlyph kind="next" size={18} />{t('player.skip', {kind: marker.kind})}</button>}
+      {prompt ? <button type="button" onClick={() => act('watch-credits')}>{t('player.upNext.watchCredits')}</button>
+        : <button type="button" onClick={() => act('not-now')}>{t('player.upNext.notNow')}</button>}
     </div>
-    {prompt.sceneAfterCredits && marker && <div className={styles.note}>{t('player.upNext.sceneAfterCredits')}</div>}
+    {scene && marker && <div className={styles.note}>{t('player.upNext.sceneAfterCredits')}</div>}
   </div></WatchPromptRetirement>;
 }

@@ -517,3 +517,31 @@ test('prompt press feedback remains local at 90 ms and becomes opacity-only unde
   assert.match(upNext, /\[data-reduce-motion='true'\]\) \.actions button:active \{ transform: none; opacity: \.85; \}/);
   assert.match(upNext, /\[data-reduce-motion='true'\]\) \.actions button \{ transition: opacity var\(--motion-reduced\) linear; \}/);
 });
+
+test('at the end of an episode the card offers the next one with the countdown, Play now and Not now (07 rule 32)', async t => {
+  const f = fence();
+  const ended = (endCountdown?: {seconds: number; automatic: true}) => {
+    const value = snapshot(f, {...policy({finished: true}), ...(endCountdown ? {endCountdown} : {})});
+    // As the runtime draws the countdown: playback ended, so no seek is offered and the presentation is not 'finished'.
+    return {...value, presentation: {...value.presentation!, finished: false, controls: [], playing: false, positionSeconds: 1000}} as WebPlaybackRuntimeSnapshot;
+  };
+  const shown = ended({seconds: 7, automatic: true}), live = {value: shown}, {binding, actions} = bindingFor(() => live.value);
+  const artwork = {foreground: () => ({src: 'next.jpg'})} as never, environment = {t: (key: string) => key} as never;
+  const frame = new HookFrame();
+  t.after(() => frame.unmount());
+  const render = (value: WebPlaybackRuntimeSnapshot) => frame.render(() => WatchUpNextPrompt({binding: binding as unknown as WatchNextBinding, snapshot: value, artwork, environment,
+    expanded: true, controlsVisible: false, layout: 'desktop'}));
+  const card = render(shown) as any;
+  assert.equal(card.props['data-watch-up-next'], true);
+  assert.equal(card.props['data-up-next-end'], true);
+  const text = JSON.stringify(card);
+  assert.match(text, /Next e2/); assert.match(text, /Playing in 7s/); assert.doesNotMatch(text, /Watch credits/);
+  const [play, notNow] = buttons(card);
+  play.props.onClick(); await Promise.resolve();
+  notNow.props.onClick(); await Promise.resolve();
+  assert.deepEqual(actions, [{kind: 'play-now', nextEntryId: 'e2'}, {kind: 'cancel-autoplay'}]);
+  // Autoplay off, or already cancelled: the policy publishes no end countdown and no card is drawn.
+  live.value = ended();
+  const gone = render(live.value) as any;
+  assert.ok(gone === null || gone.props['data-prompt-phase'] === 'out', 'the card leaves');
+});

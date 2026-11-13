@@ -10,13 +10,15 @@ export type WatchPolicyBinding = Readonly<{
   reportError: (error: unknown) => void;
 }>;
 
-export function currentWatchPolicy(binding: Pick<WatchPolicyBinding, 'getSnapshot' | 'isCurrent'>, shown: WebPlaybackRuntimeSnapshot) {
+/** `ended`: the episode has ended and its next one is counting down. The runtime then offers no seek (there is
+ * nothing left to seek in), and the end card acts through the queue, never through a seek. */
+export function currentWatchPolicy(binding: Pick<WatchPolicyBinding, 'getSnapshot' | 'isCurrent'>, shown: WebPlaybackRuntimeSnapshot, ended = false) {
   const live = binding.getSnapshot(), fence = shown.fence;
   if (!binding.isCurrent() || shown.disposed || live.disposed || fence?.kind !== 'queue' || !sameFence(live.fence, fence)
     || shown.authority !== live.authority || live.dock.remote?.phase === 'playing'
     || shown.presentation?.kind !== 'video' || !shown.presentation.expanded || live.presentation?.kind !== 'video' || !live.presentation.expanded) return null;
   if (!sameFence(shown.presentation.fence, fence) || !sameFence(live.presentation.fence, fence)) return null;
-  if (!shown.presentation.controls.includes('seek') || !live.presentation.controls.includes('seek')) return null;
+  if (!ended && (!shown.presentation.controls.includes('seek') || !live.presentation.controls.includes('seek'))) return null;
   return {fence, shown: shown.presentation.policy, live: live.presentation.policy};
 }
 
