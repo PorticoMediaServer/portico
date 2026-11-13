@@ -1,10 +1,10 @@
 # Applies area labels to pull requests from the files they change.
 'area: server':
   - changed-files:
-      - any-glob-to-any-file: ['server/**', 'apikit/**', 'go.work', 'go.work.sum', 'Dockerfile', 'packaging/**', 'trust/**']
+      - any-glob-to-any-file: ['server-next/**', 'apikit/**', 'go.work', 'go.work.sum', 'Dockerfile', 'packaging/**', 'trust/**']
 'area: api':
   - changed-files:
-      - any-glob-to-any-file: ['server/api/**', 'apikit/**', 'packages/contracts/**']
+      - any-glob-to-any-file: ['server-next/api/**', 'apikit/**', 'packages/contracts/**']
 'area: web':
   - changed-files:
       - any-glob-to-any-file: ['web/**']
@@ -28,7 +28,7 @@
       - any-glob-to-any-file: ['website/**']
 'area: docs':
   - changed-files:
-      - any-glob-to-any-file: ['docs/**', '*.md', 'server/api/guide/**']
+      - any-glob-to-any-file: ['docs/**', '*.md', 'server-next/api/**']
 'area: ci':
   - changed-files:
       - any-glob-to-any-file: ['.github/**', 'ci/**']

@@ -80,11 +80,6 @@ class VideoIdentityTests(unittest.TestCase):
                 counts[folder.rsplit(" (", 1)[0]] += 1
             self.assertEqual(dict(counts), expected)
             self.assertEqual(len(episodes), 200)
-            inventory = json.loads((HERE.parents[1] / "server/internal/ingestion/testdata/synthetic_episode_inventory.json").read_text())
-            self.assertEqual({entry["path"] for entry in episodes},
-                             set(inventory["files"]))
-            self.assertEqual({row["folder"].rsplit(" (", 1)[0]: row["episodes"]
-                              for row in inventory["shows"]}, expected)
 
             # Multi-episode files deliberately share one pathname. Different
             # pathnames must never share inventory's device/inode identity.

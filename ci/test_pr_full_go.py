@@ -17,30 +17,30 @@ import run
 class FullPackageSelection(unittest.TestCase):
     def setUp(self):
         self.packages = [
-            {'ImportPath': 'a', 'Dir': str(plan.ROOT / 'server/a')},
-            {'ImportPath': 'b', 'Dir': str(plan.ROOT / 'server/b'), 'Imports': ['a']},
-            {'ImportPath': 'c', 'Dir': str(plan.ROOT / 'server/c'), 'TestImports': ['a']},
-            {'ImportPath': 'x', 'Dir': str(plan.ROOT / 'server/x'), 'XTestImports': ['a']},
-            {'ImportPath': 'transitive', 'Dir': str(plan.ROOT / 'server/transitive'), 'Imports': ['b']},
+            {'ImportPath': 'a', 'Dir': str(plan.ROOT / 'apikit/a')},
+            {'ImportPath': 'b', 'Dir': str(plan.ROOT / 'apikit/b'), 'Imports': ['a']},
+            {'ImportPath': 'c', 'Dir': str(plan.ROOT / 'apikit/c'), 'TestImports': ['a']},
+            {'ImportPath': 'x', 'Dir': str(plan.ROOT / 'apikit/x'), 'XTestImports': ['a']},
+            {'ImportPath': 'transitive', 'Dir': str(plan.ROOT / 'apikit/transitive'), 'Imports': ['b']},
             {'ImportPath': 'other', 'Dir': str(plan.ROOT / 'apikit/other')},
         ]
 
     def test_changed_files_and_testdata_select_owner_and_one_reverse_hop(self):
-        for path in ['server/a/file.go', 'server/a/file_test.go', 'server/a/testdata/input.json']:
+        for path in ['apikit/a/file.go', 'apikit/a/file_test.go', 'apikit/a/testdata/input.json']:
             with self.subTest(path=path):
                 self.assertEqual(plan.full_go_packages(self.packages, [path]), {'a', 'b', 'c', 'x'})
 
     def test_nested_package_is_not_attributed_to_its_parent(self):
-        nested = {'ImportPath': 'nested', 'Dir': str(plan.ROOT / 'server/a/nested')}
-        self.assertEqual(plan.full_go_packages(self.packages + [nested], ['server/a/nested/file.go']), {'nested'})
+        nested = {'ImportPath': 'nested', 'Dir': str(plan.ROOT / 'apikit/a/nested')}
+        self.assertEqual(plan.full_go_packages(self.packages + [nested], ['apikit/a/nested/file.go']), {'nested'})
 
     def test_go_module_or_workspace_change_runs_every_package_full(self):
-        for path in ['server/go.mod', 'apikit/go.mod', 'server/go.sum', 'go.work', 'go.work.sum']:
+        for path in ['apikit/go.mod', 'apikit/go.mod', 'apikit/go.sum', 'go.work', 'go.work.sum']:
             with self.subTest(path=path):
                 self.assertEqual(plan.full_go_packages(self.packages, [path]), {p['ImportPath'] for p in self.packages})
 
     def test_docs_and_non_go_changes_do_not_promote_packages(self):
-        for paths in [[], ['README.md', 'server/a/README.md'], ['web/src/a.ts'], ['ci/plan.py']]:
+        for paths in [[], ['README.md', 'apikit/a/README.md'], ['web/src/a.ts'], ['ci/plan.py']]:
             self.assertEqual(plan.full_go_packages(self.packages, paths), set())
 
     def test_deleted_embeds_keep_owner_from_directory_and_test_patterns(self):
@@ -51,35 +51,15 @@ class FullPackageSelection(unittest.TestCase):
             with self.subTest(field=field):
                 packages = [dict(p) for p in self.packages]
                 packages[0][field] = [pattern]
-                self.assertEqual(plan.full_go_packages(packages, ['server/a/' + path]), {'a', 'b', 'c', 'x'})
-                self.assertEqual(plan.full_go_packages(packages, ['server/a/README.md']), set())
+                self.assertEqual(plan.full_go_packages(packages, ['apikit/a/' + path]), {'a', 'b', 'c', 'x'})
+                self.assertEqual(plan.full_go_packages(packages, ['apikit/a/README.md']), set())
 
     def test_promoted_prs_can_use_twenty_shards_without_raising_the_feedback_cap(self):
         tests = [{'package': 'p', 'name': 'Test' + str(i)} for i in range(200)]
         costs = {'p.' + t['name']: 20 for t in tests}
-        self.assertEqual(len(plan.balance_short_censuses(tests, costs, max_count=20)[0]), 20)
-        self.assertEqual(len(plan.balance_short_censuses(tests, costs)[0]), 10)
+        self.assertEqual(len(plan.balance(tests, costs, max_count=20)[0]), 20)
+        self.assertEqual(len(plan.balance(tests, costs)[0]), 10)
 
-    def test_batch_crash_parents_keep_complete_inventory_on_separate_shards(self):
-        package = 'github.com/PorticoMediaServer/portico/server/internal/store/writer'
-        parents = {'TestCrashReplayInventoryBatchEveryStepWidth2',
-                   'TestCrashReplayInventoryBatchEveryStepWidth8A',
-                   'TestCrashReplayInventoryBatchEveryStepWidth8B'}
-        source = (plan.ROOT / 'server/internal/store/writer/crash_scan_batch_linux_test.go').read_text()
-        self.assertEqual(set(re.findall(r'^func (TestCrashReplayInventoryBatchEveryStep\w*)\(', source, re.M)), parents)
-        durations = json.loads((plan.ROOT / 'ci/durations.json').read_text())
-        for name in parents:
-            self.assertGreater(durations[package + '.' + name], 150)
-        tests = [{'package': package, 'name': name} for name in sorted(parents)]
-        tests += [{'package': package, 'name': 'TestFast' + str(i)} for i in range(1000)]
-        for limit in (10, 20):
-            with self.subTest(shard_limit=limit):
-                bins, costs = plan.balance(tests, durations, max_count=limit)
-                owners = [i for i, shard in enumerate(bins) for test in shard if test['name'] in parents]
-                self.assertEqual(len(owners), 3)
-                self.assertEqual(len(set(owners)), 3)
-                self.assertEqual(sorted(t['name'] for shard in bins for t in shard), sorted(t['name'] for t in tests))
-                self.assertLess(max(costs), 780)
 
 
 class FullPlan(unittest.TestCase):
@@ -103,8 +83,7 @@ class FullPlan(unittest.TestCase):
             def command(args, cwd=None):
                 if args[0] == 'python3': return 'tags'
                 return '\n'.join(map(json.dumps, packages)) if Path(cwd).name == 'apikit' else ''
-            with patch('plan.ROOT', root), patch('plan.command', side_effect=command), \
-                 patch('plan.source_readers.select', return_value={}):
+            with patch('plan.ROOT', root), patch('plan.command', side_effect=command):
                 for path in inputs:
                     for tier in ['short', 'merge']:
                         with self.subTest(path=path, tier=tier):
@@ -155,7 +134,6 @@ class FullPlan(unittest.TestCase):
                     return '\n'.join(map(json.dumps, packages)) if Path(cwd).name == 'apikit' else ''
                 return actual_command(args, cwd=root)
             with patch('plan.ROOT', root), patch('plan.command', side_effect=command), \
-                 patch('plan.source_readers.select', return_value={}), \
                  patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'push', 'GITHUB_EVENT_PATH': str(event)}, clear=True), \
                  patch.object(sys, 'argv', ['plan.py', '--output', str(output)]):
                 plan.main()
@@ -166,28 +144,16 @@ class FullPlan(unittest.TestCase):
             for package in ['persistence', 'httpapi']:
                 self.assertFalse(run.short_package(selection, package))
 
-    def test_reference_server_changes_never_discover_its_tests(self):
-        calls=[]
-        def command(args, cwd=None):
-            calls.append((args, cwd))
-            return 'tags' if args[0] == 'python3' else ''
-        for tier in ['short', 'merge']:
-            with patch('plan.command', side_effect=command):
-                selection = plan.make_plan(['server/internal/httpapi/request_cost_test.go'], tier=tier)
-            self.assertEqual(selection['inventory'], [])
-        self.assertFalse(any(cwd == plan.ROOT/'server' for args,cwd in calls))
 
-    def test_pr_and_queue_keep_mixed_client_tests_without_reference_contracts(self):
+    def test_pr_and_queue_keep_client_behavior_tests(self):
         for tier in ['short', 'merge']:
             with patch('plan.command', return_value='tags'), \
                  patch('plan.components', return_value=(['packages', 'web'], False)), \
                  patch('js_affected.select', side_effect=lambda root,paths,files,**kwargs:files):
                 selection=plan.make_plan(['packages/client-core/src/index.ts'], tier=tier)
             files={f for item in selection['js'] for f in item['files']}
-            self.assertTrue(files.isdisjoint(plan.REFERENCE_SERVER_JS_TESTS))
             self.assertIn('packages/client-core/test/notification-actions.test.ts', files)
             self.assertIn('web/test/person-r46.test.ts', files)
-            self.assertEqual(selection['source_reader_tests'], [])
             self.assertEqual(selection['inventory'], [])
 
     def fixture(self, root):
@@ -218,39 +184,12 @@ func ExampleCompileOnly() {}
                              'TestGoFiles': ['a_test.go']})
         return packages
 
-    def test_full_mode_costs_inventory_regex_and_source_readers(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d)
-            packages = self.fixture(root)
-            def command(args, cwd=None):
-                if args[0] == 'python3': return 'tags'
-                return '\n'.join(map(json.dumps, packages)) if Path(cwd).name == 'apikit' else ''
-            readers = {'apikit/reader': {'TestSlow': ['apikit/a/file.go']}}
-            with patch('plan.ROOT', root), patch('plan.command', side_effect=command), \
-                 patch('plan.source_readers.select', return_value=readers):
-                result = plan.make_plan(['apikit/a/file.go'])
-                self.assertEqual(result['full_go_packages'], ['a', 'b'])
-                self.assertEqual({p['package'] for p in result['packages']}, {'a', 'b', 'c', 'reader'})
-                self.assertEqual(result['full_go_extra_seconds'], 120)
-                self.assertEqual([t['name'] for t in result['inventory'] if t['package'] == 'reader'], ['TestSlow'])
-                self.assertEqual(result['source_reader_tests'][0]['changed'], ['apikit/a/file.go'])
-                self.assertEqual({t['name'] for t in result['all_inventory'] if t['package'] == 'a'},
-                                 {'TestFast', 'TestSlow', 'Test_Upper', 'FuzzSeeds', 'ExamplePrinted'})
-                # Merge/nightly never invoke PR promotion and keep the same full cost.
-                with patch('plan.full_go_packages', side_effect=AssertionError('PR policy used in queue')):
-                    merge = plan.make_plan(['apikit/a/file.go'], tier='merge')
-                    with patch('plan.components', return_value=([], True)):
-                        nightly = plan.make_plan([], full=True, tier='nightly')
-                self.assertEqual(merge['full_go_packages'], [])
-                self.assertEqual(nightly['full_go_packages'], [])
-                self.assertEqual(merge['full_go_extra_seconds'], 0)
 
     def test_docs_only_selects_no_extra_go(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             self.fixture(root)
-            with patch('plan.ROOT', root), patch('plan.command', return_value='tags'), \
-                 patch('plan.source_readers.select', return_value={}):
+            with patch('plan.ROOT', root), patch('plan.command', return_value='tags'):
                 result = plan.make_plan(['README.md'])
             self.assertEqual((result['packages'], result['full_go_packages'], result['full_go_extra_seconds']), ([], [], 0))
 

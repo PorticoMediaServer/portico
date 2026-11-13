@@ -2,9 +2,5 @@ go 1.26.10
 
 use (
 	./apikit
-	./server
 	./server-next
 )
-
-// The first public tag is not published yet; avoid fetching its module graph.
-replace github.com/PorticoMediaServer/portico/apikit v0.1.0 => ./apikit

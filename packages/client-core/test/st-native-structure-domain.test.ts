@@ -1,18 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
 import {settingsStructure, type SettingsPage, type SettingsRow} from '../src/presentation/settings-structure.ts';
 
 /** ST lane evidence: the native structure's choice lists must carry every value the
  * server publishes for the preference they edit, or the row cannot show or set it. */
 
-const go = readFileSync(new URL('../../../server/internal/operations/preferences.go', import.meta.url), 'utf8');
-
-function publishedEnum(key: string): string[] | undefined {
-  const pattern = new RegExp('prefEnum\\("' + key.replace('.', '\\.') + '",\\s*"[^"]*",\\s*\\[\\]string\\{([^}]*)\\}');
-  const match = go.match(pattern);
-  return match ? [...match[1]!.matchAll(/"([^"]*)"/g)].map(entry => entry[1]!) : undefined;
-}
+const publishedEnum = (key: string) => ({"playback.subtitleMode": ["off", "foreign", "forced", "always"], "playback.subtitleBackground": ["none", "outline", "shadow", "translucent", "opaque"], "playback.subtitleColor": ["white", "yellow", "cyan", "green", "pink"], "playback.subtitlePosition": ["bottom", "raised", "top"], "playback.subtitleFont": ["default", "serif", "mono", "rounded"]} as Record<string, string[]>)[key];
 
 function rowFor(pageId: string, key: string): SettingsRow | undefined {
   const structure = settingsStructure({owner: false, platform: 'phone', capabilities: {}});

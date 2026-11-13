@@ -1,4 +1,4 @@
-server/api/portico.openapi.json linguist-generated=true -diff
+server-next/api/openapi.json linguist-generated=true -diff
 packages/contracts/src/schemas.ts linguist-generated=true -diff
 
 third_party/ffmpeg/** text eol=lf

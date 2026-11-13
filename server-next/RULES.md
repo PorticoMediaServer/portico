@@ -1,7 +1,6 @@
 # server-next: the rules
 
-This folder is Portico's new server. It replaces `server/`, which stays in the repository as
-reading material until the switch and is never imported from here. These rules are the whole
+This folder is Portico's server. Git history preserves the previous implementation. These rules are the whole
 standard. A change that needs to break one says so in its pull request.
 
 ## The test for everything

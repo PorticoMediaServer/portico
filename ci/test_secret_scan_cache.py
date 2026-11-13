@@ -66,7 +66,7 @@ class SecretScanCache(unittest.TestCase):
                 self.assertRegex(
                     job,
                     r'- uses: ' + re.escape(SETUP_GO) + r'\n\s+with:\n'
-                    r'\s+go-version-file: server/go\.mod\n\s+cache: false\n')
+                    r'\s+go-version-file: server-next/go\.mod\n\s+cache: false\n')
                 self.assertLess(
                     job.index(SETUP_GO), job.index('bash ci/secret-scan.sh'),
                     'setup-go must run before the secret scan')

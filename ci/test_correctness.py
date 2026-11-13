@@ -16,8 +16,6 @@ class Correctness(unittest.TestCase):
     def test_graph_consumers_alias_dynamic_and_security(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d); (root/'scripts').mkdir()
-            source=Path(__file__).resolve().parents[1]/'scripts/ci-affected.py'
-            (root/'scripts/ci-affected.py').write_text(source.read_text())
             data={'packages/client-core/src/item.ts':'export const x=1;',
                   'apps/native/src/use.ts':"import {x} from '@core/item';",
                   'apps/native/test/changed.test.ts':"import '../src/use.ts';",
@@ -34,8 +32,6 @@ class Correctness(unittest.TestCase):
     def test_computed_imports_retain_exact_owner_without_neighbor_prefixes(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d); (root/'scripts').mkdir()
-            source=Path(__file__).resolve().parents[1]/'scripts/ci-affected.py'
-            (root/'scripts/ci-affected.py').write_text(source.read_text())
             owners=['apps/native','apps/native-extra','packages/core','packages/core-extra','web','website']
             candidates=[owner+'/test/consumer.test.ts' for owner in owners]
             for owner in owners:
@@ -53,10 +49,3 @@ class Correctness(unittest.TestCase):
         with patch('plan.command',return_value='c'*40):
             with self.assertRaisesRegex(ValueError,'checkout'):
                 base_head({'merge_group':{'base_sha':'a'*40,'head_sha':'b'*40}}, {'GITHUB_EVENT_NAME':'merge_group'})
-    def test_full_recording_not_short(self):
-        from run import fixture_producers
-        with patch.dict(os.environ), tempfile.TemporaryDirectory() as d, patch('run.execute') as execute, patch('run.Path.glob',return_value=[Path('record.json')]):
-            fixture_producers(['final-batch/concurrency-memory-limit.test.ts'],d)
-            args=execute.call_args.args[0]
-            self.assertNotIn('-short',args)
-            self.assertIn('^TestConcurrencyDiagnosticsMemoryLimitWire$',args)

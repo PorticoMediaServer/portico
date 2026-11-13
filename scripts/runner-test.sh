@@ -4,9 +4,9 @@
 # Usage, from a portico-server or portico-internal checkout (the same script is in
 # both; it finds the Go modules from the checkout's layout):
 #   scripts/runner-test.sh                          # full preset: every Go module in this checkout
-#   scripts/runner-test.sh ./internal/httpapi       # packages of the default module (server, or hosted)
+#   scripts/runner-test.sh ./internal/httpapi       # packages of the default module (server-next, or hosted)
 #   scripts/runner-test.sh -run 'TestFoo' ./internal/identity
-#   scripts/runner-test.sh --module apikit ./...    # another module (server, apikit; or hosted, dns, apikit)
+#   scripts/runner-test.sh --module apikit ./...    # another module (server-next, apikit; or hosted, dns, apikit)
 #   scripts/runner-test.sh --lane be-data -json ./...
 #   scripts/runner-test.sh --full -json             # full preset with extra flags for every module
 #   scripts/runner-test.sh --tier media ./...       # a test tier: default, media or all (see below)
@@ -25,9 +25,8 @@
 #      that no longer exist here.
 #   2. Takes one of two slots (flock on ~/slots/1 or ~/slots/2), waiting while
 #      both are busy, so parallel lanes don't overload the box.
-#   3. Builds the playback test helper and runs `go test` with
-#      PORTICO_PLAYBACK_TEST_HELPER and PORTICO_TEST_DATABASE_URL_FILE set (each
-#      slot has its own PostgreSQL test database), -count=1, -p 3 and -timeout 30m
+#   3. Runs `go test` with PORTICO_TEST_DATABASE_URL_FILE set for Hosted
+#      (each slot has its own PostgreSQL test database), -count=1, -p 3 and -timeout 30m
 #      unless the arguments already say otherwise; PORTICO_FFMPEG/PORTICO_FFPROBE
 #      point at the production FFmpeg bundle in /opt/portico-ffmpeg when present.
 #      Output streams back; the exit code is go test's (the full preset fails if
@@ -84,12 +83,12 @@ ssh_keepalive="-o ServerAliveInterval=15 -o ServerAliveCountMax=4"
 
 root="$(git rev-parse --show-toplevel)"
 # The Go modules this checkout holds, and where they live.
-if [ -f "$root/server/go.mod" ]; then
-	modules="server apikit"; prefix=""
+if [ -f "$root/server-next/go.mod" ]; then
+	modules="server-next apikit"; prefix=""
 elif [ -f "$root/hosted-services/hosted/go.mod" ]; then
 	modules="hosted dns apikit"; prefix="hosted-services/"
 else
-	echo "runner-test: no Go modules here (expected server/ or hosted-services/)" >&2; exit 2
+	echo "runner-test: no Go modules here (expected server-next/ or hosted-services/)" >&2; exit 2
 fi
 case " $modules full " in
 *" ${module:-full} "*) ;;
@@ -203,15 +202,12 @@ rm -rf "${run:?}/tmp"
 mkdir -p "$run/tmp"
 export TMPDIR="$run/tmp"
 export PORTICO_TEST_DATABASE_URL_FILE="$url"
-export PORTICO_PLAYBACK_TEST_HELPER="$run/portico-server"
+
 # The production FFmpeg bundle (what the demo ships) when the runner has it, so
 # tests exercise the same toolchain as production rather than Ubuntu's ffmpeg.
 if [ -x /opt/portico-ffmpeg/bin/ffmpeg ]; then
 	export PORTICO_FFMPEG=/opt/portico-ffmpeg/bin/ffmpeg PORTICO_FFPROBE=/opt/portico-ffmpeg/bin/ffprobe
 	export PATH="/opt/portico-ffmpeg/bin:$PATH"
-fi
-if [ -d "$work/server" ]; then
-	(cd "$work/server" && go build -tags "$PORTICO_GO_TAGS" -o "$PORTICO_PLAYBACK_TEST_HELPER" ./cmd/server) || { echo "runner-test: helper build failed" >&2; exit 1; }
 fi
 
 defaults() {

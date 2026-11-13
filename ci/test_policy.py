@@ -13,7 +13,7 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(sum(map(len,bins)),4); self.assertEqual(sum(cost),422)
         self.assertEqual(len({t['name'] for b in bins for t in b}),4)
     def test_deleted_and_unknown_select(self):
-        self.assertTrue(components(['server/deleted/file.go'])[1])
+        self.assertTrue(components(['apikit/deleted/file.go'])[1])
         self.assertEqual(components(['unknown.config']),components([],True))
         self.assertIn('apps/native',components(['packages/client-core/src/auth.ts'])[0])
     def test_server_next_is_independent(self):
@@ -67,26 +67,6 @@ class BaseTests(unittest.TestCase):
         from run import js
         with self.assertRaises(ValueError): js({'js':[{'component':'web','files':[],'shards':[],'static_roots':[]}]},'web')
 
-class ActivePolicyTests(unittest.TestCase):
-    def test_reviewed_corrections(self):
-        import json
-        from plan import ROOT
-        tiers=json.loads((ROOT/'ci/tiers.json').read_text())
-        excluded={e['name'] for e in tiers['nightly_only']}
-        self.assertEqual(len(excluded),6)
-        self.assertNotIn('TestReadPathGoldenEquivalence',excluded)
-        self.assertNotIn('TestKeysetPagesDoNotRescanTheirPrefix',excluded)
-        self.assertNotIn('TestBulkBuildDerivesWhatIncrementalBuildDoes',excluded)
-        q=policy(json.loads((ROOT/'ci/quarantine.json').read_text()),datetime.date(2026,10,29),engine='')
-        names={test for pkg,test in q}
-        self.assertEqual(names, set())
-        # Engine-scoped entries apply only to a development-engine run (the release gate).
-        dev=policy(json.loads((ROOT/'ci/quarantine.json').read_text()),datetime.date(2026,10,29),engine='development')
-        self.assertTrue(all(e['engine']=='development' and e['reason'] for e in dev.values()))
-        with self.assertRaises(ValueError):
-            policy({'status':'approved','entries':[{'package':'p','test':'TestA','owner':'Justin Ehler','expires':'2026-12-31','reason':'r','engine':'qualified'}]},datetime.date(2026,10,29))
-        self.assertNotIn('TestMBStagingTenThousandCompleteFinalWriterHold',names)
-
 class IntegrationTests(unittest.TestCase):
     def test_docs_graphics_do_not_fan_out_and_deletions_do(self):
         from unittest.mock import patch
@@ -94,13 +74,7 @@ class IntegrationTests(unittest.TestCase):
             self.assertEqual(components(['docs/guide.md','web/logo.svg']),([],False))
         with patch('plan.Path.is_file',return_value=False):
             self.assertTrue(components(['missing.svg'])[1])
-    def test_shard_builds_helper_locally(self):
-        from unittest.mock import patch
-        from run import go
-        with patch('run.validate_tags'), patch('run.Path.is_file',return_value=False), patch('run.build_helper',side_effect=RuntimeError('local helper')) as build:
-            with self.assertRaisesRegex(RuntimeError,'local helper'): go({'shards':[[{'module':'server'}]]},0)
-            build.assert_called_once()
-    def test_build_validates_and_covers_both_modules_and_tagsets(self):
+    def test_build_validates_and_covers_apikit_and_both_tagsets(self):
         from unittest.mock import patch
         from run import build
         with patch('run.execute') as execute, patch('run.Path.mkdir'):
@@ -108,7 +82,7 @@ class IntegrationTests(unittest.TestCase):
         calls=[c.args for c in execute.call_args_list]
         builds=[c for c in calls if c[0][:3]==['go','build','-p=2']]
         vets=[c for c in calls if c[0][:1]==['sh'] and 'vet-go.sh' in c[0][1]]
-        self.assertEqual(len(builds),4); self.assertEqual(len(vets),4)
+        self.assertEqual(len(builds),2); self.assertEqual(len(vets),2)
         self.assertEqual({c[0][4] for c in builds},{'', 'portico_rar7z,portico_cb7'})
         generator=next(i for i,c in enumerate(calls) if c[0]==['node',str(ROOT/'server-next/receiver/generate-cast-text.mjs'),'--check'])
         drift=next(i for i,c in enumerate(calls) if c[0]==['git','diff','--exit-code'])
@@ -123,15 +97,3 @@ class MergeGroupTests(unittest.TestCase):
             self.assertEqual(base_head({'merge_group':group}, {'GITHUB_EVENT_NAME':'merge_group'}),('d'*40,'b'*40))
         self.assertEqual(call.call_args_list[-2].args[0][:3],['git','rev-parse','--verify'])
         self.assertEqual(call.call_args.args[0],['git','merge-base','b'*40,'c'*40])
-
-class TierTests(unittest.TestCase):
-    def test_merge_tier_does_not_exclude_reviewed_deterministic_tests(self):
-        from unittest.mock import patch
-        from plan import make_plan
-        with patch('plan.components',return_value=([],False)), patch('plan.command',return_value='portico_rar7z,portico_cb7'):
-            self.assertEqual(len(make_plan([],tier='merge')['tier_exclusions']),6)
-            from test_playback_compatibility import EXPECTED_DIAGNOSTIC_OWNERS
-            exclusions=make_plan([],tier='nightly')['tier_exclusions']
-            self.assertCountEqual([(test['package'],test['name']) for test in exclusions],
-                                  EXPECTED_DIAGNOSTIC_OWNERS)
-            self.assertEqual(len(make_plan([],tier='short')['tier_exclusions']),6)
