@@ -39,6 +39,12 @@
 .overview { display: -webkit-box; margin: 8px 0 0; font-size: var(--type-fixed-size-14px); line-height: var(--type-fixed-line-1point-5); color: var(--color-text-secondary); -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 @media (max-width: 1023px) {
   .drawer { height: auto; max-height: 72vh; padding: 56px 0 max(12px, env(safe-area-inset-bottom)); overflow-y: auto; }
+}
+/* On a portrait phone the drawer rises over the title body, not over the picture: the fade that lets the picture show
+   through on desktop would show the body's own text behind the cards, so the surface is solid there. Episodes and
+   Chapters share it. */
+[data-mode='portrait'] .drawer { background: var(--color-ink); box-shadow: 0 -1px 0 color-mix(in srgb, var(--color-text) 10%, transparent); padding-top: 20px; }
+@media (max-width: 1023px) {
   .head { padding: 0 20px; }
   .track { padding: 10px 20px 6px; }
   .ep { width: 232px; }
