@@ -352,6 +352,7 @@ export const enUS = {
   'home.customize.showRow': 'Show {title} on Home',
   'home.customize.addView': 'Add a saved view',
   'home.customize.chooseView': 'Choose a saved view to show on Home.',
+  'home.customize.viewsFull': 'Home already has {count} of your saved views.',
   'home.customize.noViews': 'No saved views to add. Save one from a library’s filters.',
   'home.customize.loadingViews': 'Loading saved views',
   'home.customize.removeRow': 'Remove {title} from Home',

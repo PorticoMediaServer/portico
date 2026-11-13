@@ -3,6 +3,7 @@
  * and never re-reads it before a write, so a save or reset made elsewhere surfaces as a conflict. */
 import type {HomeService} from './home-service.ts';
 import {homeViewResourceId, homeViewRowId, isPersonalRowId, type HomeLayoutView} from './home.ts';
+import {HOME_SAVED_VIEWS_MAX} from './home-layout-settings.ts';
 import type {PersonalResource} from './personal-saved.ts';
 
 /** A dialog draft keeps the exact published revision until an explicit reload. */
@@ -47,8 +48,10 @@ export function showHomeDraftRow(draft: HomeLayoutDraft, id: string, shown: bool
   if (shown) hidden.delete(id); else hidden.add(id);
   return {...draft, hidden};
 }
+/** Home already holds as many saved views as the server keeps: Add is not offered. */
+export const homeDraftViewsFull = (draft: HomeLayoutDraft): boolean => draft.order.filter(id => homeViewResourceId(id)).length >= HOME_SAVED_VIEWS_MAX;
 export function addHomeDraftView(draft: HomeLayoutDraft, resource: PersonalResource): HomeLayoutDraft {
-  if (resource.kind !== 'view' || resource.status !== 'ready' || !resource.definition) return draft;
+  if (resource.kind !== 'view' || resource.status !== 'ready' || !resource.definition || homeDraftViewsFull(draft)) return draft;
   const id = homeViewRowId(resource.id);
   if (draft.order.includes(id)) return draft;
   return {...draft, order: [...draft.order, id], added: new Map(draft.added).set(id, resource)};

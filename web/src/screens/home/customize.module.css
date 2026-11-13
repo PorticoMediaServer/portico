@@ -28,6 +28,7 @@
 .floating { position: fixed; z-index: calc(var(--layer-dialog) + 1); pointer-events: none; background: var(--color-raised-bright); box-shadow: 0 24px 50px -16px color-mix(in srgb, var(--color-shadow) 90%, transparent), 0 0 0 2px var(--color-accent); transform: scale(1.02); }
 .floating .handle { color: var(--color-text); }
 .add { margin-top: 14px; }
+p.add { margin: 14px 0 0; color: var(--color-text-secondary); }
 .add button { height: 42px; padding: 0 16px; gap: 10px; font-size: calc(var(--type-body-size) - .5px); border-radius: 10px; }
 .footer.footer { display: flex; align-items: center; gap: 10px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--color-line); }
 .footer button { height: 46px; padding: 0 20px; border-radius: 10px; font-size: var(--type-body-size); }

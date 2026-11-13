@@ -10,7 +10,8 @@ import {Dialog} from '../../kit/overlays';
 import {Icon} from '../../kit/Icon';
 import {Skeleton} from '../../kit/states';
 import {useShellWidth} from '../../shell/viewport';
-import {homeDraftCanHide, homeDraftCanMove, homeDraftRow, type HomeLayoutDraft} from '@core/home-layout-editor.ts';
+import {homeDraftCanHide, homeDraftCanMove, homeDraftRow, homeDraftViewsFull, type HomeLayoutDraft} from '@core/home-layout-editor.ts';
+import {HOME_SAVED_VIEWS_MAX} from '@core/home-layout-settings.ts';
 import {HomeCustomization, type HomeCustomizationBindings} from './customization';
 import styles from './customize.module.css';
 
@@ -113,7 +114,9 @@ export function HomeCustomizeDialog({controller, createSavedViews, isCurrent, co
         {draft && <ol ref={root} className={styles.rows} aria-label={t('home.customize.action')}>{draft.order.map((id, index) => <li key={id} data-home-layout-row={id} className={styles.row} data-hidden={draft.hidden.has(id) || undefined} data-slot={moving?.pointer !== undefined && moving.id === id || undefined}
           data-drop={moving?.pointer !== undefined && moving.target === index && moving.id !== id ? moving.original.order.indexOf(moving.id) < index ? 'after' : 'before' : undefined}>
           {showRow(id, index)}</li>)}</ol>}
-        {draft && <div className={styles.add}><Button variant="glass" icon="i-plus" size="small" disabled={busy} onClick={() => {finish(false);setPicking(true);}}>{t('home.customize.addView')}</Button></div>}
+        {/* 05-browse rule 44: at most 20 saved views on one Home; the 21st is not offered, and the line says why. */}
+        {draft && (homeDraftViewsFull(draft) ? <p className={styles.add} role="status">{t('home.customize.viewsFull', {count: HOME_SAVED_VIEWS_MAX})}</p>
+          : <div className={styles.add}><Button variant="glass" icon="i-plus" size="small" disabled={busy} onClick={() => {finish(false);setPicking(true);}}>{t('home.customize.addView')}</Button></div>)}
         {moving && moving.pointer === undefined && draft && <div className={styles.announcement} role="status"><b>{copy.picked(label(draft, moving.id), draft.order.indexOf(moving.id) + 1, draft.order.length)}</b>{' '}{copy.moveHint}</div>}
       </>}
     </Dialog>
