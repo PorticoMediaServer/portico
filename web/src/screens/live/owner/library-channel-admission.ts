@@ -1,6 +1,6 @@
 import {ownerItemArtworkPath} from '@core/owner-upload-requests.ts';
 import {subscribeFacts} from '../../../shell/fact-source';
-import type {LibraryChannel} from '@core/library-channels.ts';
+import type {LibraryChannel} from '@core/server-admin/owner-library-channels.ts';
 import type {ShellAssemblyContext} from '../../../shell/bootstrap';
 import type {OwnerSources} from './OwnerSourcesPage';
 import {libraryChannelUpload} from './library-channel-upload';
@@ -15,8 +15,7 @@ export function libraryChannelAdmission(context: ShellAssemblyContext, owner: Ow
     reportError: owner.reportError,
     get libraries() {return context.facts.identity.libraries;},
     subscribe: (listener: () => void) => subscribeFacts(context, listener),
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    logo: (channel: LibraryChannel, revision?: number) => owner.current() && context.isCurrent() ? context.artwork.channelLogo(channel.config.id, revision) : undefined,
+    logo: (channel: LibraryChannel) => owner.current() && context.isCurrent() && channel.logo ? context.artwork.foreground(channel.logo, 44, 1) : undefined,
     sampleArt: (id: string) => owner.current() && context.isCurrent() ? context.artwork.foreground(ownerItemArtworkPath(encodeURIComponent(id), 'poster'), 80, 2 / 3) : undefined,
     uploadLogo: libraryChannelUpload(context, owner.current, owner.reportError),
   };

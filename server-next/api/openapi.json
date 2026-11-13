@@ -4696,6 +4696,9 @@
           "problem": {
             "type": "string"
           },
+          "revision": {
+            "type": "string"
+          },
           "scheduledThrough": {
             "format": "date-time",
             "type": "string"
@@ -4717,6 +4720,7 @@
           }
         },
         "required": [
+          "revision",
           "id",
           "name",
           "number",
@@ -4789,9 +4793,13 @@
           },
           "recipe": {
             "$ref": "#/components/schemas/LibraryChannelRecipe"
+          },
+          "revision": {
+            "type": "string"
           }
         },
         "required": [
+          "revision",
           "id",
           "name",
           "library",
@@ -5280,7 +5288,7 @@
         ],
         "type": "object"
       },
-      "LibraryChannelTemplatePage": {
+      "LibraryChannelTemplateChoices": {
         "properties": {
           "items": {
             "items": {
@@ -5288,12 +5296,23 @@
             },
             "type": "array"
           },
-          "nextCursor": {
+          "moodAvailable": {
+            "type": "boolean"
+          },
+          "moodLabels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "timeZone": {
             "type": "string"
           }
         },
         "required": [
-          "items"
+          "items",
+          "timeZone",
+          "moodAvailable"
         ],
         "type": "object"
       },
@@ -18070,7 +18089,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LibraryChannelTemplatePage"
+                  "$ref": "#/components/schemas/LibraryChannelTemplateChoices"
                 }
               }
             },

@@ -129,12 +129,12 @@ test('channel admission notifies current choices while upload keeps its original
   const ports = libraryChannelAdmission(f.context, owner as never);let changes = 0;const off = ports.subscribe(() => changes++);
   f.rename();assert.equal(changes, 1);assert.equal(ports.libraries[0]?.name, 'Renamed books');assert.strictEqual(ports.api, f.api);
   const upload = libraryChannelUpload(f.context, f.context.isCurrent, () => {});f.replaceSession();
-  await assert.rejects(upload('channel', new File(['x'], 'cover.png', {type: 'image/png'}), 'a'.repeat(48), new AbortController().signal), error => (error as {code: string}).code === 'cancelled');assert.equal(f.calls(), 0);
+  await assert.rejects(upload('channel', new File(['x'], 'cover.png', {type: 'image/png'}), new AbortController().signal), error => (error as {code: string}).code === 'cancelled');assert.equal(f.calls(), 0);
   off();f.source.dispose();
   const denied = fixture();denied.source.update({identity: {...denied.context.facts.identity, capabilities: {manageServer: false} as never}});
   const refused = libraryChannelUpload(denied.context, denied.context.isCurrent, () => {});
   denied.source.update({identity: {...denied.context.facts.identity, capabilities: {manageServer: true} as never}});
-  await assert.rejects(refused('channel', new File(['x'], 'cover.png', {type: 'image/png'}), 'a'.repeat(48), new AbortController().signal), error => (error as {code: string}).code === 'cancelled');
+  await assert.rejects(refused('channel', new File(['x'], 'cover.png', {type: 'image/png'}), new AbortController().signal), error => (error as {code: string}).code === 'cancelled');
   assert.equal(denied.calls(), 0);denied.source.dispose();
 });
 

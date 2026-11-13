@@ -1,9 +1,10 @@
+import {OwnerChannelSource} from '../src/screens/settings/server/channels/owner-channel-source.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {forwardFacts,createShellFactsSource} from '../src/shell/fact-source.ts';
 import {createSettingsBindings,forwardSettingsBindings} from '../src/screens/settings/bindings.ts';
 import {libraryChannelAdmission} from '../src/screens/live/owner/library-channel-admission.ts';
-import {forwardChannelPorts,createSources} from '../src/screens/settings/server/channels/channel-sources.ts';
+import {forwardChannelPorts} from '../src/screens/settings/server/channels/channel-sources.ts';
 import {deviceRowState} from '../src/screens/settings/device-rows-model.ts';
 import {settingsRowIndex} from '@core/presentation/settings-spec.ts';
 import type {SettingsController,SettingsControllerOptions} from '../src/screens/settings/controller.ts';
@@ -29,10 +30,10 @@ test('the exact consumer channel admission getter/notifier survives the Settings
  const facts=createShellFactsSource(initial),api={request:async()=>({})};const current=()=>true;
  const context=forwardFacts({facts:initial,factsSource:facts,isCurrent:current,api,session:()=>({viewer:{serverId:'server'}}),artwork:{channelLogo:()=>undefined,foreground:()=>undefined}} as unknown as ShellAssemblyContext,{});
  const owner={api,serverId:'server',current,reportError:()=>{}} as unknown as OwnerSources;
- const original=libraryChannelAdmission(context,owner),ports=forwardChannelPorts(original,{initialChannelId:'one'}),sources=createSources(ports),editor=sources.editor,presets=sources.presets,logos=sources.logos;
+ const original=libraryChannelAdmission(context,owner),ports=forwardChannelPorts(original,{initialChannelId:'one'}),source=new OwnerChannelSource(ports.api,ports.isCurrent,ports.reportError);
  let notified=0;const off=ports.subscribe!(()=>notified++);
  facts.update({identity:{...initial.identity,libraries:[{id:'lib',name:'B',kind:'movie'}]}});
- assert.equal(notified,1);assert.equal(ports.libraries[0].name,'B');assert.equal(ports.initialChannelId,'one');assert.equal(ports.api,original.api);assert.equal(ports.uploadLogo,original.uploadLogo);assert.equal(ports.isCurrent,current);assert.equal(sources.editor,editor);assert.equal(sources.presets,presets);assert.equal(sources.logos,logos);off();sources.dispose();facts.dispose();
+ assert.equal(notified,1);assert.equal(ports.libraries[0].name,'B');assert.equal(ports.initialChannelId,'one');assert.equal(ports.api,original.api);assert.equal(ports.uploadLogo,original.uploadLogo);assert.equal(ports.isCurrent,current);assert.equal(source.isActive(),true);off();source.dispose();facts.dispose();
 });
 
 test('Device help and version are projected from current display facts',()=>{
