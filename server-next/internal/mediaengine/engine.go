@@ -460,9 +460,12 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	if err != nil {
 		return playback.Plan{}, err
 	}
-	// An audiobook in several files plays as one book (playback rule 60): its parts are
-	// joined into one stream on one clock, so every position is a place in the whole book.
+	// A version's files are joined into one stream on one clock. A position is
+	// a place in the whole film, episode or book (playback rule 60 for books).
 	parts, err := e.bookParts(ctx, r, remoteID, facts)
+	if err == nil && parts == nil {
+		parts, err = e.videoParts(ctx, r, remoteID)
+	}
 	if err != nil {
 		return playback.Plan{}, err
 	}

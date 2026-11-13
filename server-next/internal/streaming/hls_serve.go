@@ -12,7 +12,21 @@ import (
 )
 
 func (h *HLS) Ready(ctx context.Context, id string) error {
-	if e := h.start(ctx, id, 0); e != nil {
+	// Start already chose the window holding the requested position. Waiting
+	// for its manifest must not relocate that producer to the beginning.
+	from, position := -1, 0.0
+	h.mu.Lock()
+	if s := h.streams[id]; s != nil {
+		position = s.initialPosition
+	}
+	if w := h.windows[id]; w != nil {
+		from = w.start
+	}
+	h.mu.Unlock()
+	if from < 0 {
+		from = h.startIndex(id, position)
+	}
+	if e := h.start(ctx, id, from); e != nil {
 		return e
 	}
 	wait, cancel := context.WithTimeout(ctx, 20*time.Second)
@@ -135,7 +149,11 @@ func (h *HLS) FileContext(ctx context.Context, id, name string) (string, error) 
 				if !segment {
 					from = 0
 				}
-				if segment && from >= hlsSegmentCount(duration) {
+				count := hlsSegmentCount(duration)
+				if timeline := h.sessionTimeline(ctx, id); timeline != nil {
+					count = timeline.count()
+				}
+				if segment && from >= count {
 					return "", ErrHLSArtifactNotFound
 				}
 				if err := h.start(ctx, id, from); err != nil {

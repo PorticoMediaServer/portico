@@ -24,6 +24,15 @@ import (
 // was read from it, and played: as it is by byte range, and converted at a lower quality.
 // Where this host has the decoder's isolated bridge the sandbox is required throughout.
 func TestAFilmOnRemoteStoragePlays(t *testing.T) {
+	testRemoteFilm(t, 1)
+}
+
+func TestASplitRemoteFilmKeepsFirstPart(t *testing.T) {
+	testRemoteFilm(t, 2)
+}
+
+func testRemoteFilm(t *testing.T, partCount int) {
+	t.Helper()
 	ffmpeg, ffprobe := decodertest.QualifiedFFmpeg(t), decodertest.QualifiedFFprobe(t)
 	if decoder.ProbeConfinement(context.Background()) == nil {
 		t.Setenv("PORTICO_DECODER_SANDBOX", "required")
@@ -39,7 +48,15 @@ func TestAFilmOnRemoteStoragePlays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dav := remotetest.NewDAV(t, map[string]string{"Media/Films/Small Film (2020)/Small Film (2020).mp4": string(original)})
+	files := map[string]string{}
+	for n := 1; n <= partCount; n++ {
+		name := "Small Film (2020).mp4"
+		if partCount > 1 {
+			name = fmt.Sprintf("Small Film (2020) - pt%d.mp4", n)
+		}
+		files["Media/Films/Small Film (2020)/"+name] = string(original)
+	}
+	dav := remotetest.NewDAV(t, files)
 	h, d, sources := newHouseWith(t, ffmpeg, ffprobe)
 	ctx := context.Background()
 
@@ -62,7 +79,7 @@ func TestAFilmOnRemoteStoragePlays(t *testing.T) {
 	}
 	scanner := &scan.Scanner{DB: d, Remote: sources.Open, ReaderProber: scan.RemoteProber{}}
 	stats, err := scanner.Scan(ctx, libraries[0])
-	if err != nil || stats.ItemsNew != 1 || stats.Probed != 1 {
+	if err != nil || stats.ItemsNew != 1 || stats.Probed != partCount {
 		t.Fatalf("scan: %+v, %v", stats, err)
 	}
 	var page api.ItemPage
@@ -72,7 +89,7 @@ func TestAFilmOnRemoteStoragePlays(t *testing.T) {
 	}
 	var options api.PlaybackOptions
 	h.call("GET", "/v1/items/"+page.Items[0].ID+"/playback-options", nil, &options, 200)
-	if v := options.Versions[0]; len(v.Video) != 1 || v.Video[0].Height != 720 || len(v.Audio) != 1 {
+	if v := options.Versions[0]; len(v.Video) != 1 || v.Video[0].Height != 720 || len(v.Audio) != 1 || v.DurationMs != int64(partCount*12000) {
 		t.Fatalf("the version is %+v", v)
 	}
 
@@ -121,5 +138,12 @@ func TestAFilmOnRemoteStoragePlays(t *testing.T) {
 	if code, _, body = h.media(base + segment); code != 200 || len(body) == 0 {
 		t.Fatalf("the first converted segment answered %d with %d bytes", code, len(body))
 	}
+	// A multipart remote version keeps main's first-file playback until the
+	// remote join follow-up: direct bytes above, and the same 12 s converted.
+	played := h.listen(t, second.URL, ffmpeg, ffprobe)
+	if played.seconds < 11.8 || played.seconds > 12.4 {
+		t.Fatalf("delivered %.3f seconds, want the first file's 12 seconds", played.seconds)
+	}
+	t.Logf("%d parts: original bytes unchanged; converted %.6f s", partCount, played.seconds)
 	h.call("DELETE", "/v1/playback/sessions/"+session.ID, nil, nil, 204)
 }
