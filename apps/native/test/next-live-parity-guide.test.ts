@@ -86,6 +86,7 @@ async function fixture({isTV = false, width, height, role = 'owner', sources = t
     dispose() {}
     async remindersFor() {return {items: []};}
     async programme() {return {...opened, channel: {...opened.channel, programmes: [opened.programme]}, airings: later};}
+    async later() {return later;}
     async remindProgramme() {return undefined;}
     async dismissProgramme() {return undefined;}
   }

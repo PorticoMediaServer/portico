@@ -199,17 +199,19 @@ export function NativeLiveScreen({controller, recordings, owner, ports, runtime}
     const subscription = registerBack(() => {if (!selectedRef.current) return false; setSelected(undefined); return true;}, {scope: 'page', active: () => {const now = runtime.navigation?.getSnapshot().route; return now?.kind === 'shell' && now.destination.kind === 'live';}});
     return () => subscription();
   }, [runtime.navigation, twoPane]);
-  // A selected programme carries the guide's own later airings and this profile's reminders; both are server reads.
+  // Later on reads this channel after the selected programme, separately from its repeat airings.
   useEffect(() => {
     if (!selected) {setLater([]); setLaterRecordings(new Map()); return;}
     let live = true;
-    setLaterRecordings(new Map());
+    setLater([]); setLaterRecordings(new Map());
     const programmeId = selected.program?.id;
     if (programmeId) void features.programme(programmeId).then(async detail => {
       if (!live) return;
-      const current = {channel: detail.channel, programme: detail.programme}, airings = detail.airings.filter(airing => airing.programme.id !== programmeId).slice(0, 4);
-      setLater(airings);
+      const current = {channel: detail.channel, programme: detail.programme};
       setSelected(value => value?.program?.id === programmeId ? {...value, channel: legacyChannelRow(detail.channel), program: legacyProgram(detail.programme)} : value);
+      const airings = await features.later(detail.channel, detail.programme);
+      if (!live) return;
+      setLater(airings);
       const reminders = await features.remindersFor([current, ...airings]);
       if (live) setReminders(new Map(reminders.items.map(item => [item.airing.programme.id, item])));
     }).catch(error => {if (live && controller.lifetime.current()) runtime.reportError(error);});
