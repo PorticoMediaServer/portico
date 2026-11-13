@@ -124,8 +124,10 @@ type Choice struct {
 
 // PlanRequest is everything one decision depends on.
 type PlanRequest struct {
-	Item    db.PlaybackItem
-	Version db.PlaybackVersion
+	// PrepareAudio may wait for exact music facts while another track is playing.
+	PrepareAudio bool
+	Item         db.PlaybackItem
+	Version      db.PlaybackVersion
 	// Capabilities is the document the device last published, as it was sent. Nil plans for
 	// a device that can play only the most widely supported formats.
 	Capabilities json.RawMessage

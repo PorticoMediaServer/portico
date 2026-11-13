@@ -1,4 +1,4 @@
-import {readPlaybackCapabilities} from '@core/query/playback.ts';
+import {readWebPlaybackCapabilities} from '@core/query/playback.ts';
 import {readPlaybackItem, type PlaybackItem} from '@core/playback-v1/item.ts';
 import {readPlaybackItemBounded} from '@core/query/playback-item.ts';
 import {playbackFailurePermanent} from '@core/playback-messages.ts';
@@ -142,8 +142,8 @@ function problem(code: string): never { throw new Error(code); }
 const startStopped = () => new DOMException('Playback start stopped', 'AbortError');
 export type WebSleepEnd = 'item' | 'chapter' | 'book';
 const validSeconds = (value: number) => Number.isFinite(value) && value >= 0 && value <= 1e9;
-/** The server's capability document (`GET /v1/capabilities`): one read, ready to become a query. */
-const readServerCapabilities = (api: WebPlaybackSource['api'], signal: AbortSignal): Promise<unknown> => readPlaybackCapabilities(api, signal);
+/** Prepared joins are web-only until native's own measured change lands. */
+const readServerCapabilities = (api: WebPlaybackSource['api'], signal: AbortSignal): Promise<unknown> => readWebPlaybackCapabilities(api, signal);
 const wireId = (value: unknown) => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(value);
 /** A pressed row's list: a bounded id list that holds the row, or a server container. */
 const screenListSelector = (from: Selector, itemId: string): boolean =>

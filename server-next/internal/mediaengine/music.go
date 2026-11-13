@@ -22,9 +22,8 @@ import (
 //
 // The measurement is made the first time a file is planned this way and kept with the file
 // (files.audio_exact), so it is made once for each song a listener really plays, and never
-// by a scan. Track preparation waits within its request lifetime, so even the first track
-// has an exact plan. Audiobooks keep the bounded wait: perfect joins are not required there.
-// A scan that reads the file again clears it.
+// by a scan. An unmeasured song starts the ordinary way immediately while measurement
+// continues. Preparing a future track may wait for it; a scan that rereads the file clears it.
 
 // measuredMusic is one file's measurement, done or under way.
 type measuredMusic struct {
@@ -34,7 +33,7 @@ type measuredMusic struct {
 	err   error
 }
 
-// measured waits for exact music facts; cancellation or a failed measurement returns false.
+// measured starts the existing measurement and returns immediately if it is still running.
 func (e *Engine) measured(ctx context.Context, fileID int64, path string, place db.FileOnDisk) (*measuredMusic, bool) {
 	key := fmt.Sprint(path, "\x00", place.Size, "\x00", place.ModifiedNS)
 	e.mu.Lock()
@@ -68,8 +67,10 @@ func (e *Engine) measured(ctx context.Context, fileID int64, path string, place 
 	case <-m.done:
 		return m, m.err == nil
 	case <-ctx.Done():
+		return nil, false
+	default:
+		return m, false
 	}
-	return nil, false
 }
 
 // musicPlan is the plan for a song or audiobook on a device whose own music engine plays
@@ -82,13 +83,20 @@ func (e *Engine) musicPlan(ctx context.Context, r playback.PlanRequest, request 
 		remoteID != 0 || len(r.Failures) > 0 {
 		return nil
 	}
-	measureCtx := ctx
-	if r.Item.Kind == db.KindAudiobook {
-		var cancel context.CancelFunc
-		measureCtx, cancel = context.WithTimeout(ctx, 3*time.Second)
-		defer cancel()
+	m, ok := e.measured(ctx, r.Version.FileID, path, place)
+	if !ok && m != nil && (r.PrepareAudio || r.Item.Kind == db.KindAudiobook || place.AudioExact != "") {
+		wait := ctx
+		if !r.PrepareAudio {
+			var cancel context.CancelFunc
+			wait, cancel = context.WithTimeout(ctx, 3*time.Second)
+			defer cancel()
+		}
+		select {
+		case <-m.done:
+			ok = m.err == nil
+		case <-wait.Done():
+		}
 	}
-	m, ok := e.measured(measureCtx, r.Version.FileID, path, place)
 	if !ok {
 		return nil
 	}
