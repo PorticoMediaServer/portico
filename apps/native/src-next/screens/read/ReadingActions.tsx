@@ -49,7 +49,7 @@ export function ReadingSelectionToolbar({port, runtime}: {port: ReadingActionsPo
   const theme = useTheme(), {actions, state} = port;
   const owner = state.selecting && actions.owner(), bulk = state.edit, edit = bulk?.getSnapshot();
   if (!state.selecting) return theme.platform === 'phone' ? null : <View style={{alignItems: 'flex-end', paddingHorizontal: theme.gutter}}>
-    <Button variant="text" onPress={actions.start}>{t('next.selection.select')}</Button>
+    <Button align="end" variant="text" onPress={actions.start}>{t('next.selection.select')}</Button>
   </View>;
   return <View>
     <SelectionBar count={state.selected.length} onCancel={actions.cancel} menu={null} onMenuChange={() => {}} actions={[]} onAction={() => {}}/>

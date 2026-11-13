@@ -53,7 +53,7 @@ function SettingFolder({row, value, disabled, t, api, onChange}: Props) {
     <SettingsRow first label={label} description={row.help ? t(row.help) : undefined}
       control={<View style={{alignItems: 'flex-end', gap: 6, maxWidth: '58%'}}>
         {path && <Text numberOfLines={1} style={[shellType(13.5, 600), {color: theme.colors.textSecondary}]}>{path}</Text>}
-        {api && <Button testID={`${row.id}:choose`} size="xs" variant="glass" icon="i-folder" disabled={disabled} onPress={() => setOpen(true)}>{t('next.ownerLibraries.explorer.choose')}</Button>}
+        {api && <Button align="end" testID={`${row.id}:choose`} size="xs" variant="glass" icon="i-folder" disabled={disabled} onPress={() => setOpen(true)}>{t('next.ownerLibraries.explorer.choose')}</Button>}
       </View>}/>
     {api && <FolderExplorer open={open} onOpenChange={setOpen} api={api} title={label} chosen={chosen} multiple={false}
       onUse={folders => {const next = folders[0]; if (next) onChange(next.path);}} testID={row.id}/>}

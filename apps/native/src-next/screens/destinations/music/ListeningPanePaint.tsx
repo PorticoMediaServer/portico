@@ -97,7 +97,7 @@ export function ListeningLyricsPaint({owner, scope = '', data: supplied, onRetry
     importantForAccessibility={paint.interactive ? 'auto' : 'no-hide-descendants'} style={{flex: 1, minHeight: 0}}>
     {error ? <View style={{alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingVertical: 18}}>
       <Text style={[browseType(theme, 13.5, 500), {textAlign: 'center', color: theme.colors.textSecondary}]}>{error}</Text>
-      <Button variant="glass" size="small" icon="i-restart" onPress={() => {if (paint.current()) paint.actions?.retry?.();}}>{t('action.tryAgain')}</Button>
+      <Button align="center" variant="glass" size="small" icon="i-restart" onPress={() => {if (paint.current()) paint.actions?.retry?.();}}>{t('action.tryAgain')}</Button>
     </View> : null}
     {message ? <View style={{paddingHorizontal: 18, paddingVertical: 22}}><Text style={[browseType(theme, 14, 500), {textAlign: 'center', color: theme.colors.textSecondary}]}>{message}</Text></View> : null}
     {resources.map(resource => <Focusable key={resource.id} focusKind="row" focusRadius={10} focusId={`${testID}-resource-${resource.id}`} testID={`${testID}-resource-${resource.id}`}
