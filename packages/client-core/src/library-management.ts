@@ -164,7 +164,8 @@ export class LibraryManagementService{
     if(!object(made)||!id(made.id))invalid();
     if(this.disposed||epoch!==this.epoch||c.signal.aborted)return;
     this.queries?.moved([dependsOn.libraries]);
-    // The owner's library directory is still read from the old server's routes; a failure there does not undo the create.
+    this.publish({selectedLibraryId:made.id,selected:blank()});
+    // A failed read does not undo the confirmed create or lose its returned identity.
     await this.reconcile().catch(()=>{});
     if(!this.disposed&&epoch===this.epoch&&!c.signal.aborted)this.publish({mutation:Object.freeze({phase:'complete',kind:'create',error:null})});
    }catch(e){
