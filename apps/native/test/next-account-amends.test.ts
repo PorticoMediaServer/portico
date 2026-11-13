@@ -79,7 +79,7 @@ test('security controller failures reach presentError and the alert while unavai
   const deletion = () => nodes(f.tree()).find(node => node.props.testID === 'account-security-delete');
   assert.equal(deletion().props.disabled, true);
   await f.recover();
-  assert.equal(deletion().props.disabled, true, 'deletion stays unavailable until its Services inputs exist');
+  assert.equal(deletion().props.disabled, true, 'deletion stays unavailable until its fresh proof inputs exist');
   for (const kind of ['email', 'export']) assert.equal(nodes(f.tree()).some(node => node.props.testID === `account-security-${kind}`), false);
   assert.equal(nodes(f.tree()).some(node => (node.props.accessibilityRole === 'alert' || node.type === FormError)), false);
 });
