@@ -22,7 +22,7 @@ import {V1QueuePlayer, serverSupportsQueueTransitions, queueVideoKind, type V1Qu
 import {QueueClient} from '../../../../../packages/client-core/src/playback-v1/queue';
 import {V1ChannelControl, serverSupportsV1Channels} from '../../../../../packages/client-core/src/playback-v1/channel-control';
 import {channelSeconds, type ChannelReference} from '../../../../../packages/client-core/src/playback/linear-protocol';
-import {fetchGuideSourceSummaries} from '../../../../../packages/client-core/src/guide/directory';
+import {readPlayerGuide} from '../../../../../packages/client-core/src/guide/player-guide';
 import {legacyChannel} from '../../../../../packages/client-core/src/guide/legacy-source';
 import type {HomeChannel} from '../../../../../packages/client-core/src/home';
 import type {HomeSelectionPlaybackPort, HomeSelectionPlaybackRequest} from '../../../../../packages/client-core/src/home-selection/types';
@@ -597,8 +597,7 @@ export class NativePlaybackRuntime {
     } finally { scoped.close(); }
   }
 
-  /** Route/Guide playback uses the same installed channel owner. The source's
-   * generation/provenance is re-read; only the real channel POST grants tuning. */
+  /** Route/Guide playback re-reads the viewer's channel; only the real channel POST grants tuning. */
   /** O-159: drawn at once as the guide row's channel, then its real dock. */
   startChannel = (input: NativePlaybackChannelStart): Promise<void> => {
     const row = input.guide && legacyChannel(input.guide.row);
@@ -623,27 +622,26 @@ export class NativePlaybackRuntime {
     try {
       this.connect(); if (!expected) await this.queue.cancel(); if (!current()) return;
       await this.o.capabilitiesReady(); if (!current()) return;
-      const [capabilities, directory] = await Promise.all([
+      const [capabilities, channels] = await Promise.all([
         readPlaybackCapabilities({request: this.request}, scoped.signal),
-        fetchGuideSourceSummaries({request: this.request}, this.bound.serverId, input.timezone, scoped.signal),
+        readPlayerGuide({request: this.request}, input.channelId, input.guide?.options ?? {kind: 'all', sourceId: '', timezone: input.timezone}, scoped.signal),
       ]);
       if (!current()) return;
       if (!serverSupportsV1Channels(capabilities)) throw new Error('channel_playback_unavailable');
-      const sources = directory.sources.filter(source => source.id === input.sourceId);
-      if (sources.length !== 1 || !wireId(sources[0]!.generation)) throw new Error('channel_source_unavailable');
-      const source = sources[0]!;
-      if (input.expectedSourceGeneration !== undefined && source.generation !== input.expectedSourceGeneration) throw new Error('channel_source_unavailable');
+      const currentRow = channels.find(row => row.step === 0)?.channel;
+      const channel = currentRow && legacyChannel(currentRow);
+      if (!channel || channel.sourceId !== input.sourceId || channel.id !== input.channelId || (channel.hidden && !input.guide?.options.includeHidden) || !channel.tuneAvailable) throw new Error('channel_source_unavailable');
+      if (input.expectedSourceGeneration !== undefined && channel.generation !== input.expectedSourceGeneration) throw new Error('channel_source_unavailable');
       const origin = input.guide, row = origin && legacyChannel(origin.row);
-      if (origin && (!row || row.id !== input.channelId || row.sourceId !== source.id || row.provenance !== source.provenance
-        || row.generation !== source.generation || !row.tuneAvailable || origin.options.timezone !== input.timezone)) throw new Error('channel_source_unavailable');
-      if (source.provenance === 'library-channel' && input.sourceId !== input.channelId) throw new Error('invalid_channel_target');
+      if (origin && (!row || row.id !== channel.id || row.sourceId !== channel.sourceId || row.provenance !== channel.provenance
+        || row.generation !== channel.generation || !row.tuneAvailable || origin.options.timezone !== input.timezone)) throw new Error('channel_source_unavailable');
       if (expected) {
         if (!current()) return;
         epoch = this.beginOperation(scoped.signal);dispatching = true;
         await this.queue.cancel();if (!current()) return;
       }
       this.rememberCurrent(); this.channel = undefined; this.expanded = true;
-      await this.openChannel({kind: source.provenance, sourceId: source.id, channelId: input.channelId, generation: source.generation}, epoch, scoped.signal, current, 'playing', accepted);
+      await this.openChannel({kind: channel.provenance, sourceId: channel.sourceId, channelId: input.channelId, generation: channel.generation}, epoch, scoped.signal, current, 'playing', accepted);
       if (current()) {this.channelGuide = origin ? Object.freeze({row: origin.row, options: Object.freeze({...origin.options})}) : undefined;this.changed();}
     } catch (error) {
       if (current()) {if (dispatching) {this.playback.leave(); this.changed();} throw error;}

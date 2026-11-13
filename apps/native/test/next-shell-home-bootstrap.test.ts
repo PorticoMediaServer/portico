@@ -76,10 +76,7 @@ function fixture(t: TestContext, deviceClass: DeviceClass = 'mobile', role: 'own
     }
     // The rebuilt server's inbox: one per profile, with its unread count, and no envelope.
     if (path === '/v1/notifications') return {value: {items: [], unreadCount: 2}};
-    if (path === routePath('get_guide_sources')) return {value: {protocolVersion: '1.0', serverId: state.servers.guide, viewerFence: state.fences.guide, revision: 'guide-1',
-      sources: [{id: 'live-source', name: 'Actual authorized source', generation: 'g1', publishedAt: '2026-10-22T12:00:00Z', availableStart: '', availableEnd: '',
-        provenance: 'live-source', refreshState: 'healthy', position: 0, recordAvailable: true, guideDays: 7, channelCount: 2, favoriteCount: 1,
-        groups: ['News'], groupCounts: [{name: 'News', count: 2}], unavailableReasons: {}}]}};
+    if (path === '/v1/live/channels') return {value: {items: [], sources: [{id: 'live-source', name: 'Actual authorized source', kind: 'live', channels: 2, favorites: 1, groups: [{name: 'News', count: 2}]}]}};
     if (path === routePath('get_home')) return {value: {serverId: state.servers.home, viewerFence: state.fences.home, rows: [homeRow(state.fences.home)], spotlight: [],
       layout: {revision: 1, rowOrder: ['recent'], hiddenRowIds: []}, revision: {catalog: 1, viewer: 1}, generatedAt: '2026-10-22T12:00:00Z'}};
     if (path === routePath('get_home_row', {id: 'recent'})) return {value: {...homeRow(state.fences.home), entries: [], start: 1, hasMore: false, nextCursor: ''}};
@@ -113,7 +110,7 @@ function fixture(t: TestContext, deviceClass: DeviceClass = 'mobile', role: 'own
 test('Home and required preferences can finish while auxiliary badges and guide are still waiting', async t => {
   const f = fixture(t), delayed = deferred<void>(), entered = deferred<void>();
   f.state.reply = async request => {
-    if (new Set<string>(['/v1/notifications', routePath('get_guide_sources')]).has(request.url.pathname)) {entered.resolve(); await delayed.promise;}
+    if (new Set<string>(['/v1/notifications', '/v1/live/channels']).has(request.url.pathname)) {entered.resolve(); await delayed.promise;}
     return f.response(request);
   };
   let auxiliaryReady = false;
@@ -150,16 +147,16 @@ test('settings answered for another kind of device are refused', async t => {
   assert.equal(f.state.ended, 0); assert.equal(f.services.getSnapshot(), undefined);
 });
 
-// The rebuilt server's inbox answer names no server: an answer from elsewhere is one this session's own requests reach.
-for (const domain of ['guide', 'home'] as const) test(`a foreign server in the ${domain} response is refused independently of Home`, async t => {
+// Rebuilt viewer channels and inbox have no server-id envelope; the captured request binds them.
+test('a foreign server in the Home response is refused independently of bootstrap facts', async t => {
   const f = fixture(t); await Promise.all([f.services.read(), f.services.home.load()]);
-  f.state.servers[domain] = 'other-server';
-  if (domain === 'home') await f.services.home.revalidate(); else await assert.rejects(f.services.read());
+  f.state.servers.home = 'other-server';
+  await f.services.home.revalidate();
   assert.equal(f.state.ended, 1); assert.equal(f.services.getSnapshot(), undefined); assert.equal(f.services.home.getSnapshot().document, undefined);
 });
 
 for (const [domain, path] of [['preferences', routePath('get_preferences')], ['inbox', '/v1/notifications'],
-  ['guide', routePath('get_guide_sources')], ['home', routePath('get_home')]] as const) test(`a real HTTP permission denial in ${domain} cannot be swallowed by a core service`, async t => {
+  ['guide', '/v1/live/channels'], ['home', routePath('get_home')]] as const) test(`a real HTTP permission denial in ${domain} cannot be swallowed by a core service`, async t => {
   const f = fixture(t); await Promise.all([f.services.read(), f.services.home.load()]);
   f.state.reply = async request => request.url.pathname === path ? {status: 403, value: {error: {code: 'forbidden', message: 'Denied.'}}} : f.response(request);
   if (domain === 'home') await f.services.home.revalidate(); else await assert.rejects(f.services.read());
@@ -168,21 +165,21 @@ for (const [domain, path] of [['preferences', routePath('get_preferences')], ['i
 
 test('initial guide denial hides Live TV without inventing a source; a later grant requires a new scope', async t => {
   const f = fixture(t);
-  f.state.reply = async request => request.url.pathname === routePath('get_guide_sources') ? {status: 403, value: {error: {code: 'forbidden'}}} : f.response(request);
+  f.state.reply = async request => request.url.pathname === '/v1/live/channels' ? {status: 403, value: {error: {code: 'forbidden'}}} : f.response(request);
   assert.equal((await f.services.read()).hasLiveTV, false); assert.equal(f.state.ended, 0);
   assert.equal((await f.services.read()).hasLiveTV, false); assert.equal(f.state.ended, 0);
   f.state.reply = async request => f.response(request);
   await assert.rejects(f.services.read()); assert.equal(f.state.ended, 1);
 });
 
-test('guide protocol and source summaries are parsed instead of trusted as a raw sources array', async t => {
+test('malformed source summaries cannot invent Live TV availability', async t => {
   const f = fixture(t);
-  f.state.reply = async request => request.url.pathname === routePath('get_guide_sources') ? {value: {serverId: 'server', viewerFence: f.state.fences.guide, sources: [{}]}} : f.response(request);
-  await assert.rejects(f.services.read(), {code: 'invalid_guide_directory'});
-  assert.equal(f.services.getSnapshot(), undefined); assert.equal(f.state.ended, 0);
+  f.state.reply = async request => request.url.pathname === '/v1/live/channels' ? {value: {serverId: 'server', viewerFence: f.state.fences.guide, sources: [{}]}} : f.response(request);
+  assert.equal((await f.services.read()).hasLiveTV, false);
+  assert.equal(f.state.ended, 0);
 });
 
-for (const path of [routePath('get_preferences'), '/v1/notifications', routePath('get_guide_sources')]) test(`a transient ${path} refresh preserves the same authority and permits recovery`, async t => {
+for (const path of [routePath('get_preferences'), '/v1/notifications', '/v1/live/channels']) test(`a transient ${path} refresh preserves the same authority and permits recovery`, async t => {
   const f = fixture(t); await Promise.all([f.services.read(), f.services.home.load()]);
   const before = f.services.getSnapshot(), homeBefore = f.services.home.getSnapshot().document;
   f.state.reply = async request => request.url.pathname === path ? {status: 503, value: {error: {code: 'temporarily_unavailable', retryable: true}}} : f.response(request);
@@ -222,7 +219,7 @@ test('a failed refresh aborts sibling native reads, ignores their late denial an
   const f = fixture(t); await f.services.read();
   const entered = deferred<void>(), delayed = deferred<Reply>(); let lateRequest: Request | undefined;
   f.state.reply = async request => {
-    if (request.url.pathname === routePath('get_guide_sources')) {lateRequest = request; entered.resolve(); return delayed.promise;}
+    if (request.url.pathname === '/v1/live/channels') {lateRequest = request; entered.resolve(); return delayed.promise;}
     if (request.url.pathname === routePath('get_preferences')) {await entered.promise; return {status: 503, value: {error: {code: 'temporarily_unavailable'}}};}
     return f.response(request);
   };

@@ -43,8 +43,7 @@ test('the actual directory order and its exact programmes become the drawn cards
   const owner = setup(async path => {
     const url = new URL(path, 'https://local.invalid'), query = url.searchParams;
     if (url.pathname === routePath('get_guide_channels')) return directory([channel('ch1', {text: 'NN', seed: 'src1:ch1'}), channel('ch2')]);
-    if (url.pathname === routePath('get_guide_sources')) return {protocolVersion: '1.0', serverId, viewerFence: 'fence', revision: 'sources-revision',
-      sources: [{...source, position: 0, recordAvailable: false, guideDays: 7, channelCount: 2, favoriteCount: 1, groups: [], groupCounts: [], unavailableReasons: {}}]};
+    if (url.pathname === '/v1/live/channels') return {items: [], sources: [{id: 'src1', name: 'Live source', kind: 'live', channels: 2, favorites: 1, groups: []}]};
     assert.equal(url.pathname, routePath('get_guide'));
     return guide((query.get('channels') ?? '').split(','), query.get('start'), query.get('end'), query.get('timezone'));
   });

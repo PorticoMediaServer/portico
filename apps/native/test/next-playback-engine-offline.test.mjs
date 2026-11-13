@@ -35,7 +35,7 @@ const {NativePlaybackRuntime} = await sourceModule(new URL('../src-next/platform
   '../../../../../packages/client-core/src/trickplay': {downloadTrickplaySet: unused, preferredTrickplaySet: unused, readItemTrickplay: unused},
   '../../../../../packages/client-core/src/playback-v1/channel-control': {V1ChannelControl: unused, serverSupportsV1Channels: unused},
   '../../../../../packages/client-core/src/playback/linear-protocol': {channelSeconds: unused},
-  '../../../../../packages/client-core/src/guide/directory': {fetchGuideSourceSummaries: unused}, '../../../../../packages/client-core/src/guide/legacy-source': {legacyChannel: unused},
+  '../../../../../packages/client-core/src/guide/player-guide': {readPlayerGuide: unused}, '../../../../../packages/client-core/src/guide/legacy-source': {legacyChannel: unused},
   '../../../../../packages/client-core/src/playback-v1/types': {obj: unused, parseDiscTitleRef: unused, parseQueue: unused, parseSession: unused},
   '../../../../../packages/client-core/src/playback-v1/quality': {qualityOptionRequest: unused}, '../../../../../packages/client-core/src/subtitles': {SubtitleService: unused},
   '../../../../../packages/client-core/src/subtitle-originals': {forcedChoiceOf: unused, parseSubtitleLines: unused}, './forced-image': {forcedImageLinesPath: unused},

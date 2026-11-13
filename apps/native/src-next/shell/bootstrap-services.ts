@@ -50,6 +50,7 @@ export class NativeShellBootstrapServices {
   /** H-11: the Home manifest's privacy fence (or its viewer fence on older servers) owns retirement. */
   private disposed = false;
   private guideDenied = false;
+  private guideAccepted = false;
   private inboxLoaded = false;
   private inboxFailure?: unknown;
   private snapshot?: Facts;
@@ -112,21 +113,21 @@ export class NativeShellBootstrapServices {
     throw error;
   }
   private checkFence(domain: Domain, raw: unknown): void {
-    // The rebuilt server's settings and notification answers are the documents themselves, with no envelope to check.
+    // Rebuilt settings, notifications and viewer channels have no identity envelope.
     if (domain === 'preferences' || domain === 'inbox') return;
     if (!object(raw)) throw invalid();
-    const scope = raw;
+    if (domain === 'guide') {
+      if (this.guideDenied) this.retire();
+      this.guideAccepted = true;
+      return;
+    }
     // Layout mutation receipts have no viewer fence. Their canonical parser still validates them.
-    if (domain === 'home' && !('viewerFence' in raw)) return;
-    if (!object(scope) || typeof scope.viewerFence !== 'string' || domain !== 'home' && typeof scope.serverId !== 'string') throw invalid();
-    // Home row pages carry the Home fence without repeating the server ID.
-    if ((domain !== 'home' || 'serverId' in scope) && scope.serverId !== this.options.viewer.serverId) this.retire();
-    const fence = scope.viewerFence;
-    if (!opaqueFence(fence)) throw invalid();
-    if (domain === 'home' && this.checkHomeFence(scope, fence)) return;
-    if (this.fences.has(domain) && this.fences.get(domain) !== fence || domain === 'guide' && this.guideDenied) this.retire();
-    this.fences.set(domain, fence);
+    if (!('viewerFence' in raw)) return;
+    if (typeof raw.viewerFence !== 'string' || !opaqueFence(raw.viewerFence)) throw invalid();
+    if ('serverId' in raw && raw.serverId !== this.options.viewer.serverId) this.retire();
+    this.checkHomeFence(raw, raw.viewerFence);
   }
+
   /** Home's fences never retire the shell: who the viewer is and what they may see is the library
    * directory's privacy fence (client data step 5). A library added or removed moves only Home's
    * viewer fence; Home re-reads, and its own row checks follow the new fence. */
@@ -153,7 +154,7 @@ export class NativeShellBootstrapServices {
       if (!this.isCurrent() || controller.signal.aborted) throw cancelled();
       // A profile with no guide entitlement can still open Home. Once a guide scope
       // was accepted, losing that permission is an authority change, not an empty list.
-      const initialGuideDenial = domain === 'guide' && object(error) && error.status === 403 && !this.fences.has('guide');
+      const initialGuideDenial = domain === 'guide' && object(error) && error.status === 403 && !this.guideAccepted;
       if (this.isCurrent() && nativeShellPermissionDenied(error) && !initialGuideDenial) this.retire(error);
       throw error;
     } finally {signal?.removeEventListener('abort', abort); batch?.removeEventListener('abort', abort); this.controllers.delete(controller);}
@@ -217,8 +218,8 @@ export class NativeShellBootstrapServices {
       this.options.viewer.serverId, Intl.DateTimeFormat().resolvedOptions().timeZone, this.options.signal);}
     catch (error) {
       this.assertCurrent();
-      if (object(error) && error.status === 403 && !this.fences.has('guide')) {this.guideDenied = true; return undefined;}
-      // The rebuilt server has no Live TV guide yet: no Live TV, as on the web.
+      if (object(error) && error.status === 403 && !this.guideAccepted) {this.guideDenied = true; return undefined;}
+      // A server without Live TV leaves its navigation absent.
       if (notOnThisServer(error)) return undefined;
       throw error;
     }
