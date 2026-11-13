@@ -63,6 +63,10 @@ func delivery(owner settings.StreamingSettings) streaming.DeliveryConfiguration 
 	c.PlanningPolicy = owner.PlanningPolicy
 	c.RemuxEnabled = owner.Repackaging
 	c.OutputFormat = owner.ConversionFormat
+	c.ThrottleBufferSeconds = owner.ConvertAheadSeconds
+	c.PlayedRetentionSeconds = owner.KeepForRewindingSeconds
+	c.SessionStorageMiB = owner.SpacePerStreamMiB
+	c.MemoryCap = owner.MemoryLimit
 	return c.Normalized()
 }
 
