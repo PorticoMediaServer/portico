@@ -189,3 +189,20 @@ func TestARemovedDownloadCanBeAskedForAgain(t *testing.T) {
 		t.Fatalf("the newly requested file answered %d: %s", w.Code, w.Body)
 	}
 }
+
+func TestABrowserRemovalTellsThePhoneToDeleteItsHeldDownload(t *testing.T) {
+	rig := newDownloadRig(t)
+	_, phone := rig.ask(rig.owner, DownloadAsk{ItemID: rig.film, Quality: "original"})
+	held := HeldTitle{DownloadID: phone.ID, ItemID: rig.film}
+	browser := onMain(t, rig.s, signIn(t, rig.s, 3)).AccessToken
+	if w := call(t, rig.s, "DELETE", "/v1/downloads/"+phone.ID+"/items/"+rig.film, browser, nil, nil); w.Code != 204 {
+		t.Fatalf("removing the phone's download from the browser answered %d: %s", w.Code, w.Body)
+	}
+	var synced DownloadSyncReply
+	if w := call(t, rig.s, "POST", "/v1/downloads/sync", rig.owner, DownloadSync{Holds: []HeldTitle{held}}, &synced); w.Code != 200 {
+		t.Fatalf("the phone's next contact answered %d: %s", w.Code, w.Body)
+	}
+	if len(synced.Remove) != 1 || synced.Remove[0].HeldTitle != held || synced.Remove[0].Reason != "removed" || len(synced.Fetch) != 0 {
+		t.Fatalf("the phone was not told to delete its removed download: %+v", synced)
+	}
+}
