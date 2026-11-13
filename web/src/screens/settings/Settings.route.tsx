@@ -567,8 +567,8 @@ export function SettingsEntry() {
         if (row.id === 'libraries.trash' && isLibraryPanelContext(rowContext) && rowContext.recordId)
           return <LibraryTrash key={rowContext.recordId} libraryId={rowContext.recordId} api={api} isCurrent={current} label={defaultI18n.t(row.control.label ?? row.label)} />;
         if (row.id === 'libraries.folders' && isLibraryPanelContext(rowContext) && rowContext.recordId) {
-          return <LibraryFolders libraryId={rowContext.recordId} api={options.api} queries={options.queries} serverName={buildContext.facts.identity.serverName}
-            scope={libraryScope} isCurrent={current} onError={reportError} />;
+          return <LibraryFolders key={rowContext.recordId} libraryId={rowContext.recordId} api={options.api} service={controller.folders} snapshot={controller.folders.getSnapshot()} serverName={buildContext.facts.identity.serverName}
+            isCurrent={current} onError={reportError} />;
         }
         if (row.id === 'libraries.remove' && isLibraryPanelContext(rowContext) && rowContext.recordId && libraries && role === 'owner')
           return <RemoveLibraryButton key={rowContext.recordId} libraryId={rowContext.recordId} service={libraries} api={api}

@@ -154,10 +154,18 @@ export class SettingsController {
     this.options = options; this.preferences = options.preferences;
     this.sectionReads = new SettingsSectionReads(this.current, () => {for (const listener of this.listeners) listener();});
     const libraryCurrent = () => this.current() && options.mainProfile && options.capabilities.manageServer && options.role !== 'member';
-    this.library = new SettingsLibrarySource(options.api, libraryCurrent, () => this.publish({}), options.reportError, {serverId: options.serverId, viewerId: options.viewerId}, options.queries);
+    this.library = new SettingsLibrarySource(options.api, libraryCurrent, () => {
+      const document = this.library.getSnapshot().document, config = this.folders.getSnapshot().config;
+      if (document && config?.libraryId === document.libraryId && config.revision < document.revision) void this.folders.refresh();
+      this.publish({});
+    }, options.reportError, {serverId: options.serverId, viewerId: options.viewerId}, options.queries);
     const scope = {serverId: options.serverId, viewerId: options.viewerId};
     // A folder read is tab-scoped: its headless port carries the error, so it never fails the whole section.
-    this.folders = new SettingsLibraryFoldersSource(options.api, scope, libraryCurrent, () => this.publish({}), () => {});
+    this.folders = new SettingsLibraryFoldersSource(options.api, scope, libraryCurrent, () => {
+      const config = this.folders.getSnapshot().config, document = this.library.getSnapshot().document;
+      if (config && document?.libraryId === config.libraryId && document.revision < config.revision) void this.library.refreshSettings();
+      this.publish({});
+    }, () => {});
     this.console = new ConsoleClient(options.api, scope);
     this.backups = new ServerBackupSource(options.api, () => this.current() && !!this.forms.runtime, () => this.publish({}));
     this.preferencesReader = options.reader;
