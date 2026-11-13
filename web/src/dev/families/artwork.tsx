@@ -110,7 +110,7 @@ const cases = [
   {id: 'ambient-title', labelKey: 'next.artwork.case.ambient', width: 1440, height: 660, render: ambient('title', true)},
   {id: 'ambient-phone', labelKey: 'next.artwork.case.ambient', width: 390, height: 560, render: ambient('phone', true)},
   {id: 'ambient-poster', labelKey: 'next.artwork.case.ambient', width: 858, height: 236, render: ambient('poster', true)},
-  {id: 'ambient-empty', labelKey: 'next.artwork.case.ambient', width: 1440, height: 720, render: () => <Stage><AmbientArt /></Stage>},
+  {id: 'ambient-empty', labelKey: 'next.artwork.case.ambient', width: 1440, height: 720, render: () => <Stage><AmbientArt treatment="hero" /></Stage>},
   {id: 'ambient-palette', labelKey: 'next.artwork.case.ambient', width: 1440, height: 900, render: ambient('wash')},
   {id: 'ambient-library', labelKey: 'next.artwork.case.ambient', width: 1440, height: 620, render: ambient('library')},
   {id: 'ambient-artist', labelKey: 'next.artwork.case.ambient', width: 1440, height: 640, render: ambient('artist')},
