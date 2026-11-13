@@ -361,6 +361,7 @@ export function parseDownloadOptions(raw: unknown, itemId: string): DownloadOpti
         targetDisplayHeight: 0, maxVideoBitrateBps: 0, maxAudioBitrateBps: 0, preparedProfileId: '', preparedVersionId: '', preparationId: '', preparationState: ''});
     });
     if (!choices.length) invalid();
+    choices.sort((a, b) => Number(b.quality === raw.default) - Number(a.quality === raw.default));
     const original = choices.find(o => o.quality === 'original');
     return Object.freeze({itemId, kind: raw.kind, options: Object.freeze(choices), policy: Object.freeze({allowDownloads: true, reason: ''}),
       source: Object.freeze({container: '', videoCodec: '', audioCodec: '', height: 0, durationSeconds: 0, bytes: original?.estimatedBytes ?? 0, available: original?.available ?? false}),

@@ -11,6 +11,16 @@ test('the rebuilt quality menu offers its real sizes, preparation and room throu
   assert.equal(s.calls[0]!.path, '/v1/items/itm_film/download-options');
 });
 
+test('the server default is the first choice for title and container sheets', async t => {
+  const service = new DownloadsService({request: async <T>() => ({...menu, default: '720p-low'}) as T});
+  t.after(() => service.dispose());
+  const title = await service.options('itm_film');
+  const container = await service.containerOptions({id: 'itm_film', kind: 'show'}, 'device', {episodes: 'all'});
+  assert.deepEqual(title.options.map(o => o.quality), ['720p-low', 'original']);
+  assert.deepEqual(container.options.map(o => o.quality), ['720p-low', 'original']);
+  assert.equal(title.source.bytes, 100, 'the original size still describes the source');
+});
+
 test('list, request, file, pause and remove use the rebuilt routes without an obsolete background request', async t => {
   const s = server(), service = new DownloadsService(s.api, () => 'intent', 5000, 'profile'); t.after(() => service.dispose());
   assert.equal((await service.qualities()).some(q => q.quality === 'original'), true);

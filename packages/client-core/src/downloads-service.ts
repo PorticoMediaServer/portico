@@ -133,7 +133,8 @@ export class DownloadsService {
   }
   async containerOptions(target: ContainerDownloadTarget, _deviceId: string, policy: ContainerDownloadPolicy, signal?: AbortSignal): Promise<GetContainerDownloadOptionsResponse> {
     const menu = await readDownloadOptions(this.api, target.id, {selection: policy.episodes, ...(policy.episodes === 'next' ? {keepNext: policy.keepNext} : {})}, signal);
-    return {target: {id: target.id, kind: target.kind}, total: menu.titles, options: menu.items.map(o => ({quality: o.quality, label: o.label, available: o.available, estimatedBytes: o.sizeBytes, estimated: o.estimated, sameAsOriginal: o.quality === 'original', unknownSizeCount: 0, unavailableCount: o.available ? 0 : menu.titles}))};
+    const choices = parseDownloadOptions(menu, target.id).options;
+    return {target: {id: target.id, kind: target.kind}, total: menu.titles, options: choices.map(o => ({quality: o.quality, label: o.label, available: o.available, estimatedBytes: o.estimatedBytes, estimated: o.estimated, sameAsOriginal: o.quality === 'original', unknownSizeCount: 0, unavailableCount: o.available ? 0 : menu.titles}))};
   }
   async request(target: DownloadTarget, quality = originalQuality, operationId?: string): Promise<DownloadBatch> {
     if (operationId !== undefined && !/^[A-Za-z0-9_-]{1,160}$/.test(operationId)) throw new Error('A download request needs a stable operationId.');
