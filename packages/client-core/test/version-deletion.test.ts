@@ -1,9 +1,16 @@
 // Delete this version… (03-scanning rules 64-66): the server's preview of this exact version, then the delete.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {deleteVersionFiles, previewVersionDeletion} from '../src/administration.ts';
+import {deleteVersionFiles, previewVersionDeletion, versionDeletionRefusal} from '../src/administration.ts';
+import {ApiError} from '../src/http.ts';
 
 const preview = {title: 'Roses Above the Quiet City', titles: 0, files: 1, bytes: 105083, listEntries: 2, otherPeople: 3, alsoRemoves: []};
+test('only a server-supplied version refusal becomes a screen sentence', () => {
+  const reason = 'Deleting files is turned off for this library.';
+  assert.equal(versionDeletionRefusal(new ApiError(403, 'deleting_not_allowed', reason)), reason);
+  assert.equal(versionDeletionRefusal(new ApiError(403, 'forbidden', 'Request failed (403).')), undefined);
+  assert.equal(versionDeletionRefusal(new Error(reason)), undefined);
+});
 function server(answers: Record<string, unknown>) {
   const calls: string[] = [];
   return {calls, api: {async request<T>(path: string, method = 'GET'): Promise<T> {calls.push(method + ' ' + path); return answers[method + ' ' + path] as T;}}};

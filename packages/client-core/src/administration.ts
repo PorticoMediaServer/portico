@@ -1,5 +1,6 @@
 import type {GuideChannelMark} from './channel-guide.ts';
 import {callServer} from './query/server-api.ts';
+import {ApiError} from './http.ts';
 import {CodedError} from './server-messages.ts';
 import {parsePersistedRemoteConfiguration, type PersistedRemoteConfiguration} from './linear-api.ts';
 import {parseInventorySource,type InventorySource} from './library-inventory.ts';
@@ -484,6 +485,10 @@ type VersionApi=Readonly<{request<T>(path:string,method?:string,body?:unknown,si
 /** One preview per press of Delete (see VersionDeletion). Owner only. */
 export async function previewVersionDeletion(api:VersionApi,versionId:string,signal?:AbortSignal):Promise<VersionDeletion>{
  return parseVersionDeletion(versionId,await callServer(api,'GET /v1/admin/versions/{id}/deletion',{id:versionId,signal}));
+}
+/** An owner's version-deletion refusal, when the server supplied an actionable sentence. */
+export function versionDeletionRefusal(error:unknown):string|undefined{
+ return error instanceof ApiError&&error.message&&error.message!==`Request failed (${error.status}).`?error.message:undefined;
 }
 /** Deletes the previewed version's files from disk. A file that changed since the server last read it, or could not be
  * deleted, is kept, and so is its title: the receipt says so. */
