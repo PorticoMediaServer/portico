@@ -224,6 +224,32 @@ async function playback(page, requests) {
       await second.getByRole('button', {name: 'Close player'}).first().click({force: true}).catch(() => {});
     } finally {await other.close();}
   });
+  // On a phone the title body sits under the picture; the seek line's touch area runs past the picture's bottom edge,
+  // so the line must stay on top there, and the body's own controls must stay reachable.
+  await step('on a phone the whole seek line can be touched, and the title below keeps its own controls', async () => {
+    for (const width of [390, 360]) {
+      const phone = await browser.newContext({viewport: {width, height: 844}, hasTouch: true, isMobile: true}), small = await phone.newPage();
+      try {
+        await signIn(small);
+        await small.waitForTimeout(1500);
+        await openTitle(small, films.direct);
+        await small.getByRole('button', {name: /^(Play|Resume)/}).first().tap();
+        await advances(small, `The film at ${width}`);
+        await small.touchscreen.tap(width / 2, 100); await small.waitForTimeout(400);
+        const hits = await small.evaluate(() => {
+          const line = [...document.querySelectorAll('input[type=range]')].find(input => /position/i.test(input.getAttribute('aria-label') ?? ''));
+          if (!line) return null;
+          const box = line.getBoundingClientRect(), at = y => document.elementFromPoint(box.left + box.width / 2, y) === line;
+          // The title's own heading, its actions beside it and its tabs: the controls under the player that must stay its own.
+          const heading = document.querySelector('[data-watch-retained-body] h1'), own = heading ? [heading, ...(heading.parentElement?.querySelectorAll('button') ?? []), ...document.querySelectorAll('[data-watch-retained-body] [role=tab]')] : [];
+          const body = own.filter(node => {const r = node.getBoundingClientRect(); return r.width > 0 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;});
+          return {centre: at(box.top + box.height / 2), lower: at(box.bottom - 2), body: body.length, bodyReachable: body.every(node => {const r = node.getBoundingClientRect(), hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return node === hit || node.contains(hit);})};
+        });
+        if (!hits?.centre || !hits.lower) throw new Error(`At ${width} px the seek line's centre or lower edge is covered: ${JSON.stringify(hits)}`);
+        if (!hits.body || !hits.bodyReachable) throw new Error(`At ${width} px the title below lost its own controls: ${JSON.stringify(hits)}`);
+      } finally {await phone.close();}
+    }
+  });
   await step('Play on a film the browser cannot play plays a converted stream', async () => {
     await openTitle(page, films.converted);
     await page.getByRole('button', {name: 'Play', exact: true}).first().click();

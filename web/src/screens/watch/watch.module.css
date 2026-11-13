@@ -70,7 +70,10 @@
 .volume { display: inline-flex; align-items: center; gap: 4px; margin-right: 12px; pointer-events: auto; }
 .volume > :last-child { width: 84px; }
 .center { display: none; }
-.body { position: absolute; inset: 100% 0 auto; visibility: hidden; pointer-events: none; }
+/* The title body under the picture (portrait, book, tabletop) paints below every layer of the player: the seek line's
+   touch area runs past the picture's bottom edge, and the body, a later sibling, would otherwise take those touches.
+   The player's own layers (picture, controls, notices, prompts) keep their order. .watch isolates, so this stays inside it. */
+.body { position: absolute; z-index: -1; inset: 100% 0 auto; visibility: hidden; pointer-events: none; }
 .notices { position: absolute; top: 104px; right: var(--watch-notice-right, 40px); pointer-events: auto; }
 /* A-08: the notice column (live notices and the loss notice) stays top right but moves beside an
    open Live mini guide (live-chrome .miniGuide: right 40 / 24, 440 wide) instead of over its rows. */
