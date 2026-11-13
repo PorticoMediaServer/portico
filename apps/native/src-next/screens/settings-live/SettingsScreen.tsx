@@ -21,11 +21,11 @@ import {COMMON_LANGUAGES, languageName, MAX_LANGUAGES} from '../../../../../pack
 import {localeChoices} from '../../../../../packages/client-core/src/presentation/region-choices';
 import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
 import {resetRecommendations} from '../../../../../packages/client-core/src/recommendation-feedback';
-import {nextIcons} from '../../../../../packages/design/src/next-icons';
+import {nativeSettingsIcon} from './settings-icon';
 import {Button, Focusable, Select, Switch, TextField} from '../../kit/controls';
 import {FocusRegion, useCovered, useFocusRegistry} from '../../kit/focus';
 import {Icon, type IconName} from '../../kit/Icon';
-import {ChoiceMatrix, SettingsRow, SettingsRowTargetContext, SettingsSheet, SettingsSearchResults, LanguageList, ShortcutTiles, type LanguageOption, type SettingsRowTargeting} from '../../kit/shell';
+import {ChoiceMatrix, SettingsRow, SettingsRowTargetContext, SettingsSectionLabel, SettingsSheet, SettingsSearchResults, LanguageList, ShortcutTiles, type LanguageOption, type SettingsRowTargeting} from '../../kit/shell';
 import {ProfileFace, StandardBackdrop} from '../../kit/artwork';
 import {shellType} from '../../kit/shell/visual';
 import {useTheme} from '../../kit/theme';
@@ -81,11 +81,6 @@ const noFocusSnapshot = () => 0;
 /** settings.html wins over the structure's group order. */
 const serverPageOrder = ['general', 'dashboard', 'history', 'libraries', 'remote-sources', 'metadata', 'segments', 'live', 'people', 'signin', 'remote', 'integrations', 'streaming', 'storage', 'troubleshooting'];
 
-/** Same icon normalization as settings.html: strip one leading i-, look up, fall back. */
-export function nativeSettingsIcon(name: string): IconName {
-  const key = `i-${name.replace(/^i-/, '')}`;
-  return Object.hasOwn(nextIcons, key) ? key as IconName : 'i-sliders';
-}
 
 /** A page Settings can open on: Profile & account, or a server page a route names. */
 export type NativeSettingsInitialPage = 'profile' | NonNullable<Extract<NativeShellRoute, {kind: 'server-settings'}>['page']>;
@@ -411,7 +406,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
                 {sheetShortcuts.length > 0 && <ShortcutTiles testID="settings-shortcuts" actions={sheetShortcuts}/>}
               </>}
               <FocusRegion id={column} entry={orderedPages[0].id} order={orderedPages.map(value => value.id)} orientation="vertical" edges={{left: ids.rail, right: rows, up: searchField}} onLayout={enter}>
-                <Text style={[shellType(theme.isTV ? 20 : 13, 600), {color: theme.colors.textTertiary, marginLeft: 20, marginBottom: 10}]}>{t('settings.heading.account')}</Text>
+                <SettingsSectionLabel label={t('settings.heading.account')} first={!compact}/>
                 {theme.isTV
                   ? tvPageGroups.map((group, index) => <React.Fragment key={group.join('-')}>
                       {index > 0 && <View style={{height: 26}}/>}

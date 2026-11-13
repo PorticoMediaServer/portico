@@ -32,14 +32,23 @@ export function ShortcutTiles({actions, testID}: {testID?: string; actions: read
 }
 
 /** The accepted sheet owns gesture/back/focus lifecycles. Real settings content is supplied by the caller. */
+/** One surface: a sheet that draws a background under its header (Settings' standard backdrop) shows it under its body too, so
+ * the header, the search field's row and the list sit on the same colour (owner, 13 Nov). Without one the body is ink. */
 export function SettingsSheet({profile, shortcuts, children, ...surface}: Omit<BottomSheetProps, 'title' | 'children'> & {profile: ReactNode; shortcuts: ReactNode; children: ReactNode}) {
   const theme = useTheme();
   const {height} = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const page = surface.host === 'inline' && surface.presentation === 'page';
-  return <BottomSheet {...surface} title={defaultI18n.t('web.shell.settings')} detents={surface.detents ?? [height - Math.max(insets.top, 62)]} contentStyle={[{backgroundColor: theme.colors.ink}, surface.contentStyle]} style={[{backgroundColor: theme.colors.ink}, page ? undefined : {borderTopLeftRadius: 16, borderTopRightRadius: 16}, surface.style]} headerAction={<Button testID={controlID(surface.testID, 'done')} variant="text" size="small" onPress={() => surface.onOpenChange(false, 'close-button')} style={{height: 32, paddingHorizontal: 8}} textStyle={shellType(16, 700)}>{defaultI18n.t('action.done')}</Button>}>
+  return <BottomSheet {...surface} title={defaultI18n.t('web.shell.settings')} detents={surface.detents ?? [height - Math.max(insets.top, 62)]} contentStyle={[surface.surfaceBackground ? undefined : {backgroundColor: theme.colors.ink}, surface.contentStyle]} style={[{backgroundColor: theme.colors.ink}, page ? undefined : {borderTopLeftRadius: 16, borderTopRightRadius: 16}, surface.style]} headerAction={<Button testID={controlID(surface.testID, 'done')} variant="text" size="small" onPress={() => surface.onOpenChange(false, 'close-button')} style={{height: 32, paddingHorizontal: 8}} textStyle={shellType(16, 700)}>{defaultI18n.t('action.done')}</Button>}>
     {profile}{shortcuts}{children}
   </BottomSheet>;
+}
+
+/** A settings list's section label ("Account"): phone-app `.sec`, 13.5/700 with 22 pt above it and 8 below. `first` drops the
+ * space above when nothing sits over it. */
+export function SettingsSectionLabel({label, first = false}: {label: string; first?: boolean}) {
+  const theme = useTheme();
+  return <Text style={[shellType(theme.isTV ? 20 : 13.5, 700), {marginTop: first ? 0 : 22, marginBottom: 8, marginLeft: 20, color: theme.colors.textTertiary}]}>{label}</Text>;
 }
 
 /** Navigation carries a setting's state, never a summary count. Major issues must be known for this exact row. */
@@ -76,7 +85,7 @@ export function SettingsNav({accountPages, serverPages, viewerRole, serverName, 
   </View>;
   if (searchResults) return <View style={style}>{search}<SettingsSearchResults testID={controlID(testID, 'search')} {...searchResults}/></View>;
   return <View style={style}>{search}
-    {currentMode !== 'server' && <><Text style={[shellType(theme.isTV ? 20 : 13.5, 700), {marginTop: 22, marginBottom: 8, marginLeft: 20, color: theme.colors.textTertiary}]}>{defaultI18n.t('settings.heading.account')}</Text><View style={{marginHorizontal: theme.isTV ? 0 : 16, borderRadius: 14, overflow: 'hidden', backgroundColor: theme.isTV ? 'transparent' : theme.colors.raised}}>{accountPages.map((page, index) => row(page, false, index, accountPages[index - 1]))}</View></>}
+    {currentMode !== 'server' && <><SettingsSectionLabel label={defaultI18n.t('settings.heading.account')}/><View style={{marginHorizontal: theme.isTV ? 0 : 16, borderRadius: 14, overflow: 'hidden', backgroundColor: theme.isTV ? 'transparent' : theme.colors.raised}}>{accountPages.map((page, index) => row(page, false, index, accountPages[index - 1]))}</View></>}
     {currentMode !== 'account' && pages.length > 0 && <View style={{marginTop: 20, marginHorizontal: theme.isTV ? 0 : 16, borderRadius: theme.isTV ? 20 : 14, overflow: 'hidden', backgroundColor: theme.colors.raised, borderWidth: 1, borderColor: alpha(theme.colors.accentStrong, .28)}}>
       <View style={{backgroundColor: alpha(theme.colors.accent, .1), borderBottomWidth: 1, borderBottomColor: alpha(theme.colors.accentStrong, .22)}}><ServerHeader serverName={serverName} viewerRole={viewerRole} audience={viewerRole === 'administrator' ? 'administrators' : 'owner'} variant={theme.isTV ? 'group' : 'phone'} style={theme.isTV ? {padding: 20} : undefined}/></View>
       {pages.map((page, index) => row(page, true, index, pages[index - 1]))}
