@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode} from 'react';
 import {ApiError} from '@core/http.ts';
 import {dataFolderConfirmText} from '@core/admin/data-folder.ts';
+import {dashboardAlertWords} from '@core/admin/dashboard-alert-words.ts';
 import {jobName} from '@core/server-admin/console-catalogue.ts';
 import type {MessageId} from '@i18n';
 import {DASHBOARD_LOAD_RANGES, DASHBOARD_LOAD_SERIES, type DashboardStatus} from '@core/admin/dashboard.ts';
@@ -159,7 +160,6 @@ function Load({bindings: b, report, live, phone = false}: {bindings: DashboardBi
     </div>
   </Section>;
 }
-const alertCopy: Record<string, MessageId> = {update_available: 'next.dashboard.updateAvailable', upload_budget_exhausted: 'next.dashboard.uploadAlert', state_permissions: 'next.dashboard.permissionsAlert', data_folder_readable: 'next.dashboard.permissionsAlert', storage_nearly_full: 'next.dashboard.storageAlert', backup_failed: 'next.dashboard.backupAlert', library_unreachable: 'next.dashboard.sourceAlert', remote_unreachable: 'next.dashboard.sourceAlert', secure_renewal_failed: 'next.dashboard.certificateAlert'};
 const alertDestinations: Record<string, {section: string; label: MessageId}> = {
   streaming: {section: 'streaming', label: 'next.dashboard.streaming'},
   networking: {section: 'remote', label: 'next.dashboard.remote'},
@@ -192,11 +192,13 @@ function Status({bindings: b, status, phone = false}: {bindings: DashboardBindin
     footer={<><Button variant="glass" disabled={!!busy} onClick={() => setConfirm(undefined)}>{t('next.dashboard.cancel')}</Button><Button disabled={!!busy} onClick={() => void fix()}>{t('next.dashboard.fixPermissions')}</Button></>}>
     {refusal && <p role="alert">{refusal}</p>}
   </Dialog>;
-  const text = (alert: DashboardAlert) => alertCopy[alert.code] ? t(alertCopy[alert.code], {version: alert.params.latest ?? '', count: alert.count ?? 0}) : alert.params.message || t('next.dashboard.unknownAlert');
-  const detail = (alert: DashboardAlert) => alert.params.message || (alert.code === 'data_folder_readable' ? undefined : alert.params.reason);
+  // The words phone, TV and web share (client-core dashboardAlertWords).
+  const text = (alert: DashboardAlert) => dashboardAlertWords(alert, t).title;
+  const detail = (alert: DashboardAlert) => dashboardAlertWords(alert, t).detail;
   const action = (alert: DashboardAlert, update: boolean, destination: {section: string; label: MessageId}) => {
-    if (!alertCopy[alert.code] || alert.action.kind === 'none') return null;
-    if (alert.code === 'data_folder_readable') return alert.action.kind === 'fix-permissions' && b.effects.fixPermissions && alert.params.owner && alert.params.path
+    const words = dashboardAlertWords(alert, t);
+    if (!words.known || alert.action.kind === 'none') return null;
+    if (alert.code === 'data_folder_readable') return words.fixPermissions && b.effects.fixPermissions
       ? <Button size="xs" disabled={!!busy} onClick={() => {setRefusal(''); setConfirm(alert);}}>{t('next.dashboard.fixPermissions')}</Button> : null;
     return <>
       {alert.code === 'secure_renewal_failed' && b.effects.retryCertificate && <Button size="xs" variant="glass" disabled={!!busy} onClick={() => void retry(alert)}>{t('next.dashboard.retry')}</Button>}
@@ -212,14 +214,14 @@ function Status({bindings: b, status, phone = false}: {bindings: DashboardBindin
         const severity = alert.severity.toLowerCase(), severityKey = ['warning', 'critical', 'error', 'info', 'notice'].includes(severity) ? severity : 'info';
         return <article className={styles.phoneAlert} key={`${alert.code}-${index}`} data-major={alert.major || undefined} data-info={update || undefined}>
           <span className={styles.phoneSeverity} data-severity={severityKey}>{t(`server.severity.${severityKey}` as MessageId)}</span>
-          <b>{sentence}</b>{alertCopy[alert.code] && detail(alert) && <p>{detail(alert)}</p>}{alert.params.subject && <p>{alert.params.subject}</p>}
+          <b>{sentence}</b>{detail(alert) && <p>{detail(alert)}</p>}{alert.params.subject && <p>{alert.params.subject}</p>}
           <div className={styles.phoneAlertActions}>{action(alert, update, destination)}</div>
         </article>;
       })}</div>}
     </Section></div> : null}{confirmation}</>;
   return <>{(status.loading || status.failed || !!alerts.length || quiet) && <div data-dashboard-section="updates">{quiet && <Section title={t('next.dashboard.alerts')}><DashboardQuiet kind="alerts" /></Section>}<ReadFeedback height={56} openHome={b.effects.openHome} state={status} />{!!alerts.length && <section className={styles.alerts} aria-label={t('next.dashboard.alerts')}>{alerts.map((alert, index) => {
     const update = alert.action.kind === 'update', destination = alertDestinations[alert.action.kind] ?? {section: 'troubleshooting', label: 'next.dashboard.troubleshooting' as const}, sentence = text(alert);
-    return <div className={styles.alert} key={`${alert.code}-${index}`} data-major={alert.major || undefined}><span className={styles.alertIcon} data-info={update || undefined}><Icon name={update ? 'i-arrow-up' : 'i-alert'} size={18} /></span><b>{sentence}</b>{alertCopy[alert.code] && detail(alert) && <span>{detail(alert)}</span>}{alert.params.subject && <span>{alert.params.subject}</span>}
+    return <div className={styles.alert} key={`${alert.code}-${index}`} data-major={alert.major || undefined}><span className={styles.alertIcon} data-info={update || undefined}><Icon name={update ? 'i-arrow-up' : 'i-alert'} size={18} /></span><b>{sentence}</b>{detail(alert) && <span>{detail(alert)}</span>}{alert.params.subject && <span>{alert.params.subject}</span>}
       {action(alert, update, destination)}
     </div>;
   })}</section>}</div>}{confirmation}
