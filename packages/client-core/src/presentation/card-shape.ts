@@ -16,7 +16,7 @@ export type CardShape = 'poster' | 'square' | 'landscape' | 'circle';
 export type ShapeContext = 'shelf' | 'grid' | 'list' | 'showWorkspace' | 'detailExtras' | 'hero';
 
 /** The library family a card belongs to, when the kind alone is ambiguous (collections, categories). */
-export type ShapeFamily = 'movie' | 'tv' | 'anime' | 'audiobook' | 'music';
+export type ShapeFamily = 'movie' | 'tv' | 'anime' | 'audiobook' | 'music' | 'book' | 'comic';
 
 const musicKinds: ReadonlySet<ContentEntryKind> = new Set(['artist', 'album', 'song', 'disc']);
 const bookKinds: ReadonlySet<ContentEntryKind> = new Set(['book', 'audiobook_file', 'book_series', 'chapter']);
@@ -27,6 +27,9 @@ export function shapeFor(kind: ContentEntryKind, context: ShapeContext = 'shelf'
   if (kind === 'episode') return context === 'showWorkspace' ? 'landscape' : 'poster';
   if (kind === 'extra') return context === 'detailExtras' || context === 'showWorkspace' ? 'landscape' : 'poster';
   if (kind === 'artist') return context === 'hero' ? 'circle' : 'square';
+  // A book or comic series is drawn with book covers, 2:3 like every reading card; the square
+  // series is the audiobook's (the lead's ruling, 13 Nov).
+  if (kind === 'book_series' && (family === 'book' || family === 'comic')) return 'poster';
   if (musicKinds.has(kind) || bookKinds.has(kind)) return 'square';
   if (personKinds.has(kind)) return 'circle';
   if ((kind === 'collection' || kind === 'category') && (family === 'music' || family === 'audiobook')) return 'square';

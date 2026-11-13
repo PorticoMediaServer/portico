@@ -137,7 +137,7 @@ const authors = (operator: string, value: unknown): string => {
 };
 
 /** The server's list for a tab with these filters and this order. The filters all apply together; anything else is refused. */
-export function libraryItemQuery(library: Readonly<{id: string; views?: WireLibrary['views']}>, pivotId: string, nodes: readonly BrowseNode[], sorts: readonly BrowseSortSelection[]): ItemListQuery {
+export function libraryItemQuery(library: Readonly<{id: string; views?: WireLibrary['views']; /** The library's kind as the capabilities name it (book, comic, audiobook). */ kind?: string}>, pivotId: string, nodes: readonly BrowseNode[], sorts: readonly BrowseSortSelection[]): ItemListQuery {
   if (library.id === acrossLibraries && pivotId === genreTitlesPivot) return genreTitlesQuery(nodes, sorts);
   const candidates = pivots.filter(each => each.id === pivotId && (!library.views || library.views.some(view => view.kind === each.kind)));
   const pivot = candidates[0];
@@ -145,6 +145,9 @@ export function libraryItemQuery(library: Readonly<{id: string; views?: WireLibr
   // Books is an audiobook library's tab and a book library's. Without the library's lists, both
   // kinds are asked for: each library holds only its own, so the list is that library's books.
   const query: Record<string, unknown> = {library: library.id, kind: candidates.length > 1 ? candidates.map(each => each.lists ?? each.kind).join(',') : pivot.lists ?? pivot.kind};
+  // A Books library's Series are its book series: its magazines and newspapers are series on the
+  // server too, but they have their own tabs, so they are not listed here twice.
+  if (pivot.id === 'series' && (library.kind === 'book' || library.views?.some(view => view.kind === 'book'))) query.publication = 'book';
   const add = (node: BrowseNode): void => {
     if ('all' in node) { node.all.forEach(add); return; }
     if (!('field' in node)) { unsupported(); return; }
