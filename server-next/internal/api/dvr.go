@@ -88,6 +88,8 @@ type DvrRecordingChange struct {
 
 // DvrOverview is the Recordings header: counts, space and the keep rule in force.
 type DvrOverview struct {
+	Rules     int    `json:"rules"`
+	Groups    int    `json:"groups"`
 	Upcoming  int    `json:"upcoming"`
 	Recorded  int    `json:"recorded"`
 	Unwatched int    `json:"unwatched"`
@@ -129,6 +131,7 @@ type DvrTuners struct {
 }
 
 func (s *Server) dvrRoutes() {
+	s.dvrGroupRoutes()
 	Handle(s, "GET /v1/dvr", WithProfile, s.dvrSummary)
 	Handle(s, "GET /v1/dvr/recordings", WithProfile, s.listRecordings)
 	Handle(s, "POST /v1/dvr/recordings", WithProfile, s.bookRecording)
@@ -246,7 +249,11 @@ func (s *Server) dvrSummary(r *http.Request, _ None) (DvrOverview, error) {
 		return DvrOverview{}, err
 	}
 	ctx := r.Context()
-	counts, err := s.db.RecordingCounts(ctx, viewer(r))
+	scope, err := s.recordingReadScope(r, lv)
+	if err != nil {
+		return DvrOverview{}, err
+	}
+	counts, err := s.db.RecordingOverviewTotals(ctx, scope)
 	if err != nil {
 		return DvrOverview{}, err
 	}
@@ -259,7 +266,7 @@ func (s *Server) dvrSummary(r *http.Request, _ None) (DvrOverview, error) {
 		return DvrOverview{}, err
 	}
 	opts := s.dvrOptions()
-	out := DvrOverview{Recorded: counts.Recorded, Unwatched: counts.Unwatched, KeepRule: keepRule(opts), CanRecord: lv.Record,
+	out := DvrOverview{Recorded: counts.Recorded, Unwatched: counts.Unwatched, Rules: counts.Rules, Groups: counts.Groups, KeepRule: keepRule(opts), CanRecord: lv.Record,
 		FloorBytes: opts.Floor, CapBytes: opts.Cap, KeepDays: opts.KeepDays, KeepNewest: opts.KeepNewest}
 	if lib, err := s.recorder.Library(ctx); err == nil {
 		if out.UsedBytes, err = s.db.RecordedBytes(ctx, lib.ID); err != nil {
@@ -284,6 +291,9 @@ func (s *Server) dvrSummary(r *http.Request, _ None) (DvrOverview, error) {
 	out.UpcomingHours = int((upcomingMs + int64(time.Hour/time.Millisecond) - 1) / int64(time.Hour/time.Millisecond))
 	// Upcoming and conflicts count only the bookings this profile may see.
 	for _, rec := range upcoming {
+		if !scope.Everyone && rec.ProfileID != scope.Viewer.ProfileID && !slices.Contains(rec.AlsoWantedBy, scope.ProfilePub) {
+			continue
+		}
 		if ok, err := s.maySeeRecording(ctx, r, lv, rec); err != nil {
 			return DvrOverview{}, err
 		} else if ok {
@@ -372,13 +382,15 @@ func (s *Server) listRecordings(r *http.Request, _ None) (Page[DvrRecording], er
 	query := r.URL.Query()
 	state := query.Get("state")
 	q := db.RecordingQuery{Upcoming: state != "history" && state != "recorded", Made: state == "recorded", Limit: 50}
-	names, err := s.db.ProfileNames(ctx, viewer(r).ProfileID)
+	if query.Has("group") {
+		group := query.Get("group")
+		q.Group = &group
+	}
+	scope, err := s.recordingReadScope(r, lv)
 	if err != nil {
 		return Page[DvrRecording]{}, err
 	}
-	if query.Get("scope") != "everyone" {
-		q.ProfileID, q.ProfilePub = viewer(r).ProfileID, names.PublicID
-	}
+	q.Scope = &scope
 	var c struct {
 		After int64  `json:"a"`
 		ID    int64  `json:"i"`
@@ -408,11 +420,7 @@ func (s *Server) listRecordings(r *http.Request, _ None) (Page[DvrRecording], er
 	}
 	out := Page[DvrRecording]{Items: []DvrRecording{}}
 	for _, row := range rows {
-		if ok, err := s.maySeeRecording(ctx, r, lv, row); err != nil {
-			return Page[DvrRecording]{}, err
-		} else if ok {
-			out.Items = append(out.Items, s.withMay(r, s.withClash(lv, s.recordingOut(ctx, row, false, items), clashes, row.ID, own), row, names.PublicID))
-		}
+		out.Items = append(out.Items, s.withMay(r, s.withClash(lv, s.recordingOut(ctx, row, false, items), clashes, row.ID, own), row, scope.ProfilePub))
 	}
 	if len(rows) == q.Limit {
 		last := rows[len(rows)-1]
