@@ -6,8 +6,8 @@ export {ReaderPanel, ReaderContents, ReaderAnnotations} from '../../kit/reader/R
 export type {ReaderPanelProps, ReaderPanelTab, ReaderContentsEntry, ReaderAnnotationEntry} from '../../kit/reader/ReaderPanel';
 export {ReaderSearch, ReaderBookmarks} from '../../kit/reader/ReaderSearch';
 export type {ReaderSearchProps, ReaderSearchHit, ReaderBookmarkEntry} from '../../kit/reader/ReaderSearch';
-export {ReadBookHero, ReadBookFacts, ReadBookSections} from '../../kit/reader/ReadBookHero';
-export type {ReadBookHeroProps, ReadDetailFact} from '../../kit/reader/ReadBookHero';
+export {ReadBookFacts, ReadBookSections} from '../../kit/reader/ReadBookHero';
+export type {ReadDetailFact} from '../../kit/reader/ReadBookHero';
 export {ReaderSurface} from './ReaderSurface';
 export type {ReaderSurfaceProps} from './ReaderSurface';
 export type {ReaderHostController, ReaderMountAuthority} from './mount';

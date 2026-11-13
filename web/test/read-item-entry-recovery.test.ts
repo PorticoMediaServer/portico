@@ -18,7 +18,7 @@ const pdf = {sourceId: 'pdf-source', format: 'pdf' as const, size: 1200, invento
 
 const Menu = (props: any) => props.open ? {type: 'Menu', props} : null;
 const MenuGroup = (props: any) => ({type: 'MenuGroup', props});
-const ReadBookHero = (props: any) => ({type: 'ReadBookHero',
+const CoverHero = (props: any) => ({type: 'CoverHero',
   props: {...props, children: [props.children, props.actions, props.under].filter(Boolean)}});
 const i18n = {t: (key: string) => key, bytes: (value: number) => `${value} B`, number: (value: number) => String(value),
   duration: (value: number) => `${value}s`, percent: (value: number) => `${value}%`};
@@ -46,7 +46,7 @@ async function mountRead(options: {canGoBack?: boolean; phone?: boolean; open?: 
   let context: any = {
     isCurrent: () => current,
     effects: {back: () => calls.push('back'), openHome: () => calls.push('home'), reportError: (error: unknown) => calls.push(`error:${String(error)}`)},
-    artwork: {foreground: (path: string) => path},
+    artwork: {foreground: (path: string) => path, ambient: () => undefined},
     session: () => ({viewer: {authority: 'local', role: 'owner', serverId: 's', accountId: 'a', profileId: 'p'}}),
     preferences: {getSnapshot: () => ({}), subscribe: () => () => {}},
   };
@@ -80,7 +80,9 @@ async function mountRead(options: {canGoBack?: boolean; phone?: boolean; open?: 
     '../../kit/overlays/shared': {usePhone: () => phone},
     '../detail/context': {runScreenCommand: (_context: any, command: () => void) => command()},
     '../../kit/states': {Skeleton: 'Skeleton', StateView: 'StateView'},
-    '../../kit/reader/ReadBookHero': {ReadBookFacts: 'ReadBookFacts', ReadBookHero, ReadBookSections: 'ReadBookSections'},
+    '../../kit/reader/ReadBookHero': {ReadBookFacts: 'ReadBookFacts', ReadBookSections: 'ReadBookSections'},
+    '../../kit/title/CoverHero': {CoverHero, CoverHeroLink: 'CoverHeroLink'},
+    '../../kit/artwork': {GeneratedCover: 'GeneratedCover'},
     '../../kit/shell': {ServerMark: 'ServerMark'},
     '../browse/screen-context': {useLibraryScreenContext: () => screenContext},
     './ReadMetadata': {ReadMetadata: 'ReadMetadata'},
@@ -151,7 +153,7 @@ test('actual ReadItemEntry failure chooser selects B and only B publishes', asyn
   versionButton(f).props.onClick(); f.flat();
   versionItem(f, 'PDF').props.onSelect(); f.flat(); await f.settle();
   assert.deepEqual(f.openCalls, [epub.sourceId, pdf.sourceId]);
-  const hero = one(f.flat(), 'ReadBookHero');
+  const hero = one(f.flat(), 'CoverHero');
   assert.ok(String(hero.props.title).includes(pdf.sourceId), 'the ready hero is B');
   assert.equal(String(hero.props.title).includes(epub.sourceId), false, 'A never published');
 });
@@ -165,7 +167,7 @@ test('actual ReadItemEntry ignores a stale A response after B opens', async () =
   versionItem(f, 'PDF').props.onSelect(); f.flat(); await f.settle();
   assert.deepEqual(f.openCalls, [epub.sourceId, pdf.sourceId]);
   a.resolve(makeSession(epub.sourceId)); await f.settle();
-  const hero = one(f.flat(), 'ReadBookHero');
+  const hero = one(f.flat(), 'CoverHero');
   assert.ok(String(hero.props.title).includes(pdf.sourceId), 'stale A publication cannot replace B');
 });
 
