@@ -254,7 +254,7 @@ export function repeat(task: (signal: AbortSignal) => Promise<ServerFloor | void
 
 export function playbackCapacityDelay(response: V1Response): number | undefined {
   const error = (response.body as {error?: {code?: unknown; retry?: unknown; retryAfterMs?: unknown}} | undefined)?.error;
-  if (response.status !== 429 || error?.code !== 'conversion_capacity' || error.retry !== 'same_request') return;
+  if (response.status !== 429 || error?.code !== 'conversion_capacity' || (error.retry !== true && error.retry !== 'same_request')) return;
   const seconds = Object.entries(response.headers).find(([name]) => name.toLowerCase() === 'retry-after')?.[1];
   const delay = seconds && /^\d+$/.test(seconds) ? Number(seconds) * 1000 : error.retryAfterMs;
   return typeof delay === 'number' && Number.isSafeInteger(delay) && delay > 0 ? delay : undefined;
