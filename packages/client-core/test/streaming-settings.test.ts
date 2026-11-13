@@ -147,3 +147,97 @@ test('working space reads seconds and saves the same seconds without changing th
   assert.deepEqual(f.calls.filter(c => c.method === 'PUT').map(c => c.body),
     [{convertAheadSeconds: 600}, {keepForRewindingSeconds: 180}, {spacePerStreamMiB: 16384}, {memoryLimit: '4gb'}]);
 });
+
+test('the per-device graphics cap reads Automatic and saves the owner cap', async () => {
+  const f = fixture();
+  const source = new OwnerStreamingSettings({...f.api, request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    const doc: any = await f.api.request(path, method, body);
+    if (path.endsWith('/settings/streaming')) {
+      doc.values = {...doc.values, hardwareConversionsAtOnce: 2};
+      doc.defaults = {...doc.defaults, hardwareConversionsAtOnce: 0};
+    }
+    return doc;
+  }});
+  const configuration = await source.readConfiguration();
+  const value = readSettingsBinding(settingsBinding('streaming.maxHardwareConversions')!, {configuration}, 'streaming.maxHardwareConversions');
+  assert.equal(value?.current, '2');
+  assert.equal(value?.default, 'auto');
+  await source.save('streaming.maxHardwareConversions', 'auto');
+  assert.deepEqual(f.calls.at(-1)?.body, {hardwareConversionsAtOnce: 0});
+});
+
+test('the location choice keeps one custom path and does not change Memory when the folder is saved', async () => {
+  const f = fixture();
+  const source = new OwnerStreamingSettings({...f.api, request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    const doc: any = await f.api.request(path, method, body);
+    if (path.endsWith('/settings/streaming')) {
+      doc.values = {...doc.values, conversionLocation: 'folder'};
+      doc.defaults = {...doc.defaults, conversionLocation: 'separate'};
+    }
+    return doc;
+  }});
+  const configuration = await source.readConfiguration();
+  const value = readSettingsBinding(settingsBinding('streaming.transcodeLocation')!, {configuration}, 'streaming.transcodeLocation');
+  assert.equal(value?.current, 'folder');
+  assert.equal(value?.default, 'separate');
+  await source.save('streaming.transcodeLocation', 'memory');
+  assert.deepEqual(f.calls.at(-1)?.body, {conversionLocation: 'memory'});
+  await source.save('streaming.transcodeFolder', '/other');
+  assert.deepEqual(f.calls.at(-1)?.body, {conversionFolder: '/other'});
+});
+
+test('tone-map method reads the engine Mobius default and saves the actual algorithm', async () => {
+  const f = fixture();
+  const source = new OwnerStreamingSettings({...f.api, request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    const doc: any = await f.api.request(path, method, body);
+    if (path.endsWith('/settings/streaming')) {
+      doc.values = {...doc.values, toneMappingMethod: 'hable'};
+      doc.defaults = {...doc.defaults, toneMappingMethod: 'mobius'};
+    }
+    return doc;
+  }});
+  const configuration = await source.readConfiguration();
+  const value = readSettingsBinding(settingsBinding('streaming.toneMappingMethod')!, {configuration}, 'streaming.toneMappingMethod');
+  assert.equal(value?.current, 'hable');
+  assert.equal(value?.default, 'mobius');
+  await source.save('streaming.toneMappingMethod', 'reinhard');
+  assert.deepEqual(f.calls.at(-1)?.body, {toneMappingMethod: 'reinhard'});
+});
+
+test('native Streaming drafts save the real location and folder together, without moving a Memory server', async () => {
+  const values: Record<string, unknown> = {...defaults, conversionLocation: 'memory', conversionFolder: '/existing',
+    hardwareConversionsAtOnce: 0, convertAheadSeconds: 60, memoryLimit: 'quarter'};
+  const writes: Record<string, unknown>[] = [];
+  let revision = 1;
+  const f = fixture();
+  const source = new OwnerStreamingSettings({...f.api,
+    request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+      if (!path.endsWith('/settings/streaming')) return f.api.request<T>(path, method, body);
+      return {name: 'streaming', etag: `"${revision}"`, defaults: {...values, conversionLocation: 'separate', conversionFolder: ''}, values: {...values}} as T;
+    },
+    requestRaw: async (_path, _method, options) => {
+      if (options?.headers?.['If-Match'] !== `"${revision}"`) return {status: 412, headers: {}, body: {error: {code: 'changed_elsewhere'}}};
+      const change = options?.body as Record<string, unknown>; writes.push(change); Object.assign(values, change); revision++;
+      return {status: 200, headers: {}, body: {}};
+    },
+  });
+  const runtime = source.form('runtime'), connectivity = source.form('connectivity');
+  await runtime.load(); await connectivity.load();
+  assert.equal(runtime.getSnapshot().draft?.transcodeLocation, 'memory');
+  assert.equal(runtime.getSnapshot().draft?.temporaryDirectory, '/existing');
+  runtime.set({temporaryDirectory: '/new-spill', throttleBufferMs: 120000}); await runtime.save();
+  assert.deepEqual(writes.at(-1), {convertAheadSeconds: 120, conversionFolder: '/new-spill'});
+  assert.equal(values.conversionLocation, 'memory');
+  runtime.set({transcodeLocation: 'folder'}); await runtime.save();
+  assert.deepEqual(writes.at(-1), {conversionLocation: 'folder'});
+  assert.equal(values.conversionFolder, '/new-spill');
+  runtime.set({transcodeLocation: 'separate'}); await runtime.save();
+  assert.deepEqual(writes.at(-1), {conversionLocation: 'separate'});
+  assert.equal(values.conversionFolder, '/new-spill');
+  // This form still holds its first revision: the server refuses it, and the existing
+  // draft rebase saves only its upload edit against the fresh version.
+  connectivity.set({uploadCapacityKbps: 120000}); await connectivity.save();
+  assert.deepEqual(writes.at(-1), {uploadSpeedKbps: 120000});
+  assert.equal(values.conversionLocation, 'separate');
+  runtime.dispose(); connectivity.dispose();
+});

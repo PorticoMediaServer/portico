@@ -87,7 +87,7 @@ export function tvServerSettingGroups(state: TVServerSettingsState, groups: read
     if (row.id === 'streaming.transcodeLocation') {
       const fact = tvServerSettingFact(state, row);
       if (!fact) return [];
-      const {value, memoryAvailable} = transcodeLocationChoice(state.capacity?.temporaryDirectory, typeof fact.current === 'string' ? fact.current : undefined);
+      const {value, memoryAvailable} = transcodeLocationChoice(state.capacity?.temporaryDirectory, typeof fact.current === 'string' ? fact.current : undefined, state.drafts.runtime?.temporaryDirectory);
       const options: TVChoiceModel[] = (row.control.options ?? []).map(option => ({value: String(option.value), label: option.label, hint: option.hint}));
       const folder = row.children?.find(child => child.id === 'streaming.transcodeFolder');
       const stored = state.drafts.runtime?.temporaryDirectory;

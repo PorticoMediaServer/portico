@@ -118,3 +118,8 @@ test('How much to convert names cheapest and compatibility routes honestly in bo
  assert.deepEqual(settingsBindingPatch(binding,'least'),{form:'runtime',values:{planningPolicy:'maximum_fidelity'}});
  assert.deepEqual(settingsBindingPatch(binding,'most'),{form:'runtime',values:{planningPolicy:'maximum_compatibility'}});
 });
+
+test('Automatic is the hardware cap default; other conversion limits still say No limit',()=>{
+ assert.equal(readSettingsBinding(settingsBinding('streaming.maxHardwareConversions')!,{forms:{runtime:{maxHardwareSessions:0}}})?.current,'auto');
+ assert.equal(readSettingsBinding(settingsBinding('streaming.maxSoftwareConversions')!,{forms:{runtime:{maxSoftwareSessions:0}}})?.current,'unlimited');
+});

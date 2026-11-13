@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {maintenance} from './helpers/owner-server-settings.mjs';
+import {tvServerSettingsFacts} from '../src-next/screens/settings-live/server/tv-server-values';
+import {settingsSpecMessages} from '../../../packages/i18n/src/catalog/en-US/next/settings-spec';
 import {settingsSpec, settingsRowIndex} from '../../../packages/client-core/src/presentation/settings-spec';
 import {settingsBinding, settingsBindingPatch, applySettingsBindingPatch} from '../../../packages/client-core/src/presentation/settings-bindings';
 import {tvCustomChoiceValue, tvServerSettingGroups, tvServerSettingsSources, type TVServerSettingsState} from '../src-next/screens/settings-live/server/tv-server-settings-model';
@@ -167,13 +169,13 @@ for (const memoryAvailable of [true, false]) test(`Streaming on TV uses an expli
   const capacity = {hardware: {devices: [{id: 'drm-0a1b', name: 'Intel UHD 770', inUse: true}]}, temporaryDirectory: {path: '/var/portico/transcode', fallback: false, memoryPath: '/dev/shm', memoryAvailable, ready: true}} as any;
   const allIds = [...section('streaming').groups!, ...section('streaming').advanced!.groups!].flatMap(group => group.rows.flatMap(row => [row.id, ...(row.children ?? []).map(child => child.id)]));
   const configured = configuration(...allIds.map(id => field(id, null)));
-  for (const transcodeLocation of ['memory', 'disk']) {
+  for (const transcodeLocation of ['separate', 'memory', 'folder', 'disk']) {
     const drafts = {runtime: {conversionMode: 'all', hardwareSelection: 'drm-0a1b', hardwareDecode: true, transcodeLocation, memoryCap: 'half', temporaryDirectory: '/mnt/fast/convert'}, connectivity: {}};
     const streaming = state('streaming', drafts, {capacity, configuration: configured});
     const main = items(streaming);
     const location = main.find(item => item.id === 'streaming.transcodeLocation') as any;
-    assert.equal(location.value, transcodeLocation);
-    assert.deepEqual(location.options.map((option: any) => option.value), ['memory', 'disk']);
+    assert.equal(location.value, transcodeLocation === 'disk' ? 'folder' : transcodeLocation);
+    assert.deepEqual(location.options.map((option: any) => option.value), ['separate', 'memory', 'folder']);
     assert.ok(location.options.every((option: any) => !option.disabled), 'memory preference remains valid on a disk-only host');
     assert.equal(location.row.help, memoryAvailable ? settingsRowIndex.get('streaming.transcodeLocation')!.row.help : 'next.settings.streaming.memoryUnavailable');
     assert.equal((items(streaming, true).find(item => item.id === 'streaming.memoryCap') as any)?.value, transcodeLocation === 'memory' ? 'half' : undefined);
@@ -184,7 +186,16 @@ for (const memoryAvailable of [true, false]) test(`Streaming on TV uses an expli
     assert.equal(device.value, 'drm-0a1b');
     assert.ok(items(streaming, true).some(item => item.id === 'streaming.hardwareDecode'));
     const noCapacity = items(state('streaming', drafts, {configuration: configured})).find(item => item.id === 'streaming.transcodeLocation') as any;
-    assert.equal(noCapacity.value, transcodeLocation);
+    assert.equal(noCapacity.value, transcodeLocation === 'disk' ? 'folder' : transcodeLocation);
     assert.equal(noCapacity.row.help, 'next.settings.streaming.memoryUnavailable');
+  }
+});
+
+test('the TV read-only panel names the Separate folder default from the shared choices', () => {
+  const row = settingsRowIndex.get('streaming.transcodeLocation')!.row;
+  for (const [choice, label] of [['separate', 'Separate folder'], ['memory', 'Memory (RAM)'], ['folder', 'Choose a folder…']]) {
+    const facts = tvServerSettingsFacts(section('streaming'), id => id === row.id ? choice : undefined,
+      id => settingsSpecMessages[id as keyof typeof settingsSpecMessages], String);
+    assert.equal(facts.find(fact => fact.id === row.id)?.value, label);
   }
 });

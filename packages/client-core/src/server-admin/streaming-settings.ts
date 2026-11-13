@@ -3,8 +3,9 @@ import {throwIfAborted} from '../abort-lifetime.ts';
 import type {HttpLocalApi} from '../index.ts';
 import {callServer} from '../query/server-api.ts';
 import type {ConfigurationValue, SettingsConfiguration} from '../settings-configuration.ts';
-import {settingsBinding, settingsBindingPatch} from '../presentation/settings-bindings.ts';
+import {readSettingsBinding, settingsBinding, settingsBindingPatch} from '../presentation/settings-bindings.ts';
 import {unreadableServerResponse} from '../server-messages.ts';
+import {DraftForm} from './draft-form.ts';
 
 type DocumentName = 'streaming' | 'downloads';
 const rows: Readonly<Record<string, readonly [DocumentName | 'limits', string]>> = {
@@ -15,17 +16,20 @@ const rows: Readonly<Record<string, readonly [DocumentName | 'limits', string]>>
   'streaming.hardware': ['streaming', 'graphicsDevice'],
   'streaming.hardwareDecode': ['streaming', 'hardwareDecoding'],
   'streaming.maxConversions': ['streaming', 'conversionsAtOnce'],
+  'streaming.maxHardwareConversions': ['streaming', 'hardwareConversionsAtOnce'],
   'streaming.maxSoftwareConversions': ['streaming', 'processorConversionsAtOnce'],
   'streaming.maxBackgroundConversions': ['streaming', 'backgroundConversionsAtOnce'],
   'streaming.convertAhead': ['streaming', 'convertAheadSeconds'],
   'streaming.rewindKeep': ['streaming', 'keepForRewindingSeconds'],
   'streaming.sessionSpace': ['streaming', 'spacePerStreamMiB'],
   'streaming.memoryCap': ['streaming', 'memoryLimit'],
+  'streaming.toneMappingMethod': ['streaming', 'toneMappingMethod'],
   'streaming.toneMapping': ['streaming', 'toneMapping'],
   'streaming.encoderSpeed': ['streaming', 'encoderSpeed'],
   'streaming.whenCantPlay': ['streaming', 'planningPolicy'],
   'streaming.repackage': ['streaming', 'repackaging'],
   'streaming.outputFormat': ['streaming', 'conversionFormat'],
+  'streaming.transcodeLocation': ['streaming', 'conversionLocation'],
   'streaming.transcodeFolder': ['streaming', 'conversionFolder'],
   'streaming.ffmpegPath': ['streaming', 'ffmpegProgram'],
   'streaming.downloadQuality': ['downloads', 'highestQuality'],
@@ -56,7 +60,7 @@ export class OwnerStreamingSettings {
   private conversionProblem?: string;
   constructor(private readonly api: Pick<HttpLocalApi, 'request'> & Partial<Pick<HttpLocalApi, 'requestRaw'>>) {}
   has = (id: string): boolean => Object.hasOwn(rows, keyFor(id));
-  problemFor = (id: string): string | undefined => ['streaming.ffmpegPath', 'streaming.transcodeFolder'].includes(id) ? this.conversionProblem : undefined;
+  problemFor = (id: string): string | undefined => ['streaming.ffmpegPath', 'streaming.transcodeFolder', 'streaming.transcodeLocation'].includes(id) ? this.conversionProblem : undefined;
   readConfiguration = async (signal?: AbortSignal): Promise<SettingsConfiguration> => {
     const [streaming, downloads, limits] = await Promise.all([
       callServer(this.api, 'GET /v1/admin/settings/{name}', {id: 'streaming', signal}),
@@ -86,7 +90,7 @@ export class OwnerStreamingSettings {
     return this.configuration = Object.freeze({revision: Number(streaming.etag.slice(1, -1)), registryRevision: 'streaming',
       path: '', signInPolicyRevision: '', fields: Object.freeze(fields)});
   };
-  save = async (id: string, value: unknown, signal?: AbortSignal): Promise<void> => {
+  private change(id: string, value: unknown) {
     const row = rows[keyFor(id)], binding = settingsBinding(id);
     if (!row || !binding || !this.configuration) return invalid();
     const [name, key] = row;
@@ -97,11 +101,42 @@ export class OwnerStreamingSettings {
     if (key === 'uploadSpeedKbps' || key === 'total') raw ??= 0;
     if (key === 'convertAheadSeconds' || key === 'keepForRewindingSeconds') raw = Number(raw) / 1000;
     if (key === 'endPausedVideoAfterMs') raw = Number(raw) * 60000;
+    return {name, key, raw};
+  }
+  private async write(name: DocumentName | 'limits', values: Record<string, unknown>, signal?: AbortSignal, readEtag?: string) {
     if (name === 'limits') {
-      await callServer(this.api, 'PATCH /v1/admin/playback/stream-limits', {body: {[key]: raw}, signal});
+      await callServer(this.api, 'PATCH /v1/admin/playback/stream-limits', {body: values, signal});
       return;
     }
-    const etag = this.etags.get(name); if (!etag) return invalid();
-    await putSettingsDocument(this.api, name, etag, {[key]: raw}, signal);
+    const etag = readEtag ?? this.etags.get(name); if (!etag) return invalid();
+    await putSettingsDocument(this.api, name, etag, values, signal);
+  }
+  save = async (id: string, value: unknown, signal?: AbortSignal): Promise<void> => {
+    const {name, key, raw} = this.change(id, value);
+    await this.write(name, {[key]: raw}, signal);
   };
+  /** Native's existing draft controls use their bindings; writes remain one patch per real document. */
+  form = (form: 'runtime' | 'connectivity') => new DraftForm<Record<string, unknown>, ReadonlyMap<DocumentName, string>>({
+    load: async signal => {
+      const configuration = await this.readConfiguration(signal), value: Record<string, unknown> = {};
+      for (const {id} of configuration.fields) {
+        const binding = settingsBinding(id)!;
+        if (binding.form !== form) continue;
+        const fact = readSettingsBinding(binding, {configuration}, id)!;
+        Object.assign(value, settingsBindingPatch(binding, fact.current, {configuration}).values);
+      }
+      return {value, status: new Map(this.etags)};
+    },
+    save: async (draft, saved, etags) => {
+      const changes = new Map<DocumentName | 'limits', Record<string, unknown>>();
+      for (const id of Object.keys(rows)) {
+        const binding = settingsBinding(id)!;
+        if (binding.form !== form || !Object.hasOwn(draft, binding.key) || Object.is(draft[binding.key], saved[binding.key])) continue;
+        const value = readSettingsBinding(binding, {forms: {[form]: draft}}, id)?.current;
+        const {name, key, raw} = this.change(id, value);
+        const patch = changes.get(name) ?? {}; patch[key] = raw; changes.set(name, patch);
+      }
+      for (const [name, values] of changes) await this.write(name, values, undefined, name === 'limits' ? undefined : etags?.get(name));
+    },
+  });
 }

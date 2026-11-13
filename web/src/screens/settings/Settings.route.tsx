@@ -693,7 +693,7 @@ export function SettingsEntry() {
           const state = source.rowState(row, selected), devices = hardware?.getSnapshot().capacity?.hardware.devices ?? [];
           return state.present ? {...state, choices: hardwareSelectionChoices(devices, state.value, defaultI18n.t)} : state;
         }
-        const hardwareState = hardware ? hardwareRowState(row.id, hardware.getSnapshot(), hardwareRowIds.includes(row.id) ? storedLocation() : undefined) : undefined;
+        const hardwareState = hardware ? hardwareRowState(row.id, hardware.getSnapshot(), hardwareRowIds.includes(row.id) ? storedLocation() : undefined, controller.rowState(settingsRowIndex.get('streaming.transcodeFolder')!.row).value) : undefined;
         if (hardwareState !== undefined) return hardwareState;
         const device = isDeviceSyntheticRow(row.id) ? deviceRowState(row, deviceFacts) : undefined;
         return server?.rowState(row) ?? device ?? (row.id === 'music.eq' ? {present: current() && controller.sectionVisible(selected.section) && musicEqualizerAvailable(platform)} : row.id === 'people.table' ? {present: !!people && current() && controller.sectionVisible(selected.section)} : row.id === 'metadata.perLibrary' || row.id === 'appearance.customizeHome' ? {present: current() && controller.sectionVisible(selected.section)} : source.rowState(row, selected));

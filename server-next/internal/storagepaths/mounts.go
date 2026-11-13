@@ -129,7 +129,7 @@ func MemoryTranscodeDirectory(disk string, mounts []Mount) string {
 		return ""
 	}
 	identity := fmt.Sprintf("%x", sha256.Sum256([]byte(canonical)))[:16]
-	for _, base := range []string{"/memory-transcode", "/dev/shm"} {
+	for _, base := range []string{"/memory-transcode", "/transcode", "/dev/shm"} {
 		if Filesystem(base, mounts) == "tmpfs" {
 			return filepath.Join(base, "portico-hls-"+identity)
 		}
