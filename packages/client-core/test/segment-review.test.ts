@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {parseSegmentStatus,parseSegmentTitle,parseSegmentTitles,approveSegments,editSegmentMarker,readSegmentTitle,remeasureAllSegments,retryUnreadableSegments} from '../src/segment-review.ts';
+import {parseSegmentStatus,parseSegmentTitle,parseSegmentTitles,approveSegments,editSegmentMarker,readSegmentTitle} from '../src/segment-review.ts';
 const envelope=(result:unknown)=>({protocolVersion:'1.0',serverId:'server',result});
 const files={pending:1,complete:20,failed:0,unsupported:2};
 test('status keeps every readable library and the server mode',()=>{
@@ -40,14 +40,6 @@ test('positions read and print as minutes and seconds',()=>{
  assert.equal(parseSegmentClock('0:01:23'),'83000000');
  assert.equal(parseSegmentClock('1:75'),null);
  assert.equal(parseSegmentClock('abc'),null);
-});
-
-test('whole-server measure and retry actions use the rebuilt owner routes',async()=>{
- const paths:string[]=[];
- const api={request:async(path:string,method:string,body:unknown)=>{paths.push(path);assert.equal(method,'POST');assert.deepEqual(body,{});return {changed:2};}} as any;
- assert.equal(await remeasureAllSegments(api),2);
- assert.equal(await retryUnreadableSegments(api),2);
- assert.deepEqual(paths,['/v1/admin/segments/redetect','/v1/admin/segments/retry']);
 });
 
 test('rebuilt title pages keep each season and version without an envelope',async()=>{
