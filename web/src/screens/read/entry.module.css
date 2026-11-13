@@ -27,5 +27,3 @@
 .dateFilter { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px var(--shell-gutter); }
 
 .dateFilter > div { flex: 1 1 180px; min-width: 0; max-width: 320px; }
-/* A label with the server's mark after it keeps the two on one line. */
-.markedLabel { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
