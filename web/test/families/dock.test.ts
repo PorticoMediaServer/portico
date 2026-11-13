@@ -108,7 +108,9 @@ test('a finished dock offers Replay and Next while preventing Forward past the e
   assert.match(html, /aria-label="Replay"/);
   assert.match(html, /aria-label="Forward 30 seconds"[^>]*disabled/);
   assert.doesNotMatch(html, /aria-label="Next"[^>]*disabled/);
-  assert.throws(() => renderToStaticMarkup(createElement(DockBar, {...props, videoSurface: false})), /persistent media surface/);
+  // Between two titles of a queue the surface can lag the dock for a moment: the bar draws the title's art, never throws.
+  const between = renderToStaticMarkup(createElement(DockBar, {...props, videoSurface: false}));
+  assert.match(between, /data-dock-art-slot/); assert.match(between, /aria-label="Replay"/);
 });
 
 test('a bookmark notice appears after300ms and expires after its eight-second action lifetime', async () => {
