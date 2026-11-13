@@ -76,3 +76,13 @@ test('Discover\'s New issues are the library\'s newest magazine issues by issue 
   const next = await reading.discoverRow('new-issues', {libraryId: 'lib_books', cursor: 'more', limit: 12});
   assert.equal(calls.at(-1)!.searchParams.get('cursor'), 'more'); assert.equal(next.newIssueCards.length, 1); assert.equal(next.row.nextCursor, undefined);
 });
+
+test('Discover keeps Recently added when its optional New issues read fails', async () => {
+  const {reading} = server(url => {
+    if (url.searchParams.get('publication') === 'magazine') throw new Error('Issues unavailable');
+    return {items: [wire('itm_recent', 'book')], nextCursor: 'more'};
+  });
+  const discover = await reading.discover({libraryId: 'lib_books', newIssuesLimit: 12});
+  assert.deepEqual(discover.rows.map(row => [row.key, row.items.map(item => item.id), row.nextCursor]), [['recent', ['itm_recent'], 'more']]);
+  assert.deepEqual(discover.newIssueCards, []);
+});
