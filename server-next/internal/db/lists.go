@@ -166,6 +166,12 @@ type nameCursor struct {
 // Lists returns the lists the viewer may read, of one kind or all, by name. limit is at most
 // the largest page.
 func (d *DB) Lists(ctx context.Context, v Viewer, kind, cursor string, limit int) (lists []List, next string, err error) {
+	return d.ListsWithIDs(ctx, v, kind, cursor, limit, nil)
+}
+
+// ListsWithIDs applies the same list visibility and paging to an optional set of public ids.
+// A nil set keeps the ordinary directory read; an empty set matches nothing.
+func (d *DB) ListsWithIDs(ctx context.Context, v Viewer, kind, cursor string, limit int, ids []string) (lists []List, next string, err error) {
 	var after nameCursor
 	if cursor != "" {
 		raw, err := base64.RawURLEncoding.DecodeString(cursor)
@@ -186,9 +192,15 @@ func (d *DB) Lists(ctx context.Context, v Viewer, kind, cursor string, limit int
 	if err != nil {
 		return nil, "", err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT `+listColumns(acc.countSQL())+` WHERE `+acc.readable()+`
+	filter, args := "", v.args()
+	if ids != nil {
+		raw, _ := json.Marshal(ids)
+		filter = " AND l.public_id IN (SELECT value FROM json_each(@ids))"
+		args = append(args, sql.Named("ids", string(raw)))
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT `+listColumns(acc.countSQL())+` WHERE `+acc.readable()+filter+`
 		AND (@kind = '' OR l.kind = @kind) AND (l.sort_name, l.id) > (@name, @after) ORDER BY l.sort_name, l.id LIMIT @limit`,
-		append(v.args(), sql.Named("kind", kind), sql.Named("name", after.Name), sql.Named("after", after.ID), sql.Named("limit", limit+1))...)
+		append(args, sql.Named("kind", kind), sql.Named("name", after.Name), sql.Named("after", after.ID), sql.Named("limit", limit+1))...)
 	if err != nil {
 		return nil, "", err
 	}

@@ -141,7 +141,7 @@ Item cards carry `rootTitle` alongside `rootId`: the existing root's title (a sh
 | `POST /v1/items/state:undo` | Undo a container change within about a minute |
 | `GET /v1/history`, `DELETE /v1/history/{id}`, `DELETE /v1/history` | Your finished plays, newest first, by `period` (`24h`, `7d`, `30d`, `90d`, `all`): list, remove one, clear. The owner's play record keeps every play. Removing an entry or clearing sends a `history` event to the profile's other devices |
 | `POST /v1/me/recommendations:reset` | Reset recommendations: the profile's recommendations forget its taste and learn again from what it plays and likes from now. History, ratings, lists, watched marks, resume points, favourites and Not interested marks stay. Body `{operationId?}`; answer `{serverId, operationId?}` |
-| `GET /v1/lists`, `POST /v1/lists` | Playlists, collections and saved views (`kind`) |
+| `GET /v1/lists`, `POST /v1/lists` | Playlists, collections and saved views (`kind`). `GET` accepts `ids=id1,id2` (1 to 200 ids, each at most 128 bytes): only requested lists the viewer may read, with unknown or hidden ids absent and duplicates returned once. Without `limit`, an ids lookup returns the whole bounded batch; explicit `limit` and `cursor` keep ordinary paging. The response stays in name order; apps keep pin order from preferences |
 | `GET /v1/lists/{id}`, `PATCH /v1/lists/{id}`, `DELETE /v1/lists/{id}` | Read, rename, delete |
 | `POST /v1/lists/{id}/entries`, `PATCH /v1/lists/{id}/entries/{entryId}`, `DELETE /v1/lists/{id}/entries/{entryId}` | Add, move, remove entries. Entries are read with `GET /v1/items?list=`. |
 | `GET /v1/lists/{id}/shares`, `PUT /v1/lists/{id}/shares` | Who a list is shared with |
