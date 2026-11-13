@@ -134,6 +134,23 @@ test('author header, book rows and grouped details retain their specified hierar
   assert.ok(all.some(node => node.type === 'Text' && content(node) === 'next.kit.narrators' && style(node).fontSize === 15.5));
 });
 
+// Owner's standing complaint (deferred row 247): upright beside the cover, the tablet album's Shuffle was cut to "S".
+// The album and artist pages share one action row that wraps: the round buttons move to a second line, no label is cut.
+test('the tablet album\'s action row wraps rather than cut Shuffle, and plays and shuffles', async () => {
+  const f = await music();
+  const element = nodes(f.tree).find(node => node.type?.name === 'TabletMusicActions');
+  assert.ok(element, 'the album draws the shared tablet action row');
+  const row = f.renderChild(element);
+  assert.deepEqual([row.props.style.flexDirection, row.props.style.flexWrap], ['row', 'wrap']);
+  const buttons = nodes(row).filter(node => node.type === 'Button');
+  const shuffle = buttons.find(node => node.props.icon === 'i-shuffle');
+  assert.deepEqual([shuffle.props.children].flat(), [i18n.t('title.shuffle')]); assert.equal(shuffle.props.style.flex, undefined, 'its own width, never a squeezed share');
+  assert.deepEqual(buttons.map(node => node.props.icon), ['i-play', 'i-shuffle', 'i-heart', 'i-more'], 'Play, Shuffle, Favorite and the page\'s own anchored More');
+  buttons[0].props.onPress(); shuffle.props.onPress(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.counts().plays, 2);
+  assert.equal(nodes(f.tree).filter(node => node.type?.name === 'TabletMusicActions').length, 1);
+});
+
 // 13 Nov iPad walk: in iPad mini portrait the tablet album's track titles were cut to "A L…" beside fixed Plays and Duration
 // columns. The title keeps a real share; Plays gives way first, then Duration; the favourite and More always stay.
 test('the tablet song table keeps the title a real share: Plays drops first, then Duration', async () => {
