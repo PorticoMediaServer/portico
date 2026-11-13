@@ -1,11 +1,13 @@
-import {useCallback, useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
+import {readOwnerKindMetadataAgents} from '@core/owner-library-requests.ts';
+import {parseKindMetadataAgents, type KindMetadataAgents} from '@core/server-admin/metadata-agent.ts';
 import {defaultI18n} from '@i18n';
 import type {LibraryContentApi} from '@core/library-content.ts';
 import type {LibraryManagementService, ManagedLibrary} from '@core/library-management.ts';
 import {Button, RichSelect, TextField} from '../../../kit/controls';
 import {Dialog} from '../../../kit/overlays/Dialog';
 import {FolderPicker, ChosenServerFolders} from './FolderPicker';
-import {localOnlyKind, metadataAgentFor, libraryKindLabel} from './model';
+import {localOnlyKind, libraryKindLabel} from './model';
 import styles from './libraries.module.css';
 
 const t = defaultI18n.t;
@@ -29,27 +31,42 @@ export function AddLibrary({open, onOpenChange, api, service, onError, initialKi
 }>) {
   const [kind, setKind] = useState<Kind>(initialKind), [name, setName] = useState(libraryKindLabel(initialKind)), [touched, setTouched] = useState(false);
   const [paths, setPaths] = useState<readonly string[]>([]);
-  const [source, setSource] = useState<'online' | 'local'>('online');
+  const [source, setSource] = useState('');
+  const [choices, setChoices] = useState<KindMetadataAgents>();
   const [picking, setPicking] = useState(false), [busy, setBusy] = useState(false), [failed, setFailed] = useState(false);
   const submitting = useRef(false);
+  useEffect(() => {
+    if (!open) return;
+    const request = new AbortController(); let active = true;
+    setChoices(undefined);
+    void readOwnerKindMetadataAgents(api, kind, request.signal).then(raw => parseKindMetadataAgents(raw, kind)).then(next => {
+      if (!active) return;
+      setChoices(next);
+      const first = next.agents.find(option => option.available !== false) ?? next.agents[0];
+      setSource(current => next.agents.some(option => option.id === current) ? current : first.id);
+    }).catch(error => {if (active) {setChoices(undefined); onError(error);}});
+    return () => {active = false; request.abort();};
+  }, [open, api, kind, onError]);
+  const offered = choices?.libraryKind === kind ? choices.agents : [];
+  const valid = name.trim().length > 0 && paths.length > 0 && offered.some(option => option.id === source);
   const choosePaths = useCallback((next: readonly string[]) => {setPaths(Object.freeze([...next]));}, []);
   const choosePath = useCallback((path: string) => choosePaths([path]), [choosePaths]);
   const choose = (next: Kind) => { setKind(next); if (!touched) setName(libraryKindLabel(next)); };
   const create = async () => {
-    if (submitting.current || !open || !name.trim() || !paths.length) return;
+    if (submitting.current || !open || !valid) return;
     submitting.current = true;
     setBusy(true); setFailed(false);
     try {
-      await service.createLibrary({name: name.trim(), kind, folders: paths, metadataAgent: metadataAgentFor(kind) === 'local' ? 'local' : source});
+      await service.createLibrary({name: name.trim(), kind, folders: paths, metadataAgent: source});
       if (service.getSnapshot().mutation.phase !== 'complete') {setFailed(true);return;}
-      onOpenChange(false); setName(libraryKindLabel('movie')); setPaths([]); setKind('movie'); setTouched(false); setSource('online');
+      onOpenChange(false); setName(libraryKindLabel('movie')); setPaths([]); setKind('movie'); setTouched(false); setSource('');
     } catch (error) { setFailed(true); onError(error); }
     finally {submitting.current = false; setBusy(false);}
   };
   return <>
     <Dialog footerDismisses open={open} onOpenChange={value => {if (!submitting.current) onOpenChange(value);}} dismissOnBack={!busy} dismissOnOutsidePress={!busy} showCloseButton={!busy} size="md" title={t('next.settingsSpec.server.libraries.panels.newLibrary.title')}
       footer={<><Button disabled={busy} onClick={() => {if (!submitting.current) onOpenChange(false);}}>{t('next.settings.cancel')}</Button>
-        <Button variant="primary" loading={busy} disabled={busy || !name.trim() || !paths.length} onClick={() => { void create(); }}>{t('next.settingsSpec.server.libraries.panels.newLibrary.footer.primary')}</Button></>}>
+        <Button variant="primary" loading={busy} disabled={busy || !valid} onClick={() => { void create(); }}>{t('next.settingsSpec.server.libraries.panels.newLibrary.footer.primary')}</Button></>}>
       <div className={styles.form}>
         <RichSelect label={t('next.settingsSpec.server.libraries.panels.newLibrary.tabs.0.groups.0.rows.1.label')}
           value={kind} options={KINDS.map(value => ({value: value.id, label: libraryKindLabel(value.id), description: value.hint}))}
@@ -62,14 +79,11 @@ export function AddLibrary({open, onOpenChange, api, service, onError, initialKi
           {!paths.length ? <p className={styles.formNote}>{t('next.ownerLibraries.addLibrary.foldersHelp')}</p> : null}
         </div>
         {paths.length ? <ChosenServerFolders paths={paths} disabled={busy} onRemove={value => {if (!submitting.current) setPaths(previous => previous.filter(item => item !== value));}}/> : null}
-        {localOnlyKind(kind)
+        {offered.length > 0 && (localOnlyKind(kind)
           ? <p className={styles.formNote}>{t('next.settings.libraries.localOnly')}</p>
           : <RichSelect label={t('next.settingsSpec.server.libraries.panels.library.tabs.2.groups.0.rows.0.label')} value={source}
-            options={[{value: 'online', label: t('next.settingsSpec.server.libraries.panels.library.tabs.2.groups.0.rows.0.control.options.0.label'),
-              description: t('next.settingsSpec.server.libraries.panels.library.tabs.2.groups.0.rows.0.control.options.0.hint')},
-              {value: 'local', label: t('next.settingsSpec.server.libraries.panels.library.tabs.2.groups.0.rows.0.control.options.1.label'),
-                description: t('next.settingsSpec.server.libraries.panels.library.tabs.2.groups.0.rows.0.control.options.1.hint')}]}
-            onValueChange={value => setSource(value === 'local' ? 'local' : 'online')} />}
+            options={offered.map(option => ({value: option.id, label: option.name, description: option.description}))}
+            onValueChange={setSource} />)}
         {failed && <p role="alert">{t('next.settings.libraries.createFailed')}</p>}
       </div>
     </Dialog>
