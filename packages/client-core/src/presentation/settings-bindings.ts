@@ -12,8 +12,8 @@ import {validatePreferencePatch,type PreferenceSnapshot,type PreferenceScope,typ
 import type {ReadingPreferences} from '../preference-effects.ts';
 
 /** `awayLimit`: the same connectivity value as `connectivity`, read optionally for a page that only shows it. */
-export type SettingsBindingForm='signInPolicy'|'runtime'|'connectivity'|'awayLimit'|'connectivityStatus'|'maintenance'|'alerts'|'preferences'|'device'|'remote'|'managedRoute'|'logs'|'library'|'metadata'|'segments';
-export type SettingsBinding=Readonly<{form:SettingsBindingForm;key:string;scope?:PreferenceScope;readOnly?:boolean;scale?:number;codec?:'insecure-connections'|'history-retention'|'number-choice'|'unlimited'|'domain'|'interface'|'remote-policy'|'away-quality'|'update-checks'|'window-mode'|'days'|'log-retention'|'still-watching'|'missing-rule'|'music-quality-choice'|'video-quality-choice'|'inherited-watched-threshold'|'surround'|'player-engine'|'tv-support'|'boolean'|'artwork-size'|'server-notices'|'notice-audience'|'hardware-selection';fields?:Readonly<Record<string,string>>;window?:'heavy'|'backup'}>;
+export type SettingsBindingForm='signInPolicy'|'runtime'|'connectivity'|'awayLimit'|'connectivityStatus'|'maintenance'|'alerts'|'preferences'|'device'|'remote'|'managedRoute'|'logs'|'library'|'metadata'|'segments'|'backups';
+export type SettingsBinding=Readonly<{form:SettingsBindingForm;key:string;scope?:PreferenceScope;readOnly?:boolean;scale?:number;codec?:'insecure-connections'|'history-retention'|'number-choice'|'unlimited'|'domain'|'interface'|'remote-policy'|'away-quality'|'update-checks'|'window-mode'|'days'|'log-retention'|'still-watching'|'missing-rule'|'music-quality-choice'|'video-quality-choice'|'inherited-watched-threshold'|'surround'|'player-engine'|'tv-support'|'boolean'|'artwork-size'|'server-notices'|'notice-audience'|'hardware-selection'|'backup-schedule'|'backup-days';fields?:Readonly<Record<string,string>>;window?:'heavy'|'backup'}>;
 export type SettingsBindingSources=Readonly<{configuration?:SettingsConfiguration;preferences?:PreferenceSnapshot;forms?:Readonly<Partial<Record<SettingsBindingForm,Readonly<Record<string,unknown>>>>>;device?:Readonly<Record<string,unknown>>;deviceDefaults?:Readonly<Record<string,unknown>>}>;
 export type SettingsBindingValue=Readonly<{current:unknown;effective:unknown;default:unknown;source:string;configOnly:boolean;applicationMode?:string}>;
 export type SettingsBindingPatch=Readonly<{form:SettingsBindingForm;values:Readonly<Record<string,unknown>>}>;
@@ -114,10 +114,9 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'general.heavyStart':{form:'maintenance',key:'startMinute',window:'heavy',codec:'number-choice'},
  'general.heavyLength':{form:'maintenance',key:'durationMinutes',window:'heavy',scale:60,codec:'number-choice'},
  'general.heavyDays':{form:'maintenance',key:'days',window:'heavy',codec:'days'},
- 'storage.backupSchedule':{form:'maintenance',key:'enabled',window:'backup',codec:'window-mode'},
- 'storage.backupTime':{form:'maintenance',key:'startMinute',window:'backup',codec:'number-choice'},
- 'storage.backupWindowLength':{form:'maintenance',key:'durationMinutes',window:'backup',scale:60,codec:'number-choice'},
- 'storage.backupDays':{form:'maintenance',key:'days',window:'backup',codec:'days'},
+ 'storage.backupSchedule':{form:'backups',key:'days',codec:'backup-schedule'},
+ 'storage.backupTime':{form:'backups',key:'hour',codec:'number-choice'},
+ 'storage.backupDays':{form:'backups',key:'days',codec:'backup-days'},
  'history.keepHistory':{form:'runtime',key:'playHistoryDays',codec:'history-retention'},
  'general.backgroundSpeed':{form:'maintenance',key:'backgroundSpeed'},
  'general.alertStorageWarn':{form:'alerts',key:'storageWarningPercent',codec:'number-choice'},
@@ -130,8 +129,7 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'storage.subtitleTracks':{form:'runtime',key:'subtitleTrackLimit',codec:'number-choice'},
  'storage.subtitleFile':{form:'runtime',key:'subtitleFileLimitMiB',codec:'number-choice'},
  'storage.keepNotifications':{form:'runtime',key:'notificationDays',codec:'number-choice'},
- 'storage.backupKeep':{form:'maintenance',key:'backupKeepCount',codec:'number-choice'},
- 'storage.backupKeepExact':{form:'maintenance',key:'backupKeepCount'},
+ 'storage.backupKeep':{form:'backups',key:'keep'},
  'storage.keepConversions':{form:'maintenance',key:'retention.conversions',codec:'number-choice'},
  'storage.keepPrepared':{form:'maintenance',key:'retention.prepared',codec:'number-choice'},
  'storage.keepDownloads':{form:'maintenance',key:'retention.downloads',codec:'number-choice'},
@@ -283,6 +281,8 @@ function presented(binding:SettingsBinding,v:unknown,sources:SettingsBindingSour
  if(binding.codec==='server-notices')return v==='owner'||v==='owner-and-admins'?v:undefined;
  if(binding.codec==='notice-audience')return validNoticeAudience(v)?v:undefined;
  if(binding.codec==='hardware-selection')return validHardwareSelection(v)?v:undefined;
+ if(binding.codec==='backup-schedule')return Array.isArray(v)?v.length===0?'never':new Set(v).size===7?'nightly':'custom':undefined;
+ if(binding.codec==='backup-days'&&Array.isArray(v)){const chosen=v;return Object.fromEntries(days.map((day,index)=>[day,chosen.includes((index+1)%7)?'runs':'skips']));}
  if(binding.codec==='boolean')return typeof v==='boolean'?v:undefined;
  if(binding.codec==='insecure-connections')return v==='never'||v==='local'||v==='always'?v:undefined;
  if(binding.codec==='surround')return typeof v==='boolean'?(v?'stereo':'asis'):undefined;
@@ -343,7 +343,7 @@ export function readSettingsBinding(binding:SettingsBinding,sources:SettingsBind
   if(current===undefined||shown===undefined||defaultValue===undefined)return undefined;
   return {current,effective:shown,default:defaultValue,source,configOnly:false};
  }
- const alias=rowId==='general.updateChecks'?'general.updateFeed':rowId==='streaming.awayQuality'?'streaming.awayExact':rowId==='storage.backupKeep'?'storage.backupKeepExact':rowId;
+ const alias=rowId==='general.updateChecks'?'general.updateFeed':rowId==='streaming.awayQuality'?'streaming.awayExact':rowId;
  const fact:ConfigurationValue|undefined=alias?sources.configuration?.fields.find(f=>f.id===alias):undefined;
  if(fact){const display={...binding,scale:undefined,...(rowId==='streaming.awayQuality'?{scale:1/1000}:{})};const show=(v:unknown)=>rowId==='streaming.awayQuality'?presented(binding,typeof v==='number'?v*1000:v,sources):presented(display,v,sources);const current=show(fact.current),effective=show(fact.effective);if(current===undefined||effective===undefined)return undefined;return {current,effective,default:show(fact.default),source:fact.source,configOnly:fact.configOnly,applicationMode:fact.applicationMode};}
  const w=binding.window?windows(sources).find(w=>matchingWindow(w,binding.window!)):undefined;
@@ -381,6 +381,24 @@ export function settingsStorableChoices<T extends Readonly<{value?:unknown}>>(bi
 /** A write always targets an existing producer; Advanced values are not rounded to a preset. */
 export function settingsBindingPatch(binding:SettingsBinding,value:unknown,sources:SettingsBindingSources={}):SettingsBindingPatch{
  if(binding.readOnly||binding.form==='connectivityStatus')throw new Error('This setting is read-only.');
+ if(binding.form==='backups'){
+  if(binding.codec==='backup-schedule'){
+   if(value!=='nightly'&&value!=='custom'&&value!=='never')throw new Error('Invalid backup schedule.');
+   const selected=sources.forms?.backups?.days;
+   return {form:'backups',values:{days:value==='never'?[]:value==='nightly'?[0,1,2,3,4,5,6]:Array.isArray(selected)&&selected.length?selected:[0,1,2,3,4,5,6]}};
+  }
+  if(binding.codec==='backup-days'){
+   if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length!==7)throw new Error('Seven days are required.');
+   const selected=value as Record<string,unknown>;
+   if(days.some(day=>selected[day]!=='runs'&&selected[day]!=='skips'))throw new Error('Invalid backup day.');
+   return {form:'backups',values:{days:days.flatMap((day,index)=>selected[day]==='runs'?[(index+1)%7]:[])}};
+  }
+  if(binding.key==='hour'||binding.key==='keep'){
+   const n=typeof value==='string'&&/^\d+$/.test(value)?Number(value):value;
+   if(typeof n!=='number'||!Number.isSafeInteger(n)||n<(binding.key==='hour'?0:1)||n>(binding.key==='hour'?23:365))throw new Error('Invalid backup setting.');
+   return {form:'backups',values:{[binding.key]:n}};
+  }
+ }
  if(binding.fields){
   if(binding.codec==='still-watching'){
    if(typeof value!=='number'||!Number.isSafeInteger(value)||![0,2,3,4,5].includes(value))throw new Error('Invalid episode count.');
