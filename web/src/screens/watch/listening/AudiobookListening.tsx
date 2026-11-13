@@ -3,7 +3,8 @@ import {defaultI18n} from '@i18n';
 import type {PlayerChapter, PlayerChaptersSnapshot} from '@core/player-chapters.ts';
 import type {WebPlaybackRuntimeSnapshot} from '../../../platform/playback';
 import type {AmbientArtSource, ArtworkSource} from '../../../kit/artwork';
-import {AmbientArt, Artwork} from '../../../kit/artwork';
+import {generatedCoverTint} from '@design';
+import {AmbientArt, GeneratedCover, WholeArtwork} from '../../../kit/artwork';
 import {Button, Segmented, Slider} from '../../../kit/controls';
 import {Banner} from '../../../kit/overlays';
 import {StateView} from '../../../kit/states';
@@ -68,7 +69,7 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
       </span>
     </header>
     <div className={styles.main}>
-      <div className={styles.bookTop}><div className={styles.cover}><Artwork source={cover} alt={title}/></div><div className={styles.identity}><h1>{title}</h1><p>{subtitle}</p></div></div>
+      <div className={styles.bookTop}><div className={styles.cover}><ListeningCover cover={cover} title={title}/></div><div className={styles.identity}><h1>{title}</h1><p>{subtitle}</p></div></div>
       {/* desktop-listen 8: "Chapter 15 · 12:04 of 31:40". phone-app 15: "≡ Chapter 8 … of 19". */}
       {active && (phone ? <div className={styles.chapter}><b><Icon name="i-chapters" size={16}/>{active.title}</b>{chapterTotal !== undefined && <span>{t('player.chapterTotal', {total: chapterTotal})}</span>}</div>
         : <div className={styles.chapter}><b>{active.title}</b><span>{t('player.clockOf', {position: watchClock(Math.max(0, p.positionSeconds - active.startSeconds)), duration: watchClock(active.endSeconds - active.startSeconds)})}</span></div>)}
@@ -123,4 +124,11 @@ export function AudiobookListening({snapshot, title, subtitle, cover, ambient, c
       </>}
     </aside>}
   </section>;
+}
+
+/** The book's cover, drawn whole in its own shape inside the square; a book with no picture, or one
+ * that does not load, draws the kit's generated cover, as its card and page do. */
+function ListeningCover({cover, title}: {cover?: ArtworkSource; title: string}) {
+  const generated = <GeneratedCover title={title} glyph={Array.from(title.trim())[0] ?? ''} tint={generatedCoverTint(title)}/>;
+  return cover ? <WholeArtwork source={cover} alt={title} className={styles.coverImage} fallback={generated}/> : <span className={styles.coverImage}>{generated}</span>;
 }

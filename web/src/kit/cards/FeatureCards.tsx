@@ -1,7 +1,7 @@
-import type {ReactNode} from 'react';
+import {useRef, type ReactNode} from 'react';
 import {defaultI18n} from '@i18n';
 import type {ChannelMarkModel, FactPart} from '@portico/client-core/kit-model';
-import {Artwork, ChannelMark, type ArtworkSource} from '../artwork';
+import {Artwork, ChannelMark, useCoverAspect, wholeCoverBox, type ArtworkSource} from '../artwork';
 import {Icon} from '../Icon';
 import {Button} from '../controls';
 import {usePhone} from '../overlays/shared';
@@ -62,8 +62,11 @@ export function LibraryRow(props: LibraryCardProps) { return <Library {...props}
 
 export type ResumeCardProps = MediaCardProps & Readonly<{location?: FactPart; remaining?: FactPart; kind?: 'book' | 'magazine' | 'newspaper'; generated?: ReactNode; ambientTreatment?: 'resume' | 'resume-phone'}>;
 function Resume({read, location, remaining, kind = 'book', generated, ambientTreatment, ...props}: ResumeCardProps & {read: boolean}) {
+  // The cover is drawn whole in its own shape inside its slot: square to listen, 2:3 for a book, 3:4 for an issue.
+  const coverRef = useRef<HTMLSpanElement>(null), cover = useCoverAspect(props.artwork, coverRef);
+  const slot = !read ? 1 : kind === 'book' ? 2 / 3 : 3 / 4;
   const phone = usePhone();
-  return <CardFrame {...props} additionalDescription={[location?.text, remaining?.text]} kind={read ? 'readResume' : 'resume'} playIcon={read ? 'i-book' : 'i-play'} className={cx(read && kind === 'book' && !generated && styles.resumeSpine, kind !== 'book' && styles.resumePeriodical, props.className)}><CardAmbient {...props} treatment={ambientTreatment ?? (phone ? 'resume-phone' : 'resume')} /><span className={styles.resumeCover}><CardArtwork {...props} fallback={generated ?? props.fallback} position={kind === 'newspaper' ? 'top' : props.position} /></span><span className={styles.resumeCopy}><span className={styles.resumeTitle}>{props.model.title}</span><Facts parts={props.model.caption} className={styles.resumeByline} /><span className={styles.resumeWhere}>{location && <span>{location.text}</span>}{remaining && <span>{remaining.text}</span>}</span><Progress value={props.model.progress} /></span></CardFrame>;
+  return <CardFrame {...props} additionalDescription={[location?.text, remaining?.text]} kind={read ? 'readResume' : 'resume'} playIcon={read ? 'i-book' : 'i-play'} className={cx(read && kind === 'book' && !generated && styles.resumeSpine, kind !== 'book' && styles.resumePeriodical, props.className)}><CardAmbient {...props} treatment={ambientTreatment ?? (phone ? 'resume-phone' : 'resume')} /><span ref={coverRef} className={styles.resumeCover} style={wholeCoverBox(cover.aspect, 'var(--resume-cover)', {slot})}><CardArtwork {...props} fallback={generated ?? props.fallback} position={kind === 'newspaper' ? 'top' : props.position} onReady={cover.onReady} /></span><span className={styles.resumeCopy}><span className={styles.resumeTitle}>{props.model.title}</span><Facts parts={props.model.caption} className={styles.resumeByline} /><span className={styles.resumeWhere}>{location && <span>{location.text}</span>}{remaining && <span>{remaining.text}</span>}</span><Progress value={props.model.progress} /></span></CardFrame>;
 }
 export function ResumeCard(props: ResumeCardProps) { return <Resume {...props} read={false} />; }
 export function ReadResumeCard(props: ResumeCardProps) { return <Resume {...props} read />; }
