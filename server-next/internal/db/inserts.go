@@ -98,10 +98,12 @@ func (b *batchTx) insertStreams(fileID int64, streams []Stream) error {
 			return err
 		}
 		if _, err := b.exec(`INSERT INTO media_streams (file_id, stream_index, kind, codec, profile, language, title, is_default, is_forced,
-			is_hearing_impaired, bitrate, width, height, frame_rate, bit_depth, hdr, channels, channel_layout, sample_rate)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, fileID, index, s.Kind, nz(s.Codec), nz(s.Profile),
+			is_hearing_impaired, bitrate, width, height, frame_rate, bit_depth, hdr, channels, channel_layout, sample_rate, extra)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? OR ? OR ? <> '' THEN
+			json_object('commentary', ?, 'hdr10Plus', ?, 'objectAudio', ?) END)`, fileID, index, s.Kind, nz(s.Codec), nz(s.Profile),
 			nz(s.Language), nz(s.Title), s.Default, s.Forced, s.HearingImpaired, nz(s.Bitrate), nz(s.Width), nz(s.Height),
-			nz(s.FrameRate), nz(s.BitDepth), nz(s.HDR), nz(s.Channels), nz(s.ChannelLayout), nz(s.SampleRate)); err != nil {
+			nz(s.FrameRate), nz(s.BitDepth), nz(s.HDR), nz(s.Channels), nz(s.ChannelLayout), nz(s.SampleRate),
+			s.Commentary, s.HDR10Plus, s.ObjectAudio, s.Commentary, s.HDR10Plus, s.ObjectAudio); err != nil {
 			return err
 		}
 	}
