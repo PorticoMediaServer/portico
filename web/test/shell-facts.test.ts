@@ -17,7 +17,7 @@ test('five hint groups refresh current display without re-admitting authority; b
   assert.equal(h.counts().retired,0);assert.equal(h.counts().permission,1);
   // One directory read answers both the names and who the viewer is; Home is never read here.
   assert.equal(h.calls.filter(path=>path==='/v1/libraries').length,1);assert.equal(h.calls.filter(path=>path==='/v1/home').length,0);assert.equal(h.calls.filter(path=>path==='/v1/me').length,1);
-  assert.equal(h.calls.filter(path=>path.startsWith('/v1/guide/sources?')).length,1);
+  assert.equal(h.calls.filter(path=>path.startsWith('/v1/live/channels')).length,1);
   assert.equal(h.initial.serverName,'Study');h.dispose();assert.equal(h.time.pending(),0);
 });
 test('guide failure cannot discard independently confirmed directory or invent a viewer retirement', async () => {
@@ -25,8 +25,8 @@ test('guide failure cannot discard independently confirmed directory or invent a
   h.owner.request('directory');h.owner.request('server');await h.time.advance(1000);
   assert.equal(h.owner.source.getSnapshot().identity.libraries[0].name,'Cinema');
   assert.equal(h.owner.source.getSnapshot().serverName,'Den');assert.equal(h.owner.source.getSnapshot().identity.liveAvailable,true);
-  const reads=h.calls.filter(path=>path.startsWith('/v1/guide/sources?')).length;h.hub.setActive(false);h.hub.setActive(true);h.owner.request('server');await h.time.advance(60000);
-  assert.equal(h.calls.filter(path=>path.startsWith('/v1/guide/sources?')).length,reads);assert.equal(h.counts().retired,0);h.dispose();
+  const reads=h.calls.filter(path=>path.startsWith('/v1/live/channels')).length;h.hub.setActive(false);h.hub.setActive(true);h.owner.request('server');await h.time.advance(60000);
+  assert.equal(h.calls.filter(path=>path.startsWith('/v1/live/channels')).length,reads);assert.equal(h.counts().retired,0);h.dispose();
 });
 test('retained hidden media runs independent authority checks while display remains dormant', async () => {
   const h=harness();h.hub.setActive(false);h.owner.setRetained(true);h.owner.all();await h.time.advance(1000);
@@ -116,7 +116,7 @@ test('canonical hint delivery preserves server revision and preference address r
 });
 
 test('guide Retry-After remains binding when later hints switch server, live-source and channel groups', async () => {
-  const h=harness(),guideReads=()=>h.calls.filter(path=>path.startsWith('/v1/guide/sources?')).length;
+  const h=harness(),guideReads=()=>h.calls.filter(path=>path.startsWith('/v1/live/channels')).length;
   h.guideFailure(Object.assign(new Error('guide wait'),{status:429,retryAfterSeconds:7200}));
   h.owner.request('server');await h.time.advance(1000);assert.equal(guideReads(),1);
   h.owner.request('liveSources');await h.time.advance(1000);assert.equal(guideReads(),1);

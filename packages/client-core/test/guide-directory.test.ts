@@ -9,7 +9,7 @@ function server(){
  const requests:string[]=[];let revision='r1';
  const summaries=()=>({protocolVersion:'1.0',serverId:'s',viewerFence:'f',revision,sources:sources.map((source,index)=>({...source,position:index,recordAvailable:true,guideDays:7,channelCount:index?1:2000,favoriteCount:index?0:1,groups:['News'],groupCounts:[{name:'News',count:index?1:2000}],unavailableReasons:{}}))});
  const api:ChannelApi={async request<T>(path:string):Promise<T>{requests.push(path);const q=new URL(path,'https://s').searchParams;
-  if(path.startsWith('/v1/guide/sources?'))return summaries() as T;
+  if(path.startsWith('/v1/live/channels'))return {items:[],sources:summaries().sources.map(source=>({id:source.id,name:source.name,kind:'live',channels:source.channelCount,favorites:source.favoriteCount,groups:source.groupCounts}))} as T;
   if(path.startsWith('/v1/guide/channels?')){let offset=Number(q.get('offset'));const limit=Number(q.get('limit'));if(q.has('anchorChannelId')){const index=Number(q.get('anchorChannelId')!.slice(1));if(!Number.isInteger(index)||index<0||index>2000)throw Object.assign(new Error('not found'),{status:404});offset=(index+(q.get('direction')==='next'?1:-1)+2001)%2001;}if(q.get('revision')&&q.get('revision')!==revision)throw Object.assign(new Error('changed'),{code:'guide_refresh_required',status:409});const channels=Array.from({length:Math.max(0,Math.min(limit,2001-offset))},(_,i)=>channel(offset+i));return {protocolVersion:'1.0',serverId:'s',directory:{viewerFence:'f',revision,total:2001,offset,limit,channels,sources:sources.filter(s=>channels.some(c=>c.sourceId===s.id))}} as T;}
   const named=q.get('channels')!.split(',');const start=q.get('start')!,end=q.get('end')!;
   const channels=named.map(id=>({...channel(Number(id.slice(1))),programmes:[{id:'p'+id,channelId:id,title:'Programme',start,end,lineage:'provider-id'}]}));
@@ -31,7 +31,7 @@ test('a 2,001-channel lineup loads source rail and visible page in one request e
 
 test('summary supplies all group chips and favorites without downloading channel rows',async()=>{
  const s=server();const catalog=await legacyGuideCatalog(s.api,'s',{kind:'all',sourceId:'',timezone:'UTC'});
- assert.deepEqual(catalog,{groups:['News'],favorites:true,unavailableReasons:[]});assert.equal(s.requests.length,1);assert.ok(s.requests[0].startsWith('/v1/guide/sources?'));
+ assert.deepEqual(catalog,{groups:['News'],favorites:true,unavailableReasons:[]});assert.equal(s.requests.length,1);assert.ok(s.requests[0].startsWith('/v1/live/channels'));
 });
 
 test('directory revision conflicts reset the store and recover the current view',async()=>{
@@ -64,7 +64,7 @@ test('absent directory or summaries never trigger compatibility enumeration',asy
   await assert.rejects(legacyChannelSources(api,'s','UTC','Library Channels',NOW),e=>e===unavailable);
   await assert.rejects(legacyGuideCatalog(api,'s',{kind:'all',sourceId:'',timezone:'UTC'}),e=>e===unavailable);
   assert.equal(requests.length,3);
-  assert.ok(requests.every(p=>p.startsWith('/v1/guide/channels?')||p.startsWith('/v1/guide/sources?')));
+  assert.ok(requests.every(p=>p.startsWith('/v1/guide/channels?')||p.startsWith('/v1/live/channels')));
  }
 });
 
