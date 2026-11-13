@@ -240,6 +240,8 @@ type remoteState struct {
 	onAddressesChange func()
 	// listenPort is the port the server listens on, the one the router forwards to.
 	listenPort int
+	// networkStarted distinguishes a loopback-only listener from one not opened yet.
+	networkStarted bool
 	// finder announces the server to apps at home while Find this server at home is on.
 	finder *discovery.Announcer
 }
@@ -313,6 +315,7 @@ func (s *Server) applyCertificate(v RemoteAccessSettings) {
 func (s *Server) ServeNetwork(ctx context.Context, port int) {
 	s.access.mu.Lock()
 	s.access.listenPort = port
+	s.access.networkStarted = true
 	s.access.mu.Unlock()
 	// Apps at home find the server by its announcement, which needs a port they can reach.
 	if port != 0 {
@@ -324,6 +327,7 @@ func (s *Server) ServeNetwork(ctx context.Context, port int) {
 	}
 	v, _ := s.access.current()
 	s.applyCertificate(v)
+	s.addressesChanged()
 	if port != 0 {
 		s.goBackground(func() { s.public.Run(ctx) })
 	}

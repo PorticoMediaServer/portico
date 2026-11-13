@@ -47,7 +47,7 @@ type porticoLink struct {
 	onLinked   func(issuedAt time.Time)
 	onUnlinked func()
 	// published is the port and addresses the server publishes in its document, once remote
-	// access finds them; nil publishes none.
+	// access finds them. A nil hook publishes none; a nil answer waits for discovery.
 	published func() []hosted.Address
 
 	mu sync.Mutex
@@ -236,16 +236,18 @@ func (s *Server) porticoStep(ctx context.Context) time.Time {
 	}
 
 	// The document: has anything in it changed, and is a changed one due to be sent?
-	doc, digest, people, err := s.porticoDocument(ctx)
+	doc, digest, people, err := s.porticoDocument(ctx, link.DocumentSent != 0)
 	if err != nil {
 		s.networkLog.Error("could not read this server's members for Portico Services", "error", err)
 		return next
 	}
 	s.link.mu.Lock()
 	urgent := s.link.urgent
-	s.link.urgent = false
+	if doc.Addresses != nil {
+		s.link.urgent = false
+	}
 	s.link.mu.Unlock()
-	if digest != link.DocumentDigest || urgent {
+	if doc.Addresses != nil && (digest != link.DocumentDigest || urgent) {
 		if !update(func(l *db.Link) {
 			if l.DocumentDigest != "" && digest != l.DocumentDigest {
 				l.DocumentRevision++
@@ -271,7 +273,7 @@ func (s *Server) porticoStep(ctx context.Context) time.Time {
 		}
 	}
 	// While Portico Services says it does not know this server, only the daily check-in asks.
-	if link.DocumentSent < link.DocumentRevision && doc.OwnerAccountID != "" && link.Unknown == 0 {
+	if doc.Addresses != nil && link.DocumentSent < link.DocumentRevision && doc.OwnerAccountID != "" && link.Unknown == 0 {
 		if due := documentDue(link); due.After(now) {
 			next = sooner(next, due)
 		} else if !s.sendDocument(ctx, &link, doc, now, update) {
@@ -417,6 +419,15 @@ func documentDue(l db.Link) time.Time {
 // porticoPublished is the addresses for the server's document, home ones first, as
 // PublishedAddresses gives them.
 func (s *Server) porticoPublished() []hosted.Address {
+	s.access.mu.RLock()
+	starting := !s.access.networkStarted
+	s.access.mu.RUnlock()
+	v, _ := s.access.current()
+	if v.RemoteAccess == "on" && (starting || s.listenPort() != 0 && s.public.Answer().Address == "") {
+		// Services already holds the last published routes. Do not erase them while
+		// a restart opens the listener and finds its public address again.
+		return nil
+	}
 	out := []hosted.Address{}
 	for _, a := range s.PublishedAddresses() {
 		out = append(out, hosted.Address{Address: a.Address, Port: a.Port})
@@ -483,7 +494,8 @@ func (s *Server) porticoChangedByOwner() {
 
 // porticoDocument is this server's document as it stands, with a digest of it that changes
 // when anything in it does and a digest of everything in it but the addresses.
-func (s *Server) porticoDocument(ctx context.Context) (doc hosted.Document, digest, people string, err error) {
+// While discovery starts, nil addresses keep the last acknowledged document in Services.
+func (s *Server) porticoDocument(ctx context.Context, keepPublished bool) (doc hosted.Document, digest, people string, err error) {
 	name := s.porticoServerName()
 	members, err := s.db.PorticoMembers(ctx)
 	if err != nil {
@@ -506,6 +518,9 @@ func (s *Server) porticoDocument(ctx context.Context) (doc hosted.Document, dige
 	people = hash()
 	if s.link.published != nil {
 		if doc.Addresses = s.link.published(); doc.Addresses == nil {
+			if keepPublished {
+				return doc, "", people, nil
+			}
 			doc.Addresses = []hosted.Address{}
 		}
 		doc.Addresses = doc.Addresses[:min(len(doc.Addresses), 8)]
