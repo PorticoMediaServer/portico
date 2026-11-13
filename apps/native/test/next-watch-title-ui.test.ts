@@ -103,6 +103,9 @@ test('the expanded tablet preserves its title layout, labels Watched and insets 
   scroll.props.onScroll({nativeEvent: {contentOffset: {y: 622}, contentSize: {height: 2000}, layoutMeasurement: {height: 900}}});
   tree = f.render(); const pinned = find(tree, 'watch-title-pinned-bar');
   assert.equal(style(pinned).paddingTop, 24); assert.equal(style(pinned).height, 80);
+  // The shared translucent bar surface (kit/layout/TopBar BarSurface), never flat navy with its own line.
+  assert.equal(style(pinned).backgroundColor, undefined); assert.equal(style(pinned).borderBottomWidth, undefined);
+  assert.ok(descendants(pinned).some(node => node.type === 'BarSurface'));
   assert.equal(find(tree, 'watch-title-header'), undefined);
 });
 
