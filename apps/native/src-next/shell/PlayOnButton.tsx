@@ -9,15 +9,15 @@ import type {NativePlayOn, PlayOnSnapshot} from '../platform/play-on/controller'
 
 const none = () => () => {};
 
-/** The top bar's Play on state: shown only where there is somewhere to play (an account device, Google Cast offered on
- * this server and network, or a choice or move already made), so it is never a dead control; and the device it plays
- * on, when one is chosen or playing. */
+/** The top bar's Play on state. Owner's ruling (13 Nov): on a phone or tablet signed in to a server it always shows where
+ * the mock-up draws it (Home and title pages); the sheet always offers This device and Link a TV, and the Google Cast
+ * row only where the server offers Cast (rule 38). `device` is where it plays, when one is chosen or playing. */
 export function playOnButtonState(state: PlayOnSnapshot | undefined): Readonly<{visible: boolean; device?: string}> {
   if (!state) return {visible: false};
   const cast = state.cast?.cast, casting = cast?.phase === 'casting';
   const device = state.remote?.device ?? (casting ? cast?.deviceName ?? defaultI18n.t('playOn.googleCast') : undefined)
     ?? (state.chosen?.kind === 'device' ? state.chosen.device.displayName : state.chosen?.kind === 'cast' ? defaultI18n.t('playOn.googleCast') : undefined);
-  return {visible: !!device || !!cast?.available || state.receivers.length > 0, ...(device ? {device} : {})};
+  return {visible: true, ...(device ? {device} : {})};
 }
 
 /**

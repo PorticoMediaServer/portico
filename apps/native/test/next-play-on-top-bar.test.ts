@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenModule} from './helpers/screen-harness.mjs';
 
-// Owner, 13 Nov: Play on in the phone and tablet top bars. It is shown only where there is somewhere to play (never a
-// dead control), and while a device is chosen or playing it is drawn in the accent colour and says where.
+// Owner, 13 Nov: Play on in the phone and tablet top bars. It always shows for a signed-in server (the sheet always has This
+// device and Link a TV), and while a device is chosen or playing it is drawn in the accent colour and says where.
 const t = (key: string, values?: Record<string, string>) => values ? `${key}:${key === 'playOn.nextPlaysOn' ? values.device : Object.values(values).join(',')}` : key;
 async function button() {
   return screenModule(new URL('../src-next/shell/PlayOnButton.tsx', import.meta.url), {
@@ -15,10 +15,10 @@ async function button() {
 const base = {open: false, receivers: [], directoryPhase: 'ready', phase: 'idle', sending: false, remoteOpen: false, cast: {cast: {available: false, phase: 'off'}}};
 const tv = {id: 'tv', displayName: 'Living room TV', platform: 'tvos', allowed: true};
 
-test('the top bar Play on shows only where there is somewhere to play, and names the chosen or playing device', async () => {
+test('the top bar Play on always shows for a signed-in server, and names the chosen or playing device', async () => {
   const {playOnButtonState} = await button();
-  assert.deepEqual(playOnButtonState(undefined), {visible: false});
-  assert.deepEqual(playOnButtonState(base), {visible: false}, 'no account device and no Google Cast here: no button');
+  assert.deepEqual(playOnButtonState(undefined), {visible: false}, 'no Play on controller: nobody signed in to a server, or TV');
+  assert.deepEqual(playOnButtonState(base), {visible: true}, 'no account device and no Google Cast yet: still shown (owner, 13 Nov)');
   assert.deepEqual(playOnButtonState({...base, receivers: [tv]}), {visible: true});
   assert.deepEqual(playOnButtonState({...base, cast: {cast: {available: true, phase: 'off'}}}), {visible: true}, 'Google Cast offered on this server and network');
   assert.deepEqual(playOnButtonState({...base, chosen: {kind: 'device', device: tv}}), {visible: true, device: 'Living room TV'});
@@ -31,7 +31,8 @@ test('the button opens the one Play on sheet from itself, round over art and pla
   const {PlayOnButton} = await button();
   const opened: unknown[] = [];
   const playOn = {subscribe: () => () => {}, getSnapshot: () => undefined, readDirectory() {}, open: (anchor: unknown) => opened.push(anchor)};
-  assert.equal(PlayOnButton({playOn, variant: 'round'}), null, 'hidden while there is nowhere to play');
+  assert.equal(PlayOnButton({playOn: undefined, variant: 'round'}), null, 'no controller: no button');
+  assert.equal(PlayOnButton({playOn: {...playOn, getSnapshot: () => base}, variant: 'round'}).type, 'RoundBarButton', 'nowhere to play yet: still shown');
   let state: any = {...base, receivers: [tv]};
   const live = {...playOn, getSnapshot: () => state};
   const round = PlayOnButton({playOn: live, variant: 'round'});
