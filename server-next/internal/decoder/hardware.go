@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -60,6 +61,7 @@ const (
 	ProbeEncodeFailed        = "probe_encode_failed"
 	ProbeWarming             = "probe_warming"
 	ProbeTimedOut            = "probe_timed_out"
+	ProbeBusy                = "probe_busy"
 	ProbeDisabled            = "probe_disabled"
 	ProbeCircuitOpen         = "hardware_circuit_open"
 )
@@ -437,11 +439,6 @@ func (d *HardwareDetector) Reprobe(ctx context.Context, executable string, backe
 	cell := hardwareProbeCell{backend, device}
 	d.probeGenerations[cell]++
 	generation := d.probeGenerations[cell]
-	for key, cached := range d.cache {
-		if cached.Backend == backend && cached.Device == device {
-			delete(d.cache, key)
-		}
-	}
 	d.mu.Unlock()
 	return d.probe(ctx, executable, backend, device, true, generation)
 }
@@ -485,9 +482,31 @@ func (d *HardwareDetector) probe(ctx context.Context, executable string, backend
 	if timeout <= 0 {
 		timeout = defaultProbeTimeout
 	}
+	// Every codec/filter trial uses this runner: a busy HEVC or tone-map trial is
+	// inconclusive too, rather than erasing a working cell within this device.
+	var busyDetail string
+	runner := &HardwareDetector{Timeout: d.Timeout, Libraries: d.Libraries}
+	runner.Run = func(ctx context.Context, cmd *exec.Cmd) error {
+		tail := &probeTail{}
+		if cmd.Stderr == nil {
+			cmd.Stderr = tail
+		} else {
+			cmd.Stderr = io.MultiWriter(cmd.Stderr, tail)
+		}
+		var err error
+		if d.Run != nil {
+			err = d.Run(ctx, cmd)
+		} else {
+			err = cmd.Run()
+		}
+		if err != nil && busyHardwareProbe(tail.String()) {
+			busyDetail = probeDetail(tail.String())
+		}
+		return err
+	}
 	started := time.Now()
 	bounded, cancel := context.WithTimeout(ctx, timeout)
-	detail, err := d.runObserved(bounded, executable, probeArgs(spec, device, ""), nil)
+	detail, err := runner.runObserved(bounded, executable, probeArgs(spec, device, ""), nil)
 	cancel()
 	out.DurationMS = time.Since(started).Milliseconds()
 	switch {
@@ -513,12 +532,12 @@ func (d *HardwareDetector) probe(ctx context.Context, executable string, backend
 				scaleArgs[i+1] += "," + spec.scale(120)
 			}
 		}
-		out.ScaleFilters = d.run(bounded, executable, scaleArgs) == nil
+		out.ScaleFilters = runner.run(bounded, executable, scaleArgs) == nil
 		cancel()
 		chain := spec.toneMap(DefaultToneMapAlgorithm) + "," + spec.scale(120)
 		bounded, cancel = context.WithTimeout(ctx, timeout)
 		args := probeArgs(spec, device, chain)
-		out.NativeFilters = d.probeVAAPIFilters(bounded, executable, args) == nil
+		out.NativeFilters = runner.probeVAAPIFilters(bounded, executable, args) == nil
 		out.ToneMapFilters = out.NativeFilters
 		cancel()
 	}
@@ -527,7 +546,7 @@ func (d *HardwareDetector) probe(ctx context.Context, executable string, backend
 		out.OutputQuality = map[string]bool{}
 		qualityArgs := probeQualityArgs(spec, device, 8)
 		bounded, cancel = context.WithTimeout(ctx, timeout)
-		out.OutputQuality["h264:8"] = d.run(bounded, executable, qualityArgs) == nil
+		out.OutputQuality["h264:8"] = runner.run(bounded, executable, qualityArgs) == nil
 		cancel()
 		for _, cell := range []struct {
 			codec string
@@ -549,17 +568,20 @@ func (d *HardwareDetector) probe(ctx context.Context, executable string, backend
 			}
 			bounded, cancel = context.WithTimeout(ctx, timeout)
 			key := cell.codec + ":" + strconv.Itoa(depth)
-			out.OutputEncoders[key] = d.run(bounded, executable, args) == nil
+			out.OutputEncoders[key] = runner.run(bounded, executable, args) == nil
 			cancel()
 			if out.OutputEncoders[key] {
 				bounded, cancel = context.WithTimeout(ctx, timeout)
-				out.OutputQuality[key] = d.run(bounded, executable, probeQualityArgs(codecSpec, device, depth)) == nil
+				out.OutputQuality[key] = runner.run(bounded, executable, probeQualityArgs(codecSpec, device, depth)) == nil
 				cancel()
 			}
 		}
-		out.DecodeCodecs = d.probeDecodeCodecs(ctx, executable, backend, device, timeout)
-		out.DeinterlaceFilters = d.probeDeinterlace(ctx, executable, spec, backend, device, timeout)
-		out.BurnInFilters = d.probeBurnIn(ctx, executable, spec, backend, device, timeout)
+		out.DecodeCodecs = runner.probeDecodeCodecs(ctx, executable, backend, device, timeout)
+		out.DeinterlaceFilters = runner.probeDeinterlace(ctx, executable, spec, backend, device, timeout)
+		out.BurnInFilters = runner.probeBurnIn(ctx, executable, spec, backend, device, timeout)
+	}
+	if busyDetail != "" {
+		out.Available, out.Reason, detail = false, ProbeBusy, busyDetail
 	}
 	if ctx.Err() != nil {
 		return invalidHardwareObservation(out, ProbeTimedOut)
@@ -574,6 +596,14 @@ func (d *HardwareDetector) probe(ctx context.Context, executable string, backend
 	if d.probeGenerations[cell] != generation {
 		d.mu.Unlock()
 		return invalidHardwareObservation(out, ProbeWarming)
+	}
+	if out.Reason == ProbeBusy {
+		if previous, ok := d.cache[key]; ok && previous.Available {
+			out = previous
+			out.Reason = ProbeBusy
+		}
+		d.mu.Unlock()
+		return out
 	}
 	if d.cache == nil {
 		d.cache = map[string]HardwareProbe{}
