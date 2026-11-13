@@ -24,10 +24,22 @@ type UnprobedFile struct {
 // the given file id. A file that could not be read stays unread and is offered again by the
 // next scan, which starts from 0.
 func (d *DB) UnprobedFiles(ctx context.Context, libraryID, after int64, limit int) ([]UnprobedFile, error) {
+	return d.UnprobedFolderFiles(ctx, libraryID, 0, after, limit)
+}
+
+// UnprobedFolderFiles restricts the reading pass to one membership; 0 means every folder.
+func (d *DB) UnprobedFolderFiles(ctx context.Context, libraryID, pathID, after int64, limit int) ([]UnprobedFile, error) {
+	folder := ""
+	args := []any{after, libraryID}
+	if pathID != 0 {
+		folder = " AND p.id = ?"
+		args = append(args, pathID)
+	}
+	args = append(args, limit)
 	rows, err := d.read.QueryContext(ctx, `SELECT f.id, p.id, p.path, d.rel_path, f.name, f.size, f.modified_ns FROM files f
 		JOIN directories d ON d.id = f.directory_id JOIN library_paths p ON p.id = d.library_path_id
 		WHERE f.probed_at IS NULL AND f.probe_version = 0 AND f.id > ? AND f.role = 1 AND f.missing_since_at IS NULL AND p.library_id = ?
-		ORDER BY f.probe_version, f.id LIMIT ?`, after, libraryID, limit)
+		`+folder+` ORDER BY f.probe_version, f.id LIMIT ?`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -49,10 +61,21 @@ func (d *DB) UnprobedFiles(ctx context.Context, libraryID, after int64, limit in
 // would return in all. It reads as many rows as the reading pass is about to, so a scan asks
 // once and counts down from it.
 func (d *DB) UnprobedCount(ctx context.Context, libraryID int64) (int, error) {
+	return d.UnprobedFolderCount(ctx, libraryID, 0)
+}
+
+// UnprobedFolderCount counts only that folder's unread files; 0 means every folder.
+func (d *DB) UnprobedFolderCount(ctx context.Context, libraryID, pathID int64) (int, error) {
 	var n int
+	folder := ""
+	args := []any{libraryID}
+	if pathID != 0 {
+		folder = " AND p.id = ?"
+		args = append(args, pathID)
+	}
 	err := d.read.QueryRowContext(ctx, `SELECT count(*) FROM files f
 		JOIN directories d ON d.id = f.directory_id JOIN library_paths p ON p.id = d.library_path_id
-		WHERE f.probed_at IS NULL AND f.probe_version = 0 AND f.role = 1 AND f.missing_since_at IS NULL AND p.library_id = ?`, libraryID).Scan(&n)
+		WHERE f.probed_at IS NULL AND f.probe_version = 0 AND f.role = 1 AND f.missing_since_at IS NULL AND p.library_id = ?`+folder, args...).Scan(&n)
 	return n, err
 }
 
@@ -264,12 +287,23 @@ func streamFacts(streams []Stream) versionFacts {
 // ForgetProbes marks every media file of a library as not read, so the next scan reads each
 // again, changed or not: Scan all files. What was read before stays until it is replaced.
 func (d *DB) ForgetProbes(ctx context.Context, libraryID int64) error {
+	return d.ForgetFolderProbes(ctx, libraryID, 0)
+}
+
+// ForgetFolderProbes leaves the other folders' measurements intact; 0 means the whole library.
+func (d *DB) ForgetFolderProbes(ctx context.Context, libraryID, pathID int64) error {
+	folder := ""
+	args := []any{libraryID}
+	if pathID != 0 {
+		folder = " AND p.id = ?"
+		args = append(args, pathID)
+	}
 	for {
 		var n int64
 		err := d.write(ctx, Background, func(tx *sql.Tx) error {
 			res, err := tx.Exec(`UPDATE files SET probed_at = NULL WHERE id IN (SELECT f.id FROM files f JOIN directories d ON d.id = f.directory_id
 				JOIN library_paths p ON p.id = d.library_path_id WHERE p.library_id = ? AND f.role = 1 AND f.probed_at IS NOT NULL
-				LIMIT 500)`, libraryID)
+				`+folder+` LIMIT 500)`, args...)
 			if err != nil {
 				return err
 			}
@@ -293,12 +327,24 @@ type Packets struct {
 // Remote probes are retained: only Scan all files may request that reread.
 // A completed measurement, even an unsupported one, is not repeated until the file changes.
 func (d *DB) RereadAudioWithoutPackets(ctx context.Context, libraryID int64) error {
+	return d.RereadFolderAudioWithoutPackets(ctx, libraryID, 0)
+}
+
+// RereadFolderAudioWithoutPackets upgrades only this membership; 0 means every local folder.
+func (d *DB) RereadFolderAudioWithoutPackets(ctx context.Context, libraryID, pathID int64) error {
+	folder := ""
+	args := []any{libraryID}
+	if pathID != 0 {
+		folder = " AND p.id = ?"
+		args = append(args, pathID)
+	}
+	args = append(args, StreamAudio, StreamVideo)
 	return d.write(ctx, Background, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `UPDATE files SET probed_at = NULL WHERE probed_at IS NOT NULL
    AND json_extract(extra, '$.packets') IS NULL AND missing_since_at IS NULL AND role = 1
-   AND directory_id IN (SELECT d.id FROM directories d JOIN library_paths p ON p.id = d.library_path_id WHERE p.library_id = ? AND p.remote_source_id IS NULL)
+   AND directory_id IN (SELECT d.id FROM directories d JOIN library_paths p ON p.id = d.library_path_id WHERE p.library_id = ? AND p.remote_source_id IS NULL`+folder+`)
    AND EXISTS (SELECT 1 FROM media_streams s WHERE s.file_id = files.id AND s.kind = ?)
-   AND NOT EXISTS (SELECT 1 FROM media_streams s WHERE s.file_id = files.id AND s.kind = ?)`, libraryID, StreamAudio, StreamVideo)
+   AND NOT EXISTS (SELECT 1 FROM media_streams s WHERE s.file_id = files.id AND s.kind = ?)`, args...)
 		return err
 	})
 }

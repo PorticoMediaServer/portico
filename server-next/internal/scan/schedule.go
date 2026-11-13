@@ -2,7 +2,7 @@ package scan
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -65,6 +65,7 @@ func (m *Manager) Run(ctx context.Context) {
 			continue
 		case <-tick.C:
 		}
+		m.startPending(ctx)
 		if len(dirty) > 0 {
 			// A library whose watching was turned off since its folders were watched is left alone.
 			libraries, _ := m.scanner.DB.AllLibraries(ctx)
@@ -92,8 +93,10 @@ func (m *Manager) scheduled(ctx context.Context, library string) bool {
 	if last, err := m.scanner.DB.JobFor(ctx, db.JobScan, library); err == nil && last.State == db.JobFailed && last.Error == jobs.Interrupted {
 		return true
 	}
-	params, _ := json.Marshal(ScanParams{Scheduled: true})
-	job, err := m.jobs.Start(ctx, db.JobScan, jobs.Request{Target: jobs.Target{Library: library}, Params: params})
+	job, err := m.startScan(ctx, library, 0, ScanParams{Scheduled: true})
+	if errors.Is(err, ErrScanBusy) {
+		return false
+	}
 	if err != nil && ctx.Err() == nil {
 		m.scanner.log().Warn("a scan could not be started by itself", "library", library, "error", err)
 	}
@@ -109,7 +112,9 @@ func (m *Manager) startDue(ctx context.Context, now time.Time) {
 	for _, lib := range libraries {
 		for _, p := range lib.Paths {
 			if m.due(ctx, lib, p, now) {
-				m.scheduled(ctx, lib.PublicID)
+				if !m.scheduled(ctx, lib.PublicID) {
+					m.pend(lib.PublicID, true)
+				}
 				break
 			}
 		}
