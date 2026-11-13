@@ -652,7 +652,7 @@ and `/status` (the `remote-access` and `network` documents, and the status read)
 | Route | Who | Purpose |
 |---|---|---|
 | `GET /v1/admin/downloads` | Owner | Downloads by person: how many titles were asked for and how much space the server's copies take, each copy counted once |
-| `DELETE /v1/admin/members/{id}/downloads` | Owner | Remove their downloads: their requests go and the server's copies nobody else asked for are freed. It does not reach into a device |
+| `DELETE /v1/admin/members/{id}/downloads` | Owner | Expire their prepared server copies, preserving requests and device-held files; copies another person's request needs stay. Refused with `409 download_in_use` during a transfer; an unknown person returns `404` |
 
 Not carried: `POST /v1/admin/downloads/revoke` and `/cache/release` as two removals (one
 removal here; cutting someone off is the Downloads switch on the account or the profile).

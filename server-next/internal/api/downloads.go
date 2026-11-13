@@ -72,6 +72,9 @@ func (s *Server) downloadsByPerson(r *http.Request, _ None) (DownloadsByPerson, 
 // removePersonDownloads frees the person's prepared server copies, preserving
 // requests and files already held on devices. Other people's shared copies stay.
 func (s *Server) removePersonDownloads(r *http.Request, _ None) (None, error) {
+	if _, err := s.db.Member(r.Context(), r.PathValue("id")); err != nil {
+		return None{}, refuse(err)
+	}
 	err := s.prepare.ExpirePersonDownloads(r.Context(), r.PathValue("id"))
 	if errors.Is(err, prepare.ErrReading) {
 		return None{}, ErrConflict("download_in_use", "A prepared download is being fetched. Try again when the transfer has finished.")

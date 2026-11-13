@@ -24,9 +24,9 @@ func TestCacheRemovalAndDownloadKeepingUseOnlyReusableCopies(t *testing.T) {
 			t.Fatal(err)
 		}
 		if state == db.PreparedReady {
-			err = d.FinishPrepared(ctx, p.ID, "mp4", 3, "hash", at)
+			err = d.FinishPrepared(ctx, p.ID, p.PublicID, "mp4", 3, "hash", at)
 		} else {
-			err = d.SetPreparedState(ctx, p.ID, state, "")
+			err = d.SetPreparedState(ctx, p.ID, p.PublicID, state, "")
 		}
 		if err != nil {
 			t.Fatal(err)

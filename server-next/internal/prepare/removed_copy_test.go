@@ -25,10 +25,10 @@ func TestRemovedCopyCannotPublishIntoARetriedCopy(t *testing.T) {
 	if old.ID != next.ID || old.PublicID == next.PublicID {
 		t.Fatal("fixture did not reuse the removed SQLite row id", old, next)
 	}
-	if err := d.SetPreparedStateFor(ctx, old.ID, old.PublicID, db.PreparedFailed, "old worker"); err != nil {
+	if err := d.SetPreparedState(ctx, old.ID, old.PublicID, db.PreparedFailed, "old worker"); err != nil {
 		t.Fatal(err)
 	}
-	if err := d.FinishPreparedFor(ctx, old.ID, old.PublicID, "mp4", 3, "old bytes", now); err != nil {
+	if err := d.FinishPrepared(ctx, old.ID, old.PublicID, "mp4", 3, "old bytes", now); err != nil {
 		t.Fatal(err)
 	}
 	got, err := d.PreparedByID(ctx, next.ID)

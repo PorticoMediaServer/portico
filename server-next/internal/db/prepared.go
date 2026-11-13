@@ -88,19 +88,19 @@ func (d *DB) NextPrepared(ctx context.Context, skip []int64) (Prepared, error) {
 		JOIN downloads d ON d.id = x.download_id WHERE x.prepared_id = p.id AND x.state = 0 AND d.paused = 0) ORDER BY created_at, id LIMIT 1`))
 }
 
-// SetPreparedState records that a copy is being made, or why it could not be.
-func (d *DB) SetPreparedState(ctx context.Context, id int64, state, reason string) error {
+// SetPreparedState ignores a cancelled worker whose removed row id was reused.
+func (d *DB) SetPreparedState(ctx context.Context, id int64, publicID, state, reason string) error {
 	return d.write(ctx, Background, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `UPDATE prepared_media SET state = ?, error = nullif(?, '') WHERE id = ?`, state, reason, id)
+		_, err := tx.ExecContext(ctx, `UPDATE prepared_media SET state = ?, error = nullif(?, '') WHERE id = ? AND public_id = ?`, state, reason, id, publicID)
 		return err
 	})
 }
 
-// FinishPrepared records a copy that is ready. The keeping time starts again from now.
-func (d *DB) FinishPrepared(ctx context.Context, id int64, container string, size int64, hash string, now time.Time) error {
+// FinishPrepared records only the copy this worker actually made.
+func (d *DB) FinishPrepared(ctx context.Context, id int64, publicID, container string, size int64, hash string, now time.Time) error {
 	return d.write(ctx, Background, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `UPDATE prepared_media SET state = 'ready', error = NULL, container = ?, size = ?, content_hash = ?,
-			ready_at = ?, last_used_at = ? WHERE id = ?`, container, size, hash, now.UnixMilli(), now.UnixMilli(), id)
+			ready_at = ?, last_used_at = ? WHERE id = ? AND public_id = ?`, container, size, hash, now.UnixMilli(), now.UnixMilli(), id, publicID)
 		return err
 	})
 }
@@ -209,21 +209,4 @@ func (d *DB) PreparedVersion(ctx context.Context, mediaID int64) (Version, ItemK
 		}
 	}
 	return Version{}, kind, ErrNotFound
-}
-
-// SetPreparedStateFor ignores a cancelled worker whose removed row id was reused.
-func (d *DB) SetPreparedStateFor(ctx context.Context, id int64, publicID, state, reason string) error {
-	return d.write(ctx, Background, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `UPDATE prepared_media SET state = ?, error = nullif(?, '') WHERE id = ? AND public_id = ?`, state, reason, id, publicID)
-		return err
-	})
-}
-
-// FinishPreparedFor records only the copy this worker actually made.
-func (d *DB) FinishPreparedFor(ctx context.Context, id int64, publicID, container string, size int64, hash string, now time.Time) error {
-	return d.write(ctx, Background, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `UPDATE prepared_media SET state = 'ready', error = NULL, container = ?, size = ?, content_hash = ?,
-			ready_at = ?, last_used_at = ? WHERE id = ? AND public_id = ?`, container, size, hash, now.UnixMilli(), now.UnixMilli(), id, publicID)
-		return err
-	})
 }
