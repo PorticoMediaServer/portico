@@ -12,7 +12,7 @@ DEV_ENGINE=runpy.run_path(str(ROOT/'scripts/development-engine.py'))
 BUILD_TAGS=TAGS['value']()
 
 def module_path(component):
-    return 'github.com/PorticoMediaServer/portico/server' if component=='server' else 'portico.local/'+component
+    return 'github.com/PorticoMediaServer/portico/server-next' if component=='server' else 'portico.local/'+component
 
 def build_tags(component):
     # The server carries the reader capability; only the server is a buildable
@@ -28,33 +28,15 @@ def official_root():
     raw=path.read_bytes();key=serialization.load_pem_public_key(raw)
     if not isinstance(key,Ed25519PublicKey):raise SystemExit('Official root must be Ed25519')
     encoded=base64.urlsafe_b64encode(key.public_bytes_raw()).decode().rstrip('=')
-    if encoded in (ROOT/'server/internal/hostedtrust/development_root.go').read_text():raise SystemExit('Development root is forbidden in release builds')
+    if hashlib.sha256(key.public_bytes_raw()).hexdigest()=='a96af130ee5a59294c90fcb8883dc7c6c3878365d970f4a6e67fa7ed2fc7ef4c':raise SystemExit('Development root is forbidden in release builds')
     return encoded,raw
 
-# Siblings read by mandatory Go tests, plus their checked-in asset inventory.
-# Keep their repository paths: the tests intentionally check the actual writer,
-# catalogue and runtime consumers rather than substitute fixtures.
-TEST_INPUTS = (
-    'go.work',
-    'scripts/write-public-update-manifest.mjs',
-    'scripts/vet-go.sh',
-    # vet-go.sh reads the build tags from its own directory's copy.
-    'scripts/release-build-tags.py',
-    'packages/i18n/src/catalog/en-US/settings.ts',
-    'packages/client-core/src/music-preferences.ts',
-    'packages/client-core/src/audiobook-preferences.ts',
-    'packages/client-core/src/preference-effects.ts',
-    'web/src/shell/bootstrap.ts',
-    'web/src/shell/settings.ts',
-    'third_party/rclone/bundle.lock.json',
-)
+# The independent module carries its test fixtures and embedded receiver. Vet uses
+# these two checked scripts; no old application module enters the snapshot.
+TEST_INPUTS = ('scripts/vet-go.sh', 'scripts/release-build-tags.py')
 
 def input_inventory(source, siblings):
     _,files=digest_source(source)
-    dependency=siblings/'apikit'
-    if not (dependency/'go.mod').is_file():raise ValueError('Missing release input: apikit/go.mod')
-    _,rows=digest_source(dependency)
-    files.extend({'path':'../apikit/'+r['path'],'sha256':r['sha256']} for r in rows)
     for name in TEST_INPUTS:
         base=siblings/name
         if not base.exists():raise ValueError('Missing release test input: '+name)
@@ -73,7 +55,7 @@ def snapshot_digest(source):
     return hashlib.sha256(json.dumps(files,separators=(',',':'),sort_keys=True).encode()).hexdigest(),files
 
 def capture_source(live,stage,root_pem):
-    source=stage/'server'
+    source=stage/'server-next'
     source.mkdir(parents=True)
     before=input_inventory(live,ROOT)
     for entry in before:
@@ -86,7 +68,7 @@ def capture_source(live,stage,root_pem):
     # sibling edits must fail capture just like concurrent module edits.
     if input_inventory(source,stage)!=before or input_inventory(live,ROOT)!=before:
         raise ValueError('Source or test dependency changed during capture; retry after edits settle.')
-    # Go workspace membership follows the physical module directory.
+    # Keep the verifier's source alias; Go runs in the independent physical module.
     (stage/'source').symlink_to(source.name,target_is_directory=True)
     (stage/'root-public-key.pem').write_bytes(root_pem)
     return snapshot_digest(source)
@@ -131,14 +113,14 @@ def artifact_identity(artifact):
     # also travels in the binary as one proof marker (buildinfo.Proof), and is read from there.
     proofs=set(re.findall(rb'PORTICO_RELEASE_V2:([a-f0-9]{64}):([A-Za-z0-9_-]+):([0-9A-Za-z.+-]+):([A-Za-z0-9_-]+):END',artifact.read_bytes()))
     module=info.get('Path','').split('/cmd/')[0]
-    if module not in ('github.com/PorticoMediaServer/portico/server','portico.local/hosted'):raise ValueError('Unexpected application module')
+    if module not in ('github.com/PorticoMediaServer/portico/server-next','portico.local/hosted'):raise ValueError('Unexpected application module')
     prefix=module+'/internal/buildinfo.'
-    trust_symbol='github.com/PorticoMediaServer/portico/server/internal/hostedtrust.OfficialRoot' if module.endswith('/server') else 'portico.local/hosted/trust.OfficialRoot'
+    trust_symbol='github.com/PorticoMediaServer/portico/server-next/internal/hosted.OfficialRoot' if module.endswith('/server-next') else 'portico.local/hosted/trust.OfficialRoot'
     if '-ldflags' not in settings:
         if len(proofs)!=1:raise ValueError('A release binary built without recorded -ldflags must carry exactly one identity proof')
         source,build_id,version,root=(x.decode() for x in next(iter(proofs)))
         # The marker names the trust root; the binary must also carry that exact value outside the
-        # marker (the -X string the hostedtrust variable points at), so a marker can't claim a root
+        # marker (the -X string the hosted root variable points at), so a marker can't claim a root
         # the server doesn't use.
         if artifact.read_bytes().count(root.encode())<2:raise ValueError('The proof marker names a trust root the binary does not otherwise carry')
         embedded={prefix+'SourceDigest':source,prefix+'BuildID':build_id,prefix+'Version':version,trust_symbol:root}
@@ -163,7 +145,7 @@ def check_contents(directory,expected_source,manifest,development=False):
     source_digest,_=snapshot_digest(directory/'source')
     if source_digest!=expected_source:raise ValueError('Build snapshot changed')
     embedded,settings=artifact_identity(artifact)
-    trust_symbol='github.com/PorticoMediaServer/portico/server/internal/hostedtrust.OfficialRoot' if component=='server' else 'portico.local/hosted/trust.OfficialRoot'
+    trust_symbol='github.com/PorticoMediaServer/portico/server-next/internal/hosted.OfficialRoot' if component=='server' else 'portico.local/hosted/trust.OfficialRoot'
     if not tags_are_official(component,settings.get('-tags')) or embedded.get(trust_symbol)!=manifest.get('officialRoot'):raise ValueError('Release lacks the certified official trust root or its official build tags')
     if settings.get('-trimpath')!='true':raise ValueError('Release was built without -trimpath and carries build-machine paths')
     prefix=module_path(component)+'/internal/buildinfo.'
@@ -245,7 +227,7 @@ def main():
     builder_digest=hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()
     build_id=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex[:8]
     stage=ROOT/'runtime'/'releases'/build_id;source=stage/'source'
-    live=(args.source_dir or ROOT/args.component).resolve()
+    live=(args.source_dir or ROOT/'server-next').resolve()
     if not live.is_relative_to(ROOT) or not (live/'go.mod').is_file():raise SystemExit('Source must be an application module inside this repository.')
     if not re.search(r'^module '+re.escape(module_path(args.component))+r'\s*$',(live/'go.mod').read_text(),re.M):raise SystemExit('Source module does not match release component.')
     snapshot,copied=capture_source(live,stage,root_pem)
@@ -254,25 +236,23 @@ def main():
         database_file=pathlib.Path(os.environ.get('PORTICO_TEST_DATABASE_URL_FILE',str(ROOT/'runtime/postgres/test-database-url')))
         if not database_file.is_file():raise SystemExit('Hosted release requires the isolated PostgreSQL integration database.')
         checked_env['PORTICO_TEST_DATABASE_URL_FILE']=str(database_file)
-    checked_env['GOWORK']=str(stage/'go.work')
     subprocess.run([str(ROOT/'scripts/env.sh'),'go','mod','verify'],cwd=source,env=checked_env,check=True)
-    if args.component=='server' and args.tests!='none':
-        helper=stage/'test-helper'
-        subprocess.run([str(ROOT/'scripts/env.sh'),'go','build','-mod=readonly','-o',str(helper),'./cmd/server'],cwd=source,env=checked_env,check=True)
-        checked_env['PORTICO_PLAYBACK_TEST_HELPER']=str(helper)
     # The 20,000-row metadata boundary test is deliberately exhaustive. Race
     # instrumentation of pure-Go SQLite exceeds Go's default ten-minute limit.
     # --tests none: the release run's gate job ran the full suite on this same commit.
     if args.tests!='none':
-        subprocess.run([str(ROOT/'scripts/env.sh'),'go','test',*(['-race'] if args.tests=='full' else []),'-timeout=60m','./...'],cwd=source,env=checked_env,check=True,stdout=sys.stderr)
+        subprocess.run([str(ROOT/'scripts/env.sh'),'go','test','-tags',TAGS['value'](release=False),*(['-race'] if args.tests=='full' else []),'-timeout=60m','./...'],cwd=source,env=checked_env,check=True,stdout=sys.stderr)
     subprocess.run([str(ROOT/'scripts/env.sh'),'sh',str(stage/'scripts/vet-go.sh')],cwd=source,env=checked_env,check=True)
     built_at=datetime.datetime.now(datetime.timezone.utc).isoformat()
     prefix=module_path(args.component)+'/internal/buildinfo.'
     flags=' '.join(f'-X {prefix}{key}={value}' for key,value in {'SourceDigest':snapshot,'BuildID':build_id,'Version':args.version,'BuiltAt':built_at,'Proof':f'PORTICO_RELEASE_V2:{snapshot}:{build_id}:{args.version}:{root_key}:END'}.items())
-    flags+=' -X '+('github.com/PorticoMediaServer/portico/server/internal/hostedtrust.OfficialRoot' if args.component=='server' else 'portico.local/hosted/trust.OfficialRoot')+'='+root_key
-    env=controlled_env();env.update({'GOWORK':str(stage/'go.work'),'GOOS':args.os,'GOARCH':args.arch,'CGO_ENABLED':'0'})
+    flags+=' -X '+('github.com/PorticoMediaServer/portico/server-next/internal/hosted.OfficialRoot' if args.component=='server' else 'portico.local/hosted/trust.OfficialRoot')+'='+root_key
+    cast_id=os.environ.get('PORTICO_CAST_APPLICATION_ID','')
+    if cast_id and not re.fullmatch(r'[0-9A-Fa-f]{8}',cast_id):raise SystemExit('Cast application id must be the registered eight hexadecimal digits')
+    if cast_id:flags+=' -X github.com/PorticoMediaServer/portico/server-next/receiver.ApplicationID='+cast_id
+    env=controlled_env();env.update({'GOWORK':'off','GOOS':args.os,'GOARCH':args.arch,'CGO_ENABLED':'0'})
     # -trimpath: the binary names module paths, never this machine's folders (the snapshot, the module cache, Go's own).
-    subprocess.run([str(ROOT/'scripts/env.sh'),'go','build','-tags',build_tags(args.component),'-buildvcs=false','-mod=readonly','-trimpath','-ldflags',flags,'-o',str(stage/('portico-'+args.component+('.exe' if args.os=='windows' else ''))),'./cmd/'+args.component],cwd=source,env=env,check=True)
+    subprocess.run([str(ROOT/'scripts/env.sh'),'go','build','-tags',build_tags(args.component),'-buildvcs=false','-mod=readonly','-trimpath','-ldflags',flags,'-o',str(stage/('portico-'+args.component+('.exe' if args.os=='windows' else ''))),'./cmd/portico-server'],cwd=source,env=env,check=True)
     if snapshot_digest(source)[0]!=snapshot:raise SystemExit('Source snapshot changed during build.')
     if hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()!=builder_digest:raise SystemExit('Builder changed during execution; discard output and retry.')
     binary=stage/('portico-'+args.component+('.exe' if args.os=='windows' else ''));manifest={'schema':1,'version':args.version,'component':args.component,'buildId':build_id,'sourceDigest':snapshot,'officialRoot':root_key,'builtAt':built_at,'target':args.os+'-'+args.arch,'builderSha256':builder_digest,'sourceFiles':copied,'artifact':{'path':binary.name,'sha256':hashlib.sha256(binary.read_bytes()).hexdigest()},'sealed':not args.unsealed,'tests':args.tests}

@@ -50,6 +50,8 @@ env:
   # Intermediate files are visible to anyone who can read this public repository's runs, so they
   # are kept for a day only. Signed builds pass through them only in a release run.
   RETENTION_DAYS: 1
+  # One Portico registration, shared by the server and native build. Empty disables Cast.
+  PORTICO_CAST_APPLICATION_ID: ${{ vars.PORTICO_CAST_APPLICATION_ID }}
 
 jobs:
   identity:
@@ -106,58 +108,51 @@ jobs:
             [ "$value" = true ] || echo "not signed: $name (proof run, or its secrets are not set)"
           done
 
-  gate-plan:
-    # The merge tier's own Go selection and duration-balanced test-level split
-    # (ci/release_gate_plan.py), in more shards so the gate stays short.
-    needs: identity
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    outputs:
-      matrix: ${{ steps.plan.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
-        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
-      - id: plan
-        # The planner chooses tiers from the event; the gate always takes the full merge tier.
-        env: {GITHUB_EVENT_NAME: ''}
-        run: python3 ci/release_gate_plan.py --shards 36 --output gate-plan.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with: {name: gate-plan, path: gate-plan.json, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
-
   gate:
-    # The full server suite, once per release, on the commit being released, exactly as the merge
-    # tier runs it (no -race: the race run is lane E's nightly, report-only job). Every server
-    # build needs it; the builds themselves run no suite.
-    needs: [identity, gate-plan]
+    # Test the server actually shipped, including the tagged decoders. Each job
+    # runs its default merge tier over the full module; media-tier qualification is separate.
+    needs: identity
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.gate-plan.outputs.matrix) }}
+      matrix: {mode: [default, readers]}
+    defaults:
+      run: {working-directory: server-next}
+    env:
+      PORTICO_REQUIRE_DECODER_SANDBOX: '1'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
-        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with: {name: gate-plan}
+        with: {go-version-file: server-next/go.mod, cache-dependency-path: server-next/go.sum}
+      - name: Allow the decoder sandbox on this VM
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap
+          for setting in kernel.apparmor_restrict_unprivileged_userns=0 kernel.unprivileged_userns_clone=1; do
+            key=${setting%%=*}
+            if [ -e "/proc/sys/${key//.//}" ]; then sudo sysctl -w "$setting"; fi
+          done
+          bwrap --unshare-all --die-with-parent --ro-bind / / --proc /proc --dev /dev --cap-drop ALL /bin/true
       - name: The engine the release ships
         run: |
-          python3 scripts/development-engine.py fetch --target linux-x64 --output "$RUNNER_TEMP/engine"
+          python3 ../scripts/development-engine.py fetch --target linux-x64 --output "$RUNNER_TEMP/engine"
           echo "PORTICO_FFMPEG=$RUNNER_TEMP/engine/bin/ffmpeg" >> "$GITHUB_ENV"
           echo "PORTICO_FFPROBE=$RUNNER_TEMP/engine/bin/ffprobe" >> "$GITHUB_ENV"
           echo "$RUNNER_TEMP/engine/bin" >> "$GITHUB_PATH"
-      - name: Server suite, shard ${{ matrix.index }}
-        # The gate tests the engine this release ships. ci/quarantine.json entries scoped to the
-        # development engine (features only the qualified engine has, such as libsoxr) apply here
-        # and nowhere else; a qualified-engine release runs every test.
-        env: {PORTICO_CI_ENGINE: development}
-        run: python3 ci/run.py go --plan gate-plan.json --index '${{ matrix.index }}'
+      - name: Server build, vet and default-tier tests (${{ matrix.mode }})
+        env: {MODE: '${{ matrix.mode }}'}
+        run: |
+          set -euo pipefail
+          tags=""
+          if [ "$MODE" = readers ]; then tags="$(python3 ../scripts/release-build-tags.py --capability)"; fi
+          go build -tags "$tags" ./...
+          go vet -tags "$tags" ./...
+          mkdir -p ../ci-results
+          go test -tags "$tags" -timeout=25m -json ./... | tee "../ci-results/server-$MODE.jsonl"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: ${{ !cancelled() }}
-        with: {name: 'gate-results-${{ matrix.index }}', path: ci-results/, if-no-files-found: warn, retention-days: '${{ env.RETENTION_DAYS }}'}
+        with: {name: 'gate-results-${{ matrix.mode }}', path: ci-results/, if-no-files-found: error, retention-days: '${{ env.RETENTION_DAYS }}'}
 
   web:
     needs: identity
@@ -190,7 +185,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with: {ref: '${{ needs.identity.outputs.sha }}', persist-credentials: false}
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
-        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+        with: {go-version-file: server-next/go.mod, cache-dependency-path: server-next/go.sum}
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with: {name: web, path: .release/web}
       - name: Release tools
@@ -238,7 +233,7 @@ jobs:
           [ "${version%%$'\n'*}" = 'Xcode 26.6' ] || { echo 'expected Xcode 26.6' >&2; exit 1; }
           xcodebuild -showsdks
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
-        with: {go-version-file: server/go.mod, cache-dependency-path: server/go.sum}
+        with: {go-version-file: server-next/go.mod, cache-dependency-path: server-next/go.sum}
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with: {name: web, path: .release/web}
       - name: Release tools
@@ -417,9 +412,9 @@ jobs:
         # ("Multiple shrunk-resources files found", issuetracker 402800800).
         run: |
           set -euo pipefail
-          ./gradlew --no-daemon -PporticoAbiSplits=true -PporticoVersionName="$VERSION" -PporticoVersionCode="$BUILD" ${{ matrix.task }}
+          ./gradlew --no-daemon -PporticoAbiSplits=true -PporticoVersionName="$VERSION" -PporticoVersionCode="$BUILD" -PporticoCastApplicationId="$PORTICO_CAST_APPLICATION_ID" ${{ matrix.task }}
           if [ '${{ matrix.flavor }}' = google ]; then
-            ./gradlew --no-daemon -PporticoVersionName="$VERSION" -PporticoVersionCode="$BUILD" bundleGoogleRelease
+            ./gradlew --no-daemon -PporticoVersionName="$VERSION" -PporticoVersionCode="$BUILD" -PporticoCastApplicationId="$PORTICO_CAST_APPLICATION_ID" bundleGoogleRelease
           fi
       - name: Collect
         env: {SIGNED: '${{ needs.identity.outputs.android_signing }}'}
@@ -541,7 +536,7 @@ jobs:
                     MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD")
             if [ "$SIGNED" = true ]; then
               auth=(-allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/asc-key.p8" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER")
-              xcodebuild "${common[@]}" -archivePath "$archive" archive "${auth[@]}" DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic
+              xcodebuild "${common[@]}" PORTICO_CAST_APPLICATION_ID="$PORTICO_CAST_APPLICATION_ID" -archivePath "$archive" archive "${auth[@]}" DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic
               archive_sdk "$archive" "$sdk"
               cat > "$RUNNER_TEMP/export-$platform.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
@@ -556,7 +551,7 @@ jobs:
               xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$RUNNER_TEMP/export-$platform.plist" -exportPath "$RUNNER_TEMP/export-$platform" "${auth[@]}"
               cp "$RUNNER_TEMP/export-$platform"/*.ipa "dist/Portico-$platform.ipa"
             else
-              xcodebuild "${common[@]}" -archivePath "$archive" archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+              xcodebuild "${common[@]}" PORTICO_CAST_APPLICATION_ID="$PORTICO_CAST_APPLICATION_ID" -archivePath "$archive" archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
               archive_sdk "$archive" "$sdk"
               ditto -c -k --keepParent "$archive" "dist/Portico-$platform-UNSIGNED-NOT-FOR-USE.xcarchive.zip"
             fi

@@ -43,13 +43,13 @@ def verify_payload(directory, public_key):
         raise ValueError("rclone manifest changed")
     RCLONE["verify"](rclone, "darwin-arm64", codesigned="sourceSeal" in manifest)
     embedded, settings = artifact_identity(binary)
-    prefix = "github.com/PorticoMediaServer/portico/server/internal/buildinfo."
+    prefix = "github.com/PorticoMediaServer/portico/server-next/internal/buildinfo."
     for symbol, field in [("SourceDigest", "sourceDigest"), ("BuildID", "buildId"), ("Version", "version")]:
         if embedded.get(prefix + symbol) != manifest[field]:
             raise ValueError("Embedded build identity does not match the source seal")
     if not tags_are_official("server", settings.get("-tags")) or settings.get("GOOS") != "darwin" or settings.get("GOARCH") != "arm64":
         raise ValueError("Invalid compiler target or release mode")
-    if embedded.get("github.com/PorticoMediaServer/portico/server/internal/hostedtrust.OfficialRoot") != manifest.get("officialRoot"):
+    if embedded.get("github.com/PorticoMediaServer/portico/server-next/internal/hosted.OfficialRoot") != manifest.get("officialRoot"):
         raise ValueError("Official trust root changed")
     if "sourceSeal" in manifest:
         original = directory / "source-seal"

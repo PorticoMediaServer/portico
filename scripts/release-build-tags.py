@@ -3,7 +3,7 @@
 
 One list, not a copy in each builder: `scripts/build-server-release.py`, the
 Dockerfile, CI, the QA runner, the Makefile and the packaging seals all read it
-here. A command that builds `./cmd/server` without these tags silently ships a
+here. A command that builds `./cmd/portico-server` without these tags silently ships a
 server whose comic archive readers are absent, so `--check` lets a CI guard fail
 a changed command instead of leaving the capability to a reviewer's memory.
 

@@ -23,7 +23,7 @@ Until v0.1.0, every product (the server, the apps on every platform and the desk
 
 1. **Start.** The maintainer runs the **Release** workflow on `main` with a version (`0.0.N`).
    - It builds everything from that one commit.
-   - The full server suite runs once, as a gate, the same way the merge checks run it. The macOS server build also runs it on macOS. Cross-compiled builds run no tests of their own. A separate nightly run checks for data races.
+   - The server-next default merge suite runs over the full module as a gate, both with default tags and with the CBR/CB7 capability tags. Separate media-tier and hardware qualification is not claimed by this gate. The macOS server build also runs it on macOS. Cross-compiled builds run no tests of their own. A separate nightly run checks for data races.
    - A pull request that changes the release machinery runs the same builds as a proof: version 0.0.0, with no signing, no seal and no draft.
 2. **Seal.** Two steps wait for the maintainer's approval in the `release-seal` environment, the only place the release key is available. That's two approvals per release:
    - **The server builds**, one approval for every platform at once. Each build's own `manifest.json` and `manifest.sig` are signed. This step arrives with the qualified FFmpeg toolchain; internal builds skip it.
@@ -34,7 +34,7 @@ Until v0.1.0, every product (the server, the apps on every platform and the desk
 - That makes every server build unsealed.
 - Its files say `UNSEALED-NOT-FOR-USE-ENGINE`.
 - Its update feed lists no build, so no server offers it as an update.
-- Its gate skips the few tests that need features only the qualified engine has (libsoxr for music conversion): `ci/quarantine.json` entries scoped to `engine: development`, each with a reason and an expiry. A qualified-engine release runs every test.
+- Its gate runs server-next’s default tier against the engine it ships, without old-server exclusions. The development engine still lacks libsoxr; SoXr-dependent media-tier proofs require the qualified engine.
 - Sealed releases need the qualified toolchain below.
 - The server doesn't install updates today. When an updater exists, it must verify the sealed manifest.
 
@@ -62,7 +62,7 @@ A Portico release starts from a reviewed `vMAJOR.MINOR.PATCH` Git tag. The relea
 - Linux x64 and ARM64 `.tar.gz` bundles, DEB files and RPM files
 - A Linux amd64/arm64 container image on GitHub Container Registry
 
-Each server binary is built from an isolated copy of the source and sealed with a signed manifest (`scripts/build-server-release.py`; see [release signing](server/api/release-signing.md)). Every shipped build uses the same Go build tags from `scripts/release-build-tags.py`: `release`, plus the `portico_rar7z` and `portico_cb7` reader tags. The release is built and tested with those tags, and the verifier rejects any binary built with a different set.
+Each server binary is built from an isolated copy of `server-next/` (`github.com/PorticoMediaServer/portico/server-next`, command `./cmd/portico-server`) and sealed with a signed manifest by [the release builder](scripts/build-server-release.py). The verifier checks its linked build identity and the Hosted Services root the binary uses. Every shipped build uses the same Go build tags from `scripts/release-build-tags.py`: `release`, plus the `portico_rar7z` and `portico_cb7` reader tags. The release is built and tested with those tags, and the verifier rejects any binary built with a different set.
 
 The workflow then writes SHA-256 checksums, an SBOM, build provenance and a small update manifest, and publishes the GitHub release. A final signed inventory covers every finished archive and installer, including the web files.
 

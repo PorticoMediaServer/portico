@@ -66,10 +66,10 @@ if '--force' in sys.argv:
         pkgbuild = self.tools / "pkgbuild"
         pkgbuild.write_text('#!/usr/bin/env python3\nimport pathlib,sys\npathlib.Path(sys.argv[-1]).touch()\n')
         pkgbuild.chmod(0o700)
-        prefix = "github.com/PorticoMediaServer/portico/server/internal/buildinfo."
+        prefix = "github.com/PorticoMediaServer/portico/server-next/internal/buildinfo."
         symbols = {prefix + "SourceDigest": "a" * 64, prefix + "BuildID": "fixture",
-                   prefix + "Version": "0.1.0", "github.com/PorticoMediaServer/portico/server/internal/hostedtrust.OfficialRoot": "fixture-root"}
-        info = {"Path": "github.com/PorticoMediaServer/portico/server/cmd/server", "Settings": [
+                   prefix + "Version": "0.1.0", "github.com/PorticoMediaServer/portico/server-next/internal/hosted.OfficialRoot": "fixture-root"}
+        info = {"Path": "github.com/PorticoMediaServer/portico/server-next/cmd/portico-server", "Settings": [
             {"Key": "GOOS", "Value": "darwin"}, {"Key": "GOARCH", "Value": "arm64"},
             {"Key": "-tags", "Value": runpy.run_path(str(self.fixture.repo / "scripts/release-build-tags.py"))["value"]()},
             {"Key": "-ldflags", "Value": " ".join("-X " + k + "=" + v for k, v in symbols.items())}]}
