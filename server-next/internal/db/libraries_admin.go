@@ -35,7 +35,8 @@ type AdminLibrary struct {
 // With a public id it returns that library alone.
 func (d *DB) AdminLibraries(ctx context.Context, publicID string) ([]AdminLibrary, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT l.id, l.public_id, l.name, l.kind, ifnull(l.language, ''), l.position, l.created_at, l.updated_at,
-		l.options, l.revision, ifnull(l.last_scan_started_at, 0), ifnull(l.last_scan_finished_at, 0), p.id, p.path, p.state,
+		l.options, ifnull(l.metadata_provider, ''), ifnull(json_extract(l.options, '$.region'), ''),
+		l.revision, ifnull(l.last_scan_started_at, 0), ifnull(l.last_scan_finished_at, 0), p.id, p.path, p.state,
 		ifnull(p.last_error, ''), ifnull(p.last_scan_at, 0), ifnull(s.public_id, ''), ifnull(p.remote_source_id, 0) FROM libraries l LEFT JOIN library_paths p ON p.library_id = l.id
 		LEFT JOIN remote_sources s ON s.id = p.remote_source_id
 		WHERE ? = '' OR l.public_id = ? ORDER BY l.position, l.id, p.id`, publicID, publicID)
@@ -49,7 +50,8 @@ func (d *DB) AdminLibraries(ctx context.Context, publicID string) ([]AdminLibrar
 		var options, folderPath, state, problem, source sql.NullString
 		var folderID, scanned sql.NullInt64
 		var remoteID int64
-		if err := rows.Scan(&l.ID, &l.PublicID, &l.Name, &l.Kind, &l.Language, &l.Position, &l.CreatedAt, &l.UpdatedAt, &options, &l.Revision,
+		if err := rows.Scan(&l.ID, &l.PublicID, &l.Name, &l.Kind, &l.Language, &l.Position, &l.CreatedAt, &l.UpdatedAt, &options,
+			&l.MetadataProvider, &l.Region, &l.Revision,
 			&l.ScanStartedAt, &l.ScanFinishedAt, &folderID, &folderPath, &state, &problem, &scanned, &source, &remoteID); err != nil {
 			return nil, err
 		}
@@ -70,10 +72,12 @@ func (d *DB) AdminLibraries(ctx context.Context, publicID string) ([]AdminLibrar
 // LibraryEdit changes a library. Fields left nil stay as they are. Folders, when given, is the
 // whole list: a folder no longer in it leaves the library with its titles.
 type LibraryEdit struct {
-	Name     *string
-	Language *string
-	Options  *LibraryOptions
-	Folders  *[]string
+	Name             *string
+	Language         *string
+	MetadataProvider *string
+	Region           *string
+	Options          *LibraryOptions
+	Folders          *[]string
 	// Revision, when not 0, is the revision the edit was made on: the edit is ErrStale if
 	// the library has changed since.
 	Revision int64
@@ -92,7 +96,8 @@ func (d *DB) EditLibrary(ctx context.Context, publicID string, edit LibraryEdit)
 	err = d.write(ctx, User, func(tx *sql.Tx) error {
 		added, removed = false, nil
 		var id, revision int64
-		if err := tx.QueryRow(`SELECT id, revision FROM libraries WHERE public_id = ?`, publicID).Scan(&id, &revision); err != nil {
+		var kind string
+		if err := tx.QueryRow(`SELECT id, revision, kind FROM libraries WHERE public_id = ?`, publicID).Scan(&id, &revision, &kind); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrNotFound
 			}
@@ -113,6 +118,22 @@ func (d *DB) EditLibrary(ctx context.Context, publicID string, edit LibraryEdit)
 		}
 		if edit.Language != nil {
 			if _, err := tx.Exec(`UPDATE libraries SET language = nullif(?, '') WHERE id = ?`, *edit.Language, id); err != nil {
+				return err
+			}
+		}
+		if edit.MetadataProvider != nil {
+			if err := checkLibraryMetadata(kind, *edit.MetadataProvider, ""); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(`UPDATE libraries SET metadata_provider = nullif(?, '') WHERE id = ?`, *edit.MetadataProvider, id); err != nil {
+				return err
+			}
+		}
+		if edit.Region != nil {
+			if err := checkLibraryMetadata(kind, "", *edit.Region); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(`UPDATE libraries SET options = json_set(ifnull(options, '{}'), '$.region', ?) WHERE id = ?`, *edit.Region, id); err != nil {
 				return err
 			}
 		}

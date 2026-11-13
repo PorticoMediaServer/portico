@@ -37,18 +37,10 @@ type Service struct {
 	subtitles SubtitleProvider
 }
 
-// defaultProviders is the provider a library of each kind uses until the owner chooses.
-// A kind that is not here is local only.
-var defaultProviders = map[string]string{db.LibraryMovies: "tmdb", db.LibraryShows: "tmdb", db.LibraryAnime: "tmdb",
-	db.LibraryMusic: "musicbrainz"}
-
 // provider is the one provider a library uses, or nil for a library that uses local metadata
 // only or whose provider this server has no key for.
 func (s *Service) provider(src db.LibrarySource) Provider {
-	name := src.Provider
-	if name == "" {
-		name = defaultProviders[src.Kind]
-	}
+	name := src.ProviderName()
 	if name == db.ProviderLocal {
 		return nil
 	}
@@ -66,6 +58,41 @@ func (s *Service) Use(p Provider) {
 		s.Providers = map[string]Provider{}
 	}
 	s.Providers[p.Name()] = p
+}
+
+// LibraryMetadataProvider is one choice the definition offers and whether its implementation is registered now.
+type LibraryMetadataProvider struct {
+	ID        string `json:"id"`
+	Available bool   `json:"available"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+// LibraryProviders reads runtime availability from the same map as Asks; local files need no provider.
+func (s *Service) LibraryProviders(kind string) []LibraryMetadataProvider {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var names []string
+	switch kind {
+	case db.LibraryMovies, db.LibraryShows:
+		names = []string{"tmdb", "tvdb"}
+	case db.LibraryAnime:
+		names = []string{"tmdb", "tvdb", "anilist"}
+	case db.LibraryMusic:
+		names = []string{"musicbrainz"}
+	}
+	names = append(names, db.ProviderLocal)
+	choices := make([]LibraryMetadataProvider, 0, len(names))
+	for _, name := range names {
+		choice := LibraryMetadataProvider{ID: name, Available: name == db.ProviderLocal || s.Providers[name] != nil}
+		if !choice.Available {
+			choice.Reason = "This metadata provider is not available on this server."
+			if name == "tvdb" {
+				choice.Reason = "TheTVDB needs the owner's key in Server › Metadata."
+			}
+		}
+		choices = append(choices, choice)
+	}
+	return choices
 }
 
 // Asks reports whether a library (a public id) has a provider to ask: one that uses local
