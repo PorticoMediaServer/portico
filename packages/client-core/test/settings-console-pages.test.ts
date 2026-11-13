@@ -55,14 +55,14 @@ test('an administrator sees only what the server lets the administrator tier do'
   assert.equal(settingsStructure({owner: false, platform: 'web', capabilities: {}}).headings.some(h => h.id === 'server'), false);
 });
 
-test('remote access carries the home networks, the address to give out, proxies, the owner\'s certificate and the connection limit', () => {
+test('remote access carries the home networks, the address to give out, proxies, the owner\'s certificate without a connection cap', () => {
   const remote = page(server('web'), 'remote')!;
   const ids = rowIds(remote);
-  for (const id of ['server.connection', 'connectivity.lanNetworks', 'connectivity.advertiseUrl', 'connectivity.accessUrls', 'connectivity.trustedProxies', 'server.ownCertificateStatus', 'connectivity.customCertificateDomain', 'connectivity.customCertificatePath', 'connectivity.customCertificateKeyPath', 'connectivity.connectionLimit']) assert.ok(ids.includes(id), id);
+  for (const id of ['server.connection', 'connectivity.lanNetworks', 'connectivity.advertiseUrl', 'connectivity.accessUrls', 'connectivity.trustedProxies', 'server.ownCertificateStatus', 'connectivity.customCertificateDomain', 'connectivity.customCertificatePath', 'connectivity.customCertificateKeyPath']) assert.ok(ids.includes(id), id);
   // Sub-path hosting is not offered, and the two retired choices are gone.
   for (const id of ids) assert.doesNotMatch(id, /subPath|basePath|secureConnectionsPolicy|treatWanAsLan/);
   const limit = remote.sections.flatMap(s => s.rows).find(r => r.kind === 'server-setting' && r.key === 'connectionLimit');
-  assert.ok(limit && limit.kind === 'server-setting' && limit.control.type === 'number' && limit.control.empty?.stores === 0);
+  assert.equal(limit, undefined);
 });
 
 test('secure connection comes first on remote access: its status, a switch once there is a connection, then the owner\'s own certificate', () => {

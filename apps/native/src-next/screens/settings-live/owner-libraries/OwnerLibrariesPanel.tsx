@@ -250,7 +250,6 @@ function GeneralTab({library, document, t, renameLibrary, removeLibrary, busy, s
       {ownerLibraryAudience(library, t) !== undefined && <SettingsRow label={t('next.ownerLibraries.whoCanSee')} description={ownerLibraryAudience(library, t)}/>}
     </SettingsGroup>
     {document && <LibrarySettingsRows tab="general" document={document} busy={busy} t={t} save={save}/>}
-    {document && <ContinueWatchingGroup document={document} busy={busy} t={t} save={save}/>}
     <SectionTitle>{t('server.library.remove')}</SectionTitle>
     <SettingsGroup>
       <SettingsRow navigates first icon="i-trash" destructive style={{minHeight: 64}} label={t('server.library.removeRow')} description={t('server.library.removeHelp')} onPress={removeLibrary}/>
@@ -268,37 +267,6 @@ function FoldersTab({state, retry, t, addFolder, folderMenu}: {state: NativeOwne
       {!source.length && <SettingsRow first label={t('web.libraries.noFolders')}/>}
       {source.map((folder, index) => <SettingsRow navigates key={folder.id} first={index === 0} icon="i-folder" label={folder.name || folder.path} description={`${folder.path} · ${ownerFolderLocation(folder, t)}`} value={ownerFolderState(folder, t)} onPress={() => folderMenu(folder)}/>)}
     </SettingsGroup>}
-  </>;
-}
-
-/** Root §35: keep the existing five controls and server eligibility, in General. */
-function ContinueWatchingGroup({document, busy, t, save}: {document: LibraryAdminDocument; busy: boolean; t: Translate; save: (patch: Partial<LibrarySettings>) => void}) {
-  const value = document.settings.continueWatching, eligible = (id: string) => document.eligibleControls.includes(id);
-  const update = (patch: Partial<LibrarySettings['continueWatching']>) => {if (!busy) save({continueWatching: {...value, ...patch}});};
-  const weekLabel = (weeks: number) => weeks === 26 ? t('next.ownerLibraries.continue.sixMonths') : weeks === 52 ? t('next.ownerLibraries.continue.oneYear')
-    : weeks === 104 ? t('next.ownerLibraries.continue.twoYears') : t('next.ownerLibraries.continue.weekCount', {count: weeks});
-  const percentLabel = (percent: number) => percent === 100 ? t('next.ownerLibraries.continue.finished') : t('next.ownerLibraries.continue.percent', {percent});
-  // A server may hold a valid custom value. Keep it visible until the owner chooses
-  // an authored option; opening this page never coerces or writes a preference.
-  const numericOptions = (values: readonly number[], current: number, label: (n: number) => string) =>
-    [...values, ...(values.includes(current) ? [] : [current])].map(n => ({value: String(n), label: label(n), disabled: !values.includes(n)}));
-  const ids = ['libraries.cwWeeks', 'libraries.cwMax', 'libraries.cwPremieres', 'libraries.cwWatched', 'libraries.cwRule'];
-  if (!ids.some(eligible)) return null;
-  return <>
-    <SectionTitle>{t('next.ownerLibraries.continueWatching')}</SectionTitle>
-    <SettingsGroup>
-      {eligible('libraries.cwWeeks') && <SettingsRow first label={t('next.ownerLibraries.continue.weeks')} control={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.weeks')} value={String(value.weeks)}
-        options={numericOptions([4, 8, 16, 26, 52, 104], value.weeks, weekLabel)} onValueChange={next => update({weeks: Number(next)})}/>}/>}
-      {eligible('libraries.cwMax') && <SettingsRow first={!eligible('libraries.cwWeeks')} label={t('next.ownerLibraries.continue.maximum')} control={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.maximum')} value={String(value.maximumItems)}
-        options={numericOptions([20, 40, 100, 200], value.maximumItems, n => defaultI18n.number(n))} onValueChange={next => update({maximumItems: Number(next)})}/>}/>}
-      {eligible('libraries.cwPremieres') && <SettingsRow label={t('next.ownerLibraries.continue.premieres')} description={t('next.ownerLibraries.continue.premieresHelp')}
-        control={<Switch disabled={busy} checked={value.includeSeasonPremieres} accessibilityLabel={t('next.ownerLibraries.continue.premieres')} onCheckedChange={next => update({includeSeasonPremieres: next})}/>}/>}
-      {eligible('libraries.cwWatched') && <SettingsRow label={t('next.ownerLibraries.continue.watchedAt')} description={t('next.ownerLibraries.continue.watchedAtHelp')} control={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.watchedAt')} value={String(value.videoPlayedThreshold)}
-        options={numericOptions([80, 85, 90, 95, 100], value.videoPlayedThreshold, percentLabel)} onValueChange={next => update({videoPlayedThreshold: Number(next)})}/>}/>}
-      {eligible('libraries.cwRule') && <SettingsRow label={t('next.ownerLibraries.continue.rule')} description={t('next.ownerLibraries.continue.ruleHelp')} control={<Select disabled={busy} accessibilityLabel={t('next.ownerLibraries.continue.rule')} value={value.videoCompletion}
-        options={[{value: 'earliest', label: t('next.ownerLibraries.continue.earliest')}, {value: 'threshold', label: t('next.ownerLibraries.continue.threshold')}, {value: 'credits', label: t('next.ownerLibraries.continue.credits'), description: t('next.ownerLibraries.continue.creditsHelp')}]}
-        onValueChange={next => {if (next === 'earliest' || next === 'threshold' || next === 'credits') update({videoCompletion: next});}}/>}/>}
-    </SettingsGroup>
   </>;
 }
 

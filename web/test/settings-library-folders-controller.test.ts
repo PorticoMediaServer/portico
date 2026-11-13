@@ -13,7 +13,7 @@ const settings: LibrarySettings = {scanDepth: 'basic', groupCollections: true, l
   continueWatching: {weeks: 16, maximumItems: 40, includeSeasonPremieres: true, videoPlayedThreshold: 95, videoCompletion: 'earliest'}, allowMediaDeletion: false, monitorChanges: true, providers: [], analysis: ['probe', 'local_metadata', 'subtitle_discovery'],
   navigation: {trickplayIntervalMs: 10000, trickplayTileWidth: 320, trickplayMaxTiles: 1080, chapterThumbnailMode: 'embedded', videoPreviewEnabled: false, videoPreviewMs: 30000}, segmentDetection: 'server'};
 function document(libraryId: string, revision = 7): LibraryAdminDocument {
-  return {libraryId, libraryName: libraryId, libraryKind: 'anime', revision, digest: 'actual-document', eligibleControls: ['libraries.cwWeeks'], audience: {everyone: false, accounts: 3}, actions: ['scan'],
+  return {libraryId, libraryName: libraryId, libraryKind: 'anime', revision, digest: 'actual-document', eligibleControls: ['libraries.scrubSpacing'], audience: {everyone: false, accounts: 3}, actions: ['scan'],
     settings, defaults: {...settings, continueWatching: {...settings.continueWatching, weeks: 8}}, analysisMatrix: {costClasses: [], operations: []}, availableProviders: [], enumerations: {}, sources: []};
 }
 function inventory(libraryId: string, revision = 41) {
