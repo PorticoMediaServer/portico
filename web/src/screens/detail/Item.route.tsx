@@ -66,7 +66,7 @@ function ResolveItem({captured, handoff, context, itemId, artworkClaim}: {captur
     const current = () => owns() && reading.authority.isCurrent();
     const off = reading.authority.subscribe(() => {request.abort();});
     publish({lease: held, resolution: {phase: 'loading'}});
-    void resolveItemRead(reading.client, itemId, request.signal, current)
+    void resolveItemRead(reading.client, context.queries, itemId, request.signal, current)
       .then(eligibility => {if (current()) publish({lease: held, resolution: {phase: 'ready', eligibility}});})
       // A refused reading client may already have retired its own authority.
       // The live route still owns the refusal surface, never an ordinary-item fallback.
