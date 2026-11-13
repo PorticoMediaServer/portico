@@ -13,7 +13,7 @@ import {libraryTabs, type LibraryTabId} from '../../../../../packages/client-cor
 import {MusicMixesRow} from '../destinations/music/MusicMixesRow';
 import {TVMusicDiscover} from '../destinations/music/TVMusicDiscover';
 import {serverTextLabel} from '../../../../../packages/client-core/src/presentation/server-text';
-import {CircleCard, GenreTile, PlaylistMosaic, PosterCard, SquareCard, type CardSelection} from '../../kit/cards';
+import {CircleCard, GenreTile, PlaylistMosaic, PosterCard, SquareCard, WideCard, type CardSelection} from '../../kit/cards';
 import {AmbientArt, Artwork, StandardBackdrop} from '../../kit/artwork';
 import {Button, Focusable} from '../../kit/controls';
 import {FocusItem, FocusRegion, useFocusRegistry, type FocusRegionProps} from '../../kit/focus';
@@ -432,16 +432,21 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
               selected={shelfSelection?.item(entry)} onSelect={shelfSelection?.item(entry)?.onEnter}/>}/>
           : state.tab.shows === 'rows' ? <ScrollView ref={discoverScroll}>
             {state.discover.error && <StateView {...runtime.error(state.discover.error, destination.retry, 'library')}/>}
-            {state.discover.appended.map((section, index) => {const cardWidth = theme.isTV ? 200 : 112, cell = discoverCell(theme, cardWidth, section.entries);
-            return <View key={section.id}>
-            <Text accessibilityRole="header" style={[browseType(theme, theme.isTV ? 32 : 19, 700), {color: theme.colors.text, marginHorizontal: screenGutter, marginTop: 28}]}>{serverTextLabel(defaultI18n, section.heading)}</Text>
+            {state.discover.appended.map((section, index) => {
+            // Phone and tablet draw a Discover shelf as Home draws the same row: Home's card sizes, the 16:9 card for a
+            // landscape row (Continue Watching), the caption inside the card's height, and the shared row heading.
+            const wide = !theme.isTV && section.shape === 'landscape';
+            const cardWidth = theme.isTV ? 200 : wide ? theme.spec.card.width.wide[theme.platform] : theme.spec.card.width.poster[theme.platform], cell = discoverCell(theme, cardWidth, section.entries);
+            const itemHeight = theme.isTV ? cell.art : wide ? cardWidth * 9 / 16 : cell.art + cell.caption;
+            return <View key={section.id} style={theme.isTV ? undefined : {marginTop: 28}}>
+            {theme.isTV && <Text accessibilityRole="header" style={[browseType(theme, 32, 700), {color: theme.colors.text, marginHorizontal: screenGutter, marginTop: 28}]}>{serverTextLabel(defaultI18n, section.heading)}</Text>}
             {/* LR05: the shelf mounts only the cards in view and asks for its next page ten cards early. */}
-            <Row title={serverTextLabel(defaultI18n, section.heading)} showHeading={false} items={section.entries} getKey={nativeLibraryEntryKey}
-              itemWidth={cardWidth} itemHeight={cell.art} captionHeight={cell.caption} gap={theme.isTV ? 28 : 10} gutter={screenGutter} rightGutter={screenGutter} selection={noRowSelection}
+            <Row title={serverTextLabel(defaultI18n, section.heading)} showHeading={!theme.isTV} items={section.entries} getKey={nativeLibraryEntryKey}
+              itemWidth={cardWidth} itemHeight={itemHeight} captionHeight={wide ? 0 : cell.caption} gap={theme.isTV ? 28 : 10} gutter={screenGutter} rightGutter={screenGutter} selection={noRowSelection}
               onVisibleRange={(_first, last) => {
                 if (active.visible && section.nextCursor && last >= section.entries.length - 10) void destination.nextDiscover(section.id).catch(runtime.reportError);
               }}
-              renderItem={(entry, context) => <LibraryCard entry={entry} width={cardWidth} runtime={runtime} actions={actions} focusId={context.focusId} onFocus={context.onFocus} onBlur={context.onBlur}
+              renderItem={(entry, context) => <LibraryCard entry={entry} width={cardWidth} wide={wide} runtime={runtime} actions={actions} focusId={context.focusId} onFocus={context.onFocus} onBlur={context.onBlur}
                 selected={shelfSelection?.item(entry)} onSelect={shelfSelection?.item(entry)?.onEnter}/>}/>
             {!theme.isTV && state.library.kind === 'music' && index === 0 && runtime.mixes ? <View onLayout={anchorMixes}>
               <MusicMixesRow focusScope={`${ids.libraryToolbar(state.library.id)}.${state.tab.id}.mixes`} port={runtime.mixes} artwork={runtime.artwork} reportError={runtime.reportError} title={defaultI18n.t('music.mixesForYou')} active={active.visible} onReady={scrollToMixes}/>
@@ -688,7 +693,7 @@ export function LibraryGrid({destination, runtime, activation, actions, labels, 
   </View>;
 }
 
-function LibraryCard({entry, width, placeholderHeight, runtime, actions, selected, disabled, focusId, onFocus, onBlur, onSelect}: {entry?: ContentEntry; width: number; placeholderHeight?: number; runtime: NativeShellRuntime; actions: NativeLibraryActions; selected?: CardSelection; disabled?: boolean; focusId?: string; onFocus?: () => void; onBlur?: () => void; onSelect?: () => void}) {
+function LibraryCard({entry, width, wide = false, placeholderHeight, runtime, actions, selected, disabled, focusId, onFocus, onBlur, onSelect}: {entry?: ContentEntry; width: number; wide?: boolean; placeholderHeight?: number; runtime: NativeShellRuntime; actions: NativeLibraryActions; selected?: CardSelection; disabled?: boolean; focusId?: string; onFocus?: () => void; onBlur?: () => void; onSelect?: () => void}) {
   const menuAnchorRef = useRef<View>(null);
   const theme = useTheme();
   const adapter = entry ? runtime.playback : undefined;
@@ -716,6 +721,9 @@ function LibraryCard({entry, width, placeholderHeight, runtime, actions, selecte
   const props = {focusId, disabled, title: entry.displayTitle || entry.title, width, titleLines: 2 as const, caption: text.caption, artwork: runtime.artwork(entry.posterUrl), watched: entry.watched, playing: playingAlbum,
     onNavigate: () => actions.open(entry), onPlay: entry.playback ? () => actions.play(entry) : undefined, onMore: () => actions.menu(entry, menuAnchorRef, onSelect), selection: selected,
     menuAnchorRef, moreExpanded: actions.isMenuOpen?.(entry), onFocus, onBlur};
+  // A landscape shelf (Continue Watching) draws Home's 16:9 card: the backdrop, the title on it and the time left.
+  if (wide) {const resume = homeCardText(entry, true, runtime.text);
+    return renderCard(WideCard, {...props, caption: resume.caption, detail: resume.detail, artwork: runtime.artwork(entry.backdropUrl ?? entry.posterUrl), progress: resume.progress});}
   const artistCovers = (entry.artworkPaths ?? []).flatMap(path => {const source = runtime.artwork(path); return source ? [source] : [];});
   return entry.kind === 'artist' ? renderCard(CircleCard, {...props, art: {covers: artistCovers.length ? artistCovers : props.artwork ? [props.artwork] : [], alt: entry.title}})
     : ['album', 'song', 'book', 'audiobook_file'].includes(entry.kind) ? renderCard(SquareCard, props) : renderCard(PosterCard, props);

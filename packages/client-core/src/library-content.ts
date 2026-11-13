@@ -102,7 +102,7 @@ export type ContentEntry = Readonly<{
 }>;
 /** A Discover personal section's See all (Recommendations P6): the library's browse with exactly this pivot, query and sort (For you). */
 export type ContentSeeAll = Readonly<{ pivot: string; query?: BrowseNode; sort: readonly BrowseSortSelection[] }>;
-export type ContentSection = Readonly<{ id: string; type: 'rail' | 'grid' | 'list'; heading: ContentHeading; entries: readonly ContentEntry[]; totalCount: number; nextCursor: string; /** First entry's index in the whole section (M20): the requested `start`, a listening continuation's resume offset, else 0. Optional so older projections still parse. */ start?: number; seeAll?: ContentSeeAll }>;
+export type ContentSection = Readonly<{ id: string; type: 'rail' | 'grid' | 'list'; heading: ContentHeading; /** A Discover rail's card shape, as the server's landing row names it (Continue Watching is landscape). */ shape?: 'poster' | 'square' | 'landscape'; entries: readonly ContentEntry[]; totalCount: number; nextCursor: string; /** First entry's index in the whole section (M20): the requested `start`, a listening continuation's resume offset, else 0. Optional so older projections still parse. */ start?: number; seeAll?: ContentSeeAll }>;
 export type ContentFilterOption = Readonly<{ id: string; label: string; count: number }>;
 export type ContentFilter = Readonly<{ id: string; labelKey: string; options: readonly ContentFilterOption[] }>;
 export type ContentProjection = Readonly<{
