@@ -89,20 +89,20 @@ class FullPlan(unittest.TestCase):
             packages = self.fixture(root)
             packages[0].update(EmbedFiles=['embedded.md'], TestEmbedFiles=['embedded.svg'],
                                XTestEmbedFiles=['embedded.png'])
-            security = root / 'server/internal/httpapi'
+            security = root / 'apikit/internal/httpapi'
             security.mkdir(parents=True)
             (security / 'a_test.go').write_text('package sample\nfunc TestSecurity(t *testing.T) {}\n')
             packages.append({'ImportPath': 'example/internal/httpapi', 'Dir': str(security), 'TestGoFiles': ['a_test.go']})
-            inputs = ['server/a/testdata/titlepage.svg', 'server/a/testdata/cover.png',
-                      'server/a/testdata/notes.md', 'server/a/embedded.md',
-                      'server/a/embedded.svg', 'server/a/embedded.png']
-            for name in inputs + ['server/a/README.md', 'server/README.md']:
+            inputs = ['apikit/a/testdata/titlepage.svg', 'apikit/a/testdata/cover.png',
+                      'apikit/a/testdata/notes.md', 'apikit/a/embedded.md',
+                      'apikit/a/embedded.svg', 'apikit/a/embedded.png']
+            for name in inputs + ['apikit/a/README.md', 'apikit/README.md']:
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text('fixture or documentation')
             def command(args, cwd=None):
                 if args[0] == 'python3': return 'tags'
-                return '\n'.join(map(json.dumps, packages)) if Path(cwd).name == 'server' else ''
+                return '\n'.join(map(json.dumps, packages)) if Path(cwd).name == 'apikit' else ''
             with patch('plan.ROOT', root), patch('plan.command', side_effect=command), \
                  patch('plan.source_readers.select', return_value={}):
                 for path in inputs:
@@ -112,7 +112,7 @@ class FullPlan(unittest.TestCase):
                             self.assertIn('a', {p['package'] for p in selection['packages']})
                             self.assertFalse(run.short_package(selection, 'a'))
                 for tier in ['short', 'merge']:
-                    selection = plan.make_plan(['server/a/README.md', 'server/README.md'], tier=tier)
+                    selection = plan.make_plan(['apikit/a/README.md', 'apikit/README.md'], tier=tier)
                     self.assertEqual(selection['packages'], [])
                     self.assertEqual(selection['full_go_packages'], [])
 
@@ -122,7 +122,7 @@ class FullPlan(unittest.TestCase):
             self.fixture(root)
             packages = []
             for name in ['persistence', 'httpapi']:
-                directory = root / 'server/internal' / name
+                directory = root / 'apikit/internal' / name
                 directory.mkdir(parents=True)
                 (directory / 'a_test.go').write_text('package sample\nfunc TestOwner(t *testing.T) {}\n')
                 packages.append({'ImportPath': name, 'Dir': str(directory), 'TestGoFiles': ['a_test.go']})
@@ -131,8 +131,8 @@ class FullPlan(unittest.TestCase):
                     'user.email=justin@justinehler.com', *args], cwd=root, text=True, stderr=subprocess.DEVNULL).strip()
             git('init', '-q')
             git('config', 'diff.renames', 'true')
-            source = 'server/internal/persistence/testdata/derived-writers.json'
-            destination = 'server/internal/httpapi/testdata/derived-writers.json'
+            source = 'apikit/internal/persistence/testdata/derived-writers.json'
+            destination = 'apikit/internal/httpapi/testdata/derived-writers.json'
             for path in [source, destination]:
                 (root / path).parent.mkdir(parents=True, exist_ok=True)
             (root / source).write_text('{"fixture": "unchanged content"}\n')
@@ -152,7 +152,7 @@ class FullPlan(unittest.TestCase):
             def command(args, cwd=None):
                 if args[0] == 'python3': return 'tags'
                 if args[0] == 'go':
-                    return '\n'.join(map(json.dumps, packages)) if Path(cwd).name == 'server' else ''
+                    return '\n'.join(map(json.dumps, packages)) if Path(cwd).name == 'apikit' else ''
                 return actual_command(args, cwd=root)
             with patch('plan.ROOT', root), patch('plan.command', side_effect=command), \
                  patch('plan.source_readers.select', return_value={}), \
@@ -166,16 +166,29 @@ class FullPlan(unittest.TestCase):
             for package in ['persistence', 'httpapi']:
                 self.assertFalse(run.short_package(selection, package))
 
-    def test_request_cost_parent_will_run_without_short_on_a_route_change(self):
-        package = 'github.com/PorticoMediaServer/portico/server/internal/httpapi'
+    def test_reference_server_changes_never_discover_its_tests(self):
+        calls=[]
         def command(args, cwd=None):
-            if args[0] == 'python3': return 'tags'
-            return json.dumps({'ImportPath': package, 'Dir': str(plan.ROOT / 'server/internal/httpapi'),
-                               'TestGoFiles': ['request_cost_test.go']}) if Path(cwd).name == 'server' else ''
-        with patch('plan.command', side_effect=command), patch('plan.source_readers.select', return_value={}):
-            selection = plan.make_plan(['server/internal/httpapi/request_cost_test.go'])
-        self.assertIn('TestRequestCostIsAttributedToOneRoute', [t['name'] for t in selection['inventory']])
-        self.assertFalse(run.short_package(selection, package))
+            calls.append((args, cwd))
+            return 'tags' if args[0] == 'python3' else ''
+        for tier in ['short', 'merge']:
+            with patch('plan.command', side_effect=command):
+                selection = plan.make_plan(['server/internal/httpapi/request_cost_test.go'], tier=tier)
+            self.assertEqual(selection['inventory'], [])
+        self.assertFalse(any(cwd == plan.ROOT/'server' for args,cwd in calls))
+
+    def test_pr_and_queue_keep_mixed_client_tests_without_reference_contracts(self):
+        for tier in ['short', 'merge']:
+            with patch('plan.command', return_value='tags'), \
+                 patch('plan.components', return_value=(['packages', 'web'], False)), \
+                 patch('js_affected.select', side_effect=lambda root,paths,files,**kwargs:files):
+                selection=plan.make_plan(['packages/client-core/src/index.ts'], tier=tier)
+            files={f for item in selection['js'] for f in item['files']}
+            self.assertTrue(files.isdisjoint(plan.REFERENCE_SERVER_JS_TESTS))
+            self.assertIn('packages/client-core/test/notification-actions.test.ts', files)
+            self.assertIn('web/test/person-r46.test.ts', files)
+            self.assertEqual(selection['source_reader_tests'], [])
+            self.assertEqual(selection['inventory'], [])
 
     def fixture(self, root):
         (root / 'ci').mkdir()
@@ -185,7 +198,7 @@ class FullPlan(unittest.TestCase):
         (root / 'ci/js-durations.json').write_text('{"seconds": {}}')
         packages = []
         for name, imports in [('a', []), ('b', ['a']), ('c', ['b']), ('reader', [])]:
-            directory = root / 'server' / name
+            directory = root / 'apikit' / name
             directory.mkdir(parents=True)
             (directory / 'a_test.go').write_text('''package example
 func TestMain(m *testing.M) {}
@@ -211,21 +224,21 @@ func ExampleCompileOnly() {}
             packages = self.fixture(root)
             def command(args, cwd=None):
                 if args[0] == 'python3': return 'tags'
-                return '\n'.join(map(json.dumps, packages)) if Path(cwd).name == 'server' else ''
-            readers = {'server/reader': {'TestSlow': ['server/a/file.go']}}
+                return '\n'.join(map(json.dumps, packages)) if Path(cwd).name == 'apikit' else ''
+            readers = {'apikit/reader': {'TestSlow': ['apikit/a/file.go']}}
             with patch('plan.ROOT', root), patch('plan.command', side_effect=command), \
                  patch('plan.source_readers.select', return_value=readers):
-                result = plan.make_plan(['server/a/file.go'])
+                result = plan.make_plan(['apikit/a/file.go'])
                 self.assertEqual(result['full_go_packages'], ['a', 'b'])
                 self.assertEqual({p['package'] for p in result['packages']}, {'a', 'b', 'c', 'reader'})
                 self.assertEqual(result['full_go_extra_seconds'], 120)
                 self.assertEqual([t['name'] for t in result['inventory'] if t['package'] == 'reader'], ['TestSlow'])
-                self.assertEqual(result['source_reader_tests'][0]['changed'], ['server/a/file.go'])
+                self.assertEqual(result['source_reader_tests'][0]['changed'], ['apikit/a/file.go'])
                 self.assertEqual({t['name'] for t in result['all_inventory'] if t['package'] == 'a'},
                                  {'TestFast', 'TestSlow', 'Test_Upper', 'FuzzSeeds', 'ExamplePrinted'})
                 # Merge/nightly never invoke PR promotion and keep the same full cost.
                 with patch('plan.full_go_packages', side_effect=AssertionError('PR policy used in queue')):
-                    merge = plan.make_plan(['server/a/file.go'], tier='merge')
+                    merge = plan.make_plan(['apikit/a/file.go'], tier='merge')
                     with patch('plan.components', return_value=([], True)):
                         nightly = plan.make_plan([], full=True, tier='nightly')
                 self.assertEqual(merge['full_go_packages'], [])

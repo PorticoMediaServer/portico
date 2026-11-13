@@ -333,7 +333,7 @@ class DecoderSandboxTests(unittest.TestCase):
              self.assertRaises(subprocess.CalledProcessError):
             sandbox.wait_for_package_processes()
 
-    def test_required_aggregate_rejects_missing_or_failed_sandbox_job(self):
+    def test_required_aggregate_has_no_reference_sandbox_dependency(self):
         plan = {'packages': [{}], 'js': []}
         needs = {name: {'result': 'success'} for name in
                  ['planner', 'hygiene', 'go_build', 'go_vet_cross', 'go_tests', 'decoder_sandbox']}
@@ -341,21 +341,20 @@ class DecoderSandboxTests(unittest.TestCase):
         with patch('run.reconcile'):
             aggregate(plan, needs)
             for state in ['failure', 'cancelled', 'skipped', None]:
-                with self.subTest(state=state), self.assertRaises(ValueError):
+                with self.subTest(state=state):
                     aggregate(plan, dict(needs, decoder_sandbox={'result': state}))
             missing = dict(needs)
             del missing['decoder_sandbox']
-            with self.assertRaises(ValueError):
-                aggregate(plan, missing)
+            aggregate(plan, missing)
 
-    def test_merge_gate_depends_on_hosted_sandbox_job(self):
+    def test_merge_gate_does_not_run_reference_sandbox_job(self):
         root = Path(__file__).resolve().parents[1]
         for file in ['merge.yml']:
             text = (root / '.github/workflows' / file).read_text()
-            self.assertIn('uses: ./.github/workflows/decoder-sandbox.yml', text)
+            self.assertNotIn('uses: ./.github/workflows/decoder-sandbox.yml', text)
             needs = [line for line in text.splitlines() if 'needs: [' in line and 'go_tests' in line]
             self.assertEqual(len(needs), 1)
-            self.assertIn('decoder_sandbox', needs[0])
+            self.assertNotIn('decoder_sandbox', needs[0])
 
 
 if __name__ == '__main__':

@@ -98,7 +98,7 @@ class IntegrationTests(unittest.TestCase):
         from unittest.mock import patch
         from run import go
         with patch('run.validate_tags'), patch('run.Path.is_file',return_value=False), patch('run.build_helper',side_effect=RuntimeError('local helper')) as build:
-            with self.assertRaisesRegex(RuntimeError,'local helper'): go({'shards':[[]]},0)
+            with self.assertRaisesRegex(RuntimeError,'local helper'): go({'shards':[[{'module':'server'}]]},0)
             build.assert_called_once()
     def test_build_validates_and_covers_both_modules_and_tagsets(self):
         from unittest.mock import patch

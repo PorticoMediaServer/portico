@@ -137,11 +137,12 @@ def fetch(args,cwd=ROOT):
 
 def go(plan,index,report=None):
     validate_tags(plan)
-    helper=ROOT/'ci-tools/portico-server'
-    if not helper.is_file(): build_helper(plan)
-    helper.chmod(0o755)
-    os.environ['PORTICO_PLAYBACK_TEST_HELPER']=str(helper)
     selected=plan['shards'][index]
+    if any(t['module']=='server' for t in selected):
+        helper=ROOT/'ci-tools/portico-server'
+        if not helper.is_file(): build_helper(plan)
+        helper.chmod(0o755)
+        os.environ['PORTICO_PLAYBACK_TEST_HELPER']=str(helper)
     # Source censuses require a pass in short runs too. Diagnostic owners only
     # require one in their nightly tier; their -short skips are intentional.
     mandatory=set(SHORT_CENSUSES)
@@ -415,9 +416,9 @@ def verify_census_passes(plan, directory):
         if states!=['pass']: raise ValueError(f'{key}: census must run and pass exactly once, got {states}')
 
 def aggregate(plan,needs):
-    expected={'planner':True,'hygiene':True,'go_build':bool(plan['packages']),'go_vet_cross':bool(plan['packages']),'go_tests':bool(plan['packages']),'decoder_sandbox':bool(plan['packages']),'js':any(x['shards'] for x in plan['js']),'js_static':bool(plan['js']), 'android':plan.get('android',False)}
+    expected={'planner':True,'hygiene':True,'go_build':bool(plan['packages']),'go_vet_cross':bool(plan['packages']),'go_tests':bool(plan['packages']),'js':any(x['shards'] for x in plan['js']),'js_static':bool(plan['js']), 'android':plan.get('android',False)}
     if plan.get('tier') == 'nightly':
-        for job in ('hygiene', 'go_vet_cross', 'decoder_sandbox', 'js_static'):
+        for job in ('hygiene', 'go_vet_cross', 'js_static'):
             expected.pop(job)
     if 'server_next' in plan: expected['server_next'] = plan['server_next']
     for job,required in expected.items():

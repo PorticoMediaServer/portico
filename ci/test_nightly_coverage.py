@@ -70,7 +70,7 @@ class NightlyCoverage(unittest.TestCase):
                                  + [t for lane in lanes for t in lane])
             self.assertEqual(Counter(nightly_owners), Counter(tests))
             self.assertTrue(set(merge_owners) <= set(nightly_owners))
-            self.assertIn(golden, keys(merge['inventory']))
+            self.assertNotIn(golden, keys(merge['inventory']))
             self.assertNotIn(golden, keys(nightly['inventory']))
             self.assertIn(golden, keys(golden_lane))
             self.assertEqual(merge['js'], nightly['js'])
