@@ -14099,15 +14099,21 @@ export const settingsSpec: readonly SettingsSection[] = [
             "help": "next.settingsSpec.server.streaming.groups.2.rows.1.help",
             "control": {
               "type": "select",
-              "default": "memory",
+              "default": "separate",
               "options": [
                 {
-                  "value": "memory",
-                  "label": "next.settingsSpec.server.streaming.groups.2.rows.1.control.options.0.label"
+                  "value": "separate",
+                  "label": "next.settingsSpec.server.streaming.groups.2.rows.1.control.options.2.label",
+                  "hint": "next.settingsSpec.server.streaming.groups.2.rows.1.control.options.2.hint"
                 },
                 {
-                  "value": "disk",
-                  "label": "next.settingsSpec.server.streaming.groups.2.rows.1.control.options.1.label"
+                  "value": "memory",
+                  "label": "next.settingsSpec.server.streaming.groups.2.rows.1.control.options.0.label",
+                  "hint": "next.settingsSpec.server.streaming.groups.2.rows.1.control.options.0.hint"
+                },
+                {
+                  "value": "folder",
+                  "label": "next.settingsSpec.server.streaming.groups.2.rows.1.control.options.3.label"
                 }
               ]
             },
@@ -14303,7 +14309,7 @@ export const settingsSpec: readonly SettingsSection[] = [
                   "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.label",
                   "control": {
                     "type": "select",
-                    "default": "hable",
+                    "default": "mobius",
                     "options": [
                       {
                         "value": "hable",

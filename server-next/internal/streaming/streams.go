@@ -303,6 +303,14 @@ func (s *Streams) admitLocked(plan *DeliveryPlan) error {
 		return nil
 	}
 	hardwarePlan := func(p *DeliveryPlan) bool { return p.HardwareBackend != "" && p.HardwareBackend != "software" }
+	// Qualification carries the same observed physical ID as the owner's hardware read.
+	// Unidentified driver defaults share one group rather than inventing separate devices.
+	deviceID := func(p *DeliveryPlan) string {
+		if p.ConversionProbe != nil {
+			return p.ConversionProbe.SelectedDeviceID
+		}
+		return ""
+	}
 	total, hardware, software := 0, 0, 0
 	for _, other := range s.byGrant {
 		if other.mode != "hls" || other.state != streamLive || other.plan.VideoAction != "convert" {
@@ -310,7 +318,9 @@ func (s *Streams) admitLocked(plan *DeliveryPlan) error {
 		}
 		total++
 		if hardwarePlan(other.plan) {
-			hardware++
+			if deviceID(other.plan) == deviceID(plan) {
+				hardware++
+			}
 		} else {
 			software++
 		}
@@ -323,7 +333,9 @@ func (s *Streams) admitLocked(plan *DeliveryPlan) error {
 		}
 		total++
 		if hardwarePlan(other.plan) {
-			hardware++
+			if deviceID(other.plan) == deviceID(plan) {
+				hardware++
+			}
 		} else {
 			software++
 		}
@@ -603,3 +615,6 @@ func (h *HLS) emptyMemory() error {
 // position is where the run starts in the title, in seconds: an opener may start its input
 // there itself (PlaybackInput.Positioned).
 type inputOpener func(ctx context.Context, position float64) (*PlaybackInput, subtitles.WindowInput, error)
+
+// MemoryFolder is set only after the memory filesystem and private output were opened.
+func (s *Streams) MemoryFolder() string { return s.hls.memoryRoot }

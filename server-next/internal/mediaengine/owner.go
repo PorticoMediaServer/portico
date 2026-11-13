@@ -9,8 +9,7 @@ import (
 
 // The owner's Settings › Streaming, as the planner and the streams read them. They are read
 // at every plan and at every conversion's admission, so a change applies to the next play
-// with no restart. A server on which nothing was ever saved has the document's defaults,
-// which plan exactly as the engine did before it read any settings.
+// with no restart. A server with nothing saved uses the document's defaults.
 
 // owner is the owner's streaming settings as they are now.
 func (e *Engine) owner() settings.StreamingSettings { return settings.Streaming.Get(e.settings) }
@@ -58,6 +57,11 @@ func delivery(owner settings.StreamingSettings) streaming.DeliveryConfiguration 
 	c.SoftwareDecode = !owner.HardwareDecoding
 	c.MaxConversions = owner.ConversionsAtOnce
 	c.MaxSoftwareConversions = owner.ProcessorConversionsAtOnce
+	c.MaxHardwareConversions = owner.HardwareConversionsAtOnce
+	c.TranscodeLocation = "disk"
+	if owner.ConversionLocation == "memory" {
+		c.TranscodeLocation = "memory"
+	}
 	c.ToneMapping = owner.ToneMapping
 	c.SoftwarePreset = owner.EncoderSpeed
 	c.PlanningPolicy = owner.PlanningPolicy
@@ -67,6 +71,7 @@ func delivery(owner settings.StreamingSettings) streaming.DeliveryConfiguration 
 	c.PlayedRetentionSeconds = owner.KeepForRewindingSeconds
 	c.SessionStorageMiB = owner.SpacePerStreamMiB
 	c.MemoryCap = owner.MemoryLimit
+	c.ToneMapAlgorithm = owner.ToneMappingMethod
 	return c.Normalized()
 }
 
@@ -81,11 +86,24 @@ func (e *Engine) applyConversion() {
 	e.switching.Lock()
 	defer e.switching.Unlock()
 	owner := e.owner()
-	err := e.setConversion(owner.ConversionFolder, owner.FFmpegProgram)
+	folder := owner.ConversionFolder
+	if owner.ConversionLocation == "separate" {
+		folder = ""
+	}
+	err := e.setConversion(folder, owner.FFmpegProgram)
 	if err != nil {
 		e.log.Error("the conversion folder or FFmpeg program in Settings could not be used, so the ones in use stay", "error", err)
 		settings.Streaming.Report(e.settings, "This is not in use: "+err.Error()+".")
 		return
+	}
+	if owner.ConversionLocation == "memory" {
+		e.mu.Lock()
+		memory, disk := e.current.streams.MemoryFolder(), e.current.folder
+		e.mu.Unlock()
+		if memory == "" {
+			settings.Streaming.Report(e.settings, "Memory output is not available; conversions use "+disk+".")
+			return
+		}
 	}
 	settings.Streaming.Report(e.settings, "")
 }

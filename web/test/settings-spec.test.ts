@@ -25,6 +25,17 @@ test('drawn sample rows, secrets, facts and successful action results cannot shi
     if (c.type === 'text' && c.secret) assert.equal(c.default, '');
   }
 });
+test('conversion location offers the approved choices, wording and default', () => {
+  assert.equal(settingsRowIndex.get('streaming.toneMappingMethod')!.row.control.default, 'mobius');
+  const control = settingsRowIndex.get('streaming.transcodeLocation')!.row.control;
+  const words = (id: string) => settingsSpecMessages[id as keyof typeof settingsSpecMessages];
+  assert.equal(control.default, 'separate');
+  assert.deepEqual(control.options?.map(option => ({value: option.value, label: words(option.label), ...(option.hint ? {hint: words(option.hint)} : {})})), [
+    {value: 'separate', label: 'Separate folder', hint: 'Keeps backups small'},
+    {value: 'memory', label: 'Memory (RAM)', hint: 'Fastest, uses free memory'},
+    {value: 'folder', label: 'Choose a folder…'},
+  ]);
+});
 test('all preset references and dependent rows resolve through one canonical index', () => {
   for (const {row} of settingsRowIndex.values()) {
     if (row.enableWhen) assert.ok(settingsRowIndex.has(row.enableWhen.id), row.id);

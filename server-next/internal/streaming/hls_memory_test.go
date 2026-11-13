@@ -16,6 +16,9 @@ func memoryFixture(t *testing.T) *HLS {
 	t.Helper()
 	h := newSweepFixture(t.TempDir())
 	h.ctx = context.Background()
+	cfg := DefaultDeliveryConfiguration()
+	cfg.TranscodeLocation = "memory"
+	h.ConfigureSettings(fixedSettings{cfg: cfg})
 	root, err := os.OpenRoot(h.root)
 	if err != nil {
 		t.Fatal(err)
@@ -463,6 +466,7 @@ func TestMemoryAdmissionUsesMeasuredBytesForCap(t *testing.T) {
 	h := memoryFixture(t)
 	cfg := DefaultDeliveryConfiguration()
 	cfg.MemoryCap = "2gb"
+	cfg.TranscodeLocation = "memory"
 	h.ConfigureSettings(fixedSettings{cfg: cfg})
 	writeMemoryOutput(t, h, "unmeasured")
 	// Reservation is an admission cost, not already-held bytes that may be added

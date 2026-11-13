@@ -1,15 +1,15 @@
-import {readOwnerConfiguration} from '../../../../../../packages/client-core/src/owner-requests';
+import {OwnerStreamingSettings} from '../../../../../../packages/client-core/src/server-admin/streaming-settings';
+import {withRequestRaw} from '../../../../../../packages/client-core/src/home-selection/list-destinations';
 import React, {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View} from 'react-native';
-import {parseSettingsConfiguration, type SettingsConfiguration} from '../../../../../../packages/client-core/src/settings-configuration';
-import {nativeRouteCrypto} from '../../../platform/server-connections';
+import {type SettingsConfiguration} from '../../../../../../packages/client-core/src/settings-configuration';
 import {testHardware} from '../../../../../../packages/client-core/src/hardware';
 import type {TranscodeCapacity} from '../../../../../../packages/client-core/src/telemetry';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {SettingsRow} from '../../../kit/shell';
 import {ConsoleClient} from '../../../../../../packages/client-core/src/console';
 import {FormSet} from '../../../../../../packages/client-core/src/server-admin/draft-form';
-import {createServerForm, withFormValue} from '../../../../../../packages/client-core/src/server-admin/server-forms';
+import {withFormValue} from '../../../../../../packages/client-core/src/server-admin/server-forms';
 import {readSettingsBinding, settingsBinding, settingsBindingPatch, type SettingsBindingSources} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsSpec, type SettingsRow as SpecRow} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {Button} from '../../../kit/controls';
@@ -26,17 +26,17 @@ import type {NativeShellRuntime} from '../../../shell/runtime';
 import {settingsPageHeading, settingsPageInset} from './page-layout';
 import {hardwareSelectionChoices} from '../../../../../../packages/client-core/src/presentation/hardware-selection';
 import {transcodeLocationChoice} from '../../../../../../packages/client-core/src/presentation/transcode-location';
-/** Phone Streaming borrows checked revisioned runtime/connectivity documents, never delivery policy state. */
+/** Phone Streaming uses the rebuilt documents through the shared row bindings and save path. */
 export function NativeServerStreaming({ports, runtime, compactHeader = false}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader?: boolean}) {
   const theme = useTheme(), t = runtime.text.t, context = ports.context;
   const owned = useMemo(() => {
     const lifetime = new NativeScreenLifetime(context);
     const api = {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => lifetime.request(next => context.api.request<T>(path, method, body, next), signal)};
     const console = new ConsoleClient(api, {serverId: lifetime.authority.serverId, viewerId: lifetime.authority.profileId});
-    const deps = {api, console, serverId: lifetime.authority.serverId, operationId: () => [...nativeRouteCrypto.random(24)].map(byte => byte.toString(16).padStart(2, '0')).join('')};
-    const forms = {runtime: createServerForm('runtime', deps), connectivity: createServerForm('connectivity', deps)};
+    const streaming = new OwnerStreamingSettings(withRequestRaw(api, context.api.requestRaw?.bind(context.api), lifetime.assert));
+    const forms = {runtime: streaming.form('runtime'), connectivity: streaming.form('connectivity')};
     const set = new FormSet(); set.add('runtime', forms.runtime); set.add('connectivity', forms.connectivity);
-    return {lifetime, api, console, forms, set};
+    return {lifetime, api, console, forms, set, streaming};
   }, [context]);
   const capacityAlive = useRef(true), capacityPending = useRef(false);
   const [capacity, setCapacity] = useState<TranscodeCapacity>(), [capacityError, setCapacityError] = useState<unknown>(), [testing, setTesting] = useState(false);
@@ -57,7 +57,7 @@ export function NativeServerStreaming({ports, runtime, compactHeader = false}: {
   // Capacity can probe FFmpeg on a cache miss: one page read, never a polling loop or a test result.
   useEffect(() => {capacityAlive.current = true; loadCapacity(); return () => {capacityAlive.current = false;};}, [loadCapacity]);
   const [configuration, setConfiguration] = useState<SettingsConfiguration>(), [configurationError, setConfigurationError] = useState<unknown>();
-  useEffect(() => {const read = new AbortController(); void readOwnerConfiguration(owned.api, read.signal).then(parseSettingsConfiguration).then(value => {if (!read.signal.aborted) setConfiguration(value);}, error => {if (!read.signal.aborted) setConfigurationError(error);}); return () => read.abort();}, [owned]);
+  useEffect(() => {const read = new AbortController(); void owned.streaming.readConfiguration(read.signal).then(value => {if (!read.signal.aborted) setConfiguration(value);}, error => {if (!read.signal.aborted) setConfigurationError(error);}); return () => read.abort();}, [owned]);
   useEffect(() => {for (const form of Object.values(owned.forms)) void form.load(); return () => {for (const form of Object.values(owned.forms)) form.dispose(); owned.console.dispose(); owned.set.discard(); owned.lifetime.dispose();};}, [owned]);
   const runtimeState = useSyncExternalStore(owned.forms.runtime.subscribe, owned.forms.runtime.getSnapshot);
   const connectivityState = useSyncExternalStore(owned.forms.connectivity.subscribe, owned.forms.connectivity.getSnapshot);
@@ -87,10 +87,10 @@ export function NativeServerStreaming({ports, runtime, compactHeader = false}: {
     if (row.id === 'streaming.transcodeLocation') {
       const value = fact(row);
       if (!value) return null;
-      const located = transcodeLocationChoice(capacity?.temporaryDirectory, typeof value.current === 'string' ? value.current : undefined);
+      const located = transcodeLocationChoice(capacity?.temporaryDirectory, typeof value.current === 'string' ? value.current : undefined, runtimeState.draft?.temporaryDirectory);
       return <React.Fragment key={row.id}><NativeSettingControl key={`${row.id}:${discardRevision}`} row={{...row, help: located.memoryAvailable ? row.help : 'next.settings.streaming.memoryUnavailable'}} value={located.value} t={t}
         disabled={state.saving} onChange={next => {
-          if (next === 'memory' || next === 'disk') change(row, next);
+          if (next === 'separate' || next === 'memory' || next === 'folder') change(row, next);
         }}/>
         {row.children?.map(renderRow)}</React.Fragment>;
     }

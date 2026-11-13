@@ -41,16 +41,16 @@ test('saving and disabled matrix rows remain readable while their native control
 test('memory preference remains selectable with an unavailable note and an independent disk folder', async () => {
   const {hardwareRowState} = await import('../src/screens/settings/hardware/hardware-rows.ts');
   const row = settingsRowIndex.get('streaming.transcodeLocation')!.row;
-  assert.equal(row.control.default, 'memory');
-  assert.deepEqual(row.control.options?.map(option => option.value), ['memory', 'disk']);
+  assert.equal(row.control.default, 'separate');
+  assert.deepEqual(row.control.options?.map(option => option.value), ['separate', 'memory', 'folder']);
   assert.equal(row.children?.[0].enableWhen, undefined);
-  for (const memoryAvailable of [false, true]) for (const stored of ['memory', 'disk', undefined]) {
+  for (const memoryAvailable of [false, true]) for (const stored of ['separate', 'memory', 'folder', 'disk', undefined]) {
     const snapshot = {phase: 'ready', capacity: {hardware: {devices: []}, temporaryDirectory: {
       path: '/srv/transcode', ready: true, freeBytes: null, fallback: false, memoryPath: '/dev/shm', memoryAvailable,
     }}} as any;
-    const state = hardwareRowState(row.id, snapshot, stored)!;
-    assert.equal(state.value, stored ?? 'memory');
-    assert.equal(state.defaultValue, 'memory');
+    const state = hardwareRowState(row.id, snapshot, stored, '/chosen')!;
+    assert.equal(state.value, stored === 'disk' ? 'folder' : stored ?? 'separate');
+    assert.equal(state.defaultValue, 'separate');
     assert.equal(state.help, memoryAvailable ? undefined : 'Memory is unavailable on this server.');
     assert.ok(state.choices?.every(option => !option.locked));
     const changed: unknown[] = [];
@@ -61,10 +61,10 @@ test('memory preference remains selectable with an unavailable note and an indep
         ? controls(node.type(node.props)) : [node, ...controls(node.props.children)];
     const select = controls(SettingsRows(props)).find(node => node.props.options?.some((option: any) => option.value === 'memory'));
     assert.ok(select);
-    assert.equal(select.props.value, stored ?? 'memory');
+    assert.equal(select.props.value, stored === 'disk' ? 'folder' : stored ?? 'separate');
     assert.equal(select.props.options.find((option: any) => option.value === 'memory').disabled, false);
-    select.props.onValueChange('memory');select.props.onValueChange('disk');
-    assert.deepEqual(changed, ['memory', 'disk']);
+    select.props.onValueChange('memory');select.props.onValueChange('folder');
+    assert.deepEqual(changed, ['memory', 'folder']);
     const html = renderToStaticMarkup(createElement(SettingsRows, props));
     if (!memoryAvailable) assert.match(html, /Memory is unavailable on this server\./);
     assert.match(html, /id="streaming.transcodeFolder"/);

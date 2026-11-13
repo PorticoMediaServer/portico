@@ -60,7 +60,7 @@ export function hardwareFormats(snapshot: HardwareSnapshot): readonly SettingsTa
 
 /** The Hardware rows the server can answer, in the frame's wording. A row with
  * no measured fact is absent rather than drawn as an empty or invented value. */
-export function hardwareRowState(rowId: string, snapshot: HardwareSnapshot, storedLocation?: string): SettingPresentation | undefined {
+export function hardwareRowState(rowId: string, snapshot: HardwareSnapshot, storedLocation?: string, storedFolder?: unknown): SettingPresentation | undefined {
   if (snapshot.phase !== 'ready' || !snapshot.capacity) return undefined;
   const hardware = snapshot.capacity.hardware;
   const devices = hardware.devices.length > 0;
@@ -82,12 +82,13 @@ export function hardwareRowState(rowId: string, snapshot: HardwareSnapshot, stor
     }
     case 'streaming.transcodeLocation': {
       // The preference stays selectable while playback safely falls back to disk.
-      const {value, memoryAvailable} = transcodeLocationChoice(snapshot.capacity.temporaryDirectory, storedLocation);
+      const {value, memoryAvailable} = transcodeLocationChoice(snapshot.capacity.temporaryDirectory, storedLocation, storedFolder);
       const options = [
+        {value: 'separate', label: t('next.settingsSpec.server.streaming.groups.2.rows.1.control.options.2.label')},
         {value: 'memory', label: t('next.settingsSpec.server.streaming.groups.2.rows.1.control.options.0.label')},
-        {value: 'disk', label: t('next.settingsSpec.server.streaming.groups.2.rows.1.control.options.1.label')},
+        {value: 'folder', label: t('next.settingsSpec.server.streaming.groups.2.rows.1.control.options.3.label')},
       ];
-      return {present: true, value, defaultValue: 'memory', choices: options, help: memoryAvailable ? undefined : t('next.settings.streaming.memoryUnavailable')};
+      return {present: true, value, defaultValue: 'separate', choices: options, help: memoryAvailable ? undefined : t('next.settings.streaming.memoryUnavailable')};
     }
     case 'streaming.hwError': {
       const text = faultText(snapshot);
@@ -121,7 +122,7 @@ export function hardwareRowState(rowId: string, snapshot: HardwareSnapshot, stor
  * row does instead of looking for a settings binding these rows do not have. */
 export const hardwareRowIds: readonly string[] = ['streaming.transcodeStatus', 'streaming.transcodeLocation', 'streaming.hwError', 'streaming.hwDevices', 'streaming.hwLimit', 'streaming.hwFormats', 'streaming.hwToneMapping', 'streaming.hwTest'];
 
-export function hardwareEligible(rowId: string, snapshot: HardwareSnapshot, storedLocation?: string): boolean {
+export function hardwareEligible(rowId: string, snapshot: HardwareSnapshot, storedLocation?: string, storedFolder?: unknown): boolean {
   return hardwareRowIds.includes(rowId) && hardwareRowState(rowId, snapshot, storedLocation) !== undefined;
 }
 
