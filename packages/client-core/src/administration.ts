@@ -475,7 +475,7 @@ export type VersionDeletion=Readonly<{versionId:string;title:string;titles:numbe
   * says it up front and offers no delete. */
  deleteRefusal?:string}>;
 export function parseVersionDeletion(versionId:string,raw:unknown):VersionDeletion{
- if(!object(raw)||!text(raw.title,1024)||!count(raw.titles)||!count(raw.files)||!count(raw.bytes)||!count(raw.listEntries)||!count(raw.otherPeople)||!Array.isArray(raw.alsoRemoves))invalid('version deletion preview');
+ if(!object(raw)||!filled(raw.title,1024)||!count(raw.titles)||!count(raw.files)||!count(raw.bytes)||!count(raw.listEntries)||!count(raw.otherPeople)||!Array.isArray(raw.alsoRemoves))invalid('version deletion preview');
  const alsoRemoves=raw.alsoRemoves.map(v=>{if(!object(v)||!filled(v.id,256)||!text(v.title,1024))invalid('version deletion preview');return Object.freeze({id:v.id,title:v.title});});
  if(raw.deleteRefusal!==undefined&&!filled(raw.deleteRefusal,1024))invalid('version deletion preview');
  return Object.freeze({versionId,title:raw.title,titles:raw.titles,files:raw.files,bytes:raw.bytes,listEntries:raw.listEntries,otherPeople:raw.otherPeople,alsoRemoves:Object.freeze(alsoRemoves),
