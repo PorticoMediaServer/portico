@@ -1,6 +1,6 @@
 import {createProfileAvatarOpeningTransport} from '../../../../../packages/client-core/src/query/profile-security-transport';
 import {readDirectAccount} from '../../../../../packages/client-core/src/query/connection-operations.ts';
-import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {Dimensions, Platform, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
@@ -551,6 +551,10 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
   const [preview, setPreview] = useState<Readonly<SetupPreview>>(), [consentKind, setConsentKind] = useState<'local' | 'portico'>(), [done, setDone] = useState('');
   const [removeDownloads, setRemoveDownloads] = useState(false);
   const [addGeneration, setAddGeneration] = useState(0);
+  // "Sign out of Portico Account" is offered whenever this app holds one, whatever servers are saved (ruling, 13 Nov).
+  const accountCredentials = nativeAccounts.accountCredentials();
+  const accountHeld = useSyncExternalStore(accountCredentials.subscribe, () => accountCredentials.getSnapshot().session !== undefined, () => false);
+  useEffect(() => {void accountCredentials.synchronize().catch(() => {});}, [accountCredentials]);
   type AddOpening = {active: boolean; generation: number; context?: NativeShellBootstrapContext; fallback?: AccountDownloadsEntry; downloads?: AccountDownloadsEntry; disposeDownloads?: () => void};
   const addOwner = useRef<AddOpening | undefined>(undefined), [committedAdd, setCommittedAdd] = useState<AddOpening>();
   const panelRef = useRef(panel), addIntent = useRef({generation: addGeneration, context});
@@ -669,7 +673,7 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
     onAdd={() => {void run(async () => {openAdd();});}}
     footer={<View style={{alignSelf: 'stretch', gap: 8, marginTop: 10}}>
       <Button variant="text" disabled={busy} onPress={() => setPanel('consent-kind')}>{t('settings.linkTV')}</Button>
-      {servers?.servers.some(value => value.signIn === 'portico') && <Button variant="text" disabled={busy} onPress={() => {void run(async () => {
+      {accountHeld && <Button variant="text" disabled={busy} onPress={() => {void run(async () => {
         const credentials = nativeAccounts.accountCredentials(); await credentials.synchronize(); const session = credentials.getSnapshot().session;
         if (!session) throw Object.assign(new Error('native_account_signed_out'), {code: 'account_changed'});
         setAccountScope({accountId: session.account.id, familyId: session.familyId}); setPanel('sign-out-account');
@@ -695,7 +699,7 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
     certificates={<TVTrustedCertificates context={context}/>}
     footer={<View style={{alignSelf: 'stretch', gap: 8, marginTop: 10}}>
     <Button variant="text" disabled={busy} onPress={() => setPanel('consent-kind')}>{t('settings.linkTV')}</Button>
-    {servers?.servers.some(value => value.signIn === 'portico') && <Button variant="text" disabled={busy} onPress={() => {void run(async () => {
+    {accountHeld && <Button variant="text" disabled={busy} onPress={() => {void run(async () => {
       const credentials = nativeAccounts.accountCredentials(); await credentials.synchronize(); const session = credentials.getSnapshot().session;
       if (!session) throw Object.assign(new Error('native_account_signed_out'), {code: 'account_changed'});
       setAccountScope({accountId: session.account.id, familyId: session.familyId}); setPanel('sign-out-account');

@@ -35,7 +35,7 @@ async function fixture() {
     }},
     '../../../../../packages/client-core/src': {HttpHostedApi: class {}},
     '../../../../../packages/client-core/src/route-identity': {routeOrigin: (value: string) => new URL(value).origin},
-    '../../platform/accounts': {nativeAccounts: {snapshot: async () => ({selectedServerId: 'server', servers: []}),
+    '../../platform/accounts': {nativeAccounts: {snapshot: async () => ({selectedServerId: 'server', servers: []}), accountCredentials: () => accountCredentials,
       porticoTVConsent: async () => ({review: async (code: string) => {calls.push(['review', code]); return {deviceName: 'TV', platform: 'TV', appVersion: '1', userCode: code};}, dispose() {}})}},
     '../../platform/app-session-storage': {nativeAppSessions: {}, subscribeNativeAppSessions: () => () => {}},
     '../../platform/native-session-lifecycle': {switchNativeProfile: async () => {}},
@@ -64,6 +64,10 @@ async function fixture() {
   const host = createFabricHookHost(() => {const child = AccountRoute({context, route}); tree = child.type(child.props);});
   return {AccountRoute, ServersRoute, context, calls, host, tree: () => tree, factories, nav};
 }
+
+// The Portico Account sign-in this app holds, if any; switched by a test.
+let heldAccount = false;
+const accountCredentials = {subscribe: () => () => {}, getSnapshot: () => ({session: heldAccount ? {account: {id: 'account'}, familyId: 'family'} : undefined}), synchronize: async () => {}};
 
 test('profile Add and Rename submit the chosen color and preselect the current color', async () => {
   const f = await fixture(); await act(() => f.host.mount());
@@ -224,4 +228,17 @@ test('PIN cell presenter can edit New or Repeat without submitting and keeps the
     input = nodes(tree).find(value => value.type === 'TextInput'); assert.equal(input.props.value, '1234');
     assert.equal(nodes(tree).filter(value => value.props.testID?.startsWith('repeat-box-')).length, 4);
   } finally {await host.unmount();}
+});
+
+test('Sign out of Portico Account is offered whenever the app holds one, even with no Portico server saved', async () => {
+  for (const held of [true, false]) {
+    heldAccount = held;
+    const f = await fixture(); let tree: any;
+    const host = createFabricHookHost(() => {tree = f.ServersRoute({context: f.context});}); await act(() => host.mount());
+    try {
+      const footer = nodes(tree).find(value => value.type === 'PhoneServerChooser').props.footer;
+      const offered = nodes(footer).some(value => value.type === 'Button' && [value.props.children].flat().includes('accounts.signOut.portico'));
+      assert.equal(offered, held, held ? 'offered with no Portico server saved' : 'not offered without an account');
+    } finally {await host.unmount(); heldAccount = false;}
+  }
 });
