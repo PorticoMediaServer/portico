@@ -73,6 +73,11 @@ func Stage(ctx context.Context, archivePath, dataDir, name string, now time.Time
 // now, which Portico Services holds too, in place of the backup's earlier one. keep travels
 // with the staged restore: a restore that is dropped or undone drops it.
 func StageKeeping(ctx context.Context, archivePath, dataDir, name string, now time.Time, notMadeHereOK bool, keep []byte) error {
+	return StageKeepingWithPassphrase(ctx, archivePath, dataDir, name, now, notMadeHereOK, keep, "")
+}
+
+// StageKeepingWithPassphrase verifies and decrypts before replacing any pending restore.
+func StageKeepingWithPassphrase(ctx context.Context, archivePath, dataDir, name string, now time.Time, notMadeHereOK bool, keep []byte, phrase string) error {
 	work, err := os.MkdirTemp(dataDir, ".staging-")
 	if err != nil {
 		return err
@@ -84,7 +89,7 @@ func StageKeeping(ctx context.Context, archivePath, dataDir, name string, now ti
 		return ErrNotMadeHere
 	}
 	m := newMarker(key)
-	if err := unpack(archivePath, work, dataDir, m); err != nil {
+	if err := unpackWithPassphrase(archivePath, work, dataDir, m, phrase); err != nil {
 		return err
 	}
 	if stated := statedMark(archivePath); !notMadeHereOK && (stated == "" || !hmac.Equal([]byte(stated), []byte(m.mark()))) {
@@ -115,6 +120,10 @@ func StageKeeping(ctx context.Context, archivePath, dataDir, name string, now ti
 // unpack writes a backup's files into dir, refusing anything a backup never holds and a
 // database larger than the free space of the data folder's disk allows.
 func unpack(archivePath, dir, dataDir string, m *marker) error {
+	return unpackWithPassphrase(archivePath, dir, dataDir, m, "")
+}
+
+func unpackWithPassphrase(archivePath, dir, dataDir string, m *marker, phrase string) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return &ErrDamaged{"it cannot be opened"}
@@ -126,8 +135,15 @@ func unpack(archivePath, dir, dataDir string, m *marker) error {
 	// Every byte read is marked as it passes, so the mark checked is of the bytes unpacked.
 	source := io.TeeReader(f, m)
 	defer io.Copy(io.Discard, source)
-	zr, err := gzip.NewReader(source)
+	decoded, err := backupReader(source, phrase)
 	if err != nil {
+		return err
+	}
+	zr, err := gzip.NewReader(decoded)
+	if err != nil {
+		if errors.Is(err, ErrPassphrase) {
+			return err
+		}
 		return &ErrDamaged{"it is not a Portico backup"}
 	}
 	free, _ := diskspace.Free(dataDir)
@@ -166,6 +182,12 @@ func unpack(archivePath, dir, dataDir string, m *marker) error {
 		if err = errors.Join(err, out.Sync(), out.Close()); err != nil || n != h.Size {
 			return &ErrDamaged{"it is cut short or damaged"}
 		}
+	}
+	if _, err := io.Copy(io.Discard, zr); err != nil {
+		return &ErrDamaged{"it is cut short or damaged"}
+	}
+	if _, err := io.Copy(io.Discard, decoded); err != nil {
+		return &ErrDamaged{"it is cut short or damaged"}
 	}
 	if !database {
 		return &ErrDamaged{"it holds no database"}

@@ -37,6 +37,11 @@ func (e *ErrDamaged) Error() string { return "this backup cannot be restored: " 
 // Inspect checks the archive at path whole. scratch is a folder it may write the database
 // to while checking it; nothing is left there.
 func Inspect(ctx context.Context, archivePath, scratch string) (Contents, error) {
+	return InspectWithPassphrase(ctx, archivePath, scratch, "")
+}
+
+// InspectWithPassphrase checks protected and plain backups; no supplied phrase is retained.
+func InspectWithPassphrase(ctx context.Context, archivePath, scratch, phrase string) (Contents, error) {
 	var out Contents
 	f, err := os.Open(archivePath)
 	if err != nil {
@@ -46,8 +51,15 @@ func Inspect(ctx context.Context, archivePath, scratch string) (Contents, error)
 	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
 		return out, &ErrDamaged{"it is not a file"}
 	}
-	zr, err := gzip.NewReader(f)
+	source, err := backupReader(f, phrase)
 	if err != nil {
+		return out, err
+	}
+	zr, err := gzip.NewReader(source)
+	if err != nil {
+		if errors.Is(err, ErrPassphrase) {
+			return out, err
+		}
 		return out, &ErrDamaged{"it is not a Portico backup"}
 	}
 	work, err := os.MkdirTemp(scratch, ".checking-")
@@ -98,6 +110,13 @@ func Inspect(ctx context.Context, archivePath, scratch string) (Contents, error)
 		if _, err := io.Copy(io.Discard, tr); err != nil {
 			return out, &ErrDamaged{"it is cut short or damaged"}
 		}
+	}
+	// Tar's end does not prove the compressed stream or final encrypted record is whole.
+	if _, err := io.Copy(io.Discard, zr); err != nil {
+		return out, &ErrDamaged{"it is cut short or damaged"}
+	}
+	if _, err := io.Copy(io.Discard, source); err != nil {
+		return out, &ErrDamaged{"it is cut short or damaged"}
 	}
 	if !out.Database {
 		return out, &ErrDamaged{"it holds no database"}
