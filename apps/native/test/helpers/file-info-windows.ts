@@ -1,30 +1,20 @@
 import {FileInfoSession} from '../../../../packages/client-core/src/file-info-session.ts';
-import type {FileInfoOpening} from '../../../../packages/client-core/src/file-info-pages.ts';
 
-/** Frozen FileInfo wire fixtures: the envelopes the server sends for one opening of one movie. */
-export const opening: FileInfoOpening = {token: 'o1', scope: {serverId: 'server', viewerId: 'viewer'}, target: {libraryId: 'library', itemId: 'movie'}, revision: {catalog: 2, viewer: 3}};
-const fence = {serverId: 'server', libraryId: 'library', itemId: 'movie', viewerFence: 'viewer'};
-export const envelope = (kind: string, queryId: string, over: Record<string, unknown> = {}, window: Record<string, unknown> = {}) => ({
-  scope: fence, detail: {scope: fence, revision: opening.revision}, basis: 'b1', variant: kind.replace(/^file-info-/, ''), kind, window: {queryId, limit: 40, returned: 1, ...window}, ...over});
-export const viewerSurface = {fileCount: 3, eligibleFileCount: 3, groupCount: 2, canSplit: false, hasDiscColumns: false};
-export const ownerSurface = {...viewerSurface, canSplit: true, manage: {delete: true, split: true, merge: true}};
-export const groupRow = (ordinal: number, over: Record<string, unknown> = {}) => ({id: `g${ordinal}`, headOccurrence: `occ-g${ordinal}`, ordinal, memberCount: 1, container: 'mkv',
-  sizeBytes: 2147483648, durationMs: 600000, video: {codec: 'hevc', width: 3840, height: 2160, dynamicRange: 'hdr10'}, audioCount: 0, subtitleCount: 0, ...over});
-export const memberRow = (occurrence: string, id: string, over: Record<string, unknown> = {}) => ({occurrence, itemId: 'movie', id, size: 1024, container: 'mkv', duration: 300, available: true, partIndex: 0, audioCount: 0, subtitleCount: 0, ...over});
-export const groupsPage = (queryId: string, surface: Record<string, unknown>, groups: unknown[], window: Record<string, unknown> = {}) =>
-  envelope('file-info-groups', queryId, {surface, groups}, {returned: groups.length, ...window});
-export const headTracksPage = (queryId: string, group: string, lane: 'audio' | 'subtitles', tracks: unknown[], window: Record<string, unknown> = {}, total = tracks.length) =>
-  envelope('file-info-head-tracks', queryId, {lane, groupId: group, occurrence: `occ-${group}`, total, tracks}, {returned: tracks.length, ...window});
-export const membersPage = (queryId: string, group: string, members: unknown[], window: Record<string, unknown> = {}) =>
-  envelope('file-info-members', queryId, {groupId: group, total: members.length, members}, {returned: members.length, ...window});
-
-export type RawReply = Readonly<{status: number; headers: Record<string, string>; body?: unknown}>;
-export const reply = (body: unknown, status = 200): RawReply => ({status, headers: {}, body});
-/** A FileInfoSession over a fake `requestRaw`: `respond` answers each GET by path, DELETE gives the lease back. */
-export function fakeSession(respond: (path: string) => unknown, over: {opening?: FileInfoOpening; limit?: number} = {}) {
+/** The rebuilt server's title and privileged file answers, shared by the real panel fixtures. */
+export const item = {id: 'movie', kind: 'movie', versions: [
+  {id: 'g1', container: 'mkv', size: 2048, durationMs: 60000, parts: [{size: 1024, durationMs: 30000, streams: [
+    {index: 0, kind: 'video', codec: 'hevc', width: 3840, height: 1608, hdr: 'hdr10'},
+    {index: 1, kind: 'audio', codec: 'truehd', language: 'en', channels: 8},
+    {index: 2, kind: 'subtitle', codec: 'srt', language: 'en', hearingImpaired: true}]}, {size: 1024, durationMs: 30000, streams: []}]},
+  {id: 'g2', container: 'mkv', size: 1024, durationMs: 60000, parts: [{size: 1024, durationMs: 60000, streams: []}]},
+]};
+export const locations = {versions: item.versions.map(v => ({id: v.id, files: v.parts.map((p, i) => ({...p, container: v.container, path: `/private/${v.id}-${i}.mkv`}))}))};
+export const offered = {itemId: item.id, versions: item.versions.map(v => ({id: v.id,
+  audio: [{id: v.id + ':audio', codec: 'truehd', language: 'en', channels: 8}],
+  subtitles: [{id: v.id + ':sub', format: 'srt', language: 'en', source: 'sidecar', sdh: true}]}))};
+export function fakeSession(role = 'owner') {
   const calls: string[] = [];
-  const session = new FileInfoSession({opening: over.opening ?? opening, isCurrent: () => true, limit: over.limit,
-    errorFromResponse: raw => new Error(`status ${raw.status}`),
-    api: {requestRaw(path, method) { calls.push(`${method} ${path}`); return Promise.resolve(method === 'DELETE' ? reply(undefined, 204) : reply(respond(path))); }}});
+  const session = new FileInfoSession({itemId: item.id, role, isCurrent: () => true,
+    api: {async request<T>(path: string, method = 'GET') {calls.push(`${method} ${path}`); return (path.endsWith('/files') ? locations : path.endsWith('/playback-options') ? offered : item) as T;}}});
   return {session, calls};
 }

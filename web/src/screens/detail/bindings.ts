@@ -9,7 +9,7 @@ import {readTitleIdentity} from '../../platform/title-identity';
 import {screenLifetime, type ScreenContext} from './context';
 import {createRecommendations} from './recommendations';
 import {versionDeletionService, deletionAllowed, type VersionDeletePreview} from '@core/administration.ts';
-import {separateFileInfoOccurrence, canMergeTitles, mergeTitles, SPLITTABLE_KINDS} from '@core/title-identity.ts';
+import {splitTitleVersion, canMergeTitles, mergeTitles, SPLITTABLE_KINDS} from '@core/title-identity.ts';
 import {validateContentEntry, type ContentEntry} from '@core/library-content.ts';
 import {titleView} from './view-state';
 import {openGenre} from './genre-binding';
@@ -34,7 +34,7 @@ export function createDetailBindings(context: ScreenContext) {
   const offSubject = service.subscribe(() => { const data = service.getSnapshot().data; if (data && service.getSnapshot().phase === 'ready') subject = {itemId: data.item.id, libraryId: data.scope.libraryId, title: data.item.title}; });
   /** Unmount cleanup may follow the route's dispose; it must never revive a retired read. */
   const cancel = () => { if (!disposed) {intent++; selected = undefined; recommendations.clear(); service.cancel();} };
-  const previews = new WeakMap<VersionDeletePreview, Readonly<{data: DetailProjection; proof: Readonly<{opening: string; occurrence: string}>}>>();
+  const previews = new WeakMap<VersionDeletePreview, Readonly<{data: DetailProjection; versionId: string}>>();
   const current = (data: DetailProjection) => {
     life.assert();
     if (service.getSnapshot().phase !== 'ready' || service.getSnapshot().data !== data) throw new DOMException('Title revision changed', 'AbortError');
@@ -97,18 +97,10 @@ export function createDetailBindings(context: ScreenContext) {
    * newer Detail: a later one is a new opening. Retire it with its panel. */
   const openFileInfo = (data: DetailProjection, signal?: AbortSignal) => {
     current(data);
-    // The Detail carries its opening only once the title is ready.
-    if (!data.fileInfoOpening) return undefined;
-    return new FileInfoSession({api: life.api, opening: {token: data.fileInfoOpening, scope: context.scope, target: data.scope, revision: {catalog: 0, viewer: 0}},
+    return new FileInfoSession({api: life.api, itemId: data.item.id, role: context.identity?.viewer.role ?? 'member',
       isCurrent: () => life.current() && service.getSnapshot().data === data, signal: life.signal(signal)});
   };
-  /** A File info command names the exact occurrence of the opening it was read from. The page
-   * must still show that same accepted Detail; the server rechecks everything else live and
-   * refuses a stale opening (409) before any change. */
-  const fileCommand = (data: DetailProjection, opening: string, signal?: AbortSignal) => {
-    current(data); signal?.throwIfAborted();
-    if (data.fileInfoOpening !== opening) throw new DOMException('File info opening changed', 'AbortError');
-  };
+  const fileCommand = (data: DetailProjection, signal?: AbortSignal) => {current(data); signal?.throwIfAborted();};
   const commandApi = (signal?: AbortSignal) => ({request: <T,>(path: string, method?: string, body?: unknown) => life.api.request<T>(path, method, body, signal)});
   const resolveEntry = async (itemId: string, signal?: AbortSignal) => {
     const item = await readTitleIdentity(context.queries, itemId, signal); life.assert();
@@ -151,38 +143,35 @@ export function createDetailBindings(context: ScreenContext) {
       if (!data.metadata.genres.some(value => value.name === genre)) throw new DOMException('Title genre changed', 'AbortError');
       return openGenre(context, life.api, data.scope.libraryId, genre, () => current(data), life.signal());
     },
-    async previewDelete(data: DetailProjection, opening: string, file: FileInfoFileRow, signal?: AbortSignal) {
-      fileCommand(data, opening, signal);
-      const proof = {opening, occurrence: file.occurrence};
-      const preview = await versionDeletionService(commandApi(signal).request).preview(file.itemId, file.id, proof);
+    async previewDelete(data: DetailProjection, file: FileInfoFileRow, signal?: AbortSignal) {
+      fileCommand(data, signal);
+      const preview = await versionDeletionService(commandApi(signal).request).preview(file.itemId, file.id);
       current(data); signal?.throwIfAborted();
       if (preview.assetId !== file.id || preview.targets.length !== 1 || preview.targets[0]?.itemId !== file.itemId) throw new Error('Delete preview target mismatch');
-      previews.set(preview, {data, proof}); return preview;
+      previews.set(preview, {data, versionId: file.id}); return preview;
     },
     async deleteVersion(data: DetailProjection, preview: VersionDeletePreview, confirmation: string, operationId: string, signal?: AbortSignal) {
       const held = previews.get(preview);
-      if (held?.data !== data || !deletionAllowed(preview) || confirmation !== preview.confirmation) throw new DOMException('Delete preview changed', 'AbortError');
-      fileCommand(data, held.proof.opening, signal);
-      const result = await versionDeletionService(commandApi(signal).request).remove(preview, confirmation, operationId, held.proof);
+      if (held?.data !== data || held.versionId !== preview.assetId || !deletionAllowed(preview) || confirmation !== preview.confirmation) throw new DOMException('Delete preview changed', 'AbortError');
+      fileCommand(data, signal);
+      const result = await versionDeletionService(commandApi(signal).request).remove(preview, confirmation, operationId);
       current(data); signal?.throwIfAborted(); return result;
     },
-    /** "Not this title": the server resolves the exact occurrence and separates that one file. */
-    async splitVersion(data: DetailProjection, opening: string, occurrence: string, signal?: AbortSignal) {
-      fileCommand(data, opening, signal);
+    /** Split the selected whole version; server-next does not accept a file occurrence. */
+    async splitVersion(data: DetailProjection, versionId: string, signal?: AbortSignal) {
+      fileCommand(data, signal);
       if (!SPLITTABLE_KINDS.includes(data.item.kind)) throw new Error('Title cannot be split');
-      const itemId = await separateFileInfoOccurrence(commandApi(signal), data.item.id, {opening, occurrence});
+      const itemId = await splitTitleVersion(commandApi(signal), versionId);
       current(data); signal?.throwIfAborted(); return resolveEntry(itemId, signal);
     },
-    /** `sourceOccurrence`: the open title's one listed file, when this title is the one merged away. */
-    async mergeTitle(data: DetailProjection, opening: string, candidate: ContentEntry, keepId: string, signal?: AbortSignal, sourceOccurrence?: string) {
-      fileCommand(data, opening, signal);
+    /** Keep either title's details while merging all the versions. */
+    async mergeTitle(data: DetailProjection, candidate: ContentEntry, keepId: string, signal?: AbortSignal) {
+      fileCommand(data, signal);
       if (!canMergeTitles(data.item, candidate) || ![data.item.id, candidate.id].includes(keepId) || candidate.libraryId !== data.scope.libraryId) throw new Error('Merge target changed');
       const fresh = await resolveEntry(candidate.id, signal); current(data);
       if (!canMergeTitles(data.item, fresh) || fresh.libraryId !== data.scope.libraryId) throw new Error('Merge target changed');
       const fromId = keepId === data.item.id ? candidate.id : data.item.id;
-      // The proof names the exact source file of this opening, so it only goes with a merge of this title away.
-      const proof = fromId === data.item.id && sourceOccurrence ? {opening, occurrence: sourceOccurrence} : undefined;
-      const itemId = await mergeTitles(commandApi(signal), fromId, keepId, proof);
+      const itemId = await mergeTitles(commandApi(signal), fromId, keepId);
       current(data); signal?.throwIfAborted(); return resolveEntry(itemId, signal);
     },
     async readCredits(data: DetailProjection, group: 'cast' | 'crew', cursor?: string, signal?: AbortSignal) {

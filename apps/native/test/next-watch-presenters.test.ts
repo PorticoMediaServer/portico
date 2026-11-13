@@ -6,19 +6,16 @@ import {NativeWatchPresenters} from '../src-next/screens/watch/presenters.ts';
 import {NativeScreenServices} from '../src-next/screens/screen-services.ts';
 import {parseOptions} from '../../../packages/client-core/src/playback-v1/types.ts';
 import {FileInfoSession} from '../../../packages/client-core/src/file-info-session.ts';
-import {groupRow, groupsPage, memberRow, membersPage, opening, ownerSurface} from './helpers/file-info-windows.ts';
+import {item as fileItem, locations} from './helpers/file-info-windows.ts';
 import {NativeShellNavigation} from '../src-next/shell/routes.ts';
 import type {NativeShellBootstrapContext} from '../src-next/shell/bootstrap.ts';
 
 const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
 const entry = {id: 'movie', kind: 'movie' as const, title: 'Real title', displayTitle: 'Real title: Edition', libraryId: 'library'};
 const offered = parseOptions({itemId: 'movie', versions: [{id: 'asset', parts: [{id: 'asset', index: 0, durationMs: 60000}], durationMs: 60000, sizeBytes: 1024, video: [], audio: [], subtitles: []}]});
-const occurrence = 'occ-asset';
-/** One version, one file, the owner's view of an opening; `held` keeps the groups lease open (a next window exists). */
-const fileInfoServer = (path: string, state: {held: boolean; manage: typeof ownerSurface['manage']; serial: number}) => {
-  if (path.includes('/groups/members')) return membersPage('q-members', 'g1', [memberRow(occurrence, 'asset', {path: '/actual/asset.mkv'})]);
-  return groupsPage(`q-groups-${++state.serial}`, {...ownerSurface, groupCount: state.held ? 2 : 1, manage: state.manage}, [groupRow(1, {headOccurrence: occurrence})], state.held ? {nextCursor: 'n1'} : {});
-};
+const occurrence = 'g1:0';
+const ownerSurface = {manage: {delete: false, split: true, merge: true}};
+const fileInfoServer = (path: string, _state: unknown) => path.endsWith('/files') ? locations : fileItem;
 const deferred = <T,>() => {let resolve!: (value: T) => void; const promise = new Promise<T>(done => {resolve = done;}); return {promise, resolve};};
 const drain = () => new Promise(resolve => setImmediate(resolve));
 async function fixture(over: {manage?: typeof ownerSurface['manage']; held?: boolean} = {}) {
@@ -40,9 +37,9 @@ async function fixture(over: {manage?: typeof ownerSurface['manage']; held?: boo
   const context = {...owner, session: () => ({viewer: {...authority, authority: 'local'}}), playback: {getSnapshot: () => ({fence: undefined}), subscribe: () => () => {}}} as unknown as NativeShellBootstrapContext;
   const presenters = new NativeWatchPresenters(context, common);
   const capture = {entry, authority, routeRevision: navigation.getSnapshot().revision, expectedFence: undefined, current: () => active};
-  // The factory's own work: one session over the accepted opening, its first window and the owner's files read.
+  // The factory's own work: one item read and the authorized version locations.
   const open = async () => {
-    const session = new FileInfoSession({api, opening, isCurrent: () => active});
+    const session = new FileInfoSession({api, itemId: 'movie', role: state.manage.merge ? 'owner' : 'member', isCurrent: () => active});
     await session.groups();
     if (session.getSnapshot().surface?.manage) await session.members('g1');
     return session;
@@ -69,23 +66,17 @@ test('committed menu close preserves its real File info destination; dismissal a
     const late = await d.open(); d.state.held = false;
     d.presenters.openFileInfo(d.capture, 'late', {session: late, kind: 'movie', changed: async () => {}});
     assert.equal(d.presenters.getSnapshot(), undefined);
-    await drain(); assert.ok(d.leases().includes('/v1/file-info-queries/q-groups-2'), 'a session the presenter does not accept is retired, not leaked');
+    const reads = d.calls.length; await late.groups(); assert.equal(d.calls.length, reads, 'a rejected session is retired');
     d.presenters.openMenu(d.capture, {fileInfo: async () => {}});
     d.navigation.back(authority);
     assert.equal(d.presenters.getSnapshot(), undefined);
   } finally {d.dispose();}
 });
 
-test('closing File info retires its session and gives back the lease it still holds', async () => {
-  const d = await fixture({held: true});
-  try {
-    assert.deepEqual(d.leases('q-groups'), [], 'a version list with more to read keeps its window');
-    d.presenters.close();
-    await drain();
-    assert.deepEqual(d.leases('q-groups'), ['/v1/file-info-queries/q-groups-1']);
-    await d.session.groups('next');
-    assert.equal(d.calls.some(call => call.path.includes('cursor=')), false, 'a retired session reads nothing more');
-  } finally {d.dispose();}
+test('closing File info retires its read without an obsolete lease request', async () => {
+  const d = await fixture();
+  try {d.presenters.close(); const count = d.calls.length; await d.session.groups('next'); assert.equal(d.calls.length, count); assert.deepEqual(d.leases(), []);}
+  finally {d.dispose();}
 });
 
 test('composed entry actions require their exact current menu and retain disabled semantics', async () => {
@@ -130,78 +121,23 @@ test('a wrong occurrence, or withdrawn manage authority in the resident surface,
   } finally {withheld.dispose();}
 });
 
-test('owner commands do not read File info again: the proof is the opening, and the server refuses a stale one', async () => {
+test('Delete cannot dispatch without a real version-specific preview', async () => {
   const d = await fixture();
   try {
-    const reads = d.calls.length;
-    d.respond(async path => path.endsWith('/delete/preview') ? new Response(JSON.stringify({code: 'stale_file_info', message: 'stale'}), {status: 409}) : fileInfoServer(path, d.state));
-    d.presenters.manageFile(d.capture, 'delete-version', occurrence);
-    await drain();
-    assert.deepEqual(d.calls.slice(reads).map(call => [call.method, call.path, call.body]),
-      [['POST', '/v1/admin/items/movie/files/asset/delete/preview', {fileInfo: {opening: 'o1', occurrence}}]]);
-    assert.equal(d.presenters.getSnapshot()?.phase, 'delete');
-    assert.ok(d.presenters.getSnapshot()?.error, 'the 409 is shown, nothing was deleted');
-    assert.equal(d.presenters.getSnapshot()?.preview, undefined);
-    assert.equal(d.calls.some(call => call.method === 'DELETE' && call.path.includes('/v1/admin/')), false);
+    const count = d.calls.length; d.presenters.manageFile(d.capture, 'delete-version', occurrence); await drain();
+    assert.equal(d.presenters.getSnapshot()?.phase, 'file-info'); assert.equal(d.calls.length, count);
   } finally {d.dispose();}
 });
 
-test('closing during the delete preview aborts the actual request and refuses its late answer', async () => {
-  const d = await fixture(), held = deferred<unknown>();
-  try {
-    d.respond(async () => held.promise);
-    d.presenters.manageFile(d.capture, 'delete-version', occurrence);
-    const request = d.calls.at(-1)!;
-    assert.ok(request.path.endsWith('/delete/preview'));
-    d.presenters.close(); assert.equal(request.signal?.aborted, true);
-    held.resolve(preview); await drain();
-    assert.equal(d.presenters.getSnapshot(), undefined);
-    assert.equal(d.calls.some(call => call.method === 'DELETE' && call.path.includes('/v1/admin/')), false);
-  } finally {d.dispose();}
-});
-
-const preview = {revision: 7, confirmation: 'Real title: Edition', confirmationKind: 'title', totalBytes: 1024, totalFiles: 1, totalBytesText: '1 KB', blocked: [], assetId: 'asset', previewKey: 'a'.repeat(64),
-  targets: [{itemId: 'movie', title: 'Real title: Edition', kind: 'movie', libraryId: 'library', libraryName: 'Movies', allowMediaDeletion: true, titles: 1, bytes: 1024,
-    files: [{assetId: 'asset', path: '/actual/asset.mkv', bytes: 1024, present: true, shared: false}], dependents: []}]};
-const deleted = {revision: 8, removed: 1, failed: 0, bytesDeleted: 1024, filesRetained: false, receipts: [{itemId: 'movie', title: 'Real title: Edition', removed: true, filesDeleted: 1, filesKept: 0, bytes: 1024, code: ''}]};
-
-test('real version preview owns confirmation and exact physical DELETE receipt, with one operation across retry', async () => {
-  const d = await fixture(); let attempt = 0;
-  try {
-    d.respond(async (path, method) => path.endsWith('/delete/preview') ? preview : method === 'DELETE' && ++attempt === 1
-      ? {...deleted, removed: 0, failed: 1, receipts: [{...deleted.receipts[0], removed: false, filesDeleted: 0, filesKept: 1, code: 'file_not_removed'}]} : method === 'DELETE' ? deleted : fileInfoServer(path, d.state));
-    d.presenters.manageFile(d.capture, 'delete-version', occurrence);
-    await drain();
-    assert.equal(d.presenters.getSnapshot()?.preview?.assetId, 'asset');
-    const previews = d.calls.filter(call => call.path.endsWith('/delete/preview'));
-    assert.deepEqual(previews.map(call => [call.method, call.path, call.body]), [['POST', '/v1/admin/items/movie/files/asset/delete/preview', {fileInfo: {opening: 'o1', occurrence}}]]);
-    d.presenters.confirmation('wrong title'); await d.presenters.deleteVersion();
-    assert.equal(d.calls.filter(call => call.method === 'DELETE' && call.path.includes('/v1/admin/')).length, 0);
-    d.presenters.confirmation(preview.confirmation); await d.presenters.deleteVersion();
-    assert.equal(d.changed(), 0); assert.ok(d.presenters.getSnapshot()?.error);
-    await d.presenters.deleteVersion();
-    const removes = d.calls.filter(call => call.method === 'DELETE' && call.path.includes('/v1/admin/'));
-    assert.equal(d.calls.some(call => call.method === 'GET' && call.path.includes('/file-info/') && d.calls.indexOf(call) > d.calls.indexOf(previews[0]!)), false, 'no File info read between the preview and the delete');
-    assert.equal(removes.length, 2);
-    assert.deepEqual(removes[0]?.body, {confirmation: preview.confirmation, operationId: '11111111-1111-4111-8111-111111111111', previewKey: preview.previewKey, fileInfo: {opening: 'o1', occurrence}});
-    assert.deepEqual(removes[1]?.body, removes[0]?.body);
-    assert.equal(removes[1]?.path, '/v1/admin/items/movie/files/asset');
-    assert.equal(d.changed(), 1); assert.equal(d.presenters.getSnapshot(), undefined);
-  } finally {d.dispose();}
-});
-
-test('split names the exact occurrence of a one-file version and reads nothing before it', async () => {
+test('split names a whole version, including all its parts, and refreshes the title', async () => {
   const d = await fixture();
   try {
     d.presenters.manageFile(d.capture, 'split-versions');
-    assert.equal(d.presenters.getSnapshot()?.phase, 'split-pick');
     d.presenters.chooseSplit('not-a-candidate'); assert.equal(d.presenters.getSnapshot()?.phase, 'split-pick');
-    d.presenters.chooseSplit(occurrence); assert.equal(d.presenters.getSnapshot()?.phase, 'split');
-    d.respond(async path => path.endsWith('/file-info/separate') ? {itemId: 'new-title'} : fileInfoServer(path, d.state));
-    const reads = d.calls.length;
-    await d.presenters.split();
-    assert.deepEqual(d.calls.slice(reads).map(call => [call.method, call.path, call.body]),
-      [['POST', '/v1/admin/items/movie/file-info/separate', {fileInfo: {opening: 'o1', occurrence}}]]);
+    d.presenters.chooseSplit('g1'); assert.equal(d.presenters.getSnapshot()?.phase, 'split');
+    d.respond(async path => path.endsWith('/split') ? {itemId: 'new-title'} : fileInfoServer(path, d.state));
+    const count = d.calls.length; await d.presenters.split();
+    assert.deepEqual(d.calls.slice(count).map(call => [call.method, call.path, call.body]), [['POST', '/v1/admin/versions/g1/split', {}]]);
     assert.equal(d.changed(), 1); assert.equal(d.presenters.getSnapshot(), undefined);
   } finally {d.dispose();}
 });
