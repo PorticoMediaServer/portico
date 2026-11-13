@@ -73,12 +73,12 @@ const jobs: readonly Job[] = [
   {id: 'job-pictures', kind: 'trickplay', resource: 'TV Shows', trigger: 'auto', state: 'queued', phase: 'waiting', revision: 1, attempt: 1, createdAt: now - 300_000, updatedAt: now - 1_000, nextAt: now, settingsRevision: 1, lane: 'background', actions: ['cancel']},
 ];
 
-const series = (base: number, wobble: number, seed: number) => Array.from({length: 30}, (_, index) => ({t: now - (29 - index) * 120_000, v: Math.max(0, base + Math.sin(index / 4 + seed) * wobble)}));
+const series = (base: number, wobble: number, seed: number) => Array.from({length: 30}, (_, index) => ({t: now - (29 - index) * 4_000, v: Math.max(0, base + Math.sin(index / 4 + seed) * wobble)}));
 const telemetry: TelemetryReading = {
-  period: '1h', timeZone: 'UTC', from: new Date(now - 3_600_000).toISOString(), until: new Date(Math.floor(now / 900_000) * 900_000).toISOString(), buckets: [],
-  window: '1h', observedAt: now,
-  status: {cpu: {status: 'available', value: 18}, memory: {status: 'available', value: 41}, netOut: {status: 'available', value: 14_000_000}, diskRead: {status: 'available', value: 21_000_000}, gpuUsage: {status: 'available', value: 9}, gpuEncoder: {status: 'available', value: 12}} as TelemetryReading['status'],
-  series: {cpu: series(18, 6, 1), memory: series(41, 3, 2), netOut: series(14_000_000, 4_000_000, 3), diskRead: series(21_000_000, 8_000_000, 4), gpuUsage: series(9, 2, 5), gpuEncoder: series(12, 3, 6)} as TelemetryReading['series'],
+  period: 'live', timeZone: 'UTC', from: new Date(now - 120_000).toISOString(), until: new Date(now).toISOString(), buckets: [],
+  window: 'live', observedAt: now,
+  status: {cpu: {status: 'available', value: 18}, memory: {status: 'available', value: 41}, homeMbps: {status: 'available', value: 11.2}, awayMbps: {status: 'available', value: 8}, conversions: {status: 'available', value: 1}} as TelemetryReading['status'],
+  series: {cpu: series(18, 6, 1), memory: series(41, 3, 2), homeMbps: series(11, 3, 3), awayMbps: series(8, 2, 4), conversions: series(1, 0, 5)} as TelemetryReading['series'],
 };
 const summary: PlaySummary = {
   period: '7d', timeZone: 'UTC', from: new Date(now - 604_800_000).toISOString(), until: new Date(Math.floor(now / 900_000) * 900_000).toISOString(), buckets: [],
@@ -101,7 +101,7 @@ function specimen(scale: boolean, expanded: boolean, move = false) {
           expanded={showAll} allStreams={showAll ? list.map(value => ({view: ownerStreamView(value, env)})) : []}
           people={scale ? '37 people · 30 at home, 7 away' : '2 people · 1 at home, 1 away'}
           alerts={alerts.map((value, index) => ownerAlertView(value, index, t, defaultI18n.has))} update={{latest: '0.2.0', current: '0.1.0', notesURL: 'https://example.com/portico/0.2.0', checking: false, checkFailed: false}} jobs={jobs.map(value => ownerJobView(value, t, defaultI18n.has))}
-          telemetry={telemetry} healthWindow="1h" summary={summary} viewingPeriod="7d"
+          telemetry={telemetry} healthWindow="live" summary={summary} viewingPeriod="7d"
           onBack={() => {}} onRetry={() => {}} onHealthWindow={() => {}} onViewingPeriod={() => {}} onFixPermissions={() => {}} onJobMenu={() => {}} onStop={() => {}} onStreamMenu={() => {}}
           onShowAll={() => setShowAll(true)} onShowFewer={() => setShowAll(false)} onRetryAll={() => {}}/>
       {showMove ? <OwnerMoveSheet session={scaleSessions[4]} t={t} busy={false} onCancel={() => setShowMove(false)} onMove={() => setShowMove(false)}/> : null}

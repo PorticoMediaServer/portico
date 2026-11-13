@@ -173,8 +173,7 @@ export const dashboardMessages = {
   'next.dashboard.storage': 'Storage & backups',
   'next.dashboard.troubleshooting': 'Troubleshooting',
   // Shipped by portico-react-native; carried into the canonical catalogue (REL-SHARED-CATALOGUE).
-  'next.dashboard.range.10m': '10 min',
-  'next.dashboard.range.1h': '1 hour',
+  'next.dashboard.range.live': 'Live',
   'next.dashboard.range.24h': '24 hours',
   'next.dashboard.range.today': 'Today',
   'next.dashboard.range.7d': '7 days',

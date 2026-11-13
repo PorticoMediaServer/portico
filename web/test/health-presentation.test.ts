@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {METRIC_NAMES, parseTelemetryReading, type MetricName, type TelemetryPoint, type TelemetryReading} from '@core/telemetry.ts';
-import {healthDetail, healthPlot, healthTiles} from '../src/screens/dashboard/health-presentation';
+import {healthDetail, healthTiles} from '../src/screens/dashboard/health-presentation';
 
 const point = (t: number, v: number, status?: 'available' | 'limited', detail?: string): TelemetryPoint => ({t, v, ...(status ? {status} : {}), ...(detail ? {detail} : {})});
 function reading(): TelemetryReading {
@@ -16,7 +16,7 @@ test('unknown zero or unknown middle point never becomes a measured line or stat
   r.series.cpu = [point(1, 1, 'available'), point(2, 0), point(3, 2, 'available')];
   const tile = healthTiles(r).find(item => item.metric === 'cpu')!;
   assert.equal(tile.value, '0%'); assert.equal(tile.history, 'gap'); assert.deepEqual(tile.points, []);
-  assert.equal(healthPlot(r.series.cpu, 0, 10), undefined); assert.equal(healthDetail(r.series.cpu, 0, 10, true), undefined);
+  assert.equal(healthDetail(r.series.cpu, 0, 10, true), undefined);
 });
 
 test('known processor and memory history preserve available zero and real limited detail', () => {
@@ -54,7 +54,7 @@ test('parsed unknown middle and legacy warm-up points refuse history while known
   series.cpu = [{t: observedAt - 3000, v: 0, status: 'available'}, {t: observedAt - 2000, v: 0, status: 'limited', detail: 'Waiting for a second reading before a rate can be reported.'}, {t: observedAt - 1000, v: 3, status: 'available'}];
   const warm = parseTelemetryReading(input);
   assert.equal(healthTiles(warm).find(tile => tile.metric === 'cpu')?.history, 'gap');
-  assert.equal(healthPlot(warm.series.cpu, observedAt - 600000, observedAt), undefined);
+  assert.equal(healthDetail(warm.series.cpu, observedAt - 600000, observedAt, true), undefined);
   series.cpu = [{t: observedAt - 3000, v: 0, status: 'available'}, {t: observedAt - 1000, v: 3, status: 'available'}];
   const valid = parseTelemetryReading(input), tile = healthTiles(valid).find(item => item.metric === 'cpu')!;
   assert.equal(tile.history, 'samples'); assert.equal(healthDetail(tile.points, observedAt - 600000, observedAt, true)?.low, 0);

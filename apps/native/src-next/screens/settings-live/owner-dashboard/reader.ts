@@ -6,7 +6,7 @@ import {fetchPlaySummary, type PlaySummary} from '../../../../../../packages/cli
 import {playbackControlsService} from '../../../../../../packages/client-core/src/playback-controls';
 import {sendSeekTo, sendTransport, type TransportCommand} from '../../../../../../packages/client-core/src/server-admin/now-playing';
 import {fixDataFolderPermissions} from '../../../../../../packages/client-core/src/admin/data-folder';
-import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
+import {readServerLoad, type TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
 import type {UpdatesApi} from '../../../../../../packages/client-core/src/server-admin/updates-source';
 import type {NativeScreenLifetime} from '../lifetime';
 import type {NativeSettingsLivePorts} from '../ports';
@@ -46,7 +46,7 @@ export function createNativeOwnerDashboardReader(lifetime: NativeScreenLifetime,
   const controls = playbackControlsService(<T,>(path: string, method?: string, body?: unknown) => lifetime.request(signal => context.api.request<T>(path, method, body, signal)));
   return Object.freeze({
     sessions: (cursor?: string, limit = 200) => sessions.list(cursor, Math.max(1, Math.min(limit, 200)), lifetime.signal),
-    telemetry: (window: OwnerHealthWindow) => console_.telemetry(window, captureReportContext(zone())),
+    telemetry: (window: OwnerHealthWindow) => readServerLoad(api, window, lifetime.signal),
     playSummary: (period: OwnerViewingPeriod) => fetchPlaySummary(api, {...captureReportContext(zone()), period}),
     jobCommand: (job: Job, action: 'pause' | 'resume' | 'retry' | 'cancel') => console_.jobCommand(job, action).then(() => undefined),
     stop: (sessionId: string, message?: string) => sessions.terminate(sessionId, message, lifetime.signal),
