@@ -14,27 +14,51 @@ type DeletionImpact struct {
 }
 
 func (d *DB) ItemDeletionPreview(ctx context.Context, v Viewer, id string) (DeletionImpact, error) {
-	return d.deletionPreview(ctx, v, `i.public_id = ?`, id, false)
+	del, err := d.ItemDeletion(ctx, v, id)
+	if err != nil {
+		return DeletionImpact{}, err
+	}
+	return d.deletionPreview(ctx, v, []Deletion{del})
 }
 
 func (d *DB) VersionDeletionPreview(ctx context.Context, v Viewer, id string) (DeletionImpact, error) {
-	return d.deletionPreview(ctx, v, `i.id = (SELECT item_id FROM media WHERE public_id = ?)`, id, true)
+	del, err := d.VersionDeletion(ctx, v, id)
+	if err != nil {
+		return DeletionImpact{}, err
+	}
+	return d.deletionPreview(ctx, v, []Deletion{del})
+}
+
+// SelectionDeletionPreview uses the same dry run for selections already read and validated
+// by the caller. No selection lookup or subtree expansion takes place on the writer.
+func (d *DB) SelectionDeletionPreview(ctx context.Context, v Viewer, all []Deletion) (DeletionImpact, error) {
+	return d.deletionPreview(ctx, v, all)
 }
 
 var errPreviewRollback = errors.New("deletion preview: roll back database changes")
 
-// Read the selection on the read handle; a preview may be a moment stale. Only the exact
-// database deletion runs on the writer. Its deliberate rollback discards rows, changes-feed
-// entries and watched-state settlement. No disk deletion or change notification runs here.
-func (d *DB) deletionPreview(ctx context.Context, v Viewer, where, id string, version bool) (DeletionImpact, error) {
+// Only the exact database deletion runs on the writer. Its deliberate rollback discards
+// rows, changes-feed entries and watched-state settlement. No file deletion or notification
+// runs here. Read selections may be a moment stale; recordDeleted tolerates vanished rows.
+func (d *DB) deletionPreview(ctx context.Context, v Viewer, all []Deletion) (DeletionImpact, error) {
 	var out DeletionImpact
-	del, err := d.deletion(ctx, v, where, id, version)
-	if err != nil {
-		return out, err
+	selected, whole, files := map[int64]bool{}, map[int64]bool{}, map[int64]bool{}
+	for n, del := range all {
+		if n == 0 {
+			out.Deletion = del
+			out.Files, out.Bytes = nil, 0
+		}
+		selected[del.ItemID], whole[del.ItemID] = true, del.MediaID == 0
+		for _, f := range del.Files {
+			if !files[f.ID] {
+				files[f.ID] = true
+				out.Files = append(out.Files, f)
+				out.Bytes += f.Size
+			}
+		}
 	}
-	out.Deletion = del
 	out.Titles, out.ListEntries, out.OtherStates = 0, 0, 0
-	err = d.write(ctx, User, func(tx *sql.Tx) error {
+	err := d.write(ctx, User, func(tx *sql.Tx) error {
 		removing := func(itemID int64) error {
 			var titles, entries, states int
 			err := tx.QueryRowContext(ctx, subtreeSQL+`SELECT count(*),
@@ -55,17 +79,19 @@ func (d *DB) deletionPreview(ctx context.Context, v Viewer, where, id string, ve
 			}
 			// Descendants of a whole selected title are already described by that title.
 			// Empty parents and titles removed through shared files or relations are additional.
-			if itemID != del.ItemID && (version || parent != del.ItemID && root != del.ItemID) {
+			if !selected[itemID] && !whole[parent] && !whole[root] {
 				out.AlsoRemoves = append(out.AlsoRemoves, other)
 			}
 			return nil
 		}
-		files := make([]int64, len(del.Files))
-		for n, f := range del.Files {
-			files[n] = f.ID
-		}
-		if err := recordDeleted(tx, del, files, removing); err != nil {
-			return err
+		for _, del := range all {
+			deleted := make([]int64, len(del.Files))
+			for n, f := range del.Files {
+				deleted[n] = f.ID
+			}
+			if err := recordDeleted(tx, del, deleted, removing); err != nil {
+				return err
+			}
 		}
 		return errPreviewRollback
 	})
