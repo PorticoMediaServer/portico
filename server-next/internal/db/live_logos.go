@@ -31,3 +31,24 @@ func (d *DB) SourceChannelLogo(ctx context.Context, sourceID int64, key, address
 		return err
 	})
 }
+
+// LiveSourceLogoTarget remains server-only: provider URLs are never sent to an app.
+type LiveSourceLogoTarget struct{ Key, Address, Hash string }
+
+func (d *DB) LiveSourceLogoTargets(ctx context.Context, sourceID int64) ([]LiveSourceLogoTarget, error) {
+	rows, err := d.read.QueryContext(ctx, `SELECT source_key,logo_url,ifnull(logo_hash,'') FROM channels
+	 WHERE source_id=? AND state<>? AND missing_since_at IS NULL AND logo_url IS NOT NULL ORDER BY id`, sourceID, ChannelNotIn)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []LiveSourceLogoTarget{}
+	for rows.Next() {
+		var row LiveSourceLogoTarget
+		if err := rows.Scan(&row.Key, &row.Address, &row.Hash); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}

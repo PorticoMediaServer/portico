@@ -2021,6 +2021,8 @@ export const webMessages = {
   'web.liveSource.countBy': 'Count by',
   'web.liveSource.channelLogos': 'Channel logos',
   'web.liveSource.bringLogos': 'Bring in the logos this source publishes',
+  'web.liveSource.refreshHours': 'Hours between guide refreshes, from 1 to 168.',
+  'web.liveSource.imagesDisabled': 'Turn on Logos and program pictures to import logos.',
   'web.liveSource.replaceLogos': 'Replace logos that are already set',
   'web.liveSource.importLogos': 'Import logos now',
   'web.liveSource.streamBuffer': 'Stream buffer (seconds)',
