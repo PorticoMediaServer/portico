@@ -25,6 +25,7 @@ import {Icon} from '../../kit/Icon';
 import {usePullRefresh} from '../../kit/states/usePullRefresh';
 import {WindowedGrid, AlphabetRail, Row, type LayoutSelection, type WindowedGridHandle} from '../../kit/layout';
 import {discoverCell} from './discover-cells';
+import {shapeFor, type ShapeFamily} from '../../../../../packages/client-core/src/presentation/card-shape';
 import {GridSkeleton, SkeletonBlock, StateView, showSkeleton, skeletonTiming} from '../../kit/states';
 import {useTheme, type Theme} from '../../kit/theme';
 import {useMotion} from '../../kit/useMotion';
@@ -693,6 +694,10 @@ export function LibraryGrid({destination, runtime, activation, actions, labels, 
   </View>;
 }
 
+/** The library family a card belongs to, from the entry's library kind (singular or plural). */
+const families: Readonly<Record<string, ShapeFamily>> = {movie: 'movie', show: 'tv', anime: 'anime', audiobook: 'audiobook', music: 'music', book: 'book', comic: 'comic'};
+const shapeFamily = (kind: string | undefined): ShapeFamily | undefined => kind ? families[kind.replace(/s$/, '')] : undefined;
+
 function LibraryCard({entry, width, wide = false, placeholderHeight, runtime, actions, selected, disabled, focusId, onFocus, onBlur, onSelect}: {entry?: ContentEntry; width: number; wide?: boolean; placeholderHeight?: number; runtime: NativeShellRuntime; actions: NativeLibraryActions; selected?: CardSelection; disabled?: boolean; focusId?: string; onFocus?: () => void; onBlur?: () => void; onSelect?: () => void}) {
   const menuAnchorRef = useRef<View>(null);
   const theme = useTheme();
@@ -726,5 +731,6 @@ function LibraryCard({entry, width, wide = false, placeholderHeight, runtime, ac
     return renderCard(WideCard, {...props, caption: resume.caption, detail: resume.detail, artwork: runtime.artwork(entry.backdropUrl ?? entry.posterUrl), progress: resume.progress});}
   const artistCovers = (entry.artworkPaths ?? []).flatMap(path => {const source = runtime.artwork(path); return source ? [source] : [];});
   return entry.kind === 'artist' ? renderCard(CircleCard, {...props, art: {covers: artistCovers.length ? artistCovers : props.artwork ? [props.artwork] : [], alt: entry.title}})
-    : ['album', 'song', 'book', 'audiobook_file'].includes(entry.kind) ? renderCard(SquareCard, props) : renderCard(PosterCard, props);
+    // One shape rule for every client (client-core shapeFor): music and audiobooks square, an audiobook series too; reading series 2:3.
+    : shapeFor(entry.kind, 'grid', shapeFamily(entry.libraryKind)) === 'square' ? renderCard(SquareCard, props) : renderCard(PosterCard, props);
 }

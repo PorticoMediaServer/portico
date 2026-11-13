@@ -3,7 +3,7 @@ import {StyleSheet, Text, View} from 'react-native';
 import Svg, {Text as SvgText} from 'react-native-svg';
 import type {FactPart} from '../../../../../packages/client-core/src/presentation/kit-model/index';
 import {defaultI18n} from '../../../../../packages/i18n/src/index';
-import {MediaArt, CircleArt, PersonCircle, GeneratedCoverClearance, missingArt, type MissingArtShape, type ArtworkProps, type ArtworkSource, type CircleArtProps, type PersonCircleProps} from '../artwork/index';
+import {MediaArt, CircleArt, PersonCircle, GeneratedCoverClearance, missingArt, useWholeBox, type MissingArtShape, type ArtworkProps, type ArtworkSource, type CircleArtProps, type PersonCircleProps} from '../artwork/index';
 import {Focusable} from '../controls/Focusable';
 import {SelectionCircle} from '../selection/index';
 import {useTheme} from '../theme';
@@ -90,9 +90,12 @@ export function CoverCard(props: CoverCardProps) {
 export function SquareCard(props: SquareCardProps) {
   const t = useTheme(), width = props.width ?? t.spec.card.width.square[t.platform];
   const Frame = props.frame ?? CardFrame;
+  // A cover is never cropped (owner's rule): a 2:3 book cover keeps its shape, whole and centred in the square slot, and its
+  // frame, ring and marks take that shape too, so no bars are drawn. TV keeps its square tiles.
+  const {box, onSize} = useWholeBox(t.isTV ? undefined : props.artwork, width, width);
   return <Frame {...props} width={width} overlay={s => <Overlays props={props} hovered={s.hovered} holding={s.holding} height={width} />}>
-    {s => <><ArtFrame height={width} focused={s.focused} hovered={s.hovered} holding={s.holding} selected={props.selection?.selected}>
-      <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="square" source={props.artwork} fallback={fallbackFor(props, 'square', width, width)} width={width} height={width} />
+    {s => <><View style={{width, height: width, alignItems: 'center', justifyContent: 'center'}}><ArtFrame width={box.width} height={box.height} focused={s.focused} hovered={s.hovered} holding={s.holding} selected={props.selection?.selected}>
+      <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="square" source={props.artwork} fallback={fallbackFor(props, 'square', width, width)} width={box.width} height={box.height} onSize={onSize} />
       <Scrim start={0.55} opacity={0.75} /><Marks watched={props.watched} isNew={props.isNew} />
       <Progress value={props.progress} height={t.isTV ? 6 : 3} style={{position: 'absolute', left: 8, right: 8, bottom: 8}} />
       {props.playing && <View pointerEvents="none" style={{position: 'absolute', left: 12, bottom: 12, flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -102,7 +105,7 @@ export function SquareCard(props: SquareCardProps) {
         </View>
         <Text style={{fontFamily: 'Manrope-ExtraBold', fontSize: 18 * t.textScale, lineHeight: 22 * t.textScale, fontWeight: '800', color: t.colors.text}}>{defaultI18n.t('player.miniPlaying')}</Text>
       </View>}
-    </ArtFrame><Caption {...props} selected={props.selection?.selected} focused={s.focused} tvRestingSecondary titleTextStyle={props.playing ? {color: t.colors.accentStrong} : props.titleTextStyle} /></>}
+    </ArtFrame></View><Caption {...props} selected={props.selection?.selected} focused={s.focused} tvRestingSecondary titleTextStyle={props.playing ? {color: t.colors.accentStrong} : props.titleTextStyle} /></>}
   </Frame>;
 }
 

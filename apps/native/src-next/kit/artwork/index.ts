@@ -8,7 +8,7 @@ export type {MissingArtShape} from './MissingArt';
 export {CircleArt, ArtistCircle, PersonCircle} from './Circles';
 export type {ArtistCircleProps} from './Circles';
 export {CoverFan, CoverMosaic} from './Covers';
-export {WholeCover} from './WholeCover';
+export {WholeCover, useWholeBox} from './WholeCover';
 export type {WholeCoverProps, WholeCoverSource, WholeCoverLook} from './WholeCover';
 export {ChannelMark} from './ChannelMark';
 export {ProfileFace, ProfilePicker} from './Profiles';

@@ -22,7 +22,7 @@ async function music(platform = 'tablet') {
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})}, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
     '../../../../../../packages/client-core/src/presentation/kit-model': {cardText: () => ({detail: [{id: 'duration', text: '3:00'}]})},
-    '../../../kit/artwork': {missingArt: () => undefined, StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', AmbientArt: 'AmbientArt', ArtistCircle: 'ArtistCircle'},
+    '../../../kit/artwork': {useWholeBox: (_source: unknown, width: number, height: number) => ({box: {width, height}, onSize: undefined}), missingArt: () => undefined, StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork', AmbientArt: 'AmbientArt', ArtistCircle: 'ArtistCircle'},
     '../../../kit/controls': {Button: 'Button', Chip: 'Chip', Focusable: 'Focusable'}, '../../../kit/cards': {CircleCard: 'CircleCard', SquareCard: 'SquareCard'},
     '../../../kit/Icon': {Icon: 'Icon'}, '../../../kit/browse': {TrackNumber: 'TrackNumber'}, '../../../kit/browse/presentation': {browseType: type, alpha: (color: string, opacity: number) => `${color}/${opacity}`},
     '../../../kit/theme': {useTheme: () => theme}, './MusicSectionControls': {MusicSectionControls: 'PageControls'},
@@ -86,7 +86,7 @@ async function audiobook(kind: 'book' | 'author') {
   const ui = hooks(), theme = {isTV: false, platform: 'phone', colors};
   const common = {react: ui.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0})}, '../../../../../../packages/i18n/src': {defaultI18n: i18n},
-    '../../../kit/artwork': {missingArt: () => undefined, StandardBackdrop: 'StandardBackdrop', AmbientArt: 'AmbientArt', Artwork: 'Artwork', PersonCircle: 'PersonCircle'}, '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable'},
+    '../../../kit/artwork': {useWholeBox: (_source: unknown, width: number, height: number) => ({box: {width, height}, onSize: undefined}), missingArt: () => undefined, StandardBackdrop: 'StandardBackdrop', AmbientArt: 'AmbientArt', Artwork: 'Artwork', PersonCircle: 'PersonCircle'}, '../../../kit/controls': {Button: 'Button', Focusable: 'Focusable'},
     '../../../kit/focus': {FocusRegion: 'FocusRegion'}, '../../../kit/browse': {TrackNumber: 'TrackNumber'}, '../../../kit/browse/presentation': {alpha: (color: string, opacity: number) => `${color}/${opacity}`, browseType: type},
     '../../../kit/theme': {useTheme: () => theme}, '../music/MusicWindow': musicWindowStub};
   const screen = kind === 'book'

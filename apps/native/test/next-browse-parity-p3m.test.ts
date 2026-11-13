@@ -59,7 +59,7 @@ async function emptyPage(isTV: boolean) {
     '../../kit/browse': {}, '../../kit/overlays': {Menu: 'Menu'},
     '../../kit/browse/presentation': {alpha: (color: string) => color, browseType: () => ({})}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/layout': {WindowedGrid: 'WindowedGrid', AlphabetRail: 'AlphabetRail', Row: 'Row'},
-    './discover-cells': {discoverCell: () => ({})}, '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0},
+    '../../../../../packages/client-core/src/presentation/card-shape': await import('../../../packages/client-core/src/presentation/card-shape.ts'), './discover-cells': {discoverCell: () => ({})}, '../../kit/states/usePullRefresh': {usePullRefresh: () => undefined}, '../../kit/dock/DockClearance': {useDockClearance: () => 0},
     '../../kit/states': {StateView: 'StateView'}, '../../kit/theme': {useTheme: () => theme}, '../../kit/useMotion': {useMotion: () => ({})},
     '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur: false})}, '../home/model': {homeCardText: () => ({})},
     '../destinations/focus': {createDestinationEntryFocus: () => ({}), nativeDestinationFocusIds: () => ({rail: 'rail'})},
