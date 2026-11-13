@@ -46,6 +46,9 @@ export type ArtworkProps = Readonly<{
   onStatusChange?: (status: ArtworkStatus) => void;
   onReady?: (source: ArtworkSource) => void;
   onLoad?: (source: ArtworkSource) => void;
+  /** The picture's natural size, once it is known (when it loads). A page that must draw a cover
+   *  whole, in its own shape, sizes its box from this (owner's rule: a cover is never cropped). */
+  onSize?: (size: Readonly<{width: number; height: number}>) => void;
   onError?: (source: ArtworkSource) => void;
   testID?: string;
 }>;
