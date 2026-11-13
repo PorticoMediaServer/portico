@@ -172,7 +172,7 @@ export function channelView(s: Session, channel: ChannelReference, at: ChannelAt
       // Live HLS dates its segments; a title, or a live source's own stream, counts media time from its start.
       clock: s.kind === 'live' && engineMode(s) === 'hls' ? 'dates' as const : 'media' as const,
       bufferGeneration: generation, presentationGeneration: generation, originMs, windowRevision: generation, windowStartUs: '0', windowEndUs: us(windowEndMs),
-      liveEdgeUs: us(liveEdgeMs), gaps: [], state: 'playing', errorCode: '', logoUrl: ''}),
+      liveEdgeUs: us(liveEdgeMs), gaps: [], state: 'playing', errorCode: '', logoUrl: channel.logoUrl ?? ''}),
     overlay: {enabled: false, corner: 'top-right', sizePercent: 8, insetPercent: 3, treatment: 'original'},
     confirmedPositionUs: at.confirmedMs !== undefined ? us(at.confirmedMs) : null,
     acknowledgedSeekCommandId: at.ackId ?? null,

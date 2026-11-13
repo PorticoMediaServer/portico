@@ -206,6 +206,10 @@ func (s *Service) refresh(ctx context.Context, src db.LiveSource) (LiveSourceRep
 	}
 	rows := make([]db.SourceChannel, 0, len(pulled.Channels))
 	next := max(cfg.FirstNumber, 1)
+	logos, err := s.db.SourceLogoHashes(ctx, src.ID)
+	if err != nil {
+		return report, 0, err
+	}
 	for _, c := range pulled.Channels {
 		row := db.SourceChannel{Key: c.Key, Name: c.Name, Group: c.Group, GuideSource: guideSource, GuideKey: c.GuideKey, Locator: c.Locator,
 			Logo: c.Logo, BroughtIn: brought(cfg, c)}
@@ -228,6 +232,7 @@ func (s *Service) refresh(ctx context.Context, src db.LiveSource) (LiveSourceRep
 		} else {
 			row.Number = row.SourceNumber
 		}
+		row.LogoHash = logos[c.Logo]
 		if row.BroughtIn {
 			report.Channels++
 		}
@@ -236,6 +241,7 @@ func (s *Service) refresh(ctx context.Context, src db.LiveSource) (LiveSourceRep
 	if err := s.db.ImportSourceChannels(ctx, src.ID, rows, s.now()); err != nil {
 		return report, 0, err
 	}
+	s.refreshLogos(ctx, src, cfg, rows, logos)
 	return report, pulled.Tuners, nil
 }
 

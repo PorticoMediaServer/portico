@@ -20,7 +20,7 @@ type LiveChannel struct {
 	// Kind is source or library.
 	Kind  string `json:"kind"`
 	Group string `json:"group,omitempty"`
-	// Logo is a Library Channel's uploaded logo, or absent for the monogram.
+	// Logo is server-held artwork, whether brought in from a source or uploaded for a Library Channel.
 	Logo     string `json:"logo,omitempty"`
 	Favorite bool   `json:"favorite"`
 	Hidden   bool   `json:"hidden"`
