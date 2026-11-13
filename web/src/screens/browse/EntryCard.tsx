@@ -2,7 +2,7 @@ import {defaultI18n} from '@i18n';
 import {generatedCoverTint} from '@design';
 import type {CSSProperties} from 'react';
 import type {ContentEntry} from '@core/library-content.ts';
-import {shapeFor} from '@core/presentation/card-shape.ts';
+import {shapeFor, type ShapeFamily} from '@core/presentation/card-shape.ts';
 import {homeCardSubject} from '../home/model';
 import {cardText} from '@portico/client-core/kit-model';
 import type {TextEnvironment} from '@portico/client-core/kit-model';
@@ -28,7 +28,7 @@ export type BrowseEntryCardProps = Readonly<{entry: ContentEntry; actions: Brows
 /** Display fields never stand in for a navigation target or a permission offer. */
 export function BrowseEntryCard({entry, actions, artwork, env, width, family, mixed, order, group, visible, backdrops, continuing}: BrowseEntryCardProps) {
   const title = entry.displayTitle ?? entry.title;
-  const shape = shapeFor(entry.kind, 'grid');
+  const shape = shapeFor(entry.kind, 'grid', family as ShapeFamily | undefined);
   const ordinary = cardText({...homeCardSubject(entry), itemCount: ['collection', 'category', 'playlist'].includes(entry.kind) ? entry.count : undefined, albumCount: entry.albumCount, songCount: entry.kind === 'album' || entry.kind === 'disc' ? entry.count : undefined, countIsLowerBound: entry.countIsLowerBound}, 'ordinary', env);
   const kind = entry.kind === 'movie' ? 'next.browse.kind.movie' : entry.kind === 'show' && family === 'anime' ? 'next.browse.kind.anime' : entry.kind === 'show' && family === 'tv' ? 'next.browse.kind.show' : undefined;
   // Frame #collections draws the watched share after the years, and only when a film is watched.
@@ -57,8 +57,9 @@ export function BrowseEntryCard({entry, actions, artwork, env, width, family, mi
   // action: an ebook or comic has no playback, and opening it is the detail page's own action.
   // The finished check is this profile's own mark on this exact row, read from the parser's
   // checked readingMark; the video watched flag and an explicit unread mark never draw it.
-  if (entry.kind === 'ebook' || entry.kind === 'comic') return <CoverCard {...props} onPlay={undefined} watched={entry.readingMark?.read === true}
-    watchedLabel={entry.readingMark?.read === true ? defaultI18n.t('next.cards.finished') : undefined} kind={entry.kind === 'comic' ? 'comic' : 'book'} artwork={source}
+  // A reading library's series is a book cover too (2:3, the generated cover without art).
+  if (entry.kind === 'ebook' || entry.kind === 'comic' || entry.kind === 'book_series' && shape === 'poster') return <CoverCard {...props} onPlay={undefined} watched={entry.readingMark?.read === true}
+    watchedLabel={entry.readingMark?.read === true ? defaultI18n.t('next.cards.finished') : undefined} kind={entry.kind === 'comic' || family === 'comic' ? 'comic' : 'book'} artwork={source}
     generated={{title, glyph: Array.from(title.trim())[0] ?? '', tint: generatedCoverTint(title)}}/>;
   return shape === 'square' ? <SquareCard {...props} artwork={source} variant={entry.kind === 'book' || entry.kind === 'audiobook_file' ? 'audiobook' : 'music'}/> : <PosterCard {...props} artwork={source}/>;
 }
