@@ -41,6 +41,8 @@
 .resume {overflow: hidden; max-width: none;}
 .resume .buttonLabel {display: contents;}
 .resumeLabel {min-width: 0; overflow: hidden; text-overflow: ellipsis;}
+/* When the label would be cut: the time left goes first, then the icon (ResumeButton). */
+.resume[data-drop="1"] .remaining, .resume[data-drop="2"] .remaining, .resume[data-drop="2"] > .glyph {display: none;}
 .remaining {margin-left: calc(var(--control-gap) + 2px); font-weight: 600; color: color-mix(in srgb, var(--color-ink) 60%, transparent);}
 .resume[data-variant="glass"] .remaining {color: var(--color-text-tertiary);}
 .progress {position: absolute; inset: auto 0 0; height: 4px; background: color-mix(in srgb, var(--color-ink) 14%, transparent); pointer-events: none;}
