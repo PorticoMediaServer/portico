@@ -84,7 +84,7 @@ export const entriesFromItems = (items: readonly Item[], libraryId?: string): Co
 /** What `GET /v1/items` lists: one of a library, a holder, a person, a tag, favourites or My List; then filters and an order. */
 export type ItemListQuery = Readonly<{
   library?: string; parent?: string; person?: string; artist?: string; tag?: string; kind?: string;
-  genre?: string; year?: string; resolution?: string; watched?: boolean; favorite?: boolean; inList?: boolean;
+  genre?: string; year?: string; resolution?: string; watched?: boolean; inProgress?: boolean; favorite?: boolean; inList?: boolean;
   sort?: string; order?: 'asc' | 'desc';
   author?: string; series?: string;
 }>;
