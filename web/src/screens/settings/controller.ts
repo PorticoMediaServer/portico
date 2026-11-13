@@ -285,7 +285,7 @@ export class SettingsController {
       changed: value.default !== undefined && changedFromDefault(value.effective, value.default),
       displayValue: option ? defaultI18n.t(option.label) : typeof current === 'boolean' ? defaultI18n.t(current ? 'next.settings.on' : 'next.settings.off') : typeof current === 'object' ? JSON.stringify(current) : String(current),
       disabled: this.writing || this.libraryRow(context) && this.library.getSnapshot().saving || !this.current(), saving: this.writing || this.libraryRow(context) && this.library.getSnapshot().saving,
-      readOnly: row.id === 'storage.backupPassphrase' || settingsBinding(row.id)?.readOnly === true || settingsBinding(row.id)?.form === 'device' && !canWriteDeviceSettings(this.options.device) || row.id === 'device.appVersion' || row.id === 'device.name' && (!settingsBinding(row.id) || !canWriteDeviceSettings(this.options.device) || this.options.device?.getSnapshot().facts.name?.readOnly === true),
+      readOnly: settingsBinding(row.id)?.readOnly === true || settingsBinding(row.id)?.form === 'device' && !canWriteDeviceSettings(this.options.device) || row.id === 'device.appVersion' || row.id === 'device.name' && (!settingsBinding(row.id) || !canWriteDeviceSettings(this.options.device) || this.options.device?.getSnapshot().facts.name?.readOnly === true),
       help: this.options.streaming?.problemFor(row.id),
       error: this.rowErrors.has(row.id) ? settingsRowErrorText(this.rowErrors.get(row.id)) : undefined};
   };

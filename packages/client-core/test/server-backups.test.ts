@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {ServerBackupSource, notMadeHere} from '../src/server-admin/server-backups.ts';
+import {ServerBackupSource, notMadeHere, passphraseRefused, passphraseTooLong} from '../src/server-admin/server-backups.ts';
 
 const listed = {id: 'bkp_1', createdAt: '2026-11-10T03:00:00Z', scheduled: true, version: '3.0.0', size: 4096, credentials: [], pictures: 0, artwork: false};
 const page = (more: Record<string, unknown> = {}) => ({items: [listed], folder: '/srv/backups', folderWritable: true, readable: true, readableMeans: [], ...more});
@@ -89,4 +89,44 @@ test('Restart now says how many streams the server has now, on a page that did n
   assert.deepEqual(await source.restartAsks(), {playing: 3, canRestart: true});
   assert.ok(calls.some(c => c.method === 'POST' && c.path === '/v1/admin/restart'), 'the server was asked, without confirm');
   assert.ok(!calls.some(c => c.path === '/v1/admin/restart?confirm=true'), 'and nothing was restarted by asking');
+});
+
+test('each backup shows its own protection, not the page\'s; the passphrase is set, sent on inspect and restore, and turned off', async () => {
+  let protect = false;
+  const old = {...listed, protected: false}, locked = {...listed, id: 'bkp_2', protected: true};
+  const wrong = Object.assign(new Error('Check the request and try again.'), {status: 400, code: 'invalid_request', path: 'passphrase'});
+  const {api, calls} = server(call => {
+    if (call.path === '/v1/admin/backups/passphrase') {protect = (call.body as {passphrase: string}).passphrase !== '';return undefined;}
+    if (call.path === '/v1/admin/backups/inspect') return (call.body as {passphrase?: string}).passphrase === 'right' ? {pictures: 0, keyFiles: [], credentials: [], madeHere: true, restoring: []} : wrong;
+    if (call.path === '/v1/admin/backups/restore') return {playing: 0, canRestart: true};
+    return call.path === '/v1/admin/backups' ? page({items: [old, locked], protected: protect, readable: !protect}) : reads(call);
+  });
+  const source = new ServerBackupSource(api, () => true, () => {});
+  await source.load();
+  await source.setPassphrase('right');
+  assert.equal(source.getSnapshot().backups?.protected, true, 'read again after the change');
+  // The page now protects the next backups; the older one is still readable without a phrase.
+  assert.deepEqual(source.getSnapshot().list.map(b => [b.id, b.encrypted]), [['bkp_1', false], ['bkp_2', true]]);
+  const refused = await source.inspect({id: 'bkp_2'}, undefined, 'typo').catch(error => error);
+  assert.equal(passphraseRefused(refused), true);
+  assert.equal(passphraseRefused(Object.assign(new Error(), {status: 400, code: 'invalid_request', path: 'currentPassword'})), false);
+  await source.inspect({id: 'bkp_2'}, undefined, 'right');
+  await source.restore({id: 'bkp_2'}, {password: 'pw', passphrase: 'right'});
+  await source.inspect({id: 'bkp_1'}).catch(() => undefined);
+  await source.setPassphrase('');
+  assert.equal(source.getSnapshot().backups?.protected, false);
+  const sent = calls.filter(c => c.method !== 'GET').map(c => [c.method, c.path, c.body]);
+  assert.deepEqual(sent, [
+    ['PUT', '/v1/admin/backups/passphrase', {passphrase: 'right'}],
+    ['POST', '/v1/admin/backups/inspect', {id: 'bkp_2', passphrase: 'typo'}],
+    ['POST', '/v1/admin/backups/inspect', {id: 'bkp_2', passphrase: 'right'}],
+    ['POST', '/v1/admin/backups/restore', {id: 'bkp_2', currentPassword: 'pw', passphrase: 'right'}],
+    ['POST', '/v1/admin/backups/inspect', {id: 'bkp_1'}],
+    ['PUT', '/v1/admin/backups/passphrase', {passphrase: ''}],
+  ]);
+});
+
+test('a passphrase is measured as the server measures it, in UTF-8 bytes', () => {
+  assert.equal(passphraseTooLong('a'.repeat(1024)), false);
+  assert.equal(passphraseTooLong('é'.repeat(513)), true, '1026 bytes in 513 letters');
 });
