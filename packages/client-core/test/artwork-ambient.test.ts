@@ -52,3 +52,26 @@ test('foreground width policy retains all existing buckets and never selects amb
     assert.equal(artworkWidthBucket(pixels, {tolerance: 1}), expected);
   }
 });
+
+
+test('hash artwork supplies the same ambient-v1 contract on every client', () => {
+  // A content-addressed source needs no separate v query.
+  const hash = 'f3b328908bf58db21b2a3acd5569e80a548de5cff8755a6fb1c7a984600ebc69';
+  const url = '/v1/images/' + hash;
+  const ambient = ambientArtworkSource(url, identity)!;
+  assert.equal(ambient.url, url + '?size=ambient-v1');
+  assert.equal(ambient.version, hash);
+  assert.equal(ambient.variant, 'ambient-v1');
+  assert.equal(ambient.maxEdge, 64);
+  for (const suffix of ['?w=800&h=450', '?size=small', '?size=large', '?size=ambient-v1']) {
+    assert.deepEqual(ambientArtworkSource(url + suffix, identity), ambient);
+  }
+  assert(Object.isFrozen(ambient));
+  for (const next of [{...identity, serverId: 'other'}, {...identity, viewerId: 'other'}, {...identity, authorityKey: 'session:2'}]) {
+    assert.notEqual(ambientArtworkSource(url, next)!.cacheKey, ambient.cacheKey);
+  }
+  assert.notEqual(ambientArtworkSource('/v1/images/' + 'b'.repeat(64), identity)!.cacheKey, ambient.cacheKey);
+  for (const bad of ['/v1/images/mutable', '/v1/images/' + 'A'.repeat(64), url + '/extra', url + '?h=1&h=2', url + '?v=' + version, url + '?subject=other', url + '?candidate=' + version]) {
+    assert.equal(ambientArtworkSource(bad, identity), null, bad);
+  }
+});
