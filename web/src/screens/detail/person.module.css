@@ -21,7 +21,7 @@
    640px tall, so without this its fade stopped short and the hero ended on a line (H04). */
 .hero .wash { inset: 0; height: auto; }
 
-.copy { position: absolute; z-index: var(--layer-art-label); left: 64px; bottom: 44px; width: 720px; }
+.copy { position: absolute; z-index: var(--layer-art-label); left: var(--page-gutter); bottom: 44px; width: 720px; }
 
 .portrait { position: absolute; z-index: var(--layer-content); right: 150px; top: 130px; width: 340px; height: 340px; border-radius: 50%; box-shadow: 0 50px 90px -30px color-mix(in srgb, var(--color-shadow) 90%, transparent), 0 0 0 1px color-mix(in srgb, var(--color-text) 12%, transparent); }
 
@@ -53,7 +53,7 @@
 
 .source { display: inline; font-size: var(--person-source-size); line-height: normal; color: var(--color-text-tertiary); }
 
-.toolbar { position: relative; z-index: var(--layer-row-arrow); display: flex; align-items: center; gap: 14px; height: 40px; padding: 0 64px; }
+.toolbar { position: relative; z-index: var(--layer-row-arrow); display: flex; align-items: center; gap: 14px; height: 40px; padding: 0 var(--page-gutter); }
 
 .toolbarHeading { margin: 0; font-size: var(--person-toolbar-heading-size); font-weight: var(--person-toolbar-heading-weight); line-height: normal; letter-spacing: var(--person-toolbar-heading-tracking); color: var(--color-text); }
 
@@ -65,8 +65,8 @@
 
 /* The kind sections are the shared rows (desktop-detail frame 7); the rows keep their own gutter and spacing. */
 .groups { padding-top: 26px; }
-/* H05: credits that are not grouped by role sit in the same page gutter as the groups and the toolbar. */
-.credits { padding: 26px 64px 0; }
+/* H05: the hero text, toolbar, flat list and note sit in the page gutter, the one the kit rows and the library header use. */
+.credits { padding: 26px var(--page-gutter) 0; }
 
 .group { min-width: 0; }
 
@@ -74,7 +74,7 @@
 
 .groupCount { font-size: var(--person-group-count-size); font-weight: var(--person-group-count-weight); color: var(--color-text-tertiary); }
 
-.note { display: flex; align-items: center; gap: 10px; margin: 40px 64px 0; font-size: var(--person-note-size); line-height: normal; color: var(--color-text-tertiary); }
+.note { display: flex; align-items: center; gap: 10px; margin: 40px var(--page-gutter) 0; font-size: var(--person-note-size); line-height: normal; color: var(--color-text-tertiary); }
 
 .note svg { color: var(--color-accent-strong); flex: none; }
 
