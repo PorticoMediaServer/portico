@@ -43,3 +43,10 @@ export async function rebuiltPeriodicalIssues(api: ServerRequester, library: str
   years: yearChoices.map(v => ({year: v.value, issueCount: v.count})), days: dayChoices.map(v => ({date: v.value, issueCount: v.count})), ...options, ...(page.nextCursor ? {nextCursor: page.nextCursor} : {})};
  return {...out, yearChoices, dayChoices, calendarMonth: options.month};
 }
+/** A Read library's newest magazine issues by issue date, a page at a time: Discover's New issues
+ * row, the same read as the server's own landing row. */
+export async function rebuiltNewIssues(api: ServerRequester, library: string, options: Readonly<{cursor?: string; limit: number}>, signal?: AbortSignal) {
+ const page = await callServer(api, 'GET /v1/items', {query: {library, kind: 'book,comic,issue', publication: 'magazine', sort: 'release', order: 'desc', cursor: options.cursor, limit: options.limit}, signal});
+ const issues = (page.items ?? []).flatMap(wire => {const found = issue(wire, 'magazine', wire.series ? {id: wire.series.id, title: wire.series.title} : undefined); return found ? [found] : [];});
+ return {issues, ...(page.nextCursor ? {nextCursor: page.nextCursor} : {})};
+}
