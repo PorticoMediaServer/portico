@@ -109,3 +109,12 @@ test('conversion preference and its disk folder have independent runtime binding
  assert.deepEqual(settingsBindingPatch(location,'memory'),{form:'runtime',values:{transcodeLocation:'memory'}});
  assert.deepEqual(settingsBindingPatch(folder,'/disk'),{form:'runtime',values:{temporaryDirectory:'/disk'}});
 });
+
+test('How much to convert names cheapest and compatibility routes honestly in both directions',()=>{
+ const binding=settingsBinding('streaming.whenCantPlay')!;
+ for(const [policy,want] of [['maximum_fidelity','least'],['minimize_server_work','least'],['maximum_compatibility','most']]){
+  assert.equal(readSettingsBinding(binding,{forms:{runtime:{planningPolicy:policy}}})?.current,want);
+ }
+ assert.deepEqual(settingsBindingPatch(binding,'least'),{form:'runtime',values:{planningPolicy:'maximum_fidelity'}});
+ assert.deepEqual(settingsBindingPatch(binding,'most'),{form:'runtime',values:{planningPolicy:'maximum_compatibility'}});
+});

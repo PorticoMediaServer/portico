@@ -41,6 +41,14 @@ type StreamingSettings struct {
 	// HDR. With it off such a picture is converted without it and looks washed out; that is
 	// for troubleshooting.
 	ToneMapping bool `json:"toneMapping"`
+	// EncoderSpeed is the processor encoder's speed/size trade-off.
+	EncoderSpeed string `json:"encoderSpeed"`
+	// PlanningPolicy chooses the cheapest route or more conversion for compatibility.
+	PlanningPolicy string `json:"planningPolicy"`
+	// Repackaging allows changing the container without converting the picture.
+	Repackaging bool `json:"repackaging"`
+	// ConversionFormat is automatic, or H.264 for devices that misreport newer formats.
+	ConversionFormat string `json:"conversionFormat"`
 	// ConversionFolder is a folder of the owner's choosing for conversions; empty is the
 	// server's own data folder. The server keeps a folder of its own inside it and never
 	// empties anything else. It applies to streams started after it is saved.
@@ -63,7 +71,8 @@ var GraphicsDevices = []string{"nvenc", "qsv", "vaapi", "videotoolbox", "amf"}
 
 // Streaming is the streaming settings document. Playback and the media engine read it.
 var Streaming = Define("streaming", StreamingSettings{ConvertWhenNeeded: ConvertPictureAndSound, GraphicsDevice: "automatic",
-	HardwareDecoding: true, ToneMapping: true}, checkStreaming)
+	HardwareDecoding: true, ToneMapping: true, EncoderSpeed: "veryfast", PlanningPolicy: "maximum_fidelity",
+	Repackaging: true, ConversionFormat: "auto"}, checkStreaming)
 
 func checkStreaming(s *StreamingSettings) error {
 	switch s.ConvertWhenNeeded {
@@ -86,6 +95,15 @@ func checkStreaming(s *StreamingSettings) error {
 	}
 	if !slices.Contains([]int{0, 1, 2, 3, 4, 6}, s.ProcessorConversionsAtOnce) {
 		return &Invalid{Field: "processorConversionsAtOnce", Message: "Choose no limit, 1, 2, 3, 4 or 6 conversions."}
+	}
+	if !slices.Contains([]string{"ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow"}, s.EncoderSpeed) {
+		return &Invalid{Field: "encoderSpeed", Message: "Choose one of the listed encoder speeds."}
+	}
+	if !slices.Contains([]string{"maximum_fidelity", "minimize_server_work", "maximum_compatibility"}, s.PlanningPolicy) {
+		return &Invalid{Field: "planningPolicy", Message: "Choose the least conversion or more conversion for compatibility."}
+	}
+	if s.ConversionFormat != "auto" && s.ConversionFormat != "h264" {
+		return &Invalid{Field: "conversionFormat", Message: "Choose Automatic or H.264."}
 	}
 	s.ConversionFolder, s.FFmpegProgram = strings.TrimSpace(s.ConversionFolder), strings.TrimSpace(s.FFmpegProgram)
 	for _, f := range []struct{ name, value string }{{"conversionFolder", s.ConversionFolder}, {"ffmpegProgram", s.FFmpegProgram}} {

@@ -204,3 +204,30 @@ func TestSavingTheProcessorConversionLimitReachesAdmission(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestSavedConversionPolicyReachesThePlanner(t *testing.T) {
+	ctx := context.Background()
+	d, err := db.Open(ctx, filepath.Join(t.TempDir(), "main.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	st, _, err := settings.Open(ctx, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := json.RawMessage(`{"encoderSpeed":"medium","planningPolicy":"maximum_compatibility","repackaging":false,"conversionFormat":"h264"}`)
+	if _, err := st.Write(ctx, 0, "streaming", change, -1, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	got := delivery(settings.Streaming.Get(st))
+	if got.SoftwarePreset != "medium" || got.PlanningPolicy != streaming.PlanningMaximumCompatible || got.RemuxEnabled || got.OutputFormat != "h264" {
+		t.Fatal(got)
+	}
+	if _, err := st.Write(ctx, 0, "streaming", json.RawMessage(`{"encoderSpeed":"slower"}`), -1, time.Now()); err == nil {
+		t.Fatal("the decoder's extra speed was exposed")
+	}
+	if got := delivery(settings.Streaming.Get(st)); got.SoftwarePreset != "medium" {
+		t.Fatal(got)
+	}
+}
