@@ -12,7 +12,7 @@ async function fixture(inline = false) {
   const h = hooks(), pulls: any[] = [], calls: string[] = [];
   const snapshot = {admission: 'owner', loading: false, sessions: [], alerts: [], jobs: []};
   const controller = {subscribe: () => () => {}, getSnapshot: () => snapshot, lifetime: {authority: {}}, refresh: async () => {calls.push('refresh');}};
-  const reader = {dispose() {}, telemetry: async () => ({}), playSummary: async () => ({}), sessions: async () => ({items: []})};
+  const reader = {dispose() {}, telemetry: async () => ({}), viewing: async () => ({}), sessions: async () => ({items: []})};
   const {NativeOwnerDashboardPhone} = await screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/use-owner-dashboard.tsx', import.meta.url), {
     '../../../../../../packages/client-core/src/admin/data-folder': {dataFolderConfirmText: () => ''},
     '../../../../../../packages/client-core/src/http': {ApiError: class extends Error {}},
@@ -57,7 +57,7 @@ test('the Dashboard page draws its scroll view with the pull control and no Refr
   });
   const pull = {type: 'Pull', props: {}};
   const props = {t: (id: string) => id, role: 'owner', serverName: 'Portico demo', topInset: 47, health: {degraded: false, status: 'Healthy', line: ''}, updated: 'Updated just now', loading: false,
-    streams: [], streamTotals: {streams: 0, converting: 0, bandwidth: 0}, expanded: false, allStreams: [], people: '', alerts: [], jobs: [], healthWindow: '1h', viewingPeriod: '7d', refreshControl: pull,
+    streams: [], streamTotals: {streams: 0, converting: 0, bandwidth: 0}, expanded: false, allStreams: [], people: '', alerts: [], jobs: [], healthWindow: 'live', viewingPeriod: '30d', refreshControl: pull,
     onShowAll() {}, onShowFewer() {}, onRetryAll() {}, onBack() {}, onRetry() {}, onHealthWindow() {}, onViewingPeriod() {}, onAcknowledge() {}, onFixPermissions() {}, onJobMenu() {}, onStop() {}, onStreamMenu() {}};
   const tree = h.render(() => OwnerDashboardPage(props));
   const header = nodes(tree).find(node => typeof node.type === 'function' && node.type.name === 'OwnerHeader');

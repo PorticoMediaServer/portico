@@ -1,13 +1,12 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {ScrollView, Text, useWindowDimensions, View, type RefreshControlProps} from 'react-native';
-import type {PlaySummary} from '../../../../../../packages/client-core/src/play-history';
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
 import {Focusable} from '../../../kit/controls';
 import {Icon} from '../../../kit/Icon';
 import {ServerBand} from '../../../kit/shell';
 import {useTheme} from '../../../kit/theme';
 import {alpha, shellType} from '../../../kit/shell/visual';
-import type {OwnerAlertView, OwnerHealthWindow, OwnerJobView, OwnerSessionTotals, OwnerStreamView, OwnerViewingPeriod, Translate} from './model';
+import type {OwnerAlertView, OwnerHealthWindow, OwnerJobView, OwnerSessionTotals, OwnerStreamView, OwnerViewing, OwnerViewingPeriod, Translate} from './model';
 import {ownerCompactWindow, ownerStreamTotals, ownerUsesCompactRows} from './model';
 import {OwnerAlertCard, OwnerCalm, OwnerJobGroup, OwnerJobRow, OwnerSection, OwnerSubheading} from './parts';
 import {OwnerHealthSection} from './health';
@@ -43,7 +42,7 @@ export type OwnerDashboardPageProps = Readonly<{
   telemetryError?: unknown;
   healthWindow: OwnerHealthWindow;
   healthNote?: string;
-  summary?: PlaySummary;
+  summary?: OwnerViewing;
   statisticsError?: unknown;
   viewingPeriod: OwnerViewingPeriod;
   onBack: () => void;

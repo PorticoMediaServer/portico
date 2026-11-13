@@ -43,7 +43,7 @@ test('the card names both versions, says Portico never installs it, and offers r
 });
 
 const pageProps = (role: string, update?: unknown) => ({t, role, serverName: 'Portico demo', topInset: 47, health: {degraded: false, status: 'Healthy', line: ''}, loading: false,
-  streams: [], streamTotals: {streams: 0, converting: 0, bandwidth: 0}, expanded: false, allStreams: [], people: '', alerts: [], jobs: [], healthWindow: '1h', viewingPeriod: '7d', update,
+  streams: [], streamTotals: {streams: 0, converting: 0, bandwidth: 0}, expanded: false, allStreams: [], people: '', alerts: [], jobs: [], healthWindow: 'live', viewingPeriod: '30d', update,
   onShowAll() {}, onShowFewer() {}, onRetryAll() {}, onBack() {}, onRetry() {}, onHealthWindow() {}, onViewingPeriod() {}, onAcknowledge() {}, onFixPermissions() {}, onJobMenu() {}, onStop() {}, onStreamMenu() {}});
 
 const pageModule = (react: any) => screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/page.tsx', import.meta.url), {
@@ -77,7 +77,7 @@ async function phone(admission: 'owner' | 'administrator') {
   const snapshot = {admission, loading: false, sessions: [], alerts: [], jobs: []};
   const controller = {subscribe: () => () => {}, getSnapshot: () => snapshot, lifetime: {authority: {}, current: () => true}, refresh: async () => {calls.push('refresh');}};
   const updatesApi = {request: async () => ({})};
-  const reader = {dispose() {}, telemetry: async () => ({}), playSummary: async () => ({}), sessions: async () => ({items: []}), updates: updatesApi};
+  const reader = {dispose() {}, telemetry: async () => ({}), viewing: async () => ({}), sessions: async () => ({items: []}), updates: updatesApi};
   class SettingsUpdatesSource {
     state: any = {phase: 'ready', busy: false, report: report(build('0.2.0', 'https://example.test/notes'))};
     constructor(readonly api: unknown, readonly isCurrent: () => boolean) {sources.push(this);}

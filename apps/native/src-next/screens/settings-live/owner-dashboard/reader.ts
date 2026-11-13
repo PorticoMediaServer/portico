@@ -1,8 +1,7 @@
 import {ConsoleClient, type Job} from '../../../../../../packages/client-core/src/console';
 import {AdminSessionsClient} from '../../../../../../packages/client-core/src/playback-v1/admin-sessions';
 import {localV1Http} from '../../../../../../packages/client-core/src/playback-v1/local-http';
-import {captureReportContext} from '../../../../../../packages/client-core/src/report-context';
-import {fetchPlaySummary, type PlaySummary} from '../../../../../../packages/client-core/src/play-history';
+import {readPlaySummary, readStatistics} from '../../../../../../packages/client-core/src/admin/statistics';
 import {playbackControlsService} from '../../../../../../packages/client-core/src/playback-controls';
 import {sendSeekTo, sendTransport, type TransportCommand} from '../../../../../../packages/client-core/src/server-admin/now-playing';
 import {fixDataFolderPermissions} from '../../../../../../packages/client-core/src/admin/data-folder';
@@ -10,7 +9,7 @@ import {readServerLoad, type TelemetryReading} from '../../../../../../packages/
 import type {UpdatesApi} from '../../../../../../packages/client-core/src/server-admin/updates-source';
 import type {NativeScreenLifetime} from '../lifetime';
 import type {NativeSettingsLivePorts} from '../ports';
-import type {OwnerHealthWindow, OwnerViewingPeriod} from './model';
+import type {OwnerHealthWindow, OwnerViewing, OwnerViewingPeriod} from './model';
 
 /**
  * The Dashboard's own reads and owner commands over the screen lifetime. The admission
@@ -21,7 +20,8 @@ export type NativeOwnerDashboardReader = Readonly<{
   /** Show all reads the same server-ordered list, a bounded page at a time. */
   sessions(cursor?: string, limit?: number): ReturnType<AdminSessionsClient['list']>;
   telemetry(window: OwnerHealthWindow): Promise<TelemetryReading>;
-  playSummary(period: OwnerViewingPeriod): Promise<PlaySummary>;
+  /** The statistics' totals per day and the Play history summary, over one range. */
+  viewing(period: OwnerViewingPeriod): Promise<OwnerViewing>;
   jobCommand(job: Job, action: 'pause' | 'resume' | 'retry' | 'cancel'): Promise<void>;
   stop(sessionId: string, message?: string): Promise<void>;
   transport(sessionId: string, command: TransportCommand): Promise<void>;
@@ -33,10 +33,6 @@ export type NativeOwnerDashboardReader = Readonly<{
   dispose(): void;
 }>;
 
-const zone = (): string => {
-  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; }
-};
-
 export function createNativeOwnerDashboardReader(lifetime: NativeScreenLifetime, ports: NativeSettingsLivePorts): NativeOwnerDashboardReader {
   const {context} = ports, authority = lifetime.authority;
   const api = {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => lifetime.request(next => context.api.request<T>(path, method, body, next), signal)};
@@ -47,7 +43,10 @@ export function createNativeOwnerDashboardReader(lifetime: NativeScreenLifetime,
   return Object.freeze({
     sessions: (cursor?: string, limit = 200) => sessions.list(cursor, Math.max(1, Math.min(limit, 200)), lifetime.signal),
     telemetry: (window: OwnerHealthWindow) => readServerLoad(api, window, lifetime.signal),
-    playSummary: (period: OwnerViewingPeriod) => fetchPlaySummary(api, {...captureReportContext(zone()), period}),
+    viewing: async (period: OwnerViewingPeriod) => {
+      const [statistics, summary] = await Promise.all([readStatistics(api, period, lifetime.signal), readPlaySummary(api, {range: period}, lifetime.signal)]);
+      return {totals: statistics.totals, mostPlayed: summary.titles, mostActive: summary.people};
+    },
     jobCommand: (job: Job, action: 'pause' | 'resume' | 'retry' | 'cancel') => console_.jobCommand(job, action).then(() => undefined),
     stop: (sessionId: string, message?: string) => sessions.terminate(sessionId, message, lifetime.signal),
     transport: (sessionId: string, command: TransportCommand) => sendTransport(controls, sessionId, command).then(() => undefined),

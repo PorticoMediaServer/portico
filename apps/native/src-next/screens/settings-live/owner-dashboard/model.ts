@@ -1,7 +1,7 @@
 import type {Job} from '../../../../../../packages/client-core/src/console';
 import {dashboardAlertWords} from '../../../../../../packages/client-core/src/admin/dashboard-alert-words';
 import type {DashboardAlert} from '../dashboard-controller';
-import type {PlayCount, PlaySummary} from '../../../../../../packages/client-core/src/play-history';
+import type {PlayTotal, StatisticsRange, StatisticsTotals} from '../../../../../../packages/client-core/src/admin/statistics';
 import type {AdminSession} from '../../../../../../packages/client-core/src/playback-v1/types';
 import type {TelemetryPoint, TelemetryReading, TelemetryWindow} from '../../../../../../packages/client-core/src/telemetry';
 import type {FactPart, TextEnvironment} from '../../../../../../packages/client-core/src/presentation/kit-model';
@@ -19,13 +19,14 @@ export type Has = (id: string) => id is MessageId;
 /** The full catalogue translator plus the formatting locale; the page uses it for every word. */
 export type OwnerText = Readonly<{t: Translate; locale?: string}>;
 
-/** The three periods the Health section draws (owner-dashboard frames 2–3, 7–8). */
 /** Rule 12: the load as it is now and over the last 24 hours (`GET /v1/admin/load`). */
 export const OWNER_HEALTH_WINDOWS = ['live', '24h'] as const;
 export type OwnerHealthWindow = (typeof OWNER_HEALTH_WINDOWS)[number];
-/** The four periods the Viewing statistics section draws (frame 3). */
-export const OWNER_VIEWING_PERIODS = ['today', '7d', '30d', 'all'] as const;
-export type OwnerViewingPeriod = (typeof OWNER_VIEWING_PERIODS)[number];
+/** Rule 86: the statistics over 7, 30 or 90 days, a year or all time. */
+export const OWNER_VIEWING_PERIODS: readonly StatisticsRange[] = ['7d', '30d', '90d', '1y', 'all'];
+export type OwnerViewingPeriod = StatisticsRange;
+/** The range's totals per day (rule 86) and, from Play history, Most played and Most active (rule 13). */
+export type OwnerViewing = Readonly<{totals: StatisticsTotals; mostPlayed: readonly PlayTotal[]; mostActive: readonly PlayTotal[]}>;
 
 export const ownerHealthWindowLabel = (window: OwnerHealthWindow): MessageId => `next.dashboard.range.${window}` as MessageId;
 export const ownerViewingPeriodLabel = (period: OwnerViewingPeriod): MessageId => `next.dashboard.range.${period}` as MessageId;
@@ -229,24 +230,25 @@ export function ownerHealthDetail(reading: TelemetryReading | undefined, metric:
   });
 }
 
-export type OwnerStatistic = Readonly<{id: 'plays' | 'people' | 'hours' | 'converted'; label: string; value: string; note?: string}>;
+export type OwnerStatistic = Readonly<{id: 'plays' | 'hours' | 'data' | 'converted'; label: string; value: string; note?: string}>;
 
-/** The four viewing figures, in the drawn order, with the Converted share under its count. */
-export function ownerStatistics(summary: PlaySummary | undefined, t: Translate): readonly OwnerStatistic[] {
-  if (!summary) return [];
-  const share = summary.plays ? Math.round(summary.converted / summary.plays * 100) : 0;
+/** The range's totals in the drawn order: plays, hours, data sent, and Converted with its share of plays. The totals per
+ *  day hold no count of people over a range, so People is not one of them. */
+export function ownerStatistics(viewing: OwnerViewing | undefined, t: Translate): readonly OwnerStatistic[] {
+  if (!viewing) return [];
+  const {plays, playedMs, bytes, converted} = viewing.totals, share = plays ? Math.round(converted / plays * 100) : 0;
   return Object.freeze([
-    {id: 'plays', label: t('server.viewing.plays'), value: String(summary.plays)},
-    {id: 'people', label: t('server.viewing.people'), value: String(summary.people)},
-    {id: 'hours', label: t('server.viewing.hours'), value: (summary.watchedMs / 3_600_000).toFixed(1)},
-    {id: 'converted', label: t('server.viewing.converted'), value: String(summary.converted), ...(summary.plays ? {note: t('next.dashboard.convertedShare', {percent: share})} : {})},
+    {id: 'plays', label: t('server.viewing.plays'), value: String(plays)},
+    {id: 'hours', label: t('server.viewing.hours'), value: (playedMs / 3_600_000).toFixed(1)},
+    {id: 'data', label: t('next.dashboard.dataSent'), value: formatBytes(bytes)},
+    {id: 'converted', label: t('server.viewing.converted'), value: String(converted), ...(plays ? {note: t('next.dashboard.convertedShare', {percent: share})} : {})},
   ]);
 }
 
 export type OwnerBarRow = Readonly<{id: string; label: string; value: string; fraction: number; initial?: string}>;
 
 /** Most played and Most active share one bar shape; the tallest supplied count is the full bar. */
-export function ownerBarRows(rows: readonly PlayCount[], kind: 'played' | 'active'): readonly OwnerBarRow[] {
+export function ownerBarRows(rows: readonly Pick<PlayTotal, 'name' | 'plays'>[], kind: 'played' | 'active'): readonly OwnerBarRow[] {
   const max = Math.max(1, ...rows.map(row => row.plays));
   return Object.freeze(rows.map((row, index) => ({id: `${kind}-${index}-${row.name}`, label: row.name, value: String(row.plays), fraction: Math.max(0, Math.min(1, row.plays / max)), ...(kind === 'active' ? {initial: (row.name.trim()[0] ?? '?').toUpperCase()} : {})})));
 }

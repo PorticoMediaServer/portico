@@ -3,7 +3,6 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {repeat} from '../../../../../../packages/client-core/src/timer';
-import type {PlaySummary} from '../../../../../../packages/client-core/src/play-history';
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
 import type {AdminSession} from '../../../../../../packages/client-core/src/playback-v1/types';
 import {offersScrubber, sessionViewer, STOP_MESSAGE_MAX, stopMessage, transportOffers, type TransportCommand} from '../../../../../../packages/client-core/src/server-admin/now-playing';
@@ -22,7 +21,7 @@ import type {NativeSettingsLivePorts} from '../ports';
 import {createNativeOwnerDashboardReader, type NativeOwnerDashboardReader} from './reader';
 import {
   appendOwnerSessions, ownerAlertView, ownerDerivedTotals, ownerHealthLine, ownerIsNewServer, ownerJobView, ownerPeopleLine, ownerStreamView, ownerUpdatedLabel, ownerUsesCompactRows,
-  type OwnerAlertView, type OwnerHealthWindow, type OwnerJobView, type OwnerStreamView, type OwnerViewingPeriod,
+  type OwnerAlertView, type OwnerHealthWindow, type OwnerJobView, type OwnerStreamView, type OwnerViewing, type OwnerViewingPeriod,
 } from './model';
 import {OwnerMoveSheet} from './move-sheet';
 import {OwnerDashboardPage} from './page';
@@ -33,7 +32,7 @@ const noUpdates: UpdatesSnapshot = Object.freeze({phase: 'idle', busy: false}), 
 const noUpdatesSnapshot = () => noUpdates;
 
 type TelemetryState = Readonly<{reading?: TelemetryReading; error?: unknown}>;
-type SummaryState = Readonly<{summary?: PlaySummary; error?: unknown}>;
+type SummaryState = Readonly<{summary?: OwnerViewing; error?: unknown}>;
 type AllStreams = Readonly<{items: readonly AdminSession[]; loading: boolean; error?: unknown}>;
 
 function useOwnerTelemetry(reader: NativeOwnerDashboardReader, window: OwnerHealthWindow, enabled: boolean) {
@@ -54,7 +53,7 @@ function useOwnerStatistics(reader: NativeOwnerDashboardReader, period: OwnerVie
   useEffect(() => {
     if (!enabled) {setState({}); return;}
     let live = true;
-    void reader.playSummary(period).then(summary => {if (live) setState({summary});}, error => {if (live) setState(current => ({...current, error}));});
+    void reader.viewing(period).then(summary => {if (live) setState({summary});}, error => {if (live) setState(current => ({...current, error}));});
     return () => {live = false;};
   }, [reader, period, enabled, revision]);
   return Object.freeze({...state, reload: () => setRevision(value => value + 1)});
@@ -68,7 +67,7 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
   const theme = useTheme(), insets = useSafeAreaInsets(), t = runtime.text.t;
   const reader = useMemo(() => createNativeOwnerDashboardReader(controller.lifetime, ports), [controller, ports]);
   useEffect(() => () => reader.dispose(), [reader]);
-  const [healthWindow, setHealthWindow] = useState<OwnerHealthWindow>('live'), [viewingPeriod, setViewingPeriod] = useState<OwnerViewingPeriod>('7d');
+  const [healthWindow, setHealthWindow] = useState<OwnerHealthWindow>('live'), [viewingPeriod, setViewingPeriod] = useState<OwnerViewingPeriod>('30d');
   const [now, setNow] = useState(() => serverNow());
   const [streamMenu, setStreamMenu] = useState<OwnerStreamView>(), [stopView, setStopView] = useState<OwnerStreamView>(), [message, setMessage] = useState('');
   const [moveView, setMoveView] = useState<OwnerStreamView>();
