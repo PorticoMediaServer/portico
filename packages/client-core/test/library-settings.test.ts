@@ -36,14 +36,12 @@ test('folder writes preserve optional label and canonical interval milliseconds'
  assert.equal(source.intervalSeconds,900);assert.equal(source.name,'media');
 });
 
-function bindingDocument():LibraryAdminDocument{return {libraryId:'library',libraryName:'Library',libraryKind:'movie',revision:7,digest:'current',eligibleControls:['libraries.cwWeeks','libraries.cwWatched','libraries.scrubSpacing','libraries.scanDepth','libraries.titlesFrom','libraries.language'],audience:{everyone:true,accounts:0},actions:['scan','remove','rename'],settings,defaults:{...settings,continueWatching:{...settings.continueWatching,weeks:8}},analysisMatrix:{costClasses:[],operations:[]},availableProviders:[],enumerations:{},sources:[]};}
+function bindingDocument():LibraryAdminDocument{return {libraryId:'library',libraryName:'Library',libraryKind:'movie',revision:7,digest:'current',eligibleControls:['libraries.scrubSpacing','libraries.scanDepth','libraries.titlesFrom','libraries.language'],audience:{everyone:true,accounts:0},actions:['scan','remove','rename'],settings,defaults:{...settings,navigation:{...settings.navigation,trickplayIntervalMs:8000}},analysisMatrix:{costClasses:[],operations:[]},availableProviders:[],enumerations:{},sources:[]};}
 test('library binding reads producer defaults, converts actual units and gates absent controls',()=>{
  const doc=bindingDocument();
- assert.equal(readLibrarySettingsBinding('libraries.cwWeeks',doc)?.current,16);
- assert.equal(readLibrarySettingsBinding('libraries.cwWeeks',doc)?.default,8);
+ assert.equal(readLibrarySettingsBinding('libraries.scrubSpacing',doc)?.default,8);
  assert.equal(readLibrarySettingsBinding('libraries.scrubSpacing',doc)?.current,10);
  assert.equal(patchLibrarySettingsBinding('libraries.scrubSpacing',20,doc).navigation.trickplayIntervalMs,20000);
- assert.equal(patchLibrarySettingsBinding('libraries.cwWatched','80',doc).continueWatching.videoPlayedThreshold,80);
  assert.equal(readLibrarySettingsBinding('libraries.episodeThumbs',doc),undefined);
  assert.throws(()=>patchLibrarySettingsBinding('libraries.episodeThumbs','off',doc));
  assert.throws(()=>patchLibrarySettingsBinding('libraries.scanDepth','custom',doc));

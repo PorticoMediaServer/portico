@@ -5100,16 +5100,6 @@ export const settingsSpec: readonly SettingsSection[] = [
           "title": "next.settingsSpec.server.general.advanced.groups.5.title",
           "rows": [
             {
-              "id": "general.configFile",
-              "scope": "server",
-              "label": "next.settingsSpec.server.general.advanced.groups.5.rows.0.label",
-              "help": "next.settingsSpec.server.general.advanced.groups.5.rows.0.help",
-              "control": {
-                "type": "readonly",
-                "mono": true
-              }
-            },
-            {
               "id": "general.serverId",
               "scope": "server",
               "label": "next.settingsSpec.server.general.advanced.groups.5.rows.1.label",
@@ -5123,12 +5113,7 @@ export const settingsSpec: readonly SettingsSection[] = [
         }
       ]
     },
-    "configOnly": [
-      {
-        "key": "updates.channel",
-        "label": "next.settingsSpec.server.general.configOnly.0.label"
-      }
-    ]
+    "configOnly": []
   },
   {
     "scope": "server",
@@ -5512,145 +5497,6 @@ export const settingsSpec: readonly SettingsSection[] = [
                     "control": {
                       "type": "toggle",
                       "default": true
-                    }
-                  }
-                ]
-              },
-              {
-                "title": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.title",
-                "rows": [
-                  {
-                    "id": "libraries.cwWeeks",
-                    "scope": "server",
-                    "key": "library.continue.weeks",
-                    "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.0.label",
-                    "control": {
-                      "type": "select",
-                      "default": 16,
-                      "options": [
-                        {
-                          "value": 4,
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.0.control.options.0.label"
-                        },
-                        {
-                          "value": 8,
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.0.control.options.1.label"
-                        },
-                        {
-                          "value": 16,
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.0.control.options.2.label"
-                        },
-                        {
-                          "value": 26,
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.0.control.options.3.label"
-                        },
-                        {
-                          "value": 52,
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.0.control.options.4.label"
-                        },
-                        {
-                          "value": 104,
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.0.control.options.5.label"
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "id": "libraries.cwMax",
-                    "scope": "server",
-                    "key": "library.continue.max_items",
-                    "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.1.label",
-                    "control": {
-                      "type": "select",
-                      "default": 40,
-                      "options": [
-                        {
-                          "value": 20,
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.1.control.options.0.label"
-                        },
-                        {
-                          "value": 40,
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.1.control.options.1.label"
-                        },
-                        {
-                          "value": 100,
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.1.control.options.2.label"
-                        },
-                        {
-                          "value": 200,
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.1.control.options.3.label"
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "id": "libraries.cwPremieres",
-                    "scope": "server",
-                    "key": "library.continue.include_premieres",
-                    "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.2.label",
-                    "help": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.2.help",
-                    "control": {
-                      "type": "toggle",
-                      "default": true
-                    }
-                  },
-                  {
-                    "id": "libraries.cwWatched",
-                    "scope": "server",
-                    "key": "library.continue.played_percent",
-                    "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.3.label",
-                    "help": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.3.help",
-                    "control": {
-                      "type": "select",
-                      "default": "95",
-                      "options": [
-                        {
-                          "value": "80",
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.3.control.options.0.label"
-                        },
-                        {
-                          "value": "85",
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.3.control.options.1.label"
-                        },
-                        {
-                          "value": "90",
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.3.control.options.2.label"
-                        },
-                        {
-                          "value": "95",
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.3.control.options.3.label"
-                        },
-                        {
-                          "value": "100",
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.3.control.options.4.label"
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "id": "libraries.cwRule",
-                    "scope": "server",
-                    "key": "library.continue.completion",
-                    "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.4.label",
-                    "help": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.4.help",
-                    "control": {
-                      "type": "select",
-                      "default": "earliest",
-                      "options": [
-                        {
-                          "value": "earliest",
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.4.control.options.0.label"
-                        },
-                        {
-                          "value": "threshold",
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.4.control.options.1.label"
-                        },
-                        {
-                          "value": "credits",
-                          "label": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.4.control.options.2.label",
-                          "hint": "next.settingsSpec.server.libraries.panels.library.tabs.4.groups.5.rows.4.control.options.2.hint"
-                        }
-                      ]
                     }
                   }
                 ]
@@ -13180,30 +13026,19 @@ export const settingsSpec: readonly SettingsSection[] = [
             ]
           },
           {
-            "id": "remote.summary",
+            "id": "remote.blocked",
             "scope": "server",
-            "key": "remote.security_summary",
-            "label": "next.settingsSpec.server.remote.groups.2.rows.1.label",
+            "key": "remote.blocked_sources",
+            "label": "next.settingsSpec.server.remote.groups.2.rows.1.children.0.label",
+            "help": "next.settingsSpec.server.remote.groups.2.rows.1.children.0.help",
             "control": {
-              "type": "status"
-            },
-            "children": [
-              {
-                "id": "remote.blocked",
-                "scope": "server",
-                "key": "remote.blocked_sources",
-                "label": "next.settingsSpec.server.remote.groups.2.rows.1.children.0.label",
-                "help": "next.settingsSpec.server.remote.groups.2.rows.1.children.0.help",
-                "control": {
-                  "type": "list",
-                  "empty": "next.settingsSpec.server.remote.groups.2.rows.1.children.0.control.empty",
-                  "itemAction": {
-                    "label": "next.settingsSpec.server.remote.groups.2.rows.1.children.0.control.itemAction.label",
-                    "style": "glass"
-                  }
-                }
+              "type": "list",
+              "empty": "next.settingsSpec.server.remote.groups.2.rows.1.children.0.control.empty",
+              "itemAction": {
+                "label": "next.settingsSpec.server.remote.groups.2.rows.1.children.0.control.itemAction.label",
+                "style": "glass"
               }
-            ]
+            }
           }
         ]
       },
@@ -13425,40 +13260,6 @@ export const settingsSpec: readonly SettingsSection[] = [
                   }
                 ]
               }
-            },
-            {
-              "id": "remote.connectionLimit",
-              "scope": "server",
-              "key": "network.connection_limit",
-              "label": "next.settingsSpec.server.remote.advanced.groups.3.rows.2.label",
-              "help": "next.settingsSpec.server.remote.advanced.groups.3.rows.2.help",
-              "control": {
-                "type": "select",
-                "default": "auto",
-                "options": [
-                  {
-                    "value": "auto",
-                    "label": "next.settingsSpec.server.remote.advanced.groups.3.rows.2.control.options.0.label",
-                    "hint": "next.settingsSpec.server.remote.advanced.groups.3.rows.2.control.options.0.hint"
-                  },
-                  {
-                    "value": "256",
-                    "label": "next.settingsSpec.server.remote.advanced.groups.3.rows.2.control.options.1.label"
-                  },
-                  {
-                    "value": "1024",
-                    "label": "next.settingsSpec.server.remote.advanced.groups.3.rows.2.control.options.2.label"
-                  },
-                  {
-                    "value": "4096",
-                    "label": "next.settingsSpec.server.remote.advanced.groups.3.rows.2.control.options.3.label"
-                  },
-                  {
-                    "value": "16384",
-                    "label": "next.settingsSpec.server.remote.advanced.groups.3.rows.2.control.options.4.label"
-                  }
-                ]
-              }
             }
           ]
         },
@@ -13518,7 +13319,18 @@ export const settingsSpec: readonly SettingsSection[] = [
     "groups": [
       {
         "title": "integrations.compatibility.title",
-        "rows": [{"id":"integrations.compatibility","scope":"server","key":"integrations.compatibilityEnabled","label":"integrations.compatibility.title","help":"integrations.compatibility.help","control":{"type":"toggle"}}]
+        "rows": [
+          {
+            "id": "integrations.compatibility",
+            "scope": "server",
+            "key": "integrations.compatibilityEnabled",
+            "label": "integrations.compatibility.title",
+            "help": "integrations.compatibility.help",
+            "control": {
+              "type": "toggle"
+            }
+          }
+        ]
       },
       {
         "title": "next.settingsSpec.server.integrations.groups.0.title",
@@ -14152,14 +13964,6 @@ export const settingsSpec: readonly SettingsSection[] = [
             "label": "next.settingsSpec.server.streaming.groups.3.rows.1.label",
             "control": {
               "type": "list"
-            }
-          },
-          {
-            "id": "streaming.hwLimit",
-            "scope": "server",
-            "label": "next.settingsSpec.server.streaming.groups.3.rows.2.label",
-            "control": {
-              "type": "status"
             }
           },
           {

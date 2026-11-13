@@ -750,7 +750,6 @@ const serverPages: readonly AuthoredPage[] = [
       setting('remote', 'gateway', 'web.network.gateway', {type: 'text', mono: true, example: '192.168.1.1'}, {help: 'web.network.gatewayHelp'}),
       setting('connectivity', 'advertisedInterface', 'web.connectivity.interface', {type: 'choiceFrom', source: 'interfaces'}, {help: 'web.connectivity.interfaceHelp'}),
       // An empty field is the server's own limit, worked out from its memory; a change waits for a restart.
-      setting('connectivity', 'connectionLimit', 'web.connectivity.connectionLimit', {type: 'number', min: 1, max: 65536, empty: {stores: 0, placeholder: 'settings.server.automatic'}}, {help: 'settings.server.connectionLimitHelp'}),
     ]},
   ]},
   // The current Settings specification gives remote sources their own Server page.

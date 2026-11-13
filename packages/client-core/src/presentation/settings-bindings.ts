@@ -111,7 +111,6 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'remote.discovery':{form:'connectivity',key:'lanDiscoveryEnabled'},
  'remote.dlna':{form:'connectivity',key:'dlnaEnabled'},
  'remote.interface':{form:'connectivity',key:'advertisedInterface',codec:'interface'},
- 'remote.connectionLimit':{form:'connectivity',key:'connectionLimit',codec:'unlimited'},
  'remote.customAddresses':{form:'connectivity',key:'accessUrls'},
  'remote.trustedProxies':{form:'connectivity',key:'trustedProxies'},
  'remote.access':{form:'connectivity',key:'remoteAccess'},
@@ -173,11 +172,6 @@ const libraryScalarBindings:Readonly<Record<string,SettingsBinding>>={
  'libraries.sortArticles':{form:'library',key:'sortIgnoreArticles'},
  'libraries.refreshMode':{form:'library',key:'refreshMode'},
  'libraries.acoustid':{form:'library',key:'acoustidEnabled'},
- 'libraries.cwWeeks':{form:'library',key:'continueWatching.weeks'},
- 'libraries.cwMax':{form:'library',key:'continueWatching.maximumItems'},
- 'libraries.cwPremieres':{form:'library',key:'continueWatching.includeSeasonPremieres'},
- 'libraries.cwWatched':{form:'library',key:'continueWatching.videoPlayedThreshold',codec:'number-choice'},
- 'libraries.cwRule':{form:'library',key:'continueWatching.videoCompletion'},
 };
 const source69PreferenceBindings:Readonly<Record<string,SettingsBinding>>={
  'appearance.backdrops':{form:'preferences',key:'appearance.showBackdrops',scope:'profile-device-class'},
