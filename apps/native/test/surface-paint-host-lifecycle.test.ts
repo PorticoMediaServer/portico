@@ -18,7 +18,7 @@ async function fixture(t: any, omitBusiness = false) {
     react, './OverlayPaintContext': context, './geometry': geometry, './overlay-stack': overlayStack,
     'react-native': {BackHandler: {addEventListener: () => ({remove() {}})}, StyleSheet: {create: (value: any) => value}},
     '../../platform/overlay-keys': {registerOverlayKeys: () => () => {}}, '../../platform/tv-menu': {captureTVMenuKey: () => () => {}},
-    '../focus': {requestNativeFocus, useOptionalFocusRegistry: () => undefined}, '../theme': {},
+    '../focus': {requestNativeFocus, useOptionalFocusRegistry: () => undefined, useLayerCovered: () => false}, '../theme': {},
   });
   const host = await screenModule(new URL('../src-next/kit/overlays/SurfacePaintHost.tsx', import.meta.url), {
     react, './OverlayPaintContext': context, './overlay-paint-model': model,

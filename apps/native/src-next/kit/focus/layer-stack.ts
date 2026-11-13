@@ -38,13 +38,16 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
   /** Keep asking until focus has moved off where it was when the layer changed (or is already on what the layer is
    * owed), or the wait runs out. A request that cannot land yet (nothing attached) is asked again as each element
    * attaches; nothing polls frames. A request never re-enters itself through the focus event it causes. */
-  const settle = (ask: () => boolean, last: () => void, owed?: FocusSnapshot, once = false) => {
+  const settle = (ask: () => boolean, last: () => void, owed?: FocusSnapshot, once = false, strict = false) => {
     pending?.();
     const before = registry.capture();
     const done = () => {
       const now = registry.capture();
       // Already on what it is owed counts only once a request for it was actually sent.
-      return !!now && (!same(now, before) && !outside(now) || granted && !!owed && (same(now, owed) || owed.entityId !== undefined && now.entityId === owed.entityId && now.regionId === owed.regionId));
+      const onOwed = !!now && granted && !!owed && (same(now, owed) || owed.entityId !== undefined && now.entityId === owed.entityId && now.regionId === owed.regionId);
+      // A restore is done only on what it is owed: the platform's own recovery (Android TV puts focus on the layer's first
+      // control when the screen above it goes) is not where the person was.
+      return strict ? onOwed : !!now && (!same(now, before) && !outside(now) || onOwed);
     };
     let finished = false, asking = false, granted = false;
     const finish = () => {if (finished) return; finished = true; off(); clock.cancel(timer); if (pending === finish) pending = undefined;};
@@ -70,7 +73,7 @@ export function createTVLayerStack(registry: Registry, clock: Clock = realClock,
   };
   const restore = (key: string, snapshot: FocusSnapshot) => settle(
     () => registry.focus(snapshot),
-    () => {if (!registry.restore(snapshot)) requestNativeFocus(host(key));}, snapshot);
+    () => {if (!registry.restore(snapshot)) requestNativeFocus(host(key));}, snapshot, false, true);
 
   const syncLayers = (next: readonly TVLayerSpec[]) => {
       if (disposed) return;

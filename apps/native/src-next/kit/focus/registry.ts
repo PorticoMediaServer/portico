@@ -153,10 +153,19 @@ export function createFocusRegistry() {
     const index = r.config.grid ? r.config.order?.indexOf(id) : undefined;
     return index !== undefined && index >= 0 ? {index} : undefined;
   };
+  /** The opener an overlay registered on this region or the nearest region around it: focus inside a panel's own
+   * sub-region (a programme panel's Watch live) still returns to the cell the panel was opened from. */
+  const returnOf = (r: Region): FocusSnapshot | undefined => {
+    for (let at: Region | undefined = r, seen = new Set<string>(); at && !seen.has(at.config.id); seen.add(at.config.id), at = at.config.parent ? regions.get(at.config.parent) : undefined) {
+      const saved = [...at.returns.values()].at(-1);
+      if (saved) return saved;
+    }
+    return undefined;
+  };
   const snapshot = (address: FocusAddress): FocusSnapshot => {
     const r = region(address.regionId);
     const entityId = (address as FocusSnapshot).entityId ?? r.children.get(address.childId)?.entityId;
-    return {...address, ...(entityId !== undefined ? {entityId} : {}), order: [...order(r)], ...(cellOf(r, address.childId) ? {cell: cellOf(r, address.childId)} : {}), neighbors: r.config.neighbors, screenStart: r.config.screenStart, returnTo: [...r.returns.values()].at(-1)};
+    return {...address, ...(entityId !== undefined ? {entityId} : {}), order: [...order(r)], ...(cellOf(r, address.childId) ? {cell: cellOf(r, address.childId)} : {}), neighbors: r.config.neighbors, screenStart: r.config.screenStart, returnTo: returnOf(r)};
   };
   const currentSnapshot = (saved: FocusSnapshot) => {
     const r = regions.get(saved.regionId);

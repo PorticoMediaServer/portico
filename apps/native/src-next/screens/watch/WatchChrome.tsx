@@ -364,6 +364,12 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
       controls.reveal(fence); void playback.toggle(fence).catch(props.reportError);
       return;
     }
+    // The remote's channel keys step a live channel exactly as the on-screen channel buttons do, controls up or not.
+    if (event.key === 'channelUp' || event.key === 'channelDown') {
+      const target = liveCurrent ? event.key === 'channelDown' ? liveGuide.previous : liveGuide.next : undefined;
+      if (event.phase === 'press' && target && !liveGuide.busy && controlsCurrent()) void props.liveGuide?.tune(target, liveGuide, props.reportError);
+      return;
+    }
     if (['up', 'down', 'left', 'right', 'select'].includes(event.key)) {
       if (onPrompt && !visible) promptRevealToToggle.current = true;
       if (!controls.key(fence)) controls.reveal(fence);

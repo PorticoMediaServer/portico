@@ -140,6 +140,40 @@ test('focus in an overlay when a layer opens: the covered layer is owed the over
   assert.deepEqual(log, ['programme']);
 });
 
+test('focus in a sub-region of an overlay (a programme panel\'s Watch live) still owes the covered layer the panel\'s opener', () => {
+  const registry = createFocusRegistry(), time = clock(), log: string[] = [];
+  const stack = createTVLayerStack(registry, time);
+  const programme = {regionId: 'guide', childId: 'programme-2'}, watch = {regionId: 'panel.actions', childId: 'watch'};
+  registry.configure({id: 'guide', order: ['programme-2']}); registry.attach(programme, host(log, 'programme', () => registry.didFocus(programme)));
+  registry.didFocus(programme);
+  registry.configure({id: 'panel', order: []}); registry.registerReturn('panel', registry.capture());
+  registry.configure({id: 'panel.actions', parent: 'panel', order: ['watch']}); registry.attach(watch, host(log, 'watch'));
+  registry.didFocus(watch);
+  stack.sync([{key: 'page'}]); stack.sync([{key: 'page'}, {key: 'player'}]);
+  assert.equal(stack.opener('page')?.childId, 'programme-2');
+});
+
+test('a restore is not ended by the platform putting focus on the layer\'s first control; it lands on the element it is owed', () => {
+  const registry = createFocusRegistry(), time = clock(), log: string[] = [];
+  const stack = createTVLayerStack(registry, time);
+  const card = {regionId: 'grid', childId: 'card'}, picker = {regionId: 'toolbar', childId: 'source'};
+  let blocked = true;
+  registry.configure({id: 'toolbar', order: ['source']}); registry.attach(picker, host(log, 'source', () => registry.didFocus(picker)));
+  registry.configure({id: 'grid', order: ['card']}); registry.attach(card, host(log, 'card', () => {if (!blocked) registry.didFocus(card);}));
+  registry.didFocus(card);
+  stack.sync([{key: 'page'}]); stack.sync([{key: 'page'}, {key: 'player'}]);
+  const pause = {regionId: 'player.transport', childId: 'pause'};
+  registry.configure({id: 'player.transport', order: ['pause']}); registry.attach(pause, host(log, 'pause')); registry.didFocus(pause);
+  log.length = 0;
+  registry.attach(pause, null);
+  stack.sync([{key: 'page'}]);
+  assert.ok(log.length > 0 && log.every(name => name === 'card'), 'only the card is asked for, while the page is still blocked under the leaving player');
+  blocked = false;
+  registry.didFocus(picker);
+  assert.deepEqual(registry.capture()?.childId, 'card', 'Android\'s recovery onto the first control does not end the restore');
+  assert.equal(time.size(), 0);
+});
+
 test('the shell derives one layer per route occurrence above the page, then the player and the listening screen', () => {
   const navigation = (stack: any[]) => ({subscribe: () => () => {}, getSnapshot: () => ({route: stack.at(-1).route, revision: 0, authority: {} as any}), presentationStack: () => stack});
   const home = {occurrence: '0', route: {kind: 'shell', destination: {kind: 'home'}}};

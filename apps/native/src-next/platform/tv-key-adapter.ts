@@ -9,7 +9,7 @@ export type TVKeyEvent = Readonly<{
 }>;
 
 const directions = new Set(['up', 'down', 'left', 'right', 'rewind', 'fastForward']);
-const keys = new Set([...directions, 'select', 'playPause', 'play', 'pause', 'stop', 'next', 'previous', 'menu']);
+const keys = new Set([...directions, 'select', 'playPause', 'play', 'pause', 'stop', 'next', 'previous', 'menu', 'channelUp', 'channelDown']);
 const vegaNames: Readonly<Record<string, string>> = {
   playpause: 'playPause', play: 'playPause', pause: 'playPause',
   skip_backward: 'rewind', backward: 'rewind', skip_forward: 'fastForward', forward: 'fastForward', fastforward: 'fastForward',

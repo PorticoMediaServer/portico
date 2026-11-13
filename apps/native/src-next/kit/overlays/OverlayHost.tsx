@@ -4,7 +4,7 @@ import {registerOverlayKeys} from '../../platform/overlay-keys';
 import {captureTVMenuKey} from '../../platform/tv-menu';
 import {OverlayPaintProvider, useOverlayPaintMode, useOverlayPaintReturnCurrent} from './OverlayPaintContext';
 import {useTheme} from '../theme';
-import {FocusProvider, requestNativeFocus, useOptionalFocusRegistry} from '../focus';
+import {FocusProvider, requestNativeFocus, useLayerCovered, useOptionalFocusRegistry} from '../focus';
 import {containsPoint, type Rect} from './geometry';
 import {createOverlayStack} from './overlay-stack';
 import type {FocusRef, FocusTarget, OverlayReason} from './types';
@@ -96,6 +96,12 @@ export function useOverlayLifecycle(open: boolean, modal: boolean, dismiss: (rea
   restoring.current = restoreFocus;
   const delay = useRef(focusDelay);
   delay.current = focusDelay;
+  // TV: the overlay belongs to the layer it was opened from. When a route or the player covers that layer (Watch live
+  // from a programme panel), the overlay closes and gives no focus back into the covered layer: the screen on top takes it.
+  const insideCovered = useLayerCovered(), layerCovered = (Platform as typeof Platform | undefined)?.isTV === true && insideCovered;
+  const coveredRef = useRef(layerCovered);
+  coveredRef.current = layerCovered;
+  useLayoutEffect(() => {if (open && layerCovered) dismissRef.current('action');}, [open, layerCovered]);
   useLayoutEffect(() => {
     if (!open) return;
     const opener = registry?.capture();
@@ -127,7 +133,7 @@ export function useOverlayLifecycle(open: boolean, modal: boolean, dismiss: (rea
       releaseOpener?.();
       let originalCurrent = !returnPermit.current;
       try {if (returnPermit.current) originalCurrent = returnPermit.current();} catch {originalCurrent = false;}
-      if (wasTop && restoring.current && originalCurrent) {
+      if (wasTop && restoring.current && originalCurrent && !coveredRef.current) {
         if (restore.current?.current) focusTarget(restore.current.current);
         else registry?.restore(opener);
       }

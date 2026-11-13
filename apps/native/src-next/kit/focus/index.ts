@@ -1,5 +1,5 @@
 export {FocusProvider, FocusRegion, FocusItem, FocusScrollRowScope, useFocusRegistry, useOptionalFocusRegistry, useFocusTarget, useFocusWaiting} from './FocusRegion';
-export {CoveredLayer, CoveredSignal, UncoveredWindow, useCovered} from './CoveredLayer';
+export {CoveredLayer, CoveredSignal, UncoveredWindow, useCovered, useLayerCovered} from './CoveredLayer';
 export type {FocusRegionProps, FocusTargetOptions} from './FocusRegion';
 export {createFocusRegistry, focusTestID, requestNativeFocus} from './registry';
 export {createTVLayerStack, LAYER_FOCUS_WAIT_MS, provideTVLayerClaim, tvLayerSpecs, tvRouteLayerKeys} from './layer-stack';
