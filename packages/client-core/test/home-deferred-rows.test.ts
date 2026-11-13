@@ -69,3 +69,20 @@ test('a quiet re-read that sends the row deferred again keeps the titles already
   assert.equal(home.getSnapshot().document, before, 'nothing changed on screen');
   assert.equal(reads(s.asked).length, 1);
 });
+
+test('at most three deferred rows are read at once; each finished read starts the next demanded row', async () => {
+  const gates: (() => void)[] = [];
+  const rows = ['a', 'b', 'c', 'd', 'e'].map(id => deferred(id, 'genre=' + id));
+  const answers = Object.fromEntries(['a', 'b', 'c', 'd', 'e'].map(id => [id, () => new Promise(resolve => gates.push(() => resolve({items: [item('t-' + id)]})))]));
+  const s = server(rows, answers), home = new HomeService(s.api);
+  await home.load();
+  home.demand(rows.map(row => row.id)); await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(reads(s.asked).map(path => new URL(path, 'https://x').searchParams.get('genre')), ['a', 'b', 'c'], 'a fast scroll starts three, in Home\'s order');
+  gates.shift()!(); await new Promise(resolve => setImmediate(resolve)); await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(reads(s.asked).map(path => new URL(path, 'https://x').searchParams.get('genre')), ['a', 'b', 'c', 'd'], 'a finished read starts the next');
+  home.demand(['view:b', 'view:c']); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(reads(s.asked).length, 4, 'a row that left is not started; one that left mid-read was stopped');
+  while (gates.length) {gates.shift()!(); await new Promise(resolve => setImmediate(resolve));}
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(home.getSnapshot().document!.rows.filter(row => !row.deferred).map(row => row.id), ['view:a', 'view:b', 'view:c']);
+});
