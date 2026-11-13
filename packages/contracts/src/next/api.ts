@@ -93,6 +93,7 @@ export interface AdminLibrary {
   name: string;
   kind: string;
   language?: string;
+  libraryCoverUrls: string[];
   metadataProvider: string;
   metadataProviders: LibraryMetadataProvider[];
   region?: string;
