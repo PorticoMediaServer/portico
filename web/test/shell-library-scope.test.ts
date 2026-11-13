@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {activeLibraryId} from '../src/shell/model.ts';
-import {claimTitleLibrary, noteLibraryVisit, titleLibrary} from '../src/shell/title-library.ts';
+import {claimTitleLibrary, forgetTitleLibrary, noteLibraryVisit, titleLibrary} from '../src/shell/title-library.ts';
 
 test('a library page always marks the library in its own address', () => {
   assert.equal(activeLibraryId('/library/movies'), 'movies');
@@ -37,4 +37,11 @@ test('claims from a title and from a library visit both become the last library'
 test('destinations outside a library claim none', () => {
   for (const path of ['/', '/search', '/saved', '/live', '/libraries', '/settings', '/home/rows/row', '/read/book'])
     assert.equal(activeLibraryId(path, {title: {itemId: 'book', libraryId: 'books'}, last: 'movies'}), undefined, path);
+});
+
+test('a sign-out or another profile starts with no library claimed: the next viewer never sees the last one highlighted', () => {
+  claimTitleLibrary('abc', 'movies');
+  forgetTitleLibrary();
+  assert.deepEqual(titleLibrary.getSnapshot(), {});
+  assert.equal(activeLibraryId('/person/abc', titleLibrary.getSnapshot()), undefined);
 });

@@ -8,6 +8,7 @@
  * which puts it back in its place (rule 32); a list is reordered only in its own order (rule 31).
  */
 import type {Item, ItemPage, List, ListAdd, ListAdded, ListCreate, ListCreated, ListPage, ListShares, ListShare} from '../../contracts/src/next/api.ts';
+import {resourcePinned, setResourcePin} from './library-pins.ts';
 import {callServer, serverPath, type ServerRequester} from './query/server-api.ts';
 import {wireEntryFromItem} from './items.ts';
 import {CodedError} from './server-messages.ts';
@@ -84,14 +85,14 @@ async function playlists(api: SavedNextApi, bound: SavedScope, selected: SavedRo
     sections: [{id: 'playlists', type: 'grid', heading: {key: 'saved.playlists', fallback: ''}, entries: cards, totalCount: cards.length, nextCursor: page.nextCursor ?? '', start: 0}]};
 }
 
-/** One playlist as `saved.ts` reads it: who made it, this viewer's role, and what that role may do. Pins wait for the
- * profile's `pins` setting (area 6 rule 38), so `pin` is not offered. */
+/** One playlist as `saved.ts` reads it: who made it, this viewer's role, and what that role may do. Anyone who sees a
+ * playlist may pin it: a pin is the profile's own (its `pins` setting, area 6 rule 38). */
 async function playlistResource(api: SavedNextApi, bound: SavedScope, list: List, signal?: AbortSignal): Promise<Record<string, unknown>> {
   const owner = list.role === 'owner';
-  const shares = owner ? await callServer(api, 'GET /v1/lists/{id}/shares', {id: list.id, signal}) : undefined;
-  return {serverId: bound.serverId, viewerFence: 'viewer', id: list.id, name: list.name, summary: list.description ?? '', revision: revisionOf(list), pinned: false, pinRevision: 0,
+  const [shares, pinned] = await Promise.all([owner ? callServer(api, 'GET /v1/lists/{id}/shares', {id: list.id, signal}) : undefined, resourcePinned(api, 'playlist', list.id, signal)]);
+  return {serverId: bound.serverId, viewerFence: 'viewer', id: list.id, name: list.name, summary: list.description ?? '', revision: revisionOf(list), pinned, pinRevision: 0,
     role: list.role === 'owner' || list.role === 'editor' ? list.role : 'viewer', entryCount: list.count,
-    actions: owner ? ['rename', 'summary', 'delete', 'share', 'add', 'remove', 'reorder'] : list.role === 'editor' ? ['add', 'remove', 'reorder'] : [],
+    actions: [...(owner ? ['rename', 'summary', 'delete', 'share', 'add', 'remove', 'reorder'] : list.role === 'editor' ? ['add', 'remove', 'reorder'] : []), 'pin'],
     limits: {maxShares: 100, maxReorderEntries: 200},
     ...(shares ? {shares: (shares.shares ?? []).map((share: ListShare) => ({authority: 'local', accountId: share.profileId, profileId: share.profileId, role: share.canEdit ? 'editor' : 'viewer', displayName: share.name ?? share.person ?? ''}))} : {})};
 }
@@ -254,7 +255,7 @@ export async function sendPlaylistCommand(api: SavedNextApi, bound: SavedScope, 
       const shares = intent.action === 'share' ? [...others, {profileId: intent.actor.profileId, canEdit: intent.role === 'editor'}] : others;
       return receipt(id, await edit<List>(api, `${listPath}/shares`, 'PUT', context.revision, {shares}, signal));
     }
-    case 'pin': return notYet();
+    case 'pin': await setResourcePin(api, 'playlist', id, intent.pinned, 0, operationId); return receipt(id, undefined, {revision: context.revision ?? 0});
   }
   throw new Error('Invalid playlist command.');
 }

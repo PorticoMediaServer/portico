@@ -14,7 +14,7 @@ import {PhoneSelectionProvider, PhoneSelectionSlot, usePhoneSelectionPresent} fr
 import {MenuItem,Dialog} from '../kit/overlays';
 import {TextField,Button} from '../kit/controls';
 import {activeLibraryId, isLibraryLocation, rememberLibrary, rememberedLibrary, showOwnerActivity} from './model';
-import {noteLibraryVisit, titleLibrary} from './title-library';
+import {forgetTitleLibrary, noteLibraryVisit, titleLibrary} from './title-library';
 import {useShellScrolled} from './viewport';
 import {useSizeClass, useCoarsePointer, useWindowScrollAnchor} from '../kit/theme';
 import type {ManagementCapabilities} from '@core/profile-management.ts';
@@ -165,6 +165,9 @@ function ShellFrame({identity, OwnerActivity, dockVisible, serverAway, insecureR
     rememberLibrary(libraryMemory(), viewer, identity.libraries, id);
     noteLibraryVisit(id);
   }, [pathname, viewer, identity.libraries]);
+  // The library claimed in this page session belongs to this viewer: it goes on sign-out and on a change of profile or server.
+  const viewerKey = JSON.stringify([identity.viewer.serverId, identity.viewer.profileId, identity.username]);
+  useLayoutEffect(() => () => forgetTitleLibrary(), [viewerKey]);
   const opened = useSyncExternalStore(titleLibrary.subscribe, titleLibrary.getSnapshot, titleLibrary.getSnapshot);
   const activeLibrary = activeLibraryId(pathname, opened);
   useEffect(() => { setAccountOpen(false); setMoreOpen(false); }, [pathname]);
