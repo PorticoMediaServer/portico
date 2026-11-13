@@ -1,6 +1,6 @@
 import {useEffect, useId, useLayoutEffect, useRef, type KeyboardEvent, type RefObject} from 'react';
 import {Icon} from '../Icon';
-import {AmbientArt, Artwork} from '../artwork';
+import {AmbientArt, WholeArtwork} from '../artwork';
 import {Facts, Control, playbackAction, playbackIcon, playbackLabel, useDockActions} from './parts';
 import {clockText, positionOf, progressOf} from './model';
 import {dockText} from './text';
@@ -35,12 +35,12 @@ export function NowPlayingCard(props: NowPlayingCardProps) {
     event.preventDefault(); elements[(current + (event.key === 'ArrowLeft' || event.shiftKey ? -1 : 1) + elements.length) % elements.length]?.focus();
   };
   if (!expanded) return <button type="button" ref={opener} className={[styles.tvCard, className].filter(Boolean).join(' ')} data-paused={!view.playback.playing || undefined} style={style} aria-label={t('next.dock.openNowPlaying')} aria-haspopup="dialog" aria-expanded={false} onFocus={() => onExpandedChange(true)} onClick={() => onExpandedChange(true)}>
-    <Artwork source={view.presentation.artwork} alt="" className={styles.tvCover} /><span className={styles.tvText}><b>{view.presentation.identity.title}</b><small><Facts parts={view.presentation.identity.subtitle} /></small></span>
+    <span className={styles.tvCover}><WholeArtwork source={view.presentation.artwork} alt="" className={styles.tvCoverImage} /></span><span className={styles.tvText}><b>{view.presentation.identity.title}</b><small><Facts parts={view.presentation.identity.subtitle} /></small></span>
     <span className={styles.tvStatus}>{view.playback.playing ? <LevelMeter variant="tv-large" /> : <Icon name="i-pause" size={20} />}</span><span className={styles.tvLine}><i style={{transform: `scaleX(${progressOf(view)})`}} /></span>
   </button>;
   return <><div className={styles.tvScrim} /><div ref={root} role="dialog" aria-modal="true" aria-labelledby={id} className={[styles.tvFlyout, className].filter(Boolean).join(' ')} style={style} onKeyDown={keydown}>
     <AmbientArt source={view.presentation.ambient} palette={view.presentation.palette} treatment="cover" className={styles.tvGlow} /><span className={styles.tvShade} />
-    <div className={styles.tvHead}><Artwork source={view.presentation.artwork} alt="" className={styles.tvLargeCover} /><div className={styles.tvHeadText}>
+    <div className={styles.tvHead}><span className={styles.tvLargeCover}><WholeArtwork source={view.presentation.artwork} alt="" className={styles.tvLargeCoverImage} /></span><div className={styles.tvHeadText}>
       <p className={styles.tvPlaying}>{view.playback.playing ? <LevelMeter variant="tv-large" /> : <Icon name="i-pause" size={20} />}{t(view.playback.playing ? 'next.dock.playing' : 'next.dock.paused')}</p>
       <h4 id={id}>{view.presentation.identity.title}</h4><p className={styles.tvArtist}><Facts parts={view.presentation.identity.subtitle} /></p>{!!view.presentation.album?.length && <p className={styles.tvAlbum}><Facts parts={view.presentation.album} /></p>}
     </div></div>

@@ -8,7 +8,7 @@ test('Cast queue advance cannot reuse another item title, art or callbacks', asy
   // This checks the production view's receiver binding, not artwork rendering or pixels.
   const loader = registerHooks({load(url, context, next) {
     if (url.endsWith('/kit/Icon.tsx')) return {format: 'module', source: "export const Icon='Icon';", shortCircuit: true};
-    if (url.endsWith('/kit/artwork/index.ts')) return {format: 'module', source: "export const Artwork='Artwork';", shortCircuit: true};
+    if (url.endsWith('/kit/artwork/index.ts')) return {format: 'module', source: "export const Artwork='Artwork',useCoverAspect=()=>({aspect:undefined,onReady:()=>{}}),wholeCoverBox=()=>undefined;", shortCircuit: true};
     if (url.endsWith('/kit/controls/index.ts')) return {format: 'module', source: "export const Button='Button';", shortCircuit: true};
     if (url.endsWith('.module.css')) return {format: 'module', source: 'export default new Proxy({}, {get: (_, key) => String(key)});', shortCircuit: true};
     if (url.endsWith('.tsx')) return {format: 'module', source: transformTsx(url), shortCircuit: true};

@@ -298,7 +298,7 @@
 .resume, .readResume { --cards-width:456px; height:180px; border-radius:14px; background:var(--color-raised); }
 .resume .primary, .readResume .primary { height:100%; display:flex; align-items:center; gap:22px; padding:20px; }
 .resume .primary::after, .readResume .primary::after { content:''; position:absolute; inset:0; pointer-events:none; background:linear-gradient(90deg,rgba(7,16,24,.1),rgba(7,16,24,.55)); }
-.resumeCover { display:block; position:relative; z-index:1; flex:none; width:140px; height:140px; border-radius:8px; overflow:hidden; box-shadow:0 16px 30px -12px rgba(0,0,0,.9); }
+.resumeCover { --resume-cover:140px; display:block; position:relative; z-index:1; flex:none; width:var(--resume-cover); height:140px; border-radius:8px; overflow:hidden; box-shadow:0 16px 30px -12px rgba(0,0,0,.9); }
 .resumeCopy { position:relative; z-index:1; display:flex; flex:1; min-width:0; flex-direction:column; }
 .resumeTitle { font-size:19px; line-height:1.2; font-weight:800; letter-spacing:-.01em; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
 .resumeByline { font-size:14px; color:var(--color-text-secondary); margin-top:4px; white-space:nowrap; overflow:hidden; }
@@ -312,8 +312,8 @@
 @media (hover:hover) { .resume:hover, .readResume:hover { transform:scale(1.02); box-shadow:0 0 0 1px rgba(237,245,250,.16); } }
 .readResume { --cards-width:440px; height:204px; }
 .readResume .primary { padding:18px 22px 18px 18px; }
-.readResume .resumeCover { width:112px; height:168px; border-radius:6px; }
-.readResume.resumePeriodical .resumeCover { width:126px; }
+.readResume .resumeCover { --resume-cover:112px; height:168px; border-radius:6px; }
+.readResume.resumePeriodical .resumeCover { --resume-cover:126px; }
 .readResume .resumeWhere { margin-top:26px; }
 .readResume .play { top:16px; bottom:auto; right:16px; }
 .series { --cards-width:300px; height:196px; border-radius:14px; background:radial-gradient(120% 150% at 100% 0%,var(--cards-tint) 0%,transparent 70%),var(--color-raised); }
@@ -417,8 +417,8 @@
   .ranked > .card { --cards-width:116px; }
   .readResume { --cards-width:296px; height:150px; }
   .readResume .primary { padding:14px 16px 14px 14px; gap:14px; }
-  .readResume .resumeCover { width:81.3333px; height:122px; border-radius:5px; }
-  .readResume.resumePeriodical .resumeCover { width:91.5px; }
+  .readResume .resumeCover { --resume-cover:81.3333px; height:122px; border-radius:5px; }
+  .readResume.resumePeriodical .resumeCover { --resume-cover:91.5px; }
   .readResume .resumeCopy { align-self:stretch; padding-top:6px; }
   .readResume .resumeTitle { font-size:16px; }
   .readResume .resumeByline { font-size:13px; margin-top:3px; }
