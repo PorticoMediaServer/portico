@@ -339,7 +339,10 @@ function entry(v: unknown): ContentEntry {
     if (v.kind === 'radio' && (n.view !== 'radio' || n.entityId !== row.radioSeed?.id) || v.kind !== 'radio' && n.view === 'radio') invalid();
     const browse = seeAll(n.browse);
     if (n.browse !== undefined && !browse) invalid();
-    row.navigation = Object.freeze({ view: n.view as ContentView | 'item' | 'playlist' | 'radio', ...(n.entityId === undefined ? {} : { entityId: n.entityId as string }), ...(n.category === undefined ? {} : { category: n.category as string }), ...(browse ? {browse} : {}) });
+    // A reading series' periodical page (a magazine's or newspaper's run): only those two, and only on a series link.
+    if (n.pivot !== undefined && (n.view !== 'series' || (n.pivot !== 'magazines' && n.pivot !== 'newspapers'))) invalid();
+    row.navigation = Object.freeze({ view: n.view as ContentView | 'item' | 'playlist' | 'radio', ...(n.entityId === undefined ? {} : { entityId: n.entityId as string }), ...(n.category === undefined ? {} : { category: n.category as string }), ...(browse ? {browse} : {}),
+      ...(n.pivot === undefined ? {} : { pivot: n.pivot as 'magazines' | 'newspapers' }) });
   }
   // Playback that cannot be read is left out when the entry still opens something; otherwise the entry is refused.
   if (v.playback !== undefined && v.playback !== null) {

@@ -88,3 +88,22 @@ test("a reading library's series card opens the reading series page in every lis
   const found = await readSearch({request: async <T>(): Promise<T> => ({groups: [{kind: 'book', items: [reading, audiobook, monthly, daily]}]}) as T} as never, {q: 'saga'}, 12) as {groups: {items: {navigation?: {view: string; entityId?: string}}[]}[]};
   assert.deepEqual(views(found.groups[0]!.items), want);
 });
+
+test("a re-checked card keeps a magazine's or newspaper's periodical link, and refuses any other pivot", async () => {
+  // Saved, catalogue selection, recommendation and relation rows, and browse re-check every card (validateContentEntry).
+  const {entryFromItem} = await import('../src/items.ts');
+  const {validateContentEntry} = await import('../src/library-content.ts');
+  const {parseBrowseResult} = await import('../src/browse.ts');
+  const state = {watched: false, playCount: 0, favorite: false, inList: false, notInterested: false};
+  const run = (id: string, publicationType: string) => entryFromItem({id, kind: 'series', title: id, libraryId: 'lib_books', images: {}, state, addedAt: '', publicationType} as never)!;
+  const monthly = run('itm_m', 'magazine'), daily = run('itm_d', 'newspaper'), atlas = run('itm_a', 'book');
+  assert.deepEqual([monthly, daily, atlas].map(card => validateContentEntry(card).navigation),
+    [{view: 'series', entityId: 'itm_m', pivot: 'magazines'}, {view: 'series', entityId: 'itm_d', pivot: 'newspapers'}, {view: 'series', entityId: 'itm_a'}]);
+  // Through a re-checking path: one browse page.
+  const page = parseBrowseResult({pivot: 'series', applied: {query: null, sort: [{field: 'title', direction: 'asc'}]}, entries: [monthly, daily, atlas],
+    pageInfo: {start: 0, total: 3, revision: 'r', hasMore: false, nextCursor: ''}});
+  assert.deepEqual(page.entries.map(card => card.navigation?.pivot), ['magazines', 'newspapers', undefined]);
+  // Nothing else is accepted: another pivot, or a pivot off a series link.
+  assert.throws(() => validateContentEntry({...atlas, navigation: {view: 'series', entityId: 'itm_a', pivot: 'albums'}}));
+  assert.throws(() => validateContentEntry({...atlas, navigation: {view: 'book_series', entityId: 'itm_a', pivot: 'magazines'}}));
+});
