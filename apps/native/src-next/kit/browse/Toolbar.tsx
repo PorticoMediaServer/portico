@@ -11,6 +11,8 @@ import {useTheme} from '../theme';
 import {alpha, browsePlatform, browseType} from './presentation';
 import type {AppliedFilterChip, BrowsePlatform, BrowseToolbarProps} from './types';
 import {TVRow} from '../layout/TVRow';
+import MaskedView from '@react-native-masked-view/masked-view';
+import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 
 const t = defaultI18n.t;
 
@@ -93,6 +95,22 @@ export function AppliedFilterChips({filters, onRemove, onClear, platform, childr
   </View>;
 }
 
+/** A tablet toolbar's quick chips. A control's label is never cut: when the chips do not fit they scroll sideways and the
+ * row's end fades softly while more lie past it, as the phone frames draw a chip row; nothing else in the toolbar gives way. */
+export function ChipRail({children}: {children: ReactNode}) {
+  const [box, setBox] = useState(0), [content, setContent] = useState(0), [offset, setOffset] = useState(0);
+  const fade = box > 0 && content > box + 1 && offset + box < content - 1, edge = box > 0 ? Math.max(0, 1 - 36 / box) : 1;
+  return <View testID="browse-chip-rail" style={{flex: 1, minWidth: 0}}>
+    <MaskedView style={{flex: 1}} maskElement={<Svg width="100%" height="100%"><Defs><LinearGradient id="chip-rail-edge" x1="0" y1="0" x2="1" y2="0">
+      <Stop offset={0} stopColor="#fff" stopOpacity={1}/><Stop offset={edge} stopColor="#fff" stopOpacity={1}/><Stop offset={1} stopColor="#fff" stopOpacity={fade ? 0 : 1}/>
+    </LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#chip-rail-edge)"/></Svg>}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 8, alignItems: 'center'}} scrollEventThrottle={32}
+        onLayout={event => setBox(event.nativeEvent.layout.width)} onContentSizeChange={width => setContent(width)}
+        onScroll={event => setOffset(event.nativeEvent.contentOffset.x)}>{children}</ScrollView>
+    </MaskedView>
+  </View>;
+}
+
 /** The host pins this measured block above its windowed grid; it never owns scrolling data. */
 export function BrowseToolbar({model, platform, sticky = false, resultCount, onQuickChange, onFilters, filtersOpen = false, onSortChange, onReshuffle, labels, applied = [], onRemoveFilter, onClearFilters, view, cardSize, save, onJump, onSelect, selection, children, testID}: BrowseToolbarProps) {
   const theme = useTheme(), {width} = useWindowDimensions(), target = browsePlatform(theme, platform), phone = target === 'phone', tv = target === 'tv';
@@ -111,7 +129,7 @@ export function BrowseToolbar({model, platform, sticky = false, resultCount, onQ
     </> : <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 14 : 8, paddingHorizontal: theme.gutter}}>
       {tv ? <>{sort}{filters}{onJump && <Chip onPress={onJump}>{t('next.browse.native.jumpTo')}</Chip>}</> : <>{filters}{onSelect && width >= 600 && <Button variant="glass" size="small" onPress={onSelect}>{t('next.selection.select')}</Button>}</>}
       <View style={{height: tv ? 40 : 24, width: tv ? 1.5 : 1, marginHorizontal: 6, backgroundColor: theme.colors.line}}/>
-      {quick}{children}
+      {tv ? <>{quick}{children}</> : <ChipRail>{quick}{children}</ChipRail>}
       <View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>
         {!tv && <>{count}{sort}{view && <ViewToggle {...view}/>}{cardSize && <CardSizeButton {...cardSize}/>}</>}
         {save && <SaveViewButton {...save}/>}
