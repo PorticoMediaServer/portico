@@ -31,7 +31,6 @@ export const readOwnerDvrDefaults = <T = unknown>(api: OwnerRequestApi, signal?:
 export const writeOwnerDvrDefaults = <T = unknown>(api: OwnerRequestApi, body: unknown, signal?: AbortSignal): Promise<T> => api.request<T>(routePath('put_admin_dvr_settings'), 'PUT', body, signal);
 
 export const readOwnerConfiguration = <T = unknown>(api: OwnerRequestApi, signal?: AbortSignal): Promise<T> => api.request<T>(routePath('get_settings_configuration'), 'GET', undefined, signal);
-export const readOwnerUpdates = <T = unknown>(api: OwnerRequestApi, signal?: AbortSignal): Promise<T> => api.request<T>(routePath('get_admin_updates'), 'GET', undefined, signal);
 export const readOwnerStorageUsage = <T = unknown>(api: OwnerRequestApi, signal?: AbortSignal): Promise<T> => api.request<T>(routePath('get_admin_storage_usage'), 'GET', undefined, signal);
 export const readOwnerDataUsage = <T = unknown>(api: OwnerRequestApi, signal?: AbortSignal): Promise<T> => api.request<T>(routePath('get_data_storage_usage'), 'GET', undefined, signal);
 export const readOwnerConnectivity = <T = unknown>(api: OwnerRequestApi, signal?: AbortSignal): Promise<T> => api.request<T>(routePath('get_connectivity_status'), 'GET', undefined, signal);

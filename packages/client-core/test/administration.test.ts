@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {AdministrationError,analysisSelectionComplete,backupProgressFraction,deletionAllowed,folderTemplateProblems,folderTemplateTokens,isRestoreRefusalCode,isStatePermissionsAlert,parseAnalysisMatrix,parseBackupsDocument,parseChannelMapPage,parseDVRDocument,parseDeletePreview,parseDeleteResult,parseEnvelope,parseFailure,parseFilesystemPage,parseLibraryDocument,parseLiveSourceDocument,parseRestoreStaged,parseStatePermissionsItem,parseStorageReport,parseTunerView,parseUpdateReport} from '../src/administration.ts';
+import {AdministrationError,analysisSelectionComplete,backupProgressFraction,deletionAllowed,folderTemplateProblems,folderTemplateTokens,isRestoreRefusalCode,isStatePermissionsAlert,parseAnalysisMatrix,parseBackupsDocument,parseChannelMapPage,parseDVRDocument,parseDeletePreview,parseDeleteResult,parseEnvelope,parseFailure,parseFilesystemPage,parseLibraryDocument,parseLiveSourceDocument,parseRestoreStaged,parseStatePermissionsItem,parseStorageReport,parseTunerView} from '../src/administration.ts';
 
 const matrix={costClasses:[{id:'metadata-only',name:'Metadata only',description:'One read.',order:1},{id:'decode',name:'Decodes the video',description:'Expensive.',order:3}],operations:[{id:'probe',name:'Media probe',costClass:'metadata-only',description:'Reads facts.',mediaKinds:['movie'],defaultEnabled:true,requires:null,producesArtifacts:false,network:false},{id:'trickplay',name:'Trickplay tiles',costClass:'decode',description:'Decodes frames.',mediaKinds:['movie'],defaultEnabled:false,requires:['probe'],producesArtifacts:true,network:false}]};
 const navigation={trickplayIntervalMs:10000,trickplayTileWidth:320,trickplayMaxTiles:400,chapterThumbnailMode:'generated',videoPreviewEnabled:false,videoPreviewMs:30000};
@@ -172,20 +172,12 @@ test('the tuner view keeps the server\'s in-use count and leaves out a recording
  assert.throws(()=>parseTunerView({observedAt:'',upcomingWindowHours:48,sources:Array.from({length:65},(_,i)=>({sourceId:'s'+i,sourceName:'x',tunerCount:2,inUse:0,conflicts:0,active:[],upcoming:[]}))}));
 });
 
-test('storage and updates parse, and a server claiming auto-install is refused',()=>{
+test('storage parses',()=>{
  const report=parseStorageReport({stateDirectory:'/var/lib/portico',totalBytes:100,totalBytesText:'100 B',observedAt:'2026-09-16T20:11:04Z',truncated:false,categories:[]});
- const current={version:'1.2.0',buildId:'b1',sourceDigest:'d',builtAt:''};
- const update=parseUpdateReport({current,channel:'stable',feedConfigured:true,latest:{...current,version:'1.3.0',notes:'Faster scans'},updateAvailable:true,checkedAt:'2026-09-16T20:11:04Z',status:'update-available',message:'',autoInstall:false});
- assert.equal(update.latest?.version,'1.3.0');
- // A status this app does not know reads as an update when one is described, and otherwise as unavailable.
- assert.equal(parseUpdateReport({current,channel:'stable',feedConfigured:true,latest:{...current,version:'1.3.0'},updateAvailable:true,checkedAt:'',status:'staged-rollout',message:'',autoInstall:false}).status,'update-available');
- assert.equal(parseUpdateReport({current,channel:'stable',feedConfigured:true,latest:null,updateAvailable:false,checkedAt:'',status:'staged-rollout',message:'',autoInstall:false,futureField:1}).status,'unavailable');
  assert.deepEqual([...report.categories],[]);
  const category={id:'previews',name:'Previews',description:'Scrubbing previews.',directories:['previews'],cleanable:true,regenerable:true,retentionKey:'previews',bytes:100,bytesText:'100 B',fileCount:2,paths:['/var/lib/portico/previews'],present:true,oldestDays:0,entries:1};
  assert.deepEqual(parseStorageReport({stateDirectory:'/var/lib/portico',totalBytes:100,totalBytesText:'100 B',observedAt:'',truncated:false,categories:[category,{...category,id:'broken',bytes:-1},{...category,name:'Again'}]}).categories.map(entry=>entry.name),['Previews']);
  assert.throws(()=>parseStorageReport({stateDirectory:'/var/lib/portico',totalBytes:100,totalBytesText:'100 B',observedAt:'',truncated:false,categories:[{...category,paths:new Array(17).fill('/x')}]}));
- assert.throws(()=>parseUpdateReport({current,channel:'stable',feedConfigured:true,latest:null,updateAvailable:true,checkedAt:'',status:'update-available',message:'',autoInstall:false}));
-  assert.throws(()=>parseUpdateReport({current,channel:'stable',feedConfigured:false,latest:null,updateAvailable:false,checkedAt:'',status:'no-feed',message:'',autoInstall:true}),(e:unknown)=>e instanceof AdministrationError&&e.code==='unexpected_auto_install');
 });
 
 test('the Plex-model backups document parses; an unknown kind or an unreadable backup skips the item, malformed optionals drop',()=>{
@@ -247,10 +239,3 @@ test('current DVR defaults accept unavailable templates as empty and retain the 
  for(const bad of [undefined,null,42,'x'.repeat(401)])assert.throws(()=>parseDVRDocument({...wire,settings:{...settings,folderTemplate:bad}}),{code:'invalid_administration_response'});
 });
 
-// APL-SYS-12 (parser probe, 24 Sep): the runner e2e server's GET /v1/admin/updates answers this
-// bare report (a registry route, no administration envelope); the web reads it directly.
-test('the updates report as the server sends it parses', () => {
-  const report = parseUpdateReport({current: {version: '0.1.0-dev', buildId: 'development', sourceDigest: 'unsealed', builtAt: '', channel: 'stable'}, channel: 'stable', feedConfigured: false, state: 'unconfigured', updateAvailable: false, checkedAt: '', status: 'no-feed', message: 'No release feed is configured, so this server only reports the build it is running.', autoInstall: false});
-  assert.equal(report.status, 'no-feed');
-  assert.equal(report.current.version, '0.1.0-dev');
-});

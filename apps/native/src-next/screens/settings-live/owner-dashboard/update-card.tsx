@@ -16,9 +16,9 @@ export type OwnerUpdateView = Readonly<{latest: string; current: string; notesUR
 /** Release notes open only an https page the server's report names; anything else leaves the button off. */
 export function ownerUpdateView(snapshot: UpdatesSnapshot): OwnerUpdateView | undefined {
   const report = snapshot.report;
-  if (!report?.updateAvailable || !report.latest) return undefined;
-  const notes = /^https:\/\/[^\s]+$/i.test(report.latest.url) ? report.latest.url : undefined;
-  return Object.freeze({latest: report.latest.version, current: report.current.version, ...(notes ? {notesURL: notes} : {}), checking: snapshot.busy, checkFailed: snapshot.error === 'check'});
+  if (!report?.newer || !report.newest) return undefined;
+  const url = report.newest.url ?? '', notes = /^https:\/\/[^\s]+$/i.test(url) ? url : undefined;
+  return Object.freeze({latest: report.newest.version, current: report.version, ...(notes ? {notesURL: notes} : {}), checking: snapshot.busy, checkFailed: snapshot.error === 'check'});
 }
 
 /** The update's own tinted card at the end of Alerts. Portico never installs an update by itself: the card says so, and its

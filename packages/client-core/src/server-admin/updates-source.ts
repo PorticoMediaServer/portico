@@ -1,9 +1,8 @@
-import {parseUpdateReport, type UpdateReport} from '../administration.ts';
-import {routePath} from '../../../contracts/src/route-paths.ts';
+import {checkServerUpdates, readServerUpdates, type ServerUpdates} from './server-updates.ts';
 
 /** The read and the pressed check answer with the same report shape. */
 export type UpdatesApi = Readonly<{request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>}>;
-export type UpdatesSnapshot = Readonly<{phase: 'idle'|'loading'|'ready'|'error'; report?: UpdateReport; busy: boolean; error?: 'read'|'check'}>;
+export type UpdatesSnapshot = Readonly<{phase: 'idle'|'loading'|'ready'|'error'; report?: ServerUpdates; busy: boolean; error?: 'read'|'check'}>;
 const empty: UpdatesSnapshot = Object.freeze({phase: 'idle', busy: false});
 const terminal = (error: unknown) => {
   const {status, code} = (error && typeof error === 'object' ? error : {}) as {status?: number; code?: string};
@@ -36,7 +35,7 @@ export class SettingsUpdatesSource {
     this.read?.abort();const read = new AbortController();this.read = read;
     this.publish({phase: this.state.report ? 'ready' : 'loading', error: undefined});
     if (!this.ownsRead(read)) return;
-    try {const report = parseUpdateReport(await this.api.request(routePath('get_admin_updates'), 'GET', undefined, read.signal));if (this.ownsRead(read)) this.publish({phase: 'ready', report, busy: false});}
+    try {const report = await readServerUpdates(this.api, read.signal);if (this.ownsRead(read)) this.publish({phase: 'ready', report, busy: false});}
     catch (error) {if (this.ownsRead(read)) this.failure(error, 'read');}
     finally {if (this.read === read) this.read = undefined;}
   };
@@ -50,7 +49,7 @@ export class SettingsUpdatesSource {
     this.publish({busy: true, error: undefined});
     if (!this.ownsWrite(write)) return;
     try {
-      const report = parseUpdateReport(await this.api.request(routePath('post_admin_updates_check'), 'POST', undefined, write.signal));
+      const report = await checkServerUpdates(this.api, write.signal);
       if (this.ownsWrite(write)) this.publish({phase: 'ready', report, busy: false});
     } catch (error) {if (this.ownsWrite(write)) this.failure(error, 'check');}
     finally {if (this.write === write) {this.write = undefined;if (this.current() && this.state.busy) this.publish({busy: false});}}

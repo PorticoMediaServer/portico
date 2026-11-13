@@ -1,9 +1,9 @@
-import {readOwnerConfiguration, readOwnerUpdates} from '../../../../../../packages/client-core/src/owner-requests';
+import {readOwnerConfiguration} from '../../../../../../packages/client-core/src/owner-requests';
 import {serverNow} from '../../../../../../packages/client-core/src/server-clock';
 import {useSettingsRequestScope} from '../use-settings-request-scope';
 import React, {useCallback, useEffect, useState} from 'react';
 import {ScrollView, Text, View} from 'react-native';
-import {parseUpdateReport, type UpdateReport} from '../../../../../../packages/client-core/src/administration';
+import {checkServerUpdates, latestVersionLine, readServerUpdates, type ServerUpdates} from '../../../../../../packages/client-core/src/server-admin/server-updates';
 import {pauseBackgroundWork, type AlertThresholds, type MaintenanceDocument, type MaintenanceSettings} from '../../../../../../packages/client-core/src/server-admin/server-forms';
 import {restartServer} from '../../../../../../packages/client-core/src/backups';
 import {parseSettingsConfiguration, type SettingsConfiguration} from '../../../../../../packages/client-core/src/settings-configuration';
@@ -46,7 +46,7 @@ function General({ports, runtime, compactHeader = false, group}: {ports: NativeS
   const {forms, set} = group, state = useStorageSet(group);
   const runtimeState = useFormState<RuntimeSettings, unknown>(forms.runtime);
   const maintenanceState = useFormState<MaintenanceSettings, MaintenanceDocument>(forms.maintenance);
-  const [updates, setUpdates] = useState<UpdateReport>(), [updateError, setUpdateError] = useState<unknown>(), [checking, setChecking] = useState(false);
+  const [updates, setUpdates] = useState<ServerUpdates>(), [updateError, setUpdateError] = useState<unknown>(), [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false), [problem, setProblem] = useState<string>(), [restarting, setRestarting] = useState(false);
   const alertsState = useFormState<AlertThresholds, {revision: number}>(forms.alerts);
   const [messageOpen, setMessageOpen] = useState(false), [advanced, setAdvanced] = useState(false), [customUpdate, setCustomUpdate] = useState(false), [customHeavyDraft, setCustomHeavyDraft] = useState<MaintenanceSettings>();
@@ -84,10 +84,11 @@ function General({ports, runtime, compactHeader = false, group}: {ports: NativeS
       onCustom={row.id === 'general.updateChecks' ? () => {setCustomUpdate(true); setAdvanced(true);} : undefined} onChange={next => change(row, next)}/>;
   };
   const viewerRole: ViewerRole = context.account.account.role === 'owner' ? 'owner' : context.account.canManage ? 'administrator' : 'member';
-  const loadUpdates = useCallback(() => {
+  // The page reads the server's last answer; Check now asks the server to check its release feed once.
+  const loadUpdates = useCallback((check = false) => {
     if (!lifetime.current()) return;
     setChecking(true); setUpdateError(undefined);
-    void readOwnerUpdates(api).then(raw => {if (lifetime.current()) setUpdates(parseUpdateReport(raw));})
+    void (check ? checkServerUpdates : readServerUpdates)(api).then(next => {if (lifetime.current()) setUpdates(next);})
       .catch(error => {if (lifetime.current()) setUpdateError(error);}).finally(() => {if (lifetime.current()) setChecking(false);});
   }, [api, lifetime]);
   useEffect(() => {loadUpdates();}, [loadUpdates]);
@@ -113,17 +114,17 @@ function General({ports, runtime, compactHeader = false, group}: {ports: NativeS
       <Text style={[shellType(17, 800), {color: theme.colors.text, marginTop: 22}]}>{t('settings.server.updates')}</Text>
       {renderRow(settingsRowIndex.get('general.updateChecks')!.row)}
       {configurationError !== undefined && <StateView variant="inline" {...runtime.error(configurationError, loadConfiguration, 'server-console')}/>}
-      {updateError !== undefined && !updates ? <StateView title={presentError(updateError, 'server-console').title} body={presentError(updateError, 'server-console').body} tone="error" primaryAction={{id: 'retry', label: t('action.tryAgain'), onPress: loadUpdates}}/> : null}
+      {updateError !== undefined && !updates ? <StateView title={presentError(updateError, 'server-console').title} body={presentError(updateError, 'server-console').body} tone="error" primaryAction={{id: 'retry', label: t('action.tryAgain'), onPress: () => loadUpdates()}}/> : null}
       {updates ? <View style={{marginTop: 8, borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
         <View style={{paddingHorizontal: 14, paddingVertical: 11}}>
           <View style={{flexDirection: 'row', justifyContent: 'space-between', gap: 10}}>
             <Text style={[shellType(15, 600), {color: theme.colors.text}]}>{t('web.general.serverProduct')}</Text>
-            <Text style={[shellType(14, 600), {color: updates.updateAvailable ? theme.colors.amber : theme.colors.textSecondary}]}>{updates.updateAvailable && updates.latest ? updates.latest.version : updates.current.version}</Text>
+            <Text style={[shellType(14, 600), {color: theme.colors.textSecondary}]}>{updates.version}</Text>
           </View>
-          <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 3}}>{[updates.message, when(Date.parse(updates.checkedAt))].filter(Boolean).map((part, index) => <Text key={index} style={[shellType(12.5, 400, 17), {color: theme.colors.textTertiary, marginTop: 2}]}>{part}</Text>)}</View>
+          <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 3}}>{[latestVersionLine(updates, t), updates.checkedAt ? when(Date.parse(updates.checkedAt)) : ''].filter(Boolean).map((part, index) => <Text key={index} style={[shellType(12.5, index === 0 && updates.newer ? 600 : 400, 17), {color: index === 0 && updates.newer ? theme.colors.amber : theme.colors.textTertiary, marginTop: 2}]}>{part}</Text>)}</View>
         </View>
       </View> : null}
-      <View style={{flexDirection: 'row', marginTop: 10}}><Button size="compact" variant="glass" icon="i-refresh" loading={checking} disabled={fact(settingsRowIndex.get('general.updateChecks')!.row)?.current === 'never'} onPress={loadUpdates}>{t('server.updates.check')}</Button></View>
+      <View style={{flexDirection: 'row', marginTop: 10}}><Button size="compact" variant="glass" icon="i-refresh" loading={checking} disabled={fact(settingsRowIndex.get('general.updateChecks')!.row)?.current === 'never'} onPress={() => loadUpdates(true)}>{t('server.updates.check')}</Button></View>
       {maintenanceState.draft ? <>
         <HeavyWorkControls form={forms.maintenance} state={maintenanceState} t={t} placement="main" open={advanced} onOpenChange={setAdvanced} customDraft={customHeavyDraft} onCustomDraftChange={setCustomHeavyDraft}/>
         {renderRow(settingsRowIndex.get('general.backgroundSpeed')!.row)}

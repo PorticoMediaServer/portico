@@ -8,8 +8,9 @@ import * as nowPlaying from '../../../packages/client-core/src/server-admin/now-
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 const texts = (tree: any) => nodes(tree).filter(node => node.type === 'Text').map(node => [node.props.children].flat().join(''));
 const t = (id: string, values?: Record<string, unknown>) => values ? `${id}:${JSON.stringify(values)}` : id;
-const build = (version: string, url = '') => ({version, buildId: 'b', sourceDigest: 'd', builtAt: '', channel: 'stable', notes: '', url});
-const report = (latest?: ReturnType<typeof build>) => ({current: build('0.1.0'), channel: 'stable', feedConfigured: true, latest: latest ?? null, updateAvailable: !!latest, checkedAt: '', status: latest ? 'update-available' : 'current', message: '', autoInstall: false});
+const build = (version: string, url = '') => ({version, ...(url ? {url} : {})});
+// The rebuilt server's answer (contract State): the build it runs, and the newer one when there is one.
+const report = (latest?: ReturnType<typeof build>) => ({version: '0.1.0', newer: !!latest, install: 'docker', ...(latest ? {newest: latest} : {})});
 
 const cardModule = async (react: any) => screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/update-card.tsx', import.meta.url), {
   react, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},

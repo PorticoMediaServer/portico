@@ -1,4 +1,4 @@
-import {readOwnerSignInSettings, readOwnerMetadataSettings, readOwnerLiveSources, readOwnerUpdates, readOwnerConfiguration} from '../../../../../../packages/client-core/src/owner-requests';
+import {readOwnerSignInSettings, readOwnerMetadataSettings, readOwnerLiveSources, readOwnerConfiguration} from '../../../../../../packages/client-core/src/owner-requests';
 import React, {useEffect, useMemo, useState} from 'react';
 import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
@@ -14,7 +14,7 @@ import {captureReportContext} from '../../../../../../packages/client-core/src/r
 import {listRemoteSources} from '../../../../../../packages/client-core/src/remote-storage';
 import {stateWords} from '../../settings/remote-sources/RemoteSourceForms';
 import {liveSourceState} from '../../../../../../packages/client-core/src/server-admin/live-words';
-import {parseUpdateReport} from '../../../../../../packages/client-core/src/administration';
+import {readServerUpdates} from '../../../../../../packages/client-core/src/server-admin/server-updates';
 import {Button, Focusable} from '../../../kit/controls';
 import {shellType} from '../../../kit/shell/visual';
 import {StateView} from '../../../kit/states';
@@ -89,8 +89,8 @@ export function TVServerReadOnlyPanel({page, ports, runtime, lifetime, statusOnl
       if (!section) throw new Error('native_tv_server_page_missing');
       if (statusOnly) {
         if (page !== 'general') return {facts: []};
-        const updates = parseUpdateReport(await readOwnerUpdates({request:read}));
-        return {facts: [{id: 'general.version', label: label('general.version'), value: updates.current.version}]};
+        const updates = await readServerUpdates({request:read});
+        return {facts: [{id: 'general.version', label: label('general.version'), value: updates.version}]};
       }
       const configuration = parseSettingsConfiguration(await readOwnerConfiguration({request:read}));
       const metadata = page === 'metadata' ? parseMetadataSettings(await readOwnerMetadataSettings({request:read})) : undefined;
@@ -106,8 +106,8 @@ export function TVServerReadOnlyPanel({page, ports, runtime, lifetime, statusOnl
           : configuration.fields.find(field => field.id === id)?.effective;
       }, t, value => defaultI18n.number(value))];
       if (page === 'general') {
-        const updates = parseUpdateReport(await readOwnerUpdates({request:read}));
-        facts.splice(1, 0, {id: 'general.version', label: label('general.version'), value: updates.current.version});
+        const updates = await readServerUpdates({request:read});
+        facts.splice(1, 0, {id: 'general.version', label: label('general.version'), value: updates.version});
       }
       return {facts};
     };

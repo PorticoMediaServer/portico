@@ -48,7 +48,8 @@ import {GroupSessionService} from '../src/group-session.ts';
 import {ConsoleClient} from '../src/console.ts';
 import {parseAccessDevice, parseAccessMember, parseInvitation, parseLogPage, parseLogSettings} from '../src/server-administration.ts';
 import {parseApiCredential} from '../src/api-access.ts';
-import {parseBackupsDocument, parseDVRDocument, parseEnvelope, parseLibraryDocument, parseLiveDefaultsDocument, parseStorageReport, parseTunerView, parseUpdateReport} from '../src/administration.ts';
+import {parseBackupsDocument, parseDVRDocument, parseEnvelope, parseLibraryDocument, parseLiveDefaultsDocument, parseStorageReport, parseTunerView} from '../src/administration.ts';
+import {readServerUpdates} from '../src/server-admin/server-updates.ts';
 import {PreferencesReader} from '../src/preferences-reader.ts';
 import {IdentityClient} from '../src/identity-client.ts';
 import {PlaybackOptionsClient} from '../src/playback-v1/options.ts';
@@ -660,7 +661,7 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
     });
     await envelopeRead('storage report', '/v1/admin/storage-usage', parseStorageReport);
     // A registry route: the bare report, no administration envelope (the web reads it directly).
-    await rec.check('owner', 'update report', 'GET', '/v1/admin/updates', () => api.request<unknown>('/v1/admin/updates').then(parseUpdateReport));
+    await rec.check('owner', 'update report', 'GET', '/v1/admin/updates', () => readServerUpdates(api));
     await rec.check('owner', 'server logs page 1', 'GET', '/v1/admin/logs?limit=20', () =>
       api.request<unknown>('/v1/admin/logs?limit=20').then(parseLogPage));
     await rec.check('owner', 'log settings', 'GET', '/v1/admin/logs/settings', () =>
