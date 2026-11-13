@@ -363,7 +363,7 @@ test('Home scroll registration follows the move function and runtime rather than
     // would re-render forever under React's identity check.
     const homeSnapshot = {phase: 'ready'};
     const runtime = {getSnapshot: () => ({authority, libraries: []}), text: {t: (key: string) => key, locale: 'en-US'},
-      home: {subscribe: () => () => {}, getSnapshot: () => homeSnapshot, load: async () => {}, recoverDroppedRows: async () => {}, setRowDemand: () => {}},
+      home: {subscribe: () => () => {}, getSnapshot: () => homeSnapshot, load: async () => {}, recoverDroppedRows: async () => {}, setRowDemand: () => {}, demand: () => {}},
       registerScrollToTop: (_destination: unknown, run: () => void) => {
         events.push(`register:${id}`); callback = run;
         return () => {events.push(`remove:${id}`); if (callback === run) callback = undefined;};
