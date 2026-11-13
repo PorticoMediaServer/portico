@@ -1,8 +1,6 @@
 package prepare
 
 import (
-	"slices"
-
 	"github.com/PorticoMediaServer/portico/server-next/internal/qualityladder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
@@ -20,24 +18,16 @@ type Settings struct {
 	// SpaceGB is how much room the copies the server makes may take, in gigabytes; 0 is no
 	// limit. Each copy counts once, however many people asked for it. Originals take none.
 	SpaceGB int64 `json:"spaceGB"`
-	// KeepDays is how long a copy nobody has asked for or fetched is kept.
-	KeepDays int `json:"keepDays"`
 }
 
-// KeepChoices are the keeping times the owner chooses from.
-var KeepChoices = []int{7, 14, 30, 90, 365}
-
 // Document is the downloads settings document.
-var Document = settings.Define("downloads", Settings{On: true, HighestQuality: "original", KeepDays: 30},
+var Document = settings.Define("downloads", Settings{On: true, HighestQuality: "original"},
 	func(s *Settings) error {
 		if _, ok := qualityladder.Find(s.HighestQuality); !ok && s.HighestQuality != "original" {
 			return &settings.Invalid{Field: "highestQuality", Message: "Choose Original or one of the video qualities."}
 		}
 		if s.SpaceGB < 0 || s.SpaceGB > 1_000_000 {
 			return &settings.Invalid{Field: "spaceGB", Message: "Give a size in gigabytes, or 0 for no limit."}
-		}
-		if !slices.Contains(KeepChoices, s.KeepDays) {
-			return &settings.Invalid{Field: "keepDays", Message: "Keep prepared copies for 7, 14, 30 or 90 days, or a year."}
 		}
 		return nil
 	})
