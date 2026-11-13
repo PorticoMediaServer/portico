@@ -66,9 +66,6 @@ export type TunerView=Readonly<{observedAt:string;upcomingWindowHours:number;sou
 export type StorageCategory=Readonly<{id:string;name:string;description:string;directories:readonly string[];cleanable:boolean;regenerable:boolean;retentionKey:string}>;
 export type StorageUsage=StorageCategory&Readonly<{bytes:number;bytesText:string;fileCount:number;paths:readonly string[];present:boolean;oldestDays:number}>;
 export type StorageReport=Readonly<{stateDirectory:string;categories:readonly StorageUsage[];totalBytes:number;totalBytesText:string;observedAt:string;truncated:boolean}>;
-export type UpdateBuild=Readonly<{version:string;buildId:string;sourceDigest:string;builtAt:string;channel:string;notes:string;url:string}>;
-export type UpdateStatus='current'|'update-available'|'no-feed'|'no-release'|'unavailable';
-export type UpdateReport=Readonly<{current:UpdateBuild;channel:string;feedConfigured:boolean;latest:UpdateBuild|null;updateAvailable:boolean;checkedAt:string;status:UpdateStatus;message:string;autoInstall:false}>;
 export type BackupKind='scheduled'|'manual'|'pre-restore';
 // TODO(be backups): switch to generated types once apigen publishes the spec §4 routes.
 // The shapes below are hand-written from `Spec — Backups (Plex model).md` §4 and §6.2.
@@ -366,21 +363,6 @@ export function parseStorageReport(v:unknown):StorageReport{
   return Object.freeze({id:entry.id,name:entry.name,description:entry.description,directories:strings(entry.directories,16,'storage directories'),cleanable:entry.cleanable,regenerable:entry.regenerable,retentionKey:entry.retentionKey,bytes:entry.bytes,bytesText:entry.bytesText,fileCount:entry.fileCount,paths:strings(entry.paths,16,'storage paths'),present:entry.present,oldestDays:entry.oldestDays,entries:count(entry.entries)?entry.entries:0});
  },[['directories',16],['paths',16]]),entry=>entry.id);
  return Object.freeze({stateDirectory:v.stateDirectory,categories:Object.freeze(categories),totalBytes:v.totalBytes,totalBytesText:v.totalBytesText,observedAt:v.observedAt,truncated:v.truncated});
-}
-
-function parseBuild(v:unknown):UpdateBuild{
- if(!object(v)||!text(v.version,64)||!text(v.buildId,128)||!text(v.sourceDigest,128)||!text(v.builtAt,64))invalid('update build');
- return Object.freeze({version:v.version,buildId:v.buildId,sourceDigest:v.sourceDigest,builtAt:v.builtAt,channel:text(v.channel,32)?v.channel:'',notes:text(v.notes,4096)?v.notes:'',url:text(v.url,2048)?v.url:''});
-}
-/** parseUpdateReport reads the updates page. A report claiming an automatic install is refused: this server never installs anything. */
-export function parseUpdateReport(v:unknown):UpdateReport{
- if(!object(v)||!filled(v.channel,32)||!flag(v.feedConfigured)||!flag(v.updateAvailable)||!text(v.checkedAt,64)||!text(v.message,1024))invalid('update report');
- if(v.autoInstall!==false)throw new AdministrationError('unexpected_auto_install','This server reported that it installs updates on its own, which it must never do.');
- const latest=v.latest===null||v.latest===undefined?null:parseBuild(v.latest);
- // A status this app does not know reads as an update when the report describes one, and otherwise as unavailable.
- const status=oneOfOr('administration','update status',v.status,['current','update-available','no-feed','no-release','unavailable'] as const,v.updateAvailable&&latest!==null?'update-available':'unavailable');
- if(v.updateAvailable&&(latest===null||status!=='update-available'))invalid('update report');
- return Object.freeze({current:parseBuild(v.current),channel:v.channel,feedConfigured:v.feedConfigured,latest,updateAvailable:v.updateAvailable,checkedAt:v.checkedAt,status,message:v.message,autoInstall:false});
 }
 
 const backupKinds:readonly BackupKind[]=['scheduled','manual','pre-restore'];
