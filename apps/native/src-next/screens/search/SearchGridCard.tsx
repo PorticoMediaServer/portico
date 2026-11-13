@@ -12,7 +12,7 @@ import {SelectionCircle} from '../../kit/selection';
 import {Icon} from '../../kit/Icon';
 import {browseType} from '../../kit/browse/presentation';
 import {useTheme} from '../../kit/theme';
-import {cardText} from '../../../../../packages/client-core/src/presentation/kit-model';
+import {cardText, nameInitials} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {nativeSearchCardText} from '../home/model';
 import {nativeSearchEntryKey} from './model';
 import type {NativeSearchActions} from './types';
@@ -33,8 +33,8 @@ export function SearchGridCard({entry, group, runtime, actions, selection, width
   if (theme.isTV && group === 'live-tv') return <ChannelCard {...props} subtitle={entry?.subtitle} artwork={runtime.artwork(entry?.posterUrl)}/>;
   if (group === 'movies' || group === 'shows') return <PosterCard {...props} artwork={runtime.artwork(entry?.posterUrl)}/>;
   if (group === 'episodes') return <EpisodeTile {...props} label={text?.caption ?? []} layout="tile" artwork={runtime.artwork(content?.stillUrl ?? content?.backdropUrl ?? entry?.posterUrl)}/>;
-  if (group === 'people') return <CircleCard {...props} person art={{source: runtime.artwork(entry?.posterUrl), initials: (entry?.title ?? '').split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('')}}/>;
-  if (group === 'artists') return <CircleCard {...props} art={{covers: content?.artworkPaths?.flatMap(path => {const source = runtime.artwork(path); return source ? [source] : [];}) ?? []}}/>;
+  if (group === 'people') return <CircleCard {...props} person art={{source: runtime.artwork(entry?.posterUrl), initials: nameInitials(entry?.title ?? '')}}/>;
+  if (group === 'artists') return <CircleCard {...props} art={{covers: content?.artworkPaths?.flatMap(path => {const source = runtime.artwork(path); return source ? [source] : [];}) ?? [], alt: entry?.title}}/>;
   return <SquareCard {...props} artwork={runtime.artwork(entry?.posterUrl)}/>;
 }
 

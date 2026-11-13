@@ -4,6 +4,7 @@ import Svg, {Defs, RadialGradient, Rect, Stop} from 'react-native-svg';
 import {fontFamilies, useTheme} from '../theme';
 import {Artwork} from './Artwork';
 import {PaletteWash} from './Surfaces';
+import {nameInitials} from '../../../../../packages/client-core/src/presentation/kit-model/index';
 import {boundedCovers, circleArtworkFrames} from './model';
 import type {CircleArtProps, PersonCircleProps} from './types';
 
@@ -15,10 +16,12 @@ function CircleBase({size}: {size: number}) {
   </Svg>;
 }
 
-/** Bounded own-album samples, supplied by the caller's actual content entry. */
-export function CircleArt({covers, initials, alt, size = 100, visible = true, style}: CircleArtProps) {
+/** Bounded own-album samples, supplied by the caller's actual content entry. With no picture it draws the initials of its
+ * name (`alt`, the shared `nameInitials`), never an empty circle. */
+export function CircleArt({covers, initials: given, alt, size = 100, visible = true, style}: CircleArtProps) {
   const {colors, isTV} = useTheme();
   const samples = boundedCovers(covers, 4);
+  const initials = given ?? (samples.length || !alt ? undefined : nameInitials(alt));
   const frames = circleArtworkFrames(samples.length, size, isTV ? 3 : 2);
   return <View accessible={Boolean(alt)} accessibilityRole={alt ? 'image' : undefined} accessibilityLabel={alt} style={[{width: size, height: size, borderRadius: size / 2, overflow: 'hidden', backgroundColor: samples.length > 1 ? colors.ink : colors.raised}, style]}>
     {!samples.length ? <CircleBase size={size}/> : null}

@@ -57,3 +57,10 @@ export function clockText(seconds: number | undefined): string | undefined {
   const total = Math.floor(seconds), h = Math.floor(total / 3600), m = Math.floor(total % 3600 / 60), s = total % 60;
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
 }
+
+/** A person's or artist's initials for their circle when there is no picture: the first letters of the first and last
+ * names ("H. G. Wells" is HW, as desktop-read 3 draws it), one letter for a single name. Shared by web and the apps. */
+export function nameInitials(name: string): string {
+  const words = name.trim().split(/\s+/u).filter(Boolean);
+  return (words.length > 1 ? [words[0], words[words.length - 1]] : words).map(word => Array.from(word.replace(/^[^\p{L}\p{N}]+/u, ''))[0] ?? '').join('').toLocaleUpperCase();
+}

@@ -1,5 +1,5 @@
 export type {KitMessageId, KitMessageValues, KitTranslate, FactRole, FactPart, TextEnvironment} from './text.ts';
-export {timelineFacts} from './text.ts';
+export {timelineFacts, nameInitials} from './text.ts';
 export {cardText, titleFactParts, episodeLabel, playbackIdentity} from './facts.ts';
 export type {TitleKind, EpisodeNumbering, CardContext, TitleFactContext, TitleFacts, CardSubject, CardTextModel, PlaybackSubject, PlaybackIdentityModel} from './facts.ts';
 export {collectionCaptionParts} from './collections.ts';
