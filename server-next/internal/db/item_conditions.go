@@ -54,8 +54,13 @@ var (
 	conditionDays = map[string]string{"added": "i.added_at", "lastPlayed": stateValue("last_played_at"), "released": "i.release_date"}
 	// true or false.
 	conditionFlags = map[string]string{
-		"available":  "i.available = 1",
-		"inProgress": "EXISTS (SELECT 1 FROM user_item_state p WHERE p.profile_id = @viewer_profile AND p.item_id = i.id AND p.played = 0 AND (p.position_ms > 0 OR p.position_text IS NOT NULL))",
+		"available": "i.available = 1",
+		"inProgress": fmt.Sprintf(`i.id IN (SELECT p.item_id FROM user_item_state p
+            CROSS JOIN items r ON r.id = p.item_id
+            WHERE p.profile_id = @viewer_profile AND p.played = 0 AND
+            CASE WHEN r.kind IN (%d, %d, %d) THEN
+                json_extract(p.position_text, '$.progression') > 0 AND json_extract(p.position_text, '$.progression') < 1
+            ELSE p.position_ms > 0 END)`, KindBook, KindComic, KindIssue),
 	}
 )
 
@@ -334,6 +339,10 @@ func (q ItemQuery) conditions(ctx context.Context, tx *sql.Tx, w *query, scoped 
 				*scoped = true
 			}
 		default:
+			// A few saved places must not scan a library's ordered index to fill a page.
+			if !driven && c.Field == "inProgress" && c.Mode != ModeNone && len(c.Values) == 1 && c.Values[0] == "true" {
+				w.from, w.countFrom, driven = "items i NOT INDEXED", "items i NOT INDEXED", true
+			}
 			for _, value := range c.Values {
 				test, err := conditionTest(w, c.Field, value)
 				if err != nil {
