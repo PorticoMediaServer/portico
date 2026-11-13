@@ -113,6 +113,8 @@ test('series collection keeps the volumes in the server\'s order and goes on fro
   const calls: URL[] = [];
   const api = new HttpLocalApi('http://127.0.0.1:39117', 'unit-token', async input => {
     const url = new URL(String(input)); calls.push(url);
+    if (url.pathname === '/v1/items/itm_series') return json(wire('itm_series', 'unit-library',
+      {kind: 'series', title: 'Harbour Tales', counts: {children: 62, leaves: 62, unwatchedLeaves: 61}}));
     const start = url.searchParams.has('cursor') ? 60 : 0;
     return json({items: Array.from({length: start === 0 ? 60 : 2}, (_, index) => wire(`unit-${100 - start - index}`, 'unit-library', {kind: 'issue'})), ...(start === 0 ? {nextCursor: 'more'} : {})});
   });
@@ -122,6 +124,9 @@ test('series collection keeps the volumes in the server\'s order and goes on fro
   await settle(() => rows.collection.itemAt(60) !== undefined && rows.collection.getSnapshot().totalIsLowerBound === false);
   assert.deepEqual([0, 1, 60].map(index => rows.collection.itemAt(index)?.id), ['unit-100', 'unit-99', 'unit-40']);
   assert.equal(rows.collection.getSnapshot().total, 62);
-  assert.ok(calls.every(url => url.pathname === '/v1/items' && url.searchParams.get('series') === 'itm_series' && url.searchParams.get('sort') === 'order'));
-  assert.equal(calls[0].searchParams.has('cursor'), false); assert.equal(calls[1].searchParams.get('cursor'), 'more');
+  assert.deepEqual(rows.overview.getSnapshot(), {id: 'itm_series', title: 'Harbour Tales', total: 62, completed: 1});
+  const volumes = calls.filter(url => url.pathname === '/v1/items');
+  assert.ok(volumes.every(url => url.searchParams.get('series') === 'itm_series' && url.searchParams.get('sort') === 'order'));
+  assert.equal(volumes[0].searchParams.has('cursor'), false); assert.equal(volumes[1].searchParams.get('cursor'), 'more');
+  assert.equal(calls.filter(url => url.pathname === '/v1/items/itm_series').length, 2);
 });
