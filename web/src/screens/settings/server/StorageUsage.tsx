@@ -15,13 +15,14 @@ function Failure({source}: {source: SettingsStorageSource}) {
   return <p className={styles.storageFailure} role="alert"><span>{t('next.settings.folderFailed')}</span><button type="button" onClick={() => {void source.retry();}}>{t('next.shell.tryAgain')}</button></p>;
 }
 
-/** The data folder's parts as the server names them, in the page's words; a part it does not name keeps its own name. */
+/** The data folder's parts as the server names them (#3300), in the page's words. */
 const partNames: Readonly<Record<string, readonly [MessageId, MessageId]>> = {
   database: ['server.space.database', 'server.space.databaseHelp'], artwork: ['server.space.metadata', 'server.space.metadataHelp'],
   conversions: ['server.space.conversions', 'server.space.conversionsInside'], logs: ['server.space.logs', 'server.space.logsHelp'],
   backups: ['server.space.backups', 'server.space.backupsHelp'], reports: ['server.space.reports', 'server.space.reportsHelp'],
   'title-data': ['server.space.titleData', 'server.space.titleDataHelp'], keys: ['server.space.keys', 'server.space.keysHelp'],
-  other: ['server.space.other', 'server.space.otherHelp'],
+  metadata: ['server.space.metadata', 'server.space.metadataHelp'], cache: ['server.space.cache', 'server.space.cacheHelp'],
+  temp: ['server.space.temp', 'server.space.tempHelp'], 'other-files': ['server.space.other', 'server.space.otherHelp'],
 };
 function words(line: StorageUsageLine): {name: string; help: string} {
   if (line.kind !== 'part') return {name: t(line.kind === 'conversions' ? 'server.space.conversions' : 'server.space.recordings'),

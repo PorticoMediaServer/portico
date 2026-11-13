@@ -19,19 +19,14 @@ export function storageFacts(storage: ServerStorage): Readonly<{freeBytes?: numb
  * outside the data folder. A location inside the data folder is already one of its parts and is not counted again; one
  * the server could not measure has no size and says why.
  */
-const KNOWN_PARTS: ReadonlySet<string> = new Set(['database', 'artwork', 'conversions', 'logs', 'backups', 'reports', 'title-data']);
 export type StorageUsageLine = Readonly<{id: string; kind: 'part' | 'conversions' | 'recordings'; name: string; bytes?: number; folder?: string; external?: boolean; problem?: string}>;
 const inside = (folder: string, root: string) => {
   const trim = (path: string) => path.replace(/[\\/]+$/, '');
   return trim(folder) === trim(root) || trim(folder).startsWith(`${trim(root)}/`) || trim(folder).startsWith(`${trim(root)}\\`);
 };
 export function storageUsageLines(storage: ServerStorage): readonly StorageUsageLine[] {
-  // The server names its own parts (database, artwork, conversions, logs, backups, reports, title-data); a loose file it
-  // does not name is grouped here by what it is (a database's journal, a key) or as other files, never shown by file name.
-  const group = (name: string) => /\.db(-wal|-shm)?$/.test(name) ? 'database' : /\.key$/.test(name) ? 'keys' : KNOWN_PARTS.has(name) ? name : 'other';
-  const sums = new Map<string, number>();
-  for (const part of storage.folders ?? []) if (part.bytes > 0) sums.set(group(part.name), (sums.get(group(part.name)) ?? 0) + part.bytes);
-  const parts: StorageUsageLine[] = [...sums].sort(([a], [b]) => (a === 'other' ? 1 : 0) - (b === 'other' ? 1 : 0)).map(([name, bytes]) => ({id: `part:${name}`, kind: 'part' as const, name, bytes}));
+  // The server names every part itself (#3300: database, keys, other-files and the data folder's own folders).
+  const parts: StorageUsageLine[] = (storage.folders ?? []).filter(part => part.bytes > 0).map(part => ({id: `part:${part.name}`, kind: 'part' as const, name: part.name, bytes: part.bytes}));
   const places = (kind: 'conversions' | 'recordings', list: Storage['conversions'] | undefined) => (list ?? [])
     .filter(place => !inside(place.folder, storage.dataFolder))
     .map(place => ({id: `${kind}:${place.folder}`, kind, name: kind, folder: place.folder, external: place.external,
