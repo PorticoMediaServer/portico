@@ -78,7 +78,7 @@ func (s *Service) Prepare(ctx context.Context, c Caller, itemID, from string) (*
 	if err != nil {
 		return nil, err
 	}
-	var ask Ask
+	ask := Ask{prepareAudio: true}
 	if sess, err := s.owned(from, c.Viewer, c.SignInID); err == nil {
 		running := s.snapshot(sess)
 		quality := running.Choice.Quality

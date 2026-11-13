@@ -134,8 +134,9 @@ func trackForPick(v db.PlaybackVersion, kind db.StreamKind, pick string) (db.Tra
 // Ask is what a request says about the choices. Nil leaves a choice to what is remembered
 // and then to the viewer's settings.
 type Ask struct {
-	VersionID string
-	Audio     *string
+	prepareAudio bool
+	VersionID    string
+	Audio        *string
 	// Subtitle is a track id, or "" for off.
 	Subtitle         *string
 	SubtitleDelivery string
@@ -439,7 +440,8 @@ func (s *Service) resolve(ctx context.Context, c Caller, device db.SessionDevice
 			return a
 		}
 		a.choice.Quality = ceiling(a.choice.Quality, ask.MaxKbps)
-		request := PlanRequest{Item: item, Version: version, Capabilities: capabilities, Choice: a.choice, Network: out.network,
+		request := PlanRequest{PrepareAudio: ask.prepareAudio, Item: item, Version: version, Capabilities: capabilities,
+			Choice: a.choice, Network: out.network,
 			Failures: failures, Preferences: prefs, Limits: limits}
 		request.AppLanguage = c.Language
 		a.plan, a.err = s.planner.Plan(request)

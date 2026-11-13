@@ -7,9 +7,13 @@ import {throwIfAborted} from '../abort-lifetime.ts';
 import type {OriginalChannelStart} from '../playback-v1/channel-control.ts';
 
 type PlaybackApi = {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
-/** Prepared audio joins are advertised by the rebuilt server's existing system document.
- * The legacy native listening owner remains off: it uses the old queue/progress protocol. */
-export function readPlaybackCapabilities(api: PlaybackApi, signal?: AbortSignal): Promise<unknown> {
+/** Native keeps ordinary playback until its own measured handover change lands. */
+export function readPlaybackCapabilities(_api: PlaybackApi, signal?: AbortSignal): Promise<unknown> {
+  throwIfAborted(signal);
+  return Promise.resolve({features: {}});
+}
+/** Web alone enables the rebuilt server's prepared audio joins. */
+export function readWebPlaybackCapabilities(api: PlaybackApi, signal?: AbortSignal): Promise<unknown> {
   throwIfAborted(signal);
   return api.request<{capabilities?: string[]}>(routePath('get_system'), 'GET', undefined, signal).then(system =>
     ({features: system.capabilities?.includes('queue-transitions') ? {queueTransitions: 'enabled'} : {}}));

@@ -1460,6 +1460,8 @@ export class V1QueuePlayer implements QueueController {
     if (this.disposed || !session || p.channel || p.phase !== 'ended' || p.session?.id !== session.id) {this.clearCompletionRetry();return;}
     if (this.endedId === session.id) return;
     this.endedId = session.id;
+    // An ordinary completion did not consume the prepared edge; release it for the next track.
+    this.invalidateAudioPreparation();
     const intent = p.intentId, epoch = this.epoch;
     const current = () => {const held=this.playback.getSnapshot();return !this.disposed&&epoch===this.epoch&&this.session?.id===session.id&&held.intentId===intent&&held.phase==='ended'&&held.session?.id===session.id;};
     void (async () => {
@@ -1623,11 +1625,11 @@ export class V1QueuePlayer implements QueueController {
   /** The server's music preferences are the effects (X-02); nothing is kept per device here. */
   async saveAudioEffects(): Promise<void> {}
 
-  /** Near the end of a playing, rendered track (the /v2 rule: at most min(40, 30×rate) seconds
-   * left), prepare the next entry's audio once. */
+  /** Near a music track's end, prepare its successor even when this cold first track
+   * started in the ordinary player. Its first join stays ordinary; later ready joins render. */
   private maybePrepareAudio(): boolean {
     const p = this.playback.getSnapshot(), e = p.audioEffects, session = this.session, header = this.header;
-    if (!this.transitions || this.disposed || !session || !header || session.kind !== 'audio' || p.session?.id !== session.id || !e.rendering || !audioTransitionsEnabled(e.settings) || p.channel || p.phase !== 'ready' || p.intent !== 'playing' || p.pendingSeek || p.failedSeek || this.audioAttempt === session.id || this.prepared) return false;
+    if (!this.transitions || this.disposed || !session || !header || session.kind !== 'audio' || p.session?.id !== session.id || !audioTransitionsEnabled(e.settings) || p.channel || p.phase !== 'ready' || p.intent !== 'playing' || p.pendingSeek || p.failedSeek || this.audioAttempt === session.id || this.prepared) return false;
     const remaining = p.duration - p.positionSeconds;
     if (remaining <= 0 || remaining > Math.min(40, 30 * e.rate) || !this.listening.mayTransition(remaining / Math.max(.25, e.rate))) return false;
     this.audioAttempt = session.id;
