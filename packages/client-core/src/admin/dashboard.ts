@@ -27,7 +27,8 @@ export const DASHBOARD_LOAD_SERIES={
  bandwidth:{unit:'mbps',metrics:['awayMbps','homeMbps']},
  processor:{unit:'percent',metrics:['processCPU','cpu']},
  memory:{unit:'percent',metrics:['processMemory','memory']},
- conversions:{unit:'count',metrics:['conversions']},
+ // Rule 12: conversions split into hardware and processor (a software fallback counts as processor); the tile is their total.
+ conversions:{unit:'count',metrics:['hardwareConversions','processorConversions']},
 } as const;
 const whole=(v:number)=>Number.isSafeInteger(v)&&v>=0;
 function invalid():never {throw Object.assign(new Error('Invalid Dashboard data.'),{code:'invalid_dashboard_data'});}

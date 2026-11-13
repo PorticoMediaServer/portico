@@ -5,7 +5,7 @@ import {healthDetail, healthPlot, healthTiles} from '../src/screens/dashboard/he
 
 const point = (t: number, v: number, status?: 'available' | 'limited', detail?: string): TelemetryPoint => ({t, v, ...(status ? {status} : {}), ...(detail ? {detail} : {})});
 function reading(): TelemetryReading {
-  const names: MetricName[] = ['cpu', 'memory', 'diskRead', 'diskWrite', 'netIn', 'netOut', 'gpuUsage', 'gpuMemory', 'gpuEncoder', 'processCPU', 'processMemory', 'homeMbps', 'awayMbps', 'hardwareConversions', 'softwareConversions'];
+  const names: MetricName[] = ['cpu', 'memory', 'diskRead', 'diskWrite', 'netIn', 'netOut', 'gpuUsage', 'gpuMemory', 'gpuEncoder', 'processCPU', 'processMemory', 'homeMbps', 'awayMbps', 'hardwareConversions', 'processorConversions'];
   return {window: '10m', period: '10m', from: '2026-01-01T00:00:00Z', until: '2026-01-01T00:10:00Z', timeZone: 'UTC', buckets: [], observedAt: 600,
     status: Object.fromEntries(names.map(name => [name, {status: 'unavailable', value: 0}])),
     series: Object.fromEntries(names.map(name => [name, []]))} as unknown as TelemetryReading;
