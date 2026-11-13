@@ -11,16 +11,18 @@ import (
 
 // Library is one library and the folders in it.
 type Library struct {
-	ID        int64
-	PublicID  string
-	Name      string
-	Kind      string
-	Language  string
-	Position  int
-	CreatedAt int64
-	UpdatedAt int64
-	Options   LibraryOptions
-	Paths     []LibraryPath
+	ID               int64
+	PublicID         string
+	Name             string
+	Kind             string
+	Language         string
+	MetadataProvider string
+	Region           string
+	Position         int
+	CreatedAt        int64
+	UpdatedAt        int64
+	Options          LibraryOptions
+	Paths            []LibraryPath
 }
 
 // How much of each file a scan reads.
@@ -115,13 +117,14 @@ type RemoteFolder struct {
 // NewLibrary is a library to make. With an IdempotencyKey, the same request sent twice makes
 // one library and answers with it both times.
 type NewLibrary struct {
-	Name, Kind, Language string
-	Folders              []string
-	RemoteFolders        []RemoteFolder
-	Options              LibraryOptions
-	UserID               int64
-	IdempotencyKey       string
-	RequestHash          string
+	Name, Kind, Language     string
+	MetadataProvider, Region string
+	Folders                  []string
+	RemoteFolders            []RemoteFolder
+	Options                  LibraryOptions
+	UserID                   int64
+	IdempotencyKey           string
+	RequestHash              string
 }
 
 // NewLibrary adds a library.
@@ -133,13 +136,16 @@ func (d *DB) NewLibrary(ctx context.Context, n NewLibrary) (Library, error) {
 	if !libraryKinds[n.Kind] {
 		return Library{}, invalid("unknown library kind %q", n.Kind)
 	}
+	if err := checkLibraryMetadata(n.Kind, n.MetadataProvider, n.Region); err != nil {
+		return Library{}, err
+	}
 	if err := n.Options.check(); err != nil {
 		return Library{}, err
 	}
 	now := time.Now()
 	var lib Library
 	err := d.write(ctx, User, func(tx *sql.Tx) error {
-		lib = Library{PublicID: NewID("lib"), Name: name, Kind: n.Kind, Language: n.Language, Options: n.Options,
+		lib = Library{PublicID: NewID("lib"), Name: name, Kind: n.Kind, Language: n.Language, MetadataProvider: n.MetadataProvider, Region: n.Region, Options: n.Options,
 			CreatedAt: now.UnixMilli(), UpdatedAt: now.UnixMilli()}
 		before, err := createdBefore(tx, n.UserID, n.IdempotencyKey, n.RequestHash)
 		if err != nil {
@@ -149,9 +155,9 @@ func (d *DB) NewLibrary(ctx context.Context, n NewLibrary) (Library, error) {
 			lib.PublicID = before
 			return tx.QueryRow(`SELECT id FROM libraries WHERE public_id = ?`, before).Scan(&lib.ID)
 		}
-		res, err := tx.Exec(`INSERT INTO libraries (public_id, name, kind, language, options, position, created_at, updated_at)
-			VALUES (?, ?, ?, nullif(?, ''), ?, (SELECT count(*) FROM libraries), ?, ?)`, lib.PublicID, name, n.Kind, n.Language,
-			n.Options.json(), lib.CreatedAt, lib.CreatedAt)
+		res, err := tx.Exec(`INSERT INTO libraries (public_id, name, kind, language, metadata_provider, options, position, created_at, updated_at)
+			VALUES (?, ?, ?, nullif(?, ''), nullif(?, ''), json_set(?, '$.region', ?), (SELECT count(*) FROM libraries), ?, ?)`,
+			lib.PublicID, name, n.Kind, n.Language, n.MetadataProvider, n.Options.json(), n.Region, lib.CreatedAt, lib.CreatedAt)
 		if err != nil {
 			return err
 		}

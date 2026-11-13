@@ -79,12 +79,18 @@ type LibraryFolder struct {
 
 // AdminLibrary is a library as its owner manages it.
 type AdminLibrary struct {
-	ID       string          `json:"id"`
-	Name     string          `json:"name"`
-	Kind     string          `json:"kind"`
-	Language string          `json:"language,omitempty"`
-	Folders  []LibraryFolder `json:"folders"`
-	Options  LibraryOptions  `json:"options"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Kind     string `json:"kind"`
+	Language string `json:"language,omitempty"`
+	// MetadataProvider is the chosen provider, resolved to the kind's default when none was saved.
+	MetadataProvider string `json:"metadataProvider"`
+	// MetadataProviders contains this kind's registered providers and local files; unavailable providers cannot be selected.
+	MetadataProviders []string `json:"metadataProviders"`
+	// Region is the saved video metadata region; empty uses the provider's default.
+	Region  *string         `json:"region,omitempty"`
+	Folders []LibraryFolder `json:"folders"`
+	Options LibraryOptions  `json:"options"`
 	// WatchNote is one sentence for where the watching switch is shown, while watching is
 	// on: what watching does not cover.
 	WatchNote          string     `json:"watchNote,omitempty"`
@@ -107,10 +113,12 @@ func (l AdminLibrary) reply(h http.Header) int {
 // LibraryCreate makes a library and starts its first scan. Kind is movies, shows, anime,
 // music, audiobooks, books or comics. Send an Idempotency-Key so a repeat does not make a second.
 type LibraryCreate struct {
-	Name     string   `json:"name"`
-	Kind     string   `json:"kind"`
-	Language string   `json:"language,omitempty"`
-	Folders  []string `json:"folders"`
+	Name             string   `json:"name"`
+	Kind             string   `json:"kind"`
+	Language         string   `json:"language,omitempty"`
+	MetadataProvider string   `json:"metadataProvider,omitempty"`
+	Region           string   `json:"region,omitempty"`
+	Folders          []string `json:"folders"`
 	// RemoteFolders are folders on the owner's remote sources. A library needs at least one
 	// folder of either kind.
 	RemoteFolders []RemoteFolderRef `json:"remoteFolders,omitempty"`
@@ -128,9 +136,11 @@ type RemoteFolderRef struct {
 // list: a folder no longer in it leaves the library with its titles, and files on disk are
 // not touched; an added folder is scanned.
 type LibraryEdit struct {
-	Name     *string   `json:"name,omitempty"`
-	Language *string   `json:"language,omitempty"`
-	Folders  *[]string `json:"folders,omitempty"`
+	Name             *string   `json:"name,omitempty"`
+	Language         *string   `json:"language,omitempty"`
+	MetadataProvider *string   `json:"metadataProvider,omitempty"`
+	Region           *string   `json:"region,omitempty"`
+	Folders          *[]string `json:"folders,omitempty"`
 	// RemoteFolders is the whole list of the library's folders on remote sources, as Folders
 	// is for folders on disks here.
 	RemoteFolders *[]RemoteFolderRef `json:"remoteFolders,omitempty"`
@@ -354,6 +364,11 @@ func (s *Server) libraryOut(r *http.Request, l db.AdminLibrary) (AdminLibrary, e
 	out := AdminLibrary{ID: l.PublicID, Name: l.Name, Kind: l.Kind, Language: l.Language, Folders: s.foldersOut(l.Library, l.Folders),
 		Options: libraryOptionsOut(l.Options), LastScanStartedAt: timePtr(l.ScanStartedAt), LastScanFinishedAt: timePtr(l.ScanFinishedAt),
 		Revision: strconv.FormatInt(l.Revision, 10)}
+	out.MetadataProvider = (db.LibrarySource{Kind: l.Kind, Provider: l.MetadataProvider}).ProviderName()
+	out.MetadataProviders = s.metadata.LibraryProviders(l.Kind)
+	if l.Kind == db.LibraryMovies || l.Kind == db.LibraryShows || l.Kind == db.LibraryAnime {
+		out.Region = &l.Region
+	}
 	if !l.Options.NoWatch {
 		out.WatchNote = watchNote
 	}
@@ -549,6 +564,9 @@ func (s *Server) checkRemoteFolders(ctx context.Context, refs []RemoteFolderRef,
 }
 
 func (s *Server) createLibrary(r *http.Request, req LibraryCreate) (AdminLibrary, error) {
+	if req.MetadataProvider != "" && !slices.Contains(s.metadata.LibraryProviders(req.Kind), req.MetadataProvider) {
+		return AdminLibrary{}, ErrField("metadataProvider", "This metadata provider is not available for this library.")
+	}
 	key := r.Header.Get("Idempotency-Key")
 	if len(key) > 128 {
 		return AdminLibrary{}, ErrInvalid("The Idempotency-Key is at most 128 characters.")
@@ -565,6 +583,7 @@ func (s *Server) createLibrary(r *http.Request, req LibraryCreate) (AdminLibrary
 	caller := CallerFrom(r.Context())
 	n := db.NewLibrary{Name: req.Name, Kind: req.Kind, Language: req.Language, Folders: req.Folders, RemoteFolders: remoteFolders,
 		UserID: caller.UserID, IdempotencyKey: key, RequestHash: requestHash(req)}
+	n.MetadataProvider, n.Region = req.MetadataProvider, req.Region
 	if req.Options != nil {
 		n.Options = optionsIn(*req.Options)
 	}
@@ -589,6 +608,10 @@ func (s *Server) editLibrary(r *http.Request, req LibraryEdit) (AdminLibrary, er
 		return AdminLibrary{}, err
 	}
 	edit := db.LibraryEdit{Name: req.Name, Language: req.Language, Folders: req.Folders}
+	edit.MetadataProvider, edit.Region = req.MetadataProvider, req.Region
+	if req.MetadataProvider != nil && *req.MetadataProvider != "" && !slices.Contains(s.metadata.LibraryProviders(lib.Kind), *req.MetadataProvider) {
+		return AdminLibrary{}, ErrField("metadataProvider", "This metadata provider is not available for this library.")
+	}
 	// An edit made on a copy of the library that has since changed is refused, when the app
 	// says which copy it was made on.
 	if header := strings.Trim(strings.TrimPrefix(r.Header.Get("If-Match"), "W/"), `"`); header != "" && header != "*" {

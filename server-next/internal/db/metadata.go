@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/sorttext"
@@ -24,6 +25,32 @@ type LibrarySource struct {
 
 // ProviderLocal is the provider of a library that uses local metadata only.
 const ProviderLocal = "local"
+
+// ProviderName is the library's chosen provider, or the default for its kind.
+func (s LibrarySource) ProviderName() string {
+	if s.Provider != "" {
+		return s.Provider
+	}
+	switch s.Kind {
+	case LibraryMovies, LibraryShows, LibraryAnime:
+		return "tmdb"
+	case LibraryMusic:
+		return "musicbrainz"
+	default:
+		return ProviderLocal
+	}
+}
+
+func checkLibraryMetadata(kind, provider, region string) error {
+	video := kind == LibraryMovies || kind == LibraryShows || kind == LibraryAnime
+	if len(provider) > 64 || strings.IndexFunc(provider, func(r rune) bool { return r < 'a' || r > 'z' }) >= 0 {
+		return invalid("invalid metadata provider name")
+	}
+	if region != "" && (!video || len(region) != 2 || region[0] < 'A' || region[0] > 'Z' || region[1] < 'A' || region[1] > 'Z') {
+		return invalid("a video library's metadata region is a two-letter country code")
+	}
+	return nil
+}
 
 // LibrarySource returns how one library gets its details.
 func (d *DB) LibrarySource(ctx context.Context, libraryID int64) (LibrarySource, error) {

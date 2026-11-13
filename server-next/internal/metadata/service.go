@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sync"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/contentrating"
@@ -37,18 +38,10 @@ type Service struct {
 	subtitles SubtitleProvider
 }
 
-// defaultProviders is the provider a library of each kind uses until the owner chooses.
-// A kind that is not here is local only.
-var defaultProviders = map[string]string{db.LibraryMovies: "tmdb", db.LibraryShows: "tmdb", db.LibraryAnime: "tmdb",
-	db.LibraryMusic: "musicbrainz"}
-
 // provider is the one provider a library uses, or nil for a library that uses local metadata
 // only or whose provider this server has no key for.
 func (s *Service) provider(src db.LibrarySource) Provider {
-	name := src.Provider
-	if name == "" {
-		name = defaultProviders[src.Kind]
-	}
+	name := src.ProviderName()
 	if name == db.ProviderLocal {
 		return nil
 	}
@@ -66,6 +59,21 @@ func (s *Service) Use(p Provider) {
 		s.Providers = map[string]Provider{}
 	}
 	s.Providers[p.Name()] = p
+}
+
+// LibraryProviders lists only registered providers that serve this library's kind, plus local files.
+func (s *Service) LibraryProviders(kind string) []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	names := []string{db.ProviderLocal}
+	video := kind == db.LibraryMovies || kind == db.LibraryShows || kind == db.LibraryAnime
+	for name := range s.Providers {
+		if (name == "tmdb" || name == "tvdb") && video || name == "anilist" && kind == db.LibraryAnime || name == "musicbrainz" && kind == db.LibraryMusic {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 // Asks reports whether a library (a public id) has a provider to ask: one that uses local
