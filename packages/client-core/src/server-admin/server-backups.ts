@@ -11,7 +11,8 @@ import type {BackupSummary} from '../administration.ts';
  */
 export type {BackupInspection};
 export type RestoreTarget = Readonly<{id: string} | {path: string}>;
-export type RestoreProof = Readonly<{password: string; code?: string; notMadeHereConfirmed?: boolean}>;
+/** What a restore sends. The passphrase is for a protected backup only; nothing here keeps it after the request. */
+export type RestoreProof = Readonly<{password: string; code?: string; notMadeHereConfirmed?: boolean; passphrase?: string}>;
 /** The owner's `backups` settings document: the schedule, how many are kept, the folder and artwork. */
 export type BackupSettings = Readonly<{days: readonly number[]; hour: number; keep: number; folder: string; includeArtwork: boolean}>;
 export type ServerBackupSnapshot = Readonly<{backups?: Backups; settings?: BackupSettings; list: readonly BackupSummary[]; staged?: RestoreStaged; restarting?: boolean; busy: boolean}>;
@@ -30,10 +31,24 @@ function backupSettings(values: unknown): BackupSettings {
     folder: typeof v.folder === 'string' ? v.folder : '', includeArtwork: v.includeArtwork === true});
 }
 const target = (t: RestoreTarget) => 'id' in t ? {id: t.id} : {path: t.path};
+/** The most a passphrase may be, as the server counts it (UTF-8 bytes). */
+export const BACKUP_PASSPHRASE_MAX_BYTES = 1024;
+export const passphraseTooLong = (phrase: string) => new TextEncoder().encode(phrase).length > BACKUP_PASSPHRASE_MAX_BYTES;
+
+/**
+ * The server refused the passphrase field. On inspect and restore it means the backup is protected and the
+ * phrase sent did not open it: either the phrase is wrong or the backup's first part is damaged, which the
+ * server cannot tell apart. On setting a passphrase it means the phrase is too long.
+ */
+export function passphraseRefused(error: unknown): boolean {
+  const e = error as {status?: unknown; code?: unknown; path?: unknown} | null;
+  return e?.status === 400 && e.code === 'invalid_request' && e.path === 'passphrase';
+}
 
 /** A listed backup in the shape the backup list draws. */
 export function backupSummary(b: Backups['items'][number]): BackupSummary {
-  return Object.freeze({id: b.id, createdAt: b.createdAt, kind: b.scheduled ? 'scheduled' : 'manual', schemaVersion: 0, serverVersion: b.version, bytes: b.size, path: ''});
+  // Each backup carries its own protection; the page-level flag only says how the next ones are made.
+  return Object.freeze({id: b.id, createdAt: b.createdAt, kind: b.scheduled ? 'scheduled' : 'manual', schemaVersion: 0, serverVersion: b.version, bytes: b.size, path: '', encrypted: b.protected === true});
 }
 
 /** A refusal that says this backup was not made here: the page shows the server's warning and asks for the typed word. */
@@ -87,9 +102,16 @@ export class ServerBackupSource {
     await this.command(s => callServer(this.api, 'DELETE /v1/admin/backups/{id}', {id, signal: s}), signal);
   }
 
-  /** What a backup holds and what restoring it does; a damaged one is refused here. */
-  inspect(t: RestoreTarget, signal?: AbortSignal): Promise<BackupInspection> {
-    return this.run(s => callServer(this.api, 'POST /v1/admin/backups/inspect', {body: target(t), signal: s}), signal);
+  /** What a backup holds and what restoring it does; a damaged one is refused here. A protected one needs its
+   * passphrase, and refuses a wrong one (`passphraseRefused`). */
+  inspect(t: RestoreTarget, signal?: AbortSignal, passphrase?: string): Promise<BackupInspection> {
+    return this.run(s => callServer(this.api, 'POST /v1/admin/backups/inspect', {body: {...target(t), ...(passphrase ? {passphrase} : {})}, signal: s}), signal);
+  }
+
+  /** Protects the backups made from now on with this passphrase, or with an empty one stops protecting them.
+   * Backups already made keep the protection they were made with. */
+  async setPassphrase(passphrase: string, signal?: AbortSignal): Promise<void> {
+    await this.command(s => callServer(this.api, 'PUT /v1/admin/backups/passphrase', {body: {passphrase}, signal: s}), signal);
   }
 
   /** Stages the restore for the next start. It throws `backup_not_made_here` until that is confirmed. */
@@ -97,7 +119,8 @@ export class ServerBackupSource {
     let staged!: RestoreStaged;
     await this.command(async s => {
       staged = await callServer(this.api, 'POST /v1/admin/backups/restore', {body: {...target(t), currentPassword: proof.password,
-        ...(proof.code ? {code: proof.code} : {}), ...(proof.notMadeHereConfirmed ? {notMadeHereConfirmed: true} : {})}, signal: s});
+        ...(proof.code ? {code: proof.code} : {}), ...(proof.notMadeHereConfirmed ? {notMadeHereConfirmed: true} : {}),
+        ...(proof.passphrase ? {passphrase: proof.passphrase} : {})}, signal: s});
       this.publish({staged});
     }, signal);
     return staged;

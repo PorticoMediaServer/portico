@@ -237,4 +237,13 @@ export const ownerConsoleMessages = {
   'server.backups.restarting': 'Restarting. You’ll be asked to sign in again.',
   'server.backups.folderUnwritable': 'Portico can’t write to this folder now. Backups fail until it can.',
   'server.backups.lastFailed': 'The last scheduled backup failed: {reason}',
+  'server.backups.protected': 'protected with a passphrase',
+  'server.backups.passphraseFuture': 'Backups made from now on need this passphrase to restore. Portico can’t recover it, so keep it somewhere safe. Backups already made keep the protection they were made with.',
+  'server.backups.passphraseTooLong': 'That passphrase is too long. Use a shorter one.',
+  'server.backups.passphraseOffTitle': 'Stop protecting new backups?',
+  'server.backups.passphraseOffBody': 'Backups made from now on won’t need a passphrase, and anyone with one of them can read the keys inside. Backups already protected still need the passphrase they were made with.',
+  'server.backups.passphraseOff': 'Stop protecting',
+  'server.backups.passphraseNeeded': 'Enter the passphrase this backup was made with.',
+  'server.backups.openBackup': 'Open backup',
+  'server.backups.savePassphrase': 'Save passphrase',
 } as const;
