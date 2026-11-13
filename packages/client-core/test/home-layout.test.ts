@@ -2,19 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {HomeService} from '../src/home-service.ts';
-import {HomeLayoutEditor} from '../src/home-layout-editor.ts';
+import {HomeLayoutEditor, homeDraftViewsFull} from '../src/home-layout-editor.ts';
+import {saveHomeLayoutSettings} from '../src/home-layout-settings.ts';
+import {presentError} from '../src/presentation/errors.ts';
 import {validateContentEntry} from '../src/library-content.ts';
 
 // Customize Home is saved as two of the profile's settings and applied by GET /v1/home.
 const settings = JSON.parse(readFileSync(new URL('./fixtures/next-preferences.json', import.meta.url), 'utf8'));
 const item = (id: string) => ({id, kind: 'movie', title: id, libraryId: 'lib_films', state: {watched: false, playCount: 0, favorite: false, inList: false}});
-function server(saved: Readonly<{order?: string[]; hidden?: string[]}> = {}) {
+function server(saved: Readonly<{order?: string[]; hidden?: string[]; views?: string[]}> = {}) {
   const sent: unknown[] = [];
-  let order = saved.order ?? [], hidden = saved.hidden ?? [], views: string[] = [], offline = false;
+  let order = saved.order ?? [], hidden = saved.hidden ?? [], views: string[] = saved.views ?? [], offline = false;
   // As GET /v1/home answers: in the saved order without hidden rows; with hidden=include, a hidden row in its place, named, with no items.
-  // As server-next does, a saved view's row comes only from home.savedViews.
+  // As server-next does, a saved view's row comes only from home.savedViews, and only the first four are filled: the rest
+  // come deferred, named, with no items.
   const rows = (include: boolean) => [{id: 'continue', title: 'Continue Watching', shape: 'landscape', items: [item('a')]}, {id: 'recently_added', title: 'Recently Added', shape: 'poster', items: [item('b')]},
-    ...views.map(id => ({id: 'view:' + id, title: 'Nineties drama', shape: 'poster', items: [item('c')], library: 'lib_films', query: 'genre=Drama'}))]
+    ...views.map((id, n) => ({id: 'view:' + id, title: 'View ' + id, shape: 'poster', items: n < 4 ? [item('c')] : [], ...(n < 4 ? {} : {deferred: true}), library: 'lib_films', query: 'genre=Drama'}))]
     .sort((x, y) => (order.indexOf(x.id) + 1 || 99) - (order.indexOf(y.id) + 1 || 99))
     .flatMap(row => row.id !== 'continue' && hidden.includes(row.id) ? include ? [{...row, items: [], hidden: true}] : [] : [row]);
   const asked: string[] = [];
@@ -60,6 +63,21 @@ test('a saved view added in Customize is still on Home after a reload, and takin
   assert.deepEqual((sent[1] as {values: Record<string, unknown>}).values['home.savedViews'], []);
   await reloaded.load();
   assert.deepEqual(reloaded.getSnapshot().document!.rows.map(row => row.id), ['continue', 'recently_added']);
+});
+
+test('Home holds at most 20 saved views: Customize lists all of them, adds no 21st, keeps them on a save, and refuses a longer list', async () => {
+  const twenty = Array.from({length: 20}, (_, n) => 'v' + n);
+  const {api, sent} = server({order: ['continue', 'recently_added', ...twenty.map(id => 'view:' + id)], views: twenty}), home = new HomeService(api), editor = new HomeLayoutEditor(home, {requestId: () => 'r', isCurrent: () => true});
+  await home.load(); await editor.load();
+  assert.equal(editor.getSnapshot().draft!.order.filter(id => id.startsWith('view:')).length, 20, 'the sixteen the server sent deferred are listed too');
+  assert.equal(homeDraftViewsFull(editor.getSnapshot().draft!), true);
+  editor.add({id: 'v20', kind: 'view', status: 'ready', name: 'v20', definition: {libraryId: 'lib_films', pivot: 'movies', query: null, sort: [], presentation: 'grid'}} as never);
+  assert.equal(editor.getSnapshot().draft!.order.includes('view:v20'), false, 'the 21st is not added');
+  editor.show('recently_added', false); assert.equal(await editor.save(), true);
+  assert.deepEqual((sent[0] as {values: Record<string, unknown>}).values['home.savedViews'], twenty, 'a save keeps every view on Home');
+  await assert.rejects(saveHomeLayoutSettings(api, 'web', {rowOrder: ['continue', ...twenty.map(id => 'view:' + id), 'view:v20'], hiddenRowIds: []}), (error: {code?: string; limit?: number}) => error.code === 'home_views_full' && error.limit === 20);
+  assert.equal(sent.length, 1, 'nothing is sent, so the order and hidden rows are not lost to a refused save');
+  assert.equal(presentError(Object.assign(new Error('x'), {code: 'home_views_full', limit: 20}), 'home', {operation: 'save'}).body, 'Home already has 20 of your saved views.');
 });
 
 test('after a restart Customize Home names a hidden row from the server and can show it again; Home itself never asks for hidden rows', async () => {

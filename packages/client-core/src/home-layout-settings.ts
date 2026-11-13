@@ -10,8 +10,12 @@
 import {homeDocument, homeViewResourceId, type HomeLayout, type HomeLayoutView, type HomeLayoutRowView} from './home.ts';
 import {parsePreferenceSnapshot, type DeviceClass} from './preferences.ts';
 import {callServer, type ServerRequester} from './query/server-api.ts';
+import {CodedError} from './server-messages.ts';
 
 const ORDER = 'home.rowOrder', HIDDEN = 'home.hiddenRowIds', VIEWS = 'home.savedViews';
+/** The server keeps at most 20 saved views on one Home (`home.savedViews`; 05-browse rule 44). A longer list would fail
+ * the whole save, the order and hidden rows with it, so Customize stops adding at this many and the save refuses more. */
+export const HOME_SAVED_VIEWS_MAX = 20;
 const kept = (error: unknown) => (error as {code?: unknown} | null)?.code === 'sync_pending';
 const list = (value: unknown): readonly string[] => Array.isArray(value) ? Object.freeze(value.filter((id): id is string => typeof id === 'string')) : Object.freeze([]);
 
@@ -26,7 +30,9 @@ export async function readHomeLayoutSettings(api: ServerRequester, deviceClass: 
     if (typeof raw.id !== 'string' || !raw.id || rows.some(row => row.id === raw.id)) continue;
     const row = shown.get(raw.id);
     if (row) rows.push(Object.freeze({id: row.id, title: row.title, kind: row.kind, artworkShape: row.artworkShape, required: row.required, hideable: row.hideable, reorderable: row.reorderable, hidden: false}));
-    else if (raw.hidden === true && typeof raw.title === 'string' && raw.title) rows.push(Object.freeze({id: raw.id, title: raw.title, kind: raw.id, artworkShape: raw.shape === 'landscape' || raw.shape === 'square' ? raw.shape : 'poster', required: false, hideable: true, reorderable: true, hidden: true}));
+    // A hidden row comes named with no items; so does a saved view's row the server sent deferred (Home fills only the
+    // first few). Both are on Home, so the editor lists them: a save that left them out would take them off.
+    else if ((raw.hidden === true || (raw as {deferred?: unknown}).deferred === true) && typeof raw.title === 'string' && raw.title) rows.push(Object.freeze({id: raw.id, title: raw.title, kind: raw.id, artworkShape: raw.shape === 'landscape' || raw.shape === 'square' ? raw.shape : 'poster', required: false, hideable: true, reorderable: true, hidden: raw.hidden === true}));
   }
   return Object.freeze({revision: 0, rowOrder, hiddenRowIds, rows: Object.freeze(rows)});
 }
@@ -36,6 +42,7 @@ export async function readHomeLayoutSettings(api: ServerRequester, deviceClass: 
  * in Customize stays on Home, and one taken out goes. */
 export async function saveHomeLayoutSettings(api: ServerRequester, deviceClass: DeviceClass, layout: Readonly<{rowOrder: readonly string[]; hiddenRowIds: readonly string[]}> | null, signal?: AbortSignal): Promise<HomeLayout> {
   const views = layout?.rowOrder.flatMap(id => homeViewResourceId(id) ?? []);
+  if (views && views.length > HOME_SAVED_VIEWS_MAX) throw Object.assign(new CodedError('home_views_full', `Home already has ${HOME_SAVED_VIEWS_MAX} of your saved views.`), {limit: HOME_SAVED_VIEWS_MAX});
   const values = layout ? {[ORDER]: [...layout.rowOrder], [HIDDEN]: [...layout.hiddenRowIds], [VIEWS]: views} : {[ORDER]: null, [HIDDEN]: null, [VIEWS]: null};
   try {await callServer(api, 'PATCH /v1/preferences', {body: {scope: 'profile-server', deviceClass, values}, signal});}
   // Kept on this device while the server is out of reach: it is sent later, and Home follows then.
