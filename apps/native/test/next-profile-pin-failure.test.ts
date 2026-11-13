@@ -11,7 +11,7 @@ import {profilePinFailureText} from '../src-next/screens/accounts/profile-pin-fa
 
 test('a wrong profile PIN says the PIN is not right', () => {
   const wrong = new ApiError(403, 'profile_pin_invalid', 'The request could not be completed.');
-  assert.equal(presentError(wrong, 'profiles').category, 'invalid-response', 'why the screens need this');
+  assert.equal(presentError(wrong, 'profiles').body, defaultI18n.t('accounts.profiles.pinFailed'));
   assert.equal(profilePinFailureText(wrong), defaultI18n.t('accounts.profiles.pinFailed'));
 });
 
