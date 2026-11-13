@@ -414,6 +414,26 @@ try {
       await page.getByText(/^0 of \d+ watched$/).waitFor();
       if (!requests.has('POST /v1/items/state:undo 204')) throw new Error('The server was not asked to undo.');
     });
+    await step('a show, a season and an album opened by their address land on their own pages, once', async () => {
+      const token = (await ownerToken()).token, get = async path => (await fetch(serverOrigin + path, {headers: {Authorization: 'Bearer ' + token}})).json();
+      const libraries = (await get('/v1/libraries')).items ?? [];
+      const first = async (kind, query) => (await get(`/v1/items?${query}&kind=${kind}&limit=1`)).items?.[0];
+      const tv = libraries.find(library => library.kind === 'shows'), music = libraries.find(library => library.kind === 'music');
+      const show = tv && await first('show', 'library=' + tv.id), season = show && await first('season', 'parent=' + show.id);
+      const album = music && await first('album', 'library=' + music.id);
+      for (const [view, item] of [['show', show], ['season', season], ['album', album]]) {
+        if (!item) throw new Error(`The seed has no ${view}.`);
+        let navigations = 0; const count = frame => {if (frame === page.mainFrame()) navigations++;};
+        page.on('framenavigated', count);
+        try {
+          await page.goto(`${origin}/item/${item.id}`, {waitUntil: 'domcontentloaded'});
+          await until(`The ${view}'s own page`, async () => new URL(page.url()).searchParams.get('view') === view && new URL(page.url()).searchParams.get('entityId') === item.id, 150);
+          await until(`The ${view} "${item.title}" drawn`, async () => (await page.locator('main').innerText()).includes(item.title), 200);
+          const settled = navigations; await new Promise(resolve => setTimeout(resolve, 3000));
+          if (navigations !== settled) throw new Error(`The ${view} page went on navigating (${navigations - settled} more).`);
+        } finally {page.off('framenavigated', count);}
+      }
+    });
   }
   // Settings. A second browser is a second device of the same kind (web) on the same profile.
   const other = await browser.newContext({viewport: {width: 1440, height: 900}}), second = await other.newPage();
