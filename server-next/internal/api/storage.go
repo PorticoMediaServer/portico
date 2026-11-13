@@ -47,8 +47,7 @@ type Storage struct {
 
 // FolderUsage is what one part of the data folder uses.
 type FolderUsage struct {
-	// Name is database, artwork, conversions, logs, backups, reports, title-data, or the name
-	// of anything else in the data folder.
+	// Name is a storage group, never a file or folder name from the server.
 	Name  string `json:"name"`
 	Bytes int64  `json:"bytes"`
 }
@@ -119,9 +118,25 @@ func level(st Storage, limits StorageSettings) string {
 	return "ok"
 }
 
-// partNames gives the data folder's own files and folders the names the page shows.
-var partNames = map[string]string{"main.db": "database", "main.db-wal": "database", "main.db-shm": "database",
-	"search.db": "database", "guide.db": "database", "transcodes": "conversions"}
+// storagePart keeps machine file names out of the owner's usage groups.
+func storagePart(name string) string {
+	name = strings.ToLower(name)
+	base := strings.TrimSuffix(strings.TrimSuffix(name, "-wal"), "-shm")
+	if strings.HasSuffix(base, ".db") || strings.HasSuffix(base, ".sqlite") || strings.HasSuffix(base, ".sqlite3") {
+		return "database"
+	}
+	if strings.HasSuffix(name, ".key") || strings.HasSuffix(name, ".pem") {
+		return "keys"
+	}
+	switch name {
+	case "database", "artwork", "conversions", "logs", "backups", "reports", "title-data", "keys", "metadata", "cache", "temp":
+		return name
+	case "transcodes":
+		return "conversions"
+	default:
+		return "other-files"
+	}
+}
 
 func storageUsage(ctx context.Context, dataDir string) (Storage, error) {
 	abs, err := filepath.Abs(dataDir)
@@ -139,10 +154,7 @@ func storageUsage(ctx context.Context, dataDir string) (Storage, error) {
 	sizes := map[string]int64{}
 	for _, e := range entries {
 		name := e.Name()
-		part := partNames[name]
-		if part == "" {
-			part = name
-		}
+		part := storagePart(name)
 		err := filepath.WalkDir(filepath.Join(abs, name), func(_ string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return nil // gone or unreadable: not counted
