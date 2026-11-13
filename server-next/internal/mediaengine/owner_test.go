@@ -61,6 +61,8 @@ func TestEachStreamingSettingChangesExactlyWhatItIsFor(t *testing.T) {
 			func(c streaming.DeliveryConfiguration) bool { return c.SoftwareDecode }},
 		"three conversions at once": {func(s *settings.StreamingSettings) { s.ConversionsAtOnce = 3 }, []string{"MaxConversions"},
 			func(c streaming.DeliveryConfiguration) bool { return c.MaxConversions == 3 }},
+		"one conversion per graphics device": {func(s *settings.StreamingSettings) { s.HardwareConversionsAtOnce = 1 }, []string{"MaxHardwareConversions"},
+			func(c streaming.DeliveryConfiguration) bool { return c.MaxHardwareConversions == 1 }},
 		"tone mapping off": {func(s *settings.StreamingSettings) { s.ToneMapping = false }, []string{"ToneMapping"},
 			func(c streaming.DeliveryConfiguration) bool { return !c.ToneMapping }},
 		// These three are not the planner's: the away limits and the upload speed are applied

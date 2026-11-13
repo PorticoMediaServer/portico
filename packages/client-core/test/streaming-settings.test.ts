@@ -99,3 +99,22 @@ test('the processor cap appears only when honoured and saves independently of ot
   await source.save('streaming.maxSoftwareConversions', '4');
   assert.deepEqual(f.calls.at(-1)?.body, {processorConversionsAtOnce: 4});
 });
+
+
+test('the per-device graphics cap reads Automatic and saves the owner cap', async () => {
+  const f = fixture();
+  const source = new OwnerStreamingSettings({...f.api, request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    const doc: any = await f.api.request(path, method, body);
+    if (path.endsWith('/settings/streaming')) {
+      doc.values = {...doc.values, hardwareConversionsAtOnce: 2};
+      doc.defaults = {...doc.defaults, hardwareConversionsAtOnce: 0};
+    }
+    return doc;
+  }});
+  const configuration = await source.readConfiguration();
+  const value = readSettingsBinding(settingsBinding('streaming.maxHardwareConversions')!, {configuration}, 'streaming.maxHardwareConversions');
+  assert.equal(value?.current, '2');
+  assert.equal(value?.default, 'auto');
+  await source.save('streaming.maxHardwareConversions', 'auto');
+  assert.deepEqual(f.calls.at(-1)?.body, {hardwareConversionsAtOnce: 0});
+});

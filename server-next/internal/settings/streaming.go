@@ -34,6 +34,8 @@ type StreamingSettings struct {
 	ConversionsAtOnce int `json:"conversionsAtOnce"`
 	// ProcessorConversionsAtOnce limits picture conversions on the processor alone; 0 is no limit.
 	ProcessorConversionsAtOnce int `json:"processorConversionsAtOnce"`
+	// HardwareConversionsAtOnce caps each observed graphics device; 0 uses its own capacity.
+	HardwareConversionsAtOnce int `json:"hardwareConversionsAtOnce"`
 	// BackgroundConversionsAtOnce caps prepared copies made in the background, independently
 	// of plays. Zero adds no owner cap; work already running completes.
 	BackgroundConversionsAtOnce int `json:"backgroundConversionsAtOnce"`
@@ -86,6 +88,9 @@ func checkStreaming(s *StreamingSettings) error {
 	}
 	if !slices.Contains([]int{0, 1, 2, 3, 4, 6}, s.ProcessorConversionsAtOnce) {
 		return &Invalid{Field: "processorConversionsAtOnce", Message: "Choose no limit, 1, 2, 3, 4 or 6 conversions."}
+	}
+	if !slices.Contains([]int{0, 1, 2, 3, 5, 8}, s.HardwareConversionsAtOnce) {
+		return &Invalid{Field: "hardwareConversionsAtOnce", Message: "Choose Automatic, 1, 2, 3, 5 or 8 conversions per device."}
 	}
 	s.ConversionFolder, s.FFmpegProgram = strings.TrimSpace(s.ConversionFolder), strings.TrimSpace(s.FFmpegProgram)
 	for _, f := range []struct{ name, value string }{{"conversionFolder", s.ConversionFolder}, {"ffmpegProgram", s.FFmpegProgram}} {

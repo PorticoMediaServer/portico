@@ -15,6 +15,7 @@ const rows: Readonly<Record<string, readonly [DocumentName | 'limits', string]>>
   'streaming.hardware': ['streaming', 'graphicsDevice'],
   'streaming.hardwareDecode': ['streaming', 'hardwareDecoding'],
   'streaming.maxConversions': ['streaming', 'conversionsAtOnce'],
+  'streaming.maxHardwareConversions': ['streaming', 'hardwareConversionsAtOnce'],
   'streaming.maxSoftwareConversions': ['streaming', 'processorConversionsAtOnce'],
   'streaming.maxBackgroundConversions': ['streaming', 'backgroundConversionsAtOnce'],
   'streaming.toneMapping': ['streaming', 'toneMapping'],

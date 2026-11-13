@@ -58,6 +58,7 @@ func delivery(owner settings.StreamingSettings) streaming.DeliveryConfiguration 
 	c.SoftwareDecode = !owner.HardwareDecoding
 	c.MaxConversions = owner.ConversionsAtOnce
 	c.MaxSoftwareConversions = owner.ProcessorConversionsAtOnce
+	c.MaxHardwareConversions = owner.HardwareConversionsAtOnce
 	c.ToneMapping = owner.ToneMapping
 	return c.Normalized()
 }

@@ -109,3 +109,8 @@ test('conversion preference and its disk folder have independent runtime binding
  assert.deepEqual(settingsBindingPatch(location,'memory'),{form:'runtime',values:{transcodeLocation:'memory'}});
  assert.deepEqual(settingsBindingPatch(folder,'/disk'),{form:'runtime',values:{temporaryDirectory:'/disk'}});
 });
+
+test('Automatic is the hardware cap default; other conversion limits still say No limit',()=>{
+ assert.equal(readSettingsBinding(settingsBinding('streaming.maxHardwareConversions')!,{forms:{runtime:{maxHardwareSessions:0}}})?.current,'auto');
+ assert.equal(readSettingsBinding(settingsBinding('streaming.maxSoftwareConversions')!,{forms:{runtime:{maxSoftwareSessions:0}}})?.current,'unlimited');
+});
