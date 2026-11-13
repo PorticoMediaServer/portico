@@ -21,6 +21,7 @@ import {WatchRoomPill} from './WatchRoomPill';
 import {WatchStartRoom} from './StartRoom';
 import {useTogetherBindings} from '../together/owner';
 import {playbackIdentity} from '@core/presentation/kit-model/index.ts';
+import {playingFailureOwner} from './failure-owner';
 import {castDisplayName} from '../../platform/cast';
 import {WatchInfoPanel} from './WatchInfoPanel';
 import {watchLossNotice} from './loss-copy';
@@ -150,6 +151,7 @@ export function useWatchPanels(binding:WatchBindings|undefined,snapshot:WebPlayb
   ...(trickplay?{trickplay}:{}),
   ...(queue?{queue}:{}),
   ...(convertingOwnerAction?{convertingOwnerAction}:{}),
+  ...(snapshot?.playback.phase==='error'&&canManage&&ownerContext?{failureOwner:playingFailureOwner(snapshot,i18n,snapshot.subject?playbackIdentity(snapshot.subject,'full',i18n).title:'')}:{}),
   ...(failureBody==='web.player.error.streamLimit'
     ?{streamLimit:<WatchStreamLimitSessions api={context.api} isCurrent={failedCurrent} excludeSessionId={snapshot.session?.id} reportError={binding.reportError}/>}:{}),
   ...(loss?{loss:{notice:loss,enabled:deviceDocument?.values['lossNotices']!==false}}:{}),

@@ -10,6 +10,7 @@ import {router} from '../../router';
 import {PlaybackFailure} from '../../kit/states/PlaybackFailure';
 import {WatchStreamLimitSessions} from './StreamLimitSessions';
 import compact from './start-problem.module.css';
+import {startFailureOwner} from './failure-owner';
 
 const t = defaultI18n.t;
 /** A refused start has no admitted fence/presentation. Its original HTTP owner is
@@ -29,6 +30,8 @@ export function WatchStartFailure({failure, authority, context, reportError}: {f
     return viewer.serverId === authority.serverId && viewer.authority === authority.authority && viewer.accountId === authority.accountId && viewer.profileId === authority.profileId
       && viewer.authority === 'local' && viewer.role === 'owner' && identity?.primaryProfile === true && identity.capabilities?.manageServer === true;
   };
+  // states f8/f10: the owner of a server they manage also sees what was refused, behind the owner's mark.
+  const owner = mayConfigure() ? startFailureOwner(failure.code, defaultI18n) : undefined;
   const configure = ['transcode_not_allowed', 'transcoding_disabled'].includes(failure.code) && mayConfigure() ? () => {
     if (!mayConfigure()) return;
     failure.cancel();void router.navigate({to: '/settings', search: {scope: 'server', section: 'streaming'}}).catch(reportError);
@@ -50,7 +53,7 @@ export function WatchStartFailure({failure, authority, context, reportError}: {f
         }
       }
     }}>
-    <PlaybackFailure layout="compact" error={failure.code} heading={limit ? t('next.states.streamLimit', {count: limit.playing}) : undefined} sentence={sentence}
+    <PlaybackFailure layout="compact" owner={owner} error={failure.code} heading={limit ? t('next.states.streamLimit', {count: limit.playing}) : undefined} sentence={sentence}
       onRetry={failure.retryable && (failure.scope !== 'account' || failure.automaticRecoveryExhausted) ? failure.retry : undefined} onClose={configure ?? failure.cancel}
       closeLabel={configure ? t('web.player.error.turnOnConverting') : t('action.close')} onError={reportError}>
       {failure.scope === 'account' && <WatchStreamLimitSessions failure={failure} isCurrent={failure.isCurrent} reportError={reportError}/>}
