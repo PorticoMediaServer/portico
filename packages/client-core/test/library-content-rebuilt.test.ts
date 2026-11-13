@@ -234,6 +234,14 @@ test('a series page is its volumes in volume order; an author page is the person
   nav.dispose();
 });
 
+test("an author's page counts their titles in this library, not the person's titles everywhere", async () => {
+  // The people answer counts every library and kind (here 15); the page's Books section is this library's (here 1).
+  const nav = service(bookApi({id: 'per_1', name: 'Ada Adams', images: {}, titleCount: 15}).read);
+  await nav.select({libraryId: 'lib_a', view: 'author', entityId: 'per_1'});
+  assert.equal(nav.getSnapshot().projection?.entity?.count, 1);
+  nav.dispose();
+});
+
 test('an author page whose person read names someone else has no header, never theirs', async () => {
   const nav = service(bookApi({id: 'per_2', name: 'Someone Else', images: {}}).read);
   await nav.select({libraryId: 'lib_a', view: 'author', entityId: 'per_1'});

@@ -114,7 +114,10 @@ async function holderPage(api: ServerRequester, route: ContentRoute, bound: Cont
   const item = holder.person ? undefined : title as Item | undefined, person = holder.person ? title as Person | undefined : undefined;
   const found = person ? entryFromPerson(person, route.libraryId, 'author') : item ? entryFromItem(item, route.libraryId) : undefined;
   const artist = route.view === 'album' && item?.parent?.kind === 'artist' && item.parent.id ? {artist: Object.freeze({id: item.parent.id, name: item.parent.title})} : {};
-  const entity = found ? (({playback: _ignored, ...rest}) => Object.freeze({...rest, ...artist}))(found as Record<string, unknown> & {playback?: unknown}) as typeof found : undefined;
+  // An author's page counts their titles in this library (its Books section's total), not the
+  // person's titles across every library and kind the people answer counts.
+  const books = person && !page.next && wanted[0]?.id === 'books' && typeof lists[0]?.total === 'number' ? {count: lists[0].total} : {};
+  const entity = found ? (({playback: _ignored, ...rest}) => Object.freeze({...rest, ...artist, ...books}))(found as Record<string, unknown> & {playback?: unknown}) as typeof found : undefined;
   const start = page.next ? undefined : page.at ?? 0;
   const sections = wanted.flatMap((holderSection, n) => {
     const list = lists[n];
