@@ -51,6 +51,12 @@ import (
 
 // RemoteAccessSettings is the owner's remote access document.
 type RemoteAccessSettings struct {
+	// AdvertisedInterface chooses the local interface announced to apps. Empty is automatic.
+	AdvertisedInterface string `json:"advertisedInterface"`
+	// Interfaces and InterfaceNote are current read-only facts, never saved.
+	Interfaces    []discovery.DiscoveryInterface `json:"interfaces,omitempty"`
+	InterfaceNote string                         `json:"interfaceNote,omitempty"`
+
 	// RemoteAccess is "on" or "off". Off refuses every connection from outside the home
 	// networks; a VPN counts as home once its range is in the home networks.
 	RemoteAccess string `json:"remoteAccess"`
@@ -143,6 +149,8 @@ func (v *RemoteAccessSettings) problem() (string, string) {
 		return "signInFromOutside", choice
 	case v.PortMapping != "automatic" && v.PortMapping != "off":
 		return "portMapping", choice
+	case len(v.AdvertisedInterface) > 128 || strings.ContainsAny(v.AdvertisedInterface, "\x00\r\n"):
+		return "advertisedInterface", "Choose an interface from the list."
 	case v.PublicPort < 1 || v.PublicPort > 65535:
 		return "publicPort", "Choose a port from 1 to 65535."
 	case v.OwnAddress.Enabled && !validHost(v.OwnAddress.Domain):
@@ -305,6 +313,7 @@ func (s *Server) applyCertificate(v RemoteAccessSettings) {
 	finder := s.access.finder
 	s.access.mu.RUnlock()
 	if finder != nil {
+		finder.SetInterface(v.AdvertisedInterface)
 		finder.Set(v.FindAtHome)
 	}
 }
@@ -615,6 +624,10 @@ func (s *Server) remoteAccessRoutes() {
 		_, saved, err := s.db.SettingDocument(r.Context(), remoteAccessKey)
 		v, _ := s.access.current()
 		v.revision = revision(saved)
+		v.Interfaces = discovery.Interfaces()
+		if v.AdvertisedInterface != "" && discovery.PreferredInterface(v.AdvertisedInterface, v.Interfaces) == "" {
+			v.InterfaceNote = "The selected interface is unavailable. Using Automatic until it returns."
+		}
 		v.Warning, v.IPv6Note = s.dlnaWarning(v.DLNA), s.ipv6OpeningNote(v)
 		return v, err
 	})
@@ -730,6 +743,7 @@ func cleanRemoteAccess(v *RemoteAccessSettings) error {
 	}
 	v.OwnAddress.Domain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(v.OwnAddress.Domain), "."))
 	v.IPv6Note = ""
+	v.Interfaces, v.InterfaceNote = nil, ""
 	if field, message := v.problem(); field != "" {
 		return ErrField(field, message)
 	}

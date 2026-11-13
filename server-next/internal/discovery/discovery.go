@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -146,9 +147,10 @@ type Announcer struct {
 	log    *slog.Logger
 	record Record
 
-	mu      sync.Mutex
-	on      bool
-	changed chan struct{}
+	mu        sync.Mutex
+	on        bool
+	preferred string
+	changed   chan struct{}
 }
 
 // New makes an announcer for record. It is off until Set turns it on.
@@ -170,6 +172,20 @@ func (a *Announcer) Set(on bool) {
 	}
 }
 
+// SetInterface changes the interface used for announcements. Empty is automatic.
+func (a *Announcer) SetInterface(name string) {
+	a.mu.Lock()
+	differs := a.preferred != name
+	a.preferred = name
+	a.mu.Unlock()
+	if differs {
+		select {
+		case a.changed <- struct{}{}:
+		default:
+		}
+	}
+}
+
 func (a *Announcer) isOn() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -179,6 +195,8 @@ func (a *Announcer) isOn() bool {
 // Run answers until ctx ends. When it is turned off, or stops, it says goodbye so apps drop
 // the server from their lists at once.
 func (a *Announcer) Run(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
 	for {
 		if a.isOn() {
 			a.serve(ctx)
@@ -187,6 +205,7 @@ func (a *Announcer) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-a.changed:
+		case <-ticker.C:
 		}
 	}
 }
@@ -200,7 +219,14 @@ type socket struct {
 func (a *Announcer) serve(ctx context.Context) {
 	var socks []socket
 	ifaces, _ := net.Interfaces()
+	a.mu.Lock()
+	interfaces := Interfaces()
+	preferred := PreferredInterface(a.preferred, interfaces)
+	a.mu.Unlock()
 	for _, iface := range ifaces {
+		if preferred != "" && iface.Name != preferred {
+			continue
+		}
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagMulticast == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
@@ -256,15 +282,33 @@ func (a *Announcer) serve(ctx context.Context) {
 			}
 		}
 	}
-	select {
-	case <-ctx.Done():
-	case <-a.changed:
-		// Run looks at the switch again; put the signal back for it.
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+waiting:
+	for {
 		select {
-		case a.changed <- struct{}{}:
-		default:
+		case <-ctx.Done():
+			break waiting
+		case <-ticker.C:
+			if reflect.DeepEqual(interfaces, Interfaces()) {
+				continue
+			}
+			select {
+			case a.changed <- struct{}{}:
+			default:
+			}
+			break waiting
+		case <-a.changed:
+			// Run looks at the switch again; put the signal back for it.
+			select {
+			case a.changed <- struct{}{}:
+			default:
+			}
+			break waiting
 		}
 	}
+
 	close(stop)
 	for _, s := range socks {
 		s.conn.WriteToUDP(answer(a.record, s.addr, 0), group)

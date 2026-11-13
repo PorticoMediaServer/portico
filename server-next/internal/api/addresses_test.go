@@ -2,7 +2,9 @@ package api
 
 import (
 	"crypto/tls"
+	"github.com/PorticoMediaServer/portico/server-next/internal/discovery"
 	"net/netip"
+	"strings"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
@@ -109,5 +111,35 @@ func TestEnhancedAnswersAtThePublishedPorticoName(t *testing.T) {
 func TestIPv6NameUsesServicesCanonicalEdgeCompression(t *testing.T) {
 	if got := porticoName(netip.MustParseAddr("2606:4700::"), "fixture.portico.direct"); got != "2606-4700-0-0-0-0-0-0.fixture.portico.direct" {
 		t.Fatal(got)
+	}
+}
+
+// The saved choice filters local routes; losing it restores automatic discovery.
+func TestPreferredNetworkInterface(t *testing.T) {
+	ip := netip.MustParseAddr
+	all := []discovery.DiscoveryInterface{{Name: "eth0", Addresses: []string{"192.168.1.2"}}, {Name: "wg0", Addresses: []string{"10.1.0.2"}}}
+	mine := []interfaceAddress{{"eth0", ip("192.168.1.2")}, {"wg0", ip("10.1.0.2")}}
+	networks := auth.Networks{Home: []netip.Prefix{netip.MustParsePrefix("192.168.0.0/16"), netip.MustParsePrefix("10.0.0.0/8")}}
+	chosen := discovery.PreferredInterface("wg0", all)
+	if got := advertisedHomeAddresses(mine, ip("192.168.1.2"), networks, chosen); len(got) != 1 || got[0] != ip("10.1.0.2") {
+		t.Fatalf("chosen interface: %v", got)
+	}
+	chosen = discovery.PreferredInterface("gone", all)
+	if chosen != "" {
+		t.Fatal("missing interface did not fall back to automatic")
+	}
+	if got := advertisedHomeAddresses(mine, ip("192.168.1.2"), networks, chosen); len(got) != 1 || got[0] != ip("192.168.1.2") {
+		t.Fatalf("automatic fallback: %v", got)
+	}
+	s := newTestServer(t)
+	token := setupFrom(t, s, "127.0.0.1", SetupRemote{}).AccessToken
+	settings := get[RemoteAccessSettings](t, s, token, "/v1/admin/settings/remote-access")
+	settings.AdvertisedInterface = "gone"
+	if code := reach(s, "PUT", "/v1/admin/settings/remote-access", token, "127.0.0.1", "localhost", false, settings).Code; code != 200 {
+		t.Fatal(code)
+	}
+	settings = get[RemoteAccessSettings](t, s, token, "/v1/admin/settings/remote-access")
+	if settings.AdvertisedInterface != "gone" || !strings.Contains(settings.InterfaceNote, "Using Automatic") {
+		t.Fatalf("fallback row: %+v", settings)
 	}
 }
