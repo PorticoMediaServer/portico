@@ -53,7 +53,7 @@ func (d *DB) continueRow(ctx context.Context, v Viewer, reading, library string)
 		return nil, err
 	}
 	// Read from the viewer's own recent state, newest first, and stop at a row's worth.
-	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns+` FROM user_item_state s CROSS JOIN items i ON i.id = s.item_id
+	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+` FROM user_item_state s CROSS JOIN items i ON i.id = s.item_id
 		WHERE s.profile_id = @viewer_profile AND s.last_played_at > @since AND s.played = 0 AND s.last_played_at > ifnull(s.continue_dismissed_at, 0)
 		AND (s.position_ms > 0 OR s.position_text IS NOT NULL) AND i.kind `+reading+fmt.Sprintf(" (%d, %d, %d) AND ", KindBook, KindComic, KindIssue)+
 		acc.visible("i")+`
@@ -153,7 +153,7 @@ func (d *DB) RecentlyAddedIn(ctx context.Context, v Viewer, library string) ([]I
 	for n, title := range titles {
 		list[n], place[title.id] = title.id, n
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns+itemFrom+`i.id IN `+intList(list)+` AND `+acc.visible("i"), v.args()...)
+	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+itemFrom+`i.id IN `+intList(list)+` AND `+acc.visible("i"), v.args()...)
 	if err != nil {
 		return nil, err
 	}

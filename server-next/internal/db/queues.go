@@ -201,7 +201,7 @@ func (d *DB) QueueEntries(ctx context.Context, v Viewer, publicID string, from, 
 	if err != nil || limit <= 0 {
 		return nil, q, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns+`, e.id, e.added, i.available, ifnull(p.title, ''), ifnull(r.title, '')
+	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+`, e.id, e.added, i.available, ifnull(p.title, ''), ifnull(r.title, '')
 		FROM queue_entries e JOIN items i ON i.id = e.item_id
 		LEFT JOIN items p ON p.id = i.parent_id LEFT JOIN items r ON r.id = i.root_id
 		LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id

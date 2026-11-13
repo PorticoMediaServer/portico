@@ -110,7 +110,7 @@ func (d *DB) History(ctx context.Context, v Viewer, since int64, cursor string, 
 	}
 	items := map[int64]*Item{}
 	if len(ids) > 0 {
-		list, err := queryAll(ctx, tx, `SELECT `+itemColumns+itemFrom+`i.id IN `+intList(ids), v.args(),
+		list, err := queryAll(ctx, tx, `SELECT `+itemColumns(acc)+itemFrom+`i.id IN `+intList(ids), v.args(),
 			func(it *Item) []any { return it.dest() })
 		if err != nil {
 			return page, err

@@ -461,7 +461,7 @@ func itemsByID(ctx context.Context, tx *sql.Tx, v Viewer, acc access, list []int
 	if len(list) == 0 {
 		return nil, nil
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns+itemFrom+`i.id IN `+intList(list)+` AND `+acc.visible("i")+where, v.args()...)
+	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+itemFrom+`i.id IN `+intList(list)+` AND `+acc.visible("i")+where, v.args()...)
 	if err != nil {
 		return nil, err
 	}
@@ -561,7 +561,7 @@ func (d *DB) MoreLikeThis(ctx context.Context, v Viewer, itemID string) ([]Item,
 		for n, k := range how.kinds {
 			kinds[n] = int64(k)
 		}
-		rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns+` FROM item_external_ids x CROSS JOIN items i ON i.id = x.item_id
+		rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+` FROM item_external_ids x CROSS JOIN items i ON i.id = x.item_id
 			LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id
 			WHERE x.provider = @provider AND x.external_id = @external AND i.parent_id IS NULL AND i.kind IN `+intList(kinds)+` AND `+acc.visible("i")+`
 			ORDER BY i.id`, append(v.args(), sql.Named("provider", how.provider), sql.Named("external", external))...)

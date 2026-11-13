@@ -239,7 +239,7 @@ func (d *DB) Related(ctx context.Context, v Viewer, itemID string) (map[Relation
 	if err != nil {
 		return nil, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT r.kind, `+itemColumns+` FROM item_relations r CROSS JOIN items i ON i.id = r.related_item_id
+	rows, err := tx.QueryContext(ctx, `SELECT r.kind, `+itemColumns(acc)+` FROM item_relations r CROSS JOIN items i ON i.id = r.related_item_id
 		LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id
 		WHERE r.item_id = (SELECT id FROM items WHERE public_id = @id) AND `+acc.visible("i")+`
 		ORDER BY r.kind, r.position, `+volumeOrder+` LIMIT 500`, args...)

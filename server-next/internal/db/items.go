@@ -35,6 +35,7 @@ type Item struct {
 	RootID          int64
 	ParentPublicID  string
 	RootPublicID    string
+	RootTitle       string
 	LibraryID       string // the library's public id, so a card can build the address of its page
 	Images          []Image
 	State           State
@@ -245,11 +246,16 @@ func (c *listCursor) fits(spec sortSpec) bool {
 	return len(c.Values) == len(spec.columns)
 }
 
-const itemColumns = `i.id, i.public_id, i.kind, i.title, i.sort_title, ifnull(i.year, 0), ifnull(i.release_date, ''), i.publication, i.word_count, i.added_at,
+// itemColumns reads names only for roots the viewer may see. An episode can have
+// a lower rating than its show, so visibility of the item alone is not enough.
+func itemColumns(acc access) string {
+	return `i.id, i.public_id, i.kind, i.title, i.sort_title, ifnull(i.year, 0), ifnull(i.release_date, ''), i.publication, i.word_count, i.added_at,
 	ifnull(i.duration_ms, 0), i.index_number, i.parent_index, i.child_count, ifnull(i.content_rating, ''),
 	ifnull(i.community_rating, 0), ifnull(i.parent_id, 0), ifnull(i.root_id, 0),
 	ifnull((SELECT public_id FROM items WHERE id = i.parent_id), ''), ifnull((SELECT public_id FROM items WHERE id = i.root_id), ''),
-	(SELECT public_id FROM libraries WHERE id = i.library_id), ` + stateColumns
+	(SELECT public_id FROM libraries WHERE id = i.library_id),
+	ifnull((SELECT title FROM items root WHERE root.id = i.root_id AND ` + acc.visible("root") + `), ''), ` + stateColumns
+}
 
 const stateJoin = ` LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id WHERE `
 
@@ -259,7 +265,7 @@ const itemFrom = ` FROM items i` + stateJoin
 func (it *Item) dest() []any {
 	return append([]any{&it.ID, &it.PublicID, &it.Kind, &it.Title, &it.sortTitle, &it.Year, &it.ReleaseDate, &it.Publication, &it.WordCount, &it.AddedAt,
 		&it.DurationMS, &it.IndexNumber, &it.ParentIndex, &it.ChildCount, &it.ContentRating, &it.CommunityRating,
-		&it.ParentID, &it.RootID, &it.ParentPublicID, &it.RootPublicID, &it.LibraryID}, it.State.dest()...)
+		&it.ParentID, &it.RootID, &it.ParentPublicID, &it.RootPublicID, &it.LibraryID, &it.RootTitle}, it.State.dest()...)
 }
 
 func scanItem(row interface{ Scan(...any) error }, it *Item, extra ...any) error {
@@ -339,13 +345,13 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	// Rows with a sort value first, then the rows without one.
 	nulls := tail || cursor != nil && cursor.Nulls
 	if !nulls {
-		if err := listRun(ctx, tx, where, spec, q, cursor, false, &page); err != nil {
+		if err := listRun(ctx, tx, acc, where, spec, q, cursor, false, &page); err != nil {
 			return page, err
 		}
 		cursor = nil
 	}
 	if spec.nullable && len(page.Items) <= q.Limit {
-		if err := listRun(ctx, tx, where, spec, q, cursor, true, &page); err != nil {
+		if err := listRun(ctx, tx, acc, where, spec, q, cursor, true, &page); err != nil {
 			return page, err
 		}
 	}
@@ -483,7 +489,7 @@ func total(ctx context.Context, tx *sql.Tx, where *query, acc access) (int, erro
 }
 
 // listRun reads one run of a page: the rows that have a sort value, or the rows that do not.
-func listRun(ctx context.Context, tx *sql.Tx, where *query, spec sortSpec, q ItemQuery, after *listCursor, nulls bool, page *ItemPage) error {
+func listRun(ctx context.Context, tx *sql.Tx, acc access, where *query, spec sortSpec, q ItemQuery, after *listCursor, nulls bool, page *ItemPage) error {
 	run := &query{args: append([]any(nil), where.args...)}
 	// First the ids of the page's rows, in order, and nothing else: when a list has to be
 	// sorted, every candidate row passes through here, so it carries only what the sort needs.
@@ -539,7 +545,7 @@ func listRun(ctx context.Context, tx *sql.Tx, where *query, spec sortSpec, q Ite
 		return err
 	}
 	// Then those rows in full, with the viewer's state.
-	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns+itemFrom+`i.id IN `+intList(found), where.args[:1]...)
+	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+itemFrom+`i.id IN `+intList(found), where.args[:1]...)
 	if err != nil {
 		return err
 	}

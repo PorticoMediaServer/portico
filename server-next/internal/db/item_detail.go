@@ -161,7 +161,7 @@ func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, e
 		return out, err
 	}
 	args := append(v.args(), sql.Named("id", publicID))
-	err = scanItem(tx.QueryRowContext(ctx, `SELECT `+itemColumns+`,
+	err = scanItem(tx.QueryRowContext(ctx, `SELECT `+itemColumns(acc)+`,
 		ifnull(i.original_title, ''), ifnull(i.summary, ''), ifnull(i.tagline, ''), ifnull(i.edition, ''),
 		ifnull(i.critic_rating, 0), i.available`+itemFrom+`i.public_id = @id AND `+acc.visible("i"), args...),
 		&out.Item, &out.OriginalTitle, &out.Summary, &out.Tagline, &out.Edition, &out.CriticRating, &out.Available)
@@ -470,7 +470,7 @@ func (d *DB) Person(ctx context.Context, v Viewer, publicID string) (Person, err
 	}
 	// Crew is stored before cast: acting's billing position counts only acting credits.
 	// Directors and writers (including creators) rank with the lead; each title appears once.
-	p.KnownFor, err = queryAll(ctx, tx, `SELECT `+itemColumns+` FROM items i JOIN credits c ON c.item_id = i.id`+stateJoin+`
+	p.KnownFor, err = queryAll(ctx, tx, `SELECT `+itemColumns(acc)+` FROM items i JOIN credits c ON c.item_id = i.id`+stateJoin+`
 		c.person_id = @person AND i.kind IN (1, 2, 6, 8, 9, 10, 11) AND `+acc.visible("i")+` GROUP BY i.id
 		ORDER BY min(CASE WHEN c.role IN (@director, @writer) THEN 0 WHEN c.role IN (@actor, @guest) THEN
 			(SELECT count(*) FROM credits prior WHERE prior.item_id = c.item_id AND prior.position < c.position AND prior.role IN (@actor, @guest))

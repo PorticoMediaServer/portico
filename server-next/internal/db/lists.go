@@ -120,7 +120,7 @@ func readList(ctx context.Context, tx *sql.Tx, v Viewer, acc access, publicID st
 // loadCovers attaches the first four entries the viewer may see to each list.
 func loadCovers(ctx context.Context, tx *sql.Tx, v Viewer, acc access, lists []*List) error {
 	for _, l := range lists {
-		rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns+` FROM list_entries e CROSS JOIN items i ON i.id = e.item_id`+stateJoin+
+		rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+` FROM list_entries e CROSS JOIN items i ON i.id = e.item_id`+stateJoin+
 			`e.list_id = @list AND `+acc.visible("i")+` ORDER BY e.position LIMIT 4`, append(v.args(), sql.Named("list", l.ID))...)
 		if err != nil {
 			return err
@@ -284,7 +284,7 @@ func (d *DB) ListEntries(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, 
 			bound = ` AND e.position < ` + where.arg(after)
 		}
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns+`, e.id, e.position`+entries+where.pageWhere()+
+	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+`, e.id, e.position`+entries+where.pageWhere()+
 		bound+order+` LIMIT `+strconv.Itoa(limit+1), where.args...)
 	if err != nil {
 		return page, err

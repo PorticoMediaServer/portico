@@ -135,6 +135,7 @@ type Item struct {
 	ReleaseDate     string            `json:"releaseDate,omitempty"`
 	ParentID        string            `json:"parentId,omitempty"`
 	RootID          string            `json:"rootId,omitempty"`
+	RootTitle       string            `json:"rootTitle,omitempty"` // Names rootId; omitted if the root is hidden.
 	Index           *int              `json:"index,omitempty"`
 	ParentIndex     *int              `json:"parentIndex,omitempty"`
 	DurationMs      int64             `json:"durationMs,omitempty"`
@@ -492,7 +493,7 @@ func stateShape(s db.State) ItemState {
 
 func itemShape(it db.Item) Item {
 	out := Item{ID: it.PublicID, Kind: it.Kind.String(), Title: it.Title, Year: it.Year, ReleaseDate: it.ReleaseDate,
-		ParentID: it.ParentPublicID, RootID: it.RootPublicID, Index: it.IndexNumber, ParentIndex: it.ParentIndex,
+		ParentID: it.ParentPublicID, RootID: it.RootPublicID, RootTitle: it.RootTitle, Index: it.IndexNumber, ParentIndex: it.ParentIndex,
 		DurationMs: it.DurationMS, ContentRating: it.ContentRating, AddedAt: timeString(it.AddedAt), Images: imageMap(it.Images),
 		State: stateShape(it.State), LibraryID: it.LibraryID}
 	if it.Kind.Reading() {
