@@ -3,6 +3,7 @@ import test from 'node:test';
 import {PlaybackDock, playbackFence, type PlaybackFence, type QueuePlaybackFence} from '../../../packages/player-core/src';
 import {nativeShellBackTransition, type NativeShellVideoSnapshot} from '../src-next/shell/playback';
 import {NativeVideoSnapshotCapture} from '../src-next/shell/video-snapshot';
+import {VideoSnapshotError} from '../src-next/platform/video-snapshot';
 import type {ShellAuthority} from '../src-next/shell/model';
 
 const authority: ShellAuthority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch', viewerFence: 'viewer'};
@@ -131,6 +132,18 @@ test('capture failures report only while their source is current', async () => {
     active = current; const failure = new Error('capture-failed'); request.result.reject(failure); await pending;
     assert.deepEqual(state.errors, current ? [failure] : []);
     assert.deepEqual(state.shown, []); await state.owner.clear();
+  }
+});
+
+test('an unavailable transition frame quietly leaves artwork in place', async () => {
+  for (const failure of [new Error('snapshot_unavailable'), new VideoSnapshotError('snapshot_unavailable')]) {
+    const state = captures();
+    const pending = state.owner.prepare(fence, () => true); await state.started;
+    state.requests[0]!.result.reject(failure); await pending;
+    assert.equal(state.visible(), undefined);
+    assert.deepEqual(state.errors, []);
+    assert.deepEqual(state.shown, []);
+    await state.owner.clear();
   }
 });
 
