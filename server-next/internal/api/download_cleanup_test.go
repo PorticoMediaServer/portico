@@ -38,6 +38,9 @@ func TestOwnerDownloadCleanupKeepsDevicesAndSharedCopies(t *testing.T) {
 	addMember(t, rig.s, rig.owner, "member", "member")
 	member := signInAs(t, rig.s, "member", testPassword, 4).AccessToken
 	route := func(id string) string { return "/v1/admin/members/" + id + "/downloads" }
+	if code := status(t, rig.s, "DELETE", route("unknown-member"), rig.owner, nil); code != 404 {
+		t.Fatal(code)
+	}
 	if code := status(t, rig.s, "DELETE", route(ownerID), member, nil); code != 403 {
 		t.Fatal(code)
 	}
