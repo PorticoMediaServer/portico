@@ -3,7 +3,8 @@ import type {PressableProps, StyleProp, TextStyle, View, ViewStyle} from 'react-
 import type {TypeStyle} from '@portico/design';
 import type {IconName} from '../Icon';
 
-export type OverlayReason = 'close-button' | 'outside' | 'escape' | 'back' | 'action' | 'gesture';
+/** `covered`: the layer the overlay was opened from is now under a route or the player (TV); the overlay closes and is not done. */
+export type OverlayReason = 'close-button' | 'outside' | 'escape' | 'back' | 'action' | 'gesture' | 'covered';
 export type FocusTarget = {focus?: () => void; requestTVFocus?: () => void};
 export type FocusRef = React.RefObject<FocusTarget | null>;
 export type SurfaceProps = {
