@@ -122,6 +122,7 @@ const exact: Record<string, ErrorCategory> = {
   source_blocked: 'rate-limited',
   unsupported_version: 'unsupported-version', client_too_old: 'unsupported-version',
   storage_full: 'storage-full', insufficient_storage: 'storage-full',
+  profile_pin_invalid: 'invalid-input', profile_pin_locked: 'rate-limited',
   invalid_request: 'invalid-input', validation_failed: 'invalid-input', method_not_allowed: 'invalid-input',
   response_too_large: 'invalid-response', invalid_response: 'invalid-response', unreadable_response: 'invalid-response',
   artwork_pending: 'unavailable', artwork_gone: 'changed',
@@ -174,6 +175,8 @@ const codeBodies: Record<string, MessageId> = {
   factor_setup_required: 'error.factorSetupRequired',
   // The phone's Google or Apple sheet closed without an answer: cancelled or failed, the system can't say which.
   provider_cancelled: 'error.providerUnfinished',
+  profile_pin_invalid: 'accounts.profiles.pinFailed',
+  profile_pin_locked: 'accounts.profiles.pinFailed',
   // Portico Services' answers to the Portico Account's password and two-step code typed on a server's
   // page (Forgot PIN): its own sentences, not a 403's "your profile doesn't have access".
   password_wrong: 'next.account.problem.passwordWrong',
@@ -250,6 +253,9 @@ export function presentError(error: unknown, context: ErrorContext = 'generic', 
   const account = (options.service ?? (ACCOUNT_CONTEXTS.has(context) ? 'portico-account' : 'server')) === 'portico-account';
   if (account && accountBodies[category]) messageId = accountBodies[category]!;
   if (category === 'rate-limited' && f.retryAfterSeconds) { messageId = 'error.rateLimitedSeconds'; values = {seconds: f.retryAfterSeconds}; }
+  if ((f.code === 'profile_pin_invalid' || f.code === 'profile_pin_locked') && f.retryAfterSeconds) {
+    messageId = 'accounts.profiles.pinLocked'; values = {seconds: f.retryAfterSeconds};
+  }
   if (f.code === 'too-many-to-add' || f.code === 'home_views_full') values = {count: typeof (error as {limit?: unknown})?.limit === 'number' ? (error as {limit: number}).limit : f.code === 'home_views_full' ? 20 : 500};
   if (options.retrying && (category === 'unreachable' || category === 'offline' || category === 'timeout' || category === 'busy')) {
     messageId = category === 'offline' ? 'error.offlineRetrying' : account ? 'error.account.unreachableRetrying' : 'error.unreachableRetrying';

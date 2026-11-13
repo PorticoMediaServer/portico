@@ -13,8 +13,8 @@ export const enterContinuesProfile = (event: {key: string; isComposing?: boolean
 export function profileDialogText(error: unknown, lockSeconds: number, i18n: I18n = defaultI18n): Readonly<{pin?: string; failure?: string}> {
   if (!error) return {};
   const code = (error as {code?: unknown}).code;
-  if (code === 'profile_pin_invalid') return {pin: i18n.t('accounts.profiles.pinFailed')};
-  if (code === 'profile_pin_locked') return lockSeconds > 0 ? {pin: i18n.t('accounts.profiles.pinLocked', {seconds: lockSeconds})} : {};
+  if (code === 'profile_pin_invalid') return {pin: presentError(error, 'profiles', {i18n}).body};
+  if (code === 'profile_pin_locked') return lockSeconds > 0 ? {pin: presentError({code, retryAfterSeconds: lockSeconds}, 'profiles', {i18n}).body} : {};
   const presented = presentError(error, 'profiles', {operation: 'action', i18n});
   return presented.silent ? {} : {failure: presented.body};
 }
