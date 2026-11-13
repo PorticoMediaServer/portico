@@ -119,6 +119,8 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
   const scrimStyle = useAnimatedStyle(() => ({opacity: motion.reduce ? opacity.value : side ? sideProgress.value : Math.max(0, Math.min(1, shown.value / max))}));
   const footerStyle = useAnimatedStyle(() => ({opacity: opacity.value, transform: side || motion.reduce ? [] : [{translateY: shown.value - max + Math.max(0, (1 - shown.value / heights[0]) * footerHeight)}]}));
   const tvStyle = useAnimatedStyle(() => ({opacity: opacity.value, transform: motion.reduce ? [] : [{translateX: (1 - sideProgress.value) * sideWidth}]}));
+  // A sheet's footer holds its own way out (a confirm sheet's Cancel under its verb, states.html 4): the header Done
+  // is only for a sheet with no footer, so a sheet never offers both Done and Cancel.
   const close = <Button testID={testID ? `${testID}-close` : undefined} focusId="close" ref={closeRef} variant="text" size="small" style={theme.isTV ? undefined : {height: 24, paddingHorizontal: 0}} textStyle={{color: theme.colors.textSecondary}} hitSlop={theme.isTV ? undefined : 10} onPress={() => dismiss('close-button')}>{defaultI18n.t('action.done')}</Button>;
   if (!present || !paint.visible) return null;
   const body = <View style={[styles.body, contentStyle]}>{scrollable ? <ScrollView ref={scrollRef} onLayout={revealFocusedInput} onScroll={event => {scrollOffset.current = event.nativeEvent.contentOffset.y;}} scrollEventThrottle={16} onContentSizeChange={(_width, height) => setBodyHeight(Math.max(0, height - contentPadding))} scrollEnabled={page || side || settled === heights.length - 1} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom: page ? 0 : contentPadding}}>{children}</ScrollView> : <View style={fitContent ? undefined : [styles.body, {paddingBottom: page || side ? 0 : contentPadding}]} onLayout={event => setBodyHeight(event.nativeEvent.layout.height)}>{children}</View>}</View>;
@@ -139,7 +141,7 @@ export function BottomSheet({open, onOpenChange, title, description, children, f
               onAccessibilityAction={event => {if (event.nativeEvent.actionName === 'dismiss') {if (dismissOnGesture) dismiss('gesture');} else choose(index + (event.nativeEvent.actionName === 'increment' ? 1 : -1));}}>
               {showGrabber && <View style={[styles.grabber, {backgroundColor: theme.colors.lineStrong}]}/>}
             </View>
-            {headerContext}{headerContent !== undefined ? headerContent : <SurfaceHeader side={side} inset={!side} title={title} description={description} titleType={titleType} titleTextStyle={titleTextStyle} descriptionTextStyle={descriptionTextStyle} action={headerAction ?? (!side && showClose ? close : undefined)}/>}
+            {headerContext}{headerContent !== undefined ? headerContent : <SurfaceHeader side={side} inset={!side} title={title} description={description} titleType={titleType} titleTextStyle={titleTextStyle} descriptionTextStyle={descriptionTextStyle} action={headerAction ?? (!side && showClose && footer == null ? close : undefined)}/>}
           </Animated.View></GestureDetector>
           {body}
           {!page && (footer != null || side && showClose) && <Animated.View onLayout={event => setFooterHeight(event.nativeEvent.layout.height)}
