@@ -45,14 +45,13 @@ test('General on TV edits its bound rows, the alert thresholds and notice routin
 });
 
 test('an exact server value is drawn as itself, never rounded to a named choice', () => {
-  const storage = state('storage', {runtime, maintenance: {...maintenance(), backupKeepCount: 9}});
-  const keep = items(storage).find(item => item.id === 'storage.backupKeep') as any;
-  assert.ok(keep, 'backups to keep is editable on TV');
-  const exact = keep.options.find((option: any) => option.value === keep.value);
-  assert.ok(exact);
-  if (!section('storage').groups!.flatMap(group => group.rows).find(row => row.id === 'storage.backupKeep')!.control.options!.some(option => String(option.value) === keep.value)) assert.equal(exact.disabled, true);
-  // The folder is chosen with the phone's explorer and is not drawn as a TV row.
+  const storage = state('storage', {runtime: {...runtime, analysisStorageGiB: 40}, maintenance: maintenance()});
+  const space = items(storage, true).find(item => item.id === 'storage.analysisSpace') as any;
+  assert.ok(space);
+  const exact = space.options.find((option: any) => option.value === space.value);
+  assert.ok(exact);assert.equal(exact.value, '40');assert.equal(exact.disabled, true);
   assert.equal(ids(storage).includes('storage.backupFolder'), false);
+  assert.equal(ids(storage).includes('storage.backupKeep'), false, 'a retired maintenance document cannot supply the backups document');
 });
 
 test('Custom stores a window mode or the current removal days; other customs only open their exact rows', () => {

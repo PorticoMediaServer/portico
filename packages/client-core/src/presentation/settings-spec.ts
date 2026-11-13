@@ -1,7 +1,7 @@
 import type {MessageId} from '../../../i18n/src/index.ts';
 
 /** Approved Settings structure. Runtime facts and mutations come from checked bindings. */
-export const settingsDesignRevision = '4462e4747f9294afc9b0ab32693b14213884a786';
+export const settingsDesignRevision = '9c6f5fa6cbd22b515395be64df45aaf0c90b90be';
 export type SettingsPlatform = 'web' | 'phone' | 'tv' | 'desktop';
 export type SettingsOperatingSystem = 'android' | 'ios' | 'ipados' | 'tvos' | 'androidtv' | 'firetv' | 'roku' | 'webos' | 'tizen' | 'windows' | 'macos' | 'linux' | 'browser';
 export type SettingsValue = string | number | boolean | null | readonly SettingsValue[] | Readonly<{[key: string]: SettingsValue}>;
@@ -14711,30 +14711,11 @@ export const settingsSpec: readonly SettingsSection[] = [
             "label": "next.settingsSpec.server.storage.groups.1.rows.1.label",
             "help": "next.settingsSpec.server.storage.groups.1.rows.1.help",
             "control": {
-              "type": "select",
-              "default": "7",
-              "options": [
-                {
-                  "value": "3",
-                  "label": "next.settingsSpec.server.storage.groups.1.rows.1.control.options.0.label"
-                },
-                {
-                  "value": "7",
-                  "label": "next.settingsSpec.server.storage.groups.1.rows.1.control.options.1.label"
-                },
-                {
-                  "value": "14",
-                  "label": "next.settingsSpec.server.storage.groups.1.rows.1.control.options.2.label"
-                },
-                {
-                  "value": "30",
-                  "label": "next.settingsSpec.server.storage.groups.1.rows.1.control.options.3.label"
-                },
-                {
-                  "value": "custom",
-                  "label": "next.settingsSpec.server.storage.groups.1.rows.1.control.options.4.label"
-                }
-              ]
+              "type": "number",
+              "default": 7,
+              "min": 1,
+              "max": 365,
+              "step": 1
             }
           },
           {
@@ -14748,27 +14729,15 @@ export const settingsSpec: readonly SettingsSection[] = [
               "options": [
                 {
                   "value": "nightly",
-                  "label": "next.settingsSpec.server.storage.groups.1.rows.2.control.options.0.label"
-                },
-                {
-                  "value": "weekdays",
-                  "label": "next.settingsSpec.server.storage.groups.1.rows.2.control.options.1.label"
-                },
-                {
-                  "value": "weekends",
-                  "label": "next.settingsSpec.server.storage.groups.1.rows.2.control.options.2.label"
-                },
-                {
-                  "value": "weekly",
-                  "label": "next.settingsSpec.server.storage.groups.1.rows.2.control.options.3.label"
+                  "label": "next.settings.backup.everyNight"
                 },
                 {
                   "value": "custom",
-                  "label": "next.settingsSpec.server.storage.groups.1.rows.2.control.options.4.label"
+                  "label": "next.settings.backup.chosenDays"
                 },
                 {
                   "value": "never",
-                  "label": "next.settingsSpec.server.storage.groups.1.rows.2.control.options.5.label"
+                  "label": "next.settings.backup.never"
                 }
               ]
             },
@@ -14776,117 +14745,178 @@ export const settingsSpec: readonly SettingsSection[] = [
               {
                 "id": "storage.backupTime",
                 "scope": "server",
-                "key": "backup.start_time",
+                "key": "backup.hour",
                 "enableWhen": {
                   "id": "storage.backupSchedule",
                   "in": [
                     "nightly",
-                    "weekdays",
-                    "weekends",
-                    "weekly",
                     "custom"
-                  ]
+                  ],
+                  "hide": true
                 },
                 "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.label",
                 "control": {
                   "type": "select",
-                  "default": "180",
+                  "default": "3",
                   "options": [
                     {
                       "value": "0",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.0.label"
                     },
                     {
-                      "value": "60",
+                      "value": "1",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.1.label"
                     },
                     {
-                      "value": "120",
+                      "value": "2",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.2.label"
                     },
                     {
-                      "value": "180",
+                      "value": "3",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.3.label"
                     },
                     {
-                      "value": "240",
+                      "value": "4",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.4.label"
                     },
                     {
-                      "value": "300",
+                      "value": "5",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.5.label"
                     },
                     {
-                      "value": "360",
+                      "value": "6",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.6.label"
                     },
                     {
-                      "value": "420",
+                      "value": "7",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.7.label"
                     },
                     {
-                      "value": "480",
+                      "value": "8",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.8.label"
                     },
                     {
-                      "value": "540",
+                      "value": "9",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.9.label"
                     },
                     {
-                      "value": "600",
+                      "value": "10",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.10.label"
                     },
                     {
-                      "value": "660",
+                      "value": "11",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.11.label"
                     },
                     {
-                      "value": "720",
+                      "value": "12",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.12.label"
                     },
                     {
-                      "value": "780",
+                      "value": "13",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.13.label"
                     },
                     {
-                      "value": "840",
+                      "value": "14",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.14.label"
                     },
                     {
-                      "value": "900",
+                      "value": "15",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.15.label"
                     },
                     {
-                      "value": "960",
+                      "value": "16",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.16.label"
                     },
                     {
-                      "value": "1020",
+                      "value": "17",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.17.label"
                     },
                     {
-                      "value": "1080",
+                      "value": "18",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.18.label"
                     },
                     {
-                      "value": "1140",
+                      "value": "19",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.19.label"
                     },
                     {
-                      "value": "1200",
+                      "value": "20",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.20.label"
                     },
                     {
-                      "value": "1260",
+                      "value": "21",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.21.label"
                     },
                     {
-                      "value": "1320",
+                      "value": "22",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.22.label"
                     },
                     {
-                      "value": "1380",
+                      "value": "23",
                       "label": "next.settingsSpec.server.storage.groups.1.rows.2.children.0.control.options.23.label"
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "storage.backupDays",
+                "scope": "server",
+                "key": "backup.chosen_days",
+                "enableWhen": {
+                  "id": "storage.backupSchedule",
+                  "in": [
+                    "custom"
+                  ],
+                  "hide": true
+                },
+                "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.label",
+                "control": {
+                  "type": "matrix",
+                  "columns": [
+                    {
+                      "value": "runs",
+                      "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.columns.0.label"
+                    },
+                    {
+                      "value": "skips",
+                      "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.columns.1.label"
+                    }
+                  ],
+                  "items": [
+                    {
+                      "id": "monday",
+                      "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.items.0.label",
+                      "default": "runs"
+                    },
+                    {
+                      "id": "tuesday",
+                      "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.items.1.label",
+                      "default": "runs"
+                    },
+                    {
+                      "id": "wednesday",
+                      "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.items.2.label",
+                      "default": "runs"
+                    },
+                    {
+                      "id": "thursday",
+                      "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.items.3.label",
+                      "default": "runs"
+                    },
+                    {
+                      "id": "friday",
+                      "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.items.4.label",
+                      "default": "runs"
+                    },
+                    {
+                      "id": "saturday",
+                      "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.items.5.label",
+                      "default": "runs"
+                    },
+                    {
+                      "id": "sunday",
+                      "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.items.6.label",
+                      "default": "runs"
                     }
                   ]
                 }
@@ -15432,27 +15462,6 @@ export const settingsSpec: readonly SettingsSection[] = [
           "title": "next.settingsSpec.server.storage.advanced.groups.3.title",
           "rows": [
             {
-              "id": "storage.backupKeepExact",
-              "scope": "server",
-              "key": "storage.backups_to_keep_exact",
-              "enableWhen": {
-                "id": "storage.backupKeep",
-                "in": [
-                  "custom"
-                ]
-              },
-              "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.0.label",
-              "help": "next.settingsSpec.server.storage.advanced.groups.3.rows.0.help",
-              "control": {
-                "type": "number",
-                "default": 7,
-                "unit": "next.settingsSpec.server.storage.advanced.groups.3.rows.0.control.unit",
-                "min": 1,
-                "max": 365,
-                "step": 1
-              }
-            },
-            {
               "id": "storage.backupArtwork",
               "scope": "server",
               "key": "backup.include_artwork",
@@ -15489,107 +15498,6 @@ export const settingsSpec: readonly SettingsSection[] = [
                   }
                 }
               ]
-            },
-            {
-              "id": "storage.backupWindowLength",
-              "scope": "server",
-              "key": "backup.window_hours",
-              "enableWhen": {
-                "id": "storage.backupSchedule",
-                "in": [
-                  "nightly",
-                  "weekdays",
-                  "weekends",
-                  "weekly",
-                  "custom"
-                ]
-              },
-              "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.3.label",
-              "help": "next.settingsSpec.server.storage.advanced.groups.3.rows.3.help",
-              "control": {
-                "type": "select",
-                "default": "4",
-                "options": [
-                  {
-                    "value": "1",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.3.control.options.0.label"
-                  },
-                  {
-                    "value": "2",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.3.control.options.1.label"
-                  },
-                  {
-                    "value": "4",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.3.control.options.2.label"
-                  },
-                  {
-                    "value": "8",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.3.control.options.3.label"
-                  }
-                ]
-              }
-            },
-            {
-              "id": "storage.backupDays",
-              "scope": "server",
-              "key": "backup.chosen_days",
-              "enableWhen": {
-                "id": "storage.backupSchedule",
-                "in": [
-                  "custom"
-                ]
-              },
-              "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.label",
-              "control": {
-                "type": "matrix",
-                "columns": [
-                  {
-                    "value": "runs",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.columns.0.label"
-                  },
-                  {
-                    "value": "skips",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.columns.1.label"
-                  }
-                ],
-                "items": [
-                  {
-                    "id": "monday",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.items.0.label",
-                    "default": "runs"
-                  },
-                  {
-                    "id": "tuesday",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.items.1.label",
-                    "default": "runs"
-                  },
-                  {
-                    "id": "wednesday",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.items.2.label",
-                    "default": "runs"
-                  },
-                  {
-                    "id": "thursday",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.items.3.label",
-                    "default": "runs"
-                  },
-                  {
-                    "id": "friday",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.items.4.label",
-                    "default": "runs"
-                  },
-                  {
-                    "id": "saturday",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.items.5.label",
-                    "default": "runs"
-                  },
-                  {
-                    "id": "sunday",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.3.rows.4.control.items.6.label",
-                    "default": "runs"
-                  }
-                ]
-              }
             }
           ]
         },
