@@ -1,8 +1,11 @@
 package api
 
 import (
+	"context"
 	"slices"
 	"testing"
+
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
 // A saved view keeps a library's sort and filters and opens with them. A filter naming
@@ -43,5 +46,38 @@ func TestSavedViewOpensWithWhatStillExists(t *testing.T) {
 	}
 	if w := th.queue("POST", "/v1/lists/"+made.ID+"/entries", "", ListAdd{Items: []string{th.film}}, nil); w.Code != 400 {
 		t.Fatalf("adding to a saved view answered %d", w.Code)
+	}
+}
+
+// Deleting a title removes every occurrence from a playlist; its summary and items must agree.
+func TestListCountAfterTitleDeletion(t *testing.T) {
+	th := newTheatre(t)
+	var made ListCreated
+	if w := th.queue("POST", "/v1/lists", "", ListCreate{Kind: "playlist", Name: "Films", Items: []string{th.film, th.eps[0], th.film}}, &made); w.Code != 201 {
+		t.Fatalf("creating the list: %d %s", w.Code, w.Body)
+	}
+	var summary List
+	if w := th.queue("GET", "/v1/lists/"+made.ID, "", nil, &summary); w.Code != 200 || summary.Count != 3 {
+		t.Fatalf("before deletion: %d %s", w.Code, w.Body)
+	}
+	// Complete the same database deletion used after the files have been removed from disk.
+	ctx := context.Background()
+	del, err := th.s.db.ItemDeletion(ctx, db.Viewer{UserID: 1, ProfileID: 1}, th.film)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var files []int64
+	for _, file := range del.Files {
+		files = append(files, file.ID)
+	}
+	if err := th.s.db.Deleted(ctx, del, files); err != nil {
+		t.Fatal(err)
+	}
+	var page ItemPage
+	if w := th.queue("GET", "/v1/items?list="+made.ID+"&total=true", "", nil, &page); w.Code != 200 || len(page.Items) != 1 || page.Items[0].ID != th.eps[0] {
+		t.Fatalf("remaining items: %d %s", w.Code, w.Body)
+	}
+	if w := th.queue("GET", "/v1/lists/"+made.ID, "", nil, &summary); w.Code != 200 || summary.Count != len(page.Items) {
+		t.Fatalf("after deletion: summary count %d, items %d: %d %s", summary.Count, len(page.Items), w.Code, w.Body)
 	}
 }
