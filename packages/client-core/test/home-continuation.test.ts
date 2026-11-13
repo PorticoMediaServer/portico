@@ -4,6 +4,7 @@ import {homeContinuationCard, homeContinuationSource} from '../src/presentation/
 import {cardText} from '../src/presentation/kit-model/index.ts';
 import {contentEntrySubject} from '../src/presentation/content-entry-subject.ts';
 import {defaultI18n} from '../../i18n/src/index.ts';
+import {fetchHome} from '../src/home.ts';
 import type {ContentEntry} from '../src/library-content.ts';
 
 const env = {t: defaultI18n.t, locale: 'en-US'};
@@ -41,4 +42,20 @@ test('nothing is guessed: no known time left, or another row, keeps the card as 
   assert.equal(homeContinuationCard('listen_next', ordinary, text(album, true)), ordinary, 'an album with no resume keeps artist and year');
   const bookCard = text(book, false);
   assert.equal(homeContinuationCard('new_on_server', bookCard, text(book, true)), bookCard);
+});
+
+
+test('the rebuilt next episode uses the existing continuation card with its show name on web, phone and TV', async () => {
+  const document = await fetchHome({request: async <T>() => ({rows: [{id: 'continue', title: 'Continue Watching', shape: 'landscape', items: [{
+    id: 'next-episode', kind: 'episode', title: 'Lies', rootId: 'show', rootTitle: 'Dark', index: 2, parentIndex: 1,
+    libraryId: 'shows', addedAt: '2026-11-12T00:00:00Z', images: {}, durationMs: 3600000,
+    state: {watched: false, positionMs: 0, favorite: false, inList: false, notInterested: false, playCount: 0},
+  }]}]}) as T});
+  const entry = document.rows[0]!.entries[0]!;
+  assert.deepEqual(entry.show, {id: 'show', name: 'Dark'});
+  assert.deepEqual(entry.playback, {itemId: 'next-episode'});
+  const model = text(entry, true);
+  assert.equal(model.title, 'Dark');
+  assert.ok(model.caption.some(part => part.id === 'episode-title' && part.text === 'Lies'));
+  assert.ok(model.caption.some(part => part.id === 'episode-label' && part.text === 'S1 E2'));
 });

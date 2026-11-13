@@ -32,6 +32,7 @@ export function entryFromItem(item: Item, libraryId?: string): ContentEntry | un
   const kind = entryKinds[item.kind];
   if (!kind || !item.id) return undefined;
   const state = item.state, counts = item.counts, view = holderViews[item.kind], library = item.libraryId ?? libraryId;
+  const root = item.root ?? (item.rootId && item.rootTitle ? {id: item.rootId, title: item.rootTitle} : undefined);
   const picture = item.images?.poster ?? item.images?.cover ?? item.images?.thumb;
   const numbered = item.kind === 'episode' ? {episodeNumber: item.index, seasonNumber: item.parentIndex}
     : item.kind === 'season' ? {seasonNumber: item.index}
@@ -50,7 +51,7 @@ export function entryFromItem(item: Item, libraryId?: string): ContentEntry | un
     seasonCount: item.kind === 'show' ? counts?.children : undefined,
     available: item.available, missing: item.available === false ? true : undefined,
     genres: item.tags?.filter(tag => tag.kind === 'genre').map(tag => tag.name),
-    show: item.kind === 'episode' && item.root ? {id: item.root.id, name: item.root.title} : undefined,
+    show: item.kind === 'episode' && root ? {id: root.id, name: root.title} : undefined,
     ...numbered,
     navigation: {view: view ?? 'item', entityId: item.id},
     playback: view ? undefined : {itemId: item.id, ...(state?.positionMs ? {startSeconds: Math.round(state.positionMs / 1000)} : {})},
