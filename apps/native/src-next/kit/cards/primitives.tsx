@@ -157,32 +157,29 @@ export function ArtFrame({children, width, height, radius, focused, selected, ho
  * A card's fact line. `fit` says what happens when the facts do not fit on one line:
  * - `cut` (TV and fixed slots): each fact ellipsizes;
  * - `wrap` (rows with room: episode and search rows): a fact that does not fit moves to the next line whole;
- * - `drop` (under a poster or square, where a grid gives the caption a fixed height): the line stays one line and the
- *   facts at the end that do not fit are left out whole (owner's rule: a secondary fact gives way first). The hidden
- *   facts stay in the card's spoken details.
+ * - `drop` (under a poster or square, where a grid gives the caption a fixed height): one line, always whole. Every fact
+ *   takes the same fixed line height and the box is exactly that line, so no fact is taller than the box; facts that do
+ *   not fit wrap out of it and are left out whole from the end (owner's rule: a secondary fact gives way first). Only the
+ *   first fact may shrink, when it stands alone, and then it ends in "…". The hidden facts stay in the card's spoken name.
  */
 export function Parts({parts = [], style, gap = 8, strong = false, fit = 'cut'}: {parts?: readonly FactPart[]; style?: StyleProp<TextStyle>; gap?: number; strong?: boolean; fit?: 'cut' | 'wrap' | 'drop'}) {
   const t = useTheme();
   if (!parts.length) return null;
-  const textStyle = (part: FactPart) => factStyle(t, part, strong, style);
-  if (fit === 'drop') return <OneLineParts parts={parts} gap={gap} textStyle={textStyle}/>;
+  const textStyle = (part: FactPart): StyleProp<TextStyle> => [
+    t.type.cardSubtitle, {color: t.colors.textTertiary, flexShrink: part.role === 'context' ? 0 : 1},
+    (strong || part.role === 'identity' || part.role === 'status') && {fontFamily: t.type.captionStrong.fontFamily, color: part.role === 'status' ? t.colors.accentStrong : t.colors.textSecondary}, style,
+  ];
+  if (fit === 'drop') {
+    // The caption token's size sets one line for every fact; the system text size scales a Text's line height and this box alike.
+    const line = Math.ceil((StyleSheet.flatten([t.type.cardSubtitle, style]).fontSize ?? 12) * factLineRatio);
+    return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: gap, minWidth: 0, overflow: 'hidden', height: line * t.fontScale}}>{parts.map((part, index) =>
+      <Text key={part.id} numberOfLines={1} ellipsizeMode="tail" style={[textStyle(part), {lineHeight: line, flexShrink: index === 0 ? 1 : 0}]}>{part.text}</Text>)}</View>;
+  }
   return <View style={{flexDirection: 'row', alignItems: 'baseline', minWidth: 0, overflow: 'hidden', ...(fit === 'wrap' ? {flexWrap: 'wrap', columnGap: gap, rowGap: 2} : {gap})}}>{parts.map(part =>
     <Text key={part.id} numberOfLines={1} ellipsizeMode="tail" style={textStyle(part)}>{part.text}</Text>)}</View>;
 }
-
-const factStyle = (t: Theme, part: FactPart, strong: boolean, style: StyleProp<TextStyle>): StyleProp<TextStyle> => [
-  t.type.cardSubtitle, {color: t.colors.textTertiary, flexShrink: part.role === 'context' ? 0 : 1},
-  (strong || part.role === 'identity' || part.role === 'status') && {fontFamily: t.type.captionStrong.fontFamily, color: part.role === 'status' ? t.colors.accentStrong : t.colors.textSecondary}, style,
-];
-
-/** `drop`: the facts wrap, and the box is one line tall, so whatever wrapped is clipped away whole. Its height is the first
- * fact's own measured line (system text size included); until then, the style's line at the system scale. */
-function OneLineParts({parts, gap, textStyle}: {parts: readonly FactPart[]; gap: number; textStyle: (part: FactPart) => StyleProp<TextStyle>}) {
-  const t = useTheme(), [line, setLine] = useState<number>();
-  const first = StyleSheet.flatten(textStyle(parts[0])), estimate = (first.lineHeight ?? (first.fontSize ?? 12) * 1.3) * t.fontScale;
-  return <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: gap, rowGap: 2, minWidth: 0, overflow: 'hidden', height: line ?? estimate}}>{parts.map((part, index) =>
-    <Text key={part.id} numberOfLines={1} ellipsizeMode="tail" onLayout={index === 0 ? event => {const height = event.nativeEvent.layout.height; if (height !== line) setLine(height);} : undefined} style={textStyle(part)}>{part.text}</Text>)}</View>;
-}
+/** A fact line's height as a share of its size in `drop` mode: room for a bold, status or fallback-font (CJK, emoji) fact. */
+const factLineRatio = 1.4;
 
 export function Caption({title, titleLines, caption, detail, density, titleTextStyle, titleMargin, captionTextStyle, selected, centered, focused, tvRestingSecondary, lines = titleLines ?? 1}: Pick<CardProps, 'title' | 'titleLines' | 'caption' | 'detail' | 'density' | 'titleTextStyle' | 'titleMargin' | 'captionTextStyle'> & {selected?: boolean; centered?: boolean; focused?: boolean; tvRestingSecondary?: boolean; lines?: number}) {
   const t = useTheme(), waiting = useFocusWaiting();
