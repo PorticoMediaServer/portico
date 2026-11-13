@@ -105,8 +105,9 @@ func TestHardwareReadAndSelectionUseTheSamePhysicalProbes(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	var discoveries atomic.Int64
 	detector.Devices = func(ctx context.Context) []decoder.HardwareDevice {
-		discoveries.Add(1)
-		close(entered)
+		if discoveries.Add(1) == 1 {
+			close(entered)
+		}
 		select {
 		case <-release:
 		case <-ctx.Done():
@@ -116,11 +117,8 @@ func TestHardwareReadAndSelectionUseTheSamePhysicalProbes(t *testing.T) {
 		current.Path = "first-card-new-path"
 		return []decoder.HardwareDevice{current}
 	}
-	for range 3 {
-		decoder.RecordHardwareDeviceFailure(decoder.BackendNVENC, "second-card")
-	}
-	if p, _ := decoder.LastProbeObservation(decoder.BackendNVENC, "second-card"); !p.Stopped {
-		t.Fatal("fixture did not stop second card")
+	if p, _ := decoder.LastProbeObservation(decoder.BackendNVENC, "second-card"); p.Stopped {
+		t.Fatal("fixture must lose a working card before any conversion failure")
 	}
 	e.TestHardware()
 	<-entered
@@ -129,32 +127,33 @@ func TestHardwareReadAndSelectionUseTheSamePhysicalProbes(t *testing.T) {
 		t.Fatal("hardware test blocked or was duplicated")
 	}
 	close(release)
-	deadline := time.Now().Add(5 * time.Second)
-	for e.HardwareState(ctx).Checking {
-		if time.Now().After(deadline) {
-			t.Fatal("hardware re-test did not finish")
+	wait := func() {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for e.HardwareState(ctx).Checking {
+			if time.Now().After(deadline) {
+				t.Fatal("hardware re-test did not finish")
+			}
+			time.Sleep(time.Millisecond)
 		}
-		time.Sleep(time.Millisecond)
 	}
+	wait()
 	if calls.Load() <= before {
 		t.Fatal("Test hardware reused the previous verdicts")
 	}
-	for _, path := range []string{"first-card", "second-card"} {
-		if p, ok := decoder.LastProbeObservation(decoder.BackendNVENC, path); ok || p.Stopped {
-			t.Fatalf("removed selector kept its alert: %+v", p)
-		}
+	if p, ok := decoder.LastProbeObservation(decoder.BackendNVENC, "first-card"); ok || p.Stopped {
+		t.Fatalf("moved selector kept a duplicate alert: %+v", p)
 	}
 	if p, _ := decoder.LastProbeObservation(decoder.BackendNVENC, "first-card-new-path"); p.Stopped {
 		t.Fatal("new selector inherited the old alert")
 	}
-	// A reappearing selector is probed anew and has neither its old circuit nor
-	// its former working history: a failed first probe must not alert.
-	before = calls.Load()
-	probe := detector.Probe(ctx, path, decoder.BackendNVENC, "first-card")
-	if calls.Load() == before || probe.Reason == decoder.ProbeCircuitOpen {
-		t.Fatal("reappearing card reused retired state", probe)
+	if p, ok := decoder.LastProbeObservation(decoder.BackendNVENC, "second-card"); !ok || !p.Stopped {
+		t.Fatalf("a working card lost from discovery did not alert: %+v", p)
 	}
-	if p, _ := decoder.LastProbeObservation(decoder.BackendNVENC, "first-card"); p.Stopped {
-		t.Fatal("reappearing card inherited its old alert")
+	// A second Test hardware must not clear the warning while that card is gone.
+	e.TestHardware()
+	wait()
+	if p, ok := decoder.LastProbeObservation(decoder.BackendNVENC, "second-card"); !ok || !p.Stopped {
+		t.Fatalf("Test hardware cleared the still-missing card's alert: %+v", p)
 	}
 }

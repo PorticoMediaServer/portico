@@ -188,7 +188,7 @@ func noteProbeObservation(out HardwareProbe, detail string) {
 	log.Printf("warn: [playback] %s on %s failed its probe: %s. %s %s", observation.Backend, deviceLabel(observation.Device), observation.Reason, line, fallback)
 }
 
-// NoteHardwareDeviceStopped consumes an open conversion-failure circuit.
+// NoteHardwareDeviceStopped consumes an open failure circuit or missing discovery.
 // A device that never worked raises no alert.
 func NoteHardwareDeviceStopped(backend HardwareBackend, device string) {
 	key := probeCellKey(backend, device)
@@ -205,8 +205,8 @@ func NoteHardwareDeviceStopped(backend HardwareBackend, device string) {
 	}
 }
 
-// ForgetDevice retires an adapter no longer in discovery. Its old selector must
-// not keep an alert or a cached verdict if a device later appears at that path.
+// ForgetDevice retires the old selector when the same adapter moves to a new path.
+// The old path must not keep its alert or lend a cached verdict to a future device.
 func (d *HardwareDetector) ForgetDevice(backend HardwareBackend, device string) {
 	d.mu.Lock()
 	for key, p := range d.cache {
