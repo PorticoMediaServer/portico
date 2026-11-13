@@ -138,9 +138,6 @@ function changed(raw: unknown): number {
   return v.changed;
 }
 
-export const remeasureAllSegments = async (api: SegmentApi) => changed(await api.request('/v1/admin/segments/redetect', 'POST', {}));
-export const retryUnreadableSegments = async (api: SegmentApi) => changed(await api.request('/v1/admin/segments/retry', 'POST', {}));
-
 /** Approve a title's detections of these kinds: one season, or every season when season is omitted. */
 export const approveSegments = async (api: SegmentApi, id: string, kinds: readonly SegmentKind[], season?: number) => changed(await api.request(routePath('post_admin_segments_titles_id_approve', {id}), 'POST', season === undefined ? {kinds} : {kinds, season}));
 /** Measure a title's files again. The owner's approvals, adjustments and dismissals are kept. */
