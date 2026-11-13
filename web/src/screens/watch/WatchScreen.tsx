@@ -8,7 +8,7 @@ import {Button, Slider} from '../../kit/controls';
 import {Menu, PanelPresence, useLeavingPresence, type MenuEntry} from '../../kit/overlays';
 import {KeyboardShortcuts} from '../../kit/states';
 import {LossNotice, SeekLine} from '../../kit/media';
-import {dispatchWatch, watchClock, watchIsPortrait, watchSeek, watchSeekBounds, watchShortcutTarget, watchStepIntent, type WatchIntent} from './model';
+import {dispatchWatch, watchClock, watchIsPortrait, watchLineValue, watchSeek, watchSeekBounds, watchShortcutTarget, watchStepIntent, type WatchIntent} from './model';
 import {settledPlaybackChanged, settledPlaybackKey, type SettledPlayback} from './screen-state';
 import type {WatchPanel, WatchRect, WatchScreenProps} from './types';
 import {revealVideoControlsOnTab, videoControlsMayHide} from './video-controls-focus';
@@ -458,16 +458,17 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
         <div className={styles.bottom} inert={!chromeVisible || videoGesture?.active || undefined}>
           {/* The kit's seek line (one with the reader's): the screen keeps its own handlers, preview and layouts of it. */}
           <SeekLine variant="player" dir="ltr" className={styles.seek} barClassName={styles.rail} inputRef={promptSeek}
-            value={bounds ? (drawnPosition - bounds.start) / (bounds.end - bounds.start) : 0}
+            value={watchLineValue(bounds, drawnPosition, duration)}
             buffered={buffered.map(range => ({start: range.left / 100, end: (range.left + range.width) / 100}))}
             hover={hoverPercent === null ? null : hoverPercent / 100}
+            hoverLabel={!preview && previewSeconds !== null ? watchClock(previewSeconds) : undefined}
             marks={duration > 0 ? (presentation?.policy?.markers ?? []).map(marker => ({id: marker.id, kind: marker.kind, start: marker.startSeconds / duration, end: marker.endSeconds / duration, ...(marker.kind === 'credits' ? {fromEnd: true} : {})})) : []}
             overlay={preview && bounds && previewSeconds !== null ? <ScrubPreview frame={preview.frame} source={preview.source} seconds={previewSeconds} phone={mobile}
               percent={(previewSeconds - bounds.start) / (bounds.end - bounds.start) * 100} /> : undefined}
             input={{tabIndex: 0, min: bounds?.start ?? 0,
-              max: bounds?.end ?? 1,
+              max: bounds?.end ?? (duration > 0 ? duration : 1),
               step: .1,
-              value: bounds ? Math.min(bounds.end, Math.max(bounds.start, drawnPosition)) : 0,
+              value: bounds ? Math.min(bounds.end, Math.max(bounds.start, drawnPosition)) : duration > 0 ? Math.min(duration, drawnPosition) : 0,
               disabled: !bounds,
               'aria-label': t('player.position'),
               'aria-valuetext': t('player.clockOf', {position: watchClock(drawnPosition), duration: watchClock(duration)}),

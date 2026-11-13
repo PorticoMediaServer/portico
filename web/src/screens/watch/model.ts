@@ -30,6 +30,12 @@ export function watchSeekBounds(snapshot: WebPlaybackRuntimeSnapshot): Readonly<
   const start = presentation.seekWindow?.startSeconds ?? 0, end = presentation.seekWindow?.endSeconds ?? presentation.durationSeconds;
   return Number.isFinite(start) && Number.isFinite(end) && start >= 0 && end > start ? {start, end} : null;
 }
+/** Where the line is drawn, 0 to 1. With no seek window (the runtime offers no seek once playback has ended), it still
+ * says where playback is, from the position over the length, rather than jumping back to the start. */
+export function watchLineValue(bounds: Readonly<{start: number; end: number}> | null, position: number, duration: number): number {
+  if (bounds) return (position - bounds.start) / (bounds.end - bounds.start);
+  return duration > 0 && Number.isFinite(position) ? Math.min(1, Math.max(0, position / duration)) : 0;
+}
 export function watchSeek(snapshot: WebPlaybackRuntimeSnapshot, position: number): number | null {
   const bounds = watchSeekBounds(snapshot);
   return bounds && Number.isFinite(position) ? Math.min(bounds.end, Math.max(bounds.start, position)) : null;

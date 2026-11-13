@@ -15,6 +15,8 @@ export type SeekLineProps = Readonly<{
   buffered?: readonly Readonly<{start: number; end: number}>[];
   /** The pointer's place over the line, 0 to 1, or null. */
   hover?: number | null;
+  /** What is at the pointer (the player's time there), drawn above it when no richer overlay carries it. */
+  hoverLabel?: string;
   /** Drawn over the line (the player's scrub preview). */
   overlay?: ReactNode;
   /** The line's range input: its value, labels and handlers stay the screen's own. */
@@ -30,14 +32,15 @@ const cx = (...names: readonly (string | false | undefined)[]) => names.filter(B
 
 /** One seek line for the player and the reader: the bar, its fill, its marks, the buffered and hovered
  * stretches, and the range input that moves it. Each keeps its own look through the variant. */
-export function SeekLine({variant, value, marks = [], buffered = [], hover = null, overlay, input, inputRef, dir, className, barClassName}: SeekLineProps) {
+export function SeekLine({variant, value, marks = [], buffered = [], hover = null, hoverLabel, overlay, input, inputRef, dir, className, barClassName}: SeekLineProps) {
   const player = variant === 'player';
   const range = input ? <input ref={inputRef} type="range" {...input} /> : null;
   return <div className={cx(player ? styles.player : styles.reader, className)} dir={dir}>
     <span className={cx(player ? styles.playerBar : styles.readerBar, barClassName)}>
       {buffered.map((stretch, index) => <span key={index} className={styles.buffered} aria-hidden="true" style={{insetInlineStart: pct(stretch.start), width: pct(stretch.end - stretch.start)}} />)}
       <i className={player ? styles.playerFill : styles.readerFill} style={{width: pct(value)}} />
-      {hover !== null && <><span className={styles.hoverFill} aria-hidden="true" style={{width: pct(hover)}} /><span className={styles.hoverLine} aria-hidden="true" style={{insetInlineStart: pct(hover)}} /></>}
+      {hover !== null && <><span className={styles.hoverFill} aria-hidden="true" style={{width: pct(hover)}} /><span className={styles.hoverLine} aria-hidden="true" style={{insetInlineStart: pct(hover)}} />
+        {hoverLabel && <span className={styles.hoverLabel} aria-hidden="true" style={{insetInlineStart: `clamp(var(--seek-label-half), ${pct(hover)}, calc(100% - var(--seek-label-half)))`}}>{hoverLabel}</span>}</>}
       {marks.map(mark => player
         ? <span key={mark.id} className={styles.segment} data-seek-mark data-kind={mark.kind}
           style={{...(mark.fromEnd ? {insetInlineEnd: pct(1 - (mark.end ?? mark.start))} : {insetInlineStart: pct(mark.start)}), width: pct((mark.end ?? mark.start) - mark.start)}} />
