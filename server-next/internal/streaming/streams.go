@@ -258,7 +258,7 @@ func (s *Streams) Start(ctx context.Context, r StartRequest) (Stream, error) {
 		id: token(), session: r.SessionID, grant: token(), mode: mode, source: source, plan: &plan, request: r.Request,
 		duration: plan.Duration, text: append([]TextRenditionPlan{}, r.Subtitles...), burn: r.Burn, burnLoad: r.BurnLoad,
 		changed: make(chan struct{}), replaced: r.Replaced, failedHook: r.Failed, served: -1, audio: r.Audio, seekIndex: r.SeekIndex,
-		openInput: open,
+		openInput: open, parts: append([]JoinedPart(nil), r.Parts...), initialPosition: float64(r.PositionMs) / 1000,
 	}
 	s.Stop(r.SessionID)
 	if err := s.install(st); err != nil {
