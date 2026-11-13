@@ -219,6 +219,7 @@ func hostPort(s string, defaultPort int) (string, bool) {
 
 // remoteState is the document as requests use it, and what Enhanced has refused since start.
 type remoteState struct {
+	outside  *RemoteOutsideCheck
 	listener *RemoteListenerFacts
 	mu       sync.RWMutex
 	value    RemoteAccessSettings
@@ -538,6 +539,7 @@ const setupFinishedKey = "setup.finished"
 
 // RemoteAccessStatus is what is true now, for the owner's Remote access page.
 type RemoteAccessStatus struct {
+	Outside *RemoteOutsideCheck `json:"outside,omitempty"`
 	// ThisDevice is how the server sees the device asking: at home or away, and its address.
 	ThisDevice ThisDevice `json:"thisDevice"`
 	// Refused are the outside addresses Enhanced refused since the server started, newest first.
@@ -649,8 +651,9 @@ func (s *Server) remoteAccessRoutes() {
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 		var checks sync.WaitGroup
-		checks.Add(2)
+		checks.Add(3)
 		go func() { defer checks.Done(); s.ports.CheckNow(ctx) }()
+		go func() { defer checks.Done(); s.checkOutside(ctx) }()
 		go func() { defer checks.Done(); s.ports6.CheckNow(ctx) }()
 		s.public.CheckNow(ctx)
 		checks.Wait()
@@ -665,7 +668,7 @@ func (s *Server) remoteStatus(r *http.Request) RemoteAccessStatus {
 	if v.RemoteAccess == "on" && v.IPv6 && s.ipv6ListenerMissing() {
 		router6.State, router6.Problem = "failed", ipv6ListenerNote
 	}
-	return RemoteAccessStatus{ThisDevice: ThisDevice{AtHome: s.fromHome(r), Address: s.remoteHost(r)},
+	return RemoteAccessStatus{Outside: s.outsideFact(r.Context()), ThisDevice: ThisDevice{AtHome: s.fromHome(r), Address: s.remoteHost(r)},
 		Refused: s.access.refusedList(), RemoteSecurity: sec, Warnings: s.warnings(v, sec, s.networks()),
 		Certificate: OwnCertificateStatus(s.certs.Status()), Router: PortMappingStatus(s.ports.Status()), PublicAddress: PublicAddressAnswer(s.public.Answer()),
 		RouterIPv6:   PortMappingStatus(router6),
