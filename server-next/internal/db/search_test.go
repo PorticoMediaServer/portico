@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
@@ -459,13 +460,21 @@ func TestSearchRebuildsItself(t *testing.T) {
 	index := filepath.Join(s.dir, "search.db")
 	replaced := func(old os.FileInfo) {
 		t.Helper()
-		for range 5000 {
+		deadline := time.NewTimer(10 * time.Second)
+		defer deadline.Stop()
+		poll := time.NewTicker(time.Millisecond)
+		defer poll.Stop()
+		for {
 			if now, err := os.Stat(index); err == nil && !os.SameFile(old, now) {
 				return
 			}
-			s.d.SearchCaughtUp(ctx)
+			// The old index may already be caught up while its replacement is still building.
+			select {
+			case <-poll.C:
+			case <-deadline.C:
+				t.Fatal("the index was not rebuilt")
+			}
 		}
-		t.Fatal("the index was not rebuilt")
 	}
 
 	s.d.Close()
