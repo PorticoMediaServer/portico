@@ -188,8 +188,8 @@ func noteProbeObservation(out HardwareProbe, detail string) {
 	log.Printf("warn: [playback] %s on %s failed its probe: %s. %s %s", observation.Backend, deviceLabel(observation.Device), observation.Reason, line, fallback)
 }
 
-// NoteHardwareDeviceStopped consumes a confirmed conversion failure or a device
-// missing from discovery. A device that never worked raises no alert.
+// NoteHardwareDeviceStopped consumes an open conversion-failure circuit.
+// A device that never worked raises no alert.
 func NoteHardwareDeviceStopped(backend HardwareBackend, device string) {
 	key := probeCellKey(backend, device)
 	hardwareProbeLog.Lock()
@@ -203,6 +203,32 @@ func NoteHardwareDeviceStopped(backend HardwareBackend, device string) {
 	if changed {
 		logHardwareStopped(backend, device)
 	}
+}
+
+// ForgetDevice retires an adapter no longer in discovery. Its old selector must
+// not keep an alert or a cached verdict if a device later appears at that path.
+func (d *HardwareDetector) ForgetDevice(backend HardwareBackend, device string) {
+	d.mu.Lock()
+	for key, p := range d.cache {
+		if p.Backend == backend && p.Device == device {
+			delete(d.cache, key)
+		}
+	}
+	if d.probeGenerations != nil {
+		d.probeGenerations[hardwareProbeCell{backend, device}]++
+	}
+	d.mu.Unlock()
+	clearDeviceCircuit(backend, device)
+	key := probeCellKey(backend, device)
+	hardwareProbeLog.Lock()
+	delete(hardwareProbeLog.last, key)
+	for i, known := range hardwareProbeLog.order {
+		if known == key {
+			hardwareProbeLog.order = append(hardwareProbeLog.order[:i], hardwareProbeLog.order[i+1:]...)
+			break
+		}
+	}
+	hardwareProbeLog.Unlock()
 }
 
 func logHardwareStopped(backend HardwareBackend, device string) {

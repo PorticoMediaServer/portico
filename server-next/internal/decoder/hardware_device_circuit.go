@@ -11,7 +11,9 @@ func deviceCircuitKey(backend HardwareBackend, device string) HardwareBackend {
 
 func RecordHardwareDeviceFailure(backend HardwareBackend, device string) {
 	RecordHardwareFailure(deviceCircuitKey(backend, device))
-	NoteHardwareDeviceStopped(backend, device)
+	if deviceCircuitOpen(backend, device) {
+		NoteHardwareDeviceStopped(backend, device)
+	}
 }
 
 func deviceCircuitOpen(backend HardwareBackend, device string) bool {
