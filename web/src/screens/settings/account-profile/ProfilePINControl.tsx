@@ -35,7 +35,7 @@ export function ProfilePINDialog({request: intent, isCurrent, onClose, onFailure
     } finally {request.current = false;}
   };
   if (!permitted) return null;
-  return <Dialog open width={420} returnFocusRef={trigger} onOpenChange={value => {if (!value) close();}}
+  return <Dialog footerDismisses open width={420} returnFocusRef={trigger} onOpenChange={value => {if (!value) close();}}
     dismissOnOutsidePress={!state.busy} dismissOnBack={!state.busy} showCloseButton={!state.busy}
     title={t(done ? 'profile.pinChanged' : remove ? 'profile.removePinConfirm.title' : 'profile.pinTitle', {name: target.name})}
     description={t(done ? 'profile.pinSavedBody' : remove ? 'profile.removePinConfirm.body' : 'profile.pinChoose', {name: target.name})}

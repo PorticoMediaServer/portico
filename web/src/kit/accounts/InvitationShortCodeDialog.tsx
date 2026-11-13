@@ -82,7 +82,7 @@ function IssuerDialog({open, onOpenChange, request, issueOnOpen = false, createO
   };
   const expiry = state.phase === 'ready' || state.phase === 'unavailable'
     ? new Intl.DateTimeFormat(undefined, {dateStyle: 'medium'}).format(new Date(state.expiresAt)) : undefined;
-  return <Dialog open={open} onOpenChange={value => {if (!busy) onOpenChange(value);}} title={t('invite.readyTitle')}
+  return <Dialog footerDismisses open={open} onOpenChange={value => {if (!busy) onOpenChange(value);}} title={t('invite.readyTitle')}
     description={t('invite.readyBody')} size="sm" width={children ? 560 : 540} returnFocusRef={returnFocusRef}
     footer={<Button variant="primary" onClick={() => onOpenChange(false)}>{t('action.done')}</Button>}>
     <div className={styles.body} data-phase={state.phase}>

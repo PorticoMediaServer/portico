@@ -213,13 +213,13 @@ function InvitationTable({view, invitations, serverName, signIn, libraries, auth
         </span>;
       }} />}
     </SettingsGroup>
-    {shownShare && <Dialog open={!!shareOpening} title={t('invite.readyTitle')} size="sm" width={560} returnFocusRef={shownShare.focus}
+    {shownShare && <Dialog footerDismisses open={!!shareOpening} title={t('invite.readyTitle')} size="sm" width={560} returnFocusRef={shownShare.focus}
       onOpenChange={open => {if (!open) closeShare(shownShare);}}
       footer={<Button variant="primary" onClick={() => closeShare(shownShare)}>{t('action.done')}</Button>}>
       <PeopleInvitationCard open invitation={shownShare.row} invitations={invitations} serverName={serverName} signIn={signIn}
         libraries={libraries} isCurrent={shareCurrent} />
     </Dialog>}
-    {shownRevoke && <Dialog open={!!opening} title={t(revokeCopy.label)} onOpenChange={open => {if (!open) cancel(shownRevoke);}}
+    {shownRevoke && <Dialog footerDismisses open={!!opening} title={t(revokeCopy.label)} onOpenChange={open => {if (!open) cancel(shownRevoke);}}
       returnFocusRef={shownRevoke.focus} footer={<><Button disabled={revoking} onClick={() => cancel(shownRevoke)}>{t('next.settings.cancel')}</Button>
         <Button variant="primary" className={kitStyles.danger} loading={revoking} onClick={() => {void revoke(shownRevoke);}}>{t(revokeCopy.label)}</Button></>}>
       <p>{t(revokeCopy.confirm!)}</p>

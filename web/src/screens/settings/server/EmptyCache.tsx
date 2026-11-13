@@ -26,7 +26,7 @@ export function EmptyCache({source}: Readonly<{source: SettingsStorageSource}>) 
   return <>
     <Button size="compact" variant="glass" onClick={begin}>{label()}</Button>
     {freed !== undefined && <span role="status" className={styles.storageNote}>{t('server.space.cacheFreed', {bytes: defaultI18n.bytes(freed)})}</span>}
-    <Dialog open={open} title={label()} onOpenChange={value => {if (!value && !busy) setOpen(false);}}
+    <Dialog footerDismisses open={open} title={label()} onOpenChange={value => {if (!value && !busy) setOpen(false);}}
       footer={<><Button size="compact" variant="glass" disabled={busy} onClick={() => setOpen(false)}>{t('action.cancel')}</Button>
         <Button size="compact" variant="primary" loading={busy} disabled={busy || bytes === undefined || bytes === 0} onClick={() => {void empty();}}>{label()}</Button></>}>
       <p>{t('next.settingsSpec.server.storage.groups.0.rows.3.control.confirm')}</p>

@@ -17,7 +17,7 @@ export function ChannelMapDialog({controller, name, close}: {controller: Channel
   const closeCurrent = act(() => {controller.dispose();if (owner.current === controller) close();});
   const shown = query.trim() ? state.rows.filter(row => `${row.name} ${row.number} ${row.group}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())) : state.rows;
   const disabled = state.loading || state.saving || state.uncertain;
-  return <Dialog open width={760} title={t('web.liveSource.channelMapTitle', {name})} description={t('web.liveSource.channelMapLede')} onOpenChange={open => {if (!open) closeCurrent();}}
+  return <Dialog footerDismisses open width={760} title={t('web.liveSource.channelMapTitle', {name})} description={t('web.liveSource.channelMapLede')} onOpenChange={open => {if (!open) closeCurrent();}}
     footer={<><Button size="small" variant="text" onClick={closeCurrent}>{t('action.close')}</Button><Button size="small" variant="primary" loading={state.saving} disabled={!changed || state.loading}
       onClick={act(() => void controller.save())}>{changed ? t('web.liveSource.saveMapChanges', {changed}) : t('action.save')}</Button></>}>
     <div className={styles.fields}>

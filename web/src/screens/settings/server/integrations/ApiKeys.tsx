@@ -114,7 +114,7 @@ export function IntegrationsPage({api, source, webhooks, baseUrl, isCurrent, rep
     ]} />
     {otherRows}
     {advancedRows}
-    <Dialog open={live && creating} onOpenChange={open => {if (!open && !state.busy) closeForm();}} title={t('web.access.createKeyTitle')} width={500}
+    <Dialog footerDismisses open={live && creating} onOpenChange={open => {if (!open && !state.busy) closeForm();}} title={t('web.access.createKeyTitle')} width={500}
       dismissOnOutsidePress={!state.busy} dismissOnBack={!state.busy} showCloseButton={!state.busy}
       footer={<><Button variant="glass" size="compact" disabled={state.busy} onClick={closeForm}>{t('action.cancel')}</Button><Button variant="primary" size="compact" disabled={state.busy || (!state.pendingCreate && (!name.trim() || !chosen.length || !state.options))} onClick={() => {void submit();}}>{t(state.pendingCreate ? 'action.tryAgain' : 'web.saved.create')}</Button></>}>
       <div className={styles.form}>
@@ -128,14 +128,14 @@ export function IntegrationsPage({api, source, webhooks, baseUrl, isCurrent, rep
         <Select label={t('api.credential.expiryLabel')} value={String(days)} disabled={frozen} options={EXPIRY_DAYS.map(value => ({value: String(value), label: expiryLabel(t, value)}))} onValueChange={value => setDays(Number(value) as ExpiryDays)} />
       </div>
     </Dialog>
-    <Dialog open={!!heldIssue} onOpenChange={open => {if (!open && !heldIssue?.secret) closeCard();}} title={t('web.access.copyKeyTitle')} width={500} initialFocusRef={secret}
+    <Dialog footerDismisses open={!!heldIssue} onOpenChange={open => {if (!open && !heldIssue?.secret) closeCard();}} title={t('web.access.copyKeyTitle')} width={500} initialFocusRef={secret}
       dismissOnOutsidePress={!heldIssue?.secret} dismissOnBack={!heldIssue?.secret} showCloseButton={false}
       footer={<Button variant="primary" size="compact" onClick={closeCard}>{t('action.done')}</Button>}>
       {heldIssue?.secret ? <div className={styles.form}><p className={styles.warning}>{t('integrations.credential.recoverable')}</p><label className={styles.secretLabel}>{t('web.access.apiKey')}<textarea ref={secret} className={styles.secret} readOnly rows={3} value={heldIssue.secret} onFocus={event => event.currentTarget.select()} /></label>
         <div className={styles.actions}><Button size="xs" variant="glass" icon="i-copy" onClick={() => {void copy();}}>{t('web.twoStep.copy')}</Button><span className={styles.copied} role="status">{copied && t('api.credential.copied')}</span></div></div>
         : <p className={styles.warning}>{t('integrations.credential.retryReveal')}</p>}
     </Dialog>
-    <Dialog open={live && !!revoking} onOpenChange={open => {if (!open && !state.busy) setRevoking(undefined);}} title={t('web.access.revokeTitle', {name: revoking?.name ?? ''})} description={t('web.access.revokeBody')} width={460}
+    <Dialog footerDismisses open={live && !!revoking} onOpenChange={open => {if (!open && !state.busy) setRevoking(undefined);}} title={t('web.access.revokeTitle', {name: revoking?.name ?? ''})} description={t('web.access.revokeBody')} width={460}
       dismissOnOutsidePress={!state.busy} dismissOnBack={!state.busy} showCloseButton={!state.busy}
       footer={<><Button size="compact" variant="glass" disabled={state.busy} onClick={() => setRevoking(undefined)}>{t('action.cancel')}</Button><Button size="compact" variant="glass" className={styles.danger} disabled={state.busy} onClick={() => {if (!revoking || !isCurrent()) return;const held = generation.current;void source.revoke(revoking).then(() => {if (isCurrent() && held === generation.current && !source.getSnapshot().error) setRevoking(undefined);});}}>{t('web.access.revoke')}</Button></>}>
       {state.error === 'revoke' && <p className={styles.failure} role="alert">{t('error.unconfirmedChange')}</p>}

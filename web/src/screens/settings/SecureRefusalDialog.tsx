@@ -60,7 +60,7 @@ export function SecureRefusalDialog({open, onOpenChange}: {open: boolean; onOpen
     onOpenChange(false);
     target.open();
   };
-  return <Dialog children={null} open={open} onOpenChange={value => {if (!value) dismiss();}}
+  return <Dialog footerDismisses children={null} open={open} onOpenChange={value => {if (!value) dismiss();}}
     title={t('accounts.ownerSwitch.secureTitle')}
     description={t('accounts.ownerSwitch.secureBody', {localUrl: 'http://localhost:32500'})}
     footer={<>

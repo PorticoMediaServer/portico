@@ -131,7 +131,7 @@ function AnnotationNoteEditor({opening,service,state,signal,onClose}: {opening:N
     &&(!opening.member||service.getSnapshot().entries.includes(opening.member));
   const close=()=>{if (!live(lease)||offered.current!==draft) return;draft.retired=true;draft.life.abort();retire(lease);onClose();};
   
-  return <Dialog open={live(lease)&&!opening.life.signal.aborted&&!signal.aborted} onOpenChange={open=>{if(!open)close();}} title={t('next.reader.annotationEdit')} size="sm"
+  return <Dialog footerDismisses open={live(lease)&&!opening.life.signal.aborted&&!signal.aborted} onOpenChange={open=>{if(!open)close();}} title={t('next.reader.annotationEdit')} size="sm"
     footer={<><Button onClick={close}>{t('action.cancel')}</Button><Button disabled={state.loading||state.saving||state.revision!==opening.revision||draft.claimed} onClick={()=>{
       if(!lease||!owns()||draft.claimed)return;
       draft.claimed=true;

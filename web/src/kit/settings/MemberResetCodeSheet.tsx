@@ -33,7 +33,7 @@ export type MemberResetCodeSheetProps = Readonly<{
  * issuance, rotation, clipboard and the published result's lifetime. */
 export function MemberResetCodeSheet({open, username, result, turnOffTwoStep, onTurnOffTwoStepChange, onCopy, onDone, busy = false}: MemberResetCodeSheetProps) {
   const offId = useId(), ready = result.state === 'ready';
-  return <Dialog open={open} onOpenChange={value => {if (!value) onDone();}} title={t('next.settings.people.resetCodeTitle', {username})}
+  return <Dialog footerDismisses open={open} onOpenChange={value => {if (!value) onDone();}} title={t('next.settings.people.resetCodeTitle', {username})}
     description={t('next.settings.people.resetCodeGive')} showCloseButton={false} footerClassName={ready ? styles.footer : undefined}
     footer={<>{ready && <Button size="small" icon="i-copy" iconSize={18} disabled={busy} onClick={onCopy}>{t('next.settings.people.resetCodeCopy')}</Button>}
       <Button size="small" variant="primary" onClick={onDone}>{t('action.done')}</Button></>}>

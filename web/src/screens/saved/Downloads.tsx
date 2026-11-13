@@ -175,7 +175,7 @@ export function LocalDownloads({port, operations, effects, server}: {port: Saved
       </div>}
       {error && <p role="alert">{t('downloads.settingFailed')}</p>}
     </aside>
-    <Dialog open={!!confirmation} onOpenChange={open => { if (!open && !busy) setConfirmation(undefined); }} initialFocusRef={cancel}
+    <Dialog footerDismisses open={!!confirmation} onOpenChange={open => { if (!open && !busy) setConfirmation(undefined); }} initialFocusRef={cancel}
       title={t(confirmation?.kind === 'others' ? 'confirm.removeOthers.title' : 'confirm.removeDownload.title')}
       description={confirmation?.kind === 'others' ? t('confirm.removeOthers.body') : t('confirm.removeDownload.body', {title: confirmation?.kind === 'item' ? confirmation.item.title.title : confirmation?.title ?? ''})}
       footer={<><Button ref={cancel} size="small" onClick={() => setConfirmation(undefined)} disabled={!!busy}>{t('action.cancel')}</Button><Button className={styles.destructive} size="small" loading={!!busy} onClick={() => {
@@ -272,7 +272,7 @@ export function ServerDownloads({service, operations, effects, artwork, online, 
     </div>)}</div>
     {!!snapshot.requests.length && <><div className={styles.downloadHeading}><h2>{t('web.downloads.requestsTitle')}</h2></div><div className={styles.downloadList} role="list">{snapshot.requests.map(({request, title}) => <div className={styles.request} key={request.requestId} role="listitem"><b>{title}</b><span>{request.totalKnown ? t('web.downloads.requestProgress', {ready: request.ready, total: request.total}) : t('web.downloads.requestPreparing')}{request.failed > 0 && <small>{t('web.downloads.requestFailed', {failed: request.failed})}</small>}<Progress percent={request.totalKnown && request.total > 0 ? request.ready / request.total * 100 : undefined} /></span></div>)}</div></>}
     {snapshot.nextCursor && <Button size="small" className={styles.showMore} loading={snapshot.loadingMore} disabled={!online} onClick={() => { void service.loadMore(); }}>{t('action.showMore')}</Button>}
-    <Dialog open={!!confirmation} onOpenChange={open => { if (!open && (!confirmation || !service.getSnapshot().busy.includes(confirmation.item.id))) setConfirmation(undefined); }} initialFocusRef={cancel}
+    <Dialog footerDismisses open={!!confirmation} onOpenChange={open => { if (!open && (!confirmation || !service.getSnapshot().busy.includes(confirmation.item.id))) setConfirmation(undefined); }} initialFocusRef={cancel}
       title={t(confirmation?.action === 'cancel' ? 'confirm.stopPreparing.title' : 'confirm.removePrepared.title')}
       description={t(confirmation?.action === 'cancel' ? 'confirm.stopPreparing.body' : 'confirm.removePrepared.body')}
       footer={<><Button ref={cancel} size="small" disabled={!!confirmation && snapshot.busy.includes(confirmation.item.id)} onClick={() => setConfirmation(undefined)}>{t('action.cancel')}</Button><Button size="small" variant="primary" disabled={!online} className={confirmation?.action === 'remove' ? styles.destructive : undefined} loading={!!confirmation && snapshot.busy.includes(confirmation.item.id)} onClick={() => { if (confirmation) act(confirmation.item, confirmation.action); }}>{t(confirmation?.action === 'cancel' ? 'web.downloads.stop' : 'action.removeShort')}</Button></>}><Fragment /></Dialog>

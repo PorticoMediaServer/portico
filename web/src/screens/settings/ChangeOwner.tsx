@@ -88,7 +88,7 @@ export function ChangeOwner({source, isCurrent, onError}: {
   return <>
     <Button ref={opener} variant="glass" size="small" loading={busy} disabled={!isCurrent()} onClick={open}>{label}</Button>
     <SecureRefusalDialog open={secure} onOpenChange={value => {if (!value) setSecure(false);}} />
-    <Dialog open={confirming && !!current} onOpenChange={value => {if (!busy && !value && current) close(current);}} title={`${verb}?`} description={t(CONFIRM)}
+    <Dialog footerDismisses open={confirming && !!current} onOpenChange={value => {if (!busy && !value && current) close(current);}} title={`${verb}?`} description={t(CONFIRM)}
       initialFocusRef={cancel} returnFocusRef={opener} dismissOnBack={!busy} dismissOnOutsidePress={!busy} showCloseButton={!busy}
       footer={<>
         <Button ref={cancel} size="small" disabled={busy} onClick={() => {if (current) close(current);}}>{t('action.cancel')}</Button>

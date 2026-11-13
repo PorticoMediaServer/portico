@@ -8,7 +8,11 @@
 .dialog[data-placement="right"] .dialogFooter { flex: none; }
 .dialog[data-size="sm"] { --overlay-width: 436px; }
 .dialog[data-size="lg"] { --overlay-width: 760px; }
-.dialogTitle { margin: 0 40px 8px 0; font-size: 23px; font-weight: 800; letter-spacing: -.025em; line-height: 1.2; }
+/* The title takes the row and wraps; a header action sits at the trailing edge, clear of the close button. Zero
+   specificity, so a caller's own header class still wins. */
+:where(.dialogHeader) { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
+:where(.dialogHeader:has(> .dialogClose)) { padding-right: 40px; }
+.dialogTitle { flex: 1; min-width: 0; margin: 0; font-size: 23px; font-weight: 800; letter-spacing: -.025em; line-height: 1.2; }
 .dialogClose.dialogClose { position: absolute; right: 16px; top: 16px; width: 36px; height: 36px; min-width: 36px; padding: 0; border-radius: 50%; color: var(--color-text-tertiary); background: transparent; }
 .dialogDescription, .dialogBody { font-size: 15px; line-height: 1.55; color: var(--color-text-secondary); }
 .dialogDescription { margin: 0; }
@@ -49,13 +53,15 @@
 .grabber > span { display: block; width: 38px; height: 5px; border-radius: 3px; background: var(--color-line-strong); }
 .grabber:focus-visible { outline: none; }
 .grabber:focus-visible > span { outline: 3px solid var(--color-focus); outline-offset: 3px; }
-.sheetHeading { display: flex; align-items: center; gap: 10px; padding: var(--overlay-sheet-heading-padding, 2px 20px 6px); }
-.sheetTitle { min-width: 0; margin: 0; font-size: 21px; font-weight: 800; letter-spacing: -.02em; line-height: normal; }
+.sheetHeading { display: flex; align-items: center; gap: 10px; padding: var(--overlay-sheet-heading-padding, 2px var(--gutter-phone) 6px); }
+.sheetTitle { flex: 1; min-width: 0; margin: 0; font-size: 21px; font-weight: 800; letter-spacing: -.02em; line-height: normal; }
 .sheetDone.sheetDone { margin-left: auto; padding: 0; height: 28px; min-width: 0; color: var(--color-text-secondary); font-size: 15px; font-weight: 700; line-height: normal; }
-.sheetDescription { margin: 6px 20px 0; font-size: 14px; line-height: 1.5; color: var(--color-text-secondary); }
+.sheetDescription { margin: 6px var(--gutter-phone) 0; font-size: 14px; line-height: 1.5; color: var(--color-text-secondary); }
 .sheetBody { flex: 1; min-height: 0; overflow: hidden; overscroll-behavior: contain; }
+/* A phone Dialog's body sits on the sheet heading's gutter; zero specificity, so a caller's own body class still wins. */
+:where(.sheet[data-dialog] > .sheetBody) { padding-inline: var(--gutter-phone); }
 .sheet[data-full-height="true"] .sheetBody { overflow: auto; }
-.sheetFooter { position: absolute; inset: auto 0 0; display: flex; gap: 10px; padding: 12px 16px max(30px, env(safe-area-inset-bottom)); background: linear-gradient(180deg, rgba(16,33,45,0), var(--color-raised) 30%); }
+.sheetFooter { position: absolute; inset: auto 0 0; display: flex; gap: 10px; padding: 12px var(--gutter-phone) max(30px, env(safe-area-inset-bottom)); background: linear-gradient(180deg, rgba(16,33,45,0), var(--color-raised) 30%); }
 .sheet[data-has-footer="true"] .sheetBody { padding-bottom: 96px; }
 
 /* Opted-in sheets only (account28/29 workspace confirmations): actions stack full

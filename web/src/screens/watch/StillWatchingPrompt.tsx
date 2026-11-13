@@ -89,7 +89,7 @@ export function WatchStillWatchingPrompt({binding, snapshot, environment, expand
       : op.kind === 'replay' ? binding.replay(held.offer.fence) : binding.stop(held.offer.fence);
     void command.then(() => settle(), settle);
   };
-  return <Dialog open onOpenChange={() => {}} title={t('player.post.stillWatching')} responsive={false} width={400}
+  return <Dialog footerDismisses open onOpenChange={() => {}} title={t('player.post.stillWatching')} responsive={false} width={400}
     showCloseButton={false} dismissOnOutsidePress={false} dismissOnBack={false}
     className={styles.dialog} headerClassName={styles.header} bodyClassName={styles.body} footerClassName={styles.footer}
     footer={<>

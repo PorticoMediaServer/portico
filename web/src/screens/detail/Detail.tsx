@@ -201,7 +201,7 @@ function TitleRating({binding, data, onClose, returnFocusRef}: {binding: DetailB
     setBusy(true);
     void binding.mutate(data, {action: 'rating', value}).then(onClose, error => { setBusy(false); binding.context.effects.reportError(error); });
   };
-  return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }} title={t('title.rate', {title: data.item.title})} returnFocusRef={returnFocusRef} dismissOnOutsidePress={!busy} dismissOnBack={!busy}
+  return <Dialog footerDismisses open onOpenChange={open => { if (!open && !busy) onClose(); }} title={t('title.rate', {title: data.item.title})} returnFocusRef={returnFocusRef} dismissOnOutsidePress={!busy} dismissOnBack={!busy}
     footer={<><Button onClick={onClose} disabled={busy}>{t('action.close')}</Button><Button variant="primary" onClick={save} disabled={busy}>{t('action.save')}</Button></>}>
     <Select label={t('next.home.yourRating')} aria-label={t('next.home.yourRating')} value={value === null ? 'none' : String(value)} disabled={busy}
       options={[{value: 'none', label: t('next.home.noRating')}, ...Array.from({length: 11}, (_, stars) => ({value: String(stars), label: t('next.home.ratingValue', {value: stars})}))]}

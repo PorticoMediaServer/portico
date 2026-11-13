@@ -64,7 +64,7 @@ export function SkippedFiles({libraryId, api, service, isCurrent, label}: Readon
   };
   return <>
     <Button variant="glass" size="small" onClick={() => {if (isCurrent()) setOpen(true);}}>{label}</Button>
-    <Dialog open={open} onOpenChange={setOpen} size="lg" width={640} title={t('next.ownerLibraries.filesSkippedTitle')}
+    <Dialog footerDismisses open={open} onOpenChange={setOpen} size="lg" width={640} title={t('next.ownerLibraries.filesSkippedTitle')}
       description={t('next.ownerLibraries.filesSkippedLede')} footer={<>
         {page && page.items.length > 0 && <span className={styles.skippedCount}>{t('next.ownerLibraries.filesCount', {count: page.count})}</span>}
         <Button onClick={() => setOpen(false)}>{t('next.overlays.close')}</Button>

@@ -177,7 +177,7 @@ export function AccountSecurity({account, reload}: {account: Account; reload: ()
         <ServicesDangerAction icon="i-trash" onClick={() => open({kind: 'delete'})}>{t('next.account.delete.action')}</ServicesDangerAction>
       </ServicesWorkspaceRow>
     </ServicesGroup>
-    <Dialog open={dialog !== null} onOpenChange={value => { if (!value) close(); }} size="md" title={dialog?.title} description={dialog?.description} footer={dialog?.footer}>
+    <Dialog footerDismisses open={dialog !== null} onOpenChange={value => { if (!value) close(); }} size="md" title={dialog?.title} description={dialog?.description} footer={dialog?.footer}>
       <form id="security-task" className={styles.form} onSubmit={submit}>{problem}{dialog?.body}</form>
     </Dialog>
   </>;

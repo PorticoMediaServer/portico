@@ -52,7 +52,7 @@ function AddProfileForm({source, busy, isCurrent, profiles, onClose, returnFocus
       if (!closed.current && isCurrent()) close();
     } finally {submitting.current = false;}
   };
-  return <Dialog open width={420} title={t('profile.addTitle')} initialFocusRef={input} returnFocusRef={returnFocusRef}
+  return <Dialog footerDismisses open width={420} title={t('profile.addTitle')} initialFocusRef={input} returnFocusRef={returnFocusRef}
     dismissOnOutsidePress={!busy} dismissOnBack={!busy} showCloseButton={!busy} onOpenChange={open => {if (!open && !busy) close();}}
     footer={<><Button size="small" disabled={busy} onClick={close}>{t('action.cancel')}</Button><Button size="small" variant="primary" loading={busy} disabled={busy || !name.trim()} onClick={() => {void submit();}}>{t('action.save')}</Button></>}>
     <form className={styles.fields} onSubmit={event => {event.preventDefault();void submit();}}>

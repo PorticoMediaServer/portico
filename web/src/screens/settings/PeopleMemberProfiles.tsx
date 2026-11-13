@@ -115,7 +115,7 @@ function MemberProfileDialog({profile, client, api, accountId, systems, serverOw
     return current;
   });
   return <>
-    <Dialog open width={480} title={profile.name} dismissOnOutsidePress={!busy} dismissOnBack={!busy} showCloseButton={!busy} onOpenChange={open => {if (!open && !busy) onClose();}}
+    <Dialog footerDismisses open width={480} title={profile.name} dismissOnOutsidePress={!busy} dismissOnBack={!busy} showCloseButton={!busy} onOpenChange={open => {if (!open && !busy) onClose();}}
       footer={<><Button size="small" disabled={busy} onClick={onClose}>{t('action.cancel')}</Button>
         <Button size="small" variant="primary" loading={busy} disabled={busy || !draft.name.trim() || draft.name.trim().length > 120 || !named && !limited} onClick={() => {void save();}}>{t('action.save')}</Button></>}>
       <div className={styles.fields}>
@@ -148,7 +148,7 @@ function MemberProfileDialog({profile, client, api, accountId, systems, serverOw
         {profile.pinRequired && <div className={local.pin}><b>{t(K.pin)}</b><small>{t('profile.protected')}</small><Button size="xs" variant="glass" disabled={busy} onClick={() => setRemoving(true)}>{t('profile.removePin')}</Button></div>}
       </div>
     </Dialog>
-    <Dialog open={removing} width={420} title={t('profile.removePinConfirm.title', {name: profile.name})} description={t('profile.removePinConfirm.body', {name: profile.name})}
+    <Dialog footerDismisses open={removing} width={420} title={t('profile.removePinConfirm.title', {name: profile.name})} description={t('profile.removePinConfirm.body', {name: profile.name})}
       onOpenChange={open => {if (!open && !busy) setRemoving(false);}} showCloseButton={!busy}
       footer={<><Button size="small" disabled={busy} onClick={() => setRemoving(false)}>{t('action.cancel')}</Button>
         <SettingsAction appearance="danger" size="small" loading={busy} onClick={() => {setRemoving(false); void run(() => client.resetPIN(profile));}}>{t('profile.removePin')}</SettingsAction></>}><></></Dialog>

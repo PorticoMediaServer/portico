@@ -42,7 +42,7 @@ export function AudioSubtitleLanguageList({row, state, locale, appLocale, onChan
       onReorder={ids => onChange([...ids])} onRemove={id => onChange(codes.filter(code => code !== id))} onError={onError}
       empty={t(emptyKey(kind))}
       add={codes.length < maxPreferredLanguages ? <Button className={styles.addLanguage} variant="glass" size="small" icon="i-plus" iconSize={18} onClick={() => setOpen(true)}>{t(addLabelKey(kind))}</Button> : undefined} />
-    <Dialog open={open} onOpenChange={value => {setOpen(value); if (!value) setQuery('');}} title={t(addLabelKey(kind))}
+    <Dialog footerDismisses open={open} onOpenChange={value => {setOpen(value); if (!value) setQuery('');}} title={t(addLabelKey(kind))}
       description={t('next.settings.audioSubtitles.addHint')} footer={<Button variant="glass" size="small" onClick={() => setOpen(false)}>{t('next.settings.cancel')}</Button>}>
       <TextField variant="search" autoFocus aria-label={t('next.settings.audioSubtitles.search')} placeholder={t('next.settings.audioSubtitles.search')} value={query} onChange={event => setQuery(event.currentTarget.value)} />
       <div role="listbox" aria-label={t(addLabelKey(kind))} className={styles.pickerList}>

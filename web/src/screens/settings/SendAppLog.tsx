@@ -69,7 +69,7 @@ export function SendAppLog({api, isCurrent, onClose, returnFocusRef}: {
     } catch {publish('failed');}
     finally {lease.busy = false;}
   };
-  return <Dialog open onOpenChange={value => {if (!value) close();}} size="sm"
+  return <Dialog footerDismisses open onOpenChange={value => {if (!value) close();}} size="sm"
     title={t('next.settingsSpec.account.device.groups.5.rows.5.label')} returnFocusRef={returnFocusRef}
     footer={<><Button variant="glass" size="small" onClick={close}>{t('action.cancel')}</Button>
       {phase !== 'done' && <Button size="small" loading={phase === 'busy'} disabled={!current(lease) || !owner || !consent || !capture.log.entries.length || phase === 'busy'} onClick={() => {void send();}}>{t('next.settingsSpec.account.device.groups.5.rows.5.control.label')}</Button>}</>}>
