@@ -523,8 +523,8 @@ func (r *Route) with(scope Scope) *Route {
 	return r
 }
 
-func (s *Server) listAdminLibraries(r *http.Request, _ None) (Page[AdminLibrary], error) {
-	out := Page[AdminLibrary]{Items: []AdminLibrary{}}
+func (s *Server) listAdminLibraries(r *http.Request, _ None) (AdminLibraryPage, error) {
+	out := AdminLibraryPage{Items: []AdminLibrary{}, MetadataProviders: s.libraryMetadataChoices()}
 	libraries, err := s.db.AdminLibraries(r.Context(), "")
 	if err != nil {
 		return out, err
