@@ -4,10 +4,36 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
+
+func TestVersionDeletionPreviewReportsWhenDeletingIsTurnedOff(t *testing.T) {
+	sh := newShelf(t, "Heat (1995)/Heat (1995).mkv")
+	var page ItemPage
+	sh.do("GET", "/v1/items?library="+sh.library+"&kind=movie", nil, &page, 200)
+	var item Item
+	sh.do("GET", "/v1/items/"+page.Items[0].ID, nil, &item, 200)
+	path := "/v1/admin/versions/" + item.Versions[0].ID
+	var preview DeletionPreview
+	sh.do("GET", path+"/deletion", nil, &preview, 200)
+	if preview.DeleteRefusal != "Deleting files is turned off for this library." {
+		t.Fatalf("preview did not explain the refusal: %+v", preview)
+	}
+	var refused errorBody
+	if w := call(t, sh.s, "DELETE", path, sh.owner, nil, &refused); w.Code != 403 || refused.Error.Message != preview.DeleteRefusal {
+		t.Fatalf("delete refused differently from its preview: %d %s", w.Code, w.Body)
+	}
+	sh.do("PATCH", "/v1/admin/libraries/"+sh.library,
+		LibraryEdit{Options: &LibraryOptions{Depth: "basic", Trash: TrashRule{Mode: "manual"}, AllowDelete: true}}, nil, 200)
+	var allowed DeletionPreview
+	w := call(t, sh.s, "GET", path+"/deletion", sh.owner, nil, &allowed)
+	if w.Code != 200 || allowed.DeleteRefusal != "" || strings.Contains(w.Body.String(), `"deleteRefusal"`) {
+		t.Fatalf("allowed preview still carries a refusal: %d %s", w.Code, w.Body)
+	}
+}
 
 func TestVersionDeletionPreviewUsesOnlyTheSelectedVersion(t *testing.T) {
 	sh := newShelf(t, "Heat (1995)/Heat (1995) {edition-Theatrical} - pt1.mkv",
