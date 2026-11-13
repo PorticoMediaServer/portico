@@ -101,8 +101,8 @@ func TestSourceChannelLogosAreHeldByTheServerAndRespectItsImageChoice(t *testing
 	if err := s.sources.Refresh(context.Background(), src.ID); err != nil {
 		t.Fatal(err)
 	}
-	if reads.Load() != 4 {
-		t.Fatal("failed replacement was mistaken for an already-held URL")
+	if reads.Load() != 3 {
+		t.Fatal("failed replacement was retried before a day passed")
 	}
 	fetch(channels[0].Logo) // The old immutable address still names its own bytes.
 	if _, err := s.settings.Write(context.Background(), 1, "live", json.RawMessage(`{"importImages":false}`), -1, s.now()); err != nil {
@@ -111,7 +111,7 @@ func TestSourceChannelLogosAreHeldByTheServerAndRespectItsImageChoice(t *testing
 	if err := s.sources.Refresh(context.Background(), src.ID); err != nil {
 		t.Fatal(err)
 	}
-	if reads.Load() != 4 {
+	if reads.Load() != 3 {
 		t.Fatal("the server fetched images with its image choice off")
 	}
 	if got := get[Page[LiveChannel]](t, s, owner, "/v1/live/channels").Items; got[0].Logo != changed[0].Logo {
@@ -119,6 +119,107 @@ func TestSourceChannelLogosAreHeldByTheServerAndRespectItsImageChoice(t *testing
 	}
 	if len(get[Page[LiveChannel]](t, s, owner, "/v1/live/channels").Items) != 4 {
 		t.Fatal("a bad or disabled logo lost a channel")
+	}
+}
+
+func TestFailedSourceLogosCannotKeepNewLogosBehindTheBudget(t *testing.T) {
+	s, owner, _ := seededWith(t, 20, 0)
+	ctx := context.Background()
+	if _, err := s.settings.Write(ctx, 1, "live", json.RawMessage(`{"importImages":false}`), -1, s.now()); err != nil {
+		t.Fatal(err)
+	}
+	var picture bytes.Buffer
+	if err := png.Encode(&picture, image.NewRGBA(image.Rect(0, 0, 32, 32))); err != nil {
+		t.Fatal(err)
+	}
+	var dead, good atomic.Int32
+	var changed atomic.Bool
+	budgetSpent := make(chan struct{}, 1)
+	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/playlist":
+			fmt.Fprint(w, "#EXTM3U\n")
+			for n := 0; n < 13; n++ {
+				logo := fmt.Sprintf("dead/%d", n)
+				if n == 12 {
+					logo = fmt.Sprintf("good/%t", changed.Load())
+				}
+				fmt.Fprintf(w, "#EXTINF:-1 tvg-id=\"%d\" tvg-logo=\"http://%s/%s\",Channel %d\nhttp://streams.invalid/%d.ts\n",
+					n, r.Host, logo, n, n)
+			}
+		case strings.HasPrefix(r.URL.Path, "/dead/"):
+			if dead.Add(1)%12 == 0 {
+				budgetSpent <- struct{}{}
+				<-r.Context().Done()
+				return
+			}
+			http.Error(w, "unavailable", http.StatusServiceUnavailable)
+		default:
+			good.Add(1)
+			w.Write(picture.Bytes())
+		}
+	}))
+	defer source.Close()
+	src := addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("Aerial"),
+		Config: &live.LiveSourceConfig{PlaylistURL: source.URL + "/playlist"}})
+	if _, err := s.settings.Write(ctx, 1, "live", json.RawMessage(`{"importImages":true}`), -1, s.now()); err != nil {
+		t.Fatal(err)
+	}
+	// A separate service uses the same fixture store and a controllable clock,
+	// without advancing the server's sign-ins or starting a background worker.
+	now := s.now()
+	service, err := live.New(s.db, s.log, func() time.Time { return now }, s.dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.Settings = s.settings
+	refresh := func() {
+		t.Helper()
+		budget, cancel := context.WithCancel(ctx)
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { done <- service.Refresh(budget, src.ID) }()
+		// Exhaust the logo budget on the twelfth dead URL, without sleeping
+		// through twelve real five-second HTTP timeouts on every test run.
+		select {
+		case <-budgetSpent:
+			cancel()
+		case err := <-done:
+			if err != nil {
+				t.Fatal(err)
+			}
+			return
+		case <-time.After(5 * time.Second):
+			t.Fatal("refresh did not reach its logo pass")
+		}
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("refresh did not stop at its logo budget")
+		}
+	}
+	refresh()
+	if dead.Load() != 12 || good.Load() != 0 {
+		t.Fatalf("first pass: dead=%d good=%d", dead.Load(), good.Load())
+	}
+	refresh()
+	channels := get[LiveChannelPage](t, s, owner, "/v1/live/channels").Items
+	if dead.Load() != 12 || good.Load() != 1 || len(channels) != 13 || channels[12].Logo == "" {
+		t.Fatalf("second pass did not reach the good logo: dead=%d good=%d, channels=%+v", dead.Load(), good.Load(), channels)
+	}
+	now = now.Add(23 * time.Hour)
+	refresh()
+	if dead.Load() != 12 || good.Load() != 1 {
+		t.Fatal("failed URLs were retried within a day, or a held logo was fetched again")
+	}
+	now = now.Add(time.Hour)
+	changed.Store(true)
+	refresh()
+	if dead.Load() != 24 || good.Load() != 2 {
+		t.Fatalf("new URL must precede yesterday's failures: dead=%d good=%d", dead.Load(), good.Load())
 	}
 }
 
