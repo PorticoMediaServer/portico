@@ -172,6 +172,7 @@ test('the real TV Watch overlay puts Select before Details, then Play a differen
   const shared = await screenModule(new URL('../src-next/kit/overlays/title-menu.ts', import.meta.url), {react: h.react, '../../../../../packages/i18n/src': {defaultI18n}});
   const theme = {isTV: true, layoutMode: 'tv', platform: 'tv', type: {caption: {}, body: {}}, colors: {}, textScale: 1};
   const {NativeWatchOverlays} = await screenModule(new URL('../src-next/screens/watch/WatchOverlays.tsx', import.meta.url), {
+    '../../../../../packages/client-core/src/presentation/kit-model/technical': {},
     react: h.react, 'react-native': {Modal: 'Modal', Platform: {isTV: true}, ScrollView: 'ScrollView', StyleSheet: {}, Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 1920, height: 1080})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/administration': {}, '../../../../../packages/client-core/src/title-identity': {},
     '../../../../../packages/client-core/src/presentation/kit-model/text': {}, '../../shell/model': {}, '../../kit/controls': {Button: 'Button', TextField: 'TextField'},

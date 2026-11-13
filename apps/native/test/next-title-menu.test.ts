@@ -95,6 +95,7 @@ async function overlays(tv: boolean) {
     './HomeBulkEditor': {HomeBulkEditor: 'Editor'}, './tv-focus': {tvFocusIds: () => ({menu: () => 'menu', surface: () => 'surface'})},
   });
   const {NativeWatchOverlays} = await screenModule(new URL('../src-next/screens/watch/WatchOverlays.tsx', import.meta.url), {
+    '../../../../../packages/client-core/src/presentation/kit-model/technical': {},
     react: h.react, 'react-native': {Modal: 'Modal', Platform: {isTV: tv}, ScrollView: 'ScrollView', StyleSheet: {}, Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 390, height: 844})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/administration': {}, '../../../../../packages/client-core/src/title-identity': {},
     '../../../../../packages/client-core/src/presentation/kit-model/text': {}, '../../shell/model': {}, '../../kit/controls': {Button: 'Button', TextField: 'TextField'},
