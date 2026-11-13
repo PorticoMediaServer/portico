@@ -21,6 +21,14 @@ export function nativeSessionLifecycle(): NativeSessionLifecycle {
   return instance;
 }
 
+/** The sign-in form already chose this profile (and passed its PIN). Admit only its durable selection. */
+export async function admitNativeSignIn(session: LocalSession, current: () => boolean): Promise<void> {
+  const {lifecycle, ports} = nativeSessionLifecycle(), {held} = await ports.readHeld();
+  if (!current() || !held || held.server.serverId !== session.viewer.serverId || held.viewer.accountId !== session.viewer.accountId
+    || held.viewer.profileId !== session.viewer.profileId || held.viewer.familyId !== session.sessionFamilyId) return;
+  lifecycle.actions.adoptSignedIn.start(held, 'viewer');
+}
+
 /** The mounted shell retires its private state when the sign-in it was built on changes. */
 export function onNativeShellFence(listener: () => void): () => void {
   fences.add(listener);

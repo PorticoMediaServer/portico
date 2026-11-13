@@ -34,6 +34,7 @@ import {routeOrigin} from '../../../../packages/client-core/src/route-identity';
 import {NativeProfileRecovery} from './profile-recovery';
 import {hostedSignInUnavailable} from './hosted-sign-in-unavailable';
 import {rememberNativeSignInHint} from './sign-in-ended';
+import {admitNativeSignIn} from './native-session-lifecycle';
 import {createNativeOwnerRecoveryContact} from './owner-recovery-contact';
 import {requestOwnerResetFile, verifyOwnerResetFile} from '../../../../packages/client-core/src/account-reset';
 
@@ -677,6 +678,7 @@ export class NativeServerSignIn {
     const previous = await this.owner.remember(this.api, session, this.admission, this.hosted, this.current, trace);
     trace?.mark('published');
     this.issued.delete(session.sessionFamilyId); this.setupIssuers.delete(session.sessionFamilyId); this.complete = true;
+    await admitNativeSignIn(session, this.current);
     if (this.snapshot && this.server) {
       const pin = this.api.getRouteConnection()?.pin;
       // A convenience for the next sign-in: never awaited on the way to Home.

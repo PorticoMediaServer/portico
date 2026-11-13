@@ -303,7 +303,12 @@ export function nextLifecycle(current: LifecycleSnapshot, event: LifecycleEvent)
     if (current.pending !== 'forget') return undefined;
     return to(event.remaining > 0 ? {kind: 'choosingServer'} : {kind: 'signedOut'}, 31, [], {authority: true});
   case 'signedIn':
-    if (s.kind !== 'signedOut' && s.kind !== 'choosingServer' && s.kind !== 'signInEnded') return undefined;
+    if (s.kind !== 'signedOut' && s.kind !== 'choosingServer' && s.kind !== 'signInEnded'
+      && (event.continuation !== 'viewer' || !signedInStates.has(s.kind) || current.pending)) return undefined;
+    // The record observer may already be connecting this publication. Keep that connection,
+    // but remember the form's accepted choice before its answer could draw another picker.
+    if (s.kind === 'connecting' && s.held && s.server.serverId === event.held.server.serverId && same(s.held.viewer, event.held.viewer))
+      return to({...s, held: event.held, admitted: true}, 33);
     return to({kind: 'connecting', server: event.held.server, held: event.held, ...(event.continuation === 'viewer' ? {admitted: true as const} : {})}, 33,
       [{kind: 'connect', serverId: event.held.server.serverId}], {authority: true});
   case 'envelopeChanged': {
