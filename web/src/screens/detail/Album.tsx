@@ -8,12 +8,11 @@ import {browseNameId} from '@core/presentation/browse-toolbar.ts';
 import {serverTextLabel} from '@core/presentation/server-text.ts';
 import {serviceI18n} from '@core/presentation/service-text.ts';
 import {defaultI18n} from '@i18n';
-import {AmbientArt, Artwork} from '../../kit/artwork';
+import {CoverHero, CoverHeroLink} from '../../kit/title/CoverHero';
 import {Button} from '../../kit/controls';
-import {Lockup} from '../../kit/layout';
 import {SortMenu, TrackTable} from '../../kit/browse';
 import {Menu} from '../../kit/overlays';
-import {TitleFactsLine, TitleProse} from '../../kit/title/TitleParts';
+import {TitleProse} from '../../kit/title/TitleParts';
 import {useShellWidth} from '../../shell/viewport';
 import {runScreenCommand, screenLifetime, type ScreenContext} from './context';
 import {calendarDate, entrySubject, instantDate} from './model';
@@ -120,41 +119,28 @@ export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: Alb
   fact(t('title.added'), instantDate(album.addedAt, locale));
   const hasDetails = !!album.overview || details.length > 0;
   return <div className={styles.page}>
-    <AmbientArt className={styles.ambient} treatment="wash" source={context.artwork.ambient(album.posterUrl)} />
     <div className={styles.bar}>
       {onBack && <Button variant="icon" icon="i-left" iconOnly aria-label={t('next.states.back')} onClick={() => runScreenCommand(context, () => {if (life.current()) onBack();})}/>}
       <span className={styles.barTitle}>{album.title}</span>
     </div>
-    <header className={styles.hero}>
-      <span className={styles.art}><AmbientArt treatment="cover" source={context.artwork.ambient(album.posterUrl)} foreground={context.artwork.foreground(album.posterUrl, 760, 1)} /></span>
-      <div className={styles.copy}>
-        <p className={styles.kind}>{t('next.browse.album')}</p>
-        <Lockup title={album.title} long={long} platform={phone ? 'phone-web' : 'desktop'} className={styles.title}
-          style={{fontSize: undefined, fontWeight: undefined, lineHeight: undefined, letterSpacing: undefined}}/>
-        <div className={styles.meta}>
-          {album.artist?.name && (() => {
-            const mini = album.posterUrl ? <span className={styles.mini} aria-hidden="true"><Artwork source={context.artwork.foreground(album.posterUrl, 56, 1)} alt="" width="100%" height="100%"/></span> : null;
-            const artistId = album.artist.id;
-            return onArtist && artistId
-              ? <a className={styles.by} href={`/library/${encodeURIComponent(libraryId)}?${new URLSearchParams({view: 'artist', entityId: artistId})}`} onClick={event => {if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); runScreenCommand(context, () => {if (life.current()) onArtist(artistId);});}}>{mini}{album.artist.name}</a>
-              : <span className={styles.by}>{mini}{album.artist.name}</span>;
-          })()}
-          <TitleFactsLine parts={metaParts}/>
-          {badges.length > 0 && <span className={styles.badges}>{badges.map(badge => {
-            const label = typeof badge === 'string' ? badge : formatSignalText(badge, t);
-            return <span key={label} className={styles.badge}>{label}</span>;
-          })}</span>}
-        </div>
-        <div className={styles.actions}>
+    {/* desktop-listen #album, music-plus #album, phone-app r5: the kit's cover hero, square, as an audiobook's. */}
+    <div className={styles.heroBleed}><CoverHero title={album.title} titleStyle={long ? 'long' : undefined} shape="square" eyebrow={phone ? undefined : t('next.browse.album')}
+      cover={context.artwork.foreground(album.posterUrl, 760, 1)} fallback={null} ambient={context.artwork.ambient(album.posterUrl)}
+      byline={album.artist?.name ? <CoverHeroLink picture={album.posterUrl ? context.artwork.foreground(album.posterUrl, 56, 1) : undefined}
+        href={onArtist && album.artist.id ? `/library/${encodeURIComponent(libraryId)}?${new URLSearchParams({view: 'artist', entityId: album.artist.id})}` : undefined}
+        onOpen={onArtist && album.artist.id ? () => {const artistId = album.artist!.id!; runScreenCommand(context, () => {if (life.current()) onArtist(artistId);});} : undefined}>{album.artist.name}</CoverHeroLink> : undefined}
+      facts={metaParts} metaEnd={badges.length > 0 ? <span className={styles.badges}>{badges.map(badge => {
+        const label = typeof badge === 'string' ? badge : formatSignalText(badge, t);
+        return <span key={label} className={styles.badge}>{label}</span>;
+      })}</span> : undefined}
+      actions={<>
           {context.effects.playAlbum && <>
             <Button variant="primary" icon="i-play" disabled={!current() || unplayable} aria-describedby={unplayable ? `${albumId}-unplayable` : undefined} onClick={() => runScreenCommand(context, () => context.effects.playAlbum!(albumId, false, life.signal(), current))}>{t('next.controls.play')}</Button>
             <Button variant="glass" icon="i-shuffle" disabled={!current() || unplayable} onClick={() => runScreenCommand(context, () => context.effects.playAlbum!(albumId, true, life.signal(), current))}>{t('title.shuffle')}</Button>
           </>}
           <Button ref={more} variant="glass" icon="i-more" iconOnly disabled={!current()} aria-label={t('card.more', {title: album.title})} onClick={event => open(album, event.currentTarget)}/>
-        </div>
-        {context.effects.playAlbum && unplayable && <p id={`${albumId}-unplayable`} className={styles.unplayable}>{t('title.fileUnavailable')}</p>}
-      </div>
-    </header>
+        </>}
+      under={context.effects.playAlbum && unplayable ? <p id={`${albumId}-unplayable`} className={styles.unplayable}>{t('title.fileUnavailable')}</p> : undefined}/></div>
     <section className={hasDetails ? styles.split : styles.full}>
       <div className={styles.tracks}>
         {sorts.length > 0 && <div className={styles.sortBar}><SortMenu sorts={sorts} value={sort}
