@@ -217,10 +217,13 @@ func TestBooksAtTheFileLimitPlay(t *testing.T) {
 // sound is sample for sample the book's own. The parts are noise, so no stretch of sound looks
 // like another.
 func TestABatchJoinIsInaudible(t *testing.T) {
+	var evidence []string
+	defer keepBookFailure(t, &evidence)
 	ffmpeg, ffprobe := decodertest.QualifiedFFmpeg(t), decodertest.QualifiedFFprobe(t)
 	h, d := newHouse(t, ffmpeg, ffprobe)
 	ctx := context.Background()
 	folder := filepath.Join(t.TempDir(), "Audiobooks", "Ann Author", "Noise")
+	evidence = append(evidence, folder)
 	if err := os.MkdirAll(folder, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -262,6 +265,7 @@ func TestABatchJoinIsInaudible(t *testing.T) {
 		}
 	}
 	file := filepath.Join(t.TempDir(), "join.ts")
+	evidence = append(evidence, file)
 	if err := os.WriteFile(file, joined, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -288,6 +292,7 @@ func TestABatchJoinIsInaudible(t *testing.T) {
 	}
 
 	reference := filepath.Join(t.TempDir(), "reference.ts")
+	evidence = append(evidence, reference)
 	if out, err := exec.Command(ffmpeg, "-v", "error", "-f", "concat", "-safe", "0", "-i", book,
 		"-c:a", "copy", "-f", "mpegts", "-muxdelay", "0", "-muxpreload", "0", reference).CombinedOutput(); err != nil {
 		t.Fatalf("reference copy: %v %s", err, out)
@@ -361,6 +366,8 @@ func bestAlignment(ours, theirs []int16) (shift, worst int) {
 
 // Different codecs also stay below the descriptor bound and continue through a batch.
 func TestAMixedBookCrossesABatch(t *testing.T) {
+	var evidence []string
+	defer keepBookFailure(t, &evidence)
 	ffmpeg, ffprobe := decodertest.QualifiedFFmpeg(t), decodertest.QualifiedFFprobe(t)
 	h, d := newHouse(t, ffmpeg, ffprobe)
 	ids := manyPartBooks(t, h, d, ffmpeg, 33)
@@ -369,6 +376,7 @@ func TestAMixedBookCrossesABatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(libs[0].Paths[0].Path, "Ann Author", "Book 0", "033.mp3")
+	evidence = append(evidence, filepath.Dir(path))
 	// Keep the name, change the actual container and codec. Probing, not the suffix,
 	// establishes the part's format.
 	if out, err := exec.Command(ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i",
@@ -385,6 +393,7 @@ func TestAMixedBookCrossesABatch(t *testing.T) {
 		t.Fatalf("mixed book route: %s", session.Presentation.Route)
 	}
 	played := h.listen(t, session.Presentation.URL, ffmpeg, ffprobe)
+	evidence = append(evidence, played.file)
 	t.Logf("mixed copied batches play %.6f seconds", played.seconds)
 	for _, part := range []int{21, 22, 23, 32} {
 		if got := toneAt(t, ffmpeg, played.file, float64(part)*partSeconds+1); got != partTone(part) {

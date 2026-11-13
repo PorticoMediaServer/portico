@@ -21,11 +21,14 @@ import (
 // given, from the start and from a place inside its second part. Rule 60 of playback: a book
 // in several files plays as one book, with one scrubber and one time left.
 func TestAMultiFileAudiobookPlaysAsOneBook(t *testing.T) {
+	var evidence []string
+	defer keepBookFailure(t, &evidence)
 	ffmpeg, ffprobe := decodertest.QualifiedFFmpeg(t), decodertest.QualifiedFFprobe(t)
 	h, d := newHouse(t, ffmpeg, ffprobe)
 	ctx := context.Background()
 	library := filepath.Join(t.TempDir(), "Audiobooks")
 	book := filepath.Join(library, "Ann Author", "Three Parts")
+	evidence = append(evidence, book)
 	if err := os.MkdirAll(book, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -70,6 +73,7 @@ func TestAMultiFileAudiobookPlaysAsOneBook(t *testing.T) {
 		}
 		h.segmentTone(t, p.URL, ffmpeg, int(start/6000), 300*(1+int(start/20_000)))
 		played := h.listen(t, p.URL, ffmpeg, ffprobe)
+		evidence = append(evidence, played.file)
 		if played.seconds < 59 || played.seconds > 61 {
 			t.Fatalf("start at %d ms: what plays lasts %.1f s, want the whole book's 60 s", start, played.seconds)
 		}
@@ -107,6 +111,7 @@ func TestAMultiFileAudiobookPlaysAsOneBook(t *testing.T) {
 	// there and by no other: that segment alone is the right part of the book.
 	h.segmentTone(t, resumed.Presentation.URL, ffmpeg, int(at/6000), want)
 	played := h.listen(t, resumed.Presentation.URL, ffmpeg, ffprobe)
+	evidence = append(evidence, played.file)
 	if got := toneAt(t, ffmpeg, played.file, float64(at)/1000+0.2); got != want {
 		t.Errorf("resumed at %d ms the book plays %d Hz, want part %d's %d Hz", at, got, want/300, want)
 	}

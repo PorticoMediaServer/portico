@@ -92,6 +92,13 @@ func joinedInput(parts []JoinedPart, roots func() []string) inputOpener {
 			first++
 		}
 		until, last := joinedBatchEnd(parts, first, offset, position)
+		if os.Getenv("PORTICO_AUDIOBOOK_EVIDENCE") != "" {
+			lengths := make([]int64, len(parts))
+			for n, part := range parts {
+				lengths[n] = part.DurationUS
+			}
+			fmt.Printf("BOOKCLOCK position=%.9f first=%d last=%d offset=%.9f skip=%.9f until=%.9f lengths=%v\n", position, first, last, offset, position-offset, until, lengths)
+		}
 		var files []*os.File
 		closeAll := func() {
 			for _, f := range files {
