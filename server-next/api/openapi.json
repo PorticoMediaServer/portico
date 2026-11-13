@@ -226,6 +226,10 @@
         ],
         "type": "object"
       },
+      "Addr": {
+        "properties": {},
+        "type": "object"
+      },
       "AdminJob": {
         "properties": {
           "canRetry": {
@@ -357,6 +361,32 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "AlbumAudioSummary": {
+        "properties": {
+          "bitDepth": {
+            "type": "integer"
+          },
+          "bitrate": {
+            "type": "integer"
+          },
+          "channels": {
+            "type": "integer"
+          },
+          "codec": {
+            "type": "string"
+          },
+          "sampleRate": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
         ],
         "type": "object"
       },
@@ -678,6 +708,9 @@
           "pictures": {
             "type": "integer"
           },
+          "protected": {
+            "type": "boolean"
+          },
           "scheduled": {
             "type": "boolean"
           },
@@ -696,13 +729,17 @@
           "size",
           "credentials",
           "pictures",
-          "artwork"
+          "artwork",
+          "protected"
         ],
         "type": "object"
       },
       "BackupInspect": {
         "properties": {
           "id": {
+            "type": "string"
+          },
+          "passphrase": {
             "type": "string"
           },
           "path": {
@@ -748,6 +785,17 @@
           "credentials",
           "madeHere",
           "restoring"
+        ],
+        "type": "object"
+      },
+      "BackupPassphrase": {
+        "properties": {
+          "passphrase": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "passphrase"
         ],
         "type": "object"
       },
@@ -813,6 +861,9 @@
           "pendingRestore": {
             "$ref": "#/components/schemas/Pending"
           },
+          "protected": {
+            "type": "boolean"
+          },
           "readable": {
             "type": "boolean"
           },
@@ -830,6 +881,7 @@
           "items",
           "folder",
           "folderWritable",
+          "protected",
           "readable",
           "readableMeans"
         ],
@@ -3689,6 +3741,9 @@
         "properties": {
           "addedAt": {
             "type": "string"
+          },
+          "albumAudio": {
+            "$ref": "#/components/schemas/AlbumAudioSummary"
           },
           "available": {
             "type": "boolean"
@@ -8383,6 +8438,9 @@
           "layout": {
             "type": "string"
           },
+          "objectAudio": {
+            "type": "string"
+          },
           "profile": {
             "type": "string"
           },
@@ -10607,6 +10665,9 @@
           "router": {
             "$ref": "#/components/schemas/PortMappingStatus"
           },
+          "routerIPv6": {
+            "$ref": "#/components/schemas/PortMappingStatus"
+          },
           "thisDevice": {
             "$ref": "#/components/schemas/ThisDevice"
           },
@@ -10624,6 +10685,7 @@
           "warnings",
           "certificate",
           "router",
+          "routerIPv6",
           "publicAddress",
           "identityCode",
           "addresses"
@@ -13145,6 +13207,9 @@
           "codec": {
             "type": "string"
           },
+          "commentary": {
+            "type": "boolean"
+          },
           "default": {
             "type": "boolean"
           },
@@ -13170,6 +13235,9 @@
             "type": "string"
           },
           "language": {
+            "type": "string"
+          },
+          "objectAudio": {
             "type": "string"
           },
           "profile": {
@@ -14184,6 +14252,18 @@
           "delivered"
         ],
         "type": "object"
+      },
+      "addrDetail": {
+        "properties": {},
+        "type": "object"
+      },
+      "addrDetailHandle": {
+        "properties": {},
+        "type": "object"
+      },
+      "uint128": {
+        "properties": {},
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -14496,6 +14576,36 @@
               }
             },
             "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/backups/passphrase": {
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackupPassphrase"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
           },
           "default": {
             "content": {
@@ -19886,6 +19996,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DeletionResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/versions/{id}/deletion": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionPreview"
                 }
               }
             },

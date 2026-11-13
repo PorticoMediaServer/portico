@@ -66,6 +66,9 @@ export interface ActivitySummary {
   lastScanAt?: string;
 }
 
+export interface Addr {
+}
+
 export interface AdminJob {
   id: string;
   kind: string;
@@ -102,6 +105,15 @@ export interface AdminLibrary {
 export interface AdminLibraryPage {
   items: AdminLibrary[];
   nextCursor?: string;
+}
+
+export interface AlbumAudioSummary {
+  state: string;
+  codec?: string;
+  bitDepth?: number;
+  sampleRate?: number;
+  channels?: number;
+  bitrate?: number;
 }
 
 export interface AlertAction {
@@ -206,11 +218,13 @@ export interface Backup {
   pictures: number;
   artwork: boolean;
   mark?: string;
+  protected: boolean;
 }
 
 export interface BackupInspect {
   id?: string;
   path?: string;
+  passphrase?: string;
 }
 
 export interface BackupInspection {
@@ -220,6 +234,10 @@ export interface BackupInspection {
   madeHere: boolean;
   createdAt?: string;
   restoring: string[];
+}
+
+export interface BackupPassphrase {
+  passphrase: string;
 }
 
 export interface BackupRestore extends BackupInspect {
@@ -241,6 +259,7 @@ export interface Backups {
   folder: string;
   folderWritable: boolean;
   pendingRestore?: Pending;
+  protected: boolean;
   readable: boolean;
   readableMeans: string[];
 }
@@ -1145,6 +1164,7 @@ export interface Item {
   credits?: Credit[];
   creditTotal?: number;
   versions?: Media[];
+  albumAudio?: AlbumAudioSummary;
 }
 
 export interface ItemCounts {
@@ -2513,6 +2533,7 @@ export interface PlaybackAudio {
   title?: string;
   default: boolean;
   commentary: boolean;
+  objectAudio?: string;
 }
 
 export interface PlaybackChange {
@@ -3205,6 +3226,7 @@ export interface RemoteAccessStatus {
   warnings: Warning[];
   certificate: OwnCertificateStatus;
   router: PortMappingStatus;
+  routerIPv6: PortMappingStatus;
   publicAddress: PublicAddressAnswer;
   identityCode: string;
   addresses: PublishedAddress[];
@@ -3936,6 +3958,8 @@ export interface Stream {
   default?: boolean;
   forced?: boolean;
   hearingImpaired?: boolean;
+  commentary?: boolean;
+  objectAudio?: string;
   bitrate?: number;
   width?: number;
   height?: number;
@@ -4252,6 +4276,15 @@ export interface WebhookTest {
   error?: string;
 }
 
+export interface addrDetail {
+}
+
+export interface addrDetailHandle {
+}
+
+export interface uint128 {
+}
+
 /** The body of every refusal. */
 export interface ErrorBody {
   error: ApiError;
@@ -4418,6 +4451,7 @@ export interface Routes {
   'GET /v1/admin/libraries/{id}/missing': {access: 'owner'; request: undefined; response: MissingTitles};
   'DELETE /v1/admin/libraries/{id}/missing': {access: 'owner'; request: undefined; response: TrashEmptied};
   'GET /v1/admin/items/{id}/deletion': {access: 'owner'; request: undefined; response: DeletionPreview};
+  'GET /v1/admin/versions/{id}/deletion': {access: 'owner'; request: undefined; response: DeletionPreview};
   'DELETE /v1/admin/items/{id}': {access: 'owner'; request: undefined; response: DeletionResult};
   'DELETE /v1/admin/versions/{id}': {access: 'owner'; request: undefined; response: DeletionResult};
   'GET /v1/admin/jobs': {access: 'owner'; request: undefined; response: AdminJobPage};
@@ -4447,6 +4481,7 @@ export interface Routes {
   'GET /v1/admin/storage': {access: 'owner'; request: undefined; response: Storage};
   'GET /v1/admin/data-folder/permissions': {access: 'owner'; request: undefined; response: DataFolderPermissions};
   'POST /v1/admin/data-folder/permissions/fix': {access: 'owner'; request: undefined; response: DataFolderPermissions};
+  'PUT /v1/admin/backups/passphrase': {access: 'owner'; request: BackupPassphrase; response: undefined};
   'GET /v1/admin/backups': {access: 'owner'; request: undefined; response: Backups};
   'POST /v1/admin/backups': {access: 'owner'; request: undefined; response: BackupStarted};
   'DELETE /v1/admin/backups/{id}': {access: 'owner'; request: undefined; response: undefined};
