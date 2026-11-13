@@ -211,10 +211,11 @@ func hostPort(s string, defaultPort int) (string, bool) {
 
 // remoteState is the document as requests use it, and what Enhanced has refused since start.
 type remoteState struct {
-	mu      sync.RWMutex
-	value   RemoteAccessSettings
-	allowed []string // the approved host:port pairs, the own domain included
-	refused map[string]RefusedAddress
+	listener *RemoteListenerFacts
+	mu       sync.RWMutex
+	value    RemoteAccessSettings
+	allowed  []string // the approved host:port pairs, the own domain included
+	refused  map[string]RefusedAddress
 	// finished says first-run setup has finished, so Enhanced may take effect.
 	finished bool
 	// portico is the Portico address, approved under Enhanced like the owner's own, and
@@ -538,7 +539,9 @@ type RemoteAccessStatus struct {
 	// they hold. The owner may keep any of them; none is refused.
 	Warnings []Warning `json:"warnings"`
 	// Certificate is the owner's own certificate: none, served, or what is wrong with it.
-	Certificate OwnCertificateStatus `json:"certificate"`
+	Certificate        OwnCertificateStatus      `json:"certificate"`
+	ManagedCertificate *RemoteManagedCertificate `json:"managedCertificate,omitempty"`
+	Listener           *RemoteListenerFacts      `json:"listener,omitempty"`
 	// Router is what the home router last said about opening the public port.
 	Router     PortMappingStatus `json:"router"`
 	RouterIPv6 PortMappingStatus `json:"routerIPv6"`
@@ -653,7 +656,7 @@ func (s *Server) remoteStatus(r *http.Request) RemoteAccessStatus {
 		Refused: s.access.refusedList(), RemoteSecurity: sec, Warnings: s.warnings(v, sec, s.networks()),
 		Certificate: OwnCertificateStatus(s.certs.Status()), Router: PortMappingStatus(s.ports.Status()), PublicAddress: PublicAddressAnswer(s.public.Answer()),
 		RouterIPv6:   PortMappingStatus(router6),
-		IdentityCode: s.identity.code(), Addresses: s.PublishedAddresses()}
+		IdentityCode: s.identity.code(), Addresses: s.PublishedAddresses(), ManagedCertificate: s.managedCertificate(), Listener: s.listenerFacts()}
 }
 
 func (s *Server) setupFinished() bool {

@@ -319,3 +319,30 @@ func TestAServerThatIsNoLongerLinkedAsksNothing(t *testing.T) {
 		t.Fatal("a server that is no longer linked asked Portico Services for something")
 	}
 }
+
+func TestCertificateRenewalFactsKeepTheGoodCertificateAndRememberTheActualAttempt(t *testing.T) {
+	r := newRig(t)
+	r.c.Linked(r.linkedAt)
+	r.until("issued")
+	before := r.c.Status()
+	if before.LastAttemptAt == nil || before.LastProblem != "" || before.ExpiresAt == nil {
+		t.Fatal(before)
+	}
+	r.now = renewAt(r.c.leaf).Add(time.Second)
+	r.f.refuse = []refusal{{503, "busy", "Portico Services is busy.", 120, "/orders"}}
+	r.c.Step(context.Background())
+	failed := r.c.Status()
+	if failed.LastAttemptAt == nil || !failed.LastAttemptAt.Equal(r.now) || !strings.Contains(failed.LastProblem, "busy") {
+		t.Fatal(failed)
+	}
+	if !failed.CertificateReady || r.served("203-0-113-1."+failed.NameSpace+"."+Zone) == nil {
+		t.Fatal("a refused renewal took away the installed certificate")
+	}
+	r.restart()
+	r.c.Linked(r.linkedAt)
+	r.c.Step(context.Background())
+	restored := r.c.Status()
+	if restored.LastAttemptAt == nil || !restored.LastAttemptAt.Equal(*failed.LastAttemptAt) || restored.LastProblem != failed.LastProblem {
+		t.Fatal("restart lost the last real attempt or its reason", restored)
+	}
+}

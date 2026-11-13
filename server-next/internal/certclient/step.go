@@ -212,6 +212,14 @@ func (c *Client) wait(now time.Time, retryAfter time.Duration, message func(when
 // call sends one signed request and reads its answer into out. When it did not work, it has
 // told the owner why and answers when to try again.
 func (c *Client) call(ctx context.Context, method, path string, in, out any, now time.Time) (time.Time, bool) {
+	if strings.Contains(path, "/certificate/orders") {
+		at := now.UTC()
+		c.mu.Lock()
+		c.state.LastAttemptAt, c.state.LastProblem = at, ""
+		c.status.LastAttemptAt, c.status.LastProblem = &at, ""
+		c.mu.Unlock()
+		c.save()
+	}
 	var body []byte
 	if in != nil {
 		body, _ = json.Marshal(in)

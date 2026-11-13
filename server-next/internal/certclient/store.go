@@ -31,8 +31,10 @@ const (
 )
 
 type saved struct {
-	NameSpace string    `json:"nameSpace"`
-	NextTryAt time.Time `json:"nextTryAt"`
+	NameSpace     string    `json:"nameSpace"`
+	NextTryAt     time.Time `json:"nextTryAt"`
+	LastAttemptAt time.Time `json:"lastAttemptAt,omitzero"`
+	LastProblem   string    `json:"lastProblem,omitempty"`
 	// LinkIssuedAt is the link the rest was for, by its approval's issue time (Unix seconds).
 	LinkIssuedAt int64 `json:"linkIssuedAt"`
 	// AskNameSpace: a new link was made and its name space not yet asked for.
