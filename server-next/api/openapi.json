@@ -2601,6 +2601,100 @@
         ],
         "type": "object"
       },
+      "DvrPermission": {
+        "properties": {
+          "accountAllowed": {
+            "type": "boolean"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "accountRevision": {
+            "type": "integer"
+          },
+          "authority": {
+            "type": "string"
+          },
+          "canRecord": {
+            "type": "boolean"
+          },
+          "liveAllowed": {
+            "type": "boolean"
+          },
+          "ownerAccount": {
+            "type": "boolean"
+          },
+          "profileAllowed": {
+            "type": "boolean"
+          },
+          "profileId": {
+            "type": "string"
+          },
+          "profileName": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accountId",
+          "accountName",
+          "profileId",
+          "profileName",
+          "authority",
+          "accountAllowed",
+          "profileAllowed",
+          "liveAllowed",
+          "canRecord",
+          "ownerAccount",
+          "accountRevision",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "DvrPermissionChange": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "profileId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accountId",
+          "enabled",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "DvrPermissionPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DvrPermission"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "DvrRecording": {
         "properties": {
           "bookedBy": {
@@ -15465,6 +15559,68 @@
         },
         "x-access": "owner",
         "operationId": "GET /v1/admin/dvr/folder"
+      }
+    },
+    "/v1/admin/dvr/permissions": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DvrPermissionPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "patch": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DvrPermissionChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DvrPermissionPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
       }
     },
     "/v1/admin/dvr/tuners": {
