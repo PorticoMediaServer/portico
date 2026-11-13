@@ -273,3 +273,25 @@ test('TV Library composes one measured grid with toolbar memory, short rows and 
     assert.equal(requested.at(-1), 'served-6', 'removal at the end falls back to the previous genuine card');
   } finally {collection.dispose();}
 });
+
+// Desk B on #3452: the rebuilt server puts no library kind on each entry, so the grid passes its own. A series is a 2:3
+// poster in a book library and square in an audiobook library (client-core shapeFor, the rule web already follows).
+test('a series card takes its shape from the grid\'s own library: poster for books, square for audiobooks', async () => {
+  const {shapeFor} = await import('../../../packages/client-core/src/presentation/card-shape.ts');
+  assert.equal(shapeFor('book_series', 'grid', 'book'), 'poster'); assert.equal(shapeFor('book_series', 'grid', 'comic'), 'poster');
+  assert.equal(shapeFor('book_series', 'grid', 'audiobook'), 'square'); assert.equal(shapeFor('collection', 'grid', 'music'), 'square');
+  for (const kind of ['book', 'audiobook']) {
+    const {module, host} = await libraryScreen(390);
+    const collection = createWindowedCollection({fetchPage: async () => ({items: [], total: 0}), pageSize: 40, maxResidentPages: 4, keyOf: (item: any) => item.id});
+    const source = {library: {id: kind, kind}, tab: {id: 'series', shows: 'titles'}, collection, memory: {firstVisibleIndex: 0}, queryRevision: 0, predicates: [], sort: {field: 'title', direction: 'asc'}, capabilities: {}};
+    const activation = {subscribe: () => () => {}, getSnapshot: () => ({visible: true, intent: 'restore', revision: 1})};
+    const props = {source, destination: {getMemory: () => ({offset: 0}), getSnapshot: () => source}, activation, paneWidth: 390, tablet: false,
+      runtime: {getSnapshot: () => ({authority: {}}), text: {}}, labels: {}, actions: {}, entryRequest() {}, onEntered() {}, onFilters() {}};
+    try {
+      const grid = elements(host.render(() => module.LibraryGrid(props))).find(node => node.type === 'WindowedGrid')!;
+      const cell = elements(grid.props.renderItem({id: 'series', kind: 'book_series', title: 'The Lantern Chronicles'}, {index: 0, focusId: 'series', onFocus() {}, onBlur() {}}));
+      const card = cell.find((node: any) => node.type?.name === 'LibraryCard') as any;
+      assert.equal(card?.props.family, kind, 'the card is told its library\'s kind');
+    } finally {collection.dispose();}
+  }
+});

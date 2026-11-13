@@ -429,7 +429,7 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
             libraryName={state.library.name} firstScanning={firstScanning} onActivity={props.firstScan?.openActivity}/>
           : theme.isTV && state.library.kind === 'music' && state.tab.id === 'discover' ? <TVMusicDiscover
             destination={destination} state={state} runtime={runtime} active={active} anchor={props.mixAnchor} onEntered={onEntered}
-            renderEntry={(entry, width, context) => <LibraryCard entry={entry} width={width} runtime={runtime} actions={actions} focusId={context.focusId} disabled={!active.visible} onFocus={context.onFocus} onBlur={context.onBlur}
+            renderEntry={(entry, width, context) => <LibraryCard entry={entry} family={state.library.kind} width={width} runtime={runtime} actions={actions} focusId={context.focusId} disabled={!active.visible} onFocus={context.onFocus} onBlur={context.onBlur}
               selected={shelfSelection?.item(entry)} onSelect={shelfSelection?.item(entry)?.onEnter}/>}/>
           : state.tab.shows === 'rows' ? <ScrollView ref={discoverScroll}>
             {state.discover.error && <StateView {...runtime.error(state.discover.error, destination.retry, 'library')}/>}
@@ -447,7 +447,7 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
               onVisibleRange={(_first, last) => {
                 if (active.visible && section.nextCursor && last >= section.entries.length - 10) void destination.nextDiscover(section.id).catch(runtime.reportError);
               }}
-              renderItem={(entry, context) => <LibraryCard entry={entry} width={cardWidth} wide={wide} runtime={runtime} actions={actions} focusId={context.focusId} onFocus={context.onFocus} onBlur={context.onBlur}
+              renderItem={(entry, context) => <LibraryCard entry={entry} family={state.library.kind} width={cardWidth} wide={wide} runtime={runtime} actions={actions} focusId={context.focusId} onFocus={context.onFocus} onBlur={context.onBlur}
                 selected={shelfSelection?.item(entry)} onSelect={shelfSelection?.item(entry)?.onEnter}/>}/>
             {!theme.isTV && state.library.kind === 'music' && index === 0 && runtime.mixes ? <View onLayout={anchorMixes}>
               <MusicMixesRow focusScope={`${ids.libraryToolbar(state.library.id)}.${state.tab.id}.mixes`} port={runtime.mixes} artwork={runtime.artwork} reportError={runtime.reportError} title={defaultI18n.t('music.mixesForYou')} active={active.visible} onReady={scrollToMixes}/>
@@ -659,7 +659,7 @@ export function LibraryGrid({destination, runtime, activation, actions, labels, 
       renderPlaceholder={() => <View style={{width, height: list ? 70 : artHeight, borderRadius: theme.isTV ? 14 : 8, backgroundColor: theme.colors.raised}}/>}
       renderNativeSlot={theme.isTV ? (entry, context) => <FocusItem focusId={context.focusId} entityId={context.entityId} waiting={context.waiting}
         cell={{index: context.index, pending: context.waiting, generation: context.source}}>
-        <LibraryCard entry={entry} width={width} placeholderHeight={artHeight} runtime={runtime} actions={actions} disabled={!active.visible}
+        <LibraryCard entry={entry} family={source.library.kind} width={width} placeholderHeight={artHeight} runtime={runtime} actions={actions} disabled={!active.visible}
           selected={context.selection} focusId={context.focusId} onFocus={() => {
             if (entry && resourceGrid && active.visible) {
               let memory = resourceFocusMemory.get(runtime);
@@ -681,7 +681,7 @@ export function LibraryGrid({destination, runtime, activation, actions, labels, 
           }
           context.onFocus();
         };
-        const card = list ? <LibraryListRow entry={entry} width={width} runtime={runtime} actions={actions} disabled={!active.visible} selected={context.selection} focusId={key} onFocus={focused} onBlur={context.onBlur} onSelect={context.selection?.onEnter ?? selection?.start}/> : <LibraryCard entry={entry} width={width} runtime={runtime} actions={actions} disabled={!active.visible} selected={context.selection} focusId={key} onFocus={focused} onBlur={context.onBlur} onSelect={context.selection?.onEnter ?? selection?.start}/>;
+        const card = list ? <LibraryListRow entry={entry} width={width} runtime={runtime} actions={actions} disabled={!active.visible} selected={context.selection} focusId={key} onFocus={focused} onBlur={context.onBlur} onSelect={context.selection?.onEnter ?? selection?.start}/> : <LibraryCard entry={entry} family={source.library.kind} width={width} runtime={runtime} actions={actions} disabled={!active.visible} selected={context.selection} focusId={key} onFocus={focused} onBlur={context.onBlur} onSelect={context.selection?.onEnter ?? selection?.start}/>;
         return theme.isTV ? <FocusItem focusId={key} cell={{index: context.index}}>{card}</FocusItem>
           : <FocusRegion id={ids.libraryCard(source.library.id, key)} entry={key} entryPolicy="entry" order={[key]} enabled={active.visible}>{card}</FocusRegion>;
       }}/>
@@ -694,11 +694,7 @@ export function LibraryGrid({destination, runtime, activation, actions, labels, 
   </View>;
 }
 
-/** The library family a card belongs to, from the entry's library kind (singular or plural). */
-const families: Readonly<Record<string, ShapeFamily>> = {movie: 'movie', show: 'tv', anime: 'anime', audiobook: 'audiobook', music: 'music', book: 'book', comic: 'comic'};
-const shapeFamily = (kind: string | undefined): ShapeFamily | undefined => kind ? families[kind.replace(/s$/, '')] : undefined;
-
-function LibraryCard({entry, width, wide = false, placeholderHeight, runtime, actions, selected, disabled, focusId, onFocus, onBlur, onSelect}: {entry?: ContentEntry; width: number; wide?: boolean; placeholderHeight?: number; runtime: NativeShellRuntime; actions: NativeLibraryActions; selected?: CardSelection; disabled?: boolean; focusId?: string; onFocus?: () => void; onBlur?: () => void; onSelect?: () => void}) {
+function LibraryCard({entry, family, width, wide = false, placeholderHeight, runtime, actions, selected, disabled, focusId, onFocus, onBlur, onSelect}: {entry?: ContentEntry; /** The grid's own library kind (the server does not put it on each entry); the shared shape rule's family. */ family?: string; width: number; wide?: boolean; placeholderHeight?: number; runtime: NativeShellRuntime; actions: NativeLibraryActions; selected?: CardSelection; disabled?: boolean; focusId?: string; onFocus?: () => void; onBlur?: () => void; onSelect?: () => void}) {
   const menuAnchorRef = useRef<View>(null);
   const theme = useTheme();
   const adapter = entry ? runtime.playback : undefined;
@@ -732,5 +728,5 @@ function LibraryCard({entry, width, wide = false, placeholderHeight, runtime, ac
   const artistCovers = (entry.artworkPaths ?? []).flatMap(path => {const source = runtime.artwork(path); return source ? [source] : [];});
   return entry.kind === 'artist' ? renderCard(CircleCard, {...props, art: {covers: artistCovers.length ? artistCovers : props.artwork ? [props.artwork] : [], alt: entry.title}})
     // One shape rule for every client (client-core shapeFor): music and audiobooks square, an audiobook series too; reading series 2:3.
-    : shapeFor(entry.kind, 'grid', shapeFamily(entry.libraryKind)) === 'square' ? renderCard(SquareCard, props) : renderCard(PosterCard, props);
+    : shapeFor(entry.kind, 'grid', family as ShapeFamily | undefined) === 'square' ? renderCard(SquareCard, props) : renderCard(PosterCard, props);
 }
