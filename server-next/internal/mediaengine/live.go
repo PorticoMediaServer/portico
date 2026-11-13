@@ -70,7 +70,7 @@ func (e *Engine) StartLive(ctx context.Context, r live.Conversion) (*live.Play, 
 	if old := e.liveIn(r.SessionID, in); old != nil {
 		old.streams.StopLive(r.SessionID)
 	}
-	err = in.streams.StartLive(ctx, streaming.LiveRequest{SessionID: r.SessionID, Plan: plan, Input: r.Input})
+	err = in.streams.StartLive(ctx, streaming.LiveRequest{SessionID: r.SessionID, Plan: plan, Input: live.ViewingInput{Input: r.Input}})
 	switch {
 	case errors.Is(err, streaming.ErrConversionCapacity), errors.Is(err, streaming.ErrConversionSpace):
 		e.leave(r.SessionID, in)
