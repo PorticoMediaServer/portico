@@ -36,6 +36,6 @@ func serveNetwork(ctx context.Context, srv *http.Server, handler *api.Server, fa
 	if port.IP.IsLoopback() {
 		port.Port = 0
 	}
-	go func() { handler.ServeNetwork(ctx, port.Port); close(mapped) }()
+	go func() { handler.ServeNetwork(ctx, port.Port, port.AddrPort().Addr().Unmap()); close(mapped) }()
 	return mapped
 }
