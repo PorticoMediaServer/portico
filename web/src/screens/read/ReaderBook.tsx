@@ -26,7 +26,9 @@ import type {ReaderChapterMark} from './ReaderChrome';
 import fixedStyles from './fixed-page.module.css';
 import {ReaderMatchNavigation} from './ReaderMatchNavigation';
 import {ReaderBrowserHint} from './ReaderBrowserHint';
-import {ToastHost, type ToastData} from '../../kit/overlays';
+import {Menu, ToastHost, type ToastData} from '../../kit/overlays';
+import {ReaderTitleItems, ReaderVersionDialog, useReaderTitleMark, type ReaderTitle} from './ReaderTitleMenu';
+import {readingDuration} from '@core/reading-manifest-facts.ts';
 const {t} = defaultI18n;
 const directionIcon = (direction: ReadDirection): 'i-rtl' | 'i-ltr' | 'i-vscroll' => direction === 'rtl' ? 'i-rtl' : direction === 'vertical' ? 'i-vscroll' : 'i-ltr';
 /** Real outline boundaries, including nested chapters; coincident starts draw one tick. */
@@ -72,6 +74,10 @@ export function readerCurrentContentsId(items: readonly ReaderTocItem[], locatio
 }
 type ReaderSearchScope = Readonly<{query: string; active: boolean; abort: AbortController}>;
 export type ReaderBookState = Readonly<{publication: ReadingPublication; controller: ReadingController; authority: ReaderMountAuthority; location?: ReaderLocation; contentsTarget?: ReaderContentsTarget; annotations?: ReadingAnnotationPort;
+  /** The book behind the reader, for its ⋯ More. */
+  title?: ReaderTitle;
+  /** The whole book's reading time at one ordinary pace (10-reading rule 40), for the time left in it. */
+  estimatedSeconds?: number;
   /** How far through the person was in another file of this book (a replaced file, another version). */
   near?: number;
   /** Told when the book has landed near that place, so moving on from there is saved. */
@@ -81,7 +87,8 @@ export type ReaderBookState = Readonly<{publication: ReadingPublication; control
 export const readerNear = (saved: ReadingProgress): number | undefined => saved.progress?.stale ? saved.progress.location.progression : undefined;
 
 export function ReaderBook({book, active, reportError, onBack, onOpenSettings, onSearchAll, environment = 'web', crease, saveHighlights}: {saveHighlights?: (revision: number, signal: AbortSignal) => Promise<'saved' | 'cancelled'>; environment?: ReaderEnvironment; book: ReaderBookState; active: boolean; reportError: (error: unknown) => void; onBack: () => void; onOpenSettings: () => void; onSearchAll?: (query: string) => void; /** Actual vertical book fold for this window, or absent. */ crease?: Readonly<{left: number; right: number}>}) {
-  const {controller, publication, authority} = book;
+  const {controller, publication, authority, title} = book;
+  const mark = useReaderTitleMark(title, () => authority.isCurrent(), reportError), [versions, setVersions] = useState(false);
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot), width = useShellWidth(), height = useWindowHeight();
   const [panel, updatePanel] = useState<'display' | 'contents' | 'search'>(), [query, setQuery] = useState('');
   const [fixedMenu, setFixedMenu] = useState<'zoom' | 'direction' | 'more'>();
@@ -274,6 +281,7 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
       hint: presentation === 'phone' && hint && !panel && value.status === 'ready' && value.preferences.tapToTurn && value.selection === null ? <ReaderFirstRunHint onDone={dismissHint} swipe={publication.format === 'epub' && value.preferences.layout === 'pages'}
         direction={readingDirection(comic, value.preferences.comicDirection, value.metadata?.direction) === 'rtl' ? 'rtl' : 'ltr'}/> : undefined,
       percent: value.location ? defaultI18n.percent(value.location.progression) : undefined,
+      remainingInBook: value.location && book.estimatedSeconds ? t('next.reader.leftInBook', {duration: defaultI18n.duration(readingDuration(book.estimatedSeconds * (1 - value.location.progression)))}) : undefined,
       searchNavigation: active && value.status === 'ready' && value.sourceId === publication.source.id && value.sourceRevision === publication.source.revision && presentation === 'phone' && currentHit && visibleHits.some(hit => hit.id === currentHit)
         ? <ReaderMatchNavigation query={query} onStep={stepSearch} onClose={() => changeQuery('')}/> : undefined, panel: panelContent, panelReflows: layout.panelReflows(panel),
       fixedPageFooter: comic ? <ComicPageFooter controller={controller} authority={authority} format={publication.format} reportError={engineError} crease={crease} presentation={presentation}/>
@@ -293,7 +301,7 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
         ...(!compactDocument ? [{id: 'contents', label: t('next.reader.contents'), icon: 'i-chapters' as const, expanded: panel === 'contents', onPress: (element: HTMLButtonElement) => {anchor.current = element; setPanel(panel === 'contents' ? undefined : 'contents');}}] : []),
         ...(!comic && !compactDocument ? [{id: 'search', label: t('next.reader.search'), icon: 'i-search' as const, expanded: panel === 'search', onPress: (element: HTMLButtonElement) => {anchor.current = element; setPanel(panel === 'search' ? undefined : 'search');}}] : []),
         ...(publication.format === 'epub' ? [{id: 'display', label: t('next.reader.displayAction'), text: <ReaderDisplayMark sample={t('next.reader.sample')}/>, expanded: panel === 'display', onPress: (element: HTMLButtonElement) => {anchor.current = element; setPanel(panel === 'display' ? undefined : 'display');}}] : []),
-        ...(compactDocument ? [{id: 'more', label: t('next.controls.more'), icon: 'i-more' as const, expanded: fixedMenu === 'more',
+        ...(compactDocument || title ? [{id: 'more', label: t('next.controls.more'), icon: 'i-more' as const, expanded: fixedMenu === 'more',
           onPress: (element: HTMLButtonElement) => {moreAnchor.current = element; setFixedMenu(fixedMenu === 'more' ? undefined : 'more');}}] : []),
         ...(fixed && presentation !== 'phone' ? [...(comic ? [] : [{id: 'pages', label: t('next.reader.pagesStrip'), icon: 'i-thumbs' as const, disabled: value.status !== 'ready' || !value.metadata?.pageCount,
           expanded: panel === 'contents' && fixedPane === 'pages', onPress: () => {setFixedPane('pages'); setPanel('contents');}},
@@ -315,7 +323,11 @@ export function ReaderBook({book, active, reportError, onBack, onOpenSettings, o
     {active && <ToastHost toast={nearNotice} onDismiss={() => setNearNotice(null)}/>}
     {active && environment === 'web' && snapshot.status === 'ready' && <ReaderBrowserHint visible={presentation === 'phone' && !panel && !fixedMenu && !currentHit && snapshot.selection === null && !hint}/>}
     {active && fixed && <FixedPageMenus controller={controller} authority={authority} format={publication.format} reportError={engineError}
-      open={fixedMenu} onOpenChange={setFixedMenu} anchorRef={zoomAnchor} directionRef={directionAnchor} moreRef={moreAnchor}/>}
+      open={fixedMenu} onOpenChange={setFixedMenu} anchorRef={zoomAnchor} directionRef={directionAnchor} moreRef={moreAnchor}
+      titleItems={compactDocument && title ? <ReaderTitleItems title={title} mark={mark} onVersions={() => setVersions(true)} onClose={() => setFixedMenu(undefined)}/> : undefined}/>}
+    {active && title && !compactDocument && <Menu open={fixedMenu === 'more'} onOpenChange={open => setFixedMenu(open ? 'more' : undefined)} title={t('next.controls.more')} anchorRef={moreAnchor}>
+      <ReaderTitleItems title={title} mark={mark} onVersions={() => setVersions(true)} onClose={() => setFixedMenu(undefined)}/></Menu>}
+    {active && title && <ReaderVersionDialog title={title} open={versions} onOpenChange={setVersions} returnFocusRef={moreAnchor}/>}
   </>;
 }
 

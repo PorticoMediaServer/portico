@@ -182,11 +182,7 @@ function bookmarkChapter(location:ReadingAnnotation['location'],toc:readonly Rea
   return find(toc);
 }
 export function bookmarkPlace(location:ReadingAnnotation['location'],toc:readonly ReaderTocItem[]):string {
-  if(location.format==='epub'){
-    const find=(items:readonly ReaderTocItem[]):string|undefined=>{for(const item of items){if(item.location.format==='epub'&&location.section!==undefined&&item.location.section===location.section)return item.label;const inner=item.children&&find(item.children);if(inner)return inner;}return undefined;};
-    const title=find(toc);if(title)return title;
-  }else if(typeof location.pageIndex==='number')return t('next.reader.pageLabel',{page:defaultI18n.number(location.pageIndex+1)});
-  return Number.isFinite(location.progression)?defaultI18n.percent(location.progression):t('next.reader.bookmarks');
+  return bookmarkChapter(location,toc)??(Number.isFinite(location.progression)?defaultI18n.percent(location.progression):t('next.reader.bookmarks'));
 }
 export function ReaderAnnotationList({kind,service,state,controller,reportError,signal,placed}: {kind:'bookmark'|'highlight';service:ReadingAnnotationService;state:ReadingAnnotationState;controller:ReadingController;reportError:(error:unknown)=>void;signal:AbortSignal;
   /** Earlier-copy highlights found in this copy for this open: listed with the others, not editable here. */ placed?:ReadonlyMap<string,ReadingAnnotation['location']>}) {
@@ -197,7 +193,7 @@ export function ReaderAnnotationList({kind,service,state,controller,reportError,
   const owns=(entry:ReadingAnnotation)=>live(lease)&&!signal.aborted&&service.current()&&service.getSnapshot().entries.includes(entry);
   const [menu,setMenu]=useState<Readonly<{entry:ReadingAnnotation;anchor:HTMLButtonElement}>>();
   const go=(entry:ReadingAnnotation)=>{if(owns(entry)&&lease)void controller.navigate({kind:'location',location:readerLocationFromReading(placed?.get(entry.id)??entry.location)},AbortSignal.any([signal,lease.life.signal])).catch(error=>{if(owns(entry))reportError(error);});};
-  const more=(entry:ReadingAnnotation)=>({onMore:(anchor:HTMLButtonElement)=>{if(owns(entry))setMenu({entry,anchor});},moreLabel:t('next.controls.more')});
+  const more=(entry:ReadingAnnotation)=>({onMore:(anchor:HTMLButtonElement)=>{if(owns(entry))setMenu({entry,anchor});},moreLabel:t('card.more',{title:entry.text||bookmarkPlace(entry.location,toc)})});
   const when=(entry:ReadingAnnotation)=>defaultI18n.date(entry.updatedAt,'medium');
   const highlight=(entry:ReadingAnnotation,navigable:boolean)=>({id:entry.id,quote:entry.text||defaultI18n.percent(entry.location.progression),note:entry.note||undefined,
     chapter:bookmarkChapter(entry.location,toc),date:when(entry),colour:entry.colour||'yellow',...(navigable?{onNavigate:()=>go(entry)}:{}),...more(entry)} as const);
