@@ -388,7 +388,11 @@ func (s *Server) listSourceChannels(r *http.Request, _ None) (Page[LiveSourceCha
 	if err != nil {
 		return Page[LiveSourceChannel]{}, err
 	}
-	rows, err := s.db.SourceChannels(r.Context(), src.ID, c.Number, c.ID, 201)
+	query := r.URL.Query().Get("q")
+	if len([]rune(query)) > 256 {
+		return Page[LiveSourceChannel]{}, ErrField("q", "Search with up to 256 characters.")
+	}
+	rows, err := s.db.FindSourceChannels(r.Context(), src.ID, c.Number, c.ID, 201, query)
 	if err != nil {
 		return Page[LiveSourceChannel]{}, err
 	}

@@ -1,81 +1,61 @@
-import {readOwnerChannelMap, readOwnerSourceConfiguration, writeOwnerChannelMap} from '@core/owner-requests.ts';
+import {callServer} from '@core/query/server-api.ts';
 import type {LibraryContentApi} from '@core/library-content.ts';
-import {parseEnvelope, parseChannelMapPage, parseLiveSourceDocument, type ChannelMapEntry} from '@core/administration.ts';
-import {channelRequestID} from '@core/live-source-draft.ts';
-import {OwnerStore, errorFacts, terminal} from '../../live/owner/lifetime';
-export type ChannelOverride = Readonly<{number: string; guideChannelId: string; hidden: boolean}>;
-type Change = ChannelOverride & {channelId: string};
-type MapSnapshot = Readonly<{loading: boolean; saving: boolean; rows: readonly ChannelMapEntry[]; edits: Readonly<Record<string, ChannelOverride>>; cursor: string; generation?: string; error?: unknown; partial?: {saved: number; total: number}; uncertain?: boolean}>;
-const empty: MapSnapshot = Object.freeze({loading: false, saving: false, rows: Object.freeze([]), edits: Object.freeze({}), cursor: ''});
-/** Bounded reads and sequential <=200-row writes. An uncertain batch keeps
- * its original revision/body/id; editing cannot overtake that reconciliation. */
+import type {LiveSourceChannel, LiveSourceChannelEdit} from '../../../../../packages/contracts/src/next/api.ts';
+import {OwnerStore, errorFacts} from '../../live/owner/lifetime';
+export const validChannelNumber=(number:string)=>/^[0-9]{1,5}(\.[0-9]{1,3})?$/.test(number);
+export type ChannelOverride = Readonly<{number: string; guideSource: string; guideKey: string; hidden: boolean}>;
+type MapSnapshot = Readonly<{loading: boolean; saving: boolean; rows: readonly LiveSourceChannel[]; guides: readonly {id: string; name: string}[]; edits: Readonly<Record<string, ChannelOverride>>; cursor: string; query: string; error?: unknown; partial?: {saved: number; total: number}}>;
+const empty: MapSnapshot = Object.freeze({loading: false, saving: false, rows: [], guides: [], edits: {}, cursor: '', query: ''});
+/** Targeted edits on the rebuilt source map. No old generations, receipts or synthetic revisions. */
 export class ChannelMapController extends OwnerStore<MapSnapshot> {
-  private queue?: {remaining: readonly Change[]; pending?: Readonly<{expectedRevision: number; operationId: string; overrides: readonly Change[]}>; revision: number; saved: number; total: number};
-  constructor(private api: LibraryContentApi, private serverId: string, readonly sourceId: string, current: () => boolean, reportError: (error: unknown) => void) {
-    super(empty, current, reportError);if (!/^[a-f0-9]{48}$/.test(sourceId)) throw new Error('live_source_identity_invalid');
+ constructor(private api: LibraryContentApi, _serverId: string, readonly sourceId: string, current: () => boolean, reportError: (error: unknown) => void) {super(empty,current,reportError);}
+ private async page(query: string, signal: AbortSignal, cursor = '') {
+  const page=await callServer(this.api,'GET /v1/admin/live/sources/{id}/channels',{id:this.sourceId,query:{q:query,cursor},signal});
+  if(!Array.isArray(page.items)||page.items.some(row=>typeof row.id!=='string'||typeof row.name!=='string'||typeof row.number!=='string'||typeof row.hidden!=='boolean'))throw {code:'invalid_response'};
+  return page;
+ }
+ async load(more=false, query=this.snapshot.query) {
+  if(!this.isActive()||this.snapshot.loading||this.snapshot.saving||more&&!this.snapshot.cursor)return;
+  // Keep a draft on its original search; saving or re-opening settles it first.
+  if(query!==this.snapshot.query&&Object.keys(this.snapshot.edits).length)return;
+  const head=this.snapshot,attempt=this.begin();this.publish({...head,loading:true,error:undefined});if(!this.valid(attempt))return;
+  try {
+   const page=await this.page(query,attempt.abort.signal,more?head.cursor:'');if(!this.valid(attempt))return;
+   const guides=await callServer(this.api,'GET /v1/admin/live/sources',{signal:attempt.abort.signal});if(!this.valid(attempt))return;
+   this.publish({...this.snapshot,loading:false,query,rows:more?[...head.rows,...page.items.filter(row=>!head.rows.some(prior=>prior.id===row.id))]:page.items,guides:guides.items.map(({id,name})=>({id,name})),cursor:page.nextCursor??''});
+  }catch(error){if(this.valid(attempt))this.fail(error,{...this.snapshot,loading:false,error:errorFacts(error)});}
+ }
+ value(row:LiveSourceChannel):ChannelOverride{return this.snapshot.edits[row.id]??{number:row.number,guideSource:row.guideSource??'',guideKey:row.guideKey??'',hidden:row.hidden};}
+ edit(row:LiveSourceChannel,patch:Partial<ChannelOverride>){
+  if(!this.isActive()||this.snapshot.saving||!this.snapshot.rows.includes(row))return;
+  const value={...this.value(row),...patch};if(!/^[0-9.]{0,12}$/.test(value.number)||value.guideKey.length>200||/[\x00-\x1f\x7f]/.test(value.guideKey))return;
+  const original={number:row.number,guideSource:row.guideSource??'',guideKey:row.guideKey??'',hidden:row.hidden},edits={...this.snapshot.edits};
+  if(JSON.stringify(value)===JSON.stringify(original))delete edits[row.id];else edits[row.id]=value;
+  this.publish({...this.snapshot,edits,error:undefined,partial:undefined});
+ }
+ async save(){
+  if(!this.isActive()||this.snapshot.loading||this.snapshot.saving||!Object.keys(this.snapshot.edits).length)return false;
+  if(Object.values(this.snapshot.edits).some(value=>!validChannelNumber(value.number)))return false;
+  const head=this.snapshot,attempt=this.begin(),changes:LiveSourceChannelEdit[]=Object.entries(head.edits).map(([id,value])=>{
+   const row=head.rows.find(row=>row.id===id)!;
+   return {id,...(value.number!==row.number?{number:value.number}:{}),...(value.hidden!==row.hidden?{hidden:value.hidden}:{}),...(value.guideSource!==(row.guideSource??'')||value.guideKey!==(row.guideKey??'')?{guideSource:value.guideSource,guideKey:value.guideKey}:{})};
+  });
+  this.publish({...head,saving:true,error:undefined});let saved=0;
+  try {
+   for(let offset=0;offset<changes.length;offset+=1000){if(!this.valid(attempt))return false;const channels=changes.slice(offset,offset+1000);
+    await callServer(this.api,'PATCH /v1/admin/live/sources/{id}/channels',{id:this.sourceId,body:{channels},signal:attempt.abort.signal});if(!this.valid(attempt))return false;
+    const edits={...this.snapshot.edits};for(const row of channels)delete edits[row.id];saved+=channels.length;this.publish({...this.snapshot,edits,partial:{saved,total:changes.length}});
+   }
+   const page=await this.page(head.query,attempt.abort.signal);if(!this.valid(attempt))return false;
+   this.publish({...this.snapshot,saving:false,rows:page.items,cursor:page.nextCursor??''});return true;
+  }catch(error){
+   if(!this.valid(attempt))return false;
+   const facts=errorFacts(error);this.fail(error,{...this.snapshot,saving:false,error:facts,partial:{saved,total:changes.length}});
+   // A missing answer may have applied. Read back instead of replaying an old edit.
+   if(this.valid(attempt)&&![400,401,403,409,412,422].includes(facts.status??0)){
+    try {const page=await this.page(head.query,attempt.abort.signal);if(this.valid(attempt))this.publish({...this.snapshot,rows:page.items,edits:{},cursor:page.nextCursor??'',error:facts});}catch{/* Keep the failed draft if the server cannot be read. */}
+   }
+   return false;
   }
-  private page(raw: unknown) {
-    const page = parseEnvelope(raw, this.serverId, parseChannelMapPage).result;
-    if (page.sourceId !== this.sourceId || !/^[a-f0-9]{48}$/.test(page.generation)) throw {code: 'invalid_response'};return page;
-  }
-  async load(more = false) {
-    if (!this.isActive() || this.snapshot.loading || this.snapshot.saving || this.queue || more && !this.snapshot.cursor) return;
-    const head = this.snapshot, attempt = this.begin(), cursor = more ? head.cursor : '';
-    this.publish({...head, loading: true, error: undefined});if (!this.valid(attempt)) return;
-    try {
-      const raw = await readOwnerChannelMap(this.api, this.sourceId, '?' + new URLSearchParams({limit: '100', cursor}), attempt.abort.signal);
-      if (!this.valid(attempt)) return;const page = this.page(raw);
-      if (head.generation && head.generation !== page.generation && (more || Object.keys(head.edits).length)) throw {code: 'revision_mismatch'};
-      const rows = more ? [...head.rows, ...page.items.filter(row => !head.rows.some(prior => prior.channelId === row.channelId))] : page.items;
-      this.publish({...this.snapshot, loading: false, rows: Object.freeze(rows), generation: page.generation, cursor: page.nextCursor});
-    } catch (error) {if (this.valid(attempt)) this.fail(error, {...this.snapshot, loading: false, error: errorFacts(error)});}
-  }
-  value(row: ChannelMapEntry): ChannelOverride {return this.snapshot.edits[row.channelId] ?? {number: row.overridden ? row.number : '', guideChannelId: row.guideChannelId, hidden: row.hidden};}
-  edit(row: ChannelMapEntry, patch: Partial<ChannelOverride>) {
-    if (!this.isActive() || this.snapshot.saving || this.queue || !this.snapshot.rows.includes(row)) return;
-    const value = {...this.value(row), ...patch};
-    if (!/^[0-9.]{0,12}$/.test(value.number) || value.guideChannelId.length > 200 || /[\x00-\x1f\x7f]/.test(value.guideChannelId)) return;
-    const original = {number: row.overridden ? row.number : '', guideChannelId: row.guideChannelId, hidden: row.hidden}, edits = {...this.snapshot.edits};
-    if (JSON.stringify(value) === JSON.stringify(original)) delete edits[row.channelId];else edits[row.channelId] = Object.freeze(value);
-    this.publish({...this.snapshot, edits: Object.freeze(edits), error: undefined, partial: undefined});
-  }
-  async save() {
-    if (!this.isActive() || this.snapshot.saving || this.snapshot.loading || !Object.keys(this.snapshot.edits).length) return false;
-    const attempt = this.begin();this.publish({...this.snapshot, saving: true, error: undefined});
-    try {
-      if (!this.valid(attempt)) return false;
-      if (!this.queue) {
-        const rawPage = await readOwnerChannelMap(this.api, this.sourceId, '?limit=1', attempt.abort.signal);if (!this.valid(attempt)) return false;
-        if (this.page(rawPage).generation !== this.snapshot.generation) throw {code: 'revision_mismatch'};
-        const raw = await readOwnerSourceConfiguration(this.api, this.sourceId, attempt.abort.signal);if (!this.valid(attempt)) return false;
-        const doc = parseEnvelope(raw, this.serverId, parseLiveSourceDocument).result;if (doc.sourceId !== this.sourceId) throw {code: 'invalid_response'};
-        const remaining = Object.entries(this.snapshot.edits).map(([channelId, value]) => Object.freeze({channelId, ...value}));
-        this.queue = {remaining: Object.freeze(remaining), revision: doc.revision, saved: 0, total: remaining.length};
-      }
-      while (this.queue.remaining.length) {
-        const queue = this.queue;
-        queue.pending ??= Object.freeze({expectedRevision: queue.revision, operationId: channelRequestID(), overrides: Object.freeze(queue.remaining.slice(0, 200))});
-        if (!this.valid(attempt)) return false;
-        const raw = await writeOwnerChannelMap(this.api, this.sourceId, queue.pending, attempt.abort.signal);if (!this.valid(attempt)) return false;
-        const page = this.page(raw);if (page.generation !== this.snapshot.generation) throw {code: 'revision_mismatch'};
-        const edits = {...this.snapshot.edits};for (const row of queue.pending.overrides) delete edits[row.channelId];
-        queue.saved += queue.pending.overrides.length;queue.remaining = queue.remaining.slice(queue.pending.overrides.length);queue.revision++;queue.pending = undefined;
-        // The receipt is the server's actual first page after this batch.
-        // Drop appended pages rather than showing stale derived numbering.
-        this.publish({...this.snapshot, edits: Object.freeze(edits), rows: page.items, cursor: page.nextCursor, partial: {saved: queue.saved, total: queue.total}, uncertain: false});
-        if (!this.valid(attempt)) return false;
-      }
-      this.queue = undefined;this.publish({...this.snapshot, saving: false, uncertain: false});return this.valid(attempt);
-    } catch (error) {
-      if (this.valid(attempt)) {
-        const partial = this.queue && {saved: this.queue.saved, total: this.queue.total};
-        // A definite conflict did not apply this batch; a transport/receipt
-        // failure keeps the original body until the receipt can be reconciled.
-        if (!terminal(error) && errorFacts(error).status === 409) this.queue = undefined;
-        this.fail(error, {...this.snapshot, saving: false, error: errorFacts(error), partial, uncertain: !!this.queue?.pending});
-      }
-      return false;
-    }
-  }
-  override dispose() {this.queue = undefined;super.dispose();}
+ }
 }

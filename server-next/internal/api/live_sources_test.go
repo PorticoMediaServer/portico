@@ -121,6 +121,10 @@ func TestAPlaylistAndItsGuideComeIn(t *testing.T) {
 		t.Fatalf("after its refresh the source reads %+v", got)
 	}
 
+	filtered := get[Page[LiveSourceChannel]](t, s, owner, "/v1/admin/live/sources/"+src.ID+"/channels?q=film")
+	if len(filtered.Items) != 1 || filtered.Items[0].Name != "Film Four" {
+		t.Fatalf("searching the owner's channel map: %+v", filtered)
+	}
 	channels := get[Page[LiveChannel]](t, s, everything, "/v1/live/channels").Items
 	if len(channels) != 2 || channels[0].Number != "2.1" || channels[1].Number != "4" {
 		t.Fatalf("channels: %+v", channels)
