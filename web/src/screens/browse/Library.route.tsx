@@ -60,7 +60,8 @@ import type {BrowseSource, BrowseState, BrowseController, BrowseMember} from './
 import {useBrowseController} from './browse-cache';
 import {queryKeys} from '@core/query/keys.ts';
 import {SaveView} from './SaveView';
-import {ReadLibraryEntry, useReadLibrarySummary, authorPredicate} from '../read';
+import {ReadLibraryEntry, useReadLibrarySummary} from '../read';
+import {ReadingAuthorOpen} from '../read/ReadingAuthorOpen';
 import {isReadingLibrary} from './reading-library';
 import {useReadingMarkAll} from '../read/useReadingMarkAll';
 import {libraryCountText} from '@core/presentation/library-counts.ts';
@@ -207,12 +208,6 @@ function LiveReadingLibrary({captured, library, search, onMarked, context, life}
   if (search.view === 'author' && search.entityId) return <ReadingAuthorOpen navigate={navigate} pivot={gridPivot} authorId={search.entityId}/>;
   if (search.view === 'browse' || search.query) return <BoundLibrary captured={captured} library={library} search={search} tabs={tabs} readingMarkAll={markAll}/>;
   return <ReadLibraryEntry captured={captured} libraryId={library.id} header={header} view="discover"/>;
-}
-/** An author's card in a Reading library opens the books grid filtered to them (the name is
- * remembered from the Authors list), replacing this address so Back returns to Authors. */
-function ReadingAuthorOpen({navigate, pivot, authorId}: Readonly<{navigate: (value: LibraryScreenSearch, options?: {replace?: boolean}) => void; pivot?: string; authorId: string}>) {
-  useEffect(() => {navigate({view: 'browse', ...(pivot ? {pivot} : {}), query: authorPredicate(authorId)}, {replace: true});}, [navigate, pivot, authorId]);
-  return <Skeleton quiet height={480}/>;
 }
 function LibraryShow({captured, libraryId, search}: {captured: ProtectedLibraryScreen; libraryId: string; search: LibraryScreenSearch}) {
   const href = useLocation({select: location => location.href});

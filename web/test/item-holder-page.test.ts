@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {holderPage, redirectOnce, type HolderRedirect} from '../src/screens/detail/model.ts';
+import {holderPage} from '../src/screens/detail/model.ts';
+import {redirectOnce, type RedirectMemory} from '../src/shell/navigation.ts';
 
 test('a show, a season or an album opened by its address goes to its own page in its library; a single title stays', () => {
   assert.deepEqual(holderPage({id: 'itm_show', kind: 'show'}, 'lib_tv'), {libraryId: 'lib_tv', view: 'show', entityId: 'itm_show'});
@@ -11,7 +12,7 @@ test('a show, a season or an album opened by its address goes to its own page in
 });
 
 test('a show, a season or an album opened by its address is redirected once per title, however often the route resolves it', () => {
-  const memory: HolderRedirect = {}, went: string[] = [];
+  const memory: RedirectMemory = {}, went: string[] = [];
   // The route resolves the same title again while the router is still on its way: no second navigation.
   for (let resolved = 0; resolved < 5; resolved++) redirectOnce(memory, 'itm_show|show:lib_tv', () => went.push('show'));
   assert.deepEqual(went, ['show']);

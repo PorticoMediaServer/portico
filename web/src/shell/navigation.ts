@@ -52,3 +52,14 @@ export function seeAllDestination(target: HomeSeeAll): HomeDestination {
     case 'guide': return {to: '/live', search: {sourceId: target.sourceId, group: target.group}};
   }
 }
+
+/** What a route that redirects as soon as it draws remembers about the redirect it asked for. */
+export type RedirectMemory = {current?: string};
+/** A route that sends its address on elsewhere asks once per target. It stays on screen until the
+ * router gets there and may draw (or resolve the same thing) again meanwhile; asking again would
+ * restart that navigation before it ever arrived, and the page would never draw (#3259). */
+export function redirectOnce(memory: RedirectMemory, key: string, go: () => void): void {
+  if (memory.current === key) return;
+  memory.current = key;
+  go();
+}

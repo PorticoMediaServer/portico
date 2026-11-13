@@ -9,16 +9,6 @@ export function holderPage(item: Readonly<{id: string; kind: string}>, libraryId
   return view && libraryId ? {libraryId, view, entityId: item.id} : undefined;
 }
 
-/** What a route that opens a title by its address remembers about the redirect it asked for. */
-export type HolderRedirect = {current?: string};
-/** A show, season or album opened by its address goes to its own page once per resolved title. The route that asked
- * stays on screen until the router gets there and may resolve the same title again meanwhile; asking again would
- * restart that navigation before it ever arrived, and the page would never draw. */
-export function redirectOnce(memory: HolderRedirect, key: string, go: () => void): void {
-  if (memory.current === key) return;
-  memory.current = key;
-  go();
-}
 
 /** Full title pages group genuine genres together, between length/seasons and the rating. */
 export function titlePageFacts(facts: TitleFacts, env: TextEnvironment): readonly FactPart[] {
