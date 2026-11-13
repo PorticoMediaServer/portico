@@ -59,3 +59,15 @@ test('a reading series is a 2:3 cover; an audiobook series stays square', async 
   assert.equal(shapeFor('book_series', 'grid', 'audiobook'), 'square');
   assert.equal(shapeFor('book_series', 'grid'), 'square');
 });
+
+test("a reading library's series card opens the reading series page; an audiobook series keeps its own", async () => {
+  const {readingSeries} = await import('../src/browse-session.ts');
+  const series = {id: 'itm_s', kind: 'book_series', title: 'S', libraryId: 'lib', navigation: {view: 'book_series', entityId: 'itm_s'}} as never;
+  const book = {id: 'itm_b', kind: 'ebook', title: 'B', libraryId: 'lib', navigation: {view: 'item', entityId: 'itm_b'}} as never;
+  for (const kind of ['book', 'comic']) {
+    const [s, b] = readingSeries([series, book], kind) as {navigation?: {view: string; entityId?: string}}[];
+    assert.deepEqual(s!.navigation, {view: 'series', entityId: 'itm_s'}, kind);
+    assert.deepEqual(b!.navigation, {view: 'item', entityId: 'itm_b'}, 'other cards are left as they are');
+  }
+  assert.deepEqual((readingSeries([series], 'audiobook')[0] as {navigation?: unknown}).navigation, {view: 'book_series', entityId: 'itm_s'});
+});

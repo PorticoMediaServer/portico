@@ -73,6 +73,8 @@ export const nativeEntryRoute = (entry: ContentEntry): NativeShellRoute => {
     return Object.freeze({kind: 'shell', destination: {kind: 'library', libraryId: entry.libraryId, tab: 'releases',
       definition: Object.freeze({libraryId: entry.libraryId, pivot: browse.pivot, query: browse.query ?? null, sort: browse.sort, presentation: 'grid'})}} as const);
   }
+  // A reading library's series opens the reading series page (the browse grid names it so), not the audiobook one.
+  if (entry.kind === 'book_series' && entry.navigation?.view === 'series' && entry.libraryId) return Object.freeze({kind: 'read-series', libraryId: entry.libraryId, seriesId: entry.navigation.entityId ?? entry.id});
   return entry.kind === 'album' || entry.kind === 'artist' ? Object.freeze({kind: 'music', entry})
     : entry.kind === 'book' ? Object.freeze({kind: 'book', entry})
       : entry.kind === 'author' || entry.kind === 'book_series' ? Object.freeze({kind: 'audiobook', entry}) : titleRoute(entry, continueOffer(entry));
