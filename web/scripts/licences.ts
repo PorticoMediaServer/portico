@@ -180,7 +180,8 @@ function serverComponents(read: (rel: string) => string, licenceText: string): C
     const own = licenceFiles(readdirSync(m.dir))[0];
     if (!own) throw new Error(`licences: Go module ${m.path} has no own licence`);
     const licence = classifyGoLicence(readOutside(path.join(m.dir, own)));
-    const label = m.path === 'modernc.org/libc' ? licence + '; ported code retains its source notices' : licence;
+    const label = m.path === 'modernc.org/libc' ? licence + '; ported code retains its source notices'
+      : m.path === 'github.com/klauspost/compress' ? 'BSD-3-Clause; some packages Apache-2.0' : licence;
     out.push({id: `go:${m.path}@${m.version}`, name: m.path, version: m.version, licence: m.path === 'modernc.org/sqlite' ? 'BSD-3-Clause; SQLite is public domain' : label, group: 'server', text, url: `https://pkg.go.dev/${m.path}@${m.version}`});
   }
   const fonts: [string, string, string, string][] = [

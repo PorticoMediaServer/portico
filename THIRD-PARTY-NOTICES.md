@@ -17,7 +17,7 @@ The licence names below are an inventory, not a substitute for the licence texts
 | github.com/dustin/go-humanize | v1.0.1 | MIT |
 | github.com/google/uuid | v1.6.0 | BSD-3-Clause |
 | github.com/hashicorp/golang-lru/v2 | v2.0.7 | MPL-2.0 |
-| github.com/klauspost/compress | v1.19.0 | Apache-2.0 |
+| github.com/klauspost/compress | v1.19.0 | BSD-3-Clause; some packages Apache-2.0 |
 | github.com/mattn/go-isatty | v0.0.24 | MIT |
 | github.com/ncruces/go-strftime | v1.0.0 | MIT |
 | github.com/nwaples/rardecode/v2 | v2.4.5 | BSD-2-Clause |

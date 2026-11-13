@@ -1801,7 +1801,7 @@
    "id": "go:github.com/klauspost/compress@v1.19.0",
    "name": "github.com/klauspost/compress",
    "version": "v1.19.0",
-   "licence": "Apache-2.0",
+   "licence": "BSD-3-Clause; some packages Apache-2.0",
    "group": "server",
    "url": "https://pkg.go.dev/github.com/klauspost/compress@v1.19.0",
    "text": 35,
