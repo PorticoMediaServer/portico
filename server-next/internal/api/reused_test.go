@@ -31,7 +31,7 @@ func TestAReusedRowIDNeverShowsTheOldTitle(t *testing.T) {
 	if oldID == "" {
 		t.Fatal("no programme")
 	}
-	conn, err := sql.Open("sqlite", "file:"+filepath.Join(filepath.Dir(s.setupFile), "main.db"))
+	conn, err := sql.Open("sqlite", "file:"+filepath.Join(filepath.Dir(s.setupFile), "main.db")+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
 	}
