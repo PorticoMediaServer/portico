@@ -27,3 +27,10 @@ test("a reading library's series card opens the reading series page; an audioboo
   assert.equal(nativeEntryRoute(audiobook).kind, 'audiobook');
   assert.equal(nativeEntryRoute(entry('book_series')).kind, 'audiobook', 'no navigation: the audiobook page, as before');
 });
+
+test("a reading series or periodical page takes the rebuilt server's item ids, and only URL-safe ones", async () => {
+  // A rebuilt series id (itm_…) once failed the old 43-character check, so the series page drew nothing.
+  const {readingRouteId} = await import('../src-next/screens/read/platform.ts');
+  for (const id of ['itm_5c6x6e3jzejgb5wz', 'a'.repeat(43), 'A-b_9']) assert.equal(readingRouteId(id), true, id);
+  for (const id of ['', 'itm/../x', 'itm 1', 'itm?x', 'a'.repeat(129)]) assert.equal(readingRouteId(id), false, id);
+});

@@ -22,6 +22,7 @@ async function fixture() {
     setMyList: async (id: string, body: any, signal: AbortSignal) => {calls.push({kind: 'list', id, body, signal}); return reply('list', body);}, dispose() {},
   };
   const {NativeReadBook} = await screenModule(new URL('../src-next/screens/read/read-book-model.ts', import.meta.url), {
+    './platform': await import('../src-next/screens/read/platform.ts'),
     react: {default: {}},
     '../../../../../packages/client-core/src': {ReadingError: class extends Error {}},
     '../../shell/model': {sameAuthority: (a: unknown, b: unknown) => a === b},

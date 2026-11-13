@@ -8,6 +8,7 @@ import {nativeRouteCrypto} from '../../platform/server-connections';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {askNativeDownload} from '../downloads/request';
 import {nativeReadOrigin, openNativeRead, openNativeReadBook, openNativeReadPeriodical, openNativeReadSeries, type NativeReadOrigin} from './eligibility';
+import {readingRouteId} from './platform';
 
 export type NativeReadVersion = Awaited<ReturnType<ReadingClient['versions']>>['versions'][number];
 export type NativeReadBookState = Readonly<{
@@ -455,9 +456,9 @@ export class NativeReadBook {
    * the manifest's declared series in this library. Never a name hash. */
   series = (): SeriesLink | undefined => {
     const declared = this.item.series;
-    if (declared && /^[A-Za-z0-9_-]{43}$/.test(declared.id)) return declared;
+    if (declared && readingRouteId(declared.id)) return declared;
     const manifest = this.state.manifest?.metadata.series;
-    return manifest && manifest.libraryId === this.libraryId && /^[A-Za-z0-9_-]{43}$/.test(manifest.id) && manifest.name ? manifest : undefined;
+    return manifest && manifest.libraryId === this.libraryId && readingRouteId(manifest.id) && manifest.name ? manifest : undefined;
   };
   /** Read the exact manifest the page rendered, at the exact declared contents
    * entry (or its start). A stale retry or another snapshot cannot be read. */
@@ -494,7 +495,7 @@ export class NativeReadBook {
     const declared = this.item.series, fromManifest = manifest.metadata.series;
     if (series !== declared && series !== fromManifest) return false;
     if (series === fromManifest && (fromManifest.libraryId !== this.libraryId || !fromManifest.name)) return false;
-    if (!/^[A-Za-z0-9_-]{43}$/.test(series.id)) return false;
+    if (!readingRouteId(series.id)) return false;
     const ticket = {};
     this.command = ticket;
     try {
