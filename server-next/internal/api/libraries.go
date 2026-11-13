@@ -86,6 +86,8 @@ type AdminLibrary struct {
 	Name     string `json:"name"`
 	Kind     string `json:"kind"`
 	Language string `json:"language,omitempty"`
+	// LibraryCoverURLs is up to four selected posters or covers from recent titles.
+	LibraryCoverURLs []string `json:"libraryCoverUrls"`
 	// MetadataProvider is the chosen provider, resolved to the kind's default when none was saved.
 	MetadataProvider string `json:"metadataProvider"`
 	// MetadataProviders lists the kind's choices, with runtime availability and why a choice cannot be used.
@@ -386,7 +388,12 @@ func (s *Server) libraryOut(r *http.Request, l db.AdminLibrary) (AdminLibrary, e
 		return out, err
 	}
 	out.Scanning = err == nil && (job.State == db.JobWaiting || job.State == db.JobRunning)
-	return out, nil
+	hashes, err := s.db.LibraryCoverHashes(r.Context(), l.Library)
+	out.LibraryCoverURLs = []string{}
+	for _, hash := range hashes {
+		out.LibraryCoverURLs = append(out.LibraryCoverURLs, "/v1/images/"+hash)
+	}
+	return out, err
 }
 
 // library finds the library a route names, or answers not found.
