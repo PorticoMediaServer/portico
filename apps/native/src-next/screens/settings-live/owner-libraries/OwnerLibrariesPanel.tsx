@@ -17,6 +17,7 @@ import {readLibrarySonicSettingsBinding} from '../../../../../../packages/client
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
 import {defaultI18n} from '../../../../../../packages/i18n/src/index';
 import {Button} from '../../../kit/controls/Button';
+import {FormError} from '../../../kit/controls/FormError';
 import {Focusable} from '../../../kit/controls/Focusable';
 import {Select} from '../../../kit/controls/Select';
 import {Switch} from '../../../kit/controls/Switch';
@@ -223,7 +224,7 @@ function LibraryPage({api, library, document, state, tab, tabChange, t, runtime,
       <View style={{paddingHorizontal: 20, paddingTop: 8}}>
         {state.detail === 'loading' && !document && <Text style={[shellType(13.5, 500), {color: theme.colors.textTertiary}]}>{t('web.libraries.loadingOne')}</Text>}
         {state.detail === 'error' && <StateView {...runtime.error(state.detailError, () => {void runtime.reportError(state.detailError);}, 'server-console')}/>}
-        {state.error !== undefined && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.record}]}>{presentError(state.error, 'library', {operation: 'save'}).body}</Text>}
+        {state.error !== undefined && <FormError placement="inline">{presentError(state.error, 'library', {operation: 'save'}).body}</FormError>}
         {tab === 'general' && <GeneralTab library={library} document={document} t={t} renameLibrary={renameLibrary} removeLibrary={removeLibrary} busy={state.busy} save={save}/>}
         {tab === 'folders' && <FoldersTab state={state} retry={retryInventory} t={t} addFolder={addFolder} folderMenu={folderMenu}/>}
         {tab === 'metadata' && <><MetadataTab document={document} metadata={state.metadata} busy={state.busy} t={t} save={save} saveAgent={saveAgent} fetchLyrics={fetchLyrics} state={state} parentCurrent={parentCurrent}/><SectionTitle>{t('next.ownerLibraries.tab.attention')}</SectionTitle><AttentionTab state={state} t={t} more={moreUnmatched}/></>}
@@ -254,7 +255,7 @@ function FoldersTab({state, retry, t, addFolder, folderMenu}: {state: NativeOwne
   const theme = useTheme(), source = state.inventoryError === undefined ? state.inventory?.sources : undefined;
   return <>
     <SectionTitle action={<Focusable accessibilityRole="button" accessibilityLabel={t('web.libraries.addFolder')} disabled={!state.inventory || state.inventoryError !== undefined} onPress={state.inventory && state.inventoryError === undefined ? addFolder : undefined} focusKind="chip" focusRadius={8} hitSlop={10}><Text style={[shellType(13.5, 700), {color: theme.colors.accentStrong}]}>{t('web.libraries.addFolder')}</Text></Focusable>}>{t('next.ownerLibraries.folders')}</SectionTitle>
-    {state.inventoryError !== undefined && <><Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.record}]}>{presentError(state.inventoryError, 'library').body}</Text><Button variant="glass" onPress={retry}>{t('action.tryAgain')}</Button></>}
+    {state.inventoryError !== undefined && <><FormError placement="inline">{presentError(state.inventoryError, 'library').body}</FormError><Button variant="glass" onPress={retry}>{t('action.tryAgain')}</Button></>}
     {state.inventoryLoading && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('web.libraries.loadingOne')}</Text>}
     {source && <LibraryGroup>
       {!source.length && <LibraryRow first label={t('web.libraries.noFolders')}/>}
@@ -304,7 +305,7 @@ function MetadataTab({document, metadata, busy, t, save, saveAgent, fetchLyrics,
       <Text style={[shellType(12.5, 500, 17.5), {color: theme.colors.textTertiary, marginTop: 8, paddingHorizontal: 4}]}>{t('next.ownerLibraries.metadataHelp')}</Text>
     </>}
     <LibrarySettingsRows tab="metadata" document={document} busy={busy || !!state.lyricsBusy} t={t} save={save} fetchLyrics={current => fetchLyrics(document, () => parentCurrent() && current())}/>
-    {state.lyricsError !== undefined && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.record}]}>{presentError(state.lyricsError, 'library').body}</Text>}
+    {state.lyricsError !== undefined && <FormError placement="inline">{presentError(state.lyricsError, 'library').body}</FormError>}
     {state.lyricsJob && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{jobStateName(t, id => defaultI18n.has(id), state.lyricsJob.state)}</Text>}
     <LibraryGroup style={{marginTop: 18}}><LibraryRow first label={t('server.library.ownKeys')} help={t('server.library.ownKeysHelp')}/></LibraryGroup>
   </>;
@@ -428,7 +429,7 @@ function RemoveLibrarySheet({open, onOpenChange, library, busy, error, t, remove
       <Text style={[shellType(13.5, 400, 19), {color: theme.colors.textSecondary}]}>{t('server.library.removeGoes')}</Text>
       <Text style={[shellType(13.5, 400, 19), {color: theme.colors.textSecondary}]}>{t('server.library.removeKept')}</Text>
       <TextField focusId="owner-libraries-remove-name" value={typed} onChangeText={setTyped} autoCapitalize="none" autoCorrect={false} accessibilityLabel={t('next.ownerLibraries.typeToConfirm')} placeholder={t('next.ownerLibraries.typeToConfirm')} showSoftInputOnFocus/>
-      {error !== undefined && <Text accessibilityRole="alert" style={[shellType(13, 600, 18), {color: theme.colors.record}]}>{error instanceof Error ? error.message : t('next.ownerLibraries.saveFailed')}</Text>}
+      {error !== undefined && <FormError placement="inline">{error instanceof Error ? error.message : t('next.ownerLibraries.saveFailed')}</FormError>}
     </View>
   </BottomSheet>;
 }
@@ -443,7 +444,7 @@ function RemoveFolderSheet({open, onOpenChange, source, busy, error, t, remove}:
       <Button variant="glass" size="small" loading={busy} disabled={!confirmed || busy} textStyle={{color: theme.colors.record}} onPress={remove} style={{flex: 1}}>{t('web.libraries.removeFolder')}</Button></View>}>
     <View style={{gap: 10, paddingBottom: 4}}>
       <TextField focusId="owner-libraries-remove-folder" value={typed} onChangeText={setTyped} autoCapitalize="none" autoCorrect={false} accessibilityLabel={t('next.ownerLibraries.typeToConfirm')} placeholder={t('next.ownerLibraries.typeToConfirm')} showSoftInputOnFocus/>
-      {error !== undefined && <Text accessibilityRole="alert" style={[shellType(13, 600, 18), {color: theme.colors.record}]}>{error instanceof Error ? error.message : t('next.ownerLibraries.saveFailed')}</Text>}
+      {error !== undefined && <FormError placement="inline">{error instanceof Error ? error.message : t('next.ownerLibraries.saveFailed')}</FormError>}
     </View>
   </BottomSheet>;
 }
@@ -457,7 +458,7 @@ function RenameSheet({open, onOpenChange, library, busy, error, t, save}: {open:
       <Button size="small" loading={busy} disabled={!valid || busy} onPress={() => save(name.trim())} style={{flex: 1}}>{t('next.ownerLibraries.save')}</Button></View>}>
     <View style={{gap: 10, paddingBottom: 4}}>
       <TextField focusId="owner-libraries-rename" value={name} onChangeText={setName} maxLength={100} accessibilityLabel={t('next.ownerLibraries.nameLabel')} showSoftInputOnFocus/>
-      {error !== undefined && <Text accessibilityRole="alert" style={[shellType(13, 600, 18), {color: theme.colors.record}]}>{error instanceof Error ? error.message : t('next.ownerLibraries.saveFailed')}</Text>}
+      {error !== undefined && <FormError placement="inline">{error instanceof Error ? error.message : t('next.ownerLibraries.saveFailed')}</FormError>}
     </View>
   </BottomSheet>;
 }

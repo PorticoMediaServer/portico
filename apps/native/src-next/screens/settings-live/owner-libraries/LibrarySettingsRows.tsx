@@ -6,6 +6,7 @@ import {settingsSpec, type SettingsRow} from '../../../../../../packages/client-
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {Button} from '../../../kit/controls/Button';
+import {FormError} from '../../../kit/controls/FormError';
 import {Select} from '../../../kit/controls/Select';
 import {Switch} from '../../../kit/controls/Switch';
 import {TextField} from '../../../kit/controls/TextField';
@@ -84,7 +85,7 @@ export function LibrarySettingsRows({tab, document, busy, t, save, fetchLyrics}:
       const rows = group.rows.flatMap(row => [row, ...(row.children ?? [])]).filter(rowVisible); if (!rows.length) return null;
       return <View key={index}>{group.title && <SectionTitle>{t(group.title)}</SectionTitle>}<LibraryGroup style={group.title ? undefined : {marginTop: 12}}>{rows.map(renderRow)}</LibraryGroup></View>;
     })}
-    {error && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.record, marginTop: 12}]}>{error}</Text>}
+    {error && <FormError placement="field">{error}</FormError>}
     <BottomSheet open={!!editing} onOpenChange={open => {if (!open) setEditing(undefined);}} title={editing ? t(editing.label) : ''}
       footer={<Button disabled={busy || number === undefined} onPress={() => {if (editing && number !== undefined) {change(editing, number); setEditing(undefined);}}}>{t('action.save')}</Button>}>
       <TextField value={text} onChangeText={setText} keyboardType="number-pad" label={editing ? t(editing.label) : ''} description={editing?.control.unit ? t(editing.control.unit) : undefined}/>

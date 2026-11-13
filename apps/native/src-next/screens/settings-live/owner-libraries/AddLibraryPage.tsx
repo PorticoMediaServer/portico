@@ -7,6 +7,7 @@ import {parseKindMetadataAgents, type MetadataAgentOption} from '../../../../../
 import type {MessageId} from '../../../../../../packages/i18n/src/index';
 import {defaultI18n} from '../../../../../../packages/i18n/src/index';
 import {Button} from '../../../kit/controls/Button';
+import {FormError} from '../../../kit/controls/FormError';
 import {Focusable} from '../../../kit/controls/Focusable';
 import {TextField} from '../../../kit/controls/TextField';
 import {Select} from '../../../kit/controls/Select';
@@ -76,7 +77,7 @@ export function AddLibraryPage({api, serverName, onCreate, onCancel, busy, error
           trailing={<Select testID="owner-libraries-add-language" accessibilityLabel={t('next.ownerLibraries.addLibrary.language')} value={language} options={chosenAgent.languages.map(code => ({value: code, label: languageName(code, key => defaultI18n.has(key) ? defaultI18n.t(key) : undefined)}))} onValueChange={setLanguage}/>}/></LibraryGroup>
       </>}
 
-      {error !== undefined && <Text accessibilityRole="alert" style={[shellType(13, 600, 18), {color: theme.colors.record, marginTop: 16}]}>{error instanceof Error ? error.message : t('next.ownerLibraries.saveFailed')}</Text>}
+      {error !== undefined && <FormError placement="field">{error instanceof Error ? error.message : t('next.ownerLibraries.saveFailed')}</FormError>}
     </FormScrollView>
     <View style={{flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingVertical: 12, borderTopWidth: 1, borderTopColor: theme.colors.lineSoft, backgroundColor: theme.colors.ink}}>
       <Button variant="glass" size="small" disabled={busy} onPress={onCancel}>{t(firstRun ? 'web.setup.skip' : 'action.cancel')}</Button>
