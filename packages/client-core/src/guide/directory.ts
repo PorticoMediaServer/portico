@@ -1,5 +1,5 @@
-import {readNativeProgramme} from './native-source.ts';
-import {readReminders, setReminder} from '../live-tv.ts';
+import {nativeGuideProgramme, readNativeProgramme} from './native-source.ts';
+import {readGuide, readReminders, setReminder} from '../live-tv.ts';
 import {serverNow} from '../server-clock.ts';
 import {readNextGuideSummaries} from './next-source.ts';
 import {routePath,encodedRoutePath} from "../../../contracts/src/route-paths.ts";
@@ -84,6 +84,18 @@ export class GuideFeatureClient{
  }
  /** Modern reads used by native; the legacy command methods below move in the command slice. */
  programme(id:string){return this.currentRead(signal=>readNativeProgramme(this.api,id,signal));}
+ /** The channel's next programmes are different from repeat airings of this programme. */
+ later(channel:GuideChannel,programme:GuideProgramme):Promise<readonly GuideAiring[]>{
+  return this.currentRead(async signal=>{
+   const from=new Date(programme.end),to=new Date(from.getTime()+12*60*60*1000);
+   const page=await readGuide(this.api,{from,to},{around:channel.id,...(channel.hidden?{hidden:true}:{})},undefined,signal);
+   const row=page.items.find(row=>row.channel.id===channel.id);
+   if(!row)invalid();
+   return row.programmes.filter(next=>Date.parse(next.startsAt)>=from.getTime()).slice(0,4)
+    .map(next=>({channel,programme:nativeGuideProgramme(channel.id,next)}));
+  });
+ }
+
  async remindersFor(airings:readonly GuideAiring[]):Promise<GuideReminders>{
   const page=await this.currentRead(signal=>readReminders(this.api,undefined,signal));
   const byId=new Map(airings.map(airing=>[airing.programme.id,airing]));

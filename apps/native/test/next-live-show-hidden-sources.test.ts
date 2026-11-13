@@ -7,13 +7,13 @@ test('Show hidden changes the profile-hidden channel rows and their source count
   const authority = {serverId: 'server', accountId: 'owner', profileId: 'main', epoch: 'one', viewerFence: 'fence'};
   const lifetime = new NativeScreenLifetime({authority: () => authority, current: () => true, subscribeAuthority: () => () => {}});
   const reads: string[] = [];
-  const visible = {id: 'visible', name: 'Visible', number: '1', kind: 'source', favorite: false, hidden: false};
+  const visible = {id: 'visible', name: 'Visible', number: '1', group: 'News', kind: 'source', favorite: false, hidden: false};
   const hidden = {...visible, id: 'hidden', name: 'Hidden', number: '2', hidden: true};
   const api = {request: async <T,>(path: string) => {
     reads.push(path);
     const rows = new URL(path, 'https://server').searchParams.get('hidden') === 'true' ? [visible, hidden] : [visible];
     if (path.startsWith('/v1/live/channels')) return {items: rows,
-      sources: [{id: 'aerial', name: 'Aerial', kind: 'live', channels: rows.length, favorites: 0, groups: []}]} as T;
+      sources: [{id: 'aerial', name: 'Aerial', kind: 'live', channels: rows.length, favorites: 0, groups: [{name: 'News',count: rows.length}]}]} as T;
     if (path.startsWith('/v1/live/guide?')) return {items: rows.map(channel => ({channel, programmes: []}))} as T;
     throw new Error('Unexpected read '+path);
   }};
@@ -21,6 +21,7 @@ test('Show hidden changes the profile-hidden channel rows and their source count
   const check = async (count: number) => {
     await controller.loadSources();
     assert.equal(controller.getSnapshot().sources[0].channelCount, count);
+    assert.deepEqual(controller.getSnapshot().sources[0].groupCounts, [{name: 'News',count}]);
     const store = controller.guide;
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {off(); reject(new Error('channel rows did not arrive'));}, 5000);

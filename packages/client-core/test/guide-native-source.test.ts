@@ -82,3 +82,27 @@ test('native reminder commands use the programme id, own cancellation and show t
   assert.deepEqual(paths,[['/v1/live/reminders/p-3','PUT',undefined],['/v1/live/reminders/p-3','DELETE',undefined]]);
  }finally{features.dispose();}
 });
+
+test('Later on reads the selected channel after the programme, with its own next titles and ids', async () => {
+ const paths:string[]=[];
+ const current=programme(3),selected={...current,channel:{...channel(3),hidden:true},canRecord:false,reminder:false,
+  airings:[{...programme(99),channel:'Another channel',channelId:'ch-99'}]};
+ const next=Array.from({length:6},(_,n)=>({...programme(n+4),title:'Next '+n,
+  startsAt:new Date(Date.parse(current.endsAt)+n*3600_000).toISOString(),endsAt:new Date(Date.parse(current.endsAt)+(n+1)*3600_000).toISOString()}));
+ const api={request:async<T>(path:string):Promise<T>=>{
+  paths.push(path);
+  if(path.startsWith('/v1/live/programmes/'))return selected as T;
+  return {items:[{channel:channel(99),programmes:[programme(99)]},{channel:selected.channel,programmes:[current,...next]}]} as T;
+ }};
+ const features=new GuideFeatureClient(api,'server'),detail=await features.programme(current.id);
+ const later=await features.later(detail.channel,detail.programme);
+ assert.deepEqual(later.map(airing=>[airing.programme.id,airing.programme.title,airing.channel.id]),
+  next.slice(0,4).map(item=>[item.id,item.title,'ch-3']));
+ assert.equal(detail.airings[0].programme.title,current.title,'repeat airings remain a separate fact');
+ assert.equal(paths.length,2,'one detail read and one bounded guide read');
+ const query=new URL(paths[1],'https://server').searchParams;
+ assert.equal(query.get('around'),'ch-3');assert.equal(query.get('hidden'),'true');
+ assert.equal(Date.parse(query.get('from')!),Date.parse(current.endsAt));
+ assert.equal(Date.parse(query.get('to')!)-Date.parse(query.get('from')!),12*3600_000);
+ features.dispose();await assert.rejects(features.later(detail.channel,detail.programme));assert.equal(paths.length,2);
+});
