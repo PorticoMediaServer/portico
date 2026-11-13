@@ -91,7 +91,8 @@ function previewProgramme(airing: Airing, id: string): GuideProgramme {
 export class NextDVRClient {
   private lifetime = new AbortController();
   private accessChanged?: () => void;
-  constructor(private readonly api: ServerRequester) {}
+  private readonly api: ServerRequester;
+  constructor(api: ServerRequester) {this.api = api;}
   activate() { this.dispose(); this.lifetime = new AbortController(); }
   onAccessChanged(listener: () => void) { this.accessChanged = listener; }
   dispose() { this.accessChanged = undefined; this.lifetime.abort(); }
