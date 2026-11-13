@@ -54,8 +54,13 @@ var (
 	conditionDays = map[string]string{"added": "i.added_at", "lastPlayed": stateValue("last_played_at"), "released": "i.release_date"}
 	// true or false.
 	conditionFlags = map[string]string{
-		"available":  "i.available = 1",
-		"inProgress": "EXISTS (SELECT 1 FROM user_item_state p WHERE p.profile_id = @viewer_profile AND p.item_id = i.id AND p.played = 0 AND (p.position_ms > 0 OR p.position_text IS NOT NULL))",
+		"available": "i.available = 1",
+		"inProgress": fmt.Sprintf(`i.id IN (SELECT p.item_id FROM user_item_state p
+            CROSS JOIN items r ON r.id = p.item_id
+            WHERE p.profile_id = @viewer_profile AND p.played = 0 AND
+            CASE WHEN r.kind IN (%d, %d, %d) THEN
+                json_extract(p.position_text, '$.progression') > 0 AND json_extract(p.position_text, '$.progression') < 1
+            ELSE p.position_ms > 0 END)`, KindBook, KindComic, KindIssue),
 	}
 )
 
@@ -241,7 +246,7 @@ func CheckValue(field, value string) error {
 // ItemQuery.filters), so a narrow filter on a large library reads what matches and not the
 // library. Every other condition is a check on each row the list comes to: one that few
 // titles of a very large library pass reads far into the library to fill a page.
-func (q ItemQuery) conditions(ctx context.Context, tx *sql.Tx, w *query, scoped *bool) (bool, error) {
+func (q ItemQuery) conditions(ctx context.Context, tx *sql.Tx, w *query, scoped *bool, acc access) (bool, error) {
 	if len(q.Conditions) > MaxConditions {
 		return false, ErrFilterTooLong
 	}
@@ -332,6 +337,22 @@ func (q ItemQuery) conditions(ctx context.Context, tx *sql.Tx, w *query, scoped 
 			}
 			if c.Mode != ModeNone {
 				*scoped = true
+			}
+		case c.Field == "inProgress":
+			for _, value := range c.Values {
+				test, err := conditionTest(w, c.Field, value)
+				if err != nil {
+					return false, err
+				}
+				if value == "true" {
+					test = "(" + test + " OR i.id IN (" + progressHolderIDs(acc) + "))"
+				} else {
+					test = "(" + test + " AND i.id NOT IN (" + progressHolderIDs(acc) + "))"
+				}
+				tests = append(tests, test)
+			}
+			if !driven && c.Mode != ModeNone && len(c.Values) == 1 && c.Values[0] == "true" {
+				w.from, w.countFrom, driven = "items i NOT INDEXED", "items i NOT INDEXED", true
 			}
 		default:
 			for _, value := range c.Values {
@@ -446,4 +467,16 @@ func conditionTest(w *query, field, value string) (string, error) {
 		return "", invalid("Use true or false.")
 	}
 	return "", invalid("This list cannot be filtered that way.")
+}
+
+// progressHolderIDs starts from the profile's episode state, never from the show's whole
+// episode list. The stored watched mark already accounts for which episodes it may see.
+func progressHolderIDs(acc access) string {
+	return fmt.Sprintf(`SELECT h.id FROM user_item_state p
+        CROSS JOIN items e ON e.id = p.item_id AND e.kind = %d
+        CROSS JOIN items h ON h.id IN (e.parent_id, e.root_id) AND h.kind IN (%d, %d)
+        WHERE p.profile_id = @viewer_profile AND (p.played = 1 OR p.position_ms > 0)
+        AND NOT EXISTS (SELECT 1 FROM user_item_state hs
+            WHERE hs.profile_id = @viewer_profile AND hs.item_id = h.id AND hs.played = 1)
+        AND `, KindEpisode, KindShow, KindSeason) + acc.visible("e")
 }
