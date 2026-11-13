@@ -38,6 +38,8 @@ import (
 // schema files are edited in place, upgrades stays empty and every database is version 1.
 const firstVersion = 1
 
+var ErrOldTestFolder = errors.New("This data folder was made by an older test build of Portico. Start with a fresh data folder.")
+
 // upgrade is one step: it takes a database from one version to the next.
 type upgrade struct {
 	// what says what the step changes, for the log.
@@ -145,6 +147,24 @@ func (d *DB) upgrade(ctx context.Context) error {
 			}
 		}
 		return errors.New(problem)
+	}
+	// A registered background step can still be building a fresh-schema index.
+	unfinished := false
+	if version == current && len(upgrades) > 0 {
+		var pending sql.NullInt64
+		if err := d.writeConn.QueryRowContext(ctx, `SELECT min(version) FROM schema_migrations WHERE background_after IS NOT NULL`).Scan(&pending); err != nil {
+			return err
+		}
+		at := int(pending.Int64) - firstVersion - 1
+		unfinished = pending.Valid && at >= 0 && at < len(upgrades) && upgrades[at].background != nil
+	}
+	if !unfinished {
+		if err := CheckSchema(ctx, d.writeConn); err != nil {
+			if errors.Is(err, ErrOldTestFolder) {
+				return ErrOldTestFolder
+			}
+			return err
+		}
 	}
 	if version == current {
 		return d.finishBeforeServing(ctx)

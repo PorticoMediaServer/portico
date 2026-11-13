@@ -165,7 +165,7 @@ func checkIsOurs(ctx context.Context, path string) error {
 	if !ours {
 		return fmt.Errorf("%s is a database Portico did not make; nothing in it has been changed. Choose another data folder, or move the file away", path)
 	}
-	return checkTestSchema(ctx, path)
+	return nil
 }
 
 func open(path, mode string, conns, cacheKiB int) (*sql.DB, error) {

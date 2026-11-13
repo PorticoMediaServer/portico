@@ -217,6 +217,9 @@ func TestUpgradeChild(t *testing.T) {
 	killAt, _ := strconv.Atoi(os.Getenv("PORTICO_UPGRADE_CHILD_KILL"))
 	batch, _ := strconv.Atoi(os.Getenv("PORTICO_UPGRADE_CHILD_BATCH"))
 	upgrades = trialUpgrades(batch)
+	// This child models the next release, including its fresh schema, not only its steps.
+	schemaSQL += ";\n" + upgrades[0].sql + ";\n" + upgrades[1].sql +
+		";\nCREATE INDEX items_by_title_length ON items (title_length)"
 	points := 0
 	upgradePoint = func(point string) {
 		if points++; points == killAt {
