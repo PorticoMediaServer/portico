@@ -126,6 +126,11 @@ func removeItem(b *batchTx, libraryID, id, now int64) error {
 	if err != nil {
 		return err
 	}
+	if b.previewRemoval != nil {
+		if err := b.previewRemoval(id); err != nil {
+			return err
+		}
+	}
 	if _, err := b.exec(`DELETE FROM items WHERE id = ?`, id); err != nil {
 		return err
 	}

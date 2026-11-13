@@ -12,6 +12,8 @@ import (
 type batchTx struct {
 	tx    *sql.Tx
 	stmts map[string]*sql.Stmt
+	// previewRemoval counts a removal before it cascades, only in a rolled-back deletion preview.
+	previewRemoval func(int64) error
 	// watchedDirty are the holders whose watched marks this transaction must settle for
 	// every profile before it ends. See watched_marks.go.
 	watchedDirty []int64
