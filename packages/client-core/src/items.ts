@@ -35,7 +35,8 @@ export function entryFromItem(item: Item, libraryId?: string): ContentEntry | un
   const kind = entryKinds[item.kind];
   if (!kind || !item.id) return undefined;
   const state = item.state, counts = item.counts, view = holderViews[item.kind], library = item.libraryId ?? libraryId;
-  const picture = item.images?.poster ?? item.images?.cover ?? item.images?.thumb;
+  // An artist's picture is their portrait (the scanner and the artwork editor file it under that role).
+  const picture = item.images?.poster ?? item.images?.cover ?? item.images?.thumb ?? item.images?.portrait;
   const numbered = item.kind === 'episode' ? {episodeNumber: item.index, seasonNumber: item.parentIndex}
     : item.kind === 'season' ? {seasonNumber: item.index}
     : item.kind === 'track' ? {trackNumber: item.index, discNumber: item.parentIndex} : {};
