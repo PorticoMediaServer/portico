@@ -157,7 +157,7 @@ function SimilarArtistCard({entry, snapshot, controller, runtime, actions, openE
   const anchor = useRef<NativeView>(null), picked = selection?.item(entry);
   const covers = useMemo(() => (entry.artworkPaths ?? []).flatMap(path => {const source = runtime.artwork(path); return source ? [source] : [];}), [entry.artworkPaths, runtime]);
   return <CircleCard width={phoneMusicGeometry.albumCard} title={entry.displayTitle ?? entry.title} menuAnchorRef={anchor}
-    art={{covers, initials: [...entry.title.trim()][0] ?? '', alt: entry.title}} selection={picked}
+    art={{covers, alt: entry.title}} selection={picked}
     onNavigate={() => {if (controller.similarCurrent(snapshot, entry)) openEntry(entry);}}
     onMore={() => {if (controller.similarCurrent(snapshot, entry)) actions.menu(entry, anchor, picked?.onEnter);}}/>;
 }

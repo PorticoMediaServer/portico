@@ -7,6 +7,7 @@ import * as controlModel from '../src-next/kit/controls/control-model.ts';
 import * as cardModel from '../src-next/kit/cards/model.ts';
 import {sessionViewerParts} from '../src-next/kit/cards/session-identity.ts';
 import {hooks, liveOverlayPaint, screenModule} from './helpers/screen-harness.mjs';
+import {nameInitials} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 
 // Execute the real render functions and command handlers against explicit native
 // hosts. These are prop/behavior regressions, not measurements of native layout.
@@ -322,4 +323,18 @@ test('card facts: drop is one fixed line of whole facts, wrap moves whole facts 
   assert.equal(flatten(nodes(cut).find(node => node.type === 'Text').props.style).flexShrink, 0, 'cut keeps main\'s never-shrinking context fact');
   const caption = nodes(f.host.render(() => Caption({title: 'Twelve Winters at the Observatory', caption: parts})));
   assert.equal(caption.find(node => node.type === Parts)?.props.fit, 'drop', 'a poster caption drops whole facts on phone');
+});
+
+// 13 Nov art-library walk: artist circles in a library grid were empty. With no picture a circle draws its name's initials.
+test('a circle with no picture draws the shared initials of its name; with a picture, or given initials, it keeps those', async () => {
+  const f = fixture();
+  const {CircleArt} = await screenModule(new URL('../src-next/kit/artwork/Circles.tsx', import.meta.url), {
+    ...f.common, 'react-native-svg': {default: 'Svg', Defs: 'Defs', RadialGradient: 'RadialGradient', Rect: 'Rect', Stop: 'Stop'},
+    './Artwork': {Artwork: 'Artwork'}, './Surfaces': {PaletteWash: 'PaletteWash'}, '../../../../../packages/client-core/src/presentation/kit-model/index': {nameInitials},
+    './model': await import('../src-next/kit/artwork/model.ts'),
+  });
+  const letters = (props: Record<string, unknown>) => nodes(f.host.render(() => CircleArt({covers: [], ...props}))).filter(node => node.type === 'Text').map(node => node.props.children);
+  assert.deepEqual(letters({alt: 'Orchestra of the Very Last Ferry'}), ['OF']);
+  assert.deepEqual(letters({alt: 'Orchestra', covers: [{cacheKey: 'portrait'}]}), []);
+  assert.deepEqual(letters({alt: 'Orchestra', initials: 'Q'}), ['Q']);
 });

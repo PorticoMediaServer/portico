@@ -2,6 +2,7 @@
 import {defaultI18n} from '../../../packages/i18n/src';
 import {presentError} from '../../../packages/client-core/src/presentation/errors';
 import test from 'node:test';
+import {nameInitials} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 import assert from 'node:assert/strict';
 import * as React from 'react';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
@@ -55,7 +56,7 @@ async function searchFixture(group = 'all') {
     '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', Artwork: 'Artwork'}, '../../kit/cards/primitives': {CardFrame: 'CardFrame', ArtFrame: 'ArtFrame'},
     '../../kit/browse': {SongRow: 'SongRow'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => ({isTV: false})},
-    '../../../../../packages/client-core/src/presentation/kit-model': {cardText: () => ({caption: [], detail: []})},
+    '../../../../../packages/client-core/src/presentation/kit-model': {cardText: () => ({caption: [], detail: []}), nameInitials},
     react: host.react, 'react-native': {View: 'View'}, '../../kit/cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard', CircleCard: 'CircleCard', EpisodeTile: 'EpisodeTile'},
     '../../kit/focus': await focusNamespace(host.react),
     '../home/model': {homeCardText: () => ({caption: []}), nativeSearchCardText: () => ({caption: []})}, './model': {nativeSearchEntryKey: (kind: string, item: any) => JSON.stringify([kind, item.kind, item.id])},

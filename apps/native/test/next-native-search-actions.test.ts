@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {nameInitials} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 import type {SearchGroup} from '../../../packages/client-core/src/search';
 import type {NativeShellBootstrapContext, RestoredNativeShellRuntime} from '../src-next/shell/bootstrap';
 import {hooks, screenModule} from './helpers/screen-harness.mjs';
@@ -78,7 +79,7 @@ test('Search actions preserve exact current media and Person identities without 
     '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/cards/primitives': {CardFrame: 'CardFrame', ArtFrame: 'ArtFrame'},
     '../../kit/browse': {SongRow: 'SongRow'}, '../../kit/selection': {SelectionCircle: 'SelectionCircle'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => ({isTV: false})},
-    '../../../../../packages/client-core/src/presentation/kit-model': {cardText: () => ({caption: [], detail: []})},
+    '../../../../../packages/client-core/src/presentation/kit-model': {cardText: () => ({caption: [], detail: []}), nameInitials},
       react: host.react, 'react-native': {View: 'View'},
       '../../kit/cards': {PosterCard: 'PosterCard', SquareCard: 'SquareCard', CircleCard: 'CircleCard', EpisodeTile: 'EpisodeTile'},
       '../../kit/focus': await focusNamespace(host.react),
