@@ -115,3 +115,38 @@ func TestLibraryEmptyLanguageReadsProviderDefault(t *testing.T) {
 		t.Fatalf("read rewrote stored language: %+v %v", stored, err)
 	}
 }
+
+func TestLegacyMusicLanguageReadsDefaultAndEchoDoesNotChangeIt(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMain(t, s, setup(t, s)).AccessToken
+	ctx := context.Background()
+	legacy, err := s.db.NewLibrary(ctx, db.NewLibrary{Name: "Older music", Kind: db.LibraryMusic, Language: "en", Folders: []string{t.TempDir()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := get[AdminLibrary](t, s, owner, "/v1/admin/libraries/"+legacy.PublicID)
+	page := get[AdminLibraryPage](t, s, owner, "/v1/admin/libraries")
+	if read.Language != "" || len(page.Items) != 1 || page.Items[0].Language != "" {
+		t.Fatalf("unoffered language read: %+v %+v", read, page.Items)
+	}
+	name := "Renamed music"
+	var saved AdminLibrary
+	if w := call(t, s, "PATCH", "/v1/admin/libraries/"+legacy.PublicID, owner, LibraryEdit{Name: &name, Language: &read.Language}, &saved); w.Code != 200 {
+		t.Fatalf("echoed displayed language: %d %s", w.Code, w.Body)
+	}
+	if saved.Name != name || saved.Language != "" {
+		t.Fatalf("saved: %+v", saved)
+	}
+	// An older client can also echo the formerly returned stored value; it is still no change.
+	if w := call(t, s, "PATCH", "/v1/admin/libraries/"+legacy.PublicID, owner, LibraryEdit{Language: &legacy.Language}, nil); w.Code != 200 {
+		t.Fatalf("echoed old stored language: %d %s", w.Code, w.Body)
+	}
+	stored, err := s.db.LibrarySource(ctx, legacy.ID)
+	if err != nil || stored.Language != "en" {
+		t.Fatalf("an echo rewrote the stored language: %+v %v", stored, err)
+	}
+	french := "fr"
+	if w := call(t, s, "PATCH", "/v1/admin/libraries/"+legacy.PublicID, owner, LibraryEdit{Language: &french}, nil); w.Code != 400 {
+		t.Fatalf("new unoffered language: %d %s", w.Code, w.Body)
+	}
+}
