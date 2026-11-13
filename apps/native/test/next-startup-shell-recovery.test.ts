@@ -36,7 +36,7 @@ async function shell(read: (call: RestoreCall, index: number) => Promise<unknown
     }},
     './assembly': {createNativeShellBindings: () => ({})}, './bootstrap': {restoreNativeShellRuntime: (_: unknown, call: RestoreCall) => {calls.push(call); return read(call, calls.length);}},
     './remembered-downloads-opening': {createRememberedDownloadsOpening: async () => {fallbacks++; return undefined;}},
-    './NativeShell': {NativeShell: 'NativeShell'}, './StartupBoot': {StartupBoot: 'StartupBoot'}, './startup-recovery': startupRecovery,
+    './NativeShell': {NativeShell: 'NativeShell'}, './StartupBoot': {StartupBoot: 'StartupBoot'}, './after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './startup-recovery': startupRecovery,
     './SecureRecordsRecovery': {SecureRecordsRecovery: 'SecureRecordsRecovery'}, '../platform/boot-host': {takeLaunchStartedAt: (now = Date.now()) => now},
     '../platform/accounts': {nativeAccounts: {snapshot: async () => ({servers: []}), onSettled: () => () => {}, onFence: () => () => {}}},
     '../platform/app-session-storage': {readNativeSelectedViewer: async () => viewer, subscribeNativeAppSessions: (listener: () => void) => {selections.add(listener); return () => {selections.delete(listener);};}},

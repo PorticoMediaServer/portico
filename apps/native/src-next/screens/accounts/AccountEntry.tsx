@@ -56,7 +56,9 @@ import {PhoneMoveCode} from './PhoneMoveCode';
 import {EndedMoveCodeAction} from './EndedMoveCodeAction';
 import {DirectoryAccessRefused} from './DirectoryAccessRefused';
 import {directoryAccessRefused, directoryClockSkew, directoryIdentityUnconfirmed} from './directory-refusal';
-import {PhonePINEntry} from './PhonePINEntry';
+import {PhoneProfilePIN} from './PhoneProfilePIN';
+import {PhoneWhosWatching} from './PhoneWhosWatching';
+import {afterEntry} from '../../shell/after-entry';
 import {RememberProfileRow} from './RememberProfileRow';
 import {PhoneAccountSignIn} from './PhoneAccountSignIn';
 import {LegalAgreement} from './LegalAgreement';
@@ -407,6 +409,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     // The entry command and its retirements keep one identity for this entry, so the link alone reopens it.
   }, [incomingInvitation, openInvitationEntry, retireInvitation, retireInvitationEntry]);
   const back = () => {
+    afterEntry.clear();
     if (stage === 'tv') {if (!adoptingTV.current) reset(); return;}
     if (stage === 'invitation-entry') {
       const external = invitationEntryOpening.current?.external;
@@ -432,7 +435,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     if (stage === 'profile-forgot-pin') {setCode(''); setError(undefined); setStage('profile-pin'); return;}
     // Account help returns to the Portico Account form that opened it, not the front door.
     if (stage === 'forgot' || stage === 'forgot-sent') {setPassword(''); setError(undefined); setStage('portico'); return;}
-    if (theme.isTV && stage === 'profile-pin') {setCode(''); setProfile(undefined); setError(undefined); setStage('profiles'); return;}
+    // "‹ Profiles" (phone, frame 14) and TV Back both return to Who's watching.
+    if (stage === 'profile-pin') {setCode(''); setProfile(undefined); setError(undefined); setStage('profiles'); return;}
     if (Platform.isTV && (stage === 'tv-credentials' || stage === 'factor' || stage === 'tv-required-setup')) {void run(returnToTVCode); return;}
     if (stage === initialStage) onBack?.(); else reset();
   };
@@ -1668,12 +1672,21 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       {status}
       <BootWaitLine active={busy} serverName={server!.name} testID="accounts-profile-wait"/>
     </TVWhosWatching>;
-    return layout(t('accounts.profiles.onServer', {server: server!.name}), t('accounts.session.' + server!.signIn as 'accounts.session.portico' | 'accounts.session.local'),
-    <><ProfilePicker focusScope={`tv.auth.profiles.${server!.id}`} focusBusy={busy} profiles={profiles.map(value => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: value.art, primary: value.primary, pinRequired: value.pinRequired, disabled: busy}))} preferredProfileId={theme.isTV ? profileFocus.get(originalOperation) : undefined}
-      onFocusChange={id => {if (id && operation.current === originalOperation) profileFocus.set(originalOperation, id);}} showTitle={false}
-      onSelect={id => {const value = profiles.find(item => item.id === id)!; if (value.pinRequired) {setProfile(value); setCode(''); setStage('profile-pin');} else void run(() => choose(id));}}/>
+    // Add profile and Manage profiles open Profiles from the main profile, after its PIN if it has one (rules 25 and 27).
+    const main = profiles.find(value => value.primary);
+    const openManagement = () => {
+      if (busy || !main) return;
+      afterEntry.request({kind: 'profiles'}, main.id);
+      if (main.pinRequired) {setProfile(main); setCode(''); setStage('profile-pin');} else void run(() => choose(main.id));
+    };
+    const profileManagement = main ? {onManage: openManagement, ...(profiles.length < 8 ? {onAdd: openManagement} : {})} : {};
+    return <PhoneWhosWatching testID="accounts-entry" onBack={backAction ? back : undefined} backDisabled={busy}
+      picker={<ProfilePicker focusScope={`tv.auth.profiles.${server!.id}`} focusBusy={busy} profiles={profiles.map(value => ({id: value.id, name: value.name, initial: [...value.name][0] ?? '', color: value.art, primary: value.primary, pinRequired: value.pinRequired, disabled: busy}))} preferredProfileId={theme.isTV ? profileFocus.get(originalOperation) : undefined}
+      onFocusChange={id => {if (id && operation.current === originalOperation) profileFocus.set(originalOperation, id);}} title={t('auth.whosWatching')} {...profileManagement} description={t('accounts.profiles.serverContext', {server: server!.name})}
+      onSelect={id => {afterEntry.clear(); const value = profiles.find(item => item.id === id)!; if (value.pinRequired) {setProfile(value); setCode(''); setStage('profile-pin');} else void run(() => choose(id));}}/>}>
     {canRemember && <RememberProfileRow focusId="accounts-remember-profile" checked={remember} onChange={setRemember} disabled={busy} marginTop={34}/>}
-    <BootWaitLine active={busy} serverName={server!.name} testID="accounts-profile-wait"/></>);
+    {status}
+    <BootWaitLine active={busy} serverName={server!.name} testID="accounts-profile-wait"/></PhoneWhosWatching>;
   }
   if (theme.isTV && stage === 'tv-move-handoff' && server) return <TVMoveHandoff serverName={server.name}
     url={new URL('/sign-in', operation.current!.inspectedOrigin()).href} onBack={back}/>;
@@ -1686,12 +1699,11 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     hints={busy ? <BootWaitLine active serverName={server?.name} testID="accounts-profile-wait"/> : undefined}
     onSubmit={value => {void run(() => choose(profile!.id, value));}}
     onForgotPIN={() => {if (!busy) {setCode(''); setError(undefined); setStage('profile-forgot-pin');}}}/>;
-  if (stage === 'profile-pin') return layout(t('profile.pinTitle', {name: profile!.name}), undefined,
-    <View style={{alignSelf: 'stretch'}}><PhonePINEntry value={code} onChange={setCode} onComplete={value => {void run(() => choose(profile!.id, value));}} busy={busy} error={!!error}/>
-      {canRemember && <RememberProfileRow focusId="accounts-remember-profile" checked={remember} onChange={setRemember} disabled={busy}/>}
-      <View style={{alignItems: 'center', marginTop: 8}}><Button align="center" variant="link" disabled={busy} onPress={() => {if (busy || !profile || !operation.current) return; try {setError(undefined); retireRecovery(); const next: PINRecovery = {profile, operation: operation.current, controller: operation.current.profileRecovery(profile.id), retired: false}; pinRecoveryRef.current = next; setPinRecovery(next);} catch (failure) {setError(failure);}}}>{t('pin.forgot')}</Button></View>
-      <BootWaitLine active={busy} serverName={server?.name} testID="accounts-profile-wait"/></View>,
-    action('profile-pin', t('action.continue'), () => choose(profile!.id, code), !/^\d{4}$/.test(code)));
+  if (stage === 'profile-pin') return <PhoneProfilePIN testID="accounts-entry" profile={{name: profile!.name, face: {initial: [...profile!.name][0] ?? '', color: profile!.art}}}
+    value={code} onChange={setCode} onSubmit={value => {void run(() => choose(profile!.id, value));}} busy={busy} rejected={!!error} status={status}
+    remember={canRemember ? <RememberProfileRow focusId="accounts-remember-profile" checked={remember} onChange={setRemember} disabled={busy}/> : undefined}
+    hints={<BootWaitLine active={busy} serverName={server?.name} testID="accounts-profile-wait"/>} onBack={back}
+    onForgot={() => {if (busy || !profile || !operation.current) return; try {setError(undefined); retireRecovery(); const next: PINRecovery = {profile, operation: operation.current, controller: operation.current.profileRecovery(profile.id), retired: false}; pinRecoveryRef.current = next; setPinRecovery(next);} catch (failure) {setError(failure);}}}/>;
   const consentBody = tvKind === 'local' && server
     ? tvState.verificationUri ? t('accounts.consent.local', {server: server.name, address: tvState.verificationUri}) : undefined
     : t('accounts.consent.portico');

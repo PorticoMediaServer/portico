@@ -1,7 +1,6 @@
 import React, {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {Text, View} from 'react-native';
-import {StateLayout} from '../../kit/states';
-import {Button, FormError} from '../../kit/controls';
+import {FormError} from '../../kit/controls';
 import {ProfilePicker} from '../../kit/artwork';
 import {useTheme} from '../../kit/theme';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -15,7 +14,9 @@ import {NativeProfileRecovery, temporaryRecoveryApi} from '../../platform/profil
 import {nativeAccounts} from '../../platform/accounts';
 import {hostedUrl} from '../../platform/account-authority';
 import {nativeNetworkFetch} from '../../platform/server-connections';
-import {PhonePINEntry} from './PhonePINEntry';
+import {PhoneProfilePIN} from './PhoneProfilePIN';
+import {PhoneWhosWatching} from './PhoneWhosWatching';
+import {afterEntry} from '../../shell/after-entry';
 import {profilePinFailureText} from './profile-pin-failure';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';
 import {RememberProfileRow} from './RememberProfileRow';
@@ -58,6 +59,7 @@ export function LifecycleProfileGate() {
   useEffect(() => {if (!choosing) setRemember(false);}, [choosing]);
   useEffect(() => () => recovery?.controller.dispose(), [recovery]);
   const back = () => {
+    afterEntry.clear();
     if (recovery) {recovery.controller.dispose(); setRecovery(undefined); return;}
     if (forgot) {setForgot(false); return;}
     // Leaving the PIN page forgets its refusal, so a PIN page opened again starts with no message.
@@ -84,16 +86,18 @@ export function LifecycleProfileGate() {
   const wait = <BootWaitLine active={busy} serverName={state.server.name} testID="lifecycle-profile-wait"/>;
 
   if (state.kind === 'choosingProfile') {
+    // Add profile and Manage profiles open Profiles from the main profile, after its PIN if it has one (rules 25 and 27).
+    const main = theme.isTV ? undefined : state.profiles.find(value => value.primary);
+    const openManagement = () => {if (busy || !main) return; afterEntry.request({kind: 'profiles'}, main.id); lifecycle.actions.pickProfile.start(main.id, remember && state.canRemember);};
     const picker = <ProfilePicker focusScope={`tv.auth.profiles.${state.server.serverId}`} focusBusy={busy} profiles={state.profiles.map(option)}
-      preferredProfileId={state.focus} onSelect={id => lifecycle.actions.pickProfile.start(id, remember && state.canRemember)}
-      {...(theme.isTV ? {title: t('accounts.profiles.onServer', {server: state.server.name})} : {showTitle: false})}/>;
+      preferredProfileId={state.focus} onSelect={id => {afterEntry.clear(); lifecycle.actions.pickProfile.start(id, remember && state.canRemember);}}
+      {...(main ? {onManage: openManagement, ...(state.profiles.length < 8 ? {onAdd: openManagement} : {})} : {})}
+      title={theme.isTV ? t('accounts.profiles.onServer', {server: state.server.name}) : t('auth.whosWatching')}
+      {...(theme.isTV ? {} : {description: t('accounts.profiles.serverContext', {server: state.server.name})})}/>;
     const tick = state.canRemember ? theme.isTV ? <TVPickerRememberRow checked={remember} onChange={setRemember} busy={busy}/>
       : <RememberProfileRow focusId="lifecycle-remember-profile" checked={remember} onChange={setRemember} disabled={busy} marginTop={34}/> : null;
     if (theme.isTV) return <TVWhosWatching testID="lifecycle-profiles">{picker}{tick}{status}{wait}</TVWhosWatching>;
-    return <StateLayout testID="lifecycle-profiles" title={t('accounts.profiles.onServer', {server: state.server.name})}
-      body={t('accounts.session.' + state.server.signIn as 'accounts.session.portico' | 'accounts.session.local')}
-      beforeActions={<>{picker}{tick}{status}{wait}</>}
-      secondaryAction={state.switching ? {id: 'back', label: t('action.back'), disabled: busy, onPress: back} : undefined}/>;
+    return <PhoneWhosWatching testID="lifecycle-profiles" picker={picker} onBack={state.switching ? back : undefined} backDisabled={busy}>{tick}{status}{wait}</PhoneWhosWatching>;
   }
 
   const profile = state.profile;
@@ -128,15 +132,8 @@ export function LifecycleProfileGate() {
   if (theme.isTV) return <TVProfilePINForm profile={option(profile)} code={code} onCodeChange={setCode} busy={busy} error={pinStatus}
     {...(state.canRemember ? {remember: {checked: remember, onChange: setRemember}} : {})}
     hints={busy ? wait : undefined} onSubmit={send} onBack={back} onForgotPIN={() => {if (!busy) {setCode(''); setForgot(true);}}}/>;
-  // A profile is always named; only an account that couldn't be read falls back to the plain title.
-  return <StateLayout testID="lifecycle-profile-pin" title={profile.name ? t('profile.pinTitle', {name: profile.name}) : t('auth.enterProfilePin')} avoidKeyboard
-    beforeActions={<View style={{alignSelf: 'stretch'}}>
-      <PhonePINEntry value={code} onChange={setCode} onComplete={send} busy={busy} error={!!state.rejected}/>
-      {status}
-      {state.canRemember && <RememberProfileRow focusId="lifecycle-remember-profile" checked={remember} onChange={setRemember} disabled={busy}/>}
-      <View style={{alignItems: 'center', marginTop: 8}}><Button align="center" variant="link" disabled={busy || !connection} onPress={openRecovery}>{t('pin.forgot')}</Button></View>
-      {wait}
-    </View>}
-    primaryAction={{id: 'profile-pin', label: t('action.continue'), disabled: busy || !/^\d{4}$/.test(code), loading: busy, onPress: () => send(code)}}
-    secondaryAction={{id: 'back', label: t('action.back'), disabled: busy, onPress: back}}/>;
+  return <PhoneProfilePIN testID="lifecycle-profile-pin" profile={{name: profile.name, face: {initial: [...profile.name][0] ?? '', color: art(profile.id)}}}
+    value={code} onChange={setCode} onSubmit={send} busy={busy} rejected={!!state.rejected} status={status}
+    remember={state.canRemember ? <RememberProfileRow focusId="lifecycle-remember-profile" checked={remember} onChange={setRemember} disabled={busy}/> : undefined}
+    hints={wait} onForgot={openRecovery} forgotDisabled={!connection} onBack={back}/>;
 }

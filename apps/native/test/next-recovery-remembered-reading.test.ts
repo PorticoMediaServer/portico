@@ -53,7 +53,7 @@ test(`compact ${category} recovery admits only original usable downloads: ${cond
     '../platform/home-action-diagnostics': {homeActionDiagnostics: {error() {}, lifetime() {}}},
     '../platform/secure-records': {acknowledgeSecureRecordsRecovered() {}, isSecureRecordsLost: () => false, secureRecordsRecoveredNotice: () => undefined},
     './SecureRecordsRecovery': {SecureRecordsRecovery: 'SecureRecordsRecovery'}, '../platform/boot-host': {takeLaunchStartedAt: (now = Date.now()) => now},
-    './StartupBoot': {StartupBoot: ({children}: any) => children}, './startup-recovery': startupRecovery,
+    './StartupBoot': {StartupBoot: ({children}: any) => children}, './after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './startup-recovery': startupRecovery,
   });
   try {
     await host.render(React.createElement(RestoredShell));
