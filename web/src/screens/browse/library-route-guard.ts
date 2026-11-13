@@ -2,6 +2,7 @@ import {useLayoutEffect, useMemo} from 'react';
 import {readTitleIdentity} from '../../platform/title-identity';
 import type {ShellAssemblyContext} from '../../shell/bootstrap';
 import {forwardFacts} from '../../shell/fact-source';
+import {claimTitleLibrary} from '../../shell/title-library';
 import {createLibraryRouteGuard, type LibraryRouteGuard} from '../../shell/library-route-proof';
 import {router} from '../../router';
 
@@ -26,6 +27,7 @@ export function useLibraryRouteGuard(context: ShellAssemblyContext | undefined, 
         // The title's detail route, which serves Reading titles too (E-web-23).
         const item = await readTitleIdentity(context.freshness.queries, itemId, signal);
         signal.throwIfAborted();if (!authority() || !routeCurrent()) throw new DOMException('Item route retired', 'AbortError');
+        claimTitleLibrary(itemId, item.libraryId);
         return item.libraryId;
       }} : {}),
       replace: destination => router.navigate(destination), reportError,
