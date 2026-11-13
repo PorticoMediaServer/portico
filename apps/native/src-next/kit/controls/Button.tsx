@@ -93,13 +93,15 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
       if (androidGlass) {
         const padding: ViewStyle = {paddingHorizontal: iconOnly ? 0 : geometry.paddingX, paddingVertical: fluid ? 4 : undefined};
         for (const key of paddingKeys) if (suppliedStyle?.[key] !== undefined) padding[key] = suppliedStyle[key];
+        // A fluid button (no set height: it grows with its text) sizes its faces to their content; growing to fill, the native blur filled the screen (Android, large text).
+        const face = fluid ? [styles.androidFace, styles.fluidFace] : styles.androidFace;
         // Android's backdrop capture skips a BlurView and its descendants. Keep the complete
         // face inside that subtree, so its own text, tint and progress cannot feed the blur.
-        return <View pointerEvents="none" style={[styles.androidFace, {borderRadius: suppliedStyle?.borderRadius ?? radius, overflow: 'hidden'}]}>
-          <BlurView style={styles.androidFace} overlayColor="transparent" blurType="dark" blurAmount={recipe.blurAmount} reducedTransparencyFallbackColor={theme.colors.raisedHigh}>
+        return <View pointerEvents="none" style={[face, {borderRadius: suppliedStyle?.borderRadius ?? radius, overflow: 'hidden'}]}>
+          <BlurView style={face} overlayColor="transparent" blurType="dark" blurAmount={recipe.blurAmount} reducedTransparencyFallbackColor={theme.colors.raisedHigh}>
             {/* BlurView is an Android FrameLayout: keep one real RN child to lay out
                 the face, and let the outer RN View clip its rounded corners. */}
-            <View collapsable={false} style={[styles.androidFace, padding, {backgroundColor: suppliedStyle?.backgroundColor,
+            <View collapsable={false} style={[face, padding, {backgroundColor: suppliedStyle?.backgroundColor,
               alignItems: suppliedStyle?.alignItems ?? 'center', justifyContent: suppliedStyle?.justifyContent ?? 'center'}]}>
               {fill}{content}{edge}
             </View>
@@ -122,7 +124,7 @@ export const ResumeButton = forwardRef<View, ResumeButtonProps>(function ResumeB
 const styles = StyleSheet.create({
   button: {alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start', flexShrink: 1},
   androidHost: {...Object.fromEntries(paddingKeys.map(key => [key, 0])), backgroundColor: 'transparent'},
-  androidFace: {alignSelf: 'stretch', flexGrow: 1, flexShrink: 1},
+  androidFace: {alignSelf: 'stretch', flexGrow: 1, flexShrink: 1}, fluidFace: {flexGrow: 0},
   content: {flexDirection: 'row', alignItems: 'center', maxWidth: '100%'}, label: {flexShrink: 1},
   inlineTrack: {width: 96, height: 6, borderRadius: 6, overflow: 'hidden', marginLeft: 8},
   edgeTrack: {position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, overflow: 'hidden'},
