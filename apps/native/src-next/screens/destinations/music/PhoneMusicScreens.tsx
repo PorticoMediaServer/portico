@@ -94,6 +94,25 @@ function MusicActions({controller, entry, runtime, actions, moreRef, roundMore, 
   </View>;
 }
 
+/**
+ * The tablet album and artist pages' one action row (tablet-play 11): Play and Shuffle with their labels, then the round
+ * Favorite, Add to playlist and More. Where the column is too narrow for one line (upright, beside the cover) it wraps:
+ * the round buttons move to a second line and no label is ever cut ("S" for Shuffle, owner's standing complaint).
+ */
+function TabletMusicActions({controller, runtime, favorite, height, labelSize, onPlaylist, more, centered = false}: {
+  controller: NativeTVMusicController; runtime: NativeShellRuntime; favorite: boolean | undefined; height: number; labelSize: number;
+  onPlaylist?: () => void; more: React.ReactNode; centered?: boolean;
+}) {
+  const theme = useTheme(), wide = {height, borderRadius: phoneMusicGeometry.actionRadius, paddingHorizontal: 24}, round = {height, width: height, borderRadius: phoneMusicGeometry.actionRadius};
+  return <View testID="native-tablet-music-actions" style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: centered ? 'center' : 'flex-start', gap: 10, marginTop: 20}}>
+    <Button style={wide} icon="i-play" textStyle={browseType(theme, labelSize, 700)} onPress={() => {void controller.play().catch(runtime.reportError);}}>{t('entry.play')}</Button>
+    <Button variant="glass" style={wide} icon="i-shuffle" textStyle={browseType(theme, labelSize, 700)} onPress={() => {void controller.play(undefined, true).catch(runtime.reportError);}}>{t('title.shuffle')}</Button>
+    <Button variant="glass" iconOnly icon={favorite ? 'i-heart-f' : 'i-heart'} style={round} accessibilityLabel={t(favorite ? 'next.browse.native.unfavorite' : 'next.browse.native.favorite')} onPress={() => {void controller.toggleFavorite().catch(runtime.reportError);}}/>
+    {onPlaylist ? <Button variant="glass" iconOnly icon="i-list-plus" style={round} accessibilityLabel={t('next.selection.addToPlaylist')} onPress={onPlaylist}/> : null}
+    {more}
+  </View>;
+}
+
 /** A still three-bar mark, the same drawn playing state the kit rows use. */
 
 /** How many digits a list's longest track number has, so every row's number column is the same width. */
@@ -229,13 +248,8 @@ export function PhoneAlbumScreen({controller, entry, runtime, actions, openEntry
               {facts.length ? <Facts facts={facts}/> : null}
               <MusicFormatBadges badges={snapshot.albumDetails?.badges} size="tablet"/>
             </View>
-            <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 20}}>
-              <Button style={{height: 52, borderRadius: phoneMusicGeometry.actionRadius, paddingHorizontal: 24}} icon="i-play" textStyle={browseType(theme, 16, 700)} onPress={() => {void controller.play().catch(runtime.reportError);}}>{t('entry.play')}</Button>
-              <Button variant="glass" style={{height: 52, borderRadius: phoneMusicGeometry.actionRadius, paddingHorizontal: 24}} icon="i-shuffle" textStyle={browseType(theme, 16, 700)} onPress={() => {void controller.play(undefined, true).catch(runtime.reportError);}}>{t('title.shuffle')}</Button>
-              <Button variant="glass" iconOnly icon={snapshot.favorite ? 'i-heart-f' : 'i-heart'} style={round} accessibilityLabel={t(snapshot.favorite ? 'next.browse.native.unfavorite' : 'next.browse.native.favorite')} onPress={() => {void controller.toggleFavorite().catch(runtime.reportError);}}/>
-              {onPlaylist ? <Button variant="glass" iconOnly icon="i-list-plus" style={round} accessibilityLabel={t('next.selection.addToPlaylist')} onPress={onPlaylist}/> : null}
-              <Button ref={more} variant="glass" iconOnly icon="i-more" style={round} accessibilityLabel={t('card.more', {title})} onPress={() => actions.menu(entry, more)}/>
-            </View>
+            <TabletMusicActions controller={controller} runtime={runtime} favorite={snapshot.favorite} height={52} labelSize={16} onPlaylist={onPlaylist}
+              more={<Button ref={more} variant="glass" iconOnly icon="i-more" style={round} accessibilityLabel={t('card.more', {title})} onPress={() => actions.menu(entry, more)}/>}/>
           </View>
         </View>
         {snapshot.phase === 'error' ? <MusicErrorView testID={`music-page-${entry.id}-error`} error={snapshot.error} onRetry={() => {void controller.load();}} style={{marginHorizontal: 32, marginTop: 24}}/> : null}
@@ -353,12 +367,8 @@ export function PhoneArtistScreen({controller, entry, runtime, actions, openEntr
           <ArtistCircle covers={covers} rings={[3]} initials={[...entry.title.trim()][0] ?? ''} alt={entry.title} size={220} visible/>
           <Lockup title={entry.title} size={58} lineRatio={61 / 58} tracking={-.04} style={{textAlign: 'center', marginTop: 20}}/>
           {facts.length ? <Facts facts={facts} strongFirst={false}/> : null}
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 20}}>
-            <Button style={{height: phoneMusicGeometry.actionHeight, borderRadius: phoneMusicGeometry.actionRadius, paddingHorizontal: 24}} icon="i-play" textStyle={browseType(theme, 15, 700)} onPress={() => {void controller.play().catch(runtime.reportError);}}>{t('entry.play')}</Button>
-            <Button variant="glass" style={{height: phoneMusicGeometry.actionHeight, borderRadius: phoneMusicGeometry.actionRadius, paddingHorizontal: 24}} icon="i-shuffle" textStyle={browseType(theme, 15, 700)} onPress={() => {void controller.play(undefined, true).catch(runtime.reportError);}}>{t('title.shuffle')}</Button>
-            <Button variant="glass" iconOnly icon={snapshot.favorite ? 'i-heart-f' : 'i-heart'} style={round} accessibilityLabel={t(snapshot.favorite ? 'next.browse.native.unfavorite' : 'next.browse.native.favorite')} onPress={() => {void controller.toggleFavorite().catch(runtime.reportError);}}/>
-            <Button ref={more} variant="glass" iconOnly icon="i-more" style={round} accessibilityLabel={t('card.more', {title: entry.title})} onPress={() => actions.menu(entry, more)}/>
-          </View>
+          <TabletMusicActions controller={controller} runtime={runtime} favorite={snapshot.favorite} height={phoneMusicGeometry.actionHeight} labelSize={15} centered
+            more={<Button ref={more} variant="glass" iconOnly icon="i-more" style={round} accessibilityLabel={t('card.more', {title: entry.title})} onPress={() => actions.menu(entry, more)}/>}/>
         </View>
         {snapshot.phase === 'error' ? <MusicErrorView testID={`music-page-${entry.id}-error`} error={snapshot.error} onRetry={() => {void controller.load();}} style={{marginHorizontal: 32, marginTop: 24}}/> : null}
         {selection?.start && controller.selectionProjection() ? <View style={{alignItems: 'flex-end', paddingHorizontal: 32, marginTop: 24}}><Chip icon="i-check" onPress={() => selection.start?.()}>{t('next.selection.select')}</Chip></View> : null}
