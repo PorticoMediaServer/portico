@@ -35,8 +35,8 @@ import {durationText} from '../../../../../packages/client-core/src/presentation
 import {usePlatformPosture} from '../../platform/platformPosture';
 import {mediumRailMetrics} from '../../shell/model';
 import {usePageInset} from '../../kit/layout/page-inset';
-import {BlurView} from '../../platform/native-blur';
 import {TVRow} from '../../kit/layout/TVRow';
+import {RoundBarButton} from '../../kit/layout/TopBar';
 
 export type NativeTitleScreenProps = Readonly<{
   controller: NativeTitleController;
@@ -256,16 +256,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
     if (watch && fence && !watch.source.retired && sameFence(watch.playback.getSnapshot().fence, fence)) void watch.playback.toggle(fence).catch(props.reportError);
   };
   const chromeButton = (testID: string, icon: 'i-left' | 'i-cast', label: string, onPress: () => void, anchorRef?: React.RefObject<View | null>) => phoneTitle
-    ? <Focusable ref={anchorRef} testID={testID} accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
-        hitSlop={3} focusRadius={19} style={{width: 38, height: 38, borderRadius: 19}}>
-        <View pointerEvents="none" style={{flex: 1, borderRadius: 19, overflow: 'hidden'}}>
-          <BlurView blurType="dark" blurAmount={18} overlayColor="transparent" reducedTransparencyFallbackColor={theme.colors.ink} style={{flex: 1}}>
-            <View collapsable={false} style={{flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(7,16,24,.45)'}}>
-              <Icon name={icon} size={22} color={theme.colors.text}/>
-            </View>
-          </BlurView>
-        </View>
-      </Focusable>
+    ? <RoundBarButton ref={anchorRef} testID={testID} icon={icon} label={label} onPress={onPress}/>
     : <Button ref={anchorRef} testID={testID} variant={icon === 'i-left' ? 'icon' : 'glass'} icon={icon} iconOnly accessibilityLabel={label} onPress={onPress}/>;
   const headerFor = (showTitle: boolean) => !theme.isTV && !props.watch && <View testID="watch-title-header" style={{position: 'absolute', top: 0, left: 0, right: 0, height: headerHeight, paddingTop: insets.top, flexDirection: 'row', alignItems: 'center', paddingHorizontal: phoneTitle ? 12 : 10, zIndex: 10, backgroundColor: collapsed ? theme.colors.ink : 'transparent'}}>
     {chromeButton('watch-title-back', 'i-left', t('action.back'), props.back)}

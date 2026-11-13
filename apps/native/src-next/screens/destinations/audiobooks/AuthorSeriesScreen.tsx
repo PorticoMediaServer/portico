@@ -14,6 +14,7 @@ import type {NativeEntryActions} from '../entry-actions';
 import type {AudiobookScreenController} from './model';
 import {AudiobookErrorState} from './BookScreen';
 import {audiobookAuthorInitials} from './presentation';
+import {TopBar, RoundBarButton} from '../../../kit/layout/TopBar';
 
 const t = defaultI18n.t;
 type Actions = Pick<NativeEntryActions, 'menu'>;
@@ -191,10 +192,10 @@ export function AuthorSeriesScreen({controller, entry, runtime, actions, openEnt
       {runtime.ambient(coverPath) ? <AmbientArt source={runtime.ambient(coverPath)} treatment="title" style={{position: 'absolute', inset: 0}}/> : null}
       <View style={{position: 'absolute', inset: 0, backgroundColor: alpha(theme.colors.ink, .45)}}/>
     </View>
-    {!tv && onBack ? <Button variant="icon" icon="i-left" iconOnly accessibilityLabel={t('action.back')} onPress={onBack}
-      style={{position: 'absolute', top: insets.top + 6, left: 10, zIndex: 10, height: 44, width: 44}}/> : null}
-    {!tv ? <Button variant="icon" icon="i-more" iconOnly accessibilityLabel={t('card.more', {title})} onPress={() => actions.menu(entity)}
-      style={{position: 'absolute', top: insets.top + 6, right: 10, zIndex: 10, height: 44, width: 44}}/> : null}
+    {!tv && <View pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10}}>
+      <TopBar overArtwork back={onBack ? {label: t('action.back'), onPress: onBack} : undefined}
+        trailing={<RoundBarButton icon="i-more" label={t('card.more', {title})} onPress={() => actions.menu(entity)}/>}/>
+    </View>}
     <MusicScrollView onNearEnd={tail} contentContainerStyle={tv ? {paddingBottom: 64} : {paddingTop: Math.max(96, insets.top + 56), paddingBottom: 48}}>
       {tv ? <FocusRegion id={regionId} entry={failed ? retryFocusId : resumeFocusId} orientation="free" style={{width: 1920, height: canvasHeight}}>{body}</FocusRegion>
         : <View style={{alignItems: 'center', paddingHorizontal: 20}}>{body}</View>}

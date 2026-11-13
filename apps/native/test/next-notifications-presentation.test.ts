@@ -67,7 +67,9 @@ test('notification sections use a count slot, intra-section separators and the a
     const card = (row: any) => flatten(row.props.style);
     assert.equal(card(drawn[1]).borderTopLeftRadius, 14); assert.equal(card(drawn[1]).borderBottomLeftRadius, 0);
     assert.equal(card(drawn[2]).borderTopLeftRadius, 0); assert.equal(card(drawn[2]).borderBottomLeftRadius, 14);
-    assert.equal(flatten(all(tree).find(node => node.props.testID === 'notifications-mark-all').props.textStyle).fontSize, 15);
+    const bar = all(tree).find(node => node.type === 'PhoneServerPageHeader' || node.type === 'TopBar');
+    assert.equal(bar.props.trailing.props.testID, 'notifications-mark-all');
+    assert.equal(flatten(bar.props.trailing.props.textStyle).fontSize, 15);
   } finally {await host.unmount();}
 });
 

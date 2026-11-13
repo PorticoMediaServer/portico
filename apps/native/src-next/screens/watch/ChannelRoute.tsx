@@ -7,6 +7,7 @@ import {Button} from '../../kit/controls';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRoute} from '../../shell/routes';
 import type {NativeWatchModuleBindings} from './module';
+import {TopBar} from '../../kit/layout/TopBar';
 
 /** The launch page owns its original route, not the adopted player's lifetime. */
 export function NativeWatchChannelRoute({context, route, title}: {context: NativeShellBootstrapContext; route: Extract<NativeShellRoute, {kind: 'channel'}>; title: NativeWatchModuleBindings['title']}) {
@@ -60,8 +61,8 @@ export function NativeWatchChannelRoute({context, route, title}: {context: Nativ
     return () => {controller.abort(); offRoute(); offAuthority();};
   }, [context, route, page, attempt]);
   const failure = error ? title.renderError(error, () => {if (page.current()) setAttempt(value => value + 1);}) : null;
-  return Platform.isTV ? failure : <View style={{flex: 1, paddingTop: insets.top + 12}}>
-    <Button testID="native-channel-back" variant="text" icon="i-left" accessibilityLabel={defaultI18n.t('action.back')} onPress={page.pop}>{defaultI18n.t('action.back')}</Button>
+  return Platform.isTV ? failure : <View style={{flex: 1}}>
+    <TopBar back={{label: defaultI18n.t('action.back'), onPress: page.pop, testID: 'native-channel-back'}}/>
     {failure}
   </View>;
 }

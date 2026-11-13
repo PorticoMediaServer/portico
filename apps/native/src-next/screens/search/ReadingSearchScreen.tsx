@@ -10,6 +10,7 @@ import {browseType} from '../../kit/browse/presentation';
 import {useTheme} from '../../kit/theme';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeReadingSearchPort, ReadingSearchOpening} from './reading-search';
+import {TopBar} from '../../kit/layout/TopBar';
 
 /** Root54: the reader's own authored Search all books, drawn in the existing Search
  * shell. Only the canonical indexed-text answer is shown: the real excerpt plus the
@@ -38,12 +39,9 @@ export function ReadingSearchScreen({port, opening, runtime, query, onBack}: Rea
   };
   const rows = state.phase === 'loading' ? undefined : state.hits;
   return <View testID="native-reading-search" style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
-    <View style={{paddingTop: Math.max(56, insets.top), backgroundColor: theme.colors.ink}}>
-      <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 12, height: 44}}>
-        <Focusable testID="reading-search-back" accessibilityLabel={t('action.back')} onPress={onBack} hitSlop={10}
-          style={{width: 38, height: 38, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-left" size={22} color={theme.colors.text}/></Focusable>
-        <Text accessibilityRole="header" numberOfLines={1} style={[browseType(theme, 32, 800, -.035, 36.8), {color: theme.colors.text, flex: 1}]}>{t('next.reader.searchAll')}</Text>
-      </View>
+    <View>
+      <TopBar back={{label: t('action.back'), onPress: onBack, testID: 'reading-search-back'}}/>
+      <Text accessibilityRole="header" numberOfLines={1} style={[browseType(theme, 32, 800, -.035, 36.8), {color: theme.colors.text, marginHorizontal: 20}]}>{t('next.reader.searchAll')}</Text>
       <View style={{marginHorizontal: 16, marginTop: 6}}>
         <TextField ref={input} testID="reading-search-input" focusId="reading-search-input" variant="search" leadingIcon="i-search" value={text}
           cursorColor={theme.colors.accentStrong} selectionColor={theme.colors.accentStrong} onChangeText={edit}

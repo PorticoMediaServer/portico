@@ -133,33 +133,18 @@ test('the wash is drawn only for the Listen and Read libraries', async () => {
   assert.equal(module.libraryWashKind('books'), false, 'the legacy spelling is not a Read kind (shared isReadingLibraryKind)');
 });
 
-test('the phone compact header is one 44 row with the drawn back control and a screen-centred switcher', async () => {
-  const {module, theme} = await libraryScreen(390);
+test('the phone library header is the shared top bar: "‹ Libraries", the switcher centred, ⋯, and the pivots inside it', async () => {
+  const {module} = await libraryScreen(390);
   const calls: string[] = [];
   const tree = module.LibraryCompactHeader({switcher: 'SWITCHER', menu: 'MENU', children: 'PIVOTS', onLibraries: () => calls.push('libraries')});
-  const nodes = elements(tree), root = flatten(nodes[0].props.style);
-  assert.equal(root.paddingTop, 47, 'the header starts below the actual safe area');
-  assert.equal(root.borderBottomWidth, 1);
-  assert.equal(root.backgroundColor, alpha(theme.colors.ink, .84), 'a flat library keeps the .84 ink row');
-  assert.equal(root.zIndex, theme.layers.sticky);
-  const row = nodes.find(node => flatten(node.props.style).height === 44 && flatten(node.props.style).paddingLeft === 12);
-  assert.ok(row, 'the compact row is 44 high with the drawn 12/10 padding');
-  assert.equal(flatten(row!.props.style).paddingRight, 10);
-  const back = nodes.find(node => node.type === 'Focusable' && node.props.accessibilityLabel === 'next.browse.native.libraries');
-  assert.deepEqual(flatten(back!.props.style), {height: 38, marginLeft: -4, paddingRight: 6, justifyContent: 'center'});
-  assert.equal(nodes.find(node => node.type === 'Icon')?.props.name, 'i-left');
-  assert.equal(nodes.find(node => node.type === 'Icon')?.props.size, 22);
-  back!.props.onPress();
+  assert.equal(tree.type, 'TopBar');
+  assert.equal(tree.props.surface, true, 'the grid scrolls under the bar');
+  assert.equal(tree.props.back.label, 'next.browse.native.libraries');
+  tree.props.back.onPress();
   assert.deepEqual(calls, ['libraries']);
-  const centre = nodes.find(node => flatten(node.props.style).left === 118 && flatten(node.props.style).right === 118);
-  assert.ok(centre, 'the switcher is centred on the screen itself');
-  assert.equal(flatten(centre!.props.style).alignItems, 'center');
-  assert.deepEqual(elements(centre!.props.children)[0].props.children, ['SWITCHER']);
-  assert.deepEqual(nodes.find(node => flatten(node.props.style).marginLeft === 'auto')!.props.children[0], 'MENU');
-  assert.equal(tree.props.children.at(-1), 'PIVOTS', 'the pivot strip follows the row');
-
-  const washed = flatten(module.LibraryCompactHeader({switcher: 'S', menu: 'M', wash: true, onLibraries: () => {}}).props.style);
-  assert.equal(washed.backgroundColor, alpha(theme.colors.ink, .62), 'the Listen/Read wash tints the row .62');
+  assert.equal(tree.props.center, 'SWITCHER');
+  assert.equal(tree.props.trailing, 'MENU');
+  assert.deepEqual([tree.props.children].flat(), ['PIVOTS'], 'the pivot strip sits inside the bar, under the row');
 });
 
 test('the phone pivot strip scrolls with the drawn gap while TV keeps its drawn row', async () => {

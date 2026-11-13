@@ -23,6 +23,7 @@ import {MusicScrollView, MusicWindow, MusicShelf} from './MusicWindow';
 import type {NativeSavedSelectionPort} from '../../saved/SavedScreen';
 import {SelectionCircle} from '../../../kit/selection';
 import {TVRow} from '../../../kit/layout/TVRow';
+import {TopBar, RoundBarButton} from '../../../kit/layout/TopBar';
 
 const t = defaultI18n.t;
 const noSubscribe = () => () => {};
@@ -42,11 +43,8 @@ export const phoneMusicGeometry = Object.freeze({
 
 /** The floating back/More header the phone music frames draw over the wash. */
 function PhoneHeader({title, onBack, onMore, moreRef}: {title: string; onBack: () => void; onMore: () => void; moreRef: React.RefObject<NativeView | null>}) {
-  const insets = useSafeAreaInsets();
-  return <View style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, paddingTop: insets.top, height: 50 + insets.top, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center'}}>
-    <Button variant="icon" icon="i-left" iconOnly accessibilityLabel={t('action.back')} onPress={onBack} style={{height: 44, width: 44}}/>
-    <View style={{flex: 1}}/>
-    <Button ref={moreRef} variant="icon" icon="i-more" iconOnly accessibilityLabel={t('card.more', {title})} onPress={onMore} style={{height: 44, width: 44}}/>
+  return <View pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10}}>
+    <TopBar overArtwork back={{label: t('action.back'), onPress: onBack}} trailing={<RoundBarButton ref={moreRef} icon="i-more" label={t('card.more', {title})} onPress={onMore}/>}/>
   </View>;
 }
 

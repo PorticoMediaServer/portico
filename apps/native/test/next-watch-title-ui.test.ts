@@ -64,10 +64,9 @@ test('title chrome allocates the current safe area and keeps real Back and Play 
     assert.equal(style(header).height, 48 + top);
     assert.equal(style(header).paddingTop, top);
     const back = find(header, 'watch-title-back'), cast = find(header, 'watch-title-play-on');
-    assert.deepEqual([style(back).width, style(back).height, style(back).borderRadius], [38, 38, 19]);
-    const blur = descendants(back).find(node => node.type === 'BlurView');
-    assert.equal(blur.props.blurAmount, 18);
-    assert.equal(style(blur.props.children[0]).backgroundColor, 'rgba(7,16,24,.45)');
+    // The shared round glass control over art (kit/layout/TopBar: 38 pt, blur 18 under ink .45).
+    assert.equal(back.type, 'RoundBarButton'); assert.equal(back.props.icon, 'i-left');
+    assert.equal(cast.type, 'RoundBarButton'); assert.equal(cast.props.icon, 'i-cast');
     back.props.onPress(); assert.equal(f.calls.pop(), 'back');
     cast.props.ref.current = {nativeTag: 18}; cast.props.onPress();
     assert.equal(f.calls.pop(), cast.props.ref, 'Play on receives the actual opener ref');

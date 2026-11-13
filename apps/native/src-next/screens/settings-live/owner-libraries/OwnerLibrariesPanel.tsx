@@ -41,6 +41,7 @@ import {NativeOwnerLibrariesController, sonicPageLease, type NativeOwnerLibrarie
 import {viewerQueriesFor} from '../../../shell/freshness';
 import {ownerFolderLocation, ownerFolderState, ownerIssueReason, ownerLibraryAudience, ownerLibraryCounts, ownerLibraryInterval, ownerLibraryKind, ownerLibraryScan, ownerLibrarySquare, ownerLibraryState, ownerSkippedFiles} from './presentation';
 import {registerBack} from '../../../kit/navigation/back';
+import {TopBar} from '../../../kit/layout/TopBar';
 
 type Translate = typeof defaultI18n.t;
 type ViewerRole = 'owner' | 'administrator' | 'member';
@@ -203,9 +204,7 @@ function LibraryPage({api, library, document, state, tab, tabChange, t, runtime,
     {id: 'scanning', label: t('next.ownerLibraries.tab.scanning')}, {id: 'advanced', label: t('next.ownerLibraries.tab.advanced')}];
   return <View style={{flex: 1}}>
     <ScrollView contentContainerStyle={{paddingBottom: 32}}>
-      <View style={{flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingTop: 4}}>
-        <Button variant="text" size="compact" icon="i-left" onPress={back}>{t('next.ownerLibraries.backLibraries')}</Button>
-      </View>
+      <TopBar safeArea={false} back={{label: t('next.ownerLibraries.backLibraries'), onPress: back}}/>
       <View style={{paddingHorizontal: 20}}>
         <ServerHeader serverName={serverName} viewerRole={viewerRole} audience={viewerRole === 'administrator' ? 'administrators' : 'owner'} variant="group" style={{marginBottom: 12}}/>
         <Text accessibilityRole="header" numberOfLines={2} style={[shellType(24, 800, 29), {color: theme.colors.text, marginBottom: 4}]}>{library.name}</Text>

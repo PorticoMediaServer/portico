@@ -1,9 +1,8 @@
 import React, {useRef, useState, type ReactNode} from 'react';
-import {Text, View, type StyleProp, type ViewStyle} from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {Button, Focusable} from '../controls';
-import {BlurView, glassRecipe} from '../../platform/native-blur';
+import {TopBar} from '../layout/TopBar';
 import {MenuRow, Popover} from '../overlays';
 import type {FocusRef} from '../overlays';
 import {Icon, type IconName} from '../Icon';
@@ -32,22 +31,9 @@ export function LibraryHeader({name, counts, switcher, menu, ambient, children, 
   </View>;
 }
 
-export function StickyBrowseHeader({name, switcher, menu, ambient, children, onLibraries, safeArea = true, style, testID}: Omit<LibraryHeaderProps, 'counts'> & {onLibraries: () => void; safeArea?: boolean; style?: StyleProp<ViewStyle>}) {
-  const theme = useTheme(), insets = useSafeAreaInsets();
-  return <View testID={testID} style={[{paddingTop: safeArea ? insets.top : 0, backgroundColor: alpha(theme.colors.ink, ambient ? .62 : .84), borderBottomColor: alpha(theme.colors.text, .07), borderBottomWidth: 1, zIndex: theme.layers.sticky}, style]}>
-    {ambient && <View pointerEvents="none" style={{position: 'absolute', inset: 0}}>{ambient}</View>}
-    {glassRecipe().nativeBlur && <BlurView pointerEvents="none" style={{position: 'absolute', inset: 0}} blurType="dark" blurAmount={24} reducedTransparencyFallbackColor={theme.colors.ink}/>}
-    <View style={{height: 44, paddingLeft: 12, paddingRight: 10, flexDirection: 'row', alignItems: 'center'}}>
-      <Focusable accessibilityRole="button" focusKind="row" onPress={onLibraries} accessibilityLabel={t('next.browse.native.libraries')} style={{height: 44, justifyContent: 'center'}}>
-        <View style={{flexDirection: 'row', alignItems: 'center'}}><Icon name="i-left" size={22} color={theme.colors.textSecondary}/><Text style={[browseType(theme, 16, 600), {color: theme.colors.textSecondary}]}>{t('next.browse.native.libraries')}</Text></View>
-      </Focusable>
-      <View pointerEvents="box-none" style={{position: 'absolute', left: 118, right: 118, top: 0, height: 44, alignItems: 'center', justifyContent: 'center'}}>
-        {switcher || <Text numberOfLines={1} style={[browseType(theme, 17, 700), {color: theme.colors.text}]}>{name}</Text>}
-      </View>
-      <View style={{marginLeft: 'auto'}}>{menu}</View>
-    </View>
-    {children}
-  </View>;
+/** The phone library header: the shared top bar (kit/layout/TopBar) with "‹ Libraries", the switcher or name, ⋯ and the pivots. */
+export function StickyBrowseHeader({name, switcher, menu, children, onLibraries, safeArea = true, testID}: Omit<LibraryHeaderProps, 'counts'> & {onLibraries: () => void; safeArea?: boolean}) {
+  return <TopBar testID={testID} surface safeArea={safeArea} back={{label: t('next.browse.native.libraries'), onPress: onLibraries}} title={switcher ? undefined : name} center={switcher || undefined} trailing={menu}>{children}</TopBar>;
 }
 
 /** Its trigger can be the centred phone name, or only the chevron beside a large header. */

@@ -11,6 +11,7 @@ import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeSearchGenreList} from './explore';
 import type {NativeSearchGenre} from './types';
 import {StandardBackdrop} from '../../kit/artwork';
+import {TopBar} from '../../kit/layout/TopBar';
 
 /** The same canonical genre read, including genres without tile artwork. This
  * list follows the returned cursor and never reranks or expands a library. */
@@ -31,9 +32,8 @@ export function AllGenresScreen({focusScope, explore, runtime, visible, current,
     return () => clearTimeout(timer);
   }, [state.phase]);
   return <View testID="native-search-all-genres" style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
-    <View style={{paddingTop: insets.top, marginBottom: 8}}>
-      <View style={{height: 44, paddingHorizontal: 12, justifyContent: 'center'}}><Focusable testID="search-all-genres-back" accessibilityLabel={t('action.back')}
-        onPress={onBack} style={{width: 38, height: 38, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-left" size={22} color={theme.colors.text}/></Focusable></View>
+    <View style={{marginBottom: 8}}>
+      <TopBar back={{label: t('web.shell.search'), onPress: onBack, testID: 'search-all-genres-back'}}/>
       <Text accessibilityRole="header" style={[browseType(theme, 32, 800, -.035, 36.8), {color: theme.colors.text, marginHorizontal: 20}]}>{t('next.search.browseByGenre')}</Text>
     </View>
     {state.phase === 'error' && !state.genres.length ? <StateView {...runtime.error(state.error, () => {if (current()) void explore.load();})}/>

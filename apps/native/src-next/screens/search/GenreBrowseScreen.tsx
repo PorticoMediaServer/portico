@@ -28,6 +28,7 @@ import {GenreFilters} from './GenreFilters';
 import {StandardBackdrop} from '../../kit/artwork';
 import {TVRow} from '../../kit/layout/TVRow';
 import {usePageWidth} from '../../kit/layout/page-inset';
+import {TopBar} from '../../kit/layout/TopBar';
 
 const label = (value: {id: string; labelKey?: string}, t: NativeShellRuntime['text']['t']) => {
   const key = browseNameId(value.id, value.labelKey, defaultI18n.has);
@@ -61,9 +62,8 @@ export function GenreBrowseScreen({focusScope, name, value, destination, activat
   }, [state.phase]);
   return place(<View testID="native-search-genre" pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
     importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{position: 'absolute', inset: 0, display: active.visible || stacked ? 'flex' : 'none'}}>{theme.isTV && <StandardBackdrop/>}
-    <View style={{paddingTop: insets.top, backgroundColor: theme.colors.ink}}>
-      <View style={{height: 44, paddingHorizontal: 12, justifyContent: 'center'}}><Focusable testID="search-genre-back" accessibilityLabel={t('action.back')} onPress={onBack}
-        style={{width: 38, height: 38, justifyContent: 'center', alignItems: 'center'}}><Icon name="i-left" size={22} color={theme.colors.text}/></Focusable></View>
+    <View>
+      <TopBar back={{label: t('web.shell.search'), onPress: onBack, testID: 'search-genre-back'}}/>
       <Text accessibilityRole="header" style={[browseType(theme, 32, 800, -.035, 36.8), {color: theme.colors.text, marginHorizontal: 20, marginBottom: 8}]}>{name}</Text>
     </View>
     {state.phase === 'ready' && state.capabilities && state.sort && state.collection ? <GenreGrid focusScope={focusScope} destination={destination} runtime={runtime} actions={actions} owner={owner} labels={labels}

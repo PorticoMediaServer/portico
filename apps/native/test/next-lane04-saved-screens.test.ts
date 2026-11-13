@@ -113,7 +113,8 @@ test('Saved resource menus keep membership commands beside canonical selection, 
   assert.equal(orderChip.props.sort, 'position'); assert.deepEqual(orderChip.props.sorts, sorts);
   assert.ok(orderChip.props.label(sorts[0]).includes('Playlist order'));
   find(tree, 'saved-reorder').props.onPress(); tree = f.host.render(() => SavedResourceScreen(props));
-  assert.ok(text(tree).includes('Reordering')); assert.ok(find(tree, 'saved-reorder-done')); assert.equal(find(tree, 'saved-play'), undefined);
+  const reorderBar = nodes(tree).find(node => node.type === 'TopBar');
+  assert.ok(String(reorderBar.props.title).includes('Reordering')); assert.equal(reorderBar.props.trailing.props.testID, 'saved-reorder-done'); assert.equal(find(tree, 'saved-play'), undefined);
   const list = nodes(tree).find(node => node.type === 'SavedReorderList');
   list.props.onPlace(list.props.rows[0], 'occ-b', ['occ-a', 'occ-b']); await Promise.resolve(); await Promise.resolve();
   assert.deepEqual(calls[1], ['command', {action: 'reorder', entryIds: ['occ-a'], afterEntryId: 'occ-b'}]);
@@ -132,7 +133,7 @@ test('Phone collection uses the centred 300-point hero, full-width play and actu
   assert.equal(list.props.testID, 'collection-list'); assert.equal(list.props.collection, collection); assert.equal(list.props.itemHeight, 98);
   const tree = [page, list.props.header];
   assert.ok(nodes(tree).some(node => node.type === 'View' && node.props.style?.height === 300));
-  assert.equal(find(tree, 'collection-back').props.style.top, 30);
+  const bar = nodes(tree).find(node => node.type === 'TopBar'); assert.equal(bar.props.back.testID, 'collection-back'); assert.equal(bar.props.overArtwork, true);
   assert.deepEqual(find(tree, 'collection-play-all').props.style, {flex: 1, height: 48});
   assert.equal(find(tree, 'collection-shuffle').props.iconOnly, true); assert.ok(find(tree, 'collection-menu'));
   assert.ok(text(tree).includes('Portico put this together from the films’ details'));

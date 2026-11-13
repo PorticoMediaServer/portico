@@ -26,6 +26,7 @@ import type {NativeReadingActionOffer} from './reading-actions';
 import {periodicalDatePreview, periodicalDayRead, periodicalHeroIssue, readingItemIsRead} from './periodical-presentation';
 import {TVRow} from '../../kit/layout/TVRow';
 import {usePageWidth} from '../../kit/layout/page-inset';
+import {TopBar} from '../../kit/layout/TopBar';
 
 const {t} = defaultI18n;
 const initial = (title: string): string => title.trim().slice(0, 1).toUpperCase() || '·';
@@ -60,8 +61,7 @@ export function ReadPeriodicalScreen({controller, route, context, runtime, onBac
     {tablet && runtime.ambient(selected?.item.coverUrl) ? <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 0, right: 0, height: 760, overflow: 'hidden'}}>
       <AmbientArt source={runtime.ambient(selected?.item.coverUrl)} treatment="title" style={{position: 'absolute', inset: 0}}/>
     </View> : null}
-    <Button variant="icon" icon="i-left" iconOnly accessibilityLabel={t('action.back')} onPress={onBack}
-      style={{position: 'absolute', top: insets.top + 6, left: 10, zIndex: 10, height: 44, width: 44}}/>
+    <View pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10}}><TopBar overArtwork back={{label: t('action.back'), onPress: onBack}}/></View>
     {state.phase === 'error' ? <View style={{paddingTop}}><StateView {...runtime.error(state.error, () => {void controller.retry().catch(runtime.reportError);}, 'library')}/></View>
       : <ReadingLoading ready={state.phase === 'ready' || state.phase === 'loading' && state.items.length > 0} style={{flex: 1}}
         skeleton={<PeriodicalSkeleton magazine={magazine} tablet={tablet} width={width} top={paddingTop}/> }>

@@ -21,6 +21,7 @@ import {savedDuration} from '../saved/presentation';
 import {collectionCaptionParts} from '../../../../../packages/client-core/src/presentation/kit-model';
 import type {NativeCollectionSort, NativeCollectionState} from './controller';
 import {usePageWidth} from '../../kit/layout/page-inset';
+import {TopBar} from '../../kit/layout/TopBar';
 
 export type NativeCollectionScreenProps = Readonly<{
   focusScope: string; state: NativeCollectionState;
@@ -134,9 +135,7 @@ export function NativeCollectionScreen(props: NativeCollectionScreenProps) {
     : error ? <StateView variant="inline" {...runtime.error(error, props.onRetry)}/> : null;
   const placeholder = () => <View style={{flex: 1, borderRadius: compact ? 0 : 8, backgroundColor: compact ? 'transparent' : theme.colors.raised}}/>;
   return <View style={{flex: 1}} testID="native-collection">{theme.isTV && <StandardBackdrop/>}
-    {!tv && <Focusable testID="collection-back" accessibilityLabel={t('action.back')} onPress={props.onBack} focusRadius={20}
-      style={{position: 'absolute', left: 10, top: insets.top + 6, width: 40, height: 40, alignItems: 'center', justifyContent: 'center', zIndex: 5}}>
-      <Icon name="i-left" size={22} color={theme.colors.text}/></Focusable>}
+    {!tv && <View pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5}}><TopBar overArtwork back={{label: t('action.back'), onPress: props.onBack, testID: 'collection-back'}}/></View>}
     {tv ? <ScrollView>{hero}<View style={{paddingLeft: 200, paddingRight: 96, paddingTop: 34, paddingBottom: 80}}>
       {toolbar}
       {status}

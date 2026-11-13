@@ -24,6 +24,7 @@ import type {NativeSettingsLivePorts} from './ports';
 import type {NativeDashboardController} from './dashboard-controller';
 import {nativeDashboardIdentity} from './dashboard-presentation';
 import {NativeOwnerDashboardPhone} from './owner-dashboard/use-owner-dashboard';
+import {TopBar} from '../../kit/layout/TopBar';
 
 /** TV never exposes a mutation, secret, settings document or inferred administrator action. */
 export function NativeDashboardScreen({controller, ports, runtime, deniedFallback, inline = false, onDenied, tvContainer}: {tvContainer?: Readonly<{column: string; rows: string}>; controller: NativeDashboardController; ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; deniedFallback: React.ReactNode; inline?: boolean; onDenied?: () => void}) {
@@ -68,7 +69,7 @@ export function NativeDashboardScreen({controller, ports, runtime, deniedFallbac
       {theme.isTV && !tvContainer && <TVServerPageMenu role={role} page="dashboard" serverName={ports.serverName()} runtime={runtime} column={column} rows={rows} rail={ids.rail} onLayout={enter}
         onSelect={page => {if (page !== 'dashboard') ports.context.navigation.open({kind: 'server-settings', page}, controller.lifetime.authority);}}/>}
       <ScrollView contentContainerStyle={{paddingHorizontal: theme.isTV ? 0 : 20, paddingBottom: 80}} style={{flex: 1}}>
-        {!theme.isTV && <Button variant="text" size="small" icon="i-left" onPress={() => ports.context.navigation.back(controller.lifetime.authority)}>{t('action.back')}</Button>}
+        {!theme.isTV && <View style={{marginHorizontal: -20}}><TopBar safeArea={false} back={{label: t('action.back'), onPress: () => ports.context.navigation.back(controller.lifetime.authority)}}/></View>}
         <View style={theme.isTV ? {height: 60, overflow: 'hidden'} : undefined}><ServerHeader serverName={ports.serverName()} viewerRole={role} audience="administrators" facts={theme.isTV ? [] : facts}/></View>
         <Text accessibilityRole="header" style={[shellType(theme.isTV ? 44 : 36, 800), {color: theme.colors.text, marginBottom: theme.isTV ? 18 : 30}]}>{t('next.shell.dashboard')}</Text>
         {theme.isTV && <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 26, minHeight: 32, marginBottom: 26}}>{facts.map(fact => <View key={fact.id} style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>{fact.tone && fact.tone !== 'muted' && <View style={{width: 12, height: 12, borderRadius: 6, backgroundColor: fact.tone === 'warning' ? theme.colors.amber : theme.colors.healthy}}/>}<Text style={[shellType(22, fact.tone ? 700 : 400), {color: fact.tone === 'normal' ? theme.colors.text : theme.colors.textSecondary}]}>{fact.text}</Text></View>)}</View>}
