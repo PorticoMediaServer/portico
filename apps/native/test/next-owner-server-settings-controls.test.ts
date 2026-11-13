@@ -20,7 +20,7 @@ test('exact non-preset values stay Custom and dependent controls use actual boun
   assert.equal(settingChoice(row('storage.analysisSpace'), 40), 'custom');
   assert.equal(settingChoice(row('storage.analysisSpace'), 64), '64');
   assert.equal(settingEnabled(row('streaming.toneMappingMethod'), () => false), false);
-  assert.equal(settingEnabled(row('streaming.toneMappingMethod'), () => true), true);
+  assert.equal(settingEnabled(row('streaming.toneMappingMethod'), () => 'all'), true);
   assert.equal(settingEnabled(row('streaming.toneMappingMethod'), () => undefined), false);
 });
 

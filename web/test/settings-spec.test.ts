@@ -25,6 +25,14 @@ test('drawn sample rows, secrets, facts and successful action results cannot shi
     if (c.type === 'text' && c.secret) assert.equal(c.default, '');
   }
 });
+test('conversions use a folder and one server-wide tone-map choice with Hable as default', () => {
+  assert.equal(settingsRowIndex.has('streaming.transcodeLocation'), false);
+  assert.equal(settingsRowIndex.has('streaming.memoryCap'), false);
+  assert.equal(settingsRowIndex.get('streaming.transcodeFolder')!.row.control.type, 'folder');
+  assert.equal(settingsRowIndex.get('streaming.toneMappingMethod')!.row.control.default, 'hable');
+  assert.equal(settingsRowIndex.has('streaming.toneMapping'), false);
+  assert.equal(settingsRowIndex.get('streaming.rewindKeep')!.row.control.default, '180');
+});
 test('all preset references and dependent rows resolve through one canonical index', () => {
   for (const {row} of settingsRowIndex.values()) {
     if (row.enableWhen) assert.ok(settingsRowIndex.has(row.enableWhen.id), row.id);

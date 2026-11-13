@@ -5,7 +5,6 @@ import type {ServerFormId} from '../../../../../../packages/client-core/src/serv
 import type {MessageId} from '../../../../../../packages/i18n/src';
 import {settingEnabled} from './settings-values';
 import type {TranscodeCapacity} from '../../../../../../packages/client-core/src/telemetry';
-import {transcodeLocationChoice} from '../../../../../../packages/client-core/src/presentation/transcode-location';
 import {hardwareSelectionChoices} from '../../../../../../packages/client-core/src/presentation/hardware-selection';
 
 /** The Server pages a TV owner edits through the same revisioned forms as the phone. */
@@ -84,22 +83,13 @@ export function tvServerSettingGroups(state: TVServerSettingsState, groups: read
     if (row.enableWhen && !settingEnabled(row, read)) return [];
     const children = () => (row.children ?? []).flatMap(child => visit(child, true));
     if (row.id === 'remote.secure') return state.secure === undefined ? [] : [{id: row.id, row, dependent, kind: 'switch', checked: state.secure}, ...children()];
-    if (row.id === 'streaming.transcodeLocation') {
-      const fact = tvServerSettingFact(state, row);
-      if (!fact) return [];
-      const {value, memoryAvailable} = transcodeLocationChoice(state.capacity?.temporaryDirectory, typeof fact.current === 'string' ? fact.current : undefined);
-      const options: TVChoiceModel[] = (row.control.options ?? []).map(option => ({value: String(option.value), label: option.label, hint: option.hint}));
-      const folder = row.children?.find(child => child.id === 'streaming.transcodeFolder');
-      const stored = state.drafts.runtime?.temporaryDirectory;
-      return [{id: row.id, row: memoryAvailable ? row : {...row, help: 'next.settings.streaming.memoryUnavailable'}, dependent, kind: 'choice', value, options},
-        ...(folder && typeof stored === 'string' ? [{id: folder.id, row: folder, dependent: true, kind: 'folder' as const, value: stored}] : [])];
-    }
     const fact = tvServerSettingFact(state, row);
     if (!fact) return children();
     const control = row.control;
     const current = state.custom.has(row.id) ? 'custom' : row.id === 'streaming.maxHardwareConversions' && fact.current === 'unlimited' ? 'auto' : fact.current;
     let item: TVSettingItem | undefined;
-    if (control.type === 'toggle' && typeof current === 'boolean') item = {id: row.id, row, dependent, kind: 'switch', checked: current};
+    if (row.id === 'streaming.transcodeFolder' && typeof current === 'string') item = {id: row.id, row, dependent, kind: 'folder', value: current};
+    else if (control.type === 'toggle' && typeof current === 'boolean') item = {id: row.id, row, dependent, kind: 'switch', checked: current};
     else if ((control.type === 'select' || control.type === 'segmented') && control.options) {
       const value = String(current), options: TVChoiceModel[] = row.id === 'streaming.hardware'
         // Automatic, Processor only, then each adapter the hardware report found.

@@ -1,3 +1,5 @@
+import {OwnerStreamingSettings} from '../../../../../../../packages/client-core/src/server-admin/streaming-settings';
+import type {SettingsConfiguration} from '../../../../../../../packages/client-core/src/settings-configuration';
 import {useLayoutEffect, useState, useSyncExternalStore} from 'react';
 import {withRequestRaw} from '../../../../../../../packages/client-core/src/home-selection/list-destinations';
 import {ConsoleClient, type ConsoleAPI} from '../../../../../../../packages/client-core/src/console';
@@ -19,8 +21,9 @@ export type StorageForms = Readonly<{
   forms: Readonly<Record<ServerFormId, DraftForm<any, any>>>;
   set: FormSet;
   dispose: () => void;
+  readConfiguration?: () => Promise<SettingsConfiguration>;
 }>;
-export function createStorageForms(context: NativeShellBootstrapContext, ids: readonly ServerFormId[], reportError: NativeShellRuntime['reportError']): StorageForms {
+export function createStorageForms(context: NativeShellBootstrapContext, ids: readonly ServerFormId[], reportError: NativeShellRuntime['reportError'], streamingPage = false): StorageForms {
   const lifetime = new NativeScreenLifetime(context), set = new FormSet(), forms: Partial<Record<ServerFormId, DraftForm<any, any>>> = {}, offs: (() => void)[] = [];
   let consoleClient: ConsoleClient | undefined;
   const current = () => lifetime.current() && nativeStorageOwner(context);
@@ -43,18 +46,19 @@ export function createStorageForms(context: NativeShellBootstrapContext, ids: re
   const authority = context.authority();
   consoleClient = new ConsoleClient(api, {serverId: authority.serverId, viewerId: authority.profileId});
   const deps: ServerFormDeps = {api: withRequestRaw(api, originalApi.requestRaw?.bind(originalApi), requireCurrent), console: consoleClient, serverId: authority.serverId, operationId: operationHex};
-  for (const id of ids) {const form = createServerForm(id, deps);forms[id] = form;offs.push(set.add(id, form));}
-  return {mount: ++nextMount, context, forms: forms as Record<ServerFormId, DraftForm<any, any>>, set, dispose};
+  const streaming = streamingPage ? new OwnerStreamingSettings(deps.api) : undefined;
+  for (const id of ids) {const form = streaming && (id === 'runtime' || id === 'connectivity') ? streaming.form(id) : createServerForm(id, deps);forms[id] = form;offs.push(set.add(id, form));}
+  return {mount: ++nextMount, context, forms: forms as Record<ServerFormId, DraftForm<any, any>>, set, dispose, readConfiguration: streaming?.readConfiguration};
 }
 /** Every committed owner viewport receives fresh forms and a captured transport.
  * Cleanup never revives disposed forms during a later setup. */
-export function useStorageForms(ports: NativeSettingsLivePorts, ids: readonly ServerFormId[], reportError: NativeShellRuntime['reportError']): StorageForms | undefined {
+export function useStorageForms(ports: NativeSettingsLivePorts, ids: readonly ServerFormId[], reportError: NativeShellRuntime['reportError'], streamingPage = false): StorageForms | undefined {
   const context = ports.context, [group, setGroup] = useState<StorageForms>();
   useLayoutEffect(() => {
-    const next = createStorageForms(context, ids, reportError);setGroup(next);
+    const next = createStorageForms(context, ids, reportError, streamingPage);setGroup(next);
     for (const form of Object.values(next.forms)) void form.load();
     return next.dispose;
-  }, [context, ids, reportError]);
+  }, [context, ids, reportError, streamingPage]);
   return group?.context === context ? group : undefined;
 }
 export function useStorageSet(group: StorageForms) {return useSyncExternalStore(group.set.subscribe, group.set.getSnapshot, group.set.getSnapshot);}
