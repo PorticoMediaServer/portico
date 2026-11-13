@@ -52,7 +52,7 @@ async function fixture() {
     '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog'}, '../../kit/Icon': {Icon: 'Icon'},
     '../../../platform/offline-downloads': {offlineDownloads: {}, offlineOwnerKey: () => 'owner'}, '../../kit/theme': {useTheme: () => theme},
     './AccountEntry': {AccountEntry: 'AccountEntry'}, './downloads-entry': {createAccountDownloadsEntry: () => ({dispose() {}})},
-    './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'PhoneProfileRecovery'},
+    './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePINEntry'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'PhoneProfileRecovery'},
     './PhoneServerChooser': {PhoneServerChooser: 'PhoneServerChooser'}, './TVTrustedCertificates': {TVTrustedCertificates: 'TVTrustedCertificates'}, './TVServerChooser': {TVServerChooser: 'TVServerChooser'},
     './sign-out-downloads': {removeCapturedServerDownloads: async () => {}}, '../../tv/auth': {TVProfilePINForm: 'TVProfilePINForm', TVForgotPINHandoff: 'TVForgotPINHandoff'},
     './account-form-values': values,
@@ -68,7 +68,8 @@ async function fixture() {
 test('profile Add and Rename submit the chosen color and preselect the current color', async () => {
   const f = await fixture(); await act(() => f.host.mount());
   try {
-    await act(() => button(f.tree(), 'profile.add').props.onPress());
+    // Add profile is the kit picker's own tile.
+    await act(() => nodes(f.tree()).find(value => value.type === 'ProfilePicker').props.onAdd());
     await act(() => byID(f.tree(), 'profile-add-name').props.onChangeText('Cinema'));
     const picker = byID(f.tree(), 'profile-add-colors'); assert.equal(picker.props.value, 'blue');
     await act(() => picker.props.onChange('mint'));
@@ -86,7 +87,8 @@ test('profile Add and Rename submit the chosen color and preselect the current c
 test('a new profile nobody coloured sends no colour, so the server gives the first unused one, which is the one shown', async () => {
   const f = await fixture(); await act(() => f.host.mount());
   try {
-    await act(() => button(f.tree(), 'profile.add').props.onPress());
+    // Add profile is the kit picker's own tile.
+    await act(() => nodes(f.tree()).find(value => value.type === 'ProfilePicker').props.onAdd());
     await act(() => byID(f.tree(), 'profile-add-name').props.onChangeText('Cinema'));
     // The account's one profile is violet, so the server's pick is blue, the first unused.
     assert.equal(byID(f.tree(), 'profile-add-colors').props.value, 'blue');

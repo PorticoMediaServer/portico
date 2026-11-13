@@ -16,6 +16,8 @@ import {screenModule} from './helpers/screen-harness.mjs';
 import * as directoryChooser from '../src-next/screens/accounts/directory-chooser';
 
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+// The pickers and the PIN screen are shared pieces whose slots hold what layouts kept in beforeActions.
+const parts = (tree: any): any[] => tree?.type === 'PhoneWhosWatching' ? [...nodes(tree.props.picker), ...nodes(tree.props.children)] : tree?.type === 'PhoneProfilePIN' ? [tree, ...nodes(tree.props.remember), ...nodes(tree.props.status), ...nodes(tree.props.hints)] : nodes(tree?.props.beforeActions);
 
 test('phone Portico sign-in offers account help and returns to its form', async () => {
   const forgotten: unknown[][] = [];
@@ -56,7 +58,7 @@ test('phone Portico sign-in offers account help and returns to its form', async 
     '../../platform/tv-sign-in': {}, '../../platform/account-authority': {hostedUrl: 'https://web.example'},
     '../../tv/auth': {TVCredentialForm: 'TVCredentials', TVCodePresenter: 'TVCode', TVVerificationForm: 'TVFactor', TVRequiredSetupHandoff: 'TVRequired',
       TVFrontDoor: 'TVFrontDoor', TVProfilePINForm: 'TVPIN', TVForgotPINHandoff: 'TVForgot'},
-    './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './RememberProfileRow': {RememberProfileRow: 'Remember'}, './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'}, './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'PhoneFrontDoor'}, 'react-native-qrcode-svg': {default: 'QR'},
+    './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'}, './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'}, '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'}, './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'PhoneFrontDoor'}, 'react-native-qrcode-svg': {default: 'QR'},
   });
   let tree: any;
   const host = createFabricHookHost(() => {tree = AccountEntry({onComplete: () => {}});});
@@ -72,7 +74,7 @@ test('phone Portico sign-in offers account help and returns to its form', async 
     assert.equal(tree.props.title, defaultI18n.t('auth.forgotPasswordTitle'));
     assert.equal(tree.props.body, defaultI18n.t('auth.resetLinkLede'));
     // One field takes the username or the email on the account, never both.
-    const fields = nodes(tree.props.beforeActions).filter(node => node.type === 'Field');
+    const fields = parts(tree).filter(node => node.type === 'Field');
     assert.equal(fields.length, 1); assert.equal(fields[0].props.label, defaultI18n.t('auth.usernameOrEmail'));
     await act(() => {fields[0].props.onChangeText('nana@example.com');});
     await act(() => tree.props.primaryAction.onPress());
@@ -80,7 +82,7 @@ test('phone Portico sign-in offers account help and returns to its form', async 
     assert.equal(tree.props.title, defaultI18n.t('auth.checkEmail'));
     assert.equal(tree.props.body, defaultI18n.t('auth.resetLinkSent'));
     // Services makes the link single-use and 15 minutes long; the sent state says so, as on web.
-    assert.ok(nodes(tree.props.beforeActions).some(node => node.type === 'Text' && node.props.children === defaultI18n.t('services.recovery.expiry')));
+    assert.ok(parts(tree).some(node => node.type === 'Text' && node.props.children === defaultI18n.t('services.recovery.expiry')));
     await act(() => tree.props.primaryAction.onPress());
     assert.equal(tree.type, 'PhoneAccountSignIn'); assert.equal(tree.props.recovery, true);
     await act(() => tree.props.onLocal());

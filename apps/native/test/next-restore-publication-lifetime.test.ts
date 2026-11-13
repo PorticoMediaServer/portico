@@ -43,7 +43,7 @@ function modules(state: {
     '../platform/secure-records': secureRecords,
     './SecureRecordsRecovery': {SecureRecordsRecovery: 'SecureRecordsRecovery'}, '../platform/boot-host': {takeLaunchStartedAt: (now = Date.now()) => now},
     './StartupBoot': {StartupBoot: 'StartupBoot'},
-    './startup-recovery': startupRecovery,
+    './after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './startup-recovery': startupRecovery,
     '../../../../packages/client-core/src/presentation/errors': {presentError: () => ({title: 'failed', body: 'failed'})},
     './assembly': {createNativeShellBindings: () => ({})},
     './bootstrap': {restoreNativeShellRuntime: () => {
