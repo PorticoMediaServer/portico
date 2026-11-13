@@ -289,6 +289,49 @@ test('durable activation keeps its code behind a sibling gate and an explicit st
   service.pause();
 });
 
+test('local cancellation aborts polling and forgets the code without server cleanup', async (t) => {
+  const advance = clock(t);
+  const {SetupCodeService} = await import('../src/setup-code.ts');
+  let record: import('../src/setup-code.ts').SetupCodeJournal<string> | undefined = {
+    version: 1, authority: 'local:srv', revision: 0, retired: [], current: {requestId: '00000000-0000-4000-8000-000000000001',
+      authorization: {...authorization, deviceCode: 's'.repeat(43), interval: 5}, nextPollAt: 0}};
+  let stopped: AbortSignal | undefined, creates = 0;
+  const service = new SetupCodeService('local:srv', {
+    create: async () => {creates++; throw new Error('Unexpected create');},
+    poll: (_entry, signal) => new Promise<string>((_resolve, reject) => {
+      stopped = signal; signal.addEventListener('abort', () => reject(new Error('Aborted')), {once: true});
+    }),
+  }, {change: async update => (record = update(record))});
+  await service.start(); await advance(0);
+  assert.equal(stopped?.aborted, false);
+  await service.cancel(); await advance(10000);
+  assert.equal(stopped?.aborted, true);
+  assert.equal(creates, 0);
+  assert.equal(record?.current, undefined);
+  assert.deepEqual(record?.retired, []);
+  assert.equal(service.getSnapshot().phase, 'idle');
+});
+
+test('local cancellation forgets an unanswered create without creating again', async (t) => {
+  const advance = clock(t);
+  const {SetupCodeService} = await import('../src/setup-code.ts');
+  let record: import('../src/setup-code.ts').SetupCodeJournal<string> | undefined;
+  let creates = 0;
+  const service = new SetupCodeService<string>('local:srv', {
+    create: (_id, signal) => new Promise((_resolve, reject) => {
+      creates++; signal.addEventListener('abort', () => reject(new Error('Aborted')), {once: true});
+    }),
+    poll: async () => {throw new Error('Unexpected poll');},
+  }, {change: async update => (record = update(record))});
+  await service.start(); await advance(0);
+  assert.equal(creates, 1);
+  await service.cancel(); await advance(10000);
+  assert.equal(creates, 1);
+  assert.equal(record?.creating, undefined);
+  assert.equal(record?.current, undefined);
+  assert.deepEqual(record?.retired, []);
+});
+
 test('slowdown never shortens a longer advertised protocol interval', async (t) => {
   const advance = clock(t);
   let polls = 0;
