@@ -58,7 +58,9 @@ type Options struct {
 type Client struct {
 	o Options
 
-	mu sync.Mutex
+	mu         sync.Mutex
+	reachCalls []time.Time
+	reachAfter time.Time
 	// certificate is the newest signing certificate seen. Its list of withdrawn keys is
 	// what every later document is checked against.
 	certificate *trust.Certificate
