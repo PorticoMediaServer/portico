@@ -516,3 +516,16 @@ CREATE TABLE track_embeddings (
   failed      TEXT,
   analysed_at INTEGER NOT NULL
 ) STRICT;
+
+-- One bounded measurement per playable version. Owner marker decisions live in
+-- media_markers and survive replacement of these measurements.
+CREATE TABLE segment_analysis (
+  media_id INTEGER NOT NULL PRIMARY KEY REFERENCES media(id) ON DELETE CASCADE,
+  source_key TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  state TEXT NOT NULL,
+  problem TEXT NOT NULL DEFAULT '',
+  evidence TEXT,
+  revision INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);

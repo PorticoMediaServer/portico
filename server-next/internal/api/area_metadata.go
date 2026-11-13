@@ -12,11 +12,13 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/lrclib"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/musicbrainz"
+	"github.com/PorticoMediaServer/portico/server-next/internal/segments"
 )
 
 // metadataArea is what metadata (area 04) keeps on the server. Add this area's fields here and its
 // start-up to startMetadata, in this file, so that building the area never edits server.go.
 type metadataArea struct {
+	segments *segments.Service
 	// metadata looks titles up at their library's provider. See metadata.go.
 	metadata *metadata.Service
 	// keys is the owner's provider keys, opened. See metadata_settings.go.
@@ -49,7 +51,13 @@ func (s *Server) startMetadata(ctx context.Context) error {
 	s.metadataJobs()
 	s.picturePass()
 	// What a scan found is looked up when it ends.
-	s.scans.AfterScan = func(ctx context.Context, library string, startedAt time.Time) { s.lookUp(ctx, library, startedAt) }
+	s.scans.AfterScan = func(ctx context.Context, library string, startedAt time.Time) {
+		s.lookUp(ctx, library, startedAt)
+		if err := s.queueSegmentLibrary(ctx, library); err != nil {
+			s.log.Error("intro and credits detection could not be started", "error", err)
+		}
+	}
+	s.startSegments(ctx)
 	go s.lookupsAgain(ctx)
 	return nil
 }

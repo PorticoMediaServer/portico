@@ -21,7 +21,7 @@ export type SegmentKind = 'intro' | 'recap' | 'credits' | 'commercial' | 'outro'
 /** Where a marker came from: other episodes' audio, a chapter title, the film's picture, the owner, or an earlier detector. */
 export type SegmentBasis = 'season' | 'chapter' | 'picture' | 'owner' | 'earlier';
 export type SegmentReviewMarker = Readonly<{id: string; kind: SegmentKind; startUS: string; endUS: string; confidence: number; provenance: string; basis: SegmentBasis; approved: boolean; edited: boolean; automaticSafe: boolean; viewerVisible: boolean}>;
-export type SegmentReviewEntry = Readonly<{itemId: string; title: string; number: number; durationUS: string; state: string; errorCode: string; sourceId: string; sourceRevision: string; mappingRevision: string; markerRevision: number; markers: readonly SegmentReviewMarker[]}>;
+export type SegmentReviewEntry = Readonly<{versionName?: string; itemId: string; title: string; number: number; durationUS: string; state: string; errorCode: string; sourceId: string; sourceRevision: string; mappingRevision: string; markerRevision: number; markers: readonly SegmentReviewMarker[]}>;
 export type SegmentReviewSeason = Readonly<{number: number; title: string; entries: readonly SegmentReviewEntry[]}>;
 export type SegmentTitleReview = Readonly<{id: string; title: string; kind: 'show' | 'movie'; libraryId: string; mode: SegmentMode; seasons: readonly SegmentReviewSeason[]}>;
 
@@ -41,10 +41,11 @@ function fail(): never { throw new Error(unreadableServerResponse); }
 function one<T extends string>(v: unknown, allowed: readonly T[]): T { if (!allowed.includes(v as T)) fail(); return v as T; }
 function list(v: unknown, max: number): unknown[] { if (!Array.isArray(v) || v.length > max) fail(); return v; }
 
-/** Admin answers arrive as {protocolVersion, serverId, result}. */
+/** Rebuilt routes return the document directly; older servers used result. */
 function result(raw: unknown): Record<string, unknown> {
-  if (!object(raw) || !filled(raw.protocolVersion, 32) || !filled(raw.serverId, 256) || !object(raw.result)) fail();
-  return raw.result;
+  if (!object(raw)) fail();
+  if (object(raw.result) && filled(raw.protocolVersion, 32) && filled(raw.serverId, 256)) return raw.result;
+  return raw;
 }
 
 function counts(v: unknown): SegmentCounts {
@@ -97,7 +98,7 @@ export function parseSegmentTitle(raw: unknown): SegmentTitleReview {
       if (!text(e.sourceId, 256) || !text(e.sourceRevision, 256) || !text(e.mappingRevision, 256) || !count(e.markerRevision) || !(e.durationUS === '' || us(e.durationUS))) fail();
       const duration = e.durationUS === '' ? 0 : Number(e.durationUS);
       const markers = keepReadable('segments', 'markers', list(e.markers, 512), m => parseMarker(m, duration));
-      return Object.freeze({itemId: e.itemId, title: e.title, number: e.number, durationUS: e.durationUS, state: e.state, errorCode: e.errorCode, sourceId: e.sourceId, sourceRevision: e.sourceRevision, mappingRevision: e.mappingRevision, markerRevision: e.markerRevision, markers: Object.freeze(markers)});
+      return Object.freeze({versionName: text(e.versionName) ? e.versionName : '', itemId: e.itemId, title: e.title, number: e.number, durationUS: e.durationUS, state: e.state, errorCode: e.errorCode, sourceId: e.sourceId, sourceRevision: e.sourceRevision, mappingRevision: e.mappingRevision, markerRevision: e.markerRevision, markers: Object.freeze(markers)});
     });
     return Object.freeze({number: s.number, title: s.title, entries: Object.freeze(entries)});
   });
@@ -110,13 +111,35 @@ export function readSegmentTitles(api: SegmentApi, libraryId: string, cursor = '
   if (cursor) q.set('cursor', cursor);
   return api.request(routePath('get_admin_segments_titles') + '?' + q, 'GET', undefined, signal).then(parseSegmentTitles);
 }
-export const readSegmentTitle = async (api: SegmentApi, id: string, signal?: AbortSignal) => parseSegmentTitle(await api.request(routePath('get_admin_segments_titles_id', {id}), 'GET', undefined, signal));
+/** Each server answer is bounded; the existing whole-title review joins its pages. */
+export async function readSegmentTitle(api: SegmentApi, id: string, signal?: AbortSignal): Promise<SegmentTitleReview> {
+  const path = routePath('get_admin_segments_titles_id', {id});
+  let cursor = '';
+  let title: SegmentTitleReview | undefined;
+  const seasons = new Map<number, SegmentReviewSeason>();
+  do {
+    const raw = await api.request(path + (cursor ? '?' + new URLSearchParams({cursor}) : ''), 'GET', undefined, signal);
+    const page = parseSegmentTitle(raw);
+    title ??= page;
+    for (const season of page.seasons) {
+      const previous = seasons.get(season.number);
+      seasons.set(season.number, Object.freeze({...season, entries: Object.freeze([...(previous?.entries ?? []), ...season.entries])}));
+    }
+    const next = result(raw).nextCursor ?? '';
+    if (!text(next, 8192) || (next && next === cursor)) fail();
+    cursor = next;
+  } while (cursor);
+  return Object.freeze({...title!, seasons: Object.freeze([...seasons.values()].sort((a, b) => a.number - b.number))});
+}
 
 function changed(raw: unknown): number {
   const v = result(raw);
   if (!count(v.changed)) fail();
   return v.changed;
 }
+
+export const remeasureAllSegments = async (api: SegmentApi) => changed(await api.request('/v1/admin/segments/redetect', 'POST', {}));
+export const retryUnreadableSegments = async (api: SegmentApi) => changed(await api.request('/v1/admin/segments/retry', 'POST', {}));
 
 /** Approve a title's detections of these kinds: one season, or every season when season is omitted. */
 export const approveSegments = async (api: SegmentApi, id: string, kinds: readonly SegmentKind[], season?: number) => changed(await api.request(routePath('post_admin_segments_titles_id_approve', {id}), 'POST', season === undefined ? {kinds} : {kinds, season}));
@@ -131,8 +154,8 @@ export const segmentRequestId = (): string => globalThis.crypto?.randomUUID?.() 
 export function editSegmentMarker(api: SegmentApi, entry: SegmentReviewEntry, edit: SegmentEdit, requestId: string = segmentRequestId()): Promise<unknown> {
   if (!entry.sourceId || !entry.sourceRevision || !entry.mappingRevision) return Promise.reject(new Error(unreadableServerResponse));
   return api.request(routePath('post_items_id_analysis_markers', {id: entry.itemId}), 'POST', {
-    sourceId: entry.sourceId, sourceRevision: entry.sourceRevision, mappingRevision: entry.mappingRevision, sessionId: '', generation: 0,
-    expectedRevision: entry.markerRevision, requestId, action: edit.action, markerId: edit.markerId ?? '', kind: edit.kind ?? '', title: '', startUS: edit.startUS ?? '', endUS: edit.endUS ?? '',
+    sourceId: entry.sourceId, sourceRevision: entry.sourceRevision,
+    expectedRevision: entry.markerRevision, requestId, action: edit.action, markerId: edit.markerId ?? '', kind: edit.kind ?? '', startUS: edit.startUS ?? '', endUS: edit.endUS ?? '',
   });
 }
 

@@ -16,6 +16,11 @@ const options = parseOptions({itemId: 'itm_e9', kind: 'episode', versions: [{id:
   chapters: [], markers: [{id: 'credits-2580000', type: 'credits', startMs: 2_580_000, endMs: 2_700_000, confidence: 'embedded', automaticSafe: true}], qualities: [],
   preferred: {versionId: 'med_e9', quality: {mode: 'original'}}, plan: {versionId: 'med_e9', mode: 'direct', engine: 'native', route: 'original', decision: {}, quality: {mode: 'original'}}, alternatives: []});
 const markers = segmentMarkers(options, 'med_e9', 1).markers;
+
+test('an owner-reviewed outro survives the rebuilt playback response', () => {
+  const withOutro = parseOptions({...options, markers: [{id: 'outro-2600000', type: 'outro', startMs: 2_600_000, endMs: 2_700_000, confidence: 'manual', automaticSafe: true}]});
+  assert.deepEqual(segmentMarkers(withOutro, 'med_e9', 1).markers, [{id: 'outro-2600000', kind: 'outro', startSeconds: 2600, endSeconds: 2700, automaticSafe: true}]);
+});
 /** What the Up next card does 30 seconds into the credits, with these settings. */
 function card(values: Record<string, unknown>, next = s1e10) {
   const decided = postPlayFor(postPlaySettings(saved(values)), s1e9, next);

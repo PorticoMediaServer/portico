@@ -24,6 +24,7 @@ import (
 
 // LibraryOptions are the owner's choices for one library.
 type LibraryOptions struct {
+	SegmentDetection string `json:"segmentDetection,omitempty"`
 	// Depth is how much of each file a scan reads: files, basic (the default) or complete.
 	Depth string `json:"depth"`
 	// Trash says when missing titles are removed.
@@ -274,7 +275,10 @@ func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
 	watch := !o.NoWatch
 	group, sound := o.GroupSeries == nil || *o.GroupSeries, !o.NoSoundAnalysis
 	out := LibraryOptions{Depth: o.Depth, Trash: TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete,
-		Watch: &watch, RescanMinutes: o.RescanMinutes, GroupSeries: &group, Lyrics: o.Lyrics, SoundAnalysis: &sound}
+		Watch: &watch, RescanMinutes: o.RescanMinutes, GroupSeries: &group, Lyrics: o.Lyrics, SoundAnalysis: &sound, SegmentDetection: o.SegmentDetection}
+	if out.SegmentDetection == "" {
+		out.SegmentDetection = "server"
+	}
 	if out.Depth == "" {
 		out.Depth = db.DepthBasic
 	}
@@ -290,7 +294,7 @@ func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
 func optionsIn(o LibraryOptions) db.LibraryOptions {
 	return db.LibraryOptions{Depth: o.Depth, Trash: db.TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete,
 		NoWatch: o.Watch != nil && !*o.Watch, RescanMinutes: o.RescanMinutes, GroupSeries: o.GroupSeries, Lyrics: o.Lyrics,
-		NoSoundAnalysis: o.SoundAnalysis != nil && !*o.SoundAnalysis}
+		NoSoundAnalysis: o.SoundAnalysis != nil && !*o.SoundAnalysis, SegmentDetection: o.SegmentDetection}
 }
 
 func (s *Server) foldersOut(lib db.Library, folders []db.LibraryFolder) []LibraryFolder {
@@ -607,6 +611,9 @@ func (s *Server) editLibrary(r *http.Request, req LibraryEdit) (AdminLibrary, er
 	}
 	if req.Options != nil {
 		options := optionsIn(*req.Options)
+		if req.Options.SegmentDetection == "" {
+			options.SegmentDetection = lib.Options.SegmentDetection
+		}
 		edit.Options = &options
 	}
 	if req.Folders != nil {

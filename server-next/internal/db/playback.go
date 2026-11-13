@@ -676,7 +676,7 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 		ifnull((SELECT r.title FROM items r WHERE r.id = ifnull(i.root_id, i.parent_id)), ''), s.position_ms,
 		ifnull((SELECT json_extract(l.options, '$.videoCompletion') FROM libraries l WHERE l.id = i.library_id), ''),
 		(SELECT min(k.start_ms) FROM media m JOIN media_markers k ON k.media_id = m.id
-			WHERE m.item_id = i.id AND k.kind = `+itoa(int64(MarkerCredits))+` AND k.source <> `+itoa(int64(MarkerFromAnalysis))+`)
+			WHERE m.item_id = i.id AND k.dismissed = 0 AND k.kind = `+itoa(int64(MarkerCredits))+` AND k.source <> `+itoa(int64(MarkerFromAnalysis))+`)
 		FROM items i LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id
 		WHERE i.public_id = @item AND `+w.access.visible("i"), w.named(sql.Named("item", sample.ItemID))...).
 		Scan(&id, &kind, &duration, &title, &holder, &resumeAt, &completion, &credits)
