@@ -1,6 +1,8 @@
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import type {DirectSnapshot} from '@core/profile-management.ts';
-import type {PINProviderCode} from '@core/portico-pin-provider.ts';
+import {providerPINIdentity, type PINProviderCode} from '@core/portico-pin-provider.ts';
+import {webRouteCrypto} from '@core/route-identity.ts';
+import {openProviderPopup} from './pin-provider-popup';
 import type {Provider} from '@core/portico-account.ts';
 import type {SignInKind} from '@core/app-sessions.ts';
 import {account, accountSession} from '../services/account-session';
@@ -11,7 +13,7 @@ import {currentWebEnvironment} from './environment';
 
 /** The Portico Account a PIN recovery on a Portico Accounts server asks: whose password it is, whether
  * it has one, and whether its two-step code is asked with it (an empty code would count as a wrong one). */
-export type PorticoRecoveryAccount = Readonly<{username: string; hasPassword: boolean; twoStep: boolean}>;
+export type PorticoRecoveryAccount = Readonly<{username: string; hasPassword: boolean; twoStep: boolean; providers: readonly Provider[]}>;
 /** Where the Portico step of a recovery stands, beside the shared controller's own state. */
 export type PorticoRecoveryStep = Readonly<{phase: 'loading'} | {phase: 'ready'; account: PorticoRecoveryAccount} | {phase: 'elsewhere'} | {phase: 'failed'; error: unknown}>;
 export type BrowserRecoveryState = ProfileRecoveryState & Readonly<{portico?: PorticoRecoveryStep}>;
@@ -58,7 +60,9 @@ export class BrowserProfileRecovery {
       const source = await browserPorticoPINProof(), who = await porticoAccountHolder.who();
       if (!source.isCurrent() || who.id !== source.accountId) throw new CodedError('account_changed', 'The Portico Account changed. Try again.');
       this.source = source;
-      this.step({phase: 'ready', account: Object.freeze({username: who.username, hasPassword: who.hasPassword, twoStep: who.twoStep})});
+      // The account's connected Google or Apple sign-ins: offered only to an account with no password.
+      const providers = Object.freeze((who.providers ?? []).filter((value): value is Provider => value === 'google' || value === 'apple'));
+      this.step({phase: 'ready', account: Object.freeze({username: who.username, hasPassword: who.hasPassword, twoStep: who.twoStep, providers})});
     } catch (error) {this.step({phase: 'failed', error});}
   }
   password(password: string) {return this.flow.password(password);}
@@ -66,9 +70,11 @@ export class BrowserProfileRecovery {
     const source = this.source;
     if (!this.disposed && source && this.portico?.phase === 'ready') await this.flow.porticoPassword(password, twoStepCode, source);
   }
-  /** The account-pages return flow supplies its captured Services source; an own-address page has no Services cookie. */
-  porticoProvider(provider: Provider, twoStepCode: PINProviderCode, source: PorticoPINProofSource) {
-    if (!this.disposed) return this.flow.porticoProvider(provider, twoStepCode, source);
+  /** A fresh Google or Apple sign-in, in a pop-up, with the source this flow prepared (only at
+   * web.getportico.tv; an own-address page has no Services sign-in). */
+  async porticoProvider(provider: Provider, twoStepCode: PINProviderCode) {
+    const source = this.source;
+    if (!this.disposed && source && this.portico?.phase === 'ready') await this.flow.porticoProvider(provider, twoStepCode, source);
   }
   code(code: string) {return this.flow.code(code);}
   reset(pin: string) {return this.flow.reset(pin);}
@@ -84,6 +90,10 @@ export async function browserPorticoPINProof(): Promise<PorticoPINProofSource> {
   // Only web.getportico.tv holds a Portico Account; a server's own address never uses the account client.
   if (location.origin !== 'https://web.getportico.tv') throw new CodedError('portico_account_elsewhere', 'Reset this PIN at web.getportico.tv.');
   const signIns = accountSession.signIns(), who = await porticoAccountHolder.who();
-  return {accountId: who.id, isCurrent: () => accountSession.signedIn() && accountSession.signIns() === signIns,
-    identity: (serverId, challenge, proof, signal) => account.serverPINIdentity(serverId, challenge, proof, signal)};
+  const isCurrent = () => accountSession.signedIn() && accountSession.signIns() === signIns;
+  return {accountId: who.id, isCurrent,
+    identity: (serverId, challenge, proof, signal) => account.serverPINIdentity(serverId, challenge, proof, signal),
+    // Google or Apple in a pop-up (`pin-provider-popup.ts`), so this page and its proof stay open.
+    providerIdentity: (serverId, challenge, provider, twoStepCode, signal) => providerPINIdentity(account, provider, {serverId, challenge}, twoStepCode,
+      {accountOrigin: location.origin, current: isCurrent, signal, crypto: webRouteCrypto, browser: (url, flowId) => openProviderPopup(url, flowId, window, signal)})};
 }

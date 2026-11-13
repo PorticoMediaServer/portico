@@ -8,6 +8,7 @@ import {ColourBackdrop} from '../../kit/artwork';
 import {Button, TextField} from '../../kit/controls';
 import {nativeType, useTheme} from '../../kit/theme';
 import {LegalAgreement} from './LegalAgreement';
+import {ProviderButton} from './ProviderButton';
 
 type Provider = IdentityOptions['providers'][number];
 
@@ -36,11 +37,8 @@ export function PhoneAccountSignIn({busy, error, providers, passwordEnabled, reg
         {onRetry && <Button testID="accounts-auth-retry" variant="glass" disabled={busy} style={{width: '100%', alignSelf: 'stretch', height: 48, borderRadius: 11, marginBottom: 10}}
           textStyle={{fontSize: 16 * theme.textScale, fontWeight: '700'}} onPress={onRetry}>{t('action.tryAgain')}</Button>}
         {!!ordered.length && <View style={{gap: 10, marginBottom: 10}}>
-          {ordered.map(value => <Button key={value.id} variant="text" icon={value.id === 'google' ? 'i-google' : 'i-apple'} iconSize={19} iconColor={value.id === 'google' ? undefined : '#fff'} testID={`accounts-auth-${value.id}`} disabled={busy}
-            style={{width: '100%', alignSelf: 'stretch', height: 48, borderRadius: 11, borderWidth: 1, borderColor: value.id === 'google' ? '#5f6368' : 'rgba(237,245,250,.22)',
-              backgroundColor: value.id === 'google' ? '#131314' : '#000'}}
-            textStyle={{fontSize: 16 * theme.textScale, fontWeight: '700', color: value.id === 'google' ? '#e3e3e3' : '#fff'}}
-            onPress={() => {if (!busy) onProvider(value.id);}}>{t(value.id === 'google' ? 'auth.signInWithGoogle' : 'auth.signInWithApple')}</Button>)}
+          {ordered.map(value => <ProviderButton key={value.id} provider={value.id} testID={`accounts-auth-${value.id}`} busy={busy}
+            label={t(value.id === 'google' ? 'auth.signInWithGoogle' : 'auth.signInWithApple')} onPress={() => onProvider(value.id)}/>)}
         </View>}
         {passwordEnabled && <>
           <View style={{flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 4, marginBottom: 14}}>

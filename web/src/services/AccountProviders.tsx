@@ -3,6 +3,8 @@ import {AuthLinks} from '../kit/accounts/AuthStage';
 import {ServicesActions, ServicesAuthStage, ServicesDivider, ServicesHeading, ServicesLabel, ServicesLead, ServicesNotice, ServicesProviderButton, ServicesProviderContext, ServicesQuiet, ServicesTerms} from '../kit/accounts/ServicesAuth';
 import {Button, TextField} from '../kit/controls';
 import {goTo} from '../platform/hosted-navigation';
+import {returnToOpener} from '../platform/pin-provider-popup';
+import {accountReturnHandoff} from '@core/hosted-security.ts';
 import {servicesI18n} from './i18n';
 import {account} from './account-session';
 import {ServicesError, thisDevice} from './services-api';
@@ -74,7 +76,37 @@ function providerProblem(error: unknown) {
 /** `/app/account-return#tx=…&code=…`: where Services sends the browser after Google or Apple.
  * The address is read once and scrubbed before anything else, then finished with the secret
  * this tab kept: neither half alone finishes a sign-in. */
+/** /app/account-return. A return this browser started (its record is in this tab) finishes the sign-in
+ * here. One it did not start belongs elsewhere: Forgot PIN's pop-up hands it back to the page that
+ * opened it, and an app's sign-in browser goes on to the app (`accountReturnHandoff`). Neither
+ * completes anything or keeps a session here. */
 export function AccountProviderReturn({arrival}: {arrival: {id?: string; code?: string; failed: boolean}}) {
+  const [started] = useState(() => {
+    if (!arrival.id) return false;
+    try {return sessionStorage.getItem(startedKey(arrival.id)) !== null;} catch {return false;}
+  });
+  if (!started && arrival.id && arrival.code && !arrival.failed) return <ElsewhereReturn id={arrival.id} code={arrival.code} />;
+  return <ProviderSignInReturn arrival={arrival} />;
+}
+
+function ElsewhereReturn({id, code}: {id: string; code: string}) {
+  const {t} = servicesI18n();
+  const [handed] = useState(() => returnToOpener(id, code));
+  useEffect(() => {if (handed) window.close();}, [handed]);
+  if (handed) return <ServicesAuthStage variant="state">
+    <ServicesHeading>{t('next.account.provider.returnedTitle')}</ServicesHeading><ServicesLead>{t('next.account.provider.returnedClose')}</ServicesLead>
+  </ServicesAuthStage>;
+  const app = accountReturnHandoff(`${location.origin}/app/account-return#${new URLSearchParams({tx: id, code}).toString()}`);
+  if (!app) return <ServicesAuthStage variant="state">
+    <ServicesHeading>{t('next.account.provider.failedTitle')}</ServicesHeading><ServicesNotice tone="error">{t('next.account.provider.failed')}</ServicesNotice>
+  </ServicesAuthStage>;
+  return <ServicesAuthStage variant="state">
+    <ServicesHeading>{t('next.account.provider.returnedTitle')}</ServicesHeading><ServicesLead>{t('next.account.provider.returnedApp')}</ServicesLead>
+    <ServicesActions><Button variant="primary" onClick={() => location.assign(app)}>{t('next.account.provider.continueInApp')}</Button></ServicesActions>
+  </ServicesAuthStage>;
+}
+
+function ProviderSignInReturn({arrival}: {arrival: {id?: string; code?: string; failed: boolean}}) {
   const {t} = servicesI18n();
   const started = useRef<Started | undefined>(undefined);
   if (!started.current && arrival.id) {

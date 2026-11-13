@@ -61,23 +61,25 @@ test('a failed Portico Account lookup stays in the flow\'s own state, and a good
 
   const good = await wrapper({hostedWeb: true});
   await good.flow.preparePortico();
-  assert.deepEqual(good.flow.getSnapshot().portico, {phase: 'ready', account: {username: 'ada', hasPassword: true, twoStep: true}});
+  assert.deepEqual(good.flow.getSnapshot().portico, {phase: 'ready', account: {username: 'ada', hasPassword: true, twoStep: true, providers: []}});
   await good.flow.porticoPassword('secret', '123456');
   const sent = good.calls.find(call => call[0] === 'porticoPassword')!;
   assert.deepEqual(sent.slice(1, 3), ['secret', '123456']); assert.equal((sent[3] as {accountId: string}).accountId, 'acct', 'with the account this page holds');
 });
 
 /** The dialog (`kit/accounts/ProfilePINRecovery.tsx`) in its Portico step. */
-async function dialog(portico: unknown, error?: unknown) {
+async function dialog(portico: unknown, error?: unknown, provider?: unknown) {
   const host = hooks(), actions: unknown[][] = [];
   const {ProfilePINRecovery} = await componentModule(new URL('../src/kit/accounts/ProfilePINRecovery.tsx', import.meta.url), {
     react: host.react, '@i18n': {defaultI18n: {t: (key: string, values?: unknown) => values ? `${key}:${JSON.stringify(values)}` : key}},
     '../overlays/Dialog': {Dialog: 'Dialog'}, '../controls/Button': {Button: 'Button'},
-    './AuthStage': {AuthCodeBoxes: 'CodeBoxes', AuthError: 'AuthError', AuthPasswordField: 'PasswordField'}, './accounts.module.css': {default: {}},
+    './AuthStage': {AuthCodeBoxes: 'CodeBoxes', AuthError: 'AuthError', AuthLinks: 'AuthLinks', AuthPasswordField: 'PasswordField'}, './accounts.module.css': {default: {}},
+    './ServicesAuth': {ServicesProviderButton: 'ProviderButton'},
   });
   const record = (name: string) => (...args: unknown[]) => {actions.push([name, ...args]);};
   const all = (node: any): any[] => Array.isArray(node) ? node.flatMap(all) : node?.props ? [node, ...all(node.props.children), ...all(node.props.headerAction)] : [];
   const draw = () => all(host.render(() => ProfilePINRecovery({profileName: 'Alex', username: 'demo', phase: 'portico', portico, error,
+    provider, onPorticoProvider: record('provider'), onProviderCode: record('providerCode'),
     onPassword: record('password'), onPorticoPassword: record('porticoPassword'), onPorticoRetry: record('retry'), onPorticoElsewhere: record('elsewhere'),
     onSetPassword: record('setPassword'), onCode: record('code'), onPIN: record('pin'), onClose: record('close'), onOpen: record('open')})));
   const text = (nodes: any[]) => nodes.flatMap(node => [node.props.children].flat()).filter(value => typeof value === 'string');
@@ -121,4 +123,38 @@ test('a wrong password or two-step code says so, not that the profile lacks acce
   const {defaultI18n} = await import('@i18n');
   for (const [code, id] of [['password_wrong', 'next.account.problem.passwordWrong'], ['two_step_wrong', 'next.account.problem.twoStepWrong']])
     assert.equal(presentError(Object.assign(new Error('refused'), {code, status: 403}), 'sign-in', {operation: 'action', i18n: defaultI18n}).messageId, id, code);
+});
+
+const account = (more: object = {}) => ({phase: 'ready', account: {username: 'ada', hasPassword: false, twoStep: false, providers: ['google', 'apple'], ...more}});
+const buttons = (page: any[]) => page.filter(node => node.type === 'ProviderButton');
+
+test('an account with only Google or Apple confirms it with a fresh sign-in: Apple first, the Services line, and Set a password stays', async () => {
+  const d = await dialog(account());
+  const page = d.draw();
+  assert.ok(d.text(page).includes('accounts.profiles.porticoProviderLead:{"username":"ada"}'));
+  assert.deepEqual(buttons(page).map(node => node.props.provider), ['apple', 'google']);
+  assert.ok(d.text(page).includes('accounts.profiles.porticoProviderChecked'));
+  assert.equal(page.some(node => node.type === 'PasswordField'), false);
+  buttons(page)[1].props.onClick();
+  page.find(node => node.type === 'button' && [node.props.children].flat().includes('accounts.profiles.porticoSetPassword')).props.onClick();
+  assert.deepEqual(d.actions, [['provider', 'google'], ['setPassword']]);
+});
+
+test('the two-step code is asked after the provider returns; the refusals say what happened, in their own words', async () => {
+  const asking = await dialog(account({twoStep: true}), undefined, {launched: 'apple', askingCode: true});
+  let page = asking.draw();
+  page.find(node => node.type === 'CodeBoxes').props.onChange('123456'); page = asking.draw();
+  page.find(node => node.type === 'Button' && [node.props.children].flat().includes('accounts.signIn.continue')).props.onClick();
+  assert.deepEqual(asking.actions, [['providerCode', '123456']]);
+  for (const [launched, code, sentence] of [['google', 'provider_sign_in_not_recent', 'accounts.profiles.porticoGoogleNotRecent'], ['apple', 'provider_sign_in_not_recent', 'accounts.profiles.porticoAppleNotRecent'],
+    ['google', 'popup_blocked', 'accounts.profiles.porticoPopupBlocked'], ['google', 'provider_return_incomplete', 'accounts.profiles.porticoProviderIncomplete']] as const) {
+    const d = await dialog(account(), {code}, {launched, askingCode: false});
+    const shown = d.draw().find(node => node.type === 'AuthError');
+    assert.equal(shown.props.message, sentence, `${launched} ${code}`);
+    assert.equal(buttons(d.draw()).length, 2, `${code}: a fresh attempt is offered`);
+  }
+  const exists = await dialog(account(), {code: 'account_password_exists'});
+  page = exists.draw();
+  assert.ok(page.some(node => node.type === 'PasswordField'), 'a password added meanwhile: the password form');
+  assert.equal(page.find(node => node.type === 'AuthError').props.message, 'accounts.profiles.porticoPasswordExists');
 });

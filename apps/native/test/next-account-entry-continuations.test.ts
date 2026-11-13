@@ -67,7 +67,7 @@ async function fixture(context:import('node:test').TestContext,wrongAccount=fals
     Platform:{isTV:false,OS:'ios'},NativeModules:{PorticoAccountAuth:bridge},Image:'Image',View:'View',Text:'Text',ScrollView:'ScrollView',
     Keyboard:{isVisible:()=>false,addListener:()=>({remove(){}})},KeyboardAvoidingView:'KeyboardAvoidingView',Linking:{openURL:async()=>{}}};
   const phone=await screenModule(new URL('../src-next/screens/accounts/PhoneAccountSignIn.tsx',import.meta.url),{'../../platform/keyboard':{FormScrollView:'ScrollView'},
-    './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, react:{...React,default:React},'react-native':rn,'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:0,bottom:0,left:0,right:0})},
+    './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, './ProviderButton': {ProviderButton: 'ProviderButton'}, react:{...React,default:React},'react-native':rn,'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:0,bottom:0,left:0,right:0})},
     '../../../../../packages/i18n/src':{defaultI18n},'../../kit/artwork':{ColourBackdrop:'Backdrop'},'../../kit/controls':{Button:'Button',TextField:'Field'},'../../kit/theme':{nativeType,useTheme:()=>theme},
   });
   const modules:any={react:{...React,default:React},'react-native':rn,'react-native-qrcode-svg':{default:'QR'},
@@ -79,7 +79,7 @@ async function fixture(context:import('node:test').TestContext,wrongAccount=fals
     '../../platform/account-work': accountWork, '../../platform/accounts':{nativeAccounts:accounts},'../../platform/server-sign-in':{NativeServerSignIn:Server},'../../platform/portico-sign-in':auth,
     '../../platform/server-connections':{browseNearby:async()=>[]},'../../platform/account-authority':{hostedUrl:'https://hosted.example'},
     '../../platform/qr-scanner':{qrScannerAvailable:()=>false},'../../platform/tv-menu': {useTVMenuCapture() {}}, './tv-code-opening':tvOpening,'./directory-chooser':chooser,
-    './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, './ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, './PhoneAccountForm': {PhoneAccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, './PhoneAccountSignIn':phone,'./directory-refusal':{directoryAccessRefused:()=>false,directoryClockSkew:()=>false,directoryIdentityUnconfirmed:()=>false},
+    './LegalAgreement': {LegalAgreement: 'LegalAgreement'}, './ProviderButton': {ProviderButton: 'ProviderButton'}, '../../platform/negotiation': {negotiationRefusal: () => undefined}, './ServerNeedsUpdate': {ServerNeedsUpdate: 'ServerNeedsUpdate'}, './PhoneAccountForm': {PhoneAccountForm: 'Layout'}, './PasswordStrengthMeter': {PasswordStrengthMeter: 'PasswordStrengthMeter'}, './PhoneAccountSignIn':phone,'./directory-refusal':{directoryAccessRefused:()=>false,directoryClockSkew:()=>false,directoryIdentityUnconfirmed:()=>false},
     '../../platform/hosted-sign-in-unavailable':{HostedSignInUnavailable:class extends Error {}},
   };
   const ports=new Proxy(modules,{get:(obj,name)=>name in obj?obj[name]:new Proxy({},{get:(_,exported)=>(..._args:any[])=>{throw new Error('Unexpected port '+String(name)+'.'+String(exported));}})});
