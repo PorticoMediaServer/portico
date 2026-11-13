@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -34,6 +35,8 @@ type StreamingSettings struct {
 	ConversionsAtOnce int `json:"conversionsAtOnce"`
 	// ProcessorConversionsAtOnce limits picture conversions on the processor alone; 0 is no limit.
 	ProcessorConversionsAtOnce int `json:"processorConversionsAtOnce"`
+	// HardwareConversionsAtOnce caps each observed graphics device; 0 uses its own capacity.
+	HardwareConversionsAtOnce int `json:"hardwareConversionsAtOnce"`
 	// BackgroundConversionsAtOnce caps prepared copies made in the background, independently
 	// of plays. Zero adds no owner cap; work already running completes.
 	BackgroundConversionsAtOnce int `json:"backgroundConversionsAtOnce"`
@@ -57,8 +60,12 @@ type StreamingSettings struct {
 	SpacePerStreamMiB int `json:"spacePerStreamMiB"`
 	// MemoryLimit bounds aggregate RAM output, with the existing spill to disk when full.
 	MemoryLimit string `json:"memoryLimit"`
+	// ConversionLocation chooses separate, memory, or the existing chosen ConversionFolder.
+	ConversionLocation string `json:"conversionLocation"`
+	// ToneMappingMethod controls software and CUDA; Intel drivers choose their own curve.
+	ToneMappingMethod string `json:"toneMappingMethod"`
 	// ConversionFolder is a folder of the owner's choosing for conversions; empty is the
-	// server's own data folder. The server keeps a folder of its own inside it and never
+	// separate conversion folder. The server keeps a folder of its own inside it and never
 	// empties anything else. It applies to streams started after it is saved.
 	ConversionFolder string `json:"conversionFolder"`
 	// FFmpegProgram is the full path of the ffmpeg to convert with; empty is the one the
@@ -81,7 +88,7 @@ var GraphicsDevices = []string{"nvenc", "qsv", "vaapi", "videotoolbox", "amf"}
 var Streaming = Define("streaming", StreamingSettings{ConvertWhenNeeded: ConvertPictureAndSound, GraphicsDevice: "automatic",
 	HardwareDecoding: true, ToneMapping: true, EncoderSpeed: "veryfast", PlanningPolicy: "maximum_fidelity",
 	Repackaging: true, ConversionFormat: "auto", ConvertAheadSeconds: 60, KeepForRewindingSeconds: 180,
-	SpacePerStreamMiB: 4096, MemoryLimit: "quarter"}, checkStreaming)
+	SpacePerStreamMiB: 4096, MemoryLimit: "quarter", ConversionLocation: "separate", ToneMappingMethod: "mobius"}, checkStreaming)
 
 func checkStreaming(s *StreamingSettings) error {
 	switch s.ConvertWhenNeeded {
@@ -126,6 +133,15 @@ func checkStreaming(s *StreamingSettings) error {
 	if !slices.Contains([]string{"quarter", "half", "2gb", "4gb", "8gb", "16gb"}, s.MemoryLimit) {
 		return &Invalid{Field: "memoryLimit", Message: "Choose a quarter or half of free memory, or one of the listed sizes."}
 	}
+	if !slices.Contains([]int{0, 1, 2, 3, 5, 8}, s.HardwareConversionsAtOnce) {
+		return &Invalid{Field: "hardwareConversionsAtOnce", Message: "Choose Automatic, 1, 2, 3, 5 or 8 conversions per device."}
+	}
+	if !slices.Contains([]string{"separate", "memory", "folder"}, s.ConversionLocation) {
+		return &Invalid{Field: "conversionLocation", Message: "Choose Separate folder, Memory or Choose a folder."}
+	}
+	if !slices.Contains([]string{"clip", "linear", "gamma", "reinhard", "hable", "mobius"}, s.ToneMappingMethod) {
+		return &Invalid{Field: "toneMappingMethod", Message: "Choose one of the listed tone-mapping methods."}
+	}
 	s.ConversionFolder, s.FFmpegProgram = strings.TrimSpace(s.ConversionFolder), strings.TrimSpace(s.FFmpegProgram)
 	for _, f := range []struct{ name, value string }{{"conversionFolder", s.ConversionFolder}, {"ffmpegProgram", s.FFmpegProgram}} {
 		if f.value != "" && (!filepath.IsAbs(f.value) || len(f.value) > 4096) {
@@ -142,5 +158,25 @@ func checkStreaming(s *StreamingSettings) error {
 			return &Invalid{Field: f.name, Message: "Give a number of conversions, or 0 for no limit."}
 		}
 	}
+	return nil
+}
+
+// A saved custom folder from before the location choice remains a custom folder.
+func (s *StreamingSettings) UnmarshalJSON(raw []byte) error {
+	type plain StreamingSettings
+	value := plain(*s)
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return err
+	}
+	var location struct {
+		Value *string `json:"conversionLocation"`
+	}
+	if err := json.Unmarshal(raw, &location); err != nil {
+		return err
+	}
+	if location.Value == nil && value.ConversionFolder != "" {
+		value.ConversionLocation = "folder"
+	}
+	*s = StreamingSettings(value)
 	return nil
 }

@@ -147,3 +147,59 @@ test('working space reads seconds and saves the same seconds without changing th
   assert.deepEqual(f.calls.filter(c => c.method === 'PUT').map(c => c.body),
     [{convertAheadSeconds: 600}, {keepForRewindingSeconds: 180}, {spacePerStreamMiB: 16384}, {memoryLimit: '4gb'}]);
 });
+
+test('the per-device graphics cap reads Automatic and saves the owner cap', async () => {
+  const f = fixture();
+  const source = new OwnerStreamingSettings({...f.api, request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    const doc: any = await f.api.request(path, method, body);
+    if (path.endsWith('/settings/streaming')) {
+      doc.values = {...doc.values, hardwareConversionsAtOnce: 2};
+      doc.defaults = {...doc.defaults, hardwareConversionsAtOnce: 0};
+    }
+    return doc;
+  }});
+  const configuration = await source.readConfiguration();
+  const value = readSettingsBinding(settingsBinding('streaming.maxHardwareConversions')!, {configuration}, 'streaming.maxHardwareConversions');
+  assert.equal(value?.current, '2');
+  assert.equal(value?.default, 'auto');
+  await source.save('streaming.maxHardwareConversions', 'auto');
+  assert.deepEqual(f.calls.at(-1)?.body, {hardwareConversionsAtOnce: 0});
+});
+
+test('the location choice keeps one custom path and selects it when the folder is saved', async () => {
+  const f = fixture();
+  const source = new OwnerStreamingSettings({...f.api, request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    const doc: any = await f.api.request(path, method, body);
+    if (path.endsWith('/settings/streaming')) {
+      doc.values = {...doc.values, conversionLocation: 'folder'};
+      doc.defaults = {...doc.defaults, conversionLocation: 'separate'};
+    }
+    return doc;
+  }});
+  const configuration = await source.readConfiguration();
+  const value = readSettingsBinding(settingsBinding('streaming.transcodeLocation')!, {configuration}, 'streaming.transcodeLocation');
+  assert.equal(value?.current, 'folder');
+  assert.equal(value?.default, 'separate');
+  await source.save('streaming.transcodeLocation', 'memory');
+  assert.deepEqual(f.calls.at(-1)?.body, {conversionLocation: 'memory'});
+  await source.save('streaming.transcodeFolder', '/other');
+  assert.deepEqual(f.calls.at(-1)?.body, {conversionFolder: '/other', conversionLocation: 'folder'});
+});
+
+test('tone-map method reads the engine Mobius default and saves the actual algorithm', async () => {
+  const f = fixture();
+  const source = new OwnerStreamingSettings({...f.api, request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    const doc: any = await f.api.request(path, method, body);
+    if (path.endsWith('/settings/streaming')) {
+      doc.values = {...doc.values, toneMappingMethod: 'hable'};
+      doc.defaults = {...doc.defaults, toneMappingMethod: 'mobius'};
+    }
+    return doc;
+  }});
+  const configuration = await source.readConfiguration();
+  const value = readSettingsBinding(settingsBinding('streaming.toneMappingMethod')!, {configuration}, 'streaming.toneMappingMethod');
+  assert.equal(value?.current, 'hable');
+  assert.equal(value?.default, 'mobius');
+  await source.save('streaming.toneMappingMethod', 'reinhard');
+  assert.deepEqual(f.calls.at(-1)?.body, {toneMappingMethod: 'reinhard'});
+});

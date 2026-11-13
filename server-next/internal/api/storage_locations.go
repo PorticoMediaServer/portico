@@ -15,6 +15,10 @@ type StorageLocation struct {
 	Bytes    int64  `json:"bytes"`
 	External bool   `json:"external"`
 	Problem  string `json:"problem,omitempty"`
+	// Ready is reported only by the engine after opening and writing conversion output.
+	Ready *bool `json:"ready,omitempty"`
+	// FreeBytes is current free space on this actual destination, not a usage-walk result.
+	FreeBytes *int64 `json:"freeBytes,omitempty"`
 }
 
 func (s *Server) storageLocations(ctx context.Context) (conversions, recordings []string, err error) {

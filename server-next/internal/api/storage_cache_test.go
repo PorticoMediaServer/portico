@@ -13,7 +13,9 @@ type storageEngine struct {
 	bytes   int64
 }
 
-func (e *storageEngine) ConversionFolders() []string { return e.folders }
+func (e *storageEngine) MemoryConversionsAvailable() bool         { return false }
+func (e *storageEngine) ConversionFolderReady(folder string) bool { return folder == e.folders[0] }
+func (e *storageEngine) ConversionFolders() []string              { return e.folders }
 func (e *storageEngine) CachedConversions(_ context.Context, empty bool) (int64, error) {
 	n := e.bytes
 	if empty {
@@ -54,6 +56,13 @@ func TestStorageShowsActualDestinationsAndRefreshesAfterFolderChanges(t *testing
 	if len(first.Conversions) != 2 || first.Conversions[0].Bytes != 7 || !first.Conversions[0].External ||
 		first.Conversions[1].Bytes != 6 || first.Conversions[1].External {
 		t.Fatalf("conversion destinations: %+v", first.Conversions)
+	}
+	if first.MemoryAvailable == nil || *first.MemoryAvailable {
+		t.Fatal("storage guessed a RAM filesystem", first.MemoryAvailable)
+	}
+	if first.Conversions[0].Ready == nil || !*first.Conversions[0].Ready || first.Conversions[0].FreeBytes == nil ||
+		first.Conversions[1].Ready == nil || *first.Conversions[1].Ready {
+		t.Fatal("storage invented readiness instead of asking the engine", first.Conversions)
 	}
 	if len(first.Recordings) != 1 || first.Recordings[0].Folder != old || first.Recordings[0].Bytes != 3 || !first.Recordings[0].External {
 		t.Fatalf("recording destination: %+v", first.Recordings)

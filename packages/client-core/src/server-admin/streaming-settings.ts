@@ -15,17 +15,20 @@ const rows: Readonly<Record<string, readonly [DocumentName | 'limits', string]>>
   'streaming.hardware': ['streaming', 'graphicsDevice'],
   'streaming.hardwareDecode': ['streaming', 'hardwareDecoding'],
   'streaming.maxConversions': ['streaming', 'conversionsAtOnce'],
+  'streaming.maxHardwareConversions': ['streaming', 'hardwareConversionsAtOnce'],
   'streaming.maxSoftwareConversions': ['streaming', 'processorConversionsAtOnce'],
   'streaming.maxBackgroundConversions': ['streaming', 'backgroundConversionsAtOnce'],
   'streaming.convertAhead': ['streaming', 'convertAheadSeconds'],
   'streaming.rewindKeep': ['streaming', 'keepForRewindingSeconds'],
   'streaming.sessionSpace': ['streaming', 'spacePerStreamMiB'],
   'streaming.memoryCap': ['streaming', 'memoryLimit'],
+  'streaming.toneMappingMethod': ['streaming', 'toneMappingMethod'],
   'streaming.toneMapping': ['streaming', 'toneMapping'],
   'streaming.encoderSpeed': ['streaming', 'encoderSpeed'],
   'streaming.whenCantPlay': ['streaming', 'planningPolicy'],
   'streaming.repackage': ['streaming', 'repackaging'],
   'streaming.outputFormat': ['streaming', 'conversionFormat'],
+  'streaming.transcodeLocation': ['streaming', 'conversionLocation'],
   'streaming.transcodeFolder': ['streaming', 'conversionFolder'],
   'streaming.ffmpegPath': ['streaming', 'ffmpegProgram'],
   'streaming.downloadQuality': ['downloads', 'highestQuality'],
@@ -56,7 +59,7 @@ export class OwnerStreamingSettings {
   private conversionProblem?: string;
   constructor(private readonly api: Pick<HttpLocalApi, 'request'> & Partial<Pick<HttpLocalApi, 'requestRaw'>>) {}
   has = (id: string): boolean => Object.hasOwn(rows, keyFor(id));
-  problemFor = (id: string): string | undefined => ['streaming.ffmpegPath', 'streaming.transcodeFolder'].includes(id) ? this.conversionProblem : undefined;
+  problemFor = (id: string): string | undefined => ['streaming.ffmpegPath', 'streaming.transcodeFolder', 'streaming.transcodeLocation'].includes(id) ? this.conversionProblem : undefined;
   readConfiguration = async (signal?: AbortSignal): Promise<SettingsConfiguration> => {
     const [streaming, downloads, limits] = await Promise.all([
       callServer(this.api, 'GET /v1/admin/settings/{name}', {id: 'streaming', signal}),
@@ -102,6 +105,6 @@ export class OwnerStreamingSettings {
       return;
     }
     const etag = this.etags.get(name); if (!etag) return invalid();
-    await putSettingsDocument(this.api, name, etag, {[key]: raw}, signal);
+    await putSettingsDocument(this.api, name, etag, key === 'conversionFolder' ? {[key]: raw, conversionLocation: 'folder'} : {[key]: raw}, signal);
   };
 }

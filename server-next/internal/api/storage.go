@@ -39,7 +39,9 @@ type Storage struct {
 	// These locations are separate facts. A location inside DataFolder is already
 	// counted in Folders and must not be added to the data-folder total again.
 	Conversions []StorageLocation `json:"conversions"`
-	Recordings  []StorageLocation `json:"recordings"`
+	// MemoryAvailable means a RAM filesystem exists; admission still enforces the cap and disk spill.
+	MemoryAvailable *bool             `json:"memoryAvailable,omitempty"`
+	Recordings      []StorageLocation `json:"recordings"`
 	// MeasuredAt is when the folders were last measured: the sizes are reused for 10
 	// minutes. Free space is read at each request.
 	MeasuredAt time.Time `json:"measuredAt"`
@@ -97,6 +99,20 @@ func (s *Server) storageRoutes(dataDir string) {
 		out.Folders = slices.Clone(out.Folders)
 		out.Conversions = slices.Clone(out.Conversions)
 		out.Recordings = slices.Clone(out.Recordings)
+		for i := range out.Conversions {
+			location := &out.Conversions[i]
+			if free, err := diskspace.Free(location.Folder); err == nil {
+				location.FreeBytes = &free
+			}
+			if engine, ok := s.playback.Engine().(interface{ ConversionFolderReady(string) bool }); ok {
+				ready := engine.ConversionFolderReady(location.Folder)
+				location.Ready = &ready
+			}
+		}
+		if engine, ok := s.playback.Engine().(interface{ MemoryConversionsAvailable() bool }); ok {
+			available := engine.MemoryConversionsAvailable()
+			out.MemoryAvailable = &available
+		}
 		out.DiskBytes, _ = diskspace.Total(out.DataFolder)
 		out.FreeBytes, _ = diskspace.Free(out.DataFolder)
 		out.Level, out.MeasuredAt = level(out, storageDocument.Get(s.settings)), cache.at.UTC()

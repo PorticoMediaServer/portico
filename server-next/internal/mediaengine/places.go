@@ -14,6 +14,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
+	"github.com/PorticoMediaServer/portico/server-next/internal/storagepaths"
 	"github.com/PorticoMediaServer/portico/server-next/internal/streaming"
 )
 
@@ -31,6 +32,7 @@ type place struct {
 	folder string
 	ffmpeg string
 	number int
+	memory bool
 	// ctx ends this place's housekeeping; stop ends ctx.
 	ctx  context.Context
 	stop context.CancelFunc
@@ -47,14 +49,33 @@ const ownedFolder = "portico-conversions"
 // A folder that cannot be made or written to is refused. Caller holds mu, or is New.
 func (e *Engine) open(base, ffmpeg string) (*place, error) {
 	e.opened++
+	folder := filepath.Join(base, strconv.Itoa(e.opened))
+	if err := os.MkdirAll(folder, 0700); err != nil {
+		return nil, err
+	}
+	// Readiness comes from opening and writing output, not from a readable usage walk.
+	check, err := os.CreateTemp(folder, ".write-check-")
+	if err != nil {
+		return nil, err
+	}
+	_, writeErr := check.Write([]byte{0})
+	closeErr := check.Close()
+	_ = os.Remove(check.Name())
+	if err := errors.Join(writeErr, closeErr); err != nil {
+		return nil, err
+	}
+	memory := ""
+	if mounts, err := storagepaths.CurrentMounts(); err == nil && e.owner().ConversionLocation == "memory" {
+		memory = storagepaths.MemoryTranscodeDirectory(folder, mounts)
+	}
 	ctx, stop := context.WithCancel(e.ctx)
-	streams, err := streaming.New(ctx, streaming.Options{Folder: filepath.Join(base, strconv.Itoa(e.opened)), FFmpeg: ffmpeg,
+	streams, err := streaming.New(ctx, streaming.Options{Folder: folder, MemoryFolder: memory, FFmpeg: ffmpeg,
 		Libraries: e.folders, Processes: e.processes, Settings: e})
 	if err != nil {
 		stop()
 		return nil, err
 	}
-	return &place{streams: streams, folder: base, ffmpeg: ffmpeg, number: e.opened, ctx: ctx, stop: stop}, nil
+	return &place{streams: streams, folder: base, ffmpeg: ffmpeg, number: e.opened, memory: e.owner().ConversionLocation == "memory", ctx: ctx, stop: stop}, nil
 }
 
 // empty removes what an earlier run of the server left in a conversion folder. It is only
@@ -117,7 +138,7 @@ func (e *Engine) setConversion(folder, ffmpeg string) error {
 		}
 		program = path
 	}
-	if target == current.folder && program == current.ffmpeg {
+	if target == current.folder && program == current.ffmpeg && current.memory == (e.owner().ConversionLocation == "memory") {
 		return nil
 	}
 	var tools *toolset

@@ -70,7 +70,7 @@ func TestConversionOffRefusesOnlyWhatNeedsConverting(t *testing.T) {
 	// The owner's own conversion folder is put in force when it is saved, with no restart: the
 	// server makes its own folder inside it.
 	chosen := t.TempDir()
-	h.call("PUT", "/v1/admin/settings/streaming", map[string]any{"conversionFolder": chosen}, nil, 200)
+	h.call("PUT", "/v1/admin/settings/streaming", map[string]any{"conversionFolder": chosen, "conversionLocation": "folder"}, nil, 200)
 	for deadline := time.Now().Add(20 * time.Second); ; time.Sleep(100 * time.Millisecond) {
 		if _, err := os.Stat(filepath.Join(chosen, "portico-conversions")); err == nil {
 			break
