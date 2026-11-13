@@ -72,9 +72,8 @@ type QueueEntry struct {
 	Added     bool
 	Available bool
 	Item      Item
-	// Parent and Root name what the title belongs to: its season and show, its album and artist.
+	// ParentTitle names the visible season or album; Item.RootTitle names its visible root.
 	ParentTitle string
-	RootTitle   string
 }
 
 func queueByID(ctx context.Context, tx *sql.Tx, v Viewer, acc access, publicID string) (Queue, error) {
@@ -201,9 +200,9 @@ func (d *DB) QueueEntries(ctx context.Context, v Viewer, publicID string, from, 
 	if err != nil || limit <= 0 {
 		return nil, q, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+`, e.id, e.added, i.available, ifnull(p.title, ''), ifnull(r.title, '')
+	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+`, e.id, e.added, i.available, ifnull(p.title, '')
 		FROM queue_entries e JOIN items i ON i.id = e.item_id
-		LEFT JOIN items p ON p.id = i.parent_id LEFT JOIN items r ON r.id = i.root_id
+		LEFT JOIN items p ON p.id = i.parent_id AND `+acc.visible("p")+`
 		LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id
 		WHERE e.queue_id = @queue AND `+acc.visible("i")+` ORDER BY e.position LIMIT @limit OFFSET @from`,
 		append(v.args(), sql.Named("queue", q.ID), sql.Named("limit", min(limit, maxPageSize)), sql.Named("from", max(from, 0)))...)
@@ -215,7 +214,7 @@ func (d *DB) QueueEntries(ctx context.Context, v Viewer, publicID string, from, 
 	var items []Item
 	for rows.Next() {
 		e := QueueEntry{Index: max(from, 0) + len(out)}
-		if err := scanItem(rows, &e.Item, &e.EntryID, &e.Added, &e.Available, &e.ParentTitle, &e.RootTitle); err != nil {
+		if err := scanItem(rows, &e.Item, &e.EntryID, &e.Added, &e.Available, &e.ParentTitle); err != nil {
 			return nil, q, err
 		}
 		out = append(out, e)

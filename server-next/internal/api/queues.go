@@ -241,7 +241,7 @@ func entriesOut(entries []db.QueueEntry) []QueueEntry {
 		out = append(out, QueueEntry{EntryID: playqueue.EntryID(e.EntryID), Position: e.Index, ItemID: e.Item.PublicID,
 			Kind: e.Item.Kind.String(), Title: e.Item.Title, Added: e.Added, Available: e.Available, DurationMs: e.Item.DurationMS,
 			Year: e.Item.Year, Index: e.Item.IndexNumber, ParentIndex: e.Item.ParentIndex, ParentID: e.Item.ParentPublicID,
-			ParentTitle: e.ParentTitle, RootID: e.Item.RootPublicID, RootTitle: e.RootTitle, Images: images})
+			ParentTitle: e.ParentTitle, RootID: e.Item.RootPublicID, RootTitle: e.Item.RootTitle, Images: images})
 	}
 	return out
 }

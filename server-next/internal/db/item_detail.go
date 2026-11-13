@@ -193,8 +193,12 @@ func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, e
 			continue
 		}
 		r := &ItemRef{}
-		if err := tx.QueryRowContext(ctx, `SELECT public_id, kind, title, index_number FROM items WHERE id = ?`, ref.id).
-			Scan(&r.PublicID, &r.Kind, &r.Title, &r.Index); err != nil {
+		err := tx.QueryRowContext(ctx, `SELECT r.public_id, r.kind, r.title, r.index_number FROM items r WHERE r.id = ? AND `+acc.visible("r"), ref.id).
+			Scan(&r.PublicID, &r.Kind, &r.Title, &r.Index)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
 			return out, err
 		}
 		*ref.into = r

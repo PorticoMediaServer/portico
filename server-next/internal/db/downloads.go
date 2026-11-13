@@ -475,7 +475,8 @@ func (d *DB) TitlePlaces(ctx context.Context, v Viewer, itemIDs []int64) (map[in
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT i.id, i.kind, ifnull(p.title, ''), ifnull(r.title, ''), ifnull(r.kind, 0),
 		coalesce(i.parent_index, p.index_number), i.index_number FROM items i
-		LEFT JOIN items p ON p.id = i.parent_id LEFT JOIN items r ON r.id = i.root_id
+		LEFT JOIN items p ON p.id = i.parent_id AND `+acc.visible("p")+`
+		LEFT JOIN items r ON r.id = i.root_id AND `+acc.visible("r")+`
 		WHERE i.id IN `+intList(itemIDs)+` AND `+acc.visible("i"), v.args()...)
 	if err != nil {
 		return nil, err

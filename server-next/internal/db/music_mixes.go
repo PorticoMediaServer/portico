@@ -48,8 +48,8 @@ func (d *DB) RecentPlayedSongs(ctx context.Context, v Viewer, model string, play
 		FROM recent JOIN items i ON i.id = recent.item_id
 		JOIN libraries l ON l.id = i.library_id
 		JOIN track_embeddings e ON e.item_id = i.id AND e.model = ? AND e.failed IS NULL AND e.embedding IS NOT NULL
-		LEFT JOIN items a ON a.id = i.parent_id
-		LEFT JOIN items r ON r.id = i.root_id
+		LEFT JOIN items a ON a.id = i.parent_id AND `+acc.visible("a")+`
+		LEFT JOIN items r ON r.id = i.root_id AND `+acc.visible("r")+`
 		WHERE i.available = 1 AND `+soundOn+` AND `+acc.visible("i")+`
 		GROUP BY i.id HAVING plays > 0 ORDER BY max(recent.played_at) DESC, i.id`, v.ProfileID, KindTrack, plays, ImagePoster, model)
 	if err != nil {

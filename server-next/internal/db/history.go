@@ -126,6 +126,9 @@ func (d *DB) History(ctx context.Context, v Viewer, since int64, cursor string, 
 	for n, r := range rows {
 		r.HistoryEntry.ID = historyID(r.id)
 		r.HistoryEntry.Item = items[r.itemID]
+		if it := r.HistoryEntry.Item; it != nil && it.RootID != 0 && it.RootTitle == "" {
+			r.HistoryEntry.Subtitle = ""
+		}
 		page.Entries[n] = r.HistoryEntry
 	}
 	return page, nil
