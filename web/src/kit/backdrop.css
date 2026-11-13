@@ -9,8 +9,13 @@
     radial-gradient(42% 58% at 64% 104%, rgba(30,91,82,.6) 0%, rgba(30,91,82,.18) 50%, transparent 76%),
     radial-gradient(38% 50% at 4% 0%, rgba(21,55,73,.75) 0%, transparent 72%);
   --backdrop-glows-size: 100% 100%;
-  /* Owner-only panels, groups and headers: the blue corner over the green one, over the panel's own fill. */
-  --owner-tint: radial-gradient(120% 120% at 100% 0%, rgba(47,134,187,.24), transparent 62%), radial-gradient(100% 100% at 0% 100%, rgba(30,91,82,.2), transparent 66%);
+  /* Owner-only surfaces, over each one's own fill. The sizes are shares of the box, so the mock-ups draw three shapes:
+     a header (desktop-settings, owner-server, settings: panel header; select: editor header), a tall group (the same
+     mock-ups' Server group; playback-info and desktop-detail's File info owner section is nearest to it), and a short
+     group with the blue corner only (select: a menu's owner group; states: the owner section). */
+  --owner-tint: radial-gradient(120% 120% at 100% 0%, rgba(47,134,187,.26), transparent 62%), radial-gradient(100% 100% at 0% 100%, rgba(30,91,82,.2), transparent 66%);
+  --owner-tint-tall: radial-gradient(120% 60% at 100% 0%, rgba(47,134,187,.26), transparent 62%), radial-gradient(100% 50% at 0% 100%, rgba(30,91,82,.26), transparent 66%);
+  --owner-tint-group: radial-gradient(120% 140% at 100% 0%, rgba(47,134,187,.2), transparent 62%);
 }
 @media (max-width: 599px) {
   :root {

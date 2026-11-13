@@ -84,10 +84,10 @@ button.circle:focus-visible { outline: 3px solid var(--color-focus); outline-off
 .allNote.allNote button { height: auto; min-height: 0; padding: 0; font-size: 14.5px; font-weight: 800; }
 .ownerMenuLabel > span:last-child { padding: 3px 7px; border-radius: 5px; background: rgba(0,0,0,.3); color: var(--color-text-secondary); font-size: 11px; font-weight: 800; }
 .ownerMenuLabel { display: flex; align-items: center; gap: 8px; }
-.moreOwnerGroup { margin: 6px -2px 0; padding: 6px 6px 4px; border-radius: 10px; background: var(--owner-tint),var(--color-panel); box-shadow: inset 0 0 0 1px rgba(92,179,226,.16); }
+.moreOwnerGroup { margin: 6px -2px 0; padding: 6px 6px 4px; border-radius: 10px; background: var(--owner-tint-group),var(--color-panel); box-shadow: inset 0 0 0 1px rgba(92,179,226,.16); }
 .moreOwnerGroup > div:first-child { padding: 6px 8px 4px; }
 .moreOwnerGroup .moreOwnerRow.moreOwnerRow { height: 38px; min-height: 38px; padding-inline: 8px; }
-.selectionMenu [data-owner-only="true"] { margin: 6px -2px 0; padding: 6px 6px 4px; border: 0; border-radius: 10px; background: var(--owner-tint),var(--color-panel); box-shadow: inset 0 0 0 1px rgba(92,179,226,.16); }
+.selectionMenu [data-owner-only="true"] { margin: 6px -2px 0; padding: 6px 6px 4px; border: 0; border-radius: 10px; background: var(--owner-tint-group),var(--color-panel); box-shadow: inset 0 0 0 1px rgba(92,179,226,.16); }
 .selectionMenu button[role^="menuitem"] { min-height: 40px; }
 .selectionMenu [data-owner-only="true"] button[role^="menuitem"] { min-height: 38px; }
 .selectionMenu button[role^="menuitem"]:has(> span:nth-child(3)) { height: auto; min-height: 52px; padding-block: 8px; display: grid; grid-template-columns: 18px 1fr; column-gap: 12px; row-gap: 2px; }
@@ -277,7 +277,7 @@ button.circle:focus-visible { outline: 3px solid var(--color-focus); outline-off
   .selectionMenu [role="group"] button[role^="menuitem"] > span:first-child { width: 24px; height: 24px; background: transparent; border-radius: 0; }
   .selectionMenu [role="group"] button[role^="menuitem"] > span:first-child svg { width: 22px; height: 22px; }
   .selectionMenu [role="group"] button[role^="menuitem"]:has(> span:nth-child(3)) { padding-block: 8px; grid-template-columns: 24px 1fr; column-gap: 14px; }
-  .selectionMenu [role="group"][data-owner-only="true"] { margin: 12px 12px 0; padding: 6px 14px 4px; border-radius: 16px; background: var(--owner-tint),var(--color-panel); box-shadow: inset 0 0 0 1px rgba(92,179,226,.16); }
+  .selectionMenu [role="group"][data-owner-only="true"] { margin: 12px 12px 0; padding: 6px 14px 4px; border-radius: 16px; background: var(--owner-tint-group),var(--color-panel); box-shadow: inset 0 0 0 1px rgba(92,179,226,.16); }
   .selectionMenu [role="group"][data-owner-only="true"] > div:first-child { margin: 8px 0 4px; }
   .mixedSheet .mixedBody { padding: 4px 20px 0; }
   .keepTypes { display: block; }
