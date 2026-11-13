@@ -12697,8 +12697,11 @@
         },
         "type": "object"
       },
-      "StreamLimitsPeopleEdit": {
+      "StreamLimitsEdit": {
         "properties": {
+          "endPausedVideoAfterMs": {
+            "type": "integer"
+          },
           "people": {
             "additionalProperties": {
               "anyOf": [
@@ -12711,11 +12714,14 @@
               ]
             },
             "type": "object"
+          },
+          "perPerson": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
           }
         },
-        "required": [
-          "people"
-        ],
         "type": "object"
       },
       "StreamStop": {
@@ -17563,42 +17569,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/StreamLimitsPeopleEdit"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StreamLimits"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            },
-            "description": "A refusal"
-          }
-        },
-        "x-access": "owner"
-      },
-      "put": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StreamLimits"
+                "$ref": "#/components/schemas/StreamLimitsEdit"
               }
             }
           },

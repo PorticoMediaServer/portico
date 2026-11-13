@@ -73,8 +73,7 @@ func (s *Server) playbackRoutes() {
 		route.Scope = ScopeSession
 	}
 	Handle(s, "GET /v1/admin/playback/stream-limits", Owner, s.getStreamLimits)
-	Handle(s, "PUT /v1/admin/playback/stream-limits", Owner, s.putStreamLimits)
-	Handle(s, "PATCH /v1/admin/playback/stream-limits", Owner, s.patchStreamLimitPeople)
+	Handle(s, "PATCH /v1/admin/playback/stream-limits", Owner, s.patchStreamLimits)
 }
 
 // countingWriter counts the bytes of a reply.
@@ -500,13 +499,6 @@ func streamOut(v playback.Session, titles map[int64]string, signInID int64) Acco
 func (s *Server) getStreamLimits(r *http.Request, _ None) (StreamLimits, error) {
 	limits, err := s.playback.Limits(r.Context())
 	return StreamLimits(limits), err
-}
-
-func (s *Server) putStreamLimits(r *http.Request, req StreamLimits) (StreamLimits, error) {
-	if err := s.playback.SetLimits(r.Context(), playback.Limits(req)); err != nil {
-		return StreamLimits{}, playbackError(err)
-	}
-	return req, nil
 }
 
 // SeenStream is a stream as one caller may see it. Visible is false, and Title empty, for a
