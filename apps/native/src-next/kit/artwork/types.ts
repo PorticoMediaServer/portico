@@ -53,7 +53,8 @@ export type ArtworkProps = Readonly<{
   testID?: string;
 }>;
 
-export type AmbientTreatment = 'hero' | 'title' | 'phone' | 'cover' | 'wash' | 'library' | 'artist' | 'music' | 'person';
+/** `page`: phone-app `.amb-l` on a page with no backdrop of its own (an album, an artist): only the blurred wash. */
+export type AmbientTreatment = 'hero' | 'title' | 'phone' | 'cover' | 'wash' | 'library' | 'artist' | 'music' | 'person' | 'page';
 export type AmbientArtProps = Readonly<{
   source?: AmbientArtSource | null;
   sources?: readonly AmbientArtSource[];

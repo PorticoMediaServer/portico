@@ -48,9 +48,11 @@ function PhoneHeader({title, onBack, onMore, moreRef}: {title: string; onBack: (
   </View>;
 }
 
-/** The cover's colours spread behind the page and fade down (phone-app#13 .amb-l). */
+/** The cover's colours spread behind the page and fade down (phone-app#13 .amb-l). On a tablet it keeps its own drawing. */
 function Wash({runtime, path}: {runtime: NativeShellRuntime; path: string | undefined}) {
   const theme = useTheme(), source = runtime.ambient(path), gradient = useId();
+  // A phone draws the frames' wash in the kit (W2): its private ink layer at .45 turned the cover's colour grey.
+  if (theme.layoutMode === 'phone') return source ? <AmbientArt source={source} treatment="page" style={{position: 'absolute', top: 0, left: 0, right: 0}}/> : null;
   return <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 0, right: 0, height: theme.platform === 'phone' ? 760 : 700, overflow: 'hidden'}}>
     {source ? <AmbientArt source={source} treatment="title" style={{position: 'absolute', inset: 0}}/> : null}
     <View style={{position: 'absolute', inset: 0, backgroundColor: alpha(theme.colors.ink, .45)}}/>

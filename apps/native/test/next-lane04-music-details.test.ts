@@ -13,7 +13,7 @@ const i18n = {t: (key: string) => key, number: String, duration: (value: number)
 const runtime = {artwork: () => ({cacheKey: 'art'}), ambient: () => ({cacheKey: 'ambient'}), text: {locale: 'en-US'}, reportError: (error: unknown) => {throw error;}};
 
 async function music(platform = 'tablet') {
-  const ui = hooks(), theme = {platform, isTV: false, colors}, react: any = {...ui.react, useId: () => 'wash'}; react.default = react;
+  const ui = hooks(), theme = {platform, layoutMode: platform === 'phone' ? 'phone' : 'medium', isTV: false, colors}, react: any = {...ui.react, useId: () => 'wash'}; react.default = react;
   const module = await screenModule(new URL('../src-next/screens/destinations/music/PhoneMusicScreens.tsx', import.meta.url), {
     react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
@@ -70,14 +70,13 @@ test('phone song long press opens its anchored menu with Select; selected taps t
   assert.equal(f.counts().selected, true); assert.equal(f.counts().plays, 0);
 });
 
-test('album wash keeps its ambient treatment and fades continuously to ink', async () => {
-  for (const platform of ['phone', 'tablet']) {
-    const f = await music(platform), wash = nodes(f.tree).find(node => node.type?.name === 'Wash');
-    const tree = f.renderChild(wash), all = nodes(tree);
-    assert.equal(tree.props.style.height, platform === 'phone' ? 760 : 700);
-    assert.ok(all.some(node => node.type === 'AmbientArt'));
-    assert.deepEqual(all.filter(node => node.type === 'Stop').map(node => [node.props.offset, node.props.stopOpacity]), [['0.25', 0], ['1', 1]]);
-  }
+test('the phone album wash is the kit page wash with nothing over it; the tablet keeps its own fade to ink', async () => {
+  const phone = await music('phone'), phoneTree = phone.renderChild(nodes(phone.tree).find(node => node.type?.name === 'Wash'));
+  assert.deepEqual([phoneTree.type, phoneTree.props.treatment], ['AmbientArt', 'page'], 'W2: no private ink layer greys the cover\'s colour');
+  const tablet = await music('tablet'), tree = tablet.renderChild(nodes(tablet.tree).find(node => node.type?.name === 'Wash')), all = nodes(tree);
+  assert.equal(tree.props.style.height, 700);
+  assert.ok(all.some(node => node.type === 'AmbientArt'));
+  assert.deepEqual(all.filter(node => node.type === 'Stop').map(node => [node.props.offset, node.props.stopOpacity]), [['0.25', 0], ['1', 1]]);
 });
 
 async function audiobook(kind: 'book' | 'author') {
