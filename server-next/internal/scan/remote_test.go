@@ -71,7 +71,8 @@ func TestAFolderOnRemoteStorage(t *testing.T) {
 	store := &storage{root: f.root}
 	behind := remote.Throttled(store, remote.NewThrottle(remote.Limits{Connections: 2, PerSecond: 200}))
 	reads := &reader{}
-	f.s.Remote = func(context.Context, int64) (remote.Storage, time.Duration, error) { return behind, time.Hour, nil }
+	every := time.Duration(0) // Never still permits the first scan of an added folder.
+	f.s.Remote = func(context.Context, int64) (remote.Storage, time.Duration, error) { return behind, every, nil }
 	f.s.ReaderProber = reads
 	scanAs := func(scheduled bool, lastScan time.Time) {
 		t.Helper()
@@ -92,13 +93,14 @@ func TestAFolderOnRemoteStorage(t *testing.T) {
 		}
 	}
 
-	scanAs(false, time.Time{})
+	scanAs(true, time.Time{})
 	if !store.slowed.Load() || reads.calls.Load() != 2 || f.probes.calls.Load() != 0 {
 		t.Fatalf("slowed %v, %d files read by range, %d by path", store.slowed.Load(), reads.calls.Load(), f.probes.calls.Load())
 	}
 	if !f.detail(f.film("Heat").PublicID).Available || !f.detail(f.film("Alien").PublicID).Available {
 		t.Fatal("the films on remote storage should be in the library")
 	}
+	every = time.Hour
 
 	// Scanned a minute ago and due every hour: a scan by itself asks the source nothing.
 	f.remove("Alien (1979).mkv")
