@@ -104,10 +104,12 @@ async function audiobook(kind: 'book' | 'author') {
 
 test('book progress follows the three primary actions and Start over remains in More', async () => {
   const f = await audiobook('book'), all = nodes(f.tree);
-  const resume = all.findIndex(node => node.props.focusId === 'book-book.resume');
-  const progress = all.findIndex(node => node.type === 'Text' && content(node) === 'title.resumeRemaining');
-  assert.ok(progress > resume);
-  assert.equal(all.some(node => node.props.focusId === 'book-book.start'), false);
+  // The phone hero is the kit's cover hero: its actions, then the progress under them (the kit draws `under` after `actions`).
+  const hero = all.find(node => node.type === 'CoverHero'), heroActions = nodes(hero.props.actions);
+  assert.equal(hero.props.shape, 'square'); assert.equal(hero.props.layout, 'stack');
+  assert.ok(heroActions.some(node => node.props.focusId === 'book-book.resume'));
+  assert.ok(nodes(hero.props.under).some(node => node.type === 'Text' && content(node) === 'title.resumeRemaining'));
+  assert.equal([...all, ...heroActions].some(node => node.props.focusId === 'book-book.start'), false);
   const more = all.find(node => node.type === 'TopBar').props.trailing; assert.equal(more.props.icon, 'i-more'); more.props.onPress();
   const action = f.menu()[3].find((value: any) => value.id === 'book-start-over'); assert.ok(action); await action.onSelect();
   assert.equal(f.starts(), 1);
@@ -115,8 +117,9 @@ test('book progress follows the three primary actions and Start over remains in 
 
 test('author header, book rows and grouped details retain their specified hierarchy', async () => {
   const f = await audiobook('author'), all = nodes(f.tree);
-  assert.equal(all.find(node => node.type === 'PersonCircle').props.size, 150);
-  assert.ok(all.some(node => node.type === 'Text' && content(node) === 'AW' && style(node).fontSize === 54));
+  // The author's circle and its initials are the kit cover hero's person shape (its size is the kit's own table).
+  const hero = all.find(node => node.type === 'CoverHero');
+  assert.equal(hero.props.shape, 'person'); assert.equal(hero.props.layout, 'stack'); assert.equal(hero.props.person.initials, 'AW');
   const rowElements = all.filter(node => node.type?.name === 'BookRow');
   const first = f.ui.render(() => rowElements[0].type(rowElements[0].props));
   const second = f.ui.render(() => rowElements[1].type(rowElements[1].props));

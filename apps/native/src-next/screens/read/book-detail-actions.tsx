@@ -11,7 +11,7 @@ const {t} = defaultI18n;
  * membership, Download and the existing page More menu. Finished stays in that
  * real menu; the audiobook 41a action row is a different destination. Other
  * reading formats retain their existing optional read-mark row. */
-export function BookDetailActions({format, saved, listed, onList, onMore, readMark, canDownload, onRead, onReadMark, onDownload, downloadRef, horizontalPadding = 20, roundSize = 46}: {
+export function BookDetailActions({format, saved, listed, onList, onMore, readMark, canDownload, onRead, onReadMark, onDownload, downloadRef, roundSize = 46}: {
   format: ReadingManifest['format'];
   saved?: number;
   listed?: ReadingListMembership;
@@ -23,11 +23,11 @@ export function BookDetailActions({format, saved, listed, onList, onMore, readMa
   onReadMark: (mark: ReadingReadMark) => void;
   onDownload: () => void;
   downloadRef: React.RefObject<View | null>;
-  horizontalPadding?: number;
   roundSize?: number;
 }) {
   const theme = useTheme();
-  return <View style={{paddingHorizontal: horizontalPadding, paddingTop: 18}}>
+  // The cover hero owns the gap above the actions and the page owns the gutter beside them.
+  return <View>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
       {saved === undefined
         ? <Button icon="i-book" onPress={onRead} style={{flex: 1}}>{t('next.reader.read')}</Button>

@@ -5,6 +5,7 @@ import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import {AmbientArt, Artwork, StandardBackdrop, missingArt} from '../../../kit/artwork';
+import {CoverHero} from '../../../kit/layout/CoverHero';
 import {Button, Focusable} from '../../../kit/controls';
 import {FocusRegion} from '../../../kit/focus';
 import {MusicScrollView, MusicWindow} from '../music/MusicWindow';
@@ -156,44 +157,52 @@ export function BookScreen({controller, entry, runtime, actions, openEntry, onBa
           <View style={{width: `${Math.max(0, Math.min(1, progressRatio)) * 100}%`, height: 4, borderRadius: 2, backgroundColor: theme.colors.accentStrong}}/></View>}
         <Text style={[browseType(theme, tv ? 22 : 13, 600), {color: theme.colors.textSecondary}]}>{t('title.resumeRemaining', {remaining})}</Text>
       </View> : null;
-  const body = <>
-    <View style={tv ? {position: 'absolute', left: 200, top: 96} : undefined}><Cover runtime={runtime} path={entity.posterUrl} size={tv ? 420 : 232} title={entity.title} author={entity.author}/></View>
-    <View style={tv ? {position: 'absolute', left: 700, top: 96, width: 1040} : {alignItems: 'center', marginTop: 20, width: '100%'}}>
-      {entity.series?.[0] || seriesEntry ? <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: tv ? 'flex-start' : 'center', flexWrap: 'wrap'}}>
+  // TV keeps its own composition (collections 43); the TV lane moves it onto the kit's cover hero.
+  const tvHero = <>
+    <View style={{position: 'absolute', left: 200, top: 96}}><Cover runtime={runtime} path={entity.posterUrl} size={420} title={entity.title} author={entity.author}/></View>
+    <View style={{position: 'absolute', left: 700, top: 96, width: 1040}}>
+      {entity.series?.[0] || seriesEntry ? <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', flexWrap: 'wrap'}}>
         {seriesEntry && openEntry
           ? <Focusable focusId="book-series-link" accessibilityRole="link" accessibilityLabel={seriesEntry.title} onPress={() => openEntry(seriesEntry)} style={{paddingVertical: 2}}>
-            {({focused}) => <Text style={[browseType(theme, tv ? 24 : 13, 600), {color: theme.colors.accentStrong, textDecorationLine: focused ? 'underline' : 'none'}]}>{entity.series?.[0]?.name ?? seriesEntry.title}</Text>}
+            {({focused}) => <Text style={[browseType(theme, 24, 600), {color: theme.colors.accentStrong, textDecorationLine: focused ? 'underline' : 'none'}]}>{entity.series?.[0]?.name ?? seriesEntry.title}</Text>}
           </Focusable>
-          : <Text style={[browseType(theme, tv ? 24 : 13, 600), {color: theme.colors.accentStrong}]}>{entity.series?.[0]?.name}</Text>}
-        {entity.series?.[0]?.position ? <Text style={[browseType(theme, tv ? 24 : 13, 600), {color: theme.colors.textSecondary}]}>{t('title.bookInSeries', {number: entity.series[0].position})}</Text> : null}
+          : <Text style={[browseType(theme, 24, 600), {color: theme.colors.accentStrong}]}>{entity.series?.[0]?.name}</Text>}
+        {entity.series?.[0]?.position ? <Text style={[browseType(theme, 24, 600), {color: theme.colors.textSecondary}]}>{t('title.bookInSeries', {number: entity.series[0].position})}</Text> : null}
       </View> : null}
-      <Text accessibilityRole="header" numberOfLines={2} style={[browseType(theme, tv ? 76 : 30, 800, -.04), {color: theme.colors.text, textAlign: tv ? 'left' : 'center', marginTop: tv ? 14 : 6}]}>{entity.displayTitle ?? entity.title}</Text>
-      {!tv && (entity.author || authorEntry) ? (authorEntry && openEntry
-        ? <Focusable focusId="book-author-link" accessibilityRole="link" accessibilityLabel={authorEntry.title} onPress={() => openEntry(authorEntry)} style={{marginTop: 8, paddingVertical: 2}}>
-          {({focused}) => <Text style={[browseType(theme, 16, 700), {color: theme.colors.text, textAlign: 'center', textDecorationLine: focused ? 'underline' : 'none'}]}>{entity.author ?? authorEntry.title}</Text>}
-        </Focusable>
-        : <Text style={[browseType(theme, 16, 700), {color: theme.colors.text, textAlign: 'center', marginTop: 8}]}>{entity.author}</Text>) : null}
-      <View style={{flexDirection: 'row', flexWrap: 'wrap', justifyContent: tv ? 'flex-start' : 'center', alignItems: 'center', columnGap: 18, rowGap: 6, marginTop: tv ? 18 : 10}}>
-        {tv && (entity.author || authorEntry) ? (authorEntry && openEntry
+      <Text accessibilityRole="header" numberOfLines={2} style={[browseType(theme, 76, 800, -.04), {color: theme.colors.text, textAlign: 'left', marginTop: 14}]}>{entity.displayTitle ?? entity.title}</Text>
+      <View style={{flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', alignItems: 'center', columnGap: 18, rowGap: 6, marginTop: 18}}>
+        {entity.author || authorEntry ? (authorEntry && openEntry
           ? <Focusable focusId="book-author-link" accessibilityRole="link" accessibilityLabel={authorEntry.title} onPress={() => openEntry(authorEntry)} style={{paddingVertical: 2}}>
             {({focused}) => <Text style={[browseType(theme, 24, 700), {color: theme.colors.text, textDecorationLine: focused ? 'underline' : 'none'}]}>{entity.author ?? authorEntry.title}</Text>}
           </Focusable>
           : <Text style={[browseType(theme, 24, 700), {color: theme.colors.text}]}>{entity.author}</Text>) : null}
-        {facts.map((fact, index) => <Text key={`${fact}-${index}`} style={[browseType(theme, tv ? 24 : 13, index === 0 && !tv ? 700 : 400),
-          {color: index === 0 && !tv ? theme.colors.text : theme.colors.textSecondary}]}>{fact}</Text>)}
+        {facts.map((fact, index) => <Text key={`${fact}-${index}`} style={[browseType(theme, 24, 400), {color: theme.colors.textSecondary}]}>{fact}</Text>)}
       </View>
-      {tv ? progressRow : null}
-      <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 18 : 10, marginTop: tv ? 26 : 18, alignSelf: tv ? 'flex-start' : 'stretch'}}>
-        <Button focusId={resumeFocusId} icon="i-play" onPress={onPlay} accessibilityLabel={resumeLabel} preferredFocus={tv} style={{flex: tv ? undefined : 1, minWidth: tv ? 320 : undefined}}>{resumeLabel}</Button>
-        {tv ? <Button focusId={startFocusId} variant="glass" icon="i-restart" onPress={() => {void controller.startOver().catch(error => runtime.reportError(error));}} accessibilityLabel={t('action.startOver')}>{t('action.startOver')}</Button> : null}
-        {!tv ? <Button variant="glass" iconOnly icon={'i-check'} accessibilityLabel={t('title.markFinished')}
-          accessibilityState={{checked: snapshot.finished}} onPress={() => {void controller.markFinished().catch(error => runtime.reportError(error));}}/> : null}
-        {!tv && download ? <Button variant="glass" iconOnly icon="i-dl" accessibilityLabel={t('action.download')}
-          onPress={() => askNativeDownload(download)}/> : null}
-        {tv ? <Button focusId={moreFocusId} variant="glass" iconOnly icon="i-more" accessibilityLabel={t('card.more', {title: entity.title})} onPress={() => actions.menu(entity)}/> : null}
+      {progressRow}
+      <View style={{flexDirection: 'row', alignItems: 'center', gap: 18, marginTop: 26, alignSelf: 'flex-start'}}>
+        <Button focusId={resumeFocusId} icon="i-play" onPress={onPlay} accessibilityLabel={resumeLabel} preferredFocus style={{flex: undefined, minWidth: 320}}>{resumeLabel}</Button>
+        <Button focusId={startFocusId} variant="glass" icon="i-restart" onPress={() => {void controller.startOver().catch(error => runtime.reportError(error));}} accessibilityLabel={t('action.startOver')}>{t('action.startOver')}</Button>
+        <Button focusId={moreFocusId} variant="glass" iconOnly icon="i-more" accessibilityLabel={t('card.more', {title: entity.title})} onPress={() => actions.menu(entity)}/>
       </View>
-      {!tv ? progressRow : null}
     </View>
+  </>;
+  // collections 41a: the phone's cover hero is the kit's; the author keeps its own line under the title.
+  const phoneHero = <CoverHero layout="stack" shape="square" title={entity.displayTitle ?? entity.title} glow={runtime.ambient(entity.posterUrl)}
+    covers={[{key: 'cover', source: runtime.artwork(entity.posterUrl), fallback: missingArt({title: entity.title, author: entity.author, shape: 'square', width: 232, height: 232})}]}
+    eyebrow={entity.series?.[0] || seriesEntry ? {label: entity.series?.[0]?.name ?? seriesEntry?.title ?? '', focusId: 'book-series-link',
+      detail: entity.series?.[0]?.position ? t('title.bookInSeries', {number: entity.series[0].position}) : undefined,
+      onPress: seriesEntry && openEntry ? () => openEntry(seriesEntry) : undefined} : undefined}
+    byline={entity.author || authorEntry ? {label: entity.author ?? authorEntry?.title ?? '', focusId: 'book-author-link',
+      onPress: authorEntry && openEntry ? () => openEntry(authorEntry) : undefined} : undefined}
+    facts={facts} under={progressRow}
+    actions={<View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
+      <Button focusId={resumeFocusId} icon="i-play" onPress={onPlay} accessibilityLabel={resumeLabel} style={{flex: 1}}>{resumeLabel}</Button>
+      <Button variant="glass" iconOnly icon={'i-check'} accessibilityLabel={t('title.markFinished')}
+        accessibilityState={{checked: snapshot.finished}} onPress={() => {void controller.markFinished().catch(error => runtime.reportError(error));}}/>
+      {download ? <Button variant="glass" iconOnly icon="i-dl" accessibilityLabel={t('action.download')} onPress={() => askNativeDownload(download)}/> : null}
+    </View>}/>;
+  const body = <>
+    {tv ? tvHero : phoneHero}
     <View style={tv ? {position: 'absolute', left: 700, top: 548, width: 1040} : {width: '100%', marginTop: 22}}>
       {snapshot.phase === 'error' ? <AudiobookErrorState error={snapshot.error} retry={retry}/> : null}
       {/* collections 41a/42a: the phone page shows the description and a

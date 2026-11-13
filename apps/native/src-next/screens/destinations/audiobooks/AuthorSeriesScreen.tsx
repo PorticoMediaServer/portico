@@ -4,6 +4,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import type {ContentEntry} from '../../../../../../packages/client-core/src/library-content';
 import {AmbientArt, Artwork, PersonCircle, StandardBackdrop, missingArt} from '../../../kit/artwork';
+import {CoverHero} from '../../../kit/layout/CoverHero';
 import {Button, Focusable} from '../../../kit/controls';
 import {FocusRegion} from '../../../kit/focus';
 import {MusicScrollView, MusicWindow} from '../music/MusicWindow';
@@ -110,51 +111,48 @@ export function AuthorSeriesScreen({controller, entry, runtime, actions, openEnt
   // reachable by growing the canvas instead of clipping them at the frame's height.
   const canvasHeight = Math.max(1120, 560 + books.length * 168 + Math.max(0, books.length - 1) * 10 + 64);
   const phoneRow = Math.ceil(86 * Math.max(1, theme.fontScale));
-  const body = <>
-    {tv && series ? <View style={{position: 'absolute', left: 200, top: 120, width: 380, height: 380}}>
+  // TV keeps its own composition (collections 44/45); the TV lane moves it onto the kit's cover hero.
+  const tvHero = <>
+    {series ? <View style={{position: 'absolute', left: 200, top: 120, width: 380, height: 380}}>
       {runtime.ambient(coverPath) ? <View pointerEvents="none" style={{position: 'absolute', left: -26, top: -26, width: 432, height: 432, borderRadius: 18, overflow: 'hidden'}}>
         <AmbientArt source={runtime.ambient(coverPath)} treatment="cover"/>
       </View> : null}
       <View style={{width: 380, height: 380, borderRadius: 16, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
         <Artwork source={runtime.artwork(coverPath)} width={380} height={380} priority fallback={runtime.artwork(coverPath) ? undefined : missingArt({title, shape: 'square', width: 380, height: 380})}/>
       </View>
-    </View> : null}
-    {tv && !series ? <View style={{position: 'absolute', left: 200, top: 120}}><PersonCircle covers={covers} initials={[...title.trim()][0] ?? ''} alt={title} size={380} visible/></View> : null}
-    {!tv ? <View>{series
-      ? <View style={{width: 232, height: 232}}>
-        {runtime.ambient(coverPath) ? <View pointerEvents="none" style={{position: 'absolute', left: -16, top: -16, width: 264, height: 264, borderRadius: 16, overflow: 'hidden'}}>
-          <AmbientArt source={runtime.ambient(coverPath)} treatment="cover"/>
-        </View> : null}
-        <View style={{width: 232, height: 232, borderRadius: 12, overflow: 'hidden', backgroundColor: theme.colors.raised}}><Artwork source={runtime.artwork(coverPath)} width={232} height={232} priority fallback={runtime.artwork(coverPath) ? undefined : missingArt({title, shape: 'square', width: 232, height: 232})}/></View>
-      </View>
-      : <View style={{width: 150, height: 150}}>
-        <PersonCircle covers={covers} initials="" alt={title} size={150} visible/>
-        <View pointerEvents="none" style={{position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center'}}>
-          <Text accessible={false} allowFontScaling={false} style={[browseType(theme, 54, 800, -.05), {color: alpha(theme.colors.text, .94)}]}>{audiobookAuthorInitials(title)}</Text>
-        </View>
-      </View>}</View> : null}
-    <View style={tv ? {position: 'absolute', left: 700, top: 150, width: 1040} : {alignItems: 'center', marginTop: 18, width: '100%'}}>
-      <Text style={[browseType(theme, tv ? 24 : 13.5, 700), {color: tv ? theme.colors.textSecondary : theme.colors.accentStrong, textAlign: tv ? 'left' : 'center'}]}>{t('title.kind', {kind: entry.kind})}</Text>
-      <Text accessibilityRole="header" numberOfLines={2} style={[browseType(theme, tv ? 76 : 28, 800, tv ? -.04 : -.035), {color: theme.colors.text, textAlign: tv ? 'left' : 'center', marginTop: tv ? 8 : 4, lineHeight: tv ? undefined : 30.8}]}>{title}</Text>
-      {!tv && (author || authorEntry) ? (authorEntry && openEntry
-        ? <Focusable focusId="series-author-link" accessibilityRole="link" accessibilityLabel={authorEntry.title} onPress={() => openEntry(authorEntry)} style={{marginTop: 4, paddingVertical: 2}}>
-          {({focused}) => <Text style={[browseType(theme, 16, 700), {color: theme.colors.accentStrong, textAlign: 'center', textDecorationLine: focused ? 'underline' : 'none'}]}>{author ?? authorEntry.title}</Text>}
-        </Focusable>
-        : <Text style={[browseType(theme, 16, 700), {color: theme.colors.accentStrong, marginTop: 4}]}>{author}</Text>) : null}
-      <View style={{flexDirection: 'row', flexWrap: 'wrap', justifyContent: tv ? 'flex-start' : 'center', alignItems: 'center', columnGap: tv ? 18 : 12, rowGap: 6, marginTop: tv ? 10 : 8}}>
-        {tv && (author || authorEntry) ? (authorEntry && openEntry
+    </View> : <View style={{position: 'absolute', left: 200, top: 120}}><PersonCircle covers={covers} initials={[...title.trim()][0] ?? ''} alt={title} size={380} visible/></View>}
+    <View style={{position: 'absolute', left: 700, top: 150, width: 1040}}>
+      <Text style={[browseType(theme, 24, 700), {color: theme.colors.textSecondary, textAlign: 'left'}]}>{t('title.kind', {kind: entry.kind})}</Text>
+      <Text accessibilityRole="header" numberOfLines={2} style={[browseType(theme, 76, 800, -.04), {color: theme.colors.text, textAlign: 'left', marginTop: 8, lineHeight: undefined}]}>{title}</Text>
+      <View style={{flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', alignItems: 'center', columnGap: 18, rowGap: 6, marginTop: 10}}>
+        {author || authorEntry ? (authorEntry && openEntry
           ? <Focusable focusId="series-author-link" accessibilityRole="link" accessibilityLabel={authorEntry.title} onPress={() => openEntry(authorEntry)} style={{paddingVertical: 2}}>
             {({focused}) => <Text style={[browseType(theme, 24, 700), {color: theme.colors.text, textDecorationLine: focused ? 'underline' : 'none'}]}>{author ?? authorEntry.title}</Text>}
           </Focusable>
           : <Text style={[browseType(theme, 24, 700), {color: theme.colors.text}]}>{author}</Text>) : null}
-        {facts.map((fact, index) => <Text key={fact} style={[browseType(theme, tv ? 24 : 13, index === 0 ? 700 : 400), {color: index === 0 ? theme.colors.text : theme.colors.textSecondary}]}>{fact}</Text>)}
+        {facts.map((fact, index) => <Text key={fact} style={[browseType(theme, 24, index === 0 ? 700 : 400), {color: index === 0 ? theme.colors.text : theme.colors.textSecondary}]}>{fact}</Text>)}
       </View>
-      <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 18 : 10, marginTop: tv ? 26 : 18, alignSelf: tv ? 'flex-start' : 'stretch'}}>
-        <Button focusId={resumeFocusId} icon="i-play" disabled={failed || !books.length} onPress={start} accessibilityLabel={resumeLabel} preferredFocus={tv} style={{flex: tv ? undefined : 1, minWidth: tv ? 320 : undefined}}>{resumeLabel}</Button>
-        {series && books[0] ? <Button focusId={startFocusId} variant="glass" icon="i-restart" iconOnly={!tv} onPress={() => open(books[0]!)} accessibilityLabel={t(tv ? 'action.startSeriesOver' : 'action.startOver')}>{tv ? t('action.startSeriesOver') : undefined}</Button> : null}
-        {tv ? <Button focusId={moreFocusId} variant="glass" iconOnly icon="i-more" accessibilityLabel={t('card.more', {title})} onPress={() => actions.menu(entity)}/> : null}
+      <View style={{flexDirection: 'row', alignItems: 'center', gap: 18, marginTop: 26, alignSelf: 'flex-start'}}>
+        <Button focusId={resumeFocusId} icon="i-play" disabled={failed || !books.length} onPress={start} accessibilityLabel={resumeLabel} preferredFocus style={{flex: undefined, minWidth: 320}}>{resumeLabel}</Button>
+        {series && books[0] ? <Button focusId={startFocusId} variant="glass" icon="i-restart" iconOnly={false} onPress={() => open(books[0]!)} accessibilityLabel={t('action.startSeriesOver')}>{t('action.startSeriesOver')}</Button> : null}
+        <Button focusId={moreFocusId} variant="glass" iconOnly icon="i-more" accessibilityLabel={t('card.more', {title})} onPress={() => actions.menu(entity)}/>
       </View>
     </View>
+  </>;
+  // collections 41b/41c, phone-app r5: the phone's cover hero is the kit's: a series' square cover, or
+  // the author's circle with their initials over their books' covers.
+  const phoneHero = <CoverHero layout="stack" shape={series ? 'square' : 'person'} title={title}
+    covers={series ? [{key: 'cover', source: runtime.artwork(coverPath), fallback: missingArt({title, shape: 'square', width: 232, height: 232})}] : undefined}
+    glow={series ? runtime.ambient(coverPath) : undefined} person={series ? undefined : {covers, initials: audiobookAuthorInitials(title)}}
+    eyebrow={{label: t('title.kind', {kind: entry.kind})}}
+    byline={author || authorEntry ? {label: author ?? authorEntry?.title ?? '', focusId: 'series-author-link', onPress: authorEntry && openEntry ? () => openEntry(authorEntry) : undefined} : undefined}
+    facts={facts}
+    actions={<View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
+      <Button focusId={resumeFocusId} icon="i-play" disabled={failed || !books.length} onPress={start} accessibilityLabel={resumeLabel} style={{flex: 1}}>{resumeLabel}</Button>
+      {series && books[0] ? <Button focusId={startFocusId} variant="glass" icon="i-restart" iconOnly onPress={() => open(books[0]!)} accessibilityLabel={t('action.startOver')}/> : null}
+    </View>}/>;
+  const body = <>
+    {tv ? tvHero : phoneHero}
     <View style={tv ? {position: 'absolute', left: 700, top: 560, width: 1040} : {width: '100%', marginTop: 22}}>
       {failed ? <AudiobookErrorState refresh={snapshot.phase === 'refresh-required'} error={snapshot.error} actionId={retryFocusId} preferred={tv} retry={() => {void controller.load();}}/> : null}
       {snapshot.continuation?.phase === 'loading' ? <Text accessibilityLiveRegion="polite" style={[browseType(theme, tv ? 22 : 14, 400), {color: theme.colors.textSecondary}]}>{t('status.loading')}</Text> : null}

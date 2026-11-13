@@ -5,7 +5,8 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {generatedCoverTint} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import type {ReadingItem, ReadingListMembership, ReadingManifest, ReadingReadMark} from '../../../../../packages/client-core/src';
-import {Artwork, AmbientArt, GeneratedCover, StandardBackdrop} from '../../kit/artwork';
+import {AmbientArt, GeneratedCover, StandardBackdrop} from '../../kit/artwork';
+import {CoverHero} from '../../kit/layout/CoverHero';
 import {Button, Focusable, ResumeButton, Tabs} from '../../kit/controls';
 import {Icon, type IconName} from '../../kit/Icon';
 import {Menu, type MenuEntry} from '../../kit/overlays';
@@ -204,11 +205,6 @@ function ReadBookBody({controller, manifest, series, comic, runtime, wide, rowHe
   const selectedVersion = versions.find(version => version.sourceId === sourceId);
   const title = manifest.metadata.title || controller.item.title, author = manifest.metadata.author || controller.item.author?.value;
   const cover = runtime.artwork(controller.item.coverUrl ?? manifest.metadata.coverUrl), tint = generatedCoverTint(title);
-  // tablet-read 2/2b draw the hero as a row (cover beside the copy) with an 84 pt
-  // title and a 206 pt cover; 2c uses the med row (66/176); phone keeps the stack.
-  // The shell's own classification decides, so a landscape phone is never a row.
-  const coverWidth = rowHero ? (wide ? 206 : 176) : 168, coverHeight = coverWidth * 3 / 2;
-  const titleSize = rowHero ? (wide ? 84 : 66) : 40;
   const duration = manifest.metadata.estimatedSeconds !== undefined ? t('next.reader.aboutDuration', {duration: defaultI18n.duration(readingDuration(manifest.metadata.estimatedSeconds))}) : '';
   const pages = manifest.metadata.pageCount ?? manifest.pageNames?.length;
   const contents = manifest.format === 'epub' ? manifest.contents ?? [] : [];
@@ -226,30 +222,6 @@ function ReadBookBody({controller, manifest, series, comic, runtime, wide, rowHe
     ...(pages !== undefined ? [{label: t('next.reader.pagesStrip'), value: defaultI18n.number(pages)}] : []),
     ...(contents.length ? [{label: t('next.reader.contents'), value: defaultI18n.number(contents.length)}] : []),
   ];
-  const coverArt = <View style={{width: coverWidth, height: coverHeight, borderRadius: 7, overflow: 'hidden', backgroundColor: theme.colors.raised,
-    shadowColor: theme.colors.shadow, shadowOpacity: .55, shadowRadius: 30, shadowOffset: {width: 0, height: 18}, elevation: 12}}>
-    {cover ? <Artwork source={cover} width={coverWidth} height={coverHeight} priority/>
-      : <GeneratedCover title={title} author={author} tint={tint} glyph={title.slice(0, 1).toUpperCase()}/>}
-  </View>;
-  const copy = <>
-    {series ? <Focusable accessibilityRole="link" accessibilityLabel={series.name}
-      onPress={() => onSeries(series, manifest)} style={{marginTop: rowHero ? 0 : 14, paddingVertical: 4, maxWidth: '100%'}}>
-      <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 4, justifyContent: rowHero ? 'flex-start' : 'center'}}>
-        <Text numberOfLines={2} style={[browseType(theme, rowHero ? 14.5 : 13.5, 600), {color: theme.colors.accentStrong}]}>{series.name}</Text>
-        {series.number !== undefined ? <Text style={[browseType(theme, rowHero ? 14.5 : 13.5, 600), {color: theme.colors.accentStrong}]}>{seriesNumber(series.number, comic)}</Text> : null}
-      </View>
-    </Focusable> : null}
-    <Text accessibilityRole="header" numberOfLines={3} style={[browseType(theme, titleSize, 800, rowHero ? -.045 : -.03), {color: theme.colors.text, textAlign: rowHero ? 'left' : 'center', marginTop: 6}]}>{title}</Text>
-    {author ? <View style={{flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 8}}>
-      <View style={{width: rowHero ? 28 : 22, height: rowHero ? 28 : 22, borderRadius: rowHero ? 14 : 11, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.raisedHigh}}>
-        <Text style={[browseType(theme, rowHero ? 11 : 9.5, 800), {color: theme.colors.text}]}>{initials(author)}</Text>
-      </View>
-      <Text numberOfLines={1} style={[browseType(theme, rowHero ? (wide ? 14.5 : 14) : 13, 700), {color: theme.colors.text, flexShrink: 1}]}>{author}</Text>
-    </View> : null}
-    {facts.length ? <View style={{flexDirection: 'row', flexWrap: 'wrap', justifyContent: rowHero ? 'flex-start' : 'center', columnGap: 12, rowGap: 6, marginTop: 8}}>
-      {facts.map((fact, index) => <Text key={`${fact}-${index}`} style={[browseType(theme, rowHero ? (wide ? 14.5 : 14) : 13, rowHero ? 400 : index === 0 ? 700 : 600), {color: index === 0 ? theme.colors.text : theme.colors.textSecondary}]}>{fact}</Text>)}
-    </View> : null}
-  </>;
   const versionChoice = versions.length > 1 ? <Focusable accessibilityRole="button" accessibilityLabel={t('next.reader.version')} focusKind="row"
     onPress={() => setVersionsOpen(true)} style={{marginTop: 12, alignSelf: rowHero ? 'flex-start' : 'center', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 10}}>
     <Text style={[browseType(theme, 13, 600), {color: theme.colors.textSecondary}]}>{t('next.reader.version')}</Text>
@@ -258,9 +230,9 @@ function ReadBookBody({controller, manifest, series, comic, runtime, wide, rowHe
   </Focusable> : null;
   const actions = phone ? <>
     <BookDetailActions format={manifest.format} saved={saved} listed={listed} onList={onList} onMore={onMore} readMark={readMark} canDownload={canDownload} onRead={() => onRead(manifest)}
-      onReadMark={onReadMark} onDownload={() => onDownload(manifest)} downloadRef={downloadRef} horizontalPadding={20} roundSize={46}/>
-    {versionChoice ? <View style={{paddingHorizontal: 20}}>{versionChoice}</View> : null}
-  </> : <View style={{paddingHorizontal: rowHero ? 0 : 20, marginTop: 18}}>
+      onReadMark={onReadMark} onDownload={() => onDownload(manifest)} downloadRef={downloadRef} roundSize={46}/>
+    {versionChoice}
+  </> : <View>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
       {saved === undefined
         ? <Button icon="i-book" onPress={() => onRead(manifest)} style={{flex: 1}}>{t('next.reader.read')}</Button>
@@ -273,15 +245,15 @@ function ReadBookBody({controller, manifest, series, comic, runtime, wide, rowHe
     </View>
     {versionChoice}
   </View>;
-  const hero = rowHero
-    ? <View style={{flexDirection: 'row', alignItems: 'flex-end', gap: wide ? 36 : 28, paddingHorizontal: wide ? 32 : 28}}>
-      {coverArt}
-      <View style={{flex: 1, minWidth: 0}}>{copy}{actions}</View>
-    </View>
-    : <><View style={{alignItems: 'center', paddingHorizontal: 20}} onLayout={event => {
-      const next = Math.round(event.nativeEvent.layout.height);
-      if (next > 0) onHeroHeight(next);
-    }}>{coverArt}{copy}</View>{actions}</>;
+  // tablet-read 2/2b: the hero is a row (cover beside the copy), 2c the narrower row; a phone keeps
+  // the stack. The shell's own classification decides, so a landscape phone is never a row.
+  const hero = <View style={{paddingHorizontal: rowHero ? (wide ? 32 : 28) : 20}}>
+    <CoverHero layout={rowHero ? (wide ? 'row-wide' : 'row') : 'stack'} shape="portrait" title={title}
+      covers={[{key: 'cover', source: cover, fallback: <GeneratedCover title={title} author={author} tint={tint} glyph={title.slice(0, 1).toUpperCase()}/>}]}
+      eyebrow={series ? {label: series.name, detail: series.number !== undefined ? seriesNumber(series.number, comic) : undefined, onPress: () => onSeries(series, manifest)} : undefined}
+      byline={author ? {label: author, initials: initials(author)} : undefined} facts={facts} actions={actions}
+      onHeight={rowHero ? undefined : onHeroHeight}/>
+  </View>;
   const opening = manifest.metadata.openingLines ? <View style={{marginHorizontal: rowHero ? (wide ? 32 : 28) : 20, marginTop: 18}}>
     <Text style={[browseType(theme, 13, 700), {color: theme.colors.textTertiary}]}>{t('next.reader.firstLines')}</Text>
     <Text numberOfLines={4} style={[browseType(theme, 14.5, 400), {color: theme.colors.textSecondary, lineHeight: 23, marginTop: 6, paddingLeft: 14,
