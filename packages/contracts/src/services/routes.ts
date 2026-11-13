@@ -18,6 +18,7 @@ export const servicesRoutes = {
   account: ['GET', '/v1/account'],
   password: ['POST', '/v1/account/password'],
   email: ['POST', '/v1/account/email'],
+  accountExport: ['POST', '/v1/account/export'],
   deleteAccount: ['POST', '/v1/account/delete'],
   sessions: ['GET', '/v1/account/sessions'],
   endSession: ['DELETE', '/v1/account/sessions/{id}'],

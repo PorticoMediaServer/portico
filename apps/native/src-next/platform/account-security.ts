@@ -1,9 +1,8 @@
 import {linkNativeAbortSignals} from '../../../../packages/client-core/src/native-abort-signals';
 import {deletePorticoAccount, porticoAccountEmail, porticoAccountForCall, porticoApiError} from '../../../../packages/client-core/src/portico-services-native';
-import {requestHostedAccountExport} from '../../../../packages/client-core/src/query/hosted-account-transport';
 import {NativeModules} from 'react-native';
 import {ApiError, HttpLocalApi} from '../../../../packages/client-core/src';
-import {AccountNotificationsClient, type AccountExportJob} from '../../../../packages/client-core/src/account-notifications';
+import type {AccountExportJob} from '../../../../packages/client-core/src/account-notifications';
 import {securityPurposeNeedsProof, parseSecurityResult, type AccountScope, type DeletionPreview, type HostedAccountClient, type SecurityIntent, type SecurityResult, type SecurityState} from '../../../../packages/client-core/src/hosted-security';
 import {presentError} from '../../../../packages/client-core/src/presentation/errors';
 import {providerRecentProof, reconfirmWithProvider, type ProviderReconfirmation} from '../../../../packages/client-core/src/provider-security-proof';
@@ -16,6 +15,7 @@ export type NativeAccountSecurityKind = 'password' | 'email' | 'mfa-on' | 'mfa-o
 export type NativeAccountSecurityInput = Readonly<{password?: string; factor?: string; newPassword?: string; email?: string; code?: string; confirmation?: string}>;
 export type NativeAccountSecuritySnapshot = Readonly<{
   kind?: NativeAccountSecurityKind; step: 'form' | 'factor' | 'email' | 'mfa' | 'codes' | 'deletion' | 'export' | 'done'; busy: boolean;
+  exportFile?: Readonly<{filename: 'portico-account.json'; contentType: 'application/json'; contents: string}>;
   failure?: string; locked?: boolean; result?: SecurityResult; preview?: DeletionPreview; exportJob?: AccountExportJob;
 }>;
 type Opening = {pendingEmail?: string; kind: NativeAccountSecurityKind; controller: AbortController; operationId?: string; client?: HostedAccountClient;
@@ -62,20 +62,24 @@ export class NativeAccountSecurity {
     this.publish({kind, step: 'form', busy: false});
   }
   private directSecurity(opening: Opening) {
-    return this.security.hasPassword && ['password', 'mfa-on', 'mfa-off', 'codes'].includes(opening.kind);
+    return opening.kind === 'export' || this.security.hasPassword && ['password', 'mfa-on', 'mfa-off', 'codes'].includes(opening.kind);
   }
   private async directCommand(opening: Opening, input: NativeAccountSecurityInput) {
     this.assert(opening); const session = this.credentials.getSnapshot().session;
     if (!session) throw changed();
+    const exporting = opening.kind === 'export';
+    if (exporting && (!this.security.hasPassword || !input.password || this.security.mfaEnabled && !input.factor?.trim()))
+      throw new ApiError(422, 'invalid_input', 'portico_services_export_proof_required');
     const request = new AbortController(), linked = linkNativeAbortSignals([opening.controller.signal, request.signal]);
     const timer = setTimeout(() => request.abort(), 15000), signal = linked.signal;
     const confirming = opening.kind === 'mfa-on' && this.state.step === 'mfa';
     opening.input ??= Object.freeze({...input});
     const chosen = opening.input, proof = {currentPassword: chosen.password ?? '', twoStepCode: chosen.factor ?? ''};
-    this.publish({...this.state, locked: true});
+    this.publish({...this.state, locked: !exporting});
     const answer = await nativeAccountWork(this.credentials, async issued => {
       const account = porticoAccountForCall(issued.accessToken, hostedUrl, nativeNetworkFetch, signal);
       try {
+        if (exporting) return await account.exportData(proof);
         if (confirming) return await account.confirmTwoStep(input.code ?? '');
         if (opening.kind === 'password') return await account.changePassword(proof, chosen.newPassword ?? '');
         if (opening.kind === 'mfa-on') return await account.beginTwoStep(proof);
@@ -83,8 +87,15 @@ export class NativeAccountSecurity {
         return await account.newRecoveryCodes(proof);
       } catch (error) {throw porticoApiError(error);}
     }, {expected: accountExpectation(session), signal, isCurrent: () => this.owns(opening)})
-      .finally(() => {clearTimeout(timer); linked.dispose();});
+      .finally(() => {clearTimeout(timer); linked.dispose(); if (exporting) opening.input = undefined;});
     this.assert(opening);
+    if (exporting) {
+      if (!answer || !('format' in answer) || answer.format !== 'portico.account-export.v2' || answer.account?.id !== this.scope.accountId)
+        throw new ApiError(502, 'invalid_response', 'portico_services_export_answer');
+      this.publish({kind: 'export', step: 'export', busy: true, exportFile: Object.freeze({
+        filename: 'portico-account.json', contentType: 'application/json', contents: JSON.stringify(answer),
+      })}); return;
+    }
     const result: SecurityResult = {...this.scope, status: 'complete'};
     if (answer && 'secret' in answer) {
       result.secret = answer.secret; result.otpAuthUri = answer.qrAddress;
@@ -168,6 +179,11 @@ export class NativeAccountSecurity {
       .finally(() => {clearTimeout(timer); linked.dispose();});
     this.assert(opening); await this.owner.signOutPorticoAccount(this.scope);
   }
+  /** Password and code must have been typed for this download. The ready file stays on this opening. */
+  exportAccount(password: string, twoStepCode = '') {
+    if (this.opening?.kind !== 'export') throw changed();
+    return this.submit({password, factor: twoStepCode});
+  }
   async submit(input: NativeAccountSecurityInput = {}) {
     const emailInput = Object.freeze({...input});
     const deletionInput = Object.freeze({...input});
@@ -177,13 +193,6 @@ export class NativeAccountSecurity {
       if (kind === 'email' && this.security.hasPassword) {await this.emailCommand(opening, emailInput); return;}
       if (this.directSecurity(opening)) {await this.directCommand(opening, input); return;}
       if (kind === 'delete') {await this.deleteCommand(opening, deletionInput.password ?? '', deletionInput.factor ?? ''); return;}
-      if (kind === 'export') {
-        this.assert(opening); const session = this.credentials.getSnapshot().session;
-        if (!session || !opening.client) throw changed();
-        const job = await requestHostedAccountExport(this.credentials, nativeNetworkFetch,
-          {expected: accountExpectation(session), signal: opening.controller.signal, isCurrent: () => this.owns(opening)}, opening.operationId!, signal);
-        this.assert(opening); this.publish({kind, step: 'export', busy: true, exportJob: job}); return;
-      }
       if (this.state.step === 'email' || this.state.step === 'mfa') {
         const challenge = opening.result?.challengeId, phase = this.state.step;
         if (!challenge) throw changed();
