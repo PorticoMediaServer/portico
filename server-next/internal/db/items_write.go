@@ -526,6 +526,10 @@ func (im *importer) importItem(it *ImportItem, stats *ImportStats) error {
 		if err := im.rereadLocal(found.id, it); err != nil {
 			return err
 		}
+	} else if len(it.Images) > 0 {
+		if err := im.localImages(found.id, it.Images); err != nil {
+			return err
+		}
 	}
 	// A key the item did not have yet is added, so the title is found by it next time too.
 	for _, key := range keys {
@@ -970,22 +974,4 @@ func (im *importer) ensureVersion(itemID int64, v *ImportVersion) error {
 		return err
 	}
 	return im.linkSidecars(mediaID, v, true)
-}
-
-// linkSidecars ties subtitle and similar files to their version. For a version that already
-// existed, only files this batch added or changed can need tying.
-func (im *importer) linkSidecars(mediaID int64, v *ImportVersion, onlyTouched bool) error {
-	for _, ref := range v.Sidecars {
-		f, err := im.file(ref)
-		if err != nil {
-			return err
-		}
-		if onlyTouched && !f.touched {
-			continue
-		}
-		if _, err := im.exec(`UPDATE files SET media_id = ? WHERE id = ? AND media_id IS NOT ?`, mediaID, f.id, mediaID); err != nil {
-			return err
-		}
-	}
-	return nil
 }

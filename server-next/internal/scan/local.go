@@ -82,14 +82,23 @@ func (r *run) picture(file *found, role db.ImageRole) (db.ImportImage, bool) {
 	if err != nil || len(raw) == 0 {
 		return db.ImportImage{}, false
 	}
+	out, ok := r.pictureData(raw, role, db.ImageFromFile)
+	ref := file.ref()
+	out.File = &ref
+	return out, ok
+}
+
+// pictureData stores artwork from a sidecar or from inside a media file in the same store.
+func (r *run) pictureData(raw []byte, role db.ImageRole, source db.ImageSource) (db.ImportImage, bool) {
+	if r.s.Pictures == nil || r.lib.Options.Depth == db.DepthFiles || len(raw) == 0 || len(raw) > maxPicture {
+		return db.ImportImage{}, false
+	}
 	sum := sha256.Sum256(raw)
 	id := hex.EncodeToString(sum[:])
 	if err := r.s.Pictures.Put(id, raw); err != nil {
-		r.s.log().Warn("picture not copied", "file", r.src.LocalPath(file.rel), "error", err)
 		return db.ImportImage{}, false
 	}
-	ref := file.ref()
-	out := db.ImportImage{Role: role, Source: db.ImageFromFile, FileHash: id, File: &ref}
+	out := db.ImportImage{Role: role, Source: source, FileHash: id}
 	if config, _, err := image.DecodeConfig(bytes.NewReader(raw)); err == nil {
 		out.Width, out.Height = config.Width, config.Height
 	}
