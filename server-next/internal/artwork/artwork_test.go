@@ -24,10 +24,10 @@ func size(t *testing.T, data []byte) (int, int, string) {
 	return config.Width, config.Height, format
 }
 
-// A picture is stored in a small and a large size when it arrives, and a screen is served the
+// A picture is stored in sharp small/large and ambient sizes when it arrives, and a screen is served the
 // stored size that fits what it asked for: nothing is made when it asks. A name that is not a
 // picture's is not found and never becomes a path.
-func TestAPictureIsStoredInTwoSizesAndServedFromThem(t *testing.T) {
+func TestAPictureIsStoredInThreeSizesAndServedFromThem(t *testing.T) {
 	dir := t.TempDir()
 	s := New(dir)
 	poster := image.NewRGBA(image.Rect(0, 0, 1000, 1500))
@@ -53,8 +53,8 @@ func TestAPictureIsStoredInTwoSizesAndServedFromThem(t *testing.T) {
 			t.Errorf("asked for %dx%d: served %dx%d, want %dx%d", c.w, c.h, w, h, c.width, c.height)
 		}
 	}
-	if files, _ := filepath.Glob(filepath.Join(dir, "artwork", "00", "*")); len(files) != 2 {
-		t.Errorf("%d files kept for one picture, want its two sizes", len(files))
+	if files, _ := filepath.Glob(filepath.Join(dir, "artwork", "00", "*")); len(files) != 3 {
+		t.Errorf("%d files kept for one picture, want its three sizes", len(files))
 	}
 	os.WriteFile(filepath.Join(dir, "secret"), []byte("x"), 0o600)
 	for _, name := range []string{"00aa11bb22cc33de", "../secret", "..%2fsecret", "00AA11BB22CC33DD", ""} {
@@ -142,5 +142,76 @@ func TestASweepKeepsAPictureStoredAgainWhileItRuns(t *testing.T) {
 	}
 	if _, _, err := s.Read(gone, 0, 0); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("the unused picture stayed: %v", err)
+	}
+}
+
+// Existing pictures gain the same tiny PNG once, without changing their sharp copies.
+func TestAmbientIsPreblurredAndOlderPicturesGetAStoredCopy(t *testing.T) {
+	s := New(t.TempDir())
+	const id = "1234567890abcdef"
+	source := image.NewNRGBA(image.Rect(0, 0, 128, 64))
+	for y := 0; y < 64; y++ {
+		for x := 0; x < 64; x++ {
+			source.SetNRGBA(x, y, color.NRGBA{R: 255, A: 255})
+		}
+	}
+	var input bytes.Buffer
+	if err := png.Encode(&input, source); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Put(id, input.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := os.ReadFile(s.place(id, AmbientVariant))
+	if err != nil {
+		t.Fatal("arrival did not precompute ambient:", err)
+	}
+	if w, h, kind := size(t, stored); w != 64 || h != 32 || kind != "png" || len(stored) > 20000 {
+		t.Fatalf("ambient: %dx%d %s, %d bytes", w, h, kind, len(stored))
+	}
+	decoded, _, err := image.Decode(bytes.NewReader(stored))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, _, alpha := decoded.At(33, 16).RGBA()
+	if alpha == 0 || alpha == 65535 {
+		t.Fatalf("ambient did not blur the transparent edge: %d", alpha)
+	}
+	sharp, _, err := s.Read(id, 1, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Simulate a picture stored by the old build: just its small and large files.
+	if err := os.Remove(s.place(id, AmbientVariant)); err != nil {
+		t.Fatal(err)
+	}
+	rebuilt, contentType, err := s.ReadAmbient(id)
+	if err != nil || contentType != "image/png" {
+		t.Fatalf("legacy ambient: %s, %v", contentType, err)
+	}
+	if !bytes.Equal(stored, rebuilt) {
+		t.Fatal("lossless legacy copy changed the ambient output")
+	}
+	old := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(s.place(id, AmbientVariant), old, old); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.ReadAmbient(id); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(s.place(id, AmbientVariant))
+	if err != nil || !info.ModTime().Equal(old) {
+		t.Fatalf("warm read rebuilt ambient: %v", err)
+	}
+	after, _, _ := s.Read(id, 1, 1)
+	if !bytes.Equal(sharp, after) {
+		t.Fatal("ambient altered the sharp picture")
+	}
+	removed, err := s.Sweep(time.Now().Add(time.Hour), func(func(string) error) error { return nil })
+	if err != nil || removed != 1 {
+		t.Fatalf("sweep: %d, %v", removed, err)
+	}
+	if _, err := os.Stat(s.place(id, AmbientVariant)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("sweep left orphan ambient:", err)
 	}
 }

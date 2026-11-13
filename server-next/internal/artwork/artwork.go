@@ -1,7 +1,7 @@
 // Package artwork keeps pictures as files, named by the hash the database knows them by. Each
-// picture is stored in a small and a large size when it arrives: a provider's picture
+// picture is stored in small, large and preblurred ambient sizes when it arrives: a provider's picture
 // downloaded, a picture beside the media read, an upload accepted. A screen is served the
-// stored size that fits what it asked for; nothing is resized when it asks.
+// stored size that fits what it asked for. Older pictures gain ambient on first use.
 package artwork
 
 import (
@@ -116,7 +116,7 @@ func (s *Store) PutSized(id string, data []byte, sizes Sizes) (width, height int
 	if err := os.MkdirAll(filepath.Dir(s.place(id, "small")), 0o755); err != nil {
 		return 0, 0, err
 	}
-	// The large size first: a picture whose small size is there is taken as stored.
+	// Write the large and ambient sizes before small: small marks a completed arrival.
 	for _, size := range []struct {
 		name      string
 		edge, cap int
@@ -124,6 +124,15 @@ func (s *Store) PutSized(id string, data []byte, sizes Sizes) (width, height int
 		scaled := shrink(from, size.edge)
 		if size.name == "large" {
 			width, height = scaled.Bounds().Dx(), scaled.Bounds().Dy()
+		}
+		if size.name == "small" {
+			data, err := ambient(scaled)
+			if err != nil {
+				return 0, 0, err
+			}
+			if err := atomicfile.Write(s.place(id, AmbientVariant), data, 0o644); err != nil {
+				return 0, 0, err
+			}
 		}
 		encoded, err := encode(scaled, size.cap)
 		if err != nil {
@@ -231,7 +240,7 @@ func shrink(from *image.RGBA, edge int) *image.RGBA {
 
 // Sweep removes the pictures nothing uses any more: every one stored before a time whose id
 // used does not name. used calls yield with every id in use, in ascending order; a picture
-// stored since the time is kept, as one just stored may not be recorded yet. Both sizes go. It returns how many pictures it removed.
+// stored since the time is kept, as one just stored may not be recorded yet. All three sizes go. It returns how many pictures it removed.
 func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) error) (int, error) {
 	prefixes, err := os.ReadDir(s.dir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -253,7 +262,7 @@ func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) e
 			}
 			for _, e := range entries {
 				info, err := e.Info()
-				// One entry a picture: its small size, the last of its two files to be written.
+				// One entry a picture: its small size, the last file to be written.
 				id, small := strings.CutSuffix(e.Name(), ".small")
 				if err == nil && small && ValidID(id) && info.ModTime().Before(before) {
 					stored = append(stored, id)
@@ -288,7 +297,7 @@ func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) e
 			continue
 		}
 		removed++
-		for _, size := range []string{"small", "large"} {
+		for _, size := range []string{"small", "large", AmbientVariant} {
 			if err := os.Remove(s.place(id, size)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return 0, err
 			}
