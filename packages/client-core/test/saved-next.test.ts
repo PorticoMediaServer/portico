@@ -161,6 +161,15 @@ test('an addition whose answer was lost is sent again with the same Idempotency-
   saved.dispose();
 });
 
+test('a playlist whose profile pins cannot be read still opens, without Pin', async () => {
+  const s = server({'GET /v1/preferences': () => {throw Object.assign(new Error('down'), {status: 503, code: 'unavailable'});}}), saved = service(s.api);
+  await saved.select({view: 'playlist', playlistId: 'pl'});
+  const shot = saved.getSnapshot();
+  assert.equal(shot.phase, 'ready', JSON.stringify(shot.error));
+  assert.deepEqual([shot.playlist!.actions.includes('pin'), shot.playlist!.pinned], [false, false]);
+  saved.dispose();
+});
+
 test('a move places entries after an anchor, at the front, or swaps two neighbours in place', async () => {
   const entries = [{id: 'e1', itemId: 'a'}, {id: 'e2', itemId: 'b'}, {id: 'e3', itemId: 'c'}];
   const moves = async (intent: {entryIds: string[]; afterEntryId?: string}) => {

@@ -54,24 +54,27 @@ export async function clearHistory(api: ServerRequester, bound: SavedScope, oper
  */
 const collectionCard = (list: List) => ({artworkPaths: list.covers.map(images => images.poster ?? images.cover ?? images.thumb).filter(Boolean).slice(0, 4), samples: [], shape: 'posters', onHome: false});
 /** One collection as `personal-saved.ts` reads it. Only its maker changes it (rule 28). */
-function collectionOf(bound: SavedScope, list: List, card = false, pinned = false): Record<string, unknown> {
+/** `pins`: the profile's pins, or undefined when they could not be read (Pin is then not offered). */
+function collectionOf(bound: SavedScope, list: List, card = false, pins?: readonly string[]): Record<string, unknown> {
   const owner = list.role === 'owner';
   return {...(card ? collectionCard(list) : {}), serverId: bound.serverId, viewerFence: 'viewer', id: list.id, kind: 'collection', name: list.name, summary: list.description ?? '',
     visibility: list.everyone ? 'server' : 'private', revision: revisionOf(list), role: owner ? 'owner' : 'viewer', entryCount: list.count,
-    actions: [...(owner ? ['update', 'delete', 'entries', 'reorder'] : []), 'pin'], status: 'ready', invalidComponents: [], pinned, pinRevision: 0, shares: []};
+    actions: [...(owner ? ['update', 'delete', 'entries', 'reorder'] : []), ...(pins ? ['pin'] : [])], status: 'ready', invalidComponents: [],
+    pinned: !!pins?.includes('collection:' + list.id), pinRevision: 0, shares: []};
 }
 /** The profile's collections (its own and those made visible to everyone) or its saved views, as cards. */
 export async function readDirectory(api: SavedNextApi, bound: SavedScope, kind: 'collection' | 'view', cursor: string | null, signal?: AbortSignal): Promise<unknown> {
   const wire = kind === 'view' ? 'saved_view' : 'collection';
-  const page: ListPage = await callServer(api, 'GET /v1/lists', {query: {kind: wire, limit: PAGE, cursor: cursor ?? undefined}, signal});
+  const [page, pins] = await Promise.all([callServer(api, 'GET /v1/lists', {query: {kind: wire, limit: PAGE, cursor: cursor ?? undefined}, signal}) as Promise<ListPage>,
+    readProfilePins(api, signal)]);
   if (!page || !Array.isArray(page.items)) throw new CodedError('invalid_saved', 'The saved lists could not be read.');
   return {serverId: bound.serverId, viewerFence: 'viewer', revision: 0, nextCursor: page.nextCursor ?? '',
-    resources: page.items.filter(list => list.kind === wire).map(list => kind === 'view' ? viewCard(bound, list) : collectionOf(bound, list, true))};
+    resources: page.items.filter(list => list.kind === wire).map(list => kind === 'view' ? viewCard(bound, list, pins) : collectionOf(bound, list, true, pins))};
 }
 /** A saved view's card: music views draw square art. */
-function viewCard(bound: SavedScope, list: List): Record<string, unknown> {
+function viewCard(bound: SavedScope, list: List, pins?: readonly string[]): Record<string, unknown> {
   const definition = definitionOf(list), squares = ['artists', 'albums', 'songs'].includes(definition?.pivot ?? '');
-  return {...collectionCard(list), shape: squares ? 'squares' : 'posters', ...viewOf(bound, list, definition)};
+  return {...collectionCard(list), shape: squares ? 'squares' : 'posters', ...viewOf(bound, list, definition, pins)};
 }
 /** One collection or saved view by its id, as `readPersonalResource` checks it (Customize Home names a view by id). */
 export async function readResourceRow(api: SavedNextApi, bound: SavedScope, resourceId: string, signal?: AbortSignal): Promise<unknown> {
@@ -102,16 +105,16 @@ function definitionOf(list: List): SavedDefinition | undefined {
 }
 /** One saved view as `personal-saved.ts` reads it: only its maker changes it, and what the server dropped from its
  * filter is listed (rule 36). */
-function viewOf(bound: SavedScope, list: List, definition: SavedDefinition | undefined, pinned = false): Record<string, unknown> {
+function viewOf(bound: SavedScope, list: List, definition: SavedDefinition | undefined, pins?: readonly string[]): Record<string, unknown> {
   const owner = list.role === 'owner';
   return {serverId: bound.serverId, viewerFence: 'viewer', id: list.id, kind: 'view', name: list.name, summary: list.description ?? '', visibility: 'private', revision: revisionOf(list),
-    role: owner ? 'owner' : 'viewer', entryCount: list.count, actions: [...(owner ? ['update', 'delete'] : []), 'pin'], ...(definition ? {definition} : {}), status: definition ? 'ready' : 'needs-review',
-    invalidComponents: [...(list.dropped ?? [])], pinned, pinRevision: 0, shares: []};
+    role: owner ? 'owner' : 'viewer', entryCount: list.count, actions: [...(owner ? ['update', 'delete'] : []), ...(pins ? ['pin'] : [])], ...(definition ? {definition} : {}), status: definition ? 'ready' : 'needs-review',
+    invalidComponents: [...(list.dropped ?? [])], pinned: !!pins?.includes('view:' + list.id), pinRevision: 0, shares: []};
 }
 /** A saved view's page: its titles, always current, read with its own query on its library, as the browse page the
  * service checks. */
-async function viewPage(api: SavedNextApi, bound: SavedScope, list: List, cursor: string | null, signal?: AbortSignal, pinned = false): Promise<unknown> {
-  const definition = definitionOf(list), resource = viewOf(bound, list, definition, pinned);
+async function viewPage(api: SavedNextApi, bound: SavedScope, list: List, cursor: string | null, signal?: AbortSignal, pins?: readonly string[]): Promise<unknown> {
+  const definition = definitionOf(list), resource = viewOf(bound, list, definition, pins);
   if (!definition) return {nextCursor: '', resource, entries: []};
   const mark = markOf(cursor), start = mark?.start ?? 0;
   const page = await items(api, {...Object.fromEntries(new URLSearchParams(list.query ?? '')), library: list.library, limit: PAGE, total: true, cursor: mark?.cursor}, signal);
@@ -128,19 +131,19 @@ export async function readResource(api: SavedNextApi, bound: SavedScope, resourc
   const sort = asked.sort ?? 'position', filter = asked.filter ?? 'all', direction = asked.direction ?? 'asc', manual = sort === 'position' && filter === 'all';
   const mark = markOf(cursor), start = mark?.start ?? 0;
   const settled = <T,>(read: Promise<T>) => read.then(value => ({value}), (error: unknown) => ({error}));
-  const listRead = callServer(api, 'GET /v1/lists/{id}', {id: resourceId, signal}), pinsRead = readProfilePins(api, signal);
+  const value = <T,>(read: {value: T} | {error: unknown}): T => {if ('error' in read) throw read.error; return read.value;};
+  const listRead = callServer(api, 'GET /v1/lists/{id}', {id: resourceId, signal}), pinsRead = settled(readProfilePins(api, signal));
   const pageRead = settled(items(api, {list: resourceId, ...listFilters[filter], sort: pageSorts[sort], order: sort === 'position' ? undefined : direction, limit: PAGE, total: true, cursor: mark?.cursor}, signal));
   const lastRead = manual ? settled(items(api, {list: resourceId, sort: 'order', order: 'desc', limit: 1}, signal)) : Promise.resolve({value: undefined});
-  const list = await listRead, pins = await pinsRead;
-  if (list.kind === 'saved_view') return viewPage(api, bound, list, cursor, signal, pins.includes('view:' + list.id));
+  const list = await listRead, pins = value(await pinsRead);
+  if (list.kind === 'saved_view') return viewPage(api, bound, list, cursor, signal, pins);
   if (list.kind !== 'collection') throw new CodedError('not_available', 'This is not available on this server yet.');
-  const value = <T,>(read: {value: T} | {error: unknown}): T => {if ('error' in read) throw read.error; return read.value;};
   const page = value(await pageRead), last = value(await lastRead);
   const entries = page.items.flatMap(item => {const media = wireEntryFromItem(item as Item); return media && item.entryId ? [{id: item.entryId, hidden: false, media}] : [];});
   const ids = entries.map(entry => entry.id), lastEntry = last?.items[0]?.entryId;
   const first = mark ? mark.first : ids[0];
   const nextCursor = page.nextCursor ? markCursor({start: start + entries.length, ...(ids.length ? {previous: ids.at(-1)} : {}), ...(first ? {first} : {}), cursor: page.nextCursor}) : '';
-  return {nextCursor, resource: collectionOf(bound, list, false, pins.includes('collection:' + list.id)), entries, query: {sort, category: filter, direction}, totalCount: page.total ?? entries.length, start,
+  return {nextCursor, resource: collectionOf(bound, list, false, pins), entries, query: {sort, category: filter, direction}, totalCount: page.total ?? entries.length, start,
     sorts: Object.keys(pageSorts).map(id => ({id, labelKey: 'sort.' + id, directions: id === 'position' ? ['asc'] : ['asc', 'desc']})),
     filters: [{id: 'filter', labelKey: 'saved.filter', options: ['all', 'unwatched', 'inProgress', 'watched'].map(id => ({id, label: filterLabels[id], count: 0}))}],
     ...(manual && lastEntry ? {order: {...(mark?.previous ? {previous: mark.previous} : {}), last: lastEntry}} : {})};

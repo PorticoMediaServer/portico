@@ -131,11 +131,14 @@ export async function savePinOrder(api:PinsApi,serverId:string,expectedRevision:
  const saved=await savePins(api,replacePins(pins,savedPin,[...next,...pins.filter(pin=>savedPin(pin)&&!next.includes(pin))]));
  return parsePinOrder({serverId,viewerFence:'viewer',revision:0,order:resourceEntries(saved)},serverId);
 }
-/** The profile's pins (`kind:id`), read once for a page that needs to know several. */
-export const readProfilePins=(api:PinsApi,signal?:AbortSignal):Promise<readonly string[]>=>readPins(api,signal);
-/** Whether this profile pinned one list (its `pins` preference, area 6 rule 38). */
-export async function resourcePinned(api:PinsApi,kind:PinnedResourceKind,resourceId:string,signal?:AbortSignal):Promise<boolean>{
- return (await readPins(api,signal)).includes(kind+':'+resourceId);
+/** The profile's pins (`kind:id`), read once for a page that offers Pin, or undefined when they cannot be read: the
+ * page still opens, without Pin, rather than fail or claim a state it does not know. A stopped read stays stopped. */
+export async function readProfilePins(api:PinsApi,signal?:AbortSignal):Promise<readonly string[]|undefined>{
+ try{return await readPins(api,signal);}catch{throwIfAborted(signal);return undefined;}
+}
+/** Whether this profile pinned one list (its `pins` preference, area 6 rule 38); undefined when that cannot be read. */
+export async function resourcePinned(api:PinsApi,kind:PinnedResourceKind,resourceId:string,signal?:AbortSignal):Promise<boolean|undefined>{
+ return (await readProfilePins(api,signal))?.includes(kind+':'+resourceId);
 }
 /** Pins or unpins one list in the profile's preference. Existing editor revision/id arguments
  * remain accepted; the preference write has neither a resource revision nor an operation id. */

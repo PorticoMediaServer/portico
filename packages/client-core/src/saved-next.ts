@@ -86,13 +86,14 @@ async function playlists(api: SavedNextApi, bound: SavedScope, selected: SavedRo
 }
 
 /** One playlist as `saved.ts` reads it: who made it, this viewer's role, and what that role may do. Anyone who sees a
- * playlist may pin it: a pin is the profile's own (its `pins` setting, area 6 rule 38). */
+ * playlist may pin it: a pin is the profile's own (its `pins` setting, area 6 rule 38). When the pins cannot be read,
+ * Pin is left out and the playlist still opens. */
 async function playlistResource(api: SavedNextApi, bound: SavedScope, list: List, signal?: AbortSignal): Promise<Record<string, unknown>> {
   const owner = list.role === 'owner';
   const [shares, pinned] = await Promise.all([owner ? callServer(api, 'GET /v1/lists/{id}/shares', {id: list.id, signal}) : undefined, resourcePinned(api, 'playlist', list.id, signal)]);
-  return {serverId: bound.serverId, viewerFence: 'viewer', id: list.id, name: list.name, summary: list.description ?? '', revision: revisionOf(list), pinned, pinRevision: 0,
+  return {serverId: bound.serverId, viewerFence: 'viewer', id: list.id, name: list.name, summary: list.description ?? '', revision: revisionOf(list), pinned: pinned === true, pinRevision: 0,
     role: list.role === 'owner' || list.role === 'editor' ? list.role : 'viewer', entryCount: list.count,
-    actions: [...(owner ? ['rename', 'summary', 'delete', 'share', 'add', 'remove', 'reorder'] : list.role === 'editor' ? ['add', 'remove', 'reorder'] : []), 'pin'],
+    actions: [...(owner ? ['rename', 'summary', 'delete', 'share', 'add', 'remove', 'reorder'] : list.role === 'editor' ? ['add', 'remove', 'reorder'] : []), ...(pinned === undefined ? [] : ['pin'])],
     limits: {maxShares: 100, maxReorderEntries: 200},
     ...(shares ? {shares: (shares.shares ?? []).map((share: ListShare) => ({authority: 'local', accountId: share.profileId, profileId: share.profileId, role: share.canEdit ? 'editor' : 'viewer', displayName: share.name ?? share.person ?? ''}))} : {})};
 }

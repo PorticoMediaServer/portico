@@ -142,7 +142,7 @@ test('retiring the TV Saved viewer aborts its inline query and prevents late dat
     f.navigation.open({kind: 'shell', destination: {kind: 'saved'}}, f.authority);
     const target = f.navigation.getSnapshot().route, root = f.state.root(target);
     const loading = root.selectTab('collections'); await new Promise<void>(resolve => setImmediate(resolve));
-    assert.equal(pending.length, 6, 'the directory page and the landing totals (the lists and four counted reads) are in flight');
+    assert.equal(pending.length, 7, 'the directory page, the profile\'s pins and the landing totals (the lists and four counted reads) are in flight');
     root.actions.menuState.subscribe(() => {});
     f.retire();
     assert.ok(f.signals.every(signal => signal.aborted)); assert.equal(f.releases(), 1);

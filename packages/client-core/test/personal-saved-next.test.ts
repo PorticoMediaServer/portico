@@ -366,3 +366,31 @@ test('pinning a collection or a saved view goes into the profile\'s pins setting
     saved.dispose();
   }
 });
+
+test('collection and saved-view cards say whether the profile pinned them', async () => {
+  const s = lists();
+  s.pins.push('collection:their');
+  const saved = service(s.api);
+  await saved.select({view: 'collections'} as never);
+  assert.deepEqual(saved.getSnapshot().resources.map(r => [r.id, r.pinned]), [['col', false], ['their', true]]);
+  saved.dispose();
+  const v = views();
+  v.pins.push('view:v2');
+  const viewsPage = service(v.api);
+  await viewsPage.select({view: 'views'} as never);
+  assert.deepEqual(viewsPage.getSnapshot().resources.map(r => [r.id, r.pinned]), [['v1', false], ['v2', true]]);
+  viewsPage.dispose();
+});
+
+test('when the profile\'s pins cannot be read, a collection or saved view still opens, without Pin', async () => {
+  for (const [fixture, resourceId] of [[lists(), 'col'], [views(), 'v1']] as const) {
+    const api = {request: (path: string, method?: string, body?: unknown) => new URL(path, 'https://x').pathname === '/v1/preferences'
+      ? Promise.reject(Object.assign(new Error('down'), {status: 503, code: 'unavailable'})) : fixture.api.request(path, method, body)};
+    const saved = service(api);
+    await saved.select({view: 'resource', resourceId} as never);
+    const shot = saved.getSnapshot();
+    assert.equal(shot.error, null, resourceId);
+    assert.deepEqual([shot.resource?.id, shot.resource?.pinned, shot.resource?.actions.includes('pin')], [resourceId, false, false]);
+    saved.dispose();
+  }
+});

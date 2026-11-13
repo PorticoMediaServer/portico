@@ -50,8 +50,10 @@ test('an uncertain Save retry retains the name and exact operation body, and vie
 
 test('a failed initial directory read retries, while a failed post-receipt refresh cannot create a duplicate view', async () => {
   let reads = 0, posts = 0, saved = 0;
-  const api: SavedApi = {request: async <T>(_path: string, method?: string) => {
+  const api: SavedApi = {request: async <T>(path: string, method?: string) => {
     if (method === 'POST') {posts++; return {serverId: 'server', viewerFence: 'actual-viewer', receipt: {operationId, revision: 2, resourceId: 'created-view', deleted: false}} as T;}
+    // The directory also reads the profile's pins; only the directory read itself fails here.
+    if (path.startsWith('/v1/preferences')) return {effective: {pins: []}} as T;
     reads++;
     if (reads === 1 || reads > 2) throw Object.assign(new Error('offline'), {code: 'network_error'});
     return directory() as T;
