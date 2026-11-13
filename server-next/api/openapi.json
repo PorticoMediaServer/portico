@@ -320,11 +320,23 @@
             "format": "date-time",
             "type": "string"
           },
+          "metadataProvider": {
+            "type": "string"
+          },
+          "metadataProviders": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryMetadataProvider"
+            },
+            "type": "array"
+          },
           "name": {
             "type": "string"
           },
           "options": {
             "$ref": "#/components/schemas/LibraryOptions"
+          },
+          "region": {
+            "type": "string"
           },
           "revision": {
             "type": "string"
@@ -340,6 +352,8 @@
           "id",
           "name",
           "kind",
+          "metadataProvider",
+          "metadataProviders",
           "folders",
           "options",
           "scanning",
@@ -5026,11 +5040,17 @@
           "language": {
             "type": "string"
           },
+          "metadataProvider": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
           "options": {
             "$ref": "#/components/schemas/LibraryOptions"
+          },
+          "region": {
+            "type": "string"
           },
           "remoteFolders": {
             "items": {
@@ -5057,11 +5077,17 @@
           "language": {
             "type": "string"
           },
+          "metadataProvider": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
           "options": {
             "$ref": "#/components/schemas/LibraryOptions"
+          },
+          "region": {
+            "type": "string"
           },
           "remoteFolders": {
             "items": {
@@ -5105,6 +5131,24 @@
           "available",
           "watched",
           "scanEveryMinutes"
+        ],
+        "type": "object"
+      },
+      "LibraryMetadataProvider": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "available"
         ],
         "type": "object"
       },
@@ -6186,6 +6230,85 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "LiveTunerDevice": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "deviceId": {
+            "type": "string"
+          },
+          "firmwareVersion": {
+            "type": "string"
+          },
+          "friendlyName": {
+            "type": "string"
+          },
+          "lineupUrl": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "tunerCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deviceId",
+          "model",
+          "friendlyName",
+          "address",
+          "baseUrl",
+          "lineupUrl",
+          "tunerCount",
+          "firmwareVersion",
+          "configured"
+        ],
+        "type": "object"
+      },
+      "LiveTunerDiscovery": {
+        "properties": {
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/LiveTunerDevice"
+            },
+            "type": "array"
+          },
+          "discoveryEnabled": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "searchedFor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "devices",
+          "searchedFor",
+          "discoveryEnabled"
+        ],
+        "type": "object"
+      },
+      "LiveTunerSearch": {
+        "properties": {
+          "windowMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "windowMs"
+        ],
         "type": "object"
       },
       "LiveWindow": {
@@ -17148,6 +17271,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LibraryChannel"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/live-sources/discover": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveTunerSearch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveTunerDiscovery"
                 }
               }
             },
