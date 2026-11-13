@@ -3,7 +3,10 @@ import type {ClientReport} from '../../../../packages/client-core/src/client-rep
 import type {SupportExport} from '../../../../packages/client-core/src/console';
 import {routeBase64} from '../../../../packages/client-core/src/route-identity';
 import {nativeRouteCrypto} from './server-connections';
-export type DiagnosticsKind='report'|'support';
+export type DiagnosticsKind='report'|'support'|'account';
+/** The phone's Portico Account export (#3431), saved as portico-account.json; nothing else is accepted under this kind. */
+export type AccountExportDocument=Readonly<{format:'portico.account-export.v2';account:Readonly<{id:string}>}>&Record<string,unknown>;
+const accountExport=(value:Record<string,unknown>):boolean=>value.format==='portico.account-export.v2'&&object(value.account)&&typeof value.account.id==='string'&&value.account.id.length>0;
 const issued=new Set<string>();
 let active:object|undefined;
 const object=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
@@ -14,10 +17,10 @@ export function diagnosticsSavePort(){
   if(Platform.isTV||Platform.OS!=='android'&&Platform.OS!=='ios'||!object(sink))return;
   const save=sink.saveDiagnostics,cancel=sink.cancelDiagnostics;
   if(typeof save!=='function'||typeof cancel!=='function')return;
-  return async(kind:DiagnosticsKind,document:ClientReport|SupportExport,signal:AbortSignal,isCurrent:()=>boolean):Promise<'saved'|'cancelled'>=>{
+  return async(kind:DiagnosticsKind,document:ClientReport|SupportExport|AccountExportDocument,signal:AbortSignal,isCurrent:()=>boolean):Promise<'saved'|'cancelled'>=>{
     const current=()=>!signal.aborted&&isCurrent();
     if(!current()||active||issued.size>=4096)throw retired();
-    if(!['report','support'].includes(kind)||typeof document.id!=='string'||!document.id||document.id.length>160||kind==='report'&&(!('body' in document)||typeof document.body!=='string')||kind==='support'&&(!('manifest' in document)||!object(document.manifest)))throw new Error('invalid_diagnostics_document');
+    if(kind==='account'?!accountExport(document as Record<string,unknown>):!['report','support'].includes(kind)||typeof (document as {id?:unknown}).id!=='string'||!(document as {id:string}).id||(document as {id:string}).id.length>160||kind==='report'&&(!('body' in document)||typeof document.body!=='string')||kind==='support'&&(!('manifest' in document)||!object(document.manifest)))throw new Error('invalid_diagnostics_document');
     // Freeze the actual checked document bytes before claiming native custody.
     const json=JSON.stringify(document);
     if(typeof json!=='string'||json.length>8*1024*1024||new TextEncoder().encode(json).byteLength>8*1024*1024)throw new Error('invalid_diagnostics_document');

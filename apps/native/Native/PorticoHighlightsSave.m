@@ -65,11 +65,14 @@ RCT_REMAP_METHOD(saveHighlights, saveHighlights:(NSString *)operation name:(NSSt
 RCT_REMAP_METHOD(saveDiagnostics, saveDiagnostics:(NSString *)operation kind:(NSString *)kind json:(NSString *)json resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
   @synchronized(self) {
     if(self.closed||self.operation) { reject(@"diagnostics_unavailable",@"Save unavailable",nil); return; }
-    if(![operation isKindOfClass:NSString.class]||operation.length!=32||[operation rangeOfString:@"^[A-Za-z0-9_-]{32}$" options:NSRegularExpressionSearch].location==NSNotFound||![kind isKindOfClass:NSString.class]||![@[@"report",@"support"] containsObject:kind]||![json isKindOfClass:NSString.class]||json.length>8388608) { reject(@"invalid_diagnostics",@"Invalid diagnostics export",nil); return; }
+    if(![operation isKindOfClass:NSString.class]||operation.length!=32||[operation rangeOfString:@"^[A-Za-z0-9_-]{32}$" options:NSRegularExpressionSearch].location==NSNotFound||![kind isKindOfClass:NSString.class]||![@[@"report",@"support",@"account"] containsObject:kind]||![json isKindOfClass:NSString.class]||json.length>8388608) { reject(@"invalid_diagnostics",@"Invalid diagnostics export",nil); return; }
     NSData *bytes=[json dataUsingEncoding:NSUTF8StringEncoding];
     if(!bytes||bytes.length>8388608) { reject(@"invalid_diagnostics",@"Invalid diagnostics export",nil); return; }
     id document=[NSJSONSerialization JSONObjectWithData:bytes options:0 error:nil];
-    if(![document isKindOfClass:NSDictionary.class]||![document[@"id"] isKindOfClass:NSString.class]||([kind isEqual:@"report"]&&![document[@"body"] isKindOfClass:NSString.class])||([kind isEqual:@"support"]&&![document[@"manifest"] isKindOfClass:NSDictionary.class])) { reject(@"invalid_diagnostics",@"Invalid diagnostics export",nil); return; }
+    // An account export (#3431) is only that document: its format and its account's id, never anything else under that name.
+    BOOL account=[kind isEqual:@"account"];
+    BOOL exportDocument=[document isKindOfClass:NSDictionary.class]&&[document[@"format"] isEqual:@"portico.account-export.v2"]&&[document[@"account"] isKindOfClass:NSDictionary.class]&&[document[@"account"][@"id"] isKindOfClass:NSString.class];
+    if(![document isKindOfClass:NSDictionary.class]||(account?!exportDocument:![document[@"id"] isKindOfClass:NSString.class])||([kind isEqual:@"report"]&&![document[@"body"] isKindOfClass:NSString.class])||([kind isEqual:@"support"]&&![document[@"manifest"] isKindOfClass:NSDictionary.class])) { reject(@"invalid_diagnostics",@"Invalid diagnostics export",nil); return; }
     UIViewController *presenter=RCTPresentedViewController();
     if(!presenter) { reject(@"diagnostics_unavailable",@"Save unavailable",nil); return; }
     static NSMutableSet<NSString *> *issued; static dispatch_once_t once;
