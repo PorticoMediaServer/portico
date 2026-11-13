@@ -455,3 +455,22 @@ test('the bar\'s audio and subtitles reach the TV, which carries them out, and t
   assert.equal(tv.commands[2]!.subtitleTrackId, '');
 });
 
+test('a track choice belongs to its title: when the TV moves on to the next title, nothing it was told is shown as playing', async t => {
+  const server = new StandIn(), tvDevice = server.device('Living room'), phoneDevice = server.device('Phone');
+  const allowed = memoryAllowedDevices(); allowed.add(phoneDevice.signIn);
+  const tv = television(server, tvDevice, {allowed}); t.after(() => tv.host.dispose());
+  await until('the TV to open', () => tvDevice.open);
+  const {controller, sessionId} = phone(server, phoneDevice); t.after(() => controller.dispose());
+  await controller.refresh();
+  assert.equal(await controller.send(controller.getSnapshot().receivers[0]!, source(sessionId)), true);
+  await until('the TV\'s title to be read', () => controller.getSnapshot().remote?.itemId === 'movie');
+  assert.equal(await controller.audio('a1'), true);
+  assert.equal((await controller.remoteTracks())?.audioId, 'a1');
+  // Its queue moves on by itself to the next title.
+  server.sessions.get(controller.getSnapshot().receiverPlaybackId!)!.itemId = 'ep1';
+  await controller.refreshRemote();
+  assert.equal(controller.getSnapshot().remote?.itemId, 'ep1');
+  const next = await controller.remoteTracks();
+  assert.deepEqual([next?.audioId, next?.subtitleId], [undefined, undefined], 'nothing checked that it was not told on this title');
+});
+
