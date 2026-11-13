@@ -328,6 +328,9 @@ func ReshapesDolbyVision(r ConversionRequest) bool {
 //go:embed probeassets/hdr10.hevc
 var hdrProbeClip []byte
 
+//go:embed probeassets/hdr10-unmastered.hevc
+var hdrUnmasteredProbeClip []byte
+
 func probeArgs(spec backendSpec, device string, filters string) []string {
 	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-y"}
 	if spec.device != nil {
@@ -392,15 +395,25 @@ func (d *HardwareDetector) runInput(ctx context.Context, executable string, args
 	return cmd.Run()
 }
 
-// VA-API requires mastering-display side data, which a lavfi pattern cannot
-// provide. Mount only this private fixture, with no source or output authority.
+// HDR files can lack mastering-display side data. Test both cases before
+// promising hardware tone mapping; VA-API may accept only the mastered case.
 func (d *HardwareDetector) probeVAAPIFilters(ctx context.Context, executable string, args []string) error {
+	for _, clip := range [][]byte{hdrProbeClip, hdrUnmasteredProbeClip} {
+		if err := d.probeHDRFilters(ctx, executable, append([]string{}, args...), clip); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Mount only this private fixture, with no source or output authority.
+func (d *HardwareDetector) probeHDRFilters(ctx context.Context, executable string, args []string, clip []byte) error {
 	file, err := os.CreateTemp(os.TempDir(), "portico-hdr-probe-*.hevc")
 	if err != nil {
 		return err
 	}
 	defer os.Remove(file.Name())
-	if _, err = file.Write(hdrProbeClip); err != nil {
+	if _, err = file.Write(clip); err != nil {
 		file.Close()
 		return err
 	}

@@ -17,3 +17,14 @@ Recreate with an FFmpeg installation that has libx265:
 Check with ffprobe -v error -show_frames -of json hdr10.hevc. No generator
 runs at startup: the decoder embeds the clip and exposes only a private
 temporary copy, read-only, to its bounded probe process.
+
+hdr10-unmastered.hevc has the same five PQ frames without mastering-display
+or content-light side data, as found in HDR files that do not carry it. A tone
+mapper must handle both clips to be reported as usable for HDR conversions.
+If either fails, Portico uses software tone mapping with the working hardware
+encoder. This keeps the device's yes/no capability truthful for both inputs.
+
+Recreate the second clip without encoding:
+
+    ffmpeg -v error -nostdin -i hdr10.hevc -c:v copy \
+      -bsf:v 'filter_units=remove_types=39|40' -f hevc hdr10-unmastered.hevc
