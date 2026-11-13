@@ -106,14 +106,14 @@ export function BrowseToolbar({model, platform, sticky = false, resultCount, onQ
     {phone ? <>
       <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: 20, gap: 8, alignItems: 'center'}}>{filters}{sort}{onSelect && width >= 600 && <Button variant="glass" size="small" onPress={onSelect}>{t('next.selection.select')}</Button>}{quick}{children}</ScrollView></TVRow>
       <View style={{paddingHorizontal: 20, paddingTop: 10, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 10}}>
-        {count}<View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{view && <ViewToggle {...view}/>} {cardSize && <CardSizeButton {...cardSize}/>} {save && <SaveViewButton {...save}/>}</View>
+        {count}<View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>{view && <ViewToggle {...view}/>}{cardSize && <CardSizeButton {...cardSize}/>}{save && <SaveViewButton {...save}/>}</View>
       </View>
     </> : <View style={{flexDirection: 'row', alignItems: 'center', gap: tv ? 14 : 8, paddingHorizontal: theme.gutter}}>
       {tv ? <>{sort}{filters}{onJump && <Chip onPress={onJump}>{t('next.browse.native.jumpTo')}</Chip>}</> : <>{filters}{onSelect && width >= 600 && <Button variant="glass" size="small" onPress={onSelect}>{t('next.selection.select')}</Button>}</>}
       <View style={{height: tv ? 40 : 24, width: tv ? 1.5 : 1, marginHorizontal: 6, backgroundColor: theme.colors.line}}/>
       {quick}{children}
       <View style={{marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 8}}>
-        {!tv && <>{count}{sort}{view && <ViewToggle {...view}/>} {cardSize && <CardSizeButton {...cardSize}/>}</>}
+        {!tv && <>{count}{sort}{view && <ViewToggle {...view}/>}{cardSize && <CardSizeButton {...cardSize}/>}</>}
         {save && <SaveViewButton {...save}/>}
       </View>
     </View>}
