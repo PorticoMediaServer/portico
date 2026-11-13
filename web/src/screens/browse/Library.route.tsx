@@ -201,10 +201,11 @@ function LiveReadingLibrary({captured, library, search, onMarked, context, life}
     if (selected.shows !== 'periodicals' || selected.id !== periodicalPivot || search.query || search.sort?.length || search.q) return <>{header}<StateView title={t('title.nothingHere')}/></>;
     return <>{header}<ReadPeriodicalEntry captured={captured} libraryId={library.id} kind={selected.publicationType} seriesId={search.entityId}/></>;
   }
-  if (search.view === 'series' && search.entityId) return <>{header}<ReadSeriesEntry captured={captured} libraryId={library.id} seriesId={search.entityId}/></>;
+  // A series is its own page, as a book is (desktop-read 4): no library header, the wash behind the top bar.
+  if (search.view === 'series' && search.entityId) return <ReadSeriesEntry captured={captured} libraryId={library.id} seriesId={search.entityId}/>;
   // A Reading library's Authors and Series are the shared browse grid; a series card opens its
   // page, and an author's card opens the books grid filtered to them, as their name on a book does.
-  if (search.view === 'book_series' && search.entityId) return <>{header}<ReadSeriesEntry captured={captured} libraryId={library.id} seriesId={search.entityId}/></>;
+  if (search.view === 'book_series' && search.entityId) return <ReadSeriesEntry captured={captured} libraryId={library.id} seriesId={search.entityId}/>;
   if (search.view === 'author' && search.entityId) return <ReadingAuthorOpen navigate={navigate} pivot={gridPivot} authorId={search.entityId}/>;
   if (search.view === 'browse' || search.query) return <BoundLibrary captured={captured} library={library} search={search} tabs={tabs} readingMarkAll={markAll}/>;
   return <ReadLibraryEntry captured={captured} libraryId={library.id} header={header} view="discover"/>;
