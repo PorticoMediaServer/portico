@@ -6,6 +6,7 @@
  * last tap wins. Screens never see the wire: they get a card (`ContentEntry`), a page of cards,
  * and "set watched".
  */
+import {albumAudioBadges} from './music-badges.ts';
 import type {Item, ItemState, Library as WireLibrary, Person, StateReply, StateRequest} from '../../contracts/src/next/api.ts';
 import type {ContentEntry, ContentEntryKind, ContentView} from './library-content.ts';
 import {callServer, serverPath, type ServerRequester} from './query/server-api.ts';
@@ -59,6 +60,9 @@ export function entryFromItem(item: Item, libraryId?: string): ContentEntry | un
     show: item.kind === 'episode' ? item.root ? {id: item.root.id, name: item.root.title} : item.rootId && item.rootTitle ? {id: item.rootId, name: item.rootTitle} : undefined : undefined,
     ...numbered,
     navigation: {view: view ?? 'item', entityId: item.id},
+    // An album's own read carries the server's summary of its songs' format; list rows do not.
+    badges: item.kind === 'album' ? albumAudioBadges(item.albumAudio) : undefined,
+    albumAudio: item.kind === 'album' && item.albumAudio ? item.albumAudio : undefined,
     playback: view ? undefined : {itemId: item.id, ...(state?.positionMs ? {startSeconds: Math.round(state.positionMs / 1000)} : {})},
   };
   for (const key of Object.keys(entry)) if (entry[key] === undefined || entry[key] === null) delete entry[key];
