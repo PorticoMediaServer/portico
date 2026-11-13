@@ -74,6 +74,8 @@ func attach(s *Server, client *http.Client, origin string, fake *hostedtest.Serv
 		c.Keep(parseCertificate(link.Certificate))
 	}
 	s.link.client, s.hosted, s.link.started = c, c, false
+	// The rig has no network listener; address tests install their own hook.
+	s.link.published = nil
 	// The server's own first pass may already have told the real certificate client of a
 	// link. The test takes the hooks over, so that client is told to stop and the memory of
 	// what was told starts again.
