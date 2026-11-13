@@ -1,4 +1,5 @@
 export {Artwork} from './Artwork';
+export {WholeArtwork} from './WholeArtwork';
 export {AmbientArt, ColourBackdrop, type AmbientArtProps, type AmbientArtTreatment, type ColourBackdropProps} from './AmbientArt';
 export {GeneratedArt, GeneratedCover, type GeneratedArtProps, type GeneratedCoverProps} from './GeneratedArt';
 export {CircleArt, ArtistCircle, PersonCircle, CoverMosaic, nameInitials, type CircleArtProps, type PersonCircleProps, type CoverMosaicProps} from './CircleArt';
