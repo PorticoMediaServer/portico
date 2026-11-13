@@ -10,17 +10,17 @@ export const paddingPresets = {
   sport: {prePaddingMs: 60000, postPaddingMs: 900000},
 } as const;
 export const retentionPresets = {
-  all: {retentionDays: 0, episodeLimit: 0},
-  d30: {retentionDays: 30, episodeLimit: 0},
-  d90: {retentionDays: 90, episodeLimit: 0},
-  n5: {retentionDays: 0, episodeLimit: 5},
-  n10: {retentionDays: 0, episodeLimit: 10},
+  all: {keepDays: 0, keepNewest: 0},
+  d30: {keepDays: 30, keepNewest: 0},
+  d90: {keepDays: 90, keepNewest: 0},
+  n5: {keepDays: 0, keepNewest: 5},
+  n10: {keepDays: 0, keepNewest: 10},
 } as const;
 export const spacePresets = {
-  free10: {floorBytes: 10e9, capBytes: 0},
-  up250: {floorBytes: 10e9, capBytes: 250e9},
-  up500: {floorBytes: 10e9, capBytes: 500e9},
-  up1000: {floorBytes: 10e9, capBytes: 1e12},
+  free10: {floorBytes: 10 * 1024**3, capBytes: 0},
+  up250: {floorBytes: 10 * 1024**3, capBytes: 250 * 1024**3},
+  up500: {floorBytes: 10 * 1024**3, capBytes: 500 * 1024**3},
+  up1000: {floorBytes: 10 * 1024**3, capBytes: 1000 * 1024**3},
 } as const;
 export const layoutPresets = {
   own: {folderTemplate: '', movieFolderTemplate: ''},

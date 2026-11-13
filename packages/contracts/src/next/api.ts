@@ -743,6 +743,7 @@ export interface DvrGroupPage {
 }
 
 export interface DvrOverview {
+  freeOnDriveBytes: number;
   rules: number;
   groups: number;
   upcoming: number;

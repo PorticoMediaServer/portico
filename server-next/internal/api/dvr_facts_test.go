@@ -300,3 +300,27 @@ func TestARowSaysWhatThisProfileMayDoWithIt(t *testing.T) {
 		t.Fatal("a profile that may not see Recorded TV is offered Everyone's")
 	}
 }
+
+// Recording space obeys both the drive floor and remaining cap, while the drive fact stays raw.
+func TestRecordingSpaceRespectsTheCapAndFreeSpaceFloor(t *testing.T) {
+	s, owner, _ := seededWith(t, 20, 0)
+	opts := s.dvrOptions()
+	opts.Folder, opts.Floor, opts.Cap = t.TempDir(), 0, 1<<20
+	s.setDVROptions(opts)
+	got := get[DvrOverview](t, s, owner, "/v1/dvr")
+	if !got.FolderOK || got.FreeBytes != 1<<20 || got.FreeOnDriveBytes < got.FreeBytes || got.HoursLeft != 0 {
+		t.Fatalf("capped space: %+v", got)
+	}
+	opts.Cap, opts.Floor = 0, 1<<62
+	s.setDVROptions(opts)
+	got = get[DvrOverview](t, s, owner, "/v1/dvr")
+	if !got.FolderOK || got.FreeBytes != 0 || got.FreeOnDriveBytes <= 0 || got.HoursLeft != 0 {
+		t.Fatalf("space below the floor: %+v", got)
+	}
+	opts.Floor = 0
+	s.setDVROptions(opts)
+	got = get[DvrOverview](t, s, owner, "/v1/dvr")
+	if got.FreeBytes != got.FreeOnDriveBytes || got.FreeBytes <= 0 {
+		t.Fatalf("uncapped space with no floor: %+v", got)
+	}
+}

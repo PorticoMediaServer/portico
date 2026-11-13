@@ -12,11 +12,11 @@ test('buffering and padding presets set both engine values in milliseconds', () 
 });
 
 test('retention and space presets preserve exact custom combinations', () => {
-  assert.equal(matchingPreset(retentionPresets, {retentionDays: 30, episodeLimit: 5}), 'custom');
-  assert.deepEqual(retentionPresets.n5, {retentionDays: 0, episodeLimit: 5});
-  assert.equal(matchingPreset(spacePresets, {floorBytes: 0, capBytes: 250e9}), 'custom');
-  assert.deepEqual(spacePresets.up250, {floorBytes: 10e9, capBytes: 250e9});
-  assert.equal(matchingPreset(spacePresets, {floorBytes: 10e9, capBytes: 1e12}), 'up1000');
+  assert.equal(matchingPreset(retentionPresets, {keepDays: 30, keepNewest: 5}), 'custom');
+  assert.deepEqual(retentionPresets.n5, {keepDays: 0, keepNewest: 5});
+  assert.equal(matchingPreset(spacePresets, {floorBytes: 0, capBytes: 250 * 1024**3}), 'custom');
+  assert.deepEqual(spacePresets.up250, {floorBytes: 10 * 1024**3, capBytes: 250 * 1024**3});
+  assert.equal(matchingPreset(spacePresets, {floorBytes: 10 * 1024**3, capBytes: 1000 * 1024**3}), 'up1000');
 });
 
 test('a folder template must match both templates to be a named layout', () => {
