@@ -13,14 +13,16 @@ export function LibraryKindTiles({kind, onChange, disabled = false, firstRun = f
   kind: ManagedLibrary['kind']; onChange: (kind: ManagedLibrary['kind']) => void; disabled?: boolean; firstRun?: boolean; t?: typeof defaultI18n.t;
 }) {
   const theme = useTheme();
+  // At large text a kind's name ("Audiobooks") no longer fits half the width, so the tiles go one per row.
+  const wide = theme.fontScale * theme.textScale >= 1.3;
   return <>
     <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 10}}>
       {ownerLibraryKinds.filter(option => !firstRun || option.kind !== 'comic').map(option => {
         const on = option.kind === kind;
         return <Focusable key={option.kind} accessibilityRole="radio" accessibilityLabel={t(option.label)} accessibilityState={{checked: on, disabled}} disabled={disabled} onPress={() => onChange(option.kind)} focusKind="card" focusRadius={14}
-          style={{width: '47%', flexGrow: 1, minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, borderRadius: 14, backgroundColor: on ? alpha(theme.colors.accent, .16) : theme.colors.raised, borderWidth: 1.5, borderColor: on ? theme.colors.accentStrong : 'transparent'}}>
+          style={{width: wide ? '100%' : '47%', flexGrow: 1, minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, borderRadius: 14, backgroundColor: on ? alpha(theme.colors.accent, .16) : theme.colors.raised, borderWidth: 1.5, borderColor: on ? theme.colors.accentStrong : 'transparent'}}>
           <Icon name={option.icon} size={22} color={on ? theme.colors.accentStrong : theme.colors.textSecondary}/>
-          <Text numberOfLines={1} style={[shellType(14.5, 700), {color: theme.colors.text, flexShrink: 1}]}>{t(option.label)}</Text>
+          <Text numberOfLines={2} style={[shellType(14.5, 700), {color: theme.colors.text, flexShrink: 1}]}>{t(option.label)}</Text>
         </Focusable>;
       })}
     </View>

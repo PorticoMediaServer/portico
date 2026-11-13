@@ -13,7 +13,7 @@ import {NativeRemoteSourcesScreen} from '../../settings/remote-sources/NativeRem
 import {SourceFolderBrowser} from '../../settings/remote-sources/SourceFolderBrowser';
 import {Problem, remoteSourceError, type ChosenSourceFolder} from '../../settings/remote-sources/RemoteSourceForms';
 import {FolderExplorer, type ExplorerFolder} from './FolderExplorer';
-import {LibraryGroup, LibraryRow} from './controls';
+import {SettingsGroup, SettingsRow} from '../../../kit/shell';
 
 export type LibraryFolderChoice = Readonly<{folders: readonly ExplorerFolder[]; source?: RemoteSource; remoteFolders?: readonly ChosenSourceFolder[]}>;
 type Props = {open: boolean; onOpenChange: (open: boolean) => void; api: LibraryContentApi; serverName: string; chosen: LibraryFolderChoice;
@@ -66,11 +66,11 @@ function SourcePicker({controller, ports, runtime, ...props}: Props & {controlle
       initialNumToRender={16} maxToRenderPerBatch={16} windowSize={7} contentContainerStyle={{gap: 12}}
       ListHeaderComponent={<View style={{gap: 12}}>
         {!!props.chosen.folders.length && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('next.ownerLibraries.explorer.replacesSelection')}</Text>}
-        <LibraryGroup><LibraryRow first icon="i-folder" label={t('next.settingsSpec.server.libraries.panels.library.tabs.1.groups.0.rows.0.control.addMenu.0.label')} onPress={() => setMode({kind: 'local'})}/></LibraryGroup>
+        <SettingsGroup><SettingsRow navigates first icon="i-folder" label={t('next.settingsSpec.server.libraries.panels.library.tabs.1.groups.0.rows.0.control.addMenu.0.label')} onPress={() => setMode({kind: 'local'})}/></SettingsGroup>
       </View>}
-      renderItem={({item: source}) => <LibraryGroup><LibraryRow first icon="i-disk" label={source.name} help={source.webdav?.address ?? source.rclone?.type} onPress={() => setMode({kind: 'remote', source})}/></LibraryGroup>}
+      renderItem={({item: source}) => <SettingsGroup><SettingsRow navigates first icon="i-disk" label={source.name} description={source.webdav?.address ?? source.rclone?.type} onPress={() => setMode({kind: 'remote', source})}/></SettingsGroup>}
       ListFooterComponent={<View style={{gap: 12}}>
-        {snapshot.allowed && <LibraryGroup><LibraryRow first icon="i-plus" label={t('next.remoteSources.add')} onPress={() => setMode({kind: 'create'})}/></LibraryGroup>}
+        {snapshot.allowed && <SettingsGroup><SettingsRow navigates first icon="i-plus" label={t('next.remoteSources.add')} onPress={() => setMode({kind: 'create'})}/></SettingsGroup>}
         {snapshot.loading && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('next.remoteSources.loading')}</Text>}
         {snapshot.error !== undefined && <><Problem message={remoteSourceError(t, snapshot.error)}/><Button variant="glass" onPress={() => {void controller.load();}}>{t('action.tryAgain')}</Button></>}
       </View>}/>

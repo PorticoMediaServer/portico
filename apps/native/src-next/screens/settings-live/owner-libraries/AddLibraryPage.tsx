@@ -1,6 +1,6 @@
 import {readOwnerKindMetadataAgents} from '../../../../../../packages/client-core/src/owner-library-requests';
 import React, {useEffect, useMemo, useState} from 'react';
-import {ScrollView, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
 import type {LibraryContentApi} from '../../../../../../packages/client-core/src/library-content';
 import type {ManagedLibrary} from '../../../../../../packages/client-core/src/library-management';
 import {parseKindMetadataAgents, type MetadataAgentOption} from '../../../../../../packages/client-core/src/server-admin/metadata-agent';
@@ -14,7 +14,8 @@ import {Select} from '../../../kit/controls/Select';
 import {languageName} from '../../../../../../packages/client-core/src/presentation/language-list';
 import {useTheme} from '../../../kit/theme';
 import {shellType} from '../../../kit/shell/visual';
-import {LibraryGroup, LibraryRow, SectionTitle} from './controls';
+import {SettingsGroup, SettingsRow} from '../../../kit/shell';
+import {SectionTitle} from './controls';
 import {FolderSourcePicker, type LibraryFolderChoice} from './FolderSourcePicker';
 import type {ExpectedRemoteSource} from '../../../../../../packages/client-core/src/remote-source-selection';
 import type {NativeSettingsLivePorts} from '../ports';
@@ -57,24 +58,24 @@ export function AddLibraryPage({api, serverName, onCreate, onCancel, busy, error
       <TextField focusId="owner-libraries-add-name" value={name} onChangeText={value => {setName(value); setTouched(true);}} maxLength={100} accessibilityLabel={t('next.ownerLibraries.nameLabel')}/>
 
       <SectionTitle>{t('next.ownerLibraries.folders')}</SectionTitle>
-      <LibraryGroup>
-        {choice.source && <LibraryRow first icon="i-disk" label={choice.source.name}/>}
-        {folders.map((folder, index) => <LibraryRow key={folder.path} first={index === 0} icon="i-folder" label={folder.name} help={folder.path}
-          trailing={<Button variant="icon" size="xs" icon="i-x" accessibilityLabel={t('next.ownerLibraries.explorer.removeChosen')} onPress={() => setChoice(current => ({...current, folders: current.folders.filter(value => value.path !== folder.path), remoteFolders: current.remoteFolders?.filter(value => value.path !== folder.path)}))}/>}/>)}
-        <LibraryRow first={!folders.length} icon="i-plus" label={t('next.ownerLibraries.explorer.choose')} onPress={() => setExploring(true)}/>
-      </LibraryGroup>
+      <SettingsGroup>
+        {choice.source && <SettingsRow first icon="i-disk" label={choice.source.name}/>}
+        {folders.map((folder, index) => <SettingsRow key={folder.path} first={index === 0} icon="i-folder" label={folder.name} description={folder.path}
+          control={<Button variant="icon" size="xs" icon="i-x" accessibilityLabel={t('next.ownerLibraries.explorer.removeChosen')} onPress={() => setChoice(current => ({...current, folders: current.folders.filter(value => value.path !== folder.path), remoteFolders: current.remoteFolders?.filter(value => value.path !== folder.path)}))}/>}/>)}
+        <SettingsRow navigates first={!folders.length} icon="i-plus" label={t('next.ownerLibraries.explorer.choose')} onPress={() => setExploring(true)}/>
+      </SettingsGroup>
       {!folders.length && <Text style={[shellType(12.5, 500, 17.5), {color: theme.colors.textTertiary, marginTop: 8, paddingHorizontal: 4}]}>{t('next.ownerLibraries.addLibrary.foldersHelp')}</Text>}
 
       {agents.length > 0 && <>
         <SectionTitle>{t('next.ownerLibraries.metadataSource')}</SectionTitle>
-        <LibraryGroup>{agents.map((option, index) => <MetadataAgentChoice key={option.id} option={option} first={index === 0} checked={option.id === agent} onPress={() => {setAgent(option.id); setLanguage(option.defaultLanguage);}}/>)}</LibraryGroup>
+        <SettingsGroup>{agents.map((option, index) => <MetadataAgentChoice key={option.id} option={option} first={index === 0} checked={option.id === agent} onPress={() => {setAgent(option.id); setLanguage(option.defaultLanguage);}}/>)}</SettingsGroup>
         <Text style={[shellType(12.5, 500, 17.5), {color: theme.colors.textTertiary, marginTop: 8, paddingHorizontal: 4}]}>{t('web.metadataSource.saved')}</Text>
       </>}
 
       {language !== undefined && chosenAgent && chosenAgent.languages.length > 0 && <>
         <SectionTitle>{t('next.ownerLibraries.addLibrary.language')}</SectionTitle>
-        <LibraryGroup><LibraryRow first label={t('next.ownerLibraries.addLibrary.language')} help={t('next.ownerLibraries.addLibrary.languageHelp')}
-          trailing={<Select testID="owner-libraries-add-language" accessibilityLabel={t('next.ownerLibraries.addLibrary.language')} value={language} options={chosenAgent.languages.map(code => ({value: code, label: languageName(code, key => defaultI18n.has(key) ? defaultI18n.t(key) : undefined)}))} onValueChange={setLanguage}/>}/></LibraryGroup>
+        <SettingsGroup><SettingsRow first label={t('next.ownerLibraries.addLibrary.language')} description={t('next.ownerLibraries.addLibrary.languageHelp')}
+          control={<Select testID="owner-libraries-add-language" accessibilityLabel={t('next.ownerLibraries.addLibrary.language')} value={language} options={chosenAgent.languages.map(code => ({value: code, label: languageName(code, key => defaultI18n.has(key) ? defaultI18n.t(key) : undefined)}))} onValueChange={setLanguage}/>}/></SettingsGroup>
       </>}
 
       {error !== undefined && <FormError placement="field">{error instanceof Error ? error.message : t('next.ownerLibraries.saveFailed')}</FormError>}

@@ -4,7 +4,7 @@ import {hooks, screenModule} from './helpers/screen-harness.mjs';
 import {settingsSpec, settingsRowIndex} from '../../../packages/client-core/src/presentation/settings-spec.ts';
 
 type Node = {type: any; props: Record<string, any>};
-const nodes = (node: any): Node[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.trailing), ...nodes(node.props.footer)] : [];
+const nodes = (node: any): Node[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children), ...nodes(node.props.control), ...nodes(node.props.footer)] : [];
 const byId = (node: unknown, id: string) => nodes(node).find(value => value.props.testID === id);
 const t = (id: string) => id;
 
@@ -30,7 +30,7 @@ async function fixture(legacy = false) {
     '../../../kit/controls/TextField': {TextField: 'TextField'}, '../../../kit/overlays/BottomSheet': {BottomSheet: 'BottomSheet'},
     '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'}, '../../../kit/states': {StateView: 'StateView'}, './page-layout': {settingsPageInset: () => ({}), settingsPageHeading: () => ({})}, '../../../kit/shell/visual': {shellType: () => ({})},
     '../../../kit/theme': {useTheme: () => ({colors: {text: '#fff', textSecondary: '#aaa'}, type: {caption: {}}})},
-    '../use-settings-request-scope': {useSettingsRequestScope: () => scope}, '../owner-libraries/controls': {LibraryGroup: 'LibraryGroup', LibraryRow: 'LibraryRow', SectionTitle: 'SectionTitle'},
+    '../use-settings-request-scope': {useSettingsRequestScope: () => scope}, '../owner-libraries/controls': {SectionTitle: 'SectionTitle'}, '../../../kit/shell': {SettingsGroup: 'SettingsGroup', SettingsRow: 'SettingsRow'},
     './AdvancedSection': {NativeAdvancedSection: 'NativeAdvancedSection'}, './metadata-controller': {NativeMetadataController: Controller},
     './TitleDatasetGroup': {NativeTitleDatasetGroup: 'NativeTitleDatasetGroup'},
   });
@@ -61,8 +61,8 @@ test('Metadata exposes only published settings and routes row edits through the 
 
 test('credential editing starts empty and sends only the explicitly edited credential', async () => {
   const f = await fixture(); let tree = f.render();
-  const provider = nodes(tree).find(value => value.type === 'LibraryRow' && value.props.label === t(settingsRowIndex.get('metadata.tmdb')!.row.label))!;
-  nodes(provider.props.trailing).find(value => value.type === 'Button')!.props.onPress(); tree = f.render();
+  const provider = nodes(tree).find(value => value.type === 'SettingsRow' && value.props.label === t(settingsRowIndex.get('metadata.tmdb')!.row.label))!;
+  nodes(provider.props.control).find(value => value.type === 'Button')!.props.onPress(); tree = f.render();
   const field = byId(tree, 'metadata-credential-value')!; assert.equal(field.props.value, ''); assert.equal(field.props.secureTextEntry, true);
   field.props.onChangeText('synthetic-new-value'); tree = f.render();
   const sheet = nodes(tree).find(value => value.type === 'BottomSheet')!;

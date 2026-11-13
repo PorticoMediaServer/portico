@@ -7,7 +7,7 @@ import {RowControlContext} from '../controls/row-control';
 import {Menu} from '../overlays/Menu';
 import {Artwork} from '../artwork/Artwork';
 import type {ArtworkSource} from '../artwork/types';
-import {Icon} from '../Icon';
+import {Icon, type IconName} from '../Icon';
 import {useTheme} from '../theme';
 import {focusTestID} from '../focus/registry';
 import {HighlightedText} from './HighlightedText';
@@ -18,8 +18,14 @@ export type SettingsRowProps = {
   testID?: string;
   label: string;
   highlightQuery?: string;
-  description?: string;
+  /** One line of help, or several short facts that wrap side by side. */
+  description?: string | readonly string[];
   scope?: string;
+  /** A leading icon in its own small tile (Libraries' rows). */
+  icon?: IconName;
+  /** The row opens a page: a right chevron instead of the select's up/down mark. */
+  navigates?: boolean;
+  accessibilityLabel?: string;
   control?: ReactNode;
   value?: string;
   onPress?: () => void;
@@ -35,8 +41,13 @@ export type SettingsRowProps = {
   style?: StyleProp<ViewStyle>;
   nextFocusLeft?: number;
 };
+/** A settings group: one raised card of rows, one per meaning (settings.html, owner-libraries). */
+export function SettingsGroup({children, style, testID}: {children: ReactNode; style?: StyleProp<ViewStyle>; testID?: string}) {
+  const theme = useTheme();
+  return <View testID={testID} style={[{backgroundColor: theme.colors.raised, borderRadius: 14, overflow: 'hidden'}, style]}>{children}</View>;
+}
 /** A slotted control keeps its sole focus target. A TV readable row intentionally has no OK action. */
-export function SettingsRow({label, highlightQuery, description, scope, control, value, onPress, readable = false, toggle, dependent = false, continuesBranch = false, highlighted = false, destructive = false, first = false, style, nextFocusLeft, testID}: SettingsRowProps) {
+export function SettingsRow({label, highlightQuery, description, scope, icon, navigates = false, accessibilityLabel, control, value, onPress, readable = false, toggle, dependent = false, continuesBranch = false, highlighted = false, destructive = false, first = false, style, nextFocusLeft, testID}: SettingsRowProps) {
   const theme = useTheme();
   const tv = theme.isTV;
   const [rowWidth, setRowWidth] = useState(0);
@@ -52,19 +63,21 @@ export function SettingsRow({label, highlightQuery, description, scope, control,
     {dependent && <View pointerEvents="none" style={{position: 'absolute', left: tv ? 38 : 31, top: -1, height: '50%', width: 14, borderLeftWidth: 2, borderBottomWidth: 2, borderBottomLeftRadius: 9, borderColor: theme.colors.line}}/>}
     {dependent && continuesBranch && <View pointerEvents="none" style={{position: 'absolute', left: tv ? 38 : 31, top: 0, bottom: 0, width: 2, backgroundColor: theme.colors.line}}/>}
     {lit && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: 14, bottom: 14, width: 3, borderRadius: 3, backgroundColor: theme.colors.accent}}/>}
+    {icon && <View style={{width: tv ? 40 : 30, height: tv ? 40 : 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(destructive ? theme.colors.record : theme.colors.text, .1)}}><Icon name={icon} size={tv ? 22 : 17} color={destructive ? theme.colors.record : theme.colors.textSecondary}/></View>}
     <View style={{flex: 1, minWidth: 0}}><HighlightedText text={label} query={highlightQuery} style={[shellType(tv ? 24 : 15.5), {color: destructive ? theme.colors.record : theme.colors.text}]}/>
-      {description && <Text numberOfLines={tv ? 2 : undefined} style={[shellType(tv ? 20 : 12.5, tv ? 400 : 500, tv ? 29 : 17.5), {color: theme.colors.textTertiary, marginTop: 3}]}>{description}</Text>}
+      {typeof description === 'string' && <Text numberOfLines={tv ? 2 : undefined} style={[shellType(tv ? 20 : 12.5, tv ? 400 : 500, tv ? 29 : 17.5), {color: theme.colors.textTertiary, marginTop: 3}]}>{description}</Text>}
+      {Array.isArray(description) && description.length > 0 && <View style={{flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 3, marginTop: 3}}>{description.map((part, index) => <Text key={index} style={[shellType(tv ? 20 : 12.5, tv ? 400 : 500, tv ? 29 : 17.5), {color: theme.colors.textTertiary, flexShrink: 1}]}>{part}</Text>)}</View>}
       {scope && <Text style={[shellType(tv ? 18 : 12, 600), {color: theme.colors.textTertiary, marginTop: 3}]}>{scope}</Text>}
     </View>
     {/* On a touch screen a select in the row draws as its value and takes at most half the row, so the label keeps its
         room; any other control keeps its own width (RowControlContext). */}
     {control !== undefined && !tv ? <RowControlContext.Provider value={rowControl}>{control}</RowControlContext.Provider> : control ?? (toggle ? <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants">{toggle.visual}</View> : value && <Text style={[shellType(tv ? 22 : 14.5), {color: destructive ? theme.colors.record : theme.colors.textSecondary, maxWidth: tv ? 340 : 170}]}>{value}</Text>)}
-    {onPress && !control && !toggle && <Icon name="i-updown" size={tv ? 26 : 18} color={destructive ? theme.colors.record : theme.colors.textTertiary}/>}
+    {onPress && !control && !toggle && <Icon name={navigates ? 'i-right' : 'i-updown'} size={tv ? 26 : 18} color={destructive ? theme.colors.record : navigates ? theme.colors.lineStrong : theme.colors.textTertiary}/>}
   </>;
   const layout: StyleProp<ViewStyle> = [{flexDirection: 'row', alignItems: 'center', gap: tv ? 20 : 12, paddingHorizontal: tv ? 24 : 14, paddingVertical: tv ? 12 : 8, paddingLeft: dependent ? tv ? 64 : 58 : tv ? 24 : 14, minHeight: tv ? 80 : 48, borderTopWidth: first ? 0 : 1, borderTopColor: theme.colors.lineSoft, borderRadius: tv ? 18 : 0, backgroundColor: lit ? alpha(theme.colors.accent, .16) : 'transparent'}, style];
   // TV: a value-only row is a readable stop (OK does nothing) so every line can be reached and read.
   const readableStop = tv && !press && (readable || toggle !== undefined || value !== undefined);
-  return (press || readableStop) && !control ? <Focusable testID={testID} accessibilityRole={toggle && !opens ? 'switch' : press ? 'button' : 'text'} accessibilityLabel={label} accessibilityHint={description} accessibilityValue={value ? {text: value} : undefined} accessibilityState={toggle && !opens ? {checked: toggle.checked} : undefined} onPress={press} focusKind="row" focusRadius={tv ? 18 : 10} nextFocusLeft={nextFocusLeft} style={layout}>{content}</Focusable> : <View style={layout} onLayout={tv || control === undefined ? undefined : event => setRowWidth(event.nativeEvent.layout.width)}>{content}</View>;
+  return (press || readableStop) && !control ? <Focusable testID={testID} accessibilityRole={toggle && !opens ? 'switch' : press ? 'button' : 'text'} accessibilityLabel={accessibilityLabel ?? label} accessibilityHint={typeof description === 'string' ? description : description?.join(', ')} accessibilityValue={value ? {text: value} : undefined} accessibilityState={toggle && !opens ? {checked: toggle.checked} : undefined} onPress={press} focusKind="row" focusRadius={tv ? 18 : 10} nextFocusLeft={nextFocusLeft} style={layout}>{content}</Focusable> : <View style={layout} onLayout={tv || control === undefined ? undefined : event => setRowWidth(event.nativeEvent.layout.width)}>{content}</View>;
 }
 export function DefaultHint({value, onReset, changed, testID}: {testID?: string; value: string; onReset: () => void; changed: boolean}) {
   const theme = useTheme();

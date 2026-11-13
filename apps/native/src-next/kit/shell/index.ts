@@ -6,7 +6,7 @@ export {ProfileAvatar, ProfileSwitchRow, AccountMenu, NotificationItem, WatchTog
 export type {AccountAction, ProfileSwitchRowProps, AccountMenuProps, NotificationItemProps, WatchTogetherPillProps} from './AccountShell';
 export {SettingsSheet, ShortcutTiles, LargeTitleHeader, SettingsNav, SettingsSearchResults} from './SettingsShell';
 export type {SettingsNavPage, SettingsNavProps, SettingsSearchResultsProps} from './SettingsShell';
-export {SettingsRow, DefaultHint, ChoiceMatrix, ChoiceCards, LanguageList, SubtitlePreview} from './SettingsControls';
+export {SettingsRow, SettingsGroup, DefaultHint, ChoiceMatrix, ChoiceCards, LanguageList, SubtitlePreview} from './SettingsControls';
 export type {SettingsRowProps, ChoiceMatrixRow, LanguageOption} from './SettingsControls';
 export {SettingsRowTargetContext, type SettingsRowTargeting} from './SettingsRowTarget';
 export {StatTiles, Sparkline, BarList, PersonRow, DeviceRow, WaitingNotice} from './Diagnostics';
