@@ -97,7 +97,7 @@ def construct(target, engine_input, pin, work, evidence, context):
     binary = payload / ('portico-server.exe' if osname == 'windows' else 'portico-server')
     tags = runpy.run_path(str(ROOT / 'scripts/release-build-tags.py'))['value'](False)
     os.environ.update({'CGO_ENABLED': '0', 'GOTOOLCHAIN': 'local', 'GOMAXPROCS': '2', 'GOFLAGS': '-p=2'})
-    run(['go', 'build', '-mod=readonly', '-p=2', '-trimpath', '-tags=' + tags, '-o', binary, './cmd/server'], ROOT / 'server')
+    run(['go', 'build', '-mod=readonly', '-p=2', '-trimpath', '-tags=' + tags, '-o', binary, './cmd/portico-server'], ROOT / 'server-next')
     architecture(binary, target)
     run(['npm.cmd' if osname == 'windows' else 'npm', 'ci', '--no-audit', '--no-fund'])
     run(['npm.cmd' if osname == 'windows' else 'npm', 'run', 'build', '--workspace', 'portico-web'])
@@ -114,11 +114,14 @@ def construct(target, engine_input, pin, work, evidence, context):
         shutil.copyfile(ROOT / name, payload / name)
     licences = payload / 'licenses'
     licences.mkdir()
-    for source in ('server/internal/imagework/SCALE_LICENSE', 'server/internal/thirdparty/sqlite/LICENSE',
-                   'server/internal/mediaexec/fonts/LICENSE', 'third_party/hls.js/LICENSE',
+    for source in ('server-next/internal/mediaexec/fonts/LICENSE',
+                   'server-next/internal/mediaexec/fonts/NotoCJK-LICENSE',
+                   'server-next/internal/mediaexec/fonts/NotoSansDevanagari-LICENSE',
+                   'server-next/internal/mediaexec/fonts/NotoSansThai-LICENSE', 'third_party/hls.js/LICENSE',
                    'packages/reader-core/assets/OFL.txt', 'web/src/kit/fonts/OFL.txt', 'packages/design/LICENSE-LUCIDE'):
         dest = licences / source.replace('/', '-')
         shutil.copyfile(ROOT / source, dest)
+    shutil.copyfile(ROOT / 'web/src/generated/licences.json', licences / 'dependencies.json')
     shutil.copytree(ROOT / 'third_party/reader', licences / 'reader', ignore=shutil.ignore_patterns('*.js', '*.tgz'))
     build_number = os.environ['GITHUB_RUN_NUMBER'] if context == 'github-actions' else '0'
     (payload / 'web/portico-build.json').write_text(json.dumps({'version': '0.0.0', 'build': build_number}))
@@ -130,7 +133,7 @@ def construct(target, engine_input, pin, work, evidence, context):
                'notExercised': ['Portico integrity seal', 'sealed startup', 'OS signing', 'installation'],
                'files': inventory(payload),
                'runnerImage': {k: os.environ.get(k, '') for k in ('ImageOS', 'ImageVersion', 'RUNNER_ARCH')},
-               'inputLocks': {p: digest(ROOT / p) for p in ('third_party/ffmpeg/sources.lock.json', 'third_party/rclone/bundle.lock.json', 'package-lock.json', 'server/go.mod', '.node-version')}}
+               'inputLocks': {p: digest(ROOT / p) for p in ('third_party/ffmpeg/sources.lock.json', 'third_party/rclone/bundle.lock.json', 'package-lock.json', 'server-next/go.mod', '.node-version')}}
     (payload / 'qualification-receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
     output = work / 'packages'
     output.mkdir()

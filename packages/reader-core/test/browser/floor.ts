@@ -1,7 +1,7 @@
 import {createPdfAdapter,createComicAdapter,sourceFromBlob} from '@portico/reader-core';
 import type {ReaderDocument,ReaderSource,ReaderView} from '@portico/reader-core';
 import {parsePreferenceSnapshot,readingPreferences,type ReadingPreferences} from '@portico/client-core';
-import bootstrap from '../../../../server/testdata/contracts/get-preferences.json';
+import bootstrap from '../../../client-core/test/fixtures/preferences.json';
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.mjs?url';
 import {sha256} from '@noble/hashes/sha2.js';
 

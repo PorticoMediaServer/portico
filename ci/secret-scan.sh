@@ -38,16 +38,16 @@ go_fallback() {
   echo 'gitleaks tarball unavailable after retries; using verified Go module fallback' >&2
   local pinned actual metadata module_version module_sum installed
   if ! command -v go >/dev/null 2>&1; then
-    echo 'gitleaks fallback needs Go on PATH; add actions/setup-go with go-version-file: server/go.mod before ci/secret-scan.sh' >&2
+    echo 'gitleaks fallback needs Go on PATH; add actions/setup-go with go-version-file: server-next/go.mod before ci/secret-scan.sh' >&2
     exit 1
   fi
-  pinned=go$(awk '$1 == "go" { print $2; exit }' server/go.mod) || {
-    echo 'gitleaks fallback cannot read the pinned Go version from server/go.mod' >&2
+  pinned=go$(awk '$1 == "go" { print $2; exit }' server-next/go.mod) || {
+    echo 'gitleaks fallback cannot read the pinned Go version from server-next/go.mod' >&2
     exit 1
   }
   actual=$(go env GOVERSION)
   if [[ "$actual" != "$pinned" ]]; then
-    echo "gitleaks fallback needs the pinned Go toolchain $pinned from server/go.mod, but go env GOVERSION reported ${actual:-nothing}" >&2
+    echo "gitleaks fallback needs the pinned Go toolchain $pinned from server-next/go.mod, but go env GOVERSION reported ${actual:-nothing}" >&2
     exit 1
   fi
   (

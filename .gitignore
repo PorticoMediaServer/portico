@@ -10,8 +10,6 @@ __pycache__/
 .DS_Store
 
 # Go writes a binary named after the package directory when built without -o.
-server/server
-server/server.exe
 
 .env
 .env.*
@@ -19,7 +17,6 @@ server/server.exe
 *.p8
 *.p12
 *.key
-/server/scalebench
 
 # Sonic build artifacts and installed runtime inputs.
 .sonic-model/

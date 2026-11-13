@@ -35,7 +35,7 @@ regexTarget = "line"
 regexes = ['''^\s*"sealKey": "QtCssvBYZS87DqrTRRJbTm-Ju7EO4zZzfAOACKNE_AU",?$''']
 
 # The rebuilt server's copy of Portico's built-in TMDB read token (the same public application
-# credential as server/internal/metadata/project.go, see THIRD-PARTY-NOTICES.md). The generic
+# credential; see THIRD-PARTY-NOTICES.md). The generic
 # rule reads its first line as a key. Exempt only that exact match in that file: any other key
 # there, or this one anywhere else, still fails.
 [[rules.allowlists]]
@@ -48,17 +48,11 @@ regexes = ['''^ProjectToken = "eyJhbGciOiJIUzI1NiJ9\."$''']
 # Portico ships built-in application credentials for its metadata providers on
 # purpose (see THIRD-PARTY-NOTICES.md). They identify Portico to TMDB and
 # TheTVDB and are not user or server secrets.
-[[allowlists]]
-description = "Built-in metadata provider credentials"
-paths = ['''server/internal/metadata/project\.go''']
 
 # Example tokens in the API guide, idempotency and request keys in tests, and
 # SQL that matches the generic key pattern.
 [[allowlists]]
 description = "Documentation examples, test request keys and SQL"
 paths = [
-  '''server/api/guide/.*\.md''',
   '''.*_test\.go''',
-  '''server/internal/catalog/local_artwork\.go''',
-  '''server/internal/playbackv1/queue_counts\.go''',
 ]

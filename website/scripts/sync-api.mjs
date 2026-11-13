@@ -63,7 +63,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const ref = process.argv[3] ?? 'HEAD';
   const git = (args) => execFileSync('git', ['-C', serverRoot, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   const serverCommit = git(['rev-parse', '--verify', `${ref}^{commit}`]).trim();
-  const raw = git(['show', `${serverCommit}:server/api/portico.openapi.json`]);
+  const raw = git(['show', `${serverCommit}:server-next/api/openapi.json`]);
   const reference = generateReference(JSON.parse(raw), { serverCommit, specSha256: createHash('sha256').update(raw).digest('hex') });
   const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   await mkdir(resolve(projectRoot, 'src/data/api'), { recursive: true });

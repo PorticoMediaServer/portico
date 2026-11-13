@@ -3,7 +3,7 @@ import {flushSync} from 'react-dom';
 import {createRoot} from 'react-dom/client';
 import {parsePreferenceSnapshot, type ReadingPreferences} from '@portico/client-core';
 import {createReadingController, ReaderError, sourceFromBlob, type ReaderAdapter, type ReaderMount, type ReaderPageImage, type ReadingPublication} from '@portico/reader-core';
-import bootstrap from '../../../server/testdata/contracts/get-preferences.json';
+import bootstrap from '../../../packages/client-core/test/fixtures/preferences.json';
 import {ReaderBook, type ReaderBookState} from '../../src/screens/read/ReaderBook';
 import '../../src/kit/tokens.css';
 import '../../src/bootstrap.css';

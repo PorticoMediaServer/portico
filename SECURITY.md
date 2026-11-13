@@ -123,4 +123,4 @@ Portico limits how much size, depth, time and processing it spends reading media
 
 ### Release signing
 
-Release manifests and artifact inventories are signed. That's separate from operating-system signing, notarization and installer trust, and preview packages may be unsigned. See [RELEASING.md](RELEASING.md) and [release signing](server/api/release-signing.md).
+Release manifests and artifact inventories are signed. That's separate from operating-system signing, notarization and installer trust, and preview packages may be unsigned. See [RELEASING.md](RELEASING.md).

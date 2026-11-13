@@ -119,7 +119,7 @@ function main() {
       for (const problem of scanText(path, readFileSync(path, 'utf8'))) problems.push(`${label} ${relative(dir, path)}: ${problem}`);
     }
   }
-  problems.push(...cspProblems('web CSP (installation.go)', goConstant('server/internal/httpapi/installation.go', 'webContentSecurityPolicy')));
+  problems.push(...cspProblems('web CSP (webapp.go)', goConstant('server-next/internal/webapp/webapp.go', 'policy')));
   problems.push(...cspProblems('Cast receiver CSP (receiver.go)', goConstant('server-next/receiver/receiver.go', 'receiverCSP')));
   if (scanned === 0) problems.push('no shipped files were scanned');
   if (problems.length) {

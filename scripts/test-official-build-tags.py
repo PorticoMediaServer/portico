@@ -29,7 +29,6 @@ BUILDER = ROOT / "scripts/build-server-release.py"
 SEAL = ROOT / "scripts/seal-macos-payload.py"
 MAKEFILE = ROOT / "Makefile"
 RUNNER = ROOT / "scripts/runner-test.sh"
-AFFECTED = ROOT / "scripts/ci-affected.py"
 VET = ROOT / "scripts/vet-go.sh"
 LICENCES = ROOT / "web/scripts/licences.ts"
 CAPABILITY = ROOT / "server-next/internal/reading/classic_seven.go"
@@ -40,11 +39,8 @@ OFFICIAL = (
     ".github/workflows/release.yml",
     "ci/plan.py",
     "ci/run.py",
-    "ci/release-staged/server-release.yml",
-    "ci/release-staged/server-build-validation.yml",
     "Makefile",
     "scripts/runner-test.sh",
-    "scripts/ci-affected.py",
     "scripts/vet-go.sh",
     "scripts/build-server-release.py",
     "scripts/seal-macos-payload.py",
@@ -115,7 +111,7 @@ def audit(sources, required):
         problems.append('ci runner: tags do not fail closed')
     if not ci_test_uses_plan_tags(runner):
         problems.append('ci runner: go test drops the validated plan tags')
-    for command in ["'go','build','-p=2','-tags',tags", "'go','build','-tags',plan['tags']"]:
+    for command in ["'go','build','-p=2','-tags',tags"]:
         if command not in runner:
             problems.append('ci runner: command drops capability tags: '+command)
     if "'sh',str(ROOT/'scripts/vet-go.sh'),'--tags',tags" not in runner:
@@ -123,29 +119,16 @@ def audit(sources, required):
     if "for tags in ['',plan['tags']]:" not in runner:
         problems.append('ci runner: default/capability whole-module sets missing')
 
-    release = sources["ci/release-staged/server-release.yml"]
-    if "release-build-tags.py --capability" not in release:
-        problems.append("release.yml: the release test revision does not read the one tag list")
-    for line in release.splitlines():
-        if "go build" in line and "./cmd/server" in line and '-tags "$PORTICO_GO_TAGS"' not in line:
-            problems.append("release.yml: the release helper build does not pass -tags \"$PORTICO_GO_TAGS\"")
-        if "go test" in line and '-tags "$PORTICO_GO_TAGS"' not in line:
-            problems.append("release.yml: the release test command does not pass -tags \"$PORTICO_GO_TAGS\"")
-
-    for name in ("ci/release-staged/server-release.yml", "ci/release-staged/server-build-validation.yml"):
-        if "scripts/build-server-release.py" not in sources[name]:
-            problems.append("%s: no longer builds through the sealed release builder" % name)
-
     makefile = sources["Makefile"]
     if "PORTICO_GO_TAGS ?= $(shell python3 scripts/release-build-tags.py --capability)" not in makefile:
         problems.append("Makefile: PORTICO_GO_TAGS does not come from scripts/release-build-tags.py --capability")
-    make_builds = [line for line in makefile.splitlines() if "go build" in line and "./cmd/server" in line]
+    make_builds = [line for line in makefile.splitlines() if "go build" in line and "./cmd/portico-server" in line]
     if not make_builds:
         problems.append("Makefile: no server build command found")
     for line in make_builds:
         if '-tags "$(PORTICO_GO_TAGS)"' not in line:
             problems.append("Makefile: the server build does not pass -tags \"$(PORTICO_GO_TAGS)\"")
-    make_runs = [line for line in makefile.splitlines() if "go run" in line and "./cmd/server" in line]
+    make_runs = [line for line in makefile.splitlines() if "go run" in line and "./cmd/portico-server" in line]
     for line in make_runs:
         if '-tags "$(PORTICO_GO_TAGS)"' not in line:
             problems.append("Makefile: the server run command does not pass -tags \"$(PORTICO_GO_TAGS)\"")
@@ -161,14 +144,8 @@ def audit(sources, required):
     runner = sources["scripts/runner-test.sh"]
     if "release-build-tags.py" not in runner or "--capability" not in runner:
         problems.append("runner-test.sh: the QA runner does not read the one tag list")
-    if runner.count('-tags "$PORTICO_GO_TAGS"') < 2:
-        problems.append("runner-test.sh: the helper build and go test do not both carry -tags \"$PORTICO_GO_TAGS\"")
-
-    affected = sources["scripts/ci-affected.py"]
-    if "PORTICO_GO_TAGS" not in affected:
-        problems.append("ci-affected.py: the shard runner does not read the job's capability tags")
-    if affected.count("*tag_args()") < 5:
-        problems.append("ci-affected.py: go test, go list and go vet do not all carry tag_args()")
+    if runner.count('-tags "$PORTICO_GO_TAGS"') < 1:
+        problems.append("runner-test.sh: go test does not carry -tags \"$PORTICO_GO_TAGS\"")
 
     vet = sources["scripts/vet-go.sh"]
     if "release-build-tags.py" not in vet or "--capability" not in vet or 'go vet -tags "$tags"' not in vet:
@@ -308,12 +285,6 @@ class OfficialBuildTagTests(unittest.TestCase):
         problems = audit(sources, self.tags["required"]())
         self.assertTrue(any(p.startswith("Makefile: the server test") for p in problems), problems)
 
-    def test_negative_control_shard_runner_that_drops_the_tags_fails(self):
-        sources = read_sources()
-        sources["scripts/ci-affected.py"] = sources["scripts/ci-affected.py"].replace(
-            'argv = ["go", "test", *tag_args(), "-json"', 'argv = ["go", "test", "-json"')
-        problems = audit(sources, self.tags["required"]())
-        self.assertTrue(any(p.startswith("ci-affected.py:") for p in problems), problems)
 
 
 if __name__ == "__main__":

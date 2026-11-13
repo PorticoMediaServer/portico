@@ -15,7 +15,6 @@ class Explain(unittest.TestCase):
     def test_diagnostics_do_not_change_affected_selection(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);(root/'scripts').mkdir()
-            (root/'scripts/ci-affected.py').write_text((Path(__file__).resolve().parents[1]/'scripts/ci-affected.py').read_text())
             files={'web/src/a.ts':'export const a=1;', 'web/test/a.test.ts':"import '../src/a.ts';",'web/test/unrelated.test.ts':''}
             for file,text in files.items():
                 p=root/file;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text)

@@ -82,7 +82,7 @@ test('a callback for another transaction is refused and leaves the attempt; a va
 // --- a real signed owner grant, so the path after the exchange is reachable ---
 
 // The public claim vector's seed key signs the setup start, exactly as setup-adapter.test.ts does.
-const vector = JSON.parse(readFileSync(new URL('../../server/internal/claimweb/testdata/owner_start.json', import.meta.url), 'utf8'));
+const vector = JSON.parse(readFileSync(new URL('../../packages/client-core/test/fixtures/owner-start.json', import.meta.url), 'utf8'));
 const seed = createPrivateKey({key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), Buffer.alloc(32, 0x42)]), format: 'der', type: 'pkcs8'});
 const signed = (value: unknown) => {const raw = transportJSON(value); return {payload: Buffer.from(raw).toString('base64url'), signature: sign(null, Buffer.from(raw), seed).toString('base64url')};};
 const digest = (value: string | Uint8Array) => createHash('sha256').update(value).digest();

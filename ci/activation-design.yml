@@ -21,9 +21,8 @@ nightly:
   packaging: ci/package-smoke.py --package QUALIFIED_LINUX_TARBALL
   activation_blocked: qualified sealed Linux package and Android Hermes engine input
 release:
-  staged_files: [ci/release-staged/server-release.yml, ci/release-staged/server-build-validation.yml]
+  workflow: .github/workflows/release.yml
   environment: server-release
-  blocked: true
 
 queue_invariants:
   main_target: exact tested merge_group head_sha descending from previous main

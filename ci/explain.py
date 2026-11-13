@@ -2,7 +2,7 @@
 from html import escape
 
 
-def selection_reasons(paths, full, selected, go, components, js, go_fallbacks=(), source_readers=None):
+def selection_reasons(paths, full, selected, go, components, js, go_fallbacks=()):
     reasons = {c: [] for c in selected}
     broad = []
     if full:
@@ -27,12 +27,10 @@ def selection_reasons(paths, full, selected, go, components, js, go_fallbacks=()
         if go_fallbacks: go_reason='full Go inventory: '+'; '.join(go_fallbacks)
         elif full: go_reason = 'explicit full inventory'
         elif any(p.endswith(('/go.mod', '/go.sum')) for p in paths): go_reason = 'Go manifest changed: full Go inventory'
-        elif not any(p.startswith(('server/', 'apikit/')) for p in paths): go_reason = 'cross-component/root or contracts change: full Go inventory'
+        elif not any(p.startswith(('apikit/',)) for p in paths): go_reason = 'cross-component/root or contracts change: full Go inventory'
         else: go_reason = 'owning Go packages, reverse imports/test imports and tier-required packages; unknown ownership or non-Go inputs retain full inventory'
     else: go_reason = 'no Go change selected'
-    readers = sorted(p + ': ' + n + ' reads ' + ', '.join(c[:3]) + (' and ' + str(len(c) - 3) + ' more' if len(c) > 3 else '')
-                     for p, tests in (source_readers or {}).items() for n, c in tests.items())
-    return {'full': full, 'broad_reasons': sorted(set(broad)), 'components': reasons, 'go': go_reason, 'js': js, 'source_readers': readers}
+    return {'full': full, 'broad_reasons': sorted(set(broad)), 'components': reasons, 'go': go_reason, 'js': js}
 
 
 def render_summary(plan):
@@ -46,8 +44,6 @@ def render_summary(plan):
               f"Selected Go parents: {len(plan['inventory'])}; selected packages: {len(plan['packages'])}; tier exclusions: {len(plan['tier_exclusions'])}.\n",
               'Go shard estimates (test seconds; checkout, compilation, helper and transfer costs excluded):\n',
               '<pre>' + '\n'.join(f"{i}: {len(shard)} parents, {seconds:.1f}s" for i, (shard, seconds) in enumerate(zip(plan['shards'], plan['predicted_seconds']))) + '</pre>\n']
-    if why.get('source_readers'):
-        lines.append('<details><summary>Source-reading tests selected by the files they read: ' + str(len(why['source_readers'])) + '</summary><pre>' + escape('\n'.join(why['source_readers'][:100])) + '</pre></details>\n')
     if plan.get('tier')=='short':
         lines.append('PR Go packages without -short (changed owners and direct reverse dependencies):<pre>' +
                      escape('\n'.join(plan.get('full_go_packages', [])) or '(none)') + '</pre>\n')

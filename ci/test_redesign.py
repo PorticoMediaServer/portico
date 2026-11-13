@@ -6,17 +6,17 @@ from run import batches, classify
 
 class Redesign(unittest.TestCase):
     def test_go_only_and_android_routing(self):
-        self.assertEqual(components(['server/internal/auth/a.go']),([],True))
-        self.assertFalse(android_selected(['server/a.go','apps/native/src/ui.tsx']))
+        self.assertEqual(components(['apikit/internal/auth/a.go']),([],True))
+        self.assertFalse(android_selected(['apikit/a.go','apps/native/src/ui.tsx']))
         self.assertTrue(android_selected(['apps/native/android/app/build.gradle']))
         self.assertTrue(android_selected([],True))
     def test_mixed_diff_does_not_broaden_go(self):
-        ps=[{'ImportPath':'a','Dir':str(ROOT/'server/a')},{'ImportPath':'b','Dir':str(ROOT/'server/b')}]
-        for suffix in ['README.md','web/main.ts','server/readme.md']:
-            self.assertEqual(go_seeds(ps,['server/a/file.go',suffix]),{'a'})
-        self.assertEqual(go_seeds(ps,['server/a/testdata/input']),{'a'})
-        self.assertEqual(go_seeds(ps,['server/go.mod']),{'a','b'})
-        self.assertEqual(go_seeds(ps,['server/a/unknown.cfg']),{'a','b'})
+        ps=[{'ImportPath':'a','Dir':str(ROOT/'apikit/a')},{'ImportPath':'b','Dir':str(ROOT/'apikit/b')}]
+        for suffix in ['README.md','web/main.ts','apikit/readme.md']:
+            self.assertEqual(go_seeds(ps,['apikit/a/file.go',suffix]),{'a'})
+        self.assertEqual(go_seeds(ps,['apikit/a/testdata/input']),{'a'})
+        self.assertEqual(go_seeds(ps,['apikit/go.mod']),{'a','b'})
+        self.assertEqual(go_seeds(ps,['apikit/a/unknown.cfg']),{'a','b'})
     def test_batch_only_complete_packages(self):
         tests=[{'module':'server','package':p,'name':n} for p,n in [('a','TestA'),('b','TestB'),('b','TestNightly'),('c','TestC')]]
         calls=batches({'all_inventory':tests},[tests[0],tests[1],tests[3]])
@@ -40,13 +40,6 @@ class Redesign(unittest.TestCase):
         durations={'p.'+str(i):50 for i in range(50)}
         self.assertEqual(balance(tests,durations),balance(list(reversed(tests)),durations))
         self.assertEqual(len(balance(tests,durations)[0]),10)
-    def test_nightly_exact_unique_owners(self):
-        tiers=json.loads((ROOT/'ci/tiers.json').read_text())
-        keys=[(t['package'],t['name']) for lane in tiers['nightly_lanes'].values() for t in lane]
-        self.assertEqual(len(keys),len(set(keys)))
-        from test_playback_compatibility import EXPECTED_DIAGNOSTIC_OWNERS
-        self.assertCountEqual(keys,EXPECTED_DIAGNOSTIC_OWNERS)
-        self.assertIn(('github.com/PorticoMediaServer/portico/server/internal/ingestion', 'TestScannerTenThousandInventoryAndNames'), keys)
 
 class BatchExecution(unittest.TestCase):
     def test_batched_package_terminals_and_diagnostic_stderr(self):
