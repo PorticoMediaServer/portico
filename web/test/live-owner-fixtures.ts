@@ -5,3 +5,8 @@ export const document = {protocolVersion: '1.0', serverId: 'server', sources: [s
 export const uploadPreview = {protocolVersion: '1.0', serverId: 'server', preview: {channels: 1, programmes: 0, names: ['Stored channel']}};
 export const remotePreview = {protocolVersion: '1.0', serverId: 'server', remotePreview: {previewId: sourceId, preview: {channels: 1, programmes: 0, availableStart: '', availableEnd: '', names: ['Stored channel'], diagnostics: {skippedChannels: 0, skippedProgrammes: 0, adjustedProgrammes: 0, examples: []}}, discoveredCapacity: 0, capacityMode: 'defaulted', mappingKeys: [{channelKey: 'channel', name: 'Stored channel', guideKey: ''}], expiresAt: '2099-01-01T00:00:00Z'}};
 export const actionReceipt = {protocolVersion: '1.0', serverId: 'server', saved: true, removed: true, scheduled: true};
+
+export const rebuiltSource = {id: 'lsr_saved', name: 'Stored source', revision: '7', kind: 'playlist', paused: false, state: 'up_to_date', audience: 'everyone', tunerCount: 2, hasSignIn: false, config: {playlistUrl: 'https://provider.example/playlist', refreshHours: 6}, report: {channels: 12, programmes: 20, channelsWithGuide: 12, skippedChannels: 0, skippedProgrammes: 0}};
+export const rebuiltDirectory = {items: [rebuiltSource]};
+
+export const rebuiltPreview = {report: {...rebuiltSource.report, channels: 1, programmes: 0}, channels: [{Name: 'Stored channel', Key: 'channel', Number: '1', Group: '', GuideKey: '', Locator: '', Logo: ''}], tuners: 2};

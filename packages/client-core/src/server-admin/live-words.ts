@@ -61,12 +61,12 @@ export function tunerStatus(t: Translate, source: Readonly<{conflicts: number; i
 
 /** What a remote Live TV source is doing, for the badge on its row, from the admin source document: the source is on or paused by the owner, and its refresh row is healthy, refreshing, degraded or waiting for sign-in. A state this client has no word for says Not checked instead of claiming health. */
 export function liveSourceState(source: Readonly<{state: string}>, refresh: Readonly<{state: string}> | undefined): Readonly<{id: MessageId; tone: 'healthy' | 'warning' | 'danger' | 'neutral'; live: boolean}> {
-  if (source.state === 'disabled') return {id: 'web.liveTv.pausedBadge', tone: 'neutral', live: false};
-  if (refresh?.state === 'refreshing') return {id: 'server.live.state.refreshing', tone: 'warning', live: true};
-  if (refresh?.state === 'credentials-required') return {id: 'server.live.state.credentials', tone: 'danger', live: false};
-  if (source.state === 'failed') return {id: 'server.live.state.failed', tone: 'danger', live: false};
-  if (refresh?.state === 'degraded') return {id: 'server.live.state.degraded', tone: 'danger', live: false};
+  if (source.state === 'disabled' || source.state === 'paused') return {id: 'web.liveTv.pausedBadge', tone: 'neutral', live: false};
+  if (refresh?.state === 'refreshing' || source.state === 'refreshing') return {id: 'server.live.state.refreshing', tone: 'warning', live: true};
+  if (refresh?.state === 'credentials-required' || source.state === 'needs_sign_in') return {id: 'server.live.state.credentials', tone: 'danger', live: false};
+  if (source.state === 'failed' || source.state === 'not_working') return {id: 'server.live.state.failed', tone: 'danger', live: false};
+  if (refresh?.state === 'degraded' || source.state === 'trouble') return {id: 'server.live.state.degraded', tone: 'danger', live: false};
   if (source.state === 'pending' || source.state === 'new') return {id: 'server.live.state.waiting', tone: 'neutral', live: false};
-  if ((source.state === 'active' || source.state === 'ready') && (refresh === undefined || refresh.state === 'healthy')) return {id: 'server.live.state.ready', tone: 'healthy', live: false};
+  if ((source.state === 'active' || source.state === 'ready' || source.state === 'up_to_date') && (refresh === undefined || refresh.state === 'healthy')) return {id: 'server.live.state.ready', tone: 'healthy', live: false};
   return {id: 'web.capabilities.unknown', tone: 'neutral', live: false};
 }

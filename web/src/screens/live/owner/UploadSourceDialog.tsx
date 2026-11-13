@@ -1,6 +1,7 @@
 import {useLayoutEffect, useState, useSyncExternalStore} from 'react';
 import {defaultI18n} from '@i18n';
 import type {LibraryContentApi} from '@core/library-content.ts';
+import {importSkipped} from '@core/server-admin/live-words.ts';
 import {errorMessage} from '@core/presentation/errors.ts';
 import {Button, TextField} from '../../../kit/controls';
 import {Dialog} from '../../../kit/overlays';
@@ -45,7 +46,9 @@ export function UploadSourceDialog({api, serverId, isCurrent, reportError, openi
     admitted.retire();saved();
   };
   if (!admitted || !state) return null;
-  const {draft, preview, busy, reading, error} = state;
+  const {draft, preview, busy, reading, error, pending} = state;
+  const disabled = busy || pending;
+  const skipped = preview && importSkipped(t, defaultI18n.has, preview.report);
   const edit = (patch: Parameters<typeof admitted.controller.edit>[0]) => {if (admitted.current()) admitted.controller.edit(patch);};
   const read = (field: 'playlist' | 'guide', file: File) => {if (admitted.current()) void admitted.controller.read(field, () => file.text());};
   const submit = () => {
@@ -58,14 +61,16 @@ export function UploadSourceDialog({api, serverId, isCurrent, reportError, openi
   };
   return <Dialog footerDismisses open width={560} title={t('web.liveTv.upload')} description={t('web.liveTv.uploadLede')} onOpenChange={open => {if (!open) closeCurrent();}}
     footer={<><Button size="small" variant="text" onClick={closeCurrent}>{t('action.cancel')}</Button><Button size="small" variant="primary" loading={busy || reading}
-      disabled={!draft.name.trim() || !draft.playlist} onClick={submit}>{t(preview ? 'web.liveTv.addSource' : 'web.liveTv.checkFiles')}</Button></>}>
+      disabled={!draft.name.trim() || (!draft.playlist && !draft.guide)} onClick={submit}>{t(preview ? 'web.liveTv.addSource' : 'web.liveTv.checkFiles')}</Button></>}>
     <div className={styles.fields}>
-      <TextField label={t('profile.name')} value={draft.name} maxLength={100} disabled={busy} autoFocus onChange={event => edit({name: event.currentTarget.value})}/>
-      <TextField label={t('web.liveTv.playlistFile')} type="file" accept=".m3u,.m3u8,text/plain" disabled={busy} onChange={event => {const file = event.currentTarget.files?.[0];if (file) read('playlist', file);}}/>
-      <TextField label={t('web.liveTv.guideFile')} type="file" accept=".xml,text/xml,application/xml" disabled={busy} onChange={event => {const file = event.currentTarget.files?.[0];if (file) read('guide', file);}}/>
-      <TextField label={t('web.dvrSettings.tuners')} description={t('web.liveTv.tunersHelp')} type="number" min={0} max={64} step={1} value={draft.tunerCount} disabled={busy}
-        onChange={event => {const value = event.currentTarget.valueAsNumber;if (Number.isSafeInteger(value) && value >= 0 && value <= 64) edit({tunerCount: value});}}/>
-      {preview && <div className={styles.success} role="status"><b className={styles.facts}><span>{t('server.live.channelCount', {count: preview.channels})}</span><span>{t('server.live.programCount', {count: preview.programmes})}</span></b><p>{preview.names?.slice(0, 6).join(', ')}</p></div>}
+      <TextField label={t('profile.name')} value={draft.name} maxLength={120} disabled={disabled} autoFocus onChange={event => edit({name: event.currentTarget.value})}/>
+      <TextField label={t('web.liveTv.playlistFile')} type="file" accept=".m3u,.m3u8,text/plain" disabled={disabled} onChange={event => {const file = event.currentTarget.files?.[0];if (file) read('playlist', file);}}/>
+      <TextField label={t('web.liveTv.guideFile')} type="file" accept=".xml,text/xml,application/xml" disabled={disabled} onChange={event => {const file = event.currentTarget.files?.[0];if (file) read('guide', file);}}/>
+      {draft.playlist && <TextField label={t('web.dvrSettings.tuners')} type="number" min={1} max={256} step={1} value={draft.tunerCount} disabled={disabled}
+        onChange={event => {const value = event.currentTarget.valueAsNumber;if (Number.isSafeInteger(value) && value >= 1 && value <= 256) edit({tunerCount: value});}}/>}
+      {preview && <div className={styles.success} role="status"><b className={styles.facts}><span>{t('server.live.channelCount', {count: preview.report.channels})}</span><span>{t('server.live.programCount', {count: preview.report.programmes})}</span></b><p>{preview.names?.slice(0, 6).join(', ')}</p></div>}
+      {skipped && <p>{skipped.summary}</p>}
+      {preview?.report.examples?.map((reason, index) => <p key={index}>{reason}</p>)}
       {!!error && <p role="alert" className={styles.error}>{errorMessage(error)}</p>}
     </div>
   </Dialog>;

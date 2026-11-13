@@ -1,3 +1,4 @@
+import {withRequestRaw} from '@core/home-selection/list-destinations.ts';
 import {dependsOn} from '@core/freshness-hub.ts';
 import {useFreshness} from '../../../platform/freshness';
 import {mountQuietInput, SettingsOpenContext} from '../../settings/quiet-refresh';
@@ -50,11 +51,12 @@ export function createOwnerSources(options: OwnerSourcesOptions) {
   const current = () => active && options.isCurrent();
   const dispose = () => {if (!active) return;active = false;for (const child of children) child.dispose();children.clear();for (const listener of listeners) listener();listeners.clear();};
   const reportError = (error: unknown) => {if (terminal(error)) {dispose();options.reportError(error);}};
-  const api: LibraryContentApi = {async request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) {
+  const reader: LibraryContentApi = {async request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal) {
     if (!current() || signal?.aborted) throw {code: 'cancelled'};
     try {const result = await options.api.request<T>(path, method, body, signal);if (!current() || signal?.aborted) throw {code: 'cancelled'};return result;}
     catch (error) {if (terminal(error)) reportError(error);throw error;}
   }};
+  const api = withRequestRaw(reader, options.api.requestRaw?.bind(options.api), () => {if (!current()) throw {code: 'cancelled'};});
   const sources = new LiveSourceController(api, options.serverId, current, reportError);
   const defaults = new AutoSaveForm(liveDefaultsForm({api, serverId: options.serverId, console: new ConsoleClient(api, {serverId: options.serverId, viewerId: options.viewerId}), operationId: channelRequestID}), current, reportError);
   const recording = new AutoSaveForm(recordingForm({api, serverId: options.serverId, console: new ConsoleClient(api, {serverId: options.serverId, viewerId: options.viewerId}), operationId: channelRequestID}), current, reportError);
@@ -147,7 +149,7 @@ export function OwnerSourcesPage({source, libraryChannels}: {source: OwnerSource
     const {admittedSource} = setupPorts1.current;
     const exact = admittedSource;
     const current = () => sourceAdmissionAllowed(exact, sourceToken.current, source) && source.current();
-    if (!exact || !current() || !snapshot.document?.refresh.some(row => row.state === 'refreshing')) return;
+    if (!exact || !current() || !snapshot.document?.sources.some(row => !row.paused && (row.state === 'new' || row.state === 'refreshing'))) return;
     const timer = setTimeout(() => {if (current() && document.visibilityState !== 'hidden') void source.sources.refreshQuietly();}, 5000);
     return () => clearTimeout(timer);
   }, [source, snapshot.document, admittedSource?.token]);
@@ -229,9 +231,9 @@ export function OwnerSourcesPage({source, libraryChannels}: {source: OwnerSource
     {modal?.kind === 'remote' && <RemoteSourceDialog key={modal.id} openingId={modal.id} opening={modal.token} api={source.api} serverId={source.serverId} isCurrent={source.current} reportError={source.reportError} tuner={modal.tuner} close={modal.close} saved={modal.saved}/>}
     {modal?.kind === 'upload' && <UploadSourceDialog key={modal.id} openingId={modal.id} opening={modal.token} api={source.api} serverId={source.serverId} isCurrent={source.current} reportError={source.reportError} close={modal.close} saved={modal.saved}/>}
     {modal?.kind === 'discover' && <DiscoverTuners key={modal.id} openingId={modal.id} opening={modal.token} api={source.api} serverId={source.serverId} isCurrent={source.current} reportError={source.reportError} close={modal.close} onUseTuner={modal.useTuner}/>}
-    {modal?.kind === 'settings' && <SourceSettingsDialog controller={modal.controller} choices={modal.choices} name={modal.source.name} guides={snapshot.document?.sources ?? []} acquisition={modal.source.acquisition} enabled={snapshot.document?.sources.some(row => row.id === modal.source.id) ? snapshot.document.sources.find(row => row.id === modal.source.id)!.state !== 'disabled' : undefined} sourceBusy={!!snapshot.busy || snapshot.loading} setEnabled={enabled => {
+    {modal?.kind === 'settings' && <SourceSettingsDialog controller={modal.controller} choices={modal.choices} name={modal.source.name} guides={snapshot.document?.sources ?? []} acquisition={modal.source.acquisition} enabled={snapshot.document?.sources.some(row => row.id === modal.source.id) ? snapshot.document.sources.find(row => row.id === modal.source.id)!.paused === false : undefined} sourceBusy={!!snapshot.busy || snapshot.loading} setEnabled={enabled => {
       const latest = source.sources.getSnapshot(), selected = latest.document?.sources.find(row => row.id === modal.source.id);
-      if (sourceCurrent() && modalRef.current === modal && !latest.busy && !latest.loading && selected && (selected.state !== 'disabled') !== enabled) void source.sources.act(selected, 'toggle');
+      if (sourceCurrent() && modalRef.current === modal && !latest.busy && !latest.loading && selected && (!selected.paused) !== enabled) void source.sources.act(selected, 'toggle');
     }} close={close} changed={() => {if (sourceCurrent() && modalRef.current === modal) void source.sources.load();}}/>}
     {modal?.kind === 'channels' && <ChannelMapDialog controller={modal.controller} name={modal.source.name} close={close}/>}
     {modal?.kind === 'remove' && <Dialog footerDismisses open title={t('web.liveTv.removeTitle', {name: modal.source.name})} description={t('web.liveTv.removeBody')} onOpenChange={open => {if (!open) close();}}

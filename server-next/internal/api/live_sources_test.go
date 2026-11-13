@@ -121,6 +121,11 @@ func TestAPlaylistAndItsGuideComeIn(t *testing.T) {
 		t.Fatalf("after its refresh the source reads %+v", got)
 	}
 
+	var current LiveSource
+	response := call(t, s, "GET", "/v1/admin/live/sources/"+src.ID, owner, nil, &current)
+	if current.Revision == "" || response.Header().Get("ETag") != "\""+current.Revision+"\"" {
+		t.Fatal("source revision must be its actual ETag")
+	}
 	channels := get[Page[LiveChannel]](t, s, everything, "/v1/live/channels").Items
 	if len(channels) != 2 || channels[0].Number != "2.1" || channels[1].Number != "4" {
 		t.Fatalf("channels: %+v", channels)
@@ -213,7 +218,7 @@ func TestWatchingASourcesChannelSharesItsTuner(t *testing.T) {
 	s, owner, members := seededWith(t, 50, 2)
 	fake := fakeProvider(t, s.now())
 	t.Cleanup(s.tuners.Close) // before the fake source closes, which waits for its streams
-	addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("Antenna"), TunerCount: new(1), Config: &live.LiveSourceConfig{PlaylistURL: fake.URL + "/tuned.m3u"}})
+	src := addSource(t, s, owner, LiveSourceSave{Kind: "playlist", Name: new("Antenna"), TunerCount: new(1), Config: &live.LiveSourceConfig{PlaylistURL: fake.URL + "/tuned.m3u"}})
 	channels := get[Page[LiveChannel]](t, s, members[0], "/v1/live/channels").Items
 	if len(channels) != 2 {
 		t.Fatalf("channels: %+v", channels)
@@ -225,6 +230,19 @@ func TestWatchingASourcesChannelSharesItsTuner(t *testing.T) {
 	}
 	if w := call(t, s, "POST", "/v1/playback/sessions", members[1], PlaybackStart{Channel: channels[0].ID}, &second); w.Code != 201 {
 		t.Fatalf("a second viewer of the same channel answered %d: %s", w.Code, w.Body)
+	}
+	tuners := get[DvrTuners](t, s, owner, "/v1/admin/dvr/tuners")
+	found := false
+	for _, row := range tuners.Sources {
+		if row.SourceID == src.ID {
+			found = true
+			if row.TunerCount != 1 || row.InUse != 1 || len(row.Active) != 2 {
+				t.Fatalf("two viewers must share one tuner input: %+v", row)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("the tuner snapshot lost its source")
 	}
 	var refused struct {
 		Error Error `json:"error"`

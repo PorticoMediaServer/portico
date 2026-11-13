@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
 import {Children, isValidElement, type ReactNode} from 'react';
-import {remotePreview, uploadPreview, sourceReceipt} from './live-owner-fixtures.ts';
+import {rebuiltPreview, rebuiltSource} from './live-owner-fixtures.ts';
 import {transformTsx} from './transform-tsx.mjs';
 
 // Real dialog functions run on a committed layout lease: opening A publishes its controller,
@@ -83,7 +83,7 @@ function apiFor(preview: unknown, save: Promise<unknown>) {
   return {requests, request(path: string, method?: string, body?: unknown, signal?: AbortSignal) {
     requests.push({path, method, body, signal});
     return path.endsWith('/preview') ? Promise.resolve(preview) : save;
-  }};
+  }, async requestRaw(path: string, method: string, options: any) {requests.push({path,method,body:options.body,signal:options.signal});return {status:201,headers:{},body:await save};}};
 }
 function deferred<T>() {let resolve!: (value: T) => void;const promise = new Promise<T>(done => {resolve = done;});return {promise, resolve};}
 function dialogProps(api: unknown, openingId: string, opening: {live: boolean}, counters: {saved: number; closed: number}) {
@@ -93,13 +93,13 @@ function dialogProps(api: unknown, openingId: string, opening: {live: boolean}, 
 const paint = (frame: HookFrame, component: any, props: unknown) => frame.render(() => component(props)) as any;
 
 for (const [name, component, preview, savePath] of [
-  ['remote', RemoteSourceDialog, remotePreview, '/v1/admin/live-sources/remote/save'],
-  ['upload', UploadSourceDialog, uploadPreview, '/v1/admin/live-sources'],
+  ['remote', RemoteSourceDialog, rebuiltPreview, '/v1/admin/live/sources'],
+  ['upload', UploadSourceDialog, rebuiltPreview, '/v1/admin/live/sources'],
 ] as const) {
   test(`${name} stale saved/close handlers cannot affect replacement dialog`, async t => {
     const frame = new HookFrame(), counters = {saved: 0, closed: 0}, pending = deferred<unknown>();
     t.after(() => frame.unmount());
-    const apiA = apiFor(preview, pending.promise), apiB = apiFor(preview, Promise.resolve(sourceReceipt()));
+    const apiA = apiFor(preview, pending.promise), apiB = apiFor(preview, Promise.resolve(rebuiltSource));
     const openingA = {live: true}, openingB = {live: true};
     const propsA = dialogProps(apiA, `${name}-a`, openingA, counters), propsB = dialogProps(apiB, `${name}-b`, openingB, counters);
     let tree = paint(frame, component, propsA);
@@ -117,7 +117,7 @@ for (const [name, component, preview, savePath] of [
     const replacement = paint(frame, component, propsB);
     stale.props.onOpenChange(false);
     cancel(stale).props.onClick();
-    pending.resolve(sourceReceipt());
+    pending.resolve(rebuiltSource);
     await settle();
     assert.equal(counters.saved, 0, 'a retired opening cannot save after replacement');
     assert.equal(counters.closed, 0, 'a retired opening cannot close after replacement');

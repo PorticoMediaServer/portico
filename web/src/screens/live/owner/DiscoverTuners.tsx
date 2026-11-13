@@ -56,6 +56,7 @@ export function DiscoverTuners({api, serverId, isCurrent, reportError, openingId
     <div className={styles.fields}>
       {busy && <p role="status">{t('web.liveSource.searching')}</p>}
       {!!error && <p role="alert" className={styles.error}>{errorMessage(error)}</p>}
+      {result?.message && <p>{result.message}</p>}
       {result && !result.discoveryEnabled && <p>{t('web.liveSource.searchOff')}</p>}
       {result?.discoveryEnabled && !result.devices.length && <p>{t('web.liveSource.noTuners')}</p>}
       {result?.devices.map(tuner => <SettingsRow key={tuner.deviceId || tuner.address} label={tuner.friendlyName || tuner.model || t('web.liveSource.tunerFallback')}
