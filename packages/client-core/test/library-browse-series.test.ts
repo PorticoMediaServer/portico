@@ -41,3 +41,21 @@ test('an audiobook library\'s Authors tab is its people list by name, each autho
       return {items: [person(at + 1), person(at + 2)], ...(at + 2 < 6 ? {nextCursor: String(at + 2)} : {})};}});
   assert.deepEqual((await far.fetchPage(4, 2, none)).items.map(entry => entry.id), ['per_5', 'per_6']);
 });
+
+// The lead's rulings (13 Nov): a Books library's Series lists its book series only, and a reading
+// series is a 2:3 book cover, where an audiobook series stays square.
+test("a Books library's Series lists book series only; comics and audiobooks list all theirs", async () => {
+  const {libraryItemQuery} = await import('../src/library-browse.ts');
+  assert.equal(libraryItemQuery({id: 'lib', views: [{kind: 'book'}, {kind: 'series'}, {kind: 'magazine'}]} as never, 'series', [], []).publication, 'book');
+  assert.equal(libraryItemQuery({id: 'lib', kind: 'book'}, 'series', [], []).publication, 'book', 'the browse grid names the library by its kind');
+  assert.equal(libraryItemQuery({id: 'lib', views: [{kind: 'comic'}, {kind: 'series'}]} as never, 'series', [], []).publication, undefined);
+  assert.equal(libraryItemQuery({id: 'lib', views: [{kind: 'audiobook'}, {kind: 'series'}]} as never, 'series', [], []).publication, undefined);
+});
+
+test('a reading series is a 2:3 cover; an audiobook series stays square', async () => {
+  const {shapeFor} = await import('../src/presentation/card-shape.ts');
+  assert.equal(shapeFor('book_series', 'grid', 'book'), 'poster');
+  assert.equal(shapeFor('book_series', 'grid', 'comic'), 'poster');
+  assert.equal(shapeFor('book_series', 'grid', 'audiobook'), 'square');
+  assert.equal(shapeFor('book_series', 'grid'), 'square');
+});
