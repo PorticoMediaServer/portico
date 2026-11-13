@@ -137,7 +137,7 @@
 .detailsCompact .owner p { font-size: 12.5px; }
 .detailsCompact .ownerHeading { font-size: 13px; margin-bottom: 6px; }
 .detailsCompact .ownerActions button { font-size: 12.5px; }
-@media (min-width: 1024px) and (max-width: 1439px) { .page .position, .player .position { left: var(--state-left, clamp(32px,calc(32px + (100vw - 1024px) / 13),64px)); } }
+@media (min-width: 1024px) and (max-width: 1439px) { .page .position, .player .position { left: var(--state-left, var(--shell-gutter, var(--gutter-desktop))); } }
 @media (max-width: 1023px) {
   .page .position { left: 24px; right: 24px; top: 160px; width: auto; transform: none; text-align: center; max-height: calc(100% - var(--state-content-top, 160px) - 24px); }
   .page .stateIcon { width: 54px; height: 54px; margin: 0 auto 18px; }
