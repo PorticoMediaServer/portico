@@ -38,21 +38,23 @@ type PlaybackVideo struct {
 	Height      int     `json:"height,omitempty"`
 	FPS         float64 `json:"fps,omitempty"`
 	HDR         string  `json:"hdr,omitempty"`
+	HDR10Plus   bool    `json:"hdr10Plus,omitempty"`
 	BitrateKbps int64   `json:"bitrateKbps,omitempty"`
 }
 
 type PlaybackAudio struct {
-	ID         string `json:"id"`
-	Codec      string `json:"codec"`
-	Profile    string `json:"profile,omitempty"`
-	Channels   int    `json:"channels,omitempty"`
-	Layout     string `json:"layout,omitempty"`
-	SampleRate int    `json:"sampleRate,omitempty"`
-	BitDepth   int    `json:"bitDepth,omitempty"`
-	Language   string `json:"language,omitempty"`
-	Title      string `json:"title,omitempty"`
-	Default    bool   `json:"default"`
-	Commentary bool   `json:"commentary"`
+	ID          string `json:"id"`
+	Codec       string `json:"codec"`
+	Profile     string `json:"profile,omitempty"`
+	Channels    int    `json:"channels,omitempty"`
+	Layout      string `json:"layout,omitempty"`
+	SampleRate  int    `json:"sampleRate,omitempty"`
+	BitDepth    int    `json:"bitDepth,omitempty"`
+	Language    string `json:"language,omitempty"`
+	Title       string `json:"title,omitempty"`
+	Default     bool   `json:"default"`
+	Commentary  bool   `json:"commentary"`
+	ObjectAudio string `json:"objectAudio,omitempty"`
 }
 
 type PlaybackSubtitle struct {
@@ -400,11 +402,11 @@ func versionOut(v db.PlaybackVersion) PlaybackVersion {
 		switch t.Kind {
 		case db.StreamVideo:
 			out.Video = append(out.Video, PlaybackVideo{ID: id, Codec: t.Codec, Profile: t.Profile, BitDepth: t.BitDepth, Width: t.Width,
-				Height: t.Height, FPS: t.FrameRate, HDR: t.HDR, BitrateKbps: t.Bitrate / 1000})
+				Height: t.Height, FPS: t.FrameRate, HDR: t.HDR, HDR10Plus: t.HDR10Plus, BitrateKbps: t.Bitrate / 1000})
 		case db.StreamAudio:
 			out.Audio = append(out.Audio, PlaybackAudio{ID: id, Codec: t.Codec, Profile: t.Profile, Channels: t.Channels,
 				Layout: t.ChannelLayout, SampleRate: t.SampleRate, BitDepth: t.BitDepth, Language: t.Language, Title: t.Title,
-				Default: t.Default, Commentary: playback.Commentary(t)})
+				Default: t.Default, Commentary: playback.Commentary(t), ObjectAudio: t.ObjectAudio})
 		case db.StreamSubtitle:
 			source := "embedded"
 			switch {

@@ -80,8 +80,10 @@ func findTrack(v db.PlaybackVersion, kind db.StreamKind, id string) (db.Track, b
 	return db.Track{}, false
 }
 
-// Commentary reports whether an audio track is a commentary, as its title says.
-func Commentary(t db.Track) bool { return strings.Contains(strings.ToLower(t.Title), "commentary") }
+// Commentary uses the observed flag, with the existing title fallback for older scans.
+func Commentary(t db.Track) bool {
+	return t.Commentary || strings.Contains(strings.ToLower(t.Title), "commentary")
+}
 
 // pickOf is how a chosen track is remembered: its language and what sets it apart from the
 // other tracks in that language. See db.RememberTracks.

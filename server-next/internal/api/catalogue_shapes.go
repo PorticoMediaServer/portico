@@ -273,6 +273,9 @@ type Stream struct {
 	Default         bool    `json:"default,omitempty"`
 	Forced          bool    `json:"forced,omitempty"`
 	HearingImpaired bool    `json:"hearingImpaired,omitempty"`
+	Commentary      bool    `json:"commentary,omitempty"`
+	ObjectAudio     string  `json:"objectAudio,omitempty"`
+	HDR10Plus       bool    `json:"hdr10Plus,omitempty"`
 	Bitrate         int64   `json:"bitrate,omitempty"`
 	Width           int     `json:"width,omitempty"`
 	Height          int     `json:"height,omitempty"`
@@ -593,6 +596,7 @@ func streamShapes(streams []db.Stream) []Stream {
 	for index, s := range streams {
 		out[index] = Stream{Index: index, Kind: s.Kind.String(), Codec: s.Codec, Profile: s.Profile,
 			Language: s.Language, Title: s.Title, Default: s.Default, Forced: s.Forced, HearingImpaired: s.HearingImpaired,
+			Commentary: s.Commentary, ObjectAudio: s.ObjectAudio, HDR10Plus: s.HDR10Plus,
 			Bitrate: s.Bitrate, Width: s.Width, Height: s.Height, FrameRate: s.FrameRate, BitDepth: s.BitDepth, HDR: s.HDR,
 			Channels: s.Channels, ChannelLayout: s.ChannelLayout, SampleRate: s.SampleRate}
 	}

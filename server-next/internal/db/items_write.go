@@ -58,23 +58,23 @@ type ImportFile struct {
 
 // Stream is one video, audio or subtitle track of a file.
 type Stream struct {
-	Kind            StreamKind
-	Codec           string
-	Profile         string
-	Language        string
-	Title           string
-	Default         bool
-	Forced          bool
-	HearingImpaired bool
-	Bitrate         int64
-	Width           int
-	Height          int
-	FrameRate       float64
-	BitDepth        int
-	HDR             string
-	Channels        int
-	ChannelLayout   string
-	SampleRate      int
+	Kind                             StreamKind
+	Codec                            string
+	Profile                          string
+	Language                         string
+	Title                            string
+	Default, Forced, HearingImpaired bool
+	Commentary, HDR10Plus            bool
+	ObjectAudio                      string // atmos or dtsx, only when observed
+	Bitrate                          int64
+	Width                            int
+	Height                           int
+	FrameRate                        float64
+	BitDepth                         int
+	HDR                              string
+	Channels                         int
+	ChannelLayout                    string
+	SampleRate                       int
 }
 
 // ItemKey is one fact that identifies an item across rescans.
