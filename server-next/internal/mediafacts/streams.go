@@ -17,6 +17,10 @@ type Stream struct {
 	ChannelLayout string `json:"channelLayout,omitempty"`
 	Default       bool   `json:"default"`
 	Forced        bool   `json:"forced"`
+	// Playback-only copy-join evidence. Never persisted or offered to clients.
+	CodecSetupHash string `json:"-"`
+	CodecSetupSize int    `json:"-"`
+	TimeBase       string `json:"-"`
 	// Colour characteristics decide HDR. They are published because a client
 	// that knows the source is PQ can explain a tone-mapped picture.
 	ColorTransfer  string `json:"colorTransfer,omitempty"`

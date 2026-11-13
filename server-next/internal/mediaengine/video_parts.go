@@ -37,9 +37,17 @@ func (e *Engine) videoParts(ctx context.Context, r playback.PlanRequest, remoteI
 		var shape strings.Builder
 		for _, s := range facts.Streams {
 			if s.Type == "audio" || s.Type == "video" {
+				if s.TimeBase == "" || s.CodecSetupSize > 0 && s.CodecSetupHash == "" {
+					return nil, nil
+				}
 				// The selected track maps by index, not descriptive metadata.
 				fmt.Fprintln(&shape, s.Index, s.Type, s.Codec)
+				fmt.Fprintln(&shape, s.TimeBase, s.CodecSetupSize, s.CodecSetupHash)
 				fmt.Fprintln(&shape, s.Detail.Profile, s.Detail.PixelFormat, s.Detail.BitDepth, s.Detail.Width, s.Detail.Height, s.Detail.SampleAspectRatio)
+				fmt.Fprintln(&shape, s.Detail.Level, s.Detail.FrameRate, s.Detail.FrameRateNumerator, s.Detail.FrameRateDenominator)
+				fmt.Fprintln(&shape, s.Detail.CodecTag, s.Detail.RefFrames, s.Detail.Interlaced, s.Detail.Rotation, s.Detail.BitsPerSample)
+				fmt.Fprintln(&shape, s.Detail.DolbyVisionProfile, s.Detail.DolbyVisionLevel, s.Detail.DolbyVisionCompatibility, s.Detail.EnhancementLayer)
+				fmt.Fprintln(&shape, s.Detail.HDR10Plus, s.Detail.MasterDisplay, s.Detail.MaxCLL, s.Detail.ObjectAudio)
 				fmt.Fprintln(&shape, s.ColorTransfer, s.ColorPrimaries, s.Detail.DynamicRange, s.Detail.SampleRate, s.Channels, s.ChannelLayout)
 			}
 		}

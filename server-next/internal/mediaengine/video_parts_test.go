@@ -1,6 +1,7 @@
 package mediaengine_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/api"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decodertest"
+	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
@@ -257,6 +259,87 @@ func TestSplitVideoTitlesJoinAndDifferentLayoutsKeepPlaying(t *testing.T) {
 		}
 		t.Logf("different layout=%v: route=%s, delivered %.6f s", differentLayout, session.Presentation.Route, played.seconds)
 		h.call("DELETE", "/v1/playback/sessions/"+session.ID, nil, nil, 204)
+	}
+}
+
+// A header-only change can leave every descriptive/planning fact identical.
+// Matching those facts must not copy part two with part one's codec setup.
+func TestSplitVideoCodecSetupChangesKeepFirstPartPlaying(t *testing.T) {
+	ffmpeg, ffprobe := decodertest.QualifiedFFmpeg(t), decodertest.QualifiedFFprobe(t)
+	h, d := newHouse(t, ffmpeg, ffprobe)
+	library := filepath.Join(t.TempDir(), "Films")
+	folder := filepath.Join(library, "Setup Film (2026)")
+	if err := os.MkdirAll(folder, 0700); err != nil {
+		t.Fatal(err)
+	}
+	first := filepath.Join(folder, "Setup Film (2026) - pt1.mp4")
+	second := filepath.Join(folder, "Setup Film (2026) - pt2.mp4")
+	if out, err := exec.Command(ffmpeg, "-nostdin", "-v", "error", "-f", "lavfi", "-i", "color=red:s=320x180:r=24",
+		"-f", "lavfi", "-i", "sine=sample_rate=48000", "-t", "8", "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2",
+		"-level:v", "3.0", "-c:a", "aac", "-ac", "2", first).CombinedOutput(); err != nil {
+		t.Fatalf("making first part: %v: %s", err, out)
+	}
+	ctx := context.Background()
+	lib, err := d.CreateLibrary(ctx, "Films", db.LibraryMovies, "en", []string{library})
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe := mediafacts.Probe{Binary: ffprobe, CodecSetup: true}
+	a, err := probe.Inspect(ctx, first)
+	if err != nil || len(a.Streams) != 2 || a.Streams[0].CodecSetupHash == "" {
+		t.Fatalf("first part's setup not read: %v", err)
+	}
+	for _, change := range []struct{ name, filter string }{
+		{"level", "h264_metadata=level=4.1"},
+		{"setup-only", "h264_metadata=chroma_sample_loc_type=1"},
+	} {
+		t.Run(change.name, func(t *testing.T) {
+			if out, err := exec.Command(ffmpeg, "-nostdin", "-v", "error", "-y", "-i", first, "-map", "0", "-c", "copy", "-bsf:v", change.filter, second).CombinedOutput(); err != nil {
+				t.Fatalf("changing second header: %v: %s", err, out)
+			}
+			b, err := probe.Inspect(ctx, second)
+			if err != nil || len(b.Streams) != 2 {
+				t.Fatalf("second part's setup not read: %v", err)
+			}
+			if b.Streams[0].CodecSetupHash == "" || a.Streams[0].CodecSetupHash == b.Streams[0].CodecSetupHash {
+				t.Fatal("fixture must have different codec setup bytes")
+			}
+			left, right := a.Streams[0], b.Streams[0]
+			right.CodecSetupHash, right.CodecSetupSize = left.CodecSetupHash, left.CodecSetupSize
+			if change.name == "level" {
+				if left.Detail.Level != 30 || right.Detail.Level != 41 {
+					t.Fatal("fixture must differ only in level")
+				}
+				right.Detail.Level = left.Detail.Level
+			}
+			if left != right || a.Streams[1] != b.Streams[1] {
+				t.Fatal("fixture changed a listed media fact besides its intended level/setup change")
+			}
+			wire, err := json.Marshal(b.Streams[0])
+			if err != nil || bytes.Contains(wire, []byte(b.Streams[0].CodecSetupHash)) ||
+				strings.Contains(b.Streams[0].EncodeDetail(), b.Streams[0].CodecSetupHash) || bytes.Contains(wire, []byte("timeBase")) {
+				t.Fatal("playback-only evidence escaped into offered or persisted facts")
+			}
+			if _, err := (&scan.Scanner{DB: d, Prober: scan.FileProber{}}).Scan(ctx, lib); err != nil {
+				t.Fatal(err)
+			}
+			var page api.ItemPage
+			h.call("GET", "/v1/items?library="+lib.PublicID+"&kind=movie", nil, &page, 200)
+			if len(page.Items) != 1 {
+				t.Fatalf("scanned %d films", len(page.Items))
+			}
+			var session api.PlaybackSession
+			h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: page.Items[0].ID}, &session, 201)
+			if session.Presentation.Route != playback.RouteOriginal {
+				t.Fatal("different setup must retain first-part original playback")
+			}
+			code, _, got := h.media(session.Presentation.URL)
+			want, err := os.ReadFile(first)
+			if err != nil || code != 200 || !bytes.Equal(got, want) {
+				t.Fatal("first-part original bytes changed")
+			}
+			h.call("DELETE", "/v1/playback/sessions/"+session.ID, nil, nil, 204)
+		})
 	}
 }
 
