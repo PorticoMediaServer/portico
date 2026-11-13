@@ -2903,6 +2903,12 @@
       },
       "DvrRule": {
         "properties": {
+          "profileId": {
+            "type": "string"
+          },
+          "profileName": {
+            "type": "string"
+          },
           "byTitle": {
             "type": "boolean"
           },
@@ -2947,6 +2953,8 @@
           }
         },
         "required": [
+          "profileId",
+          "profileName",
           "id",
           "title",
           "source",
@@ -2976,6 +2984,9 @@
       },
       "DvrRulePreview": {
         "properties": {
+          "newOnlyAvailable": {
+            "type": "boolean"
+          },
           "airings": {
             "items": {
               "$ref": "#/components/schemas/DvrAiring"
@@ -2987,6 +2998,7 @@
           }
         },
         "required": [
+          "newOnlyAvailable",
           "matches",
           "airings"
         ],
@@ -2994,6 +3006,9 @@
       },
       "DvrRuleSave": {
         "properties": {
+          "profileId": {
+            "type": "string"
+          },
           "anyChannel": {
             "type": "boolean"
           },

@@ -862,6 +862,8 @@ export interface DvrRecordingPage {
 }
 
 export interface DvrRule {
+  profileId: string;
+  profileName: string;
   id: string;
   title: string;
   source: string;
@@ -884,11 +886,13 @@ export interface DvrRulePage {
 }
 
 export interface DvrRulePreview {
+  newOnlyAvailable: boolean;
   matches: number;
   airings: DvrAiring[];
 }
 
 export interface DvrRuleSave {
+  profileId?: string;
   programme?: string;
   anyChannel?: boolean;
   channel?: string;

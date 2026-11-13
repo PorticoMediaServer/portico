@@ -735,11 +735,25 @@ func (s *Service) RuleAirings(ctx context.Context, rule db.RecordingRule, now ti
 }
 
 func (s *Service) followRule(ctx context.Context, rule db.RecordingRule, now time.Time) error {
-	airings, err := s.RuleAirings(ctx, rule, now)
+	profile, err := s.db.ProfileNames(ctx, rule.ProfileID)
 	if err != nil {
 		return err
 	}
-	profile, err := s.db.ProfileNames(ctx, rule.ProfileID)
+	v, err := s.db.DvrRuleViewer(ctx, profile.PublicID)
+	if errors.Is(err, db.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	lv, err := s.db.ViewerLive(ctx, v)
+	if err != nil {
+		return err
+	}
+	if !lv.Record || !lv.LiveTV {
+		return nil
+	}
+	airings, err := s.RuleAirings(ctx, rule, now)
 	if err != nil {
 		return err
 	}
@@ -749,6 +763,19 @@ func (s *Service) followRule(ctx context.Context, rule db.RecordingRule, now tim
 			continue // booked already: nothing to write
 		}
 		p, c := a.Programme, a.Channel
+		if lv.MaxAge != nil && p.RatingAge != nil && *p.RatingAge > *lv.MaxAge {
+			continue
+		}
+		visible, err := s.db.LiveChannelByID(ctx, v, c.PublicID)
+		if errors.Is(err, db.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if visible.Audience == "owner" && !lv.Owner {
+			continue
+		}
 		b := db.Booking{ProfileID: rule.ProfileID, ProfileName: profile.Name, ProfilePub: profile.PublicID, RuleID: rule.ID, ChannelID: c.ID,
 			ChannelName: c.Name, ProgrammeKey: p.ProgrammeKey, SeriesKey: p.SeriesKey, Title: p.Title, EpisodeTitle: p.EpisodeTitle,
 			Season: p.Season, Episode: p.Episode, Details: p.Summary, Rating: p.Rating, RatingAge: p.RatingAge, StartsAt: p.StartsAt,
