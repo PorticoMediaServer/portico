@@ -40,9 +40,7 @@ export function SourceList({snapshot, refresh, add, configure, channels, act}: S
       const state = liveSourceState(source, undefined);
       const notice = importSkipped(t, defaultI18n.has, source.report);
       const reasons = [...new Set([...(notice?.reasons ?? []), ...(source.report?.examples ?? []).filter(line => !line.startsWith('live.import.'))])];
-      // An upload is a saved manual import with no refresh loop, so it has no
-      // refresh command even if a stale status entry named it.
-      const refreshable = source.acquisition !== 'upload' && !source.paused && source.state !== 'refreshing';
+      const refreshable = !source.paused && source.state !== 'refreshing';
       const facts = [source.report ? t('server.live.channelCount', {count: source.report.channels}) : '',
         source.report?.programmes ? t('server.live.programCount', {count: source.report.programmes}) : '',
         source.tunerCount ? t('server.live.tunerCount', {count: source.tunerCount}) : '',
