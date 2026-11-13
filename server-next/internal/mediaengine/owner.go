@@ -30,11 +30,7 @@ func softwareEncoding(owner settings.StreamingSettings) bool {
 }
 
 // Delivery is the owner's settings in the stream runtime's terms (streaming.DeliverySettings).
-func (e *Engine) Delivery() streaming.DeliveryConfiguration {
-	c := delivery(e.owner())
-	c.PlayedRetentionSeconds = settings.Storage.Get(e.settings).PlayedRetentionSeconds()
-	return c
-}
+func (e *Engine) Delivery() streaming.DeliveryConfiguration { return delivery(e.owner()) }
 
 // delivery maps each streaming setting onto the one field of the runtime's configuration it
 // decides. Everything else keeps the runtime's default.

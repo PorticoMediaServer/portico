@@ -69,6 +69,7 @@ type storageCache struct {
 func (s *Server) storageRoutes(dataDir string) {
 	cache := &storageCache{}
 	s.storageCacheRoutes(cache)
+	s.storageKeepingRoutes()
 	Handle(s, "GET /v1/admin/storage", Owner, func(r *http.Request, _ None) (Storage, error) {
 		conversions, recordings, err := s.storageLocations(r.Context())
 		if err != nil {

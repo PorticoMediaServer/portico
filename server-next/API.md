@@ -600,7 +600,7 @@ Documents: `general` (server name, when heavy work runs (`heavyWork`: `hours` `a
 playback reads when a play starts away from home and may refuse it for, the
 conversion folder, the graphics device, hardware decoding, `conversionsAtOnce` and
 `backgroundConversionsAtOnce` (0 means no owner cap; a save leaves active work alone), End paused video
-after), `storage` (Keep generated files, the free-space warnings), `backups`, `logs`,
+after), `storage` (the free-space warnings), `backups`, `logs`,
 `notices` (who gets server notices, keeping times for notices and Play history), `downloads`
 (on or off, highest quality, space, how long prepared copies are kept), `title_data`
 (Enhanced Recommendations on or off, and a copy's address), `live` and `dvr`,
@@ -800,10 +800,16 @@ them is nothing: the last deliberate edit wins, a `2xx` means it happened, and r
 
 A Services identity with `audience` is accepted only when it is an HTTPS origin this server serves (its approved addresses or its own Portico zone at a served port), the request arrives at that same host and port over HTTPS, and its browser `Origin` is that origin. Forwarded scheme/host count only from a configured trusted proxy. A foreign or missing Origin, another host/port, HTTP or an address belonging to another server refuses the note before exchange. The challenge remains one-use. Notes without audience continue to support the hosted-web and native sign-in paths. The page must still bind its return to its own tab/state before sending the note; the server never receives the fragment.
 
-The `storage` document's `keepGeneratedFiles` is `balanced` (default), `short`, or `long`.
-It keeps converted output behind a play's current position for five minutes, one minute,
-or thirty minutes respectively, for seeking back without converting again. Output ahead
-of the viewer stays protected, and working files still end with their stream.
-Prepared download copies have the separate `downloads.keepDays`: 7, 14, 30 (default),
-90, or 365 days. Fetching restarts that keeping time; Downloads shows that expiry.
+`GET` and `PUT /v1/admin/storage/keeping` expose Keep generated files as a derived
+`preset` (`balanced`, `short`, `long`, or `custom`) and the one supported child today,
+`preparedDownloadsDays`. A preset saves 30, 14, or 90 days into `downloads.keepDays`;
+setting that child to 7 or 365 days reads back as Custom. Either route uses the same
+stored value, with choices 7, 14, 30 (default), 90, and 365. PUT sends either `preset`
+or `preparedDownloadsDays`; Custom is derived, not saved. ETag/If-Match is the downloads
+settings revision, so a change through either route is visible to the other.
+
+Conversion files, unused converted copies, fetched-subtitle cache and seek-bar previews
+have no reusable cache with day-based keeping in this server yet; no inert child settings
+are stored or returned for them. Those rows arrive with the corresponding caches. Conversion
+working files keep their existing playback lifetime and are removed with their stream.
 Empty cache always spares copies that any download request still names, even before a fetch.
