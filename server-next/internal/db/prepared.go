@@ -210,3 +210,20 @@ func (d *DB) PreparedVersion(ctx context.Context, mediaID int64) (Version, ItemK
 	}
 	return Version{}, kind, ErrNotFound
 }
+
+// SetPreparedStateFor ignores a cancelled worker whose removed row id was reused.
+func (d *DB) SetPreparedStateFor(ctx context.Context, id int64, publicID, state, reason string) error {
+	return d.write(ctx, Background, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `UPDATE prepared_media SET state = ?, error = nullif(?, '') WHERE id = ? AND public_id = ?`, state, reason, id, publicID)
+		return err
+	})
+}
+
+// FinishPreparedFor records only the copy this worker actually made.
+func (d *DB) FinishPreparedFor(ctx context.Context, id int64, publicID, container string, size int64, hash string, now time.Time) error {
+	return d.write(ctx, Background, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `UPDATE prepared_media SET state = 'ready', error = NULL, container = ?, size = ?, content_hash = ?,
+			ready_at = ?, last_used_at = ? WHERE id = ? AND public_id = ?`, container, size, hash, now.UnixMilli(), now.UnixMilli(), id, publicID)
+		return err
+	})
+}

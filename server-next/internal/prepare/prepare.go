@@ -239,7 +239,7 @@ func (s *Service) fill(ctx context.Context) {
 		work, stop := context.WithCancel(ctx)
 		s.mu.Lock()
 		// A cleanup may have removed the row while this tick waited for the lock.
-		if _, err := s.DB.PreparedByID(ctx, p.ID); err != nil {
+		if current, err := s.DB.PreparedByID(ctx, p.ID); err != nil || current.PublicID != p.PublicID {
 			s.mu.Unlock()
 			stop()
 			continue
@@ -287,19 +287,19 @@ func (s *Service) diskRoom(ctx context.Context, p db.Prepared) bool {
 // make makes one copy and records how it went. A copy stopped because the server is stopping,
 // or because nobody wants it now, is left to be made again later.
 func (s *Service) make(ctx context.Context, p db.Prepared) {
-	if err := s.DB.SetPreparedState(ctx, p.ID, db.PreparedPreparing, ""); err != nil {
+	if err := s.DB.SetPreparedStateFor(ctx, p.ID, p.PublicID, db.PreparedPreparing, ""); err != nil {
 		return
 	}
 	container, size, hash, err := s.convert(ctx, p)
 	write := context.WithoutCancel(ctx)
 	switch {
 	case ctx.Err() != nil:
-		s.DB.SetPreparedState(write, p.ID, db.PreparedWaiting, "")
+		s.DB.SetPreparedStateFor(write, p.ID, p.PublicID, db.PreparedWaiting, "")
 	case err != nil:
 		s.Log.Warn("a copy for downloading could not be made", "copy", p.PublicID, "error", err)
-		s.DB.SetPreparedState(write, p.ID, db.PreparedFailed, reason(err))
+		s.DB.SetPreparedStateFor(write, p.ID, p.PublicID, db.PreparedFailed, reason(err))
 	default:
-		if err := s.DB.FinishPrepared(write, p.ID, container, size, hash, s.Now()); err != nil {
+		if err := s.DB.FinishPreparedFor(write, p.ID, p.PublicID, container, size, hash, s.Now()); err != nil {
 			s.Log.Error("a finished copy could not be recorded", "copy", p.PublicID, "error", err)
 		}
 	}

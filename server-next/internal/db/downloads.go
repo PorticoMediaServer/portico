@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -626,7 +625,6 @@ func (d *DB) KeepTitles(ctx context.Context, downloadID int64, keep []int64, add
 // PersonDownloads is one account's downloads, for the owner's Storage page.
 type PersonDownloads struct {
 	UserPublicID string
-	DownloadIDs  []string
 	Username     string
 	Titles       int
 	// CopiesBytes is what the server's copies for the account's requests take, each once.
@@ -637,7 +635,6 @@ type PersonDownloads struct {
 // per account; the copies are summed per account.
 func (d *DB) DownloadsByPerson(ctx context.Context) ([]PersonDownloads, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT u.public_id, u.username, count(x.item_id),
- (SELECT json_group_array(e.public_id) FROM downloads e JOIN profiles q ON q.id=e.profile_id WHERE q.user_id=u.id),
 		(SELECT ifnull(sum(pm.size), 0) FROM prepared_media pm WHERE pm.id IN (SELECT y.prepared_id FROM download_items y
 			JOIN downloads e ON e.id = y.download_id JOIN profiles q ON q.id = e.profile_id WHERE q.user_id = u.id))
 		FROM users u JOIN profiles p ON p.user_id = u.id JOIN downloads d ON d.profile_id = p.id
@@ -649,43 +646,10 @@ func (d *DB) DownloadsByPerson(ctx context.Context) ([]PersonDownloads, error) {
 	out := []PersonDownloads{}
 	for rows.Next() {
 		var p PersonDownloads
-		var downloadIDs string
-		if err := rows.Scan(&p.UserPublicID, &p.Username, &p.Titles, &downloadIDs, &p.CopiesBytes); err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal([]byte(downloadIDs), &p.DownloadIDs); err != nil {
+		if err := rows.Scan(&p.UserPublicID, &p.Username, &p.Titles, &p.CopiesBytes); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
 	}
 	return out, rows.Err()
-}
-
-// RemovePersonDownloads removes every request of an account's profiles, and the server's
-// copies no other account's request uses; their files are swept by the tidy-up. Nothing on a
-// device is touched. It returns the copies removed, so the caller can stop any being made.
-func (d *DB) RemovePersonDownloads(ctx context.Context, userPublicID string) ([]int64, error) {
-	var copies []int64
-	err := d.write(ctx, User, func(tx *sql.Tx) error {
-		var userID int64
-		err := tx.QueryRowContext(ctx, `SELECT id FROM users WHERE public_id = ?`, userPublicID).Scan(&userID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrNotFound
-		}
-		if err != nil {
-			return err
-		}
-		mine := `SELECT d.id FROM downloads d JOIN profiles p ON p.id = d.profile_id WHERE p.user_id = ?`
-		if copies, err = ids(ctx, tx, `SELECT DISTINCT x.prepared_id FROM download_items x WHERE x.download_id IN (`+mine+`)
-			AND x.prepared_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM download_items y WHERE y.prepared_id = x.prepared_id
-			AND y.download_id NOT IN (`+mine+`))`, userID, userID); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM downloads WHERE id IN (`+mine+`)`, userID); err != nil {
-			return err
-		}
-		_, err = tx.ExecContext(ctx, `DELETE FROM prepared_media WHERE id IN `+intList(copies))
-		return err
-	})
-	return copies, err
 }

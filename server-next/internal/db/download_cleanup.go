@@ -5,10 +5,10 @@ import (
 	"database/sql"
 )
 
-// DownloadCopies is the prepared storage named by one download request.
-func (d *DB) DownloadCopies(ctx context.Context, publicID string) ([]Prepared, error) {
+// PersonDownloadCopies is the prepared storage named by one person’s download requests.
+func (d *DB) PersonDownloadCopies(ctx context.Context, publicID string) ([]Prepared, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT `+preparedColumns+` FROM prepared_media WHERE id IN
-  (SELECT x.prepared_id FROM download_items x JOIN downloads d ON d.id=x.download_id WHERE d.public_id=?)`, publicID)
+  (SELECT x.prepared_id FROM download_items x JOIN downloads d ON d.id=x.download_id JOIN profiles p ON p.id=d.profile_id JOIN users u ON u.id=p.user_id WHERE u.public_id=?)`, publicID)
 	if err != nil {
 		return nil, err
 	}
@@ -24,17 +24,17 @@ func (d *DB) DownloadCopies(ctx context.Context, publicID string) ([]Prepared, e
 	return out, rows.Err()
 }
 
-// ExpireDownloadCopies preserves the request (and device-held downloads). Only
+// ExpirePersonDownloadCopies preserves the requests (and device-held downloads). Only
 // observed copies are detached; a concurrent Retry's newer choice stays alone.
 // Copies still named by another request remain stored for that request.
-func (d *DB) ExpireDownloadCopies(ctx context.Context, publicID string, observed []int64) ([]int64, error) {
+func (d *DB) ExpirePersonDownloadCopies(ctx context.Context, publicID string, observed []int64) ([]int64, error) {
 	if len(observed) == 0 {
 		return nil, nil
 	}
 	var removed []int64
 	err := d.write(ctx, User, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `UPDATE download_items SET prepared_id=NULL WHERE download_id=
-   (SELECT id FROM downloads WHERE public_id=?) AND prepared_id IN `+intList(observed), publicID)
+		_, err := tx.ExecContext(ctx, `UPDATE download_items SET prepared_id=NULL WHERE download_id IN
+   (SELECT d.id FROM downloads d JOIN profiles p ON p.id=d.profile_id JOIN users u ON u.id=p.user_id WHERE u.public_id=?) AND prepared_id IN `+intList(observed), publicID)
 		if err != nil {
 			return err
 		}
