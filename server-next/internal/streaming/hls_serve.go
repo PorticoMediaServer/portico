@@ -254,7 +254,10 @@ func (h *HLS) FileContext(ctx context.Context, id, name string) (string, error) 
 			case <-tick.C:
 			}
 			// The run may have ended between start and subscribing to changed.
-			// Retry on the existing poll tick too; a covering run is left alone.
+			// Retry on the existing poll tick too, unless its output is ready.
+			if ready(path) {
+				continue
+			}
 			if err := h.start(ctx, id, index); err != nil {
 				return "", err
 			}

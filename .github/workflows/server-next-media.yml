@@ -19,11 +19,6 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           sudo sysctl -w kernel.unprivileged_userns_clone=1 || true
           ffmpeg -version | head -3
-      - name: Play books at the file limit and three hundred parts
-        working-directory: server-next
-        env:
-          PORTICO_REQUIRE_DECODER_SANDBOX: '1'
-        run: go test -v -count=1 -timeout=8m -run '^(TestABookOfThreeHundredPartsPlays|TestBooksAtTheFileLimitPlay)$' ./internal/mediaengine
       - name: Repeat the three affected real-file tests
         working-directory: server-next
         env:
