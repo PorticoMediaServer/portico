@@ -9,6 +9,7 @@
  * keeps watched marks, resume points, ratings and lists (rule 21).
  */
 import type {HistoryEntry, HistoryPage, Item, List, ListAdd, ListAdded, ListCreate, ListCreated, ListEdit, ListMove, ListPage} from '../../contracts/src/next/api.ts';
+import {readProfilePins, setResourcePin} from './library-pins.ts';
 import {callServer, serverPath, type ServerRequester} from './query/server-api.ts';
 import {wireEntryFromItem} from './items.ts';
 import {CodedError} from './server-messages.ts';
@@ -46,18 +47,18 @@ export async function clearHistory(api: ServerRequester, bound: SavedScope, oper
  * server", and others can open and play a visible one and cannot change it (rule 28), so it is shared with no chosen
  * people; a list is reordered only in its own order (rule 31); removing an entry offers Undo for 30 seconds, which
  * puts it back in its place (rule 32); adding a title it holds says "Already in" and changes nothing (rule 33); an
- * edit made on an out-of-date copy is refused with "This list changed" (rule 34). Pins wait for the profile's `pins`
- * setting (rule 38), as they do for playlists, so `pin` is not offered. A saved view is a saved sort and filter on one
+ * edit made on an out-of-date copy is refused with "This list changed" (rule 34). Anyone who sees a list may pin it:
+ * the pin is the profile's own `pins` setting (rule 38), as for playlists. A saved view is a saved sort and filter on one
  * library, always current (rule 24); one whose filter names something that no longer exists opens with the rest of
  * its filter and says what was dropped (rule 36), which the server works out.
  */
 const collectionCard = (list: List) => ({artworkPaths: list.covers.map(images => images.poster ?? images.cover ?? images.thumb).filter(Boolean).slice(0, 4), samples: [], shape: 'posters', onHome: false});
 /** One collection as `personal-saved.ts` reads it. Only its maker changes it (rule 28). */
-function collectionOf(bound: SavedScope, list: List, card = false): Record<string, unknown> {
+function collectionOf(bound: SavedScope, list: List, card = false, pinned = false): Record<string, unknown> {
   const owner = list.role === 'owner';
   return {...(card ? collectionCard(list) : {}), serverId: bound.serverId, viewerFence: 'viewer', id: list.id, kind: 'collection', name: list.name, summary: list.description ?? '',
     visibility: list.everyone ? 'server' : 'private', revision: revisionOf(list), role: owner ? 'owner' : 'viewer', entryCount: list.count,
-    actions: owner ? ['update', 'delete', 'entries', 'reorder'] : [], status: 'ready', invalidComponents: [], pinned: false, pinRevision: 0, shares: []};
+    actions: [...(owner ? ['update', 'delete', 'entries', 'reorder'] : []), 'pin'], status: 'ready', invalidComponents: [], pinned, pinRevision: 0, shares: []};
 }
 /** The profile's collections (its own and those made visible to everyone) or its saved views, as cards. */
 export async function readDirectory(api: SavedNextApi, bound: SavedScope, kind: 'collection' | 'view', cursor: string | null, signal?: AbortSignal): Promise<unknown> {
@@ -101,16 +102,16 @@ function definitionOf(list: List): SavedDefinition | undefined {
 }
 /** One saved view as `personal-saved.ts` reads it: only its maker changes it, and what the server dropped from its
  * filter is listed (rule 36). */
-function viewOf(bound: SavedScope, list: List, definition: SavedDefinition | undefined): Record<string, unknown> {
+function viewOf(bound: SavedScope, list: List, definition: SavedDefinition | undefined, pinned = false): Record<string, unknown> {
   const owner = list.role === 'owner';
   return {serverId: bound.serverId, viewerFence: 'viewer', id: list.id, kind: 'view', name: list.name, summary: list.description ?? '', visibility: 'private', revision: revisionOf(list),
-    role: owner ? 'owner' : 'viewer', entryCount: list.count, actions: owner ? ['update', 'delete'] : [], ...(definition ? {definition} : {}), status: definition ? 'ready' : 'needs-review',
-    invalidComponents: [...(list.dropped ?? [])], pinned: false, pinRevision: 0, shares: []};
+    role: owner ? 'owner' : 'viewer', entryCount: list.count, actions: [...(owner ? ['update', 'delete'] : []), 'pin'], ...(definition ? {definition} : {}), status: definition ? 'ready' : 'needs-review',
+    invalidComponents: [...(list.dropped ?? [])], pinned, pinRevision: 0, shares: []};
 }
 /** A saved view's page: its titles, always current, read with its own query on its library, as the browse page the
  * service checks. */
-async function viewPage(api: SavedNextApi, bound: SavedScope, list: List, cursor: string | null, signal?: AbortSignal): Promise<unknown> {
-  const definition = definitionOf(list), resource = viewOf(bound, list, definition);
+async function viewPage(api: SavedNextApi, bound: SavedScope, list: List, cursor: string | null, signal?: AbortSignal, pinned = false): Promise<unknown> {
+  const definition = definitionOf(list), resource = viewOf(bound, list, definition, pinned);
   if (!definition) return {nextCursor: '', resource, entries: []};
   const mark = markOf(cursor), start = mark?.start ?? 0;
   const page = await items(api, {...Object.fromEntries(new URLSearchParams(list.query ?? '')), library: list.library, limit: PAGE, total: true, cursor: mark?.cursor}, signal);
@@ -127,11 +128,11 @@ export async function readResource(api: SavedNextApi, bound: SavedScope, resourc
   const sort = asked.sort ?? 'position', filter = asked.filter ?? 'all', direction = asked.direction ?? 'asc', manual = sort === 'position' && filter === 'all';
   const mark = markOf(cursor), start = mark?.start ?? 0;
   const settled = <T,>(read: Promise<T>) => read.then(value => ({value}), (error: unknown) => ({error}));
-  const listRead = callServer(api, 'GET /v1/lists/{id}', {id: resourceId, signal});
+  const listRead = callServer(api, 'GET /v1/lists/{id}', {id: resourceId, signal}), pinsRead = readProfilePins(api, signal);
   const pageRead = settled(items(api, {list: resourceId, ...listFilters[filter], sort: pageSorts[sort], order: sort === 'position' ? undefined : direction, limit: PAGE, total: true, cursor: mark?.cursor}, signal));
   const lastRead = manual ? settled(items(api, {list: resourceId, sort: 'order', order: 'desc', limit: 1}, signal)) : Promise.resolve({value: undefined});
-  const list = await listRead;
-  if (list.kind === 'saved_view') return viewPage(api, bound, list, cursor, signal);
+  const list = await listRead, pins = await pinsRead;
+  if (list.kind === 'saved_view') return viewPage(api, bound, list, cursor, signal, pins.includes('view:' + list.id));
   if (list.kind !== 'collection') throw new CodedError('not_available', 'This is not available on this server yet.');
   const value = <T,>(read: {value: T} | {error: unknown}): T => {if ('error' in read) throw read.error; return read.value;};
   const page = value(await pageRead), last = value(await lastRead);
@@ -139,7 +140,7 @@ export async function readResource(api: SavedNextApi, bound: SavedScope, resourc
   const ids = entries.map(entry => entry.id), lastEntry = last?.items[0]?.entryId;
   const first = mark ? mark.first : ids[0];
   const nextCursor = page.nextCursor ? markCursor({start: start + entries.length, ...(ids.length ? {previous: ids.at(-1)} : {}), ...(first ? {first} : {}), cursor: page.nextCursor}) : '';
-  return {nextCursor, resource: collectionOf(bound, list), entries, query: {sort, category: filter, direction}, totalCount: page.total ?? entries.length, start,
+  return {nextCursor, resource: collectionOf(bound, list, false, pins.includes('collection:' + list.id)), entries, query: {sort, category: filter, direction}, totalCount: page.total ?? entries.length, start,
     sorts: Object.keys(pageSorts).map(id => ({id, labelKey: 'sort.' + id, directions: id === 'position' ? ['asc'] : ['asc', 'desc']})),
     filters: [{id: 'filter', labelKey: 'saved.filter', options: ['all', 'unwatched', 'inProgress', 'watched'].map(id => ({id, label: filterLabels[id], count: 0}))}],
     ...(manual && lastEntry ? {order: {...(mark?.previous ? {previous: mark.previous} : {}), last: lastEntry}} : {})};
@@ -184,7 +185,7 @@ export async function sendResourceCommand(api: SavedNextApi, bound: SavedScope, 
   if (!id) throw new Error('Collection is not selected.');
   const listPath = serverPath('GET /v1/lists/{id}', {id}), entryPath = (entryId: string) => `${listPath}/entries/${encodeURIComponent(entryId)}`;
   // A saved view is renamed, described or deleted here; its sort and filter are changed where it is saved.
-  if (context.kind === 'view' && !(intent.action === 'delete' || intent.action === 'update' && !intent.definition && intent.visibility === undefined))
+  if (context.kind === 'view' && !(intent.action === 'delete' || intent.action === 'pin' || intent.action === 'update' && !intent.definition && intent.visibility === undefined))
     throw new CodedError('not_available', 'This is not available on this server yet.');
   switch (intent.action) {
     case 'update': {
@@ -192,6 +193,8 @@ export async function sendResourceCommand(api: SavedNextApi, bound: SavedScope, 
       return answer(id, await edit<List>(api, listPath, 'PATCH', context.revision, body, signal));
     }
     case 'delete': await edit<void>(api, listPath, 'DELETE', context.revision, undefined, signal); return answer(id, undefined, {deleted: true});
+    // A pin is the profile's own setting (rule 38), not the list's: the list and its revision are unchanged.
+    case 'pin': await setResourcePin(api, context.kind === 'view' ? 'view' : 'collection', id, intent.pinned, 0, operationId); return answer(id, undefined, {revision: context.revision ?? 0});
     case 'entries': {
       if (intent.undoToken !== undefined) {
         const token = decodeUndo(intent.undoToken);

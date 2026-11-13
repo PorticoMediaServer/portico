@@ -10,9 +10,13 @@ const refusalOf = (value: unknown) => (value as {refused?: {status: number; body
 /** A rebuilt server: My List, a playlist of three entries, its shares, and every edit recorded. */
 export function nextSavedServer(answers: Partial<Record<string, (call: Call, url: URL) => unknown>> = {}) {
   const calls: Call[] = [];
+  // The profile's pins setting (area 6 rule 38), as GET and PATCH /v1/preferences keep it.
+  const pins: string[] = [];
   const answer = (call: Call) => {
     const url = new URL(call.path, 'https://x'), key = call.method + ' ' + url.pathname;
     if (answers[key]) return answers[key]!(call, url);
+    if (key === 'GET /v1/preferences') return {effective: {pins: [...pins]}};
+    if (key === 'PATCH /v1/preferences') { pins.splice(0, pins.length, ...((call.body as {values: {pins: string[]}}).values.pins)); return {effective: {pins: [...pins]}}; }
     if (key === 'GET /v1/items' && url.searchParams.get('limit') === '1' && url.searchParams.get('total') === 'true') return {items: [], total: 5};
     if (key === 'GET /v1/items' && url.searchParams.get('list') === 'pl') {
       const all = [title('a', {entryId: 'e1'}), title('b', {entryId: 'e2'}), title('a', {entryId: 'e3'})];
@@ -37,5 +41,5 @@ export function nextSavedServer(answers: Partial<Record<string, (call: Call, url
       return no ? {status: no.status, headers: {}, body: no.body} : {status: 200, headers: {}, body: value};
     },
   };
-  return {api, calls};
+  return {api, calls, pins};
 }

@@ -29,7 +29,7 @@ test('a playlist page lists its entries in its own order with the last entry, an
   assert.equal(shot.phase, 'ready', JSON.stringify(shot.error));
   assert.deepEqual(shot.projection!.sections[0]!.entries.map(entry => entry.id), ['e1', 'e2', 'e3'], 'a title twice is two entries');
   assert.deepEqual(shot.projection!.sections[0]!.order, {last: 'e3'});
-  assert.deepEqual([shot.playlist!.revision, shot.playlist!.role, shot.playlist!.actions.includes('pin')], [7, 'owner', false]);
+  assert.deepEqual([shot.playlist!.revision, shot.playlist!.role, shot.playlist!.actions.includes('pin'), shot.playlist!.pinned], [7, 'owner', true, false]);
   assert.deepEqual(shot.playlist!.shares?.map(share => [share.profileId, share.role, share.displayName]), [['kid', 'viewer', 'Kid']]);
   saved.dispose();
 });
@@ -172,13 +172,16 @@ test('a move places entries after an anchor, at the front, or swaps two neighbou
   assert.deepEqual(await moves({entryIds: ['e3', 'e2']}), [['e3', {after: 'e1'}, '"7"'], ['e2', {after: 'e3'}, '"8"']], 'each move names the revision the one before answered');
 });
 
-test('sharing sets who a playlist is shared with, keeping the others; pinning waits for the pins setting', async () => {
+test('sharing sets who a playlist is shared with, keeping the others; a pin goes into the profile\'s pins setting', async () => {
   const s = server();
   await sendPlaylistCommand(s.api, scope, {action: 'share', actor: {authority: 'local', accountId: 'gran', profileId: 'gran'}, role: 'editor'}, {playlistId: 'pl', revision: 7}, 'op');
   assert.deepEqual(s.calls.at(-1)!.body, {shares: [{profileId: 'kid', canEdit: false}, {profileId: 'gran', canEdit: true}]});
   await sendPlaylistCommand(s.api, scope, {action: 'unshare', actor: {authority: 'local', accountId: 'kid', profileId: 'kid'}}, {playlistId: 'pl', revision: 7}, 'op');
   assert.deepEqual(s.calls.at(-1)!.body, {shares: []});
-  await assert.rejects(sendPlaylistCommand(s.api, scope, {action: 'pin', pinned: true}, {playlistId: 'pl'}, 'op'), {code: 'not_available'});
+  const pinned = await sendPlaylistCommand(s.api, scope, {action: 'pin', pinned: true}, {playlistId: 'pl', revision: 7}, 'op');
+  assert.deepEqual([s.pins, s.calls.at(-1)!.path, pinned.revision], [['playlist:pl'], '/v1/preferences', 7], 'the playlist itself is unchanged');
+  await sendPlaylistCommand(s.api, scope, {action: 'pin', pinned: false}, {playlistId: 'pl', revision: 7}, 'op');
+  assert.deepEqual(s.pins, []);
   const created = await sendPlaylistCommand(s.api, scope, {action: 'create', name: 'New', itemIds: ['a']}, {}, 'op');
   assert.deepEqual([s.calls.at(-1)!.path, s.calls.at(-1)!.body], ['/v1/lists', {kind: 'playlist', name: 'New', items: ['a']}]);
   assert.equal(created.playlistId, 'pl');

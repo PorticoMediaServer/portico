@@ -65,10 +65,13 @@ function lists(titles = ['a', 'b', 'c'], pageSize = 40) {
   const refuse = (status: number, code: string) => ({status, headers: {}, body: {error: {code, message: code}}});
   const fresh = (headers?: Record<string, string>) => headers?.['If-Match'] === `"${revision}"`;
   const at = (id: string) => entries.findIndex(entry => entry.entryId === id);
+  const pins: string[] = [];
   const api = {
-    async request<T>(path: string, method = 'GET'): Promise<T> {
+    async request<T>(path: string, method = 'GET', sent?: unknown): Promise<T> {
       calls.push({path, method});
       const url = new URL(path, 'https://x'), q = url.searchParams;
+      // The profile's pins setting (area 6 rule 38).
+      if (url.pathname === '/v1/preferences') {if (method === 'PATCH') pins.splice(0, pins.length, ...(sent as {values: {pins: string[]}}).values.pins); return {effective: {pins: [...pins]}} as T;}
       if (url.pathname === '/v1/lists') return {items: [list(), theirs]} as T;
       if (url.pathname === '/v1/lists/col') return list() as T;
       if (url.pathname === '/v1/items' && q.get('list') === 'col') {
@@ -100,16 +103,16 @@ function lists(titles = ['a', 'b', 'c'], pageSize = 40) {
       throw new Error(`unexpected ${method} ${path}`);
     },
   };
-  return {api, calls, order: () => entries.map(entry => entry.itemId), bump: () => {revision++;}, pageSize};
+  return {api, calls, pins, order: () => entries.map(entry => entry.itemId), bump: () => {revision++;}, pageSize};
 }
 
-test('Collections lists the profile\'s own and those visible to everyone; only its maker may change one, and pins and chosen people are not offered', async () => {
+test('Collections lists the profile\'s own and those visible to everyone; only its maker may change one, anyone may pin one, and chosen people are not offered', async () => {
   const s = lists();
   const saved = service(s.api);
   await saved.select({view: 'collections'} as never);
   const shot = saved.getSnapshot();
   assert.equal(shot.error, null);
-  assert.deepEqual(shot.resources.map(r => [r.id, r.role, r.visibility, [...r.actions]]), [['col', 'owner', 'private', ['update', 'delete', 'entries', 'reorder']], ['their', 'viewer', 'server', []]]);
+  assert.deepEqual(shot.resources.map(r => [r.id, r.role, r.visibility, [...r.actions]]), [['col', 'owner', 'private', ['update', 'delete', 'entries', 'reorder', 'pin']], ['their', 'viewer', 'server', ['pin']]]);
   assert.deepEqual(shot.resources[0]!.artworkPaths, ['/art/a']);
   assert.equal(new URL(s.calls[0]!.path, 'https://x').searchParams.get('kind'), 'collection');
   saved.dispose();
@@ -243,10 +246,12 @@ function views(view: Record<string, unknown> = {}) {
   const calls: {path: string; method: string; headers?: Record<string, string>; body?: unknown}[] = [];
   let revision = 3, name = 'Nineties drama', gone = false;
   const list = () => ({id: 'v1', kind: 'saved_view', name, owner: {id: 'me', name: 'Me'}, role: 'owner', count: 2, library: 'films', query: 'kind=movie&genre=Drama&sort=year&order=desc', covers: [], revision: String(revision), createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z', ...view});
+  const pins: string[] = [];
   const api = {
-    async request<T>(path: string, method = 'GET'): Promise<T> {
+    async request<T>(path: string, method = 'GET', sent?: unknown): Promise<T> {
       calls.push({path, method});
       const url = new URL(path, 'https://x');
+      if (url.pathname === '/v1/preferences') {if (method === 'PATCH') pins.splice(0, pins.length, ...(sent as {values: {pins: string[]}}).values.pins); return {effective: {pins: [...pins]}} as T;}
       if (url.pathname === '/v1/lists' && url.searchParams.get('kind') === 'saved_view') return {items: [list(), {...list(), id: 'v2', name: 'Albums', query: 'kind=album', library: 'music'}]} as T;
       if (url.pathname === '/v1/lists/v1') {if (gone) throw Object.assign(new Error('gone'), {status: 404, code: 'not_found'}); return list() as T;}
       if (url.pathname === '/v1/items' && url.searchParams.get('library') === 'films') return {items: [{...item('a'), libraryId: 'films'}, {...item('b'), libraryId: 'films'}], total: 2} as T;
@@ -262,7 +267,7 @@ function views(view: Record<string, unknown> = {}) {
       throw new Error(`unexpected ${method} ${path}`);
     },
   };
-  return {api, calls};
+  return {api, calls, pins};
 }
 
 test('a saved view opens with its titles, read with its own query on its library', async () => {
@@ -311,7 +316,7 @@ test('the Views tab lists the profile\'s saved views as cards, music ones square
   await saved.select({view: 'views'} as never);
   const shot = saved.getSnapshot();
   assert.equal(shot.error, null);
-  assert.deepEqual(shot.resources.map(r => [r.id, r.kind, r.shape, r.definition?.pivot, [...r.actions]]), [['v1', 'view', 'posters', 'movies', ['update', 'delete']], ['v2', 'view', 'squares', 'albums', ['update', 'delete']]]);
+  assert.deepEqual(shot.resources.map(r => [r.id, r.kind, r.shape, r.definition?.pivot, [...r.actions]]), [['v1', 'view', 'posters', 'movies', ['update', 'delete', 'pin']], ['v2', 'view', 'squares', 'albums', ['update', 'delete', 'pin']]]);
   assert.equal(new URL(s.calls[0]!.path, 'https://x').searchParams.get('kind'), 'saved_view');
   saved.dispose();
 });
@@ -346,4 +351,18 @@ test('a saved view is read by its id, as Customize Home names it', async () => {
   const row = await readPersonalResource(s.api as never, scope, 'v1');
   assert.deepEqual([row.id, row.kind, row.status, row.definition?.libraryId], ['v1', 'view', 'ready', 'films']);
   assert.deepEqual(s.calls.map(call => call.path), ['/v1/lists/v1']);
+});
+
+test('pinning a collection or a saved view goes into the profile\'s pins setting, and the page shows it pinned', async () => {
+  for (const [fixture, resourceId, kind] of [[lists(), 'col', 'collection'], [views(), 'v1', 'view']] as const) {
+    const saved = service(fixture.api);
+    await saved.select({view: 'resource', resourceId} as never);
+    assert.deepEqual([saved.getSnapshot().resource?.pinned, saved.getSnapshot().resource?.actions.includes('pin')], [false, true], kind);
+    assert.equal(await saved.mutate({action: 'pin', pinned: true}), true, kind);
+    assert.deepEqual([...(fixture as {pins?: string[]}).pins ?? []], [`${kind}:${resourceId}`], 'the list itself is not changed: only the profile\'s pins');
+    assert.equal(saved.getSnapshot().resource?.pinned, true, 'read again, the page shows it pinned');
+    assert.equal(await saved.mutate({action: 'pin', pinned: false}), true);
+    assert.equal(saved.getSnapshot().resource?.pinned, false);
+    saved.dispose();
+  }
 });

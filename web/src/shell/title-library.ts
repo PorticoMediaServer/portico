@@ -15,6 +15,11 @@ export function claimTitleLibrary(itemId: string, libraryId: string): void {
 export function noteLibraryVisit(libraryId: string): void {
   if (state.last !== libraryId) publish({...state, last: libraryId});
 }
+/** A sign-out or another profile or server starts with no library claimed: the next viewer never sees the last
+ * viewer's library highlighted. */
+export function forgetTitleLibrary(): void {
+  if (state.title || state.last !== undefined) publish({});
+}
 export const titleLibrary = Object.freeze({
   subscribe(listener: () => void) {listeners.add(listener);return () => {listeners.delete(listener);};},
   getSnapshot: (): TitleLibraryState => state,
