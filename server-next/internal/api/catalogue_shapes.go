@@ -228,8 +228,9 @@ type CreditPage struct {
 	Total      int      `json:"total"`
 }
 
-// Media is one playable version of an item.
+// Media is one recorded version of an item. Available is false while any of its files are missing.
 type Media struct {
+	Available     bool     `json:"available"`
 	ID            string   `json:"id"`
 	Name          string   `json:"name,omitempty"`
 	Edition       string   `json:"edition,omitempty"`
@@ -573,7 +574,7 @@ func detailShape(d db.ItemDetail) Item {
 	}
 	out.Credits = creditShapes(d.Credits)
 	for _, v := range d.Versions {
-		m := Media{ID: v.PublicID, Name: v.Name, Edition: v.Edition, Container: v.Container, DurationMs: v.DurationMS, Bitrate: v.Bitrate,
+		m := Media{ID: v.PublicID, Available: v.Available, Name: v.Name, Edition: v.Edition, Container: v.Container, DurationMs: v.DurationMS, Bitrate: v.Bitrate,
 			Size: v.Size, Width: v.Width, Height: v.Height, VideoCodec: v.VideoCodec, AudioCodec: v.AudioCodec,
 			AudioChannels: v.AudioChannels, HDR: v.HDR, Parts: []Part{}}
 		for _, p := range v.Parts {
