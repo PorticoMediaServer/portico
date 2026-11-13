@@ -66,6 +66,12 @@ function FileInfoSurface({value, presenters}: {value: NativeWatchOverlay; presen
     </View>} contentStyle={{paddingHorizontal: 16, paddingTop: 8, flex: 1}}>{value.content}</BottomSheet></RetainedOverlay>;
 }
 
+/** The titles a version's delete takes with it: this title when it has no other version left (`titles` counts it), then the
+ * others whose only files these are. The preview carries counts, and names only these. */
+function deletionTitles(preview: NonNullable<NativeWatchOverlay['preview']>): string[] {
+  return [...(preview.titles > preview.alsoRemoves.length ? [preview.title] : []), ...preview.alsoRemoves.map(title => title.title)];
+}
+
 function ManageSurface({value, presenters, common}: {value: NativeWatchOverlay; presenters: NativeWatchPresenters; common: NativeScreenServices}) {
   const theme = useTheme(), t = defaultI18n.t, [words, setWords] = useState('');
   useEffect(() => {if (value.phase !== 'merge' || value.other) return; const timer = setTimeout(() => {void presenters.search(words);}, 300); return () => clearTimeout(timer);}, [presenters, value.phase, value.other, words]);
@@ -80,8 +86,16 @@ function ManageSurface({value, presenters, common}: {value: NativeWatchOverlay; 
     {value.phase === 'delete' ? <>
       {!value.preview && !value.error && <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{t('deleteMedia.checking')}</Text>}
       {!!value.preview?.deleteRefusal && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{value.preview.deleteRefusal}</Text>}
-      {value.preview && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('title.deleteVersion.body', {size: bytesText(value.preview.bytes, t) ?? ''})}</Text>}
+      {value.preview && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}><Text style={{color: theme.colors.text, fontFamily: theme.type.bodyStrong.fontFamily}}>{t('web.deleteVersion.files', {count: value.preview.files, size: bytesText(value.preview.bytes, t) ?? ''})}</Text>{value.preview.deleteRefusal ? '' : ` ${t('web.deleteVersion.disk')}`}</Text>}
       {file?.path && <Text selectable style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{file.path}</Text>}
+      {/* What the delete would take (web #3407, rule 65), only when it can happen: under a refusal nothing goes. */}
+      {value.preview && !value.preview.deleteRefusal && <>
+        {deletionTitles(value.preview).length
+          ? <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('web.deleteVersion.titlesGo', {count: deletionTitles(value.preview).length})} {deletionTitles(value.preview).join(', ')}</Text>
+          : <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('web.deleteVersion.titleStays', {title: value.preview.title})}</Text>}
+        {value.preview.listEntries > 0 && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('web.deleteVersion.listEntries', {count: value.preview.listEntries})}</Text>}
+        {value.preview.otherPeople > 0 && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('web.deleteVersion.otherPeople', {count: value.preview.otherPeople})}</Text>}
+      </>}
       {value.preview && !value.preview.deleteRefusal && <TextField testID="watch-delete-version-confirmation" label={t('deleteMedia.typeTitle')}
         description={value.preview.title} value={value.confirmation} onChangeText={presenters.confirmation} editable={!value.busy} autoCapitalize="none" autoCorrect={false}/>}
     </> : value.phase === 'split-pick' ? (snapshot ? nativeSplitCandidates(snapshot) : []).filter(candidate => candidate.file?.available !== false).map(candidate => <Button key={candidate.occurrence} focusId={`watch-split-file-${candidate.id}`} testID={`watch-split-file-${candidate.id}`} variant="glass" onPress={() => presenters.chooseSplit(candidate.occurrence)}>{candidate.file?.path ?? t('next.kit.version', {number: candidate.ordinal})}</Button>)
