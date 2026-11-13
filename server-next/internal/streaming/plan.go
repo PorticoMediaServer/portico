@@ -53,11 +53,6 @@ type PlanRequest struct {
 	// BurnIn is the subtitle the picture must carry, for a screen that shows the
 	// video alone. It forces the picture to be converted.
 	BurnIn *BurnInSpec
-	// Joined says the title is several files the server plays as one (an audiobook in
-	// parts, StartRequest.Parts): no one file is the original to hand the device.
-	// JoinedPartsDiffer says those files are not encoded alike (PartsDiffer), so they cannot
-	// be copied into one stream and are converted to one.
-	Joined, JoinedPartsDiffer bool
 }
 
 // UnmeasuredRemotePlan is the plan for a STRM whose target was never measured:
@@ -96,7 +91,7 @@ func (r PlanRequest) deliveryInput() DeliveryInput {
 	input := DeliveryInput{
 		SourceID: r.File.ID, Container: r.File.Container, VideoCodec: r.File.VideoCodec, AudioCodec: r.File.AudioCodec,
 		Duration: r.File.Duration, Height: r.File.Height,
-		Remote: r.Measured != nil && !r.Disc, Joined: r.Joined, JoinedPartsDiffer: r.JoinedPartsDiffer, Policy: policy, Target: choice.target(policy, cfg), Config: cfg,
+		Remote: r.Measured != nil && !r.Disc, Policy: policy, Target: choice.target(policy, cfg), Config: cfg,
 		TranscodingEnabled: r.TranscodingEnabled, Hardware: r.Hardware,
 	}
 	if r.Measured != nil {

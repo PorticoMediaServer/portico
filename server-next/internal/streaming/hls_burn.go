@@ -76,13 +76,13 @@ type BurnSubtitle struct {
 // openWindowInput opens the stream's source for one converter run. The second
 // result is for a source ffmpeg reaches over a private local address: a file on
 // remote storage.
-func (h *HLS) openWindowInput(ctx context.Context, id string, plan *DeliveryPlan, position float64) (*PlaybackInput, subtitles.WindowInput, error) {
+func (h *HLS) openWindowInput(ctx context.Context, id string, plan *DeliveryPlan) (*PlaybackInput, subtitles.WindowInput, error) {
 	s, err := h.liveStream(id)
 	if err != nil {
 		return nil, nil, err
 	}
 	if s.openInput != nil {
-		return s.openInput(ctx, position)
+		return s.openInput(ctx)
 	}
 	if remote, ok := s.source.(windowSource); ok {
 		return remote.openWindow(ctx, h.binary, h.ffprobe, h.processes)

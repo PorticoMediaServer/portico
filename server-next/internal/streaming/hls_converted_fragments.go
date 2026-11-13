@@ -10,8 +10,6 @@ import (
 )
 
 type convertedFragmentClock struct {
-	// until excludes a batch's partial closing slot; zero means the title's end.
-	until int
 	ready bool
 	shift float64
 	next  int
@@ -147,7 +145,7 @@ func promoteConvertedFragments(staging, dir, initWindow string, from int, rendit
 		}
 		return fmt.Sprintf("segment-%06d.m4s", i)
 	}
-	for i := max(from, clock.next); i < HLSMaxSegments && (clock.until == 0 || i < clock.until); i++ {
+	for i := max(from, clock.next); i < HLSMaxSegments; i++ {
 		name := nameAt(i)
 		source := filepath.Join(staging, name)
 		if !segmentReady(source) {

@@ -227,9 +227,6 @@ func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, e
 		return out, err
 	}
 	out.Versions, err = versions(ctx, tx, out.ID)
-	if out.Kind == KindAudiobook && len(out.Versions) > 0 {
-		out.DurationMS = out.Versions[0].DurationMS
-	}
 	return out, err
 }
 
@@ -363,13 +360,6 @@ func versions(ctx context.Context, tx *sql.Tx, itemID int64) ([]Version, error) 
 			}
 		}
 		placeParts(m.Parts)
-		if len(m.Parts) > 1 && copied(m.Parts) {
-			var total int64
-			for _, part := range m.Parts {
-				total += *part.packetsUS
-			}
-			m.DurationMS = (total + 500) / 1000
-		}
 		if m.Markers, err = queryAll(ctx, tx, `SELECT kind, source, start_ms, end_ms, ifnull(title, '') FROM media_markers
 			WHERE media_id = ? ORDER BY start_ms`, []any{m.id},
 			func(k *Marker) []any { return []any{&k.Kind, &k.Source, &k.StartMS, &k.EndMS, &k.Title} }); err != nil {

@@ -154,7 +154,7 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 		failed(FailureOutOfSpace)
 		return
 	}
-	input, remoteInput, err := h.openWindowInput(ctx, id, plan, float64(from*HLSSegmentSeconds))
+	input, remoteInput, err := h.openWindowInput(ctx, id, plan)
 	if err != nil {
 		if ctx.Err() == nil {
 			failed(FailureSourceUnreadable)
