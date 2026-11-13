@@ -52,3 +52,20 @@ func TestWindowsIPv6ClientPrefersStable(t *testing.T) {
 		t.Fatal("ignored the bound listener", got)
 	}
 }
+
+func TestWindowsRandomSuffixPrefersTheEarliestCreatedAddress(t *testing.T) {
+	temporary, stable := netip.MustParseAddr("2001:db8::10"), netip.MustParseAddr("2001:db8::20")
+	row := windows.MibUnicastIpAddressRow{InterfaceLuid: 7, PreferredLifetime: 3600, DadState: windows.IpDadStatePreferred, SuffixOrigin: windows.IpSuffixOriginRandom}
+	row.Address = windows.RawSockaddrInet6{Family: windows.AF_INET6, Addr: temporary.As16()}
+	row.CreationTimeStamp = windows.Filetime{HighDateTime: 2, LowDateTime: 1}
+	rows := []windows.MibUnicastIpAddressRow{row, row}
+	rows[1].Address.Addr = stable.As16()
+	rows[1].CreationTimeStamp = windows.Filetime{HighDateTime: 1, LowDateTime: 100}
+	if got := windowsIPv6Client(rows, 7, netip.Addr{}); got != stable {
+		t.Fatal("new temporary address won table order", got)
+	}
+	rows[0].SuffixOrigin = windows.IpSuffixOriginManual
+	if got := windowsIPv6Client(rows, 7, netip.Addr{}); got != temporary {
+		t.Fatal("lost the non-random preference", got)
+	}
+}
