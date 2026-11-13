@@ -1,3 +1,4 @@
+import type {PlaybackFailureOwner} from '../../kit/states/PlaybackFailure';
 import type {ReactNode, Ref, RefObject} from 'react';
 import type {TextEnvironment} from '@core/presentation/kit-model/index.ts';
 import type {WebPlaybackRuntimeSnapshot, WebQueueListPort, WebShellPlaybackRuntime} from '../../platform/playback';
@@ -71,6 +72,8 @@ export type WatchSurfaces = Readonly<{
   streamLimit?: ReactNode;
   /** states f9: the owner's real way to turn converting back on, when this card is that failure. */
   convertingOwnerAction?: () => void;
+  /** states f8/f10: the owner's Details on a playback failure, only for an owner who manages this server. */
+  failureOwner?: PlaybackFailureOwner;
   /** f1q: the live queue's own captured run and rows, only while this fence is current. */
   queue?: WebQueueListPort;
   /** desktop-player f4b: a real film-end card from the retained title read. */

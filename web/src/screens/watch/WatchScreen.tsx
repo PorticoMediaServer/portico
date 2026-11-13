@@ -376,7 +376,7 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
     onPointerMove={event => { if (event.pointerType === 'mouse') reveal(); }} onFocusCapture={reveal}>
     <div ref={surfaceSlotRef} className={styles.pictureSlot} style={rectStyle(geometry?.picture)} data-watch-picture-slot data-media-slot="expanded" aria-hidden="true" />
     <div ref={chrome} data-video-gesture-copy className={styles.chrome} style={rectStyle(geometry?.controls)} inert={stillWatching || undefined}>
-      {open && snapshot.playback.phase === 'error' && <PlaybackFailure key={playbackKey} phone={mobile} portrait={portrait} error={snapshot.playback.error}
+      {open && snapshot.playback.phase === 'error' && <PlaybackFailure key={playbackKey} phone={mobile} portrait={portrait} owner={surfaces?.failureOwner} error={snapshot.playback.error}
         onRetry={fence && binding.runtime.canRetryFailure(fence) ? () => binding.runtime.retryFailure(fence) : undefined}
         onVersions={surfaces?.available.includes('versions') ? () => showPanel('versions') : undefined}
         onReport={surfaces?.more?.find(action => action.id === 'report-problem') ? () => effect(() => surfaces.more!.find(action => action.id === 'report-problem')!.action()) : undefined}
