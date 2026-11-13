@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SettingsMissingSource} from '../src/screens/settings/server/missing-source.ts';
+import {SettingsMissingSource} from '../../packages/client-core/src/server-admin/missing-source.ts';
 const page = {observedAt: '2026-10-22T20:00:00Z', items: [{id: 'title', libraryId: 'library', kind: 'movie', title: 'A title', missingSince: '2026-10-22T19:00:00Z'}], total: 1, rule: 'never', days: 30};
 
 test('newest page wins even when the transport ignores abort', async () => {

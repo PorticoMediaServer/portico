@@ -6805,6 +6805,31 @@ export const settingsSpec: readonly SettingsSection[] = [
                     }
                   }
                 ]
+              },
+              {
+                "title": "next.settingsSpec.server.libraries.panels.library.tabs.3.groups.2.title",
+                "rows": [
+                  {
+                    "id": "libraries.trashRule",
+                    "scope": "server",
+                    "label": "next.settingsSpec.server.libraries.panels.library.tabs.3.groups.2.rows.1.label",
+                    "help": "next.settingsSpec.server.libraries.panels.library.tabs.3.groups.2.rows.1.help",
+                    "control": {
+                      "type": "select",
+                      "dynamicOptions": true
+                    }
+                  },
+                  {
+                    "id": "libraries.trash",
+                    "scope": "server",
+                    "label": "next.settingsSpec.server.libraries.panels.library.tabs.3.groups.2.rows.0.label",
+                    "help": "next.settingsSpec.server.libraries.panels.library.tabs.3.groups.2.rows.0.help",
+                    "control": {
+                      "type": "link",
+                      "label": "next.settingsSpec.server.libraries.panels.library.tabs.3.groups.2.rows.0.control.label"
+                    }
+                  }
+                ]
               }
             ]
           },
