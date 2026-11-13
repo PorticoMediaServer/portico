@@ -23,7 +23,7 @@ async function fixture() {
     react: {default: {}}, '../../../../../../packages/contracts/src/routes': routes, [base + 'remote-sources']: {RemoteSourceService: RemotePolicy},
     [base + 'library-management']: {LibraryManagementService: Management, fetchEpisodeIssues: async () => ({issues: [], nextCursor: ''})},
     [base + 'library-inventory']: {LibraryInventoryService: Inventory},
-    [base + 'server-admin/libraries']: {readLibrarySettings: async (_api: unknown, id: string) => ({libraryId: id, libraryKind: 'movie'})},
+    [base + 'server-admin/libraries']: {readLibrarySettings: async (_api: unknown, id: string) => ({libraryId: id, libraryKind: 'movie', eligibleControls: ['libraries.strm']})},
     [base + 'scan-issues']: {}, [base + 'title-identity']: {},
     [base + 'server-admin/metadata-agent']: {metadataAgentPath: (id: string) => id, parseMetadataAgent: () => undefined},
     [base + 'server-admin/library-sonic']: {}, [base + 'presentation/settings-bindings']: {},

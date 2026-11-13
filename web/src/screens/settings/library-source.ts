@@ -1,4 +1,5 @@
 import type {QuietRefreshOutcome} from '@core/freshness-actions.ts';
+import {settingsSaveConflict} from '@core/settings-document.ts';
 import type {LibraryAdminDocument, LibrarySettings} from '@core/administration.ts';
 import {defaultI18n} from '@i18n';
 import {LibraryManagementService} from '@core/library-management.ts';
@@ -82,7 +83,7 @@ export class SettingsLibrarySource {
     if (document?.eligibleControls.includes(rowId)) {
       const current = rowId === 'libraries.name' ? document.libraryName : rowId === 'libraries.type'
         ? defaultI18n.t(('next.ownerLibraries.kind.' + document.libraryKind) as Parameters<typeof defaultI18n.t>[0])
-        : rowId === 'libraries.access' ? defaultI18n.t(document.audience.everyone ? 'next.ownerLibraries.audience' : 'next.ownerLibraries.audienceSubset', {count: document.audience.accounts}) : undefined;
+        : rowId === 'libraries.access' && document.audience ? defaultI18n.t(document.audience.everyone ? 'next.ownerLibraries.audience' : 'next.ownerLibraries.audienceSubset', {count: document.audience.accounts}) : undefined;
       if (current !== undefined) return {current, effective: current, default: undefined, source: 'library', configOnly: false};
     }
     if (rowId === 'libraries.sonicAnalysis') {
@@ -114,7 +115,11 @@ export class SettingsLibrarySource {
       requireCurrent();
       this.publish({libraryId, document, sonic: this.offersSonic(document) ? this.state.sonic : undefined, loading: false, saving: false});return true;
     } catch (error) {
-      if (this.owns(request, libraryId)) {this.publish({libraryId, loading: false, saving: false, error});throw error;}
+      if (this.owns(request, libraryId)) {
+        const document = settingsSaveConflict(error) ? await readLibrarySettings(this.api, libraryId, request.signal).catch(() => undefined) : undefined;
+        if (!this.owns(request, libraryId)) return false;
+        this.publish({libraryId, document, loading: false, saving: false, error});throw error;
+      }
     } finally {if (this.request === request) this.request = undefined;}
     return false;
   }

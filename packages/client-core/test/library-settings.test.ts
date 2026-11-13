@@ -26,14 +26,27 @@ test('stable library order uses the real route and rejects duplicate identities 
  await reorderLibraries(api,['second','first']);assert.equal(calls,1);
  await assert.rejects(reorderLibraries(api,['first','first']));assert.equal(calls,1);
 });
-test('folder writes preserve optional label and canonical interval milliseconds',async()=>{
- const api={async request<T>(path:string,method?:string,body?:unknown):Promise<T>{
-  assert.equal(path,'/v1/admin/libraries/library/sources');assert.equal(method,'POST');
-  assert.deepEqual(body,{name:'',path:'/media',classification:'local',followSymlinks:false,intervalMs:900000,expectedRevision:7,acceptReplacement:false});
-  return {id:'source',libraryId:'library',kind:'local',name:'media',path:'/media',resolvedPath:'/media',classification:'local',enabled:true,followSymlinks:false,identityConfirmed:true,intervalMs:900000,generation:1,health:'ready',nextScanAt:'',lastCompleteAt:'',lastProgressAt:''} as T;
+test('unsupported folder options are refused before any write, including attach without scanning',async()=>{
+ let calls=0;const api={request:async<T>()=>{calls++;return {} as T;}};
+ for(const extra of [{name:'Label'},{classification:'network'},{followSymlinks:true},{intervalSeconds:900},{scanAfter:false}]){
+  await assert.rejects(saveLibraryFolder(api,'library',undefined,{path:'/media',expectedRevision:7,...extra} as never),(error: any)=>error.code==='unsupported');
+ }
+ assert.equal(calls,0);
+});
+
+test('folder membership preserves the other local and remote folders and carries the library version',async()=>{
+ const library={id:'library',name:'Library',kind:'movies',revision:'7',metadataProvider:'local',metadataProviders:[{id:'local',available:true}],
+  options:{depth:'basic',allowDelete:false,trash:{mode:'manual'},rescanMinutes:0},folders:[
+   {id:'disk',path:'/media',available:true},{id:'remote',path:'films',source:'remote-source',available:true}]};
+ const signal=new AbortController().signal;let writes=0;
+ const api={request:async<T>()=>library as T,requestRaw:async(path:string,method:string,options:any)=>{
+  writes++;assert.equal(path,'/v1/admin/libraries/library');assert.equal(method,'PATCH');assert.equal(options.signal,signal);
+  assert.deepEqual(options.headers,{'If-Match':'"7"'});
+  assert.deepEqual(options.body,{folders:['/media','/new'],remoteFolders:[{source:'remote-source',path:'films'}]});
+  return {status:200,headers:{},body:{...library,revision:'8',folders:[...library.folders,{id:'new',path:'/new',available:true}]}};
  }};
- const source=await saveLibraryFolder(api,'library',undefined,{name:'',path:'/media',classification:'local',followSymlinks:false,intervalSeconds:900,expectedRevision:7,acceptReplacement:false});
- assert.equal(source.intervalSeconds,900);assert.equal(source.name,'media');
+ const source=await saveLibraryFolder(api,'library',undefined,{path:'/new',expectedRevision:7},signal);
+ assert.equal(source.id,'new');assert.equal(writes,1);
 });
 
 function bindingDocument():LibraryAdminDocument{return {libraryId:'library',libraryName:'Library',libraryKind:'movie',revision:7,digest:'current',eligibleControls:['libraries.cwWeeks','libraries.cwWatched','libraries.scrubSpacing','libraries.scanDepth','libraries.titlesFrom','libraries.language'],audience:{everyone:true,accounts:0},actions:['scan','remove','rename'],settings,defaults:{...settings,continueWatching:{...settings.continueWatching,weeks:8}},analysisMatrix:{costClasses:[],operations:[]},availableProviders:[],enumerations:{},sources:[]};}
@@ -59,16 +72,4 @@ test('library provider controls use canonical show and book media kinds',()=>{
   assert.equal(changed.providers[0].mediaKind,mediaKind);
   assert.equal(patchLibrarySettingsBinding('libraries.titlesFrom',provider,doc).providers[0].provider,provider);
  }
-});
-
-test('MOB-111: a folder can be attached without its automatic scan; omission keeps the server default',async()=>{
- const bodies:unknown[]=[];
- const api={async request<T>(_path:string,_method?:string,body?:unknown):Promise<T>{bodies.push(body);
-  return {id:'source',libraryId:'library',kind:'local',name:'media',path:'/media',resolvedPath:'/media',classification:'local',enabled:true,followSymlinks:false,identityConfirmed:true,intervalMs:900000,generation:1,health:'ready',nextScanAt:'',lastCompleteAt:'',lastProgressAt:''} as T;}};
- const input={name:'',path:'/media',classification:'local' as const,followSymlinks:false,intervalSeconds:900,expectedRevision:7,acceptReplacement:false};
- await saveLibraryFolder(api,'library',undefined,{...input,scanAfter:false});
- await saveLibraryFolder(api,'library',undefined,input);
- assert.equal((bodies[0] as {scanAfter?:boolean}).scanAfter,false);
- assert.equal('scanAfter' in (bodies[1] as object),false);
- await assert.rejects(saveLibraryFolder(api,'library',undefined,{...input,scanAfter:'no' as never}));
 });
