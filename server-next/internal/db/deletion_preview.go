@@ -23,18 +23,18 @@ func (d *DB) VersionDeletionPreview(ctx context.Context, v Viewer, id string) (D
 
 var errPreviewRollback = errors.New("deletion preview: roll back database changes")
 
-// Read the selection and run the exact database deletion in one transaction. The deliberate
-// rollback discards rows, changes-feed entries and watched-state settlement alike. No disk
-// deletion runs here, and the writer does not announce a change for a rolled-back request.
+// Read the selection on the read handle; a preview may be a moment stale. Only the exact
+// database deletion runs on the writer. Its deliberate rollback discards rows, changes-feed
+// entries and watched-state settlement. No disk deletion or change notification runs here.
 func (d *DB) deletionPreview(ctx context.Context, v Viewer, where, id string, version bool) (DeletionImpact, error) {
 	var out DeletionImpact
-	err := d.write(ctx, User, func(tx *sql.Tx) error {
-		del, err := readDeletion(ctx, tx, v, where, id, version)
-		if err != nil {
-			return err
-		}
-		out.Deletion = del
-		out.Titles, out.ListEntries, out.OtherStates = 0, 0, 0
+	del, err := d.deletion(ctx, v, where, id, version)
+	if err != nil {
+		return out, err
+	}
+	out.Deletion = del
+	out.Titles, out.ListEntries, out.OtherStates = 0, 0, 0
+	err = d.write(ctx, User, func(tx *sql.Tx) error {
 		removing := func(itemID int64) error {
 			var titles, entries, states int
 			err := tx.QueryRowContext(ctx, subtreeSQL+`SELECT count(*),
