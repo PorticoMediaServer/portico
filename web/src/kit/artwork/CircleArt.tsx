@@ -15,6 +15,13 @@ export function CircleArt({covers, initials, alt, size, treatment = 'artist', co
 }
 export const ArtistCircle = CircleArt;
 
+/** A person's initials for their circle: the first letters of their first and last names
+ * ("H. G. Wells" is HW, as desktop-read 3 draws it), one letter for a single name. */
+export function nameInitials(name: string): string {
+  const words = name.trim().split(/\s+/u).filter(Boolean);
+  return (words.length > 1 ? [words[0], words[words.length - 1]] : words).map(word => Array.from(word.replace(/^[^\p{L}\p{N}]+/u, ''))[0] ?? '').join('').toLocaleUpperCase();
+}
+
 export type PersonCircleProps = ArtStyleProps & Readonly<{
   covers?: readonly ArtworkSource[]; initials: string; alt: string; size?: number; visible?: boolean; initialsSize?: number;
 }>;
