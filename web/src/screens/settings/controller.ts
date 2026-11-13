@@ -224,9 +224,15 @@ export class SettingsController {
     const libraryId = this.libraryRow(context) && this.sectionVisible(context.section) ? context.recordId : undefined;
     return Promise.all([this.library.select(libraryId), this.folders.select(libraryId)]).then(() => undefined);
   };
+  private chosenBackupDays = false;
   private backupValue(rowId: string): SettingsBindingValue | undefined {
     const settings = this.backups.getSnapshot().settings;
     if (!settings) return undefined;
+    const binding = settingsBinding(rowId);
+    if (binding?.form === 'backups') {
+      const value = readSettingsBinding(binding, {forms: {backups: settings}}, rowId);
+      return rowId === 'storage.backupSchedule' && this.chosenBackupDays && value ? {...value, current: 'custom', effective: 'custom'} : value;
+    }
     const current = rowId === 'storage.backupFolder' ? this.backups.getSnapshot().backups?.folder : rowId === 'storage.backupArtwork' ? settings.includeArtwork : undefined;
     return current === undefined ? undefined : {current, effective: current, default: undefined, source: 'server', configOnly: false};
   }
@@ -386,6 +392,18 @@ export class SettingsController {
         return;
       }
       if (isSignInPolicyRow(row.id)) {await this.writeSignInPolicy(row, value); return;}
+      const backupBinding = settingsBinding(row.id);
+      if (backupBinding?.form === 'backups') {
+        const settings = this.backups.getSnapshot().settings;if (!settings) throw new Error('settings_document_unavailable');
+        const patch = settingsBindingPatch(backupBinding, value, {forms: {backups: settings}});
+        if (row.id === 'storage.backupSchedule' && value === 'custom') {
+          this.chosenBackupDays = true;this.publish({});return;
+        }
+        await this.backups.saveSettings(patch.values);
+        if (row.id === 'storage.backupSchedule' || row.id === 'storage.backupDays' && Array.isArray(patch.values.days) && !patch.values.days.length) this.chosenBackupDays = false;
+        if (this.current()) this.publish({saveState: 'saved'});
+        return;
+      }
       if (row.id === 'storage.backupFolder' || row.id === 'storage.backupArtwork') {
         if (row.id === 'storage.backupFolder' && typeof value !== 'string' || row.id === 'storage.backupArtwork' && typeof value !== 'boolean') throw new Error('invalid_backup_setting');
         await this.backups.saveSettings(row.id === 'storage.backupFolder' ? {folder: String(value)} : {includeArtwork: value === true});

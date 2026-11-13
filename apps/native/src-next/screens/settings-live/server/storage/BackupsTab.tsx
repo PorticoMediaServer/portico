@@ -1,3 +1,4 @@
+import {NativeBackupSchedule} from './BackupSchedule';
 import React, {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {Text, View} from 'react-native';
 import type {BackupSummary} from '../../../../../../../packages/client-core/src/administration';
@@ -61,6 +62,7 @@ function Backups({group, t, children, advancedContent, advancedSummary, advanced
       {backups && !backups.folderWritable && <Text accessibilityRole="alert" style={{color: theme.colors.record}}>{t('server.backups.folderUnwritable')}</Text>}
       <View style={{flexDirection: 'row'}}><Button size="compact" variant="glass" disabled={!backups || state.busy} onPress={() => setPicking('folder')}>{t('next.settings.changeFolder')}</Button></View>
     </View>
+    {state.settings && <NativeBackupSchedule key={`${state.settings.days.join(',')}:${state.settings.hour}:${state.settings.keep}`} settings={state.settings} saving={busy} t={t} onSave={change => act(() => source.saveSettings(change))}/>}
     {children}
     <View style={{flexDirection: 'row'}}><Button testID="server-backup-now" size="compact" loading={running} disabled={!backups || busy} onPress={() => act(() => source.backupNow())}>{t(running ? 'web.maintenance.backingUp' : 'web.maintenance.backUpNow')}</Button></View>
     {!running && backups?.lastError && <Text accessibilityRole="alert" style={{color: theme.colors.record}}>{t('server.backups.lastFailed', {reason: backups.lastError})}</Text>}

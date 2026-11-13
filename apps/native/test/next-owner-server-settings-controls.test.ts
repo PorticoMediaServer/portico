@@ -51,19 +51,21 @@ test('missing-title presets roundtrip and dates use committed rules or the expli
 test('download rows and confirmations always lead with account username', () => {
 });
 
-test('backup Custom days use the matrix binding and preserve the heavy-work window', async () => {
-  const fixture = await formsFixture({maintenance: maintenance()}), host = hooks();let customDraft: unknown, opened = false;
+test('backup chosen days, whole hour and keep count form one draft for the rebuilt backup source', async () => {
+  const host = hooks(), settings = {days: [0,1,2,3,4,5,6], hour: 3, keep: 7, folder: '', includeArtwork: false}, saved: unknown[] = [];
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/storage/BackupSchedule.tsx', import.meta.url), {
-    react: host.react, 'react-native': {View: 'View', Text: 'Text'}, '../../../../../../../packages/client-core/src/presentation/settings-bindings': bindings,
-    '../../../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../../../kit/controls': {Select: 'Select'}, '../../../../kit/shell/visual': {shellType: () => ({})}, '../../../../kit/theme': {useTheme: () => theme}, './space-source': {nativeStorageOwner: (context: any) => context.current()},
+    react: host.react, 'react-native': {View: 'View'}, '../../../../../../../packages/client-core/src/presentation/settings-bindings': bindings,
+    '../../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../../kit/controls': {Button: 'Button'}, '../SettingControl': {NativeSettingControl: 'Setting'},
   });
-  const render = (placement: string) => host.render(() => module.NativeBackupSchedule({group: fixture.group, draft: fixture.group.forms.maintenance.getSnapshot().draft, saving: false, t, placement, customDraft, onCustomDraftChange: (value: unknown) => {customDraft = value;}, onAdvanced: () => {opened = true;}}));
-  nodes(render('main')).find((node: any) => node.props.testID === 'storage.backupSchedule').props.onValueChange('custom');assert.equal(opened, true);
-  const days = nodes(render('advanced')).filter((node: any) => String(node.props.testID).startsWith('storage.backupDays.'));
-  assert.equal(days.length, 7);assert.equal(days[0].props.value, 'runs');
-  days.find((node: any) => node.props.testID === 'storage.backupDays.sunday').props.onValueChange('skips');
-  assert.ok(!fixture.group.forms.maintenance.getSnapshot().draft.windows[0].days.includes('sunday'));
-  assert.deepEqual(fixture.group.forms.maintenance.getSnapshot().draft.windows[1], maintenance().windows[1]);fixture.stop();
+  const render = () => host.render(() => module.NativeBackupSchedule({settings, saving: false, t, onSave: (value: unknown) => saved.push(value)}));
+  const field = (id: string) => nodes(render()).find((node: any) => node.props.row?.id === id)!;
+  field('storage.backupSchedule').props.onCustom();
+  const days = field('storage.backupDays');assert.equal(days.props.value.sunday, 'runs');
+  days.props.onChange({...days.props.value, sunday: 'skips'});
+  field('storage.backupTime').props.onChange('23');field('storage.backupKeep').props.onChange(365);
+  nodes(render()).find((node: any) => node.type === 'Button' && content(node) === t('action.save')).props.onPress();
+  assert.deepEqual(saved, [{days:[1,2,3,4,5,6],hour:23,keep:365}]);
+  assert.equal(nodes(render()).some((node: any) => node.props.row?.id === 'storage.backupWindowLength'), false);
 });
 
 test('generated-file presets change exactly their canonical fields and preserve exact custom values', () => {

@@ -19,11 +19,11 @@ type Translate = typeof defaultI18n.t;
 type NumberEditor = Readonly<{label: string; value: string; min: number; max: number; done: (value: number) => void}>;
 const bounds: Readonly<Record<string, readonly [number, number]>> = {
   'storage.analysisSpace': [1, 16384], 'storage.analysisStage': [1, 4096], 'storage.subtitleTracks': [32, 4096], 'storage.subtitleFile': [32, 512],
-  'storage.keepNotifications': [1, 180], 'storage.backupKeepExact': [1, 365],
+  'storage.keepNotifications': [1, 180],
 };
 
 /** The Storage page owns the forms and one Save, including its main backup settings. */
-export function LimitsTab({group, t, customBackupKeep = false, onOpenPage}: {group: StorageForms; t: Translate; customBackupKeep?: boolean; onOpenPage: (page: 'history' | 'troubleshooting') => void}) {
+export function LimitsTab({group, t, onOpenPage}: {group: StorageForms; t: Translate; onOpenPage: (page: 'history' | 'troubleshooting') => void}) {
   const theme = useTheme(), {forms} = group, state = useStorageSet(group);
   const runtimeState = useFormState<RuntimeSettings, unknown>(forms.runtime);
   const maintenanceState = useFormState<MaintenanceSettings, MaintenanceDocument>(forms.maintenance);
@@ -45,7 +45,6 @@ export function LimitsTab({group, t, customBackupKeep = false, onOpenPage}: {gro
   const filesRow = settingsRowIndex.get('storage.keepFiles')!.row;
   const fileOptions = filesRow.control.options ?? [];
   const filePreset = exactPresetValue(fileOptions, read), showFileChildren = customFiles || filePreset === 'custom';
-  const keepRow = settingsRowIndex.get('storage.backupKeep')!.row;
   const renderRow = (row: SpecRow): React.ReactNode => {
     if (row.id === 'storage.keepHistory' || row.id === 'storage.keepLogsLink') return <Button key={row.id} variant="text" onPress={() => {if (group.context.current()) onOpenPage(row.id === 'storage.keepHistory' ? 'history' : 'troubleshooting');}}>{t(row.control.label ?? row.label)}</Button>;
     if (row.id === 'storage.keepFiles') {
@@ -58,7 +57,6 @@ export function LimitsTab({group, t, customBackupKeep = false, onOpenPage}: {gro
           setCustomFiles(false);
         }}/>{showFileChildren && row.children?.map(renderRow)}</View>;
     }
-    if (row.id === 'storage.backupKeepExact' && !(customBackupKeep || settingChoice(keepRow, read('storage.backupKeep')) === 'custom')) return null;
     const binding = settingsBinding(row.id), current = read(row.id);
     if (!binding || current === undefined || !['runtime', 'maintenance'].includes(binding.form)) return null;
     if (row.id === 'storage.backupDays' || row.id === 'storage.backupWindowLength') return null;
