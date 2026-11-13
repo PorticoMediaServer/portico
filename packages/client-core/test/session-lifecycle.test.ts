@@ -749,6 +749,20 @@ test('a sign-in that already chose its profile stays chosen through offline and 
   assert.equal(opened?.snapshot.state.kind, 'ready');
 });
 
+test('signing in from an offline server keeps the form choice when the record observer connects first', () => {
+  const old = snap({kind: 'offline', server: S2, held: held({server: S2}), downloads: false});
+  const observed = nextLifecycle(old, {type: 'envelopeChanged', servers: 2, held: held()})!;
+  assert.equal(nextLifecycle(observed.snapshot, {type: 'connected', facts: facts()})?.snapshot.state.kind, 'choosingProfile');
+  const admitted = nextLifecycle(observed.snapshot, {type: 'signedIn', held: held(), continuation: 'viewer'})!;
+  assert.deepEqual(admitted.effects, [], 'the connection already in flight is not restarted');
+  const opened = nextLifecycle(admitted.snapshot, {type: 'connected', facts: facts()})!;
+  assert.equal(opened.snapshot.state.kind, 'ready');
+  assert.equal(opened.snapshot.state.kind === 'ready' && opened.snapshot.state.remembered, false, 'next launch still asks');
+  const alreadyConnected = nextLifecycle(observed.snapshot, {type: 'connected', facts: facts()})!;
+  const acceptedLater = nextLifecycle(alreadyConnected.snapshot, {type: 'signedIn', held: held(), continuation: 'viewer'})!;
+  assert.equal(nextLifecycle(acceptedLater.snapshot, {type: 'connected', facts: facts()})?.snapshot.state.kind, 'ready');
+});
+
 test('a switch to a PIN-protected profile always asks for its PIN, even from a remembered profile', () => {
   const switching = nextLifecycle(snap(ready({remembered: true})), {type: 'switchProfile'})!;
   for (const target of [TEEN, MAIN]) {
