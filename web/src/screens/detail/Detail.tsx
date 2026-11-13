@@ -222,7 +222,7 @@ function TitlePinnedActions({binding, data}: {binding: DetailBindings; data: Det
 }
 
 function TitleMore({binding, data}: {binding: DetailBindings; data: DetailProjection}) {
-  const [open, setOpen] = useState(false), [fileOpen, setFileOpen] = useState(false), [titlesOpen, setTitlesOpen] = useState(false);
+  const [open, setOpen] = useState(false), [fileOpen, setFileOpen] = useState(false);
   const [manage, setManage] = useState<FileInfoManageContext>(), [rating, setRating] = useState(false), [linkToast, setLinkToast] = useState<ToastData | null>(null);
   const trigger = useRef<HTMLButtonElement>(null), width = useShellWidth(), phone = width < 1024;
   // music-plus: Start radio's admission lease belongs to this exact menu for this binding and
@@ -280,7 +280,7 @@ function TitleMore({binding, data}: {binding: DetailBindings; data: DetailProjec
   };
   useEffect(() => { setDownloadView(undefined); return () => { downloadRef.current?.request.abort(); downloadRef.current = undefined; }; }, [data]);
 
-  useEffect(() => { setOpen(false); setFileOpen(false); setTitlesOpen(false); setManage(undefined); }, [data]);
+  useEffect(() => { setOpen(false); setFileOpen(false); setManage(undefined); }, [data]);
   useEffect(() => () => {versionRead.current?.abort();versionChoice.current?.abort();}, [data]);
   useEffect(() => {
     if (!open || !binding.context.effects.chooseVersion || !data.actions.some(action => action.enabled && action.playback?.itemId === data.item.id && action.id !== 'start_over')) return;
@@ -297,8 +297,7 @@ function TitleMore({binding, data}: {binding: DetailBindings; data: DetailProjec
       versions.request.abort();if (versionChoice.current === versions.request) versionChoice.current = undefined;
     });
   };
-  const loadFiles = () => { setTitlesOpen(false); setFileOpen(true); };
-  const loadTitles = () => { setFileOpen(false); setTitlesOpen(true); };
+  const loadFiles = () => setFileOpen(true);
   const viewer = binding.context.identity?.viewer, owner = viewer?.role === 'owner' && viewer.authority === 'local';
   const offered = (id: string) => data.actions.some(action => action.id === id && action.enabled);
   const refreshItem = owner ? {kind: data.item.kind, id: data.item.id} : undefined;
@@ -344,7 +343,8 @@ function TitleMore({binding, data}: {binding: DetailBindings; data: DetailProjec
       <MenuGroup>
         {differentVersion && <MenuItem icon="i-film" onSelect={chooseVersion}>{t('next.overlays.differentVersion')}</MenuItem>}
         <MenuItem icon="i-info" onSelect={loadFiles}>{t('next.overlays.fileInfo')}</MenuItem>
-        <MenuItem icon="i-stack" onSelect={loadTitles}>{t('next.overlays.discTitles')}</MenuItem>
+        {/* Titles (a disc's title inventory) returns with disc playback: the rebuilt server sends no disc titles yet,
+            so offering it would open an empty list on every title. */}
         {/* O-161: the mock-ups have no share slot; the title's ⋯ menu carries its shareable link. */}
         <MenuItem icon="i-copy" onSelect={() => { void copyLink('item', {itemId: data.item.id}, trigger.current ?? undefined).then(() => setLinkToast({id: crypto.randomUUID(), icon: 'i-check', message: t('next.overlays.linkCopied')}), () => setLinkToast({id: crypto.randomUUID(), icon: 'i-warn', tone: 'warning', message: t('next.overlays.copyLinkFailed')})); }}>{t('next.overlays.copyLink')}</MenuItem>
       </MenuGroup>
@@ -359,8 +359,8 @@ function TitleMore({binding, data}: {binding: DetailBindings; data: DetailProjec
         </Dialog>)}
     <ToastHost toast={linkToast} onDismiss={() => setLinkToast(null)} />
     {rating && <TitleRating binding={binding} data={data} returnFocusRef={trigger} onClose={() => setRating(false)} />}
-    {(fileOpen || titlesOpen) && <TitleFileInfo binding={binding} data={data} surface={fileOpen ? 'file' : 'titles'} phone={phone} returnFocusRef={trigger}
-      onClose={() => { setFileOpen(false); setTitlesOpen(false); }} onManage={context => runScreenCommand(binding.context, () => { setFileOpen(false); setManage(context); })} />}
+    {fileOpen && <TitleFileInfo binding={binding} data={data} surface="file" phone={phone} returnFocusRef={trigger}
+      onClose={() => setFileOpen(false)} onManage={context => runScreenCommand(binding.context, () => { setFileOpen(false); setManage(context); })} />}
     {manage && <FileManagement binding={binding} data={data} manage={manage} onClose={() => setManage(undefined)} returnFocusRef={trigger} />}
   </>;
 }

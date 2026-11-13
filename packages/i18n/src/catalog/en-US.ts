@@ -1970,7 +1970,6 @@ export const enUS = {
   'title.split.confirm': 'Split it off',
   'title.split.working': 'Splitting it off',
   'title.split.notFound': 'Portico could not find this file in the library’s list. Scan the library, then try again.',
-  'title.split.failed': 'The version could not be split off. Try again.',
   'title.splitFolder.action': 'Not this album…',
   'title.splitFolder.actionBook': 'Not this book…',
   'title.splitFolder.title': 'Make this folder an album of its own?',
