@@ -29,3 +29,26 @@ func TestWindowsDefaultGateway(t *testing.T) {
 		t.Fatal("used an expired route")
 	}
 }
+
+func TestWindowsIPv6ClientPrefersStable(t *testing.T) {
+	temporary, stable := netip.MustParseAddr("2001:db8::10"), netip.MustParseAddr("2001:db8::20")
+	row := windows.MibUnicastIpAddressRow{InterfaceLuid: 7, PreferredLifetime: 3600, DadState: windows.IpDadStatePreferred, SuffixOrigin: windows.IpSuffixOriginRandom}
+	row.Address = windows.RawSockaddrInet6{Family: windows.AF_INET6, Addr: temporary.As16()}
+	rows := []windows.MibUnicastIpAddressRow{row, row}
+	rows[1].Address.Addr, rows[1].SuffixOrigin = stable.As16(), windows.IpSuffixOriginManual
+	if got := windowsIPv6Client(rows, 7, netip.Addr{}); got != stable {
+		t.Fatal("temporary address won over stable", got)
+	}
+	rows[1].DadState = windows.IpDadStateDeprecated
+	if got := windowsIPv6Client(rows, 7, netip.Addr{}); got != temporary {
+		t.Fatal("no temporary fallback", got)
+	}
+	rows[0].DadState = windows.IpDadStateDeprecated
+	if got := windowsIPv6Client(rows, 7, netip.Addr{}); got.IsValid() {
+		t.Fatal("used a deprecated address", got)
+	}
+	rows[0].DadState, rows[1].DadState = windows.IpDadStatePreferred, windows.IpDadStatePreferred
+	if got := windowsIPv6Client(rows, 7, temporary); got != temporary {
+		t.Fatal("ignored the bound listener", got)
+	}
+}

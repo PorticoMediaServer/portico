@@ -56,17 +56,32 @@ func windowsRouter(family uint16, bound netip.Addr) Router {
 		return Router{}
 	}
 	defer windows.FreeMibTable(unsafe.Pointer(addresses))
-	for _, row := range unsafe.Slice(&addresses.Table[0], addresses.NumEntries) {
-		if row.InterfaceLuid != best.InterfaceLuid || row.SkipAsSource != 0 || row.DadState != windows.IpDadStatePreferred || row.PreferredLifetime == 0 {
+	client := windowsIPv6Client(unsafe.Slice(&addresses.Table[0], addresses.NumEntries), best.InterfaceLuid, bound)
+	if !client.IsValid() {
+		return Router{}
+	}
+	return Router{Gateway: gateway, Client: client, PMPPort: 5351,
+		SSDP: netip.AddrPortFrom(netip.MustParseAddr("ff02::c").WithZone(zone), 1900)}
+}
+
+func windowsIPv6Client(rows []windows.MibUnicastIpAddressRow, luid uint64, bound netip.Addr) netip.Addr {
+	var temporary netip.Addr
+	for _, row := range rows {
+		if row.InterfaceLuid != luid || row.SkipAsSource != 0 || row.DadState != windows.IpDadStatePreferred || row.PreferredLifetime == 0 {
 			continue
 		}
 		ip := netip.AddrFrom16(row.Address.Addr)
-		if usableRouterClient(ip, bound) {
-			return Router{Gateway: gateway, Client: ip, PMPPort: 5351,
-				SSDP: netip.AddrPortFrom(netip.MustParseAddr("ff02::c").WithZone(zone), 1900)}
+		if !usableRouterClient(ip, bound) {
+			continue
+		}
+		if row.SuffixOrigin != windows.IpSuffixOriginRandom {
+			return ip
+		}
+		if !temporary.IsValid() {
+			temporary = ip
 		}
 	}
-	return Router{}
+	return temporary
 }
 
 func windowsDefaultRoute(row windows.MibIpForwardRow2, family uint16) bool {
