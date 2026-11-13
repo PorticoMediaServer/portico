@@ -156,7 +156,8 @@ export function ArtFrame({children, width, height, radius, focused, selected, ho
 export function Parts({parts = [], style, gap = 8, strong = false}: {parts?: readonly FactPart[]; style?: StyleProp<TextStyle>; gap?: number; strong?: boolean}) {
   const t = useTheme();
   if (!parts.length) return null;
-  return <View style={{flexDirection: 'row', alignItems: 'baseline', gap, minWidth: 0, overflow: 'hidden'}}>{parts.map(part => <Text key={part.id} numberOfLines={1} ellipsizeMode="tail" style={[
+  // Phone and tablet: a fact that does not fit beside the others moves to the next line whole (owner's cut-text rule).
+  return <View style={{flexDirection: 'row', flexWrap: t.isTV ? 'nowrap' : 'wrap', alignItems: 'baseline', columnGap: gap, rowGap: 2, minWidth: 0, overflow: 'hidden'}}>{parts.map(part => <Text key={part.id} numberOfLines={1} ellipsizeMode="tail" style={[
     t.type.cardSubtitle, {color: t.colors.textTertiary, flexShrink: part.role === 'context' ? 0 : 1},
     (strong || part.role === 'identity' || part.role === 'status') && {fontFamily: t.type.captionStrong.fontFamily, color: part.role === 'status' ? t.colors.accentStrong : t.colors.textSecondary}, style,
   ]}>{part.text}</Text>)}</View>;

@@ -263,3 +263,24 @@ test('a closed Select keeps its value visible in a row with no width to give it'
   assert.equal(text.flex, undefined, 'the value never takes leftover width it may not have');
   assert.equal(text.flexShrink, 1);
 });
+
+// Owner's cut-text rule (13 Nov sweep T1/T2): on phone and tablet the 16:9 card's title and an episode row's title wrap to a
+// second line before they are cut; TV keeps its fixed one-line slots.
+test('wide card and episode row titles take two lines on phone and one on TV', async () => {
+  for (const isTV of [false, true]) {
+    const f = fixture(), theme = isTV ? createTheme({isTV: true, width: 1920, fontScale: 1}) : f.theme;
+    const media = await screenModule(new URL('../src-next/kit/cards/MediaCards.tsx', import.meta.url), {
+      ...f.common, '../theme': {useTheme: () => theme, nativeType, fontFamilies}, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n},
+      '../artwork/index': {GeneratedCoverClearance: {Provider: 'Provider'}, MediaArt: 'MediaArt', missingArt: () => undefined}, '../controls/Focusable': {Focusable: 'Focusable'}, '../selection/index': {SelectionCircle: 'SelectionCircle'},
+      './primitives': {CardFrame: 'CardFrame', ArtFrame: 'ArtFrame', Badge: 'Badge', Caption: 'Caption', CardAction: 'CardAction', Progress: 'Progress', Scrim: 'Scrim', Parts: 'Parts', titleStyle: () => ({})},
+    });
+    const title = 'The Night the Ferry Did Not Come Back to the Northern Island';
+    const lines = (tree: any) => {
+      const all = nodes(tree), frame = all.find(node => node.type === 'CardFrame'), inner = typeof frame?.props.children === 'function' ? frame.props.children(idle) : frame?.props.children;
+      return [...all, ...nodes(inner)].find(node => node.type === 'Text' && node.props.children === title)?.props.numberOfLines;
+    };
+    const wide = f.host.render(() => media.WideCard({title, caption: [{id: 'left', text: '4 s left'}], onNavigate() {}}));
+    const row = f.host.render(() => media.EpisodeTile({title, label: [{id: 'episode', text: 'Episode 1'}], layout: 'row', onNavigate() {}}));
+    assert.deepEqual([lines(wide), lines(row)], isTV ? [1, 1] : [2, 2], isTV ? 'TV' : 'phone');
+  }
+});

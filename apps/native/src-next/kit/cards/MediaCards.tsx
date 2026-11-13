@@ -117,7 +117,7 @@ export function WideCard(props: WideCardProps) {
       <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="wide" source={props.artwork} fallback={fallbackFor(props, 'wide', width, height)} width={width} height={height} />
       <Scrim />
       <View style={{position: 'absolute', left: t.spec.card.wide.insetX[t.platform], right: t.spec.card.wide.insetX[t.platform], bottom: t.spec.card.wide.insetBottom[t.platform]}}>
-        <Text numberOfLines={1} style={[t.type.wideTitle, {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
+        <Text numberOfLines={t.isTV ? 1 : 2} style={[t.type.wideTitle, {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
         <View style={{marginTop: t.isTV ? 4 : 2}}><Parts parts={handheld ? compactFacts : props.caption} gap={factsGap} style={{color: t.colors.textSecondary}} /></View>
         {!handheld && !t.isTV && <Parts parts={props.detail} gap={factsGap} style={{color: t.colors.textSecondary}} />}
         <Progress value={props.progress} style={{marginTop: t.spec.card.progress.marginTop[t.platform]}} />
@@ -162,7 +162,7 @@ export function EpisodeTile(props: EpisodeTileProps) {
     <Marks watched={props.watched} progress={props.progress} />
   </ArtFrame>;
   const text = <View style={{flex: row ? 1 : undefined, minWidth: 0, marginTop: row ? 0 : t.spec.episode.titleMargin[t.platform], gap: 3, paddingRight: row && (props.onDownload || props.onMore) ? 40 : 0}}>
-    <Text numberOfLines={1} style={[row ? titleStyle(t, 15) : t.type.episodeTitle, {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
+    <Text numberOfLines={row && !t.isTV ? 2 : 1} style={[row ? titleStyle(t, 15) : t.type.episodeTitle, {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
     <Parts parts={props.label} style={row ? titleStyle(t, 12.5, 600) : undefined} />
     {row && (props.length || props.status) && <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 12}}>
       {props.status && <Text style={[titleStyle(t, 12.5, 700), {color: t.colors.accentStrong}]}>{props.status}</Text>}

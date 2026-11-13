@@ -401,7 +401,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
                   <ProfileFace {...shell.profile} size={54} locked={shell.profile.pinRequired} scaleOnFocus={false}/>
                   <View style={{flex: 1, minWidth: 0}}>
                     <Text numberOfLines={1} style={[shellType(18, 800, 'normal', -.02), {color: theme.colors.text}]}>{shell.profile.name}</Text>
-                    <Text numberOfLines={1} style={[shellType(13, 400, 17), {color: theme.colors.textTertiary, marginTop: 2}]}>{signedIn}</Text>
+                    <Text numberOfLines={2} style={[shellType(13, 400, 17), {color: theme.colors.textTertiary, marginTop: 2}]}>{signedIn}</Text>
                   </View>
                   <Icon name="i-right" size={18} color={theme.colors.lineStrong}/>
                 </Focusable>

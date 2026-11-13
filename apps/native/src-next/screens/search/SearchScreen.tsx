@@ -8,7 +8,7 @@ import type {SearchEntry, SearchGroup} from '../../../../../packages/client-core
 import {orderedSearchGroups, SEARCH_CHIPS, searchGroupLabel, topSearchResult, topResultKindLabel} from '../../../../../packages/client-core/src/presentation/search-model';
 import {Artwork, StandardBackdrop} from '../../kit/artwork';
 import {GenreTile, LiveCard, type CardSelection} from '../../kit/cards';
-import {CardFrame} from '../../kit/cards/primitives';
+import {CardFrame, Parts} from '../../kit/cards/primitives';
 import {Chip, Focusable, TextField} from '../../kit/controls';
 import {SelectionCircle} from '../../kit/selection';
 import {GridSkeleton, LoadingPaint, SkeletonBlock, StateView} from '../../kit/states';
@@ -259,8 +259,8 @@ function SearchResultRow({entry, group, runtime, actions, selection}: {entry: Se
       {() => <>
       {selection?.active && <SelectionCircle selected={selection?.selected} selecting interactive={false} variant="row" size={24} accessibilityLabel={t('card.select', {title})}/>}
       <View style={{width, height, borderRadius: 6, overflow: 'hidden', backgroundColor: theme.colors.raised}}><Artwork source={runtime.artwork(group === 'episodes' ? content?.stillUrl ?? content?.backdropUrl ?? entry.posterUrl : entry.posterUrl)} width={width} height={height}/></View>
-      <View style={{flex: 1, minWidth: 0}}><Text numberOfLines={1} style={[browseType(theme, 15, 700), {color: selection?.selected ? theme.colors.accentStrong : theme.colors.text}]}>{title}</Text>
-        <View style={{flexDirection: 'row', gap: 12, marginTop: 2}}>{text?.caption.map(part => <Text key={part.id} numberOfLines={1} style={[browseType(theme, 12.5, 400), {color: theme.colors.textTertiary, flexShrink: 1}]}>{part.text}</Text>)}</View>
+      <View style={{flex: 1, minWidth: 0, gap: 2}}><Text numberOfLines={2} style={[browseType(theme, 15, 700), {color: selection?.selected ? theme.colors.accentStrong : theme.colors.text}]}>{title}</Text>
+        <Parts parts={text?.caption} gap={12} style={browseType(theme, 12.5, 400)}/>
       </View>
       </>}
     </CardFrame>
