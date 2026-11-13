@@ -2,6 +2,7 @@ package decoder
 
 import (
 	"log"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -13,6 +14,8 @@ import (
 // when it ran. The owner reads it as Last error and Last test, and the message
 // log keeps the same text after the probe's child process has exited.
 type ProbeObservation struct {
+	Stopped   bool `json:"-"` // worked before; cleared only by a successful test
+	worked    bool
 	Backend   string    `json:"backend"`
 	Device    string    `json:"device"`
 	Available bool      `json:"available"`
@@ -144,6 +147,15 @@ func noteProbeObservation(out HardwareProbe, detail string) {
 	}
 	key := probeCellKey(out.Backend, out.Device)
 	hardwareProbeLog.Lock()
+	previous := hardwareProbeLog.last[key]
+	observation.worked = previous.worked || observation.Available
+	observation.Stopped = previous.Stopped
+	switch out.Reason {
+	case ProbeAvailable:
+		observation.Stopped = false
+	case ProbeEncodeFailed, ProbeConfinementMissing, ProbeUnsupportedPlatform:
+		observation.Stopped = observation.worked
+	}
 	if _, seen := hardwareProbeLog.last[key]; !seen {
 		hardwareProbeLog.order = append(hardwareProbeLog.order, key)
 		for len(hardwareProbeLog.order) > probeCellsKept {
@@ -153,6 +165,9 @@ func noteProbeObservation(out HardwareProbe, detail string) {
 	}
 	hardwareProbeLog.last[key] = observation
 	hardwareProbeLog.Unlock()
+	if observation.Stopped && !previous.Stopped {
+		logHardwareStopped(out.Backend, out.Device)
+	}
 	line := probeDetailLine(observation.Detail)
 	fallback := "New conversions fall back to a working graphics device or the processor."
 	if observation.Reason == ProbeBusy {
@@ -171,6 +186,28 @@ func noteProbeObservation(out HardwareProbe, detail string) {
 		return
 	}
 	log.Printf("warn: [playback] %s on %s failed its probe: %s. %s %s", observation.Backend, deviceLabel(observation.Device), observation.Reason, line, fallback)
+}
+
+// NoteHardwareDeviceStopped consumes a confirmed conversion failure or a device
+// missing from discovery. A device that never worked raises no alert.
+func NoteHardwareDeviceStopped(backend HardwareBackend, device string) {
+	key := probeCellKey(backend, device)
+	hardwareProbeLog.Lock()
+	previous := hardwareProbeLog.last[key]
+	changed := previous.worked && !previous.Stopped
+	if changed {
+		previous.Stopped = true
+		hardwareProbeLog.last[key] = previous
+	}
+	hardwareProbeLog.Unlock()
+	if changed {
+		logHardwareStopped(backend, device)
+	}
+}
+
+func logHardwareStopped(backend HardwareBackend, device string) {
+	slog.Warn("Graphics device stopped working; conversions fall back to a working graphics device or the processor.",
+		"log_kind", "playback", "backend", backend, "device", deviceLabel(device))
 }
 
 // LastProbeObservation answers what the last probe of one backend and device

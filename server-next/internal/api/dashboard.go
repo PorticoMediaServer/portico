@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/diskspace"
 	"github.com/PorticoMediaServer/portico/server-next/internal/musicanalysis"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
@@ -33,7 +34,7 @@ type Dashboard struct {
 }
 
 // DashboardAlert is one line with one action. Code is storage_nearly_full, backup_failed,
-// data_folder_readable, library_unreachable, remote_unreachable or update_available; Severity
+// data_folder_readable, library_unreachable, remote_unreachable, graphics_device_stopped or update_available; Severity
 // is warning or major.
 type DashboardAlert struct {
 	Code     string            `json:"code"`
@@ -47,7 +48,7 @@ type DashboardAlert struct {
 
 // AlertAction is where the alert's one action goes: storage, backups, fix-permissions (POST
 // /v1/admin/data-folder/permissions/fix, once the owner confirms), library-source (Target is
-// the library), remote-source (Target is the source) or update; none is an alert nothing in
+// the library), remote-source (Target is the source), streaming or update; none is an alert nothing in
 // the app can cure, whose params say why.
 type AlertAction struct {
 	Kind   string `json:"kind"`
@@ -287,6 +288,13 @@ func (s *Server) alerts(libraries []db.AdminLibrary, sources []db.RemoteSource) 
 		if src.State == "unreachable" || src.State == "sign_in" {
 			add("remote_unreachable", "major", map[string]string{"source": src.Name, "reason": src.State, "problem": clip(src.LastError)},
 				"remote-source", src.PublicID, 0)
+		}
+	}
+	for _, p := range decoder.ProbeObservations() {
+		if p.Stopped {
+			add("graphics_device_stopped", "major", map[string]string{"backend": p.Backend, "device": p.Device,
+				"message": "A graphics device stopped working. Conversions use another graphics device or the processor."}, "streaming", "", 0)
+			break
 		}
 	}
 	if u := s.updates.State(); u.Newer && u.Newest != nil {
