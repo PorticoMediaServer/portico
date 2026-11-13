@@ -131,6 +131,15 @@ test('runtime sends the accepted nonfirst mpv audio and reports only its applied
   assert.equal(f.commands.at(-1).audioTrack, undefined, 'stream delivery carries no direct file selection');
 });
 
+test('local rate facts agree with the speed configured on the engine', async t => {
+  const f = await fixture('native', true); t.after(() => f.dispose());
+  f.runtime.local = () => ({kind: 'audiobook'});
+  f.runtime.choices.get = (key, _identity, fallback) => key === 'speed' ? 1.5 : fallback;
+  f.runtime.applyOptions(); await drain();
+  assert.equal(f.commands.at(-1).rate, 1.5);
+  assert.equal(f.runtime.chosenRate, 1.5, 'the offline listening reader must publish the selected engine rate');
+});
+
 test('direct mpv starts with its accepted audio before options arrive and refuses contradictory offers', async t => {
   const f = await fixture('mpv', false, false); t.after(() => f.dispose());
   assert.ok(f.commands.length > 0); assert.ok(f.commands.every(command => command.audioTrack?.streamIndex === 7));
