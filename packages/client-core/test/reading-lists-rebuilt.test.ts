@@ -91,3 +91,24 @@ test('Discover keeps Recently added when its optional New issues read fails', as
   assert.deepEqual(discover.rows.map(row => [row.key, row.items.map(item => item.id), row.nextCursor]), [['recent', ['itm_recent'], 'more']]);
   assert.deepEqual(discover.newIssueCards, []);
 });
+
+test('a book page reads its library, first author, cover, series, kind and summary from the item answer', async () => {
+  const {rebuiltBookFacts} = await import('../src/reading-lists-rebuilt.ts');
+  assert.deepEqual(rebuiltBookFacts(wire('itm_dune', 'book', {index: 1, publicationType: 'book', summary: 'Arrakis.', images: {poster: '/v1/images/dune'},
+    series: {id: 'itm_chronicles', kind: 'series', title: 'Dune Chronicles'},
+    credits: [{personId: 'per_editor', name: 'An Editor', role: 'editor'}, {personId: 'per_frank', name: 'Frank Herbert', role: 'author'}, {personId: 'per_brian', name: 'Brian Herbert', role: 'author'}]})), {
+    libraryId: 'lib_books', author: 'Frank Herbert', authorId: 'per_frank', coverUrl: '/v1/images/dune',
+    series: {id: 'itm_chronicles', name: 'Dune Chronicles', libraryId: 'lib_books', number: 1},
+    publicationType: {value: 'book', source: 'file'}, description: 'Arrakis.'});
+  assert.deepEqual(rebuiltBookFacts(wire('itm_plain', 'book', {summary: '  ', images: {poster: 'https://elsewhere.example/x.jpg'}, credits: [{name: 'No id', role: 'author'}]})), {libraryId: 'lib_books'},
+    'a blank summary, a picture off the server and an author with no person id are left out');
+});
+
+test("More by reads the author's readable titles in the book's library, by the author filter", async () => {
+  const {calls, reading} = server(() => ({items: [wire('itm_a', 'book'), wire('itm_s', 'series'), wire('itm_b', 'comic')]}));
+  const items = await reading.byAuthor('lib_books', 'per_frank', {limit: 13});
+  assert.equal(calls[0].pathname, '/v1/items');
+  assert.deepEqual(Object.fromEntries(calls[0].searchParams), {library: 'lib_books', author: 'per_frank', kind: 'book,comic,issue', sort: 'title', limit: '13'});
+  assert.deepEqual(items.map(item => item.id), ['itm_a', 'itm_b']);
+  await assert.rejects(reading.byAuthor('lib_books', 'not an id'));
+});

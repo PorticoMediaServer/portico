@@ -90,7 +90,7 @@ export async function openNativeReadingDetail(context: NativeReadNavigationConte
       item = Object.freeze({
         id: target.itemId, libraryId: target.libraryId, title: manifest.metadata.title || target.title,
         format: manifest.format, sourceId: target.sourceId, inventoryAvailable: true as const,
-        ...(series && series.libraryId === target.libraryId && /^[A-Za-z0-9_-]{43}$/.test(series.id)
+        ...(series && series.source && series.libraryId === target.libraryId && /^[A-Za-z0-9_-]{43}$/.test(series.id)
           ? {series: Object.freeze({id: series.id, name: series.name, source: series.source, ...(series.number === undefined ? {} : {number: series.number})})} : {}),
       });
     } finally {try {await session.close();} catch (error) {closeError = error;}}

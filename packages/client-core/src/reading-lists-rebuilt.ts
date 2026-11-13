@@ -53,6 +53,32 @@ export function readingItem(item: WireItem, format = ''): ReadingItem | undefine
 
 const items = (raw: readonly WireItem[] | undefined) => (Array.isArray(raw) ? raw : []).flatMap(item => {const row = readingItem(item); return row ? [row] : [];});
 
+/** What a book's page shows about it from the item answer (`GET /v1/items/{id}`): its library,
+ * first author, cover, series and volume number, kind of publication and summary. Anything absent
+ * or malformed is left out. */
+export function rebuiltBookFacts(item: Record<string, unknown>) {
+  const wire = item as unknown as WireItem & {publicationType?: unknown; summary?: unknown; credits?: unknown};
+  const libraryId = text(wire.libraryId, 128) ? wire.libraryId : undefined;
+  const author = (Array.isArray(wire.credits) ? wire.credits : []).find(credit => object(credit) && credit.role === 'author' && text(credit.name) && text(credit.personId, 128)) as {name: string; personId: string} | undefined;
+  const series = object(wire.series) && text(wire.series.id, 128) && text(wire.series.title) && libraryId ? wire.series : undefined;
+  const number = typeof wire.index === 'number' && Number.isSafeInteger(wire.index) && wire.index >= 0 ? wire.index : undefined;
+  const coverUrl = cover(wire);
+  return Object.freeze({
+    ...(libraryId ? {libraryId} : {}),
+    ...(author ? {author: author.name, authorId: author.personId} : {}),
+    ...(coverUrl ? {coverUrl} : {}),
+    ...(series ? {series: Object.freeze({id: series.id as string, name: series.title as string, libraryId: libraryId!, ...(number === undefined ? {} : {number})})} : {}),
+    ...(text(wire.publicationType, 32) ? {publicationType: Object.freeze({value: wire.publicationType, source: 'file'})} : {}),
+    ...(text(wire.summary, 16384) && wire.summary.trim() ? {description: wire.summary} : {}),
+  });
+}
+
+/** A person's other readable titles in one library, by title: the book page's "More by". */
+export async function rebuiltAuthorTitles(api: ServerRequester, libraryId: string, personId: string, limit: number, signal?: AbortSignal): Promise<ReadingItem[]> {
+  const page = await callServer(api, 'GET /v1/items', {signal, query: {library: libraryId, author: personId, kind: readable, sort: 'title', limit}}) as ItemPage;
+  return items(page?.items);
+}
+
 /** A page of a library's titles, or of its most recently added. */
 export async function rebuiltReadingPage(api: ServerRequester, options: Readonly<{libraryId?: string; cursor?: string; limit: number; sort?: 'title' | 'added'}>, signal?: AbortSignal):
   Promise<Readonly<{items: ReadingItem[]; nextCursor?: string}>> {

@@ -1,6 +1,10 @@
 /** Optional descriptive facts. None of these fields confers a read or navigation grant. */
-export type ReadingManifestSeries = Readonly<{id: string; name: string; libraryId: string; source: 'owner' | 'folder' | 'file-name' | 'file-metadata'; number?: number}>;
-export type ReadingManifestFacts = Readonly<{wordCount?: number; estimatedSeconds?: number; pageCount?: number; openingLines?: string; series?: ReadingManifestSeries}>;
+/** `source` is where the series came from, when the server says (the rebuilt server does not). */
+export type ReadingManifestSeries = Readonly<{id: string; name: string; libraryId: string; source?: 'owner' | 'folder' | 'file-name' | 'file-metadata'; number?: number}>;
+/** `libraryId` is the library the book is in; `authorId` is its first author's person id, what the
+ * library's author filter takes; `description` is the title's summary. */
+export type ReadingManifestFacts = Readonly<{wordCount?: number; estimatedSeconds?: number; pageCount?: number; openingLines?: string; series?: ReadingManifestSeries;
+  libraryId?: string; authorId?: string; description?: string}>;
 const record = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const integer = (v: unknown, min: number, max: number): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= min && v <= max;
 const text = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && new TextEncoder().encode(v).length <= max && !/[\x00-\x1f\x7f]/.test(v);

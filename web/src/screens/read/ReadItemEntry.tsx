@@ -13,7 +13,8 @@ import {validateRepair} from '@core/metadata-repair.ts';
 import {createReadingPublication, type ReaderContentsTarget} from '@portico/reader-core';
 import {stageContentsTarget, retireContentsTarget} from './contents-handoff';
 import {ReaderContents, type ReaderContentsEntry} from '../../kit/reader/ReaderPanel';
-import type {ReadingManifest, ReadingProgress, ReadingSession} from '@portico/client-core';
+import type {ReadingItem, ReadingManifest, ReadingProgress, ReadingSession} from '@portico/client-core';
+import {rememberFilterNames} from '@core/filter-value-names.ts';
 import {saveReadingFile} from './save-file';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
@@ -23,7 +24,9 @@ import {Dialog, Menu, MenuGroup, MenuItem} from '../../kit/overlays';
 import {usePhone} from '../../kit/overlays/shared';
 import {runScreenCommand} from '../detail/context';
 import {Skeleton} from '../../kit/states';
-import {ReadBookFacts, ReadBookSections} from '../../kit/reader/ReadBookHero';
+import {ReadBookFacts, ReadBookSections, ReadMarksStrip} from '../../kit/reader/ReadBookHero';
+import {Shelf} from '../../kit/layout';
+import {CoverCard} from '../../kit/cards';
 import {CoverHero, CoverHeroLink} from '../../kit/title/CoverHero';
 import {GeneratedCover} from '../../kit/artwork';
 import {readBookTitleStyle} from '../../kit/reader/book-title';
@@ -31,7 +34,8 @@ import {ServerMark} from '../../kit/shell';
 import {useLibraryScreenContext} from '../browse/screen-context';
 import {ReadMetadata} from './ReadMetadata';
 import {createReadBindings} from './bindings';
-import {readDestination, type ReadItemEligibility} from './navigation';
+import {readChosenDestination, readDestination, type ReadItemEligibility} from './navigation';
+import {authorPredicate} from './facets';
 import {readBackCommit, readRetireAttempt, readRouteEntry, readVersionCanChoose, readVersionRecovery, type ReadRouteEntry, type ReadVersion, type ReadVersionSource} from './read-version-choice';
 import {ReadOpenFailure, readFailureKind, readFailureReported, type ReadFailureKind} from './ReadOpenFailure';
 import styles from './read-item.module.css';
@@ -63,6 +67,8 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
   const attemptRef = useRef<ReadAttempt | undefined>(undefined);
   const committed = useRef<ReadVersionSource | undefined>(undefined);
   useLayoutEffect(() => {committed.current = {context: captured.context, sourceId, versions: eligibility.versions};}, [captured.context, sourceId, eligibility.versions]);
+  /** What the page adds once the book is open: the reader's own marks and the author's other titles. */
+  const [extras, setExtras] = useState<Readonly<{attempt?: ReadAttempt; marks?: Readonly<{highlights: number; bookmarks: number}>; moreBy?: readonly ReadingItem[]}>>({});
   const [detail, setDetail] = useState<Readonly<{attempt?: ReadAttempt; manifest?: ReadingManifest; progress?: ReadingProgress; client?: ReturnType<typeof createReadBindings>['client']; targets?: readonly ReaderContentsTarget[]; failed?: boolean; failure?: ReadFailureKind}>>({});
   const current = useCallback((value: ReadAttempt | undefined): value is ReadAttempt => {
     if (!value) return false;
@@ -109,6 +115,12 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
       original.target = index => {if (!live() || !original.ready) throw new Error('source_changed'); return publication!.contentsTarget(index);};
       setDetail({attempt: original, manifest: session.manifest, progress, client: bindings.client,
         targets: session.manifest.format === 'epub' ? (session.manifest.contents ?? []).map((_, index) => publication!.contentsTarget(index)) : []});
+      // Both are extras: a failure leaves the page as it is, with no strip and no row.
+      const add = (value: NonNullable<typeof extras>) => {if (live()) setExtras(before => ({...(before.attempt === original ? before : {}), ...value, attempt: original}));};
+      void countMarks(session, original.fileLife.signal).then(marks => add({marks}), () => {});
+      const {libraryId, authorId} = session.manifest.metadata;
+      if (libraryId && authorId) void bindings.client.byAuthor(libraryId, authorId, {limit: 13}, original.fileLife.signal)
+        .then(items => add({moreBy: items.filter(item => item.id !== eligibility.itemId).slice(0, 12)}), () => {});
     })().catch(error => {if (live()) {const failure = readFailureKind(error); if (readFailureReported(failure)) errorSink.current(error); original.ready = false; original.target = undefined; setDetail({attempt: original, failed: true, failure});} void bindings.close().catch(() => {});});
     return () => {active = false; original.ready = false; original.target = undefined; publication?.dispose(); off(); void bindings.dispose().catch(() => {});};
   }, [attempt, eligibility.itemId, current]);
@@ -194,6 +206,18 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
       ...(publicationType === 'magazine' ? {pivot: 'magazines'} : publicationType === 'newspaper' ? {pivot: 'newspapers'} : {})}}).catch(error => {if (factsCurrent()) errorSink.current(error);});
   }} : undefined;
   const tint = generatedCoverTint(title);
+  const libraryId = metadata.libraryId, authorId = metadata.authorId;
+  /** The author's titles in this library: its grid filtered to them, as the Authors tab opens it. */
+  const openAuthor = author && libraryId && authorId ? () => {
+    if (!factsCurrent()) return;
+    rememberFilterNames([{value: authorId, label: author}]);
+    void router.navigate({to: '/library/$libraryId', params: {libraryId}, search: {view: 'browse', query: authorPredicate(authorId)}}).catch(error => {if (factsCurrent()) errorSink.current(error);});
+  } : undefined;
+  const added = extras.attempt === original ? extras : {};
+  const marks = added.marks, marksText = !marks || !marks.highlights && !marks.bookmarks ? undefined
+    : marks.highlights && marks.bookmarks ? t('next.reader.marksBoth', {highlights: t('next.reader.highlightCount', {count: marks.highlights}), bookmarks: t('next.reader.bookmarkCount', {count: marks.bookmarks})})
+    : t('next.reader.marksOne', {marks: marks.highlights ? t('next.reader.highlightCount', {count: marks.highlights}) : t('next.reader.bookmarkCount', {count: marks.bookmarks})});
+  const cardWidth = phone ? 108 : 190;
   const saved = detail.progress?.progress;
   const progression = saved && !saved.stale && saved.sourceId === manifest.sourceId && saved.sourceRevision === manifest.revision && saved.location.format === manifest.format ? saved.location.progression : undefined;
   const open = (index?: number) => {
@@ -255,12 +279,12 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
   return <>{phoneBack}<CoverHero cover={context.artwork.foreground(manifest.metadata.coverUrl, 784, 2 / 3)} title={title}
     shape={metadata.publicationType?.value === 'magazine' || metadata.publicationType?.value === 'newspaper' ? 'periodical' : 'portrait'} titleStyle={readBookTitleStyle(title, !!metadata.openingLines)}
     fallback={<GeneratedCover title={title} author={author} glyph={Array.from(title.trim())[0] ?? ''} tint={tint}/>}
-    byline={author ? <CoverHeroLink>{author}</CoverHeroLink> : undefined}
+    byline={author ? <CoverHeroLink person={author} onOpen={openAuthor}>{author}</CoverHeroLink> : undefined}
     eyebrow={seriesPresentation ? <button type="button" onClick={seriesPresentation.onOpen}>{seriesPresentation.label}</button> : undefined} facts={[
       ...(metadata.wordCount !== undefined ? [{id: 'words', text: t('next.reader.wordCount', {count: metadata.wordCount}), role: 'context' as const}] : []),
       ...(metadata.pageCount !== undefined ? [{id: 'pages', text: t('next.reader.pageCount', {count: metadata.pageCount}), role: 'context' as const}] : []),
       ...(metadata.estimatedSeconds !== undefined && metadata.estimatedSeconds > 0 ? [{id: 'estimate', text: t('next.reader.aboutDuration', {duration: defaultI18n.duration(readingDuration(metadata.estimatedSeconds))}), role: 'context' as const}] : []),
-    ]} opening={metadata.openingLines ? {label: t('next.reader.openingLines'), text: metadata.openingLines} : undefined}
+    ]} description={metadata.description} opening={metadata.openingLines ? {label: t('next.reader.openingLines'), text: metadata.openingLines} : undefined}
     ambient={context.artwork.ambient(manifest.metadata.coverUrl)} palette={tint}
     actions={<>{progression !== undefined && progression > 0 ? <ResumeButton className={styles.primary} icon="i-book" progress={progression} remaining={defaultI18n.percent(progression)} onClick={() => open()}>{t('next.cards.read')}</ResumeButton>
       : <Button className={styles.primary} variant="primary" icon="i-book" onClick={() => open()}>{t('next.reader.read')}</Button>}{detail.client && <ReadSavedAction client={detail.client} itemId={eligibility.itemId} isCurrent={factsCurrent} reportError={error => errorSink.current(error)}/>}{detail.client && <ReadMarkAction client={detail.client} itemId={eligibility.itemId} isCurrent={factsCurrent} reportError={error => errorSink.current(error)}/>}</>}
@@ -283,7 +307,14 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
     </Dialog>
     {editing && canEdit && <ReadMetadata context={context} reading={captured.context} sourceId={manifest.sourceId} format={manifest.format} itemId={eligibility.itemId} anchor={editorAnchor} onClose={() => {if (!current(original)) return; setEditing(false); refresh(original);}}/>}
     <ReadBookSections labels={{contents: t('next.reader.contents'), details: t('next.reader.details')}}
-      contents={detail.targets?.length ? <><h2>{t('next.reader.contents')}</h2><ReaderContents entries={detailContents(manifest.contents ?? [], index => open(index))}/></> : undefined} details={details}/></>;
+      contents={detail.targets?.length ? <><h2>{t('next.reader.contents')}</h2><ReaderContents entries={detailContents(manifest.contents ?? [], index => open(index))}/></> : undefined}
+      marks={marksText ? <ReadMarksStrip text={marksText} action={t('next.reader.openInReader')} onOpen={() => open()}/> : undefined} details={details}/>
+    {author && added.moreBy?.length ? <Shelf className={styles.moreBy} heading={t('home.row.moreByAuthor', {name: author})} platform={phone ? 'phone-web' : 'desktop'} itemWidth={cardWidth}
+      items={added.moreBy} getKey={item => item.id} renderItem={item => <CoverCard artwork={context.artwork.foreground(item.coverUrl, cardWidth * 2, 2 / 3)} kind={manifest.format === 'cbz' ? 'comic' : 'book'}
+        model={{title: item.title, caption: []}} context="shelf" density="shelf" visible generated={{title: item.title, glyph: Array.from(item.title)[0] ?? '', tint: generatedCoverTint(item.title)}}
+        disabled={!item.inventoryAvailable} playLabel={t('next.reader.read')}
+        onNavigate={() => {if (context.isCurrent()) void router.navigate({to: '/item/$itemId', params: {itemId: item.id}}).catch(error => errorSink.current(error));}}
+        onPlay={item.inventoryAvailable ? () => {if (context.isCurrent()) void router.navigate(readChosenDestination(item.id)).catch(error => errorSink.current(error));} : undefined}/>}/> : null}</>;
 }
 
 /** Preserve the file's hierarchy and original index; no inferred page or progress labels. */
@@ -298,4 +329,17 @@ function detailContents(contents: NonNullable<ReadingManifest['contents']>, navi
     ancestors.push({depth: item.depth, entry});
   });
   return roots;
+}
+
+/** How many highlights and bookmarks the reader has in this book, every page of them (a reader
+ * with more than 20 pages of marks is counted as far as those). */
+async function countMarks(session: ReadingSession, signal: AbortSignal) {
+  let highlights = 0, bookmarks = 0, cursor = '';
+  for (let page = 0; page < 20; page++) {
+    const answer = await session.annotations(cursor, undefined, signal);
+    for (const entry of answer.entries) if (entry.kind === 'highlight') highlights++; else bookmarks++;
+    cursor = answer.nextCursor;
+    if (!cursor) break;
+  }
+  return {highlights, bookmarks};
 }

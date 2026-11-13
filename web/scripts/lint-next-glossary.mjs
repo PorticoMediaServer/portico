@@ -37,9 +37,12 @@ const approvedSettingsCopy = {
 };
 // Exact context matters: these are Reading locations, sign-in mode data,
 // and a diagnostic log noun, rather than the legacy glossary's saved-title/action senses.
-// desktop-read.html:1041; settings.html:1140. No broad key or substring exemption.
+// desktop-read.html:1041; settings.html:1140; the book page's marks strip, desktop-read.html:905
+// (`.yours`). No broad key or substring exemption.
 const contextCopy = {
   'next.reader.bookmarks': 'Bookmarks',
+  'next.reader.bookmarkCount': '{count, plural, one {# bookmark} other {# bookmarks}}',
+  'next.reader.marksBoth': '{highlights} and {bookmarks}, the same on every device you read on.',
   'next.tvPeople.local': 'Local account',
   'next.settings.librarySonic.retryUnavailable': 'Still can’t load. The log in Troubleshooting has the reason.',
 };
