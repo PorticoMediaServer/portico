@@ -634,3 +634,33 @@ test('D: a selection an action holds is not re-resolved by a library change', as
   assert.equal(controller.getSnapshot().selection.summary.count, 2, "the action's own write ends it, not the library change");
   controller.dispose(); h.controller.dispose();
 });
+
+test('a rebuilt Home with a spotlight whose title is also a row card registers both, and the card keeps its hold menu', async () => {
+  const {fetchHome} = await import('../src/home.ts');
+  const state = {watched: false, inList: false, favorite: false, notInterested: false, playCount: 0, positionMs: 600_000, updatedAt: '2026-11-12T00:00:00Z'};
+  const film = {id: 'itm_film', kind: 'movie', title: 'The film', libraryId: 'library', addedAt: '2026-11-12T00:00:00Z', durationMs: 5_400_000, images: {}, available: true, state};
+  const other = {...film, id: 'itm_other', title: 'Another film'};
+  const reason = {kind: 'recent', text: {code: 'home.row.recentlyAdded', fallback: 'Recently added'}};
+  const answer = (spotlight: unknown[]) => ({rows: [{id: 'continue', title: 'Continue Watching', items: [film, other]}], spotlight});
+  const read = async (spotlight: unknown[]) => fetchHome({request: async <T>() => answer(spotlight) as T});
+  const plain = await read([]), lit = await read([{entry: film, reason, play: true, myList: true}, {entry: other, reason, play: true, myList: true}]);
+  assert.equal(lit.spotlight.length, 2); assert.equal(lit.rows[0]!.entries.length, 2);
+  // The row cards are the same with or without the spotlight: nothing is taken away from them.
+  assert.deepEqual(lit.rows, plain.rows);
+  const menuFor = async (document: typeof plain) => {
+    const h = harness();
+    h.replace({...h.document, rows: document.rows, spotlight: document.spotlight});
+    const rowWindow = h.controller.registerWindow({id: 'continue', row: h.document.rows[0]!, sectionOrder: 0});
+    const hero = document.spotlight.map((spotlight, index) => h.controller.registerSpotlight({id: `hero-${index}`, spotlight}));
+    assert.equal(rowWindow.ok, true, 'the row registers');
+    assert.ok(hero.every(result => result.ok), 'every slide registers beside the row that shows the same title');
+    const card = h.document.rows[0]!.entries[0]!;
+    h.controller.openMenu('continue', h.controller.key(homeEntrySelection(card, {platform: 'desktop-web', playbackAvailable: true})!));
+    const groups = h.controller.getSnapshot().menu?.groups;
+    h.controller.dispose();
+    return groups;
+  };
+  assert.deepEqual(await menuFor(lit), await menuFor(plain), 'the card\'s hold menu offers what it did without a spotlight');
+  // The hero keeps its own Play and My List.
+  assert.deepEqual([lit.spotlight[0]!.entry.homeActions?.play, lit.spotlight[0]!.entry.homeActions?.myList], [true, true]);
+});

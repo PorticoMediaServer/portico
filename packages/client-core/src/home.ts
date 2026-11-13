@@ -337,6 +337,19 @@ export function validateHomeLayout(value: unknown): HomeLayout {
   return Object.freeze({revision: value.revision, rowOrder: Object.freeze(ids('layout.rowOrder', value.rowOrder)), hiddenRowIds: Object.freeze(ids('layout.hiddenRowIds', value.hiddenRowIds))});
 }
 
+/** A title has one selection identity on Home (the selection model holds one item per title, and a title drawn
+ * twice with two different items is refused: the spotlight then failed to register on web, and on a phone the row's
+ * card dropped out of the hold menu). A slide whose title is also a row's card takes that card's selection grants,
+ * none when the card has none; the row card keeps what it offers, and the hero's own Play and My List are the
+ * slide's. */
+function oneSelectionIdentity(slide: HomeSpotlight, rows: readonly HomeRow[]): HomeSpotlight {
+  const card = rows.flatMap(row => row.entries).find(entry => entry.id === slide.entry.id) as HomeEntry | undefined;
+  const actions = slide.entry.homeActions;
+  if (!card || !actions) return slide;
+  const selection = card.homeActions?.selection ?? Object.freeze(Object.fromEntries(Object.keys(actions.selection).map(flag => [flag, false])) as HomeSelectionActions);
+  return Object.freeze({...slide, entry: Object.freeze({...slide.entry, homeActions: Object.freeze({...actions, selection})})});
+}
+
 /** Home as the server composes it for this profile: the rows it sends, in its order. A row with nothing in it is not sent. */
 export function homeDocument(home: Home): HomeDocument {
   const rows = firstOfEach('home', 'rows', keepReadable('home', 'rows', home.rows, raw => {
@@ -361,7 +374,7 @@ export function homeDocument(home: Home): HomeDocument {
         rating: slide.entry.state.rating ?? null, personalRevision: slide.entry.state.updatedAt ? Date.parse(slide.entry.state.updatedAt) : 0, containerRevision: 0}),
       selection: Object.freeze({play, myList, queue: false, playlist: false, collection: false, favorite: false, watched: false, download: false, edit: false, refresh: false, delete: false})});
     return Object.freeze({entry: Object.freeze({...card, homeActions}), reason: Object.freeze({kind: slide.reason.kind, text: reason}), ...(target ? {resumeTarget: target} : {})});
-  }), slide => slide.entry.id);
+  }), slide => slide.entry.id).map(slide => oneSelectionIdentity(slide, rows));
   return Object.freeze({rows: Object.freeze(rows), spotlight: Object.freeze(spotlight), layout: Object.freeze({revision: 0, rowOrder: Object.freeze(rows.map(row => row.id)), hiddenRowIds: Object.freeze([])})});
 }
 
