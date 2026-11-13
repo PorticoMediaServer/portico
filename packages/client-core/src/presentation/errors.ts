@@ -172,6 +172,8 @@ const codeBodies: Record<string, MessageId> = {
   sync_pending: 'sync.kept',
   reading_progress_pending: 'error.readingProgressPending',
   factor_setup_required: 'error.factorSetupRequired',
+  // The phone's Google or Apple sheet closed without an answer: cancelled or failed, the system can't say which.
+  provider_cancelled: 'error.providerUnfinished',
   // Portico Services' answers to the Portico Account's password and two-step code typed on a server's
   // page (Forgot PIN): its own sentences, not a 403's "your profile doesn't have access".
   password_wrong: 'next.account.problem.passwordWrong',

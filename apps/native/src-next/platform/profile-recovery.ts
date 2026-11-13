@@ -20,7 +20,7 @@ export function temporaryRecoveryApi(api: HttpLocalApi, session: LocalSession): 
 /** Forgot PIN's Portico step on the apps: the signed-in Portico Account's proof source (#3075) and
  * what the screen shows before anything is typed. */
 export type NativePorticoRecovery = Readonly<{source: import('../../../../packages/client-core/src/profile-recovery').PorticoPINProofSource;
-  account: Readonly<{username: string; hasPassword: boolean; twoStep: boolean}>}>;
+  account: Readonly<{username: string; hasPassword: boolean; twoStep: boolean; providers: readonly ('google' | 'apple')[]}>}>;
 export async function nativePorticoRecovery(): Promise<NativePorticoRecovery> {
   const {nativeAccounts} = await import('./accounts');
   const source = await nativeAccounts.porticoPINProof();

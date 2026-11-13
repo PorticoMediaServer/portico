@@ -95,7 +95,7 @@ export function NativeHostedSignInPanel({kind, context, lifetime, t, runtime}: N
   // Account's own Security page in the browser. One row, under Password; Two-step adds nothing.
   if (linked && signedInAccount !== linked) return kind !== 'password' ? null : <>
     <SettingsRow first testID="settings-panel-portico-account"
-      label={t('settings.row.porticoAccount')} value={context.account.account.username}
+      label={t('settings.row.porticoAccount')} description={context.account.account.username}
       control={<Button testID="settings-manage-portico-account" variant="glass" size="compact"
         onPress={() => {if (lifetime.current() && context.current()) void Linking.openURL(`${hostedUrl}/account?tab=security`).catch(error => {if (lifetime.current()) setFailure(presentError(error, 'portico-account').body);});}}>{t('web.signIn.manage')}</Button>}/>
     {failure && <View style={{padding: 14}}><FormError placement="inline">{failure}</FormError></View>}
@@ -121,7 +121,7 @@ export function NativeHostedSignInPanel({kind, context, lifetime, t, runtime}: N
     {kind === 'twoStep' && security?.mfaEnabled && <SettingsRow testID="settings-panel-recovery-codes" label={t('web.hostedSecurity.recoveryCodes')}
       control={action('codes', t('web.hostedSecurity.makeCodes'))}/>}
     {failure && <View style={{padding: 14, gap: 12}}><FormError placement="inline">{failure}</FormError>
-      {opening?.current() && <Button variant="glass" size="compact" onPress={() => {void opening.refresh();}}>{t('action.tryAgain')}</Button>}</View>}
+      {opening?.current() && <Button testID={`account-security-retry-${kind}`} variant="glass" size="compact" onPress={() => {void opening.refresh();}}>{t('action.tryAgain')}</Button>}</View>}
     {security && <AccountSecuritySheet security={security} source={ready} onFinished={() => {if (opening?.current()) void opening.refresh();}}/>}
   </>;
 }

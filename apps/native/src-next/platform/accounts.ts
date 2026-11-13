@@ -215,13 +215,15 @@ export class NativeAccounts {
   }
   /** What Forgot PIN's Portico step shows before anything is typed: whose password it is, whether the
    * account has one (Google- or Apple-only accounts don't), and whether a two-step code goes with it. */
-  async porticoRecoveryAccount(source: PorticoPINProofSource): Promise<Readonly<{username: string; hasPassword: boolean; twoStep: boolean}>> {
+  async porticoRecoveryAccount(source: PorticoPINProofSource): Promise<Readonly<{username: string; hasPassword: boolean; twoStep: boolean; providers: readonly ('google' | 'apple')[]}>> {
     const credentials = this.accountCredentials(), held = credentials.getSnapshot().session;
     if (!held || held.account.id !== source.accountId || !source.isCurrent()) throw Object.assign(new Error('native_account_changed'), {code: 'account_changed'});
     const who = await nativeAccountRead(credentials, issued => porticoAccount(heldFor(issued.accessToken), hostedUrl, {fetcher: nativeNetworkFetch}).account()
       .catch(error => {throw porticoApiError(error);}), {expected: accountExpectation(held), isCurrent: source.isCurrent});
     if (who.id !== source.accountId) throw Object.assign(new Error('native_account_changed'), {code: 'account_changed'});
-    return Object.freeze({username: who.username, hasPassword: who.hasPassword, twoStep: who.twoStep});
+    // The account's connected Google or Apple sign-ins: Forgot PIN offers them only to an account with no password.
+    const providers = Object.freeze((who.providers ?? []).filter((value): value is 'google' | 'apple' => value === 'google' || value === 'apple'));
+    return Object.freeze({username: who.username, hasPassword: who.hasPassword, twoStep: who.twoStep, providers});
   }
   accountClient(binding: string, isCurrent?: () => boolean, ownsResult?: () => boolean) {this.assertCurrent(); return createNativeAccountClient(hostedUrl, binding, isCurrent, ownsResult);}
   async authenticatePorticoAccount(callback: (signal: AbortSignal) => Promise<HostedSession>, callerCurrent?: () => boolean) {
