@@ -19,7 +19,7 @@ import {tvFocusIds, tvHomeRegionMap} from '../src-next/shell/tv-focus';
 import {NativeHomePaging} from '../src-next/shell/home-paging';
 import {tvHomeRows} from '../src-next/screens/home/tv-presentation';
 import * as homeStart from '../src-next/screens/home/home-start';
-import {authorityKey, phoneHeaderGeometry} from '../src-next/shell/model';
+import {authorityKey, phoneHeaderGeometry, shellLayout} from '../src-next/shell/model';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import * as pageBack from '../src-next/screens/destinations/tv-page-back';
 import * as homeModel from '../src-next/screens/home/model';
@@ -44,8 +44,10 @@ test('phone Home rows take the drawn 28 px rhythm while the hero keeps its own h
   const home = await homeModule(phoneTheme, []);
   assert.deepEqual(home.homeRowSpacing(phoneTheme), {marginTop: 28});
   assert.equal(home.homeHeroBlock(phoneTheme, 560, false), 560);
-  assert.equal(home.homeTopWithoutHero(phoneTheme, 59), 109, 'with no spotlight the rows start under the 50 pt phone header, not under an empty 560 pt hero');
-  assert.equal(home.homeTopWithoutHero(tabletTheme, 24), 24, 'a tablet has no phone header: rows start under the safe area');
+  assert.equal(home.homeTopWithoutHero('phone', 59), 109, 'with no spotlight the rows start under the 50 pt phone header, not under an empty 560 pt hero');
+  assert.equal(home.homeTopWithoutHero('tablet', 24), 24, 'a tablet has no phone header: rows start under the safe area');
+  // Android walk, 12 Nov: a sideways phone keeps the shell's phone header (shellLayout), so its rows start under it too.
+  assert.equal(home.homeTopWithoutHero(shellLayout(874, 402, false).kind, 0), 104, 'sideways, the rows still start under the phone header');
   assert.equal(home.homeRowSubtitle(phoneTheme).fontSize, 13, 'phone-app.html .phone .row-head .sub is 13 px');
   assert.equal(home.homeContentBottom(phoneTheme, 84), 96, 'kit.css .ph-scroll ends 96 px over the 84 px bar');
   // Other platforms keep their shipped values.
@@ -199,7 +201,7 @@ async function homeModule(theme: typeof phoneTheme | (() => typeof phoneTheme), 
     '../../kit/layout/types': {itemSelection: () => ({})},
     '../../kit/states': {LoadingPaint: 'LoadingPaint', StateView: 'StateView', HomeSkeleton: 'HomeSkeleton', SkeletonBlock: 'SkeletonBlock'},
     '../../platform/home-action-diagnostics': {homeActionDiagnostics: {action() {}}},
-    '../../kit/theme': {nativeType, useTheme: typeof theme === 'function' ? theme : () => theme}, '../../shell/model': {authorityKey, phoneHeaderGeometry, sameAuthority: (a: unknown, b: unknown) => a === b},
+    '../../kit/theme': {nativeType, useTheme: typeof theme === 'function' ? theme : () => theme}, '../../shell/model': {authorityKey, phoneHeaderGeometry, shellLayout, sameAuthority: (a: unknown, b: unknown) => a === b},
     './HomeHeroFacts': {HomeHeroFacts: 'HomeHeroFacts', HomeRemoteHint: 'HomeRemoteHint'},
     './model': {authorizedHome: (value: unknown) => value, platformRows: () => rows, homeRowHasContent, homeCardText: () => ({title: 'x'}), homePlayTarget: () => undefined, pageAtVisibleEnd: () => false},
     '../../platform/platformPosture': {usePlatformPosture: () => ({status: 'unavailable'})}, '../destinations/useTVPageBack': {useTVPageBack() {}},
