@@ -5,7 +5,7 @@ import {claimNativeDownloadsDevice} from './downloads-device-custody';
 
 const cancelled = () => Object.assign(new Error('remembered_downloads_device_closed'), {name: 'AbortError', code: 'cancelled'});
 /** Shell-owned, offline-only device lease. Remembered identity selects whose
- * receipts may be considered; the existing device verifies each receipt and
+ * downloads may be considered; the existing device verifies each permission and
  * artifact before any file is returned. No API/service/connect path exists. */
 export function createRememberedDownloadsDevice(identity: RememberedDownloadsViewer, ownerCurrent: () => boolean) {
   let closed = false, offIdentity = () => {};
@@ -34,8 +34,11 @@ export function createRememberedDownloadsDevice(identity: RememberedDownloadsVie
   const findEntry = (entry: OfflineEntry) => {
     check(); const matches = offlineDownloads.getSnapshot().entries.filter(value => value.id === entry.id);
     const live = matches.length === 1 ? matches[0] : undefined;
-    if (!live || !entry.receipt || live.itemId !== entry.itemId || JSON.stringify(live.receipt) !== JSON.stringify(entry.receipt)
-      ) return undefined;
+    if (!live || live.itemId !== entry.itemId) return undefined;
+    if (entry.downloadId) {
+      if (live.downloadId !== entry.downloadId || live.owner !== entry.owner || !entry.artifact
+        || live.artifact?.sha256 !== entry.artifact.sha256 || live.artifact.bytes !== entry.artifact.bytes) return undefined;
+    } else if (!entry.receipt || live.downloadId || JSON.stringify(live.receipt) !== JSON.stringify(entry.receipt)) return undefined;
     return live;
   };
   const entryCurrent = (entry: OfflineEntry) => {const live = findEntry(entry);
