@@ -289,32 +289,6 @@ export const routes = [
   },
   {
     "audience": "Clients",
-    "id": "cancel_file_info_query",
-    "method": "DELETE",
-    "path": "/v1/file-info-queries/{queryId}",
-    "summary": "Release a private FileInfo preparation handle",
-    "access": "device",
-    "requires": "read",
-    "lane": "browsing",
-    "cost": "constant",
-    "bodyLimit": 0,
-    "noResponseBody": true,
-    "errors": [
-      "invalid_request",
-      "unauthorized",
-      "not_permitted",
-      "not_found",
-      "stale_continuation",
-      "metadata_unavailable",
-      "internal",
-      "database_busy",
-      "writer_capacity"
-    ],
-    "status": 204,
-    "admission": "browsing"
-  },
-  {
-    "audience": "Clients",
     "id": "cancel_genre_query",
     "method": "DELETE",
     "path": "/v1/genre-queries/{id}",
@@ -17788,35 +17762,6 @@ export const routes = [
   },
   {
     "audience": "Clients",
-    "id": "delete_title_version",
-    "method": "DELETE",
-    "path": "/v1/admin/items/{id}/files/{fileId}",
-    "summary": "Delete one file version while keeping its title and personal state",
-    "access": "owner",
-    "requires": "library",
-    "lane": "default",
-    "cost": "page_sized",
-    "bodyLimit": 4096,
-    "errors": [
-      "unauthorized",
-      "not_permitted",
-      "not_found",
-      "invalid_request",
-      "revision_mismatch",
-      "confirmation_mismatch",
-      "administration_unavailable",
-      "stale_continuation",
-      "metadata_unavailable",
-      "internal",
-      "timeout",
-      "database_busy",
-      "writer_capacity"
-    ],
-    "status": 200,
-    "admission": "admin-heavy"
-  },
-  {
-    "audience": "Clients",
     "id": "delete_v1_items_itemId_subtitles_resource",
     "method": "DELETE",
     "path": "/v1/items/{itemId}/subtitles/{resource}",
@@ -22553,77 +22498,6 @@ export const routes = [
     ],
     "status": 200,
     "admission": "admin"
-  },
-  {
-    "audience": "Clients",
-    "id": "get_item_file_info_disc_titles",
-    "method": "GET",
-    "path": "/v1/items/{id}/file-info/disc-titles",
-    "summary": "Read the owner's stored disc titles",
-    "access": "device",
-    "requires": "read",
-    "lane": "browsing",
-    "cost": "page_sized",
-    "bodyLimit": 0,
-    "query": [
-      "opening",
-      "cursor",
-      "limit",
-      "occurrence"
-    ],
-    "queryIntegers": [
-      {
-        "name": "limit",
-        "minimum": 1,
-        "default": 40,
-        "maximum": 100,
-        "emptyIsDefault": true
-      }
-    ],
-    "responseHeaders": [
-      {
-        "status": 202,
-        "name": "Location",
-        "description": "Same-server FileInfo preparation poll path",
-        "required": true
-      },
-      {
-        "status": 202,
-        "name": "Retry-After",
-        "description": "Minimum delay before polling",
-        "required": true
-      },
-      {
-        "status": 200,
-        "name": "ETag",
-        "description": "Exact ready lane and window validator",
-        "required": true
-      },
-      {
-        "status": 304,
-        "name": "ETag",
-        "description": "Exact ready lane and window validator",
-        "required": true
-      }
-    ],
-    "errors": [
-      "invalid_request",
-      "unauthorized",
-      "not_permitted",
-      "not_found",
-      "stale_continuation",
-      "metadata_unavailable",
-      "internal",
-      "database_busy"
-    ],
-    "status": 200,
-    "successStatuses": [
-      202
-    ],
-    "responseStatuses": [
-      304
-    ],
-    "admission": "browsing"
   },
   {
     "audience": "Clients",
@@ -35614,36 +35488,6 @@ export const routes = [
   },
   {
     "audience": "Clients",
-    "id": "preview_delete_title_version",
-    "method": "POST",
-    "path": "/v1/admin/items/{id}/files/{fileId}/delete/preview",
-    "summary": "Delete one file version while keeping its title and personal state",
-    "access": "owner",
-    "requires": "library",
-    "lane": "default",
-    "cost": "page_sized",
-    "bodyLimit": 4096,
-    "errors": [
-      "unauthorized",
-      "not_permitted",
-      "not_found",
-      "invalid_request",
-      "revision_mismatch",
-      "confirmation_mismatch",
-      "administration_unavailable",
-      "stale_continuation",
-      "metadata_unavailable",
-      "internal",
-      "timeout",
-      "database_busy",
-      "writer_capacity"
-    ],
-    "status": 200,
-    "optionalBody": true,
-    "admission": "admin-heavy"
-  },
-  {
-    "audience": "Clients",
     "id": "preview_invitation",
     "method": "POST",
     "path": "/v1/access/invitations/preview",
@@ -38372,33 +38216,6 @@ export const routes = [
     ],
     "status": 200,
     "admission": "admin"
-  },
-  {
-    "audience": "Clients",
-    "id": "separate_item_file_info",
-    "method": "POST",
-    "path": "/v1/admin/items/{id}/file-info/separate",
-    "summary": "Make one exact file version its own title; the file keeps its facts and the title it leaves keeps its other versions and personal state",
-    "access": "owner",
-    "requires": "library",
-    "lane": "default",
-    "cost": "page_sized",
-    "bodyLimit": 4096,
-    "errors": [
-      "invalid_request",
-      "unauthorized",
-      "not_permitted",
-      "not_found",
-      "stale_continuation",
-      "metadata_unavailable",
-      "source_changed",
-      "internal",
-      "timeout",
-      "database_busy",
-      "writer_capacity"
-    ],
-    "status": 200,
-    "admission": "admin-heavy"
   },
   {
     "audience": "Clients",
