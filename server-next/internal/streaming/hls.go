@@ -36,6 +36,8 @@ var errMediaConversionFailed = errors.New("media conversion failed")
 
 // HLS owns conversion lifetimes only; grants and direct files are in Streams.
 type HLS struct {
+	// Actual running encoders; guarded by mu, separate from admission limits.
+	hardwareRunning, processorRunning int
 	// processes supervises converters run on the decoder's isolated bridge (a file on remote
 	// storage), the same supervisor Streams has.
 	processes *processpool.Supervisor

@@ -258,6 +258,14 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 		filepath.Join(outputDir, fmt.Sprintf("audio-%d-window.m3u8", r.Ordinal)),
 	)
 	run, cancel := context.WithTimeout(ctx, 6*time.Hour)
+	started, finished := h.conversionCount()
+	defer finished()
+	observe := func() {
+		if r.Action == "convert" {
+			started("software")
+		}
+	}
+	run = childprocess.WithStarted(run, observe)
 	defer cancel()
 	watchDone := make(chan struct{})
 	supervise.Go("playback.hls.watch-audio", func() {
@@ -350,7 +358,7 @@ func (h *HLS) produceRendition(ctx context.Context, id string, r AudioRenditionP
 					copied[i+1] = "http,tcp"
 				}
 			}
-			return subtitles.WindowCommand{Args: copied, Stderr: tail}, nil
+			return subtitles.WindowCommand{Args: copied, Stderr: tail, Started: observe}, nil
 		})
 		if err != nil {
 			_, _ = tail.Write([]byte(windowConverterDiagnostic(err, "", h.root, h.memoryRoot)))

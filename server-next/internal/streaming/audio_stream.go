@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/childprocess"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
 	"github.com/PorticoMediaServer/portico/server-next/internal/inputbridge"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
@@ -129,8 +130,12 @@ func (s *Streams) serveConvertedAudio(w http.ResponseWriter, r *http.Request, st
 	sink := &guardedWriter{w: w, check: check}
 	// Headers are sent with the first bytes. If the conversion fails after that
 	// the stream just ends early, and the player falls back.
-	err = decoder.RunAnalysis(r.Context(), s.processes, "audio:"+st.id+":"+strconv.FormatInt(from, 10), s.hls.binary, bridge.URL(), reservation, spec,
+	started, finished := s.hls.conversionCount()
+	defer finished()
+	converting := childprocess.WithStarted(r.Context(), func() { started("software") })
+	err = decoder.RunAnalysis(converting, s.processes, "audio:"+st.id+":"+strconv.FormatInt(from, 10), s.hls.binary, bridge.URL(), reservation, spec,
 		func(converted io.Reader) error { _, e := io.Copy(sink, converted); return e })
+	finished()
 	if err != nil && !sink.wrote {
 		mediaError(w, err)
 	}
