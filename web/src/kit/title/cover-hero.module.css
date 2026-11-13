@@ -74,8 +74,13 @@ a.link:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3p
   .hero[data-stack] .copy { width: 100%; text-align: center; }
   .hero[data-stack] .meta, .hero[data-stack] .actions { justify-content: center; }
 }
-/* phone-app 13: an audiobook's title is 30 px on a phone, not the book page's 46. */
-@media (max-width: 599px) { .hero[data-shape='square'] .title, .hero[data-shape='square'] .title[data-style] { font-size: 30px; line-height: 1.1; letter-spacing: -.035em; } }
+/* phone-app 13 (an audiobook) and r5 (an album): the title is 30 px on a phone, not the book page's 46,
+   and the artist or author has its own line under it, 16/700 in the accent, with no small picture. */
+@media (max-width: 599px) {
+  .hero[data-shape='square'] .title, .hero[data-shape='square'] .title[data-style] { font-size: 30px; line-height: 1.1; letter-spacing: -.035em; }
+  .hero[data-shape='square'] .meta > .link:first-child { flex-basis: 100%; justify-content: center; font-size: 16px; font-weight: 700; color: var(--color-accent-strong); }
+  .hero[data-shape='square'] .meta > .link:first-child .face { display: none; }
+}
 
 /* artist: a person's page, a music artist or an audiobook author (desktop-listen #artist). A 640 px
    hero from the top of the page, the circle large on the right inside two faint rings, the name at
