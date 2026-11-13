@@ -615,7 +615,7 @@ type LimitReached struct {
 func (e *LimitReached) Error() string { return "stream limit reached" }
 
 // limitsKey is the settings row the stream limits are kept in.
-const limitsKey = "playback.streams"
+const limitsKey = db.StreamLimitsSetting
 
 // Limits are the owner's caps on streams. Zero means no limit, which is the default. A
 // stream is one device playing; a paused one counts until it ends.

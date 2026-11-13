@@ -74,6 +74,7 @@ func (s *Server) playbackRoutes() {
 	}
 	Handle(s, "GET /v1/admin/playback/stream-limits", Owner, s.getStreamLimits)
 	Handle(s, "PUT /v1/admin/playback/stream-limits", Owner, s.putStreamLimits)
+	Handle(s, "PATCH /v1/admin/playback/stream-limits", Owner, s.patchStreamLimitPeople)
 }
 
 // countingWriter counts the bytes of a reply.

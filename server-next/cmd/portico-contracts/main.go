@@ -261,7 +261,11 @@ func tsType(t reflect.Type) string {
 	case reflect.Slice, reflect.Array:
 		return tsType(t.Elem()) + "[]"
 	case reflect.Map:
-		return "Record<string, " + tsType(t.Elem()) + ">"
+		value := tsType(t.Elem())
+		if t.Elem().Kind() == reflect.Pointer {
+			value += " | null"
+		}
+		return "Record<string, " + value + ">"
 	case reflect.Interface:
 		// A value whose type depends on what it is a value of, such as a setting's.
 		return "unknown"
@@ -333,7 +337,11 @@ func schema(t reflect.Type) object {
 	case reflect.Slice, reflect.Array:
 		return object{"type": "array", "items": schema(t.Elem())}
 	case reflect.Map:
-		return object{"type": "object", "additionalProperties": schema(t.Elem())}
+		value := schema(t.Elem())
+		if t.Elem().Kind() == reflect.Pointer {
+			value = object{"anyOf": []object{value, {"type": "null"}}}
+		}
+		return object{"type": "object", "additionalProperties": value}
 	case reflect.Interface:
 		return object{}
 	case reflect.Struct:

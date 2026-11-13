@@ -12697,6 +12697,27 @@
         },
         "type": "object"
       },
+      "StreamLimitsPeopleEdit": {
+        "properties": {
+          "people": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "people"
+        ],
+        "type": "object"
+      },
       "StreamStop": {
         "properties": {
           "message": {
@@ -17513,6 +17534,41 @@
     },
     "/v1/admin/playback/stream-limits": {
       "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamLimits"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      },
+      "patch": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamLimitsPeopleEdit"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
