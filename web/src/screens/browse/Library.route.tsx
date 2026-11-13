@@ -60,7 +60,7 @@ import type {BrowseSource, BrowseState, BrowseController, BrowseMember} from './
 import {useBrowseController} from './browse-cache';
 import {queryKeys} from '@core/query/keys.ts';
 import {SaveView} from './SaveView';
-import {FacetPage, ReadLibraryEntry, useReadLibrarySummary, authorPredicate, type FacetRequest} from '../read';
+import {ReadLibraryEntry, useReadLibrarySummary, authorPredicate} from '../read';
 import {isReadingLibrary} from './reading-library';
 import {useReadingMarkAll} from '../read/useReadingMarkAll';
 import {libraryCountText} from '@core/presentation/library-counts.ts';
@@ -185,30 +185,34 @@ function LiveReadingLibrary({captured, library, search, onMarked, context, life}
   const periodicalPivot = search.pivot === 'magazines' || search.pivot === 'newspapers' ? search.pivot : undefined;
   const selected = tabs.find(tab => tab.id === (periodicalPivot ?? search.view ?? 'discover')) ?? tabs[0]!;
   const gridPivot = tabs.find(tab => tab.id === 'browse')?.pivot;
-  const navigate = (value: LibraryScreenSearch) => {if (context.isCurrent()) void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: value}).catch(context.effects.reportError);};
+  const navigate = (value: LibraryScreenSearch, options?: {replace?: boolean}) => {if (context.isCurrent()) void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: value, ...options}).catch(context.effects.reportError);};
   const header = <LibraryIdentity library={library} libraries={libraryChoices} pivot={periodicalPivot ?? selected.id}
     tabs={tabs.map(tab => ({value: tab.id, label: t(tab.label)}))}
     appearance={{view: appearance.libraryView, cardWidth: width < 600 ? 108 : 190, cardSize: 'medium', backdrops: appearance.showBackdrops}}
     preferences={appearance} artwork={context.artwork} libraryMenu={<>{pins.element}{withLinkToast(libraryMenu({life}, context, library, false, () => {}, scan, markAll, copyLibraryLink, pins.open), linkToast, () => setLinkToast(null))}</>} wash={wash} counts={counts}
     onPivot={id => {const tab = tabs.find(tab => tab.id === id); if (!tab) return;
       if (tab.shows === 'periodicals') {navigate({view: 'series', pivot: tab.id}); return;}
-      if (tab.shows === 'facet') {navigate({view: tab.id === 'authors' ? 'authors' : 'series'}); return;}
       navigate({view: tab.id === 'discover' ? 'discover' : 'browse', ...(tab.pivot ? {pivot: tab.pivot} : {})});}}
     onLibrary={libraryId => {if (context.isCurrent()) void router.navigate({to: '/library/$libraryId', params: {libraryId}, search: {}}).catch(context.effects.reportError);}}
     onLibraries={() => {if (context.isCurrent()) void router.navigate({to: '/libraries'}).catch(context.effects.reportError);}}/>;
-  const request = useMemo<FacetRequest>(() => Object.assign<FacetRequest, Pick<typeof context.api, 'requestRaw'> & {isCurrent: () => boolean}>(
-    (path, method, body, signal) => life.api.request(path, method, body, signal), {requestRaw: context.api.requestRaw.bind(context.api), isCurrent: life.current}), [life, context]);
   if (periodicalPivot) {
     if (!capabilities) return <>{header}{snapshot?.phase === 'error' ? <StateView title={t('next.states.pageFailed')} body={t('next.states.pageFailedBody')} primary={{id: 'retry', label: t('next.states.tryAgain'), onPress: retryCapabilities}}/> : <Skeleton height={320}/>}</>;
     if (selected.shows !== 'periodicals' || selected.id !== periodicalPivot || search.query || search.sort?.length || search.q) return <>{header}<StateView title={t('title.nothingHere')}/></>;
     return <>{header}<ReadPeriodicalEntry captured={captured} libraryId={library.id} kind={selected.publicationType} seriesId={search.entityId}/></>;
   }
   if (search.view === 'series' && search.entityId) return <>{header}<ReadSeriesEntry captured={captured} libraryId={library.id} seriesId={search.entityId}/></>;
-  if (selected.shows === 'facet') return <>{header}<FacetPage libraryId={library.id} field={selected.facetSource?.field === 'series' ? 'series' : 'author'}
-    pivot={gridPivot ?? (library.kind === 'comic' ? 'comics' : 'books')} request={request}
-    onSelect={value => {if (selected.facetSource?.field === 'author') navigate({view: 'browse', ...(gridPivot ? {pivot: gridPivot} : {}), query: authorPredicate(value.value)}); else if (value.seriesId) navigate({view: 'series', entityId: value.seriesId});}}/></>;
+  // A Reading library's Authors and Series are the shared browse grid; a series card opens its
+  // page, and an author's card opens the books grid filtered to them, as their name on a book does.
+  if (search.view === 'book_series' && search.entityId) return <>{header}<ReadSeriesEntry captured={captured} libraryId={library.id} seriesId={search.entityId}/></>;
+  if (search.view === 'author' && search.entityId) return <ReadingAuthorOpen navigate={navigate} pivot={gridPivot} authorId={search.entityId}/>;
   if (search.view === 'browse' || search.query) return <BoundLibrary captured={captured} library={library} search={search} tabs={tabs} readingMarkAll={markAll}/>;
   return <ReadLibraryEntry captured={captured} libraryId={library.id} header={header} view="discover"/>;
+}
+/** An author's card in a Reading library opens the books grid filtered to them (the name is
+ * remembered from the Authors list), replacing this address so Back returns to Authors. */
+function ReadingAuthorOpen({navigate, pivot, authorId}: Readonly<{navigate: (value: LibraryScreenSearch, options?: {replace?: boolean}) => void; pivot?: string; authorId: string}>) {
+  useEffect(() => {navigate({view: 'browse', ...(pivot ? {pivot} : {}), query: authorPredicate(authorId)}, {replace: true});}, [navigate, pivot, authorId]);
+  return <Skeleton quiet height={480}/>;
 }
 function LibraryShow({captured, libraryId, search}: {captured: ProtectedLibraryScreen; libraryId: string; search: LibraryScreenSearch}) {
   const href = useLocation({select: location => location.href});

@@ -18,10 +18,8 @@ export type LibraryTab = Readonly<{
   label: MessageId;
   /** The browse pivot the tab reads; Discover and Playlists have none. */
   pivot?: string;
-  /** How the tab is drawn: Discover's rows, a browsable grid (or the list table), the songs table, genre cards, the viewer's playlists, or a non-browsable facet surface. */
-  shows: 'rows' | 'titles' | 'tracks' | 'genres' | 'playlists' | 'unmatched' | 'facet';
-  /** A facet surface's endpoint and accepted value field, exactly as the server's capabilities name them (Root §2). */
-  facetSource?: Readonly<{endpoint: string; field: 'author' | 'series'}>;
+  /** How the tab is drawn: Discover's rows, a browsable grid (or the list table), the songs table, genre cards or the viewer's playlists. */
+  shows: 'rows' | 'titles' | 'tracks' | 'genres' | 'playlists' | 'unmatched';
   /** The order the tab opens in (Recently aired: the latest episode first). A starting point only: the viewer may choose any sort the server offers, and the choice is remembered for the tab. */
   defaultSort?: LibraryTabSort;
   /** Conditions the tab always applies (Unmatched). */
@@ -90,7 +88,7 @@ export function canBrowseMusicUnmatched(capabilities:BrowseCapabilities|undefine
 }
 
 /** Root §3: a reading library's tabs come from the pivots its own capabilities publish, in the
- * server's order — a browsable books/comics pivot and the non-browsable Authors/Series facet
+ * server's order — a browsable books/comics pivot and the browsable Authors and Series
  * surfaces it names. Undefined means this server publishes no reading pivots, so callers keep the
  * authored Discover + Books/Volumes fallback (older servers, and the bounded Reading list). */
 export function readingTabModel(capabilities: BrowseCapabilities | undefined): readonly LibraryTab[] | undefined {
@@ -100,8 +98,8 @@ export function readingTabModel(capabilities: BrowseCapabilities | undefined): r
     if (pivot.members) continue;
     if (pivot.browsable && pivot.id === 'books') tabs.push({id: 'browse', label: 'library.tab.books', pivot: pivot.id, shows: 'titles'});
     else if (pivot.browsable && pivot.id === 'comics') tabs.push({id: 'browse', label: 'library.tab.volumesAndIssues', pivot: pivot.id, shows: 'titles'});
-    else if (!pivot.browsable && pivot.facetSource?.field === 'author') tabs.push({id: 'authors', label: 'library.tab.authors', shows: 'facet', facetSource: {endpoint: pivot.facetSource.endpoint, field: 'author'}});
-    else if (!pivot.browsable && pivot.facetSource?.field === 'series') tabs.push({id: 'series', label: 'library.tab.series', shows: 'facet', facetSource: {endpoint: pivot.facetSource.endpoint, field: 'series'}});
+    else if (pivot.browsable && pivot.id === 'authors') tabs.push({id: 'authors', label: 'library.tab.authors', pivot: pivot.id, shows: 'titles'});
+    else if (pivot.browsable && pivot.id === 'series') tabs.push({id: 'series', label: 'library.tab.series', pivot: pivot.id, shows: 'titles'});
   }
   return tabs.length > 1 ? tabs : undefined;
 }

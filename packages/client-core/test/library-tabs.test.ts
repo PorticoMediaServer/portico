@@ -67,30 +67,23 @@ const readingCapabilities = (kind: string, pivots: ReadonlyArray<{id: string; br
   queryLimits: {maximumDepth: 4, maximumClauses: 8, maximumBytes: 4096, maximumSorts: 2, defaultLimit: 50, maximumLimit: 200, cursorTtlMs: 60000},
 }) as unknown as import('../src/browse.ts').BrowseCapabilities;
 
-const facet = (field: 'author' | 'series') => ({endpoint: '/v1/libraries/{id}/facets', field});
-
-test('a book library takes its published pivots in order: Books, then the Authors and Series facets', () => {
-  const tabs = readingTabModel(readingCapabilities('book', [
-    {id: 'books', browsable: true}, {id: 'authors', facetSource: facet('author')}, {id: 'series', facetSource: facet('series')},
-  ]))!;
+test('a book library takes its published pivots in order: Books, then the Authors and Series grids', () => {
+  const tabs = readingTabModel(readingCapabilities('book', [{id: 'books', browsable: true}, {id: 'authors', browsable: true}, {id: 'series', browsable: true}]))!;
   assert.deepEqual(tabs.map(tab => tab.id), ['discover', 'browse', 'authors', 'series']);
   assert.equal(tabs[1]!.label, 'library.tab.books');
   assert.equal(tabs[1]!.pivot, 'books');
-  assert.equal(tabs[2]!.shows, 'facet');
-  assert.deepEqual(tabs[2]!.facetSource, facet('author'));
-  assert.deepEqual(tabs[3]!.facetSource, facet('series'));
+  // The same browse grid as an audiobook library's Authors and Series tabs.
+  assert.deepEqual(tabs.slice(2).map(tab => [tab.pivot, tab.shows]), [['authors', 'titles'], ['series', 'titles']]);
 });
 
 test('a comic library keeps the drawn order: Series, Volumes and issues, Authors', () => {
-  const tabs = readingTabModel(readingCapabilities('comic', [
-    {id: 'series', facetSource: facet('series')}, {id: 'comics', browsable: true}, {id: 'authors', facetSource: facet('author')},
-  ]))!;
+  const tabs = readingTabModel(readingCapabilities('comic', [{id: 'series', browsable: true}, {id: 'comics', browsable: true}, {id: 'authors', browsable: true}]))!;
   assert.deepEqual(tabs.map(tab => tab.id), ['discover', 'series', 'browse', 'authors']);
   assert.equal(tabs[2]!.label, 'library.tab.volumesAndIssues');
   assert.equal(tabs[2]!.pivot, 'comics');
 });
 
-test('a server without facet sources offers no Authors or Series, and no other kind is affected', () => {
+test('a pivot that cannot be browsed offers no Authors or Series, and no other kind is affected', () => {
   const tabs = readingTabModel(readingCapabilities('book', [{id: 'books', browsable: true}, {id: 'authors'}, {id: 'series'}]))!;
   assert.deepEqual(tabs.map(tab => tab.id), ['discover', 'browse']);
   assert.equal(readingTabModel(readingCapabilities('movie', [{id: 'movies', browsable: true}])), undefined);
@@ -99,7 +92,7 @@ test('a server without facet sources offers no Authors or Series, and no other k
 
 test('a member pivot never becomes a reading tab', () => {
   const tabs = readingTabModel(readingCapabilities('book', [
-    {id: 'books', browsable: true}, {id: 'authors', members: true, facetSource: facet('author')},
+    {id: 'books', browsable: true}, {id: 'authors', members: true, browsable: true},
   ]))!;
   assert.deepEqual(tabs.map(tab => tab.id), ['discover', 'browse']);
 });
