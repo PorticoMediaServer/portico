@@ -79,6 +79,15 @@ function ArtScrims({phone, side, bottomAt, top = false, phoneOverlay = false, tv
   </Svg>;
 }
 
+/** An ink overlay drawn from a token's stops, top to bottom. */
+function OverlayStops({id, stops}: {id: string; stops: readonly Readonly<{at: number; alpha: number}>[]}) {
+  const {colors} = useTheme();
+  return <Svg accessible={false} pointerEvents="none" width="100%" height="100%" style={StyleSheet.absoluteFillObject}>
+    <Defs><LinearGradient id={id} x1="0" y1="0" x2="0" y2="100%">{stops.map(stop => <Stop key={stop.at} offset={stop.at} stopColor={colors.ink} stopOpacity={stop.alpha}/>)}</LinearGradient></Defs>
+    <Rect width="100%" height="100%" fill={`url(#${id})`}/>
+  </Svg>;
+}
+
 /** tv.html .np-shade, over Q43's served ambient image or the real palette. */
 function MusicScrims() {
   const {colors} = useTheme();
@@ -120,6 +129,10 @@ export function AmbientArt({source, sources, foreground, palette, treatment = 'h
   const person = treatment === 'person';
   // TV: a title page fades its art into the ambient wash as Home's hero does; a side scrim to ink left a hard edge where the art began.
   const maskedHero = theme.isTV && (treatment === 'hero' || treatment === 'title');
+  // phone-detail `.th` and `.amb-l` (W1): on a phone title page the backdrop fades out by alpha and the blurred backdrop
+  // washes the top of the page behind it, past the hero, so the page takes its colour from the art and no edge shows.
+  // Only a title page that has a backdrop (film, show, collection): other "title" callers keep their own washes.
+  const phoneTitle = theme.layoutMode === 'phone' && treatment === 'title' && !!foreground;
   const list = (sources ?? (source ? [source] : [])).slice(0, 3);
   const sourceIdentity = JSON.stringify(list.map(item => item.cacheKey));
   const empty = !foreground && list.length === 0, fallbackReported = useRef(false);
@@ -134,7 +147,7 @@ export function AmbientArt({source, sources, foreground, palette, treatment = 'h
   });
   useEffect(() => {fallbackOpacity.stopAnimation(); fallbackOpacity.setValue(1);}, [sourceIdentity, fallbackOpacity]);
   useEffect(() => () => fallbackOpacity.stopAnimation(), [fallbackOpacity]);
-  const alpha = person ? .55 : music ? .85 : wash ? 0.42 : cover ? 0.62 : theme.spec.hero.ambient.alpha[theme.platform];
+  const alpha = phoneTitle ? theme.spec.hero.phoneTitle.wash.alpha : person ? .55 : music ? .85 : wash ? 0.42 : cover ? 0.62 : theme.spec.hero.ambient.alpha[theme.platform];
   const defaultPalette = {first: theme.colors.accentDeep, second: theme.colors.generatedGreen};
   // ambient-v1 is already blurred by the server. Android TV never runs a live blur filter.
   const allowLiveBlur = !theme.isTV;
@@ -142,10 +155,12 @@ export function AmbientArt({source, sources, foreground, palette, treatment = 'h
     <Artwork source={foreground} visible={visible} priority={priority} arrivalDurationMs={arrivalDurationMs} position={position ?? (desktop && treatment === 'title' ? {x: 0.3, y: 0.25} : {x: phone ? 0.38 : 0.5, y: 0.3})}
       onReady={onReady} onError={onError} onStatusChange={onStatusChange}/>
   </Reanimated.View>;
-  return <View pointerEvents="none" accessible={false} testID={testID} style={[StyleSheet.absoluteFillObject, {overflow: 'hidden', width, height}, style]}>
+  const fallback = <>
     <Animated.View style={[StyleSheet.absoluteFillObject, {backgroundColor: theme.colors.ink, opacity: fallbackOpacity}]}>
       <PaletteWash palette={palette ?? defaultPalette}/>
     </Animated.View>
+  </>;
+  const washes = <>
     {list.map((ambient, index) => <View key={ambient.cacheKey} style={[StyleSheet.absoluteFillObject, {
       left: person ? '-20%' : music ? '-25%' : wash && list.length > 1 ? `${(index * 0.68 - 0.25) * 100}%` : '-12%',
       top: person ? '-20%' : music ? '-25%' : wash ? '-30%' : cover ? '-50%' : '-12%', right: undefined, bottom: undefined,
@@ -165,6 +180,19 @@ export function AmbientArt({source, sources, foreground, palette, treatment = 'h
         }}
         blurRadius={allowLiveBlur ? wash ? 12 : 8 : undefined}/>
     </View>)}
+  </>;
+  if (phoneTitle) {
+    const title = theme.spec.hero.phoneTitle;
+    return <View pointerEvents="none" accessible={false} testID={testID} style={[StyleSheet.absoluteFillObject, {width, height}, style]}>
+      <View testID={testID ? `${testID}-wash` : undefined} style={{position: 'absolute', top: 0, left: 0, right: 0, height: Math.max(height ?? 0, title.wash.height)}}>
+        <ArtworkAlphaMask leftOpaqueAt={0} bottomOpaqueAt={1 - title.wash.opaqueTo}><View style={[StyleSheet.absoluteFillObject, {overflow: 'hidden'}]}>{fallback}{washes}</View></ArtworkAlphaMask>
+      </View>
+      <ArtworkAlphaMask leftOpaqueAt={0} bottomOpaqueAt={1 - title.artOpaqueTo}>{sharp}</ArtworkAlphaMask>
+      <OverlayStops id="phone-title-overlay" stops={title.overlay}/>
+    </View>;
+  }
+  return <View pointerEvents="none" accessible={false} testID={testID} style={[StyleSheet.absoluteFillObject, {overflow: 'hidden', width, height}, style]}>
+    {fallback}{washes}
     {foreground ? <View style={[{position: 'absolute', top: 0, right: 0, height: '100%',
       width: foregroundFraction !== undefined ? `${foregroundFraction * 100}%` : phone ? '100%' : `${foregroundWidth * 100}%`}, foregroundFrameStyle]}>
       {maskedHero ? <ArtworkAlphaMask leftOpaqueAt={theme.spec.hero.mask.leftOpaqueAt} bottomOpaqueAt={theme.spec.hero.mask.bottomOpaqueAt}>{sharp}</ArtworkAlphaMask>
