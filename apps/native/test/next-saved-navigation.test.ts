@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import {routePath} from '../../../packages/contracts/src/routes';
 import {HttpLocalApi, type LocalSession} from '../../../packages/client-core/src';
 import type {ContentEntry} from '../../../packages/client-core/src/library-content';
 import type {NativeShellBootstrapContext} from '../src-next/shell/bootstrap';
@@ -27,8 +26,8 @@ function fixture() {
   let reply = async (url: URL): Promise<unknown> => {
     if (url.pathname.endsWith('/saved/summary')) return {serverId: 'server', viewerFence: 'Saved-summary-own-fence', revision: {catalog: 4, viewer: 8},
       myList: {posters: 12, squares: 3}, favorites: {posters: 5, squares: 2}, playlists: 4, collections: 7, savedViews: 6};
-    if (url.pathname === routePath('get_saved_pins_order')) return {serverId: 'server', viewerFence: 'pins-own-fence', revision: 3,
-      order: [{kind: 'collection', id: 'stored-resource', name: 'Stored collection', pinRevision: 2}]};
+    if (url.pathname === '/v1/preferences') return {effective: {pins: ['collection:stored-resource']}};
+    if (url.pathname === '/v1/lists' && url.searchParams.has('ids')) return {items: [{id: 'stored-resource', kind: 'collection', name: 'Stored collection'}]};
     if (url.pathname.includes('/saved-resources')) return {serverId: 'server', viewerFence: 'resource-own-fence', revision: 7, resources: [], nextCursor: ''};
     const view = url.searchParams.get('view')!;
     return {scope: {serverId: 'server', libraryId: '', libraryKind: 'mixed', view, entityId: '', viewerFence: 'Saved-own-fence'},
@@ -56,7 +55,7 @@ function fixture() {
 test('Saved hub uses genuine pins and current membership; route capture keeps sort/filter without eager I/O', async () => {
   const f = fixture(), hub = createNativeSavedHubController(f.context, async () => 'request-id');
   try {
-    assert.deepEqual(f.paths, []);
+    assert.equal(f.paths.length, 0);
     assert.equal(hub.activation.getSnapshot(), hub.activation.getSnapshot());
     await hub.source.load(); assert.equal(hub.source.getSnapshot().phase, 'ready', JSON.stringify(hub.source.getSnapshot().error));
     const entry = hub.source.getSnapshot().myList.projection!.sections[0].entries[0];
@@ -64,6 +63,9 @@ test('Saved hub uses genuine pins and current membership; route capture keeps so
     if (entry.kind !== 'movie') throw new Error('expected actual movie');
     assert.equal(hub.source.contains(entry), true); assert.equal(hub.source.contains({...entry}), false);
     const pin = hub.source.getSnapshot().pins[0];
+    assert.equal(pin.name, 'Stored collection');
+    assert.equal(f.paths.filter(path => path.startsWith('/v1/preferences?')).length, 1);
+    assert.equal(f.paths.filter(path => path.startsWith('/v1/lists?ids=')).length, 1, 'all pin names use one batch read');
     assert.equal(hub.openPin({...pin}), false, 'matching IDs do not grant a copied pin membership');
     assert.equal(hub.openPin(pin), true);
     assert.deepEqual(f.navigation.getSnapshot().route, {kind: 'saved-view', view: {view: 'resource', resourceId: pin.id}});

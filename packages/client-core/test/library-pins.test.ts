@@ -56,15 +56,16 @@ test('profile pins use preferences and exact list reads, preserving the other ki
    }
    return {effective:{pins:[...pins]}} as T;
   }
-  const key=decodeURIComponent(path.slice('/v1/lists/'.length));
-  assert.ok(path.startsWith('/v1/lists/'),'no old navigation or saved-pin route is called');
-  if(key==='gone')throw Object.assign(new Error('not found'),{status:404});
+  assert.ok(path.startsWith('/v1/lists?'),'no old navigation or saved-pin route is called');
   if(failed)throw Object.assign(new Error('unavailable'),{status:503});
-  return {id:key,kind:key==='v'?'saved_view':key==='c'?'collection':'playlist',name:key.toUpperCase()} as T;
+  const ids=new URL(path,'https://test.invalid').searchParams.get('ids')!.split(',');
+  return {items:ids.filter(key=>key!=='gone').sort().map(key=>({id:key,kind:key==='v'?'saved_view':key==='c'?'collection':'playlist',name:key.toUpperCase()}))} as T;
  }};
  assert.deepEqual((await readLibraryNavigation(api)).pinnedLibraryIds,['b','a']);
  assert.deepEqual((await readPinOrder(api,'server')).order.map(pin=>[pin.kind,pin.id,pin.name]),[['collection','c','C'],['view','v','V'],['playlist','road/one','ROAD/ONE']]);
- assert.ok(calls.includes('GET /v1/lists/road%2Fone'),'the pinned id is resolved directly, even beyond the first directory page');
+ assert.equal(calls.filter(path=>path.startsWith('GET /v1/lists?')).length,1,'all names are read together, including pins beyond the first directory page');
+ const batch=new URL(calls.find(path=>path.startsWith('GET /v1/lists?'))!.slice(4),'https://test.invalid').searchParams;
+ assert.deepEqual(batch.get('ids')!.split(','),['c','v','road/one','gone']);
  await saveLibraryNavigation(api,0,['a','b']);
  assert.deepEqual(pins,['library:a','collection:c','view:v','playlist:road/one','library:b','collection:gone']);
  await savePinOrder(api,'server',0,[{kind:'playlist',id:'road/one'},{kind:'view',id:'v'},{kind:'collection',id:'c'}]);

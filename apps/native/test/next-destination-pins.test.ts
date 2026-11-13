@@ -12,7 +12,7 @@ test('pinning preserves saved resources and publishes the confirmed profile pref
   let stored = preferences();
   const writes: unknown[] = [];
   const api: PinsApi = {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
-    if (path === '/v1/lists/actual') return list as T;
+    if (path.startsWith('/v1/lists?')) return {items: [list]} as T;
     assert.ok(path.startsWith('/v1/preferences'));
     if (method === 'PATCH') {
       writes.push(body);
@@ -43,7 +43,7 @@ test('a removed pin is not written again, and a delayed native request ID cannot
   const writes: unknown[] = [];
   const api: PinsApi = {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
     if (method === 'PATCH') writes.push(body);
-    return (path === '/v1/lists/actual' ? list : preferences(['a'], hasResource)) as T;
+    return (path.startsWith('/v1/lists?') ? {items: [list]} : preferences(['a'], hasResource)) as T;
   }};
   const controller = new NativeDestinationPins({...options, api, current: () => current, requestId: () => {
     issued++; return new Promise<string>(resolve => {release = resolve; entered();});
@@ -78,7 +78,7 @@ test('a drag drop places the real library before its captured target identity us
   let stored = preferences(['a', 'b', 'c']);
   const writes: unknown[] = [];
   const api: PinsApi = {request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
-    if (path === '/v1/lists/actual') return list as T;
+    if (path.startsWith('/v1/lists?')) return {items: [list]} as T;
     if (method === 'PATCH') {
       writes.push(body);
       assert.deepEqual(body, {scope: 'profile-server', deviceClass: 'web', values: {pins: ['library:a', 'library:c', 'library:b', 'collection:actual']}});

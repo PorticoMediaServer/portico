@@ -53,7 +53,7 @@ test('closing Edit pins reads the pins again after a read already out, so a pin 
   const held: (() => void)[] = [];
   let hold = true, gets = 0;
   const api = {request: async <T>(path: string): Promise<T> => {
-    if (path === '/v1/lists/c1') return {id: 'c1', kind: 'collection', name: 'Toy Story'} as T;
+    if (path.startsWith('/v1/lists?')) return {items: [{id: 'c1', kind: 'collection', name: 'Toy Story'}]} as T;
     assert.ok(path.startsWith('/v1/preferences'));
     gets++;
     // Capture the pins before holding this preference response.
