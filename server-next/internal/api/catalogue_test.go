@@ -14,6 +14,7 @@ import (
 	"unicode"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/seed"
 )
 
@@ -29,14 +30,13 @@ func seeded(t *testing.T) (s *Server, token, limited string) {
 // a token for the owner and one for each member, in the seeder's order (see seed.Profiles).
 func seededWith(t *testing.T, items, profiles int) (s *Server, owner string, members []string) {
 	t.Helper()
-	s = newTestServer(t)
-	// The seeded members have no password, so their tokens are minted here. A token is only
-	// let in if it was made since this server started, and a real sign-in says when that was.
+	return seedServer(t, newTestServer(t), items, profiles)
+}
+
+// seedServer is seededWith on a server the caller opened.
+func seedServer(t *testing.T, s *Server, items, profiles int) (_ *Server, owner string, members []string) {
+	t.Helper()
 	first := setup(t, s)
-	started, err := s.tokens.CheckAccess(first.Session.AccessToken, time.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
 	ctx := context.Background()
 	if _, err := seed.Import(ctx, s.db, seed.Config{Seed: 3, Items: items}, nil); err != nil {
 		t.Fatal(err)
@@ -46,11 +46,22 @@ func seededWith(t *testing.T, items, profiles int) (s *Server, owner string, mem
 		t.Fatal(err)
 	}
 	for _, v := range viewers {
-		token, _ := s.tokens.Access(auth.Claims{UserID: v.UserID, ProfileID: v.ProfileID, Role: "member", Boot: started.Boot},
-			time.Now(), time.Now().Add(time.Hour))
-		members = append(members, token)
+		members = append(members, memberToken(t, s, first.Session.AccessToken, v))
 	}
 	return s, onMain(t, s, first).AccessToken, members
+}
+
+// memberToken mints a token for a seeded member, who has no password. A token is only let in
+// if it was made since this server started, and a real sign-in (signedIn) says when that was.
+func memberToken(t *testing.T, s *Server, signedIn string, v db.Viewer) string {
+	t.Helper()
+	started, err := s.tokens.CheckAccess(signedIn, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, _ := s.tokens.Access(auth.Claims{UserID: v.UserID, ProfileID: v.ProfileID, Role: "member", Boot: started.Boot},
+		time.Now(), time.Now().Add(time.Hour))
+	return token
 }
 
 func get[T any](t *testing.T, s *Server, token, path string) T {
