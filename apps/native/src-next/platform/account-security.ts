@@ -1,3 +1,5 @@
+import {porticoAccountEmail} from '../../../../packages/client-core/src/portico-services-native';
+import {linkNativeAbortSignals} from '../../../../packages/client-core/src/native-abort-signals';
 import {requestHostedAccountExport} from '../../../../packages/client-core/src/query/hosted-account-transport';
 import {serverNow} from '../../../../packages/client-core/src/server-clock';
 import {NativeModules} from 'react-native';
@@ -17,7 +19,7 @@ export type NativeAccountSecuritySnapshot = Readonly<{
   kind?: NativeAccountSecurityKind; step: 'form' | 'factor' | 'email' | 'mfa' | 'codes' | 'deletion' | 'export' | 'done'; busy: boolean;
   failure?: string; locked?: boolean; result?: SecurityResult; preview?: DeletionPreview; exportJob?: AccountExportJob;
 }>;
-type Opening = {kind: NativeAccountSecurityKind; controller: AbortController; operationId?: string; client?: HostedAccountClient;
+type Opening = {pendingEmail?: string; kind: NativeAccountSecurityKind; controller: AbortController; operationId?: string; client?: HostedAccountClient;
   input?: NativeAccountSecurityInput; intent?: SecurityIntent; busy: boolean; result?: SecurityResult; preview?: DeletionPreview;
   /** Root §70: the provider re-confirmation that came back, and the proof made from it. */
   reconfirmed?: ProviderReconfirmation; proof?: string};
@@ -50,7 +52,7 @@ export class NativeAccountSecurity {
   private clear() {
     const opening = this.opening; this.opening = undefined;
     if (opening) {opening.controller.abort(); opening.input = undefined; opening.intent = undefined; opening.result = undefined; opening.preview = undefined;
-      opening.reconfirmed = undefined; opening.proof = undefined;}
+      opening.reconfirmed = undefined; opening.proof = undefined; opening.pendingEmail = undefined;}
     this.state = closed;
   }
   close() {const notify = this.current(); this.clear(); if (notify) this.listeners.forEach(listener => listener());}
@@ -60,9 +62,27 @@ export class NativeAccountSecurity {
     this.opening = {kind, controller: new AbortController(), busy: false};
     this.publish({kind, step: 'form', busy: false});
   }
+  private async emailCommand(opening: Opening, input: NativeAccountSecurityInput) {
+    this.assert(opening); const session = this.credentials.getSnapshot().session;
+    if (!session) throw changed();
+    const confirming = this.state.step === 'email', pending = opening.pendingEmail;
+    if (confirming && !pending) throw changed();
+    const chosen = Object.freeze({...input}), email = (pending ?? chosen.email ?? '').trim().toLowerCase();
+    const request = new AbortController(), linked = linkNativeAbortSignals([opening.controller.signal, request.signal]);
+    const timer = setTimeout(() => request.abort(), 15000);
+    const answer = await nativeAccountWork(this.credentials, issued => {
+      const account = porticoAccountEmail(issued.accessToken, hostedUrl, nativeNetworkFetch, linked.signal);
+      return confirming ? account.confirm(email, chosen.code ?? '') : account.ask(chosen.password ?? '', chosen.factor ?? '', email);
+    }, {expected: accountExpectation(session), signal: linked.signal, isCurrent: () => this.owns(opening)})
+      .finally(() => {clearTimeout(timer); linked.dispose();});
+    this.assert(opening);
+    if (answer?.email !== email) throw new ApiError(502, 'invalid_response', 'portico_services_email_answer');
+    opening.pendingEmail = confirming ? undefined : email;
+    this.publish({kind: 'email', step: confirming ? 'done' : 'email', busy: true});
+  }
   private async prepare(opening: Opening) {
     this.assert(opening);
-    if (opening.client && opening.operationId) return;
+    if (opening.kind === 'email' && this.security.hasPassword || opening.client && opening.operationId) return;
     const bridge = NativeModules.PorticoAccountAuth;
     if (!opening.client) {
       const binding: unknown = await bridge.newBinding(); this.assert(opening);
@@ -94,14 +114,18 @@ export class NativeAccountSecurity {
       const retryFactor = refused && error.status === 400 && error.code === 'challenge_invalid' && this.state.step === 'factor' && !!opening.reconfirmed && !opening.proof;
       const restart = refused && !retryFactor && this.state.step === 'factor';
       if (refused && !retryFactor) {opening.input = undefined; opening.intent = undefined; opening.operationId = undefined; opening.reconfirmed = undefined; opening.proof = undefined;}
+      // Confirmation retries keep the address; a refused first step keeps no draft.
+      if (refused && opening.kind === 'email' && this.state.step !== 'email') opening.pendingEmail = undefined;
       this.publish({...this.state, ...(restart ? {step: 'form' as const} : {}), ...(refused && !retryFactor ? {locked: false} : {}), failure: presentError(error, 'portico-account').body});
     }}
     finally {opening.busy = false; if (this.owns(opening)) this.publish({...this.state, busy: false});}
   }
   async submit(input: NativeAccountSecurityInput = {}) {
+    const emailInput = Object.freeze({...input});
     if (this.state.step === 'codes' || this.state.step === 'done' || this.state.step === 'export') return;
     return this.run(async opening => {
       const signal = opening.controller.signal, kind = opening.kind;
+      if (kind === 'email' && this.security.hasPassword) {await this.emailCommand(opening, emailInput); return;}
       if (kind === 'delete') {
         if (!opening.preview) {
           const preview = await this.work(opening, (token, client) => client.deletionPreview(opening.operationId!, token, signal));
