@@ -320,6 +320,12 @@
             "format": "date-time",
             "type": "string"
           },
+          "libraryCoverUrls": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "metadataProvider": {
             "type": "string"
           },
@@ -352,6 +358,7 @@
           "id",
           "name",
           "kind",
+          "libraryCoverUrls",
           "metadataProvider",
           "metadataProviders",
           "folders",
