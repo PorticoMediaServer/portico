@@ -190,7 +190,7 @@ export function ownerHealthLine(health: HealthFacts | undefined, t: Translate): 
     facts.freeBytes !== undefined ? t('settings.server.health.free', {bytes: formatBytes(facts.freeBytes)}) : '',
     facts.databaseBytes !== undefined ? t('settings.server.health.database', {bytes: formatBytes(facts.databaseBytes)}) : '',
   ].filter(Boolean);
-  return Object.freeze({facts, status: t(facts.degraded ? 'settings.server.health.attention' : 'settings.server.health.running'), line: parts.join(' · '), ...(facts.uptimeSeconds === undefined ? {} : {uptimeSeconds: facts.uptimeSeconds})});
+  return Object.freeze({facts, status: t(facts.degraded ? 'next.shell.health.attention' : 'next.shell.health.normal'), line: parts.join(' · '), ...(facts.uptimeSeconds === undefined ? {} : {uptimeSeconds: facts.uptimeSeconds})});
 }
 
 /** A server that started moments ago keeps the note the frame draws under its tiles. */
