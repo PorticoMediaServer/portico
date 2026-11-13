@@ -296,9 +296,9 @@ test('wide card and episode row titles take two lines on phone and one on TV', a
   }
 });
 
-// Desk B on the two-line titles: under a poster the caption has a fixed reserve, so its facts stay one line and the
-// facts at the end that do not fit drop out whole; rows with room wrap; TV keeps its one-line ellipsis.
-test('card facts: drop keeps one measured line, wrap moves whole facts down, cut is the fixed-slot default', async () => {
+// Desk B on the two-line titles: under a poster the caption has a fixed reserve, so its facts stay one line and are always
+// whole: one fixed line height for every fact, facts drop whole from the end, only a lone first fact ends in "…".
+test('card facts: drop is one fixed line of whole facts, wrap moves whole facts down, cut is the fixed-slot default', async () => {
   const f = fixture(1.3);
   const {Parts, Caption} = await screenModule(new URL('../src-next/kit/cards/primitives.tsx', import.meta.url), {
     ...f.common, 'react-native-svg': {default: 'Svg'}, '../../../../../packages/i18n/src/index': {defaultI18n}, './model': cardModel,
@@ -306,19 +306,19 @@ test('card facts: drop keeps one measured line, wrap moves whole facts down, cut
     '../../platform/haptics': {}, '../../platform/menu-key': {registerFocusedMenu: () => () => {}},
     '../Icon': {Icon: 'Icon'}, '../selection/index': {SelectionHoldFeedback: 'SelectionHoldFeedback'}, '../focus': {...f.common['../focus'], useFocusWaiting: () => false},
   });
-  const parts = [{id: 'kind', text: 'Show'}, {id: 'seasons', text: '12 seasons'}, {id: 'year', text: '2026'}];
-  const drop = () => {const element = Parts({parts, fit: 'drop'}); return element.type(element.props);};
-  let box = f.host.render(drop);
-  const style = flatten(box.props.style), first = nodes(box).find(node => node.type === 'Text');
+  const parts = [{id: 'range', text: '12 Nov 2026 to 4 Jan 2027', role: 'context'}, {id: 'new', text: 'New', role: 'status'}, {id: 'year', text: '2026'}];
+  const box = f.host.render(() => Parts({parts, fit: 'drop'})), style = flatten(box.props.style), facts = nodes(box).filter(node => node.type === 'Text');
   assert.deepEqual([style.flexWrap, style.overflow], ['wrap', 'hidden'], 'facts that do not fit wrap out of the one-line box');
-  assert.ok(style.height > 0, 'before measuring, the box is one line at the system text size');
-  first.props.onLayout({nativeEvent: {layout: {height: 21}}});
-  box = f.host.render(drop);
-  assert.equal(flatten(box.props.style).height, 21, 'then exactly the first fact\'s measured line');
+  const lines = facts.map(node => flatten(node.props.style).lineHeight);
+  assert.ok(lines.every(line => line === lines[0] && line > 0), 'every fact, bold and status ones too, takes one fixed line height');
+  assert.equal(style.height, lines[0] * f.theme.fontScale, 'the box is exactly that line at the system text size');
+  assert.deepEqual(facts.map(node => flatten(node.props.style).flexShrink), [1, 0, 0], 'only the first fact may shrink (a date range too); the rest drop whole');
+  assert.ok(facts.every(node => node.props.numberOfLines === 1 && node.props.ellipsizeMode === 'tail'));
   const wrap = flatten(f.host.render(() => Parts({parts, fit: 'wrap'})).props.style);
   assert.deepEqual([wrap.flexWrap, wrap.height], ['wrap', undefined]);
-  const cut = flatten(f.host.render(() => Parts({parts})).props.style);
-  assert.equal(cut.flexWrap, undefined);
+  const cut = f.host.render(() => Parts({parts}));
+  assert.equal(flatten(cut.props.style).flexWrap, undefined);
+  assert.equal(flatten(nodes(cut).find(node => node.type === 'Text').props.style).flexShrink, 0, 'cut keeps main\'s never-shrinking context fact');
   const caption = nodes(f.host.render(() => Caption({title: 'Twelve Winters at the Observatory', caption: parts})));
   assert.equal(caption.find(node => node.type === Parts)?.props.fit, 'drop', 'a poster caption drops whole facts on phone');
 });
