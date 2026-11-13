@@ -9,7 +9,7 @@ export function nativeAvatarWireBody(url: string, method: string, body: string |
     path = new URL(url).pathname;
     if (applePath) path = decodeURIComponent(path);
   } catch {return body;}
-  if (method !== 'POST' || !/^\/v1\/(direct\/profiles\/[A-Za-z0-9_-]{1,128}|admin\/access\/members\/[A-Za-z0-9_-]{1,128}\/profiles\/[A-Za-z0-9_-]{1,128})\/avatar$/.test(path)) return body;
+  if (method !== 'PUT' || !/^\/v1\/profiles\/[A-Za-z0-9_-]{1,128}\/avatar$/.test(path)) return body;
   if (body === null || body.length > 5592448) return null;
   try {
     const envelope: unknown = JSON.parse(body);

@@ -1012,6 +1012,7 @@ export const enUS = {
   'profile.name': 'Name',
   'profile.limitReached': 'An account can have up to 8 profiles.',
   'profile.added': '{name} added',
+  'profile.pictureInPorticoAccount': 'Change your picture in your Portico Account',
   'profile.addPicture': 'Add a picture…',
   'profile.changePicture': 'Change picture…',
   'profile.removePicture': 'Remove picture',

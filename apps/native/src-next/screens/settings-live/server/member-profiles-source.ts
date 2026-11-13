@@ -52,13 +52,14 @@ export class NativeMemberProfilesSource {
     else this.publish({error});
   }
   canManage = (profile: MemberProfile): boolean => this.current() && this.tier() && !this.state.denied && !this.state.loading && !this.state.busy && !!this.state.items?.includes(profile);
-  canPickPicture = (profile: MemberProfile): boolean => this.canManage(profile) && profilePicturePickerAvailable();
+  localPictures = (): boolean => this.context.signIn !== 'portico' && !this.context.account.account.hostedAccountId;
+  canPickPicture = (profile: MemberProfile): boolean => this.localPictures() && this.canManage(profile) && profilePicturePickerAvailable();
   picture = (profile: MemberProfile, pixels: number): ArtworkSource | undefined => {
     if (!this.current() || !this.tier() || this.state.denied || !this.state.items?.includes(profile)) return undefined;
     const avatar = profile.avatar;
-    // This surface must never fall back to the public profile-picture route.
-    const expected = `/v1/admin/access/members/${encodeURIComponent(this.person.accountId)}/profiles/${encodeURIComponent(profile.id)}/avatar?v=${avatar?.version}`;
-    if (!avatar || avatar.profileId !== profile.id || avatar.url !== expected) return undefined;
+    // A member's picture must retain the management query, never borrow the caller's own profile route.
+    const expected = `/v1/profiles/${encodeURIComponent(profile.id)}/avatar?`;
+    if (!avatar || avatar.profileId !== profile.id || !avatar.url.startsWith(expected) || !avatar.url.endsWith('&member=' + encodeURIComponent(this.person.accountId))) return undefined;
     const picture = profilePictureSource(this.context.api, this.context.session()?.accessToken, avatar, pixels);
     return picture && typeof picture === 'object' && 'uri' in picture && typeof picture.uri === 'string'
       ? {uri: picture.uri, cacheKey: JSON.stringify(['member-avatar', this.lifetime.authority, this.person.accountId, profile.id, avatar.version, picture.uri]),
@@ -97,7 +98,7 @@ export class NativeMemberProfilesSource {
     } catch (error) {
       if (!owns()) return false;
       const failure = error as {status?: number; code?: string};
-      if (failure.status === 409 || /(^|_)(conflict|changed|stale|revision)(_|$)/.test(failure.code ?? '')) {
+      if (failure.code !== 'managed_by_portico_account' && (failure.status === 409 || /(^|_)(conflict|changed|stale|revision)(_|$)/.test(failure.code ?? ''))) {
         // Never retry a rejected edit against a new revision. Replace the whole
         // read, discard the draft and confirmation, then ask the person to review.
         this.publish({items: undefined, managing: undefined, loading: true, changed: true});
@@ -121,7 +122,7 @@ export class NativeMemberProfilesSource {
       return this.client.uploadPicture(profile, picked.bytes, picked.contentType);
     });
   };
-  removePicture = (profile: MemberProfile): Promise<boolean> => profile.avatar
+  removePicture = (profile: MemberProfile): Promise<boolean> => this.localPictures() && profile.avatar
     ? this.change(profile, signal => this.client.removePicture(profile, signal)) : Promise.resolve(false);
   removePIN = (profile: MemberProfile, confirmation?: PINConfirmation): Promise<boolean> => !!confirmation && this.state.pinConfirmation === confirmation && confirmation.profile === profile && profile.pinRequired
     ? this.change(profile, signal => this.client.resetPIN(profile, signal)) : Promise.resolve(false);

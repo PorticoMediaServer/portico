@@ -120,7 +120,7 @@ static OSStatus PorticoPrepareInstallationStorage(void) {
 // Core selects the avatar payload. Native validates and decodes its image bytes;
 // no JSON envelope or avatar request fields are interpreted here.
 static BOOL PorticoAvatarUploadPath(NSString *path, NSString *method) {
- return [method isEqualToString:@"POST"]&&[path rangeOfString:@"^/v1/(direct/profiles/[A-Za-z0-9_-]{1,128}|admin/access/members/[A-Za-z0-9_-]{1,128}/profiles/[A-Za-z0-9_-]{1,128})/avatar$" options:NSRegularExpressionSearch].location!=NSNotFound;
+ return [method isEqualToString:@"PUT"]&&[path rangeOfString:@"^/v1/profiles/[A-Za-z0-9_-]{1,128}/avatar$" options:NSRegularExpressionSearch].location!=NSNotFound;
 }
 static NSData *PorticoAvatarUploadBody(NSString *body) {
  if(![body isKindOfClass:NSString.class]||body.length>5592448)return nil;

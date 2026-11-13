@@ -2,11 +2,11 @@ import {routeBody} from "../../contracts/src/routes.ts";
 import type {RouteResponse} from "../../contracts/src/route-paths.ts";
 import {routePath, encodedRoutePath} from "../../contracts/src/route-paths.ts";
 import {CodedError,unreadableServerResponse} from './server-messages.ts';
-import {callServer} from './query/server-api.ts';
+import {callServer,serverPath} from './query/server-api.ts';
 /** Typed calls for the identity workstream on a direct server: profile limits and
  * devices, two-step sign-in. These functions add no state. */
 import {parseDevice,parseDevices,parseRememberedAccounts,type Device,type RememberedAccount} from './identity-devices.ts';
-import {parseProfileAvatar,parseTwoFactorState,type ProfileAvatar,type TwoFactorState} from './identity-restrictions.ts';
+import {parseProfileAvatar,profileAvatarFromProfile,parseTwoFactorState,type ProfileAvatar,type TwoFactorState} from './identity-restrictions.ts';
 import {RATING_LIMITS,readRestrictions,saveRestrictions,tagChoices,type ProfileRestrictions,type RatingSystem,type RestrictionChanges,type TagChoice} from './profile-restrictions.ts';
 
 export type IdentityApi={request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>};
@@ -34,6 +34,17 @@ function recoveryCodes(raw:unknown):readonly string[]{
 export type IdentityUpload=(path:string,body:Blob|ArrayBuffer|Uint8Array,contentType:string)=>Promise<unknown>;
 export const AVATAR_MAX_BYTES=4*1024*1024;
 
+/** Both own-account and managed-member uploads use the same binary profile route. */
+export async function uploadProfilePicture(upload:IdentityUpload|undefined,profileId:string,picture:Blob|ArrayBuffer|Uint8Array,contentType:string,member?:string):Promise<ProfileAvatar>{
+ if(!upload)throw new Error('This device can’t send pictures.');
+ const size=picture instanceof Blob?picture.size:picture.byteLength;
+ if(!size)throw new Error('That file is empty.');if(size>AVATAR_MAX_BYTES)throw Object.assign(new CodedError('body_too_large','A profile picture can be at most 4 MB.'),{status:413});
+ const raw=await upload(serverPath('PUT /v1/profiles/{id}/avatar',{id:profileId,query:{member}}),picture,/^image\/(jpeg|png|gif|webp)$/.test(contentType)?contentType:'application/octet-stream');
+ const avatar=profileAvatarFromProfile(raw,member);
+ if(!avatar||avatar.profileId!==profileId)throw new CodedError('invalid_response',unreadableServerResponse);
+ return avatar;
+}
+
 export class IdentityClient{
  private api:IdentityApi;private upload?:IdentityUpload;
  constructor(api:IdentityApi,upload?:IdentityUpload){this.api=api;this.upload=upload;}
@@ -53,28 +64,18 @@ export class IdentityClient{
  async resetPorticoPIN(profileId:string,pin:string,proof:Readonly<{challenge:string;identity:unknown}>,signal?:AbortSignal):Promise<void>{
   await callServer(this.api,'PUT /v1/profiles/{id}/pin',{id:profileId,body:{pin,challenge:proof.challenge,identity:proof.identity},signal});
  }
- async removeAvatar(profileId:string):Promise<void>{await this.api.request(encodedRoutePath("delete_direct_profiles_id_avatar", {"id": id(profileId)}),'DELETE');}
+ async removeAvatar(profileId:string):Promise<void>{await callServer(this.api,'DELETE /v1/profiles/{id}/avatar',{id:profileId});}
  avatar(raw:unknown):ProfileAvatar{return parseProfileAvatar(raw);}
  /** Pictures already named by the account's profile list; absent pictures stay absent.
   * The rebuilt server gives a versioned URL, not the old upload receipt's metadata. */
  async avatars(signal?:AbortSignal):Promise<readonly ProfileAvatar[]>{
   const raw=await callServer(this.api,'GET /v1/profiles',{signal});
   if(!Array.isArray(raw?.items)||raw.items.length>64)throw new CodedError('invalid_response',unreadableServerResponse);
-  return Object.freeze(raw.items.flatMap((profile:unknown)=>{
-   if(!profile||typeof profile!=='object'||Array.isArray(profile))throw new CodedError('invalid_response',unreadableServerResponse);
-   const row=profile as {id?:unknown;avatar?:unknown};
-   if(row.avatar===undefined||row.avatar==='')return [];
-   const match=typeof row.avatar==='string'&&row.avatar.length<=512?/^\/v1\/profiles\/([A-Za-z0-9_-]{1,128})\/avatar(?:\?v=[a-z0-9]+)?$/.exec(row.avatar):null;
-   if(!match||match[1]!==row.id)throw new CodedError('invalid_response',unreadableServerResponse);
-   return [Object.freeze({profileId:match[1]!,url:row.avatar as string})];
-  }));
+  return Object.freeze(raw.items.flatMap((profile:unknown)=>{const avatar=profileAvatarFromProfile(profile);return avatar?[avatar]:[];}));
  }
  /** The server sniffs, crops and re-encodes the picture itself; the type sent here is only a courtesy. */
  async uploadAvatar(profileId:string,picture:Blob|ArrayBuffer|Uint8Array,contentType:string):Promise<ProfileAvatar>{
-  if(!this.upload)throw new Error('This device can’t send pictures.');
-  const size=picture instanceof Blob?picture.size:picture.byteLength;
-  if(!size)throw new Error('That file is empty.');if(size>AVATAR_MAX_BYTES)throw new Error('Choose a picture smaller than 4 MB.');
-  return parseProfileAvatar(await this.upload(encodedRoutePath("post_direct_profiles_id_avatar", {"id": id(profileId)}),picture,/^image\/(jpeg|png|webp)$/.test(contentType)?contentType:'application/octet-stream'));
+  return uploadProfilePicture(this.upload,profileId,picture,contentType);
  }
 
  /** The account's signed-in devices (`GET /v1/devices`), most recently used first. */

@@ -8,12 +8,13 @@ import {RouteError} from '../../../packages/client-core/src/route-identity.ts';
 import {pickProfilePicture, profileAvatarUpload, profilePicturePickerAvailable, profilePictureSource, useAvatarRoute} from '../src-next/platform/profile-avatars.ts';
 import {nativeNetworkFetch} from '../src-next/platform/server-connections.ts';
 import {profileAPI} from '../src-next/platform/profile-transport.ts';
+import {NativeMemberProfilesSource} from '../src-next/screens/settings-live/server/member-profiles-source.ts';
 import {NativeModules, Platform} from './react-native-stub.mjs';
 const pickerModules = NativeModules as typeof NativeModules & {PorticoImagePicker?: {pick: () => Promise<unknown>}};
 import {createFabricHookHost, act} from './helpers/fabric-hooks.mjs';
 
 const logical = 'https://logical.test', lan = 'https://192.168.1.20:32500';
-const path = '/v1/direct/profiles/p1/avatar';
+const path = '/v1/profiles/p1/avatar';
 const avatar: ProfileAvatar = {profileId: 'p1', version: 1, updatedAt: '2026-10-18T12:00:00Z', sourceMime: 'image/png', url: '/v1/profiles/p1/avatar?v=1'};
 const bytes = new Uint8Array([0, 128, 255, 13, 10, 1]);
 type Wire = {url: string; method: string; headers: Record<string, string>; body: string | null; transport: string};
@@ -41,13 +42,13 @@ function noRawFetch(t: {after: (fn: () => void) => void}) {
 
 test('upload uses the verified LAN route and renews once after 401 with identical bytes and type', async t => {
   noRawFetch(t);
-  const sent = runtime(wire => wire.headers.authorization === 'Bearer old' ? {status: 401} : {status: 200, body: avatar});
+  const sent = runtime(wire => wire.headers.authorization === 'Bearer old' ? {status: 401} : {status: 200, body: {id: 'p1', avatar: avatar.url}});
   const api = new HttpLocalApi(logical, 'old', nativeNetworkFetch); routed(api, t);
   const rejected: string[] = [];
   api.setAuthRecovery({token: async current => current, recover: async token => { rejected.push(token); api.setAccessToken('new'); return 'new'; }});
-  assert.deepEqual(await new IdentityClient(api, profileAvatarUpload(api)).uploadAvatar('p1', bytes, 'image/png'), avatar);
+  assert.deepEqual(await new IdentityClient(api, profileAvatarUpload(api)).uploadAvatar('p1', bytes, 'image/png'), {profileId: 'p1', url: avatar.url});
   assert.deepEqual(rejected, ['old']);
-  assert.deepEqual(sent.map(w => [w.url, w.method, w.headers.authorization]), [[lan + path, 'POST', 'Bearer old'], [lan + path, 'POST', 'Bearer new']]);
+  assert.deepEqual(sent.map(w => [w.url, w.method, w.headers.authorization]), [[lan + path, 'PUT', 'Bearer old'], [lan + path, 'PUT', 'Bearer new']]);
   for (const wire of sent) {
     assert.equal(wire.headers['content-type'], 'image/png');
     assert.deepEqual(Buffer.from(wire.body!, 'base64'), Buffer.from(bytes));
@@ -118,7 +119,7 @@ test('upload rejects invalid sizes and paths before sending; full-size binary da
   assert.deepEqual(Buffer.from((calls[0] as {body: {nativeAvatarBase64: string}}).body.nativeAvatarBase64, 'base64'), Buffer.from(full));
 });
 
-test('the accounts screen uses routed helpers; native byte decoding is limited to bounded avatar POSTs', () => {
+test('the accounts screen uses routed helpers; native byte decoding is limited to bounded avatar PUTs', () => {
   const accounts = readFileSync(new URL('../src-next/screens/accounts/AccountRoutes.tsx', import.meta.url), 'utf8');
   assert.match(accounts, /profilePictureSource\(/); assert.match(accounts, /profileAvatarUpload\(/); assert.doesNotMatch(accounts, /api!?\.baseUrl\s*\+/);
   assert.doesNotMatch(accounts, /await fetch\(/);
@@ -131,17 +132,17 @@ test('the accounts screen uses routed helpers; native byte decoding is limited t
 
 test('managed avatar uploads use the same verified transport, renewal and bounded image payload', async t => {
   noRawFetch(t);
-  const managedPath = '/v1/admin/access/members/member/profiles/p1/avatar?expectedRevision=9';
+  const managedPath = '/v1/profiles/p1/avatar?member=member';
   const sent = runtime(wire => wire.headers.authorization === 'Bearer old' ? {status: 401} : {status: 200, body: {id: 'p1', revision: 10}});
   const api = new HttpLocalApi(logical, 'old', nativeNetworkFetch); routed(api, t);
   api.setAuthRecovery({token: async current => current, recover: async () => {api.setAccessToken('new'); return 'new';}});
   assert.deepEqual(await profileAvatarUpload(api)(managedPath, bytes, 'image/png'), {id: 'p1', revision: 10});
-  assert.deepEqual(sent.map(w => [w.url, w.method, w.headers.authorization]), [[lan + managedPath, 'POST', 'Bearer old'], [lan + managedPath, 'POST', 'Bearer new']]);
+  assert.deepEqual(sent.map(w => [w.url, w.method, w.headers.authorization]), [[lan + managedPath, 'PUT', 'Bearer old'], [lan + managedPath, 'PUT', 'Bearer new']]);
   for (const wire of sent) assert.deepEqual(Buffer.from(wire.body!, 'base64'), Buffer.from(bytes));
-  for (const suffix of ['', '?expectedRevision=0', '?expectedRevision=-1', '?expectedRevision=1&extra=1', '?expectedRevision=9007199254740992']) {
-    await assert.rejects(profileAvatarUpload(api)('/v1/admin/access/members/member/profiles/p1/avatar' + suffix, bytes, 'image/png'), /path/);
+  for (const invalid of ['/v1/direct/profiles/p1/avatar', '/v1/admin/access/members/member/profiles/p1/avatar', path + '?member=', path + '?member=member&extra=1', path + '?expectedRevision=1']) {
+    await assert.rejects(profileAvatarUpload(api)(invalid, bytes, 'image/png'), /path/);
   }
-  await assert.rejects(profileAvatarUpload(api)(managedPath, bytes, 'image/webp'), /type/); assert.equal(sent.length, 2);
+  assert.equal(sent.length, 2);
 });
 
 test('one-photo picker accepts bounded JPEG/PNG only and drops a result when its opening retires', async t => {
@@ -164,4 +165,30 @@ test('one-photo picker accepts bounded JPEG/PNG only and drops a result when its
   assert.equal(await pickProfilePicture({current: () => current}), undefined);
   Platform.isTV = false; pickerModules.PorticoImagePicker = undefined; assert.equal(profilePicturePickerAvailable(), false);
   assert.equal(await pickProfilePicture({current: () => current}), undefined); assert.equal(count, 8);
+});
+
+
+test('managed-member picture actions do not open the picker or write on a Portico Account server', async t => {
+  const original = pickerModules.PorticoImagePicker, originalTV = Platform.isTV;
+  t.after(() => {pickerModules.PorticoImagePicker = original; Platform.isTV = originalTV;});
+  let picks = 0;
+  pickerModules.PorticoImagePicker = {pick: async () => {picks++; return {base64: 'AQID', contentType: 'image/jpeg', bytes: 3};}}; Platform.isTV = false;
+  const calls: string[] = [];
+  const api = new HttpLocalApi(logical, 'owner-token', async (url, init) => {
+    calls.push((init?.method ?? 'GET') + ' ' + new URL(String(url)).pathname);
+    if (String(url).includes('/restrictions')) return new Response(JSON.stringify({maxRatingAge: null, blockedLabels: [], allLibraries: true, libraries: [], accountAllLibraries: true, accountLibraries: []}));
+    return new Response(JSON.stringify({items: [{id: 'p1', name: 'Member', color: 'blue', isPrimary: true, pinRequired: false, avatar: avatar.url}]}));
+  });
+  const authority = {serverId: 'server', accountId: 'owner', profileId: 'primary', authority: 'local', epoch: 'epoch', viewerFence: 'fence'};
+  const context = {api, signIn: 'portico', current: () => true, authority: () => authority, subscribeAuthority: () => () => {},
+    account: {account: {id: 'owner', role: 'owner'}, capabilities: {managePeople: true}}, session: () => ({accessToken: 'owner-token'})};
+  const person = {accountId: 'member', role: 'member'};
+  const source = new NativeMemberProfilesSource(context as never, person as never, () => true, error => {throw error;});
+  t.after(() => source.dispose()); await source.load();
+  const profile = source.getSnapshot().items![0]!;
+  source.manage(profile);
+  assert.equal(source.canManage(profile), true); assert.equal(source.localPictures(), false); assert.equal(source.canPickPicture(profile), false);
+  const reads = calls.length;
+  assert.equal(await source.choosePicture(profile), false); assert.equal(await source.removePicture(profile), false);
+  assert.equal(picks, 0); assert.equal(calls.length, reads);
 });

@@ -1,5 +1,5 @@
 import {routePrefix} from "../../contracts/src/routes.ts";
-import {unreadableServerResponse} from './server-messages.ts';
+import {CodedError,unreadableServerResponse} from './server-messages.ts';
 /** Profile pictures, two-step state and the pre-sign-in descriptor. A profile's limits are in
  * profile-restrictions.ts; the server decides what a profile sees and a client never filters for it. */
 export type {RatingValue,RatingSystem,ProfileRestrictions} from './profile-restrictions.ts';
@@ -18,6 +18,16 @@ const only=(v:Record<string,unknown>,keys:readonly string[]):void=>{if(Object.ke
 // technical shape for diagnostics. "Invalid identity document" told a viewer
 // nothing they could act on.
 function fail(reason:string):never{throw Object.assign(new Error(unreadableServerResponse),{code:'invalid_identity_document',detail:reason,retryable:false});}
+
+/** A picture named by the rebuilt profile answer. Keep its opaque versioned URL. */
+export function profileAvatarFromProfile(raw:unknown,member?:string):ProfileAvatar|undefined{
+ if(!obj(raw)||!id(raw.id))throw new CodedError('invalid_response',unreadableServerResponse);
+ if(raw.avatar===undefined||raw.avatar==='')return undefined;
+ const match=typeof raw.avatar==='string'&&raw.avatar.length<=512?/^\/v1\/profiles\/([A-Za-z0-9_-]{1,128})\/avatar(?:\?v=[a-z0-9]+)?$/.exec(raw.avatar):null;
+ if(!match||match[1]!==raw.id)throw new CodedError('invalid_response',unreadableServerResponse);
+ const url=raw.avatar as string;
+ return Object.freeze({profileId:raw.id,url:member?url+(url.includes('?')?'&':'?')+'member='+encodeURIComponent(member):url});
+}
 
 export function parseProfileAvatar(raw:unknown):ProfileAvatar{
  if(!obj(raw))fail('avatar');only(raw,['profileId','version','updatedAt','sourceMime','url']);
