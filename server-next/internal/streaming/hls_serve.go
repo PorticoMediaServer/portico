@@ -251,12 +251,15 @@ func (h *HLS) FileContext(ctx context.Context, id, name string) (string, error) 
 				}
 				return "", ErrSegmentPreparing
 			case <-changed:
-				// The window this request was waiting on may have ended without
-				// reaching the segment. Asking again is free when one covers it.
-				if err := h.start(ctx, id, index); err != nil {
-					return "", err
-				}
 			case <-tick.C:
+			}
+			// The run may have ended between start and subscribing to changed.
+			// Retry on the existing poll tick too, unless its output is ready.
+			if ready(path) {
+				continue
+			}
+			if err := h.start(ctx, id, index); err != nil {
+				return "", err
 			}
 		}
 	})

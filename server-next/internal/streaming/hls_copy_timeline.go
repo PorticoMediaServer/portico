@@ -326,8 +326,12 @@ func copySegmentArgs(t *copyTimeline, from int, staging string, fragmented ...bo
 // or when the run that wrote it has ended cleanly (final). Returns the highest
 // index promoted, or from-1.
 func promoteCopySegments(staging, dir string, from int, final bool) int {
+	return promoteCopyRange(staging, dir, from, HLSMaxSegments, final)
+}
+
+func promoteCopyRange(staging, dir string, from, until int, final bool) int {
 	highest := from - 1
-	for i := from; i < HLSMaxSegments; i++ {
+	for i := from; i < until; i++ {
 		name := hlsSegmentFile(i)
 		source := filepath.Join(staging, name)
 		info, err := os.Stat(source)
