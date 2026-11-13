@@ -14,6 +14,9 @@ const runtime = {artwork: () => ({cacheKey: 'art'}), ambient: () => ({cacheKey: 
 
 async function music(platform = 'tablet') {
   const ui = hooks(), theme = {platform, layoutMode: 'phone', isTV: false, colors}, react: any = {...ui.react, useId: () => 'wash'}; react.default = react;
+  // A child row renders in its own hook space, so the screen's hooks and the row's never share slots.
+  const child = hooks(); let active = ui;
+  for (const name of ['useRef', 'useState', 'useMemo', 'useCallback', 'useEffect', 'useSyncExternalStore', 'useContext']) react[name] = (...args: any[]) => (active.react as any)[name](...args);
   const module = await screenModule(new URL('../src-next/screens/destinations/music/PhoneMusicScreens.tsx', import.meta.url), {
     react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
@@ -37,7 +40,7 @@ async function music(platform = 'tablet') {
     play: async () => {plays++;}, songFavorite: () => false, songFavoritePending: () => false, toggleSongFavorite: async () => {favorites++;}};
   const props: any = {controller, entry, runtime, selection, actions: {menu: (...args: any[]) => menus.push(args)}, openEntry: (value: any) => opened.push(value), onBack() {}};
   const tree = ui.render(() => module.PhoneAlbumScreen(props));
-  const renderChild = (node: any) => ui.render(() => node.type(node.props));
+  const renderChild = (node: any) => {active = child; try {return child.render(() => node.type(node.props));} finally {active = ui;}};
   return {tree, song, artist, controller, selection, renderChild, enter, toggle, menus, opened, counts: () => ({plays, favorites, starts, selected}), ui};
 }
 

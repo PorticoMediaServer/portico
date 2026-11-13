@@ -1,4 +1,4 @@
-import React, {useId, useMemo, useRef, useSyncExternalStore} from 'react';
+import React, {useId, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View, type NativeScrollEvent, type NativeSyntheticEvent, type View as NativeView} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -44,9 +44,11 @@ export const phoneMusicGeometry = Object.freeze({
 
 
 /** The floating back/More header the phone music frames draw over the wash. */
-function PhoneHeader({title, onBack, onMore, moreRef}: {title: string; onBack: () => void; onMore: () => void; moreRef: React.RefObject<NativeView | null>}) {
+function PhoneHeader({title, collapsed = false, onBack, onMore, moreRef}: {title: string; collapsed?: boolean; onBack: () => void; onMore: () => void; moreRef: React.RefObject<NativeView | null>}) {
+  // As the title page's: once the page title has scrolled under the bar, the bar takes its surface and the title, so the
+  // page's own title never shows cut under the round Back button.
   return <View pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10}}>
-    <TopBar overArtwork back={{label: t('action.back'), onPress: onBack}} trailing={<RoundBarButton ref={moreRef} icon="i-more" label={t('card.more', {title})} onPress={onMore}/>}/>
+    <TopBar overArtwork surface={collapsed} title={collapsed ? title : undefined} back={{label: t('action.back'), onPress: onBack}} trailing={<RoundBarButton ref={moreRef} icon="i-more" label={t('card.more', {title})} onPress={onMore}/>}/>
   </View>;
 }
 
@@ -192,7 +194,7 @@ export function PhoneAlbumScreen({controller, entry, runtime, actions, openEntry
 }) {
   const theme = useTheme(), insets = useSafeAreaInsets(), snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot), playingId = usePlayingItem(runtime);
   useSyncExternalStore(selection?.subscribe ?? noSubscribe, selection?.getSnapshot ?? noRevision);
-  const art = runtime.artwork(entry.posterUrl), more = useRef<NativeView>(null);
+  const art = runtime.artwork(entry.posterUrl), more = useRef<NativeView>(null), [collapsed, setCollapsed] = useState(false);
   const minutes = snapshot.songDurationSeconds === undefined ? undefined : Math.max(1, Math.round(snapshot.songDurationSeconds / 60));
   const facts = [
     entry.year === undefined ? undefined : defaultI18n.number(entry.year, {useGrouping: false}),
@@ -264,7 +266,8 @@ export function PhoneAlbumScreen({controller, entry, runtime, actions, openEntry
   }
   return <View testID="native-phone-album" style={{flex: 1}}>
     <Wash runtime={runtime} path={entry.posterUrl ?? entry.backdropUrl}/>
-    <MusicScrollView onNearEnd={()=>{void controller.nextSongs(snapshot.songPage);}} contentContainerStyle={{paddingTop: Math.max(phoneMusicGeometry.albumTop, insets.top + 56), paddingBottom: 40}} showsVerticalScrollIndicator={false}>
+    <MusicScrollView onNearEnd={()=>{void controller.nextSongs(snapshot.songPage);}} contentContainerStyle={{paddingTop: Math.max(phoneMusicGeometry.albumTop, insets.top + 56), paddingBottom: 40}} showsVerticalScrollIndicator={false}
+      collapseAt={Math.max(phoneMusicGeometry.albumTop, insets.top + 56) + phoneMusicGeometry.albumCover + 20 - (insets.top + 44)} onCollapse={setCollapsed}>
       <View style={{alignItems: 'center', paddingHorizontal: 20}}>
         <View style={{width: phoneMusicGeometry.albumCover, height: phoneMusicGeometry.albumCover, borderRadius: phoneMusicGeometry.albumCoverRadius, overflow: 'hidden', backgroundColor: theme.colors.raised,
           shadowColor: theme.colors.shadow, shadowOffset: {width: 0, height: 30}, shadowOpacity: .9, shadowRadius: 30}}>
@@ -281,7 +284,7 @@ export function PhoneAlbumScreen({controller, entry, runtime, actions, openEntry
       <View style={{paddingHorizontal:20}}><MusicSectionControls id="album-songs" section={snapshot.songPage} next={()=>{void controller.nextSongs(snapshot.songPage);}} previous={()=>{void controller.previousSongs(snapshot.songPage);}} retry={()=>{void controller.retrySongs(snapshot.songPage);}} refresh={()=>{void controller.refreshSongs(snapshot.songPage);}}/></View>
       <SimilarAlbums selection={selection} snapshot={snapshot} controller={controller} runtime={runtime} actions={actions} openEntry={openEntry}/>
     </MusicScrollView>
-    <PhoneHeader title={title} onBack={onBack} onMore={() => actions.menu(entry, more)} moreRef={more}/>
+    <PhoneHeader title={title} collapsed={collapsed} onBack={onBack} onMore={() => actions.menu(entry, more)} moreRef={more}/>
   </View>;
 }
 
@@ -313,7 +316,7 @@ export function PhoneArtistScreen({controller, entry, runtime, actions, openEntr
 }) {
   const theme = useTheme(), insets = useSafeAreaInsets(), snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot), playingId = usePlayingItem(runtime);
   useSyncExternalStore(selection?.subscribe ?? noSubscribe, selection?.getSnapshot ?? noRevision);
-  const more = useRef<NativeView>(null);
+  const more = useRef<NativeView>(null), [collapsed, setCollapsed] = useState(false);
   const releases=useMemo(()=>artistReleaseGroups(snapshot.albums),[snapshot.albums]);
   const covers = useMemo(() => snapshot.albums.flatMap(album => {const source = runtime.artwork(album.posterUrl); return source ? [source] : [];}), [snapshot.albums, runtime]);
   const facts = [
@@ -372,7 +375,8 @@ export function PhoneArtistScreen({controller, entry, runtime, actions, openEntr
   }
   return <View testID="native-phone-artist" style={{flex: 1}}>
     <Wash runtime={runtime} path={snapshot.albums[0]?.posterUrl ?? entry.posterUrl ?? entry.backdropUrl}/>
-    <MusicScrollView contentContainerStyle={{paddingTop: Math.max(phoneMusicGeometry.artistTop, insets.top + 56), paddingBottom: 40}} showsVerticalScrollIndicator={false}>
+    <MusicScrollView contentContainerStyle={{paddingTop: Math.max(phoneMusicGeometry.artistTop, insets.top + 56), paddingBottom: 40}} showsVerticalScrollIndicator={false}
+      collapseAt={Math.max(phoneMusicGeometry.artistTop, insets.top + 56) + phoneMusicGeometry.artistCircle + 18 - (insets.top + 44)} onCollapse={setCollapsed}>
       <View style={{alignItems: 'center', paddingHorizontal: 20}}>
         <ArtistCircle covers={covers} rings={[3]} initials={[...entry.title.trim()][0] ?? ''} alt={entry.title} size={phoneMusicGeometry.artistCircle} visible/>
         <Lockup title={entry.title} size={phoneMusicGeometry.artistTitle} style={{textAlign: 'center', marginTop: 18}}/>
@@ -392,7 +396,7 @@ export function PhoneArtistScreen({controller, entry, runtime, actions, openEntr
       <View style={{paddingHorizontal:20}}><MusicSectionControls id="artist-releases" section={snapshot.releases} next={()=>{void controller.nextReleases(snapshot.releases);}} previous={()=>{void controller.previousReleases(snapshot.releases);}} retry={()=>{void controller.retryReleases(snapshot.releases);}} refresh={()=>{void controller.refreshReleases(snapshot.releases);}}/></View>
       <SimilarArtists selection={selection} snapshot={snapshot} controller={controller} runtime={runtime} actions={actions} openEntry={openEntry} inset={20} gap={12}/>
     </MusicScrollView>
-    <PhoneHeader title={entry.title} onBack={onBack} onMore={() => actions.menu(entry, more)} moreRef={more}/>
+    <PhoneHeader title={entry.title} collapsed={collapsed} onBack={onBack} onMore={() => actions.menu(entry, more)} moreRef={more}/>
   </View>;
 }
 
