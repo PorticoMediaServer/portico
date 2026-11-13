@@ -10,6 +10,7 @@ import type {NativeAccounts} from './accounts';
 import {accountExpectation, nativeAccountRead, nativeAccountWork} from './account-work';
 import {hostedUrl} from './account-authority';
 import {nativeNetworkFetch} from './server-connections';
+import {openNativeAccountPasswordReset} from './account-password-reset';
 
 export type NativeAccountSecurityKind = 'password' | 'email' | 'mfa-on' | 'mfa-off' | 'codes' | 'export' | 'delete';
 export type NativeAccountSecurityInput = Readonly<{password?: string; factor?: string; newPassword?: string; email?: string; code?: string; confirmation?: string}>;
@@ -163,6 +164,8 @@ export class NativeAccountSecurity {
     }}
     finally {opening.busy = false; if (this.owns(opening)) this.publish({...this.state, busy: false});}
   }
+  /** Add a password (an account without one): the hosted reset page, as on the web; the adapter reads the session on return. */
+  openPasswordReset() {if (!this.current()) throw changed(); return openNativeAccountPasswordReset(this.credentials, this.scope);}
   /** Called only by the deletion confirmation after these inputs have been typed for it. */
   deleteAccount(password: string, twoStepCode = '') {
     if (this.opening?.kind !== 'delete') throw changed();

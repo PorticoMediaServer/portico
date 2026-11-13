@@ -41,7 +41,7 @@ test('native Password and Two-step use current Services routes and inline proof'
     '../../../../packages/client-core/src/native-abort-signals': {linkNativeAbortSignals},
     '../../../../packages/client-core/src/presentation/errors': {presentError: (error: Error) => ({body: error.message})},
     './account-work': {accountExpectation: () => scope, nativeAccountRead: guard, nativeAccountWork: guard},
-    './account-authority': {hostedUrl: origin}, './server-connections': {nativeNetworkFetch: fetcher},
+    './account-password-reset': {openNativeAccountPasswordReset: async () => {}}, './account-authority': {hostedUrl: origin}, './server-connections': {nativeNetworkFetch: fetcher},
     '../../../../packages/client-core/src/query/hosted-account-transport': {createNativeAccountWorkspaceRequest: () => () => {throw new Error('legacy security request');}},
     './account-security': {NativeAccountSecurity: class {}},
   };

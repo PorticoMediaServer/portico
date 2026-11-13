@@ -31,7 +31,7 @@ test('deletion requires freshly supplied proof, uses Services and signs out only
     './account-work': {accountExpectation: () => scope, nativeAccountWork: async (_: unknown, work: any, guard: any) => {
       assert.deepEqual(guard.expected, scope); assert(guard.isCurrent()); const answer = await work(session);
       if (!guard.isCurrent()) throw new Error('retired'); return answer;
-    }}, './account-authority': {hostedUrl: origin}, './server-connections': {nativeNetworkFetch: fetcher},
+    }}, './account-password-reset': {openNativeAccountPasswordReset: async () => {}}, './account-authority': {hostedUrl: origin}, './server-connections': {nativeNetworkFetch: fetcher},
   });
   const owner = {accountCredentials: () => ({getSnapshot: () => ({session})}),
     signOutPorticoAccount: async (which: unknown) => {signouts.push(which);},

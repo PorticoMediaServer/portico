@@ -13,7 +13,7 @@ import {NativeAccountSecurity, type NativeAccountSecurityKind} from '../../platf
 import {accountExpectation, nativeAccountRead} from '../../platform/account-work';
 import {nativeNetworkFetch} from '../../platform/server-connections';
 import type {NativeShellRuntime} from '../../shell/runtime';
-import {AccountSecuritySheet, accountSecurityAvailability} from '../accounts/PhoneAccountSecurity';
+import {AccountSecuritySheet, PasswordResetSheet, accountSecurityAvailability} from '../accounts/PhoneAccountSecurity';
 import {createNativeAccountSecurityScope, nativeAccountSecurityAllowed} from './native-account-security';
 import type {NativeSettingsPanelDeps} from './settings-panels';
 type Opening = Readonly<{current: () => boolean; refresh: () => Promise<void>}>;
@@ -28,6 +28,8 @@ export function NativeHostedSignInPanel({kind, context, lifetime, t, runtime}: N
   const [opening, setOpening] = useState<Opening>(), openingRef = useRef<Opening | undefined>(undefined);
   // A Google- or Apple-only account (Justin, 1 Nov): Add a password waits behind More sign-in options.
   const [moreSignIn, setMoreSignIn] = useState(false);
+  // Add a password and Two-step's "Set a password" open the hosted reset page after one plain line (#3392).
+  const [resetAsk, setResetAsk] = useState(false);
   const [source, setSource] = useState<NativeAccountSecurity>(), [failure, setFailure] = useState<string>();
   useLayoutEffect(() => {
     setOpening(undefined); setSource(undefined); setFailure(undefined);
@@ -101,9 +103,13 @@ export function NativeHostedSignInPanel({kind, context, lifetime, t, runtime}: N
   </>;
   const ready = opening?.current() ? source : undefined, security = ready?.security;
   const locked = security ? accountSecurityAvailability(security, NativeModules.PorticoAccountAuth).credentialLocked : true;
+  // Without a password: Add a password opens the hosted reset page; Two-step says a password comes first and links to it.
   const action = (task: NativeAccountSecurityKind, label: string) => ready && (!security?.hasPassword
-    ? <Text style={[shellType(14.5), {color: theme.colors.textSecondary}]}>{t('account.security.appUnavailable')}</Text> : <Button testID={`account-security-${task}`} variant="glass" size="compact" disabled={locked}
+    ? task === 'password' ? <Button testID="account-security-password" variant="glass" size="compact" onPress={() => {if (opening?.current() && ready.current()) setResetAsk(true);}}>{label}</Button>
+      : <Button testID="account-security-two-step-password" variant="link" onPress={() => {if (opening?.current() && ready.current()) setResetAsk(true);}}>{t('web.hostedSecurity.addPassword')}</Button>
+    : <Button testID={`account-security-${task}`} variant="glass" size="compact" disabled={locked}
     onPress={() => {if (!locked && opening?.current() && ready.current()) ready.open(task);}}>{label}</Button>);
+  const resetSheet = <PasswordResetSheet source={ready} open={resetAsk} onClose={() => setResetAsk(false)} onFinished={() => {if (opening?.current()) void opening.refresh();}}/>;
   const providerOnly = kind === 'password' && security ? providerOnlySignIn(security) : undefined;
   // A Google- or Apple-only account has no Password row until More sign-in options shows it.
   if (providerOnly && !moreSignIn) return <>
@@ -111,10 +117,12 @@ export function NativeHostedSignInPanel({kind, context, lifetime, t, runtime}: N
       onPress={() => setMoreSignIn(true)}>{t('web.hostedSecurity.moreSignInOptions')}</Button></View>
     {failure && <View style={{padding: 14}}><FormError placement="inline">{failure}</FormError></View>}
     {security && <AccountSecuritySheet security={security} source={ready} onFinished={() => {if (opening?.current()) void opening.refresh();}}/>}
+    {resetSheet}
   </>;
   return <>
     <SettingsRow first testID={`settings-panel-${kind}`} label={t(kind === 'password' ? 'settings.row.password' : 'settings.row.twoStep')}
       value={kind === 'twoStep' && security ? t(security.mfaEnabled ? 'web.hostedSecurity.on' : 'web.hostedSecurity.off') : providerOnly ? t('web.hostedSecurity.notSet') : undefined}
+      description={kind === 'twoStep' && security && !security.hasPassword ? t('account.security.passwordNeeded') : undefined}
       control={security ? kind === 'password' ? action('password', t(providerOnly ? 'web.hostedSecurity.addPassword' : security.hasPassword ? 'web.hostedSecurity.change' : 'account.setPassword'))
         : <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}><Text style={[shellType(14.5), {color: theme.colors.textSecondary}]}>{t(security.mfaEnabled ? 'web.hostedSecurity.on' : 'web.hostedSecurity.off')}</Text>
           {action(security.mfaEnabled ? 'mfa-off' : 'mfa-on', t(security.mfaEnabled ? 'web.hostedSecurity.turnOff' : 'web.twoStep.turnOn'))}</View> : undefined}/>
@@ -123,5 +131,6 @@ export function NativeHostedSignInPanel({kind, context, lifetime, t, runtime}: N
     {failure && <View style={{padding: 14, gap: 12}}><FormError placement="inline">{failure}</FormError>
       {opening?.current() && <Button testID={`account-security-retry-${kind}`} variant="glass" size="compact" onPress={() => {void opening.refresh();}}>{t('action.tryAgain')}</Button>}</View>}
     {security && <AccountSecuritySheet security={security} source={ready} onFinished={() => {if (opening?.current()) void opening.refresh();}}/>}
+    {resetSheet}
   </>;
 }

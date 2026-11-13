@@ -58,7 +58,7 @@ async function fixture(security = initialSecurity) {
         if (!opening.isCurrent() || opening.signal.aborted) throw new Error('retired'); const value = await work(session);
         if (!opening.isCurrent() || opening.signal.aborted) throw new Error('retired'); return value;
       }},
-    './account-authority': {hostedUrl}, './server-connections': {nativeNetworkFetch: () => {throw new Error('unexpected transport');}},
+    './account-password-reset': {openNativeAccountPasswordReset: async () => {}}, './account-authority': {hostedUrl}, './server-connections': {nativeNetworkFetch: () => {throw new Error('unexpected transport');}},
   });
   const owner = {accountCredentials: () => credentials,
     accountClient: (binding: string, current: () => boolean) => {calls.push(['client', binding, current]); return client;},

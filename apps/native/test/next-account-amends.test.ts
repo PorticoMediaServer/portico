@@ -72,29 +72,33 @@ async function securityFixture(context: import('node:test').TestContext, given?:
     state: async (value: any) => {state = value; await act(() => host.rerender());}};
 }
 
-test('security controller failures reach presentError and the alert while unavailable actions stay disabled', async context => {
+test('security controller failures reach presentError and the alert; with a password, Email and deletion open and Export waits for its saver', async context => {
   const f = await securityFixture(context);
   assert.deepEqual(f.presented, [[f.failure, 'portico-account']]);
   assert.ok(nodes(f.tree()).some(node => (node.props.accessibilityRole === 'alert' || node.type === FormError) && node.props.children === 'Security could not be opened.'));
   const deletion = () => nodes(f.tree()).find(node => node.props.testID === 'account-security-delete');
   assert.equal(deletion().props.disabled, true);
   await f.recover();
-  assert.equal(deletion().props.disabled, true, 'deletion stays unavailable until its fresh proof inputs exist');
-  for (const kind of ['email', 'export']) assert.equal(nodes(f.tree()).some(node => node.props.testID === `account-security-${kind}`), false);
+  assert.equal(deletion().props.disabled, false, 'deletion opens its form, which asks for fresh proof (#3392)');
+  assert.ok(nodes(f.tree()).some(node => node.props.testID === 'account-security-email'), 'Email is offered to an account with a password');
+  assert.equal(nodes(f.tree()).some(node => node.props.testID === 'account-security-export'), false, 'Export waits for its file saver');
   assert.equal(nodes(f.tree()).some(node => (node.props.accessibilityRole === 'alert' || node.type === FormError)), false);
 });
 
-test('security deletion help preserves profiles and history and names affected and blocking servers', async context => {
-  const f = await securityFixture(context); await f.recover();
-  assert.ok(words(f.tree()).includes(defaultI18n.t('account.security.appUnavailable')));
-  await f.state({kind: 'delete', step: 'deletion', busy: false, preview: {
-    canDelete: false, ownedServers: [{id: 'own', name: 'Owned server'}], affectedServers: [{id: 'member', name: 'Shared server'}],
-  }});
-  assert.ok(words(f.tree()).includes(defaultI18n.t('account.delete.ownsServers', {servers: 'Owned server'})));
-  assert.ok(words(f.tree()).includes(defaultI18n.t('web.hostedAccount.leaveBody', {server: 'Shared server'})));
-  const sheet = nodes(f.tree()).find(node => node.props.testID === 'account-security-sheet');
-  assert.equal(nodes(sheet.props.footer).find(node => node.type === 'Button').props.disabled, true);
-  assert.equal(nodes(sheet).some(node => node.type === 'TextField'), false, 'blocked deletion cannot enter account confirmation');
+test('deletion asks for the password (and a code when two-step is on) typed for it, then a final destructive confirmation that alone sends it', async context => {
+  const f = await securityFixture(context, {hasPassword: true, mfaEnabled: true, providers: [], recoveryCodesRemaining: 3}); await f.recover();
+  await f.state({kind: 'delete', step: 'form', busy: false});
+  const sheet = () => nodes(f.tree()).find(node => node.props.testID === 'account-security-sheet');
+  const byTestID = (id: string) => nodes(sheet()).concat(nodes(sheet().props.footer)).find(node => node.props.testID === id);
+  assert.ok(words(sheet()).includes(defaultI18n.t('account.delete.consequence')));
+  assert.equal(nodes(sheet()).some(node => node.props.label === defaultI18n.t('account.delete.typeEmail')), false, 'no type-your-email step');
+  assert.equal(byTestID('account-security-delete-next').props.disabled, true);
+  await act(() => byTestID('account-security-delete-password').props.onChangeText('typed-password'));
+  assert.equal(byTestID('account-security-delete-next').props.disabled, true, 'two-step is on: the code too');
+  await act(() => byTestID('account-security-delete-code').props.onChangeText(' 123456 '));
+  await act(() => byTestID('account-security-delete-next').props.onPress());
+  assert.equal(byTestID('account-security-delete-confirm').props.variant, 'glass', 'the destructive button, never the default');
+  assert.equal(byTestID('account-security-delete-confirm').props.children, defaultI18n.t('web.deleteAccount.confirmAction'));
 });
 
 test('the shared sheet keeps provider password input through factor verification and refreshes on Done', async context => {
@@ -130,13 +134,13 @@ test('the shared sheet keeps provider password input through factor verification
   assert.equal(submit().props.disabled, true);
   await act(() => field('web.reset.factor').props.onChangeText('fixture-factor'));
   assert.equal(submit().props.disabled, false); await act(() => submit().props.onPress());
-  assert.deepEqual(calls[1], ['submit', {password: '', factor: '', newPassword: 'new-password-fixture', email: '', code: 'fixture-factor', confirmation: ''}]);
+  assert.deepEqual(calls[1], ['submit', {password: '', factor: '', newPassword: 'new-password-fixture', email: '', code: 'fixture-factor'}]);
   await act(() => submit().props.onPress()); assert.equal(finished, 1); assert.equal(tree.props.open, false);
 });
 
 // Justin, 1 Nov: a Google- or Apple-only Portico Account never sees Set a password. Its Password row
 // says how it signs in, and Add a password waits behind More sign-in options.
-test('a Google-only account: no Password row; More sign-in options, under the group, shows Password Not set and unavailable until provider re-confirmation moves', async context => {
+test('a Google-only account: no Password row; More sign-in options, under the group, shows Password Not set with Add a password (the hosted reset, #3392)', async context => {
   const f = await securityFixture(context, {hasPassword: false, mfaEnabled: false, providers: [{id: 'google-link', provider: 'google'}], recoveryCodesRemaining: 0});
   await f.recover();
   const byTestID = (id: string) => nodes(f.tree()).find(node => node.props.testID === id);
@@ -148,9 +152,10 @@ test('a Google-only account: no Password row; More sign-in options, under the gr
   await act(() => more.props.onPress());
   assert.equal(byTestID('account-security-more-sign-in'), undefined, 'the link goes away');
   assert.ok(words(f.tree()).includes(defaultI18n.t('web.password') + defaultI18n.t('web.hostedSecurity.notSet')), 'Password, Not set');
-  assert.equal(byTestID('account-security-password'), undefined);
-  assert.equal(byTestID('account-security-mfa-on'), undefined);
-  assert.ok(words(f.tree()).includes(defaultI18n.t('account.security.appUnavailable')));
+  assert.equal(byTestID('account-security-password').props.children, defaultI18n.t('web.hostedSecurity.addPassword'));
+  assert.equal(byTestID('account-security-mfa-on'), undefined, 'two-step needs a password first');
+  assert.equal(byTestID('account-security-two-step-password').props.children, defaultI18n.t('web.hostedSecurity.addPassword'), 'and links to adding one');
+  assert.equal(words(f.tree()).includes(defaultI18n.t('account.setPassword')), false, 'never Set a password');
 });
 
 test('a password account keeps Change and has no More sign-in options', async context => {
@@ -158,4 +163,12 @@ test('a password account keeps Change and has no More sign-in options', async co
   const password = nodes(f.tree()).find(node => node.props.testID === 'account-security-password');
   assert.equal(password.props.children, defaultI18n.t('web.hostedSecurity.change'));
   assert.equal(nodes(f.tree()).some(node => node.props.testID === 'account-security-more-sign-in'), false);
+});
+
+test('the emailed confirmation code takes letters as well as digits (eight characters, #3392); the authenticator code stays numeric', async context => {
+  const f = await securityFixture(context); await f.recover();
+  await f.state({kind: 'email', step: 'email', busy: false});
+  const field = nodes(f.tree()).find(node => node.props.testID === 'account-security-email-code');
+  assert.equal(field.props.keyboardType, undefined, 'not the number pad');
+  assert.equal(field.props.autoCapitalize, 'characters'); assert.equal(field.props.autoCorrect, false);
 });
