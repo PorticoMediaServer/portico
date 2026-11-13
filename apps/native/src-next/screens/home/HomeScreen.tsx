@@ -71,6 +71,11 @@ export function homeHeroBlock(theme: Theme, heroHeight: number, preview: boolean
   return theme.isTV ? (preview ? 588 : 820) : theme.platform === 'tablet' ? heroHeight : theme.layoutMode === 'phone' && theme.platform === 'phone' ? heroHeight : theme.layoutMode === 'desktop' ? heroHeight : 588;
 }
 
+/** With no spotlight (the rebuilt server sends none yet) Home draws no hero: rows start under the phone header, or under the safe area. */
+export function homeTopWithoutHero(theme: Theme, topInset: number): number {
+  return theme.layoutMode === 'phone' && theme.platform === 'phone' ? phoneHeaderGeometry(topInset, false).height : Math.max(topInset, 20);
+}
+
 /**
  * The medium window draws two hero compositions in foldable.html: upright the hero is
  * half the window (440 of 880), and sideways it is the 392 px frame 3f authors. The
@@ -260,7 +265,9 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
       + theme.spec.shelf.headingMargin[theme.platform] + cardHeight + (theme.isTV ? Math.max(14, top) : top + theme.spec.shelf.phonePaddingBottom);
     return {row, presentation, width, height, slotHeight: measuredRows.layout === rowLayoutKey ? measuredRows.boxes.get(row.id)?.height ?? estimatedHeight : estimatedHeight};
   });
-  let rowY = homeHeroBlock(theme, heroHeight, rows.some(row => row.id === focus?.rowId && row.entries.some(entry => entry.id === focus?.entryId)));
+  const noHero = !theme.isTV && !document?.spotlight.length;
+  const heroBlock = (preview: boolean) => noHero ? homeTopWithoutHero(theme, insets.top) : homeHeroBlock(theme, heroHeight, preview);
+  let rowY = heroBlock(rows.some(row => row.id === focus?.rowId && row.entries.some(entry => entry.id === focus?.entryId)));
   const spacing = homeRowSpacing(theme);
   const rowBoxes: readonly HomeRowBox[] = rowModels.map(({row, slotHeight}) => {
     rowY += spacing.marginTop ?? 0;
@@ -453,10 +460,10 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
     }}/>}
     onContentSizeChange={(_, height) => {contentHeight.current = height;}} onScrollBeginDrag={vertical.stop}
     showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: homeContentBottom(theme, bottomInset)}}>
-    <View style={{height: homeHeroBlock(theme, heroHeight, !!preview)}}>
+    <View style={{height: heroBlock(!!preview)}}>
       {/* tv-focus frames1..3: the real spotlight controls stay mounted for native
           Up guides while the preview covers them. Focus restores the spotlight. */}
-      {theme.isTV ? <View pointerEvents={preview ? 'none' : 'box-none'} style={{position: 'absolute', inset: 0}}>{spotlight}</View> : spotlight}
+      {theme.isTV ? <View pointerEvents={preview ? 'none' : 'box-none'} style={{position: 'absolute', inset: 0}}>{spotlight}</View> : noHero ? null : spotlight}
       {theme.isTV && preview && <View pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: 0, height: heroHeight}}><FocusPreviewHero focusedEntry={preview} repeating={repeating || vertical.repeating} active={heroActive} visible={active && foreground && heroVisible}
         renderArtwork={renderArtwork} renderReason={candidate => <View style={{flexDirection: 'row', gap: 16, marginBottom: 16}}>{homeCardText(candidate.entry, true, runtime.text).caption.map(part => <Text key={part.id} numberOfLines={1} style={[theme.type.eyebrow, {color: theme.colors.accentStrong, flexShrink: 1, includeFontPadding: false}]}>{part.text}</Text>)}</View>}
         renderMetadata={candidate => <HomeHeroFacts facts={candidate.facts ?? []} continuation={homeCardText(candidate.entry, true, runtime.text)}/>}
