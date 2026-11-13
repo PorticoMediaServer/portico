@@ -166,6 +166,17 @@ test('phone keeps its single header Back and no tablet floating control', async 
     assert.equal(typed(tree, 'Button').some(node => String(node.props.testID ?? '').startsWith('native-tablet-')), false);
     bars[0].props.back.onPress();
     assert.equal(backs, 1);
+    // ".cross" under Back: at rest the bar is clear over the art; once the page title has scrolled under it, the bar takes the
+    // shared surface and the title, as the title page's does.
+    assert.deepEqual([bars[0].props.surface, bars[0].props.title], [false, undefined]);
+    const scroll = [...elementNodes(tree)].find(node => typeof node.props?.onCollapse === 'function');
+    assert.ok(scroll && scroll.props.collapseAt > 0, 'the page reports when its title passes under the bar');
+    let collapsedTree: unknown;
+    const collapsedHost = createFabricHookHost(() => {collapsedTree = (header!.type as Function)({...header!.props, collapsed: true});});
+    await collapsedHost.mount();
+    const collapsedBar = typed(collapsedTree, 'TopBar')[0];
+    assert.deepEqual([collapsedBar.props.surface, collapsedBar.props.title], [true, 'Album']);
+    await collapsedHost.unmount();
   } finally {
     // Release both hosts even when an assertion above fails.
     await headerHost?.unmount();
