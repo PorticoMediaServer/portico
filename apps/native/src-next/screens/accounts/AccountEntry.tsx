@@ -31,7 +31,7 @@ import {createNativePorticoTVSignIn} from '../../platform/tv-sign-in';
 import {createTVApprovalCredentialOpening, type TVApprovalCredentialOpening} from './tv-approval-credentials';
 import {createTVApprovalFinalization, type TVApprovalFinalization} from './tv-approval-finalization';
 import {createTVCodeOpening, type TVCodeCapture, type TVCodeKind, type TVCodeOpening} from './tv-code-opening';
-import {TVCredentialForm, TVCodePresenter, TVVerificationForm, TVRequiredSetupHandoff, TVFrontDoor, TVProfilePINForm, TVForgotPINHandoff, TVWhosWatching, TVPickerRememberRow} from '../../tv/auth';
+import {TVCredentialForm, TVCodePresenter, TVVerificationForm, TVRequiredSetupHandoff, TVFrontDoor, TVProfilePINForm, TVForgotPINHandoff, TVMoveHandoff, TVWhosWatching, TVPickerRememberRow} from '../../tv/auth';
 import {TVIdentityCodeForm} from '../../tv/auth/TVIdentityCodeForm';
 import type {NativeProfileRecovery} from '../../platform/profile-recovery';
 import {passwordStrength} from '../../../../../packages/client-core/src/password-strength';
@@ -66,7 +66,7 @@ import {PhoneProfileRecovery} from './PhoneProfileRecovery';
 import {directoryFailure, directoryOfflineBody, directoryRows, nextRetryDelay} from './directory-chooser';
 import {registerBack} from '../../kit/navigation/back';
 
-export type NativeAccountEntryStage = 'welcome' | 'ended-sign-in' | 'owner-reset' | 'owner-reset-code' | 'owner-reset-done' | 'setup-confirm' | 'setup' | 'address' | 'identity-code' | 'local' | 'factor' | 'uses-portico' | 'portico' | 'forgot' | 'forgot-sent' | 'register' | 'verify' | 'provider' | 'contact' | 'servers' | 'account-sign-out' | 'profiles' | 'profile-pin' | 'profile-forgot-pin' | 'tv' | 'tv-credentials' | 'tv-required-setup' | 'member-move' | 'invitation-code' | 'invitation-local' | 'invitation-portico' | 'invitation-sign-out' | 'invitation-entry' | 'invitation-account' | 'account-workspace';
+export type NativeAccountEntryStage = 'welcome' | 'tv-move-handoff' | 'ended-sign-in' | 'owner-reset' | 'owner-reset-code' | 'owner-reset-done' | 'setup-confirm' | 'setup' | 'address' | 'identity-code' | 'local' | 'factor' | 'uses-portico' | 'portico' | 'forgot' | 'forgot-sent' | 'register' | 'verify' | 'provider' | 'contact' | 'servers' | 'account-sign-out' | 'profiles' | 'profile-pin' | 'profile-forgot-pin' | 'tv' | 'tv-credentials' | 'tv-required-setup' | 'member-move' | 'invitation-code' | 'invitation-local' | 'invitation-portico' | 'invitation-sign-out' | 'invitation-entry' | 'invitation-account' | 'account-workspace';
 type MemberMove = Awaited<ReturnType<NativeServerSignIn['createMemberMove']>>;
 type MemberMoveSnapshot = ReturnType<MemberMove['getSnapshot']>;
 type PINRecovery = {controller: NativeProfileRecovery; profile: ManagedProfile; operation: NativeServerSignIn; retired: boolean};
@@ -418,6 +418,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     if (stage === 'owner-reset' || stage === 'owner-reset-code' || stage === 'owner-reset-done') {reset(); setCode(''); setResetLocation(undefined); setStage('address'); return;}
     if (stage === 'setup') {setError(undefined); setStage('setup-confirm'); return;}
     if (stage === 'member-move') {stopMemberMove(); setStage(server?.signIn === 'local' ? 'local' : 'uses-portico'); return;}
+    if (stage === 'tv-move-handoff') {setStage('uses-portico'); return;}
     if (pinRecoveryRef.current) {retireRecovery(); setCode(''); return;}
     if (stage === 'servers' && target) {cancelDirectory(); return;}
     if (stage === 'profile-forgot-pin') {setCode(''); setError(undefined); setStage('profile-pin'); return;}
@@ -467,7 +468,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     }
     const move = memberMoveRef.current;
     if (move && memberOperation.current === operation.current && move.getSnapshot().phase === 'portico') {
-      await move.redeemPortico();
+      // Signed in: name both accounts and stop on the confirm. Nothing moves until Move is pressed.
+      await move.preparePortico();
       if (lifetime.current && memberMoveRef.current === move && memberOperation.current === operation.current) setStage('member-move');
       return;
     }
@@ -634,7 +636,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   };
   const beginMemberCode = async () => {
     const source = operation.current;
-    if (!source || !server || server.signIn !== 'local' || server.move !== 'to_local' || Platform.isTV) return;
+    // The owner's move code: for a move to local sign-in, and (P2-66) a move to Portico Accounts.
+    if (!source || !server || !(server.signIn === 'local' && server.move === 'to_local' || server.signIn === 'portico' && server.move === 'to_portico') || Platform.isTV) return;
     stopMemberMove();
     const move = await source.createMemberMove('code');
     if (!lifetime.current || operation.current !== source) {move.dispose(); return;}
@@ -1012,9 +1015,16 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     // The days left come from the server's own move window (P2-66, Justin's copy).
     const moveDays = server?.move === 'to_portico' ? moveOfferDays(server.moveEndsAt) : undefined;
     const notice = server?.move === 'to_portico' ? t('accounts.move.toPortico', {server: server.name}) + ' ' + t('accounts.signIn.porticoNotice') : t('accounts.signIn.porticoNotice');
+    // A TV never takes an old password with the remote: during a move it hands the move to a phone
+    // (the server's own sign-in page, P2-66), and the member then signs in here the Portico way.
+    if (Platform.isTV && server?.move === 'to_portico') return <EntryLayout testID="accounts-entry" title={t('accounts.signIn.usesPortico', {server: server.name})} body={notice}
+      kicker={formStep} beforeActions={<>{status}</>} primaryAction={action('portico', t('accounts.signIn.continuePortico'), portico)}
+      additionalActions={[{id: 'move-on-phone', label: t('next.auth.tv.moveOnPhone'), disabled: busy, onPress: () => {if (!busy) setStage('tv-move-handoff');}}]}
+      secondaryAction={backAction}/>;
     return layout(t('accounts.signIn.usesPortico', {server: server!.name}), notice, undefined, action('portico', t('accounts.signIn.continuePortico'), portico),
       !Platform.isTV && <View style={{gap: 12}}>
         {moveDays !== undefined && <Button variant="text" disabled={busy} onPress={() => {void run(beginMemberMove);}}>{t('accounts.move.oldPasswordAction', {days: moveDays})}</Button>}
+        {server?.move === 'to_portico' && <Button variant="text" disabled={busy} onPress={() => {void run(beginMemberCode);}}>{t('accounts.move.haveCode')}</Button>}
         <Button variant="text" disabled={busy} onPress={() => {
           if (!current() || !source) return;
           retireOwnerReset();
@@ -1040,6 +1050,16 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     if (moveSnapshot.phase === 'password') return <PhoneMovePassword controller={memberMove} serverName={server!.name} onBack={back}/>;
     if (moveSnapshot.phase === 'portico') return <PhoneAccountMoveNotice busy={busy || moveSnapshot.busy} state={{kind: 'to-portico', serverName: server!.name,
       onContinue: () => {void run(portico);}, onCreateAccount: () => {void run(createMoveAccount);}}}/>;
+    if (moveSnapshot.phase === 'confirm-portico' && moveSnapshot.username && moveSnapshot.porticoAccount) {
+      const captured = memberMove, source = memberOperation.current;
+      // The server's name from its verified system answer, the server account from its own answer,
+      // the Portico Account from the one held here; never from a link.
+      return <PhoneAccountMoveNotice busy={busy || moveSnapshot.busy} state={{kind: 'confirm', serverName: source!.serverDescriptor().name,
+        username: moveSnapshot.username, account: moveSnapshot.porticoAccount.username,
+        onMove: () => {void run(() => captured.redeemPortico());},
+        onNotYou: () => {captured.changePorticoAccount(); void run(differentMoveAccount);},
+        onCancel: back}}/>;
+    }
     if (moveSnapshot.phase === 'collision' && moveSnapshot.collision) return <PhoneAccountMoveNotice busy={busy || moveSnapshot.busy}
       state={{kind: 'collision', details: moveSnapshot.collision, onDifferentAccount: () => {void run(differentMoveAccount);}, onBack: back}}/>;
     if (moveSnapshot.phase === 'adopted' && moveSnapshot.result && moveSnapshot.result.kind !== 'challenge') return <PhoneAccountMoveNotice state={{kind: 'linked', onChooseProfile: () => {
@@ -1610,7 +1630,13 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     })}</View>, undefined,
     <Button variant="text" disabled={busy} onPress={() => setStage('account-sign-out')}>{t('accounts.signOut.portico')}</Button>);
   if (stage === 'account-sign-out') return layout(t('accounts.signOut.portico'), undefined, undefined,
-    action('account-sign-out', t('action.signOut'), async () => {await nativeAccounts.signOutPorticoAccount(accountScope.current!); reset();}));
+    action('account-sign-out', t('action.signOut'), async () => {
+      await nativeAccounts.signOutPorticoAccount(accountScope.current!);
+      // Not you? during a move: the server's proof stays, and the next Portico Account signs in for it.
+      const move = memberMoveRef.current;
+      if (move && memberOperation.current === operation.current && move.getSnapshot().phase === 'portico') {setStage('member-move'); return;}
+      reset();
+    }));
   if (pinRecovery) {
     const captured = pinRecovery;
     const current = () => lifetime.current && !captured.retired && pinRecoveryRef.current === captured
@@ -1641,6 +1667,8 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     {canRemember && <RememberProfileRow focusId="accounts-remember-profile" checked={remember} onChange={setRemember} disabled={busy} marginTop={34}/>}
     <BootWaitLine active={busy} serverName={server!.name} testID="accounts-profile-wait"/></>);
   }
+  if (theme.isTV && stage === 'tv-move-handoff' && server) return <TVMoveHandoff serverName={server.name}
+    url={new URL('/sign-in', operation.current!.serverOrigin()).href} onBack={back}/>;
   if (theme.isTV && stage === 'profile-forgot-pin') return <TVForgotPINHandoff profileName={profile!.name}
     url={new URL('/settings/profile', operation.current!.serverOrigin()).href} body="next.auth.tv.forgotPINBody" onBack={back}/>;
   if (theme.isTV && stage === 'profile-pin') return <TVProfilePINForm

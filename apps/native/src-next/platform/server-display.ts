@@ -39,7 +39,7 @@ export async function rememberNativeServerDisplay(api: HttpLocalApi, options: {
   options.signal?.addEventListener('abort', cancel, {once: true});
   const timer = setTimeout(cancel, 15000);
   try {
-    const server = parseServerSignIn(await readServerSystem(api, abort.signal));
+    const server = parseServerSignIn(await readServerSystem(api, abort.signal), true);
     // Every connection that reads the server's facts negotiates with them (O-159).
     negotiateNativeServer(server);
     if (!current() || abort.signal.aborted) throw cancelled();
