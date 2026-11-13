@@ -18,7 +18,7 @@
 .technical > span:not(:first-child), .track > span:not(:first-child) { color: var(--color-text-secondary); font-weight: 500; }
 .track + .track { margin-top: 3px; }
 .files > .note { margin: 16px 2px 0; font-size: 13.5px; line-height: 1.55; color: var(--color-text-tertiary); }
-.owner { margin-top: 20px; padding: 18px 20px 14px; border-radius: 16px; background: var(--owner-tint), var(--color-panel); box-shadow: inset 0 0 0 1px rgba(92,179,226,.16); }
+.owner { margin-top: 20px; padding: 18px 20px 14px; border-radius: 16px; background: var(--owner-tint-tall), var(--color-panel); box-shadow: inset 0 0 0 1px rgba(92,179,226,.16); }
 .ownerHeading { display: flex; align-items: center; gap: 12px; }
 .ownerHeading h3 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 17px; line-height: normal; font-weight: 800; letter-spacing: -.01em; }
 .ownerHeading small { display: block; margin-top: 1px; font-size: 13px; font-weight: 600; color: var(--color-text-tertiary); }
