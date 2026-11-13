@@ -66,3 +66,25 @@ test('a registry error that says to send the same request again is retryable', a
  assert.equal((await failure(503,{error:{code:'busy',message:'Busy.',retryable:false}})).retryable,false);
  assert.equal((await failure(409,{error:{code:'source_busy',message:'Busy.',retryable:true}})).retryable,true);
 });
+
+// Captured from server-next's profile selection: the first wrong PIN is 403 with no wait;
+// another selection during its wait is 429 with retryAfterMs and Retry-After.
+test('profile PIN refusals keep their meaning and the server wait through the shared reader', async () => {
+ const refusal = async (status:number, code:string, wait?:number) => {
+  const api = new HttpLocalApi('http://127.0.0.1:19447','token',async()=>new Response(JSON.stringify({error:{
+   code,message:'diagnostic only',retry:status===429,...(wait?{retryAfterMs:wait*1000}:{}),requestId:'pin-test',
+  }}),{status,headers:{'Content-Type':'application/json',...(wait?{'Retry-After':String(wait)}:{})}}));
+  return api.request('/v1/profiles/1/select','POST',{pin:'0000'}).catch(error=>error);
+ };
+ const wrong = await refusal(403,'profile_pin_invalid');
+ assert.ok(wrong instanceof ApiError);
+ assert.equal(wrong.retryAfterSeconds,undefined);
+ assert.equal(presentError(wrong,'profiles').category,'invalid-input');
+ assert.equal(presentError(wrong,'profiles').body,'That PIN isn’t right. Try again.');
+ assert.equal(presentError(wrong,'profiles',{operation:'action'}).body,'That PIN isn’t right. Try again.');
+ const locked = await refusal(429,'profile_pin_locked',30);
+ assert.ok(locked instanceof ApiError);
+ assert.equal(locked.retryAfterSeconds,30);
+ assert.equal(presentError(locked,'profiles').body,'That PIN isn’t right. Try again in 30 seconds.');
+ assert.equal(presentError(locked,'profiles').retryAfterSeconds,30);
+});
