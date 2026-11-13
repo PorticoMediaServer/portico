@@ -14,7 +14,8 @@ test('TV Dashboard continuation coalesces, keeps prior rows on error and retries
   const sessionCalls: (string | undefined)[] = [], jobCalls: string[] = [];
   const readers: NativeDashboardReaders = {
     sessions: {list: async cursor => {sessionCalls.push(cursor); return cursor === undefined ? page('first', 10, 'offered') : new Promise((resolve, reject) => {finish = resolve; fail = reject;});}},
-    console: {measurement: async name => ({name, observedAt: 1, freshUntil: 30001, facts: {}}), alerts: async () => [], jobs: async cursor => {jobCalls.push(cursor ?? ''); return {items: [], nextCursor: ''};}, dispose() {}},
+    status: async () => ({observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 0, items: []}, nowPlaying: {}, backups: {}, openReports: 0}) as never,
+    storage: async () => ({dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'}) as never,
   };
   const controller = new NativeDashboardController(lifetime, () => 'administrator', readers);
   await controller.refresh();
@@ -33,7 +34,8 @@ test('Dashboard refresh retires a pending continuation without publishing stale 
   let finish!: (value: ReturnType<typeof page>) => void, reads = 0;
   const readers: NativeDashboardReaders = {
     sessions: {list: async cursor => {reads++; return cursor ? new Promise(resolve => {finish = resolve;}) : page(reads === 1 ? 'old' : 'fresh', 10, 'next');}},
-    console: {measurement: async name => ({name, observedAt: 1, freshUntil: 30001, facts: {}}), alerts: async () => [], jobs: async () => ({items: [], nextCursor: ''}), dispose() {}},
+    status: async () => ({observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 0, items: []}, nowPlaying: {}, backups: {}, openReports: 0}) as never,
+    storage: async () => ({dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'}) as never,
   };
   const controller = new NativeDashboardController(lifetime, () => 'administrator', readers);
   await controller.refresh(); const stale = controller.nextSessions(controller.getSnapshot().sessionWindow!); await controller.refresh();
@@ -43,30 +45,33 @@ test('Dashboard refresh retires a pending continuation without publishing stale 
   controller.dispose(); lifetime.dispose();
 });
 
-test('owner jobs use their own offered cursor and retirement denies later reads', async () => {
+test('owner jobs are the Dashboard read\'s scans and tasks, all at once, and a demoted viewer keeps none', async () => {
   const lifetime = new NativeScreenLifetime({authority: () => authority, current: () => true, subscribeAuthority: () => () => {}});
-  let role: 'owner' | 'administrator' = 'owner';
-  const jobs: string[] = [];
+  let role: 'owner' | 'administrator' = 'owner', statusReads = 0;
   const readers: NativeDashboardReaders = {
     sessions: {list: async () => page('session', 1)},
-    console: {measurement: async name => ({name, observedAt: 1, freshUntil: 30001, facts: {}}), alerts: async () => [], jobs: async cursor => {
-      jobs.push(cursor ?? ''); return {items: [{id: cursor ? 'second' : 'first'}] as never[], nextCursor: cursor ? '' : 'jobs-next'};
-    }, dispose() {}},
+    status: async () => {statusReads++; return {observedAt: '2026-11-12T00:00:00Z', alerts: [], openReports: 0, nowPlaying: {}, backups: {},
+      scans: [{kind: 'scan', libraryId: 'lib_1', libraryName: 'Films', phase: 'reading', discovered: 10, analyzed: 4, total: 10}],
+      tasks: {count: 1, items: [{id: 'task_1', kind: 'trickplay', libraryName: 'Shows', phase: 'pictures', state: 'waiting', processed: 2, total: 8}]}} as never;},
+    storage: async () => ({dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'}) as never,
   };
   const controller = new NativeDashboardController(lifetime, () => role, readers);
-  await controller.refresh(); await controller.nextJobs(controller.getSnapshot().jobWindow!);
-  assert.deepEqual(jobs, ['', 'jobs-next']); assert.deepEqual(controller.getSnapshot().jobs.map(job => job.id), ['first', 'second']);
-  role = 'administrator'; await controller.refresh(); assert.deepEqual(controller.getSnapshot().jobs, []);
-  await controller.nextJobs(controller.getSnapshot().jobWindow!); assert.deepEqual(jobs, ['', 'jobs-next']);
+  await controller.refresh();
+  assert.deepEqual(controller.getSnapshot().jobs.map(job => [job.id, job.kind, job.resource, job.state, job.processed, job.total, job.actions.length]),
+    [['scan:lib_1', 'scan', 'Films', 'running', 4, 10, 0], ['task_1', 'trickplay', 'Shows', 'queued', 2, 8, 0]]);
+  assert.equal(controller.getSnapshot().jobWindow, undefined, 'there is never a next page of jobs');
+  role = 'administrator'; await controller.refresh();
+  assert.deepEqual(controller.getSnapshot().jobs, []);
+  assert.equal(statusReads, 1, 'an administrator is never sent the owner\'s Dashboard read');
   controller.dispose(); lifetime.dispose();
 });
-
 test('Dashboard reaches 21 sessions in producer order and retains the server totals', async () => {
   const lifetime = new NativeScreenLifetime({authority: () => authority, current: () => true, subscribeAuthority: () => () => {}});
   const calls: (string | undefined)[] = [];
   const readers: NativeDashboardReaders = {
     sessions: {list: async cursor => {calls.push(cursor); return cursor === undefined ? page('a', 10, 'p2') : cursor === 'p2' ? page('b', 10, 'p3') : page('c', 1);}},
-    console: {measurement: async name => ({name, observedAt: 1, freshUntil: 30001, facts: {}}), alerts: async () => [], jobs: async () => ({items: [], nextCursor: ''}), dispose() {}},
+    status: async () => ({observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 0, items: []}, nowPlaying: {}, backups: {}, openReports: 0}) as never,
+    storage: async () => ({dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'}) as never,
   };
   const controller = new NativeDashboardController(lifetime, () => 'administrator', readers);
   await controller.refresh(); await controller.nextSessions(controller.getSnapshot().sessionWindow!); await controller.nextSessions(controller.getSnapshot().sessionWindow!);
@@ -80,30 +85,13 @@ test('a changed session page revision refuses the continuation and preserves pri
   const lifetime = new NativeScreenLifetime({authority: () => authority, current: () => true, subscribeAuthority: () => () => {}});
   const readers: NativeDashboardReaders = {
     sessions: {list: async cursor => cursor ? {...page('changed', 1), revision: 'rev-2'} : page('original', 10, 'next')},
-    console: {measurement: async name => ({name, observedAt: 1, freshUntil: 30001, facts: {}}), alerts: async () => [], jobs: async () => ({items: [], nextCursor: ''}), dispose() {}},
+    status: async () => ({observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 0, items: []}, nowPlaying: {}, backups: {}, openReports: 0}) as never,
+    storage: async () => ({dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'}) as never,
   };
   const controller = new NativeDashboardController(lifetime, () => 'administrator', readers);
   await controller.refresh(); await controller.nextSessions(controller.getSnapshot().sessionWindow!);
   assert.equal(controller.getSnapshot().sessionWindow?.refreshRequired, true);
   assert.equal(controller.getSnapshot().sessions[0]?.id, 'original0');
-  controller.dispose(); lifetime.dispose();
-});
-
-test('owner job continuation is fenced when admission becomes administrator', async () => {
-  const lifetime = new NativeScreenLifetime({authority: () => authority, current: () => true, subscribeAuthority: () => () => {}});
-  let role: 'owner' | 'administrator' = 'owner', finish!: (value: {items: never[]; nextCursor: string}) => void, jobReads = 0;
-  const readers: NativeDashboardReaders = {
-    sessions: {list: async () => page('session', 1)},
-    console: {measurement: async name => ({name, observedAt: 1, freshUntil: 30001, facts: {}}), alerts: async () => [], jobs: async cursor => {
-      jobReads++; return cursor ? new Promise(resolve => {finish = resolve;}) : {items: [{id: 'owner-job', revision: 1}] as never[], nextCursor: 'next'};
-    }, dispose() {}},
-  };
-  const controller = new NativeDashboardController(lifetime, () => role, readers);
-  await controller.refresh(); const pending = controller.nextJobs(controller.getSnapshot().jobWindow!);
-  role = 'administrator'; await controller.refresh();
-  assert.deepEqual(controller.getSnapshot().jobs, []); assert.equal(controller.getSnapshot().health, undefined);
-  finish({items: [{id: 'late-owner-job', revision: 1}] as never[], nextCursor: ''}); await pending;
-  assert.deepEqual(controller.getSnapshot().jobs, []); assert.equal(jobReads, 2);
   controller.dispose(); lifetime.dispose();
 });
 
@@ -115,7 +103,8 @@ test('coalesced refresh cannot reset the session revision fence between visible 
       if (!refreshing) return cursor ? page('old2', 1) : page('old1', 1, 'next');
       return cursor ? new Promise(resolve => {finish = resolve;}) : {...page('fresh1', 1, 'next'), revision: 'rev-2'};
     }},
-    console: {measurement: async name => ({name, observedAt: 1, freshUntil: 30001, facts: {}}), alerts: async () => [], jobs: async () => ({items: [], nextCursor: ''}), dispose() {}},
+    status: async () => ({observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 0, items: []}, nowPlaying: {}, backups: {}, openReports: 0}) as never,
+    storage: async () => ({dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'}) as never,
   };
   const controller = new NativeDashboardController(lifetime, () => 'administrator', readers);
   await controller.refresh(); await controller.nextSessions(controller.getSnapshot().sessionWindow!);
@@ -130,7 +119,8 @@ test('a retained same-generation row may acquire focus while its next page waits
   let finish!: (value: ReturnType<typeof page>) => void;
   const readers: NativeDashboardReaders = {
     sessions: {list: async cursor => cursor === 'p4' ? new Promise(resolve => {finish = resolve;}) : cursor === undefined ? page('a', 1, 'p2') : cursor === 'p2' ? page('b', 1, 'p3') : page('c', 1, 'p4')},
-    console: {measurement: async name => ({name, observedAt: 1, freshUntil: 30001, facts: {}}), alerts: async () => [], jobs: async () => ({items: [], nextCursor: ''}), dispose() {}},
+    status: async () => ({observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 0, items: []}, nowPlaying: {}, backups: {}, openReports: 0}) as never,
+    storage: async () => ({dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'}) as never,
   };
   const controller = new NativeDashboardController(lifetime, () => 'administrator', readers);
   await controller.refresh(); await controller.nextSessions(controller.getSnapshot().sessionWindow!); await controller.nextSessions(controller.getSnapshot().sessionWindow!);
@@ -151,7 +141,7 @@ test('real AdminSessionsClient accepts the producer empty revision across contin
     calls.push(request.path); const cursor = new URL(request.path, 'https://server.invalid').searchParams.get('cursor');
     return {status: 200, headers: {}, body: {scope: {serverId: 'server', viewerFence: fence}, observedAt: stamp, items: [session(cursor ? 'second' : 'first')], page: {limit: 10, total: 2, start: cursor ? 1 : 0, revision: '', ...(cursor ? {} : {nextCursor: 'offered'})}, totals: {streams: 2, paused: 0, converting: 0, bandwidthKbps: 0, people: 1, atHome: 2, away: 0}}};
   }});
-  const readers: NativeDashboardReaders = {sessions: client, console: {measurement: async name => ({name, observedAt: 1, freshUntil: 30001, facts: {}}), alerts: async () => [], jobs: async () => ({items: [], nextCursor: ''}), dispose() {}}};
+  const readers: NativeDashboardReaders = {sessions: client, status: async () => ({observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 0, items: []}, nowPlaying: {}, backups: {}, openReports: 0}) as never, storage: async () => ({dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'}) as never};
   const controller = new NativeDashboardController(lifetime, () => 'administrator', readers);
   await controller.refresh(); await controller.nextSessions(controller.getSnapshot().sessionWindow!);
   assert.deepEqual(controller.getSnapshot().sessions.map(row => row.id), ['first', 'second']);
@@ -170,7 +160,8 @@ for (const field of ['serverId', 'profileId'] as const) test(`Dashboard retires 
   let finish!: (value: ReturnType<typeof page>) => void; const calls: (string | undefined)[] = [];
   const readers: NativeDashboardReaders = {
     sessions: {list: async cursor => {calls.push(cursor); return cursor ? new Promise(resolve => {finish = resolve;}) : page('original', 1, 'next');}},
-    console: {measurement: async name => ({name, observedAt: 1, freshUntil: 30001, facts: {}}), alerts: async () => [], jobs: async () => ({items: [], nextCursor: ''}), dispose() {}},
+    status: async () => ({observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 0, items: []}, nowPlaying: {}, backups: {}, openReports: 0}) as never,
+    storage: async () => ({dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'}) as never,
   };
   const controller = new NativeDashboardController(lifetime, () => 'administrator', readers);
   await controller.refresh(); const original = controller.getSnapshot().sessionWindow!;
@@ -189,7 +180,8 @@ test('Dashboard loading notification disposal refuses every old owner read', asy
   const calls: string[] = [];
   const readers: NativeDashboardReaders = {
     sessions: {list: async () => {calls.push('sessions'); return page('row', 1);}},
-    console: {measurement: async name => {calls.push(name); return {name, observedAt: 1, freshUntil: 30001, facts: {}};}, alerts: async () => {calls.push('alerts'); return [];}, jobs: async () => {calls.push('jobs'); return {items: [], nextCursor: ''};}, dispose() {}},
+    status: async () => ({observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 0, items: []}, nowPlaying: {}, backups: {}, openReports: 0}) as never,
+    storage: async () => ({dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'}) as never,
   };
   const controller = new NativeDashboardController(lifetime, () => 'owner', readers);
   const off = controller.subscribe(() => {if (controller.getSnapshot().loading) controller.dispose();});
@@ -202,7 +194,8 @@ test('Dashboard loading notification installs an administrator successor before 
   let role: 'owner' | 'administrator' = 'owner', successor: Promise<void> | undefined; const calls: string[] = [];
   const readers: NativeDashboardReaders = {
     sessions: {list: async () => {calls.push(`sessions:${role}`); return page('admin', 1);}},
-    console: {measurement: async name => {calls.push(name); return {name, observedAt: 1, freshUntil: 30001, facts: {}};}, alerts: async () => {calls.push('alerts'); return [];}, jobs: async () => {calls.push('jobs'); return {items: [], nextCursor: ''};}, dispose() {}},
+    status: async () => ({observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 0, items: []}, nowPlaying: {}, backups: {}, openReports: 0}) as never,
+    storage: async () => ({dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'}) as never,
   };
   const controller = new NativeDashboardController(lifetime, () => role, readers);
   const off = controller.subscribe(() => {if (role === 'owner' && controller.getSnapshot().loading) {role = 'administrator'; successor = controller.refresh();}});
@@ -217,7 +210,8 @@ test('Dashboard disposal notification cannot reenter refresh while the lifetime 
   const calls: string[] = []; let reentered: Promise<void> | undefined;
   const readers: NativeDashboardReaders = {
     sessions: {list: async () => {calls.push('sessions'); return page('row', 1);}},
-    console: {measurement: async name => {calls.push(name); return {name, observedAt: 1, freshUntil: 30001, facts: {}};}, alerts: async () => {calls.push('alerts'); return [];}, jobs: async () => {calls.push('jobs'); return {items: [], nextCursor: ''};}, dispose() {}},
+    status: async () => ({observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 0, items: []}, nowPlaying: {}, backups: {}, openReports: 0}) as never,
+    storage: async () => ({dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'}) as never,
   };
   const controller = new NativeDashboardController(lifetime, () => 'owner', readers);
   controller.subscribe(() => {if (controller.getSnapshot().admission === 'denied') reentered = controller.refresh();});
@@ -230,24 +224,26 @@ test('Dashboard current owner refresh dispatches each authorized section once', 
   const calls: string[] = [];
   const readers: NativeDashboardReaders = {
     sessions: {list: async () => {calls.push('sessions'); return page('owner', 1);}},
-    console: {measurement: async name => {calls.push(name); return {name, observedAt: 1, freshUntil: 30001, facts: {}};}, alerts: async () => {calls.push('alerts'); return [];}, jobs: async () => {calls.push('jobs'); return {items: [], nextCursor: ''};}, dispose() {}},
+    status: async () => {calls.push('status'); return {observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 0, items: []}, nowPlaying: {}, backups: {}, openReports: 0} as never;},
+    storage: async () => {calls.push('storage'); return {dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'} as never;},
   };
   const controller = new NativeDashboardController(lifetime, () => 'owner', readers); await controller.refresh();
-  assert.deepEqual(calls, ['sessions', 'health', 'storage', 'alerts', 'jobs']); assert.equal(controller.getSnapshot().loading, false);
+  assert.deepEqual(calls, ['sessions', 'status', 'storage']); assert.equal(controller.getSnapshot().loading, false);
   controller.dispose(); lifetime.dispose();
 });
 
-test('Dashboard role-change abort fanout retires both old windows without aborting the successor', async () => {
+test('Dashboard role-change abort fanout retires the old sessions window without aborting the successor', async () => {
   const lifetime = new NativeScreenLifetime({authority: () => authority, current: () => true, subscribeAuthority: () => () => {}});
   let role: 'owner' | 'administrator' = 'owner', successor: Promise<void> | undefined;
-  let finishSession: ((value: ReturnType<typeof page>) => void) | undefined, finishJob: ((value: {items: never[]; nextCursor: string}) => void) | undefined;
+  let finishSession: ((value: ReturnType<typeof page>) => void) | undefined;
   const pending: Promise<unknown>[] = [];
   const readers: NativeDashboardReaders = {
     sessions: {list: async (cursor, _limit, signal) => {
       if (!cursor) return page('current', 1, 'next');
       return new Promise(resolve => {finishSession = resolve; signal?.addEventListener('abort', () => {role = 'owner'; successor = controller.refresh();}, {once: true});});
     }},
-    console: {measurement: async name => ({name, observedAt: 1, freshUntil: 30001, facts: {}}), alerts: async () => [], jobs: async cursor => cursor ? new Promise(resolve => {finishJob = resolve;}) : {items: [{id: 'job', revision: 1}] as never[], nextCursor: 'next'}, dispose() {}},
+    status: async () => ({observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 0, items: []}, nowPlaying: {}, backups: {}, openReports: 0}) as never,
+    storage: async () => ({dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'}) as never,
   };
   const controller = new NativeDashboardController(lifetime, () => role, readers); await controller.refresh();
   const OriginalAbort = globalThis.AbortController, created: AbortController[] = [];
@@ -255,17 +251,15 @@ test('Dashboard role-change abort fanout retires both old windows without aborti
   globalThis.AbortController = ObservedAbort;
   try {
     const oldSession = controller.nextSessions(controller.getSnapshot().sessionWindow!); pending.push(oldSession);
-    const oldJob = controller.nextJobs(controller.getSnapshot().jobWindow!); pending.push(oldJob);
-    assert.equal(created.length, 2); const [sessionAbort, jobAbort] = created;
+    assert.equal(created.length, 1); const [sessionAbort] = created;
     role = 'administrator'; await controller.refresh(); assert.ok(successor); await successor;
-    assert.equal(sessionAbort.signal.aborted, true); assert.equal(jobAbort.signal.aborted, true);
-    assert.ok(created.length >= 4); assert.equal(created[2].signal.aborted, false); assert.equal(created[3].signal.aborted, false);
-    assert.ok(finishSession); assert.ok(finishJob); finishSession(page('old', 1)); finishJob({items: [{id: 'old-job', revision: 1}] as never[], nextCursor: ''}); await Promise.all([oldSession, oldJob]);
+    assert.equal(sessionAbort.signal.aborted, true);
+    assert.ok(created.length >= 2); assert.equal(created.at(-1)!.signal.aborted, false);
+    assert.ok(finishSession); finishSession(page('old', 1)); await oldSession;
     assert.equal(controller.getSnapshot().admission, 'owner'); assert.equal(controller.getSnapshot().sessions[0]?.id, 'current0');
-    assert.equal(controller.getSnapshot().jobs[0]?.id, 'job');
   } finally {
     globalThis.AbortController = OriginalAbort; controller.dispose(); lifetime.dispose();
-    finishSession?.(page('old', 1)); finishJob?.({items: [], nextCursor: ''});
+    finishSession?.(page('old', 1));
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {await Promise.race([Promise.allSettled(pending), new Promise<never>((_, reject) => {timer = setTimeout(() => reject(new Error('held dashboard readers did not settle')), 1000);})]);}
     finally {if (timer) clearTimeout(timer);}
@@ -278,7 +272,8 @@ test('a moved viewer fence between session pages answers and retires nothing; an
   let foreign = false;
   const readers: NativeDashboardReaders = {
     sessions: {list: async cursor => foreign ? {...page('x', 1), scope: {serverId: 'other', viewerFence: 'fence'}} : moved(cursor)},
-    console: {measurement: async name => ({name, observedAt: 1, freshUntil: 30001, facts: {}}), alerts: async () => [], jobs: async () => ({items: [], nextCursor: ''}), dispose() {}},
+    status: async () => ({observedAt: '2026-11-12T00:00:00Z', alerts: [], scans: [], tasks: {count: 0, items: []}, nowPlaying: {}, backups: {}, openReports: 0}) as never,
+    storage: async () => ({dataFolder: '/data', sharedDrive: false, diskBytes: 100, freeBytes: 50, level: 'ok', folders: [], measuredAt: '2026-11-12T00:00:00Z'}) as never,
   };
   const controller = new NativeDashboardController(lifetime, () => 'administrator', readers);
   await controller.refresh(); await controller.nextSessions(controller.getSnapshot().sessionWindow!);

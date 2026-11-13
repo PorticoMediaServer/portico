@@ -1,15 +1,15 @@
 import {readEventState} from '../../platform/event-resync';
 import React from 'react';
 import {Platform} from 'react-native';
-import {AdminSessionsClient} from '../../../../../packages/client-core/src/playback-v1/admin-sessions';
-import {localV1Http} from '../../../../../packages/client-core/src/playback-v1/local-http';
-import {ConsoleClient} from '../../../../../packages/client-core/src/console';
+import {readServerNowPlaying} from '../../../../../packages/client-core/src/admin/server-now-playing';
+import {DashboardDataClient} from '../../../../../packages/client-core/src/admin/dashboard';
+import {readServerStorage} from '../../../../../packages/client-core/src/server-admin/server-storage';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeRouteRenderer} from '../../shell/route-registry';
 import {NativeScreenLifetime} from './lifetime';
 import {createBoundNativeSettingsController} from './settings-controller';
 import {nativeDevicePreferences} from './device-preference-consumer';
-import {NativeDashboardController, type NativeDashboardAdmission} from './dashboard-controller';
+import {NativeDashboardController, type NativeDashboardAdmission, type NativeDashboardReaders} from './dashboard-controller';
 import {nativeServerAdmission} from './server/tv-server-reader';
 import {NativeTVServerScreen} from './server/TVServerScreen';
 import {isTVServerPage} from './server/TVServerPageMenu';
@@ -36,10 +36,15 @@ function createComposition(context: NativeShellBootstrapContext) {
   const ports = createNativeSettingsPorts(context, lifetime, route => context.navigation.open(route, context.authority()), downloads);
   const unsubscribe = context.subscribePreferences(() => {if (lifetime.current()) settings.accept(context.preferences());});
   const api = {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => lifetime.request(next => (!method || method === 'GET') ? readEventState(context.events, next, () => context.api.request<T>(path, method, body, next)) : context.api.request<T>(path, method, body, next), signal)};
-  const raw = localV1Http(context.api);
-  const sessions = new AdminSessionsClient({send: request => lifetime.request(signal => request.method === 'GET' ? readEventState(context.events, signal, () => raw.send({...request, signal})) : raw.send({...request, signal}), request.signal)}, nativeSettingsRequestId);
+  // The Dashboard reads the rebuilt server: Now playing (all of it at once, so never a next page), the Dashboard read and
+  // the data folder's storage.
+  const sessions = {list: async (_cursor?: string, _limit?: number, signal?: AbortSignal) => {
+    const page = await readServerNowPlaying(api, signal);
+    return {items: page.items, totals: page.totals, scope: {serverId: lifetime.authority.serverId}, nextCursor: undefined, revision: undefined};
+  }} as unknown as NativeDashboardReaders['sessions'];
+  const status = new DashboardDataClient(api);
   const admission = (): NativeDashboardAdmission => nativeServerAdmission(context.account, lifetime);
-  const dashboard = new NativeDashboardController(lifetime, admission, {sessions, console: new ConsoleClient(api, {serverId: lifetime.authority.serverId, viewerId: lifetime.authority.profileId})});
+  const dashboard = new NativeDashboardController(lifetime, admission, {sessions, status: () => status.status(lifetime.signal), storage: () => readServerStorage(api, lifetime.signal)});
   let disposed = false;
   const dispose = () => {if (disposed) return; disposed = true; unsubscribe(); dashboard.dispose(); try {downloads?.dispose();} catch { /* Composition retirement is final. */ } lifetime.dispose();};
   return {

@@ -34,21 +34,20 @@ export function OwnerCalm({icon, title, body, tone = 'quiet', action}: {icon: Ic
   </View>;
 }
 
-/** An alert: its severity, name, catalogued explanation and the one action the server allows. */
-export function OwnerAlertCard({alert, t, onAcknowledge, onFixPermissions}: {alert: OwnerAlertView; t: Translate; onAcknowledge: () => void; onFixPermissions?: () => void}) {
+/** An alert: its severity, its words and the one action the server allows (Fix permissions when it can fix it). The
+ *  rebuilt server keeps no acknowledgement: an alert stays until what it is about is fixed. */
+export function OwnerAlertCard({alert, t, onFixPermissions}: {alert: OwnerAlertView; t: Translate; onFixPermissions?: () => void}) {
   const theme = useTheme();
   const tone = alert.tone === 'danger' ? theme.colors.danger : alert.tone === 'warning' ? theme.colors.amber : theme.colors.textSecondary;
-  return <View testID={`owner-alert-${alert.id}`} style={{paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14, borderRadius: 14, backgroundColor: theme.colors.raised, opacity: alert.acknowledged ? .66 : 1}}>
+  return <View testID={`owner-alert-${alert.id}`} style={{paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14, borderRadius: 14, backgroundColor: theme.colors.raised}}>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 6}}>
       <View style={{width: 8, height: 8, borderRadius: 4, backgroundColor: tone}}/>
       <Text style={[shellType(12.5, 700), {color: tone}]}>{alert.severity}</Text>
     </View>
     <Text style={[shellType(15.5, 700, 20.2), {color: theme.colors.text}]}>{alert.title}</Text>
     {alert.body ? <Text style={[shellType(14, 400, 20.3), {color: theme.colors.textSecondary, marginTop: 5}]}>{alert.body}</Text> : null}
-    <Text style={[shellType(12.5, 600), {color: theme.colors.textTertiary, marginTop: 8}]}>{alert.meta}</Text>
-    {!alert.acknowledged ? <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14}}>
-      {alert.permissions && onFixPermissions ? <Button variant="primary" size="xs" onPress={onFixPermissions}>{t('web.maintenance.fixPermissions')}</Button> : null}
-      <Button variant="text" size="xs" onPress={onAcknowledge}>{t('web.overview.acknowledge')}</Button>
+    {alert.permissions && onFixPermissions ? <View style={{flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14}}>
+      <Button variant="primary" size="xs" onPress={onFixPermissions}>{t('next.dashboard.fixPermissions')}</Button>
     </View> : null}
   </View>;
 }

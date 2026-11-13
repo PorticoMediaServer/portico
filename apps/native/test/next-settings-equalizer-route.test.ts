@@ -16,9 +16,9 @@ async function fixture() {
   const {react} = hooks();
   const module = await screenModule(new URL('../src-next/screens/settings-live/SettingsRoute.tsx', import.meta.url), {
     react, 'react-native': {Platform: {isTV: true, OS: 'android'}},
-    '../../../../../packages/client-core/src/playback-v1/admin-sessions': {},
-    '../../../../../packages/client-core/src/playback-v1/local-http': {},
-    '../../../../../packages/client-core/src/console': {},
+    '../../../../../packages/client-core/src/admin/server-now-playing': {},
+    '../../../../../packages/client-core/src/admin/dashboard': {DashboardDataClient: class {}},
+    '../../../../../packages/client-core/src/server-admin/server-storage': {},
     './lifetime': {NativeScreenLifetime}, './settings-controller': {}, './device-preference-consumer': {},
     './dashboard-controller': {}, './server/tv-server-reader': {}, './server/TVServerScreen': {}, './SettingsScreen': {}, './DashboardScreen': {}, './settings-ports': {},
     './server/TVServerPageMenu': {isTVServerPage: () => false},

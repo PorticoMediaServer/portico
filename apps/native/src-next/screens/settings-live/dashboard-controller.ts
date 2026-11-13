@@ -1,4 +1,7 @@
-import {ConsoleClient, type Alert, type Job, type Measurement} from '../../../../../packages/client-core/src/console';
+import type {Job} from '../../../../../packages/client-core/src/console';
+import type {DashboardStatus} from '../../../../../packages/client-core/src/admin/dashboard';
+import {storageFacts, type ServerStorage} from '../../../../../packages/client-core/src/server-admin/server-storage';
+import type {HealthFacts} from '../../../../../packages/client-core/src/server-admin/dashboard';
 import {AdminSessionsClient} from '../../../../../packages/client-core/src/playback-v1/admin-sessions';
 import type {AdminSession} from '../../../../../packages/client-core/src/playback-v1/types';
 import type {NativeScreenLifetime} from './lifetime';
@@ -14,18 +17,35 @@ export type NativeDashboardSnapshot = Readonly<{
   sessionWindow?: DashboardCursorSnapshot<AdminSession, SessionMeta>;
   jobWindow?: DashboardCursorSnapshot<Job, undefined>;
   totals?: Awaited<ReturnType<AdminSessionsClient['list']>>['totals'];
-  health?: Measurement;
-  storage?: Measurement;
-  alerts: readonly Alert[];
+  /** The header's facts: needs attention while any alert is major, free space and the database's size. */
+  health?: HealthFacts;
+  /** When the Dashboard read was answered. */
+  observedAt?: string;
+  alerts: readonly DashboardAlert[];
   jobs: readonly Job[];
   error?: unknown;
 }>;
 type SessionPage = Awaited<ReturnType<AdminSessionsClient['list']>>;
 type SessionMeta = Readonly<{totals: SessionPage['totals']; scope: SessionPage['scope']; revision?: string}>;
+export type DashboardAlert = DashboardStatus['alerts'][number];
+/** The rebuilt server's reads: Now playing, the Dashboard read (alerts, scans, tasks) and the data folder's storage. */
 export type NativeDashboardReaders = Readonly<{
   sessions: Pick<AdminSessionsClient, 'list'>;
-  console: Pick<ConsoleClient, 'measurement' | 'alerts' | 'jobs' | 'dispose'>;
+  status: () => Promise<DashboardStatus>;
+  storage: () => Promise<ServerStorage>;
 }>;
+
+const jobStates: Readonly<Record<string, Job['state']>> = {waiting: 'queued', queued: 'queued', running: 'running', paused: 'paused', failed: 'failed', done: 'succeeded', succeeded: 'succeeded', cancelled: 'cancelled'};
+/** The Dashboard read's scans and tasks as the jobs the screens draw. The rebuilt server takes no job commands, so none
+ *  offers an action, and it lists them all at once: there is never a next page. */
+export function dashboardJobs(status: DashboardStatus): readonly Job[] {
+  const job = (id: string, kind: string, resource: string, state: Job['state'], phase: string, processed?: number, total?: number): Job =>
+    ({id, kind, resource, trigger: '', state, phase, revision: 0, attempt: 0, createdAt: 0, updatedAt: 0, nextAt: 0, settingsRevision: 0, lane: '', actions: [], ...(processed === undefined ? {} : {processed}), ...(total === undefined ? {} : {total})});
+  return Object.freeze([
+    ...status.scans.map(scan => job('scan:' + scan.libraryId, 'scan', scan.libraryName, 'running', scan.phase, scan.analyzed, scan.total)),
+    ...status.tasks.items.map(task => job(task.id, task.kind, task.libraryName ?? '', jobStates[task.state] ?? 'running', task.phase, task.processed, task.total)),
+  ]);
+}
 
 /** Re-evaluate main-profile and live membership authority before every read and publication. */
 export class NativeDashboardController extends NativeScreenStore<NativeDashboardSnapshot> {
@@ -43,7 +63,6 @@ export class NativeDashboardController extends NativeScreenStore<NativeDashboard
     super({admission: admission(), loading: false, sessions: [], alerts: [], jobs: []});
     this.lifetime = lifetime; this.admission = admission; this.readers = readers; this.role = admission();
     this.sessions = this.sessionWindow();
-    if (this.role === 'owner') this.jobs = this.jobWindow();
     lifetime.signal.addEventListener('abort', this.retire, {once: true});
   }
   private valid = (role: NativeDashboardAdmission): boolean => {
@@ -65,18 +84,6 @@ export class NativeDashboardController extends NativeScreenStore<NativeDashboard
     const current = (): boolean => this.sessions === window && this.valid(role) && this.sessions === window;
     return window;
   }
-  private jobWindow(): DashboardCursorWindow<Job, undefined> {
-    const window: DashboardCursorWindow<Job, undefined> = new DashboardCursorWindow<Job, undefined>(async cursor => {
-      if (!current()) throw new Error('native_screen_scope_ended');
-      const page = await this.readers.console.jobs(cursor);
-      if (!current()) throw new Error('native_screen_scope_ended');
-      return {...page, metadata: undefined};
-    }, row => row.id, () => current(), snapshot => {
-      if (current()) this.publish({...this.getSnapshot(), jobWindow: snapshot, jobs: snapshot.items});
-    }, (first, second) => first.revision === second.revision);
-    const current = (): boolean => this.jobs === window && this.valid('owner') && this.jobs === window;
-    return window;
-  }
   private retire = (): void => {
     if (this.disposed) return;
     this.disposed = true; this.generation++;
@@ -95,7 +102,7 @@ export class NativeDashboardController extends NativeScreenStore<NativeDashboard
     if (role !== this.role) {
       const oldSessions = this.sessions, oldJobs = this.jobs;
       this.role = role; this.sessionRevision = undefined;
-      this.sessions = this.sessionWindow(); this.jobs = role === 'owner' ? this.jobWindow() : undefined;
+      this.sessions = this.sessionWindow(); this.jobs = undefined;
       const replacement = this.sessions, replacementJobs = this.jobs;
       const own = () => !this.disposed && this.generation === generation && this.role === role && this.sessions === replacement && this.jobs === replacementJobs;
       const current = () => own() && (role === 'denied' ? this.admission() === role : this.valid(role)) && own();
@@ -121,16 +128,19 @@ export class NativeDashboardController extends NativeScreenStore<NativeDashboard
     try {
       const sessions = track(sessionsWindow.refresh());
       if (!admitted()) return finishEarly();
-      let health: Promise<Measurement> | undefined, storage: Promise<Measurement> | undefined, alerts: Promise<Alert[]> | undefined, jobs: Promise<void> | undefined;
+      let status: Promise<DashboardStatus> | undefined, storage: Promise<ServerStorage | undefined> | undefined;
       if (role === 'owner') {
-        health = track(this.readers.console.measurement('health')); if (!admitted()) return finishEarly();
-        storage = track(this.readers.console.measurement('storage')); if (!admitted()) return finishEarly();
-        alerts = track(this.readers.console.alerts()); if (!admitted()) return finishEarly();
-        jobs = jobsWindow ? track(jobsWindow.refresh()) : undefined; if (!admitted()) return finishEarly();
+        status = track(this.readers.status()); if (!admitted()) return finishEarly();
+        // Free space is a nicety in the header: a storage read that fails leaves it out, never the page.
+        storage = track(this.readers.storage().catch(() => undefined)); if (!admitted()) return finishEarly();
       }
-      return Promise.all([sessions, jobs, health, storage, alerts]).then(([, , nextHealth, nextStorage, nextAlerts]) => {
+      return Promise.all([sessions, status, storage]).then(([, nextStatus, nextStorage]) => {
         if (!admitted()) return;
-        this.publish({...this.getSnapshot(), loading: false, ...(role === 'owner' ? {health: nextHealth, storage: nextStorage, alerts: nextAlerts ?? []} : {})});
+        const owned = role === 'owner' && nextStatus ? {
+          alerts: nextStatus.alerts, jobs: dashboardJobs(nextStatus), observedAt: nextStatus.observedAt,
+          health: Object.freeze({degraded: nextStatus.alerts.some(alert => alert.major), ...(nextStorage ? storageFacts(nextStorage) : {})}),
+        } : {};
+        this.publish({...this.getSnapshot(), loading: false, ...owned});
       }, error => {if (admitted()) this.publish({...this.getSnapshot(), loading: false, error});});
     } catch (error) {
       if (admitted()) this.publish({...this.getSnapshot(), loading: false, error});
@@ -153,5 +163,5 @@ export class NativeDashboardController extends NativeScreenStore<NativeDashboard
   blurJob = (id: string, token: object, expected: DashboardCursorSnapshot<Job, undefined>): void => {const window = this.jobs; if (window && window.snapshot().scope === expected.scope) window.blur(id, token);};
   focusSessionHost = (expected: DashboardCursorSnapshot<AdminSession, SessionMeta>): void => {const window = this.sessions; if (window.snapshot() === expected && this.valid(this.role) && this.sessions === window && window.snapshot() === expected) window.focus(undefined);};
   focusJobHost = (expected: DashboardCursorSnapshot<Job, undefined>): void => {const window = this.jobs; if (window && window.snapshot() === expected && this.valid('owner') && this.jobs === window && window.snapshot() === expected) window.focus(undefined);};
-  dispose(): void {if (this.cleaned) return; this.cleaned = true; this.retire(); this.lifetime.signal.removeEventListener('abort', this.retire); this.readers.console.dispose(); this.clearListeners();}
+  dispose(): void {if (this.cleaned) return; this.cleaned = true; this.retire(); this.lifetime.signal.removeEventListener('abort', this.retire); this.clearListeners();}
 }

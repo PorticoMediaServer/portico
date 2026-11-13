@@ -2,9 +2,9 @@ import {recoverEventState} from '../../platform/event-resync';
 import React, {useEffect, useMemo, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {healthFacts} from '../../../../../packages/client-core/src/server-admin/dashboard';
+import {dashboardAlertWords} from '../../../../../packages/client-core/src/admin/dashboard-alert-words';
 import {formatBytes} from '../../../../../packages/client-core/src/presentation/content';
-import {alertName, jobName} from '../../../../../packages/client-core/src/server-admin/console-catalogue';
+import {jobName} from '../../../../../packages/client-core/src/server-admin/console-catalogue';
 import {playedFraction} from '../../../../../packages/client-core/src/server-admin/now-playing';
 import {sessionFactParts} from '../../../../../packages/client-core/src/presentation/kit-model';
 import {Button, Focusable} from '../../kit/controls';
@@ -55,8 +55,9 @@ export function NativeDashboardScreen({controller, ports, runtime, deniedFallbac
   if (state.admission === 'denied') return <>{deniedFallback}</>;
   // The phone draws the owner Dashboard page from owner-dashboard.html; the TV keeps its Settings surface.
   if (!theme.isTV) return <NativeOwnerDashboardPhone controller={controller} ports={ports} runtime={runtime} inline={inline}/>;
-  const health = healthFacts(state.health, state.storage);
-  const facts: ServerFact[] = state.health?.facts.database ? [{id: 'state', text: t(health.degraded ? 'next.shell.health.attention' : 'next.shell.health.normal'), tone: health.degraded ? 'warning' : 'normal'}] : [];
+  // The rebuilt server's facts: needs attention while any alert is major, free space and the database's size.
+  const health = state.health ?? {degraded: false};
+  const facts: ServerFact[] = state.health ? [{id: 'state', text: t(health.degraded ? 'next.shell.health.attention' : 'next.shell.health.normal'), tone: health.degraded ? 'warning' : 'normal'}] : [];
   if (health.uptimeSeconds !== undefined) facts.push({id: 'uptime', text: t('settings.server.health.upFor', {duration: defaultI18n.duration(health.uptimeSeconds)})});
   if (health.freeBytes !== undefined) facts.push({id: 'free', text: t('settings.server.health.free', {bytes: formatBytes(health.freeBytes)})});
   if (health.databaseBytes !== undefined) facts.push({id: 'database', text: t('settings.server.health.database', {bytes: formatBytes(health.databaseBytes)})});
@@ -102,7 +103,7 @@ export function NativeDashboardScreen({controller, ports, runtime, deniedFallbac
           </>}
           {state.admission === 'owner' && <>
             <Text style={[shellType(theme.isTV ? 20 : 18, 700), {color: theme.colors.textSecondary, marginTop: 36, marginBottom: 14}]}>{t('settings.server.alerts')}</Text>
-            {state.alerts.map(alert => <Focusable key={alert.id} focusId={`alert:${alert.id}`} testID={`dashboard-alert-${alert.id}`} accessibilityRole="text" accessibilityLabel={alertName(t, defaultI18n.has, alert.code)} focusKind="row" style={{backgroundColor: theme.colors.raised, borderRadius: 16, padding: 24, marginBottom: 8}}><ScreenText>{alertName(t, defaultI18n.has, alert.code)}</ScreenText></Focusable>)}
+            {state.alerts.map((alert, index) => <Focusable key={`${alert.code}:${index}`} focusId={`alert:${alert.code}:${index}`} testID={`dashboard-alert-${alert.code}`} accessibilityRole="text" accessibilityLabel={dashboardAlertWords(alert, t).title} focusKind="row" style={{backgroundColor: theme.colors.raised, borderRadius: 16, padding: 24, marginBottom: 8}}><ScreenText>{dashboardAlertWords(alert, t).title}</ScreenText></Focusable>)}
             <Text style={[shellType(theme.isTV ? 20 : 18, 700), {color: theme.colors.textSecondary, marginTop: 36, marginBottom: 14}]}>{t('next.shell.backgroundTasks')}</Text>
             {state.jobs.map((job, index) => {let lease = controller.jobFocusToken(job.id); return <Focusable key={job.id} onFocus={() => {const window = state.jobWindow; if (window) {lease = controller.focusJob(job.id, window); if (index >= state.jobs.length - 2 && window.error === undefined) void controller.nextJobs(window);}}} onBlur={() => {if (state.jobWindow && lease) controller.blurJob(job.id, lease, state.jobWindow);}} focusId={`job:${job.id}`} testID={`dashboard-job-${job.id}`} accessibilityRole="text" accessibilityLabel={jobName(t, defaultI18n.has, job.kind)} focusKind="row" style={{backgroundColor: theme.colors.raised, borderRadius: 16, padding: 24, marginBottom: 8}}><ScreenText>{jobName(t, defaultI18n.has, job.kind)}</ScreenText></Focusable>;})}
             {state.jobWindow && <>

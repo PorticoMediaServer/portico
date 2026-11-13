@@ -8,7 +8,9 @@ import type {TelemetryReading} from '../../../../../../packages/client-core/src/
 import type {AdminSession} from '../../../../../../packages/client-core/src/playback-v1/types';
 import {offersScrubber, sessionViewer, STOP_MESSAGE_MAX, stopMessage, transportOffers, type TransportCommand} from '../../../../../../packages/client-core/src/server-admin/now-playing';
 import type {Job} from '../../../../../../packages/client-core/src/console';
-import {Linking, View} from 'react-native';
+import {Linking, Text, View} from 'react-native';
+import {dataFolderConfirmText} from '../../../../../../packages/client-core/src/admin/data-folder';
+import {ApiError} from '../../../../../../packages/client-core/src/http';
 import {SettingsUpdatesSource, type UpdatesSnapshot} from '../../../../../../packages/client-core/src/server-admin/updates-source';
 import {Button, TextField} from '../../../kit/controls';
 import {BottomSheet, Menu, type MenuEntry} from '../../../kit/overlays';
@@ -121,9 +123,10 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
   }), [state.sessions, runtime]);
   // Compact rows never draw artwork, so the full list maps only the facts each row says.
   const allEntries = useMemo<readonly OwnerStreamEntry[]>(() => expanded ? streamRows.map(session => Object.freeze({view: ownerStreamView(session, runtime.text)})) : [], [expanded, streamRows, runtime]);
-  const alerts = useMemo<readonly OwnerAlertView[]>(() => state.alerts.map(alert => ownerAlertView(alert, t, defaultI18n.has)), [state.alerts, t]);
+  const alerts = useMemo<readonly OwnerAlertView[]>(() => state.alerts.map((alert, index) => ownerAlertView(alert, index, t, defaultI18n.has)), [state.alerts, t]);
+  const [fixView, setFixView] = useState<OwnerAlertView>(), [refusal, setRefusal] = useState('');
   const jobs = useMemo<readonly OwnerJobView[]>(() => state.jobs.map(job => ownerJobView(job, t, defaultI18n.has)), [state.jobs, t]);
-  const health = ownerHealthLine(state.health, state.storage, t);
+  const health = ownerHealthLine(state.health, t);
   const rawStream = streamMenu ? raw(streamMenu.id) : undefined;
   const transportWords: Record<TransportCommand, string> = {pause: t('action.pause'), resume: t('entry.resume'), back: t('player.skipBackSeconds', {seconds: 30}), forward: t('player.skipForwardSeconds', {seconds: 30}), startOver: t('action.startOver')};
   const menuItems: readonly MenuEntry[] = rawStream ? [
@@ -139,7 +142,7 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
   return <>
     <OwnerDashboardPage t={t} role={owner ? 'owner' : 'administrator'} serverName={ports.serverName()} topInset={inline ? 0 : insets.top} inline={inline}
       health={{degraded: health.facts.degraded, status: health.status, line: health.line, ...(health.uptimeSeconds === undefined ? {} : {uptimeSeconds: health.uptimeSeconds})}}
-      updated={ownerUpdatedLabel(telemetry.reading?.observedAt ?? state.health?.observedAt, now, t)} loading={state.loading || busy} error={actionError ?? state.error}
+      updated={ownerUpdatedLabel(telemetry.reading?.observedAt ?? (state.observedAt ? Date.parse(state.observedAt) : undefined), now, t)} loading={state.loading || busy} error={actionError ?? state.error}
       streams={entries} streamTotals={totals} expanded={expanded && compact} allStreams={allEntries} allError={all.error}
       onShowAll={() => setExpanded(true)} onShowFewer={() => setExpanded(false)} onRetryAll={() => setAllRevision(value => value + 1)}
       people={totals.streams ? ownerPeopleLine(totals, t) : t('next.shell.streams', {count: 0})} alerts={alerts} jobs={jobs}
@@ -149,8 +152,7 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
       summary={statistics.summary} statisticsError={statistics.error} viewingPeriod={viewingPeriod}
       onBack={() => ports.context.navigation.back(controller.lifetime.authority)} refreshControl={pull} onRetry={refresh}
       onHealthWindow={setHealthWindow} onViewingPeriod={setViewingPeriod}
-      onAcknowledge={view => {const alert = state.alerts.find(value => value.id === view.id); if (alert) void run(() => reader.acknowledge(alert));}}
-      onFixPermissions={view => {const alert = state.alerts.find(value => value.id === view.id); if (alert) void run(async () => {await reader.fixPermissions(ports.requestId()); await reader.acknowledge(alert);});}}
+      onFixPermissions={view => {setRefusal(''); setFixView(view);}}
       onJobMenu={view => {setJobMenu(view); setActionError(undefined);}}
       onStop={view => {setMessage(''); setStopView(view);}} onStreamMenu={view => {setStreamMenu(view); setActionError(undefined);}}/>
     <Menu open={Boolean(streamMenu)} onOpenChange={open => {if (!open) setStreamMenu(undefined);}} presentation="sheet" testID="owner-stream-menu"
@@ -163,6 +165,19 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
       description={stopSession ? t('web.nowPlaying.stopBody', {viewer: sessionViewer(stopSession, t)}) : undefined}
       footer={<View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" disabled={busy} onPress={() => setStopView(undefined)}>{t('action.cancel')}</Button><Button variant="glass" disabled={busy} loading={busy} textStyle={{color: theme.colors.record}} onPress={() => {const view = stopView; if (view) void run(async () => {await reader.stop(view.id, stopMessage(message)); setStopView(undefined);});}}>{t('web.nowPlaying.stopConfirm')}</Button></View>}>
       <TextField testID="owner-stop-message" label={t('web.nowPlaying.messageLabel')} description={t('web.nowPlaying.messageHelp')} placeholder={t('web.nowPlaying.messagePlaceholder')} value={message} onChangeText={setMessage} maxLength={STOP_MESSAGE_MAX} multiline/>
+    </BottomSheet>
+    <BottomSheet open={Boolean(fixView)} onOpenChange={open => {if (!open && !busy) setFixView(undefined);}} testID="owner-fix-permissions-sheet"
+      title={t('next.dashboard.fixPermissions')} description={fixView?.owner && fixView.path ? dataFolderConfirmText(fixView.owner, fixView.path) : undefined}
+      footer={<View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" disabled={busy} onPress={() => setFixView(undefined)}>{t('action.cancel')}</Button><Button variant="primary" disabled={busy} loading={busy} onPress={() => {
+        void (async () => {
+          setBusy(true); setRefusal('');
+          // A refusal is shown in the server's own words, so the owner sees why nothing changed.
+          try {await reader.fixPermissions(); setFixView(undefined); await controller.refresh();}
+          catch (error) {if (error instanceof ApiError && error.message) setRefusal(error.message); else setActionError(error);}
+          finally {setBusy(false);}
+        })();
+      }}>{t('next.dashboard.fixPermissions')}</Button></View>}>
+      {refusal ? <Text accessibilityRole="alert" style={{color: theme.colors.record}}>{refusal}</Text> : null}
     </BottomSheet>
   </>;
 }

@@ -1,15 +1,16 @@
-import type {Alert, Job, Measurement} from '../../../../../../packages/client-core/src/console';
+import type {Job} from '../../../../../../packages/client-core/src/console';
+import {dashboardAlertWords} from '../../../../../../packages/client-core/src/admin/dashboard-alert-words';
+import type {DashboardAlert} from '../dashboard-controller';
 import type {PlayCount, PlaySummary} from '../../../../../../packages/client-core/src/play-history';
 import type {AdminSession} from '../../../../../../packages/client-core/src/playback-v1/types';
 import type {TelemetryPoint, TelemetryReading, TelemetryWindow} from '../../../../../../packages/client-core/src/telemetry';
 import type {FactPart, TextEnvironment} from '../../../../../../packages/client-core/src/presentation/kit-model';
 import type {MessageId, MessageValues} from '../../../../../../packages/i18n/src';
 import {formatBytes} from '../../../../../../packages/client-core/src/presentation/content';
-import {alertName, jobName, jobStateName, severityName} from '../../../../../../packages/client-core/src/server-admin/console-catalogue';
+import {jobName, jobStateName, severityName} from '../../../../../../packages/client-core/src/server-admin/console-catalogue';
 import {duration, jobTone, when} from '../../../../../../packages/client-core/src/server-admin/console-words';
-import {healthFacts, loadValue, measuredLoadTiles, type HealthFacts, type LoadTile} from '../../../../../../packages/client-core/src/server-admin/dashboard';
+import {loadValue, measuredLoadTiles, type HealthFacts, type LoadTile} from '../../../../../../packages/client-core/src/server-admin/dashboard';
 import {playedFraction, positionClock, rateMbps, windowRange} from '../../../../../../packages/client-core/src/server-admin/now-playing';
-import {STATE_PERMISSIONS_CODE} from '../../../../../../packages/client-core/src/administration';
 import type {StatTile} from '../../../kit/shell';
 import {nativeDashboardIdentity} from '../dashboard-presentation';
 
@@ -161,30 +162,30 @@ export type OwnerAlertView = Readonly<{
   body?: string;
   severity: string;
   tone: 'danger' | 'warning' | 'info';
-  acknowledged: boolean;
-  meta: string;
+  /** Fix permissions is offered (the server can fix it); its confirm names who will be able to open which folder. */
   permissions: boolean;
+  owner?: string;
+  path?: string;
 }>;
 
-/** Alerts are named and explained only from catalogue copy the server supplied facts for. */
-export function ownerAlertView(alert: Alert, t: Translate, has: Has): OwnerAlertView {
-  const permissions = alert.code === STATE_PERMISSIONS_CODE;
-  const meta = [alert.occurrences > 1 ? t('server.alert.seen', {count: alert.occurrences, when: when(alert.lastAt)}) : t('server.alert.firstSeen', {when: when(alert.firstAt)}), alert.status === 'acknowledged' ? t('server.alert.acknowledged') : ''].filter(Boolean).join(' · ');
+/** A Dashboard alert in the web's words: a known code by its sentence, any other by the server's message. The rebuilt
+ *  server keeps no acknowledgement: an alert stays until what it is about is fixed. */
+export function ownerAlertView(alert: DashboardAlert, index: number, t: Translate, has: Has): OwnerAlertView {
+  const words = dashboardAlertWords(alert, t), severity = alert.severity.toLowerCase();
   return Object.freeze({
-    id: alert.id,
-    title: permissions ? t('web.maintenance.permissionsTitle') : alertName(t, has, alert.code),
-    ...(permissions ? {body: alert.status === 'resolved' ? t('web.maintenance.permissionsFixed') : t('web.maintenance.permissionsBody')} : {}),
-    severity: severityName(t, has, alert.severity),
-    tone: alert.severity === 'critical' ? 'danger' : alert.severity === 'warning' ? 'warning' : 'info',
-    acknowledged: alert.status === 'acknowledged',
-    meta,
-    permissions,
+    id: `${alert.code}:${index}`,
+    title: words.title,
+    ...(words.detail ? {body: words.detail} : alert.params.subject ? {body: alert.params.subject} : {}),
+    severity: severityName(t, has, severity),
+    tone: alert.major || severity === 'critical' || severity === 'error' ? 'danger' : severity === 'warning' ? 'warning' : 'info',
+    permissions: words.fixPermissions,
+    ...(words.fixPermissions ? {owner: alert.params.owner, path: alert.params.path} : {}),
   });
 }
 
 /** The header's Health sentence, from the two measurements the controller already read. */
-export function ownerHealthLine(health: Measurement | undefined, storage: Measurement | undefined, t: Translate): Readonly<{facts: HealthFacts; status: string; line: string; uptimeSeconds?: number}> {
-  const facts = healthFacts(health, storage), parts = [
+export function ownerHealthLine(health: HealthFacts | undefined, t: Translate): Readonly<{facts: HealthFacts; status: string; line: string; uptimeSeconds?: number}> {
+  const facts: HealthFacts = health ?? {degraded: false}, parts = [
     facts.uptimeSeconds !== undefined ? t('settings.server.health.upFor', {duration: duration(facts.uptimeSeconds)}) : '',
     facts.freeBytes !== undefined ? t('settings.server.health.free', {bytes: formatBytes(facts.freeBytes)}) : '',
     facts.databaseBytes !== undefined ? t('settings.server.health.database', {bytes: formatBytes(facts.databaseBytes)}) : '',

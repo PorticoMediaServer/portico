@@ -1,11 +1,11 @@
-import {ConsoleClient, type Alert, type Job} from '../../../../../../packages/client-core/src/console';
+import {ConsoleClient, type Job} from '../../../../../../packages/client-core/src/console';
 import {AdminSessionsClient} from '../../../../../../packages/client-core/src/playback-v1/admin-sessions';
 import {localV1Http} from '../../../../../../packages/client-core/src/playback-v1/local-http';
 import {captureReportContext} from '../../../../../../packages/client-core/src/report-context';
 import {fetchPlaySummary, type PlaySummary} from '../../../../../../packages/client-core/src/play-history';
 import {playbackControlsService} from '../../../../../../packages/client-core/src/playback-controls';
 import {sendSeekTo, sendTransport, type TransportCommand} from '../../../../../../packages/client-core/src/server-admin/now-playing';
-import {fixStatePermissions} from '../../../../../../packages/client-core/src/backups';
+import {fixDataFolderPermissions} from '../../../../../../packages/client-core/src/admin/data-folder';
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
 import type {UpdatesApi} from '../../../../../../packages/client-core/src/server-admin/updates-source';
 import type {NativeScreenLifetime} from '../lifetime';
@@ -22,12 +22,12 @@ export type NativeOwnerDashboardReader = Readonly<{
   sessions(cursor?: string, limit?: number): ReturnType<AdminSessionsClient['list']>;
   telemetry(window: OwnerHealthWindow): Promise<TelemetryReading>;
   playSummary(period: OwnerViewingPeriod): Promise<PlaySummary>;
-  acknowledge(alert: Alert): Promise<void>;
   jobCommand(job: Job, action: 'pause' | 'resume' | 'retry' | 'cancel'): Promise<void>;
   stop(sessionId: string, message?: string): Promise<void>;
   transport(sessionId: string, command: TransportCommand): Promise<void>;
   move(sessionId: string, positionMs: number): Promise<void>;
-  fixPermissions(operationId: string): Promise<void>;
+  /** Lets only the data folder's owner open it (`POST /v1/admin/data-folder/permissions/fix`). */
+  fixPermissions(): Promise<void>;
   /** The owner's release check (read and pressed check), on this lifetime. */
   updates: UpdatesApi;
   dispose(): void;
@@ -48,12 +48,11 @@ export function createNativeOwnerDashboardReader(lifetime: NativeScreenLifetime,
     sessions: (cursor?: string, limit = 200) => sessions.list(cursor, Math.max(1, Math.min(limit, 200)), lifetime.signal),
     telemetry: (window: OwnerHealthWindow) => console_.telemetry(window, captureReportContext(zone())),
     playSummary: (period: OwnerViewingPeriod) => fetchPlaySummary(api, {...captureReportContext(zone()), period}),
-    acknowledge: (alert: Alert) => console_.acknowledge(alert).then(() => undefined),
     jobCommand: (job: Job, action: 'pause' | 'resume' | 'retry' | 'cancel') => console_.jobCommand(job, action).then(() => undefined),
     stop: (sessionId: string, message?: string) => sessions.terminate(sessionId, message, lifetime.signal),
     transport: (sessionId: string, command: TransportCommand) => sendTransport(controls, sessionId, command).then(() => undefined),
     move: (sessionId: string, positionMs: number) => sendSeekTo(controls, sessionId, positionMs).then(() => undefined),
-    fixPermissions: (operationId: string) => fixStatePermissions(api, authority.serverId, operationId, lifetime.signal),
+    fixPermissions: () => fixDataFolderPermissions(api, lifetime.signal).then(() => undefined),
     updates: api,
     dispose: () => console_.dispose(),
   });
