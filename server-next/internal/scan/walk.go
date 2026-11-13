@@ -85,7 +85,7 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) (Stats, error) {
 		return Stats{}, err
 	}
 	r := &run{s: s, ctx: ctx, lib: lib, names: namesKind(lib.Kind), scan: scan, claimed: map[int64]bool{}, sources: map[int64]Source{}, paths: map[int64]db.LibraryPath{}, walked: map[string]bool{},
-		nfos: map[string][]localmetadata.VideoNFO{}, shows: map[string]showLocal{}, albums: map[string]albumLocal{}}
+		nfos: map[string][]localmetadata.VideoNFO{}, shows: map[string]showLocal{}, albums: map[string]albumLocal{}, artists: map[db.ItemKey][]db.ImportImage{}}
 	if r.batch = s.BatchFiles; r.batch <= 0 {
 		r.batch = 200
 	}
@@ -159,6 +159,7 @@ type run struct {
 	walked  map[string]bool                     // folders this scan has already taken, by Entry.FolderID
 	nfos    map[string][]localmetadata.VideoNFO // NFO files read by this scan, by path
 	shows   map[string]showLocal                // the pictures in a show's own folder, by folder
+	artists map[db.ItemKey][]db.ImportImage     // local artwork by artist folder
 	albums  map[string]albumLocal               // an album folder's album.nfo and cover pictures, by folder
 }
 

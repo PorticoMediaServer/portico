@@ -1,11 +1,7 @@
 package scan
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"image"
 	"path"
 	"sort"
 	"strconv"
@@ -134,6 +130,13 @@ func (r *run) album(f *folder, folder string, lead *found, tags audiotags.Tags, 
 	artistGiven = albumTags["album_artist"] != "" || d["artist"] != ""
 	artistItem = db.ImportItem{Kind: db.KindArtist, Title: artist, SortTitle: d["album_artist_sort"],
 		Keys: []db.ItemKey{{Kind: db.KeyName, Key: "artist|" + fold(artist)}}}
+	if artistFolder := path.Dir(folder); folder != "" && artistFolder != "." {
+		// A compilation folder may contain several tagged artists; it must not join them.
+		if fold(path.Base(artistFolder)) == fold(artist) {
+			artistItem.Keys = append(artistItem.Keys, db.FolderKey(r.path.ID, artistFolder))
+		}
+		artistItem.Images = r.artistPictures(artistFolder)
+	}
 	// A title from tags never beats a provider's (rule 6): it names the artist, album or song
 	// while it is unmatched or in a local-only library, and only album.nfo's is the files' own.
 	given(&artistItem, fieldIf(local.nfo["album_artist"] != "", db.FieldTitle))
@@ -188,6 +191,13 @@ func (r *run) albumRereads(f *folder) []unit {
 func (r *run) musicUnits(f *folder) []unit {
 	versions := r.versions(f, func(file *found) (string, bool) { return file.rel, true })
 	var units []unit
+	if f.rel != "" && len(f.media) == 0 && len(f.changed) > 0 && !f.fresh {
+		images := r.artistPictures(f.rel)
+		if len(images) > 0 {
+			units = append(units, unit{items: []db.ImportItem{{Kind: db.KindArtist,
+				Keys: []db.ItemKey{db.FolderKey(r.path.ID, f.rel)}, Images: images, RereadLocal: true}}})
+		}
+	}
 	for _, v := range versions {
 		lead := v.parts[0]
 		sheet := r.cueSheet(f, lead)
@@ -580,17 +590,8 @@ func (r *run) cover(f *folder, own bool, tags audiotags.Tags) []db.ImportImage {
 			break
 		}
 	}
-	if len(picture.Data) == 0 || len(picture.Data) > maxPicture {
-		return nil
+	if out, ok := r.pictureData(picture.Data, db.ImagePoster, db.ImageFromEmbedded); ok {
+		return []db.ImportImage{out}
 	}
-	sum := sha256.Sum256(picture.Data)
-	id := hex.EncodeToString(sum[:])
-	if err := r.s.Pictures.Put(id, picture.Data); err != nil {
-		return nil
-	}
-	out := db.ImportImage{Role: db.ImagePoster, Source: db.ImageFromEmbedded, FileHash: id}
-	if config, _, err := image.DecodeConfig(bytes.NewReader(picture.Data)); err == nil {
-		out.Width, out.Height = config.Width, config.Height
-	}
-	return []db.ImportImage{out}
+	return nil
 }

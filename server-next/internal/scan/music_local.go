@@ -97,3 +97,31 @@ func tagLyrics(tags audiotags.Tags) *db.Lyrics {
 	}
 	return out
 }
+
+// artistPictures reads only the artist folder's portrait, backdrop and logo, once per scan.
+func (r *run) artistPictures(folder string) []db.ImportImage {
+	key := db.FolderKey(r.path.ID, folder)
+	if images, ok := r.artists[key]; ok {
+		return images
+	}
+	var images []db.ImportImage
+	if r.s.Pictures != nil && r.lib.Options.Depth != db.DepthFiles {
+		entries, _ := r.src.List(r.ctx, folder)
+		var files []*found
+		for _, e := range entries {
+			if !e.Dir && role(r.lib.Kind, e.Name) == db.FileArtwork {
+				files = append(files, &found{entry: e, rel: path.Join(folder, e.Name), role: db.FileArtwork})
+			}
+		}
+		for _, image := range r.pictures(files, "", 0, true, false) {
+			if image.Role == db.ImagePoster {
+				image.Role = db.ImagePortrait
+			}
+			if image.Role == db.ImagePortrait || image.Role == db.ImageBackdrop || image.Role == db.ImageLogo {
+				images = append(images, image)
+			}
+		}
+	}
+	r.artists[key] = images
+	return images
+}

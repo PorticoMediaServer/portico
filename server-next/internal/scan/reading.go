@@ -28,10 +28,14 @@ func (r *run) bookUnits(f *folder) []unit {
 	}
 	var units []unit
 	for _, file := range f.media {
-		if !file.touched() && !r.rereads(file) {
+		if !file.touched() && !r.rereads(file) && !f.sidecarChanged(stem(file.entry.Name), true) {
 			continue
 		}
-		d, read := r.embedded(file)
+		images := r.readingPictures(f, file, true)
+		d, embedded, read := r.embedded(file, len(images) == 0)
+		if len(images) == 0 {
+			images = embedded
+		}
 		if r.rereads(file) && !read {
 			// A changed file that cannot be read now (still being copied, or cut short) says
 			// nothing about the book: it keeps what it has until a scan can read it.
@@ -83,6 +87,7 @@ func (r *run) bookUnits(f *folder) []unit {
 		if opening, extracted := d["opening_lines"]; extracted {
 			item.OpeningLines = &opening
 		}
+		item.Images = images
 		item.Reread = r.rereads(file) || publication != db.PublicationBook
 		item.Publication, item.ReleaseDate, item.IndexNumber = publication, date, index
 		u := unit{files: []*found{file}}
@@ -118,8 +123,9 @@ func (r *run) comicUnits(f *folder) []unit {
 		return r.imageComic(f, pages)
 	}
 	var units []unit
+	seriesImages := r.readingPictures(f, nil, true)
 	for _, file := range f.media {
-		if !file.touched() && !r.rereads(file) {
+		if !file.touched() && !r.rereads(file) && !f.sidecarChanged(stem(file.entry.Name), true) {
 			continue
 		}
 		name := cleanName(file.entry.Name)
@@ -127,7 +133,14 @@ func (r *run) comicUnits(f *folder) []unit {
 		u := unit{files: []*found{file}}
 		// A comic's own ComicInfo.xml gives its title, date, summary, writers and genres. A
 		// changed comic that cannot be read now keeps what it has.
-		d, read := r.embedded(file)
+		images := r.readingPictures(f, file, f.rel == "")
+		d, embedded, read := r.embedded(file, len(images) == 0 || len(seriesImages) == 0)
+		if len(images) == 0 {
+			images = embedded
+		}
+		if len(seriesImages) == 0 {
+			seriesImages = embedded
+		}
 		if r.rereads(file) && !read {
 			continue
 		}
@@ -138,6 +151,7 @@ func (r *run) comicUnits(f *folder) []unit {
 				Keys: []db.ItemKey{db.FileKey(r.path.ID, file.rel, 0), {Kind: db.KeyName, Key: "comic|" + fold(name)}}}
 			comicDetails(&comic, d)
 			comic.Publication, comic.ReleaseDate = publication, date
+			comic.Images = images
 			comic.Reread = r.rereads(file)
 			u.items = []db.ImportItem{comic}
 			units = append(units, u)
@@ -148,6 +162,7 @@ func (r *run) comicUnits(f *folder) []unit {
 			Keys: []db.ItemKey{db.FileKey(r.path.ID, file.rel, 0)}, ChildKey: "issue|" + fold(name)}
 		comicDetails(&issue, d)
 		issue.Publication, issue.ReleaseDate = publication, date
+		issue.Images = images
 		issue.Reread = r.rereads(file)
 		namedDate, _ := issueDateName(name)
 		if m := issueNumber.FindStringSubmatch(name); m != nil && (publication == db.PublicationBook || namedDate == "") {
@@ -156,7 +171,7 @@ func (r *run) comicUnits(f *folder) []unit {
 		} else if n := number(d["series_position"]); n > 0 {
 			issue.IndexNumber, issue.ChildKey = &n, fmt.Sprintf("i%d", n)
 		}
-		u.items = []db.ImportItem{{Kind: db.KindSeries, Title: series,
+		u.items = []db.ImportItem{{Kind: db.KindSeries, Title: series, Images: seriesImages,
 			Keys: []db.ItemKey{{Kind: db.KeyName, Key: "series|" + fold(series)}, db.FolderKey(r.path.ID, f.rel)}}, issue}
 		units = append(units, u)
 	}
@@ -241,27 +256,44 @@ func (r *run) imageComic(f *folder, pages []*found) []unit {
 	return []unit{u}
 }
 
+// readingPictures uses the usual sidecar names, retaining only the cover for a reading title.
+// A nil file asks for the folder's own cover, used by a comic series.
+func (r *run) readingPictures(f *folder, file *found, alone bool) []db.ImportImage {
+	name := ""
+	if file != nil {
+		name = stem(file.entry.Name)
+	}
+	var covers []db.ImportImage
+	for _, image := range r.pictures(f.files, name, db.ImagePoster, alone, false) {
+		if image.Role == db.ImagePoster {
+			image.Role = db.ImageCover
+			covers = append(covers, image)
+		}
+	}
+	return covers
+}
+
 // embedded reads a book's details from inside its own file: an EPUB's package document, a
 // comic's ComicInfo.xml (10-reading rule 8). What the file says is recorded as the file's own,
 // so a provider never replaces it. A library scanned for names only gives none, and the book
 // keeps what its name and folders say. read is false when the file could not be read at all
 // (it will not open, or is not a whole archive): that says nothing about the book.
-func (r *run) embedded(file *found) (d details, read bool) {
+func (r *run) embedded(file *found, wantCover bool) (d details, images []db.ImportImage, read bool) {
 	d = details{}
 	ext := strings.ToLower(path.Ext(file.rel))
 	if r.lib.Options.Depth == db.DepthFiles || ext != ".epub" && ext != ".cbz" {
-		return d, true
+		return d, nil, true
 	}
 	f, err := r.src.Open(r.ctx, file.rel)
 	if err != nil {
-		return d, false
+		return d, nil, false
 	}
 	defer f.Close()
 	var more map[string]string
 	if ext == ".epub" {
 		raw, err := reading.EPUBPackage(f, f.Size())
 		if err != nil {
-			return d, false
+			return d, nil, false
 		}
 		more, _ = localmetadata.EPUBPackage(raw)
 		if more == nil {
@@ -276,14 +308,23 @@ func (r *run) embedded(file *found) (d details, read bool) {
 	} else {
 		raw, err := reading.ComicInfo(f, f.Size())
 		if err != nil {
-			return d, false
+			return d, nil, false
 		}
 		if raw != nil {
 			more, _ = localmetadata.ComicInfo(raw)
 		}
 	}
 	d.overlay(more)
-	return d, true
+	if wantCover && r.s.Pictures != nil {
+		if raw, err := reading.Cover(f, f.Size(), ext, maxPicture); err == nil {
+			if image, ok := r.pictureData(raw, db.ImageCover, db.ImageFromEmbedded); ok {
+				ref := file.ref()
+				image.File = &ref
+				images = []db.ImportImage{image}
+			}
+		}
+	}
+	return d, images, true
 }
 
 // rereads reports whether a book or comic file changed where it is (it was edited, or its details

@@ -143,11 +143,11 @@ func (im *importer) localImages(itemID int64, images []ImportImage) error {
 			return err
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
-			if _, err := im.exec(`DELETE FROM images WHERE file_id = ?`, f.id); err != nil {
+			if _, err := im.exec(`DELETE FROM images WHERE file_id = ? AND item_id = ?`, f.id, itemID); err != nil {
 				return err
 			}
 			if _, err := im.exec(`INSERT INTO images (item_id, file_id, role, source, file_hash, width, height, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-				itemID, f.id, image.Role, ImageFromFile, image.FileHash, nz(image.Width), nz(image.Height), position); err != nil {
+				itemID, f.id, image.Role, image.Source, image.FileHash, nz(image.Width), nz(image.Height), position); err != nil {
 				return err
 			}
 		}

@@ -423,3 +423,21 @@ func (im *importer) settle() error {
 	}
 	return nil
 }
+
+// linkSidecars ties subtitle and similar files to their version. For a version that already
+// existed, only files this batch added or changed can need tying.
+func (im *importer) linkSidecars(mediaID int64, v *ImportVersion, onlyTouched bool) error {
+	for _, ref := range v.Sidecars {
+		f, err := im.file(ref)
+		if err != nil {
+			return err
+		}
+		if onlyTouched && !f.touched {
+			continue
+		}
+		if _, err := im.exec(`UPDATE files SET media_id = ? WHERE id = ? AND media_id IS NOT ?`, mediaID, f.id, mediaID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
