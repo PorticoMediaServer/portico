@@ -8,11 +8,6 @@ import {METRIC_NAMES} from '../../packages/client-core/src/telemetry.ts';
 const context = captureReportContext('UTC', Date.UTC(2026, 9, 22, 12, 17, 31));
 const interval = (period = 'all') => ({period, ...context, from: context.until, buckets: []});
 const emptyHistory = () => ({...interval(), entries: [], items: [], total: 0, nextCursor: ''});
-function report() {
-  const bounds = interval();
-  return {context, history: {...bounds, topKind: 'movies', top: [], busiestTimes: Array.from({length: 7}, () => Array(24).fill(0)), quietestStartHour: null}, people: {...bounds, items: [], nextCursor: ''}, summary: {...bounds, plays: 0, people: 0, watchedMs: 0, converted: 0, mostPlayed: [], mostActive: []}, topPlayed: {...bounds, topKind: 'movies', items: []}, table: emptyHistory(), load: {...bounds, window: 'all', observedAt: Date.parse(context.until), series: Object.fromEntries(METRIC_NAMES.map(k => [k, []])), status: Object.fromEntries(METRIC_NAMES.map(k => [k, {status: 'unavailable', value: 0}]))}};
-}
-const reportQuery = {period: 'all', window: 'all', peoplePeriod: 'all', topPeriod: 'all', topKind: 'movies'} as const;
 const page = () => ({scope: {serverId: 'server', viewerFence: 'a'.repeat(64)}, observedAt: '2026-10-23T00:00:00Z', items: [], page: {limit: 10, start: 0, total: 0, revision: '1'}, totals: {streams: 0, atHome: 0, away: 0, paused: 0, converting: 0, people: 0, bandwidthKbps: 0}});
 function options(overrides: Partial<DashboardBindingOptions> = {}): DashboardBindingOptions {
   return {api: {request: async (path: string) => (path.startsWith('/v1/admin/sessions') ? {items: []} : emptyHistory()) as never, requestRaw: async () => ({status: 200, headers: {}, body: page()})}, context, scope: {serverId: 'server', viewerId: 'viewer'}, role: 'owner', isCurrent: () => true, isMainProfile: () => true, artwork: () => undefined, effects: {openHome() {}, openHistory() {}, openSettings() {}, reportError() {}}, ...overrides};
@@ -47,7 +42,7 @@ test('Now playing reads every stream at once from the rebuilt server, in the car
 test('an administrator reads streams and Play history only; a secondary profile and a member dispatch nothing', async () => {
   for (const change of [{role: 'member' as const}, {isMainProfile: () => false}]) {let calls = 0; const b = createDashboardBindings(options({...change, api: {request: async () => {calls++; return {} as never;}, requestRaw: async () => {calls++; return {} as never;}}})); await assert.rejects(async () => b.read.sessions()); await assert.rejects(async () => b.read.status()); assert.equal(calls, 0); b.dispose();}
   const b = createDashboardBindings(options({role: 'admin'})); assert.equal((await b.read.sessions()).totals.streams, 0); assert.deepEqual((await b.read.plays({period: 'all'})).entries, []);
-  for (const read of [() => b.read.status(), () => b.read.people({period: 'all'}), () => b.read.report(reportQuery), () => b.read.telemetry('live'), () => b.effects.openHistory()]) await assert.rejects(async () => read()); b.dispose();
+  for (const read of [() => b.read.status(), () => b.read.statistics('7d'), () => b.read.summary({range: '7d'}), () => b.read.telemetry('live'), () => b.effects.openHistory()]) await assert.rejects(async () => read()); b.dispose();
 });
 test('an administrator may stop a stream (console definition, rule 1); a member and a secondary profile may not', async () => {
   const stops: unknown[] = [];
@@ -105,14 +100,22 @@ test('shell authority notification clears current bindings before another reques
   const b = createDashboardBindings(options({isCurrent: () => current, subscribeAuthority: listener => {notify = listener; return () => {};}}));
   let changed = 0; b.subscribeAuthority!(() => changed++); current = false; notify(); assert.equal(changed, 1); assert.equal(b.isCurrent(), false); b.dispose();
 });
-test('one checked report dispatch supplies all aggregate panels and cannot override shell context', async () => {
+test('statistics read the totals per day by the range\'s unit and fill the days with none; the summary passes its filters', async () => {
   const paths: string[] = [];
-  const b = createDashboardBindings(options({api: {...options().api, request: async path => {paths.push(path); return report() as never;}}}));
-  const attemptedOverride = {...reportQuery, timeZone: 'Pacific/Auckland', until: '2026-10-22T13:00:00Z'};
-  const out = await b.read.report(attemptedOverride);
-  assert.equal(paths.length, 1); const url = new URL(paths[0], 'https://server.invalid'); assert.equal(url.pathname, '/v1/admin/dashboard/report');
-  assert.equal(url.searchParams.get('timeZone'), context.timeZone); assert.equal(url.searchParams.get('until'), context.until); assert.equal(out.context.until, context.until);
-  assert.equal(out.history.until, out.people.until); assert.equal(out.history.until, out.load.until); assert.equal(out.history.until, out.table.until); b.dispose();
+  const answer = (path: string) => path.startsWith('/v1/admin/statistics')
+    ? {from: '2026-10-16', to: '2026-10-22', by: 'day', points: [{start: '2026-10-20', values: {'played_ms.film.original': 3_600_000, 'plays.film.converted': 2, 'bytes_away.film.converted': 500}}], totals: {'played_ms.film.original': 3_600_000, 'plays.film.converted': 2, 'bytes_away.film.converted': 500, people_most_in_a_day: 1}}
+    : {people: [{name: 'sam', plays: 3, watchedMs: 60_000}], titles: [], busiest: Array.from({length: 7}, (_, day) => Array(24).fill(day)), window: 20000};
+  const b = createDashboardBindings(options({api: {...options().api, request: async path => {paths.push(path); return answer(path) as never;}}}));
+  const stats = await b.read.statistics('7d');
+  const url = new URL(paths[0]!, 'https://server.invalid'); assert.equal(url.searchParams.get('by'), 'day'); assert.ok(url.searchParams.get('from'));
+  assert.equal(stats.points.length, 7, 'every day of the range, the ones with no totals at zero');
+  assert.deepEqual(stats.points.map(p => p.playedMs.film), [0, 0, 0, 0, 3_600_000, 0, 0]);
+  assert.deepEqual(stats.totals, {plays: 2, playedMs: 3_600_000, bytes: 500, converted: 2});
+  const top = await b.read.summary({range: '30d', kind: 'tv', person: 'acc_1'});
+  assert.deepEqual(top.busiest.map(day => day[0]), [1, 2, 3, 4, 5, 6, 0], 'the server counts Sunday first; the grid starts on Monday');
+  const summary = new URL(paths[1]!, 'https://server.invalid'); assert.equal(summary.pathname, '/v1/admin/play-history/summary');
+  assert.equal(summary.searchParams.get('kind'), 'episode'); assert.equal(summary.searchParams.get('person'), 'acc_1'); assert.ok(summary.searchParams.get('from'));
+  b.dispose();
 });
 test('Today starts at midnight and See full history carries the captured context', async () => {
   const paths: string[] = []; let carried: unknown;
@@ -165,24 +168,24 @@ function cached() {
   const paths: string[] = []; let body: unknown = emptyHistory(), fail: unknown, gate: Promise<void> | undefined;
   const hub = new FreshnessHub({settleMs: 0});
   // One server behind both: the cache's own requester and each Dashboard's (which ends when that Dashboard closes).
-  const serve = async (path: string, signal?: AbortSignal) => {paths.push(path); if (gate) await gate; signal?.throwIfAborted(); if (fail) throw fail; return (path === '/v1/admin/dashboard' ? status() : path.includes('/report') ? report() : body) as never;};
+  const serve = async (path: string, signal?: AbortSignal) => {paths.push(path); if (gate) await gate; signal?.throwIfAborted(); if (fail) throw fail; return (path === '/v1/admin/dashboard' ? status() : body) as never;};
   const queries: ViewerQueries = createViewerQueries({scope: {serverId: 'server', viewerId: 'viewer'}, hub, api: {request: async (path, _method, _body, signal) => serve(path, signal)}, gcTimeMs: Infinity});
   const open = () => createDashboardBindings(options({queries, api: {...options().api, request: async (path, _method, _body, signal) => serve(path, signal)}}));
   return {paths, hub, queries, open, set: (next: unknown) => {body = next;}, refuse: (error: unknown) => {fail = error;}, hold: () => {let release!: () => void; gate = new Promise(resolve => {release = resolve;}); return () => {gate = undefined; release();};}};
 }
-test('a Dashboard opened again shows its status, report and first page of plays at once; a later read, a hint or a write here asks the server', async () => {
+test('a Dashboard opened again shows its status and first page of plays at once; a later read, a hint or a write here asks the server', async () => {
   const c = cached(); const first = c.open();
-  await first.read.status(undefined, false); await first.read.report(reportQuery, undefined, false); await first.read.plays({period: 'all'}, undefined, undefined, false);
-  assert.equal(c.paths.length, 3); first.dispose();
+  await first.read.status(undefined, false); await first.read.plays({period: 'all'}, undefined, undefined, false);
+  assert.equal(c.paths.length, 2); first.dispose();
   const again = c.open();
-  await again.read.status(undefined, false); await again.read.report(reportQuery, undefined, false); await again.read.plays({period: 'all'}, undefined, undefined, false);
-  assert.equal(c.paths.length, 3, 'a reopened Dashboard reads nothing while the copies are current');
-  await again.read.status(); assert.equal(c.paths.length, 4, 'a poll or an event asks the server');
+  await again.read.status(undefined, false); await again.read.plays({period: 'all'}, undefined, undefined, false);
+  assert.equal(c.paths.length, 2, 'a reopened Dashboard reads nothing while the copies are current');
+  await again.read.status(); assert.equal(c.paths.length, 3, 'a poll or an event asks the server');
   c.hub.accept({id: 'e1', type: 'playback.history', revision: '1'} as never);
-  await again.read.plays({period: 'all'}, undefined, undefined, false); assert.equal(c.paths.length, 5, 'a hint makes the held page owed');
-  await again.read.plays({period: 'all'}, undefined, undefined, false); assert.equal(c.paths.length, 5);
-  await again.read.plays({period: 'all'}, 'cursor', undefined, false); assert.equal(c.paths.length, 6, 'a later page is a direct read');
-  await again.read.plays({period: 'all'}, 'cursor', undefined, false); assert.equal(c.paths.length, 7, 'and never held');
+  await again.read.plays({period: 'all'}, undefined, undefined, false); assert.equal(c.paths.length, 4, 'a hint makes the held page owed');
+  await again.read.plays({period: 'all'}, undefined, undefined, false); assert.equal(c.paths.length, 4);
+  await again.read.plays({period: 'all'}, 'cursor', undefined, false); assert.equal(c.paths.length, 5, 'a later page is a direct read');
+  await again.read.plays({period: 'all'}, 'cursor', undefined, false); assert.equal(c.paths.length, 6, 'and never held');
   c.queries.moved([]); again.dispose();
 });
 test('two Dashboards of one viewer share one read; another range is its own document', async () => {
@@ -193,16 +196,16 @@ test('two Dashboards of one viewer share one read; another range is its own docu
   await a.read.plays({period: '7d'}, undefined, undefined, false); assert.equal(c.paths.length, 2);
   a.dispose(); b.dispose();
 });
-test('the Dashboard that started a shared read closes, and another one waiting on it still gets the status, report and plays', async () => {
+test('the Dashboard that started a shared read closes, and another one waiting on it still gets the status and plays', async () => {
   const c = cached(), release = c.hold(); const first = c.open(), second = c.open();
-  const started = [first.read.status(undefined, false), first.read.report(reportQuery, undefined, false), first.read.plays({period: 'all'}, undefined, undefined, false)];
+  const started = [first.read.status(undefined, false), first.read.plays({period: 'all'}, undefined, undefined, false)];
   await new Promise(resolve => setTimeout(resolve, 5));
-  const waiting = [second.read.status(undefined, false), second.read.report(reportQuery, undefined, false), second.read.plays({period: 'all'}, undefined, undefined, false)];
+  const waiting = [second.read.status(undefined, false), second.read.plays({period: 'all'}, undefined, undefined, false)];
   first.dispose(); release();
   await Promise.allSettled(started);
-  const [status, report, plays] = await Promise.all(waiting);
-  assert.ok(status && report && plays, 'the second Dashboard is answered');
-  assert.equal(c.paths.length, 3, 'one read of each, shared');
+  const [status, plays] = await Promise.all(waiting);
+  assert.ok(status && plays, 'the second Dashboard is answered');
+  assert.equal(c.paths.length, 2, 'one read of each, shared');
   assert.equal(second.isCurrent(), true);
   second.dispose();
 });
@@ -216,8 +219,8 @@ test('a refused read shows no held copy: the 403 still ends the Dashboard and re
   refused.dispose();
 });
 test('on the cached reads, a 401 ends the Dashboard without a refusal page, and the management PIN ends nothing', async () => {
-  for (const read of ['status', 'report', 'plays'] as const) {
-    const go = (b: ReturnType<typeof createDashboardBindings>) => read === 'status' ? b.read.status() : read === 'report' ? b.read.report(reportQuery) : b.read.plays({period: 'all'});
+  for (const read of ['status', 'plays'] as const) {
+    const go = (b: ReturnType<typeof createDashboardBindings>) => read === 'status' ? b.read.status() : b.read.plays({period: 'all'});
     const signedOut = cached(), reported: unknown[] = [];
     signedOut.refuse({status: 401, code: 'unauthorized'});
     const a = createDashboardBindings({...options(), queries: signedOut.queries, effects: {...options().effects, reportError: error => {reported.push(error);}}});

@@ -4,7 +4,8 @@ import type {DashboardSession} from './bindings';
 import type {Track} from './model';
 
 const t = defaultI18n.t;
-export type DashboardLoadKind = 'bandwidth' | 'processor' | 'memory' | 'conversions';
+/** What a chart draws: the load (rule 12) or hours played (Play history, rule 86). */
+export type DashboardLoadKind = 'bandwidth' | 'processor' | 'memory' | 'conversions' | 'played';
 export type ChartScale = Readonly<{top: number; ticks: readonly number[]}>;
 /** settings/dashboard.js:169–176, copied with TypeScript annotations only. */
 export function niceScale(max: number, target = 4): ChartScale {
@@ -71,7 +72,7 @@ export function formatQuietHours(start: number): string {
 }
 export function formatLoadAxis(value: number, kind: DashboardLoadKind): string {
   if (value === 0 || kind === 'conversions') return String(value);
-  return t(kind === 'bandwidth' ? 'next.dashboard.mbps' : 'next.dashboard.percent', {value: String(value)});
+  return t(kind === 'bandwidth' ? 'next.dashboard.mbps' : kind === 'played' ? 'next.dashboard.hours' : 'next.dashboard.percent', {value: String(value)});
 }
 /** The drawing's tooltip sentences, applied to genuine returned timestamps/bounds only. */
 export function formatReportBucketTitle(interval: ReportInterval, stamp: number, history = false): string {

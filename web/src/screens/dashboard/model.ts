@@ -1,6 +1,5 @@
 import {formatAudioSource, formatDeliveryTarget, formatSubtitleSource, formatVideoSource, formatCodec} from './format';
 import type {DashboardSession as AdminSession} from './bindings';
-import type {DashboardHistory} from '@core/admin/dashboard.ts';
 import type {ReportInterval} from '@core/report-context.ts';
 import {DASHBOARD_LOAD_SERIES} from '@core/admin/dashboard.ts';
 import type {TelemetryReading, TelemetryPoint} from '@core/telemetry.ts';
@@ -101,9 +100,6 @@ export function chartPaths(points: readonly TelemetryPoint[], from: number, unti
   }
   if (chunk.length) paths.push(plotLine(chunk, step)); return paths;
 }
-export function bucketSeries(history: DashboardHistory, kind: string): readonly TelemetryPoint[] {
-  return history.buckets.map(bucket => ({t: Date.parse(bucket.start), v: bucket.kinds.find(k => k.kind === kind)?.watchedMs ?? 0}));
-}
 /** A tile never promotes a whole-system value to Portico, or a partial pair to a total. */
 export function loadTileValue(reading: TelemetryReading, kind: keyof typeof DASHBOARD_LOAD_SERIES): number | undefined {
   const metrics = DASHBOARD_LOAD_SERIES[kind].metrics;
@@ -117,20 +113,6 @@ export type AxisTick = Readonly<{f: number; text: string}>;
 export function thinTicks(ticks: readonly AxisTick[], width: number): readonly AxisTick[] {
   const tight = (a: readonly AxisTick[]) => a.some((t, i) => i && (t.f - a[i - 1].f) * width < (t.text.length + a[i - 1].text.length) * 3.3 + 18);
   let a = ticks; while (a.length > 2 && tight(a)) a = a.filter((_, i) => i % 2 === 0); return a;
-}
-/** histTicks from the drawing, formatting the server's actual local bucket starts. No calendar resolver. */
-export function historyAxisTicks(history: Pick<DashboardHistory, 'period' | 'timeZone' | 'buckets'>): readonly AxisTick[] {
-  const format = (stamp: string, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(defaultI18n.locale, {...options, timeZone: history.timeZone}).format(Date.parse(stamp));
-  const month = (stamp: string) => format(stamp, {month: 'numeric', year: 'numeric'});
-  const ticks: AxisTick[] = [];
-  history.buckets.forEach((bucket, i) => {
-    const f = history.buckets.length === 1 ? .5 : i / (history.buckets.length - 1);
-    if (history.period === '7d') ticks.push({f, text: defaultI18n.t('next.dashboard.format.dayDate', {day: format(bucket.start, {weekday: 'short'}), date: format(bucket.start, {day: 'numeric'})})});
-    else if (history.period === '30d' || history.period === '90d') {
-      if (new Intl.DateTimeFormat('en-US', {weekday: 'short', timeZone: history.timeZone}).format(Date.parse(bucket.start)) === 'Mon') ticks.push({f, text: format(bucket.start, {month: 'short', day: 'numeric'})});
-    } else if (i === 0 || month(history.buckets[i - 1].start) !== month(bucket.start)) ticks.push({f, text: format(bucket.start, {month: 'short'})});
-  });
-  return thinTicks(ticks, 854);
 }
 /** loadTicks presentation on genuine returned bucket starts. The server alone resolves calendars. */
 export function loadAxisTicks(interval: ReportInterval, from: number, until: number, width: number): readonly AxisTick[] {

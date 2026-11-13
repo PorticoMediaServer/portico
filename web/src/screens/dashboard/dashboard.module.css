@@ -76,6 +76,7 @@
 .showAll { width: 100%; border-top: 1px solid var(--color-line-soft); margin-top: 4px; }
 .quiet { margin-left: auto; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
 .quiet b { color: var(--color-text); margin-left: 8px; }
+.countedFrom { margin: 10px 0 0; font-size: var(--type-caption-size); color: var(--color-text-tertiary); }
 .heatScroll { overflow: auto; }
 .heat { position: relative; min-width: 640px; }
 .heatCell { fill: color-mix(in srgb, var(--color-accent-strong) var(--heat-intensity), transparent); cursor: pointer; stroke: transparent; stroke-width: 2; transition: stroke var(--motion-quick) var(--ease-out); }
