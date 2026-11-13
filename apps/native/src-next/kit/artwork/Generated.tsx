@@ -30,13 +30,23 @@ export function GeneratedArt({glyph, palette, width, height, style, testID}: Gen
   </View>;
 }
 
+/** The cover title's size: the authored scale of the cover's width, made smaller when the title's longest word would
+ * not fit the text column, so lines break between words, never inside one (cut text is a fault). An extra-bold glyph
+ * runs about 0.66 of the type size across; the shrink stops at half the authored size, past which a word that still
+ * does not fit (a long code or address) breaks rather than turning unreadably small. */
+export function coverTitleFontSize(title: string, width: number, fontScale = 12.6): number {
+  const authored = width * fontScale / 100, column = width * (1 - 0.11 - 0.13);
+  const longest = Math.max(1, ...title.split(/\s+/).map(word => [...word].length));
+  return Math.max(authored / 2, Math.min(authored, column / (longest * 0.66)));
+}
+
 /** A typographic cover at the size drawn; tint is canonical and explicitly supplied. */
 export function GeneratedCover({title, author, tint, fontScale = 12.6, glyph, width, height, style, testID}: GeneratedCoverProps) {
   const theme = useTheme();
   const [measuredWidth, setMeasuredWidth] = useState(width ?? 0);
   const w = width ?? measuredWidth;
-  const fontSize = w * fontScale / 100;
   const small = w <= 80;
+  const fontSize = small ? w * fontScale / 100 : coverTitleFontSize(title, w, fontScale);
   const authorSize = Math.min(22, Math.max(8, w * 0.068));
   const clearance = useContext(GeneratedCoverClearance);
   // The rule's slot (top padding, rule and its gap) is where a badge sits; the title starts below whichever is lower.
@@ -56,7 +66,7 @@ export function GeneratedCover({title, author, tint, fontScale = 12.6, glyph, wi
       <Text accessible={false} allowFontScaling={false} style={{fontFamily: fontFamilies[800], color: theme.colors.text, opacity: 0.085, position: 'absolute', right: -0.06 * w, bottom: -0.27 * w, fontSize: 1.04 * w, lineHeight: 1.04 * w, letterSpacing: -0.06 * 1.04 * w, includeFontPadding: false}}>{glyph}</Text>
       <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, {paddingTop, paddingRight: w * 0.11, paddingBottom: w * 0.11, paddingLeft: w * 0.13}]}>
         {!small && clearance === 0 ? <View style={{width: w * 0.09, height: w * 0.012, borderRadius: w * 0.01, backgroundColor: theme.colors.text, opacity: 0.55, marginBottom: w * 0.065}}/> : null}
-        <Text accessible={false} allowFontScaling={false} numberOfLines={5} textBreakStrategy="balanced" style={{fontFamily: fontFamilies[800], color: theme.colors.text, fontSize, lineHeight: fontSize * 1.03, letterSpacing: fontSize * -0.04, textShadowColor: `${theme.colors.ink}66`, textShadowOffset: {width: 0, height: 1}, textShadowRadius: 14, includeFontPadding: false}}>{title}</Text>
+        <Text accessible={false} allowFontScaling={false} numberOfLines={small ? 1 : 5} ellipsizeMode="tail" textBreakStrategy="balanced" style={{fontFamily: fontFamilies[800], color: theme.colors.text, fontSize, lineHeight: fontSize * 1.03, letterSpacing: fontSize * -0.04, textShadowColor: `${theme.colors.ink}66`, textShadowOffset: {width: 0, height: 1}, textShadowRadius: 14, includeFontPadding: false}}>{title}</Text>
         {!small && author ? <Text accessible={false} allowFontScaling={false} style={{fontFamily: fontFamilies[700], color: theme.colors.textSecondary, fontSize: authorSize, lineHeight: authorSize * 1.25, marginTop: 'auto'}}>{author}</Text> : null}
       </View>
     </> : null}
