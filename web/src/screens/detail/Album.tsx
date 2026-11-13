@@ -8,6 +8,8 @@ import {browseNameId} from '@core/presentation/browse-toolbar.ts';
 import {serverTextLabel} from '@core/presentation/server-text.ts';
 import {serviceI18n} from '@core/presentation/service-text.ts';
 import {defaultI18n} from '@i18n';
+import {generatedCoverTint} from '@design';
+import {GeneratedCover} from '../../kit/artwork';
 import {CoverHero, CoverHeroLink} from '../../kit/title/CoverHero';
 import {Button} from '../../kit/controls';
 import {SortMenu, TrackTable} from '../../kit/browse';
@@ -125,7 +127,8 @@ export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: Alb
     </div>
     {/* desktop-listen #album, music-plus #album, phone-app r5: the kit's cover hero, square, as an audiobook's. */}
     <div className={styles.heroBleed}><CoverHero title={album.title} titleStyle={long ? 'long' : undefined} shape="square" eyebrow={phone ? undefined : t('next.browse.album')}
-      cover={context.artwork.foreground(album.posterUrl, 760, 1)} fallback={null} ambient={context.artwork.ambient(album.posterUrl)}
+      cover={context.artwork.foreground(album.posterUrl, 760, 1)} ambient={context.artwork.ambient(album.posterUrl)} palette={generatedCoverTint(album.title)}
+      fallback={<GeneratedCover title={album.title} author={album.artist?.name} glyph={Array.from(album.title.trim())[0] ?? ''} tint={generatedCoverTint(album.title)}/>}
       byline={album.artist?.name ? <CoverHeroLink picture={album.posterUrl ? context.artwork.foreground(album.posterUrl, 56, 1) : undefined}
         href={onArtist && album.artist.id ? `/library/${encodeURIComponent(libraryId)}?${new URLSearchParams({view: 'artist', entityId: album.artist.id})}` : undefined}
         onOpen={onArtist && album.artist.id ? () => {const artistId = album.artist!.id!; runScreenCommand(context, () => {if (life.current()) onArtist(artistId);});} : undefined}>{album.artist.name}</CoverHeroLink> : undefined}
