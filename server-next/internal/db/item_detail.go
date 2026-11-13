@@ -23,6 +23,7 @@ type ItemDetail struct {
 	Credits       []Credit // the first few, in billing order
 	CreditTotal   int
 	Versions      []Version
+	AlbumAudio    *AlbumAudioSummary
 }
 
 // ItemRef names another item: the show an episode belongs to, for example.
@@ -225,6 +226,11 @@ func (d *DB) Item(ctx context.Context, v Viewer, publicID string) (ItemDetail, e
 	}
 	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM credits WHERE item_id = ?`, out.ID).Scan(&out.CreditTotal); err != nil {
 		return out, err
+	}
+	if out.Kind == KindAlbum {
+		if out.AlbumAudio, err = albumAudio(ctx, tx, v, acc, out.ID); err != nil {
+			return out, err
+		}
 	}
 	out.Versions, err = versions(ctx, tx, out.ID)
 	if out.Kind == KindAudiobook && len(out.Versions) > 0 {
