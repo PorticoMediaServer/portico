@@ -9,7 +9,7 @@ import type {MessageId, MessageValues} from '../../../../../../packages/i18n/src
 import {formatBytes} from '../../../../../../packages/client-core/src/presentation/content';
 import {jobName, jobStateName, severityName} from '../../../../../../packages/client-core/src/server-admin/console-catalogue';
 import {duration, jobTone, when} from '../../../../../../packages/client-core/src/server-admin/console-words';
-import {loadValue, measuredLoadTiles, type HealthFacts, type LoadTile} from '../../../../../../packages/client-core/src/server-admin/dashboard';
+import {conversionSplit, loadValue, measuredLoadTiles, type HealthFacts, type LoadTile} from '../../../../../../packages/client-core/src/server-admin/dashboard';
 import {playedFraction, positionClock, rateMbps, windowRange} from '../../../../../../packages/client-core/src/server-admin/now-playing';
 import type {StatTile} from '../../../kit/shell';
 import {nativeDashboardIdentity} from '../dashboard-presentation';
@@ -207,7 +207,8 @@ export function ownerHealthTiles(reading: TelemetryReading | undefined, t: Trans
     const series = reading.series[tile.metric] ?? [];
     const values = series.map(point => point.v).filter(value => Number.isFinite(value));
     const peak = Math.max(1, ...values) * 1.1;
-    return Object.freeze({id: tile.metric, metric: tile.metric, unit: tile.unit, label: t(tile.label), value: loadValue(tile, reading.status[tile.metric]), samples: Object.freeze(series.map(point => point.v)), min: 0, max: peak});
+    const split = tile.metric === 'conversions' ? conversionSplit(reading.status) : undefined;
+    return Object.freeze({id: tile.metric, metric: tile.metric, unit: tile.unit, label: t(tile.label), value: loadValue(tile, reading.status[tile.metric]), ...(split ? {note: t('next.dashboard.conversionSplit', split)} : {}), samples: Object.freeze(series.map(point => point.v)), min: 0, max: peak});
   }));
 }
 

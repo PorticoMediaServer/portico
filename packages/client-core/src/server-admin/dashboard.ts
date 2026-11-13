@@ -38,6 +38,14 @@ export function loadValue(tile: LoadTile, status?: Metric): string {
   return tile.unit === 'percent' ? `${Math.round(status.value)}%` : tile.unit === 'mbps' ? `${status.value.toFixed(1)} Mbps` : String(Math.round(status.value));
 }
 
+/** Rule 12: how many conversions run on hardware and how many on the processor, from the load route's split; absent
+ *  when the server sends no split. The Conversions tile's number is their total. */
+export function conversionSplit(status: Readonly<Partial<Record<MetricName, Metric>>>): Readonly<{hardware: number; processor: number}> | undefined {
+  const hardware = status.hardwareConversions, processor = status.processorConversions;
+  if (!hardware || !processor || hardware.status === 'unavailable' || processor.status === 'unavailable') return undefined;
+  return {hardware: Math.round(hardware.value), processor: Math.round(processor.value)};
+}
+
 /** The load tiles a server can fill: one it cannot measure is left out, never drawn empty (hide what is absent). */
 export function measuredLoadTiles(status: Readonly<Record<string, {status: string} | undefined>>): readonly LoadTile[] {
   return LOAD_TILES.filter(tile => status[tile.metric] && status[tile.metric]!.status !== 'unavailable');

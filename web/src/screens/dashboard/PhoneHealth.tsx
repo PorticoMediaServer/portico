@@ -4,6 +4,7 @@ import type {MetricName, TelemetryReading} from '@core/telemetry.ts';
 import {formatBytes} from '@core/presentation/content.ts';
 import {Dialog} from '../../kit/overlays';
 import {healthDetail, healthTiles} from './health-presentation';
+import {conversionSplit} from '@core/server-admin/dashboard.ts';
 import {Chart} from './Chart';
 import type {DashboardLoadKind} from './format';
 import styles from './phone-health.module.css';
@@ -53,7 +54,7 @@ export function PhoneHealth({reading, loading, failed, range, onRangeChange, onR
     {current && (tiles.length ? <div className={styles.tiles}>{tiles.map(tile => {
       const drawn = tile.history === 'samples' && tile.points.length > 1;
       return <button type="button" className={styles.tile} key={tile.metric} onClick={event => {opener.current = event.currentTarget; setSelected({metric: tile.metric, label: t(tile.label)});}}>
-        <div className={styles.key}><span>{t(tile.label)}</span><b>{tile.value}</b>{tile.limited && <small>{tile.details.length ? tile.details.join(' · ') : t('next.remoteSources.state.limited')}</small>}</div>
+        <div className={styles.key}><span>{t(tile.label)}</span><b>{tile.value}</b>{tile.limited && <small>{tile.details.length ? tile.details.join(' · ') : t('next.remoteSources.state.limited')}</small>}{tile.metric === 'conversions' && current && conversionSplit(current.status) && <small>{t('next.dashboard.conversionSplit', conversionSplit(current.status)!)}</small>}</div>
         <div className={`${styles.spark} ${drawn ? '' : styles.empty}`}>
           {drawn && <Chart compact interval={current} kind={chartKind(tile.metric)} title={t(tile.label)} series={[{key: tile.metric, label: t(tile.label), points: tile.points}]} format={String} />}
         </div>
