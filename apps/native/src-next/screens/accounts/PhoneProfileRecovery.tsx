@@ -8,6 +8,7 @@ import {useTheme} from '../../kit/theme';
 import {nativePorticoRecovery, type NativePorticoRecovery, type NativeProfileRecovery} from '../../platform/profile-recovery';
 import {hostedUrl} from '../../platform/account-authority';
 import {PhonePINEntry} from './PhonePINEntry';
+import {ProviderButton} from './ProviderButton';
 
 const t = defaultI18n.t;
 
@@ -21,6 +22,11 @@ export function PhoneProfileRecovery({controller, profileName, username, onOpen,
   const theme = useTheme(), [state, setState] = useState(controller.getSnapshot());
   const [password, setPassword] = useState(''), [code, setCode] = useState(''), [pin, setPin] = useState(''), [twoStep, setTwoStep] = useState('');
   // On a Portico Accounts server the password is the Portico Account's, typed here and checked by Portico Services.
+  // The provider step: which provider was launched (its refusal words differ), the two-step code it asks
+  // for after the provider returns, and a password Services reported meanwhile.
+  const [launched, setLaunched] = useState<'google' | 'apple'>(), [codeAsk, setCodeAsk] = useState<Readonly<{resolve: (code: string) => void; reject: (error: unknown) => void}>>();
+  const [passwordAppeared, setPasswordAppeared] = useState(false);
+  useEffect(() => {if ((state.error as {code?: unknown} | undefined)?.code === 'account_password_exists') setPasswordAppeared(true);}, [state.error]);
   const [portico, setPortico] = useState<Readonly<{phase: 'loading'} | {phase: 'ready'; value: NativePorticoRecovery} | {phase: 'failed'; error: unknown}>>(), [attempt, setAttempt] = useState(0);
   const porticoStep = state.phase === 'portico';
   useEffect(() => {
@@ -54,12 +60,44 @@ export function PhoneProfileRecovery({controller, profileName, username, onOpen,
       beforeActions={<FormError placement="block">{presentError(portico.error, 'profiles').body}</FormError>}
       primaryAction={{id: 'retry', label: t('action.tryAgain'), onPress: () => setAttempt(value => value + 1)}} secondaryAction={cancel}/>;
     const {account, source} = portico.value;
-    const refusedForPassword = (state.error as {code?: unknown} | undefined)?.code === 'account_password_required';
-    if (!account.hasPassword || refusedForPassword) return <StateLayout testID="accounts-pin-recovery-portico-password-needed" title={title} body={t('accounts.profiles.porticoNeedsPassword')}
+    const refused = (state.error as {code?: unknown} | undefined)?.code;
+    // A password added while a provider page was away: Services says so, and the password form takes over.
+    const providers = account.providers ?? [], hasPassword = account.hasPassword || refused === 'account_password_exists' || passwordAppeared;
+    const refusedForPassword = refused === 'account_password_required';
+    const providerError = (key: Parameters<typeof t>[0]) => <FormError placement="inline">{t(key)}</FormError>;
+    if (!hasPassword && !refusedForPassword && providers.length) {
+      // The account signs in only with Google or Apple: a fresh sign-in with one proves it's them.
+      if (codeAsk) return <StateLayout testID="accounts-pin-recovery-portico-provider-code" title={title} body={t('accounts.profiles.porticoProviderChecked')}
+        beforeActions={<View style={{alignSelf: 'stretch', marginBottom: 12}}>
+          <TextField label={t('accounts.profiles.porticoTwoStep')} value={twoStep} onChangeText={setTwoStep} keyboardType="number-pad" autoComplete="one-time-code" maxLength={6}/></View>}
+        primaryAction={{id: 'provider-code', label: t('accounts.signIn.continue'), disabled: twoStep.trim().length !== 6,
+          onPress: () => {const typed = twoStep.trim(); setTwoStep(''); setCodeAsk(undefined); codeAsk.resolve(typed);}}}
+        secondaryAction={{id: 'cancel', label: t('action.cancel'), onPress: () => {setCodeAsk(undefined); codeAsk.reject(Object.assign(new Error('cancelled'), {name: 'AbortError'})); onClose();}}}/>;
+      const sentence = refused === 'provider_sign_in_not_recent' ? (launched === 'apple' ? 'accounts.profiles.porticoAppleNotRecent' : 'accounts.profiles.porticoGoogleNotRecent')
+        : refused === 'provider_unavailable_here' ? 'accounts.profiles.porticoProviderUnavailable'
+        // The system sheet reports a cancel and a failure alike (`provider_cancelled`): either way nothing changed.
+        : refused === 'provider_return_incomplete' || refused === 'provider_cancelled' ? 'accounts.profiles.porticoProviderIncomplete' : undefined;
+      const start = (provider: 'google' | 'apple') => {
+        setLaunched(provider);
+        const code = account.twoStep ? () => new Promise<string>((resolve, reject) => setCodeAsk({resolve, reject})) : '';
+        void controller.porticoProvider(provider, code, source);
+      };
+      return <StateLayout testID="accounts-pin-recovery-portico-provider" title={title} body={t('accounts.profiles.porticoProviderLead', {username: account.username})}
+        beforeActions={<View style={{alignSelf: 'stretch', marginBottom: 12, gap: 10}}>
+          {sentence ? providerError(sentence) : error}
+          {[...providers].sort((a, b) => a === 'apple' ? -1 : b === 'apple' ? 1 : 0).map(provider => <ProviderButton key={provider} provider={provider} busy={state.busy}
+            testID={`accounts-pin-recovery-${provider}`} label={t(provider === 'google' ? 'accounts.profiles.porticoProviderGoogle' : 'accounts.profiles.porticoProviderApple')}
+            onPress={() => start(provider)}/>)}
+          <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('accounts.profiles.porticoProviderChecked')}</Text>
+          <Button variant="link" disabled={state.busy} onPress={() => {void Linking.openURL(hostedUrl + '/account?tab=security');}}>{t('accounts.profiles.porticoSetPassword')}</Button>
+        </View>}
+        secondaryAction={cancel}/>;
+    }
+    if (!hasPassword || refusedForPassword) return <StateLayout testID="accounts-pin-recovery-portico-password-needed" title={title} body={t('accounts.profiles.porticoNeedsPassword')}
       primaryAction={{id: 'set-password', label: t('accounts.profiles.porticoSetPassword'), onPress: () => {void Linking.openURL(hostedUrl + '/account?tab=security');}}} secondaryAction={cancel}/>;
     const ready = !!password && (!account.twoStep || twoStep.trim().length === 6);
     return <StateLayout testID="accounts-pin-recovery-portico" title={title} body={t('accounts.profiles.forgotBody')}
-      beforeActions={<View style={{alignSelf: 'stretch', marginBottom: 12, gap: 12}}>{error}
+      beforeActions={<View style={{alignSelf: 'stretch', marginBottom: 12, gap: 12}}>{refused === 'account_password_exists' ? providerError('accounts.profiles.porticoPasswordExists') : error}
         <TextField label={t('accounts.profiles.porticoPassword', {username: account.username})} value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" editable={!state.busy}/>
         {account.twoStep && <TextField label={t('accounts.profiles.porticoTwoStep')} value={twoStep} onChangeText={setTwoStep} keyboardType="number-pad" autoComplete="one-time-code" maxLength={6} editable={!state.busy}/>}
         <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('accounts.profiles.porticoChecked')}</Text></View>}

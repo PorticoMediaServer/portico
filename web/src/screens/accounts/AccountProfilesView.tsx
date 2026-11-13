@@ -20,6 +20,8 @@ export type ProfileRecoveryView = Readonly<{
   /** On a Portico Accounts server: reads the Portico Account this page holds (or that it holds none). */
   preparePortico: () => Promise<void>;
   porticoPassword: (password: string, twoStepCode: string) => Promise<void>;
+  /** A fresh Google or Apple sign-in (a pop-up at web.getportico.tv); the code, when two-step is on, is asked after it returns. */
+  porticoProvider?: (provider: 'google' | 'apple', twoStepCode: string | (() => Promise<string>)) => Promise<void>;
   code: (value: string) => Promise<void>;
   reset: (value: string) => Promise<void>;
   openProfile: (pin: string, current: () => boolean) => Promise<void>;
@@ -119,7 +121,16 @@ function Recovery({binding, flow, current, profileName, username, serverId, onCl
   // On a Portico Accounts server the Portico Account this page holds is read as the step opens.
   const porticoStep = state.phase === 'portico' && !state.portico;
   useLayoutEffect(() => {if (porticoStep) void flow.preparePortico();}, [flow, porticoStep]);
+  const [launched, setLaunched] = useState<'google' | 'apple'>(), [codeAsk, setCodeAsk] = useState<(code: string) => void>();
+  const startProvider = (provider: 'google' | 'apple') => {
+    if (!live() || !flow.porticoProvider || state.portico?.phase !== 'ready') return;
+    setLaunched(provider);
+    const code = state.portico.account.twoStep ? () => new Promise<string>(resolve => setCodeAsk(() => resolve)) : '';
+    void flow.porticoProvider(provider, code);
+  };
   return <ProfilePINRecovery profileName={profileName} username={username} phase={state.phase} busy={state.busy} error={state.error} portico={state.portico}
+    provider={{launched, askingCode: !!codeAsk}} onPorticoProvider={flow.porticoProvider ? startProvider : undefined}
+    onProviderCode={code => {const answer = codeAsk; setCodeAsk(undefined); answer?.(code);}}
     onPassword={password => {if (live()) void flow.password(password);}} onPorticoPassword={(password, code) => {if (live()) void flow.porticoPassword(password, code);}}
     onPorticoRetry={() => {if (live()) void flow.preparePortico();}} onSetPassword={() => {if (live()) goTo('/account?tab=security');}}
     onPorticoElsewhere={() => {if (live()) location.assign(porticoHandoffUrl({hostedOrigin: browserAccountOrigin(import.meta.env, location), serverId, pageOrigin: location.origin}).url);}}

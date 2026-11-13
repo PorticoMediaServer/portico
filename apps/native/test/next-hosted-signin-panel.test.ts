@@ -110,7 +110,9 @@ test('H09: without this account’s Portico session the app says who the server 
       assert.equal(f.find('settings-panel-twoStep'), undefined);
       const row = f.find('settings-panel-portico-account');
       if (kind === 'twoStep') {assert.equal(row, undefined, 'the one Portico Account row sits under Password'); continue;}
-      assert.equal(row.props.label, 'settings.row.porticoAccount'); assert.equal(row.props.value, 'member-name');
+      // The row has a Manage control, so the name goes under the label: a row draws its value only without a control.
+      assert.equal(row.props.label, 'settings.row.porticoAccount');
+      assert.equal(row.props.description, 'member-name'); assert.equal(row.props.value, undefined);
       const manage = f.find('settings-manage-portico-account'); manage.props.onPress(); await new Promise(resolve => setImmediate(resolve));
       assert.deepEqual(f.opened, ['https://accounts.example.invalid/account?tab=security']);
       assert.equal(f.calls.length, 0);
@@ -147,7 +149,15 @@ test('Security read failures use presentError and remain visible', async () => {
     f.reply(async () => {throw failure;}); f.sheet().props.onFinished(); await f.settle();
     assert.deepEqual(f.presented, [[failure, 'portico-account']]);
     assert.ok(nodes(f.tree()).some(node => (node.props.accessibilityRole === 'alert' || node.type === FormError) && [node.props.children].flat().includes('Security read failed')));
+    // Try again sits in a focus region, which needs a stable testID of its own: without one, or with the
+    // same one in Password and Two-step side by side, the app stopped with "Something went wrong".
+    assert.ok(f.find('account-security-retry-password'), 'Try again has its own testID');
   } finally {f.dispose();}
+  const twoStep = await fixture({kind: 'twoStep'});
+  try {
+    twoStep.reply(async () => {throw failure;}); twoStep.sheet().props.onFinished(); await twoStep.settle();
+    assert.ok(twoStep.find('account-security-retry-twoStep'), 'Two-step\'s Try again is a different focus child');
+  } finally {twoStep.dispose();}
 });
 
 test('R-21: a Portico Account page that cannot open says so instead of doing nothing', async () => {

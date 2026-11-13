@@ -26,7 +26,7 @@ test('phone account presenter exposes only its offered password and provider cap
       '../../../../../packages/client-core/src/public-links': {porticoPublicLinks},
     });
     const {PhoneAccountSignIn} = await screenModule(new URL('../src-next/screens/accounts/PhoneAccountSignIn.tsx', import.meta.url), {'../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true}, 
-      './LegalAgreement': legal, react: {...React, default: React},
+      './LegalAgreement': legal, './ProviderButton': {ProviderButton: 'ProviderButton'}, react: {...React, default: React},
       'react-native': {Image: 'Image', Keyboard: {isVisible: () => false, addListener: () => ({remove() {}})}, KeyboardAvoidingView: 'KeyboardAvoidingView', Linking: {openURL: async (url: string) => {links.push(url); if (linkFailure) throw new Error('browser unavailable');}}, Platform: {OS: 'ios'}, ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
       'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})},
       '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/artwork': {ColourBackdrop: 'Backdrop'},

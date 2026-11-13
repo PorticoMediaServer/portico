@@ -68,7 +68,10 @@ export function AuthCodeBoxes({length, value, onChange, onComplete, label, error
     {error && <p className={styles.codeError} id={id} role="alert">{error}</p>}
   </div>;
 }
-export function AuthError({error}: {error: unknown}) {
+/** The sign-in pages' one error line: a refusal presented the usual way, or `message`, a sentence the
+ * screen already chose for it (Services' own words for a refusal it knows). */
+export function AuthError({error, message}: {error?: unknown; message?: string}) {
+  if (message) return <p className={styles.error} role="alert"><Icon name="i-warn" size={20} />{message}</p>;
   if (!error) return null;
   const result = presentError(error, 'sign-in', {operation: 'action', i18n: defaultI18n});
   return result.silent ? null : <p className={styles.error} role="alert"><Icon name="i-warn" size={20} />{result.body}</p>;
