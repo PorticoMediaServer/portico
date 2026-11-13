@@ -28,7 +28,7 @@ export function NativeReadingSettingsScreen({source, runtime, current, onBack}: 
     void source.setRow(row.id, value).catch(error => {if (source.current() && source.getState().error === undefined) runtime.reportError(error);});
   };
   const groups = [...(nativeReadingSettingsSection.groups ?? []), ...(advanced ? nativeReadingSettingsSection.advanced?.groups ?? [] : [])];
-  return <View testID="native-reading-settings" style={{flex: 1, paddingTop: insets.top + 8}}><StandardBackdrop/>
+  return <View testID="native-reading-settings" style={{flex: 1, paddingTop: insets.top + 8}}>{theme.isTV && <StandardBackdrop/>}
     <View style={{paddingHorizontal: 20, paddingBottom: 20, gap: 12}}>
       <Button testID="reading-settings-back" icon="i-left" variant="text" size="small" onPress={onBack} style={{alignSelf: 'flex-start'}}>{t('action.back')}</Button>
       <Text accessibilityRole="header" style={[shellType(32, 800, 'normal', -.035), {color: theme.colors.text}]}>{t(nativeReadingSettingsSection.title)}</Text>

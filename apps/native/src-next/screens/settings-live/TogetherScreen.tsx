@@ -167,7 +167,7 @@ function TogetherLobbyRegion({controller, region, rail, children}: {controller: 
 
 function TogetherPage({children, onBack, title, settingsBack = false}: {children: React.ReactNode; onBack?: () => void; title?: string; settingsBack?: boolean}) {
   const theme = useTheme(), insets = useSafeAreaInsets(), phone = theme.platform === 'phone';
-  return <View style={{flex: 1}}><StandardBackdrop/>
+  return <View style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     {phone && <View style={{paddingTop: insets.top, minHeight: insets.top + 46, paddingHorizontal: 10, justifyContent: 'center'}}>
       <Text accessibilityRole="header" pointerEvents="none" style={[shellType(17, 700), {position: 'absolute', left: 0, right: 0, bottom: 13, textAlign: 'center', color: theme.colors.text}]}>{title}</Text>
       {onBack && <Button variant="text" size="small" icon="i-left" accessibilityLabel={settingsBack ? defaultI18n.t('next.shell.settings') : defaultI18n.t('action.back')} testID="together-page-back" onPress={onBack} style={{alignSelf: 'flex-start', minHeight: 38, paddingHorizontal: 6, marginLeft: -4}} textStyle={[shellType(16, 600), {color: theme.colors.textSecondary}]}>{settingsBack ? defaultI18n.t('next.shell.settings') : undefined}</Button>}

@@ -26,7 +26,7 @@ import {Button, Focusable, Select, Switch, TextField} from '../../kit/controls';
 import {FocusRegion, useCovered, useFocusRegistry} from '../../kit/focus';
 import {Icon, type IconName} from '../../kit/Icon';
 import {ChoiceMatrix, SettingsRow, SettingsRowTargetContext, SettingsSheet, SettingsSearchResults, LanguageList, ShortcutTiles, type LanguageOption, type SettingsRowTargeting} from '../../kit/shell';
-import {ProfileFace} from '../../kit/artwork';
+import {ProfileFace, StandardBackdrop} from '../../kit/artwork';
 import {shellType} from '../../kit/shell/visual';
 import {useTheme} from '../../kit/theme';
 import {StateView} from '../../kit/states';
@@ -455,7 +455,7 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
     </View>
   </Screen>;
   // A pushed phone page's header draws the sheet's one grabber (owner-server.html `.mh .grab`).
-  return !theme.isTV ? <SettingsSheet open={!closing} onExited={finishClose} host="inline" presentation={compact ? 'sheet' : 'page'} profile={null} shortcuts={null} scrollable={false} testID="settings-sheet" showGrabber={!(compact && pushed)}
+  return !theme.isTV ? <SettingsSheet surfaceBackground={<StandardBackdrop/>} open={!closing} onExited={finishClose} host="inline" presentation={compact ? 'sheet' : 'page'} profile={null} shortcuts={null} scrollable={false} testID="settings-sheet" showGrabber={!(compact && pushed)}
     onOpenChange={(open, reason) => {
       if (open || !viewCurrent() || closingRef.current) return;
       if (pushed && (reason === 'back' || reason === 'escape')) {

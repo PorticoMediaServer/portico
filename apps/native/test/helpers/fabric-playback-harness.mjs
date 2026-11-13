@@ -167,7 +167,7 @@ export async function fabricPlayback(runtime, tv = true, watch, withShell = fals
     '../kit/dock/ListeningCoverBridge': listeningCoverFixture,
     '../kit/dock/PlayerMorphBridge': {PlayerMorphProvider: 'PlayerMorphProvider', useInitialPlayerPagePaint: () => undefined, usePlayerMorphPublication() {}},...common,
       'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})},
-      '../kit/overlays': {OverlaysProvider: Container}, '../kit/shell': {AccountMenu: Empty}, '../kit/browse': {},
+      '../kit/overlays': {OverlaysProvider: Container}, '../kit/shell': {AccountMenu: Empty}, '../kit/artwork': {StandardBackdrop: Empty}, '../kit/browse': {},
       '../platform/menu-key': {registerTVMenuFallback}, '../platform/tv-menu': {useTVMenuCapture: () => {}},
       '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => motion},
       '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: Container, CoveredSignal: ({children}) => children, useFocusRegistry: () => registry}, './tv-focus': tvFocus, './model': shellModel,

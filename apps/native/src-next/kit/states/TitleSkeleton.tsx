@@ -33,7 +33,7 @@ export function TitleSkeleton({elapsedMs, pressed, shell, tabs, playAction, slow
   const tv = theme.isTV;
   const show = showSkeleton(elapsedMs);
   return <View testID={testID} accessibilityLabel={defaultI18n.t('status.loading')} accessibilityState={{busy: true}}
-    style={[{flex: 1, overflow: 'hidden', backgroundColor: theme.colors.ink}, style]}>
+    style={[{flex: 1, overflow: 'hidden', backgroundColor: tv ? theme.colors.ink : undefined}, style]}>
     {pressed.art && <View pointerEvents="none" style={{position: 'absolute', left: 0, top: 0, width, height: tv ? 900 : 396}}><AmbientArt {...pressed.art} visible={visible && pressed.art.visible !== false} arrivalDurationMs={skeletonTiming.pictureFadeMs} treatment={tv ? 'title' : 'phone'} priority /></View>}
     {shell}
     <View style={{position: 'absolute', left: tv ? theme.gutter : 20, right: tv ? 96 : 20, top: tv ? 150 : 300, alignItems: tv ? 'flex-start' : 'center'}}>

@@ -179,7 +179,7 @@ export function SavedScreen({destination, runtime, device, actions, selection, o
   const track = {paddingHorizontal: theme.gutter, paddingTop: theme.spec.shelf.phonePaddingTop, paddingBottom: theme.spec.shelf.phonePaddingBottom, gap: theme.spec.shelf.gap[theme.platform]};
   const pinKind = (kind: PinnedResource['kind']) => kind === 'view' ? t('title.savedView') : t('title.kind', {kind});
   return <View testID="native-saved-screen" pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
-    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}}><StandardBackdrop/>
+    importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     {tablet && <View style={{paddingTop: Math.max(insets.top, 10)}}>
       <Text accessibilityRole="header" style={[browseType(theme, 32, 800, -.035, 36.8), {color: theme.colors.text, marginHorizontal: theme.gutter}]}>{t('saved.title')}</Text>
       <Tabs items={tabItems} value={savedTab} onValueChange={chooseTab} accessibilityLabel={t('saved.title')} testID="saved-tablet-tabs" style={{marginTop: 8}}/>

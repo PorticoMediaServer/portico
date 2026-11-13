@@ -22,7 +22,7 @@ test('the ordinary Downloads route registers its own real-data renderer and exac
   await screenModule(new URL('../src-next/screens/downloads/register.tsx', import.meta.url), {
     react: host.react, 'react-native': {View: 'View', useWindowDimensions: () => ({width: 390, height: 844})}, 'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 34})},
     '../../shell/route-registry': {nativeShellRoutes: {registerRoute: (key: string, create: any) => {kind = key; factory = create;}}},
-    '../../shell/model': {phoneBarHeight: () => 84, shellLayout: () => ({tabs: true})}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop'},
+    '../../shell/model': {phoneBarHeight: () => 84, shellLayout: () => ({tabs: true})},
     './view': view,
   });
   assert.equal(kind, 'downloads');
@@ -38,7 +38,7 @@ test('the ordinary Downloads route registers its own real-data renderer and exac
   const tree = host.render(() => route.type(route.props));
   assert.equal(tree.props.style.paddingBottom, 84, 'the retained Saved navigation remains visible below the actual route');
   assert.equal(tree.props.style.backgroundColor, undefined, 'the standard backdrop, not flat ink, paints the page');
-  assert.equal(tree.props.children[0].type, 'StandardBackdrop', 'the route covers the page it is drawn over with the standard backdrop');
+  assert.equal(JSON.stringify(tree.props.children).includes('StandardBackdrop'), false, 'its stack page draws the one standard backdrop (TouchStacks); the route draws no copy');
   renderer.dispose(); assert.equal(retired, 1);
 });
 

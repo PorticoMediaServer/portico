@@ -133,7 +133,7 @@ export function NativeCollectionScreen(props: NativeCollectionScreenProps) {
     // A failed page further along keeps the members already shown and offers to try again.
     : error ? <StateView variant="inline" {...runtime.error(error, props.onRetry)}/> : null;
   const placeholder = () => <View style={{flex: 1, borderRadius: compact ? 0 : 8, backgroundColor: compact ? 'transparent' : theme.colors.raised}}/>;
-  return <View style={{flex: 1}} testID="native-collection"><StandardBackdrop/>
+  return <View style={{flex: 1}} testID="native-collection">{theme.isTV && <StandardBackdrop/>}
     {!tv && <Focusable testID="collection-back" accessibilityLabel={t('action.back')} onPress={props.onBack} focusRadius={20}
       style={{position: 'absolute', left: 10, top: insets.top + 6, width: 40, height: 40, alignItems: 'center', justifyContent: 'center', zIndex: 5}}>
       <Icon name="i-left" size={22} color={theme.colors.text}/></Focusable>}

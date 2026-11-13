@@ -91,7 +91,7 @@ test(`${adapter}: the real TV shell retains its page opener and retires Menu bef
     react: {...React, default: React, useEffect}, 'react-native': {View: 'View', useWindowDimensions: () => ({width: 1920, height: 1080})},
     'react-native-reanimated': {default: {View: 'AnimatedView'}, useAnimatedStyle: (fn: () => unknown) => fn(), useSharedValue: useShared, withTiming: (v: unknown) => v},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({bottom: 0})}, '../kit/overlays': {OverlaysProvider: 'OverlaysProvider'},
-    '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/browse': {}, '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => motion},
+    '../kit/shell': {AccountMenu: 'AccountMenu'}, '../kit/artwork': {StandardBackdrop: 'AccountMenu'}, '../kit/browse': {}, '../kit/shell/brand': {headerWordmark}, '../kit/theme': {useTheme: () => theme}, '../kit/useMotion': {useMotion: () => motion},
     '../kit/focus': {...layerStack, ...pageModal, CoveredLayer: 'CoveredLayer', CoveredSignal: ({children}: any) => children, useFocusRegistry: () => registry, requestNativeFocus: () => {requests.push('layer-claim'); return true;}}, './tv-focus': focusModel, '../screens/home/HomeScreen': {HomeScreen: 'HomeScreen'}, './model': shellModel,
     './PhoneTabBar': {}, './MediumRail': {MediumRail: 'MediumRail'}, './chrome': {nativeScreenChromeHidden: () => false, subscribeNativeScreenChrome: () => () => {}}, './PhoneHomeHeader': {}, './TVRail': {TVRail: 'TVRail'}, './TVProfileMenu': {TVProfileMenu: 'ProfileMenu'},
     './UnreachableLine': {ShellUnreachableLine: () => null}, './NativePlaybackLayer': {NativePlaybackLayer: 'PlaybackLayer'}, './DesktopHeader': {},

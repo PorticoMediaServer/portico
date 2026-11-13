@@ -72,7 +72,7 @@ export function ReadSeriesScreen({controller, route, comic, context, runtime, on
   return <View testID={`native-read-series-${route.seriesId}`} style={{flex: 1}} onLayout={event => {
     const next = Math.round(event.nativeEvent.layout.width);
     if (next > 0 && next !== paneWidth) setPaneWidth(next);
-  }}><StandardBackdrop/>
+  }}>{theme.isTV && <StandardBackdrop/>}
     <View pointerEvents="none" style={{position: 'absolute', top: 0, left: 0, right: 0, height: 560, overflow: 'hidden'}}>
       {runtime.ambient(first?.coverUrl) ? <AmbientArt source={runtime.ambient(first?.coverUrl)} treatment="title" style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: 0}}/> : null}
       <View style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: theme.colors.ink, opacity: .5}}/>

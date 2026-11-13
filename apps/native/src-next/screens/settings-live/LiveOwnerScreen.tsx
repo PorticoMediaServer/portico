@@ -83,7 +83,7 @@ export function NativeLiveOwnerScreen({controller, recordings, ports, runtime, o
     {id: 'separator', separator: true as const},
     {id: 'remove', icon: 'i-trash' as const, label: t('web.liveTv.removeSource'), destructive: true, onSelect: () => openRemove(menu)},
   ] : [];
-  return <View style={{flex: 1}}><StandardBackdrop/>
+  return <View style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     <FormScrollView contentContainerStyle={{paddingBottom: 100}} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
       <View style={{paddingHorizontal: 20, paddingTop: 8, gap: 10}}>
         <Button testID="live-owner-back" variant="text" size="small" icon="i-left" onPress={onClose}>{t('next.shell.settings')}</Button>
