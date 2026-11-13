@@ -12,7 +12,7 @@ import {SEARCH_CHIPS, searchChipOffered, searchGroupLabel, topSearchResult} from
 import {Button, Chip, TextField} from '../../kit/controls';
 import {useSelectionRangePreview, type CardSelection, type CardSelectionIntent, PosterCard, SquareCard, CircleCard, EpisodeTile, GenreTile, LiveCard, CoverCard} from '../../kit/cards';
 import {useCardHold} from '../../kit/cards/useCardHold';
-import {Artwork} from '../../kit/artwork';
+import {Artwork, nameInitials} from '../../kit/artwork';
 import {WindowedGrid} from '../../kit/layout';
 import {Skeleton} from '../../kit/states';
 import {Banner} from '../../kit/overlays';
@@ -252,7 +252,7 @@ export function SearchResult({entry, binding, selection, selectionVisible = true
     return <button className={styles.channel} type="button" onClick={open}><Icon name="i-tv" size={24} /><b>{entry.title}</b>{entry.subtitle && <small>{entry.subtitle}</small>}</button>;
   }
   if (!('libraryId' in entry)) return <CircleCard context="search" model={{title: entry.title, caption: entry.subtitle ? [{id: 'caption', text: entry.subtitle, role: 'context'}] : []}} covers={art ? [art] : []}
-    initials={entry.title.split(/\s+/).filter(Boolean).slice(0, 2).map(word => Array.from(word)[0]).join('')} onNavigate={open} />;
+    initials={nameInitials(entry.title)} onNavigate={open} />;
   const model = entryCard(entry, {t, locale: locale()}, 'search'), playable = entry.available === true && !!entry.playback;
   const props = {model, selection: picked, context: 'search' as const, watched: entry.watched, isNew: entry.new, onNavigate: open, onMore: more,
     onPlay: playable ? () => { void binding.play(entry).then(onCommit).catch(context.effects.reportError); } : undefined};

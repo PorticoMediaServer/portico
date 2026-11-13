@@ -8,7 +8,7 @@ import {episodeCode} from '@core/presentation/card-caption.ts';
 import {AmbientArt} from '../../kit/artwork';
 import {Button} from '../../kit/controls';
 import {SearchResultHero, TitleFactsLine} from '../../kit/title/TitleParts';
-import {Artwork} from '../../kit/artwork';
+import {Artwork, nameInitials} from '../../kit/artwork';
 import {TitleActions} from '../detail/Detail';
 import {t, environment} from '../detail/text';
 import type {SearchBindings} from './bindings';
@@ -52,7 +52,7 @@ export function TopResult({binding, result, fallbackArtwork, compact, onOpen}: {
     const play = movie && movieAction ? () => runScreenCommand(binding.context, () => { if (movie && movieAction) { title.current(movie); return title.play(movie, movieAction.id); } })
       : series && action ? showPlay : artistPlay;
     const phoneTitle = media?.displayTitle ?? entry.title, artist = entry.kind === 'artist';
-    const initials = entry.title.split(/\s+/).filter(Boolean).slice(0, 2).map(word => Array.from(word)[0]).join('');
+    const initials = nameInitials(entry.title);
     const background = source ? binding.context.artwork.foreground(source, 640, 3 / 2) : undefined;
     const ring = artist && source ? binding.context.artwork.foreground(source, 240, 1) : undefined;
     return <section className={styles.phoneTop} aria-label={t('search.topResult')}>
