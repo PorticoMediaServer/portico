@@ -19,6 +19,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/api"
 	"github.com/PorticoMediaServer/portico/server-next/internal/backup"
+	"github.com/PorticoMediaServer/portico/server-next/internal/buildinfo"
 	"github.com/PorticoMediaServer/portico/server-next/internal/datalock"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/decoder"
@@ -29,9 +30,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/storagepaths"
 	"github.com/PorticoMediaServer/portico/server-next/internal/webapp"
 )
-
-// version is set by the release build.
-var version = "dev"
 
 func main() {
 	// The sandbox around ffmpeg and ffprobe starts this same binary again as its helper.
@@ -120,7 +118,7 @@ func run(log *slog.Logger) (err error) {
 	}
 	defer d.Close()
 	d.StartSearch(filepath.Join(*data, "search.db"), log)
-	handler, err := api.New(ctx, d, *data, version, log)
+	handler, err := api.New(ctx, d, *data, buildinfo.Version, log)
 	if err != nil {
 		return err
 	}
@@ -232,7 +230,7 @@ func run(log *slog.Logger) (err error) {
 	failed := make(chan error, 1)
 	// The port, its certificates, the announcement to apps at home and the router's port mapping.
 	mapped := serveNetwork(ctx, srv, handler, failed)
-	log.Info("portico-server is serving", "listen", *listen, "data", *data, "version", version)
+	log.Info("portico-server is serving", "listen", *listen, "data", *data, "version", buildinfo.Version)
 
 	restart := false
 	select {

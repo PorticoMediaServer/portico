@@ -33,6 +33,13 @@ MCowBQYDK2VwAyEAmD0kQgS+0iEk+ZToKZmpGWNWmoT9Z7EzkIipPtvJ1O0=
 
 // Root is the root key this server is built with.
 func Root() ed25519.PublicKey {
+	if OfficialRoot != "" {
+		key, err := linkedRoot()
+		if err != nil {
+			panic(err)
+		}
+		return key
+	}
 	key, err := trust.ParseRoot([]byte(rootPEM))
 	if err != nil {
 		panic("the built-in Portico Services root key is damaged")
