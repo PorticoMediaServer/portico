@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {capacityRetryHttp, type WebPlaybackCapacityWait} from '../src/platform/playback/capacity-retry.ts';
 import type {V1Request, V1Response} from '../../packages/client-core/src/playback-v1/http.ts';
 
-const refusal: V1Response = {status: 429, headers: {'Retry-After': '1'}, body: {error: {code: 'conversion_capacity', retry: 'same_request'}}};
+const refusal: V1Response = {status: 429, headers: {'Retry-After': '1'}, body: {error: {code: 'conversion_capacity', retry: true, retryAfterMs: 1000}}};
 const success: V1Response = {status: 201, headers: {}, body: {id: 'session'}};
 const request: V1Request = {method: 'POST', path: '/v1/playback/sessions', headers: {'Idempotency-Key': 'original-key-0001'}, body: {itemId: 'one'}};
 const flush = async () => {for (let i = 0; i < 8; i++) await Promise.resolve();};
@@ -48,6 +48,8 @@ test('retirement while hidden prevents the foreground continuation', async () =>
 test('only a directed refusal is replayable and the existing five-retry limit remains', async () => {
   const ordinary = {...refusal, body: {error: {code: 'rate_limited', retry: 'same_request'}}};
   const unchanged = fixture(() => ordinary); assert.equal(await unchanged.http.send(request), ordinary); assert.equal(unchanged.timers.size, 0);
+  const permanent = {...refusal, body: {error: {code: 'conversion_capacity', retry: false}}};
+  const noRetry = fixture(() => permanent); assert.equal(await noRetry.http.send(request), permanent); assert.equal(noRetry.timers.size, 0);
   const f = fixture(() => refusal), pending = f.http.send(request); await flush();
   for (let i = 1; i <= 5; i++) {f.setNow(i * 1000); f.fire(); await flush();}
   assert.equal(await pending, refusal); assert.equal(f.sent.length, 6); assert.equal(f.wait, undefined);
