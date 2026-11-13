@@ -1,6 +1,5 @@
 import React, {useState} from 'react';
 import {ScrollView, Text, View} from 'react-native';
-import type {RuntimeSettings} from '../../../../../../packages/client-core/src/console';
 import {applySettingsBindingPatch, readSettingsBinding, settingsBinding, settingsBindingPatch} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsRowIndex, settingsSpec, type SettingsRow as SpecRow} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {defaultI18n, type MessageId} from '../../../../../../packages/i18n/src';
@@ -16,7 +15,8 @@ import {settingEnabled, settingsSummary} from './settings-values';
 import {nativeStorageOwner} from './storage/space-source';
 import {useFormState, useStorageForms, useStorageSet, type StorageForms} from './storage/forms';
 
-const IDS = ['runtime'] as const;
+// Intros and credits' settings document on the rebuilt server (#3255).
+const IDS = ['segments'] as const;
 
 /** Server settings rows use revisioned forms, never the account preference renderer. */
 export function NativeServerSegments({ports, runtime}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime}) {
@@ -26,10 +26,10 @@ export function NativeServerSegments({ports, runtime}: {ports: NativeSettingsLiv
 function Segments({ports, runtime, group}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; group: StorageForms}) {
   const theme = useTheme(), t = runtime.text.t as typeof defaultI18n.t;
   const {forms, set} = group, state = useStorageSet(group);
-  const settings = useFormState<RuntimeSettings, unknown>(forms.runtime);
+  const settings = useFormState<Record<string, unknown>, unknown>(forms.segments);
   const [invalid, setInvalid] = useState<ReadonlySet<string>>(new Set()), [draftKey, setDraftKey] = useState(0);
-  const sources = {forms: {runtime: settings.draft}};
-  const read = (row: SpecRow) => {const binding = settingsBinding(row.id);return binding?.form === 'runtime' ? readSettingsBinding(binding, sources, row.id) : undefined;};
+  const sources = {forms: {segments: settings.draft}};
+  const read = (row: SpecRow) => {const binding = settingsBinding(row.id);return binding?.form === 'segments' ? readSettingsBinding(binding, sources, row.id) : undefined;};
   const current = () => nativeStorageOwner(group.context) && !set.getSnapshot().saving;
   const renderRow = (row: SpecRow) => {
     const value = read(row)?.current;
@@ -37,11 +37,11 @@ function Segments({ports, runtime, group}: {ports: NativeSettingsLivePorts; runt
     return <NativeSettingControl key={`${row.id}:${draftKey}`} row={row} value={value} t={t}
       disabled={state.saving || !settingEnabled(row, id => {const other = settingsRowIndex.get(id)?.row;return other ? read(other)?.current : undefined;})}
       onValidity={valid => setInvalid(previous => {const next = new Set(previous);if (valid) next.delete(row.id);else next.add(row.id);return next;})}
-      onChange={next => {if (!current()) return;const patch = settingsBindingPatch(settingsBinding(row.id)!, next, sources);forms.runtime.set((draft: RuntimeSettings) => applySettingsBindingPatch(draft, patch));}}/>;
+      onChange={next => {if (!current()) return;const patch = settingsBindingPatch(settingsBinding(row.id)!, next, sources);forms.segments.set((draft: Record<string, unknown>) => applySettingsBindingPatch(draft, patch));}}/>;
   };
   const section = settingsSpec.find(section => section.scope === 'server' && section.id === 'segments');
   const save = () => {if (current() && !invalid.size) void set.save();};
-  if (settings.loadError !== undefined && !settings.draft) return <StateView {...runtime.error(settings.loadError, () => {void forms.runtime.load();}, 'server-console')}/>;
+  if (settings.loadError !== undefined && !settings.draft) return <StateView {...runtime.error(settings.loadError, () => {void forms.segments.load();}, 'server-console')}/>;
   return <ScrollView style={{flex: 1}} contentContainerStyle={{paddingHorizontal: 20, paddingBottom: 32}}>
     {settings.draft && renderRow(settingsRowIndex.get('segments.mode')!.row)}
     {ports.renderSettingsPanel('server.segments', runtime)}
