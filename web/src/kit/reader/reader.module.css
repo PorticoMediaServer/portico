@@ -1,9 +1,10 @@
 /* 69f2d45 desktop-read 6–10, phone-read 5–10, tablet-read 3–9. Motion 5.2. */
 .reader { position: relative; isolation: isolate; width: 100%; height: 100%; min-height: 0; overflow: hidden; background: #0c151d; color: var(--color-text); font-family: var(--font); }
 .reader[data-fixed] { background: var(--color-shadow); }
-.reader button { border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
-.reader button:disabled { opacity: .4; cursor: default; }
-.reader button:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
+/* :where keeps this reset below the kit's own controls: a kit Button in the reader keeps its padding, type and focus ring. */
+:where(.reader) button { border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+:where(.reader) button:disabled { opacity: .4; cursor: default; }
+:where(.reader) button:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
 .srOnly, .reader .srOnly { position: absolute; width: 1px; height: 1px; min-width: 0; min-height: 0; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .surface { position: absolute; inset: 0; }
 .reader[data-panel] .surface { inset-inline-end: 452px; }
