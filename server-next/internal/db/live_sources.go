@@ -273,10 +273,17 @@ type SourceChannelRow struct {
 
 // SourceChannels reads a page of a source's channels by number, with those not brought in.
 func (d *DB) SourceChannels(ctx context.Context, sourceID int64, afterNumber int, afterID int64, limit int) ([]SourceChannelRow, error) {
+	return d.FindSourceChannels(ctx, sourceID, afterNumber, afterID, limit, "")
+}
+
+// FindSourceChannels searches the source map without requiring the app to read every page.
+func (d *DB) FindSourceChannels(ctx context.Context, sourceID int64, afterNumber int, afterID int64, limit int, query string) ([]SourceChannelRow, error) {
 	rows, err := d.read.QueryContext(ctx, `SELECT c.id, c.public_id, c.name, c.number, ifnull(c.source_number, 0), ifnull(c.group_name, ''), c.state,
 		ifnull(g.public_id, ''), ifnull(c.guide_key, ''), ifnull(c.edited, '[]'), c.missing_since_at IS NOT NULL
 		FROM channels c LEFT JOIN live_sources g ON g.id = c.guide_source_id
-		WHERE c.source_id = ? AND (c.number, c.id) > (?, ?) ORDER BY c.number, c.id LIMIT ?`, sourceID, afterNumber, afterID, limit)
+		WHERE c.source_id = ? AND (c.number, c.id) > (?, ?)
+		AND (? = '' OR instr(lower(c.name || ' ' || ifnull(c.group_name, '')), lower(?)) > 0)
+		ORDER BY c.number, c.id LIMIT ?`, sourceID, afterNumber, afterID, query, query, limit)
 	if err != nil {
 		return nil, err
 	}
