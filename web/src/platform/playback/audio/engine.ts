@@ -131,7 +131,7 @@ export class Deck {
           this.exhausted = true;
           this.tailPending = !!this.resampler;
           if (!this.holdTail) this.finishTail();
-          if (!this.tailPending) this.finishChunk();
+          this.finishChunk(); // Only the filter taps wait for a successor, not the decoded final second.
           break;
         }
         if (!Number.isSafeInteger(block.frames) || block.frames <= 0 || block.frames > this.inputFrames - this.inputRead ||

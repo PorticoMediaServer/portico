@@ -516,7 +516,7 @@ export class DecodeAudioRender {
    * half a second, and smoothed so the position never jumps.
    */
   private measureLag() {
-    const sample = outputClockLag(this.context, performance.now(), this.carrier.carrying);
+    const sample = outputClockLag(this.context, performance.now(), false);
     if (!sample) return;
     this.clockBasis = sample.basis;
     this.lag = this.lag === 0 ? sample.seconds : this.lag + (sample.seconds - this.lag) * 0.1;
@@ -637,7 +637,7 @@ export class DecodeAudioRender {
     return {engine:'web-audio',bitPerfect:false,sourceRate:plan.sampleRate,contextRate:this.context.sampleRate,
       resampledToContext:plan.sampleRate!==this.context.sampleRate,deviceRate:null,browserMayResample:true,
       sourceChannels:plan.channels,outputChannels:Math.min(plan.channels,this.outputCount),eqApplied:!this.equalizerFailed && this.equalizer.settings.enabled,levelingApplied:Number.isFinite(levelingGain) && levelingGain !== 1,
-      ...(Number.isFinite(levelingGain) && levelingGain > 0 ? {levelingGainDb:20*Math.log10(levelingGain)} : {}),clock:this.carrier.carrying?'unmeasured-carrier':this.clockBasis};
+      ...(Number.isFinite(levelingGain) && levelingGain > 0 ? {levelingGainDb:20*Math.log10(levelingGain)} : {}),clock:this.clockBasis};
   }
 
   private reportProcessing(): void {

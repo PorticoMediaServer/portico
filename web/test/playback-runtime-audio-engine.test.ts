@@ -146,6 +146,7 @@ test('cancelled resampler preparation retains the current track and a finite tai
  const a=new Deck(f.ctx,{} as AudioNode,sineSource(frames,44100),{frames,gain:1,holdTail:true});
  const b=new Deck(f.ctx,{} as AudioNode,sineSource(frames,44100),{frames,gain:1});
  await a.pump(Infinity);a.start(3840);assert.ok(Number.isFinite(a.tailDeadlineSeconds));
+ assert.ok(a.outFrames-a.decoded < 48,'only the resampler taps wait for the next track; decoded audio is already available');
  assert.ok(b.continueFrom(a));await b.pump(Infinity);b.close();
  a.finishTail();
  assert.equal(f.scheduled.reduce((n,s)=>n+s.frames,0),a.outFrames,'cancelled preparation did not consume the outgoing tail');

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -130,7 +131,7 @@ func TestSystemAndTheErrorFormat(t *testing.T) {
 	if w := call(t, s, "GET", "/v1/system", "", nil, &system); w.Code != 200 {
 		t.Fatalf("system answered %d", w.Code)
 	}
-	if !system.SetupRequired || system.APIMajor != 1 || system.Capabilities == nil || !strings.HasPrefix(system.ID, "srv_") {
+	if !system.SetupRequired || system.APIMajor != 1 || !slices.Contains(system.Capabilities, "queue-transitions") || !strings.HasPrefix(system.ID, "srv_") {
 		t.Fatalf("unexpected system answer: %+v", system)
 	}
 	for _, c := range []struct {
