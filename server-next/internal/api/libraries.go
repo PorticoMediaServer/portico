@@ -61,6 +61,8 @@ type TrashRule struct {
 
 // LibraryFolder is one folder of a library and how the last scan found it.
 type LibraryFolder struct {
+	// ID identifies this folder within its library, including for Scan this folder.
+	ID   string `json:"id"`
 	Path string `json:"path"`
 	// Source is the remote source the folder is on, with Path the folder within it; absent
 	// for a folder on a disk the server reads.
@@ -148,10 +150,12 @@ type LibraryEdit struct {
 	Options       *LibraryOptions    `json:"options,omitempty"`
 }
 
-// ScanRequest starts a scan. With AllFiles it reads every file again, changed or not; a scan
-// already waiting or running is joined as it is.
+// ScanRequest starts a scan. With AllFiles it reads every file again, changed or not.
+// An active scan covering the requested folder is joined; a different folder is busy.
 type ScanRequest struct {
 	AllFiles bool `json:"allFiles,omitempty"`
+	// Folder is one id from this library's folders; omitted scans the whole library.
+	Folder string `json:"folder,omitempty"`
 }
 
 // Job is slow work to watch at /v1/jobs/{id}. State is waiting, running, done, failed or cancelled.
@@ -311,7 +315,7 @@ func optionsIn(o LibraryOptions) db.LibraryOptions {
 func (s *Server) foldersOut(lib db.Library, folders []db.LibraryFolder) []LibraryFolder {
 	out := []LibraryFolder{}
 	for _, f := range folders {
-		folder := LibraryFolder{Path: f.Path, Source: f.Source, Available: f.State == "ok", Problem: f.Error, LastScanAt: timePtr(f.LastScanAt)}
+		folder := LibraryFolder{ID: strconv.FormatInt(f.ID, 10), Path: f.Path, Source: f.Source, Available: f.State == "ok", Problem: f.Error, LastScanAt: timePtr(f.LastScanAt)}
 		for _, p := range lib.Paths {
 			if p.ID != f.ID {
 				continue
@@ -714,11 +718,7 @@ func (s *Server) startScan(r *http.Request, req ScanRequest) (Job, error) {
 	if err != nil {
 		return Job{}, err
 	}
-	job, err := s.scans.Scan(r.Context(), lib.PublicID, CallerFrom(r.Context()).UserID, req.AllFiles)
-	if err != nil {
-		return Job{}, err
-	}
-	return *jobOut(r, job), nil
+	return s.startLibraryScan(r, lib, req)
 }
 
 func (s *Server) cancelScan(r *http.Request, _ None) (None, error) {

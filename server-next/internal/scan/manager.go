@@ -64,6 +64,8 @@ func NewManager(runner *jobs.Runner, scanner *Scanner) *Manager {
 
 // ScanParams are the parameters of a scan job.
 type ScanParams struct {
+	// Folder restricts this scan to one current library membership (SourceID 0 is local).
+	Folder *db.RemoteFolder `json:"folder,omitempty"`
 	// AllFiles reads every file again, changed or not.
 	AllFiles bool `json:"allFiles,omitempty"`
 	// Scheduled says the scan started by itself: a remote folder is listed only when its
@@ -71,9 +73,22 @@ type ScanParams struct {
 	Scheduled bool `json:"scheduled,omitempty"`
 }
 
-// Scan asks for a scan of a library. While one is waiting or running, asking again joins it.
+// ErrScanBusy means the active scan does not cover the folder just requested.
+var ErrScanBusy = errors.New("another folder is being scanned")
+
+// Scan asks for a scan of a library. An active whole-library scan is joined; a folder-only
+// scan returns ErrScanBusy because it cannot cover the whole request.
 // With all set, the scan reads every file again, changed or not.
 func (m *Manager) Scan(ctx context.Context, libraryID string, ownerID int64, all bool) (db.Job, error) {
+	return m.startScan(ctx, libraryID, ownerID, ScanParams{AllFiles: all})
+}
+
+// ScanFolder scans only this membership, retaining its path/source rather than a reusable row id.
+func (m *Manager) ScanFolder(ctx context.Context, libraryID string, ownerID int64, all bool, folder db.LibraryPath) (db.Job, error) {
+	return m.startScan(ctx, libraryID, ownerID, ScanParams{AllFiles: all, Folder: &db.RemoteFolder{SourceID: folder.RemoteID, Path: folder.Path}})
+}
+
+func (m *Manager) startScan(ctx context.Context, libraryID string, ownerID int64, ask ScanParams) (db.Job, error) {
 	// A library asked about for the first time (it was just made) is watched before its
 	// first scan starts, so what its settings say about watching is true from the first answer
 	// and nothing that lands during that scan goes unheard.
@@ -86,8 +101,27 @@ func (m *Manager) Scan(ctx context.Context, libraryID string, ownerID int64, all
 			m.rewatch(ctx, lib, true)
 		}
 	}
-	params, _ := json.Marshal(ScanParams{AllFiles: all})
-	return m.jobs.Start(ctx, db.JobScan, jobs.Request{Target: jobs.Target{Library: libraryID}, Params: params, UserID: ownerID})
+	params, _ := json.Marshal(ask)
+	job, err := m.jobs.Start(ctx, db.JobScan, jobs.Request{Target: jobs.Target{Library: libraryID}, Params: params, UserID: ownerID})
+	if err != nil {
+		return job, err
+	}
+	// Start atomically joins any active library scan. Check the returned job, rather than
+	// checking before Start and racing another request for a different folder.
+	var active jobs.Request
+	var scope ScanParams
+	if err := json.Unmarshal([]byte(job.Payload), &active); err != nil {
+		return job, err
+	}
+	if len(active.Params) > 0 {
+		if err := json.Unmarshal(active.Params, &scope); err != nil {
+			return job, err
+		}
+	}
+	if scope.Folder != nil && (ask.Folder == nil || *scope.Folder != *ask.Folder) {
+		return db.Job{}, ErrScanBusy
+	}
+	return job, nil
 }
 
 // DeleteLibrary asks for a library to be removed, after stopping its scan.
@@ -139,13 +173,24 @@ func (m *Manager) scan(ctx context.Context, work jobs.Work) error {
 			return err
 		}
 	}
+	scanner := *m.scanner
+	scanner.Scheduled, scanner.AllFiles = params.Scheduled, params.AllFiles
+	if params.Folder != nil {
+		for _, path := range lib.Paths {
+			if path.Path == params.Folder.Path && path.RemoteID == params.Folder.SourceID {
+				scanner.OnlyPathID = path.ID
+				break
+			}
+		}
+		if scanner.OnlyPathID == 0 {
+			return db.ErrNotFound
+		}
+	}
 	if params.AllFiles {
-		if err := m.scanner.DB.ForgetProbes(ctx, lib.ID); err != nil {
+		if err := m.scanner.DB.ForgetFolderProbes(ctx, lib.ID, scanner.OnlyPathID); err != nil {
 			return err
 		}
 	}
-	scanner := *m.scanner
-	scanner.Scheduled, scanner.AllFiles = params.Scheduled, params.AllFiles
 	// A new scan starts from nothing: the last one's counts and file are not this one's.
 	m.mu.Lock()
 	m.stats[lib.PublicID] = Stats{}
