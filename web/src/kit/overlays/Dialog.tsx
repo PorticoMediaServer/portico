@@ -29,7 +29,7 @@ export type DialogProps = OverlaySurfaceProps & OverlayContentSlots & {
 
 export function Dialog({responsive = true, ...props}: DialogProps) {
   const phone = usePhone();
-  if (responsive && phone) return <BottomSheet {...props} fitContent />;
+  if (responsive && phone) return <BottomSheet {...props} fitContent dialog />;
   return <DesktopDialog {...props} />;
 }
 
@@ -52,7 +52,7 @@ function DesktopDialog({open, onOpenChange, title, headerAction, children, descr
         onEscapeKeyDown={event => { if (!dismissOnBack) event.preventDefault(); else reason.current = 'escape'; }}
         onPointerDownOutside={event => { if (!dismissOnOutsidePress) event.preventDefault(); else reason.current = 'outside'; }}
         onInteractOutside={event => { if (!dismissOnOutsidePress) event.preventDefault(); }}>
-        <header className={headerClassName}><RadixDialog.Title className={styles.dialogTitle}>{title}</RadixDialog.Title>
+        <header className={classes(styles.dialogHeader, headerClassName)}><RadixDialog.Title className={styles.dialogTitle}>{title}</RadixDialog.Title>
         {headerAction}
         {showCloseButton && <Button variant="icon" size="small" iconOnly icon="i-x" iconSize={closeIconSize} aria-label={closeLabel ?? defaultI18n.t('next.overlays.close')} className={styles.dialogClose} onClick={() => onOpenChange(false, 'close-button')} />}</header>
         {description !== undefined && <RadixDialog.Description id={`${id}-description`} className={styles.dialogDescription}>{description}</RadixDialog.Description>}
