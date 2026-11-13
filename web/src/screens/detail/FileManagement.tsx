@@ -73,11 +73,14 @@ export function DeleteVersion({binding, data, manage, onClose, returnFocusRef}: 
         own sentence first, and nothing to type or press. */}
     {preview && versionDeletionConfirm(preview).refusal && <Banner icon="i-warn">{versionDeletionConfirm(preview).refusal}</Banner>}
     {preview && <div className={styles.manageBody}>
-      <TitleProse><b>{t('web.deleteVersion.files', {count: preview.files, size: bytesText(preview.bytes, environment.t) ?? ''})}</b> {t('web.deleteVersion.disk')}</TitleProse>
+      <TitleProse><b>{t('web.deleteVersion.files', {count: preview.files, size: bytesText(preview.bytes, environment.t) ?? ''})}</b>{versionDeletionConfirm(preview).offersDelete && <> {t('web.deleteVersion.disk')}</>}</TitleProse>
       {file?.path && <p className={styles.path}>{file.path}</p>}
-      {going.length ? <TitleProse>{t('web.deleteVersion.titlesGo', {count: going.length})} {going.join(', ')}</TitleProse> : <TitleProse>{t('web.deleteVersion.titleStays', {title: preview.title})}</TitleProse>}
-      {preview.listEntries > 0 && <TitleProse>{t('web.deleteVersion.listEntries', {count: preview.listEntries})}</TitleProse>}
-      {preview.otherPeople > 0 && <TitleProse>{t('web.deleteVersion.otherPeople', {count: preview.otherPeople})}</TitleProse>}
+      {/* What the delete would take, only when it can happen: under a refusal nothing goes. */}
+      {versionDeletionConfirm(preview).offersDelete && <>
+        {going.length ? <TitleProse>{t('web.deleteVersion.titlesGo', {count: going.length})} {going.join(', ')}</TitleProse> : <TitleProse>{t('web.deleteVersion.titleStays', {title: preview.title})}</TitleProse>}
+        {preview.listEntries > 0 && <TitleProse>{t('web.deleteVersion.listEntries', {count: preview.listEntries})}</TitleProse>}
+        {preview.otherPeople > 0 && <TitleProse>{t('web.deleteVersion.otherPeople', {count: preview.otherPeople})}</TitleProse>}
+      </>}
       {versionDeletionConfirm(preview).asksTitle && <TextField label={t('deleteMedia.typeTitle')} description={preview.title} value={typed} onChange={event => setTyped(event.currentTarget.value)} autoComplete="off" disabled={busy || kept} />}
     </div>}
   </Dialog>;
