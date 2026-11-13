@@ -231,6 +231,8 @@ type TrashEmptied struct {
 	Removed int `json:"removed"`
 }
 
+const deletingFilesOffReason = "Deleting files is turned off for this library."
+
 // DeletionPreview is what Delete would take, shown before it is confirmed.
 type DeletionPreview struct {
 	Title       string `json:"title"`
@@ -244,6 +246,8 @@ type DeletionPreview struct {
 	// holding two, the other tracks of an album in one file): deleting the files removes them
 	// too. Titles counts them.
 	AlsoRemoves []TitleRef `json:"alsoRemoves"`
+	// DeleteRefusal is present when the library has deleting files turned off.
+	DeleteRefusal string `json:"deleteRefusal,omitempty"`
 }
 
 // TitleRef names a title.
@@ -856,8 +860,12 @@ func (s *Server) previewVersionDeletion(r *http.Request, _ None) (DeletionPrevie
 }
 
 func settledDeletionPreview(del db.DeletionImpact) DeletionPreview {
-	return DeletionPreview{Title: del.Title, Titles: del.Titles, Files: len(del.Files), Bytes: del.Bytes,
+	out := DeletionPreview{Title: del.Title, Titles: del.Titles, Files: len(del.Files), Bytes: del.Bytes,
 		ListEntries: del.ListEntries, OtherPeople: del.OtherStates, AlsoRemoves: titleRefs(del.AlsoRemoves)}
+	if !del.AllowDelete {
+		out.DeleteRefusal = deletingFilesOffReason
+	}
+	return out
 }
 
 func alsoRemovedTitles(del db.Deletion) []TitleRef {
@@ -932,7 +940,7 @@ func foldersThere(checked map[string]bool, files []db.DiskFile) error {
 func (s *Server) deleteFiles(r *http.Request, del db.Deletion) (DeletionResult, error) {
 	out := DeletionResult{Kept: []KeptFile{}, AlsoRemoved: []TitleRef{}}
 	if !del.AllowDelete {
-		return out, refusal(http.StatusForbidden, "deleting_not_allowed", "Deleting files is turned off for this library.", false)
+		return out, refusal(http.StatusForbidden, "deleting_not_allowed", deletingFilesOffReason, false)
 	}
 	for _, f := range del.Files {
 		if f.Remote {
