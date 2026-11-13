@@ -7,7 +7,7 @@ import {readingResumePage, type ReadingItem} from '../../../../../packages/clien
 import type {BrowseCapabilities} from '../../../../../packages/client-core/src/browse';
 import {readLibrarySummaries, type LibrarySummary} from '../../../../../packages/client-core/src/library-summary';
 import {readingDuration} from '../../../../../packages/client-core/src/reading-manifest-facts';
-import {libraryTabs, readingTabModel, type LibraryTabId} from '../../../../../packages/client-core/src/presentation/library-tabs';
+import {authorPredicate, libraryTabs, readingTabModel, type LibraryTabId} from '../../../../../packages/client-core/src/presentation/library-tabs';
 import {GeneratedCover, StandardBackdrop} from '../../kit/artwork';
 import {ReadResumeCard} from '../../kit/cards';
 import {Focusable} from '../../kit/controls';
@@ -120,9 +120,16 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
     return () => {active = false;};
   }, [opening, theme.isTV]);
   const capability = reading && opening && reading.opening === opening && opening.isCurrent() ? reading : undefined;
-  const gridTab = useMemo(() => capability?.phase === 'ready' && capability.data
-    ? readingTabModel(capability.data)?.find(value => value.id === 'browse') : undefined, [capability]);
-  const tabs = useMemo(() => gridTab ? [authoredTabs[0]!, gridTab] : authoredTabs, [authoredTabs, gridTab]);
+  // The server's own reading pivots, the same tab model the web's reading library draws (#3278): Books, and
+  // Authors and Series when it publishes them, each on the shared library grid.
+  const pivotTabs = useMemo(() => capability?.phase === 'ready' && capability.data
+    ? readingTabModel(capability.data)?.filter(value => value.id !== 'discover') : undefined, [capability]);
+  const gridTab = useMemo(() => pivotTabs?.find(value => value.id === 'browse'), [pivotTabs]);
+  const tabs = useMemo(() => gridTab && pivotTabs ? [authoredTabs[0]!, ...pivotTabs] : authoredTabs, [authoredTabs, gridTab, pivotTabs]);
+  const gridSelected = pivotTabs?.find(value => value.id === tab);
+  /** An author's card opens the Books grid filtered to them, as their name on a book does. */
+  const [authorOpen, setAuthorOpen] = useState<Readonly<{opening: NativeReadingPageOpening; personId: string}>>();
+  const selectTab = (id: LibraryTabId) => {setAuthorOpen(undefined); setTab(id);};
   useEffect(() => {
     if (!opening) return;
     const ab = new AbortController();
@@ -239,16 +246,19 @@ export function NativeReadingLibraryScreen(props: NativeReadingLibraryScreenProp
         : counts.length ? <View style={{flexDirection: 'row', gap: 16, marginTop: 10, flexWrap: 'wrap'}}>
           {counts.map(text => <Text key={text} style={[browseType(theme, 15, 500), {color: theme.colors.textTertiary}]}>{text}</Text>)}</View> : null}
       <View style={{marginTop: 16}}><LibraryTabs items={tabs} selected={tab} enabled phone={false} regionId={`reading-tabs-${libraryId}`}
-        leftEdge="reading-tabs-edge" onSelect={id => setTab(id)}/></View>
+        leftEdge="reading-tabs-edge" onSelect={selectTab}/></View>
     </View> : <LibraryCompactHeader switcher={switcher} onLibraries={onBack} testID="native-reading-library-header">
       <LibraryTabs items={tabs} selected={tab} enabled phone={theme.platform === 'phone'} regionId={`reading-tabs-${libraryId}`}
-        leftEdge="reading-tabs-edge" onSelect={id => setTab(id)}/>
+        leftEdge="reading-tabs-edge" onSelect={selectTab}/>
     </LibraryCompactHeader>}
     {(!gridTab || tab === 'discover') ? <ReadingSelectionToolbar port={readingActions} runtime={runtime}/> : null}
     {!opening ? <View style={{flex: 1}}>{loading}</View> : tab === 'discover' ? discover
-      : !theme.isTV && gridTab && library ? <NativeReadingBooks context={scopedContext} opening={opening} runtime={runtime} library={library} tab={gridTab} labels={labels}
+      : !theme.isTV && gridTab && library ? <NativeReadingBooks key={`${(gridSelected ?? gridTab).id}:${authorOpen?.opening === opening ? authorOpen.personId : ''}`}
+        context={scopedContext} opening={opening} runtime={runtime} library={library} tab={gridSelected ?? gridTab} labels={labels}
         owner={context.session()?.viewer.role === 'owner'} onCount={tablet ? projectGridCount : undefined}
-        onDownload={offerDownload}/>
+        onDownload={offerDownload}
+        onAuthor={gridSelected?.id === 'authors' ? personId => {if (opening.isCurrent()) {setAuthorOpen({opening, personId}); setTab('browse');}} : undefined}
+        startQuery={(gridSelected ?? gridTab).id === 'browse' && authorOpen?.opening === opening ? [authorPredicate(authorOpen.personId)] : undefined}/>
       : !theme.isTV && !capability ? <View style={{flex: 1}}>{loading}</View>
       : booksGrid}
     <ReadingItemMenu port={readingActions} runtime={runtime}/>

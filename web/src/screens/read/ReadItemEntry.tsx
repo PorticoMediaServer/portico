@@ -36,7 +36,7 @@ import {useLibraryScreenContext} from '../browse/screen-context';
 import {ReadMetadata} from './ReadMetadata';
 import {createReadBindings} from './bindings';
 import {readChosenDestination, readDestination, type ReadItemEligibility} from './navigation';
-import {authorPredicate} from './facets';
+import {authorPredicate} from '@core/presentation/library-tabs.ts';
 import {readBackCommit, readRetireAttempt, readRouteEntry, readVersionCanChoose, readVersionRecovery, type ReadRouteEntry, type ReadVersion, type ReadVersionSource} from './read-version-choice';
 import {ReadOpenFailure, readFailureKind, readFailureReported, type ReadFailureKind} from './ReadOpenFailure';
 import styles from './read-item.module.css';
