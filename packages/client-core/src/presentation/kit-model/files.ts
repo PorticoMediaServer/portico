@@ -27,6 +27,8 @@ export type FileInfoModel = Readonly<{
   heading: string;
   files: readonly Readonly<{id: string; available: boolean; version: VersionModel; rows: readonly TechnicalRow[]; audio: readonly TrackModel[]; subtitles: readonly TrackModel[]; display: FileInfoDisplay}>[];
   owner?: Readonly<{heading: string; locations: readonly Readonly<{id: string; versionId: string; path?: string; actions: readonly ManageAction[]}>[]; actions: readonly ManageAction[]}>;
+  /** An album's shared format (album-audio.ts), drawn as one block of facts; an album has no versions of its own. */
+  album?: readonly TechnicalRow[];
 }>;
 
 /** A File info panel model only. It has no page placement, picker, or playback commands. */

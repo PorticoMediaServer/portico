@@ -1,3 +1,4 @@
+import type {MusicFormatBadge} from './music-badges.ts';
 import type {MessageId,MessageValues} from '../../i18n/src/index.ts';
 
 /** Display models contain catalogue references and measured facts, never audio.reason. */
@@ -85,14 +86,26 @@ export function musicSignalSource(f:MusicFormatFacts,short=false):SignalText|str
  if(f.lossless===false&&positive(f.bitrateBps))return text(short?'player.signal.badge.lossy':'player.signal.source.lossy',{codec,kbps:Math.round(f.bitrateBps/1000)});
  return codec;
 }
+/** The one rule for notable formats (music-plus notes, "Badges"): hi-res lossless with its bits, DSD, Atmos, and 5.1
+ * or 7.1; at most two. Songs and albums both use it. */
+export function notableMusicFormats(f:MusicFormatFacts):readonly MusicFormatBadge[]{
+ const out:MusicFormatBadge[]=[];
+ if(f.atmos===true)out.push(Object.freeze({variant:'atmos'}));
+ else if(positive(f.dsdMultiple)||dsdCodec(f.codec))out.push(Object.freeze({variant:'dsd'}));
+ else if(f.lossless===true&&positive(f.bitDepth)&&f.bitDepth>16&&positive(f.sampleRate)&&f.codec)out.push(Object.freeze({variant:'lossless',codec:f.codec,bitDepth:f.bitDepth,sampleRate:f.sampleRate}));
+ const channels=layout(f);if(channels==='5.1'||channels==='7.1')out.push(Object.freeze({variant:'surround',layout:channels}));
+ return Object.freeze(out.slice(0,2));
+}
 /** Only notable formats. Callers omit these entirely on an album's own track list/cards. */
 export function musicFormatBadges(f:MusicFormatFacts):readonly (SignalText|string)[]{
- const out:(SignalText|string)[]=[];
- if(f.atmos===true)out.push(text('player.signal.badge.atmos'));
- else if(positive(f.dsdMultiple)||dsdCodec(f.codec))out.push(text('player.signal.badge.dsd'));
- else if(f.lossless===true&&positive(f.bitDepth)&&f.bitDepth>16&&positive(f.sampleRate)&&f.codec)out.push(text('player.signal.badge.lossless',{codec:codecName(f.codec),bits:f.bitDepth,khz:f.sampleRate/1000}));
- const channels=layout(f);if(channels==='5.1'||channels==='7.1')out.push(channels);
- return Object.freeze(out.slice(0,2));
+ return Object.freeze(notableMusicFormats(f).map((badge):SignalText|string=>{
+  switch(badge.variant){
+   case 'atmos':return text('player.signal.badge.atmos');
+   case 'dsd':return text('player.signal.badge.dsd');
+   case 'lossless':return text('player.signal.badge.lossless',{codec:codecName(badge.codec),bits:badge.bitDepth,khz:badge.sampleRate/1000});
+   case 'surround':return badge.layout;
+  }
+ }));
 }
 /** Album aggregation is deterministic and bounded; the server should publish this once. */
 export function albumMusicFormatBadges(formats:readonly MusicFormatFacts[]):readonly (SignalText|string)[]{
