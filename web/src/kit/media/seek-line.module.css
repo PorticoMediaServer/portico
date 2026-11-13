@@ -9,6 +9,7 @@
 .buffered { background: color-mix(in srgb, var(--color-text) 26%, transparent); }
 .hoverFill { inset-inline-start: 0; background: color-mix(in srgb, var(--color-text) 14%, transparent); }
 .hoverLine { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-inline-start: -1px; background: color-mix(in srgb, var(--color-white) 90%, transparent); pointer-events: none; }
+.hoverLabel { --seek-label-half: 28px; position: absolute; bottom: 16px; translate: -50% 0; min-width: 48px; padding: 4px 8px; border-radius: 6px; text-align: center; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: normal; color: var(--color-text); background: color-mix(in srgb, var(--color-ink) 88%, transparent); box-shadow: 0 6px 18px -6px var(--color-shadow); pointer-events: none; white-space: nowrap; }
 .segment { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--color-white) 50%, transparent); box-shadow: inset 2px 0 0 color-mix(in srgb, var(--color-dim) 55%, transparent), inset -2px 0 0 color-mix(in srgb, var(--color-dim) 55%, transparent); }
 .playerBar input { position: absolute; left: 0; width: 100%; top: 50%; transform: translateY(-50%); height: 22px; margin: 0; appearance: none; background: transparent; pointer-events: auto; cursor: pointer; }
 .playerBar input::-webkit-slider-runnable-track { height: 6px; background: transparent; }
