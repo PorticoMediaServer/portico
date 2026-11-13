@@ -3,7 +3,6 @@ import {defaultI18n, type MessageId} from '@i18n';
 import type {SettingsTableRow} from '../../../kit/settings/SettingsTable';
 import type {SettingPresentation} from '../../../kit/settings';
 import type {HardwareSnapshot} from './hardware-source';
-import {transcodeLocationChoice} from '@core/presentation/transcode-location.ts';
 
 const t = defaultI18n.t;
 
@@ -80,15 +79,6 @@ export function hardwareRowState(rowId: string, snapshot: HardwareSnapshot, stor
         : t('next.settings.streaming.spaceFree', {path: directory.path, free: defaultI18n.bytes(directory.freeBytes)});
       return {present: true, statusTone: 'ok', displayValue: where + advice};
     }
-    case 'streaming.transcodeLocation': {
-      // The preference stays selectable while playback safely falls back to disk.
-      const {value, memoryAvailable} = transcodeLocationChoice(snapshot.capacity.temporaryDirectory, storedLocation);
-      const options = [
-        {value: 'memory', label: t('next.settingsSpec.server.streaming.groups.2.rows.1.control.options.0.label')},
-        {value: 'disk', label: t('next.settingsSpec.server.streaming.groups.2.rows.1.control.options.1.label')},
-      ];
-      return {present: true, value, defaultValue: 'memory', choices: options, help: memoryAvailable ? undefined : t('next.settings.streaming.memoryUnavailable')};
-    }
     case 'streaming.hwError': {
       const text = faultText(snapshot);
       return text ? {present: true, displayValue: text, statusTone: 'warn'} : {present: false};
@@ -119,7 +109,7 @@ export function hardwareRowState(rowId: string, snapshot: HardwareSnapshot, stor
 
 /** The rows this page answers itself, so eligibility asks the same facts the
  * row does instead of looking for a settings binding these rows do not have. */
-export const hardwareRowIds: readonly string[] = ['streaming.transcodeStatus', 'streaming.transcodeLocation', 'streaming.hwError', 'streaming.hwDevices', 'streaming.hwLimit', 'streaming.hwFormats', 'streaming.hwToneMapping', 'streaming.hwTest'];
+export const hardwareRowIds: readonly string[] = ['streaming.transcodeStatus', 'streaming.hwError', 'streaming.hwDevices', 'streaming.hwFormats', 'streaming.hwToneMapping', 'streaming.hwTest'];
 
 export function hardwareEligible(rowId: string, snapshot: HardwareSnapshot, storedLocation?: string): boolean {
   return hardwareRowIds.includes(rowId) && hardwareRowState(rowId, snapshot, storedLocation) !== undefined;
