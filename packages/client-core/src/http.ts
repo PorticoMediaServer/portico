@@ -722,6 +722,17 @@ export class HttpLocalApi {
       return value as T;
     });
   }
+  /** The owner's support ZIP is streamed by the server, not a JSON export receipt. */
+  async downloadSupportExport(body: Readonly<Record<string, unknown>>, input?: AbortSignal): Promise<Blob> {
+    return withinDeadline(60000, input, async signal => {
+      const response = await this.exchange(serverPath('POST /v1/admin/support-export'), 'POST', body, signal, {Accept: 'application/zip'});
+      if (!response.ok) await this.readAnswered(response, signal);
+      if (response.headers.get('Content-Type')?.split(';')[0] !== 'application/zip') throw new Error(unreadableServerResponse);
+      const blob = await response.blob();
+      throwIfAborted(signal);
+      return blob;
+    });
+  }
   /**
    * Any status, with headers and the parsed body (playback v1's `V1Http` seam: 202, 412 `current`,
    * `ETag`, `Report-Every-Ms`). Rejects only when there is no response (offline, aborted).
