@@ -70,6 +70,8 @@ export const shared = {
   'next.kit.browse.watched': 'Watched',
   'next.kit.browse.unplayed': 'Unplayed',
   'next.kit.browse.played': 'Played',
+  'next.kit.browse.unread': 'Unread',
+  'next.kit.browse.finished': 'Finished',
   'next.kit.browse.inProgress': 'In progress',
   'next.kit.browse.favorites': 'Favorites',
   'next.kit.browse.myList': 'My List',
