@@ -58,8 +58,8 @@ type LiveViewer struct {
 	Libraries map[string]bool
 	// MaxAge is the profile's rating limit, for a guide's rated programmes; nil for none.
 	MaxAge *int
-	// Record says the profile may record: the owner always, anyone else only when the owner
-	// allowed it for the account and the profile.
+	// Record says the profile may record: its account must allow recording and Live TV
+	// (the owner account always does), and the profile can narrow that choice.
 	Record bool
 }
 
@@ -84,7 +84,7 @@ func (d *DB) ViewerLive(ctx context.Context, v Viewer) (LiveViewer, error) {
 	}
 	out.Owner, out.MaxAge = role == "owner" && primary, acc.maxAge
 	out.LiveTV = out.Owner || userLive && profileLive
-	out.Record = out.Owner || role == "owner" || out.LiveTV && userDVR && profileDVR
+	out.Record = (role == "owner" || out.LiveTV && userDVR) && profileDVR
 	rows, err := tx.QueryContext(ctx, `SELECT l.public_id FROM libraries l WHERE `+acc.libraryVisible("l.id"))
 	if err != nil {
 		return out, err
