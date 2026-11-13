@@ -11,7 +11,7 @@ const loader = registerHooks({load(url, context, next) {
   if (url.endsWith('.module.css')) return module('export default new Proxy({}, {get:(_,k)=>String(k)});');
   if (url.endsWith('/kit/controls/index.ts')) return module("export const Button='button',Segmented='segmented',Slider='slider',TextField='input';");
   if (url.endsWith('/kit/overlays/index.ts')) return module("export const Banner='banner',Dialog='dialog';");
-  if (url.endsWith('/kit/artwork/index.ts')) return module("export const Artwork='artwork',AmbientArt='ambient';");
+  if (url.endsWith('/kit/artwork/index.ts')) return module("export const Artwork='artwork',AmbientArt='ambient',WholeArtwork='whole-artwork',GeneratedCover='generated-cover',useCoverAspect=()=>({aspect:undefined,onReady:()=>{}}),wholeCoverBox=()=>undefined;");
   if (url.endsWith('/kit/states/index.ts')) return module("export const StateView='state';");
   if (url.endsWith('/kit/Icon.tsx')) return module("export const Icon='icon';");
   if (url.endsWith('.tsx')) return module(transformTsx(url));

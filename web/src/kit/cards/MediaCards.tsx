@@ -2,19 +2,19 @@ import {useCallback, useRef, useState, type ReactNode, type CSSProperties} from 
 import {defaultI18n} from '@i18n';
 import {Icon} from '../Icon';
 import type {FactPart} from '@portico/client-core/kit-model';
-import {Artwork, AmbientArt, CircleArt, PersonCircle, GeneratedCover, CoverMosaic, type AmbientArtTreatment, type ArtworkSource, type ArtworkStatus} from '../artwork';
+import {Artwork, AmbientArt, CircleArt, PersonCircle, GeneratedCover, CoverMosaic, useCoverAspect, wholeCoverBox, type AmbientArtTreatment, type ArtworkSource, type ArtworkStatus} from '../artwork';
 import {CardBadges, CardCaption, CardFrame, Facts, Progress, cx} from './CardFrame';
 import type {MediaCardProps} from './types';
 import styles from './cards.module.css';
 
-export function CardArtwork({artwork, fallback, position, visible, arrivalDurationMs}: Pick<MediaCardProps, 'artwork' | 'fallback' | 'position' | 'visible' | 'arrivalDurationMs'>) {
+export function CardArtwork({artwork, fallback, position, visible, arrivalDurationMs, onReady}: Pick<MediaCardProps, 'artwork' | 'fallback' | 'position' | 'visible' | 'arrivalDurationMs'> & {onReady?: (source: ArtworkSource) => void}) {
   const [read, setRead] = useState<{key?: string; status: ArtworkStatus}>({status: artwork ? 'loading' : 'empty'});
   const key = artwork?.key;
   const onStatusChange = useCallback((status: ArtworkStatus) => setRead(previous => previous.key === key && previous.status === status ? previous : {key, status}), [key]);
   // J-25: while an image loads or waits for its retry, a card with placeholder art (the generated cover)
   // shows it instead of a blank tile; only a card without one draws the loading surface.
   const loading = !!artwork && (read.key !== key || read.status === 'loading');
-  return <Artwork source={artwork} visible={visible} arrivalDurationMs={arrivalDurationMs} alt="" position={position} onStatusChange={onStatusChange} fallback={loading && fallback == null ? <span className={styles.loadingArt} /> : fallback} />;
+  return <Artwork source={artwork} visible={visible} arrivalDurationMs={arrivalDurationMs} alt="" position={position} onStatusChange={onStatusChange} onReady={onReady} fallback={loading && fallback == null ? <span className={styles.loadingArt} /> : fallback} />;
 }
 
 export function PosterCard({titleLines, progressPlacement = 'edge', ...props}: MediaCardProps & {titleLines?: 1 | 2; progressPlacement?: 'edge' | 'inset'}) {
@@ -29,8 +29,9 @@ export function WideCard(props: MediaCardProps) {
 }
 
 export function SquareCard({variant = 'music', progressPlacement = 'edge', ...props}: MediaCardProps & {variant?: 'music' | 'audiobook'; progressPlacement?: 'edge' | 'below' | 'inset'}) {
-  const artworkRef = useRef<HTMLSpanElement>(null);
-  return <CardFrame {...props} artworkRef={artworkRef} watchedLabel={variant === 'audiobook' ? defaultI18n.t('next.cards.finished') : props.watchedLabel} className={cx(progressPlacement === 'below' && styles.belowProgress, progressPlacement === 'inset' && styles.insetProgress, props.className)} kind="square"><span ref={artworkRef} className={styles.art}><CardArtwork {...props} /><CardBadges watched={props.watched} completionLabel={variant === 'audiobook' ? defaultI18n.t('next.cards.finished') : undefined} isNew={props.isNew} progress={progressPlacement === 'below' ? undefined : props.model.progress} /></span>{progressPlacement === 'below' && <Progress value={props.model.progress} />}<CardCaption model={props.model} extraCaption={props.extraCaption} textPresentation={props.textPresentation} /></CardFrame>;
+  const artworkRef = useRef<HTMLSpanElement>(null), cover = useCoverAspect(props.artwork, artworkRef);
+  // A cover that is not square is drawn whole in its own shape, at the foot of the square slot (owner's rule: a cover is never cropped).
+  return <CardFrame {...props} artworkRef={artworkRef} watchedLabel={variant === 'audiobook' ? defaultI18n.t('next.cards.finished') : props.watchedLabel} className={cx(progressPlacement === 'below' && styles.belowProgress, progressPlacement === 'inset' && styles.insetProgress, props.className)} kind="square"><span ref={artworkRef} className={styles.art} style={wholeCoverBox(cover.aspect, '100%', {align: 'end'})}><CardArtwork {...props} onReady={cover.onReady} /><CardBadges watched={props.watched} completionLabel={variant === 'audiobook' ? defaultI18n.t('next.cards.finished') : undefined} isNew={props.isNew} progress={progressPlacement === 'below' ? undefined : props.model.progress} /></span>{progressPlacement === 'below' && <Progress value={props.model.progress} />}<CardCaption model={props.model} extraCaption={props.extraCaption} textPresentation={props.textPresentation} /></CardFrame>;
 }
 
 export type CircleCardProps = Omit<MediaCardProps, 'artwork' | 'fallback' | 'ambient' | 'palette' | 'position' | 'arrivalDurationMs'> & {covers: readonly ArtworkSource[]; initials?: string; variant?: 'artist' | 'person'; coverZoom?: number; coverTransformOrigin?: CSSProperties['transformOrigin']};
@@ -67,9 +68,10 @@ export function CoverCard({kind = 'book', generated, titleLines, watchedLabel, .
   // A title wraps to a second line before it is cut in a grid, as a poster card's does (desktop-read 2c `.pgrid .card .t`).
   titleLines ??= props.context === 'grid' || props.density === 'grid' ? 2 : 1;
   const book = kind === 'book' || kind === 'comic';
-  const artworkRef = useRef<HTMLSpanElement>(null);
+  // The cover is drawn whole in its own shape at the foot of its slot: 2:3 for a book, 3:4 for an issue.
+  const artworkRef = useRef<HTMLSpanElement>(null), cover = useCoverAspect(props.artwork, artworkRef);
   return <CardFrame {...props} watchedLabel={watchedLabel} artworkRef={artworkRef} playIconSize={20} kind="cover" playIcon="i-book" className={cx(book && !generated && styles.spine, !book && styles.periodical, kind === 'newspaper' && styles.newspaper, props.className)}>
-    <span ref={artworkRef} className={styles.art}><CardArtwork {...props} position={kind === 'newspaper' ? 'top' : props.position} fallback={generated ? <GeneratedCover {...generated} selectionClearance={props.selection?.active || props.selection?.checked} /> : props.fallback} /><CardBadges watched={props.watched} watchedLabel={watchedLabel} isNew={props.isNew} progress={props.model.progress} /></span><CardCaption model={props.model} extraCaption={props.extraCaption} textPresentation={props.textPresentation} titleLines={titleLines} />
+    <span ref={artworkRef} className={styles.art} style={wholeCoverBox(cover.aspect, '100%', {slot: book ? 2 / 3 : 3 / 4, align: 'end'})}><CardArtwork {...props} position={kind === 'newspaper' ? 'top' : props.position} onReady={cover.onReady} fallback={generated ? <GeneratedCover {...generated} selectionClearance={props.selection?.active || props.selection?.checked} /> : props.fallback} /><CardBadges watched={props.watched} watchedLabel={watchedLabel} isNew={props.isNew} progress={props.model.progress} /></span><CardCaption model={props.model} extraCaption={props.extraCaption} textPresentation={props.textPresentation} titleLines={titleLines} />
   </CardFrame>;
 }
 

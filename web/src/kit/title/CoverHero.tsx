@@ -45,9 +45,10 @@ export function CoverHero({title, titleStyle, eyebrow, byline, facts, metaEnd, c
     <header className={styles.hero} data-shape={shape} data-stack={fanned?.length || undefined}>
       <div className={styles.cover} data-shape={shape} data-stack={fanned?.length || undefined}>
         {artist && ambient && <AmbientArt className={styles.discGlow} treatment="cover" source={ambient}/>}
-        {fanned?.length ? fanned.map((source, index) => <Artwork key={`${source.key}:${index}`} source={source} alt="" fit="cover" className={`${styles.coverImage} ${styles.stackedCover}`} />)
+        {fanned?.length ? fanned.map((source, index) => <span key={`${source.key}:${index}`} className={styles.stackedCover}><WholeArtwork source={source} alt="" fit="cover" slot={2 / 3} className={styles.coverImage} /></span>)
           : shape === 'square' ? <WholeArtwork source={cover} alt={title} fallback={fallback} fit="cover" className={styles.coverImage} />
-          : <Artwork source={cover} alt={title} fallback={fallback} fit="cover" className={styles.coverImage} />}
+          : artist ? <Artwork source={cover} alt={title} fallback={fallback} fit="cover" className={styles.coverImage} />
+          : <WholeArtwork source={cover} alt={title} fallback={fallback} fit="cover" slot={shape === 'periodical' ? 3 / 4 : 2 / 3} className={styles.coverImage} />}
       </div>
       <div className={styles.copy}>
         {eyebrow && <div className={styles.eyebrow}>{eyebrow}</div>}

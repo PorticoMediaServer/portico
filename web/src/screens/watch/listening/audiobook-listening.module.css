@@ -3,7 +3,9 @@
 .top { position: relative; z-index: var(--layer-hero-navigation); display: flex; align-items: center; gap: 16px; min-height: 84px; padding: 0 32px; color: var(--color-text-secondary); font-size: var(--type-fixed-size-14px); }
 .main { position: absolute; left: 0; top: 84px; bottom: 28px; width: 940px; max-width: calc(100% - 484px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
 .bookTop { width: 660px; max-width: 100%; display: flex; align-items: flex-end; gap: 30px; }
-.cover { width: 300px; max-width: 46%; aspect-ratio: 1; flex: none; border-radius: 14px; overflow: hidden; box-shadow: 0 50px 90px -30px color-mix(in srgb, var(--color-shadow) 95%, transparent), 0 0 0 1px color-mix(in srgb, var(--color-text) 8%, transparent); }
+.cover { width: 300px; max-width: 46%; aspect-ratio: 1; flex: none; border-radius: 14px; --whole-valign: flex-end; }
+/* The cover is drawn whole in its own shape at the foot of the square; its edge and shadow follow it. */
+.coverImage { position: relative; display: block; width: 100%; height: 100%; border-radius: inherit; overflow: hidden; box-shadow: 0 50px 90px -30px color-mix(in srgb, var(--color-shadow) 95%, transparent), 0 0 0 1px color-mix(in srgb, var(--color-text) 8%, transparent); }
 .identity { flex: 1; min-width: 0; margin: 0 0 6px; }
 .identity h1 { margin: 0; font-size: calc(var(--type-fixed-size-14px) * 3); font-weight: var(--type-fixed-weight-800); line-height: var(--type-fixed-line-1point-05); letter-spacing: var(--type-fixed-tracking-minus-point-03em); overflow-wrap: anywhere; }
 .identity p { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0 0; color: var(--color-text-secondary); font-size: var(--type-fixed-size-17px); overflow-wrap: anywhere; }
