@@ -3,6 +3,8 @@ package live
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -141,4 +143,61 @@ func (s *Service) channelLogo(ctx context.Context, client *http.Client, address 
 		return "", err
 	}
 	return hash, nil
+}
+
+var ErrSourceRefreshing = errors.New("wait for the source to finish refreshing")
+
+// LiveLogoResult reports actual outcomes, including skipped held, failed or unattempted logos.
+type LiveLogoResult struct {
+	Requested int `json:"requested"`
+	Imported  int `json:"imported"`
+	Skipped   int `json:"skipped"`
+}
+
+func (s *Service) ImportLogos(ctx context.Context, src db.LiveSource, replace bool) (LiveLogoResult, error) {
+	s.mu.Lock()
+	if s.running[src.ID] != nil {
+		s.mu.Unlock()
+		return LiveLogoResult{}, ErrSourceRefreshing
+	}
+	done := make(chan struct{})
+	s.running[src.ID] = done
+	s.mu.Unlock()
+	defer func() { s.mu.Lock(); delete(s.running, src.ID); s.mu.Unlock(); close(done) }()
+	rows, err := s.db.LiveSourceLogoTargets(ctx, src.ID)
+	if err != nil {
+		return LiveLogoResult{}, err
+	}
+	result := LiveLogoResult{Requested: len(rows)}
+	var cfg LiveSourceConfig
+	if err := json.Unmarshal([]byte(src.Config), &cfg); err != nil {
+		return LiveLogoResult{}, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	client := logoClient(src.Kind, cfg)
+	defer client.CloseIdleConnections()
+	seen := map[string]string{}
+	for _, row := range rows {
+		if ctx.Err() != nil || !Document.Get(s.Settings).ImportImages {
+			break
+		}
+		if row.Hash != "" && !replace {
+			continue
+		}
+		hash, tried := seen[row.Address]
+		if !tried {
+			hash, _ = s.channelLogo(ctx, client, row.Address)
+			seen[row.Address] = hash
+		}
+		if hash == "" {
+			continue
+		}
+		if err := s.db.SourceChannelLogo(ctx, src.ID, row.Key, row.Address, hash, s.now()); err != nil {
+			return result, err
+		}
+		result.Imported++
+	}
+	result.Skipped = result.Requested - result.Imported
+	return result, nil
 }
