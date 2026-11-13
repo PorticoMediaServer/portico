@@ -8,6 +8,8 @@ import {Button, Slider} from '../../kit/controls';
 import {Menu, PanelPresence, useLeavingPresence, type MenuEntry} from '../../kit/overlays';
 import {KeyboardShortcuts} from '../../kit/states';
 import {LossNotice, SeekLine} from '../../kit/media';
+import {videoChapters} from '@core/presentation/video-chapters.ts';
+import {WatchChaptersDrawer} from './ChaptersDrawer';
 import {dispatchWatch, watchClock, watchIsPortrait, watchLineValue, watchSeek, watchSeekBounds, watchShortcutTarget, watchStepIntent, type WatchIntent} from './model';
 import {settledPlaybackChanged, settledPlaybackKey, type SettledPlayback} from './screen-state';
 import type {WatchPanel, WatchRect, WatchScreenProps} from './types';
@@ -192,8 +194,8 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
   }, [expanded, clearTimer, pictureInput]);
   useEffect(() => { if (panel || more || shortcuts) pictureInput.cancel(); }, [panel, more, shortcuts, pictureInput]);
   const showPanel = (next: WatchPanel, anchor?: HTMLButtonElement) => {
-    if (!surfaces?.available.includes(next)) return;
-    if (next === 'play-on' && surfaces.playOn) {setMore(false);surfaces.playOn.open(anchor);reveal();return;}
+    if (next === 'chapters' ? !chapters.length : !surfaces?.available.includes(next)) return;
+    if (next === 'play-on' && surfaces?.playOn) {setMore(false);surfaces.playOn.open(anchor);reveal();return;}
     if (anchor) panelAnchor.current = anchor;
     setMore(false); setPanel(next); reveal();
   };
@@ -286,6 +288,8 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
   const bounds = watchSeekBounds(snapshot), position = presentation?.positionSeconds ?? 0, duration = presentation?.durationSeconds ?? 0;
   const activeScrub = scrub && fence && sameFence(scrub.fence, fence) && scrub.snapshot.authority === snapshot.authority ? scrub : null;
   const drawnPosition = activeScrub?.seconds ?? position;
+  // A title with chapters but no episodes: ticks on the line and the Chapters drawer (INTEGRATION.md §7).
+  const chapters = surfaces?.available.includes('episodes') ? [] : videoChapters(snapshot.options?.chapters, duration, position, number => t('next.watch.chapterNumber', {number}));
   const previewSeconds = activeScrub?.seconds ?? hoverSeconds;
   const buffered = bufferedSegments(fence ? binding.runtime.bufferedRanges(fence) : [], bounds);
   const hoverPercent = bounds && previewSeconds !== null ? Math.min(100, Math.max(0, (previewSeconds - bounds.start) / (bounds.end - bounds.start) * 100)) : null;
@@ -462,7 +466,8 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
             buffered={buffered.map(range => ({start: range.left / 100, end: (range.left + range.width) / 100}))}
             hover={hoverPercent === null ? null : hoverPercent / 100}
             hoverLabel={!preview && previewSeconds !== null ? watchClock(previewSeconds) : undefined}
-            marks={duration > 0 ? (presentation?.policy?.markers ?? []).map(marker => ({id: marker.id, kind: marker.kind, start: marker.startSeconds / duration, end: marker.endSeconds / duration, ...(marker.kind === 'credits' ? {fromEnd: true} : {})})) : []}
+            marks={duration > 0 ? [...(presentation?.policy?.markers ?? []).map(marker => ({id: marker.id, kind: marker.kind, start: marker.startSeconds / duration, end: marker.endSeconds / duration, ...(marker.kind === 'credits' ? {fromEnd: true} : {})})),
+              ...chapters.filter(chapter => chapter.startSeconds > 0).map(chapter => ({id: chapter.id, kind: 'chapter', start: chapter.startSeconds / duration}))] : []}
             overlay={preview && bounds && previewSeconds !== null ? <ScrubPreview frame={preview.frame} source={preview.source} seconds={previewSeconds} phone={mobile}
               percent={(previewSeconds - bounds.start) / (bounds.end - bounds.start) * 100} /> : undefined}
             input={{tabIndex: 0, min: bounds?.start ?? 0,
@@ -507,7 +512,8 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
           <div className={styles.controls}>
             <div className={styles.leading}>{surfaces?.available.includes('episodes')
               ? <Button size="small" variant="glass" icon="i-stack" onClick={event => showPanel('episodes', event.currentTarget)}>{t('next.controls.episodes')}</Button>
-              : surfaces?.available.includes('queue') ? <Button size="small" variant="glass" icon="i-queue" onClick={event => showPanel('queue', event.currentTarget)}>{t('player.queue')}</Button> : null}</div>
+              : <>{chapters.length > 0 && <Button size="small" variant="glass" icon="i-list" onClick={event => showPanel('chapters', event.currentTarget)}>{t('player.opt.chapters')}</Button>}
+                {surfaces?.available.includes('queue') && <Button size="small" variant="glass" icon="i-queue" onClick={event => showPanel('queue', event.currentTarget)}>{t('player.queue')}</Button>}</>}</div>
             {playbackFailed ? <span aria-hidden="true" /> : transport}
             <div className={styles.trailing}>
               {!coarsePointer && can('volume') && <span className={styles.volume}><Control icon="i-vol" label={t(presentation?.muted ? 'player.unmute' : 'player.mute')} action={() => send({kind: 'mute'})} />
@@ -535,7 +541,8 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
     }}>
       {surfaces?.body}
     </div>
-    {surfaces && panelPresence.shown && <PanelPresence leaving={panelPresence.leaving}>{surfaces.render({panel: panelPresence.shown, snapshot, available: surfaces.available, reportProblem: surfaces.more?.find(action => action.id === 'report-problem'), layout: width < 1024 ? 'phone' : 'desktop', landscape: width < 1024 && width > height, phoneTop: portrait ? geometry?.picture ? geometry.picture.top + geometry.picture.height : width * 9 / 16 + (window.visualViewport?.offsetTop ?? 0) : 0, close: () => setPanel(null), show: next => showPanel(next), returnFocusRef: panelAnchor})}</PanelPresence>}
+    {panelPresence.shown === 'chapters' ? <PanelPresence leaving={panelPresence.leaving}><WatchChaptersDrawer chapters={chapters} onSeek={seconds => send({kind: 'seek', seconds})} onClose={() => setPanel(null)} /></PanelPresence>
+      : surfaces && panelPresence.shown && <PanelPresence leaving={panelPresence.leaving}>{surfaces.render({panel: panelPresence.shown, snapshot, available: surfaces.available, reportProblem: surfaces.more?.find(action => action.id === 'report-problem'), layout: width < 1024 ? 'phone' : 'desktop', landscape: width < 1024 && width > height, phoneTop: portrait ? geometry?.picture ? geometry.picture.top + geometry.picture.height : width * 9 / 16 + (window.visualViewport?.offsetTop ?? 0) : 0, close: () => setPanel(null), show: next => showPanel(next), returnFocusRef: panelAnchor})}</PanelPresence>}
     <Menu className={styles.playerMenu} open={more} onOpenChange={setMore} title={t('player.more')} anchorRef={moreAnchor} returnFocusRef={moreAnchor} presentation="anchored" width={300} items={menuItems} />
     <KeyboardShortcuts open={shortcuts} onOpenChange={setShortcuts} skipBackSeconds={binding.skips.back} skipForwardSeconds={binding.skips.forward} returnFocusRef={moreAnchor} />
   </div>;

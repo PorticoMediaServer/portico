@@ -15,6 +15,8 @@ export const shared = {
   'next.watch.ends': 'Ends {time}',
   // desktop-player f6: the Episodes drawer's own count.
   'next.watch.episodeCount': '{count, plural, one {# episode} other {# episodes}}',
+  'next.watch.chapterCount': '{count, plural, one {# chapter} other {# chapters}}',
+  'next.watch.chapterNumber': 'Chapter {number}',
   'next.kit.episode': 'Episode {number, number, ::group-off}',
   'next.kit.episodeCode': 'S{season, number, ::group-off} E{episode, number, ::group-off}',
   'next.kit.special': 'Special',

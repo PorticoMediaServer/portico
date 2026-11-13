@@ -2,7 +2,7 @@ import {useLayoutEffect, useRef, type InputHTMLAttributes, type ReactNode, type 
 import styles from './seek-line.module.css';
 
 /** A place on the line, as fractions of its length. The reader draws a chapter as a tick at its
- * start (and the current chapter as a band); the player draws a segment (an intro, the credits),
+ * start (and the current chapter as a band); the player draws a chapter (`kind: 'chapter'`) as a tick too, and a segment (an intro, the credits),
  * `fromEnd` keeping one that runs to the end anchored there. */
 export type SeekLineMark = Readonly<{id: string; start: number; end?: number; kind?: string; current?: boolean; fromEnd?: boolean}>;
 export type SeekLineProps = Readonly<{
@@ -43,7 +43,9 @@ export function SeekLine({variant, value, marks = [], buffered = [], hover = nul
       <i className={player ? styles.playerFill : styles.readerFill} style={{width: pct(value)}} />
       {hover !== null && <><span className={styles.hoverFill} aria-hidden="true" style={{width: pct(hover)}} /><span className={styles.hoverLine} aria-hidden="true" style={{insetInlineStart: pct(hover)}} />
         {hoverLabel && <span ref={label} className={styles.hoverLabel} aria-hidden="true" style={{insetInlineStart: `clamp(var(--seek-label-half), ${pct(hover)}, calc(100% - var(--seek-label-half)))`}}>{hoverLabel}</span>}</>}
-      {marks.map(mark => player
+      {marks.map(mark => player && mark.kind === 'chapter'
+        ? <i key={mark.id} className={styles.chapterTick} data-seek-mark data-kind="chapter" aria-hidden="true" style={{insetInlineStart: pct(mark.start)}} />
+        : player
         ? <span key={mark.id} className={styles.segment} data-seek-mark data-kind={mark.kind}
           style={{...(mark.fromEnd ? {insetInlineEnd: pct(1 - (mark.end ?? mark.start))} : {insetInlineStart: pct(mark.start)}), width: pct((mark.end ?? mark.start) - mark.start)}} />
         : <span key={mark.id}>

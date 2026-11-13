@@ -27,3 +27,16 @@ test('with no seek window the line stays where playback is, not at the start', (
   assert.equal(watchLineValue(null, 8, 8), 1, 'ended: the fill and the thumb stay at the end');
   assert.equal(watchLineValue(null, 3, 0), 0, 'no length known: the start');
 });
+
+test('the player draws a chapter as a tick at its start, beside the intro and credits segments', async context => {
+  const loader = registerHooks({load(url, ctx, next) {
+    if (url.endsWith('.module.css')) return {format: 'module', source: 'export default new Proxy({}, {get: (_, key) => String(key)});', shortCircuit: true};
+    if (url.endsWith('.tsx')) return {format: 'module', source: transformTsx(url), shortCircuit: true};
+    return next(url, ctx);
+  }});
+  context.after(() => loader.deregister());
+  const {SeekLine} = await import('../src/kit/media/SeekLine.tsx');
+  const markup = renderToStaticMarkup(createElement(SeekLine, {variant: 'player', value: 0, marks: [{id: 'c1', kind: 'chapter', start: .3125}, {id: 'i', kind: 'intro', start: 0, end: .1}]}));
+  assert.match(markup, /<i class="chapterTick" data-seek-mark="true" data-kind="chapter" aria-hidden="true" style="inset-inline-start:31.25%"><\/i>/);
+  assert.match(markup, /class="segment"[^>]*data-kind="intro"/);
+});
