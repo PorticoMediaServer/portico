@@ -5,7 +5,7 @@
 .tabs button:hover { color: var(--color-text); }
 .tabs button[aria-selected="true"] { background: rgba(237,245,250,.16); color: var(--color-text); }
 .tabs button > span { font-size: 12.5px; font-weight: 600; color: var(--color-text-tertiary); }
-.tabs button:focus-visible, .chapter:focus-visible, .annotation:focus-visible, .more:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; }
+.tabs button:focus-visible, .chapter:focus-visible, .annotation:focus-visible, .bookmark:focus-visible, .more:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; }
 .body { padding: 6px 8px 0; overflow-y: auto; flex: 1; min-height: 0; }
 .footer { display: flex; align-items: center; gap: 10px; padding: 14px 16px 16px 24px; border-top: 1px solid rgba(237,245,250,.08); font-size: 13px; color: var(--color-text-tertiary); }
 .contents { display: flex; flex-direction: column; }
@@ -21,7 +21,21 @@
 .chapterProgress { width: 100%; height: 3px; background: rgba(237,245,250,.2); }
 .chapterProgress > i { display: block; height: 100%; background: var(--color-accent-strong); }
 .nested { margin-left: 18px; }
+.rows { display: flex; flex-direction: column; }
 .annotationWrap { position: relative; }
+/* A row with its own ⋯ keeps its words clear of it. */
+.annotationWrap[data-more] .annotation, .annotationWrap[data-more] .bookmark { padding-right: 56px; }
+div.annotation { cursor: default; }
+div.annotation:hover { background: transparent; }
+.bookmark { display: flex; gap: 14px; align-items: flex-start; width: 100%; padding: 12px 14px; border: 0; border-radius: 12px; text-align: left; font: inherit; color: var(--color-text); background: transparent; cursor: pointer; }
+.bookmark:hover { background: rgba(237,245,250,.06); }
+.bookmark > svg { flex: none; margin-top: 2px; color: var(--color-accent-strong); }
+.bookmarkText { flex: 1; min-width: 0; }
+.bookmarkText b { display: block; font-size: 14.5px; font-weight: 700; }
+.bookmarkText small { display: block; margin-top: 4px; font-family: Literata; font-size: 14px; line-height: 1.5; color: var(--color-text-secondary); }
+.when { margin-left: auto; font-size: 12.5px; font-weight: 600; color: var(--color-text-tertiary); white-space: nowrap; }
+.section { margin: 0; padding: 14px 16px 6px; font-size: 13px; font-weight: 700; color: var(--color-text-tertiary); }
+.empty { margin: 0; padding: 14px 16px; font-size: 14.5px; line-height: 1.5; color: var(--color-text-secondary); }
 .annotation { position: relative; display: block; width: 100%; text-align: left; padding: 12px 14px 12px 22px; border: 0; border-radius: 12px; color: var(--color-text); background: transparent; font: inherit; cursor: pointer; }
 .annotation:hover { background: rgba(237,245,250,.06); }
 .annotation::before { content: ''; position: absolute; left: 10px; top: 14px; bottom: 14px; width: 3px; border-radius: 2px; background: var(--color-amber); }
@@ -33,10 +47,12 @@
 .note svg { flex: none; color: var(--color-amber); margin-top: 1px; }
 .where { display: flex; gap: 12px; margin-top: 8px; font-size: 12.5px; font-weight: 600; color: var(--color-text-tertiary); }
 .date { margin-left: auto; }
-.more { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border: 0; border-radius: 10px; color: var(--color-text-secondary); background: var(--color-raised); opacity: 0; cursor: pointer; }
+.more { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 10px; color: var(--color-text-secondary); background: var(--color-raised); opacity: 0; cursor: pointer; }
 .annotationWrap:hover .more, .annotationWrap:focus-within .more { opacity: 1; }
 .sheet { background: var(--color-raised-high); }
 .sheetHeader h2 { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .sheetBody { display: flex; flex-direction: column; padding: 0; }
 @media (max-width: 1023px) and (min-width: 600px) { .panel { width: 360px; } }
 @media (pointer: coarse) { .tabs button { height: 44px; } .chapter { min-height: 52px; } .more { opacity: 1; } }
+/* phone-read .hlit: a little tighter in the sheet. */
+@media (max-width: 599px) { .annotation { padding: 10px 14px 10px 22px; } .annotation::before { top: 12px; bottom: 12px; } .annotation q { font-size: 14.5px; line-height: 1.5; } }

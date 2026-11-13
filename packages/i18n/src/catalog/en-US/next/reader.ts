@@ -169,4 +169,5 @@ export const readerMessages = {
   'next.reader.sourceOwner': 'Edited on this server',
   'next.reader.indexedSearchScope': 'Searches indexed book text.',
   'next.reader.noIndexedMatches': 'No indexed matches found.',
+  'next.reader.contentsEmpty': 'This book has no list of contents.',
 } as const satisfies Record<`next.reader.${string}`, string>;
