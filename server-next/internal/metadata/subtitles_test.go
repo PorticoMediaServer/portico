@@ -16,7 +16,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/seed"
 )
 
-// film makes a film library holding The Matrix, with its IMDb id, and returns its public id.
+// film makes a local-metadata-only library holding The Matrix, with its IMDb id.
 func film(t *testing.T) (*db.DB, db.Viewer, string) {
 	t.Helper()
 	d, err := db.Open(ctx, filepath.Join(t.TempDir(), "main.db"))
@@ -24,7 +24,7 @@ func film(t *testing.T) (*db.DB, db.Viewer, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { d.Close() })
-	if _, err := d.CreateLibrary(ctx, "Films", db.LibraryMovies, "en", []string{t.TempDir()}); err != nil {
+	if _, err := d.NewLibrary(ctx, db.NewLibrary{Name: "Films", Kind: db.LibraryMovies, Language: "en", MetadataProvider: db.ProviderLocal, Folders: []string{t.TempDir()}}); err != nil {
 		t.Fatal(err)
 	}
 	viewers, err := seed.Profiles(ctx, d, 1)
@@ -71,6 +71,13 @@ func TestASubtitleIsFoundDownloadedAndOfferedAtPlayback(t *testing.T) {
 	d, viewer, id := film(t)
 	server := opensubtitlestest.New(t)
 	s := &metadata.Service{DB: d, SubtitleDir: t.TempDir()}
+	libraries, err := d.AllLibraries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if asks, err := s.Asks(ctx, libraries[0].PublicID); err != nil || asks {
+		t.Fatalf("local-only library starts automatic lookups: %v, %v", asks, err)
+	}
 
 	// Without the owner's OpenSubtitles account there is nothing to search.
 	if _, err := s.SearchSubtitles(ctx, viewer, id, []string{"eng"}); !errors.Is(err, metadata.ErrNoSubtitleProvider) {
