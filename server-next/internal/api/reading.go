@@ -9,7 +9,8 @@ import (
 
 // BookAnswer is how to read one book: GET /v1/items/{id}/book.
 type BookAnswer struct {
-	ItemID string `json:"itemId"`
+	ItemID       string `json:"itemId"`
+	OpeningLines string `json:"openingLines,omitempty"`
 	// Version is the version opened; Versions are all of the book's files, for "Read a
 	// different version".
 	Version  string        `json:"version"`
@@ -109,6 +110,9 @@ func (s *Server) openBook(r *http.Request, _ None) (BookAnswer, error) {
 	opened := s.reading.Open(r.Context(), who, book, version)
 	out := BookAnswer{ItemID: book.PublicID, Version: version.PublicID, Versions: []BookVersion{}, Format: opened.Format,
 		Fingerprint: opened.Fingerprint, Size: version.Size, SaveURL: opened.SaveURL}
+	if opened.Format == "epub" {
+		out.OpeningLines = book.OpeningLines
+	}
 	if book.Place != "" {
 		out.Place, out.PlaceExact = JSON(book.Place), db.ReadPlace(book.Place).Fingerprint == opened.Fingerprint
 	}

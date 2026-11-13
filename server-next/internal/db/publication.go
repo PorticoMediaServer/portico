@@ -43,6 +43,11 @@ func (q ItemQuery) publicationFilter(w *query, acc access) {
 }
 
 func (im *importer) describeReading(id int64, it *ImportItem) error {
+	if it.OpeningLines != nil {
+		if _, err := im.exec(`UPDATE items SET extra = json_set(ifnull(extra, '{}'), '$.openingLines', ?) WHERE id = ?`, *it.OpeningLines, id); err != nil {
+			return err
+		}
+	}
 	if it.WordCount != nil {
 		if _, err := im.exec(`UPDATE items SET word_count = ? WHERE id = ?`, *it.WordCount, id); err != nil {
 			return err

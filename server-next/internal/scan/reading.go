@@ -68,6 +68,9 @@ func (r *run) bookUnits(f *folder) []unit {
 		if n, err := strconv.Atoi(d["word_count"]); err == nil {
 			item.WordCount = &n
 		}
+		if opening, extracted := d["opening_lines"]; extracted {
+			item.OpeningLines = &opening
+		}
 		item.Reread = r.rereads(file) || publication != db.PublicationBook
 		item.Publication, item.ReleaseDate, item.IndexNumber = publication, date, index
 		u := unit{files: []*found{file}}
@@ -253,8 +256,9 @@ func (r *run) embedded(file *found) (d details, read bool) {
 			more = map[string]string{}
 		}
 		if r.path.RemoteID == 0 || r.lib.Options.Depth == db.DepthComplete {
-			if words, err := reading.EPUBWords(f, f.Size()); err == nil {
+			if words, opening, err := reading.EPUBText(f, f.Size()); err == nil {
 				more["word_count"] = strconv.Itoa(words)
+				more["opening_lines"] = opening
 			}
 		}
 	} else {

@@ -15,7 +15,7 @@ function server(format: 'epub' | 'cbz' | 'pdf' = 'epub', saveSize?: number) {
   let address = 'b.first', position = '', annotations: Record<string, unknown>[] = [];
   const book = () => ({itemId: 'itm_book', version: 'med_one', versions: [{id: 'med_one', format}], format, fingerprint, size: saveSize ?? (format === 'epub' ? 4096 : 131072),
     mediaUrl: '/v1/media/' + address, saveUrl: '/v1/media/' + address + '/source?save=1',
-    ...(format === 'epub' ? {parts: [{path: 'OEBPS/chapter 1.xhtml', type: 'application/xhtml+xml', size: chapter.length}], spine: ['OEBPS/chapter 1.xhtml'],
+    ...(format === 'epub' ? {openingLines: 'The harbour lamps were still shining.', parts: [{path: 'OEBPS/chapter 1.xhtml', type: 'application/xhtml+xml', size: chapter.length}], spine: ['OEBPS/chapter 1.xhtml'],
       contents: [{title: 'Chapter One', part: 'OEBPS/chapter 1.xhtml', depth: 0}]} : {}),
     ...(format === 'cbz' ? {pages: ['p1.png', 'p2.png', 'p3.png', 'p4.png']} : {})});
   const fetcher: typeof fetch = async (input, init = {}) => {
@@ -53,6 +53,7 @@ test('an EPUB opens from the book route, and a part whose address has ended is r
   const s = server();
   const session = await s.client.open({itemId: 'itm_book', sourceId: 'med_one'});
   assert.equal(session.manifest.revision, fingerprint);
+  assert.equal(session.manifest.metadata.openingLines, 'The harbour lamps were still shining.');
   assert.deepEqual(session.manifest.contents?.map(c => ({...c})), [{title: 'Chapter One', section: 'OEBPS/chapter 1.xhtml', depth: 0}]);
   s.renew();
   assert.deepEqual(await session.readAsset('OEBPS/chapter 1.xhtml'), chapter);

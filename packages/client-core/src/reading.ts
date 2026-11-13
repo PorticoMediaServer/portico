@@ -322,7 +322,7 @@ const query = (path: string, values: Readonly<Record<string, string | number | u
 /** The rebuilt server's answer to GET /v1/items/{id}/book: how to read one version of a book. */
 type BookAnswer = Readonly<{itemId: string; version: string; versions: readonly Readonly<{id: string; format: string; name?: string}>[];
   format: string; fingerprint: string; size: number; unreadable?: Readonly<{code: string; message: string}>; mediaUrl?: string; saveUrl?: string;
-  direction?: string; parts?: readonly Readonly<{path: string; type: string; size: number}>[]; spine?: readonly string[];
+  direction?: string; openingLines?: string; parts?: readonly Readonly<{path: string; type: string; size: number}>[]; spine?: readonly string[];
   contents?: readonly Readonly<{title: string; part: string; fragment?: string; depth: number}>[]; pages?: readonly string[]}>;
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const itemPath = (itemId: string) => serverPath('GET /v1/items/{id}', {id: itemId});
@@ -701,7 +701,8 @@ export class ReadingClient {
     if (!engineFormat(format)) fail('unsupported_format');
     const manifest = frozen({
       sessionId: book.version, itemId: request.itemId, sourceId: book.version, revision: book.fingerprint, format, size: book.size,
-      metadata: {...(typeof item.wordCount === 'number' ? {wordCount: item.wordCount, estimatedSeconds: Math.ceil(item.wordCount * 60 / 250)} : {}), ...(typeof item.title === 'string' ? {title: item.title} : {}), ...(book.direction === 'rtl' ? {direction: 'rtl'} : {})},
+      metadata: {...(typeof item.wordCount === 'number' ? {wordCount: item.wordCount, estimatedSeconds: Math.ceil(item.wordCount * 60 / 250)} : {}), ...(typeof item.title === 'string' ? {title: item.title} : {}), ...(book.direction === 'rtl' ? {direction: 'rtl'} : {}),
+        ...(format === 'epub' && typeof book.openingLines === 'string' && book.openingLines.length <= 4096 ? {openingLines: book.openingLines} : {})},
       ...(format === 'epub' ? {resources: (book.parts ?? []).map(p => ({path: p.path, mime: p.type, size: p.size})), spine: [...(book.spine ?? [])],
         ...(book.contents?.length ? {contents: book.contents.slice(0, 512).map(c => ({title: c.title, section: c.part, depth: c.depth, ...(c.fragment ? {fragment: c.fragment} : {})}))} : {})} : {}),
       ...(comicFormat(format) ? {pageNames: [...(book.pages ?? [])]} : {}),
