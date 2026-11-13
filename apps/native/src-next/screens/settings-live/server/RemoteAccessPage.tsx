@@ -13,6 +13,7 @@ import {readSettingsBinding, settingsBinding} from '../../../../../../packages/c
 import {settingsSummary} from './settings-values';
 import {NativeAdvancedSection} from './AdvancedSection';
 import {NativeRefusedAddresses} from './RefusedAddresses';
+import {NativeNetworkInterfaceRow} from './NetworkInterfaceRow';
 import {NativeSecuritySummary} from './SecuritySummary';
 import {Button, Select, Switch, TextField} from '../../../kit/controls';
 import {SettingsRow} from '../../../kit/shell';
@@ -60,11 +61,12 @@ function RemoteAccessPage({group, ports, runtime, compactHeader}: {group: Storag
   const showOwnAddress = useCallback(() => {scroll.current?.scrollTo({y: ownAddressY.current, animated: true});}, []);
   const remote = remoteState.draft, connectivity = connectivityState.draft;
   const certificate = certificateState.status;
+  const networkInterface = <NativeNetworkInterfaceRow context={context} runtime={runtime}/>;
   const failed = connectivityState.loadError;
-  if (failed !== undefined && !connectivity) return <StateView {...runtime.error(failed, () => {void forms.remote.load(); void forms.connectivity.load(); void forms.certificate.load();}, 'server-console')}/>;
+  if (failed !== undefined && !connectivity) return <View>{networkInterface}<StateView {...runtime.error(failed, () => {void forms.remote.load(); void forms.connectivity.load(); void forms.certificate.load();}, 'server-console')}/></View>;
   if (!connectivity) {
-    if (connectivityState.unavailable) return <StateView title={t('settings.server.remote.notSetUp')}/>;
-    return <StateView title={t('status.loading')}/>;
+    if (connectivityState.unavailable) return <View>{networkInterface}<StateView title={t('settings.server.remote.notSetUp')}/></View>;
+    return <View>{networkInterface}<StateView title={t('status.loading')}/></View>;
   }
   const remoteLine = remoteStatusLine(t, {unavailable: remoteState.status === undefined, remote: remoteState.status, connectivity: connectivityState.status, certificate});
   const secure = secureConnectionView({certificate});
@@ -163,6 +165,7 @@ function RemoteAccessPage({group, ports, runtime, compactHeader}: {group: Storag
           const bound = settingsSummary(rows, row => {if (Object.hasOwn(values, row.id)) return {current: values[row.id]};const binding = settingsBinding(row.id);return binding ? readSettingsBinding(binding, {forms: {connectivity}}, row.id) : undefined;}, t);
           return [bound === t('next.settings.allDefaults') ? '' : bound, connectivity.accessUrls.length ? t('web.connectivity.extraAddresses') : '', connectivity.trustedProxies.length ? t('web.connectivity.trustedProxies') : '', connectivity.lanNetworks.length ? t('web.connectivity.homeNetworks') : '', connectivity.advertiseUrl ? t('web.connectivity.advertiseUrl') : ''].filter(Boolean).join(' · ') || t('next.settings.allDefaults');
         })()}>
+          {networkInterface}
           {remote && <>
         <TextField label={t('web.network.publicPort')} value={String(remote.publicPort)} keyboardType="number-pad"
           onChangeText={value => {const next = Number(value); if (Number.isInteger(next) && next >= 1 && next <= 65535) forms.remote.set(current => ({...current, publicPort: next}));}}/>
