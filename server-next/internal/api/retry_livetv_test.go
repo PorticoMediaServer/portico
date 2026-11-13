@@ -23,6 +23,7 @@ func init() {
 		}
 	})
 	safeToRepeat(map[string]string{
+		"POST /v1/admin/live-sources/discover":            "only reads network tuner facts; no source or saved setting is created",
 		"POST /v1/admin/library-channels/preview":         "changes nothing",
 		"POST /v1/admin/library-channels/{id}/regenerate": "sets the channel to be built again",
 		"POST /v1/admin/live/sources/preview":             "changes nothing",
