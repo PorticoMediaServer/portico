@@ -3,10 +3,14 @@ import {defaultI18n} from '@i18n';
 import type {MetricName, TelemetryReading} from '@core/telemetry.ts';
 import {formatBytes} from '@core/presentation/content.ts';
 import {Dialog} from '../../kit/overlays';
-import {healthDetail, healthPlot, healthTiles} from './health-presentation';
+import {healthDetail, healthTiles} from './health-presentation';
+import {Chart} from './Chart';
+import type {DashboardLoadKind} from './format';
 import styles from './phone-health.module.css';
 
 const t = defaultI18n.t;
+/** Each tile's chart scale: the shared chart's kinds. */
+const chartKind = (metric: MetricName): DashboardLoadKind => metric === 'cpu' || metric === 'processCPU' ? 'processor' : metric === 'memory' || metric === 'processMemory' ? 'memory' : metric === 'conversions' ? 'conversions' : 'bandwidth';
 /** Rule 12: the load as it is now and over the last 24 hours. */
 export type HealthRange = 'live' | '24h';
 const ranges = [
@@ -47,15 +51,11 @@ export function PhoneHealth({reading, loading, failed, range, onRangeChange, onR
     {failed && <div className={styles.feedback} role="alert">{t('next.states.pageFailed')} <button type="button" onClick={onRetry}>{t('next.dashboard.retry')}</button></div>}
     {loading && !current && <div className={styles.feedback} role="status">{t('next.settings.loading')}</div>}
     {current && (tiles.length ? <div className={styles.tiles}>{tiles.map(tile => {
-      const plot = healthPlot(tile.points, from, until);
+      const drawn = tile.history === 'samples' && tile.points.length > 1;
       return <button type="button" className={styles.tile} key={tile.metric} onClick={event => {opener.current = event.currentTarget; setSelected({metric: tile.metric, label: t(tile.label)});}}>
         <div className={styles.key}><span>{t(tile.label)}</span><b>{tile.value}</b>{tile.limited && <small>{tile.details.length ? tile.details.join(' · ') : t('next.remoteSources.state.limited')}</small>}</div>
-        <div className={`${styles.spark} ${plot ? '' : styles.empty}`}>
-          {plot && <svg viewBox="0 0 100 46" preserveAspectRatio="none" aria-hidden="true">
-            <defs><linearGradient id={`${gradient}-${tile.metric}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--color-accent)" stopOpacity=".24"/><stop offset="1" stopColor="var(--color-accent)" stopOpacity="0"/></linearGradient></defs>
-            <path d={plot.area} fill={`url(#${gradient}-${tile.metric})`}/><path d={plot.line} fill="none" stroke="var(--color-accent-strong)" strokeWidth="1.6" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-          </svg>}
-          {plot && <i className={styles.dot} style={{left: `${plot.endX}%`, top: `${plot.endY / 46 * 100}%`}} aria-hidden="true"/>}
+        <div className={`${styles.spark} ${drawn ? '' : styles.empty}`}>
+          {drawn && <Chart compact interval={current} kind={chartKind(tile.metric)} title={t(tile.label)} series={[{key: tile.metric, label: t(tile.label), points: tile.points}]} format={String} />}
         </div>
       </button>;
     })}{shortHistory && <div className={styles.note}>{t('next.dashboard.healthLater')}</div>}</div> : <div className={styles.feedback}>{t('server.health.loadNotMeasured')}</div>)}
@@ -71,14 +71,7 @@ export function PhoneHealth({reading, loading, failed, range, onRangeChange, onR
         : !detail ? <div className={styles.detailMessage}>{selectedTile.points.length < 2 ? t('next.dashboard.healthLater') : t('next.kit.browse.unavailable')}</div>
         : <>
           {selectedTile.points.some(point => point.status === 'limited') && <div className={styles.detailMessage}>{[...new Set(selectedTile.points.filter(point => point.status === 'limited').map(point => point.detail || t('next.remoteSources.state.limited')))].join(' · ')}</div>}
-          <div className={styles.chart}>
-            {(detail.top === 0 ? [0] : [1, .5, 0]).map(f => <div className={`${styles.gridline} ${f === 0 ? styles.baseline : ''}`} style={{top: `${(1 - f) * 100}%`}} key={f}><span>{number(detail.top * f)}</span></div>)}
-            <div className={styles.chartPlot}><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              <defs><linearGradient id={`${gradient}-detail`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--color-accent)" stopOpacity=".24"/><stop offset="1" stopColor="var(--color-accent)" stopOpacity="0"/></linearGradient></defs>
-              <path d={detail.area} fill={`url(#${gradient}-detail)`}/><path d={detail.line} fill="none" stroke="var(--color-accent-strong)" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round"/>
-            </svg><i className={styles.detailDot} style={{left: `${detail.endX}%`, top: `${detail.endY}%`}} aria-hidden="true"/></div>
-          </div>
-          <div className={styles.axis}><span>{time(from)}</span><span>{time((from + until) / 2)}</span><span>{time(until)}</span></div>
+          <div className={styles.chart}><Chart interval={current!} kind={chartKind(selectedTile.metric)} title={selectedLabel} legend={false} series={[{key: selectedTile.metric, label: selectedLabel, points: selectedTile.points}]} format={number} /></div>
           <div className={styles.stats}><div><small>{t('next.dashboard.lowest')}</small><b>{number(detail.low)}</b></div><div><small>{t('next.dashboard.averageValue')}</small><b>{number(detail.average)}</b></div><div><small>{t('next.dashboard.highest')}</small><b>{number(detail.high)}</b><em>{t('next.dashboard.highestAt', {time: time(detail.highAt)})}</em></div></div>
         </>}
     </Dialog>

@@ -172,7 +172,8 @@ export async function readServerLoad(api:ServerRequester,range:'live'|'24h',sign
  const series={} as Record<MetricName,TelemetryPoint[]>,status={} as Record<MetricName,Metric>;
  const sent=v.series as Record<string,unknown>;
  for(const name of METRIC_NAMES){
-  const points=Array.isArray(sent[name])?(sent[name] as unknown[]).flatMap(p=>{const q=p as {t?:unknown;v?:unknown}|null;const t=q&&time(q.t);return t&&typeof q!.v==='number'&&Number.isFinite(q!.v)?[{t:Date.parse(t),v:q!.v as number}]:[];}):[];
+  const points=Array.isArray(sent[name])?(sent[name] as unknown[]).flatMap(p=>{const q=p as {t?:unknown;v?:unknown}|null;const t=q&&time(q.t);return t&&typeof q!.v==='number'&&Number.isFinite(q!.v)?[{t:Date.parse(t),v:q!.v as number,status:'available' as const}]:[];}):[];
+  // The route sends only measured samples: each is available (the phone Health tiles draw only those).
   series[name]=points;
   status[name]=points.length?{status:'available',value:points[points.length-1]!.v}:{status:'unavailable',value:0};
  }

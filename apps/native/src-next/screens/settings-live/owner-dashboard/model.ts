@@ -20,7 +20,8 @@ export type Has = (id: string) => id is MessageId;
 export type OwnerText = Readonly<{t: Translate; locale?: string}>;
 
 /** The three periods the Health section draws (owner-dashboard frames 2–3, 7–8). */
-export const OWNER_HEALTH_WINDOWS = ['10m', '1h', '24h'] as const;
+/** Rule 12: the load as it is now and over the last 24 hours (`GET /v1/admin/load`). */
+export const OWNER_HEALTH_WINDOWS = ['live', '24h'] as const;
 export type OwnerHealthWindow = (typeof OWNER_HEALTH_WINDOWS)[number];
 /** The four periods the Viewing statistics section draws (frame 3). */
 export const OWNER_VIEWING_PERIODS = ['today', '7d', '30d', 'all'] as const;

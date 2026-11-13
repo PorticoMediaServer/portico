@@ -40,7 +40,8 @@ function useOwnerTelemetry(reader: NativeOwnerDashboardReader, window: OwnerHeal
   const [state, setState] = useState<TelemetryState>({}), [revision, setRevision] = useState(0);
   useEffect(() => {
     if (!enabled) {setState({}); return;}
-    const everyMs = window === '10m' ? 15_000 : 60_000;
+    // Live is read every 2 seconds, as the web does; the 24-hour chart moves slowly and is read every minute.
+    const everyMs = window === 'live' ? 2_000 : 60_000;
     const poll = repeat(async signal => {const reading = await reader.telemetry(window); if (!signal.aborted) setState({reading});},
       {everyMs, backoff: {baseMs: everyMs * 2, maxMs: 120_000}, onError: error => setState(current => ({...current, error}))});
     return () => poll.stop();
@@ -67,7 +68,7 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
   const theme = useTheme(), insets = useSafeAreaInsets(), t = runtime.text.t;
   const reader = useMemo(() => createNativeOwnerDashboardReader(controller.lifetime, ports), [controller, ports]);
   useEffect(() => () => reader.dispose(), [reader]);
-  const [healthWindow, setHealthWindow] = useState<OwnerHealthWindow>('1h'), [viewingPeriod, setViewingPeriod] = useState<OwnerViewingPeriod>('7d');
+  const [healthWindow, setHealthWindow] = useState<OwnerHealthWindow>('live'), [viewingPeriod, setViewingPeriod] = useState<OwnerViewingPeriod>('7d');
   const [now, setNow] = useState(() => serverNow());
   const [streamMenu, setStreamMenu] = useState<OwnerStreamView>(), [stopView, setStopView] = useState<OwnerStreamView>(), [message, setMessage] = useState('');
   const [moveView, setMoveView] = useState<OwnerStreamView>();
@@ -141,7 +142,7 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
   const moveSession = moveView ? raw(moveView.id) : undefined;
   return <>
     <OwnerDashboardPage t={t} role={owner ? 'owner' : 'administrator'} serverName={ports.serverName()} topInset={inline ? 0 : insets.top} inline={inline}
-      health={{degraded: health.facts.degraded, status: health.status, line: health.line, ...(health.uptimeSeconds === undefined ? {} : {uptimeSeconds: health.uptimeSeconds})}}
+      health={{degraded: health.facts.degraded, status: owner ? health.status : '', line: health.line, ...(health.uptimeSeconds === undefined ? {} : {uptimeSeconds: health.uptimeSeconds})}}
       updated={ownerUpdatedLabel(telemetry.reading?.observedAt ?? (state.observedAt ? Date.parse(state.observedAt) : undefined), now, t)} loading={state.loading || busy} error={actionError ?? state.error}
       streams={entries} streamTotals={totals} expanded={expanded && compact} allStreams={allEntries} allError={all.error}
       onShowAll={() => setExpanded(true)} onShowFewer={() => setExpanded(false)} onRetryAll={() => setAllRevision(value => value + 1)}

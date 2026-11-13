@@ -1,11 +1,10 @@
 import React, {useState} from 'react';
 import {Text, View} from 'react-native';
-import Svg, {Path} from 'react-native-svg';
 import {Segmented} from '../../../kit/controls';
 import {BottomSheet} from '../../../kit/overlays';
-import {StatTiles} from '../../../kit/shell';
+import {Sparkline, StatTiles} from '../../../kit/shell';
 import {useTheme} from '../../../kit/theme';
-import {alpha, shellType} from '../../../kit/shell/visual';
+import {shellType} from '../../../kit/shell/visual';
 import {when} from '../../../../../../packages/client-core/src/server-admin/console-words';
 import type {LoadTile} from '../../../../../../packages/client-core/src/server-admin/dashboard';
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
@@ -34,10 +33,7 @@ export function OwnerHealthSection({reading, error, window, onWindow, note, onRe
 
 function HealthChart({detail, t}: {detail: NonNullable<ReturnType<typeof ownerHealthDetail>>; t: Translate}) {
   const theme = useTheme(), [width, setWidth] = useState(0), height = 170;
-  const points = detail.points, first = points[0], last = points[points.length - 1];
-  const x = (point: {t: number}) => last.t > first.t ? (point.t - first.t) / (last.t - first.t) * width : 0;
-  const y = (value: number) => height - Math.max(0, Math.min(1, (value - detail.min) / Math.max(1e-9, detail.max - detail.min))) * height;
-  const line = points.map((point, index) => `${index ? 'L' : 'M'}${x(point).toFixed(1)},${y(point.v).toFixed(1)}`).join(' ');
+  const points = detail.points, first = points[0];
   const percent = detail.unit === 'percent';
   const axis = [detail.max, (detail.max + detail.min) / 2, detail.min];
   const value = (amount: number) => percent ? `${Math.round(amount)}%` : detail.unit === 'mbps' ? t('next.dashboard.mbps', {value: amount.toFixed(1)}) : String(Math.round(amount));
@@ -47,11 +43,8 @@ function HealthChart({detail, t}: {detail: NonNullable<ReturnType<typeof ownerHe
       {axis.map((amount, index) => <View key={index} pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, top: index === 0 ? 0 : index === 1 ? height / 2 : height, borderTopWidth: 1, borderTopColor: index === 2 ? theme.colors.line : theme.colors.lineSoft}}>
         <Text style={[shellType(11, 600), {color: theme.colors.textTertiary, position: 'absolute', right: 0, top: -14, backgroundColor: theme.colors.overlaySurface, paddingHorizontal: 3}]}>{value(amount)}</Text>
       </View>)}
-      <Svg accessible={false} width={width} height={height} style={{position: 'absolute', left: 0, top: 0}}>
-        <Path d={`${line} L${width},${height} L0,${height} Z`} fill={alpha(theme.colors.accent, .22)}/>
-        <Path d={line} stroke={theme.colors.accentStrong} strokeWidth={2} fill="none" strokeLinejoin="round"/>
-      </Svg>
-      <View pointerEvents="none" style={{position: 'absolute', left: Math.max(0, Math.min(width - 7, x(last) - 3.5)), top: Math.max(0, Math.min(height - 7, y(last.v) - 3.5)), width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.accentStrong, borderWidth: 2, borderColor: theme.colors.overlaySurface}}/>
+      {/* The kit's one chart, at full size: the same line, fill and end dot as the tiles. */}
+      <View pointerEvents="none" style={{position: 'absolute', left: 0, top: 0}}><Sparkline samples={points.map(point => point.v)} width={width} height={height} min={detail.min} max={detail.max} endDot/></View>
     </View>
     <View style={{flexDirection: 'row', justifyContent: 'space-between', marginTop: 6}}>
       <Text style={[shellType(11.5, 600), {color: theme.colors.textTertiary}]}>{when(first.t)}</Text>

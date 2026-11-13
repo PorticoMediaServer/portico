@@ -1,4 +1,4 @@
-import {useId, useState, type CSSProperties} from 'react';
+import {useId, useLayoutEffect, useRef, useState, type CSSProperties} from 'react';
 import {defaultI18n} from '@i18n';
 import type {ReportInterval} from '@core/report-context.ts';
 import type {TelemetryPoint} from '@core/telemetry.ts';
@@ -8,8 +8,15 @@ import styles from './dashboard.module.css';
 export type ChartSeries = Readonly<{key: string; label: string; points: readonly TelemetryPoint[]}>;
 const t = defaultI18n.t;
 /** Keyboard and pointer inspect the same actual sample. Missing samples stay gaps. */
-export function Chart({title, series, format, formatAverage = format, step = false, compact = false, stacked = false, kind = 'bandwidth', interval}: {interval: ReportInterval; kind?: DashboardLoadKind; title: string; series: readonly ChartSeries[]; format: (value: number) => string; formatAverage?: (value: number) => string; step?: boolean; stacked?: boolean; compact?: boolean}) {
+export function Chart({title, series, format, formatAverage = format, step = false, compact = false, stacked = false, legend = true, kind = 'bandwidth', interval}: {interval: ReportInterval; kind?: DashboardLoadKind; /** Off where the page gives its own figures under the chart (Health's lowest, average, highest). */ legend?: boolean; title: string; series: readonly ChartSeries[]; format: (value: number) => string; formatAverage?: (value: number) => string; step?: boolean; stacked?: boolean; compact?: boolean}) {
   const id = useId().replace(/:/g, ''), [selected, select] = useState<number | undefined>();
+  // The chart draws at the width it is given, so its labels keep their real size on a phone (912 is the desktop frame).
+  const box = useRef<HTMLDivElement>(null), [W, setW] = useState(912), drawn = series.some(s => s.points.length > 0);
+  useLayoutEffect(() => {
+    const element = box.current; if (compact || !element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {const width = Math.round(entry?.contentRect.width ?? 0); if (width > 0) setW(Math.max(240, width));});
+    observer.observe(element); return () => observer.disconnect();
+  }, [compact, drawn]);
   const stamps = [...new Set(series.flatMap(s => s.points.map(p => p.t)))].sort((a, b) => a - b);
   if (!stamps.length) return null;
   const starts = interval.buckets.map(b => Date.parse(b.start));
@@ -19,20 +26,20 @@ export function Chart({title, series, format, formatAverage = format, step = fal
   const layers = stacked ? series.map((s, si) => s.points.map((p, i) => ({t: p.t, v: series.slice(0, si + 1).reduce((sum, below) => sum + (below.points[i]?.v ?? 0), 0)}))) : [];
   const actualMax = Math.max(0, ...(stacked ? layers.flat() : series.flatMap(s => s.points)).map(p => p.v));
   const scale = loadScale(kind, actualMax), max = compact ? kind === 'memory' ? Math.max(60, actualMax * 1.15) : kind === 'conversions' ? Math.max(3.2, actualMax) : Math.max(1, actualMax * (kind === 'bandwidth' ? 1.12 : 1.15)) : scale.top;
-  const geometry = compact ? {left: 3, top: 3, width: 191, height: 34} : {left: kind === 'bandwidth' ? 64 : 40, top: 8, width: kind === 'bandwidth' ? 840 : 864, height: 216};
+  const geometry = compact ? {left: 3, top: 3, width: 191, height: 34} : {left: kind === 'bandwidth' ? 64 : 40, top: 8, width: kind === 'bandwidth' ? W - 72 : W - 48, height: 216};
   const x = (stamp: number) => geometry.left + (stamp - from) / (until - from) * geometry.width;
   const y = (value: number) => geometry.top + geometry.height - value / max * geometry.height;
   const active = selected === undefined ? undefined : stamps[Math.min(stamps.length - 1, selected)];
 
-  return <div className={compact ? styles.spark : styles.plot} tabIndex={compact ? undefined : 0} role={compact ? undefined : 'group'} aria-label={compact ? undefined : title} aria-describedby={compact ? undefined : id}
-    onPointerMove={compact ? undefined : event => {const rect = event.currentTarget.getBoundingClientRect(); select(Math.max(0, Math.min(stamps.length - 1, stamps.reduce((best, stamp, i) => Math.abs(stamp - (from + ((event.clientX - rect.left) / rect.width * 912 - geometry.left) / geometry.width * (until - from))) < Math.abs(stamps[best] - (from + ((event.clientX - rect.left) / rect.width * 912 - geometry.left) / geometry.width * (until - from))) ? i : best, 0))));}}
+  return <div ref={box} className={compact ? styles.spark : styles.plot} tabIndex={compact ? undefined : 0} role={compact ? undefined : 'group'} aria-label={compact ? undefined : title} aria-describedby={compact ? undefined : id}
+    onPointerMove={compact ? undefined : event => {const rect = event.currentTarget.getBoundingClientRect(); select(Math.max(0, Math.min(stamps.length - 1, stamps.reduce((best, stamp, i) => Math.abs(stamp - (from + ((event.clientX - rect.left) / rect.width * W - geometry.left) / geometry.width * (until - from))) < Math.abs(stamps[best] - (from + ((event.clientX - rect.left) / rect.width * W - geometry.left) / geometry.width * (until - from))) ? i : best, 0))));}}
     onPointerLeave={() => select(undefined)} onBlur={() => select(undefined)} onKeyDown={event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault(); select(old => event.key === 'Home' ? 0 : event.key === 'End' ? stamps.length - 1 : Math.max(0, Math.min(stamps.length - 1, (old ?? (event.key === 'ArrowLeft' ? stamps.length : -1)) + (event.key === 'ArrowLeft' ? -1 : 1))));
     }}>
-    <svg viewBox={compact ? '0 0 197 40' : '0 0 912 250'} role="img" aria-label={title} className={styles.chart}>
+    <svg viewBox={compact ? '0 0 197 40' : `0 0 ${W} 250`} role="img" aria-label={title} className={styles.chart}>
       <defs>{series.map(s => <linearGradient data-series={s.key} key={s.key} id={`${id}-${s.key}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="currentColor" stopOpacity={compact ? .22 : .16} /><stop offset="1" stopColor="currentColor" stopOpacity="0" /></linearGradient>)}</defs>
-      {!compact && scale.ticks.map(value => <g key={value}><path className={styles.gridline} d={`M${geometry.left},${Math.round(y(value)) + .5}H904`} /><text x={geometry.left - 10} y={Math.round(y(value)) + 4.5} textAnchor="end">{formatLoadAxis(value, kind)}</text></g>)}
+      {!compact && scale.ticks.map(value => <g key={value}><path className={styles.gridline} d={`M${geometry.left},${Math.round(y(value)) + .5}H${W - 8}`} /><text x={geometry.left - 10} y={Math.round(y(value)) + 4.5} textAnchor="end">{formatLoadAxis(value, kind)}</text></g>)}
       {stacked && layers.map((layer, si) => {
         const hi = layer.map(p => [x(p.t), y(p.v)] as [number, number]), lo = (si ? layers[si - 1]! : layer.map(p => ({t: p.t, v: 0}))).map(p => [x(p.t), y(p.v)] as [number, number]).reverse();
         return hi.length > 1 && <g key={series[si]!.key} data-series={series[si]!.key}><path className={styles.area} d={`${plotLine(hi)}L${lo[0]![0].toFixed(1)},${lo[0]![1].toFixed(1)}${curveSegments(lo)}Z`} /><path className={styles.areaLine} d={plotLine(hi)} /></g>;
@@ -44,9 +51,9 @@ export function Chart({title, series, format, formatAverage = format, step = fal
       {!compact && loadAxisTicks(interval, from, until, geometry.width).map(tick => <text key={tick.f} x={(geometry.left + geometry.width * tick.f).toFixed(1)} y="244" textAnchor={tick.f < .02 ? 'start' : tick.f > .98 ? 'end' : 'middle'}>{tick.text}</text>)}
       {active !== undefined && <path className={styles.guide} d={`M${x(active)},8V224`} />}
     </svg>
-    {!compact && <><div id={id} className={styles.chartTip} style={active === undefined ? undefined : {left: `calc(${(x(active) / 912 * 100).toFixed(2)}% + ${x(active) / 912 > .58 ? -14 : 14}px)`} as CSSProperties} data-flip={active !== undefined && x(active) / 912 > .58 || undefined} aria-live="polite">{active !== undefined && <><b>{formatReportBucketTitle(interval, active)}</b>{series.map(s => {const point = s.points.find(p => p.t === active); return point && <span key={s.key} data-series={s.key}><i />{s.label}<strong>{format(point.v)}</strong></span>;})}</>}</div>
-      <div className={styles.legend}>{series.map(s => <span key={s.key} data-series={s.key}><i />{s.label}</span>)}{stacked
+    {!compact && <><div id={id} className={styles.chartTip} style={active === undefined ? undefined : {left: `calc(${(x(active) / W * 100).toFixed(2)}% + ${x(active) / W > .58 ? -14 : 14}px)`} as CSSProperties} data-flip={active !== undefined && x(active) / W > .58 || undefined} aria-live="polite">{active !== undefined && <><b>{formatReportBucketTitle(interval, active)}</b>{series.map(s => {const point = s.points.find(p => p.t === active); return point && <span key={s.key} data-series={s.key}><i />{s.label}<strong>{format(point.v)}</strong></span>;})}</>}</div>
+      {legend && <div className={styles.legend}>{series.map(s => <span key={s.key} data-series={s.key}><i />{s.label}</span>)}{stacked
         ? <small className={styles.averages}>{t('next.dashboard.total')}{series.map(s => <b key={s.key} data-series={s.key}>{s.label} {format(s.points.reduce((sum, p) => sum + p.v, 0))}</b>)}</small>
-        : <small className={styles.averages}>{t('next.dashboard.average')}{series.filter(s => s.points.length).map(s => <b key={s.key} data-series={s.key}>{s.label} {formatAverage(s.points.reduce((sum, p) => sum + p.v, 0) / s.points.length)}</b>)}</small>}</div></>}
+        : <small className={styles.averages}>{t('next.dashboard.average')}{series.filter(s => s.points.length).map(s => <b key={s.key} data-series={s.key}>{s.label} {formatAverage(s.points.reduce((sum, p) => sum + p.v, 0) / s.points.length)}</b>)}</small>}</div>}</>}
   </div>;
 }
