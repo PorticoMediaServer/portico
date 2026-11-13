@@ -84,6 +84,8 @@ type Service struct {
 	mu       sync.Mutex
 	tried    map[int64]time.Time // when each source was last tried, so a failing one waits
 	running  map[int64]chan struct{}
+
+	logoFailures map[string]map[string]time.Time // source public id -> URL -> last failure; memory only
 }
 
 // New makes the service. dataDir is the folder beside the database: sign-ins are sealed with
@@ -199,6 +201,9 @@ func (s *Service) SaveUpload(sourceID, what, text string) error {
 
 // RemoveUploads deletes a removed source's uploaded files.
 func (s *Service) RemoveUploads(sourceID string) {
+	s.mu.Lock()
+	delete(s.logoFailures, sourceID)
+	s.mu.Unlock()
 	for _, what := range []string{"playlist", "guide"} {
 		os.Remove(s.UploadPath(sourceID, what))
 	}

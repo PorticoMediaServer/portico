@@ -42,34 +42,68 @@ func (s *Service) refreshLogos(ctx context.Context, src db.LiveSource, cfg LiveS
 	if !Document.Get(s.Settings).ImportImages {
 		return
 	}
+	// Refresh serializes each source. Keep recent failures and current pending
+	// URLs; URLs removed from a playlist age out after their one-day cooldown.
+	s.mu.Lock()
+	failed := s.logoFailures[src.PublicID]
+	s.mu.Unlock()
+	remaining := map[string]time.Time{}
+	for address, at := range failed {
+		if s.now().Before(at.Add(24 * time.Hour)) {
+			remaining[address] = at
+		}
+	}
+	for _, row := range rows {
+		if at, ok := failed[row.Logo]; ok && row.BroughtIn && row.LogoHash == "" {
+			remaining[row.Logo] = at
+		}
+	}
+	defer func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.logoFailures == nil {
+			s.logoFailures = map[string]map[string]time.Time{}
+		}
+		s.logoFailures[src.PublicID] = remaining
+	}()
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	client := logoClient(src.Kind, cfg)
 	defer client.CloseIdleConnections()
-	for _, row := range rows {
-		if ctx.Err() != nil {
-			return
-		}
-		if !Document.Get(s.Settings).ImportImages {
-			return
-		}
-		if !row.BroughtIn || row.Logo == "" || row.LogoHash != "" {
-			continue
-		}
-		hash, tried := seen[row.Logo]
-		if !tried {
-			var err error
-			hash, err = s.channelLogo(ctx, client, row.Logo)
-			// An empty entry remembers a failure for this refresh, too.
-			seen[row.Logo] = hash
-			if err != nil {
-				s.log.Warn("channel logo unavailable", "source", src.PublicID, "error", err)
-			}
-		}
-		if hash != "" {
-			if err := s.db.SourceChannelLogo(ctx, src.ID, row.Key, row.Logo, hash, s.now()); err != nil {
-				s.log.Warn("storing channel logo", "source", src.PublicID, "error", err)
+	// New URLs go first; yesterday's failures cannot consume their budget.
+	for _, retry := range []bool{false, true} {
+		for _, row := range rows {
+			if ctx.Err() != nil {
 				return
+			}
+			if !Document.Get(s.Settings).ImportImages {
+				return
+			}
+			if !row.BroughtIn || row.Logo == "" || row.LogoHash != "" {
+				continue
+			}
+			at, failedBefore := failed[row.Logo]
+			if failedBefore != retry || failedBefore && s.now().Before(at.Add(24*time.Hour)) {
+				continue
+			}
+			hash, tried := seen[row.Logo]
+			if !tried {
+				var err error
+				hash, err = s.channelLogo(ctx, client, row.Logo)
+				// An empty entry remembers a failure for this refresh, too.
+				seen[row.Logo] = hash
+				if err != nil {
+					remaining[row.Logo] = s.now()
+					s.log.Warn("channel logo unavailable", "source", src.PublicID, "error", err)
+				} else {
+					delete(remaining, row.Logo)
+				}
+			}
+			if hash != "" {
+				if err := s.db.SourceChannelLogo(ctx, src.ID, row.Key, row.Logo, hash, s.now()); err != nil {
+					s.log.Warn("storing channel logo", "source", src.PublicID, "error", err)
+					return
+				}
 			}
 		}
 	}
