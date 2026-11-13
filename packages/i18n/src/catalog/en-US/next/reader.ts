@@ -38,7 +38,6 @@ export const readerMessages = {
   'next.reader.wordsLabel': 'Words',
   'next.reader.wordCount': '{count, plural, one {# word} other {# words}}',
   'next.reader.pageCount': '{count, plural, one {# page} other {# pages}}',
-  'next.reader.openingLines': 'Opening lines',
   'next.reader.firstLines': 'The first lines',
   'next.reader.downloadTitle': 'Download {title}',
   'next.reader.downloadSize': 'Download, {size}',
