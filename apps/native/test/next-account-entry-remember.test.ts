@@ -1,4 +1,8 @@
 // @fabric-react
+import {FormError} from './helpers/form-error.mjs';
+import {HttpLocalApi} from '../../../packages/client-core/src';
+import {selectDirectProfile, type ProfileAPI} from '../../../packages/client-core/src/profile-management';
+import {presentError} from '../../../packages/client-core/src/presentation/errors';
 import * as accountWork from '../src-next/platform/account-work';
 import * as tvApprovalCredentials from '../src-next/screens/accounts/tv-approval-credentials';
 import * as tvApprovalFinalization from '../src-next/screens/accounts/tv-approval-finalization';
@@ -29,7 +33,7 @@ const open = {id: 'open', name: 'Open profile', art: 'blue', primary: true, pinR
 const locked = {id: 'locked', name: 'Locked profile', art: 'mint', primary: false, pinRequired: true};
 
 /** The phone sign-in picker (Who's watching after a password), against a server that does or doesn't let a device remember a profile. */
-async function entry(canRemember: boolean) {
+async function entry(canRemember: boolean, api?: ProfileAPI) {
   const back = backOwner(), calls: string[] = [], contexts: string[] = [];
   let complete = 0;
   class SignIn {
@@ -42,7 +46,8 @@ async function entry(canRemember: boolean) {
     async signInLocal() {return {kind: 'profiles', profiles: [open, locked], canRemember};}
     async chooseProfile(id: string, pin?: string, remember?: boolean) {
       calls.push(`select:${id}:${pin ?? ''}:${remember === true}`);
-      if (pin !== undefined && pin !== '1234') throw new Error('profile_pin_invalid');
+      if (api) await selectDirectProfile(api, {authority: 'local', serverId: 'server', accountId: 'account'}, id, {pin, remember});
+      else if (pin !== undefined && pin !== '1234') throw new Error('profile_pin_invalid');
     }
     profileRecovery() {throw new Error('not used');}
     dispose() {}
@@ -67,9 +72,9 @@ async function entry(canRemember: boolean) {
     '../../../../../packages/client-core/src/route-identity': {routeOrigin},
     '../../../../../packages/client-core/src/server-address': serverAddress,
     '../../../../../packages/client-core/src/hosted-security': {MFARequiredError: class extends Error {}},
-    '../../../../../packages/client-core/src/presentation/errors': {presentError: (_: unknown, context: string) => {contexts.push(context); return {body: `${context} failure`, silent: false};}},
+    '../../../../../packages/client-core/src/presentation/errors': {presentError: (_: unknown, context: string) => {contexts.push(context); return presentError(_, context as 'profiles' | 'sign-in');}},
     '../../kit/theme': {useTheme: () => theme}, '../../kit/states': {StateLayout: 'Layout'},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
+    '../../kit/controls': {FormError, Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, '../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ProfilePicker: 'Picker'},
     '../../kit/Icon': {Icon: 'Icon'},
     '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {}}, '../../platform/server-sign-in': {NativeServerSignIn: SignIn},
     '../../platform/portico-sign-in': {}, '../../platform/server-connections': {browseNearby: async () => []},
@@ -143,5 +148,34 @@ test('the PIN page offers no checkbox where the server does not remember, and se
     const pin = nodes(f.tree().props.beforeActions).find(n => n.type === 'PhonePIN');
     await act(() => pin.props.onComplete('1234'));
     assert.deepEqual(f.calls.filter(call => call.startsWith('select:')), ['select:locked:1234:false']);
+  } finally {await f.host.unmount();}
+});
+
+
+test('AccountEntry launch PIN submission shows rebuilt-server wrong-PIN and Retry-After refusals', async () => {
+  const calls: {path: string; body: unknown}[] = [];
+  const api = new HttpLocalApi('https://verified.example', 'fixture-token', async (url, init) => {
+    assert.equal(init?.method, 'POST');
+    calls.push({path: String(url), body: JSON.parse(String(init?.body))});
+    const locked = calls.length > 1;
+    return new Response(JSON.stringify({error: {code: locked ? 'profile_pin_locked' : 'profile_pin_invalid',
+      message: 'diagnostic only', retry: locked, ...(locked ? {retryAfterMs: 29999} : {}), requestId: 'fixture-pin'}}),
+      {status: locked ? 429 : 403, headers: {'Content-Type': 'application/json', ...(locked ? {'Retry-After': '30'} : {})}});
+  });
+  const f = await entry(false, api);
+  try {
+    await act(() => f.picker().props.onSelect('locked'));
+    const pin = () => nodes(f.tree().props.beforeActions).find(node => node.type === 'PhonePIN');
+    const failure = () => nodes(f.tree().props.beforeActions).find(node => node.type === FormError)?.props.children;
+    await act(() => pin().props.onComplete('0000'));
+    assert.equal(failure(), defaultI18n.t('accounts.profiles.pinFailed'));
+    assert.ok(pin(), 'a refused PIN stays on the launch PIN page'); assert.equal(f.complete(), 0);
+    await act(() => pin().props.onComplete('0000'));
+    assert.equal(failure(), defaultI18n.t('accounts.profiles.pinLocked', {seconds: 30}));
+    assert.equal(f.complete(), 0);
+    assert.deepEqual(calls, [
+      {path: 'https://verified.example/v1/profiles/locked/select', body: {pin: '0000'}},
+      {path: 'https://verified.example/v1/profiles/locked/select', body: {pin: '0000'}},
+    ]);
   } finally {await f.host.unmount();}
 });
