@@ -7,7 +7,7 @@ import {Artwork} from '../../kit/artwork';
 import {Button, Slider} from '../../kit/controls';
 import {Menu, PanelPresence, useLeavingPresence, type MenuEntry} from '../../kit/overlays';
 import {KeyboardShortcuts} from '../../kit/states';
-import {LossNotice} from '../../kit/media';
+import {LossNotice, SeekLine} from '../../kit/media';
 import {dispatchWatch, watchClock, watchIsPortrait, watchSeek, watchSeekBounds, watchShortcutTarget, watchStepIntent, type WatchIntent} from './model';
 import {settledPlaybackChanged, settledPlaybackKey, type SettledPlayback} from './screen-state';
 import type {WatchPanel, WatchRect, WatchScreenProps} from './types';
@@ -456,30 +456,34 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
           artwork={url => binding.artwork.foreground(url, 512, 16 / 9, {group: 'playback', priority: 'high'})} /> : <>
         {!playbackFailed && <div className={styles.center} inert={!chromeVisible || videoGesture?.active || undefined}>{transport}</div>}
         <div className={styles.bottom} inert={!chromeVisible || videoGesture?.active || undefined}>
-          <div className={styles.seek}>
-            <span className={styles.rail}>
-              {buffered.map((range, index) => <span key={index} className={styles.buffered} aria-hidden="true" style={{left: `${range.left}%`, width: `${range.width}%`}} />)}
-              <i style={{width: `${bounds ? Math.min(100, Math.max(0, (drawnPosition - bounds.start) / (bounds.end - bounds.start) * 100)) : 0}%`}} />
-              {hoverPercent !== null && <><span className={styles.hoverFill} aria-hidden="true" style={{width: `${hoverPercent}%`}} /><span className={styles.hoverLine} aria-hidden="true" style={{left: `${hoverPercent}%`}} /></>}
-              {presentation?.policy?.markers.map(marker => duration > 0 && <span key={marker.id} className={styles.marker} data-kind={marker.kind}
-                style={{...(marker.kind === 'credits' ? {right: `${(duration - marker.endSeconds) / duration * 100}%`} : {left: `${marker.startSeconds / duration * 100}%`}), width: `${(marker.endSeconds - marker.startSeconds) / duration * 100}%`}} />)}
-              {preview && bounds && previewSeconds !== null && <ScrubPreview frame={preview.frame} source={preview.source} seconds={previewSeconds} phone={mobile}
-                percent={(previewSeconds - bounds.start) / (bounds.end - bounds.start) * 100} />}
-              <input ref={promptSeek} tabIndex={0} type="range" min={bounds?.start ?? 0} max={bounds?.end ?? 1} step={.1} value={bounds ? Math.min(bounds.end, Math.max(bounds.start, drawnPosition)) : 0} disabled={!bounds}
-                aria-label={t('player.position')} aria-valuetext={t('player.clockOf', {position: watchClock(drawnPosition), duration: watchClock(duration)})}
-                onPointerDown={event => {
+          {/* The kit's seek line (one with the reader's): the screen keeps its own handlers, preview and layouts of it. */}
+          <SeekLine variant="player" dir="ltr" className={styles.seek} barClassName={styles.rail} inputRef={promptSeek}
+            value={bounds ? (drawnPosition - bounds.start) / (bounds.end - bounds.start) : 0}
+            buffered={buffered.map(range => ({start: range.left / 100, end: (range.left + range.width) / 100}))}
+            hover={hoverPercent === null ? null : hoverPercent / 100}
+            marks={duration > 0 ? (presentation?.policy?.markers ?? []).map(marker => ({id: marker.id, kind: marker.kind, start: marker.startSeconds / duration, end: marker.endSeconds / duration, ...(marker.kind === 'credits' ? {fromEnd: true} : {})})) : []}
+            overlay={preview && bounds && previewSeconds !== null ? <ScrubPreview frame={preview.frame} source={preview.source} seconds={previewSeconds} phone={mobile}
+              percent={(previewSeconds - bounds.start) / (bounds.end - bounds.start) * 100} /> : undefined}
+            input={{tabIndex: 0, min: bounds?.start ?? 0,
+              max: bounds?.end ?? 1,
+              step: .1,
+              value: bounds ? Math.min(bounds.end, Math.max(bounds.start, drawnPosition)) : 0,
+              disabled: !bounds,
+              'aria-label': t('player.position'),
+              'aria-valuetext': t('player.clockOf', {position: watchClock(drawnPosition), duration: watchClock(duration)}),
+              onPointerDown: event => {
                   if (scrubDrag.current || !bounds || !fence) return;
                   const next = {snapshot, fence, seconds: drawnPosition, pointerId: event.pointerId};
                   scrubDrag.current = next; setScrub(next); clearTimer(); setVisible(true);
                   event.currentTarget.setPointerCapture(event.pointerId);
-                }}
-                onPointerMove={event => {
+                },
+              onPointerMove: event => {
                   if (coarsePointer || scrubDrag.current || event.pointerType !== 'mouse' || !bounds) return;
                   const rect = event.currentTarget.getBoundingClientRect();
                   if (rect.width > 0) setHoverSeconds(watchSeek(snapshot, bounds.start + (event.clientX - rect.left) / rect.width * (bounds.end - bounds.start)));
-                }}
-                onPointerLeave={() => { if (!scrubDrag.current) setHoverSeconds(null); }}
-                onPointerUp={event => {
+                },
+              onPointerLeave: () => { if (!scrubDrag.current) setHoverSeconds(null); },
+              onPointerUp: event => {
                   const captured = scrubDrag.current;
                   if (!captured || captured.pointerId !== event.pointerId) return;
                   const seconds = watchSeek(captured.snapshot, event.currentTarget.valueAsNumber), value = current.current, live = value.binding.runtime.getSnapshot();
@@ -487,17 +491,15 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
                   if (seconds !== null && value.expanded && live.fence && sameFence(live.fence, captured.fence) && live.authority === captured.snapshot.authority && live.dock.remote?.phase !== 'playing') {
                     void dispatchWatch(value.binding.runtime, captured.snapshot, {kind: 'seek', seconds}).catch(value.binding.reportError);
                   }
-                }}
-                onPointerCancel={() => { scrubDrag.current = null; setScrub(null); setHoverSeconds(null); reveal(); }}
-                onBlur={() => { if (!scrubDrag.current) setHoverSeconds(null); }}
-                onChange={event => {
+                },
+              onPointerCancel: () => { scrubDrag.current = null; setScrub(null); setHoverSeconds(null); reveal(); },
+              onBlur: () => { if (!scrubDrag.current) setHoverSeconds(null); },
+              onChange: event => {
                   const captured = scrubDrag.current, seconds = watchSeek(captured?.snapshot ?? snapshot, event.currentTarget.valueAsNumber);
                   if (seconds === null) return;
                   if (captured) { const next = {...captured, seconds}; scrubDrag.current = next; setScrub(next); }
                   else { setHoverSeconds(seconds); send({kind: 'seek', seconds}); }
-                }} />
-            </span>
-          </div>
+                }}} />
           <div className={styles.times}>{portrait
             ? <span className={styles.clock}><b>{watchClock(drawnPosition)}</b>{duration > 0 && <span>{`/ ${watchClock(duration)}`}</span>}</span>
             : <><b>{watchClock(drawnPosition)}</b><span>{!mobile && endsAt && <>{t('guide.ends', {time: endsAt})}<span className={styles.gap} aria-hidden="true" /></>}<b>{duration > 0 ? `−${watchClock(Math.max(0, duration - drawnPosition))}` : ''}</b></span></>}</div>

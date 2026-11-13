@@ -46,14 +46,6 @@
 .remaining { text-align: right; font-variant-numeric: tabular-nums; }
 .remaining small { display: flex; justify-content: flex-end; gap: 12px; }
 .progressGroup { min-width: 0; position: relative; }
-.progress { position: relative; height: 22px; display: flex; align-items: center; }
-.track { position: relative; flex: 1; height: 6px; border-radius: 3px; background: rgba(237,245,250,.16); }
-.fill { position: absolute; inset-inline-start: 0; inset-block: 0; border-radius: 3px; background: var(--color-accent-strong); }
-.chapterMark { position: absolute; inset-block: -1px; width: 2px; margin-inline-start: -1px; background: rgba(7,16,24,.9); }
-.knob { position: absolute; top: 50%; width: 18px; height: 18px; margin-top: -9px; margin-inline-start: -9px; border-radius: 50%; background: var(--color-white); box-shadow: 0 2px 10px rgba(0,0,0,.6); }
-.currentChapter { position: absolute; inset-block: -5px; border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(237,245,250,.28); }
-.progress input { position: absolute; inset: -11px 0; margin: 0; width: 100%; height: 44px; opacity: 0; cursor: pointer; }
-.progress:focus-within { outline: 3px solid var(--color-focus); outline-offset: 5px; border-radius: 4px; }
 @media (pointer: coarse) { .turn { display: none !important; } }
 @media (max-width: 1023px) { .reader[data-panel] .surface { inset-inline-end: 360px; } .bottom { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; height: 100px; padding: 12px 28px 22px; } .progressGroup { grid-row: 2; grid-column: 1 / -1; } .remaining { grid-column: 2; grid-row: 1; } .sectionRemaining { inset: auto 0 23px; } .runningFooter { inset-inline: 40px; } }
 @media (max-width: 599px) { .reader[data-panel] .surface { inset-inline-end: 0; } .top { height: 68px; gap: 4px; padding: 0 12px; } .title b { font-size: 14px; } .title small { font-size: 11px; } .reader .tool { width: 40px; height: 44px; } .tools { gap: 0; } .bottom { padding-inline: 20px; } .position b, .remaining b { font-size: 13px; } .position small, .remaining small { font-size: 11px; } .runningTitle { top: 24px; } .runningFooter { inset-inline: 28px; bottom: 28px; font-size: 11px; } }

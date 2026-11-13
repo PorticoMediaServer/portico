@@ -14,3 +14,5 @@ export type {PlaybackLossNotice} from './LossNotice';
 export {TrackChoices} from './TrackChoices';
 export type {TrackChoice, TrackChoicesProps} from './TrackChoices';
 export type {SignalPathModel, SignalStep, SignalText, SignalTranslate, MediaLayout} from './types';
+export {SeekLine} from './SeekLine';
+export type {SeekLineMark, SeekLineProps} from './SeekLine';
