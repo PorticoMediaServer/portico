@@ -13,12 +13,13 @@ import {DetailScreen} from './Detail';
 import {createReadBindings, ReadItemEntry, type ReadItemEligibility} from '../read';
 import {resolveItemRead} from './read-resolution';
 import {DetailLoading} from './Loading';
-import {holderPage, redirectOnce, type HolderRedirect} from './model';
+import {holderPage} from './model';
+import {redirectOnce, type RedirectMemory} from '../../shell/navigation';
 import {ScreenProblem} from './ScreenProblem';
 
 type DetailLease = {id: number; context: ScreenContext; itemId: string; live: boolean; binding: ReturnType<typeof createDetailBindings>};
 const noSubscription = () => () => {};
-function OrdinaryItem({context, itemId, redirect, artworkClaim}: {context: ScreenContext; itemId: string; redirect: HolderRedirect; artworkClaim?: import('../../kit/cards/source-art-transition').SourceArtClaim}) {
+function OrdinaryItem({context, itemId, redirect, artworkClaim}: {context: ScreenContext; itemId: string; redirect: RedirectMemory; artworkClaim?: import('../../kit/cards/source-art-transition').SourceArtClaim}) {
   const [lease, publish] = useState<DetailLease>();
   const serial = useRef(0);
   useLayoutEffect(() => {
@@ -49,7 +50,7 @@ type ResolutionLease = {context: ScreenContext; itemId: string; retry: number; l
 function BoundItem({captured, itemId}: {captured: ProtectedLibraryScreen; itemId: string}) {
   // The redirect to a holder's page is remembered here: this route stays mounted until the router arrives there,
   // while the screens under it are made again as it resolves.
-  const redirect = useRef<string | undefined>(undefined) as HolderRedirect;
+  const redirect = useRef<string | undefined>(undefined) as RedirectMemory;
   const entry = useLocation({select: location => ({key: location.state.__TSR_key ?? '', href: location.href, pathname: location.pathname})});
   const href = entry.href, opening = useLocation({select: location => location});
   const guard = useLibraryRouteGuard(captured.context, opening, () => router.state.location === opening, {itemId}, captured.binding.home.effects.reportError);
@@ -59,7 +60,7 @@ function BoundItem({captured, itemId}: {captured: ProtectedLibraryScreen; itemId
   const context = useCommittedLibraryScreenContext(guarded, href, () => router.state.location.href === href);
   return context ? <ResolveItem captured={guarded} handoff={captured.context} context={context} itemId={itemId} redirect={redirect} artworkClaim={artworkClaim}/> : <DetailLoading/>;
 }
-function ResolveItem({captured, handoff, context, itemId, redirect, artworkClaim}: {captured: ProtectedLibraryScreen; handoff: ProtectedLibraryScreen['context']; context: ScreenContext; itemId: string; redirect: HolderRedirect; artworkClaim?: import('../../kit/cards/source-art-transition').SourceArtClaim}) {
+function ResolveItem({captured, handoff, context, itemId, redirect, artworkClaim}: {captured: ProtectedLibraryScreen; handoff: ProtectedLibraryScreen['context']; context: ScreenContext; itemId: string; redirect: RedirectMemory; artworkClaim?: import('../../kit/cards/source-art-transition').SourceArtClaim}) {
   const [retry, setRetry] = useState(0);
   const active = useRef<ResolutionLease | undefined>(undefined);
   const [published, publish] = useState<Readonly<{lease: ResolutionLease; resolution: ReadResolution}>>();
