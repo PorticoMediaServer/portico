@@ -1,9 +1,11 @@
 package portmap
 
 import (
+	"encoding/binary"
 	"net"
 	"net/netip"
 	"syscall"
+	"unsafe"
 )
 
 func defaultRouter() Router                     { return darwinRouter(syscall.AF_INET, netip.Addr{}) }
@@ -47,16 +49,10 @@ func darwinRouter(family int, bound netip.Addr) Router {
 		if err != nil {
 			continue
 		}
-		for _, addr := range addrs {
-			prefix, err := netip.ParsePrefix(addr.String())
-			if err != nil {
-				continue
-			}
-			ip := prefix.Addr()
-			if usableRouterClient(ip, bound) {
-				return Router{Gateway: gateway, Client: ip, PMPPort: 5351,
-					SSDP: netip.AddrPortFrom(netip.MustParseAddr("ff02::c").WithZone(iface.Name), 1900)}
-			}
+		client := darwinIPv6Client(addrs, bound, func(ip netip.Addr) (uint32, error) { return darwinAddressFlags(iface.Name, ip) })
+		if client.IsValid() {
+			return Router{Gateway: gateway, Client: client, PMPPort: 5351,
+				SSDP: netip.AddrPortFrom(netip.MustParseAddr("ff02::c").WithZone(iface.Name), 1900)}
 		}
 	}
 	return Router{}
@@ -91,4 +87,49 @@ func darwinDefaultGateway(addresses []syscall.Sockaddr, family int) netip.Addr {
 		return gateway
 	}
 	return netip.Addr{}
+}
+
+// Prefer a persistent address; temporary or unclassified addresses are only a fallback.
+func darwinIPv6Client(addrs []net.Addr, bound netip.Addr, flags func(netip.Addr) (uint32, error)) netip.Addr {
+	var fallback netip.Addr
+	for _, addr := range addrs {
+		prefix, err := netip.ParsePrefix(addr.String())
+		if err != nil || !usableRouterClient(prefix.Addr(), bound) {
+			continue
+		}
+		ip := prefix.Addr()
+		bits, err := flags(ip)
+		// IN6_IFF_TENTATIVE, DUPLICATED, DETACHED, DEPRECATED and OPTIMISTIC are not ready.
+		if err == nil && bits&0x021e != 0 {
+			continue
+		}
+		// IN6_IFF_TEMPORARY marks the rotating privacy address.
+		if err == nil && bits&0x0080 == 0 {
+			return ip
+		}
+		if !fallback.IsValid() {
+			fallback = ip
+		}
+	}
+	return fallback
+}
+
+// Darwin's SIOCGIFAFLAG_IN6 uses in6_ifreq (16-byte name + 272-byte union).
+// The union takes sockaddr_in6 on input and returns ifru_flags6 at the same offset.
+func darwinAddressFlags(name string, ip netip.Addr) (uint32, error) {
+	fd, err := syscall.Socket(syscall.AF_INET6, syscall.SOCK_DGRAM, 0)
+	if err != nil {
+		return 0, err
+	}
+	defer syscall.Close(fd)
+	var request [288]byte
+	copy(request[:16], name)
+	request[16], request[17] = 28, syscall.AF_INET6
+	address := ip.As16()
+	copy(request[24:40], address[:])
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), 0xc1206949, uintptr(unsafe.Pointer(&request[0])))
+	if errno != 0 {
+		return 0, errno
+	}
+	return binary.NativeEndian.Uint32(request[16:20]), nil
 }
