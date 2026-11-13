@@ -35,7 +35,7 @@ test('a phone title page washes the top 760 pt with its blurred art and fades th
   const wash = all.find(node => node.props.testID === 'hero-wash');
   assert.equal(flat(wash.props.style).height, spec.wash.height, 'the wash runs past the hero to the frames\' 760 pt');
   const masks = all.filter(node => node.type === 'ArtworkAlphaMask').map(node => node.props.bottomOpaqueAt);
-  assert.deepEqual(masks, [1 - spec.wash.opaqueTo, 1 - spec.artOpaqueTo], 'the wash fades out from 25 %, the backdrop from 48 %');
+  assert.deepEqual(masks, [1 - spec.wash.opaqueAt, 1 - spec.artOpaqueAt], 'the wash fades out from 25 %, the backdrop from 48 %');
   const blurred = nodes(wash).find(node => node.type === 'Artwork' && node.props.sized);
   assert.ok(blurred, 'the blurred art is inside the wash');
   assert.ok(nodes(wash).some(node => node.type === 'View' && flat(node.props.style).opacity === spec.wash.alpha), 'at the frames\' .42');
