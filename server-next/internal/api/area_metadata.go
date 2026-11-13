@@ -10,6 +10,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/anilist"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/lrclib"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata/musicbrainz"
 	"github.com/PorticoMediaServer/portico/server-next/internal/segments"
@@ -36,6 +37,7 @@ func (s *Server) startMetadata(ctx context.Context) error {
 		return err
 	}
 	s.metadataRoutes()
+	s.metadata.Use(anilist.New(anilist.Origin, anilist.Every))
 	// Music libraries look albums and artists up at MusicBrainz, which needs no key and is asked
 	// at its own pace (definition area 4, rules 2 and 8).
 	s.metadata.Use(musicbrainz.New(musicbrainz.Origin, musicbrainz.Every))
