@@ -764,6 +764,33 @@ export interface DvrOverview {
   upcomingHours: number;
 }
 
+export interface DvrPermission {
+  accountId: string;
+  accountName: string;
+  profileId: string;
+  profileName: string;
+  authority: string;
+  accountAllowed: boolean;
+  profileAllowed: boolean;
+  liveAllowed: boolean;
+  canRecord: boolean;
+  ownerAccount: boolean;
+  accountRevision: number;
+  revision: number;
+}
+
+export interface DvrPermissionChange {
+  accountId: string;
+  profileId?: string;
+  enabled: boolean;
+  revision: number;
+}
+
+export interface DvrPermissionPage {
+  items: DvrPermission[];
+  nextCursor?: string;
+}
+
 export interface DvrRecording {
   id: string;
   channel: string;
@@ -4702,6 +4729,8 @@ export interface Routes {
   'PATCH /v1/admin/live/sources/{id}/channels': {access: 'owner'; request: LiveSourceChannelEdits; response: undefined};
   'GET /v1/live/streams/{grant}/{file}': {access: 'public'; request: undefined; response: undefined};
   'GET /v1/live/streams/{grant}': {access: 'public'; request: undefined; response: undefined};
+  'GET /v1/admin/dvr/permissions': {access: 'owner'; request: undefined; response: DvrPermissionPage};
+  'PATCH /v1/admin/dvr/permissions': {access: 'owner'; request: DvrPermissionChange; response: DvrPermissionPage};
   'GET /v1/dvr': {access: 'withProfile'; request: undefined; response: DvrOverview};
   'GET /v1/dvr/groups': {access: 'withProfile'; request: undefined; response: DvrGroupPage};
   'GET /v1/dvr/recordings': {access: 'withProfile'; request: undefined; response: DvrRecordingPage};
