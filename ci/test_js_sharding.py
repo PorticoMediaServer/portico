@@ -130,7 +130,7 @@ class Accounting(unittest.TestCase):
         p=plan()
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
-            with patch('run.ROOT',root),patch('run.command_head',return_value=p['head']),patch('run.execute'),patch('run.fixture_producers'),patch('run.node_process',return_value=0):
+            with patch('run.ROOT',root),patch('run.command_head',return_value=p['head']),patch('run.execute'),patch('run.node_process',return_value=0):
                 with self.assertRaisesRegex(ValueError,'did not report'):
                     js(p,'packages',0)
             record=json.loads(next((root/'ci-results/js').glob('*.json')).read_text())

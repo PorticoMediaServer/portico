@@ -11,7 +11,7 @@ import type {SetupPortContext} from '@core/setup-controller.ts';
 import {createWebSetupAdapter} from '../src/platform/setup-adapter.ts';
 
 // The public claim vector's seed key signs each setup start as the server would, for whatever start the adapter makes.
-const vector = JSON.parse(readFileSync(new URL('../../server/internal/claimweb/testdata/owner_start.json', import.meta.url), 'utf8'));
+const vector = JSON.parse(readFileSync(new URL('../../packages/client-core/test/fixtures/owner-start.json', import.meta.url), 'utf8'));
 const claim = {...JSON.parse(vector.claimPayload), purpose: 'setup'}, parent = JSON.parse(vector.startPayload);
 const key = createPrivateKey({key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), Buffer.alloc(32, 0x42)]), format: 'der', type: 'pkcs8'});
 const signed = (v: unknown) => {const raw = transportJSON(v); return {payload: Buffer.from(raw).toString('base64url'), signature: sign(null, Buffer.from(raw), key).toString('base64url')};};

@@ -7,9 +7,8 @@ import {transportJSON} from '../src/index.ts';
 import {routeBase64, routeBytes, webRouteCrypto} from '../src/route-identity.ts';
 import {ACCOUNT_STEP_WINDOW_MS} from '../../contracts/src/account-step.ts';
 
-// Consume the immutable canonical Go fixture in MAIN, not a second copied
-// success fixture. Its public interoperability key is explicitly not a secret.
-const vector = JSON.parse(readFileSync(new URL('../../../server/internal/claimweb/testdata/owner_start.json', import.meta.url), 'utf8'));
+// A client-owned interoperability vector; its fixed signing seed is public test data.
+const vector = JSON.parse(readFileSync(new URL('fixtures/owner-start.json', import.meta.url), 'utf8'));
 const claim = JSON.parse(vector.claimPayload), start = JSON.parse(vector.startPayload), now = Date.parse('2030-01-02T03:04:07Z');
 const key = createPrivateKey({key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), Buffer.alloc(32, 0x42)]), format: 'der', type: 'pkcs8'});
 function signed(value: unknown) {

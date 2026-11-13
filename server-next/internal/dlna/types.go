@@ -1,7 +1,7 @@
 package dlna
 
 // Media types and file names for originals, as players expect them. Copied from the old
-// server (server/internal/assets/content_type.go and dlna/music_resource.go).
+// server.
 
 func originalContentType(container, video string) string {
 	if video == "" {

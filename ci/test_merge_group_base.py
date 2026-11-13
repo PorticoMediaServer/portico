@@ -14,9 +14,9 @@ class QueueRepository(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory(); self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
         self.git('init', '-q', '-b', 'main'); self.git('config', 'user.name', 'T'); self.git('config', 'user.email', 't@example.invalid')
-        self.main = self.commit('server/go.mod', 'module m\n')
+        self.main = self.commit('apikit/go.mod', 'module m\n')
         self.git('update-ref', 'refs/remotes/origin/main', self.main)
-        self.first = self.commit('server/internal/a/a.go', 'package a\n')
+        self.first = self.commit('apikit/internal/a/a.go', 'package a\n')
         self.second = self.commit('web/src/b.ts', 'export {}\n')
 
     def git(self, *args):
@@ -40,7 +40,7 @@ class QueueRepository(unittest.TestCase):
         base, head = self.plan({'base_sha': self.first, 'head_sha': self.second})
         self.assertEqual((base, head), (self.main, self.second))
         self.assertEqual(self.changed(self.first, self.second), ['web/src/b.ts'])
-        self.assertEqual(self.changed(base, head), ['server/internal/a/a.go', 'web/src/b.ts'])
+        self.assertEqual(self.changed(base, head), ['apikit/internal/a/a.go', 'web/src/b.ts'])
 
     def test_the_first_group_and_a_group_after_main_advanced_plan_against_main(self):
         self.git('checkout', '-q', self.first)

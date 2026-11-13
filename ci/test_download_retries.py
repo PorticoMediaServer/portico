@@ -14,8 +14,8 @@ class DownloadRetries(unittest.TestCase):
                     patch('run.time.sleep') as sleep:
                 run.download()
                 self.assertEqual(execute.call_args_list,
-                                 [call(['go', 'mod', 'download'], run.ROOT / 'server')] * 3 +
-                                 [call(['go', 'mod', 'download'], run.ROOT / 'apikit')])
+                                 [call(['go', 'mod', 'download'], run.ROOT / 'apikit')] * 3 +
+                                 [call(['go', 'mod', 'download'], run.ROOT / 'server-next')])
                 self.assertEqual(sleep.call_args_list, [call(2), call(2)])
 
     def test_three_failures_still_fail_the_job(self):

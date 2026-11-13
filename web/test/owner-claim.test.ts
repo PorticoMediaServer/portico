@@ -11,7 +11,7 @@ import {routeBase64, routeBytes, webRouteCrypto} from '@core/route-identity.ts';
 
 type Ports = ConstructorParameters<typeof BrowserOwnerClaim>[0];
 type Pending = Awaited<ReturnType<Ports['journal']['read']>>;
-const vector = JSON.parse(readFileSync(new URL('../../server/internal/claimweb/testdata/owner_start.json', import.meta.url), 'utf8'));
+const vector = JSON.parse(readFileSync(new URL('../../packages/client-core/test/fixtures/owner-start.json', import.meta.url), 'utf8'));
 const original = JSON.parse(vector.claimPayload);
 const key = createPrivateKey({key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), Buffer.alloc(32, 0x42)]), format: 'der', type: 'pkcs8'});
 function signed(value: unknown) {const bytes = Buffer.from(transportJSON(value)); return {payload: bytes.toString('base64url'), signature: sign(null, bytes, key).toString('base64url')};}

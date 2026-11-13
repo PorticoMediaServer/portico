@@ -9,19 +9,9 @@ from pathlib import Path
 import re
 import subprocess
 
-import source_readers
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPONENTS = ['web', 'packages', 'apps/native', 'apps/vega', 'apps/desktop', 'website']
-# Reference-server bridges/contracts are retained on disk, but do not judge PRs or queue entries.
-REFERENCE_SERVER_JS_TESTS = {
-    'packages/client-core/test/repair-public-contract.test.ts',
-    'packages/client-core/test/final-batch/home-reading-wire.test.ts',
-    'packages/contracts/test/contracts.test.ts',
-    'packages/contracts/test/registered-return-producer.test.ts',
-    'packages/contracts/test/final-batch/concurrency-memory-limit.test.ts',
-    'packages/contracts/test/final-batch/console-registry-null-defaults.test.ts',
-}
 # Full (merge/nightly) Go shards are planned from measured parent weights so no
 # single `go test` batch approaches its -timeout. A shard runs one complete-package
 # command (-p=GO_PACKAGE_WORKERS) and then its split packages in a worker pool.
@@ -253,31 +243,10 @@ def balance_merge(tests, durations, all_tests, target=GO_TEST_TARGET, max_count=
     raise ValueError(f'the full Go inventory needs more than {max_count} shards to fit the batch budget')
 
 
-SHORT_CENSUSES = {
-    ('github.com/PorticoMediaServer/portico/server/internal/persistence', 'TestProductionStatementsPrepareAgainstTheBaseline'),
-    ('github.com/PorticoMediaServer/portico/server/internal/persistence', 'TestNoInsertOrIgnoreUpdateTriggerOnAnUpsertedTable'),
-}
-
-def balance_short_censuses(tests, durations, max_count=10):
-    census = [t for t in tests if (t['package'], t['name']) in SHORT_CENSUSES]
-    if not census: return balance(tests, durations, max_count=max_count)
-    # Preserve the previous short layout, where these guards cost zero, then
-    # move only the censuses to their own VM. Their added CPU must neither
-    # contend with interactive fixtures nor reshuffle those fixtures together.
-    layout_costs = dict(durations)
-    layout_costs.update({t['package']+'.'+t['name']: 0 for t in census})
-    bins, costs = balance(tests, layout_costs, max_count=max_count)
-    ordinary = [([t for t in shard if (t['package'],t['name']) not in SHORT_CENSUSES], cost)
-                for shard,cost in zip(bins,costs)]
-    ordinary = [(shard,cost) for shard,cost in ordinary if shard]
-    return ([shard for shard,cost in ordinary] + [census],
-            [cost for shard,cost in ordinary] + [sum(durations.get(t['package']+'.'+t['name'],1) for t in census)])
 
 
-def split_short_censuses(tests):
-    census = [t for t in tests if (t['package'], t['name']) in SHORT_CENSUSES]
-    ordinary = [t for t in tests if (t['package'], t['name']) not in SHORT_CENSUSES]
-    return ordinary, census
+
+
 
 
 def balance_short_large(tests, durations, all_tests, max_count=128):
@@ -290,13 +259,11 @@ def balance_short_large(tests, durations, all_tests, max_count=128):
     tier's weighted open-shop packing at its own guarded durations: a parent
     over the target gets a shard alone, everything else packs into the fewest
     shards whose modeled commands fit the target. The 128 ceiling is only a
-    guard against an inventory that cannot be planned. Censuses keep the same
-    isolation the small-tier layout gives them.
+    guard against an inventory that cannot be planned. Each whole package keeps its own run.
     """
-    ordinary, census = split_short_censuses(tests)
+    ordinary = tests
     bins = (balance_merge(ordinary, durations, all_tests, max_count=max_count,
                           shard_target=GO_TEST_TARGET)[0] if ordinary else [])
-    if census: bins.append(census)
     # Fail closed exactly like the merge tier: a modeled command over budget (or
     # a single parent over the deadline) cannot reach the runner.
     rows = assert_merge_shard_budget(bins, tests, all_tests, durations)
@@ -314,7 +281,7 @@ def balance_short(tests, durations, all_tests, max_count=10, large_durations=Non
     only covers the parents ordinary short PRs run, and the 20s unmeasured
     default for the rest would plan hundreds of shards.
     """
-    bins, costs = balance_short_censuses(tests, durations, max_count=max_count)
+    bins, costs = balance(tests, durations, max_count=max_count)
     rows = go_batch_model(bins, all_tests, durations)
     if max(costs, default=0.0) <= GO_TEST_TARGET and all(row['seconds'] <= GO_TEST_TARGET for row in rows):
         return bins, costs
@@ -328,7 +295,7 @@ def components(paths, full=False):
         # Go metadata must distinguish documentation from fixtures/embedded
         # inputs before their suffix can suppress package discovery.
         if path.startswith('server-next/'): continue
-        elif path.startswith(('server/', 'apikit/')): go=True
+        elif path.startswith(('apikit/',)): go=True
         elif path.endswith(('.md','.png','.jpg','.jpeg','.gif','.webp','.svg','.ico')) and (ROOT/path).is_file(): continue
         elif path.startswith('packages/'):
             if path.startswith('packages/contracts/'): go=True
@@ -361,7 +328,7 @@ def go_seeds(packages, paths, full=False, diagnostics=None):
     if full: return all_packages
     seeds=set()
     for path in paths:
-        if not path.startswith(('server/','apikit/')): continue
+        if not path.startswith(('apikit/',)): continue
         documentation=path.endswith(('.md','.png','.jpg','.jpeg','.gif','.webp','.svg','.ico'))
         if Path(path).name in ('go.mod','go.sum'):
             if diagnostics is not None: diagnostics.append(path+': Go manifest changed')
@@ -392,47 +359,32 @@ def guarded_costs(packages, durations, full_packages=()):
                     adjusted[p['ImportPath']+'.'+match[1]]=0
     return adjusted
 
-def reader_packages(listed, hits):
-    """{import path: {test: [changed path]}} for the declared source-reading tests the changed paths reach."""
-    by_dir={str(Path(p['Dir']).relative_to(ROOT)):p for p in listed}; chosen={}
-    for directory,tests in hits.items():
-        if directory not in by_dir: raise ValueError('source reader package is not a Go package: '+directory)
-        chosen[by_dir[directory]['ImportPath']]=tests
-    return chosen
 
 def make_plan(paths, full=False, tier="short"):
     selected, go = components(paths,full); go_fallbacks=[]; inventory=[]; exemptions=[]; packages=[]; modules=[]
-    # Go-owned means the change itself reaches Go (server/ or apikit/, contracts, the root). A change that
-    # only reaches a test reading its files (packages/i18n, web/public) selects just those tests.
-    go_owned=go; readers={} if full else source_readers.select([p for p in paths if not p.startswith('server-next/')])
-    if tier != 'nightly': readers={k:v for k,v in readers.items() if not k.startswith('server/')}
-    reader_tests={}; go=go or bool(readers)
+    go_owned=go
     full_packages=set()
     tags=command(['python3','scripts/release-build-tags.py','--capability']).strip()
     if go:
         # Include the real HTTP/client boundary in build-aware test discovery.
         listing_tags = tags + ',reading_client_integration'
-        for module in (['server','apikit'] if tier == 'nightly' else ['apikit']):
+        for module in ['apikit']:
             raw=command(['go','list','-json','-tags',listing_tags,'./...'], ROOT/module)
-            listed=[p for p in decode_stream(raw) if not re.search(r'/server/internal/store(?:/|$)', p['ImportPath'])]
+            listed=decode_stream(raw)
             for p in listed: p['module']=module
             packages.extend(listed); modules.append(module)
         probe_seeds={p['ImportPath'] for p in packages if any(re.search(r'ffmpeg|ffprobe', (Path(p['Dir'])/f).read_text(),re.I) for field in ['GoFiles','TestGoFiles','XTestGoFiles'] for f in p.get(field,[]))}
         probe_packages=closure(packages,probe_seeds)
-        far=go_owned and not any(x.startswith(('server/','apikit/')) for x in paths)
+        far=go_owned and not any(x.startswith(('apikit/',)) for x in paths)
         if full: go_fallbacks.append('explicit full inventory')
         elif far: go_fallbacks.append('cross-component/root or contracts change without Go-owned paths')
         seeds = go_seeds(packages, paths, full or far,diagnostics=go_fallbacks)
-        if not seeds and not full and not any(components([p])[1] for p in paths if not p.startswith(('server/','apikit/'))):
+        if not seeds and not full and not any(components([p])[1] for p in paths if not p.startswith(('apikit/',))):
             go_owned=False  # ordinary Go-tree docs needed metadata, not tests
         if tier == 'short': full_packages = full_go_packages(packages, paths)
         chosen=closure(packages,seeds)
         if tier != 'short' and go_owned:
             chosen.update(p['ImportPath'] for p in packages if any(s in p['ImportPath'] for s in ['/httpapi','/identity','/auth','/session','/privacy']))
-        # Tests that read other packages' files (source censuses and guards) are selected whenever those
-        # files change, which the import graph cannot see. A package already chosen runs all its tests.
-        reader_tests={k:v for k,v in reader_packages(packages,readers).items() if k not in chosen}
-        chosen.update(reader_tests)
         go=bool(chosen)
         if go: tags=listing_tags
         packages=[p for p in packages if p['ImportPath'] in chosen]
@@ -454,17 +406,9 @@ def make_plan(paths, full=False, tier="short"):
                     inventory.append({'module':p['module'],'package':p['ImportPath'],'name':name})
     inventory=list({(t['package'],t['name']):t for t in inventory}.values())
     durations=json.loads((ROOT/'ci/durations.json').read_text())
-    durations={k.replace('portico.local/server','github.com/PorticoMediaServer/portico/server'):v for k,v in durations.items()}
     durations=observed_durations(durations,tier)
-    tiers=json.loads((ROOT/'ci/tiers.json').read_text())
     all_inventory=list(inventory)
-    # A package chosen only for its source-reading tests runs just those: the rest of its tests are unrelated.
-    for package,names in reader_tests.items():
-        missing=sorted(names.keys()-{t['name'] for t in inventory if t['package']==package})
-        if missing: raise ValueError('source reader tests not in '+package+': '+', '.join(missing))
-    inventory=[t for t in inventory if t['package'] not in reader_tests or t['name'] in reader_tests[t['package']]]
-    diagnostics=[t for lane in tiers['nightly_lanes'].values() for t in lane]
-    exclusions=diagnostics if tier=='nightly' else tiers['nightly_only']
+    exclusions=[]
     short_durations=guarded_costs(packages,durations) if tier=='short' else durations
     # A promoted short PR runs the whole Go inventory, but ci/durations.json
     # only measured the parents ordinary PRs exercise. Price that inventory
@@ -491,7 +435,6 @@ def make_plan(paths, full=False, tier="short"):
     for component in selected:
         roots=list((ROOT/'packages').iterdir()) if component=='packages' else [ROOT/component]
         files=sorted(str(f.relative_to(ROOT)) for root in roots for f in root.rglob('*') if f.is_file() and re.search(r'\.test\.(?:[cm]?js|tsx?)$',f.name) and not any(x in f.parts for x in ['node_modules','third_party','dist','build']))
-        if tier != 'nightly': files=[f for f in files if f not in REFERENCE_SERVER_JS_TESTS]
         if tier=='short' and not full and component!='website':
             js_reasons[component]={}
             files=affected_js(ROOT,paths,files,diagnostics=js_reasons[component])
@@ -500,20 +443,9 @@ def make_plan(paths, full=False, tier="short"):
         js.append({'component':component,'files':files})
     from js_shards import extend_selection
     extend_selection(js, json.loads((ROOT/'ci/js-durations.json').read_text())['seconds'])
-    producer_consumers = {
-        'TestHomeReadingSavedDeferredHTTP':'home-reading-wire.test.ts',
-        'TestConcurrencyDiagnosticsMemoryLimitWire':'concurrency-memory-limit.test.ts',
-        'TestConsoleRegistryProducerRecordsNullableDefaults':'console-registry-null-defaults.test.ts',
-        'TestInvitationAcceptanceProducerContract':'invitation-producer-contract.test.ts',
-        'TestResetFileHTTPProducerContractsAndAuthority':'reset-producer-contract.test.ts',
-    }
-    js_files=[f for item in js for f in item['files']]
-    assigned=[t for t in inventory if '/httpapi' in t['package'] and t['name'] in producer_consumers and any(f.endswith(producer_consumers[t['name']]) for f in js_files)]
-    assigned_keys={(t['package'],t['name']) for t in assigned}
-    inventory=[t for t in inventory if (t['package'],t['name']) not in assigned_keys]
     bins,costs=shards(inventory)
     from explain import selection_reasons
-    why=selection_reasons(paths,full,selected,go_owned,components,js_reasons,go_fallbacks,source_readers=reader_tests)
+    why=selection_reasons(paths,full,selected,go_owned,components,js_reasons,go_fallbacks)
     extra=sum(durations.get(t['package']+'.'+t['name'],1)-short_durations.get(t['package']+'.'+t['name'],1) for t in inventory)
     budget={}
     if tier!='short':
@@ -521,7 +453,7 @@ def make_plan(paths, full=False, tier="short"):
         budget={'deadline_seconds':GO_TEST_DEADLINE,'budget_seconds':GO_TEST_BUDGET,'target_seconds':GO_TEST_TARGET,
                 'workers':GO_PACKAGE_WORKERS,'commands_seconds':[row['seconds'] for row in rows],
                 'oversized_single_tests':oversized_single_parents(bins,all_test_names,durations)}
-    return {'full_go_packages':sorted(full_packages), 'full_go_extra_seconds':extra,'selection_diagnostics':why,'source_reader_tests':[{'package':k,'name':n,'changed':c} for k,v in sorted(reader_tests.items()) for n,c in sorted(v.items())],'ffmpeg_packages':sorted(probe_packages) if go else [],'android':android_selected(paths,full),'all_inventory':all_inventory,'nightly_diagnostics':diagnostics,'js_owned_producers':assigned,'tier':tier,'paths':paths,'tags':tags,'packages':[{'module':p['module'],'package':p['ImportPath']} for p in packages], 'inventory':inventory,'shards':bins,'predicted_seconds':costs,'shard_budget':budget,'js':js,'tier_exclusions':exclusions, 'compile_only_examples':exemptions, 'unmeasured_parents':[t for t in inventory if t['package']+'.'+t['name'] not in durations]}
+    return {'full_go_packages':sorted(full_packages), 'full_go_extra_seconds':extra,'selection_diagnostics':why,'ffmpeg_packages':sorted(probe_packages) if go else [],'android':android_selected(paths,full),'all_inventory':all_inventory,'tier':tier,'paths':paths,'tags':tags,'packages':[{'module':p['module'],'package':p['ImportPath']} for p in packages], 'inventory':inventory,'shards':bins,'predicted_seconds':costs,'shard_budget':budget,'js':js,'tier_exclusions':exclusions, 'compile_only_examples':exemptions, 'unmeasured_parents':[t for t in inventory if t['package']+'.'+t['name'] not in durations]}
 
 def event_tier(event, tier, full):
     if event in ['pull_request','push']:

@@ -1176,6 +1176,14 @@
         ],
         "type": "object"
       },
+      "CastCodeRequest": {
+        "properties": {
+          "sourceSessionId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CastConfig": {
         "properties": {
           "applicationId": {
@@ -1894,6 +1902,24 @@
         ],
         "type": "object"
       },
+      "DiscoveryInterface": {
+        "properties": {
+          "addresses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "addresses"
+        ],
+        "type": "object"
+      },
       "Download": {
         "properties": {
           "counts": {
@@ -2444,22 +2470,22 @@
         "type": "object"
       },
       "DvrFolderStatus": {
-        "type": "object",
         "properties": {
           "folder": {
             "type": "string"
           },
-          "state": {
+          "problem": {
             "type": "string"
           },
-          "problem": {
+          "state": {
             "type": "string"
           }
         },
         "required": [
           "folder",
           "state"
-        ]
+        ],
+        "type": "object"
       },
       "DvrGroup": {
         "properties": {
@@ -2520,10 +2546,6 @@
       },
       "DvrOverview": {
         "properties": {
-          "freeOnDriveBytes": {
-            "type": "integer",
-            "format": "int64"
-          },
           "canRecord": {
             "type": "boolean"
           },
@@ -2543,6 +2565,9 @@
             "type": "boolean"
           },
           "freeBytes": {
+            "type": "integer"
+          },
+          "freeOnDriveBytes": {
             "type": "integer"
           },
           "groups": {
@@ -2583,7 +2608,6 @@
           }
         },
         "required": [
-          "freeOnDriveBytes",
           "rules",
           "groups",
           "upcoming",
@@ -2595,6 +2619,7 @@
           "keepRule",
           "folderOk",
           "canRecord",
+          "freeOnDriveBytes",
           "usedBytes",
           "floorBytes",
           "capBytes",
@@ -3004,6 +3029,21 @@
       },
       "DvrTunerSource": {
         "properties": {
+          "active": {
+            "items": {
+              "$ref": "#/components/schemas/DvrTunerUse"
+            },
+            "type": "array"
+          },
+          "conflicts": {
+            "type": "integer"
+          },
+          "inUse": {
+            "type": "integer"
+          },
+          "paused": {
+            "type": "boolean"
+          },
           "sourceId": {
             "type": "string"
           },
@@ -3013,26 +3053,11 @@
           "tunerCount": {
             "type": "integer"
           },
-          "paused": {
-            "type": "boolean"
-          },
-          "inUse": {
-            "type": "integer"
-          },
-          "conflicts": {
-            "type": "integer"
-          },
-          "active": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DvrTunerUse"
-            }
-          },
           "upcoming": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/DvrRecording"
-            }
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -3077,10 +3102,10 @@
             "type": "array"
           },
           "sources": {
-            "type": "array",
             "items": {
               "$ref": "#/components/schemas/DvrTunerSource"
-            }
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -4493,11 +4518,18 @@
           "name": {
             "type": "string"
           },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
           "scopes": {
             "items": {
               "type": "string"
             },
             "type": "array"
+          },
+          "state": {
+            "type": "string"
           }
         },
         "required": [
@@ -5397,8 +5429,17 @@
           "available": {
             "type": "boolean"
           },
+          "defaultLanguage": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "reason": {
             "type": "string"
@@ -10606,6 +10647,25 @@
         ],
         "type": "object"
       },
+      "ReachabilityAddress": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "reachable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "address",
+          "port",
+          "reachable"
+        ],
+        "type": "object"
+      },
       "ReceiverAnswer": {
         "properties": {
           "answer": {
@@ -10965,6 +11025,9 @@
       },
       "RemoteAccessSettings": {
         "properties": {
+          "advertisedInterface": {
+            "type": "string"
+          },
           "allowedAddresses": {
             "items": {
               "type": "string"
@@ -10991,6 +11054,15 @@
           },
           "findAtHome": {
             "type": "boolean"
+          },
+          "interfaceNote": {
+            "type": "string"
+          },
+          "interfaces": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryInterface"
+            },
+            "type": "array"
           },
           "ipv6": {
             "type": "boolean"
@@ -11024,6 +11096,7 @@
           }
         },
         "required": [
+          "advertisedInterface",
           "remoteAccess",
           "remoteSecurity",
           "secureConnections",
@@ -11055,6 +11128,15 @@
           },
           "identityCode": {
             "type": "string"
+          },
+          "listener": {
+            "$ref": "#/components/schemas/RemoteListenerFacts"
+          },
+          "managedCertificate": {
+            "$ref": "#/components/schemas/RemoteManagedCertificate"
+          },
+          "outside": {
+            "$ref": "#/components/schemas/RemoteOutsideCheck"
           },
           "publicAddress": {
             "$ref": "#/components/schemas/PublicAddressAnswer"
@@ -11161,6 +11243,72 @@
           "connections",
           "perSecond"
         ],
+        "type": "object"
+      },
+      "RemoteListenerFacts": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "address",
+          "port"
+        ],
+        "type": "object"
+      },
+      "RemoteManagedCertificate": {
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastAttemptAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nextTryAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "problem": {
+            "type": "string"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "ready"
+        ],
+        "type": "object"
+      },
+      "RemoteOutsideCheck": {
+        "properties": {
+          "addresses": {
+            "items": {
+              "$ref": "#/components/schemas/ReachabilityAddress"
+            },
+            "type": "array"
+          },
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "problem": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "RemoteSecurity": {
@@ -14699,6 +14847,7 @@
   "paths": {
     "/v1/admin/activity": {
       "get": {
+        "operationId": "get_v1_admin_activity",
         "responses": {
           "200": {
             "content": {
@@ -14721,11 +14870,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/api-keys": {
       "get": {
+        "operationId": "get_v1_admin_api_keys",
         "responses": {
           "200": {
             "content": {
@@ -14748,9 +14903,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "post": {
+        "operationId": "post_v1_admin_api_keys",
         "requestBody": {
           "content": {
             "application/json": {
@@ -14783,11 +14944,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/api-keys/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_api_keys_id",
         "parameters": [
           {
             "in": "path",
@@ -14813,11 +14980,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/audit": {
       "get": {
+        "operationId": "get_v1_admin_audit",
         "responses": {
           "200": {
             "content": {
@@ -14840,11 +15013,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/background/pause": {
       "delete": {
+        "operationId": "delete_v1_admin_background_pause",
         "responses": {
           "200": {
             "content": {
@@ -14867,9 +15046,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "get": {
+        "operationId": "get_v1_admin_background_pause",
         "responses": {
           "200": {
             "content": {
@@ -14892,9 +15077,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "put": {
+        "operationId": "put_v1_admin_background_pause",
         "responses": {
           "200": {
             "content": {
@@ -14917,11 +15108,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/backups": {
       "get": {
+        "operationId": "get_v1_admin_backups",
         "responses": {
           "200": {
             "content": {
@@ -14944,9 +15141,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "post": {
+        "operationId": "post_v1_admin_backups",
         "responses": {
           "200": {
             "content": {
@@ -14969,11 +15172,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/backups/inspect": {
       "post": {
+        "operationId": "post_v1_admin_backups_inspect",
         "requestBody": {
           "content": {
             "application/json": {
@@ -15006,11 +15215,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/backups/passphrase": {
       "put": {
+        "operationId": "put_v1_admin_backups_passphrase",
         "requestBody": {
           "content": {
             "application/json": {
@@ -15036,11 +15251,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/backups/restore": {
       "delete": {
+        "operationId": "delete_v1_admin_backups_restore",
         "responses": {
           "204": {
             "description": "Done"
@@ -15056,9 +15277,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "post": {
+        "operationId": "post_v1_admin_backups_restore",
         "requestBody": {
           "content": {
             "application/json": {
@@ -15091,11 +15318,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/backups/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_backups_id",
         "parameters": [
           {
             "in": "path",
@@ -15121,11 +15354,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/block-presets": {
       "get": {
+        "operationId": "get_v1_admin_block_presets",
         "responses": {
           "200": {
             "content": {
@@ -15148,9 +15387,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "post": {
+        "operationId": "post_v1_admin_block_presets",
         "requestBody": {
           "content": {
             "application/json": {
@@ -15183,11 +15428,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/block-presets/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_block_presets_id",
         "parameters": [
           {
             "in": "path",
@@ -15213,9 +15464,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "patch": {
+        "operationId": "patch_v1_admin_block_presets_id",
         "parameters": [
           {
             "in": "path",
@@ -15258,11 +15515,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/blocked-networks": {
       "get": {
+        "operationId": "get_v1_admin_blocked_networks",
         "responses": {
           "200": {
             "content": {
@@ -15285,11 +15548,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/blocked-networks/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_blocked_networks_id",
         "parameters": [
           {
             "in": "path",
@@ -15315,11 +15584,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/capabilities": {
       "get": {
+        "operationId": "get_v1_admin_capabilities",
         "responses": {
           "200": {
             "content": {
@@ -15342,11 +15617,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/collections/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_collections_id",
         "parameters": [
           {
             "in": "path",
@@ -15372,9 +15653,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       },
       "patch": {
+        "operationId": "patch_v1_admin_collections_id",
         "parameters": [
           {
             "in": "path",
@@ -15410,11 +15697,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/dashboard": {
       "get": {
+        "operationId": "get_v1_admin_dashboard",
         "responses": {
           "200": {
             "content": {
@@ -15437,11 +15730,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/data-folder/permissions": {
       "get": {
+        "operationId": "get_v1_admin_data_folder_permissions",
         "responses": {
           "200": {
             "content": {
@@ -15464,11 +15763,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/data-folder/permissions/fix": {
       "post": {
+        "operationId": "post_v1_admin_data_folder_permissions_fix",
         "responses": {
           "200": {
             "content": {
@@ -15491,11 +15796,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/devices": {
       "get": {
+        "operationId": "get_v1_admin_devices",
         "responses": {
           "200": {
             "content": {
@@ -15518,11 +15829,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/downloads": {
       "get": {
+        "operationId": "get_v1_admin_downloads",
         "responses": {
           "200": {
             "content": {
@@ -15545,29 +15862,50 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/dvr/folder": {
       "get": {
+        "operationId": "get_v1_admin_dvr_folder",
         "responses": {
           "200": {
-            "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DvrFolderStatus"
                 }
               }
-            }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
           }
         },
+        "tags": [
+          "Integrations"
+        ],
         "x-access": "owner",
-        "operationId": "GET /v1/admin/dvr/folder"
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/dvr/permissions": {
       "get": {
+        "operationId": "get_v1_admin_dvr_permissions",
         "responses": {
           "200": {
             "content": {
@@ -15590,9 +15928,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "patch": {
+        "operationId": "patch_v1_admin_dvr_permissions",
         "requestBody": {
           "content": {
             "application/json": {
@@ -15625,11 +15969,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/dvr/tuners": {
       "get": {
+        "operationId": "get_v1_admin_dvr_tuners",
         "responses": {
           "200": {
             "content": {
@@ -15652,11 +16002,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/filesystem": {
       "get": {
+        "operationId": "get_v1_admin_filesystem",
         "responses": {
           "200": {
             "content": {
@@ -15679,11 +16035,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/hardware": {
       "get": {
+        "operationId": "get_v1_admin_hardware",
         "responses": {
           "200": {
             "content": {
@@ -15706,11 +16068,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/hardware/test": {
       "post": {
+        "operationId": "post_v1_admin_hardware_test",
         "responses": {
           "200": {
             "content": {
@@ -15733,11 +16101,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/invitations": {
       "get": {
+        "operationId": "get_v1_admin_invitations",
         "responses": {
           "200": {
             "content": {
@@ -15760,9 +16134,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "post": {
+        "operationId": "post_v1_admin_invitations",
         "requestBody": {
           "content": {
             "application/json": {
@@ -15795,11 +16175,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/invitations/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_invitations_id",
         "parameters": [
           {
             "in": "path",
@@ -15825,9 +16211,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "patch": {
+        "operationId": "patch_v1_admin_invitations_id",
         "parameters": [
           {
             "in": "path",
@@ -15870,11 +16262,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/items/delete": {
       "post": {
+        "operationId": "post_v1_admin_items_delete",
         "requestBody": {
           "content": {
             "application/json": {
@@ -15907,11 +16305,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/items/deletion": {
       "post": {
+        "operationId": "post_v1_admin_items_deletion",
         "requestBody": {
           "content": {
             "application/json": {
@@ -15944,11 +16348,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/items/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_items_id",
         "parameters": [
           {
             "in": "path",
@@ -15981,11 +16391,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/items/{id}/artwork": {
       "get": {
+        "operationId": "get_v1_admin_items_id_artwork",
         "parameters": [
           {
             "in": "path",
@@ -16018,9 +16434,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       },
       "post": {
+        "operationId": "post_v1_admin_items_id_artwork",
         "parameters": [
           {
             "in": "path",
@@ -16053,11 +16475,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/items/{id}/artwork/find": {
       "post": {
+        "operationId": "post_v1_admin_items_id_artwork_find",
         "parameters": [
           {
             "in": "path",
@@ -16090,11 +16518,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/items/{id}/artwork/{imageId}": {
       "delete": {
+        "operationId": "delete_v1_admin_items_id_artwork_imageId",
         "parameters": [
           {
             "in": "path",
@@ -16128,11 +16562,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/items/{id}/artwork/{role}": {
       "put": {
+        "operationId": "put_v1_admin_items_id_artwork_role",
         "parameters": [
           {
             "in": "path",
@@ -16183,11 +16623,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/items/{id}/deletion": {
       "get": {
+        "operationId": "get_v1_admin_items_id_deletion",
         "parameters": [
           {
             "in": "path",
@@ -16220,11 +16666,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/items/{id}/lyrics": {
       "put": {
+        "operationId": "put_v1_admin_items_id_lyrics",
         "parameters": [
           {
             "in": "path",
@@ -16267,11 +16719,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/items/{id}/lyrics/fetch": {
       "post": {
+        "operationId": "post_v1_admin_items_id_lyrics_fetch",
         "parameters": [
           {
             "in": "path",
@@ -16304,11 +16762,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/items/{id}/match": {
       "put": {
+        "operationId": "put_v1_admin_items_id_match",
         "parameters": [
           {
             "in": "path",
@@ -16351,11 +16815,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/items/{id}/matches": {
       "get": {
+        "operationId": "get_v1_admin_items_id_matches",
         "parameters": [
           {
             "in": "path",
@@ -16388,11 +16858,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/items/{id}/merge": {
       "post": {
+        "operationId": "post_v1_admin_items_id_merge",
         "parameters": [
           {
             "in": "path",
@@ -16435,11 +16911,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/items/{id}/metadata": {
       "get": {
+        "operationId": "get_v1_admin_items_id_metadata",
         "parameters": [
           {
             "in": "path",
@@ -16472,9 +16954,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       },
       "patch": {
+        "operationId": "patch_v1_admin_items_id_metadata",
         "parameters": [
           {
             "in": "path",
@@ -16517,11 +17005,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/items/{id}/metadata/history": {
       "get": {
+        "operationId": "get_v1_admin_items_id_metadata_history",
         "parameters": [
           {
             "in": "path",
@@ -16554,11 +17048,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/items/{id}/metadata/history/{entryId}/undo": {
       "post": {
+        "operationId": "post_v1_admin_items_id_metadata_history_entryId_undo",
         "parameters": [
           {
             "in": "path",
@@ -16599,11 +17099,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/items/{id}/metadata/refresh": {
       "post": {
+        "operationId": "post_v1_admin_items_id_metadata_refresh",
         "parameters": [
           {
             "in": "path",
@@ -16636,11 +17142,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/items/{id}/subtitles/{subtitleId}": {
       "delete": {
+        "operationId": "delete_v1_admin_items_id_subtitles_subtitleId",
         "parameters": [
           {
             "in": "path",
@@ -16674,11 +17186,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/jobs": {
       "get": {
+        "operationId": "get_v1_admin_jobs",
         "responses": {
           "200": {
             "content": {
@@ -16701,11 +17219,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/jobs/{id}/retry": {
       "post": {
+        "operationId": "post_v1_admin_jobs_id_retry",
         "parameters": [
           {
             "in": "path",
@@ -16738,11 +17262,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/libraries": {
       "get": {
+        "operationId": "get_v1_admin_libraries",
         "responses": {
           "200": {
             "content": {
@@ -16765,9 +17295,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "post": {
+        "operationId": "post_v1_admin_libraries",
         "requestBody": {
           "content": {
             "application/json": {
@@ -16800,11 +17336,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/libraries/order": {
       "put": {
+        "operationId": "put_v1_admin_libraries_order",
         "requestBody": {
           "content": {
             "application/json": {
@@ -16830,11 +17372,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/libraries/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_libraries_id",
         "parameters": [
           {
             "in": "path",
@@ -16867,9 +17415,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "get": {
+        "operationId": "get_v1_admin_libraries_id",
         "parameters": [
           {
             "in": "path",
@@ -16902,9 +17456,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "patch": {
+        "operationId": "patch_v1_admin_libraries_id",
         "parameters": [
           {
             "in": "path",
@@ -16947,11 +17507,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/libraries/{id}/collections": {
       "post": {
+        "operationId": "post_v1_admin_libraries_id_collections",
         "parameters": [
           {
             "in": "path",
@@ -16994,11 +17560,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/libraries/{id}/missing": {
       "delete": {
+        "operationId": "delete_v1_admin_libraries_id_missing",
         "parameters": [
           {
             "in": "path",
@@ -17031,9 +17603,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "get": {
+        "operationId": "get_v1_admin_libraries_id_missing",
         "parameters": [
           {
             "in": "path",
@@ -17066,11 +17644,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/libraries/{id}/scan": {
       "delete": {
+        "operationId": "delete_v1_admin_libraries_id_scan",
         "parameters": [
           {
             "in": "path",
@@ -17096,9 +17680,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       },
       "get": {
+        "operationId": "get_v1_admin_libraries_id_scan",
         "parameters": [
           {
             "in": "path",
@@ -17131,9 +17721,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       },
       "post": {
+        "operationId": "post_v1_admin_libraries_id_scan",
         "parameters": [
           {
             "in": "path",
@@ -17176,11 +17772,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/libraries/{id}/skipped": {
       "get": {
+        "operationId": "get_v1_admin_libraries_id_skipped",
         "parameters": [
           {
             "in": "path",
@@ -17213,11 +17815,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/libraries/{id}/sound-analysis": {
       "get": {
+        "operationId": "get_v1_admin_libraries_id_sound_analysis",
         "parameters": [
           {
             "in": "path",
@@ -17250,11 +17858,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/libraries/{id}/unmatched": {
       "get": {
+        "operationId": "get_v1_admin_libraries_id_unmatched",
         "parameters": [
           {
             "in": "path",
@@ -17287,11 +17901,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/library-channels": {
       "get": {
+        "operationId": "get_v1_admin_library_channels",
         "responses": {
           "200": {
             "content": {
@@ -17314,9 +17934,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "post": {
+        "operationId": "post_v1_admin_library_channels",
         "requestBody": {
           "content": {
             "application/json": {
@@ -17349,11 +17975,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/library-channels/order": {
       "put": {
+        "operationId": "put_v1_admin_library_channels_order",
         "requestBody": {
           "content": {
             "application/json": {
@@ -17379,11 +18011,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/library-channels/preview": {
       "post": {
+        "operationId": "post_v1_admin_library_channels_preview",
         "requestBody": {
           "content": {
             "application/json": {
@@ -17416,11 +18054,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/library-channels/templates": {
       "get": {
+        "operationId": "get_v1_admin_library_channels_templates",
         "responses": {
           "200": {
             "content": {
@@ -17443,11 +18087,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/library-channels/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_library_channels_id",
         "parameters": [
           {
             "in": "path",
@@ -17473,9 +18123,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "get": {
+        "operationId": "get_v1_admin_library_channels_id",
         "parameters": [
           {
             "in": "path",
@@ -17508,9 +18164,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "patch": {
+        "operationId": "patch_v1_admin_library_channels_id",
         "parameters": [
           {
             "in": "path",
@@ -17553,11 +18215,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/library-channels/{id}/logo": {
       "delete": {
+        "operationId": "delete_v1_admin_library_channels_id_logo",
         "parameters": [
           {
             "in": "path",
@@ -17590,9 +18258,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "put": {
+        "operationId": "put_v1_admin_library_channels_id_logo",
         "parameters": [
           {
             "in": "path",
@@ -17625,11 +18299,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/library-channels/{id}/regenerate": {
       "post": {
+        "operationId": "post_v1_admin_library_channels_id_regenerate",
         "parameters": [
           {
             "in": "path",
@@ -17662,11 +18342,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/live-sources/discover": {
       "post": {
+        "operationId": "post_v1_admin_live_sources_discover",
         "requestBody": {
           "content": {
             "application/json": {
@@ -17699,11 +18385,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/live/sources": {
       "get": {
+        "operationId": "get_v1_admin_live_sources",
         "responses": {
           "200": {
             "content": {
@@ -17726,9 +18418,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "post": {
+        "operationId": "post_v1_admin_live_sources",
         "requestBody": {
           "content": {
             "application/json": {
@@ -17761,11 +18459,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/live/sources/preview": {
       "post": {
+        "operationId": "post_v1_admin_live_sources_preview",
         "requestBody": {
           "content": {
             "application/json": {
@@ -17798,11 +18502,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/live/sources/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_live_sources_id",
         "parameters": [
           {
             "in": "path",
@@ -17828,9 +18538,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "get": {
+        "operationId": "get_v1_admin_live_sources_id",
         "parameters": [
           {
             "in": "path",
@@ -17863,9 +18579,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "patch": {
+        "operationId": "patch_v1_admin_live_sources_id",
         "parameters": [
           {
             "in": "path",
@@ -17908,11 +18630,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/live/sources/{id}/channels": {
       "get": {
+        "operationId": "get_v1_admin_live_sources_id_channels",
         "parameters": [
           {
             "in": "path",
@@ -17945,9 +18673,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "patch": {
+        "operationId": "patch_v1_admin_live_sources_id_channels",
         "parameters": [
           {
             "in": "path",
@@ -17983,11 +18717,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/live/sources/{id}/refresh": {
       "post": {
+        "operationId": "post_v1_admin_live_sources_id_refresh",
         "parameters": [
           {
             "in": "path",
@@ -18020,11 +18760,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/load": {
       "get": {
+        "operationId": "get_v1_admin_load",
         "responses": {
           "200": {
             "content": {
@@ -18047,11 +18793,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/logs": {
       "get": {
+        "operationId": "get_v1_admin_logs",
         "responses": {
           "200": {
             "content": {
@@ -18074,11 +18826,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/logs/detail": {
       "put": {
+        "operationId": "put_v1_admin_logs_detail",
         "requestBody": {
           "content": {
             "application/json": {
@@ -18111,11 +18869,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/logs/events": {
       "get": {
+        "operationId": "get_v1_admin_logs_events",
         "responses": {
           "204": {
             "description": "Done"
@@ -18131,11 +18895,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/members": {
       "get": {
+        "operationId": "get_v1_admin_members",
         "responses": {
           "200": {
             "content": {
@@ -18158,9 +18928,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "post": {
+        "operationId": "post_v1_admin_members",
         "requestBody": {
           "content": {
             "application/json": {
@@ -18193,11 +18969,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/members/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_members_id",
         "parameters": [
           {
             "in": "path",
@@ -18223,9 +19005,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "get": {
+        "operationId": "get_v1_admin_members_id",
         "parameters": [
           {
             "in": "path",
@@ -18258,9 +19046,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "patch": {
+        "operationId": "patch_v1_admin_members_id",
         "parameters": [
           {
             "in": "path",
@@ -18303,11 +19097,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/members/{id}/devices": {
       "get": {
+        "operationId": "get_v1_admin_members_id_devices",
         "parameters": [
           {
             "in": "path",
@@ -18340,11 +19140,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/members/{id}/devices/{deviceId}": {
       "delete": {
+        "operationId": "delete_v1_admin_members_id_devices_deviceId",
         "parameters": [
           {
             "in": "path",
@@ -18378,11 +19184,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/members/{id}/downloads": {
       "delete": {
+        "operationId": "delete_v1_admin_members_id_downloads",
         "parameters": [
           {
             "in": "path",
@@ -18408,11 +19220,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/members/{id}/move-code": {
       "post": {
+        "operationId": "post_v1_admin_members_id_move_code",
         "parameters": [
           {
             "in": "path",
@@ -18445,11 +19263,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "admin",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/members/{id}/password-reset": {
       "post": {
+        "operationId": "post_v1_admin_members_id_password_reset",
         "parameters": [
           {
             "in": "path",
@@ -18492,11 +19316,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "admin",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/metadata/settings": {
       "get": {
+        "operationId": "get_v1_admin_metadata_settings",
         "responses": {
           "200": {
             "content": {
@@ -18519,9 +19349,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "put": {
+        "operationId": "put_v1_admin_metadata_settings",
         "requestBody": {
           "content": {
             "application/json": {
@@ -18554,11 +19390,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/metadata/settings/opensubtitles/check": {
       "post": {
+        "operationId": "post_v1_admin_metadata_settings_opensubtitles_check",
         "responses": {
           "200": {
             "content": {
@@ -18581,11 +19423,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/notifications": {
       "post": {
+        "operationId": "post_v1_admin_notifications",
         "requestBody": {
           "content": {
             "application/json": {
@@ -18618,11 +19466,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/owner": {
       "post": {
+        "operationId": "post_v1_admin_owner",
         "requestBody": {
           "content": {
             "application/json": {
@@ -18648,11 +19502,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/play-history": {
       "get": {
+        "operationId": "get_v1_admin_play_history",
         "responses": {
           "200": {
             "content": {
@@ -18675,11 +19535,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/play-history/summary": {
       "get": {
+        "operationId": "get_v1_admin_play_history_summary",
         "responses": {
           "200": {
             "content": {
@@ -18702,11 +19568,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/playback/stream-limits": {
       "get": {
+        "operationId": "get_v1_admin_playback_stream_limits",
         "responses": {
           "200": {
             "content": {
@@ -18729,9 +19601,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "patch": {
+        "operationId": "patch_v1_admin_playback_stream_limits",
         "requestBody": {
           "content": {
             "application/json": {
@@ -18764,11 +19642,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/portico": {
       "get": {
+        "operationId": "get_v1_admin_portico",
         "responses": {
           "200": {
             "content": {
@@ -18791,11 +19675,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/portico/left/{id}/let-back-in": {
       "post": {
+        "operationId": "post_v1_admin_portico_left_id_let_back_in",
         "parameters": [
           {
             "in": "path",
@@ -18821,11 +19711,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/portico/link": {
       "post": {
+        "operationId": "post_v1_admin_portico_link",
         "requestBody": {
           "content": {
             "application/json": {
@@ -18858,11 +19754,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/portico/link/finish": {
       "post": {
+        "operationId": "post_v1_admin_portico_link_finish",
         "requestBody": {
           "content": {
             "application/json": {
@@ -18895,11 +19797,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/remote-access": {
       "get": {
+        "operationId": "get_v1_admin_remote_access",
         "responses": {
           "200": {
             "content": {
@@ -18922,11 +19830,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/remote-access/check": {
       "post": {
+        "operationId": "post_v1_admin_remote_access_check",
         "responses": {
           "200": {
             "content": {
@@ -18949,11 +19863,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/remote-access/route-check": {
       "post": {
+        "operationId": "post_v1_admin_remote_access_route_check",
         "requestBody": {
           "content": {
             "application/json": {
@@ -18986,11 +19906,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/remote-sources": {
       "get": {
+        "operationId": "get_v1_admin_remote_sources",
         "responses": {
           "200": {
             "content": {
@@ -19013,9 +19939,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "post": {
+        "operationId": "post_v1_admin_remote_sources",
         "requestBody": {
           "content": {
             "application/json": {
@@ -19048,11 +19980,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/remote-sources/drive-sign-in": {
       "post": {
+        "operationId": "post_v1_admin_remote_sources_drive_sign_in",
         "requestBody": {
           "content": {
             "application/json": {
@@ -19085,11 +20023,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/remote-sources/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_remote_sources_id",
         "parameters": [
           {
             "in": "path",
@@ -19115,9 +20059,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "get": {
+        "operationId": "get_v1_admin_remote_sources_id",
         "parameters": [
           {
             "in": "path",
@@ -19150,9 +20100,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "patch": {
+        "operationId": "patch_v1_admin_remote_sources_id",
         "parameters": [
           {
             "in": "path",
@@ -19195,11 +20151,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/remote-sources/{id}/folders": {
       "get": {
+        "operationId": "get_v1_admin_remote_sources_id_folders",
         "parameters": [
           {
             "in": "path",
@@ -19232,11 +20194,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/remote-sources/{id}/test": {
       "post": {
+        "operationId": "post_v1_admin_remote_sources_id_test",
         "parameters": [
           {
             "in": "path",
@@ -19269,11 +20237,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/reports": {
       "get": {
+        "operationId": "get_v1_admin_reports",
         "responses": {
           "200": {
             "content": {
@@ -19296,11 +20270,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/reports/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_reports_id",
         "parameters": [
           {
             "in": "path",
@@ -19326,9 +20306,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "get": {
+        "operationId": "get_v1_admin_reports_id",
         "parameters": [
           {
             "in": "path",
@@ -19361,9 +20347,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "patch": {
+        "operationId": "patch_v1_admin_reports_id",
         "parameters": [
           {
             "in": "path",
@@ -19406,11 +20398,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/reports/{id}/log": {
       "get": {
+        "operationId": "get_v1_admin_reports_id_log",
         "parameters": [
           {
             "in": "path",
@@ -19436,11 +20434,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/restart": {
       "post": {
+        "operationId": "post_v1_admin_restart",
         "responses": {
           "200": {
             "content": {
@@ -19463,11 +20467,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/segments": {
       "get": {
+        "operationId": "get_v1_admin_segments",
         "responses": {
           "200": {
             "content": {
@@ -19490,11 +20500,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/segments/redetect": {
       "post": {
+        "operationId": "post_v1_admin_segments_redetect",
         "responses": {
           "200": {
             "content": {
@@ -19517,11 +20533,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/segments/retry": {
       "post": {
+        "operationId": "post_v1_admin_segments_retry",
         "responses": {
           "200": {
             "content": {
@@ -19544,11 +20566,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/segments/titles": {
       "get": {
+        "operationId": "get_v1_admin_segments_titles",
         "responses": {
           "200": {
             "content": {
@@ -19571,11 +20599,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/segments/titles/{id}": {
       "get": {
+        "operationId": "get_v1_admin_segments_titles_id",
         "parameters": [
           {
             "in": "path",
@@ -19608,11 +20642,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/segments/titles/{id}/approve": {
       "post": {
+        "operationId": "post_v1_admin_segments_titles_id_approve",
         "parameters": [
           {
             "in": "path",
@@ -19655,11 +20695,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/segments/titles/{id}/redetect": {
       "post": {
+        "operationId": "post_v1_admin_segments_titles_id_redetect",
         "parameters": [
           {
             "in": "path",
@@ -19692,11 +20738,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/sessions": {
       "get": {
+        "operationId": "get_v1_admin_sessions",
         "responses": {
           "200": {
             "content": {
@@ -19719,11 +20771,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/sessions/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_sessions_id",
         "parameters": [
           {
             "in": "path",
@@ -19759,11 +20817,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/settings": {
       "get": {
+        "operationId": "get_v1_admin_settings",
         "responses": {
           "200": {
             "content": {
@@ -19786,11 +20850,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/settings/integrations": {
       "get": {
+        "operationId": "get_v1_admin_settings_integrations",
         "responses": {
           "200": {
             "content": {
@@ -19813,9 +20883,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "put": {
+        "operationId": "put_v1_admin_settings_integrations",
         "requestBody": {
           "content": {
             "application/json": {
@@ -19848,11 +20924,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/settings/network": {
       "get": {
+        "operationId": "get_v1_admin_settings_network",
         "responses": {
           "200": {
             "content": {
@@ -19875,9 +20957,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "put": {
+        "operationId": "put_v1_admin_settings_network",
         "requestBody": {
           "content": {
             "application/json": {
@@ -19910,11 +20998,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/settings/remote-access": {
       "get": {
+        "operationId": "get_v1_admin_settings_remote_access",
         "responses": {
           "200": {
             "content": {
@@ -19937,9 +21031,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "put": {
+        "operationId": "put_v1_admin_settings_remote_access",
         "requestBody": {
           "content": {
             "application/json": {
@@ -19972,11 +21072,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/settings/{name}": {
       "get": {
+        "operationId": "get_v1_admin_settings_name",
         "parameters": [
           {
             "in": "path",
@@ -20009,9 +21115,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "put": {
+        "operationId": "put_v1_admin_settings_name",
         "parameters": [
           {
             "in": "path",
@@ -20054,11 +21166,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/sign-in": {
       "get": {
+        "operationId": "get_v1_admin_sign_in",
         "responses": {
           "200": {
             "content": {
@@ -20081,11 +21199,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/sign-in/finish": {
       "post": {
+        "operationId": "post_v1_admin_sign_in_finish",
         "responses": {
           "200": {
             "content": {
@@ -20108,11 +21232,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/sign-in/move-codes": {
       "post": {
+        "operationId": "post_v1_admin_sign_in_move_codes",
         "responses": {
           "200": {
             "content": {
@@ -20135,11 +21265,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "admin",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/sign-in/preview": {
       "post": {
+        "operationId": "post_v1_admin_sign_in_preview",
         "requestBody": {
           "content": {
             "application/json": {
@@ -20172,11 +21308,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/sign-in/switch": {
       "post": {
+        "operationId": "post_v1_admin_sign_in_switch",
         "requestBody": {
           "content": {
             "application/json": {
@@ -20209,11 +21351,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/skipped": {
       "get": {
+        "operationId": "get_v1_admin_skipped",
         "responses": {
           "200": {
             "content": {
@@ -20236,11 +21384,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/statistics": {
       "get": {
+        "operationId": "get_v1_admin_statistics",
         "responses": {
           "200": {
             "content": {
@@ -20263,11 +21417,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/storage": {
       "get": {
+        "operationId": "get_v1_admin_storage",
         "responses": {
           "200": {
             "content": {
@@ -20290,11 +21450,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/storage/cache": {
       "get": {
+        "operationId": "get_v1_admin_storage_cache",
         "responses": {
           "200": {
             "content": {
@@ -20317,11 +21483,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/storage/cache/empty": {
       "post": {
+        "operationId": "post_v1_admin_storage_cache_empty",
         "responses": {
           "200": {
             "content": {
@@ -20344,11 +21516,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/storage/keeping": {
       "get": {
+        "operationId": "get_v1_admin_storage_keeping",
         "responses": {
           "200": {
             "content": {
@@ -20371,9 +21549,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "put": {
+        "operationId": "put_v1_admin_storage_keeping",
         "requestBody": {
           "content": {
             "application/json": {
@@ -20406,11 +21590,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/support-export": {
       "post": {
+        "operationId": "post_v1_admin_support_export",
         "requestBody": {
           "content": {
             "application/json": {
@@ -20436,11 +21626,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/updates": {
       "get": {
+        "operationId": "get_v1_admin_updates",
         "responses": {
           "200": {
             "content": {
@@ -20463,11 +21659,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/updates/check": {
       "post": {
+        "operationId": "post_v1_admin_updates_check",
         "responses": {
           "200": {
             "content": {
@@ -20490,11 +21692,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/upgrade-copy": {
       "delete": {
+        "operationId": "delete_v1_admin_upgrade_copy",
         "responses": {
           "204": {
             "description": "Done"
@@ -20510,11 +21718,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/versions/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_versions_id",
         "parameters": [
           {
             "in": "path",
@@ -20547,11 +21761,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/versions/{id}/deletion": {
       "get": {
+        "operationId": "get_v1_admin_versions_id_deletion",
         "parameters": [
           {
             "in": "path",
@@ -20584,11 +21804,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/versions/{id}/split": {
       "post": {
+        "operationId": "post_v1_admin_versions_id_split",
         "parameters": [
           {
             "in": "path",
@@ -20621,11 +21847,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/admin/webhooks": {
       "get": {
+        "operationId": "get_v1_admin_webhooks",
         "responses": {
           "200": {
             "content": {
@@ -20648,9 +21880,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "post": {
+        "operationId": "post_v1_admin_webhooks",
         "requestBody": {
           "content": {
             "application/json": {
@@ -20683,11 +21921,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/webhooks/{id}": {
       "delete": {
+        "operationId": "delete_v1_admin_webhooks_id",
         "parameters": [
           {
             "in": "path",
@@ -20713,9 +21957,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       },
       "patch": {
+        "operationId": "patch_v1_admin_webhooks_id",
         "parameters": [
           {
             "in": "path",
@@ -20758,11 +22008,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/webhooks/{id}/deliveries": {
       "get": {
+        "operationId": "get_v1_admin_webhooks_id_deliveries",
         "parameters": [
           {
             "in": "path",
@@ -20795,11 +22051,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/admin/webhooks/{id}/secret": {
       "post": {
+        "operationId": "post_v1_admin_webhooks_id_secret",
         "parameters": [
           {
             "in": "path",
@@ -20832,11 +22094,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/admin/webhooks/{id}/test": {
       "post": {
+        "operationId": "post_v1_admin_webhooks_id_test",
         "parameters": [
           {
             "in": "path",
@@ -20869,11 +22137,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/annotations:batch": {
       "post": {
+        "operationId": "post_v1_annotations:batch",
         "requestBody": {
           "content": {
             "application/json": {
@@ -20906,11 +22180,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/auth/codes": {
       "post": {
+        "operationId": "post_v1_auth_codes",
         "requestBody": {
           "content": {
             "application/json": {
@@ -20944,11 +22224,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/auth/codes/{id}": {
       "get": {
+        "operationId": "get_v1_auth_codes_id",
         "parameters": [
           {
             "in": "path",
@@ -20981,11 +22267,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/auth/codes/{id}/approve": {
       "post": {
+        "operationId": "post_v1_auth_codes_id_approve",
         "parameters": [
           {
             "in": "path",
@@ -21021,11 +22313,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/auth/codes/{id}/redeem": {
       "post": {
+        "operationId": "post_v1_auth_codes_id_redeem",
         "parameters": [
           {
             "in": "path",
@@ -21069,11 +22367,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/auth/invitations/{id}": {
       "get": {
+        "operationId": "get_v1_auth_invitations_id",
         "parameters": [
           {
             "in": "path",
@@ -21107,11 +22411,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/auth/invitations/{id}/accept": {
       "post": {
+        "operationId": "post_v1_auth_invitations_id_accept",
         "parameters": [
           {
             "in": "path",
@@ -21155,11 +22465,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/auth/move/check": {
       "post": {
+        "operationId": "post_v1_auth_move_check",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21193,11 +22509,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/auth/move/complete": {
       "post": {
+        "operationId": "post_v1_auth_move_complete",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21231,11 +22553,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/auth/move/ticket": {
       "post": {
+        "operationId": "post_v1_auth_move_ticket",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21269,11 +22597,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/auth/owner-reset": {
       "post": {
+        "operationId": "post_v1_auth_owner_reset",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21307,11 +22641,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/auth/owner-reset/confirm": {
       "post": {
+        "operationId": "post_v1_auth_owner_reset_confirm",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21338,11 +22678,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/auth/password": {
       "post": {
+        "operationId": "post_v1_auth_password",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21368,11 +22714,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/auth/password-reset/confirm": {
       "post": {
+        "operationId": "post_v1_auth_password_reset_confirm",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21399,11 +22751,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/auth/portico/challenge": {
       "post": {
+        "operationId": "post_v1_auth_portico_challenge",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21437,11 +22795,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/auth/portico/exchange": {
       "post": {
+        "operationId": "post_v1_auth_portico_exchange",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21475,11 +22839,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/auth/refresh": {
       "post": {
+        "operationId": "post_v1_auth_refresh",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21513,11 +22883,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/auth/session": {
       "delete": {
+        "operationId": "delete_v1_auth_session",
         "responses": {
           "204": {
             "description": "Done"
@@ -21534,11 +22910,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/auth/sign-in": {
       "post": {
+        "operationId": "post_v1_auth_sign_in",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21572,11 +22954,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/auth/two-factor": {
       "post": {
+        "operationId": "post_v1_auth_two_factor",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21610,11 +22998,27 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/cast/codes": {
       "post": {
+        "operationId": "post_v1_cast_codes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastCodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -21637,11 +23041,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/cast/config": {
       "get": {
+        "operationId": "get_v1_cast_config",
         "responses": {
           "200": {
             "content": {
@@ -21664,11 +23074,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/cast/redeem": {
       "post": {
+        "operationId": "post_v1_cast_redeem",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21702,11 +23118,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/devices": {
       "get": {
+        "operationId": "get_v1_devices",
         "responses": {
           "200": {
             "content": {
@@ -21729,11 +23151,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/devices/{id}": {
       "delete": {
+        "operationId": "delete_v1_devices_id",
         "parameters": [
           {
             "in": "path",
@@ -21759,9 +23187,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "patch": {
+        "operationId": "patch_v1_devices_id",
         "parameters": [
           {
             "in": "path",
@@ -21804,11 +23238,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/devices/{id}/capabilities": {
       "get": {
+        "operationId": "get_v1_devices_id_capabilities",
         "parameters": [
           {
             "in": "path",
@@ -21841,9 +23281,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "put": {
+        "operationId": "put_v1_devices_id_capabilities",
         "parameters": [
           {
             "in": "path",
@@ -21879,11 +23325,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/downloads": {
       "get": {
+        "operationId": "get_v1_downloads",
         "responses": {
           "200": {
             "content": {
@@ -21906,9 +23358,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "post": {
+        "operationId": "post_v1_downloads",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21941,11 +23399,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/downloads/sync": {
       "post": {
+        "operationId": "post_v1_downloads_sync",
         "requestBody": {
           "content": {
             "application/json": {
@@ -21978,11 +23442,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/downloads/usage": {
       "get": {
+        "operationId": "get_v1_downloads_usage",
         "responses": {
           "200": {
             "content": {
@@ -22005,11 +23475,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/downloads/{id}": {
       "delete": {
+        "operationId": "delete_v1_downloads_id",
         "parameters": [
           {
             "in": "path",
@@ -22035,9 +23511,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "get": {
+        "operationId": "get_v1_downloads_id",
         "parameters": [
           {
             "in": "path",
@@ -22070,9 +23552,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "patch": {
+        "operationId": "patch_v1_downloads_id",
         "parameters": [
           {
             "in": "path",
@@ -22115,11 +23603,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/downloads/{id}/items/{itemId}": {
       "delete": {
+        "operationId": "delete_v1_downloads_id_items_itemId",
         "parameters": [
           {
             "in": "path",
@@ -22153,9 +23647,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "get": {
+        "operationId": "get_v1_downloads_id_items_itemId",
         "parameters": [
           {
             "in": "path",
@@ -22196,11 +23696,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/dvr": {
       "get": {
+        "operationId": "get_v1_dvr",
         "responses": {
           "200": {
             "content": {
@@ -22223,11 +23729,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/dvr/groups": {
       "get": {
+        "operationId": "get_v1_dvr_groups",
         "responses": {
           "200": {
             "content": {
@@ -22250,11 +23762,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/dvr/recordings": {
       "get": {
+        "operationId": "get_v1_dvr_recordings",
         "responses": {
           "200": {
             "content": {
@@ -22277,9 +23795,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       },
       "post": {
+        "operationId": "post_v1_dvr_recordings",
         "requestBody": {
           "content": {
             "application/json": {
@@ -22312,11 +23836,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/dvr/recordings/{id}": {
       "delete": {
+        "operationId": "delete_v1_dvr_recordings_id",
         "parameters": [
           {
             "in": "path",
@@ -22342,9 +23872,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       },
       "get": {
+        "operationId": "get_v1_dvr_recordings_id",
         "parameters": [
           {
             "in": "path",
@@ -22377,9 +23913,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       },
       "patch": {
+        "operationId": "patch_v1_dvr_recordings_id",
         "parameters": [
           {
             "in": "path",
@@ -22422,11 +23964,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/dvr/rules": {
       "get": {
+        "operationId": "get_v1_dvr_rules",
         "responses": {
           "200": {
             "content": {
@@ -22449,9 +23997,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       },
       "post": {
+        "operationId": "post_v1_dvr_rules",
         "requestBody": {
           "content": {
             "application/json": {
@@ -22484,11 +24038,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/dvr/rules/{id}": {
       "delete": {
+        "operationId": "delete_v1_dvr_rules_id",
         "parameters": [
           {
             "in": "path",
@@ -22514,9 +24074,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       },
       "patch": {
+        "operationId": "patch_v1_dvr_rules_id",
         "parameters": [
           {
             "in": "path",
@@ -22559,11 +24125,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/events": {
       "get": {
+        "operationId": "get_v1_events",
         "responses": {
           "204": {
             "description": "Done"
@@ -22579,11 +24151,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/facets": {
       "get": {
+        "operationId": "get_v1_facets",
         "responses": {
           "200": {
             "content": {
@@ -22606,11 +24184,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/genres": {
       "get": {
+        "operationId": "get_v1_genres",
         "responses": {
           "200": {
             "content": {
@@ -22633,11 +24217,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/groups": {
       "get": {
+        "operationId": "get_v1_groups",
         "responses": {
           "200": {
             "content": {
@@ -22660,9 +24250,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "post": {
+        "operationId": "post_v1_groups",
         "requestBody": {
           "content": {
             "application/json": {
@@ -22695,11 +24291,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/groups/join": {
       "post": {
+        "operationId": "post_v1_groups_join",
         "requestBody": {
           "content": {
             "application/json": {
@@ -22732,11 +24334,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/groups/{id}": {
       "delete": {
+        "operationId": "delete_v1_groups_id",
         "parameters": [
           {
             "in": "path",
@@ -22762,9 +24370,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "get": {
+        "operationId": "get_v1_groups_id",
         "parameters": [
           {
             "in": "path",
@@ -22797,9 +24411,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "patch": {
+        "operationId": "patch_v1_groups_id",
         "parameters": [
           {
             "in": "path",
@@ -22842,11 +24462,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/groups/{id}/me": {
       "delete": {
+        "operationId": "delete_v1_groups_id_me",
         "parameters": [
           {
             "in": "path",
@@ -22872,9 +24498,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "put": {
+        "operationId": "put_v1_groups_id_me",
         "parameters": [
           {
             "in": "path",
@@ -22917,11 +24549,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/groups/{id}/playback": {
       "post": {
+        "operationId": "post_v1_groups_id_playback",
         "parameters": [
           {
             "in": "path",
@@ -22964,11 +24602,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/groups/{id}/queue": {
       "put": {
+        "operationId": "put_v1_groups_id_queue",
         "parameters": [
           {
             "in": "path",
@@ -23011,11 +24655,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/health/live": {
       "get": {
+        "operationId": "get_v1_health_live",
         "responses": {
           "200": {
             "content": {
@@ -23039,11 +24689,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/health/ready": {
       "get": {
+        "operationId": "get_v1_health_ready",
         "responses": {
           "200": {
             "content": {
@@ -23067,11 +24723,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/history": {
       "delete": {
+        "operationId": "delete_v1_history",
         "responses": {
           "204": {
             "description": "Done"
@@ -23087,9 +24749,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       },
       "get": {
+        "operationId": "get_v1_history",
         "responses": {
           "200": {
             "content": {
@@ -23112,11 +24780,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/history/{id}": {
       "delete": {
+        "operationId": "delete_v1_history_id",
         "parameters": [
           {
             "in": "path",
@@ -23142,11 +24816,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/home": {
       "get": {
+        "operationId": "get_v1_home",
         "responses": {
           "200": {
             "content": {
@@ -23169,11 +24849,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/hosted/approvals/{id}/poll": {
       "post": {
+        "operationId": "post_v1_hosted_approvals_id_poll",
         "parameters": [
           {
             "in": "path",
@@ -23217,11 +24903,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/hosted/notices": {
       "post": {
+        "operationId": "post_v1_hosted_notices",
         "requestBody": {
           "content": {
             "application/json": {
@@ -23255,11 +24947,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/images/{id}": {
       "get": {
+        "operationId": "get_v1_images_id",
         "parameters": [
           {
             "in": "path",
@@ -23286,11 +24984,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/items": {
       "get": {
+        "operationId": "get_v1_items",
         "responses": {
           "200": {
             "content": {
@@ -23313,11 +25017,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/items/query": {
       "post": {
+        "operationId": "post_v1_items_query",
         "requestBody": {
           "content": {
             "application/json": {
@@ -23350,11 +25060,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/items/state:batch": {
       "post": {
+        "operationId": "post_v1_items_state:batch",
         "requestBody": {
           "content": {
             "application/json": {
@@ -23387,11 +25103,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/items/state:undo": {
       "post": {
+        "operationId": "post_v1_items_state:undo",
         "requestBody": {
           "content": {
             "application/json": {
@@ -23417,11 +25139,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/items/{id}": {
       "get": {
+        "operationId": "get_v1_items_id",
         "parameters": [
           {
             "in": "path",
@@ -23454,11 +25182,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/items/{id}/analysis/markers": {
       "post": {
+        "operationId": "post_v1_items_id_analysis_markers",
         "parameters": [
           {
             "in": "path",
@@ -23494,11 +25228,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "owner",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/items/{id}/annotations": {
       "get": {
+        "operationId": "get_v1_items_id_annotations",
         "parameters": [
           {
             "in": "path",
@@ -23531,11 +25271,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/items/{id}/annotations/{annotationId}": {
       "delete": {
+        "operationId": "delete_v1_items_id_annotations_annotationId",
         "parameters": [
           {
             "in": "path",
@@ -23569,9 +25315,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       },
       "put": {
+        "operationId": "put_v1_items_id_annotations_annotationId",
         "parameters": [
           {
             "in": "path",
@@ -23622,11 +25374,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/items/{id}/book": {
       "get": {
+        "operationId": "get_v1_items_id_book",
         "parameters": [
           {
             "in": "path",
@@ -23659,11 +25417,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/items/{id}/credits": {
       "get": {
+        "operationId": "get_v1_items_id_credits",
         "parameters": [
           {
             "in": "path",
@@ -23696,11 +25460,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/items/{id}/download-options": {
       "get": {
+        "operationId": "get_v1_items_id_download_options",
         "parameters": [
           {
             "in": "path",
@@ -23733,11 +25503,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/items/{id}/files": {
       "get": {
+        "operationId": "get_v1_items_id_files",
         "parameters": [
           {
             "in": "path",
@@ -23770,11 +25546,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "admin"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "admin"
       }
     },
     "/v1/items/{id}/lyrics": {
       "get": {
+        "operationId": "get_v1_items_id_lyrics",
         "parameters": [
           {
             "in": "path",
@@ -23807,11 +25589,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/items/{id}/playback-options": {
       "get": {
+        "operationId": "get_v1_items_id_playback_options",
         "parameters": [
           {
             "in": "path",
@@ -23844,11 +25632,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/items/{id}/related": {
       "get": {
+        "operationId": "get_v1_items_id_related",
         "parameters": [
           {
             "in": "path",
@@ -23881,11 +25675,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/items/{id}/state": {
       "put": {
+        "operationId": "put_v1_items_id_state",
         "parameters": [
           {
             "in": "path",
@@ -23928,11 +25728,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/items/{id}/subtitles": {
       "get": {
+        "operationId": "get_v1_items_id_subtitles",
         "parameters": [
           {
             "in": "path",
@@ -23965,9 +25771,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       },
       "post": {
+        "operationId": "post_v1_items_id_subtitles",
         "parameters": [
           {
             "in": "path",
@@ -24010,11 +25822,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/items/{id}/subtitles/offset": {
       "put": {
+        "operationId": "put_v1_items_id_subtitles_offset",
         "parameters": [
           {
             "in": "path",
@@ -24057,11 +25875,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/items/{id}/subtitles/search": {
       "get": {
+        "operationId": "get_v1_items_id_subtitles_search",
         "parameters": [
           {
             "in": "path",
@@ -24094,11 +25918,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/jobs": {
       "post": {
+        "operationId": "post_v1_jobs",
         "requestBody": {
           "content": {
             "application/json": {
@@ -24131,11 +25961,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       }
     },
     "/v1/jobs/{id}": {
       "delete": {
+        "operationId": "delete_v1_jobs_id",
         "parameters": [
           {
             "in": "path",
@@ -24161,9 +25997,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Integrations",
+        "x-scope": "library"
       },
       "get": {
+        "operationId": "get_v1_jobs_id",
         "parameters": [
           {
             "in": "path",
@@ -24196,11 +26038,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/libraries": {
       "get": {
+        "operationId": "get_v1_libraries",
         "responses": {
           "200": {
             "content": {
@@ -24223,11 +26071,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/libraries/{id}": {
       "get": {
+        "operationId": "get_v1_libraries_id",
         "parameters": [
           {
             "in": "path",
@@ -24260,11 +26114,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/libraries/{id}/landing": {
       "get": {
+        "operationId": "get_v1_libraries_id_landing",
         "parameters": [
           {
             "in": "path",
@@ -24297,11 +26157,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/lists": {
       "get": {
+        "operationId": "get_v1_lists",
         "responses": {
           "200": {
             "content": {
@@ -24324,9 +26190,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       },
       "post": {
+        "operationId": "post_v1_lists",
         "requestBody": {
           "content": {
             "application/json": {
@@ -24359,11 +26231,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/lists/{id}": {
       "delete": {
+        "operationId": "delete_v1_lists_id",
         "parameters": [
           {
             "in": "path",
@@ -24389,9 +26267,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       },
       "get": {
+        "operationId": "get_v1_lists_id",
         "parameters": [
           {
             "in": "path",
@@ -24424,9 +26308,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       },
       "patch": {
+        "operationId": "patch_v1_lists_id",
         "parameters": [
           {
             "in": "path",
@@ -24469,11 +26359,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/lists/{id}/entries": {
       "post": {
+        "operationId": "post_v1_lists_id_entries",
         "parameters": [
           {
             "in": "path",
@@ -24516,11 +26412,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/lists/{id}/entries/{entryId}": {
       "delete": {
+        "operationId": "delete_v1_lists_id_entries_entryId",
         "parameters": [
           {
             "in": "path",
@@ -24561,9 +26463,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       },
       "patch": {
+        "operationId": "patch_v1_lists_id_entries_entryId",
         "parameters": [
           {
             "in": "path",
@@ -24614,11 +26522,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/lists/{id}/shares": {
       "get": {
+        "operationId": "get_v1_lists_id_shares",
         "parameters": [
           {
             "in": "path",
@@ -24651,9 +26565,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       },
       "put": {
+        "operationId": "put_v1_lists_id_shares",
         "parameters": [
           {
             "in": "path",
@@ -24696,11 +26616,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/live/channels": {
       "get": {
+        "operationId": "get_v1_live_channels",
         "responses": {
           "200": {
             "content": {
@@ -24723,11 +26649,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/live/channels/{id}/state": {
       "put": {
+        "operationId": "put_v1_live_channels_id_state",
         "parameters": [
           {
             "in": "path",
@@ -24770,11 +26702,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/live/guide": {
       "get": {
+        "operationId": "get_v1_live_guide",
         "responses": {
           "200": {
             "content": {
@@ -24797,11 +26735,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/live/now": {
       "get": {
+        "operationId": "get_v1_live_now",
         "responses": {
           "200": {
             "content": {
@@ -24824,11 +26768,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/live/programmes/{id}": {
       "get": {
+        "operationId": "get_v1_live_programmes_id",
         "parameters": [
           {
             "in": "path",
@@ -24861,11 +26811,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/live/reminders": {
       "get": {
+        "operationId": "get_v1_live_reminders",
         "responses": {
           "200": {
             "content": {
@@ -24888,11 +26844,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/live/reminders/{id}": {
       "delete": {
+        "operationId": "delete_v1_live_reminders_id",
         "parameters": [
           {
             "in": "path",
@@ -24918,9 +26880,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       },
       "put": {
+        "operationId": "put_v1_live_reminders_id",
         "parameters": [
           {
             "in": "path",
@@ -24946,11 +26914,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/live/streams/{grant}": {
       "get": {
+        "operationId": "get_v1_live_streams_grant",
         "parameters": [
           {
             "in": "path",
@@ -24977,11 +26951,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/live/streams/{grant}/{file}": {
       "get": {
+        "operationId": "get_v1_live_streams_grant_file",
         "parameters": [
           {
             "in": "path",
@@ -25016,11 +26996,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/mcp": {
       "post": {
+        "operationId": "post_v1_mcp",
         "requestBody": {
           "content": {
             "application/json": {
@@ -25053,11 +27039,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/me": {
       "get": {
+        "operationId": "get_v1_me",
         "responses": {
           "200": {
             "content": {
@@ -25080,11 +27072,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/me/app-passwords": {
       "get": {
+        "operationId": "get_v1_me_app_passwords",
         "responses": {
           "200": {
             "content": {
@@ -25107,9 +27105,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "post": {
+        "operationId": "post_v1_me_app_passwords",
         "requestBody": {
           "content": {
             "application/json": {
@@ -25142,11 +27146,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/me/app-passwords/{id}": {
       "delete": {
+        "operationId": "delete_v1_me_app_passwords_id",
         "parameters": [
           {
             "in": "path",
@@ -25172,11 +27182,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/me/leave": {
       "post": {
+        "operationId": "post_v1_me_leave",
         "requestBody": {
           "content": {
             "application/json": {
@@ -25202,11 +27218,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/me/recommendations:reset": {
       "post": {
+        "operationId": "post_v1_me_recommendations:reset",
         "requestBody": {
           "content": {
             "application/json": {
@@ -25239,11 +27261,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/me/sessions": {
       "delete": {
+        "operationId": "delete_v1_me_sessions",
         "responses": {
           "204": {
             "description": "Done"
@@ -25259,9 +27287,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "get": {
+        "operationId": "get_v1_me_sessions",
         "responses": {
           "200": {
             "content": {
@@ -25284,11 +27318,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/me/sessions/{id}": {
       "delete": {
+        "operationId": "delete_v1_me_sessions_id",
         "parameters": [
           {
             "in": "path",
@@ -25314,11 +27354,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/me/tokens": {
       "get": {
+        "operationId": "get_v1_me_tokens",
         "responses": {
           "200": {
             "content": {
@@ -25341,9 +27387,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "post": {
+        "operationId": "post_v1_me_tokens",
         "requestBody": {
           "content": {
             "application/json": {
@@ -25376,11 +27428,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/me/tokens/{id}": {
       "delete": {
+        "operationId": "delete_v1_me_tokens_id",
         "parameters": [
           {
             "in": "path",
@@ -25406,11 +27464,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/me/two-factor": {
       "delete": {
+        "operationId": "delete_v1_me_two_factor",
         "requestBody": {
           "content": {
             "application/json": {
@@ -25436,9 +27500,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "get": {
+        "operationId": "get_v1_me_two_factor",
         "responses": {
           "200": {
             "content": {
@@ -25461,9 +27531,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "post": {
+        "operationId": "post_v1_me_two_factor",
         "requestBody": {
           "content": {
             "application/json": {
@@ -25496,11 +27572,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/me/two-factor/confirm": {
       "post": {
+        "operationId": "post_v1_me_two_factor_confirm",
         "requestBody": {
           "content": {
             "application/json": {
@@ -25533,11 +27615,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/me/two-factor/recovery-codes": {
       "post": {
+        "operationId": "post_v1_me_two_factor_recovery_codes",
         "requestBody": {
           "content": {
             "application/json": {
@@ -25570,11 +27658,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/media/{grant}/{file...}": {
       "get": {
+        "operationId": "get_v1_media_grant_file...",
         "parameters": [
           {
             "in": "path",
@@ -25601,11 +27695,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/music/mixes": {
       "get": {
+        "operationId": "get_v1_music_mixes",
         "responses": {
           "200": {
             "content": {
@@ -25628,11 +27728,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/music/mixes/{id}/playlist": {
       "post": {
+        "operationId": "post_v1_music_mixes_id_playlist",
         "parameters": [
           {
             "in": "path",
@@ -25675,11 +27781,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/notifications": {
       "get": {
+        "operationId": "get_v1_notifications",
         "responses": {
           "200": {
             "content": {
@@ -25702,11 +27814,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/notifications/read-all": {
       "post": {
+        "operationId": "post_v1_notifications_read_all",
         "responses": {
           "204": {
             "description": "Done"
@@ -25722,11 +27840,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/notifications/{id}": {
       "patch": {
+        "operationId": "patch_v1_notifications_id",
         "parameters": [
           {
             "in": "path",
@@ -25762,11 +27886,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/people": {
       "get": {
+        "operationId": "get_v1_people",
         "responses": {
           "200": {
             "content": {
@@ -25789,11 +27919,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/people/{id}": {
       "get": {
+        "operationId": "get_v1_people_id",
         "parameters": [
           {
             "in": "path",
@@ -25826,11 +27962,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/playback/sessions": {
       "get": {
+        "operationId": "get_v1_playback_sessions",
         "responses": {
           "200": {
             "content": {
@@ -25853,9 +27995,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "post": {
+        "operationId": "post_v1_playback_sessions",
         "requestBody": {
           "content": {
             "application/json": {
@@ -25888,11 +28036,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/playback/sessions/{id}": {
       "delete": {
+        "operationId": "delete_v1_playback_sessions_id",
         "parameters": [
           {
             "in": "path",
@@ -25928,9 +28082,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "get": {
+        "operationId": "get_v1_playback_sessions_id",
         "parameters": [
           {
             "in": "path",
@@ -25963,9 +28123,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "patch": {
+        "operationId": "patch_v1_playback_sessions_id",
         "parameters": [
           {
             "in": "path",
@@ -26008,11 +28174,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/playback/sessions/{id}/progress": {
       "put": {
+        "operationId": "put_v1_playback_sessions_id_progress",
         "parameters": [
           {
             "in": "path",
@@ -26055,11 +28227,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/preferences": {
       "get": {
+        "operationId": "get_v1_preferences",
         "responses": {
           "200": {
             "content": {
@@ -26082,9 +28260,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       },
       "patch": {
+        "operationId": "patch_v1_preferences",
         "requestBody": {
           "content": {
             "application/json": {
@@ -26117,11 +28301,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/profiles": {
       "get": {
+        "operationId": "get_v1_profiles",
         "responses": {
           "200": {
             "content": {
@@ -26144,9 +28334,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "post": {
+        "operationId": "post_v1_profiles",
         "requestBody": {
           "content": {
             "application/json": {
@@ -26179,11 +28375,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/profiles/order": {
       "put": {
+        "operationId": "put_v1_profiles_order",
         "requestBody": {
           "content": {
             "application/json": {
@@ -26216,11 +28418,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/profiles/{id}": {
       "delete": {
+        "operationId": "delete_v1_profiles_id",
         "parameters": [
           {
             "in": "path",
@@ -26246,9 +28454,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "get": {
+        "operationId": "get_v1_profiles_id",
         "parameters": [
           {
             "in": "path",
@@ -26281,9 +28495,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "patch": {
+        "operationId": "patch_v1_profiles_id",
         "parameters": [
           {
             "in": "path",
@@ -26326,11 +28546,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/profiles/{id}/avatar": {
       "delete": {
+        "operationId": "delete_v1_profiles_id_avatar",
         "parameters": [
           {
             "in": "path",
@@ -26363,9 +28589,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "get": {
+        "operationId": "get_v1_profiles_id_avatar",
         "parameters": [
           {
             "in": "path",
@@ -26391,9 +28623,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       },
       "put": {
+        "operationId": "put_v1_profiles_id_avatar",
         "parameters": [
           {
             "in": "path",
@@ -26426,11 +28664,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/profiles/{id}/pin": {
       "delete": {
+        "operationId": "delete_v1_profiles_id_pin",
         "parameters": [
           {
             "in": "path",
@@ -26456,9 +28700,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "put": {
+        "operationId": "put_v1_profiles_id_pin",
         "parameters": [
           {
             "in": "path",
@@ -26501,11 +28751,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/profiles/{id}/restrictions": {
       "get": {
+        "operationId": "get_v1_profiles_id_restrictions",
         "parameters": [
           {
             "in": "path",
@@ -26538,9 +28794,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "put": {
+        "operationId": "put_v1_profiles_id_restrictions",
         "parameters": [
           {
             "in": "path",
@@ -26583,11 +28845,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/profiles/{id}/select": {
       "post": {
+        "operationId": "post_v1_profiles_id_select",
         "parameters": [
           {
             "in": "path",
@@ -26630,11 +28898,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "signedIn"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "signedIn",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/queues": {
       "get": {
+        "operationId": "get_v1_queues",
         "responses": {
           "200": {
             "content": {
@@ -26657,9 +28931,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "post": {
+        "operationId": "post_v1_queues",
         "requestBody": {
           "content": {
             "application/json": {
@@ -26692,11 +28972,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/queues/{id}": {
       "delete": {
+        "operationId": "delete_v1_queues_id",
         "parameters": [
           {
             "in": "path",
@@ -26722,9 +29008,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "get": {
+        "operationId": "get_v1_queues_id",
         "parameters": [
           {
             "in": "path",
@@ -26757,9 +29049,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "patch": {
+        "operationId": "patch_v1_queues_id",
         "parameters": [
           {
             "in": "path",
@@ -26802,11 +29100,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/queues/{id}/advance": {
       "post": {
+        "operationId": "post_v1_queues_id_advance",
         "parameters": [
           {
             "in": "path",
@@ -26849,11 +29153,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/queues/{id}/commit-next": {
       "post": {
+        "operationId": "post_v1_queues_id_commit_next",
         "parameters": [
           {
             "in": "path",
@@ -26896,11 +29206,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/queues/{id}/entries": {
       "get": {
+        "operationId": "get_v1_queues_id_entries",
         "parameters": [
           {
             "in": "path",
@@ -26933,9 +29249,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "post": {
+        "operationId": "post_v1_queues_id_entries",
         "parameters": [
           {
             "in": "path",
@@ -26978,11 +29300,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/queues/{id}/entries/{entryId}": {
       "delete": {
+        "operationId": "delete_v1_queues_id_entries_entryId",
         "parameters": [
           {
             "in": "path",
@@ -27023,11 +29351,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/queues/{id}/entries/{entryId}/move": {
       "post": {
+        "operationId": "post_v1_queues_id_entries_entryId_move",
         "parameters": [
           {
             "in": "path",
@@ -27078,11 +29412,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/queues/{id}/playlist": {
       "post": {
+        "operationId": "post_v1_queues_id_playlist",
         "parameters": [
           {
             "in": "path",
@@ -27125,11 +29465,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/queues/{id}/prepare-next": {
       "post": {
+        "operationId": "post_v1_queues_id_prepare_next",
         "parameters": [
           {
             "in": "path",
@@ -27172,11 +29518,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/receivers": {
       "get": {
+        "operationId": "get_v1_receivers",
         "responses": {
           "200": {
             "content": {
@@ -27199,11 +29551,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/receivers/current": {
       "delete": {
+        "operationId": "delete_v1_receivers_current",
         "responses": {
           "204": {
             "description": "Done"
@@ -27219,9 +29577,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "put": {
+        "operationId": "put_v1_receivers_current",
         "responses": {
           "200": {
             "content": {
@@ -27244,11 +29608,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/receivers/current/requests": {
       "get": {
+        "operationId": "get_v1_receivers_current_requests",
         "responses": {
           "200": {
             "content": {
@@ -27271,11 +29641,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/receivers/current/requests/{requestId}": {
       "patch": {
+        "operationId": "patch_v1_receivers_current_requests_requestId",
         "parameters": [
           {
             "in": "path",
@@ -27318,11 +29694,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/receivers/{id}/requests": {
       "post": {
+        "operationId": "post_v1_receivers_id_requests",
         "parameters": [
           {
             "in": "path",
@@ -27365,11 +29747,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/receivers/{id}/requests/{requestId}": {
       "delete": {
+        "operationId": "delete_v1_receivers_id_requests_requestId",
         "parameters": [
           {
             "in": "path",
@@ -27410,9 +29798,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       },
       "get": {
+        "operationId": "get_v1_receivers_id_requests_requestId",
         "parameters": [
           {
             "in": "path",
@@ -27453,11 +29847,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/reports": {
       "get": {
+        "operationId": "get_v1_reports",
         "responses": {
           "200": {
             "content": {
@@ -27480,9 +29880,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       },
       "post": {
+        "operationId": "post_v1_reports",
         "requestBody": {
           "content": {
             "application/json": {
@@ -27515,11 +29921,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       }
     },
     "/v1/search": {
       "get": {
+        "operationId": "get_v1_search",
         "responses": {
           "200": {
             "content": {
@@ -27542,11 +29954,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/search/history": {
       "delete": {
+        "operationId": "delete_v1_search_history",
         "responses": {
           "204": {
             "description": "Done"
@@ -27562,9 +29980,15 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "playback"
       },
       "get": {
+        "operationId": "get_v1_search_history",
         "responses": {
           "200": {
             "content": {
@@ -27587,11 +30011,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/search/suggestions": {
       "get": {
+        "operationId": "get_v1_search_suggestions",
         "responses": {
           "200": {
             "content": {
@@ -27614,11 +30044,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     },
     "/v1/setup/finish": {
       "post": {
+        "operationId": "post_v1_setup_finish",
         "requestBody": {
           "content": {
             "application/json": {
@@ -27651,11 +30087,17 @@
             "description": "A refusal"
           }
         },
-        "x-access": "owner"
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
       }
     },
     "/v1/setup/local-sign-in": {
       "post": {
+        "operationId": "post_v1_setup_local_sign_in",
         "requestBody": {
           "content": {
             "application/json": {
@@ -27689,11 +30131,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/setup/owner": {
       "post": {
+        "operationId": "post_v1_setup_owner",
         "requestBody": {
           "content": {
             "application/json": {
@@ -27727,11 +30175,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/setup/portico": {
       "post": {
+        "operationId": "post_v1_setup_portico",
         "requestBody": {
           "content": {
             "application/json": {
@@ -27765,11 +30219,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/setup/portico/finish": {
       "post": {
+        "operationId": "post_v1_setup_portico_finish",
         "requestBody": {
           "content": {
             "application/json": {
@@ -27803,11 +30263,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/system": {
       "get": {
+        "operationId": "get_v1_system",
         "responses": {
           "200": {
             "content": {
@@ -27831,11 +30297,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/system/identity-proof": {
       "post": {
+        "operationId": "post_v1_system_identity_proof",
         "requestBody": {
           "content": {
             "application/json": {
@@ -27869,11 +30341,17 @@
           }
         },
         "security": [],
-        "x-access": "public"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
       }
     },
     "/v1/tags": {
       "get": {
+        "operationId": "get_v1_tags",
         "responses": {
           "200": {
             "content": {
@@ -27896,7 +30374,12 @@
             "description": "A refusal"
           }
         },
-        "x-access": "withProfile"
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
       }
     }
   },

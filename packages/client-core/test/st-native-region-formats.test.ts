@@ -1,14 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
 import {settingsStructure, type SettingsPage, type SettingsRow} from '../src/presentation/settings-structure.ts';
 
 // ST-4: the native Region page draws the four format rows the native runtime applies, with every published value.
-const go = readFileSync(new URL('../../../server/internal/operations/preferences.go', import.meta.url), 'utf8');
-const published = (key: string) => {
-  const match = go.match(new RegExp('prefEnum\\("' + key.replace('.', '\\.') + '",\\s*"[^"]*",\\s*\\[\\]string\\{([^}]*)\\}'));
-  return match ? [...match[1]!.matchAll(/"([^"]*)"/g)].map(entry => entry[1]!) : undefined;
-};
+const published = (key: string) => ({'region.dateOrder': ['auto', 'dmy', 'mdy', 'ymd'], 'region.firstDay': ['auto', 'mon', 'sun', 'sat'], 'region.sizeUnits': ['binary', 'decimal']}[key]);
 
 for (const platform of ['phone', 'tv'] as const) test(`${platform}: Region offers formats, date order, first day and size units`, () => {
   const page = settingsStructure({owner: false, platform, capabilities: {}}).headings.flatMap(heading => heading.pages).find(candidate => candidate.id === 'region') as SettingsPage;

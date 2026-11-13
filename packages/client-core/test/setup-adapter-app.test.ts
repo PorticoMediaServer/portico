@@ -14,7 +14,7 @@ import {routePath} from '../../contracts/src/routes.ts';
 // The shared adapter's app half: the app token route, and a Portico Account setup finished here (`finish: here`) once
 // the server reads installed. The public claim vector's seed key signs each setup start as the server would.
 
-const vector = JSON.parse(readFileSync(new URL('../../../server/internal/claimweb/testdata/owner_start.json', import.meta.url), 'utf8'));
+const vector = JSON.parse(readFileSync(new URL('fixtures/owner-start.json', import.meta.url), 'utf8'));
 const claim = {...JSON.parse(vector.claimPayload), purpose: 'setup'}, parent = JSON.parse(vector.startPayload);
 const key = createPrivateKey({key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), Buffer.alloc(32, 0x42)]), format: 'der', type: 'pkcs8'});
 const signed = (value: unknown) => {const raw = transportJSON(value); return {payload: Buffer.from(raw).toString('base64url'), signature: sign(null, Buffer.from(raw), key).toString('base64url')};};

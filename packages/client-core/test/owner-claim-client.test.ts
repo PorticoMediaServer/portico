@@ -8,7 +8,7 @@ import {clockOrigin, observeServerTime, resetServerClocks} from '../src/server-c
 import {routeBase64, routeBytes, webRouteCrypto} from '../src/route-identity.ts';
 
 // Actual canonical Go producer vector, not a new hand-written signed protocol.
-const vector = JSON.parse(readFileSync(new URL('../../../server/internal/claimweb/testdata/owner_start.json', import.meta.url), 'utf8'));
+const vector = JSON.parse(readFileSync(new URL('fixtures/owner-start.json', import.meta.url), 'utf8'));
 const claim = JSON.parse(vector.claimPayload), start = JSON.parse(vector.startPayload);
 async function fixture(t: TestContext) {
   setInstallationIdentity({installationId: start.installationId, name: 'Owner browser', platform: 'web', app: 'portico', appVersion: '1'});
