@@ -15,7 +15,7 @@ import (
 )
 
 // Subtitle search and download (definition 07, rules 65 to 69). Anyone who may play a title
-// may search for its subtitles and download one, and what they download is then offered to
+// may search for its subtitles if its show is visible too, and download one; what they download is then offered to
 // everyone who may play that version, in GET /v1/items/{id}/subtitles with source
 // "downloaded". There is no separate permission. The owner and administrators may remove one.
 // The server never chooses where a subtitle is written: it is kept by the hash of its text.
@@ -176,6 +176,17 @@ func (s *Server) searchSubtitles(r *http.Request, _ None) (SubtitleResults, erro
 	}
 	if len(languages) == 0 || len(languages) > 10 {
 		return out, ErrField("languages", "Give one to ten languages.")
+	}
+	item, err := s.db.Item(r.Context(), viewer(r), r.PathValue("id"))
+	if err != nil {
+		return out, refuse(err)
+	}
+	if item.Kind == db.KindEpisode && item.RootPublicID != "" {
+		if err := s.db.SeesItem(r.Context(), viewer(r), item.RootPublicID); errors.Is(err, db.ErrNotFound) {
+			return out, refusal(http.StatusForbidden, "not_permitted", "Not available on this profile", false)
+		} else if err != nil {
+			return out, err
+		}
 	}
 	found, err := s.metadata.SearchSubtitles(r.Context(), viewer(r), r.PathValue("id"), languages)
 	if err != nil {
