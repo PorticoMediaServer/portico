@@ -63,7 +63,7 @@ export class WatchReceivers implements PlayOnReceiversPort {
       positionKnown: !!seen, positionSeconds: (seen?.positionMs ?? 0) / 1000, durationSeconds: (seen?.durationMs ?? 0) / 1000,
       paused: seen?.state === 'paused', stopped: seen?.state === 'ended',
       ...(seen?.next ? {next: Object.freeze({title: seen.next.title})} : {}),
-      ...(this.tracks && this.tracks.key === `${id}|${seen?.itemId ?? ''}` ? {tracks: this.tracks.value} : {})}) : undefined;
+      ...(this.tracks && this.tracks.key === `${id}|${seen?.itemId ?? ''}|${seen?.versionId ?? ''}` ? {tracks: Object.freeze({...this.tracks.value, ...this.handoff.inUse()})} : {})}) : undefined;
     this.state = Object.freeze({phase: directory.directoryPhase, items, ...(message ? {message} : {}), ...(this.remote ? {remote: this.remote} : {})});
     this.follow();
     this.readTracks();
@@ -77,7 +77,8 @@ export class WatchReceivers implements PlayOnReceiversPort {
   private readTracks(force = false): void {
     const remote = this.remote;
     if (!remote || remote.stopped || !remote.itemId) return;
-    const key = `${remote.sessionId}|${remote.itemId}`;
+    // The lists belong to the version the device plays; which of them is in use comes with every report.
+    const key = `${remote.sessionId}|${remote.itemId}|${this.handoff.getSnapshot().remote?.versionId ?? ''}`;
     if (!force && (this.tracksFor === key || this.tracks?.key === key || this.tracksMissing === key)) return;
     this.tracksFor = key;
     void this.handoff.remoteTracks().then(value => {
@@ -135,14 +136,9 @@ export class WatchReceivers implements PlayOnReceiversPort {
   toggle = (): void => {const remote = this.remote; if (remote && !remote.stopped) void (remote.paused ? this.handoff.play() : this.handoff.pause()).then(this.publish);};
   seek = (seconds: number): void => {if (this.remote && !this.remote.stopped) void this.handoff.seek(seconds).then(this.publish);};
   next = (): void => {if (this.remote && !this.remote.stopped && this.remote.next) void this.handoff.next().then(this.publish);};
-  audio = (trackId: string): void => {if (this.remote && !this.remote.stopped) void this.handoff.audio(trackId).then(done => {if (done) this.choose({audioId: trackId});});};
-  subtitles = (trackId: string | null): void => {if (this.remote && !this.remote.stopped) void this.handoff.subtitles(trackId).then(done => {if (done) this.choose({subtitleId: trackId});});};
-  /** A choice the device carried out moves the check on the tracks already read; the list itself is not read again. */
-  private choose(change: Readonly<{audioId?: string; subtitleId?: string | null}>): void {
-    if (!this.tracks) return;
-    this.tracks = Object.freeze({key: this.tracks.key, value: Object.freeze({...this.tracks.value, ...change})});
-    this.publish();
-  }
+  /** A choice the device carried out moves the check at once; the list itself is not read again. */
+  audio = (trackId: string): void => {if (this.remote && !this.remote.stopped) void this.handoff.audio(trackId).then(done => {if (done) this.publish();});};
+  subtitles = (trackId: string | null): void => {if (this.remote && !this.remote.stopped) void this.handoff.subtitles(trackId).then(done => {if (done) this.publish();});};
   /** Stops the other device; the bar stays, stopped, with Continue here. */
   stop = (): void => {
     const remote = this.remote;
@@ -152,6 +148,7 @@ export class WatchReceivers implements PlayOnReceiversPort {
     void this.handoff.stop().then(stopped => {if (!stopped && this.remote?.sessionId === remote.sessionId) {this.remote = remote; this.publish();}});
   };
   dismiss = (): void => {this.remote = undefined; this.handoff.release(); this.publish();};
+  handBack = async (): Promise<void> => {if (this.remote && !this.remote.stopped) await this.handoff.stop(); this.dismiss();};
 
   dispose(): void { this.poll?.stop(); this.poll = undefined; this.detach?.(); this.listeners.clear(); this.flight = undefined; this.handoff.dispose(); }
 }

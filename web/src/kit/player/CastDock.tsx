@@ -14,8 +14,8 @@ export function CastDock({controller, snapshot, visuals, phone, reportError, t =
   if (!remote || snapshot.disposed) return null;
   const bound = remote.itemId && visuals.itemId === remote.itemId ? visuals : undefined;
   const playing = remote.phase === 'playing', terminal = ['stopped', 'replaced', 'error'].includes(remote.phase);
-  // A Portico device has no Cast remote panel: the bar is its whole control.
-  const panel = playing && remote.kind !== 'portico';
+  // The phone-player 7b remote opens from the bar for a Cast device and for one of the account's Portico devices.
+  const panel = playing;
   const back = visuals.skipBackSeconds, forward = visuals.skipForwardSeconds;
   const canContinue = remote.confirmed && remote.positionKnown && remote.phase === 'stopped' && !!remote.itemId;
   const position = remote.positionKnown ? clockText(remote.positionSeconds) ?? '' : '', duration = remote.positionKnown ? clockText(remote.durationSeconds) ?? '' : '';
@@ -50,6 +50,7 @@ export function CastDock({controller, snapshot, visuals, phone, reportError, t =
     </div>}
     {!terminal && !phone && <div className={dock.endControls}>
       {playing && tracks && <Control icon="d-cc" label={t('next.dock.subtitlesAudio')} onClick={() => controller.openTracks(remote)} />}
+      {playing && remote.kind === 'portico' && remote.itemId && remote.positionKnown && <Button variant="glass" size="dock" onClick={() => { void controller.playHere(remote).catch(reportError); }}>{t('next.dock.playHere')}</Button>}
       <Button variant="glass" size="dock" onClick={() => controller.stop(remote)}>{t('next.dock.stop')}</Button>
       {panel && <Control icon="i-up" label={t('next.dock.castControls')} onClick={() => controller.openRemote(remote)} />}
     </div>}
