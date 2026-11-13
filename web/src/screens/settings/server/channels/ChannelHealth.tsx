@@ -10,7 +10,7 @@ const t = defaultI18n.t;
 export function ChannelHealth({source}:Readonly<{source:SettingsLibraryChannelsSource}>) {
   const state=useSyncExternalStore(source.subscribe,source.getSnapshot,source.getSnapshot), channel=state.selected, health=state.health;
   const close=()=>{if(channel)source.closeHealth(channel);};
-  return <Dialog open={!!channel} onOpenChange={open=>{if(!open)close();}} title={channel?.config.name ?? ''} description={t('web.libraryChannels.healthLede')} width={480}
+  return <Dialog footerDismisses open={!!channel} onOpenChange={open=>{if(!open)close();}} title={channel?.config.name ?? ''} description={t('web.libraryChannels.healthLede')} width={480}
     footer={<><Button size="compact" variant="glass" icon="i-refresh" disabled={state.healthLoading} onClick={()=>{if(channel && source.getSnapshot().selected===channel)void source.health(channel);}}>{t('device.approval.checkAgain')}</Button><Button size="compact" variant="primary" onClick={close}>{t('action.done')}</Button></>}>
     <div className={styles.health}>
       {state.healthLoading && <p role="status">{t('next.settings.loading')}</p>}

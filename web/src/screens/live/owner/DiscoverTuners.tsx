@@ -51,7 +51,7 @@ export function DiscoverTuners({api, serverId, isCurrent, reportError, openingId
     if (!drawnActionAllowed(snapshot, state, !snapshot.busy && !!snapshot.result && snapshot.result === result && snapshot.result.devices.includes(tuner) && !tuner.configured)) return;
     admitted.retire();onUseTuner(tuner.baseUrl);
   };
-  return <Dialog open width={520} title={t('web.liveSource.discoverTitle')} description={t('web.liveSource.discoverLede')} onOpenChange={open => {if (!open) closeCurrent();}}
+  return <Dialog footerDismisses open width={520} title={t('web.liveSource.discoverTitle')} description={t('web.liveSource.discoverLede')} onOpenChange={open => {if (!open) closeCurrent();}}
     footer={<><Button size="small" variant="text" onClick={closeCurrent}>{t('action.close')}</Button><Button size="small" icon="i-refresh" loading={busy} onClick={searchAgain}>{t('web.liveSource.searchAgain')}</Button></>}>
     <div className={styles.fields}>
       {busy && <p role="status">{t('web.liveSource.searching')}</p>}

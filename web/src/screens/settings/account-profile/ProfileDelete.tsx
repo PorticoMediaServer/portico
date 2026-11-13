@@ -46,7 +46,7 @@ export function ProfileDelete({source, isCurrent, onFailure}: {
   const canRetry = manageable && !!selected;
   return <>
     <Button ref={trigger} className={styles.danger} size="small" variant="glass" loading={loading} disabled={state.busy || !manageable} onClick={() => {void open();}}>{t('next.settingsSpec.account.profile.groups.1.rows.3.control.label')}</Button>
-    {preview && <Dialog open width={420} returnFocusRef={trigger} title={removed ? t('profile.deleteConfirm.removed') : t('profile.deleteConfirm.title', {name: preview.name ?? selected?.name ?? ''})}
+    {preview && <Dialog footerDismisses open width={420} returnFocusRef={trigger} title={removed ? t('profile.deleteConfirm.removed') : t('profile.deleteConfirm.title', {name: preview.name ?? selected?.name ?? ''})}
       description={removed ? undefined : t('next.settingsSpec.account.profile.groups.1.rows.3.control.confirm')}
       dismissOnOutsidePress={!state.busy} dismissOnBack={!state.busy} showCloseButton={!state.busy} onOpenChange={open => {if (!open) close();}}
       footer={removed

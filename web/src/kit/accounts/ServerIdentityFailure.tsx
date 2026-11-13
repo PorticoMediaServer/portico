@@ -44,7 +44,7 @@ export function ServerIdentityFailure({serverName, failure, busy, onRetry, onCho
       secondary={{id: 'choose', label: t('accounts.signIn.anotherServer'), disabled: busy, onPress: onChooseServer}}
       links={changed ? [{id: 'forget', label: t('connection.identity.forget', {server: serverName}), disabled: busy, onPress: openForget}] : undefined}
       afterActions={after} />
-    <Dialog open={changed && Boolean(confirmation)} onOpenChange={open => {if (!open && !forgetting) {setConfirmation(undefined); setError(undefined);}}}
+    <Dialog footerDismisses open={changed && Boolean(confirmation)} onOpenChange={open => {if (!open && !forgetting) {setConfirmation(undefined); setError(undefined);}}}
       title={t('connection.identity.forgetTitle', {server: confirmation?.name ?? serverName})} description={t('connection.identity.forgetBody')}
       initialFocusRef={cancel} returnFocusRef={trigger} showCloseButton={false} dismissOnOutsidePress={!forgetting} dismissOnBack={!forgetting}
       className={styles.identityForgetDialog} role="alertdialog"

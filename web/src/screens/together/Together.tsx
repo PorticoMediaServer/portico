@@ -113,9 +113,9 @@ export function TogetherScreen({binding}: {binding: TogetherBindings}) {
             {value.permissions.isHost && <span>{t('web.together.youHost')}</span>}<Icon name="i-right" size={18} /></button>)}</section>
         </>}
     </div>
-    <Dialog open={sheet !== null} onOpenChange={open => {if (!open) setSheet(null);}} title={t(sheet === 'join' ? 'web.together.joinWithCode' : 'web.together.startTitle')}>{sheet === 'join' ? joinForm : startForm}</Dialog>
+    <Dialog footerDismisses open={sheet !== null} onOpenChange={open => {if (!open) setSheet(null);}} title={t(sheet === 'join' ? 'web.together.joinWithCode' : 'web.together.startTitle')}>{sheet === 'join' ? joinForm : startForm}</Dialog>
     <Menu open={menu !== null} onOpenChange={open => {if (!open) setMenu(null);}} title={t('web.together.queue')} items={entries} anchorRef={menuAnchor} returnFocusRef={menuAnchor} />
-    <Dialog open={confirm !== null} onOpenChange={open => {if (!open) setConfirm(null);}} title={t(confirm === 'end' ? 'confirm.endGroup.title' : 'confirm.leaveAsHost.title')}
+    <Dialog footerDismisses open={confirm !== null} onOpenChange={open => {if (!open) setConfirm(null);}} title={t(confirm === 'end' ? 'confirm.endGroup.title' : 'confirm.leaveAsHost.title')}
       description={t(confirm === 'end' ? 'confirm.endGroup.body' : 'confirm.leaveAsHost.body')} initialFocusRef={cancel} returnFocusRef={trigger}
       footer={<><Button variant="glass" size="small" type="button" ref={cancel} onClick={() => setConfirm(null)}>{t('action.cancel')}</Button><Button variant="glass" size="small" type="button" className={styles.danger} onClick={() => {const action = confirm;setConfirm(null);act(() => action === 'end' ? binding.service.end() : binding.service.leave());}}>{t(confirm === 'end' ? 'confirm.endGroup.action' : 'confirm.leaveAsHost.action')}</Button></>}>{null}</Dialog>
   </main>;

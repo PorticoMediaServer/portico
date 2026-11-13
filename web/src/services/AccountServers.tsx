@@ -39,7 +39,7 @@ export function AccountServers() {
         <Button size="small" onClick={() => { setDialogError(undefined); setAsking(item); }}>{t(item.owner ? 'next.account.servers.remove' : 'next.account.servers.leave')}</Button>
       </ServicesWorkspaceRow>)}
     </ServicesGroup>}
-    <Dialog open={asking !== undefined} onOpenChange={open => { if (!open && !busy) setAsking(undefined); }} size="sm"
+    <Dialog footerDismisses open={asking !== undefined} onOpenChange={open => { if (!open && !busy) setAsking(undefined); }} size="sm"
       title={t(asking?.owner ? 'next.account.servers.removeTitle' : 'next.account.servers.leaveTitle', {server})}
       description={t(asking?.owner ? 'next.account.servers.removeBody' : 'next.account.servers.leaveBody', {server})}
       footer={<><Button size="small" disabled={busy} onClick={() => setAsking(undefined)}>{t('action.cancel')}</Button><Button size="small" variant="primary" loading={busy} onClick={() => void confirm()}>{t(asking?.owner ? 'next.account.servers.remove' : 'next.account.servers.leave')}</Button></>}>

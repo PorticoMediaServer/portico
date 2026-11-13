@@ -60,7 +60,7 @@ function PeopleDevicesView({source, isCurrent, canSignOut, onError}: PeopleDevic
     </li>)}</ul>
     {state.nextCursor && <Button size="small" loading={state.loading} disabled={state.busy} onClick={() => reload(true)}>{t('next.settings.loadMore')}</Button>}
     <SettingsRow label={t(allRow.label)}><Button size="small" disabled={!canSignOut || !state.loaded || state.loading || state.busy} onClick={event => ask(event.currentTarget)}>{t(allRow.control.label!)}</Button></SettingsRow>
-    {shownOpening && <Dialog open={!!opening} size="sm" title={shownOpening.device ? t('confirm.signOutDevice.title', {device: shownOpening.device.name}) : t(allRow.label)}
+    {shownOpening && <Dialog footerDismisses open={!!opening} size="sm" title={shownOpening.device ? t('confirm.signOutDevice.title', {device: shownOpening.device.name}) : t(allRow.label)}
       description={t(shownOpening.device ? devicesRow.control.itemAction!.confirm! : allRow.control.confirm!)} returnFocusRef={trigger}
       onOpenChange={open => {if (!open) close();}} dismissOnOutsidePress={!state.busy} dismissOnBack={!state.busy} showCloseButton={!state.busy}
       footer={<><Button size="small" disabled={state.busy} onClick={close}>{t('action.cancel')}</Button><Button size="small" variant="primary" loading={state.busy} onClick={() => void confirm()}>{t(shownOpening.device ? devicesRow.control.itemAction!.label : allRow.control.label!)}</Button></>}>{null}</Dialog>}

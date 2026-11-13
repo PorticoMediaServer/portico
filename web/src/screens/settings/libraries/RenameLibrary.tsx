@@ -32,7 +32,7 @@ export function RenameLibrary({name, disabled, rename, request = 0, hideTrigger 
   return <>
     {!hideTrigger && <><span>{name}</span>
     <Button variant="glass" size="small" disabled={disabled} onClick={() => {setDraft(name);setFailed(false);setOpen(true);}}>{defaultI18n.t('next.ownerLibraries.rename')}</Button></>}
-    <Dialog open={open} onOpenChange={close} size="sm" title={defaultI18n.t('next.ownerLibraries.renameTitle')}
+    <Dialog footerDismisses open={open} onOpenChange={close} size="sm" title={defaultI18n.t('next.ownerLibraries.renameTitle')}
       footer={<><Button disabled={busy} onClick={() => close(false)}>{defaultI18n.t('next.settings.cancel')}</Button>
         <Button variant="primary" disabled={busy || disabled || !draft.trim()} loading={busy} onClick={() => {void save();}}>{defaultI18n.t('next.ownerLibraries.rename')}</Button></>}>
       <div className={styles.form}>

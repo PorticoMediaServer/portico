@@ -178,7 +178,7 @@ function AccountSecurity({profiles,api,commandApi,signIn,isCurrent,onFacts,sessi
   {mfa&&<SettingsRow id="profile.recoveryCodes" dependent label={t('next.settingsSpec.account.profile.groups.5.rows.2.children.0.label')} help={remaining===undefined?undefined:t('web.hostedSecurity.codesLeft',{count:remaining})}>
    <HostedSecurityAction label={t('next.settingsSpec.account.profile.groups.5.rows.2.children.0.control.label')} disabled={!available||busy} onOpen={()=>open('codes')}/>
   </SettingsRow>}
-  {held&&intentCurrent(intent)&&(task||codes)&&<Dialog open title={title} showCloseButton={false} onOpenChange={value=>{if(!value)close();}}
+  {held&&intentCurrent(intent)&&(task||codes)&&<Dialog footerDismisses open title={title} showCloseButton={false} onOpenChange={value=>{if(!value)close();}}
    footer={codes?<Button variant="primary" onClick={close}>{t('action.done')}</Button>:<><Button disabled={busy} onClick={close}>{t('action.cancel')}</Button><Button variant="primary" disabled={!ready} loading={busy} onClick={()=>void submit()}>{t(task==='password'?'account.changePasswordTitle':'action.continue')}</Button></>}>
    {error?<HostedError error={error}/>:null}
    {codes?<><ServicesQuiet>{t('services.security.codesBody')}</ServicesQuiet><ServicesRecoveryCodes codes={codes}

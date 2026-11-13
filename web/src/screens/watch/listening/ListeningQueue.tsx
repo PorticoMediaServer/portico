@@ -57,7 +57,7 @@ export function ListeningQueue({snapshot, policy, policyBusy, onEdit, onPolicy, 
       {onMore && <Button size="small" variant="glass" disabled={busy} onClick={() => onMore(snapshot)}>{t('next.live.more')}</Button>}
       {save && <Button size="small" variant="glass" disabled={busy || saving} onClick={() => save.openDialog(snapshot)}>{t('player.queueSave')}</Button>}
     </footer>
-    {save && <Dialog open={save.open} onOpenChange={open => {if (!open) save.close();}} title={t('player.queueSave')} width={440}
+    {save && <Dialog footerDismisses open={save.open} onOpenChange={open => {if (!open) save.close();}} title={t('player.queueSave')} width={440}
       footer={<><Button variant="glass" onClick={save.close}>{t('action.cancel')}</Button><Button variant="primary" loading={saving} disabled={busy || !save.name.trim() || save.progress !== null || save.error===true}
         onClick={() => save.confirm(save.original ?? snapshot, save.name.trim())}>{t('action.save')}</Button></>}>
       <TextField label={t('player.queueSaveName')} value={save.name} disabled={saving || save.progress !== null} onChange={event => save.changeName(event.currentTarget.value)}/>

@@ -42,7 +42,7 @@ export function RemoveLibrary({open, onOpenChange, libraryId, service, api, onRe
     catch (error) { if (current()) {setFailed(true); onError(error);} }
     finally {if (current()) {capture.running = false;setBusy(false);}}
   };
-  return <Dialog open={open} onOpenChange={value => {if (!lifetime.current?.running) onOpenChange(value);}} dismissOnBack={!busy} dismissOnOutsidePress={!busy} showCloseButton={!busy} size="sm" role="alertdialog"
+  return <Dialog footerDismisses open={open} onOpenChange={value => {if (!lifetime.current?.running) onOpenChange(value);}} dismissOnBack={!busy} dismissOnOutsidePress={!busy} showCloseButton={!busy} size="sm" role="alertdialog"
     title={t('next.settingsSpec.server.libraries.panels.library.tabs.0.groups.2.rows.0.control.label')}
     description={t('server.library.removeGoes')}
     footer={<><Button disabled={busy} onClick={() => {if (!lifetime.current?.running) onOpenChange(false);}}>{t('next.settings.cancel')}</Button>

@@ -175,7 +175,7 @@ export function ProgrammePanelView({channel, programme, now, timezone, snapshot,
       <p className={styles.airingsNote}>{t('guide.reminderSet')}</p>
     </section>}
     {/* A recording in progress is stopped and what was captured is kept (rule 50); a booking is cancelled. */}
-    <Dialog open={cancelOpen} onOpenChange={setCancelOpen} title={stopping ? t('next.live.stopTitle', {title: programme?.title ?? channel.name}) : t('recordings.cancelTitle', {title: programme?.title ?? channel.name})}
+    <Dialog footerDismisses open={cancelOpen} onOpenChange={setCancelOpen} title={stopping ? t('next.live.stopTitle', {title: programme?.title ?? channel.name}) : t('recordings.cancelTitle', {title: programme?.title ?? channel.name})}
       description={stopping ? t('next.live.stopBody') : t('recordings.cancelNotRecorded')} width={440}
       footer={<><Button variant="glass" onClick={() => setCancelOpen(false)}>{t('action.cancel')}</Button>
         <Button variant="ghost" loading={snapshot.busy === 'cancel'} onClick={() => {setCancelOpen(false);onCancelRecording?.();}}>{stopping ? t('next.live.stopAction') : t('recordings.cancelAction')}</Button></>}>{null}</Dialog>

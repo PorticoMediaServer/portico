@@ -49,7 +49,7 @@ export function MetadataSource({libraryId, api, isCurrent}: Readonly<{
     <p className={styles.formNote}>{defaultI18n.t('next.ownerLibraries.metadataHelp')}</p>
     {busy && !document && <p role="status">{defaultI18n.t('next.settings.loading')}</p>}
     {failed && <div role="alert"><p>{defaultI18n.t('next.ownerLibraries.saveFailed')}</p><Button disabled={busy} onClick={() => setRetry(value => value + 1)}>{defaultI18n.t('next.states.tryAgain')}</Button></div>}
-    <Dialog open={!!choice && choice !== document?.agent} onOpenChange={open => {if (!open && !lifetime.current?.running) setChoice(undefined);}}
+    <Dialog footerDismisses open={!!choice && choice !== document?.agent} onOpenChange={open => {if (!open && !lifetime.current?.running) setChoice(undefined);}}
       size="sm" title={defaultI18n.t('next.ownerLibraries.metadataSource')} description={defaultI18n.t('next.ownerLibraries.metadataHelp')}
       footer={<><Button disabled={busy} onClick={() => {if (!lifetime.current?.running) setChoice(undefined);}}>{defaultI18n.t('next.settings.cancel')}</Button>
         <Button variant="primary" loading={busy} disabled={busy} onClick={() => {void save();}}>{defaultI18n.t('next.ownerLibraries.save')}</Button></>}>

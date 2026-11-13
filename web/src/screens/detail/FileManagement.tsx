@@ -46,7 +46,7 @@ function DeleteVersion({binding, data, manage, onClose, returnFocusRef}: Props) 
     } catch (error) { if (!controller.signal.aborted) { setFailed(true); binding.context.effects.reportError(error); } }
     finally { if (!controller.signal.aborted) setBusy(false); }
   };
-  return <Dialog open onOpenChange={value => { if (!value) close(); }} title={t('title.deleteVersion.title')} description={data.item.title} width={500} returnFocusRef={returnFocusRef}
+  return <Dialog footerDismisses open onOpenChange={value => { if (!value) close(); }} title={t('title.deleteVersion.title')} description={data.item.title} width={500} returnFocusRef={returnFocusRef}
     dismissOnOutsidePress={!busy} dismissOnBack={!busy} showCloseButton={!busy} footer={<><Button variant="ghost" size="compact" disabled={busy} onClick={close}>{t('action.cancel')}</Button><Button size="compact" disabled={!preview || !deletionAllowed(preview) || typed.trim() !== preview.confirmation} loading={busy} onClick={() => { void confirm(); }}>{t('action.delete')}</Button></>}>
     {failed && <ScreenFailure retry={preview ? () => { void confirm(); } : read} />}
     {kept && <p role="alert">{t(kept === 'file_changed' ? 'deleteMedia.fileChanged' : 'deleteMedia.fileNotRemoved')}</p>}
@@ -82,7 +82,7 @@ function SplitVersion({binding, data, manage, onClose, returnFocusRef}: Props) {
     }
     finally { if (!controller.signal.aborted) setBusy(false); }
   };
-  return <Dialog open onOpenChange={value => { if (!value) close(); }} title={t('title.split.title')} description={data.item.title} width={480} returnFocusRef={returnFocusRef}
+  return <Dialog footerDismisses open onOpenChange={value => { if (!value) close(); }} title={t('title.split.title')} description={data.item.title} width={480} returnFocusRef={returnFocusRef}
     footer={<><Button variant="ghost" size="compact" onClick={close}>{t('action.cancel')}</Button><Button variant="primary" size="compact" loading={busy} disabled={!fileId} onClick={() => { void confirm(); }}>{t('title.split.confirm')}</Button></>}>
     <div className={styles.manageBody}><TitleProse>{t('title.split.body')}</TitleProse><Segmented aria-label={t('next.kit.splitVersions')} value={fileId ?? ''} onValueChange={setFileId} disabled={busy} items={models.map(model => ({value: model.id, label: <span className={styles.versionName}>{[...model.name, ...model.detail].map(part => <span key={part.id}>{part.text}</span>)}</span>}))} />
       {busy && <p role="status">{t('title.split.working')}</p>}{notFound && <p role="alert">{t('title.split.notFound')}</p>}{failed && <p role="alert">{t('title.split.failed')}</p>}
@@ -113,7 +113,7 @@ function MergeTitle({binding, data, manage, onClose, returnFocusRef}: Props) {
     } catch (error) { if (!controller.signal.aborted) { setFailed(true); binding.context.effects.reportError(error); } }
     finally { if (!controller.signal.aborted) setBusy(false); }
   };
-  return <Dialog open onOpenChange={value => { if (!value) close(); }} title={t(candidate ? 'web.merge.title' : 'title.merge.action')} width={480} returnFocusRef={returnFocusRef} dismissOnOutsidePress={!busy} dismissOnBack={!busy} showCloseButton={!busy}
+  return <Dialog footerDismisses open onOpenChange={value => { if (!value) close(); }} title={t(candidate ? 'web.merge.title' : 'title.merge.action')} width={480} returnFocusRef={returnFocusRef} dismissOnOutsidePress={!busy} dismissOnBack={!busy} showCloseButton={!busy}
     footer={<><Button size="compact" variant="ghost" onClick={close} disabled={busy}>{t('action.cancel')}</Button>{candidate && <Button size="compact" variant="primary" loading={busy} onClick={() => { void confirm(); }}>{t('web.selection.merge')}</Button>}</>}>
     <div className={styles.manageBody}>{!candidate ? <><TextField variant="search" aria-label={t('web.search.title')} value={query} onChange={event => setQuery(event.currentTarget.value)} />{entries.map(entry => <Button key={entry.id} size="compact" variant="text" onClick={() => setCandidate(entry)}>{entry.displayTitle ?? entry.title}{entry.year && <span>{entry.year}</span>}</Button>)}</> : <>
       <Segmented aria-label={t('web.merge.keep')} value={keepId} onValueChange={setKeepId} disabled={busy} items={[{value: data.item.id, label: data.item.title}, {value: candidate.id, label: candidate.displayTitle ?? candidate.title}]} />

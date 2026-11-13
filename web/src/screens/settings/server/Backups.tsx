@@ -74,7 +74,7 @@ function PendingRestore(props: BackupSurfaceProps) {
       <Button size="small" variant="glass" disabled={state.busy} onClick={() => act(() => props.source.cancelRestore())}>{t('server.backups.cancelRestore')}</Button>
     </div>
     {error && <p role="alert" className={styles.backupFailure}>{error}</p>}
-    <Dialog open={confirm && !!asks} onOpenChange={open => {if (!open) setConfirm(false);}} title={t('server.backups.restartTitle')}
+    <Dialog footerDismisses open={confirm && !!asks} onOpenChange={open => {if (!open) setConfirm(false);}} title={t('server.backups.restartTitle')}
       footer={<><Button size="small" onClick={() => setConfirm(false)}>{t('next.settings.cancel')}</Button>
         <SettingsAction size="small" appearance="primary" disabled={state.busy} onClick={() => {setConfirm(false);act(async () => {if (!await props.source.restart() && props.isCurrent()) setAsks({playing: asks?.playing ?? 0, canRestart: false});});}}>{t('server.backups.restartNow')}</SettingsAction></>}>
       <p>{t('server.backups.restartBody', {count: asks?.playing ?? 0})}</p>
@@ -118,7 +118,7 @@ function RestoreDialog(props: BackupSurfaceProps & Readonly<{target?: RestoreTar
       setPassword('');
     } finally {if (request.current === controller) {request.current = undefined;setBusy(false);}}
   };
-  return <Dialog open={!!target} onOpenChange={open => {if (!open) {request.current?.abort();onClose();}}} title={t(target && 'path' in target ? 'web.maintenance.restoreFileTitle' : 'web.maintenance.restoreTitle')}
+  return <Dialog footerDismisses open={!!target} onOpenChange={open => {if (!open) {request.current?.abort();onClose();}}} title={t(target && 'path' in target ? 'web.maintenance.restoreFileTitle' : 'web.maintenance.restoreTitle')}
     initialFocusRef={cancel}
     footer={<><Button ref={cancel} size="small" onClick={onClose}>{t('next.settings.cancel')}</Button>
       <SettingsAction size="small" appearance="primary" loading={busy} disabled={!ready} onClick={() => {void restore();}}>{t('web.maintenance.restoreConfirm')}</SettingsAction></>}>

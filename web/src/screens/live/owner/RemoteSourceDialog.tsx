@@ -66,7 +66,7 @@ export function RemoteSourceDialog({api, serverId, isCurrent, reportError, tuner
     if (!drawnActionAllowed(snapshot, state, snapshot.preview === preview)) return;
     void admitted.controller.save().then(ok => {if (ok && admitted.current()) savedCurrent();});
   };
-  return <Dialog open onOpenChange={open => {if (!open) closeCurrent();}} title={t('web.liveTv.addDialog')} description={t('web.liveTv.addDialogLede')} width={560} headerClassName={dialogStyles.header} footerClassName={dialogStyles.footer}
+  return <Dialog footerDismisses open onOpenChange={open => {if (!open) closeCurrent();}} title={t('web.liveTv.addDialog')} description={t('web.liveTv.addDialogLede')} width={560} headerClassName={dialogStyles.header} footerClassName={dialogStyles.footer}
     footer={<><Button variant="text" size="small" onClick={closeCurrent}>{t('action.cancel')}</Button><Button variant="primary" size="small" loading={busy}
       disabled={!draft.name.trim() || !draft.locator.trim()} onClick={preview ? save : check}>
       {t(preview ? 'web.liveTv.addSource' : confirm ? 'web.liveTv.lanConfirm' : 'web.liveTv.checkSource')}</Button></>}>

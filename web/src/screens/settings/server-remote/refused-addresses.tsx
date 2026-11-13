@@ -33,7 +33,7 @@ export function RefusedAddressesControl({source, onStandard, onCertificate, disa
       </li>)}
     </ul>
     {state.failed && <p className={styles.note} role="alert">{t('next.remoteStatus.failed')}</p>}
-    {confirming && <Dialog open={confirming} title={t(`${K}.control.standardAction.title`)} onOpenChange={setConfirming}
+    {confirming && <Dialog footerDismisses open={confirming} title={t(`${K}.control.standardAction.title`)} onOpenChange={setConfirming}
       footer={<><Button onClick={() => setConfirming(false)}>{t('action.cancel')}</Button>
         <Button variant="primary" onClick={() => {setConfirming(false);onStandard();}}>{t(`${K}.control.standardAction.label`)}</Button></>}>
       <p>{t(`${K}.control.standardAction.confirm`)}</p>

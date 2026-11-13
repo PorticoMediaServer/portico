@@ -56,7 +56,7 @@ export function UploadSourceDialog({api, serverId, isCurrent, reportError, openi
     if (preview) void admitted.controller.save().then(ok => {if (ok && admitted.current()) savedCurrent();});
     else void admitted.controller.check();
   };
-  return <Dialog open width={560} title={t('web.liveTv.upload')} description={t('web.liveTv.uploadLede')} onOpenChange={open => {if (!open) closeCurrent();}}
+  return <Dialog footerDismisses open width={560} title={t('web.liveTv.upload')} description={t('web.liveTv.uploadLede')} onOpenChange={open => {if (!open) closeCurrent();}}
     footer={<><Button size="small" variant="text" onClick={closeCurrent}>{t('action.cancel')}</Button><Button size="small" variant="primary" loading={busy || reading}
       disabled={!draft.name.trim() || !draft.playlist} onClick={submit}>{t(preview ? 'web.liveTv.addSource' : 'web.liveTv.checkFiles')}</Button></>}>
     <div className={styles.fields}>

@@ -24,7 +24,7 @@ export function EmptyCache({source}: Readonly<{source: SettingsCacheSource}>) {
     <Button size="compact" variant="glass" disabled={state.phase !== 'ready'} onClick={open}>{t('next.settingsSpec.server.storage.groups.0.rows.3.control.label')}</Button>
     {state.phase === 'scheduled' && <span role="status" className={styles.storageNote}>{t('web.maintenance.restartingTitle')}</span>}
     {state.phase === 'uncertain' && <span role="alert" className={styles.backupFailure}>{t('error.unconfirmedChange')}</span>}
-    <Dialog open={held} title={t('next.settingsSpec.server.storage.groups.0.rows.3.control.label')} onOpenChange={value => {if (!value) close();}}
+    <Dialog footerDismisses open={held} title={t('next.settingsSpec.server.storage.groups.0.rows.3.control.label')} onOpenChange={value => {if (!value) close();}}
       footer={<><Button size="compact" variant="glass" onClick={close}>{t('action.cancel')}</Button><Button size="compact" variant="primary" disabled={state.phase !== 'ready'} onClick={submit}>{t('next.settingsSpec.server.storage.groups.0.rows.3.control.label')}</Button></>}>
       <p>{t('next.settingsSpec.server.storage.groups.0.rows.3.control.confirm')}</p>
       <p>{t('next.settingsSpec.server.general.groups.3.rows.1.control.confirm')}</p>

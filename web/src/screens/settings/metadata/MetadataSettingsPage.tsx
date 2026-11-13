@@ -236,7 +236,7 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
         </SettingsGroup> : null}
       </SettingsAdvanced>;
     })()}
-    <Dialog open={confirmRefresh} size="sm" role="alertdialog" returnFocusRef={refreshTrigger} onOpenChange={open => {if (!open) setConfirmRefresh(false);}} title={t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.label')}
+    <Dialog footerDismisses open={confirmRefresh} size="sm" role="alertdialog" returnFocusRef={refreshTrigger} onOpenChange={open => {if (!open) setConfirmRefresh(false);}} title={t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.label')}
       description={t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.control.confirm')}
       footer={<><Button size="small" variant="text" disabled={busy} onClick={() => setConfirmRefresh(false)}>{t('action.cancel')}</Button><Button size="small" variant="primary" disabled={busy} onClick={() => {void refreshAll();}}>{t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.control.label')}</Button></>}>{null}</Dialog>
     {dirty ? <div className={styles.saveBar}><span className={styles.pending}>{t('web.metadata.pendingCount', {count: pendingCount})}</span><Button size="small" variant="text" disabled={busy} onClick={() => {if (current()) {setDraft(draftFor(document)); setError(undefined);}}}>{t('metadata.settings.discard')}</Button>

@@ -48,7 +48,7 @@ export function ChannelEditor({source, api, reportError, openPresets, presets, l
   const preview = state.preview, count = preview?.rules.reduce((sum, item) => sum + item.eligible, 0) ?? 0;
   const unresolved = preview?.rules.reduce((sum, item) => sum + item.unresolved, 0) ?? 0;
   const title = state.templateName ? t('builder.reviewTemplate', {name: state.templateName}) : creating ? t('builder.create') : t('builder.editTitle');
-  return <Dialog responsive={false} className={styles.editorDialog} headerClassName={styles.editorHeader} footerClassName={styles.editorFooter} open={state.phase !== 'closed' && isCurrent()} title={title} width={960} onOpenChange={value => {if (!value && !source.getSnapshot().busy) close();}} bodyClassName={styles.editorBody}
+  return <Dialog footerDismisses responsive={false} className={styles.editorDialog} headerClassName={styles.editorHeader} footerClassName={styles.editorFooter} open={state.phase !== 'closed' && isCurrent()} title={title} width={960} onOpenChange={value => {if (!value && !source.getSnapshot().busy) close();}} bodyClassName={styles.editorBody}
     dismissOnBack={!state.busy} dismissOnOutsidePress={!state.busy} showCloseButton={!state.busy}
     footer={<>{preview && <span className={styles.footerCount}>{t(preview.complete ? 'builder.matches' : 'next.browse.countAtLeast', {count})}</span>}<Button size="compact" variant="glass" disabled={state.busy} onClick={close}>{t('builder.cancel')}</Button><Button size="compact" variant="primary" disabled={state.busy || !config} onClick={save}>{state.pending ? t('action.tryAgain') : creating ? t('builder.create') : t('builder.save')}</Button></>}>
     {state.phase === 'loading' && !state.error && <p role="status">{t('next.settings.loading')}</p>}

@@ -356,7 +356,7 @@ function Artwork({data, busy, portraitCover, onUse, onLock, onFindMore, onRefetc
 
       {data.artwork.jobs.filter(job => job.role === role).map(job => <p key={job.id} role="status">{t('web.metadata.artJob', {role: t('web.metadata.artRole', {role}), state: job.status})}</p>)}
     </section> : null}
-    <Dialog open={Boolean(removing && currentRemoval(removing))} title={t('web.metadata.removeUploadTitle')} description={t('web.metadata.removeUploadBody')} onOpenChange={open => {if (!open) retireRemoval(removing);}}
+    <Dialog footerDismisses open={Boolean(removing && currentRemoval(removing))} title={t('web.metadata.removeUploadTitle')} description={t('web.metadata.removeUploadBody')} onOpenChange={open => {if (!open) retireRemoval(removing);}}
       dismissOnOutsidePress={!busy} dismissOnBack={!busy} showCloseButton={!busy}
       footer={<><Button size="small" disabled={busy} onClick={() => retireRemoval(removing)}>{t('action.cancel')}</Button><Button size="small" disabled={busy} onClick={() => void confirmRemoval(removing)}>{t('web.metadata.removeUpload')}</Button></>}>{removeFailed ? <p role="alert">{t('web.metadata.removeUploadFailed')}</p> : null}</Dialog>
   </div>;

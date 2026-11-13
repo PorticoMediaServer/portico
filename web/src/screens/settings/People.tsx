@@ -406,11 +406,11 @@ function PeopleWorkspace({bindings, initialStatus, rowActions, advancedRows}: {b
         </div>} : {})})}
         change={(row, value) => setBulk(before => {if (row.id === 'bulk.maxStreams') return bindings.streamLimits?.patchBulk(before, value) ?? before; const next = {...before}; if (row.id === 'bulk.awayAccess') {if (value === 'keep') delete next.allowRemote; else next.allowRemote = value === 'allowed';} else {if (value === 'keep') delete next.maxContentRating; else next.maxContentRating = value === 'none' ? '' : String(value);} return next;})} renderSpecial={() => null} />
     </SettingsPanel>}
-    {command && command.action !== 'access' && <Dialog open title={t('next.settings.confirmPeople', {count: command.rows.length})} onOpenChange={open => {if (!open && !saving) {setCommand(undefined); setBulk(undefined);}}}
+    {command && command.action !== 'access' && <Dialog footerDismisses open title={t('next.settings.confirmPeople', {count: command.rows.length})} onOpenChange={open => {if (!open && !saving) {setCommand(undefined); setBulk(undefined);}}}
       returnFocusRef={confirmOpener} footer={<><Button disabled={saving} onClick={() => {setCommand(undefined); setBulk(undefined);}}>{t('next.settings.cancel')}</Button><Button variant="primary" loading={saving} onClick={applyCommand}>{t('next.settings.apply')}</Button></>}>
       <p>{t(command.action === 'remove' ? table.select!.bulk[2].confirm! : table.select!.bulk[1].confirm!)}</p>
     </Dialog>}
-    {letBackIn && <Dialog open title={t('next.settings.letBackInTitle', {name: letBackIn.username})} onOpenChange={open => {if (!open && !saving) setLetBackIn(undefined);}} returnFocusRef={letBackInOpener}
+    {letBackIn && <Dialog footerDismisses open title={t('next.settings.letBackInTitle', {name: letBackIn.username})} onOpenChange={open => {if (!open && !saving) setLetBackIn(undefined);}} returnFocusRef={letBackInOpener}
       footer={<><Button disabled={saving} onClick={() => setLetBackIn(undefined)}>{t('next.settings.cancel')}</Button><Button variant="primary" loading={saving} onClick={() => {const person = letBackIn; void run(async () => {await client.letBackIn(person); setLetBackIn(undefined);});}}>{t('next.settings.letBackIn')}</Button></>}>
       <p>{t('next.settings.letBackInBody')}</p>
     </Dialog>}

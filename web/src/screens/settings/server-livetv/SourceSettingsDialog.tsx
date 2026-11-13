@@ -35,7 +35,7 @@ export function SourceSettingsDialog({controller, choices, name, guides, acquisi
     setChannelChoice(value);
     controller.edit({enabledGroups: value === 'groups' ? draft.enabledGroups : [], enabledChannels: value === 'picked' ? draft.enabledChannels : [], filters: value === 'filter' ? draft.filters : {categories: {mode: 'include', values: []}, countries: {mode: 'include', values: []}, keywords: {mode: 'exclude', values: []}}});
   };
-  return <Dialog open title={name} width={620} onOpenChange={open => {if (!open) closeCurrent();}}
+  return <Dialog footerDismisses open title={name} width={620} onOpenChange={open => {if (!open) closeCurrent();}}
     footer={<><Button size="small" variant="text" onClick={closeCurrent}>{t('action.close')}</Button><Button size="small" variant="primary" loading={state.saving} disabled={!dirty || busy}
       onClick={act(() => void controller.save().then(saved => {if (saved && owner.current === controller && controller.isActive()) changed();}))}>{t('action.save')}</Button></>}>
     <div className={styles.fields}>

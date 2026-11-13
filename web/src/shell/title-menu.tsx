@@ -27,7 +27,7 @@ export type RatingDialogProps = Readonly<{
 /** The rating dialog (Home's and every other title menu's): the title's own 0-10 rating, saved through its Detail. */
 export function RatingDialog({title, phase, value, error, returnFocusRef, onValue, onSave, onRetry, onClose}: RatingDialogProps) {
   const busy = phase === 'loading' || phase === 'saving', ready = phase === 'ready';
-  return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }} title={t('title.rate', {title})}
+  return <Dialog footerDismisses open onOpenChange={open => { if (!open && !busy) onClose(); }} title={t('title.rate', {title})}
     returnFocusRef={returnFocusRef} dismissOnOutsidePress={!busy} dismissOnBack={!busy} footer={<>
       <Button onClick={onClose} disabled={busy}>{t('action.close')}</Button>
       {ready && <Button variant="primary" onClick={onSave}>{t('action.save')}</Button>}

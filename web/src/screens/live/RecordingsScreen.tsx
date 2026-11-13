@@ -243,7 +243,7 @@ export function UpcomingView({context, controller, snapshot, now, onResolve, con
       {later.map(recording => <RecordingRow key={recording.id} recording={recording} now={now} onCancel={cancel(recording)} onDetails={() => setShown(recording)} refusal={refusal(recording)}/>)}</section>}
     {!conflicted.length && !current.length && !later.length && <StateView title={t('recordings.noneScheduled')} body={t('recordings.noneScheduledBody')}/>}
     <RecordingsPager controller={controller} snapshot={snapshot}/>
-    <Dialog open={!!shown} onOpenChange={open => {if (!open) closeShown(shown);}} title={shown?.programme.title} description={shown ? rangeOf(shown) : undefined} width={440}
+    <Dialog footerDismisses open={!!shown} onOpenChange={open => {if (!open) closeShown(shown);}} title={shown?.programme.title} description={shown ? rangeOf(shown) : undefined} width={440}
       footer={<Button variant="glass" onClick={() => closeShown(shown)}>{t('next.overlays.close')}</Button>}>{shown && <p className={`${styles.dialogText} ${styles.dialogFacts}`}><span>{recordingStateLabel(shown.state)}</span>{shown.reason && <span>{recordingReason(shown.reason)}</span>}</p>}</Dialog>
   </div>;
 }
@@ -322,7 +322,7 @@ function CommittedRecordedGroupPanel({lease, title, onClose}: {lease: RecordedGr
       <RowRefusal text={state.errorRecordingId === recording.id ? state.error : undefined}/>
     </div>)}
     {state.nextCursor && <Button className={styles.groupMore} variant="glass" onClick={() => {if (lease.current()) void lease.reader.more().catch(() => {});}}>{t('next.live.more')}</Button>}
-    <Dialog open={!!removeOpening} onOpenChange={open => {if (!open && removeOpening) dismissRemove(removeOpening);}} width={440} title={t('web.dvr.deleteTitle', {title: removeOpening?.target.recording.programme.title ?? ''})}
+    <Dialog footerDismisses open={!!removeOpening} onOpenChange={open => {if (!open && removeOpening) dismissRemove(removeOpening);}} width={440} title={t('web.dvr.deleteTitle', {title: removeOpening?.target.recording.programme.title ?? ''})}
       description={deleteBody(removeOpening?.target.recording)} footer={<><Button variant="glass" onClick={() => {if (removeOpening) dismissRemove(removeOpening);}}>{t('action.cancel')}</Button>
         <Button variant="ghost" loading={state.busy} onClick={() => {if (removeOpening) confirmRemove(removeOpening);}}>{t('web.dvr.deleteRecording')}</Button></>}>
       <p className={styles.dialogText}>{deleteBody(removeOpening?.target.recording)}</p>
@@ -337,7 +337,7 @@ export function HistoryView({snapshot, now, controller}: {controller: Recordings
     ? recordings.map(recording => <RecordingRow key={recording.id} recording={recording} now={now} onDetails={() => setShown(recording)}/>)
     : <StateView title={t('recordings.noneRecorded')} body={t('recordings.noneRecordedBody')}/>}
     <RecordingsPager controller={controller} snapshot={snapshot}/>
-    <Dialog open={!!shown} onOpenChange={open => {if (!open) closeShown(shown);}} title={shown?.programme.title} description={shown ? rangeOf(shown) : undefined} width={440}
+    <Dialog footerDismisses open={!!shown} onOpenChange={open => {if (!open) closeShown(shown);}} title={shown?.programme.title} description={shown ? rangeOf(shown) : undefined} width={440}
       footer={<Button variant="glass" onClick={() => closeShown(shown)}>{t('next.overlays.close')}</Button>}>{shown && <p className={`${styles.dialogText} ${styles.dialogFacts}`}><span>{recordingStateLabel(shown.state)}</span>{shown.reason && <span>{recordingReason(shown.reason)}</span>}</p>}</Dialog>
   </div>;
 }
