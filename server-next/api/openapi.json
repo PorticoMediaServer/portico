@@ -369,12 +369,22 @@
             },
             "type": "array"
           },
+          "metadataProviders": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/LibraryMetadataProvider"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
           "nextCursor": {
             "type": "string"
           }
         },
         "required": [
-          "items"
+          "items",
+          "metadataProviders"
         ],
         "type": "object"
       },
@@ -1716,6 +1726,9 @@
           },
           "bytes": {
             "type": "integer"
+          },
+          "deleteRefusal": {
+            "type": "string"
           },
           "files": {
             "type": "integer"
@@ -7558,6 +7571,9 @@
           },
           "to": {
             "type": "string"
+          },
+          "total": {
+            "type": "integer"
           }
         },
         "required": [
@@ -13716,11 +13732,20 @@
       },
       "SupportExportRequest": {
         "properties": {
+          "components": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "days": {
             "type": "integer"
           },
           "includePaths": {
             "type": "boolean"
+          },
+          "windowMinutes": {
+            "type": "integer"
           }
         },
         "type": "object"

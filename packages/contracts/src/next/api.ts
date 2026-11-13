@@ -108,6 +108,7 @@ export interface AdminLibrary {
 export interface AdminLibraryPage {
   items: AdminLibrary[];
   nextCursor?: string;
+  metadataProviders: Record<string, LibraryMetadataProvider[]>;
 }
 
 export interface AlbumAudioSummary {
@@ -521,6 +522,7 @@ export interface DeletionPreview {
   listEntries: number;
   otherPeople: number;
   alsoRemoves: TitleRef[];
+  deleteRefusal?: string;
 }
 
 export interface DeletionResult {
@@ -2263,6 +2265,7 @@ export interface MoveCompleteRequest {
 export interface MoveState {
   to: string;
   since: string;
+  total?: number;
 }
 
 export interface MoveTicket {
@@ -4109,6 +4112,8 @@ export interface SubtitleResults {
 
 export interface SupportExportRequest {
   days?: number;
+  windowMinutes?: number;
+  components?: string[];
   includePaths?: boolean;
 }
 
