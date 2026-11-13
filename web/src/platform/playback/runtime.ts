@@ -1193,10 +1193,10 @@ export class WebShellPlaybackRuntime {
     check();
     if (!channel.tuneAvailable || channel.tuneUnavailableReason || !['live-source', 'library-channel'].includes(channel.provenance)
       || ![channel.id, channel.sourceId, channel.generation].every(value => typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\r\n]/.test(value))) problem('invalid_channel_target');
-    const value = Object.freeze({...channel}), reference = Object.freeze({kind: value.provenance, sourceId: value.sourceId, channelId: value.id, generation: value.generation, name: value.name});
+    const value = Object.freeze({...channel}), reference = Object.freeze({kind: value.provenance, sourceId: value.sourceId, channelId: value.id, generation: value.generation, name: value.name, ...(value.logoPath ? {logoUrl: value.logoPath} : {})});
     const serial = ++this.operation;
     const finishRetention = this.retainMediaStart(context.signal, () => serial === this.operation);
-    // The channel's own name is the only fact a guide start has; no art is invented.
+    // The visible guide row supplies the channel's name and any server-held logo.
     const subject = {kind: 'channel' as const, id: value.id, sourceId: value.sourceId, channelName: value.name};
     const starting = this.beginStarting({subject}, () => this.playFromGuide(value, this.retryLifetime()), {watchdog: false}), stopped = new AbortController();
     starting.stopWith(() => stopped.abort());

@@ -589,7 +589,7 @@ export class NativePlaybackRuntime {
       if (!valid()) throw new Error('stale_selection_context');
       if (!serverSupportsV1Channels(capabilities)) throw new Error('channel_playback_unavailable');
       this.rememberCurrent(); this.channel = channel; this.expanded = true;
-      await this.openChannel({kind: value.provenance, sourceId: source.id, channelId: value.id, generation: value.generation}, epoch, scoped.signal, valid, 'playing');
+      await this.openChannel({kind: value.provenance, sourceId: source.id, channelId: value.id, generation: value.generation, ...(value.logoPath ? {logoUrl: value.logoPath} : {})}, epoch, scoped.signal, valid, 'playing');
       this.changed();
     } catch (error) {
       if (epoch === this.startEpoch && this.currentAuthority()) { this.playback.leave(); this.changed(); }
@@ -641,7 +641,7 @@ export class NativePlaybackRuntime {
         await this.queue.cancel();if (!current()) return;
       }
       this.rememberCurrent(); this.channel = undefined; this.expanded = true;
-      await this.openChannel({kind: channel.provenance, sourceId: channel.sourceId, channelId: input.channelId, generation: channel.generation}, epoch, scoped.signal, current, 'playing', accepted);
+      await this.openChannel({kind: channel.provenance, sourceId: channel.sourceId, channelId: input.channelId, generation: channel.generation, ...(channel.logoPath ? {logoUrl: channel.logoPath} : {})}, epoch, scoped.signal, current, 'playing', accepted);
       if (current()) {this.channelGuide = origin ? Object.freeze({row: origin.row, options: Object.freeze({...origin.options})}) : undefined;this.changed();}
     } catch (error) {
       if (current()) {if (dispatching) {this.playback.leave(); this.changed();} throw error;}

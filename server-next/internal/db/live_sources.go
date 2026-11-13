@@ -185,6 +185,7 @@ type SourceChannel struct {
 	GuideKey     string
 	Locator      string
 	Logo         string
+	LogoHash     string
 	BroughtIn    bool
 }
 
@@ -210,10 +211,10 @@ func (d *DB) ImportSourceChannels(ctx context.Context, sourceID int64, channels 
 				}
 				if errors.Is(err, sql.ErrNoRows) {
 					_, err = tx.Exec(`INSERT INTO channels (public_id, kind, source_id, source_key, name, sort_name, number, source_number,
-						group_name, state, guide_source_id, guide_key, locator, logo_url, updated_at)
-						VALUES (?, ?, ?, ?, ?, ?, ?, nullif(?, 0), nullif(?, ''), ?, nullif(?, 0), nullif(?, ''), ?, nullif(?, ''), ?)`,
+						group_name, state, guide_source_id, guide_key, locator, logo_url, logo_hash, updated_at)
+						VALUES (?, ?, ?, ?, ?, ?, ?, nullif(?, 0), nullif(?, ''), ?, nullif(?, 0), nullif(?, ''), ?, nullif(?, ''), nullif(?, ''), ?)`,
 						NewID("chn"), ChannelFromSource, sourceID, c.Key, c.Name, sorttext.Key(c.Name, "", ""), c.Number, c.SourceNumber,
-						c.Group, state, c.GuideSource, c.GuideKey, c.Locator, c.Logo, now.UnixMilli())
+						c.Group, state, c.GuideSource, c.GuideKey, c.Locator, c.Logo, c.LogoHash, now.UnixMilli())
 					if err != nil {
 						return err
 					}
@@ -227,14 +228,18 @@ func (d *DB) ImportSourceChannels(ctx context.Context, sourceID int64, channels 
 				name, number, listings := !slices.Contains(edited, "name"), !slices.Contains(edited, "number"), !slices.Contains(edited, "listings")
 				// The owner's own hide, or choice to bring the channel in or leave it out, stays.
 				keepState := slices.Contains(edited, "hidden") || slices.Contains(edited, "broughtIn")
+				// Keep a held image paired with its actual URL until the replacement
+				// succeeds; this refresh carries the pending provider URL in c.Logo.
 				if _, err := tx.Exec(`UPDATE channels SET name = CASE WHEN ? THEN ? ELSE name END, sort_name = CASE WHEN ? THEN ? ELSE sort_name END,
 					number = CASE WHEN ? THEN ? ELSE number END, source_number = nullif(?, 0), group_name = nullif(?, ''),
 					state = CASE WHEN ? THEN state WHEN ? THEN ? ELSE ? END,
 					guide_source_id = CASE WHEN ? THEN nullif(?, 0) ELSE guide_source_id END, guide_key = CASE WHEN ? THEN nullif(?, '') ELSE guide_key END,
-					locator = ?, logo_url = nullif(?, ''), missing_since_at = NULL, updated_at = ? WHERE id = ?`,
+					locator = ?, logo_hash = CASE WHEN ? = '' THEN NULL ELSE coalesce(nullif(?, ''), logo_hash) END,
+					logo_url = CASE WHEN ? != '' OR logo_hash IS NULL OR ? = '' THEN nullif(?, '') ELSE logo_url END,
+					missing_since_at = NULL, updated_at = ? WHERE id = ?`,
 					name, c.Name, name, sorttext.Key(c.Name, "", ""), number, c.Number, c.SourceNumber, c.Group,
 					keepState, c.BroughtIn, ChannelInUse, ChannelNotIn, listings, c.GuideSource, listings, c.GuideKey,
-					c.Locator, c.Logo, now.UnixMilli(), id); err != nil {
+					c.Locator, c.Logo, c.LogoHash, c.LogoHash, c.Logo, c.Logo, now.UnixMilli(), id); err != nil {
 					return err
 				}
 			}

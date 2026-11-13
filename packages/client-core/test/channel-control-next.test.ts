@@ -13,7 +13,7 @@ const live = (patch: Record<string, unknown> = {}) => ({id: 'live_1', kind: 'liv
 const title = (startsAt: string, endsAt: string, id = 'ses_1') => ({id, kind: 'vod', state: 'playing', itemId: 'itm_1', versionId: 'ver_1', channel: {id: 'chn_lib', startsAt, endsAt},
   lease: {expiresAt: '2099-01-01T00:00:00Z', reportEveryMs: 10_000},
   presentation: {generation: 1, mode: 'direct', url: '/v1/media/file', startPositionMs: 600_000, engine: 'native', route: 'direct', quality: {}, subtitles: [], decision: {}}});
-const reference = (kind: 'live-source' | 'library-channel', channelId: string) => ({kind, sourceId: 'server', channelId, generation: '1', name: 'Harbour News'});
+const reference = (kind: 'live-source' | 'library-channel', channelId: string) => ({kind, sourceId: 'server', channelId, generation: '1', name: 'Harbour News', logoUrl: '/v1/images/0123456789abcdef'});
 
 function control(answer: (request: V1Request) => {status: number; body?: unknown}, options: {plays?: (p: {mode: string; route: string}) => boolean; serverNow?: () => number} = {}) {
   const sent: V1Request[] = [];
@@ -29,7 +29,7 @@ test('a live channel starts with only its id, and the engine joins the source\'s
   try {
     assert.deepEqual(f.sent[0]!.body, {channel: 'chn_1', state: 'playing'});
     const view = f.views.at(-1)!;
-    assert.equal(view.playbackId, 'live_1');assert.equal(view.linear.name, 'Harbour News');
+    assert.equal(view.playbackId, 'live_1');assert.equal(view.linear.name, 'Harbour News');assert.equal(view.linear.media.logoUrl, '/v1/images/0123456789abcdef');
     assert.deepEqual([view.linear.media.streamUrl, view.linear.media.mode, view.linear.media.bufferGeneration, view.linear.desired.seek?.positionUs], ['/v1/live/streams/grant', 'direct', '1', '0']);
     assert.deepEqual(f.errors, []);
   } finally {f.c.close();}

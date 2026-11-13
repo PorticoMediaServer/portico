@@ -11,13 +11,14 @@ import (
 // LiveSettings are the server-wide Live TV defaults, used by the next source refresh and
 // by the running tuner as it bounds its rewind stretch and retries a dropped source.
 type LiveSettings struct {
+	ImportImages     bool `json:"importImages"`
 	DiscoveryEnabled bool `json:"discoveryEnabled"`
 	RewindMinutes    int  `json:"rewindMinutes"`
 	RetrySeconds     int  `json:"retrySeconds"`
 	GuideDays        int  `json:"guideDays"`
 }
 
-var Document = settings.Define("live", LiveSettings{DiscoveryEnabled: true, RewindMinutes: 30, RetrySeconds: 60, GuideDays: 7}, func(v *LiveSettings) error {
+var Document = settings.Define("live", LiveSettings{ImportImages: true, DiscoveryEnabled: true, RewindMinutes: 30, RetrySeconds: 60, GuideDays: 7}, func(v *LiveSettings) error {
 	if v.RewindMinutes < 10 || v.RewindMinutes > 120 {
 		return &settings.Invalid{Field: "rewindMinutes", Message: "Choose 10 to 120 minutes."}
 	}

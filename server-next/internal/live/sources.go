@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/artwork"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/secrets"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
@@ -71,6 +72,7 @@ const (
 
 // Service refreshes sources in the background and answers previews.
 type Service struct {
+	pictures *artwork.Store
 	Settings *settings.Settings
 	db       *db.DB
 	log      *slog.Logger
@@ -91,7 +93,7 @@ func New(d *db.DB, log *slog.Logger, now func() time.Time, dataDir string) (*Ser
 	if err != nil {
 		return nil, err
 	}
-	return &Service{db: d, log: log, now: now, dir: filepath.Join(dataDir, "live"), client: newClient(10 * time.Minute), box: box,
+	return &Service{pictures: artwork.New(dataDir), db: d, log: log, now: now, dir: filepath.Join(dataDir, "live"), client: newClient(10 * time.Minute), box: box,
 		wake: make(chan struct{}, 1), tried: map[int64]time.Time{}, running: map[int64]chan struct{}{}}, nil
 }
 
