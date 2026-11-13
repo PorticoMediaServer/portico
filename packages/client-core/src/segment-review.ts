@@ -5,6 +5,7 @@
  * Parsers keep what they can read: a row in an unknown state or of an unknown kind is left out.
  */
 import {routePath} from '../../contracts/src/route-paths.ts';
+import {serverPath} from './query/server-api.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import {keepReadable} from './tolerant.ts';
 
@@ -142,6 +143,11 @@ function changed(raw: unknown): number {
 export const approveSegments = async (api: SegmentApi, id: string, kinds: readonly SegmentKind[], season?: number) => changed(await api.request(routePath('post_admin_segments_titles_id_approve', {id}), 'POST', season === undefined ? {kinds} : {kinds, season}));
 /** Measure a title's files again. The owner's approvals, adjustments and dismissals are kept. */
 export const redetectSegments = async (api: SegmentApi, id: string) => changed(await api.request(routePath('post_admin_segments_titles_id_redetect', {id}), 'POST', {}));
+
+/** Queue every measurable version again, preserving the owner's marker decisions. */
+export const remeasureAllSegments = async (api: SegmentApi) => changed(await api.request(serverPath('POST /v1/admin/segments/redetect'), 'POST', {}));
+/** Queue only versions whose last measurement failed. */
+export const retryUnreadableSegments = async (api: SegmentApi) => changed(await api.request(serverPath('POST /v1/admin/segments/retry'), 'POST', {}));
 
 export type SegmentEdit = Readonly<{action: 'create' | 'edit' | 'approve' | 'dismiss'; markerId?: string; kind?: SegmentKind; startUS?: string; endUS?: string}>;
 let sequence = 0;
