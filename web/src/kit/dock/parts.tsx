@@ -1,7 +1,7 @@
-import {Fragment, useId, type RefObject} from 'react';
+import {Fragment, useId, useRef, type RefObject} from 'react';
 import type {FactPart} from '@core/presentation/kit-model/index.ts';
 import {Icon, type IconName} from '../Icon';
-import {Artwork} from '../artwork';
+import {Artwork, useCoverAspect, wholeCoverBox} from '../artwork';
 import {Slider} from '../controls/Slider';
 import {Button} from '../controls/Button';
 import {clockText, commandFor, dispatchDockAction, positionOf, progressOf, remoteReady, remoteTerminal, seekBounds, seekTarget} from './model';
@@ -28,8 +28,12 @@ export function ArtSlot({view, artSlotRef, videoSurface = false, artworkSurface 
   const video = ['video', 'live', 'cast', 'play-on'].includes(view.mode) && !view.starting;
   // A local video draws through its persistent media surface. For the moment the queue moves to the next title the
   // dock and the surface can name different occurrences; the title's art stands in rather than taking the app down.
-  return <span ref={artSlotRef} data-dock-art-slot data-external-artwork={artworkSurface && !view.remote && view.mode === 'music' || undefined} className={[styles.artSlot, video && styles.videoArt].filter(Boolean).join(' ')}>
-    {!(videoSurface && !view.remote && video || artworkSurface && !view.remote && view.mode === 'music') && <Artwork source={view.presentation.artwork} alt="" className={styles.cover} brightness={view.remote && (!phone && !remoteTerminal(view.remote) || phone && remoteTerminal(view.remote)) ? phone ? .55 : .62 : undefined} saturation={view.remote && (!phone && !remoteTerminal(view.remote) || phone && remoteTerminal(view.remote)) ? phone ? .4 : .8 : undefined} />}
+  const ownSlot = useRef<HTMLSpanElement>(null), slot = artSlotRef ?? ownSlot;
+  const external = artworkSurface && !view.remote && view.mode === 'music', cover = useCoverAspect(view.presentation.artwork, slot);
+  // A listening cover is drawn whole in its own shape inside the square slot (owner's rule: a cover is never cropped).
+  return <span ref={slot} data-dock-art-slot data-external-artwork={external || undefined} className={[styles.artSlot, video && styles.videoArt].filter(Boolean).join(' ')}
+    style={video || external ? undefined : wholeCoverBox(cover.aspect, 'var(--dock-art)')}>
+    {!(videoSurface && !view.remote && video || external) && <Artwork source={view.presentation.artwork} alt="" className={styles.cover} onReady={cover.onReady} brightness={view.remote && (!phone && !remoteTerminal(view.remote) || phone && remoteTerminal(view.remote)) ? phone ? .55 : .62 : undefined} saturation={view.remote && (!phone && !remoteTerminal(view.remote) || phone && remoteTerminal(view.remote)) ? phone ? .4 : .8 : undefined} />}
     {view.starting ? <span className={styles.castMark} data-pending><span className={styles.ring} /></span>
       : view.remote ? (phone || !remoteTerminal(view.remote)) && <span className={styles.castMark} data-pending={!remoteReady(view.remote) && !remoteTerminal(view.remote) || undefined}>{remoteReady(view.remote) || remoteTerminal(view.remote) ? <Icon name={phone ? 'i-tvdev' : 'i-cast'} size={phone ? 18 : 24} /> : <span className={styles.ring} />}</span>
       : video && <span className={styles.expandMark}><Icon name="i-zoom" size={phone ? 12 : 22} /></span>}
