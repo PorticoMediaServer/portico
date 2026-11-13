@@ -26,7 +26,7 @@
 .summaryMeasure small { font: inherit; margin-left: 8px; }
 .panel { padding: 0; background: var(--color-raised); width: min(720px, 100vw); }
 .panelHeader { position: relative; isolation: isolate; padding: 26px 32px 20px; }
-.panelHeader::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(120% 120% at 100% 0%, rgba(47,134,187,.26), transparent 62%), radial-gradient(100% 100% at 0% 100%, rgba(30,91,82,.2), transparent 66%); }
+.panelHeader::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: var(--owner-tint); }
 .panel:not(.tabbedPanel) .panelHeader::before { -webkit-mask-image: linear-gradient(#000 40%, transparent); mask-image: linear-gradient(#000 40%, transparent); }
 .panelIdentity { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
 .panelIdentity > span { display: flex; align-items: center; gap: 8px; height: 30px; padding-inline: 12px; background: color-mix(in srgb, var(--color-ink) 55%, transparent); border-radius: 8px; }

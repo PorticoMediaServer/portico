@@ -22,7 +22,7 @@
 .navItem[aria-current='page'] { background: color-mix(in srgb, var(--color-text) 10%, transparent); color: var(--color-text); }
 .navItem[aria-current='page'] svg { color: var(--color-accent-strong); }
 .navItem[aria-current='page']::before { content: ''; position: absolute; left: 0; top: 11px; bottom: 11px; width: 3px; border-radius: 3px; background: var(--color-accent); }
-.serverNav { margin-top: 24px; padding: 14px 8px 8px; border-radius: 16px; background: radial-gradient(120% 60% at 100% 0%, color-mix(in srgb, var(--color-accent-deep) 26%, transparent), transparent 62%), radial-gradient(100% 50% at 0% 100%, color-mix(in srgb, var(--color-generated-green) 26%, transparent), transparent 66%), #0b1822; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-strong) 16%, transparent); }
+.serverNav { margin-top: 24px; padding: 14px 8px 8px; border-radius: 16px; background: var(--owner-tint), var(--color-panel); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-strong) 16%, transparent); }
 .serverNavHeader { display: flex; align-items: center; gap: 12px; padding: 0 6px 12px; }
 .serverNavHeader > :last-child { margin-left: auto; }
 .serverNavHeader b { display: block; font-size: 15px; font-weight: 800; }
