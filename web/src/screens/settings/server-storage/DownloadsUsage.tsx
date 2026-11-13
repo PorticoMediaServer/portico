@@ -42,7 +42,7 @@ export function DownloadsUsage({api, isCurrent, label}: Readonly<{api: ServerReq
       {cleared && <p role="status" className={styles.storageNote}>{t('server.downloadUsage.cleared')}</p>}
       {usage.roomBytes !== undefined && <p className={styles.storageNote}>{t('server.downloadUsage.remaining', {size: defaultI18n.bytes(usage.roomBytes)})}</p>}
     </>}
-    <Dialog open={!!clearing} onOpenChange={open => {if (!open && !busy) setClearing(undefined);}} size="sm" role="alertdialog"
+    <Dialog footerDismisses open={!!clearing} onOpenChange={open => {if (!open && !busy) setClearing(undefined);}} size="sm" role="alertdialog"
       title={clearing ? t('server.downloadUsage.clearTitle', {name: clearing.username}) : ''} description={t('server.downloadUsage.removeBody')} footer={<>
         <Button disabled={busy} onClick={() => setClearing(undefined)}>{t('next.settings.cancel')}</Button>
         <Button variant="primary" loading={busy} disabled={busy} onClick={() => {void clear();}}>{t('server.downloadUsage.clear')}</Button>

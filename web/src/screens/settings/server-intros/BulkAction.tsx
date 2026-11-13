@@ -24,7 +24,7 @@ export function SegmentsBulkAction({row, api, isCurrent, disabled, onDone}: Read
     <Button size="small" variant="glass" disabled={disabled || busy} loading={busy && !asking} onClick={() => {if (row.control.confirm) setAsking(true); else void run();}}>{label}</Button>
     {failed && !asking && <span role="alert">{t('next.states.pageFailedBody')}</span>}
     {done && !failed && <span role="status">{t('web.segments.bulkStarted')}</span>}
-    {row.control.confirm && <Dialog open={asking} onOpenChange={open => {if (!open && !busy) setAsking(false);}} size="sm" role="alertdialog" title={label} description={t(row.control.confirm)}
+    {row.control.confirm && <Dialog footerDismisses open={asking} onOpenChange={open => {if (!open && !busy) setAsking(false);}} size="sm" role="alertdialog" title={label} description={t(row.control.confirm)}
       footer={<><Button disabled={busy} onClick={() => setAsking(false)}>{t('next.settings.cancel')}</Button><Button variant="primary" loading={busy} disabled={busy} onClick={() => {void run();}}>{label}</Button></>}>
       {failed ? <p role="alert">{t('next.states.pageFailedBody')}</p> : null}
     </Dialog>}
