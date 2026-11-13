@@ -79,7 +79,7 @@ test('a batch moves each title it changed in its own library; a container moves 
 });
 
 test('Saved, pins, history, preferences and the owner\'s libraries move what shows them', () => {
-  assert.ok(deps('put_saved_pins_kind_id', {kind: 'k', id: 'i'}).includes('personal:*'));
+  // Pins are one of the profile's preferences on the rebuilt server.
   assert.ok(deps('post_personal_history_actions', {}).includes('progress:*'));
   assert.ok(deps('post_me_recommendations_reset', {}).includes('event:list.changed:recommendations'));
   assert.deepEqual(deps('patch_preferences', {}), ['settings:preferences']);

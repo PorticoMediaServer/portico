@@ -1,14 +1,14 @@
-import {routePath,encodedRoutePath} from '../../contracts/src/route-paths.ts';
+import {callServer} from './query/server-api.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import {firstOfEach,keepReadable} from './tolerant.ts';
-/** Pinned libraries and pinned-resource order. The arrangement is server state:
- * clients read it, send a replacement with the revision they saw, and re-read.
- * Nothing here re-orders locally or remembers a pin the server did not confirm. */
+/** All four pin kinds live in the profile's `pins` preference, in order, at most 200 together.
+ * Saves change that preference only. Compatibility revision fields are zero: preferences keep
+ * the later save, without the retired routes' revision exchange. */
 export type PinnedResourceKind='collection'|'view'|'playlist';
 export type PinOrderEntry=Readonly<{kind:PinnedResourceKind;id:string}>;
-/** A pinned collection, saved view or playlist as navigation shows it: its name, and the pin
- * revision an unpin sends back. The read lists every pin the viewer can still open, arranged ones
- * first; a save answers with the arrangement alone (no names), so a client reads again after it. */
+/** A pinned collection, saved view or playlist as navigation shows it, named by a list read
+ * the current viewer may make. A save answers with the arrangement alone (no names), so an
+ * editor reads again after it. pinRevision remains zero for the existing editor shape. */
 export type PinnedResource=Readonly<PinOrderEntry&{name:string;pinRevision:number}>;
 export type PinOrder=Readonly<{serverId:string;viewerFence:string;revision:number;order:readonly PinnedResource[]}>;
 export type LibraryNavigationPins=Readonly<{pinnedLibraryIds:readonly string[];revision:number}>;
@@ -36,7 +36,7 @@ export function parsePinOrder(raw:unknown,serverId:string):PinOrder{
 
 export function parseLibraryNavigationPins(raw:unknown):LibraryNavigationPins{
  if(!obj(raw)||!count(raw.revision))bad();
- const pinnedLibraryIds=rows(raw.pinnedLibraryIds,100).map(v=>{if(!id(v))bad();return v;});
+ const pinnedLibraryIds=rows(raw.pinnedLibraryIds,200).map(v=>{if(!id(v))bad();return v;});
  if(new Set(pinnedLibraryIds).size!==pinnedLibraryIds.length)bad();
  return freeze({pinnedLibraryIds,revision:raw.revision});
 }
@@ -55,7 +55,7 @@ export function parsePinnedLibraries(raw:unknown):readonly PinnedLibrary[]{
  return freeze(items);
 }
 
-/** Builds the PUT body for a replacement arrangement. */
+/** Checks the arrangement supplied by the existing pin editors. */
 export function pinOrderRequest(expectedRevision:number,order:readonly PinOrderEntry[]):Readonly<{expectedRevision:number;order:readonly PinOrderEntry[]}>{
  if(!count(expectedRevision)||order.length>200)bad('That pin arrangement cannot be saved.');
  const seen=new Set<string>();
@@ -67,32 +67,78 @@ export function pinOrderRequest(expectedRevision:number,order:readonly PinOrderE
 }
 
 export function libraryNavigationRequest(expectedRevision:number,pinnedLibraryIds:readonly string[]):Readonly<{expectedRevision:number;pinnedLibraryIds:readonly string[]}>{
- if(!count(expectedRevision)||pinnedLibraryIds.length>100||new Set(pinnedLibraryIds).size!==pinnedLibraryIds.length||pinnedLibraryIds.some(entry=>!id(entry)))bad('Those library pins cannot be saved.');
+ if(!count(expectedRevision)||pinnedLibraryIds.length>200||new Set(pinnedLibraryIds).size!==pinnedLibraryIds.length||pinnedLibraryIds.some(entry=>!id(entry)))bad('Those library pins cannot be saved.');
  return freeze({expectedRevision,pinnedLibraryIds:[...pinnedLibraryIds]});
 }
 
 export interface PinsApi{request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>}
 
-/** The viewer's pinned collections, saved views and playlists, in their arrangement. */
+/** Pins have profile-server scope only, so the device class does not change their value. */
+function pinsOf(raw:unknown):readonly string[]{
+ if(!obj(raw)||!obj(raw.effective))bad();
+ const pins=rows(raw.effective.pins,200);
+ if(!pins.every(pin=>id(pin)&&pin.length<=128)||new Set(pins).size!==pins.length)bad();
+ return Object.freeze([...pins] as string[]);
+}
+const readPins=async(api:PinsApi,signal?:AbortSignal)=>pinsOf(await callServer(api,'GET /v1/preferences',{query:{deviceClass:'web'},signal}));
+async function savePins(api:PinsApi,pins:readonly string[]):Promise<readonly string[]>{
+ if(pins.length>200)bad('That pin arrangement cannot be saved.');
+ return pinsOf(await callServer(api,'PATCH /v1/preferences',{body:{scope:'profile-server',deviceClass:'web',values:{pins:[...pins]}}}));
+}
+function resourceEntries(pins:readonly string[]):PinOrderEntry[]{
+ return pins.flatMap(pin=>{
+  const colon=pin.indexOf(':'),kind=pin.slice(0,colon),resourceId=pin.slice(colon+1);
+  return kinds.includes(kind)&&id(resourceId)?[{kind:kind as PinnedResourceKind,id:resourceId}]:[];
+ });
+}
+/** Replace one part of the arrangement without shifting the other kinds out of their slots. */
+function replacePins(pins:readonly string[],matches:(pin:string)=>boolean,next:readonly string[]):readonly string[]{
+ let at=0;
+ const out=pins.flatMap(pin=>matches(pin)?at<next.length?[next[at++]!]:[]:[pin]);
+ return [...out,...next.slice(at)];
+}
+const savedPin=(pin:string)=>kinds.some(kind=>pin.startsWith(kind+':'));
+
+/** Resolve each pinned id directly: a pin never disappears just because its list is beyond page one.
+ * Deleted or no-longer-visible lists are absent; a failed read still fails the read, never an unpin. */
 export async function readPinOrder(api:PinsApi,serverId:string,signal?:AbortSignal):Promise<PinOrder>{
- return parsePinOrder(await api.request<unknown>(routePath("get_saved_pins_order"),'GET',undefined,signal),serverId);
+ const entries=resourceEntries(await readPins(api,signal));
+ const listed=await Promise.all(entries.map(async entry=>{
+  let list:unknown;
+  try{list=await callServer(api,'GET /v1/lists/{id}',{id:entry.id,signal});}
+  catch(error){if((error as {status?:unknown}|null)?.status===404)return undefined;throw error;}
+  return keepReadable('library-pins','lists',[list],row=>{
+   if(!obj(row)||row.id!==entry.id||row.kind!==(entry.kind==='view'?'saved_view':entry.kind)||!str(row.name,512))bad();
+   return {...entry,name:row.name,pinRevision:0};
+  })[0];
+ }));
+ return freeze({serverId,viewerFence:'viewer',revision:0,order:listed.filter((entry):entry is PinnedResource=>entry!==undefined)});
 }
-/** Saves a new arrangement of the pins; the caller reads the pins again for their names. */
+/** Saves an arrangement, leaving pins not named here (including unavailable lists) pinned. */
 export async function savePinOrder(api:PinsApi,serverId:string,expectedRevision:number,order:readonly PinOrderEntry[]):Promise<PinOrder>{
- return parsePinOrder(await api.request<unknown>(routePath("put_saved_pins_order"),'PUT',pinOrderRequest(expectedRevision,order.map(entry=>({kind:entry.kind,id:entry.id})))),serverId);
+ const checked=pinOrderRequest(expectedRevision,order),pins=await readPins(api);
+ const next=checked.order.map(entry=>entry.kind+':'+entry.id);
+ if(next.some(pin=>!pins.includes(pin)))bad('That pin arrangement cannot be saved.');
+ const saved=await savePins(api,replacePins(pins,savedPin,[...next,...pins.filter(pin=>savedPin(pin)&&!next.includes(pin))]));
+ return parsePinOrder({serverId,viewerFence:'viewer',revision:0,order:resourceEntries(saved)},serverId);
 }
-/** Pins or unpins one collection, saved view or playlist. `pinRevision` is the one last read. */
+/** Pins or unpins one list in the profile's preference. Existing editor revision/id arguments
+ * remain accepted; the preference write has neither a resource revision nor an operation id. */
 export async function setResourcePin(api:PinsApi,kind:PinnedResourceKind,resourceId:string,pinned:boolean,pinRevision:number,operationId:string):Promise<Readonly<{pinned:boolean;pinRevision:number}>>{
  if(!kinds.includes(kind)||!id(resourceId)||!count(pinRevision)||!/^[A-Za-z0-9_-]{1,128}$/.test(operationId))bad('That pin cannot be saved.');
- const raw=await api.request<unknown>(encodedRoutePath("put_saved_pins_kind_id",{"kind":kind,"id":encodeURIComponent(resourceId)}),'PUT',{operationId,expectedRevision:pinRevision,pinned});
- if(!obj(raw)||typeof raw.pinned!=='boolean'||!count(raw.pinRevision))bad();
- return freeze({pinned:raw.pinned,pinRevision:raw.pinRevision});
+ const pin=kind+':'+resourceId,pins=await readPins(api);
+ const next=pinned?pins.includes(pin)?pins:[...pins,pin]:pins.filter(value=>value!==pin);
+ const saved=await savePins(api,next);
+ return freeze({pinned:saved.includes(pin),pinRevision:0});
 }
 export async function readLibraryNavigation(api:PinsApi,signal?:AbortSignal):Promise<LibraryNavigationPins>{
- return parseLibraryNavigationPins(await api.request<unknown>(routePath("get_me_library_navigation"),'GET',undefined,signal));
+ const pins=await readPins(api,signal);
+ return freeze({pinnedLibraryIds:pins.filter(pin=>pin.startsWith('library:')).map(pin=>pin.slice(8)),revision:0});
 }
 export async function saveLibraryNavigation(api:PinsApi,expectedRevision:number,pinnedLibraryIds:readonly string[]):Promise<LibraryNavigationPins>{
- return parseLibraryNavigationPins(await api.request<unknown>(routePath("put_me_library_navigation"),'PUT',libraryNavigationRequest(expectedRevision,pinnedLibraryIds)));
+ const checked=libraryNavigationRequest(expectedRevision,pinnedLibraryIds),pins=await readPins(api);
+ const saved=await savePins(api,replacePins(pins,pin=>pin.startsWith('library:'),checked.pinnedLibraryIds.map(id=>'library:'+id)));
+ return parseLibraryNavigationPins({pinnedLibraryIds:saved.filter(pin=>pin.startsWith('library:')).map(pin=>pin.slice(8)),revision:0});
 }
 
 /** The pinned libraries after pinning (at the end) or unpinning one. */

@@ -116,8 +116,6 @@ const table = {
   delete_me_removed_titles_id: profileWide,
   post_me_recommendations_reset: () => [dependsOn.list('recommendations'), dependsOn.personal()],
   delete_reading_saved_group_reference: profileWide,
-  put_saved_pins_order: profileWide,
-  put_saved_pins_kind_id: profileWide,
   post_saved_resources: profileWide,
   delete_saved_resources_id: profileWide,
   patch_saved_resources_id: profileWide,
@@ -127,7 +125,6 @@ const table = {
   patch_preferences: preferences,
   put_listening_preferences: preferences,
   put_download_settings: preferences,
-  put_me_library_navigation: preferences,
   post_channels_preferences: () => [dependsOn.settings('preferences'), dependsOn.list('guide')],
   post_library_channels_preferences: () => [dependsOn.settings('preferences'), dependsOn.list('libraryChannels')],
   // The owner's libraries and server settings.
