@@ -44,7 +44,7 @@ export const controlsMessages = {
   'next.controls.genre': 'Genre',
   'next.controls.animation': 'Animation',
   'next.controls.removeAnimation': 'Remove Genre: Animation',
-  'next.controls.unwatched': 'Unwatched',
+  'next.controls.unwatched': 'Unplayed',
   'next.controls.quality': 'Quality',
   'next.controls.auto': 'Auto',
   'next.controls.original': 'Original',

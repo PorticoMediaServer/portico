@@ -20,9 +20,9 @@ const definition = (query: BrowseNode | null, field = 'title', direction: 'asc' 
 test('§38 six drawn Saved tile summaries and conditions-only TV names are exact', t => {
   t.mock.timers.enable({apis: ['Date'], now: new Date('2026-10-23T12:00:00Z')});
   const vectors = [
-    [definition({variant:'group',all: [node('playState', 'equals', 'unplayed'), node('year', 'between', [1990, 1999]), node('genre', 'contains-any', ['Action'])]}, 'added', 'desc'), 'Genre Action, Year 1990s, Unwatched. Newest first.', 'Genre Action, Year 1990s, Unwatched'],
+    [definition({variant:'group',all: [node('playState', 'equals', 'unplayed'), node('year', 'between', [1990, 1999]), node('genre', 'contains-any', ['Action'])]}, 'added', 'desc'), 'Genre Action, Year 1990s, Unplayed. Newest first.', 'Genre Action, Year 1990s, Unplayed'],
     [definition(node('durationMs', 'at-most', 5400000), 'duration'), 'Length under 90 minutes. Shortest first.', 'Length under 90 minutes'],
-    [definition(node('playState', 'equals', 'unplayed')), 'Unwatched. Title A to Z.', 'Unwatched'],
+    [definition(node('playState', 'equals', 'unplayed')), 'Unplayed. Title A to Z.', 'Unplayed'],
     [definition(node('communityRating', 'at-least', 8), 'communityRating', 'desc'), 'Rating 8 and up. Highest first.', 'Rating 8 and up'],
     [definition(node('dateAdded', 'at-least', '2026-09-23'), 'added', 'desc'), 'Added in the last 30 days. Newest first.', 'Added in the last 30 days'],
     [definition(node('playState', 'equals', 'in-progress'), 'lastPlayed', 'desc'), 'In progress. Last played first.', 'In progress'],
@@ -127,7 +127,7 @@ test('a saved view names its play-state filter as the library row does: Unread i
   const unread = definition(node('playState', 'equals', 'unplayed'));
   assert.equal(savedViewSummary(unread, kinded('book'), defaultI18n)?.conditions, 'Unread');
   assert.equal(savedViewSummary(unread, kinded('music'), defaultI18n)?.conditions, 'Unplayed');
-  assert.equal(savedViewSummary(unread, kinded('audiobook'), defaultI18n)?.conditions, 'Unwatched');
+  assert.equal(savedViewSummary(unread, kinded('audiobook'), defaultI18n)?.conditions, 'Unplayed');
   // The row and the summary take their words from the same place.
   assert.deepEqual(browseToolbarModel(kinded('book'), 'book', [], {field: 'title', direction: 'asc'}, {t: (id, values) => defaultI18n.t(id, values), locale: 'en-US'}).quick.find(q => q.id === 'unwatched')?.label?.text, 'Unread');
 });

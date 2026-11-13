@@ -68,7 +68,7 @@ export const shared = {
   'next.kit.filter.containsAny': 'contains any of',
   'next.kit.filter.containsAll': 'contains all of',
   'next.kit.filter.decade': '{year}s',
-  'next.kit.browse.unwatched': 'Unwatched',
+  'next.kit.browse.unwatched': 'Unplayed',
   'next.kit.browse.watched': 'Watched',
   'next.kit.browse.unplayed': 'Unplayed',
   'next.kit.browse.played': 'Played',

@@ -20,7 +20,7 @@ test('A20: the empty sentence names a filter\'s values as each operator means th
   // Yes-or-no filters are said in words, never "is true".
   assert.equal(words('favorite', 'equals', [true]), 'a favorite');
   assert.equal(words('watchlisted', 'equals', [false]), 'not in My List');
-  assert.equal(words('playState', 'equals', ['unplayed']), 'unwatched');
+  assert.equal(words('playState', 'equals', ['unplayed']), 'unplayed');
   // Decades.
   assert.equal(words('decade', 'in', [1990, 2000]), 'from the 1990s or 2000s');
   assert.equal(words('decade', 'contains-any', [1990, 2000]), 'from the 1990s or 2000s');

@@ -381,7 +381,7 @@ func (e StateEdit) check(kind ItemKind, durationMS int64) error {
 		return invalid("a place in a book is a JSON object of at most 4 KB with progression between 0 and 1")
 	}
 	if e.Watched != nil && *e.Watched && e.PositionMS != nil && *e.PositionMS != 0 {
-		return invalid("a position can go with unwatched, not with watched")
+		return invalid("a resume point can accompany an unplayed title, not a watched title")
 	}
 	if e.PositionMS != nil && (*e.PositionMS < 0 || durationMS > 0 && *e.PositionMS > durationMS) {
 		return invalid("the position is outside the item")
