@@ -64,7 +64,7 @@ type Stream struct {
 	Language                         string
 	Title                            string
 	Default, Forced, HearingImpaired bool
-	Commentary, HDR10Plus            bool
+	Commentary                       bool
 	ObjectAudio                      string // atmos or dtsx, only when observed
 	Bitrate                          int64
 	Width                            int
