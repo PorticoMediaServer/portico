@@ -1,4 +1,5 @@
 // @fabric-react
+import {FormError, formErrorModule} from './helpers/form-error.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
@@ -9,7 +10,7 @@ import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {screenModule} from './helpers/screen-harness.mjs';
 
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
-const texts = (node: any) => nodes(node).filter(item => item.type === 'Text').map(item => [item.props.children].flat().join(''));
+const texts = (node: any) => nodes(node).filter(item => (item.type === 'Text' || item.type === FormError)).map(item => [item.props.children].flat().join(''));
 const t = defaultI18n.t;
 
 const row = (patch: Record<string, unknown>) => ({id: 'other', mode: 'native', status: 'active', current: false, createdAt: '2026-10-01T10:00:00Z',
@@ -30,7 +31,7 @@ async function mount(state: Record<string, unknown>) {
     'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})},
     '../../../../../packages/i18n/src': {defaultI18n},
-    '../../kit/controls': {Button: 'Button'},
+    '../../kit/controls': {FormError, Button: 'Button'},
     '../../kit/overlays': {BottomSheet: 'Sheet'},
     '../../kit/theme': {useTheme: () => createTheme({isTV: false, width: 390})},
     '../../kit/artwork': {ColourBackdrop: 'Backdrop'},

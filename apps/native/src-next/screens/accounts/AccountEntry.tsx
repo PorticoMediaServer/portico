@@ -15,7 +15,7 @@ import type {SetupCodeSnapshot} from '../../../../../packages/client-core/src/se
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {StateLayout} from '../../kit/states';
-import {Button, Focusable, TextField} from '../../kit/controls';
+import {Button, Focusable, TextField, FormError} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {ProfilePicker} from '../../kit/artwork';
 import {BootWaitLine} from '../../shell/StartupBoot';
@@ -181,6 +181,14 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const providerNameSeed = useRef<string | undefined>(undefined);
   registerOpeningRef.current = registerOpening; providerOpeningRef.current = providerOpening;
   busyRef.current = busy; stageRef.current = stage; onBackRef.current = onBack;
+  // The shared status line belongs to the stage visit its error was raised on: moving on (say, from a
+  // refused Portico sign-in to Use a local server), or coming back later, never carries the old sentence along.
+  // Each visit to a stage is counted; an error is shown only on the visit it was raised in. The visit
+  // effect runs first, so an error raised in the same render as a stage change still shows there.
+  const visit = useRef(0), [errorVisit, setErrorVisit] = useState<number>();
+  useLayoutEffect(() => {visit.current++;}, [stage]);
+  useLayoutEffect(() => {setErrorVisit(error === undefined ? undefined : visit.current);}, [error]);
+  const stageError = error !== undefined && errorVisit === visit.current ? error : undefined;
   const tvOpening = useRef<TVCodeOpening | undefined>(undefined);
   const retireTVOpening = useCallback((cancel = false, expected = tvOpening.current, publish = true) => {
     if (!expected) return;
@@ -809,14 +817,14 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   const renderedTV = stage === 'tv' ? tvView?.opening : undefined;
   const codeBack = () => {if (renderedTV?.current()) back();};
   const backAction = stage !== 'welcome' || onBack ? {id: 'back', label: t('action.back'), disabled: busy, onPress: stage === 'tv' ? codeBack : back} : undefined;
-  const failure = error ? presentError(error, stage === 'profile-pin' ? 'profiles' : 'sign-in') : undefined;
+  const failure = stageError ? presentError(stageError, stage === 'profile-pin' ? 'profiles' : 'sign-in') : undefined;
   // A TV that reaches a server nobody has set up says where setup happens: this device cannot be
   // the owner, and the generic refusal tells nobody what to do. On the address step the notice is
   // drawn under the field it belongs to, so the field keeps the focus it already holds; a server
   // picked from a list says the same.
-  const status = Platform.isTV && setupElsewhereRefusal(error)
-    ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{t('accounts.setup.elsewhere')}</Text>
-    : failure && !failure.silent ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{failure.body}</Text>
+  const status = Platform.isTV && setupElsewhereRefusal(stageError)
+    ? <FormError placement="block">{t('accounts.setup.elsewhere')}</FormError>
+    : failure && !failure.silent ? <FormError placement="block">{failure.body}</FormError>
     : accountEnded && stage === 'welcome' ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.text, marginBottom: 16}]}>{t('web.signIn.error.accountEnded')}</Text> : null;
   const directoryView = stage === 'servers' ? directoryFailure(target, error) : 'other';
   const hostedWaiting = stage === 'servers' && !!target && error instanceof HostedSignInUnavailable;
@@ -912,10 +920,10 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     <View style={{gap: 12}}>{!Platform.isTV && endedSignIn.signIn === 'portico' && <EndedMoveCodeAction scope={endedSignIn} busy={busy}
       isCurrent={() => lifetime.current && stageRef.current === 'ended-sign-in' && latestEndedHint.current === endedSignIn}
       onStart={(guard, signal) => run(() => beginEndedMemberCode(guard, signal))}/>}
-      {endedSignIn.signIn === 'local' && <Button variant="text" disabled={busy} onPress={() => {
+      {endedSignIn.signIn === 'local' && <Button variant="link" disabled={busy} onPress={() => {
       if (lifetime.current && stageRef.current === 'ended-sign-in') void run(async () => {await Linking.openURL(new URL('/sign-in', endedSignIn.origin).href);});
     }}>{t('auth.forgotPassword')}</Button>}
-      <Button variant="text" disabled={busy} onPress={() => {if (lifetime.current && stageRef.current === 'ended-sign-in') {setUsername(''); setPassword(''); reset(); onBack?.();}}}>{t('auth.useDifferentAccount')}</Button>
+      <Button variant="link" disabled={busy} onPress={() => {if (lifetime.current && stageRef.current === 'ended-sign-in') {setUsername(''); setPassword(''); reset(); onBack?.();}}}>{t('auth.useDifferentAccount')}</Button>
     </View>);
   if (stage === 'account-workspace' && accountWorkspace.current?.createSource) {
     const ticket = accountWorkspace.current;
@@ -976,7 +984,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
           setAddress(value.origin); void run(async () => {await inspect(value.origin);});
         }}>{value.server.name}{value.server.setupRequired ? ' · ' + t('accounts.setup.confirmAction') : ''}</Button>
           <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{new URL(value.origin).host}</Text></View>)}
-        {nearbyStatus !== 'loading' && <Button variant="text" disabled={busy} onPress={() => {
+        {nearbyStatus !== 'loading' && <Button variant="link" disabled={busy} onPress={() => {
           if (!current() || busyRef.current) return; ticket!.active = false; setNearbyRefresh(value => value + 1);
         }}>{t('web.chooser.tryAgain')}</Button>}
       </View>);
@@ -1023,9 +1031,9 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       secondaryAction={backAction}/>;
     return layout(t('accounts.signIn.usesPortico', {server: server!.name}), notice, undefined, action('portico', t('accounts.signIn.continuePortico'), portico),
       !Platform.isTV && <View style={{gap: 12}}>
-        {moveDays !== undefined && <Button variant="text" disabled={busy} onPress={() => {void run(beginMemberMove);}}>{t('accounts.move.oldPasswordAction', {days: moveDays})}</Button>}
-        {server?.move === 'to_portico' && <Button variant="text" disabled={busy} onPress={() => {void run(beginMemberCode);}}>{t('accounts.move.haveCode')}</Button>}
-        <Button variant="text" disabled={busy} onPress={() => {
+        {moveDays !== undefined && <Button variant="link" disabled={busy} onPress={() => {void run(beginMemberMove);}}>{t('accounts.move.oldPasswordAction', {days: moveDays})}</Button>}
+        {server?.move === 'to_portico' && <Button variant="link" disabled={busy} onPress={() => {void run(beginMemberCode);}}>{t('accounts.move.haveCode')}</Button>}
+        <Button variant="link" disabled={busy} onPress={() => {
           if (!current() || !source) return;
           retireOwnerReset();
           const ticket = {source, controller: new AbortController()}; ownerResetOpening.current = ticket;
@@ -1115,7 +1123,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       }});
     };
     const rootStatus = NativeServerSignIn.invitationUnavailable(error)
-      ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{t('web.directJoin.entryUnavailable')}</Text> : status;
+      ? <FormError placement="inline">{t('web.directJoin.entryUnavailable')}</FormError> : status;
     return <FormLayout testID="accounts-invitation-entry" title={t('web.directJoin.title')} body={external ? undefined : t('web.directJoin.entryBody')}
       kicker={<Image source={require('../../../assets/wordmark.png')} accessibilityLabel={t('accounts.brand')} resizeMode="contain" style={{width: 74, height: 17}}/>}
       beforeActions={<View style={{alignSelf: 'stretch', gap: 14, marginBottom: 18}}>{rootStatus}
@@ -1124,7 +1132,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
           autoCapitalize="characters" autoCorrect={false} autoComplete="off" editable={!busy} onSubmitEditing={submit}/>}
         {!external && qrScannerAvailable() ? <View style={{gap: 6}}>
           <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('services.start.qrPhone')}</Text>
-          <Button variant="text" disabled={busy || invitationScanning} loading={invitationScanning || undefined} onPress={() => {void scan();}}>{t('accounts.move.scanQR')}</Button>
+          <Button variant="link" disabled={busy || invitationScanning} loading={invitationScanning || undefined} onPress={() => {void scan();}}>{t('accounts.move.scanQR')}</Button>
         </View> : null}
       </View>} primaryAction={{id: 'preview-invitation-entry', label: t('action.continue'), disabled: busy || !parsed, loading: busy, onPress: submit}}
       secondaryAction={{id: 'back', label: t('action.back'), disabled: busy, onPress: () => {if (current()) back();}}}/>;
@@ -1181,7 +1189,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     const back = () => {if (current() && !busyRef.current) backRef.current();};
     const failure = ticket?.controller.failure(error);
     const invitationStatus = failure === 'unavailable' || failure === 'mistyped'
-      ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{t(failure === 'mistyped' ? 'web.directJoin.codeNotRight' : 'web.directJoin.entryUnavailable')}</Text> : status;
+      ? <FormError placement="block">{t(failure === 'mistyped' ? 'web.directJoin.codeNotRight' : 'web.directJoin.entryUnavailable')}</FormError> : status;
     const differentAccount = () => {
       if (!current() || busyRef.current || ticket?.kind !== 'portico') return;
       try {
@@ -1218,7 +1226,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
           {preview.allLibraries && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('server.people.allLibraries')}</Text>}
           {preview.libraries.map((library, index) => <Text key={index} style={[theme.type.body, {color: theme.colors.textSecondary}]}>{library.name}</Text>)}
           <Text style={[theme.type.body, {color: theme.colors.text}]}>{controller.username}</Text>
-          <Button variant="text" disabled={busy} onPress={differentAccount}>{t('accounts.invitation.notYou')}</Button>
+          <Button variant="link" disabled={busy} onPress={differentAccount}>{t('accounts.invitation.notYou')}</Button>
         </View>}
         primaryAction={{id: 'join-portico-invitation', label: t('accounts.invitation.joinAs', {username: controller.username}), disabled: busy, loading: busy,
           onPress: () => {if (!current()) return; void run(async () => {
@@ -1251,20 +1259,20 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
     return layout(server!.name, t('accounts.signIn.localBody'), fields(field(t('auth.username'), username, setUsername, false, 'username'), field(t('auth.password'), password, setPassword, true, 'password')),
     action('local-sign-in', t('auth.signIn'), async () => {consume(await operation.current!.signInLocal(username, password)); setPassword('');}, !username || !password),
     <View style={{alignSelf: 'stretch', gap: 8}}>
-      <Button variant="text" disabled={busy} onPress={() => {
+      <Button variant="link" disabled={busy} onPress={() => {
         if (!source || source !== operation.current || !lifetime.current || stageRef.current !== 'local') return;
         void run(async () => {if (source === operation.current && lifetime.current && stageRef.current === 'local') await Linking.openURL(new URL('/sign-in', source.serverOrigin()).href);});
       }}>{t('auth.forgotPassword')}</Button>
-      <Button variant="text" disabled={busy} onPress={() => {void run(() => startTV('local'));}}>{t('auth.useCodeFromAnotherDevice')}</Button>
+      <Button variant="link" disabled={busy} onPress={() => {void run(() => startTV('local'));}}>{t('auth.useCodeFromAnotherDevice')}</Button>
       {devSignIn && <Button testID="accounts-dev-test-owner" variant="text" disabled={busy} onPress={() => {
         if (!source || source !== operation.current || !lifetime.current || stageRef.current !== 'local') return;
         void run(async () => {consume(await source.signInTestOwner());});
       }}>{devSignIn.TEST_OWNER_LABEL}</Button>}
-      {!Platform.isTV && !endedTarget.current && <Button variant="text" disabled={busy} onPress={() => {
+      {!Platform.isTV && !endedTarget.current && <Button variant="link" disabled={busy} onPress={() => {
         if (!source || source !== operation.current || !lifetime.current || stageRef.current !== 'local' || busyRef.current) return;
         try {openInvitationEntry(source.serverOrigin());} catch (failure) {setError(failure);}
       }}>{t('web.directJoin.have')}</Button>}
-      {!Platform.isTV && server?.move === 'to_local' && <Button variant="text" disabled={busy} onPress={() => {void run(beginMemberCode);}}>{t('accounts.move.haveCode')}</Button>}
+      {!Platform.isTV && server?.move === 'to_local' && <Button variant="link" disabled={busy} onPress={() => {void run(beginMemberCode);}}>{t('accounts.move.haveCode')}</Button>}
     </View>);
   }
   if (stage === 'factor' && factorKind.current === 'portico' && !Platform.isTV) {
@@ -1293,7 +1301,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
         setCode(''); setRecoveryCode(''); setRecovery(false);
         await directory();
       }, !entered),
-      recovery ? undefined : <Button variant="text" disabled={busy} onPress={() => {if (!formLive()) return; registerDraftRev.current++; setRecoveryCode(''); setRecovery(true);}}>{`${t('services.signin.lostPhone')} ${t('services.signin.recovery')}`}</Button>);
+      recovery ? undefined : <Button variant="link" disabled={busy} onPress={() => {if (!formLive()) return; registerDraftRev.current++; setRecoveryCode(''); setRecovery(true);}}>{`${t('services.signin.lostPhone')} ${t('services.signin.recovery')}`}</Button>);
   }
   if (stage === 'factor') return layout(t('auth.enterVerificationCode'), undefined, fields(codeField(t('auth.verificationCode'), code, setCode)), action('factor', t('action.continue'), async () => {
     if (memberFactorOperation.current && memberFactorOperation.current === operation.current) {
@@ -1334,9 +1342,9 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       const tx = await account.current!.provider(value.id); setTransaction(tx);
       if (tx.status === 'verified' && !tx.needsUsername && !tx.mfaRequired) {await account.current!.finishProvider(); await directory();} else setStage('provider');
     });}}>{t(value.id === 'google' ? 'auth.signInWithGoogle' : 'auth.signInWithApple')}</Button>)}
-    {options?.registration && <Button variant="text" disabled={busy} onPress={() => {setPassword(''); setStage('register');}}>{t('auth.createAccount')}</Button>}
-    {options?.recovery !== false && <Button variant="text" disabled={busy} onPress={() => {setPassword(''); setStage('forgot');}}>{t('auth.forgotPassword')}</Button>}
-    <Button variant="text" disabled={busy} onPress={() => {setPassword(''); setStage('address');}}>{t('accounts.signIn.local')}</Button>
+    {options?.registration && <Button variant="link" disabled={busy} onPress={() => {setPassword(''); setStage('register');}}>{t('auth.createAccount')}</Button>}
+    {options?.recovery !== false && <Button variant="link" disabled={busy} onPress={() => {setPassword(''); setStage('forgot');}}>{t('auth.forgotPassword')}</Button>}
+    <Button variant="link" disabled={busy} onPress={() => {setPassword(''); setStage('address');}}>{t('accounts.signIn.local')}</Button>
     <LegalAgreement style={[theme.type.caption, {color: theme.colors.textSecondary, textAlign: 'center', marginTop: 6}]}
       linkStyle={{color: theme.colors.accent, textDecorationLine: 'underline'}} onOpenLink={openLegalLink}/></View>);
   if (stage === 'forgot') return layout(t('auth.forgotPasswordTitle'), t('auth.resetLinkLede'),
@@ -1410,7 +1418,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
           throw refusal;
         }
       }, verified ? username.trim().length < 3 : !code), verified || theme.isTV ? undefined : <View style={{alignSelf: 'stretch', gap: 10, marginTop: 14}}>
-        <Button testID="accounts-registration-resend" variant="text" disabled={busy} style={{alignSelf: 'center'}} onPress={() => {
+        <Button testID="accounts-registration-resend" variant="link" disabled={busy} style={{alignSelf: 'center'}} onPress={() => {
           if (!opening || !live() || busyRef.current || acting.current) return;
           void run(async () => {
             if (!live()) return;
@@ -1628,7 +1636,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
         <Icon name="i-right" size={20} color={theme.colors.textTertiary}/>
       </Focusable>;
     })}</View>, undefined,
-    <Button variant="text" disabled={busy} onPress={() => setStage('account-sign-out')}>{t('accounts.signOut.portico')}</Button>);
+    <Button variant="link" disabled={busy} onPress={() => setStage('account-sign-out')}>{t('accounts.signOut.portico')}</Button>);
   if (stage === 'account-sign-out') return layout(t('accounts.signOut.portico'), undefined, undefined,
     action('account-sign-out', t('action.signOut'), async () => {
       await nativeAccounts.signOutPorticoAccount(accountScope.current!);
@@ -1681,7 +1689,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
   if (stage === 'profile-pin') return layout(t('profile.pinTitle', {name: profile!.name}), undefined,
     <View style={{alignSelf: 'stretch'}}><PhonePINEntry value={code} onChange={setCode} onComplete={value => {void run(() => choose(profile!.id, value));}} busy={busy} error={!!error}/>
       {canRemember && <RememberProfileRow focusId="accounts-remember-profile" checked={remember} onChange={setRemember} disabled={busy}/>}
-      <View style={{alignItems: 'center', marginTop: 8}}><Button variant="text" disabled={busy} onPress={() => {if (busy || !profile || !operation.current) return; try {setError(undefined); retireRecovery(); const next: PINRecovery = {profile, operation: operation.current, controller: operation.current.profileRecovery(profile.id), retired: false}; pinRecoveryRef.current = next; setPinRecovery(next);} catch (failure) {setError(failure);}}}>{t('pin.forgot')}</Button></View>
+      <View style={{alignItems: 'center', marginTop: 8}}><Button variant="link" disabled={busy} onPress={() => {if (busy || !profile || !operation.current) return; try {setError(undefined); retireRecovery(); const next: PINRecovery = {profile, operation: operation.current, controller: operation.current.profileRecovery(profile.id), retired: false}; pinRecoveryRef.current = next; setPinRecovery(next);} catch (failure) {setError(failure);}}}>{t('pin.forgot')}</Button></View>
       <BootWaitLine active={busy} serverName={server?.name} testID="accounts-profile-wait"/></View>,
     action('profile-pin', t('action.continue'), () => choose(profile!.id, code), !/^\d{4}$/.test(code)));
   const consentBody = tvKind === 'local' && server

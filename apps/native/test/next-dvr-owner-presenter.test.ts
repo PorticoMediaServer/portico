@@ -1,4 +1,5 @@
 // @fabric-react
+import {FormError, formErrorModule} from './helpers/form-error.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
@@ -22,7 +23,7 @@ async function loadPresenter(passive?: Array<()=>void>) {
     react: {...React, default: React,...effect}, 'react-native': {Text: 'Text', View: 'View'},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/server-admin/recording-policy': policy,
     '../../../../../packages/client-core/src/server-admin/live-words': {tunerStatus: () => ({}), tunerUseLine: () => ''},
-    '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
+    '../../kit/controls': {FormError, Button: 'Button', Focusable: 'Focusable', Select: 'Select', Switch: 'Switch', TextField: 'TextField'},
     '../../kit/overlays': {Dialog: 'Dialog', Menu: 'Menu'}, '../../kit/states': {StateView: 'StateView'},
     '../../kit/shell/visual': {shellType: () => ({})}, '../../kit/theme': {useTheme: () => createTheme({isTV: true, width: 1280})},
     './recording-owner-model': model, './server/AdvancedSection': {NativeAdvancedSection: 'Advanced'}, './RecordingFolder': {RecordingFolder: 'RecordingFolder'},
@@ -285,7 +286,7 @@ test('original actual controller disposal inside runtime getter refuses page and
 });
 
 test('real owner Select retains its chosen row and original opener through a genuine page append',async()=>{
- const {Select}=await screenModule(new URL('../src-next/kit/controls/Select.tsx',import.meta.url),{
+ const {Select}=await screenModule(new URL('../src-next/kit/controls/Select.tsx',import.meta.url),{'./FormError':formErrorModule,
   react:{...React,default:React},'react-native':{FlatList:'FlatList',Text:'Text',View:'View',StyleSheet:{create:(value:unknown)=>value}},
   '../../../../../packages/i18n/src/index':{defaultI18n},'../Icon':{Icon:'Icon'},'../overlays/surface':{Dialog:'Dialog'},
   '../theme':{useTheme:()=>createTheme({isTV:true,width:1280}),fontFamilies:{700:'Font'},nativeType:()=>({})},'./Focusable':{Focusable:'Focusable'},

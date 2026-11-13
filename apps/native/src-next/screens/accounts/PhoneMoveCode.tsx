@@ -6,7 +6,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {passwordStrength} from '../../../../../packages/client-core/src/password-strength';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {ColourBackdrop} from '../../kit/artwork';
-import {Button, TextField} from '../../kit/controls';
+import {Button, TextField, FormError} from '../../kit/controls';
 import {nativeType, useTheme} from '../../kit/theme';
 import {qrScannerAvailable, scanQRCode} from '../../platform/qr-scanner';
 import {subscribeNativeAppSessions} from '../../platform/app-session-storage';
@@ -105,7 +105,7 @@ export function PhoneMoveCode<Result>({controller, onBack, isCurrent}: {
       <Text accessibilityRole="header" style={[nativeType({size: 34, lineHeight: 35.36, weight: 800, tracking: -.04}, theme.textScale),
         {color: theme.colors.text, marginBottom: 8}]}>{t(local ? 'accounts.move.chooseSignIn' : 'accounts.move.enterCode')}</Text>
       {local && <Text style={[theme.type.body, {color: theme.colors.textSecondary, marginBottom: 20}]}>{t('accounts.move.profilesKept')}</Text>}
-      {state.error != null && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 12}]}>{presentError(state.error, 'sign-in').body}</Text>}
+      {state.error != null && <FormError placement="block">{presentError(state.error, 'sign-in').body}</FormError>}
       {local ? <>
         <TextField label={t('accounts.signIn.username')} value={username} onChangeText={value => edit(() => setUsername(value))} editable={!state.busy}
           autoCapitalize="none" autoCorrect={false} autoComplete="username" textContentType="username"
@@ -117,11 +117,11 @@ export function PhoneMoveCode<Result>({controller, onBack, isCurrent}: {
         error={invalidCode ? t('accounts.move.codeInvalid') : undefined} fieldStyle={{height: 48, borderRadius: 11}} style={{fontSize: 16 * theme.textScale}}/>}
       <Button disabled={state.busy || (local ? !username || !strength.acceptable || password !== confirmation : !code)} loading={state.busy || undefined}
         onPress={submit} style={{height: 48, borderRadius: 11, alignSelf: 'stretch', marginTop: 20}} textStyle={{fontSize: 16 * theme.textScale}}>{t('accounts.signIn.continue')}</Button>
-      {!local && qrScannerAvailable() && <Button variant="text" disabled={state.busy || scanning} loading={scanning || undefined} style={{marginTop: 10}} onPress={() => {void scan();}}>{t('accounts.move.scanQR')}</Button>}
-      {scanError != null && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginTop: 10}]}>{presentError(scanError, 'sign-in').body}</Text>}
+      {!local && qrScannerAvailable() && <Button variant="link" disabled={state.busy || scanning} loading={scanning || undefined} style={{marginTop: 10}} onPress={() => {void scan();}}>{t('accounts.move.scanQR')}</Button>}
+      {scanError != null && <FormError>{presentError(scanError, 'sign-in').body}</FormError>}
     </FormScrollView>
     <View style={{position: 'absolute', top: Math.max(50, insets.top), left: 12, height: 48, justifyContent: 'center'}}>
-      <Button variant="text" icon="i-left" iconSize={22} disabled={state.busy} onPress={back}>{t('accounts.signIn.back')}</Button>
+      <Button variant="link" icon="i-left" iconSize={22} disabled={state.busy} onPress={back}>{t('accounts.signIn.back')}</Button>
     </View>
   </View>;
 }

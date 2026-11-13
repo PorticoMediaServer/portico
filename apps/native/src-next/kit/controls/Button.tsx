@@ -32,7 +32,9 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
   disabled, style, textStyle, accessibilityState, hitSlop, progress, remaining, ...props
 }, ref) {
   const theme = useTheme();
-  const grow = !iconOnly && (theme.fontScale > 1 || theme.textScale > 1);
+  // A link's label is a sentence: it wraps rather than cutting off, at every text size, unless it is given a height.
+  const linkWraps = variant === 'link' && !theme.isTV && typeof StyleSheet.flatten(typeof style === 'function' ? undefined : style)?.height !== 'number';
+  const grow = !iconOnly && (linkWraps || theme.fontScale > 1 || theme.textScale > 1);
   const geometry = buttonGeometry(size, theme.platform, variant);
   const nativeStyle = StyleSheet.flatten(typeof style === 'function' ? undefined : style);
   const height = typeof nativeStyle?.height === 'number' ? nativeStyle.height : geometry.height;
@@ -42,7 +44,7 @@ const ButtonContent = forwardRef<View, ButtonContentProps>(function ButtonConten
   const white = variant === 'primary';
   const glass = variant === 'glass' || variant === 'icon' || variant === 'danger';
   const androidGlass = glass && recipe.nativeBlur && Platform.OS === 'android';
-  const foreground = white ? theme.colors.ink : variant === 'danger' ? theme.colors.record : variant === 'text' ? theme.platform === 'web' ? theme.colors.textSecondary : theme.colors.accentStrong : theme.colors.text;
+  const foreground = white ? theme.colors.ink : variant === 'danger' ? theme.colors.record : variant === 'link' ? theme.colors.accentStrong : variant === 'text' ? theme.platform === 'web' ? theme.colors.textSecondary : theme.colors.accentStrong : theme.colors.text;
   const glyphColor = iconColor ?? foreground;
   const labelStyle = [theme.type.button, styles.label, {fontSize: geometry.fontSize * theme.textScale, color: foreground}, textStyle];
   const labelId = props.testID ?? props.focusId;

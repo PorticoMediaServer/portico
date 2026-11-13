@@ -1,7 +1,7 @@
 import React, {useLayoutEffect, useState, useSyncExternalStore} from 'react';
 import {NativeModules, Text, View} from 'react-native';
 import {defaultI18n, type MessageId} from '../../../../../packages/i18n/src';
-import {Button, TextField} from '../../kit/controls';
+import {Button, TextField, FormError} from '../../kit/controls';
 import {BottomSheet} from '../../kit/overlays';
 import {useTheme} from '../../kit/theme';
 import {copyText} from '../../platform/clipboard';
@@ -46,7 +46,7 @@ export function PhoneAccountSecurity({workspace, security}: {workspace: NativeAc
   const {providerProof, credentialLocked} = accountSecurityAvailability(security, NativeModules.PorticoAccountAuth);
   const providerOnly = providerOnlySignIn(security);
   return <>
-    {unavailable && <Text accessibilityRole="alert" style={[theme.type.body, {color: theme.colors.danger}]}>{unavailable}</Text>}
+    {unavailable && <FormError placement="inline">{unavailable}</FormError>}
     {group(t('web.hostedSecurity.signingIn'), <>
       {/* A Google- or Apple-only account has no Password row until More sign-in options shows it. */}
       {providerOnly ? moreSignIn && row(t('web.password'), t('web.hostedSecurity.notSet'), action('password', t('web.hostedSecurity.addPassword'), credentialLocked))
@@ -116,7 +116,7 @@ export function AccountSecuritySheet({security, source, onFinished}: {
         {!complete && <Button variant="text" disabled={state.busy} onPress={close}>{t('action.cancel')}</Button>}
       </View>}>
       <View style={{gap: 12}}>
-        {state.failure && <Text accessibilityRole="alert" style={[theme.type.body, {color: theme.colors.danger}]}>{state.failure}</Text>}
+        {state.failure && <FormError placement="inline">{state.failure}</FormError>}
         {providerForm && <>
           {state.kind === 'password' && text(t('web.hostedSecurity.othersSignedOut'), true)}
           {state.kind === 'email' && text(t('services.security.emailPending'), true)}
@@ -147,7 +147,7 @@ export function AccountSecuritySheet({security, source, onFinished}: {
           {text(t('services.security.codesBody'), true)}
           <Text selectable style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{state.result?.recoveryCodes?.join('\n')}</Text>
           <Button variant="glass" onPress={() => {if (!current()) return; const captured = state.result; void copyText(captured?.recoveryCodes?.join('\n') ?? '').catch(() => {if (source?.current() && source.getSnapshot().result === captured) setCopyFailure(true);});}}>{t('web.twoStep.copy')}</Button>
-          {copyFailure && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{t('error.unavailable')}</Text>}
+          {copyFailure && <FormError placement="inline">{t('error.unavailable')}</FormError>}
         </>}
         {state.step === 'deletion' && <>
           {state.preview?.ownedServers.map(server => text(`${server.name} · ${t('web.hostedAccount.serverOwner')}`, false, `owned-${server.id}`))}

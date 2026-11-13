@@ -5,7 +5,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {parseJoinLink} from '../../../../../packages/client-core/src/join-link';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {ColourBackdrop} from '../../kit/artwork';
-import {Button, TextField} from '../../kit/controls';
+import {Button, TextField, FormError} from '../../kit/controls';
 import {nativeType, useTheme} from '../../kit/theme';
 import {qrScannerAvailable, scanQRCode} from '../../platform/qr-scanner';
 
@@ -68,7 +68,7 @@ export function PhoneNoServers({busy, error, onFind, onRefresh, onShare, onSignO
         <TextField label={t('services.start.invitation')} placeholder={t('web.directJoin.codePlaceholder')} value={invitation} onChangeText={changeInvitation} autoCapitalize="none" autoCorrect={false} autoComplete="off" editable={!busy}/>
         <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('web.directJoin.entryBody')}</Text>
         {qrScannerAvailable() && <Button variant="glass" disabled={busy || !!ticket.scan} loading={!!ticket.scan} onPress={scan}>{t('accounts.move.scanQR')}</Button>}
-        {ticket.failed && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{t('error.unknown')}</Text>}
+        {ticket.failed && <FormError placement="inline">{t('error.unknown')}</FormError>}
         <Button disabled={busy || !invitation.trim()} onPress={join}>{t('action.continue')}</Button>
       </View>
       <View style={{gap: 10}}>

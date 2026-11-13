@@ -5,6 +5,7 @@ import {ownFeedbackReportView, readOwnFeedbackReport} from '../../../../../packa
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {BottomSheet} from '../../kit/overlays';
 import {useTheme} from '../../kit/theme';
+import {FormError} from '../../kit/controls';
 
 type Api = Parameters<typeof readOwnFeedbackReport>[0];
 type Loaded = Readonly<{phase: 'loading'}> | Readonly<{phase: 'ready'; view: ReturnType<typeof ownFeedbackReportView>}> | Readonly<{phase: 'failed'; error: unknown}>;
@@ -25,7 +26,7 @@ export function OwnFeedbackReport({api, reportId, onClose}: Readonly<{api: Api; 
   const caption = [theme.type.caption, {color: theme.colors.textTertiary}];
   return <BottomSheet testID="own-feedback-report" title={title} accessibilityLabel={title} open onOpenChange={open => {if (!open) onClose();}}>
     {loaded.phase === 'loading' && <Text accessibilityRole="progressbar" style={caption}>{defaultI18n.t('status.loading')}</Text>}
-    {failed && !failed.silent && <Text accessibilityRole="alert" style={[theme.type.body, {color: theme.colors.danger}]}>{failed.body}</Text>}
+    {failed && !failed.silent && <FormError placement="inline">{failed.body}</FormError>}
     {loaded.phase === 'ready' && <View style={{gap: 12}}>
       <Text style={caption}>{loaded.view.meta}</Text>
       <Text style={[theme.type.body, {color: theme.colors.text}]}>{loaded.view.message}</Text>

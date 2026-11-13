@@ -27,5 +27,5 @@ export function EndedMoveCodeAction({scope, busy, isCurrent, onStart}: {
     // The account owner presents failures through its normal run() boundary.
     void onStart(guard, submitted.abort.signal).then(release, release);
   };
-  return <Button variant="text" disabled={busy} onPress={start}>{defaultI18n.t('accounts.move.haveCode')}</Button>;
+  return <Button variant="link" disabled={busy} onPress={start}>{defaultI18n.t('accounts.move.haveCode')}</Button>;
 }

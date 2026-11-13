@@ -8,6 +8,7 @@ import {copyText} from '../platform/clipboard';
 import {captureTVMenuKey} from '../platform/tv-menu';
 import {homeActionDiagnostics} from '../platform/home-action-diagnostics';
 import {registerBack} from '../kit/navigation/back';
+import {FormError} from '../kit/controls/FormError';
 
 /** The copied summary deliberately contains no exception, stack, URL, viewer or session data. */
 export function appFailureSummary(failedAt: number, platform: string): string {
@@ -78,6 +79,6 @@ function AppFailure({failedAt, onRetry}: {failedAt: number; onRetry: () => void}
     contentTop={theme.isTV ? undefined : 250} backdropHeight={460}
     primaryAction={{id: 'retry-app', label: t('next.states.tryAgain'), icon: 'i-retry', onPress: onRetry, preferredFocus: theme.isTV}}
     secondaryAction={theme.isTV ? undefined : {id: 'copy-details', label: t('next.states.copyDetails'), icon: 'i-copy', loading: copying, disabled: copying, onPress: () => {void copy();}}}>
-    {copyError && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{copyError}</Text>}
+    {copyError && <FormError placement="inline">{copyError}</FormError>}
   </StateLayout>;
 }

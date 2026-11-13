@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {Text, View} from 'react-native';
 import {StateLayout} from '../../kit/states';
-import {Button} from '../../kit/controls';
+import {Button, FormError} from '../../kit/controls';
 import {ProfilePicker} from '../../kit/artwork';
 import {useTheme} from '../../kit/theme';
 import {defaultI18n} from '../../../../../packages/i18n/src';
@@ -80,7 +80,7 @@ export function LifecycleProfileGate() {
   const failed = state.kind === 'enteringPin' ? submit.phase === 'failed' ? submit.failure.cause : undefined
     : pick.phase === 'failed' ? pick.failure.cause : undefined;
   const failure = failed ? presentError(failed, state.kind === 'enteringPin' ? 'profiles' : 'sign-in') : undefined;
-  const status = failure && !failure.silent ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 16}]}>{profilePinFailureText(failed) ?? failure.body}</Text> : null;
+  const status = failure && !failure.silent ? <FormError placement="block">{profilePinFailureText(failed) ?? failure.body}</FormError> : null;
   const wait = <BootWaitLine active={busy} serverName={state.server.name} testID="lifecycle-profile-wait"/>;
 
   if (state.kind === 'choosingProfile') {
@@ -134,7 +134,7 @@ export function LifecycleProfileGate() {
       <PhonePINEntry value={code} onChange={setCode} onComplete={send} busy={busy} error={!!state.rejected}/>
       {status}
       {state.canRemember && <RememberProfileRow focusId="lifecycle-remember-profile" checked={remember} onChange={setRemember} disabled={busy}/>}
-      <View style={{alignItems: 'center', marginTop: 8}}><Button variant="text" disabled={busy || !connection} onPress={openRecovery}>{t('pin.forgot')}</Button></View>
+      <View style={{alignItems: 'center', marginTop: 8}}><Button variant="link" disabled={busy || !connection} onPress={openRecovery}>{t('pin.forgot')}</Button></View>
       {wait}
     </View>}
     primaryAction={{id: 'profile-pin', label: t('action.continue'), disabled: busy || !/^\d{4}$/.test(code), loading: busy, onPress: () => send(code)}}

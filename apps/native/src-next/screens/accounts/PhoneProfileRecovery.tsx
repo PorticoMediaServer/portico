@@ -3,7 +3,7 @@ import {Linking, Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {StateLayout} from '../../kit/states';
-import {Button, TextField} from '../../kit/controls';
+import {Button, TextField, FormError} from '../../kit/controls';
 import {useTheme} from '../../kit/theme';
 import {nativePorticoRecovery, type NativePorticoRecovery, type NativeProfileRecovery} from '../../platform/profile-recovery';
 import {hostedUrl} from '../../platform/account-authority';
@@ -33,7 +33,7 @@ export function PhoneProfileRecovery({controller, profileName, username, onOpen,
     const off = controller.subscribe(() => setState(controller.getSnapshot()));
     return () => {off(); controller.dispose();};
   }, [controller]);
-  const error = state.error ? <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger, marginBottom: 12}]}>{presentError(state.error, 'profiles').body}</Text> : null;
+  const error = state.error ? <FormError placement="block">{presentError(state.error, 'profiles').body}</FormError> : null;
   if (state.phase === 'done') return <StateLayout testID="accounts-pin-recovery-done" title={t('profile.pinChanged')} body={t('profile.pinSavedBody', {name: profileName})}
     beforeActions={error} primaryAction={{id: 'open-profile', label: t('accounts.profiles.open', {profile: profileName}), onPress: () => onOpen(pin)}}
     secondaryAction={{id: 'done', label: t('action.done'), onPress: onClose}}/>;

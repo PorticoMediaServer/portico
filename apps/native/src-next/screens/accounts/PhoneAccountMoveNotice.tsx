@@ -56,14 +56,14 @@ export function PhoneAccountMoveNotice({state, busy = false}: {state: PhoneAccou
           {color: theme.colors.textSecondary, textAlign: 'center', marginBottom: 24}]}>{body}</Text>
         <Button disabled={busy} loading={busy || undefined} onPress={action.press}
           style={{alignSelf: 'stretch', height: 48, borderRadius: 11, marginBottom: 10}} textStyle={{fontSize: 16 * theme.textScale}}>{action.label}</Button>
-        {secondary && <Button variant="text" disabled={busy} onPress={secondary.press} style={{alignSelf: 'stretch'}}>{secondary.label}</Button>}
+        {secondary && <Button variant="link" disabled={busy} onPress={secondary.press} style={{alignSelf: 'stretch'}}>{secondary.label}</Button>}
       </View>
     </ScrollView>
     {state.kind === 'to-local' && <View style={{position: 'absolute', bottom: Math.max(44, insets.bottom + 16), left: 30, right: 30}}>
-      <Button variant="text" disabled={busy} onPress={state.onChooseServer}>{t('accounts.signIn.anotherServer')}</Button>
+      <Button variant="link" disabled={busy} onPress={state.onChooseServer}>{t('accounts.signIn.anotherServer')}</Button>
     </View>}
     {state.kind === 'confirm' && <View style={{position: 'absolute', bottom: Math.max(44, insets.bottom + 16), left: 30, right: 30}}>
-      <Button variant="text" disabled={busy} onPress={state.onCancel}>{t('action.cancel')}</Button>
+      <Button variant="link" disabled={busy} onPress={state.onCancel}>{t('action.cancel')}</Button>
     </View>}
   </View>;
 }

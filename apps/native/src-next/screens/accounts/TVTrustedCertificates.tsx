@@ -5,7 +5,7 @@ import {presentError} from '../../../../../packages/client-core/src/presentation
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {SavedCertificate} from '../../platform/certificate-trust';
 import {forgetCapturedCertificate, savedCertificates} from '../../platform/server-connections';
-import {Button} from '../../kit/controls';
+import {Button, FormError} from '../../kit/controls';
 import {Dialog} from '../../kit/overlays';
 import {useTheme} from '../../kit/theme';
 
@@ -51,7 +51,7 @@ export function TVTrustedCertificates({context}: {context?: NativeShellBootstrap
   if (!rows.length && !error) return null;
   return <View testID="tv-trusted-certificates" style={{gap: 12}}>
     <Text accessibilityRole="header" style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{t('connection.certificates.title')}</Text>
-    {error != null && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.danger}]}>{presentError(error, 'account').body}</Text>}
+    {error != null && <FormError placement="inline">{presentError(error, 'account').body}</FormError>}
     {rows.map(value => <View key={value.address} style={{gap: 6}}>
       <Text style={[theme.type.body, {color: theme.colors.text}]}>{value.address}</Text>
       <Text selectable style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{value.fingerprint}</Text>

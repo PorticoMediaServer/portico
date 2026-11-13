@@ -550,9 +550,17 @@
   --spec-field-label-gap-tv: 8px;
   --spec-field-help-role: caption;
   --spec-field-help-color: var(--color-text-tertiary);
-  --spec-field-error-role: caption;
+  --spec-field-error-role: captionStrong;
   --spec-field-error-color: var(--color-danger);
   --spec-field-error-icon: error;
+  --spec-field-error-gap-web: 6px;
+  --spec-field-error-gap-phone: 6px;
+  --spec-field-error-gap-tablet: 6px;
+  --spec-field-error-gap-tv: 10px;
+  --spec-field-error-block-gap-web: 14px;
+  --spec-field-error-block-gap-phone: 14px;
+  --spec-field-error-block-gap-tablet: 14px;
+  --spec-field-error-block-gap-tv: 20px;
   --spec-field-focus-glow: 0;
   --spec-field-search-height-web: 80px;
   --spec-field-search-height-phone: 44px;
