@@ -14,6 +14,7 @@ import {shellType} from '../../kit/shell/visual';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {nativeReadingSettingsSection, type NativeReadingSettingsPreferences} from './reading-preferences';
 import {StandardBackdrop} from '../../kit/artwork';
+import {TopBar} from '../../kit/layout/TopBar';
 
 export function NativeReadingSettingsScreen({source, runtime, current, onBack}: {
   source: NativeReadingSettingsPreferences; runtime: NativeShellRuntime; current: () => boolean; onBack: () => void;
@@ -30,7 +31,7 @@ export function NativeReadingSettingsScreen({source, runtime, current, onBack}: 
   const groups = [...(nativeReadingSettingsSection.groups ?? []), ...(advanced ? nativeReadingSettingsSection.advanced?.groups ?? [] : [])];
   return <View testID="native-reading-settings" style={{flex: 1, paddingTop: insets.top + 8}}>{theme.isTV && <StandardBackdrop/>}
     <View style={{paddingHorizontal: 20, paddingBottom: 20, gap: 12}}>
-      <Button testID="reading-settings-back" icon="i-left" variant="text" size="small" onPress={onBack} style={{alignSelf: 'flex-start'}}>{t('action.back')}</Button>
+      <View style={{marginHorizontal: -20}}><TopBar safeArea={false} back={{label: t('action.back'), onPress: onBack, testID: 'reading-settings-back'}}/></View>
       <Text accessibilityRole="header" style={[shellType(32, 800, 'normal', -.035), {color: theme.colors.text}]}>{t(nativeReadingSettingsSection.title)}</Text>
     </View>
     <ScrollView contentContainerStyle={{paddingHorizontal: 20, paddingBottom: 84 + insets.bottom, gap: 24}}>

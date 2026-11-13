@@ -28,7 +28,7 @@ import {discoverCell} from './discover-cells';
 import {GridSkeleton, SkeletonBlock, StateView, showSkeleton, skeletonTiming} from '../../kit/states';
 import {useTheme, type Theme} from '../../kit/theme';
 import {useMotion} from '../../kit/useMotion';
-import {BlurView, glassRecipe} from '../../platform/native-blur';
+import {BarSurface, TopBar} from '../../kit/layout/TopBar';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {homeActionDiagnostics} from '../../platform/home-action-diagnostics';
 import {homeCardText} from '../home/model';
@@ -103,15 +103,6 @@ const resourceFocusMemory = new WeakMap<NativeShellRuntime, Map<string, Readonly
  * offset, the pivot strip 46 with a 3px accent underline, and the count row
  * `padding: 10px 20px`. */
 const nativeLibraryR46 = StyleSheet.create({
-  header: {borderBottomWidth: 1},
-  navRow: {height: 44, paddingLeft: 12, paddingRight: 10, flexDirection: 'row', alignItems: 'center'},
-  back: {height: 38, marginLeft: -4, paddingRight: 6, justifyContent: 'center'},
-  backContent: {flexDirection: 'row', alignItems: 'center'},
-  /** The switcher centres on the screen, not on the space the row leaves; the
-   * side bounds keep a long library name clear of both controls. */
-  centre: {position: 'absolute', left: 118, right: 118, top: 0, height: 44, alignItems: 'center', justifyContent: 'center'},
-  centreInner: {maxWidth: '100%'},
-  trailing: {marginLeft: 'auto'},
   tabStrip: {paddingHorizontal: 20, gap: 24},
   tab: {height: 46, justifyContent: 'center'},
   tabUnderline: {position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, borderRadius: 3},
@@ -125,28 +116,12 @@ export function libraryWashKind(kind: string): boolean {
   return kind === 'music' || kind === 'audiobook' || isReadingLibraryKind(kind);
 }
 
-/** Phone Library's compact header (phone-app #r2a 4): one 44 row with
- * "‹ Libraries", the centred switcher and ⋯, then the pivot strip. The
- * switcher is centred on the screen itself, not on the space the row leaves. */
-export function LibraryCompactHeader({switcher, menu, wash, children, onLibraries, testID}: {
-  switcher?: ReactNode; menu?: ReactNode; wash?: boolean; children?: ReactNode; onLibraries: () => void; testID?: string;
+/** Phone Library's compact header (phone-app #r2a 4): the shared top bar with "‹ Libraries", the
+ * switcher centred on the screen and ⋯, then the pivot strip inside the same bar. */
+export function LibraryCompactHeader({switcher, menu, children, onLibraries, testID}: {
+  switcher?: ReactNode; menu?: ReactNode; children?: ReactNode; onLibraries: () => void; testID?: string;
 }) {
-  const theme = useTheme(), insets = useSafeAreaInsets(), recipe = glassRecipe();
-  return <View testID={testID} style={[nativeLibraryR46.header, {paddingTop: insets.top, backgroundColor: alpha(theme.colors.ink, wash ? .62 : .84),
-    borderBottomColor: alpha(theme.colors.text, .07), zIndex: theme.layers.sticky}]}>
-    {recipe.nativeBlur && <BlurView pointerEvents="none" style={StyleSheet.absoluteFill} blurType="dark" blurAmount={24} reducedTransparencyFallbackColor={theme.colors.ink}/>}
-    <View style={nativeLibraryR46.navRow}>
-      <Focusable accessibilityRole="button" focusKind="row" onPress={onLibraries} accessibilityLabel={defaultI18n.t('next.browse.native.libraries')} style={nativeLibraryR46.back}>
-        <View style={nativeLibraryR46.backContent}>
-          <Icon name="i-left" size={22} color={theme.colors.textSecondary}/>
-          <Text style={[browseType(theme, 16, 600), {color: theme.colors.textSecondary}]}>{defaultI18n.t('next.browse.native.libraries')}</Text>
-        </View>
-      </Focusable>
-      <View pointerEvents="box-none" style={nativeLibraryR46.centre}><View style={nativeLibraryR46.centreInner}>{switcher}</View></View>
-      <View style={nativeLibraryR46.trailing}>{menu}</View>
-    </View>
-    {children}
-  </View>;
+  return <TopBar testID={testID} surface back={{label: defaultI18n.t('next.browse.native.libraries'), onPress: onLibraries}} center={switcher} trailing={menu}>{children}</TopBar>;
 }
 
 /** tablet4: the expanded library header is the desktop one at touch size: the
@@ -156,11 +131,10 @@ export function LibraryCompactHeader({switcher, menu, wash, children, onLibrarie
 export function LibraryExpandedHeader({name, switcher, menu, ambient, selection, children, testID}: {
   name: string; switcher?: ReactNode; menu?: ReactNode; ambient?: ReactNode; selection?: ReactNode; children?: ReactNode; testID?: string;
 }) {
-  const theme = useTheme(), insets = useSafeAreaInsets(), recipe = glassRecipe();
-  return <View testID={testID} style={{paddingTop: insets.top, backgroundColor: alpha(theme.colors.ink, ambient ? .62 : .84),
-    borderBottomWidth: 1, borderBottomColor: alpha(theme.colors.text, .07), zIndex: theme.layers.sticky}}>
+  const theme = useTheme(), insets = useSafeAreaInsets();
+  return <View testID={testID} style={{paddingTop: insets.top, zIndex: theme.layers.sticky}}>
     {ambient && <View pointerEvents="none" style={StyleSheet.absoluteFill}>{ambient}</View>}
-    {recipe.nativeBlur && <BlurView pointerEvents="none" style={StyleSheet.absoluteFill} blurType="dark" blurAmount={24} reducedTransparencyFallbackColor={theme.colors.ink}/>}
+    <BarSurface/>
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: theme.gutter, paddingTop: 22}}>
       <Text accessibilityRole="header" numberOfLines={1} style={[browseType(theme, 44, 800, -.045, 44), {color: theme.colors.text, flexShrink: 1}]}>{name}</Text>
       <View style={{width: 44, height: 44, borderRadius: 22, marginTop: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.text, .12)}}>{switcher}</View>
@@ -176,11 +150,10 @@ export function LibraryExpandedHeader({name, switcher, menu, ambient, selection,
 export function LibraryMediumHeader({name, switcher, menu, selection, ambient, wash, children, testID}: {
   name: string; switcher?: ReactNode; menu?: ReactNode; selection?: ReactNode; ambient?: ReactNode; wash?: boolean; children?: ReactNode; testID?: string;
 }) {
-  const theme = useTheme(), insets = useSafeAreaInsets(), recipe = glassRecipe();
-  return <View testID={testID} style={{paddingTop: insets.top, backgroundColor: alpha(theme.colors.ink, wash ? .62 : .84),
-    borderBottomWidth: 1, borderBottomColor: alpha(theme.colors.text, .07), zIndex: theme.layers.sticky}}>
+  const theme = useTheme(), insets = useSafeAreaInsets();
+  return <View testID={testID} style={{paddingTop: insets.top, zIndex: theme.layers.sticky}}>
     {ambient && <View pointerEvents="none" style={StyleSheet.absoluteFill}>{ambient}</View>}
-    {recipe.nativeBlur && <BlurView pointerEvents="none" style={StyleSheet.absoluteFill} blurType="dark" blurAmount={24} reducedTransparencyFallbackColor={theme.colors.ink}/>}
+    <BarSurface/>
     <View style={{height: 46, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 28}}>
       <Text accessibilityRole="header" numberOfLines={1} style={[browseType(theme, 24, 800, -.03), {color: theme.colors.text, flexShrink: 1}]}>{name}</Text>
       <View style={{width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.text, .12)}}>{switcher}</View>
@@ -402,7 +375,7 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
   const musicCount = songCount && <Text style={[browseType(theme, 22, 400), {marginLeft: 'auto', color: theme.colors.textTertiary}]}>
     {defaultI18n.t(songCount.atLeast ? 'lib.countAtLeast' : 'lib.count', {count: songCount.count, pivot: 'songs'})}</Text>;
   const header = theme.isTV ? <LibraryHeader name={state.library.name} switcher={switcher} ambient={ambient} menu={musicCount}>{tabs}</LibraryHeader>
-    : theme.platform === 'phone' ? <LibraryCompactHeader switcher={switcher} menu={menu} wash={washed}
+    : theme.platform === 'phone' ? <LibraryCompactHeader switcher={switcher} menu={menu}
       onLibraries={() => runtime.onDestination({kind: 'libraries'})}>{tabs}</LibraryCompactHeader>
     : expanded ? <LibraryExpandedHeader name={state.library.name} switcher={switcher} menu={menu} ambient={ambient} selection={select}>{tabs}</LibraryExpandedHeader>
     : <LibraryMediumHeader name={state.library.name} switcher={switcher} menu={menu} ambient={ambient} wash={washed} selection={select}>{tabs}</LibraryMediumHeader>;

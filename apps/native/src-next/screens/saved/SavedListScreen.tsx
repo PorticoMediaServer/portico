@@ -22,6 +22,7 @@ import {savedNearEnd} from './paging';
 import type {NativeSavedSelectionPort} from './SavedScreen';
 import {StandardBackdrop} from '../../kit/artwork';
 import {TVRow} from '../../kit/layout/TVRow';
+import {TopBar} from '../../kit/layout/TopBar';
 
 const t = defaultI18n.t;
 
@@ -89,17 +90,7 @@ export function SavedListScreen({route, destination, activation, runtime, action
   };
   return <View testID={`native-saved-list-${route.view}`} pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
     importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} onLayout={event => setPaneWidth(event.nativeEvent.layout.width)} style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
-    {!inline && <View style={{paddingTop: insets.top, backgroundColor: alpha(theme.colors.ink, .94), borderBottomColor: alpha(theme.colors.text, .07), borderBottomWidth: 1}}>
-      <View style={{height: 44, paddingLeft: 12, paddingRight: 10, flexDirection: 'row', alignItems: 'center'}}>
-        <Focusable testID="saved-list-back" accessibilityRole="button" onPress={back} accessibilityLabel={t('saved.title')} style={{height: 38, marginLeft: -4, paddingRight: 6, justifyContent: 'center'}}>
-          <View style={{flexDirection: 'row', alignItems: 'center'}}><Icon name="i-left" size={22} color={theme.colors.textSecondary}/>
-            <Text style={[browseType(theme, 16, 600), {color: theme.colors.textSecondary}]}>{t('saved.title')}</Text></View>
-        </Focusable>
-        <View pointerEvents="none" style={{position: 'absolute', left: 118, right: 118, top: 0, height: 44, alignItems: 'center', justifyContent: 'center'}}>
-          <Text numberOfLines={1} style={[browseType(theme, 17, 700), {color: theme.colors.text}]}>{title}</Text>
-        </View>
-      </View>
-    </View>}
+    {!inline && <TopBar surface back={{label: t('saved.title'), onPress: back, testID: 'saved-list-back'}} title={title}/>}
     <ScrollView onLayout={event => {viewport.current.height = event.nativeEvent.layout.height; next();}}
       onContentSizeChange={(_width, height) => {viewport.current.extent = height; next();}}
       onScroll={event => {viewport.current.offset = event.nativeEvent.contentOffset.y; next();}} scrollEventThrottle={64} contentContainerStyle={{paddingBottom: 28 + insets.bottom}}>

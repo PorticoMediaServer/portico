@@ -22,7 +22,7 @@ async function fixture(){
  const context={current:()=>live,navigation,subscribeAuthority:(listener:()=>void)=>{authorityListeners.add(listener);return()=>authorityListeners.delete(listener);},playback:{runtime}};
  let output:any,retry:()=>void=()=>{};const title={renderError:(error:unknown,again:()=>void)=>{retry=again;return React.createElement('Error',{error});}};
  const host=createFabricHookHost(()=>{output=NativeWatchChannelRoute({context,route,title});});await act(()=>host.mount());
- const back=()=>nodes(output).find(node=>node.props.testID==='native-channel-back').props.onPress;
+ const back=()=>nodes(output).find(node=>node.type==='TopBar'&&node.props.back?.testID==='native-channel-back').props.back.onPress;
  const admitted={kind:'channel',channelKind:'live-source',sourceId:route.sourceId,channelId:route.channelId,channelGeneration:'source-g',sessionId:'session',generation:1,playback:{scope:{serverId:'server'},run:'original'}};
  return {navigation,origin,route,host,request:()=>request,back,attempts:()=>attempts,retry:()=>retry,output:()=>output,
   accept:(value=admitted)=>{fence=value;request.onAccepted?.(value);},resolve:()=>resolve(),reject:(error:Error)=>reject(error),

@@ -20,6 +20,8 @@ import {notificationCommand, notificationRoute, startNotificationScan, type Noti
 import {OwnFeedbackReport} from './OwnFeedbackReport';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import {StandardBackdrop} from '../../kit/artwork';
+import {PhoneServerPageHeader} from '../settings-live/server/PhoneServerPageHeader';
+import {TopBar} from '../../kit/layout/TopBar';
 
 type Retirement = Readonly<{
   subscribe: (listener: () => void) => () => void;
@@ -223,15 +225,13 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
   const emptyTitle = view === 'unread' ? t('notifications.caughtUp') : view === 'archived' ? t('notifications.noneArchived') : t('notifications.none');
   const backLabel = lease.origin.kind === 'settings' ? t('next.shell.settings') : t('action.back');
 
-  const header = <View style={{height: 56, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}>
-      {theme.platform === 'phone' && <View accessible={false} pointerEvents="none" style={{position: 'absolute', top: 6, alignSelf: 'center', width: 38, height: 5, borderRadius: 3, backgroundColor: theme.colors.lineStrong}}/>}
-      <Button testID="notifications-back" variant="text" size="small" icon="i-left" accessibilityLabel={backLabel}
-        onPress={() => {if (!current()) return; if (context.navigation.back(context.authority())) setChosen(undefined);}} style={{minHeight: 38, paddingHorizontal: 6, marginLeft: -4}}
-        textStyle={shellType(16, 600)}>{backLabel}</Button>
-      <Text accessibilityRole="header" pointerEvents="none" style={[shellType(17, 700), {position: 'absolute', left: 96, right: 96, textAlign: 'center', color: theme.colors.text}]}>{t('next.shell.notifications')}</Text>
-      {view !== 'archived' && unread > 0 ? <Button testID="notifications-mark-all" variant="text" size="small" disabled={busy} onPress={markAll}
-        style={{minHeight: 38, paddingHorizontal: 6, marginRight: -4}} textStyle={shellType(15, 700)}>{t('notifications.markAllRead')}</Button> : <View/>}
-    </View>;
+  const header = theme.platform === 'phone' ? <PhoneServerPageHeader title={t('next.shell.notifications')} backLabel={backLabel} backTestID="notifications-back"
+      onBack={() => {if (!current()) return; if (context.navigation.back(context.authority())) setChosen(undefined);}}
+      trailing={view !== 'archived' && unread > 0 ? <Button testID="notifications-mark-all" variant="text" size="small" disabled={busy} onPress={markAll}
+        style={{minHeight: 38, paddingHorizontal: 6, marginRight: -4}} textStyle={shellType(15, 700)}>{t('notifications.markAllRead')}</Button> : undefined}/>
+    : <TopBar safeArea={false} back={{label: backLabel, testID: 'notifications-back', onPress: () => {if (!current()) return; if (context.navigation.back(context.authority())) setChosen(undefined);}}}
+      title={t('next.shell.notifications')} trailing={view !== 'archived' && unread > 0 ? <Button testID="notifications-mark-all" variant="text" size="small" disabled={busy} onPress={markAll}
+        style={{minHeight: 38, paddingHorizontal: 6, marginRight: -4}} textStyle={shellType(15, 700)}>{t('notifications.markAllRead')}</Button> : undefined}/>;
   return <NotificationsFrame testID="native-notifications" title={t('next.shell.notifications')} onClose={close} header={header}>
     <Tabs testID="notifications-views" value={view} onValueChange={changeView} items={[
       {value: 'unread', label: t('notifications.view.unread'), count: unread > 0 ? defaultI18n.number(unread) : undefined},

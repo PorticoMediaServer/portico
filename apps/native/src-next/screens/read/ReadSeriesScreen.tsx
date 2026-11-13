@@ -22,6 +22,7 @@ import type {NativeShellRoute} from '../../shell/routes';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeReadSeries} from './read-series-model';
 import {usePageWidth} from '../../kit/layout/page-inset';
+import {TopBar} from '../../kit/layout/TopBar';
 
 const {t} = defaultI18n;
 const initial = (title: string): string => title.trim().slice(0, 1).toUpperCase() || '·';
@@ -79,15 +80,8 @@ export function ReadSeriesScreen({controller, route, comic, context, runtime, on
     </View>
     {/* phone-read 4/4c: past the hero the drawn page pins a bar with the way back
         and the series name; before that the same back button floats over the art. */}
-    <View pointerEvents={collapsed ? 'auto' : 'box-none'} style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
-      paddingTop: insets.top + 6, height: insets.top + 50, backgroundColor: collapsed ? theme.colors.ink : 'transparent',
-      borderBottomWidth: collapsed ? 1 : 0, borderBottomColor: theme.colors.line}}>
-      <View pointerEvents="box-none" style={{height: 44, paddingHorizontal: 10, justifyContent: 'center'}}>
-        <Button variant="icon" icon="i-left" iconOnly accessibilityLabel={t('action.back')} onPress={onBack} style={{height: 44, width: 44}}/>
-        {collapsed ? <View pointerEvents="none" style={{position: 'absolute', left: 64, right: 64, height: 44, justifyContent: 'center'}}>
-          <Text numberOfLines={1} style={[browseType(theme, 17, 700), {textAlign: 'center', color: theme.colors.text}]}>{title}</Text>
-        </View> : null}
-      </View>
+    <View pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10}}>
+      <TopBar overArtwork surface={collapsed} back={{label: t('action.back'), onPress: onBack}} title={collapsed ? title : undefined}/>
     </View>
     {state.phase === 'error' ? <StateView {...runtime.error(state.error, () => {void controller.retry().catch(runtime.reportError);}, 'library')}/>
       : <LoadingPaint ready={state.phase === 'ready' || state.phase === 'loading' && state.items.length > 0} immediate={state.phase === 'ready'}

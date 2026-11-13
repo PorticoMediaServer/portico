@@ -18,6 +18,7 @@ import {useDownloadArtwork} from './useDownloadArtwork';
 import {useReadingFacts} from './useReadingFacts';
 import {SavedConfirmSheet} from '../saved/SavedForms';
 import {createDownloadInventory, createDownloadViewport, downloadWindow} from './inventory';
+import {TopBar} from '../../kit/layout/TopBar';
 
 const t = defaultI18n.t;
 const emptyRequests: readonly TrackedDownloadRequest[] = Object.freeze([]);
@@ -181,12 +182,7 @@ export function DownloadsScreen({device, runtime, copy, back, openTitle, service
   const playEntry = useCallback((entry: OfflineEntry) => {if (device.openOffline) run(() => device.openOffline!(entry));}, [device, run]);
   const retryEntry = useCallback((entry: OfflineEntry) => run(() => device.resume(entry)), [device, run]);
   return <View testID="native-downloads-screen" onLayout={event => setPaneWidth(event.nativeEvent.layout.width)} style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
-    {!inline && <View style={{height: Math.max(96, insets.top + 48), paddingTop: Math.max(50, insets.top), paddingHorizontal: 10, justifyContent: 'center'}}>
-      <Focusable testID="downloads-back" accessibilityLabel={t('saved.title')} onPress={back} style={{height: 38, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', paddingRight: 6, marginLeft: -4}}>
-        <Icon name="i-left" size={24} color={theme.colors.textSecondary}/><Text style={[browseType(theme, 16, 600), {color: theme.colors.textSecondary}]}>{t('saved.title')}</Text>
-      </Focusable>
-      <Text pointerEvents="none" accessibilityRole="header" style={[browseType(theme, 17, 700), {position: 'absolute', left: 80, right: 80, bottom: 13, textAlign: 'center', color: theme.colors.text}]}>{t('downloads.title')}</Text>
-    </View>}
+    {!inline && <TopBar surface back={{label: t('saved.title'), onPress: back, testID: 'downloads-back'}} title={t('downloads.title')}/>}
     <ScrollView ref={scroll} style={{flex: 1}} scrollEventThrottle={64}
       onLayout={event => viewport.update({...viewport.getSnapshot(), height: event.nativeEvent.layout.height})}
       onScroll={event => viewport.update({...viewport.getSnapshot(), offset: event.nativeEvent.contentOffset.y})} contentContainerStyle={{paddingTop: inline ? 8 : 0, paddingBottom: 28}}>

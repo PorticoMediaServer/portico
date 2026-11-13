@@ -36,6 +36,7 @@ import {isReadingLibraryKind} from '../read/platform';
 import {exactDurationSeconds, personalMosaic, playlistEntryMosaic, savedDuration, savedItemCount, savedLibraryName, savedPlaylistEyebrow,
   savedResourceEyebrow, savedTitleCount, savedViewConditionCount, savedVisibility, savedVisibilityHelp} from './presentation';
 import {usePageWidth} from '../../kit/layout/page-inset';
+import {TopBar, RoundBarButton} from '../../kit/layout/TopBar';
 
 const t = defaultI18n.t;
 
@@ -473,18 +474,10 @@ export function SavedResourceScreen({route, destination, activation, runtime, ac
       {!!artwork[0] && <AmbientArt source={runtime.ambient(artwork[0])} treatment="library"/>}
     </View>}
     <FocusRegion id={region} entry="saved-play" orientation="vertical" enabled={active.visible} edges={{left: focusIds.rail}} style={{flex: 1}}>
-      {theme.isTV ? null : <View pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, paddingTop: insets.top, height: insets.top + 52,
-        paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center'}}>
-        <Focusable focusId="saved-back" testID="saved-resource-back" accessibilityRole="button" accessibilityLabel={t('saved.title')} onPress={back}
-          style={{width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(theme.colors.ink, .45)}}>
-          <Icon name="i-left" size={22} color={theme.colors.text}/>
-        </Focusable>
-        {reordering && <Text accessibilityRole="header" style={[browseType(theme, 17, 700), {color: theme.colors.text, marginLeft: 12}]}>{t('next.saved.reordering')}</Text>}
-        {reordering ? <Button testID="saved-reorder-done" variant="glass" size="small" disabled={busy || dragging} onPress={() => setReordering(false)} style={{marginLeft: 'auto'}}>{t('order.done')}</Button> : !stateError && <View style={{marginLeft: 'auto'}}>
-          <Button testID="saved-resource-menu" focusId="saved-resource-menu" variant="glass" icon="i-more" iconOnly size="small"
-            accessibilityLabel={t(isPlaylist ? 'web.saved.playlistOptions' : 'web.saved.collectionOptions')} accessibilityState={{expanded: pageMenu}} onPress={openPageMenu}
-            style={{width: 38, height: 38, borderRadius: 19}}/>
-        </View>}
+      {theme.isTV ? null : <View pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10}}>
+        <TopBar overArtwork back={{label: t('saved.title'), onPress: back, testID: 'saved-resource-back'}} title={reordering ? t('next.saved.reordering') : undefined}
+          trailing={reordering ? <Button testID="saved-reorder-done" variant="glass" size="small" disabled={busy || dragging} onPress={() => setReordering(false)}>{t('order.done')}</Button>
+            : !stateError && <RoundBarButton testID="saved-resource-menu" icon="i-more" label={t(isPlaylist ? 'web.saved.playlistOptions' : 'web.saved.collectionOptions')} onPress={openPageMenu}/>}/>
       </View>}
       <ScrollView scrollEnabled={!dragging} scrollEventThrottle={80}
         onLayout={event => {viewport.current.height = event.nativeEvent.layout.height; next();}}

@@ -117,7 +117,7 @@ export function SearchScreen({focusScope, destination, runtime, explore, onNow =
         onPress={() => destination.selectGroup(chip.id)}>{t(chip.label)}</Chip>;
     })}
   </ScrollView></TVRow>;
-  const fields = <View style={{paddingTop: Math.max(typed || focused ? 56 : 58, insets.top), backgroundColor: theme.colors.ink}}>
+  const fields = <View style={{paddingTop: Math.max(typed || focused ? 56 : 58, insets.top)}}>
     {!typed && !focused && <Text accessibilityRole="header" style={[browseType(theme, 32, 800, -.035, 36.8), {color: theme.colors.text, marginHorizontal: 20, marginBottom: 12}]}>{t('web.shell.search')}</Text>}
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16}}>
       <View style={{flex: 1}}><TextField ref={input} testID="search-input" focusId="search-input" variant="search" leadingIcon="i-search" value={state.text}

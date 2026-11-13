@@ -23,6 +23,7 @@ import {NativeLibraryChannelsPanel} from './server/LibraryChannelsPanel';
 import {NativeAdvancedSection} from './server/AdvancedSection';
 import {StandardBackdrop} from '../../kit/artwork';
 import {FormScrollView} from '../../platform/keyboard';
+import {TopBar} from '../../kit/layout/TopBar';
 
 
 /** Settings › Server › Live TV & Channels: the owner's real sources and recordings.
@@ -86,7 +87,7 @@ export function NativeLiveOwnerScreen({controller, recordings, ports, runtime, o
   return <View style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
     <FormScrollView contentContainerStyle={{paddingBottom: 100}} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
       <View style={{paddingHorizontal: 20, paddingTop: 8, gap: 10}}>
-        <Button testID="live-owner-back" variant="text" size="small" icon="i-left" onPress={onClose}>{t('next.shell.settings')}</Button>
+        <View style={{marginHorizontal: -20}}><TopBar safeArea={false} back={{label: t('next.shell.settings'), onPress: onClose, testID: 'live-owner-back'}}/></View>
         <Text accessibilityRole="header" style={[shellType(32, 800, 36.8, -.035), {color: theme.colors.text}]}>{t('settings.server.live')}</Text>
         <ServerHeader variant="phone" serverName={ports.context.serverName} viewerRole={role} audience="owner" testID="live-owner-server"/>
       </View>

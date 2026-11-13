@@ -21,6 +21,7 @@ import type {ContentEntry} from '../../../../../packages/client-core/src/library
 import {TVRow} from '../../kit/layout/TVRow';
 import {usePageWidth} from '../../kit/layout/page-inset';
 import {useCreditRefocus, useCreditRowRefocus} from './credit-refocus';
+import {TopBar} from '../../kit/layout/TopBar';
 
 /** TV: one department of the all-credits page, read as its own window and drawn as its own row. */
 export type NativePersonCreditGroup = Readonly<{id: string; department: string; total: number; collection: WindowedCollection<PersonCredit>}>;
@@ -131,8 +132,7 @@ export function PersonScreen({focusScope, page, role, collection, groups, runtim
       ListEmptyComponent={<StateView title={t('web.person.noCredits')} body={t(role === 'cast' ? 'web.person.noCast' : role === 'crew' ? 'web.person.noCrew' : 'web.person.noCreditsBody')}/>}
       ListFooterComponent={state.status === 'error' ? <StateView {...runtime.error(state.error, () => collection.retry())}/> : null}/>
     {selection?.render(path => <Artwork source={runtime.artwork(path)} width={40} height={40}/>)}
-    <Focusable testID="person-back" accessibilityLabel={t('action.back')} onPress={onBack} focusRadius={20}
-      style={{position: 'absolute', left: 16, top: insets.top + 12, width: 40, height: 40, alignItems: 'center', justifyContent: 'center'}}><Icon name="i-left" size={22} color={theme.colors.text}/></Focusable>
+    <View pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0}}><TopBar overArtwork back={{label: t('action.back'), onPress: onBack, testID: 'person-back'}}/></View>
   </View>;
 }
 

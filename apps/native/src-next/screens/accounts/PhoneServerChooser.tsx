@@ -10,6 +10,7 @@ import {shellType} from '../../kit/shell/visual';
 import {useTheme} from '../../kit/theme';
 import {Quiet} from '../../kit/states';
 import {StandardBackdrop} from '../../kit/artwork';
+import {TopBar} from '../../kit/layout/TopBar';
 
 type Snapshot = Awaited<ReturnType<typeof nativeAccounts.snapshot>>;
 export type PhoneServerRow = Snapshot['servers'][number];
@@ -41,10 +42,7 @@ export function PhoneServerChooser({snapshot, busy, error, onBack, onSelect, onS
   </View>;
   return <View testID="phone-server-chooser" style={{flex: 1, paddingTop: insets.top + 12}}><StandardBackdrop/>
     <View style={{height: 5, width: 38, borderRadius: 3, alignSelf: 'center', backgroundColor: theme.colors.textTertiary, marginBottom: 8}}/>
-    <View style={{height: 40, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12}}>
-      <View style={{width: 90}}>{onBack && <Button testID="phone-server-back" variant="text" size="compact" icon="i-left" disabled={busy} onPress={onBack}>{t('next.shell.settings')}</Button>}</View>
-      <Text accessibilityRole="header" style={[shellType(17, 700), {flex: 1, color: theme.colors.text, textAlign: 'center'}]}>{t('web.servers.switchServer')}</Text><View style={{width: 90}}/>
-    </View>
+    <TopBar safeArea={false} back={onBack ? {label: t('next.shell.settings'), onPress: onBack, testID: 'phone-server-back', disabled: busy} : undefined} title={t('web.servers.switchServer')}/>
     <ScrollView contentContainerStyle={{paddingHorizontal: 18, paddingTop: 18, paddingBottom: insets.bottom + 24}}>
       {error != null && error !== false && <View style={{marginBottom: 18}}>{error}</View>}
       {!snapshot && <Quiet><Text accessibilityRole="text" style={[shellType(14, 400), {color: theme.colors.textSecondary}]}>{t('status.loading')}</Text></Quiet>}

@@ -32,6 +32,7 @@ import {nativeReadingCollectionCapability, type NativeReadingCollectionKind} fro
 import {nativeScreenServices} from '../native-screen-services';
 import {isReadingLibraryKind} from './platform';
 import {linkNativeAbortSignals} from '../../platform/abort-signals';
+import {TopBar, RoundBarButton} from '../../kit/layout/TopBar';
 
 const {t} = defaultI18n;
 const initials = (author: string): string => author.trim().split(/\s+/).slice(0, 2).map(part => part.slice(0, 1).toUpperCase()).join('') || '·';
@@ -153,27 +154,19 @@ export function ReadBookScreen({controller, route, comic, owner, context, runtim
       <View style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: theme.colors.ink, opacity: .5}}/>
     </View>
     {rowHero ? <>
-      <Button variant="icon" icon="i-left" iconOnly accessibilityLabel={t('action.back')} onPress={onBack}
-        style={{position: 'absolute', top: insets.top + 6, left: 10, zIndex: 10, height: 44, width: 44}}/>
-      <Button variant="icon" icon="i-more" iconOnly accessibilityLabel={t('next.controls.more')} onPress={() => setMore(true)}
-        style={{position: 'absolute', top: insets.top + 6, right: 10, zIndex: 10, height: 44, width: 44}}/>
+      <View pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10}}>
+        <TopBar overArtwork back={{label: t('action.back'), onPress: onBack}} trailing={<RoundBarButton icon="i-more" label={t('next.controls.more')} onPress={() => setMore(true)}/>}/>
+      </View>
     </> : <>
       {/* phone-read 3/3c: past the hero the page pins its bar and the Contents/Details
           tabs, keeping the same back and More actions in place. */}
-      <View pointerEvents={collapsed ? 'auto' : 'box-none'} style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
-        paddingTop: insets.top + 6, height: insets.top + 50 + (collapsed && contents.length ? 42 : 0),
-        backgroundColor: collapsed ? theme.colors.ink : 'transparent', borderBottomWidth: collapsed ? 1 : 0, borderBottomColor: theme.colors.line}}>
-        <View pointerEvents="box-none" style={{height: 44, paddingHorizontal: 10, justifyContent: 'center'}}>
-          <Button variant="icon" icon="i-left" iconOnly accessibilityLabel={t('action.back')} onPress={onBack} style={{height: 44, width: 44}}/>
-          {collapsed ? <View pointerEvents="none" style={{position: 'absolute', left: 64, right: 64, height: 44, justifyContent: 'center'}}>
-            <Text numberOfLines={1} style={[browseType(theme, 17, 700), {textAlign: 'center', color: theme.colors.text}]}>{title}</Text>
-          </View> : null}
-        </View>
-        {collapsed && contents.length ? <Tabs testID="native-read-book-pin-tabs" value={tab} onValueChange={setTab} style={{height: 42}}
-          items={[{value: 'contents', label: t('next.reader.contents')}, {value: 'details', label: t('next.reader.details')}]}/> : null}
+      <View pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10}}>
+        <TopBar overArtwork surface={collapsed} back={{label: t('action.back'), onPress: onBack}} title={collapsed ? title : undefined}
+          trailing={<RoundBarButton icon="i-more" label={t('next.controls.more')} onPress={() => setMore(true)}/>}>
+          {collapsed && contents.length ? <Tabs testID="native-read-book-pin-tabs" value={tab} onValueChange={setTab} style={{height: 42}}
+            items={[{value: 'contents', label: t('next.reader.contents')}, {value: 'details', label: t('next.reader.details')}]}/> : null}
+        </TopBar>
       </View>
-      <Button variant="icon" icon="i-more" iconOnly accessibilityLabel={t('next.controls.more')} onPress={() => setMore(true)}
-        style={{position: 'absolute', top: insets.top + 6, right: 10, zIndex: 11, height: 44, width: 44}}/>
     </>}
     <ScrollView contentContainerStyle={{paddingTop: Math.max(96, insets.top + 56), paddingBottom: insets.bottom + 48}} showsVerticalScrollIndicator={false}
       scrollEventThrottle={64}

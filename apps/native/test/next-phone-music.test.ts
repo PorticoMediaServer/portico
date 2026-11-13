@@ -160,9 +160,11 @@ test('phone keeps its single header Back and no tablet floating control', async 
     let headerTree: unknown;
     headerHost = createFabricHookHost(() => {headerTree = (header!.type as Function)(header!.props);});
     await headerHost.mount();
-    assert.equal(backButtons(headerTree).length, 1, 'the phone header owns the only Back');
+    const bars = typed(headerTree, 'TopBar');
+    assert.equal(bars.length, 1, 'the phone header owns the only Back: the shared top bar over the art');
+    assert.equal(bars[0].props.back.label, 'Back'); assert.equal(bars[0].props.overArtwork, true);
     assert.equal(typed(tree, 'Button').some(node => String(node.props.testID ?? '').startsWith('native-tablet-')), false);
-    backButtons(headerTree)[0].props.onPress();
+    bars[0].props.back.onPress();
     assert.equal(backs, 1);
   } finally {
     // Release both hosts even when an assertion above fails.

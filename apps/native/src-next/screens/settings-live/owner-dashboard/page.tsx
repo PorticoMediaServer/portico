@@ -4,7 +4,6 @@ import type {PlaySummary} from '../../../../../../packages/client-core/src/play-
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
 import {Focusable} from '../../../kit/controls';
 import {Icon} from '../../../kit/Icon';
-import {BlurView} from '../../../platform/native-blur';
 import {ServerBand} from '../../../kit/shell';
 import {useTheme} from '../../../kit/theme';
 import {alpha, shellType} from '../../../kit/shell/visual';
@@ -16,6 +15,7 @@ import {OwnerStatisticsSection} from './statistics';
 import {OwnerUpdateCard, type OwnerUpdateView} from './update-card';
 import {OwnerCompactRows, OwnerNowPlayingHeader, OwnerShowAll, OwnerStreamCards, OwnerStreamTotals, type OwnerStreamEntry} from './streams';
 import {StandardBackdrop} from '../../../kit/artwork';
+import {BarSurface} from '../../../kit/layout/TopBar';
 
 export type OwnerDashboardPageProps = Readonly<{
   t: Translate;
@@ -128,12 +128,12 @@ export function OwnerDashboardPage(props: OwnerDashboardPageProps) {
         <OwnerStatisticsSection summary={props.summary} error={props.statisticsError} period={props.viewingPeriod} onPeriod={props.onViewingPeriod} onRetry={props.onRetry} t={t}/>
       </> : null}
     </ScrollView>
-    {expanded && stuck ? <View style={{position: 'absolute', top: bar, left: 0, right: 0, zIndex: 10, backgroundColor: alpha(theme.colors.ink, .94), borderBottomWidth: 1, borderBottomColor: alpha(theme.colors.text, .07)}}>
-      <BlurView pointerEvents="none" style={{position: 'absolute', inset: 0}} blurType="dark" blurAmount={20} reducedTransparencyFallbackColor={theme.colors.ink}/>
+    {expanded && stuck ? <View style={{position: 'absolute', top: bar, left: 0, right: 0, zIndex: 10}}>
+      <BarSurface/>
       <OwnerNowPlayingHeader t={t} people={props.people} count={count} expanded onShowFewer={props.onShowFewer} sticky/>
     </View> : null}
-    {!props.inline && <View style={{position: 'absolute', top: 0, left: 0, right: 0, height: bar, paddingTop: props.topInset, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', zIndex: 20, backgroundColor: scrolled ? alpha(theme.colors.ink, .84) : 'transparent', borderBottomWidth: scrolled ? 1 : 0, borderBottomColor: alpha(theme.colors.text, .07)}}>
-      {scrolled ? <BlurView pointerEvents="none" style={{position: 'absolute', inset: 0}} blurType="dark" blurAmount={24} reducedTransparencyFallbackColor={theme.colors.ink}/> : null}
+    {!props.inline && <View style={{position: 'absolute', top: 0, left: 0, right: 0, height: bar, paddingTop: props.topInset, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', zIndex: 20}}>
+      {scrolled ? <BarSurface/> : null}
       <Focusable testID="owner-dashboard-back" accessibilityRole="button" accessibilityLabel={t('action.back')} onPress={props.onBack} focusRadius={20} style={{width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center'}}>
         <Icon name="i-left" size={22} color={theme.colors.text}/>
       </Focusable>

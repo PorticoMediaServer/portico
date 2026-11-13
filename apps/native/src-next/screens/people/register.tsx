@@ -20,6 +20,7 @@ import {PersonScreen} from './PersonScreen';
 import {authorityKey} from '../../shell/model';
 import {StandardBackdrop} from '../../kit/artwork';
 import {usePageWidth} from '../../kit/layout/page-inset';
+import {TopBar} from '../../kit/layout/TopBar';
 
 type PersonRoute = Extract<NativeShellRoute, {kind: 'person'}>;
 type Entry = {
@@ -115,7 +116,7 @@ function PersonHost({entry, runtime, back}: {entry: Entry; runtime: NativeShellR
       // W-2 sweep: the full-page state, below Back and the status bar, as a title that couldn't load.
       : state.phase === 'error' ? <ScreenErrorPage {...runtime.error(state.error, () => {void entry.source.load();})}/>
       : <GridSkeleton elapsedMs={elapsed} scrollOffset={0} viewportHeight={dimensions.height} width={pageWidth} totalCount={9} columns={3}/>}
-    {state.phase !== 'ready' && <Focusable testID="person-pending-back" accessibilityLabel={defaultI18n.t('action.back')} onPress={back} style={{position: 'absolute', top: insets.top + 8, left: 16, width: 40, height: 40, justifyContent: 'center', alignItems: 'center'}}><Icon name="i-left" size={22} color={theme.colors.text}/></Focusable>}
+    {state.phase !== 'ready' && <View pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0}}><TopBar overArtwork back={{label: defaultI18n.t('action.back'), onPress: back, testID: 'person-pending-back'}}/></View>}
   </View>);
 }
 

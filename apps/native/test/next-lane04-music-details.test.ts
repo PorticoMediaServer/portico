@@ -108,7 +108,7 @@ test('book progress follows the three primary actions and Start over remains in 
   const progress = all.findIndex(node => node.type === 'Text' && content(node) === 'title.resumeRemaining');
   assert.ok(progress > resume);
   assert.equal(all.some(node => node.props.focusId === 'book-book.start'), false);
-  const more = all.find(node => node.type === 'Button' && node.props.icon === 'i-more'); more.props.onPress();
+  const more = all.find(node => node.type === 'TopBar').props.trailing; assert.equal(more.props.icon, 'i-more'); more.props.onPress();
   const action = f.menu()[3].find((value: any) => value.id === 'book-start-over'); assert.ok(action); await action.onSelect();
   assert.equal(f.starts(), 1);
 });

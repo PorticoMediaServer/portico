@@ -26,6 +26,7 @@ import {memberNames, nativeTogetherLobbyFaces} from './together-presentation';
 import {NativeTogetherTVRoom} from './TogetherTVRoom';
 import type {NativeTogetherMedia} from './together-media';
 import type {NativeTogetherPage} from './together-page';
+import {TopBar} from '../../kit/layout/TopBar';
 
 export function NativeTogetherScreen({controller, media, ports, runtime, page, onBack, joinCode}: {page: NativeTogetherPage; controller: NativeTogetherController; media: NativeTogetherMedia; ports: Pick<NativeSettingsLivePorts, 'context'>; runtime: NativeShellRuntime; onBack?: () => void;
   /** N2-1: a Watch Together link's code: Join with a code opens with it filled in, once for this page. */
@@ -168,10 +169,7 @@ function TogetherLobbyRegion({controller, region, rail, children}: {controller: 
 function TogetherPage({children, onBack, title, settingsBack = false}: {children: React.ReactNode; onBack?: () => void; title?: string; settingsBack?: boolean}) {
   const theme = useTheme(), insets = useSafeAreaInsets(), phone = theme.platform === 'phone';
   return <View style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
-    {phone && <View style={{paddingTop: insets.top, minHeight: insets.top + 46, paddingHorizontal: 10, justifyContent: 'center'}}>
-      <Text accessibilityRole="header" pointerEvents="none" style={[shellType(17, 700), {position: 'absolute', left: 0, right: 0, bottom: 13, textAlign: 'center', color: theme.colors.text}]}>{title}</Text>
-      {onBack && <Button variant="text" size="small" icon="i-left" accessibilityLabel={settingsBack ? defaultI18n.t('next.shell.settings') : defaultI18n.t('action.back')} testID="together-page-back" onPress={onBack} style={{alignSelf: 'flex-start', minHeight: 38, paddingHorizontal: 6, marginLeft: -4}} textStyle={[shellType(16, 600), {color: theme.colors.textSecondary}]}>{settingsBack ? defaultI18n.t('next.shell.settings') : undefined}</Button>}
-    </View>}
+    {phone && <TopBar title={title} back={onBack ? {label: settingsBack ? defaultI18n.t('next.shell.settings') : defaultI18n.t('action.back'), onPress: onBack, testID: 'together-page-back'} : undefined}/>}
     {children}
     {!theme.isTV && !phone && onBack && <Button variant="icon" icon="i-left" iconOnly accessibilityLabel={defaultI18n.t('action.back')} testID="together-page-back" onPress={onBack} style={{position: 'absolute', top: insets.top + 6, left: 10, zIndex: 10, height: 44, width: 44}}/>}
   </View>;

@@ -9,5 +9,5 @@ test('the phone Home header clips its blurred backdrop to the header', async () 
   const container = source.match(/return <View pointerEvents="box-none" style=\{\{.*?zIndex/)?.[0] ?? '';
   assert.match(container, /height: geometry\.height/);
   assert.match(container, /overflow: 'hidden'/);
-  assert.match(source, /scrolled && <BlurView/);
+  assert.match(source, /scrolled && <BarSurface\/>/, "the shared bar surface (its blur) sits inside the clipped header");
 });

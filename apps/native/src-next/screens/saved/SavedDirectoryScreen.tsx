@@ -26,6 +26,7 @@ import {savedItemCount, savedLibraryName, personalMosaic, savedTitleCount, saved
 import type {NativeSavedViewSummaries} from './state';
 import type {NativeSavedDirectoryCommands, SavedDirectoryCommandLease} from './directory-commands';
 import {TVRow} from '../../kit/layout/TVRow';
+import {TopBar} from '../../kit/layout/TopBar';
 
 const noSummarySubscribe = (_listener: () => void) => () => {};
 const noSummaryRevision = () => 0;
@@ -166,24 +167,11 @@ export function SavedDirectoryScreen({route, destination, activation, runtime, l
   const empty = (id: MessageId, body: MessageId) => <StateView variant="inline" title={t(id)} body={t(body)}/>;
   return <View testID={`native-saved-directory-${route.view}`} pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
     importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
-    <View style={{paddingTop: inline ? 0 : insets.top, backgroundColor: alpha(theme.colors.ink, .94), borderBottomColor: alpha(theme.colors.text, .07), borderBottomWidth: 1}}>
-      <View style={{height: 44, paddingLeft: 12, paddingRight: 10, flexDirection: 'row', alignItems: 'center'}}>
-        {!inline && <><Focusable testID="saved-directory-back" accessibilityRole="button" onPress={back} accessibilityLabel={t('saved.title')} style={{height: 38, marginLeft: -4, paddingRight: 6, justifyContent: 'center'}}>
-          <View style={{flexDirection: 'row', alignItems: 'center'}}><Icon name="i-left" size={22} color={theme.colors.textSecondary}/>
-            <Text style={[browseType(theme, 16, 600), {color: theme.colors.textSecondary}]}>{t('saved.title')}</Text></View>
-        </Focusable>
-        <View pointerEvents="none" style={{position: 'absolute', left: 118, right: 118, top: 0, height: 44, alignItems: 'center', justifyContent: 'center'}}>
-          <Text numberOfLines={1} style={[browseType(theme, 17, 700), {color: theme.colors.text}]}>{title}</Text>
-        </View>
-        </>}
-        {createEnabled && <View style={{marginLeft: 'auto'}}>
-          <Focusable testID={`saved-new-${route.view}`} accessibilityRole="button" accessibilityLabel={t(route.view === 'playlists' ? 'web.saved.newPlaylist' : 'web.saved.newCollection')}
-            onPress={() => setCreating(true)} style={{width: 38, height: 38, alignItems: 'center', justifyContent: 'center'}}>
-            <Icon name="i-plus" size={24} color={theme.colors.text}/>
-          </Focusable>
-        </View>}
-      </View>
-    </View>
+    <TopBar surface safeArea={!inline} back={inline ? undefined : {label: t('saved.title'), onPress: back, testID: 'saved-directory-back'}} title={inline ? undefined : title}
+      trailing={createEnabled && <Focusable testID={`saved-new-${route.view}`} accessibilityRole="button" accessibilityLabel={t(route.view === 'playlists' ? 'web.saved.newPlaylist' : 'web.saved.newCollection')}
+        onPress={() => setCreating(true)} style={{width: 38, height: 38, alignItems: 'center', justifyContent: 'center'}}>
+        <Icon name="i-plus" size={24} color={theme.colors.text}/>
+      </Focusable>}/>
     <ScrollView onLayout={event => {viewport.current.height = event.nativeEvent.layout.height; next();}}
       onContentSizeChange={(_width, height) => {viewport.current.extent = height; next();}}
       onScroll={event => {viewport.current.offset = event.nativeEvent.contentOffset.y; next();}} scrollEventThrottle={64} contentContainerStyle={{paddingBottom: 28 + insets.bottom}}>

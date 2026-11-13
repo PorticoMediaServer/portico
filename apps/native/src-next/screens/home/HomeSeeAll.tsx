@@ -27,6 +27,7 @@ import {homeSeeAllCardWidth, homeSeeAllQuickOrder} from './see-all-model';
 import {homeCardText} from './model';
 import {NativeHomeRowController} from './row-controller';
 import {TVRow} from '../../kit/layout/TVRow';
+import {TopBar, BarSurface} from '../../kit/layout/TopBar';
 
 export {homeBrowseLabel};
 
@@ -112,10 +113,11 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
   const artwork = row.entries.find(entry => entry.backdropUrl || entry.posterUrl);
   const tv = theme.isTV, phone = !tv && theme.platform === 'phone', gutter = tv ? 200 : theme.gutter, cardScale = (runtime.appearanceCardSizePercent ?? 100) / 100,
     width = homeSeeAllCardWidth(surface, gutter, tv ? 200 : theme.spec.card.width.poster[theme.platform], cardScale, phone);
-  const header = <View onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)} style={{paddingLeft: gutter, paddingRight: tv ? 96 : theme.gutter, paddingTop: tv ? 64 : top + 20, paddingBottom: tv ? 24 : 16}}>
-        <Focusable focusId="back" onPress={onBack} accessibilityRole="button" accessibilityLabel={t('next.home.shell.home')} style={{height: tv ? 32 : 28, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start'}}>
+  const header = <View onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)} style={{paddingLeft: gutter, paddingRight: tv ? 96 : theme.gutter, paddingTop: tv ? 64 : top, paddingBottom: tv ? 24 : 16}}>
+        {tv ? <Focusable focusId="back" onPress={onBack} accessibilityRole="button" accessibilityLabel={t('next.home.shell.home')} style={{height: tv ? 32 : 28, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start'}}>
           <Icon name="i-left" size={tv ? 22 : 16} color={theme.colors.textTertiary}/><Text style={[nativeType({size: tv ? 22 : 14, weight: 600, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.textTertiary}]}>{t('next.home.shell.home')}</Text>
         </Focusable>
+          : <View style={{marginHorizontal: -gutter, marginBottom: 6}}><TopBar safeArea={false} back={{label: t('next.home.shell.home'), onPress: onBack, testID: 'home-see-all-back'}}/></View>}
         <Text accessibilityRole="header" style={[nativeType({size: tv ? 62 : phone ? 34 : 30, weight: 800, tracking: -.04, lineHeight: tv ? 62 : phone ? 35.7 : 30}, theme.textScale), {color: theme.colors.text, marginBottom: phone ? 8 : 12}]}>{title}</Text>
         {reason && <Text style={[nativeType({size: tv ? 24 : phone ? 14 : 15, weight: 400, tracking: 0, lineHeight: tv ? 34.8 : phone ? 21 : 22}, theme.textScale), {maxWidth: tv ? 1100 : undefined, color: theme.colors.textSecondary, marginBottom: 24}]}>{reasonParts
           ? reasonParts.map((part, index) => part.titleId ? <Text key={index} style={{color: theme.colors.text, fontWeight: '700'}}>{part.text}</Text> : part.text)
@@ -133,11 +135,9 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
     const remaining = state.filters.filter(node => JSON.stringify(node) !== JSON.stringify(quick.query)); controller.setFilters(checked ? [...remaining, quick.query] : remaining);
   }}>{quick.label?.text ?? homeBrowseLabel(quick, labels)}</QuickToggle></FocusItem>);
   const countLabel = total && <Text style={[theme.type.caption, {color: theme.colors.textTertiary}]}>{t('count.titles', {count: total.total})}</Text>;
-  const toolbar = <View style={{backgroundColor: collapsed && !tv ? theme.colors.ink : undefined}}>
-    {!tv && collapsed && <View style={{paddingHorizontal: theme.gutter, paddingTop: top + 12, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 10}}>
-      <Focusable focusId="toolbar-back" onPress={onBack} accessibilityRole="button" accessibilityLabel={t('next.home.shell.home')} style={{flexDirection: 'row', alignItems: 'center', gap: 4}}><Icon name="i-left" size={20}/><Text style={[theme.type.body, {color: theme.colors.text}]}>{t('next.home.shell.home')}</Text></Focusable>
-      <Text numberOfLines={1} accessibilityRole="header" style={[nativeType({size: 17, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {flex: 1, color: theme.colors.text}]}>{title}</Text>
-    </View>}
+  const toolbar = <View>
+    {!tv && collapsed && <BarSurface/>}
+    {!tv && collapsed && <TopBar back={{label: t('next.home.shell.home'), onPress: onBack, testID: 'home-see-all-toolbar-back'}} leadingTitle={title}/>}
     {phone ? <>
       <TVRow><ScrollView horizontal testID="home-see-all-kind-row" showsHorizontalScrollIndicator={false} contentContainerStyle={{paddingHorizontal: gutter, gap: 8, alignItems: 'center'}}>
         {filterControl}{kindControls}

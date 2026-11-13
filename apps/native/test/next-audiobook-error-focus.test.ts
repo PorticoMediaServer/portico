@@ -108,6 +108,7 @@ async function nativeControlID(element: Element): Promise<string | undefined> {
 
 
 const {AuthorSeriesScreen} = await import('../src-next/screens/destinations/audiobooks/AuthorSeriesScreen.tsx');
+const {TopBar} = await import('../src-next/kit/layout/TopBar.tsx');
 const {AudiobookErrorState} = await import('../src-next/screens/destinations/audiobooks/BookScreen.tsx');
 
 test('author and series failures expose actual state retry and TV focus identity', async () => {
@@ -124,8 +125,9 @@ test('author and series failures expose actual state retry and TV focus identity
       assert.ok(errorElement);
       if (tv) assert.equal(ofType(screen.tree, FocusRegion)[0]!.props.entry, 'audiobook-author-1.retry');
       else {
-        const back = ofType(screen.tree, Button).find(button => button.props.accessibilityLabel === defaultI18n.t('action.back'))!;
-        back.props.onPress(); assert.equal(backs, 1);
+        const bar = ofType(screen.tree, TopBar)[0]!;
+        assert.equal(bar.props.back.label, defaultI18n.t('action.back'));
+        bar.props.back.onPress(); assert.equal(backs, 1);
       }
       const error = await mount(AudiobookErrorState, errorElement.props);
       try {

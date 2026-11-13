@@ -7,6 +7,7 @@ import {Button, Focusable} from '../../kit/controls';
 import {StateView} from '../../kit/states';
 import {useTheme, nativeType} from '../../kit/theme';
 import {registerBack} from '../../kit/navigation/back';
+import {TopBar} from '../../kit/layout/TopBar';
 
 type Row = Readonly<{id: string; title: string; body?: string; componentId?: string; heading?: boolean}>;
 
@@ -54,8 +55,9 @@ export function NativeLicencesScreen({onBack, current}: {onBack: () => void; cur
   useEffect(() => {list.current?.scrollToOffset({offset: 0, animated: false});}, [selected]);
   const first = rows.find(row => !row.heading)?.id;
   return <View testID="native-licenses" style={{flex: 1, paddingHorizontal: theme.isTV ? 48 : 20, paddingTop: theme.isTV ? 48 : 20}}>
+    {!theme.isTV && <View style={{marginHorizontal: -20, marginBottom: 4}}><TopBar safeArea={false} back={{label: t('action.back'), onPress: back}}/></View>}
     <View style={{flexDirection: 'row', alignItems: 'center', gap: 20, marginBottom: 20}}>
-      <Button variant="glass" icon="i-left" onPress={back}>{t('action.back')}</Button>
+      {theme.isTV ? <Button variant="glass" icon="i-left" onPress={back}>{t('action.back')}</Button> : null}
       <Text accessibilityRole="header" style={[nativeType({size: theme.isTV ? 44 : 30, weight: 800, lineHeight: 'normal', tracking: -.03}, theme.textScale), {color: theme.colors.text, flex: 1}]}>{detail?.component.name ?? t('licenses.title')}</Text>
     </View>
     {data === undefined ? <StateView title={t('licenses.loading')}/> : !data ? <StateView title={t('licenses.unavailable')}/> :

@@ -274,7 +274,7 @@ test('author and series show a retryable error and retain Back, while ready-empt
     const errorTree = render();
     const error = find(errorTree, node => node.type === ErrorView);
     assert.ok(error);
-    if (!tv) {const button = find(errorTree, node => node.props?.accessibilityLabel === 'action.back'); assert.ok(button); button.props.onPress(); assert.equal(back, 1);}
+    if (!tv) {const bar = find(errorTree, node => node.type === 'TopBar'); assert.equal(bar?.props.back.label, 'action.back'); bar.props.back.onPress(); assert.equal(back, 1);}
     FakeLibraryContentService.page = {phase: 'ready', error: null, sections: [{id: 'books', entries: []}],
       projection: {entity: pageEntity, sections: [{id: 'books', entries: []}]}};
     error.props.retry();
