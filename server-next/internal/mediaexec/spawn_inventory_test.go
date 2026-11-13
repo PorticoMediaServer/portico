@@ -23,6 +23,8 @@ var processSpawns = map[string]string{
 	"internal/decoder/confinement_linux.go:runOuter":                 "the trusted outer helper starting bubblewrap; the helper itself was started by mediaexec",
 	"internal/decoder/confinement_linux.go:runInner":                 "the tool inside the bubblewrap sandbox the outer helper built",
 	"internal/decoder/prepared_file.go:PreparedFileSandboxAvailable": "bubblewrap --help, to read its capabilities",
+	// Archive decoding is isolated in a resource-limited invocation of this executable.
+	"internal/reading/classic.go:runArchive": "RAR/7z worker; fixed self executable, inherited staged-file stdin, memory/CPU and parent deadline/output limits; no external decoder",
 	// Not media.
 	"internal/remote/rclone.go:current": "read-only WebDAV bridge for an owner-configured remote; filtered configuration and provider networking, no media decoding",
 	"internal/decoder/hardware_nvidia.go:runNVIDIADiscovery": "fixed read-only nvidia-smi UUID/PCI/index/name/driver query; 5-second context, bounded output, minimal environment and " +

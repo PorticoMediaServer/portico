@@ -32,8 +32,14 @@ var errDamaged = errors.New("This book's file is damaged.")
 
 // archive is a book's zip file with the entries that are safe to name, by name.
 type archive struct {
-	entries map[string]*zip.File
+	entries map[string]*archiveEntry
 	names   []string // in the archive's own order
+	close   func()
+}
+
+type archiveEntry struct {
+	UncompressedSize64 uint64
+	Open               func() (io.ReadCloser, error)
 }
 
 // openArchive reads a zip file's list of entries, after checking from its end record that the
@@ -55,7 +61,7 @@ func openArchive(r io.ReaderAt, size int64) (*archive, error) {
 	if len(zr.File) > maxEntries {
 		return nil, errDamaged
 	}
-	a := &archive{entries: make(map[string]*zip.File, len(zr.File))}
+	a := &archive{entries: make(map[string]*archiveEntry, len(zr.File)), close: func() {}}
 	for _, f := range zr.File {
 		if strings.HasSuffix(f.Name, "/") || !safeName(f.Name) {
 			continue
@@ -63,7 +69,7 @@ func openArchive(r io.ReaderAt, size int64) (*archive, error) {
 		if _, seen := a.entries[f.Name]; seen {
 			continue
 		}
-		a.entries[f.Name] = f
+		a.entries[f.Name] = &archiveEntry{UncompressedSize64: f.UncompressedSize64, Open: f.Open}
 		a.names = append(a.names, f.Name)
 	}
 	return a, nil

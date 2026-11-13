@@ -26,11 +26,13 @@ import (
 )
 
 // The formats this server opens, by the file's extension. A book in any other format the
-// scanner lists (CBR, CB7, MOBI, AZW3) says it cannot be opened yet, and can be saved as a file.
+// scanner lists (MOBI, AZW3) says it cannot be opened yet, and can be saved as a file.
 const (
 	FormatEPUB = "epub"
 	FormatPDF  = "pdf"
 	FormatCBZ  = "cbz"
+	FormatCBR  = "cbr"
+	FormatCB7  = "cb7"
 	// FormatImages is a comic made of a folder of pictures, one page each.
 	FormatImages = "images"
 )
@@ -130,9 +132,9 @@ func Choose(book db.Book, version string) (db.BookVersion, bool) {
 		}
 		return db.BookVersion{}, false
 	}
-	for _, format := range []string{FormatEPUB, FormatCBZ, FormatImages, FormatPDF} {
+	for _, format := range []string{FormatEPUB, FormatCBZ, FormatCBR, FormatCB7, FormatImages, FormatPDF} {
 		for _, v := range book.Versions {
-			if VersionFormat(v) == format {
+			if VersionFormat(v) == format && (format != FormatCBR || rarEnabled) && (format != FormatCB7 || sevenEnabled) {
 				return v, true
 			}
 		}
@@ -157,7 +159,7 @@ func (s *Service) Open(ctx context.Context, who Reader, book db.Book, v db.BookV
 		}
 	}
 	switch {
-	case out.Format != FormatEPUB && out.Format != FormatPDF && out.Format != FormatCBZ && out.Format != FormatImages:
+	case out.Format != FormatEPUB && out.Format != FormatPDF && !comicFormat(out.Format) && out.Format != FormatImages:
 		out.Problem = ErrFormatLater
 	case v.Path == "" && s.remote == nil:
 		out.Problem = ErrRemote
@@ -173,7 +175,7 @@ func (s *Service) Open(ctx context.Context, who Reader, book db.Book, v db.BookV
 		return out
 	}
 	err := s.withArchive(ctx, v, func(a *archive) error {
-		if out.Format == FormatCBZ {
+		if comicFormat(out.Format) {
 			c, err := readComic(a)
 			if err == nil {
 				out.Pages, out.Direction = c.pages, c.direction
@@ -219,6 +221,11 @@ func (s *Service) epub(v db.BookVersion, a *archive) (*epub, error) {
 // withArchive opens a version's file through libraryfile and reads its list of entries. The
 // file must still be the one the scanner recorded.
 func (s *Service) withArchive(ctx context.Context, v db.BookVersion, fn func(*archive) error) error {
+	if format := VersionFormat(v); format == FormatCBR || format == FormatCB7 {
+		bounded, cancel := context.WithTimeout(ctx, 90*time.Second)
+		defer cancel()
+		ctx = bounded
+	}
 	f, place, err := s.openFile(ctx, v.FileID)
 	if err != nil {
 		return err
@@ -227,10 +234,11 @@ func (s *Service) withArchive(ctx context.Context, v db.BookVersion, fn func(*ar
 	if place.Size != v.Size || place.ModifiedNS != v.ModifiedNS {
 		return ErrChanged
 	}
-	a, err := openArchive(f.at, f.size)
+	a, err := openBookArchive(ctx, f, VersionFormat(v))
 	if err != nil {
 		return f.explain(err)
 	}
+	defer a.close()
 	return f.explain(fn(a))
 }
 
