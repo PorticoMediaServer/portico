@@ -1,11 +1,13 @@
-import type {ContentEntry} from '@core/library-content.ts';
+import type {ContentEntry, ContentView} from '@core/library-content.ts';
+import {holderViewOf} from '@core/items.ts';
 import type {TitleFile} from '@core/detail.ts';
 import {cardText, titleFactParts, type CardSubject, type TextEnvironment, type FileFacts, type TitleFacts, type FactPart} from '@core/presentation/kit-model';
 
-/** A title that holds others has its own page in its library (the one its card opens): a show with its seasons and
- * episodes, a season, an album with its tracks. Opened by its address, it goes there instead of drawing one title's page. */
-export function holderPage(item: Readonly<{id: string; kind: string}>, libraryId: string): Readonly<{libraryId: string; view: 'show' | 'season' | 'album'; entityId: string}> | undefined {
-  const view = item.kind === 'show' || item.kind === 'season' || item.kind === 'album' ? item.kind : undefined;
+/** A title with a page of its own in its library (the one its card opens: a show, a season, an artist, an album, an
+ * audiobook, a book series, a collection) goes there when opened by its address, instead of drawing one title's page.
+ * The kinds are client-core's own map, so an address and a click land on the same page. */
+export function holderPage(item: Readonly<{id: string; kind: string}>, libraryId: string): Readonly<{libraryId: string; view: ContentView; entityId: string}> | undefined {
+  const view = holderViewOf(item.kind);
   return view && libraryId ? {libraryId, view, entityId: item.id} : undefined;
 }
 

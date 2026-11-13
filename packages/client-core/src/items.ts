@@ -23,6 +23,9 @@ const entryKinds: Readonly<Record<string, ContentEntryKind>> = {movie: 'movie', 
 export const itemKindOf = (kind: string): string => Object.entries(entryKinds).find(([, entry]) => entry === kind)?.[0] ?? kind;
 /** The page a card that holds other titles opens; a title that plays opens its own page. */
 const holderViews: Readonly<Record<string, ContentView>> = {show: 'show', season: 'season', artist: 'artist', album: 'album', audiobook: 'book', series: 'book_series', collection: 'collection'};
+/** The page of its own a title opens, by the app's card kind ('book' is an audiobook, 'book_series' a series), or
+ * undefined for a title drawn on the ordinary title page. The same map a card's navigation uses. */
+export const holderViewOf = (kind: string): ContentView | undefined => holderViews[itemKindOf(kind)];
 
 /** A half-star rating out of five, as the screens show it; the server keeps it out of ten. */
 const stars = (rating: number | undefined): number | undefined => rating === undefined ? undefined : rating / 2;
