@@ -5070,6 +5070,9 @@
           "rescanMinutes": {
             "type": "integer"
           },
+          "segmentDetection": {
+            "type": "string"
+          },
           "soundAnalysis": {
             "type": "boolean"
           },
@@ -11479,6 +11482,438 @@
         ],
         "type": "object"
       },
+      "SegmentApprove": {
+        "properties": {
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "season": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kinds"
+        ],
+        "type": "object"
+      },
+      "SegmentChanged": {
+        "properties": {
+          "changed": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "changed"
+        ],
+        "type": "object"
+      },
+      "SegmentDetectionStatus": {
+        "properties": {
+          "catchUpComplete": {
+            "type": "boolean"
+          },
+          "failures": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentReadFailure"
+            },
+            "type": "array"
+          },
+          "files": {
+            "$ref": "#/components/schemas/SegmentFileCounts"
+          },
+          "lastFullPassMS": {
+            "type": "integer"
+          },
+          "libraries": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentLibraryStatus"
+            },
+            "type": "array"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "showsWaiting": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mode",
+          "libraries",
+          "files",
+          "showsWaiting",
+          "catchUpComplete",
+          "lastFullPassMS",
+          "failures"
+        ],
+        "type": "object"
+      },
+      "SegmentFileCounts": {
+        "properties": {
+          "complete": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          },
+          "pending": {
+            "type": "integer"
+          },
+          "unsupported": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "complete",
+          "failed",
+          "unsupported"
+        ],
+        "type": "object"
+      },
+      "SegmentLibraryStatus": {
+        "properties": {
+          "choice": {
+            "type": "string"
+          },
+          "files": {
+            "$ref": "#/components/schemas/SegmentFileCounts"
+          },
+          "itemKind": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "libraryId",
+          "name",
+          "itemKind",
+          "choice",
+          "mode",
+          "files"
+        ],
+        "type": "object"
+      },
+      "SegmentMarkerEdit": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "endUS": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "markerId": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "sourceRevision": {
+            "type": "string"
+          },
+          "startUS": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sourceId",
+          "sourceRevision",
+          "expectedRevision",
+          "requestId",
+          "action",
+          "markerId",
+          "kind",
+          "startUS",
+          "endUS"
+        ],
+        "type": "object"
+      },
+      "SegmentReadFailure": {
+        "properties": {
+          "errorCode": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedMS": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "itemId",
+          "title",
+          "state",
+          "errorCode",
+          "updatedMS"
+        ],
+        "type": "object"
+      },
+      "SegmentReviewCounts": {
+        "properties": {
+          "approved": {
+            "type": "integer"
+          },
+          "automatic": {
+            "type": "integer"
+          },
+          "dismissed": {
+            "type": "integer"
+          },
+          "suggested": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "automatic",
+          "suggested",
+          "approved",
+          "dismissed"
+        ],
+        "type": "object"
+      },
+      "SegmentReviewEntry": {
+        "properties": {
+          "durationUS": {
+            "type": "string"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "mappingRevision": {
+            "type": "string"
+          },
+          "markerRevision": {
+            "type": "integer"
+          },
+          "markers": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentReviewMarker"
+            },
+            "type": "array"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "sourceRevision": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "versionName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId",
+          "title",
+          "number",
+          "durationUS",
+          "state",
+          "errorCode",
+          "sourceId",
+          "sourceRevision",
+          "mappingRevision",
+          "markerRevision",
+          "markers"
+        ],
+        "type": "object"
+      },
+      "SegmentReviewMarker": {
+        "properties": {
+          "approved": {
+            "type": "boolean"
+          },
+          "automaticSafe": {
+            "type": "boolean"
+          },
+          "basis": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "edited": {
+            "type": "boolean"
+          },
+          "endUS": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "provenance": {
+            "type": "string"
+          },
+          "startUS": {
+            "type": "string"
+          },
+          "viewerVisible": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "startUS",
+          "endUS",
+          "confidence",
+          "provenance",
+          "basis",
+          "approved",
+          "edited",
+          "automaticSafe",
+          "viewerVisible"
+        ],
+        "type": "object"
+      },
+      "SegmentReviewSeason": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentReviewEntry"
+            },
+            "type": "array"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "title",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "SegmentTitlePage": {
+        "properties": {
+          "libraryId": {
+            "type": "string"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "titles": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentTitleSummary"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "libraryId",
+          "titles",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "SegmentTitleReview": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "libraryId": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "seasons": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentReviewSeason"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "kind",
+          "libraryId",
+          "mode",
+          "seasons"
+        ],
+        "type": "object"
+      },
+      "SegmentTitleSummary": {
+        "properties": {
+          "files": {
+            "$ref": "#/components/schemas/SegmentFileCounts"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "markers": {
+            "$ref": "#/components/schemas/SegmentReviewCounts"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "kind",
+          "files",
+          "markers"
+        ],
+        "type": "object"
+      },
       "SelectionDelete": {
         "properties": {
           "ids": {
@@ -12857,7 +13292,10 @@
           "problem": {
             "type": "string"
           },
-          "toneMapping": {
+          "toneMappingWithMasteringData": {
+            "type": "boolean"
+          },
+          "toneMappingWithoutMasteringData": {
             "type": "boolean"
           }
         },
@@ -12866,7 +13304,8 @@
           "name",
           "inUse",
           "formats",
-          "toneMapping"
+          "toneMappingWithMasteringData",
+          "toneMappingWithoutMasteringData"
         ],
         "type": "object"
       },
@@ -12911,7 +13350,10 @@
             "format": "date-time",
             "type": "string"
           },
-          "toneMapping": {
+          "toneMappingWithMasteringData": {
+            "type": "boolean"
+          },
+          "toneMappingWithoutMasteringData": {
             "type": "boolean"
           }
         },
@@ -12919,7 +13361,8 @@
           "checking",
           "devices",
           "formats",
-          "toneMapping"
+          "toneMappingWithMasteringData",
+          "toneMappingWithoutMasteringData"
         ],
         "type": "object"
       },
@@ -18378,6 +18821,235 @@
         "x-access": "owner"
       }
     },
+    "/v1/admin/segments": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentDetectionStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/segments/redetect": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentChanged"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/segments/retry": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentChanged"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/segments/titles": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentTitlePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/segments/titles/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentTitleReview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/segments/titles/{id}/approve": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentApprove"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentChanged"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
+    "/v1/admin/segments/titles/{id}/redetect": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentChanged"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
+      }
+    },
     "/v1/admin/sessions": {
       "get": {
         "responses": {
@@ -22074,6 +22746,46 @@
           }
         },
         "x-access": "withProfile"
+      }
+    },
+    "/v1/items/{id}/analysis/markers": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentMarkerEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "x-access": "owner"
       }
     },
     "/v1/items/{id}/annotations": {

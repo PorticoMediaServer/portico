@@ -1520,6 +1520,7 @@ export interface LibraryFolder {
 }
 
 export interface LibraryOptions {
+  segmentDetection?: string;
   depth: string;
   trash: TrashRule;
   allowDelete: boolean;
@@ -3463,6 +3464,127 @@ export interface SearchSuggestions {
   items: SearchSuggestion[];
 }
 
+export interface SegmentApprove {
+  season?: number;
+  kinds: string[];
+}
+
+export interface SegmentChanged {
+  changed: number;
+}
+
+export interface SegmentDetectionStatus {
+  mode: string;
+  libraries: SegmentLibraryStatus[];
+  files: SegmentFileCounts;
+  showsWaiting: number;
+  catchUpComplete: boolean;
+  lastFullPassMS: number;
+  failures: SegmentReadFailure[];
+}
+
+export interface SegmentFileCounts {
+  pending: number;
+  complete: number;
+  failed: number;
+  unsupported: number;
+}
+
+export interface SegmentLibraryStatus {
+  libraryId: string;
+  name: string;
+  itemKind: string;
+  choice: string;
+  mode: string;
+  files: SegmentFileCounts;
+}
+
+export interface SegmentMarkerEdit {
+  sourceId: string;
+  sourceRevision: string;
+  expectedRevision: number;
+  requestId: string;
+  action: string;
+  markerId: string;
+  kind: string;
+  startUS: string;
+  endUS: string;
+}
+
+export interface SegmentReadFailure {
+  itemId: string;
+  title: string;
+  state: string;
+  errorCode: string;
+  updatedMS: number;
+}
+
+export interface SegmentReviewCounts {
+  automatic: number;
+  suggested: number;
+  approved: number;
+  dismissed: number;
+}
+
+export interface SegmentReviewEntry {
+  itemId: string;
+  title: string;
+  number: number;
+  durationUS: string;
+  state: string;
+  errorCode: string;
+  sourceId: string;
+  sourceRevision: string;
+  mappingRevision: string;
+  markerRevision: number;
+  markers: SegmentReviewMarker[];
+  versionName?: string;
+}
+
+export interface SegmentReviewMarker {
+  id: string;
+  kind: string;
+  startUS: string;
+  endUS: string;
+  confidence: number;
+  provenance: string;
+  basis: string;
+  approved: boolean;
+  edited: boolean;
+  automaticSafe: boolean;
+  viewerVisible: boolean;
+}
+
+export interface SegmentReviewSeason {
+  number: number;
+  title: string;
+  entries: SegmentReviewEntry[];
+}
+
+export interface SegmentTitlePage {
+  libraryId: string;
+  titles: SegmentTitleSummary[];
+  nextCursor: string;
+}
+
+export interface SegmentTitleReview {
+  nextCursor?: string;
+  id: string;
+  title: string;
+  kind: string;
+  libraryId: string;
+  mode: string;
+  seasons: SegmentReviewSeason[];
+}
+
+export interface SegmentTitleSummary {
+  id: string;
+  title: string;
+  kind: string;
+  files: SegmentFileCounts;
+  markers: SegmentReviewCounts;
+}
+
 export interface SelectionDelete {
   ids: string[];
 }
@@ -3857,7 +3979,8 @@ export interface StreamingHardwareDevice {
   inUse: boolean;
   formats: HardwareFactFormat[];
   problem?: string;
-  toneMapping: boolean;
+  toneMappingWithMasteringData: boolean;
+  toneMappingWithoutMasteringData: boolean;
 }
 
 export interface StreamingHardwareFault {
@@ -3870,7 +3993,8 @@ export interface StreamingHardwareState {
   checking: boolean;
   devices: StreamingHardwareDevice[];
   formats: HardwareFactFormat[];
-  toneMapping: boolean;
+  toneMappingWithMasteringData: boolean;
+  toneMappingWithoutMasteringData: boolean;
   lastTest?: string;
   lastError?: StreamingHardwareFault;
 }
@@ -4503,6 +4627,14 @@ export interface Routes {
   'DELETE /v1/admin/items/{id}/artwork/{imageId}': {access: 'admin'; request: undefined; response: undefined};
   'POST /v1/admin/items/{id}/artwork/find': {access: 'admin'; request: undefined; response: ArtworkPicturePage};
   'POST /v1/admin/items/{id}/artwork': {access: 'admin'; request: undefined; response: ArtworkPicture};
+  'GET /v1/admin/segments': {access: 'owner'; request: undefined; response: SegmentDetectionStatus};
+  'GET /v1/admin/segments/titles': {access: 'owner'; request: undefined; response: SegmentTitlePage};
+  'GET /v1/admin/segments/titles/{id}': {access: 'owner'; request: undefined; response: SegmentTitleReview};
+  'POST /v1/admin/segments/titles/{id}/approve': {access: 'owner'; request: SegmentApprove; response: SegmentChanged};
+  'POST /v1/admin/segments/titles/{id}/redetect': {access: 'owner'; request: undefined; response: SegmentChanged};
+  'POST /v1/admin/segments/redetect': {access: 'owner'; request: undefined; response: SegmentChanged};
+  'POST /v1/admin/segments/retry': {access: 'owner'; request: undefined; response: SegmentChanged};
+  'POST /v1/items/{id}/analysis/markers': {access: 'owner'; request: SegmentMarkerEdit; response: undefined};
   'GET /v1/admin/libraries/{id}/sound-analysis': {access: 'owner'; request: undefined; response: SoundAnalysisStatus};
   'POST /v1/music/mixes/{id}/playlist': {access: 'withProfile'; request: MusicMixSave; response: ListCreated};
   'GET /v1/music/mixes': {access: 'withProfile'; request: undefined; response: MusicMixPage};
