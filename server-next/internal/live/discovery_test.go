@@ -45,7 +45,7 @@ func TestTunerDiscoveryReadsRealUDPAndIgnoresOtherDevices(t *testing.T) {
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	devices, err := discoverTuners(ctx, 500*time.Millisecond, []netip.AddrPort{router.LocalAddr().(*net.UDPAddr).AddrPort()})
+	devices, err := discoverTuners(ctx, 500*time.Millisecond, []netip.AddrPort{router.LocalAddr().(*net.UDPAddr).AddrPort()}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,5 +81,21 @@ func TestTunerFactsStayAtTheRespondingDevice(t *testing.T) {
 	s.tunerFacts(context.Background(), &row)
 	if contacted.Load() || row.DeviceID != "" {
 		t.Fatal("discovery followed a device away from its responding address")
+	}
+}
+
+func TestTunerRepliesMustComeFromADirectlyConnectedNetwork(t *testing.T) {
+	packet := []byte("HTTP/1.1 200 OK\r\nSERVER: HDHomeRun\r\n\r\n")
+	prefixes := []netip.Prefix{netip.MustParsePrefix("192.168.50.0/24")}
+	if !tunerReplyFrom(packet, netip.MustParseAddr("192.168.50.10"), prefixes) {
+		t.Fatal("rejected a tuner on the local interface prefix")
+	}
+	for _, address := range []string{"192.168.51.10", "100.113.197.98", "169.254.169.254"} {
+		if tunerReplyFrom(packet, netip.MustParseAddr(address), prefixes) {
+			t.Fatal("accepted a reply from outside the interface prefixes", address)
+		}
+	}
+	if !tunerReplyFrom(packet, netip.MustParseAddr("127.0.0.1"), nil) {
+		t.Fatal("rejected loopback")
 	}
 }
