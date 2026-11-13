@@ -5,9 +5,10 @@ import * as React from 'react';
 import {surfacePaintFixture, screenModule} from './helpers/screen-harness.mjs';
 import {createFabricHookHost} from './helpers/fabric-hooks.mjs';
 import {defaultI18n} from '../../../packages/i18n/src/index.ts';
-import {deletionAllowed} from '../../../packages/client-core/src/administration.ts';
+import {ApiError} from '../../../packages/client-core/src/http.ts';
 import {mergeExplanation} from '../../../packages/client-core/src/title-identity.ts';
 import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
+import {bytesText} from '../../../packages/client-core/src/presentation/kit-model/technical.ts';
 import {nativeFileInfoFile, nativeSplitCandidates} from '../src-next/screens/watch/file-info.ts';
 import {fakeSession} from './helpers/file-info-windows.ts';
 import {shellLayout} from '../src-next/shell/model.ts';
@@ -27,8 +28,9 @@ const {NativeFileInfoContent} = await screenModule(new URL('../src-next/screens/
 const {NativeWatchOverlays} = await screenModule(new URL('../src-next/screens/watch/WatchOverlays.tsx', import.meta.url), {
   '../../kit/overlays/SurfacePaintHost': surfacePaintFixture, './FileInfoContent': {NativeFileInfoContent},
   react, 'react-native': {Modal: 'Modal', Platform: {isTV: true}, ScrollView: 'ScrollView', StyleSheet: {absoluteFill: {}}, Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 1920, height: 1080})},
-  '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/administration': {deletionAllowed}, '../../../../../packages/client-core/src/title-identity': {mergeExplanation},
+  '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/http': {ApiError}, '../../../../../packages/client-core/src/title-identity': {mergeExplanation},
   '../../../../../packages/client-core/src/presentation/kit-model/text': {durationText},
+  '../../../../../packages/client-core/src/presentation/kit-model/technical': {bytesText},
   './file-info': {nativeFileInfoFile, nativeSplitCandidates}, '../../shell/model': {shellLayout}, '../../kit/controls': controls, '../../kit/artwork': {Artwork: 'Artwork'}, '../../kit/states': {StateView: 'StateView'},
   '../../kit/overlays': {BottomSheet: 'BottomSheet', Dialog: 'Dialog', Menu: 'Menu'}, '../../kit/overlays/Menu': {TouchMenuHeader: 'TouchMenuHeader'},
   '../../kit/overlays/TVPanelMotion': {TVPanelTransition: 'TVPanelTransition', TVPanelSlide: 'TVPanelSlide', TVPanelScrim: 'TVPanelScrim', useTVPanelPresence: (value: unknown) => ({value, open: value !== undefined, exited() {}}), useTVPanelInteractive: () => true, useTVPanelModal: () => ({visible: true})},
@@ -40,12 +42,12 @@ const focus = await screenModule(new URL('../src-next/kit/focus/FocusRegion.tsx'
   react: {...react, createContext: (current: unknown) => {const value = {current}; contexts.push(value); return value;}, useContext: (context: {current: unknown}) => context.current},
   'react-native': {findNodeHandle: () => null, TVFocusGuideView: 'Guide', View: 'View'}, '../theme': themed, './registry': registry, './useHostRef': hostRefs,
 });
-function targets(value: any): any[] {
-  if (Array.isArray(value)) return value.flatMap(targets);
+function targets(value: any, kinds = ['Button', 'TextField']): any[] {
+  if (Array.isArray(value)) return value.flatMap(node => targets(node, kinds));
   if (!React.isValidElement(value)) return [];
   const node: any = value;
-  if (typeof node.type === 'function') return targets(node.type(node.props));
-  return [...(node.type === 'Button' || node.type === 'TextField' ? [node] : []), ...targets(node.props.children), ...targets(node.props.footer), ...targets(node.props.headerContent)];
+  if (typeof node.type === 'function') return targets(node.type(node.props), kinds);
+  return [...(kinds.includes(node.type) ? [node] : []), ...targets(node.props.children, kinds), ...targets(node.props.footer, kinds), ...targets(node.props.headerContent, kinds)];
 }
 // The owner's File info session, as the factory opens it: one version of one file, read from the server's windows.
 const {session} = fakeSession();
@@ -71,6 +73,25 @@ for (const phase of ['file-info', 'delete', 'split-pick', 'split', 'merge-search
       const mounted = createFabricHookHost(() => {focus.useFocusTarget({focusId: button.props.focusId, testID: button.props.testID, disabled: button.props.disabled});});
       await mounted.mount(); await mounted.unmount();
     }
+  } finally {await host.unmount();}
+});
+
+test('a refused version preview has its own sentence, no title field or Delete; a command refusal keeps the server reason', async () => {
+  const reason = 'Deleting files is turned off for this library.';
+  const value: any = {phase: 'delete', capture: {entry}, busy: false, candidates: [], confirmation: '',
+    preview: {versionId: 'g1', title: entry.title, titles: 1, files: 2, bytes: 2048, listEntries: 3, otherPeople: 4, alsoRemoves: [], deleteRefusal: reason}};
+  let reads = 0, nodes: any[] = [];
+  const presenters = {subscribe: () => () => {}, getSnapshot: () => value, current: () => true, overlayCurrent: () => true, close() {}, previewDelete: () => {reads++;}};
+  const host = createFabricHookHost(() => {nodes = targets(React.createElement(NativeWatchOverlays, {presenters, runtime: {}, common: {error: () => ({title: 'Failed', body: 'Generic'})}}), ['Button', 'TextField', 'Text', 'StateView']);});
+  await host.mount();
+  try {
+    assert.ok(nodes.some(node => node.type === 'Text' && node.props.children === reason));
+    assert.equal(nodes.some(node => node.type === 'TextField' || node.props.testID === 'watch-delete-version'), false);
+    await host.rerender(); assert.equal(reads, 0, 'rendering never asks for another preview');
+    delete value.preview.deleteRefusal; value.error = new ApiError(403, 'deleting_not_allowed', reason);
+    await host.rerender();
+    assert.equal(nodes.find(node => node.type === 'StateView')?.props.body, reason);
+    assert.equal(nodes.find(node => node.props.testID === 'watch-delete-version')?.props.variant, 'danger');
   } finally {await host.unmount();}
 });
 

@@ -18,7 +18,7 @@ const ownerSurface = {manage: {delete: false, split: true, merge: true}};
 const fileInfoServer = (path: string, _state: unknown) => path.endsWith('/files') ? locations : fileItem;
 const deferred = <T,>() => {let resolve!: (value: T) => void; const promise = new Promise<T>(done => {resolve = done;}); return {promise, resolve};};
 const drain = () => new Promise(resolve => setImmediate(resolve));
-async function fixture(over: {manage?: typeof ownerSurface['manage']; held?: boolean} = {}) {
+async function fixture(over: {manage?: typeof ownerSurface['manage']; held?: boolean; role?: string} = {}) {
   let active = true, changed = 0;
   const state = {held: over.held ?? false, manage: over.manage ?? ownerSurface.manage, serial: 0};
   let respond = async (path: string, method: string): Promise<unknown> => method === 'DELETE' ? null : fileInfoServer(path, state);
@@ -39,7 +39,7 @@ async function fixture(over: {manage?: typeof ownerSurface['manage']; held?: boo
   const capture = {entry, authority, routeRevision: navigation.getSnapshot().revision, expectedFence: undefined, current: () => active};
   // The factory's own work: one item read and the authorized version locations.
   const open = async () => {
-    const session = new FileInfoSession({api, itemId: 'movie', role: state.manage.merge ? 'owner' : 'member', isCurrent: () => active});
+    const session = new FileInfoSession({api, itemId: 'movie', role: over.role ?? (state.manage.merge ? 'owner' : 'member'), isCurrent: () => active});
     await session.groups();
     if (session.getSnapshot().surface?.manage) await session.members('g1');
     return session;
@@ -49,6 +49,8 @@ async function fixture(over: {manage?: typeof ownerSurface['manage']; held?: boo
   presenters.openMenu(capture, {fileInfo});
   await presenters.fileInfo(presenters.getSnapshot()!);
   return {presenters, common, capture, session, open, calls, changed: () => changed, state,
+    // Arrange the future screen's opening; manageFile's production gate stays off until it draws all the impacts.
+    beginDelete: () => {Reflect.get(presenters, 'patch').call(presenters, presenters.getSnapshot(), {phase: 'delete', fileId: occurrence, confirmation: '', preview: undefined}); return presenters.previewDelete();},
     leases: (lane = '') => calls.filter(call => call.method === 'DELETE' && call.path.startsWith('/v1/file-info-queries/' + lane)).map(call => call.path),
     respond: (next: typeof respond) => {respond = next;}, retire: () => {active = false; for (const listener of listeners) listener();}, navigation,
     dispose: () => {presenters.dispose(); common.dispose();}};
@@ -121,11 +123,57 @@ test('a wrong occurrence, or withdrawn manage authority in the resident surface,
   } finally {withheld.dispose();}
 });
 
-test('Delete cannot dispatch without a real version-specific preview', async () => {
+test('native Delete stays gated until the confirm draws every preview impact', async () => {
   const d = await fixture();
   try {
     const count = d.calls.length; d.presenters.manageFile(d.capture, 'delete-version', occurrence); await drain();
     assert.equal(d.presenters.getSnapshot()?.phase, 'file-info'); assert.equal(d.calls.length, count);
+  } finally {d.dispose();}
+});
+
+test('an owner reads one real version preview per opening, then confirms its title to delete that whole version', async () => {
+  const d = await fixture(), preview = {title: 'Real title', titles: 2, files: 2, bytes: 2048, listEntries: 3, otherPeople: 4, alsoRemoves: [{id: 'other', title: 'Other title'}]};
+  const answer = deferred<typeof preview>();
+  const adminCalls = () => d.calls.filter(call => call.path.startsWith('/v1/admin/versions/'));
+  d.respond(async (path, method) => path.endsWith('/deletion') ? answer.promise : method === 'DELETE' ? {filesDeleted: 2, bytes: 2048, kept: []} : fileInfoServer(path, d.state));
+  try {
+    const reading = d.beginDelete(); await drain(); await d.presenters.previewDelete();
+    assert.equal(adminCalls().length, 1, 'an in-flight opening does not ask twice');
+    answer.resolve(preview); await reading;
+    assert.deepEqual(d.presenters.getSnapshot()?.preview, {versionId: 'g1', ...preview});
+    await d.presenters.previewDelete(); d.presenters.confirmation('Wrong title'); await d.presenters.deleteVersion();
+    assert.deepEqual(adminCalls().map(call => [call.method, call.path]), [['GET', '/v1/admin/versions/g1/deletion']]);
+    const ready = d.presenters.getSnapshot()!.preview;
+    d.presenters.confirmation('Real title');
+    Reflect.get(d.presenters, 'patch').call(d.presenters, d.presenters.getSnapshot(), {preview: {...ready, versionId: 'g2'}});
+    await d.presenters.deleteVersion(); assert.equal(adminCalls().length, 1, 'another version cannot use this confirmation');
+    Reflect.get(d.presenters, 'patch').call(d.presenters, d.presenters.getSnapshot(), {preview: ready});
+    d.presenters.confirmation(' Real title '); await d.presenters.deleteVersion();
+    assert.deepEqual(adminCalls().map(call => [call.method, call.path]), [['GET', '/v1/admin/versions/g1/deletion'], ['DELETE', '/v1/admin/versions/g1']]);
+    assert.equal(d.changed(), 1); assert.equal(d.presenters.getSnapshot(), undefined);
+  } finally {d.dispose();}
+});
+
+test('a preview refusal keeps its sentence and cannot delete even with the right title', async () => {
+  const d = await fixture(), deleteRefusal = 'Deleting files is turned off for this library.';
+  d.respond(async path => path.endsWith('/deletion') ? {title: 'Real title', titles: 1, files: 2, bytes: 2048, listEntries: 0, otherPeople: 0, alsoRemoves: [], deleteRefusal} : fileInfoServer(path, d.state));
+  try {
+    await d.beginDelete(); d.presenters.confirmation('Real title'); await d.presenters.deleteVersion();
+    assert.equal(d.presenters.getSnapshot()?.preview?.deleteRefusal, deleteRefusal);
+    assert.equal(d.calls.some(call => call.method === 'DELETE'), false);
+    await d.presenters.previewDelete();
+    assert.equal(d.calls.filter(call => call.path.endsWith('/deletion')).length, 1);
+  } finally {d.dispose();}
+});
+
+test('an administrator cannot ask for a version deletion preview or send its delete', async () => {
+  const d = await fixture({role: 'admin'});
+  try {
+    await d.beginDelete();
+    Reflect.get(d.presenters, 'patch').call(d.presenters, d.presenters.getSnapshot(), {confirmation: 'Real title',
+      preview: {versionId: 'g1', title: 'Real title', titles: 1, files: 2, bytes: 2048, listEntries: 0, otherPeople: 0, alsoRemoves: []}});
+    await d.presenters.deleteVersion();
+    assert.equal(d.calls.some(call => call.path.startsWith('/v1/admin/versions/')), false);
   } finally {d.dispose();}
 });
 

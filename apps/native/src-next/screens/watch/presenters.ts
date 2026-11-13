@@ -2,7 +2,7 @@ import type {ReactNode, RefObject} from 'react';
 import {Platform, type View} from 'react-native';
 import {sameFence} from '../../../../../packages/player-core/src';
 import {type DetailApi, type DetailProjection, type PersonalIntent} from '../../../../../packages/client-core/src/detail';
-import {deletionAllowed, versionDeletionService, type VersionDeletePreview} from '../../../../../packages/client-core/src/administration';
+import {deleteVersionFiles, previewVersionDeletion, type VersionDeletion} from '../../../../../packages/client-core/src/administration';
 import {SearchService} from '../../../../../packages/client-core/src/search';
 import {canMergeTitles, mergeTitles, splitTitleVersion, SPLITTABLE_KINDS} from '../../../../../packages/client-core/src/title-identity';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
@@ -10,7 +10,7 @@ import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {sameAuthority} from '../../shell/model';
 import type {NativeScreenServices} from '../screen-services';
 import type {NativeWatchCapture, NativeWatchMenuActions, NativeWatchMenuEntry, NativeVersionDestination, NativeVersionsOpening} from './factory';
-import {nativeFileInfoFile, nativeFileInfoMergeGroups, nativeSplitCandidates, type NativeFileInfoOwner} from './file-info';
+import {NATIVE_VERSION_DELETE, nativeFileInfoFile, nativeFileInfoMergeGroups, nativeSplitCandidates, type NativeFileInfoOwner} from './file-info';
 import type {NativeDiscTitlesController} from './disc-titles-controller';
 import {nativeTogetherSession} from '../settings-live/together-session';
 
@@ -29,8 +29,7 @@ export type NativeWatchOverlay = Readonly<{
   content?: ReactNode;
   owner?: FileOwner;
   fileId?: string;
-  preview?: VersionDeletePreview;
-  operationId?: string;
+  preview?: VersionDeletion;
   confirmation: string;
   busy: boolean;
   error?: unknown;
@@ -44,9 +43,6 @@ const cancelled = () => Object.assign(new Error('watch_capture_ended'), {name: '
 
 /** The presenter borrows the real captured member. Closing it retires requests;
  * navigation, authority and output replacement retire the same owned lifetime. */
-/** Native draws no version deletion confirm on the current preview yet (see manageFile). */
-const NATIVE_VERSION_DELETE = false;
-
 export class NativeWatchPresenters {
   private value?: NativeWatchOverlay;
   private listeners = new Set<() => void>();
@@ -314,10 +310,9 @@ export class NativeWatchPresenters {
     const value = this.value, owner = value?.owner;
     if (!value || value.capture !== capture || value.phase !== 'file-info' || !owner || !this.current(capture)) return;
     const snapshot = owner.session.getSnapshot(), manage = snapshot.surface?.manage;
-    // The server lets the owner delete a version (manage.delete), but this app's confirm still reads the retired preview;
-    // it offers Delete once it moves to client-core's previewVersionDeletion (web has; phone lane). Until then, never.
+    // The adapter is ready; the screen lane enables this only with the complete impact preview.
     if (action === 'delete-version' && manage?.delete && NATIVE_VERSION_DELETE && fileId && nativeFileInfoFile(snapshot, fileId)) {
-      const next = this.patch(value, {phase: 'delete', fileId, confirmation: '', error: undefined, preview: undefined, operationId: undefined});
+      const next = this.patch(value, {phase: 'delete', fileId, confirmation: '', error: undefined, preview: undefined});
       if (next) void this.previewDelete(next);
     } else if (action === 'split-versions' && manage?.split && snapshot.surface?.canSplit && SPLITTABLE_KINDS.includes(owner.kind)) {
       this.patch(value, {phase: 'split-pick', fileId: undefined, error: undefined});
@@ -343,23 +338,23 @@ export class NativeWatchPresenters {
     });
   };
   previewDelete = async (value = this.value) => {
-    if (!value || value.phase !== 'delete' || !value.fileId || value.busy) return;
-    await this.run(value, async api => {
+    if (!value || value.phase !== 'delete' || !value.fileId || value.busy || value.preview || !value.owner?.session.getSnapshot().surface?.manage?.delete) return;
+    await this.run(value, async (api, signal) => {
       const listed = value.owner && nativeFileInfoFile(value.owner.session.getSnapshot(), value.fileId!);
       if (!listed) throw Object.assign(new Error('file_not_listed'), {code: 'file_not_listed'});
-      const preview = await versionDeletionService(api.request).preview(listed.file.itemId, listed.file.id);
-      if (preview.assetId !== listed.file.id || preview.targets.length !== 1 || preview.targets[0]?.itemId !== listed.file.itemId) throw Object.assign(new Error('file_changed'), {code: 'file_changed'});
-      const operationId = value.operationId ?? await this.common.requestId();
+      const preview = await previewVersionDeletion(api, listed.file.id, signal);
       const pending = this.value;
-      if (pending?.capture === value.capture && this.current(value.capture)) this.patch(pending, {preview, operationId, busy: false});
+      if (pending?.capture === value.capture && this.current(value.capture)) this.patch(pending, {preview, busy: false});
     });
   };
   confirmation = (confirmation: string) => {const value = this.value; if (value?.phase === 'delete' && !value.busy) this.patch(value, {confirmation});};
   deleteVersion = async () => {
-    const value = this.value;
-    if (value?.phase !== 'delete' || !value.preview || !value.operationId || value.busy || !deletionAllowed(value.preview) || value.confirmation.trim() !== value.preview.confirmation) return;
+    const value = this.value, snapshot = value?.owner?.session.getSnapshot();
+    const listed = snapshot && value?.fileId ? nativeFileInfoFile(snapshot, value.fileId) : undefined;
+    if (value?.phase !== 'delete' || !value.preview || value.busy || !snapshot?.surface?.manage?.delete || !listed
+      || value.preview.versionId !== listed.file.id || value.preview.deleteRefusal || value.confirmation.trim() !== value.preview.title) return;
     await this.run(value, async (api, signal, check) => {
-      const result = await versionDeletionService(api.request).remove(value.preview!, value.confirmation.trim(), value.operationId!);
+      const result = await deleteVersionFiles(api, value.preview!, signal);
       const kept = result.receipts.find(receipt => !receipt.removed);
       if (kept) throw Object.assign(new Error('file_not_removed'), {code: kept.code === 'file_changed' ? 'file_changed' : 'file_not_removed'});
       await value.owner!.changed(); check(); this.close();

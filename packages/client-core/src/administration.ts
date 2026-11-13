@@ -469,11 +469,11 @@ export function parseVersionDeletePreview(raw:unknown):VersionDeletePreview{
  * same files), the list entries that go, and other people's saved places and marks that go. The preview runs the real
  * deletion as a dry run on the server's single writer and can hold it for about a second, so an app asks for it once,
  * when the owner presses Delete, and never live, on hover, focus or a timer. */
-export type VersionDeletion=Readonly<{versionId:string;title:string;titles:number;files:number;bytes:number;listEntries:number;otherPeople:number;alsoRemoves:readonly Readonly<{id:string;title:string}>[]}>;
+export type VersionDeletion=Readonly<{versionId:string;title:string;titles:number;files:number;bytes:number;listEntries:number;otherPeople:number;alsoRemoves:readonly Readonly<{id:string;title:string}>[];deleteRefusal?:string}>;
 export function parseVersionDeletion(versionId:string,raw:unknown):VersionDeletion{
- if(!object(raw)||!text(raw.title,1024)||!count(raw.titles)||!count(raw.files)||!count(raw.bytes)||!count(raw.listEntries)||!count(raw.otherPeople)||!Array.isArray(raw.alsoRemoves))invalid('version deletion preview');
+ if(!object(raw)||!filled(raw.title,1024)||!count(raw.titles)||!count(raw.files)||!count(raw.bytes)||!count(raw.listEntries)||!count(raw.otherPeople)||!Array.isArray(raw.alsoRemoves)||raw.deleteRefusal!==undefined&&!filled(raw.deleteRefusal,1024))invalid('version deletion preview');
  const alsoRemoves=raw.alsoRemoves.map(v=>{if(!object(v)||!filled(v.id,256)||!text(v.title,1024))invalid('version deletion preview');return Object.freeze({id:v.id,title:v.title});});
- return Object.freeze({versionId,title:raw.title,titles:raw.titles,files:raw.files,bytes:raw.bytes,listEntries:raw.listEntries,otherPeople:raw.otherPeople,alsoRemoves:Object.freeze(alsoRemoves)});
+ return Object.freeze({versionId,title:raw.title,titles:raw.titles,files:raw.files,bytes:raw.bytes,listEntries:raw.listEntries,otherPeople:raw.otherPeople,alsoRemoves:Object.freeze(alsoRemoves),...(raw.deleteRefusal!==undefined?{deleteRefusal:raw.deleteRefusal}:{})});
 }
 type VersionApi=Readonly<{request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>}>;
 /** One preview per press of Delete (see VersionDeletion). Owner only. */

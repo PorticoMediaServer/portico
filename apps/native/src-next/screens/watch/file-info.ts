@@ -7,6 +7,9 @@ import type {FileInfoModel, ManageAction, TextEnvironment} from '../../../../../
 
 export const nativeFileInfoMergeGroups: Readonly<Partial<Record<string, SearchGroup>>> = Object.freeze({movie: 'movies', show: 'shows', episode: 'episodes', song: 'songs', album: 'albums', artist: 'artists', book: 'books', author: 'authors'});
 
+/** Kept off until the screen shows every impact in the version preview (03-scanning rule 65). */
+export const NATIVE_VERSION_DELETE = false;
+
 /** One file the owner sees under its version: its exact occurrence, path and actions. */
 export type NativeFileInfoLocation = Readonly<{id: string; versionId: string; path?: string; actions: readonly ManageAction[]}>;
 /** The measured disc title behind one version: a probed number and its chapter count. */
@@ -23,7 +26,7 @@ export function nativeFileInfoView(snapshot: FileInfoSnapshot, kind: string, tex
   if (!(groups || files) || !surface) return undefined;
   // Native lists each version head's offered tracks; Split only for a kind that can be split.
   const model = fileInfoPanelModel(snapshot, {tracks: 'offered', context: isTV ? 'desktop' : 'phone', manageSurface: isTV ? 'desktop' : 'phone',
-    split: SPLITTABLE_KINDS.includes(kind), merge: !!nativeFileInfoMergeGroups[kind]}, text)!;
+    split: SPLITTABLE_KINDS.includes(kind), merge: !!nativeFileInfoMergeGroups[kind], delete: NATIVE_VERSION_DELETE}, text)!;
   const locations: readonly NativeFileInfoLocation[] | undefined = model.owner?.locations.map(location => Object.freeze({id: location.id, versionId: location.versionId, path: location.path, actions: location.actions}));
   // A version's own probed disc title, where the server measured one; a multipart version has none.
   const listed: readonly Readonly<{id: string; disc?: FileInfoGroupRow['disc']}>[] = files ? files.map(file => ({id: file.occurrence, disc: file.disc})) : groups!;
