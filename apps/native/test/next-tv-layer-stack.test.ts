@@ -39,6 +39,33 @@ test('pushing a layer keeps the covered layer\'s focus and claims focus into the
   assert.equal(time.size(), 0, 'and its deadline is cancelled');
 });
 
+test('Android TV: focus dropped on the side rail as a route covers the page is not the route taking focus; it is claimed again', () => {
+  const registry = createFocusRegistry(), time = clock(), log: string[] = [];
+  const stack = createTVLayerStack(registry, time, undefined, focus => focus.regionId === 'rail');
+  const card = {regionId: 'grid', childId: 'walk-show'}, rail = {regionId: 'rail', childId: 'shows'}, play = {regionId: 'title.actions', childId: 'play'};
+  registry.configure({id: 'grid', order: ['walk-show']}); registry.attach(card, host(log, 'card'));
+  registry.configure({id: 'rail', order: ['shows']}); registry.attach(rail, host(log, 'rail'));
+  registry.didFocus(card);
+  const page = {key: 'page', host: () => host(log, 'page-layer')};
+  stack.sync([page]);
+  stack.sync([page, {key: 'route:1', host: () => host(log, 'route-layer')}]);
+  assert.deepEqual(log, ['route-layer']);
+  // The page's layer blocks its descendants before the route can take focus: recovery puts it on the rail.
+  registry.didFocus(rail);
+  assert.deepEqual(log, ['route-layer', 'route-layer'], 'a landing on the rail is not done: the route is asked again');
+  registry.configure({id: 'title.actions', order: ['play']}); registry.attach(play, host(log, 'play'));
+  registry.didFocus(play);
+  const asked = log.length;
+  registry.configure({id: 'title.more', order: ['more']});
+  assert.equal(log.length, asked, 'focus is in the route now: the claim is over');
+  assert.equal(time.size(), 0);
+  // Still on the rail at the deadline: one more ask.
+  stack.sync([page]); stack.sync([page, {key: 'route:2', host: () => host(log, 'route-layer-2')}]);
+  registry.didFocus(rail); log.length = 0;
+  time.fire();
+  assert.deepEqual(log, ['route-layer-2'], 'at the deadline a layer whose focus is still on the rail asks once more');
+});
+
 test('popping a layer returns the exact opener, waiting while it is not attached, then falls back once at the deadline', () => {
   const registry = createFocusRegistry(), time = clock(), log: string[] = [];
   const stack = createTVLayerStack(registry, time);
