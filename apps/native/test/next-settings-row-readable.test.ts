@@ -92,13 +92,14 @@ test('settings.html: on phones and tablets the row a result opened carries the o
   } finally {television = true;}
 });
 
-// settings.html phone frames: the label keeps at least half the row; the control draws as the row's value.
-test('on a touch screen a row hands its control the inline value form and keeps half the row for the label', () => {
+// settings.html phone frames: a select draws as the row's value and takes at most half the row; any other control
+// (a button such as "Manage Portico Account") keeps its own width and is never cut (desk B, #3277).
+test('on a touch screen a row hands its control the inline value form without capping the control itself', () => {
   television = false;
   try {
     const find = (node: any, type: string): any => !node || typeof node !== 'object' ? undefined : node.type === type ? node : [node.props?.children].flat(Infinity).map(child => find(child, type)).find(Boolean);
-    const provider = find(SettingsRow({label: 'Rewind when resuming', control: 'control'}), 'RowControlProvider');
-    assert.equal(provider?.props.value, true);
-    assert.equal([provider.props.children].flat()[0].props.style.maxWidth, '50%');
+    const provider = find(SettingsRow({label: 'Manage Portico Account', control: {type: 'Button', props: {}}}), 'RowControlProvider');
+    assert.ok(provider && typeof provider.props.value === 'object', 'the row tells its control it sits in a row');
+    assert.equal([provider.props.children].flat()[0].type, 'Button', 'the control is not wrapped in a capped box');
   } finally {television = true;}
 });
