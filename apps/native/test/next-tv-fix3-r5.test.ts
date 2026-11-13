@@ -33,5 +33,5 @@ test('E-tv-26: related albums and artists open as a fresh page, scrolled to the 
 });
 
 test('E-tv-28: the TV hero title is clamped to two lines', () => {
-  assert.match(source('kit/layout/Hero.tsx'), /lines=\{phone \|\| tv \? 2 : undefined\}/);
+  assert.match(source('kit/layout/Hero.tsx'), /lines=\{tv \? 2 : undefined\}/);
 });

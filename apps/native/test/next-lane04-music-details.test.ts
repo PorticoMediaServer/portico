@@ -45,7 +45,7 @@ test('tablet album matches hero/table metrics and exposes the canonical artist l
   const f = await music();
   const all = nodes(f.tree);
   const cover = all.find(node => node.type === 'Artwork'); assert.equal(cover.props.width, 260);
-  const title = all.find(node => node.type === 'Text' && content(node) === 'Album'); assert.equal(style(title).fontSize, 80);
+  const title = all.find(node => node.type === 'Lockup' && node.props.title === 'Album'); assert.equal(title.props.size, 80, 'the tablet album keeps its frame size through the one page title');
   const link = all.find(node => node.type === 'Focusable' && node.props.accessibilityRole === 'link');
   assert.equal(link.props.style.minHeight, 44); link.props.onPress(); assert.deepEqual(f.opened, [f.artist]);
   const select = all.find(node => node.type === 'Chip'); select.props.onPress(); assert.equal(f.counts().starts, 1);
