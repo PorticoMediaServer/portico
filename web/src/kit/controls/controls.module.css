@@ -11,8 +11,9 @@
   --control-height: var(--spec-button-hero-height-web); --control-radius: var(--spec-button-hero-radius-web);
   --control-inset: var(--spec-button-hero-padding-x-web); --control-gap: var(--spec-button-hero-gap-web); --control-icon: var(--spec-button-hero-icon-web);
   position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; max-width: 100%;
-  /* A control's label is never cut: past the room it has, it wraps and the button grows (owner rule, 12 Nov). */
-  min-height: var(--control-height); border-radius: var(--control-radius); padding: 6px var(--control-inset); gap: var(--control-gap);
+  /* A control's label is never cut: past the room it has, it wraps and the button grows to fit it (owner rule, 12 Nov);
+     a one-line button keeps the height drawn for it, by the kit or by its caller. */
+  height: var(--control-height); min-height: min-content; border-radius: var(--control-radius); padding: 0 var(--control-inset); gap: var(--control-gap);
   font-size: var(--type-button-size); line-height: var(--type-button-line); font-weight: var(--type-button-weight); letter-spacing: var(--type-button-tracking);
   text-align: center; transition: transform 160ms var(--ease-out), background 160ms var(--ease-out);
 }
