@@ -82,7 +82,7 @@ export class SettingsLibrarySource {
     if (document?.eligibleControls.includes(rowId)) {
       const current = rowId === 'libraries.name' ? document.libraryName : rowId === 'libraries.type'
         ? defaultI18n.t(('next.ownerLibraries.kind.' + document.libraryKind) as Parameters<typeof defaultI18n.t>[0])
-        : rowId === 'libraries.access' ? defaultI18n.t(document.audience.everyone ? 'next.ownerLibraries.audience' : 'next.ownerLibraries.audienceSubset', {count: document.audience.accounts}) : undefined;
+        : rowId === 'libraries.access' && document.audience ? defaultI18n.t(document.audience.everyone ? 'next.ownerLibraries.audience' : 'next.ownerLibraries.audienceSubset', {count: document.audience.accounts}) : undefined;
       if (current !== undefined) return {current, effective: current, default: undefined, source: 'library', configOnly: false};
     }
     if (rowId === 'libraries.sonicAnalysis') {

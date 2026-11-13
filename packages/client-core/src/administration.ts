@@ -1,4 +1,5 @@
 import type {GuideChannelMark} from './channel-guide.ts';
+import type {AdminLibrary} from '../../contracts/src/next/api.ts';
 import {callServer} from './query/server-api.ts';
 import {ApiError} from './http.ts';
 import {CodedError} from './server-messages.ts';
@@ -25,7 +26,7 @@ export type SegmentDetectionChoice='server'|'off'|'standard'|'thorough';
 export const segmentDetectionChoices:readonly SegmentDetectionChoice[]=['server','off','standard','thorough'];
 export type LibrarySettings=Readonly<{scanDepth:'file_list_only'|'basic'|'complete'|'custom';groupCollections:boolean;localTags:'prefer'|'supplement'|'off';lyricsSource:'files'|'lrclib';titleSource:'tags'|'names';episodeNumbering:'season'|'absolute';findExtras:boolean;sortIgnoreArticles:boolean;refreshMode:'replace_unlocked'|'fill_missing';acoustidEnabled:boolean;continueWatching:Readonly<{weeks:number;maximumItems:number;includeSeasonPremieres:boolean;videoPlayedThreshold:number;videoCompletion:'earliest'|'threshold'|'credits'}>;allowMediaDeletion:boolean;monitorChanges:boolean;providers:readonly ProviderSelection[];analysis:readonly string[];navigation:GeneratedNavigation;segmentDetection:SegmentDetectionChoice}>;
 export type LibrarySource=InventorySource;
-export type LibraryAdminDocument=Readonly<{libraryId:string;libraryName:string;libraryKind:string;revision:number;digest:string;eligibleControls:readonly string[];audience:Readonly<{everyone:boolean;accounts:number}>;actions:readonly ('rename'|'scan'|'remove')[];settings:LibrarySettings;defaults:LibrarySettings;analysisMatrix:AnalysisMatrix;availableProviders:readonly MetadataProvider[];enumerations:Readonly<Record<string,readonly string[]>>;sources:readonly LibrarySource[]}>;
+export type LibraryAdminDocument=Readonly<{serverLibrary?:AdminLibrary;libraryId:string;libraryName:string;libraryKind:string;revision:number;digest:string;eligibleControls:readonly string[];audience?:Readonly<{everyone:boolean;accounts:number}>;actions:readonly ('rename'|'scan'|'remove')[];settings:LibrarySettings;defaults?:LibrarySettings;analysisMatrix:AnalysisMatrix;availableProviders:readonly MetadataProvider[];enumerations:Readonly<Record<string,readonly string[]>>;sources:readonly LibrarySource[]}>;
 export type DeleteFile=Readonly<{assetId:string;path:string;bytes:number;present:boolean;shared:boolean}>;
 export type DeleteDependent=Readonly<{kind:string;count:number;description:string;networkTarget?:string;driveType?:string}>;
 export type DeleteTarget=Readonly<{itemId:string;title:string;kind:string;libraryId:string;libraryName:string;allowMediaDeletion:boolean;/** How many playable titles go with this item: 1 for a film, a show's episodes. */titles:number;bytes:number;files:readonly DeleteFile[];dependents:readonly DeleteDependent[]}>;
