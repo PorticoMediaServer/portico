@@ -6,6 +6,17 @@
 .compactSections .sectionTabs:not([data-phone]) > button { font-size: 16.5px; padding: 14px 0 13px; }
 .compactSections [role="tabpanel"] { padding: 12px 20px 0; }
 .compactSections [role="tabpanel"] > h2, .compactSections .details > h2 { display: none; }
+/* The reader's marks: desktop-read 3 `.yours` (after the contents), phone-read 8 `.hlstrip` (first). */
+.compactSections [role="tabpanel"] { display: flex; flex-direction: column; }
+.compactSections .marksSlot { order: -1; margin-bottom: 20px; }
+.marksSlot { margin-top: 18px; }
+.marks { display: flex; align-items: center; gap: 16px; width: 100%; min-height: 70px; padding: 16px 18px; border: 0; border-radius: 12px; font: inherit; font-size: 14.5px; text-align: left; color: var(--color-text-secondary); background: var(--color-raised); cursor: pointer; }
+.marks > svg:first-child { flex: none; color: var(--color-text-tertiary); }
+.marksText { flex: 1; min-width: 0; }
+.marksAction { flex: none; display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border-radius: 19px; font-size: 14px; font-weight: 700; color: var(--color-text); background: var(--color-raised-bright); }
+.marks:hover .marksAction { background: var(--color-raised-high); }
+.marks:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
+.marksArrow { display: none; flex: none; color: var(--color-text-tertiary); }
 .sections h2 { font-size: 22px; font-weight: 700; letter-spacing: -.015em; margin: 0 0 12px; }
 .details dl { display: flex; flex-direction: column; gap: 12px; margin: 0; font-size: 15px; }
 .details dl > div { display: grid; grid-template-columns: 112px minmax(0,1fr); gap: 16px; }
@@ -14,4 +25,4 @@
 .details dd small { display: block; margin-top: 4px; font-size: 13px; color: var(--color-text-tertiary); }
 @media (max-width: 1279px) { .sections { gap: 32px; grid-template-columns: minmax(0,1fr) 320px; } }
 @media (max-width: 1023px) { .sections { grid-template-columns: minmax(0,1fr); } .details dl > div { min-height: 44px; } }
-@media (max-width: 599px) { .compactSections .sectionTabs { gap: 24px; padding-inline: 20px; } .sections { padding-top: 30px; } .details dl > div { grid-template-columns: 98px minmax(0,1fr); } }
+@media (max-width: 599px) { .marks { gap: 12px; min-height: 0; padding: 14px 16px; font-size: 14px; } .marksAction { display: none; } .marksArrow { display: block; } .compactSections .sectionTabs { gap: 24px; padding-inline: 20px; } .sections { padding-top: 30px; } .details dl > div { grid-template-columns: 98px minmax(0,1fr); } }

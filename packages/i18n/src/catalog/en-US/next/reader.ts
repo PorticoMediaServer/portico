@@ -169,4 +169,9 @@ export const readerMessages = {
   'next.reader.sourceOwner': 'Edited on this server',
   'next.reader.indexedSearchScope': 'Searches indexed book text.',
   'next.reader.noIndexedMatches': 'No indexed matches found.',
+  'next.reader.highlightCount': '{count, plural, one {# highlight} other {# highlights}}',
+  'next.reader.bookmarkCount': '{count, plural, one {# bookmark} other {# bookmarks}}',
+  'next.reader.marksBoth': '{highlights} and {bookmarks}, the same on every device you read on.',
+  'next.reader.marksOne': '{marks}, the same on every device you read on.',
+  'next.reader.openInReader': 'Open in reader',
 } as const satisfies Record<`next.reader.${string}`, string>;

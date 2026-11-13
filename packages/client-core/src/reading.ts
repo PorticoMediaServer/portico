@@ -1,7 +1,7 @@
 import {rebuiltNewIssues, rebuiltPeriodicalGroups, rebuiltPeriodicalIssues} from './reading-periodicals-rebuilt.ts';
 import {validReadingCover} from './reading-cover.ts';
 import {serverPath} from './query/server-api.ts';
-import {rebuiltReadingContinue, rebuiltReadingPage, rebuiltReadingSeries} from './reading-lists-rebuilt.ts';
+import {rebuiltAuthorTitles, rebuiltBookFacts, rebuiltReadingContinue, rebuiltReadingPage, rebuiltReadingSeries} from './reading-lists-rebuilt.ts';
 import {retryAfterFrom} from './timer.ts';
 import {readingSavedGroupPath, parseReadingSavedGroupMembership, validReadingSavedGroupCommand, type ReadingSavedGroupTarget, type ReadingSavedGroupCommand} from './reading-saved-group.ts';
 import {readingFavoritePath, parseReadingFavorite, validReadingFavoriteCommand, type ReadingFavoriteCommand} from './reading-favorite.ts';
@@ -671,6 +671,11 @@ export class ReadingClient {
     if (!id(libraryId) || !id(seriesId) || !integer(options.limit ?? 50, 1, 100)) fail('invalid_request');
     return rebuiltReadingSeries(this.#rebuilt, seriesId, {cursor: options.cursor, limit: options.limit ?? 50}, signal) as Promise<ReadingSeriesPage>;
   }
+  /** A person's readable titles in one library, by title, for a book page's More by row. */
+  async byAuthor(libraryId: string, personId: string, options: Readonly<{limit?: number}> = {}, signal?: AbortSignal): Promise<ReadingItem[]> {
+    if (!id(libraryId) || !id(personId) || !integer(options.limit ?? 13, 1, 100)) fail('invalid_request');
+    return rebuiltAuthorTitles(this.#rebuilt, libraryId, personId, options.limit ?? 13, signal);
+  }
   /** The titles in progress, most recent first, each with its place: a library's own Continue
    * reading, or every library's (Home's Continue your books). One row, no further page. */
   async continue(options: Readonly<{libraryId?: string; cursor?: string; limit?: number}> = {}, signal?: AbortSignal): Promise<Omit<GetReadingContinueResponse,'items'> & {items:ReadingContinueItem[]}> {
@@ -702,7 +707,7 @@ export class ReadingClient {
     const manifest = frozen({
       sessionId: book.version, itemId: request.itemId, sourceId: book.version, revision: book.fingerprint, format, size: book.size,
       metadata: {...(typeof item.wordCount === 'number' ? {wordCount: item.wordCount, estimatedSeconds: Math.ceil(item.wordCount * 60 / 250)} : {}), ...(typeof item.title === 'string' ? {title: item.title} : {}), ...(book.direction === 'rtl' ? {direction: 'rtl'} : {}),
-        ...(format === 'epub' && typeof book.openingLines === 'string' && book.openingLines.length <= 4096 ? {openingLines: book.openingLines} : {})},
+        ...(format === 'epub' && typeof book.openingLines === 'string' && book.openingLines.length <= 4096 ? {openingLines: book.openingLines} : {}), ...rebuiltBookFacts(item)},
       ...(format === 'epub' ? {resources: (book.parts ?? []).map(p => ({path: p.path, mime: p.type, size: p.size})), spine: [...(book.spine ?? [])],
         ...(book.contents?.length ? {contents: book.contents.slice(0, 512).map(c => ({title: c.title, section: c.part, depth: c.depth, ...(c.fragment ? {fragment: c.fragment} : {})}))} : {})} : {}),
       ...(comicFormat(format) ? {pageNames: [...(book.pages ?? [])]} : {}),

@@ -32,6 +32,7 @@
 .meta > div { margin: 0; }
 .link { display: inline-flex; align-items: center; gap: 10px; min-height: 28px; padding: 0; border: 0; font: inherit; font-size: var(--type-meta-size); font-weight: 700; color: var(--color-text); background: transparent; }
 button.link { cursor: pointer; }
+.face { flex: none; }
 .description { margin: 0 0 26px; max-width: 640px; font-size: 17px; line-height: 1.55; color: var(--color-text-secondary); }
 .opening { margin: 0 0 28px; max-width: 640px; }
 .opening > span { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 700; color: var(--color-text-tertiary); }

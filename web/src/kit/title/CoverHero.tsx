@@ -1,6 +1,6 @@
 import type {ReactNode} from 'react';
 import type {FactPart} from '@core/presentation/kit-model';
-import {AmbientArt, Artwork, type AmbientArtSource, type ArtworkPalette, type ArtworkSource} from '../artwork';
+import {AmbientArt, Artwork, PersonCircle, nameInitials, type AmbientArtSource, type ArtworkPalette, type ArtworkSource} from '../artwork';
 import {TitleFactsLine} from './TitleParts';
 import styles from './cover-hero.module.css';
 
@@ -59,7 +59,9 @@ export function CoverHero({title, titleStyle, eyebrow, byline, facts, cover, sha
   </div>;
 }
 
-/** A link-like name in the byline (an author, a series in the eyebrow). */
-export function CoverHeroLink({onOpen, children}: Readonly<{onOpen?: () => void; children: ReactNode}>) {
-  return onOpen ? <button type="button" className={styles.link} onClick={onOpen}>{children}</button> : <span className={styles.link}>{children}</span>;
+/** A link-like name in the byline. `person` draws the name with its initials in a small circle
+ * before it, as an author is drawn (desktop-read 3, phone-read 3). */
+export function CoverHeroLink({onOpen, person, children}: Readonly<{onOpen?: () => void; person?: string; children: ReactNode}>) {
+  const content = <>{person && <PersonCircle className={styles.face} size={28} initialsSize={11} initials={nameInitials(person)} alt=""/>}{children}</>;
+  return onOpen ? <button type="button" className={styles.link} onClick={onOpen}>{content}</button> : <span className={styles.link}>{content}</span>;
 }
