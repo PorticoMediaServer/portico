@@ -161,7 +161,8 @@ test('a 3-clause BSD notice is labelled BSD-3-Clause', () => {
   assert.equal(classifyGoLicence(GO_STDLIB_3_CLAUSE), 'BSD-3-Clause');
 });
 
-test('Apache, MIT and unrecognised texts keep their existing labels', () => {
+test('Apache, MIT, MPL and unrecognised texts keep their own labels', () => {
+  assert.equal(classifyGoLicence('Mozilla Public License, version 2.0'), 'MPL-2.0');
   assert.equal(classifyGoLicence('Apache License\nVersion 2.0, January 2004\nhttp://www.apache.org/licenses/'), 'Apache-2.0');
   assert.equal(classifyGoLicence('MIT License\n\nPermission is hereby granted, free of charge, to any person obtaining a copy'), 'MIT');
   assert.equal(classifyGoLicence('GNU LESSER GENERAL PUBLIC LICENSE\nVersion 3, 29 June 2007'), 'See text');

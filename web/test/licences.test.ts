@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {join} from 'node:path';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
@@ -13,7 +14,7 @@ const REGENERATE = 'run: node --experimental-strip-types web/scripts/licences.ts
 
 test('the licence list is current: every inventory it was generated from is unchanged', () => {
   assert.ok(Object.keys(data.inputs).includes('package-lock.json'));
-  assert.ok(Object.keys(data.inputs).includes('server/go.sum'));
+  assert.ok(Object.keys(data.inputs).includes('server-next/go.sum'));
   for (const [rel, digest] of Object.entries(data.inputs)) {
     const now = createHash('sha256').update(readFileSync(new URL(rel, root))).digest('hex');
     assert.equal(now, digest, `${rel} changed since web/src/generated/licences.json was generated; ${REGENERATE}`);
@@ -51,4 +52,17 @@ const canRegenerate = existsSync(new URL('node_modules/react/package.json', root
 test('a fresh generation gives exactly the committed file', {skip: !canRegenerate && 'needs node_modules and Go'}, async () => {
   const {generate} = await import('../scripts/licences.ts');
   assert.equal(serialiseLicenceData(generate()), readFileSync(file, 'utf8'), REGENERATE);
+});
+
+
+test('libc keeps its own BSD label and the complete ported-code notices', {skip: !canRegenerate && 'needs node_modules and Go'}, () => {
+  const component = data.components.find(c => c.name === 'modernc.org/libc')!;
+  assert.match(component.licence, /^BSD-3-Clause; ported code/);
+  const cache = execFileSync('go', ['env', 'GOMODCACHE'], {encoding: 'utf8'}).trim();
+  const module = join(cache, `modernc.org/libc@${component.version}`);
+  const text = [...(component.copyright ?? []), data.texts[component.text!]!].join('\n').replace(/\s+/g, ' ');
+  for (const name of ['LICENSE', 'LICENSE-3RD-PARTY.md']) {
+    const complete = readFileSync(join(module, name), 'utf8').trim().replace(/\s+/g, ' ');
+    assert.ok(text.includes(complete), `${name} must ship completely in dependencies.json`);
+  }
 });

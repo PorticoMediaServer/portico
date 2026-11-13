@@ -6,31 +6,39 @@ The licence names below are an inventory, not a substitute for the licence texts
 
 ## Go server
 
-`server/go.mod` and `server/go.sum` pin the Go modules. `apikit` is Portico's own module. Go itself, and the Go image-scaling code copied into Portico, use BSD-3-Clause terms.
+`server-next/go.mod` and `server-next/go.sum` pin the released server's Go modules. Go itself uses BSD-3-Clause terms. The complete cross-platform dependency notices, including the tagged decoders, are collected in [the generated licence inventory](web/src/generated/licences.json), shown in Settings and shipped as `licenses/dependencies.json`.
 
 | Module | Version | Licence |
 | --- | --- | --- |
+| github.com/andybalholm/brotli | v1.2.2 | MIT |
+| github.com/bodgit/plumbing | v1.3.0 | BSD-3-Clause |
+| github.com/bodgit/sevenzip | v1.6.5 | BSD-3-Clause |
+| github.com/bodgit/windows | v1.0.1 | BSD-3-Clause |
+| github.com/dustin/go-humanize | v1.0.1 | MIT |
+| github.com/google/uuid | v1.6.0 | BSD-3-Clause |
+| github.com/hashicorp/golang-lru/v2 | v2.0.7 | MPL-2.0 |
+| github.com/klauspost/compress | v1.19.0 | Apache-2.0 |
+| github.com/mattn/go-isatty | v0.0.24 | MIT |
+| github.com/ncruces/go-strftime | v1.0.0 | MIT |
+| github.com/nwaples/rardecode/v2 | v2.4.5 | BSD-2-Clause |
+| github.com/pierrec/lz4/v4 | v4.1.27 | BSD-3-Clause |
+| github.com/remyoudompheng/bigfft | v0.0.0-20230129092748-24d4a6f8daec | BSD-3-Clause |
+| github.com/spf13/afero | v1.15.0 | Apache-2.0 |
+| github.com/stangelandcl/ppmd | v0.1.1 | MIT |
+| github.com/ulikunitz/xz | v0.5.15 | BSD-3-Clause |
+| go4.org | v0.0.0-20260112195520-a5071408f32f | Apache-2.0 |
 | golang.org/x/crypto | v0.56.0 | BSD-3-Clause |
 | golang.org/x/image | v0.46.0 | BSD-3-Clause |
 | golang.org/x/sys | v0.48.0 | BSD-3-Clause |
 | golang.org/x/text | v0.42.0 | BSD-3-Clause |
-| modernc.org/sqlite | v1.58.0 | BSD-3-Clause; SQLite engine public domain |
-| modernc.org/libc | v1.75.6 | BSD-3-Clause; generated/ported code retains its source notices |
+| modernc.org/libc | v1.75.6 | BSD-3-Clause; ported code retains its source notices |
 | modernc.org/mathutil | v1.7.1 | BSD-3-Clause |
 | modernc.org/memory | v1.12.1 | BSD-3-Clause |
-| rsc.io/pdf | v0.1.1 | BSD-3-Clause (Go Authors) |
-| github.com/dustin/go-humanize | v1.0.1 | MIT |
-| github.com/google/uuid | v1.6.0 | BSD-3-Clause |
-| github.com/mattn/go-isatty | v0.0.24 | MIT |
-| github.com/ncruces/go-strftime | v1.0.0 | MIT |
-| github.com/remyoudompheng/bigfft | v0.0.0-20230129092748-24d4a6f8daec | BSD-3-Clause |
-| gopkg.in/yaml.v3 | v3.0.1 | MIT and Apache-2.0, per file |
-| github.com/bodgit/sevenzip | v1.6.5 | BSD-3-Clause |
-| github.com/nwaples/rardecode/v2 | v2.4.5 | BSD-2-Clause |
+| modernc.org/sqlite | v1.58.0 | BSD-3-Clause; SQLite is public domain |
 
-The two archive readers power the comic reader: `rardecode` for CBR files and `sevenzip` for CB7 files. Both are direct requirements in `server/go.mod`, and official builds link them in using the `portico_rar7z` and `portico_cb7` tags from `scripts/release-build-tags.py`. CB7 also needs a supported platform and the bounded `archive7z` worker; the tag on its own never opens an archive inside the server process. Their licence texts are the packages' own unchanged `LICENSE` files.
+The archive readers power the comic reader: `rardecode` for CBR files and `sevenzip` for CB7 files. Both are direct requirements in `server-next/go.mod`, selected by the official `portico_rar7z` and `portico_cb7` tags. They run in a separate bounded invocation of the server executable, before normal startup. Their full upstream notices and those of their decoder dependencies are in the generated inventory.
 
-The SQLite driver files copied into Portico keep their upstream notices in [server/internal/thirdparty/sqlite/LICENSE](server/internal/thirdparty/sqlite/LICENSE), with their history in [PORTICO.md](server/internal/thirdparty/sqlite/PORTICO.md). The image scaler's BSD notice is in [server/internal/imagework/SCALE_LICENSE](server/internal/imagework/SCALE_LICENSE).
+SQLite is the upstream modernc module; the released server no longer carries the old adapted driver or copied image scaler.
 
 ## Web and build packages
 
@@ -77,8 +85,9 @@ Fonts and icons Portico ships:
 | Manrope web interface font | OFL-1.1, `web/src/kit/fonts/OFL.txt` |
 | Liberation Sans 2.00.5 subtitle default | OFL-1.1, `third_party/libass-wasm/OFL-1.1.txt` |
 | Noto Sans Arabic, Hebrew, Thai, Devanagari, Bengali, Tamil | OFL-1.1, `third_party/subtitle-fonts/OFL-1.1.txt` |
-| Noto Sans CJK JP, decoder fallback and browser subtitles (served by the server) | OFL-1.1, `server/internal/mediaexec/fonts/NotoCJK-LICENSE` |
-| Decoder DejaVu fonts | Bitstream Vera/Arev font terms, DejaVu changes public domain; `server/internal/mediaexec/fonts/LICENSE` |
+| Noto Sans CJK JP, decoder fallback and browser subtitles (served by the server) | OFL-1.1, `server-next/internal/mediaexec/fonts/NotoCJK-LICENSE` |
+| Noto Sans Devanagari and Thai, decoder fallback | OFL-1.1, `server-next/internal/mediaexec/fonts/NotoSansDevanagari-LICENSE` and `NotoSansThai-LICENSE` |
+| Decoder DejaVu fonts | Bitstream Vera/Arev font terms, DejaVu changes public domain; `server-next/internal/mediaexec/fonts/LICENSE` |
 | Lucide icons | ISC, `packages/design/LICENSE-LUCIDE` |
 
 Each folder's provenance file records where its fonts came from and their hashes. The browser's fallback fonts don't cover every script.
