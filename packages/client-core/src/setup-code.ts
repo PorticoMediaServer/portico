@@ -40,6 +40,7 @@ export interface SetupCodeApi<T> {
   // Omit when cancelling only forgets the code and the server lets it expire.
   cancel?(entry: SetupCodeEntry<T>, signal: AbortSignal, kind?: HostedRequestKind): Promise<void>;
   forgotten?(entry: SetupCodeEntry<T>): void;
+  abandoned?(entry: SetupCodeEntry<T>): void;
   displayed?(entry: SetupCodeEntry<T> | undefined): void;
 }
 export type SetupCodeSnapshot<T> = {
@@ -270,8 +271,10 @@ export class SetupCodeService<T> {
     this.cleanupAfter = Date.now() + 30_000;
     const cancel = this.api.cancel;
     if (!cancel) {
+      const retired = this.journal?.retired ?? [];
       if (this.journal?.retired.length || this.journal?.creating?.cancelled)
         await this.change(record => ({...record, retired: [], creating: record.creating?.cancelled ? undefined : record.creating}));
+      for (const entry of retired) this.api.abandoned?.(entry);
       return;
     }
     const entry = this.journal?.retired[0];
