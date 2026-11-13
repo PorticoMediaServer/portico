@@ -63,12 +63,17 @@ const recordingColumns = `r.id, r.public_id, ifnull(r.channel_id, 0), r.channel_
 	ifnull(r.reason, ''), ifnull(r.choice, ''), r.in_guide, r.keep, r.created_at, r.updated_at`
 
 func scanRecording(row interface{ Scan(...any) error }) (Recording, error) {
+	return scanRecordingWithPrefix(row)
+}
+
+func scanRecordingWithPrefix(row rowScanner, prefix ...any) (Recording, error) {
 	var r Recording
 	var also string
 	var starts, ends, before, after, created, updated int64
-	err := row.Scan(&r.ID, &r.PublicID, &r.ChannelID, &r.ChannelName, &r.RuleID, &r.ProfileID, &r.BookedBy, &also, &r.ItemID, &r.ProgrammeKey,
+	fields := []any{&r.ID, &r.PublicID, &r.ChannelID, &r.ChannelName, &r.RuleID, &r.ProfileID, &r.BookedBy, &also, &r.ItemID, &r.ProgrammeKey,
 		&r.SeriesKey, &r.Title, &r.EpisodeTitle, &r.Season, &r.Episode, &r.Details, &starts, &ends, &before, &after, &r.Priority, &r.State,
-		&r.Reason, &r.Choice, &r.InGuide, &r.Keep, &created, &updated)
+		&r.Reason, &r.Choice, &r.InGuide, &r.Keep, &created, &updated}
+	err := row.Scan(append(prefix, fields...)...)
 	json.Unmarshal([]byte(also), &r.AlsoWantedBy)
 	r.Details, r.Rating, r.RatingAge = readDetails(r.Details)
 	r.StartsAt, r.EndsAt, r.CreatedAt, r.UpdatedAt = time.UnixMilli(starts), time.UnixMilli(ends), time.UnixMilli(created), time.UnixMilli(updated)
@@ -191,6 +196,8 @@ type RecordingQuery struct {
 	Made       bool
 	AfterTitle string
 	Limit      int
+	Group      *string             // an exact Recorded group title, including an empty title
+	Scope      *RecordingReadScope // viewer visibility, applied before paging
 }
 
 // Recordings reads a page. Upcoming reads recordings_upcoming in start order; history reads
@@ -199,29 +206,47 @@ type RecordingQuery struct {
 // recordings, an accepted cost on the Recorded tab). A profile's own are the ones it booked or
 // also asked for.
 func (d *DB) Recordings(ctx context.Context, q RecordingQuery) ([]Recording, error) {
-	where, order := `r.state IN ('scheduled', 'recording') AND (r.starts_at, r.id) > (?, ?)`, `r.starts_at, r.id`
-	args := []any{q.After, q.AfterID}
+	where, order := `r.state IN ('scheduled', 'recording') AND (r.starts_at, r.id) > (@after, @after_id)`, `r.starts_at, r.id`
 	switch {
 	case q.Made:
 		where, order = `r.state IN ('partial', 'recorded')`, `r.title, r.starts_at DESC, r.id DESC`
-		args = nil
 		if q.AfterID != 0 {
-			where += ` AND (r.title > ? OR r.title = ? AND (r.starts_at < ? OR r.starts_at = ? AND r.id < ?))`
-			args = []any{q.AfterTitle, q.AfterTitle, q.After, q.After, q.AfterID}
+			where += ` AND (r.title > @after_title OR r.title = @after_title AND (r.starts_at < @after OR r.starts_at = @after AND r.id < @after_id))`
 		}
 	case !q.Upcoming:
-		where, order = `r.state IN ('failed', 'cancelled', 'skipped', 'partial', 'recorded') AND (r.updated_at, r.id) < (?, ?)`, `r.updated_at DESC, r.id DESC`
+		where, order = `r.state IN ('failed', 'cancelled', 'skipped', 'partial', 'recorded') AND (r.updated_at, r.id) < (@after, @after_id)`, `r.updated_at DESC, r.id DESC`
 		if q.After == 0 {
 			q.After, q.AfterID = 1<<62, 1<<62
 		}
-		args = []any{q.After, q.AfterID}
 	}
+	args := []any{sql.Named("after", q.After), sql.Named("after_id", q.AfterID), sql.Named("after_title", q.AfterTitle), sql.Named("limit", q.Limit)}
 	if q.ProfileID != 0 {
-		where += ` AND (r.profile_id = ? OR EXISTS (SELECT 1 FROM json_each(r.also_wanted_by) w WHERE w.value = ?))`
-		args = append(args, q.ProfileID, q.ProfilePub)
+		where += ` AND (r.profile_id = @booker OR EXISTS (SELECT 1 FROM json_each(r.also_wanted_by) w WHERE w.value = @booker_public))`
+		args = append(args, sql.Named("booker", q.ProfileID), sql.Named("booker_public", q.ProfilePub))
 	}
-	rows, err := d.read.QueryContext(ctx, `SELECT `+recordingColumns+` FROM recordings r WHERE `+where+` ORDER BY `+order+` LIMIT ?`,
-		append(args, q.Limit)...)
+	if q.Group != nil {
+		where += ` AND r.title = @group_title`
+		args = append(args, sql.Named("group_title", *q.Group))
+	}
+	from, read := "recordings r", d.read.QueryContext
+	if q.Scope != nil {
+		tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			return nil, err
+		}
+		defer tx.Rollback()
+		a, err := loadAccess(ctx, tx, q.Scope.Viewer)
+		if err != nil {
+			return nil, err
+		}
+		var visible string
+		var scopedArgs []any
+		from, visible, scopedArgs = recordingReadSQL(a, *q.Scope)
+		where += ` AND ` + visible
+		args = append(args, scopedArgs...)
+		read = tx.QueryContext
+	}
+	rows, err := read(ctx, `SELECT `+recordingColumns+` FROM `+from+` WHERE `+where+` ORDER BY `+order+` LIMIT @limit`, args...)
 	if err != nil {
 		return nil, err
 	}
