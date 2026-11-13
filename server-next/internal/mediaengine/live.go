@@ -154,6 +154,10 @@ func (e *Engine) measureLive(ctx context.Context, in *live.Input) (mediafacts.Fa
 			// These codecs can carry HDR facts in later frames; a header-only
 			// observation cannot establish their absence from the short sample.
 			complete = complete && d.Profile != "" && d.InterlaceAnalysis != ""
+			// MPEG-2 cadence/field coding needs the longer observation. Only
+			// progressive H.264 with matching measured/declared rates qualifies.
+			complete = complete && stream.Codec == "h264" && d.InterlaceAnalysis == "field_order_progressive"
+			complete = complete && d.AverageFrameRate != "" && d.AverageFrameRate == d.DeclaredFrameRate
 			complete = complete && !mediafacts.NeedsFrameHDR(stream) && (d.BitDepth <= 8 || stream.ColorTransfer != "")
 			if stream.Codec == "h264" {
 				complete = complete && d.Profile != "" && d.Level > 0
