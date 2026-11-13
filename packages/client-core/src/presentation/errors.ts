@@ -172,6 +172,10 @@ const codeBodies: Record<string, MessageId> = {
   sync_pending: 'sync.kept',
   reading_progress_pending: 'error.readingProgressPending',
   factor_setup_required: 'error.factorSetupRequired',
+  // Portico Services' answers to the Portico Account's password and two-step code typed on a server's
+  // page (Forgot PIN): its own sentences, not a 403's "your profile doesn't have access".
+  password_wrong: 'next.account.problem.passwordWrong',
+  two_step_wrong: 'next.account.problem.twoStepWrong',
   // AU-3: what was typed can't be a server address at all (not one that didn't answer).
   invalid_address: 'web.signIn.error.address',
   // OW-4: the metadata editor's own answers. A write the server didn't confirm, and an image it can't keep.
