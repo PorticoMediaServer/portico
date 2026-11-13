@@ -39,6 +39,8 @@ export type HomePageOutcome = Readonly<{rowId: string; requestedCursor: string |
 )>;
 
 const none: ReadonlySet<string> = Object.freeze(new Set<string>());
+/** How many deferred Home rows are read at once. */
+export const HOME_ROW_READS = 3;
 const sameJson = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
 
 /** `fresh` with every row and card that did not change taken from `shown`. Returns `shown` when nothing changed. */
@@ -68,6 +70,7 @@ export class HomeService {
   /** Deferred rows being read, and rows whose read failed while they stayed near (asked again once they leave and return). */
   private rowReads = new Map<string, AbortController>();
   private failedRows = new Set<string>();
+  private demanded: ReadonlySet<string> = new Set();
   private disposed = false;
   private readonly api: () => HomeApi;
   private readonly timeoutMs: number;
@@ -137,10 +140,18 @@ export class HomeService {
    * titles come back empty is taken out, as the server leaves out an empty row. One read per row at a time. */
   demand(rowIds: Iterable<string>): void {
     if (this.disposed) return;
-    const wanted = new Set(rowIds);
+    const wanted = this.demanded = new Set(rowIds);
     for (const [id, controller] of this.rowReads) if (!wanted.has(id)) { controller.abort(); this.rowReads.delete(id); }
     for (const id of this.failedRows) if (!wanted.has(id)) this.failedRows.delete(id);
-    for (const row of this.state.document?.rows ?? []) if (wanted.has(row.id) && row.deferred && row.viewRead && !this.rowReads.has(row.id) && !this.failedRows.has(row.id)) this.readRow(row);
+    this.startRowReads();
+  }
+  /** At most HOME_ROW_READS at once, in Home's order: a saved view sorted at random over a whole library is a slow read,
+   * and a fast scroll must not start every deferred row together. Each finished read starts the next demanded one. */
+  private startRowReads(): void {
+    for (const row of this.state.document?.rows ?? []) {
+      if (this.rowReads.size >= HOME_ROW_READS) return;
+      if (this.demanded.has(row.id) && row.deferred && row.viewRead && !this.rowReads.has(row.id) && !this.failedRows.has(row.id)) this.readRow(row);
+    }
   }
   private stopRowReads(): void { for (const controller of this.rowReads.values()) controller.abort(); this.rowReads.clear(); this.failedRows.clear(); }
   private readRow(row: HomeRow): void {
@@ -156,7 +167,7 @@ export class HomeService {
       const rows = entries.length ? document.rows.map((each, index) => index === at ? filled : each) : document.rows.filter((_, index) => index !== at);
       this.publish({document: Object.freeze({...document, rows: Object.freeze(rows)})});
     }, () => { if (!controller.signal.aborted && mine === this.generation) this.failedRows.add(row.id); })
-      .finally(() => { if (this.rowReads.get(row.id) === controller) this.rowReads.delete(row.id); });
+      .finally(() => { if (this.rowReads.get(row.id) === controller) { this.rowReads.delete(row.id); if (!this.disposed && mine === this.generation) this.startRowReads(); } });
   }
 
   /** Rows arrive whole, so there is never a further page. */
