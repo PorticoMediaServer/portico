@@ -196,6 +196,8 @@ export class SettingsController {
     });
     if (this.current()) this.configuration = configuration;
   };
+  /** A separately confirmed owner command has reread the same settings; its earlier refusal is spent. */
+  ownerSettingsChanged = async () => {await this.readConfiguration();if (this.current()) {this.rowErrors.clear();this.publish({saveState: 'saved'});}};
   getSnapshot = (section: SettingsSection) => this.sectionReads.snapshot(`${section.scope}/${section.id}`);
   preferencesSnapshot = () => this.current() ? this.preferences : undefined;
   serverHealth = () => this.current() ? this.header.health : undefined;

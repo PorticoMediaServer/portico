@@ -26,3 +26,6 @@
   .reach > button { justify-self: start; margin-left: 23px; }
   .reachTitle { font-size: var(--type-fixed-size-20px); }
 }
+
+.ownAddress { display: grid; gap: 16px; width: 100%; }
+.ownAddress > button { justify-self: start; }

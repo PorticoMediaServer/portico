@@ -3,6 +3,26 @@
  * from a pasted configuration section; per-kind forms, cloud-drive sign-in and live counts
  * have no route yet, so those frames stay hidden and the page invents nothing. */
 export const remoteSourcesMessages = {
+  'next.remoteOwner.router': 'Router mapping',
+  'next.remoteOwner.mapped': 'Port opened',
+  'next.remoteOwner.notMapped': 'Port not opened',
+  'next.remoteOwner.notChecked': 'Not checked from outside',
+  'next.remoteOwner.reachable': 'Reachable from outside',
+  'next.remoteOwner.unreachable': 'Not reachable from outside',
+  'next.remoteOwner.unknown': 'Outside check did not finish',
+  'next.remoteOwner.serving': 'Serving',
+  'next.remoteOwner.waiting': 'Not serving yet',
+  'next.remoteOwner.nextTry': 'Next certificate attempt: {when}',
+  'next.remoteOwner.confirm': 'Keep these settings?',
+  'next.remoteOwner.saveAnyway': 'Save anyway',
+  'next.remoteOwner.domainHelp': 'The domain alone, such as media.example.com. A reverse proxy may serve HTTPS for it.',
+  'next.remoteOwner.fileHelp': 'A file name in the server’s Keys folder. Give both certificate and key, or leave both empty for a reverse proxy.',
+  'next.remoteOwner.refusedHttp': 'Plain HTTP was refused.',
+  'next.remoteOwner.refusedAddress': 'This address is not allowed by Enhanced Security.',
+  'next.remoteOwner.blockedUntil': 'Blocked until {when}',
+  'next.remoteOwner.automatic': 'Automatic',
+  'next.remoteOwner.required': 'Required by Enhanced Security',
+
   'next.remoteStatus.reachability': 'Remote access',
   'next.remoteStatus.addresses': 'Public addresses',
   'next.remoteStatus.secure': 'Secure connection',
