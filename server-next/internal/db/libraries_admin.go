@@ -392,14 +392,18 @@ func (d *DB) VersionDeletion(ctx context.Context, v Viewer, versionID string) (D
 }
 
 func (d *DB) deletion(ctx context.Context, v Viewer, where, id string, version bool) (Deletion, error) {
-	var out Deletion
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return out, err
+		return Deletion{}, err
 	}
 	defer tx.Rollback()
+	return readDeletion(ctx, tx, v, where, id, version)
+}
+
+func readDeletion(ctx context.Context, tx *sql.Tx, v Viewer, where, id string, version bool) (Deletion, error) {
+	var out Deletion
 	var options sql.NullString
-	err = tx.QueryRowContext(ctx, `SELECT i.id, i.library_id, i.title, l.options, ifnull(i.parent_id, 0), ifnull(i.root_id, 0)
+	err := tx.QueryRowContext(ctx, `SELECT i.id, i.library_id, i.title, l.options, ifnull(i.parent_id, 0), ifnull(i.root_id, 0)
 		FROM items i JOIN libraries l ON l.id = i.library_id WHERE `+where, id).
 		Scan(&out.ItemID, &out.LibraryID, &out.Title, &options, &out.ParentID, &out.RootID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -513,97 +517,103 @@ func (d *DB) deletion(ctx context.Context, v Viewer, where, id string, version b
 // it is forgotten with it; the plays they finished stay in the play record. Files that were
 // kept leave their title in place, and the deleted ones are marked missing.
 func (d *DB) Deleted(ctx context.Context, del Deletion, deleted []int64) error {
-	return d.write(ctx, User, func(tx *sql.Tx) (err error) {
-		b := newBatchTx(tx)
-		defer b.close()
-		now := time.Now().UnixMilli()
-		defer func() {
-			if err == nil {
-				err = b.settleWatchedForAll(now)
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		return recordDeleted(tx, del, deleted, nil)
+	})
+}
+
+// recordDeleted is the database half of deletion, shared with its rolled-back preview.
+func recordDeleted(tx *sql.Tx, del Deletion, deleted []int64, previewRemoval func(int64) error) (err error) {
+	b := newBatchTx(tx)
+	b.previewRemoval = previewRemoval
+	defer b.close()
+	now := time.Now().UnixMilli()
+	defer func() {
+		if err == nil {
+			err = b.settleWatchedForAll(now)
+		}
+	}()
+	var parent sql.NullInt64
+	if err := b.queryRow(`SELECT parent_id FROM items WHERE id = ?`, del.ItemID).Scan(&parent); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	switch {
+	case len(deleted) < len(del.Files):
+		var changed []int64
+		for _, id := range deleted {
+			if err := goneFiles(b, now, &changed, `id = ?`, id); err != nil {
+				return err
 			}
-		}()
-		var parent sql.NullInt64
-		if err := b.queryRow(`SELECT parent_id FROM items WHERE id = ?`, del.ItemID).Scan(&parent); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil
-			}
+		}
+		items, err := queryInts(tx, subtreeSQL+`SELECT id FROM t`, del.ItemID)
+		if err != nil {
 			return err
 		}
-		switch {
-		case len(deleted) < len(del.Files):
-			var changed []int64
-			for _, id := range deleted {
-				if err := goneFiles(b, now, &changed, `id = ?`, id); err != nil {
-					return err
-				}
+		for _, other := range del.Others {
+			items = append(items, other.ItemID)
+		}
+		for _, id := range items {
+			if err := settleItem(b, del.LibraryID, id, now); err != nil {
+				return err
 			}
-			items, err := queryInts(tx, subtreeSQL+`SELECT id FROM t`, del.ItemID)
+		}
+		return nil
+	}
+	// The other titles played from these files go with them: a version whose file is
+	// deleted is gone, and a title with no version left is removed, never Missing.
+	for _, other := range del.Others {
+		if _, err := b.exec(`DELETE FROM media WHERE id = ?`, other.MediaID); err != nil {
+			return err
+		}
+	}
+	others := func() error {
+		for _, other := range del.Others {
+			var left int
+			var up sql.NullInt64
+			err := b.queryRow(`SELECT (SELECT count(*) FROM media WHERE item_id = i.id), i.parent_id FROM items i WHERE i.id = ?`, other.ItemID).Scan(&left, &up)
+			if errors.Is(err, sql.ErrNoRows) {
+				continue // already removed with the first of its versions
+			}
 			if err != nil {
 				return err
 			}
-			for _, other := range del.Others {
-				items = append(items, other.ItemID)
+			if left > 0 {
+				err = settleItem(b, del.LibraryID, other.ItemID, now)
+			} else if err = removeItem(b, del.LibraryID, other.ItemID, now); err == nil {
+				err = settleItem(b, del.LibraryID, up.Int64, now)
 			}
-			for _, id := range items {
-				if err := settleItem(b, del.LibraryID, id, now); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-		// The other titles played from these files go with them: a version whose file is
-		// deleted is gone, and a title with no version left is removed, never Missing.
-		for _, other := range del.Others {
-			if _, err := b.exec(`DELETE FROM media WHERE id = ?`, other.MediaID); err != nil {
+			if err != nil {
 				return err
 			}
 		}
-		others := func() error {
-			for _, other := range del.Others {
-				var left int
-				var up sql.NullInt64
-				err := b.queryRow(`SELECT (SELECT count(*) FROM media WHERE item_id = i.id), i.parent_id FROM items i WHERE i.id = ?`, other.ItemID).Scan(&left, &up)
-				if errors.Is(err, sql.ErrNoRows) {
-					continue // already removed with the first of its versions
-				}
-				if err != nil {
-					return err
-				}
-				if left > 0 {
-					err = settleItem(b, del.LibraryID, other.ItemID, now)
-				} else if err = removeItem(b, del.LibraryID, other.ItemID, now); err == nil {
-					err = settleItem(b, del.LibraryID, up.Int64, now)
-				}
-				if err != nil {
-					return err
-				}
+		return nil
+	}
+	switch {
+	case del.MediaID != 0:
+		for _, id := range deleted {
+			if _, err := b.exec(`DELETE FROM files WHERE id = ?`, id); err != nil {
+				return err
 			}
-			return nil
 		}
-		switch {
-		case del.MediaID != 0:
-			for _, id := range deleted {
-				if _, err := b.exec(`DELETE FROM files WHERE id = ?`, id); err != nil {
-					return err
-				}
-			}
-			if _, err := b.exec(`DELETE FROM media WHERE id = ?`, del.MediaID); err != nil {
-				return err
-			}
-			if err := appendChange(tx, Change{At: now, Topic: TopicItem, Op: OpUpdated, RefID: del.ItemID, LibraryID: del.LibraryID}); err != nil {
-				return err
-			}
-			if err := settleItem(b, del.LibraryID, del.ItemID, now); err != nil {
-				return err
-			}
-			return others()
-		}
-		if err := removeItem(b, del.LibraryID, del.ItemID, now); err != nil {
+		if _, err := b.exec(`DELETE FROM media WHERE id = ?`, del.MediaID); err != nil {
 			return err
 		}
-		if err := settleItem(b, del.LibraryID, parent.Int64, now); err != nil {
+		if err := appendChange(tx, Change{At: now, Topic: TopicItem, Op: OpUpdated, RefID: del.ItemID, LibraryID: del.LibraryID}); err != nil {
+			return err
+		}
+		if err := settleItem(b, del.LibraryID, del.ItemID, now); err != nil {
 			return err
 		}
 		return others()
-	})
+	}
+	if err := removeItem(b, del.LibraryID, del.ItemID, now); err != nil {
+		return err
+	}
+	if err := settleItem(b, del.LibraryID, parent.Int64, now); err != nil {
+		return err
+	}
+	return others()
 }

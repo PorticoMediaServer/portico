@@ -840,19 +840,24 @@ func (s *Server) viewer(r *http.Request) db.Viewer {
 }
 
 func (s *Server) previewItemDeletion(r *http.Request, _ None) (DeletionPreview, error) {
-	del, err := s.db.ItemDeletion(r.Context(), s.viewer(r), r.PathValue("id"))
+	del, err := s.db.ItemDeletionPreview(r.Context(), s.viewer(r), r.PathValue("id"))
 	if err != nil {
 		return DeletionPreview{}, libraryError(err)
 	}
-	return deletionPreview(del), nil
+	return settledDeletionPreview(del), nil
 }
 
 func (s *Server) previewVersionDeletion(r *http.Request, _ None) (DeletionPreview, error) {
-	del, err := s.db.VersionDeletion(r.Context(), s.viewer(r), r.PathValue("id"))
+	del, err := s.db.VersionDeletionPreview(r.Context(), s.viewer(r), r.PathValue("id"))
 	if err != nil {
 		return DeletionPreview{}, libraryError(err)
 	}
-	return deletionPreview(del), nil
+	return settledDeletionPreview(del), nil
+}
+
+func settledDeletionPreview(del db.DeletionImpact) DeletionPreview {
+	return DeletionPreview{Title: del.Title, Titles: del.Titles, Files: len(del.Files), Bytes: del.Bytes,
+		ListEntries: del.ListEntries, OtherPeople: del.OtherStates, AlsoRemoves: titleRefs(del.AlsoRemoves)}
 }
 
 func deletionPreview(del db.Deletion) DeletionPreview {
