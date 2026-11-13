@@ -14,7 +14,8 @@ test('without a chapter list the entity count stands', () => {
   assert.equal(audiobookChapterCount(undefined, undefined), undefined);
 });
 test('the book header uses the chapter list count', () => {
-  assert.match(readFileSync(new URL('../src/screens/detail/audiobooks/Entry.tsx', import.meta.url), 'utf8'), /title\.chapterCount', \{count: chapterCount\}/);
+  assert.match(readFileSync(new URL('../src/screens/detail/audiobooks/Entry.tsx', import.meta.url), 'utf8'), /heroFacts\(.*book \? chapterCount : undefined\)\}/);
+  assert.match(readFileSync(new URL('../src/screens/detail/audiobooks/Entry.tsx', import.meta.url), 'utf8'), /title\.chapterCount', \{count: chapters\}/);
 });
 test('W2-A6: Resume chapter N names the book-wide chapter number, not the part-relative index', () => {
   const source = readFileSync(new URL('../src/screens/detail/audiobooks/Entry.tsx', import.meta.url), 'utf8');
