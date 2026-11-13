@@ -55,6 +55,9 @@ func TestTheSchemaCheckAcceptsANewDatabaseAndRefusesAChangedOne(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("after %q the check says %v, want it to say %q", change, err, want)
 		}
+		if err != nil && strings.Contains(err.Error(), "fresh data folder") {
+			t.Errorf("backup/restore schema check gave startup advice: %v", err)
+		}
 	}
 }
 

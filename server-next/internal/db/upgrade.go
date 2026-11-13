@@ -160,7 +160,7 @@ func (d *DB) upgrade(ctx context.Context) error {
 	}
 	if !unfinished {
 		if err := CheckSchema(ctx, d.writeConn); err != nil {
-			if errors.Is(err, ErrOldTestFolder) {
+			if version == current {
 				return ErrOldTestFolder
 			}
 			return err
