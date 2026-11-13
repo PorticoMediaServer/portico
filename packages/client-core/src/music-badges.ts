@@ -23,6 +23,19 @@ export function parseMusicBadges(value: unknown): readonly MusicFormatBadge[] | 
  return Object.freeze(out.filter((badge, index) => out.findIndex(other => JSON.stringify(badge) === JSON.stringify(other)) === index));
 }
 
+/** The album's notable formats from the server's own summary of its songs (`albumAudio` on GET /v1/items/{album}):
+ * only when every song shares them (`common`), and only what the server knows. A bit depth comes only with lossless
+ * audio, so a hi-res badge needs one; it is never guessed from the sample rate. Mixed and unknown albums get none. */
+export function albumAudioBadges(summary: Readonly<{state: string; codec?: string; bitDepth?: number; sampleRate?: number; channels?: number}> | undefined): readonly MusicFormatBadge[] | undefined {
+ if (summary?.state !== 'common' || !summary.codec) return undefined;
+ const out: MusicFormatBadge[] = [];
+ const codec = summary.codec.toLowerCase();
+ if (codec === 'dsd' || codec.startsWith('dsd_')) out.push(Object.freeze({variant: 'dsd'}));
+ else if (summary.bitDepth && summary.bitDepth > 16 && summary.sampleRate && /^[A-Za-z0-9_.+-]{1,64}$/.test(summary.codec)) out.push(Object.freeze({variant: 'lossless', codec: summary.codec, bitDepth: summary.bitDepth, sampleRate: summary.sampleRate}));
+ if (summary.channels === 6 || summary.channels === 8) out.push(Object.freeze({variant: 'surround', layout: summary.channels === 6 ? '5.1' : '7.1'}));
+ return out.length ? Object.freeze(out) : undefined;
+}
+
 /** Uses the same catalogue and codec spelling as song badges, without scanning tracks. */
 export function albumBadgeText(badges: readonly MusicFormatBadge[] | undefined): readonly (SignalText | string)[] {
  return Object.freeze((badges ?? []).slice(0, 2).flatMap(badge => {

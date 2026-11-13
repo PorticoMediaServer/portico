@@ -1,4 +1,4 @@
-import type {Item, ItemFiles, PlaybackOptions, Stream} from '../../contracts/src/next/api.ts';
+import type {AlbumAudioSummary, Item, ItemFiles, PlaybackOptions, Stream} from '../../contracts/src/next/api.ts';
 import {callServer, type ServerRequester} from './query/server-api.ts';
 import {unreadableServerResponse} from './server-messages.ts';
 import type {FileInfoDiscTitle} from './detail.ts';
@@ -12,6 +12,8 @@ export type FileInfoSnapshot = Readonly<{
   headTracks: ReadonlyMap<string, FileInfoLane<FileInfoHeadTrackRow>>;
   members: ReadonlyMap<string, FileInfoLane<FileInfoFileRow>>;
   disc?: FileInfoLane<FileInfoDiscTitle> & Readonly<{occurrence?: string; discKind?: 'bluray' | 'dvd'}>;
+  /** An album's own read: the server's summary of its songs' format (`albumAudio`), for every platform's File info. */
+  album?: AlbumAudioSummary;
 }>;
 export const fileInfoTrackKey = (id: string, lane: FileInfoTrackLane) => `${lane}:${id}`;
 /** App card kinds that have their own versions, including a multipart audiobook. */
@@ -83,6 +85,7 @@ export class FileInfoSession {
     const fileCount = versions.reduce((sum, v) => sum + v.files.length, 0);
     // Deletion remains unavailable until the server can preview this exact version's impact.
     // Do not substitute a whole-title preview or pretend a local count includes other people.
+    if (item.albumAudio) this.publish({album: Object.freeze({...item.albumAudio})});
     this.publish({surface: Object.freeze({fileCount, eligibleFileCount: fileCount, groupCount: versions.length, canSplit: versions.length > 1,
       hasDiscColumns: false, ...(manage ? {manage: {delete: false, split: versions.length > 1, merge: true}} : {})})});
     return versions;

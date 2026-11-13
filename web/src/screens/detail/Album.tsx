@@ -13,7 +13,8 @@ import {GeneratedCover} from '../../kit/artwork';
 import {CoverHero, CoverHeroLink} from '../../kit/title/CoverHero';
 import {Button} from '../../kit/controls';
 import {SortMenu, TrackTable} from '../../kit/browse';
-import {Menu} from '../../kit/overlays';
+import {FileInfo, Menu, MenuItem} from '../../kit/overlays';
+import {albumAudioRows} from '@core/presentation/kit-model/album-audio.ts';
 import {TitleProse} from '../../kit/title/TitleParts';
 import {useShellWidth} from '../../shell/viewport';
 import {runScreenCommand, screenLifetime, type ScreenContext} from './context';
@@ -42,7 +43,7 @@ type OpenMenu = Readonly<{page: Page; projection: ContentProjection; seed: Conte
 export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: AlbumScreenProps) {
   const width = useShellWidth(), phone = width < 1024, more = useRef<HTMLButtonElement>(null);
   const [page, setPage] = useState<Page>(), [retry, setRetry] = useState(0);
-  const [similar, setSimilar] = useState<Similar>(), [menu, setMenu] = useState<OpenMenu>();
+  const [similar, setSimilar] = useState<Similar>(), [menu, setMenu] = useState<OpenMenu>(), [fileInfo, setFileInfo] = useState(false);
   useEffect(() => {
     // The album is a document in the viewer's cache: Back draws it at once, and the hub reads it again in place only if it moved.
     const life = screenLifetime(context), service = new LibraryContentService({queries: context.queries, scope: context.scope});
@@ -173,11 +174,19 @@ export function AlbumScreen({context, libraryId, albumId, onBack, onArtist}: Alb
     {recommendations && recommendations.value.entries.length > 0 && <SimilarTitleRow first={recommendations.value} scope={recommendations.scope} heading={t('music.moreLikeThis')}
       subtitle={t(recommendations.value.bySound ? 'music.moreLikeThisBySound' : 'music.moreLikeThisHint')} binding={{context}}/>}
     {menu && <Menu open={menuCurrent()} onOpenChange={open => {if (!open) setMenu(undefined);}} anchorRef={menuAnchor} returnFocusRef={menuAnchor} title={menu.seed.title} placement="bottom-end">
-      <MusicEntryMenu context={context} seed={menu.seed} signal={menu.page.life.signal()} current={menuCurrent}/>
+      <MusicEntryMenu context={context} seed={menu.seed} signal={menu.page.life.signal()} current={menuCurrent}>
+        {/* music-plus frame 7: the album's ⋯ offers File info with the format its songs share; a mixed or unknown album has none to show. */}
+        {menu.seed === album && albumAudioRows(album.albumAudio, env) && <MenuItem icon="i-info" onSelect={() => {if (menuCurrent()) setFileInfo(true);}}>{t('next.overlays.fileInfo')}</MenuItem>}
+      </MusicEntryMenu>
       <OwnerMetadataGroup separated={!!context.effects.playRadio} context={context} anchor={() => menu.anchor}
         guard={() => {if (!menuCurrent()) throw new DOMException('Album page changed', 'AbortError');}}
         target={menu.seed === album ? {entityKind: 'album', entityId: album.id, libraryId, title: album.title}
           : menu.seed.kind === 'song' ? {libraryId, itemId: menu.seed.id, kind: 'song', title: menu.seed.title} : undefined}/>
     </Menu>}
+    {fileInfo && album && (() => {
+      const rows = albumAudioRows(album.albumAudio, env, phone ? 'phone' : 'desktop');
+      return rows ? <FileInfo open onOpenChange={open => {if (!open) setFileInfo(false);}} model={{heading: t('next.overlays.fileInfo'), files: [], album: rows}} subject={album.title}
+        layout={phone ? 'phone' : 'desktop'} returnFocusRef={more} onManage={() => {}}/> : null;
+    })()}
   </div>;
 }

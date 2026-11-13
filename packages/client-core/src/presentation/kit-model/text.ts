@@ -15,7 +15,7 @@ type Arguments = {
   'next.kit.genres.append': {list: string; genre: string};
   'next.kit.collection.filmsOnServer': {count: number}; 'next.kit.collection.filmsFromTo': {count: number; year: number; title: string};
   'next.kit.filter.decade': {year: string}; 'next.kit.track': {number: number}; 'next.kit.version': {number: number}; 'next.kit.ordinal': {number: number};
-  'next.kit.surround': {layout: string}; 'next.kit.channels': {count: number}; 'next.kit.height': {height: number};
+  'next.kit.surround': {layout: string}; 'next.kit.channels': {count: number}; 'next.kit.khz': {rate: string}; 'next.kit.height': {height: number};
   'next.kit.bytes': {count: number}; 'next.kit.kib': {value: string}; 'next.kit.mib': {value: string}; 'next.kit.gib': {value: string}; 'next.kit.tib': {value: string};
   'next.kit.mbps': {rate: string}; 'next.kit.kbps': {rate: string}; 'next.kit.fps': {rate: string}; 'next.kit.bitDepth': {bits: number};
   'next.kit.dimensions': {width: number; height: number}; 'next.kit.toneMapped': {format: string};
