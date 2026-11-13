@@ -12,7 +12,7 @@ import {validatePreferencePatch,type PreferenceSnapshot,type PreferenceScope,typ
 import type {ReadingPreferences} from '../preference-effects.ts';
 
 /** `awayLimit`: the same connectivity value as `connectivity`, read optionally for a page that only shows it. */
-export type SettingsBindingForm='signInPolicy'|'runtime'|'connectivity'|'awayLimit'|'connectivityStatus'|'maintenance'|'alerts'|'preferences'|'device'|'remote'|'managedRoute'|'logs'|'library'|'metadata';
+export type SettingsBindingForm='signInPolicy'|'runtime'|'connectivity'|'awayLimit'|'connectivityStatus'|'maintenance'|'alerts'|'preferences'|'device'|'remote'|'managedRoute'|'logs'|'library'|'metadata'|'segments';
 export type SettingsBinding=Readonly<{form:SettingsBindingForm;key:string;scope?:PreferenceScope;readOnly?:boolean;scale?:number;codec?:'insecure-connections'|'history-retention'|'number-choice'|'unlimited'|'domain'|'interface'|'remote-policy'|'away-quality'|'update-checks'|'window-mode'|'days'|'log-retention'|'still-watching'|'missing-rule'|'music-quality-choice'|'video-quality-choice'|'inherited-watched-threshold'|'surround'|'player-engine'|'tv-support'|'boolean'|'artwork-size'|'notice-audience'|'hardware-selection';fields?:Readonly<Record<string,string>>;window?:'heavy'|'backup'}>;
 export type SettingsBindingSources=Readonly<{configuration?:SettingsConfiguration;preferences?:PreferenceSnapshot;forms?:Readonly<Partial<Record<SettingsBindingForm,Readonly<Record<string,unknown>>>>>;device?:Readonly<Record<string,unknown>>;deviceDefaults?:Readonly<Record<string,unknown>>}>;
 export type SettingsBindingValue=Readonly<{current:unknown;effective:unknown;default:unknown;source:string;configOnly:boolean;applicationMode?:string}>;
@@ -44,15 +44,15 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'storage.missingRule':{form:'runtime',key:'library.missingTitles',codec:'missing-rule'},
  'storage.missingDaysExact':{form:'runtime',key:'library.missingTitlesDays'},
  'segments.libraryModes':{form:'runtime',key:'segments.libraryModes',fields:{tv:'segments.tvMode',anime:'segments.animeMode',movies:'segments.movieMode'}},
- 'segments.shortestEpisode':{form:'runtime',key:'segments.shortestEpisode'},
- 'segments.shortestFilm':{form:'runtime',key:'segments.shortestFilm'},
- 'segments.introWindow':{form:'runtime',key:'segments.introWindow'},
- 'segments.creditsWindow':{form:'runtime',key:'segments.creditsWindow'},
- 'segments.filmCreditsWindow':{form:'runtime',key:'segments.filmCreditsWindow'},
- 'segments.chapters':{form:'runtime',key:'segments.useChapterNames',codec:'boolean'},
- 'segments.viewerFloor':{form:'runtime',key:'segments.viewerConfidencePercent',codec:'number-choice'},
- 'segments.autoFloor':{form:'runtime',key:'segments.automaticConfidencePercent',codec:'number-choice'},
- 'segments.mode':{form:'runtime',key:'library.segmentDetection'},
+ 'segments.shortestEpisode':{form:'segments',key:'shortestEpisodeMinutes'},
+ 'segments.shortestFilm':{form:'segments',key:'shortestFilmMinutes'},
+ 'segments.introWindow':{form:'segments',key:'introWindow'},
+ 'segments.creditsWindow':{form:'segments',key:'creditsWindow'},
+ 'segments.filmCreditsWindow':{form:'segments',key:'filmCreditsWindow'},
+ 'segments.chapters':{form:'segments',key:'useChapterNames',codec:'boolean'},
+ 'segments.viewerFloor':{form:'segments',key:'viewerConfidencePercent',codec:'number-choice'},
+ 'segments.autoFloor':{form:'segments',key:'automaticConfidencePercent',codec:'number-choice'},
+ 'segments.mode':{form:'segments',key:'mode'},
  'people.inviteExpiry':{form:'runtime',key:'people.invitation_days',codec:'number-choice'},
  'people.inviteRole':{form:'runtime',key:'people.invitation_role'},
  'people.maxStreamsEach':{form:'runtime',key:'perAccountCap',codec:'unlimited'},

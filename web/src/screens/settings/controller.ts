@@ -10,7 +10,7 @@ import {searchConfiguration, type SettingsConfiguration} from '@core/settings-co
 import {isSignInPolicyRow, patchSignInPolicy, signInPolicyConflict, signInPolicyValues, signInPolicyWith} from '@core/sign-in-policy.ts';
 import {applySettingsBindingPatch, changedFromDefault, exactPresetValue, presetPatch, readSettingsBinding, settingsBinding, settingsBindingPatch, settingsStorableChoices, type SettingsBindingForm, type SettingsBindingSources, type SettingsBindingValue} from '@core/presentation/settings-bindings.ts';
 import {settingsRowIndex, settingsSpec, type SettingsOption, type SettingsRow, type SettingsSection, type SettingsValue} from '@core/presentation/settings-spec.ts';
-import {runtimeForm, connectivityForm, maintenanceForm, alertsForm, type ServerFormDeps} from '@core/server-admin/server-forms.ts';
+import {runtimeForm, connectivityForm, maintenanceForm, alertsForm, namedSettingsForm, type ServerFormDeps} from '@core/server-admin/server-forms.ts';
 import type {DraftForm} from '@core/server-admin/draft-form.ts';
 import {randomId} from '@core/random-id.ts';
 import {defaultI18n} from '@i18n';
@@ -166,6 +166,8 @@ export class SettingsController {
       this.awayLimit = documentForm(ownerAwayLimitForm(deps, options.api));
       this.forms.maintenance = documentForm(maintenanceForm(deps));
       this.forms.alerts = documentForm(alertsForm(deps));
+      // Intros and credits' settings document on the rebuilt server (#3255).
+      this.forms.segments = documentForm(namedSettingsForm(deps, 'segments'));
       for (const form of Object.values(this.forms)) this.offForms.push(form.subscribe(() => this.publish({})));
       this.offForms.push(this.awayLimit.subscribe(() => this.publish({})));
     }
