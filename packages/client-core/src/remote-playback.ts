@@ -231,7 +231,7 @@ export class HandoffController {
       switch (asked.state) {
         case 'playing':
           // What moved with it (rule 26) is what it now plays, as far as this device can know.
-          this.picks = {...(source.audioTrackId ? {audioId: source.audioTrackId} : {}), ...(source.subtitleTrackId !== undefined ? {subtitleId: source.subtitleTrackId || null} : {})};
+          this.picks = {itemId: source.itemId, ...(source.audioTrackId ? {audioId: source.audioTrackId} : {}), ...(source.subtitleTrackId !== undefined ? {subtitleId: source.subtitleTrackId || null} : {})};
           this.controlGuard = controlGuard;
           this.publish({phase: 'done', receiverPlaybackId: asked.sessionId, message: serviceText('playOn.playingOn', device)});
           void this.refreshRemote();
@@ -323,11 +323,15 @@ export class HandoffController {
   }
   next() {return this.command({skip: 'next'});}
   /** Chooses the other device's audio or subtitle track (rule 27); `null` is subtitles off. The device carries it out. */
-  async audio(trackId: string) {const done = await this.command({audio: {trackId}}); if (done) this.picks = {...this.picks, audioId: trackId}; return done;}
-  async subtitles(trackId: string | null) {const done = await this.command({subtitles: {trackId}}); if (done) this.picks = {...this.picks, subtitleId: trackId}; return done;}
+  async audio(trackId: string) {const itemId = this.state.remote?.itemId, done = await this.command({audio: {trackId}}); if (done) this.pick(itemId, {audioId: trackId}); return done;}
+  async subtitles(trackId: string | null) {const itemId = this.state.remote?.itemId, done = await this.command({subtitles: {trackId}}); if (done) this.pick(itemId, {subtitleId: trackId}); return done;}
+  /** A choice belongs to the title it was made on: after Next, or when the device's queue moves on, it no longer says what plays. */
+  private pick(itemId: string | undefined, change: Readonly<{audioId?: string; subtitleId?: string | null}>): void {
+    this.picks = itemId ? {...(this.picks?.itemId === itemId ? this.picks : {}), ...change, itemId} : undefined;
+  }
   /** The tracks in use on the other device, as far as this device knows them: what it sent when it moved the playback
    * there, then what it chose from the bar. The server tells a controlling device neither its version nor its picks. */
-  private picks?: Readonly<{audioId?: string; subtitleId?: string | null}>;
+  private picks?: Readonly<{itemId: string; audioId?: string; subtitleId?: string | null}>;
   /** The audio and subtitle tracks the other device can switch between, named as this app names them: those of the
    * version a start of its title plays, which is the one it plays unless someone chose another there. Undefined when
    * the title can't be read (this profile may not see it). */
@@ -340,7 +344,7 @@ export class HandoffController {
       const version = options.versions.find(v => v.id === options.preferred?.versionId) ?? options.versions[0];
       if (!version) return undefined;
       const names = subtitleTrackNames(version.subtitles.map(track => ({id: track.id, language: track.language, title: track.title, format: track.format, forced: track.forced, hearingImpaired: track.sdh})), defaultI18n.t);
-      const picks = this.picks;
+      const picks = this.picks?.itemId === itemId ? this.picks : undefined;
       return Object.freeze({
         audio: Object.freeze(version.audio.map((track, index) => Object.freeze({id: track.id, name: audioTrackLabel(track, index + 1)}))),
         subtitles: Object.freeze(version.subtitles.map(track => Object.freeze({id: track.id, name: names.get(track.id) ?? track.id}))),

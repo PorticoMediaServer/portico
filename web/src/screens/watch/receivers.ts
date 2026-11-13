@@ -72,16 +72,18 @@ export class WatchReceivers implements PlayOnReceiversPort {
   /** The followed device's tracks, read once per title it plays (rule 27): what the bar's Subtitles & audio offers. */
   private tracks?: Readonly<{key: string; value: RemoteTracks}>;
   private tracksFor?: string;
+  /** A title whose tracks could not be read (this profile may not see it): not asked again until the title changes. */
+  private tracksMissing?: string;
   private readTracks(force = false): void {
     const remote = this.remote;
     if (!remote || remote.stopped || !remote.itemId) return;
     const key = `${remote.sessionId}|${remote.itemId}`;
-    if (!force && (this.tracksFor === key || this.tracks?.key === key)) return;
+    if (!force && (this.tracksFor === key || this.tracks?.key === key || this.tracksMissing === key)) return;
     this.tracksFor = key;
     void this.handoff.remoteTracks().then(value => {
       if (this.tracksFor !== key || !this.options.isCurrent()) return;
       this.tracksFor = undefined;
-      if (value) {this.tracks = Object.freeze({key, value}); this.publish();}
+      if (value) {this.tracks = Object.freeze({key, value}); this.publish();} else this.tracksMissing = key;
     });
   }
 
@@ -133,8 +135,14 @@ export class WatchReceivers implements PlayOnReceiversPort {
   toggle = (): void => {const remote = this.remote; if (remote && !remote.stopped) void (remote.paused ? this.handoff.play() : this.handoff.pause()).then(this.publish);};
   seek = (seconds: number): void => {if (this.remote && !this.remote.stopped) void this.handoff.seek(seconds).then(this.publish);};
   next = (): void => {if (this.remote && !this.remote.stopped && this.remote.next) void this.handoff.next().then(this.publish);};
-  audio = (trackId: string): void => {if (this.remote && !this.remote.stopped) void this.handoff.audio(trackId).then(() => {this.readTracks(true);});};
-  subtitles = (trackId: string | null): void => {if (this.remote && !this.remote.stopped) void this.handoff.subtitles(trackId).then(() => {this.readTracks(true);});};
+  audio = (trackId: string): void => {if (this.remote && !this.remote.stopped) void this.handoff.audio(trackId).then(done => {if (done) this.choose({audioId: trackId});});};
+  subtitles = (trackId: string | null): void => {if (this.remote && !this.remote.stopped) void this.handoff.subtitles(trackId).then(done => {if (done) this.choose({subtitleId: trackId});});};
+  /** A choice the device carried out moves the check on the tracks already read; the list itself is not read again. */
+  private choose(change: Readonly<{audioId?: string; subtitleId?: string | null}>): void {
+    if (!this.tracks) return;
+    this.tracks = Object.freeze({key: this.tracks.key, value: Object.freeze({...this.tracks.value, ...change})});
+    this.publish();
+  }
   /** Stops the other device; the bar stays, stopped, with Continue here. */
   stop = (): void => {
     const remote = this.remote;
