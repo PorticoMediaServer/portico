@@ -75,7 +75,7 @@
 @media (max-width: 599px) { .results:has(> .rail) { margin-right: calc(30px - var(--grid-overflow, 0px)); } .rail { right: calc(-26px + var(--grid-overflow, 0px)); } }
 @media (prefers-reduced-motion: reduce) { .results * { scroll-behavior: auto; } }
 .library { min-height: 100dvh; padding-bottom: 72px; }
-.headerTabs { margin-top: 22px; padding-inline: var(--shell-gutter); }
+.headerTabs { padding-inline: var(--shell-gutter); }
 .phoneTabs { padding-inline: var(--shell-gutter); }
 .scopeChips { display: flex; align-items: center; gap: 8px; }
 .scopeSeparator { width: 1px; height: 22px; margin: 0 4px; background: var(--color-line); flex: none; }
@@ -89,22 +89,14 @@
 .phoneFilterHeader h2 { flex: 1; }
 .filterTitle { display: flex; align-items: center; justify-content: space-between; width: 100%; }
 @media (max-width: 599px) { .filterFooter { padding: 12px 16px max(30px, env(safe-area-inset-bottom)); } }
-.libraries { padding: 104px var(--shell-gutter) 72px; }
-.libraries h1 { margin: 0 0 28px; font-size: var(--type-lockup-size); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-lockup-tracking); }
+/* Wide: the kit LibraryHeader, then the cards on the page gutter. Phone: its own title row (phone-app 4d). */
+.libraries { padding-bottom: 72px; }
+.librariesBody { padding: 28px var(--shell-gutter) 0; }
+.librariesHead h1 { margin: 0 0 28px; font-size: var(--type-lockup-size); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-lockup-tracking); }
 .libraryCards { display: flex; gap: 20px; flex-wrap: wrap; }
 .libraryCards[data-compact='true'] { flex-direction: column; gap: 14px; }
 @media (max-width: 599px) { .libraries { padding: 22px var(--shell-gutter) 88px; } }
-.homeRow { min-height: 100dvh; padding-bottom: 72px; }
-.homeRowHeader { padding: 104px var(--shell-gutter) 0; }
-.homeRowHeader h1 { margin: 14px 0 12px; font-size: var(--type-lockup-long-size); line-height: calc(var(--type-lockup-long-size) * .98); font-weight: var(--type-lockup-long-weight); letter-spacing: var(--type-lockup-long-tracking); }
-.homeRowHeader p { max-width: 760px; margin: 0; color: var(--color-text-secondary); font-size: var(--type-synopsis-size); line-height: var(--type-synopsis-line); }
-.homeRowHeader strong { color: var(--color-text); font-weight: var(--type-row-heading-weight); }
-.homeRowActions { display: flex; gap: 12px; margin: 26px 0 20px; }
-@media (max-width: 599px) {
-  .homeRowHeader { position: relative; padding: 98px 20px 0; }
-  .homeRowHeader > button { position: absolute; top: 0; left: 16px; height: 58px; padding-inline: 0; }
-  .homeRowHeader h1 { margin: 0 0 8px; font-size: var(--type-display-size); line-height: calc(var(--type-display-size) * 1.05); letter-spacing: var(--type-banner-title-tracking); }
-}
+@media (max-width: 599px) { .librariesBody { padding: 0; } }
 .shelfHeading { border: 0; padding: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; display: inline-flex; align-items: center; gap: 1px; cursor: pointer; text-align: left; }
 .shelfHeading svg { flex: none; color: var(--color-text-tertiary); }
 

@@ -10,6 +10,7 @@ import type {SelectOption} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {Menu, type MenuEntry} from '../../kit/overlays';
 import {Skeleton, StateView} from '../../kit/states';
+import {LibraryHeader} from '../../kit/browse';
 import {liveListPrograms} from './program-window';
 import {useGuideSwipe} from './guide-swipe';
 import {useChannelMenuGestures} from './channel-menu';
@@ -262,24 +263,25 @@ export function GuideScreen({title, switcher, summary, conflicts, onTabChange, c
     if (event.key === 'n' || event.key === 'N') {event.preventDefault();time.onNow();}
   };
 
+  const source = summary && <p className={styles.guideSource}>
+    <strong>{summary.name}</strong>
+    {summary.channels !== undefined && <span>{t('next.kit.channels', {count: summary.channels})}</span>}
+    {summary.through && <span>{summary.through}</span>}
+  </p>;
+  const guideTabs = <Tabs className={styles.guideTabs} data-guide-tabs listClassName={styles.guideTabList} value="guide" aria-label={t('next.home.shell.live')}
+    onValueChange={value => {if (value === 'recordings') onTabChange?.(value);}}
+    items={[{value: 'guide', label: t('channels.tabGuide')},
+      {value: 'recordings', label: <>{t('recordings.title')}{conflicts !== undefined && conflicts > 0 && <span className={styles.guideTabNote}>{t('next.live.conflicts', {count: conflicts})}</span>}</>}]}/>;
   return <section className={styles.guideScreen} data-guide-screen data-phone-landscape={landscape || undefined}>
     <div className={styles.guideChrome}>
-    <header className={styles.guideHeader} data-guide-header>
+    {compactHeader ? <><header className={styles.guideHeader} data-guide-header>
       <h1>{title}</h1>
-      {compactHeader && <Segmented className={styles.guidePhoneView} variant="view" aria-label={t('channels.view')} value={view} onValueChange={value => {if (value === 'guide' || value === 'list') onViewChange(value);}}
-        items={[{value: 'list', label: t('channels.viewList'), icon: 'i-list'}, {value: 'guide', label: t('channels.viewGuide'), icon: 'i-timeline'}]}/>}
-      {compactHeader && onTabChange && <Button className={styles.guideRecordings} variant="icon" iconOnly icon="i-rec" aria-label={t('recordings.title')} onClick={() => onTabChange('recordings')}/>}
-      {!compactHeader && switcher && <Select className={styles.guideSwitcher} aria-label={t('channels.source')} value={switcher.value} options={switcher.options} onValueChange={switcher.onChange}/>}
-      {summary && <p className={styles.guideSource}>
-        <strong>{summary.name}</strong>
-        {summary.channels !== undefined && <span>{t('next.kit.channels', {count: summary.channels})}</span>}
-        {summary.through && <span>{summary.through}</span>}
-      </p>}
-    </header>
-    <Tabs className={styles.guideTabs} data-guide-tabs listClassName={styles.guideTabList} value="guide" aria-label={t('next.home.shell.live')}
-      onValueChange={value => {if (value === 'recordings') onTabChange?.(value);}}
-      items={[{value: 'guide', label: t('channels.tabGuide')},
-        {value: 'recordings', label: <>{t('recordings.title')}{conflicts !== undefined && conflicts > 0 && <span className={styles.guideTabNote}>{t('next.live.conflicts', {count: conflicts})}</span>}</>}]}/>
+      <Segmented className={styles.guidePhoneView} variant="view" aria-label={t('channels.view')} value={view} onValueChange={value => {if (value === 'guide' || value === 'list') onViewChange(value);}}
+        items={[{value: 'list', label: t('channels.viewList'), icon: 'i-list'}, {value: 'guide', label: t('channels.viewGuide'), icon: 'i-timeline'}]}/>
+      {onTabChange && <Button className={styles.guideRecordings} variant="icon" iconOnly icon="i-rec" aria-label={t('recordings.title')} onClick={() => onTabChange('recordings')}/>}
+      {source}
+    </header>{guideTabs}</> : <LibraryHeader name={title} menu={source}
+      switcher={switcher && <Select className={styles.guideSwitcher} aria-label={t('channels.source')} value={switcher.value} options={switcher.options} onValueChange={switcher.onChange}/>}>{guideTabs}</LibraryHeader>}
     <div className={styles.guideChips} data-guide-chips role="group" aria-label={t('channels.filters')}>
       {compactHeader && switcher && <Select className={styles.guideSourceChip} aria-label={t('channels.source')} value={switcher.value} options={switcher.options} onValueChange={switcher.onChange}/>}
       {chips.map(chip => <Chip className={styles.guideChip} key={chip.id} selected={chip.selected} count={chip.count} icon={chip.favorites ? 'i-star' : undefined} onClick={chip.onSelect}>{chip.label}</Chip>)}

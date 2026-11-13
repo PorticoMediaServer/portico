@@ -67,8 +67,8 @@ export function SeriesRules({view, navigation, busy = false, error, tail, onGuid
   };
   return <RecordingsLayout title={t('next.home.shell.live')} sourceLabel={t('channels.source')} allChannels={t('channels.all')}
     sourceName={view.sourceName} channels={view.channelCount === undefined ? undefined : t('player.info.channels', {count: view.channelCount})} through={view.guideThrough === undefined ? undefined : t('next.live.guideThrough', {day: view.guideThrough})} navigation={navigation}
+    tabs={<LiveRecordingTabs view="recordings" conflicts={view.conflictCount} onChange={value => {if (value === 'guide') onGuide?.();}}/>}
     back={onGuide && {label: t('next.home.shell.live'), title: t('recordings.title'), onBack: onGuide}}>
-    <LiveRecordingTabs view="recordings" conflicts={view.conflictCount} onChange={value => {if (value === 'guide') onGuide?.();}}/>
     <RecordingPhoneTabs views={views} value="rules" onChange={onView}/>
     <div className={styles.recordingBar}><div className={styles.chips} aria-label={t('recordings.title')}>
       {views.map(item => <Chip className={styles.chip} key={item.id} selected={item.id === 'rules'} count={item.count} onClick={onView ? () => onView(item.id) : undefined}>{item.label}</Chip>)}
