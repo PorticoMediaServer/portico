@@ -27,6 +27,9 @@ export interface AccountStream {
   startedAt: string;
   current: boolean;
   next?: AccountStreamNext;
+  versionId?: string;
+  audioTrackId?: string;
+  subtitle?: SubtitleInForce;
 }
 
 export interface AccountStreamNext {
@@ -189,6 +192,10 @@ export interface AudioPick {
   trackId: string;
 }
 
+export interface BackgroundWorkState {
+  pausedUntil?: string;
+}
+
 export interface Backup {
   id: string;
   createdAt: string;
@@ -296,6 +303,16 @@ export interface BookVersion {
   id: string;
   format: string;
   name?: string;
+  fingerprint: string;
+}
+
+export interface Capability {
+  area: string;
+  name: string;
+  state: string;
+  reason?: string;
+  detail?: string;
+  path?: string;
 }
 
 export interface CapabilityDocument {
@@ -943,6 +960,12 @@ export interface HDR {
   toneMapped: boolean;
 }
 
+export interface HardwareFactFormat {
+  format: string;
+  decode: boolean;
+  encode: boolean;
+}
+
 export interface Health {
   status: string;
 }
@@ -1087,6 +1110,8 @@ export interface InvitationPreview {
 }
 
 export interface Item {
+  publicationType?: string;
+  wordCount?: number;
   id: string;
   kind: string;
   title: string;
@@ -1854,6 +1879,7 @@ export interface LogDetailState {
 export interface LogLine {
   time: string;
   level: string;
+  kind: string;
   message: string;
   attrs?: Record<string, string>;
 }
@@ -2078,6 +2104,7 @@ export interface MetadataPatch {
   title?: string;
   sortTitle?: string;
   originalTitle?: string;
+  publicationType?: string;
   edition?: string;
   tagline?: string;
   summary?: string;
@@ -2394,7 +2421,10 @@ export interface Person {
   birthplace?: string;
   images: Record<string, string>;
   titleCount?: number;
+  crewTitleCount?: number;
   roles?: PersonRole[];
+  kindCounts?: Record<string, number>;
+  knownFor?: Item[];
 }
 
 export interface PersonDownloads {
@@ -3453,6 +3483,10 @@ export interface SelectionDeletion {
   alsoRemoves: TitleRef[];
 }
 
+export interface ServerCapabilities {
+  items: Capability[];
+}
+
 export interface ServerDevice extends Device {
   account: ServerDeviceAccount;
   sessions: number;
@@ -3784,6 +3818,31 @@ export interface StreamTotals {
   problems: number;
 }
 
+export interface StreamingHardwareDevice {
+  id: string;
+  name: string;
+  method?: string;
+  inUse: boolean;
+  formats: HardwareFactFormat[];
+  problem?: string;
+  toneMapping: boolean;
+}
+
+export interface StreamingHardwareFault {
+  reason: string;
+  detail?: string;
+  remedy?: string;
+}
+
+export interface StreamingHardwareState {
+  checking: boolean;
+  devices: StreamingHardwareDevice[];
+  formats: HardwareFactFormat[];
+  toneMapping: boolean;
+  lastTest?: string;
+  lastError?: StreamingHardwareFault;
+}
+
 export interface SubtitleDownload {
   versionId?: string;
   ref: string;
@@ -3833,6 +3892,7 @@ export interface SupportExportRequest {
 export interface System {
   id: string;
   name: string;
+  porticoOrigin?: string;
   version?: string;
   apiMajor: number;
   capabilities: string[];
@@ -4198,7 +4258,7 @@ export interface Routes {
   'DELETE /v1/admin/libraries/{id}/scan': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/libraries/{id}/scan': {access: 'owner'; request: undefined; response: ScanStatus};
   'GET /v1/admin/libraries/{id}/skipped': {access: 'owner'; request: undefined; response: SkippedFilePage};
-  'GET /v1/admin/skipped': {access: 'owner'; request: undefined; response: ServerSkippedFilePage};
+  'GET /v1/admin/skipped': {access: 'admin'; request: undefined; response: ServerSkippedFilePage};
   'GET /v1/admin/libraries/{id}/missing': {access: 'owner'; request: undefined; response: MissingTitles};
   'DELETE /v1/admin/libraries/{id}/missing': {access: 'owner'; request: undefined; response: TrashEmptied};
   'GET /v1/admin/items/{id}/deletion': {access: 'owner'; request: undefined; response: DeletionPreview};
@@ -4213,6 +4273,9 @@ export interface Routes {
   'GET /v1/admin/settings': {access: 'owner'; request: undefined; response: SettingsDocumentPage};
   'GET /v1/admin/settings/{name}': {access: 'owner'; request: undefined; response: SettingsDocument};
   'PUT /v1/admin/settings/{name}': {access: 'owner'; request: JSON; response: SettingsDocument};
+  'GET /v1/admin/background/pause': {access: 'owner'; request: undefined; response: BackgroundWorkState};
+  'PUT /v1/admin/background/pause': {access: 'owner'; request: undefined; response: BackgroundWorkState};
+  'DELETE /v1/admin/background/pause': {access: 'owner'; request: undefined; response: BackgroundWorkState};
   'DELETE /v1/admin/upgrade-copy': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/sessions': {access: 'admin'; request: undefined; response: NowPlayingPage};
   'GET /v1/admin/activity': {access: 'owner'; request: undefined; response: ActivitySummary};
@@ -4249,6 +4312,9 @@ export interface Routes {
   'DELETE /v1/admin/reports/{id}': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/reports/{id}/log': {access: 'owner'; request: undefined; response: undefined};
   'GET /v1/admin/dashboard': {access: 'owner'; request: undefined; response: Dashboard};
+  'GET /v1/admin/capabilities': {access: 'owner'; request: undefined; response: ServerCapabilities};
+  'GET /v1/admin/hardware': {access: 'owner'; request: undefined; response: StreamingHardwareState};
+  'POST /v1/admin/hardware/test': {access: 'owner'; request: undefined; response: StreamingHardwareState};
   'GET /v1/admin/settings/network': {access: 'owner'; request: undefined; response: NetworkSettings};
   'PUT /v1/admin/settings/network': {access: 'owner'; request: NetworkSettingsEdit; response: NetworkSettings};
   'GET /v1/admin/blocked-networks': {access: 'admin'; request: undefined; response: BlockedNetworkPage};
