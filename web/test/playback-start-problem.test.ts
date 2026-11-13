@@ -30,3 +30,11 @@ test('only video starts open the full player; music, audiobooks and channels kee
   assert.equal(startsInPlayer({subject: {kind: 'channel', id: 'c', sourceId: 's', channelName: 'C'}}), false);
   assert.equal(startsInPlayer(undefined), false);
 });
+
+test('while the server is busy and a start waits for a free stream, its busy card is what draws, not the starting player', async () => {
+  const {startingPlayerShown} = await import('../src/screens/watch/WatchPlayback.tsx');
+  assert.equal(startingPlayerShown({} as never), true, 'an ordinary start shows the starting player');
+  assert.equal(startingPlayerShown({capacityWait: {position: 1}} as never), false, 'the busy card is not covered');
+  assert.equal(startingPlayerShown({startTimedOut: {}} as never), false);
+  assert.equal(startingPlayerShown({startFailure: {}} as never), false);
+});

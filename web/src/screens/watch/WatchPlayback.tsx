@@ -83,6 +83,13 @@ export function pictureInPictureCurrent(runtime: WebShellPlaybackRuntime, fence:
   return !!live.fence && sameFence(live.fence, fence) && pictureInPictureReady(runtime,live);
 }
 
+/** The starting player covers the screen only while nothing else answers for the start: not after a time-out or a
+ * failure, and not while the server is busy and this start waits for a free stream, whose own card says so at the
+ * same layer and would otherwise be hidden under it. */
+export function startingPlayerShown(snapshot: Pick<WebPlaybackRuntimeSnapshot, 'startTimedOut' | 'startFailure' | 'capacityWait'> | undefined): boolean {
+  return !snapshot?.startTimedOut && !snapshot?.startFailure && !snapshot?.capacityWait;
+}
+
 /** The current original snapshot's genuine slow-start state. Presentation only: disposed,
  * terminal, error and remote-owned surfaces withhold it, and the SDK clears it on settlement. */
 export function currentStartPreparation(snapshot: WebPlaybackRuntimeSnapshot | undefined, remotePlaying: boolean) {
@@ -412,7 +419,7 @@ export function WatchPlayback({binding, context, surfaces, geometry, live}: Watc
     </MediaSurface>
     {snapshot?.capacityWait && <WatchCapacityWait wait={snapshot.capacityWait} />}
     {snapshot && <StartPreparationNotice preparation={currentStartPreparation(snapshot, remotePlaying)} />}
-    {binding && playerStart && !snapshot?.startTimedOut && !snapshot?.startFailure && <StartingPlayer starting={playerStart} artwork={binding.artwork} environment={binding.environment}/>}
+    {binding && playerStart && startingPlayerShown(snapshot) && <StartingPlayer starting={playerStart} artwork={binding.artwork} environment={binding.environment}/>}
     {binding && snapshot?.startTimedOut && <WatchStartTimedOut timedOut={snapshot.startTimedOut} reportError={binding.reportError}/>}
     {binding && snapshot?.startFailure && <WatchStartFailure failure={snapshot.startFailure} authority={snapshot.authority} context={context} reportError={binding.reportError}/>}
     <MusicExpansionSurface motion={musicMotion}/>
