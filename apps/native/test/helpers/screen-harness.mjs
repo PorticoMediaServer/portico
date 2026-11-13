@@ -106,7 +106,7 @@ const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)
   // The kit's cover hero (book, audiobook, series and author pages) draws as a named element; its own tests render it.
   : /(^|\/)kit\/layout\/CoverHero$/.test(source) ? {CoverHero: 'CoverHero'}
   // The one page title (kit/layout/Lockup) draws as a named element.
-  : /(^|\/)kit\/layout\/Lockup$/.test(source) ? {Lockup: 'Lockup', pageTitleLines: 4, lockupStep: () => 'lockup'}
+  : /(^|\/)kit\/layout\/Lockup$/.test(source) ? {Lockup: 'Lockup', pageTitleLines: 3, lockupStep: () => 'lockup'}
   : /(^|\/)server\/PhoneServerPageHeader$/.test(source) ? {PhoneServerPageHeader: 'PhoneServerPageHeader'}
   : /(^|\/)navigation\/rail-hold$/.test(source) ? railHoldLeaf(react)
   : /(^|\/)focus\/replacement-refocus$/.test(source) ? {useReplacementRefocus: replacementRefocusHook(react)}

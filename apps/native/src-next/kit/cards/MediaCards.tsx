@@ -109,6 +109,10 @@ export function SquareCard(props: SquareCardProps) {
   </Frame>;
 }
 
+/** Off TV a 16:9 card's title wraps rather than cut (owner, 13 Nov): three lines of 16 pt, with its facts and progress,
+ * still sit inside the card's art (a 60-character title takes three on a phone's 262 pt card). */
+export const wideTitleLines = 3;
+
 export function WideCard(props: WideCardProps) {
   const t = useTheme(), width = props.width ?? t.spec.card.width.wide[t.platform], height = width * 9 / 16;
   const handheld = t.layoutMode === 'phone';
@@ -124,7 +128,7 @@ export function WideCard(props: WideCardProps) {
       <MediaArt {...props.artworkProps} visible={props.visible ?? props.artworkProps?.visible} priority={props.priority ?? props.artworkProps?.priority} kind="wide" source={props.artwork} fallback={fallbackFor(props, 'wide', width, height)} width={width} height={height} />
       <Scrim start={scrimStart} />
       <View onLayout={t.isTV ? undefined : event => {const top = event.nativeEvent.layout.y; if (top !== copyTop) setCopyTop(top);}} style={{position: 'absolute', left: t.spec.card.wide.insetX[t.platform], right: t.spec.card.wide.insetX[t.platform], bottom: t.spec.card.wide.insetBottom[t.platform]}}>
-        <Text numberOfLines={t.isTV ? 1 : 2} style={[t.type.wideTitle, {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
+        <Text numberOfLines={t.isTV ? 1 : wideTitleLines} style={[t.type.wideTitle, {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
         <View style={{marginTop: t.isTV ? 4 : 2}}><Parts parts={handheld ? compactFacts : props.caption} gap={factsGap} style={{color: t.colors.textSecondary}} /></View>
         {!handheld && !t.isTV && <Parts parts={props.detail} gap={factsGap} style={{color: t.colors.textSecondary}} />}
         <Progress value={props.progress} style={{marginTop: t.spec.card.progress.marginTop[t.platform]}} />

@@ -184,6 +184,8 @@ const handheldType = {
   display: type(34, 38, 700, -.026), title: type(26, 31, 700, -.023), heading: type(20, 25, 600, -.0175), subheading: type(17, 22, 600, -.012),
   body: type(15, 21, 400), bodyStrong: type(15, 21, 600), caption: type(13, 18, 400), captionStrong: type(13, 18, 600), micro: type(11, 14, 500, .018),
   label: type(12, 16, 600), lockup: type(46, 43.24, 800, -.045), lockupLong: type(42, 39.48, 800, -.045),
+  // The tablet frames' page titles (tablet.html 64 and 58), approved as handheld title steps (owner, 13 Nov).
+  lockupLarge: type(64, 64, 800, -.045), lockupMedium: type(58, 59.16, 800, -.04),
   rowHeading: type(19, 'normal', 700, -.015), nav: type(15, 'normal', 600), cardTitle: type(13, 'normal', 600), cardSubtitle: type(12, 'normal', 400),
   wideTitle: type(16, 'normal', 700), meta: type(13, 'normal', 400), eyebrow: type(13, 'normal', 600), synopsis: type(14, 21, 400),
   button: type(15, 'normal', 700), compactButton: type(15, 'normal', 700), tab: type(15.5, 'normal', 700), chip: type(13.5, 'normal', 700), tabBar: type(10.5, 'normal', 600),

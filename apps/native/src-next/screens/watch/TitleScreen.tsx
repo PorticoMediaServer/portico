@@ -459,7 +459,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
           <View style={tabletWatch ? {flex: 1, minWidth: 0} : undefined}>
           {props.watch || theme.isTV ? <Text accessibilityRole="header" numberOfLines={2} style={[props.watch ? nativeType({size: 28, weight: 800, tracking: -.035, lineHeight: 30.8}, theme.textScale)
             : theme.type.lockup, {color: theme.colors.text, textAlign: centered ? 'center' : undefined, marginBottom: props.watch ? 5 : 22}]}>{title}</Text>
-            // The one page title (T11): a phone steps 46 → 42 → 34 and wraps up to four lines; a tablet keeps its frame's size.
+            // The one page title (T11): a phone starts 46, 42 or 34 by length, a tablet at its frame's size; past three lines it steps down the scale, then wraps, never cut.
             : <Lockup title={title} size={phoneTitle ? undefined : wide ? 64 : 40} lineRatio={phoneTitle ? undefined : wide ? 1 : 43 / 40} tracking={wide ? -.045 : -.04}
               style={{textAlign: centered || phoneTitle ? 'center' : undefined, marginBottom: phoneTitle ? 10 : 12}}/>}
           {props.watch && watchIdentity?.subtitle.length ? <Text numberOfLines={1} style={[nativeType({size: 15, weight: 700, tracking: 0, lineHeight: 'normal'}, theme.textScale), {color: theme.colors.text, marginBottom: 6}]}>{watchIdentity.subtitle.map(part => part.text).join(' ')}</Text> : null}
