@@ -129,7 +129,7 @@ export function useFocusTarget<T extends FocusHost = View>({focusId, testID, dis
   useLayoutEffect(() => {
     if (!preferred) {asked.current = false; return;}
     if (asked.current || disabled || preferredBlocked) return;
-    asked.current = true; requestNativeFocus(native.current);
+    asked.current = true; if (native.current) registry?.notePreferred?.(native.current); requestNativeFocus(native.current);
   }, [disabled, native, preferred, preferredBlocked]);
   const config = regionId ? registry?.config(regionId) : undefined;
   const inherited = registry && regionId ? inheritedEdges(registry, regionId) : {};

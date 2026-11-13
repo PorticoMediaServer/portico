@@ -66,6 +66,27 @@ test('Android TV: focus dropped on the side rail as a route covers the page is n
   assert.deepEqual(log, ['route-layer-2'], 'at the deadline a layer whose focus is still on the rail asks once more');
 });
 
+test('a route whose page asked for its own start is claimed on that control, and a sent claim is not repeated on every change', () => {
+  const registry = createFocusRegistry(), time = clock(), log: string[] = [];
+  const stack = createTVLayerStack(registry, time, undefined, focus => focus.regionId === 'rail');
+  const card = {regionId: 'grid', childId: 'film'};
+  registry.configure({id: 'grid', order: ['film']}); registry.attach(card, host(log, 'card'));
+  registry.didFocus(card);
+  const page = {key: 'page', host: () => host(log, 'page-layer')};
+  registry.notePreferred(host(log, 'old-play')); // the page's own start, asked as it mounted
+  stack.sync([page]);
+  stack.sync([page, {key: 'route:0', host: () => host(log, 'route-layer-0')}]);
+  assert.deepEqual(log, ['route-layer-0'], 'a start asked before the layer change is the old page\'s: the host is asked');
+  stack.sync([page]); log.length = 0;
+  // The new page's Play asks for itself in the commit that pushes its route (children's effects run first).
+  registry.notePreferred(host(log, 'play'));
+  stack.sync([page, {key: 'route:1', host: () => host(log, 'route-layer')}]);
+  assert.deepEqual(log, ['play'], 'the claim asks the page\'s own start, not the layer host (on tvOS that lands on what the layer remembered)');
+  registry.configure({id: 'title.actions', order: ['play', 'more']});
+  registry.configure({id: 'title.related', order: ['cast']});
+  assert.deepEqual(log, ['play'], 'a sent claim is not repeated as the page\'s regions configure');
+});
+
 test('popping a layer returns the exact opener, waiting while it is not attached, then falls back once at the deadline', () => {
   const registry = createFocusRegistry(), time = clock(), log: string[] = [];
   const stack = createTVLayerStack(registry, time);
