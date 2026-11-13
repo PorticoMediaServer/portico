@@ -7,7 +7,8 @@ const key = 'portico.accountReturn';
 const tenMinutes = 10 * 60_000;
 export const returnStatePattern = /^[A-Za-z0-9_-]{43}$/;
 export const returnServerPattern = /^srv_[A-Za-z0-9_-]{43}$/;
-export const returnChallengePattern = /^[A-Za-z0-9_-]{22,128}$/;
+/** The server's challenge as Portico Services takes it (22 to 128 characters); the server's own carry dots. */
+export const returnChallengePattern = /^[A-Za-z0-9._~-]{22,128}$/;
 
 /** `hosted` is where the Portico Account signs in (web.getportico.tv), kept for remembering the sign-in under it. */
 export type AccountReturnRecord = Readonly<{state: string; challenge: string; serverId: string; origin: string; hosted: string; at: number}>;
