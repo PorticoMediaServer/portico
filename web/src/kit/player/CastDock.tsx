@@ -19,13 +19,13 @@ export function CastDock({controller, snapshot, visuals, phone, reportError, t =
   const back = visuals.skipBackSeconds, forward = visuals.skipForwardSeconds;
   const canContinue = remote.confirmed && remote.positionKnown && remote.phase === 'stopped' && !!remote.itemId;
   const position = remote.positionKnown ? clockText(remote.positionSeconds) ?? '' : '', duration = remote.positionKnown ? clockText(remote.durationSeconds) ?? '' : '';
-  const status = remote.phase === 'playing' ? t('next.dock.onDevice', {device: remote.deviceName ?? ''})
+  const status = remote.problem ? remote.problem : remote.phase === 'playing' ? t('next.dock.onDevice', {device: remote.deviceName ?? ''})
     : remote.phase === 'waiting' ? t('cast.waitingForAllow') : remote.phase === 'stopped' ? t('next.dock.stopped')
     : remote.phase === 'replaced' ? t('next.dock.replaced') : remote.phase === 'error' ? snapshot.cast.error ?? t('next.dock.remoteError')
     : remote.deviceName ? t('next.dock.connecting', {device: remote.deviceName}) : t('next.dock.chooseDevice');
   const art = <span className={[dock.artSlot, dock.videoArt].join(' ')}><Artwork source={bound?.artwork} alt="" className={dock.cover} brightness={!terminal ? .62 : undefined} />
     {(!terminal || phone) && <span className={dock.castMark} data-pending={!playing && !terminal || undefined}>{playing || terminal ? <Icon name={phone ? 'i-tvdev' : 'i-cast'} size={phone ? 18 : 24} /> : <span className={dock.ring} />}</span>}</span>;
-  const identity = <>{art}<span className={dock.identityText}><b>{bound?.identity?.title ?? remote.title}</b><small data-status={remote.phase} aria-live="polite">{phone && playing ? <>{remote.deviceName}<span className={dock.gap} />{position}</> : phone && remote.phase === 'stopped' && remote.positionKnown ? t('next.dock.stoppedAt', {position}) : status}</small></span></>;
+  const identity = <>{art}<span className={dock.identityText}><b>{bound?.identity?.title ?? remote.title}</b><small data-status={remote.problem ? 'error' : remote.phase} aria-live="polite">{phone && playing && !remote.problem ? <>{remote.deviceName}<span className={dock.gap} />{position}</> : phone && remote.phase === 'stopped' && remote.positionKnown ? t('next.dock.stoppedAt', {position}) : status}</small></span></>;
   const skip = (delta: number) => controller.seek(remote, Math.max(0, remote.positionSeconds + delta));
   // Rule 27: a Portico device's bar has Next when its queue has one, and Subtitles & audio from its own tracks.
   const tracks = remote.kind === 'portico' ? !!(remote.tracks?.audio.length || remote.tracks?.subtitles.length) : !!(snapshot.cast.audioTracks.length || snapshot.cast.textTracks.length);
