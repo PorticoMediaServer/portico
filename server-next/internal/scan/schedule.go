@@ -148,6 +148,9 @@ func (m *Manager) FolderSchedule(lib db.Library, p db.LibraryPath) (watched bool
 // the library watched and its folders cannot be, a scan every hour, or every six on a network
 // share, stands in for the watching. A remote folder follows its source.
 func (m *Manager) due(ctx context.Context, lib db.Library, p db.LibraryPath, now time.Time) bool {
+	if p.LastScanAt == 0 {
+		return true // a saved folder addition still needs its first scan, even on Never
+	}
 	var last time.Time
 	if p.LastScanAt != 0 {
 		last = time.UnixMilli(p.LastScanAt)

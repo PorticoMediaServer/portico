@@ -195,6 +195,9 @@ func (r *run) source(pathID int64) Source {
 // due reports whether a folder on remote storage is due to be listed by a scan nobody asked
 // for. A source that cannot be opened is tried, so that its folder says it is unavailable.
 func (r *run) due(p db.LibraryPath) bool {
+	if p.LastScanAt == 0 {
+		return true // the source's Never schedule does not cancel a folder's first scan
+	}
 	if r.s.Remote == nil {
 		return true
 	}
