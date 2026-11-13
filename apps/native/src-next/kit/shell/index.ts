@@ -4,7 +4,7 @@ export {canSeeServerPage, serverVisibilityKey, serverRoleKey} from './authority'
 export type {ServerRole, ServerAudience} from './authority';
 export {ProfileAvatar, ProfileSwitchRow, AccountMenu, NotificationItem, WatchTogetherPill, FactParts} from './AccountShell';
 export type {AccountAction, ProfileSwitchRowProps, AccountMenuProps, NotificationItemProps, WatchTogetherPillProps} from './AccountShell';
-export {SettingsSheet, ShortcutTiles, LargeTitleHeader, PushedNavBar, SettingsNav, SettingsSearchResults} from './SettingsShell';
+export {SettingsSheet, ShortcutTiles, LargeTitleHeader, SettingsNav, SettingsSearchResults} from './SettingsShell';
 export type {SettingsNavPage, SettingsNavProps, SettingsSearchResultsProps} from './SettingsShell';
 export {SettingsRow, DefaultHint, ChoiceMatrix, ChoiceCards, LanguageList, SubtitlePreview} from './SettingsControls';
 export type {SettingsRowProps, ChoiceMatrixRow, LanguageOption} from './SettingsControls';

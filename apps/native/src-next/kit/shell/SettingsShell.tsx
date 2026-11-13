@@ -19,14 +19,6 @@ export function LargeTitleHeader({title, trailing, style}: {title: string; trail
   const theme = useTheme();
   return <View style={[{paddingHorizontal: theme.gutter, paddingTop: 12, paddingBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 12}, style]}><Text accessibilityRole="header" style={[shellType(theme.isTV ? 44 : 32, 800, 'normal', -.035, theme.textScale), {color: theme.colors.text, flex: 1}]}>{title}</Text>{trailing}</View>;
 }
-export function PushedNavBar({title, backLabel, onBack, overArtwork = false, trailing, testID}: {testID?: string; title?: string; backLabel: string; onBack: () => void; overArtwork?: boolean; trailing?: ReactNode}) {
-  const theme = useTheme();
-  return <View style={{height: 44, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8}}>
-    <Button testID={controlID(testID, 'back')} variant={overArtwork ? 'icon' : 'text'} size="compact" icon="i-left" iconOnly={overArtwork} accessibilityLabel={backLabel} onPress={onBack} style={{height: 38, width: overArtwork ? 38 : undefined, paddingHorizontal: overArtwork ? 0 : 0}} textStyle={shellType(16, 600)}>{backLabel}</Button>
-    {title && <Text numberOfLines={1} pointerEvents="none" style={[shellType(17, 700), {position: 'absolute', left: 76, right: 76, textAlign: 'center', color: theme.colors.text}]}>{title}</Text>}
-    <View style={{marginLeft: 'auto'}}>{trailing}</View>
-  </View>;
-}
 export function ShortcutTiles({actions, testID}: {testID?: string; actions: readonly AccountAction[]}) {
   const theme = useTheme();
   return <View style={{flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 10}}>{actions.map(action => <Focusable key={action.id} testID={controlID(testID, 'shortcut', action.id)} accessibilityRole="button" accessibilityLabel={action.label} onPress={action.onPress} focusRadius={14} style={{flex: 1, height: 70, borderRadius: 14, backgroundColor: theme.colors.raised, alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 4}}>
