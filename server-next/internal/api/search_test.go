@@ -55,6 +55,15 @@ func TestSearch(t *testing.T) {
 	if len(films) == 0 || films[0] != hidden.ID || total < 1 {
 		t.Fatalf("searching for %q found %v", hidden.Title, films)
 	}
+	for _, library := range libraries.Items {
+		if library.Kind != "movies" {
+			scoped := get[SearchResults](t, s, token, search+"&kind=movie&library="+library.ID)
+			if len(scoped.Groups[0].Items) != 0 || scoped.Groups[0].Total == nil || *scoped.Groups[0].Total != 0 {
+				t.Fatalf("a movie escaped its chosen library: %+v", scoped.Groups[0])
+			}
+			break
+		}
+	}
 	if fewer, fewerTotal := shown(limited, search); strings.Contains(strings.Join(fewer, " "), hidden.ID) || fewerTotal >= total {
 		t.Fatalf("the limited profile was shown %v (%d of %d)", fewer, fewerTotal, total)
 	}

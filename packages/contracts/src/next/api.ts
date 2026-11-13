@@ -1402,6 +1402,7 @@ export interface Library {
 }
 
 export interface LibraryChannel {
+  revision: string;
   id: string;
   name: string;
   number: number;
@@ -1435,6 +1436,7 @@ export interface LibraryChannelBlock {
 }
 
 export interface LibraryChannelBlockPreset {
+  revision: string;
   id: string;
   name: string;
   description?: string;
@@ -1586,9 +1588,11 @@ export interface LibraryChannelTemplate {
   builder: LibraryChannelBuilder;
 }
 
-export interface LibraryChannelTemplatePage {
+export interface LibraryChannelTemplateChoices {
   items: LibraryChannelTemplate[];
-  nextCursor?: string;
+  timeZone: string;
+  moodAvailable: boolean;
+  moodLabels?: Record<string, string>;
 }
 
 export interface LibraryChannelWeight {
@@ -4758,7 +4762,7 @@ export interface Routes {
   'GET /v1/admin/library-channels': {access: 'owner'; request: undefined; response: LibraryChannelPage};
   'POST /v1/admin/library-channels': {access: 'owner'; request: LibraryChannelSave; response: LibraryChannel};
   'PUT /v1/admin/library-channels/order': {access: 'owner'; request: LibraryChannelOrder; response: undefined};
-  'GET /v1/admin/library-channels/templates': {access: 'owner'; request: undefined; response: LibraryChannelTemplatePage};
+  'GET /v1/admin/library-channels/templates': {access: 'owner'; request: undefined; response: LibraryChannelTemplateChoices};
   'POST /v1/admin/library-channels/preview': {access: 'owner'; request: LibraryChannelPreviewAsk; response: LibraryChannelPreview};
   'GET /v1/admin/library-channels/{id}': {access: 'owner'; request: undefined; response: LibraryChannel};
   'PATCH /v1/admin/library-channels/{id}': {access: 'owner'; request: LibraryChannelSave; response: LibraryChannel};

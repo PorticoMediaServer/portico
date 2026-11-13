@@ -390,3 +390,24 @@ func TestPresetsFixedTimesAndALogo(t *testing.T) {
 		t.Fatalf("saving after the logo was deleted answered %d", code)
 	}
 }
+
+func TestChannelEditorChoicesAndRowsCarryActualServerFacts(t *testing.T) {
+	s, owner, _ := seededWith(t, 30, 0)
+	choices := get[LibraryChannelTemplateChoices](t, s, owner, "/v1/admin/library-channels/templates")
+	if choices.TimeZone != s.serverZone() || choices.MoodAvailable || len(choices.MoodLabels) != 0 || len(choices.Items) != 9 {
+		t.Fatalf("editor choices: %+v", choices)
+	}
+	films := libraryOfKind(t, s, owner, "movies")
+	var made LibraryChannel
+	ask := LibraryChannelSave{Name: new("Films"), Builder: &librarychannels.LibraryChannelBuilder{
+		LibraryChannelSelection: librarychannels.LibraryChannelSelection{Libraries: []string{films}, Kinds: []string{"movie"}},
+	}}
+	response := call(t, s, "POST", "/v1/admin/library-channels", owner, ask, &made)
+	if response.Code != 201 || made.Revision == "" || response.Header().Get("ETag") != "\""+made.Revision+"\"" {
+		t.Fatalf("channel revision: %d %+v", response.Code, made)
+	}
+	rows := get[Page[LibraryChannel]](t, s, owner, "/v1/admin/library-channels")
+	if len(rows.Items) != 1 || rows.Items[0].Revision != made.Revision {
+		t.Fatalf("directory revisions: %+v", rows)
+	}
+}
