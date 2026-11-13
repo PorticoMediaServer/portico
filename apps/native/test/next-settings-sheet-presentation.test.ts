@@ -76,3 +76,10 @@ test('Page presentation is opt-in to the inline host and does not alter default 
   assert.equal(nodes(tree).some(node => node.type === 'Modal'), true);
   assert.equal(f.lifecycle.at(-1)![0], true); assert.equal(nodes(tree).find(node => node.type === 'FocusBoundary').props.modal, true);
 });
+
+// states.html 4: a phone confirm sheet's way out is the Cancel under its verb, so the header has no Done beside it.
+test('A phone sheet offers the header Done only when it has no footer of its own', async () => {
+  const f = await fixture(), header = (tree: any) => nodes(tree).find(node => node.type === 'SurfaceHeader');
+  assert.ok(header(f.renderDefault()).props.action, 'a sheet with no footer keeps Done');
+  assert.equal(header(f.renderDefault({footer: {type: 'ConfirmActions', props: {}}})).props.action, undefined);
+});
