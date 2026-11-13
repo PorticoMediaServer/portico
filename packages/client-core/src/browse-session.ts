@@ -20,13 +20,6 @@ export type BrowseSessionQuery = Readonly<{
 }>;
 
 /** The canonical builder for a query; callers add the limit and range they need. */
-/** A book or comic library's series opens the reading series page (2:3 volumes, the reading
- * actions), not the audiobook series page its card kind otherwise names, on every client. */
-export function readingSeries(entries: readonly ContentEntry[], libraryKind: string | undefined): readonly ContentEntry[] {
-  if (libraryKind !== 'book' && libraryKind !== 'comic') return entries;
-  return entries.map(entry => entry.kind === 'book_series' ? Object.freeze({...entry, navigation: Object.freeze({view: 'series' as const, entityId: entry.navigation?.entityId ?? entry.id})}) : entry);
-}
-
 export function browseSessionBuilder(query: BrowseSessionQuery): BrowseQueryBuilder {
   const builder = new BrowseQueryBuilder(query.capabilities, query.pivot);
   for (const node of query.nodes) builder.add(node);
@@ -153,7 +146,7 @@ export class BrowseSession<T> {
       const cursor = this.cursors.get(start);
       const page = await readItems(api, list, cursor ? {cursor, limit: count} : {at: start, limit: count}, active);
       if (this.retired || !this.options.current() || signal.aborted) throw browseSessionClosed();
-      return this.answer(readingSeries(entriesFromItems(page.items, this.query.libraryId), this.query.capabilities?.library?.kind), start, start + page.items.length, page.nextCursor, signal);
+      return this.answer(entriesFromItems(page.items, this.query.libraryId), start, start + page.items.length, page.nextCursor, signal);
     } catch (error) {
       if (!this.retired && this.options.current() && !signal.aborted && ended(error)) this.end(error);
       throw error;

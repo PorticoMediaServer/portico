@@ -23,6 +23,11 @@ test('Search navigation preserves validated Unicode and query spacing without di
 test('entry links use the server navigation identity without substituting its playable child', () => {
   assert.deepEqual(entryDestination({id: 'show', title: f.show, kind: 'show', libraryId: 'library', navigation: {view: 'show', entityId: 'show'}, playback: {itemId: 'episode'}}),
     {to: '/library/$libraryId', params: {libraryId: 'library'}, search: {view: 'show', entityId: 'show'}});
+  // A reading series opens its page; a magazine's run opens the library's magazine page for it.
+  assert.deepEqual(entryDestination({id: 'itm_r', title: 'Saga', kind: 'book_series', libraryId: 'library', navigation: {view: 'series', entityId: 'itm_r'}}),
+    {to: '/library/$libraryId', params: {libraryId: 'library'}, search: {view: 'series', entityId: 'itm_r'}});
+  assert.deepEqual(entryDestination({id: 'itm_m', title: 'Monthly', kind: 'book_series', libraryId: 'library', navigation: {view: 'series', entityId: 'itm_m', pivot: 'magazines'}}),
+    {to: '/library/$libraryId', params: {libraryId: 'library'}, search: {view: 'series', entityId: 'itm_m', pivot: 'magazines'}});
   assert.deepEqual(entryDestination({id: 'episode', title: f.episode, kind: 'episode', navigation: {view: 'item', entityId: 'actual-item'}, playback: {itemId: 'other-file'}}),
     {to: '/item/$itemId', params: {itemId: 'actual-item'}});
 });

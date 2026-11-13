@@ -2,6 +2,7 @@ import type {ReadingHostContentsTarget} from '../../../../../packages/client-cor
 import {ReadingError, type ReadingClient, type ReadingItem} from '../../../../../packages/client-core/src';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import type {NativeShellRoute} from '../../shell/routes';
+import {readingRouteId} from './platform';
 export type NativeReadEligibility = Awaited<ReturnType<ReadingClient['versions']>>;
 export type NativeReadNavigationContext = Pick<NativeShellBootstrapContext, 'api' | 'session' | 'current' | 'navigation' | 'authority' | 'libraries'>;
 /** The exact route and revision a page was laid out on. A retained page never
@@ -90,7 +91,7 @@ export async function openNativeReadingDetail(context: NativeReadNavigationConte
       item = Object.freeze({
         id: target.itemId, libraryId: target.libraryId, title: manifest.metadata.title || target.title,
         format: manifest.format, sourceId: target.sourceId, inventoryAvailable: true as const,
-        ...(series && series.source && series.libraryId === target.libraryId && /^[A-Za-z0-9_-]{43}$/.test(series.id)
+        ...(series && series.source && series.libraryId === target.libraryId && readingRouteId(series.id)
           ? {series: Object.freeze({id: series.id, name: series.name, source: series.source, ...(series.number === undefined ? {} : {number: series.number})})} : {}),
       });
     } finally {try {await session.close();} catch (error) {closeError = error;}}
@@ -104,7 +105,7 @@ export async function openNativeReadingDetail(context: NativeReadNavigationConte
  * returns real members; a label hash, a stale id or an unready series cannot open it. */
 export async function openNativeReadSeries(context: NativeReadNavigationContext, target: Readonly<{libraryId: string; seriesId: string}>, origin: NativeReadOrigin, signal?: AbortSignal): Promise<boolean> {
   const selected = context.session();
-  if (signal?.aborted || !selected || !context.current() || !originCurrent(context, origin) || !/^[A-Za-z0-9_-]{43}$/.test(target.seriesId)) return false;
+  if (signal?.aborted || !selected || !context.current() || !originCurrent(context, origin) || !readingRouteId(target.seriesId)) return false;
   const destination: NativeShellRoute = {kind: 'read-series', libraryId: target.libraryId, seriesId: target.seriesId};
   if (!context.navigation.allows(destination)) return false;
   const current = () => originCurrent(context, origin) && context.session()?.sessionFamilyId === selected.sessionFamilyId;
@@ -122,7 +123,7 @@ export async function openNativeReadSeries(context: NativeReadNavigationContext,
  * whose signed periodical producer returns real issues for this exact group. */
 export async function openNativeReadPeriodical(context: NativeReadNavigationContext, target: Readonly<{libraryId: string; groupId: string; publicationType: 'magazine' | 'newspaper'}>, origin: NativeReadOrigin, signal?: AbortSignal): Promise<boolean> {
   const selected = context.session();
-  if (signal?.aborted || !selected || !context.current() || !originCurrent(context, origin) || !/^[A-Za-z0-9_-]{43}$/.test(target.groupId)) return false;
+  if (signal?.aborted || !selected || !context.current() || !originCurrent(context, origin) || !readingRouteId(target.groupId)) return false;
   const library = context.libraries().find(value => value.id === target.libraryId);
   if (!library || library.kind !== 'book') return false;
   const destination: NativeShellRoute = {kind: 'read-periodical', libraryId: target.libraryId, groupId: target.groupId, publicationType: target.publicationType};

@@ -40,7 +40,8 @@ export function entryDestination(entry: ContentEntry): HomeDestination {
     const {pivot, query, sort} = navigation.browse;
     return {to: '/library/$libraryId', params: {libraryId: entry.libraryId}, search: {view: navigation.view, pivot, query, sort}};
   }
-  if (entry.libraryId && navigation && navigation.view !== 'item') return {to: '/library/$libraryId', params: {libraryId: entry.libraryId}, search: {view: navigation.view, entityId: navigation.entityId ?? entry.id}};
+  if (entry.libraryId && navigation && navigation.view !== 'item') return {to: '/library/$libraryId', params: {libraryId: entry.libraryId},
+    search: {view: navigation.view, entityId: navigation.entityId ?? entry.id, ...(navigation.pivot ? {pivot: navigation.pivot} : {})}};
   return {to: '/item/$itemId', params: {itemId: navigation?.entityId ?? entry.id}};
 }
 export function seeAllDestination(target: HomeSeeAll): HomeDestination {

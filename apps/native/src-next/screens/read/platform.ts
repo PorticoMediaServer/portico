@@ -6,6 +6,9 @@ import type {ShellDestination} from '../../shell/model';
 export const isReadingLibraryKind = (kind: string): boolean => kind === 'book' || kind === 'comic';
 
 /** Preserve the existing exclusion of the former unsupported UI spelling. */
+/** A reading page's series or periodical id as the rebuilt server names it (`itm_…`), and the old server's 43-character
+ * group ids: the URL-safe characters only, at most 128. It goes into a request path, so nothing else is let through. */
+export const readingRouteId = (id: string): boolean => typeof id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(id);
 export const hiddenReadingLibraryOnTV = (kind: string): boolean => isReadingLibraryKind(kind) || kind === 'books';
 
 /** Apply before invoking a registered renderer, including a restored origin.
