@@ -17,7 +17,7 @@ import {continueBookFacts} from '@core/presentation/continue-books.ts';
 import {channelMonograms, programmeFactParts, type TimeEnvironment} from '@portico/client-core/kit-model';
 import {useFreshness, useRecovering} from '../../platform/freshness';
 import {Artwork, AmbientArt, GeneratedArt, GeneratedCover} from '../../kit/artwork';
-import {Hero, HeroFacts, type HeroCandidate, type LayoutPlatform} from '../../kit/layout';
+import {Hero, HeroFacts, longTitle, type HeroCandidate, type LayoutPlatform} from '../../kit/layout';
 import {Button} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
 import {CollectionBanner, LiveCard, PosterCard, RankedCard, ReadResumeCard, ResumeCard, SquareCard, WideCard, type CardSelection} from '../../kit/cards';
@@ -65,7 +65,6 @@ type HomePresentation = Pick<HomeBindings, 'artwork' | 'effects' | 'selection' |
 const t = defaultI18n.t;
 const pageSubscribe = (listener: () => void) => { document.addEventListener('visibilitychange', listener); return () => document.removeEventListener('visibilitychange', listener); };
 /** The frame draws a long hero title at the long lockup size; no shorter drawn rule decides it (mock.html#home). */
-const longHeroTitle = (title: string) => [...title.trim()].length > 20;
 
 type HeroArtworkSlide = Readonly<{title: string; artwork: Readonly<{backdropUrl?: string; posterUrl?: string}>}>;
 type HeroArtworkContext = Readonly<{index: number; visible: boolean; onReady?: () => void; onError?: () => void}>;
@@ -168,7 +167,7 @@ export function HomeView({service, customization, document, nowMs, onMore, refre
   const width = useShellWidth(), layout = homeLayout(width), {platform, sizeClass} = layout;
   const heroPixels = Math.max(width, heroSpec.backdropWidth[platform === 'desktop' || sizeClass === 'medium' ? 'web' : 'phone']) * devicePixelRatio;
   const hero = useVisible(), env = useMemo(() => ({t, locale: time.locale}), [time.locale]);
-  const candidates: Spotlight[] = useMemo(() => homeSpotlights(document, env).map((slide, index) => ({...slide, long: longHeroTitle(slide.title), source: document.spotlight[index], causalReason: slide.reason, reason: serverTextLabel(defaultI18n, slide.reason.text)})), [document, env]);
+  const candidates: Spotlight[] = useMemo(() => homeSpotlights(document, env).map((slide, index) => ({...slide, long: longTitle(slide.title), source: document.spotlight[index], causalReason: slide.reason, reason: serverTextLabel(defaultI18n, slide.reason.text)})), [document, env]);
   useEffect(() => {
     if (!hero.visible) return;
     const cleanups = document.spotlight.map(selection.registerSpotlight);
