@@ -16,6 +16,7 @@ import {ReaderContents, type ReaderContentsEntry} from '../../kit/reader/ReaderP
 import type {ReadingItem, ReadingManifest, ReadingProgress, ReadingSession} from '@portico/client-core';
 import {rememberFilterNames} from '@core/filter-value-names.ts';
 import {saveReadingFile} from './save-file';
+import {loadReadFonts} from './fonts';
 import {useProtectedWebScreenContext} from '../../route-registry-view';
 import {router} from '../../router';
 import {Icon} from '../../kit/Icon';
@@ -124,6 +125,15 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
     })().catch(error => {if (live()) {const failure = readFailureKind(error); if (readFailureReported(failure)) errorSink.current(error); original.ready = false; original.target = undefined; setDetail({attempt: original, failed: true, failure});} void bindings.close().catch(() => {});});
     return () => {active = false; original.ready = false; original.target = undefined; publication?.dispose(); off(); void bindings.dispose().catch(() => {});};
   }, [attempt, eligibility.itemId, current]);
+  /** The first lines are set in the reader's serif (desktop-read 3), which the app loads only for
+   * a book; the page loads it while it shows them, and lets it go when it leaves. */
+  const showsOpening = !!(detail.attempt === attempt && detail.manifest?.metadata.openingLines);
+  useEffect(() => {
+    if (!showsOpening) return;
+    const life = new AbortController();
+    void loadReadFonts({document, signal: life.signal}).catch(() => {});
+    return () => life.abort();
+  }, [showsOpening]);
   // The reading branch owns no shell navigation on a phone, so the page keeps one
   // Back of its own before loading, failure and ready content alike.
   const phoneBack = phone && context.effects.back ? <div className={styles.phoneTopBar} data-read-phone-back>
@@ -284,7 +294,7 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
       ...(metadata.wordCount !== undefined ? [{id: 'words', text: t('next.reader.wordCount', {count: metadata.wordCount}), role: 'context' as const}] : []),
       ...(metadata.pageCount !== undefined ? [{id: 'pages', text: t('next.reader.pageCount', {count: metadata.pageCount}), role: 'context' as const}] : []),
       ...(metadata.estimatedSeconds !== undefined && metadata.estimatedSeconds > 0 ? [{id: 'estimate', text: t('next.reader.aboutDuration', {duration: defaultI18n.duration(readingDuration(metadata.estimatedSeconds))}), role: 'context' as const}] : []),
-    ]} description={metadata.description} opening={metadata.openingLines ? {label: t('next.reader.openingLines'), text: metadata.openingLines} : undefined}
+    ]} description={metadata.description} opening={metadata.openingLines ? {label: t('next.reader.firstLines'), text: metadata.openingLines} : undefined}
     ambient={context.artwork.ambient(manifest.metadata.coverUrl)} palette={tint}
     actions={<>{progression !== undefined && progression > 0 ? <ResumeButton className={styles.primary} icon="i-book" progress={progression} remaining={defaultI18n.percent(progression)} onClick={() => open()}>{t('next.cards.read')}</ResumeButton>
       : <Button className={styles.primary} variant="primary" icon="i-book" onClick={() => open()}>{t('next.reader.read')}</Button>}{detail.client && <ReadSavedAction client={detail.client} itemId={eligibility.itemId} isCurrent={factsCurrent} reportError={error => errorSink.current(error)}/>}{detail.client && <ReadMarkAction client={detail.client} itemId={eligibility.itemId} isCurrent={factsCurrent} reportError={error => errorSink.current(error)}/>}</>}
