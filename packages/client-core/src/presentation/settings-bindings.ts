@@ -130,6 +130,7 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'general.alertStorageWarn':{form:'alerts',key:'storageWarningPercent',codec:'number-choice'},
  'general.alertStorageCritical':{form:'alerts',key:'storageCriticalPercent',codec:'number-choice'},
  'general.alertCertificateDays':{form:'alerts',key:'certificateWarningDays',codec:'number-choice'},
+ 'general.serverNoticesTo':{form:'alerts',key:'serverNoticesTo'},
  'general.noticeAudience':{form:'alerts',key:'noticeAudience',codec:'notice-audience'},
  'storage.analysisSpace':{form:'runtime',key:'analysisStorageGiB',codec:'number-choice'},
  'storage.analysisStage':{form:'runtime',key:'analysisStageStorageMiB',codec:'number-choice'},

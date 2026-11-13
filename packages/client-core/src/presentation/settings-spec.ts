@@ -5044,55 +5044,14 @@ export const settingsSpec: readonly SettingsSection[] = [
           "title": "next.settingsSpec.server.general.advanced.groups.4.title",
           "rows": [
             {
-              "id": "general.noticeAudience",
+              "id": "general.serverNoticesTo",
               "scope": "server",
-              "key": "integrations.notice_audience",
-              "label": "next.settingsSpec.server.general.advanced.groups.4.rows.0.label",
-              "help": "next.settingsSpec.server.general.advanced.groups.4.rows.0.help",
-              "control": {
-                "type": "matrix",
-                "columns": [
-                  {
-                    "value": "both",
-                    "label": "next.settingsSpec.server.general.advanced.groups.4.rows.0.control.columns.0.label"
-                  },
-                  {
-                    "value": "owner",
-                    "label": "next.settingsSpec.server.general.advanced.groups.4.rows.0.control.columns.1.label"
-                  },
-                  {
-                    "value": "off",
-                    "label": "next.settingsSpec.server.general.advanced.groups.4.rows.0.control.columns.2.label"
-                  }
-                ],
-                "items": [
-                  {
-                    "id": "scan",
-                    "label": "next.settingsSpec.server.general.advanced.groups.4.rows.0.control.items.0.label",
-                    "default": "both"
-                  },
-                  {
-                    "id": "storage",
-                    "label": "next.settingsSpec.server.general.advanced.groups.4.rows.0.control.items.1.label",
-                    "default": "both"
-                  },
-                  {
-                    "id": "certificate",
-                    "label": "next.settingsSpec.server.general.advanced.groups.4.rows.0.control.items.2.label",
-                    "default": "both"
-                  },
-                  {
-                    "id": "recording",
-                    "label": "next.settingsSpec.server.general.advanced.groups.4.rows.0.control.items.3.label",
-                    "default": "both"
-                  },
-                  {
-                    "id": "feedback",
-                    "label": "next.settingsSpec.server.general.advanced.groups.4.rows.0.control.items.4.label",
-                    "default": "both"
-                  }
-                ]
-              }
+              "key": "general.serverNoticesTo",
+              "label": "next.settings.general.serverNoticesTo",
+              "control": {"type": "select", "default": "owner", "options": [
+                {"value": "owner", "label": "next.settings.general.noticesOwner"},
+                {"value": "owner-and-admins", "label": "next.settings.general.noticesOwnerAdmins"}
+              ]}
             }
           ]
         },

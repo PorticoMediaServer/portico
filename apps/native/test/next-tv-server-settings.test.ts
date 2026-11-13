@@ -12,7 +12,7 @@ const feed = 'https://updates.example/releases.json';
 const field = (id: string, value: unknown, extra: Record<string, unknown> = {}) => ({id, key: id, current: value, effective: value, default: value, source: 'default', configOnly: false, applicationMode: 'live', ...extra});
 const configuration = (...fields: ReturnType<typeof field>[]) => ({revision: 1, registryRevision: 'r', signInPolicyRevision: 'policy-1', path: '/etc/portico/config.toml', fields: [field('general.updateFeed', feed), ...fields]}) as any;
 const runtime = {name: 'Den', 'updates.feedUrl': feed, perAccountCap: null, playHistoryDays: 0, 'library.missingTitles': 'after_days', 'library.missingTitlesDays': 46, 'people.invitation_days': 7};
-const alerts = {storageWarningPercent: 10, storageCriticalPercent: 5, certificateWarningDays: 14, noticeAudience: {scan: 'both', storage: 'both', certificate: 'both', recording: 'both', feedback: 'owner'}};
+const alerts = {storageWarningPercent: 10, storageCriticalPercent: 5, certificateWarningDays: 14, serverNoticesTo: 'owner'};
 const section = (id: string) => settingsSpec.find(value => value.scope === 'server' && value.id === id)!;
 const state = (page: TVServerSettingsState['page'], drafts: TVServerSettingsState['drafts'], extra: Partial<TVServerSettingsState> = {}): TVServerSettingsState =>
   ({page, configuration: configuration(), drafts, custom: new Set(), ...extra});
@@ -27,12 +27,12 @@ test('General on TV edits its bound rows, the alert thresholds and notice routin
   assert.equal((main[1] as any).value, 'auto');
   assert.equal((main[2] as any).value, 'overnight');
   // Advanced holds the alert thresholds and who sees each notice; the heavy window opens only for Custom.
-  assert.deepEqual(ids(general, true), ['general.alertStorageWarn', 'general.alertStorageCritical', 'general.alertCertificateDays', 'general.noticeAudience']);
-  const audience = items(general, true).find(item => item.id === 'general.noticeAudience') as any;
-  assert.equal(audience.kind, 'matrix');
-  assert.equal(audience.values.feedback, 'owner');
+  assert.deepEqual(ids(general, true), ['general.alertStorageWarn', 'general.alertStorageCritical', 'general.alertCertificateDays', 'general.serverNoticesTo']);
+  const audience = items(general, true).find(item => item.id === 'general.serverNoticesTo') as any;
+  assert.equal(audience.kind, 'choice');
+  assert.equal(audience.value, 'owner');
   const custom = state('general', {runtime, maintenance: maintenance(), alerts}, {custom: new Set(['general.heavyWork', 'general.updateChecks'])});
-  assert.deepEqual(ids(custom, true), ['general.updateFeed', 'general.heavyStart', 'general.heavyLength', 'general.heavyDays', 'general.alertStorageWarn', 'general.alertStorageCritical', 'general.alertCertificateDays', 'general.noticeAudience']);
+  assert.deepEqual(ids(custom, true), ['general.updateFeed', 'general.heavyStart', 'general.heavyLength', 'general.heavyDays', 'general.alertStorageWarn', 'general.alertStorageCritical', 'general.alertCertificateDays', 'general.serverNoticesTo']);
   const days = items(custom, true).find(item => item.id === 'general.heavyDays') as any;
   assert.equal(days.kind, 'matrix');
   assert.equal(days.items.length, 7);
