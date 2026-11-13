@@ -83,11 +83,8 @@ import {AudioSubtitleLanguageList, SubtitlePreview, isSubtitlePreview, preferred
 import {subtitlePreviewPaint} from './audio-subtitles-model';
 import {MusicEqualizerRow, musicEqualizerAvailable} from './account-music/MusicEqualizerRow';
 import {RemoteSourcesPage} from './remote-sources/RemoteSourcesPage';
-import {RemoteFormSource} from './server-remote/remote-form-source';
-import {RefusedAddressesControl, RefusedAddressesSource} from './server-remote/refused-addresses';
-import {BlockedSourcesControl, SecuritySummaryLine, SecuritySummarySource} from './server-remote/security-summary';
-import {CertificateFormSource} from './server-remote/certificate-form-source';
-import {CertificateStatusControl, ServerRemotePage} from './server-remote/ServerRemotePage';
+import {OwnerRemoteSettings} from '@core/server-admin/remote-settings.ts';
+import {OwnerRemotePage, OwnAddressControl, OwnerRefusedAddresses, OwnerBlockedNetworks} from './server-remote/OwnerRemotePage';
 import {MetadataSettingsPage} from './metadata/MetadataSettingsPage';
 import {browserAccountOrigin} from '../../platform/account-origin';
 import {browserAppSessions} from '../../platform/server-connections';
@@ -286,20 +283,22 @@ export function SettingsEntry() {
         setProfilePIN(pinRequest);
       }
     };
-    const remoteForm = route.scope === 'server' && route.section === 'remote' && role === 'owner' && identity.primaryProfile === true && identity.capabilities?.manageServer === true
-      ? new RemoteFormSource(api, current, true) : undefined;
-    const certificate = remoteForm && identity.signIn === 'portico' ? new CertificateFormSource(api, current, reportError) : undefined;
-    // O-169: refused addresses, each with its fix. Allowing one changes Custom addresses, so the page's forms reload.
-    const remoteSection = settingsRowIndex.get('remote.refused')!.section;
-    const refused = remoteForm ? new RefusedAddressesSource(api, current, () => {remoteForm.invalidateQuiet();void source.load(remoteSection);}) : undefined;
-    // Security: what the protection refused and blocked, with Unblock.
-    const security = remoteForm ? new SecuritySummarySource(api, current) : undefined;
+    const remoteSettings = route.scope === 'server' && route.section === 'remote' && role === 'owner' && identity.primaryProfile === true && identity.capabilities?.manageServer === true
+      ? new OwnerRemoteSettings(api, current) : undefined;
+    const remoteFacts = new Set(['remote.refused', 'remote.blocked', 'remote.thisDevice', 'remote.listen', 'remote.addresses']);
+    const ownAddressChildren = new Set(['remote.externalAddress', 'remote.certFile', 'remote.certKey', 'remote.certStatus', 'remote.identityCode']);
+    let remotePage: {rows?: unknown; remote?: unknown; value?: SettingsPageSnapshot} = {};
+    const remotePageSnapshot = (section: Parameters<typeof source.getSnapshot>[0]) => {
+      const rows = source.getSnapshot(section), remote = remoteSettings?.getSnapshot();
+      if (remotePage.rows !== rows || remotePage.remote !== remote) remotePage = {rows, remote, value: {...rows}};
+      return remotePage.value!;
+    };
     const platform = settingsPlatform();
     const privacy = createPrivacySettingsSurfaces({api: api, serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId]), isCurrent: current, reportError});
     // One row's engine. A preset row is answered by the rule below instead, so its
     // own missing binding never decides for the rows it sets.
     const engine = (row: Parameters<SettingsController['eligible']>[0]) => {
-      if (privacy.eligible(row) || remoteForm?.has(row.id) || certificate?.has(row.id) || refused?.has(row.id) || security?.has(row.id)) return true;
+      if (privacy.eligible(row) || !!remoteSettings && !ownAddressChildren.has(row.id) && (remoteSettings.has(row.id) || remoteFacts.has(row.id))) return true;
       if (row.id === 'music.eq') return musicEqualizerAvailable(platform);
       const binding = settingsBinding(row.id);
       if (!binding) return row.id === 'device.name' && !!platform?.device?.getSnapshot().facts.name || row.id === 'device.appVersion' && !!platform?.device?.getSnapshot().facts.appVersion;
@@ -307,7 +306,7 @@ export function SettingsEntry() {
       return binding.form !== 'library' && binding.form !== 'remote' && binding.form !== 'managedRoute';
     };
     const options: SettingsControllerOptions = {api: api, readConfiguration: route.scope === 'server' && route.section === 'signin' ? signal => readOwnerSignInConfiguration(api, signal) : undefined, queries: context.freshness.queries, serverId: viewer.serverId, viewerId: JSON.stringify([viewer.authority, viewer.accountId, viewer.profileId]),
-      ownerSettings: route.scope === 'server' && route.section === 'general' ? new OwnerGeneralSettings(api) : undefined,
+      ownerSettings: remoteSettings ?? (route.scope === 'server' && route.section === 'general' ? new OwnerGeneralSettings(api) : undefined),
       streaming: route.scope === 'server' && route.section === 'streaming' ? new OwnerStreamingSettings(api) : undefined,
       role, mainProfile: identity.primaryProfile === true,
       capabilities: {manageServer: identity.capabilities?.manageServer === true, managePeople: identity.capabilities?.managePeople === true, manageSignIn: identity.capabilities?.manageSignIn === true},
@@ -507,7 +506,7 @@ export function SettingsEntry() {
         if (row.id === 'profile.signOutElsewhere' && otherDeviceSignOut) return <ProfileOtherSignOut command={otherDeviceSignOut} isCurrent={current} disabled={state.disabled} onFailure={reportError} />;
         if (row.id === 'profile.signOut') return <ProfileSignOut serverName={buildContext.facts.identity.serverName} isCurrent={current} signOut={context.signOut} />;
         if (row.id === 'profile.hiddenLabels' && restrictions) return <SettingsStringList label={defaultI18n.t(row.label)} values={(profiles ? restrictionRow(restrictions, profiles, row.id)?.value as string[] | undefined : undefined) ?? []} addLabel={defaultI18n.t(row.control.addLabel!)} disabled={state.disabled} onChange={value => {void changeRestriction(restrictions, row.id, value)?.catch(limitsFailure);}} />;
-        if (row.id === 'remote.homeNets') return <SettingsStringList label={defaultI18n.t(row.label)} values={Array.isArray(state.value) ? state.value as string[] : []} addLabel={defaultI18n.t(row.control.addLabel!)} disabled={state.disabled} onChange={value => controller.change(row, value, rowContext)} />;
+        if (['remote.homeNets', 'remote.customAddresses', 'remote.trustedProxies'].includes(row.id)) return <SettingsStringList label={defaultI18n.t(row.label)} values={Array.isArray(state.value) ? state.value as string[] : []} addLabel={defaultI18n.t(row.control.addLabel!)} disabled={state.disabled} onChange={value => controller.change(row, value, rowContext)} />;
         if (row.id === 'profile.picture' && profiles) return <ProfilePicture source={profiles} isCurrent={current} onFailure={reportError} />;
         if (row.id === 'profile.delete' && profiles) return <ProfileDelete source={profiles} isCurrent={current} onFailure={reportError} />;
         if (row.id === 'quality.awayLimitChange') return <Button size="small" variant="glass" disabled={state.disabled} onClick={() => {if (current()) openSettingsRow({scope: 'server', section: 'streaming', row: 'streaming.awayQuality'});}}>{defaultI18n.t(row.control.label ?? row.label)}</Button>;
@@ -598,7 +597,7 @@ export function SettingsEntry() {
             {renderRows(selected.section)}
           </>}</SignInMoveWatch>
         : selected.section.scope === 'server' && selected.section.id === 'remote'
-        ? <ServerRemotePage api={api} isCurrent={current} source={remoteForm} certificate={certificate} groups={renderRows({groups: selected.section.groups})} advanced={selected.section.advanced ? renderRows({advanced: selected.section.advanced}) : null}/>
+        ? remoteSettings ? <OwnerRemotePage source={remoteSettings} onConfirmed={() => {void controller.ownerSettingsChanged().catch(reportError);}} groups={renderRows({groups: selected.section.groups})} advanced={selected.section.advanced ? renderRows({advanced: selected.section.advanced}) : null}/> : null
         : selected.section.scope === 'server' && selected.section.id === 'metadata' && metadataCurrent() ? <MetadataSettingsPage api={api} isCurrent={metadataCurrent} onLibraries={() => openSettings('libraries')}
           recommendations={renderRows({groups: selected.section.groups?.filter(group => group.rows.some(row => row.id === 'metadata.titleDataset'))})}/> : selected.section.id === 'integrations' && integrationKeys && webhooks ? <IntegrationsPage api={api} source={integrationKeys} webhooks={webhooks} baseUrl={api.baseUrl} isCurrent={current} reportError={reportError}
         otherRows={renderRows({groups: selected.section.groups?.filter(group => !group.rows.some(row => ['integrations.apiKeys', 'integrations.webhooks', 'integrations.assistantAddress', 'integrations.assistantKey'].includes(row.id)))})}
@@ -618,17 +617,14 @@ export function SettingsEntry() {
         if(!current() || inputActive===value)return;
         inputActive=value;++inputRevision;
         controller.setQuietInputActive(value);profiles?.setQuietInputActive(value);
-        if(value){remoteForm?.invalidateQuiet();certificate?.invalidateQuiet();}
         for(const listener of inputListeners)listener();
       },
       panelIntro: selected => selected.recordId && selected.tabId === 'metadata' && libraries ? <MetadataSource key={selected.recordId} libraryId={selected.recordId} api={api} isCurrent={current} /> : null,
       panelHeader: (selected, title) => selected.recordId && libraries ? <LibraryHeader key={selected.recordId} libraryId={selected.recordId} name={title} rename={name => controller.renameLibrary(selected.recordId!, name)} service={libraries} artwork={context.artwork} onError={reportError}
         lyrics={{api: api, available: lyricsSourceIsLrclib(selected), isCurrent: current}} /> : null,
-      subscribe: listener => {const off = source.subscribe(listener), offProfiles = profiles?.subscribe(listener), offLimits = restrictions?.subscribe(listener), offHardware = hardware?.subscribe(listener), offServer = server?.subscribe(listener), offRemote = remoteForm?.subscribe(listener), offCertificate = certificate?.subscribe(listener);return () => {off();offProfiles?.();offLimits?.();offHardware?.();offServer?.();offRemote?.();offCertificate?.();};},
+      subscribe: listener => {const off = source.subscribe(listener), offProfiles = profiles?.subscribe(listener), offLimits = restrictions?.subscribe(listener), offHardware = hardware?.subscribe(listener), offServer = server?.subscribe(listener), offRemote = remoteSettings?.subscribe(listener);return () => {off();offProfiles?.();offLimits?.();offHardware?.();offServer?.();offRemote?.();};},
       change: (row, value, selected) => {
         if (!current()) return;
-        if (remoteForm?.has(row.id)) {remoteForm.change(row.id, value);return;}
-        if (certificate?.has(row.id)) {certificate.change(row.id, value);return;}
         if (restrictions && isProfileRestriction(row.id)) {void changeRestriction(restrictions, row.id, value)?.catch(limitsFailure);return;}
         if (profiles && row.id === 'profile.pin' && typeof value === 'boolean') {openProfilePIN(!value);return;}
         if (profiles && profileRow(row.id)) {void changeProfileSetting(profiles, row.id, value)?.catch(reportError);return;}
@@ -636,25 +632,33 @@ export function SettingsEntry() {
       },
       // The Remote sources page owns its own checked source reads; the generic
       // server-section configuration read would replace that page with a failure.
-      getSnapshot: section => section.scope === 'server' && section.id === 'remote' && remoteForm ? remoteForm.pageSnapshot(source.getSnapshot(section), certificate?.getSnapshot()) : section.scope === 'account' && section.id === 'profile' && profiles ? profilePageSnapshot() : section.scope === 'server' && (section.id === 'remote-sources' || section.id === 'metadata' && metadataCurrent() || section.id === 'live' && !!live) ? remoteSourcesPageSnapshot : section.scope === 'server' && section.id === 'storage' && server ? server.pageSnapshot(source.getSnapshot(section)) : section.scope === 'server' && section.id === 'streaming' && hardware ? hardware.pageSnapshot(source.getSnapshot(section)) : source.getSnapshot(section),
-      load: section => section.scope === 'server' && section.id === 'remote' && remoteForm ? Promise.all([remoteForm.load(), certificate?.load(), refused?.load(), security?.load(), source.load(section)]).then(() => undefined) : section.scope === 'account' && section.id === 'profile' && profiles ? Promise.all([profiles.load(), source.load(section)]).then(() => undefined) : section.scope === 'server' && (section.id === 'remote-sources' || section.id === 'live' && !!live) ? controller.loadServerHeader(section) : source.load(section),
-      eligible: (row, selected) => segmentsBulk.has(row.id) ? !!intros && role === 'owner' && current() && controller.sectionVisible(selected.section) : (remoteForm?.has(row.id) || certificate?.has(row.id) || refused?.has(row.id) || security?.has(row.id)) ? !!remoteForm?.current() && selected.section.scope === 'server' && selected.section.id === 'remote' && controller.sectionVisible(selected.section) : row.id === 'libraries.list' ? !!libraries && current() && controller.sectionVisible(selected.section) : profileSecurityRows(row.id) ? profileSecurityCurrent() : hardware && hardwareEligible(row.id, hardware.getSnapshot()) ? current() && controller.sectionVisible(selected.section) : row.id === 'profile.devices' ? !!profileDevices && current() && selected.section.scope === 'account' && selected.section.id === 'profile' : row.id === 'profile.pinForgot' ? !!profiles && identity.signIn === 'local' && current() : row.id === 'profile.signOutElsewhere' ? !!otherDeviceSignOut && current() && selected.section.scope === 'account' && selected.section.id === 'profile' : row.id === 'profile.signOut' ? current() && selected.section.scope === 'account' && selected.section.id === 'profile' : row.id === 'quality.awayLimitChange' ? current() && role === 'owner' && controller.sectionVisible(selected.section) : row.id === 'signin.people' ? current() && (role === 'owner' || role === 'admin') && controller.sectionVisible(selected.section) : row.id === 'signin.outside' ? current() && role === 'owner' && controller.sectionVisible(selected.section) : row.id === 'signin.dataFolder' ? !!signinStorage && current() && controller.sectionVisible(selected.section) : ['general.message', 'general.restart', 'general.pauseBackground'].includes(row.id) ? generalActions && current() && controller.sectionVisible(selected.section) : ['storage.missingRule', 'storage.missingNow', 'storage.removeMissing', 'storage.missingDaysExact'].includes(row.id) ? false : restrictions && isProfileRestriction(row.id) ? current() && selected.section.scope === 'account' && selected.section.id === 'profile': profileRow(row.id) ? current() && selected.section.scope === 'account' && selected.section.id === 'profile' : server?.eligible(row) ?? ((row.id === 'libraries.folders' || (row.id === 'libraries.skipped' || row.id === 'libraries.unmatched') && !!libraries || (row.id === 'libraries.fetchLyrics' || row.id === 'libraries.remove' || row.id === 'libraries.trash' || row.id === 'libraries.trashRule') && !!libraries && role === 'owner') ? current() && isLibraryPanelContext(selected) && controller.sectionVisible(selected.section) : libraryScanAction(row.id) ? current() && !!libraries && selected.panelId === 'library' && !!selected.recordId && controller.sectionVisible(selected.section) : isSubtitlePreview(row.id) ? current() && controller.sectionVisible(selected.section) : row.id === 'device.remote' ? current() && selected.section.scope === 'account' && selected.section.id === 'device' : isDeviceSyntheticRow(row.id) ? current() && controller.sectionVisible(selected.section) && deviceRowState(row, deviceFacts) !== undefined : row.id === 'music.eq' ? current() && controller.sectionVisible(selected.section) && musicEqualizerAvailable(platform) : row.id === 'people.table' ? !!people && current() && controller.sectionVisible(selected.section) : row.id === 'metadata.perLibrary' || row.id === 'appearance.customizeHome' ? current() && controller.sectionVisible(selected.section) : source.eligible(row, selected)),
-      reset: (row, selected) => {if (remoteForm?.has(row.id)) remoteForm.reset(row.id);else if (certificate?.has(row.id)) certificate.reset(row.id);else source.reset(row, selected);},
+      getSnapshot: section => section.scope === 'server' && section.id === 'remote' && remoteSettings ? remotePageSnapshot(section) : section.scope === 'account' && section.id === 'profile' && profiles ? profilePageSnapshot() : section.scope === 'server' && (section.id === 'remote-sources' || section.id === 'metadata' && metadataCurrent() || section.id === 'live' && !!live) ? remoteSourcesPageSnapshot : section.scope === 'server' && section.id === 'storage' && server ? server.pageSnapshot(source.getSnapshot(section)) : section.scope === 'server' && section.id === 'streaming' && hardware ? hardware.pageSnapshot(source.getSnapshot(section)) : source.getSnapshot(section),
+      load: section => section.scope === 'account' && section.id === 'profile' && profiles ? Promise.all([profiles.load(), source.load(section)]).then(() => undefined) : section.scope === 'server' && (section.id === 'remote-sources' || section.id === 'live' && !!live) ? controller.loadServerHeader(section) : source.load(section),
+      eligible: (row, selected) => segmentsBulk.has(row.id) ? !!intros && role === 'owner' && current() && controller.sectionVisible(selected.section) : (remoteSettings?.has(row.id) || remoteFacts.has(row.id)) ? !!remoteSettings && !ownAddressChildren.has(row.id) && current() && selected.section.scope === 'server' && selected.section.id === 'remote' && controller.sectionVisible(selected.section) : row.id === 'libraries.list' ? !!libraries && current() && controller.sectionVisible(selected.section) : profileSecurityRows(row.id) ? profileSecurityCurrent() : hardware && hardwareEligible(row.id, hardware.getSnapshot()) ? current() && controller.sectionVisible(selected.section) : row.id === 'profile.devices' ? !!profileDevices && current() && selected.section.scope === 'account' && selected.section.id === 'profile' : row.id === 'profile.pinForgot' ? !!profiles && identity.signIn === 'local' && current() : row.id === 'profile.signOutElsewhere' ? !!otherDeviceSignOut && current() && selected.section.scope === 'account' && selected.section.id === 'profile' : row.id === 'profile.signOut' ? current() && selected.section.scope === 'account' && selected.section.id === 'profile' : row.id === 'quality.awayLimitChange' ? current() && role === 'owner' && controller.sectionVisible(selected.section) : row.id === 'signin.people' ? current() && (role === 'owner' || role === 'admin') && controller.sectionVisible(selected.section) : row.id === 'signin.outside' ? current() && role === 'owner' && controller.sectionVisible(selected.section) : row.id === 'signin.dataFolder' ? !!signinStorage && current() && controller.sectionVisible(selected.section) : ['general.message', 'general.restart', 'general.pauseBackground'].includes(row.id) ? generalActions && current() && controller.sectionVisible(selected.section) : ['storage.missingRule', 'storage.missingNow', 'storage.removeMissing', 'storage.missingDaysExact'].includes(row.id) ? false : restrictions && isProfileRestriction(row.id) ? current() && selected.section.scope === 'account' && selected.section.id === 'profile': profileRow(row.id) ? current() && selected.section.scope === 'account' && selected.section.id === 'profile' : server?.eligible(row) ?? ((row.id === 'libraries.folders' || (row.id === 'libraries.skipped' || row.id === 'libraries.unmatched') && !!libraries || (row.id === 'libraries.fetchLyrics' || row.id === 'libraries.remove' || row.id === 'libraries.trash' || row.id === 'libraries.trashRule') && !!libraries && role === 'owner') ? current() && isLibraryPanelContext(selected) && controller.sectionVisible(selected.section) : libraryScanAction(row.id) ? current() && !!libraries && selected.panelId === 'library' && !!selected.recordId && controller.sectionVisible(selected.section) : isSubtitlePreview(row.id) ? current() && controller.sectionVisible(selected.section) : row.id === 'device.remote' ? current() && selected.section.scope === 'account' && selected.section.id === 'device' : isDeviceSyntheticRow(row.id) ? current() && controller.sectionVisible(selected.section) && deviceRowState(row, deviceFacts) !== undefined : row.id === 'music.eq' ? current() && controller.sectionVisible(selected.section) && musicEqualizerAvailable(platform) : row.id === 'people.table' ? !!people && current() && controller.sectionVisible(selected.section) : row.id === 'metadata.perLibrary' || row.id === 'appearance.customizeHome' ? current() && controller.sectionVisible(selected.section) : source.eligible(row, selected)),
+      reset: (row, selected) => source.reset(row, selected),
       rowState: (row, selected) => {
-        if (remoteForm?.has(row.id)) return remoteForm.rowState(row);
-        if (certificate?.has(row.id)) {const state = certificate.rowState(row);return row.id === 'remote.secureStatus' && state.present ? {...state, control: <CertificateStatusControl source={certificate}/>} : state;}
-        // Private only: the help line says what it allows, as setup's frame 14f does.
-        if (row.id === 'remote.access') {
-          const state = source.rowState(row, selected);
-          return state.present && state.value === 'private' && row.control.options?.[1]?.hint ? {...state, help: defaultI18n.t(row.control.options[1].hint)} : state;
-        }
-        if (security?.has(row.id)) return row.id === 'remote.summary' ? {present: true, wide: globalThis.matchMedia?.('(max-width: 599px)').matches === true, control: <SecuritySummaryLine source={security}/>}
-          : {present: true, wide: true, control: <BlockedSourcesControl source={security} disabled={!current()}/>};
-        if (refused?.has(row.id)) {
-          const securityRow = settingsRowIndex.get('remote.security')!.row;
-          return {present: true, wide: true, control: <RefusedAddressesControl source={refused} disabled={!current()}
-            onStandard={() => source.change(securityRow, 'standard', selected)}
-            onCertificate={() => openSettingsRow({scope: 'server', section: 'remote', row: 'remote.ownCertificate'})}/>};
+        if (remoteSettings) {
+          if (ownAddressChildren.has(row.id)) return {present: false};
+          const remote = remoteSettings.getSnapshot(), status = remote.status;
+          const disabled = remote.busy || !!remote.confirmation || !current();
+          if (row.id === 'remote.ownCertificate') return {present: true, wide: true, control: <OwnAddressControl key={remote.interfaces?.etag} source={remoteSettings}/>};
+          if (row.id === 'remote.refused') return {present: true, wide: true, control: <OwnerRefusedAddresses source={remoteSettings} onStandard={() => source.change(settingsRowIndex.get('remote.security')!.row, 'standard', selected)} onCertificate={() => openSettingsRow({scope: 'server', section: 'remote', row: 'remote.ownCertificate'})}/>};
+          if (row.id === 'remote.blocked') return {present: true, wide: true, control: <OwnerBlockedNetworks source={remoteSettings}/>};
+          if (row.id === 'remote.thisDevice') return {present: !!status, displayValue: status && defaultI18n.t(status.thisDevice.atHome ? 'next.remoteStatus.deviceHome' : 'next.remoteStatus.deviceAway', {address: status.thisDevice.address})};
+          if (row.id === 'remote.listen') return {present: !!status?.listener, displayValue: status?.listener && `${status.listener.address}:${status.listener.port}`};
+          if (row.id === 'remote.addresses') return {present: !!status, wide: true, control: <div>{status?.addresses.map(address => <p key={`${address.address}:${address.port}`}>{address.address}:{address.port}</p>)}</div>};
+          if (remoteSettings.has(row.id)) {
+            const state = source.rowState(row, selected);
+            if (row.id === 'remote.interface') {
+              const interfaces = remote.interfaces, selected = interfaces?.selected;
+              const choices = [{value: 'all', label: defaultI18n.t('next.remoteOwner.automatic')}, ...(interfaces?.interfaces ?? []).map(item => ({value: item.name, label: item.name, hint: item.addresses.join(', ')}))];
+              if (selected && !choices.some(item => item.value === selected)) choices.push({value: selected, label: selected});
+              return {...state, disabled, choices, help: interfaces?.note ?? state.help};
+            }
+            if (row.id === 'remote.access') return {...state, disabled, choices: row.control.options?.filter(option => option.value !== 'private').map(option => ({...option, label: defaultI18n.t(option.label), hint: option.hint && defaultI18n.t(option.hint)}))};
+            if (row.id === 'remote.secureConnections' && status?.remoteSecurity.active === 'enhanced') return {...state, disabled: true, readOnly: true, value: 'required', displayValue: defaultI18n.t('next.remoteOwner.required')};
+            return {...state, disabled};
+          }
         }
         if(profileSecurityRows(row.id))return {present: profileSecurityCurrent() && (row.id !== 'profile.recoveryCodes' || securityFacts.mfa === true), value: row.id === 'profile.twoStep' ? securityFacts.mfa : undefined, help: row.id === 'profile.email' ? securityFacts.email : undefined};
         if (row.id === 'profile.devices') return {present: !!profileDevices && current() && profiles?.getSnapshot().document?.canManage === true};
@@ -706,15 +710,13 @@ export function SettingsEntry() {
     const quietInputs: QuietInput[] = route.scope==='server' && ['signin','live','metadata','remote-sources'].includes(route.section) ? [] : [...controller.quietInputs(section)];
     if(profiles)quietInputs.push({id:'profiles',refresh:profiles.refresh,cancel:profiles.invalidateQuiet,subscribe:profiles.subscribe,
       blocked:()=>profiles.quietBlocked() || profiles.getSnapshot().loading,settlement:()=>profiles.getSnapshot().document});
-    if(remoteForm)quietInputs.push({id:'remote',refresh:remoteForm.refresh,cancel:remoteForm.invalidateQuiet,subscribe:remoteForm.subscribe,blocked:remoteForm.quietBlocked,settlement:()=>remoteForm.getSnapshot().draft});
-    if(certificate)quietInputs.push({id:'certificate',refresh:certificate.refresh,cancel:certificate.invalidateQuiet,subscribe:certificate.subscribe,blocked:certificate.quietBlocked,settlement:()=>certificate.getSnapshot().draft});
     if(signIn && route.section==='signin')quietInputs.push({id:'signin',refresh:signIn.refresh,cancel:signIn.invalidateQuiet,subscribe:signIn.subscribe,settlement:()=>signIn.getSnapshot().document});
     quietInterests.push(...quietInputs.map(input=>mountQuietInput(context.freshness.hub,`settings/${route.scope}/${route.section}`,[dependsOn.settings('server'),dependsOn.libraries],{
       ...input,blocked:()=>inputActive || !!input.blocked?.(),
       subscribe:listener=>{const off=input.subscribe?.(listener),offInput=inputActivity.subscribe(listener);return()=>{off?.();offInput();};},
     })));
     setFailure(false);setOwned({context, api, inputs, current, settings: publishedSettings, dashboard, profiles, profilePINCurrent, closeProfilePIN});
-    return () => {active = false;for(const interest of quietInterests)interest.dispose();inputListeners.clear();offPreferenceFence();pinRequest = undefined;lifetime.abort();setProfilePIN(held => held?.source === profiles ? undefined : held);profileDevices?.dispose();otherDeviceSignOut?.dispose();restrictions?.dispose();offProfileFailures?.();profiles?.dispose();previewLife.abort();signinStorage?.dispose();signIn?.dispose();memberResetCodes?.dispose();people?.invitations?.dispose();people?.client.dispose();for (const listener of authorityListeners) {try {listener();} catch { /* Retire the other captured readers too. */ }}authorityListeners.clear();dashboard?.dispose();libraries?.dispose();privacy.dispose();intros?.dispose();server?.dispose();troubleshooting?.dispose();live?.dispose();integrationKeys?.dispose();webhooks?.dispose();updates?.dispose();hardware?.dispose();remoteForm?.dispose();certificate?.dispose();controller.dispose();};
+    return () => {active = false;for(const interest of quietInterests)interest.dispose();inputListeners.clear();offPreferenceFence();pinRequest = undefined;lifetime.abort();setProfilePIN(held => held?.source === profiles ? undefined : held);profileDevices?.dispose();otherDeviceSignOut?.dispose();restrictions?.dispose();offProfileFailures?.();profiles?.dispose();previewLife.abort();signinStorage?.dispose();signIn?.dispose();memberResetCodes?.dispose();people?.invitations?.dispose();people?.client.dispose();for (const listener of authorityListeners) {try {listener();} catch { /* Retire the other captured readers too. */ }}authorityListeners.clear();dashboard?.dispose();libraries?.dispose();privacy.dispose();intros?.dispose();server?.dispose();troubleshooting?.dispose();live?.dispose();integrationKeys?.dispose();webhooks?.dispose();updates?.dispose();hardware?.dispose();remoteSettings?.dispose();controller.dispose();};
   // Each setup owns and retires exactly its own sources. No shared "latest"
   // slot participates in cleanup, including the owner's update reader.
   }, [context, retry, routeScope, routeSection, hasPreferences, reportTimeZone,
