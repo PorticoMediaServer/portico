@@ -242,6 +242,23 @@ test("an author's page counts their titles in this library, not the person's tit
   nav.dispose();
 });
 
+test("an author's page keeps counting this library's titles while it reads on to a later page", async () => {
+  // A later page replaces the projection; its entity must not fall back to the person's count everywhere (15).
+  const read = async (path: string) => {
+    const u = new URL(path, 'https://server.test'), query = u.searchParams;
+    const book = (id: string) => ({id, kind: 'audiobook', title: `Book ${id}`});
+    if (u.pathname === '/v1/items' && query.get('author') === 'per_1') return query.get('cursor') === 'c2' ? {items: [book('b10')], total: 2} : {items: [book('b9')], total: 2, nextCursor: 'c2'};
+    if (u.pathname === '/v1/people/per_1') return {id: 'per_1', name: 'Ada Adams', images: {}, titleCount: 15};
+    return {id: 'lib_a', name: 'Audiobooks', kind: 'audiobooks'};
+  };
+  const nav = service(read);
+  await nav.select({libraryId: 'lib_a', view: 'author', entityId: 'per_1'});
+  assert.equal(nav.getSnapshot().projection?.entity?.count, 2);
+  await nav.next('books');
+  assert.equal(nav.getSnapshot().projection?.entity?.count, 2, 'still this library\'s two, not fifteen');
+  nav.dispose();
+});
+
 test('an author page whose person read names someone else has no header, never theirs', async () => {
   const nav = service(bookApi({id: 'per_2', name: 'Someone Else', images: {}}).read);
   await nav.select({libraryId: 'lib_a', view: 'author', entityId: 'per_1'});
