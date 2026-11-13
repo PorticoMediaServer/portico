@@ -48,10 +48,12 @@ type stream struct {
 	plan *DeliveryPlan
 	// request is what the plan was made from, kept so the producer can plan
 	// again when the picture cannot be copied after all. Nil refuses that.
-	request  *PlanRequest
-	duration float64
-	text     []TextRenditionPlan
-	burn     *BurnSubtitle
+	request *PlanRequest
+	// initialPosition keeps readiness on the requested clock even after its first window ends.
+	initialPosition float64
+	duration        float64
+	text            []TextRenditionPlan
+	burn            *BurnSubtitle
 	// burnLoad reads burn when it is first needed; burnReading lets one window
 	// read at a time.
 	burnLoad    func(context.Context) (*BurnSubtitle, error)
@@ -59,6 +61,7 @@ type stream struct {
 	audio       *AudioPlan
 	seekIndex   *audiofacts.SeekIndex
 	bookAhead   *bookCopyAhead
+	parts       []JoinedPart
 	// cues holds each text subtitle once it has been read, by Resource.
 	cues map[string]*textCues
 	// openInput replaces opening source as one file, and disc keeps the output on

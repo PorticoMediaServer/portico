@@ -82,7 +82,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		}
 		return
 	}
-	defer input.Close()
+	defer func() { input.Close() }()
 	ctx, releaseInput := input.BorrowContext(ctx)
 	defer releaseInput()
 	if remoteInput != nil {
@@ -113,7 +113,7 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			}
 		}
 	}
-	bookCopy := grid && input.Positioned && len(input.Joined) == 0 && delivery != nil && delivery.AudioAction == "copy"
+	bookCopy := grid && input.Positioned && len(input.Joined) == 0 && delivery != nil && delivery.VideoAction == "none" && delivery.AudioAction == "copy"
 	var bookPhase int64
 	var bookCold bool
 	var bookOutput bytes.Buffer
@@ -155,6 +155,14 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			return
 		}
 		position = timeline.Boundaries[from]
+		if input.Positioned && delivery != nil && delivery.VideoAction != "none" {
+			input.Close()
+			input, e = h.joinedVideoInput(ctx, id, delivery, position, timeline)
+			if e != nil {
+				h.failedWith(ctx, id, FailureSourceUnreadable, "")
+				return
+			}
+		}
 	}
 	if bookCold {
 		input.Until = position + HLSSegmentSeconds
@@ -185,6 +193,9 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 	batchUntil := HLSMaxSegments
 	if input.Until > 0 {
 		batchUntil = int(math.Round(input.Until / HLSSegmentSeconds))
+		if timeline != nil && !bookCopy {
+			batchUntil = timeline.indexAt(input.Until)
+		}
 		fragmentClock.until = batchUntil
 	}
 	// The threads the run's software video encode is given, set by run before it builds.
@@ -273,13 +284,13 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 			args = append(args, "-filter_complex", filter.String()+"[joined]")
 			joinedSound = "[joined]"
 		} else {
+			args = joinedVideoSeekArgs(args, input, plan)
 			args = append(args, readerOptions...)
 			args = append(args, "-i", path)
 		}
-		// A title in parts: the run starts this far into its input (an output seek, which keeps
-		// the first frame at or after the start under its own time), and ends where its batch
-		// of parts does.
-		if input.Skip > 0 {
+		// Sound parts keep their packet-clock output seek. Video containers
+		// have already been sought inside the part holding this position.
+		if input.Skip > 0 && (plan == nil || plan.VideoAction == "none" || len(input.Joined) > 0) {
 			args = append(args, "-ss", strconv.FormatFloat(input.Skip, 'f', 6, 64))
 		}
 		if input.Until > position {
@@ -344,11 +355,8 @@ func (h *HLS) produce(ctx context.Context, id string, from int, owned *hlsWindow
 		if timeline != nil {
 			args = append(args, "-muxdelay", "0", "-muxpreload", "0")
 			cuts := timeline
-			if bookCopy {
-				last := timeline.count()
-				if input.Until > 0 {
-					last = min(last, int(math.Round(input.Until/HLSSegmentSeconds)))
-				}
+			if input.Until > 0 {
+				last := min(timeline.count(), batchUntil)
 				cuts = &copyTimeline{Boundaries: timeline.Boundaries[:last+1]}
 			}
 			pack := copySegmentArgs(cuts, from, staging, fragmented)

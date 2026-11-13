@@ -66,6 +66,37 @@ func TestBuildCopyTimelineFollowsKeyframes(t *testing.T) {
 	}
 }
 
+// The 33-part MP3 fixture used by the audiobook batch tests: 105 frames
+// per part at 44.1 kHz. A batch still ends at the old six-second grid index,
+// not a video's keyframe index; its last batch retains the complete cut list.
+func TestBookBatchKeepsItsGridCuts(t *testing.T) {
+	parts := make([]JoinedPart, 33)
+	duration := 0.0
+	for n := range parts {
+		parts[n].DurationUS = 105 * 1152 * 1000000 / 44100
+		duration += float64(parts[n].DurationUS) / 1e6
+	}
+	timeline := bookCopyGrid(duration)
+	for from := 0; from < timeline.count(); from++ {
+		position := timeline.Boundaries[from]
+		first, offset := 0, 0.0
+		for first+1 < len(parts) && offset+float64(parts[first].DurationUS)/1e6 <= position {
+			offset += float64(parts[first].DurationUS) / 1e6
+			first++
+		}
+		until, _ := joinedBatchEnd(parts, first, offset, position)
+		last := timeline.count()
+		if until > 0 {
+			last = min(last, int(math.Round(until/HLSSegmentSeconds)))
+			if timeline.indexAt(until) != last || timeline.Boundaries[last] != until {
+				t.Fatalf("batch from %.6f ends at cut %d / %.6f, want %.6f", position, last, timeline.Boundaries[last], until)
+			}
+		} else if timeline.Boundaries[last] != duration {
+			t.Fatal("final batch lost the book's last cut")
+		}
+	}
+}
+
 // manifestBoundaries reads a copy playlist back into its cut list.
 func manifestBoundaries(t *testing.T, manifest string) []float64 {
 	t.Helper()

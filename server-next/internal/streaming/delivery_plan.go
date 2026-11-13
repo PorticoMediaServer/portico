@@ -418,7 +418,9 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 			if err == nil && p.VideoAction != "convert" && p.Trace != nil && p.Trace.Video != nil && p.OutputRange == "" {
 				p.OutputRange, p.OutputBitDepth = p.Trace.Video.OutputRange, p.Trace.Video.BitDepth
 			}
-			if err == nil {
+			// Joined video keeps its selected sound in the same bounded run.
+			// Choosing another track replans it through the ordinary session API.
+			if err == nil && !in.Joined {
 				p.Renditions = planAudioRenditions(p, source, client, in.Target, cfg.AudioConversionAllowed(in.TranscodingEnabled) && in.Policy.Transcode != "never")
 			}
 		}

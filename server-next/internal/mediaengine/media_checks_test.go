@@ -81,49 +81,16 @@ func (f *finding) check(ok bool, format string, args ...any) {
 // removed. A sometimes mark comes and goes; a run that does not show it says so in the log,
 // and the mark is removed when what it waits for has landed and the job has stopped showing it.
 var knownFailures = map[string][]mark{
-	// Finding 1 on #2604. It follows the FFmpeg doing the conversion: seen on every run with
-	// Ubuntu 24.04's FFmpeg 6.1.1 (GitHub's runners), never with FFmpeg 8.0.1 (mini-1) or
-	// Portico's own FFmpeg 8.1.3. So these marks are in force only when the suite runs with
-	// an FFmpeg 6 or older (seekFaultFFmpeg); with any other the cases must simply pass.
-	"hevc-hlg for chromium after a seek":   {lateAfterSeek},
-	"h264-10bit for chromium after a seek": {lateAfterSeek},
-	"long-jump for chromium after a seek":  {lateAfterSeek},
-	"hevc-hdr10 for chromium after a seek": {lateAfterSeek, endedAfterSeek},
+	"hevc-hdr10 for chromium after a seek": {endedAfterSeek},
 }
 
 type mark struct {
 	expect       *regexp.Regexp
 	loses, until string
 	sometimes    bool
-	// onFFmpeg6 says the mark is in force only when the FFmpeg in use has the AV1 seek fault.
-	onFFmpeg6 bool
-}
-
-// seekFaultFFmpeg says the FFmpeg this run uses is one whose AV1 conversion after a seek
-// starts off the segment grid. newMatrix sets it from the version FFmpeg reports.
-var seekFaultFFmpeg bool
-
-// hasSeekFault reads the first line of `ffmpeg -version`. Keyed on FFmpeg's major version,
-// not on its AV1 encoder's: the three FFmpegs measured (6.1.1 with the fault, 8.0.1 and 8.1.3
-// without) do not tell at which SVT-AV1 version it went. A version it cannot read (a build
-// from git, say) counts as without the fault, so the fault would show as a FINDING there.
-func hasSeekFault(versionLine string) bool {
-	m := regexp.MustCompile(`^ffmpeg version n?([0-9]+)\.`).FindStringSubmatch(versionLine)
-	if m == nil {
-		return false
-	}
-	major, _ := strconv.Atoi(m[1])
-	return major <= 6
 }
 
 var (
-	lateAfterSeek = mark{
-		expect: regexp.MustCompile(`^(video|audio) starts at [0-9.]+s, want about [0-9]+s$`),
-		loses: "a person on a browser who seeks in a film converted to AV1 sees the picture start about 1.4 s later than the player was told; " +
-			"this happens on a server using a system FFmpeg 6 (such as Ubuntu 24.04's), not with Portico's own FFmpeg",
-		until:     "the streaming lane holds an AV1 conversion to the segment grid after a seek on FFmpeg 6 too, or Portico stops running on a system FFmpeg 6 (finding 1 on #2604)",
-		onFFmpeg6: true,
-	}
 	// Seen in 5 of 9 runs on the runners (FFmpeg 6.1.1), only here: the server ends the stream it started
 	// for the seek before it serves the last segment its own playlist names (the test stops
 	// nothing until that segment is read).
@@ -156,12 +123,7 @@ func classify(marks []mark, failed []string) (unexpected []string, seen []bool) 
 
 func (f *finding) report(where string) {
 	f.t.Helper()
-	var marks []mark
-	for _, m := range knownFailures[where] {
-		if !m.onFFmpeg6 || seekFaultFFmpeg {
-			marks = append(marks, m)
-		}
-	}
+	marks := knownFailures[where]
 	unexpected, seen := classify(marks, f.failed)
 	if len(unexpected) > 0 {
 		f.t.Errorf("FINDING %s: what came out is not what was planned:\n  %s", where, strings.Join(f.failed, "\n  "))
