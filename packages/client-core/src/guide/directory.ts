@@ -1,3 +1,4 @@
+import {readNextGuideSummaries} from './next-source.ts';
 import {routePath,encodedRoutePath} from "../../../contracts/src/route-paths.ts";
 import {GUIDE_PROTOCOL, parseGuideProgramme, parseGuideChannels, parseGuideSources, type ChannelApi, type GuideChannel, type GuideSource,type GuideProgramme} from '../channel-guide.ts';
 import {unreadableServerResponse} from '../server-messages.ts';
@@ -36,8 +37,10 @@ export function parseGuideSourceSummaries(raw:unknown,serverId:string):GuideSour
  });
  return {viewerFence:raw.viewerFence,revision:raw.revision,sources};
 }
-export async function fetchGuideSourceSummaries(api:ChannelApi,serverId:string,timezone:string,signal?:AbortSignal,includeServerHidden=false):Promise<GuideSourceSummaries>{
- return parseGuideSourceSummaries(await api.request(routePath("get_guide_sources") + "?" + (new URLSearchParams({timezone,...(includeServerHidden?{includeServerHidden:"true"}:{})})),'GET',undefined,signal),serverId);
+export async function fetchGuideSourceSummaries(api:ChannelApi,_serverId:string,_timezone:string,signal?:AbortSignal,_includeServerHidden=false):Promise<GuideSourceSummaries>{
+ // Source availability includes this profile's hidden channels: hiding every channel must not remove Live TV from navigation.
+ // The viewer read never includes channels hidden by the owner.
+ return readNextGuideSummaries(api,true,signal);
 }
 
 export type GuideAiring=Readonly<{channel:Pick<GuideChannel,'id'|'sourceId'|'provenance'|'generation'|'name'|'number'|'group'>;programme:GuideProgramme}>;

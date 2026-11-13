@@ -1,4 +1,3 @@
-import {GUIDE_PROTOCOL} from '@core/channel-guide.ts';
 import {accountAnswer, accountPath, systemAnswer, snapshotOf} from '../../packages/client-core/test/next-wire.ts';
 import {FreshnessHub} from '@core/freshness-hub.ts';
 import {parseDirectSnapshot} from '@core/profile-management.ts';
@@ -31,7 +30,7 @@ export function harness(o: Readonly<{libraryRouteProof?: unknown}> = {}) {
   const initial:ShellFacts={serverName:'Study',preferences:settings,identity:{viewer:session.viewer,serverName:'Study',serverVersion:'1',libraries,fences:{viewerFence:'directory',privacyFence:privacy},
     ...shellAccount(witnesses.direct,'profile'),liveAvailable:true,unread:0,showNotificationDot:false}};
   const api={async request(path:string) {calls.push(path); if (path==='/v1/libraries') return libraryRead ? await libraryRead() : {items:libraries,viewerFence:'directory',privacyFence:privacy}; if (accountPath(path)) return accountAnswer(path, record);
-    if (path==='/v1/system') {if(systemError)throw systemError;return systemAnswer(info);} if (path.startsWith('/v1/guide/sources?')) {if (guideError) throw guideError;return {protocolVersion:GUIDE_PROTOCOL,serverId:'server',viewerFence:'guide',revision:'1',sources:[]};}
+    if (path==='/v1/system') {if(systemError)throw systemError;return systemAnswer(info);} if (path.startsWith('/v1/live/channels')) {if (guideError) throw guideError;return {items:[],sources:[]};}
     throw new Error('Unexpected read '+path);}};
   const owner=createShellFactOwner({api:api as never, session:()=>session, hub,initial,witnesses,libraryRouteProof:o.libraryRouteProof as never,
     isCurrent:()=>retired===0, retire:()=>{retired++;},

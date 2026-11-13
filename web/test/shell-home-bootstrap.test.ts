@@ -122,7 +122,7 @@ test('a library directory that times out never stops sign-in: the libraries are 
     if (path === '/v1/libraries') return libraries();
     if (accountPath(path)) return accountAnswer(path, directRecord());
     if (path === '/v1/system') return systemAnswer({id: 'server-a', name: 'Test server', version: '1', signIn: 'local', move: null, setupRequired: false, hostedConfigured: false, hostedAttached: false, apiLevel: 1, apiVersion: '1.0', apiMajors: [1], capabilities: []});
-    if (path.startsWith('/v1/guide/sources?')) throw Object.assign(new Error('not permitted'), {status: 403});
+    if (path.startsWith('/v1/live/channels')) throw Object.assign(new Error('not permitted'), {status: 403});
     throw new Error(`Unexpected shell read ${path}`);
   }}) as unknown as HttpLocalApi;
   const busy = await readShellIdentity(api(() => {throw Object.assign(new Error('timeout'), {status: 503, code: 'metadata_unavailable'});}), directSession, new AbortController().signal);

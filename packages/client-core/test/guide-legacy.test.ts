@@ -26,15 +26,15 @@ function legacyApi(opts: {library?: boolean; failKind?: string; refreshState?: s
   const library = [{id: 'lc-1', name: 'Sharks', number: '900', group: ''}, {id: 'lc-2', name: 'Aardvarks', number: '901', group: ''}];
   const api = {
     async request<T>(path: string): Promise<T> {
-      if (!path.startsWith('/v1/guide')) throw Object.assign(new Error('not found'),{status:404});
+      if (!path.startsWith('/v1/guide') && !path.startsWith('/v1/live/channels')) throw Object.assign(new Error('not found'),{status:404});
       requests.push(path);
       const q = new URL(path, 'http://x').searchParams;
       const sourceRows = (kind: string) => kind === 'live-source' ? demoChannels : opts.library ? library : [];
       const meta = (kind: string) => ({id: kind === 'live-source' ? 'antenna' : 'library-src', name: kind === 'live-source' ? 'Antenna' : 'Library Channels', generation: 'g1', publishedAt: new Date(NOW).toISOString(), availableStart: '', availableEnd: '', provenance: kind, refreshState: opts.refreshState ?? 'healthy'});
       const directoryRow = (c: {id:string;name:string;number:string;group:string}, kind:string) => ({...c,sourceId:meta(kind).id,provenance:kind,generation:'g1',logoPath:'',programmes:[],tuneAvailable:true,recordAvailable:kind==='live-source',tuneUnavailableReason:'',recordUnavailableReason:kind==='live-source'?'':'not-recordable',guide:c.id===opts.noGuide?'none':'full',favorite:false,hidden:false,preferenceRevision:0});
-      if (path.startsWith('/v1/guide/sources?')) {
+      if (path.startsWith('/v1/live/channels')) {
         const kinds = ['live-source', ...(opts.library ? ['library-channel'] : [])];
-        return {protocolVersion:'1.0',serverId:SERVER,viewerFence:'fence',revision:'r1',sources:kinds.map((kind,position)=>({...meta(kind),position,recordAvailable:kind==='live-source',guideDays:8,channelCount:sourceRows(kind).length,favoriteCount:0,groups:[],groupCounts:[],unavailableReasons:{}}))} as T;
+        return {items:[],sources:kinds.map(kind=>({id:meta(kind).id,name:meta(kind).name,kind:kind==='live-source'?'live':'library',channels:sourceRows(kind).length,favorites:0,groups:[],guideThrough:new Date(NOW+8*24*3600000).toISOString(),outOfDate:['credentials-required','degraded','stale'].includes(opts.refreshState??'')}))} as T;
       }
       if (path.startsWith('/v1/guide/channels?')) {
         const kind=q.get('kind')!, kinds=kind==='all'?['live-source','library-channel']:[kind];
@@ -155,8 +155,9 @@ test('guide adapter: All channels joins live sources and Library Channels, order
   await assert.rejects(legacyGuideSource(legacyApi({failKind: 'live-source'}).api, SERVER, {kind: 'live-source', sourceId: '', timezone: 'UTC', now: () => NOW}).channels(0, 10, signal));
 });
 
-test('guide adapter: only degraded and credentials-required sources are out of date', async () => {
+test('guide adapter: failed refreshes are out of date and unknown states remain ready', async () => {
   assert.equal(legacyGuideState('degraded'), 'stale');
+  assert.equal(legacyGuideState('stale'), 'stale');
   assert.equal(legacyGuideState('credentials-required'), 'stale');
   for (const state of ['healthy', '', 'refreshed', 'something-new']) assert.equal(legacyGuideState(state), 'ready', state);
   const sources = await legacyChannelSources(legacyApi({refreshState: 'credentials-required'}).api, SERVER, 'UTC', 'Library Channels', NOW);
@@ -196,12 +197,13 @@ test('guide adapter: programme facts map behind presence, malformed facts never 
   assert.equal(malformed.days, undefined);
 });
 
-test('guide adapter: channel sources carry summary guide days without programme reads', async () => {
+test('guide adapter: channel sources carry known guide reach without programme reads', async () => {
   const {api, requests} = legacyApi();
   const sources = await legacyChannelSources(api, SERVER, 'UTC', 'Library Channels', NOW);
-  assert.equal(sources[0]!.guideDays, 8);
+  assert.equal(sources[0]!.guideDays, 0, 'a missing guide-length setting is not invented');
+  assert.equal(sources[0]!.availableEnd, NOW+8*24*3600000);
   assert.equal(requests.length, 1);
-  assert.ok(requests[0].startsWith('/v1/guide/sources?'));
+  assert.ok(requests[0].startsWith('/v1/live/channels'));
 });
 
 test('the guide asks for the channels on screen, never the whole lineup per window', async () => {

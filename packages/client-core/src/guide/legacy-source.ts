@@ -174,7 +174,7 @@ export async function legacyGuideCatalog(api:ChannelApi,serverId:string,o:Legacy
 }
 
 /** The refresh states in which a source's guide is out of date; any other state is fine. */
-const staleRefreshStates: ReadonlySet<string> = new Set(['degraded', 'credentials-required']);
+const staleRefreshStates: ReadonlySet<string> = new Set(['degraded', 'credentials-required', 'stale']);
 
 /** A live source's guide state from its `/v1/guide` refresh state. */
 export function legacyGuideState(refreshState: string): 'ready' | 'refreshing' | 'stale' {

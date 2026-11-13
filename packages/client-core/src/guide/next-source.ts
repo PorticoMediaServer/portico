@@ -163,7 +163,12 @@ export async function channelsAround(api: ServerRequester, id: string, now = Dat
  * server without the follow-up sends none: the page then offers All and Favorites, and the guide's reach is its own default.
  */
 export async function nextGuideSummaries(api: ServerRequester, signal?: AbortSignal): Promise<GuideSourceSummaries> {
-  const page = await readChannels(api, {}, undefined, signal);
+  return readNextGuideSummaries(api, false, signal);
+}
+/** Show hidden includes only this profile's hidden channels; the server always excludes
+ * channels hidden by the owner, paused sources and sources the viewer may not watch. */
+export async function readNextGuideSummaries(api: ServerRequester, includeHidden: boolean, signal?: AbortSignal): Promise<GuideSourceSummaries> {
+  const page = await readChannels(api, {hidden: includeHidden}, undefined, signal);
   const sources = channelSources(page).map((source, position): GuideSourceSummary => ({id: source.id, name: source.name, generation: '', publishedAt: '',
     availableStart: '', availableEnd: source.guideThrough ?? '', provenance: source.kind === 'library' ? 'library-channel' : 'live-source',
     refreshState: source.outOfDate ? 'stale' : 'ready', position, recordAvailable: source.kind !== 'library', guideDays: 0, channelCount: source.channels,
