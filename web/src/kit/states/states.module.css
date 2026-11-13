@@ -95,7 +95,7 @@
 /* states.html#5: a page whose body failed keeps the frame and puts the state at the page gutter.
    As the route's first content it also clears the top bar.
    Scoped to StateView: StateLayout's full-window variant is also called "page" and must keep its width. */
-.inline.page { max-width: calc(620px + 2 * var(--shell-gutter, 64px)); padding: 40px var(--shell-gutter, 64px) 72px; }
+.inline.page { max-width: calc(620px + 2 * var(--shell-gutter)); padding: 40px var(--shell-gutter) 72px; }
 :global([data-route-content]) > .inline.page:first-child { padding-top: calc(var(--shell-top, 0px) + 72px); }
 .inline h1 { font-size: 30px; line-height: 1.08; letter-spacing: -.035em; margin-bottom: 10px; text-shadow: none; }
 .inline .body { font-size: 15px; line-height: 1.5; margin-bottom: 16px; }
@@ -138,7 +138,7 @@
 .detailsCompact .owner p { font-size: 12.5px; }
 .detailsCompact .ownerHeading { font-size: 13px; margin-bottom: 6px; }
 .detailsCompact .ownerActions button { font-size: 12.5px; }
-@media (min-width: 1024px) and (max-width: 1439px) { .page .position, .player .position { left: var(--state-left, var(--shell-gutter, var(--gutter-desktop))); } }
+@media (min-width: 1024px) and (max-width: 1439px) { .page .position, .player .position { left: var(--state-left, var(--shell-gutter)); } }
 @media (max-width: 1023px) {
   .page .position { left: 24px; right: 24px; top: 160px; width: auto; transform: none; text-align: center; max-height: calc(100% - var(--state-content-top, 160px) - 24px); }
   .page .stateIcon { width: 54px; height: 54px; margin: 0 auto 18px; }

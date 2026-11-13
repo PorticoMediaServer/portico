@@ -1,7 +1,7 @@
 .pendingCard { pointer-events: none; }
 /* The grid owns a thin scrollbar inside its content edge; let that width live in the right
    gutter so the drawn poster row still reaches the gutter like frame #grid's fluid grid. */
-.results { position: relative; min-height: 280px; margin: 0 var(--shell-gutter, var(--gutter-desktop)); margin-right: calc(var(--shell-gutter, var(--gutter-desktop)) - var(--grid-overflow, 0px)); }
+.results { position: relative; min-height: 280px; margin: 0 var(--shell-gutter); margin-right: calc(var(--shell-gutter) - var(--grid-overflow, 0px)); }
 .results[data-view='grid'] { padding-top: 26px; }
 .results[data-shape='collection'], .results[data-empty] { padding-top: 0; }
 .collectionsNote { display: flex; align-items: center; gap: 10px; margin: 0; padding: 22px 0 22px; font-size: calc(var(--type-body-size) - 1px); color: var(--color-text-tertiary); }
@@ -13,8 +13,8 @@
 /* W2-A3: the rail is 28px wide and sits 18px in, so it needs 46px of gutter plus a clear gap. Below about
    1200 the fluid gutter is narrower than that, so a grid that draws the rail keeps at least 56px on its
    right (10px clear of the last column); at 1440 and wider the page gutter is already wider. */
-.results:has(> .rail) { margin-right: calc(max(var(--shell-gutter, var(--gutter-desktop)), 56px) - var(--grid-overflow, 0px)); }
-.rail { position: absolute; right: calc(18px - max(var(--shell-gutter, var(--gutter-desktop)), 56px) + var(--grid-overflow, 0px)); top: 8px; }
+.results:has(> .rail) { margin-right: calc(max(var(--shell-gutter), 56px) - var(--grid-overflow, 0px)); }
+.rail { position: absolute; right: calc(18px - max(var(--shell-gutter), 56px) + var(--grid-overflow, 0px)); top: 8px; }
 .listHead, .listRow { display: grid; grid-template-columns: minmax(0,1fr) 84px 118px 86px 112px 136px 60px 92px; align-items: center; column-gap: 8px; padding: 0 12px; }
 .listHead { height: 44px; border-bottom: 1px solid var(--color-line); font-size: var(--type-caption-size); font-weight: var(--type-row-heading-weight); color: var(--color-text-tertiary); }
 .listHead > :not(:first-child) { text-align: right; }
@@ -75,7 +75,7 @@
 @media (max-width: 599px) { .results:has(> .rail) { margin-right: calc(30px - var(--grid-overflow, 0px)); } .rail { right: calc(-26px + var(--grid-overflow, 0px)); } }
 @media (prefers-reduced-motion: reduce) { .results * { scroll-behavior: auto; } }
 .library { min-height: 100dvh; padding-bottom: 72px; }
-.headerTabs { margin-top: 22px; padding-inline: var(--shell-gutter, var(--gutter-desktop)); }
+.headerTabs { margin-top: 22px; padding-inline: var(--shell-gutter); }
 .phoneTabs { padding-inline: 20px; }
 .scopeChips { display: flex; align-items: center; gap: 8px; }
 .scopeSeparator { width: 1px; height: 22px; margin: 0 4px; background: var(--color-line); flex: none; }
@@ -89,13 +89,13 @@
 .phoneFilterHeader h2 { flex: 1; }
 .filterTitle { display: flex; align-items: center; justify-content: space-between; width: 100%; }
 @media (max-width: 599px) { .filterFooter { padding: 12px 16px max(30px, env(safe-area-inset-bottom)); } }
-.libraries { padding: 104px var(--shell-gutter, var(--gutter-desktop)) 72px; }
+.libraries { padding: 104px var(--shell-gutter) 72px; }
 .libraries h1 { margin: 0 0 28px; font-size: var(--type-lockup-size); font-weight: var(--type-lockup-weight); letter-spacing: var(--type-lockup-tracking); }
 .libraryCards { display: flex; gap: 20px; flex-wrap: wrap; }
 .libraryCards[data-compact='true'] { flex-direction: column; gap: 14px; }
 @media (max-width: 599px) { .libraries { padding: 22px 20px 88px; } }
 .homeRow { min-height: 100dvh; padding-bottom: 72px; }
-.homeRowHeader { padding: 104px var(--shell-gutter, var(--gutter-desktop)) 0; }
+.homeRowHeader { padding: 104px var(--shell-gutter) 0; }
 .homeRowHeader h1 { margin: 14px 0 12px; font-size: var(--type-lockup-long-size); line-height: calc(var(--type-lockup-long-size) * .98); font-weight: var(--type-lockup-long-weight); letter-spacing: var(--type-lockup-long-tracking); }
 .homeRowHeader p { max-width: 760px; margin: 0; color: var(--color-text-secondary); font-size: var(--type-synopsis-size); line-height: var(--type-synopsis-line); }
 .homeRowHeader strong { color: var(--color-text); font-weight: var(--type-row-heading-weight); }
@@ -109,7 +109,7 @@
 .shelfHeading svg { flex: none; color: var(--color-text-tertiary); }
 
 .unmatchedHelp {
-  margin: 24px var(--shell-gutter, var(--gutter-desktop));
+  margin: 24px var(--shell-gutter);
   color: var(--color-text-tertiary);
   font-size: var(--type-caption-size);
   line-height: var(--type-fixed-line-1point-5);

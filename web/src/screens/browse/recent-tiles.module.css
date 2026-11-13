@@ -5,7 +5,7 @@
 @media (min-width:1024px) { .rows { padding-top:32px; } }
 /* J-29: the Discover empty state (nothing in this library yet) keeps the page's standard gutter,
    like the library toolbar and every row inside the tab. */
-.emptyState { padding: 20px var(--shell-gutter, var(--gutter-desktop)) 0; }
+.emptyState { padding: 20px var(--shell-gutter) 0; }
 .section { width: 100%; }
 .heading { margin: 0 0 8px; }
 .heading h2 { margin: 0; font-size: var(--type-row-heading-size); font-weight: var(--type-button-weight); letter-spacing: var(--type-row-heading-tracking); }
@@ -31,7 +31,7 @@
 .tile[data-playing] .title { color: var(--color-accent-strong); }
 .tile:focus-visible { outline:3px solid var(--color-focus); outline-offset:3px; }
 @media (min-width:1024px) {
-  .section { --layout-gutter:var(--shell-gutter, var(--gutter-desktop)); }
+  .section { --layout-gutter:var(--shell-gutter); }
   .heading { padding:0 var(--layout-gutter); margin-bottom:14px; }
   .grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; padding:4px var(--layout-gutter) 0; }
   .tile { gap:16px; height:76px; border-radius:10px; background:color-mix(in srgb, var(--color-text) 7%, transparent); }

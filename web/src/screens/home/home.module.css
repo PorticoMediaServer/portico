@@ -19,7 +19,7 @@
 .rows > [data-music-mixes]:not(:first-child), .rows > [data-music-mixes] ~ .rowSlot:not(:empty) { margin-top:44px; }
 /* Listen next's shorter square cards centre in the line set by its drawn continuation card. */
 .rowSlot[data-home-row='listen_next'] [class*='track'] { align-items: center; }
-.collection { margin: 0 var(--shell-gutter, var(--gutter-desktop)) 0; }
+.collection { margin: 0 var(--shell-gutter) 0; }
 .rowGuide { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--type-row-subtitle-size); font-weight: var(--type-body-strong-weight); line-height: normal; color: var(--color-text-tertiary); cursor: pointer; }
 .rowGuide:hover { color: var(--color-text-secondary); }
 .rowGuide:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 3px; border-radius: 4px; }
