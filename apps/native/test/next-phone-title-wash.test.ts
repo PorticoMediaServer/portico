@@ -61,3 +61,13 @@ test('a phone page with no backdrop of its own (album, artist) draws only the ki
   assert.equal(all.some(node => node.props?.id === 'phone-title-overlay'), false, 'no ink overlay');
   assert.ok(nodes(wash).some(node => node.type === 'View' && flat(node.props.style).opacity === spec.wash.alpha));
 });
+
+// Desk B on #3428: the real theme lays a tablet out as handheld too (layoutMode 'phone', platform 'tablet'). The phone washes
+// are the phone frames', so a tablet keeps its own: tested with the real theme builder.
+test('a tablet (handheld layout, tablet platform) keeps its own title and page treatment', async () => {
+  for (const [treatment, backdrop] of [['title', true], ['page', false]] as const) {
+    const {all, theme} = await render(820, treatment, backdrop);
+    assert.deepEqual([theme.layoutMode, theme.platform], ['phone', 'tablet']);
+    assert.equal(all.some(node => node.props?.testID === 'hero-wash'), false, treatment);
+  }
+});
