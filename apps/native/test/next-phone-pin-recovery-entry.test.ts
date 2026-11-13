@@ -21,6 +21,8 @@ import {screenModule} from './helpers/screen-harness.mjs';
 const profile = {id: 'locked', name: 'Actual locked profile', art: 'mint', primary: false, pinRequired: true};
 const theme = createTheme({isTV: false, width: 390});
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+// The pickers and the PIN screen are shared pieces whose slots hold what layouts kept in beforeActions.
+const parts = (tree: any): any[] => tree?.type === 'PhoneWhosWatching' ? [...nodes(tree.props.picker), ...nodes(tree.props.children)] : tree?.type === 'PhoneProfilePIN' ? [tree, ...nodes(tree.props.remember), ...nodes(tree.props.status), ...nodes(tree.props.hints)] : nodes(tree?.props.beforeActions);
 function backOwner() {
   const listeners = new Set<() => boolean>();
   return {listeners, api: {addEventListener: (_: string, handler: () => boolean) => {listeners.add(handler); return {remove: () => listeners.delete(handler)};}}};
@@ -72,7 +74,7 @@ test('the phone sign-in picker offers the account recovery, keeps its own operat
     '../../platform/tv-sign-in': {}, '../../platform/account-authority': {}, '../../tv/auth': {},
     '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'},
     './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'Phone'},
-    './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
+    './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
     './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     './PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
@@ -84,19 +86,16 @@ test('the phone sign-in picker offers the account recovery, keeps its own operat
   await act(() => host.mount());
   try {
     await act(() => tree.props.onLocal());
-    await act(() => nodes(tree.props.beforeActions).find(n => n.type === 'Field').props.onChangeText('https://verified.example'));
+    await act(() => parts(tree).find(n => n.type === 'Field').props.onChangeText('https://verified.example'));
     await act(() => tree.props.primaryAction.onPress());
-    const credentials = nodes(tree.props.beforeActions).filter(n => n.type === 'Field');
+    const credentials = parts(tree).filter(n => n.type === 'Field');
     await act(() => {credentials[0].props.onChangeText('person'); credentials[1].props.onChangeText('test password');});
     await act(() => tree.props.primaryAction.onPress());
-    await act(() => nodes(tree.props.beforeActions).find(n => n.type === 'Picker').props.onSelect(profile.id));
-    assert.equal(tree.type, 'Layout');
-    const pin = nodes(tree.props.beforeActions).find(n => n.type === 'PhonePIN');
-    assert.ok(pin, 'the protected profile uses the four-box phone PIN entry');
-    const forgot = () => nodes(tree.props.beforeActions).find(n => n.type === 'Button' && n.props.variant === 'link');
-    assert.equal(forgot().props.children, defaultI18n.t('pin.forgot'));
+    await act(() => parts(tree).find(n => n.type === 'Picker').props.onSelect(profile.id));
+    assert.equal(tree.type, 'PhoneProfilePIN', 'the protected profile uses the shared phone PIN screen');
+    assert.equal(typeof tree.props.onForgot, 'function', 'it offers Forgot PIN');
 
-    await act(() => forgot().props.onPress());
+    await act(() => tree.props.onForgot());
     assert.equal(tree.type, 'Recovery');
     assert.equal(tree.props.profileName, profile.name);
     assert.equal(tree.props.username, 'person');
@@ -109,11 +108,11 @@ test('the phone sign-in picker offers the account recovery, keeps its own operat
     assert.equal(disposed, 0);
 
     await act(() => tree.props.onClose());
-    assert.equal(tree.type, 'Layout');
-    assert.equal(nodes(tree.props.beforeActions).find(n => n.type === 'PhonePIN').props.value, '');
+    assert.equal(tree.type, 'PhoneProfilePIN');
+    assert.equal(tree.props.value, '');
     assert.equal(disposed, 1, 'closing recovery retires its controller');
 
-    await act(() => forgot().props.onPress());
+    await act(() => tree.props.onForgot());
     const successor = tree.props;
     controllers[0].phase = 'done';
     await act(() => {stale.onOpen('1234'); stale.onClose();});
@@ -128,19 +127,20 @@ test('the phone sign-in picker offers the account recovery, keeps its own operat
     assert.ok(calls.includes('select:locked:1234'), 'the chosen new PIN opens the profile through the same operation');
     assert.equal(complete, 1);
 
-    await act(() => forgot().props.onPress());
+    await act(() => tree.props.onForgot());
     const replaced = tree.props;
     controllers.at(-1).phase = 'done';
     await act(() => {[...back.listeners][0]!();}); // synchronously retire recovery
+    await act(() => {[...back.listeners][0]!();}); // the PIN page back to Who's watching
     await act(() => {[...back.listeners][0]!();}); // reset the sign-in operation
     await act(() => tree.props.onLocal());
-    await act(() => nodes(tree.props.beforeActions).find(n => n.type === 'Field').props.onChangeText('https://successor.example'));
+    await act(() => parts(tree).find(n => n.type === 'Field').props.onChangeText('https://successor.example'));
     await act(() => tree.props.primaryAction.onPress());
-    const nextCredentials = nodes(tree.props.beforeActions).filter(n => n.type === 'Field');
+    const nextCredentials = parts(tree).filter(n => n.type === 'Field');
     await act(() => {nextCredentials[0].props.onChangeText('person'); nextCredentials[1].props.onChangeText('test password');});
     await act(() => tree.props.primaryAction.onPress());
-    await act(() => nodes(tree.props.beforeActions).find(n => n.type === 'Picker').props.onSelect(profile.id));
-    await act(() => forgot().props.onPress());
+    await act(() => parts(tree).find(n => n.type === 'Picker').props.onSelect(profile.id));
+    await act(() => tree.props.onForgot());
     const newController = tree.props.controller;
     await act(() => {replaced.onOpen('1234'); replaced.onClose();});
     assert.equal(tree.props.controller, newController, 'callbacks from the replaced operation cannot clear its successor');
@@ -196,7 +196,7 @@ test('a wrong profile PIN uses the profile error context and clears the boxes', 
     '../../platform/tv-sign-in': {}, '../../platform/account-authority': {}, '../../tv/auth': {},
     '../../tv/auth/TVIdentityCodeForm': {TVIdentityCodeForm: 'IdentityCode'},
     './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'Phone'},
-    './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
+    './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
     './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     './PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
@@ -208,16 +208,16 @@ test('a wrong profile PIN uses the profile error context and clears the boxes', 
   await act(() => host.mount());
   try {
     await act(() => tree.props.onLocal());
-    await act(() => nodes(tree.props.beforeActions).find(n => n.type === 'Field').props.onChangeText('https://verified.example'));
+    await act(() => parts(tree).find(n => n.type === 'Field').props.onChangeText('https://verified.example'));
     await act(() => tree.props.primaryAction.onPress());
-    const credentials = nodes(tree.props.beforeActions).filter(n => n.type === 'Field');
+    const credentials = parts(tree).filter(n => n.type === 'Field');
     await act(() => {credentials[0].props.onChangeText('person'); credentials[1].props.onChangeText('test password');});
     await act(() => tree.props.primaryAction.onPress());
-    await act(() => nodes(tree.props.beforeActions).find(n => n.type === 'Picker').props.onSelect(profile.id));
-    await act(() => nodes(tree.props.beforeActions).find(n => n.type === 'PhonePIN').props.onComplete('9999'));
+    await act(() => parts(tree).find(n => n.type === 'Picker').props.onSelect(profile.id));
+    await act(() => tree.props.onSubmit('9999'));
     assert.equal(contexts.at(-1), 'profiles', 'the picker PIN failure is not presented as a generic sign-in failure');
-    assert.ok(nodes(tree.props.beforeActions).some(n => (n.type === 'Text' || n.type === FormError) && n.props.children === 'profiles failure'));
-    assert.equal(nodes(tree.props.beforeActions).find(n => n.type === 'PhonePIN').props.value, '');
-    assert.equal(nodes(tree.props.beforeActions).find(n => n.type === 'PhonePIN').props.error, true);
+    assert.ok(nodes(tree.props.status).some(n => (n.type === 'Text' || n.type === FormError) && n.props.children === 'profiles failure'), 'said in the PIN screen\'s status line');
+    assert.equal(tree.props.value, '');
+    assert.equal(tree.props.rejected, true);
   } finally {await host.unmount();}
 });

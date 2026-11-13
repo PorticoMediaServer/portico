@@ -28,6 +28,8 @@ import {screenModule} from './helpers/screen-harness.mjs';
 const profile = {id: 'locked', name: 'Actual locked profile', art: 'mint', primary: false, pinRequired: true};
 const theme = createTheme({isTV: true, width: 1920}), menuCalls: string[] = [];
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
+// The pickers and the PIN screen are shared pieces whose slots hold what layouts kept in beforeActions.
+const parts = (tree: any): any[] => tree?.type === 'PhoneWhosWatching' ? [...nodes(tree.props.picker), ...nodes(tree.props.children)] : tree?.type === 'PhoneProfilePIN' ? [tree, ...nodes(tree.props.remember), ...nodes(tree.props.status), ...nodes(tree.props.hints)] : nodes(tree?.props.beforeActions);
 function backOwner() {
   const listeners = new Set<() => boolean>();
   return {listeners, api: {addEventListener: (_: string, handler: () => boolean) => {listeners.add(handler); return {remove: () => listeners.delete(handler)};}}};
@@ -83,7 +85,7 @@ test('TV entry Forgot PIN keeps the same account operation and returns to the sa
     '../../platform/portico-sign-in': {}, '../../platform/server-connections': {browseNearby: async () => []},
     '../../platform/tv-sign-in': {}, '../../platform/account-authority': {}, 'react-native-qrcode-svg': {default: 'QR'},
     './DirectoryAccessRefused': {DirectoryAccessRefused: 'Refused'}, '../../platform/hosted-sign-in-unavailable': {HostedSignInUnavailable: class extends Error {}}, './directory-refusal': {directoryAccessRefused: () => false, directoryClockSkew: () => false, directoryIdentityUnconfirmed: () => false}, './TVNoServers': {TVNoServers: 'TVNoServers'}, './EndedMoveCodeAction': {EndedMoveCodeAction: 'EndedMoveCodeAction'}, './TVOfflineServers': {TVOfflineServers: 'TVOfflineServers'}, './PhoneAccountWorkspace': {PhoneAccountWorkspace: 'PhoneAccountWorkspace'}, '../../platform/account-workspace': {NativeAccountWorkspace: class {constructor() {throw new Error('unexpected_account_workspace');}}}, './PhoneNoServers': {PhoneNoServers: 'PhoneNoServers'}, './PhoneFrontDoor': {PhoneFrontDoor: 'Phone'},
-    './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
+    './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
     './PhoneAccountMoveNotice': {PhoneAccountMoveNotice: 'MoveNotice'}, './PhoneMovePassword': {PhoneMovePassword: 'MovePassword'}, './PhoneMoveCode': {PhoneMoveCode: 'MoveCode'}, './PhoneProfileRecovery': {PhoneProfileRecovery: 'Recovery'},
     '../../../../../packages/client-core/src/password-strength': passwordPolicy,
     './PhoneOwnerReset': {PhoneOwnerReset: 'PhoneOwnerReset'},
@@ -97,7 +99,7 @@ test('TV entry Forgot PIN keeps the same account operation and returns to the sa
     assert.deepEqual(menuCalls, ['disable'], 'the root front door permits the native Menu exit');
     await act(() => tree.props.onLocal());
     assert.equal(menuCalls.at(-1), 'enable', 'a non-root entry retains Menu delivery');
-    await act(() => nodes(tree.props.beforeActions).find(n => n.type === 'Field').props.onChangeText('https://verified.example'));
+    await act(() => parts(tree).find(n => n.type === 'Field').props.onChangeText('https://verified.example'));
     await act(() => tree.props.primaryAction.onPress());
     assert.equal(tree.type, 'Code');
     const codeStatus = tree.props.status, statusChildren = React.Children.toArray(codeStatus.props.children);
@@ -154,7 +156,7 @@ test('TV profile-switch hand-off preserves its current family, selection control
     ...shared(back), '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {}}, '../../platform/app-session-storage': {},
     '../../platform/native-session-lifecycle': {switchNativeProfile: async (family: string, ...args: unknown[]) => {
       assert.equal(family, current.sessionFamilyId); calls++; attempts.push(args); throw new Error('refused');
-    }}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, './downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, './AccountEntry': {AccountEntry: 'Entry'}, './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
+    }}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, './downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, './AccountEntry': {AccountEntry: 'Entry'}, './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
     '../../../../../packages/client-core/src': {HttpHostedApi: 'HttpHostedApi'},
     '../../platform/profile-recovery': {NativeProfileRecovery: 'Recovery', temporaryRecoveryApi: () => ({})},
     '../../platform/account-authority': {hostedUrl: 'https://hosted.test'},
@@ -240,7 +242,7 @@ test('R-16: a PIN submit on a stale context says so instead of returning silentl
     ...shared(back), '../../platform/account-work': accountWork, '../../platform/accounts': {nativeAccounts: {}}, '../../platform/app-session-storage': {},
     '../../platform/native-session-lifecycle': {switchNativeProfile: async (family: string, ...args: unknown[]) => {
       assert.equal(family, current.sessionFamilyId); calls++; attempts.push(args); throw new Error('refused');
-    }}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, './downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, './AccountEntry': {AccountEntry: 'Entry'}, './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
+    }}, '../../shell/route-registry': {nativeShellRoutes: {registerRoute() {}}}, './downloads-entry': {createAccountDownloadsEntry: () => {throw new Error('downloads_unavailable_in_fixture');}}, './AccountEntry': {AccountEntry: 'Entry'}, './profile-pin-failure': {profilePinFailureText: () => undefined}, './PhonePINEntry': {PhonePINEntry: 'PhonePIN'}, './PhoneProfilePIN': {PhoneProfilePIN: 'PhoneProfilePIN'}, './PhoneWhosWatching': {PhoneWhosWatching: 'PhoneWhosWatching'}, '../../shell/after-entry': {afterEntry: {request() {}, clear() {}, take() {}}}, './RememberProfileRow': {RememberProfileRow: 'Remember'},
     '../../../../../packages/client-core/src': {HttpHostedApi: 'HttpHostedApi'},
     '../../platform/profile-recovery': {NativeProfileRecovery: 'Recovery', temporaryRecoveryApi: () => ({})},
     '../../platform/account-authority': {hostedUrl: 'https://hosted.test'},

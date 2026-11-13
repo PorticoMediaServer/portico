@@ -117,8 +117,9 @@ function ProfileTileContents({profile, focused, selected, layout, retainDisabled
   const label = profileBadge(profile);
   return <Animated.View style={[{alignItems: 'center', width: '100%', opacity: disabled ? 0.42 : 1}, animated]}>
     <ProfileFace initial={profile.initial} color={profile.color} tint={profile.tint} source={profile.source} size={size} locked={profile.pinRequired} focused={focused && (!disabled || retainDisabledFocus)} selected={selected && !disabled} scaleOnFocus={layout !== 'tv'}/>
-    <Text numberOfLines={1} style={{fontFamily: fontFamilies[700], fontSize: (layout === 'tv' ? 30 : layout === 'row' ? 21 : 15) * theme.textScale, letterSpacing: (layout === 'row' ? -0.21 : 0) * theme.textScale, color: layout !== 'tv' || focused ? theme.colors.text : theme.colors.textSecondary, marginTop: layout === 'tv' ? 26 : layout === 'row' ? 18 : 10, maxWidth: '100%'}}>{profile.name}</Text>
-    <Text numberOfLines={1} style={{fontFamily: fontFamilies[layout === 'phone' ? 600 : 400], fontSize: (layout === 'tv' ? 22 : layout === 'row' ? 14 : 12) * theme.textScale, color: theme.colors.textTertiary, marginTop: layout === 'phone' ? 3 : 6, minHeight: layout === 'tv' ? 28 : layout === 'row' ? 20 : 16, maxWidth: '100%'}}>{label}</Text>
+    {/* A phone name wraps to a second line before it is cut; the tile grows with it and with the text size. */}
+    <Text numberOfLines={layout === 'phone' ? 2 : 1} style={{fontFamily: fontFamilies[700], fontSize: (layout === 'tv' ? 30 : layout === 'row' ? 21 : 15) * theme.textScale, textAlign: 'center', letterSpacing: (layout === 'row' ? -0.21 : 0) * theme.textScale, color: layout !== 'tv' || focused ? theme.colors.text : theme.colors.textSecondary, marginTop: layout === 'tv' ? 26 : layout === 'row' ? 18 : 10, maxWidth: '100%'}}>{profile.name}</Text>
+    <Text numberOfLines={layout === 'phone' ? 2 : 1} style={{fontFamily: fontFamilies[layout === 'phone' ? 600 : 400], textAlign: 'center', fontSize: (layout === 'tv' ? 22 : layout === 'row' ? 14 : 12) * theme.textScale, color: theme.colors.textTertiary, marginTop: layout === 'phone' ? 3 : 6, minHeight: layout === 'tv' ? 28 : layout === 'row' ? 20 : 16, maxWidth: '100%'}}>{label}</Text>
   </Animated.View>;
 }
 
@@ -161,7 +162,7 @@ export function ProfilePicker({profiles, onSelect, onAdd, onManage, selectedId, 
     {phone ? tiles : <TVRow><ScrollView horizontal showsHorizontalScrollIndicator={false}
       // TV: the focused face's glow (blur 70, 30 down) needs about 100 of room; the scroller clips at its padding, so it is widened by the same amount and the faces stay put.
       style={layout === 'tv' ? {margin: -82} : {flexGrow: 0}} contentContainerStyle={{padding: layout === 'tv' ? 100 : 18}}>{tiles}</ScrollView></TVRow>}
-    {onManage ? <Button testID={controlID(testID, 'manage')} variant="glass" size="hero" icon="i-edit" onPress={onManage} style={{alignSelf: phone ? 'flex-start' : 'center', marginTop: 56}}>{defaultI18n.t('next.artwork.native.manageProfiles')}</Button> : null}
+    {onManage ? <Button testID={controlID(testID, 'manage')} variant="glass" size="hero" icon="i-edit" align="center" onPress={onManage} style={{marginTop: phone ? 40 : 56}}>{defaultI18n.t('next.artwork.native.manageProfiles')}</Button> : null}
   </View>;
   return nativeScope ? <ProfileEntryRegion scope={nativeScope} entry={entry} order={offered.map(profile => profile.id)}>{body}</ProfileEntryRegion> : body;
 }
