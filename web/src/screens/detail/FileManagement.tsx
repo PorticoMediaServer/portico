@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject} from 'react';
 import {useViewerQueries} from '../../platform/freshness';
-import {VersionDeletionOpening, type VersionDeletionState} from './version-deletion';
+import {VersionDeletionOpening, versionDeletionConfirm, type VersionDeletionState} from './version-deletion';
 import {bytesText} from '@core/presentation/kit-model/technical.ts';
 import type {DetailProjection} from '@core/detail.ts';
 import type {ContentEntry} from '@core/library-content.ts';
@@ -64,18 +64,21 @@ export function DeleteVersion({binding, data, manage, onClose, returnFocusRef}: 
   };
   const going = preview ? [...(preview.titles > preview.alsoRemoves.length ? [preview.title] : []), ...preview.alsoRemoves.map(title => title.title)] : [];
   return <Dialog footerDismisses open onOpenChange={value => { if (!value) close(); }} title={t('title.deleteVersion.title')} description={data.item.title} width={500} returnFocusRef={returnFocusRef}
-    dismissOnOutsidePress={!busy} dismissOnBack={!busy} showCloseButton={!busy} footer={<><Button variant="ghost" size="compact" disabled={busy} onClick={close}>{t('action.cancel')}</Button><Button variant="destructive" size="compact" disabled={!confirmed || kept} loading={busy} onClick={() => { void confirm(); }}>{t('action.delete')}</Button></>}>
+    dismissOnOutsidePress={!busy} dismissOnBack={!busy} showCloseButton={!busy} footer={<><Button variant="ghost" size="compact" disabled={busy} onClick={close}>{t('action.cancel')}</Button>{(!preview || versionDeletionConfirm(preview).offersDelete) && <Button variant="destructive" size="compact" disabled={!confirmed || kept} loading={busy} onClick={() => { void confirm(); }}>{t('action.delete')}</Button>}</>}>
     {state.phase === 'failed' && <ManageRefusal error={state.error} fallback="web.manage.deletePreviewFailed" retry={() => opening?.retry()} />}
     {refused !== undefined && <ManageRefusal error={refused} fallback="web.manage.deleteRefused" retry={() => { void confirm(); }} />}
     {kept && <p role="alert">{t('web.deleteVersion.kept')}</p>}
     {state.phase === 'checking' && <p role="status" aria-busy="true" className={styles.checking}>{t('deleteMedia.checking')}</p>}
+    {/* The server says up front when the delete would be refused (deleting files is turned off for this library): its
+        own sentence first, and nothing to type or press. */}
+    {preview && versionDeletionConfirm(preview).refusal && <Banner icon="i-warn">{versionDeletionConfirm(preview).refusal}</Banner>}
     {preview && <div className={styles.manageBody}>
       <TitleProse><b>{t('web.deleteVersion.files', {count: preview.files, size: bytesText(preview.bytes, environment.t) ?? ''})}</b> {t('web.deleteVersion.disk')}</TitleProse>
       {file?.path && <p className={styles.path}>{file.path}</p>}
       {going.length ? <TitleProse>{t('web.deleteVersion.titlesGo', {count: going.length})} {going.join(', ')}</TitleProse> : <TitleProse>{t('web.deleteVersion.titleStays', {title: preview.title})}</TitleProse>}
       {preview.listEntries > 0 && <TitleProse>{t('web.deleteVersion.listEntries', {count: preview.listEntries})}</TitleProse>}
       {preview.otherPeople > 0 && <TitleProse>{t('web.deleteVersion.otherPeople', {count: preview.otherPeople})}</TitleProse>}
-      <TextField label={t('deleteMedia.typeTitle')} description={preview.title} value={typed} onChange={event => setTyped(event.currentTarget.value)} autoComplete="off" disabled={busy || kept} />
+      {versionDeletionConfirm(preview).asksTitle && <TextField label={t('deleteMedia.typeTitle')} description={preview.title} value={typed} onChange={event => setTyped(event.currentTarget.value)} autoComplete="off" disabled={busy || kept} />}
     </div>}
   </Dialog>;
 }

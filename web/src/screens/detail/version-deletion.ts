@@ -1,5 +1,11 @@
 import type {VersionDeletion} from '@core/administration.ts';
 
+/** What the confirm offers for a preview: the server's own refusal up front with nothing to type or press when the
+ * delete would be refused (deleting files is turned off for this library), else the title to type and Delete. */
+export function versionDeletionConfirm(preview: VersionDeletion): Readonly<{refusal?: string; asksTitle: boolean; offersDelete: boolean}> {
+  return preview.deleteRefusal ? {refusal: preview.deleteRefusal, asksTitle: false, offersDelete: false} : {asksTitle: true, offersDelete: true};
+}
+
 export type VersionDeletionState = Readonly<{phase: 'checking'} | {phase: 'ready'; preview: VersionDeletion} | {phase: 'failed'; error: unknown}>;
 
 /** One press of Delete this version…. The server's preview runs the real deletion as a dry run on its single writer and

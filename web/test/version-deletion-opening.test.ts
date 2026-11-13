@@ -2,7 +2,7 @@
 // per press of Delete, never live (desk A's condition on #3354/#3379).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {VersionDeletionOpening} from '../src/screens/detail/version-deletion.ts';
+import {VersionDeletionOpening, versionDeletionConfirm} from '../src/screens/detail/version-deletion.ts';
 
 const preview = {versionId: 'ver_2', title: 'Roses', titles: 0, files: 1, bytes: 1, listEntries: 0, otherPeople: 0, alsoRemoves: []};
 const settle = () => new Promise(resolve => setImmediate(resolve));
@@ -35,4 +35,11 @@ test('closing stops a preview on its way, and a closed opening never asks again'
   assert.equal(signal?.aborted, true);
   opening.retry(); await settle();
   assert.equal(asked, 1);
+});
+
+// #3413: when the delete would be refused, the confirm says the server's sentence up front, with nothing to type or press.
+test('a refused preview offers the server\'s sentence and no title field or Delete; any other offers both', () => {
+  assert.deepEqual(versionDeletionConfirm({...preview, deleteRefusal: 'Deleting files is turned off for this library.'}),
+    {refusal: 'Deleting files is turned off for this library.', asksTitle: false, offersDelete: false});
+  assert.deepEqual(versionDeletionConfirm(preview), {asksTitle: true, offersDelete: true});
 });

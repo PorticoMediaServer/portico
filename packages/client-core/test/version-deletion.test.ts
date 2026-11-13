@@ -24,3 +24,9 @@ test('the delete names the previewed version, and a kept file says the title was
   const kept = server({'DELETE /v1/admin/versions/ver_2': {removed: false, filesDeleted: 0, bytes: 0, kept: [{path: 'x'}], alsoRemoved: []}});
   assert.equal((await deleteVersionFiles(kept.api, deletion)).filesRetained, true);
 });
+
+test('a preview the server says would be refused carries the server\'s own sentence', async () => {
+  const s = server({'GET /v1/admin/versions/ver_2/deletion': {...preview, deleteRefusal: 'Deleting files is turned off for this library.'}});
+  assert.equal((await previewVersionDeletion(s.api, 'ver_2')).deleteRefusal, 'Deleting files is turned off for this library.');
+  assert.equal((await previewVersionDeletion(server({'GET /v1/admin/versions/ver_2/deletion': preview}).api, 'ver_2')).deleteRefusal, undefined);
+});
