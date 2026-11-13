@@ -19,7 +19,7 @@ test('catalogue routes preserve real owners and refuse unsupported fallthrough',
 });
 
 test("a reading library's series card opens the reading series page; an audiobook series keeps the audiobook page", () => {
-  // The browse grid names a book or comic library's series with the reading series navigation (client-core readingSeries).
+  // A book or comic library's series card carries the reading series navigation (client-core entryFromItem, from its publication).
   const reading = {...entry('book_series'), navigation: {view: 'series', entityId: 'actual'}} as ContentEntry;
   assert.equal(nativeEntryRouteSupported(reading), true);
   assert.deepEqual(nativeEntryRoute(reading), {kind: 'read-series', libraryId: 'library', seriesId: 'actual'});

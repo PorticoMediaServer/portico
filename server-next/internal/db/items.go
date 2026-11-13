@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -37,6 +38,9 @@ type Item struct {
 	RootPublicID    string
 	RootTitle       string
 	LibraryID       string // the library's public id, so a card can build the address of its page
+	// SeriesLibraryKind is a series' library's kind (books, comics or audiobooks), so a card can open a
+	// reading series as one; it is empty for every other item.
+	SeriesLibraryKind string
 	Images          []Image
 	State           State
 	// For an item that holds others: how many playable items under it the viewer may see, and
@@ -256,6 +260,7 @@ func itemColumns(acc access) string {
 	ifnull(i.community_rating, 0), ifnull(i.parent_id, 0), ifnull(i.root_id, 0),
 	ifnull((SELECT public_id FROM items WHERE id = i.parent_id), ''), ifnull((SELECT public_id FROM items WHERE id = i.root_id), ''),
 	(SELECT public_id FROM libraries WHERE id = i.library_id),
+	CASE WHEN i.kind = ` + strconv.Itoa(int(KindSeries)) + ` THEN ifnull((SELECT kind FROM libraries WHERE id = i.library_id), '') ELSE '' END,
 	ifnull((SELECT title FROM items root WHERE root.id = i.root_id AND ` + acc.visible("root") + `), ''),
 	ifnull((SELECT album.id FROM items album WHERE i.kind = 7 AND album.id = i.parent_id AND album.kind = 6 AND ` + acc.visible("album") + `), 0), ` + stateColumns
 }
@@ -268,7 +273,7 @@ const itemFrom = ` FROM items i` + stateJoin
 func (it *Item) dest() []any {
 	return append([]any{&it.ID, &it.PublicID, &it.Kind, &it.Title, &it.sortTitle, &it.Year, &it.ReleaseDate, &it.Publication, &it.WordCount, &it.AddedAt,
 		&it.DurationMS, &it.IndexNumber, &it.ParentIndex, &it.ChildCount, &it.ContentRating, &it.CommunityRating,
-		&it.ParentID, &it.RootID, &it.ParentPublicID, &it.RootPublicID, &it.LibraryID, &it.RootTitle, &it.imageParentID}, it.State.dest()...)
+		&it.ParentID, &it.RootID, &it.ParentPublicID, &it.RootPublicID, &it.LibraryID, &it.SeriesLibraryKind, &it.RootTitle, &it.imageParentID}, it.State.dest()...)
 }
 
 func scanItem(row interface{ Scan(...any) error }, it *Item, extra ...any) error {

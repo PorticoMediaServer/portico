@@ -54,7 +54,9 @@ export function entryFromItem(item: Item, libraryId?: string): ContentEntry | un
     // profile may not see is named by neither.
     show: item.kind === 'episode' ? item.root ? {id: item.root.id, name: item.root.title} : item.rootId && item.rootTitle ? {id: item.rootId, name: item.rootTitle} : undefined : undefined,
     ...numbered,
-    navigation: {view: view ?? 'item', entityId: item.id},
+    // A book or comic library's series names its publication (the server's rule for reading titles), so it opens the
+    // reading series page on every client and in every list; an audiobook series names none and keeps its own page.
+    navigation: {view: item.kind === 'series' && typeof item.publicationType === 'string' ? 'series' : view ?? 'item', entityId: item.id},
     playback: view ? undefined : {itemId: item.id, ...(state?.positionMs ? {startSeconds: Math.round(state.positionMs / 1000)} : {})},
   };
   for (const key of Object.keys(entry)) if (entry[key] === undefined || entry[key] === null) delete entry[key];
