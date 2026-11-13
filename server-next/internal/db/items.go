@@ -852,7 +852,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 			w.plainLibrary, w.plainKinds = library, kindList
 		}
 	}
-	if found, err := q.conditions(ctx, tx, w, &scoped); err != nil || !found {
+	if found, err := q.conditions(ctx, tx, w, &scoped, acc); err != nil || !found {
 		return false, err
 	}
 	// A list that can hold shows, seasons, artists, albums, collections or series leaves out
