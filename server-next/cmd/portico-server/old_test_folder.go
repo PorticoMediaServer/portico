@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/api"
@@ -16,8 +18,14 @@ import (
 func oldTestFolder(ctx context.Context, listen string, log *slog.Logger) error {
 	log.Error(db.ErrOldTestFolder.Error())
 	srv := &http.Server{Addr: listen, ReadHeaderTimeout: 10 * time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
+		if r.URL.Path != "/v1" && !strings.HasPrefix(r.URL.Path, "/v1/") {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			fmt.Fprint(w, `<!doctype html><meta charset="utf-8"><p>`+db.ErrOldTestFolder.Error()+`</p>`)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
 		json.NewEncoder(w).Encode(map[string]any{"error": api.Error{Code: "old_test_data_folder", Message: db.ErrOldTestFolder.Error()}})
 	})}

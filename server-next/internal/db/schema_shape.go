@@ -65,14 +65,14 @@ func CheckSchema(ctx context.Context, conn *sql.DB) error {
 	// that needs it.
 	for _, name := range names(want) {
 		if _, held := have[name]; !held {
-			return fmt.Errorf("it lacks %s, which Portico's schema defines", name)
+			return fmt.Errorf("%w: it lacks %s, which Portico's schema defines", ErrOldTestFolder, name)
 		}
 	}
 	for _, name := range names(have) {
 		if shape, defined := want[name]; !defined {
-			return fmt.Errorf("it holds %s, which Portico's schema does not define", name)
+			return fmt.Errorf("%w: it holds %s, which Portico's schema does not define", ErrOldTestFolder, name)
 		} else if shape != have[name] {
-			return fmt.Errorf("its %s is not as Portico's schema defines it", name)
+			return fmt.Errorf("%w: its %s is not as Portico's schema defines it", ErrOldTestFolder, name)
 		}
 	}
 	return nil
