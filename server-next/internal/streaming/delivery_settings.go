@@ -85,7 +85,7 @@ func validPlanningPolicy(p string) bool {
 func DefaultDeliveryConfiguration() DeliveryConfiguration {
 	return DeliveryConfiguration{
 		MemoryCap:         "quarter",
-		TranscodeLocation: "memory",
+		TranscodeLocation: "disk",
 		HardwareBackend:   "auto", HardwareSelection: "auto",
 		OutputFormat: "auto", DownloadMaxQuality: "original",
 		MaxMusicQuality:        "original",
@@ -106,8 +106,8 @@ func DefaultDeliveryConfiguration() DeliveryConfiguration {
 // default for that field alone.
 func (c DeliveryConfiguration) Normalized() DeliveryConfiguration {
 	d := DefaultDeliveryConfiguration()
-	if c.TranscodeLocation != "disk" {
-		c.TranscodeLocation = "memory"
+	if c.TranscodeLocation != "memory" {
+		c.TranscodeLocation = "disk"
 	}
 	switch c.MemoryCap {
 	case "quarter", "half", "2gb", "4gb", "8gb", "16gb":

@@ -126,8 +126,8 @@ test('the conversion controls read and save the actual engine settings, includin
 
 test('working space reads seconds and saves the same seconds without changing the other limits', async () => {
   const f = fixture();
-  const values = {convertAheadSeconds: 120, keepForRewindingSeconds: 0, spacePerStreamMiB: 8192, memoryLimit: 'half'};
-  const defaults = {convertAheadSeconds: 60, keepForRewindingSeconds: 180, spacePerStreamMiB: 4096, memoryLimit: 'quarter'};
+  const values = {convertAheadSeconds: 120, keepForRewindingSeconds: 0, spacePerStreamMiB: 8192};
+  const defaults = {convertAheadSeconds: 60, keepForRewindingSeconds: 180, spacePerStreamMiB: 4096};
   const source = new OwnerStreamingSettings({...f.api, request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
     const doc: any = await f.api.request(path, method, body);
     if (path.endsWith('/settings/streaming')) {doc.values = {...doc.values, ...values}; doc.defaults = {...doc.defaults, ...defaults};}
@@ -139,11 +139,86 @@ test('working space reads seconds and saves the same seconds without changing th
   assert.equal(read('streaming.rewindKeep')?.current, '0');
   assert.equal(read('streaming.rewindKeep')?.default, '180');
   assert.equal(read('streaming.sessionSpace')?.current, '8192');
-  assert.equal(read('streaming.memoryCap')?.current, 'half');
+  assert.equal(source.has('streaming.memoryCap'), false);
   await source.save('streaming.convertAhead', '600');
   await source.save('streaming.rewindKeep', '180');
   await source.save('streaming.sessionSpace', '16384');
-  await source.save('streaming.memoryCap', '4gb');
   assert.deepEqual(f.calls.filter(c => c.method === 'PUT').map(c => c.body),
-    [{convertAheadSeconds: 600}, {keepForRewindingSeconds: 180}, {spacePerStreamMiB: 16384}, {memoryLimit: '4gb'}]);
+    [{convertAheadSeconds: 600}, {keepForRewindingSeconds: 180}, {spacePerStreamMiB: 16384}]);
+});
+
+test('the per-device graphics cap reads Automatic and saves the owner cap', async () => {
+  const f = fixture();
+  const source = new OwnerStreamingSettings({...f.api, request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    const doc: any = await f.api.request(path, method, body);
+    if (path.endsWith('/settings/streaming')) {
+      doc.values = {...doc.values, hardwareConversionsAtOnce: 2};
+      doc.defaults = {...doc.defaults, hardwareConversionsAtOnce: 0};
+    }
+    return doc;
+  }});
+  const configuration = await source.readConfiguration();
+  const value = readSettingsBinding(settingsBinding('streaming.maxHardwareConversions')!, {configuration}, 'streaming.maxHardwareConversions');
+  assert.equal(value?.current, '2');
+  assert.equal(value?.default, 'auto');
+  await source.save('streaming.maxHardwareConversions', 'auto');
+  assert.deepEqual(f.calls.at(-1)?.body, {hardwareConversionsAtOnce: 0});
+});
+
+test('conversions expose one folder, retaining its default and saving a chosen path', async () => {
+  const f = fixture(), source = new OwnerStreamingSettings(f.api), configuration = await source.readConfiguration();
+  const value = readSettingsBinding(settingsBinding('streaming.transcodeFolder')!, {configuration}, 'streaming.transcodeFolder');
+  assert.equal(value?.current, '');
+  assert.equal(value?.default, '');
+  assert.equal(source.has('streaming.transcodeLocation'), false);
+  await source.save('streaming.transcodeFolder', '/other');
+  assert.deepEqual(f.calls.at(-1)?.body, {conversionFolder: '/other'});
+});
+
+test('tone-map method reads the engine Hable default and saves the actual algorithm', async () => {
+  const f = fixture();
+  const source = new OwnerStreamingSettings({...f.api, request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+    const doc: any = await f.api.request(path, method, body);
+    if (path.endsWith('/settings/streaming')) {
+      doc.values = {...doc.values, toneMappingMethod: 'mobius'};
+      doc.defaults = {...doc.defaults, toneMappingMethod: 'hable'};
+    }
+    return doc;
+  }});
+  const configuration = await source.readConfiguration();
+  const value = readSettingsBinding(settingsBinding('streaming.toneMappingMethod')!, {configuration}, 'streaming.toneMappingMethod');
+  assert.equal(value?.current, 'mobius');
+  assert.equal(value?.default, 'hable');
+  await source.save('streaming.toneMappingMethod', 'reinhard');
+  assert.deepEqual(f.calls.at(-1)?.body, {toneMappingMethod: 'reinhard'});
+});
+
+test('native Streaming drafts save the folder and keep each document revision', async () => {
+  const values: Record<string, unknown> = {...defaults, conversionFolder: '/existing',
+    hardwareConversionsAtOnce: 0, convertAheadSeconds: 60};
+  const writes: Record<string, unknown>[] = [];
+  let revision = 1;
+  const f = fixture();
+  const source = new OwnerStreamingSettings({...f.api,
+    request: async <T>(path: string, method?: string, body?: unknown): Promise<T> => {
+      if (!path.endsWith('/settings/streaming')) return f.api.request<T>(path, method, body);
+      return {name: 'streaming', etag: `"${revision}"`, defaults: {...values, conversionFolder: ''}, values: {...values}} as T;
+    },
+    requestRaw: async (_path, _method, options) => {
+      if (options?.headers?.['If-Match'] !== `"${revision}"`) return {status: 412, headers: {}, body: {error: {code: 'changed_elsewhere'}}};
+      const change = options?.body as Record<string, unknown>; writes.push(change); Object.assign(values, change); revision++;
+      return {status: 200, headers: {}, body: {}};
+    },
+  });
+  const runtime = source.form('runtime'), connectivity = source.form('connectivity');
+  await runtime.load(); await connectivity.load();
+  assert.equal(runtime.getSnapshot().draft?.transcodeLocation, undefined);
+  assert.equal(runtime.getSnapshot().draft?.temporaryDirectory, '/existing');
+  runtime.set({temporaryDirectory: '/new-spill', throttleBufferMs: 120000}); await runtime.save();
+  assert.deepEqual(writes.at(-1), {convertAheadSeconds: 120, conversionFolder: '/new-spill'});
+  // This form still holds its first revision: the server refuses it, and the existing
+  // draft rebase saves only its upload edit against the fresh version.
+  connectivity.set({uploadCapacityKbps: 120000}); await connectivity.save();
+  assert.deepEqual(writes.at(-1), {uploadSpeedKbps: 120000});
+  runtime.dispose(); connectivity.dispose();
 });

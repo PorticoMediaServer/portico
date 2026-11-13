@@ -47,8 +47,23 @@ const ownedFolder = "portico-conversions"
 // A folder that cannot be made or written to is refused. Caller holds mu, or is New.
 func (e *Engine) open(base, ffmpeg string) (*place, error) {
 	e.opened++
+	folder := filepath.Join(base, strconv.Itoa(e.opened))
+	if err := os.MkdirAll(folder, 0700); err != nil {
+		return nil, err
+	}
+	// Readiness comes from opening and writing output, not from a readable usage walk.
+	check, err := os.CreateTemp(folder, ".write-check-")
+	if err != nil {
+		return nil, err
+	}
+	_, writeErr := check.Write([]byte{0})
+	closeErr := check.Close()
+	_ = os.Remove(check.Name())
+	if err := errors.Join(writeErr, closeErr); err != nil {
+		return nil, err
+	}
 	ctx, stop := context.WithCancel(e.ctx)
-	streams, err := streaming.New(ctx, streaming.Options{Folder: filepath.Join(base, strconv.Itoa(e.opened)), FFmpeg: ffmpeg,
+	streams, err := streaming.New(ctx, streaming.Options{Folder: folder, FFmpeg: ffmpeg,
 		Libraries: e.folders, Processes: e.processes, Settings: e})
 	if err != nil {
 		stop()

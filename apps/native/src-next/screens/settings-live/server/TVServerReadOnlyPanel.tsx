@@ -1,4 +1,5 @@
 import {readOwnerSignInSettings, readOwnerMetadataSettings, readOwnerLiveSources, readOwnerConfiguration} from '../../../../../../packages/client-core/src/owner-requests';
+import {OwnerStreamingSettings} from '../../../../../../packages/client-core/src/server-admin/streaming-settings';
 import React, {useEffect, useMemo, useState} from 'react';
 import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
@@ -92,7 +93,7 @@ export function TVServerReadOnlyPanel({page, ports, runtime, lifetime, statusOnl
         const updates = await readServerUpdates({request:read});
         return {facts: [{id: 'general.version', label: label('general.version'), value: updates.version}]};
       }
-      const configuration = parseSettingsConfiguration(await readOwnerConfiguration({request:read}));
+      const configuration = page === 'streaming' ? await new OwnerStreamingSettings({request:read}).readConfiguration(abort.signal) : parseSettingsConfiguration(await readOwnerConfiguration({request:read}));
       const metadata = page === 'metadata' ? parseMetadataSettings(await readOwnerMetadataSettings({request:read})) : undefined;
       const extra: Readonly<Record<string, unknown>> = metadata ? {
         'metadata.online': metadata.onlineLookups, 'metadata.adult': metadata.includeAdult,

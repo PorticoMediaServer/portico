@@ -1,7 +1,7 @@
 import type {MessageId} from '../../../i18n/src/index.ts';
 
 /** Approved Settings structure. Runtime facts and mutations come from checked bindings. */
-export const settingsDesignRevision = '812dacacc70e296ac870ec36d1a37a485eaeb8ed';
+export const settingsDesignRevision = 'cb97a49a54df5658c78b0c8ab2dcddc20a2ad7e4';
 export type SettingsPlatform = 'web' | 'phone' | 'tv' | 'desktop';
 export type SettingsOperatingSystem = 'android' | 'ios' | 'ipados' | 'tvos' | 'androidtv' | 'firetv' | 'roku' | 'webos' | 'tizen' | 'windows' | 'macos' | 'linux' | 'browser';
 export type SettingsValue = string | number | boolean | null | readonly SettingsValue[] | Readonly<{[key: string]: SettingsValue}>;
@@ -14092,37 +14092,15 @@ export const settingsSpec: readonly SettingsSection[] = [
             }
           },
           {
-            "id": "streaming.transcodeLocation",
+            "id": "streaming.transcodeFolder",
             "scope": "server",
-            "key": "streaming.transcode_location",
-            "label": "next.settingsSpec.server.streaming.groups.2.rows.1.label",
-            "help": "next.settingsSpec.server.streaming.groups.2.rows.1.help",
+            "key": "streaming.transcode_folder",
+            "label": "next.settingsSpec.server.streaming.groups.2.rows.1.children.0.label",
+            "help": "next.settingsSpec.server.streaming.groups.2.rows.1.children.0.help",
             "control": {
-              "type": "select",
-              "default": "memory",
-              "options": [
-                {
-                  "value": "memory",
-                  "label": "next.settingsSpec.server.streaming.groups.2.rows.1.control.options.0.label"
-                },
-                {
-                  "value": "disk",
-                  "label": "next.settingsSpec.server.streaming.groups.2.rows.1.control.options.1.label"
-                }
-              ]
-            },
-            "children": [
-              {
-                "id": "streaming.transcodeFolder",
-                "scope": "server",
-                "key": "streaming.transcode_folder",
-                "label": "next.settingsSpec.server.streaming.groups.2.rows.1.children.0.label",
-                "help": "next.settingsSpec.server.streaming.groups.2.rows.1.children.0.help",
-                "control": {
-                  "type": "folder"
-                }
-              }
-            ]
+              "type": "folder",
+              "default": ""
+            }
           },
           {
             "id": "streaming.transcodeStatus",
@@ -14152,14 +14130,6 @@ export const settingsSpec: readonly SettingsSection[] = [
             "label": "next.settingsSpec.server.streaming.groups.3.rows.1.label",
             "control": {
               "type": "list"
-            }
-          },
-          {
-            "id": "streaming.hwLimit",
-            "scope": "server",
-            "label": "next.settingsSpec.server.streaming.groups.3.rows.2.label",
-            "control": {
-              "type": "status"
             }
           },
           {
@@ -14274,71 +14244,57 @@ export const settingsSpec: readonly SettingsSection[] = [
           "title": "next.settingsSpec.server.streaming.advanced.groups.1.title",
           "rows": [
             {
-              "id": "streaming.toneMapping",
+              "id": "streaming.toneMappingMethod",
               "scope": "server",
-              "key": "streaming.tone_mapping",
+              "key": "streaming.tone_mapping_method",
+              "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.label",
+              "control": {
+                "type": "select",
+                "default": "hable",
+                "options": [
+                  {
+                    "value": "hable",
+                    "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.0.label",
+                    "hint": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.0.hint"
+                  },
+                  {
+                    "value": "mobius",
+                    "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.1.label",
+                    "hint": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.1.hint"
+                  },
+                  {
+                    "value": "reinhard",
+                    "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.2.label",
+                    "hint": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.2.hint"
+                  },
+                  {
+                    "value": "gamma",
+                    "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.3.label",
+                    "hint": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.3.hint"
+                  },
+                  {
+                    "value": "linear",
+                    "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.4.label",
+                    "hint": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.4.hint"
+                  },
+                  {
+                    "value": "clip",
+                    "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.5.label",
+                    "hint": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.5.hint"
+                  },
+                  {
+                    "value": "off",
+                    "label": "next.settings.streaming.toneMappingOff"
+                  }
+                ]
+              },
+              "help": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.help",
               "enableWhen": {
                 "id": "streaming.allowConversion",
                 "in": [
                   "all"
                 ]
-              },
-              "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.label",
-              "help": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.help",
-              "control": {
-                "type": "toggle",
-                "default": true
-              },
-              "children": [
-                {
-                  "id": "streaming.toneMappingMethod",
-                  "scope": "server",
-                  "key": "streaming.tone_mapping_method",
-                  "enableWhen": {
-                    "id": "streaming.toneMapping",
-                    "in": [
-                      true
-                    ]
-                  },
-                  "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.label",
-                  "control": {
-                    "type": "select",
-                    "default": "hable",
-                    "options": [
-                      {
-                        "value": "hable",
-                        "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.0.label",
-                        "hint": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.0.hint"
-                      },
-                      {
-                        "value": "mobius",
-                        "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.1.label",
-                        "hint": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.1.hint"
-                      },
-                      {
-                        "value": "reinhard",
-                        "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.2.label",
-                        "hint": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.2.hint"
-                      },
-                      {
-                        "value": "gamma",
-                        "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.3.label",
-                        "hint": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.3.hint"
-                      },
-                      {
-                        "value": "linear",
-                        "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.4.label",
-                        "hint": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.4.hint"
-                      },
-                      {
-                        "value": "clip",
-                        "label": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.5.label",
-                        "hint": "next.settingsSpec.server.streaming.advanced.groups.1.rows.0.children.0.control.options.5.hint"
-                      }
-                    ]
-                  }
-                }
-              ]
+              }
             }
           ]
         },
@@ -14884,49 +14840,6 @@ export const settingsSpec: readonly SettingsSection[] = [
                   {
                     "value": "32768",
                     "label": "next.settingsSpec.server.streaming.advanced.groups.5.rows.2.control.options.5.label"
-                  }
-                ]
-              }
-            },
-            {
-              "id": "streaming.memoryCap",
-              "scope": "server",
-              "key": "streaming.memory_cap",
-              "enableWhen": {
-                "id": "streaming.transcodeLocation",
-                "in": [
-                  "memory"
-                ]
-              },
-              "label": "next.settingsSpec.server.streaming.advanced.groups.5.rows.3.label",
-              "help": "next.settingsSpec.server.streaming.advanced.groups.5.rows.3.help",
-              "control": {
-                "type": "select",
-                "default": "quarter",
-                "options": [
-                  {
-                    "value": "quarter",
-                    "label": "next.settingsSpec.server.streaming.advanced.groups.5.rows.3.control.options.0.label"
-                  },
-                  {
-                    "value": "half",
-                    "label": "next.settingsSpec.server.streaming.advanced.groups.5.rows.3.control.options.1.label"
-                  },
-                  {
-                    "value": "2gb",
-                    "label": "next.settingsSpec.server.streaming.advanced.groups.5.rows.3.control.options.2.label"
-                  },
-                  {
-                    "value": "4gb",
-                    "label": "next.settingsSpec.server.streaming.advanced.groups.5.rows.3.control.options.3.label"
-                  },
-                  {
-                    "value": "8gb",
-                    "label": "next.settingsSpec.server.streaming.advanced.groups.5.rows.3.control.options.4.label"
-                  },
-                  {
-                    "value": "16gb",
-                    "label": "next.settingsSpec.server.streaming.advanced.groups.5.rows.3.control.options.5.label"
                   }
                 ]
               }

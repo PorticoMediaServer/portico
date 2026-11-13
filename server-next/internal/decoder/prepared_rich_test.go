@@ -49,7 +49,7 @@ func TestRichPreparedRecipeKeepsHDRAndSurround(t *testing.T) {
 		Source:           PreparedSource{DynamicRange: "hdr10", BitDepth: 10, AudioChannels: []int{6}},
 	}
 	args, err = preparedArgs("http://127.0.0.1/input", plain, false)
-	if line = strings.Join(args, " "); err != nil || !strings.Contains(line, "tonemap=tonemap=mobius") || !strings.Contains(line, "-color_trc bt709") || !strings.Contains(line, "-ac 2") {
+	if line = strings.Join(args, " "); err != nil || !strings.Contains(line, "tonemap=tonemap=hable") || !strings.Contains(line, "-color_trc bt709") || !strings.Contains(line, "-ac 2") {
 		t.Fatal(line, err)
 	}
 	// Recipes stay a closed set.
