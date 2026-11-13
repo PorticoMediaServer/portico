@@ -1,4 +1,5 @@
 import {CodedError} from '@core/server-messages.ts';
+import {repeat, type Repeating} from '@core/timer.ts';
 
 /** Forgot PIN's Google or Apple step on the web. web.getportico.tv opens the provider in a pop-up, so
  * the recovery dialog and its PIN proof stay open in this page. Services sends the pop-up back to
@@ -18,9 +19,9 @@ export function openProviderPopup(url: string, flowId: string, page: Window = wi
       try {page.sessionStorage.removeItem(flowKey);} catch { /* nothing kept */ }
       reject(new CodedError('popup_blocked', 'The browser blocked the sign-in window.')); return;
     }
-    let timer: ReturnType<typeof setInterval> | undefined;
+    let watch: Repeating | undefined;
     const finish = () => {
-      page.removeEventListener('message', onMessage); if (timer) clearInterval(timer); signal?.removeEventListener('abort', onAbort);
+      page.removeEventListener('message', onMessage); watch?.stop(); signal?.removeEventListener('abort', onAbort);
       try {page.sessionStorage.removeItem(flowKey);} catch { /* nothing kept */ }
     };
     const onMessage = (event: MessageEvent) => {
@@ -39,7 +40,9 @@ export function openProviderPopup(url: string, flowId: string, page: Window = wi
     const onAbort = () => {finish(); try {popup.close();} catch { /* already gone */ } reject(signal!.reason ?? new CodedError('cancelled', 'Cancelled.'));};
     page.addEventListener('message', onMessage);
     signal?.addEventListener('abort', onAbort, {once: true});
-    timer = setInterval(() => {if (popup.closed) {finish(); reject(new CodedError('provider_return_incomplete', 'The sign-in window closed before it finished.'));}}, 500);
+    // A pop-up gives no event when the person closes it: look twice a second.
+    watch = repeat(async () => {if (popup.closed) {finish(); reject(new CodedError('provider_return_incomplete', 'The sign-in window closed before it finished.'));}},
+      {everyMs: 500, backoff: {baseMs: 500, maxMs: 500, jitter: 'none'}, immediate: false});
   });
 }
 
