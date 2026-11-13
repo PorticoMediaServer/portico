@@ -543,7 +543,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		}
 	}
 	plan, err := e.planWithHardware(ctx, tools, request)
-	if err == nil && plan.ToneMap && plan.HardwareBackend != "software" && !facts.FrameHDRObserved {
+	if err == nil && plan.ToneMap && plan.HardwareBackend != "software" && !facts.FrameHDRChecked {
 		facts = e.observeToneMappingSource(ctx, path, place, remoteID, facts)
 		request.File.Streams = facts.Streams
 		plan, err = e.planWithHardware(ctx, tools, request)

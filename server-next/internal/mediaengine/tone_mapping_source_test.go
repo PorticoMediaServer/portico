@@ -51,20 +51,27 @@ func TestToneMappingObservesFrameMasteringOnTheVideoStream(t *testing.T) {
 		}
 		place := db.FileOnDisk{Path: file, Size: info.Size(), ModifiedNS: info.ModTime().UnixNano()}
 		got := e.observeToneMappingSource(ctx, file, place, 0, facts)
-		if !got.FrameHDRObserved || len(got.Streams) != 2 || (got.Streams[1].Detail.MasterDisplay != "") != mastered {
+		if !got.FrameHDRChecked || len(got.Streams) != 2 || (got.Streams[1].Detail.MasterDisplay != "") != mastered {
 			t.Fatalf("mastered=%v: %+v", mastered, got)
 		}
 		if facts.Streams[1].Detail.MasterDisplay != "" {
 			t.Fatal("observation mutated shared header facts")
 		}
 		key := fmt.Sprint(0, "\x00", file, "\x00", place.Size, "\x00", place.ModifiedNS)
-		if !e.facts[key].FrameHDRObserved {
+		if !e.facts[key].FrameHDRChecked {
 			t.Fatal("successful observation was not cached for this file version")
 		}
+		clear(e.facts)
 		e.probe.Binary = filepath.Join(root, "missing-ffprobe")
-		if failed := e.observeToneMappingSource(ctx, file, place, 0, facts); failed.FrameHDRObserved {
-			t.Fatal("failed frame read was treated as evidence of absent metadata")
+		failed := e.observeToneMappingSource(ctx, file, place, 0, facts)
+		if !failed.FrameHDRChecked || failed.Streams[1].Detail.MasterDisplay != "" {
+			t.Fatal("failed frame read was not remembered as unknown mastering data", failed)
 		}
 		e.probe.Binary = probe
+		// The working tool would find mastering data in the mastered fixture.
+		// Replaying this version must use the cached unknown result immediately.
+		if replay := e.observeToneMappingSource(ctx, file, place, 0, facts); !replay.FrameHDRChecked || replay.Streams[1].Detail.MasterDisplay != "" {
+			t.Fatal("another Play retried a failed observation", replay)
+		}
 	}
 }
