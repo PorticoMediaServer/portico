@@ -6,7 +6,8 @@ import {defaultI18n, type I18n, type MessageId} from '../../../i18n/src/index.ts
  *
  * Errors are mapped by stable **code**, HTTP status and type, never by their
  * message: core, server and browser text is diagnostic evidence and is never
- * shown. Every result says what failed (title), what's safe and what happens
+ * shown, except the plain profile-picture refusals explicitly passed through below.
+ * Every result says what failed (title), what's safe and what happens
  * next (body), and which recovery action is truthful (`action`).
  *
  * Usage: `const p = presentError(error, 'library'); <StateView title={p.title} body={p.body} action={p.action === 'try-again' ? …}>`.
@@ -166,7 +167,7 @@ function categorize(f: Facts, deviceOnline: boolean | undefined): ErrorCategory 
   return 'unknown';
 }
 
-/** Present any thrown value for a person. Never returns raw error text. */
+/** Present failures through the catalogue, with only the explicit safe exceptions below. */
 /** Codes with their own sentence, whatever their category. */
 const codeBodies: Record<string, MessageId> = {
   // Not a failure: the outbox kept the edit and will send it (`outbox.ts`).
@@ -241,6 +242,14 @@ export function presentError(error: unknown, context: ErrorContext = 'generic', 
   const label = (action: ErrorAction) => (actionLabelIds[action] ? i18n.t(actionLabelIds[action]!) : undefined);
   if (category === 'cancelled') return Object.freeze({category, title, body: '', action: 'none', messageId: 'error.cancelled', silent: true, code: f.code || undefined});
   if (f.code === 'transport_unavailable') return Object.freeze({category: 'unavailable', title, body: i18n.t('error.transportUnavailable'), action: 'none', messageId: 'error.transportUnavailable', silent: false, code: f.code});
+  // A chosen picture's refusal is already a plain answer from the selected server.
+  // Keep only these known code/status pairs; arbitrary diagnostic messages stay hidden.
+  const pictureRefusal = f.code === 'body_too_large' && f.status === 413 || f.code === 'unsupported_media_type' && f.status === 415
+    || f.code === 'managed_by_portico_account' && f.status === 409;
+  const reason = (error as {message?: unknown} | null)?.message;
+  if ((context === 'profiles' || context === 'server-console') && pictureRefusal && typeof reason === 'string' && reason.length > 0 && reason.length <= 500 && !/[\x00-\x1f\x7f]/.test(reason)) {
+    return Object.freeze({category: 'invalid-input', title, body: reason, action: 'none', messageId: '', silent: false, code: f.code});
+  }
   if (context === 'playback') {
     // Playback keeps its own reviewed mapping (codes → copy, allowlisted safe server strings).
     const body = playbackUserMessage(error);

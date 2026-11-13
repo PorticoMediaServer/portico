@@ -275,7 +275,7 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
     const avatar = avatars.find(value => value.profileId === profileId);
     const picture = profilePictureSource(context.api, current?.accessToken, avatar, 90);
     return picture && typeof picture === 'object' && 'uri' in picture && typeof picture.uri === 'string'
-      ? {uri: picture.uri, cacheKey: `avatar:${profileId}:${avatar?.version ?? 0}`, ...(picture.headers ? {headers: picture.headers as Readonly<Record<string, string>>} : {})}
+      ? {uri: picture.uri, cacheKey: `avatar:${profileId}:${avatar?.url ?? ''}`, ...(picture.headers ? {headers: picture.headers as Readonly<Record<string, string>>} : {})}
       : undefined;
   };
   const submitRename = () => {
@@ -340,10 +340,11 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
     const order = [...profiles]; [order[index], order[next]] = [order[next], order[index]];
     void runAction(({manager}) => manager.order(order));
   };
+  const localPictures = context.signIn !== 'portico' && !context.account.account.hostedAccountId;
   const managementActions = manage && lease && active ? <View testID="profile-actions" style={{marginTop: 18}}>
           <Text style={[theme.type.captionStrong, {color: theme.colors.textTertiary, marginBottom: 8}]}>{[active.name, active.primary ? t('profile.main') : active.id === current?.viewer.profileId ? t('profile.current') : ''].filter(Boolean).join(' · ')}</Text>
           <View style={{borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-            {profilePicturePickerAvailable() ? <ProfileActionRow testID="profile-picture" label={t(avatars.some(value => value.profileId === active.id) ? 'profile.changePicture' : 'profile.addPicture')} onPress={() => {
+            {localPictures && profilePicturePickerAvailable() ? <ProfileActionRow testID="profile-picture" label={t(avatars.some(value => value.profileId === active.id) ? 'profile.changePicture' : 'profile.addPicture')} onPress={() => {
               void runAction(async ({identity}) => {
                 const picked = await pickProfilePicture(lease!);
                 if (!picked) return;
@@ -352,9 +353,10 @@ export function ProfileRoute({context, route, onBack, embedded = false}: {contex
                 if (lease!.current()) setAvatars(next);
               });
             }}/> : null}
-            {avatars.some(value => value.profileId === active.id) ? <ProfileActionRow testID="profile-remove-picture" label={t('profile.removePicture')} onPress={() => {
+            {localPictures && avatars.some(value => value.profileId === active.id) ? <ProfileActionRow testID="profile-remove-picture" label={t('profile.removePicture')} onPress={() => {
               void runAction(async ({identity}) => {await identity.removeAvatar(active.id); const next = await identity.avatars(); if (lease!.current()) setAvatars(next);});
             }}/> : null}
+            {!localPictures && <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{t('profile.pictureInPorticoAccount')}</Text>}
             <ProfileActionRow testID="profile-rename" label={t('profile.rename')} onPress={() => openEditor('rename')}/>
             <ProfileActionRow testID="profile-limits" label={t('profile.limits')} description={t('profile.limitsHelp')} onPress={() => openEditor('limits')}/>
             <ProfileActionRow testID="profile-pin" label={t(active.pinRequired ? 'profile.changePin' : 'profile.setPin')} onPress={() => openEditor('pin')}/>

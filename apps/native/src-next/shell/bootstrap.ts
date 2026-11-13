@@ -93,6 +93,8 @@ export type NativeShellBootstrapContext = Readonly<{
   subscribePreferences: (listener: () => void) => () => void;
   appVersion: string;
   serverName: string;
+  /** The selected server's sign-in kind, also while an account is moving. */
+  signIn?: 'local' | 'portico';
   current: () => boolean;
   playback: ReturnType<typeof createNativeShellPlaybackAdapter>;
   watch: NativeWatchOutlet;
@@ -345,7 +347,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     const contextBase: Omit<NativeShellBootstrapContext, 'playback' | 'watch'> = {api: local, home: documentService, events, session: () => current() ? session : undefined, rememberedProfile: nativeRememberedProfile(() => current() ? session : undefined), authority: () => authority,
       subscribeAuthority: listener => {authorityListeners.add(listener); return () => {authorityListeners.delete(listener);};},
       preferences: currentPreferences, subscribePreferences: listener => {preferenceListeners.add(listener); return () => {preferenceListeners.delete(listener);};},
-      appVersion: installed.appVersion, serverName: server.name, current,
+      appVersion: installed.appVersion, serverName: server.name, signIn: selected.signIn, current,
       get account() {return currentAccount();}, libraries: () => current() ? libraries : [], navigation,
       subscribeLibraries: listener => {listeners.add(listener); return () => {listeners.delete(listener);};},
       readLibraries: async requestSignal => {

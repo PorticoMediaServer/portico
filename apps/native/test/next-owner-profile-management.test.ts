@@ -15,7 +15,7 @@ const actionSheet = (tree: any, name: string) => {const found = nodes(tree).find
 const text = (value: any): string => Array.isArray(value) ? value.map(text).join('') : typeof value === 'string' ? value : value?.props ? text(value.props.children) : '';
 const tick = async () => {for (let count = 0; count < 5; count++) await Promise.resolve();};
 
-async function fixture(main = true, pinRequired = false) {
+async function fixture(main = true, pinRequired = false, pictures = false) {
   const host = hooks(), limitsHost = hooks(), writes: any[] = [];
   let renderingHost = host;
   const react: any = {};
@@ -61,7 +61,7 @@ async function fixture(main = true, pinRequired = false) {
     '../../../../../packages/client-core/src': {HttpHostedApi: class {constructor() {throw new Error('Unexpected Hosted contact');}}},
     '../../../../../packages/client-core/src/route-identity': {routeOrigin: (value: string) => value},
     '../../platform/accounts': {}, '../../platform/app-session-storage': {}, '../../platform/native-session-lifecycle': {}, '../../platform/profile-recovery': {}, '../../platform/account-authority': {},
-    '../../platform/profile-avatars': {profileAvatarUpload: () => ({}), profilePictureSource: () => undefined, profilePicturePickerAvailable: () => false}, '../../platform/server-connections': {},
+    '../../platform/profile-avatars': {profileAvatarUpload: () => ({}), profilePictureSource: () => undefined, profilePicturePickerAvailable: () => pictures}, '../../platform/server-connections': {},
     '../settings-live/ProfileEditorFields': await profileEditorFields(react, {colors, type, isTV: false}),
     '../settings-live/lifetime': {NativeScreenLifetime: class {current = () => true; dispose() {}}},
     '../../shell/model': {sameAuthority: (left: unknown, right: unknown) => left === right},
@@ -284,4 +284,16 @@ test('a blocked retirement keeps the pending wording and the existing failure, n
   assert.ok(text(sheet).includes('fixture failure'), 'the screen’s existing error handling owns the retry');
   assert.equal(nodes(sheet).some(node => node.props.testID === 'profile-delete-done'), false);
   assert.equal(text(sheet).includes('profile.deleteConfirm.removed'), false);
+});
+
+
+test('Portico Account servers replace the profile picker action with the account-owned picture instruction', async () => {
+  const f = await fixture(true, false, true);
+  byID(f.render(), 'settings-profile-other').props.onPress();
+  assert.ok(byID(f.render(), 'profile-picture'));
+  f.context.signIn = 'portico';
+  const tree = f.render();
+  assert.equal(nodes(tree).some(node => ['profile-picture', 'profile-remove-picture'].includes(node.props.testID)), false);
+  assert.ok(text(tree).includes('profile.pictureInPorticoAccount'));
+  assert.equal(f.writes.length, 0);
 });
