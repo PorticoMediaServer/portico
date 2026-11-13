@@ -7,7 +7,7 @@
 import {servicesRoute, type ServicesRoute} from '../../contracts/src/services/routes.ts';
 
 export class ServicesError extends Error {
-  constructor(readonly status: number, readonly code: string, readonly fields: Readonly<Record<string, string>> = {}) {
+  constructor(readonly status: number, readonly code: string, readonly fields: Readonly<Record<string, string>> = {}, readonly retryAfterSeconds?: number) {
     super(code);
   }
 }
@@ -74,7 +74,8 @@ async function send<T>({origin, cookie, fetcher = fetch}: Transport, route: Serv
   const problem = (value as {error?: {code?: unknown; fields?: unknown}} | undefined)?.error;
   const code = typeof problem?.code === 'string' ? problem.code : response.status >= 500 ? 'internal' : 'bad_request';
   const fields = problem?.fields && typeof problem.fields === 'object' ? problem.fields as Record<string, string> : {};
-  throw new ServicesError(response.status, code, fields);
+  const wait = Number(response.headers.get('Retry-After'));
+  throw new ServicesError(response.status, code, fields, Number.isFinite(wait) && wait > 0 ? Math.ceil(wait) : undefined);
 }
 
 /** The routes where Portico Services sets, reads or clears its sign-in cookie for a browser. */
@@ -166,6 +167,8 @@ export function porticoAccount(held: HeldSignIn, origin = '', {cookie = false, f
     changePassword: (proof: Proof, newPassword: string) => person<void>('password', {}, {...proof, newPassword}),
     askEmailChange: (proof: Proof, newEmail: string) => person<{email: string}>('email', {}, {...proof, newEmail}),
     confirmEmailChange: (email: string, code: string) => anyone<{email: string}>('confirm', {}, {email, code}),
+    /** The whole JSON download; only its header is read by the caller to bind it to this account. */
+    exportData: (proof: Proof) => person<{format: string; account: {id: string}}>('accountExport', {}, proof),
     deleteAccount: async (proof: Proof) => {
       await person<void>('deleteAccount', {}, proof);
       held.forget(held.current());

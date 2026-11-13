@@ -19,7 +19,7 @@ export function porticoApiError(error: unknown): unknown {
   if (error.code === 'unreachable') return new ApiError(0, 'network', 'portico_services_unreachable', true);
   if (error.code === 'username_taken') return new ApiError(409, 'username_unavailable', 'portico_services_refused');
   if (typedWrong.has(error.code)) return new ApiError(422, error.code === 'two_step_wrong' ? error.code : 'invalid_' + error.code, 'portico_services_refused');
-  return new ApiError(error.status, error.code, 'portico_services_refused', error.status >= 500 || error.status === 429);
+  return new ApiError(error.status, error.code, 'portico_services_refused', error.status >= 500 || error.status === 429, error.retryAfterSeconds);
 }
 const refused = async <T>(work: Promise<T>): Promise<T> => { try { return await work; } catch (error) { throw porticoApiError(error); } };
 
