@@ -37,7 +37,9 @@ import {usePlatformPosture} from '../../platform/platformPosture';
 import {mediumRailMetrics} from '../../shell/model';
 import {usePageInset} from '../../kit/layout/page-inset';
 import {TVRow} from '../../kit/layout/TVRow';
-import {BarSurface, RoundBarButton, TopBar} from '../../kit/layout/TopBar';
+import {BarSurface, TopBar} from '../../kit/layout/TopBar';
+import {PlayOnButton} from '../../shell/PlayOnButton';
+import type {NativePlayOn} from '../../platform/play-on/controller';
 
 export type NativeTitleScreenProps = Readonly<{
   controller: NativeTitleController;
@@ -65,6 +67,8 @@ export type NativeTitleScreenProps = Readonly<{
   /** tablet6/8: the real Play on control. Present only while this device has a
    * local playback the shell can hand off; the screen never invents one. */
   onPlayOn?: (anchorRef?: React.RefObject<View | null>) => void;
+  /** The one Play on controller, for the top bar's shared button and its chosen-device state. */
+  playOn?: NativePlayOn;
   /** A registered person route, where the shell has one. */
   person?: (personId: string) => void;
   /** The signed-in viewer owns this server; Show settings is drawn for owners. */
@@ -134,7 +138,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
   const titleOnly = props.watch?.sections === 'title', episodesOnly = props.watch?.sections === 'episodes';
   const leftWidth = twoPane ? divider - inset : pageWidth, rightWidth = twoPane ? viewport.width - divider : pageWidth;
   const bodyWidth = props.watch?.width ?? (twoPane ? rightWidth : pageWidth);
-  const scroll = useRef<ScrollView>(null), titleMore = useRef<View>(null), titlePlay = useRef<View>(null), titlePlayOn = useRef<View>(null), bodyTop = useRef(0), cells = useRef(new Map<string, {y: number; height: number}>());
+  const scroll = useRef<ScrollView>(null), titleMore = useRef<View>(null), titlePlay = useRef<View>(null), bodyTop = useRef(0), cells = useRef(new Map<string, {y: number; height: number}>());
   const [tvBrowsing, setTVBrowsing] = useState(false), [tvTab, setTVTab] = useState<NativeTitleTab>(snapshot.place.tab);
   const tvAnchor = useRef<Readonly<{browsing: boolean; anchor?: string}> | undefined>(undefined), tvAligned = useRef('');
   const [collapsed, setCollapsed] = useState(false), [elapsed, setElapsed] = useState(0), [pinnedWidth, setPinnedWidth] = useState(0);
@@ -261,7 +265,7 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
   // page scrolls past the hero it pins the bar surface and the title, as every pushed page's bar does.
   const headerFor = (showTitle: boolean) => !theme.isTV && !props.watch && <View testID="watch-title-header" pointerEvents="box-none" style={{position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10}}>
     <TopBar overArtwork surface={collapsed} back={{label: t('action.back'), onPress: props.back, testID: 'watch-title-back'}} title={collapsed && showTitle ? title : undefined}
-      trailing={props.onPlayOn ? <RoundBarButton ref={titlePlayOn} testID="watch-title-play-on" icon="i-cast" label={t('next.dock.native.playOnMenu')} onPress={() => props.onPlayOn?.(titlePlayOn)}/> : undefined}/>
+      trailing={props.onPlayOn ? <PlayOnButton playOn={props.playOn} variant="round" testID="watch-title-play-on" onPress={anchor => props.onPlayOn?.(anchor)}/> : undefined}/>
   </View>;
   const header = headerFor(true);
   const removeContinue = () => {

@@ -489,15 +489,16 @@ export function createNativeWatchScreens(ports: NativeWatchFactoryPorts) {
       // captured route, revision, authority and lifetime, plus the live controller
       // and the playback's own cast capability, exactly as the search action does:
       // a retained handler can never open a chooser under a later route.
-      const onPlayOn = navigation.route === route && runtime.playOn && ports.playback.getSnapshot().capabilities.cast
+      // The top bar's Play on shows whenever there is somewhere to play (PlayOnButton), playing or not: with nothing
+      // playing, a choice is where the next playback goes.
+      const onPlayOn = navigation.route === route && runtime.playOn
         ? (anchorRef?: React.RefObject<View | null>) => {
             const now = ports.navigation.getSnapshot();
             if (!alive() || !sameAuthority(now.authority, ports.authority) || now.route !== route || now.revision !== navigation.revision) return;
-            if (!runtime.playOn || !ports.playback.getSnapshot().capabilities.cast) return;
-            runtime.playOn.open(anchorRef);
+            runtime.playOn?.open(anchorRef);
           } : undefined;
       const selection = selectionFor(key, controller);
-      return <NativeTitleScreen authority={ports.authority} {...ports.title} search={search} removeContinue={removeContinue} onPlayOn={onPlayOn} key={key} controller={controller} text={runtime.text} artwork={runtime.artwork} ambient={runtime.ambient}
+      return <NativeTitleScreen authority={ports.authority} {...ports.title} search={search} removeContinue={removeContinue} onPlayOn={onPlayOn} playOn={runtime.playOn} key={key} controller={controller} text={runtime.text} artwork={runtime.artwork} ambient={runtime.ambient}
         selection={selection ? entry => selection.item(entry) : undefined} selectionBar={selection?.render()}
         back={() => {ports.navigation.back(ports.authority);}} more={(entry, anchorRef) => {
           const owner = controller!;

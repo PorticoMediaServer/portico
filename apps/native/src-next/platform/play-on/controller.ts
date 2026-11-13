@@ -59,7 +59,13 @@ export type PlayOnSnapshot = Readonly<{
   remoteOpen: boolean;
   /** A failed attempt's text stays on the sheet until the next one. */
   error?: string;
+  /** Where the next thing played goes, chosen from the top bar's Play on while nothing played here (owner, 13 Nov):
+   * one of the account's devices, or Google Cast (the system's chooser names the device when playback starts).
+   * Kept until the person picks This device. */
+  chosen?: PlayOnChoice;
 }>;
+
+export type PlayOnChoice = Readonly<{kind: 'device'; device: PlayOnDevice} | {kind: 'cast'}>;
 
 type Options = Readonly<{
   api: Readonly<{baseUrl?: string; createCastStopKey?():Promise<string>; request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>;
@@ -119,8 +125,50 @@ export class NativePlayOn {
         return;
       }
       if (this.state.remote && (!remote || remote.id !== this.state.remote.id)) this.clearRemote();
+      this.forward();
     });
   }
+
+  /** The playback this device could move now: a queue playback, ready and on the dock. */
+  private movable(): PlaybackFence | undefined {
+    const snapshot = this.options.playback()?.getSnapshot(), fence = snapshot?.fence, local = snapshot?.dock.local;
+    return fence && fence.kind === 'queue' && snapshot.playback.phase === 'ready' && local && sameFence(local.fence, fence) ? fence : undefined;
+  }
+  private forwarded?: PlaybackFence;
+  /** With a target chosen, a new playback here goes there once it is ready (rule 24: this device plays until the other
+   * has taken over). Once per playback run: a failed move leaves it playing here and says so on the sheet. */
+  private forward(): void {
+    const chosen = this.state.chosen, fence = this.movable();
+    if (!chosen || !fence || this.state.sending || (this.forwarded && sameFence(this.forwarded, fence))) return;
+    this.forwarded = fence;
+    if (chosen.kind === 'device') void this.send(chosen.device); else this.startCast();
+  }
+
+  /** A row in Play on: with something playing here it moves now; with nothing playing it becomes the choice for the
+   * next playback. `undefined` is This device: nothing is sent anywhere any more. */
+  choose = (target: PlayOnDevice | 'cast' | undefined): void => {
+    if (this.disposed || !this.options.current()) return;
+    if (target === undefined) {this.forwarded = undefined; this.publish({chosen: undefined, open: false}); return;}
+    const chosen: PlayOnChoice = target === 'cast' ? {kind: 'cast'} : {kind: 'device', device: target};
+    if (this.movable()) {
+      this.publish({chosen});
+      this.forwarded = this.movable();
+      if (target === 'cast') this.startCast(); else void this.send(target);
+      return;
+    }
+    this.forwarded = undefined;
+    this.publish({chosen, open: false});
+  };
+
+  /** The account's devices, read once for the top bar's Play on button (it is shown only when there is somewhere to play). */
+  readDirectory = (): void => {
+    if (this.disposed || !this.options.current() || this.directoryRead) return;
+    const controller = this.ensureHandoff();
+    if (!controller) return;
+    this.directoryRead = true;
+    void controller.refresh().catch(error => {this.directoryRead = false; if (this.options.current()) this.options.reportError(error);});
+  };
+  private directoryRead = false;
 
   subscribe = (listener: () => void): (() => void) => {this.listeners.add(listener); return () => {this.listeners.delete(listener);};};
   getSnapshot = (): PlayOnSnapshot => this.state;
@@ -149,8 +197,7 @@ export class NativePlayOn {
     this.publish(patch);
   }
 
-  open = (anchorRef?: RefObject<View | null>): boolean => {
-    if (this.disposed || !this.options.current()) return false;
+  private ensureHandoff(): HandoffController | undefined {
     const session = this.options.session();
     if (!this.controller && session?.deviceId) {
       // Every send and control adds its own captured guard on top of this.
@@ -159,9 +206,15 @@ export class NativePlayOn {
       this.controller = controller;
       this.offController = stop;
     }
-    if (!this.controller) return false;
+    return this.controller;
+  }
+
+  open = (anchorRef?: RefObject<View | null>): boolean => {
+    if (this.disposed || !this.options.current()) return false;
+    const controller = this.ensureHandoff();
+    if (!controller) return false;
     this.publish({open: true, anchorRef, error: undefined});
-    void this.controller.refresh().catch(error => {if (this.options.current()) this.options.reportError(error);});
+    void controller.refresh().catch(error => {if (this.options.current()) this.options.reportError(error);});
     return true;
   };
   private offController?: () => void;

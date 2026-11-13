@@ -5,7 +5,7 @@ import {screenModule} from './helpers/screen-harness.mjs';
 /** The real NativePlayOn logic runs against held transport doubles, with no
  * network or wall-clock polling wait. Server admission and native IO are not run. */
 async function fixture() {
-  const commands: any[] = [], errors: unknown[] = [];
+  const commands: any[] = [], errors: unknown[] = [], sent: string[] = [];
   let permitted = true;
   const receiver = {id: 'tv', displayName: 'Living room', platform: 'tvos', allowed: false};
   const authority = {serverId: 'server', accountId: 'account', profileId: 'profile', epoch: 'epoch'};
@@ -26,7 +26,7 @@ async function fixture() {
     subscribe(listener: () => void) {this.listeners.add(listener); return () => this.listeners.delete(listener);}
     getSnapshot() {return this.state;}
     async refresh() {for (const listener of this.listeners) listener();}
-    async send() {this.state = {...this.state, phase: 'done', receiverPlaybackId: 'receiver-1'}; for (const listener of this.listeners) listener(); return true;}
+    async send(target: any) {sent.push(target.id); this.state = {...this.state, phase: 'done', receiverPlaybackId: 'receiver-1'}; for (const listener of this.listeners) listener(); return true;}
     async control(target: any) {commands.push(['control', target.id]); this.state = {...this.state, phase: 'done', receiverPlaybackId: target.playing.sessionId}; for (const listener of this.listeners) listener(); return true;}
     async refreshRemote() {this.state = {...this.state, remote: report};}
     async pause() {commands.push(['pause']); return true;}
@@ -52,8 +52,9 @@ async function fixture() {
   const controller = new NativePlayOn({api: {request: async () => ({})}, session: () => session, deviceName: () => 'Phone', playback: () => playback,
     current: () => permitted, reportError: (error: unknown) => errors.push(error)});
   const settle = () => new Promise<void>(resolve => setImmediate(resolve));
-  return {controller, receiver, entry, commands, errors, settle, report: () => report, local: () => snapshot,
+  return {controller, receiver, entry, commands, errors, sent, settle, report: () => report, local: () => snapshot,
     setReport: (value: any) => {report = value;}, revoke: () => {permitted = false;},
+    setPlayback: (next: any) => {snapshot = next; for (const listener of [...playbackListeners]) listener();}, idle: {authority, playback: {phase: 'idle', positionSeconds: 0, duration: 0}, dock: {}}, playing: snapshot,
     replaceLocal: () => {snapshot = {...snapshot, entry: {id: 'other', title: 'Other title', stillUrl: '/v1/art/other'}};}};
 }
 
@@ -128,4 +129,37 @@ test('rule 28: Control takes over what the TV plays by itself; the remote opens 
   await f.controller.pause(state.remote.id);
   assert.deepEqual(f.commands.at(-1), ['pause']);
   assert.deepEqual(f.errors, []);
+});
+
+// Owner, 13 Nov: the top bar's Play on works with nothing playing; the choice is where the next playback goes.
+test('with nothing playing a device is chosen, not sent; the next playback goes there once; This device ends it', async t => {
+  const f = await fixture(); t.after(() => f.controller.dispose());
+  f.setPlayback(f.idle);
+  f.controller.open(); f.controller.choose(f.receiver); await f.settle();
+  assert.deepEqual(f.controller.getSnapshot().chosen, {kind: 'device', device: f.receiver});
+  assert.equal(f.controller.getSnapshot().open, false, 'choosing closes the sheet');
+  assert.deepEqual(f.sent, [], 'nothing is sent while nothing plays');
+  f.setPlayback(f.playing); await f.settle();
+  assert.deepEqual(f.sent, ['tv'], 'the new playback goes to the chosen device');
+  f.setPlayback({...f.playing}); await f.settle();
+  assert.equal(f.sent.length, 1, 'once per playback run');
+  f.controller.choose(undefined);
+  assert.equal(f.controller.getSnapshot().chosen, undefined);
+  f.setPlayback(f.idle); f.setPlayback({...f.playing, fence: {...f.playing.fence, sessionId: 'next'}, dock: {local: {...f.playing.dock.local, fence: {...f.playing.fence, sessionId: 'next'}}}}); await f.settle();
+  assert.equal(f.sent.length, 1, 'after This device, playback stays here');
+  assert.deepEqual(f.errors, []);
+});
+
+test('with something playing, choosing a device moves it now, as the player\'s Play on did', async t => {
+  const f = await fixture(); t.after(() => f.controller.dispose());
+  f.controller.open(); f.controller.choose(f.receiver); await f.settle();
+  assert.deepEqual(f.sent, ['tv']);
+  assert.ok(f.controller.getSnapshot().remote, 'the remote follows the move');
+});
+
+test('the directory is read once for the top bar, without opening the sheet', async t => {
+  const f = await fixture(); t.after(() => f.controller.dispose());
+  f.controller.readDirectory(); f.controller.readDirectory(); await f.settle();
+  assert.equal(f.controller.getSnapshot().open, false);
+  assert.deepEqual(f.controller.getSnapshot().receivers, [f.receiver]);
 });

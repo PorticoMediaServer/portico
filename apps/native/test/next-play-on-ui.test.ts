@@ -24,7 +24,7 @@ async function sheet(options: {airplay?: boolean; tablet?: boolean; state?: any}
     castCommand: (...args: any[]) => commands.push(['cast', ...args]), command: (...args: any[]) => commands.push(['command', ...args]),
     skip: (...args: any[]) => commands.push(['skip', ...args]), pause: (...args: any[]) => commands.push(['pause', ...args]),
     resume: (...args: any[]) => commands.push(['resume', ...args]), stop: (...args: any[]) => commands.push(['stop', ...args]),
-    send: (...args: any[]) => commands.push(['send', ...args]), startCast() {}, openCastRemote() {},
+    send: (...args: any[]) => commands.push(['send', ...args]), choose: (...args: any[]) => commands.push(['choose', ...args]), startCast() {}, openCastRemote() {},
     cast: {viewIsCurrent: (control: any) => control === state.cast?.control, selectTrack: (...args: any[]) => commands.push(['track', ...args])}};
   const module = await screenModule(new URL('../src-next/screens/watch/PlayOnSheets.tsx', import.meta.url), {
     react: hook.react, 'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
@@ -88,7 +88,7 @@ test('receiver rows keep platform context, grouping and chevrons without middle-
   assert.ok(text(find(tree, 'play-on-handover')).includes('playOn.stillHereUntilTakeover'));
   assert.ok(descendants(row).some(node => node.type === 'Icon' && node.props.name === 'i-right'));
   assert.equal(row.props.style({focused: false}).minHeight, 52);
-  row.props.onPress(); assert.deepEqual(f.commands[0], ['send', receiver]);
+  row.props.onPress(); assert.deepEqual(f.commands[0], ['choose', receiver], 'a row chooses: it moves what plays now, or is where the next playback goes');
   assert.ok(descendants(find(tree, 'play-on-link')).some(node => node.type === 'Icon' && node.props.name === 'i-tv'));
   assert.equal(f.module.playOnPlatformName('__proto__'), undefined); assert.equal(f.module.playOnPlatformName('unexpected'), undefined);
 });

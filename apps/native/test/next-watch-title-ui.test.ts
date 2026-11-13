@@ -64,10 +64,10 @@ test('title chrome allocates the current safe area and keeps real Back and Play 
     // The shared top bar (kit/layout/TopBar) owns the safe area and the 44 pt row: round glass back and Play on over the art.
     const bar = descendants(header).find(node => node.type === 'TopBar'), cast = bar.props.trailing;
     assert.equal(bar.props.overArtwork, true); assert.equal(bar.props.back.testID, 'watch-title-back');
-    assert.equal(cast.type, 'RoundBarButton'); assert.equal(cast.props.icon, 'i-cast');
+    assert.equal(cast.type, 'PlayOnButton'); assert.equal(cast.props.variant, 'round', 'the shared Play on button, round over the art');
     bar.props.back.onPress(); assert.equal(f.calls.pop(), 'back');
-    cast.props.ref.current = {nativeTag: 18}; cast.props.onPress();
-    assert.equal(f.calls.pop(), cast.props.ref, 'Play on receives the actual opener ref');
+    const anchor = {current: {nativeTag: 18}}; cast.props.onPress(anchor);
+    assert.equal(f.calls.pop(), anchor, 'Play on receives the actual opener ref');
   }
 });
 
