@@ -150,15 +150,10 @@ class MoveTransport {
  }
 }
 export class MemberAccountMoveClient extends MoveTransport {
- password(username:string,password:string,signal?:AbortSignal){if(!text(username,64)||!text(password,72))invalid();return this.call(routePath('post_auth_move_password'),'POST',routeBody('post_auth_move_password',{username,password}),parseMovePasswordTicket,signal);}
  /** The rebuilt server's check of the owner's move code (`server-next/API.md`, `POST /v1/auth/move/check`). */
  previewCode(code:string,signal?:AbortSignal){if(!moveCode(code))invalid();return this.call(serverPath('POST /v1/auth/move/check'),'POST',{code},parseMoveCheck,signal);}
  /** Finishes a move to local sign-in with the code and the username and password chosen (`POST /v1/auth/move/complete`); the answer is the sign-in. */
  redeemLocal(code:string,username:string,password:string,signal?:AbortSignal){if(!moveCode(code)||!text(username,64)||!text(password,72))invalid();return this.call(serverPath('POST /v1/auth/move/complete'),'POST',{code,username,password,device:signInDevice()},raw=>this.grant(raw),signal,value=>value);}
- redeemPortico(proof:MoveCredential,porticoIdentity:RouteRequest<'post_auth_move_portico'>['porticoIdentity'],signal?:AbortSignal){
-  if(!obj(proof)||(secret(proof.code)?proof.ticket!==undefined:!secret(proof.ticket)||proof.code!==undefined))invalid();
-  return this.call(routePath('post_auth_move_portico'),'POST',routeBody('post_auth_move_portico',{...proof,porticoIdentity}),raw=>this.grant(raw),signal,value=>value);
- }
 }
 /** Phones/TV use this surface only. The producer still rechecks live owner + main profile. */
 export class OwnerSignInSettingsClient extends MoveTransport {
@@ -176,30 +171,75 @@ export class OwnerSignInSettingsClient extends MoveTransport {
   return this.call(serverPath('POST /v1/admin/sign-in/finish'),'POST',{},raw=>{if(!obj(raw)||typeof raw.notMoved!=='number'||!Number.isSafeInteger(raw.notMoved)||raw.notMoved<0)invalid();return raw.notMoved;},signal);
  }
 }
+/** The owner's switch of this server's kind of sign-in, Start over, Finish now and the codes for people waiting, on the
+ * rebuilt server (`server-next/internal/api/sign_in_kind.go`; definition 02 rules 15 to 30). A preview holds nothing on the
+ * server; the switch is one request that answers the owner's new sign-in on this device. */
+export type OwnerSwitchInput=Readonly<{to:SignInKind;startOver:boolean;serverName?:string;currentPassword?:string;code?:string;username?:string;password?:string;approval?:string}>;
+export type OwnerSwitchApproval=Readonly<{approvalId:string;approvalUrl:string;pollToken:string;expiresAt:string;pollAfterMs:number}>;
+export type OwnerSwitchPreview=AccountMove&Readonly<{approval?:OwnerSwitchApproval;porticoUnavailable?:boolean}>;
+const declined=()=>new CodedError('approval_declined','The Portico Account approval was declined or ran out. Try again.');
 export class AccountMoveClient extends MoveTransport {
- current(signal?:AbortSignal):Promise<AccountMove|null>{return this.call(routePath('get_sign_in_move'),'GET',undefined,raw=>{if(!obj(raw)||!Object.hasOwn(raw,'move'))invalid();return raw.move===null?null:parseAccountMove(raw.move);},signal);}
- preview(to:SignInKind,startOver:boolean,signal?:AbortSignal){if(!['portico','local'].includes(to)||typeof startOver!=='boolean')invalid();return this.call(routePath('post_sign_in_move_preview'),'POST',routeBody('post_sign_in_move_preview',{to,startOver}),parseAccountMove,signal);}
- confirm(input:RouteRequest<'post_sign_in_move_confirm'>,signal?:AbortSignal):Promise<AccountMoveConfirmation>{
-  if(!text(input.moveId,128)||!count(input.expectedRevision)||input.expectedRevision<1)invalid();
-  return this.call(routePath('post_sign_in_move_confirm'),'POST',routeBody('post_sign_in_move_confirm',input),raw=>{
-   if(!obj(raw)||Object.hasOwn(raw,'move')===Object.hasOwn(raw,'signIn'))invalid();
-   return raw.signIn!==undefined?Object.freeze({kind:'local' as const,signIn:this.grant(raw.signIn)}):Object.freeze({kind:'portico' as const,move:parseAccountMove(raw.move)});
-  },signal,value=>value.kind==='local'?value.signIn:undefined);
+ /** What a switch or Start over would do, with this server's real numbers, in the shape the dialogs draw. `from` and
+  * `serverName` are the page's own facts; `returnUrl` asks Portico Services for an approval when moving to Portico. */
+ preview(to:SignInKind,startOver:boolean,facts:Readonly<{from:SignInKind;serverName:string;returnUrl?:string}>,signal?:AbortSignal):Promise<OwnerSwitchPreview>{
+  if(!['portico','local'].includes(to)||typeof startOver!=='boolean')invalid();
+  return this.call(serverPath('POST /v1/admin/sign-in/preview'),'POST',{to,startOver,...(facts.returnUrl?{returnUrl:facts.returnUrl}:{})},raw=>{
+   if(!obj(raw)||raw.to!==to||raw.startOver!==startOver)invalid();
+   for(const key of ['signInAgain','removed','profilesRemoved','profilesKept','signedOut','invitationsCancelled'])if(!count(raw[key]))invalid();
+   const approval=obj(raw.approval)&&text(raw.approval.approvalId,256)&&text(raw.approval.approvalUrl,2048)&&text(raw.approval.pollToken,512)?Object.freeze({approvalId:raw.approval.approvalId,approvalUrl:raw.approval.approvalUrl,pollToken:raw.approval.pollToken,expiresAt:String(raw.approval.expiresAt??''),pollAfterMs:count(raw.approval.pollAfterMs)?raw.approval.pollAfterMs:2000}):undefined;
+   const n=(key:string)=>raw[key] as number;
+   return Object.freeze({id:'preview',from:facts.from,to,startOver,stage:'preview' as const,revision:1,people:startOver?n('removed'):n('signInAgain'),
+    profiles:n('profilesKept')+(startOver?n('profilesRemoved'):0),invitations:n('invitationsCancelled'),waiting:0,serverName:facts.serverName,ownAddressRequired:to==='local',
+    ...(startOver?{retainedProfiles:n('profilesKept'),removedProfiles:n('profilesRemoved')}:{devices:n('signedOut')}),
+    ...(approval?{approval}:{}),...(raw.porticoUnavailable===true?{porticoUnavailable:true}:{})});
+  },signal);
  }
- cancelPreview(move:AccountMove,signal?:AbortSignal){if(move.stage!=='preview')invalid();return this.call(encodedRoutePath('post_sign_in_move_cancel',{id:encodeURIComponent(move.id)}),'POST',routeBody('post_sign_in_move_cancel',{expectedRevision:move.revision}),()=>undefined,signal);}
- finish(move:AccountMove,signal?:AbortSignal){if(!['moving_to_local','moving_to_portico'].includes(move.stage))invalid();return this.call(encodedRoutePath('post_sign_in_move_finish',{id:encodeURIComponent(move.id)}),'POST',routeBody('post_sign_in_move_finish',{expectedRevision:move.revision}),()=>undefined,signal);}
- /** One receipt for exactly these targets. A receipt must return one code per
-  * requested account and nothing else; a row naming another server is refused. */
- codes(accountIds:readonly string[],signal?:AbortSignal,move?:Pick<AccountMove,'id'|'revision'>){if(accountIds.length>2000||accountIds.some(id=>!text(id,128))||new Set(accountIds).size!==accountIds.length)invalid();
-  if(move&&(!text(move.id,128)||!count(move.revision)||move.revision<1))invalid();
-  const targets=new Set(accountIds),body={accountIds:[...accountIds],...(move?{moveId:move.id,expectedRevision:move.revision}:{})};
-  return this.call(routePath('post_sign_in_move_codes'),'POST',routeBody('post_sign_in_move_codes',body),raw=>{
-   const rows=parseAccountMoveCodes(raw);
-   if(rows.length!==targets.size)invalid();
-   for(const row of rows){if(!targets.has(row.accountId))invalid();if((move||row.serverId!==undefined)&&row.serverId!==this.options.serverId)invalid();}
-   return rows;
-  },signal);}
- /** The exact waiting people, read through the official generated route. */
- waiting(signal?:AbortSignal){return this.call(routePath('get_sign_in_move_waiting'),'GET',undefined,parseAccountMoveWaiting,signal);}
-
+ /** Confirms the switch or Start over. The answer is the owner's new sign-in on this device; everyone else's ended. */
+ switchTo(input:OwnerSwitchInput,signal?:AbortSignal):Promise<DirectSignIn>{
+  if(!['portico','local'].includes(input.to))invalid();
+  if(input.to==='local'&&(!text(input.username,64)||!text(input.password,72)))invalid();
+  if(input.to==='portico'&&!text(input.approval,8192))invalid();
+  const body={to:input.to,device:signInDevice(),...(input.startOver?{startOver:true,serverName:input.serverName??''}:{}),
+   ...(input.currentPassword?{currentPassword:input.currentPassword}:{}),...(input.code?{code:input.code}:{}),
+   ...(input.to==='local'?{username:input.username,password:input.password}:{approval:input.approval})};
+  return this.call(serverPath('POST /v1/admin/sign-in/switch'),'POST',body,raw=>this.grant(raw),signal,value=>value);
+ }
+ /** Waits for the owner to approve with their Portico Account in another tab, and answers the approval to send. */
+ async approval(approval:OwnerSwitchApproval,wait:(ms:number)=>Promise<void>,signal?:AbortSignal):Promise<string>{
+  for(let tries=0;tries<600;tries++){
+   const answer=await this.call(serverPath('POST /v1/hosted/approvals/{id}/poll',{id:approval.approvalId}),'POST',{pollToken:approval.pollToken},raw=>{if(!obj(raw)||!text(raw.state,64))invalid();return raw as {state:string;approval?:unknown;pollAfterMs?:unknown};},signal);
+   if(answer.state==='approved'&&text(answer.approval,8192))return answer.approval;
+   if(answer.state!=='pending'&&answer.state!=='waiting')throw declined();
+   await wait(count(answer.pollAfterMs)&&answer.pollAfterMs>0?Math.min(answer.pollAfterMs,10000):approval.pollAfterMs);
+   if(signal?.aborted)ended();
+  }
+  throw declined();
+ }
+ /** The move in progress and the people still waiting (`GET /v1/admin/sign-in`), in the shape the panel draws. */
+ current(signal?:AbortSignal):Promise<AccountMove|null>{return this.call(serverPath('GET /v1/admin/sign-in'),'GET',undefined,raw=>{
+  if(!obj(raw)||!['portico','local'].includes(String(raw.kind))||!Array.isArray(raw.waiting))invalid();
+  if(!obj(raw.move))return null;
+  const to=raw.move.to;if(to!=='local'&&to!=='portico')invalid();
+  const waiting=raw.waiting.length,total=count(raw.move.total)?Math.max(raw.move.total,waiting):waiting;
+  return Object.freeze({id:'move',from:(to==='local'?'portico':'local') as SignInKind,to,startOver:false,stage:to==='local'?'moving_to_local' as const:'moving_to_portico' as const,revision:1,
+   people:total,profiles:0,invitations:0,waiting,serverName:'',ownAddressRequired:to==='local'});
+ },signal);}
+ /** Finish now: the accounts still waiting become "Didn't move" (rule 28). */
+ finish(_move?:AccountMove,signal?:AbortSignal){return this.call(serverPath('POST /v1/admin/sign-in/finish'),'POST',{},raw=>{if(!obj(raw)||!count(raw.notMoved))invalid();return raw.notMoved as number;},signal);}
+ /** A new code for each named person waiting, replacing any earlier one; shown once (rule 25). */
+ async codes(accountIds:readonly string[],signal?:AbortSignal):Promise<readonly AccountMoveCode[]>{
+  if(accountIds.length>2000||accountIds.some(id=>!text(id,128))||new Set(accountIds).size!==accountIds.length)invalid();
+  const out:AccountMoveCode[]=[];
+  for(const id of accountIds)out.push(await this.call(serverPath('POST /v1/admin/members/{id}/move-code',{id}),'POST',{},raw=>{
+   if(!obj(raw)||raw.id!==id||!text(raw.username,64)||!text(raw.code,128))invalid();
+   return Object.freeze({accountId:id,username:raw.username,code:raw.code,expiresAt:expiry(raw.expiresAt)});
+  },signal));
+  return Object.freeze(out);
+ }
+ /** The people waiting, with when their code stops working. */
+ waiting(signal?:AbortSignal){return this.call(serverPath('GET /v1/admin/sign-in'),'GET',undefined,raw=>{
+  if(!obj(raw)||!Array.isArray(raw.waiting)||raw.waiting.length>10000)invalid();
+  return Object.freeze({items:Object.freeze(raw.waiting.map(row=>{if(!obj(row)||!text(row.id,128)||!text(row.username,64))invalid();
+   return Object.freeze({accountId:row.id,username:row.username,...(row.codeExpiresAt===undefined?{}:{expiresAt:expiry(row.codeExpiresAt)})});})),truncated:false});
+ },signal);}
 }

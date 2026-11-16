@@ -36,7 +36,8 @@
 .panelIdentity b { font-size: 13px; font-weight: 700; }
 .panelIdentity small { font-size: 13px; font-weight: 600; color: var(--color-text-tertiary); }
 .panelTitle { display: flex; align-items: flex-end; gap: 14px; font-size: 32px; font-weight: 800; letter-spacing: -.035em; line-height: 1.1; }
-.panelTitleText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A panel's title wraps to a second line before it is cut ("Switch to Portico Accounts" at phone width). */
+.panelTitleText { min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 .saveState { flex: none; display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; letter-spacing: normal; color: var(--color-text-tertiary); }
 .saveState[data-state='saved'] { color: var(--color-accent-strong); }
 .panelBody { padding: 0; }

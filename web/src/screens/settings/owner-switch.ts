@@ -1,5 +1,5 @@
 import {revokeCurrentSession} from '../../../../packages/client-core/src/query/connection-operations.ts';
-import {AccountMoveClient, type AccountMove, type AccountMoveConfirmation, type MoveClientOptions} from '@core/account-move.ts';
+import {AccountMoveClient, type AccountMove, type MoveClientOptions, type OwnerSwitchPreview} from '@core/account-move.ts';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import type {DirectSignIn} from '@core/profile-management.ts';
 import type {SignInKind} from '@core/app-sessions.ts';
@@ -11,7 +11,10 @@ import {createBrowserOwnerClaim, type BrowserOwnerClaim, type OwnerClaimAttempt}
 import {ownerSwitchContextAllowed} from '../../platform/secure-pending';
 
 type Claim = Pick<BrowserOwnerClaim, 'prepare' | 'cancel' | 'cancelOperation'>;
-type Snapshot = Readonly<{busy: boolean; preview?: AccountMove; confirmed: boolean}>;
+type Snapshot = Readonly<{busy: boolean; preview?: OwnerSwitchPreview; confirmed: boolean}>;
+/** The owner's current password (and two-step code), typed fresh: a server with local sign-in asks for them before a
+ * switch or Start over (sign_in_kind.go), since either replaces the owner's password and can remove everyone else. */
+export type OwnerProof = Readonly<{currentPassword?: string; code?: string}>;
 const empty: Snapshot = Object.freeze({busy: false, confirmed: false});
 /** The calling surface's own liveness. Its exact opening/ticket supplies an abort
  * signal that is retired synchronously with that surface, so a confirmation can
@@ -22,6 +25,8 @@ export type OwnerMoveCaller = Readonly<{
 }>;
 export type OwnerSwitchOptions = Readonly<{
   serverId: string; hostedOrigin: string; isCurrent: () => boolean;
+  /** The kind of sign-in this server uses now, and its name (Start over is confirmed by typing it). */
+  signIn: SignInKind; serverName: () => string;
   /** The app's saved-selection revision, read for the confirmed local move. */
   selectionRevision?: () => Promise<number>;
   retireLateGrant?: MoveClientOptions['retireLateGrant'];
@@ -68,8 +73,6 @@ export class SettingsOwnerSwitch {
   private operation() {
     this.guard();
     if (this.state.busy) throw new Error('An owner switch request is already running.');
-    // The real factory checks encryption, IDB and native locks before even a tab locator.
-    this.claim ??= (this.options.createClaim ?? createBrowserOwnerClaim)();
     const epoch = ++this.epoch, request = this.request = new AbortController();
     this.publish({...this.state, busy: true});
     return {signal: request.signal, check: () => {this.guard();if (request.signal.aborted || epoch !== this.epoch) throw ended();},
@@ -78,17 +81,26 @@ export class SettingsOwnerSwitch {
   /** The drawn Change group has both directions. The target is the viewer's choice,
    * never assumed: local and Portico moves use the same captured preview/confirm
    * controller and the same currentness guards. */
-  async previewDirection(to: SignInKind, startOver: boolean): Promise<AccountMove> {
+  async previewDirection(to: SignInKind, startOver: boolean): Promise<OwnerSwitchPreview> {
     if (this.state.preview || this.state.confirmed) throw new Error('Close the current owner switch first.');
     if (to !== 'local' && to !== 'portico') throw new Error('Invalid sign-in direction.');
     const operation = this.operation();
     try {
-      const preview = await this.moves.preview(to, startOver, operation.signal);operation.check();
-      if (preview.to !== to || preview.from === to || preview.stage !== 'preview' || preview.startOver !== startOver) throw new Error('The owner move changed.');
+      // A move to Portico Accounts asks Portico Services for an approval the owner gives in another tab.
+      const returnUrl = to === 'portico' ? globalThis.location?.href : undefined;
+      const preview = await this.moves.preview(to, startOver, {from: this.options.signIn, serverName: this.options.serverName(), ...(returnUrl ? {returnUrl} : {})}, operation.signal);operation.check();
+      if (preview.to !== to || preview.startOver !== startOver) throw new Error('The owner move changed.');
       this.publish({busy: true, confirmed: false, preview});return preview;
     } finally {operation.finish();}
   }
-  async preview(startOver: boolean): Promise<AccountMove> { return this.previewDirection('portico', startOver); }
+  async preview(startOver: boolean): Promise<OwnerSwitchPreview> { return this.previewDirection('portico', startOver); }
+  /** A server with local sign-in asks the owner for their current password before a switch or Start over. */
+  needsProof = () => this.options.signIn === 'local';
+  /** Where the owner approves with their Portico Account: only ever on the Portico Account site this app knows. */
+  approvalUrl(): string | undefined {
+    const url = this.state.preview?.approval?.approvalUrl;
+    try {return url && new URL(url).origin === routeOrigin(this.options.hostedOrigin) ? url : undefined;} catch {return undefined;}
+  }
   /** A move to local ends in the server's own signed-in grant. The new local
    * owner's username and password are the caller's own draft (the server validates
    * them against the canonical policy); none is synthesised here. The returned
@@ -97,7 +109,7 @@ export class SettingsOwnerSwitch {
    * fails; this controller never stores or adopts a session. An optional caller
    * liveness/abort is joined before IO so a retired dialog cannot send credentials,
    * and a caller that retires after the response still has its fresh grant retired. */
-  async confirmLocal(credentials: Readonly<{username: string; password: string}>, confirmation: string, caller?: OwnerMoveCaller): Promise<LocalMoveCustody> {
+  async confirmLocal(credentials: Readonly<{username: string; password: string}>, confirmation: string, caller?: OwnerMoveCaller, proof: OwnerProof = {}): Promise<LocalMoveCustody> {
     const preview = this.state.preview;
     if (!preview || preview.to !== 'local' || this.state.confirmed) throw new Error('A fresh local move preview is required.');
     // Read the caller's draft once, before any await.
@@ -118,11 +130,11 @@ export class SettingsOwnerSwitch {
       // The dialog can retire while the first read is in flight; refuse before IO.
       if (!callerLive()) throw ended();
       const signal = caller?.signal ? AbortSignal.any([operation.signal, caller.signal]) : operation.signal;
-      const result: AccountMoveConfirmation = await this.moves.confirm({moveId: preview.id, expectedRevision: preview.revision, confirmation, username, password}, signal);
+      const result = await this.moves.switchTo({to: 'local', startOver: preview.startOver, serverName: confirmation, ...proof, username, password}, signal);
       // Register the returned grant immediately: from here every later guard or
       // publication failure still has custody to retire.
-      if (result.kind === 'local' && result.signIn.kind === 'signed-in') {
-        const grant = result.signIn;
+      if (result.kind === 'signed-in') {
+        const grant = result;
         custody = new LocalMoveCustody({grant, issuer: Object.freeze({origin: this.api.baseUrl, pin}), serverId: this.options.serverId, selectionRevision: revision},
           () => this.retire(grant.session));
       }
@@ -142,20 +154,22 @@ export class SettingsOwnerSwitch {
       throw error;
     } finally {operation.finish();}
   }
-  async confirmAndPrepare(confirmation: string): Promise<string> {
+  /** The switch to Portico Accounts (or its Start over): the owner approves in another tab, this page waits for the
+   * approval, then confirms with it. Everyone is signed out, the owner too (rule 19); the sign-in the server answers is
+   * ended here, and the owner signs in again with the Portico Account. */
+  async confirmPortico(confirmation: string, proof: OwnerProof = {}, wait: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms))): Promise<void> {
     const preview = this.state.preview;
-    if (!preview || this.state.confirmed) throw new Error('A fresh owner move preview is required.');
+    if (!preview?.approval || preview.to !== 'portico' || this.state.confirmed) throw new Error('A fresh owner move preview is required.');
     const operation = this.operation();
     try {
-      const result = await this.moves.confirm({moveId: preview.id, expectedRevision: preview.revision, confirmation, username: '', password: ''}, operation.signal);
-      if (result.kind !== 'portico') {
-        if (result.signIn.kind === 'signed-in') await this.retire(result.signIn.session);
-        throw new Error('Unexpected owner move continuation.');
-      }
-      operation.check();const move = result.move;
-      if (move.id !== preview.id || move.revision !== preview.revision || move.from !== 'local' || move.to !== 'portico' || move.stage !== 'preview' || move.startOver !== preview.startOver) throw new Error('The owner move changed.');
-      this.publish({busy: true, preview: move, confirmed: true});
-      return await this.prepare(operation);
+      this.publish({...this.state, busy: true, confirmed: true});
+      const approval = await this.moves.approval(preview.approval, wait, operation.signal);operation.check();
+      const result = await this.moves.switchTo({to: 'portico', startOver: preview.startOver, serverName: confirmation, ...proof, approval}, operation.signal);
+      if (result.kind === 'signed-in') await this.retire(result.session);
+      operation.check();
+    } catch (error) {
+      if (this.current()) this.publish({...this.state, busy: false, confirmed: false});
+      throw error;
     } finally {operation.finish();}
   }
   /** Begin the distinct change-owner claim on a Portico-account server. The
@@ -163,6 +177,8 @@ export class SettingsOwnerSwitch {
    * prepares only the existing owner claim handoff, never a move. */
   async prepareChangeOwner(caller?: OwnerMoveCaller, attempt: OwnerClaimAttempt = {}): Promise<string> {
     this.deliveredAttemptId = undefined;
+    // The real factory checks encryption, IDB and native locks before even a tab locator.
+    this.claim ??= (this.options.createClaim ?? createBrowserOwnerClaim)();
     const operation = this.operation();
     try {
       operation.check();
@@ -176,18 +192,6 @@ export class SettingsOwnerSwitch {
       return url;
     } finally {operation.finish();}
   }
-  async retryPreparation(): Promise<string> {
-    if (!this.state.confirmed) throw new Error('The owner move has not been confirmed.');
-    const operation = this.operation();
-    try {return await this.prepare(operation);} finally {operation.finish();}
-  }
-  private async prepare(operation: ReturnType<SettingsOwnerSwitch['operation']>): Promise<string> {
-    const attempt: OwnerClaimAttempt = {};
-    operation.check();const url = await this.claim!.prepare(this.api, this.options.hostedOrigin, 'switch', 'admin', undefined, attempt);
-    try {operation.check();} catch (error) {await attempt.lease?.cancel().catch(() => {});throw error;}
-    this.deliveredAttemptId = attempt.lease?.attemptId;
-    return url;
-  }
   /** The move actually in flight, from the same owner-fenced read the rows use. */
   getMove = (): AccountMove | null => {
     const move = this.current() ? this.move : null;
@@ -199,11 +203,14 @@ export class SettingsOwnerSwitch {
     this.move = move;
     for (const listener of this.moveListeners) listener();
   }
-  /** The rebuilt server keeps no move record at the old address (`GET /v1/admin/sign-in/move`): a move in
-   * progress is part of `GET /v1/admin/sign-in`, which the Sign-in page reads itself (signin-source.ts). So
-   * there is nothing to read here, and no request is made that can only answer 404. */
-  refreshMove(_signal?: AbortSignal) {
-    if (this.current()) this.publishMove(null);
+  private moveReading = false;
+  /** One read of the move in progress (`GET /v1/admin/sign-in`). A refusal or outage leaves the page without a
+   * claim of its own, so the drawn rows stay exactly as they were. */
+  refreshMove(signal?: AbortSignal) {
+    if (!this.current() || this.moveReading) return;
+    this.moveReading = true;
+    void this.moves.current(signal).then(move => {this.publishMove(move);}, () => undefined)
+      .finally(() => {this.moveReading = false;});
   }
   private finishing = false;
   /** The origin this server was actually proved at, or nothing. A page that cannot
@@ -249,18 +256,19 @@ export class SettingsOwnerSwitch {
   /** One memory-only receipt for the given exact targets; admits nobody. */
   codes(accountIds:readonly string[],signal?:AbortSignal,rendered?:AccountMove){
     if(rendered&&this.getMove()!==rendered)throw ended();
-    return this.moves.codes(accountIds,signal,rendered);
+    return this.moves.codes(accountIds,signal);
   }
   async cancelPreview() {
     const preview = this.state.preview;
     if (!preview || this.state.confirmed) throw new Error('Only an unconfirmed move preview can be canceled.');
     const operation = this.operation();
-    try {await this.moves.cancelPreview(preview, operation.signal);operation.check();await this.cancel();}
+    // A preview holds nothing on the server: closing it is only forgetting it here.
+    try {operation.check();await this.cancel();}
     finally {operation.finish();}
   }
   async cancelOperation() {
     const operation = this.operation();
-    try {await this.claim!.cancelOperation(this.api);operation.check();await this.cancel();}
+    try {await this.claim?.cancelOperation(this.api);operation.check();await this.cancel();}
     finally {operation.finish();}
   }
   async cancel() {
