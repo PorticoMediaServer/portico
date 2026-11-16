@@ -159,23 +159,20 @@ const setAside = {failures: [
   {domain: 1, title: fixture('next.troubleshooting.fixture.title2'), reason: fixture('next.troubleshooting.fixture.reason2'), attempts: 2, failedAt: '2026-10-22T17:10:00Z'},
 ], more: false};
 const capabilities = {items: [
-  {capability: 'live_tv', available: true, checkedAt: '2026-10-22T18:00:00Z'},
-  {capability: 'recording', available: true, checkedAt: '2026-10-22T18:00:00Z'},
-  {capability: 'prepared_media', available: true, checkedAt: '2026-10-22T18:00:00Z'},
-  {capability: 'hardware_encoding', available: false, code: 'hardware_unavailable', detail: fixture('next.troubleshooting.fixture.detail1'), checkedAt: '2026-10-22T18:00:00Z'},
-  {capability: 'decoder_sandbox', available: false, code: 'decoder_confinement_unavailable', checkedAt: '2026-10-22T18:00:00Z'},
-  {capability: 'dolby_vision_conversion', available: true, checkedAt: '2026-10-22T18:00:00Z'},
+  {area: 'ffmpeg', name: 'ffmpeg', state: 'works', detail: 'FFmpeg 7.1', path: '/usr/lib/portico/ffmpeg'},
+  {area: 'graphics', name: 'graphics', state: 'does_not_work', reason: 'no_graphics_device', detail: fixture('next.troubleshooting.fixture.detail1')},
+  {area: 'folders', name: 'data', state: 'works', path: '/config'},
+  {area: 'protection', name: 'decoder_sandbox', state: 'checking'},
 ]};
-const alerts = [{id: 'permissions', code: 'state-permissions', status: 'open', severity: 'warning', firstAt: '2026-10-22T17:00:00Z', lastAt: '2026-10-22T18:00:00Z', occurrences: 3, revision: 1}];
+const permissions = {path: '/config', owner: 'portico', account: 'portico', readableByOthers: true, fixable: true, checked: true};
 const request = async (path: string, method = 'GET'): Promise<unknown> => {
   if (path.includes('/console/diagnostics/')) return {scope: {serverId, viewerFence: fence}, data: {items: records, nextCursor: ''}};
   if (path.includes('/catalogue/failures')) return setAside;
   if (method === 'DELETE') return undefined;
   if (path.includes('/logs/settings')) return {revision: 1, logLevel: 'info', effectiveLevel: 'info', retention: [], levels: ['error','warn','info','debug'], categories: ['server','playback','scan','network','client']};
   if (path.includes('/admin/logs')) return {items: [...messageRecords].reverse(), limit: 200, nextCursor: '', level: 'info', effectiveLevel: 'info'};
-  if (path.includes('/diagnostics/capabilities')) return capabilities;
-  if (path.includes('/console/registry')) return {scope: {serverId, viewerFence: fence}, data: {fields: []}};
-  if (path.includes('/console/alerts')) return {scope: {serverId, viewerFence: fence}, data: alerts};
+  if (path.includes('/admin/capabilities')) return capabilities;
+  if (path.includes('/data-folder/permissions')) return method === 'POST' ? {...permissions, readableByOthers: false} : permissions;
   if (path.startsWith('/v1/admin/reports/')) {
     const id = path.split('/').pop();
     return feedback.find(item => item.id === id) ?? feedback[0];
@@ -188,12 +185,13 @@ const request = async (path: string, method = 'GET'): Promise<unknown> => {
     report('three', 'Chrome', 'desktop', '1.4.2', '2026-10-18T23:33:00Z', 21504),
   ], limit: 25, nextCursor: ''});
 };
-const transport = {request: <T,>(path: string, method?: string) => request(path, method) as Promise<T>};
+const transport = {request: <T,>(path: string, method?: string) => request(path, method) as Promise<T>,
+  downloadSupportExport: async () => new Blob(['PK'], {type: 'application/zip'})};
 const messages = new SettingsMessagesSource(transport, undefined, () => true);
 if (params.get('live') === '1') messages.setLive(true);
 const reports = new SettingsReportsSource(transport, serverId, 'specimen-viewer', () => true);
 const feedbackSource = new SettingsFeedbackSource(transport, serverId, 'specimen-viewer', () => true);
-const supportSource = new SettingsSupportSource(transport, serverId, 'specimen-viewer', () => true);
+const supportSource = new SettingsSupportSource(transport, () => true);
 const subscribe = (listener: () => void) => {const offs = [reports.subscribe(listener), feedbackSource.subscribe(listener), supportSource.subscribe(listener)];return () => {for (const off of offs) off();};};
 
 createRoot(document.getElementById('root')!).render(<div style={{minHeight: '100vh', background: 'var(--color-ink)', padding: '40px 32px'}}>

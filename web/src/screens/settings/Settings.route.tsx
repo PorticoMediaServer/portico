@@ -693,7 +693,7 @@ export function SettingsEntry() {
         if (row.id === 'streaming.hardware') {
           // The adapters come from the hardware report; until it has answered,
           // the row offers only the spec's own two choices.
-          const state = source.rowState(row, selected), devices = hardware?.getSnapshot().capacity?.hardware.devices ?? [];
+          const state = source.rowState(row, selected), devices = hardware?.getSnapshot().hardware?.devices ?? [];
           return state.present ? {...state, choices: hardwareSelectionChoices(devices, state.value, defaultI18n.t)} : state;
         }
         const hardwareState = hardware ? hardwareRowState(row.id, hardware.getSnapshot()) : undefined;
