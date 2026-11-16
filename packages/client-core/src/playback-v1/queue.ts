@@ -43,9 +43,14 @@ export function queueSource(source: Selector): Record<string, unknown> {
     // A library view: the list's own filters (as the list itself reads them) and its order.
     const q = source.query;
     const list = libraryItemQuery({id: q.libraryId}, q.pivot ?? 'movies', q.query ? [q.query] : [], q.sort ?? []);
+    if (Object.keys(list).some(key => !['library', 'kind', 'genre', 'year', 'resolution', 'watched', 'inProgress', 'favorite', 'inList', 'author', 'sort', 'order'].includes(key))) throw new PlaybackApiError(422, 'unsupported_selector', 'never');
+    // The shared Books tab plays audiobooks; reading books are never a queue source.
+    const kind = list.kind === 'audiobook,book' ? 'audiobook' : list.kind;
     const filter = [...(list.genre ? [{field: 'genre', values: [list.genre]}] : []), ...(list.year ? [{field: 'year', values: [list.year]}] : []),
-      ...(list.resolution ? [{field: 'resolution', values: [list.resolution]}] : [])];
-    return {view: {library: list.library, ...(list.kind ? {kinds: [list.kind]} : {}), ...(filter.length ? {filter} : {}),
+      ...(list.resolution ? [{field: 'resolution', values: [list.resolution]}] : []),
+      ...(list.inProgress !== undefined ? [{field: 'inProgress', values: [String(list.inProgress)]}] : []),
+      ...(list.author ? [{field: 'author', ...(list.author.startsWith('all:') ? {mode: 'all'} : {}), values: list.author.replace(/^(all|any):/, '').split(',')}] : [])];
+    return {view: {library: list.library, ...(kind ? {kinds: [kind]} : {}), ...(filter.length ? {filter} : {}),
       ...(list.watched !== undefined ? {watched: list.watched} : {}), ...(list.favorite !== undefined ? {favorite: list.favorite} : {}),
       ...(list.inList !== undefined ? {inList: list.inList} : {}), ...(list.sort ? {sort: list.sort, ...(list.order === 'desc' ? {desc: true} : {})} : {})}};
   }

@@ -1,5 +1,5 @@
 import {useEffect, useSyncExternalStore} from 'react';
-import {selectionActionTargetInput, type SelectionAction, type SelectionActionOptions} from '@core/selection-actions.ts';
+import {type SelectionAction, type SelectionActionOptions} from '@core/selection-actions.ts';
 import type {QuerySelectionTarget, SelectionOperation} from '@core/selection-model/types.ts';
 import {BrowserSelectionActionModel, type BrowserSelectionActionOptions} from './selection-action-model.ts';
 import {SelectionActionSurface} from './SelectionActionSurface.tsx';
@@ -17,12 +17,11 @@ export type BrowserQueryActionsOptions = BrowserSelectionActionOptions & Readonl
 const actionOptions = (action: SelectionAction, options: BrowserQueryActionsOptions): SelectionActionOptions => action === 'delete'
   ? {action, options: {deleteFiles: true}} : {action, options: {deviceId: options.deviceId, quality: 'original'}};
 
-export function browserQueryActionOffered<C>(target: QuerySelectionTarget<C>, action: SelectionAction, options?: BrowserQueryActionsOptions): boolean {
-  if (!options || options.signal.aborted || !options.isCurrent() || action === 'delete' && !options.owner) return false;
-  try {selectionActionTargetInput(target, actionOptions(action, options)); return true;} catch {return false;}
+/** The rebuilt server has no whole-view Delete or Download preparation route. */
+export function browserQueryActionOffered<C>(_target: QuerySelectionTarget<C>, _action: SelectionAction, _options?: BrowserQueryActionsOptions): boolean {
+  return false;
 }
 
-/** Bind both actual query actions to the model-issued operation and the original live authority. */
 export function createBrowserQueryActions<C>(host: SelectionActionHost<C>, options: BrowserQueryActionsOptions) {
   const model = new BrowserSelectionActionModel(options);
   let active: Readonly<{operation: SelectionOperation<C>; action: SelectionActionOptions; lifetime: ReturnType<typeof createSelectionActionLifetime>}> | undefined;

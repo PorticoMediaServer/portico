@@ -3,6 +3,8 @@ import type {FetchPage} from './collections/windowed.ts';
 import type {ContentEntry} from './library-content.ts';
 import {countItems, entriesFromItems, entryFromPerson, readFacet, readItems} from './items.ts';
 import {callServer} from './query/server-api.ts';
+import {selectionCapabilities, selectionKinds, selectionKindHasBulkFields} from './selection-model/capabilities.ts';
+import type {SelectionKind} from './selection-model/types.ts';
 import {genreEntry, libraryItemQuery} from './library-browse.ts';
 import {linkAbortSignals} from './abort-lifetime.ts';
 import {rememberFilterNames} from './filter-value-names.ts';
@@ -59,7 +61,7 @@ export type BrowseSessionOptions<T> = Readonly<{
   item: (entry: ContentEntry, page: BrowseResult, index: number) => T;
   /** The first page arrived: the list has answered. The value names this reading of the list and nothing else. */
   onRevision?: (revision: string) => void;
-  /** Kept for the screens that offer "select everything in this view"; the server does not describe a whole view yet, so neither is called. */
+  /** The applied filter and its exact count, for selecting everything in this view. */
   onWhole?: (whole: BrowseWholeSelection) => void;
   onWholeUnavailable?: (value: BrowseWholeSelectionUnavailable | undefined) => void;
   onPage?: (page: BrowseResult) => void;
@@ -88,6 +90,7 @@ export class BrowseSession<T> {
   /** Where each page starts: position to cursor. Position 0 needs none. */
   private cursors = new Map<number, string>([[0, '']]);
   private total?: number;
+  private whole?: BrowseWholeSelection;
   private counting?: Promise<void>;
   private lettering?: Promise<void>;
   private letters?: Readonly<Record<string, number>>;
@@ -101,12 +104,26 @@ export class BrowseSession<T> {
   /** Names this reading of the list, once its first page has replied. */
   get revision(): string | undefined {return this.live() ? this.pinned : undefined;}
   get stale(): boolean {return this.ended;}
-  wholeSelection(): BrowseWholeSelection | undefined {return undefined;}
+  wholeSelection(): BrowseWholeSelection | undefined {return this.live() ? this.whole : undefined;}
   wholeSelectionUnavailable(): BrowseWholeSelectionUnavailable | undefined {return undefined;}
   /** The entry arrived in one of this query's pages, and the query is still current. */
   owns(entry: ContentEntry): boolean {return this.live() && this.entries.has(entry);}
   retire(): void {this.retired = true; this.life.abort(); this.entries = new WeakSet();}
-  forgetWholeSelection(): void {}
+  forgetWholeSelection(): void {this.whole = undefined;}
+  private publishWhole(): void {
+    if (!this.live() || !this.pinned || this.total === undefined || this.total < 1 || this.query.libraryId === '*' || ['authors', 'genres'].includes(this.query.pivot) || this.whole?.total === this.total) return;
+    const list = libraryItemQuery({id: this.query.libraryId, kind: this.query.capabilities?.library?.kind}, this.query.pivot, this.query.nodes, []);
+    const kind = ({track: 'song', audiobook: 'book', series: 'book_series', book: 'ebook'} as Record<string, string>)[String(list.kind)] ?? String(list.kind);
+    if (!selectionKinds.includes(kind as SelectionKind)) return;
+    const playable = ['movie', 'show', 'season', 'episode', 'album', 'artist', 'song', 'book', 'audiobook_file'].includes(kind);
+    const capabilities = selectionCapabilities(kind as SelectionKind, {play: playable, queue: playable, playlist: true, collection: true,
+      myList: true, watched: true, edit: selectionKindHasBulkFields(kind as SelectionKind), refresh: true});
+    const total = this.total, filter = this.query.nodes.length === 0 ? null : this.query.nodes.length === 1 ? this.query.nodes[0]! : {variant: 'group' as const, all: this.query.nodes};
+    this.whole = Object.freeze({libraryId: this.query.libraryId, pivot: this.query.pivot, filter, sort: this.query.sorts, catalogRevision: this.pinned, total,
+      types: Object.freeze([{kind, count: total, capabilities: Object.freeze(Object.fromEntries(Object.entries(capabilities).map(([name, enabled]) => [name, enabled ? total : 0]))) as BrowseWholeSelection['types'][number]['capabilities'],
+        libraries: Object.freeze([{libraryId: this.query.libraryId, count: total}])}])});
+    this.options.onWhole?.(this.whole);
+  }
   private end(error: unknown): void {
     if (this.retired || this.ended) return;
     this.ended = true; this.life.abort(); this.entries = new WeakSet();
@@ -131,7 +148,7 @@ export class BrowseSession<T> {
     try {
       // The count is its own request and no page waits for it; until it answers the list is "at least this long".
       this.counting ??= countItems(api, list, this.life.signal)
-        .then(total => {if (total !== undefined) {this.total = total; if (this.live()) this.options.onFacts?.({total});}}, () => undefined);
+        .then(total => {if (total !== undefined) {this.total = total; if (this.live()) {this.options.onFacts?.({total});this.publishWhole();}}}, () => undefined);
       // The letter rail, for a list in title order: each first letter and how many titles begin with it.
       const title = this.query.sorts[0]?.field === 'title' ? this.query.sorts[0] : undefined;
       if (title) this.lettering ??= readFacet(api, 'letter', list, this.life.signal)
@@ -193,6 +210,7 @@ export class BrowseSession<T> {
     this.pinned ??= 'reading-' + ++readings;
     for (const entry of entries) this.entries.add(entry);
     if (first) this.options.onRevision?.(this.pinned);
+    if (counted !== undefined) {this.total = counted;this.publishWhole();}
     this.options.onPage?.(result);
     if (!this.live() || signal.aborted) throw browseSessionClosed();
     return {items: entries.map((entry, index) => this.options.item(entry, result, index)), total, ...(counted === undefined ? {totalIsLowerBound: true} : {}), positionIndex: this.letters ?? {}};

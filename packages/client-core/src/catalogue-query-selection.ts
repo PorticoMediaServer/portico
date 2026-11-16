@@ -2,13 +2,14 @@ import {validSelectionBasis} from './selection-basis.ts';
 import {clonePortableDto} from './clone-portable-dto.ts';
 import {parseBrowseNode} from './browse.ts';
 import type {CatalogueSelectionLifetime, CatalogueSelectionQueuePort} from './catalogue-selection.ts';
-import type {SegmentInput} from './playback-v1/queue.ts';
+import {queueSource, type SegmentInput} from './playback-v1/queue.ts';
 import type {V1QueuePlayer} from './playback-v1/v1-queue-player.ts';
 import {selectionQuerySelector} from './selection-model/targets.ts';
 import type {QuerySelectionTarget} from './selection-model/types.ts';
 
 const unavailable = () => new Error('catalogue-query-selection-unavailable');
-const leaves = new Set(['movie', 'episode', 'song', 'audiobook_file']);
+const containers = new Set(['show', 'season', 'album', 'artist']);
+const playable = new Set(['movie', 'episode', 'song', 'book', 'audiobook_file', ...containers]);
 function freeze<T>(value: T): T {
   if (value && typeof value === 'object') {for (const child of Object.values(value)) freeze(child);Object.freeze(value);}
   return value;
@@ -18,8 +19,8 @@ function freeze<T>(value: T): T {
 export function catalogueQuerySelectionSegments<C>(target: QuerySelectionTarget<C>, capability: 'play' | 'queue'): readonly SegmentInput[] {
   const checked = selectionQuerySelector(target);
   if (!checked.ok || !('query' in checked.selector) || !target.total || !target.summary.every[capability]
-    || !target.summary.types.length || target.summary.types.some(type => !leaves.has(type.kind))
-    || !/^browse_[a-f0-9]{64}$/.test(checked.expected.catalogRevision)) throw unavailable();
+    || !target.summary.types.length || target.summary.types.some(type => !playable.has(type.kind))
+    || target.summary.types.length > 1 && target.summary.types.some(type => containers.has(type.kind))) throw unavailable();
   const query = checked.selector.query;
   if (query.selectionBasis !== undefined && !validSelectionBasis(query.selectionBasis)) throw unavailable();
   if (!query.libraryId || !query.pivot || target.summary.library.kind !== 'single'
@@ -28,9 +29,11 @@ export function catalogueQuerySelectionSegments<C>(target: QuerySelectionTarget<
     if (!value.field || !['asc', 'desc'].includes(value.direction)) throw unavailable();
     return {...value};
   });
-  return freeze<readonly SegmentInput[]>([{source: {query: {libraryId: query.libraryId, pivot: query.pivot,
+  const segments: readonly SegmentInput[] = [{source: {query: {libraryId: query.libraryId, pivot: query.pivot,
     ...(query.filter === undefined || query.filter === null ? {} : {query: parseBrowseNode(clonePortableDto(query.filter))}),
-    ...(sort?.length ? {sort} : {}), ...(query.selectionBasis === undefined ? {} : {selectionBasis: query.selectionBasis}), selectionRevision: checked.expected.catalogRevision}}, order: {mode: 'source'}}]);
+    ...(sort?.length ? {sort} : {}), ...(query.selectionBasis === undefined ? {} : {selectionBasis: query.selectionBasis}), selectionRevision: checked.expected.catalogRevision}}, order: {mode: 'source'}}];
+  queueSource(segments[0]!.source);
+  return freeze(segments);
 }
 function current(lifetime: CatalogueSelectionLifetime) {
   if (lifetime.signal.aborted || !lifetime.isCurrent()) throw Object.assign(new Error('Selection retired'), {name: 'AbortError'});

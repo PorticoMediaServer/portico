@@ -1,5 +1,6 @@
+import {readWholeMetadataPreview} from '@core/metadata-bulk-rebuilt.ts';
 import {selectionQuerySelector, type BrowseSelectionContext, type SelectionOperation} from '@core/selection-model/index.ts';
-import {fetchBulkMetadataPreview, type BulkMetadataPreview} from '@core/home-selection/index.ts';
+import {type BulkMetadataPreview} from '@core/home-selection/index.ts';
 import {runSelectionJobs, type HomeJobTask} from '@core/home-selection/execution.ts';
 import type {HomeSelectionProgress} from '@core/home-selection/types.ts';
 import {jobRequestBody} from '@core/bulk-jobs.ts';
@@ -25,9 +26,9 @@ export function createQuerySelectionEditor(options: SelectionEditorOptions) {
     async preview(operation: Operation) {
       check(); const target = operation.target;
       if (target.mode !== 'query' || target.summary.types.length !== 1 || target.summary.unavailableActions?.metadataPreview || !target.summary.every.edit) throw new Error('query-editor-unavailable');
-      const query = selectionQuerySelector(target); if (!query.ok) throw new Error('query-editor-refined');
+      const query = selectionQuerySelector(target); if (!query.ok || !('query' in query.selector)) throw new Error('query-editor-refined');
       const order = ++previewsStarted;
-      const preview = await fetchBulkMetadataPreview(api, {selector: query.selector, expected: query.expected}, serverId, signal, {isCurrent: options.isCurrent}); check();
+      const preview = await readWholeMetadataPreview(api, query.selector.query, serverId, target.total, target.summary.types[0].kind, signal); check();
       if (preview.total !== target.total || preview.contentKind !== target.summary.types[0].kind) throw new Error('metadata-preview-mismatch');
       // A preview under a moved fence is the newer answer (step 7); only the newest preview can start the job (save).
       if (order > previewAdopted) {previewAdopted = order;editingFence = preview.viewerFence;}
@@ -36,7 +37,7 @@ export function createQuerySelectionEditor(options: SelectionEditorOptions) {
     async save(operation: Operation, preview: BulkMetadataPreview, draft: BulkEditorDraft, progress: (value: HomeSelectionProgress) => void): Promise<QueryEditorResult> {
       check();
       if (grants.get(preview) !== operation || preview.viewerFence !== editingFence || operation.target.mode !== 'query') throw new Error('metadata-preview-not-current');
-      const query = selectionQuerySelector(operation.target); if (!query.ok) throw new Error('query-editor-refined');
+      const query = selectionQuerySelector(operation.target); if (!query.ok || !('query' in query.selector)) throw new Error('query-editor-refined');
       if (!bulkDraftValid(preview.schema, editorValues(preview), draft)) throw new Error('invalid-bulk-edit');
       const args = structuredClone(editorCoreDraft(draft)), key = JSON.stringify(args);
       let attempt = attempts.get(preview);
@@ -58,7 +59,7 @@ export function createQuerySelectionEditor(options: SelectionEditorOptions) {
           await runSelectionJobs(api, tasks, signal, current, value => {if (current()) progress({...value, done: value.done + tasks.reduce((sum, task) => sum + (task.job?.failed ?? 0), 0)});}, undefined, events, false);
           check(); if (!current()) throw new Error('metadata-authority-changed');
           const job = tasks[0].job;
-          if (!job || job.command !== 'metadata-edit' || !job.totalKnown || job.total !== preview.total || job.done + job.failed !== job.total) throw new Error('metadata-job-mismatch');
+          if (!job || job.command !== 'metadata-edit' || !job.totalKnown || job.done + job.failed !== job.total) throw new Error('metadata-job-mismatch');
           return {updated: job.done, failed: job.failed, jobId: job.jobId};
         } finally {retained.flight = undefined;}
       });

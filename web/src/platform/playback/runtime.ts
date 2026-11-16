@@ -1006,7 +1006,7 @@ export class WebShellPlaybackRuntime {
   /** Append checked catalogue segments without inventing a Home document context. */
   catalogueQueue(): CatalogueSelectionQueuePort | undefined {
     this.assertCurrent();
-    if (this.stack.mode !== 'server' || this.stack.local || this.stack.channel || this.group || this.dock.getSnapshot().remote) return undefined;
+    if (this.stack.mode !== 'server' || this.stack.local || this.stack.channel || this.group?.active() || this.dock.getSnapshot().remote) return undefined;
     return {enqueueSegments: async (segments, placement, lifetime) => {
       if (this.catalogueEnqueuing) problem('queue_busy');
       this.catalogueEnqueuing = true;
@@ -1016,7 +1016,7 @@ export class WebShellPlaybackRuntime {
         let expectedQueueId = stack.queue.getSnapshot().view?.queue.id;
         const check = () => {
           this.assertCurrent();
-          if (stack.mode !== 'server' || stack.local || stack.channel || this.group || this.dock.getSnapshot().remote
+          if (stack.mode !== 'server' || stack.local || stack.channel || this.group?.active() || this.dock.getSnapshot().remote
             || serial !== this.operation || stack.queue.getSnapshot().view?.queue.id !== expectedQueueId) problem('queue_control_unavailable');
           if (lifetime.signal.aborted || !lifetime.isCurrent() || !this.current(stack)) problem('stale_selection_context');
         };

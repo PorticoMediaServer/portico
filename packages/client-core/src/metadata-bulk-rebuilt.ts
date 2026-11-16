@@ -9,6 +9,9 @@
  * nothing on the rest. When the job ends without saving every title, each title is read again,
  * so the result still says title by title which were saved.
  */
+import {entriesFromItems, readItems} from './items.ts';
+import {libraryItemQuery} from './library-browse.ts';
+import type {JobSelector} from './bulk-jobs.ts';
 import type {Job, JobStart, MetadataDocument} from '../../contracts/src/next/api.ts';
 import type {BulkMetadataField, BulkMetadataPreview, BulkMetadataPreviewTarget, BulkMetadataValueCount} from './home-selection/metadata-preview.ts';
 import type {BulkEdit, BulkListEdit} from './metadata-bulk.ts';
@@ -106,7 +109,7 @@ export async function readBulkMetadataPreview(api: BulkMetadataApi, targets: rea
 
 const listNames: Readonly<Record<string, string>> = {genres: 'genres', studios: 'studios', networks: 'networks', countries: 'countries', labels: 'labels', tags: 'labels'};
 /** The editor's edit as `edit_items` parameters. */
-function bulkParams(edit: BulkEdit): Record<string, unknown> {
+export function bulkMetadataParams(edit: BulkEdit): Record<string, unknown> {
   const params: Record<string, unknown> = {}, add: Record<string, string[]> = {}, remove: Record<string, string[]> = {};
   for (const [field, change] of Object.entries(edit.fields ?? {})) {
     if (change.value === undefined || change.values !== undefined || change.useAutomatic) throw fail('metadata-edit-unavailable');
@@ -152,7 +155,7 @@ const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, 
  */
 export async function saveBulkMetadata(api: BulkMetadataApi, edit: BulkEdit, signal?: AbortSignal): Promise<unknown> {
   if (!edit.targets.length || edit.targets.length > bulkEditLimit) throw fail('metadata-edit-limit');
-  const params = bulkParams(edit), start: JobStart = {kind: 'edit_items', target: {items: edit.targets.map(target => target.id)}, params};
+  const params = bulkMetadataParams(edit), start: JobStart = {kind: 'edit_items', target: {items: edit.targets.map(target => target.id)}, params};
   let job = await api.request<Job>(serverPath('POST /v1/jobs'), 'POST', start, signal);
   for (const started = Date.now(); job.state === 'waiting' || job.state === 'running';) {
     if (Date.now() - started > 300_000) throw Object.assign(fail('job_poll_timeout'), {retryable: true});
@@ -170,4 +173,18 @@ export async function saveBulkMetadata(api: BulkMetadataApi, edit: BulkEdit, sig
       : {kind: target.kind, id: target.id, ok: false, code: 'metadata_not_saved', message});
   }
   return {operationId: edit.operationId, results, updated: results.filter(row => row.ok).length, failed: results.filter(row => !row.ok).length};
+}
+
+
+/** A whole-view editor has no common-value preview: read one title for its editable fields, and leave every field unchanged. */
+export async function readWholeMetadataPreview(api: BulkMetadataApi, query: Extract<JobSelector, {query: unknown}>['query'],
+  serverId: string, total: number, contentKind: string, signal?: AbortSignal): Promise<BulkMetadataPreview> {
+  const list = libraryItemQuery({id: query.libraryId}, query.pivot, query.filter ? [query.filter as never] : [], []);
+  const page = await readItems(api, {...list, ...(contentKind === 'book' ? {kind: 'audiobook'} : {})}, {limit: 1}, signal);
+  const entry = entriesFromItems(page.items, query.libraryId)[0];
+  if (!entry || entry.kind !== contentKind) throw fail('metadata-preview-mismatch');
+  const kind = ['show', 'season', 'album', 'artist', 'book'].includes(contentKind) ? contentKind as BulkMetadataPreviewTarget['kind'] : 'item';
+  const preview = await readBulkMetadataPreview(api, [{kind, contentKind, id: entry.id, libraryId: query.libraryId}], serverId, signal);
+  const unchanged = Object.freeze({state: 'shared' as const, distinctCount: 1, values: Object.freeze([]), entries: Object.freeze([]), locked: 0, truncated: false});
+  return Object.freeze({...preview, total, targets: Object.freeze([]), fields: Object.freeze(Object.fromEntries(preview.schema.map(spec => [spec.field, unchanged])))});
 }

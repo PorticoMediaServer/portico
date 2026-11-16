@@ -74,7 +74,7 @@ export function createSelectionActions({api, events, requestId, isCurrent, repor
     updated: tasks.reduce((sum, task) => sum + (task.job?.done ?? 0), 0),
     failed: tasks.reduce((sum, task) => sum + (task.job?.failed ?? 0), 0),
     jobs: Object.freeze(tasks.flatMap(task => task.job ? [task.job.jobId] : []))});
-  const run = async (operation: AnyOperation, args: JobArgs, signal: AbortSignal, guard?: () => boolean): Promise<SelectionActionResult> => {
+  const run = async (operation: AnyOperation, args: JobArgs, signal: AbortSignal, guard?: () => boolean, command: 'personal-state' | 'refresh' = 'personal-state'): Promise<SelectionActionResult> => {
     const target = operation.target as SelectionTarget;
     const current = () => !routeSignal.aborted && isCurrent() && (guard?.() ?? true);
     // Walk J-14: the job's own write re-reads the page, which ends the selection and its source. A job already sent
@@ -83,7 +83,7 @@ export function createSelectionActions({api, events, requestId, isCurrent, repor
     const follow = (tasks: readonly HomeJobTask[]) => () => !routeSignal.aborted && !signal.aborted && (current() || (tasks.length > 0 && tasks.every(task => task.attempted)));
     if (!current() || signal.aborted) throw new SelectionActionError('cancelled');
     if (!personalTargetSupportsJob(target)) throw new SelectionActionError('selection-personal-state-unsupported');
-    const grant = args.watched !== undefined ? 'watched' : args.favorite !== undefined ? 'favorite' : args.watchlist !== undefined ? 'myList' : undefined;
+    const grant = command === 'refresh' ? 'refresh' : args.watched !== undefined ? 'watched' : args.favorite !== undefined ? 'favorite' : args.watchlist !== undefined ? 'myList' : undefined;
     const offered = grant !== undefined && (target.mode === 'query'
       ? target.summary.every[grant] === true
       : target.items.length > 0 && target.items.every(pick => pick.item.capabilities[grant] === true));
@@ -93,7 +93,7 @@ export function createSelectionActions({api, events, requestId, isCurrent, repor
     // so they are refused before any operation id, request or retained body.
     const query = target.mode === 'query' ? selectionQuerySelector(target) : undefined;
     if (query && !query.ok) throw new SelectionActionError(query.reason);
-    const key = JSON.stringify(args);
+    const key = JSON.stringify([command, args]);
     let attempts = retained.get(target);
     if (!attempts) {attempts = new Map(); retained.set(target, attempts);}
     let attempt = attempts.get(key);
@@ -101,9 +101,9 @@ export function createSelectionActions({api, events, requestId, isCurrent, repor
     if (attempt?.status === 'running') return attempt.promise!;
     if (!attempt) {
       const tasks = query
-        ? requestId().then(id => [{request: Object.freeze({operationId: id.replaceAll('-', ''), command: 'personal-state',
+        ? requestId().then(id => [{request: Object.freeze({operationId: id.replaceAll('-', ''), command,
             selector: query.selector, args, expected: query.expected}) as JobRequest, failures: [], observed: false}])
-        : selectionJobTasks(target, 'personal-state', args, requestId);
+        : selectionJobTasks(target, command, args, requestId);
       attempt = {tasks, current: () => current() && !signal.aborted, status: 'idle'};
       attempts.set(key, attempt);
     }
@@ -117,7 +117,7 @@ export function createSelectionActions({api, events, requestId, isCurrent, repor
         await runSelectionJobs(api, tasks, AbortSignal.any([routeSignal, signal]), follow(tasks), (value, jobs) => {if (captured.current()) progress?.(operation, {...value, done: value.done + tasks.reduce((sum, task) => sum + (task.job?.failed ?? 0), 0)}, jobs);}, undefined, events);
         attempts.delete(key);
         const result = outcome(tasks);
-        if (!routeSignal.aborted) notify?.(selectionDoneNotice(args, result.failed));
+        if (!routeSignal.aborted && command === 'personal-state') notify?.(selectionDoneNotice(args, result.failed));
         return result;
       } catch (error) {
         const rejected = tasks.some(task => task.rejected || task.job?.state === 'failed' && !!task.job.errorCode);
@@ -144,6 +144,7 @@ export function createSelectionActions({api, events, requestId, isCurrent, repor
       if (action.watched === undefined && action.favorite === undefined && action.watchlist === undefined) throw new SelectionActionError('empty-command');
       return runAction(operation, action, signal, guard);
     },
+    refresh(operation: AnyOperation, signal: AbortSignal = routeSignal, guard?: () => boolean) {return run(operation, {}, signal, guard, 'refresh');},
     reportError,
   };
 }

@@ -12,8 +12,9 @@ import styles from './selection.module.css';
 
 type FieldProps = Readonly<{spec: RepairFieldSpec; aggregate: BulkFieldValues; count: number; draft: BulkEditorDraft; onChange: (draft: BulkEditorDraft) => void; busy: boolean; phone: boolean; showListHelp: boolean; initial?: boolean}>;
 function BulkField({spec, aggregate, count, draft, onChange, busy, phone, showListHelp, initial}: FieldProps) {
-  const id = useId(), [adding, setAdding] = useState(''), [editing, setEditing] = useState(false);
+  const id = useId(), [adding, setAdding] = useState(''), [removing, setRemoving] = useState(''), [editing, setEditing] = useState(false);
   const edited = Object.hasOwn(draft.fields, spec.field), list = draft.lists[spec.field];
+  const unchanged = aggregate.state === 'shared' && aggregate.value === undefined;
   const mixed = aggregate.state !== 'shared', known = aggregate.state === 'shared' && aggregate.value !== undefined;
   const value = edited ? draft.fields[spec.field]! : known ? aggregate.value! : '';
   const changed = edited || !!(list?.add.length || list?.remove.length);
@@ -29,21 +30,29 @@ function BulkField({spec, aggregate, count, draft, onChange, busy, phone, showLi
     const next = addListValue(list, adding);
     if (next) { onChange({...draft, lists: {...draft.lists, [spec.field]: next}}); setAdding(''); }
   };
+  const remove = () => {
+    const checked = addListValue(undefined, removing);
+    if (checked) {onChange({...draft, lists: {...draft.lists, [spec.field]: toggleListRemoval(list, checked.add[0]!)}});setRemoving('');}
+  };
   return <div className={[styles.bulkField, spec.type === 'list' && styles.fullField].filter(Boolean).join(' ')} data-changed={changed}>
     <div className={styles.fieldLabel}><label htmlFor={id}>{phone && spec.field === 'metadataLanguage' ? text('next.selection.language') : spec.label}</label>{edited && <span className={styles.changed}>{text('next.selection.changed')}</span>}</div>
     {spec.type === 'list' ? <>
       <div className={styles.listValues}>
         {aggregate.entries.map(entry => <Button key={entry.value} variant="text" size="xs" disabled={busy} className={styles.listChip} data-partial={entry.count !== count} data-removed={list?.remove.includes(entry.value)} aria-label={text(list?.remove.includes(entry.value) ? 'next.selection.undoRemoveValue' : 'next.selection.removeValue', {value: entry.value})}
-          onClick={() => onChange({...draft, lists: {...draft.lists, [spec.field]: toggleListRemoval(list, entry.value)}})}>{entry.value}<i><span className={styles.desktopChipCount}>{text('next.selection.countOf', {count: entry.count, total: count})}</span><span className={styles.phoneChipCount}>{defaultI18n.number(entry.count)}</span></i><Icon name={list?.remove.includes(entry.value) ? 'i-restart' : 'i-x'} size={12} /></Button>)}
+          onClick={() => onChange({...draft, lists: {...draft.lists, [spec.field]: toggleListRemoval(list, entry.value)}})}><span className={styles.chipValue}>{entry.value}</span><i><span className={styles.desktopChipCount}>{text('next.selection.countOf', {count: entry.count, total: count})}</span><span className={styles.phoneChipCount}>{defaultI18n.number(entry.count)}</span></i><Icon name={list?.remove.includes(entry.value) ? 'i-restart' : 'i-x'} size={12} /></Button>)}
         {list?.add.filter(entry => !aggregate.entries.some(original => original.value === entry)).map(entry => <Button key={entry} variant="text" size="xs" disabled={busy} className={styles.listChip} data-added aria-label={text('next.selection.removeValue', {value: entry})}
-          onClick={() => onChange({...draft, lists: {...draft.lists, [spec.field]: toggleListRemoval(list, entry)}})}>{entry}<i>{text('next.selection.newValue')}</i><Icon name="i-x" size={12} /></Button>)}
+          onClick={() => onChange({...draft, lists: {...draft.lists, [spec.field]: toggleListRemoval(list, entry)}})}><span className={styles.chipValue}>{entry}</span><i>{text('next.selection.newValue')}</i><Icon name="i-x" size={12} /></Button>)}
+        {unchanged && list?.remove.map(entry => <Button key={'remove-' + entry} variant="text" size="xs" disabled={busy} className={styles.listChip} data-removed aria-label={text('next.selection.undoRemoveValue', {value: entry})}
+          onClick={() => onChange({...draft, lists: {...draft.lists, [spec.field]: toggleListRemoval(list, entry)}})}><span className={styles.chipValue}>{entry}</span><Icon name="i-restart" size={12}/></Button>)}
         <TextField id={id} variant="compact" value={adding} disabled={busy} aria-label={addLabel} placeholder={emptyList && (spec.field === 'tags' || spec.field === 'labels') ? text(spec.field === 'tags' ? 'next.selection.emptyTag' : 'next.selection.emptyLabel') : addLabel} containerClassName={styles.addListValue} onChange={event => setAdding(event.currentTarget.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); append(); } }} onBlur={append} />
+        {unchanged && <TextField variant="compact" value={removing} disabled={busy} aria-label={text('next.selection.removeListValue', {field: spec.label})} placeholder={text('next.selection.removeListValue', {field: spec.label})} containerClassName={styles.addListValue}
+          onChange={event => setRemoving(event.currentTarget.value)} onKeyDown={event => {if (event.key === 'Enter') {event.preventDefault();remove();}}} onBlur={remove}/>}
       </div>
       {aggregate.state === 'many' && <p className={styles.fieldHelp}>{bulkFieldStateLabel(aggregate)}</p>}
       {spec.field === 'genres' && showListHelp && <p className={styles.fieldHelp}>{text('next.selection.listHelp', {count})}</p>}
     </> : <div className={styles.scalarShell} data-changed={edited} data-mixed={mixed && !edited}>
-      {spec.type === 'enum' && spec.allowed?.length ? <Select id={id} options={spec.allowed.filter(Boolean).map(option => ({value: option, label: bulkFieldDisplayValue(spec.field, option)}))} value={value || undefined} onValueChange={scalarChange} disabled={busy} aria-label={spec.label} placeholder={mixed && !edited ? bulkFieldStateLabel(aggregate) : known || edited ? text('next.selection.notSet') : undefined} containerClassName={styles.scalarControl} /> : <TextField id={id} value={editing ? value : bulkFieldDisplayValue(spec.field, value)} autoFocus={initial} onFocus={() => setEditing(true)} onBlur={() => setEditing(false)} onChange={event => scalarChange(event.currentTarget.value)} disabled={busy} aria-label={spec.label} trailing={hint}
-        type={spec.type === 'integer' || spec.type === 'number' ? 'number' : spec.type === 'date' ? 'date' : 'text'} min={spec.min} max={spec.max} maxLength={spec.maxLength} step={spec.type === 'integer' ? 1 : spec.type === 'number' ? 'any' : undefined} containerClassName={styles.scalarControl} placeholder={known || edited ? text('next.selection.notSet') : undefined} />}
+      {spec.type === 'enum' && spec.allowed?.length ? <Select id={id} options={spec.allowed.filter(Boolean).map(option => ({value: option, label: bulkFieldDisplayValue(spec.field, option)}))} value={value || undefined} onValueChange={scalarChange} disabled={busy} aria-label={spec.label} placeholder={mixed && !edited ? bulkFieldStateLabel(aggregate) : known || edited ? text('next.selection.notSet') : text('next.selection.unchanged')} containerClassName={styles.scalarControl} /> : <TextField id={id} value={editing ? value : bulkFieldDisplayValue(spec.field, value)} autoFocus={initial} onFocus={() => setEditing(true)} onBlur={() => setEditing(false)} onChange={event => scalarChange(event.currentTarget.value)} disabled={busy} aria-label={spec.label} trailing={hint}
+        type={spec.type === 'integer' || spec.type === 'number' ? 'number' : spec.type === 'date' ? 'date' : 'text'} min={spec.min} max={spec.max} maxLength={spec.maxLength} step={spec.type === 'integer' ? 1 : spec.type === 'number' ? 'any' : undefined} containerClassName={styles.scalarControl} placeholder={known || edited ? text('next.selection.notSet') : unchanged ? text('next.selection.unchanged') : undefined} />}
       {mixed && !edited && spec.type !== 'enum' && <span className={styles.mixedValue}>{bulkFieldStateLabel(aggregate)}</span>}
       {spec.type === 'enum' && hint}
     </div>}
@@ -79,7 +88,7 @@ export function BulkEditor(props: BulkEditorProps) {
   const items = selection.kind === 'song' ? text('next.selection.track', {count: selection.count}) : selectionCountText(selection);
   const title = text('next.selection.editTitle', {items});
   const heading = <span className={styles.editorHeading}><span className={styles.editorOwner}>{ownerTag}{phone && !busy && <Button variant="icon" size="small" iconOnly icon="i-x" iconSize={18} aria-label={text('next.selection.close')} className={styles.editorClose} onClick={() => surface.onOpenChange(false, 'close-button')} />}</span><span className={styles.editorTitle}>{title}</span>
-    {!result && <span className={styles.editorDescription}>{description ?? text(phone ? 'next.selection.bulkPhoneDescription' : 'next.selection.bulkDescription', {count: selection.count})}</span>}
+    {!result && <span className={styles.editorDescription}>{description ?? (fields.every(spec => values[spec.field]?.state === 'shared' && values[spec.field]?.value === undefined) ? text('next.selection.onlyChangedSaved') : text(phone ? 'next.selection.bulkPhoneDescription' : 'next.selection.bulkDescription', {count: selection.count}))}</span>}
     {targets.some(target => target.artwork) && <span className={styles.editorArtwork} data-kind={selection.kind}>{targets.slice(0, 5).map(target => <span key={target.id}>{target.artwork}</span>)}{!result && <small>{selection.count > 5 ? text('next.selection.andMore', {count: selection.count - 5}) : defaultI18n.list(targets.map(target => target.title))}</small>}</span>}
   </span>;
   const body = <>

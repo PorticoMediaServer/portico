@@ -106,6 +106,8 @@ export const selectionMessages = {
   'next.selection.bulkDescription': '{count, plural, =1 {Changes apply to this title.} =2 {Changes apply to both.} =3 {Changes apply to all three.} =4 {Changes apply to all four.} other {Changes apply to all #.}} A field that differs shows Mixed and is left alone unless you change it.',
   'next.selection.bulkPhoneDescription': '{count, plural, =1 {Changes apply to this title.} =2 {Changes apply to both.} =3 {Changes apply to all three.} =4 {Changes apply to all four.} other {Changes apply to all #.}} Mixed fields are left alone unless you change them.',
   'next.selection.mixed': 'Mixed',
+  'next.selection.unchanged': 'Unchanged',
+  'next.selection.removeListValue': 'Remove from {field}',
   'next.selection.manyValues': 'Many values',
   'next.selection.language': 'Language',
   'next.selection.valueCount': '{count, plural, one {# value} other {# values}}',
