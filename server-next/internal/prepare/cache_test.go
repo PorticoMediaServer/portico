@@ -2,7 +2,6 @@ package prepare
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,7 +10,9 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 )
 
-func TestCacheRemovalAndDownloadKeepingUseOnlyReusableCopies(t *testing.T) {
+// Empty cache removes only copies no request names, never one being read or made. A copy no
+// download waits for goes at the next tidy, except while it is being read (area 9 rule 24).
+func TestCacheRemovalAndTidyUseOnlyCopiesNobodyWaitsFor(t *testing.T) {
 	d, film, _ := filmLibrary(t)
 	clock := time.Now()
 	s := service(t, d, t.TempDir(), func() time.Time { return clock })
@@ -36,16 +37,6 @@ func TestCacheRemovalAndDownloadKeepingUseOnlyReusableCopies(t *testing.T) {
 		}
 		return p
 	}
-	policy := func(days int) {
-		t.Helper()
-		raw, _ := json.Marshal(map[string]int{"keepDays": days})
-		if _, err := s.Settings.Write(ctx, 0, Document.Name(), raw, -1, clock); err != nil {
-			t.Fatal(err)
-		}
-		if err := s.Tidy(ctx); err != nil {
-			t.Fatal(err)
-		}
-	}
 	old := makeCopy("240p", db.PreparedReady, 60*24*time.Hour)
 	recent := makeCopy("480p", db.PreparedReady, 0)
 	running := makeCopy("720p-low", db.PreparedPreparing, 60*24*time.Hour)
@@ -56,10 +47,6 @@ func TestCacheRemovalAndDownloadKeepingUseOnlyReusableCopies(t *testing.T) {
 	subtitle := filepath.Join(s.Folder, old.PublicID+"-1.0.vtt")
 	if err := os.WriteFile(subtitle, []byte("words"), 0600); err != nil {
 		t.Fatal(err)
-	}
-	policy(90)
-	if _, err := d.PreparedByID(ctx, old.ID); err != nil {
-		t.Fatal("90 days did not retain a 60-day copy", err)
 	}
 	if bytes, err := s.CachedCopies(ctx, false); err != nil || bytes != 8 {
 		t.Fatalf("preview: %d %v, want copy plus subtitles only", bytes, err)
@@ -82,18 +69,48 @@ func TestCacheRemovalAndDownloadKeepingUseOnlyReusableCopies(t *testing.T) {
 	if bytes, err := s.CachedCopies(ctx, false); err != nil || bytes != 3 {
 		t.Fatalf("a recently made unused copy should be clearable: %d %v", bytes, err)
 	}
-	old = makeCopy("240p", db.PreparedReady, 60*24*time.Hour)
-	policy(30)
-	if _, err := d.PreparedByID(ctx, old.ID); err != db.ErrNotFound {
-		t.Fatal("30 days did not expire a 60-day copy", err)
+	if err := s.Tidy(ctx); err != nil {
+		t.Fatal(err)
 	}
-	old = makeCopy("240p", db.PreparedReady, 20*24*time.Hour)
-	policy(30)
-	if _, err := d.PreparedByID(ctx, old.ID); err != nil {
-		t.Fatal("30 days expired a 20-day copy", err)
+	if _, err := d.PreparedByID(ctx, recent.ID); err != db.ErrNotFound {
+		t.Fatal("tidy kept a copy no download waits for", err)
 	}
-	policy(14)
-	if _, err := d.PreparedByID(ctx, old.ID); err != db.ErrNotFound {
-		t.Fatal("14 days did not expire a 20-day copy", err)
+	if _, err := d.PreparedByID(ctx, running.ID); err != nil {
+		t.Fatal("tidy removed a copy being made", err)
+	}
+}
+
+// A copy a download waits for lasts 48 hours from when it was ready, and an hour past its last
+// fetch when a fetch carried on beyond them; then it goes, and the download reads as expired.
+func TestACopyWaitedForLastsFortyEightHours(t *testing.T) {
+	d, film, wanting := filmLibrary(t)
+	clock := time.Now()
+	s := service(t, d, t.TempDir(), func() time.Time { return clock })
+	ctx := context.Background()
+	p, err := d.WantPrepared(ctx, film.MediaID(), "240p", 3, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.FinishPrepared(ctx, p.ID, p.PublicID, "mp4", 3, "hash", clock); err != nil {
+		t.Fatal(err)
+	}
+	wanting(p)
+	for _, step := range []struct {
+		after   time.Duration
+		fetched bool
+		kept    bool
+	}{{47 * time.Hour, false, true}, {90 * time.Minute, true, true}, {30 * time.Minute, false, true}, {time.Hour, false, false}} {
+		clock = clock.Add(step.after)
+		if step.fetched {
+			if err := d.UsePrepared(ctx, p.ID, clock); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := s.Tidy(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := d.PreparedByID(ctx, p.ID); (err == nil) != step.kept {
+			t.Fatalf("at %v the copy kept is %v; want %v", step.after, err == nil, step.kept)
+		}
 	}
 }

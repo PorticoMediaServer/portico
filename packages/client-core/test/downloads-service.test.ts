@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import {DownloadsService, downloadCopyId, downloadCopyReference, downloadedBundle, downloadPreparation} from '../src/downloads-service.ts';
 import {downloaded, menu, request, server} from './helpers/downloads-next.ts';
 
-test('the rebuilt quality menu offers its real sizes, preparation and room through the existing model', async t => {
+test('the rebuilt quality menu offers its real sizes and preparation through the existing model, with no room on the server', async t => {
   const s = server(), service = new DownloadsService(s.api); t.after(() => service.dispose());
   const result = await service.options('itm_film');
   assert.deepEqual(result.options.map(o => [o.quality, o.estimatedBytes, o.estimated, o.requiresPreparation]), menu.items.map(o => [o.quality, o.sizeBytes, o.estimated, o.prepared]));
-  assert.equal(result.storage.remainingBytes, 1000); assert.equal(result.source.bytes, 100);
+  assert.equal(result.storage.remainingBytes, null); assert.equal(result.source.bytes, 100);
   assert.equal(s.calls[0]!.path, '/v1/items/itm_film/download-options');
 });
 

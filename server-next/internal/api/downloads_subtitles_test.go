@@ -12,43 +12,6 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote/remotetest"
 )
 
-// The subtitles written beside a copy take room on the disk, so they count against the
-// owner's download space like the copy itself.
-func TestWrittenSubtitlesCountAgainstTheDownloadSpace(t *testing.T) {
-	rig := newDownloadRig(t)
-	if !rig.s.prepare.Converts() {
-		t.Skip("this machine cannot run the sandboxed encoder")
-	}
-	_, dl := rig.ask(rig.owner, DownloadAsk{ItemID: rig.film, Quality: "240p"})
-	rig.waitReady(rig.owner, dl.ID)
-	var onDisk int64
-	entries, err := os.ReadDir(rig.s.prepare.Folder)
-	if err != nil {
-		t.Fatal(err)
-	}
-	subtitles := 0
-	for _, e := range entries {
-		info, err := e.Info()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if filepath.Ext(e.Name()) == ".vtt" {
-			subtitles++
-		}
-		onDisk += info.Size()
-	}
-	if subtitles == 0 {
-		t.Fatal("no subtitle was written beside the copy")
-	}
-	used, err := rig.s.db.PreparedSpace(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if used != onDisk {
-		t.Fatalf("the download space counts %d bytes; the copy and its %d subtitle file(s) take %d", used, subtitles, onDisk)
-	}
-}
-
 // A film with several text subtitles inside it, kept on remote storage, is read from the
 // source about twice when its copy is made (once to convert, once for all its subtitles),
 // not once more for every subtitle track.

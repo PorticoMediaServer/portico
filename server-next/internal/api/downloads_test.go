@@ -254,10 +254,6 @@ func TestASmallerCopyIsPreparedOnceForEveryoneWhoAsks(t *testing.T) {
 	if code != 201 || theirs.Counts.Ready != 1 {
 		t.Fatalf("a second person waited for a copy already made: %d %+v", code, theirs)
 	}
-	used, _ := rig.s.db.PreparedSpace(context.Background())
-	if used != dl.Items[0].SizeBytes {
-		t.Fatalf("the server's space counts %d for one copy of %d", used, dl.Items[0].SizeBytes)
-	}
 	var item DownloadedItem
 	call(t, rig.s, "GET", "/v1/downloads/"+theirs.ID+"/items/"+rig.film, onPartner.AccessToken, nil, &item)
 	if len(item.Files) != 1 || item.Files[0].SHA256 == "" {
@@ -390,18 +386,6 @@ func TestADeviceIsToldToRemoveWhatItsProfileLost(t *testing.T) {
 	if code, _ := rig.ask(token, DownloadAsk{ItemID: rig.film, Quality: "original"}); code != 403 {
 		t.Fatalf("asking with Downloads off answered %d", code)
 	}
-
-	// The owner sees the request by person and removes it; no device is reached.
-	byPerson := get[DownloadsByPerson](t, rig.s, rig.owner, "/v1/admin/downloads")
-	if len(byPerson.Items) != 1 || byPerson.Items[0].Titles != 1 {
-		t.Fatalf("the owner's page lists %+v", byPerson.Items)
-	}
-	if w := call(t, rig.s, "DELETE", "/v1/admin/members/"+byPerson.Items[0].UserID+"/downloads", rig.owner, nil, nil); w.Code != 204 {
-		t.Fatalf("removing their downloads answered %d", w.Code)
-	}
-	if after := get[DownloadsByPerson](t, rig.s, rig.owner, "/v1/admin/downloads"); len(after.Items) != 1 || after.Items[0].CopiesBytes != 0 {
-		t.Fatalf("cleanup must keep requests and free prepared copies: %+v", after.Items)
-	}
 }
 
 // importShow adds a show with episodes 1 to n of season 1 (or, called again, more of them).
@@ -499,8 +483,8 @@ func TestKeepTheNextFollowsWhatIsWatchedAndWhatArrives(t *testing.T) {
 
 // "Keep the next" is a rule for a download of the next unwatched titles; on a download of
 // all of them it is refused rather than left to remove the rest. And a kept title whose copy
-// the server removed before the device fetched it (a phone away from Wi-Fi past the owner's
-// keeping time) is asked for again at the next sync.
+// the server removed before the device fetched it (a phone away from Wi-Fi past the copy's
+// 48 hours) is asked for again at the next sync.
 func TestKeepTheNextAsksAgainForAnExpiredCopy(t *testing.T) {
 	rig := newDownloadRig(t)
 	if !rig.s.prepare.Converts() {
@@ -518,7 +502,7 @@ func TestKeepTheNextAsksAgainForAnExpiredCopy(t *testing.T) {
 		t.Fatalf("asking answered %d %+v", code, dl)
 	}
 	// The episodes' files are not real, so the copy fails; either way it is not being made
-	// when the keeping time runs out.
+	// when its 48 hours run out.
 	for deadline := time.Now().Add(time.Minute); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
 		if state := get[Download](t, rig.s, rig.owner, "/v1/downloads/"+dl.ID).Items[0].State; state != "waiting" && state != "preparing" {
 			break
