@@ -86,6 +86,11 @@ func (d *DB) continueRow(ctx context.Context, v Viewer, kinds []ItemKind, librar
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	if slices.Contains(kinds, KindAudiobook) {
+		if err := chaptersAt(ctx, tx, items); err != nil {
+			return nil, err
+		}
+	}
 	if kinds == nil || slices.Contains(kinds, KindEpisode) {
 		if items, err = continueNext(ctx, tx, v, acc, library, items); err != nil {
 			return nil, err
@@ -302,4 +307,38 @@ func kindIn(kinds []ItemKind) string {
 		return "1 AND "
 	}
 	return "i.kind IN (" + strings.Join(list, ", ") + ") AND "
+}
+
+// Chapter is a chapter of a title's file, numbered from 1 through the whole file.
+type Chapter struct {
+	Number         int
+	Title          string
+	StartMS, EndMS int64
+}
+
+// chaptersAt gives each audiobook of a Continue row the chapter its place is in, so its card can
+// say "Chapter 5 · 9 h 12 min left" (tablet-read frame 11). A book of several files, or a place
+// outside every chapter, has none: the card then says only the time left.
+func chaptersAt(ctx context.Context, tx *sql.Tx, items []Item) error {
+	for n := range items {
+		it := &items[n]
+		if it.Kind != KindAudiobook || it.State.PositionMS <= 0 {
+			continue
+		}
+		var c Chapter
+		err := tx.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM media_markers o WHERE o.media_id = k.media_id AND o.kind = ?1
+				AND o.start_ms <= k.start_ms), ifnull(k.title, ''), k.start_ms, k.end_ms
+			FROM media m JOIN media_markers k ON k.media_id = m.id
+			WHERE m.item_id = ?2 AND k.kind = ?1 AND k.start_ms <= ?3 AND k.end_ms > ?3
+				AND (SELECT count(*) FROM media_parts p WHERE p.media_id = m.id) = 1
+			ORDER BY m.id, k.start_ms DESC LIMIT 1`, MarkerChapter, it.ID, it.State.PositionMS).Scan(&c.Number, &c.Title, &c.StartMS, &c.EndMS)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		it.Chapter = &c
+	}
+	return nil
 }

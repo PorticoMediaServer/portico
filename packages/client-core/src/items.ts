@@ -35,6 +35,13 @@ const periodicalPivots: Readonly<Record<string, 'magazines' | 'newspapers'>> = {
 const stars = (rating: number | undefined): number | undefined => rating === undefined ? undefined : rating / 2;
 
 /** The card for one item. A kind this app does not know has no card. `libraryId` is the list's library when the item does not say. */
+function bookProgressOf(item: Item, positionMs: number) {
+  const chapter = item.chapter && item.chapter.startMs <= positionMs && positionMs < item.chapter.endMs ? item.chapter : undefined;
+  return {bookId: item.id, itemId: item.id, partPositionMs: positionMs, positionMs,
+    ...(item.durationMs && positionMs <= item.durationMs ? {durationMs: item.durationMs, remainingMs: item.durationMs - positionMs} : {}),
+    ...(chapter ? {chapter: {index: chapter.number - 1, number: chapter.number, title: chapter.title || `Chapter ${chapter.number}`, startMs: chapter.startMs, endMs: chapter.endMs}} : {})};
+}
+
 export function entryFromItem(item: Item, libraryId?: string): ContentEntry | undefined {
   const kind = entryKinds[item.kind];
   if (!kind || !item.id) return undefined;
@@ -72,6 +79,8 @@ export function entryFromItem(item: Item, libraryId?: string): ContentEntry | un
     badges: item.kind === 'album' ? albumAudioBadges(item.albumAudio) : undefined,
     albumAudio: item.kind === 'album' && item.albumAudio ? item.albumAudio : undefined,
     playback: view ? undefined : {itemId: item.id, ...(state?.positionMs ? {startSeconds: Math.round(state.positionMs / 1000)} : {})},
+    // An audiobook in Continue your books: where the listener is, so its card says the chapter and the time left.
+    bookProgress: item.kind === 'audiobook' && state?.positionMs ? bookProgressOf(item, state.positionMs) : undefined,
   };
   for (const key of Object.keys(entry)) if (entry[key] === undefined || entry[key] === null) delete entry[key];
   return Object.freeze(entry) as ContentEntry;

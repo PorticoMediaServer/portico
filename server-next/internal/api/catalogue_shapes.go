@@ -148,6 +148,8 @@ type Item struct {
 	State           ItemState         `json:"state"`
 	// LibraryID is the library the item is in, on every card and every page.
 	LibraryID string `json:"libraryId"`
+	// Chapter is, for an audiobook in Home's Continue your books, the chapter the place is in.
+	Chapter *ItemChapter `json:"chapter,omitempty"`
 	// EntryID is the entry's id in a list read in its own order: what a move or a removal names.
 	EntryID string `json:"entryId,omitempty"`
 
@@ -166,6 +168,14 @@ type Item struct {
 	CreditTotal   *int               `json:"creditTotal,omitempty"`
 	Versions      []Media            `json:"versions,omitempty"`
 	AlbumAudio    *AlbumAudioSummary `json:"albumAudio,omitempty"`
+}
+
+// ItemChapter is one chapter of an audiobook: its number through the book, title and span.
+type ItemChapter struct {
+	Number  int    `json:"number"`
+	Title   string `json:"title"`
+	StartMs int64  `json:"startMs"`
+	EndMs   int64  `json:"endMs"`
 }
 
 // AlbumAudioSummary is present only on an album item read. State is common, mixed or unknown.
@@ -534,6 +544,9 @@ func itemShape(it db.Item) Item {
 		ParentID: it.ParentPublicID, RootID: it.RootPublicID, RootTitle: it.RootTitle, Index: it.IndexNumber, ParentIndex: it.ParentIndex,
 		DurationMs: it.DurationMS, ContentRating: it.ContentRating, AddedAt: timeString(it.AddedAt), Images: imageMap(it.Images),
 		State: stateShape(it.State), LibraryID: it.LibraryID}
+	if c := it.Chapter; c != nil {
+		out.Chapter = &ItemChapter{Number: c.Number, Title: c.Title, StartMs: c.StartMS, EndMs: c.EndMS}
+	}
 	if it.Kind.Reading() {
 		out.PublicationType, out.WordCount = db.PublicationName(it.Publication), it.WordCount
 	}
