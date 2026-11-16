@@ -9,18 +9,40 @@ import (
 
 const selectionFailureSummary = "Some titles could not be changed. The rest is done."
 
+// JobListResult is an add_view_to_list job's committed result for currently visible source
+// titles. Added counts list entries (including holder expansion); Failed counts titles.
+type JobListResult struct {
+	Added          int64 `json:"added"`
+	AlreadyPresent int64 `json:"alreadyPresent"`
+	Failed         int64 `json:"failed"`
+}
+
 // jobResult keeps a partial selection job's summary in step with the failure page the reader
 // can open now. Removed or newly hidden titles do not leave an unexplained failed result.
 // A job-wide fault keeps its own failed state and reason.
 func (s *Server) jobResult(r *http.Request, job db.Job) (db.Job, error) {
+	if job.Kind == listViewJobKind {
+		result, err := s.db.ListJobResult(r.Context(), viewer(r), job)
+		if err != nil {
+			return job, err
+		}
+		job.ListResult = &result
+		if job.State == db.JobDone {
+			job.Error = listViewNote(result.Added, result.AlreadyPresent)
+		}
+	}
 	if job.Kind != stateJobKind && job.Kind != listViewJobKind || job.State != db.JobFailed || job.Error != selectionFailureSummary {
 		return job, nil
 	}
-	failures, err := s.db.JobItemFailures(r.Context(), viewer(r), job.ID, 0, 1)
-	if err != nil {
-		return job, err
+	failed := job.ListResult != nil && job.ListResult.Failed > 0
+	if job.ListResult == nil {
+		failures, err := s.db.JobItemFailures(r.Context(), viewer(r), job.ID, 0, 1)
+		if err != nil {
+			return job, err
+		}
+		failed = len(failures) > 0
 	}
-	if len(failures) == 0 {
+	if !failed {
 		job.State, job.Error = db.JobDone, ""
 	}
 	return job, nil

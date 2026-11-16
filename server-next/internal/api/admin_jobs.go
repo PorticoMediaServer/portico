@@ -19,12 +19,13 @@ import (
 
 // AdminJob is one task as the owner's list shows it.
 type AdminJob struct {
-	ID          string       `json:"id"`
-	Kind        string       `json:"kind"`
-	State       string       `json:"state"`
-	LibraryID   string       `json:"libraryId,omitempty"`
-	LibraryName string       `json:"libraryName,omitempty"`
-	Progress    *JobProgress `json:"progress,omitempty"`
+	ID          string         `json:"id"`
+	Kind        string         `json:"kind"`
+	State       string         `json:"state"`
+	LibraryID   string         `json:"libraryId,omitempty"`
+	LibraryName string         `json:"libraryName,omitempty"`
+	Progress    *JobProgress   `json:"progress,omitempty"`
+	Result      *JobListResult `json:"result,omitempty"`
 	// Error is why it failed.
 	Error      string     `json:"error,omitempty"`
 	CreatedAt  time.Time  `json:"createdAt"`
@@ -100,7 +101,7 @@ func (s *Server) adminJobs(r *http.Request, _ None) (Page[AdminJob], error) {
 
 func (s *Server) adminJob(r *http.Request, j db.Job, libraries map[string]string) AdminJob {
 	plain := jobOut(r, j)
-	out := AdminJob{ID: j.PublicID, Kind: j.Kind, State: j.State, Progress: plain.Progress, Error: plain.Error,
+	out := AdminJob{ID: j.PublicID, Kind: j.Kind, State: j.State, Progress: plain.Progress, Result: plain.Result, Error: plain.Error,
 		CreatedAt: time.UnixMilli(j.CreatedAt).UTC(), StartedAt: timePtr(j.StartedAt), FinishedAt: timePtr(j.FinishedAt), CanRetry: s.mayRetry(j)}
 	if name, ok := libraries[j.Target]; ok {
 		out.LibraryID, out.LibraryName = j.Target, name

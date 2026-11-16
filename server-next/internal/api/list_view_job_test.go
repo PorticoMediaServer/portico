@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -37,8 +35,9 @@ func TestAddAWholeViewToAPlaylist(t *testing.T) {
 		t.Fatalf("starting the job answered %d: %s", w.Code, w.Body)
 	}
 	job = waitForJob(t, s, limited, job.ID)
-	if job.State != db.JobDone || !strings.HasPrefix(job.Error, "Added "+strconv.Itoa(*seen.Total)+".") {
-		t.Fatalf("the job ended %s: %q", job.State, job.Error)
+	wantResult := JobListResult{Added: int64(*seen.Total)}
+	if job.State != db.JobDone || job.Result == nil || *job.Result != wantResult {
+		t.Fatalf("the job result: %+v", job)
 	}
 	entries := func() []string {
 		page := get[ItemPage](t, s, limited, "/v1/items?list="+playlist.ID+"&limit=200")
@@ -71,6 +70,25 @@ func TestAddAWholeViewToAPlaylist(t *testing.T) {
 	s.runListViewJob(context.Background(), jobs.Work{Job: stored, Request: again, Progress: func(int64, int64) {}})
 	if n := len(entries()); n != len(seen.Items) {
 		t.Fatalf("taken up again the playlist has %d entries, not %d", n, len(seen.Items))
+	}
+	if result := get[Job](t, s, limited, "/v1/jobs/"+job.ID).Result; result == nil || *result != wantResult {
+		t.Fatalf("replay changed the result: %+v", result)
+	}
+
+	// A separate collection job distinguishes new members from ones already there.
+	var collection List
+	call(t, s, "POST", "/v1/lists", limited, ListCreate{Kind: db.ListCollection, Name: "Films"}, &collection)
+	start.Params = JSON(`{"list":"` + collection.ID + `"}`)
+	for attempt := 0; attempt < 2; attempt++ {
+		call(t, s, "POST", "/v1/jobs", limited, start, &job)
+		job = waitForJob(t, s, limited, job.ID)
+		want := JobListResult{Added: int64(*seen.Total)}
+		if attempt == 1 {
+			want = JobListResult{AlreadyPresent: int64(*seen.Total)}
+		}
+		if job.Result == nil || *job.Result != want {
+			t.Fatalf("collection attempt %d result: %+v", attempt, job.Result)
+		}
 	}
 
 	// A list the profile may not change is refused before anything is stored.
@@ -122,6 +140,9 @@ func TestListJobKeepsPartialResultsAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if result := get[Job](t, s, owner, "/v1/jobs/"+job.PublicID).Result; result == nil || *result != (JobListResult{}) {
+		t.Fatalf("new job result: %+v", result)
+	}
 	stop, cancel := context.WithCancel(ctx)
 	err = s.runListViewJob(stop, jobs.Work{Job: job, Request: req, Progress: func(int64, int64) { cancel() }})
 	if !errors.Is(err, context.Canceled) {
@@ -136,12 +157,17 @@ func TestListJobKeepsPartialResultsAcrossRestart(t *testing.T) {
 	if *before.Total == 0 {
 		t.Fatal("the other shows were not added")
 	}
+	wantResult := JobListResult{Added: int64(*before.Total), Failed: 1}
+	if result := get[Job](t, s, owner, "/v1/jobs/"+job.PublicID).Result; result == nil || *result != wantResult {
+		t.Fatalf("partial result: %+v, want %+v", result, wantResult)
+	}
 	database := filepath.Join(s.dataDir, "main.db")
 	stopServer(s)
 	closeDB(s.db)
 	s = openTestServer(t, database)
 	owner = onMain(t, s, signIn(t, s, 4)).AccessToken
-	if ended := waitForJob(t, s, owner, job.PublicID); ended.State != db.JobFailed || ended.Error != selectionFailureSummary {
+	if ended := waitForJob(t, s, owner, job.PublicID); ended.State != db.JobFailed || ended.Error != selectionFailureSummary ||
+		ended.Result == nil || *ended.Result != wantResult {
 		t.Fatalf("resumed job: %+v", ended)
 	}
 	after := get[ItemPage](t, s, owner, "/v1/items?list="+list.ID+"&total=true&limit=200")
@@ -155,5 +181,35 @@ func TestListJobKeepsPartialResultsAcrossRestart(t *testing.T) {
 	}
 	if kept := get[Page[JobItemFailure]](t, s, owner, path); len(kept.Items) != 1 || kept.Items[0].ItemID != failures.Items[0].ItemID {
 		t.Fatalf("restart lost the failure: %+v", kept)
+	}
+	// Even another account's administrator sees only current visible source results.
+	addMember(t, s, owner, "result-reader", "admin")
+	admin := signInAs(t, s, "result-reader", testPassword, 5).AccessToken
+	ac := CallerOf(t, s, admin)
+	p, err := s.db.ProfileByID(ctx, ac.UserID, ac.ProfileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, all := range []bool{false, true} {
+		if _, err := s.db.SetProfileRestrictions(ctx, ac.UserID, p.PublicID, db.Restrictions{AllLibraries: all}, s.now()); err != nil {
+			t.Fatal(err)
+		}
+		got := get[Job](t, s, admin, "/v1/jobs/"+job.PublicID)
+		want := wantResult
+		if !all {
+			want = JobListResult{}
+			if got.State != db.JobDone || got.Error != "" {
+				t.Fatalf("hidden failures left a partial-failure summary: %+v", got)
+			}
+		}
+		if got.Result == nil || *got.Result != want {
+			t.Fatalf("all libraries %t: result %+v, want %+v", all, got.Result, want)
+		}
+	}
+	if err := s.db.DeleteLibrary(ctx, shows.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := get[Job](t, s, owner, "/v1/jobs/"+job.PublicID); got.Result == nil || *got.Result != (JobListResult{}) || got.State != db.JobDone {
+		t.Fatalf("deleted source titles still counted: %+v", got)
 	}
 }
