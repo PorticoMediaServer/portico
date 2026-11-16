@@ -659,6 +659,10 @@ func (m *matrix) playlists(t *testing.T, url string) (string, []playlist) {
 		}
 	}
 	read(url[len(base):])
+	// Frame checks use files[0]; a separate audio group must not take its place.
+	sort.SliceStable(lists, func(i, j int) bool {
+		return !strings.HasPrefix(lists[i].name, "audio-") && strings.HasPrefix(lists[j].name, "audio-")
+	})
 	if len(lists) == 0 {
 		t.Fatalf("%s names no segments", url)
 	}
@@ -675,51 +679,6 @@ func (m *matrix) segmentAt(t *testing.T, url string, seconds float64) int {
 		}
 	}
 	return len(lists[0].parts) - 1
-}
-
-// segments fetches segments [from, to) of every playlist of a stream, joins each
-// playlist's as a player's buffer would, and returns what is in them, with where the first
-// playlist says those segments start and end.
-func (m *matrix) segments(t *testing.T, f *finding, url string, from, to int) (video, audio *probed, files []string, start, end float64) {
-	t.Helper()
-	base, lists := m.playlists(t, url)
-	start, end = lists[0].at(from), lists[0].at(to)
-	for _, l := range lists {
-		if from >= len(l.parts) {
-			f.check(false, "%s has %d segments, wanted from %d", l.name, len(l.parts), from)
-			continue
-		}
-		var joined []byte
-		if l.init != "" {
-			_, _, body := m.on(t).media(base + l.init)
-			joined = append(joined, body...)
-		}
-		for i := from; i < to && i < len(l.parts); i++ {
-			code, _, body := m.on(t).media(base + l.parts[i])
-			if code != 200 || len(body) == 0 {
-				f.check(false, "%s, named in %s, answered %d: %.200q", l.parts[i], l.name, code, body)
-				break
-			}
-			joined = append(joined, body...)
-		}
-		ext := ".ts"
-		if l.init != "" {
-			ext = ".mp4"
-		}
-		file := filepath.Join(t.TempDir(), "joined"+ext)
-		if err := os.WriteFile(file, joined, 0o600); err != nil {
-			t.Fatal(err)
-		}
-		files = append(files, file)
-		v, a := m.probe(t, file, true)
-		if video == nil {
-			video = v
-		}
-		if audio == nil {
-			audio = a
-		}
-	}
-	return video, audio, files, start, end
 }
 
 func attribute(line, name string) string {

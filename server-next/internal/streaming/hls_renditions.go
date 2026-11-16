@@ -40,7 +40,9 @@ type AudioRenditionPlan struct {
 }
 
 func planAudioRenditions(p DeliveryPlan, source DeliverySource, client ClientProfile, target QualityTarget, convert bool) []AudioRenditionPlan {
-	if p.Mode != "hls" || p.VideoAction == "none" || len(source.Audio) < 2 {
+	// Keep fMP4/CMAF picture and sound in separate streams, even for
+	// one audio track. MPEG-TS keeps its single track muxed with the picture.
+	if p.Mode != "hls" || p.VideoAction == "none" || len(source.Audio) == 0 || (len(source.Audio) == 1 && p.OutputContainer != "fmp4_hls") {
 		return nil
 	}
 	kind := TransportHLSTS
@@ -122,7 +124,7 @@ func planAudioRenditions(p DeliveryPlan, source DeliverySource, client ClientPro
 		r.Label = manifestQuoted(r.Label)
 		out = append(out, r)
 	}
-	if len(out) < 2 {
+	if len(out) == 0 || (len(out) == 1 && p.OutputContainer != "fmp4_hls") {
 		return nil
 	}
 	return out
