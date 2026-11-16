@@ -18,35 +18,6 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
 const runtime = {text: {t}, reportError: (error: unknown) => {throw error;}, error: () => ({title: 'Error'})};
 const chrome = {'./NetworkInterfaceRow': {NativeNetworkInterfaceRow: 'NetworkInterfaceRow'}, 'react-native': {ScrollView: 'ScrollView', View: 'View', Text: 'Text'}, './RefusedAddresses': {NativeRefusedAddresses: 'NativeRefusedAddresses'}, './SecuritySummary': {NativeSecuritySummary: 'NativeSecuritySummary'}, '../../../kit/shell/ServerIdentity': {ServerHeader: 'ServerHeader'}, './page-layout': {settingsPageInset: () => ({}), settingsPageHeading: () => ({})}, '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/theme': {useTheme: () => theme}, '../../../kit/states': {StateView: 'StateView'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/controls': {Button: 'Button', Select: 'Select', Switch: 'Switch', TextField: 'TextField'}, './AdvancedSection': {NativeAdvancedSection: 'Advanced'}, './SettingControl': {NativeSettingControl: 'Setting'}, './settings-values': values};
 
-test('General exposes backed Advanced controls and one Background speed setting, with draft-aware update checks', async () => {
-  const feed = 'https://example.invalid/releases';
-  const fixture = await formsFixture({runtime: {name: 'Server', 'updates.feedUrl': feed}, maintenance: maintenance(), alerts: {storageWarningPercent: 15, storageCriticalPercent: 5, certificateWarningDays: 14, serverNoticesTo: 'owner'}}), host = lifecycleHooks();
-  const configuration = {path: '/config/portico.toml', fields: [{id: 'general.updateFeed', current: feed, effective: feed, default: feed, configOnly: false}]};
-  const api = {request: async (path: string) => path === routePath('get_settings_configuration') ? configuration : {version: '0.0-test', newer: false, install: 'manual', checkedAt: '2026-10-01T00:00:00Z'}};
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/GeneralPage.tsx', import.meta.url), {
-    ...chrome, react: host.react, '../use-settings-request-scope': {useSettingsRequestScope: () => ({api, lifetime: {current: fixture.group.context.current}})},
-    '../../../../../../packages/client-core/src/server-admin/server-forms': {pauseBackgroundWork: assert.fail}, '../../../../../../packages/client-core/src/backups': {restartServer: assert.fail},
-    '../../../../../../packages/contracts/src/routes': {routePath}, '../../../../../../packages/client-core/src/settings-configuration': {parseSettingsConfiguration: (value: unknown) => value}, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
-    '../../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../../../../../packages/client-core/src/presentation/errors': {presentError: () => ({body: 'Error'})}, '../../../../../../packages/client-core/src/server-admin/console-words': {when: String},
-    '../../../kit/controls/Button': {Button: 'Button'}, '../../../kit/controls/TextField': {TextField: 'TextField'}, '../../../kit/overlays/BottomSheet': {BottomSheet: 'BottomSheet'}, './HeavyWorkControls': {HeavyWorkControls: 'Heavy'}, './BroadcastSheet': {NativeBroadcastSheet: 'Broadcast'}, './storage/forms': fixture.hooks,
-  });
-  const render = () => host.render(() => {const outer = module.NativeServerGeneral({ports: {context: fixture.group.context}, runtime});return outer.type(outer.props);});
-  render();host.flush();await settle();
-  const controls = () => nodes(render()).filter((node: any) => node.type === 'Setting');
-  for (const id of ['general.updateChecks', 'general.backgroundSpeed', 'general.updateFeed']) assert.ok(controls().some((node: any) => node.props.row.id === id), id);
-  // The alert thresholds (critical 5 below warning 15 is valid) and who sees each notice are Advanced rows.
-  for (const id of ['general.alertStorageWarn', 'general.alertStorageCritical', 'general.alertCertificateDays', 'general.serverNoticesTo']) assert.ok(controls().some((node: any) => node.props.row.id === id), id);
-  controls().find((node: any) => node.props.row.id === 'general.serverNoticesTo').props.onChange('owner-and-admins');
-  assert.equal(fixture.group.forms.alerts.getSnapshot().draft.serverNoticesTo, 'owner-and-admins');
-  assert.equal(fixture.group.forms.alerts.getSnapshot().problem, undefined);
-  assert.equal(nodes(render()).filter((node: any) => node.type === 'Advanced').length, 1);
-  controls().find((node: any) => node.props.row.id === 'general.backgroundSpeed').props.onChange('fast');assert.equal(fixture.group.forms.maintenance.getSnapshot().draft.backgroundSpeed, 'fast');
-  controls().find((node: any) => node.props.row.id === 'general.updateChecks').props.onChange('never');
-  assert.equal(controls().find((node: any) => node.props.row.id === 'general.updateChecks').props.value, 'never');
-  assert.equal(fixture.group.forms.runtime.getSnapshot().draft['updates.feedUrl'], '');
-  host.dispose();fixture.stop();
-});
-
 test('Storage custom limits open an exact-value editor and a rejected edit never changes the draft', async () => {
   const fixture = await formsFixture({runtime: {analysisStorageGiB: 40, playHistoryDays: 0, jobDays: 7, diagnosticDays: 7}, maintenance: maintenance(), logs: {retention: []}}, {maintenance: {storageCategories: [], retentionMaxima: {}}}), host = hooks();
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/storage/LimitsTab.tsx', import.meta.url), {

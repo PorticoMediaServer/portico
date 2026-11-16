@@ -10,6 +10,7 @@
  */
 import type {List, ListAdd, ListAdded, ListCreate, ListCreated, ListPage} from '../../../contracts/src/next/api.ts';
 import {callServer, serverPath, type ServerRequester} from '../query/server-api.ts';
+import type {HttpLocalApi} from '../http.ts';
 import {entryFromItem, readAllItems} from '../items.ts';
 import {libraryItemQuery} from '../library-browse.ts';
 import type {ContentEntry} from '../library-content.ts';
@@ -38,6 +39,12 @@ export function withRequestRaw<A extends ServerRequester>(api: A, raw: RequestRa
     request: api.request.bind(api),
     requestRaw: async (path: string, method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', options?: Parameters<RequestRaw>[2]) => {guard(); const answer = await raw(path, method, options); guard(); return answer;},
   });
+}
+/** As `withRequestRaw`, for a reader that cannot work without the header-sending call (settings documents are
+ * read and saved by revision): the app hands over its transport, and the guard ends both with the screen. */
+export function withGuardedRaw<A extends ServerRequester>(api: A, http: Pick<HttpLocalApi, 'requestRaw'>, guard: () => void): A & Pick<HttpLocalApi, 'requestRaw'> {
+  const requestRaw: HttpLocalApi['requestRaw'] = async (path, method, options) => {guard(); const answer = await http.requestRaw(path, method, options); guard(); return answer;};
+  return Object.assign(Object.create(api) as A, {request: api.request.bind(api), requestRaw});
 }
 const revisionOf = (list: Pick<List, 'revision'>) => {const n = Number(list.revision); return Number.isSafeInteger(n) && n >= 1 ? n : 1;};
 /** A list's covers as the artwork its row draws (only drawn, never opened). */
