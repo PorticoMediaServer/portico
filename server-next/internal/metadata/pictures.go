@@ -301,6 +301,27 @@ func (s *Service) storePictures(ctx context.Context, itemID int64, pictures []Pi
 	return s.DB.AddProviderPictures(ctx, priority, itemID, found)
 }
 
+// storeTitlePictures records the provider's pictures of a title a lookup or refresh asked
+// about and, for a show, those of each season the library has.
+func (s *Service) storeTitlePictures(ctx context.Context, itemID int64, record Record) error {
+	if err := s.storePictures(ctx, itemID, record.Pictures, "", db.Background); err != nil {
+		return err
+	}
+	if s.Pictures == nil || len(record.GroupPictures) == 0 {
+		return nil
+	}
+	seasons, err := s.DB.Seasons(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	for number, id := range seasons {
+		if err := s.storePictures(ctx, id, record.GroupPictures[number], "", db.Background); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ErrNotMatched is the answer to Find more for a title with no match to ask the provider about.
 var ErrNotMatched = errors.New("this title has no match to ask about")
 

@@ -58,7 +58,18 @@ type LibraryOptions struct {
 	// NoSoundAnalysis turns off reading a music library's songs with the sound model; what
 	// was read is kept.
 	NoSoundAnalysis bool `json:"noSoundAnalysis,omitempty"`
+	// EpisodeThumbnails is a show or anime library's "Episode thumbnails" (definition area 4,
+	// rule 46): EpisodeThumbnailsDefault ("" is the same), EpisodeThumbnailsProvider or
+	// EpisodeThumbnailsOff.
+	EpisodeThumbnails string `json:"episodeThumbnails,omitempty"`
 }
+
+// The choices for Episode thumbnails: Provider, then made (the default); Provider only; Off.
+const (
+	EpisodeThumbnailsDefault  = "provider_then_made"
+	EpisodeThumbnailsProvider = "provider"
+	EpisodeThumbnailsOff      = "off"
+)
 
 // LyricsLRCLIB is a music library that looks up lyrics its files do not have at LRCLIB.
 const LyricsLRCLIB = "lrclib"

@@ -230,17 +230,20 @@ func (d *DB) ApplyDetails(ctx context.Context, p Priority, itemID int64, details
 
 // ApplyChildren stores what a provider said about the children of a title in one group: the
 // episodes of one season of a show, the tracks of one disc of an album. A child the library
-// does not have is passed over.
-func (d *DB) ApplyChildren(ctx context.Context, p Priority, itemID int64, kind ItemKind, group int, children []ItemDetails) error {
+// does not have is passed over. It answers each child's id, in the order given, 0 for one
+// passed over, so the provider's pictures of it can be recorded.
+func (d *DB) ApplyChildren(ctx context.Context, p Priority, itemID int64, kind ItemKind, group int, children []ItemDetails) ([]int64, error) {
 	// An episode is found under its show, past the season; a track is directly under its album.
 	holder := "root_id"
 	if kind == KindTrack {
 		holder = "parent_id"
 	}
-	return d.write(ctx, p, func(tx *sql.Tx) error {
+	ids := make([]int64, len(children))
+	err := d.write(ctx, p, func(tx *sql.Tx) error {
 		b := newBatchTx(tx)
 		defer b.close()
 		now := time.Now().UnixMilli()
+		clear(ids)
 		for i := range children {
 			var id int64
 			// A negative group is any: episodes in absolute order are numbered through the show.
@@ -255,9 +258,31 @@ func (d *DB) ApplyChildren(ctx context.Context, p Priority, itemID int64, kind I
 			if err := applyDetails(b, id, &children[i], now); err != nil {
 				return err
 			}
+			ids[i] = id
 		}
 		return b.settleWatchedForAll(now)
 	})
+	return ids, err
+}
+
+// Seasons answers the ids of a show's seasons, by season number.
+func (d *DB) Seasons(ctx context.Context, showID int64) (map[int]int64, error) {
+	rows, err := d.read.QueryContext(ctx, `SELECT index_number, id FROM items WHERE parent_id = ? AND kind = ? AND index_number IS NOT NULL`,
+		showID, KindSeason)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int]int64{}
+	for rows.Next() {
+		var n int
+		var id int64
+		if err := rows.Scan(&n, &id); err != nil {
+			return nil, err
+		}
+		out[n] = id
+	}
+	return out, rows.Err()
 }
 
 func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
