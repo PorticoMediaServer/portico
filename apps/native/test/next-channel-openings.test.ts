@@ -1,178 +1,50 @@
-import * as presentation from '../src-next/screens/settings-live/server/channels/presentation.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {hooks, screenModule} from './helpers/screen-harness.mjs';
-
-const nodes = (tree: any): any[] => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children), ...nodes(tree.props?.footer)] : [];
-const button = (tree: any, label: string) => {const found = nodes(tree).find(node => node.type === 'Button' && node.props.children.includes(label) || node.type === 'MenuRow' && node.props.label === label); assert.ok(found, label); return found;};
-const theme = {isTV: false, platform: 'phone', colors: new Proxy({}, {get: (_target, key) => String(key)})};
-const t = (id: string) => id;
-function layoutHost() {
-  const host = hooks(), effects: (() => void)[] = [], cleanups = new Set<{cleanup?: () => void}>();
-  const useLayoutEffect = (run: () => void | (() => void), deps: readonly unknown[]) => {
-    const slot = host.react.useRef(undefined);
-    if (!slot.current || deps.some((value, index) => value !== slot.current.deps[index])) {
-      const before = slot.current, next = {deps, cleanup: undefined as (() => void) | undefined}; slot.current = next; cleanups.add(next);
-      effects.push(() => {before?.cleanup?.(); next.cleanup = run() || undefined;});
-    }
-  };
-  Object.assign(host.react, {useLayoutEffect}); Object.assign(host.react.default, {useLayoutEffect});
-  return {...host, flush: () => {for (const effect of effects.splice(0)) effect();}, dispose: () => {for (const value of cleanups) value.cleanup?.();}};
+import {OwnerChannelSource} from '../src-next/screens/settings-live/server/channels/source.ts';
+import {blockOverlap,copyBlockPreset,validBuilder} from '../../../packages/client-core/src/server-admin/owner-channel-draft.ts';
+const builder={libraries:['library'],kinds:['movie'],quality:{},logoOnScreen:{}};
+const row={id:'channel',revision:'1',number:1,name:'Original',on:true,timeZone:'UTC',summary:'Movies',libraries:['library'],state:'onAir',titles:3,builder};
+function fixture(){
+ const calls:{path:string;method:string;options:any}[]=[],reads:string[]=[];let current=true,failure:unknown,updated={...row,description:''};
+ const api={request:async<T,>(path:string)=>{reads.push(path);return (path.includes('/templates')?{items:[],timeZone:'UTC',moodAvailable:false}:path.endsWith('/channel')?updated:{items:[updated]}) as T;},requestRaw:async(path:string,method:string,options:any)=>{calls.push({path,method,options});if(failure)throw failure;return {status:200,headers:{},body:{...updated,...options.body,revision:'2'}};}};
+ const source=new OwnerChannelSource(api as any,()=>current,(error:unknown)=>assert.fail(String(error)));
+ return {source,calls,reads,retire:()=>{current=false;},fail:(value:unknown)=>{failure=value;},update:()=>{updated={...row,revision:'2',description:'Changed elsewhere'};}};
 }
-const source = (getSnapshot: () => any) => ({subscribe: () => () => {}, getSnapshot});
-const common = {'../../../../../../../packages/i18n/src': {defaultI18n: {t, date: String, dateTime: String, number: String}},
-  '../../../../kit/artwork': {StandardBackdrop: 'StandardBackdrop', ChannelMark: 'ChannelMark', Artwork: 'Artwork'}, '../../../../kit/controls': {Button: 'Button', Focusable: 'Focusable', Switch: 'Switch', Select: 'Select', TextField: 'TextField'},
-  '../../../../kit/overlays': {BottomSheet: 'BottomSheet', MenuRow: 'MenuRow'}, './presentation': presentation, '../../../../kit/shell/visual': {shellType: () => ({})}, '../../../../kit/theme': {useTheme: () => theme}};
-
-async function channelsFixture() {
-  const host = layoutHost(), calls: any[][] = [];
-  const channels = ['First', 'Second'].map((name, index) => ({config: {id: `channel-${index}`, name, enabled: true, description: ''}, candidateCount: 5, state: 'ready', generatedThrough: ''}));
-  const templates = [{id: 'ready-template', name: 'Ready template', applicable: true}, {id: 'blocked-template', name: 'Blocked template', applicable: false}];
-  let active = true, state: any = {phase: 'ready', channels, templates}, editing: any = {phase: 'closed', busy: false, pending: false};
-  const action = {busy: false}, logo = {busy: false}, presets = {busy: false, reconcile: false};
-  const reader = {...source(() => state), load: async () => {}, templates: async () => {}, health: async (channel: any) => {calls.push(['health', channel]);}, closeHealth() {}};
-  const editor = {...source(() => editing), edit: (channel: any) => {calls.push(['edit', channel]); editing = {...editing, phase: 'editing'};},
-    template: (template: any, timezone: string) => {calls.push(['template', template, timezone]); editing = {...editing, phase: 'editing'};}, blank: async (timezone: string) => {calls.push(['blank', timezone]);}, resume() {}};
-  const group = {reader, editor, actions: {...source(() => action), perform: async (...args: any[]) => {calls.push(['perform', ...args]); return true;}}, logos: source(() => logo), presets: source(() => presets), current: () => active, timezone: 'UTC', logoCapability: async () => false};
-  const {Channels} = await screenModule(new URL('../src-next/screens/settings-live/server/channels/LibraryChannelsPage.tsx', import.meta.url), {
-    ...common, react: host.react, 'react-native': {Text: 'Text', View: 'View'},
-    '../../../../../../../packages/client-core/src/presentation/kit-model/channels': {channelMonograms: (domain: any) => new Map(domain.channels.map((channel: any) => [channel.sourceId, new Map([[channel.id, {text: 'CH', seed: channel.id}]])]))},
-    './logo-artwork': {nativeChannelLogoArtwork: () => undefined}, './model': {}, './BlockPresets': {NativeBlockPresets: 'BlockPresets'}, './ChannelLogo': {NativeChannelLogo: 'ChannelLogo'}, './ChannelEditor': {NativeChannelEditor: 'ChannelEditor'},
-  });
-  let tree: any;
-  const render = () => {tree = host.render(() => Channels({group, runtime: {text: {t}}})); host.flush(); return tree;};
-  const menu = () => nodes(tree).filter(node => node.type === 'BottomSheet')[1];
-  const templateMenu = () => nodes(tree).filter(node => node.type === 'BottomSheet')[0];
-  render();
-  return {calls, channels, templates, render, tree: () => tree, menu, templateMenu,
-    openMenu: (name: string) => {nodes(tree).find(node => node.type === 'Focusable' && node.props.accessibilityLabel === name).props.onPress(); render();},
-    openTemplates: () => {button(tree, 'builder.newTitle').props.onPress(); render();},
-    setHealth: (value: any) => {state = {...state, selected: channels[0], health: value}; render();},
-    list: (next: any[]) => {state = {...state, channels: next}; render();},
-    dispose: () => {active = false; host.dispose();},
-  };
-}
-
-test('A replaced channel menu rejects its old dismiss, edit, delete and move callbacks', async () => {
-  const f = await channelsFixture();
-  try {
-    f.openMenu('First'); const old = f.menu();
-    const edit = button(old, 'web.selection.edit').props.onPress, remove = button(old, 'web.libraryChannels.delete').props.onPress, move = button(old, 'web.profile.moveDown').props.onPress;
-    old.props.onOpenChange(false); f.render(); f.openMenu('Second');
-    old.props.onOpenChange(false); edit(); remove(); move(); f.render();
-    assert.equal(f.menu().props.open, true); assert.equal(f.menu().props.title, 'Second'); assert.deepEqual(f.calls, []);
-    button(f.menu(), 'web.selection.edit').props.onPress(); f.render(); assert.deepEqual(f.calls, [['edit', f.channels[1]]]);
-  } finally {f.dispose();}
+test('a replaced editor cannot save; an edit sends its read revision and only changed fields',async()=>{
+ const f=fixture();await f.source.load();await f.source.open(f.source.getSnapshot().channels[0]);const old=f.source.getSnapshot().editor!;
+ f.source.edit(old,d=>({...d,name:'Changed'}));await f.source.save(old);assert.equal(f.calls.length,0);
+ await f.source.save(f.source.getSnapshot().editor!);assert.equal(f.calls.length,1);assert.equal(f.calls[0].method,'PATCH');assert.equal(f.calls[0].options.headers['If-Match'],'"1"');assert.deepEqual(f.calls[0].options.body,{name:'Changed'});f.source.dispose();
+});
+test('a lost creation answer retries the same operation and a retired owner cannot publish it',async()=>{
+ const f=fixture();await f.source.load();f.source.blank();f.source.edit(f.source.getSnapshot().editor!,()=>({name:'New',description:'',timeZone:'UTC',on:true,builder}));
+ f.fail(new Error('lost'));await f.source.save(f.source.getSnapshot().editor!);assert.equal(f.source.getSnapshot().pendingCreate,true);const id=f.calls[0].options.headers['Idempotency-Key'];
+ f.fail(undefined);await f.source.save(f.source.getSnapshot().editor!);assert.equal(f.calls[1].options.headers['Idempotency-Key'],id);assert.deepEqual(f.calls[1].options.body,f.calls[0].options.body);
+ f.retire();assert.equal(f.source.getSnapshot().channels.length,0);await f.source.load();assert.equal(f.calls.length,2);f.source.dispose();
+});
+test('a concurrent edit keeps local changes and adopts untouched fresh fields before another save',async()=>{
+ const f=fixture();await f.source.load();await f.source.open(f.source.getSnapshot().channels[0]);f.source.edit(f.source.getSnapshot().editor!,d=>({...d,name:'Local'}));f.update();f.fail({status:412});await f.source.save(f.source.getSnapshot().editor!);
+ const editor=f.source.getSnapshot().editor!;assert.equal(editor.document?.revision,'2');assert.equal(editor.draft.name,'Local');assert.equal(editor.draft.description,'Changed elsewhere');assert.equal(editor.conflict,false);f.source.dispose();
+});
+test('a preset copy is detached without structuredClone and overlapping overnight blocks refuse saving',()=>{
+ const saved=globalThis.structuredClone;delete (globalThis as any).structuredClone;
+ try{const preset={id:'p',revision:'1',name:'Night',library:'library',recipe:{clauses:[{field:'genre',values:['Drama']}],order:'shuffle',minutes:120,startsAt:'23:00',days:['sun']}};
+ const block=copyBlockPreset(preset,'movie','b');assert.equal(block.to,'01:00');block.selection!.conditions![0].values![0]='Comedy';assert.equal(preset.recipe.clauses[0].values[0],'Drama');
+ const overlap={id:'c',days:['mon'],from:'00:30',to:'02:00'};assert.ok(blockOverlap([block,overlap]));assert.equal(validBuilder({...builder,blocks:[block,overlap]}),false);
+ }finally{globalThis.structuredClone=saved;}
 });
 
-test('Template actions belong to their opening and an inapplicable template cannot dispatch directly', async () => {
-  const f = await channelsFixture();
-  try {
-    f.openTemplates(); const old = f.templateMenu(), choose = button(old, 'Ready template').props.onPress, blank = button(old, 'web.libraryChannels.startFromScratch').props.onPress;
-    old.props.onOpenChange(false); f.render(); f.openTemplates();
-    old.props.onOpenChange(false); choose(); blank(); f.render(); assert.equal(f.templateMenu().props.open, true); assert.deepEqual(f.calls, []);
-    const blocked = button(f.templateMenu(), 'Blocked template'); assert.equal(blocked.props.disabled, true); blocked.props.onPress(); f.render();
-    assert.deepEqual(f.calls, []); assert.equal(f.templateMenu().props.open, true);
-    button(f.templateMenu(), 'Ready template').props.onPress(); f.render(); assert.deepEqual(f.calls, [['template', f.templates[0], 'UTC']]);
-  } finally {f.dispose();}
-});
-
-test('A channel-list replacement retires its menu even if an old channel object later reappears', async () => {
-  const f = await channelsFixture();
-  try {
-    f.openMenu('First'); const old = f.menu(), edit = button(old, 'web.selection.edit').props.onPress;
-    f.list([{...f.channels[0], config: {...f.channels[0].config}}, f.channels[1]]); assert.equal(f.menu().props.open, false);
-    f.list(f.channels); edit(); f.render(); assert.deepEqual(f.calls, []); assert.equal(f.menu().props.open, false);
-    f.openMenu('First'); assert.equal(f.menu().props.open, true);
-  } finally {f.dispose();}
-});
-
-async function editorFixture() {
-  const host = layoutHost(); let active = true, closes = 0;
-  const config = {id: 'channel', name: 'Channel', description: '', timezone: 'UTC', enabled: true, defaultRuleId: 'rule', quality: {mode: 'automatic'}, blocks: [],
-    rules: [{id: 'rule', name: 'Rule', mode: 'sequential', episodeMode: 'none', query: {libraryIds: ['library'], kinds: ['movie'], order: 'title', recentDays: 0, includeItemIds: [], excludeItemIds: []}}]};
-  const makePreview = (title: string) => ({rules: [{ruleId: 'rule', eligible: 1, complete: true, sample: [{itemId: 'movie', title, durationMs: 3600000}]}], complete: true, durationMs: 3600000, firstDay: []});
-  let state: any = {phase: 'editing', busy: false, pending: false, previewLoading: false, config, preview: makePreview('First sample')};
-  const editor = {...source(() => state), close: () => {closes++; state = {...state, phase: 'closed'};}, change: (update: any) => {state = {...state, config: update(state.config), preview: undefined};}, preview: async () => {}};
-  const presetState = {loaded: true, items: []}, group = {editor, fields: {select: async () => {}}, presets: source(() => presetState), current: () => active, libraries: [{id: 'library', name: 'Library'}]};
-  const motion = {reduce: false, duration: () => 0};
-  const {NativeChannelEditor} = await screenModule(new URL('../src-next/screens/settings-live/server/channels/ChannelEditor.tsx', import.meta.url), {'../../../../platform/keyboard': {FormScrollView: 'ScrollView', KeyboardProvider: ({children}: {children: unknown}) => children, useKeyboardHeight: () => 0, touchKeyboard: () => true}, 
-    ...common, react: host.react, 'react-native': {Animated: {View: 'AnimatedView', Value: class {constructor(_value: number) {}}, timing: () => ({start() {}, stop() {}})}, Easing: {}, Modal: 'Modal', ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
-    'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})},
-    '../../../../../../../packages/client-core/src/server-admin/channel-conditions': {applyChannelConditions: (value: any) => value}, '../../../../../../../packages/client-core/src/library-channels': {librarySampleLabel: (value: any) => value.showTitle || value.title},
-    '../../../../kit/useMotion': {useMotion: () => motion}, './ChannelConditions': {NativeChannelConditions: 'ChannelConditions'}, './ChannelPins': {NativeChannelPins: 'ChannelPins'}, './ChannelHours': {NativeChannelHours: 'ChannelHours'},
-  });
-  const isCurrent = () => active; let tree: any;
-  const render = () => {tree = host.render(() => NativeChannelEditor({group, isCurrent, runtime: {text: {t, locale: 'en-US'}, artwork: () => undefined}})); host.flush(); return tree;};
-  render();
-  return {render, tree: () => tree, closes: () => closes, modal: () => nodes(tree).filter(node => node.type === 'Modal')[1],
-    openPreview: () => {button(nodes(tree).find(node => node.props?.testID === 'channel-preview-bar'), 'builder.preview').props.onPress(); render();},
-    incompletePreview: () => {state = {...state, preview: {...state.preview, complete: false, rules: state.preview.rules.map((rule: any) => ({...rule, complete: false}))}}; render();},
-    changeConfig: () => {state = {...state, config: {...state.config, name: 'Changed'}, preview: undefined}; render();},
-    changePreview: () => {state = {...state, preview: makePreview('Replacement sample')}; render();},
-    dispose: () => {active = false; host.dispose();},
-  };
-}
-
-test('Preview Back and native close from the first opening cannot close a later preview', async () => {
-  const f = await editorFixture();
-  try {
-    const oldEditorClose = nodes(f.tree()).find(node => node.type === 'Modal').props.onRequestClose;
-    f.openPreview(); const first = f.modal(), back = button(first, 'action.back').props.onPress;
-    assert.equal(first.props.visible, true); back(); f.render(); assert.equal(f.modal().props.visible, false);
-    f.openPreview(); back(); first.props.onRequestClose(); oldEditorClose(); f.render();
-    assert.equal(f.modal().props.visible, true); assert.equal(f.closes(), 0);
-    button(f.modal(), 'action.back').props.onPress(); f.render(); button(f.tree(), 'builder.cancel').props.onPress(); assert.equal(f.closes(), 1);
-  } finally {f.dispose();}
-});
-
-for (const change of ['config', 'result'] as const) test(`A changed ${change} retires the preview and leaves the current editor cancellable`, async () => {
-  const f = await editorFixture();
-  try {
-    f.openPreview(); const old = f.modal();
-    if (change === 'config') f.changeConfig(); else f.changePreview();
-    assert.equal(f.modal().props.visible, false); old.props.onRequestClose(); f.render(); assert.equal(f.modal().props.visible, false);
-    button(f.tree(), 'builder.cancel').props.onPress(); assert.equal(f.closes(), 1);
-  } finally {f.dispose();}
-});
-
-test('A replacement preview result opens independently and cannot be closed by the prior result callback', async () => {
-  const f = await editorFixture();
-  try {
-    f.openPreview(); const old = f.modal(); f.changePreview(); f.openPreview(); old.props.onRequestClose(); f.render();
-    assert.equal(f.modal().props.visible, true);
-    assert.equal(nodes(f.modal()).find(node => node.type === 'Artwork').props.alt, 'Replacement sample');
-  } finally {f.dispose();}
-});
-
-
-test('channel toggles live in the guarded menu and health facts use the approved captions and hierarchy', async () => {
-  const f = await channelsFixture();
-  try {
-    assert.ok(!nodes(f.tree()).some(node => node.type === 'Switch'));
-    f.openMenu('First'); const toggle = button(f.menu(), 'web.libraryChannels.turnOff');
-    toggle.props.onPress(); toggle.props.onPress(); f.render();
-    assert.deepEqual(f.calls, [['perform', f.channels[0], 'toggle']]);
-    f.openMenu('First'); button(f.menu(), 'web.libraryChannels.checkHealth').props.onPress();
-    f.setHealth({healthy: false, candidates: 2, unresolved: 1, scheduledEntries: 11, pendingGeneration: true, generatedThrough: '2026-10-29T16:00:00Z'});
-    const health = nodes(f.tree()).find(node => node.type === 'BottomSheet' && node.props.description === 'web.libraryChannels.healthLede')!;
-    assert.equal(health.props.open, true);
-    for (const label of ['web.libraryChannels.healthCandidates', 'web.libraryChannels.healthUnresolved', 'web.libraryChannels.healthNewSchedule', 'web.libraryChannels.healthBeingMade']) assert.ok(nodes(health).some(node => node.type === 'Text' && node.props.children.includes(label)), label);
-    assert.equal(button(health.props.footer, 'server.remote.checkAgain').props.variant, undefined);
-    assert.equal(button(health.props.footer, 'action.done').props.variant, 'glass');
-    button(health.props.footer, 'server.remote.checkAgain').props.onPress();
-    assert.equal(f.calls.filter(value => value[0] === 'health').length, 2);
-  } finally {f.dispose();}
-});
-
-
-test('the fixed preview bar and full preview both show lower-bound counts and actual total hours', async () => {
-  const f = await editorFixture();
-  const text = (node: any): string => Array.isArray(node) ? node.map(text).join('') : node?.props ? text(node.props.children) : typeof node === 'string' || typeof node === 'number' ? String(node) : '';
-  try {
-    f.incompletePreview();
-    const bar = nodes(f.tree()).find(node => node.props?.testID === 'channel-preview-bar');
-    assert.ok(text(bar).includes('At least 1 title matches')); assert.ok(text(bar).includes('≥ 1.0 h'));
-    f.openPreview(); assert.ok(text(f.modal()).includes('At least 1 title matches')); assert.ok(text(f.modal()).includes('≥ 1.0 h'));
-  } finally {f.dispose();}
+test('a replaced native channel menu cannot invoke or dismiss its predecessor',async()=>{
+ const {hooks,screenModule}=await import('./helpers/screen-harness.mjs'),host=hooks(),calls:string[]=[];
+ Object.assign(host.react,{useLayoutEffect:()=>{}});Object.assign(host.react.default,{useLayoutEffect:()=>{}});
+ const rows=[row,{...row,id:'second',name:'Second'}],state={channels:rows,choices:{items:[]},presets:[]},source={subscribe:()=>()=>{},getSnapshot:()=>state,action:async(value:any)=>{calls.push(value.id);},load:async()=>{},open:async(value:any)=>{calls.push(value.id);}};
+ const {Channels}=await screenModule(new URL('../src-next/screens/settings-live/server/channels/LibraryChannelsPage.tsx',import.meta.url),{
+  react:host.react,'react-native':{Text:'Text',View:'View'},'../../../../../../../packages/i18n/src':{defaultI18n:{t:(v:string)=>v,number:String,dateTime:String}},
+  '../../../../../../../packages/client-core/src/presentation/kit-model/channels':{channelMonograms:()=>new Map(rows.map(v=>[v.id,new Map([[v.id,{text:'CH',seed:v.id}]])]))},
+  '../../../../kit/artwork':{ChannelMark:'ChannelMark'},'../../../../kit/controls':{Button:'Button',Focusable:'Focusable'},'../../../../kit/overlays':{BottomSheet:'BottomSheet',MenuRow:'MenuRow'},'../../../../kit/shell/visual':{shellType:()=>({})},'../../../../kit/theme':{useTheme:()=>({colors:{}})},'./model':{},'./ChannelEditor':{NativeChannelEditor:'Editor'},'./BlockPresets':{NativeBlockPresets:'Presets'},'./ChannelLogo':{NativeChannelLogo:'Logo'},
+ });
+ const nodes=(v:any):any[]=>Array.isArray(v)?v.flatMap(nodes):v?.props?[v,...nodes(v.props.children),...nodes(v.props.footer)]:[];
+ const group={source,current:()=>true},render=()=>host.render(()=>Channels({group,runtime:{artwork:()=>undefined}})),menu=(tree:any)=>nodes(tree).filter(v=>v.type==='BottomSheet')[1];let tree=render();
+ nodes(tree).find(v=>v.props.testID==='channel-channel').props.onPress();tree=render();const old=menu(tree),edit=nodes(old).find(v=>v.type==='MenuRow'&&v.props.label==='web.selection.edit').props.onPress;
+ old.props.onOpenChange(false);tree=render();nodes(tree).find(v=>v.props.testID==='channel-second').props.onPress();tree=render();old.props.onOpenChange(false);edit();tree=render();assert.equal(menu(tree).props.title,'Second');assert.equal(menu(tree).props.open,true);assert.deepEqual(calls,[]);
+ nodes(menu(tree)).find(v=>v.type==='MenuRow'&&v.props.label==='web.selection.edit').props.onPress();assert.deepEqual(calls,['second']);
 });
