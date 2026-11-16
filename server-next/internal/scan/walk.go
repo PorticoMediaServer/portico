@@ -87,7 +87,8 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) (Stats, error) {
 		return Stats{}, err
 	}
 	r := &run{s: s, ctx: ctx, lib: lib, names: namesKind(lib.Kind), scan: scan, claimed: map[int64]bool{}, sources: map[int64]Source{}, paths: map[int64]db.LibraryPath{}, walked: map[string]bool{},
-		nfos: map[string][]localmetadata.VideoNFO{}, shows: map[string]showLocal{}, albums: map[string]albumLocal{}, artists: map[db.ItemKey][]db.ImportImage{}}
+		nfos: map[string][]localmetadata.VideoNFO{}, shows: map[string]showLocal{}, albums: map[string]albumLocal{}, artists: map[db.ItemKey][]db.ImportImage{},
+		bookPictures: map[string]bool{}}
 	if r.batch = s.BatchFiles; r.batch <= 0 {
 		r.batch = 200
 	}
@@ -166,6 +167,8 @@ type run struct {
 	shows   map[string]showLocal                // the pictures in a show's own folder, by folder
 	artists map[db.ItemKey][]db.ImportImage     // local artwork by artist folder
 	albums  map[string]albumLocal               // an album folder's album.nfo and cover pictures, by folder
+	// bookPictures are audiobook folders above disc folders whose pictures changed this scan.
+	bookPictures map[string]bool
 }
 
 // source is the tree of one of the library's folders, opened once for the scan.
@@ -374,6 +377,8 @@ func (r *run) walkFolder(rel string, entries []Entry, depth int) error {
 			f.media = append(f.media, file)
 		}
 	}
+	// An audiobook's disc folder is read again when the pictures in the folder above it changed.
+	f.differs = f.differs || r.bookPictures[path.Dir(rel)]
 	r.stats.Folders++
 	r.stats.Files += len(f.files)
 	var gone []db.FileRef

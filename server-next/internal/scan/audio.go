@@ -349,6 +349,11 @@ func bookFolderOf(rel string) string {
 // each over the one before; the folders (Author/Series/Book) fill in what is still unknown.
 func (r *run) audiobookUnits(f *folder) []unit {
 	if len(f.media) == 0 {
+		// A folder above disc folders holds the book's pictures and no media: a change to
+		// them reads the book again from its first disc folder, which the walk reaches next.
+		if len(f.changed) > 0 && !f.fresh && f.rel != "" {
+			r.bookPictures[f.rel] = true
+		}
 		return nil
 	}
 	book := bookFolderOf(f.media[0].rel)
@@ -361,7 +366,8 @@ func (r *run) audiobookUnits(f *folder) []unit {
 		}
 		return units
 	}
-	touched := false
+	touched := r.bookPictures[book]
+	delete(r.bookPictures, book)
 	for _, file := range f.files {
 		touched = touched || file.state == added || file.state == changed && (file.role != db.FileMedia || r.tagLed()) || file.state == moved && !r.tagLed()
 	}
@@ -387,6 +393,21 @@ func (r *run) audiobookUnits(f *folder) []unit {
 		}
 	}
 	return []unit{r.audiobookUnit(f, book, parts, earlier)}
+}
+
+// listedArtwork are the pictures in a folder other than the one being scanned.
+func (r *run) listedArtwork(dir string) []*found {
+	if r.s.Pictures == nil {
+		return nil
+	}
+	entries, _ := r.src.List(r.ctx, dir)
+	var files []*found
+	for _, e := range entries {
+		if !e.Dir && role(r.lib.Kind, e.Name) == db.FileArtwork {
+			files = append(files, &found{entry: e, rel: path.Join(dir, e.Name), role: db.FileArtwork, state: added})
+		}
+	}
+	return files
 }
 
 // bookFolders are the other folders that hold a book's files: the book's folder and its disc
@@ -473,7 +494,13 @@ func (r *run) audiobookUnit(f *folder, book string, here []*found, elsewhere []d
 	if book != "" {
 		item.Keys = append(item.Keys, db.FolderKey(r.path.ID, book))
 	}
-	item.Images = r.cover(f, book != "" && book == f.rel, tags)
+	if book != "" && book != f.rel {
+		// The book is in disc folders: its pictures are in the folder above them.
+		item.Images = r.pictures(r.listedArtwork(book), "", 0, true, false)
+	}
+	if len(item.Images) == 0 {
+		item.Images = r.cover(f, book != "" && book == f.rel, tags)
+	}
 
 	// The parts in order: by path, which puts disc folders and numbered files right.
 	refs := append([]db.FileRef(nil), elsewhere...)
