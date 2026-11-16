@@ -55,6 +55,7 @@ type Lyrics struct {
 }
 
 func (s *Server) subtitleRoutes() {
+	s.subtitleFontRoutes()
 	Handle(s, "GET /v1/items/{id}/subtitles", WithProfile, s.itemSubtitles)
 	Handle(s, "PUT /v1/items/{id}/subtitles/offset", WithProfile, s.setSubtitleOffset)
 	Handle(s, "GET /v1/items/{id}/lyrics", WithProfile, s.itemLyrics)

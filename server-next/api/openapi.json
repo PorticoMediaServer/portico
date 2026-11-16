@@ -30427,6 +30427,33 @@
         "x-scope": "open"
       }
     },
+    "/v1/subtitle-fonts/cjk": {
+      "get": {
+        "operationId": "get_v1_subtitle_fonts_cjk",
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
+      }
+    },
     "/v1/system": {
       "get": {
         "operationId": "get_v1_system",
