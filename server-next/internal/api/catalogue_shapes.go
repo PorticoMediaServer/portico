@@ -155,21 +155,22 @@ type Item struct {
 
 	// On GET /v1/items/{id} only.
 	// NextEpisode is a show's play target for this profile; its parentId names the season to open.
-	NextEpisode   *Item              `json:"nextEpisode,omitempty"`
-	OriginalTitle string             `json:"originalTitle,omitempty"`
-	Summary       string             `json:"summary,omitempty"`
-	Tagline       string             `json:"tagline,omitempty"`
-	Edition       string             `json:"edition,omitempty"`
-	Available     *bool              `json:"available,omitempty"`
-	Parent        *ItemRef           `json:"parent,omitempty"`
-	Root          *ItemRef           `json:"root,omitempty"`
-	Series        *ItemRef           `json:"series,omitempty"`
-	Tags          []Tag              `json:"tags,omitempty"`
-	ExternalIDs   map[string]string  `json:"externalIds,omitempty"`
-	Credits       []Credit           `json:"credits,omitempty"`
-	CreditTotal   *int               `json:"creditTotal,omitempty"`
-	Versions      []Media            `json:"versions,omitempty"`
-	AlbumAudio    *AlbumAudioSummary `json:"albumAudio,omitempty"`
+	EpisodeDisplay *EpisodeDisplay    `json:"episodeDisplay,omitempty"`
+	NextEpisode    *Item              `json:"nextEpisode,omitempty"`
+	OriginalTitle  string             `json:"originalTitle,omitempty"`
+	Summary        string             `json:"summary,omitempty"`
+	Tagline        string             `json:"tagline,omitempty"`
+	Edition        string             `json:"edition,omitempty"`
+	Available      *bool              `json:"available,omitempty"`
+	Parent         *ItemRef           `json:"parent,omitempty"`
+	Root           *ItemRef           `json:"root,omitempty"`
+	Series         *ItemRef           `json:"series,omitempty"`
+	Tags           []Tag              `json:"tags,omitempty"`
+	ExternalIDs    map[string]string  `json:"externalIds,omitempty"`
+	Credits        []Credit           `json:"credits,omitempty"`
+	CreditTotal    *int               `json:"creditTotal,omitempty"`
+	Versions       []Media            `json:"versions,omitempty"`
+	AlbumAudio     *AlbumAudioSummary `json:"albumAudio,omitempty"`
 }
 
 // ItemChapter is one chapter of an audiobook: its number through the book, title and span.
@@ -585,6 +586,7 @@ func itemShapes(items []db.Item) []Item {
 
 func detailShape(d db.ItemDetail) Item {
 	out := itemShape(d.Item)
+	out.EpisodeDisplay = d.EpisodeDisplay
 	out.OriginalTitle, out.Summary, out.Tagline, out.Edition = d.OriginalTitle, d.Summary, d.Tagline, d.Edition
 	out.Available, out.CreditTotal = &d.Available, &d.CreditTotal
 	if d.NextEpisode != nil {

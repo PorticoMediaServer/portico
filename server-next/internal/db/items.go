@@ -177,16 +177,6 @@ func ownState(value string) string {
 	return "(SELECT " + value + " FROM user_item_state own WHERE own.profile_id = @viewer_profile AND own.item_id = i.id)"
 }
 
-// sortFor returns how a sort orders. A random order needs the seed it was begun with, which
-// its cursor carries from page to page.
-func sortFor(sort string, seed int64) (sortSpec, bool) {
-	if sort == SortRandom {
-		return sortSpec{columns: []string{shuffleKey(seed)}}, true
-	}
-	spec, ok := sortSpecs[sort]
-	return spec, ok
-}
-
 // seriesOrder is a series' own order, as volumeOrder has it: by volume number, then the
 // volumes with none by title.
 var seriesOrder = sortSpec{columns: []string{"ifnull(i.index_number, 1e18)", "i.sort_title"}}
@@ -670,12 +660,17 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	}
 	if q.Parent != "" {
 		var parent int64
-		err := tx.QueryRowContext(ctx, `SELECT i.id FROM items i WHERE i.public_id = ? AND `+acc.visible("i"), q.Parent).Scan(&parent)
+		var kind ItemKind
+		err := tx.QueryRowContext(ctx, `SELECT i.id, i.kind FROM items i WHERE i.public_id = ? AND `+acc.visible("i"), q.Parent).Scan(&parent, &kind)
 		if err != nil {
 			return false, notFound(err)
 		}
-		w.add(` AND i.parent_id = `, fmt.Sprint(parent))
-		w.scope = "SELECT id FROM items WHERE parent_id = " + fmt.Sprint(parent)
+		column := "parent_id"
+		if kind == KindShow && len(q.Kinds) == 1 && q.Kinds[0] == KindEpisode {
+			column = "root_id"
+		}
+		w.add(` AND i.`, column, ` = `, fmt.Sprint(parent))
+		w.scope = "SELECT id FROM items WHERE " + column + " = " + fmt.Sprint(parent)
 		scoped = true
 	}
 	if len(q.Kinds) > 0 {

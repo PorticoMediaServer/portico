@@ -40,3 +40,13 @@ func shufflePlace(id, seed int64) int64 {
 func shuffleKey(seed int64) string {
 	return `portico_shuffle(i.id, ` + itoa(seed) + `)`
 }
+
+// sortFor returns how a sort orders. A random order needs the seed it was begun with, which
+// its cursor carries from page to page.
+func sortFor(sort string, seed int64) (sortSpec, bool) {
+	if sort == SortRandom {
+		return sortSpec{columns: []string{shuffleKey(seed)}}, true
+	}
+	spec, ok := sortSpecs[sort]
+	return spec, ok
+}
