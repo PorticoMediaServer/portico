@@ -1104,6 +1104,7 @@ export interface Home {
 }
 
 export interface HomeRow {
+  total?: number;
   id: string;
   title: string;
   reason?: string;
@@ -4559,6 +4560,7 @@ export interface Routes {
   'GET /v1/admin/api-keys': {access: 'owner'; request: undefined; response: KeyPage};
   'POST /v1/admin/api-keys': {access: 'owner'; request: KeyCreate; response: KeyCreated};
   'DELETE /v1/admin/api-keys/{id}': {access: 'owner'; request: undefined; response: undefined};
+  'GET /v1/home/rows/{id}': {access: 'withProfile'; request: undefined; response: HomeRow};
   'GET /v1/genres': {access: 'withProfile'; request: undefined; response: GenreList};
   'GET /v1/search': {access: 'withProfile'; request: undefined; response: SearchResults};
   'GET /v1/search/suggestions': {access: 'withProfile'; request: undefined; response: SearchSuggestions};
