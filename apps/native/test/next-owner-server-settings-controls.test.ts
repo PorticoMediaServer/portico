@@ -68,14 +68,17 @@ test('backup chosen days, whole hour and keep count form one draft for the rebui
   assert.equal(nodes(render()).some((node: any) => node.props.row?.id === 'storage.backupWindowLength'), false);
 });
 
-test('hardware view uses only supplied devices/formats and invokes its test callback on demand', async () => {
+test('the hardware group draws the rebuilt report in shared words and runs its test on demand', async () => {
   let tests = 0;const host = hooks(), module = await screenModule(new URL('../src-next/screens/settings-live/server/StreamingHardware.tsx', import.meta.url), {
-    react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../../packages/client-core/src/server-admin/console-words': {when: (value: number) => String(value)},
+    react: host.react, 'react-native': {Text: 'Text', View: 'View'},
+    '../../../../../../packages/client-core/src/server-admin/streaming-hardware': await import('../../../packages/client-core/src/server-admin/streaming-hardware.ts'),
+    '../../../../../../packages/i18n/src': {defaultI18n: i18n},
     '../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../kit/controls': {Button: 'Button'}, '../../../kit/shell': {SettingsRow: 'SettingsRow'}, '../../../kit/shell/visual': {shellType: () => ({})}, '../../../kit/theme': {useTheme: () => theme},
   });
-  const capacity = {hardware: {effective: 'vaapi', device: 'actual-device', devices: [{id: 'opaque1', name: 'Measured GPU', method: 'VA-API', inUse: true}], formats: [{format: 'h264', decode: true, encode: false}], lastTest: 123, lastError: {reason: 'opaque_failure'}}, hdrToneMapping: {status: 'limited', detail: 'Measured limitation'}};
-  const tree = host.render(() => module.NativeStreamingHardware({capacity, disabled: false, testing: false, onTest: () => {tests++;}, t}));
-  assert.match(content(nodes(tree)), /Measured GPU/);assert.match(content(nodes(tree)), /Measured limitation/);assert.doesNotMatch(content(nodes(tree)), /opaque_failure/);
+  const hardware = {checking: false, devices: [{id: 'opaque1', name: 'Measured GPU', method: 'vaapi', inUse: true, toneMappingWithMasteringData: true, toneMappingWithoutMasteringData: true, formats: []}],
+    formats: [{format: 'h264', decode: true, encode: false}], toneMappingWithMasteringData: true, toneMappingWithoutMasteringData: false, lastError: {reason: 'opaque_failure'}};
+  const tree = host.render(() => module.NativeStreamingHardware({hardware, disabled: false, testing: false, onTest: () => {tests++;}, t}));
+  assert.match(content(nodes(tree)), /Measured GPU/);assert.doesNotMatch(content(nodes(tree)), /opaque_failure/);
   assert.equal(nodes(tree).filter((node: any) => node.props.testID === 'server-streaming-formats').length, 1);
   assert.equal(tests, 0);nodes(tree).find((node: any) => node.props.testID === 'server-streaming-test-hardware').props.onPress();assert.equal(tests, 1);
 });
