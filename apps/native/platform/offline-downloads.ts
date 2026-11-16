@@ -146,6 +146,8 @@ type Meta = {
   /** A book from the rebuilt server: the reader its file opens in (from the download's container),
    * the version, and the server's fingerprint of it, which places are made on. */
   book?: DownloadedBook;
+  /** The server has been told this device holds the whole file, so it can delete the copy it made for it. */
+  received?: true;
 };
 type DownloadedBook = Readonly<{format: 'epub' | 'pdf' | 'cbz'; versionId: string; revision: string}>;
 /** The containers a downloaded book can be read from on this device: the server hands every book
@@ -643,6 +645,7 @@ export class OfflineDownloads {
       // The receipt was asked for before the first byte moved; this is for the one that could
       // not be had then.
       if (!next.receipt && !next.downloadId && this.entryOwner(next) === this.ownerKey()) void this.obtainReceipt(next.id);
+      if (next.downloadId) void this.sendReceived();
     }
     // A download that stopped by itself is started again without anybody having to notice.
     if (next.state !== before?.state && (next.state === 'failed' || next.state === 'paused')) void this.tend(this.generation);
@@ -679,6 +682,28 @@ export class OfflineDownloads {
     this.publishPending();
     return saved;
   }
+  /** Tells the server, for each download from the rebuilt server that is whole on this device, that it
+   * has arrived, so the copy the server made for it (a smaller video, a book's EPUB or CBZ) can go
+   * (owner's ruling, 16 Nov). Native marks a download ready only once every file is whole: its size
+   * and, where the listing gave one, its SHA-256 checked. With no answer it is tried again at the
+   * next contact; a title the server no longer has needs no telling. */
+  private async sendReceived() {
+    const api = this.api, owner = this.ownerKey(), generation = this.generation;
+    if (!api || !owner || this.sendingReceived) return;
+    this.sendingReceived = true;
+    try {
+      for (const entry of this.ownedEntries(owner)) {
+        const meta = this.metas.get(entry.id);
+        if (entry.state !== 'ready' || !entry.downloadId || meta?.received) continue;
+        try {await callServer(api, 'POST /v1/downloads/{id}/items/{itemId}/received',
+          {id: entry.downloadId, ids: {itemId: entry.itemId}});}
+        catch (error) {if ((error as {status?: unknown} | null)?.status !== 404) return;}
+        if (this.api !== api || this.ownerKey() !== owner || this.generation !== generation) return;
+        try {await this.patch(entry.id, {received: true});} catch {return;}
+      }
+    } finally {this.sendingReceived = false;}
+  }
+  private sendingReceived = false;
   /** Changes what is kept with one entry, leaving the rest of it as it was. */
   private async patch(id: string, change: Partial<Meta>): Promise<void> {
     if (!native || !this.all.some(e => e.id === id)) return;
@@ -1319,6 +1344,7 @@ export class OfflineDownloads {
     await this.syncDownloads(generation);
     if (generation !== this.generation) return;
     void this.collect(generation);
+    void this.sendReceived();
     void this.syncProgress(generation);
     void this.syncReadingProgress(generation).then(() => this.refreshReadingProgress(generation, undefined, false));
     void this.continueNext(generation);
