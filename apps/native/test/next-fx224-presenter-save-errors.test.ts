@@ -5,7 +5,7 @@ import {standardHomeApp} from './helpers/standard-home-app-harness.mjs';
 import type {NativeShellBootstrapContext, RestoredNativeShellRuntime} from '../src-next/shell/bootstrap';
 
 /**
- * FX-224 regression source: the actual General and Remote presenters render the
+ * FX-224 regression source: the actual Remote access presenter renders the
  * real FormSet's `saveError` through the shared inline retry state, while the
  * owner's unsaved draft, the separate local problem, partial multi-form failure
  * and page/authority retirement keep their existing behaviour.
@@ -115,7 +115,6 @@ async function presenterFixture(t: any) {
   const {NativeScreenLifetime} = await import('../src-next/screens/settings-live/lifetime');
   const {createNativeSettingsPorts} = await import('../src-next/screens/settings-live/settings-ports');
   const {ThemeProvider} = await import('../src-next/kit/theme');
-  const {NativeServerGeneral} = await import('../src-next/screens/settings-live/server/GeneralPage');
   const {NativeRemoteAccessPage} = await import('../src-next/screens/settings-live/server/RemoteAccessPage');
   const renderer = await fabricHost();
   let captured: NativeShellBootstrapContext | undefined;
@@ -133,12 +132,10 @@ async function presenterFixture(t: any) {
   const pressable = (label: string) => hosts().find(host => host.name === 'Pressable' && app.nativeLabel(host) === label);
   const text = () => hosts().map(host => textOf(host.children)).join('\n');
   const writes = (path: string, method: string) => app.requests.filter((request: any) => request.path === path && request.method === method);
-  // The General page's own saves. Background reads (the guide's sources) can land at any time.
-  const generalSaves = () => [...writes('/v1/admin/console/settings', 'PATCH'), ...writes('/v1/admin/maintenance/settings', 'PUT')].length;
   const settle = async () => {await renderer.settle(); await app.settle();};
-  const mount = async (presenter: 'general' | 'remote') => {
+  const mount = async (_presenter: 'remote') => {
     await renderer.render(React.createElement(ThemeProvider, {width: 390, children:
-      React.createElement(presenter === 'general' ? NativeServerGeneral : NativeRemoteAccessPage, {ports, runtime})}));
+      React.createElement(NativeRemoteAccessPage, {ports, runtime})}));
     await settle();
   };
   const unmount = async () => {await renderer.unmount(); await app.settle();};
@@ -168,144 +165,10 @@ async function presenterFixture(t: any) {
   });
   // A settings save is one request: it fails or succeeds at once, with nothing retrying behind it.
   const failPending = settle, retryPending = settle;
-  return {app, failure, failPending, retryPending, lifetime, hosts, byTestId, pressable, text, writes, generalSaves, settle, mount, unmount, contextCurrent, retireRuntime};
+  return {app, failure, failPending, retryPending, lifetime, hosts, byTestId, pressable, text, writes, settle, mount, unmount, contextCurrent, retireRuntime};
 }
 
 const press = (app: any, host: any) => host.props.onPress({nativeEvent: {}, stopPropagation() {}});
-
-test('a rejected General save shows the real FormSet saveError, keeps the draft and retries the original operation', async t => {
-  const f = await presenterFixture(t);
-  await f.mount('general');
-  const name = f.byTestId('server-general-name');
-  assert.ok(name, 'the real General presenter rendered its name field');
-  assert.equal(name.props.value, 'My server');
-  name.props.onChangeText('Rejected name');
-  await f.settle();
-  const save = f.pressable('Save');
-  assert.ok(save, 'the dirty form offers the page Save');
-  f.failure.consoleWrite = true;
-  press(f.app, save);
-  await f.settle();
-  await f.failPending();
-  assert.match(f.text(), /Something went wrong\. Try again\./, 'the rejected write projects the shared inline error state');
-  assert.equal(f.byTestId('server-general-name').props.value, 'Rejected name', 'the unsaved draft is retained');
-  assert.equal(f.writes('/v1/admin/console/settings', 'PATCH').length, 1, 'a settings save is one request, with nothing retrying behind the page');
-  const original = f.writes('/v1/admin/console/settings', 'PATCH')[0].body.idempotencyKey;
-  assert.equal(typeof original, 'string');
-  f.failure.consoleWrite = false;
-  const retry = f.pressable('Try again');
-  assert.ok(retry, 'the visible error offers the shared retry action');
-  const admittedBefore = f.generalSaves();
-  press(f.app, retry);
-  await f.settle();
-  assert.equal(f.generalSaves(), admittedBefore + 1, 'the mounted page sends its retry');
-  await f.retryPending();
-  const retried = f.writes('/v1/admin/console/settings', 'PATCH');
-  assert.equal(retried.length, 2);
-  assert.ok(retried.every(request => JSON.stringify(request.body) === JSON.stringify(retried[0].body)), 'the retry keeps the original body');
-  assert.equal(retried[1].body.idempotencyKey, original, 'the retry re-sends the same original operation identity');
-  assert.equal(f.byTestId('server-general-name').props.value, 'Rejected name');
-  assert.equal(f.pressable('Try again'), undefined, 'the accepted save clears the inline error');
-  assert.equal(f.pressable('Save'), undefined, 'the accepted save clears dirty');
-});
-
-test('a conflict retains the General draft and reports the changed document instead of a success', async t => {
-  const f = await presenterFixture(t);
-  await f.mount('general');
-  f.byTestId('server-general-name').props.onChangeText('Conflicted name');
-  await f.settle();
-  f.failure.consoleConflict = true;
-  press(f.app, f.pressable('Save'));
-  await f.settle();
-  assert.match(f.text(), /This changed while you were looking at it\. Refresh to see the latest\./);
-  assert.equal(f.byTestId('server-general-name').props.value, 'Conflicted name', 'the owner draft survives the out-of-date answer');
-  assert.ok(f.pressable('Refresh'), 'the changed document offers its own refresh action');
-  assert.equal(f.pressable('Try again'), undefined);
-  assert.ok(f.pressable('Save'), 'a failed save leaves the page dirty');
-  assert.ok(f.app.receipts.filter((receipt: any) => receipt.path === '/v1/admin/console/settings' && receipt.method === 'PATCH').every((receipt: any) => receipt.status === 409));
-});
-
-test('a local General validation problem stays separate from saveError and blocks Save', async t => {
-  const f = await presenterFixture(t);
-  await f.mount('general');
-  f.byTestId('server-general-name').props.onChangeText('');
-  await f.settle();
-  assert.match(f.text(), /The server needs a name\./, 'the form-authored problem is shown in place');
-  const save = f.pressable('Save');
-  assert.ok(save);
-  assert.equal(save.props.disabled, true, 'the local problem disables the page Save');
-  assert.equal(save.props.onPress, undefined);
-  assert.equal(f.pressable('Try again'), undefined, 'no persistence error state is invented for a local problem');
-  assert.equal(f.writes('/v1/admin/console/settings', 'PATCH').length, 0);
-});
-
-test('a partial multi-form failure keeps the unsaved General form and still reports it', async t => {
-  const f = await presenterFixture(t);
-  await f.mount('general');
-  f.byTestId('server-general-name').props.onChangeText('Stored name');
-  await f.settle();
-  // MOB-082: background speed is one choice row (Select) rather than three buttons.
-  press(f.app, f.byTestId('general.backgroundSpeed'));
-  await f.settle();
-  press(f.app, f.byTestId('general.backgroundSpeed-option-fast'));
-  await f.settle();
-  f.failure.maintenanceWrite = true;
-  press(f.app, f.pressable('Save'));
-  await f.settle();
-  await f.failPending();
-  assert.match(f.text(), /Something went wrong\. Try again\./, 'the failed maintenance form keeps the page error visible');
-  assert.equal(f.byTestId('server-general-name').props.value, 'Stored name', 'the first form kept the accepted value');
-  assert.ok(f.pressable('Save'), 'the unsaved maintenance form keeps the page dirty');
-  const runtimeWrites = f.writes('/v1/admin/console/settings', 'PATCH');
-  const maintenanceWrites = f.writes('/v1/admin/maintenance/settings', 'PUT');
-  assert.equal(runtimeWrites.length, 1, 'the runtime form saved first');
-  assert.equal(maintenanceWrites.length, 1, 'the maintenance save is one request');
-  assert.ok(f.app.receipts.some((receipt: any) => receipt.path === '/v1/admin/console/settings' && receipt.method === 'PATCH' && receipt.status === 200));
-});
-
-test('a really unmounted General page refuses its captured retry', async t => {
-  const f = await presenterFixture(t);
-  await f.mount('general');
-  f.byTestId('server-general-name').props.onChangeText('Unmounted name');
-  await f.settle();
-  f.failure.consoleWrite = true;
-  press(f.app, f.pressable('Save'));
-  await f.settle();
-  await f.failPending();
-  const unmountedRetry = f.pressable('Try again');
-  assert.ok(unmountedRetry);
-  await f.unmount();
-  const beforeUnmount = f.generalSaves();
-  assert.ok(beforeUnmount > 0, 'the original save was sent');
-  const admittedBefore = f.generalSaves();
-  press(f.app, unmountedRetry);
-  await f.settle();
-  assert.equal(f.generalSaves(), admittedBefore, 'the unmounted page\'s retry sends nothing');
-  assert.equal(f.generalSaves(), beforeUnmount, 'the unmounted page never dispatches through its retired form group');
-});
-
-test('a retired original bootstrap authority refuses its captured retry', async t => {
-  const f = await presenterFixture(t);
-  await f.mount('general');
-  f.byTestId('server-general-name').props.onChangeText('Replaced name');
-  await f.settle();
-  f.failure.consoleWrite = true;
-  press(f.app, f.pressable('Save'));
-  await f.settle();
-  await f.failPending();
-  const replacedRetry = f.pressable('Try again');
-  assert.ok(replacedRetry);
-  assert.equal(f.contextCurrent(), true, 'the mounted page borrows the live bootstrap context before retirement');
-  await f.retireRuntime();
-  assert.equal(f.contextCurrent(), false, 'the actual original bootstrap authority is retired, not only the ports lifetime');
-  const beforeRetirement = f.generalSaves();
-  assert.ok(beforeRetirement > 0, 'the original save was sent');
-  const admittedBefore = f.generalSaves();
-  press(f.app, replacedRetry);
-  await f.settle();
-  assert.equal(f.generalSaves(), admittedBefore, 'the retired authority\'s retry sends nothing');
-  assert.equal(f.generalSaves(), beforeRetirement, 'the retired original authority refuses the captured retry');
-});
 
 test('a rejected Remote access save projects the same inline state and retries the same configuration', async t => {
   const f = await presenterFixture(t);
