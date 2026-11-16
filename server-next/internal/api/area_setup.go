@@ -10,12 +10,14 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/hosted"
 	"github.com/PorticoMediaServer/portico/server-next/internal/portmap"
 	"github.com/PorticoMediaServer/portico/server-next/internal/publicaddr"
+	"github.com/PorticoMediaServer/portico/server-next/internal/strm"
 	"github.com/PorticoMediaServer/portico/server-next/internal/tlsport"
 )
 
 // setupArea is what setup and remote access (area 2) keeps on the server. Add this area's fields here and its start-up
 // to startSetup, in this file, so that building the area never edits server.go.
 type setupArea struct {
+	strm *strm.Client
 	// networkLog is shared by network services and their API callbacks.
 	networkLog *slog.Logger
 	// portico gets a server linked to a Portico Account its Portico address and certificate,

@@ -7,9 +7,11 @@ import (
 	"path"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/strm"
 )
 
 // Prober reads the inside of one media file: what a file is, how long it is and its tracks.
@@ -147,7 +149,9 @@ func (r *run) probeFile(file db.UnprobedFile, src Source, local string) *db.Prob
 	probe := &db.Probe{FileID: file.ID, Size: file.Size, ModifiedNS: file.ModifiedNS}
 	var facts Facts
 	var err error
-	if local != "" {
+	if strings.EqualFold(path.Ext(file.Rel), ".strm") {
+		facts, err = r.probeSTRM(src, file.Rel)
+	} else if local != "" {
 		if p, ok := r.s.Prober.(interface {
 			ProbeAudioPackets(context.Context, string) (Facts, error)
 		}); ok && r.lib.Kind == db.LibraryAudiobooks {
@@ -172,6 +176,20 @@ func (r *run) probeFile(file db.UnprobedFile, src Source, local string) *db.Prob
 		}
 	}
 	switch {
+	case errors.Is(err, strm.ErrRefused):
+		probe.Problem = db.ProblemSTRMRefused
+	case errors.Is(err, strm.ErrRedirects):
+		probe.Problem = db.ProblemSTRMRedirects
+	case errors.Is(err, strm.ErrRange):
+		probe.Problem = db.ProblemSTRMRange
+	case errors.Is(err, strm.ErrPointer):
+		probe.Problem = db.ProblemSTRMPointer
+	case errors.Is(err, strm.ErrUnavailable):
+		probe.Problem = db.ProblemSTRMUnavailable
+	case errors.Is(err, strm.ErrLimit):
+		probe.Problem = db.ProblemUnsupported
+	case errors.Is(err, strm.ErrMedia):
+		probe.Problem = db.ProblemNotMedia
 	case err == nil:
 		probe.Container, probe.DurationMS, probe.Bitrate = facts.Container, facts.DurationMS, facts.Bitrate
 		probe.Streams, probe.Chapters, probe.Title = facts.Streams, facts.Chapters, facts.Title
@@ -191,4 +209,44 @@ func (r *run) probeFile(file db.UnprobedFile, src Source, local string) *db.Prob
 		return nil
 	}
 	return probe
+}
+
+// A target is read only for a new/changed pointer (or Scan all files). The
+// existing four probe workers also bound all outside STRM work to four reads.
+func (r *run) probeSTRM(src Source, rel string) (Facts, error) {
+	if !r.lib.Options.STRM {
+		return Facts{}, strm.ErrUnavailable
+	}
+	ctx, cancel := context.WithTimeout(r.ctx, strm.ReadTimeout)
+	defer cancel()
+	pointer, err := src.Open(ctx, rel)
+	if err != nil {
+		return Facts{}, strm.ErrUnavailable
+	}
+	address, err := strm.Pointer(pointer, pointer.Size())
+	pointer.Close()
+	if err != nil {
+		return Facts{}, err
+	}
+	client := r.s.STRM
+	if client == nil {
+		client = strm.New(nil)
+	}
+	target, err := client.Open(ctx, address)
+	if err != nil {
+		return Facts{}, err
+	}
+	defer target.Close()
+	target.LimitProbe()
+	prober := r.s.ReaderProber
+	if prober == nil {
+		prober = RemoteProber{}
+	}
+	facts, err := prober.ProbeReader(ctx, target, target.Size())
+	// Decoder errors may include response bytes. Keep only a fixed public reason.
+	if err != nil {
+		return Facts{}, strm.ErrMedia
+	}
+	facts.Title = "" // the pointer's filename and its sidecars name the title
+	return facts, nil
 }

@@ -34,6 +34,8 @@ type LibraryOptions struct {
 	Trash TrashRule `json:"trash"`
 	// AllowDelete lets the owner delete files of this library from disk. It starts off.
 	AllowDelete bool `json:"allowDelete"`
+	// STRM follows .strm URL files in this library. It starts off.
+	STRM bool `json:"strm"`
 	// Watch is whether the library's folders are watched for changes, which are then picked
 	// up within about ten seconds. It starts on; leaving it out of an edit keeps it on.
 	Watch *bool `json:"watch,omitempty"`
@@ -280,12 +282,17 @@ type KeptFile struct {
 }
 
 var skippedMessages = map[db.FileProblem]string{
-	db.ProblemDamaged:        "This file is damaged.",
-	db.ProblemUnsupported:    "This file is not supported.",
-	db.ProblemEncryptedDisc:  "This disc is copy-protected. Portico can't read copy-protected discs.",
-	db.ProblemNoDiscReader:   "This server's media tools can't read discs.",
-	db.ProblemNotMedia:       "This is not a media file.",
-	db.ProblemUnreadableName: "Portico can't read this file's name. Rename it, then scan again.",
+	db.ProblemDamaged:         "This file is damaged.",
+	db.ProblemUnsupported:     "This file is not supported.",
+	db.ProblemEncryptedDisc:   "This disc is copy-protected. Portico can't read copy-protected discs.",
+	db.ProblemSTRMRefused:     "The stream address is refused.",
+	db.ProblemSTRMUnavailable: "The stream cannot be reached.",
+	db.ProblemSTRMRange:       "The stream is not seekable. Playlists and live streams are not supported.",
+	db.ProblemSTRMRedirects:   "The stream sent too many redirects.",
+	db.ProblemSTRMPointer:     "This .strm file must contain one HTTP or HTTPS URL of at most 8 KiB.",
+	db.ProblemNoDiscReader:    "This server's media tools can't read discs.",
+	db.ProblemNotMedia:        "This is not a media file.",
+	db.ProblemUnreadableName:  "Portico can't read this file's name. Rename it, then scan again.",
 }
 
 func timePtr(ms int64) *time.Time {

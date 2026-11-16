@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,12 +31,14 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 	"github.com/PorticoMediaServer/portico/server-next/internal/streaming"
+	"github.com/PorticoMediaServer/portico/server-next/internal/strm"
 	"github.com/PorticoMediaServer/portico/server-next/internal/subtitleoffer"
 	"github.com/PorticoMediaServer/portico/server-next/internal/subtitles"
 )
 
 // Options says where the engine works.
 type Options struct {
+	STRM *strm.Client
 	// Folder is where conversions are written. It is emptied at start, so it must be a
 	// folder of the server's own.
 	Folder string
@@ -81,6 +85,7 @@ type Engine struct {
 	asking                             *toolset
 	// remote opens remote sources; processes supervises the probes of remote files, which
 	// run on the decoder's isolated bridge, and the streams' converters.
+	strm      *strm.Client
 	remote    func(ctx context.Context, sourceID int64) (remote.Storage, time.Duration, error)
 	processes *processpool.Supervisor
 
@@ -95,7 +100,7 @@ type Engine struct {
 // arrives in those first seconds waits for the answer. Run must be called for the engine to
 // do its housekeeping.
 func New(ctx context.Context, d *db.DB, o Options) (*Engine, error) {
-	e := &Engine{db: d, ctx: ctx, log: o.Log, probe: mediafacts.Probe{Binary: o.FFprobe, CodecSetup: true}, facts: map[string]mediafacts.Facts{}, remote: o.Remote,
+	e := &Engine{db: d, ctx: ctx, log: o.Log, probe: mediafacts.Probe{Binary: o.FFprobe, CodecSetup: true}, facts: map[string]mediafacts.Facts{}, remote: o.Remote, strm: o.STRM,
 		by: map[string]*place{}, folder: o.Folder, program: o.FFmpeg, kept: o.Kept, settings: o.Settings,
 		// No limit of its own: a limit here would refuse the fifth remote film being converted
 		// at once, since a converter is not made to wait for a slot.
@@ -209,7 +214,8 @@ type planned struct {
 	place   db.FileOnDisk
 	// remoteID is the remote source the file is on, with path its path within the source, or
 	// 0 for a file on a disk here.
-	remoteID int64
+	remoteID   int64
+	strmFileID int64
 	// parts are an audiobook's files in order when it is in several, played as one book.
 	parts []streaming.JoinedPart
 	// text is the version's text subtitles, which are served beside the stream.
@@ -267,6 +273,13 @@ func (e *Engine) source(ctx context.Context, version db.PlaybackVersion) (string
 	}
 	if err != nil {
 		return "", place, 0, mediafacts.Facts{}, err
+	}
+	if strings.EqualFold(filepath.Ext(place.Path), ".strm") {
+		facts, err := e.inspectSTRM(ctx, version.FileID, place, remoteID)
+		if err != nil {
+			return "", place, 0, mediafacts.Facts{}, playback.ErrSourceUnavailable
+		}
+		return path, place, remoteID, facts, nil
 	}
 	if scan.DiscTitle(place.Path) {
 		// A film disc kept as a folder. The file the scanner lists for it is the disc's index,
@@ -462,8 +475,12 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	}
 	// A version's files are joined into one stream on one clock. A position is
 	// a place in the whole film, episode or book (playback rule 60 for books).
-	parts, err := e.bookParts(ctx, r, remoteID, facts)
-	if err == nil && parts == nil {
+	isSTRM := strings.EqualFold(filepath.Ext(path), ".strm")
+	var parts []streaming.JoinedPart
+	if !isSTRM {
+		parts, err = e.bookParts(ctx, r, remoteID, facts)
+	}
+	if err == nil && parts == nil && !isSTRM {
 		parts, err = e.videoParts(ctx, r, remoteID)
 	}
 	if err != nil {
@@ -482,6 +499,12 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		Settings: owner, TranscodingEnabled: owner.ConversionMode != "never", FragmentedOutput: fragmented, NoConverter: !converter,
 		Connection:  streaming.DeliveryContext{NetworkClass: streaming.NetworkRemote},
 		Preferences: saved(r.Preferences),
+	}
+	if isSTRM {
+		request.File.Size = facts.ObservedSize
+		measured := streaming.SourceFromFacts(request.File)
+		measured.Remote = true
+		request.Measured = &measured
 	}
 	connection(&request.Connection, r)
 	// After connection: the member's limits apply only away from home.
@@ -522,8 +545,10 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		for _, part := range parts {
 			request.File.Duration += float64(part.DurationUS) / 1e6
 		}
-	} else if music := e.musicPlan(ctx, r, request, path, place, remoteID, facts, converter); music != nil {
-		return *music, nil
+	} else if !isSTRM {
+		if music := e.musicPlan(ctx, r, request, path, place, remoteID, facts, converter); music != nil {
+			return *music, nil
+		}
 	}
 	for _, failure := range r.Failures {
 		for strategy, route := range routes {
@@ -560,7 +585,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 		}
 	}
 	plan, err := e.planWithHardware(ctx, tools, request)
-	if err == nil && plan.ToneMap && plan.HardwareBackend != "software" && !facts.FrameHDRChecked {
+	if err == nil && plan.ToneMap && plan.HardwareBackend != "software" && !facts.FrameHDRChecked && !isSTRM {
 		facts = e.observeToneMappingSource(ctx, path, place, remoteID, facts)
 		request.File.Streams = facts.Streams
 		plan, err = e.planWithHardware(ctx, tools, request)
@@ -605,7 +630,7 @@ func (e *Engine) Plan(r playback.PlanRequest) (playback.Plan, error) {
 	out := playback.Plan{Mode: "stream", Player: plan.Engine, Route: routes[plan.Strategy], Container: plan.OutputContainer,
 		BitrateKbps: (plan.VideoBitrateBPS + plan.AudioBitrateBPS) / 1000, Quality: q,
 		Audio:  &playback.Decision{Action: action(plan.AudioAction), Reasons: plan.ReasonCodes, To: plan.OutputAudioCodec, Channels: plan.AudioChannels},
-		Detail: &planned{plan: plan, request: request, path: path, place: place, remoteID: remoteID, parts: parts}}
+		Detail: &planned{plan: plan, request: request, path: path, place: place, remoteID: remoteID, strmFileID: r.Version.FileID, parts: parts}}
 	if plan.Strategy == streaming.DeliveryOriginal {
 		out.Mode, out.Audio.Action = "direct", "direct"
 		out.Audio.Reasons, out.Audio.To = nil, ""
@@ -728,7 +753,20 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 		}
 		return out
 	}
-	if p.remoteID != 0 {
+	if strings.EqualFold(filepath.Ext(p.path), ".strm") {
+		start.Path, start.Size = "", p.request.File.Size
+		start.Source = streaming.STRMFile(func(ctx context.Context) (remote.File, error) {
+			file, err := e.openSTRM(ctx, p.strmFileID, p.place, p.remoteID)
+			if err != nil {
+				return nil, streaming.ErrSourceUnavailable
+			}
+			if file.Size() != p.request.File.Size {
+				file.Close()
+				return nil, streaming.ErrSourceChanged
+			}
+			return file, nil
+		})
+	} else if p.remoteID != 0 {
 		// A file on remote storage is read through its source, by range, never by path.
 		storage, _, err := e.remote(ctx, p.remoteID)
 		if err != nil {

@@ -1657,6 +1657,7 @@ export interface LibraryOptions {
   depth: string;
   trash: TrashRule;
   allowDelete: boolean;
+  strm: boolean;
   watch?: boolean;
   rescanMinutes: number;
   groupSeries?: boolean;
