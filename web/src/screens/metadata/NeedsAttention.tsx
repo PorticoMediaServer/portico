@@ -159,12 +159,23 @@ function Row({entry, busy, disabled, onUse, onFind, onRetry, onKeep, onOpen, onE
 }
 
 /** One match: its title, year and provider; a show's carries the episode order its files are numbered in (rule 15). */
+/** Why a match was suggested, as the facts the list already has words for: the title and the year, each said to agree or not. */
+const TITLE_FACTS: Readonly<Record<string, 'metadata.match.exact_title_or_alias' | 'metadata.match.close_title_or_alias' | 'metadata.match.weak_title_similarity'>> =
+  {same: 'metadata.match.exact_title_or_alias', close: 'metadata.match.close_title_or_alias', different: 'metadata.match.weak_title_similarity'};
+const YEAR_FACTS: Readonly<Record<string, 'metadata.match.release_year_agrees' | 'metadata.match.release_year_near' | 'metadata.match.release_year_conflicts'>> =
+  {same: 'metadata.match.release_year_agrees', near: 'metadata.match.release_year_near', different: 'metadata.match.release_year_conflicts'};
 function Candidate({candidate, show, disabled, onUse}: {candidate: MatchCandidate; show: boolean; disabled: boolean; onUse: (order?: EpisodeOrder) => void}) {
-  const [order, setOrder] = useState<EpisodeOrder>('aired');
+  const [order, setOrder] = useState<EpisodeOrder>('aired'), [noPoster, setNoPoster] = useState(false);
+  const facts: [string, (typeof TITLE_FACTS)[string] | (typeof YEAR_FACTS)[string]][] = [];
+  if (TITLE_FACTS[candidate.why?.title ?? '']) facts.push([candidate.why.title, TITLE_FACTS[candidate.why.title]]);
+  if (YEAR_FACTS[candidate.why?.year ?? '']) facts.push([candidate.why.year!, YEAR_FACTS[candidate.why.year!]]);
+  // The server's own copy of the provider's poster (rule 7); a provider with none answers 404 and the letter tile stays.
+  const poster = candidate.posterUrl && !noPoster ? candidate.posterUrl + (candidate.posterUrl.includes('?') ? '&' : '?') + 'size=small' : undefined;
   return <div className={styles.candidate}>
-    <span className={styles.candidatePoster} aria-hidden="true"><i>{Array.from(candidate.title.trim())[0] ?? ''}</i></span>
+    <span className={styles.candidatePoster} aria-hidden="true">{poster ? <img src={poster} alt="" loading="lazy" onError={() => setNoPoster(true)}/> : <i>{Array.from(candidate.title.trim())[0] ?? ''}</i>}</span>
     <div><div className={styles.candidateTitle}><b>{candidate.title}</b>{candidate.year ? <span className={styles.candidateYear}>{candidate.year}</span> : null}<span className={styles.provider}>{providerName(candidate.provider)}</span></div>
       {candidate.originalTitle && candidate.originalTitle !== candidate.title ? <small>{candidate.originalTitle}</small> : null}
+      {facts.length ? <div className={styles.facts}>{facts.map(([value, words]) => <span key={words} className={styles.fact} data-positive={value === 'same' || undefined}>{t(words)}</span>)}</div> : null}
       {show ? <label className={styles.order}>{t('metadata.attention.episodeOrder')}
         <select value={order} disabled={disabled} onChange={event => setOrder(event.currentTarget.value as EpisodeOrder)}>
           {EPISODE_ORDERS.map(item => <option key={item} value={item}>{t(`metadata.attention.order.${item}`)}</option>)}
