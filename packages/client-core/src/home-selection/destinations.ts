@@ -8,7 +8,7 @@ export type HomeDestinationOptions = Pick<HomeSelectionOptions, 'api' | 'events'
 
 const info = (error: unknown) => ({code: String((error as {code?: unknown})?.code ?? 'destination-unavailable'), retryable: (error as {code?: unknown})?.code !== 'too-many-to-add'});
 /** What an addition did, in the shape the add-to sheets draw: the titles that went in and those already there. */
-function receiptOf(kind: 'playlist' | 'collection', destinationId: string, added: number, alreadyPresent: number): HomeDestinationReceipt {
+export function receiptOf(kind: 'playlist' | 'collection', destinationId: string, added: number, alreadyPresent: number): HomeDestinationReceipt {
   return Object.freeze({kind, destinationId, jobIds: Object.freeze([]), jobs: Object.freeze([]), added, alreadyPresent, failed: 0, unknown: 0, complete: true, pending: false,
     unresolvedJobIds: Object.freeze([]), failures: Object.freeze([]), nextCursor: '', failureEntries: Object.freeze([])});
 }
