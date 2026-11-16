@@ -311,7 +311,7 @@ def js_static(plan,component):
 
 
 def aggregate(plan,needs):
-    expected={'planner':True,'hygiene':True,'go_build':bool(plan['packages']),'go_vet_cross':bool(plan['packages']),'go_tests':bool(plan['packages']),'js':any(x['shards'] for x in plan['js']),'js_static':bool(plan['js']), 'android':plan.get('android',False)}
+    expected={'planner':True,'hygiene':True,'go_build':bool(plan['packages']),'go_vet_cross':bool(plan['packages']),'go_tests':bool(plan['packages']),'js':any(x['shards'] for x in plan['js']),'js_static':bool(plan['js']), 'android':plan.get('android',False), 'roku':plan.get('roku',False)}
     if plan.get('tier') == 'nightly':
         for job in ('hygiene', 'go_vet_cross', 'js_static'):
             expected.pop(job)

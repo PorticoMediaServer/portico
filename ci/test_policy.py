@@ -20,7 +20,7 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(components(['server-next/go.mod', 'server-next/internal/db/schema.sql']), ([], False))
     def test_stream(self): self.assertEqual(decode_stream('{}\n{}'),[{},{}])
     def test_aggregate_absent_cancelled_skipped(self):
-        p={'packages':[],'js':[]}; n={k:{'result':v} for k,v in [('planner','success'),('hygiene','success'),('go_build','skipped'),('go_vet_cross','skipped'),('go_tests','skipped'),('decoder_sandbox','skipped'),('js','skipped'),('js_static','skipped'),('android','skipped')]}
+        p={'packages':[],'js':[]}; n={k:{'result':v} for k,v in [('planner','success'),('hygiene','success'),('go_build','skipped'),('go_vet_cross','skipped'),('go_tests','skipped'),('decoder_sandbox','skipped'),('js','skipped'),('js_static','skipped'),('android','skipped'),('roku','skipped')]}
         import tempfile
         from pathlib import Path
         from unittest.mock import patch

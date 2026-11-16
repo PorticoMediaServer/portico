@@ -295,6 +295,8 @@ def components(paths, full=False):
         # Go metadata must distinguish documentation from fixtures/embedded
         # inputs before their suffix can suppress package discovery.
         if path.startswith('server-next/'): continue
+        # The Roku app is BrightScript: it has its own check (roku_selected) and no JS or Go.
+        elif path.startswith('apps/roku/'): continue
         elif path.startswith(('apikit/',)): go=True
         elif path.endswith(('.md','.png','.jpg','.jpeg','.gif','.webp','.svg','.ico')) and (ROOT/path).is_file(): continue
         elif path.startswith('packages/'):
@@ -305,6 +307,9 @@ def components(paths, full=False):
         else: chosen.update(COMPONENTS); go=True
     if 'web' in chosen: chosen.add('packages')
     return sorted(chosen), go
+
+def roku_selected(paths, full=False):
+    return full or any(p.startswith('apps/roku/') for p in paths)
 
 def android_selected(paths, full=False):
     return full or any(p in ('.github/workflows/android-tests.yml', 'ci/robolectric_sdk.py',
@@ -453,7 +458,7 @@ def make_plan(paths, full=False, tier="short"):
         budget={'deadline_seconds':GO_TEST_DEADLINE,'budget_seconds':GO_TEST_BUDGET,'target_seconds':GO_TEST_TARGET,
                 'workers':GO_PACKAGE_WORKERS,'commands_seconds':[row['seconds'] for row in rows],
                 'oversized_single_tests':oversized_single_parents(bins,all_test_names,durations)}
-    return {'full_go_packages':sorted(full_packages), 'full_go_extra_seconds':extra,'selection_diagnostics':why,'ffmpeg_packages':sorted(probe_packages) if go else [],'android':android_selected(paths,full),'all_inventory':all_inventory,'tier':tier,'paths':paths,'tags':tags,'packages':[{'module':p['module'],'package':p['ImportPath']} for p in packages], 'inventory':inventory,'shards':bins,'predicted_seconds':costs,'shard_budget':budget,'js':js,'tier_exclusions':exclusions, 'compile_only_examples':exemptions, 'unmeasured_parents':[t for t in inventory if t['package']+'.'+t['name'] not in durations]}
+    return {'full_go_packages':sorted(full_packages), 'full_go_extra_seconds':extra,'selection_diagnostics':why,'ffmpeg_packages':sorted(probe_packages) if go else [],'android':android_selected(paths,full),'roku':roku_selected(paths,full),'all_inventory':all_inventory,'tier':tier,'paths':paths,'tags':tags,'packages':[{'module':p['module'],'package':p['ImportPath']} for p in packages], 'inventory':inventory,'shards':bins,'predicted_seconds':costs,'shard_budget':budget,'js':js,'tier_exclusions':exclusions, 'compile_only_examples':exemptions, 'unmeasured_parents':[t for t in inventory if t['package']+'.'+t['name'] not in durations]}
 
 def event_tier(event, tier, full):
     if event in ['pull_request','push']:
@@ -498,6 +503,7 @@ def main():
             f.write('go_matrix='+json.dumps(go_matrix(plan))+'\n')
             f.write('server_next='+str(plan.get('server_next', False)).lower()+'\n')
             f.write('android='+str(plan['android']).lower()+'\n')
+            f.write('roku='+str(plan['roku']).lower()+'\n')
             f.write('go='+str(bool(plan['packages'])).lower()+'\n')
             f.write('js='+str(any(x['shards'] for x in plan['js'])).lower()+'\n')
             f.write('js_static='+str(bool(plan['js'])).lower()+'\n')
