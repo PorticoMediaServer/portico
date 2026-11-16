@@ -1,0 +1,11 @@
+{
+  "name": "portico-roku-tools",
+  "private": true,
+  "description": "The compile check for the Roku app. Nothing here ships in the app.",
+  "scripts": {
+    "check": "bsc --project bsconfig.json"
+  },
+  "devDependencies": {
+    "brighterscript": "0.69.13"
+  }
+}

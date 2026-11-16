@@ -94,6 +94,7 @@ jobs:
       go: ${{ steps.plan.outputs.go }}
       js: ${{ steps.plan.outputs.js }}
       android: ${{ steps.plan.outputs.android }}
+      roku: ${{ steps.plan.outputs.roku }}
       js_matrix: ${{ steps.plan.outputs.js_matrix }}
       js_static: ${{ steps.plan.outputs.js_static }}
       js_static_matrix: ${{ steps.plan.outputs.js_static_matrix }}
@@ -377,10 +378,29 @@ jobs:
     needs: planner
     if: needs.planner.outputs.android == 'true'
     uses: ./.github/workflows/android-tests.yml
+  roku:
+    needs: planner
+    if: needs.planner.outputs.roku == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: apps/roku/tools/package-lock.json
+      - name: Compile check
+        working-directory: apps/roku/tools
+        run: |
+          npm ci --no-audit --no-fund
+          npm run check
   merge:
     name: ci/required
     if: ${{ !cancelled() }}
-    needs: [planner, hygiene, server_next, go_build, go_vet_cross, go_tests, js, js_static, android]
+    needs: [planner, hygiene, server_next, go_build, go_vet_cross, go_tests, js, js_static, android, roku]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
