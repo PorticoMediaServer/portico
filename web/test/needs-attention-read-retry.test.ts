@@ -128,3 +128,13 @@ test('Use this match, Keep as is and Look it up again go to the rebuilt routes',
   assert.deepEqual(acts.at(-1), {path: '/v1/admin/items/film1/metadata/refresh', method: 'POST', body: undefined});
   assert.ok(naruto);
 });
+
+test('a match shows the server\'s copy of its poster and why it was suggested', async () => {
+  const {reply, show} = await mount();
+  reply(async () => page([entry('film1', 'Heat', 'movie', [{provider: 'tmdb', id: '949', title: 'Heat', year: 1995, posterUrl: '/v1/match-posters/abc', why: {title: 'same', year: 'near'}}])]));
+  show(); await tick();
+  const row = tree(articles(show())[0]);
+  assert.equal(all(row, 'img')[0]?.props.src, '/v1/match-posters/abc?size=small');
+  assert.deepEqual(all(row, 'span').filter(node => node.props['data-positive'] !== undefined || words(node).startsWith('metadata.match.')).map(node => [words(node), node.props['data-positive'] ?? false]),
+    [['metadata.match.exact_title_or_alias', true], ['metadata.match.release_year_near', false]]);
+});
