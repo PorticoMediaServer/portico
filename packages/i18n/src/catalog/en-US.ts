@@ -298,6 +298,8 @@ export const enUS = {
   'error.providerUnfinished': 'That sign-in didn’t finish. Try again.',
   'error.ownsServer': 'You still own a server. Transfer it to someone else, switch it to local accounts, or start it over, then delete your account.',
   'error.artworkTooDetailed': 'This image is too detailed to store at full quality within the size limit. Try a simpler or smaller image.',
+  'error.videoPictureUnavailable': 'This server can’t make pictures from videos.',
+  'error.videoPictureFailed': 'A picture couldn’t be made from this video. Try again.',
   'error.profilePinManage': 'Enter this profile’s PIN to manage this account.',
   'content.openFailed': 'This content could not be opened.',
   'error.screenCrashed': 'Something went wrong on this screen.',

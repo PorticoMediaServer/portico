@@ -206,6 +206,8 @@ const codeBodies: Record<string, MessageId> = {
   metadata_unavailable: 'error.metadataUnavailable',
   artwork_pending: 'error.artworkPending',
   artwork_gone: 'error.artworkGone',
+  no_decoder: 'error.videoPictureUnavailable',
+  not_made: 'error.videoPictureFailed',
   web_unavailable: 'error.webUnavailable',
   method_not_allowed: 'error.methodNotAllowed',
   // Add library with a language the server doesn't offer for the kind/agent (MU12): a definite

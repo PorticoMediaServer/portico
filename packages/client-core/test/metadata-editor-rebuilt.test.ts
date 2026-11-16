@@ -124,3 +124,40 @@ test('Undo, Lock everything, and the picture choices go to their rebuilt routes'
     ['POST', '/v1/admin/items/itm_1/artwork/find?role=poster', undefined]]);
   service.dispose();
 });
+
+test('artwork re-fetch keeps the server choice; making an episode picture waits, reloads it, and hides on no_decoder', async () => {
+  const calls: string[] = [];
+  let kind = 'movie', made = false, noDecoder = false, finish!: () => void;
+  const gate = new Promise<void>(resolve => {finish = resolve;});
+  const api = {async request<T>(path: string, method = 'GET'): Promise<T> {
+    calls.push(`${method} ${path}`);
+    if (path.endsWith('/artwork/make')) {
+      if (noDecoder) throw {status: 503, code: 'no_decoder'};
+      await gate; made = true;
+    }
+    if (path.endsWith('/metadata')) return {...doc(), kind} as T;
+    if (path.includes('/artwork?role=')) return {items: [{...picture(made ? 'frame' : 'provider', true), source: made ? 'frame' : 'provider', locked: true}]} as T;
+    return {items: []} as T;
+  }};
+  const service = new MetadataRepairService({api, scope});
+  await service.load(target);
+  assert.equal(service.getSnapshot().data!.canMakeEpisodeThumbnail, false);
+  await service.command({action: 'refetch_artwork', role: 'poster'});
+  assert.ok(calls.includes('POST /v1/admin/items/itm_1/artwork/refetch?role=poster'));
+  assert.equal(service.getSnapshot().data!.snapshot.artwork[0].locked, true);
+  kind = 'episode'; await service.load({...target, kind: 'item'});
+  assert.equal(service.getSnapshot().data!.canMakeEpisodeThumbnail, true);
+  const making = service.command({action: 'make_episode_thumbnail'});
+  assert.equal(service.getSnapshot().phase, 'saving');
+  finish(); await making;
+  assert.ok(calls.includes('POST /v1/admin/items/itm_1/artwork/make'));
+  assert.equal(service.getSnapshot().data!.snapshot.artwork[0].candidateId, 'frame');
+  noDecoder = true;
+  assert.equal(await service.command({action: 'make_episode_thumbnail'}), false);
+  assert.equal(service.getSnapshot().phase, 'ready');
+  assert.equal(service.getSnapshot().error?.code, 'no_decoder');
+  assert.equal(service.getSnapshot().data!.canMakeEpisodeThumbnail, false);
+  await service.refresh(service.getSnapshot().data!);
+  assert.equal(service.getSnapshot().data!.canMakeEpisodeThumbnail, false);
+  service.dispose();
+});
