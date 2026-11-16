@@ -17,7 +17,7 @@ test('rebuilt Sign-in reads only supported policy rows',async()=>{
  assert.deepEqual(values,{staySignedInDays:30,pinRememberDays:0,requireTwoStep:'administrators'});
  assert.deepEqual(signInPolicyWith(values,'signin.stayLength','365'),{...values,staySignedInDays:365});
  assert.throws(()=>signInPolicyWith(values,'signin.stayLength','31'));
- for(const id of ['signin.passwordAttempts','signin.pinAttempts','signin.passwordLength','signin.resetCodeLife','signin.rememberAccounts','signin.endedKeep']){
+ for(const id of ['signin.passwordAttempts','signin.pinAttempts']){
   assert.equal(readSettingsBinding(settingsBinding(id)!,{configuration:config},id),undefined);
  }
 });

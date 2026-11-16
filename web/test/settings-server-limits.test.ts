@@ -24,7 +24,6 @@ test('the four Limits read the runtime document fields the server validates', ()
   assert.deepEqual(['storage.analysisSpace', 'storage.analysisStage', 'storage.subtitleTracks', 'storage.subtitleFile'].map(id => read(id)?.current),
     ['64', '256', '512', '128']);
   // The same reader supplies the retention figures the page keeps beside them.
-  assert.equal(read('history.keepHistory')?.current, '90d', 'the stored 90 days reads as the drawn 90d choice');
   // Keep notifications is the rebuilt server's notices document.
   assert.equal(read('storage.keepNotifications', {notices: {keepDays: 30}})?.current, '30');
   assert.equal(read('troubleshooting.keepLogs')?.current, '7');
@@ -64,9 +63,8 @@ test('a preset is offered only when every row it sets has a real engine', () => 
   assert.equal(presetEnginesAvailable(row('storage.analysisSpace'), () => true), undefined);
 });
 
-test('the two retention links open the page that owns the value, and never a mock page', () => {
+test('the retention link opens the page that owns the value, and never a mock page', () => {
   assert.deepEqual([...sectionLinkRows].map(id => sectionTarget(row(id).control.to)), [
-    {scope: 'server', section: 'history', row: 'history.keepHistory'},
     {scope: 'server', section: 'troubleshooting', row: 'troubleshooting.keepLogs'},
   ]);
   for (const id of [...sectionLinkRows]) {
@@ -98,6 +96,6 @@ test('Storage answers for its own rows and leaves every other row to the shared 
   for (const id of ['storage.keepFiles']) {assert.deepEqual(storageRowState(row(id), live), {present: false}, id); assert.deepEqual(storageRowState(row(id), {...live, keeping: true}), {present: true}, id);}
   for (const id of ['storage.keepConversions', 'storage.keepPrepared', 'storage.keepSubtitles', 'storage.keepTrickplay']) assert.deepEqual(storageRowState(row(id), {...live, keeping: true}), {present: false}, id);
   // A link whose drawn target is a mock page would be a dead control, so it stays absent.
-  const keepHistory = row('storage.keepHistory');
-  assert.deepEqual(storageRowState({...keepHistory, control: {...keepHistory.control, to: 'owner-server.html#f9'}}, live), {present: false});
+  const keepLogs = row('storage.keepLogsLink');
+  assert.deepEqual(storageRowState({...keepLogs, control: {...keepLogs.control, to: 'owner-server.html#f9'}}, live), {present: false});
 });

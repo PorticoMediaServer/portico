@@ -75,7 +75,6 @@ function Panel({controller, current, runtime, ports}: {controller: NativeMetadat
     select('metadata.refresh', extra?.refreshPolicy, value => ({refreshPolicy: value as MetadataRefreshPolicy})),
     select('metadata.fallbackLanguage', extra?.fallbackLanguage, value => ({fallbackLanguage: value as MetadataFallbackLanguage})),
     select('metadata.animeTitles', extra?.animeTitles, value => ({animeTitles: value as MetadataAnimeTitles})),
-    toggle('metadata.castPhotos', extra?.castPhotos, castPhotos => ({castPhotos})),
     extra?.acoustidKeyConfigured !== undefined && secret('metadata.acoustid', 'acoustidKey', extra.acoustidKeyConfigured, extra.acoustidKeySource === 'environment' ? t('server.metadata.acoustidServer') : undefined),
   ].filter(Boolean);
   return <View testID="tv-server-metadata-settings">

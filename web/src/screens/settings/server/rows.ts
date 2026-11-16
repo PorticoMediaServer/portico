@@ -13,7 +13,7 @@ export const pendingServerRows: ReadonlySet<string> = new Set(['storage.upgradeC
 export const factRows: ReadonlySet<string> = new Set(['storage.dataFolder', 'storage.usage', 'storage.emptyCache']);
 
 /** The Retention rows that name the page which owns their value. */
-export const sectionLinkRows: ReadonlySet<string> = new Set(['storage.keepHistory', 'storage.keepLogsLink']);
+export const sectionLinkRows: ReadonlySet<string> = new Set(['storage.keepLogsLink']);
 
 /** The Backups rows this batch draws; they need the server's own backup answer first. */
 export const backupRows: ReadonlySet<string> = new Set(['storage.backupFolder', 'storage.backupNow', 'storage.backups', 'storage.backupPassphrase']);

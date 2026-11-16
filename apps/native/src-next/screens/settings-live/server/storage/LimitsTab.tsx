@@ -46,7 +46,7 @@ export function LimitsTab({group, t, onOpenPage}: {group: StorageForms; t: Trans
   const fileOptions = filesRow.control.options ?? [];
   const filePreset = exactPresetValue(fileOptions, read), showFileChildren = customFiles || filePreset === 'custom';
   const renderRow = (row: SpecRow): React.ReactNode => {
-    if (row.id === 'storage.keepHistory' || row.id === 'storage.keepLogsLink') return <Button key={row.id} variant="text" onPress={() => {if (group.context.current()) onOpenPage(row.id === 'storage.keepHistory' ? 'history' : 'troubleshooting');}}>{t(row.control.label ?? row.label)}</Button>;
+    if (row.id === 'storage.keepLogsLink') return <Button key={row.id} variant="text" onPress={() => {if (group.context.current()) onOpenPage('troubleshooting');}}>{t(row.control.label ?? row.label)}</Button>;
     if (row.id === 'storage.keepFiles') {
       if (!maintenanceDraft || !fileOptions.some(option => option.sets && Object.keys(option.sets).every(id => read(id) !== undefined))) return null;
       return <View key={row.id} style={{gap: 10}}><NativeSettingControl row={row} value={customFiles ? 'custom' : filePreset} t={t} disabled={state.saving} onCustom={() => setCustomFiles(true)}
