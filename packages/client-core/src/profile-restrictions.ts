@@ -59,6 +59,7 @@ export async function saveRestrictions(api: ServerRequester, current: ProfileRes
   const body: Restrictions = {maxRatingAge: value ? value.minimumAge : null, allowUnrated: next.allowUnrated, blockedLabels: [...next.blockedLabels], allLibraries: next.allLibraries,
     libraries: [...next.libraries], accountAllLibraries: current.accountAllLibraries, accountLibraries: [...current.accountLibraries],
     accountMaxRatingAge: current.accountMaxRatingAge, accountAllowUnrated: current.accountAllowUnrated, accountBlockedLabels: [...current.accountBlockedLabels],
+    allowDownloads: next.allowDownloads, allowWatchTogether: next.allowWatchTogether,
     accountAllowDownloads: current.accountAllowDownloads, accountAllowWatchTogether: current.accountAllowWatchTogether};
   return parseRestrictions(current.profileId, await callServer(api, 'PUT /v1/profiles/{id}/restrictions', {id: current.profileId, query: {member}, body, signal}));
 }
