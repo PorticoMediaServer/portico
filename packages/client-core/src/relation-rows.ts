@@ -1,34 +1,16 @@
-import type {RouteResponse} from "../../contracts/src/route-paths.ts";
-import {encodedRoutePath} from "../../contracts/src/route-paths.ts";
-import {unreadableServerResponse} from './server-messages.ts';
 import {readListeningSimilar, type ContentEntry, type LibraryContentApi} from './library-content.ts';
 import type {ListeningViewerScope} from './listening.ts';
-import {validateHomeRow, type HomeApi, type HomeRow} from './home.ts';
+import type {HomeApi, HomeRow} from './home.ts';
 
 /**
- * Relation rows page to their true end (JUSTIN-ANSWERS #34): a title's or show's recommendation
- * rows, its related rows, and a listening title's similar row. The server orders each row once;
- * the first page arrives with its page and every later page continues that order by cursor.
+ * Relation rows: a title's or show's recommendation rows and related rows, which the rebuilt server
+ * answers whole, and a listening title's similar row, which pages by cursor to its end.
  */
-
-function invalid(): never {
-  throw Object.assign(new Error(unreadableServerResponse), {code: 'invalid_recommendations', retryable: false});
-}
 
 const errorCode = (error: unknown): string => typeof (error as {code?: unknown})?.code === 'string' ? (error as {code: string}).code : 'request_failed';
 
 /** The page a row belongs to: a title, or a show. */
 export type RelationRowOwner = Readonly<{kind: 'item' | 'show'; id: string}>;
-
-/** One continuation of a title's or show's row. The row is exact; a cursor from before the fence moved is the server's to refuse (invalid_cursor). */
-export async function readRecommendationRowPage(api: HomeApi, owner: RelationRowOwner, row: Pick<HomeRow, 'id'>, options: {cursor?: string; limit?: number} = {}, signal?: AbortSignal): Promise<HomeRow> {
-  const query = new URLSearchParams({limit: String(options.limit ?? 37)});
-  if (options.cursor) query.set('cursor', options.cursor);
-  const route = owner.kind === 'show' ? 'get_shows_id_recommendations_row' : 'get_items_id_recommendations_row';
-  const page = validateHomeRow(await api.request<RouteResponse<'get_items_id_recommendations_row'>>(encodedRoutePath(route, {id: encodeURIComponent(owner.id), row: encodeURIComponent(row.id)}) + '?' + query, 'GET', undefined, signal));
-  if (page.id !== row.id) invalid();
-  return page;
-}
 
 /** A page of a relation row: its entries and, while the row goes on, its continuation. */
 export type RelationPage = Readonly<{entries: readonly ContentEntry[]; nextCursor?: string}>;
@@ -126,14 +108,15 @@ export class RelationRowPager {
   }
 }
 
-/** The pager of a title's or show's recommendation row, from the row as its page returned it. */
-export function recommendationRowPager(api: HomeApi, owner: RelationRowOwner, row: HomeRow, limit?: number): RelationRowPager {
-  // Later pages continue the revision of the first page they follow; reading the first page again ('') moves it.
-  const shown = (page: HomeRow): RelationPage => ({entries: page.entries, ...(page.hasMore && page.nextCursor ? {nextCursor: page.nextCursor} : {})});
-  return new RelationRowPager(shown(row), async (cursor, signal) => {
-    const page = await readRecommendationRowPage(api, owner, row, {...(cursor ? {cursor} : {}), ...(limit === undefined ? {} : {limit})}, signal);
-    return shown(page);
-  });
+/** A row the server answered whole: there is nothing more to read. */
+export function completeRow(entries: readonly ContentEntry[]): RelationRowPager {
+  return new RelationRowPager({entries}, () => Promise.reject(Object.assign(new Error('This row is complete.'), {code: 'row_complete'})));
+}
+
+/** A title's or show's recommendation row. The rebuilt server answers a title's related rows whole
+ * (`GET /v1/items/{id}/related`, at most 15 titles a row), so the row has no later page. */
+export function recommendationRowPager(_api: HomeApi, _owner: RelationRowOwner, row: HomeRow, _limit?: number): RelationRowPager {
+  return completeRow(row.entries);
 }
 
 /** One page of a listening title's similar row (readListeningSimilar). */

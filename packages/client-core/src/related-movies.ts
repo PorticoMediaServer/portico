@@ -3,8 +3,7 @@ import {unreadableServerResponse} from './server-messages.ts';
 import {validateContentEntry,type ContentEntry} from './library-content.ts';
 import {firstOfEach,keepReadable} from './tolerant.ts';
 import type {HomeApi} from './home.ts';
-import {readRecommendationRowPage,RelationRowPager} from './relation-rows.ts';
-/** `nextCursor` continues the row through `relatedRowPager` (its row route) to the row's end. */
+import {completeRow,type RelationRowPager} from './relation-rows.ts';
 export type RelatedMovieRow=Readonly<{id:string;relation:'genre'|'person'|'album'|'artist'|'book'|'author'|'show';provider:string;evidenceId:string;heading:string;entries:readonly ContentEntry[];nextCursor?:string}>;
 export type RelatedMovieProjection=Readonly<{version:1;libraryId:string;libraryName:string;rows:readonly RelatedMovieRow[]}>;
 const object=(v:unknown):v is Record<string,unknown>=>typeof v==='object'&&v!==null&&!Array.isArray(v);
@@ -27,17 +26,11 @@ function relatedEntry(entry:ContentEntry,source:RelatedSource):ContentEntry{
  return entry;
 }
 /**
- * A related row read to its end: its later pages come from the title's row route under the
- * detail's fence and revision, and an entry that is not a related title is left out alone.
+ * A related row as the title's page draws it. The rebuilt server answers a title's related rows whole
+ * (`GET /v1/items/{id}/related`, at most 15 titles a row), so there is no later page to read.
  */
-export function relatedRowPager(api:HomeApi,source:RelatedSource,row:RelatedMovieRow,limit?:number):RelationRowPager{
- // Later pages continue the detail's revision; reading the first page again ('', after the server refused the cursor) moves it.
- const page=async(cursor:string,signal:AbortSignal)=>{
-  const next=await readRecommendationRowPage(api,{kind:'item',id:source.itemId},{id:row.id},{...(cursor?{cursor}:{}),...(limit===undefined?{}:{limit})},signal);
-  const entries=keepReadable('related','entries',next.entries,entry=>relatedEntry(validateContentEntry(entry),source));
-  return {entries,...(next.hasMore&&next.nextCursor?{nextCursor:next.nextCursor}:{})};
- };
- return new RelationRowPager({entries:row.entries,...(row.nextCursor?{nextCursor:row.nextCursor}:{})},page);
+export function relatedRowPager(_api:HomeApi,_source:RelatedSource,row:RelatedMovieRow,_limit?:number):RelationRowPager{
+ return completeRow(row.entries);
 }
 export function validateRelatedMovies(value:unknown,source:{libraryId:string;itemId:string;kind:string}):RelatedMovieProjection{
  if(!object(value)||!['movie','song','audiobook_file','episode'].includes(source.kind)||value.version!==1||value.libraryId!==source.libraryId||!Array.isArray(value.rows)||value.rows.length>3)invalid();
