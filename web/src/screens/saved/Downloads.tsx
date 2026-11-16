@@ -280,7 +280,7 @@ export function ServerDownloads({service, operations, effects, artwork, online, 
 }
 function ServerStatus({item, service}: {item: DownloadPreparation; service: DownloadsService}) {
   const percent = preparationPercent(item), label = item.state === 'running' ? percent === undefined ? t('web.downloads.state.preparing') : s('next.saved.preparing', {percent: Math.floor(percent)})
-    : item.state === 'ready' ? t('web.downloads.state.ready') : item.state === 'queued' ? t('web.downloads.state.waiting') : item.state === 'paused' ? t('downloads.paused') : item.state === 'expired' ? t('web.downloads.state.expired') : service.reason(item);
+    : item.state === 'received' ? t('web.downloads.state.received') : item.state === 'ready' ? t('web.downloads.state.ready') : item.state === 'queued' ? t('web.downloads.state.waiting') : item.state === 'paused' ? t('downloads.paused') : item.state === 'expired' ? t('web.downloads.state.expired') : service.reason(item);
   return <span className={styles.status}><b data-tone={item.state === 'ready' ? 'healthy' : undefined}>{label}</b>
     {item.state === 'ready' && item.expiresAt && <small>{t('web.downloads.keptUntil', {date: defaultI18n.date(item.expiresAt, 'dayMonth')})}</small>}
     {item.state === 'running' && item.progress.etaSeconds !== null && <small>{t('web.downloads.minutesLeft', {count: Math.max(1, Math.ceil(item.progress.etaSeconds / 60))})}</small>}

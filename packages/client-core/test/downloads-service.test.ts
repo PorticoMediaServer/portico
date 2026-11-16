@@ -113,3 +113,19 @@ test('an unchanged ready file survives refresh while its Save grant is pending, 
  s.set([{...request(), quality: '720p-low'}]);await service.refresh();assert.equal(service.getSnapshot().items.includes(held), false);
  s.set([]);await service.refresh();s.set([request()]);await service.refresh();assert.equal(service.getSnapshot().items.includes(held), false, 'removal and reappearance is a new lifetime');
 });
+
+
+test('received files are terminal even in a paused request: remove only, no grant or preparation poll', async t => {
+  t.mock.timers.enable({apis: ['setTimeout']});
+  const d = request(); d.paused = true; d.items![0]!.state = 'received';
+  const s = server([d]), service = new DownloadsService(s.api); t.after(() => service.dispose());
+  service.start(); await service.refresh();
+  const copy = service.getSnapshot().items[0]!;
+  assert.equal(copy.state, 'received'); assert.deepEqual(copy.actions, ['remove']);
+  await assert.rejects(service.grant(copy));
+  assert.equal(s.calls.some(c => c.path.includes('/items/')), false);
+  const reads = s.calls.length;
+  t.mock.timers.tick(15000); await Promise.resolve();
+  assert.equal(s.calls.length, reads, 'a received copy never waits for preparation');
+  await service.act(copy, 'remove'); assert.deepEqual(service.getSnapshot().items, []);
+});

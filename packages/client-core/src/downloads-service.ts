@@ -26,13 +26,13 @@ export function downloadCopyReference(id: string): {downloadId: string; itemId: 
 }
 const titleFacts = (title: ServerTitle): DownloadTitle => ({kind: title.kind === 'book' ? 'ebook' : title.kind === 'audiobook' ? 'audiobook_file' : title.kind === 'track' ? 'song' : title.kind === 'issue' ? 'comic' : title.kind, title: title.title, parentTitle: title.parentTitle ?? '', parentId: '', groupId: '', groupTitle: '', groupNumber: title.seasonNumber ?? null, number: title.episodeNumber ?? null, artist: title.artist ?? '', year: 0, durationSeconds: 0, onServer: true});
 export function downloadPreparation(download: Download, title: ServerTitle, profileId = ''): DownloadPreparation {
-  const state = download.paused ? 'paused' : title.state === 'waiting' ? 'queued' : title.state === 'preparing' ? 'running' : title.state === 'leftOut' ? 'unavailable' : title.state === 'ready' || title.state === 'expired' || title.state === 'failed' ? title.state : 'queued';
+  const state = title.state === 'received' ? 'received' : download.paused ? 'paused' : title.state === 'waiting' ? 'queued' : title.state === 'preparing' ? 'running' : title.state === 'leftOut' ? 'unavailable' : title.state === 'ready' || title.state === 'expired' || title.state === 'failed' ? title.state : 'queued';
   const total = title.sizeBytes ?? title.totalBytes ?? 0, done = title.doneBytes ?? 0;
   return Object.freeze<DownloadPreparation>({id: downloadCopyId(download.id, title.itemId), downloadId: download.id, itemId: title.itemId, versionId: download.versionId, libraryId: '', profileId,
     title: titleFacts(title), quality: download.quality, origin: download.counts.titles > 1 ? 'container' : 'item', batchId: download.id, state, reason: title.reason ?? '',
     artifact: {kind: download.quality === 'original' ? 'source' : 'prepared', ref: download.versionId ?? '', sha256: '', bytes: total, estimated: state !== 'ready', container: '', contentType: '', fileName: ''},
     progress: {bytesDone: done, bytesTotal: total, bytesTotalEstimated: state !== 'ready', percent: total > 0 ? Math.min(100, done / total * 100) : 0, etaSeconds: null},
-    actions: state === 'ready' ? ['remove'] : state === 'paused' ? ['resume', 'remove'] : state === 'failed' || state === 'expired' ? ['retry', 'remove'] : ['pause', 'remove'],
+    actions: state === 'ready' || state === 'received' ? ['remove'] : state === 'paused' ? ['resume', 'remove'] : state === 'failed' || state === 'expired' ? ['retry', 'remove'] : ['pause', 'remove'],
     revision: 0, createdAt: download.createdAt, updatedAt: download.createdAt, readyAt: state === 'ready' ? download.createdAt : '', expiresAt: title.keptUntil ?? ''});
 }
 function requestFacts(download: Download, profileId: string): DownloadRequest {
@@ -184,6 +184,7 @@ export class DownloadsService {
     finally {this.publish({busy: this.state.busy.filter(id => id !== preparation.id)});}
   }
   async grant(preparation: Pick<DownloadPreparation, 'id'>, _renew?: string): Promise<DownloadGrant> {
+    if (this.state.items.some(item => item.id === preparation.id && item.state === 'received')) throw new Error(unreadableServerResponse);
     const {downloadId, itemId} = downloadCopyReference(preparation.id), downloaded = await readDownloadedItem(this.api, downloadId, itemId, this.lifetime.signal);
     if (!downloaded.files.length || !downloaded.versionId) throw new Error(unreadableServerResponse);
     const version = downloaded.item.versions?.find(v => v.id === downloaded.versionId);

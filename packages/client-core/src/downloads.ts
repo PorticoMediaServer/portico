@@ -19,12 +19,12 @@ import {firstOfEach, keepReadable, noteSkipped, oneOf, oneOfOr} from './tolerant
  * unreadable row of a list is left out and the rest is kept.
  */
 
-export type DownloadState = 'queued'|'running'|'ready'|'paused'|'failed'|'unavailable'|'cancelled'|'expired';
+export type DownloadState = 'queued'|'running'|'ready'|'paused'|'failed'|'unavailable'|'cancelled'|'expired'|'received';
 export type DownloadAction = 'pause'|'resume'|'cancel'|'retry'|'remove';
 export type DownloadOrigin = 'item'|'items'|'container'|'next';
 export type DownloadArtifactKind = ''|'source'|'prepared';
 
-export const downloadStates: readonly DownloadState[] = Object.freeze(['queued','running','ready','paused','failed','unavailable','cancelled','expired'] as const);
+export const downloadStates: readonly DownloadState[] = Object.freeze(['queued','running','ready','paused','failed','unavailable','cancelled','expired','received'] as const);
 export const downloadActions: readonly DownloadAction[] = Object.freeze(['pause','resume','cancel','retry','remove'] as const);
 /** The reasons this app has its own words for. A newer server may publish another code; it is kept when it is shaped like one. */
 export const downloadReasons: readonly string[] = Object.freeze([

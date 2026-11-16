@@ -487,6 +487,7 @@ export const webMessages = {
   'web.downloads.state.waiting': 'Waiting',
   'web.downloads.state.preparing': 'Preparing',
   'web.downloads.state.ready': 'Ready to save',
+  'web.downloads.state.received': 'Saved to device',
   'web.downloads.state.paused': 'Paused',
   'web.downloads.state.expired': 'Expired',
   'web.downloads.resume': 'Resume',
