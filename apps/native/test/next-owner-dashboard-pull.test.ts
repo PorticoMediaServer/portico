@@ -12,7 +12,7 @@ async function fixture(inline = false) {
   const h = hooks(), pulls: any[] = [], calls: string[] = [];
   const snapshot = {admission: 'owner', loading: false, sessions: [], alerts: [], jobs: []};
   const controller = {subscribe: () => () => {}, getSnapshot: () => snapshot, lifetime: {authority: {}}, refresh: async () => {calls.push('refresh');}};
-  const reader = {dispose() {}, telemetry: async () => ({}), viewing: async () => ({}), sessions: async () => ({items: []})};
+  const reader = {dispose() {}, telemetry: async () => ({}), viewing: async () => ({})};
   const {NativeOwnerDashboardPhone} = await screenModule(new URL('../src-next/screens/settings-live/owner-dashboard/use-owner-dashboard.tsx', import.meta.url), {
     '../../../../../../packages/client-core/src/admin/data-folder': {dataFolderConfirmText: () => ''},
     '../../../../../../packages/client-core/src/http': {ApiError: class extends Error {}},
@@ -21,7 +21,7 @@ async function fixture(inline = false) {
     '../../../../../../packages/client-core/src/timer': {repeat: () => ({stop() {}})}, '../../../../../../packages/client-core/src/server-admin/now-playing': nowPlaying,
     '../../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../../kit/theme': {useTheme: () => ({isTV: false, colors: {}})},
     '../../../kit/states/usePullRefresh': {usePullRefresh: (run: () => Promise<unknown>, onError: unknown, offset: number) => {const control = {type: 'Pull', props: {run, onError, offset}}; pulls.push(control); return control;}},
-    './reader': {createNativeOwnerDashboardReader: () => reader}, './model': model, './move-sheet': {OwnerMoveSheet: 'OwnerMoveSheet'}, './page': {OwnerDashboardPage: 'OwnerDashboardPage'},
+    './reader': {createNativeOwnerDashboardReader: () => reader}, './model': model, './page': {OwnerDashboardPage: 'OwnerDashboardPage'},
     '../../../../../../packages/client-core/src/server-admin/updates-source': {SettingsUpdatesSource: class {subscribe = () => () => {}; getSnapshot = () => ({phase: 'idle', busy: false}); load = async () => {}; check = async () => {}; dispose() {}}},
     './update-card': {ownerUpdateView: () => undefined},
   });

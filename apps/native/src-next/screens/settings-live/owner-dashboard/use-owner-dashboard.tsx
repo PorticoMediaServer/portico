@@ -5,8 +5,7 @@ import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {repeat} from '../../../../../../packages/client-core/src/timer';
 import type {TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
 import type {AdminSession} from '../../../../../../packages/client-core/src/playback-v1/types';
-import {offersScrubber, sessionViewer, STOP_MESSAGE_MAX, stopMessage, transportOffers, type TransportCommand} from '../../../../../../packages/client-core/src/server-admin/now-playing';
-import type {Job} from '../../../../../../packages/client-core/src/console';
+import {sessionViewer, STOP_MESSAGE_MAX, stopMessage} from '../../../../../../packages/client-core/src/server-admin/now-playing';
 import {Linking, Text, View} from 'react-native';
 import {dataFolderConfirmText} from '../../../../../../packages/client-core/src/admin/data-folder';
 import {ApiError} from '../../../../../../packages/client-core/src/http';
@@ -23,7 +22,6 @@ import {
   appendOwnerSessions, ownerAlertView, ownerDerivedTotals, ownerHealthLine, ownerIsNewServer, ownerJobView, ownerPeopleLine, ownerStreamView, ownerUpdatedLabel, ownerUsesCompactRows,
   type OwnerAlertView, type OwnerHealthWindow, type OwnerJobView, type OwnerStreamView, type OwnerViewing, type OwnerViewingPeriod,
 } from './model';
-import {OwnerMoveSheet} from './move-sheet';
 import {OwnerDashboardPage} from './page';
 import {ownerUpdateView} from './update-card';
 import type {OwnerStreamEntry} from './streams';
@@ -59,7 +57,6 @@ function useOwnerStatistics(reader: NativeOwnerDashboardReader, period: OwnerVie
   return Object.freeze({...state, reload: () => setRevision(value => value + 1)});
 }
 
-const transportIcon: Record<TransportCommand, 'i-pause' | 'i-play' | 'i-rew' | 'i-ffw' | 'i-restart'> = {pause: 'i-pause', resume: 'i-play', back: 'i-rew', forward: 'i-ffw', startOver: 'i-restart'};
 
 /** Binds the one authorized dashboard snapshot to the drawn phone page; it never chooses a role. */
 export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = false}: {controller: NativeDashboardController; ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; inline?: boolean}) {
@@ -70,7 +67,6 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
   const [healthWindow, setHealthWindow] = useState<OwnerHealthWindow>('live'), [viewingPeriod, setViewingPeriod] = useState<OwnerViewingPeriod>('30d');
   const [now, setNow] = useState(() => serverNow());
   const [streamMenu, setStreamMenu] = useState<OwnerStreamView>(), [stopView, setStopView] = useState<OwnerStreamView>(), [message, setMessage] = useState('');
-  const [moveView, setMoveView] = useState<OwnerStreamView>();
   const [jobMenu, setJobMenu] = useState<OwnerJobView>(), [busy, setBusy] = useState(false), [actionError, setActionError] = useState<unknown>();
   const owner = state.admission === 'owner';
   const telemetry = useOwnerTelemetry(reader, healthWindow, owner), statistics = useOwnerStatistics(reader, viewingPeriod, owner);
@@ -93,13 +89,8 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
     void (async () => {
       setAll(previous => ({items: previous.items, loading: true}));
       try {
-        let items: readonly AdminSession[] = state.sessions.slice(0, 10), cursor = state.nextCursor;
-        while (cursor) {
-          const page = await reader.sessions(cursor);
-          if (!live) return;
-          items = appendOwnerSessions(items, page.items);
-          cursor = page.nextCursor;
-        }
+        // The rebuilt server answers every stream in one read, so Show all draws the controller's own list.
+        const items: readonly AdminSession[] = state.sessions;
         if (live) setAll({items, loading: false});
       } catch (error) {
         if (live) setAll(previous => ({items: previous.items, loading: false, error}));
@@ -128,17 +119,14 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
   const jobs = useMemo<readonly OwnerJobView[]>(() => state.jobs.map(job => ownerJobView(job, t, defaultI18n.has)), [state.jobs, t]);
   const health = ownerHealthLine(state.health, t);
   const rawStream = streamMenu ? raw(streamMenu.id) : undefined;
-  const transportWords: Record<TransportCommand, string> = {pause: t('action.pause'), resume: t('entry.resume'), back: t('player.skipBackSeconds', {seconds: 30}), forward: t('player.skipForwardSeconds', {seconds: 30}), startOver: t('action.startOver')};
   const menuItems: readonly MenuEntry[] = rawStream ? [
-    ...transportOffers(rawStream).map((command): MenuEntry => ({id: command, label: transportWords[command], icon: transportIcon[command], disabled: busy, onSelect: () => {const view = streamMenu; setStreamMenu(undefined); if (view) void run(() => reader.transport(view.id, command));}})),
-    ...(offersScrubber(rawStream) ? [{id: 'move', label: t('web.nowPlaying.moveTo'), icon: 'i-clock' as const, disabled: busy, onSelect: () => {const view = streamMenu; setStreamMenu(undefined); if (view) setMoveView(view);}}] : []),
+    // The rebuilt server lets the owner stop a stream with a message (definition 12, What a person can do); it
+    // takes no remote pause or seek of someone else's playback, so the menu offers Stop alone, as web does.
     {id: 'stop', label: t('web.nowPlaying.stop'), icon: 'i-stop', destructive: true, onSelect: () => {const view = streamMenu; setStreamMenu(undefined); if (view) {setMessage(''); setStopView(view);}}},
   ] : [];
-  const rawJob = jobMenu ? state.jobs.find(job => job.id === jobMenu.id) : undefined;
-  const jobLabels: Record<Job['actions'][number], string> = {pause: t('action.pause'), resume: t('entry.resume'), retry: t('next.shell.tryAgain'), cancel: t('action.cancel')};
-  const jobItems: readonly MenuEntry[] = rawJob ? rawJob.actions.map(action => ({id: action, label: jobLabels[action], destructive: action === 'cancel', disabled: busy, onSelect: () => {const target = jobMenu; setJobMenu(undefined); if (target) void run(() => reader.jobCommand(rawJob, action));}})) : [];
+  // The rebuilt server takes no job commands; the sheet only names the job and its state.
+  const jobItems: readonly MenuEntry[] = [];
   const stopSession = stopView ? raw(stopView.id) : undefined;
-  const moveSession = moveView ? raw(moveView.id) : undefined;
   return <>
     <OwnerDashboardPage t={t} role={owner ? 'owner' : 'administrator'} serverName={ports.serverName()} topInset={inline ? 0 : insets.top} inline={inline}
       health={{degraded: health.facts.degraded, status: owner ? health.status : '', line: health.line, ...(health.uptimeSeconds === undefined ? {} : {uptimeSeconds: health.uptimeSeconds})}}
@@ -158,8 +146,6 @@ export function NativeOwnerDashboardPhone({controller, ports, runtime, inline = 
     <Menu open={Boolean(streamMenu)} onOpenChange={open => {if (!open) setStreamMenu(undefined);}} presentation="sheet" testID="owner-stream-menu"
       title={streamMenu?.title} description={streamMenu ? `${streamMenu.viewer.username || streamMenu.viewer.name} · ${streamMenu.viewer.device}` : undefined} items={menuItems}/>
     <Menu open={Boolean(jobMenu)} onOpenChange={open => {if (!open) setJobMenu(undefined);}} presentation="sheet" testID="owner-job-menu" title={jobMenu?.title} description={jobMenu?.subtitle ?? jobMenu?.status} items={jobItems}/>
-    <OwnerMoveSheet session={moveSession} t={t} busy={busy} onCancel={() => setMoveView(undefined)}
-      onMove={position => {const view = moveView; if (view) void run(async () => {await reader.move(view.id, position); setMoveView(undefined);});}}/>
     <BottomSheet open={Boolean(stopView)} onOpenChange={open => {if (!open && !busy) setStopView(undefined);}} testID="owner-stop-sheet" keyboardAvoiding
       title={stopSession ? t('web.nowPlaying.stopTitle', {title: stopSession.title || t('web.nowPlaying.untitled')}) : t('web.nowPlaying.stop')}
       description={stopSession ? t('web.nowPlaying.stopBody', {viewer: sessionViewer(stopSession, t)}) : undefined}

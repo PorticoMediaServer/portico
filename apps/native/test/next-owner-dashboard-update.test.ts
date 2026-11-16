@@ -78,7 +78,7 @@ async function phone(admission: 'owner' | 'administrator') {
   const snapshot = {admission, loading: false, sessions: [], alerts: [], jobs: []};
   const controller = {subscribe: () => () => {}, getSnapshot: () => snapshot, lifetime: {authority: {}, current: () => true}, refresh: async () => {calls.push('refresh');}};
   const updatesApi = {request: async () => ({})};
-  const reader = {dispose() {}, telemetry: async () => ({}), viewing: async () => ({}), sessions: async () => ({items: []}), updates: updatesApi};
+  const reader = {dispose() {}, telemetry: async () => ({}), viewing: async () => ({}), updates: updatesApi};
   class SettingsUpdatesSource {
     state: any = {phase: 'ready', busy: false, report: report(build('0.2.0', 'https://example.test/notes'))};
     constructor(readonly api: unknown, readonly isCurrent: () => boolean) {sources.push(this);}
@@ -95,7 +95,7 @@ async function phone(admission: 'owner' | 'administrator') {
     '../../../../../../packages/client-core/src/server-admin/updates-source': {SettingsUpdatesSource},
     '../../../kit/controls': {Button: 'Button', TextField: 'TextField'}, '../../../kit/overlays': {BottomSheet: 'BottomSheet', Menu: 'Menu'}, '../../../kit/theme': {useTheme: () => ({isTV: false, colors: {}})},
     '../../../kit/states/usePullRefresh': {usePullRefresh: (run: () => Promise<unknown>) => ({type: 'Pull', props: {run}})},
-    './reader': {createNativeOwnerDashboardReader: () => reader}, './model': model, './move-sheet': {OwnerMoveSheet: 'OwnerMoveSheet'}, './page': {OwnerDashboardPage: 'OwnerDashboardPage'},
+    './reader': {createNativeOwnerDashboardReader: () => reader}, './model': model, './page': {OwnerDashboardPage: 'OwnerDashboardPage'},
     './update-card': card,
   });
   const runtime = {text: {t: (id: string) => id}, artwork: () => undefined, reportError() {}};
