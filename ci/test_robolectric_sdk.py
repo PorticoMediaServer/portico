@@ -33,6 +33,7 @@ class RobolectricSdk(unittest.TestCase):
             fetch.assert_called_once()
             args = fetch.call_args.args[0]
             self.assertEqual(args[args.index('--retry') + 1], '2')
+            self.assertIn('--retry-all-errors', args)
             attempt = int(args[args.index('--max-time') + 1])
             budget = int(args[args.index('--retry-max-time') + 1])
             self.assertGreaterEqual(attempt, 600)

@@ -118,9 +118,12 @@ class FFmpegInstall(unittest.TestCase):
         import run
         with tempfile.TemporaryDirectory() as cache:
             calls=[]
+            update=['sudo','apt-get','update','-o','Acquire::Retries=1']
+            install=['sudo','apt-get','install','-y','--no-install-recommends',
+                     '-o','Acquire::Retries=1','-o','Dir::Cache::archives='+cache,'ffmpeg']
             def fake(args,cwd=None):
                 calls.append(args)
-                if args[:3]==['sudo','apt-get','install'] and ['sudo','apt-get','update'] not in calls:
+                if args[:3]==['sudo','apt-get','install'] and update not in calls:
                     raise subprocess.CalledProcessError(100,args)
             with patch.dict('os.environ',{'PORTICO_CI_APT_CACHE':cache}),patch('run.execute',side_effect=fake):
                 run.install_ffmpeg()
@@ -129,6 +132,7 @@ class FFmpegInstall(unittest.TestCase):
             for c in installs:
                 self.assertIn('--no-install-recommends',c)
                 self.assertIn('Dir::Cache::archives='+cache,c)
-            self.assertIn(['sudo','apt-get','update'],calls)
+            self.assertEqual(calls[:3],[install,update,install])
+            self.assertEqual(calls.count(update),1)
             self.assertEqual(calls[-1][:3],['sudo','chown','-R'])
             self.assertTrue((Path(cache)/'partial').is_dir())

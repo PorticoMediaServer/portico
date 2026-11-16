@@ -66,7 +66,7 @@ class SecretScanCache(unittest.TestCase):
                 self.assertRegex(
                     job,
                     r'- uses: ' + re.escape(SETUP_GO) + r'\n\s+with:\n'
-                    r'\s+go-version-file: server-next/go\.mod\n\s+cache: false\n')
+                    r'\s+go-version-file: server-next/go\.mod\n\s+cache: true\n')
                 self.assertLess(
                     job.index(SETUP_GO), job.index('bash ci/secret-scan.sh'),
                     'setup-go must run before the secret scan')
@@ -163,6 +163,10 @@ class SecretScanCache(unittest.TestCase):
             bin_dir.mkdir()
             stub(bin_dir, 'go', '\n'.join([
                 '#!/usr/bin/env bash',
+                'printf "%s\\n" "${1:-}" >> "$GO_LOG"',
+                'if [[ "${1:-}" == mod || "${1:-}" == install ]]; then',
+                '  if [[ ! -e "$FETCH_STATE/$1" ]]; then touch "$FETCH_STATE/$1"; echo transient; exit 1; fi',
+                'fi',
                 'case "${1:-}" in',
                 '  env) echo go1.26.10 ;;',
                 '  mod) printf \'{"Version":"v8.30.1","Sum":"h1:test-sum"}\\n\' ;;',
@@ -177,14 +181,32 @@ class SecretScanCache(unittest.TestCase):
                 'exit 0',
                 '']) + '\n')
             stub(bin_dir, 'sleep', '#!/usr/bin/env bash\nexit 0\n')
-            result = run_scan(bin_dir)
+            log = Path(directory) / 'go.log'
+            result = run_scan(bin_dir, {'GO_LOG': str(log), 'FETCH_STATE': directory})
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(log.read_text().splitlines().count('mod'), 2)
+            self.assertEqual(log.read_text().splitlines().count('install'), 2)
             notice = ('gitleaks tarball unavailable after retries; '
                       'using verified Go module fallback')
             self.assertIn(notice, result.stderr)
             self.assertIn('gitleaks module version: v8.30.1', result.stderr)
             self.assertIn('gitleaks module sum: h1:test-sum', result.stderr)
             self.assertIn('gitleaks fallback binary module version: v8.30.1', result.stderr)
+
+    def test_persistent_module_fetch_failure_still_fails_without_scanning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            bin_dir = Path(directory) / 'bin'
+            bin_dir.mkdir()
+            log = Path(directory) / 'go.log'
+            stub(bin_dir, 'go', '#!/usr/bin/env bash\n'
+                 'printf "%s\\n" "${1:-}" >> "$GO_LOG"\n'
+                 'if [[ "${1:-}" == env ]]; then echo go1.26.10; exit 0; fi\n'
+                 'exit 1\n')
+            stub(bin_dir, 'sleep', '#!/usr/bin/env bash\nexit 0\n')
+            result = run_scan(bin_dir, {'GO_LOG': str(log)})
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertEqual(log.read_text().splitlines(), ['env', 'mod', 'mod'])
+            self.assertIn('gitleaks module download failed', result.stderr)
 
     def test_fallback_rejects_a_binary_built_from_another_module_version(self):
         with tempfile.TemporaryDirectory() as directory:
