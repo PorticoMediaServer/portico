@@ -149,7 +149,12 @@ export function SearchScreen({focusScope, destination, runtime, explore, onNow =
     </View>
   </>;
   const error = state.search.error && <StateView {...runtime.error(state.search.error, () => run(destination.retry()), 'search')}/>;
-  const resultRows = groups.flatMap(group => group.items.filter(entry => !top || entry !== top.entry).slice(0, 3).map((entry, index) => ({entry, group: group.id, heading: index === 0})));
+  // The phone shows three of each group; a group with more says how many of how many and opens on its own with See all.
+  const resultRows = groups.flatMap(group => {
+    const shown = group.items.filter(entry => !top || entry !== top.entry).slice(0, 3);
+    const more = !!group.nextCursor || group.totalCount > shown.length + (top?.group === group.id ? 1 : 0);
+    return shown.map((entry, index) => ({entry, group: group.id, heading: index === 0 ? {more, shown: shown.length, total: group.totalCountExact ? group.totalCount : undefined} : undefined}));
+  });
   const active = groups.find(group => group.id === state.group), wideSearch = theme.layoutMode === 'desktop' && !theme.isTV;
   if (theme.isTV) return <TVSearchScreen focusScope={focusScope} destination={destination} runtime={runtime} activation={activation} explore={explore} actions={actions} selection={selection} copy={tvCopy}/>;
   return <View testID="native-search-screen" pointerEvents={activeRoute.visible ? 'auto' : 'none'} accessibilityElementsHidden={!activeRoute.visible}
@@ -185,7 +190,9 @@ export function SearchScreen({focusScope, destination, runtime, explore, onNow =
               width={Math.floor((surface - 40 - 6 * 14) / 7)} height={Math.floor((surface - 40 - 6 * 14) / 7) * (group.id === 'movies' || group.id === 'shows' ? 1.5 : 1)}/>)}</View>}/>
             : state.paging?.[group.id]?.error ? <StateView {...runtime.error(state.paging?.[group.id]?.error, () => run(destination.retryGroup(group.id)), 'search')} style={{width: 240}}/> : null}/></TVRow>
       </View>) : resultRows.map(({entry, group, heading}) => <React.Fragment key={nativeSearchEntryKey(group, entry)}>
-        {heading && <Text accessibilityRole="header" style={[browseType(theme, 16, 700), {color: theme.colors.text, marginHorizontal: 20, marginTop: 18, marginBottom: 6}]}>{t(searchGroupLabel(group))}</Text>}
+        {heading && <SectionHeading title={t(searchGroupLabel(group))}
+          detail={heading.more && heading.total !== undefined ? t('web.search.someOf', {shown: heading.shown, total: heading.total}) : undefined}
+          action={heading.more ? t('web.search.seeAll') : undefined} onAction={() => destination.selectGroup(group)}/>}
         <SearchResultRow entry={entry} group={group} runtime={runtime} actions={actions} selection={selection?.item(entry, group)}/>
       </React.Fragment>)}
       {loading && <GridSkeleton elapsedMs={elapsed} scrollOffset={0} viewportHeight={Math.max(0, dimensions.height - 180)} width={surface} columns={3} totalCount={9}/>}
@@ -224,10 +231,13 @@ function SearchOnNowCardView({card, runtime, now, width, onOpen}: {card: NativeS
     progress={programme ? current.progress : undefined} primaryAction="navigate" onNavigate={onOpen}/>;
 }
 
-function SectionHeading({title, action, disabled, onAction}: {title: string; action?: string; disabled?: boolean; onAction?: () => void}) {
+function SectionHeading({title, detail, action, disabled, onAction}: {title: string; detail?: string; action?: string; disabled?: boolean; onAction?: () => void}) {
   const theme = useTheme();
-  return <View style={{flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 24, marginHorizontal: 20, marginBottom: 6}}>
-    <Text accessibilityRole="header" style={[browseType(theme, 19, 700, -.015), {color: theme.colors.text}]}>{title}</Text>
+  return <View style={{flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginTop: 24, marginHorizontal: 20, marginBottom: 6}}>
+    <View style={{flexDirection: 'row', alignItems: 'baseline', gap: 8, flexShrink: 1}}>
+      <Text accessibilityRole="header" style={[browseType(theme, 19, 700, -.015), {color: theme.colors.text, flexShrink: 1}]}>{title}</Text>
+      {detail && <Text style={[browseType(theme, 14, 600), {color: theme.colors.textTertiary}]}>{detail}</Text>}
+    </View>
     {action && onAction && <Focusable accessibilityLabel={action} disabled={disabled} onPress={onAction} hitSlop={12}><Text style={[browseType(theme, 14, 600), {color: theme.colors.textTertiary}]}>{action}</Text></Focusable>}
   </View>;
 }
