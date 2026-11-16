@@ -43,12 +43,13 @@ func recordingReadSQL(a access, scope RecordingReadScope) (string, string, []any
 	where := `(@max_age IS NULL OR ifnull(` + age + `, -1) <= @max_age) AND (@owner OR ((` + owned + ` OR @see_others) AND
   ((` + channel + ` AND ((c.kind = 1 AND src.audience = 'everyone') OR (c.kind = 2 AND ` + library + `)))
    OR (NOT (` + channel + `) AND r.profile_id = @viewer_profile))))`
+	where += ` AND (r.item_id IS NULL OR (i.id IS NOT NULL AND ` + a.visible("i") + `))`
 	if !scope.Everyone {
 		where += ` AND ` + owned
 	}
 	from := `recordings r LEFT JOIN channels c ON c.id = r.channel_id AND c.state = 1 AND c.missing_since_at IS NULL
   LEFT JOIN live_sources src ON src.id = c.source_id LEFT JOIN library_channels lc ON lc.channel_id = c.id
-  LEFT JOIN items i ON i.id = r.item_id AND i.available = 1
+  LEFT JOIN items i ON i.id = r.item_id
   LEFT JOIN user_item_state uis ON uis.profile_id = @viewer_profile AND uis.item_id = i.id`
 	args := append(scope.Viewer.args(), sql.Named("profile_public", scope.ProfilePub), sql.Named("owner", scope.Live.Owner),
 		sql.Named("see_others", scope.SeeOthers), sql.Named("max_age", scope.Live.MaxAge))
@@ -56,7 +57,7 @@ func recordingReadSQL(a access, scope RecordingReadScope) (string, string, []any
 }
 
 func recordingUnwatched(a access) string {
-	return `ifnull(i.id IS NOT NULL AND (` + a.visible("i") + `) AND ifnull(uis.played, 0) = 0, 0)`
+	return `ifnull(i.id IS NOT NULL AND i.available = 1 AND (` + a.visible("i") + `) AND ifnull(uis.played, 0) = 0, 0)`
 }
 
 // RecordingGroups reads one page of titles, with counts and the actual newest recording,

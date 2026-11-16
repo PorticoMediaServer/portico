@@ -349,6 +349,12 @@ func keepRule(o dvr.Options) string {
 // within its rating limit, and it may watch the channel (the owner always). Anything else is
 // absent from its lists and not found by its id.
 func (s *Server) maySeeRecording(ctx context.Context, r *http.Request, lv db.LiveViewer, rec db.Recording) (bool, error) {
+	if rec.ItemID != 0 {
+		if ok, err := s.db.Visible(ctx, viewer(r), rec.ItemID); err != nil || !ok {
+			return ok, err
+		}
+	}
+
 	if !rated(lv, rec.RatingAge) {
 		return false, nil
 	}
