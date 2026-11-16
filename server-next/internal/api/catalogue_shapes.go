@@ -154,6 +154,8 @@ type Item struct {
 	EntryID string `json:"entryId,omitempty"`
 
 	// On GET /v1/items/{id} only.
+	// NextEpisode is a show's play target for this profile; its parentId names the season to open.
+	NextEpisode   *Item              `json:"nextEpisode,omitempty"`
 	OriginalTitle string             `json:"originalTitle,omitempty"`
 	Summary       string             `json:"summary,omitempty"`
 	Tagline       string             `json:"tagline,omitempty"`
@@ -585,6 +587,10 @@ func detailShape(d db.ItemDetail) Item {
 	out := itemShape(d.Item)
 	out.OriginalTitle, out.Summary, out.Tagline, out.Edition = d.OriginalTitle, d.Summary, d.Tagline, d.Edition
 	out.Available, out.CreditTotal = &d.Available, &d.CreditTotal
+	if d.NextEpisode != nil {
+		target := itemShape(*d.NextEpisode)
+		out.NextEpisode = &target
+	}
 	if a := d.AlbumAudio; a != nil {
 		out.AlbumAudio = &AlbumAudioSummary{State: a.State, Codec: a.Codec, BitDepth: a.BitDepth,
 			SampleRate: a.SampleRate, Channels: a.Channels, Bitrate: a.Bitrate}
