@@ -49,6 +49,9 @@ type MetadataEdit struct {
 	Unlock  []string
 	// LockAll and UnlockAll lock or unlock every field, list and the match.
 	LockAll, UnlockAll bool
+	// Provided names fields whose value in this edit is the provider's kept value ("Use it",
+	// definition area 4, rule 23): they are unlocked and are the provider's again.
+	Provided []string
 }
 
 // CreditEdit is one line of Cast & crew. Person is a person's public id; without one the name
@@ -243,8 +246,9 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 		var title string
 		var locked, local, language sql.NullString
 		var root sql.NullInt64
-		err := b.queryRow(`SELECT i.id, i.library_id, i.revision, i.title, i.locked_fields, i.local_fields, i.root_id, l.language FROM items i
-			JOIN libraries l ON l.id = i.library_id WHERE i.public_id = ?`, publicID).Scan(&id, &library, &current, &title, &locked, &local, &root, &language)
+		var match MatchState
+		err := b.queryRow(`SELECT i.id, i.library_id, i.revision, i.title, i.locked_fields, i.local_fields, i.root_id, l.language, i.match_state FROM items i
+			JOIN libraries l ON l.id = i.library_id WHERE i.public_id = ?`, publicID).Scan(&id, &library, &current, &title, &locked, &local, &root, &language, &match)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -263,6 +267,32 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 		// is only locked or unlocked keeps its source.
 		sources := fieldSources(local)
 		sets, args := "updated_at = ?, revision = revision + 1", []any{now}
+		// A value the provider gave that this edit replaces is kept beside the field, so the
+		// editor can offer it again ("Use it"); a field taken from the provider drops it.
+		provided := map[string]bool{}
+		for _, f := range edit.Provided {
+			provided[f] = true
+		}
+		extra := "ifnull(extra, '{}')"
+		var extraArgs []any
+		columns := map[string]string{FieldTitle: "title", FieldOriginalTitle: "original_title", FieldSummary: "summary", FieldTagline: "tagline",
+			FieldYear: "year", FieldReleaseDate: "release_date", FieldContentRating: "content_rating"}
+		edited := map[string]bool{FieldYear: edit.Year != nil}
+		for _, f := range texts {
+			edited[f.name] = f.value != nil
+		}
+		for _, f := range providerValueFields {
+			switch {
+			case provided[f]:
+				extra, extraArgs = "json_remove("+extra+", ?)", append(extraArgs, "$.provider."+f)
+			case edited[f] && sources[f] == "" && (match == MatchFound || match == MatchChosen):
+				extra, extraArgs = "json_set("+extra+", ?, "+columns[f]+")", append(extraArgs, "$.provider."+f)
+			}
+		}
+		if len(extraArgs) > 0 {
+			sets += ", extra = " + extra
+			args = append(args, extraArgs...)
+		}
 		for _, f := range texts {
 			if f.value == nil {
 				continue
@@ -330,6 +360,10 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 		}
 		for _, field := range edit.Unlock {
 			delete(locks, field)
+		}
+		for field := range provided {
+			delete(locks, field)
+			delete(sources, field)
 		}
 		sets += ", locked_fields = ?, local_fields = ?"
 		args = append(args, fieldList(sortedFields(locks)), sourceJSON(sources))

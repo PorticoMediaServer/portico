@@ -354,6 +354,9 @@ func applyDetails(b *batchTx, itemID int64, d *ItemDetails, now int64) error {
 	if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, itemID)...); err != nil {
 		return err
 	}
+	if err := keepProviderValues(b, itemID, d, keep); err != nil {
+		return err
+	}
 	if err := b.scheduleRefresh(itemID, now); err != nil {
 		return err
 	}
@@ -788,4 +791,40 @@ func (d *DB) FirstFile(ctx context.Context, itemID int64) (string, error) {
 		return "", ErrNotFound
 	}
 	return rel, err
+}
+
+// providerValueFields are the fields whose provider value the editor offers beside a value a
+// person or the files gave ("Use it", definition area 4, rule 23).
+var providerValueFields = []string{FieldTitle, FieldOriginalTitle, FieldSummary, FieldTagline, FieldYear, FieldReleaseDate, FieldContentRating}
+
+// keepProviderValues keeps, beside a field the provider's answer could not change (locked, or
+// given by the files), the value the provider gave, in extra.provider, for "Use it". A field the
+// answer did change shows the provider's value itself and keeps none. A title that became another
+// one drops every kept value first.
+func keepProviderValues(b *batchTx, itemID int64, d *ItemDetails, keep map[string]bool) error {
+	said := map[string]any{FieldTitle: d.Title, FieldOriginalTitle: d.OriginalTitle, FieldSummary: d.Summary, FieldTagline: d.Tagline,
+		FieldReleaseDate: d.ReleaseDate, FieldContentRating: d.ContentRating}
+	if d.Year != 0 {
+		said[FieldYear] = d.Year
+	}
+	expr, args := "ifnull(extra, '{}')", []any{}
+	if d.Replace {
+		expr = "json_remove(" + expr + ", '$.provider')"
+	}
+	for _, field := range providerValueFields {
+		value, given := said[field]
+		if !given || value == "" {
+			continue
+		}
+		if keep[field] {
+			expr, args = "json_set("+expr+", ?, ?)", append(args, "$.provider."+field, value)
+		} else {
+			expr, args = "json_remove("+expr+", ?)", append(args, "$.provider."+field)
+		}
+	}
+	if len(args) == 0 && !d.Replace {
+		return nil
+	}
+	_, err := b.exec(`UPDATE items SET extra = nullif(`+expr+`, '{}') WHERE id = ?`, append(args, itemID)...)
+	return err
 }

@@ -3,6 +3,7 @@ package api
 import (
 	"cmp"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,6 +21,10 @@ type MetadataField struct {
 	// Source is where the value came from: provider, file or edit.
 	Source string `json:"source"`
 	Locked bool   `json:"locked"`
+	// ProviderValue is the provider's value, beside a value it could not change (locked, edited
+	// or given by the files), for "Use it" (definition area 4, rule 23); absent when there is
+	// none or it is the value shown.
+	ProviderValue any `json:"providerValue,omitempty"`
 }
 
 // MetadataList is a list as the editor shows it. Labels are the owner's own and never locked.
@@ -94,6 +99,10 @@ type MetadataPatch struct {
 	Unlock          []string          `json:"unlock,omitempty"`
 	LockAll         bool              `json:"lockAll,omitempty"`
 	UnlockAll       bool              `json:"unlockAll,omitempty"`
+	// UseProvider names fields to take the provider's value for now ("Use it"), from the
+	// document's providerValue: each is unlocked and the provider's again. A field named here
+	// is not also sent with a value.
+	UseProvider []string `json:"useProvider,omitempty"`
 }
 
 // MetadataHistoryEntry is one change a person made: fields_edited, artwork_chosen,
@@ -193,7 +202,11 @@ func (s *Server) document(r *http.Request, id string) (MetadataDocument, error) 
 		Fields: map[string]MetadataField{}, Lists: map[string]MetadataList{},
 		Match: MetadataMatch{State: doc.Match.String(), Locked: locked[db.FieldMatch] || doc.Match == db.MatchChosen, IDs: map[string]string{}}}
 	for _, f := range offer.fields {
-		out.Fields[f] = MetadataField{Value: doc.Fields[f], Source: source(f), Locked: locked[f]}
+		field := MetadataField{Value: doc.Fields[f], Source: source(f), Locked: locked[f]}
+		if v, kept := doc.Provider[f]; kept && fmt.Sprint(v) != fmt.Sprint(doc.Fields[f]) {
+			field.ProviderValue = v
+		}
+		out.Fields[f] = field
 	}
 	for _, l := range offer.lists {
 		list := MetadataList{Values: doc.Lists[l], Source: source(l), Locked: locked[l]}
@@ -230,6 +243,9 @@ func (s *Server) editMetadata(r *http.Request, req MetadataPatch) (MetadataDocum
 	edit := db.MetadataEdit{PublicationType: req.PublicationType, Title: req.Title, SortTitle: req.SortTitle, OriginalTitle: req.OriginalTitle, Edition: req.Edition, Tagline: req.Tagline,
 		Summary: req.Summary, Year: req.Year, ReleaseDate: req.ReleaseDate, ContentRating: req.ContentRating, Genres: req.Genres, Studios: req.Studios,
 		Networks: req.Networks, Countries: req.Countries, Labels: req.Labels, Lock: req.Lock, Unlock: req.Unlock, LockAll: req.LockAll, UnlockAll: req.UnlockAll}
+	if err := s.useProvider(r, id, req.UseProvider, &edit); err != nil {
+		return MetadataDocument{}, err
+	}
 	if req.Credits != nil {
 		credits := make([]db.CreditEdit, len(*req.Credits))
 		for i, c := range *req.Credits {
@@ -252,4 +268,42 @@ func (s *Server) editMetadata(r *http.Request, req MetadataPatch) (MetadataDocum
 		return MetadataDocument{}, refuse(err)
 	}
 	return s.document(r, id)
+}
+
+// useProvider fills an edit with the provider's kept values of the fields named, for "Use it".
+func (s *Server) useProvider(r *http.Request, id string, fields []string, edit *db.MetadataEdit) error {
+	if len(fields) == 0 {
+		return nil
+	}
+	doc, err := s.db.MetadataDocument(r.Context(), id)
+	if err != nil {
+		return refuse(err)
+	}
+	texts := map[string]**string{db.FieldTitle: &edit.Title, db.FieldOriginalTitle: &edit.OriginalTitle, db.FieldSummary: &edit.Summary,
+		db.FieldTagline: &edit.Tagline, db.FieldReleaseDate: &edit.ReleaseDate, db.FieldContentRating: &edit.ContentRating}
+	for _, f := range fields {
+		value, kept := doc.Provider[f]
+		target, isText := texts[f]
+		switch {
+		case !kept:
+			return ErrField("useProvider", "The provider has no other value for "+f+".")
+		case f == db.FieldYear:
+			n, ok := value.(float64)
+			if !ok || edit.Year != nil {
+				return ErrField("useProvider", "Send year or use the provider's, not both.")
+			}
+			year := int(n)
+			edit.Year = &year
+		case isText:
+			text, ok := value.(string)
+			if !ok || *target != nil {
+				return ErrField("useProvider", "Send "+f+" or use the provider's, not both.")
+			}
+			*target = &text
+		default:
+			return ErrField("useProvider", f+" has no provider value to use.")
+		}
+		edit.Provided = append(edit.Provided, f)
+	}
+	return nil
 }

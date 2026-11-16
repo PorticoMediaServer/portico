@@ -2246,6 +2246,7 @@ export interface MetadataField {
   value: unknown;
   source: string;
   locked: boolean;
+  providerValue?: unknown;
 }
 
 export interface MetadataHistoryEntry {
@@ -2294,6 +2295,7 @@ export interface MetadataPatch {
   unlock?: string[];
   lockAll?: boolean;
   unlockAll?: boolean;
+  useProvider?: string[];
 }
 
 export interface MetadataRefreshed {
