@@ -139,6 +139,11 @@ func (s *Service) channelLogo(ctx context.Context, client *http.Client, address 
 		return "", fmt.Errorf("the picture is too large")
 	}
 	hash := fmt.Sprintf("%x", sha256.Sum256(data))
+	if isSVG(data) {
+		if data, err = drawSVG(data); err != nil {
+			return "", err
+		}
+	}
 	if err := s.pictures.Put(hash, data); err != nil {
 		return "", err
 	}

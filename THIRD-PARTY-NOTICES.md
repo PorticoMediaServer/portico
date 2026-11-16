@@ -24,11 +24,14 @@ The licence names below are an inventory, not a substitute for the licence texts
 | github.com/pierrec/lz4/v4 | v4.1.27 | BSD-3-Clause |
 | github.com/remyoudompheng/bigfft | v0.0.0-20230129092748-24d4a6f8daec | BSD-3-Clause |
 | github.com/spf13/afero | v1.15.0 | Apache-2.0 |
+| github.com/srwiley/oksvg | v0.0.0-20221011165216-be6e8873101c | BSD-3-Clause |
+| github.com/srwiley/rasterx | v0.0.0-20220730225603-2ab79fcdd4ef | BSD-3-Clause |
 | github.com/stangelandcl/ppmd | v0.1.1 | MIT |
 | github.com/ulikunitz/xz | v0.5.15 | BSD-3-Clause |
 | go4.org | v0.0.0-20260112195520-a5071408f32f | Apache-2.0 |
 | golang.org/x/crypto | v0.56.0 | BSD-3-Clause |
 | golang.org/x/image | v0.46.0 | BSD-3-Clause |
+| golang.org/x/net | v0.57.0 | BSD-3-Clause |
 | golang.org/x/sys | v0.48.0 | BSD-3-Clause |
 | golang.org/x/text | v0.42.0 | BSD-3-Clause |
 | modernc.org/libc | v1.75.6 | BSD-3-Clause; ported code retains its source notices |

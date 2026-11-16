@@ -5,6 +5,8 @@ go 1.26.10
 require (
 	github.com/bodgit/sevenzip v1.6.5
 	github.com/nwaples/rardecode/v2 v2.4.5
+	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c
+	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	golang.org/x/crypto v0.56.0
 	golang.org/x/image v0.46.0
 	golang.org/x/sys v0.48.0
@@ -28,6 +30,7 @@ require (
 	github.com/stangelandcl/ppmd v0.1.1 // indirect
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	go4.org v0.0.0-20260112195520-a5071408f32f // indirect
+	golang.org/x/net v0.57.0 // indirect
 	modernc.org/libc v1.75.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
