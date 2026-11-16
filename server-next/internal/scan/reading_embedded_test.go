@@ -88,6 +88,15 @@ func TestABookIsReadFromItsOwnPackageDocument(t *testing.T) {
 	if series["Harbour Tales"].ChildCount != 1 || series["Tides"].ChildCount != 1 {
 		t.Fatalf("EPUB collection volume counts: %+v", series)
 	}
+	// Rewritten to say "Harbour Tales" is a reading list (a "set"), not a series: the book
+	// leaves it, as one scanned before collection types were read must.
+	f.put("scan0001.epub", epub(t, "3.0", `<dc:title>The Quiet Harbour</dc:title><dc:creator>Jane Doe</dc:creator>
+		<meta property="belongs-to-collection" id="c">Harbour Tales</meta><meta refines="#c" property="collection-type">set</meta>
+		<meta property="dcterms:modified">2026-11-13T00:00:00Z</meta>`))
+	f.scan()
+	if count := f.titles(db.KindSeries)["Harbour Tales"].ChildCount; count != 0 {
+		t.Fatalf("a reading list still holds the book: %d", count)
+	}
 }
 
 // A comic's details come from its ComicInfo.xml: the issue's own title, writers, year, summary

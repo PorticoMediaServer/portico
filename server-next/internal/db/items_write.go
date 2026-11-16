@@ -643,6 +643,18 @@ func (im *importer) reread(found *importedItem, it *ImportItem, parent *imported
 	if !free {
 		return nil
 	}
+	// The series the file named before are left; the one it names now is joined again after
+	// this, so a book whose file no longer names a series leaves it.
+	series, err := im.queryInts(`SELECT item_id FROM item_relations WHERE related_item_id = ? AND kind = ?`, found.id, RelationSeriesMember)
+	if err != nil {
+		return err
+	}
+	if _, err := im.exec(`DELETE FROM item_relations WHERE related_item_id = ? AND kind = ?`, found.id, RelationSeriesMember); err != nil {
+		return err
+	}
+	if err := im.collectionsRated(series...); err != nil {
+		return err
+	}
 	if _, err := im.exec(`DELETE FROM credits WHERE item_id = ?`, found.id); err != nil {
 		return err
 	}
