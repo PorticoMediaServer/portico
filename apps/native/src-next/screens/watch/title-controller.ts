@@ -242,7 +242,8 @@ export class NativeTitleController {
     if (!this.current()) return;
     await this.season(seasonId);
     if (!this.current()) return;
-    const data = this.workspace.getSnapshot().data;
+    const workspace = this.workspace.getSnapshot(), data = workspace.data;
+    if (workspace.phase !== 'ready' || data?.selected.seasonId !== seasonId) return;
     const target = data?.nextUp ?? data?.episodes.sections[0]?.entries[0];
     if (target) await this.play(target);
   };
