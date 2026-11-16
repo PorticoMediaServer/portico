@@ -4,6 +4,7 @@ import {call, enc} from '../playback-v1/http.ts';
 import {SessionsClient} from '../playback-v1/sessions.ts';
 import {playbackPath} from '../playback-v1/routes.ts';
 import {throwIfAborted} from '../abort-lifetime.ts';
+import {serverOffersScrubPreviews} from '../trickplay.ts';
 import type {OriginalChannelStart} from '../playback-v1/channel-control.ts';
 
 type PlaybackApi = {request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>};
@@ -16,7 +17,12 @@ export function readPlaybackCapabilities(_api: PlaybackApi, signal?: AbortSignal
 export function readWebPlaybackCapabilities(api: PlaybackApi, signal?: AbortSignal): Promise<unknown> {
   throwIfAborted(signal);
   return api.request<{capabilities?: string[]}>(routePath('get_system'), 'GET', undefined, signal).then(system =>
-    ({features: system.capabilities?.includes('queue-transitions') ? {queueTransitions: 'enabled'} : {}}));
+    ({features: {...(system.capabilities?.includes('queue-transitions') ? {queueTransitions: 'enabled'} : {}), ...(serverOffersScrubPreviews(system) ? {scrubPreviews: 'enabled'} : {})}}));
+}
+/** Whether `readWebPlaybackCapabilities` found scrub previews on the server. */
+export function scrubPreviewsEnabled(capabilities: unknown): boolean {
+  const features = capabilities && typeof capabilities === 'object' ? (capabilities as {features?: unknown}).features : undefined;
+  return !!features && typeof features === 'object' && (features as Record<string, unknown>).scrubPreviews === 'enabled';
 }
 /** The admitted subtitle plan supplies the exact font/line document capability. */
 export function readPlaybackSubtitleFonts(api: PlaybackApi, path: string, signal?: AbortSignal): Promise<unknown> {

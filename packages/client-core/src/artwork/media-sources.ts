@@ -38,10 +38,9 @@ export function channelLogoArtwork(url: string, identity: AmbientArtworkIdentity
   }
   return {url, cacheKey: JSON.stringify([identity.serverId, identity.viewerId, identity.authorityKey, url])};
 }
-const trickplayTilePattern = new RegExp('^' + routePattern('get_v1_items_id_trickplay_set_tiles_tile_jpg').replace(/[.]/g, '\\.')
-  .replace('{id}', '([^/?#]{1,512})').replace('{set}', '[a-f0-9]{64}').replace('{tile}', '(?:0|[1-9]\\d{0,4})') + '$');
-/** A video's preview sheet (W1-A2): the server's own sprite, unscaled. The route takes no query, so it is never
- * a rendition; the crop needs the sheet's real pixels. The set id and revision name its content. */
+/** A video's scrub-preview sheet: `/v1/items/{id}/scrub-previews?version=…&sheet=N`, as `parseScrubPreviews` writes it.
+ * The server's own sprite, unscaled (the crop needs the sheet's real pixels); read with the viewer's sign-in. */
+const trickplayTilePattern = /^\/v1\/items\/([^/?#]{1,512})\/scrub-previews\?version=[A-Za-z0-9_.%-]{1,256}&sheet=(?:0|[1-9]\d{0,4})$/;
 export function trickplayTileArtwork(url: string, identity: AmbientArtworkIdentity, revision = '') {
   if (url.length > 1024 || /[\s\\#\x00-\x1f\x7f]/.test(url) || ![identity.serverId, identity.viewerId, identity.authorityKey].every(value => typeof value === 'string' && value.length > 0 && value.length <= 512 && !/[\x00-\x1f\x7f]/.test(value))) return undefined;
   const match = trickplayTilePattern.exec(url);

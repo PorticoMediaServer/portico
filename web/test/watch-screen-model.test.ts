@@ -10,7 +10,7 @@ import type {PlaybackOptions, MediaVersion} from '@core/playback-v1/types.ts';
 import type {WebPlaybackAction, WebPlaybackRuntimeSnapshot} from '../src/platform/playback/types.ts';
 import type {QueuePlaybackFence} from '../../packages/player-core/src/index.ts';
 import {PlaybackDock, PlaybackPolicy} from '../../packages/player-core/src/index.ts';
-import {parseTrickplay, trickplayFrameAt} from '@core/trickplay.ts';
+import {parseScrubPreviews, trickplayFrameAt} from '@core/trickplay.ts';
 import {createArtworkRuntime} from '../src/kit/artwork/source.ts';
 import {scrubImageStyle, watchPreviewFrame} from '../src/screens/watch/preview.ts';
 import {dispatchWatchMarker, watchUndoOffer} from '../src/screens/watch/policy.ts';
@@ -18,12 +18,9 @@ import {dispatchWatchVersion, watchVersionRows} from '../src/screens/watch/versi
 import {WatchPictureInput} from '../src/screens/watch/picture.ts';
 
 function previewSet() {
-  const id = 'a'.repeat(64);
-  return parseTrickplay({scope: {serverId: 'server', libraryId: 'library', itemId: 'item', viewerFence: 'viewer', sessionId: '', sessionGeneration: 0}, sets: [{
-    id, revision: 'b'.repeat(64), sourceId: 'source', sourceRevision: 'revision', width: 640, height: 360, tileWidth: 320, tileHeight: 180,
-    columns: 2, rows: 2, intervalMs: 10000, durationMs: 60000, sourceOffsetMs: 0, tileCount: 2, frameCount: 6, stale: false,
-    tilesUrl: `/v1/items/item/trickplay/${id}/tiles`, thumbnailsUrl: `/v1/items/item/trickplay/${id}/thumbnails.vtt`,
-  }]}, 'server', {libraryId: 'library', itemId: 'item'}).sets[0]!;
+  const sheet = (n: number) => `/v1/items/item/scrub-previews?version=source&sheet=${n}`;
+  return parseScrubPreviews({version: 'source', available: true, durationMs: 60000, intervalMs: 10000, frameWidth: 320, frameHeight: 180,
+    columns: 2, rows: 2, frameCount: 6, sheets: [sheet(0), sheet(1)]}, 'item', 'source')!;
 }
 
 const authority = Object.freeze({serverId: 'server', authority: 'local' as const, accountId: 'account', profileId: 'profile', epoch: 1, viewerFence: 'viewer-fence'});

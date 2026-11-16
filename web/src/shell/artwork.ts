@@ -46,7 +46,7 @@ export function authenticatedArtwork(options: {
       const selected = channelLogoArtworkSource(id, revision, identity);
       return selected ? runtime.source(selected) : undefined;
     },
-    /** One sheet of a parsed preview set, by tile; the set is the server's (`readItemTrickplay`). */
+    /** One sheet of a parsed preview set, by tile; the set is the server's (`readScrubPreviews`). */
     trickplayTile(set: TrickplaySet, tileIndex: number) {
       if (!isCurrent()) return undefined;
       let url: string;
