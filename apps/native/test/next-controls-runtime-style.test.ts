@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
-import {buttonSpec, focusSpec} from '@portico/design';
+import {buttonSpec, fieldSpec, focusSpec} from '@portico/design';
 import {createTheme} from '../src-next/kit/theme.ts';
 import * as controlModel from '../src-next/kit/controls/control-model.ts';
 import {useFocusedMenu} from '../src-next/kit/controls/useFocusedMenu.ts';
@@ -97,7 +97,7 @@ async function controls(isTV = false, reduce = false, interactive = true, covere
   });
   const {Focusable} = await screenModule(new URL('../src-next/kit/controls/Focusable.tsx', import.meta.url), {
     '../overlays/OverlayPaintContext': {...liveOverlayPaint, useOverlayPaintMode: () => ({...liveOverlayPaint.useOverlayPaintMode(), interactive: paintState.interactive})},
-    react, 'react-native': native, 'react-native-reanimated': animated, '@portico/design': {focusSpec},
+    react, 'react-native': native, 'react-native-reanimated': animated, '@portico/design': {focusSpec, fieldSpec},
     '../dev-observation': {useNativeObservation: (_facts: unknown, ref?: unknown) => ({ref, textProps: {}, recordFocus: () => {}})}, '../theme': {useTheme: () => theme}, '../useMotion': {useMotion: () => motion},
     './control-model': controlModel, './useFocusedMenu': {useFocusedMenu}, '../focus': {...focusModule, useCovered: () => covered},
   });
@@ -385,4 +385,18 @@ test('a Button sits at the start of its parent unless it says where: align sets 
   const told = await mount(Button, {size: 'hero', children: 'Own style', align: 'center', style: {alignSelf: 'flex-end'}});
   try {assert.equal(nativeStyle(told.native()).alignSelf, 'flex-end');}
   finally {await told.host.unmount();}
+});
+
+
+test('TV field focus keeps the outer ring without glow or scale', async () => {
+  const {Focusable, handles} = await controls(true);
+  const control = await mount(Focusable, {focusKind: 'field', focusRadius: 16});
+  try {
+    await act(() => control.native().props.onFocus({}));
+    const rings = elements(control.native().props.children({pressed: false, focused: true})).filter(node => node.type === 'AnimatedView');
+    assert.equal(rings.length, 2);
+    assert.ok(rings.every(node => flatten(node.props.style).boxShadow === undefined));
+    assert.equal(flatten(rings[0]!.props.style).inset, -focusSpec.offsetOuter.tv);
+    assert.deepEqual(handles[0]!.read().transform, [{scale: 1}]);
+  } finally {await control.host.unmount();}
 });

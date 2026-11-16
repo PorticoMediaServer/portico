@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as React from 'react';
 import {defaultI18n} from '../../../packages/i18n/src';
+import * as design from '@portico/design';
 import {createTheme, nativeType} from '../src-next/kit/theme';
 import {shellLayout} from '../src-next/shell/model';
 import {act, createFabricHookHost} from './helpers/fabric-hooks.mjs';
@@ -17,6 +18,16 @@ async function observationModule() {
     'react-native': {findNodeHandle: (host: {tag: number}) => host.tag}, './focus/useHostRef': hostRef});
 }
 
+async function frontDoorModule(modules: Record<string, any>) {
+  const layout = await screenModule(new URL('../src-next/tv/auth/TVAuthLayout.tsx', import.meta.url), {
+    ...modules, '@portico/design': design, 'react-native-reanimated': {}, '../../kit/useMotion': {},
+    '../../kit/states/StateActionButton': {StateActionButton: 'StateActionButton'},
+  });
+  return screenModule(new URL('../src-next/tv/auth/TVFrontDoor.tsx', import.meta.url), {...modules, '@portico/design': design, './TVAuthLayout': layout});
+}
+// Mount the real shared frame and canvas; keep only native hosts as stand-ins.
+const drawFrame = (frame: any) => {const canvas = frame.type(frame.props); return canvas.type(canvas.props);};
+
 const flatten = (value: any): any => Array.isArray(value) ? Object.assign({}, ...value.map(flatten)) : value;
 const nodes = (node: any): any[] => Array.isArray(node) ? node.flatMap(nodes) : node?.props ? [node, ...nodes(node.props.children)] : [];
 
@@ -28,8 +39,8 @@ test('the TV front door renders its wordmark and only actual authority-choice ca
   try {
     const calls: string[] = [], entries: any[] = [], theme = createTheme({isTV: true, width: 1920});
     let dimensions = {width: 1920, height: 1080}, tree: any, flattenCalls = 0;
-    const {TVFrontDoor} = await screenModule(new URL('../src-next/tv/auth/TVFrontDoor.tsx', import.meta.url), {
-      react: {...React, default: React}, 'react-native': {Image: 'Image', Text: 'Text', View: 'View', useWindowDimensions: () => dimensions, StyleSheet: {flatten: (style: unknown) => {flattenCalls++; return flatten(style);}}},
+    const {TVFrontDoor} = await frontDoorModule({
+      react: {...React, default: React}, 'react-native': {Image: 'Image', Text: 'Text', View: 'View', ScrollView: 'ScrollView', useWindowDimensions: () => dimensions, StyleSheet: {flatten: (style: unknown) => {flattenCalls++; return flatten(style);}}},
       '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/artwork': {ColourBackdrop: 'Backdrop'}, '../../kit/controls': {Button: 'Button'},
       '../../kit/focus': {FocusProvider: 'Provider', FocusRegion: 'Region'}, '../../kit/theme': {nativeType, useTheme: () => theme},
       '../../screens/destinations/useEntryFocus': {useDestinationEntryFocus: (activation: unknown, address: unknown) => entries.push({activation, address})},
@@ -37,7 +48,7 @@ test('the TV front door renders its wordmark and only actual authority-choice ca
       './entry-revision': entryRevision,
     });
     const props = {busy: false, onPortico: () => calls.push('portico'), onLocal: () => calls.push('local')};
-    host = createFabricHookHost(() => {const provider = TVFrontDoor(props); assert.equal(provider.type, 'Provider'); const child = provider.props.children; tree = child.type(child.props);});
+    host = createFabricHookHost(() => {const provider = TVFrontDoor(props); assert.equal(provider.type, 'Provider'); const child = provider.props.children; tree = drawFrame(child.type(child.props));});
     await act(() => host!.mount());
     assert.deepEqual(calls, [], 'mounting does not contact Portico Services or a media server');
     assert.equal(flattenCalls, 0, 'production does not evaluate diagnostic style flattening');
@@ -53,11 +64,20 @@ test('the TV front door renders its wordmark and only actual authority-choice ca
     assert.equal(all.find(node => node.type === 'Region').props.orientation, 'horizontal');
     buttons[0].props.onPress(); buttons[1].props.onPress(); assert.deepEqual(calls, ['portico', 'local']);
     const heading = all.find(node => node.props.accessibilityRole === 'header');
-    assert.equal(heading.props.style[1].marginBottom, 56);
+    assert.equal(heading.props.style[1].marginBottom, 22);
+    // connect40's `.tvl h1` shadow is part of the one shared account title.
+    assert.equal(heading.props.style[1].textShadowColor, 'rgba(7, 16, 24, 0.5)');
+    assert.deepEqual(heading.props.style[1].textShadowOffset, {width: 0, height: 2}); assert.equal(heading.props.style[1].textShadowRadius, 30);
+    assert.ok(all.filter(node => node !== heading).every(node => !/textShadow/.test(JSON.stringify(node.props.style ?? {}))), 'only the title carries a shadow');
     assert.equal(heading.props.ref, undefined); assert.equal(heading.props.onTextLayout, undefined); assert.equal(heading.props.onLayout, undefined);
-    assert.equal(all.find(node => node.type === 'Region').props.style.gap, 36);
-    assert.deepEqual(logo.props.style, {position: 'absolute', left: 0, top: 72, width: 174, height: 40});
-    assert.ok(all.some(node => node.props.style?.left === 200 && node.props.style?.width === 900));
+    assert.equal(all.find(node => node.type === 'Region').props.style.gap, 20);
+    assert.deepEqual(logo.props.style, {position: 'absolute', left: 120, top: 72, width: 174, height: 40});
+    // The column starts at the 120 gutter inside a scroll view that starts at the window edge, so a focused
+    // control's ring and glow are not clipped; it starts below the wordmark when it is taller than the window.
+    const column = all.find(node => node.props.contentContainerStyle?.paddingHorizontal === 120);
+    assert.ok(column, 'the account column is padded in from the window edge');
+    assert.equal(column.props.style.left, 0); assert.equal(column.props.style.width, 120 * 2 + 900);
+    assert.equal(column.props.contentContainerStyle.paddingTop, 72 + 40 + 48);
     dimensions = {width: 1280, height: 800}; props.busy = true;
     await act(() => host!.rerender());
     const canvas = nodes(tree).find(node => node.props.style?.transformOrigin === 'top left');
@@ -88,8 +108,8 @@ test('DEV TV heading records only native text events, invalidates changed layout
   let host: Awaited<ReturnType<typeof createFabricHookHost>> | undefined;
   try {
     let dimensions = {width: 1920, height: 1080}, theme = createTheme({isTV: true, width: 1920}), tree: any;
-    const {TVFrontDoor} = await screenModule(new URL('../src-next/tv/auth/TVFrontDoor.tsx', import.meta.url), {
-      react: {...React, default: React}, 'react-native': {Image: 'Image', Text: 'Text', View: 'View', useWindowDimensions: () => dimensions,
+    const {TVFrontDoor} = await frontDoorModule({
+      react: {...React, default: React}, 'react-native': {Image: 'Image', Text: 'Text', View: 'View', ScrollView: 'ScrollView', useWindowDimensions: () => dimensions,
         StyleSheet: {flatten}, findNodeHandle: (native: {tag: number}) => native.tag},
       '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/artwork': {ColourBackdrop: 'Backdrop'}, '../../kit/controls': {Button: 'Button'},
       '../../kit/focus': {FocusProvider: 'Provider', FocusRegion: 'Region'}, '../../kit/theme': {nativeType, useTheme: () => theme},
@@ -98,7 +118,7 @@ test('DEV TV heading records only native text events, invalidates changed layout
       './entry-revision': entryRevision,
     });
     const props = {busy: false, onPortico: () => {throw new Error('unexpected sign-in');}, onLocal: () => {throw new Error('unexpected local sign-in');}};
-    host = createFabricHookHost(() => {const provider = TVFrontDoor(props); const child = provider.props.children; tree = child.type(child.props);});
+    host = createFabricHookHost(() => {const provider = TVFrontDoor(props); const child = provider.props.children; tree = drawFrame(child.type(child.props));});
     await act(() => host!.mount());
     const heading = () => nodes(tree).find(node => node.props.accessibilityRole === 'header');
     const image = () => nodes(tree).find(node => node.type === 'Image');
@@ -132,7 +152,7 @@ test('DEV TV heading records only native text events, invalidates changed layout
     assert.deepEqual(registry.read(first)?.lines, observed);
     assert.equal(registry.read(first)?.semanticId, 'tv-front-door-title');
     assert.equal(registry.read(first)?.declaredStyleComplete, true);
-    assert.equal(registry.read(first)?.flattenedStyle.fontSize, 88);
+    assert.equal(registry.read(first)?.flattenedStyle.fontSize, 72);
     assert.deepEqual(registry.read(first)?.measuredStyle, {}, 'flattened inputs are never promoted to observed paint/fonts');
     assert.equal(registry.read(first)?.effectiveBackgroundColor, undefined);
     props.busy = true; await act(() => host!.rerender());
@@ -147,13 +167,13 @@ test('DEV TV heading records only native text events, invalidates changed layout
     assert.equal(registry.read(replacement)?.lines, undefined, 'a replaced native target cannot populate the current lease');
     heading().props.onTextLayout(event(replacement.tag));
     assert.deepEqual(registry.read(replacement)?.lines, observed);
-    theme = {...theme, textScale: 1.25}; await act(() => host!.rerender());
+    theme = createTheme({isTV: true, width: 1920, textScale: 1.25}); await act(() => host!.rerender());
     assert.equal(tree.props.style.backgroundColor, theme.colors.ink);
     assert.deepEqual(registry.read(replacementRoot)?.flattenedStyle, {backgroundColor: theme.colors.ink});
     assert.deepEqual(registry.read(replacementWordmark)?.flattenedStyle, image().props.style);
     assert.deepEqual(registry.read(replacementRoot)?.measuredStyle, {}, 'declared paint remains separate from native observations');
     assert.equal(registry.read(replacement)?.lines, undefined);
-    assert.equal(registry.read(replacement)?.flattenedStyle.fontSize, 110);
+    assert.equal(registry.read(replacement)?.flattenedStyle.fontSize, 90);
     for (const current of [replacementRoot, replacementWordmark, replacement]) assert.equal(registry.read(current)?.declaredStyleComplete, true, 'the current final declaration stays complete after the theme update');
     heading().props.onTextLayout(event(replacement.tag));
     assert.equal(heading().props.onLayout, undefined, 'generic layout delivery cannot erase fresh native text lines');
@@ -168,7 +188,6 @@ test('DEV TV heading records only native text events, invalidates changed layout
     assert.equal(registry.read(replacementRoot), undefined, 'leaving this existing Welcome view retires the fixture root');
     heading().props.onTextLayout(event(replacement.tag));
     assert.equal(registry.read(replacement), undefined, 'late events after unmount cannot recreate a registration');
-    assert.ok(requires.includes('../../dev/layout-dump/index'));
     assert.ok(requires.includes('../dev/layout-dump/index'));
   } finally {
     await host?.unmount();

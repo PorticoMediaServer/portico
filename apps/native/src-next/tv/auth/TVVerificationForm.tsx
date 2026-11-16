@@ -66,7 +66,7 @@ function VerificationForm(props: TVVerificationFormProps) {
     onHelp={() => props.onRecoveryChange(true)} helpTextSize={20}
     help={<>{t('services.signin.lostPhone')}{' '}{t('services.signin.recovery')}</>}/>;
   return <TVAuthLayout testID={`tv-${props.kind}-verification`} portico={props.kind === 'portico'}
-    heading={t('web.direct.codeTitle')} body={t('services.signin.twoStep')} aside={pad}>
+    title={t('web.direct.codeTitle')} body={t('services.signin.twoStep')} aside={pad}>
     {props.error && <View accessibilityRole="alert" style={{marginBottom: 16}}>{props.error}</View>}
     {!props.recovery ? <TVCodeBoxes code={props.code} length={6} busy={props.busy} error={!!props.error}/> : <>
       <Text style={[type(22, 700), {color: theme.colors.textTertiary, marginBottom: 8}]}>{t('services.signin.recovery')}</Text>
