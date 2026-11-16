@@ -10,7 +10,7 @@ import {cardText, episodeLabel} from '../../../packages/client-core/src/presenta
 import {durationText} from '../../../packages/client-core/src/presentation/kit-model/text.ts';
 
 const themed = {useTheme: () => ({isTV: true, colors: {ink: '#000', text: '#fff', textSecondary: '#ccc', textTertiary: '#999', raised: '#111', line: '#222', accent: '#3af', accentStrong: '#4bf'}, type: {}})};
-const {TVEpisodeBrowser, TVTile, FocusBand} = await screenModule(new URL('../src-next/screens/watch/TVEpisodeBrowser.tsx', import.meta.url), {
+const {TVEpisodeBrowser, TVTile, FocusBand, seasonListEdges, seasonListHeight} = await screenModule(new URL('../src-next/screens/watch/TVEpisodeBrowser.tsx', import.meta.url), {
   react: {...React, default: React},
   'react-native': {ScrollView: 'ScrollView', Text: 'Text', View: 'View'},
   '../../../../../packages/client-core/src/presentation/kit-model': {cardText, episodeLabel},
@@ -86,4 +86,29 @@ test('each season has an independent native row identity and next-up is only a f
   assert.equal(third.seasons.edges.right, third.row.id);
   assert.equal(second.section.entryRegion, second.row.id);
   assert.equal(second.row.edges.up, 'show.actions'); assert.equal(second.row.edges.down, 'show.related');
+});
+
+// Owner, 16 Nov: a long season list (The Simpsons, 25) scrolls in its own window and says so; a short one is untouched.
+test('the season list fades only at an edge it really continues past, and keeps six rows and half the next on screen', () => {
+  assert.equal(seasonListHeight, 6.5 * 90, 'six 84 pt rows 6 pt apart, and half of the seventh peeking in');
+  assert.deepEqual(seasonListEdges(0, 5 * 90, 450), {top: false, bottom: false}, 'five seasons fit whole: no fade (tv-detail frame 5)');
+  assert.deepEqual(seasonListEdges(0, 25 * 90, seasonListHeight), {top: false, bottom: true}, 'at the top of 25: the bottom fades');
+  assert.deepEqual(seasonListEdges(600, 25 * 90, seasonListHeight), {top: true, bottom: true}, 'scrolled into the middle: both');
+  assert.deepEqual(seasonListEdges(25 * 90 - seasonListHeight, 25 * 90, seasonListHeight), {top: true, bottom: false}, 'at the end: only the top');
+  assert.deepEqual(seasonListEdges(0, 0, 0), {top: false, bottom: false}, 'before layout: none');
+});
+
+test('the kit list edge fade draws ink from clear to its opacity toward the edge, and never takes focus or a press', async () => {
+  const {ListEdgeFade} = await screenModule(new URL('../src-next/kit/layout/ListEdgeFade.tsx', import.meta.url), {
+    react: {...React, default: React}, 'react-native': {View: 'View'},
+    'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'}, '../theme': themed,
+  });
+  for (const [edge, length, opacity] of [['bottom', 70, 0.9], ['top', 70, 0.9], ['bottom', 90, 0.94]] as const) {
+    const fade = ListEdgeFade({edge, length, opacity});
+    assert.deepEqual([fade.props.pointerEvents, fade.props.accessible, fade.props.style.height, fade.props.style[edge]], ['none', false, length, 0]);
+    const stops = descendants(fade).filter(node => node.type === 'Stop');
+    assert.deepEqual(stops.map(stop => [stop.props.stopColor, stop.props.stopOpacity]), [['#000', 0], ['#000', opacity]], 'ink, clear to the given opacity');
+    const gradient = descendants(fade).find(node => node.type === 'LinearGradient');
+    assert.equal(gradient.props.y2, edge === 'top' ? '0' : '1', 'darkest at the edge the list continues past');
+  }
 });
