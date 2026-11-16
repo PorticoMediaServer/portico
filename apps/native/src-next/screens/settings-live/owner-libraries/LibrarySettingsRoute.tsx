@@ -21,7 +21,7 @@ export function createNativeLibrarySettingsRenderer(context: NativeShellBootstra
       const account = context.account;
       if (!account.canManage || account.account.role !== 'owner' || account.account.disabled || account.account.primaryProfileId !== lifetime.authority.profileId)
         return fallback.render({kind: 'shell', destination: {kind: 'settings'}}, runtime);
-      return <Screen><NativeOwnerLibrariesPanel key={route.libraryId} ports={ports} runtime={runtime} initialLibraryId={route.libraryId} lifetime={lifetime}/></Screen>;
+      return <Screen settings><NativeOwnerLibrariesPanel key={route.libraryId} ports={ports} runtime={runtime} initialLibraryId={route.libraryId} lifetime={lifetime}/></Screen>;
     },
     dispose: () => {fallback.dispose?.(); lifetime.dispose();},
   };

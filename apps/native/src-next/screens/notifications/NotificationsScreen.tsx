@@ -7,8 +7,9 @@ import {noticeWords, type Notification, type NotificationAction} from '../../../
 import type {InboxAction, InboxService, InboxView} from '../../../../../packages/client-core/src/inbox';
 import {Button, Tabs} from '../../kit/controls';
 import {Icon, type IconName} from '../../kit/Icon';
-import {BottomSheet, Menu, type MenuEntry} from '../../kit/overlays';
-import {NotificationItem} from '../../kit/shell';
+import {Menu, type MenuEntry} from '../../kit/overlays';
+import {NotificationItem, SettingsSheet} from '../../kit/shell';
+import {SettingsBackdrop} from '../../kit/shell/SettingsBackdrop';
 import {Quiet, StateView} from '../../kit/states';
 import {shellType} from '../../kit/shell/visual';
 import {useTheme} from '../../kit/theme';
@@ -19,7 +20,6 @@ import type {NativeShellRoute} from '../../shell/routes';
 import {notificationCommand, notificationRoute, startNotificationScan, type NotificationCommandTarget} from './notification-route';
 import {OwnFeedbackReport} from './OwnFeedbackReport';
 import type {NativeShellRuntime} from '../../shell/runtime';
-import {StandardBackdrop} from '../../kit/artwork';
 import {PhoneServerPageHeader} from '../settings-live/server/PhoneServerPageHeader';
 import {TopBar} from '../../kit/layout/TopBar';
 
@@ -256,12 +256,12 @@ export function NativeNotificationsScreen({context, route, runtime, profileServi
  * Header gestures, Back, escape and screen-reader containment use the shared host. */
 function NotificationsFrame({children, header, title, testID, onClose}: {children?: React.ReactNode; header?: React.ReactNode; title: string; testID: string; onClose: () => void}) {
   const theme = useTheme(), insets = useSafeAreaInsets(), window = useWindowDimensions();
-  if (theme.platform !== 'phone') return <View testID={testID} style={{flex: 1, paddingTop: insets.top + 14}}>{theme.isTV && <StandardBackdrop/>}{header}{children}</View>;
-  return <BottomSheet testID={testID} title={title} open onOpenChange={open => {if (!open) onClose();}} accessibilityLabel={title}
+  if (theme.platform !== 'phone') return <View testID={testID} style={{flex: 1, paddingTop: insets.top + 14}}><SettingsBackdrop/>{header}{children}</View>;
+  return <SettingsSheet testID={testID} surfaceBackground={<SettingsBackdrop/>} profile={null} shortcuts={null} open onOpenChange={open => {if (!open) onClose();}} accessibilityLabel={title}
     detents={[Math.max(1, window.height - 62)]} headerContent={header ?? <View style={{height: 56}}/>} scrollable={false} showClose={false} showGrabber={false}
-    style={{backgroundColor: theme.colors.ink, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingTop: 0}}>
+    style={{paddingTop: 0}}>
     {children}
-  </BottomSheet>;
+  </SettingsSheet>;
 }
 
 const sourceIcon = (source: string): IconName => source === 'downloads' ? 'i-dl'
