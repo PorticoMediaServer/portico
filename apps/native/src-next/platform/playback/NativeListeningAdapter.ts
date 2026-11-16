@@ -150,6 +150,8 @@ export class NativeListeningV1Adapter implements NativeListeningV1Control {
   if(action==='pause'&&this.current===active)await this.refresh();
  }
  async advance(reason:NativeQueueAdvance,entryId?:string,startSeconds?:number){
+  // Next/Previous keep the original occurrence through refresh and the native command queue.
+  if(reason==='next'||reason==='previous')return this.action(reason);
   const active=this.current;if(!active)return;
   if(!this.bridge.listeningAdvance)throw new Error('This app version can’t move the queue from the system player.');
   await this.refresh();if(this.current===active)await this.bridge.listeningAdvance(active.owner,reason,entryId??null,reason==='entry'&&startSeconds!==undefined?startSeconds:null);

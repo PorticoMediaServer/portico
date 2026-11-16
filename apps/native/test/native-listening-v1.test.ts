@@ -393,3 +393,25 @@ test('a changed family never hands the successor credential to an old owner',asy
  await assert.rejects(adapter.adopt({session:session('s1') as never,queueId:'q1',queueRevision:'7',durationSeconds:200,lastSeq:2,leaseMs:118000,transitions:true,intent:'playing'},()=>{}),{code:'mutation_scope_changed'});
  assert.equal(x.calls.some(c=>c.name==='adopt'),false);
 });
+
+test('a pending Next or Previous cannot skip the successor that starts during refresh', async () => {
+ for (const direction of ['next', 'previous'] as const) {
+  const x = bridge(), adapter = new NativeListeningV1Adapter({bridge: x.b, principal: {origin: 'https://portico.test', serverId: 'srv', authority: 'local', accountId: 'acc', profileId: 'pro'}, bearer: () => 'token', id: () => 'owner-1', subscribe: x.subscribe});
+  await adapter.adopt({session: session('s1') as never, queueId: 'q1', queueRevision: '7', durationSeconds: 200, lastSeq: 0, leaseMs: 118000, transitions: true, intent: 'playing'}, () => {});
+  let release!: () => void;
+  x.b.listeningCredentials = () => new Promise(resolve => {release = () => resolve(true);});
+  const pending = adapter.advance(direction);
+  x.push(raw('owner-1', x.next(), session('s2'), {transition: {previousSessionId: 's1', queue: null}}));
+  release();await assert.rejects(pending, /no longer available/);
+  assert.equal(x.calls.some(call => call.name === 'advance' || call.name === 'action'), false);
+  await adapter.detach(false);
+ }
+});
+test('ordinary Next uses the native occurrence guard rather than owner-only advance', async () => {
+ const x = bridge(), adapter = new NativeListeningV1Adapter({bridge: x.b, principal: {origin: 'https://portico.test', serverId: 'srv', authority: 'local', accountId: 'acc', profileId: 'pro'}, bearer: () => 'token', id: () => 'owner-1', subscribe: x.subscribe});
+ await adapter.adopt({session: session('s1') as never, queueId: 'q1', queueRevision: '7', durationSeconds: 200, lastSeq: 0, leaseMs: 118000, transitions: true, intent: 'playing'}, () => {});
+ await adapter.advance('next');
+ const call = x.calls.find(call => call.name === 'action')!;
+ assert.equal(call.args[1], 'next');assert.equal((call.args[3] as {binding: {sessionId: string}}).binding.sessionId, 's1');
+ assert.equal(x.calls.some(call => call.name === 'advance'), false);await adapter.detach(false);
+});
