@@ -25,6 +25,14 @@ func (s *Server) homeRow(r *http.Request, _ None) (HomeRow, error) {
 	case "recently_added":
 		row.Title = "Recently Added"
 	default:
+		if strings.HasPrefix(id, "collection:") {
+			var err error
+			row, err = s.collectionHomeRow(r, id)
+			if err != nil {
+				return row, err
+			}
+			break
+		}
 		if strings.HasPrefix(id, "view:") {
 			views, err := s.savedViewRows(r)
 			if err != nil {
