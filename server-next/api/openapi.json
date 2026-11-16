@@ -8524,6 +8524,31 @@
         ],
         "type": "object"
       },
+      "OwnerApproval": {
+        "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/PorticoApproval"
+          },
+          "approvalUrl": {
+            "type": "string"
+          },
+          "porticoUnavailable": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "OwnerApprovalRequest": {
+        "properties": {
+          "returnUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "returnUrl"
+        ],
+        "type": "object"
+      },
       "OwnerChangeRequest": {
         "properties": {
           "accountId": {
@@ -19722,6 +19747,49 @@
         "responses": {
           "204": {
             "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "tags": [
+          "Clients"
+        ],
+        "x-access": "owner",
+        "x-audience": "Clients",
+        "x-scope": "session"
+      }
+    },
+    "/v1/admin/owner/approval": {
+      "post": {
+        "operationId": "post_v1_admin_owner_approval",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerApproval"
+                }
+              }
+            },
+            "description": "OK"
           },
           "default": {
             "content": {

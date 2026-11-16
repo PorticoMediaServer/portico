@@ -7,6 +7,7 @@ import {currentUTCTimestamp} from './local-session.ts';
 import {parseDirectSignIn,signInDevice,type DirectSignIn,type ProfileAPI,type ManagementCapabilities} from './profile-management.ts';
 import type {LocalSession} from './index.ts';
 import type {SignInKind} from './app-sessions.ts';
+import type {PreviousOwner} from './portico-servers.ts';
 import {identityCode,routeOrigin} from './route-identity.ts';
 
 export type MoveDirection='to_portico'|'to_local';
@@ -178,6 +179,12 @@ export type OwnerSwitchInput=Readonly<{to:SignInKind;startOver:boolean;serverNam
 export type OwnerSwitchApproval=Readonly<{approvalId:string;approvalUrl:string;pollToken:string;expiresAt:string;pollAfterMs:number}>;
 export type OwnerSwitchPreview=AccountMove&Readonly<{approval?:OwnerSwitchApproval;porticoUnavailable?:boolean}>;
 const declined=()=>new CodedError('approval_declined','The Portico Account approval was declined or ran out. Try again.');
+/** A Portico approval the server started, or nothing when its answer is not one. */
+function parseApproval(raw:unknown):OwnerSwitchApproval|undefined{
+ return obj(raw)&&text(raw.approvalId,256)&&text(raw.approvalUrl,2048)&&text(raw.pollToken,512)?Object.freeze({approvalId:raw.approvalId,approvalUrl:raw.approvalUrl,pollToken:raw.pollToken,expiresAt:String(raw.expiresAt??''),pollAfterMs:count(raw.pollAfterMs)?raw.pollAfterMs:2000}):undefined;
+}
+/** The approval a change of owner on a Portico Accounts server waits for, or why there is none. */
+export type OwnerChangeApproval=Readonly<{approval?:OwnerSwitchApproval;porticoUnavailable?:boolean}>;
 export class AccountMoveClient extends MoveTransport {
  /** What a switch or Start over would do, with this server's real numbers, in the shape the dialogs draw. `from` and
   * `serverName` are the page's own facts; `returnUrl` asks Portico Services for an approval when moving to Portico. */
@@ -186,7 +193,7 @@ export class AccountMoveClient extends MoveTransport {
   return this.call(serverPath('POST /v1/admin/sign-in/preview'),'POST',{to,startOver,...(facts.returnUrl?{returnUrl:facts.returnUrl}:{})},raw=>{
    if(!obj(raw)||raw.to!==to||raw.startOver!==startOver)invalid();
    for(const key of ['signInAgain','removed','profilesRemoved','profilesKept','signedOut','invitationsCancelled'])if(!count(raw[key]))invalid();
-   const approval=obj(raw.approval)&&text(raw.approval.approvalId,256)&&text(raw.approval.approvalUrl,2048)&&text(raw.approval.pollToken,512)?Object.freeze({approvalId:raw.approval.approvalId,approvalUrl:raw.approval.approvalUrl,pollToken:raw.approval.pollToken,expiresAt:String(raw.approval.expiresAt??''),pollAfterMs:count(raw.approval.pollAfterMs)?raw.approval.pollAfterMs:2000}):undefined;
+   const approval=parseApproval(raw.approval);
    const n=(key:string)=>raw[key] as number;
    return Object.freeze({id:'preview',from:facts.from,to,startOver,stage:'preview' as const,revision:1,people:startOver?n('removed'):n('signInAgain'),
     profiles:n('profilesKept')+(startOver?n('profilesRemoved'):0),invitations:n('invitationsCancelled'),waiting:0,serverName:facts.serverName,ownAddressRequired:to==='local',
@@ -214,6 +221,21 @@ export class AccountMoveClient extends MoveTransport {
    if(signal?.aborted)ended();
   }
   throw declined();
+ }
+ /** Change owner on a Portico Accounts server (area 2 rule 32) starts here: Portico Services makes the approval the new
+  * owner gives with their Portico Account, coming back to `returnUrl`. */
+ ownerApproval(returnUrl:string,signal?:AbortSignal):Promise<OwnerChangeApproval>{
+  if(!text(returnUrl,2048))invalid();
+  return this.call(serverPath('POST /v1/admin/owner/approval'),'POST',{returnUrl},raw=>{
+   if(!obj(raw))invalid();
+   const approval=parseApproval(raw.approval);
+   return Object.freeze({...(approval?{approval}:{}),...(raw.porticoUnavailable===true||!approval?{porticoUnavailable:true}:{})});
+  },signal);
+ }
+ /** Hands the server to the account that approved, and makes the previous owner what they chose (rule 33). */
+ changeOwner(approval:string,previousOwner:PreviousOwner,signal?:AbortSignal):Promise<void>{
+  if(!text(approval,8192)||!['admin','member','removed'].includes(previousOwner))invalid();
+  return this.call(serverPath('POST /v1/admin/owner'),'POST',{approval,previousOwner},()=>undefined,signal);
  }
  /** The move in progress and the people still waiting (`GET /v1/admin/sign-in`), in the shape the panel draws. */
  current(signal?:AbortSignal):Promise<AccountMove|null>{return this.call(serverPath('GET /v1/admin/sign-in'),'GET',undefined,raw=>{
