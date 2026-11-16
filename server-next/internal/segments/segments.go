@@ -31,6 +31,10 @@ type Service struct {
 	Now          func() time.Time
 	readEvidence func(context.Context, db.SegmentEntry, string) (segmentdetect.Evidence, []segmentdetect.Detection, error)
 }
+
+// readRetries are the pauses before a file whose reading failed is read again.
+var readRetries = []time.Duration{2 * time.Second, 10 * time.Second}
+
 type measurement struct {
 	Evidence    segmentdetect.Evidence
 	Suggestions []segmentdetect.Detection
@@ -133,6 +137,18 @@ func (s *Service) run(ctx context.Context, work jobs.Work) error {
 				state, problem = "unsupported", "Intros and credits cannot be measured for this file layout."
 			} else {
 				evidence, found, err = read(ctx, e, mode)
+				// A failure can be the machine rather than the file (a busy decoder, a port taken
+				// for a moment), and a failed file is not measured again: try it again first.
+				for _, pause := range readRetries {
+					if err == nil || ctx.Err() != nil || errors.Is(err, errNoDecoder) {
+						break
+					}
+					select {
+					case <-ctx.Done():
+					case <-time.After(pause):
+						evidence, found, err = read(ctx, e, mode)
+					}
+				}
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}

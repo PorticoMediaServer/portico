@@ -101,7 +101,9 @@ func TestAnalysisProbeRetiresOnCancellation(t *testing.T) {
 		}
 		done <- err
 	}()
-	v4.SetDeadline(time.Now().Add(3 * time.Second))
+	// The waits below are for the child starting and retiring; the outer limits only keep a
+	// broken run from hanging, and a busy machine may take seconds over either.
+	v4.SetDeadline(time.Now().Add(2 * time.Minute))
 	conn, err := v4.Accept()
 	if err != nil {
 		t.Fatal("child did not start", err)
@@ -127,7 +129,7 @@ func TestAnalysisProbeRetiresOnCancellation(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-	case <-time.After(3 * time.Second):
+	case <-time.After(2 * time.Minute):
 		t.Fatal("child failed to retire")
 	}
 	if sup.Active() != 0 || res.matches(endpoint) {
@@ -147,7 +149,9 @@ func TestAnalysisProbeDiscardsExcessOutputAndNoStart(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			// The outer limit only keeps a broken run from hanging: the run ends when the
+			// child's output passes the limit, however long the child takes to start.
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 			if mode == "canceled" {
 				cancel()
