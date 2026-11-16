@@ -81,6 +81,7 @@ end sub
 ' Open a page over the one showing; Back returns to it exactly as it was left.
 function push(component as string) as object
     m.screen.visible = false
+    if m.screen.hasField("covered") then m.screen.covered = true
     m.screen = m.screens.createChild(component)
     m.screen.observeField("art", "onArt")
     m.screen.observeField("open", "onOpen")
