@@ -29,7 +29,9 @@ export function TopResult({binding, result, fallbackArtwork, compact, onOpen}: {
       const task = entry.kind === 'show' ? show.select({libraryId: entry.libraryId, showId: entry.id}) : entry.kind === 'movie' ? title.select({libraryId: entry.libraryId, itemId: entry.id}) : undefined;
       void task?.catch(binding.context.effects.reportError);
     }
-    return () => { title.service.cancel(); show.service.cancel(); show.primary.service.cancel(); };
+    // The bindings' own cancel: leaving Search disposes them first (React tears a page down parent first),
+    // and a binding's cancel is harmless after that, where its service's is not (W1 F5).
+    return () => { title.cancel(); show.cancel(); };
   }, [binding, entry, title, show]);
   const movie = entry.kind === 'movie' && titleState.data?.item.id === entry.id && titleState.phase === 'ready' ? titleState.data : undefined;
   const series = entry.kind === 'show' && showState.data?.show.id === entry.id && showState.phase === 'ready' ? showState.data : undefined;
