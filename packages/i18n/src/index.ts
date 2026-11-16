@@ -179,7 +179,15 @@ export function createI18n(region: ResolvedRegion = resolveRegion(undefined, {lo
     return formatMessage(source, values, fmt);
   };
   const safe = <T>(fn: () => T, fallback: T): T => { try { return fn(); } catch { return fallback; } };
-  const number = (value: number, options?: Intl.NumberFormatOptions) => (Number.isFinite(value) ? safe(() => new Intl.NumberFormat(region.formatLocale, options).format(value), String(value)) : '');
+  // One Intl formatter per distinct set of options, as for dates below: cards format numbers on every render.
+  const numberFormats = new Map<string, Intl.NumberFormat>();
+  const numberFormat = (options?: Intl.NumberFormatOptions): Intl.NumberFormat => {
+    const key = JSON.stringify(options ?? {});
+    let made = numberFormats.get(key);
+    if (!made) numberFormats.set(key, made = new Intl.NumberFormat(region.formatLocale, options));
+    return made;
+  };
+  const number = (value: number, options?: Intl.NumberFormatOptions) => (Number.isFinite(value) ? safe(() => numberFormat(options).format(value), String(value)) : '');
   const dateOptions = (style: DateStyle): Intl.DateTimeFormatOptions => {
     switch (style) {
       case 'dayMonth': return {day: 'numeric', month: 'short'};
@@ -276,7 +284,7 @@ export function createI18n(region: ResolvedRegion = resolveRegion(undefined, {lo
     if (localizedUnits !== false) {
       try {
         // Whole bytes are spelled out ("512 bytes"): the short form in English is the bare word "byte".
-        const text = new Intl.NumberFormat(region.formatLocale, {style: 'unit', unit, unitDisplay: i === 0 ? 'long' : 'short', maximumFractionDigits}).format(v);
+        const text = numberFormat({style: 'unit', unit, unitDisplay: i === 0 ? 'long' : 'short', maximumFractionDigits}).format(v);
         localizedUnits = true;
         return text;
       } catch {
