@@ -46,3 +46,14 @@ test('Apple decoded paths and Android encoded paths keep their existing distinct
   assert.equal(nativeAvatarWireBody(own, 'PUT', '{"nativeAvatarBase64":""}', false), '');
   assert.equal(nativeAvatarWireBody(own, 'PUT', '{"nativeAvatarBase64":"\\nnot-base64"}', true), '\nnot-base64');
 });
+
+test('channel logos select their own image envelope only on the rebuilt PUT route', () => {
+  const logo='https://original.test/v1/admin/library-channels/channel/logo';
+  const body=JSON.stringify({nativeChannelLogoBase64:'AID/'});
+  for(const apple of [false,true]){
+    assert.equal(nativeAvatarWireBody(logo,'PUT',body,apple),'AID/');
+    assert.equal(nativeAvatarWireBody(logo,'POST',body,apple),body);
+    assert.equal(nativeAvatarWireBody(logo,'PUT','{"nativeAvatarBase64":"AID/"}',apple),null);
+    assert.equal(nativeAvatarWireBody(own,'PUT',body,apple),null);
+  }
+});
