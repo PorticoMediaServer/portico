@@ -38,6 +38,7 @@ import {bindNativeDeviceSettings, nativeDeviceSettings} from '../platform/device
 import {bindNativeServerPreferences} from '../platform/server-preferences';
 import {rememberNativeServerDisplay} from '../platform/server-display';
 import {nativeAppSessions, readNativeSelectedViewer} from '../platform/app-session-storage';
+import {nativeDeviceClass} from '../platform/device-platform';
 import {nativeSignInEnded, rememberNativeSignInHint, type NativeSignInHint, type NativeSignInEnded} from '../platform/sign-in-ended';
 import {nativeIdentityFailure, nativeRouteIdentityFailure, type NativeIdentityFailure, type NativeIdentityServer} from '../platform/identity-failure';
 import {profilePictureSource} from '../platform/profile-avatars';
@@ -249,7 +250,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
     const outbox = api.configureOutbox(new NativeOutboxStore()), outboxApi = api;
     const awake = AppState.addEventListener('change', state => {if (state === 'active') outbox.wake();});
     cleanups.push(() => {nativeStops?.remove(); awake.remove(); outbox.dispose(); outboxApi.setOutboxSession(undefined);});
-    api.setDeviceClass(Platform.isTV ? 'television' : 'mobile');
+    api.setDeviceClass(nativeDeviceClass);
     const local = api;
     trackNativeConnection(local);
     // Any screen's request refused for a PIN changed elsewhere asks for the PIN, as the shell's own reads do.
@@ -264,7 +265,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       current: () => alive && installation.current() && !signal.signal.aborted,
       session: () => session, pin: () => local.getRouteConnection()?.pin, readSelected: () => nativeAppSessions.selected(),
     });
-    services = new NativeShellBootstrapServices(local, {viewer: session.viewer, deviceClass: Platform.isTV ? 'television' : 'mobile',
+    services = new NativeShellBootstrapServices(local, {viewer: session.viewer, deviceClass: nativeDeviceClass,
       signal: signal.signal, current: () => alive && installation.current(), accountBinding, onAuthorityEnded: cause => refused(cause), onRoleChanged: () => rebuild()});
     const readers = services;
     home = readers.home;
@@ -284,7 +285,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
       readers.readAccount(),
       // The rebuilt server has no profile pictures yet: every profile shows its colour and initial.
       identities.avatars(signal.signal).catch(noPictures),
-      readers.readPreferences(Platform.isTV ? 'television' : 'mobile', signal.signal),
+      readers.readPreferences(nativeDeviceClass, signal.signal),
       rememberNativeServerDisplay(local, {serverId: session.viewer.serverId,
         signal: signal.signal, isCurrent: () => alive && installation.current()}),
       (noteHomeRead('restore'), documentService.load()),
@@ -517,7 +518,7 @@ export async function restoreNativeShellRuntime(makeBindings: NativeShellBinding
         await contextBase.readLibraries!(requestSignal);
       }),
       preferences: guarded(async requestSignal => {
-        const next = await readers.readPreferences(Platform.isTV ? 'television' : 'mobile', requestSignal);
+        const next = await readers.readPreferences(nativeDeviceClass, requestSignal);
         await resourceCurrent(requestSignal);
         // The reader answers an older read with the newer settings it already holds.
       const confirmed = next;

@@ -27,6 +27,7 @@ for (const scenario of [
     './remembered-reading-owner': {createRememberedReadingOwner: () => ({})},
     '../platform/playback/receipt-only': {createNativeReceiptOnlyPlayback: () => ({current: () => alive, dispose() {}})},
     '../screens/accounts/downloads-entry-model': {noAccountDownloads: {available: false}},
+    '../platform/device-platform': {nativeDeviceClass: 'mobile'},
   });
   const installation = {current: () => alive}, signal = new AbortController();
   const source = await createRememberedDownloadsOpening(installation, {signal: signal.signal, isCurrent: () => alive,

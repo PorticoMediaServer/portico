@@ -53,6 +53,7 @@ test(`remembered ${format} composition: ${mixed ? 'mixed' : 'publication only'},
     './remembered-reading-settings': {readRememberedReadingPreferences: async () => ({effective: {}})}, './remembered-reading-owner': {createRememberedReadingOwner},
     '../platform/playback/receipt-only': {createNativeReceiptOnlyPlayback: () => ({current: () => root, dispose() {}})},
     '../screens/accounts/downloads-entry-model': {noAccountDownloads: {available: false}},
+    '../platform/device-platform': {nativeDeviceClass: 'mobile'},
   });
   const {ReadingGuestView, createReadingGuestBridge} = await screenModule(new URL('../src-next/screens/read/ReadingGuestView.tsx', import.meta.url), {
     react: {...fabricReact, default: fabricReact}, 'react-native-webview': {default: 'WebView'}, '../../../../../packages/client-core/src': {createReadingHost},

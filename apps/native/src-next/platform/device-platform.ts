@@ -8,12 +8,17 @@ import type {DestinationPlatform} from '../../../../packages/client-core/src/pre
  * handheld is a tablet. Screens never ask the operating system; they ask this.
  */
 const android = Platform.OS === 'android';
-const amazon = android && String((Platform.constants as {Manufacturer?: string}).Manufacturer ?? '').toLowerCase() === 'amazon';
+const amazon = android && String((Platform.constants as {Manufacturer?: string} | undefined)?.Manufacturer ?? '').toLowerCase() === 'amazon';
 
 /** A tablet-class handheld: an iPad, or an Android device at least 600 points across its short side. */
+const screen = android ? Dimensions?.get?.('screen') : undefined;
 export const isTablet: boolean = !Platform.isTV && (android
-  ? Math.min(Dimensions.get('screen').width, Dimensions.get('screen').height) >= 600
+  ? !!screen && Math.min(screen.width, screen.height) >= 600
   : (Platform as {isPad?: boolean}).isPad === true);
+
+/** The kind of device this is, as the server keeps settings for each kind: a tablet keeps its own,
+ * apart from a phone (10-reading rule 36). */
+export const nativeDeviceClass: 'mobile' | 'tablet' | 'television' = Platform.isTV ? 'television' : isTablet ? 'tablet' : 'mobile';
 
 /** `vega` is a Fire TV on Vega OS: only the Vega app announces it (its own `device-platform.ts`). */
 export type DevicePlatform = 'tvos' | 'ios' | 'androidtv' | 'firetv' | 'android' | 'vega';

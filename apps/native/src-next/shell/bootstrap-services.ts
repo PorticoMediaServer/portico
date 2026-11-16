@@ -16,7 +16,7 @@ import type {NativeShellAccountBinding} from './account-binding';
 type Domain = 'preferences' | 'inbox' | 'guide' | 'home';
 type Facts = Readonly<{preferences: PreferenceSnapshot; unread: number; hasLiveTV: boolean}>;
 type Options = {
-  viewer: LocalSession['viewer']; deviceClass: Extract<DeviceClass, 'mobile' | 'television'>;
+  viewer: LocalSession['viewer']; deviceClass: Extract<DeviceClass, 'mobile' | 'tablet' | 'television'>;
   signal: AbortSignal; current: () => boolean; onAuthorityEnded: (cause?: unknown) => void;
   /** CC-03: the server changed this account's role; role-dependent services rebuild. */
   onRoleChanged?: () => void;

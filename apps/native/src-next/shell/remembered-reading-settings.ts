@@ -5,6 +5,7 @@ import {NativeQueueStore} from '../platform/queue-storage';
 import {nativeReadingPreferencesAvailable} from '../screens/settings/reading-preferences';
 import type {NativeShellBootstrapContext} from './bootstrap';
 import type {RememberedDownloadsViewer} from './remembered-downloads-viewer';
+import {nativeDeviceClass} from '../platform/device-platform';
 
 const key = 'remembered-reading-settings:v1';
 const records = new NativeQueueStore();
@@ -30,7 +31,7 @@ export async function rememberNativeReadingPreferences(context: NativeShellBoots
     if (!context.current() || actual?.sessionFamilyId !== owner.sessionFamilyId || actual.viewer.authority !== owner.authority
       || actual.viewer.serverId !== owner.serverId || actual.viewer.accountId !== owner.accountId || actual.viewer.profileId !== owner.profileId
       || authority.serverId !== owner.serverId || authority.accountId !== owner.accountId || authority.profileId !== owner.profileId) throw cancelled();};
-  check(); validate(snapshot, 'mobile'); check();
+  check(); validate(snapshot, nativeDeviceClass); check();
   await records.change(key, () => {check(); return {record: {version: 1, owner, snapshot}, value: undefined};}, undefined, check);
   check();
 }
