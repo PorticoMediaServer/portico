@@ -64,26 +64,30 @@ func TestSuperviseRestartsAStatelessLoopAndStopsWithItsContext(t *testing.T) {
 	var starts atomic.Int64
 	settled := make(chan struct{})
 	var once sync.Once
-	Supervise(ctx, "test.loop", func(life context.Context) {
-		if starts.Add(1) <= 3 {
-			panic("still broken")
-		}
-		once.Do(func() { close(settled) })
-		<-life.Done()
-	})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		Loop(ctx, "test.loop", func(life context.Context) {
+			if starts.Add(1) <= 3 {
+				panic("still broken")
+			}
+			once.Do(func() { close(settled) })
+			<-life.Done()
+		})
+	}()
 	select {
 	case <-settled:
 	case <-time.After(5 * time.Second):
 		t.Fatalf("the loop was restarted %d times and never settled", starts.Load())
 	}
 	cancel()
-	// A loop that returns because its context ended is not restarted: that would
-	// fight the shutdown it is responding to.
-	time.Sleep(50 * time.Millisecond)
-	at := starts.Load()
-	time.Sleep(50 * time.Millisecond)
-	if starts.Load() != at {
-		t.Fatal("a loop kept restarting after its context ended")
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("the loop did not stop after cancellation")
+	}
+	if got := starts.Load(); got != 4 {
+		t.Fatalf("the loop ran %d times, want three panics and one cancelled run", got)
 	}
 }
 
