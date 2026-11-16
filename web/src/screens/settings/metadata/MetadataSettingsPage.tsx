@@ -1,3 +1,4 @@
+import {refreshAllMetadata} from '@core/server-admin/metadata-refresh.ts';
 import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {defaultI18n, type MessageId} from '@i18n';
 import {artworkLimitBytes, artworkLimitText, metadataSettingsService, openSubtitlesSummary, type ArtworkMaxEdge, type ArtworkPreference, type ArtworkLanguage, type MetadataAdvanced, type MetadataSettings, type MetadataSettingsChange, type MetadataLibraryChange, type MetadataLibrarySettings} from '@core/metadata-settings.ts';
@@ -42,7 +43,7 @@ function advancedSummary(advanced: MetadataAdvanced): string[] {
   return parts;
 }
 const retired = () => Object.assign(new Error('metadata_scope_ended'), {name: 'AbortError'});
-type Owned = {service: ReturnType<typeof metadataSettingsService>; current: () => boolean};
+type Owned = {service: ReturnType<typeof metadataSettingsService>; current: () => boolean; refreshAll: () => Promise<void>};
 
 /** Only fields with real metadata-settings producers are offered. Credentials are local,
  * write-only drafts; neither a failed read nor a revision conflict silently resends them. */
@@ -52,20 +53,22 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
   const [owned, setOwned] = useState<Owned>(), [document, setDocument] = useState<MetadataSettings>(), [draft, setDraft] = useState<Draft>();
   const [busy, setBusy] = useState(false), [error, setError] = useState<string>(), [denied, setDenied] = useState(false), [reload, setReload] = useState(0);
   const flight = useRef(false), refreshTrigger = useRef<HTMLButtonElement>(null);
+  const [refreshStarted, setRefreshStarted] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false), [confirmRefresh, setConfirmRefresh] = useState(false);
   useEffect(() => {
     const lifetime = new AbortController(); let live = true;
     const current = () => live && !lifetime.signal.aborted && active.current.api === api && active.current.isCurrent === isCurrent && isCurrent();
     const clear = () => {live = false; lifetime.abort(); setDenied(true); setDocument(undefined); setDraft(undefined);};
-    const service = metadataSettingsService(async <T,>(path: string, method?: string, body?: unknown): Promise<T> => {
+    const request = async <T,>(path: string, method?: string, body?: unknown): Promise<T> => {
       if (!current()) throw retired();
       try {
         const result = await api.request<T>(path, method, body, lifetime.signal);
         if (!current()) throw retired();
         return result;
       } catch (problem) {if (terminal(problem) && current()) clear(); throw problem;}
-    });
-    const scope = {service, current}; setOwned(scope); setDenied(false); setDocument(undefined); setDraft(undefined); setError(undefined); setBusy(true); flight.current = true;
+    };
+    const service = metadataSettingsService(request);
+    const scope = {service, current, refreshAll: () => refreshAllMetadata({request}, lifetime.signal)}; setOwned(scope); setDenied(false); setDocument(undefined); setDraft(undefined); setError(undefined); setRefreshStarted(false); setBusy(true); flight.current = true;
     void service.read().then(next => {if (current()) {setDocument(next); setDraft(draftFor(next));}}, problem => {
       if (current()) setError(presentError(problem, 'server-console').body);
     }).finally(() => {if (current()) {flight.current = false; setBusy(false);}});
@@ -121,8 +124,8 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
   };
   const refreshAll = async () => {
     if (flight.current || !current()) return;
-    flight.current = true; setBusy(true); setError(undefined); setConfirmRefresh(false);
-    try {const next = await owned.service.refreshAll(); if (current()) setDocument(next);}
+    flight.current = true; setBusy(true); setError(undefined); setRefreshStarted(false); setConfirmRefresh(false);
+    try {await owned.refreshAll(); if (current()) setRefreshStarted(true);}
     catch (reason) {if (current()) setError(presentError(reason, 'server-console').body);}
     finally {if (current()) {flight.current = false; setBusy(false);}}
   };
@@ -197,23 +200,20 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
       </SettingsRow>
     </SettingsGroup>
     {recommendations}
-    {/* spec server-metadata Advanced: Refreshing, Languages, Artwork, Music. Each row is offered only when the server sends
-        its field, and a group only when it has a row. */}
+    {/* Refresh all is an action; stored Advanced settings require a published field. */}
     {(() => {
       const advanced = document.advanced, extra = draft.advanced;
-      const refreshing = advanced?.refreshPolicy !== undefined || advanced?.refreshAll !== undefined;
       const languages = advanced?.fallbackLanguage !== undefined || advanced?.animeTitles !== undefined;
       const artwork = hasLimit || document.artworkMaxEdge !== undefined || advanced?.castPhotos !== undefined;
       const music = advanced?.acoustidKeyConfigured !== undefined;
-      if (!refreshing && !languages && !artwork && !music) return null;
       const used = document.localArtworkUsedBytes ?? 0, limit = document.localArtworkLimitBytes ?? 0;
       return <SettingsAdvanced open={advancedOpen} onOpenChange={setAdvancedOpen} summary={advanced ? advancedSummary(advanced) : []}>
-        {refreshing ? <SettingsGroup title={t('next.settingsSpec.server.metadata.advanced.groups.0.title')} advanced>
+        <SettingsGroup title={t('next.settingsSpec.server.metadata.advanced.groups.0.title')} advanced>
           {specSelect('metadata.refresh', 'refreshPolicy')}
-          {advanced?.refreshAll ? <SettingsRow label={t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.label')} help={advanced.refreshAll.running ? t('server.metadata.refreshAllRunning') : t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.help')}>
+          <SettingsRow label={t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.label')} help={refreshStarted ? t('server.metadata.refreshAllRunning') : t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.help')}>
             <Button ref={refreshTrigger} size="small" variant="glass" disabled={busy || dirty} onClick={() => {if (current()) setConfirmRefresh(true);}}>{t('next.settingsSpec.server.metadata.advanced.groups.0.rows.1.control.label')}</Button>
-          </SettingsRow> : null}
-        </SettingsGroup> : null}
+          </SettingsRow>
+        </SettingsGroup>
         {languages ? <SettingsGroup title={t('next.settingsSpec.server.metadata.advanced.groups.1.title')} advanced>
           {specSelect('metadata.fallbackLanguage', 'fallbackLanguage')}
           {specSelect('metadata.animeTitles', 'animeTitles')}
