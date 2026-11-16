@@ -29,7 +29,8 @@ end sub
 sub onItem()
     item = m.top.item
     m.top.findNode("title").text = item.title
-    m.top.art = pick(item.images, ["backdrop"])
+    m.top.art = pageArt(item)
+    m.top.quiet = true
     m.sections.item = item
     api("GET", "/v1/items/" + item.id, invalid, "onDetail", {id: item.id})
     api("GET", "/v1/items?parent=" + item.id + "&limit=100", invalid, "onSeasons", {id: item.id})
@@ -55,7 +56,8 @@ sub onSeasons(event as object)
         line = seasonLine(season)
         rows.push({title: season.title, text: line.text, progress: line.progress})
         ' start on the first season with something left to play
-        if start < 0 and season.counts <> invalid and season.counts.unwatchedLeaves > 0 then start = i
+        ' (Specials, season 0, only when nothing else is left)
+        if start < 0 and season.counts <> invalid and season.counts.unwatchedLeaves > 0 and season.index <> 0 then start = i
     end for
     if start < 0 then start = 0
     m.seasons.seasons = rows
@@ -141,7 +143,14 @@ sub describe()
         text.text = ""
         if season.summary <> invalid then text.text = season.summary
     end if
-    facts.translation = [600 + head.boundingRect().width + 28, 612]
+    ' the facts follow the name on its line; a name too long for that takes the line, and the facts go
+    head.width = 0
+    across = head.boundingRect().width
+    if across > 760
+        head.width = 1220
+        facts.text = ""
+    end if
+    facts.translation = [600 + across + 28, 640]
 end sub
 
 sub focusStop()

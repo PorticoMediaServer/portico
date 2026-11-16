@@ -25,7 +25,8 @@ sub onItem()
     end if
     about = ""
     if item.summary <> invalid then about = item.summary
-    m.top.findNode("about").text = about
+    m.top.findNode("about").text = oneParagraph(about)
+    m.top.findNode("aboutHead").visible = (about <> "")
     tag = m.top.findNode("tagline")
     tag.text = ""
     if item.tagline <> invalid then tag.text = item.tagline

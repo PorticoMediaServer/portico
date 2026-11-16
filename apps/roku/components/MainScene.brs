@@ -9,6 +9,7 @@ sub init()
     m.task.control = "run"
     m.rail.observeField("chosen", "onRailChosen")
     m.rail.observeField("left", "onRailLeft")
+    m.rail.observeField("isOpen", "onRailOpen")
     if createObject("roAppInfo").isDev()
         m.frames = 0
         m.frameClock = createObject("roTimespan")
@@ -39,6 +40,7 @@ sub onLaunchArgs()
     args = m.top.launchArgs
     if createObject("roAppInfo").isDev() and args <> invalid
         ' Development builds only: scripts can hand the app a sign-in, or clear it.
+        if args.devOpen <> invalid then m.devOpen = args.devOpen
         if args.devSignOut <> invalid then storeWrite({origin: "", refreshToken: "", profileId: "", renewalId: ""})
         if args.devOrigin <> invalid and args.devRefresh <> invalid
             storeWrite({origin: args.devOrigin, refreshToken: args.devRefresh, installationId: args.devInstallation, profileId: args.devProfile, renewalId: ""})
@@ -61,6 +63,7 @@ sub show(component as string)
     m.screen = m.screens.createChild(component)
     m.rail.visible = false
     m.backdrop.art = ""
+    m.backdrop.poster = ""
 end sub
 
 ' Open a page over the one showing; Back returns to it exactly as it was left.
@@ -69,6 +72,8 @@ function push(component as string) as object
     m.screen = m.screens.createChild(component)
     m.screen.observeField("art", "onArt")
     m.screen.observeField("open", "onOpen")
+    if m.screen.hasField("quiet") then m.screen.observeField("quiet", "onQuiet")
+    m.backdrop.quiet = false
     return m.screen
 end function
 
@@ -78,7 +83,8 @@ sub pop()
     m.screens.removeChildIndex(count - 1)
     m.screen = m.screens.getChild(count - 2)
     m.screen.visible = true
-    m.backdrop.art = imageUrl(m.screen.art, 1344, 756)
+    setArt(m.screen.art)
+    m.backdrop.quiet = (m.screen.hasField("quiet") and m.screen.quiet = true)
     m.screen.active = true
 end sub
 
@@ -197,15 +203,52 @@ sub showHome()
     m.rail.visible = true
     m.rail.current = "home"
     m.screen.active = true
+    if m.devOpen <> invalid
+        api("GET", "/v1/items/" + m.devOpen, invalid, "onDevOpen")
+        m.devOpen = invalid
+    end if
 end sub
 
+' Development builds only: a script asked for a title's page to be opened at start.
+sub onDevOpen(event as object)
+    result = event.getData()
+    if not result.ok then return
+    page = invalid
+    if result.data.kind = "movie" then page = push("TitleScreen")
+    if result.data.kind = "show" then page = push("ShowScreen")
+    if page <> invalid
+        page.item = result.data
+        page.active = true
+    end if
+end sub
+
+' A page names its art as a picture path, or "poster|<path>" for a title with only a poster, or
+' "cover|<n>" for one with no picture at all (mock.html, "When the artwork isn't there").
 sub onArt(event as object)
-    m.backdrop.art = imageUrl(event.getData(), 1344, 756)
+    ' only the page on top sets the backdrop; one underneath keeps its art for when it comes back
+    if m.screen <> invalid and event.getRoSGNode().isSameNode(m.screen) then setArt(event.getData())
+end sub
+
+sub onQuiet(event as object)
+    if event.getRoSGNode().isSameNode(m.screen) then m.backdrop.quiet = event.getData()
+end sub
+
+sub setArt(art as string)
+    if left(art, 7) = "poster|"
+        m.backdrop.poster = imageUrl(mid(art, 8), 400, 600)
+        m.backdrop.art = ""
+    else if left(art, 6) = "cover|"
+        m.backdrop.poster = ""
+        m.backdrop.art = "pkg:/images/cover-" + mid(art, 7) + ".jpg"
+    else
+        m.backdrop.poster = ""
+        m.backdrop.art = imageUrl(art, 1344, 756)
+    end if
 end sub
 
 function libraryIcon(kind as string) as string
     if kind = "movies" or kind = "movie" then return "film"
-    if kind = "shows" or kind = "tv" or kind = "anime" then return "tv"
+    if kind = "shows" or kind = "tv" then return "tv"
     if kind = "music" then return "music"
     if kind = "audiobooks" or kind = "audiobook" then return "book"
     return "folder"
@@ -252,8 +295,16 @@ sub onSignInEnded()
     showSignIn()
 end sub
 
+' The open rail pushes the page right, so none of it is covered (tv.html frame 2).
+sub onRailOpen()
+    if m.rail.isOpen then m.screens.translation = [metrics().pageShift, 0] else m.screens.translation = [0, 0]
+end sub
+
 sub onRailChosen(event as object)
-    if m.screen <> invalid then m.screen.active = true
+    if m.screen = invalid then return
+    ' OK on the page you are on goes to its top, the same place as Back.
+    if event.getData() = m.rail.current and m.screen.hasField("toTop") then m.screen.toTop = true
+    m.screen.active = true
 end sub
 
 sub onRailLeft()

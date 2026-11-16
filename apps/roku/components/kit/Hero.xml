@@ -20,6 +20,7 @@
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
   <children>
     <Group id="block" translation="[200,0]">
+      <Group id="words">
       <Label id="eyebrow" width="1100"/>
       <Label id="title" width="1100" wrap="true" maxLines="2"/>
       <LayoutGroup id="meta" layoutDirection="horiz" vertAlignment="center" itemSpacings="[26]">
@@ -37,6 +38,7 @@
         <Label id="left"/>
       </LayoutGroup>
       <Label id="synopsis" width="800" wrap="true" maxLines="2"/>
+      </Group>
       <LayoutGroup id="hints" layoutDirection="horiz" vertAlignment="center" itemSpacings="[12, 68, 12]">
         <Group id="okKey">
           <Poster uri="pkg:/images/line-10.9.png" blendColor="0x3B5668FF" width="46" height="36"/>

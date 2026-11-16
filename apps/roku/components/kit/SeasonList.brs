@@ -1,10 +1,12 @@
-' Rows are 90 px apart. The window shows five and a half; focus is kept inside the five whole ones.
+' Rows are 90 px apart. The window is six rows tall and focus is kept inside five whole ones: at the
+' top of the list a sixth row peeks in below, half faded; once the list has moved, half a row shows
+' above and half below, so each end says whether there is more.
 sub init()
     m.window = m.top.findNode("window")
     m.rows = m.top.findNode("rows")
     m.plate = m.top.findNode("plate")
     m.ring = m.top.findNode("ring")
-    m.window.clippingRect = [-60, 0, 460, 495]
+    m.window.clippingRect = [-60, 0, 460, 540]
     m.scroll = 0
     m.top.observeField("focusedChild", "paint")
 end sub
@@ -59,7 +61,6 @@ sub paint()
     ' once the list has moved, half a row shows above as well, so both ends say there is more
     lift = 0
     if m.scroll > 0 then lift = 45
-    if m.scroll > 0 and m.scroll + 5 >= count then lift = 45
     m.rows.translation = [0, lift - 90 * m.scroll]
     y = lift + 90 * (at - m.scroll)
     m.plate.translation = [-10, y]
@@ -69,11 +70,16 @@ sub paint()
     m.ring.visible = has
     m.ring.translation = [-46, y - 36]
     m.top.findNode("fadeTop").visible = (m.scroll > 0)
-    m.top.findNode("fadeBottom").visible = (m.scroll + 5 < count) or (lift > 0 and m.scroll + 5 <= count and count > 5 and m.scroll + 5 < count)
+    m.top.findNode("fadeBottom").visible = (m.scroll + 5 < count)
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
+    holdKey(key, press and (key = "up" or key = "down"))
     if not press then return false
+    return pressKey(key)
+end function
+
+function pressKey(key as string) as boolean
     if key = "down"
         if m.top.index < m.rows.getChildCount() - 1
             m.top.index = m.top.index + 1
@@ -81,8 +87,11 @@ function onKeyEvent(key as string, press as boolean) as boolean
         end if
         return false     ' past the last season: the page's next section
     else if key = "up"
-        if m.top.index > 0 then m.top.index = m.top.index - 1
-        return true
+        if m.top.index > 0
+            m.top.index = m.top.index - 1
+            return true
+        end if
+        return m.heldKey = invalid   ' the top stops; a held key's repeat ends here
     end if
     return false
 end function

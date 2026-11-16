@@ -97,10 +97,27 @@ function countText(n as integer, one as string, many as string) as string
     return n.toStr() + " " + many
 end function
 
+' A summary as one paragraph: a break in it would otherwise leave a line holding only the "…".
+function oneParagraph(text as string) as string
+    return createObject("roRegex", "\s*[\r\n]+\s*", "").replaceAll(text, " ")
+end function
+
+' The art a page stands on: the title's backdrop; with only a poster, "poster|<path>" (the poster is
+' shown whole at the right); with no picture at all, "cover|<n>", its generated cover's tint.
+function pageArt(item as object) as string
+    art = pick(item.images, ["backdrop", "still"])
+    if art <> "" then return art
+    poster = pick(item.images, ["poster", "cover"])
+    if poster <> "" then return "poster|" + poster
+    title = item.title
+    if item.kind = "episode" and item.rootTitle <> invalid then title = item.rootTitle
+    return "cover|" + coverTint(title).toStr()
+end function
+
 ' What the hero shows for an item: {eyebrow, title, year, facts, tag, progress, left, synopsis, art}.
 function heroFor(item as object) as object
-    h = {eyebrow: "", title: item.title, year: "", facts: tagNames(item, "genre", 2), tag: "", progress: progressOf(item), left: timeLeftText(item), synopsis: "", art: pick(item.images, ["backdrop", "still"])}
-    if item.summary <> invalid then h.synopsis = item.summary
+    h = {eyebrow: "", title: item.title, year: "", facts: tagNames(item, "genre", 2), tag: "", progress: progressOf(item), left: timeLeftText(item), synopsis: "", art: pageArt(item)}
+    if item.summary <> invalid then h.synopsis = oneParagraph(item.summary)
     if item.year <> invalid then h.year = item.year.toStr()
     if item.kind = "episode"
         if item.rootTitle <> invalid then h.title = item.rootTitle

@@ -21,6 +21,9 @@ sub onShape()
     m.list.rowItemSize = [[size[0], size[1] + k.cardPad * 2]]
     m.list.rowItemSpacing = [[k.cardGap, 0]]
     m.list.focusXOffset = [m.top.slotX]
+    if m.top.slotX > k.safeLeft
+        m.list.clippingRect = [m.top.slotX - 40, -40, 1920, size[1] + 120]
+    end if
     ' The ring goes round the grown card, its inner edge two pixels clear of the picture.
     grow = (k.focusScale - 1) / 2
     out = k.focusSpread + 6

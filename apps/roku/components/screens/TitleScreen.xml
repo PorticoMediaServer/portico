@@ -6,6 +6,8 @@
     <field id="item" type="assocarray" onChange="onItem"/>
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <field id="art" type="string"/>
+    <!-- True while the page's rows and words lie over the art: the scene dims it. -->
+    <field id="quiet" type="boolean"/>
     <!-- Asks the scene to open or play a title: {item, play, startOver}. -->
     <field id="open" type="assocarray" alwaysNotify="true"/>
   </interface>

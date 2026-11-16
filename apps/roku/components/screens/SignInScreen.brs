@@ -186,6 +186,7 @@ sub onCode(event as object)
         return
     end if
     m.pending = result.data
+    if createObject("roAppInfo").isDev() then ? "PORTICO code "; m.pending.code
     m.top.findNode("digits").text = m.pending.code
     m.top.findNode("qr").text = m.origin + "/device#code=" + m.pending.code
     seconds = 3

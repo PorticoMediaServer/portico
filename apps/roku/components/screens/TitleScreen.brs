@@ -71,6 +71,7 @@ end sub
 ' Lay the page out for the stop focus is on.
 sub place()
     atTop = (m.stop = 0)
+    m.top.quiet = not atTop
     m.top_.visible = atTop
     m.smallTitle.visible = not atTop
     if atTop then m.sections.translation = [0, 700] else m.sections.translation = [0, 164]
