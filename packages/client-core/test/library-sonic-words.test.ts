@@ -7,7 +7,7 @@ import type {LibrarySonicDocument} from '../src/server-admin/library-sonic.ts';
 const i18n = createI18n();
 const doc = (over: Partial<LibrarySonicDocument> = {}): LibrarySonicDocument => ({
   libraryId: 'music', revision: 4, enabled: true, defaultEnabled: true, available: true, state: 'analyzing',
-  done: 12400, total: 48000, policyAllows: true, policyRevision: 3, observedAtMs: 0, ...over,
+  done: 12400, total: 48000, observedAtMs: 0, ...over,
 });
 const time = (at: number) => `at ${at}`;
 const n = (value: number) => new Intl.NumberFormat().format(value);

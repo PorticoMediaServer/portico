@@ -31,6 +31,8 @@ export function libraryDocument(library: AdminLibrary): LibraryAdminDocument {
     // The route defines omitted/empty lyrics as files only.
     settings.lyricsSource = options.lyrics === 'lrclib' ? 'lrclib' : 'files';
     eligible.push('libraries.lyrics');
+    // Sonic analysis: its switch and status are read beside the library (library-sonic.ts).
+    if (typeof options.soundAnalysis === 'boolean') eligible.push('libraries.sonicAnalysis', 'libraries.sonicStatus');
   }
   if (options.segmentDetection && ['server', 'off', 'standard', 'thorough'].includes(options.segmentDetection)) settings.segmentDetection = options.segmentDetection as LibrarySettings['segmentDetection'];
   if ((library.kind === 'shows' || library.kind === 'anime') && episodeThumbnailChoices.includes(options.episodeThumbnails as EpisodeThumbnailChoice)) {

@@ -4,7 +4,7 @@ import {patchLibrarySonicSettingsBinding,readLibrarySonicSettingsBinding} from '
 import type {LibrarySonicDocument} from '../src/server-admin/library-sonic.ts';
 
 const library={libraryId:'music',libraryKind:'music',eligibleControls:['libraries.sonicAnalysis','libraries.sonicStatus']};
-const sonic:LibrarySonicDocument={libraryId:'music',available:true,enabled:false,defaultEnabled:true,revision:9,policyAllows:false,state:'disabled',done:2,total:7,policyRevision:3,observedAtMs:1000};
+const sonic:LibrarySonicDocument={libraryId:'music',available:true,enabled:false,defaultEnabled:true,revision:9,state:'disabled',done:2,total:7,observedAtMs:1000};
 test('Sonic reads and reset intents use the real factory default and independent CAS revision',()=>{
  const row=readLibrarySonicSettingsBinding('libraries.sonicAnalysis',library,sonic)!;
  assert.equal(row.current,false);assert.equal(row.effective,false);assert.equal(row.default,true);
@@ -19,7 +19,7 @@ test('Sonic bindings require both the real Library hint and matching available r
  for(const value of [undefined,null,'true',1])assert.throws(()=>patchLibrarySonicSettingsBinding('libraries.sonicAnalysis',value,library,sonic));
 });
 test('Sonic status is read-only and contains only approved producer facts',()=>{
- const row=readLibrarySonicSettingsBinding('libraries.sonicStatus',library,{...sonic,model:{id:'model',version:'v1',sha256:'a'.repeat(64)},estimatedRemainingSeconds:12})!;
+ const row=readLibrarySonicSettingsBinding('libraries.sonicStatus',library,{...sonic,estimatedRemainingSeconds:12})!;
  assert.deepEqual(row.current,{state:'disabled',done:2,total:7,observedAtMs:1000,estimatedRemainingSeconds:12});
  assert.equal(row.default,undefined);
  assert.throws(()=>patchLibrarySonicSettingsBinding('libraries.sonicStatus',true,library,sonic));

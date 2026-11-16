@@ -1,48 +1,44 @@
 import {throwIfAborted} from '../abort-lifetime.ts';
-import {decodeGetAdminLibrariesIdSonicAnalysisResponse} from '../../../contracts/src/decoders.ts';
-import {encodedRoutePath} from '../../../contracts/src/route-paths.ts';
-import type {GetAdminLibrariesIdSonicAnalysisResponse} from '../../../contracts/src/types.ts';
+import {callServer, serverPath} from '../query/server-api.ts';
 import type {LibraryContentApi} from '../library-content.ts';
+import {unreadableServerResponse} from '../server-messages.ts';
+import {ownerLibrary} from './library-document.ts';
+import {patchOwnerLibrary} from './libraries.ts';
 
 export type LibrarySonicState='disabled'|'unavailable'|'complete'|'paused'|'analyzing';
-export type LibrarySonicDocument=Readonly<Omit<GetAdminLibrariesIdSonicAnalysisResponse,'state'>&{state:LibrarySonicState}>;
+/** A music library's Sonic analysis: its switch (the library's `soundAnalysis` option, on by default) and the
+ * server's status line (`GET /v1/admin/libraries/{id}/sound-analysis`). `revision` is the library's. */
+export type LibrarySonicDocument=Readonly<{libraryId:string;revision:number;enabled:boolean;defaultEnabled:boolean;available:boolean;state:LibrarySonicState;
+ done:number;total:number;observedAtMs:number;reasonCode?:string;pausedUntilMs?:number;estimatedRemainingSeconds?:number}>;
 
-function libraryID(id:string):string{
- if(!id||id.length>256||/[\x00-\x1f\x7f]/.test(id))throw new Error('Invalid library identity.');
- return encodeURIComponent(id);
-}
-function parse(raw:unknown,id:string,signal?:AbortSignal):LibrarySonicDocument{
- throwIfAborted(signal);
- const doc=decodeGetAdminLibrariesIdSonicAnalysisResponse(raw);
- if(doc.libraryId!==id||!Number.isSafeInteger(doc.revision)||doc.revision<1||
-  !['disabled','unavailable','complete','paused','analyzing'].includes(doc.state)||
-  [doc.done,doc.total,doc.policyRevision,doc.observedAtMs].some(v=>!Number.isSafeInteger(v)||v<0)||
-  [doc.pausedUntilMs,doc.estimatedRemainingSeconds].some(v=>v!==undefined&&(!Number.isSafeInteger(v)||v<0)))throw new Error('Invalid library Sonic status.');
- return Object.freeze({...doc,state:doc.state as LibrarySonicState});
-}
+const states:Readonly<Record<string,LibrarySonicState>>={analyzing:'analyzing',paused:'paused',done:'complete',off:'disabled',cant_run:'unavailable'};
+const count=(v:unknown):v is number=>Number.isSafeInteger(v)&&(v as number)>=0;
+const invalid=():never=>{throw new Error(unreadableServerResponse);};
 
 /** Runtime readiness is a captured producer fact, independent of the saved switch. */
 export function librarySonicAvailable(doc:LibrarySonicDocument):boolean{return doc.available;}
 
 export async function readLibrarySonic(api:LibraryContentApi,libraryId:string,signal?:AbortSignal):Promise<LibrarySonicDocument>{
- const path=encodedRoutePath('get_admin_libraries_id_sonic_analysis',{id:libraryID(libraryId)});
+ const [raw,status]=await Promise.all([api.request<unknown>(serverPath('GET /v1/admin/libraries/{id}',{id:libraryId}),'GET',undefined,signal),
+  callServer(api,'GET /v1/admin/libraries/{id}/sound-analysis',{id:libraryId,signal})]);
  throwIfAborted(signal);
- return parse(await api.request<unknown>(path,'GET',undefined,signal),libraryId,signal);
+ const library=ownerLibrary(raw,libraryId),state=states[status?.state];
+ if(!state||typeof status.on!=='boolean'||typeof status.available!=='boolean'||!count(status.songs)||!count(status.analyzed)||
+  status.secondsLeft!==undefined&&!count(status.secondsLeft)||status.pausedUntil!==undefined&&!Number.isFinite(Date.parse(status.pausedUntil)))return invalid();
+ return Object.freeze({libraryId,revision:Number(library.revision),enabled:status.on,defaultEnabled:true,available:status.available,state,
+  done:status.analyzed,total:status.songs,observedAtMs:Date.now(),
+  ...(status.pausedUntil?{pausedUntilMs:Date.parse(status.pausedUntil)}:{}),...(status.secondsLeft!==undefined?{estimatedRemainingSeconds:status.secondsLeft}:{})});
 }
 
-/** Save exactly one library choice at its captured revision; never replay automatically. */
+/** Turns the library's switch on or off at the revision the page read; the library keeps its other choices. */
 export async function saveLibrarySonic(api:LibraryContentApi,current:LibrarySonicDocument,enabled:boolean,signal?:AbortSignal):Promise<LibrarySonicDocument>{
  if(typeof enabled!=='boolean'||!Number.isSafeInteger(current.revision)||current.revision<1)throw new Error('Invalid library Sonic change.');
- const path=encodedRoutePath('put_admin_libraries_id_sonic_analysis',{id:libraryID(current.libraryId)});
- throwIfAborted(signal);
- const doc=parse(await api.request<unknown>(path,'PUT',{enabled,expectedRevision:current.revision},signal),current.libraryId,signal);
- if(doc.revision<=current.revision||doc.enabled!==enabled)throw new Error('Library Sonic change could not be reconciled.');
+ const library=ownerLibrary(await api.request<unknown>(serverPath('GET /v1/admin/libraries/{id}',{id:current.libraryId}),'GET',undefined,signal),current.libraryId);
+ await patchOwnerLibrary(api,current.libraryId,current.revision,{options:{...library.options,soundAnalysis:enabled}},signal);
+ const doc=await readLibrarySonic(api,current.libraryId,signal);
+ if(doc.enabled!==enabled)throw new Error('Library Sonic change could not be reconciled.');
  return doc;
 }
 
-/** Retry only the server's current runtime/model probe, with no client model or work input. */
-export async function retryLibrarySonic(api:LibraryContentApi,libraryId:string,signal?:AbortSignal):Promise<LibrarySonicDocument>{
- const path=encodedRoutePath('post_admin_libraries_id_sonic_analysis_retry',{id:libraryID(libraryId)});
- throwIfAborted(signal);
- return parse(await api.request<unknown>(path,'POST',{},signal),libraryId,signal);
-}
+/** The server checks its sound model by itself; trying again reads its answer once more. */
+export const retryLibrarySonic=readLibrarySonic;

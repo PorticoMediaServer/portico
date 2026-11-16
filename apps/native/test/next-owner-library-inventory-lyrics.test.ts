@@ -17,14 +17,13 @@ async function fixture() {
   const core = '../../../../../../packages/client-core/src/';
   const module = await screenModule(new URL('../src-next/screens/settings-live/owner-libraries/controller.ts', import.meta.url), {
     react: {default: {}}, '../../../../../../packages/contracts/src/routes': routes,
-    [core + 'library-management']: {LibraryManagementService: Management, fetchEpisodeIssues: async () => ({issues: [], nextCursor: ''})},
+    [core + 'library-management']: {LibraryManagementService: Management, readUnmatchedTitles: async () => ({items: []})},
     [core + 'library-inventory']: {},
-    [core + 'remote-sources']: {RemoteSourceService: class {dispose() {}}},
     [core + 'server-admin/libraries']: {readOwnerLibraryInventoryConfig: (_: unknown, _scope: unknown, id: string) => inventoryRead(id), readOwnerLibrarySettings: async (_: unknown, id: string) => {
       const document = {libraryId: id, libraryKind: 'music', settings: {lyricsSource: 'lrclib'}, eligibleControls: ['libraries.lyrics'], sources: [{id: 'forbidden-fallback'}]};
       documents.set(id, document); return document;
     }},
-    [core + 'scan-issues']: {}, [core + 'title-identity']: {},
+    [core + 'admin/skipped-files']: {readLibrarySkippedFiles: async () => ({items: []})}, [core + 'title-identity']: {},
     [core + 'server-admin/metadata-agent']: {metadataAgentPath: (id: string) => id, parseMetadataAgent: () => undefined},
     [core + 'server-admin/library-sonic']: {readLibrarySonic: async () => undefined}, [core + 'presentation/settings-bindings']: {},
   });

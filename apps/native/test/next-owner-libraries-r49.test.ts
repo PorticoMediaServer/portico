@@ -1,9 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {LibraryAdminJob, ManagedLibrary} from '../../../packages/client-core/src/library-management';
-import type {ScanIssue} from '../../../packages/client-core/src/scan-issues';
 import {defaultI18n} from '../../../packages/i18n/src';
-import {ownerLibraryAudience, ownerLibraryCounts, ownerLibraryInterval, ownerLibraryKind, ownerLibraryScan, ownerLibraryState, ownerSkippedFiles, ownerIssueReason} from '../src-next/screens/settings-live/owner-libraries/presentation.ts';
+import {ownerLibraryAudience, ownerLibraryCounts, ownerLibraryInterval, ownerLibraryKind, ownerLibraryScan, ownerLibraryState} from '../src-next/screens/settings-live/owner-libraries/presentation.ts';
 
 const library = (patch: Partial<ManagedLibrary> = {}): ManagedLibrary => ({
   id: 'lib-tv', name: 'TV Shows', kind: 'tv', revision: 3, source: {path: '/srv/media/TV', availability: 'available', basis: 'probe'},
@@ -59,13 +58,3 @@ test('folder intervals say what the server will do', () => {
   assert.equal(ownerLibraryInterval(7200), defaultI18n.t('next.ownerLibraries.interval.hours', {count: 2}));
 });
 
-test('files skipped lists only files Portico cannot play, with the server reason', () => {
-  const issues: ScanIssue[] = [
-    {sequence: 1, line: 1, path: '/tv/a.mkv', reason: 'damaged', category: 'damaged', messageKey: 'scan.issue.damaged', warning: false},
-    {sequence: 2, line: 2, path: '/tv/.hidden', reason: 'ignored', messageKey: 'scan.issue.ignored_name', warning: true},
-    {sequence: 3, line: 3, path: '/tv/b.iso', reason: 'unsupported', category: 'unsupported', messageKey: 'scan.issue.unsupported', warning: false},
-  ];
-  assert.deepEqual(ownerSkippedFiles(issues).map(issue => issue.sequence), [1, 3]);
-  assert.equal(ownerIssueReason(issues[0]!), defaultI18n.t('scan.issue.damaged'));
-  assert.equal(ownerIssueReason({...issues[0]!, messageKey: 'scan.issue.unknown_key'} as ScanIssue), 'damaged');
-});

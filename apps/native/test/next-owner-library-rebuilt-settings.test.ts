@@ -39,7 +39,7 @@ async function fixture(shows = false) {
     react: {default: {}}, '../../../../../../packages/contracts/src/routes': routes,
     [core + 'library-management']: management, [core + 'server-admin/libraries']: libraries,
     [core + 'server-admin/metadata-agent']: metadata, [core + 'settings-document']: versions,
-    [core + 'remote-sources']: {RemoteSourceService: class {dispose() {}}}, [core + 'scan-issues']: {}, [core + 'title-identity']: {},
+    [core + 'admin/skipped-files']: {readLibrarySkippedFiles: async () => ({items: []})}, [core + 'title-identity']: {},
     [core + 'server-admin/library-sonic']: {}, [core + 'presentation/settings-bindings']: bindings,
   });
   const controller = new module.NativeOwnerLibrariesController(api, {serverId: 'server', viewerId: 'owner'}, () => 'operation');

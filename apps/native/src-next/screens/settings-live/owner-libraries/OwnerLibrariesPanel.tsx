@@ -1,6 +1,5 @@
 import {jobStateName} from '../../../../../../packages/client-core/src/server-admin/console-catalogue';
 import type {LibraryContentApi} from '../../../../../../packages/client-core/src/library-content';
-import type {AnalysisPolicy} from '../../../../../../packages/client-core/src/remote-sources';
 import {LibraryTrashGroup} from './LibraryTrashGroup';
 import {loadInitialOwnerLibrary} from './initial-library';
 import {screenScopeEnded, type NativeScreenLifetime} from '../lifetime';
@@ -40,7 +39,7 @@ import {LibrarySettingsRows} from './LibrarySettingsRows';
 import {libraryListState} from './library-settings-model';
 import {NativeOwnerLibrariesController, sonicPageLease, type NativeOwnerLibrariesSnapshot, type SonicPageLease} from './controller';
 import {viewerQueriesFor} from '../../../shell/freshness';
-import {ownerFolderLocation, ownerFolderState, ownerIssueReason, ownerLibraryAudience, ownerLibraryCounts, ownerLibraryInterval, ownerLibraryKind, ownerLibraryScan, ownerLibrarySquare, ownerLibraryState, ownerSkippedFiles} from './presentation';
+import {ownerFolderLocation, ownerFolderState, ownerLibraryAudience, ownerLibraryCounts, ownerLibraryInterval, ownerLibraryKind, ownerLibraryScan, ownerLibrarySquare, ownerLibraryState, ownerUnmatchedReason} from './presentation';
 import {registerBack} from '../../../kit/navigation/back';
 import {TopBar} from '../../../kit/layout/TopBar';
 
@@ -121,7 +120,6 @@ export function NativeOwnerLibrariesPanel({ports, runtime, initialLibraryId, lif
       moreUnmatched={() => {void controller.loadUnmatchedMore();}}
       save={patch => {void controller.save(patch);}} saveAgent={id => {void controller.saveAgent(id);}} scanAll={() => {void controller.scanAll();}}
       parentCurrent={parentCurrent} retryInventory={() => {void controller.reloadInventory();}} fetchLyrics={(document, current) => controller.fetchLyrics(document, current)}
-      strmChange={(enabled, document, policy, lease) => {void controller.setStrm(enabled, document, policy, lease);}} strmRetry={document => {void controller.reloadStrm(document);}}
       sonicToggle={(enabled, document, sonic, lease) => {void controller.setSonicEnabled(enabled, document, sonic, lease);}}
       sonicRetry={(document, sonic, lease) => {void controller.retrySonic(document, sonic, lease);}}
       sonicReload={(document, sonic, lease) => {void controller.reloadSonic(document, sonic, lease);}}/>
@@ -192,14 +190,12 @@ function LibraryListRow({library, first, t, runtime, state, onOpen, onMenu}: {li
   </View>;
 }
 
-function LibraryPage({api, library, document, state, tab, tabChange, t, runtime, serverName, viewerRole, back, menu, scan, cancel, dashboard, renameLibrary, removeLibrary, addFolder, folderMenu, skipped, moreUnmatched, save, saveAgent, scanAll, parentCurrent, retryInventory, fetchLyrics, strmChange, strmRetry, sonicToggle, sonicRetry, sonicReload}: {
+function LibraryPage({api, library, document, state, tab, tabChange, t, runtime, serverName, viewerRole, back, menu, scan, cancel, dashboard, renameLibrary, removeLibrary, addFolder, folderMenu, skipped, moreUnmatched, save, saveAgent, scanAll, parentCurrent, retryInventory, fetchLyrics, sonicToggle, sonicRetry, sonicReload}: {
   api: LibraryContentApi; library: ManagedLibrary; document?: LibraryAdminDocument; state: NativeOwnerLibrariesSnapshot; tab: string; tabChange: (id: string) => void;
   t: Translate; runtime: NativeShellRuntime; serverName: string; viewerRole: ViewerRole; back: () => void; menu: () => void; scan: () => void; cancel: () => void; dashboard: () => void;
   renameLibrary: () => void; removeLibrary: () => void; addFolder: () => void; folderMenu: (source: InventorySource) => void; skipped: () => void; moreUnmatched: () => void;
   save: (patch: Partial<LibrarySettings>) => void; saveAgent: (id: string) => void; scanAll: () => void; parentCurrent: () => boolean;
   retryInventory: () => void; fetchLyrics: (document: LibraryAdminDocument, current: () => boolean) => Promise<void>;
-  strmChange: (enabled: boolean, document: LibraryAdminDocument, policy: AnalysisPolicy, lease: SonicPageLease) => void;
-  strmRetry: (document: LibraryAdminDocument) => void;
   sonicToggle: (enabled: boolean, document: LibraryAdminDocument, sonic: LibrarySonicDocument, lease: SonicPageLease) => void;
   sonicRetry: (document: LibraryAdminDocument, sonic: LibrarySonicDocument, lease: SonicPageLease) => void;
   sonicReload: (document: LibraryAdminDocument, sonic: LibrarySonicDocument, lease: SonicPageLease) => void;
@@ -233,7 +229,7 @@ function LibraryPage({api, library, document, state, tab, tabChange, t, runtime,
         {tab === 'general' && <GeneralTab library={library} document={document} t={t} renameLibrary={renameLibrary} removeLibrary={removeLibrary} busy={state.busy} save={save}/>}
         {tab === 'folders' && <FoldersTab state={state} retry={retryInventory} t={t} addFolder={addFolder} folderMenu={folderMenu}/>}
         {tab === 'metadata' && <><MetadataTab document={document} metadata={state.metadata} busy={state.busy} t={t} save={save} saveAgent={saveAgent} fetchLyrics={fetchLyrics} state={state} parentCurrent={parentCurrent}/><SectionTitle>{t('next.ownerLibraries.tab.attention')}</SectionTitle><AttentionTab state={state} t={t} more={moreUnmatched}/></>}
-        {tab === 'scanning' && <ScanningTab api={api} library={library} document={document} state={state} t={t} locale={runtime.text.locale ?? defaultI18n.region.formatLocale} skipped={skipped} cancel={cancel} dashboard={dashboard} save={save} scanAll={scanAll} parentCurrent={parentCurrent} strmChange={strmChange} strmRetry={strmRetry} sonicToggle={sonicToggle} sonicRetry={sonicRetry} sonicReload={sonicReload}/>}
+        {tab === 'scanning' && <ScanningTab api={api} library={library} document={document} state={state} t={t} locale={runtime.text.locale ?? defaultI18n.region.formatLocale} skipped={skipped} cancel={cancel} dashboard={dashboard} save={save} scanAll={scanAll} parentCurrent={parentCurrent} sonicToggle={sonicToggle} sonicRetry={sonicRetry} sonicReload={sonicReload}/>}
         {tab === 'advanced' && <AdvancedTab document={document} t={t} owner={viewerRole === 'owner'} busy={state.busy} save={save}/>}
         {tab === 'scanning' && viewerRole === 'owner' && <LibraryTrashGroup api={api} libraryId={library.id} parentCurrent={parentCurrent} t={t}/>}
       </View>
@@ -291,15 +287,13 @@ function AttentionTab({state, t, more}: {state: NativeOwnerLibrariesSnapshot; t:
     <Text style={[shellType(13, 400, 18.5), {color: theme.colors.textSecondary, marginBottom: 12}]}>{t('next.ownerLibraries.unmatchedLede')}</Text>
     <SettingsGroup>
       {!state.unmatched.length && <SettingsRow first label={t(state.unmatchedLoading ? 'web.libraries.loadingOne' : 'next.ownerLibraries.unmatchedEmpty')}/>}
-      {state.unmatched.map((issue, index) => <SettingsRow key={issue.assetId} first={index === 0} icon="i-note" label={issue.sourceName} description={issue.code}/>)}
+      {state.unmatched.map((title, index) => <SettingsRow key={title.itemId} first={index === 0} icon="i-note" label={title.year ? `${title.title} (${title.year})` : title.title} description={ownerUnmatchedReason(title.reason, t)}/>)}
       {state.unmatchedCursor ? <SettingsRow navigates label={t('next.ownerLibraries.showMore')} onPress={more}/> : null}
     </SettingsGroup>
   </>;
 }
 
-function ScanningTab({api, library, document, state, t, locale, skipped, cancel, dashboard, save, scanAll, parentCurrent, strmChange, strmRetry, sonicToggle, sonicRetry, sonicReload}: {api: LibraryContentApi; library: ManagedLibrary; document?: LibraryAdminDocument; state: NativeOwnerLibrariesSnapshot; t: Translate; locale: string; skipped: () => void; cancel: () => void; dashboard: () => void; save: (patch: Partial<LibrarySettings>) => void; scanAll: () => void; parentCurrent: () => boolean;
-  strmChange: (enabled: boolean, document: LibraryAdminDocument, policy: AnalysisPolicy, lease: SonicPageLease) => void;
-  strmRetry: (document: LibraryAdminDocument) => void;
+function ScanningTab({api, library, document, state, t, locale, skipped, cancel, dashboard, save, scanAll, parentCurrent, sonicToggle, sonicRetry, sonicReload}: {api: LibraryContentApi; library: ManagedLibrary; document?: LibraryAdminDocument; state: NativeOwnerLibrariesSnapshot; t: Translate; locale: string; skipped: () => void; cancel: () => void; dashboard: () => void; save: (patch: Partial<LibrarySettings>) => void; scanAll: () => void; parentCurrent: () => boolean;
   sonicToggle: (enabled: boolean, document: LibraryAdminDocument, sonic: LibrarySonicDocument, lease: SonicPageLease) => void;
   sonicRetry: (document: LibraryAdminDocument, sonic: LibrarySonicDocument, lease: SonicPageLease) => void;
   sonicReload: (document: LibraryAdminDocument, sonic: LibrarySonicDocument, lease: SonicPageLease) => void}) {
@@ -317,7 +311,7 @@ function ScanningTab({api, library, document, state, t, locale, skipped, cancel,
   const sonicLine = sonic ? librarySonicStatus(sonic, t, at => defaultI18n.dateTime(new Date(at))) : undefined;
   const sonicUnavailable = !!sonic && (!sonic.available || sonic.state === 'unavailable');
   const sonicErrorText = state.sonicError !== undefined ? presentError(state.sonicError, 'library', {operation: state.sonicErrorOperation ?? 'load'}).body : undefined;
-  const skippedCount = ownerSkippedFiles(state.skipped?.items ?? []).length || (library.filesSkipped ?? 0);
+  const skippedCount = state.skipped?.items.length || (library.filesSkipped ?? 0);
   return <>
     {active && <View style={{gap: 8, padding: 12, marginTop: 4, borderRadius: 12, backgroundColor: alpha(theme.colors.accent, .12)}}>
       <View style={{flexDirection: 'row', gap: 10}}>
@@ -337,15 +331,6 @@ function ScanningTab({api, library, document, state, t, locale, skipped, cancel,
         onValueChange={value => save({segmentDetection: value as LibrarySettings['segmentDetection']})}/>}/>
     </SettingsGroup>
     <LibrarySettingsRows tab="scanning" document={document} busy={state.busy} t={t} save={save}/>
-    {(state.strm || state.strmError !== undefined) && <SettingsGroup style={{marginTop: 12}}>
-      <SettingsRow first label={t('next.settingsSpec.server.libraries.panels.library.tabs.4.groups.0.rows.1.label')}
-        description={state.strmError !== undefined ? presentError(state.strmError, 'library').body : t('next.settingsSpec.server.libraries.panels.library.tabs.4.groups.0.rows.1.help')}
-        control={state.strm ? <Switch testID="libraries.strm" checked={state.strm.enabled} disabled={state.busy || !pageLease || state.strmError !== undefined}
-          accessibilityLabel={t('next.settingsSpec.server.libraries.panels.library.tabs.4.groups.0.rows.1.label')}
-          onCheckedChange={enabled => {if (pageLease && state.strm) strmChange(enabled, document, state.strm, pageLease);}}/>
-          : undefined}/>
-      {state.strmError !== undefined && <SettingsRow navigates label={t('action.tryAgain')} onPress={state.busy ? undefined : () => strmRetry(document)}/>}
-    </SettingsGroup>}
     {(toggle || sonicLine || sonicErrorText || (state.sonicNeedsReload && sonic)) && <SettingsGroup style={{marginTop: 12}}>
       {toggle && <SettingsRow first label={t('next.settingsSpec.server.libraries.panels.library.tabs.3.groups.0.rows.5.label')} description={t('next.settingsSpec.server.libraries.panels.library.tabs.3.groups.0.rows.5.help')}
         control={<Switch testID="owner-libraries-sonic" checked={toggle.current === true} disabled={state.sonicBusy || state.sonicNeedsReload} accessibilityLabel={t('next.settingsSpec.server.libraries.panels.library.tabs.3.groups.0.rows.5.label')} onCheckedChange={enabled => {if (pageLease) sonicToggle(enabled, document, sonic!, pageLease);}}/>}/>}
@@ -373,17 +358,17 @@ function AdvancedTab({document, t, owner, busy, save}: {document?: LibraryAdminD
 }
 
 function SkippedSheet({open, onOpenChange, state, t, scan, more}: {open: boolean; onOpenChange: (open: boolean) => void; state: NativeOwnerLibrariesSnapshot; t: Translate; scan: () => void; more: () => void}) {
-  const theme = useTheme(), items = ownerSkippedFiles(state.skipped?.items ?? []);
+  const theme = useTheme(), items = state.skipped?.items ?? [];
   return <BottomSheet open={open} onOpenChange={next => onOpenChange(next)} title={t('next.ownerLibraries.filesSkippedTitle')} description={t('next.ownerLibraries.filesSkippedLede')} scrollable
     footer={<View style={{flexDirection: 'row', gap: 10}}><Button size="small" icon="i-refresh" onPress={scan} style={{flex: 1}}>{t('next.ownerLibraries.scanAgain')}</Button><Button variant="glass" size="small" onPress={() => onOpenChange(false)}>{t('action.close')}</Button></View>}>
     <View style={{paddingBottom: 8}}>
       {state.skippedLoading && <Text style={[shellType(13, 500), {color: theme.colors.textTertiary}]}>{t('next.ownerLibraries.loading')}</Text>}
       {!state.skippedLoading && !items.length && <Text style={[shellType(13, 500), {color: theme.colors.textTertiary}]}>{t('next.ownerLibraries.skippedEmpty')}</Text>}
-      {items.map(item => <View key={item.sequence} style={{paddingVertical: 10, borderTopWidth: item.sequence ? 1 : 0, borderTopColor: theme.colors.lineSoft}}>
+      {items.map((item, index) => <View key={item.path} style={{paddingVertical: 10, borderTopWidth: index ? 1 : 0, borderTopColor: theme.colors.lineSoft}}>
         <Text style={[shellType(12, 500, 16), {color: theme.colors.textSecondary, fontFamily: 'monospace'}]}>{item.path}</Text>
-        <Text style={[shellType(12.5, 500, 17.5), {color: theme.colors.textTertiary, marginTop: 3}]}>{ownerIssueReason(item, t)}</Text>
+        <Text style={[shellType(12.5, 500, 17.5), {color: theme.colors.textTertiary, marginTop: 3}]}>{item.message}</Text>
       </View>)}
-      {state.skipped?.hasMore ? <Button variant="glass" size="small" onPress={more} style={{marginTop: 10}}>{t('next.ownerLibraries.showMore')}</Button> : null}
+      {state.skipped?.nextCursor ? <Button variant="glass" size="small" onPress={more} style={{marginTop: 10}}>{t('next.ownerLibraries.showMore')}</Button> : null}
     </View>
   </BottomSheet>;
 }
