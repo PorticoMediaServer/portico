@@ -243,7 +243,7 @@ func (s *Service) match(ctx context.Context, p Provider, locale Locale, libraryK
 	if err := s.DB.ApplyDetails(ctx, db.Background, item.ID, details(record, db.MatchFound)); err != nil {
 		return false, err
 	}
-	if err := s.storePictures(ctx, item.ID, record.Pictures, "", db.Background); err != nil {
+	if err := s.storeTitlePictures(ctx, item.ID, record); err != nil {
 		return false, err
 	}
 	s.moods(ctx, item.ID)
@@ -329,8 +329,17 @@ func (s *Service) childGroups(ctx context.Context, p Provider, locale Locale, it
 		if ref.Order != OrderAbsolute {
 			apply = group
 		}
-		if err := s.DB.ApplyChildren(ctx, db.Background, itemID, kind, apply, children); err != nil {
+		ids, err := s.DB.ApplyChildren(ctx, db.Background, itemID, kind, apply, children)
+		if err != nil {
 			return err
+		}
+		// An episode's still, recorded for the picture pass as the title's own pictures are.
+		for i, id := range ids {
+			if id != 0 {
+				if err := s.storePictures(ctx, id, records[i].Pictures, "", db.Background); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	return nil
@@ -484,7 +493,7 @@ func (s *Service) IdentifyShow(ctx context.Context, itemID string, ref Ref, offs
 	if err != nil || remaining != itemID {
 		return remaining, order, err // merged into a title that has its details already
 	}
-	if err := s.storePictures(ctx, t.ID, record.Pictures, "", db.Background); err != nil {
+	if err := s.storeTitlePictures(ctx, t.ID, record); err != nil {
 		return remaining, order, err
 	}
 	s.moods(ctx, t.ID)
@@ -546,7 +555,7 @@ func (s *Service) Rematch(ctx context.Context, itemID string) (bool, error) {
 	if _, err := s.DB.ChangeMatch(ctx, db.User, t.ID, details(record, db.MatchFound)); err != nil {
 		return false, err
 	}
-	if err := s.storePictures(ctx, t.ID, record.Pictures, "", db.Background); err != nil {
+	if err := s.storeTitlePictures(ctx, t.ID, record); err != nil {
 		return true, err
 	}
 	s.moods(ctx, t.ID)

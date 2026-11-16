@@ -210,6 +210,39 @@ func (s *Service) run(ctx context.Context, work jobs.Work) error {
 
 var errNoDecoder = errors.New("no decoder")
 
+// OpenFile opens a version's first file, on a disk the server reads or on a remote source,
+// for a decoder to read. A file that changed since the scan read it is db.ErrConflict.
+func OpenFile(ctx context.Context, openRemote func(context.Context, int64) (remote.Storage, time.Duration, error), e db.SegmentEntry) (interface {
+	io.ReaderAt
+	io.Closer
+}, error) {
+	if e.RemoteID != 0 && openRemote != nil {
+		storage, _, err := openRemote(ctx, e.RemoteID)
+		if err != nil {
+			return nil, err
+		}
+		file, err := storage.Open(ctx, path.Join(e.Root, e.Relative))
+		if err != nil {
+			return nil, err
+		}
+		if file.Size() != e.Size {
+			file.Close()
+			return nil, db.ErrConflict
+		}
+		return file, nil
+	}
+	file, err := libraryfile.Open(e.Path(), []string{e.Root})
+	if err != nil {
+		return nil, err
+	}
+	info, err := file.Stat()
+	if err != nil || info.Size() != e.Size || info.ModTime().UnixNano() != e.ModifiedNS {
+		file.Close()
+		return nil, db.ErrConflict
+	}
+	return file, nil
+}
+
 func (s *Service) read(ctx context.Context, e db.SegmentEntry, mode string) (segmentdetect.Evidence, []segmentdetect.Detection, error) {
 	empty := segmentdetect.Evidence{}
 	supervisor, ffmpeg, err := s.Tools(ctx)
@@ -219,35 +252,9 @@ func (s *Service) read(ctx context.Context, e db.SegmentEntry, mode string) (seg
 	if supervisor == nil || ffmpeg == "" {
 		return empty, nil, errNoDecoder
 	}
-	var file interface {
-		io.ReaderAt
-		io.Closer
-	}
-	if e.RemoteID != 0 && s.Remote != nil {
-		storage, _, openErr := s.Remote(ctx, e.RemoteID)
-		if openErr != nil {
-			return empty, nil, openErr
-		}
-		remoteFile, openErr := storage.Open(ctx, path.Join(e.Root, e.Relative))
-		if openErr != nil {
-			return empty, nil, openErr
-		}
-		if remoteFile.Size() != e.Size {
-			remoteFile.Close()
-			return empty, nil, db.ErrConflict
-		}
-		file = remoteFile
-	} else {
-		local, openErr := libraryfile.Open(e.Path(), []string{e.Root})
-		if openErr != nil {
-			return empty, nil, openErr
-		}
-		info, openErr := local.Stat()
-		if openErr != nil || info.Size() != e.Size || info.ModTime().UnixNano() != e.ModifiedNS {
-			local.Close()
-			return empty, nil, db.ErrConflict
-		}
-		file = local
+	file, err := OpenFile(ctx, s.Remote, e)
+	if err != nil {
+		return empty, nil, err
 	}
 	defer file.Close()
 	chapters, err := s.DB.SegmentChapters(ctx, e.MediaID)
