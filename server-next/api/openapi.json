@@ -7555,6 +7555,7 @@
           "locked": {
             "type": "boolean"
           },
+          "providerValue": {},
           "source": {
             "type": "string"
           },
@@ -7735,6 +7736,12 @@
           },
           "unlockAll": {
             "type": "boolean"
+          },
+          "useProvider": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "year": {
             "type": "integer"

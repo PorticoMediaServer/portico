@@ -113,3 +113,34 @@ func TestUndoOfAnOlderChangeKeepsWhatCameAfter(t *testing.T) {
 		t.Fatalf("Undo of an older edit changed a field edited since: %+v", f)
 	}
 }
+
+// "Use it" (definition area 4, rule 23): beside a field a person edited, the editor offers the
+// provider's value, kept through a refresh, and taking it puts the provider's value back now,
+// unlocked and the provider's again.
+func TestTheEditorOffersTheProvidersValueBesideAnEditedField(t *testing.T) {
+	sh := newShelf(t, "Heat (1995).mkv")
+	var items ItemPage
+	sh.do("GET", "/v1/items?kind=movie&library="+sh.library, nil, &items, 200)
+	heat := items.Items[0].ID
+	var doc MetadataDocument
+	sh.do("GET", "/v1/admin/items/"+heat+"/metadata", nil, &doc, 200)
+	tmdbSummary := doc.Fields["summary"].Value
+	if doc.Fields["summary"].Source != "provider" || doc.Fields["summary"].ProviderValue != nil || tmdbSummary == nil {
+		t.Fatalf("before any edit: %+v", doc.Fields["summary"])
+	}
+	mine := "My own words."
+	sh.patch(heat, doc.Revision, MetadataPatch{Summary: &mine}, &doc, 200)
+	sh.do("POST", "/v1/admin/items/"+heat+"/metadata/refresh", nil, nil, 200)
+	sh.do("GET", "/v1/admin/items/"+heat+"/metadata", nil, &doc, 200)
+	if f := doc.Fields["summary"]; f.Value != mine || f.Source != "edit" || !f.Locked || f.ProviderValue != tmdbSummary {
+		t.Fatalf("an edited summary after a refresh: %+v; want mine, locked, with the provider's beside it", f)
+	}
+	if f := doc.Fields["title"]; f.ProviderValue != nil {
+		t.Errorf("a field showing the provider's own value offers it again: %+v", f)
+	}
+	sh.patch(heat, doc.Revision, MetadataPatch{UseProvider: []string{"summary"}}, &doc, 200)
+	if f := doc.Fields["summary"]; f.Value != tmdbSummary || f.Source != "provider" || f.Locked || f.ProviderValue != nil {
+		t.Fatalf("after Use it: %+v; want the provider's, unlocked, with nothing beside it", f)
+	}
+	sh.patch(heat, doc.Revision, MetadataPatch{UseProvider: []string{"tagline"}}, nil, 400)
+}

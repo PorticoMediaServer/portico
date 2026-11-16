@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 )
 
@@ -21,6 +22,9 @@ type MetadataDocument struct {
 	Sources     map[string]string
 	ExternalIDs []ExternalID
 	Numbering   EpisodeNumbering // a show's episode order and number offset
+	// Provider holds, by field, the provider's value beside a field it could not change: one
+	// locked, edited or given by the files ("Use it").
+	Provider map[string]any
 }
 
 // DocumentCredit is one line of Cast & crew.
@@ -44,12 +48,13 @@ func (d *DB) MetadataDocument(ctx context.Context, publicID string) (MetadataDoc
 	var title, sortTitle string
 	var original, summary, tagline, edition, release, rating, locked, local sql.NullString
 	var year sql.NullInt64
+	var provided string
 	var community sql.NullFloat64
 	err = tx.QueryRowContext(ctx, `SELECT id, publication, kind, revision, match_state, title, sort_title, original_title, summary, tagline, edition, year,
 		release_date, content_rating, community_rating, locked_fields, local_fields, ifnull(extra ->> '$.episodeOrder', ''),
-		ifnull(extra ->> '$.episodeOffset', 0) FROM items WHERE public_id = ?`, publicID).Scan(
+		ifnull(extra ->> '$.episodeOffset', 0), ifnull(extra -> '$.provider', '{}') FROM items WHERE public_id = ?`, publicID).Scan(
 		&id, &publication, &doc.Kind, &doc.Revision, &doc.Match, &title, &sortTitle, &original, &summary, &tagline, &edition, &year, &release, &rating,
-		&community, &locked, &local, &doc.Numbering.Order, &doc.Numbering.Offset)
+		&community, &locked, &local, &doc.Numbering.Order, &doc.Numbering.Offset, &provided)
 	if errors.Is(err, sql.ErrNoRows) {
 		return doc, ErrNotFound
 	}
@@ -72,6 +77,7 @@ func (d *DB) MetadataDocument(ctx context.Context, publicID string) (MetadataDoc
 		doc.Fields[FieldRating] = community.Float64
 	}
 	doc.Locked, doc.Sources = sortedFields(fieldSet(locked)), fieldSources(local)
+	json.Unmarshal([]byte(provided), &doc.Provider)
 	tags, err := queryAll(ctx, tx, `SELECT t.kind, t.name FROM item_tags it JOIN tags t ON t.id = it.tag_id WHERE it.item_id = ?
 		AND t.kind IN ('genre', 'studio', 'network', 'country', 'label') ORDER BY t.name`, []any{id},
 		func(t *TagName) []any { return []any{&t.Kind, &t.Name} })
