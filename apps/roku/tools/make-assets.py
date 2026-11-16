@@ -215,6 +215,35 @@ def generated_cover(first, second, w=216, h=324):
     return to_pil(s)
 
 
+def disc(size):
+    s, ctx = surface(size, size)
+    ctx.arc(size / 2, size / 2, size / 2, 0, 6.2832)
+    ctx.set_source_rgba(1, 1, 1, 1)
+    ctx.fill()
+    return to_pil(s)
+
+
+def focus_disc(inner, ring=4, gap=6, spread=30):
+    """The focus ring and glow for a round face of the given diameter."""
+    size = inner + 2 * (gap + ring + spread)
+    s, ctx = surface(size, size)
+    c = size / 2
+    for i in range(22):
+        t = i / 21
+        ctx.set_source_rgba(*rgb(ACCENT), 0.020 + 0.05 * t * t)
+        ctx.arc(c, c, inner / 2 + gap + ring + spread * (1 - t), 0, 6.2832)
+        ctx.fill()
+    ctx.set_operator(cairo.OPERATOR_CLEAR)
+    ctx.arc(c, c, inner / 2 + gap + ring, 0, 6.2832)
+    ctx.fill()
+    ctx.set_operator(cairo.OPERATOR_OVER)
+    ctx.set_source_rgba(*rgb(FOCUS), 1)
+    ctx.set_line_width(ring)
+    ctx.arc(c, c, inner / 2 + gap + ring / 2, 0, 6.2832)
+    ctx.stroke()
+    return to_pil(s)
+
+
 def corner_mask(r, colour):
     """Four corner wedges in the page colour, for rounding a picture Roku cannot clip."""
     size = r * 2 + 4
@@ -289,6 +318,8 @@ def main():
     save_png(shade(8, 256, [(0, '#000000', 0), (0.45, '#03080c', 0.35), (1, '#03080c', 0.92)]), 'card-shade.png')
     save_png(shade(8, 256, [(0, INK, 0), (1, INK, 1)]), 'fade-down.png')
 
+    save_png(disc(216), 'disc.png')
+    save_png(focus_disc(216), 'focus-disc.png')
     for i, (first, second) in enumerate(COVER_TINTS):
         generated_cover(first, second).convert('RGB').save(os.path.join(OUT, 'cover-%d.jpg' % i), quality=88)
 

@@ -1,11 +1,12 @@
 ' Calling the server from a component: api("GET", "/v1/home", invalid, "onHome").
 ' The callback gets an event whose data is {ok, status, data, error}; event.getRoSGNode().ctx
 ' is whatever was passed as ctx.
-function api(method as string, path as string, body as dynamic, callback as string, ctx = invalid as dynamic) as object
+' Pass isPublic for the requests made before anyone is signed in (no sign-in is sent or renewed).
+function api(method as string, path as string, body as dynamic, callback as string, ctx = invalid as dynamic, isPublic = false as boolean) as object
     reply = createObject("roSGNode", "ApiReply")
     if ctx <> invalid then reply.ctx = ctx
     reply.observeField("result", callback)
-    m.global.api.request = {method: method, path: path, body: body, reply: reply}
+    m.global.api.request = {method: method, path: path, body: body, reply: reply, public: isPublic}
     return reply
 end function
 

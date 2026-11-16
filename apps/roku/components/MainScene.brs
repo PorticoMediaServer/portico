@@ -47,19 +47,99 @@ sub onLaunchArgs()
     origin = storeRead("origin")
     token = storeRead("refreshToken")
     if origin = "" or token = ""
-        return   ' sign-in screens come next
+        showSignIn()
+        return
     end if
     m.global.origin = origin
     m.task.session = {origin: origin, refreshToken: token, installationId: installationId()}
-    api("GET", "/v1/libraries", invalid, "onLibraries")
     api("GET", "/v1/me", invalid, "onMe")
-    api("GET", "/v1/live/channels?limit=1", invalid, "onLive")
-    show("HomeScreen")
 end sub
 
-sub show(component as string)
+' One screen at a time fills the page; the rail shows only once someone is signed in with a profile.
+sub show(component as string) 
     if m.screen <> invalid then m.screens.removeChild(m.screen)
     m.screen = m.screens.createChild(component)
+    m.rail.visible = false
+    m.backdrop.art = ""
+end sub
+
+sub showSignIn()
+    show("SignInScreen")
+    m.screen.observeField("signedIn", "onSignedIn")
+    m.screen.active = true
+end sub
+
+sub onSignedIn(event as object)
+    signIn = event.getData()
+    session = signIn.session
+    m.global.origin = signIn.origin
+    m.task.session = {origin: signIn.origin, accessToken: session.accessToken, refreshToken: session.refreshToken, installationId: installationId()}
+    storeWrite({origin: signIn.origin, serverName: signIn.serverName, refreshToken: session.refreshToken, renewalId: ""})
+    if session.viewer <> invalid and session.viewer.profileId <> invalid
+        enter()
+    else
+        showProfiles(signIn.profiles)
+    end if
+end sub
+
+' Who's watching, unless there is one profile with no PIN: then there is nothing to ask.
+sub showProfiles(profiles as object)
+    show("ProfilesScreen")
+    m.screen.serverName = storeRead("serverName")
+    m.screen.last = storeRead("profileId")
+    m.screen.profiles = profiles
+    m.screen.observeField("chosen", "onProfileChosen")
+    m.screen.active = true
+    if profiles.count() = 1 and profiles[0].pinRequired <> true then m.screen.callFunc("chooseOnly")
+end sub
+
+sub onProfileChosen(event as object)
+    chosen = event.getData()
+    session = m.task.session
+    session.accessToken = chosen.session.accessToken
+    if chosen.session.refreshToken <> invalid
+        session.refreshToken = chosen.session.refreshToken
+        storeWrite({refreshToken: session.refreshToken})
+    end if
+    m.task.session = session
+    storeWrite({profileId: chosen.profile.id})
+    enter()
+end sub
+
+sub onProfiles(event as object)
+    result = event.getData()
+    if result.ok and result.data.items <> invalid then showProfiles(result.data.items) else showSignIn()
+end sub
+
+' Signed in with a profile: the rail's facts, then Home.
+sub enter()
+    api("GET", "/v1/me", invalid, "onMe")
+end sub
+
+sub onMe(event as object)
+    result = event.getData()
+    if not result.ok
+        if result.status = 401 or result.status = 403
+            showSignIn()
+        else
+            showHome()   ' out of reach: Home says so and offers to try again
+        end if
+        return
+    end if
+    profile = result.data.profile
+    if profile = invalid
+        api("GET", "/v1/profiles", invalid, "onProfiles")
+        return
+    end if
+    m.rail.profileName = profile.name
+    m.rail.profileColour = "0x28587AFF"
+    showHome()
+end sub
+
+sub showHome()
+    api("GET", "/v1/libraries", invalid, "onLibraries")
+    api("GET", "/v1/live/channels?limit=1", invalid, "onLive")
+    show("HomeScreen")
     m.screen.observeField("art", "onArt")
     m.rail.visible = true
     m.rail.current = "home"
@@ -113,17 +193,10 @@ sub onLibrariesAgain()
     m.rail.current = "home"
 end sub
 
-sub onMe(event as object)
-    result = event.getData()
-    if not result.ok then return
-    profile = result.data.profile
-    if profile <> invalid
-        m.rail.profileName = profile.name
-        m.rail.profileColour = "0x28587AFF"
-    end if
-end sub
-
+' The server ended this sign-in (signed out elsewhere, or it ran out): start again at the front door.
 sub onSignInEnded()
+    storeWrite({refreshToken: "", renewalId: ""})
+    showSignIn()
 end sub
 
 sub onRailChosen(event as object)

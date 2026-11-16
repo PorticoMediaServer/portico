@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A QR code on a white plate, 300 px square. Set `text`; nothing is drawn for a text too long to encode. -->
+<component name="QrCode" extends="Group">
+  <interface>
+    <field id="text" type="string" onChange="onText"/>
+  </interface>
+  <script type="text/brightscript" uri="QrCode.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Qr.brs"/>
+  <children>
+    <Poster uri="pkg:/images/round-20.9.png" width="300" height="300"/>
+    <Group id="modules"/>
+  </children>
+</component>
