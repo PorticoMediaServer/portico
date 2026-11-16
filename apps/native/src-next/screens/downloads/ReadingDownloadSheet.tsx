@@ -1,8 +1,8 @@
-import {readDownloadOptionsResponse, prepareItemDownloadResponse} from '../../../../../packages/client-core/src/download-coordination';
+import {readDownloadOptions} from '../../../../../packages/client-core/src/device-downloads';
 import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {Text, View} from 'react-native';
 import {defaultI18n} from '../../../../../packages/i18n/src';
-import {downloadBytes, downloadReasonMessage, parseDownloadBatch, parseDownloadOptions, type DownloadOptionsView} from '../../../../../packages/client-core/src/downloads';
+import {downloadBytes, downloadReasonMessage, parseDownloadOptions, type DownloadOptionsView} from '../../../../../packages/client-core/src/downloads';
 import type {ReadingClient} from '../../../../../packages/client-core/src/reading';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
 import {nativePublicationReadsAvailable} from '../../../platform/offline-reading';
@@ -29,8 +29,13 @@ type Family = {retired: boolean; active?: Opening;
   binding: Readonly<{context: NativeShellBootstrapContext; request: NativeDownloadRequest}>};
 type State = Readonly<{opening?: Opening; versions?: readonly Version[]; policy?: DownloadOptionsView; busy?: string; error?: unknown}>;
 
-/** The existing download sheet's original-publication branch. Real source IDs
- * and exact byte sizes come from Reading versions; no media-quality ladder. */
+/** The versions this device can read once downloaded: the app only downloads a version it can read
+ * (owner's ruling, 16 Nov), so a RAR, 7z or MOBI file is not offered until the server hands it over
+ * as a CBZ or an EPUB. */
+const readableOffline = (format: string) => ['epub', 'pdf', 'cbz'].includes(format);
+
+/** The existing download sheet's original-publication branch: the book's versions, each with the
+ * size of its original as the server's download choices give it; no media-quality ladder. */
 export function NativeReadingDownloadSheet({context, request}: {context: NativeShellBootstrapContext; request: NativeDownloadRequest}) {
   const theme = useTheme(), t = defaultI18n.t;
   const family = useMemo<Family>(() => ({retired: false, binding: {context, request}}), [context, request]);
@@ -70,16 +75,15 @@ export function NativeReadingDownloadSheet({context, request}: {context: NativeS
     void (async () => {
       const [versions] = await Promise.all([reader.versions(itemId, signal), lease.device.open()]);
       if (!current()) return;
-      const supported = versions.versions.filter(value => value.format === 'epub' || value.format === 'pdf' || value.format === 'cbz');
+      const supported = versions.versions.filter(value => readableOffline(value.format));
       const rows: Version[] = []; let next = 0;
       await Promise.all(Array.from({length: Math.min(4, supported.length)}, async () => {
         while (next < supported.length) {
           const index = next++, version = supported[index]; if (!version || !current()) return;
-          const raw = await readDownloadOptionsResponse(context.api, itemId, signal, version.sourceId);
+          const raw = await readDownloadOptions(context.api, itemId, {versionId: version.sourceId}, signal);
           if (!current()) return;
           const policy = parseDownloadOptions(raw, itemId);
-          if (policy.source.bytes !== version.size || policy.source.available && policy.source.container !== version.format) throw new Error('reading_source_changed');
-          rows[index] = Object.freeze({...version, policy});
+          rows[index] = Object.freeze({...version, size: policy.source.bytes, policy});
         }
       }));
       if (!current()) return;
@@ -90,7 +94,7 @@ export function NativeReadingDownloadSheet({context, request}: {context: NativeS
   const close = (opening: Opening | undefined) => {if (!opening) {if (!family.retired && family.active === undefined && context.current()) closeNativeDownload(request); return;} if (family.active !== opening || !opening.current()) return; opening.retire(); closeNativeDownload(request);};
   const choose = async (opening: Opening, version: Version) => {
     const policy = version.policy;
-    if (!opening.current() || opening.pending || !opening.versions.includes(version) || !version.inventoryAvailable || !['epub', 'pdf', 'cbz'].includes(version.format) || !policy.policy.allowDownloads || !policy.source.available || !policy.options.some(value => value.quality === 'original' && value.available) || !Number.isSafeInteger(version.size) || version.size < 1 || version.size > 2 ** 31) return;
+    if (!opening.current() || opening.pending || !opening.versions.includes(version) || !version.inventoryAvailable || !readableOffline(version.format) || !policy.policy.allowDownloads || !policy.source.available || !policy.options.some(value => value.quality === 'original' && value.available) || !Number.isSafeInteger(version.size) || version.size < 1 || version.size > 2 ** 31) return;
     const device = opening.lease.device.getSnapshot();
     if (!device.ready || opening.lease.device.admission?.(version.size) || version.size > device.freeBytes || policy.storage.remainingBytes !== null && policy.storage.remainingBytes !== undefined && version.size > policy.storage.remainingBytes) return;
     opening.pending = true; setState(value => value.opening === opening && opening.current() ? {...value, busy: version.sourceId, error: undefined} : value);
@@ -98,13 +102,12 @@ export function NativeReadingDownloadSheet({context, request}: {context: NativeS
       // The same version tried again resends the identical body under the same id (download-attempt).
       const operationId = opening.attempts.operationFor(JSON.stringify([request.itemId, version.sourceId, 'original']));
       if (!opening.current()) return;
-      const raw = await prepareItemDownloadResponse(context.api, {operationId, mediaId: request.itemId, versionId: version.sourceId, quality: 'original'}, opening.signal);
+      const batch = await opening.lease.service.request({mediaId: request.itemId, versionId: version.sourceId}, 'original', operationId);
       opening.attempts.settle();
       if (!opening.current()) return;
-      const result = parseDownloadBatch(raw);
-      const preparation = result.items.find(value => value.itemId === request.itemId && value.versionId === version.sourceId && value.quality === 'original');
-      if (!preparation) throw new Error(result.rejected[0]?.code ?? 'reading_unavailable');
-      await opening.lease.wantPublication(preparation, opening.lease.service);
+      const accepted = batch.items.filter(value => value.itemId === request.itemId);
+      if (!accepted.length) throw Object.assign(new Error(downloadReasonMessage(batch.rejected[0]?.code ?? '') || 'reading_unavailable'), {code: batch.rejected[0]?.code ?? 'reading_unavailable'});
+      await opening.lease.want(accepted, opening.lease.display(accepted[0]!), opening.lease.service);
       if (opening.current()) close(opening);
     } catch (error) {
       if ((error as {code?: unknown} | undefined)?.code === 'idempotency_key_reused') opening.attempts.settle();
@@ -118,7 +121,7 @@ export function NativeReadingDownloadSheet({context, request}: {context: NativeS
   // primary action. A side panel keeps the book visible on handheld tablets; the
   // phone keeps its sheet. No recommended flag is published, so the first version
   // the server lists as available is selected rather than claiming a recommendation.
-  const versions = shown.versions?.filter(value => value.format === 'epub' || value.format === 'pdf' || value.format === 'cbz') ?? [];
+  const versions = shown.versions?.filter(value => readableOffline(value.format)) ?? [];
   const opened = shown.opening;
   const ready = (version: Version) => {
     // A retained event must retire with its exact opening before touching the
