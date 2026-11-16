@@ -7045,11 +7045,17 @@
           "overview": {
             "type": "string"
           },
+          "posterUrl": {
+            "type": "string"
+          },
           "provider": {
             "type": "string"
           },
           "title": {
             "type": "string"
+          },
+          "why": {
+            "$ref": "#/components/schemas/MatchWhy"
           },
           "year": {
             "type": "integer"
@@ -7058,7 +7064,8 @@
         "required": [
           "provider",
           "id",
-          "title"
+          "title",
+          "why"
         ],
         "type": "object"
       },
@@ -7107,6 +7114,20 @@
         },
         "required": [
           "itemId"
+        ],
+        "type": "object"
+      },
+      "MatchWhy": {
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "year": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
         ],
         "type": "object"
       },
@@ -27130,6 +27151,43 @@
           {
             "in": "path",
             "name": "file",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "security": [],
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "public",
+        "x-audience": "Integrations",
+        "x-scope": "open"
+      }
+    },
+    "/v1/match-posters/{token}": {
+      "get": {
+        "operationId": "get_v1_match_posters_token",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
             "required": true,
             "schema": {
               "type": "string"

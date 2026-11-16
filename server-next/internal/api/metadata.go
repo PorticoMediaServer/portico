@@ -25,6 +25,29 @@ type MatchCandidate struct {
 	Overview      string `json:"overview,omitempty"`
 	// Exact is true for the one title an id named.
 	Exact bool `json:"exact,omitempty"`
+	// PosterURL is the server's address for the candidate's poster (/v1/match-posters/...,
+	// loaded like an image address, with the same size choices); absent when the provider has
+	// none. The provider's own address is never sent.
+	PosterURL string `json:"posterUrl,omitempty"`
+	// Why says why it was suggested: how its title and year compare with the title's own.
+	Why MatchWhy `json:"why"`
+}
+
+// MatchWhy compares a candidate with the title it is offered for, by the rule automatic matching
+// uses. Title is same, close (a small spelling slip) or different. Year is same, near (one year
+// off, a film is often filed under the year it reached another country) or different, and is
+// absent when either has no year.
+type MatchWhy struct {
+	Title string `json:"title"`
+	Year  string `json:"year,omitempty"`
+}
+
+// matchCandidate is a provider's candidate as an app is sent it, compared with the title.
+func (s *Server) matchCandidate(c metadata.Candidate, title string, year int) MatchCandidate {
+	why := MatchWhy{}
+	why.Title, why.Year = metadata.Agreement(title, year, c)
+	return MatchCandidate{Provider: c.Ref.Provider, ID: c.Ref.ID, Title: c.Title, OriginalTitle: c.OriginalTitle, Year: c.Year,
+		Overview: c.Overview, Exact: c.Exact, PosterURL: s.posterAddress(c.PosterURL), Why: why}
 }
 
 // MatchCandidates are the possible matches for a title, best first.
@@ -151,7 +174,16 @@ func (s *Server) unmatched(r *http.Request, _ None) (Page[UnmatchedEntry], error
 	for _, line := range lines {
 		entry := UnmatchedEntry{ItemID: line.PublicID, Kind: line.Kind.String(), Title: line.Title, Year: line.Year, Reason: line.Reason,
 			Matches: []MatchCandidate{}}
-		json.Unmarshal([]byte(line.Matches), &entry.Matches)
+		// The closest matches as they were stored when the title was looked up.
+		var stored []struct {
+			Provider, ID, Title, PosterURL string
+			Year                           int
+		}
+		json.Unmarshal([]byte(line.Matches), &stored)
+		for _, m := range stored {
+			entry.Matches = append(entry.Matches, s.matchCandidate(metadata.Candidate{Ref: metadata.Ref{Provider: m.Provider, ID: m.ID},
+				Title: m.Title, Year: m.Year, PosterURL: m.PosterURL}, line.Title, line.Year))
+		}
 		out.Items = append(out.Items, entry)
 	}
 	return out, nil
@@ -180,10 +212,12 @@ func (s *Server) matches(r *http.Request, _ None) (MatchCandidates, error) {
 	if err != nil {
 		return out, metadataError(err)
 	}
+	t, err := s.db.MatchTarget(r.Context(), id)
+	if err != nil {
+		return out, refuse(err)
+	}
 	for _, c := range found {
-		// The provider's picture addresses are not passed on: an app never contacts a provider.
-		out.Items = append(out.Items, MatchCandidate{Provider: c.Ref.Provider, ID: c.Ref.ID, Title: c.Title, OriginalTitle: c.OriginalTitle,
-			Year: c.Year, Overview: c.Overview, Exact: c.Exact})
+		out.Items = append(out.Items, s.matchCandidate(c, t.Title, t.Year))
 	}
 	return out, nil
 }

@@ -60,6 +60,32 @@ func Choose(q Query, candidates []Candidate) (int, string) {
 	return best, ""
 }
 
+// Agreement says how a candidate compares with a title, for "why it was suggested" (owner-metadata
+// frame 2), by the rule Choose uses: the title is "same", "close" (a small spelling slip) or
+// "different"; the year is "same", "near" (one year off), "different", or "" when either has
+// none.
+func Agreement(title string, year int, c Candidate) (titleAgrees, yearAgrees string) {
+	want := foldTitle(title)
+	switch max(closeness(want, foldTitle(c.Title)), closeness(want, foldTitle(c.OriginalTitle))) {
+	case 2:
+		titleAgrees = "same"
+	case 1:
+		titleAgrees = "close"
+	default:
+		titleAgrees = "different"
+	}
+	switch {
+	case year == 0 || c.Year == 0:
+	case year == c.Year:
+		yearAgrees = "same"
+	case year-c.Year == 1 || c.Year-year == 1:
+		yearAgrees = "near"
+	default:
+		yearAgrees = "different"
+	}
+	return titleAgrees, yearAgrees
+}
+
 // foldTitle reduces a title to what is compared: no case, accents, punctuation or spaces, and
 // "&" read as "and".
 func foldTitle(title string) string {

@@ -2109,6 +2109,8 @@ export interface MatchCandidate {
   year?: number;
   overview?: string;
   exact?: boolean;
+  posterUrl?: string;
+  why: MatchWhy;
 }
 
 export interface MatchCandidates {
@@ -2126,6 +2128,11 @@ export interface MatchRequest {
 export interface MatchResult {
   itemId: string;
   notice?: string;
+}
+
+export interface MatchWhy {
+  title: string;
+  year?: string;
 }
 
 export interface Me {
@@ -4573,6 +4580,7 @@ export interface Routes {
   'GET /v1/tags': {access: 'withProfile'; request: undefined; response: TagPage};
   'GET /v1/items/{id}/files': {access: 'admin'; request: undefined; response: ItemFiles};
   'GET /v1/images/{id}': {access: 'public'; request: undefined; response: undefined};
+  'GET /v1/match-posters/{token}': {access: 'public'; request: undefined; response: undefined};
   'GET /v1/admin/remote-sources': {access: 'owner'; request: undefined; response: RemoteSourcePage};
   'POST /v1/admin/remote-sources': {access: 'owner'; request: RemoteSourceCreate; response: RemoteSource};
   'GET /v1/admin/remote-sources/{id}': {access: 'owner'; request: undefined; response: RemoteSource};
