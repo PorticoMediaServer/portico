@@ -8,6 +8,7 @@ import {useFocusTarget} from '../focus';
 import {useOverlayPaintMode} from '../overlays/OverlayPaintContext';
 import {BlurView, glassRecipe} from '../../platform/native-blur';
 import {FormError} from './FormError';
+import {TVTextField} from './TVTextField';
 
 export type TextFieldProps = TextInputProps & {
   focusId?: string;
@@ -25,6 +26,12 @@ export type TextFieldProps = TextInputProps & {
 };
 
 export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField({
+  ...props
+}, ref) {
+  return useTheme().isTV ? <TVTextField {...props} ref={ref}/> : <NativeTextField {...props} ref={ref}/>;
+});
+
+const NativeTextField = forwardRef<TextInput, TextFieldProps>(function NativeTextField({
   label, description, error, leadingIcon, iconSize, trailing, variant = 'field', containerStyle, fieldStyle, appearance = 'default',
   editable = true, focusable, style, onFocus, onBlur, accessibilityLabel, accessibilityState,
   placeholderTextColor, cursorColor, selectionColor, nativeID, multiline, focusId, testID, ...props

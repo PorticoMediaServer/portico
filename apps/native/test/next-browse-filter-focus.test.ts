@@ -40,7 +40,8 @@ async function fixture(isTV: boolean) {
     '../Icon': {Icon: 'Icon'}, './Focusable': {Focusable}, './control-model': controlModel, './useControlValue': {useControlValue}};
   const {Chip} = await screenModule(new URL('../src-next/kit/controls/Chip.tsx', import.meta.url), shared);
   const {Segmented} = await screenModule(new URL('../src-next/kit/controls/Tabs.tsx', import.meta.url), shared);
-  const {TextField} = await screenModule(new URL('../src-next/kit/controls/TextField.tsx', import.meta.url), {'./FormError': formErrorModule, ...shared, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({})}});
+  const {TVTextField} = await screenModule(new URL('../src-next/kit/controls/TVTextField.tsx', import.meta.url), {'./FormError': formErrorModule, ...shared});
+  const {TextField} = await screenModule(new URL('../src-next/kit/controls/TextField.tsx', import.meta.url), {'./FormError': formErrorModule, './TVTextField': {TVTextField}, ...shared, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({})}});
   const {Button} = await screenModule(new URL('../src-next/kit/controls/Button.tsx', import.meta.url), {...shared, '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({})}});
   const {FilterBuilder} = await screenModule(new URL('../src-next/kit/browse/Filters.tsx', import.meta.url), {
     '@react-native-masked-view/masked-view': {default: 'MaskedView'}, 'react-native-svg': {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'},
@@ -53,7 +54,7 @@ async function fixture(isTV: boolean) {
 async function mountTree(root: React.ReactNode) {
   // React owns the complete provider/component tree and native ref attachment.
   // Only the commands on the native public-instance boundary are controlled.
-  const host = await fabricHost({publicInstance: (tag: number) => ({tag, requestTVFocus() {}, focus() {}, setDestinations() {}})});
+  const host = await fabricHost({publicInstance: (tag: number) => ({tag, requestTVFocus() {}, focus() {}, blur() {}, clear() {}, isFocused() {return false;}, setDestinations() {}})});
   try {await host.render(root);} catch (error) {try {await host.unmount();} catch {} throw error;}
   const native: Node[] = [];
   const collect = (node: any): Node | string => {
@@ -64,7 +65,7 @@ async function mountTree(root: React.ReactNode) {
     return record;
   };
   host.root.forEach(collect);
-  return {nodes: native, controls: native.filter(node => node.type === 'Pressable' || node.type === 'TextInput'), dispose: () => host.unmount()};
+  return {nodes: native, controls: native.filter(node => node.type === 'Pressable' || node.type === 'TextInput' && node.props.accessible !== false), dispose: () => host.unmount()};
 }
 
 function props(prefix?: string, reverse = false) {
@@ -103,7 +104,13 @@ for (const isTV of [true, false]) test(`${isTV ? 'TV' : 'phone'} real FilterBuil
     yes.props.onPress({defaultPrevented: false}); assert.deepEqual(data.calls.at(-1), ['change', 'favorite', {kind: 'toggle', value: true}]);
     tree.controls.find(node => text(node) === 'Try again')!.props.onPress({defaultPrevented: false}); assert.deepEqual(data.calls.at(-1), ['retry', 'failed']);
     tree.controls.find(node => text(node) === 'All genres')!.props.onPress({defaultPrevented: false}); assert.deepEqual(data.calls.at(-1), ['all', 'genre']);
-    const input = tree.controls.find(node => node.type === 'TextInput' && node.props.accessibilityLabel === 'query')!;
+    const input = tree.nodes.find(node => node.type === 'TextInput' && node.props.accessibilityLabel === 'query')!;
+    if (isTV) {
+      const visible = tree.controls.find(node => node.type === 'Pressable' && node.props.accessibilityLabel === 'query')!;
+      assert.ok(visible, 'the named TV box owns the query focus identity');
+      assert.equal(typeof visible.props.onPress, 'function');
+      assert.equal(input.props.focusable, false, 'the native editor opens only after Select');
+    }
     input.props.onChangeText('real field value'); assert.deepEqual(data.calls.at(-1), ['change', 'query', {kind: 'text', value: 'real field value'}]);
   } finally {await tree.dispose();}
   assert.deepEqual(registry.order(prefix), [], 'actual host/region cleanup removes registrations');
@@ -127,7 +134,7 @@ test('omitting the optional prefix preserves the existing unfocused control geom
 
 test('retained selected chips keep their native focus hosts while loading and after refresh errors', async () => {
   const mod=await fixture(true),registry=registryModule.createFocusRegistry(),prefix='retained/library/filters',data=props(prefix);
-  const host=await fabricHost({publicInstance:(tag:number)=>({tag,requestTVFocus(){},focus(){},setDestinations(){}})});
+  const host=await fabricHost({publicInstance:(tag:number)=>({tag,requestTVFocus(){},focus(){},blur(){},clear(){},isFocused(){return false;},setDestinations(){}})});
   const nodes=():Node[]=>{const result:Node[]=[];const collect=(node:any):Node|string=>{if(node.type==='RCTRawText')return node.props.text;const value:Node={type:node.type,props:node.props,children:node.children.map(collect)};result.push(value);return value;};host.root.forEach(collect);return result;};
   const render=async(status?:'loading'|'error')=>host.render(React.createElement(mod.FocusProvider,{registry},React.createElement(mod.FocusRegion,{id:prefix},React.createElement(mod.FilterBuilder,{...data.value,fields:{...data.value.fields,genre:{...data.value.fields.genre,included:['same/value'],status,statusLabel:status==='loading'?'Loading values':status==='error'?'Refresh failed':undefined}}}))));
   try{

@@ -85,6 +85,7 @@ const {FocusProvider, FocusRegion} = await import('../src-next/kit/focus/index.t
 const {Menu, MenuRow, Popover} = await import('../src-next/kit/overlays/Menu.tsx');
 const {LibrarySwitcher, LibraryMenu} = await import('../src-next/kit/browse/Library.tsx');
 const {TextField, Button} = await import('../src-next/kit/controls/index.ts');
+const {TVTextField} = await import('../src-next/kit/controls/TVTextField.tsx');
 const {OwnerTag} = await import('../src-next/kit/shell/index.ts');
 const {default: stateGalleries} = await import('../src-next/dev/families/states/states.gallery.tsx');
 const {StateLayout} = await import('../src-next/kit/states/StateLayout.tsx');
@@ -552,14 +553,19 @@ test('F06 CardFrame and TextField attach exactly the hosts native props make eli
     assert.equal(scope.registry.child({regionId: 'eligibility', childId: 'card'}), undefined);
     await card.update(cardProps); native = find(card.tree, 'Pressable'); assert.equal(native.props.focusable, true);
     assert.equal(scope.registry.child({regionId: 'eligibility', childId: 'card'}), host);
-    const input = await mount(TextField, {focusId: 'input', focusable: false}, scope.contexts);
+    const input = await mount(TVTextField, {focusId: 'input', focusable: false}, scope.contexts);
+    const field = await mount(Focusable, find(input.tree, Focusable).props, scope.contexts);
+    const fieldNative = () => {const element = field.tree as Element; return (element.type as any).render(element.props, element.props.ref) as Element;};
     try {
-      const inputHost = {nativeTag: 302, focus() {}}; find(input.tree, 'TextInput').props.ref(inputHost);
-      assert.equal(find(input.tree, 'TextInput').props.focusable, false); assert.equal(scope.registry.child({regionId: 'eligibility', childId: 'input'}), undefined);
-      await input.update({focusId: 'input', editable: false}); assert.equal(find(input.tree, 'TextInput').props.focusable, false);
-      await input.update({focusId: 'input'}); assert.equal(find(input.tree, 'TextInput').props.focusable, true);
+      const inputHost = {nativeTag: 302, requestTVFocus() {}}; fieldNative().props.ref(inputHost);
+      assert.equal(find(input.tree, 'TextInput').props.focusable, false, 'the hidden keyboard input never enters navigation');
+      assert.equal(scope.registry.child({regionId: 'eligibility', childId: 'input'}), undefined);
+      await input.update({focusId: 'input', editable: false}); await field.update(find(input.tree, Focusable).props);
+      assert.equal(fieldNative().props.focusable, false);
+      await input.update({focusId: 'input'}); await field.update(find(input.tree, Focusable).props);
+      assert.notEqual(fieldNative().props.focusable, false);
       assert.equal(scope.registry.child({regionId: 'eligibility', childId: 'input'}), inputHost);
-    } finally {await input.host.unmount();}
+    } finally {await field.host.unmount(); await input.host.unmount();}
   } finally {await card.host.unmount(); await scope.unmount();}
 });
 

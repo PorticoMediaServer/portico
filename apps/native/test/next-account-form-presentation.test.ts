@@ -95,8 +95,9 @@ for (const os of ['ios', 'android'] as const) {
       '../overlays/OverlayPaintContext': {useOverlayPaintMode: () => ({interactive: true})},
       '../../platform/native-blur': {BlurView: 'BlurView', glassRecipe: () => ({nativeBlur, backgroundColor: '#1c3341', backgroundAlpha: .8})},
     });
-    const host = createFabricHookHost(() => {tree = TextField.render({appearance, label: 'Password', value: 'value', secureTextEntry: true,
-      autoComplete: 'new-password', textContentType: 'newPassword', onChangeText: (value: string) => changed.push(value)}, null);});
+    const host = createFabricHookHost(() => {const outer = TextField.render({appearance, label: 'Password', value: 'value', secureTextEntry: true,
+      autoComplete: 'new-password', textContentType: 'newPassword', onChangeText: (value: string) => changed.push(value)}, null);
+      tree = outer.type.render(outer.props, null);});
     context.after(() => host.unmount()); await act(() => host.mount());
     const input = nodes(tree).find(node => node.type === 'TextInput');
     assert.equal(input.props.autoComplete, 'new-password'); assert.equal(input.props.textContentType, 'newPassword'); assert.equal(input.props.secureTextEntry, true);
