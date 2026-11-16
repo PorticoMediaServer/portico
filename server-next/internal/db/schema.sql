@@ -273,6 +273,7 @@ CREATE INDEX items_by_year ON items (library_id, kind, year, id, rating_age);
 -- by_release also ends with year. A list of one decade in release order starts at the oldest
 -- release and passes every earlier title; with the year here it passes them in the index.
 CREATE INDEX items_by_release ON items (library_id, kind, release_date, id, rating_age, year);
+CREATE INDEX items_home_release ON items (release_date, id, rating_age, library_id, kind); -- Home spans libraries and kinds.
 -- The sorts by length and by community rating. Without an index every page of such a list
 -- reads and sorts the whole library.
 CREATE INDEX items_by_duration ON items (library_id, kind, duration_ms, id, rating_age);
