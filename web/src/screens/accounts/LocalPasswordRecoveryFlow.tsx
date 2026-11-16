@@ -70,7 +70,7 @@ export function LocalPasswordRecoveryFlow({entry, form, onBack}: LocalPasswordRe
  const verifyFile=async(offer:FileOffer,code:string)=>{
   if(!ownsFile(offer)||!available()||entry.getSnapshot().phase!=='password'||!begin(true))return;
   setPurpose('verify');
-  try{await entry.verifyLocalOwnerReset(code);}catch(failure){if(ownsFile(offer))setError(failure);}finally{finish();}
+  try{await entry.verifyLocalOwnerReset(code,owner);}catch(failure){if(ownsFile(offer))setError(failure);}finally{finish();}
  };
  const resetMember=async(username:string,code:string,password:string)=>{
   if(!available()||offered.current||entry.getSnapshot().phase!=='password'||!begin(false))return;
@@ -79,14 +79,20 @@ export function LocalPasswordRecoveryFlow({entry, form, onBack}: LocalPasswordRe
  };
  const finishOwner=async(password:string,turnOffTwoStep:boolean)=>{
   if(!available()||entry.getSnapshot().phase!=='owner-reset-password'||!entry.getSnapshot().ownerReset)return;
-  const details=entry.getSnapshot().ownerReset!;if(!begin(true))return;setPurpose(undefined);
-  try{const finished=await entry.finishLocalOwnerResetPassword(password,details.twoStepEnabled&&turnOffTwoStep);
-   if(finished&&current())await form.signIn(details.username,password);
+  // The code is proved here, with the new password: a refused one goes back to the file's page with its notice.
+  const details=entry.getSnapshot().ownerReset!;if(!begin(true))return;setPurpose('verify');
+  try{const finished=await entry.finishLocalOwnerResetPassword(password,turnOffTwoStep);
+   // Set: the recovery is over. The sign-in page signs in with the username typed for the file and the new password,
+   // and says so there if that username was not the owner's.
+   if(finished&&current()){
+    opening!.live=false;active.current=undefined;if(offered.current){offered.current.live=false;offered.current=undefined;}
+    opening!.onBack();await form.signIn(details.username,password);
+   }
   }catch(failure){if(current())setError(failure);}finally{finish();}
  };
  if(!current()||state.phase!=='password'&&state.phase!=='owner-reset-password')return null;
  const busy=working||state.busy||input.busy,failure=state.error??error,notice=ownerResetFailure(failure,purpose);
- if(state.phase==='owner-reset-password'&&state.ownerReset)return <OwnerPassword serverName={state.server!.name} username={state.ownerReset.username} twoStepEnabled={state.ownerReset.twoStepEnabled} busy={busy} error={failure} onSubmit={finishOwner} onBack={back}/>;
+ if(state.phase==='owner-reset-password'&&state.ownerReset)return <OwnerPassword serverName={state.server!.name} busy={busy} error={failure} onSubmit={finishOwner} onBack={back}/>;
  if(file&&ownsFile(file))return <OwnerFile key={file.id} serverName={state.server!.name} location={file.location} busy={busy} error={failure} notice={notice}
   onVerify={code=>verifyFile(file,code)} onRewrite={()=>{void requestFile(owner,file);}} onBack={back}/>;
  return <LocalPasswordRecovery serverName={state.server!.name} initialUsername={input.username} busy={busy} error={notice?undefined:failure} notice={notice?<OwnerResetNotice kind={notice}/>:undefined}
@@ -126,8 +132,11 @@ export function OwnerFile({serverName, location, busy, error, notice, onVerify, 
  </AuthStage>;
 }
 
-function OwnerPassword({serverName, username, twoStepEnabled, busy, error, onSubmit, onBack}: {
-  serverName: string; username: string; twoStepEnabled: boolean; busy: boolean; error: unknown;
+/** The server proves the code only with the new password, so this step cannot name the account or know whether
+ * two-step verification is on: the switch is offered to the owner who lost the authenticator, and does nothing
+ * when two-step is off. */
+function OwnerPassword({serverName, busy, error, onSubmit, onBack}: {
+  serverName: string; busy: boolean; error: unknown;
   onSubmit: (password: string, turnOffTwoStep: boolean) => Promise<void>; onBack: () => void;
 }) {
   const strengthId = useId();
@@ -135,12 +144,12 @@ function OwnerPassword({serverName, username, twoStepEnabled, busy, error, onSub
   const ready = passwordStrength(password).acceptable && password === confirm;
   return <AuthStage shape="round" legal={false}>
     <p className={authStyles.eyebrow}>{serverName}</p><h1>{t('web.direct.newPasswordTitle')}</h1>
-    <p className={authStyles.lede}>{t('accounts.recovery.ownerPasswordBody', {username})}</p><AuthError error={error}/>
+    <p className={authStyles.lede}>{t('accounts.recovery.ownerPasswordBody')}</p><AuthError error={error}/>
     <form className={authStyles.form} onSubmit={event => {event.preventDefault(); if (!busy && ready) {const next = password; setPassword(''); setConfirm(''); void onSubmit(next, turnOff);}}}>
       <AuthPasswordField label={t('accounts.recovery.newPassword')} autoComplete="new-password" value={password} onChange={event => setPassword(event.currentTarget.value)} disabled={busy} autoFocus/>
       <ServicesStrength password={password} id={strengthId}/>
       <AuthPasswordField label={t('web.reset.confirm')} autoComplete="new-password" value={confirm} onChange={event => setConfirm(event.currentTarget.value)} disabled={busy}/>
-      {twoStepEnabled && <label className={styles.choice}><span>{t('security.twoStep.turnOff')}<small>{t('accounts.recovery.turnOffHelp')}</small></span><Switch checked={turnOff} onCheckedChange={setTurnOff} disabled={busy}/></label>}
+      <label className={styles.choice}><span>{t('security.twoStep.turnOff')}<small>{t('accounts.recovery.turnOffHelp')}</small></span><Switch checked={turnOff} onCheckedChange={setTurnOff} disabled={busy}/></label>
       <Button variant="primary" type="submit" disabled={!ready} loading={busy}>{t('accounts.recovery.ownerSubmit')}</Button>
     </form><p className={styles.quiet}>{t('accounts.recovery.ownerSignedOut')}</p><AuthLinks><button type="button" onClick={onBack}>{t('accounts.recovery.back')}</button></AuthLinks>
   </AuthStage>;

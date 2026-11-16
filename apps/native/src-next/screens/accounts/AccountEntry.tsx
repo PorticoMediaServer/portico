@@ -1037,19 +1037,7 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       !Platform.isTV && <View style={{gap: 12}}>
         {moveDays !== undefined && <Button variant="link" disabled={busy} onPress={() => {void run(beginMemberMove);}}>{t('accounts.move.oldPasswordAction', {days: moveDays})}</Button>}
         {server?.move === 'to_portico' && <Button variant="link" disabled={busy} onPress={() => {void run(beginMemberCode);}}>{t('accounts.move.haveCode')}</Button>}
-        <Button variant="link" disabled={busy} onPress={() => {
-          if (!current() || !source) return;
-          retireOwnerReset();
-          const ticket = {source, controller: new AbortController()}; ownerResetOpening.current = ticket;
-          const openingCurrent = () => current() && ownerResetOpening.current === ticket && !ticket.controller.signal.aborted;
-          void run(async () => {
-            if (!openingCurrent()) return;
-            try {
-              await source.prepareOwnerReset();
-              if (openingCurrent()) {setCode(''); setResetLocation(undefined); setStage('owner-reset');}
-            } catch (error) {if (openingCurrent()) {retireOwnerReset(); throw error;}}
-          });
-        }}>{t('accounts.signIn.cannotUsePortico')}</Button>
+        {/* No "Can't use your Portico Account?" until the rebuilt server lets the reset file sign the owner in (asked for). */}
       </View>);
   }
   if (stage === 'member-move' && memberMove && moveSnapshot && memberOperation.current === operation.current) {
@@ -1553,35 +1541,9 @@ export function AccountEntry({downloads, incomingInvitation, onBack, onComplete,
       body={t('web.chooser.accountWaitingBody', {server: captured.name})} retry={{progress: retryIn <= 0 ? 1 : 1 - retryIn / Math.max(retryDelay.current, 1), label: t('web.chooser.checkingAgain', {seconds: retryIn})}}
       // connect#11 draws Check now with the ring: the one action holds the starting focus.
       primaryAction={{id: 'check-hosted-now', label: t('web.chooser.checkNow'), loading: busy, disabled: busy, preferredFocus: true, onPress: () => {if (current()) connectDirectory(captured, true);}}}
-      secondaryAction={Platform.isTV ? {id: 'choose-another', label: t('web.chooser.otherServer'), onPress: () => {if (current()) chooseAnother();}}
-        : {id: 'account-owner-help', label: t('accounts.signIn.cannotUsePortico'), disabled: busy, onPress: () => {
-          if (!current() || busyRef.current || acting.current || adoptingTV.current) return;
-          // Without the original authenticated directory lifetime, use ordinary typed entry.
-          // A failed pin is never sent through this fallback or replaced with a newly read key.
-          if (!scope || !source) {cancelDirectory(); setAddress(''); stageRef.current = 'address'; setStage('address'); return;}
-          const accountId = scope.accountId, familyId = scope.familyId;
-          stopRetry(); retireOwnerRecoveryContact();
-          const ticket: OwnerRecoveryOpening = {active: true}; ownerRecoveryContact.current = ticket;
-          const contactCurrent = () => {
-            const live = credentials?.getSnapshot().session;
-            return ownerRecoveryMounted.current && current() && activeRef.current && ticket.active && ownerRecoveryContact.current === ticket &&
-              accountScope.current === scope && live?.account.id === accountId && live.familyId === familyId;
-          };
-          ticket.finish = () => {acting.current = false; if (ownerRecoveryMounted.current && lifetime.current) setBusy(adoptingTV.current);};
-          acting.current = true; setBusy(true);
-          void (async () => {
-            try {
-              if (!contactCurrent()) return;
-              ticket.contact = NativeServerSignIn.ownerRecoveryContact(original, {accountId, familyId}, contactCurrent);
-              await ticket.contact.open();
-            } catch (failure) {if (contactCurrent()) setError(failure);}
-            finally {
-              if (ownerRecoveryContact.current === ticket) {
-                retireOwnerRecoveryContact();
-              }
-            }
-          })();
-        }}}/>;
+      // "Can't use your Portico Account?" led to the owner's reset file, which on a Portico Accounts server needs the
+      // rebuilt server to give the owner a session (asked for; _scratch/builderU/SERVER-NEEDS.md): phones offer another server, as TVs do.
+      secondaryAction={{id: 'choose-another', label: t('web.chooser.otherServer'), onPress: () => {if (current()) chooseAnother();}}}/>;
   }
   if (stage === 'servers' && target && directoryView === 'waiting') return <StateLayout testID="accounts-server-waiting" title={t('web.chooser.waitingTitle', {server: target.name})}
     body={t('web.chooser.waitingBody')} retry={{progress: retryIn <= 0 ? 1 : 1 - retryIn / Math.max(retryDelay.current, 1), label: t('web.chooser.checkingAgain', {seconds: retryIn})}}

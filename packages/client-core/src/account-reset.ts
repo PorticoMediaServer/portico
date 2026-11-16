@@ -21,13 +21,22 @@ export function ownerResetFailure(error:unknown,purpose:OwnerResetFailurePurpose
  * written. The server no longer publishes its operating system or data directory, so no
  * client claims an exact path it was not given. */
 export type ResetFileLocation=Readonly<{fileName:'reset-code.txt';retryAfterSeconds:number}>;
+/** The rebuilt server's answer (`fileName`, `retryAfterMs`). It is the same whatever username was typed. */
 export function parseResetFileLocation(raw:unknown):ResetFileLocation {
  const v=raw as Record<string,unknown>;
- if(!v||typeof v!=='object'||v.fileName!=='reset-code.txt'||!Number.isInteger(v.retryAfterSeconds)||Number(v.retryAfterSeconds)<0||Number(v.retryAfterSeconds)>60||'code' in v||'username' in v||'account' in v||'session' in v)throw new Error('The reset file response was invalid.');
- return Object.freeze({fileName:'reset-code.txt',retryAfterSeconds:Number(v.retryAfterSeconds)});
+ if(!v||typeof v!=='object'||v.fileName!=='reset-code.txt'||!Number.isInteger(v.retryAfterMs)||Number(v.retryAfterMs)<0||Number(v.retryAfterMs)>60_000||'code' in v||'username' in v||'account' in v||'session' in v)throw new Error('The reset file response was invalid.');
+ return Object.freeze({fileName:'reset-code.txt',retryAfterSeconds:Math.ceil(Number(v.retryAfterMs)/1000)});
 }
+/** Asks the server to write the owner's one-time code to `reset-code.txt` in its data folder (definition 01 rule 40,
+ * `POST /v1/auth/owner-reset`). Anyone at the sign-in page may ask; the page is never shown the code. */
 export async function requestOwnerResetFile(api:ProfileAPI,username?:string,signal?:AbortSignal):Promise<ResetFileLocation>{
- return parseResetFileLocation(await api.request(routePath('post_auth_owner_reset_request'),'POST',routeBody('post_auth_owner_reset_request',username===undefined?{}:{username}),signal));
+ return parseResetFileLocation(await api.request(serverPath('POST /v1/auth/owner-reset'),'POST',username===undefined?{}:{username},signal));
+}
+/** Chooses the owner's new password with the code from the file (`POST /v1/auth/owner-reset/confirm`): once, within
+ * 15 minutes, five wrong codes cancel it. `turnOffTwoStep` also turns the owner's two-step sign-in off. It signs
+ * nobody in, and the server signs every device of the owner out. */
+export async function finishOwnerReset(api:ProfileAPI,code:string,newPassword:string,turnOffTwoStep:boolean,signal?:AbortSignal):Promise<void>{
+ await api.request(serverPath('POST /v1/auth/owner-reset/confirm'),'POST',{code:code.trim(),newPassword,...(turnOffTwoStep?{turnOffTwoStep:true}:{})},signal);
 }
 export async function verifyOwnerResetFile(api:ProfileAPI,code:string,turnOffTwoStep=false,signal?:AbortSignal):Promise<DirectSignIn>{
  const out=parseTaggedSignIn(await api.request(routePath('post_auth_owner_reset_verify'),'POST',routeBody('post_auth_owner_reset_verify',{code:code.trim(),turnOffTwoStep}),signal),['password-change','owner-session'],(tag,signedIn)=>signedIn.kind==='signed-in'&&(tag==='owner-session'?signedIn.resetFileOwnerSession===true:signedIn.passwordChangeRequired));
@@ -53,36 +62,6 @@ export async function replaceMemberResetCode(api:ProfileAPI,id:string,expectedRe
  if(!resetCode(originalResetCode))throw new Error('The original reset code is invalid.');
  if(typeof turnOffTwoStep!=='boolean')throw new Error('The two-step choice is invalid.');
  return makeMemberResetCode(api,id,expectedRevision,turnOffTwoStep,signal);
-}
-export async function verifyMemberResetCode(api:ProfileAPI,username:string,code:string,signal?:AbortSignal):Promise<DirectSignIn>{
- const out=parseDirectSignIn(await api.request(routePath('post_direct_password_reset'),'POST',routeBody('post_direct_password_reset',{username,code:code.trim()}),signal));
- if(out.kind!=='signed-in'||!out.passwordChangeRequired||!out.accountScoped||out.session.refreshToken||out.resetFileOwnerSession)throw new Error('The member reset did not return a password-change session.');
- return out;
-}
-/** The one-hour account session from a reset code may only choose its password.
- * Keeping two-step verification requires its ordinary authenticator/recovery proof. */
-export async function changeResetPassword(api:ProfileAPI,newPassword:string,secondFactorCode='',signal?:AbortSignal):Promise<void>{
- await api.request(routePath('post_direct_password'),'POST',routeBody('post_direct_password',{currentPassword:'',newPassword,code:secondFactorCode.trim()}),signal);
-}
-
-function ownerPasswordGrant(grant:DirectSignIn){
- if(grant.kind!=='signed-in'||!grant.passwordChangeRequired||!grant.accountScoped||grant.session.refreshToken||grant.snapshot.account.role!=='owner'||grant.resetFileOwnerSession)throw new Error('The owner reset proof is not current.');
- return grant;
-}
-/** Existing security read, after the one-use file was proved. The API must be
- * bound to that restricted grant; this helper never publishes or replaces it. */
-export async function ownerResetSecurity(api:ProfileAPI,grant:DirectSignIn,signal?:AbortSignal):Promise<Readonly<{username:string;twoStepEnabled:boolean}>>{
- const current=ownerPasswordGrant(grant);
- const state=parseTwoFactorState(await api.request(routePath('get_direct_two_factor'),'GET',undefined,signal));
- return Object.freeze({username:current.snapshot.account.username,twoStepEnabled:state.enabled});
-}
-/** The existing password command commits this choice and the new password in
- * one writer. Fresh sign-in still needs the preserved factor when left on. */
-export async function finishOwnerResetPassword(api:ProfileAPI,grant:DirectSignIn,newPassword:string,turnOffTwoStep:boolean,signal?:AbortSignal):Promise<void>{
- ownerPasswordGrant(grant);
- if(typeof turnOffTwoStep!=='boolean')throw new Error('The two-step choice is invalid.');
- const body={currentPassword:'',newPassword,code:'',turnOffTwoStep};
- await api.request(routePath('post_direct_password'),'POST',routeBody('post_direct_password',body),signal);
 }
 /** A member chooses a new password with the reset code the owner or an administrator gave them
  * (`POST /v1/auth/password-reset/confirm`). It signs nobody in: the person then signs in with the new password. A
