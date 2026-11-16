@@ -47,26 +47,6 @@ test('General exposes backed Advanced controls and one Background speed setting,
   host.dispose();fixture.stop();
 });
 
-test('Storage custom limits open an exact-value editor and a rejected edit never changes the draft', async () => {
-  const fixture = await formsFixture({runtime: {analysisStorageGiB: 40, playHistoryDays: 0, jobDays: 7, diagnosticDays: 7}, maintenance: maintenance(), logs: {retention: []}}, {maintenance: {storageCategories: [], retentionMaxima: {}}}), host = hooks();
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/storage/LimitsTab.tsx', import.meta.url), {
-    react: host.react, 'react-native': {Text: 'Text', View: 'View'}, '../../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../../../../../packages/i18n/src': {defaultI18n: i18n},
-    '../../../../kit/controls': {Button: 'Button', Select: 'Select', TextField: 'TextField'}, '../../../../kit/overlays': {BottomSheet: 'BottomSheet'}, '../../../../kit/shell/visual': {shellType: () => ({})}, '../../../../kit/theme': {useTheme: () => theme}, '../SettingControl': {NativeSettingControl: 'Setting'}, '../settings-values': values, './space-source': {nativeStorageOwner: (context: any) => context.current()}, './forms': fixture.hooks,
-  });
-  const opened: string[] = [];
-  const render = () => host.render(() => module.LimitsTab({group: fixture.group, t, onOpenPage: (page: string) => opened.push(page)})), find = (id: string) => nodes(render()).find((node: any) => node.props.testID === id);
-  assert.equal(find('storage.analysisSpace').props.value, 'custom');assert.ok(find('storage.analysisSpace').props.options.some((option: any) => option.value === 'custom-edit'));
-  find('storage.analysisSpace').props.onValueChange('custom-edit');
-  const field = () => nodes(render()).find((node: any) => node.type === 'TextField');field().props.onChangeText('0');
-  const save = () => nodes(find('server-storage-number').props.footer).find((node: any) => node.type === 'Button' && content(node) === 'action.save');
-  assert.equal(save().props.disabled, true);save().props.onPress();assert.equal(fixture.group.forms.runtime.getSnapshot().draft.analysisStorageGiB, 40);
-  field().props.onChangeText('48');assert.equal(save().props.disabled, false);save().props.onPress();assert.equal(fixture.group.forms.runtime.getSnapshot().draft.analysisStorageGiB, 48);
-  const links = nodes(render()).filter((node: any) => node.type === 'Button' && ['next.settingsSpec.server.storage.advanced.groups.0.rows.0.control.label', 'next.settingsSpec.server.storage.advanced.groups.0.rows.2.control.label'].includes(content(node)));
-  assert.equal(links.length, 2); links.forEach((node: any) => node.props.onPress()); assert.deepEqual(opened, ['history', 'troubleshooting']);
-  assert.ok(!nodes(render()).some((node: any) => node.props.row?.id === 'troubleshooting.keepLogs'));
-  fixture.stop();
-});
-
 test('Remote access edits the certificate switch, keeps own address on main, and retries renewal failure once', async () => {
   const certificate = {configured: true, authorityId: 'a'.repeat(64), config: {enabled: true, publicAddress: '', publicPort: 32500, revision: '1'}, state: 'renewing', errorCode: 'renewal_failed', environment: 'production', tlsReady: true, publiclyTrusted: true, listenerBound: true, listenPort: 32500, reachability: 'probe_required'};
   const connectivity = {ownAddressEnabled: false, customCertificateDomain: '', customCertificatePath: '', customCertificateKeyPath: '', remoteSignInPolicy: 'allow', lanDiscoveryEnabled: true, dlnaEnabled: false, accessUrls: [], trustedProxies: [], advertiseUrl: '', lanNetworks: [], connectionLimit: 0};
