@@ -63,7 +63,7 @@ func (s *Server) crossOrigin(w http.ResponseWriter, r *http.Request) bool {
 	// The answer depends on who asks, so nothing that keeps answers may hand one origin's to another.
 	w.Header().Add("Vary", "Origin")
 	origin := r.Header.Get("Origin")
-	allowed := s.originAllowed(origin)
+	allowed := s.originAllowed(origin) || tvAppOrigin(origin, r.UserAgent())
 	if origin == receiver.Origin {
 		_, err := s.castApplication(r.Context())
 		allowed = err == nil
@@ -83,6 +83,23 @@ func (s *Server) crossOrigin(w http.ResponseWriter, r *http.Request) bool {
 	}
 	w.Header().Set("Access-Control-Expose-Headers", corsExposed)
 	return false
+}
+
+// tvAppOrigin is whether a request comes from Portico's app on an LG or Samsung television.
+// Those sets run an installed app as a page loaded from the set's own files, so it has no web
+// address: LG's engine sends the origin "null" and Samsung's "file://". Neither names anyone's
+// site, and "null" is also the origin of every sandboxed frame on any website, so they are
+// allowed only from a television's own browser engine, told by its user agent: "Web0S" on LG,
+// "Tizen" with "TV" on Samsung. A page in a phone's or computer's browser cannot pass for one:
+// sending a User-Agent of its own makes the browser ask first, and that question carries the
+// browser's real user agent, which is refused. What such a page could still do on a television's
+// own web browser is what any allowed origin may do: read answers that need no sign-in, and use
+// a token only if it got one by signing in itself.
+func tvAppOrigin(origin, userAgent string) bool {
+	if origin != "null" && origin != "file://" {
+		return false
+	}
+	return strings.Contains(userAgent, "Web0S") || strings.Contains(userAgent, "Tizen") && strings.Contains(userAgent, "TV")
 }
 
 // originAllowed is an exact comparison with the list: no patterns, no "ends with".

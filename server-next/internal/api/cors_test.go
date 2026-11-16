@@ -99,6 +99,47 @@ func TestOtherOriginsAndLookAlikesMayNotReadAnswers(t *testing.T) {
 	}
 }
 
+// Portico's app on an LG or Samsung television is a page loaded from the set's own files, with
+// the origin "null" (LG) or "file://" (Samsung). It may read answers, and have its preflights
+// answered, only from a television's own browser engine; the same origins from a phone's or
+// computer's browser, and any other origin from a television, are refused as before.
+func TestTheLGAndSamsungAppsMayReadAnswers(t *testing.T) {
+	s := openTestServer(t, filepath.Join(t.TempDir(), "main.db"))
+	owner := onMainProfile(t, s)
+	const (
+		lg       = "Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36 WebAppManager"
+		samsung  = "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) 85.0.4183.93/6.5 TV Safari/537.36"
+		computer = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
+		phone    = "Mozilla/5.0 (Linux; Tizen 7.0; SAMSUNG SM-Z130H) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/3.0 Mobile Safari/537.36"
+	)
+	for _, tv := range []struct{ origin, agent string }{{"null", lg}, {"file://", samsung}, {"null", samsung}, {"file://", lg}} {
+		read := asked(s, tv.origin, "GET", "/v1/libraries", owner.AccessToken, "User-Agent", tv.agent)
+		if read.Code != 200 || !readable(read, tv.origin) || read.Header().Get("Access-Control-Allow-Credentials") != "" {
+			t.Errorf("%q from %q: answered %d with headers %v", tv.origin, tv.agent, read.Code, read.Header())
+		}
+		pre := asked(s, tv.origin, "OPTIONS", "/v1/libraries", "", "User-Agent", tv.agent, "Access-Control-Request-Method", "GET", "Access-Control-Request-Headers", "authorization")
+		if pre.Code != http.StatusNoContent || !readable(pre, tv.origin) {
+			t.Errorf("preflight %q from %q: answered %d with headers %v", tv.origin, tv.agent, pre.Code, pre.Header())
+		}
+		if w := asked(s, tv.origin, "GET", "/v1/libraries", "", "User-Agent", tv.agent); w.Code != 401 {
+			t.Errorf("being the TV app stood in for a sign-in: %d", w.Code)
+		}
+	}
+	for _, refused := range []struct{ origin, agent string }{
+		{"null", computer}, {"file://", computer}, {"null", phone}, {"null", ""},
+		{"https://evil.example", lg}, {"file:///", samsung}, {"null ", lg}, {"*", lg},
+	} {
+		for name, w := range map[string]*httptest.ResponseRecorder{
+			"a read":      asked(s, refused.origin, "GET", "/v1/system", "", "User-Agent", refused.agent),
+			"a preflight": asked(s, refused.origin, "OPTIONS", "/v1/libraries", "", "User-Agent", refused.agent, "Access-Control-Request-Method", "GET"),
+		} {
+			if w.Header().Get("Access-Control-Allow-Origin") != "" || name == "a preflight" && w.Code < 400 {
+				t.Errorf("%s, %q from %q: answered %d with headers %v", name, refused.origin, refused.agent, w.Code, w.Header())
+			}
+		}
+	}
+}
+
 // Before a request that carries a token or a JSON body, a browser asks whether the page may
 // send it. An allowed origin is told yes without any sign-in, since that question never
 // carries one, and told which methods and headers it may use.
