@@ -3,8 +3,11 @@ package mediaengine_test
 import (
 	"fmt"
 	"math"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -263,4 +266,62 @@ func (m *matrix) checkText(f *finding, session *api.PlaybackSession, tracks map[
 		}
 		f.check(!strings.Contains(vtt, `{\`), "the %s subtitle still carries styling codes:\n%s", kind, vtt)
 	}
+}
+
+// segments reads the picture's [from, to) interval from every playlist. Separate
+// audio uses its own cuts, so matching segment numbers need not cover matching times.
+func (m *matrix) segments(t *testing.T, f *finding, url string, from, to int) (video, audio *probed, files []string, start, end float64) {
+	t.Helper()
+	base, lists := m.playlists(t, url)
+	start, end = lists[0].at(from), lists[0].at(to)
+	for _, l := range lists {
+		if start >= l.at(len(l.parts)) {
+			f.check(false, "%s ends before requested time %.3f", l.name, start)
+			continue
+		}
+		first, last := 0, 0
+		for first+1 < len(l.parts) && l.at(first+1) <= start+1e-6 {
+			first++
+		}
+		for last = first; last < len(l.parts) && l.at(last) < end-1e-6; last++ {
+		}
+		var joined []byte
+		if l.init != "" {
+			_, _, body := m.on(t).media(base + l.init)
+			joined = append(joined, body...)
+		}
+		for i := first; i < last; i++ {
+			code, _, body := m.on(t).media(base + l.parts[i])
+			if code != 200 || len(body) == 0 {
+				f.check(false, "%s, named in %s, answered %d: %.200q", l.parts[i], l.name, code, body)
+				break
+			}
+			joined = append(joined, body...)
+		}
+		ext := ".ts"
+		if l.init != "" {
+			ext = ".mp4"
+		}
+		file := filepath.Join(t.TempDir(), "joined"+ext)
+		if err := os.WriteFile(file, joined, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, file)
+		v, a := m.probe(t, file, true)
+		// First validate every raw track against its own declared cuts. Then
+		// discard seek preroll for the shared-window A/V comparison below.
+		checkTimeline(f, v, a, l.at(first), l.at(last))
+		for _, track := range []*probed{v, a} {
+			if track != nil {
+				track.times = track.times[sort.SearchFloat64s(track.times, start-0.05):]
+			}
+		}
+		if video == nil {
+			video = v
+		}
+		if audio == nil {
+			audio = a
+		}
+	}
+	return video, audio, files, start, end
 }
