@@ -301,6 +301,8 @@ export class WebPlayback implements PlaybackAdapter {
   private carriedSeek?: number;
   private seekRevision?: number;
   private corrected?: number;
+  /** A stall of a converted stream is reported as waiting for its next piece, until it plays. */
+  private preparingStall = false;
   private appliedIntent?: 'playing' | 'paused';
   /** The port holds a presentation the service loaded itself; the controller is told by `observe`. */
   private direct = false;
@@ -510,6 +512,7 @@ export class WebPlayback implements PlaybackAdapter {
       case 'state':
         if (o.state === 'ended') { service.fact(intent, seconds, 'ended'); return; }
         if (o.state !== 'playing' && o.state !== 'paused') return;
+        if (o.state === 'playing' && this.preparingStall) {this.preparingStall = false; service.recovering(intent, false);}
         service.ready(intent);
         if (this.settle(service, intent, o, false)) service.fact(intent, seconds, o.state);
         return;
@@ -578,7 +581,11 @@ export class WebPlayback implements PlaybackAdapter {
         this.external(n.state);
         return;
       case 'throughput': this.automatic?.sample(n.kbps); this.decide(); return;
-      case 'stall': this.automatic?.stalled(); this.decide(); return;
+      case 'stall':
+        // A stream the server converts slower than it plays waits for its next piece: that is
+        // "Getting ready" until the picture moves again, never a silent stall.
+        if (snapshot.session?.converting && !this.preparingStall) {this.preparingStall = true; service.recovering(intent, true);}
+        this.automatic?.stalled(); this.decide(); return;
     }
   }
 

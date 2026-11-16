@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PlaybackService, type PlaybackApi, type PlaybackSession} from '../src/index.ts';
 
-function setup(options: {seekTimeoutMs?: number; startupTimeoutMs?: number} = {}) {
+function setup(options: {seekTimeoutMs?: number; startupTimeoutMs?: number} = {}, converting = false) {
   let created = 0;
   const api: PlaybackApi = {
-    createPlayback: async () => ({id: 's' + (++created), generation: 1, streamUrl: '/v1/media/a/master.m3u8', mode: 'hls', duration: 600, resumeSeconds: 30}),
+    createPlayback: async () => ({id: 's' + (++created), generation: 1, streamUrl: '/v1/media/a/master.m3u8', mode: 'hls', duration: 600, resumeSeconds: 30, ...(converting ? {converting} : {})}),
     stopPlayback: async () => {}, progressPlayback: async () => {},
   };
   return new PlaybackService(api, () => 'r' + (++created), options);
@@ -80,5 +80,24 @@ test('a re-planned presentation replaces the old one in place: same session, sam
   assert.equal(service.getSnapshot().seekRevision, after.seekRevision);
   assert.equal(service.installPresentation({...next, generation: 1}), false);
   assert.equal(service.installPresentation({...next, id: 'other', generation: 3}), false);
+  service.leave();
+});
+
+// W1 F2 (16 Nov walk): the HDR10 film's first converted piece took 15 to 23 s on the demo box; the
+// 15 s seek window paused the start and the player unloaded it. Definition 07 rule 3.
+test('a start the server is converting waits through both windows and begins by itself when its piece arrives', async t => {
+  t.mock.timers.enable({apis: ['setTimeout', 'Date']});
+  const service = setup({startupTimeoutMs: 40, seekTimeoutMs: 30}, true);
+  await service.play('movie');
+  const s = service.getSnapshot();
+  t.mock.timers.tick(400);
+  const waiting = service.getSnapshot();
+  assert.equal(waiting.phase, 'starting');
+  assert.equal(waiting.intent, 'playing', 'never paused while the piece is being made');
+  assert.equal(waiting.pendingSeek?.positionSeconds, 30);
+  assert.equal(waiting.seekError, undefined);
+  service.ready(s.intentId);
+  assert.ok(service.seekApplied(s.intentId, waiting.pendingSeek!.revision, 30, 'playing'));
+  assert.equal(service.getSnapshot().phase, 'ready');
   service.leave();
 });

@@ -16,7 +16,7 @@ import type {WatchPanel, WatchRect, WatchScreenProps} from './types';
 import {revealVideoControlsOnTab, videoControlsMayHide} from './video-controls-focus';
 import {useReducedMotion} from '../../kit/overlays/shared';
 import styles from './watch.module.css';
-import {PlaybackWaiting} from '../../kit/states/PlaybackWaiting';
+import {PlaybackWaiting, playbackWaiting} from '../../kit/states/PlaybackWaiting';
 import {fenceKey} from '../../shell/playback-model';
 import {PlaybackFailure} from '../../kit/states/PlaybackFailure';
 import {ScrubPreview} from './ScrubPreview';
@@ -387,7 +387,7 @@ export function WatchScreen({binding, snapshot, expanded, onCollapse, onControls
         onReport={surfaces?.more?.find(action => action.id === 'report-problem') ? () => effect(() => surfaces.more!.find(action => action.id === 'report-problem')!.action()) : undefined}
         closeLabel={surfaces?.convertingOwnerAction ? t('web.player.error.turnOnConverting') : undefined}
         onClose={surfaces?.convertingOwnerAction ?? onCollapse} onError={binding.reportError}>{surfaces?.streamLimit}</PlaybackFailure>}
-      <PlaybackWaiting key={playbackKey} waiting={open && snapshot.playback.recovering === true && snapshot.playback.intent === 'playing' && snapshot.playback.phase !== 'error' && !snapshot.problem}/>
+      <PlaybackWaiting key={playbackKey} {...playbackWaiting(open, snapshot)}/>
       <button type="button" className={styles.pictureTap} style={videoGesture?.port ? {touchAction: 'none'} : undefined} aria-label={t('player.stageLabel', {title: identity?.title ?? ''})}
         onPointerDown={event => {
           if (gestureInput.current) return;

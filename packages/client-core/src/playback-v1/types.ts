@@ -187,6 +187,8 @@ export type Presentation = Readonly<{
   seekId?: string;
   /** The player engine the device must play this presentation with. */
   engine: PlaybackEngine;
+  /** How the server delivers it: the file as it is, repackaged, or converted as it plays. */
+  route?: 'original' | 'repackaged' | 'converted';
   subtitles: readonly Readonly<{trackId: string; format: string; url: string; companionUrl?: string; fontsUrl?: string; linesUrl?: string; timeDomain?: 'source-relative'; offsetMs?: number}>[];
   decision: Readonly<{video?: Decision; audio?: Decision; subtitles?: Decision}>;
   bitrateKbps?: number;
@@ -279,6 +281,7 @@ export function parsePresentation(p: unknown, prepared = false): Presentation {
     choiceRevision: typeof p.choiceRevision === 'number' && Number.isSafeInteger(p.choiceRevision) && p.choiceRevision > 0 ? p.choiceRevision : 1,
     generation, mode: oneOf(p.mode, ['direct', 'stream'] as const, 'stream'), url: prepared && (p.url === undefined || p.url === '') ? '' : url(p.url, 'presentation url'), startPositionMs: num(p.startPositionMs),
     engine: engineOf(p.engine), quality: parseQuality(p.quality),
+    ...(p.route === 'original' || p.route === 'repackaged' || p.route === 'converted' ? {route: p.route} : {}),
     audioTrackId: typeof p.audioTrackId === 'string' && p.audioTrackId ? p.audioTrackId : undefined,
     subtitle: obj(p.subtitle) && typeof p.subtitle.trackId === 'string' && p.subtitle.trackId ? Object.freeze({trackId: p.subtitle.trackId, kind: oneOf(p.subtitle.kind, ['text', 'ass', 'pgs', 'vobsub', 'dvb'] as const, 'other' as never), delivery: oneOf(p.subtitle.delivery, ['sidecar', 'device', 'burn'] as const, 'other' as never)}) : undefined,
     container: typeof p.container === 'string' && p.container ? p.container : undefined,
