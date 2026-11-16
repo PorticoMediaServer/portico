@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The lower part of every title page: the section strip (a marker, never a focus stop), the
+     More like this row, and Details with the facts and the cast. A show's page adds its own first
+     section (Episodes) and draws that itself. -->
+<component name="TitleSections" extends="Group">
+  <interface>
+    <!-- The title in full, as GET /v1/items/{id} answers. -->
+    <field id="item" type="assocarray" onChange="onItem"/>
+    <!-- Name of the page's own first section ("Episodes"), or "" for none. -->
+    <field id="lead" type="string" onChange="place"/>
+    <!-- Which section is shown: "lead", "related" or "details". -->
+    <field id="section" type="string" value="related" onChange="place"/>
+    <field id="hasRelated" type="boolean"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- A related title was chosen: the item. -->
+    <field id="chosen" type="assocarray" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="TitleSections.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <children>
+    <Label id="tabLead"/>
+    <Label id="tabRelated" text="More like this"/>
+    <Label id="tabDetails" text="Details"/>
+    <Rectangle width="1624" height="1" color="0x28404FFF" translation="[200,52]"/>
+    <Rectangle id="mark" height="3" color="0x409FD4FF"/>
+    <Shelf id="related" shape="poster" translation="[0,24]" visible="false"/>
+    <Group id="details" translation="[0,90]" visible="false">
+      <Label id="aboutHead" text="About" translation="[200,0]"/>
+      <Label id="about" translation="[200,56]" width="880" wrap="true" maxLines="5"/>
+      <Label id="tagline" translation="[200,0]" width="880"/>
+      <Group id="facts" translation="[1148,4]"/>
+      <Shelf id="cast" shape="person" heading="Cast &amp; crew" subheading="Cast, then crew" translation="[0,330]"/>
+    </Group>
+  </children>
+</component>
