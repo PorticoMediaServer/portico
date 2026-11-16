@@ -17,7 +17,7 @@ function fixture(responses: V1Response[], options: {page?: unknown; now?: () => 
   let cancelled = 0, hidden = false;
   const visible = new Set<() => void>();
   const http = {send: async (request: V1Request) => {sent.push(request); const next = responses.shift(); assert.ok(next, 'an unexpected send'); return next;}};
-  const api = {request: async () => options.page ?? {items: [], nextCursor: '', streamLimit: {scope: 'account', limit: 1, playing: 0}}} as unknown as HttpLocalApi;
+  const api = {request: async () => options.page ?? {items: [], limit: 1}} as unknown as HttpLocalApi;
   const life = new AbortController();
   const held = startFailureHttp({http, api, events: {on: () => () => {}}, life: life.signal,
     visibility: {hidden: () => hidden, onVisible: listener => {visible.add(listener); return () => {visible.delete(listener);};}},
