@@ -1,6 +1,7 @@
 package reading
 
 import (
+	"context"
 	"io"
 	"path"
 	"strings"
@@ -43,22 +44,16 @@ func (a *archive) epubPackage() ([]byte, string, error) {
 	return nil, "", errDamaged
 }
 
-// Cover reads only an EPUB's declared cover or a CBZ's first page, through the same
-// path, directory and unpacked-size checks as the reader. PDFs have no extracted cover.
+// Cover reads only an EPUB's declared cover, through the same path, directory and
+// unpacked-size checks as the reader. A comic's cover is read by Comic; PDFs have no
+// extracted cover.
 func Cover(r io.ReaderAt, size int64, ext string, limit int64) ([]byte, error) {
-	if ext != ".epub" && ext != ".cbz" {
+	if ext != ".epub" {
 		return nil, nil
 	}
 	a, err := openArchive(r, size)
 	if err != nil {
 		return nil, err
-	}
-	if ext == ".cbz" {
-		comic, err := readComic(a)
-		if err != nil {
-			return nil, err
-		}
-		return a.read(comic.pages[0], min(limit, maxPartSize))
 	}
 	raw, name, err := a.epubPackage()
 	if err != nil {
@@ -95,16 +90,31 @@ func Cover(r io.ReaderAt, size int64, ext string, limit int64) ([]byte, error) {
 	return nil, nil
 }
 
-// ComicInfo returns a comic archive's ComicInfo.xml, or nil when it has none.
-func ComicInfo(r io.ReaderAt, size int64) ([]byte, error) {
-	a, err := openArchive(r, size)
-	if err != nil {
-		return nil, err
+// Comic reads a comic archive (CBZ, CBR or CB7) once for the scanner: its ComicInfo.xml, nil
+// when it has none, and, when coverLimit is above zero, its first page as its cover, nil when
+// that page is larger than coverLimit. CBR and CB7 are read by the same limited worker as the
+// reader uses; in a build without that format there is nothing to read.
+func Comic(ctx context.Context, r io.ReaderAt, size int64, format string, coverLimit int64) (info, cover []byte, err error) {
+	if !comicFormat(format) {
+		return nil, nil, nil
 	}
+	a, err := openBookArchive(ctx, &bookFile{at: r, size: size}, format)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer a.close()
 	for _, name := range a.names {
 		if strings.EqualFold(name, "ComicInfo.xml") {
-			return a.read(name, 1<<20)
+			if info, err = a.read(name, 1<<20); err != nil {
+				return nil, nil, err
+			}
+			break
 		}
 	}
-	return nil, nil
+	if coverLimit > 0 {
+		if comic, err := readComic(a); err == nil {
+			cover, _ = a.read(comic.pages[0], min(coverLimit, maxPartSize))
+		}
+	}
+	return info, cover, nil
 }

@@ -61,6 +61,11 @@ func TestClassicComicsReadThroughTheBoundedWorker(t *testing.T) {
 			if err != nil || !bytes.HasPrefix(body, []byte("\x89PNG\r\n\x1a\n")) {
 				t.Fatalf("page: %v", err)
 			}
+			// The scanner reads its details and its cover (the first page) through the same worker.
+			info, cover, err := Comic(context.Background(), bytes.NewReader(raw), int64(len(raw)), Format(name), 1<<20)
+			if err != nil || !bytes.HasPrefix(cover, []byte("\x89PNG\r\n\x1a\n")) || comic.direction == "rtl" && info == nil {
+				t.Fatalf("details for the scanner: %d bytes of ComicInfo, %d of cover, %v", len(info), len(cover), err)
+			}
 			broken := append([]byte(nil), raw...)
 			broken[0] = 0
 			invalid, err := openBookArchive(context.Background(), &bookFile{at: bytes.NewReader(broken), size: int64(len(broken))}, Format(name))
