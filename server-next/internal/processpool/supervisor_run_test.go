@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os/exec"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -12,19 +13,44 @@ import (
 
 func TestCancellationKillsOwnedChildAndAdmissionRemainsBounded(t *testing.T) {
 	s := &Supervisor{Limit: 1}
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	started := time.Now()
-	e := s.Run(ctx, "root", exec.Command("sh", "-c", "sleep 30"), func(r io.Reader) error { _, e := io.Copy(io.Discard, r); return e })
-	if !errors.Is(e, context.DeadlineExceeded) || time.Since(started) > time.Second {
-		t.Fatalf("cancellation %v after %v", e, time.Since(started))
+	started, release, retired := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(release) })
+	defer unblock()
+	result := make(chan error, 1)
+	go func() {
+		result <- s.RunOwnedCompletion(ctx, "root", exec.Command("sh", "-c", "sleep 30"), func(r io.Reader) error {
+			close(started)
+			<-release
+			_, err := io.Copy(io.Discard, r)
+			return err
+		}, nil, func() { close(retired) })
+	}()
+	select {
+	case <-started:
+	case <-time.After(30 * time.Second):
+		t.Fatal("the owned child did not start")
 	}
-	for n := 0; n < 100 && s.Active() != 0; n++ {
-		time.Sleep(10 * time.Millisecond)
+	cancel()
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancellation: %v", err)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("cancellation waited for the held consumer")
+	}
+	unblock()
+	select {
+	case <-retired:
+	case <-time.After(30 * time.Second):
+		t.Fatal("the owned child was not reaped")
 	}
 	if s.Active() != 0 {
 		t.Fatal("reaped child retained slot")
 	}
+	var e error
 	s.mu.Lock()
 	s.active["wedged-root"] = true
 	s.counts[poolHelper] = 1
