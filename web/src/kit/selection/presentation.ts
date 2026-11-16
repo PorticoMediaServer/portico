@@ -40,7 +40,7 @@ export function selectionCountText({count, kind}: SelectionCount): string {
 /** Order only the bulk fields in the actual preview registry. */
 export function bulkEditorSchema(schema: readonly RepairFieldSpec[], kind: SelectionMediaKind): readonly RepairFieldSpec[] {
   const fields = schema.filter(spec => spec.bulk);
-  const order = kind === 'movie' ? ['contentRating', 'studio', 'country', 'year', 'edition', 'metadataLanguage', 'genres', 'tags', 'labels'] : kind === 'episode' ? ['contentRating', 'network', 'year', 'metadataLanguage', 'tags', 'labels'] : kind === 'song' ? ['year', 'metadataLanguage', 'genres', 'tags', 'labels'] : [];
+  const order = kind === 'movie' ? ['contentRating', 'studio', 'studios', 'country', 'countries', 'year', 'edition', 'metadataLanguage', 'genres', 'tags', 'labels'] : kind === 'episode' ? ['contentRating', 'network', 'networks', 'year', 'metadataLanguage', 'tags', 'labels'] : kind === 'song' ? ['year', 'metadataLanguage', 'genres', 'tags', 'labels'] : [];
   return [...fields].sort((left, right) => {
     const a = order.indexOf(left.field), b = order.indexOf(right.field);
     return (a < 0 ? order.length : a) - (b < 0 ? order.length : b);

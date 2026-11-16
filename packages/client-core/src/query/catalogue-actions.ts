@@ -6,6 +6,7 @@ import {formatBytes} from '../presentation/content.ts';
 import {serverPath} from './server-api.ts';
 import type {DeletePreview, DeleteResult} from '../administration.ts';
 import type {DeletionPreview, DeletionResult, SelectionDeleted, SelectionDeletion} from '../../../contracts/src/next/api.ts';
+import {saveBulkMetadata} from '../metadata-bulk-rebuilt.ts';
 
 export interface CatalogueActionsApi {
   request(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<unknown>;
@@ -15,8 +16,9 @@ export interface CatalogueActionsApi {
 export function readMetadataResponse(api: CatalogueActionsApi, kind: string, id: string, signal?: AbortSignal) {
   return api.request(encodedRoutePath('get_metadata_kind_id', {kind: encodeURIComponent(kind), id: encodeURIComponent(id)}), 'GET', undefined, signal);
 }
+/** One bulk edit, saved as the rebuilt server's `edit_items` job; the answer is the editor's per-title receipt. */
 export function submitMetadataBulk(api: CatalogueActionsApi, body: BulkEdit, signal?: AbortSignal) {
-  return api.request(routePath('post_metadata_bulk'), 'POST', body, signal);
+  return saveBulkMetadata(api as never, body, signal);
 }
 /** A title to delete, as the screen holds it. */
 export type DeletionTarget = Readonly<{itemId: string; libraryId: string; kind: string; title?: string}>;

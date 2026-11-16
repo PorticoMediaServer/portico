@@ -7,6 +7,7 @@ import type {HomeSelectionOptions, HomeSelectionPlaybackRequest} from '../src/ho
 import {routePath} from '../../contracts/src/routes.ts';
 import {homeEntrySelection} from '../src/home-selection.ts';
 import {withQueries} from './fixtures/viewer-queries.ts';
+import {rebuiltMetadata} from './fixtures/rebuilt-metadata.ts';
 
 const fence = 'a'.repeat(64), revision = 'b'.repeat(64);
 let sequence = 0;
@@ -67,36 +68,31 @@ test('authority/revision change clears retained picks and blocks late playback c
   assert.notEqual(h.controller.getSnapshot().action.phase, 'complete'); h.controller.dispose();
 });
 
-function preview(targets: readonly {kind: string; contentKind: string; id: string; libraryId: string}[]) {
-  return {variant: 'ready', serverId: 'server', viewerFence: fence, contentKind: 'movie', kind: 'item', total: targets.length, schema: [{field: 'year', label: 'Year', group: 'numbers', type: 'integer', min: 0, max: 9999, bulk: true}], singleItemFields: [{field: 'year', label: 'Year', group: 'numbers', type: 'integer', min: 0, max: 9999, bulk: true}, {field: 'title', label: 'Title', group: 'general', type: 'text', bulk: false}], excludedFields: [{field: 'title', label: 'Title', group: 'general', type: 'text', bulk: false}], fields: {year: {state: 'shared', value: '2020', distinctCount: 1, values: [{value: '2020', count: targets.length}], entries: [], locked: 0, truncated: false}}, targets: targets.map(target => ({kind: target.kind, id: target.id, libraryId: target.libraryId, expectedRevision: revision}))};
-}
-test('metadata explicit retry previews only failed targets and retains every actual receipt', async () => {
-  const previews: string[][] = [], edits: {operationId: string; targets: {kind: string; id: string}[]}[] = [];
-  const api: HomeSelectionOptions['api']['request'] = async (path, _method, raw) => {
-    const body = raw as {targets: {kind: string; contentKind: string; id: string; libraryId: string}[]; operationId: string};
-    if (path === routePath('post_metadata_bulk_preview')) {previews.push(body.targets.map(target => target.id)); return preview(body.targets) as never;}
-    if (path !== routePath('post_metadata_bulk')) throw new Error(`Unexpected route ${path}`);
-    edits.push(body);
-    const first = edits.length === 1;
-    return {operationId: body.operationId, updated: 1, failed: first ? 1 : 0, results: body.targets.map(target => first && target.id === 'b' ? {kind: 'item', id: 'b', ok: false, code: 'metadata_conflict', message: 'Changed'} : {kind: 'item', id: target.id, ok: true, revision: 'd'.repeat(64)})} as never;
+/** The rebuilt server's metadata documents and edit_items jobs for the two movies the harness holds. */
+function metadataServer(options: {fail?: string[]; lose?: number} = {}) {
+  const fake = rebuiltMetadata({a: {title: 'A'}, b: {title: 'B'}}, options);
+  const api: HomeSelectionOptions['api']['request'] = async (path, method, raw) => {
+    const value = fake.answer(path, method, raw);
+    if (value === undefined) throw new Error(`Unexpected route ${path}`);
+    return value as never;
   };
+  return {fake, api};
+}
+test('metadata explicit retry sends only the failed titles and retains every actual receipt', async () => {
+  const fail = ['b'], {fake, api} = metadataServer({fail});
   const h = harness(undefined, api); pickAll(h); await h.controller.openEditor(); h.controller.setEditorDraft({fields: {year: {value: '2025'}}, lockEdited: true}); await h.controller.saveEditor();
-  assert.equal(h.controller.getSnapshot().editor?.receipts.length, 1); await h.controller.retryEditor();
-  assert.deepEqual(previews, [['a', 'b'], ['b']]); assert.deepEqual(edits.map(edit => edit.targets.map(target => target.id)), [['a', 'b'], ['b']]);
-  assert.notEqual(edits[0].operationId, edits[1].operationId); assert.deepEqual(h.controller.getSnapshot().editor?.receipts.map(receipt => receipt.operationId), edits.map(edit => edit.operationId)); h.controller.dispose();
+  assert.equal(h.controller.getSnapshot().editor?.receipts.length, 1); assert.equal(h.controller.getSnapshot().editor?.receipts[0]?.failed, 1);
+  fail.length = 0; await h.controller.retryEditor();
+  assert.deepEqual(fake.jobs.map(job => job.target.items), [['a', 'b'], ['b']]);
+  const receipts = h.controller.getSnapshot().editor?.receipts ?? [];
+  assert.equal(receipts.length, 2); assert.notEqual(receipts[0]!.operationId, receipts[1]!.operationId); assert.equal(receipts[1]!.updated, 1); h.controller.dispose();
 });
 
-test('an ambiguous metadata response retries the original byte-identical operation', async () => {
-  const bodies: unknown[] = [];
-  const api: HomeSelectionOptions['api']['request'] = async (path, _method, raw) => {
-    const body = raw as {targets: {kind: string; contentKind: string; id: string; libraryId: string}[]; operationId: string};
-    if (path === routePath('post_metadata_bulk_preview')) return preview(body.targets) as never;
-    bodies.push(raw); if (bodies.length === 1) throw new Error('Response lost');
-    return {operationId: body.operationId, updated: body.targets.length, failed: 0, results: body.targets.map(target => ({kind: target.kind, id: target.id, ok: true, revision: 'd'.repeat(64)}))} as never;
-  };
+test('an ambiguous metadata answer sends the same edit again', async () => {
+  const {fake, api} = metadataServer({lose: 1});
   const h = harness(undefined, api); pickAll(h); await h.controller.openEditor(); h.controller.setEditorDraft({fields: {year: {value: '2025'}}}); await h.controller.saveEditor();
   assert.equal(h.controller.getSnapshot().editor?.phase, 'uncertain'); await h.controller.saveEditor();
-  assert.deepEqual(bodies[1], bodies[0]); assert.equal(h.controller.getSnapshot().editor?.receipts.length, 1); h.controller.dispose();
+  assert.equal(fake.jobs.length, 2); assert.deepEqual(fake.jobs[1], fake.jobs[0]); assert.equal(h.controller.getSnapshot().editor?.receipts.length, 1); h.controller.dispose();
 });
 
 test('delete over 200 opens the real cap explanation without requesting or changing media', async () => {
@@ -105,38 +101,29 @@ test('delete over 200 opens the real cap explanation without requesting or chang
 });
 
 test('per-row editor retry rejects successful or duplicate target IDs before another read', async () => {
-  let edits = 0, reads = 0;
-  const api: HomeSelectionOptions['api']['request'] = async (path, _method, raw) => {
-    const body = raw as {targets: {kind: string; contentKind: string; id: string; libraryId: string}[]; operationId: string};
-    if (path === routePath('post_metadata_bulk_preview')) {reads++; return preview(body.targets) as never;}
-    edits++; return {operationId: body.operationId, updated: 1, failed: 1, results: [{kind: 'item', id: 'a', ok: true, revision}, {kind: 'item', id: 'b', ok: false, code: 'metadata_conflict', message: 'Changed'}]} as never;
-  };
+  const {fake, api} = metadataServer({fail: ['b']});
   const h = harness(undefined, api); pickAll(h); await h.controller.openEditor(); h.controller.setEditorDraft({fields: {year: {value: '2025'}}}); await h.controller.saveEditor();
+  const reads = fake.reads.length;
   await assert.rejects(h.controller.retryEditor(h.controller.getSnapshot().editor!.draft, ['a']), /invalid-editor-retry-targets/);
   await assert.rejects(h.controller.retryEditor(h.controller.getSnapshot().editor!.draft, ['b', 'b']), /invalid-editor-retry-targets/);
-  assert.equal(reads, 1); assert.equal(edits, 1); h.controller.dispose();
+  assert.equal(fake.reads.length, reads); assert.equal(fake.jobs.length, 1); h.controller.dispose();
 });
 
 test('a failed retry preview preserves receipts, draft and only the same failed targets on retry', async () => {
-  const reads: string[][] = [], writes: string[][] = [];
-  const api: HomeSelectionOptions['api']['request'] = async (path, _method, raw) => {
-    const body = raw as {targets: {kind: string; contentKind: string; id: string; libraryId: string}[]; operationId: string};
-    if (path === routePath('post_metadata_bulk_preview')) {
-      reads.push(body.targets.map(target => target.id));
-      if (reads.length === 2) throw new Error('Preview connection lost');
-      return preview(body.targets) as never;
-    }
-    writes.push(body.targets.map(target => target.id));
-    const first = writes.length === 1;
-    return {operationId: body.operationId, updated: 1, failed: first ? 1 : 0, results: body.targets.map(target => first && target.id === 'b' ? {kind: 'item', id: 'b', ok: false, code: 'metadata_conflict', message: 'Changed'} : {kind: 'item', id: target.id, ok: true, revision})} as never;
+  const fail = ['b'], {fake, api: server} = metadataServer({fail});
+  let lose = false;
+  const api: HomeSelectionOptions['api']['request'] = async (path, method, raw) => {
+    if (lose && path.endsWith('/metadata')) {lose = false; throw new Error('Preview connection lost');}
+    return server(path, method, raw);
   };
   const h = harness(undefined, api); pickAll(h); await h.controller.openEditor();
   h.controller.setEditorDraft({fields: {year: {value: '2024'}}}); await h.controller.saveEditor();
+  lose = true; fail.length = 0;
   const draft = {fields: {year: {value: '2025'}}}; await h.controller.retryEditor(draft, ['b']);
   assert.equal(h.controller.getSnapshot().editor?.phase, 'error'); assert.equal(h.controller.getSnapshot().editor?.receipts.length, 1);
   assert.deepEqual(h.controller.getSnapshot().editor?.draft, draft);
   await h.controller.reloadEditor();
-  assert.deepEqual(reads, [['a', 'b'], ['b'], ['b']]); assert.deepEqual(writes, [['a', 'b'], ['b']]);
+  assert.deepEqual(fake.jobs.map(job => job.target.items), [['a', 'b'], ['b']]);
   assert.equal(h.controller.getSnapshot().editor?.receipts.length, 2); h.controller.dispose();
 });
 
@@ -465,7 +452,7 @@ test('J-1: a platform without a single-title editor for the entry falls back to 
   h.controller.registerWindow({id: 'window', row: h.document.rows[0], sectionOrder: 0});
   h.controller.openMenu('window', h.controller.key({kind: 'movie', id: 'a', libraryId: 'library'}));
   await h.controller.executeMenu('editMetadata').catch(() => {});
-  assert.ok(requests.some(path => path.includes('/metadata/bulk/preview')), 'the selection editor asked for its preview');
+  assert.ok(requests.some(path => /^\/v1\/admin\/items\/[^/]+\/metadata$/.test(path)), 'the selection editor read the titles for its preview');
 });
 
 test('J-14: My List already under way finishes its titles when its own write refreshes Home, and its outcome is said', async () => {
@@ -542,21 +529,16 @@ test('D: once an action has acted on the selection, its own write\'s Home answer
   h.controller.dispose();
 });
 // Ruling A: the bulk preview is compared only with previews; the ticket's Home answer gates the write.
-test('A: a preview under another fence than Home opens the editor, and a save after Home moves is refused before any write', async () => {
-  const writes: unknown[] = [];
-  const api: HomeSelectionOptions['api']['request'] = async (path, _method, raw) => {
-    const body = raw as {targets: {kind: string; contentKind: string; id: string; libraryId: string}[]};
-    if (path === routePath('post_metadata_bulk_preview')) return {...preview(body.targets), viewerFence: 'd'.repeat(64)} as never;
-    writes.push(raw); throw new Error('no write may be sent');
-  };
+test('A: a save after Home moves is refused before any write', async () => {
+  const {fake, api} = metadataServer();
   const h = harness(undefined, api); pickAll(h);
   await h.controller.openEditor();
-  assert.equal(h.controller.getSnapshot().editor?.phase, 'ready', 'a preview under a newer fence than Home is not refused');
+  assert.equal(h.controller.getSnapshot().editor?.phase, 'ready');
   h.controller.setEditorDraft({fields: {year: '2026'}, lists: {}, lockEdited: true} as never);
   let save: Promise<unknown> | undefined;
   h.replace({...h.document, viewerFence: 'd'.repeat(64), rows: [{...h.document.rows[0], viewerFence: 'd'.repeat(64)}]}, () => {save = h.controller.saveEditor();});
   await assert.rejects(save!, /cancelled/);
-  assert.deepEqual(writes, []); h.controller.dispose();
+  assert.deepEqual(fake.jobs, []); h.controller.dispose();
 });
 
 // Review (#740): a refresh reads only a row's first page, so a pick from a later page is missing from the newer answer

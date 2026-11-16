@@ -4,78 +4,65 @@ import {createSelectionEditor} from '../src/screens/browse/selection-editor.ts';
 import {LibraryDeleteProducer} from '../src/screens/browse/selection-delete.ts';
 import {HttpLocalApi} from '../../packages/client-core/src/index.ts';
 import {screenLifetime} from '../src/screens/detail/context.ts';
+import {rebuiltMetadata} from '../../packages/client-core/test/fixtures/rebuilt-metadata.ts';
 
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const draft = {fields: {contentRating: 'G'}, lists: {tags: {add: [' X '], remove: []}, genres: {add: ['Drama'], remove: []}}, lockEdited: false};
 
-test('web explicit preview preserves envelope bytes and core HTTP/auth policy for leaf and aggregate identities', async () => {
-  for (const kind of ['movie', 'show', 'season', 'album', 'artist', 'book']) {
-    for (const renew of [false, true]) {
-      const wire: {url: string; method?: string; body?: string; headers: Record<string, string>}[] = [];
-      const identities = ['second /é', 'first'].map(id => ({kind, id, libraryId: 'library', capabilities: {edit: true}}));
-      const picks = identities.map(item => ({key: item.id, item}));
-      const operation = {target: {mode: 'explicit', context: {}, items: picks, displayItems: picks}} as never;
-      const expected = {targets: identities.map(({kind, id, libraryId}) => ({kind: kind === 'movie' ? 'item' : kind, contentKind: kind, id, libraryId}))};
-      const http = new HttpLocalApi('https://wire.example', 'preview-token', async (url, init) => {
-        wire.push({url: String(url), method: init?.method, body: init?.body as string, headers: Object.fromEntries(new Headers(init?.headers))});
-        if (renew && wire.length === 1) return new Response(JSON.stringify({error: {code: 'unauthorized', message: 'Expired'}}), {status: 401});
-        return new Response(JSON.stringify({variant: 'ready', serverId: 'server', viewerFence: 'a'.repeat(64), contentKind: kind,
-          kind: kind === 'movie' ? 'item' : kind, total: 2, schema: [], singleItemFields: [], excludedFields: [], fields: {},
-          targets: expected.targets.map(({contentKind: _, ...target}) => ({...target, expectedRevision: 'b'.repeat(64)}))}), {headers: {'Content-Type': 'application/json'}});
-      });
-      if (renew) http.setAuthRecovery({token: async token => token, recover: async () => 'renewed-token'});
-      const life = screenLifetime({api: http, isCurrent: () => true} as never);
-      const editor = createSelectionEditor({api: {request: life.api.request}, events: {on: () => () => {}},
-        requestId: async () => {throw new Error('preview must not mint an operation ID');}, isCurrent: life.current, serverId: 'server'});
-      try {
-        const result = await editor.preview(operation);
-        assert.deepEqual(result.targets.map(target => target.id), identities.map(item => item.id));
-        assert.equal(wire.length, renew ? 2 : 1);
-        for (let index = 0; index < wire.length; index++) {
-          assert.equal(wire[index].url, 'https://wire.example/v1/metadata/bulk/preview');
-          assert.equal(wire[index].method, 'POST'); assert.equal(wire[index].body, JSON.stringify(expected));
-          assert.equal(wire[index].headers['content-type'], 'application/json');
-          assert.equal(wire[index].headers.authorization, `Bearer ${index ? 'renewed-token' : 'preview-token'}`);
-        }
-      } finally {life.dispose();}
-    }
+test('web explicit preview reads each title\'s document through the core HTTP and sign-in renewal policy', async () => {
+  for (const renew of [false, true]) {
+    const wire: {url: string; method?: string; headers: Record<string, string>}[] = [];
+    const identities = ['second /é', 'first'].map(id => ({kind: 'movie', id, libraryId: 'library', capabilities: {edit: true}}));
+    const picks = identities.map(item => ({key: item.id, item}));
+    const operation = {target: {mode: 'explicit', context: {}, items: picks, displayItems: picks}} as never;
+    const http = new HttpLocalApi('https://wire.example', 'preview-token', async (url, init) => {
+      wire.push({url: String(url), method: init?.method, headers: Object.fromEntries(new Headers(init?.headers))});
+      if (renew && wire.length === 1) return new Response(JSON.stringify({error: {code: 'unauthorized', message: 'Expired'}}), {status: 401});
+      const id = decodeURIComponent(String(url).split('/')[6]!);
+      return new Response(JSON.stringify({itemId: id, kind: 'movie', revision: '3', fields: {title: {value: id, source: 'file', locked: false}, contentRating: {value: 'G', source: 'file', locked: false}},
+        lists: {genres: {values: [], source: 'file', locked: false}}, match: {state: 'found', locked: false, ids: {}}}), {headers: {'Content-Type': 'application/json'}});
+    });
+    if (renew) http.setAuthRecovery({token: async token => token, recover: async () => 'renewed-token'});
+    const life = screenLifetime({api: http, isCurrent: () => true} as never);
+    const editor = createSelectionEditor({api: {request: life.api.request}, events: {on: () => () => {}},
+      requestId: async () => {throw new Error('preview must not mint an operation ID');}, isCurrent: life.current, serverId: 'server'});
+    try {
+      const result = await editor.preview(operation);
+      assert.deepEqual(result.targets.map(target => [target.id, target.expectedRevision]), identities.map(item => [item.id, '3']));
+      // Read a few at a time, so in no fixed order; a renewed sign-in reads the refused title again.
+      assert.deepEqual([...new Set(wire.map(call => `${call.method} ${call.url}`))].sort(), [
+        'GET https://wire.example/v1/admin/items/first/metadata', 'GET https://wire.example/v1/admin/items/second%20%2F%C3%A9/metadata']);
+      assert.equal(wire.length, renew ? 3 : 2);
+      if (renew) assert.ok(wire.some(call => call.headers.authorization === 'Bearer renewed-token'));
+    } finally {life.dispose();}
   }
 });
 function editing(count: number, options: {loseTail?: boolean; retireOnSecondId?: boolean} = {}) {
   const events: string[] = [], writes: any[] = []; let ids = 0, live = true;
-  const targets = Array.from({length: count}, (_, index) => ({kind: 'item', id: `m${index}`, libraryId: 'library', expectedRevision: 'b'.repeat(64)}));
-  const picks = targets.map(target => ({key: target.id, item: {kind: 'movie', id: target.id, libraryId: target.libraryId, capabilities: {edit: true}}}));
+  const docs = Object.fromEntries(Array.from({length: count}, (_, index) => [`m${index}`, {title: `M${index}`}]));
+  const server = rebuiltMetadata(docs);
+  const picks = Object.keys(docs).map(id => ({key: id, item: {kind: 'movie', id, libraryId: 'library', capabilities: {edit: true}}}));
   const operation = {target: {mode: 'explicit', context: {}, items: picks, displayItems: picks}} as never;
-  const preview = {variant: 'ready', serverId: 'server', viewerFence: 'a'.repeat(64), contentKind: 'movie', kind: 'item', total: count,
-    schema: ['contentRating', 'tags', 'genres'].map(field => ({field, label: field, group: 'general', type: field === 'contentRating' ? 'text' : 'list', bulk: true})),
-    singleItemFields: [], excludedFields: [], fields: Object.fromEntries(['contentRating', 'tags', 'genres'].map(field => [field,
-      {state: 'shared', distinctCount: 1, value: 'Old', values: [{value: 'Old', count}], entries: [], locked: 0, truncated: false}])), targets};
   const api = {async request(path: string, method?: string, body?: any) {
-    if (path.endsWith('/preview')) return preview;
-    assert.equal(path, '/v1/metadata/bulk'); assert.equal(method, 'POST'); writes.push(body); events.push(`write-${body.operationId}`);
-    if (options.loseTail && writes.length === 2) throw new Error('lost tail response');
-    return {operationId: body.operationId, results: body.targets.map((target: any) => ({kind: target.kind, id: target.id, ok: true, revision: 'c'.repeat(64)})), updated: body.targets.length, failed: 0};
+    if (path === '/v1/jobs') {writes.push(body); events.push(`write-${writes.length}`); if (options.loseTail && writes.length === 2) throw new Error('lost tail response');}
+    return server.answer(path, method, body);
   }};
   const editor = createSelectionEditor({api: api as never, events: {on: () => () => {}}, requestId: async () => {
     ids++; events.push(`id-${ids}`); if (options.retireOnSecondId && ids === 2) live = false; return `operation-${ids}`;
   }, isCurrent: () => live, serverId: 'server'});
-  return {editor, operation, targets, writes, events, ids: () => ids};
+  return {editor, operation, writes, events, ids: () => ids};
 }
 
-test('web bulk keeps command bytes and sequential IDs across 200+1 targets and an uncertain tail', async () => {
+test('web bulk saves 200 titles a job, and a lost answer is sent again as the same job', async () => {
   const f = editing(201, {loseTail: true}), preview = await f.editor.preview(f.operation);
   const first = await Promise.allSettled([f.editor.save(f.operation, preview, draft), f.editor.save(f.operation, preview, draft)]);
   assert.ok(first.every(result => result.status === 'rejected'));
-  assert.deepEqual(f.events, ['id-1', 'id-2', 'write-operation-1', 'write-operation-2']);
-  assert.equal(f.ids(), 2); assert.equal(f.writes.length, 2);
-  for (let index = 0; index < 2; index++) {
-    const expected = {operationId: `operation-${index + 1}`, targets: f.targets.slice(index * 200, (index + 1) * 200).map(({kind, id, expectedRevision}) => ({kind, id, expectedRevision})),
-      fields: {contentRating: {value: 'G'}}, lists: {tags: {add: [' X '], remove: []}}, genres: {add: ['Drama'], remove: []}, lockEdited: false};
-    assert.equal(JSON.stringify(f.writes[index]), JSON.stringify(expected));
-  }
+  assert.deepEqual(f.events, ['id-1', 'id-2', 'write-1', 'write-2']);
+  assert.deepEqual(f.writes.map(job => job.target.items.length), [200, 1]);
+  assert.deepEqual(f.writes[0].params, {contentRating: 'G', add: {labels: ['X'], genres: ['Drama']}, lock: false});
   const receipts = await f.editor.save(f.operation, preview, draft);
   assert.deepEqual(receipts.map(receipt => receipt.updated), [200, 1]);
-  assert.equal(f.ids(), 2); assert.equal(f.writes.length, 3); assert.equal(f.writes[1], f.writes[2]);
+  assert.equal(f.ids(), 2); assert.equal(f.writes.length, 3); assert.deepEqual(f.writes[2], f.writes[1]);
 });
 
 test('web bulk retirement during ID allocation sends no body', async () => {

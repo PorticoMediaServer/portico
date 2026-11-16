@@ -13,6 +13,7 @@ import {deleteCatalogueTitles, readCatalogueDeletion} from '../query/catalogue-a
 import {routePath} from '../../../contracts/src/route-paths.ts';
 import {validBulkEdit, validateBulkReceipt, type BulkEdit} from '../metadata-bulk.ts';
 import {fetchBulkMetadataPreview, metadataPreviewTargets, type BulkMetadataPreviewRequest} from './metadata-preview.ts';
+import {saveBulkMetadata} from '../metadata-bulk-rebuilt.ts';
 import {HomeSelectionDestinations} from './destinations.ts';
 import {explicitIdentities, runSelectionJobs, selectionExecutionError, selectionJobTasks, type HomeJobTask} from './execution.ts';
 import type {HomeMenuOutcome, HomeSelectionActionState, HomeSelectionMember, HomeSelectionMenu, HomeSelectionOptions, HomeSelectionPlaybackItem, HomeSelectionSnapshot, HomeSelectionWindowInput} from './types.ts';
@@ -670,7 +671,7 @@ export class HomeSelectionController {
     try {
       for (const edit of this.editorEdits) {
         if (edit.receipt) continue; this.check(ticket); edit.attempted = true;
-        const raw = await this.options.api.request(routePath('post_metadata_bulk'), 'POST', edit.body, ticket.controller.signal); this.check(ticket); edit.receipt = validateBulkReceipt(raw, edit.body); this.editorReceipts.push(edit.receipt);
+        const raw = await saveBulkMetadata(this.options.api, edit.body, ticket.controller.signal); this.check(ticket); edit.receipt = validateBulkReceipt(raw, edit.body); this.editorReceipts.push(edit.receipt);
         this.publish({editor: {...this.state.editor!, receipts: [...this.editorReceipts]}});
       }
       this.publish({editor: {...this.state.editor!, phase: 'result'}});

@@ -1,14 +1,12 @@
-import {readCatalogueItemResponse} from '@core/query/catalogue-reads.ts';
-import {readMetadataResponse, submitMetadataBulk} from '@core/query/catalogue-actions.ts';
+import {submitMetadataBulk} from '@core/query/catalogue-actions.ts';
+import {callServer} from '@core/query/server-api.ts';
+import {entryFromItem, type Item} from '@core/items.ts';
 import {catalogueSelectionBulkEdit} from '@core/catalogue-bulk-commands.ts';
 import {catalogueSelectionPreviewRequest} from '@core/home-selection/metadata-preview.ts';
 import type {ShellArtwork} from '../../shell/artwork';
-import {validateRepair} from '@core/metadata-repair.ts';
-import {parseMediaItem} from '@core/media-item.ts';
-import {encodedRoutePath} from '../../../../packages/contracts/src/routes.ts';
 import type {BulkEdit, BulkReceipt} from '@core/metadata-bulk.ts';
 import {bulkTargetLimit, validBulkEdit, validateBulkReceipt} from '@core/metadata-bulk.ts';
-import {fetchBulkMetadataPreview, metadataPreviewTargets, type BulkMetadataPreview, type BulkMetadataPreviewRequest} from '@core/home-selection/index.ts';
+import {fetchBulkMetadataPreview, type BulkMetadataPreview, type BulkMetadataPreviewRequest} from '@core/home-selection/index.ts';
 import type {HomeApi} from '@core/home.ts';
 import type {EventsClient} from '@core/playback-v1/events.ts';
 import type {BrowseSelectionContext, SelectionOperation, SelectionTarget} from '@core/selection-model/index.ts';
@@ -47,7 +45,7 @@ export function editorPreviewRequest(target: BrowseTarget): BulkMetadataPreviewR
   return catalogueSelectionPreviewRequest(target.displayItems.map(pick => pick.item));
 }
 
-export function createSelectionEditor({api, events, requestId, isCurrent, serverId, viewerId, signal: lifetime}: SelectionEditorOptions) {
+export function createSelectionEditor({api, events, requestId, isCurrent, serverId, signal: lifetime}: SelectionEditorOptions) {
   // J-12 (walk, 2 Nov): each answer is checked against the fence its own domain issues, never another surface's. The
   // bulk preview issues the editing fence and every later bulk answer must match it; the metadata reads that name an
   // aggregate's title must match each other. The page's own Home fence exists only while Home is the current document,
@@ -69,20 +67,10 @@ export function createSelectionEditor({api, events, requestId, isCurrent, server
       const result: {id: string; title: string; posterUrl?: string}[] = [];
       for (const pick of operation.target.displayItems) {
         if (!('libraryId' in pick.item)) throw new SelectionEditorError('metadata-target-unavailable');
-        const target = metadataPreviewTargets([pick.item])[0];
-        if (target.kind === 'item') {
-          const item = parseMediaItem(await readCatalogueItemResponse(api, pick.item.id, routeSignal)); current();
-          if (item.id !== pick.item.id || item.libraryId !== pick.item.libraryId || item.kind !== pick.item.kind) throw new SelectionEditorError('metadata-target-mismatch');
-          result.push({id: item.id, title: item.title, ...(typeof item.posterUrl === 'string' && item.posterUrl ? {posterUrl: item.posterUrl} : {})});
-        } else {
-          if (!viewerId) throw new SelectionEditorError('metadata-authority-unavailable');
-          const raw = await readMetadataResponse(api, target.kind, target.id, routeSignal); current();
-          const data = validateRepair(raw, {serverId, viewerId}, target);
-          if (data.snapshot.fields.title === undefined) throw new SelectionEditorError('metadata-target-mismatch');
-          const roles = target.kind === 'artist' ? ['portrait', 'square'] : target.kind === 'album' || target.kind === 'book' ? ['cover', 'square', 'poster'] : ['poster'];
-          const chosen = roles.flatMap(role => data.snapshot.artwork.filter(choice => choice.role === role && choice.url))[0];
-          result.push({id: target.id, title: data.snapshot.fields.title.value, ...(chosen ? {posterUrl: chosen.url} : {})});
-        }
+        // Any kind of title, a show or an album included, is its own item on the rebuilt server.
+        const entry = entryFromItem(await callServer(api, 'GET /v1/items/{id}', {id: pick.item.id, signal: routeSignal}) as Item, pick.item.libraryId); current();
+        if (!entry || entry.id !== pick.item.id) throw new SelectionEditorError('metadata-target-mismatch');
+        result.push({id: entry.id, title: entry.title, ...(typeof entry.posterUrl === 'string' && entry.posterUrl ? {posterUrl: entry.posterUrl} : {})});
       }
       return result;
     },

@@ -1,17 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createSelectionEditor, editorPreviewRequest, editorTargetLawful, SelectionEditorError} from '../src/screens/browse/selection-editor.ts';
+import {rebuiltMetadata} from '../../packages/client-core/test/fixtures/rebuilt-metadata.ts';
 
 const capabilities = {play: true, queue: true, playlist: true, myList: true, watched: true, collection: true, favorite: true, download: false, edit: true, refresh: true, delete: true};
 const item = {kind: 'movie', id: 'm1', libraryId: 'a', capabilities};
 const explicit = {mode: 'explicit' as const, context: {}, items: [{key: 'k', item}], displayItems: [{key: 'k', item}]};
 const query = {mode: 'query' as const, context: {}, queryId: 'q', selector: {query: {libraryId: 'a', pivot: 'movies', filter: {variant:'predicate',field: 'year', operator: 'at-least', value: 2000}, sort: [{field: 'title', direction: 'asc'}]}},
   total: 48000, sourceTotal: 48000, refinement: {kind: null, excludedItems: []}, summary: {}, expected: {catalogRevision: 'revision-1'}};
-const spec = {field: 'contentRating', label: 'Content rating', type: 'text', bulk: true, group: 'general', maxLength: 300};
-const preview = {variant: 'ready', serverId: 'server', viewerFence: 'a'.repeat(64), contentKind: 'movie', kind: 'item', total: 1, schema: [spec], singleItemFields: [spec], excludedFields: [],
-  fields: {contentRating: {state: 'shared', distinctCount: 1, value: 'G', values: [{value: 'G', count: 1}], entries: [], locked: 0, truncated: false}},
-  targets: [{kind: 'item', id: 'm1', libraryId: 'a', expectedRevision: 'b'.repeat(64)}]};
-const queryPreview = {variant: 'ready', serverId: 'server', viewerFence: 'a'.repeat(64), contentKind: 'movie', kind: 'item', total: 48000, selectionRevision: 'revision-1', schema: [], singleItemFields: [], excludedFields: [], fields: {}, targets: []};
+const fake = () => rebuiltMetadata({m1: {title: 'Film', fields: {contentRating: 'G'}, revision: '7'}});
+const apiOf = (server: ReturnType<typeof rebuiltMetadata>) => ({request: async (path: string, method?: string, body?: unknown) => {
+  const value = server.answer(path, method, body); if (value === undefined) throw new Error('unexpected ' + path); return value;}});
 
 test('explicit picks preview their exact identities and a whole view is refused', () => {
   assert.deepEqual(editorPreviewRequest(explicit as never), {targets: [{kind: 'item', contentKind: 'movie', id: 'm1', libraryId: 'a'}]});
@@ -23,91 +22,22 @@ test('explicit picks preview their exact identities and a whole view is refused'
   assert.equal(editorTargetLawful(query as never), false);
 });
 
-test('the preview reads through the real endpoint and the editor refuses when not current', async () => {
-  const paths: string[] = [], bodies: unknown[] = [];
-  const api = {request: async (path: string, _method?: string, body?: unknown) => {paths.push(path); bodies.push(body); return (body as {targets?: unknown}).targets ? preview : queryPreview; }};
-  const editor = createSelectionEditor({api: api as never, events: {on: () => () => {}}, requestId: async () => 'op', isCurrent: () => true, serverId: 'server'});
+test('the preview reads the title\'s own document on the rebuilt server, and the editor refuses when not current', async () => {
+  const server = fake();
+  const editor = createSelectionEditor({api: apiOf(server) as never, events: {on: () => () => {}}, requestId: async () => 'op', isCurrent: () => true, serverId: 'server'});
   const loaded = await editor.preview({target: explicit} as never);
-  assert.equal(loaded.total, 1);
-  assert.match(paths[0] ?? '', /metadata\/bulk\/preview/);
-  const retired = createSelectionEditor({api: api as never, events: {on: () => () => {}}, requestId: async () => 'op', isCurrent: () => false, serverId: 'server'});
+  assert.equal(loaded.total, 1); assert.deepEqual(server.reads, ['m1']);
+  assert.deepEqual([loaded.fields.contentRating?.state, loaded.fields.contentRating?.value], ['shared', 'G']);
+  const retired = createSelectionEditor({api: apiOf(server) as never, events: {on: () => () => {}}, requestId: async () => 'op', isCurrent: () => false, serverId: 'server'});
   await assert.rejects(retired.preview({target: explicit} as never), (error: unknown) => error instanceof SelectionEditorError && error.code === 'cancelled');
 });
 
-test('a save sends the direct bulk edit for the previewed targets and returns per-title receipts', async () => {
-  const bodies: unknown[] = [];
-  const api = {request: async (path: string, _method?: string, body?: unknown) => {
-    if (path.includes('preview')) return preview;
-    bodies.push(body);
-    const edit = body as {operationId: string; targets: {kind: string; id: string}[]};
-    return {operationId: edit.operationId, results: edit.targets.map(target => ({kind: target.kind, id: target.id, ok: true, revision: 'c'.repeat(64)})),
-      updated: edit.targets.length, failed: 0};
-  }};
-  const editor = createSelectionEditor({api: api as never, events: {on: () => () => {}}, requestId: async () => 'operation-1', isCurrent: () => true, serverId: 'server'});
+test('a save is one edit_items job for the previewed titles and returns per-title receipts', async () => {
+  const server = fake();
+  const editor = createSelectionEditor({api: apiOf(server) as never, events: {on: () => () => {}}, requestId: async () => 'operation-1', isCurrent: () => true, serverId: 'server'});
   const operation = {target: explicit} as never;
   const loaded = await editor.preview(operation);
-  const receipts = await editor.save(operation, loaded, {fields: {contentRating: 'G'}, lists: {}, lockEdited: true});
-  assert.equal(receipts[0]?.updated, 1);
-  assert.equal(receipts[0]?.results[0]?.ok, true);
-  const body = bodies[0] as {operationId: string; targets: {kind: string; id: string; expectedRevision: string}[]; fields: Record<string, {value: string}>; lists: Record<string, unknown>; lockEdited: boolean};
-  assert.equal(body.operationId, 'operation-1');
-  assert.deepEqual(body.targets, [{kind: 'item', id: 'm1', expectedRevision: 'b'.repeat(64)}]);
-  assert.deepEqual(body.fields, {contentRating: {value: 'G'}});
-  assert.deepEqual(body.lists, {});
-  assert.equal(body.lockEdited, true);
-});
-
-// Step 7: the editor's Try again could never succeed after the viewer's access was decided again. The first preview's
-// fence was remembered and every later preview under another one was refused (metadata-authority-changed) for as long as
-// the editor lived. A preview read under a moved fence is the newer answer. Saving stays gated on the latest preview's
-// fence: a save from an older preview is refused before anything is sent.
-test('step 7: Try again after an access change previews under the moved fence, and only the newest preview can save', async () => {
-  let fence = 'a'.repeat(64); const sent: unknown[] = [];
-  const api = {request: async (path: string, _method?: string, body?: unknown) => {
-    if (path.includes('preview')) return {...preview, viewerFence: fence};
-    sent.push(body);
-    const edit = body as {operationId: string; targets: {kind: string; id: string}[]};
-    return {operationId: edit.operationId, results: edit.targets.map(target => ({kind: target.kind, id: target.id, ok: true, revision: 'c'.repeat(64)})), updated: edit.targets.length, failed: 0};
-  }};
-  const editor = createSelectionEditor({api: api as never, events: {on: () => () => {}}, requestId: async () => 'operation-1', isCurrent: () => true, serverId: 'server'});
-  const operation = {target: explicit} as never;
-  const older = await editor.preview(operation);
-  fence = 'e'.repeat(64);
-  const newer = await editor.preview(operation);
-  assert.equal(newer.viewerFence, 'e'.repeat(64), 'the preview under the moved fence is shown');
-  // The older preview's grant was issued under the fence that moved: its save is refused, and nothing is sent.
-  await assert.rejects(editor.save(operation, older, {fields: {contentRating: 'G'}, lists: {}, lockEdited: true}),
-    (error: unknown) => error instanceof SelectionEditorError && error.code === 'metadata-preview-not-current');
-  assert.equal(sent.length, 0);
-  const receipts = await editor.save(operation, newer, {fields: {contentRating: 'G'}, lists: {}, lockEdited: true});
-  assert.equal(receipts[0]?.updated, 1); assert.equal(sent.length, 1);
-});
-
-// Previews are ordered by when they started (as the preferences reader's reads are, #720): an older preview, read under
-// the fence that moved, that answers after the newer one never takes the editing fence back, so it cannot save, and the
-// newer preview still can.
-test('step 7: an older preview that answers late never replaces the newer preview\'s fence', async () => {
-  const sent: unknown[] = [], held: {resolve: (value: unknown) => void}[] = [];
-  let fence = 'a'.repeat(64);
-  const api = {request: async (path: string, _method?: string, body?: unknown) => {
-    if (path.includes('preview')) {const answer = {...preview, viewerFence: fence};return new Promise(resolve => {held.push({resolve: () => resolve(answer)});});}
-    sent.push(body);
-    const edit = body as {operationId: string; targets: {kind: string; id: string}[]};
-    return {operationId: edit.operationId, results: edit.targets.map(target => ({kind: target.kind, id: target.id, ok: true, revision: 'c'.repeat(64)})), updated: edit.targets.length, failed: 0};
-  }};
-  const editor = createSelectionEditor({api: api as never, events: {on: () => () => {}}, requestId: async () => 'operation-1', isCurrent: () => true, serverId: 'server'});
-  const operation = {target: explicit} as never, draft = {fields: {contentRating: 'G'}, lists: {}, lockEdited: true};
-  const olderRead = editor.preview(operation);
-  await new Promise(resolve => setImmediate(resolve));
-  fence = 'e'.repeat(64);
-  const newerRead = editor.preview(operation);
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(held.length, 2);
-  held[1]!.resolve(undefined);const newer = await newerRead;
-  held[0]!.resolve(undefined);const older = await olderRead;
-  assert.equal(older.viewerFence, 'a'.repeat(64));assert.equal(newer.viewerFence, 'e'.repeat(64));
-  await assert.rejects(editor.save(operation, older, draft), (error: unknown) => error instanceof SelectionEditorError && error.code === 'metadata-preview-not-current');
-  assert.equal(sent.length, 0);
-  const receipts = await editor.save(operation, newer, draft);
-  assert.equal(receipts[0]?.updated, 1);assert.equal(sent.length, 1);
+  const receipts = await editor.save(operation, loaded, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true});
+  assert.equal(receipts[0]?.updated, 1); assert.equal(receipts[0]?.results[0]?.ok, true);
+  assert.deepEqual(server.jobs, [{kind: 'edit_items', target: {items: ['m1']}, params: {contentRating: 'PG', lock: true}}]);
 });

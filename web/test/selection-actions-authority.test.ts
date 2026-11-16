@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {EntryPickerProducer} from '../src/shell/entry-picker.ts';
 import {LibraryPickerProducer} from '../src/screens/browse/selection-picker.ts';
-import {createSelectionEditor, SelectionEditorError} from '../src/screens/browse/selection-editor.ts';
+import {createSelectionEditor} from '../src/screens/browse/selection-editor.ts';
+import {rebuiltMetadata} from '../../packages/client-core/test/fixtures/rebuilt-metadata.ts';
 import {createSelectionActions} from '../src/screens/browse/selection-actions.ts';
 import {testQueries} from '../../packages/client-core/test/fixtures/viewer-queries.ts';
 
@@ -29,29 +30,17 @@ const ports = (requests: {path: string; method?: string; body?: any}[]) => {cons
   isCurrent: () => true, requestId: async () => 'request-1', pickerIdentity: identity};};
 assert.notEqual(detailFence, destinationFence, 'the fixture must exercise two different fences');
 
-test('J-12 Edit of picked titles: the preview issues the editing fence, with no page fence needed; a preview under a moved fence is newer and an older one cannot save', async () => {
-  const preview = {variant: 'ready', serverId, viewerFence: 'c'.repeat(64), contentKind: 'movie', kind: 'item', total: 1,
-    schema: [{field: 'studio', label: 'Studio', group: 'general', type: 'text', bulk: true, maxLength: 300}], singleItemFields: [], excludedFields: [],
-    fields: {studio: {state: 'shared', distinctCount: 1, value: '', values: [{value: '', count: 1}], entries: [], locked: 0, truncated: false}},
-    targets: [{kind: 'item', id: 'movie-1', libraryId: 'library', expectedRevision: 'd'.repeat(64)}]};
-  let answer: unknown = preview;
-  const bodies: any[] = [];
-  const editor = createSelectionEditor({api: {request: async (path: string, _method?: string, body?: unknown) => {
-    bodies.push({path, body});
-    if (path === '/v1/metadata/bulk/preview') return structuredClone(answer);
-    return {operationId: (body as {operationId: string}).operationId, results: [{kind: 'item', id: 'movie-1', ok: true, revision: 'e'.repeat(64)}], updated: 1, failed: 0};
-  }} as never, events: {on: () => () => {}}, requestId: async () => 'operation-1', isCurrent: () => true, serverId});
+test('J-12 Edit of picked titles: the preview reads each picked title as itself and the save is the edit_items job for them', async () => {
+  const server = rebuiltMetadata({'movie-1': {title: 'Film', fields: {studio: ''}}});
+  const editor = createSelectionEditor({api: {request: async (path: string, method?: string, body?: unknown) => server.answer(path, method, body)} as never,
+    events: {on: () => () => {}}, requestId: async () => 'operation-1', isCurrent: () => true, serverId});
   const pick = {key: 'movie-1', item: {kind: 'movie', id: 'movie-1', libraryId: 'library', capabilities: {edit: true}}};
   const operation = {target: {mode: 'explicit', items: [pick], displayItems: [pick], context: {}}} as never;
   const ready = await editor.preview(operation);
-  assert.deepEqual(bodies[0].body, {targets: [{kind: 'item', contentKind: 'movie', id: 'movie-1', libraryId: 'library'}]}, 'the picked title is sent as itself');
-  const receipts = await editor.save(operation, ready, {fields: {studio: 'FX Studio'}, lists: {}, lockEdited: true});
+  assert.deepEqual(server.reads, ['movie-1'], 'the picked title is read as itself');
+  const receipts = await editor.save(operation, ready, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true});
   assert.equal(receipts[0]?.updated, 1, 'the edit is written');
-  assert.deepEqual(bodies.find(entry => entry.path === '/v1/metadata/bulk')?.body.targets, [{kind: 'item', id: 'movie-1', expectedRevision: 'd'.repeat(64)}]);
-  // Step 7: a preview under a moved fence is the newer answer; a save from the preview read before it is refused.
-  answer = {...preview, viewerFence: 'f'.repeat(64)};
-  assert.equal((await editor.preview(operation)).viewerFence, 'f'.repeat(64));
-  await assert.rejects(editor.save(operation, ready, {fields: {studio: 'FX Studio'}, lists: {}, lockEdited: true}), (error: unknown) => error instanceof SelectionEditorError && error.code === 'metadata-preview-not-current');
+  assert.deepEqual(server.jobs.map(job => job.target.items), [['movie-1']]);
 });
 
 for (const [name, args] of [['J-14 My List', {watchlist: true}], ['Watched', {watched: true}]] as const) {
