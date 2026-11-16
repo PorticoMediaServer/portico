@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/api"
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -64,7 +66,49 @@ func TestStyledSubtitleOriginalsAndFontsFollowThePlaybackGrant(t *testing.T) {
 		t.Fatalf("styled tracks must offer authored and text delivery: %+v", options.Versions[0].Subtitles)
 	}
 	var session api.PlaybackSession
-	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: page.Items[0].ID}, &session, 201)
+	start := func(item string) {
+		t.Helper()
+		// A preparing stream is still this start. Repeat its body and key
+		// at the server's pace until ready, as the playback contract requires.
+		key := db.NewID("subtitle_start")
+		body := api.PlaybackStart{ItemID: item}
+		waiting, cancel := context.WithTimeout(ctx, 90*time.Second)
+		defer cancel()
+		id := ""
+		for {
+			if waiting.Err() != nil {
+				t.Fatal("stream did not become ready")
+			}
+			w := h.do("POST", "/v1/playback/sessions", body, "Idempotency-Key", key)
+			var next api.PlaybackSession
+			err := json.NewDecoder(w.Body).Decode(&next)
+			w.Body.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if id != "" && next.ID != id {
+				t.Fatal("retry replaced the preparing session")
+			}
+			id = next.ID
+			switch w.StatusCode {
+			case http.StatusCreated, http.StatusOK:
+				session = next
+				return
+			case http.StatusAccepted:
+				if next.RetryAfterMs <= 0 {
+					t.Fatal("preparing start has no retry delay")
+				}
+				select {
+				case <-time.After(time.Duration(next.RetryAfterMs) * time.Millisecond):
+				case <-waiting.Done():
+					t.Fatal("stream did not become ready")
+				}
+			default:
+				t.Fatalf("start answered %d", w.StatusCode)
+			}
+		}
+	}
+	start(page.Items[0].ID)
 	var originalURLs []string
 	for _, file := range session.Presentation.Subtitles {
 		code, header, raw := h.media(file.URL)
@@ -144,7 +188,7 @@ func TestStyledSubtitleOriginalsAndFontsFollowThePlaybackGrant(t *testing.T) {
 		}
 	}
 	h.call("GET", "/v1/items?library="+remoteLib.PublicID+"&kind=movie", nil, &page, 200)
-	h.call("POST", "/v1/playback/sessions", api.PlaybackStart{ItemID: page.Items[0].ID}, &session, 201)
+	start(page.Items[0].ID)
 	originals := 0
 	for _, file := range session.Presentation.Subtitles {
 		if file.Format != "ass" {
