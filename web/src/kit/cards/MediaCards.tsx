@@ -18,7 +18,6 @@ export function CardArtwork({artwork, fallback, position, visible, arrivalDurati
 }
 
 export function PosterCard({titleLines, progressPlacement = 'edge', ...props}: MediaCardProps & {titleLines?: 1 | 2; progressPlacement?: 'edge' | 'inset'}) {
-  titleLines ??= props.context === 'grid' || props.density === 'grid' ? 2 : 1;
   const artworkRef = useRef<HTMLSpanElement>(null);
   return <CardFrame {...props} artworkRef={artworkRef} playIconSize={20} className={cx(progressPlacement === 'inset' && styles.insetProgress, props.className)} kind="poster"><span ref={artworkRef} className={styles.art}><CardArtwork {...props} /><CardBadges watched={props.watched} isNew={props.isNew} progress={props.model.progress} /></span><CardCaption model={props.model} extraCaption={props.extraCaption} textPresentation={props.textPresentation} titleLines={titleLines} /></CardFrame>;
 }
@@ -65,8 +64,6 @@ export type CoverCardProps = MediaCardProps & Readonly<{
   titleLines?: 1 | 2;
 }>;
 export function CoverCard({kind = 'book', generated, titleLines, watchedLabel, ...props}: CoverCardProps) {
-  // A title wraps to a second line before it is cut in a grid, as a poster card's does (desktop-read 2c `.pgrid .card .t`).
-  titleLines ??= props.context === 'grid' || props.density === 'grid' ? 2 : 1;
   const book = kind === 'book' || kind === 'comic';
   // The cover is drawn whole in its own shape at the foot of its slot: 2:3 for a book, 3:4 for an issue.
   const artworkRef = useRef<HTMLSpanElement>(null), cover = useCoverAspect(props.artwork, artworkRef);

@@ -114,7 +114,7 @@ export function CardFrame({children, kind, primaryClassName, playIcon = 'i-play'
   </article>;
 }
 
-export function CardCaption({model, titleLines = 1, extraCaption, textPresentation}: {model: CardProps['model']; titleLines?: 1 | 2; extraCaption?: CardProps['extraCaption']; textPresentation?: CardProps['textPresentation']}) {
+export function CardCaption({model, titleLines = 2, extraCaption, textPresentation}: {model: CardProps['model']; titleLines?: 1 | 2; extraCaption?: CardProps['extraCaption']; textPresentation?: CardProps['textPresentation']}) {
   return <span className={styles.caption}><span className={cx(styles.title, titleLines === 2 && styles.twoLines)}><CardText text={model.title} runs={textPresentation?.title} /></span><Facts parts={model.caption} className={styles.subtitle} presentation={textPresentation?.caption} />{extraCaption?.map((parts, index) => <Facts key={index} parts={parts} className={parts.some(part => part.role === 'reason') ? styles.reason : styles.subtitle} presentation={textPresentation?.extraCaption?.[index]} />)}</span>;
 }
 
