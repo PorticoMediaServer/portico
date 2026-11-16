@@ -16,6 +16,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
@@ -514,8 +515,8 @@ func TestAScheduledBackupCutOffByAStopIsMadeAfterTheRestart(t *testing.T) {
 	// Tonight's is being made, waiting on its folder, when the server stops.
 	tonight := time.Date(2026, 11, 11, 3, 0, 0, 0, time.Local)
 	s.Now = func() time.Time { return tonight }
-	release := make(chan struct{})
-	folderHook = func(string) { <-release }
+	release, reached := make(chan struct{}), make(chan struct{})
+	folderHook = func(string) { close(reached); <-release }
 	answered := sync.OnceFunc(func() {
 		close(release)
 		folderWork.Wait()
@@ -527,7 +528,11 @@ func TestAScheduledBackupCutOffByAStopIsMadeAfterTheRestart(t *testing.T) {
 	if _, err := s.Start(true); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(100 * time.Millisecond)
+	select {
+	case <-reached:
+	case <-time.After(30 * time.Second):
+		t.Fatal("the backup did not reach its held folder")
+	}
 	stop()
 	waited := make(chan struct{})
 	go func() { s.Wait(); close(waited) }()
@@ -592,12 +597,21 @@ func TestAFailedScheduledBackupIsRetriedForFourHoursBeforeTheOwnerIsTold(t *test
 			Device: db.DeviceInfo{InstallationID: "test", Name: "Test", Platform: "web", App: "web", AppVersion: "1"}}}); err != nil {
 		t.Fatal(err)
 	}
+	var tries atomic.Int64
+	folderHook = func(string) { tries.Add(1) }
 	savedAfter, savedEvery := missedAfter, retryEvery
 	missedAfter, retryEvery = 0, 20*time.Millisecond
 	running, end := context.WithCancel(ctx)
 	ended := make(chan struct{})
 	go func() { s.Run(running); close(ended) }()
-	defer func() { end(); <-ended; s.Wait(); missedAfter, retryEvery = savedAfter, savedEvery }()
+	defer func() {
+		end()
+		<-ended
+		s.Wait()
+		folderWork.Wait()
+		folderHook = nil
+		missedAfter, retryEvery = savedAfter, savedEvery
+	}()
 	until := func(what string, ok func() bool) {
 		t.Helper()
 		for began := time.Now(); !ok(); time.Sleep(10 * time.Millisecond) {
@@ -607,7 +621,7 @@ func TestAFailedScheduledBackupIsRetriedForFourHoursBeforeTheOwnerIsTold(t *test
 		}
 	}
 	until("no backup was tried after the start, though one was due and there is none", func() bool { return s.LastError() != nil })
-	time.Sleep(200 * time.Millisecond) // several more tries
+	until("the failed backup was not tried again", func() bool { return tries.Load() >= 2 })
 	if failed := s.Failed(); failed != nil {
 		t.Fatalf("the owner was told before the 4 hours of retries were used up: %v", failed)
 	}
@@ -720,60 +734,65 @@ func TestABackupMadeByHandEndsTheBackupAlert(t *testing.T) {
 // the next night's backup has its own 4 hours of them: when it fails it is tried again, where
 // a mark left from the night before would have counted its tries as used up.
 func TestChangingBackupSettingsDuringRetriesGivesTheNextNightItsOwn(t *testing.T) {
-	ctx := context.Background()
-	s := newService(t)
-	drive := filepath.Join(t.TempDir(), "drive") // not mounted
-	write := func(doc string) {
-		t.Helper()
-		if _, err := s.Settings.Write(ctx, 0, "backups", json.RawMessage(doc), -1, time.Now()); err != nil {
-			t.Fatal(err)
-		}
-	}
-	write(`{"folder":` + strconvQuote(drive) + `}`)
-	setUp := time.Date(2026, 11, 10, 12, 0, 0, 0, time.Local)
-	if _, err := s.DB.CreateOwner(ctx, db.NewOwner{Username: "owner", PasswordHash: "x", ProfileName: "Owner", Now: setUp,
-		Session: db.NewSession{ID: db.NewSessionID(), RefreshHash: "r", ExpiresAt: setUp.Add(24 * time.Hour),
-			Device: db.DeviceInfo{InstallationID: "test", Name: "Test", Platform: "web", App: "web", AppVersion: "1"}}}); err != nil {
-		t.Fatal(err)
-	}
-	var clock, tries, tomorrow atomic.Int64
-	clock.Store(time.Date(2026, 11, 11, 3, 10, 0, 0, time.Local).UnixNano())
-	s.Now = func() time.Time { return time.Unix(0, clock.Load()) }
-	almostThree := time.Date(2026, 11, 12, 2, 59, 59, 990_000_000, time.Local).UnixNano()
-	folderHook = func(string) {
-		tries.Add(1)
-		if clock.Load() >= almostThree {
-			tomorrow.Add(1)
-		}
-		// Tomorrow's backup, once begun, is no longer due: only a retry can try it again.
-		clock.CompareAndSwap(almostThree, almostThree+int64(time.Second))
-	}
-	savedAfter, savedEvery := missedAfter, retryEvery
-	missedAfter, retryEvery = 0, 20*time.Millisecond
-	running, end := context.WithCancel(ctx)
-	ended := make(chan struct{})
-	go func() { s.Run(running); close(ended) }()
-	defer func() {
-		end()
-		<-ended
-		s.Wait()
-		folderWork.Wait()
-		missedAfter, retryEvery, folderHook = savedAfter, savedEvery, nil
-	}()
-	until := func(what string, ok func() bool) {
-		t.Helper()
-		for began := time.Now(); !ok(); time.Sleep(5 * time.Millisecond) {
-			if time.Since(began) > 10*time.Second {
-				t.Fatal(what)
+	synctest.Test(t, func(t *testing.T) {
+		ctx := context.Background()
+		s := newService(t)
+		drive := filepath.Join(t.TempDir(), "drive") // not mounted
+		write := func(doc string) {
+			t.Helper()
+			if _, err := s.Settings.Write(ctx, 0, "backups", json.RawMessage(doc), -1, time.Now()); err != nil {
+				t.Fatal(err)
 			}
 		}
-	}
-	until("the failed backup was not tried again", func() bool { return tries.Load() >= 2 })
-	// The owner changes a setting during the retries; the next backup is due tomorrow at 3.
-	write(`{"folder":` + strconvQuote(drive) + `,"keep":5}`)
-	time.Sleep(1500 * time.Millisecond) // the schedule looks at a backup under way once a second
-	// A moment before 3 tomorrow. That backup fails too, and is tried again.
-	clock.Store(almostThree)
-	write(`{"folder":` + strconvQuote(drive) + `,"keep":6}`) // wakes the schedule to look at the clock
-	until("tomorrow's failed backup was not tried again", func() bool { return tomorrow.Load() >= 2 })
+		write(`{"folder":` + strconvQuote(drive) + `}`)
+		setUp := time.Date(2026, 11, 10, 12, 0, 0, 0, time.Local)
+		if _, err := s.DB.CreateOwner(ctx, db.NewOwner{Username: "owner", PasswordHash: "x", ProfileName: "Owner", Now: setUp,
+			Session: db.NewSession{ID: db.NewSessionID(), RefreshHash: "r", ExpiresAt: setUp.Add(24 * time.Hour),
+				Device: db.DeviceInfo{InstallationID: "test", Name: "Test", Platform: "web", App: "web", AppVersion: "1"}}}); err != nil {
+			t.Fatal(err)
+		}
+		var clock, tries, tomorrow atomic.Int64
+		clock.Store(time.Date(2026, 11, 11, 3, 10, 0, 0, time.Local).UnixNano())
+		s.Now = func() time.Time { return time.Unix(0, clock.Load()) }
+		almostThree := time.Date(2026, 11, 12, 2, 59, 59, 990_000_000, time.Local).UnixNano()
+		folderHook = func(string) {
+			tries.Add(1)
+			if clock.Load() >= almostThree {
+				tomorrow.Add(1)
+			}
+			// Tomorrow's backup, once begun, is no longer due: only a retry can try it again.
+			clock.CompareAndSwap(almostThree, almostThree+int64(time.Second))
+		}
+		savedAfter, savedEvery := missedAfter, retryEvery
+		missedAfter, retryEvery = 0, 20*time.Millisecond
+		running, end := context.WithCancel(ctx)
+		ended := make(chan struct{})
+		go func() { s.Run(running); close(ended) }()
+		defer func() {
+			end()
+			<-ended
+			s.Wait()
+			folderWork.Wait()
+			missedAfter, retryEvery, folderHook = savedAfter, savedEvery, nil
+		}()
+		until := func(what string, ok func() bool) {
+			t.Helper()
+			for began := time.Now(); !ok(); time.Sleep(5 * time.Millisecond) {
+				if time.Since(began) > 10*time.Second {
+					t.Fatal(what)
+				}
+			}
+		}
+		until("the failed backup was not tried again", func() bool { return tries.Load() >= 2 })
+		// The owner changes a setting during the retries; the next backup is due tomorrow at 3.
+		write(`{"folder":` + strconvQuote(drive) + `,"keep":5}`)
+		// Advance the virtual scheduler through its one-second running-backup
+		// poll, then wait until the settings change has been processed.
+		time.Sleep(time.Second)
+		synctest.Wait()
+		// A moment before 3 tomorrow. That backup fails too, and is tried again.
+		clock.Store(almostThree)
+		write(`{"folder":` + strconvQuote(drive) + `,"keep":6}`) // wakes the schedule to look at the clock
+		until("tomorrow's failed backup was not tried again", func() bool { return tomorrow.Load() >= 2 })
+	})
 }
