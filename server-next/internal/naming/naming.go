@@ -312,6 +312,13 @@ func readComponent(r *Reading, input, raw string, src Source, p string, strength
 	// year before that bracket is title text, unless release junk separates it.
 	cut, year, yearStrength := -1, 0, 0.0
 	tech := releaseTokenIndex(s)
+	// "Name (Year)" with a release word in the name and no year before it: the words are the
+	// title's own ("The Proper Way (2019)", "Portico HDR10 Test Pattern (2026)"), not a
+	// release tail, which comes after the year.
+	ownWords := false
+	if m := bracketYear.FindStringSubmatchIndex(s); m != nil && tech != nil && m[0] > tech[0] && !bareYear.MatchString(s[:tech[0]]) {
+		tech, ownWords = nil, true
+	}
 	if m := bracketYear.FindStringSubmatchIndex(s); m != nil && (tech == nil || m[0] < tech[0]) {
 		cut = m[0]
 		year, _ = strconv.Atoi(s[m[2]:m[3]])
@@ -392,12 +399,12 @@ func readComponent(r *Reading, input, raw string, src Source, p string, strength
 	if cut >= 0 {
 		s = s[:cut]
 	}
-	if loc := releaseTokenIndex(s); loc != nil {
+	if loc := releaseTokenIndex(s); loc != nil && !ownWords {
 		if src == FileName {
 			r.Versions = append(r.Versions, ev(clean(s[loc[0]:]), src, p, .85))
 		}
 		s = s[:loc[0]]
-	} else if src == FileName && cut >= 0 {
+	} else if src == FileName && cut >= 0 && !ownWords {
 		if loc := releaseTokenIndex(input); loc != nil {
 			r.Versions = append(r.Versions, ev(clean(input[loc[0]:]), src, p, .85))
 		}
