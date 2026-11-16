@@ -70,7 +70,7 @@ func (d *DB) MetadataDocument(ctx context.Context, publicID string) (MetadataDoc
 	}
 	doc.Fields = map[string]any{FieldPublicationType: PublicationName(publication), FieldTitle: title, FieldSortTitle: sortTitle, FieldOriginalTitle: text(original), FieldSummary: text(summary),
 		FieldTagline: text(tagline), FieldEdition: text(edition), FieldReleaseDate: text(release), FieldContentRating: text(rating),
-		FieldYear: nil, FieldRating: nil, FieldLanguage: nz(doc.Language)}
+		FieldYear: nil, FieldRating: nil}
 	if year.Valid {
 		doc.Fields[FieldYear] = year.Int64
 	}

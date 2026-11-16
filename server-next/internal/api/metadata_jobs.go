@@ -53,13 +53,13 @@ const afterScanRefreshes = 10_000
 // Remove; it is never replaced. Lock, true when left out, locks what is edited so a refresh
 // keeps it.
 type BulkEdit struct {
-	Year          *int                `json:"year,omitempty"`
-	Language      *string             `json:"language,omitempty"`
-	Edition       *string             `json:"edition,omitempty"`
-	ContentRating *string             `json:"contentRating,omitempty"`
-	Add           map[string][]string `json:"add,omitempty"`
-	Remove        map[string][]string `json:"remove,omitempty"`
-	Lock          *bool               `json:"lock,omitempty"`
+	Year             *int                `json:"year,omitempty"`
+	MetadataLanguage *string             `json:"metadataLanguage,omitempty"`
+	Edition          *string             `json:"edition,omitempty"`
+	ContentRating    *string             `json:"contentRating,omitempty"`
+	Add              map[string][]string `json:"add,omitempty"`
+	Remove           map[string][]string `json:"remove,omitempty"`
+	Lock             *bool               `json:"lock,omitempty"`
 }
 
 // bulkLists are the lists bulk edit adds to and removes from, with the field each is locked by.
@@ -267,7 +267,7 @@ func (s *Server) editItems(ctx context.Context, work jobs.Work) error {
 // editOne applies a bulk edit to one title and answers its title for the report. A title
 // someone changed in the meantime is read again and edited on its new copy.
 func (s *Server) editOne(ctx context.Context, id string, b BulkEdit, lock bool) (string, error) {
-	if err := s.itemMetadataLanguage(ctx, id, b.Language); err != nil {
+	if err := s.itemMetadataLanguage(ctx, id, b.MetadataLanguage); err != nil {
 		return "", err
 	}
 	for attempt := 0; ; attempt++ {
@@ -280,10 +280,10 @@ func (s *Server) editOne(ctx context.Context, id string, b BulkEdit, lock bool) 
 		for _, f := range doc.Locked {
 			locked[f] = true
 		}
-		edit := db.MetadataEdit{Year: b.Year, Edition: b.Edition, ContentRating: b.ContentRating, Language: b.Language}
+		edit := db.MetadataEdit{Year: b.Year, Edition: b.Edition, ContentRating: b.ContentRating, Language: b.MetadataLanguage}
 		var edited []string
 		for field, given := range map[string]bool{db.FieldYear: b.Year != nil, db.FieldEdition: b.Edition != nil,
-			db.FieldContentRating: b.ContentRating != nil, db.FieldLanguage: b.Language != nil} {
+			db.FieldContentRating: b.ContentRating != nil} {
 			if given {
 				edited = append(edited, field)
 			}

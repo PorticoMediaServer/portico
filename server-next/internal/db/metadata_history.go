@@ -562,8 +562,6 @@ func restoreChanged(b *batchTx, im *importer, library, id int64, before, after, 
 			return !same(tagsOf(current.Tags, list), tagsOf(after.Tags, list))
 		}
 		switch field {
-		case FieldLanguage:
-			return current.Language != after.Language
 		case FieldCredits:
 			return !same(current.Credits, after.Credits)
 		case FieldMatch:
@@ -600,6 +598,8 @@ func restoreChanged(b *batchTx, im *importer, library, id int64, before, after, 
 			}
 		}
 	}
+	delete(locks, "language")
+	delete(sources, "language")
 	sets += ", locked_fields = ?, local_fields = ?"
 	args = append(args, fieldList(sortedFields(locks)), sourceJSON(sources))
 	if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, id)...); err != nil {

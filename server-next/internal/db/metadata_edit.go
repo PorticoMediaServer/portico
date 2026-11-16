@@ -23,8 +23,8 @@ const (
 )
 
 // MetadataEdit is a person's edit to one title. A nil field is left alone. Every field and
-// list the edit sets is locked, so no scan or refresh changes it afterwards; Unlock lets the
-// provider's value return at the next refresh.
+// list the edit sets, except Language, is locked, so no scan or refresh changes it afterwards.
+// Unlock lets the provider's value return at the next refresh.
 type MetadataEdit struct {
 	Title           *string
 	SortTitle       *string
@@ -85,7 +85,7 @@ var editLists = []struct {
 }
 
 // LockableFields are the names a field, list or the match is locked by.
-var LockableFields = []string{FieldPublicationType, FieldTitle, FieldSortTitle, FieldOriginalTitle, FieldSummary, FieldTagline, FieldEdition, FieldLanguage, FieldYear,
+var LockableFields = []string{FieldPublicationType, FieldTitle, FieldSortTitle, FieldOriginalTitle, FieldSummary, FieldTagline, FieldEdition, FieldYear,
 	FieldReleaseDate, FieldContentRating, FieldRating, FieldGenres, FieldStudios, FieldNetworks, FieldCountries, FieldCredits, FieldMatch}
 
 // MetadataLocks says which of a title's fields a person locked, where each value that is not
@@ -155,8 +155,7 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 		{FieldOriginalTitle, "original_title", edit.OriginalTitle, maxShortField, false}, {FieldSummary, "summary", edit.Summary, maxDescription, true},
 		{FieldTagline, "tagline", edit.Tagline, maxShortField, false}, {FieldReleaseDate, "release_date", edit.ReleaseDate, 10, false},
 		{FieldContentRating, "content_rating", edit.ContentRating, maxShortField, false},
-		{FieldEdition, "edition", edit.Edition, maxShortField, false},
-		{FieldLanguage, "", edit.Language, 16, false}}
+		{FieldEdition, "edition", edit.Edition, maxShortField, false}}
 	for i, f := range texts {
 		if f.value == nil {
 			continue
@@ -377,6 +376,9 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 			delete(locks, field)
 			delete(sources, field)
 		}
+		// A language choice has no provider field to protect; drop a previous language lock too.
+		delete(locks, "language")
+		delete(sources, "language")
 		sets += ", locked_fields = ?, local_fields = ?"
 		args = append(args, fieldList(sortedFields(locks)), sourceJSON(sources))
 		if _, err := b.exec(`UPDATE items SET `+sets+` WHERE id = ?`, append(args, id)...); err != nil {
