@@ -5534,6 +5534,9 @@
           "rescanMinutes": {
             "type": "integer"
           },
+          "scrubPreviews": {
+            "type": "boolean"
+          },
           "segmentDetection": {
             "type": "string"
           },
@@ -12091,6 +12094,48 @@
         "required": [
           "state",
           "folders"
+        ],
+        "type": "object"
+      },
+      "ScrubPreviews": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "columns": {
+            "type": "integer"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "frameCount": {
+            "type": "integer"
+          },
+          "frameHeight": {
+            "type": "integer"
+          },
+          "frameWidth": {
+            "type": "integer"
+          },
+          "intervalMs": {
+            "type": "number"
+          },
+          "rows": {
+            "type": "integer"
+          },
+          "sheets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "available"
         ],
         "type": "object"
       },
@@ -25815,6 +25860,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Related"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
+      }
+    },
+    "/v1/items/{id}/scrub-previews": {
+      "get": {
+        "operationId": "get_v1_items_id_scrub_previews",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrubPreviews"
                 }
               }
             },

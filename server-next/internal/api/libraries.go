@@ -26,6 +26,8 @@ import (
 
 // LibraryOptions are the owner's choices for one library.
 type LibraryOptions struct {
+	// ScrubPreviews makes video navigation pictures at Complete depth; off by default.
+	ScrubPreviews    *bool  `json:"scrubPreviews,omitempty"`
 	SegmentDetection string `json:"segmentDetection,omitempty"`
 	// Depth is how much of each file a scan reads: files, basic (the default) or complete.
 	Depth string `json:"depth"`
@@ -298,9 +300,10 @@ func timePtr(ms int64) *time.Time {
 func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
 	watch := !o.NoWatch
 	group, sound := o.GroupSeries == nil || *o.GroupSeries, !o.NoSoundAnalysis
+	scrub := o.ScrubPreviews
 	out := LibraryOptions{Depth: o.Depth, Trash: TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete,
 		Watch: &watch, RescanMinutes: o.RescanMinutes, GroupSeries: &group, Lyrics: o.Lyrics, SoundAnalysis: &sound, SegmentDetection: o.SegmentDetection,
-		EpisodeThumbnails: cmp.Or(o.EpisodeThumbnails, db.EpisodeThumbnailsDefault)}
+		EpisodeThumbnails: cmp.Or(o.EpisodeThumbnails, db.EpisodeThumbnailsDefault), ScrubPreviews: &scrub}
 	if out.SegmentDetection == "" {
 		out.SegmentDetection = "server"
 	}
@@ -319,7 +322,7 @@ func libraryOptionsOut(o db.LibraryOptions) LibraryOptions {
 func optionsIn(o LibraryOptions) db.LibraryOptions {
 	return db.LibraryOptions{Depth: o.Depth, Trash: db.TrashRule{Mode: o.Trash.Mode, Days: o.Trash.Days}, AllowDelete: o.AllowDelete,
 		NoWatch: o.Watch != nil && !*o.Watch, RescanMinutes: o.RescanMinutes, GroupSeries: o.GroupSeries, Lyrics: o.Lyrics,
-		NoSoundAnalysis: o.SoundAnalysis != nil && !*o.SoundAnalysis, SegmentDetection: o.SegmentDetection, EpisodeThumbnails: o.EpisodeThumbnails}
+		ScrubPreviews: o.ScrubPreviews != nil && *o.ScrubPreviews, NoSoundAnalysis: o.SoundAnalysis != nil && !*o.SoundAnalysis, SegmentDetection: o.SegmentDetection, EpisodeThumbnails: o.EpisodeThumbnails}
 }
 
 func (s *Server) foldersOut(lib db.Library, folders []db.LibraryFolder) []LibraryFolder {
@@ -660,6 +663,9 @@ func (s *Server) editLibrary(r *http.Request, req LibraryEdit) (AdminLibrary, er
 	}
 	if req.Options != nil {
 		options := optionsIn(*req.Options)
+		if req.Options.ScrubPreviews == nil {
+			options.ScrubPreviews = lib.Options.ScrubPreviews
+		}
 		if req.Options.SegmentDetection == "" {
 			options.SegmentDetection = lib.Options.SegmentDetection
 		}

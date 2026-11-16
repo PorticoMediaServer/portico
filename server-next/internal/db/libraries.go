@@ -41,6 +41,8 @@ const (
 
 // LibraryOptions are the owner's choices for one library, stored as JSON.
 type LibraryOptions struct {
+	// ScrubPreviews makes video navigation pictures at Complete depth; off by default.
+	ScrubPreviews    bool      `json:"scrubPreviews,omitempty"`
 	SegmentDetection string    `json:"segmentDetection,omitempty"`
 	Depth            string    `json:"depth,omitempty"`
 	Trash            TrashRule `json:"trash"`

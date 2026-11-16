@@ -1651,6 +1651,7 @@ export interface LibraryMetadataProvider {
 }
 
 export interface LibraryOptions {
+  scrubPreviews?: boolean;
   segmentDetection?: string;
   depth: string;
   trash: TrashRule;
@@ -3642,6 +3643,19 @@ export interface ScanStatus {
   counts?: ScanCounts;
 }
 
+export interface ScrubPreviews {
+  version: string;
+  available: boolean;
+  durationMs?: number;
+  intervalMs?: number;
+  frameWidth?: number;
+  frameHeight?: number;
+  columns?: number;
+  rows?: number;
+  frameCount?: number;
+  sheets?: string[];
+}
+
 export interface SearchGroup {
   kind: string;
   total?: number;
@@ -4866,6 +4880,7 @@ export interface Routes {
   'POST /v1/admin/segments/redetect': {access: 'owner'; request: undefined; response: SegmentChanged};
   'POST /v1/admin/segments/retry': {access: 'owner'; request: undefined; response: SegmentChanged};
   'POST /v1/items/{id}/analysis/markers': {access: 'owner'; request: SegmentMarkerEdit; response: undefined};
+  'GET /v1/items/{id}/scrub-previews': {access: 'withProfile'; request: undefined; response: ScrubPreviews};
   'GET /v1/admin/libraries/{id}/sound-analysis': {access: 'owner'; request: undefined; response: SoundAnalysisStatus};
   'POST /v1/music/mixes/{id}/playlist': {access: 'withProfile'; request: MusicMixSave; response: ListCreated};
   'GET /v1/music/mixes': {access: 'withProfile'; request: undefined; response: MusicMixPage};
