@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {listeningSimilarPager, readRecommendationRowPage, recommendationRowPager, RelationRowPager} from '../src/relation-rows.ts';
+import {listeningSimilarPager, recommendationRowPager, RelationRowPager} from '../src/relation-rows.ts';
 import {relatedRowPager, validateRelatedMovies} from '../src/related-movies.ts';
 import {validateHomeRow} from '../src/home.ts';
 import {readListeningSimilar} from '../src/library-content.ts';
