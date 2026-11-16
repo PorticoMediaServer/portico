@@ -18,13 +18,15 @@ export const troubleshootingRoutes = Object.freeze({
   // Stuck files (titles a rebuild set aside): on the same viewer, and its own part, because the spec
   // gives administrators "Messages and stuck files" while app logs stay the owner's.
   stuckFiles: ['GET /v1/admin/skipped'],
-  support: ['get_capability_report', 'get_admin_console_alerts', 'get_console_registry', 'post_admin_console_exports', 'get_admin_console_exports_id'],
+  // What this server can do, its data folder's permissions, and the export made when asked (definition 12 rules 74 to 76).
+  support: ['GET /v1/admin/capabilities', 'GET /v1/admin/data-folder/permissions', 'POST /v1/admin/data-folder/permissions/fix', 'POST /v1/admin/support-export'],
 } satisfies Record<string, readonly (RouteId | keyof Routes)[]>);
 
 // These parts use the rebuilt route table; the literal access values are checked against it.
 const rebuiltAccess={
  'GET /v1/admin/reports':'owner','GET /v1/admin/reports/{id}':'owner','GET /v1/admin/reports/{id}/log':'owner','DELETE /v1/admin/reports/{id}':'owner',
  'GET /v1/admin/logs':'admin','GET /v1/admin/audit':'owner','GET /v1/admin/skipped':'admin',
+ 'GET /v1/admin/capabilities':'owner','GET /v1/admin/data-folder/permissions':'owner','POST /v1/admin/data-folder/permissions/fix':'owner','POST /v1/admin/support-export':'owner',
 } as const satisfies {[K in keyof Routes]?:Routes[K]['access']};
 
 export type TroubleshootingPart = keyof typeof troubleshootingRoutes;

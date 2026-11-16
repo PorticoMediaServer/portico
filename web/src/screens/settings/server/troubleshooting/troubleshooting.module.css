@@ -86,6 +86,9 @@ li:first-child > .feedbackRow { border-top: 0; }
 .checks { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .check { display: inline-flex; align-items: center; gap: 8px; font-size: var(--type-row-subtitle-size); font-weight: var(--type-body-strong-weight); color: var(--color-text-secondary); }
 .capabilityRow > .status { margin-top: 1px; margin-left: auto; }
+/* What the server says about a capability is the reason the owner opened this list: it wraps, never cut (a path breaks anywhere). */
+.capabilityRow .reportText small { white-space: normal; overflow-wrap: anywhere; }
+.capabilityRow > .status { flex: none; }
 
 .support .panel { padding: 0; background: none; gap: 10px; }
 .support .rows, .support .none { background: var(--color-raised); border-radius: 16px; overflow: hidden; }

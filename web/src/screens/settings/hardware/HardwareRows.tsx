@@ -17,7 +17,7 @@ const t = defaultI18n.t;
  * a choice; the override is Device in Advanced. */
 export function HardwareDevices({source}: {source: SettingsHardwareSource}) {
   const snapshot = useSyncExternalStore(source.subscribe, source.getSnapshot);
-  const devices = snapshot.capacity?.hardware.devices ?? [];
+  const devices = snapshot.hardware?.devices ?? [];
   if (!devices.length) return null;
   return <div className={styles.devices}>{devices.map(device => {
     const method = hardwareMethodName(device.method);
