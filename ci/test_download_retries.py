@@ -1,4 +1,8 @@
+import os
+from pathlib import Path
 import subprocess
+import sys
+import tempfile
 import unittest
 from unittest.mock import call, patch
 
@@ -28,13 +32,27 @@ class DownloadRetries(unittest.TestCase):
             self.assertEqual(sleep.call_args_list, [call(2), call(2)])
 
     def test_the_package_list_refresh_retries_without_changing_the_install_fallback(self):
-        error = subprocess.CalledProcessError(100, ['sudo', 'apt-get', 'update'])
-        install = ['sudo', 'apt-get', 'install', '-y', '--no-install-recommends', 'ffmpeg']
+        error = subprocess.CalledProcessError(100, ['sudo', 'apt-get', 'update', '-o', 'Acquire::Retries=1'])
+        install = ['sudo', 'apt-get', 'install', '-y', '--no-install-recommends', '-o', 'Acquire::Retries=1', 'ffmpeg']
         with patch.dict('os.environ', {}, clear=True), \
                 patch('run.execute', side_effect=[error, error, error, None, None]) as execute, \
                 patch('run.time.sleep') as sleep:
             run.install_ffmpeg()
             self.assertEqual(execute.call_args_list,
-                             [call(install)] + [call(['sudo', 'apt-get', 'update'], run.ROOT)] * 3 +
+                             [call(install)] + [call(['sudo', 'apt-get', 'update', '-o', 'Acquire::Retries=1'], run.ROOT)] * 3 +
                              [call(install)])
             self.assertEqual(sleep.call_args_list, [call(2), call(2)])
+
+    def test_module_prefetch_does_not_need_a_selection_plan(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            go = root / 'go'
+            go.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$FETCH_LOG"\n')
+            go.chmod(0o755)
+            log = root / 'fetch.log'
+            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'], FETCH_LOG=str(log))
+            result = subprocess.run([sys.executable, str(run.ROOT / 'ci/run.py'), 'download',
+                                     '--plan', str(root / 'no-plan.json')], env=env, cwd=root,
+                                    text=True, capture_output=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(log.read_text().splitlines(), ['mod download', 'mod download'])

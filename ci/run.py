@@ -192,14 +192,14 @@ def install_ffmpeg():
     when that install fails are the lists refreshed and the install retried.
     """
     cache=os.environ.get('PORTICO_CI_APT_CACHE')
-    install=['sudo','apt-get','install','-y','--no-install-recommends']
+    install=['sudo','apt-get','install','-y','--no-install-recommends','-o','Acquire::Retries=1']
     if cache:
         Path(cache,'partial').mkdir(parents=True,exist_ok=True)
         install+=['-o','Dir::Cache::archives='+cache]
     try:
         execute(install+['ffmpeg'])
     except subprocess.CalledProcessError:
-        fetch(['sudo','apt-get','update']); execute(install+['ffmpeg'])
+        fetch(['sudo','apt-get','update','-o','Acquire::Retries=1']); execute(install+['ffmpeg'])
     if cache:
         # apt writes as root; the cache action saves the directory as the runner user.
         execute(['sudo','chown','-R',f'{os.getuid()}:{os.getgid()}',cache])
@@ -346,7 +346,7 @@ def build(plan):
             execute(['sh',str(ROOT/'scripts/vet-go.sh'),'--tags',tags],ROOT/module)
 
 if __name__=='__main__':
-    ap=argparse.ArgumentParser(); ap.add_argument('kind',choices=['go','build','vet-cross','js','js-static','aggregate','download','ffmpeg']); ap.add_argument('--goos'); ap.add_argument('--plan',default='ci-plan.json'); ap.add_argument('--index',type=int,default=0); ap.add_argument('--component'); ap.add_argument('--needs'); a=ap.parse_args(); plan=json.loads(Path(a.plan).read_text())
+    ap=argparse.ArgumentParser(); ap.add_argument('kind',choices=['go','build','vet-cross','js','js-static','aggregate','download','ffmpeg']); ap.add_argument('--goos'); ap.add_argument('--plan',default='ci-plan.json'); ap.add_argument('--index',type=int,default=0); ap.add_argument('--component'); ap.add_argument('--needs'); a=ap.parse_args(); plan=None if a.kind=='download' else json.loads(Path(a.plan).read_text())
     if a.kind=='download': download()
     elif a.kind=='ffmpeg': ensure_ffmpeg(plan,a.index,a.component)
     elif a.kind=='go': go(plan,a.index)
