@@ -412,7 +412,7 @@ exact spot in the reader's own notation. The later place wins. `"atEnd": true` (
 main text, or the last page) also marks the book read. With Pause history on neither is kept;
 a mark by hand still is, and clears the place. The book route answers the place with
 `placeExact`, false when it was made in another file: the reader opens at its progression.
-Home has a "Continue your books" row (`continue_reading`); books are not in Continue Watching.
+Home has a "Continue your books" row (`continue_books`) for books, comics and audiobooks, with the chapter an audiobook is in (`chapter`), and a "Continue Listening" row (`continue_listening`) for songs; Continue Watching holds films and episodes.
 
 | Route | Who | Purpose |
 |---|---|---|

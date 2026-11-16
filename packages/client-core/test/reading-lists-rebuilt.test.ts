@@ -40,7 +40,7 @@ test('Discover shows what was added most recently, and its row goes on from its 
 
 test('Continue reading is the library landing row, or Home\'s, each title with the place it was left at', async () => {
   const position = (place: Record<string, unknown>) => ({state: {watched: false, position: JSON.stringify(place), lastPlayedAt: '2026-11-12T01:00:00Z'}});
-  const {calls, reading} = server(url => ({rows: [{id: url.pathname === '/v1/home' ? 'continue_reading' : 'continue', title: 'Continue', shape: 'poster', items: [
+  const {calls, reading} = server(url => ({rows: [{id: url.pathname === '/v1/home' ? 'continue_books' : 'continue', title: 'Continue', shape: 'poster', items: [
     wire('itm_epub', 'book', position({format: 'epub', cfi: 'epubcfi(/6/4!/4,/80,/82/1:34)', section: 'OEBPS/c1.xhtml', progression: 0.53, fingerprint: '0123456789abcdef'})),
     wire('itm_comic', 'issue', position({format: 'cbz', pageIndex: 2, progression: 0.5})),
     wire('itm_none', 'book'),

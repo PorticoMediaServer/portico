@@ -64,14 +64,14 @@ func TestAPlaceInABook(t *testing.T) {
 			}
 		}
 	}
-	if row := b.homeRow("continue_reading"); len(row) != 1 || row[0] != nineteen || len(b.homeRow("continue")) != 0 {
+	if row := b.homeRow("continue_books"); len(row) != 1 || row[0] != nineteen || len(b.homeRow("continue")) != 0 {
 		t.Fatalf("Continue your books %v, Continue Watching %v", row, b.homeRow("continue"))
 	}
 
 	if got := b.state(nineteen, map[string]any{"position": place(1, `,"atEnd":true`)}); !got.Watched {
 		t.Fatal("reaching the end did not mark the book read")
 	}
-	if row := b.homeRow("continue_reading"); len(row) != 0 {
+	if row := b.homeRow("continue_books"); len(row) != 0 {
 		t.Fatalf("a finished book is still in Continue your books: %v", row)
 	}
 	if got := b.state(nineteen, map[string]any{"watched": false}); got.Watched || got.Position != "" {

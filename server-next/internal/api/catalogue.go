@@ -285,7 +285,7 @@ func (s *Server) catalogueRoutes() {
 		home := []HomeRow{
 			{ID: "continue", Title: "Continue Watching", Shape: "landscape", Items: itemShapes(continuing)},
 			{ID: "continue_listening", Title: "Continue Listening", Shape: "poster", Items: itemShapes(listening)},
-			{ID: "continue_reading", Title: "Continue your books", Shape: "poster", Items: itemShapes(reading)},
+			{ID: "continue_books", Title: "Continue your books", Shape: "poster", Items: itemShapes(reading)},
 			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: itemShapes(recent)},
 		}
 		for _, mood := range moods {

@@ -6,7 +6,7 @@
  *
  * - The library's titles: `GET /v1/items?library=&kind=book,comic,issue`, by title.
  * - Recently added: the same, by date added.
- * - Continue reading: the library's landing row `continue`, or Home's `continue_reading`.
+ * - Continue reading: the library's landing row `continue`, or Home's `continue_books`.
  * - A series' volumes: `GET /v1/items?series=`, in volume order: a book series and a comic series alike.
  *
  * A row names no version: the book's page and the reader ask the book route, which picks the
@@ -106,7 +106,7 @@ export async function rebuiltReadingContinue(api: ServerRequester, libraryId: st
   const home = (libraryId
     ? await callServer(api, 'GET /v1/libraries/{id}/landing', {id: libraryId, signal})
     : await callServer(api, 'GET /v1/home', {signal})) as Home;
-  const row = (Array.isArray(home?.rows) ? home.rows : []).find(entry => entry?.id === (libraryId ? 'continue' : 'continue_reading'));
+  const row = (Array.isArray(home?.rows) ? home.rows : []).find(entry => entry?.id === (libraryId ? 'continue' : 'continue_books'));
   const out: ReadingContinueItem[] = [];
   for (const wire of Array.isArray(row?.items) ? row.items : []) {
     const saved = place(wire?.state?.position), item = saved && readingItem(wire, saved.format);
