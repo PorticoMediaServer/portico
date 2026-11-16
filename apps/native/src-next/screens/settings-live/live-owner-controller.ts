@@ -1,4 +1,4 @@
-import {deleteOwnerRecordingRule, discoverOwnerTuners, readOwnerDvrDefaults, readOwnerLiveDefaults, readOwnerRecordingGuide, readOwnerRecordingOwners, readOwnerRecordingPermissions, readOwnerRecordingRules, readOwnerTuners, writeOwnerDvrDefaults, writeOwnerLiveDefaults, writeOwnerRecordingPermission, ownerRecordingRuleChange, sendOwnerRecordingRuleCommand} from '../../../../../packages/client-core/src/owner-requests';
+import {deleteOwnerRecordingRule, readOwnerDvrDefaults, readOwnerRecordingGuide, readOwnerRecordingOwners, readOwnerRecordingPermissions, readOwnerRecordingRules, readOwnerTuners, writeOwnerDvrDefaults, writeOwnerRecordingPermission, ownerRecordingRuleChange, sendOwnerRecordingRuleCommand} from '../../../../../packages/client-core/src/owner-requests';
 import {setServerChannelHidden} from '../../../../../packages/client-core/src/server-channel-visibility';
 import {clonePortableDto} from '../../../../../packages/client-core/src';
 import {parseEnvelope} from '../../../../../packages/client-core/src/administration';
@@ -7,8 +7,9 @@ import type {LiveSourceInput} from '../../../../../packages/client-core/src/live
 import {NativeScreenLifetime, NativeScreenStore, screenScopeEnded} from './lifetime';
 import {importSourceLogos, readSourceChannels, readSourceChoices, readSourceSettings, saveSourceChannels, saveSourceSettings} from '../../../../../packages/client-core/src/server-admin/live-source-settings';
 import type {LiveSourceChannel} from '../../../../../packages/contracts/src/next/api';
-import {changeOwnerSource, createOwnerSource, previewOwnerSource, readOwnerSources, remoteSourceSave, uploadSourceSave, type OwnerSource, type SourceSave} from '../../../../../packages/client-core/src/server-admin/live-sources';
-import {adminResult, liveSourceFromOwner, parseLiveDefaults, parseTunerDiscovery, type UploadPreview, type ChannelMapEdit, type ChannelMapPage, type LiveDefaults, type LiveSource, type LiveSources, type LiveSourceSettings, type LogoImportOutcome, type TunerDiscovery} from './live-owner-model';
+import {readLiveDefaultsDocument, saveLiveDefaultsDocument, type LiveDefaultsDocument} from '../../../../../packages/client-core/src/server-admin/live-defaults';
+import {changeOwnerSource, createOwnerSource, discoverLiveTuners, previewOwnerSource, readOwnerSources, remoteSourceSave, uploadSourceSave, type OwnerSource, type SourceSave} from '../../../../../packages/client-core/src/server-admin/live-sources';
+import {adminResult, liveDefaultsView, rebuiltLiveDefaults, liveSourceFromOwner, type UploadPreview, type ChannelMapEdit, type ChannelMapPage, type LiveDefaults, type LiveSource, type LiveSources, type LiveSourceSettings, type LogoImportOutcome, type TunerDiscovery} from './live-owner-model';
 import {needsRuleOwner, parseAdminRulePage, parseDVRDocument, parseRecordingPolicy, parseTunerView, type AdminRule, type DVRDefaults, type DVRDocument, type RecordingPolicy, type TunerView} from './recording-owner-model';
 import {recordingGuideRoute, recordingOwnerKey, recordingRulePayload, recordingSeries, type RecordingGrant, type RecordingOwner, type RecordingSeries} from '../../../../../packages/client-core/src/server-admin/recording-policy';
 import {parseChannelGuide} from '../../../../../packages/client-core/src/channel-guide';
@@ -118,9 +119,22 @@ export class NativeLiveOwnerController extends NativeScreenStore<LiveOwnerSnapsh
     await this.load(true);
     return saved;
   }, () => undefined);
-  discover = async (): Promise<TunerDiscovery> => parseTunerDiscovery(await discoverOwnerTuners({request: this.request}, {windowMs: 5000}), this.lifetime.authority.serverId);
-  liveDefaults = async () => parseLiveDefaults(await readOwnerLiveDefaults({request: this.request}), this.lifetime.authority.serverId);
-  saveLiveDefaults = async (revision: number, value: LiveDefaults) => parseLiveDefaults(await writeOwnerLiveDefaults({request: this.request}, {expectedRevision: revision, operationId: this.operationId(), settings: value}), this.lifetime.authority.serverId);
+  discover = async (): Promise<TunerDiscovery> => {
+    const found = await this.lifetime.request(signal => discoverLiveTuners(this.rebuiltApi(), signal));
+    return Object.freeze({discoveryEnabled: found.discoveryEnabled, message: found.message ?? '', devices: Object.freeze(found.devices.map(device => Object.freeze({deviceId: device.deviceId, model: device.model,
+      friendlyName: device.friendlyName, address: device.address, baseUrl: device.baseUrl, tunerCount: device.tunerCount, configured: device.configured})))});
+  };
+  /** Live defaults are the rebuilt `live` settings document, saved at the revision this screen read. */
+  private liveDocument?: LiveDefaultsDocument;
+  liveDefaults = async () => {
+    const document = await this.lifetime.request(signal => readLiveDefaultsDocument(this.rebuiltApi(), signal));
+    this.liveDocument = document; return liveDefaultsView(document);
+  };
+  saveLiveDefaults = async (_revision: number, value: LiveDefaults) => {
+    const current = this.liveDocument; if (!current) throw new Error('missing_live_defaults');
+    const next = await this.lifetime.request(signal => saveLiveDefaultsDocument(this.rebuiltApi(), current, rebuiltLiveDefaults(current.value, value), signal));
+    this.liveDocument = next; return liveDefaultsView(next);
+  };
   /** A checked remote source waits here, by an id only this screen knows, until the owner saves it: the rebuilt
    * server previews a body and creates from the same body (no stored preview). */
   private checked = new Map<string, SourceSave>();

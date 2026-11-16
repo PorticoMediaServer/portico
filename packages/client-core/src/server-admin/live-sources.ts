@@ -79,3 +79,8 @@ export function uploadSourceSave(form: Readonly<{name: string; playlist: string;
  return {kind: form.playlist ? 'playlist' : 'guide', name: form.name.trim(), audience: 'everyone', tunerCount: form.tunerCount,
   ...(form.playlist ? {playlist: form.playlist} : {}), ...(form.guide ? {guide: form.guide} : {})};
 }
+
+/** Looks for tuners on the home network for a few seconds (when the owner allows it). */
+export function discoverLiveTuners(api: LibraryContentApi, signal?: AbortSignal) {
+ return callServer(api, 'POST /v1/admin/live-sources/discover', {body: {windowMs: 5000}, signal});
+}

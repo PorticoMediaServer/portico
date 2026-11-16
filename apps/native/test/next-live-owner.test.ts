@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {NativeScreenLifetime} from '../src-next/screens/settings-live/lifetime';
 import {NativeLiveOwnerController} from '../src-next/screens/settings-live/live-owner-controller';
 import {remoteSourceDraft} from '../../../packages/client-core/src/linear-api';
-import {sourceSettingsChange, parseChannelMapPage, parseLiveDefaults, parseLiveSources, parseSourceDocument, parseTunerDiscovery, millisOf, secondsOf, listOf} from '../src-next/screens/settings-live/live-owner-model';
+import {liveDefaultsView, rebuiltLiveDefaults, sourceSettingsChange, parseChannelMapPage, parseLiveDefaults, parseLiveSources, parseSourceDocument, parseTunerDiscovery, millisOf, secondsOf, listOf} from '../src-next/screens/settings-live/live-owner-model';
 import {appendRecordingPage, needsRuleOwner, rulePaddingChoice, rulePaddingFromChoice, parseAdminRulePage, parseAdminRules, parseDVRDocument, parseTunerView} from '../src-next/screens/settings-live/recording-owner-model';
 import type {ShellAuthority} from '../src-next/shell/model';
 
@@ -300,4 +300,11 @@ test('a source settings save sends only what the owner changed, and a new sign-i
   const draft = {name: 'Cable', audience: 'everyone', paused: false, tunerCount: 2, config: {serverUrl: 'http://x', refreshHours: 12}, username: '', password: ''};
   assert.deepEqual(sourceSettingsChange(document, draft), {config: {serverUrl: 'http://x', refreshHours: 12}});
   assert.deepEqual(sourceSettingsChange(document, {...draft, config: document.source.config, username: 'u', password: 'p'}), {signIn: {username: 'u', password: 'p'}});
+});
+
+test('live defaults read the rebuilt document in its own units and save the owner\'s change back in them', () => {
+  const document = {status: {etag: '"5"'}, value: {bufferSeconds: 60, retrySeconds: 20, guideDays: 7, rewindMinutes: 30, importImages: true, discoveryEnabled: false, userAgent: 'Portico'}};
+  const view = liveDefaultsView(document);
+  assert.equal(view.revision, 5); assert.equal(view.settings.streamBufferMs, 60000); assert.equal(view.settings.timeshiftMinutes, 30); assert.equal(view.settings.logoImport, true);
+  assert.deepEqual(rebuiltLiveDefaults(document.value, {...view.settings, retryWindowMs: 45000, guideDays: 14}), {...document.value, retrySeconds: 45, guideDays: 14});
 });

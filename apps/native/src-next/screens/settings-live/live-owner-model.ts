@@ -176,3 +176,17 @@ export function sourceSettingsChange(document: SourceSettingsDocument, draft: So
   return body;
 }
 
+
+type RebuiltLiveDefaults = import('../../../../../packages/client-core/src/server-admin/live-defaults').LiveDefaultsDocument;
+const REWIND = [10, 30, 60, 120] as const;
+/** The rebuilt live document (settings `live`) in the units the phone's Live defaults sheet edits. The rebuilt
+ * server keeps no import size limits; those stay unset. */
+export function liveDefaultsView(document: RebuiltLiveDefaults): Readonly<{revision: number; settings: LiveDefaults}> {
+  const v = document.value, rewind = REWIND.find(value => value === v.rewindMinutes);
+  return Object.freeze({revision: Number(document.status.etag.slice(1, -1)), settings: Object.freeze({...(rewind ? {timeshiftMinutes: rewind} : {}), importLimits: {bytes: 0, channels: 0, programmes: 0},
+    streamBufferMs: v.bufferSeconds * 1000, retryWindowMs: v.retrySeconds * 1000, userAgent: v.userAgent, guideDays: v.guideDays, logoImport: v.importImages, discoveryEnabled: v.discoveryEnabled})});
+}
+export function rebuiltLiveDefaults(base: RebuiltLiveDefaults['value'], view: LiveDefaults): RebuiltLiveDefaults['value'] {
+  return {...base, bufferSeconds: Math.round(view.streamBufferMs / 1000), retrySeconds: Math.round(view.retryWindowMs / 1000), guideDays: view.guideDays,
+    rewindMinutes: view.timeshiftMinutes ?? base.rewindMinutes, importImages: view.logoImport, discoveryEnabled: view.discoveryEnabled, userAgent: view.userAgent};
+}
