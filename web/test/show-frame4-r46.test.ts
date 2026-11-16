@@ -15,7 +15,7 @@ registerHooks({load(url, context, next) {
   if (url.endsWith('.tsx')) return {format: 'module', source: transformTsx(url), shortCircuit: true};
   return next(url, context);
 }});
-const {ShowDetails, ShowSettingsPanel, ShowSettingsMenu, seasonMenuDescription} = await import('../src/screens/detail/Show.tsx');
+const {ShowDetails, seasonMenuDescription} = await import('../src/screens/detail/Show.tsx');
 const {showDetailFacts} = await import('../src/screens/detail/show-bindings.ts');
 
 const credits: readonly WorkspaceShowCredit[] = [
@@ -52,7 +52,6 @@ const data = {
 const binding = {
   context: {artwork: {foreground: () => undefined}, effects: {reportError() {}}, isCurrent: () => true},
   current() {}, canManage: () => true,
-  setSettings: async () => {},
 } as unknown as Parameters<typeof ShowDetails>[0]['binding'];
 
 test('the drawn Details facts come from the stored show record and never from files', () => {
@@ -84,7 +83,7 @@ test('the drawn season rows carry the stored years, episode count and real watch
   assert.equal(seasonMenuDescription({id: 's2', showId: 'the-simpsons', number: 2, title: 'Season 2'}), undefined);
 });
 
-test('frame 4 renders the About facts, the stored cast and creators, and the owner Server panel', () => {
+test('frame 4 renders the About facts and the stored cast and creators; the owner Episode display waits for the server', () => {
   const html = renderToStaticMarkup(createElement(ShowDetails, {binding, data, owner: true}));
   assert.match(html, /About</);
   for (const label of ['First aired', 'Status', 'Network', 'Studio', 'Country', 'Genres', 'Created by', 'Rated', 'Language', 'On this server', 'Added']) assert.match(html, new RegExp(`<dt>${label}</dt>`));
@@ -95,26 +94,9 @@ test('frame 4 renders the About facts, the stored cast and creators, and the own
   assert.match(html, /See all 10/);
   assert.match(html, /Pedro Pascal/);
   assert.match(html, /Craig Mazin/);
-  assert.match(html, /Show settings/);
-  assert.match(html, /Owner only/);
-  assert.match(html, /Episode display/);
-  assert.match(html, />Change</);
+  // Episode display waits for the server to serve show settings (DEFERRED): an owner sees no control that would fail.
+  assert.doesNotMatch(html, /Show settings|Episode display|>Change</);
   assert.doesNotMatch(html, /File info|File details|\/srv\/|Mbps|GB/);
-});
-
-test('the owner Episode display menu opens the four stored settings with a real episode preview', () => {
-  const panel = renderToStaticMarkup(createElement(ShowSettingsPanel, {binding, data}));
-  assert.match(panel, /Members never see this\./);
-  assert.match(panel, /By season/);
-  assert.match(panel, /Oldest first/);
-  assert.match(panel, /Episode display/);
-  assert.match(panel, />Change</);
-  const html = renderToStaticMarkup(createElement(ShowSettingsMenu, {binding, data}));
-  for (const label of ['Group episodes', 'Number them', 'Order', 'By season', 'In one list', 'Ranges of 100', 'Across seasons', 'Oldest first', 'Newest first']) assert.match(html, new RegExp(label));
-  assert.match(html, /For everyone/);
-  assert.match(html, /Reads as/);
-  assert.match(html, /S1 E1/);
-  assert.match(html, /When You’re Lost in the Darkness/);
 });
 
 test('a non-owner sees no Server panel and no settings command', () => {
