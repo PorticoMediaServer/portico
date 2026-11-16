@@ -46,7 +46,7 @@ const baseWrite = native.writeState;
 const reading = await offlineModule(new URL('../platform/offline-reading.ts', import.meta.url), {
   'react-native': boundary,
   '../../../packages/contracts/src': contracts,
-  '../../../packages/client-core/src/reading': {ReadingError: class extends Error {}, parseReadingManifest: (value: unknown) => value},
+  '../../../packages/client-core/src/reading': {ReadingError: class extends Error {}, parseReadingManifest: (value: unknown) => value, validateReadingLocation: () => {}},
   '../src-next/platform/server-connections': {nativeRouteCrypto: routeCrypto},
 });
 const subtitles = await offlineModule(new URL('../platform/offline-subtitle-files.ts', import.meta.url));

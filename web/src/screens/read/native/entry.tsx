@@ -71,7 +71,9 @@ function NativeReading({guest}: {guest: ReadingGuest}) {
       if (publication.format === 'epub') fonts = await loadReadFonts({document, signal: publication.signal});
       if (!authority.isCurrent()) return;
       const adapters = publication.format === 'epub' ? [createEpubAdapter({fonts: fonts!.fonts, unreadable: defaultI18n.t('next.reader.unreadableSection')})] : publication.format === 'pdf'
-        ? [createPdfAdapter(readerPdfAdapterOptions)] : [createComicAdapter({format: publication.format, unreadable: defaultI18n.t('next.reader.unreadablePage'), pages: publication.comicPages!})];
+        ? [createPdfAdapter(readerPdfAdapterOptions)] : [createComicAdapter({format: publication.format, unreadable: defaultI18n.t('next.reader.unreadablePage'),
+          // A comic downloaded to this device is read from its own file.
+          ...(publication.comicPages ? {pages: publication.comicPages} : {localArchive: true})})];
       reader = bindReadPreferences({adapters, preferences: guest.preferences, authority, reportError: () => {if (alive) setFailed(true);}});
       const near = guest.contentsTarget ? undefined : readerNear(guest.initialProgress);
       progress = bindReadingProgress({controller: reader.controller, session: guest.session, initial: guest.initialProgress, authority, reportError: () => {if (alive) setFailed(true);}, held: near !== undefined});

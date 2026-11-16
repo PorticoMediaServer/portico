@@ -83,7 +83,7 @@ export async function offlineFixture(options = {}) {
   const reading = await offlineModule(new URL('../../platform/offline-reading.ts', import.meta.url), {
     'react-native': {NativeModules: {PorticoDownloads: native}, Platform: {OS: 'android', isTV: false}},
     '../../../packages/contracts/src': contracts,
-    '../../../packages/client-core/src/reading': {ReadingError: class extends Error {}, parseReadingManifest: value => value},
+    '../../../packages/client-core/src/reading': {ReadingError: class extends Error {}, parseReadingManifest: value => value, validateReadingLocation: () => {}},
     '../src-next/platform/server-connections': {nativeRouteCrypto: crypto},
   });
   const serviceListeners = new Set();

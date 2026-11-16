@@ -34,14 +34,18 @@ import type {Viewer} from './index.ts';
 
 export type ReadingScope = Readonly<{viewer: Readonly<Viewer>; isCurrent: () => boolean; signal?: AbortSignal}>;
 type Immutable<T> = T extends readonly (infer V)[] ? readonly Immutable<V>[] : T extends object ? {readonly [K in keyof T]: Immutable<T[K]>} : T;
-export type ReadingManifest = Immutable<PostReadingSessionsResponse & {canAnnotate?: true; canSaveFile?: true; conversion?:ReadingConversion; metadata: Omit<PostReadingSessionsResponse['metadata'], 'publicationType'> & ReadingManifestFacts}>;
+/** `wholeFile`: the reader reads the book's own file by byte range and finds its parts and pages
+ * itself (a book downloaded to this device), so the manifest lists none. */
+export type ReadingManifest = Immutable<PostReadingSessionsResponse & {canAnnotate?: true; canSaveFile?: true; wholeFile?: true; conversion?:ReadingConversion; metadata: Omit<PostReadingSessionsResponse['metadata'], 'publicationType'> & ReadingManifestFacts}>;
 /** Optional source capability is withheld unless the actual response says literal true. */
 export function parseReadingManifest(raw: unknown): ReadingManifest {
-  const {canAnnotate: decodedCapability, canSaveFile: decodedSaveCapability, ...value} = withReadingConversion(raw,value=>withReadingManifestFacts(value, decodePostReadingSessionsResponse)) as PostReadingSessionsResponse & {metadata: PostReadingSessionsResponse['metadata'] & ReadingManifestFacts; canAnnotate?: unknown; canSaveFile?: unknown; conversion?:ReadingConversion};
+  const wholeFile = typeof raw === 'object' && raw !== null && !Array.isArray(raw) && (raw as Record<string, unknown>).wholeFile === true;
+  const plain = wholeFile ? Object.fromEntries(Object.entries(raw as Record<string, unknown>).filter(([key]) => key !== 'wholeFile')) : raw;
+  const {canAnnotate: decodedCapability, canSaveFile: decodedSaveCapability, ...value} = withReadingConversion(plain,value=>withReadingManifestFacts(value, decodePostReadingSessionsResponse)) as PostReadingSessionsResponse & {metadata: PostReadingSessionsResponse['metadata'] & ReadingManifestFacts; canAnnotate?: unknown; canSaveFile?: unknown; conversion?:ReadingConversion};
   void decodedCapability; void decodedSaveCapability;
   const offered = typeof raw === 'object' && raw !== null && !Array.isArray(raw) && (raw as Record<string, unknown>).canAnnotate === true;
   const saveOffered = typeof raw === 'object' && raw !== null && !Array.isArray(raw) && (raw as Record<string, unknown>).canSaveFile === true;
-  return frozen({...value, ...(offered ? {canAnnotate: true as const} : {}), ...(saveOffered ? {canSaveFile: true as const} : {})});
+  return frozen({...value, ...(offered ? {canAnnotate: true as const} : {}), ...(saveOffered ? {canSaveFile: true as const} : {}), ...(wholeFile ? {wholeFile: true as const} : {})});
 }
 
 export type ReadingSearchStatus = 'indexed' | 'pending' | 'unsupported' | 'evicted' | 'excluded';
@@ -503,8 +507,8 @@ function validateLocation(location: ReadingLocation, manifest: ReadingManifest, 
   if (location.format !== manifest.format || !Number.isFinite(location.progression) || location.progression < 0 || location.progression > 1) fail('invalid_location');
   if (location.format === 'epub') {
     if (location.pageIndex !== undefined || !location.cfi?.startsWith('epubcfi(/') || !location.cfi.endsWith(')') || new TextEncoder().encode(location.cfi).length > 4096 || /[\p{Cc}<>]/u.test(location.cfi)) fail('invalid_location');
-    if (location.section !== undefined && (!member(location.section) || (!stale && !manifest.spine?.includes(location.section)))) fail('invalid_location');
-  } else if (location.cfi !== undefined || location.section !== undefined || !integer(location.pageIndex ?? -1, 0, 2147483647) || (!stale && comicFormat(location.format) && location.pageIndex! >= manifest.pageNames!.length)) fail('invalid_location');
+    if (location.section !== undefined && (!member(location.section) || (!stale && !manifest.wholeFile && !manifest.spine?.includes(location.section)))) fail('invalid_location');
+  } else if (location.cfi !== undefined || location.section !== undefined || !integer(location.pageIndex ?? -1, 0, 2147483647) || (!stale && !manifest.wholeFile && comicFormat(location.format) && location.pageIndex! >= manifest.pageNames!.length)) fail('invalid_location');
 }
 function validateProgress(value: ReadingProgress, manifest: ReadingManifest) {
   const p = value.progress;
@@ -738,6 +742,37 @@ export class ReadingClient {
   }
 }
 
+/** The profile's place in a book, from the state's position: a place made in this exact file resumes
+ * exactly. One made in another version or an earlier copy is "stale": a comic opens at the same share
+ * of its pages; other books open at the start. */
+export function readingPlaceProgress(position: unknown, updatedAt: unknown, manifest: ReadingManifest): ReadingProgress {
+  const place = readPlace(position);
+  if (!place) return {progress: null};
+  const observedAt = Date.parse(typeof updatedAt === 'string' ? updatedAt : '') || Date.now();
+  const pages = manifest.pageNames?.length ?? 0, format = manifest.format;
+  const exact = place.fingerprint === manifest.revision && place.format === format;
+  let location: ReadingLocation | undefined;
+  if (exact) {
+    location = {format, progression: place.progression, ...(place.cfi !== undefined ? {cfi: place.cfi} : {}), ...(place.section !== undefined ? {section: place.section} : {}),
+      ...(place.pageIndex !== undefined ? {pageIndex: place.pageIndex} : {})};
+    try { validateLocation(location, manifest); } catch { location = undefined; }
+  } else if (comicFormat(format) && pages > 0) {
+    location = {format, progression: place.progression, pageIndex: Math.min(pages - 1, Math.floor(place.progression * pages))};
+  }
+  if (!location) {
+    return {progress: {location: {format, progression: place.progression, ...(format === 'epub' ? {cfi: 'epubcfi(/6/2)'} : {pageIndex: 0})}, observedAt,
+      revision: 1, sourceId: manifest.sourceId, sourceRevision: place.fingerprint ?? '', stale: true}};
+  }
+  return {progress: {location, observedAt, revision: 1, sourceId: manifest.sourceId, sourceRevision: manifest.revision, stale: !exact}};
+}
+/** The state's position for a place in this book. Reaching the last page, or the very end of the
+ * text, marks the book read too. */
+export function readingPlacePosition(location: ReadingLocation, manifest: ReadingManifest): string {
+  const pages = manifest.pageNames?.length ?? 0;
+  const atEnd = comicFormat(location.format) && pages > 0 ? location.pageIndex === pages - 1 : location.progression >= 0.999;
+  return JSON.stringify({...location, fingerprint: manifest.revision, ...(atEnd ? {atEnd: true} : {})});
+}
+
 /** A session that could not go on (its book's address ended and the book could not be opened
  * again as the same file) ends with this code, and the reader offers "Open again". */
 export const READING_SESSION_EXPIRED = 'reading_session_expired';
@@ -911,31 +946,12 @@ export class ReadingSession {
       return Object.freeze({index, name: this.manifest.pageNames![index], bytes: body, mime: observed});
     });
   };
-  /** The profile's place in this book. A place made in this exact file resumes exactly. One made in
-   * another version or an earlier copy is "stale": a comic opens at the same share of its pages;
-   * other books open at the start. */
+  /** The profile's place in this book, as the server keeps it (readingPlaceProgress). */
   progress = async (signal?: AbortSignal): Promise<ReadingProgress> => {
     this.#check();
     const state = await this.#client.state(this.manifest.itemId, signal);
     this.#check();
-    const place = readPlace(state.position);
-    if (!place) return {progress: null};
-    const observedAt = Date.parse(typeof state.updatedAt === 'string' ? state.updatedAt : '') || Date.now();
-    const pages = this.manifest.pageNames?.length ?? 0, format = this.manifest.format;
-    const exact = place.fingerprint === this.manifest.revision && place.format === format;
-    let location: ReadingLocation | undefined;
-    if (exact) {
-      location = {format, progression: place.progression, ...(place.cfi !== undefined ? {cfi: place.cfi} : {}), ...(place.section !== undefined ? {section: place.section} : {}),
-        ...(place.pageIndex !== undefined ? {pageIndex: place.pageIndex} : {})};
-      try { validateLocation(location, this.manifest); } catch { location = undefined; }
-    } else if (comicFormat(format) && pages > 0) {
-      location = {format, progression: place.progression, pageIndex: Math.min(pages - 1, Math.floor(place.progression * pages))};
-    }
-    if (!location) {
-      return {progress: {location: {format, progression: place.progression, ...(format === 'epub' ? {cfi: 'epubcfi(/6/2)'} : {pageIndex: 0})}, observedAt,
-        revision: 1, sourceId: this.manifest.sourceId, sourceRevision: place.fingerprint ?? '', stale: true}};
-    }
-    return {progress: {location, observedAt, revision: 1, sourceId: this.manifest.sourceId, sourceRevision: this.manifest.revision, stale: !exact}};
+    return readingPlaceProgress(state.position, state.updatedAt, this.manifest);
   };
   /** Saves the place; the later place wins on the server. Reaching the last page, or the very
    * end of the text, marks the book read there too. saved:false means a later place, saved on
@@ -943,9 +959,7 @@ export class ReadingSession {
   saveProgress = async (request: PutReadingSessionsSessionIdProgressRequest, signal?: AbortSignal): Promise<ReadingSavedProgress> => {
     this.#check(); const expectedRevision = request.expectedRevision, location = {...request.location};
     if (!integer(expectedRevision, 0, Number.MAX_SAFE_INTEGER)) fail('invalid_revision'); validateLocation(location, this.manifest);
-    const pages = this.manifest.pageNames?.length ?? 0;
-    const atEnd = comicFormat(location.format) ? location.pageIndex === pages - 1 : location.progression >= 0.999;
-    const place = JSON.stringify({...location, fingerprint: this.manifest.revision, ...(atEnd ? {atEnd: true} : {})});
+    const place = readingPlacePosition(location, this.manifest);
     const state = await this.#client.setState(this.manifest.itemId, {position: place}, signal);
     this.#check();
     if (state.position !== place) return {saved: false, progress: null};

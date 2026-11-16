@@ -23,7 +23,7 @@ const boundary = {NativeModules, NativeEventEmitter, Platform};
 const crypto = {verify: async () => true, random: n => new Uint8Array(n), sha256: async () => new Uint8Array(32)};
 const reading = await offlineModule(new URL('../../platform/offline-reading.ts', import.meta.url), {
   'react-native': boundary, '../../../packages/contracts/src': contracts,
-  '../../../packages/client-core/src/reading': {ReadingError: class extends Error {}, parseReadingManifest: value => value},
+  '../../../packages/client-core/src/reading': {ReadingError: class extends Error {}, parseReadingManifest: value => value, validateReadingLocation: () => {}},
   '../src-next/platform/server-connections': {nativeRouteCrypto: crypto},
 });
 const implementation = await offlineModule(new URL('../../platform/offline-downloads.ts', import.meta.url), {
