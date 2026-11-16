@@ -238,6 +238,9 @@ export const settingsMessages = {
   'next.settings.ownerSwitch.currentPasswordHelp': 'Needed to change how people sign in.',
   'next.settings.ownerSwitch.twoStepCode': 'Two-step code, if you use one',
   'next.settings.ownerSwitch.approving': 'Approve in the new tab with your Portico Account. This page carries on by itself.',
+  // The approval opens in a new tab and this page waits (the spec's "This tab goes there" predates that).
+  'next.settings.ownerSwitch.newTabSwitch': 'A new tab opens there. The switch happens when you approve.',
+  'next.settings.ownerSwitch.newTabStartOver': 'A new tab opens there. Nothing is removed until you approve.',
   'next.settings.ownerSwitch.approvalUnavailable': 'Portico Services can’t be reached right now. Try again in a few minutes.',
   'next.settings.hardware.format.hevc8': 'HEVC 8-bit',
   'next.settings.hardware.format.hevc10': 'HEVC 10-bit',
