@@ -565,8 +565,11 @@ export class PlaybackService {
     this.startupWait?.();
     this.startupWait = undefined;
   }
-  /** Both media deadlines count foreground time, with the same progress-based rearm. */
-  private visibleDeadline(ms: number, expire: () => void) {
+  /** Both media deadlines count foreground time, with the same progress-based rearm. While the
+   * server converts the stream neither runs out: a piece can take longer than either window to
+   * make (quality is never cut for speed), and the player shows "Getting ready" until it arrives
+   * (definition 07, rule 3). A conversion that fails ends the session or fails the media request. */
+  private visibleDeadline(ms: number, expire: () => void, converting?: () => boolean) {
     const visibility = this.options.pageVisibility, now = this.options.now ?? Date.now;
     let timer: ReturnType<typeof setTimeout> | undefined, off: (() => void) | undefined;
     let remaining = ms, started = 0, closed = false;
@@ -584,6 +587,7 @@ export class PlaybackService {
         // Older adapters expose only onVisible. A timer firing while hidden waits for
         // a fresh visible window; adapters with onChange paused it at backgrounding.
         if (visibility?.hidden()) { remaining = ms; return; }
+        if (converting?.()) { remaining = ms; arm(); return; }
         clear(); expire();
       }, remaining);
       (timer as any)?.unref?.();
@@ -598,7 +602,7 @@ export class PlaybackService {
   /** The start and its foreground deadline retire together on readiness or replacement. */
   private armStartup(expire: () => void) {
     this.clearStartup();
-    const deadline = this.visibleDeadline(this.options.startupTimeoutMs ?? 20000, expire);
+    const deadline = this.visibleDeadline(this.options.startupTimeoutMs ?? 20000, expire, () => this.snapshot.session?.converting === true);
     this.startupWait = deadline.clear;
     this.startupRearm = deadline.rearm;
   }
@@ -1084,7 +1088,8 @@ export class PlaybackService {
     const target = Math.max(0, Math.min(positionSeconds, duration || positionSeconds));
     this.failedRecovery = { positionSeconds: target, intent: patch.intent ?? this.snapshot.intent };
     const revision = this.snapshot.seekRevision + 1, intentId = this.snapshot.intentId;
-    const deadline = this.visibleDeadline(this.options.seekTimeoutMs ?? 15000, () => this.seekFailed(intentId, revision, "That position is not available to seek yet. Try again."));
+    const deadline = this.visibleDeadline(this.options.seekTimeoutMs ?? 15000, () => this.seekFailed(intentId, revision, "That position is not available to seek yet. Try again."),
+      () => this.snapshot.session?.converting === true);
     this.seekWait = deadline.clear;
     this.seekRearm = deadline.rearm;
     this.update({...patch, seekRevision: revision, pendingSeek: Object.freeze({revision, positionSeconds: target}), seekError: undefined, failedSeek: undefined});

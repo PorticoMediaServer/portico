@@ -14,6 +14,7 @@ export function toPlaybackSession(session: Session, durationSeconds: number, res
     duration: Math.max(0, durationSeconds),
     resumeSeconds: resumeSeconds ?? session.presentation.startPositionMs / 1000,
     protocol: 'v1',
+    ...(session.presentation.route === 'converted' ? {converting: true} : {}),
     // §18.1 version 2: the device decodes the file itself.
     ...(session.presentation.audio ? {audio: session.presentation.audio} : {}),
   };

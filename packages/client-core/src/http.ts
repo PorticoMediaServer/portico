@@ -103,6 +103,9 @@ export type PlaybackSession = {
   mode: string;
   duration: number;
   resumeSeconds: number;
+  /** The server converts this stream as it plays: a piece may take a while to exist, and the
+   * player waits for it ("Getting ready") rather than giving up (definition 07, rule 3). */
+  converting?: boolean;
 };
 /** What an app knows about a server before sign-in (`parseServerSignIn` reads it from `GET /v1/system`). */
 export type SystemInfo = {id: string; name: string; version?: string; setupRequired: boolean; signIn: 'portico' | 'local';
