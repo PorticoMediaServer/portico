@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"path/filepath"
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/auth"
@@ -26,6 +27,7 @@ func (s *Server) startReading(ctx context.Context) error {
 	// A book on remote storage is read through its source, as playback reads a film there.
 	s.reading = reading.New(s.db, bookKey, func() time.Time { return s.now() }, s.remote.Open)
 	s.reading.FromHome = s.fromHome
+	s.reading.Copies = filepath.Join(s.dataDir, "download-copies")
 	s.readingRoutes()
 	return nil
 }

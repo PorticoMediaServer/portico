@@ -16,6 +16,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/prepare"
 	"github.com/PorticoMediaServer/portico/server-next/internal/qualityladder"
+	"github.com/PorticoMediaServer/portico/server-next/internal/reading"
 	"github.com/PorticoMediaServer/portico/server-next/internal/settings"
 )
 
@@ -43,6 +44,9 @@ type Service struct {
 	Prepare  *prepare.Service
 	Settings *settings.Settings
 	Now      func() time.Time
+	// BookCopy is the copy a book downloads as when its own file is not one the app reads
+	// (reading.DownloadCopy): the book version whose first file is fileID, of item, as v sees it.
+	BookCopy func(ctx context.Context, v db.Viewer, item string, fileID int64) (reading.Copy, bool, error)
 	grants   grants
 }
 

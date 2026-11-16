@@ -687,6 +687,7 @@ export interface DownloadedItem {
   item: Item;
   versionId: string;
   quality: string;
+  revision?: string;
   files: DownloadFile[];
   audio: PlaybackAudio[];
   subtitles: DownloadSubtitle[];

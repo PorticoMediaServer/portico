@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -65,6 +66,19 @@ func TestClassicComicsReadThroughTheBoundedWorker(t *testing.T) {
 			info, cover, err := Comic(context.Background(), bytes.NewReader(raw), int64(len(raw)), Format(name), 1<<20)
 			if err != nil || !bytes.HasPrefix(cover, []byte("\x89PNG\r\n\x1a\n")) || comic.direction == "rtl" && info == nil {
 				t.Fatalf("details for the scanner: %d bytes of ComicInfo, %d of cover, %v", len(info), len(cover), err)
+			}
+			// Downloaded to read offline, it is a CBZ of the same entries, the same bytes each time.
+			var copied, again bytes.Buffer
+			if err := comicCopy(context.Background(), f, Format(name), &copied); err != nil {
+				t.Fatal(err)
+			}
+			comicCopy(context.Background(), f, Format(name), &again)
+			cbz, err := openArchive(bytes.NewReader(copied.Bytes()), int64(copied.Len()))
+			if err != nil || !bytes.Equal(copied.Bytes(), again.Bytes()) {
+				t.Fatalf("copy: %v", err)
+			}
+			if pages, err := readComic(cbz); err != nil || !slices.Equal(pages.pages, comic.pages) || pages.direction != comic.direction {
+				t.Fatalf("copy pages %v, %v", pages, err)
 			}
 			broken := append([]byte(nil), raw...)
 			broken[0] = 0

@@ -3,6 +3,7 @@
 package reading
 
 import (
+	"archive/zip"
 	"encoding/binary"
 	"io"
 
@@ -11,7 +12,7 @@ import (
 
 const sevenEnabled = true
 
-func sevenMembers(r io.ReaderAt, size int64, wanted string, out io.Writer) ([]comicMember, error) {
+func sevenMembers(r io.ReaderAt, size int64, wanted string, out io.Writer, all *zip.Writer) ([]comicMember, error) {
 	var header [32]byte
 	if size < 32 {
 		return nil, errDamaged
@@ -49,6 +50,18 @@ func sevenMembers(r io.ReaderAt, size int64, wanted string, out io.Writer) ([]co
 		}
 		seen[f.Name] = true
 		members = append(members, comicMember{f.Name, f.UncompressedSize})
+		if all != nil {
+			// In the archive's own order, so a solid archive is unpacked once.
+			rc, err := f.Open()
+			if err != nil {
+				return nil, errDamaged
+			}
+			err = copyMember(all, f.Name, rc, int64(f.UncompressedSize))
+			rc.Close()
+			if err != nil {
+				return nil, err
+			}
+		}
 		if f.Name == wanted {
 			selected = f
 		}

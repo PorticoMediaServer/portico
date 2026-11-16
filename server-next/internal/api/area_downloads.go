@@ -2,11 +2,14 @@ package api
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"time"
 
+	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/downloads"
 	"github.com/PorticoMediaServer/portico/server-next/internal/prepare"
+	"github.com/PorticoMediaServer/portico/server-next/internal/reading"
 )
 
 // downloadsArea is what downloads and offline (area 9) keeps on the server. Add this area's fields here and its start-up
@@ -29,7 +32,32 @@ func (s *Server) startDownloads(ctx context.Context) error {
 	}
 	s.goBackground(func() { s.prepare.Run(ctx) })
 	s.jobs.Tidy("unused prepared copies", 6*time.Hour, s.prepare.Tidy)
-	s.downloads = &downloads.Service{DB: s.db, Prepare: s.prepare, Settings: s.settings, Now: func() time.Time { return s.now() }}
+	s.downloads = &downloads.Service{DB: s.db, Prepare: s.prepare, Settings: s.settings, Now: func() time.Time { return s.now() },
+		BookCopy: func(ctx context.Context, v db.Viewer, item string, fileID int64) (reading.Copy, bool, error) {
+			version, ok, err := s.bookVersion(ctx, v, item, fileID)
+			if !ok {
+				return reading.Copy{}, false, err
+			}
+			return s.reading.DownloadCopy(ctx, version)
+		}}
 	s.downloadRoutes()
 	return nil
+}
+
+// bookVersion is the version of a book, comic or issue whose first file is fileID; ok is false
+// for anything that is not one.
+func (s *Server) bookVersion(ctx context.Context, v db.Viewer, item string, fileID int64) (db.BookVersion, bool, error) {
+	book, err := s.db.Book(ctx, v, item)
+	if errors.Is(err, db.ErrNotFound) {
+		return db.BookVersion{}, false, nil
+	}
+	if err != nil {
+		return db.BookVersion{}, false, err
+	}
+	for _, version := range book.Versions {
+		if version.FileID == fileID {
+			return version, true, nil
+		}
+	}
+	return db.BookVersion{}, false, nil
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/prepare"
 	"github.com/PorticoMediaServer/portico/server-next/internal/qualityladder"
+	"github.com/PorticoMediaServer/portico/server-next/internal/reading"
 )
 
 func (s *Server) downloadRoutes() {
@@ -221,9 +222,14 @@ type DownloadSubtitle struct {
 // artwork, its files in order (several parts play as one title), chapters, intro and credit
 // markers, audio, subtitles and lyrics. Seek previews are not part of a download.
 type DownloadedItem struct {
-	Item      Item               `json:"item"`
-	VersionID string             `json:"versionId"`
-	Quality   string             `json:"quality"`
+	Item      Item   `json:"item"`
+	VersionID string `json:"versionId"`
+	Quality   string `json:"quality"`
+	// Revision, for a book, comic or issue, names the exact file it was made from: the
+	// fingerprint GET /v1/items/{id}/book gives, which places and highlights are made on. A
+	// book whose own file the app does not read (MOBI, AZW3, CBR, CB7, a folder of pictures)
+	// has one file: the EPUB or CBZ it reads as, with its container, size and SHA-256.
+	Revision  string             `json:"revision,omitempty"`
 	Files     []DownloadFile     `json:"files"`
 	Audio     []PlaybackAudio    `json:"audio"`
 	Subtitles []DownloadSubtitle `json:"subtitles"`
@@ -739,12 +745,31 @@ func (s *Server) downloadedItem(r *http.Request, _ None) (DownloadedItem, error)
 	shaped := versionOut(version)
 	out := DownloadedItem{Item: detailShape(detail), VersionID: version.PublicID, Quality: dl.Quality, Files: []DownloadFile{},
 		Audio: shaped.Audio, Subtitles: []DownloadSubtitle{}, Chapters: []PlaybackChapter{}, Markers: []PlaybackMarker{}}
-	if dl.Quality == downloads.Original {
+	var copied bool
+	if dl.Quality == downloads.Original && detail.Kind.Reading() {
+		book, ok, err := s.bookVersion(ctx, v, title.ItemPublicID, version.FileID)
+		if err != nil {
+			return DownloadedItem{}, err
+		}
+		if ok {
+			out.Revision = reading.Fingerprint(book.Size, book.ModifiedNS)
+			made, ok, err := s.reading.DownloadCopy(ctx, book)
+			if ok && err != nil {
+				return DownloadedItem{}, ErrConflict("book_unreadable", err.Error())
+			}
+			if copied = ok; copied {
+				out.Files = append(out.Files, DownloadFile{URL: base + "file/1", SizeBytes: made.Size, SHA256: made.SHA256, Container: made.Container})
+			}
+		}
+	}
+	switch {
+	case copied:
+	case dl.Quality == downloads.Original:
 		for n, part := range version.Parts {
 			out.Files = append(out.Files, DownloadFile{URL: base + "file/" + strconv.Itoa(n+1), SizeBytes: part.Size,
 				Container: strings.TrimPrefix(extensionOf(part.Name), ".")})
 		}
-	} else {
+	default:
 		p := title.Prepared
 		if p == nil || p.State != db.PreparedReady {
 			return DownloadedItem{}, ErrConflict("not_ready", "This title is not ready to download yet.")
