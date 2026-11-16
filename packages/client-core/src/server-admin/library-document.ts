@@ -1,5 +1,5 @@
 import type {AdminLibrary} from '../../../contracts/src/next/api.ts';
-import type {LibraryAdminDocument, LibrarySettings, MetadataProviderId} from '../administration.ts';
+import {episodeThumbnailChoices, type EpisodeThumbnailChoice, type LibraryAdminDocument, type LibrarySettings, type MetadataProviderId} from '../administration.ts';
 import type {ContentScope} from '../library-content.ts';
 import type {InventoryConfig, InventorySource, ScanTier} from '../library-inventory.ts';
 import {parseMetadataAgent} from './metadata-agent.ts';
@@ -33,6 +33,9 @@ export function libraryDocument(library: AdminLibrary): LibraryAdminDocument {
     eligible.push('libraries.lyrics');
   }
   if (options.segmentDetection && ['server', 'off', 'standard', 'thorough'].includes(options.segmentDetection)) settings.segmentDetection = options.segmentDetection as LibrarySettings['segmentDetection'];
+  if ((library.kind === 'shows' || library.kind === 'anime') && episodeThumbnailChoices.includes(options.episodeThumbnails as EpisodeThumbnailChoice)) {
+    settings.episodeThumbnails = options.episodeThumbnails as EpisodeThumbnailChoice; eligible.push('libraries.episodeThumbs');
+  }
   const mediaKind = metadata.libraryKind === 'tv' || metadata.libraryKind === 'anime' ? 'show' : metadata.libraryKind === 'audiobook' ? 'book' : metadata.libraryKind;
   settings.providers = [{mediaKind, provider: metadata.agent as MetadataProviderId, apiKeySet: false, language: metadata.language ?? '', region: typeof library.region === 'string' ? metadata.region || 'US' : ''}];
   eligible.push('libraries.titlesFrom');

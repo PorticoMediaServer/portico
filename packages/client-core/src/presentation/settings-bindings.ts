@@ -161,6 +161,7 @@ const libraryScalarBindings:Readonly<Record<string,SettingsBinding>>={
  'libraries.scrubWidth':{form:'library',key:'navigation.trickplayTileWidth'},
  'libraries.titleSource':{form:'library',key:'titleSource'},
  'libraries.episodeNumbering':{form:'library',key:'episodeNumbering'},
+ 'libraries.episodeThumbs':{form:'library',key:'episodeThumbnails'},
  'libraries.extras':{form:'library',key:'findExtras'},
  'libraries.sortArticles':{form:'library',key:'sortIgnoreArticles'},
  'libraries.refreshMode':{form:'library',key:'refreshMode'},

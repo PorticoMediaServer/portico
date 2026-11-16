@@ -1,6 +1,5 @@
 import {jobStateName} from '../../../../../../packages/client-core/src/server-admin/console-catalogue';
 import type {LibraryContentApi} from '../../../../../../packages/client-core/src/library-content';
-import {EpisodeThumbnailsRow} from './EpisodeThumbnailsRow';
 import type {AnalysisPolicy} from '../../../../../../packages/client-core/src/remote-sources';
 import {LibraryTrashGroup} from './LibraryTrashGroup';
 import {loadInitialOwnerLibrary} from './initial-library';
@@ -338,7 +337,6 @@ function ScanningTab({api, library, document, state, t, locale, skipped, cancel,
         onValueChange={value => save({segmentDetection: value as LibrarySettings['segmentDetection']})}/>}/>
     </SettingsGroup>
     <LibrarySettingsRows tab="scanning" document={document} busy={state.busy} t={t} save={save}/>
-    {(document.libraryKind === 'tv' || document.libraryKind === 'anime') && <EpisodeThumbnailsRow api={api} libraryId={document.libraryId} parentCurrent={parentCurrent} disabled={state.busy} t={t}/>}
     {(state.strm || state.strmError !== undefined) && <SettingsGroup style={{marginTop: 12}}>
       <SettingsRow first label={t('next.settingsSpec.server.libraries.panels.library.tabs.4.groups.0.rows.1.label')}
         description={state.strmError !== undefined ? presentError(state.strmError, 'library').body : t('next.settingsSpec.server.libraries.panels.library.tabs.4.groups.0.rows.1.help')}

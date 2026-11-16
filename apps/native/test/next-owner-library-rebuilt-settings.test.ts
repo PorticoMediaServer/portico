@@ -10,12 +10,14 @@ import * as versions from '../../../packages/client-core/src/settings-document.t
 import * as routes from '../../../packages/contracts/src/routes.ts';
 import type {LibraryContentApi} from '../../../packages/client-core/src/library-content.ts';
 
-async function fixture() {
+async function fixture(shows = false) {
   const reads: string[] = [], writes: any[] = [];
-  let library = {id: 'films', name: 'Films', kind: 'movies', revision: '7', language: 'en', region: 'GB', metadataProvider: 'tmdb', scanning: false,
+  let library: any = {id: 'films', name: 'Films', kind: 'movies', revision: '7', language: 'en', region: 'GB', metadataProvider: 'tmdb', scanning: false,
     metadataProviders: [{id: 'tmdb', available: true}, {id: 'local', available: true}],
     folders: [{id: 'folder-1', path: '/media/films', available: true, watched: true, scanEveryMinutes: 0}],
     options: {depth: 'basic', watch: true, allowDelete: false, groupSeries: true, rescanMinutes: 0, trash: {mode: 'days', days: 30}, segmentDetection: 'server'}};
+  // A show library carries Episode thumbnails (definition area 4, rule 46), as the rebuilt server sends it.
+  if (shows) library = {...library, kind: 'shows', options: {...library.options, groupSeries: undefined, episodeThumbnails: 'provider_then_made'}};
   const api: LibraryContentApi = {
     request: async <T,>(path: string): Promise<T> => {
       reads.push(path);
@@ -85,5 +87,19 @@ test('region uses the effective video default and is absent for library kinds wi
     const library = f.controller.getSnapshot().document.serverLibrary;
     assert.equal(bindings.readLibrarySettingsBinding('libraries.region', libraryDocument({...library, region: ''}))?.current, 'US');
     assert.equal(bindings.readLibrarySettingsBinding('libraries.region', libraryDocument({...library, kind: 'music', region: undefined})), undefined);
+  } finally {f.controller.dispose();}
+});
+
+// A show library offers Episode thumbnails on the Scanning tab, phone and web alike (the shared
+// binding); choosing Off is saved to the library's options, so the server makes no pictures.
+test('a show library offers Episode thumbnails and saves the choice to the library', async () => {
+  const f = await fixture(true);
+  try {
+    await f.controller.load('films'); const document = f.controller.getSnapshot().document;
+    assert.equal(bindings.readLibrarySettingsBinding('libraries.episodeThumbs', document)?.current, 'provider_then_made');
+    assert.equal(await f.controller.save(bindings.patchLibrarySettingsBinding('libraries.episodeThumbs', 'off', document)), true);
+    assert.equal(f.writes.length, 1);
+    assert.deepEqual(f.writes[0].body, {options: {...document.serverLibrary.options, episodeThumbnails: 'off'}});
+    assert.equal(bindings.readLibrarySettingsBinding('libraries.episodeThumbs', f.controller.getSnapshot().document)?.current, 'off');
   } finally {f.controller.dispose();}
 });
