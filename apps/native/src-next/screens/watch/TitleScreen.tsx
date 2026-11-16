@@ -391,9 +391,10 @@ export function NativeTitleScreen(props: NativeTitleScreenProps) {
     {label: t('title.studio'), value: workspace?.show.studio ?? detail?.facts?.studio},
     {label: t('title.added'), value: detail?.item.addedAt ? new Intl.DateTimeFormat(text.locale ?? 'en-US', {month: 'long', day: 'numeric', year: 'numeric'}).format(new Date(detail.item.addedAt)) : undefined},
   ].filter(row => row.value);
-  // A show's own workspace carries its credits; a movie's detail read carries them.
+  // A show's own workspace carries its credits; a movie's detail read carries them. A workspace credit's id is its
+  // person, who can hold two roles (writer and producer), so each credit is keyed by its own place in the list.
   const credits = theme.isTV && snapshot.credits ? snapshot.credits.credits : detail?.metadata.credits ?? (workspace?.show.credits ?? []).map(credit => ({
-    id: credit.id ?? `show-credit-${credit.ordinal}`, name: credit.name, role: credit.role ?? '', department: credit.department ?? '',
+    id: `show-credit-${credit.ordinal}`, ...(credit.id ? {personId: credit.id} : {}), name: credit.name, role: credit.role ?? '', department: credit.department ?? '',
     provider: '', ...(credit.portraitUrl ? {portraitUrl: credit.portraitUrl} : {})})), creditNames = (departments: readonly string[]) =>
     [...new Set(credits.filter(credit => departments.includes(credit.department.toLowerCase())).map(credit => credit.name))];
   const directors = creditNames(['directing', 'director', 'direction']), writers = creditNames(['writing', 'writer', 'writers']);

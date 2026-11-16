@@ -1,3 +1,5 @@
+import {appLog} from '../../../../../packages/client-core/src/app-log';
+
 export type RowSlot<T> = Readonly<{id: string; focusId: string; sourceFocusId: string; item: T; waiting: boolean; position: number; requestId?: string}>;
 export type RowPage<T> = Readonly<{
   hasMore: boolean; loading: boolean; failed?: boolean;
@@ -11,10 +13,19 @@ export type RowPage<T> = Readonly<{
   refocus?: Readonly<{focusId: string; serial: number}>;
 }>;
 
+let repeatLogged = false;
+/** One row draws each identity once. A repeat is a data fault, not a reason to lose the page: the first stays, the
+ * repeat is dropped, and the app's own log notes it once per run. */
+export function firstOfEachRowItem<T>(items: readonly T[], getKey: (item: T) => string): readonly T[] {
+  const seen = new Set<string>(), kept = items.filter(item => {const id = getKey(item); if (seen.has(id)) return false; seen.add(id); return true;});
+  if (kept.length === items.length) return items;
+  if (!repeatLogged) {repeatLogged = true; appLog.write('warn', 'screen', 'warning');}
+  return kept;
+}
+
 /** A focused/retained row accepts appends and removals but defers server reordering. */
-export function reconcileRowSlots<T>(previous: readonly RowSlot<T>[], items: readonly T[], getKey: (item: T) => string, owned: boolean, page?: RowPage<T>, getFocusId: (item: T) => string = getKey): readonly RowSlot<T>[] {
-  const byId = new Map(items.map(item => [getKey(item), item]));
-  if (byId.size !== items.length) throw new Error('Row item identities must be unique.');
+export function reconcileRowSlots<T>(previous: readonly RowSlot<T>[], rowItems: readonly T[], getKey: (item: T) => string, owned: boolean, page?: RowPage<T>, getFocusId: (item: T) => string = getKey): readonly RowSlot<T>[] {
+  const items = firstOfEachRowItem(rowItems, getKey);
   const oldById = new Map(previous.filter(slot => !slot.waiting).map(slot => [slot.sourceFocusId, slot]));
   const waiting = previous.find(slot => slot.waiting);
   const matching = waiting && page?.fulfilled?.waitingId === (waiting.requestId ?? waiting.id);
