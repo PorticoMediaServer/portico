@@ -1,3 +1,4 @@
+import * as design from '@portico/design';
 import * as setupCodes from '../../../../packages/client-core/src/setup-code.ts';
 import * as catalogueActions from '../../../../packages/client-core/src/query/catalogue-actions.ts';
 import * as catalogueReads from '../../../../packages/client-core/src/query/catalogue-reads.ts';
@@ -18,6 +19,7 @@ import * as serverClock from '../../../../packages/client-core/src/server-clock.
 import * as userMutationClock from '../../../../packages/client-core/src/query/user-mutation-clock.ts';
 import * as nativeStopScope from '../../src-next/platform/native-stop-scope.ts';
 import * as shellPlayback from '../../src-next/shell/playback.ts';
+import * as controlModel from '../../src-next/kit/controls/control-model.ts';
 import * as captionMetrics from '../../src-next/kit/cards/caption-metrics.ts';
 import * as listEdgesModule from '../../src-next/kit/layout/list-edges.ts';
 import * as personalHistoryActions from '../../../../packages/client-core/src/personal-history-actions.ts';
@@ -79,7 +81,7 @@ function railHoldLeaf(react) {
   return hooks;
 }
 // Moved core operations execute against the fixture's captured API; no request is mocked here.
-const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)?$/.test(source) ? playbackQueries
+const leaf = (source, react, native) => source === '@portico/design' ? design : /client-core\/src\/query\/playback(\.ts)?$/.test(source) ? playbackQueries
   : /client-core\/src\/query\/catalogue-actions(?:\.ts)?$/.test(source) ? catalogueActions
   : /client-core\/src\/query\/catalogue-reads(?:\.ts)?$/.test(source) ? catalogueReads
   : /client-core\/src\/playback-v1\/preparing-cleanup(\.ts)?$/.test(source) ? preparingCleanup
@@ -120,6 +122,9 @@ const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)
   : /(^|\/)kit\/layout\/list-edges$|^\.\/list-edges$/.test(source) ? listEdgesModule
   // The shell's one top-bar Play on button draws as a named element; next-play-on-top-bar tests it.
   : /(^|\/)PlayOnButton$/.test(source) ? {PlayOnButton: 'PlayOnButton'}
+  : /(^|\/)control-model$/.test(source) ? controlModel
+  : /(^|\/)TVAuthLayout$/.test(source) ? {TVAuthLayout: 'TVAuthLayout', TVAccountCanvas: 'TVAccountCanvas', TVAccountFields: 'TVAccountFields'}
+  : /(^|\/)TVAccountRow$/.test(source) ? {TVAccountRow: 'TVAccountRow'}
   : /(^|\/)TVTextField$/.test(source) ? {TVTextField: 'TVTextField'}
   // The one page title (kit/layout/Lockup) draws as a named element.
   : /(^|\/)kit\/layout\/Lockup$/.test(source) ? {Lockup: 'Lockup', pageTitleLines: 3, lockupStep: () => 'lockup'}

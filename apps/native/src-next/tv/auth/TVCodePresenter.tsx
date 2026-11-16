@@ -59,7 +59,7 @@ function CodePresenter(props: TVCodePresenterProps) {
     </View>
   </View>;
   return <TVAuthLayout testID={`tv-${props.mode}-code`} portico={props.mode === 'portico'} aside={aside}
-    heading={props.mode === 'portico' ? t('activation.title') : props.serverName}
+    title={props.mode === 'portico' ? t('activation.title') : props.serverName}
     eyebrow={props.mode === 'local' ? t('accounts.signIn.to') : undefined} body={props.body}>
     {props.status}
     <FocusRegion id={id} entry={entry} order={order} enabled={!props.busy} style={{flexDirection: 'row', gap: 20}}>

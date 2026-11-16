@@ -231,6 +231,8 @@ const handheldType = {
   // owner-server API-key rows (frame16).
   integrationKeyName: type(15.5, 'normal', 700, -.005), integrationKeyFacts: type(13.5, 19.575, 400),
   stopBody: type(15, 23.25, 500), stopField: type(16, 'normal', 600), stopHelp: type(13.5, 'normal', 400),
+  fieldValue: type(15, 'normal', 400), fieldPlaceholder: type(15, 'normal', 400), fieldLabel: type(13, 18, 600),
+  accountTitle: type(30, 32.4, 800, -.035), accountLede: type(15, 22.5, 400), accountHint: type(13, 18, 600), accountEyebrow: type(13, 'normal', 700),
 };
 /** The end-card (PostPlay) type roles from desktop-player.html's post-play block:
  * kicker 15, title 76, compact title 56, feature 32, name 14 and year 13, with
@@ -255,6 +257,8 @@ export const typeScale: Readonly<Record<'desktop' | 'handheld' | 'tenFoot', Read
     episodeTitle: type(16, 'normal', 700, -.01), episodeBody: type(14, 21, 400), fallbackLockup: type(52, 48.88, 800, -.045),
   },
   tenFoot: {...handheldType,
+    fieldValue: type(32, 'normal', 600), fieldPlaceholder: type(32, 'normal', 500), fieldLabel: type(22, 22, 700),
+    accountTitle: type(72, 72, 800, -.045), accountLede: type(26, 37.7, 400), accountHint: type(20, 30, 600), accountEyebrow: type(22, 'normal', 700, .1),
     display: type(62, 68, 700, -.029), title: type(44, 52, 700, -.027), heading: type(32, 40, 600, -.019), subheading: type(27, 34, 600, -.011),
     body: type(24, 33, 400), bodyStrong: type(24, 33, 600), caption: type(20, 27, 400), captionStrong: type(20, 27, 600), micro: type(17, 22, 500, .018), label: type(18, 24, 600),
     lockup: type(120, 112.8, 800, -.045), lockupLong: type(120, 112.8, 800, -.045), rowHeading: type(32, 'normal', 700, -.019),
@@ -272,6 +276,7 @@ export { icons, iconIds, isIconId } from './icons.ts';
 export type { IconId, IconDefinition } from './icons.ts';
 export { componentSpec, focus as focusSpec, button as buttonSpec, transport as transportSpec, field as fieldSpec, toggle as toggleSpec, chip as chipSpec, segmented as segmentedSpec, row as rowSpec, overlay as overlaySpec, menu as menuSpec, feedback as feedbackSpec, confirmation as confirmationSpec, hero as heroSpec, card as cardSpec, shelf as shelfSpec, banner as bannerSpec, episode as episodeSpec, generatedArt as generatedArtSpec, navigation as navigationSpec, activity as activitySpec, tag as tagSpec, tabs as tabsSpec } from './components.ts';
 export type { ComponentSpec, Fill, ButtonVariant, ButtonSize, ButtonState, RowVariant, OverlayKind, ScrimStop } from './components.ts';
+export {tvAccount as tvAccountSpec} from './components.ts';
 
 /** Named surface roles, including the exact 6/10/12/14/16 px kit radii. */
 export const radii = {small: 6, control: 8, artwork: 10, surface: 10, panel: 12, overlay: 14, tag: 6, thumbnail: 8, heroButton: 12, liveCard: 12, fallback: 14, banner: 16, popover: 18, sheet: 24, pill: 999} as const;
