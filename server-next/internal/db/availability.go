@@ -164,8 +164,23 @@ func removeItem(b *batchTx, libraryID, id, now int64) error {
 			return err
 		}
 	}
-	// A series that held one of these volumes is rated again from the ones it has left.
-	return b.collectionsRated(series...)
+	// A series that held one of these volumes is rated again from the ones it has left, or
+	// goes with its last one.
+	for _, holder := range series {
+		var held bool
+		if err := b.queryRow(`SELECT EXISTS (SELECT 1 FROM item_relations WHERE item_id = ?) OR
+			EXISTS (SELECT 1 FROM items WHERE parent_id = ?)`, holder, holder).Scan(&held); err != nil {
+			return err
+		}
+		if !held {
+			if err := removeItem(b, libraryID, holder, now); err != nil {
+				return err
+			}
+		} else if err := b.collectionsRated(holder); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func queryInts(tx *sql.Tx, query string, args ...any) ([]int64, error) {
