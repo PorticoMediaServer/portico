@@ -38,6 +38,7 @@ import {
 } from '../../../../packages/client-core/src/server-connections.ts';
 import {nativeAppSessions} from './app-session-storage';
 import {knownServerRoutes, type NewServerConnection} from '../../../../packages/client-core/src/app-sessions';
+import {nativeDeviceClass} from './device-platform';
 import { routePath } from '../../../../packages/contracts/src/routes.ts';
 import { checkApplePlainHttp } from './apple-plain-http';
 import { loadConnectionPreference, nativeConnectionPolicy } from './connection-preference';
@@ -318,7 +319,7 @@ export function trackNativeConnection(api: HttpLocalApi) {
   // Which surface this is and what it is connected over scope the viewer's quality preferences.
   // Both are plain declarations; the server decides what they mean.
   activeApi = api;
-  api.setDeviceClass(Platform.isTV ? 'television' : 'mobile');
+  api.setDeviceClass(nativeDeviceClass);
   api.setTransportClass(transport);
   active?.setForeground(AppState.currentState === 'active');
   ensureMonitoring();
