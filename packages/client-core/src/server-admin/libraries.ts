@@ -3,7 +3,9 @@ import {durationIntent} from '../wire-units.ts';
 import {encodedRoutePath,routePath} from '../../../contracts/src/route-paths.ts';
 import {parseLibraryDocument,type LibraryAdminDocument,type LibrarySettings} from '../administration.ts';
 import {serverPath} from '../query/server-api.ts';
-import {ownerLibrary, libraryDocument, libraryFolders} from './library-document.ts';
+import {ownerLibrary, libraryDocument, libraryFolders, libraryAudience} from './library-document.ts';
+import {callServer} from '../query/server-api.ts';
+import type {Member} from '../../../contracts/src/next/api.ts';
 import {CodedError, unreadableServerResponse} from '../server-messages.ts';
 import type {AdminLibrary, LibraryEdit} from '../../../contracts/src/next/api.ts';
 import {parseInventorySource,type InventorySource,type SourceSettings} from '../library-inventory.ts';
@@ -17,7 +19,20 @@ function libraryID(id:string){if(!id||id.length>256||/[\x00-\x1f\x7f]/.test(id))
 /** The rebuilt owner read, explicitly selected by the native library page. */
 export async function readOwnerLibrarySettings(api:LibraryContentApi,id:string,signal?:AbortSignal):Promise<LibraryAdminDocument>{
  libraryID(id);
- return libraryDocument(ownerLibrary(await api.request<unknown>(serverPath('GET /v1/admin/libraries/{id}',{id}),'GET',undefined,signal),id));
+ const [library,members]=await Promise.all([api.request<unknown>(serverPath('GET /v1/admin/libraries/{id}',{id}),'GET',undefined,signal),readAllMembers(api,signal)]);
+ return libraryDocument(ownerLibrary(library,id),members&&libraryAudience(members,id));
+}
+/** Every account, for "Who can see it". A refused or failed read leaves that one row out, never the library. */
+async function readAllMembers(api:LibraryContentApi,signal?:AbortSignal):Promise<readonly Member[]|undefined>{
+ try{
+  const out:Member[]=[];let cursor:string|undefined;
+  for(let pages=0;pages<100;pages++){
+   const page=await callServer(api,'GET /v1/admin/members',{query:{cursor},signal});
+   if(!Array.isArray(page?.items))return undefined;
+   out.push(...page.items);cursor=page.nextCursor;if(!cursor)return out;
+  }
+  return undefined;
+ }catch(error){if(signal?.aborted)throw error;return undefined;}
 }
 /** The version the owner edited goes in If-Match, never a revision in the server body. */
 export async function patchOwnerLibrary(api:LibraryContentApi,id:string,revision:number,body:LibraryEdit,signal?:AbortSignal):Promise<AdminLibrary>{
@@ -49,7 +64,7 @@ export async function saveOwnerLibrarySettings(api:LibraryContentApi,current:Lib
  }
  if(changedOptions)body.options=options;
  if(!Object.keys(body).length)return current;
- const doc=libraryDocument(await patchOwnerLibrary(api,current.libraryId,current.revision,body,signal));
+ const doc=libraryDocument(await patchOwnerLibrary(api,current.libraryId,current.revision,body,signal),current.audience);
  if(doc.revision<=current.revision)throw new Error('Library settings write could not be reconciled.');
  return doc;
 }

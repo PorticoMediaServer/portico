@@ -6,7 +6,10 @@ import {SettingsLibrarySource} from '../src/screens/settings/library-source.ts';
 const library = (id = 'selected', revision = '7') => ({id, revision, name: 'Art Films', kind: 'movies', language: 'en', region: 'CA',
   metadataProvider: 'local', metadataProviders: [{id: 'local', available: true}], folders: [],
   options: {depth: 'basic', watch: true, allowDelete: false, groupSeries: true, trash: 'keep', rescan: 3600}});
-function fixture(api: LibraryContentApi) {
+/** Every account is read beside a library, for Who can see it (W2 F5). Tests about the library itself get no accounts
+ * from the fixture, so their own fakes and counts see only the library's requests; `ownMembers` passes it through. */
+function fixture(api: LibraryContentApi, ownMembers = false) {
+  if (!ownMembers) {const inner = api.request;api = {...api, request: async <T>(path: string, ...rest: unknown[]) => path === '/v1/admin/members' ? {items: []} as T : (inner as (...args: unknown[]) => Promise<T>)(path, ...rest)};}
   let current = true;
   const errors: unknown[] = [];
   const source = new SettingsLibrarySource(api, () => current, () => {}, error => errors.push(error));
@@ -15,11 +18,14 @@ function fixture(api: LibraryContentApi) {
 
 test('the real AdminLibrary reader offers only honoured fields, without invented defaults', async () => {
   const calls: string[] = [];
-  const f = fixture({request: async <T>(path: string) => {calls.push(path);return library() as T;}});
+  // Who can see it comes from every account beside the library (W2 F5): one member here, held to another library.
+  const members = {items: [{id: 'o', role: 'owner', state: 'active', disabled: false, allLibraries: true, libraries: []}, {id: 'm', role: 'member', state: 'active', disabled: false, allLibraries: false, libraries: ['other']}]};
+  const f = fixture({request: async <T>(path: string) => {calls.push(path);return (path === '/v1/admin/members' ? members : library()) as T;}}, true);
   try {
     assert.equal(f.source.document(), undefined);assert.deepEqual(calls, []);
     await f.source.select('selected');
-    assert.deepEqual(calls, ['/v1/admin/libraries/selected']);
+    assert.deepEqual(calls, ['/v1/admin/libraries/selected', '/v1/admin/members']);
+    assert.match(String(f.source.read('selected', 'libraries.access')?.current), /^1 account/);
     assert.equal(f.source.read('selected', 'libraries.name')?.current, 'Art Films');
     assert.equal(f.source.read('selected', 'libraries.scanDepth')?.current, 'basic');
     assert.equal(f.source.read('selected', 'libraries.allowDelete')?.current, false);
@@ -27,7 +33,7 @@ test('the real AdminLibrary reader offers only honoured fields, without invented
     assert.equal(f.source.read('selected', 'libraries.scanDepth')?.default, undefined);
     for (const id of ['libraries.analysisSteps', 'libraries.scrub', 'libraries.strm', 'libraries.sonicAnalysis']) assert.equal(f.source.read('selected', id), undefined, id);
     assert.equal(f.source.read('another', 'libraries.scanDepth'), undefined);
-    await f.source.select('selected');assert.equal(calls.length, 1);
+    await f.source.select('selected');assert.equal(calls.length, 2);
     await f.source.select();assert.equal(f.source.document('selected'), undefined);
   } finally {f.source.dispose();}
 });
