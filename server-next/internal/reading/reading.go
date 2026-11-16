@@ -66,6 +66,9 @@ type Service struct {
 	mu    sync.Mutex
 	books map[string]*epub     // EPUB package documents already read, by file and fingerprint
 	mobis map[string]*mobiBook // MOBI and AZW3 books already rebuilt, by file and fingerprint
+	// Copies is the folder download copies are made in (copies.go); copying makes one at a time.
+	Copies  string
+	copying sync.Mutex
 	// checked remembers, for a few seconds, that an address's profile may still see its book,
 	// so a page turn costs no database read. See allowed.
 	checked map[string]checked

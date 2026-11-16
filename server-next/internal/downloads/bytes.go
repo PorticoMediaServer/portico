@@ -17,6 +17,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediafacts"
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/prepare"
+	"github.com/PorticoMediaServer/portico/server-next/internal/reading"
 )
 
 // GrantPrefix starts every download address's grant. It holds a character a stream's grant
@@ -198,7 +199,7 @@ func (s *Service) Open(ctx context.Context, token, name string, atHome bool) (ou
 		if dl.Quality != Original {
 			return s.openCopy(ctx, held, title, n)
 		}
-		return s.openOriginal(ctx, title, n)
+		return s.openOriginal(ctx, held.viewer, title, n)
 	case "subtitles":
 		return s.openSubtitle(ctx, held.viewer, dl, title, rest)
 	}
@@ -240,10 +241,19 @@ func (s *Service) openCopy(ctx context.Context, held *grant, title db.DownloadTi
 		ContentType: contentType, Name: saveName(title.Title, n, len(files), p.Container)}, nil
 }
 
-func (s *Service) openOriginal(ctx context.Context, title db.DownloadTitle, n int) (*File, error) {
-	v, _, err := s.DB.PreparedVersion(ctx, title.MediaID)
+func (s *Service) openOriginal(ctx context.Context, viewer db.Viewer, title db.DownloadTitle, n int) (*File, error) {
+	v, kind, err := s.DB.PreparedVersion(ctx, title.MediaID)
 	if err != nil || n > len(v.Parts) {
 		return nil, ErrGone
+	}
+	if kind.Reading() && s.BookCopy != nil {
+		copied, ok, err := s.BookCopy(ctx, viewer, title.ItemPublicID, v.Parts[0].FileID)
+		if ok {
+			if err != nil || n != 1 {
+				return nil, ErrGone
+			}
+			return openBookCopy(copied, title.Title)
+		}
 	}
 	part := v.Parts[n-1]
 	source, size, modified, err := s.Prepare.OpenFile(ctx, part.FileID)
@@ -258,6 +268,22 @@ func (s *Service) openOriginal(ctx context.Context, title db.DownloadTitle, n in
 	return &File{ReadSeeker: io.NewSectionReader(source, 0, size), Closer: source, Size: size, Modified: modified,
 		ETag: fmt.Sprintf(`"%x-%x"`, size, modified.UnixNano()), ContentType: mediafacts.OriginalContentType(v.Container, video),
 		Name: saveName(title.Title, n, len(v.Parts), container)}, nil
+}
+
+// openBookCopy opens the copy a book downloads as: an EPUB or a CBZ made from its own file.
+func openBookCopy(c reading.Copy, title string) (*File, error) {
+	file, err := os.Open(c.Path)
+	if err != nil {
+		return nil, ErrGone
+	}
+	info, err := file.Stat()
+	if err != nil || info.Size() != c.Size {
+		file.Close()
+		return nil, ErrGone
+	}
+	contentType := map[string]string{reading.FormatEPUB: "application/epub+zip", reading.FormatCBZ: "application/vnd.comicbook+zip"}[c.Container]
+	return &File{ReadSeeker: file, Closer: file, Size: c.Size, Modified: info.ModTime(), ETag: `"` + c.SHA256 + `"`,
+		ContentType: contentType, Name: saveName(title, 1, 1, c.Container)}, nil
 }
 
 // openSubtitle opens a subtitle file beside the original, or, for a smaller copy, a text

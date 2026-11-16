@@ -3,6 +3,7 @@
 package reading
 
 import (
+	"archive/zip"
 	"errors"
 	"io"
 
@@ -11,7 +12,7 @@ import (
 
 const rarEnabled = true
 
-func rarMembers(r io.ReaderAt, size int64, wanted string, out io.Writer) ([]comicMember, error) {
+func rarMembers(r io.ReaderAt, size int64, wanted string, out io.Writer, all *zip.Writer) ([]comicMember, error) {
 	reader, err := rardecode.NewReader(io.NewSectionReader(r, 0, size), rardecode.MaxDictionarySize(maxPartSize))
 	if err != nil {
 		return nil, errDamaged
@@ -43,6 +44,11 @@ func rarMembers(r io.ReaderAt, size int64, wanted string, out io.Writer) ([]comi
 		}
 		seen[header.Name] = true
 		members = append(members, comicMember{header.Name, uint64(header.UnPackedSize)})
+		if all != nil {
+			if err := copyMember(all, header.Name, reader, header.UnPackedSize); err != nil {
+				return nil, err
+			}
+		}
 		if header.Name == wanted {
 			if header.UnPackedSize > maxPartSize {
 				return nil, errPageTooLarge
