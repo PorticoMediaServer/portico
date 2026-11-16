@@ -88,17 +88,17 @@ sub place()
     m.tabs.lead.text = m.top.lead
     x = 200
     for each name in ["lead", "related", "details"]
-        tab = m.tabs[name]
-        tab.visible = shown[name]
+        label = m.tabs[name]
+        label.visible = shown[name]
         if shown[name]
-            tab.translation = [x, 0]
-            w = tab.boundingRect().width
+            label.translation = [x, 0]
+            w = label.boundingRect().width
             if name = section
-                tab.color = c.text
+                label.color = c.text
                 m.mark.translation = [x, 50]
                 m.mark.width = w
             else
-                tab.color = c.textTertiary
+                label.color = c.textTertiary
             end if
             x = x + w + 44
         end if
