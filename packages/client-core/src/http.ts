@@ -589,18 +589,23 @@ export class HttpLocalApi {
       if(c.signal.aborted||this.token!==token)throw new Error('The selected server session changed.');return value;
     }finally{clearTimeout(timer);signal.removeEventListener('abort',abort);}
   }
+  /** Private resources keep their viewer through token renewal, and abort on a real authority change. */
+  private async viewerResource<T>(input: AbortSignal | undefined, timeout: number, work: (signal: AbortSignal, check: () => void) => Promise<T>): Promise<T> {
+    const session = this.getOutboxSession(), token = this.token, epoch = this.certificateSessionEpoch;
+    const current = () => {const now = this.getOutboxSession(); return session ? !!now && now.sessionFamilyId === session.sessionFamilyId
+      && Object.entries(session.viewer).every(([key, value]) => now.viewer[key as keyof Viewer] === value) : this.token === token && this.certificateSessionEpoch === epoch;};
+    const controller = new AbortController(), off = this.subscribeCertificateSession(() => {if (!current()) controller.abort();});
+    const life = linkAbortSignals([input, controller.signal], timeout);
+    const check = () => {if (!current()) controller.abort();throwIfAborted(life.signal);};
+    try {check();return await work(life.signal, check);} finally {off();life.dispose();}
+  }
   /** Lyric resources never inherit authority from their digest or a cached URL. */
   async requestLyrics<T>(path:string, method='GET', body?:unknown, signal?:AbortSignal):Promise<T> {
     if(!/^\/v1\/(?:items\/[A-Za-z0-9_-]+\/lyrics(?:\/[A-Za-z0-9_/-]+)?|lyrics\/provider)(?:\?[^#]*)?$/.test(path)) throw new Error('Invalid lyric API path.');
-    const token=this.token, controller=new AbortController();
-    const abort=()=>controller.abort(); signal?.addEventListener('abort',abort,{once:true}); if(signal?.aborted)abort();
-    const timer=setTimeout(abort,22000);
-    try {
-      const response=await this.fetcher(this.baseUrl+path,{method,signal:controller.signal,headers:{Accept:'application/json',...(body===undefined?{}:{'Content-Type':'application/json'}),...(token?{Authorization:'Bearer '+token}:{})},...(body===undefined?{}:{body:transportJSON(body)})});
-      const value=await readLyricsResponse(response,controller.signal);
-      if(this.token!==token||controller.signal.aborted)throw new Error('The lyric request belongs to an old session.');
-      return value as T;
-    } finally {clearTimeout(timer);signal?.removeEventListener('abort',abort);}
+    return this.viewerResource(signal, 22000, async (active, check) => {
+      const response = await this.exchange(path, method, body, active, undefined, false, true);
+      check();const value = await readLyricsResponse(response, active);check();return value as T;
+    });
   }
   private writeListeners = new Set<(write: ConfirmedWrite) => void>();
   /**
@@ -652,7 +657,7 @@ export class HttpLocalApi {
         // Per-request protocol headers (If-Match, Idempotency-Key, merge-patch Content-Type); never Authorization.
         ...Object.fromEntries(Object.entries(extra ?? {}).filter(([k]) => k.toLowerCase() !== 'authorization')),
       },
-      ...(body === undefined ? {} : { body: transportJSON(body) }),
+      ...(body === undefined ? {} : { body: typeof Blob !== 'undefined' && body instanceof Blob ? body : transportJSON(body) }),
     });
     if (token) this.sentWith.set(response, token);
     if (this.writeListeners.size && response.ok) this.announceWrite(path, method, response);
@@ -701,15 +706,9 @@ export class HttpLocalApi {
   /** One picture uploaded to a title (`POST /v1/admin/items/{id}/artwork?role=`): the image's own bytes, typed as the image. */
   async requestMetadataUpload<T>(path: string, body: Blob, input?: AbortSignal): Promise<T> {
     if (!/^\/v1\/admin\/items\/[A-Za-z0-9_-]+\/artwork\?role=(?:poster|backdrop|logo|thumb|banner|cover|portrait)$/.test(path)) throw new Error('Invalid metadata upload path.');
-    const token = this.token, epoch = this.certificateSessionEpoch;
-    const current = () => {if (this.token !== token || this.certificateSessionEpoch !== epoch) throw new Error('The metadata upload belongs to an old session.');};
-    return withinDeadline(30000, input, async signal => {
-      current(); throwIfAborted(signal);
-      const response = await this.fetcher(this.baseUrl + path, {method: 'POST', body, signal, redirect: 'error', credentials: 'omit', referrerPolicy: 'no-referrer',
-        headers: {Accept: 'application/json', 'Content-Type': body.type || 'application/octet-stream', ...(token ? {Authorization: `Bearer ${token}`} : {}), ...this.deliveryHeaders()}});
-      current(); throwIfAborted(signal);
-      const value = await response.json();
-      current(); throwIfAborted(signal);
+    return this.viewerResource(input, 30000, async (signal, check) => {
+      const response = await this.exchange(path, 'POST', body, signal, {'Content-Type': body.type || 'application/octet-stream'}, false, true);
+      check();const value = await response.json();check();
       if (!response.ok) throw new ApiError(response.status, value?.error?.code ?? value?.code ?? 'request_failed', value?.error?.message ?? 'Artwork upload failed.', false);
       return value as T;
     });
