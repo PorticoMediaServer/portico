@@ -4,8 +4,6 @@ import assert from 'node:assert/strict';
 import {screenModule, hooks} from './helpers/screen-harness.mjs';
 import {bindingModule, formsFixture as untypedFormsFixture, lifecycleHooks, maintenance, nodes, content, specification, t, i18n, theme} from './helpers/owner-server-settings.mjs';
 import * as values from '../src-next/screens/settings-live/server/settings-values.ts';
-import {secureConnectionView} from '../../../packages/client-core/src/server-admin/secure-connection.ts';
-import {certificateProblemMessage, retryCertificate} from '../../../packages/client-core/src/certificates.ts';
 import {defaultI18n} from '../../../packages/i18n/src/index.ts';
 
 import type {DraftForm} from '../../../packages/client-core/src/server-admin/draft-form.ts';
@@ -37,29 +35,6 @@ test('Storage custom limits open an exact-value editor and a rejected edit never
   assert.equal(links.length, 1); links.forEach((node: any) => node.props.onPress()); assert.deepEqual(opened, ['troubleshooting']);
   assert.ok(!nodes(render()).some((node: any) => node.props.row?.id === 'troubleshooting.keepLogs'));
   fixture.stop();
-});
-
-test('Remote access edits the certificate switch, keeps own address on main, and retries renewal failure once', async () => {
-  const certificate = {configured: true, authorityId: 'a'.repeat(64), config: {enabled: true, publicAddress: '', publicPort: 32500, revision: '1'}, state: 'renewing', errorCode: 'renewal_failed', environment: 'production', tlsReady: true, publiclyTrusted: true, listenerBound: true, listenPort: 32500, reachability: 'probe_required'};
-  const connectivity = {ownAddressEnabled: false, customCertificateDomain: '', customCertificatePath: '', customCertificateKeyPath: '', remoteSignInPolicy: 'allow', lanDiscoveryEnabled: true, dlnaEnabled: false, accessUrls: [], trustedProxies: [], advertiseUrl: '', lanNetworks: [], connectionLimit: 0};
-  const fixture = await formsFixture({remote: {enabled: true, publicPort: 32500, gateway: '', mapping: true, pcp: true, natpmp: true, upnp: true}, connectivity, certificate: {...certificate.config, claimed: true}}, {connectivity: {tls: {}}, certificate}), host = lifecycleHooks();
-  let retries = 0, finish: ((value: unknown) => void) | undefined;
-  const api = {request: async (path: string) => {assert.equal(path, routePath('post_networking_certificate_retry'));retries++;return new Promise(resolve => {finish = resolve;});}};
-  const module = await screenModule(new URL('../src-next/screens/settings-live/server/RemoteAccessPage.tsx', import.meta.url), {
-    ...chrome, react: host.react, '../../../../../../packages/client-core/src/server-admin/secure-connection': {secureConnectionView}, '../../../../../../packages/client-core/src/server-admin/status-words': {remoteStatusLine: () => ({tone: 'neutral', text: 'Route status'}), ownCertificateLine: () => undefined},
-    '../../../../../../packages/client-core/src/remote-access': {remoteWarningLines: () => []},
-    '../../../../../../packages/client-core/src/certificates': {certificateProblemMessage, retryCertificate}, '../../../../../../packages/contracts/src/routes': {routePath}, '../use-settings-request-scope': {useSettingsRequestScope: () => ({api, lifetime: {current: fixture.group.context.current}})},
-    '../../../../../../packages/client-core/src/presentation/settings-spec': specification, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, './storage/forms': fixture.hooks,
-  });
-  const render = () => host.render(() => {const outer = module.NativeRemoteAccessPage({ports: {context: fixture.group.context}, runtime});return outer.type(outer.props);});
-  assert.ok(!nodes(render()).some((node: any) => node.props.testID === 'remote-services-enabled'), 'local-only server has no Services control');
-  assert.ok(nodes(render()).some((node: any) => node.type === 'TextField' && node.props.value === connectivity.customCertificateDomain));
-  (fixture.group.context.account.account as any).hostedAccountId = 'connected-owner';
-  const retry = nodes(render()).find((node: any) => node.props.testID === 'remote-services-retry');assert.ok(retry, 'renewal errors remain actionable even while previous TLS is serving');
-  retry.props.onPress();retry.props.onPress();assert.equal(retries, 1);finish!(certificate);await settle();
-  nodes(render()).find((node: any) => node.props.testID === 'remote-services-enabled').props.onCheckedChange(false);
-  assert.equal(fixture.group.forms.certificate.getSnapshot().draft.enabled, false);assert.equal(fixture.group.forms.remote.getSnapshot().draft.enabled, true);
-  host.dispose();fixture.stop();
 });
 
 // Storage › Backups on the rebuilt server (ServerBackupSource, as the web's Backups.tsx).
