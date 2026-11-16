@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
+	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
 // ownID is the title's id at the provider, or "" when it was never matched to it.
@@ -47,8 +48,9 @@ func (s *Service) refresh(ctx context.Context, p Provider, locale Locale, item d
 	return s.children(ctx, p, locale, item.ID, ref)
 }
 
-// Refresh asks the provider about one title now, because a person chose Refresh metadata.
-// It reports false for a title that has no match to refresh.
+// Refresh reads one title's metadata again because a person chose Refresh metadata.
+// File-only titles are reread locally; unmatched provider titles are looked up again.
+// The result says whether the title has an online match.
 func (s *Service) Refresh(ctx context.Context, itemID string) (bool, error) {
 	item, libraryID, err := s.DB.RefreshTarget(ctx, itemID)
 	if err != nil {
@@ -58,9 +60,12 @@ func (s *Service) Refresh(ctx context.Context, itemID string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	if localReading(item.Kind, src) {
+		return false, s.refreshLocal(ctx, itemID, item.ID, db.User)
+	}
 	p := s.provider(src)
 	if p == nil || ownID(p, item.ExternalIDs) == "" || providerKinds[item.Kind] == "" {
-		return false, nil
+		return s.Rematch(ctx, itemID)
 	}
 	return true, s.refresh(ctx, p, Locale{Language: src.Language, Region: src.Region}, item, db.User)
 }
@@ -129,4 +134,18 @@ func (s *Service) RefreshLibrary(ctx context.Context, libraryID int64, now time.
 		}
 	}
 	return done, f.end(ctx)
+}
+
+func localReading(kind db.ItemKind, source db.LibrarySource) bool {
+	return source.ProviderName() == db.ProviderLocal && (kind.Reading() || kind == db.KindAudiobook)
+}
+
+func (s *Service) refreshLocal(ctx context.Context, publicID string, id int64, priority db.Priority) error {
+	if s.Scans == nil {
+		return scan.ErrMetadataUnreadable
+	}
+	if err := s.Scans.RefreshMetadata(ctx, publicID); err != nil {
+		return err
+	}
+	return s.DB.MarkRefreshed(ctx, priority, id)
 }

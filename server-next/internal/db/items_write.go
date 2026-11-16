@@ -647,6 +647,9 @@ func (im *importer) reread(found *importedItem, it *ImportItem, parent *imported
 		}
 		delete(im.items, ItemKey{Kind: KeyName, Key: key})
 	}
+	if it.RereadLocal {
+		return im.rereadSeries(found.id, it)
+	}
 	if !free {
 		return nil
 	}

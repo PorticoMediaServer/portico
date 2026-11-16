@@ -13,6 +13,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
 // Metadata work on a whole library or a selection runs as jobs, started with POST /v1/jobs:
@@ -187,6 +188,8 @@ func matched(stats metadata.MatchStats, err error) error {
 // providerSentence turns a provider that did not answer into the sentence the job shows.
 func providerSentence(err error) error {
 	switch {
+	case errors.Is(err, scan.ErrMetadataUnreadable):
+		return errors.New("A title's metadata could not be read from its files. Titles not reached are as they were; try again later.")
 	case err == nil, errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded), errors.Is(err, db.ErrNotFound):
 		return err
 	}

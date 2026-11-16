@@ -89,15 +89,8 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) (Stats, error) {
 	if err != nil {
 		return Stats{}, err
 	}
-	r := &run{s: s, ctx: ctx, lib: lib, names: namesKind(lib.Kind), scan: scan, claimed: map[int64]bool{}, sources: map[int64]Source{}, paths: map[int64]db.LibraryPath{}, walked: map[string]bool{},
-		nfos: map[string][]localmetadata.VideoNFO{}, shows: map[string]showLocal{}, albums: map[string]albumLocal{}, artists: map[db.ItemKey][]db.ImportImage{},
-		bookPictures: map[string]bool{}}
-	if r.batch = s.BatchFiles; r.batch <= 0 {
-		r.batch = 200
-	}
-	for _, p := range lib.Paths {
-		r.paths[p.ID] = p
-	}
+	r := s.metadataRun(ctx, lib)
+	r.scan = scan
 	paths := map[int64]error{}
 	for _, p := range lib.Paths {
 		if s.OnlyPathID != 0 && p.ID != s.OnlyPathID {
@@ -617,11 +610,11 @@ func (r *run) units(f *folder) []unit {
 	case db.LibraryMusic:
 		return append(r.albumRereads(f), r.musicUnits(f)...)
 	case db.LibraryAudiobooks:
-		return r.audiobookUnits(f)
+		return localRereads(r.audiobookUnits(f))
 	case db.LibraryBooks:
-		return r.bookUnits(f)
+		return localRereads(r.bookUnits(f))
 	case db.LibraryComics:
-		return r.comicUnits(f)
+		return localRereads(r.comicUnits(f))
 	}
 	return nil
 }

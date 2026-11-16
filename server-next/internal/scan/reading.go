@@ -90,6 +90,7 @@ func (r *run) bookUnits(f *folder) []unit {
 		item.Images = images
 		item.Reread = r.rereads(file) || publication != db.PublicationBook
 		item.Publication, item.ReleaseDate, item.IndexNumber = publication, date, index
+		given(&item, fieldIf(date != "", db.FieldReleaseDate))
 		u := unit{files: []*found{file}}
 		if series := firstOf(d["series"], group); series != "" {
 			seriesKey := db.ItemKey{Kind: db.KeyName, Key: "series|" + fold(series)}
@@ -153,6 +154,7 @@ func (r *run) comicUnits(f *folder) []unit {
 				Keys: []db.ItemKey{db.FileKey(r.path.ID, file.rel, 0), {Kind: db.KeyName, Key: "comic|" + fold(name)}}}
 			comicDetails(&comic, d)
 			comic.Publication, comic.ReleaseDate = publication, date
+			given(&comic, fieldIf(date != "", db.FieldReleaseDate))
 			comic.Images = images
 			comic.Reread = r.rereads(file)
 			u.items = []db.ImportItem{comic}
@@ -164,17 +166,21 @@ func (r *run) comicUnits(f *folder) []unit {
 			Keys: []db.ItemKey{db.FileKey(r.path.ID, file.rel, 0)}, ChildKey: "issue|" + fold(name)}
 		comicDetails(&issue, d)
 		issue.Publication, issue.ReleaseDate = publication, date
+		given(&issue, fieldIf(date != "", db.FieldReleaseDate))
 		issue.Images = images
 		issue.Reread = r.rereads(file)
 		namedDate, _ := issueDateName(name)
-		if m := issueNumber.FindStringSubmatch(name); m != nil && (publication == db.PublicationBook || namedDate == "") {
+		if n := number(d["series_position"]); n > 0 {
+			issue.IndexNumber, issue.ChildKey = &n, fmt.Sprintf("i%d", n)
+		} else if m := issueNumber.FindStringSubmatch(name); m != nil && (publication == db.PublicationBook || namedDate == "") {
 			n, _ := strconv.Atoi(m[1])
 			issue.IndexNumber, issue.ChildKey = &n, fmt.Sprintf("i%d", n)
-		} else if n := number(d["series_position"]); n > 0 {
-			issue.IndexNumber, issue.ChildKey = &n, fmt.Sprintf("i%d", n)
 		}
-		u.items = []db.ImportItem{{Kind: db.KindSeries, Title: series, Images: seriesImages,
-			Keys: []db.ItemKey{{Kind: db.KeyName, Key: "series|" + fold(series)}, db.FolderKey(r.path.ID, f.rel)}}, issue}
+		seriesKeys := []db.ItemKey{{Kind: db.KeyName, Key: "series|" + fold(series)}}
+		if d["series"] == "" {
+			seriesKeys = append(seriesKeys, db.FolderKey(r.path.ID, f.rel))
+		}
+		u.items = []db.ImportItem{{Kind: db.KindSeries, Title: series, Images: seriesImages, Keys: seriesKeys}, issue}
 		units = append(units, u)
 	}
 	return units

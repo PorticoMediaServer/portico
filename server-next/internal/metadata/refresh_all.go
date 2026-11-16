@@ -79,6 +79,8 @@ func (s *Service) RefreshTitles(ctx context.Context, itemIDs []string, since tim
 			libraries[libraryID] = true
 			p := s.provider(src)
 			switch {
+			case localReading(item.Kind, src):
+				err = s.refreshLocal(ctx, id, item.ID, db.Background)
 			case p == nil || providerKinds[item.Kind] == "":
 			case ownID(p, item.ExternalIDs) != "":
 				err = s.refresh(ctx, p, Locale{Language: src.Language, Region: src.Region}, item, db.Background)

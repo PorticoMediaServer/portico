@@ -277,7 +277,7 @@ func (im *importer) rename(id int64, it *ImportItem, parent *importedItem) (*imp
 		age := int(rating.Int64)
 		item.ratingAge = &age
 	}
-	if match == MatchNone && locked.Int64 == 0 {
+	if match == MatchNone && locked.Int64 == 0 && !it.RereadLocal {
 		if _, err := im.exec(`UPDATE items SET title = ?, sort_title = ?, year = ?, updated_at = ? WHERE id = ?`,
 			it.Title, sorttext.Key(it.Title, it.SortTitle, it.Language), nz(it.Year), im.now, id); err != nil {
 			return nil, err

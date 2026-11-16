@@ -15,6 +15,8 @@ import (
 // Service gives titles their details from the providers it is handed.
 type Service struct {
 	DB *db.DB
+	// Scans reuses the library scanner for file-backed metadata refreshes.
+	Scans *scan.Manager
 	// Providers are the online sources by Name. Use replaces one while the server runs (the
 	// owner's own TMDB key replacing Portico's); read them through provider.
 	Providers map[string]Provider

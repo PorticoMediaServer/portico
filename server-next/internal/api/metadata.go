@@ -8,6 +8,7 @@ import (
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/metadata"
+	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
 // Metadata and matching: the owner's and administrators' routes that look titles up at the
@@ -102,7 +103,8 @@ type MatchResult struct {
 }
 
 // MetadataRefreshed says whether the title now has a match. A matched title is asked about
-// again; an unmatched one is looked up again from its name and year.
+// again; an unmatched one is looked up again from its name and year. File-only titles
+// are reread from their files and remain unmatched.
 type MetadataRefreshed struct {
 	Matched bool `json:"matched"`
 }
@@ -120,6 +122,8 @@ func (s *Server) metadataRoutes() {
 // metadataError turns the matcher's refusals into the API's.
 func metadataError(err error) error {
 	switch {
+	case errors.Is(err, scan.ErrMetadataUnreadable):
+		return refusal(http.StatusBadGateway, "metadata_file_unavailable", "This title's metadata could not be read from its files. Try again later.", true)
 	case errors.Is(err, metadata.ErrNoProvider):
 		return ErrConflict("no_provider", "This title is not looked up online: its library uses local metadata only, or it follows the title it belongs to.")
 	case errors.Is(err, metadata.ErrMatchLocked):
@@ -265,10 +269,6 @@ func (s *Server) refreshMetadata(r *http.Request, _ None) (MetadataRefreshed, er
 		return MetadataRefreshed{}, err
 	}
 	matched, err := s.metadata.Refresh(r.Context(), id)
-	if err == nil && !matched {
-		// "Look it up again" for a title with no match.
-		matched, err = s.metadata.Rematch(r.Context(), id)
-	}
 	return MetadataRefreshed{Matched: matched}, metadataError(err)
 }
 
