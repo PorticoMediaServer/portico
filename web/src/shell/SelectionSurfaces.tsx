@@ -158,7 +158,13 @@ function SingleMetadataEditor({source, snapshot}: {source: SelectionRendererSour
     const value = await metadata.api.request<T>(path, method, body, signal);
     assert();
     return value;
-  }, ...(metadata.api.requestMetadataUpload ? {async requestMetadataUpload<T>(path: string, body: FormData, signal?: AbortSignal): Promise<T> {
+  }, ...(metadata.api.requestRaw ? {async requestRaw(path: string, method: string, options: Parameters<NonNullable<typeof metadata.api.requestRaw>>[2]) {
+    const assert = () => {if (!metadata.current(grant) || source.controller.getSnapshot().editor?.preview !== preview) throw new DOMException('Metadata authority changed', 'AbortError');};
+    assert();
+    const value = await metadata.api.requestRaw!(path, method, options);
+    assert();
+    return value;
+  }} : {}), ...(metadata.api.requestMetadataUpload ? {async requestMetadataUpload<T>(path: string, body: Blob, signal?: AbortSignal): Promise<T> {
     const assert = () => {if (!metadata.current(grant) || source.controller.getSnapshot().editor?.preview !== preview) throw new DOMException('Metadata authority changed', 'AbortError');};
     assert();
     const value = await metadata.api.requestMetadataUpload!<T>(path, body, signal);

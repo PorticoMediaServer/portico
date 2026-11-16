@@ -71,10 +71,10 @@ test('splitting a file off answers with the new title', async () => {
   await assert.rejects(separateLibraryFile(api(() => ({})), 'films', {objectId: 'o', revision: 'r'}));
 });
 
-test('a refresh is asked on the show\'s own route for a show and on the item route for a playable title', async () => {
+test('a refresh of a show or a playable title is asked on the rebuilt server\'s refresh route', async () => {
   const {refreshMetadataPath} = await import('../src/presentation/index.ts');
-  assert.equal(refreshMetadataPath('show', 'show 1'), '/v1/shows/show%201/metadata/refresh');
-  assert.equal(refreshMetadataPath('movie', 'm1'), '/v1/items/m1/metadata/refresh');
-  assert.equal(refreshMetadataPath('episode', 'e1'), '/v1/items/e1/metadata/refresh');
+  assert.equal(refreshMetadataPath('show', 'show 1'), '/v1/admin/items/show%201/metadata/refresh');
+  assert.equal(refreshMetadataPath('movie', 'm1'), '/v1/admin/items/m1/metadata/refresh');
+  assert.equal(refreshMetadataPath('episode', 'e1'), '/v1/admin/items/e1/metadata/refresh');
   for (const kind of ['season', 'album', 'artist', 'book', undefined]) assert.equal(refreshMetadataPath(kind, 'x'), undefined, String(kind));
 });
