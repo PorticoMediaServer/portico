@@ -85,3 +85,43 @@ func TestABookDownloadsInTheFormTheAppReads(t *testing.T) {
 		}
 	}
 }
+
+// Only a book that will never copy (here locked with DRM) answers book_unreadable, which an app
+// takes as final. One whose copy cannot be made for now asks to be tried again, so a download
+// is not given up over a passing failure.
+func TestABookThatCannotCopyForNowIsTriedAgain(t *testing.T) {
+	b := newBookShelf(t)
+	token := b.owner.AccessToken
+	mobiFile(t, filepath.Join(b.books, "Locked Book.mobi"), "locked.mobi")
+	page := pngPicture(t, 8, 12)
+	for _, name := range []string{"1.png", "2.png"} {
+		if err := os.MkdirAll(filepath.Join(b.comics, "Nemo", "Nemo 001"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(b.comics, "Nemo", "Nemo 001", name), []byte(page), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b.scan()
+	for _, c := range []struct {
+		kind   db.ItemKind
+		title  string
+		status int
+		code   string
+		retry  bool
+	}{{db.KindBook, "Locked Book", 409, "book_unreadable", false}, {db.KindIssue, "Nemo 001", 503, "book_copy_unavailable", true}} {
+		id := b.find(c.kind, c.title)
+		var dl Download
+		if w := call(t, b.s, "POST", "/v1/downloads", token, DownloadAsk{ItemID: id, Quality: "original"}, &dl); w.Code != 201 {
+			t.Fatalf("%s: asking answered %d: %s", c.title, w.Code, w.Body)
+		}
+		if c.retry {
+			b.s.reading.Copies = "" // as when the copies folder cannot be used for now
+		}
+		var refused errorBody
+		if w := call(t, b.s, "GET", "/v1/downloads/"+dl.ID+"/items/"+id, token, nil, &refused); w.Code != c.status ||
+			refused.Error.Code != c.code || refused.Error.Retry != c.retry {
+			t.Fatalf("%s: answered %d %+v", c.title, w.Code, refused.Error)
+		}
+	}
+}
