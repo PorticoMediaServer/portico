@@ -40,3 +40,43 @@ export function diagnosticsSavePort(){
     }finally{signal.removeEventListener('abort',abort);abort();if(active===attempt)active=undefined;}
   };
 }
+
+/** A Blob as base64 (React Native's FileReader reads a Blob as a data URL). */
+function blobBase64(blob:Blob):Promise<string>{
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error('invalid_support_export'));
+    reader.onload=()=>{const url=String(reader.result??'');resolve(url.slice(url.indexOf(',')+1));};
+    reader.readAsDataURL(blob);
+  });
+}
+/** The rebuilt server's support export is a ZIP (definition 12 rule 76): saved through the same system sheet and
+ * custody as the diagnostics, as portico-support-<day>.zip. At most 8 MB; the native side checks the bytes again. */
+export function supportZipSavePort(){
+  const sink:unknown=NativeModules.PorticoHighlightsSave;
+  if(Platform.isTV||Platform.OS!=='android'&&Platform.OS!=='ios'||!object(sink))return;
+  const save=sink.saveSupportZip,cancel=sink.cancelDiagnostics;
+  if(typeof save!=='function'||typeof cancel!=='function')return;
+  return async(zip:Blob,signal:AbortSignal,isCurrent:()=>boolean):Promise<'saved'|'cancelled'>=>{
+    const current=()=>!signal.aborted&&isCurrent();
+    if(!current()||active||issued.size>=4096)throw retired();
+    if(zip.size<22||zip.size>8*1024*1024)throw new Error('invalid_support_export');
+    const base64=await blobBase64(zip);
+    if(!current())throw retired();
+    if(!base64.startsWith('UEsDB')||!/^[A-Za-z0-9+/]+=*$/.test(base64))throw new Error('invalid_support_export');
+    const now=new Date(),day=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const id=routeBase64(nativeRouteCrypto.random(24));
+    if(!/^[A-Za-z0-9_-]{32}$/.test(id)||issued.has(id)||!current()||active)throw retired();
+    const attempt={};active=attempt;issued.add(id);
+    const owns=()=>active===attempt&&current();
+    const abort=()=>{try{cancel.call(sink,id);}catch{/* Retired UI never publishes a late native answer. */}};
+    signal.addEventListener('abort',abort,{once:true});
+    try{
+      if(!owns())throw retired();
+      const result:unknown=await save.call(sink,id,base64,day);
+      if(!owns())throw retired();
+      if(result!=='saved'&&result!=='cancelled')throw new Error('invalid_support_export_result');
+      return result;
+    }finally{signal.removeEventListener('abort',abort);abort();if(active===attempt)active=undefined;}
+  };
+}

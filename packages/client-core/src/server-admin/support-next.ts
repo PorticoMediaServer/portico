@@ -3,6 +3,7 @@ import type {HttpLocalApi} from '../index.ts';
 import {callServer} from '../query/server-api.ts';
 import {unreadableServerResponse} from '../server-messages.ts';
 import {SUPPORT_COMPONENTS, type SupportComponent} from './support-source.ts';
+import type {MessageId} from '../../../i18n/src/index.ts';
 
 export const OWNER_SUPPORT_WINDOWS = [60, 360, 1440, 4320, 10080] as const;
 export type OwnerSupportOptions = Readonly<{windowMinutes: typeof OWNER_SUPPORT_WINDOWS[number]; components: readonly SupportComponent[]; includePaths: boolean}>;
@@ -38,3 +39,18 @@ export async function prepareOwnerSupportExport(api: Pick<HttpLocalApi, 'downloa
   const blob = await api.downloadSupportExport(captured, signal);
   return Object.freeze({blob, filename: 'portico-support.zip', options: captured});
 }
+
+/** App logs are opt-in for every new export. */
+export const OWNER_SUPPORT_DEFAULT_COMPONENTS: readonly SupportComponent[] = Object.freeze(['runtime', 'audit', 'snapshot']);
+/** The server's names for what it checks (`server_capabilities.go`), in words. A name this app does not know is shown as sent. */
+const capabilityNames: Readonly<Record<string, MessageId>> = Object.freeze({
+  ffmpeg: 'web.capabilities.ffmpeg', graphics: 'web.capabilities.graphics', vulkan: 'web.capabilities.vulkan',
+  data: 'web.capabilities.folder.data', conversions: 'web.capabilities.folder.conversions', backups: 'web.capabilities.folder.backups', recordings: 'web.capabilities.folder.recordings',
+  decoder_sandbox: 'web.capabilities.decoder_sandbox', decoder_network_isolation: 'web.capabilities.decoder_network_isolation',
+});
+export const supportCapabilityName = (capability: Capability, t: (id: MessageId) => string): string => capabilityNames[capability.name] ? t(capabilityNames[capability.name]!) : capability.name;
+/** Works / Doesn't work / Checking / Not used, each with the tone it is drawn in. */
+export const SUPPORT_CAPABILITY_STATES: Readonly<Record<Capability['state'], Readonly<{label: MessageId; tone: 'ok' | 'warn' | 'quiet'}>>> = Object.freeze({
+  works: {label: 'web.capabilities.works', tone: 'ok'}, does_not_work: {label: 'web.capabilities.doesNotWork', tone: 'warn'},
+  checking: {label: 'web.capabilities.checking', tone: 'quiet'}, not_used: {label: 'web.capabilities.notUsed', tone: 'quiet'},
+});
