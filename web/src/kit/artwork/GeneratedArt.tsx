@@ -29,7 +29,9 @@ export function GeneratedCover({title, author, tint, glyph, fontScale = 12.6, ti
     const box = copy.current, cover = box?.parentElement, view = box?.ownerDocument.defaultView;
     if (!box || !cover || !view) return;
     const scale = `${fontScale}|${titleClassName ?? ''}|${selectionClearance}`;
-    const fit = () => {cover.style.setProperty('--cover-lines', String(measureCoverTitleLines(box, scale)));};
+    // A wide frame (a landscape card) is sized for its height, not its width, so the title wraps
+    // over the lines it holds before anything is cut (W1 F9).
+    const fit = () => {cover.toggleAttribute('data-landscape', cover.clientWidth > cover.clientHeight * 1.2); cover.style.setProperty('--cover-lines', String(measureCoverTitleLines(box, scale)));};
     fit();
     return observeCoverSize(cover, fit);
   }, [title, author, fontScale, titleClassName, selectionClearance]);
@@ -37,4 +39,9 @@ export function GeneratedCover({title, author, tint, glyph, fontScale = 12.6, ti
     <span className={styles.coverGlyph} aria-hidden="true">{glyph}</span>
     <span ref={copy} className={styles.coverCopy} data-cover-copy="" aria-hidden="true"><b className={titleClassName}>{title}</b>{author && <small>{author}</small>}</span>
   </span>;
+}
+
+/** The name a generated cover carries: an episode is named by its show, everything else by itself. */
+export function coverTitle(entry: Readonly<{kind?: string; title: string; displayTitle?: string; show?: Readonly<{name: string}>}>): string {
+  return entry.kind === 'episode' && entry.show?.name ? entry.show.name : entry.displayTitle ?? entry.title;
 }

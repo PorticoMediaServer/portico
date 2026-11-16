@@ -16,7 +16,7 @@ import {homeCollectionCaption} from '@core/presentation/home-spotlight.ts';
 import {continueBookFacts} from '@core/presentation/continue-books.ts';
 import {channelMonograms, programmeFactParts, type TimeEnvironment} from '@portico/client-core/kit-model';
 import {useFreshness, useRecovering} from '../../platform/freshness';
-import {Artwork, AmbientArt, GeneratedArt, GeneratedCover} from '../../kit/artwork';
+import {Artwork, AmbientArt, GeneratedArt, GeneratedCover, coverTitle} from '../../kit/artwork';
 import {Hero, HeroFacts, longTitle, type HeroCandidate, type LayoutPlatform} from '../../kit/layout';
 import {Button} from '../../kit/controls';
 import {Icon} from '../../kit/Icon';
@@ -312,7 +312,7 @@ function VisibleCard({entry, row, rowIndex, index, platform, layout, artwork, ef
     artwork: artwork.foreground(source, width * devicePixelRatio, wide ? 16 / 9 : square ? 1 : 2 / 3, {order: rowIndex * 1000 + index, group: row.id}),
     // FX-S1: a title without artwork draws the generated cover with its title (mock.html "No artwork",
     // as browse cards and the native W-1 cover do), never a bare initial.
-    fallback: <GeneratedCover title={entry.displayTitle ?? entry.title} glyph={Array.from((entry.displayTitle ?? entry.title).trim())[0] ?? ''} tint={generatedCoverTint(entry.displayTitle ?? entry.title)} />,
+    fallback: <GeneratedCover title={coverTitle(entry)} glyph={Array.from(coverTitle(entry).trim())[0] ?? ''} tint={generatedCoverTint(coverTitle(entry))} />,
     onNavigate: () => effects.openEntry(entry),
     onPlay: target ? () => { void effects.play(entry, resume).catch(effects.reportError); } : undefined,
     selection: selection.card(row, entry),
