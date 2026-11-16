@@ -1,21 +1,12 @@
-import {ownerCertificateRequest} from '../../../../../../packages/client-core/src/owner-requests';
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View} from 'react-native';
-import {remoteWarningLines, type RemoteAccess, type RemoteConfiguration} from '../../../../../../packages/client-core/src/remote-access';
-import type {ConnectivityStatus} from '../../../../../../packages/client-core/src/server-administration';
-import {secureConnectionView} from '../../../../../../packages/client-core/src/server-admin/secure-connection';
-import {ownCertificateLine, remoteStatusLine} from '../../../../../../packages/client-core/src/server-admin/status-words';
-import type {CertificateDraft, ConnectivityDraft} from '../../../../../../packages/client-core/src/server-admin/server-forms';
-import {certificateProblemMessage, retryCertificate, type CertificateApi, type CertificateStatus} from '../../../../../../packages/client-core/src/certificates';
-import {useSettingsRequestScope} from '../use-settings-request-scope';
-import {settingsSpec} from '../../../../../../packages/client-core/src/presentation/settings-spec';
-import {readSettingsBinding, settingsBinding} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
-import {settingsSummary} from './settings-values';
-import {NativeAdvancedSection} from './AdvancedSection';
-import {NativeRefusedAddresses} from './RefusedAddresses';
-import {NativeNetworkInterfaceRow} from './NetworkInterfaceRow';
-import {NativeSecuritySummary} from './SecuritySummary';
+import {OwnerRemoteSettings} from '../../../../../../packages/client-core/src/server-admin/remote-settings';
+import {withGuardedRaw} from '../../../../../../packages/client-core/src/home-selection/list-destinations';
+import {settingsSpec, type SettingsRow as SpecRow} from '../../../../../../packages/client-core/src/presentation/settings-spec';
+import {presentError} from '../../../../../../packages/client-core/src/presentation/errors';
+import {defaultI18n, type MessageId} from '../../../../../../packages/i18n/src';
 import {Button, Select, Switch, TextField} from '../../../kit/controls';
+import {BottomSheet} from '../../../kit/overlays/BottomSheet';
 import {SettingsRow} from '../../../kit/shell';
 import {ServerHeader} from '../../../kit/shell/ServerIdentity';
 import {shellType} from '../../../kit/shell/visual';
@@ -23,180 +14,183 @@ import {StateView} from '../../../kit/states';
 import {useTheme} from '../../../kit/theme';
 import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeSettingsLivePorts} from '../ports';
-import {useFormState, useStorageForms, useStorageSet, type StorageForms} from './storage/forms';
+import {screenScopeEnded} from '../lifetime';
+import {useSettingsRequestScope} from '../use-settings-request-scope';
+import {NativeAdvancedSection} from './AdvancedSection';
+import {NativeSettingControl} from './SettingControl';
 import {settingsPageHeading, settingsPageInset} from './page-layout';
-const IDS = ['remote', 'connectivity', 'certificate'] as const;
 
-/** Settings › Server › Remote access on the phone and tablet. Every status and field
- * comes from the owner's real remote/connectivity/certificate forms; the server's own
- * remote status words decide the health line, and a missing read is never shown as off. */
+type Translate = typeof defaultI18n.t;
+type Group = Readonly<{title?: MessageId; rows: readonly SpecRow[]}>;
+type OwnAddress = {enabled: boolean; domain: string; certificateFile: string; keyFile: string};
+const when = (value: string) => defaultI18n.dateTime(value);
+const K = 'next.settingsSpec.server.remote.groups.2.rows.0.children.0.children.0';
+const B = 'next.settingsSpec.server.remote.groups.2.rows.1.children.0';
+const C = 'next.settingsSpec.server.remote.groups.1.rows.0';
+/** The rebuilt server's own facts drawn on this page; every other row is one OwnerRemoteSettings stores. */
+const FACTS = new Set(['remote.refused', 'remote.blocked', 'remote.thisDevice', 'remote.listen', 'remote.addresses']);
+const OWN_ADDRESS_CHILDREN = new Set(['remote.externalAddress', 'remote.certFile', 'remote.certKey', 'remote.certStatus', 'remote.identityCode']);
+const LIST_ROWS = new Set(['remote.homeNets', 'remote.customAddresses', 'remote.trustedProxies']);
+
+/** Settings › Server › Remote access on the phone and tablet, on the rebuilt server: the remote-access and network
+ * documents, the server's status (outside check, certificate, router, refused and blocked addresses) and the network
+ * interface, all through OwnerRemoteSettings, the reader web's Remote access uses. A draft is saved row by row with
+ * the revision each document was read at; a change that would lock the owner out asks first. */
 export function NativeRemoteAccessPage({ports, runtime, compactHeader = false}: {ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader?: boolean}) {
-  const group = useStorageForms(ports, IDS, runtime.reportError);
-  return group ? <RemoteAccessPage key={group.mount} group={group} ports={ports} runtime={runtime} compactHeader={compactHeader}/> : null;
-}
-
-function RemoteAccessPage({group, ports, runtime, compactHeader}: {group: StorageForms; ports: NativeSettingsLivePorts; runtime: NativeShellRuntime; compactHeader: boolean}) {
-  const theme = useTheme(), t = runtime.text.t, context = ports.context;
-  const {forms, set} = group, state = useStorageSet(group);
-  const remoteState = useFormState<RemoteConfiguration, RemoteAccess>(forms.remote);
-  const connectivityState = useFormState<ConnectivityDraft, ConnectivityStatus>(forms.connectivity);
-  const certificateState = useFormState<CertificateDraft, CertificateStatus>(forms.certificate);
+  const theme = useTheme(), t = runtime.text.t as Translate, context = ports.context;
   const {api, lifetime} = useSettingsRequestScope(context);
-  const retryFlight = useRef<AbortController | undefined>(undefined);
-  const [retrying, setRetrying] = useState(false), [retryError, setRetryError] = useState<unknown>();
-  useEffect(() => () => {retryFlight.current?.abort(); retryFlight.current = undefined;}, [api]);
-  const retry = async () => {
-    if (!lifetime.current() || retryFlight.current || state.saving || state.dirty || !context.account.account.hostedAccountId || !certificateState.draft?.claimed || !certificateState.draft.enabled) return;
-    const request = new AbortController(); retryFlight.current = request; setRetrying(true); setRetryError(undefined);
-    const certificateApi: CertificateApi = {requestCertificate: (action, body, signal) => ownerCertificateRequest(api, action, body, signal)};
-    try {await retryCertificate(certificateApi, request.signal); if (lifetime.current() && !request.signal.aborted) await forms.certificate.load();}
-    catch (error) {if (lifetime.current() && !request.signal.aborted) setRetryError(error);}
-    finally {if (retryFlight.current === request) {retryFlight.current = undefined; if (lifetime.current()) setRetrying(false);}}
+  const source = useMemo(() => new OwnerRemoteSettings(withGuardedRaw(api, context.api, () => {if (!lifetime.current()) throw screenScopeEnded();}), lifetime.current), [api, context, lifetime]);
+  useEffect(() => () => source.dispose(), [source]);
+  const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot), status = state.status;
+  const [loaded, setLoaded] = useState(false), [loadError, setLoadError] = useState<unknown>(), [revision, setRevision] = useState(0);
+  const [drafts, setDrafts] = useState<ReadonlyMap<string, unknown>>(new Map()), [saving, setSaving] = useState(false), [saveError, setSaveError] = useState<unknown>();
+  const [own, setOwn] = useState<OwnAddress>(), [advanced, setAdvanced] = useState(false);
+  const reread = useCallback(async () => {await source.readConfiguration(); if (lifetime.current()) {setLoaded(true); setRevision(value => value + 1);}}, [source, lifetime]);
+  const load = useCallback(() => {void reread().then(() => setLoadError(undefined), error => {if (lifetime.current()) setLoadError(error);});}, [reread, lifetime]);
+  useEffect(load, [load]);
+  const section = settingsSpec.find(value => value.scope === 'server' && value.id === 'remote');
+  const main: readonly Group[] = section?.groups ?? [], extra: readonly Group[] = section?.advanced?.groups ?? [];
+  const value = (id: string) => drafts.has(id) ? drafts.get(id) : source.read(id)?.current;
+  const enabled = (row: SpecRow) => {
+    const rule = row.enableWhen; if (!rule) return true;
+    const current = value(rule.id) as never;
+    return (!rule.in || rule.in.includes(current)) && (!rule.notIn || !rule.notIn.includes(current));
   };
-  // O-169 refused addresses: allowing one changes Custom addresses; Use Standard
-  // changes Remote security; Add certificate… goes to Use your own address.
-  const scroll = useRef<ScrollView>(null), ownAddressY = useRef(0);
-  const reloadConnectivity = useCallback(() => {if (lifetime.current()) void forms.connectivity.load();}, [forms, lifetime]);
-  const chooseStandard = useCallback(() => {if (lifetime.current()) forms.connectivity.set(current => ({...current, remoteSecurity: 'standard'}));}, [forms, lifetime]);
-  const showOwnAddress = useCallback(() => {scroll.current?.scrollTo({y: ownAddressY.current, animated: true});}, []);
-  const remote = remoteState.draft, connectivity = connectivityState.draft;
-  const certificate = certificateState.status;
-  const networkInterface = <NativeNetworkInterfaceRow context={context} runtime={runtime}/>;
-  const failed = connectivityState.loadError;
-  if (failed !== undefined && !connectivity) return <View>{networkInterface}<StateView {...runtime.error(failed, () => {void forms.remote.load(); void forms.connectivity.load(); void forms.certificate.load();}, 'server-console')}/></View>;
-  if (!connectivity) {
-    if (connectivityState.unavailable) return <View>{networkInterface}<StateView title={t('settings.server.remote.notSetUp')}/></View>;
-    return <View>{networkInterface}<StateView title={t('status.loading')}/></View>;
-  }
-  const remoteLine = remoteStatusLine(t, {unavailable: remoteState.status === undefined, remote: remoteState.status, connectivity: connectivityState.status, certificate});
-  const secure = secureConnectionView({certificate});
-  const problemMessage = certificateProblemMessage(certificate), certificateProblem = problemMessage !== undefined;
-  const own = ownCertificateLine(t, connectivityState.status?.tls.customCertificate, value => new Date(value).toLocaleString());
-  const services = !!context.account.account.hostedAccountId && !!certificateState.draft?.claimed;
-  const secureBody = certificateState.loadError !== undefined || certificateState.loading ? undefined
-    : problemMessage ? t(problemMessage) : certificate ? t(secure.body, secure.address ? {address: secure.address} : undefined)
-      : certificateState.unavailable ? t('web.connectivity.customCertNotInUse') : undefined;
+  const change = (id: string, next: unknown) => {if (!saving) {setSaveError(undefined); setDrafts(current => new Map(current).set(id, next));}};
+  const blocked = saving || state.busy || !!state.confirmation;
+  const save = async () => {
+    if (saving || !lifetime.current()) return;
+    setSaving(true); setSaveError(undefined);
+    try {
+      for (const row of [...main, ...extra].flatMap(function all(group: Group | SpecRow): SpecRow[] {return 'rows' in group ? group.rows.flatMap(all) : [group, ...(group.children ?? []).flatMap(all)];})) {
+        if (!drafts.has(row.id)) continue;
+        await source.save(row.id, drafts.get(row.id));
+        await reread();
+        if (lifetime.current()) setDrafts(current => {const next = new Map(current); next.delete(row.id); return next;});
+      }
+    } catch (error) {
+      // A change that would refuse this device or the owner's own sign-in comes back as a confirmation.
+      if (lifetime.current() && !source.getSnapshot().confirmation) setSaveError(error);
+      await reread().catch(() => {});
+    } finally {if (lifetime.current()) setSaving(false);}
+  };
+  const confirm = () => {void source.confirm().then(done => {if (done && lifetime.current()) {setDrafts(new Map()); setRevision(v => v + 1);}});};
+
+  const savedOwn = state.interfaces?.document.ownAddress as OwnAddress | undefined, ownDraft = own ?? savedOwn;
+  const ownAddress = savedOwn && ownDraft ? <View key="remote.ownCertificate" style={{gap: 10}}>
+    <SettingsRow first label={t(`${C}.label`)} control={<Switch testID="remote.ownCertificate" accessibilityLabel={t(`${C}.label`)} checked={ownDraft.enabled} disabled={blocked} onCheckedChange={enabled => setOwn({...ownDraft, enabled})}/>}/>
+    {ownDraft.enabled && <>
+      <TextField testID="remote.externalAddress" label={t(`${C}.children.0.label`)} description={t('next.remoteOwner.domainHelp')} value={ownDraft.domain} editable={!blocked} autoCapitalize="none" autoCorrect={false} onChangeText={domain => setOwn({...ownDraft, domain})}/>
+      <TextField testID="remote.certFile" label={t(`${C}.children.1.label`)} description={t('next.remoteOwner.fileHelp')} value={ownDraft.certificateFile} editable={!blocked} autoCapitalize="none" autoCorrect={false} onChangeText={certificateFile => setOwn({...ownDraft, certificateFile})}/>
+      <TextField testID="remote.certKey" label={t(`${C}.children.2.label`)} description={t('next.remoteOwner.fileHelp')} value={ownDraft.keyFile} editable={!blocked} autoCapitalize="none" autoCorrect={false} onChangeText={keyFile => setOwn({...ownDraft, keyFile})}/>
+    </>}
+    {status && <View style={{gap: 2}}>
+      <Text style={[shellType(13), {color: theme.colors.textSecondary}]}>{t('next.remoteStatus.ownCertificate')}: {status.certificate.problem ?? t(status.certificate.state === 'ok' ? 'next.remoteOwner.serving' : 'next.remoteStatus.none')}</Text>
+      {status.certificate.names?.map(name => <Text key={name} style={[shellType(13), {color: theme.colors.textSecondary}]}>{name}</Text>)}
+      {status.certificate.expiresAt && <Text style={[shellType(13), {color: theme.colors.textSecondary}]}>{t('next.remoteStatus.expires', {when: when(status.certificate.expiresAt)})}</Text>}
+      <Text selectable style={[shellType(13), {color: theme.colors.textSecondary}]}>{t(`${C}.children.4.label`)}: {status.identityCode}</Text>
+    </View>}
+    <View style={{flexDirection: 'row'}}><Button testID="remote-own-address-save" size="compact" variant="glass" loading={state.busy} disabled={blocked || JSON.stringify(ownDraft) === JSON.stringify(savedOwn)}
+      onPress={() => {void source.saveOwnAddress(ownDraft).then(done => {if (done && lifetime.current()) setOwn(undefined);});}}>{t('next.remoteStatus.saveOwnAddress')}</Button></View>
+  </View> : null;
+
+  const fact = (row: SpecRow): React.ReactNode => {
+    if (row.id === 'remote.thisDevice') return status ? <SettingsRow key={row.id} first label={t(row.label)} value={t(status.thisDevice.atHome ? 'next.remoteStatus.deviceHome' : 'next.remoteStatus.deviceAway', {address: status.thisDevice.address})}/> : null;
+    if (row.id === 'remote.listen') return status?.listener ? <SettingsRow key={row.id} first label={t(row.label)} value={`${status.listener.address}:${status.listener.port}`}/> : null;
+    if (row.id === 'remote.addresses') return status ? <SettingsRow key={row.id} first label={t(row.label)} description={status.addresses.map(address => `${address.address}:${address.port}`).join('\n')}/> : null;
+    if (row.id === 'remote.blocked') return <View key={row.id} style={{gap: 8}}>
+      <Text style={[shellType(15, 600), {color: theme.colors.text}]}>{t(row.label)}</Text>
+      {!state.blocks.length ? <Text style={[shellType(13), {color: theme.colors.textTertiary}]}>{t(`${B}.control.empty`)}</Text>
+        : state.blocks.map(block => <SettingsRow key={block.id} first label={block.network} description={t('next.remoteOwner.blockedUntil', {when: when(block.blockedUntil)})}
+          control={<Button size="xs" variant="glass" disabled={blocked} onPress={() => {void source.unblock(block);}}>{t(`${B}.control.itemAction.label`)}</Button>}/>)}
+    </View>;
+    if (row.id === 'remote.refused') {
+      const names = status?.refused ?? [];
+      return <View key={row.id} style={{gap: 8}}>
+        <Text style={[shellType(15, 600), {color: theme.colors.text}]}>{t(row.label)}</Text>
+        {!names.length ? <Text style={[shellType(13), {color: theme.colors.textTertiary}]}>{t(`${K}.control.empty`)}</Text>
+          : names.map(item => <View key={item.address} style={{gap: 6}}>
+            <SettingsRow first label={item.address} description={t(item.reason === 'http' ? 'next.remoteOwner.refusedHttp' : 'next.remoteOwner.refusedAddress')}/>
+            <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 8}}>
+              {item.fixes.includes('allow') && <Button size="xs" variant="glass" disabled={blocked} onPress={() => {void source.allow(item.address);}}>{t(`${K}.control.itemAction.label`)}</Button>}
+              {item.fixes.includes('standard') && <Button size="xs" variant="glass" disabled={blocked} onPress={() => change('remote.security', 'standard')}>{t(`${K}.control.standardAction.label`)}</Button>}
+            </View>
+          </View>)}
+      </View>;
+    }
+    return null;
+  };
+  const control = (row: SpecRow): React.ReactNode => {
+    if (row.id === 'remote.ownCertificate') return ownAddress;
+    if (FACTS.has(row.id)) return fact(row);
+    if (OWN_ADDRESS_CHILDREN.has(row.id) || !source.has(row.id) || source.read(row.id) === undefined) return null;
+    if (row.enableWhen?.hide && !enabled(row)) return null;
+    const current = value(row.id), disabled = blocked || !enabled(row);
+    if (LIST_ROWS.has(row.id)) return <TextField key={row.id} testID={row.id} label={t(row.label)} description={row.help ? t(row.help) : undefined} multiline editable={!disabled} autoCapitalize="none" autoCorrect={false}
+      value={Array.isArray(current) ? current.join('\n') : ''} onChangeText={text => change(row.id, text.split('\n').map(line => line.trim()).filter(Boolean))}/>;
+    if (row.id === 'remote.secureConnections' && status?.remoteSecurity.active === 'enhanced')
+      return <SettingsRow key={row.id} first label={t(row.label)} value={t('next.remoteOwner.required')}/>;
+    if (row.id === 'remote.interface') {
+      const interfaces = state.interfaces, options = [{value: 'all', label: t('next.remoteOwner.automatic')}, ...(interfaces?.interfaces ?? []).map(item => ({value: item.name, label: item.name, description: item.addresses.join(', ')}))];
+      if (typeof current === 'string' && !options.some(option => option.value === current)) options.push({value: current, label: current});
+      return <SettingsRow key={row.id} first label={t(row.label)} description={interfaces?.note ?? (row.help ? t(row.help) : undefined)}
+        control={<Select testID={row.id} accessibilityLabel={t(row.label)} value={String(current)} disabled={disabled} options={options} onValueChange={next => change(row.id, next)}/>}/>;
+    }
+    // Not reachable from outside without the Portico route is not offered by the rebuilt server.
+    const options = row.id === 'remote.access' ? row.control.options?.filter(option => option.value !== 'private') : row.control.options;
+    const shown = {...row, control: {...row.control, ...(row.control.type === 'segmented' ? {type: 'select' as const} : {}), ...(options ? {options} : {})}};
+    return <NativeSettingControl key={row.id} row={shown} value={current} t={t} disabled={disabled} onChange={next => change(row.id, next)}/>;
+  };
+  const renderRow = (row: SpecRow): React.ReactNode => {
+    const self = control(row), children = (row.children ?? []).map(renderRow).filter(Boolean);
+    return self || children.length ? <React.Fragment key={row.id}>{self}{children}</React.Fragment> : null;
+  };
+  const renderGroup = (group: Group, index: number) => {
+    const rows = group.rows.map(renderRow).filter(Boolean);
+    return rows.length ? <View key={index} style={{gap: 10, marginTop: 22}}>
+      {group.title && <Text accessibilityRole="header" style={[shellType(17, 800), {color: theme.colors.text}]}>{t(group.title)}</Text>}
+      {rows}
+    </View> : null;
+  };
+
+  const outside = status?.outside, answers = outside?.addresses ?? [];
+  const tone = answers.length ? answers.every(item => item.reachable) ? 'ok' : 'warn' : 'quiet';
+  const certificate = status?.managedCertificate;
   const role = context.account.account.role === 'owner' ? 'owner' : 'administrator';
-  const signInOptions = [
-    {value: 'allow', label: t('settings.server.signIn.allow')},
-    {value: 'owner-only', label: t('settings.server.signIn.owner-only')},
-  ];
-  const R = 'next.settingsSpec.server.remote.groups.2.rows.0';
-  const accessOptions = [
-    {value: 'on', label: t(`${R}.control.options.0.label`), description: t(`${R}.control.options.0.hint`)},
-    {value: 'private', label: t(`${R}.control.options.1.label`), description: t(`${R}.control.options.1.hint`)},
-    {value: 'off', label: t(`${R}.control.options.2.label`), description: t(`${R}.control.options.2.hint`)},
-  ];
-  const securityOptions = [
-    {value: 'enhanced', label: t(`${R}.children.0.control.options.0.label`)},
-    {value: 'standard', label: t(`${R}.children.0.control.options.1.label`)},
-  ];
-  const outsideOn = connectivity.remoteAccess === 'on', outsideOpen = connectivity.remoteAccess !== 'off';
-  const lines = (value: readonly string[]) => value.join('\n');
-  const parseLines = (value: string) => value.split('\n').map(line => line.trim()).filter(Boolean);
+  const notes = [status?.remoteSecurity.message, status?.remoteSecurity.problem, state.interfaces?.document.warning, state.interfaces?.document.ipv6Note, ...(status?.warnings.map(warning => warning.message) ?? [])]
+    .filter((line): line is string => typeof line === 'string' && line.length > 0);
+  if (loadError !== undefined && !loaded) return <StateView {...runtime.error(loadError, load, 'server-console')}/>;
   return <View style={{flex: 1}}>
-    <ScrollView ref={scroll} contentContainerStyle={{...settingsPageInset(theme, compactHeader)}}>
+    <ScrollView contentContainerStyle={{...settingsPageInset(theme, compactHeader)}}>
       <ServerHeader serverName={context.serverName} viewerRole={role} audience={role === 'administrator' ? 'administrators' : 'owner'} variant="phone" style={{marginBottom: 12}}/>
       {!compactHeader && <Text accessibilityRole="header" style={[settingsPageHeading(theme), {color: theme.colors.text}]}>{t('settings.server.remote')}</Text>}
-      <View testID="remote-access-status" style={{borderRadius: 14, backgroundColor: theme.colors.raised, padding: 16, marginTop: 14, flexDirection: 'row', gap: 12}}>
-        <View style={{width: 9, height: 9, borderRadius: 5, marginTop: 5, backgroundColor: remoteLine.tone === 'healthy' ? theme.colors.healthy : remoteLine.tone === 'warning' ? theme.colors.amber : theme.colors.textTertiary}}/>
-        <View style={{flex: 1}}>
-          <Text style={[shellType(15, 700), {color: theme.colors.text}]}>{remoteLine.text || t('settings.server.remote.notSetUp')}</Text>
-          {secureBody ? <Text style={[shellType(12.5, 400, 17), {color: theme.colors.textSecondary, marginTop: 4}]}>{secureBody}</Text> : null}
-          {remoteState.status ? remoteWarningLines(remoteState.status, t).map((line, index) => <Text key={index} testID="remote-access-warning" style={[shellType(12.5, 400, 17), {color: theme.colors.amber, marginTop: 4}]}>{line}</Text>) : null}
-        </View>
-      </View>
-
-      {connectivity ? <>
-        {services && certificateState.draft && <>
-          <Text style={[shellType(13, 700), {color: theme.colors.textTertiary, marginTop: 22, marginBottom: 8}]}>{t('next.settingsSpec.server.remote.groups.0.title')}</Text>
-          <View style={{borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-            <SettingsRow first label={t('next.settingsSpec.server.remote.groups.0.rows.0.label')} control={<Switch testID="remote-services-enabled" accessibilityLabel={t('next.settingsSpec.server.remote.groups.0.rows.0.label')} checked={certificateState.draft.enabled} disabled={state.saving || retrying} onCheckedChange={enabled => forms.certificate.set(current => ({...current, enabled}))}/>}/>
-            <SettingsRow label={t('next.settingsSpec.server.remote.groups.0.rows.0.children.0.label')} control={<Text style={[shellType(13), {color: certificateProblem || secure.tone === 'warning' ? theme.colors.amber : secure.tone === 'healthy' ? theme.colors.healthy : theme.colors.textSecondary, flexShrink: 1}]}>{secureBody ?? t('status.loading')}</Text>}/>
-            {certificate?.routeUrl && <SettingsRow label={t('next.settingsSpec.server.remote.groups.0.rows.0.children.1.label')} control={<Text selectable style={{color: theme.colors.textSecondary, fontFamily: 'monospace', flexShrink: 1}}>{certificate.routeUrl}</Text>}/>}
-            {certificate?.notAfter && <SettingsRow label={t('next.settingsSpec.server.remote.groups.0.rows.0.children.2.label')} value={new Date(certificate.notAfter).toLocaleString()}/>}
-            {certificateProblem && <Button testID="remote-services-retry" variant="glass" size="compact" disabled={state.saving || state.dirty || !certificateState.draft.enabled} loading={retrying} onPress={() => {void retry();}}>{t('action.tryAgain')}</Button>}
+      {!loaded ? <StateView title={t('status.loading')}/> : <>
+        <View testID="remote-access-status" style={{borderRadius: 14, backgroundColor: theme.colors.raised, padding: 16, marginTop: 14, gap: 6}}>
+          <View style={{flexDirection: 'row', gap: 12, alignItems: 'center'}}>
+            <View style={{width: 9, height: 9, borderRadius: 5, backgroundColor: tone === 'ok' ? theme.colors.healthy : tone === 'warn' ? theme.colors.amber : theme.colors.textTertiary}}/>
+            <Text accessibilityRole="text" style={[shellType(15, 700), {color: theme.colors.text, flex: 1}]}>{t(state.checking ? 'settings.server.remote.checking' : !outside?.checkedAt ? 'next.remoteOwner.notChecked' : tone === 'ok' ? 'next.remoteOwner.reachable' : answers.length ? 'next.remoteOwner.unreachable' : 'next.remoteOwner.unknown')}</Text>
           </View>
-        </>}
-        {certificateState.loadError !== undefined && !!context.account.account.hostedAccountId && <StateView variant="inline" {...runtime.error(certificateState.loadError, () => {void forms.certificate.load();}, 'server-console')}/>}
-        {retryError !== undefined && <StateView variant="inline" {...runtime.error(retryError, () => {void retry();}, 'server-console')}/>}
-        <Text onLayout={event => {ownAddressY.current = event.nativeEvent.layout.y;}} style={[shellType(13, 700), {color: theme.colors.textTertiary, marginTop: 22, marginBottom: 8}]}>{t('next.settingsSpec.server.remote.groups.1.title')}</Text>
-        <View style={{borderRadius: 14, backgroundColor: theme.colors.raised, padding: 14, gap: 14}}>
-        <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12}}>
-          <Text style={[shellType(15, 600), {color: theme.colors.text, flex: 1}]}>{t('next.settingsSpec.server.remote.groups.1.rows.0.label')}</Text>
-          <Switch checked={connectivity.ownAddressEnabled === true} disabled={state.saving} onCheckedChange={value => forms.connectivity.set(current => ({...current, ownAddressEnabled: value}))}/>
+          {outside?.checkedAt && <Text style={[shellType(12.5), {color: theme.colors.textSecondary}]}>{t('web.servers.checked', {when: when(outside.checkedAt)})}</Text>}
+          {answers.map(item => <Text key={`${item.address}:${item.port}`} style={[shellType(12.5), {color: theme.colors.textSecondary}]}>{item.address}:{item.port} · {t(item.reachable ? 'next.remoteOwner.reachable' : 'next.remoteOwner.unreachable')}</Text>)}
+          {outside?.problem && <Text style={[shellType(12.5), {color: theme.colors.amber}]}>{outside.problem}</Text>}
+          {certificate && <Text style={[shellType(12.5), {color: theme.colors.textSecondary}]}>{t('next.remoteStatus.secure')}: {t(certificate.ready ? 'next.remoteOwner.serving' : 'next.remoteOwner.waiting')}{certificate.name ? ` · ${certificate.name}` : ''}{certificate.problem ? ` · ${certificate.problem}` : ''}</Text>}
+          {status && [status.router, status.routerIPv6].filter(router => router && router.state !== 'off').map((router, index) => <Text key={index} style={[shellType(12.5), {color: theme.colors.textSecondary}]}>{t('next.remoteOwner.router')}: {t(router!.state === 'open' ? 'next.remoteOwner.mapped' : 'next.remoteOwner.notMapped')}</Text>)}
+          {notes.map((line, index) => <Text key={index} testID="remote-access-warning" style={[shellType(12.5, 400, 17), {color: theme.colors.amber}]}>{line}</Text>)}
+          <View style={{flexDirection: 'row', marginTop: 4}}><Button testID="remote-access-check" size="compact" variant="glass" loading={state.checking} disabled={!status || blocked} onPress={() => {void source.check();}}>{t('next.settingsSpec.server.general.groups.1.rows.2.control.label')}</Button></View>
         </View>
-        <TextField label={t('next.settingsSpec.server.remote.groups.1.rows.0.children.0.label')} description={t('next.settingsSpec.server.remote.groups.1.rows.0.children.0.help')} value={connectivity.customCertificateDomain} editable={!state.saving && connectivity.ownAddressEnabled === true}
-          onChangeText={value => forms.connectivity.set(current => ({...current, customCertificateDomain: value}))}/>
-        <TextField label={t('next.settingsSpec.server.remote.groups.1.rows.0.children.1.label')} description={t('next.settingsSpec.server.remote.groups.1.rows.0.children.1.help')} value={connectivity.customCertificatePath} editable={!state.saving && connectivity.ownAddressEnabled === true}
-          onChangeText={value => forms.connectivity.set(current => ({...current, customCertificatePath: value}))}/>
-        <TextField label={t('next.settingsSpec.server.remote.groups.1.rows.0.children.2.label')} description={t('next.settingsSpec.server.remote.groups.1.rows.0.children.2.help')} value={connectivity.customCertificateKeyPath} editable={!state.saving && connectivity.ownAddressEnabled === true}
-          onChangeText={value => forms.connectivity.set(current => ({...current, customCertificateKeyPath: value}))}/>
-        {connectivityState.status?.identityCode ? <TextField testID="remote-access-identity-code" label={t('next.settingsSpec.server.remote.groups.1.rows.0.children.4.label')} description={t('next.settingsSpec.server.remote.groups.1.rows.0.children.4.help')} value={connectivityState.status.identityCode} editable={false} style={{fontFamily: 'monospace'}} containerStyle={{opacity: connectivity.ownAddressEnabled === true ? 1 : .5}}/> : null}
-          {own && <Text testID="remote-own-address-status" style={[shellType(13), {color: own.tone === 'healthy' ? theme.colors.healthy : theme.colors.amber}]}>{own.text}</Text>}
-        </View>
-        <Text style={[shellType(13, 700), {color: theme.colors.textTertiary, marginTop: 22, marginBottom: 8}]}>{t('web.connectivity.outside')}</Text>
-        <View style={{borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-          <SettingsRow testID="remote-access-mode" first label={t(`${R}.label`)} description={connectivity.remoteAccess === 'private' ? t(`${R}.control.options.1.hint`) : t(`${R}.help`)}
-            control={<Select testID="remote-access-mode-select" value={connectivity.remoteAccess} options={accessOptions} onValueChange={value => {if (value === 'on' || value === 'private' || value === 'off') forms.connectivity.set(current => ({...current, remoteAccess: value}));}}/>}/>
-          {outsideOn && <SettingsRow testID="remote-access-security" label={t(`${R}.children.0.label`)} description={t(`${R}.children.0.help`)}
-            control={<Select testID="remote-access-security-select" value={connectivity.remoteSecurity} options={securityOptions} onValueChange={value => {if (value === 'enhanced' || value === 'standard') forms.connectivity.set(current => ({...current, remoteSecurity: value}));}}/>}/>}
-          {outsideOn && connectivity.remoteSecurity === 'enhanced' && <NativeRefusedAddresses api={api} isCurrent={lifetime.current} t={t as (id: string, values?: Record<string, unknown>) => string}
-            onAllowed={reloadConnectivity} onStandard={chooseStandard} onCertificate={showOwnAddress}/>}
-          {outsideOpen && <SettingsRow testID="remote-access-policy" label={t('web.connectivity.whoMaySignIn')}
-            control={<Select testID="remote-access-policy-select" value={connectivity.remoteSignInPolicy} options={signInOptions} onValueChange={value => forms.connectivity.set(current => ({...current, remoteSignInPolicy: value as ConnectivityDraft['remoteSignInPolicy']}))}/>}/>}
-          <NativeSecuritySummary api={api} isCurrent={lifetime.current} t={t as (id: string, values?: Record<string, unknown>) => string}/>
-          <SettingsRow testID="remote-access-secure-connections" label={t('next.settingsSpec.server.remote.groups.0.rows.1.label')} description={t('next.settingsSpec.server.remote.groups.0.rows.1.help')}
-            control={<Select testID="remote-access-secure-connections-select" value={connectivity.secureConnections} options={[
-              {value: 'preferred', label: t('next.settingsSpec.server.remote.groups.0.rows.1.control.options.0.label')},
-              {value: 'required', label: t('next.settingsSpec.server.remote.groups.0.rows.1.control.options.1.label')},
-            ]} onValueChange={value => {if (value === 'preferred' || value === 'required') forms.connectivity.set(current => ({...current, secureConnections: value}));}}/>}/>
-        </View>
-        <Text style={[shellType(13, 700), {color: theme.colors.textTertiary, marginTop: 22, marginBottom: 8}]}>{t('settings.server.homeNetwork')}</Text>
-        <View style={{borderRadius: 14, overflow: 'hidden', backgroundColor: theme.colors.raised}}>
-          <SettingsRow testID="remote-access-discovery" first label={t('web.connectivity.discovery')}
-            control={<Switch testID="remote-access-discovery-switch" checked={connectivity.lanDiscoveryEnabled} onCheckedChange={value => forms.connectivity.set(current => ({...current, lanDiscoveryEnabled: value}))}/>}/>
-          <SettingsRow testID="remote-access-dlna" label={t('settings.server.dlna')} description={t('settings.server.dlnaHelp')}
-            control={<Switch testID="remote-access-dlna-switch" checked={connectivity.dlnaEnabled} onCheckedChange={value => forms.connectivity.set(current => ({...current, dlnaEnabled: value}))}/>}/>
-        </View>
-        <NativeAdvancedSection testID="remote-access-advanced" summary={(() => {
-          const rows = settingsSpec.find(section => section.scope === 'server' && section.id === 'remote')?.advanced?.groups?.flatMap(group => group.rows) ?? [];
-          const values: Record<string, unknown> = remote ? {'remote.mapping': remote.mapping ? 'auto' : 'off', 'remote.gateway': remote.gateway, 'remote.publicPort': remote.publicPort, 'remote.ipv6': remote.ipv6Open ?? false, 'remote.mappingProtocols': {pcp: remote.pcp ? 'try' : 'skip', natpmp: remote.natpmp ? 'try' : 'skip', upnp: remote.upnp ? 'try' : 'skip'}} : {};
-          const bound = settingsSummary(rows, row => {if (Object.hasOwn(values, row.id)) return {current: values[row.id]};const binding = settingsBinding(row.id);return binding ? readSettingsBinding(binding, {forms: {connectivity}}, row.id) : undefined;}, t);
-          return [bound === t('next.settings.allDefaults') ? '' : bound, connectivity.accessUrls.length ? t('web.connectivity.extraAddresses') : '', connectivity.trustedProxies.length ? t('web.connectivity.trustedProxies') : '', connectivity.lanNetworks.length ? t('web.connectivity.homeNetworks') : '', connectivity.advertiseUrl ? t('web.connectivity.advertiseUrl') : ''].filter(Boolean).join(' · ') || t('next.settings.allDefaults');
-        })()}>
-          {networkInterface}
-          {remote && <>
-        <TextField label={t('web.network.publicPort')} value={String(remote.publicPort)} keyboardType="number-pad"
-          onChangeText={value => {const next = Number(value); if (Number.isInteger(next) && next >= 1 && next <= 65535) forms.remote.set(current => ({...current, publicPort: next}));}}/>
-        <TextField label={t('web.network.gateway')} description={t('web.network.gatewayHelp')} value={remote.gateway}
-          onChangeText={value => forms.remote.set(current => ({...current, gateway: value}))}/>
-          {remote.ipv6Open !== undefined ? <SettingsRow testID="remote-access-ipv6" label={t('web.network.ipv6')} description={t('web.network.ipv6Help')}
-            control={<Switch testID="remote-access-ipv6-switch" checked={remote.ipv6Open === true} onCheckedChange={value => forms.remote.set(current => ({...current, ipv6Open: value}))}/>}/> : null}
-        <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 12}}>
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}><Switch testID="remote-access-mapping-switch" checked={remote.mapping} onCheckedChange={value => forms.remote.set(current => ({...current, mapping: value}))}/><Text style={[shellType(14), {color: theme.colors.text}]}>{t('web.network.mappingTitle')}</Text></View>
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}><Switch checked={remote.upnp} onCheckedChange={value => forms.remote.set(current => ({...current, upnp: value}))}/><Text style={[shellType(14), {color: theme.colors.text}]}>{t('settings.server.mapping.upnp')}</Text></View>
-        </View>
-          </>}
-        <TextField label={t('web.connectivity.advertiseUrl')} description={t('settings.server.advertiseUrlHelp')} value={connectivity.advertiseUrl}
-          onChangeText={value => forms.connectivity.set(current => ({...current, advertiseUrl: value}))}/>
-        <TextField label={t('web.connectivity.extraAddresses')} description={t('settings.server.extraAddressesHelp')} value={lines(connectivity.accessUrls)} multiline
-          onChangeText={value => forms.connectivity.set(current => ({...current, accessUrls: parseLines(value)}))}/>
-        <TextField label={t('web.connectivity.trustedProxies')} description={t('settings.server.trustedProxiesHelp')} value={lines(connectivity.trustedProxies)} multiline
-          onChangeText={value => forms.connectivity.set(current => ({...current, trustedProxies: parseLines(value)}))}/>
-        <TextField label={t('web.connectivity.homeNetworks')} description={t('settings.server.homeNetworksHelp')} value={lines(connectivity.lanNetworks)} multiline
-          onChangeText={value => forms.connectivity.set(current => ({...current, lanNetworks: parseLines(value)}))}/>
-
-          {remoteState.loadError !== undefined && <StateView variant="inline" {...runtime.error(remoteState.loadError, () => {void forms.remote.load();}, 'server-console')}/>}
-        </NativeAdvancedSection>
-        {state.dirty ? <View style={{flexDirection: 'row', gap: 8, marginTop: 16}}>
-          <Button variant="glass" disabled={state.saving} onPress={() => set.discard()}>{t('action.discard')}</Button>
-          <Button loading={state.saving} disabled={Boolean(state.problem)} onPress={() => {void set.save();}}>{t('action.save')}</Button>
-        </View> : null}
-        {state.saveError !== undefined && <StateView variant="inline" {...runtime.error(state.saveError, () => {void set.save();}, 'server-console')}/>}
-        {state.problem ? <Text accessibilityRole="alert" style={[shellType(13, 600), {color: theme.colors.record, marginTop: 8}]}>{t(state.problem as Parameters<typeof t>[0])}</Text> : null}
-      </> : <StateView title={t('status.loading')}/>}
+        {main.map(renderGroup)}
+        {extra.length > 0 && <NativeAdvancedSection testID="remote-access-advanced" open={advanced} onOpenChange={setAdvanced}>{extra.map(renderGroup)}</NativeAdvancedSection>}
+        {state.error !== undefined && !state.confirmation && <Text accessibilityRole="alert" style={[shellType(13, 600), {color: theme.colors.record, marginTop: 10}]}>{presentError(state.error, 'server-console', {operation: 'action'}).body}</Text>}
+        {drafts.size > 0 && <View style={{flexDirection: 'row', gap: 8, marginTop: 16}}>
+          <Button testID="remote-access-discard" variant="glass" disabled={saving} onPress={() => {setDrafts(new Map()); setSaveError(undefined);}}>{t('action.discard')}</Button>
+          <Button testID="remote-access-save" loading={saving} disabled={!!state.confirmation} onPress={() => {void save();}}>{t('action.save')}</Button>
+        </View>}
+        {saveError !== undefined && <StateView variant="inline" {...runtime.error(saveError, () => {void save();}, 'server-console')}/>}
+      </>}
     </ScrollView>
-
+    <BottomSheet open={!!state.confirmation} onOpenChange={open => {if (!open && !state.busy) source.cancelConfirmation();}} testID="remote-access-confirm"
+      title={t('next.remoteOwner.confirm')} description={state.confirmation?.message}
+      footer={<View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" disabled={state.busy} onPress={source.cancelConfirmation}>{t('action.cancel')}</Button>
+        <Button variant="danger" loading={state.busy} onPress={confirm}>{t('next.remoteOwner.saveAnyway')}</Button></View>}><View/></BottomSheet>
   </View>;
 }
