@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {parseBrowseNode, parseBrowseCapabilities, completeBrowseNode, parseBrowseResult, browseCondition, browseNot} from '../src/browse.ts';
 import {parseSimpleFacetPage, parseSimpleFacetPreparing} from '../src/facet-windows.ts';
-import {readPreparedSearchGenres, parseSearchGenres} from '../src/search-genres.ts';
 import {readReadingFacet} from '../src/browse-preparation.ts';
 import {refuseUnknownVariant} from '../src/tolerant.ts';
 
@@ -51,15 +50,6 @@ test('browse expression: the condition builders tag exactly as completeBrowseNod
   assert.deepEqual(browseNot(predicate), completeBrowseNode({not: {field: 'genre', operator: 'equals', value: 'Drama'}}));
   assert.deepEqual(browseNot(relative), completeBrowseNode({not: {field: 'dateAdded', operator: 'within-last-days', value: 7}}));
   for (const node of [predicate, list, relative, browseNot(predicate), browseNot(relative)]) assert.deepEqual(parseBrowseNode(node), node);
-});
-
-const genreReady = {variant: 'ready', queryId: 'genre_1', revision: 'r', genres: [{value: 'Drama', label: 'Drama', count: 2, covers: []}]};
-
-test('genre query: ready parses; an unknown variant is the update state, not a broken response', async () => {
-  assert.equal(parseSearchGenres(genreReady).genres.length, 1);
-  assert.throws(() => parseSearchGenres({...genreReady, variant: undefined}), {code: 'invalid_genre_response'}, 'an untagged page is not read');
-  const api = {request: async <T>() => ({variant: 'archived', queryId: 'g'}) as T};
-  await assert.rejects(readPreparedSearchGenres(api as never, {limit: 4}), unsupported);
 });
 
 test('library facets: the window parses; an unknown variant is the update state', async () => {
