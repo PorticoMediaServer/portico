@@ -27,7 +27,7 @@ const inScope = (component: (props: any) => any, props: any) => {
 const entryRevision = (react: unknown) => screenModule(new URL('../src-next/tv/auth/entry-revision.ts', import.meta.url), {react});
 const common = async (react: unknown) => ({react, '../../../../../packages/i18n/src': {defaultI18n}, '../../kit/theme': {nativeType, useTheme: () => theme},
   '../../platform/tv-keys': {useTVKeyEvent() {}},
-  '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, './TVAuthLayout': {TVAuthLayout: 'Layout'},
+  '../../kit/controls': {Button: 'Button', Focusable: 'Focusable', TextField: 'Field'}, './TVAuthLayout': {TVAuthLayout: 'Layout', TVAccountFields: 'AccountFields', TVAccountCanvas: 'Canvas'},
   '../../screens/destinations/useEntryFocus': {useDestinationEntryFocus() {}}, './entry-revision': await entryRevision(react)});
 // The existing caller vectors render the pad directly; give its real entry hooks
 // a separate controlled host. Native region/Focusable boundaries remain stubs.
@@ -69,7 +69,7 @@ for (const kind of ['portico', 'local'] as const) test(`${kind} credentials use 
     assert.equal(field(password).props.autoCorrect, false);
     assert.equal(field(password).props.editable, true);
     assert.equal(field(password).props.showSoftInputOnFocus, undefined, 'the platform keyboard is not suppressed');
-    assert.ok(nodes(username).some(node => node.type === 'Text' && node.props.children === defaultI18n.t(kind === 'portico' ? 'auth.usernameOrEmail' : 'auth.username')));
+    assert.equal(field(username).props.label, defaultI18n.t(kind === 'portico' ? 'auth.usernameOrEmail' : 'auth.username'), 'the shared field draws the credential label');
     await act(() => {field(username).props.onSubmitEditing(); field(password).props.onSubmitEditing();});
     assert.deepEqual(focused, [{regionId: `tv.auth.${kind}.credentials`, childId: 'password'}, {regionId: `tv.auth.${kind}.credentials`, childId: 'submit'}]);
     const buttons = nodes(tree).filter(node => node.type === 'Button');

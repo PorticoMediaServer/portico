@@ -1,7 +1,7 @@
 import React, {forwardRef, useEffect, useState} from 'react';
 import {Pressable, StyleSheet, type PressableProps, type PressableStateCallbackType, type StyleProp, type View, type ViewStyle} from 'react-native';
 import Animated, {useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
-import {focusSpec} from '@portico/design';
+import {fieldSpec, focusSpec} from '@portico/design';
 import {useTheme} from '../theme';
 import {useMotion} from '../useMotion';
 import {colorAlpha, focusScale, type FocusKind} from './control-model';
@@ -126,7 +126,7 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable({
       {focusTreatment === 'default' ? <Animated.View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants"
         style={[styles.ring, {inset: -offset, borderRadius: focusRadius + offset,
           borderWidth: focusSpec.ringWidth[platform], borderColor: colors.focus,
-          ...(isTV ? {boxShadow: tvFocusGlow(colors.accentStrong)} : {})}, ring]} /> : null}
+          ...(isTV && (focusKind !== 'field' || fieldSpec.focusGlow) ? {boxShadow: tvFocusGlow(colors.accentStrong)} : {})}, ring]} /> : null}
       {typeof children === 'function' ? children({...state, pressed: disabled || inert ? false : state.pressed, focused, hovered}) : children}
     </>}
   </AnimatedPressable>;

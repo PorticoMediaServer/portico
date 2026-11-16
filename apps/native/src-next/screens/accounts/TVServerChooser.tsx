@@ -1,13 +1,14 @@
 import React, {useCallback, useState} from 'react';
-import {findNodeHandle, ScrollView, Text, View} from 'react-native';
+import {findNodeHandle, Text, View} from 'react-native';
+import {tvAccountSpec} from '@portico/design';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {serverRowDetail, type PhoneServerRow} from './PhoneServerChooser';
 import type {nativeAccounts} from '../../platform/accounts';
-import {ColourBackdrop} from '../../kit/artwork';
-import {Button, Focusable} from '../../kit/controls';
+import {TVAuthLayout} from '../../tv/auth/TVAuthLayout';
+import {Button} from '../../kit/controls';
 import {FocusProvider, FocusRegion} from '../../kit/focus';
-import {Icon} from '../../kit/Icon';
-import {nativeType, useTheme} from '../../kit/theme';
+import {TVAccountRow} from '../../kit/controls/TVAccountRow';
+import {useTheme} from '../../kit/theme';
 import {useDestinationEntryFocus} from '../destinations/useEntryFocus';
 import {useTVBusyEntryRevision} from '../../tv/auth/entry-revision';
 
@@ -50,29 +51,17 @@ function Chooser({snapshot, busy, error, owner, onSelect, onSignOut, onForget, o
   }, []);
   useDestinationEntryFocus({visible: !busy, intent: 'enter', revision: entryRevision},
     preferred ? {regionId: 'accounts.chooser.rows', childId: `server:${preferred}`} : {regionId: 'accounts.chooser.actions', childId: 'refresh'});
-  const row = (value: PhoneServerRow, connected = false) => <View key={value.id} style={{flexDirection: 'row', alignItems: 'center', gap: 40, padding: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.lineSoft}}>
-    <Focusable focusId={`server:${value.id}`} disabled={busy || connected} accessibilityRole="button" preferredFocus={!connected && value.id === preferred} accessibilityLabel={value.name} accessibilityState={{selected: connected}}
-      onPress={() => onSelect(value)} focusKind="row" focusRadius={12} style={{flex: 1, minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 16}}>
-      <Icon name="i-server" size={28} color={theme.colors.accentStrong}/>
-      <View style={{flex: 1, gap: 6}}>
-        <Text style={[theme.type.bodyStrong, {color: theme.colors.text}]}>{value.name}</Text>
-        <Text style={[theme.type.caption, {color: theme.colors.textSecondary}]}>{serverRowDetail(value)}</Text>
-      </View>
-      {connected && owner && <Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{t('accounts.settings.owner')}</Text>}
-      {!connected && <Icon name="i-right" size={26} color={theme.colors.textTertiary}/>}
-    </Focusable>
-    {value.signedIn && <Button focusId={`signout:${value.id}`} variant="text" size="small" disabled={busy} onPress={() => onSignOut(value)}>{t('accounts.signOut.server', {server: value.name})}</Button>}
-    <Button focusId={`forget:${value.id}`} variant="text" size="small" disabled={busy} onPress={() => onForget(value)}>{t('connection.identity.forget', {server: value.name})}</Button>
-  </View>;
-  return <View testID="tv-server-chooser" style={{flex: 1, backgroundColor: theme.colors.ink}}>
-    <ColourBackdrop shape="side" fill/>
-    <ScrollView contentContainerStyle={{paddingHorizontal: theme.layout.gutter.tvAuth, paddingTop: 80, paddingBottom: 80, gap: 24}}>
-      <View style={{gap: 12}}>
-        <Text accessibilityRole="header" style={[nativeType({size: 44, lineHeight: 52, weight: 700, tracking: 0}, theme.textScale), {color: theme.colors.text}]}>{t('web.servers.switchServer')}</Text>
-        <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('web.chooser.lede')}</Text>
-        {error}
-        {!snapshot && <Text style={[theme.type.body, {color: theme.colors.textSecondary}]}>{t('status.loading')}</Text>}
-      </View>
+  const row = (value: PhoneServerRow, connected = false) => <TVAccountRow key={value.id} title={value.name} detail={serverRowDetail(value)} icon="i-server"
+    focusId={`server:${value.id}`} disabled={busy || connected} preferredFocus={!connected && value.id === preferred}
+    accessibilityLabel={value.name} accessibilityState={{selected: connected}} onPress={() => onSelect(value)}
+    badge={connected && owner ? t('accounts.settings.owner') : undefined}>
+    {value.signedIn && <Button focusId={`signout:${value.id}`} variant="glass" size="small" disabled={busy} accessibilityLabel={t('accounts.signOut.server', {server: value.name})} onPress={() => onSignOut(value)}>{t('action.signOut')}</Button>}
+    <Button focusId={`forget:${value.id}`} variant="glass" size="small" disabled={busy} accessibilityLabel={t('connection.identity.forget', {server: value.name})} onPress={() => onForget(value)}>{t('connection.identity.forgetAction')}</Button>
+  </TVAccountRow>;
+  return <TVAuthLayout testID="tv-server-chooser" title={t('web.servers.switchServer')} body={t('web.chooser.lede')}>
+    <View style={{gap: tvAccountSpec.fieldGap}}>
+      {error}
+      {!snapshot && <Text style={[theme.type.accountLede, {color: theme.colors.textSecondary}]}>{t('status.loading')}</Text>}
       <FocusRegion id="accounts.chooser.rows" entry={preferred ? `server:${preferred}` : undefined} order={serverOrder} orientation="vertical" edges={{down: 'accounts.chooser.actions'}} enabled={!busy} style={{gap: 24}}>
       {selected && <View style={{gap: 12}}>
         <Text accessibilityRole="header" style={[theme.type.bodyStrong, {color: theme.colors.textSecondary}]}>{t('servers.connectedTo')}</Text>
@@ -89,6 +78,6 @@ function Chooser({snapshot, busy, error, owner, onSelect, onSignOut, onForget, o
         <Button ref={bindAdd} focusId="add" variant="glass" disabled={busy} onPress={onAdd}>{t('accounts.signIn.local')}</Button>
       </FocusRegion>
       {footer}
-    </ScrollView>
-  </View>;
+    </View>
+  </TVAuthLayout>;
 }

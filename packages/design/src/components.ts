@@ -28,7 +28,7 @@ export const focus = {
   /** Items inside a container (rows, menu items, tabs, segments, table rows). */
   offsetInner: same(-3, -4),
   /** Only television scales on focus. */
-  scale: {button: same(1, 1.05), row: same(1, 1.02), card: same(1, 1.08), chip: same(1, 1.05)},
+  scale: {button: same(1, 1.05), row: same(1, 1.02), card: same(1, 1.08), chip: same(1, 1.05), field: same(1, 1)},
   /** Never add a fill as well as the ring on keyboard focus; hover may change the fill. */
   fillOnFocus: false,
   glow: {color: 'accentStrong' as ColorToken, alpha: 0.6, x: 0, y: 26, blur: 64, spread: -12},
@@ -65,6 +65,7 @@ export const button = {
     link: {rest: {background: 'transparent', foreground: 'accent'}, hover: {background: 'transparent', foreground: 'accentStrong'}, pressed: {background: 'transparent', foreground: 'accent'}, selected: {background: 'transparent', foreground: 'accentStrong'}, disabled: {background: 'transparent', foreground: 'accent'}},
   } as Readonly<Record<ButtonVariant, Readonly<Record<ButtonState, Fill>>>>,
   disabledOpacity: 0.45,
+  tvDisabledPrimary: {background: 'text', backgroundAlpha: 0.16, foreground: 'textTertiary'} satisfies Fill,
   /** Link press is shown by an underline, not a darker blue (accentDeep text fails contrast on dark surfaces). */
   /** Press feedback: web/phone scale 0.97; TV uses focus scale instead. */
   pressedScale: same(0.97, 1),
@@ -84,9 +85,9 @@ export const transport = {
 
 /** Text fields (X-11, PC-VISUAL §11). */
 export const field = {
-  height: all(40, 44, 44, 64),
-  paddingX: same(12, 20),
-  radius: same(8, 14),
+  height: all(40, 44, 44, 84),
+  paddingX: same(12, 28),
+  radius: same(8, 16),
   fill: {rest: 'raised', hover: 'raisedHigh', focus: 'raisedHigh', disabled: 'raised'} as Readonly<Record<string, ColorToken>>,
   border: {rest: 'lineControl', hover: 'lineControl', focus: 'accent', invalid: 'danger'} as Readonly<Record<string, ColorToken>>,
   borderWidth: same(1, 2),
@@ -99,8 +100,15 @@ export const field = {
   error: {role: 'captionStrong' as TypeRole, color: 'danger' as ColorToken, icon: 'error', gap: same(6, 10), blockGap: same(14, 20)},
   /** Keyboard focus shows the focus ring (focus.offsetOuter) on top of the accent border. No glow. */
   focusGlow: false,
+  tv: {rest: {background: 'ink', backgroundAlpha: 0.62, foreground: 'text'} satisfies Fill,
+    value: 'fieldValue' as TypeRole, placeholder: 'fieldPlaceholder' as TypeRole, label: 'fieldLabel' as TypeRole,
+    muted: 'textTertiary' as ColorToken, labelGap: 12},
   search: {height: all(80, 44, 44, 80), radius: all(18, 12, 12, 16), paddingX: all(26, 12, 12, 24), gap: all(18, 10, 10, 16), focusRing: 4, focusAlpha: 0.16},
 } as const;
+
+/** connect36 / auth8: one TV account column, title and form rhythm. */
+export const tvAccount = {column: 900, fieldsWidth: 860, titleGap: 22, ledeGap: 48, eyebrowGap: 14, fieldGap: 22, actionGap: 20, beforeActionsGap: 32,
+  wordmark: {top: 72, width: 174, height: 40}, footerBottom: 64} as const;
 
 /** Drawn switch geometry; focus/interaction belongs to the containing row on TV. */
 export const toggle = {
@@ -385,5 +393,5 @@ export const activity = {
   progress: {height: 3, trackAlpha: 0.12, ringSize: 32, ringStroke: 2.6, ringTrackAlpha: 0.13, indeterminate: false},
 } as const;
 
-export const componentSpec = {focus, button, transport, field, toggle, chip, segmented, row, overlay, menu, feedback, confirmation, hero, card, shelf, banner, episode, generatedArt, tag, tabs, navigation, activity} as const;
+export const componentSpec = {focus, button, transport, field, tvAccount, toggle, chip, segmented, row, overlay, menu, feedback, confirmation, hero, card, shelf, banner, episode, generatedArt, tag, tabs, navigation, activity} as const;
 export type ComponentSpec = typeof componentSpec;

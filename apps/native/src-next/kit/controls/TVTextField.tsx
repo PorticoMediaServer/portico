@@ -2,6 +2,7 @@ import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useRef, 
 import {StyleSheet, Text, TextInput, View} from 'react-native';
 import {fieldSpec} from '@portico/design';
 import {Focusable} from './Focusable';
+import {colorAlpha} from './control-model';
 import {FormError} from './FormError';
 import {Icon} from '../Icon';
 import {useTheme} from '../theme';
@@ -26,17 +27,18 @@ export const TVTextField = forwardRef<TextInput, TextFieldProps>(function TVText
   useEffect(() => {if (editing && eligible) input.current?.focus(); else input.current?.blur();}, [editing, eligible]);
   const value = props.value ?? props.defaultValue ?? '';
   const displayed = props.secureTextEntry ? '•'.repeat(value.length) : value;
-  const textStyle = [theme.type.body, {color: value ? theme.colors.text : placeholderTextColor ?? theme.colors.placeholder}, style];
-  return <View style={[{gap: 8, alignSelf: 'stretch'}, containerStyle]}>
-    {label !== undefined && <Text style={[theme.type.captionStrong, {color: theme.colors.textSecondary}]}>{label}</Text>}
+  const textStyle = [style, theme.type[value ? fieldSpec.tv.value : fieldSpec.tv.placeholder],
+    {color: value ? theme.colors.text : placeholderTextColor ?? theme.colors[fieldSpec.tv.muted]}];
+  return <View style={[{gap: fieldSpec.tv.labelGap, alignSelf: 'stretch'}, containerStyle]}>
+    {label !== undefined && <Text style={[theme.type[fieldSpec.tv.label], {color: theme.colors[fieldSpec.tv.muted]}]}>{label}</Text>}
     <Focusable ref={target} focusId={focusId} testID={testID} disabled={!eligible} preferredFocus={autoFocus}
       accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? (typeof label === 'string' ? label : props.placeholder)}
       accessibilityValue={{text: displayed || props.placeholder || ''}} accessibilityState={{...accessibilityState, disabled: !editable}}
-      focusKind="row" focusRadius={radius} onPress={open} onFocus={onFocus} onBlur={onBlur}
-      style={[{minHeight: height, borderRadius: radius, paddingHorizontal: search ? fieldSpec.search.paddingX.tv : fieldSpec.paddingX.tv,
-        flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.colors.raised,
-        borderWidth: fieldSpec.borderWidth.tv, borderColor: error ? theme.colors.danger : theme.colors.lineControl,
-        opacity: editable ? 1 : .45}, fieldStyle]}>
+      focusKind="field" focusRadius={radius} onPress={open} onFocus={onFocus} onBlur={onBlur}
+      style={({focused}) => [{minHeight: height, borderRadius: radius, paddingHorizontal: search ? fieldSpec.search.paddingX.tv : fieldSpec.paddingX.tv,
+        flexDirection: 'row', alignItems: 'center', gap: 10, opacity: editable ? 1 : .45}, fieldStyle,
+        {backgroundColor: focused ? theme.colors[fieldSpec.fill.focus] : colorAlpha(theme.colors[fieldSpec.tv.rest.background], fieldSpec.tv.rest.backgroundAlpha ?? 1),
+          borderWidth: fieldSpec.borderWidth.tv, borderColor: theme.colors[error ? fieldSpec.border.invalid : focused ? fieldSpec.border.focus : fieldSpec.border.rest]}]}>
       {leadingIcon && <Icon name={leadingIcon} size={iconSize ?? 30} color={theme.colors.textTertiary}/>}
       <Text numberOfLines={1} ellipsizeMode="head" style={[textStyle, {flex: 1, minWidth: 0}]}>{displayed || props.placeholder || ''}</Text>
       {trailing}

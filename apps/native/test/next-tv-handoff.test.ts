@@ -25,7 +25,7 @@ const handoffModule = async (react: unknown, back: unknown, entry = (..._args: u
   '../../../../../packages/i18n/src': {catalogue, defaultI18n, enUS}, '../../kit/controls': {Button: 'Button'},
   '../../kit/focus': {FocusProvider: 'Provider', FocusRegion: 'Region'}, '../../kit/theme': {nativeType, useTheme: () => theme},
   '../../kit/states/sentence-parts': {stateSentenceParts}, '../../platform/native-blur': {BlurView: 'Blur', glassRecipe: () => ({nativeBlur: true})},
-  '../../screens/destinations/useEntryFocus': {useDestinationEntryFocus: entry}, './TVAuthLayout': {TVAuthLayout: 'Layout'}, './entry-revision': revision,
+  '../../screens/destinations/useEntryFocus': {useDestinationEntryFocus: entry}, './TVAuthLayout': {TVAuthLayout: 'Layout', TVAccountFields: 'AccountFields', TVAccountCanvas: 'Canvas'}, './entry-revision': revision,
   '../../platform/account-authority': {hostedUrl: 'https://web.getportico.tv'},
   '../../platform/forgot-pin-handoff': await screenModule(new URL('../src-next/platform/forgot-pin-handoff.ts', import.meta.url), {react: {default: {}},
     './account-authority': {hostedUrl: 'https://web.getportico.tv'}, '../../../../packages/client-core/src/route-identity': await import('../../../packages/client-core/src/route-identity.ts')}),
@@ -92,7 +92,7 @@ test('unsigned Forgot PIN has the profile why, public QR, one initially focused 
     assert.deepEqual(callbacks, [], 'displaying this variant has no session-retirement or automatic-continue callback');
     assert.equal(tree.props.eyebrow, props.profileName);
     assert.equal(tree.props.portico, false, 'there is no terms line');
-    assert.equal(tree.props.heading, 'Forgot PIN?');
+    assert.equal(tree.props.title, 'Forgot PIN?');
     assert.equal(tree.props.body, defaultI18n.t('next.auth.tv.forgotPINBody'));
     const card = nodes(tree.props.aside);
     assert.equal(card.find(node => node.type === 'QR').props.value, url);
@@ -139,7 +139,7 @@ for (const requirement of ['password', 'two-step'] as const) test(`required ${re
   assert.deepEqual(calls, [], 'a blocked state has no automatic continue or polling callback');
   assert.equal(tree.props.eyebrow, 'Actual server');
   assert.equal(tree.props.portico, false);
-  assert.equal(tree.props.heading, defaultI18n.t(requirement === 'password' ? 'web.direct.newPasswordTitle' : 'web.twoStep.turnOnTitle'));
+  assert.equal(tree.props.title, defaultI18n.t(requirement === 'password' ? 'web.direct.newPasswordTitle' : 'web.twoStep.turnOnTitle'));
   const card = nodes(tree.props.aside);
   assert.equal(card.find(node => node.type === 'QR').props.value, props.url);
   assert.equal(card.filter(node => node.type === 'Text').length, 2, 'the card has only its actual address and reference, never a device sign-in code');

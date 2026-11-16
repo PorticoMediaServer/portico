@@ -27,6 +27,7 @@ import {NativeScreenLifetime} from '../settings-live/lifetime';
 import {ProfileColorPicker, ProfileRestrictionsFields} from '../settings-live/ProfileEditorFields';
 import {sameAuthority, type ShellAuthority} from '../../shell/model';
 import {nativeShellRoutes, type NativeRouteFactory} from '../../shell/route-registry';
+import {TVAccountFields, TVAuthLayout} from '../../tv/auth/TVAuthLayout';
 import {StateLayout, StateView} from '../../kit/states';
 import {ProfileFace, ProfilePicker} from '../../kit/artwork';
 import {Button, Focusable, TextField, FormError} from '../../kit/controls';
@@ -592,8 +593,9 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
   }, {scope: 'surface'}); return () => subscription();});
   const action = (id: string, label: string, work: () => Promise<void>, disabled = false) => ({id, label, disabled: busy || disabled, loading: busy, onPress: () => {void run(work);}});
   const errorView = error ? <FormError placement="block">{presentError(error, 'account').body}</FormError> : null;
-  const layout = (title: string, body?: string, before?: React.ReactNode, primary?: ReturnType<typeof action>, more?: React.ReactNode) => <StateLayout testID="accounts-servers" title={title} body={body}
-    beforeActions={<>{before}{errorView}</>} primaryAction={primary} secondaryAction={panel !== 'servers' || onBack ? {id: 'back', label: t('action.back'), disabled: busy, onPress: cancel} : undefined}>{more}</StateLayout>;
+  const AccountLayout = theme.isTV ? TVAuthLayout : StateLayout;
+  const layout = (title: string, body?: string, before?: React.ReactNode, primary?: ReturnType<typeof action>, more?: React.ReactNode) => <AccountLayout testID="accounts-servers" title={title} body={body}
+    beforeActions={<>{before}{errorView}</>} primaryAction={primary} secondaryAction={panel !== 'servers' || onBack ? {id: 'back', label: t('action.back'), disabled: busy, onPress: cancel} : undefined}>{more}</AccountLayout>;
   if (panel === 'add') return <AccountEntry key={addGeneration} downloads={addCurrent() ? committedAdd?.downloads : undefined} onSetupComplete={onSetupComplete} initialStage="address" onBack={() => {if (addCurrent()) close();}} onComplete={() => {
     // Successful publication can retire the borrowed Downloads entry before this callback.
     if (!alive.current || panelRef.current !== 'add' || !addOwner.current || addIntent.current.generation !== addGeneration || addIntent.current.context !== context) return;
@@ -607,9 +609,13 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
     });}}>{t('accounts.session.local')}</Button>}
     <Button variant="glass" disabled={busy} onPress={() => {void run(async () => {approver.current = await nativeAccounts.porticoTVConsent(); setConsentKind('portico'); setPanel('consent-code');});}}>{t('account.portico')}</Button>
   </View>);
-  if (panel === 'consent-code') return layout(t('settings.linkTV'), t(consentKind === 'portico' ? 'accounts.consent.portico' : 'accounts.consent.local'),
-    <TextField label={t('linkTV.enterCode')} value={code} onChangeText={value => setCode(formatTVLinkCode(value))} autoCapitalize="characters" maxLength={9} autoCorrect={false} editable={!busy} containerStyle={{marginBottom: 20}}/>,
-    action('review-tv', t('web.device.review'), async () => {setPreview(await approver.current!.review(code)); setPanel('consent-review');}, !completeTVLinkCode(code)));
+  if (panel === 'consent-code') {
+    const codeField = <TextField label={t('linkTV.enterCode')} value={code} onChangeText={value => setCode(formatTVLinkCode(value))}
+      autoCapitalize="characters" maxLength={9} autoCorrect={false} editable={!busy}/>;
+    return layout(t('settings.linkTV'), t(consentKind === 'portico' ? 'accounts.consent.portico' : 'accounts.consent.local'),
+      theme.isTV ? <TVAccountFields>{codeField}</TVAccountFields> : <View style={{marginBottom: 20}}>{codeField}</View>,
+      action('review-tv', t('web.device.review'), async () => {setPreview(await approver.current!.review(code)); setPanel('consent-review');}, !completeTVLinkCode(code)));
+  }
   if (panel === 'consent-review') return layout(t('linkTV.askConfirm'), t('web.device.approveWarn'),
     <View style={{marginBottom: 20}}>{[preview!.deviceName, preview!.platform, preview!.appVersion, preview!.userCode, t(consentKind === 'portico' ? 'accounts.session.portico' : 'accounts.session.local')].map((value, index) => <Text key={index} style={[theme.type.body, {color: theme.colors.text}]}>{value}</Text>)}</View>,
     action('consent-approve', t('web.device.signItIn'), async () => {await approver.current!.decide(preview!, 'approve'); setDone(t('linkTV.approved', {device: preview!.deviceName})); setPanel('consent-done');}),
@@ -700,8 +706,8 @@ export function ServersRoute({context, fallbackDownloads, initialPanel = 'server
     onAdd={() => {void run(async () => {openAdd();});}}
     certificates={<TVTrustedCertificates context={context}/>}
     footer={<View style={{alignSelf: 'stretch', gap: 8, marginTop: 10}}>
-    <Button variant="text" disabled={busy} onPress={() => setPanel('consent-kind')}>{t('settings.linkTV')}</Button>
-    {accountHeld && <Button variant="text" disabled={busy} onPress={() => {void run(async () => {
+    <Button variant="link" disabled={busy} onPress={() => setPanel('consent-kind')}>{t('settings.linkTV')}</Button>
+    {accountHeld && <Button variant="link" disabled={busy} onPress={() => {void run(async () => {
       const credentials = nativeAccounts.accountCredentials(); await credentials.synchronize(); const session = credentials.getSnapshot().session;
       if (!session) throw Object.assign(new Error('native_account_signed_out'), {code: 'account_changed'});
       setAccountScope({accountId: session.account.id, familyId: session.familyId}); setPanel('sign-out-account');
