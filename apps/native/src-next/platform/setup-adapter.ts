@@ -29,8 +29,6 @@ export type NativeSetupTarget = Readonly<{origin: string; server: ServerSignIn; 
 export function createNativeSetupAdapter(target: NativeSetupTarget, options: Readonly<{current?: () => boolean}> = {}): SetupAdapter {
   const {origin} = target;
   return createSetupAdapter({
-    tokenRoute: 'start_app_setup',
-    finish: {kind: 'here', ports: {sessions: nativeAppSessions, environment: serverId => nativeServerEnvironment(serverId), crypto: nativeRouteCrypto}},
     hostedOrigin: hostedUrl,
     pageOrigin: () => origin,
     pair: signal => pairAtFirstContact(target, signal),
@@ -43,7 +41,6 @@ export function createNativeSetupAdapter(target: NativeSetupTarget, options: Rea
     navigate: url => {void Linking.openURL(url).catch(() => {});},
     approveInApp: approveWithAppAccount,
     current: options.current,
-    crypto: nativeRouteCrypto,
   });
 }
 

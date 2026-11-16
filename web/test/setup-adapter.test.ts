@@ -62,7 +62,7 @@ async function fixture(t: TestContext, options: {local?: {record?: SetupRecord};
   const adapter = createWebSetupAdapter({hostedOrigin: claim.audience, pageOrigin: () => origin,
     pair: async () => {const api = new HttpLocalApi(origin, '', fetcher); api.useRoutes(route as never); return {server: {id: pin.serverId, name: 'Den'} as never, api, pin, dispose: () => {}};},
     sessions: () => sessions, environment: () => ({}) as never, restore: async () => undefined, remember: async () => {}, store: () => store,
-    installationId: () => installationId, navigate: url => navigated.push(url), now: () => NOW, newRequestId: () => REQUEST});
+    installationId: () => installationId, navigate: url => navigated.push(url), now: () => NOW});
   t.after(() => adapter.dispose());
   const context = (): SetupPortContext => ({signal: new AbortController().signal, intentId: 'intent-1'});
   const bumpSelection = async () => {record = {...record, revision: record.revision + 1};};

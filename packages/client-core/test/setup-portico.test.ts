@@ -60,7 +60,7 @@ async function fixture(t: TestContext, options: {answers?: Record<string, (body:
     await env.storage.change(() => connection);
   };
   let pageReturn = options.pageReturn;
-  const adapter = createSetupAdapter({tokenRoute: 'start_browser_setup', finish: {kind: 'return-page'}, hostedOrigin: HOSTED, pageOrigin: () => ORIGIN,
+  const adapter = createSetupAdapter({hostedOrigin: HOSTED, pageOrigin: () => ORIGIN,
     pair: async () => {const api = new HttpLocalApi(ORIGIN, '', fetcher); api.useRoutes(route as never); return {server: {id: SERVER, name: 'Den'} as never, api, pin, dispose: () => {}};},
     sessions: () => sessions, environment: () => ({}) as never, restore: async () => undefined, remember: remember as never, store: () => store,
     installationId: () => INSTALLATION, navigate: url => {navigated.push(url);}, pageReturn: () => {const value = pageReturn; pageReturn = undefined; return value;}});
@@ -85,6 +85,20 @@ test('the setup code and the server\'s name go to the server, with a way back to
   assert.deepEqual([ready.kind, ready.kind === 'approvalReady' ? ready.approvalUrl : ''], ['approvalReady', HOSTED + '/approve/apv_1']);
   assert.deepEqual(f.store.peek(), {}, 'no setup record or attempt is written');
   assert.deepEqual(f.record().servers, [], 'no sign-in is kept before the approval comes back');
+});
+
+test('Back and Start over during setup send nothing (the server holds no unfinished setup) and forget the approval asked for', async t => {
+  const f = await fixture(t);
+  await f.ports.start(f.context(), 'ABCD-EFGH');
+  await f.ports.initializeHosted('Den', undefined, f.context());
+  const sent = f.calls.length;
+  assert.deepEqual(await f.ports.abandon(f.context()), {kind: 'abandoned'});
+  await assert.rejects(f.ports.requestApproval(true, f.context()), {code: 'cancelled'}, 'the approval asked for is forgotten');
+  await f.ports.initializeHosted('Den', undefined, f.context());
+  assert.deepEqual(await f.ports.startOver(f.context()), {kind: 'startedOver'});
+  await assert.rejects(f.ports.requestApproval(true, f.context()), {code: 'cancelled'});
+  assert.deepEqual(f.calls.slice(sent).map(call => call.path), ['/v1/setup/portico'], 'only the second setup request was sent');
+  assert.equal((await f.ports.initializeHosted('Den', undefined, f.context())).kind, 'initializeDone', 'the setup code given still stands');
 });
 
 test('the page goes only to the Portico Account site: an approval address anywhere else is refused, plainly, and never opened', async t => {

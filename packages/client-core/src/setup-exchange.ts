@@ -8,6 +8,7 @@ import {CodedError} from './server-messages.ts';
 import {setupAttemptBound, setupAttemptProofMatches, setupOwnerGrantFor} from './setup-custody.ts';
 import {verifySetupClaimStart} from './setup-claim-start.ts';
 import {readSetupState} from './setup-state.ts';
+import {revokeCurrentSession} from './query/connection-operations.ts';
 import type {SetupAttempt, SetupStore} from './setup-store.ts';
 import {routePath} from '../../contracts/src/route-paths.ts';
 import {clockOrigin, serverClockFor} from './server-clock.ts';
@@ -91,5 +92,5 @@ async function retire(ports: SetupExchangePorts, api: HttpLocalApi, session: Loc
   if (routes) temporary.useRoutes(routes);
   // React Native has no AbortSignal.timeout: a linked deadline, released after.
   const linked = linkAbortSignals([], 5000);
-  try {await temporary.request(routePath('delete_sessions_current'), 'DELETE', undefined, linked.signal);} catch { /* best effort */ } finally {linked.dispose();}
+  try {await revokeCurrentSession(temporary, linked.signal);} catch { /* best effort */ } finally {linked.dispose();}
 }
