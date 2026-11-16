@@ -51,6 +51,11 @@ export function createShowBindings(context: ScreenContext) {
       });
     }} : undefined);
   };
+  /** The page of the episode the main action plays: read again when that episode changes. */
+  const followNextUp = async (signal?: AbortSignal) => {
+    const nextUp = service.getSnapshot().data?.nextUp;
+    if (nextUp?.libraryId && nextUp.playback && primary.service.getSnapshot().target?.itemId !== nextUp.playback.itemId) await primary.select({libraryId: nextUp.libraryId, itemId: nextUp.playback.itemId}, signal);
+  };
   const current = (data: ShowWorkspaceData) => {
     life.assert();
     if (service.getSnapshot().phase !== 'ready' || service.getSnapshot().data !== data) throw new DOMException('Show revision changed', 'AbortError');
@@ -92,6 +97,10 @@ export function createShowBindings(context: ScreenContext) {
         if (data?.nextUp?.libraryId && data.nextUp.playback) await primary.select({libraryId: data.nextUp.libraryId, itemId: data.nextUp.playback.itemId}, active);
       } finally { active.removeEventListener('abort', cancel); }
     },
+    /** Another season is chosen: the main action becomes that season's next episode (W1 F3). */
+    async selectSeason(seasonId: string) {
+      life.assert(); await service.selectSeason(seasonId); await followNextUp();
+    },
     async expand(data: ShowWorkspaceData, entry: ContentEntry) {
       current(data);
       if (!data.episodes.sections.some(section => section.entries.includes(entry))) throw new DOMException('Episode changed', 'AbortError');
@@ -102,7 +111,7 @@ export function createShowBindings(context: ScreenContext) {
     },
     async playEpisode(data: ShowWorkspaceData, entry: ContentEntry, signal?: AbortSignal) {
       current(data); signal?.throwIfAborted();
-      if (!data.episodes.sections.some(section => section.entries.includes(entry)) || entry.available !== true || entry.playback?.itemId !== entry.id) throw new DOMException('Episode playback changed', 'AbortError');
+      if (!data.episodes.sections.some(section => section.entries.includes(entry)) || entry.available === false || entry.playback?.itemId !== entry.id) throw new DOMException('Episode playback changed', 'AbortError');
       playbackRequest?.abort(); const controller = new AbortController(); playbackRequest = controller;
       const active = life.signal(signal ? AbortSignal.any([controller.signal, signal]) : controller.signal);
       try {
@@ -149,8 +158,7 @@ export function createShowBindings(context: ScreenContext) {
       life.assert();
       const data = service.getSnapshot().data; if (!data) return;
       const value = await getContainerState(life.api, 'show', data.show.id, life.signal(refresh?.signal)); current(data); personal = value; publish();
-      const nextUp = data.nextUp;
-      if (nextUp?.libraryId && nextUp.playback && primary.service.getSnapshot().target?.itemId !== nextUp.playback.itemId) await primary.select({libraryId: nextUp.libraryId, itemId: nextUp.playback.itemId}, refresh?.signal);
+      await followNextUp(refresh?.signal);
       // Otherwise its page is a cached document the hub already keeps current.
     },
     async setMyList(data: ShowWorkspaceData, value: boolean) {

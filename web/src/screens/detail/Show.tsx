@@ -124,7 +124,7 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
   const {show} = data, selectedSeason = data.seasons.find(season => season.id === data.selected.seasonId);
   const selectedProgress = selectedSeason ? seasonProgress(selectedSeason.watchedCount, selectedSeason.unwatchedCount) : undefined;
   const seasonLabel = selectedSeason ? selectedSeason.number === 0 ? t('next.kit.special') : t('next.kit.season', {number: selectedSeason.number}) : data.groups.find(group => group.id === data.selected.group)?.title ?? t('next.controls.episodes');
-  const selectSeason = (id: string) => { runScreenCommand(binding.context, () => { binding.current(data); return binding.service.selectSeason(id).then(() => setSeasonMenu(false)); }); };
+  const selectSeason = (id: string) => { runScreenCommand(binding.context, () => { binding.current(data); return binding.selectSeason(id).then(() => setSeasonMenu(false)); }); };
   const pageSeasons = (next: boolean) => { runScreenCommand(binding.context, () => { binding.current(data); return next ? binding.service.nextSeasons() : binding.service.previousSeasons(); }); };
   const setPlayState = (state: 'all' | 'played' | 'unplayed' | 'in-progress') => {
     runScreenCommand(binding.context, () => { binding.current(data); const route = snapshot.route; if (route) return binding.select({...route, playState: state === 'all' ? undefined : state}); });
@@ -134,7 +134,7 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
     try {
       for (let page = 0; page < 20; page++) {
         const snapshot = binding.service.getSnapshot(), seasons = snapshot.data?.seasons ?? [], target = seasons.find(season => season.number === number);
-        if (target) { await binding.service.selectSeason(target.id); return true; }
+        if (target) { await binding.selectSeason(target.id); return true; }
         if (!snapshot.seasonPagination.nextCursor) return false;
         await binding.service.nextSeasons();
       }
@@ -228,7 +228,7 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
           const continuing = !episode.watched && (episode.progressSeconds ?? 0) > 0;
           const status: FactPart[] = continuing ? [{id: 'continue', text: t('title.continueEpisode'), role: 'status'}, ...cardText(subject, 'continuation', env).detail] : next ? [{id: 'up-next', text: t('title.nextUp'), role: 'status'}] : [];
           return <Fragment key={episode.id}><CatalogueSelectionEntry selection={selection} entry={episode} position={index}>{picked => <EpisodeTile selection={picked} className={styles.episodeRow} model={{...model, caption: [...model.caption, ...status]}} length={model.detail.find(part => part.id === 'duration')?.text} airDate={!continuing && date ? {...date, id: 'air-date'} : undefined} context="detail" artworkKind={episode.stillUrl ? 'still' : 'backdrop'} artwork={art.foreground(episode.stillUrl ?? episode.backdropUrl ?? show.backdropUrl, 632, 16 / 9)} watched={episode.watched} expanded={expanded} next={next} description={episode.overview}
-            onPlay={episode.available === true && episode.playback?.itemId === episode.id ? () => runScreenCommand(binding.context, () => binding.playEpisode(data, episode)) : undefined}
+            onPlay={episode.available !== false && episode.playback?.itemId === episode.id ? () => runScreenCommand(binding.context, () => binding.playEpisode(data, episode)) : undefined}
             onNavigate={() => { void binding.expand(data, episode).catch(binding.context.effects.reportError); }} />}</CatalogueSelectionEntry>
             {rowEnd === index && opened && <div className={styles.expanded}><EpisodeBody binding={binding} data={data} /></div>}
           </Fragment>;
