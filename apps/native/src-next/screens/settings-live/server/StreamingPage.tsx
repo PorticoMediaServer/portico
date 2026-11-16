@@ -3,11 +3,9 @@ import {withRequestRaw} from '../../../../../../packages/client-core/src/home-se
 import React, {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {type SettingsConfiguration} from '../../../../../../packages/client-core/src/settings-configuration';
-import {testHardware} from '../../../../../../packages/client-core/src/hardware';
-import type {TranscodeCapacity} from '../../../../../../packages/client-core/src/telemetry';
+import {readOwnerStreamingHardware, runOwnerHardwareTest, type OwnerStreamingHardware} from '../../../../../../packages/client-core/src/server-admin/streaming-hardware';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
 import {SettingsRow} from '../../../kit/shell';
-import {ConsoleClient} from '../../../../../../packages/client-core/src/console';
 import {FormSet} from '../../../../../../packages/client-core/src/server-admin/draft-form';
 import {withFormValue} from '../../../../../../packages/client-core/src/server-admin/server-forms';
 import {readSettingsBinding, settingsBinding, settingsBindingPatch, type SettingsBindingSources} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
@@ -31,33 +29,34 @@ export function NativeServerStreaming({ports, runtime, compactHeader = false}: {
   const owned = useMemo(() => {
     const lifetime = new NativeScreenLifetime(context);
     const api = {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => lifetime.request(next => context.api.request<T>(path, method, body, next), signal)};
-    const console = new ConsoleClient(api, {serverId: lifetime.authority.serverId, viewerId: lifetime.authority.profileId});
     const streaming = new OwnerStreamingSettings(withRequestRaw(api, context.api.requestRaw?.bind(context.api), lifetime.assert));
     const forms = {runtime: streaming.form('runtime'), connectivity: streaming.form('connectivity')};
     const set = new FormSet(); set.add('runtime', forms.runtime); set.add('connectivity', forms.connectivity);
-    return {lifetime, api, console, forms, set, streaming};
+    return {lifetime, api, forms, set, streaming};
   }, [context]);
-  const capacityAlive = useRef(true), capacityPending = useRef(false);
-  const [capacity, setCapacity] = useState<TranscodeCapacity>(), [capacityError, setCapacityError] = useState<unknown>(), [testing, setTesting] = useState(false);
+  // The rebuilt server's measured hardware report; Test hardware starts one bounded test and reads until it ends.
+  const hardwareAlive = useRef(true), hardwarePending = useRef(false);
+  const [hardware, setHardware] = useState<OwnerStreamingHardware>(), [hardwareError, setHardwareError] = useState<unknown>(), [testing, setTesting] = useState(false), [tested, setTested] = useState<'ok' | 'problem'>();
+  const owns = () => hardwareAlive.current && owned.lifetime.current();
   const runHardwareTest = async () => {
-    if (capacityPending.current || !owned.lifetime.current()) return;
-    capacityPending.current = true; setTesting(true);
+    if (hardwarePending.current || !owned.lifetime.current()) return;
+    hardwarePending.current = true; setTesting(true); setTested(undefined);
     try {
-      const value = await testHardware(owned.api);
-      if (capacityAlive.current && owned.lifetime.current()) {setCapacity(value); setCapacityError(undefined);}
-    } catch (error) {if (capacityAlive.current && owned.lifetime.current()) setCapacityError(error);}
-    finally {capacityPending.current = false; if (capacityAlive.current && owned.lifetime.current()) setTesting(false);}
+      const value = await runOwnerHardwareTest(owned.api, ms => new Promise(resolve => setTimeout(resolve, ms)));
+      if (owns()) {setHardware(value); setHardwareError(undefined); setTested(value.checking ? undefined : value.lastError ? 'problem' : 'ok');}
+    } catch (error) {if (owns()) setHardwareError(error);}
+    finally {hardwarePending.current = false; if (owns()) setTesting(false);}
   };
-  const loadCapacity = useCallback(() => {
-    if (capacityPending.current || !owned.lifetime.current()) return;
-    capacityPending.current = true;
-    void owned.console.transcodeCapacity().then(value => {if (capacityAlive.current && owned.lifetime.current()) {setCapacity(value); setCapacityError(undefined);}}, error => {if (capacityAlive.current && owned.lifetime.current()) setCapacityError(error);}).finally(() => {capacityPending.current = false;});
+  const loadHardware = useCallback(() => {
+    if (hardwarePending.current || !owned.lifetime.current()) return;
+    hardwarePending.current = true;
+    void readOwnerStreamingHardware(owned.api).then(value => {if (owns()) {setHardware(value); setHardwareError(undefined);}}, error => {if (owns()) setHardwareError(error);}).finally(() => {hardwarePending.current = false;});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [owned]);
-  // Capacity can probe FFmpeg on a cache miss: one page read, never a polling loop or a test result.
-  useEffect(() => {capacityAlive.current = true; loadCapacity(); return () => {capacityAlive.current = false;};}, [loadCapacity]);
+  useEffect(() => {hardwareAlive.current = true; loadHardware(); return () => {hardwareAlive.current = false;};}, [loadHardware]);
   const [configuration, setConfiguration] = useState<SettingsConfiguration>(), [configurationError, setConfigurationError] = useState<unknown>();
   useEffect(() => {const read = new AbortController(); void owned.streaming.readConfiguration(read.signal).then(value => {if (!read.signal.aborted) setConfiguration(value);}, error => {if (!read.signal.aborted) setConfigurationError(error);}); return () => read.abort();}, [owned]);
-  useEffect(() => {for (const form of Object.values(owned.forms)) void form.load(); return () => {for (const form of Object.values(owned.forms)) form.dispose(); owned.console.dispose(); owned.set.discard(); owned.lifetime.dispose();};}, [owned]);
+  useEffect(() => {for (const form of Object.values(owned.forms)) void form.load(); return () => {for (const form of Object.values(owned.forms)) form.dispose(); owned.set.discard(); owned.lifetime.dispose();};}, [owned]);
   const runtimeState = useSyncExternalStore(owned.forms.runtime.subscribe, owned.forms.runtime.getSnapshot);
   const connectivityState = useSyncExternalStore(owned.forms.connectivity.subscribe, owned.forms.connectivity.getSnapshot);
   const state = useSyncExternalStore(owned.set.subscribe, owned.set.getSnapshot);
@@ -87,7 +86,7 @@ export function NativeServerStreaming({ports, runtime, compactHeader = false}: {
     if (row.id === 'streaming.hardware' && value) {
       // The adapters come from the hardware report, by their opaque ids; a saved adapter that
       // is gone stays drawn as the current choice.
-      const choices = hardwareSelectionChoices(capacity?.hardware.devices ?? [], value.current, t);
+      const choices = hardwareSelectionChoices(hardware?.devices ?? [], value.current, t);
       const options = choices.map(choice => ({value: choice.value, label: choice.label as never, locked: choice.locked, ...(choice.hint ? {hint: choice.hint as never} : {})}));
       // The choices are already in words (an adapter's name is the driver's own), so only the
       // row's own copy goes through the catalogue.
@@ -116,11 +115,8 @@ export function NativeServerStreaming({ports, runtime, compactHeader = false}: {
     {state.saveError !== undefined && <StateView variant="inline" {...runtime.error(state.saveError, () => {if (!invalid.size && owned.lifetime.current()) void owned.set.save();}, 'server-console')}/>}
     {state.problem && <Text accessibilityRole="alert" style={[theme.type.caption, {color: theme.colors.record}]}>{t(state.problem as Parameters<typeof t>[0])}</Text>}
     {renderGroups(section?.groups)}
-    {capacityError !== undefined && <StateView variant="inline" {...runtime.error(capacityError, loadCapacity, 'server-console')}/>}
-    {capacity && <>
-      <View style={{backgroundColor: theme.colors.raised, borderRadius: 14}}><SettingsRow first label={t('next.settingsSpec.server.streaming.groups.2.rows.2.label')} value={capacity.temporaryDirectory.path} description={!capacity.temporaryDirectory.ready ? t('error.unavailable') : capacity.temporaryDirectory.freeBytes === null ? undefined : t('settings.server.health.free', {bytes: defaultI18n.bytes(capacity.temporaryDirectory.freeBytes)})}/></View>
-      <NativeStreamingHardware capacity={capacity} testing={testing} disabled={testing || state.saving} onTest={() => {void runHardwareTest();}} t={t}/>
-    </>}
+    {hardwareError !== undefined && <StateView variant="inline" {...runtime.error(hardwareError, loadHardware, 'server-console')}/>}
+    {hardware && <NativeStreamingHardware hardware={hardware} testing={testing} tested={tested} disabled={testing || state.saving} onTest={() => {void runHardwareTest();}} t={t}/>}
     <NativeAdvancedSection testID="server-streaming-advanced" open={advanced} onOpenChange={setAdvanced} summary={!configuration || runtimeState.loading || connectivityState.loading ? t('status.loading') : settingsSummary(section?.advanced?.groups?.flatMap(group => group.rows) ?? [], fact, t)}>{renderGroups(section?.advanced?.groups)}</NativeAdvancedSection>
   </ScrollView><View style={{flexDirection: 'row', justifyContent: 'flex-end', padding: 16, gap: 12}}><Button variant="glass" disabled={(!state.dirty && invalid.size === 0) || state.saving} onPress={() => {owned.set.discard(); setInvalid(new Set()); setCustomAway(false); setDiscardRevision(value => value + 1);}}>{t('action.discard')}</Button><Button disabled={!state.dirty || state.saving || invalid.size > 0 || !!state.problem} loading={state.saving} onPress={() => {if (!invalid.size && owned.lifetime.current()) void owned.set.save();}}>{t('action.save')}</Button></View></View>;
 }
