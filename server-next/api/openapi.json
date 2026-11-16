@@ -4113,6 +4113,9 @@
           "libraryId": {
             "type": "string"
           },
+          "nextEpisode": {
+            "$ref": "#/components/schemas/Item"
+          },
           "originalTitle": {
             "type": "string"
           },
