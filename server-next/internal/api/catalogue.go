@@ -46,6 +46,7 @@ func errCursorExpired() *Error {
 }
 
 func (s *Server) catalogueRoutes() {
+	s.homeRowRoutes()
 	s.searchRoutes()
 	Handle(s, "GET /v1/libraries", WithProfile, func(r *http.Request, _ None) (Libraries, error) {
 		libraries, err := s.db.Libraries(r.Context(), viewer(r))
@@ -73,15 +74,6 @@ func (s *Server) catalogueRoutes() {
 		if err != nil {
 			return Home{}, refuse(err)
 		}
-		// What is in progress in this library, whatever its kind.
-		continuing, err := s.db.ContinueIn(r.Context(), viewer(r), l.PublicID)
-		if err != nil {
-			return Home{}, err
-		}
-		recent, err := s.db.RecentlyAddedIn(r.Context(), viewer(r), l.PublicID)
-		if err != nil {
-			return Home{}, err
-		}
 		title, shape := "Continue Watching", "landscape"
 		switch l.Kind {
 		case db.LibraryMusic, db.LibraryAudiobooks:
@@ -91,11 +83,15 @@ func (s *Server) catalogueRoutes() {
 			// "Continue reading".
 			title, shape = "Continue reading", "poster"
 		}
-		return Home{Rows: shownRows([]HomeRow{
-			{ID: "continue", Title: title, Shape: shape, Items: itemShapes(continuing)},
-			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: itemShapes(recent)},
+		rows := []HomeRow{
+			{ID: "continue", Title: title, Shape: shape},
+			{ID: "recently_added", Title: "Recently Added", Shape: "poster"},
 			s.newIssuesRow(r, l),
-		})}, nil
+		}
+		if _, err := s.pageHomeRows(r, rows[:2], l.PublicID); err != nil {
+			return Home{}, err
+		}
+		return Home{Rows: shownRows(rows)}, nil
 	})
 	Handle(s, "GET /v1/items", WithProfile, func(r *http.Request, _ None) (ItemPage, error) {
 		q, err := itemQuery(r.URL.Query())
@@ -262,35 +258,23 @@ func (s *Server) catalogueRoutes() {
 		if !withHidden && r.URL.Query().Get("hidden") != "" {
 			return Home{}, ErrField("hidden", `Leave this out, or send "include".`)
 		}
-		continuing, err := s.db.ContinueWatching(r.Context(), viewer(r))
-		if err != nil {
-			return Home{}, err
-		}
-		listening, err := s.db.ContinueListening(r.Context(), viewer(r))
-		if err != nil {
-			return Home{}, err
-		}
-		reading, err := s.db.ContinueReading(r.Context(), viewer(r))
-		if err != nil {
-			return Home{}, err
-		}
-		recent, err := s.db.RecentlyAdded(r.Context(), viewer(r))
-		if err != nil {
-			return Home{}, err
-		}
 		moods, err := s.db.MoodRows(r.Context(), viewer(r))
 		if err != nil {
 			return Home{}, err
 		}
 		home := []HomeRow{
-			{ID: "continue", Title: "Continue Watching", Shape: "landscape", Items: itemShapes(continuing)},
-			{ID: "continue_listening", Title: "Continue Listening", Shape: "poster", Items: itemShapes(listening)},
-			{ID: "continue_books", Title: "Continue your books", Shape: "poster", Items: itemShapes(reading)},
-			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: itemShapes(recent)},
+			{ID: "continue", Title: "Continue Watching", Shape: "landscape", Items: []Item{}},
+			{ID: "continue_listening", Title: "Continue Listening", Shape: "poster", Items: []Item{}},
+			{ID: "continue_books", Title: "Continue your books", Shape: "poster", Items: []Item{}},
+			{ID: "recently_added", Title: "Recently Added", Shape: "poster", Items: []Item{}},
+		}
+		continuing, err := s.pageHomeRows(r, home, "")
+		if err != nil {
+			return Home{}, err
 		}
 		for _, mood := range moods {
 			home = append(home, HomeRow{ID: mood.Key, Title: moodRowTitle(mood.Label), Reason: because(mood.Because),
-				Shape: "poster", Items: itemShapes(mood.Items)})
+				Shape: "poster", Items: itemShapes(mood.Items), NextCursor: mood.NextCursor})
 		}
 		views, err := s.savedViewRows(r)
 		if err != nil {

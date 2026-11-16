@@ -126,6 +126,9 @@ type ItemQuery struct {
 	Limit     int
 	WithTotal bool
 
+	homeIDs    []int64 // a Continue row, in its own order; nil for other lists
+	homeRecent bool
+
 	entries bool // the rows are a list's entries, already narrowed to a list the viewer may read
 }
 
@@ -190,6 +193,16 @@ var seriesOrder = sortSpec{columns: []string{"ifnull(i.index_number, 1e18)", "i.
 
 // sortSpec is how this list is ordered. Its own order means volume order for a series.
 func (q ItemQuery) sortSpec(seed int64) (sortSpec, bool) {
+	if q.homeRecent && q.Sort == SortAdded {
+		return sortSpec{columns: []string{"max(i.added_at, ifnull(i.last_child_added_at, 0))"}}, true
+	}
+	if q.homeIDs != nil && q.Sort == SortOrder {
+		order := "CASE i.id WHEN -1 THEN -1"
+		for n, id := range q.homeIDs {
+			order += fmt.Sprintf(" WHEN %d THEN %d", id, n)
+		}
+		return sortSpec{columns: []string{order + " ELSE -1 END"}}, true
+	}
 	if q.Sort == SortOrder && q.Series != "" {
 		return seriesOrder, true
 	}
@@ -319,7 +332,7 @@ func (d *DB) Items(ctx context.Context, v Viewer, q ItemQuery) (ItemPage, error)
 	if cursor != nil && !cursor.fits(spec) {
 		return page, ErrCursorExpired
 	}
-	if q.Sort == SortOrder && q.Parent == "" && q.Series == "" {
+	if q.Sort == SortOrder && q.Parent == "" && q.Series == "" && q.homeIDs == nil {
 		// Season and episode numbers order one show's items. Over a whole library they have
 		// no index and mean nothing, so the list would be sorted afresh for every page.
 		return page, invalid("Only the titles inside a show, season, artist, album or series can be sorted in their own order.")
@@ -630,6 +643,18 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		w.add(` AND EXISTS (SELECT 1 FROM play_history h WHERE h.item_id = i.id AND `, sharedPlay, `)`)
 	}
 	scoped := false
+	if q.homeIDs != nil {
+		w.add(" AND i.id IN ", intList(q.homeIDs))
+		scoped = true
+	}
+	if q.homeRecent {
+		w.add(fmt.Sprintf(` AND (i.kind IN (%d,%d,%d,%d,%d,%d) OR
+			(i.kind IN (%d,%d,%d) AND i.parent_id IS NULL) OR
+			(i.kind = %d AND EXISTS (SELECT 1 FROM items issue WHERE issue.parent_id = i.id AND issue.kind = %d)))`,
+			KindMovie, KindShow, KindAlbum, KindBook, KindAudiobook, KindComic, KindEpisode, KindTrack, KindIssue, KindSeries, KindIssue))
+		scoped = true
+	}
+
 	var library int64
 	var kindList string
 	// A library, title or person the list is of is looked up first. One the viewer may not see
@@ -864,7 +889,7 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 		}
 		w.add(` AND EXISTS (SELECT 1 FROM media m WHERE m.item_id = i.id AND m.width IS NOT NULL AND `, resolutionSQL, ` = `, fmt.Sprint(class), `)`)
 	}
-	if library != 0 && kindList != "" && q.Parent == "" && q.Person == "" && q.Tag == "" && q.Genre == "" &&
+	if q.homeIDs == nil && !q.homeRecent && library != 0 && kindList != "" && q.Parent == "" && q.Person == "" && q.Tag == "" && q.Genre == "" &&
 		q.YearFrom == 0 && q.YearTo == 0 && q.Favorite == nil && q.InList == nil && q.Watched == nil && q.Resolution == "" && len(q.Conditions) == 0 {
 		w.whole = true
 		if acc.maxAge == nil {

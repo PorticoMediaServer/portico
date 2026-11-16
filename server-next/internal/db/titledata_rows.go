@@ -39,10 +39,12 @@ const (
 
 // MoodRow is one Home row of titles carrying a tag from the title data.
 type MoodRow struct {
-	Key     string       // the tag's key in the data set, "mood:cozy"
-	Label   string       // its row label, "cozy stories"
-	Because []MoodReason // up to two titles the profile watched or liked that carry it, newest first
-	Items   []Item
+	Source     []int64 // the bounded kept choice, in its own order, for See all
+	NextCursor string
+	Key        string       // the tag's key in the data set, "mood:cozy"
+	Label      string       // its row label, "cozy stories"
+	Because    []MoodReason // up to two titles the profile watched or liked that carry it, newest first
+	Items      []Item
 }
 
 // MoodReason is a title a mood row comes from, and whether the profile watched it (played or
@@ -280,15 +282,22 @@ func (d *DB) MoodRows(ctx context.Context, v Viewer) ([]MoodRow, error) {
 		}
 		row := MoodRow{Key: k.key, Label: k.label}
 		for _, it := range items {
-			if !offered[it.ID] && len(row.Items) < homeRowSize {
-				row.Items = append(row.Items, it)
+			if !offered[it.ID] {
+				row.Source = append(row.Source, it.ID)
+				if len(row.Items) < homeRowSize {
+					row.Items = append(row.Items, it)
+				}
 			}
 		}
 		if len(row.Items) < moodRowMin {
 			continue
 		}
-		for _, it := range row.Items {
-			offered[it.ID] = true
+		for _, id := range row.Source {
+			offered[id] = true
+		}
+		if len(row.Source) > len(row.Items) {
+			last := row.Items[len(row.Items)-1]
+			row.NextCursor = (listCursor{Sort: SortOrder, Values: []any{int64(len(row.Items) - 1)}, ID: last.ID}).encode()
 		}
 		for _, it := range because[:min(2, len(because))] {
 			row.Because = append(row.Because, MoodReason{Item: it, Watched: k.watched[it.ID]})

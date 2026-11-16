@@ -3734,6 +3734,9 @@
           },
           "title": {
             "type": "string"
+          },
+          "total": {
+            "type": "integer"
           }
         },
         "required": [
@@ -24989,6 +24992,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Home"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "withProfile",
+        "x-audience": "Integrations",
+        "x-scope": "read"
+      }
+    },
+    "/v1/home/rows/{id}": {
+      "get": {
+        "operationId": "get_v1_home_rows_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomeRow"
                 }
               }
             },
