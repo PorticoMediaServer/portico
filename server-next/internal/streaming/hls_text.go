@@ -21,6 +21,8 @@ type TextRenditionPlan struct {
 	// file beside the video, inside a library folder; with no Path the track is
 	// track number Track of the stream's own file. OffsetUS is the viewer's
 	// timing nudge, moved into every cue the server sends: later when positive.
+	// Source is a subtitle on the same configured remote storage as its video.
+	Source   Source
 	Format   string
 	Path     string
 	Size     int64

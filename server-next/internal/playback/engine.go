@@ -229,10 +229,13 @@ type StartRequest struct {
 
 // SubtitleFile is a subtitle the app fetches beside the stream.
 type SubtitleFile struct {
-	TrackID  string `json:"trackId"`
-	Format   string `json:"format"`
-	URL      string `json:"url"`
-	OffsetMs int64  `json:"offsetMs,omitempty"`
+	TrackID string `json:"trackId"`
+	Format  string `json:"format"`
+	URL     string `json:"url"`
+	// Original files retain source timestamps; the app applies OffsetMs.
+	FontsURL   string `json:"fontsUrl,omitempty"`
+	TimeDomain string `json:"timeDomain,omitempty"`
+	OffsetMs   int64  `json:"offsetMs"`
 }
 
 // Stream is a running stream. Its address carries its own permission, the grant, which dies

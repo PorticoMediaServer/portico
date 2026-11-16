@@ -699,12 +699,26 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 			rendition.OffsetUS = p.nudgeMs * 1000
 		}
 		if track.Sidecar {
-			// A subtitle file the scanner no longer has is left out; the film still plays.
+			// A subtitle no longer present is left out; the film still plays.
 			beside, err := e.db.FileOnDisk(ctx, track.FileID)
+			if err != nil && p.remoteID != 0 {
+				var sourceID int64
+				sourceID, beside, err = e.db.RemoteFileOf(ctx, track.FileID)
+				if err == nil {
+					storage, _, openErr := e.remote(ctx, sourceID)
+					err = openErr
+					if err == nil {
+						rendition.Source = streaming.RemoteFile(storage, beside.Path, beside.Size, time.Unix(0, beside.ModifiedNS))
+					}
+				}
+			}
 			if err != nil {
 				continue
 			}
 			rendition.Path, rendition.Size, rendition.Modified = beside.Path, beside.Size, time.Unix(0, beside.ModifiedNS)
+		}
+		if text.format == "ass" || text.format == "ssa" {
+			start.OriginalSubtitles = append(start.OriginalSubtitles, rendition)
 		}
 		if text.selected {
 			start.Subtitles = append([]streaming.TextRenditionPlan{rendition}, start.Subtitles...)
@@ -725,6 +739,12 @@ func (e *Engine) Start(ctx context.Context, r playback.StartRequest) (playback.S
 				file.OffsetMs = p.nudgeMs
 			}
 			out.Subtitles = append(out.Subtitles, file)
+		}
+		for _, original := range start.OriginalSubtitles {
+			base := subtitles.MediaBaseURL(s.Grant, original.Resource, original.Revision)
+			out.Subtitles = append(out.Subtitles, playback.SubtitleFile{TrackID: original.Resource,
+				Format: original.Format, URL: base + "/original." + original.Format, FontsURL: base + "/fonts",
+				TimeDomain: "source-relative", OffsetMs: p.nudgeMs})
 		}
 		return out
 	}

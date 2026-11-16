@@ -126,6 +126,10 @@ type windowSource interface {
 }
 
 func (f remoteFile) openWindow(ctx context.Context, ffmpeg, ffprobe string, processes *processpool.Supervisor) (*PlaybackInput, subtitles.WindowInput, error) {
+	return f.openBridge(ctx, ffmpeg, ffprobe, processes)
+}
+
+func (f remoteFile) openBridge(ctx context.Context, ffmpeg, ffprobe string, processes *processpool.Supervisor) (*PlaybackInput, *bridgeWindow, error) {
 	libraries, err := mediaexec.ResolveLibraries(ffmpeg, ffprobe, nil)
 	if err != nil {
 		return nil, nil, err
