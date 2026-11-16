@@ -228,3 +228,52 @@ func TestLaterProgressReportsDoNotChooseMoodRowsAgain(t *testing.T) {
 		t.Fatal("three more progress reports on the same title had the mood rows chosen again")
 	}
 }
+
+// Similar-work rank and title id continue without repeats even when the same work exists
+// in two libraries, and every page still applies the profile's limits.
+func TestMoreLikeThisPagesTheSignalInRankOrder(t *testing.T) {
+	l, films, _ := moodLibrary(t)
+	lib, err := l.d.CreateLibrary(ctx, "Another copy", db.LibraryMovies, "en", []string{t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = l.d.Import(ctx, db.ImportBatch{LibraryID: lib.ID, PathID: lib.Paths[0].ID, Scan: 1, Dirs: []db.ImportDir{{}},
+		Items: []db.ImportItem{{Kind: db.KindMovie, Title: "Another copy", ContentRating: films[1].ContentRating,
+			Keys: []db.ItemKey{{Kind: db.KeyName, Key: "copy"}}, ExternalIDs: films[1].ExternalIDs}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range l.viewers {
+		if !sees(t, l, v, films[0].PublicID) {
+			continue
+		}
+		all, err := l.d.MoreLikeThis(ctx, v, films[0].PublicID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for cursor := ""; ; {
+			page, err := l.d.MoreLikeThisPage(ctx, v, films[0].PublicID, cursor, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, it := range page.Items {
+				if !sees(t, l, v, it.PublicID) || slices.Contains(got, it.PublicID) {
+					t.Fatalf("hidden or repeated similar title: %s", it.PublicID)
+				}
+				got = append(got, it.PublicID)
+			}
+			if page.NextCursor == "" {
+				break
+			}
+			cursor = page.NextCursor
+		}
+		var want []string
+		for _, it := range all {
+			want = append(want, it.PublicID)
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("paged %v, want ranking %v", got, want)
+		}
+	}
+}

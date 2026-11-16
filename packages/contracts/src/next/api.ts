@@ -3343,6 +3343,7 @@ export interface Related {
 }
 
 export interface RelatedGroup {
+  nextCursor?: string;
   relation: string;
   person?: RelatedPerson;
   tag?: RelatedTag;
