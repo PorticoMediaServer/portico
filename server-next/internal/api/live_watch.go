@@ -251,13 +251,30 @@ func liveNetwork(asked string, atHome bool) string {
 
 // liveSession answers the playback routes for a live session.
 func (s *Server) liveSession(r *http.Request, paused *bool) (PlaybackSession, error) {
-	userID := CallerFrom(r.Context()).UserID
+	c := CallerFrom(r.Context())
+	userID := c.UserID
 	v, ok := s.viewings.Get(r.PathValue("id"), userID)
+	if ok {
+		if v.ProfileID != c.ProfileID || v.SignInID != c.SessionID {
+			return PlaybackSession{}, ErrNotFound()
+		}
+		lv, err := s.liveViewer(r)
+		if err != nil {
+			return PlaybackSession{}, err
+		}
+		ch, err := s.db.LiveChannelByID(r.Context(), viewer(r), v.ChannelID)
+		if err != nil {
+			return PlaybackSession{}, err
+		}
+		if !mayWatch(lv, ch) {
+			return PlaybackSession{}, ErrNotFound()
+		}
+	}
 	if ok && paused != nil {
 		v, ok = s.viewings.Report(v.ID, userID, *paused)
 	}
 	if !ok {
-		if message, stopped := s.viewings.StoppedFor(r.PathValue("id"), userID); stopped {
+		if message, stopped := s.viewings.StoppedForViewer(r.PathValue("id"), userID, c.ProfileID, c.SessionID); stopped {
 			// Stopped by the owner or an administrator: the viewer is told so (area 7 rule 42).
 			return PlaybackSession{ID: r.PathValue("id"), Kind: "live", State: playback.StateEnded,
 				End: &SessionEnd{Reason: playback.EndTerminated, Message: message}}, nil

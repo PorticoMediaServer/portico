@@ -135,7 +135,7 @@ func (s *Service) Start(ctx context.Context, in StartInput) (out Session, ready,
 }
 
 func (s *Service) start(ctx context.Context, in StartInput) (out Session, ready, created bool, err error) {
-	key := startKey{in.Caller.Viewer.UserID, in.Key}
+	key := startKey{userID: in.Caller.Viewer.UserID, profileID: in.Caller.Viewer.ProfileID, signInID: in.Caller.SignInID, key: in.Key}
 	s.mu.Lock()
 	rec := s.starts[key]
 	if rec != nil && rec.hash != in.Hash {
@@ -167,10 +167,18 @@ func (s *Service) start(ctx context.Context, in StartInput) (out Session, ready,
 			return out, false, false, ctx.Err()
 		}
 	}
-	sess := s.get(rec.sessionID)
-	if sess == nil {
-		// The first request with this key was refused, or its session is long over.
-		return out, false, false, db.ErrNotFound
+	sess, err := s.owned(rec.sessionID, in.Caller.Viewer, in.Caller.SignInID)
+	if err != nil {
+		return out, false, false, err
+	}
+	if !created {
+		visible, err := s.db.Visible(ctx, in.Caller.Viewer, sess.Item.ID)
+		if err != nil {
+			return out, false, false, err
+		}
+		if !visible {
+			return out, false, false, db.ErrNotFound
+		}
 	}
 	// A start that was told "preparing" and is now ready is still that app's first sight of
 	// the session.
