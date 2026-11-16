@@ -1,6 +1,5 @@
 import {defaultI18n, type MessageId} from '../../../../../../packages/i18n/src/index';
 import type {LibraryAdminJob, ManagedLibrary} from '../../../../../../packages/client-core/src/library-management';
-import type {ScanIssue} from '../../../../../../packages/client-core/src/scan-issues';
 import type {InventorySource, ScanTier} from '../../../../../../packages/client-core/src/library-inventory';
 import type {LibrarySettings} from '../../../../../../packages/client-core/src/administration';
 import type {IconName} from '../../../kit/Icon';
@@ -120,12 +119,13 @@ export function ownerFolderLocation(source: InventorySource, t: Translate = defa
 }
 
 /** Only the files Portico cannot play at all carry a category; warnings stay off this list. */
-export function ownerSkippedFiles(issues: readonly ScanIssue[]): readonly ScanIssue[] {
-  return issues.filter(issue => issue.category === 'damaged' || issue.category === 'unsupported' || issue.category === 'not-media');
-}
-
-export function ownerIssueReason(issue: ScanIssue, t: Translate = defaultI18n.t): string {
-  return defaultI18n.has(issue.messageKey) ? t(issue.messageKey as MessageId) : issue.reason;
+/** Why a title is unmatched, in the words the reason names (rebuilt `GET /v1/admin/libraries/{id}/unmatched`). */
+const unmatchedReasons: Readonly<Record<string, MessageId>> = {
+  no_results: 'next.ownerLibraries.unmatched.noResults', no_close_match: 'next.ownerLibraries.unmatched.noCloseMatch',
+  several_titles: 'next.ownerLibraries.unmatched.severalTitles', id_not_found: 'next.ownerLibraries.unmatched.idNotFound',
+};
+export function ownerUnmatchedReason(reason: string, t: Translate = defaultI18n.t): string {
+  return t(unmatchedReasons[reason] ?? 'next.ownerLibraries.unmatched.noCloseMatch');
 }
 
 /** The library's own live scan, if one is running now. */

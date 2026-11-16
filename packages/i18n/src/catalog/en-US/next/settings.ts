@@ -1,4 +1,8 @@
 export const settingsMessages = {
+  'next.ownerLibraries.unmatched.noResults': 'The provider found nothing for this name.',
+  'next.ownerLibraries.unmatched.noCloseMatch': 'Nothing was close enough to this name and year.',
+  'next.ownerLibraries.unmatched.severalTitles': 'More than one title fits equally well.',
+  'next.ownerLibraries.unmatched.idNotFound': 'The id in the file name or NFO file is not the provider’s.',
   'next.settings.appLog.empty': 'No recent app log entries to send.',
   'next.settings.appLog.recipient': 'Recipient: {owner}',
   'next.settings.appLog.sent': 'The app log was sent to {owner}.',

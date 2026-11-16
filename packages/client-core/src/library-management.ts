@@ -20,8 +20,6 @@ export type ManagedLibrary=Readonly<{id:string;name:string;position?:number;kind
  /** Files the scanner couldn't place (episode naming issues): `atLeast` when there are more than the server counts (1,000). Absent when none. */
  attention?:Readonly<{files:number;atLeast:boolean}>}>;
 /** One file the scanner couldn't place into a show, season and episode (`GET /v1/libraries/{id}/episode-issues`). */
-export type EpisodeIssue=Readonly<{assetId:string;sourceName:string;code:string}>;
-export type EpisodeIssuePage=Readonly<{issues:readonly EpisodeIssue[];nextCursor:string}>;
 export type LibraryManagementError=Readonly<{code:string;message:string;retryable:boolean}>;
 export type AdminPage<T>=Readonly<{scope:Readonly<{serverId:string;viewerFence:string}>;revision:number;items:readonly T[];nextCursor:string}>;
 /** An owner's view of one library: the document under `['admin','library',id,'management']`. */
@@ -37,12 +35,16 @@ const statuses:readonly string[]=['queued','running','paused','complete','comple
 class Failure extends Error{code:string;retryable:boolean;constructor(code:string,message:string,retryable=false){super(message);this.code=code;this.retryable=retryable;}}
 function invalid():never{throw new Failure('invalid_management',unreadableServerResponse);}
 /** A page of the files that need attention in one library, owner only. Unreadable rows are skipped. */
-export async function fetchEpisodeIssues(api:LibraryContentApi,libraryId:string,cursor='',signal?:AbortSignal):Promise<EpisodeIssuePage>{
- const q=new URLSearchParams({limit:'40'});if(cursor)q.set('cursor',cursor);
- const raw=await api.request<RouteResponse<"get_libraries_id_episode_issues">>(encodedRoutePath("get_libraries_id_episode_issues", {"id": encodeURIComponent(libraryId)}) + "?" + (q),'GET',undefined,signal);
- if(!object(raw)||!Array.isArray(raw.issues)||raw.issues.length>100||typeof raw.nextCursor!=='string')invalid();
- const issues=raw.issues.filter((x:unknown):x is Record<string,unknown>=>object(x)&&id(x.assetId)&&text(x.sourceName,8192)&&text(x.code,256)).map(x=>Object.freeze({assetId:x.assetId as string,sourceName:x.sourceName as string,code:x.code as string}));
- return Object.freeze({issues:Object.freeze(issues),nextCursor:raw.nextCursor});
+/** Titles Portico could not match to its provider, with the reason (no_results, no_close_match, several_titles,
+ * id_not_found). A title stays in the library under its cleaned name; fixing it is optional (03 rule on unmatched). */
+export type UnmatchedTitle=Readonly<{itemId:string;kind:string;title:string;year?:number;reason:string}>;
+export async function readUnmatchedTitles(api:LibraryContentApi,libraryId:string,cursor='',signal?:AbortSignal):Promise<Readonly<{items:readonly UnmatchedTitle[];nextCursor?:string}>>{
+ const raw:unknown=await callServer(api,'GET /v1/admin/libraries/{id}/unmatched',{id:libraryId,query:{cursor:cursor||undefined},signal});
+ if(!object(raw)||!Array.isArray(raw.items)||raw.nextCursor!==undefined&&typeof raw.nextCursor!=='string')invalid();
+ const page=raw as {items:unknown[];nextCursor?:string};
+ const items=page.items.filter((x:unknown):x is Record<string,unknown>=>object(x)&&id(x.itemId)&&text(x.title,8192)&&text(x.reason,64)&&text(x.kind,64))
+  .map(x=>Object.freeze({itemId:x.itemId as string,kind:x.kind as string,title:x.title as string,reason:x.reason as string,...(Number.isSafeInteger(x.year)?{year:x.year as number}:{})}));
+ return Object.freeze({items:Object.freeze(items),...(page.nextCursor?{nextCursor:page.nextCursor}:{})});
 }
 function errorInfo(e:unknown):LibraryManagementError{const v=e as {code?:unknown;retryable?:unknown};return Object.freeze({code:id(v?.code)?v.code:'request_failed',message:e instanceof Error?e.message:'Library management request failed.',retryable:v?.retryable===true});}
 /** The server says the same request may simply be repeated: `retry: same_request`, or a 5xx/429 that says nothing else. */

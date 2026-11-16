@@ -13,7 +13,7 @@ const document = (id = 'music', revision = 4): LibraryAdminDocument => ({
 });
 const sonic = (enabled = true, revision = 7): LibrarySonicDocument => ({
   libraryId: 'music', revision, enabled, defaultEnabled: true, available: true, state: enabled ? 'analyzing' : 'disabled',
-  done: 10, total: 20, policyAllows: true, policyRevision: 2, observedAtMs: 1,
+  done: 10, total: 20, observedAtMs: 1,
 });
 const lease = (parentCurrent: () => boolean = () => true): {command: SonicPageLease; controller: AbortController} => {
   const controller = new AbortController();
@@ -48,7 +48,7 @@ test('a retained callback cannot act after its Scanning page hides and reopens w
   assert.equal(await controller.setSonicEnabled(false, doc, current, first.command), false);
   assert.equal(reads, 0);
   assert.equal(await controller.retrySonic(doc, current, reopened.command), false);
-  assert.equal(reads, 1);
+  assert.equal(reads, 2, 'the current page reads once: the library and its sound-analysis status');
   controller.dispose();
   assert.equal(await controller.retrySonic(doc, current, reopened.command), false);
 });
@@ -62,7 +62,10 @@ test('a failed save recovers through the ordinary GET and clears the reload gate
   assert.equal(await controller.setSonicEnabled(true, doc, current, page.command), false);
   assert.equal(state.state.sonicNeedsReload, true);
   assert.equal((state.state.sonic as LibrarySonicDocument).enabled, false);
-  (controller as unknown as {api: {request: unknown}}).api = {request: async () => sonic(false, 8)};
+  // The rebuilt reads: the library (its revision and switch) and its sound-analysis status line.
+  (controller as unknown as {api: {request: unknown}}).api = {request: async (path: string) => path.endsWith('/sound-analysis')
+    ? {available: true, on: false, state: 'off', songs: 20, analyzed: 10}
+    : {id: 'music', name: 'Music', kind: 'music', revision: '8', options: {depth: 'basic', trash: {mode: 'never'}, allowDelete: false, rescanMinutes: 0, soundAnalysis: false}, folders: []}};
   assert.equal(await controller.reloadSonic(doc, current, page.command), true);
   assert.equal(state.state.sonicNeedsReload, false);
   assert.equal((state.state.sonic as LibrarySonicDocument).revision, 8);

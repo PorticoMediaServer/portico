@@ -1,14 +1,13 @@
 import {readOwnerMetadataAgent, fetchOwnerLibraryLyricsContract} from '../../../../../../packages/client-core/src/owner-library-requests';
 import {type RouteResponse} from '../../../../../../packages/contracts/src/routes';
-import {RemoteSourceService, type AnalysisPolicy} from '../../../../../../packages/client-core/src/remote-sources';
 import type {ExpectedRemoteSource} from '../../../../../../packages/client-core/src/remote-source-selection';
 import {LibraryManagementService, type LibraryManagementSnapshot, type ManagedLibrary} from '../../../../../../packages/client-core/src/library-management';
-import {fetchEpisodeIssues, type EpisodeIssue} from '../../../../../../packages/client-core/src/library-management';
+import {readUnmatchedTitles, type UnmatchedTitle} from '../../../../../../packages/client-core/src/library-management';
 import {type InventoryConfig, type SourceSettings} from '../../../../../../packages/client-core/src/library-inventory';
 import type {ViewerQueries} from '../../../../../../packages/client-core/src/query/viewer-queries';
 import {readOwnerLibrarySettings, readOwnerLibraryInventoryConfig, reorderLibraries, saveOwnerLibrarySettings, saveOwnerLibraryFolder, removeOwnerLibraryFolder, scanLibraryFolder, checkLibraryFolder} from '../../../../../../packages/client-core/src/server-admin/libraries';
 import {settingsSaveConflict} from '../../../../../../packages/client-core/src/settings-document';
-import {readScanIssues, type ScanIssues} from '../../../../../../packages/client-core/src/scan-issues';
+import {readLibrarySkippedFiles, type SkippedFilesPage} from '../../../../../../packages/client-core/src/admin/skipped-files';
 import {removeLibrary} from '../../../../../../packages/client-core/src/title-identity';
 import {parseMetadataAgent, saveMetadataAgent, type LibraryMetadataAgent} from '../../../../../../packages/client-core/src/server-admin/metadata-agent';
 import type {LibraryAdminDocument, LibrarySettings} from '../../../../../../packages/client-core/src/administration';
@@ -21,8 +20,6 @@ export type NativeOwnerLibrariesSnapshot = Readonly<{
   selectedId?: string;
   selected: LibraryManagementSnapshot['selected'];
   document?: LibraryAdminDocument;
-  strm?: AnalysisPolicy;
-  strmError?: unknown;
   sonic?: LibrarySonicDocument;
   sonicBusy: boolean;
   sonicError?: unknown;
@@ -38,10 +35,10 @@ export type NativeOwnerLibrariesSnapshot = Readonly<{
   metadata?: LibraryMetadataAgent;
   detail: 'idle' | 'loading' | 'ready' | 'error';
   detailError?: unknown;
-  skipped?: ScanIssues;
+  skipped?: SkippedFilesPage;
   skippedError?: unknown;
   skippedLoading: boolean;
-  unmatched: readonly EpisodeIssue[];
+  unmatched: readonly UnmatchedTitle[];
   unmatchedCursor: string;
   unmatchedLoading: boolean;
   unmatchedError?: unknown;
@@ -67,7 +64,6 @@ const empty: NativeOwnerLibrariesSnapshot = {directory: blankDirectory, selected
  * web console uses, with the screen's own lifetime. No optimistic rows and no replayed commands. */
 export class NativeOwnerLibrariesController {
   private management: LibraryManagementService;
-  private remotePolicy: RemoteSourceService;
   private api: LibraryContentApi;
   private scope: ContentScope;
   private state: NativeOwnerLibrariesSnapshot = empty;
@@ -77,7 +73,6 @@ export class NativeOwnerLibrariesController {
   private unsubscribe?: () => void;
   private sonicRequest?: AbortController;
   private libraryRequest?: AbortController;
-  private strmRead = 0;
   private lyricsKeys = new Map<string, string>();
   private lyricsFlight = false;
   private requestId: () => string;
@@ -86,7 +81,6 @@ export class NativeOwnerLibrariesController {
   constructor(api: LibraryContentApi, scope: ContentScope, requestId: () => string, private readonly queries?: ViewerQueries) {
     this.api = api; this.scope = scope; this.requestId = requestId;
     this.management = new LibraryManagementService({api, scope, queries});
-    this.remotePolicy = new RemoteSourceService(api, scope, async () => `${Date.now()}-${requestId()}`, () => !this.disposed);
     this.unsubscribe = this.management.subscribe(() => this.accept());
   }
 
@@ -111,7 +105,7 @@ export class NativeOwnerLibrariesController {
     this.unsubscribe?.();
     this.sonicRequest?.abort(); this.sonicRequest = undefined;
     this.libraryRequest?.abort();
-    this.management.dispose(); this.remotePolicy.dispose(); this.listeners.clear();
+    this.management.dispose(); this.listeners.clear();
   }
 
   private command<T>(work: () => Promise<T>): Promise<T | undefined> {
@@ -134,7 +128,7 @@ export class NativeOwnerLibrariesController {
     const generation = ++this.generation;
     this.libraryRequest?.abort(); this.libraryRequest = new AbortController();
     this.sonicRequest?.abort(); this.sonicRequest = undefined;
-    this.publish({inventory: undefined, inventoryLoading: true, inventoryError: undefined, document: undefined, lyricsJob: undefined, lyricsError: undefined, lyricsBusy: false, selectedId: libraryId, strm: undefined, strmError: undefined, detail: 'loading', detailError: undefined, skipped: undefined, skippedError: undefined, unmatched: Object.freeze([]), unmatchedCursor: '', sonic: undefined, sonicError: undefined, sonicErrorOperation: undefined, sonicNeedsReload: false, sonicBusy: false, sonicRetryUnavailable: false});
+    this.publish({inventory: undefined, inventoryLoading: true, inventoryError: undefined, document: undefined, lyricsJob: undefined, lyricsError: undefined, lyricsBusy: false, selectedId: libraryId, detail: 'loading', detailError: undefined, skipped: undefined, skippedError: undefined, unmatched: Object.freeze([]), unmatchedCursor: '', sonic: undefined, sonicError: undefined, sonicErrorOperation: undefined, sonicNeedsReload: false, sonicBusy: false, sonicRetryUnavailable: false});
     try {
       await this.management.selectLibrary(libraryId);
       if (this.disposed || generation !== this.generation) return;
@@ -143,41 +137,10 @@ export class NativeOwnerLibrariesController {
       if (this.disposed || generation !== this.generation) return;
       this.publish({document, metadata, detail: 'ready'});
       void this.loadSonic(document, generation);
-      void this.loadStrm(document, generation);
       await this.loadSkipped(document, generation);
     } catch (error) {
       if (!this.disposed && generation === this.generation) this.publish({detail: 'error', detailError: error});
     }
-  }
-
-  /** STRM analysis is a separate revisioned resource, never a LibrarySettings field. */
-  private async loadStrm(document: LibraryAdminDocument, generation: number): Promise<void> {
-    if (!document.eligibleControls?.includes('libraries.strm')) return;
-    const read = ++this.strmRead;
-    try {
-      const strm = await this.remotePolicy.policy(document.libraryId);
-      if (!this.disposed && read === this.strmRead && this.generation === generation && this.state.selectedId === document.libraryId) this.publish({strm, strmError: undefined});
-    } catch (error) {
-      if (!this.disposed && read === this.strmRead && this.generation === generation && this.state.selectedId === document.libraryId) this.publish({strmError: error});
-    }
-  }
-
-  async setStrm(enabled: boolean, document: LibraryAdminDocument, policy: AnalysisPolicy, lease: SonicPageLease): Promise<void> {
-    const generation = this.generation;
-    const current = () => !this.disposed && this.generation === generation && this.state.document === document && this.state.strm === policy && lease.isCurrent();
-    if (this.state.busy || this.state.strmError !== undefined || policy.libraryId !== document.libraryId || !current()) return;
-    this.strmRead++;
-    this.publish({busy: true, strmError: undefined});
-    try {
-      const strm = await this.remotePolicy.setPolicy(policy, enabled);
-      if (current()) this.publish({strm});
-      else if (!this.disposed && this.generation === generation && this.state.strm === policy) this.publish({strmError: {code: 'refresh_failed'}});
-    } catch (error) {if (!this.disposed && this.generation === generation && this.state.strm === policy) this.publish({strmError: error});}
-    finally {if (!this.disposed && this.generation === generation) this.publish({busy: false});}
-  }
-
-  reloadStrm(document: LibraryAdminDocument): Promise<void> {
-    return this.state.document === document && !this.disposed && !this.state.busy ? this.loadStrm(document, this.generation) : Promise.resolve();
   }
 
   /** Sonic status is its own original-owner read, separate from the library document and never its permission. */
@@ -308,13 +271,11 @@ export class NativeOwnerLibrariesController {
     finally {this.lyricsFlight = false; if (!this.disposed && generation === this.generation) this.publish({lyricsBusy: false});}
   }
 
-  /** The last finished scan's own diagnostics, narrowed by the screen to files Portico cannot play. */
+  /** This library's files Portico could not prepare (the rebuilt server keeps them per library, not per scan). */
   private async loadSkipped(document: LibraryAdminDocument, generation: number): Promise<void> {
-    const job = this.management.getSnapshot().selected.data?.library.lastScan;
-    if (!job?.id) {this.publish({skipped: undefined}); return;}
     this.publish({skippedLoading: true, skippedError: undefined});
     try {
-      const page = await readScanIssues(this.api, document.libraryId, job.id);
+      const page = await readLibrarySkippedFiles(this.api, document.libraryId);
       if (this.disposed || generation !== this.generation) return;
       this.publish({skipped: page, skippedLoading: false});
     } catch (error) {
@@ -323,12 +284,12 @@ export class NativeOwnerLibrariesController {
   }
 
   async loadSkippedMore(): Promise<void> {
-    const current = this.state.skipped, job = this.management.getSnapshot().selected.data?.library.lastScan;
-    if (!current?.hasMore || !job?.id || this.state.skippedLoading) return;
+    const current = this.state.skipped, libraryId = this.state.selectedId;
+    if (!current?.nextCursor || !libraryId || this.state.skippedLoading) return;
     const generation = this.generation;
     this.publish({skippedLoading: true});
     try {
-      const next = await readScanIssues(this.api, this.state.selectedId ?? '', job.id, current.nextSequence);
+      const next = await readLibrarySkippedFiles(this.api, libraryId, current.nextCursor);
       if (this.disposed || generation !== this.generation) return;
       this.publish({skipped: Object.freeze({...next, items: Object.freeze([...current.items, ...next.items])}), skippedLoading: false});
     } catch (error) {
@@ -339,9 +300,9 @@ export class NativeOwnerLibrariesController {
   private async loadUnmatched(libraryId: string, cursor: string, generation: number): Promise<void> {
     this.publish({unmatchedLoading: true, unmatchedError: undefined});
     try {
-      const page = await fetchEpisodeIssues(this.api, libraryId, cursor);
+      const page = await readUnmatchedTitles(this.api, libraryId, cursor);
       if (this.disposed || generation !== this.generation) return;
-      this.publish({unmatched: Object.freeze([...this.state.unmatched, ...page.issues]), unmatchedCursor: page.nextCursor, unmatchedLoading: false});
+      this.publish({unmatched: Object.freeze([...this.state.unmatched, ...page.items]), unmatchedCursor: page.nextCursor ?? '', unmatchedLoading: false});
     } catch (error) {
       if (!this.disposed && generation === this.generation) this.publish({unmatchedError: error, unmatchedLoading: false});
     }

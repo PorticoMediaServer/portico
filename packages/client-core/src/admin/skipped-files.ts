@@ -9,10 +9,16 @@ export type SkippedFilesPage = Readonly<{items: readonly SkippedFile[]; nextCurs
 
 const text = (v: unknown): v is string => typeof v === 'string';
 export async function readSkippedFiles(api: ServerRequester, cursor?: string, signal?: AbortSignal): Promise<SkippedFilesPage> {
-  const raw: unknown = await callServer(api, 'GET /v1/admin/skipped', {query: {cursor}, signal});
+  return skippedPage(await callServer(api, 'GET /v1/admin/skipped', {query: {cursor}, signal}));
+}
+/** One library's files Portico could not prepare, for its Scanning tab (owner). */
+export async function readLibrarySkippedFiles(api: ServerRequester, libraryId: string, cursor?: string, signal?: AbortSignal): Promise<SkippedFilesPage> {
+  return skippedPage(await callServer(api, 'GET /v1/admin/libraries/{id}/skipped', {id: libraryId, query: {cursor}, signal}), libraryId);
+}
+function skippedPage(raw: unknown, libraryId?: string): SkippedFilesPage {
   const page = raw as {items?: unknown; nextCursor?: unknown} | null;
   if (!page || !Array.isArray(page.items) || page.nextCursor !== undefined && !text(page.nextCursor)) throw Object.assign(new Error('invalid_skipped_files'), {code: 'invalid_skipped_files'});
   const items = page.items.filter((f): f is SkippedFile => !!f && typeof f === 'object' && text((f as SkippedFile).path) && text((f as SkippedFile).message))
-    .map(f => Object.freeze({libraryId: text(f.libraryId) ? f.libraryId : '', libraryName: text(f.libraryName) ? f.libraryName : '', path: f.path, reason: text(f.reason) ? f.reason : '', message: f.message}));
+    .map(f => Object.freeze({libraryId: libraryId ?? (text(f.libraryId) ? f.libraryId : ''), libraryName: text(f.libraryName) ? f.libraryName : '', path: f.path, reason: text(f.reason) ? f.reason : '', message: f.message}));
   return Object.freeze({items: Object.freeze(items), ...(page.nextCursor ? {nextCursor: page.nextCursor as string} : {})});
 }
