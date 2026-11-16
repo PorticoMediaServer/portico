@@ -30,7 +30,7 @@ function fixture(signIn: 'local' | 'portico' = 'local', answers: Record<string, 
     throw new Error(`Unexpected route ${path}`);
   };
   const controller = new SettingsOwnerSwitch(api, {serverId: 'server', hostedOrigin: 'https://web.example', isCurrent: () => current, signIn, serverName: () => 'Actual server',
-    secureContextAllowed: () => secure, retireLateGrant: async session => {retired.push(session);}, createClaim: () => {throw new Error('Unexpected owner claim');}});
+    secureContextAllowed: () => secure, retireLateGrant: async session => {retired.push(session);}});
   return {controller, calls, retired, insecure: () => {secure = false;}, retire: () => {current = false;}};
 }
 
@@ -115,4 +115,61 @@ test('the mounted Sign-in source is inert and exposes only actual kind/owner fac
     assert.equal(source.rowState('signin.owner')?.present, false);await source.load();assert.equal(calls, 1);
     current = false;assert.equal(source.rowState('signin.ownerLocal')?.present, false);
   } finally {source.dispose();}
+});
+
+test('Change owner on a Portico Accounts server asks for an approval, waits for the new owner, then hands the server over with the choice made', async () => {
+  const back = 'https://server.example/settings?scope=server&section=signin';
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'location');
+  Object.defineProperty(globalThis, 'location', {value: {href: back}, configurable: true});
+  let polls = 0;
+  const f = fixture('portico', {
+    '/v1/admin/owner/approval': body => {assert.deepEqual(body, {returnUrl: back});return {approvalUrl: preview.approval.approvalUrl, approval: preview.approval};},
+    '/v1/hosted/approvals/apr_1/poll': () => (++polls < 2 ? {state: 'pending', pollAfterMs: 1} : {state: 'approved', approval: 'owner-approval', pollAfterMs: 1}),
+    '/v1/admin/owner': () => undefined,
+  });
+  try {
+    assert.equal(await f.controller.startChangeOwner(), true);
+    assert.equal(f.controller.ownerApprovalUrl(), 'https://web.example/approve/apr_1');
+    await f.controller.confirmChangeOwner('member', async () => {});
+    const sent = f.calls.find(call => call.path === '/v1/admin/owner')!;
+    assert.equal(sent.method, 'POST');
+    assert.deepEqual(sent.body, {approval: 'owner-approval', previousOwner: 'member'}, 'the approval names the new owner; nothing else is sent');
+    assert.equal(polls, 2);
+  } finally {
+    f.controller.dispose();
+    if (had) Object.defineProperty(globalThis, 'location', had); else delete (globalThis as {location?: unknown}).location;
+  }
+});
+
+test('Change owner sends nothing when the approval is declined, offers no tab when Portico Services is away, and is never started on a local server', async () => {
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'location');
+  Object.defineProperty(globalThis, 'location', {value: {href: 'https://server.example/settings'}, configurable: true});
+  try {
+    const declined = fixture('portico', {
+      '/v1/admin/owner/approval': () => ({approvalUrl: preview.approval.approvalUrl, approval: preview.approval}),
+      '/v1/hosted/approvals/apr_1/poll': () => ({state: 'declined', pollAfterMs: 1}),
+    });
+    await declined.controller.startChangeOwner();
+    await assert.rejects(declined.controller.confirmChangeOwner('admin', async () => {}), {code: 'approval_declined'});
+    assert.ok(!declined.calls.some(call => call.path === '/v1/admin/owner'));
+    assert.equal(declined.controller.getSnapshot().confirmed, false);
+    declined.controller.dispose();
+
+    const away = fixture('portico', {'/v1/admin/owner/approval': () => ({porticoUnavailable: true})});
+    assert.equal(await away.controller.startChangeOwner(), false);
+    assert.equal(away.controller.ownerApprovalUrl(), undefined);
+    await assert.rejects(away.controller.confirmChangeOwner('admin', async () => {}));
+    away.controller.dispose();
+
+    const elsewhere = fixture('portico', {'/v1/admin/owner/approval': () => ({approvalUrl: 'https://elsewhere.example/approve/apr_1', approval: {...preview.approval, approvalUrl: 'https://elsewhere.example/approve/apr_1'}})});
+    assert.equal(await elsewhere.controller.startChangeOwner(), false, 'only the Portico Account site this app knows');
+    elsewhere.controller.dispose();
+
+    const local = fixture('local');
+    await assert.rejects(local.controller.startChangeOwner());
+    assert.deepEqual(local.calls, []);
+    local.controller.dispose();
+  } finally {
+    if (had) Object.defineProperty(globalThis, 'location', had); else delete (globalThis as {location?: unknown}).location;
+  }
 });

@@ -1,5 +1,6 @@
 import {revokeCurrentSession} from '../../../../packages/client-core/src/query/connection-operations.ts';
-import {AccountMoveClient, type AccountMove, type MoveClientOptions, type OwnerSwitchPreview} from '@core/account-move.ts';
+import {AccountMoveClient, type AccountMove, type MoveClientOptions, type OwnerSwitchApproval, type OwnerSwitchPreview} from '@core/account-move.ts';
+import type {PreviousOwner} from '@core/portico-servers.ts';
 import {HttpLocalApi, type LocalSession} from '@core/index.ts';
 import type {DirectSignIn} from '@core/profile-management.ts';
 import type {SignInKind} from '@core/app-sessions.ts';
@@ -7,11 +8,10 @@ import {passwordStrength} from '@core/password-strength.ts';
 import {LocalMoveCustody} from '../../platform/local-move';
 import {routePath} from '../../../../packages/contracts/src/routes.ts';
 import {RouteError, routeOrigin} from '@core/route-identity.ts';
-import {createBrowserOwnerClaim, type BrowserOwnerClaim, type OwnerClaimAttempt} from '../../platform/owner-claim';
 import {ownerSwitchContextAllowed} from '../../platform/secure-pending';
 
-type Claim = Pick<BrowserOwnerClaim, 'prepare' | 'cancel' | 'cancelOperation'>;
-type Snapshot = Readonly<{busy: boolean; preview?: OwnerSwitchPreview; confirmed: boolean}>;
+/** `ownerApproval`: the approval a change of owner waits for, once the Change owner dialog has asked for it. */
+type Snapshot = Readonly<{busy: boolean; preview?: OwnerSwitchPreview; ownerApproval?: OwnerSwitchApproval; confirmed: boolean}>;
 /** The owner's current password (and two-step code), typed fresh: a server with local sign-in asks for them before a
  * switch or Start over (sign_in_kind.go), since either replaces the owner's password and can remove everyone else. */
 export type OwnerProof = Readonly<{currentPassword?: string; code?: string}>;
@@ -30,20 +30,18 @@ export type OwnerSwitchOptions = Readonly<{
   /** The app's saved-selection revision, read for the confirmed local move. */
   selectionRevision?: () => Promise<number>;
   retireLateGrant?: MoveClientOptions['retireLateGrant'];
-  secureContextAllowed?: () => boolean; createClaim?: () => Claim;
+  secureContextAllowed?: () => boolean;
 }>;
 const ended = () => new DOMException('The owner switch ended.', 'AbortError');
 
 /** Initiation only. Return routing and the helper's already-admitted result belong to Entry. */
 export class SettingsOwnerSwitch {
   private readonly moves: AccountMoveClient;
-  private claim?: Claim;
   private state = empty;
   private readonly listeners = new Set<() => void>();
   private request?: AbortController;
   private epoch = 0;
   private closed = false;
-  private deliveredAttemptId?: string;
   private move: AccountMove | null = null;
   private readonly moveListeners = new Set<() => void>();
   private readonly origin: string;
@@ -97,8 +95,10 @@ export class SettingsOwnerSwitch {
   /** A server with local sign-in asks the owner for their current password before a switch or Start over. */
   needsProof = () => this.options.signIn === 'local';
   /** Where the owner approves with their Portico Account: only ever on the Portico Account site this app knows. */
-  approvalUrl(): string | undefined {
-    const url = this.state.preview?.approval?.approvalUrl;
+  approvalUrl(): string | undefined {return this.knownSite(this.state.preview?.approval?.approvalUrl);}
+  /** Where the new owner approves a change of owner, on the same terms. */
+  ownerApprovalUrl(): string | undefined {return this.knownSite(this.state.ownerApproval?.approvalUrl);}
+  private knownSite(url: string | undefined): string | undefined {
     try {return url && new URL(url).origin === routeOrigin(this.options.hostedOrigin) ? url : undefined;} catch {return undefined;}
   }
   /** A move to local ends in the server's own signed-in grant. The new local
@@ -172,24 +172,34 @@ export class SettingsOwnerSwitch {
       throw error;
     } finally {operation.finish();}
   }
-  /** Begin the distinct change-owner claim on a Portico-account server. The
-   * current owner approves a new Portico Account on Hosted; this controller
-   * prepares only the existing owner claim handoff, never a move. */
-  async prepareChangeOwner(caller?: OwnerMoveCaller, attempt: OwnerClaimAttempt = {}): Promise<string> {
-    this.deliveredAttemptId = undefined;
-    // The real factory checks encryption, IDB and native locks before even a tab locator.
-    this.claim ??= (this.options.createClaim ?? createBrowserOwnerClaim)();
+  /** Change owner on a Portico Accounts server (definition area 2 rules 32 to 34): the dialog asks the server for the
+   * approval the new owner gives with their Portico Account, so the confirm click can open it in a new tab at once.
+   * Answers false when Portico Services could not make one. */
+  async startChangeOwner(): Promise<boolean> {
+    if (this.state.preview || this.state.ownerApproval || this.state.confirmed) throw new Error('Close the current owner change first.');
+    if (this.options.signIn !== 'portico') throw new Error('Change owner here is for a Portico Accounts server.');
     const operation = this.operation();
     try {
-      operation.check();
-      const url = await this.claim!.prepare(this.api, this.options.hostedOrigin, 'change-owner', 'admin', caller, attempt);
-      if (caller && (!caller.isCurrent() || caller.signal?.aborted === true)) {
-        await attempt.lease?.cancel().catch(() => {});
-        throw new DOMException('The change owner opening ended.', 'AbortError');
-      }
-      try {operation.check();} catch (error) {await attempt.lease?.cancel().catch(() => {});throw error;}
-      this.deliveredAttemptId = attempt.lease?.attemptId;
-      return url;
+      const returnUrl = globalThis.location?.href;
+      if (!returnUrl) throw new Error('This page has no address to come back to.');
+      const answer = await this.moves.ownerApproval(returnUrl, operation.signal);operation.check();
+      if (answer.approval) this.publish({busy: true, confirmed: false, ownerApproval: answer.approval});
+      return !!answer.approval && !!this.ownerApprovalUrl();
+    } finally {operation.finish();}
+  }
+  /** Waits for the new owner's approval in the other tab, then hands the server over. The previous owner becomes what
+   * they chose (rule 33); the server ends the sign-ins that no longer hold (rule 34), so the page reloads after. */
+  async confirmChangeOwner(previousOwner: PreviousOwner, wait: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms))): Promise<void> {
+    const pending = this.state.ownerApproval;
+    if (!pending || this.state.confirmed) throw new Error('A fresh owner change is required.');
+    const operation = this.operation();
+    try {
+      this.publish({...this.state, busy: true, confirmed: true});
+      const approval = await this.moves.approval(pending, wait, operation.signal);operation.check();
+      await this.moves.changeOwner(approval, previousOwner, operation.signal);
+    } catch (error) {
+      if (this.current()) this.publish({...this.state, busy: false, confirmed: false});
+      throw error;
     } finally {operation.finish();}
   }
   /** The move actually in flight, from the same owner-fenced read the rows use. */
@@ -266,18 +276,11 @@ export class SettingsOwnerSwitch {
     try {operation.check();await this.cancel();}
     finally {operation.finish();}
   }
-  async cancelOperation() {
-    const operation = this.operation();
-    try {await this.claim?.cancelOperation(this.api);operation.check();await this.cancel();}
-    finally {operation.finish();}
-  }
   async cancel() {
-    const epoch = ++this.epoch;this.request?.abort();this.moves.cancel();this.deliveredAttemptId = undefined;
-    await this.claim?.cancel();if (this.current() && epoch === this.epoch) this.publish(empty);
+    const epoch = ++this.epoch;this.request?.abort();this.moves.cancel();
+    if (this.current() && epoch === this.epoch) this.publish(empty);
   }
   dispose() {
     this.closed = true;++this.epoch;this.request?.abort();this.moves.dispose();this.state = empty;this.listeners.clear();
-    // A full-document approval handoff must survive teardown in the original origin.
-    if (!this.deliveredAttemptId) void this.claim?.cancel().catch(() => {});
   }
 }
