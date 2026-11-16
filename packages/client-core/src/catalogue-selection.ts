@@ -39,7 +39,9 @@ export async function readCatalogueSelectionItem(options: CatalogueSelectionOpti
   requireCurrent(lifetime);
   const entry = validateHomeEntry(input), target = selectionItem(entry);
   if (!target && entry.libraryId && ['show', 'season', 'album', 'artist', 'book', 'collection'].includes(entry.kind)) {
-    const offered = entry.homeActions?.selection;
+    // The rebuilt server sends no per-card grants: a container offers what any profile may do with it (its own state
+    // and lists, and playing it); edit and delete are the owner's, from the title's page. Watched where the kind has it.
+    const offered = entry.homeActions?.selection ?? {play: true, queue: true, myList: true, favorite: true, watched: true, playlist: true, collection: true, edit: false, delete: false};
     // Canonical displayed-container selection offers describe server-expanded
     // membership. They never borrow an entry.playback/resume child identity.
     return checkedItem({kind: entry.kind, id: entry.id, libraryId: entry.libraryId, capabilities: selectionCapabilities(entry.kind, {

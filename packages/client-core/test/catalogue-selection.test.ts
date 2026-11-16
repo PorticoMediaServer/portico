@@ -92,11 +92,19 @@ function capabilityOptions(api: DetailApi) {
   return {api, scope, requestId: async () => {throw new Error('A read must not issue a mutation ID');}, signal: new AbortController().signal, isCurrent: () => true};
 }
 
-test('unoffered parents stay unoffered and redirected or mismatched leaves are refused', async () => {
+test('unoffered parents stay unoffered, ungranted ones offer what any profile may do, and redirected or mismatched leaves are refused', async () => {
   let reads = 0;
   const options = capabilityOptions({request: async<T>(): Promise<T> => {reads++;return detail() as T;}});
-  const parent = await readCatalogueSelectionItem(withQueries(options), {id: 'show', libraryId: 'tv', kind: 'show', title: 'Show', playback: {itemId: 'first-episode'}}, allPorts);
-  assert.deepEqual(parent.capabilities, selectionCapabilities('show', {}));
+  const no = {play: false, queue: false, playlist: false, collection: false, myList: false, favorite: false, watched: false, download: false, edit: false, refresh: false, delete: false};
+  const homeActions = {...no, played: false, rating: false, editMetadata: false, refreshMetadata: false, details: true,
+    state: {watchlisted: false, favorite: false, watched: false, rating: null, personalRevision: 0, containerRevision: 0}, selection: no};
+  const show = {id: 'show', libraryId: 'tv', kind: 'show', title: 'Show', playback: {itemId: 'first-episode'}} as const;
+  const refused = await readCatalogueSelectionItem(withQueries(options), {...show, homeActions} as never, allPorts);
+  assert.deepEqual(refused.capabilities, selectionCapabilities('show', {}));
+  // Web Audiobooks walk (16 Nov): the rebuilt server sends no grants, and a chosen audiobook, show or album offered nothing.
+  const ungranted = await readCatalogueSelectionItem(withQueries(options), show, allPorts);
+  assert.deepEqual(ungranted.capabilities, selectionCapabilities('show', {play: true, myList: true, favorite: true, watched: true}), 'all that the screen\'s ports carry out');
+  assert.equal(ungranted.capabilities.edit || ungranted.capabilities.delete, false, 'the owner\'s actions stay on the title\'s page');
   await assert.rejects(readCatalogueSelectionItem(withQueries(options), {...entry, navigation: {view: 'item', entityId: 'other-item'}}, allPorts), {code: 'catalogue-selection-unavailable'});
   assert.equal(reads, 0);
   for (const item of [{...detail().item, id: 'other-item'}, {...detail().item, kind: 'episode'}]) {
