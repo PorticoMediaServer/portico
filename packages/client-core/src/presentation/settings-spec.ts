@@ -1,7 +1,7 @@
 import type {MessageId} from '../../../i18n/src/index.ts';
 
 /** Approved Settings structure. Runtime facts and mutations come from checked bindings. */
-export const settingsDesignRevision = '9c6f5fa6cbd22b515395be64df45aaf0c90b90be';
+export const settingsDesignRevision = '3b8aa4a12f223a5706ac38f046e7748ab54972af';
 export type SettingsPlatform = 'web' | 'phone' | 'tv' | 'desktop';
 export type SettingsOperatingSystem = 'android' | 'ios' | 'ipados' | 'tvos' | 'androidtv' | 'firetv' | 'roku' | 'webos' | 'tizen' | 'windows' | 'macos' | 'linux' | 'browser';
 export type SettingsValue = string | number | boolean | null | readonly SettingsValue[] | Readonly<{[key: string]: SettingsValue}>;
@@ -5226,52 +5226,6 @@ export const settingsSpec: readonly SettingsSection[] = [
         ]
       }
     ],
-    "advanced": {
-      "groups": [
-        {
-          "title": "next.settingsSpec.server.history.advanced.groups.0.title",
-          "rows": [
-            {
-              "id": "history.keepHistory",
-              "scope": "server",
-              "key": "history.keep_play_history",
-              "label": "next.settingsSpec.server.history.advanced.groups.0.rows.0.label",
-              "help": "next.settingsSpec.server.history.advanced.groups.0.rows.0.help",
-              "control": {
-                "type": "select",
-                "default": "forever",
-                "options": [
-                  {
-                    "value": "forever",
-                    "label": "next.settingsSpec.server.history.advanced.groups.0.rows.0.control.options.0.label"
-                  },
-                  {
-                    "value": "3y",
-                    "label": "next.settingsSpec.server.history.advanced.groups.0.rows.0.control.options.1.label"
-                  },
-                  {
-                    "value": "1y",
-                    "label": "next.settingsSpec.server.history.advanced.groups.0.rows.0.control.options.2.label"
-                  },
-                  {
-                    "value": "180d",
-                    "label": "next.settingsSpec.server.history.advanced.groups.0.rows.0.control.options.3.label"
-                  },
-                  {
-                    "value": "90d",
-                    "label": "next.settingsSpec.server.history.advanced.groups.0.rows.0.control.options.4.label"
-                  },
-                  {
-                    "value": "30d",
-                    "label": "next.settingsSpec.server.history.advanced.groups.0.rows.0.control.options.5.label"
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
     "configOnly": []
   },
   {
@@ -8441,17 +8395,6 @@ export const settingsSpec: readonly SettingsSection[] = [
                     "hint": "next.settingsSpec.server.metadata.advanced.groups.2.rows.1.control.options.2.hint"
                   }
                 ]
-              }
-            },
-            {
-              "id": "metadata.castPhotos",
-              "scope": "server",
-              "key": "metadata.cast_photos",
-              "label": "next.settingsSpec.server.metadata.advanced.groups.2.rows.2.label",
-              "help": "next.settingsSpec.server.metadata.advanced.groups.2.rows.2.help",
-              "control": {
-                "type": "toggle",
-                "default": true
               }
             }
           ]
@@ -11916,71 +11859,6 @@ export const settingsSpec: readonly SettingsSection[] = [
           ]
         },
         {
-          "title": "next.settingsSpec.server.signin.advanced.groups.2.title",
-          "rows": [
-            {
-              "id": "signin.passwordLength",
-              "scope": "server",
-              "key": "signin.password_min_length",
-              "shapes": [
-                "local-account"
-              ],
-              "label": "next.settingsSpec.server.signin.advanced.groups.2.rows.0.label",
-              "help": "next.settingsSpec.server.signin.advanced.groups.2.rows.0.help",
-              "control": {
-                "type": "select",
-                "default": "8",
-                "options": [
-                  {
-                    "value": "8",
-                    "label": "next.settingsSpec.server.signin.advanced.groups.2.rows.0.control.options.0.label"
-                  },
-                  {
-                    "value": "10",
-                    "label": "next.settingsSpec.server.signin.advanced.groups.2.rows.0.control.options.1.label"
-                  },
-                  {
-                    "value": "12",
-                    "label": "next.settingsSpec.server.signin.advanced.groups.2.rows.0.control.options.2.label"
-                  },
-                  {
-                    "value": "16",
-                    "label": "next.settingsSpec.server.signin.advanced.groups.2.rows.0.control.options.3.label"
-                  }
-                ]
-              }
-            },
-            {
-              "id": "signin.resetCodeLife",
-              "scope": "server",
-              "key": "signin.member_reset_code_minutes",
-              "shapes": [
-                "local-account"
-              ],
-              "label": "next.settingsSpec.server.signin.advanced.groups.2.rows.1.label",
-              "help": "next.settingsSpec.server.signin.advanced.groups.2.rows.1.help",
-              "control": {
-                "type": "select",
-                "default": "60",
-                "options": [
-                  {
-                    "value": "15",
-                    "label": "next.settingsSpec.server.signin.advanced.groups.2.rows.1.control.options.0.label"
-                  },
-                  {
-                    "value": "60",
-                    "label": "next.settingsSpec.server.signin.advanced.groups.2.rows.1.control.options.1.label"
-                  },
-                  {
-                    "value": "1440",
-                    "label": "next.settingsSpec.server.signin.advanced.groups.2.rows.1.control.options.2.label"
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        {
           "title": "next.settingsSpec.server.signin.advanced.groups.3.title",
           "rows": [
             {
@@ -12008,50 +11886,6 @@ export const settingsSpec: readonly SettingsSection[] = [
                   {
                     "value": "everyone",
                     "label": "next.settingsSpec.server.signin.advanced.groups.3.rows.0.control.options.2.label"
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "title": "next.settingsSpec.server.signin.advanced.groups.4.title",
-          "rows": [
-            {
-              "id": "signin.rememberAccounts",
-              "scope": "server",
-              "key": "signin.remember_accounts",
-              "shapes": [
-                "local-account"
-              ],
-              "label": "next.settingsSpec.server.signin.advanced.groups.4.rows.0.label",
-              "help": "next.settingsSpec.server.signin.advanced.groups.4.rows.0.help",
-              "control": {
-                "type": "toggle",
-                "default": true
-              }
-            },
-            {
-              "id": "signin.endedKeep",
-              "scope": "server",
-              "key": "signin.ended_sessions_days",
-              "label": "next.settingsSpec.server.signin.advanced.groups.4.rows.1.label",
-              "help": "next.settingsSpec.server.signin.advanced.groups.4.rows.1.help",
-              "control": {
-                "type": "select",
-                "default": "90",
-                "options": [
-                  {
-                    "value": "30",
-                    "label": "next.settingsSpec.server.signin.advanced.groups.4.rows.1.control.options.0.label"
-                  },
-                  {
-                    "value": "90",
-                    "label": "next.settingsSpec.server.signin.advanced.groups.4.rows.1.control.options.1.label"
-                  },
-                  {
-                    "value": "365",
-                    "label": "next.settingsSpec.server.signin.advanced.groups.4.rows.1.control.options.2.label"
                   }
                 ]
               }
@@ -13872,14 +13706,6 @@ export const settingsSpec: readonly SettingsSection[] = [
               "type": "folder",
               "default": ""
             }
-          },
-          {
-            "id": "streaming.transcodeStatus",
-            "scope": "server",
-            "label": "next.settingsSpec.server.streaming.groups.2.rows.2.label",
-            "control": {
-              "type": "status"
-            }
           }
         ]
       },
@@ -14965,16 +14791,6 @@ export const settingsSpec: readonly SettingsSection[] = [
         {
           "title": "next.settingsSpec.server.storage.advanced.groups.0.title",
           "rows": [
-            {
-              "id": "storage.keepHistory",
-              "scope": "server",
-              "label": "next.settingsSpec.server.storage.advanced.groups.0.rows.0.label",
-              "control": {
-                "type": "link",
-                "label": "next.settingsSpec.server.storage.advanced.groups.0.rows.0.control.label",
-                "to": "server/history/history.keepHistory"
-              }
-            },
             {
               "id": "storage.keepNotifications",
               "scope": "server",
