@@ -1,7 +1,7 @@
 import {expectedRemoteSource} from '../remote-source-selection.ts';
 import {durationIntent} from '../wire-units.ts';
 import {encodedRoutePath,routePath} from '../../../contracts/src/route-paths.ts';
-import {parseLibraryDocument,type LibraryAdminDocument,type LibrarySettings} from '../administration.ts';
+import type {LibraryAdminDocument,LibrarySettings} from '../administration.ts';
 import {serverPath} from '../query/server-api.ts';
 import {ownerLibrary, libraryDocument, libraryFolders, libraryAudience} from './library-document.ts';
 import {callServer} from '../query/server-api.ts';
@@ -111,20 +111,6 @@ export async function checkLibraryFolder(api:LibraryContentApi,libraryId:string,
  const member=library.folders.find(f=>f.id===folder);if(!member)throw new Error('Library folder identity changed.');
  const path=member.source?serverPath('GET /v1/admin/remote-sources/{id}/folders',{id:member.source}):serverPath('GET /v1/admin/filesystem');
  await api.request(path+'?'+new URLSearchParams({path:member.path}),'GET',undefined,signal);
-}
-
-/** A bounded configuration read. It never reads the library's catalogue items. */
-export async function readLibrarySettings(api:LibraryContentApi,id:string,signal?:AbortSignal):Promise<LibraryAdminDocument>{
- const doc=parseLibraryDocument(await api.request<unknown>(encodedRoutePath('get_library_settings',{id:libraryID(id)}),'GET',undefined,signal));
- if(doc.libraryId!==id)throw new Error('Library settings identity changed.');
- return doc;
-}
-/** One explicit CAS write; consume only after the exact library document parses. */
-export async function saveLibrarySettings(api:LibraryContentApi,current:LibraryAdminDocument,settings:LibrarySettings,operationId:string,signal?:AbortSignal):Promise<LibraryAdminDocument>{
- if(!operationId||operationId.length>128)throw new Error('Invalid library operation identity.');
- const doc=parseLibraryDocument(await api.request<unknown>(encodedRoutePath('put_library_settings',{id:libraryID(current.libraryId)}),'PUT',{expectedRevision:current.revision,operationId,settings},signal));
- if(doc.libraryId!==current.libraryId||doc.revision<=current.revision)throw new Error('Library settings write could not be reconciled.');
- return doc;
 }
 
 /** expectedRevision is inventory-config.revision, never settings.revision. */
