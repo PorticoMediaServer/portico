@@ -787,9 +787,10 @@ func (w *stateWriter) saveProgress(sample Progress, prefs map[string]string) (fi
 // is listed once.
 const playingSuffix = "~playing"
 
-// playedOne is how long a playing must have played to be listed: one that never played a
-// second leaves nothing.
-const playedOne = 1000
+// PlayedOne is how long a playing must have played to be listed: one that never played a
+// second leaves nothing. The Dashboard's daily totals count a play at the same moment, so the
+// two never disagree about how many plays there were.
+const PlayedOne = 1000
 
 // recordPlaying writes or updates the owner's row for a playing short of the watched point.
 func (w *stateWriter) recordPlaying(sample Progress, id int64, kind ItemKind, title, holder string, duration int64) error {
@@ -797,7 +798,7 @@ func (w *stateWriter) recordPlaying(sample Progress, id int64, kind ItemKind, ti
 	if duration > 0 {
 		watched = min(watched, duration)
 	}
-	if watched < playedOne {
+	if watched < PlayedOne {
 		return nil
 	}
 	// A playing that finished and was then sought back is the finished play; only its time grows.

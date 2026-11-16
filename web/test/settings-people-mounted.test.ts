@@ -32,7 +32,7 @@ async function fixture(t:import('node:test').TestContext){
   '../../kit/shell/SettingsSurfaces':{SettingsRow:'Row'},'../../kit/accounts':{InvitationShortCodeDialog:'InvitationShortCodeDialog'},
   './people-table-row':{peopleTableRow:(value:any)=>({id:value.accountId,label:value.username,cells:{name:value.username}})},
   './member-reset-code-view':{useMemberResetCodeView:()=>undefined}});
- const bindings={client,actor:{accountId:'owner',role:'owner'},serverName:'Server',libraries:[],authority:{scope:{serverId:'server',authority:'local',accountId:'owner',profileId:'main'},isCurrent:()=>true,subscribe:()=>()=>{},onAuthorityChanged:()=>{}},openHome:()=>{},reportError:(error:unknown)=>{throw error;}};
+ const bindings={client,devices:{list:async()=>({limit:1,nextCursor:'',items:[]}),signOut:async()=>{}},actor:{accountId:'owner',role:'owner'},serverName:'Server',libraries:[],authority:{scope:{serverId:'server',authority:'local',accountId:'owner',profileId:'main'},isCurrent:()=>true,subscribe:()=>()=>{},onAuthorityChanged:()=>{}},openHome:()=>{},reportError:(error:unknown)=>{throw error;}};
  const render=()=>tree(h.render(()=>react.createElement(app.PeopleScreen,{bindings})));
  const scroll=()=>{const host=all(render(),'div').find((node:any)=>node.props.onScroll);assert(host);host.props.onScroll({currentTarget:{scrollTop:10000,clientHeight:440}});return render();};
  t.after(()=>{h.dispose();hub.dispose();if(resize)Object.defineProperty(globalThis,'ResizeObserver',resize);else Reflect.deleteProperty(globalThis,'ResizeObserver');});
@@ -94,4 +94,16 @@ for(const order of ['ordinary-first','quiet-first'] as const)test(`ordinary and 
  if(order==='ordinary-first'){await settleOrdinary();await settleQuiet();}else{await settleQuiet();await settleOrdinary();}
  const panel=all(f.render(),'SettingsPanel').find((node:any)=>node.props.open);assert.equal(panel?.props.title,'fresh-name');
  assert(f.outcomes.some(value=>value.id==='selected-detail'&&value.kind==='adopted'));
+});
+
+// W2 F8 (16 Nov walk): opening your own row's Devices tab asked a route that refuses your own account, and the page left
+// Settings for Home. Your own devices are in Profile & account; the tab is offered only for an account you manage.
+test('the person panel offers Devices for an account the viewer manages, never for the viewer\'s own', async t => {
+ const f=await fixture(t);
+ const tabs=()=>all(f.render(),'SettingsPanel').find((node:any)=>node.props.open)?.props.tabs.map((tab:any)=>tab.id);
+ f.table().rowAction.onAction({id:'person-A'},null);f.render();await tick();
+ assert.ok(tabs().includes('devices'),'a member the owner manages');
+ f.detail(async id=>({...person(id),role:'owner'}));
+ f.table().rowAction.onAction({id:'owner'},null);f.render();await tick();
+ assert.ok(!tabs().includes('devices'),'the owner\'s own row');
 });
