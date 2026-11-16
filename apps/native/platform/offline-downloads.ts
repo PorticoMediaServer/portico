@@ -148,8 +148,8 @@ type Meta = {
   book?: DownloadedBook;
 };
 type DownloadedBook = Readonly<{format: 'epub' | 'pdf' | 'cbz'; versionId: string; revision: string}>;
-/** The containers a downloaded book can be read from on this device; the download sheet offers
- * no other. */
+/** The containers a downloaded book can be read from on this device: the server hands every book
+ * over as one of these (a MOBI as EPUB, a CBR, CB7 or folder of pictures as CBZ). */
 const offlineBookFormat = (container: string | undefined): DownloadedBook['format'] | undefined =>
   container === 'epub' || container === 'pdf' || container === 'cbz' ? container : undefined;
 /** A place in a downloaded book this profile made with no server, by item: the state's position,
@@ -892,7 +892,10 @@ export class OfflineDownloads {
         delete this.stored.wantedPublications[owner]?.[p.id];
         await this.persist();
         collected = true;
-      } catch { /* offered by hand on the Downloads page */ } finally { this.collecting.delete(p.id); }
+      } catch (error) {
+        // A book the server cannot copy (book_unreadable) is not asked for again; anything else is offered by hand on the Downloads page.
+        if ((error as {code?: unknown} | null)?.code === 'book_unreadable') {delete this.stored.wanted[owner]?.[p.id]; delete this.stored.wantedPublications[owner]?.[p.id]; await this.persist();}
+      } finally { this.collecting.delete(p.id); }
     }
     // Room on the list: a large request that was waiting for it reads on.
     if (collected && Object.keys(this.stored.selectionActions[owner] ?? {}).length) this.scheduleSelectionActions(generation, true);
@@ -1219,10 +1222,9 @@ export class OfflineDownloads {
     if (bundle.title.kind === 'ebook' || bundle.title.kind === 'comic') {
       const format = offlineBookFormat(described.files[0]?.container), owner = this.metas.get(id)?.owner;
       if (format && described.files.length === 1) {
-        const answer = await callServer(api, 'GET /v1/items/{id}/book', {id: described.item.id, query: {version: described.versionId}});
-        if (generation !== this.generation || !this.all.some(e => e.id === id)) return;
-        if (answer.version !== described.versionId || !/^[0-9a-f]{16}$/.test(answer.fingerprint)) throw new Error('reading_unavailable');
-        book = {format, versionId: described.versionId, revision: answer.fingerprint};
+        // The listing names the exact file the download is (or was made from): places are made on it.
+        if (!/^[0-9a-f]{16}$/.test(described.revision ?? '')) throw new Error('reading_unavailable');
+        book = {format, versionId: described.versionId, revision: described.revision!};
         const position = described.item.state?.position;
         if (owner && typeof position === 'string' && position && !this.stored.places[owner]?.[described.item.id]) {
           bucket(this.stored.places, owner)[described.item.id] = {position, madeAt: Date.parse(described.item.state?.updatedAt ?? '') || Date.now(), sent: true};
