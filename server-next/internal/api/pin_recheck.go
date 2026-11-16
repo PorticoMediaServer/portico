@@ -45,6 +45,11 @@ func errPINAgain() *Error {
 // library. A function narrows a route to some of its requests. Changing the password or
 // two-step sign-in is not here: both already ask for the account's password.
 var sensitiveRoutes = map[string]func(*http.Request) bool{
+	"POST /v1/admin/sign-in/preview":                   nil,
+	"POST /v1/admin/sign-in/switch":                    nil,
+	"POST /v1/admin/sign-in/finish":                    nil,
+	"POST /v1/admin/sign-in/move-codes":                nil,
+	"POST /v1/admin/members/{id}/move-code":            nil,
 	"DELETE /v1/profiles/{id}/pin":                     nil,
 	"PUT /v1/profiles/{id}/restrictions":               nil,
 	"DELETE /v1/profiles/{id}":                         nil,
