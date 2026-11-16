@@ -222,8 +222,9 @@ test('paused audio keeps the phone and TV restoration delays', async () => {
   }
 });
 
-async function heroModule(state: ReturnType<typeof lifecycle>) {
+async function heroModule(state: ReturnType<typeof lifecycle>, overlay = {open: false}) {
   return screenModule(new URL('../src-next/kit/layout/Hero.tsx', import.meta.url), {
+    '../overlays/OverlayHost': {useOverlayOpen: () => overlay.open},
     react: state.react, 'react-native': state.native, 'react-native-reanimated': state.animated, '@portico/design': {heroSpec},
     '../theme': {useTheme: () => ({isTV: false, layoutMode: 'phone', platform: 'phone', colors: {text: '#edf5fa'}})}, '../useMotion': {useMotion: () => state.motion},
     './Lockup': {Lockup: 'Lockup'}, './model': heroModel,
@@ -250,6 +251,20 @@ test('hero interruption preserves remaining dwell and rejects a previously queue
     await hero.act(() => timer.tasks.at(-1)!.run());
     assert.deepEqual(changes, [1]);
     assert.equal(timer.tasks.at(-1)!.ms, heroSpec.rotation.intervalMs);
+  } finally {await hero.unmount();}
+});
+
+test('an open menu or sheet holds the hero still and closing it resumes the remaining dwell', async t => {
+  const state = lifecycle(), timer = timers(t, state), overlay = {open: false}, {Hero} = await heroModule(state, overlay), changes: number[] = [];
+  const props = {...heroProps(), onIndexChange: (index: number) => changes.push(index)};
+  const hero = await mount(Hero, props);
+  try {
+    const old = timer.tasks.at(-1)!;
+    timer.at(3000); overlay.open = true; await hero.update({...props});
+    assert.equal(old.cancelled, true);
+    old.run(); timer.at(60_000); await hero.update({...props}); assert.deepEqual(changes, []);
+    overlay.open = false; await hero.update({...props});
+    assert.equal(timer.tasks.at(-1)!.ms, heroSpec.rotation.intervalMs - 3000);
   } finally {await hero.unmount();}
 });
 
