@@ -180,8 +180,14 @@ func (d *DB) PlaybackItem(ctx context.Context, v Viewer, publicID string) (Playb
 				return out, err
 			}
 		}
-		sidecars, err := ids(ctx, tx, `SELECT id FROM files WHERE media_id = ? AND role = ? AND missing_since_at IS NULL ORDER BY name`,
-			version.id, FileSubtitle)
+		// An IDX names one DVD subtitle only while its SUB companion exists.
+		// Filtering here also hides duplicate packet tracks from older scans.
+		sidecars, err := ids(ctx, tx, `SELECT f.id FROM files f WHERE f.media_id = ? AND f.role = ? AND f.missing_since_at IS NULL
+			AND lower(substr(f.name, -4)) != '.sub'
+			AND (lower(substr(f.name, -4)) != '.idx' OR EXISTS (
+				SELECT 1 FROM files c WHERE c.directory_id = f.directory_id AND c.role = f.role AND c.missing_since_at IS NULL
+				AND lower(c.name) = lower(substr(f.name, 1, length(f.name)-4) || '.sub')))
+			ORDER BY f.name`, version.id, FileSubtitle)
 		if err != nil {
 			return out, err
 		}

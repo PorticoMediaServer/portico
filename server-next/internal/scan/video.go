@@ -175,6 +175,11 @@ func (r *run) versions(f *folder, key func(*found) (string, bool)) []*version {
 			continue
 		}
 		if file.role == db.FileSubtitle {
+			// VobSub's .sub contains packets for the .idx track, not another
+			// selectable subtitle. Keep it in the file inventory, without a track.
+			if strings.EqualFold(path.Ext(file.entry.Name), ".sub") {
+				continue
+			}
 			stream := subtitleStream(best, file.entry.Name)
 			file.stream = &stream
 		}
