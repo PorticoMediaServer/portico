@@ -1,7 +1,7 @@
 import React, {useEffect, useLayoutEffect, useState, useSyncExternalStore} from 'react';
 import {FlatList, Text, View} from 'react-native';
 import {fetchPlayHistory, playHistoryFirstPageQuery, playHistoryPlatform, playHistoryTitle, type PlayHistoryEntry} from '../../../../../../packages/client-core/src/play-history';
-import {DashboardDataClient} from '../../../../../../packages/client-core/src/admin/dashboard';
+import {readServerAccounts} from '../../../../../../packages/client-core/src/admin/server-play-history';
 import {readDocument} from '../../../../../../packages/client-core/src/query/admin-documents';
 import {viewerQueriesFor} from '../../../shell/freshness';
 import {captureReportContext} from '../../../../../../packages/client-core/src/report-context';
@@ -33,7 +33,6 @@ function createHistory(context: NativeShellBootstrapContext, reportError: Native
   const lifetime = new NativeScreenLifetime(context), current = () => lifetime.current() && nativeStorageOwner(context);
   const api = {request: <T,>(path: string, method?: string, body?: unknown, caller?: AbortSignal): Promise<T> => current()
     ? lifetime.request(signal => context.api.request<T>(path, method, body, signal), caller) : Promise.reject(screenScopeEnded())};
-  const dashboard = new DashboardDataClient(api);
   // The first page is the viewer's cached document (the role is part of the cache's scope); later pages are direct reads.
   // It is read with the cache's own requester, never this screen's: closing this screen only stops it waiting.
   const queries = viewerQueriesFor(context.api, {serverId: lifetime.authority.serverId, viewerId: lifetime.authority.profileId});
@@ -45,7 +44,7 @@ function createHistory(context: NativeShellBootstrapContext, reportError: Native
     return readDocument(queries, playHistoryFirstPageQuery(queries.api, filters), {fresh, signal: wait.signal})
       .finally(() => {for (const source of sources) source.removeEventListener('abort', stop);});
   };
-  const source = new NativeHistorySource({page: (filters, cursor, signal, fresh = true) => cursor ? fetchPlayHistory(api, filters, cursor, signal) : firstPage(filters, signal, fresh), people: (filters, cursor, signal) => dashboard.people(filters, cursor, 100, signal)}, current, () => historyReportContext(reportError), reportError);
+  const source = new NativeHistorySource({page: (filters, cursor, signal, fresh = true) => cursor ? fetchPlayHistory(api, filters, cursor, signal) : firstPage(filters, signal, fresh), people: async (_filters, _cursor, signal) => ({items: await readServerAccounts(api, signal), nextCursor: ''})}, current, () => historyReportContext(reportError), reportError);
   const retire = () => source.dispose();lifetime.signal.addEventListener('abort', retire, {once: true});
   return {context, source, current, dispose: () => {source.dispose();lifetime.signal.removeEventListener('abort', retire);lifetime.dispose();}};
 }

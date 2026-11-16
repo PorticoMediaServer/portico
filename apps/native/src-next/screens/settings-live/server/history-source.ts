@@ -79,7 +79,7 @@ export class NativeHistorySource {
     const owned = () => this.active() && this.peopleFlight === request && !request.signal.aborted;
     this.publish({...before, peopleLoading: true, peopleError: undefined});
     try {
-      // The selector covers accounts with retained plays, including removed accounts.
+      // The account selector is independent of the play filters.
       const page = await this.reader.people({...before.report, period: 'all'}, cursor, request.signal);
       if (!owned()) return;
       if (cursor) this.seenPeople.add(cursor);
