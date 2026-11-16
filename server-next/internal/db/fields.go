@@ -24,6 +24,7 @@ const (
 	FieldCredits       = "credits"
 	FieldMatch         = "match"
 	FieldEdition       = "edition"
+	FieldLanguage      = "language"
 )
 
 // tagFields are the lists a provider or an NFO file speaks for, by tag kind. Labels and moods

@@ -2293,6 +2293,7 @@ export interface MetadataPatch {
   sortTitle?: string;
   originalTitle?: string;
   publicationType?: string;
+  language?: string;
   edition?: string;
   tagline?: string;
   summary?: string;

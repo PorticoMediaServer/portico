@@ -85,7 +85,7 @@ var editLists = []struct {
 }
 
 // LockableFields are the names a field, list or the match is locked by.
-var LockableFields = []string{FieldPublicationType, FieldTitle, FieldSortTitle, FieldOriginalTitle, FieldSummary, FieldTagline, FieldEdition, FieldYear,
+var LockableFields = []string{FieldPublicationType, FieldTitle, FieldSortTitle, FieldOriginalTitle, FieldSummary, FieldTagline, FieldEdition, FieldLanguage, FieldYear,
 	FieldReleaseDate, FieldContentRating, FieldRating, FieldGenres, FieldStudios, FieldNetworks, FieldCountries, FieldCredits, FieldMatch}
 
 // MetadataLocks says which of a title's fields a person locked, where each value that is not
@@ -155,7 +155,8 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 		{FieldOriginalTitle, "original_title", edit.OriginalTitle, maxShortField, false}, {FieldSummary, "summary", edit.Summary, maxDescription, true},
 		{FieldTagline, "tagline", edit.Tagline, maxShortField, false}, {FieldReleaseDate, "release_date", edit.ReleaseDate, 10, false},
 		{FieldContentRating, "content_rating", edit.ContentRating, maxShortField, false},
-		{FieldEdition, "edition", edit.Edition, maxShortField, false}}
+		{FieldEdition, "edition", edit.Edition, maxShortField, false},
+		{FieldLanguage, "", edit.Language, 16, false}}
 	for i, f := range texts {
 		if f.value == nil {
 			continue

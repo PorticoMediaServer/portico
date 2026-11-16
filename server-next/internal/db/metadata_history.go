@@ -32,7 +32,8 @@ const historyKept = 20
 // found them: what "Undo to before this" puts back. Labels are in it: they are the owner's
 // own and an undo of an edit to them puts them back too. Everyone's state is not.
 type snapshot struct {
-	Columns map[string]any `json:"columns"`
+	Columns  map[string]any `json:"columns"`
+	Language string         `json:"language,omitempty"`
 	// SortTitle is the sort title a person or an NFO file gave, as written (ownSortTitle),
 	// which goes back with sort_title.
 	SortTitle   string       `json:"sortTitle,omitempty"`
@@ -106,7 +107,7 @@ func takeSnapshot(b *batchTx, itemID int64) (snapshot, error) {
 			s.Columns[column] = values[i]
 		}
 	}
-	if err := b.queryRow(`SELECT ifnull(extra ->> '$.sortTitle', '') FROM items WHERE id = ?`, itemID).Scan(&s.SortTitle); err != nil {
+	if err := b.queryRow(`SELECT ifnull(extra ->> '$.sortTitle', ''), ifnull(extra ->> '$.language', '') FROM items WHERE id = ?`, itemID).Scan(&s.SortTitle, &s.Language); err != nil {
 		return s, err
 	}
 	var err error
@@ -546,6 +547,12 @@ func restoreChanged(b *batchTx, im *importer, library, id int64, before, after, 
 			return err
 		}
 	}
+	if before.Language != after.Language && current.Language == after.Language {
+		if _, err := b.exec(`UPDATE items SET extra = CASE WHEN ?1 = '' THEN json_remove(ifnull(extra, '{}'), '$.language')
+			ELSE json_set(ifnull(extra, '{}'), '$.language', ?1) END, refresh_due = 0 WHERE id = ?2`, before.Language, id); err != nil {
+			return err
+		}
+	}
 	// Locks and sources field by field: what the change set goes, what it cleared comes back.
 	// A field whose value changed since keeps its lock and source, or the next refresh would
 	// replace a later edit, a rating among them.
@@ -555,6 +562,8 @@ func restoreChanged(b *batchTx, im *importer, library, id int64, before, after, 
 			return !same(tagsOf(current.Tags, list), tagsOf(after.Tags, list))
 		}
 		switch field {
+		case FieldLanguage:
+			return current.Language != after.Language
 		case FieldCredits:
 			return !same(current.Credits, after.Credits)
 		case FieldMatch:
