@@ -285,6 +285,11 @@ func (s *Server) createRule(r *http.Request, req DvrRuleSave) (DvrRule, error) {
 	if err != nil {
 		return DvrRule{}, err
 	}
+	if allowed, err := s.programmeAllowed(ctx, v, lv, p); err != nil {
+		return DvrRule{}, err
+	} else if !allowed {
+		return DvrRule{}, ErrNotFound()
+	}
 	if ch.Kind != db.ChannelFromSource {
 		return DvrRule{}, ErrConflict("cannot_record", "This program can't be recorded.")
 	}

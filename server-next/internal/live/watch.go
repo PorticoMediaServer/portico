@@ -22,6 +22,7 @@ type Viewing struct {
 	ChannelID string
 	Grant     string // the stream's address is named by it, and it is the permission to read it
 	Input     *Input
+	done      chan struct{}
 	use       *Use
 	Paused    bool
 	Lease     time.Time
@@ -74,6 +75,8 @@ type Viewings struct {
 	// Ended is told each viewing that ends, however it ends, so what was made for it stops
 	// too. Set it before the viewings are used.
 	Ended func(id string)
+	// Check revalidates the programme and the selected profile between live reports.
+	Check func(context.Context, Viewing) (bool, error)
 	// stopped are the viewings the owner or an administrator stopped, kept a while so their
 	// device is told why when it next reports.
 	stopped map[string]stoppedViewing
@@ -126,7 +129,7 @@ func (v *Viewings) Start(userID, profileID, signInID int64, channelID string, in
 	v.mu.Lock()
 	delete(v.held, held)
 	w := &Viewing{ID: "lvs_" + token(10), UserID: userID, ProfileID: profileID, SignInID: signInID, ChannelID: channelID, Grant: token(24),
-		Input: in, use: use, Lease: v.now().Add(Lease), Away: use.Away, Name: use.Name, StartedAt: v.now()}
+		Input: in, done: make(chan struct{}), use: use, Lease: v.now().Add(Lease), Away: use.Away, Name: use.Name, StartedAt: v.now()}
 	v.byID[w.ID], v.byGrant[w.Grant] = w, w
 	v.mu.Unlock()
 	return w
@@ -176,6 +179,9 @@ func (v *Viewings) Stop(id string, userID int64) {
 	}
 	delete(v.byID, id)
 	delete(v.byGrant, w.Grant)
+	if w.done != nil {
+		close(w.done)
+	}
 	v.mu.Unlock()
 	if v.Ended != nil {
 		v.Ended(id)
@@ -235,6 +241,7 @@ func (v *Viewings) Run(ctx context.Context) {
 		for _, w := range gone {
 			v.Stop(w.ID, w.UserID)
 		}
+		v.Recheck(ctx)
 	}
 }
 
@@ -268,5 +275,20 @@ func (v *Viewings) End(id string) {
 	v.mu.Unlock()
 	if w != nil {
 		v.Stop(id, w.UserID)
+	}
+}
+
+// Done closes when this viewing ends, even if others share its source input.
+func (w Viewing) Done() <-chan struct{} { return w.done }
+
+// Recheck ends viewings whose current programme or profile is no longer allowed.
+func (v *Viewings) Recheck(ctx context.Context) {
+	if v.Check == nil {
+		return
+	}
+	for _, w := range v.All() {
+		if ok, err := v.Check(ctx, w); err == nil && !ok {
+			v.Stop(w.ID, w.UserID)
+		}
 	}
 }
