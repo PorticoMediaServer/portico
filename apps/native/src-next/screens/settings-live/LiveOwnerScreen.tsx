@@ -7,6 +7,7 @@ import {liveRewindRow, liveStabilityPatch, liveStabilityRow, liveStabilityValue}
 import {Button, Focusable, Select, Switch, Tabs, TextField} from '../../kit/controls';
 import {Dialog, Menu} from '../../kit/overlays';
 import {ServerHeader} from '../../kit/shell';
+import {SettingsBackdrop} from '../../kit/shell/SettingsBackdrop';
 import {Quiet, StateView} from '../../kit/states';
 import {shellType} from '../../kit/shell/visual';
 import {useTheme} from '../../kit/theme';
@@ -21,7 +22,6 @@ import {ChannelMapSheet, SourceSettingsSheet} from './LiveOwnerSettingsSheets';
 import {NativeRecordingOwner} from './LiveOwnerRecording';
 import {NativeLibraryChannelsPanel} from './server/LibraryChannelsPanel';
 import {NativeAdvancedSection} from './server/AdvancedSection';
-import {StandardBackdrop} from '../../kit/artwork';
 import {FormScrollView} from '../../platform/keyboard';
 import {TopBar} from '../../kit/layout/TopBar';
 
@@ -84,7 +84,7 @@ export function NativeLiveOwnerScreen({controller, recordings, ports, runtime, o
     {id: 'separator', separator: true as const},
     {id: 'remove', icon: 'i-trash' as const, label: t('web.liveTv.removeSource'), destructive: true, onSelect: () => openRemove(menu)},
   ] : [];
-  return <View style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}
+  return <View style={{flex: 1}}><SettingsBackdrop/>
     <FormScrollView contentContainerStyle={{paddingBottom: 100}} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
       <View style={{paddingHorizontal: 20, paddingTop: 8, gap: 10}}>
         <View style={{marginHorizontal: -20}}><TopBar safeArea={false} back={{label: t('next.shell.settings'), onPress: onClose, testID: 'live-owner-back'}}/></View>

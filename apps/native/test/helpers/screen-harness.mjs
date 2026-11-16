@@ -113,6 +113,8 @@ const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)
   : /(^|\/)kit\/layout\/ListEdgeFade$/.test(source) ? {ListEdgeFade: 'ListEdgeFade'}
   // The shell's playback rules (dock transitions) are plain functions: the real module.
   : /^\.\/playback$/.test(source) ? shellPlayback
+  // Every Settings page's one top (the standard backdrop) draws as a named element.
+  : /(^|\/)SettingsBackdrop$/.test(source) ? {SettingsBackdrop: 'SettingsBackdrop'}
   // Which ends of a list continue is plain arithmetic: the real module.
   : /(^|\/)kit\/layout\/list-edges$|^\.\/list-edges$/.test(source) ? listEdgesModule
   // The shell's one top-bar Play on button draws as a named element; next-play-on-top-bar tests it.
