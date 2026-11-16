@@ -15029,7 +15029,6 @@ export const settingsSpec: readonly SettingsSection[] = [
                     "sets": {
                       "storage.keepConversions": "7",
                       "storage.keepPrepared": "90",
-                      "storage.keepDownloads": "30",
                       "storage.keepSubtitles": "365",
                       "storage.keepTrickplay": "365"
                     }
@@ -15041,7 +15040,6 @@ export const settingsSpec: readonly SettingsSection[] = [
                     "sets": {
                       "storage.keepConversions": "1",
                       "storage.keepPrepared": "30",
-                      "storage.keepDownloads": "14",
                       "storage.keepSubtitles": "90",
                       "storage.keepTrickplay": "90"
                     }
@@ -15053,7 +15051,6 @@ export const settingsSpec: readonly SettingsSection[] = [
                     "sets": {
                       "storage.keepConversions": "30",
                       "storage.keepPrepared": "365",
-                      "storage.keepDownloads": "90",
                       "storage.keepSubtitles": "1095",
                       "storage.keepTrickplay": "1095"
                     }
@@ -15135,38 +15132,6 @@ export const settingsSpec: readonly SettingsSection[] = [
                       {
                         "value": "1095",
                         "label": "next.settingsSpec.server.storage.advanced.groups.0.rows.3.children.1.control.options.5.label"
-                      }
-                    ]
-                  }
-                },
-                {
-                  "id": "storage.keepDownloads",
-                  "scope": "server",
-                  "key": "storage.keep_downloads_days",
-                  "label": "next.settingsSpec.server.storage.advanced.groups.0.rows.3.children.2.label",
-                  "control": {
-                    "type": "select",
-                    "default": "30",
-                    "options": [
-                      {
-                        "value": "7",
-                        "label": "next.settingsSpec.server.storage.advanced.groups.0.rows.3.children.2.control.options.0.label"
-                      },
-                      {
-                        "value": "14",
-                        "label": "next.settingsSpec.server.storage.advanced.groups.0.rows.3.children.2.control.options.1.label"
-                      },
-                      {
-                        "value": "30",
-                        "label": "next.settingsSpec.server.storage.advanced.groups.0.rows.3.children.2.control.options.2.label"
-                      },
-                      {
-                        "value": "90",
-                        "label": "next.settingsSpec.server.storage.advanced.groups.0.rows.3.children.2.control.options.3.label"
-                      },
-                      {
-                        "value": "365",
-                        "label": "next.settingsSpec.server.storage.advanced.groups.0.rows.3.children.2.control.options.4.label"
                       }
                     ]
                   }
@@ -15393,67 +15358,6 @@ export const settingsSpec: readonly SettingsSection[] = [
                     "label": "next.settingsSpec.server.storage.advanced.groups.1.rows.3.control.options.4.label"
                   }
                 ]
-              }
-            }
-          ]
-        },
-        {
-          "title": "next.settingsSpec.server.storage.advanced.groups.2.title",
-          "rows": [
-            {
-              "id": "storage.downloadSpace",
-              "scope": "server",
-              "key": "downloads.max_prepared_gb",
-              "label": "next.settingsSpec.server.storage.advanced.groups.2.rows.0.label",
-              "help": "next.settingsSpec.server.storage.advanced.groups.2.rows.0.help",
-              "control": {
-                "type": "select",
-                "default": "0",
-                "options": [
-                  {
-                    "value": "0",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.2.rows.0.control.options.0.label"
-                  },
-                  {
-                    "value": "10",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.2.rows.0.control.options.1.label"
-                  },
-                  {
-                    "value": "25",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.2.rows.0.control.options.2.label"
-                  },
-                  {
-                    "value": "50",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.2.rows.0.control.options.3.label"
-                  },
-                  {
-                    "value": "100",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.2.rows.0.control.options.4.label"
-                  },
-                  {
-                    "value": "250",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.2.rows.0.control.options.5.label"
-                  },
-                  {
-                    "value": "500",
-                    "label": "next.settingsSpec.server.storage.advanced.groups.2.rows.0.control.options.6.label"
-                  }
-                ]
-              }
-            },
-            {
-              "id": "storage.downloads",
-              "scope": "server",
-              "label": "next.settingsSpec.server.storage.advanced.groups.2.rows.1.label",
-              "help": "next.settingsSpec.server.storage.advanced.groups.2.rows.1.help",
-              "control": {
-                "type": "list",
-                "itemAction": {
-                  "label": "next.settingsSpec.server.storage.advanced.groups.2.rows.1.control.itemAction.label",
-                  "style": "glass",
-                  "confirm": "next.settingsSpec.server.storage.advanced.groups.2.rows.1.control.itemAction.confirm",
-                  "remove": true
-                }
               }
             }
           ]

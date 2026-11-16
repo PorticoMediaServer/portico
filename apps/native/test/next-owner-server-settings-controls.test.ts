@@ -75,7 +75,8 @@ test('generated-file presets change exactly their canonical fields and preserve 
   const options = row('storage.keepFiles').control.options!;assert.equal(bindings.exactPresetValue(options, read), 'balanced');
   const patch = bindings.presetPatch(options, 'short', read);
   const changed = Object.entries(patch).reduce((current: any, [id, value]) => bindings.applySettingsBindingPatch(current, bindings.settingsBindingPatch(requiredBinding(id), value, {forms: {maintenance: current}})), draft);
-  assert.deepEqual(changed.retention, {conversions: 1, prepared: 30, downloads: 14, subtitles: 90, trickplay: 90});assert.deepEqual(changed.windows, draft.windows);
+  // Prepared downloads has no time of its own any more (owner, 16 Nov): a preset leaves it as it was.
+  assert.deepEqual(changed.retention, {conversions: 1, prepared: 30, downloads: draft.retention.downloads, subtitles: 90, trickplay: 90});assert.deepEqual(changed.windows, draft.windows);
   assert.equal(bindings.exactPresetValue(options, id => id === 'storage.keepConversions' ? '12' : read(id)), 'custom');
 });
 

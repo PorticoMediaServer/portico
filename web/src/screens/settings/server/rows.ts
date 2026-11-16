@@ -10,7 +10,7 @@ export type SettingsTarget = Readonly<{scope: 'account' | 'server'; section: str
 export const pendingServerRows: ReadonlySet<string> = new Set(['storage.upgradeCopy']);
 
 /** The rows this page draws from its own owner-scoped producers. */
-export const factRows: ReadonlySet<string> = new Set(['storage.dataFolder', 'storage.usage', 'storage.downloads', 'storage.emptyCache']);
+export const factRows: ReadonlySet<string> = new Set(['storage.dataFolder', 'storage.usage', 'storage.emptyCache']);
 
 /** The Retention rows that name the page which owns their value. */
 export const sectionLinkRows: ReadonlySet<string> = new Set(['storage.keepHistory', 'storage.keepLogsLink']);
@@ -23,8 +23,8 @@ export const fileRestoreRows: ReadonlySet<string> = new Set(['storage.restoreFil
 
 /** What the page has actually learned: the selected session is live and the backup document arrived. */
 export type StorageRowFacts = Readonly<{live: boolean; backups: boolean; backupsReadable?: boolean; dataDirectoryOnNetwork?: boolean; keeping?: boolean}>;
-/** Keep generated files' children the server has a time for today: only Prepared downloads (#3208). */
-const keepingRows: ReadonlySet<string> = new Set(['storage.keepFiles', 'storage.keepDownloads']);
+/** Keep generated files, from the server's keeping read (#3208); its children have no time of their own on the server. */
+const keepingRows: ReadonlySet<string> = new Set(['storage.keepFiles']);
 const keepingChildrenNotYet: ReadonlySet<string> = new Set(['storage.keepConversions', 'storage.keepPrepared', 'storage.keepSubtitles', 'storage.keepTrickplay']);
 
 /**
