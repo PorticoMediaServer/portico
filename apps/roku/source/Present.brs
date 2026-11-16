@@ -140,3 +140,48 @@ function coverTint(title as string) as integer
     ' (hi * 65536 + lo) mod 8 is lo mod 8
     return lo mod 8
 end function
+
+' "TC" for Timothée Chalamet: the first letters of the first and last names.
+function initialsOf(name as string) as string
+    parts = name.trim().split(" ")
+    out = ucase(left(parts[0], 1))
+    if parts.count() > 1 then out = out + ucase(left(parts[parts.count() - 1], 1))
+    return out
+end function
+
+' A cast or crew member as a card: {id, kind: "person", art, title, sub, badge (initials), ...}.
+function personCard(credit as object) as object
+    part = ""
+    if credit.character <> invalid and credit.character <> ""
+        part = credit.character
+    else if credit.role <> invalid
+        part = ucase(left(credit.role, 1)) + mid(credit.role, 2)
+    end if
+    art = ""
+    if credit.image <> invalid then art = credit.image
+    return {id: credit.personId, kind: "person", art: art, whole: false, title: credit.name, sub: part, progress: -1, badge: initialsOf(credit.name), overlay: false}
+end function
+
+' The names in a title's credits with one role, in order, at most `most` of them.
+function creditNames(credits as dynamic, role as string, most as integer) as string
+    out = ""
+    n = 0
+    if credits = invalid then return out
+    for each credit in credits
+        if credit.role = role and n < most
+            if out <> "" then out = out + ", "
+            out = out + credit.name
+            n = n + 1
+        end if
+    end for
+    return out
+end function
+
+' "March 1, 2024" from "2024-03-01" or a full timestamp.
+function dateText(iso as dynamic) as string
+    if iso = invalid or len(iso) < 10 then return ""
+    months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    month = mid(iso, 6, 2).toInt()
+    if month < 1 or month > 12 then return ""
+    return months[month - 1] + " " + mid(iso, 9, 2).toInt().toStr() + ", " + left(iso, 4)
+end function

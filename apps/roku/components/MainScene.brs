@@ -56,11 +56,43 @@ sub onLaunchArgs()
 end sub
 
 ' One screen at a time fills the page; the rail shows only once someone is signed in with a profile.
-sub show(component as string) 
-    if m.screen <> invalid then m.screens.removeChild(m.screen)
+sub show(component as string)
+    m.screens.removeChildrenIndex(m.screens.getChildCount(), 0)
     m.screen = m.screens.createChild(component)
     m.rail.visible = false
     m.backdrop.art = ""
+end sub
+
+' Open a page over the one showing; Back returns to it exactly as it was left.
+function push(component as string) as object
+    m.screen.visible = false
+    m.screen = m.screens.createChild(component)
+    m.screen.observeField("art", "onArt")
+    m.screen.observeField("open", "onOpen")
+    return m.screen
+end function
+
+sub pop()
+    count = m.screens.getChildCount()
+    if count < 2 then return
+    m.screens.removeChildIndex(count - 1)
+    m.screen = m.screens.getChild(count - 2)
+    m.screen.visible = true
+    m.backdrop.art = imageUrl(m.screen.art, 1344, 756)
+    m.screen.active = true
+end sub
+
+' A page asks for a title to be opened or played.
+sub onOpen(event as object)
+    ask = event.getData()
+    if ask.play = true
+        return   ' the player comes with the next change
+    end if
+    if ask.item.kind = "movie"
+        page = push("TitleScreen")
+        page.item = ask.item
+        page.active = true
+    end if
 end sub
 
 sub showSignIn()
@@ -141,6 +173,7 @@ sub showHome()
     api("GET", "/v1/live/channels?limit=1", invalid, "onLive")
     show("HomeScreen")
     m.screen.observeField("art", "onArt")
+    m.screen.observeField("open", "onOpen")
     m.rail.visible = true
     m.rail.current = "home"
     m.screen.active = true
@@ -212,6 +245,10 @@ function onKeyEvent(key as string, press as boolean) as boolean
     if key = "left" and m.screen <> invalid and m.rail.visible
         ' Left from a page's leftmost element opens the rail.
         m.rail.active = true
+        return true
+    end if
+    if key = "back" and m.screens.getChildCount() > 1
+        pop()
         return true
     end if
     return false

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A film's page: what it is and its buttons, then More like this, then Details with the cast.
+     Three stops down the page; the section strip marks where you are and is never a focus stop. -->
+<component name="TitleScreen" extends="Group">
+  <interface>
+    <!-- The title to show, as a row or list gave it; the page reads the rest. -->
+    <field id="item" type="assocarray" onChange="onItem"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="art" type="string"/>
+    <!-- Asks the scene to open or play a title: {item, play, startOver}. -->
+    <field id="open" type="assocarray" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="TitleScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <children>
+    <Group id="top">
+      <Hero id="hero" mode="title"/>
+      <Label id="credits" translation="[200,0]" width="1300"/>
+      <ButtonRow id="buttons" translation="[200,0]"/>
+    </Group>
+    <Label id="smallTitle" translation="[197,58]" width="1500" visible="false"/>
+    <Group id="strip">
+      <Label id="tabRelated" text="More like this"/>
+      <Label id="tabDetails" text="Details"/>
+      <Rectangle id="stripLine" width="1624" height="1" color="0x28404FFF" translation="[200,52]"/>
+      <Rectangle id="stripMark" height="3" color="0x409FD4FF"/>
+    </Group>
+    <Shelf id="related" shape="poster" visible="false"/>
+    <Group id="details" visible="false">
+      <Label id="aboutHead" text="About" translation="[200,0]"/>
+      <Label id="about" translation="[200,56]" width="880" wrap="true" maxLines="5"/>
+      <Label id="tagline" translation="[200,0]" width="880"/>
+      <Group id="facts" translation="[1148,4]"/>
+      <Shelf id="cast" shape="person" heading="Cast &amp; crew" subheading="Cast, then crew" translation="[0,330]"/>
+    </Group>
+  </children>
+</component>

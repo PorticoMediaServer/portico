@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The lockup at the top of a page: what a title is, in words. Two uses:
-     "spotlight" has buttons and takes focus; "preview" describes the card in focus and has none. -->
+     "spotlight" has buttons and takes focus; "preview" describes the card in focus and has none;
+     "title" is a title page's own lockup, whose page draws the buttons. -->
 <component name="Hero" extends="Group">
   <interface>
     <field id="mode" type="string" value="preview" onChange="onModel"/>

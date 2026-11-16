@@ -27,6 +27,16 @@ sub onShape()
     m.ring.translation = [k.safeLeft - size[0] * grow - out, g.headingGap - size[1] * grow - out]
     m.ring.width = size[0] * k.focusScale + out * 2
     m.ring.height = size[1] * k.focusScale + out * 2
+    m.ring.uri = "pkg:/images/focus-14.9.png"
+    if m.top.shape = "person"
+        ' a round ring round the face, which sits centred at the top of its card
+        face = 150 * k.focusScale
+        across = face * 296 / 216
+        m.ring.uri = "pkg:/images/focus-disc.png"
+        m.ring.width = across
+        m.ring.height = across
+        m.ring.translation = [k.safeLeft + size[0] / 2 - across / 2, g.headingGap + 75 - across / 2]
+    end if
 end sub
 
 sub onHeading()

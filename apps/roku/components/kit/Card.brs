@@ -16,6 +16,10 @@ sub init()
     m.badgePlate = m.top.findNode("badgePlate")
     m.badge = m.top.findNode("badge")
     c = colours()
+    m.person = m.top.findNode("person")
+    setType(m.top.findNode("faceInitials"), "personInitials", c.textSecondary)
+    setType(m.top.findNode("faceName"), "cardTitle", c.text)
+    setType(m.top.findNode("facePart"), "cardSubtitle", c.textTertiary)
     setType(m.title, "wideTitle", c.text)
     setType(m.sub, "cardSubtitle", c.textSecondary)
     setType(m.badge, "badge", c.actionInk)
@@ -62,6 +66,28 @@ end sub
 sub onContent()
     item = m.top.itemContent
     if item = invalid or m.w = 0 then return
+    isPerson = (item.kind = "person")
+    m.person.visible = isPerson
+    m.top.findNode("frame").getChild(0).visible = not isPerson
+    m.clip.visible = not isPerson
+    m.over.visible = not isPerson
+    if isPerson
+        x = (m.w - 150) / 2
+        for each id in ["faceDisc", "faceInitials", "faceClip"]
+            m.top.findNode(id).translation = [x, 0]
+        end for
+        m.top.findNode("facePhoto").uri = item.art
+        m.top.findNode("faceInitials").text = item.badge
+        name = m.top.findNode("faceName")
+        name.width = m.w + 20
+        name.translation = [-10, 162]
+        name.text = item.title
+        part = m.top.findNode("facePart")
+        part.width = m.w + 20
+        part.text = item.sub
+        if name.boundingRect().height > 40 then part.translation = [-10, 222] else part.translation = [-10, 194]
+        return
+    end if
     ' A cover is shown whole, in its own shape; other art fills the card.
     overlay = item.overlay
     if item.art = ""

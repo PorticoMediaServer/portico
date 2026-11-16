@@ -77,7 +77,7 @@ sub onModel()
     m.synopsis.translation = [0, y]
     if model.synopsis <> "" then y = y + 84
 
-    m.hints.visible = not spotlight
+    m.hints.visible = (m.top.mode = "preview")
     m.buttonRow.visible = spotlight
     m.dots.visible = spotlight
     if spotlight

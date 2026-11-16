@@ -25,6 +25,16 @@
       <Poster id="art" loadDisplayMode="scaleToZoom"/>
       <Poster id="shade" uri="pkg:/images/card-shade.png" visible="false"/>
     </MaskGroup>
+    <!-- A person: a round face (a portrait, or initials on a disc) with the name and part under it. -->
+    <Group id="person" visible="false" translation="[0,16]">
+      <Poster id="faceDisc" uri="pkg:/images/disc.png" blendColor="0x1D3848FF" width="150" height="150"/>
+      <Label id="faceInitials" width="150" height="150" horizAlign="center" vertAlign="center"/>
+      <MaskGroup id="faceClip" maskUri="pkg:/images/disc.png" maskSize="[150,150]">
+        <Poster id="facePhoto" width="150" height="150" loadWidth="150" loadHeight="150" loadDisplayMode="scaleToZoom"/>
+      </MaskGroup>
+      <Label id="faceName" horizAlign="center" wrap="true" maxLines="2"/>
+      <Label id="facePart" horizAlign="center"/>
+    </Group>
     <Group id="over">
       <!-- A title with no picture gets a cover made from its name: one of eight tints, the same in every Portico app. -->
       <Group id="made" visible="false">
