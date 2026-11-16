@@ -140,6 +140,12 @@ func (b *batchTx) insertItem(row itemRow) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	if row.SortTitle != "" {
+		id, _ := res.LastInsertId()
+		if err := b.ownSortTitle(id, row.SortTitle); err != nil {
+			return 0, err
+		}
+	}
 	return res.LastInsertId()
 }
 

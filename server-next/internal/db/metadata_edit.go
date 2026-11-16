@@ -283,6 +283,9 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 			}
 			sets += ", sort_title = ?"
 			args = append(args, sorttext.Key(title, explicit, language.String))
+			if err := b.ownSortTitle(id, explicit); err != nil {
+				return err
+			}
 		}
 		if edit.PublicationType != nil {
 			locks[FieldPublicationType], sources[FieldPublicationType] = true, SourceEdit
@@ -497,3 +500,12 @@ var creditRoleByName = func() map[string]CreditRole {
 	}
 	return out
 }()
+
+// ownSortTitle keeps the sort title a person or an NFO file gave a title, as written, beside
+// the sort key made from it (sort_title), so the editor can show it; "" when the sort key is
+// made from the title alone.
+func (b *batchTx) ownSortTitle(itemID int64, sortTitle string) error {
+	_, err := b.exec(`UPDATE items SET extra = CASE WHEN ?1 = '' THEN nullif(json_remove(ifnull(extra, '{}'), '$.sortTitle'), '{}')
+		ELSE json_set(ifnull(extra, '{}'), '$.sortTitle', ?1) END WHERE id = ?2`, sortTitle, itemID)
+	return err
+}
