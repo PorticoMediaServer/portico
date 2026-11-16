@@ -8,8 +8,8 @@ test('menu refresh preserves the kind route, escaped ID, empty body and captured
   await refreshAvailableCatalogueMetadata(api, 'movie', 'title /?', signal);
   await refreshAvailableCatalogueMetadata(api, 'show', 'show /?', signal);
   assert.deepEqual(calls, [
-    ['/v1/items/title%20%2F%3F/metadata/refresh', 'POST', {}, signal],
-    ['/v1/shows/show%20%2F%3F/metadata/refresh', 'POST', {}, signal],
+    ['/v1/admin/items/title%20%2F%3F/metadata/refresh', 'POST', {}, signal],
+    ['/v1/admin/items/show%20%2F%3F/metadata/refresh', 'POST', {}, signal],
   ]);
   assert.equal(refreshAvailableCatalogueMetadata(api, 'person', 'person', signal), undefined);
   assert.equal(refreshAvailableCatalogueMetadata(api, undefined, 'missing-kind', signal), undefined);

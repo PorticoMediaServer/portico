@@ -73,7 +73,7 @@ test('offer: Rate and Download are for everyone; collection and the owner rows f
   const aggregate = owner.handle.offer(show);
   assert.equal(aggregate.collection, false, 'a show has no single-title collection add outside Home'); assert.equal(aggregate.edit, false); assert.equal(aggregate.remove, false);
   assert.equal(aggregate.refresh, true, 'the server refreshes a show as a whole');
-  assert.equal(owner.handle.offer({...film, kind: 'album'}).refresh, false, 'an album cannot be refreshed');
+  assert.equal(owner.handle.offer({...film, kind: 'album'}).refresh, true, 'the server refreshes an album as a whole');
   assert.equal(owner.handle.offer({...film, available: false}).collection, false);
 });
 
