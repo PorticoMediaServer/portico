@@ -17,6 +17,7 @@ import {View, type ViewProps} from 'react-native';
  * URL, which is made and revoked here.
  */
 export const MediaSource = globalThis.MediaSource;
+export type MediaSource = globalThis.MediaSource;
 export type SourceBuffer = globalThis.SourceBuffer;
 
 type DecodingConfiguration = Parameters<MediaCapabilities['decodingInfo']>[0];

@@ -371,6 +371,8 @@ jobs:
           case "$COMPONENT" in
             apps/*|website) (cd "$COMPONENT" && npm ci --legacy-peer-deps --workspaces=false) ;;
           esac
+          # The LG and Samsung app's type check reads the shared screens' packages from apps/native.
+          if [ "$COMPONENT" = apps/tv-web ]; then (cd apps/native && npm ci --ignore-scripts --legacy-peer-deps --workspaces=false --no-audit --no-fund); fi
       - env:
           COMPONENT: ${{ matrix.component }}
         run: python3 ci/run.py js-static --component "$COMPONENT"

@@ -101,7 +101,6 @@ export const TextInput = forwardRef<unknown, Web.TextInputProps & TVProps>(funct
     return () => element.removeEventListener('keydown', keydown);
   }, [editable, typing]);
   return <Web.TextInput {...props} editable={editable !== false && typing} ref={attach as never}
-    data-tv-typing={typing ? '' : undefined}
     onBlur={event => {if (refocusing.current) return; setTyping(false); onBlur?.(event);}}
     onSubmitEditing={event => {setTyping(false); props.onSubmitEditing?.(event);}}/>;
 });
