@@ -8,9 +8,10 @@ import {serverNow} from '../../../packages/client-core/src/server-clock';
 import {publicationUTF8, openOfflineReadingSession, openDownloadedBook, publicationBinding, nativePublicationReadsAvailable, type OfflineReadingSession, type PublicationBinding} from './offline-reading';
 import {decodeGetReadingSessionsSessionIdProgressResponse, decodePutReadingSessionsSessionIdProgressResponse} from '../../../packages/contracts/src';
 import {parseReadingOfflineRefresh, readingOfflineRefreshLimit} from '../../../packages/client-core/src/reading-offline-refresh';
-import {readingPlacePosition, readingPlaceProgress, type ReadingLocation, type ReadingManifest, type ReadingProgress, type ReadingSavedProgress} from '../../../packages/client-core/src/reading';
+import {readingAnnotationBody, readingAnnotationEntry, readingPlacePosition, readingPlaceProgress, type ReadingLocation, type ReadingManifest, type ReadingProgress, type ReadingSavedProgress} from '../../../packages/client-core/src/reading';
 import {callServer} from '../../../packages/client-core/src/query/server-api';
 import {maxEditAgeMs} from '../../../packages/client-core/src/outbox-routes';
+import type {AnnotationChange} from '../../../packages/contracts/src/next/api';
 import {storedSubtitle, subtitleExtraFiles, subtitleExtraName, joinDownloadedVtt, type StoredSubtitle} from './offline-subtitle-files';
 import {receiptTime, serverReceiptFloor} from './receipt-clock';
 import {NativeEventEmitter, NativeModules, Platform} from 'react-native';
@@ -154,6 +155,11 @@ const offlineBookFormat = (container: string | undefined): DownloadedBook['forma
 /** A place in a downloaded book this profile made with no server, by item: the state's position,
  * when it was made, and whether it has been handed to the server (or its outbox) yet. */
 type BookPlace = Readonly<{position: string; madeAt: number; sent?: true}>;
+/** A downloaded book's bookmarks, highlights and notes, by item: the server's rows as last read, and
+ * the changes made here not yet taken by the server (an added or changed one's body, or a deletion),
+ * each with when it was made. */
+type BookNoteChange = Readonly<{body?: Readonly<Record<string, unknown>>; madeAt: number}>;
+type BookNotes = Readonly<{rows: readonly Readonly<Record<string, unknown>>[]; pending: Readonly<Record<string, BookNoteChange>>}>;
 
 /** Deferred work is filed under the viewer that produced it, never under whoever is signed in
  * when it is finally sent. */
@@ -186,6 +192,7 @@ type Stored = {
   permissions: Record<string, number>;
   removed: Owned<{downloadId: string; itemId: string}>;
   places: Owned<BookPlace>;
+  notes: Owned<BookNotes>;
 };
 
 const native = NativeModules.PorticoDownloads as undefined | {
@@ -254,7 +261,7 @@ function storedReading(raw: unknown): Owned<ReadingRecord> {
 }
 /** Marks a document read from an earlier layout, so open() rewrites it once. */
 const upgradedLayout = Symbol('upgradedLayout');
-const emptyStored = (): Stored => ({version: 3, reading: {}, settings: defaults, plays: {}, resume: {}, keys: {}, wanted: {}, selectionActions: {}, wantedPublications: {}, enrolledMembers: {}, nextAfter: {}, renewed: {}, clockFloor: 0, permissions: {}, removed: {}, places: {}});
+const emptyStored = (): Stored => ({version: 3, reading: {}, settings: defaults, plays: {}, resume: {}, keys: {}, wanted: {}, selectionActions: {}, wantedPublications: {}, enrolledMembers: {}, nextAfter: {}, renewed: {}, clockFloor: 0, permissions: {}, removed: {}, places: {}, notes: {}});
 
 /** A present document must be readable in full. An unsupported or damaged record
  * is never replaced with an empty outbox on the next settings/progress write. */
@@ -321,6 +328,11 @@ function readStored(parsed: any): Stored {
   for (const values of Object.values(out.removed)) for (const value of Object.values(values)) if (!object(value) || typeof value.downloadId !== 'string' || typeof value.itemId !== 'string') invalid();
   out.places = owned(parsed.places ?? {});
   for (const values of Object.values(out.places)) for (const value of Object.values(values)) if (!object(value) || typeof value.position !== 'string' || !safeInteger(value.madeAt, 1) || value.sent !== undefined && value.sent !== true) invalid();
+  out.notes = owned(parsed.notes ?? {});
+  for (const values of Object.values(out.notes)) for (const value of Object.values(values)) {
+    if (!object(value) || !Array.isArray(value.rows) || value.rows.some(row => !object(row)) || !object(value.pending)) invalid();
+    for (const change of Object.values(value.pending)) if (!object(change) || !safeInteger(change.madeAt, 1) || change.body !== undefined && !object(change.body)) invalid();
+  }
   out.permissions = record(parsed.permissions ?? {});
   if (Object.values(out.permissions).some(value => !safeInteger(value, 1))) invalid();
   out.clockFloor = typeof parsed.clockFloor === 'number' ? parsed.clockFloor : 0;
@@ -415,6 +427,7 @@ export class OfflineDownloads {
   private retried = new Map<string, number>();
   private tending?: ReturnType<typeof setInterval>;
   private bundling = new Set<string>();
+  private sendingNotes = false;
   /** The play under way for each entry (one id for as long as the file stays open). */
   private playing = new Map<string, string>();
   private observationTimes = new Map<string, number>();
@@ -568,7 +581,7 @@ export class OfflineDownloads {
       if (!service.downloaded || this.ownedEntries(owner).some(e => e.receipt)) await this.refreshKeys(generation, api);
       await this.syncDownloads(generation);
       if (this.generation !== generation) return;
-      void this.sendBookPlaces();
+      void this.sendBookPlaces().then(() => this.sendBookNotes());
       this.publishEntries();
       this.publish({pendingProgress: this.pendingCount()});
       void this.renewReceipts(generation, api, owner, false);
@@ -1215,6 +1228,7 @@ export class OfflineDownloads {
           bucket(this.stored.places, owner)[described.item.id] = {position, madeAt: Date.parse(described.item.state?.updatedAt ?? '') || Date.now(), sent: true};
           await this.persist();
         }
+        if (owner) await this.refreshBookNotes(api, owner, described.item.id);
       }
       // Checked either way: a file this device cannot read is not asked about again.
       reading = {publication: true, ...(book ? {book} : {})};
@@ -1809,21 +1823,22 @@ export class OfflineDownloads {
     const book = this.downloadedBook(live), artifact = live.artifact!;
     const current = () => {try {return scope.current() && !this.playabilityReason(read());} catch {return false;}};
     return openDownloadedBook({id: live.id, owner, digest: artifact.sha256, bytes: artifact.bytes, itemId, versionId: book.versionId, revision: book.revision, format: book.format,
-      title: live.info?.title || live.title, current, signal: scope.signal, onClose: () => {void this.sendBookPlaces();},
+      title: live.info?.title || live.title, current, signal: scope.signal, onClose: () => {void this.sendBookPlaces(); void this.sendBookNotes();},
       progress: async () => {
         // A place this device has not sent yet is the newest it knows. Otherwise the server is asked,
-        // briefly, for one made on another device.
-        const known = this.stored.places[owner]?.[itemId];
-        if (api && (!known || known.sent)) {
+        // briefly, for one made on another device; the book's notes are read again the same way.
+        if (api) {
           const ask = new AbortController(), timer = setTimeout(() => ask.abort(), 1500);
           try {
-            const state = (await callServer(api, 'GET /v1/items/{id}', {id: itemId, signal: ask.signal})).state;
-            const before = this.stored.places[owner]?.[itemId];
+            const known = this.stored.places[owner]?.[itemId];
+            const [item] = await Promise.all([!known || known.sent ? callServer(api, 'GET /v1/items/{id}', {id: itemId, signal: ask.signal}) : undefined,
+              this.refreshBookNotes(api, owner, itemId, ask.signal)]);
+            const state = item?.state, before = this.stored.places[owner]?.[itemId];
             if (typeof state?.position === 'string' && state.position && (!before || before.sent) && current()) {
               bucket(this.stored.places, owner)[itemId] = {position: state.position, madeAt: Date.parse(state.updatedAt ?? '') || Date.now(), sent: true};
               await this.persist();
             }
-          } catch { /* Out of reach: the place this device knows stands. */ } finally {clearTimeout(timer);}
+          } catch { /* Out of reach: what this device knows stands. */ } finally {clearTimeout(timer);}
         }
         return this.bookProgress(owner, itemId, book);
       },
@@ -1835,7 +1850,70 @@ export class OfflineDownloads {
         if (!await this.persist()) {if (previous) bucket(this.stored.places, owner)[itemId] = previous; else delete this.stored.places[owner]?.[itemId]; throw new Error('reading_progress_not_saved');}
         return {saved: true, progress: {location: request.location, observedAt: madeAt, revision: request.expectedRevision + 1, sourceId: book.versionId, sourceRevision: book.revision, stale: false}};
       },
+      notes: {
+        list: manifest => this.bookNoteRows(owner, itemId).flatMap(row => {const entry = readingAnnotationEntry(row, manifest); return entry ? [entry] : [];}),
+        change: async (mutation, manifest) => {
+          if (!current()) throw new Error('reading_retired');
+          const notes = this.stored.notes[owner]?.[itemId] ?? {rows: [], pending: {}}, previous = this.stored.notes[owner]?.[itemId];
+          const change: BookNoteChange = {madeAt: Date.now(), ...(mutation.operation === 'upsert' ? {body: readingAnnotationBody(mutation, manifest)} : {})};
+          bucket(this.stored.notes, owner)[itemId] = {rows: notes.rows, pending: {...notes.pending, [mutation.id]: change}};
+          if (!await this.persist()) {if (previous) bucket(this.stored.notes, owner)[itemId] = previous; else delete this.stored.notes[owner]?.[itemId]; throw new Error('reading_annotation_not_saved');}
+          void this.sendBookNotes();
+        },
+      },
     });
+  }
+  /** A downloaded book's notes as this device knows them: the server's rows with this device's
+   * changes not yet sent laid over them. */
+  private bookNoteRows(owner: string, itemId: string): readonly Readonly<Record<string, unknown>>[] {
+    const notes = this.stored.notes[owner]?.[itemId]; if (!notes) return [];
+    const rows = new Map(notes.rows.map(row => [String(row.id), row]));
+    for (const [id, change] of Object.entries(notes.pending)) {
+      if (!change.body) {rows.delete(id); continue;}
+      const at = new Date(change.madeAt).toISOString();
+      rows.set(id, {...change.body, id, createdAt: rows.get(id)?.createdAt ?? at, updatedAt: at});
+    }
+    return [...rows.values()];
+  }
+  /** Reads a book's notes from the server for this device to keep (at most 5,000, rule 25). */
+  private async refreshBookNotes(api: Api, owner: string, itemId: string, signal?: AbortSignal) {
+    const rows: Readonly<Record<string, unknown>>[] = []; let cursor: string | undefined;
+    for (let page = 0; page < 100; page++) {
+      const answer = await callServer(api, 'GET /v1/items/{id}/annotations', {id: itemId, query: {cursor}, signal});
+      rows.push(...answer.items.map(row => ({...row}) as Record<string, unknown>));
+      cursor = answer.nextCursor || undefined; if (!cursor) break;
+    }
+    if (this.api !== api || this.ownerKey() !== owner) return;
+    bucket(this.stored.notes, owner)[itemId] = {rows, pending: this.stored.notes[owner]?.[itemId]?.pending ?? {}};
+    await this.persist();
+  }
+  /** Sends the notes changed here with no server, at most 500 at once, each with how long ago it was
+   * made: the later change to the same one wins (10-reading rule 28). One the server refuses for good
+   * (its book is gone) is dropped; with no answer they all wait for the next contact. */
+  private async sendBookNotes() {
+    const api = this.api, owner = this.ownerKey();
+    if (!api || !owner || !this.stored.notes[owner] || this.sendingNotes) return;
+    this.sendingNotes = true;
+    try {for (let batch = 0; batch < 20; batch++) {
+      const sent = Object.entries(this.stored.notes[owner] ?? {}).flatMap(([itemId, notes]) => Object.entries(notes.pending).map(([id, change]) => ({itemId, id, change}))).slice(0, 500);
+      if (!sent.length) return;
+      const now = Date.now(), empty = {kind: '', color: '', location: '', madeOn: '', progress: 0, chapter: '', text: '', note: '', extra: null};
+      const answer = await callServer(api, 'POST /v1/annotations:batch', {body: {changes: sent.map(({itemId, id, change}) => ({...empty, ...change.body, itemId, id, delete: !change.body,
+        madeAgoMs: Math.min(maxEditAgeMs, Math.max(0, now - change.madeAt))}) as AnnotationChange)}}).catch(() => undefined);
+      if (!answer || this.api !== api || this.ownerKey() !== owner || answer.results.length !== sent.length) return;
+      sent.forEach(({itemId, id, change}, index) => {
+        const notes = this.stored.notes[owner]?.[itemId], result = answer.results[index]!;
+        if (!notes || result.id !== id) return;
+        // The server's answer stands; a refused change leaves the server's row as it was.
+        const deleted = !change.body && (!result.error || result.error.code === 'annotation_deleted');
+        const rows = result.annotation || deleted ? notes.rows.filter(row => row.id !== id) : [...notes.rows];
+        if (result.annotation) rows.push({...result.annotation});
+        const pending = {...notes.pending}; if (pending[id] === change && !result.error?.retry) delete pending[id];
+        bucket(this.stored.notes, owner)[itemId] = {rows, pending};
+      });
+      // One the server asks to have sent again waits for the next contact.
+      if (!await this.persist() || answer.results.some(result => result.error?.retry)) return;
+    }} finally {this.sendingNotes = false;}
   }
   /** Hands this profile's places made with no server to the server. One it cannot reach yet is kept
    * by the outbox, which says how long ago it was made, so the later place wins wherever it came from. */

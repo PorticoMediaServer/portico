@@ -2,6 +2,7 @@ import type {NativeOfflinePublicationLease} from './offline-reading-authority';
 import {NativeModules, Platform} from 'react-native';
 import {decodeGetReadingSessionsSessionIdProgressResponse} from '../../../packages/contracts/src';
 import type {ReadingManifest, ReadingLocation, ReadingProgress, ReadingSavedProgress} from '../../../packages/client-core/src/reading';
+import {captureReadingAnnotationMutation, type ReadingAnnotation, type ReadingAnnotationMutation} from '../../../packages/client-core/src/reading-annotations';
 import type {ReadingHostSession} from '../../../packages/client-core/src/reading-host';
 import {ReadingError, parseReadingManifest, validateReadingLocation} from '../../../packages/client-core/src/reading';
 import {nativeRouteCrypto} from '../src-next/platform/server-connections';
@@ -137,6 +138,8 @@ export async function openDownloadedBook(options: Readonly<{
   current: () => boolean; signal: AbortSignal; onClose: () => void;
   progress: (manifest: ReadingManifest) => Promise<ReadingProgress>;
   save: (request: Readonly<{expectedRevision: number; location: ReadingLocation}>, manifest: ReadingManifest) => Promise<ReadingSavedProgress>;
+  /** The profile's bookmarks, highlights and notes in this book as this device knows them, and a change to one. */
+  notes: Readonly<{list: (manifest: ReadingManifest) => readonly ReadingAnnotation[]; change: (mutation: ReadingAnnotationMutation, manifest: ReadingManifest) => Promise<void>}>;
 }>): Promise<OfflineReadingSession> {
   if (!nativePublicationReadsAvailable() || !native || !digest(options.digest) || !integer(options.bytes, 1, 2 ** 31)) return fail();
   const handle = 'pub_' + Array.from(nativeRouteCrypto.random(20), byte => byte.toString(16).padStart(2, '0')).join('');
@@ -152,7 +155,8 @@ export async function openDownloadedBook(options: Readonly<{
   };
   try {
     const manifest = parseReadingManifest({sessionId: handle, itemId: options.itemId, sourceId: options.versionId, revision: options.revision, format: options.format,
-      size: options.bytes, metadata: {title: options.title}, wholeFile: true});
+      size: options.bytes, metadata: {title: options.title}, wholeFile: true, canAnnotate: true});
+    let notesRevision = 0;
     check(); if (await native.publicationOpen(handle, options.id, options.owner, options.digest) !== options.bytes) fail(); check();
     const session: OfflineReadingSession = {manifest, signal: life.signal, close,
       headPDF: async signal => {check(signal); if (manifest.format !== 'pdf') fail('invalid_format');},
@@ -166,6 +170,21 @@ export async function openDownloadedBook(options: Readonly<{
       page: async () => fail('invalid_format'),
       progress: async signal => {check(signal); const value = await options.progress(manifest); check(signal); return value;},
       saveProgress: async (request, signal) => {check(signal); validateReadingLocation(request.location, manifest); const saved = await options.save(request, manifest); check(signal); return saved;},
+      // In pages of 50 by id, as the reader's bridge carries them.
+      annotations: async (cursor = '', _revision, signal) => {
+        check(signal);
+        const after = [...options.notes.list(manifest)].filter(entry => entry.id > cursor).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+        const entries = after.slice(0, 50);
+        return Object.freeze({sourceId: manifest.sourceId, sourceRevision: manifest.revision, revision: notesRevision, entries: Object.freeze(entries), nextCursor: after.length > 50 ? entries[49]!.id : ''});
+      },
+      mutateAnnotation: async (request, signal) => {
+        check(signal);
+        if (request.operation === 'upsert' && 'earlierCopy' in request && request.earlierCopy) fail('invalid_request');
+        const captured = captureReadingAnnotationMutation(request, location => validateReadingLocation(location, manifest));
+        await options.notes.change(captured, manifest); check(signal);
+        notesRevision = Math.max(notesRevision, captured.expectedRevision) + 1;
+        return Object.freeze({revision: notesRevision});
+      },
     };
     return Object.freeze(session);
   } catch (error) {await close(); throw error;}

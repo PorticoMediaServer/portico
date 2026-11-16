@@ -773,6 +773,30 @@ export function readingPlacePosition(location: ReadingLocation, manifest: Readin
   return JSON.stringify({...location, fingerprint: manifest.revision, ...(atEnd ? {atEnd: true} : {})});
 }
 
+/** One of the profile's bookmarks, highlights and notes as the server lists it, as the reader takes it
+ * in this file. One made in an earlier copy of the book carries earlierCopy so the screen can try its
+ * words or list it separately, and earlierCopyGone when that copy is no longer kept (`kept`, when
+ * known), so a highlight found here may move here. A place this reader cannot use is left out. */
+export function readingAnnotationEntry(row: unknown, manifest: ReadingManifest, kept?: ReadonlySet<string>): ReadingAnnotationsPage['entries'][number] | undefined {
+  if (!isRecord(row) || typeof row.id !== 'string' || typeof row.location !== 'string') return undefined;
+  try {
+    const location = JSON.parse(row.location) as ReadingLocation;
+    const earlierCopy = row.madeOn !== manifest.revision;
+    if (!earlierCopy) validateLocation(location, manifest);
+    const extra = isRecord(row.extra) ? row.extra : {};
+    return Object.freeze({...(earlierCopy ? {earlierCopy: true as const} : {}), ...(earlierCopy && kept && !kept.has(String(row.madeOn)) ? {earlierCopyGone: true as const} : {}), id: row.id, kind: row.kind === 'highlight' ? 'highlight' : 'bookmark', location,
+      text: typeof row.text === 'string' ? row.text : '', note: typeof row.note === 'string' ? row.note : '',
+      colour: (typeof row.color === 'string' ? row.color : '') as '' | 'yellow' | 'green' | 'blue' | 'pink',
+      ...(Array.isArray(extra.rects) ? {rects: Object.freeze(extra.rects as {x: number; y: number; width: number; height: number}[])} : {}),
+      createdAt: Date.parse(String(row.createdAt)) || 0, updatedAt: Date.parse(String(row.updatedAt)) || 0});
+  } catch { return undefined; }
+}
+/** What the server is sent for one added or changed bookmark or highlight. */
+export function readingAnnotationBody(captured: Extract<ReadingAnnotationMutation, {operation: 'upsert'}>, manifest: ReadingManifest) {
+  return {kind: captured.kind, color: captured.colour, location: JSON.stringify(captured.location), madeOn: manifest.revision,
+    progress: captured.location.progression, text: captured.text, note: captured.note, ...(captured.rects ? {extra: {rects: captured.rects}} : {})};
+}
+
 /** A session that could not go on (its book's address ended and the book could not be opened
  * again as the same file) ends with this code, and the reader offers "Open again". */
 export const READING_SESSION_EXPIRED = 'reading_session_expired';
@@ -977,20 +1001,7 @@ export class ReadingSession {
       const raw = await this.#client.json(query(serverPath('GET /v1/items/{id}/annotations', {id: this.manifest.itemId}), {cursor: next || undefined}), 'GET', undefined, signal, value => value, 16 << 20);
       this.#check();
       if (!isRecord(raw) || !Array.isArray(raw.items)) fail('invalid_document');
-      for (const row of raw.items) {
-        if (!isRecord(row) || typeof row.id !== 'string' || typeof row.location !== 'string') continue;
-        try {
-          const location = JSON.parse(row.location) as ReadingLocation;
-          const earlierCopy = row.madeOn !== this.manifest.revision;
-          if (!earlierCopy) validateLocation(location, this.manifest);
-          const extra = isRecord(row.extra) ? row.extra : {};
-          entries.push(Object.freeze({...(earlierCopy ? {earlierCopy: true as const} : {}), ...(earlierCopy && this.#kept && !this.#kept.has(String(row.madeOn)) ? {earlierCopyGone: true as const} : {}), id: row.id, kind: row.kind === 'highlight' ? 'highlight' : 'bookmark', location,
-            text: typeof row.text === 'string' ? row.text : '', note: typeof row.note === 'string' ? row.note : '',
-            colour: (typeof row.color === 'string' ? row.color : '') as '' | 'yellow' | 'green' | 'blue' | 'pink',
-            ...(Array.isArray(extra.rects) ? {rects: Object.freeze(extra.rects as {x: number; y: number; width: number; height: number}[])} : {}),
-            createdAt: Date.parse(String(row.createdAt)) || 0, updatedAt: Date.parse(String(row.updatedAt)) || 0}));
-        } catch { /* a place this reader cannot use is left out, never shown wrong */ }
-      }
+      for (const row of raw.items) {const entry = readingAnnotationEntry(row, this.manifest, this.#kept); if (entry) entries.push(entry);}
       next = typeof raw.nextCursor === 'string' ? raw.nextCursor : '';
       if (!next) break;
     }
@@ -1009,9 +1020,7 @@ export class ReadingSession {
         check(); await discard(r);
       }, this.signal);
     } else {
-      const body = {kind: captured.kind, color: captured.colour, location: JSON.stringify(captured.location), madeOn: this.manifest.revision,
-        progress: captured.location.progression, text: captured.text, note: captured.note, ...(captured.rects ? {extra: {rects: captured.rects}} : {})};
-      await this.#client.json(path, 'PUT', body, signal, value => value, 256 << 10, undefined, this.signal, undefined, 256 << 10);
+      await this.#client.json(path, 'PUT', readingAnnotationBody(captured, this.manifest), signal, value => value, 256 << 10, undefined, this.signal, undefined, 256 << 10);
     }
     this.#check();
     this.#annotationRevision = Math.max(this.#annotationRevision, captured.expectedRevision) + 1;
