@@ -1,0 +1,380 @@
+// Package strm reads untrusted URL pointers. Only this reader fetches their targets;
+// decoders receive bytes through inputbridge, never these URLs.
+package strm
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"io"
+	"net"
+	"net/http"
+	"net/netip"
+	"net/url"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+	"unicode/utf8"
+)
+
+const PointerLimit = 8 << 10
+const ProbeLimit = 16 << 20
+
+const chunkSize = 8 << 20
+
+// ReadTimeout bounds a probe range or an active stream read, never a player pause.
+// Tests shorten this fixed production limit.
+var ReadTimeout = 30 * time.Second
+
+// These fixed errors are safe for an owner's problem line or a log. Never wrap a
+// transport/decoder error: it may include a URL, redirect, token or response text.
+var (
+	ErrPointer     = errors.New("not a single HTTP or HTTPS URL")
+	ErrRefused     = errors.New("refused address")
+	ErrUnavailable = errors.New("not reachable")
+	ErrRedirects   = errors.New("too many redirects")
+	ErrRange       = errors.New("not seekable")
+	ErrLimit       = errors.New("target read limit exceeded")
+	ErrMedia       = errors.New("not a media file")
+)
+
+func Parse(raw []byte) (string, error) {
+	if len(raw) > PointerLimit || !utf8.Valid(raw) {
+		return "", ErrPointer
+	}
+	text := strings.TrimSpace(strings.TrimPrefix(string(raw), "\ufeff"))
+	if strings.ContainsAny(text, "\r\n\x00") {
+		return "", ErrPointer
+	}
+	u, err := url.Parse(text)
+	if err != nil || !allowedURL(u) {
+		return "", ErrPointer
+	}
+	return u.String(), nil
+}
+
+func allowedURL(u *url.URL) bool {
+	return u != nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" && u.User == nil && u.Fragment == "" && !strings.Contains(u.Hostname(), "%")
+}
+
+// Client has no proxy, cookies or shared credentials. Own returns the server's
+// published public addresses, including a router's outside address. Interface
+// addresses are checked independently. Tests inject lookup/dial within this package.
+type Client struct {
+	http   *http.Client
+	own    func() []netip.Addr
+	lookup func(context.Context, string, string) ([]netip.Addr, error)
+	dial   func(context.Context, string, string) (net.Conn, error)
+}
+
+func New(own func() []netip.Addr) *Client {
+	c := &Client{own: own, lookup: net.DefaultResolver.LookupNetIP}
+	// A bounded chunk has its own deadline. Closing each connection also prevents
+	// pooled connections bypassing a newly changed own-address refusal.
+	tr := &http.Transport{Proxy: nil, DialContext: c.connect, DisableKeepAlives: true,
+		TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 15 * time.Second,
+		MaxResponseHeaderBytes: 64 << 10, DisableCompression: true}
+	c.http = &http.Client{Transport: tr, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 5 {
+			return ErrRedirects
+		}
+		if !allowedURL(req.URL) || via[len(via)-1].URL.Scheme == "https" && req.URL.Scheme != "https" {
+			return ErrRefused
+		}
+		req.Header.Del("Referer")
+		return nil // connect checks the actual destination on every hop
+	}}
+	return c
+}
+
+var blockedPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("0.0.0.0/8"), netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("192.0.0.0/24"), netip.MustParsePrefix("192.0.2.0/24"),
+	netip.MustParsePrefix("198.18.0.0/15"), netip.MustParsePrefix("198.51.100.0/24"),
+	netip.MustParsePrefix("203.0.113.0/24"), netip.MustParsePrefix("240.0.0.0/4"),
+	// Refuse transition mechanisms entirely, including encodings of forbidden IPv4.
+	netip.MustParsePrefix("::/96"), netip.MustParsePrefix("64:ff9b::/96"),
+	netip.MustParsePrefix("64:ff9b:1::/48"), netip.MustParsePrefix("2002::/16"),
+	netip.MustParsePrefix("2001::/32"), netip.MustParsePrefix("2001:db8::/32"),
+}
+
+func public(ip netip.Addr) bool {
+	ip = ip.Unmap()
+	if ip.Is6() && !netip.MustParsePrefix("2000::/3").Contains(ip) {
+		return false
+	}
+	if !ip.IsValid() || ip.Zone() != "" || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+		return false
+	}
+	for _, p := range blockedPrefixes {
+		if p.Contains(ip) {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *Client) refused(ip netip.Addr) bool {
+	if !public(ip) {
+		return true
+	}
+	ip = ip.Unmap()
+	if c.own != nil {
+		for _, own := range c.own() {
+			if own.Unmap() == ip {
+				return true
+			}
+		}
+	}
+	addresses, err := net.InterfaceAddrs()
+	if err != nil {
+		return true
+	}
+	for _, address := range addresses {
+		prefix, err := netip.ParsePrefix(address.String())
+		if err != nil {
+			continue
+		}
+		if prefix.Addr().Unmap() == ip {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Client) connect(ctx context.Context, network, address string) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, ErrRefused
+	}
+	var ips []netip.Addr
+	if ip, err := netip.ParseAddr(host); err == nil {
+		ips = []netip.Addr{ip}
+	} else {
+		ips, err = c.lookup(ctx, "ip", host)
+		if err != nil {
+			return nil, ErrUnavailable
+		}
+	}
+	if len(ips) == 0 {
+		return nil, ErrUnavailable
+	}
+	for _, ip := range ips {
+		if c.refused(ip) {
+			return nil, ErrRefused
+		}
+	}
+	for _, ip := range ips {
+		// The checked numeric address is the address dialled: no second DNS lookup.
+		dial := c.dial
+		if dial == nil {
+			dial = (&net.Dialer{Timeout: 10 * time.Second}).DialContext
+		}
+		conn, err := dial(ctx, network, net.JoinHostPort(ip.String(), port))
+		if err == nil {
+			return conn, nil
+		}
+	}
+	return nil, ErrUnavailable
+}
+
+// File holds one finite target, fetched by checked byte ranges. Size comes from
+// validated Content-Range, not Content-Type or Content-Length. A probe still
+// decides whether those bytes are media.
+type File struct {
+	client  *Client
+	ctx     context.Context
+	cancel  context.CancelFunc
+	address string
+	size    int64
+	etag    string
+	mu      sync.Mutex
+	budget  int64 // -1 for playback
+}
+
+func (c *Client) Open(ctx context.Context, address string) (*File, error) {
+	u, err := url.Parse(address)
+	if err != nil || !allowedURL(u) {
+		return nil, ErrPointer
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	f := &File{client: c, ctx: ctx, cancel: cancel, address: address, budget: -1}
+	resp, done, err := f.request(0, 0, false)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	defer done()
+	defer resp.Body.Close()
+	f.size, err = contentRange(resp.Header.Get("Content-Range"), 0, 0, 0)
+	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, 2))
+	if err != nil || readErr != nil || len(raw) != 1 {
+		cancel()
+		return nil, ErrRange
+	}
+	if tag := resp.Header.Get("ETag"); tag != "" && !strings.HasPrefix(tag, "W/") {
+		f.etag = tag
+	}
+	prefix := make([]byte, min(f.size, 512))
+	if _, err := f.ReadAt(prefix, 0); err != nil {
+		cancel()
+		return nil, ErrUnavailable
+	}
+	prefix = bytes.TrimSpace(bytes.TrimPrefix(prefix, []byte("\xef\xbb\xbf")))
+	if bytes.HasPrefix(prefix, []byte("#EXTM3U")) || bytes.HasPrefix(prefix, []byte("<MPD")) ||
+		bytes.HasPrefix(prefix, []byte("<?xml")) && bytes.Contains(prefix, []byte("<MPD")) {
+		cancel()
+		return nil, ErrRange
+	}
+	return f, nil
+}
+
+func (f *File) Size() int64  { return f.size }
+func (f *File) Close() error { f.cancel(); return nil }
+func (f *File) LimitProbe()  { f.mu.Lock(); f.budget = ProbeLimit - 1 - min(f.size, 512); f.mu.Unlock() }
+
+func (f *File) request(start, end int64, streaming bool) (*http.Response, context.CancelFunc, error) {
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if streaming {
+		ctx, cancel = context.WithCancel(f.ctx)
+	} else {
+		ctx, cancel = context.WithTimeout(f.ctx, ReadTimeout)
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET", f.address, nil)
+	if err != nil {
+		cancel()
+		return nil, nil, ErrPointer
+	}
+	req.Header.Set("Range", "bytes="+strconv.FormatInt(start, 10)+"-"+strconv.FormatInt(end, 10))
+	if f.etag != "" {
+		req.Header.Set("If-Match", f.etag)
+	}
+	resp, err := f.client.http.Do(req)
+	if err != nil {
+		cancel()
+		for _, safe := range []error{ErrRefused, ErrRedirects} {
+			if errors.Is(err, safe) {
+				return nil, nil, safe
+			}
+		}
+		return nil, nil, ErrUnavailable
+	}
+	if resp.StatusCode != http.StatusPartialContent || resp.Header.Get("Content-Encoding") != "" {
+		resp.Body.Close()
+		cancel()
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent && resp.StatusCode != http.StatusRequestedRangeNotSatisfiable {
+			return nil, nil, ErrUnavailable
+		}
+		return nil, nil, ErrRange
+	}
+	if f.size > 0 {
+		if _, err = contentRange(resp.Header.Get("Content-Range"), start, end, f.size); err != nil {
+			resp.Body.Close()
+			cancel()
+			return nil, nil, ErrRange
+		}
+		if f.etag != "" && resp.Header.Get("ETag") != f.etag {
+			resp.Body.Close()
+			cancel()
+			return nil, nil, ErrUnavailable
+		}
+	}
+	return resp, cancel, nil
+}
+
+func contentRange(value string, start, end, size int64) (int64, error) {
+	prefix := "bytes " + strconv.FormatInt(start, 10) + "-" + strconv.FormatInt(end, 10) + "/"
+	text, ok := strings.CutPrefix(value, prefix)
+	total, err := strconv.ParseInt(text, 10, 64)
+	if !ok || err != nil || total <= end || size > 0 && total != size {
+		return 0, ErrRange
+	}
+	return total, nil
+}
+
+func (f *File) ReadAt(p []byte, off int64) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	if off < 0 {
+		return 0, ErrRange
+	}
+	if off >= f.size {
+		return 0, io.EOF
+	}
+	want := min(int64(len(p)), f.size-off)
+	f.mu.Lock()
+	if f.budget >= 0 {
+		if want > f.budget {
+			f.mu.Unlock()
+			return 0, ErrLimit
+		}
+		f.budget -= want
+	}
+	f.mu.Unlock()
+	resp, done, err := f.request(off, off+want-1, false)
+	if err != nil {
+		return 0, err
+	}
+	defer done()
+	defer resp.Body.Close()
+	n, err := io.ReadFull(resp.Body, p[:want])
+	if err != nil {
+		return n, ErrUnavailable
+	}
+	if n < len(p) {
+		return n, io.EOF
+	}
+	return n, nil
+}
+
+// Stream times only active reads from the source: a paused player does not
+// spend its timeout. The remote reader requests the next bounded chunk at EOF.
+func (f *File) Stream(off int64) (io.ReadCloser, error) {
+	if off < 0 || off >= f.size {
+		return io.NopCloser(bytes.NewReader(nil)), nil
+	}
+	end := off + min(int64(chunkSize), f.size-off) - 1
+	resp, cancel, err := f.request(off, end, true)
+	if err != nil {
+		return nil, err
+	}
+	return &body{Reader: io.LimitReader(resp.Body, end-off+1), remaining: end - off + 1, cancel: cancel, close: func() error { cancel(); return resp.Body.Close() }}, nil
+}
+
+type body struct {
+	cancel    context.CancelFunc
+	remaining int64
+	io.Reader
+	close func() error
+}
+
+func (b *body) Read(p []byte) (int, error) {
+	timer := time.AfterFunc(ReadTimeout, b.cancel)
+	defer timer.Stop()
+	n, err := b.Reader.Read(p)
+	b.remaining -= int64(n)
+	if err != nil && (err != io.EOF || b.remaining > 0) {
+		err = ErrUnavailable
+	}
+	return n, err
+}
+
+func (b *body) Close() error { return b.close() }
+
+// Pointer reads only the small regular file already opened by its library source.
+func Pointer(file io.ReaderAt, size int64) (string, error) {
+	if size <= 0 || size > PointerLimit {
+		return "", ErrPointer
+	}
+	raw := make([]byte, size)
+	n, err := file.ReadAt(raw, 0)
+	if err != nil && !(err == io.EOF && n == len(raw)) {
+		return "", ErrUnavailable
+	}
+	return Parse(raw)
+}

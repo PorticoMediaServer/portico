@@ -47,6 +47,8 @@ type LibraryOptions struct {
 	Depth            string    `json:"depth,omitempty"`
 	Trash            TrashRule `json:"trash"`
 	AllowDelete      bool      `json:"allowDelete,omitempty"`
+	// STRM follows .strm URL files only when the owner opts this library in.
+	STRM bool `json:"strm,omitempty"`
 	// NoWatch turns off watching the library's folders for changes.
 	NoWatch bool `json:"noWatch,omitempty"`
 	// RescanMinutes is how often the library's local folders are scanned by themselves; 0 is

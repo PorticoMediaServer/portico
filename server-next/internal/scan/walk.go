@@ -14,11 +14,14 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/localmetadata"
 	"github.com/PorticoMediaServer/portico/server-next/internal/naming"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
+	"github.com/PorticoMediaServer/portico/server-next/internal/strm"
 )
 
 // Scanner scans libraries. One Scanner serves every scan of a server.
 type Scanner struct {
 	DB *db.DB
+	// STRM fetches opted-in URL targets through the public-address-only reader.
+	STRM *strm.Client
 	// Prober reads the inside of media files. With none, files are listed and never read.
 	Prober Prober
 	// Source opens the tree a library folder on this machine's disks points at. With none it
@@ -343,6 +346,9 @@ func (r *run) walkFolder(rel string, entries []Entry, depth int) error {
 			continue
 		default:
 			file.role = role(r.lib.Kind, e.Name)
+			if strings.EqualFold(path.Ext(e.Name), ".strm") && r.lib.Options.STRM && r.lib.Kind != db.LibraryBooks && r.lib.Kind != db.LibraryComics {
+				file.role = db.FileMedia
+			}
 			if inDisc {
 				file.role = 0
 				if discTitle(path.Base(rel), e.Name) {
@@ -625,6 +631,9 @@ func (r *run) readPath(file *found) string { return readPath(file.rel) }
 
 // readPath is the path a file's name is read from: a disc folder's own, for a file inside one.
 func readPath(rel string) string {
+	if strings.EqualFold(path.Ext(rel), ".strm") {
+		return strings.TrimSuffix(rel, path.Ext(rel)) + ".mkv"
+	}
 	if dir := path.Dir(rel); discFolder(path.Base(dir)) {
 		return dir
 	}

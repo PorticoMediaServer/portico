@@ -86,17 +86,23 @@ func (r FileRole) String() string { return fileRoleNames[r] }
 type FileProblem int
 
 const (
-	ProblemNone           FileProblem = 0
-	ProblemDamaged        FileProblem = 1 // it could not be read as media
-	ProblemUnsupported    FileProblem = 2 // a path too long or too deep
-	ProblemNotMedia       FileProblem = 3 // it is named like media and is not
-	ProblemUnreadableName FileProblem = 4 // its name is not valid text; the stored name is a readable stand-in
-	ProblemEncryptedDisc  FileProblem = 5 // a film disc that is copy-protected, which Portico does not read
-	ProblemNoDiscReader   FileProblem = 6 // a film disc, on a server whose media tools have no disc reader
+	ProblemNone            FileProblem = 0
+	ProblemDamaged         FileProblem = 1 // it could not be read as media
+	ProblemUnsupported     FileProblem = 2 // a path too long or too deep
+	ProblemNotMedia        FileProblem = 3 // it is named like media and is not
+	ProblemUnreadableName  FileProblem = 4 // its name is not valid text; the stored name is a readable stand-in
+	ProblemEncryptedDisc   FileProblem = 5 // a film disc that is copy-protected, which Portico does not read
+	ProblemNoDiscReader    FileProblem = 6 // a film disc, on a server whose media tools have no disc reader
+	ProblemSTRMRefused     FileProblem = 7
+	ProblemSTRMUnavailable FileProblem = 8
+	ProblemSTRMRange       FileProblem = 9
+	ProblemSTRMRedirects   FileProblem = 10
+	ProblemSTRMPointer     FileProblem = 11
 )
 
 var fileProblemNames = map[FileProblem]string{
 	ProblemDamaged: "damaged", ProblemUnsupported: "not_supported", ProblemNotMedia: "not_media", ProblemUnreadableName: "unreadable_name",
+	ProblemSTRMRefused: "strm_refused", ProblemSTRMUnavailable: "strm_unavailable", ProblemSTRMRange: "strm_not_seekable", ProblemSTRMRedirects: "strm_redirects", ProblemSTRMPointer: "strm_invalid",
 	ProblemEncryptedDisc: "encrypted_disc", ProblemNoDiscReader: "no_disc_reader",
 }
 

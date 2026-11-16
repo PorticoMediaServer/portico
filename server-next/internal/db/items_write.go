@@ -435,6 +435,10 @@ func (im *importer) importFile(f *ImportFile, stats *ImportStats) error {
 			return err
 		}
 		im.changedFiles = append(im.changedFiles, id)
+	case f.Role == FileSubtitle && len(f.Streams) > 0:
+		if err := im.attachSTRMSidecarTrack(id, f, state); err != nil {
+			return err
+		}
 	case FileProblem(problem.Int64) != f.Problem:
 		if _, err := im.exec(`UPDATE files SET problem = ? WHERE id = ?`, nz(f.Problem), id); err != nil {
 			return err

@@ -24,7 +24,14 @@ func RemoteFile(storage remote.Storage, path string, size int64, modified time.T
 	return remoteFile{storage: storage, path: path, size: size, modified: modified}
 }
 
+// STRMFile uses the same relay and isolated converter bridge as remote storage.
+// open rechecks the library switch and pointer before each acquisition.
+func STRMFile(open func(context.Context) (remote.File, error)) Source {
+	return remoteFile{acquire: open}
+}
+
 type remoteFile struct {
+	acquire  func(context.Context) (remote.File, error)
 	storage  remote.Storage
 	path     string
 	size     int64
@@ -32,6 +39,9 @@ type remoteFile struct {
 }
 
 func (f remoteFile) open(ctx context.Context) (remote.File, error) {
+	if f.acquire != nil {
+		return f.acquire(ctx)
+	}
 	file, err := f.storage.Open(ctx, f.path)
 	if err != nil {
 		if ctx.Err() != nil {
