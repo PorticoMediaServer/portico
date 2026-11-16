@@ -35,6 +35,18 @@ func TestSubtitleSearchAndDownload(t *testing.T) {
 	server := opensubtitlestest.New(t)
 	sh.s.UseSubtitleHost(server.URL)
 	key, user, password := "key", "owner", "right"
+	for _, setup := range []struct{ key, user, password, code string }{
+		{"key", "", "", "subtitle_account_not_set_up"},
+		{"", "owner", "right", "subtitle_key_not_set_up"},
+		{"", "owner", "", "subtitle_search_not_set_up"},
+	} {
+		sh.do("PUT", "/v1/admin/metadata/settings", MetadataSettingsChange{OpenSubtitlesAPIKey: &setup.key,
+			OpenSubtitlesUsername: &setup.user, OpenSubtitlesPassword: &setup.password}, nil, 200)
+		var problem errorBody
+		if code := as(sh.member, "GET", search, nil, &problem); code != 409 || problem.Error.Code != setup.code {
+			t.Fatalf("incomplete setup answered %d %+v", code, problem)
+		}
+	}
 	sh.do("PUT", "/v1/admin/metadata/settings", MetadataSettingsChange{OpenSubtitlesAPIKey: &key, OpenSubtitlesUsername: &user,
 		OpenSubtitlesPassword: &password}, nil, 200)
 

@@ -61,6 +61,12 @@ test('provider refusal and an options-refresh failure finish without leaving the
   await off.runtime.searchSubtitles(fence, 'en');
   assert.equal(off.runtime.subtitleSearch(fence)?.off, true);
   assert.equal(off.runtime.subtitleSearch(fence)?.busy, false);
+  for (const [code, reason] of [['subtitle_account_not_set_up', 'provider_account_not_configured'], ['subtitle_key_not_set_up', 'provider_key_not_configured']]) {
+    const missing = fixture(async () => {throw {code};});
+    await missing.runtime.searchSubtitles(fence, 'en');
+    assert.deepEqual(missing.runtime.subtitleProvider(fence), {enabled: false, reason});
+    assert.equal(missing.runtime.subtitleSearch(fence)?.busy, false);
+  }
   const f = fixture(async (_path, method) => method === 'GET' ? results() : {id: 'downloaded'});
   await f.runtime.searchSubtitles(fence, 'en');
   f.stack.offers.refresh = async () => {throw new Error('offline');};

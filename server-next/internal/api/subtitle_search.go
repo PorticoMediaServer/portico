@@ -137,12 +137,21 @@ func (s *Server) subtitleSearchRoutes() {
 }
 
 // subtitleError says in plain words what the provider answered (rules 67 and 68).
-func subtitleError(err error) error {
+func (s *Server) subtitleError(err error) error {
 	var used *opensubtitles.AllowanceUsed
 	var pause *fetch.SlowDown
 	switch {
 	case errors.Is(err, metadata.ErrNoSubtitleProvider):
-		return ErrConflict("subtitle_search_not_set_up", "Subtitle search isn't set up on this server. Ask the owner to set up OpenSubtitles.")
+		s.keys.mu.Lock()
+		account := s.keys.subtitles
+		s.keys.mu.Unlock()
+		if account.APIKey != "" {
+			return ErrConflict("subtitle_account_not_set_up", "Subtitle search needs an OpenSubtitles account. Ask the owner to add their account details.")
+		}
+		if account.Username != "" && account.Password != "" {
+			return ErrConflict("subtitle_key_not_set_up", "Subtitle search needs an OpenSubtitles key. Ask the owner to add their key.")
+		}
+		return ErrConflict("subtitle_search_not_set_up", "Subtitle search needs an OpenSubtitles key and account. Ask the owner to finish setting them up.")
 	case errors.Is(err, opensubtitles.ErrKeyRefused):
 		return refusal(http.StatusBadGateway, "subtitle_key_refused", "OpenSubtitles refused this server's key. Ask the owner to check it.", false)
 	case errors.Is(err, opensubtitles.ErrSignInRefused):
@@ -198,7 +207,7 @@ func (s *Server) searchSubtitles(r *http.Request, _ None) (SubtitleResults, erro
 	}
 	found, err := s.metadata.SearchSubtitles(r.Context(), viewer(r), r.PathValue("id"), languages)
 	if err != nil {
-		return out, subtitleError(err)
+		return out, s.subtitleError(err)
 	}
 	s.subtitleSearches.keep(searchKey{CallerFrom(r.Context()).ProfileID, r.PathValue("id")}, found, s.now())
 	for _, f := range found {
@@ -231,7 +240,7 @@ func (s *Server) downloadSubtitle(r *http.Request, req SubtitleDownload) (ItemSu
 	}
 	sub, err := s.metadata.DownloadSubtitle(r.Context(), viewer(r), r.PathValue("id"), req.VersionID, chosen)
 	if err != nil {
-		return ItemSubtitle{}, subtitleError(err)
+		return ItemSubtitle{}, s.subtitleError(err)
 	}
 	// Answered as the list of the title's subtitles shows it.
 	list, err := s.itemSubtitles(r, None{})
@@ -255,7 +264,7 @@ func (s *Server) removeSubtitle(r *http.Request, _ None) (None, error) {
 	id := r.PathValue("subtitleId")
 	for _, item := range list.Items {
 		if item.ID == id && item.Source == "downloaded" {
-			return None{}, subtitleError(s.metadata.RemoveSubtitle(r.Context(), strings.TrimPrefix(id, "d")))
+			return None{}, s.subtitleError(s.metadata.RemoveSubtitle(r.Context(), strings.TrimPrefix(id, "d")))
 		}
 	}
 	return None{}, nil // not there: a remove sent twice changes nothing

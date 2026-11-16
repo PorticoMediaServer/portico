@@ -34,7 +34,7 @@ import {CapabilityPublisher, PlaybackOptionsClient} from '@core/playback-v1/opti
 import {audioStreamIndex, qualityChoiceOf, qualityRequest, offeredQualities, type QualityChoice} from '@core/playback-v1/choices.ts';
 import {PlayerOffersService, type PlayerOffersData} from '@core/player-offers.ts';
 import {serviceText} from '@core/presentation/service-text.ts';
-import {SubtitleService, searchItemSubtitles, downloadItemSubtitle, providerProblem, type SubtitleCandidate,
+import {SubtitleService, searchItemSubtitles, downloadItemSubtitle, providerProblem, subtitleSetupReason, type SubtitleCandidate,
   fetchSubtitleDocument, type SubtitleDocument, type SubtitlePlan, type SubtitleSnapshot} from '@core/subtitles.ts';
 import {DrawnSubtitleRetry, revalidateTextSubtitles, subtitleFetch} from './subtitle-retry.ts';
 import type {SubtitlePreferences} from '@core/preference-effects.ts';
@@ -146,12 +146,12 @@ const startStopped = () => new DOMException('Playback start stopped', 'AbortErro
 export type WebSleepEnd = 'item' | 'chapter' | 'book';
 export type WebSubtitleSearch = Readonly<{
   itemId: string; busy: boolean; searched: boolean; candidates: readonly SubtitleCandidate[];
-  error?: string; canRetry?: boolean; off?: boolean;
+  error?: string; canRetry?: boolean; off?: boolean; setupReason?: string;
 }>;
 function subtitleSearchFailure(itemId: string, error: unknown): WebSubtitleSearch {
-  const reason = providerProblem(error);
+  const reason = providerProblem(error), setupReason = subtitleSetupReason((error as {code?: unknown} | null)?.code);
   return Object.freeze({itemId, busy: false, searched: true, candidates: Object.freeze([]),
-    ...((error as {code?: unknown} | null)?.code === 'subtitle_search_not_set_up' ? {off: true}
+    ...(setupReason ? {off: true, setupReason}
       : {error: reason?.text ?? serviceText('subtitles.error.failed'), canRetry: reason?.canRetry ?? true})});
 }
 const validSeconds = (value: number) => Number.isFinite(value) && value >= 0 && value <= 1e9;
@@ -2562,7 +2562,7 @@ export class WebShellPlaybackRuntime {
   /** Whether subtitles can be searched for this playback, and the server's reason when they cannot (rule 67). */
   subtitleProvider(fence: PlaybackFence): Readonly<{enabled: boolean; reason?: string}> | undefined {
     if (fence.kind !== 'queue' || !this.matches(fence) || !this.snapshot.offers?.subtitlePlan) return undefined;
-    return this.subtitleSearch(fence)?.off ? Object.freeze({enabled: false, reason: 'provider_not_configured'}) : Object.freeze({enabled: true});
+    return this.subtitleSearch(fence)?.off ? Object.freeze({enabled: false, reason: this.subtitleSearch(fence)?.setupReason ?? 'provider_not_configured'}) : Object.freeze({enabled: true});
   }
   /** Search state for this playback only. The panel decides how to present it. */
   subtitleSearch(fence: PlaybackFence): WebSubtitleSearch | undefined {
