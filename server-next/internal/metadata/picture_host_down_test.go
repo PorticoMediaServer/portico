@@ -1,6 +1,8 @@
 package metadata_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"sync"
 	"testing"
@@ -64,4 +66,9 @@ func TestAPictureServerInTroubleStopsThePass(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (p *pictureStore) Hash(data []byte) (string, error) {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:]), nil
 }

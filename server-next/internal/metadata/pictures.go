@@ -2,8 +2,6 @@ package metadata
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -20,6 +18,7 @@ import (
 
 // PictureStore keeps a picture's bytes under its hash: the server's picture store.
 type PictureStore interface {
+	Hash([]byte) (string, error)
 	Put(id string, data []byte) error
 }
 
@@ -230,8 +229,10 @@ func (s *Service) FetchPictures(ctx context.Context, libraryID int64, limit int)
 			if err != nil {
 				continue // refused now: the next pass asks again
 			}
-			sum := sha256.Sum256(data)
-			hash := hex.EncodeToString(sum[:])
+			hash, err := s.Pictures.Hash(data)
+			if err != nil {
+				return stored, err
+			}
 			if err := s.Pictures.Put(hash, data); errors.Is(err, artwork.ErrNotAPicture) {
 				if err := s.DB.PictureGone(ctx, p.ID); err != nil {
 					return stored, err
@@ -288,8 +289,10 @@ func (s *Service) storePictures(ctx context.Context, itemID int64, pictures []Pi
 			}
 			continue
 		}
-		sum := sha256.Sum256(data)
-		hash := hex.EncodeToString(sum[:])
+		hash, err := s.Pictures.Hash(data)
+		if err != nil {
+			return err
+		}
 		// Stored in its two sizes now. A picture this server cannot read is passed over.
 		if err := s.Pictures.Put(hash, data); errors.Is(err, artwork.ErrNotAPicture) {
 			continue
@@ -333,8 +336,10 @@ func (s *Service) CandidatePoster(ctx context.Context, address string) (string, 
 	if err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256(data)
-	hash := hex.EncodeToString(sum[:])
+	hash, err := s.Pictures.Hash(data)
+	if err != nil {
+		return "", err
+	}
 	return hash, s.Pictures.Put(hash, data)
 }
 

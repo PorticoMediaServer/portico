@@ -6,6 +6,7 @@ package artwork
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"image"
@@ -18,11 +19,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	_ "golang.org/x/image/webp"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/atomicfile"
+	"github.com/PorticoMediaServer/portico/server-next/internal/secrets"
 )
 
 // ErrNotFound: no picture is stored under that name.
@@ -53,10 +56,15 @@ var (
 var qualities = []int{90, 82, 75}
 
 // Store is the folder of pictures inside the server's data folder.
-type Store struct{ dir string }
+type Store struct {
+	dir    string
+	once   sync.Once
+	box    *secrets.Box
+	keyErr error
+}
 
 // New returns the store inside the server's data folder.
-func New(dataDir string) *Store { return &Store{filepath.Join(dataDir, "artwork")} }
+func New(dataDir string) *Store { return &Store{dir: filepath.Join(dataDir, "artwork")} }
 
 // ValidID says whether id can name a picture: 16 to 64 lower-case hex digits. Nothing else
 // is ever joined to a folder, so a request cannot reach outside the store.
@@ -311,4 +319,15 @@ func (s *Store) Sweep(before time.Time, used func(yield func(id string) error) e
 		}
 	}
 	return removed, nil
+}
+
+// Hash is the picture's stable name on this server. Equal content still shares one file,
+// but holding a public provider picture cannot reveal whether this server has it.
+func (s *Store) Hash(data []byte) (string, error) {
+	s.once.Do(func() { s.box, s.keyErr = secrets.Open(filepath.Dir(s.dir)) })
+	if s.keyErr != nil {
+		return "", s.keyErr
+	}
+	sum := sha256.Sum256(data)
+	return s.box.PublicID("artwork", sum[:]), nil
 }

@@ -2,8 +2,6 @@ package scan
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"image"
 	_ "image/jpeg" // pictures beside the media are measured, not changed
 	_ "image/png"
@@ -18,6 +16,7 @@ import (
 // Pictures is where the scan puts a copy of each picture it finds beside the media, under the
 // name the database then knows it by. The server's picture store is one.
 type Pictures interface {
+	Hash([]byte) (string, error)
 	Put(id string, data []byte) error
 }
 
@@ -93,8 +92,10 @@ func (r *run) pictureData(raw []byte, role db.ImageRole, source db.ImageSource) 
 	if r.s.Pictures == nil || r.lib.Options.Depth == db.DepthFiles || len(raw) == 0 || len(raw) > maxPicture {
 		return db.ImportImage{}, false
 	}
-	sum := sha256.Sum256(raw)
-	id := hex.EncodeToString(sum[:])
+	id, err := r.s.Pictures.Hash(raw)
+	if err != nil {
+		return db.ImportImage{}, false
+	}
 	if err := r.s.Pictures.Put(id, raw); err != nil {
 		return db.ImportImage{}, false
 	}

@@ -2,8 +2,6 @@ package api
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -142,8 +140,10 @@ func (s *Server) artworkRoutes() {
 		case err != nil:
 			return Page[ArtworkPicture]{}, refusal(http.StatusUnprocessableEntity, "not_made", "No picture could be made from this video.", false)
 		}
-		sum := sha256.Sum256(data)
-		hash := hex.EncodeToString(sum[:])
+		hash, err := s.artwork.Hash(data)
+		if err != nil {
+			return Page[ArtworkPicture]{}, err
+		}
 		width, height, err := s.artwork.PutSized(hash, data, artwork.Artwork)
 		if err != nil {
 			return Page[ArtworkPicture]{}, err
@@ -220,8 +220,10 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) (ArtworkPicture,
 	case err != nil:
 		return ArtworkPicture{}, err
 	}
-	sum := sha256.Sum256(data)
-	hash := hex.EncodeToString(sum[:])
+	hash, err := s.artwork.Hash(data)
+	if err != nil {
+		return ArtworkPicture{}, err
+	}
 	// Stored in its two sizes now; the original is not kept.
 	width, height, err := s.artwork.PutSized(hash, data, artwork.Artwork)
 	if errors.Is(err, artwork.ErrNotAPicture) {

@@ -23,6 +23,8 @@ type Config struct {
 	// Picture, when set, is called with the name of every picture a title is given, so a
 	// run that wants real artwork to fetch can store one under that name.
 	Picture func(hash string)
+	// PictureKey gives an installed server opaque names even for synthetic artwork.
+	PictureKey func(string) string
 	// Samples, for Tree, is what a file of each extension (".mkv") holds, so that a scan
 	// can really read it. A file of any other extension is a few empty bytes.
 	Samples map[string][]byte
@@ -74,6 +76,9 @@ type builder struct {
 // picture names a title's picture.
 func (b *builder) picture(r *rand.Rand) string {
 	hash := fmt.Sprintf("%016x", r.Uint64())
+	if b.cfg.PictureKey != nil {
+		hash = b.cfg.PictureKey(hash)
+	}
 	if b.cfg.Picture != nil {
 		b.cfg.Picture(hash)
 	}

@@ -2,7 +2,6 @@ package live
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -138,7 +137,10 @@ func (s *Service) channelLogo(ctx context.Context, client *http.Client, address 
 	if len(data) > limit {
 		return "", fmt.Errorf("the picture is too large")
 	}
-	hash := fmt.Sprintf("%x", sha256.Sum256(data))
+	hash, err := s.pictures.Hash(data)
+	if err != nil {
+		return "", err
+	}
 	if isSVG(data) {
 		if data, err = drawSVG(data); err != nil {
 			return "", err

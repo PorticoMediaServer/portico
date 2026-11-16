@@ -7,7 +7,10 @@ package secrets
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -23,7 +26,10 @@ const keyFile = "secrets.key"
 var ErrCannotOpen = errors.New("this secret cannot be opened with this server's key")
 
 // Box seals and opens values with the server's key.
-type Box struct{ aead cipher.AEAD }
+type Box struct {
+	aead cipher.AEAD
+	key  []byte
+}
 
 // Open opens the box in dataDir, making its key the first time.
 func Open(dataDir string) (*Box, error) {
@@ -48,7 +54,7 @@ func Open(dataDir string) (*Box, error) {
 	}
 	block, _ := aes.NewCipher(key)
 	aead, _ := cipher.NewGCM(block)
-	return &Box{aead: aead}, nil
+	return &Box{aead: aead, key: key}, nil
 }
 
 // Seal seals plain to what it belongs to (a source's public id, a setting's name), so it
@@ -70,4 +76,12 @@ func (b *Box) Open(belongsTo string, sealed []byte) ([]byte, error) {
 		return nil, ErrCannotOpen
 	}
 	return plain, nil
+}
+
+// PublicID makes a stable opaque name tied to this server, without revealing its input.
+func (b *Box) PublicID(purpose string, value []byte) string {
+	mac := hmac.New(sha256.New, b.key)
+	mac.Write([]byte(purpose + "\x00"))
+	mac.Write(value)
+	return hex.EncodeToString(mac.Sum(nil))
 }
