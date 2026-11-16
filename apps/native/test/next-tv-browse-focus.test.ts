@@ -167,6 +167,14 @@ test('artist Top songs has real vertical exits and Play entry; album geometry an
   assert.equal(action.type, 'FocusRegion'); assert.equal(action.props.edges.down, top.props.id);
   const play = nodes(action).find(node => node.props.testID === 'music-play-entity'); assert.equal(play.props.preferredFocus, true);
   assert.equal(all.find(node => node.type === 'TVShelf').props.items.length, 12);
+  assert.ok(all.some(node => node.props.title === 'music.similarArtists'));
+  const similar = state.similar;
+  state = {...state, similar: []}; tree = TVArtistScreen({controller, entry, runtime, actions, openEntry() {}});
+  assert.equal(nodes(tree).some(node => node.props.title === 'music.similarArtists'), false, 'no empty Similar artists section');
+  state = {...state, similarError: new Error('unavailable')}; tree = TVArtistScreen({controller, entry, runtime, actions, openEntry() {}});
+  assert.ok(nodes(tree).some(node => node.props.title === 'music.similarArtists'), 'a real failure keeps its section and retry');
+  assert.ok(nodes(tree).some(node => node.props.testID === 'music-similar-entity-error'));
+  state = {...state, similar, similarError: undefined};
   state = {...state, albums: []}; tree = TVArtistScreen({controller, entry, runtime, actions, openEntry() {}});
   assert.equal(nodes(tree).find(node => node.props.id === 'music-artist-entity.songs').props.edges.right, undefined);
   state = {...state, similar: state.similar.map((value: any) => ({...value, kind: 'album'}))};
