@@ -92,6 +92,7 @@ export function secureMarkup(raw: string, mime: 'application/xhtml+xml' | 'text/
     // references were removed above and CSP is the independent backstop.
     ALLOWED_URI_REGEXP: /^(?:(?:blob:|data:image\/(?:png|jpeg|gif|webp);base64,)|[^a-z]|[a-z+.-]+(?:[^a-z+.:\-]|$))/i,
   });
+  bookStyles(doc, transformed);
   if (mime === 'image/svg+xml') return new XMLSerializer().serializeToString(doc.documentElement);
   const ns = 'http://www.w3.org/1999/xhtml';
   let head = doc.querySelector('head');
@@ -100,6 +101,35 @@ export function secureMarkup(raw: string, mime: 'application/xhtml+xml' | 'text/
   head.prepend(meta);
   const policy = doc.createElementNS(ns, 'meta'); policy.setAttribute('name', 'referrer'); policy.setAttribute('content', 'no-referrer'); head.prepend(policy);
   return new XMLSerializer().serializeToString(doc.documentElement);
+}
+/** The app page's style nonce, where its policy names one. */
+export function appStyleNonce(): string | undefined {
+  const nonce = globalThis.document?.querySelector<HTMLMetaElement>('meta[name="portico-style-nonce"]')?.content;
+  return nonce && nonce !== '__PORTICO_STYLE_NONCE__' ? nonce : undefined;
+}
+/** A book's page is a blob: document, so it keeps the app page's style policy, which allows only
+ * styles carrying the page's nonce. The book's own stylesheets and style elements, already cleaned
+ * above, are given that nonce; a nonce the book wrote itself is never kept. A style attribute cannot
+ * carry a nonce, so it moves to `data-portico-style` and the renderer applies it through the style
+ * object (`applyBookStyleAttributes`), which the policy allows; only in the last pass, the one the page is
+ * made from, since the cleaning above drops data attributes. Without a nonce nothing moves. */
+function bookStyles(doc: Document, last: boolean): void {
+  const nonce = appStyleNonce();
+  for (const node of Array.from(doc.querySelectorAll('*'))) {
+    node.removeAttribute('nonce');
+    if (!nonce) continue;
+    const name = node.localName.toLowerCase();
+    if (name === 'style' || name === 'link' && /(?:^|\s)stylesheet(?:\s|$)/i.test(node.getAttribute('rel') ?? '')) node.setAttribute('nonce', nonce);
+    const inline = last ? node.getAttribute('style') : null;
+    if (inline !== null) {node.removeAttribute('style'); if (inline) node.setAttribute('data-portico-style', inline);}
+  }
+}
+/** Applies the style attributes `secureMarkup` moved aside, once the book's page has loaded. */
+export function applyBookStyleAttributes(doc: Document): void {
+  for (const node of Array.from(doc.querySelectorAll<HTMLElement>('[data-portico-style]'))) {
+    if (node.style) node.style.cssText = node.getAttribute('data-portico-style') ?? '';
+    node.removeAttribute('data-portico-style');
+  }
 }
 export function rejectXmlEntities(raw: string): string {
   if (/<!\s*(?:DOCTYPE|ENTITY)\b/i.test(raw)) throw new ReaderError('invalid_book');
