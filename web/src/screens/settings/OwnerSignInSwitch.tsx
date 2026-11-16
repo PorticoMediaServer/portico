@@ -65,7 +65,7 @@ export function OwnerSignInSwitch({source, isCurrent, onError, startOver = false
       {preview && startOver ? <div className={styles.preview}>
         <p>{preview.serverName}</p>
         <h3>{t('next.settingsSpec.server.signin.panels.startOverPortico.groups.0.title')}</h3>
-        <p>{t('next.settingsSpec.server.signin.panels.startOverPortico.groups.0.rows.0.help')}</p>
+        <p>{t('next.settings.ownerSwitch.newTabStartOver')}</p>
         <h3>{t('next.settingsSpec.server.signin.panels.startOverPortico.groups.1.title')}</h3>
         <dl>
           <dt>{t('next.settingsSpec.server.signin.panels.startOverPortico.groups.1.rows.0.label')}</dt><dd>{defaultI18n.number(preview.people)}<p>{t('next.settingsSpec.server.signin.panels.startOverPortico.groups.1.rows.0.help')}</p></dd>
@@ -83,7 +83,7 @@ export function OwnerSignInSwitch({source, isCurrent, onError, startOver = false
       </div> : preview && <div className={styles.preview}>
         <p>{preview.serverName}</p>
         <h3>{t('next.settingsSpec.server.signin.panels.switchToPortico.groups.0.title')}</h3>
-        <p>{t('next.settingsSpec.server.signin.panels.switchToPortico.groups.0.rows.0.help')}</p>
+        <p>{t('next.settings.ownerSwitch.newTabSwitch')}</p>
         <h3>{t('next.settingsSpec.server.signin.panels.switchToPortico.groups.1.title')}</h3>
         <dl>
           <dt>{t('next.settingsSpec.server.signin.panels.switchToPortico.groups.1.rows.0.label')}</dt><dd>{t('next.settingsSpec.server.signin.panels.switchToPortico.groups.1.rows.0.help')}</dd>

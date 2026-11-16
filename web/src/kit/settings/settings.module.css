@@ -27,7 +27,7 @@
 .advancedBody .groupHeading h3 { font-size: 16px; font-weight: 700; letter-spacing: 0; }
 .summaryMeasure { position: absolute; pointer-events: none; visibility: hidden; height: 0; overflow: hidden; white-space: nowrap; font-size: 14px; font-weight: 500; }
 .summaryMeasure small { font: inherit; margin-left: 8px; }
-.panel { padding: 0; background: var(--color-raised); width: min(720px, 100vw); }
+.panel { --overlay-sheet-heading-padding: 2px 0 6px; padding: 0; background: var(--color-raised); width: min(720px, 100vw); }
 .panelHeader { position: relative; isolation: isolate; padding: 26px 32px 20px; }
 .panelHeader::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: var(--owner-tint); }
 .panel:not(.tabbedPanel) .panelHeader::before { -webkit-mask-image: linear-gradient(#000 40%, transparent); mask-image: linear-gradient(#000 40%, transparent); }
@@ -41,9 +41,9 @@
 .saveState { flex: none; display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; letter-spacing: normal; color: var(--color-text-tertiary); }
 .saveState[data-state='saved'] { color: var(--color-accent-strong); }
 .panelBody { padding: 0; }
-.panelBody > section { margin: 32px 32px; }
-.panelBody > section:first-child { margin-top: 26px; }
-.panelBody > section:last-child { margin-bottom: 36px; }
+.panelBody > section, .panel:not(.tabbedPanel) .panelBody > :not(section) { margin: 32px; }
+.panelBody > section:first-child, .panel:not(.tabbedPanel) .panelBody > :first-child { margin-top: 26px; }
+.panelBody > section:last-child, .panel:not(.tabbedPanel) .panelBody > :last-child { margin-bottom: 36px; }
 .panel > p { margin: 0; padding: 0 32px 18px; font-size: 14px; color: var(--color-text-tertiary); }
 .tabbedPanel .panelBody.panelBody { overflow: hidden; }
 .tabbedPanel .panelBody > div, .tabbedPanel .panelBody > div > div { display: flex; flex-direction: column; height: 100%; min-height: 0; }
@@ -198,6 +198,7 @@
   .tableToolbar > div:first-child { width: 100%; }
   .tableCount { margin-left: 0; }
   .panelHeader { padding: 20px; }
+  .panelBody > section, .panel:not(.tabbedPanel) .panelBody > :not(section) { margin-inline: 20px; }
   .panelTitle { font-size: 26px; }
   .panelTabBody { padding: 20px 16px; }
   .panelTabs { padding-inline: 20px; }

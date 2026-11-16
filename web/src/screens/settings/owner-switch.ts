@@ -165,6 +165,7 @@ export class SettingsOwnerSwitch {
       this.publish({...this.state, busy: true, confirmed: true});
       const approval = await this.moves.approval(preview.approval, wait, operation.signal);operation.check();
       const result = await this.moves.switchTo({to: 'portico', startOver: preview.startOver, serverName: confirmation, ...proof, approval}, operation.signal);
+      this.api.setAuthRecovery(undefined); // The switch ended this sign-in; do not renew it while the page reloads.
       if (result.kind === 'signed-in') await this.retire(result.session);
       operation.check();
     } catch (error) {
