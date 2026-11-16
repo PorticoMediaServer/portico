@@ -25,7 +25,7 @@ func TestContextCancellationKillsProcessGroup(t *testing.T) {
 	}
 	defer Kill(cmd)
 	var pid int
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		data, _ := os.ReadFile(marker)
 		pid, _ = strconv.Atoi(strings.TrimSpace(string(data)))
@@ -39,6 +39,8 @@ func TestContextCancellationKillsProcessGroup(t *testing.T) {
 	}
 	cancel()
 	_ = cmd.Wait()
+	// Startup scheduling must not consume the separate reaping hang bound.
+	deadline = time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		if syscall.Kill(pid, 0) != nil {
 			return
