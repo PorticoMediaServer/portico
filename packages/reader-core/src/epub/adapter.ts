@@ -12,7 +12,7 @@ import {openEpubArchive, safeArchivePath} from './archive.ts';
 import {resourceAssets} from './resources.ts';
 import {orUnreadable, unreadableEpubMember, unreadableEpubText, UnreadableSections, settleUnreadableSection} from '../unreadable.ts';
 import {epubLimits} from './limits.ts';
-import {rejectXmlEntities, secureMarkup, secureCss} from './security.ts';
+import {applyBookStyleAttributes, rejectXmlEntities, secureMarkup, secureCss} from './security.ts';
 import {colours as highlightColours, epubDisplay, type EpubDisplayPreferences} from './display.ts';
 import {validateEpubRaster} from './media.ts';
 import {epubFontKey} from './font-obfuscation.ts';
@@ -438,6 +438,7 @@ async function mountEpub<P extends EpubDisplayPreferences>(book:Book,mount:Reade
   };
   const load=(event:Event)=>{
     if(dead||signal.aborted)return;clearSearchMark();cleanupDoc();const {doc,index}=(event as CustomEvent<{doc:Document;index:number}>).detail;
+    applyBookStyleAttributes(doc);
     const iframe=doc.defaultView?.frameElement;
     if(mount.metadata?.title)iframe?.setAttribute('title',mount.metadata.title);
     doc.documentElement.lang ||= metadataLanguage(book.metadata?.language)??'';
