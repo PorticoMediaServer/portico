@@ -146,8 +146,24 @@ Item cards carry `rootTitle` alongside `rootId`: the existing root's title (a sh
 | `POST /v1/lists/{id}/entries`, `PATCH /v1/lists/{id}/entries/{entryId}`, `DELETE /v1/lists/{id}/entries/{entryId}` | Add, move, remove entries. Entries are read with `GET /v1/items?list=`. |
 | `GET /v1/lists/{id}/shares`, `PUT /v1/lists/{id}/shares` | Who a list is shared with |
 | `GET /v1/jobs/{id}`, `POST /v1/jobs`, `DELETE /v1/jobs/{id}` | Run a bulk action over a selection, watch it, cancel it |
+| `GET /v1/jobs/{id}/failures` | Failed titles of a selection job, paged by `cursor` and `limit` (default 50, maximum 200): `Page<JobItemFailure>` with `items: [{itemId, title, error: {code, message}}]`, `nextCursor?`, no total. Same job access as `GET /v1/jobs/{id}`: owner/admin or the originating profile/account, otherwise the same `404`. Each page applies the reader's selected profile's current library, rating and Tag limits before paging; hidden/deleted titles are absent. Results survive restart and remain for the job's existing 30-day lifetime; deleting the title removes its result. Currently populated by `set_state`; list and metadata selection jobs follow separately |
 | `POST /v1/jobs` kind `set_state` | Any profile: set watched, favourite, My List, Not interested or rating on every title in a view it sees. `target.filter` is the view's `GET /v1/items` query; `params` are the state fields |
 | `POST /v1/jobs` kind `add_view_to_list` | Any profile: add every title of a view it sees to a playlist or collection it may change, in the view's own order (its `sort` and `order` kept). `target.filter` is the view's `GET /v1/items` query; `params` is `{"list": id}`. The finished job's `error` says how many were added and were in it already; taken up again after a restart it adds nothing twice |
+
+`set_state` continues past individual refusals. A partially failed job has state `failed` and
+the plain summary "Some titles could not be changed. The rest is done.", without title names
+or failure counts. Its failure page gives the details; an app can retry only those titles on
+the existing per-title state route. Cancelling or restarting keeps committed changes and
+failure results. A replay clears a title's earlier failure if that change now succeeds.
+
+Job failure reason codes are a closed list. Messages are fixed plain language, never file
+paths, provider responses or other people's names:
+
+| Code | Meaning / message |
+|---|---|
+| `unsupported_state` | Music has play counts, not a watched state. |
+| `edit_too_old` | This change is more than 35 days old. Make the change again. |
+| `not_found` | This title is no longer available to change. A deleted or currently hidden title is absent from the failure page, including its id and reason |
 
 Home's `spotlight` holds up to five distinct films or shows, newest added first (id breaks ties), from the profile's visible libraries and within its rating and label limits. Missing titles, empty shows, non-video items and this profile's Not interested titles are not featured. The reason is Recently added, without a recommendation claim. Each entry has its existing artwork, genres, year, runtime when known and at most 300 characters of synopsis; only these few titles get detail metadata. `play` and `myList` are the server's offers for the hero. A show's `resumeTarget` is its current Continue Watching episode, otherwise its first visible, available unwatched regular episode (first regular episode if all are watched); specials are offered only when already in progress. No duplicate slides fill a sparse library.
 

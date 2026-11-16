@@ -38,6 +38,7 @@ func (s *Server) jobRoutes() {
 	// A key needs the library scope.
 	Handle(s, "POST /v1/jobs", SignedIn, s.startJob).with(ScopeLibrary).Status = http.StatusAccepted
 	Handle(s, "GET /v1/jobs/{id}", SignedIn, s.readJob)
+	Handle(s, "GET /v1/jobs/{id}/failures", SignedIn, s.readJobFailures)
 	Handle(s, "DELETE /v1/jobs/{id}", SignedIn, s.cancelJob).with(ScopeLibrary)
 }
 

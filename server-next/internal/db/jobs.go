@@ -77,7 +77,7 @@ func (d *DB) StartJob(ctx context.Context, n NewJob) (Job, error) {
 			}
 		}
 		now := time.Now()
-		_, err = tx.Exec(`INSERT INTO jobs (public_id, kind, target, payload, run_after_at, owner_user_id, created_at)
+		res, err := tx.Exec(`INSERT INTO jobs (public_id, kind, target, payload, run_after_at, owner_user_id, created_at)
 			VALUES (?, ?, ?, nullif(?, ''), ?, nullif(?, 0), ?) ON CONFLICT (kind, target) DO UPDATE SET state = 'waiting', attempts = 0,
 			last_error = NULL, payload = excluded.payload, progress_done = 0, progress_total = NULL, owner_user_id = excluded.owner_user_id,
 			created_at = excluded.created_at, started_at = NULL, finished_at = NULL WHERE jobs.state NOT IN ('waiting', 'running')`,
@@ -87,6 +87,11 @@ func (d *DB) StartJob(ctx context.Context, n NewJob) (Job, error) {
 		}
 		if err := tx.QueryRow(`SELECT `+jobColumns+` FROM jobs WHERE kind = ? AND target = ?`, n.Kind, n.Target).Scan(job.dest()...); err != nil {
 			return err
+		}
+		if changed, _ := res.RowsAffected(); changed > 0 {
+			if _, err := tx.Exec(`DELETE FROM job_item_failures WHERE job_id = ?`, job.ID); err != nil {
+				return err
+			}
 		}
 		if before != "" || n.OwnerID == 0 {
 			return nil
