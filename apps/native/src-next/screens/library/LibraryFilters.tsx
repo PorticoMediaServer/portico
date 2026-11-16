@@ -27,28 +27,34 @@ export const libraryFiltersDockWidth = 380;
 export const libraryFiltersOverWidth = 420;
 const libraryFiltersReadingPane: LibraryFiltersPaneGeometry = Object.freeze({padding: 20, titleSize: 22, titleTracking: -.02, headerTop: 18, headerBottom: 12, footerTop: 20, footerBottom: 20, gap: 10, safeTop: false, safeBottom: false});
 
-export function LibraryFilters({draft, source, runtime, labels, owner, onClose, onSave, docked = false, geometry}: {draft: NativeLibraryFilterDraft; source: NativeLibrarySnapshot; runtime: NativeShellRuntime; labels: BrowseLabels; owner: boolean; onClose: () => void; /** Omitted where the host has no real Save view action (the reading libraries). */ onSave?: (view: NativeLibraryViewDraft) => void; /** tablet-read#1b and tablet#4/#5: the same draft and controls as a pane beside the grid. */ docked?: boolean; /** Omitted keeps the reading pane's own numbers. */ geometry?: LibraryFiltersPaneGeometry}) {
+export function LibraryFilters({draft, source, runtime, labels, owner, onClose, onExited, onSave, docked = false, geometry}: {draft: NativeLibraryFilterDraft; source: NativeLibrarySnapshot; runtime: NativeShellRuntime; labels: BrowseLabels; owner: boolean; onClose: () => void;
+  /** The phone sheet has finished closing: its host can drop the draft, so a closed sheet never stays mounted. */
+  onExited?: () => void; /** Omitted where the host has no real Save view action (the reading libraries). */ onSave?: (view: NativeLibraryViewDraft) => void; /** tablet-read#1b and tablet#4/#5: the same draft and controls as a pane beside the grid. */ docked?: boolean; /** Omitted keeps the reading pane's own numbers. */ geometry?: LibraryFiltersPaneGeometry}) {
   const theme = useTheme(), registry = useFocusRegistry(), insets = useSafeAreaInsets(), state = useSyncExternalStore(draft.subscribe, draft.getSnapshot);
   const [openFields, setOpenFields] = useState<readonly string[]>(() => !theme.isTV && source.capabilities?.fields.some(field => field.id === 'genre') ? ['genre'] : []), [failure, setFailure] = useState<unknown>();
   const [now] = useState(() => new Date());
-  const model = useMemo(() => browseToolbarModel(source.capabilities!, source.library.kind, state.predicates, source.sort!, {...runtime.text, owner, textEntry: !theme.isTV}),
+  // A library that is still loading (just switched to) has no capabilities or sort yet: there is nothing to filter, so
+  // the panel draws nothing rather than reading them (W3 F2: `resolvedPivot` of undefined took the screen down).
+  const model = useMemo(() => source.capabilities && source.sort ? browseToolbarModel(source.capabilities, source.library.kind, state.predicates, source.sort, {...runtime.text, owner, textEntry: !theme.isTV}) : undefined,
     [source.capabilities, source.library.kind, source.sort, state.predicates, runtime.text, owner, theme.isTV]);
   const panelId = JSON.stringify(['library-filters', runtime.getSnapshot().authority, source.library.id, source.tab.id]);
   const focusPrefix = JSON.stringify([panelId, 'controls']);
-  const fields = Object.fromEntries(model.groups.flatMap(group => group.fields.map(field => [field.id, libraryFilterField(field, state.predicates, state.facets[field.id], now)]))) as Readonly<Record<string, FilterFieldState>>;
-  const first = model.groups[0]?.fields[0];
+  const fields = Object.fromEntries((model?.groups ?? []).flatMap(group => group.fields.map(field => [field.id, libraryFilterField(field, state.predicates, state.facets[field.id], now)]))) as Readonly<Record<string, FilterFieldState>>;
+  const first = model?.groups[0]?.fields[0];
   const firstState = first && fields[first.id];
   const firstId = first ? JSON.stringify([JSON.stringify([focusPrefix, 'field', first.id]), ...(firstState?.kind === 'toggle' ? ['toggle', 'any'] : ['open'])]) : 'apply';
   const initialFocusRef = useMemo(() => ({current: {focus: () => {registry.focus({regionId: panelId, childId: firstId});}}}), [registry, panelId, firstId]);
   useEffect(() => {draft.refresh(); return () => draft.dispose();}, [draft]);
   useEffect(() => {draft.setOpenFields(openFields);}, [draft, openFields]);
   useEffect(() => {if (!state.open) onClose();}, [onClose, state.open]);
+  if (!model || !source.capabilities || !source.sort) return null;
+  const capabilities = source.capabilities, sort = source.sort;
   const close = () => {draft.dispose(); onClose();};
   const result = state.count.value;
   const results = result && defaultI18n.t(result.totalIsLowerBound ? 'lib.countAtLeast' : 'lib.count', {count: result.total, pivot: source.tab.pivot ?? 'other'});
   const footer = <View style={{flexDirection: 'row', gap: theme.isTV ? 16 : 10}}>
-    {!theme.isTV && onSave && <Button focusId="save-view" variant="glass" disabled={!nativeLibraryCanSave(source, {predicates: state.predicates, sort: source.sort!})}
-      onPress={() => onSave({predicates: state.predicates, sort: source.sort!})}>{defaultI18n.t('next.browse.native.saveView')}</Button>}
+    {!theme.isTV && onSave && <Button focusId="save-view" variant="glass" disabled={!nativeLibraryCanSave(source, {predicates: state.predicates, sort: sort})}
+      onPress={() => onSave({predicates: state.predicates, sort: sort})}>{defaultI18n.t('next.browse.native.saveView')}</Button>}
     <Button focusId="apply" testID={`${panelId}-apply`} variant="primary" disabled={state.count.phase !== 'ready'} onPress={() => {if (draft.apply()) onClose();}} style={{flex: 1}}>
       {results ? defaultI18n.t('next.browse.native.showResults', {results}) : null}
     </Button>
@@ -60,9 +66,9 @@ export function LibraryFilters({draft, source, runtime, labels, owner, onClose, 
     <FilterBuilder testID={`${panelId}-fields`} model={model} labels={labels} focusPrefix={focusPrefix} openFields={openFields} fields={fields}
       onFieldOpenChange={(id, open) => setOpenFields(previous => open ? [...previous.filter(value => value !== id), id] : previous.filter(value => value !== id))}
       onFieldChange={(id, value) => {
-        const field = source.capabilities!.fields.find(candidate => candidate.id === id);
+        const field = capabilities.fields.find(candidate => candidate.id === id);
         if (!field) return;
-        try {draft.setPredicates(libraryFilterChange(source.capabilities!, field, state.predicates, value, (source.tab.fixedFilter ?? []) as readonly BrowseNode[], now)); if (docked) draft.applyLive(); setFailure(undefined);}
+        try {draft.setPredicates(libraryFilterChange(capabilities, field, state.predicates, value, (source.tab.fixedFilter ?? []) as readonly BrowseNode[], now)); if (docked) draft.applyLive(); setFailure(undefined);}
         catch (error) {setFailure(error); runtime.reportError(error);}
       }} onSearchChange={draft.search} onRetry={draft.retryFacet}/>
   </>;
@@ -97,7 +103,7 @@ export function LibraryFilters({draft, source, runtime, labels, owner, onClose, 
   return theme.isTV ? <SidePanel testID={panelId} open={state.open} onOpenChange={open => {if (!open) close();}} title={defaultI18n.t('next.browse.native.filters')}
     width={680} topInset={0} initialFocusRef={initialFocusRef} showClose={false} titleType={{size: 44, weight: 800, tracking: -.03, lineHeight: 52.8}}
     style={{paddingTop: 42, paddingLeft: 56, paddingRight: 96, paddingBottom: 56}} footer={footer}>{content}</SidePanel>
-    : <BottomSheet testID={panelId} open={state.open} onOpenChange={open => {if (!open) close();}} title={defaultI18n.t('next.browse.native.filters')}
+    : <BottomSheet testID={panelId} open={state.open} onOpenChange={open => {if (!open) close();}} onExited={onExited} title={defaultI18n.t('next.browse.native.filters')}
       headerAction={<Button focusId="clear" variant="text" textStyle={theme.platform === 'phone' ? {color: theme.colors.textSecondary} : undefined} onPress={draft.clear}>{defaultI18n.t('next.browse.native.clearAll')}</Button>}
       footer={footer} scrollable={false} detents={theme.platform === 'phone' ? [580, 698] : [580, 780]}
       defaultDetent={theme.platform === 'phone' ? 1 : undefined} showClose={false}>{content}</BottomSheet>;

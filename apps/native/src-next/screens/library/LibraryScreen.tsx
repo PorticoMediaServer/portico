@@ -282,6 +282,8 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
     dropFilters(current);
   }, [dropFilters, expanded, tabletLayout]);
   useEffect(() => {if (!active.visible) dropFilters(filtersRef.current);}, [active.visible, dropFilters]);
+  // A filter draft belongs to the library it was opened on: another library drops it.
+  useEffect(() => () => dropFilters(filtersRef.current), [state.library.id, dropFilters]);
   useEffect(() => () => {filtersRef.current?.dispose(); filtersRef.current = undefined;}, []);
   const ids = nativeDestinationFocusIds(runtime.getSnapshot().authority);
   useEffect(() => {void destination.load().catch(runtime.reportError); void directory.load().catch(runtime.reportError);}, [destination, directory, runtime]);
@@ -396,7 +398,7 @@ export function LibraryScreen(props: NativeLibraryScreenProps) {
   // The phone sheet and the TV panel own their exit motion, so their draft stays
   // mounted while it closes; the tablet panes have no exit motion to finish.
   const sheet = filterDraft && !tabletLayout && <LibraryFilters key={filterOpening.current} draft={filterDraft} source={state} runtime={runtime} labels={props.labels} owner={props.owner}
-    onClose={() => filterDraft?.dispose()} onSave={view => actions.saveView(destination, view)}/>;
+    onClose={() => filterDraft?.dispose()} onExited={() => dropFilters(filterDraft)} onSave={view => actions.saveView(destination, view)}/>;
   return <View testID={`native-library-${encodeURIComponent(state.library.id)}`} pointerEvents={active.visible ? 'auto' : 'none'} accessibilityElementsHidden={!active.visible}
     importantForAccessibility={active.visible ? 'auto' : 'no-hide-descendants'} onLayout={event => setAreaWidth(event.nativeEvent.layout.width)}
     style={{flex: 1}}>{theme.isTV && <StandardBackdrop/>}

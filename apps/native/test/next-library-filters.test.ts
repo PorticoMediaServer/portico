@@ -12,7 +12,7 @@ function nodes(node: any): any[] {
   if (Array.isArray(node)) return node.flatMap(nodes);
   return node && typeof node === 'object' && 'props' in node ? [node, ...nodes(node.props.children)] : [];
 }
-async function fixture(isTV: boolean, width = isTV ? 1920 : 390) {
+async function fixture(isTV: boolean, width = isTV ? 1920 : 390, loading = false, onExited?: () => void) {
   const host = hooks(), calls: any[] = [], theme = createTheme({width, isTV});
   const field = {id: 'genre', labelKey: 'filter.field.genre', type: 'identity-set', operators: ['contains-any'], controlHint: 'facet-multi-select', complexity: 'quick', cost: 'indexed', applicableKinds: ['movie']};
   const capability = {library: {id: 'actual-library', kind: 'movie'}, fields: [field], sorts: [], quickFilters: [], resolvedPivot: null};
@@ -20,7 +20,9 @@ async function fixture(isTV: boolean, width = isTV ? 1920 : 390) {
   const staged = {variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Comedy']};
   const state = {open: true, predicates: [staged], count: {phase: 'ready', value: {total: 19, totalIsLowerBound: false}}, facets: {}};
   const source = {phase: 'ready', library: capability.library, capabilities: capability, predicates: [original], sort: {field: 'title', direction: 'asc'},
-    defaultSort: {field: 'title', direction: 'asc'}, tab: {id: 'browse', pivot: 'movies'}};
+    defaultSort: {field: 'title', direction: 'asc'}, tab: {id: 'browse', pivot: 'movies'},
+    // A library just switched to: its capabilities and sort have not arrived yet.
+    ...(loading ? {phase: 'loading', library: {id: 'next-library', kind: 'movie'}, capabilities: undefined, sort: undefined} : {})};
   const draft = {getSnapshot: () => state, subscribe() {}, setPredicates: (value: unknown) => calls.push(['predicates', value]), apply: () => {calls.push('apply'); return true;}, clear: () => calls.push('clear'), search() {}, retryFacet() {}};
   const runtime = {text: {t: defaultI18n.t}, getSnapshot: () => ({authority: {serverId: 'server', epoch: 'epoch'}}), reportError: (error: unknown) => {throw error;}};
   const {LibraryFilters} = await screenModule(new URL('../src-next/screens/library/LibraryFilters.tsx', import.meta.url), {
@@ -32,7 +34,7 @@ async function fixture(isTV: boolean, width = isTV ? 1920 : 390) {
     '../../kit/browse/presentation': {browseType: () => ({})}, '../../kit/theme': {useTheme: () => theme}, './filter-controls': {libraryFilterChange, libraryFilterField},
     './model': {nativeLibraryCanSave},
   });
-  const tree = host.render(() => LibraryFilters({draft, source, runtime, labels: {field: () => 'Genre'}, owner: true, onClose: () => calls.push('close'), onSave: (value: unknown) => calls.push(['save', value])}));
+  const tree = host.render(() => LibraryFilters({draft, source, runtime, labels: {field: () => 'Genre'}, owner: true, onClose: () => calls.push('close'), onExited, onSave: (value: unknown) => calls.push(['save', value])}));
   return {tree, calls, state, source};
 }
 
@@ -62,6 +64,15 @@ test('TV Library filters enter the actual first field and Apply returns through 
   builder.props.onFieldChange('genre', {kind: 'values', included: ['Drama'], excluded: [], mode: 'any'});
   assert.deepEqual(calls.at(-1), ['predicates', [{variant: 'predicate', field: 'genre', operator: 'contains-any', value: ['Drama']}]]);
   state.count.phase = 'loading';
+});
+
+test('Library filters over a library that is still loading draw nothing instead of taking the screen down (W3 F2)', async () => {
+  for (const tv of [false, true]) {
+    const {tree} = await fixture(tv, undefined, true);
+    assert.equal(tree, null);
+  }
+  const exited: string[] = [], {tree} = await fixture(false, 390, false, () => exited.push('exited'));
+  tree.props.onExited(); assert.deepEqual(exited, ['exited'], 'the phone sheet tells its host when it has closed, so the host drops the draft');
 });
 
 test('Phone Library filters put Clear all in the heading and save the actual staged query, not the mounted grid query', async () => {
