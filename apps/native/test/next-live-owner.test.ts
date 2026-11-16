@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {NativeScreenLifetime} from '../src-next/screens/settings-live/lifetime';
 import {NativeLiveOwnerController} from '../src-next/screens/settings-live/live-owner-controller';
-import {parseChannelMapPage, parseLiveDefaults, parseLiveSources, parseSourceDocument, parseTunerDiscovery, millisOf, secondsOf, listOf} from '../src-next/screens/settings-live/live-owner-model';
+import {remoteSourceDraft} from '../../../packages/client-core/src/linear-api';
+import {liveDefaultsView, rebuiltLiveDefaults, sourceSettingsChange, parseChannelMapPage, parseLiveDefaults, parseLiveSources, parseSourceDocument, parseTunerDiscovery, millisOf, secondsOf, listOf} from '../src-next/screens/settings-live/live-owner-model';
 import {appendRecordingPage, needsRuleOwner, rulePaddingChoice, rulePaddingFromChoice, parseAdminRulePage, parseAdminRules, parseDVRDocument, parseTunerView} from '../src-next/screens/settings-live/recording-owner-model';
 import type {ShellAuthority} from '../src-next/shell/model';
 
@@ -70,24 +71,33 @@ test('seconds, milliseconds and comma lists round-trip without inventing a defau
   assert.deepEqual(listOf(' News, Sports ,, HD '), ['News', 'Sports', 'HD']);
 });
 
-test('the owner controller reads the real list and writes only after a server receipt', async () => {
-  const owner = authority(), calls: {path: string; method: string; body?: unknown}[] = [];
-  let rejection: Error | undefined;
+test('the owner controller reads the rebuilt sources and pauses one only after the server accepts it', async () => {
+  const owner = authority(), calls: {path: string; method: string; ifMatch?: string; body?: unknown}[] = [];
+  let refusal = true;
   const lifetime = new NativeScreenLifetime(owner);
-  const api = {request: async <T,>(path: string, method = 'GET', body?: unknown) => {
-    calls.push({path, method, body});
-    if (path === '/v1/admin/live-sources' && method === 'GET') return {protocolVersion: '1.0', serverId: 'server', sources: [source], refresh: []} as T;
-    if (path === '/v1/admin/live-sources/s1/enabled') {if (rejection) throw rejection; return {} as T;}
-    throw new Error(`unexpected ${method} ${path}`);
-  }};
-  const controller = new NativeLiveOwnerController(lifetime, api, () => 'op1');
+  const rebuilt = {id: 's1', name: 'Antenna', kind: 'm3u', state: 'up_to_date', revision: '3', paused: false, tunerCount: 2, hasSignIn: false, config: {playlistUrl: 'http://tv.example/list.m3u'},
+    report: {channels: 5, programmes: 10, skippedChannels: 0, skippedProgrammes: 0, channelsWithGuide: 5}};
+  const api = {
+    request: async <T,>(path: string, method = 'GET') => {
+      calls.push({path, method});
+      if (path === '/v1/admin/live/sources' && method === 'GET') return {items: [rebuilt]} as T;
+      throw new Error(`unexpected ${method} ${path}`);
+    },
+    requestRaw: async (path: string, method: string, options: {headers?: Record<string, string>; body?: unknown} = {}) => {
+      calls.push({path, method, ifMatch: options.headers?.['If-Match'], body: options.body});
+      return refusal ? {status: 412, headers: {}, body: {error: {code: 'changed_elsewhere', message: 'Changed elsewhere.'}}} : {status: 200, headers: {}, body: {...rebuilt, paused: true, revision: '4'}};
+    },
+  };
+  const controller = new NativeLiveOwnerController(lifetime, api as never, () => 'op1');
   await controller.load();
-  assert.equal(controller.getSnapshot().list?.sources.length, 1);
-  rejection = Object.assign(new Error('conflict'), {status: 412});
+  assert.equal(controller.getSnapshot().list?.sources[0]!.channels, 5);
   await controller.setEnabled('s1', false);
-  assert.equal(calls.filter(call => call.method === 'POST').length >= 1, true);
-  assert.equal(controller.getSnapshot().error, rejection);
-  assert.equal(controller.getSnapshot().list?.sources[0]!.state, 'ready');
+  const patch = calls.find(call => call.method === 'PATCH');
+  assert.deepEqual(patch, {path: '/v1/admin/live/sources/s1', method: 'PATCH', ifMatch: '"3"', body: {paused: true}});
+  assert.equal((controller.getSnapshot().error as {code?: string}).code, 'changed_elsewhere', 'a refused change is shown');
+  assert.equal(controller.getSnapshot().list?.sources[0]!.state, 'up_to_date', 'and the row stays as the server last said');
+  await controller.setEnabled('s1', true);
+  assert.equal(calls.filter(call => call.method === 'PATCH').length, 1, 'a source already running is not changed again');
   lifetime.dispose(); controller.dispose();
 });
 
@@ -255,13 +265,46 @@ test('native DVR defaults refuse deleting the only original and unknown conversi
 });
 
 
-test('native source editor reads persisted rows and sends write-only changes with one revision',async()=>{
- const owner=authority(),calls:any[]=[];
- const remote={kind:'xtream',guideUrl:'https://guide.example/guide.xml',guideUrlRedacted:false,refreshMs:21600000,ownerLimit:2,useDiscoveredCapacity:false};
- const stored={sourceId:'s1',sourceName:'Source',revision:7,digest:'digest',tunerCount:2,effectiveLogoImport:{enabled:true,overwriteExisting:false},availableKinds:['playlist'],settings:{...settings,enabled:true,viewerAccess:'server-members',remote},effective:defaults};
- const api={async request<T>(path:string,method='GET',body?:any){calls.push({path,method,body});if(path==='/v1/admin/live-sources')return {serverId:'server',sources:[source],refresh:[]} as T;return {serverId:'server',result:stored} as T;}};
- const controller=new NativeLiveOwnerController(new NativeScreenLifetime(owner),api,()=> 'operation');
- const doc=await controller.document('s1');assert.equal(doc.settings.viewerAccess,'server-members');assert.equal(doc.settings.remote?.ownerLimit,2);assert.equal(doc.settings.remote?.password,undefined);
- await controller.saveDocument(doc,{...doc.settings,enabled:false,viewerAccess:'owner-only',remote:{...doc.settings.remote!,refreshMs:43200000,ownerLimit:4,password:'replacement',username:''}});
- const put=calls.find(value=>value.method==='PUT');assert.equal(put.body.expectedRevision,7);assert.equal(put.body.settings.enabled,false);assert.equal(put.body.settings.remote.password,'replacement');assert.equal(put.body.settings.remote.username,'');assert.equal(put.body.settings.remote.refreshMs,43200000);controller.dispose();
+test('adding a playlist source previews it, then creates it from the same body with one operation id', async () => {
+  const owner = authority(), sent: {path: string; method: string; key?: string; body?: any}[] = [];
+  const lifetime = new NativeScreenLifetime(owner);
+  const created = {id: 's2', name: 'Cable', kind: 'playlist', state: 'up_to_date', revision: '1', paused: false, tunerCount: 2, hasSignIn: false, config: {playlistUrl: 'http://tv.example/c.m3u'},
+    report: {channels: 7, programmes: 0, skippedChannels: 1, skippedProgrammes: 0, channelsWithGuide: 0}};
+  const api = {
+    request: async <T,>(path: string, method = 'GET', body?: unknown) => {
+      sent.push({path, method, body});
+      if (path === '/v1/admin/live/sources/preview') return {report: created.report, channels: [{Name: 'News'}, {Name: 'Sport'}], tuners: 0} as T;
+      if (path === '/v1/admin/live/sources' && method === 'GET') return {items: [created]} as T;
+      throw new Error(`unexpected ${method} ${path}`);
+    },
+    requestRaw: async (path: string, method: string, options: {headers?: Record<string, string>; body?: unknown} = {}) => {
+      sent.push({path, method, key: options.headers?.['Idempotency-Key'], body: options.body});
+      return {status: 201, headers: {}, body: created};
+    },
+  };
+  const controller = new NativeLiveOwnerController(lifetime, api as never, () => 'op-preview-1');
+  const draft = {...remoteSourceDraft('d1'), name: ' Cable ', locator: 'http://tv.example/c.m3u', ownerLimit: 2};
+  const preview = await controller.previewRemote(draft);
+  assert.equal(preview.preview.channels, 7); assert.deepEqual(preview.preview.names, ['News', 'Sport']); assert.equal(preview.preview.diagnostics.skippedChannels, 1);
+  const saved = await controller.saveRemote(preview.previewId);
+  assert.equal(saved?.id, 's2');
+  const create = sent.find(call => call.method === 'POST' && call.path === '/v1/admin/live/sources')!;
+  assert.deepEqual(create.body, sent.find(call => call.path === '/v1/admin/live/sources/preview')!.body, 'the saved body is the one previewed');
+  assert.deepEqual(create.body, {kind: 'playlist', name: 'Cable', audience: 'owner', tunerCount: 2, config: {refreshHours: 6, playlistUrl: 'http://tv.example/c.m3u'}});
+  assert.equal(create.key, preview.previewId);
+  lifetime.dispose(); controller.dispose();
+});
+
+test('a source settings save sends only what the owner changed, and a new sign-in whole', async () => {
+  const document = {etag: '"3"', imagesEnabled: true, source: {id: 's1', name: 'Cable', kind: 'xtream', state: 'up_to_date', revision: '3', paused: false, tunerCount: 2, audience: 'everyone', hasSignIn: true, config: {serverUrl: 'http://x', refreshHours: 6}}};
+  const draft = {name: 'Cable', audience: 'everyone', paused: false, tunerCount: 2, config: {serverUrl: 'http://x', refreshHours: 12}, username: '', password: ''};
+  assert.deepEqual(sourceSettingsChange(document, draft), {config: {serverUrl: 'http://x', refreshHours: 12}});
+  assert.deepEqual(sourceSettingsChange(document, {...draft, config: document.source.config, username: 'u', password: 'p'}), {signIn: {username: 'u', password: 'p'}});
+});
+
+test('live defaults read the rebuilt document in its own units and save the owner\'s change back in them', () => {
+  const document = {status: {etag: '"5"'}, value: {bufferSeconds: 60, retrySeconds: 20, guideDays: 7, rewindMinutes: 30, importImages: true, discoveryEnabled: false, userAgent: 'Portico'}};
+  const view = liveDefaultsView(document);
+  assert.equal(view.revision, 5); assert.equal(view.settings.streamBufferMs, 60000); assert.equal(view.settings.timeshiftMinutes, 30); assert.equal(view.settings.logoImport, true);
+  assert.deepEqual(rebuiltLiveDefaults(document.value, {...view.settings, retryWindowMs: 45000, guideDays: 14}), {...document.value, retrySeconds: 45, guideDays: 14});
 });

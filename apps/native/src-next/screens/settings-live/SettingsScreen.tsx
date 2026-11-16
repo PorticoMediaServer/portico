@@ -53,6 +53,7 @@ import {ServerBand, ServerHeader} from '../../kit/shell/ServerIdentity';
 import {alpha} from '../../kit/shell/visual';
 import {NativeLiveOwnerScreen} from './LiveOwnerScreen';
 import {NativeLiveOwnerController} from './live-owner-controller';
+import {withGuardedRaw} from '../../../../../packages/client-core/src/home-selection/list-destinations';
 import {createNativeRecordingsController} from './recordings-controller';
 import {nativeRouteCrypto} from '../../platform/server-connections';
 import {NativeServerTroubleshooting} from './server/TroubleshootingPage';
@@ -221,7 +222,8 @@ export function NativeSettingsScreen({ports, controller, runtime, devicePreferen
     if (!managesServer || theme.isTV) return undefined;
     const lifetime = controller.lifetime;
     const api = {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => lifetime.request(next => ports.context.api.request<T>(path, method, body, next), signal)};
-    return {owner: new NativeLiveOwnerController(lifetime, api, () => [...nativeRouteCrypto.random(24)].map(byte => byte.toString(16).padStart(2, '0')).join('')), recordings: createNativeRecordingsController(lifetime, api, ports.dvrRequestId)};
+    // A source's pause switch carries its revision in a header: the app's header-sending call, guarded by this screen.
+    return {owner: new NativeLiveOwnerController(lifetime, withGuardedRaw(api, ports.context.api, () => lifetime.assert()), () => [...nativeRouteCrypto.random(24)].map(byte => byte.toString(16).padStart(2, '0')).join('')), recordings: createNativeRecordingsController(lifetime, api, ports.dvrRequestId)};
   }, [controller, ports, managesServer, theme.isTV]);
   useEffect(() => () => {liveControllers?.owner.dispose(); liveControllers?.recordings.dispose();}, [liveControllers]);
   // N5-5: phone and tablet search every page this viewer has, Server pages included; TV's corpus stays the account pages (serverPages is empty there).

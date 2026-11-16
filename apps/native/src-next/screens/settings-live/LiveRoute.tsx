@@ -9,6 +9,7 @@ import {nativeScreenServices} from '../native-screen-services';
 import {createNativeRecordingsController} from './recordings-controller';
 import {NativeLiveScreen} from './LiveScreen';
 import {NativeLiveOwnerController} from './live-owner-controller';
+import {withGuardedRaw} from '../../../../../packages/client-core/src/home-selection/list-destinations';
 import {nativeSettingsRequestId} from './settings-ports';
 import {publishNativeLiveWatchPort} from './watch-port';
 
@@ -19,7 +20,7 @@ export function createNativeLiveRenderer(context: NativeShellBootstrapContext): 
   const controller = new NativeLiveController(lifetime, api, Intl.DateTimeFormat().resolvedOptions().timeZone, {port: nativeGuideMemory(context.session()?.viewer, lifetime), reportError: error => nativeScreenServices(context).reportError(error)});
   const recordings = createNativeRecordingsController(lifetime, api, dvrRequestId);
   const operationId = () => [...nativeRouteCrypto.random(24)].map(byte => byte.toString(16).padStart(2, '0')).join('');
-  const owner = new NativeLiveOwnerController(lifetime, api, operationId);
+  const owner = new NativeLiveOwnerController(lifetime, withGuardedRaw(api, context.api, () => lifetime.assert()), operationId);
   const releaseWatch = publishNativeLiveWatchPort(context, lifetime, {recordings, live: controller, owner, requestId: dvrRequestId});
   return {
     render: (route, runtime) => {
