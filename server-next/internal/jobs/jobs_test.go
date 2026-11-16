@@ -89,7 +89,13 @@ func TestLanesJoiningAndResume(t *testing.T) {
 
 	// The server stops with one job running and one waiting. The next start runs both.
 	stopServer()
-	time.Sleep(50 * time.Millisecond)
+	stopped, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	r.Wait(stopped)
+	if stopped.Err() != nil {
+		t.Fatal("the old runner did not stop")
+	}
+	wait(t, d, first.PublicID, db.JobWaiting)
 	ctx = context.Background()
 	again := New(ctx, d, log)
 	again.Register(Kind{Name: "slow", Lane: "library", Run: quick})
