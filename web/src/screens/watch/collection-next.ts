@@ -21,5 +21,5 @@ type Api = Readonly<{request<T>(path: string, method?: string, body?: unknown, s
 export function readCollectionNext(api: Api, collection: Readonly<{id: string; name: string}>, currentItemId: string,
   play: (itemId: string) => Promise<void>, signal: AbortSignal): Promise<WatchCollectionNext | undefined> {
   return readCollectionSuccessor(api, collection.id, currentItemId, signal, next => Object.freeze({collectionName: collection.name, id: next.id, title: next.title,
-    ...(typeof next.year === 'number' ? {year: next.year} : {}), ...(next.posterUrl ? {posterUrl: next.posterUrl} : {}), play: () => play(next.id)}));
+    ...(typeof next.year === 'number' ? {year: next.year} : {}), ...(next.images?.poster ? {posterUrl: next.images.poster} : {}), play: () => play(next.id)}));
 }
