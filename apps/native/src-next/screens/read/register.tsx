@@ -1,4 +1,5 @@
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
+import type {PreferenceSnapshot} from '../../../../../packages/client-core/src/preferences';
 import {nativeShellRoutes} from '../../shell/route-registry';
 import {nativeReadingSettingsPreferences, openNativeReadingSettings} from '../settings/ReadingSettingsRoute';
 import {createNativeReadRenderer} from './ReadRoute';
@@ -7,8 +8,12 @@ import './read-destinations';
 /** Read and Settings borrow the authority's ONE confirmed preference source.
  * Importing this handheld-only module registers factories and starts no I/O. */
 export function createNativeReadModule(context: NativeShellBootstrapContext) {
-  const source = nativeReadingSettingsPreferences(context);
-  const preferences = Object.freeze({getSnapshot: source.getPreferenceSnapshot, subscribe: source.subscribe});
+  // A book still opens when its settings cannot be read: it shows the server's defaults, and says nothing.
+  let preferences: Readonly<{getSnapshot: () => PreferenceSnapshot; subscribe: (listener: () => void) => () => void}>;
+  try {
+    const source = nativeReadingSettingsPreferences(context);
+    preferences = Object.freeze({getSnapshot: source.getPreferenceSnapshot, subscribe: source.subscribe});
+  } catch {preferences = Object.freeze({getSnapshot: context.preferences, subscribe: context.subscribePreferences});}
   return createNativeReadRenderer(context, preferences, () => {openNativeReadingSettings(context);});
 }
 
