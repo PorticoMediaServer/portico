@@ -16617,6 +16617,92 @@
         "x-scope": "library"
       }
     },
+    "/v1/admin/items/{id}/artwork/make": {
+      "post": {
+        "operationId": "post_v1_admin_items_id_artwork_make",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtworkPicturePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
+      }
+    },
+    "/v1/admin/items/{id}/artwork/refetch": {
+      "post": {
+        "operationId": "post_v1_admin_items_id_artwork_refetch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtworkPicturePage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A refusal"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "x-access": "admin",
+        "x-audience": "Integrations",
+        "x-scope": "library"
+      }
+    },
     "/v1/admin/items/{id}/artwork/{imageId}": {
       "delete": {
         "operationId": "delete_v1_admin_items_id_artwork_imageId",

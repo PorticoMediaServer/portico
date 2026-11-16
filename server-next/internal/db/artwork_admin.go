@@ -29,6 +29,9 @@ type NewPicture struct {
 	Width     int
 	Height    int
 	Language  string // the language of any words on it; "" for none
+	// Source is, for UploadPicture, ImageFromFrame for a picture made from the video at a
+	// person's asking; anything else is an upload.
+	Source ImageSource
 }
 
 // ProviderPictureURLs are the addresses of a title's provider pictures already fetched.
@@ -193,16 +196,21 @@ func (d *DB) UnlockPicture(ctx context.Context, publicID string, role ImageRole)
 	})
 }
 
-// UploadPicture records a picture a person uploaded, already in the picture store, as the
-// role's choice. The same picture uploaded again is the same row. It returns the picture's id.
+// UploadPicture records a picture a person uploaded, or had made from the video (pic.Source),
+// already in the picture store, as the role's choice. The same picture again is the same row.
+// It returns the picture's id.
 func (d *DB) UploadPicture(ctx context.Context, publicID string, pic NewPicture) (string, error) {
 	var image int64
+	source := ImageFromUpload
+	if pic.Source == ImageFromFrame {
+		source = ImageFromFrame
+	}
 	err := d.pictureEdit(ctx, publicID, pic.Role, func(b *batchTx, itemID int64) error {
 		err := b.queryRow(`SELECT id FROM images WHERE item_id = ? AND role = ? AND source = ? AND file_hash = ?`, itemID, pic.Role,
-			ImageFromUpload, pic.Hash).Scan(&image)
+			source, pic.Hash).Scan(&image)
 		if errors.Is(err, sql.ErrNoRows) {
 			res, err := b.exec(`INSERT INTO images (item_id, role, source, file_hash, width, height, position) VALUES (?, ?, ?, ?, ?, ?, 0)`,
-				itemID, pic.Role, ImageFromUpload, pic.Hash, nz(pic.Width), nz(pic.Height))
+				itemID, pic.Role, source, pic.Hash, nz(pic.Width), nz(pic.Height))
 			if err != nil {
 				return err
 			}
@@ -323,5 +331,36 @@ func (d *DB) PictureGone(ctx context.Context, id int64) error {
 	return d.write(ctx, Background, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `DELETE FROM images WHERE id = ? AND file_hash IS NULL AND source = 3`, id)
 		return err
+	})
+}
+
+// ChosenProviderPicture is the provider's picture a title shows for a role, for Re-fetch: its
+// id and the address it was fetched from. ErrNotFound when the role shows no provider's picture.
+func (d *DB) ChosenProviderPicture(ctx context.Context, publicID string, role ImageRole) (int64, string, error) {
+	var id int64
+	var address string
+	err := d.read.QueryRowContext(ctx, `SELECT g.id, g.source_url FROM images g JOIN items i ON i.id = g.item_id
+		WHERE i.public_id = ? AND g.role = ? AND g.selected = 1 AND g.source = ? AND g.source_url IS NOT NULL`,
+		publicID, role, ImageFromProvider).Scan(&id, &address)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, "", ErrNotFound
+	}
+	return id, address, err
+}
+
+// PictureRefetched records the file a provider's picture was downloaded to again (Re-fetch),
+// in place: it keeps its choice and its lock.
+func (d *DB) PictureRefetched(ctx context.Context, imageID int64, hash string) error {
+	return d.write(ctx, User, func(tx *sql.Tx) error {
+		var item, library int64
+		err := tx.QueryRow(`UPDATE images SET file_hash = ? WHERE id = ? AND source = ? RETURNING item_id,
+			(SELECT library_id FROM items WHERE id = images.item_id)`, hash, imageID, ImageFromProvider).Scan(&item, &library)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		return appendChange(tx, Change{At: time.Now().UnixMilli(), Topic: TopicItem, Op: OpUpdated, RefID: item, LibraryID: library})
 	})
 }

@@ -8,6 +8,9 @@ func init() {
 		"POST /v1/admin/versions/{id}/split":         "the version is its title's only one after the first, so a repeat is refused and changes nothing",
 		"POST /v1/admin/items/{id}/artwork/find":     "a repeat fetches the provider's pictures again and adds none it already has (one row per picture address)",
 		"POST /v1/admin/items/{id}/artwork":          "an upload of the same picture is the row it made the first time, used and locked again",
+		"POST /v1/admin/items/{id}/artwork/refetch":  "a repeat downloads the provider's picture in use again into the same row, which stays chosen and locked",
+		"POST /v1/admin/items/{id}/artwork/make": "a repeat makes the same frame of the same video, which is the row the first made " +
+			"(one row per picture), used and locked again",
 		"POST /v1/admin/items/{id}/metadata/history/{entryId}/undo": "Undo puts back only what still holds the change's value, " +
 			"so a repeat puts nothing more back (it adds one more History line)",
 		"POST /v1/admin/metadata/settings/opensubtitles/check": "Test connection only asks OpenSubtitles and keeps what it answered in memory; a repeat asks again",

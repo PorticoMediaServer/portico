@@ -35,31 +35,23 @@ func (s *Server) makeEpisodePictures(ctx context.Context, lib db.Library) error 
 			if err := s.settings.WaitForBackground(ctx, s.now); err != nil {
 				return err
 			}
-			supervisor, ffmpeg, err := s.analysisTools(ctx)
-			if err != nil || supervisor == nil || ffmpeg == "" {
-				return err // no decoder on this server: nothing can be made
+			data, err := s.madeFrame(ctx, e)
+			switch {
+			case ctx.Err() != nil:
+				return ctx.Err()
+			case errors.Is(err, errNoDecoder):
+				return nil // no decoder on this server: nothing can be made
+			case errors.Is(err, errOutOfReach):
+				continue // changed or out of reach now: the next pass tries again
 			}
 			hash := ""
-			if e.Parts == 1 && e.StartMS == 0 && e.EndMS == 0 && e.DurationMS > 0 {
-				file, err := segments.OpenFile(ctx, s.remote.Open, e)
-				if err != nil {
-					continue // changed or out of reach now: the next pass tries again
-				}
-				made, err := mediaanalysis.MakeEpisodeThumbnail(ctx, mediaanalysis.FileDecode(supervisor, ffmpeg, nil, file, e.Size),
-					mediaanalysis.EpisodeThumbnailRequest{Mode: mediaanalysis.EpisodeThumbnailDefaultMode, DurationUS: e.DurationMS * 1000,
-						EndUS: e.DurationMS * 1000, SourceVideo: decoder.PreviewVideoFacts{DynamicRange: e.HDR}})
-				file.Close()
-				if ctx.Err() != nil {
-					return ctx.Err()
-				}
-				if err == nil {
-					sum := sha256.Sum256(made.JPEG)
-					hash = hex.EncodeToString(sum[:])
-					if err := s.artwork.Put(hash, made.JPEG); errors.Is(err, artwork.ErrNotAPicture) {
-						hash = ""
-					} else if err != nil {
-						return err
-					}
+			if err == nil {
+				sum := sha256.Sum256(data)
+				hash = hex.EncodeToString(sum[:])
+				if err := s.artwork.Put(hash, data); errors.Is(err, artwork.ErrNotAPicture) {
+					hash = ""
+				} else if err != nil {
+					return err
 				}
 			}
 			if err := s.db.AddMadePicture(ctx, e.ItemID, e.FileID, hash); err != nil {
@@ -67,4 +59,32 @@ func (s *Server) makeEpisodePictures(ctx context.Context, lib db.Library) error 
 			}
 		}
 	}
+}
+
+var (
+	errNoDecoder  = errors.New("this server has no decoder to make a picture with")
+	errOutOfReach = errors.New("the episode's file cannot be read now")
+)
+
+// madeFrame makes one picture from an episode's video, a frame a tenth of the way in: for the
+// picture pass and for Make from the video. A file that changed or is out of reach is
+// errOutOfReach; a server with no decoder, errNoDecoder; a version of several files or a part
+// of one, mediaanalysis.ErrUnsupported.
+func (s *Server) madeFrame(ctx context.Context, e db.SegmentEntry) ([]byte, error) {
+	supervisor, ffmpeg, err := s.analysisTools(ctx)
+	if err != nil || supervisor == nil || ffmpeg == "" {
+		return nil, errors.Join(errNoDecoder, err)
+	}
+	if e.Parts != 1 || e.StartMS != 0 || e.EndMS != 0 || e.DurationMS <= 0 {
+		return nil, mediaanalysis.ErrUnsupported
+	}
+	file, err := segments.OpenFile(ctx, s.remote.Open, e)
+	if err != nil {
+		return nil, errors.Join(errOutOfReach, err)
+	}
+	defer file.Close()
+	made, err := mediaanalysis.MakeEpisodeThumbnail(ctx, mediaanalysis.FileDecode(supervisor, ffmpeg, nil, file, e.Size),
+		mediaanalysis.EpisodeThumbnailRequest{Mode: mediaanalysis.EpisodeThumbnailDefaultMode, Manual: true, DurationUS: e.DurationMS * 1000,
+			EndUS: e.DurationMS * 1000, SourceVideo: decoder.PreviewVideoFacts{DynamicRange: e.HDR}})
+	return made.JPEG, err
 }
