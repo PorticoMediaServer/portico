@@ -17,8 +17,9 @@
       <Poster id="plate" uri="pkg:/images/round-14.9.png" blendColor="0x162C3AFF" width="350" height="90" translation="[-10,0]"/>
       <Group id="rows"/>
     </Group>
-    <Poster id="fadeTop" uri="pkg:/images/fade-up.png" width="380" height="60" translation="[-20,0]" visible="false"/>
-    <Poster id="fadeBottom" uri="pkg:/images/fade-down.png" width="380" height="72" translation="[-20,468]"  visible="false"/>
+    <Label id="moreAbove" translation="[22,2]" visible="false"/>
+    <Label id="moreBelow" translation="[22,548]" visible="false"/>
+    <Poster id="fadeBottom" uri="pkg:/images/fade-down.png" width="380" height="72" translation="[-20,468]" visible="false"/>
     <Poster id="ring" uri="pkg:/images/focus-14.9.png" width="422" height="162" visible="false"/>
   </children>
 </component>
