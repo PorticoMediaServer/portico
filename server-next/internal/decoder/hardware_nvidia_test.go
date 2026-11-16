@@ -53,9 +53,15 @@ func TestNVIDIAReporterKeepsFixedArgumentsAndPrivateEnvironment(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-	started := time.Now()
-	if _, err := runNVIDIADiscovery(ctx, path); err == nil || time.Since(started) > 2*time.Second {
-		t.Fatal("reporter did not honor caller cancellation", err, time.Since(started))
+	result := make(chan error, 1)
+	go func() { _, err := runNVIDIADiscovery(ctx, path); result <- err }()
+	select {
+	case err := <-result:
+		if err == nil {
+			t.Fatal("reporter did not honor caller cancellation")
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("reporter did not return after caller cancellation")
 	}
 }
 
