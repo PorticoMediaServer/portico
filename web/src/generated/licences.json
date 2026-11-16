@@ -1880,6 +1880,30 @@
    "text": 39
   },
   {
+   "id": "go:github.com/srwiley/oksvg@v0.0.0-20221011165216-be6e8873101c",
+   "name": "github.com/srwiley/oksvg",
+   "version": "v0.0.0-20221011165216-be6e8873101c",
+   "licence": "BSD-3-Clause",
+   "group": "server",
+   "url": "https://pkg.go.dev/github.com/srwiley/oksvg@v0.0.0-20221011165216-be6e8873101c",
+   "text": 31,
+   "copyright": [
+    "Copyright (c) 2018, Steven R Wiley All rights reserved."
+   ]
+  },
+  {
+   "id": "go:github.com/srwiley/rasterx@v0.0.0-20220730225603-2ab79fcdd4ef",
+   "name": "github.com/srwiley/rasterx",
+   "version": "v0.0.0-20220730225603-2ab79fcdd4ef",
+   "licence": "BSD-3-Clause",
+   "group": "server",
+   "url": "https://pkg.go.dev/github.com/srwiley/rasterx@v0.0.0-20220730225603-2ab79fcdd4ef",
+   "text": 31,
+   "copyright": [
+    "Copyright (c) 2018, Steven R Wiley All rights reserved."
+   ]
+  },
+  {
    "id": "go:github.com/stangelandcl/ppmd@v0.1.1",
    "name": "github.com/stangelandcl/ppmd",
    "version": "v0.1.1",
@@ -1944,6 +1968,18 @@
    "licence": "BSD-3-Clause",
    "group": "server",
    "url": "https://pkg.go.dev/golang.org/x/image@v0.46.0",
+   "text": 41,
+   "copyright": [
+    "Copyright 2009 The Go Authors."
+   ]
+  },
+  {
+   "id": "go:golang.org/x/net@v0.57.0",
+   "name": "golang.org/x/net",
+   "version": "v0.57.0",
+   "licence": "BSD-3-Clause",
+   "group": "server",
+   "url": "https://pkg.go.dev/golang.org/x/net@v0.57.0",
    "text": 41,
    "copyright": [
     "Copyright 2009 The Go Authors."
@@ -2108,8 +2144,8 @@
   "package-lock.json": "f615a586d00abf47fbbf0fbf428c9be480faf05939389a05c40e1b1506086bef",
   "packages/design/LICENSE-LUCIDE": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57",
   "scripts/release-build-tags.py": "65546184284984e19f84b6cd2f7e2832de2a62fa588481a8e63e4c567e4f73ed",
-  "server-next/go.mod": "d70d8f6e7b11a6639a733be7828b43b5ea7dde27c1de647e36474d84b5898179",
-  "server-next/go.sum": "e4dca8ca8737bec125ee02082f30c2c7425f09711d6dbe1149de1b285725d1fe",
+  "server-next/go.mod": "91d842f073f96275e22fb44821bbe5c8f21f0e248a82b7444baf33921b49c5d8",
+  "server-next/go.sum": "31e16d3047329179e4021e64e7e5e3cc6a8b28c6583bd763962173d89bc4a9c6",
   "server-next/internal/mediaexec/fonts/LICENSE": "d75938dec098f06f0ac3c00853065d94f020be1c3c62ef1dc2975ba15b4d9b0e",
   "server-next/internal/mediaexec/fonts/NotoCJK-LICENSE": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2",
   "server-next/internal/mediaexec/fonts/NotoSansDevanagari-LICENSE": "a216f6f8d85c7228093e0ee5e258d9d377e6671f68acb4db1930b29583d0f331",

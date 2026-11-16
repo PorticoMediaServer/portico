@@ -5,6 +5,7 @@ import (
 	"context"
 	"image"
 	"image/png"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -55,5 +56,59 @@ func TestChannelLogoAllowsTheLocalTunersOwnHost(t *testing.T) {
 	hash, err := service.channelLogo(context.Background(), client, origin.URL+"/logo.png")
 	if err != nil || hash == "" {
 		t.Fatalf("the tuner's own logo was refused: %s %v", hash, err)
+	}
+}
+
+// SVG logos are common: one is stored as a picture, drawn with its shapes and its text. One
+// with something that cannot be drawn faithfully (here a picture inside it) is refused, so
+// the channel shows its monogram rather than a wrong logo.
+func TestAnSVGChannelLogoIsStoredAsAPicture(t *testing.T) {
+	drawings := map[string]string{
+		"/logo.svg": `<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">` +
+			`<metadata>made by hand</metadata><rect width="256" height="256" rx="40" fill="#c0392b"/>` +
+			`<text x="128" y="160" font-family="Helvetica, Arial, sans-serif" font-size="104" font-weight="700" text-anchor="middle" fill="#ffffff">NN</text></svg>`,
+		"/inside.svg": `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 10 10">` +
+			`<image width="10" height="10" xlink:href="data:image/png;base64,AAAA"/></svg>`,
+	}
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/svg+xml")
+		io.WriteString(w, drawings[r.URL.Path])
+	}))
+	defer origin.Close()
+	client := logoClient("hdhomerun", LiveSourceConfig{TunerURL: origin.URL})
+	defer client.CloseIdleConnections()
+	service := &Service{pictures: artwork.New(t.TempDir())}
+	hash, err := service.channelLogo(context.Background(), client, origin.URL+"/logo.svg")
+	if err != nil {
+		t.Fatalf("the SVG logo was refused: %v", err)
+	}
+	stored, _, err := service.pictures.Read(hash, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	picture, _, err := image.Decode(bytes.NewReader(stored))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := picture.Bounds()
+	if _, _, _, a := picture.At(b.Min.X+1, b.Min.Y+1).RGBA(); a != 0 {
+		t.Errorf("the rounded corner is filled")
+	}
+	if r, g, bl, _ := picture.At(b.Min.X+b.Dx()/10, b.Min.Y+b.Dy()/2).RGBA(); max(r>>8, 0xc0)-min(r>>8, 0xc0) > 2 || max(g>>8, 0x39)-min(g>>8, 0x39) > 2 || max(bl>>8, 0x2b)-min(bl>>8, 0x2b) > 2 {
+		t.Errorf("the background is %x %x %x", r>>8, g>>8, bl>>8)
+	}
+	white := 0
+	for y := b.Min.Y + b.Dy()*90/256; y < b.Min.Y+b.Dy()*160/256; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			if r, g, bl, _ := picture.At(x, y).RGBA(); r>>8 > 0xf0 && g>>8 > 0xf0 && bl>>8 > 0xf0 {
+				white++
+			}
+		}
+	}
+	if white < b.Dx()*b.Dy()/100 {
+		t.Errorf("the text was not drawn: %d white pixels", white)
+	}
+	if hash, err := service.channelLogo(context.Background(), client, origin.URL+"/inside.svg"); err == nil {
+		t.Errorf("a drawing with a picture inside was stored as %s", hash)
 	}
 }
