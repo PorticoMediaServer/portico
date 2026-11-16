@@ -2324,6 +2324,9 @@
           "quality": {
             "type": "string"
           },
+          "revision": {
+            "type": "string"
+          },
           "subtitles": {
             "items": {
               "$ref": "#/components/schemas/DownloadSubtitle"
@@ -5491,6 +5494,9 @@
             "type": "boolean"
           },
           "depth": {
+            "type": "string"
+          },
+          "episodeThumbnails": {
             "type": "string"
           },
           "groupSeries": {

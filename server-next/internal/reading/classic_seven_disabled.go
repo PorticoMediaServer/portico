@@ -2,10 +2,13 @@
 
 package reading
 
-import "io"
+import (
+	"archive/zip"
+	"io"
+)
 
 const sevenEnabled = false
 
-func sevenMembers(io.ReaderAt, int64, string, io.Writer) ([]comicMember, error) {
+func sevenMembers(io.ReaderAt, int64, string, io.Writer, *zip.Writer) ([]comicMember, error) {
 	return nil, ErrFormatLater
 }
