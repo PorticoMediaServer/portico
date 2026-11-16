@@ -6,5 +6,4 @@ export type {BulkMetadataPreview, BulkMetadataPreviewRequest, BulkMetadataPrevie
 
 export {destinationFence, fetchHomeDestinationPicker, parseHomeDestinationPicker} from './destination-picker.ts';
 export type {HomeDestinationPickerRequest, HomeDestinationPickerPage} from './destination-picker.ts';
-export {fetchHomeDestinationReceipt, parseHomeDestinationReceipt} from './destination-receipt.ts';
 export type {HomeDestinationReceiptRequest, HomeDestinationReceipt} from './destination-receipt.ts';
