@@ -258,6 +258,7 @@ test('actual WatchHost panel/control geometry reaches the persistent layer throu
   const d = await layer(true, outlet, {os: 'ios'}), controls = new NativeWatchControls(false);
   const measurements: ((x: number, y: number, width: number, height: number) => void)[] = [];
   const {NativeWatchHost} = await screenModule(new URL('../src-next/screens/watch/WatchHost.tsx', import.meta.url), {
+  '../../kit/theme': {useTheme: () => ({colors: {ink: '#08121b'}})},
     '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, react: {...React, default: React}, 'react-native': {View: 'View', useWindowDimensions: () => wide, Dimensions: {get: () => wide},
       StatusBar: {pushStackEntry: () => ({}), popStackEntry() {}}},

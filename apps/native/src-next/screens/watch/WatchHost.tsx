@@ -7,6 +7,7 @@ import {sameFence, type PlaybackFence} from '../../../../../packages/player-core
 import {resolvePlayerPresentation, playerControlsRevealDeadline, playerPostureCrossFadeMs, type PlayerPresentation, type PlayerPresentationInput, type PlayerRect} from '../../platform/layout/player-presentation';
 import {usePlatformPosture} from '../../platform/platformPosture';
 import {useMotion} from '../../kit/useMotion';
+import {useTheme} from '../../kit/theme';
 import {useInitialPlayerPaint} from '../../kit/dock/PlayerMorphBridge';
 import {useOptionalFocusRegistry} from '../../kit/focus';
 import {useScreenReader} from '../../kit/useScreenReader';
@@ -175,7 +176,7 @@ export function NativeWatchHost({authority, current, playback, outlet, runtime, 
   // fades the chrome and pages once for 250ms (none with reduced motion). The
   // picture is the persistent surface below, never part of this fade, and a
   // television keeps its own presentation untouched.
-  const motion = useMotion(), paneFade = useSharedValue(1), lastLayout = useRef<string | undefined>(undefined);
+  const motion = useMotion(), paneFade = useSharedValue(1), lastLayout = useRef<string | undefined>(undefined), ink = useTheme().colors.ink;
   const layoutKey = layout ? [layout.mode, rectKey(layout.surface), rectKey(layout.controls), rectKey(layout.content), rectKey(layout.details), rectKey(layout.panel)].join('|') : undefined;
   useLayoutEffect(() => {
     if (isTV || !layoutKey) return;
@@ -228,12 +229,15 @@ export function NativeWatchHost({authority, current, playback, outlet, runtime, 
       ?? (source.capabilities.retry === true && !!playback.retry && !!fence && sameFence(source.fence, failureRef.current.failure.fence)));
   const failed = bindings.failed && !panelOpen && failureRef.current
     ? bindings.failed(context, failureRef.current.failure, state.visible) : undefined;
+  // The watch page sits over the route stack, which keeps its own pages (the title page that started playback, or
+  // wherever the viewer went). Its panes are opaque ink, as the shell is under its routes, so no page shows through (W3 F7, F8).
+  const pagePane = (rect: Parameters<typeof positioned>[0]) => isTV ? positioned(rect) : {...positioned(rect), backgroundColor: ink};
   const content = <Animated.View testID="watch-panes" pointerEvents={initialPlayer && !initialPlayer.controlsAdmitted ? 'none' : 'box-none'} accessibilityElementsHidden={!!initialPlayer && !initialPlayer.controlsAdmitted}
     importantForAccessibility={initialPlayer && !initialPlayer.controlsAdmitted ? 'no-hide-descendants' : 'auto'} style={[{position: 'absolute', inset: 0}, paneFadeStyle]}>
     {postPlay ? <View testID="watch-post-play-pane" style={{position: 'absolute', inset: 0}}>{postPlay}</View> : <>
-    {layout.content && <View testID="watch-content-pane" style={positioned(layout.content)} pointerEvents="box-none">{bindings.content?.(context)}</View>}
-    {layout.details && <View testID="watch-details-pane" style={positioned(layout.details)} pointerEvents="box-none">{bindings.details?.(context)}</View>}
-    {layout.episodes && <View testID="watch-episodes-pane" style={positioned(layout.episodes)} pointerEvents="box-none">{bindings.episodes?.(context)}</View>}
+    {layout.content && <View testID="watch-content-pane" style={pagePane(layout.content)} pointerEvents="box-none">{bindings.content?.(context)}</View>}
+    {layout.details && <View testID="watch-details-pane" style={pagePane(layout.details)} pointerEvents="box-none">{bindings.details?.(context)}</View>}
+    {layout.episodes && <View testID="watch-episodes-pane" style={pagePane(layout.episodes)} pointerEvents="box-none">{bindings.episodes?.(context)}</View>}
     {chromePane && <View testID="watch-controls-pane" pointerEvents="box-none" style={positioned(television ? {x: 0, y: 0, width: television.canvas.width, height: television.canvas.height} : chromePane)}>
       <NativeWatchChrome {...bindings.chrome(source, runtime)} notice={noticesEnabled && expanded && lossNotice && lossNotice.key === noticeKey && layout.mode !== 'watch' && layout.mode !== 'book' ? {key: lossNotice.key, value: lossNotice.value, shownAt: 0} : undefined} source={source} controls={controls} playback={playback} text={runtime.text}
         width={television?.canvas.width ?? chromePane.width} height={television?.canvas.height ?? chromePane.height} compact={layout.mode === 'watch' || layout.mode === 'book'} fullWindowRequest={fullWindowRequest} tablet={!isTV && Math.min(window.width, window.height) >= 600}
