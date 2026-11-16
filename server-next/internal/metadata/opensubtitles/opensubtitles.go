@@ -37,8 +37,8 @@ const (
 // What OpenSubtitles can refuse, each said in plain words (definition area 7, rule 68). A
 // request to pause is a *fetch.SlowDown.
 var (
-	ErrKeyRefused    = errors.New("OpenSubtitles refused this server's API key")
-	ErrSignInRefused = errors.New("OpenSubtitles refused the account's username or password")
+	ErrKeyRefused    = errors.New("OpenSubtitles refused API access for this server")
+	ErrSignInRefused = errors.New("OpenSubtitles refused the account's sign-in")
 )
 
 // AllowanceUsed is OpenSubtitles saying the account's downloads for the day are used up.
@@ -130,20 +130,22 @@ func (c *Client) call(ctx context.Context, method, path string, body any, out an
 				c.mu.Unlock()
 				continue
 			}
-			return ErrSignInRefused
+			// Login accepted the account; a refused fresh token is not a bad password.
+			return err
 		case http.StatusForbidden:
 			return ErrKeyRefused
 		case http.StatusNotAcceptable:
 			var quota struct {
-				Reset string `json:"reset_time_utc"`
+				Remaining *int   `json:"remaining"`
+				Reset     string `json:"reset_time_utc"`
 			}
-			json.Unmarshal([]byte(refused.Body), &quota)
-			renews, err := time.Parse(time.RFC3339, quota.Reset)
-			if err != nil {
-				day := time.Now().UTC() // allowances are counted per day in UTC
-				renews = time.Date(day.Year(), day.Month(), day.Day()+1, 0, 0, 0, 0, time.UTC)
+			// 406 can also mean an invalid file_id. Only a download quota answer says
+			// today's downloads are used up; do not invent a reset time for another refusal.
+			if path == "/download" && json.Unmarshal([]byte(refused.Body), &quota) == nil && quota.Remaining != nil && *quota.Remaining == 0 {
+				if renews, err := time.Parse(time.RFC3339, quota.Reset); err == nil {
+					return &AllowanceUsed{Renews: renews}
+				}
 			}
-			return &AllowanceUsed{Renews: renews}
 		}
 		return err
 	}
@@ -201,7 +203,7 @@ func (c *Client) signIn(ctx context.Context) error {
 	}
 	err := c.call(ctx, http.MethodPost, "/login", map[string]string{"username": c.user, "password": c.secret}, &answer)
 	if err == nil && answer.Token == "" {
-		err = ErrSignInRefused
+		err = errors.New("OpenSubtitles login answer did not include a token")
 	}
 	if errors.Is(err, ErrSignInRefused) {
 		c.mu.Lock()
