@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home: the spotlight (the opening state), then the server's rows. The hero describes the card
+     in focus on the first row; further down the rows have the screen. -->
+<component name="HomeScreen" extends="Group">
+  <interface>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- Path of the art for the backdrop ("" for none). The scene shows it. -->
+    <field id="art" type="string"/>
+    <!-- Asks the scene to open or play a title: {item, play}. -->
+    <field id="open" type="assocarray" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="HomeScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <children>
+    <Group id="page" translation="[0,830]"/>
+    <Hero id="hero" visible="false"/>
+    <Notice id="notice" visible="false"/>
+    <Animation id="slide" duration="0.28" easeFunction="outCubic">
+      <Vector2DFieldInterpolator id="slideTo" key="[0.0, 1.0]" fieldToInterp="page.translation"/>
+    </Animation>
+    <Timer id="turn" duration="9" repeat="true"/>
+  </children>
+</component>

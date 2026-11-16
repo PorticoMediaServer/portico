@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The lockup at the top of a page: what a title is, in words. Two uses:
+     "spotlight" has buttons and takes focus; "preview" describes the card in focus and has none. -->
+<component name="Hero" extends="Group">
+  <interface>
+    <field id="mode" type="string" value="preview" onChange="onModel"/>
+    <!-- From heroFor(): {eyebrow, title, year, facts, tag, progress, left, synopsis}. -->
+    <field id="model" type="assocarray" onChange="onModel"/>
+    <!-- Spotlight only: [{id, text, icon}] and how many pages the dots show. -->
+    <field id="buttons" type="array" alias="buttonRow.buttons"/>
+    <field id="pages" type="integer" onChange="onDots"/>
+    <field id="page" type="integer" onChange="onDots"/>
+    <!-- Preview only: what OK does ("Resume", "Play", "Open"). -->
+    <field id="okText" type="string" onChange="onModel"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="pressed" type="string" alwaysNotify="true" alias="buttonRow.pressed"/>
+  </interface>
+  <script type="text/brightscript" uri="Hero.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <children>
+    <Group id="block" translation="[200,0]">
+      <Label id="eyebrow" width="1100"/>
+      <Label id="title" width="1100" wrap="true" maxLines="2"/>
+      <LayoutGroup id="meta" layoutDirection="horiz" vertAlignment="center" itemSpacings="[26]">
+        <Label id="year"/>
+        <Label id="facts"/>
+        <Group id="tagBox">
+          <Poster id="tagLine" uri="pkg:/images/line-10.9.png" blendColor="0x3B5668FF" height="36"/>
+          <Label id="tag" height="36" vertAlign="center" translation="[13,0]"/>
+        </Group>
+        <Group id="progressBox">
+          <Rectangle id="track" width="160" height="6" color="0x35505FFF" translation="[0,15]"/>
+          <Rectangle id="bar" height="6" color="0x409FD4FF" translation="[0,15]"/>
+          <Rectangle width="160" height="36" opacity="0"/>
+        </Group>
+        <Label id="left"/>
+      </LayoutGroup>
+      <Label id="synopsis" width="800" wrap="true" maxLines="2"/>
+      <LayoutGroup id="hints" layoutDirection="horiz" vertAlignment="center" itemSpacings="[12, 68, 12]">
+        <Group id="okKey">
+          <Poster uri="pkg:/images/line-10.9.png" blendColor="0x3B5668FF" width="46" height="36"/>
+          <Label id="okKeyText" text="OK" width="46" height="36" horizAlign="center" vertAlign="center"/>
+        </Group>
+        <Label id="okText"/>
+        <Group id="starKey">
+          <Poster uri="pkg:/images/line-10.9.png" blendColor="0x3B5668FF" width="46" height="36"/>
+          <Label id="starKeyText" text="*" width="46" height="36" horizAlign="center" vertAlign="center"/>
+        </Group>
+        <Label id="starText" text="More options"/>
+      </LayoutGroup>
+      <ButtonRow id="buttonRow"/>
+      <Group id="dots"/>
+    </Group>
+  </children>
+</component>

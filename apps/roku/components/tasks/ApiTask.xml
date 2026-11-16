@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Every request to the server goes through this one task: many at once on one thread, the
+     sign-in renewed once when the server says it ran out, and the server's one error format. -->
+<component name="ApiTask" extends="Task">
+  <interface>
+    <field id="request" type="assocarray" alwaysNotify="true"/>
+    <!-- {origin, accessToken, refreshToken, installationId}. Written by the scene at sign-in and by the task at renewal. -->
+    <field id="session" type="assocarray"/>
+    <!-- True once the task is listening: a request sent before that would be lost. -->
+    <field id="ready" type="boolean"/>
+    <!-- Set true when the server says the sign-in is over. -->
+    <field id="signInEnded" type="boolean" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="ApiTask.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Store.brs"/>
+</component>

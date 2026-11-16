@@ -1,0 +1,8 @@
+{
+  "rootDir": "..",
+  "files": ["manifest", "source/**/*", "components/**/*", "images/**/*", "fonts/**/*"],
+  "copyToStaging": false,
+  "createPackage": false,
+  "emitDefinitions": false,
+  "diagnosticFilters": []
+}
