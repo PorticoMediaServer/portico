@@ -28,3 +28,16 @@ export async function readSourceChoices(api:LibraryContentApi,id:string,kind:'gr
  if(answer.items.some(row=>typeof row.sourceKey!=='string'||typeof row.name!=='string'))throw {code:'invalid_response'};
  return {items:answer.items.map(row=>({id:row.sourceKey,name:row.name})),nextCursor:answer.nextCursor};
 }
+
+/** A source's channels as the owner arranges them (number, hidden, guide channel), a page at a time. */
+export async function readSourceChannels(api:LibraryContentApi,id:string,query:string,cursor?:string,signal?:AbortSignal):Promise<import('../../../contracts/src/next/api.ts').LiveSourceChannelPage>{
+ const page=await callServer(api,'GET /v1/admin/live/sources/{id}/channels',{id,query:{q:query||undefined,cursor},signal});
+ if(!Array.isArray(page.items)||page.items.some(row=>typeof row.id!=='string'||typeof row.name!=='string'||typeof row.number!=='string'||typeof row.hidden!=='boolean'))throw {code:'invalid_response'};
+ return page;
+}
+/** Saves the owner's channel changes, a thousand at a time; resolves with how many were saved. */
+export async function saveSourceChannels(api:LibraryContentApi,id:string,changes:readonly import('../../../contracts/src/next/api.ts').LiveSourceChannelEdit[],signal?:AbortSignal):Promise<number>{
+ let saved=0;
+ for(let offset=0;offset<changes.length;offset+=1000){const channels=changes.slice(offset,offset+1000);await callServer(api,'PATCH /v1/admin/live/sources/{id}/channels',{id,body:{channels},signal});saved+=channels.length;}
+ return saved;
+}

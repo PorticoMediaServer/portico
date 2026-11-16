@@ -23,7 +23,7 @@ import type {NativeSettingsLivePorts} from './ports';
 import type {NativeRecordingsController} from './recordings-controller';
 import {RecordingOverlapWindow, type OverlapSnapshot} from './recording-overlap-window';
 import type {NativeLiveOwnerController} from './live-owner-controller';
-import {NewRuleSheet} from './LiveOwnerRecording';
+import {NewRuleSheet} from './LiveRecordingOwner';
 import {keepChoiceList, keepChoiceValue, keepLabel, ruleFacts, ruleKeep, ruleNext, ruleScope, withKeep} from './recording-rule-presentation';
 import {Screen, ScreenText, useScreenBack, useScreenEntry} from './Screen';
 import {NativeLiveTabs} from './LiveTabs';
@@ -249,7 +249,7 @@ export function NativeRecordingsScreen({controller, ports, runtime, onGuide, own
     {rule && <RuleEditor key={`${rule.id}:${rule.revision}`} rule={rule} controller={controller} runtime={runtime} opener={opener} isCurrent={() => {const opening = activeRuleOpening, window = controller.getSnapshot().viewerWindow; return !!opening && ruleOpening.current === opening && opening.id === rule.id && opening.revision === rule.revision && window?.scope === opening.scope && window.items.some(row => row.kind === 'rule' && row.value.id === rule.id && row.value.revision === rule.revision);}} onClose={() => {const opening = activeRuleOpening; if (opening && ruleOpening.current === opening && opening.id === rule.id && opening.revision === rule.revision) {controller.unpinViewerRow(opening.pin, opening.scope); ruleOpening.current = undefined; setRule(current => current === rule ? undefined : current);}}}/>}
     {/* TV viewers keep programme/series recording and rule editing; the administrative
         new-rule sheet is not a TV surface and never mounts here. */}
-    {owner && !theme.isTV && <NewRuleSheet controller={owner} runtime={runtime} open={newRule} onOpenChange={setNewRule} onSaved={() => {setNewRule(false); void controller.load({view: 'rules'});}}/>}
+    {owner && !theme.isTV && <NewRuleSheet context={ports.context} runtime={runtime} open={newRule} onOpenChange={setNewRule} onSaved={() => {setNewRule(false); void controller.load({view: 'rules'});}}/>}
   </Screen>;
 }
 
