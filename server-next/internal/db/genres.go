@@ -10,8 +10,8 @@ import (
 
 // The genres of the films and shows a profile may see, across every library it may see, for
 // Search before anything is typed. Each is found, and given its cover, by looking at no more
-// than genreCandidates of its titles in index order, so the read costs the same whatever the
-// size of the library. Counting is what grows with the library, so it is asked for apart.
+// than genreCandidates visible titles in index order. Hidden titles never consume that
+// sample. Counting is asked for apart.
 const (
 	maxGenres       = 200
 	genreCandidates = 50
@@ -77,8 +77,9 @@ func (d *DB) Genres(ctx context.Context, v Viewer, library string, counts bool) 
 	in, kinds := intList(libraries), fmt.Sprintf("(%d, %d)", KindMovie, KindShow)
 	// The first candidates of a genre, in the order of item_tags_library: by library, kind,
 	// rating and item. With a rating limit the index skips what is above it.
-	candidates := fmt.Sprintf(`SELECT x.item_id FROM item_tags x INDEXED BY item_tags_library WHERE x.library_id IN %s AND x.kind IN %s
-		AND x.tag_id = t.id%s ORDER BY x.library_id, x.kind, x.rating_age, x.item_id LIMIT %d`, in, kinds, acc.rated("x", ""), genreCandidates)
+	candidates := fmt.Sprintf(`SELECT x.item_id FROM item_tags x INDEXED BY item_tags_library CROSS JOIN items candidate ON candidate.id = x.item_id
+ WHERE x.library_id IN %s AND x.kind IN %s AND x.tag_id = t.id%s AND %s ORDER BY x.library_id, x.kind, x.rating_age, x.item_id LIMIT %d`,
+		in, kinds, acc.rated("x", ""), acc.visible("candidate"), genreCandidates)
 	genres, err := queryAll(ctx, tx, fmt.Sprintf(`SELECT t.id, t.public_id, t.name, ifnull((SELECT im.file_hash FROM (%s) c
 			CROSS JOIN items i ON i.id = c.item_id CROSS JOIN images im ON im.item_id = i.id AND im.role = %d AND im.selected = 1
 			WHERE im.file_hash IS NOT NULL AND %s LIMIT 1), ''), ifnull(%s, '') FROM tags t WHERE t.kind = '%s'
@@ -197,9 +198,9 @@ func (d *DB) libraryGenres(ctx context.Context, v Viewer, library string) ([]Gen
 	}
 	// The first few titles of the library that carry the genre, in the order of the tag
 	// table's own key, and the first of them the viewer may see that has a picture.
-	cover := fmt.Sprintf(`FROM (SELECT x.item_id FROM item_tags x WHERE x.tag_id = t.id AND x.library_id = %d
-			LIMIT %d) c CROSS JOIN items i ON i.id = c.item_id CROSS JOIN images im ON im.item_id = i.id AND im.role IN %s AND im.selected = 1
-		WHERE im.file_hash IS NOT NULL AND %s LIMIT 1`, libraryID, genreCandidates, roles, acc.visible("i"))
+	cover := fmt.Sprintf(`FROM (SELECT x.item_id FROM item_tags x CROSS JOIN items candidate ON candidate.id = x.item_id
+ WHERE x.tag_id = t.id AND x.library_id = %d AND %s LIMIT %d) c CROSS JOIN items i ON i.id = c.item_id CROSS JOIN images im ON im.item_id = i.id AND im.role IN %s AND im.selected = 1
+		WHERE im.file_hash IS NOT NULL AND %s LIMIT 1`, libraryID, acc.visible("candidate"), genreCandidates, roles, acc.visible("i"))
 	var kinds []int64
 	for _, k := range genreKinds[kind] {
 		kinds = append(kinds, int64(k))
@@ -210,12 +211,13 @@ func (d *DB) libraryGenres(ctx context.Context, v Viewer, library string) ([]Gen
 	if len(kinds) > 0 {
 		ofKinds = " AND x.kind IN " + intList(kinds)
 	}
-	candidates := fmt.Sprintf(`SELECT x.item_id FROM item_tags x WHERE x.tag_id = t.id AND x.library_id = %d%s LIMIT %d`,
-		libraryID, ofKinds, genreCandidates)
+	candidates := fmt.Sprintf(`SELECT x.item_id FROM item_tags x CROSS JOIN items candidate ON candidate.id = x.item_id
+ WHERE x.tag_id = t.id AND x.library_id = %d%s AND %s LIMIT %d`,
+		libraryID, ofKinds, acc.visible("candidate"), genreCandidates)
 	if len(kinds) > 0 {
 		candidates = fmt.Sprintf(`SELECT item_id FROM (%s) UNION SELECT item_id FROM (SELECT a.id AS item_id FROM item_tags x
-			CROSS JOIN items a ON a.root_id = x.item_id AND a.kind IN %s WHERE x.tag_id = t.id AND x.library_id = %d LIMIT %d)`,
-			candidates, intList(kinds), libraryID, genreCandidates)
+			CROSS JOIN items a ON a.root_id = x.item_id AND a.kind IN %s WHERE x.tag_id = t.id AND x.library_id = %d AND %s LIMIT %d)`,
+			candidates, intList(kinds), libraryID, acc.visible("a"), genreCandidates)
 	}
 	type row struct {
 		Genre
