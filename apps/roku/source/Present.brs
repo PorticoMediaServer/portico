@@ -185,3 +185,30 @@ function dateText(iso as dynamic) as string
     if month < 1 or month > 12 then return ""
     return months[month - 1] + " " + mid(iso, 9, 2).toInt().toStr() + ", " + left(iso, 4)
 end function
+
+' An episode in its season's row: {.., under: true (words under the still), corner (its length), played}.
+function episodeCard(item as object, upNext as boolean) as object
+    card = cardFor(item, "landscape")
+    card.overlay = false
+    card.under = true
+    card.title = item.title
+    card.sub = "Episode"
+    if item.index <> invalid then card.sub = "Episode " + item.index.toStr()
+    card.corner = durationText(item.durationMs)
+    card.played = (item.state <> invalid and item.state.watched = true)
+    if upNext then card.badge = "Up next"
+    return card
+end function
+
+' What a season says under its name: "7 of 13 played", or "13 episodes" when none or all... is played.
+function seasonLine(season as object) as object
+    total = 0
+    left = 0
+    if season.counts <> invalid
+        total = season.counts.leaves
+        left = season.counts.unwatchedLeaves
+    end if
+    played = total - left
+    if played <= 0 or total = 0 then return {text: countText(total, "episode", "episodes"), progress: -1}
+    return {text: played.toStr() + " of " + total.toStr() + " played", progress: played / total}
+end function

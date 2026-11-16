@@ -100,8 +100,10 @@ sub onOpen(event as object)
         player.active = true
         return
     end if
-    if ask.item.kind = "movie"
-        page = push("TitleScreen")
+    page = invalid
+    if kind = "movie" then page = push("TitleScreen")
+    if kind = "show" then page = push("ShowScreen")
+    if page <> invalid
         page.item = ask.item
         page.active = true
     end if

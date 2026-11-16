@@ -284,10 +284,11 @@ def main():
         save_png(round_line(r), 'line-%d.9.png' % r)
     for r in (14, 20):
         save_png(focus_ring(r + 4), 'focus-%d.9.png' % r)
-    for w, h in ((214, 320), (400, 225), (214, 214)):
+    for w, h in ((214, 320), (400, 225), (214, 214), (384, 216)):
         save_png(card_mask(w, h, 14), 'mask-%dx%d.png' % (w, h))
     save_png(shade(8, 256, [(0, '#000000', 0), (0.45, '#03080c', 0.35), (1, '#03080c', 0.92)]), 'card-shade.png')
     save_png(shade(8, 256, [(0, INK, 0), (1, INK, 1)]), 'fade-down.png')
+    save_png(shade(8, 256, [(0, INK, 1), (1, INK, 0)]), 'fade-up.png')
 
     for i, (first, second) in enumerate(COVER_TINTS):
         generated_cover(first, second).convert('RGB').save(os.path.join(OUT, 'cover-%d.jpg' % i), quality=88)

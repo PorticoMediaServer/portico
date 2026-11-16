@@ -7,10 +7,14 @@
     <field id="subheading" type="string" onChange="onHeading"/>
     <!-- "landscape", "poster" or "square" -->
     <field id="shape" type="string" value="poster" onChange="onShape"/>
+    <!-- Where the focus slot is from the left of the screen (a page with its own left column moves it). -->
+    <field id="slotX" type="float" value="200" onChange="onShape"/>
     <!-- A ContentNode whose children are the cards. -->
     <field id="cards" type="node" onChange="onCards"/>
     <!-- Set true to take focus; the row keeps the card it had. -->
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <!-- Set to bring a card to the focus slot without moving focus into the row. -->
+    <field id="jumpTo" type="integer" alwaysNotify="true" onChange="onJump"/>
     <field id="focusedIndex" type="integer" alwaysNotify="true"/>
     <field id="selectedIndex" type="integer" alwaysNotify="true"/>
   </interface>

@@ -23,6 +23,7 @@ sub init()
     setType(m.title, "wideTitle", c.text)
     setType(m.sub, "cardSubtitle", c.textSecondary)
     setType(m.badge, "badge", c.actionInk)
+    setType(m.top.findNode("corner"), "tag", c.text)
     setType(m.madeTitle, "coverTitle", c.text)
     setType(m.madeGlyph, "lockup", c.text)
     m.w = 0
@@ -37,6 +38,7 @@ sub onLayout()
     m.top.findNode("frame").translation = [0, pad]
     m.w = w
     m.h = h
+    m.fullH = h
     m.under.scaleRotateCenter = [w / 2, h / 2]
     m.over.scaleRotateCenter = [w / 2, h / 2]
     m.plate.width = w
@@ -89,6 +91,14 @@ sub onContent()
         return
     end if
     ' A cover is shown whole, in its own shape; other art fills the card.
+    ' An episode card: the picture is 16:9 at the top and the words go under it.
+    under = (item.under = true)
+    if under then m.h = m.w * 9 / 16 else m.h = m.fullH
+    m.art.height = m.h
+    m.art.loadHeight = m.h
+    m.plate.height = m.h
+    m.clip.maskUri = "pkg:/images/mask-" + int(m.w).toStr() + "x" + int(m.h).toStr() + ".png"
+    grow(1)
     overlay = item.overlay
     if item.art = ""
         ' no picture: the generated cover, with the title on it unless the card already words it
@@ -107,14 +117,58 @@ sub onContent()
     m.shade.visible = overlay
     m.title.visible = overlay
     m.sub.visible = overlay
-    hasBar = overlay and item.progress >= 0   ' progress is drawn on wide cards only, as the mock-ups have it
+    hasBar = (overlay or under) and item.progress >= 0   ' progress is drawn on wide cards only, as the mock-ups have it
     m.track.visible = hasBar
     m.bar.visible = hasBar
+    c = colours()
     if overlay
         m.title.text = item.title
         m.sub.text = item.sub
+        m.title.width = m.w - 40
+        m.title.wrap = false
+        m.title.translation = [20, m.h - 96]
+        m.sub.translation = [20, m.h - 60]
+        setType(m.title, "wideTitle", c.text)
+    else if under
+        m.title.visible = true
+        m.sub.visible = true
+        m.title.text = item.title
+        m.sub.text = item.sub
+        m.title.width = m.w
+        m.title.wrap = true
+        m.title.maxLines = 2
+        setType(m.title, "episodeTitle", c.text)
+        m.title.translation = [0, m.h + 22]
+        if m.title.boundingRect().height > 44 then m.sub.translation = [0, m.h + 88] else m.sub.translation = [0, m.h + 58]
     end if
-    if hasBar then m.bar.width = (m.w - 40) * item.progress
+    m.track.translation = [20, m.h - 24]
+    m.bar.translation = [20, m.h - 24]
+    if under
+        m.track.translation = [0, m.h - 6]
+        m.bar.translation = [0, m.h - 6]
+        m.track.width = m.w
+        m.track.visible = false
+    else
+        m.track.width = m.w - 40
+    end if
+    if hasBar and under then m.bar.width = m.w * item.progress
+    if hasBar and not under then m.bar.width = (m.w - 40) * item.progress
+    corner = m.top.findNode("corner")
+    cornerPlate = m.top.findNode("cornerPlate")
+    hasCorner = (item.corner <> invalid and item.corner <> "")
+    corner.visible = hasCorner
+    cornerPlate.visible = hasCorner
+    if hasCorner
+        corner.text = item.corner
+        cw = corner.boundingRect().width + 24
+        cornerPlate.width = cw
+        cornerPlate.translation = [m.w - cw - 14, 14]
+        corner.translation = [m.w - cw - 2, 14]
+    end if
+    m.top.findNode("tick").visible = (item.played = true)
+    m.top.findNode("tickPlate").visible = (item.played = true)
+    if item.badge <> "" and item.played = true then m.top.findNode("tick").visible = false
+    if item.badge <> "" and item.played = true then m.top.findNode("tickPlate").visible = false
     if item.badge <> ""
         m.badge.text = item.badge
         bw = m.badge.boundingRect().width + 22

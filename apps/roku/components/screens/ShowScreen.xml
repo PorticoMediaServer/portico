@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A show's page: its seasons down the left, the season's episodes in a row beside them, and a band
+     under the row describing whatever has focus. Then More like this and Details, as on a film's page. -->
+<component name="ShowScreen" extends="Group">
+  <interface>
+    <field id="item" type="assocarray" onChange="onItem"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="art" type="string"/>
+    <field id="open" type="assocarray" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="ShowScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <children>
+    <Label id="title" translation="[197,58]" width="1500"/>
+    <TitleSections id="sections" translation="[0,164]" lead="Episodes" section="lead"/>
+    <Group id="episodesPart">
+      <SeasonList id="seasons" translation="[200,262]"/>
+      <Shelf id="episodes" shape="episode" slotX="600" translation="[0,202]"/>
+      <Label id="bandHead" translation="[600,612]" width="1220"/>
+      <Label id="bandFacts" translation="[600,612]"/>
+      <Label id="bandText" translation="[600,654]" width="1100" wrap="true" maxLines="2"/>
+    </Group>
+    <Timer id="rest" duration="0.15"/>
+  </children>
+</component>
