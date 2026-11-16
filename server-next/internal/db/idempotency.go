@@ -34,7 +34,12 @@ func rememberCreated(tx *sql.Tx, userID int64, key, requestHash, createdRef stri
 	if key == "" {
 		return nil
 	}
-	if _, err := tx.Exec(`DELETE FROM idempotency_keys WHERE created_at < ?`, now.Add(-idempotencyKeep).UnixMilli()); err != nil {
+	// A list job can resume after a long shutdown. Its per-title keys live until the job
+	// is removed, even when ordinary client requests have aged out of the retry window.
+	if _, err := tx.Exec(`DELETE FROM idempotency_keys WHERE created_at < ? AND NOT EXISTS (
+		SELECT 1 FROM jobs WHERE idempotency_keys.key GLOB 'list-view:*:*'
+		AND jobs.public_id = substr(idempotency_keys.key, 11, instr(substr(idempotency_keys.key, 11), ':') - 1))`,
+		now.Add(-idempotencyKeep).UnixMilli()); err != nil {
 		return err
 	}
 	_, err := tx.Exec(`INSERT INTO idempotency_keys (user_id, key, request_hash, created_ref, created_at) VALUES (?, ?, ?, ?, ?)`,

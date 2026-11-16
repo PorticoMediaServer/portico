@@ -9,11 +9,11 @@ import (
 
 const selectionFailureSummary = "Some titles could not be changed. The rest is done."
 
-// jobResult keeps a partial state job's summary in step with the failure page the reader
+// jobResult keeps a partial selection job's summary in step with the failure page the reader
 // can open now. Removed or newly hidden titles do not leave an unexplained failed result.
 // A job-wide fault keeps its own failed state and reason.
 func (s *Server) jobResult(r *http.Request, job db.Job) (db.Job, error) {
-	if job.Kind != stateJobKind || job.State != db.JobFailed || job.Error != selectionFailureSummary {
+	if job.Kind != stateJobKind && job.Kind != listViewJobKind || job.State != db.JobFailed || job.Error != selectionFailureSummary {
 		return job, nil
 	}
 	failures, err := s.db.JobItemFailures(r.Context(), viewer(r), job.ID, 0, 1)

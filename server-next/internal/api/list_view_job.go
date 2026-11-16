@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"strconv"
 
 	"github.com/PorticoMediaServer/portico/server-next/internal/db"
 	"github.com/PorticoMediaServer/portico/server-next/internal/jobs"
@@ -43,6 +42,9 @@ func (s *Server) listViewJobs() {
 			if !l.CanEdit {
 				return listError(db.ErrNotAllowed)
 			}
+			if l.Kind != db.ListPlaylist && l.Kind != db.ListCollection {
+				return ErrField("params.list", "Choose a playlist or collection.")
+			}
 			q.Limit = 1
 			_, err = s.db.Items(ctx, v, q)
 			return refuse(err)
@@ -72,8 +74,8 @@ func listViewJob(req jobs.Request) (db.ItemQuery, string, error) {
 }
 
 // runListViewJob walks the view a page at a time, in its own order, as the profile that
-// asked, and adds each page at the end of the list. Each page's addition carries a key made
-// of the job and the page, so a run taken up again after a restart adds no page twice: what
+// asked, and adds each page at the end of the list. Each title's addition carries a key made
+// of the job and the title, so a run taken up again after a restart adds no title twice: what
 // was added stays added and the rest follows. A collection that has a title already does not
 // take it again. Titles the profile may not see are not in its view and are never added.
 func (s *Server) runListViewJob(ctx context.Context, work jobs.Work) error {
@@ -94,14 +96,14 @@ func (s *Server) runListViewJob(ctx context.Context, work jobs.Work) error {
 	}
 	q.WithTotal = true
 	var seen, total, added, already int64
-	for page := 0; ; page++ {
+	for {
 		items, err := s.db.Items(ctx, v, q)
 		if err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err() // a cancel, or the server stopping: it carries on at the next start
 			}
 			return &jobs.Failure{Shown: fmt.Sprintf("The view could not be read after %d titles, so this stopped there. "+
-				"What was added stays added; asking again adds the rest again.", seen), Detail: err.Error()}
+				"What was added stays added.", seen), Detail: err.Error()}
 		}
 		if q.WithTotal {
 			total, q.WithTotal = int64(items.Total), false
@@ -112,13 +114,19 @@ func (s *Server) runListViewJob(ctx context.Context, work jobs.Work) error {
 		}
 		seen += int64(len(items.Items))
 		if len(ids) > 0 {
-			key := "list-view:" + work.Job.PublicID + ":" + strconv.Itoa(page)
-			done, err := s.db.AddToList(ctx, v, list, 0, ids, 0, key, key, s.now())
+			done, err := s.db.AddJobToList(ctx, v, list, ids, work.Job, s.now())
 			if err != nil {
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
-				return &jobs.Failure{Shown: fmt.Sprintf("Adding stopped after %d titles: %s", added, listError(err).Error())}
+				switch {
+				case errors.Is(err, db.ErrNotFound):
+					return &jobs.Failure{Shown: "This list is not available any more. What was added stays added."}
+				case errors.Is(err, db.ErrNotAllowed):
+					return &jobs.Failure{Shown: "This list can no longer be changed. What was added stays added."}
+				}
+				s.log.Error("list job stopped", "job", work.Job.PublicID, "error", err)
+				return &jobs.Failure{Shown: "Adding stopped because of a server problem. What was added stays added; try again."}
 			}
 			added, already = added+int64(done.Added), already+int64(done.Already)
 		}
@@ -130,6 +138,13 @@ func (s *Server) runListViewJob(ctx context.Context, work jobs.Work) error {
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	failed, err := s.db.JobHasItemFailures(ctx, work.Job.ID)
+	if err != nil {
+		return err
+	}
+	if failed {
+		return &jobs.Failure{Shown: selectionFailureSummary}
 	}
 	// The job ends done, and its note is for the person who asked, not only the owner as a
 	// done job's note is: it names no title, only how many.
