@@ -1,7 +1,6 @@
-import {encodedRoutePath} from '../../contracts/src/route-paths.ts';
 import type {ListeningRequest} from './listening.ts';
 import {unreadableServerResponse} from './server-messages.ts';
-import {wireDurations} from './wire-units.ts';
+import {serverPath} from './query/server-api.ts';
 
 /** One chapter of a whole book: the file part it is in (`itemId`), its place in that part
  * (`index`), its 1-based place in the book (`number`) and its span in the part's own seconds. */
@@ -12,43 +11,51 @@ export type BookChapters = Readonly<{bookId: string; chapters: readonly BookChap
  * where the playing position is (`current`: an index into `chapters`, -1 before the first). */
 export type BookChaptersView = Readonly<{bookId: string; itemId: string; phase: 'loading' | 'ready' | 'error'; chapters: readonly BookChapter[]; current: number}>;
 
-const PAGE = 100;
 /** No real book comes near this; a longer list stops here rather than reading on. */
 const MAX_CHAPTERS = 4096;
 const obj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown, max = 2048): v is string => typeof v === 'string' && v.length <= max && !/[\x00-\x1f\x7f]/.test(v);
 const id = (v: unknown): v is string => text(v, 256) && /^[A-Za-z0-9_-]+$/.test(v);
-const counter = (v: unknown): v is number => Number.isSafeInteger(v) && Number(v) >= 0;
 function bad(): never {throw new Error(unreadableServerResponse);}
 
-function parseRow(v: unknown, number: number): BookChapter {
-  const r = wireDurations(v, {startSeconds: 'startMs', endSeconds: 'endMs'});
-  if (!obj(r) || !text(r.id, 512) || !id(r.itemId) || r.id !== `${r.itemId}:${r.index}` || !counter(r.index) || r.number !== number
-    || !text(r.title) || typeof r.startSeconds !== 'number' || typeof r.endSeconds !== 'number' || r.endSeconds <= r.startSeconds) bad();
-  return Object.freeze({id: r.id, itemId: r.itemId, index: r.index, number, title: r.title, startSeconds: r.startSeconds, endSeconds: r.endSeconds});
+/** One chapter's span on the clock of the version playing. */
+export type ItemChapterSpan = Readonly<{title: string; startMs: number; endMs: number}>;
+export type ItemChapters = Readonly<{versionId: string; durationMs: number; spans: readonly ItemChapterSpan[]}>;
+const ms = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+
+/** An audiobook's chapters from its item read (`GET /v1/items/{id}`), for the version `versionId`
+ * (none when the item has no such version; the first when none is named): its chapter marks, or, for a book in several files without marks, its parts in
+ * order, since such a book plays as one book on one clock (definition 07, rule 60). */
+export function itemChapters(item: unknown, versionId?: string): ItemChapters | undefined {
+  if (!obj(item) || !Array.isArray(item.versions)) return undefined;
+  const versions = item.versions.filter(obj);
+  const version = versionId === undefined ? versions[0] : versions.find(v => v.id === versionId);
+  if (!version || !id(version.id)) return undefined;
+  const durationMs = ms(version.durationMs) && version.durationMs > 0 ? version.durationMs : ms(item.durationMs) ? item.durationMs : 0;
+  const marks = (Array.isArray(version.markers) ? version.markers : []).filter(obj)
+    .filter(m => m.kind === 'chapter' && ms(m.startMs) && ms(m.endMs) && m.endMs > m.startMs).sort((a, b) => (a.startMs as number) - (b.startMs as number));
+  const parts = (Array.isArray(version.parts) ? version.parts : []).filter(obj);
+  const raw: {title: string; startMs: number; endMs: number}[] = marks.length
+    ? marks.map((m, n) => ({title: text(m.title) && m.title.trim() ? m.title : `Chapter ${n + 1}`, startMs: m.startMs as number, endMs: m.endMs as number}))
+    : parts.length > 1 && parts.every(p => ms(p.offsetMs) && ms(p.durationMs) && p.durationMs > 0)
+      ? parts.map((p, n) => ({title: `Part ${n + 1}`, startMs: p.offsetMs as number, endMs: (p.offsetMs as number) + (p.durationMs as number)}))
+      : [];
+  // A chapter ends where the next begins and never past the end of the book.
+  const spans = raw.map((span, n) => {
+    const next = raw[n + 1]?.startMs, end = Math.min(span.endMs, next ?? span.endMs, durationMs || span.endMs);
+    return Object.freeze({title: span.title, startMs: span.startMs, endMs: end});
+  }).filter(span => span.endMs > span.startMs);
+  return Object.freeze({versionId: version.id, durationMs, spans: Object.freeze(spans)});
 }
 
-/** The whole book's chapters in book order, across its file parts (`GET /v1/books/{id}/chapters`,
- * every page). One named read, so the client-data cache can take it over unchanged. */
+/** The whole book's chapters in book order, from its item read. A book is one item on the rebuilt
+ * server, so every chapter is in the book itself (`itemId` is the book). */
 export async function readBookChapters(request: ListeningRequest, bookId: string, signal?: AbortSignal): Promise<BookChapters> {
   if (!id(bookId)) throw new Error('Invalid book.');
-  const chapters: BookChapter[] = [], seen = new Set<string>();
-  let cursor = '';
-  do {
-    const query = new URLSearchParams({limit: String(PAGE), ...(cursor ? {cursor} : {})});
-    const raw = await request(`${encodedRoutePath('get_books_id_chapters', {id: encodeURIComponent(bookId)})}?${query}`, undefined, 'GET', signal);
-    if (!obj(raw) || !Array.isArray(raw.chapters) || raw.chapters.length > PAGE || !text(raw.nextCursor, 4096)) bad();
-    for (const row of raw.chapters) {
-      const chapter = parseRow(row, chapters.length + 1);
-      const previous = chapters.at(-1);
-      // Within a part, chapters run forward; a new part starts its own timeline.
-      if (seen.has(chapter.id) || previous?.itemId === chapter.itemId && (chapter.index <= previous.index || chapter.startSeconds < previous.startSeconds)) bad();
-      seen.add(chapter.id);
-      chapters.push(chapter);
-    }
-    if (raw.nextCursor && (raw.nextCursor === cursor || !raw.chapters.length)) bad();
-    cursor = raw.nextCursor;
-  } while (cursor && chapters.length < MAX_CHAPTERS);
+  const read = itemChapters(await request(serverPath('GET /v1/items/{id}', {id: bookId}), undefined, 'GET', signal));
+  if (!read) bad();
+  const chapters = read.spans.slice(0, MAX_CHAPTERS).map((span, index) => Object.freeze({id: `${bookId}:${index}`, itemId: bookId, index, number: index + 1,
+    title: span.title, startSeconds: span.startMs / 1000, endSeconds: span.endMs / 1000}));
   return Object.freeze({bookId, chapters: Object.freeze(chapters)});
 }
 

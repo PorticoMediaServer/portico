@@ -17,29 +17,19 @@ const wire = [
 ];
 const rows = (): BookChapter[] => wire.map(({startMs, endMs, ...row}) => ({...row, startSeconds: startMs / 1000, endSeconds: endMs / 1000}));
 
-test('the whole book is read page by page in book order, in seconds', async () => {
+// W1 F4 (16 Nov walk): the rebuilt server has no chapters route; a book's chapters are in its item read.
+test('a book\'s chapters come from its item read: its chapter marks, else its parts on the book\'s clock', async () => {
   const asked: string[] = [];
-  const request = async (path: string) => {
-    asked.push(path);
-    return path.includes('cursor=') ? {chapters: wire.slice(2), nextCursor: ''} : {chapters: wire.slice(0, 2), nextCursor: 'part-a:2'};
-  };
-  const book = await readBookChapters(request, 'book');
-  assert.deepEqual(book.chapters, rows());
-  assert.deepEqual(asked, ['/v1/books/book/chapters?limit=100', '/v1/books/book/chapters?limit=100&cursor=part-a%3A2']);
-});
-
-test('a broken book chapter list is refused rather than half used', async () => {
-  const broken = [
-    {chapters: [{...wire[0], number: 2}], nextCursor: ''},
-    {chapters: [wire[1], wire[0]], nextCursor: ''},
-    {chapters: [{...wire[0], endMs: 0}], nextCursor: ''},
-    {chapters: [{...wire[0], id: 'other:1'}], nextCursor: ''},
-    {chapters: wire.slice(0, 1), nextCursor: ''.padEnd(5000, 'x')},
-  ];
-  for (const page of broken) await assert.rejects(readBookChapters(async () => page, 'book'), JSON.stringify(page).slice(0, 80));
-  let reads = 0;
-  await assert.rejects(readBookChapters(async () => {reads++; return {chapters: [], nextCursor: 'same'};}, 'book'));
-  assert.equal(reads, 1, 'an empty page with more to come stops the read');
+  const marked = {id: 'book', kind: 'audiobook', durationMs: 1_500_000, versions: [{id: 'med_a', durationMs: 1_500_000, parts: [{durationMs: 1_500_000}],
+    markers: [{kind: 'intro', startMs: 0, endMs: 5000}, {kind: 'chapter', startMs: 600_000, endMs: 1_500_000, title: 'Two'}, {kind: 'chapter', startMs: 0, endMs: 600_000, title: 'One'}]}]};
+  const book = await readBookChapters(async path => {asked.push(path); return marked;}, 'book');
+  assert.deepEqual(asked, ['/v1/items/book']);
+  assert.deepEqual(book.chapters, [
+    {id: 'book:0', itemId: 'book', index: 0, number: 1, title: 'One', startSeconds: 0, endSeconds: 600},
+    {id: 'book:1', itemId: 'book', index: 1, number: 2, title: 'Two', startSeconds: 600, endSeconds: 1500}]);
+  const files = {id: 'book', kind: 'audiobook', versions: [{id: 'med_b', durationMs: 1_000_000, parts: [{offsetMs: 0, durationMs: 400_000}, {offsetMs: 400_000, durationMs: 600_000}]}]};
+  assert.deepEqual((await readBookChapters(async () => files, 'book')).chapters.map(c => [c.title, c.startSeconds, c.endSeconds]), [['Part 1', 0, 400], ['Part 2', 400, 1000]]);
+  await assert.rejects(readBookChapters(async () => ({id: 'book'}), 'book'), 'a read with no versions is refused');
 });
 
 test('Previous and Next chapter step through the book, across parts', () => {

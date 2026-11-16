@@ -55,7 +55,7 @@ import {IdentityClient} from '../src/identity-client.ts';
 import {PlaybackOptionsClient} from '../src/playback-v1/options.ts';
 import {localV1Http} from '../src/playback-v1/local-http.ts';
 import {AdminSessionsClient} from '../src/playback-v1/admin-sessions.ts';
-import {parseListeningPreferences, readListeningContext, readListeningItem} from '../src/listening.ts';
+import {parseListeningPreferences} from '../src/listening.ts';
 import {SearchService} from '../src/search.ts';
 import {getContainerState} from '../src/container-state.ts';
 import {loadRemoteAccess} from '../src/remote-access.ts';
@@ -414,18 +414,6 @@ export async function walkProbe(api: HttpLocalApi, input: ProbeInput): Promise<P
       readPerson(contentApi, scopeOf(), personId, {limit: 10}));
   }
   // Listening: one item context plus the preferences document through its parser.
-  const queueScope = {serverId, authority: authority as 'local' | 'hosted', accountId, profileId, controllerId: 'parser-probe', controllerEpoch: String(Date.now()), commandLaneId: 'parser-probe'};
-  const listenReq = (path: string, body?: unknown, method: 'GET' | 'POST' | 'PUT' = 'GET', signal?: AbortSignal): Promise<unknown> =>
-    api.request<unknown>(path, method, body, signal);
-  const audioItem = playable[0];
-  if (audioItem && (authority === 'local' || authority === 'hosted')) {
-    await rec.check('entities', `listening item (${audioItem.itemId})`, 'GET', `/v1/items/${encodeURIComponent(audioItem.itemId)}/listening`, () =>
-      readListeningItem(listenReq, queueScope, audioItem.itemId));
-    await rec.check('entities', `listening context (${audioItem.itemId})`, 'GET', `/v1/items/${encodeURIComponent(audioItem.itemId)}/listening`, () =>
-      readListeningContext(listenReq, scopeOf(), audioItem.itemId));
-  } else {
-    rec.skip('listening item/context', 'no playable entry sampled, or the viewer authority is neither local nor hosted');
-  }
   await rec.check('entities', 'listening preferences', 'GET', '/v1/listening/preferences', () =>
     // The apps read `data` after checking the viewer scope (listeningData); the probe unwraps it.
     api.request<unknown>('/v1/listening/preferences').then(raw => parseListeningPreferences((raw as {data?: unknown}).data)));

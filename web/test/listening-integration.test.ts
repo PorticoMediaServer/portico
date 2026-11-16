@@ -19,8 +19,9 @@ const tick=async()=>{for(let i=0;i<60;i++)await Promise.resolve();};
 function deferred<T>(){let resolve!:(value:T)=>void,reject!:(error:unknown)=>void;const promise=new Promise<T>((r,e)=>{resolve=r;reject=e;});return{promise,resolve,reject};}
 const scope=queueScope({serverId:'server',authority:'local',accountId:'account',profileId:'profile',controllerId:'controller',controllerEpoch:'epoch',commandLaneId:'lane'});
 function makeFence(itemId='item',sourceId='source'):QueuePlaybackFence{return playbackFence({kind:'queue',playback:{scope,run:7},sessionId:'session',generation:2,itemId,entryId:'entry',sourceId});}
-function chaptersWire(later=false){const indexes=later?[101]:[1,2];return{scope:{serverId:'server',libraryId:'library',itemId:'item',sessionId:'session',generation:2,sourceId:'source',viewerFence:'viewer'},revision:'revision',status:'available',reason:null,durationMs:3030000,
-  totalCount:101,nextCursor:later?'':'offered-chapters',chapters:indexes.map(index=>({id:`source:${index}`,index,title:`Chapter ${index}`,startMs:(index-1)*30000,endMs:index*30000,action:{id:'seek',positionMs:(index-1)*30000}}))};}
+/** The audiobook's item read: 101 chapters of 30 seconds in its version `source`. */
+function chaptersWire(){return{id:'item',kind:'audiobook',libraryId:'library',durationMs:3030000,versions:[{id:'source',durationMs:3030000,parts:[{}],
+  markers:Array.from({length:101},(_,n)=>({kind:'chapter',title:`Chapter ${n+1}`,startMs:n*30000,endMs:(n+1)*30000}))}]};}
 function lyricsWire(plain=false,empty=false){
   const document={format:plain?'text':'lrc',text:'First\nSecond',lines:[{atMs:plain?null:12000,text:'First'},{atMs:plain?null:15000,text:'Second'}],embeddedOffsetMs:0};
   const resource={id:'lyric',revision:1,scope:'private',canManage:false,deleted:false,language:'en',offsetMs:plain?0:500,format:document.format,digest:'c'.repeat(64),provenance:{origin:'sidecar',providerId:'',label:'Supplied text',rights:''},createdAt:'2026-10-27T00:00:00Z',document};
@@ -60,7 +61,7 @@ function harness({kind='audiobook' as 'music'|'audiobook',lyricsEnabled=true,exp
     captureListening(fence:QueuePlaybackFence,lifetime:WebListeningLifetime){
       calls.captures++;const captured=live,capturedSource=source;
       const owns=()=>current&&source===capturedSource&&live.authority===captured.authority&&sameFence(live.fence,fence)&&live.playback.playbackRun===captured.playback.playbackRun&&!live.dock.remote;
-      const api={request:async<T,>(path:string,_method?:string,_body?:unknown,signal?:AbortSignal)=>{signal?.throwIfAborted();calls.chapters.push(path);if(failChapters)throw new Error('read_failed');return(chapterWait?await chapterWait.promise:chaptersWire(path.includes('cursor=')))as T;},
+      const api={request:async<T,>(path:string,_method?:string,_body?:unknown,signal?:AbortSignal)=>{signal?.throwIfAborted();calls.chapters.push(path);if(failChapters)throw new Error('read_failed');return(chapterWait?await chapterWait.promise:chaptersWire())as T;},
         requestLyrics:async<T,>(_path:string,method?:string,body?:unknown,signal?:AbortSignal)=>{signal?.throwIfAborted();if(method==='PUT'){calls.choices.push(body);selectionRevision++;return (choiceWait?await choiceWait.promise:{revision:selectionRevision,resource:lyricsWire().resources[0]}) as T;}calls.lyrics++;if(lyricMode==='404')throw Object.assign(new Error('empty'),{status:404});if(lyricMode==='error')throw new Error('failed');const wire=lyricsWire(lyricMode==='text',lyricMode==='empty');if(badLyricScope)wire.scope.libraryId='wrong-library';wire.selection.revision=selectionRevision;return(lyricWait?await lyricWait.promise:wire)as T;}};
       return createWebListeningPort({fence,lifetime,target:{libraryId:'library',itemId:'item',sessionId:'session',sessionGeneration:2,sourceId:'source',versionId:'version',playbackRun:4,queueId:'queue',entryId:'entry'},current:owns,
         request:api.request,requestLyrics:api.requestLyrics,chaptersTarget:{libraryId:'library',itemId:'item',sessionId:'session',sessionGeneration:2,sourceId:'source'},
@@ -92,15 +93,15 @@ function harness({kind='audiobook' as 'music'|'audiobook',lyricsEnabled=true,exp
   };
 }
 
-test('actual owner + facade + chapter service opens an audiobook, reaches offered page101, seeks part time, changes options and collapses without new playback',async()=>{
+test('actual owner + facade + chapter service opens an audiobook, lists all 101 chapters from its item read, seeks part time, changes options and collapses without new playback',async()=>{
   const f=harness(),owner=f.owner();try{
-    owner.commitExpanded(true);await tick();let shown=owner.getSnapshot();assert.equal(shown.chapters?.data?.chapters[0].index,1);
-    await owner.chapterPage(shown,shown.chapters!,'next');shown=owner.getSnapshot();const chapter=shown.chapters!.data!.chapters[0];assert.equal(chapter.index,101);
-    await owner.chapter(shown,shown.chapters!,chapter);assert.deepEqual(f.calls.seek,[3000]);assert.ok(f.calls.chapters[1].includes('cursor=offered-chapters'));
+    owner.commitExpanded(true);await tick();const shown=owner.getSnapshot();assert.equal(shown.chapters?.data?.chapters[0].index,1);
+    const chapter=shown.chapters!.data!.chapters[100]!;assert.equal(chapter.index,101);assert.deepEqual(f.calls.chapters,['/v1/items/item']);
+    await owner.chapter(shown,shown.chapters!,chapter);assert.deepEqual(f.calls.seek,[3000]);
     owner.setSpeed(shown,f.snapshot,1.25);owner.setSleep(shown,f.snapshot,15);assert.equal(f.snapshot.presentation?.rate,1.25);
     const old=shown;owner.close(shown);assert.equal(f.expanded,false);assert.equal(f.calls.collapses,1);assert.equal(f.calls.captures,1);
     f.runtime.open(f.snapshot.fence!);owner.commitExpanded(true);await assert.rejects(owner.chapter(old,old.chapters!,chapter),{name:'AbortError'});
-    assert.equal(f.calls.captures,1);assert.equal(f.calls.chapters.length,2);
+    assert.equal(f.calls.captures,1);assert.equal(f.calls.chapters.length,1);
   }finally{owner.dispose();}
 });
 
@@ -108,7 +109,7 @@ test('chapter failure stays retryable; late source replacement cannot publish or
   const f=harness();f.failChapters(true);const owner=f.owner();try{
     owner.commitExpanded(true);await tick();const failed=owner.getSnapshot();assert.equal(failed.chapters?.phase,'error');
     f.failChapters(false);await owner.chapterPage(failed,failed.chapters!,'retry');const ready=owner.getSnapshot();assert.equal(ready.chapters?.phase,'ready');
-    const pending=f.holdChapters(),next=owner.chapterPage(ready,ready.chapters!,'next');f.replace();pending.resolve(chaptersWire(true));await next.catch(()=>{});
+    const pending=f.holdChapters(),next=owner.chapterPage(ready,ready.chapters!,'retry');f.replace();pending.resolve(chaptersWire());await next.catch(()=>{});
     assert.equal(owner.getSnapshot().current,false);assert.deepEqual(f.calls.seek,[]);
   }finally{owner.dispose();}
 });
