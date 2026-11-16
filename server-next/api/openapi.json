@@ -4059,6 +4059,9 @@
           "available": {
             "type": "boolean"
           },
+          "chapter": {
+            "$ref": "#/components/schemas/ItemChapter"
+          },
           "contentRating": {
             "type": "string"
           },
@@ -4179,6 +4182,29 @@
           "images",
           "state",
           "libraryId"
+        ],
+        "type": "object"
+      },
+      "ItemChapter": {
+        "properties": {
+          "endMs": {
+            "type": "integer"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "startMs": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "title",
+          "startMs",
+          "endMs"
         ],
         "type": "object"
       },
