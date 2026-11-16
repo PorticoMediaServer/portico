@@ -76,7 +76,16 @@ func (s *Server) liveStreamRoute() {
 		}
 		w.Header().Set("Content-Type", "video/mp2t")
 		w.Header().Set("Cache-Control", "no-store")
-		live.ViewingInput{Input: in}.ReadFrom(r.Context(), at, w, nil)
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		go func() {
+			select {
+			case <-v.Done():
+				cancel()
+			case <-ctx.Done():
+			}
+		}()
+		live.ViewingInput{Input: in}.ReadFrom(ctx, at, w, nil)
 	})
 }
 

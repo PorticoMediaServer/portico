@@ -50,6 +50,7 @@ func (s *Server) startLiveTV(ctx context.Context) error {
 	s.tuners = live.NewTuners(filepath.Join(s.dataDir, "transcodes", "live"), live.StreamClient(), s.log, func() time.Time { return s.now() },
 		func() live.Tuning { return live.Document.Get(s.settings).Tuning() })
 	s.viewings = live.NewViewings(func() time.Time { return s.now() })
+	s.viewings.Check = s.liveViewingAllowed
 	// However a viewing ends, the HLS made for its device stops with it.
 	s.viewings.Ended = func(id string) {
 		if s.liveHLS != nil {

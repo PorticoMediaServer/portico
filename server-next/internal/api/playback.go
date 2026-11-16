@@ -280,7 +280,9 @@ func (s *Server) startPlayback(r *http.Request, req PlaybackStart) (PlaybackSess
 		if lv, err := s.db.ViewerLive(r.Context(), viewer(r)); err != nil {
 			return PlaybackSession{}, err
 		} else if ch, err := s.db.LiveChannelByID(r.Context(), viewer(r), req.Channel); err == nil && ch.Kind == db.ChannelFromSource {
-			if !mayWatch(lv, ch) {
+			if allowed, err := s.sourceProgrammeAllowed(r.Context(), viewer(r), lv, ch); err != nil {
+				return PlaybackSession{}, err
+			} else if !allowed {
 				return PlaybackSession{}, ErrNotFound()
 			}
 			return s.watchSourceChannel(r, ch, req.Network)
