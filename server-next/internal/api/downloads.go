@@ -330,7 +330,19 @@ func (s *Server) askDownload(r *http.Request, req DownloadAsk) (Download, error)
 	if err != nil {
 		return Download{}, downloadError(err)
 	}
-	out := downloadShape(dl)
+	_, titles, err := s.db.DownloadOf(r.Context(), v.ProfileID, dl.PublicID)
+	if err != nil {
+		return Download{}, downloadError(err)
+	}
+	shaped, err := s.titlesShape(r.Context(), v, []db.Download{dl}, map[int64][]db.DownloadTitle{dl.ID: titles})
+	if err != nil {
+		return Download{}, err
+	}
+	if len(shaped) == 0 {
+		return Download{}, ErrNotFound()
+	}
+	out := shaped[0]
+	out.Items = nil
 	if created {
 		out.status = http.StatusCreated
 	}
@@ -539,7 +551,7 @@ func (s *Server) receivedDownloadTitle(r *http.Request, _ None) (None, error) {
 	if err != nil || dl.DeviceID != device.ID || title.State != db.DownloadWanted && title.State != db.DownloadReceived {
 		return None{}, ErrNotFound()
 	}
-	return None{}, s.downloads.Received(r.Context(), v, dl, title)
+	return None{}, downloadError(s.downloads.Received(r.Context(), v, dl, title))
 }
 
 func (s *Server) downloadUsage(r *http.Request, _ None) (DownloadUsage, error) {
