@@ -2,11 +2,12 @@
 ' The callback gets an event whose data is {ok, status, data, error}; event.getRoSGNode().ctx
 ' is whatever was passed as ctx.
 ' Pass isPublic for the requests made before anyone is signed in (no sign-in is sent or renewed).
-function api(method as string, path as string, body as dynamic, callback as string, ctx = invalid as dynamic, isPublic = false as boolean) as object
+' Pass key to send a POST again as the same request (the server answers a repeat with what the first made).
+function api(method as string, path as string, body as dynamic, callback as string, ctx = invalid as dynamic, isPublic = false as boolean, key = "" as string) as object
     reply = createObject("roSGNode", "ApiReply")
     if ctx <> invalid then reply.ctx = ctx
     reply.observeField("result", callback)
-    m.global.api.request = {method: method, path: path, body: body, reply: reply, public: isPublic}
+    m.global.api.request = {method: method, path: path, body: body, reply: reply, public: isPublic, key: key}
     return reply
 end function
 

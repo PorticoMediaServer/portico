@@ -159,7 +159,7 @@ sub onContent()
         m.title.wrap = true
         m.title.maxLines = 2
         setType(m.title, "episodeTitle", c.text)
-        m.title.translation = [0, m.h + 22]
+        m.title.translation = [0, m.h + 26]
         if m.title.boundingRect().height > 44 then m.sub.translation = [0, m.h + 88] else m.sub.translation = [0, m.h + 58]
     end if
     m.track.translation = [20, m.h - 24]
@@ -229,6 +229,13 @@ sub grow(s as float)
     m.over.scale = [s, s]
     w = m.w * s
     h = m.h * s
+    if item <> invalid and item.under = true
+        ' words under a picture stay their size and place (grown, they would slide under the rail or
+        ' the next card); only the picture grows, and its progress line with it
+        m.over.scale = [1, 1]
+        m.bar.translation = [(m.w - w) / 2, (m.h + h) / 2 - 6]
+        if item.progress >= 0 then m.bar.width = w * item.progress
+    end if
     shiftY = 0
     if m.shiftY <> invalid then shiftY = m.shiftY
     m.clip.translation = [(m.w - w) / 2, (m.h - h) / 2 + shiftY]

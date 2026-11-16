@@ -122,7 +122,7 @@ sub onEntries()
     row.label.height = 56
     row.label.translation = [141, 2]
     m.fadeTop.translation = [0, m.listTop]
-    m.fadeBottom.translation = [0, m.listTop + m.fits * 72 - 40]
+    m.fadeBottom.translation = [0, m.listTop + m.fits * 72 - 64]
     onProfile()
     onCurrent()
 end sub
@@ -179,6 +179,10 @@ sub paint()
     if m.open then tone = "0x0B1822FF" else tone = "0x071018FF"
     m.fadeTop.blendColor = tone
     m.fadeBottom.blendColor = tone
+    across = 170                      ' closed, the rail is only its icons: the fades stay off the page
+    if m.open then across = 440
+    m.fadeTop.width = across
+    m.fadeBottom.width = across
     for i = 0 to m.rows.count() - 1
         row = m.rows[i]
         isCurrent = (row.id = m.top.current)

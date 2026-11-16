@@ -75,6 +75,7 @@ sub drawChrome()
 end sub
 
 sub drawTools()
+    if m.toolSpecs = invalid then return      ' the library's facts have not arrived yet
     c = colours()
     m.tools.removeChildrenIndex(m.tools.getChildCount(), 0)
     m.toolX = []

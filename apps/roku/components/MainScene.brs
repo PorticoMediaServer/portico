@@ -98,6 +98,10 @@ sub pop()
     m.screens.removeChildIndex(count - 1)
     m.screen = m.screens.getChild(count - 2)
     m.screen.visible = true
+    if count = 2 and m.railHome <> invalid
+        m.rail.current = m.railHome
+        m.railHome = invalid
+    end if
     setArt(m.screen.art)
     m.backdrop.quiet = (m.screen.hasField("quiet") and m.screen.quiet = true)
     m.screen.active = true
@@ -152,7 +156,19 @@ sub onOpen(event as object)
     if page <> invalid
         page.item = ask.item
         page.active = true
+        markLibrary(ask.item)
     end if
+end sub
+
+' On a title's page the rail marks the title's library (and Home again once the page is left).
+sub markLibrary(item as object)
+    if item.libraryId = invalid then return
+    for each entry in m.rail.entries
+        if entry.id = item.libraryId
+            if m.railHome = invalid then m.railHome = m.rail.current
+            m.rail.current = item.libraryId
+        end if
+    end for
 end sub
 
 sub showSignIn()

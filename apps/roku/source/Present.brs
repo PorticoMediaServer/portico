@@ -280,6 +280,7 @@ function episodeCard(item as object, upNext as boolean) as object
     card.title = item.title
     card.sub = "Episode"
     if item.index <> invalid then card.sub = "Episode " + item.index.toStr()
+    if card.sub = card.title then card.sub = ""       ' an episode named only by its number says it once
     card.corner = durationText(item.durationMs)
     card.played = (item.state <> invalid and item.state.watched = true)
     if upNext then card.badge = "Up next"

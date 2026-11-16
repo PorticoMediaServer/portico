@@ -31,8 +31,8 @@
       <Group id="list"/>
     </Group>
     <!-- more libraries above or below: the list's edge fades, as the season list's does -->
-    <Poster id="fadeTop" uri="pkg:/images/fade-white-up.png" width="440" height="40" visible="false"/>
-    <Poster id="fadeBottom" uri="pkg:/images/fade-white-down.png" width="440" height="40" visible="false"/>
+    <Poster id="fadeTop" uri="pkg:/images/fade-white-up.png" width="440" height="64" visible="false"/>
+    <Poster id="fadeBottom" uri="pkg:/images/fade-white-down.png" width="440" height="64" visible="false"/>
     <Group id="foot" translation="[0,884]"/>
   </children>
 </component>

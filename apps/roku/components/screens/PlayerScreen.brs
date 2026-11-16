@@ -122,7 +122,9 @@ sub start()
     body = {itemId: item.id}
     if m.top.startOver then body.startPositionMs = 0
     if m.resumeAt <> invalid then body.startPositionMs = m.resumeAt
-    api("POST", "/v1/playback/sessions", body, "onSession")
+    ' one start is one request however often it is asked again while the stream gets ready (202)
+    if m.startKey = invalid then m.startKey = createObject("roDeviceInfo").getRandomUUID()
+    api("POST", "/v1/playback/sessions", body, "onSession", invalid, false, m.startKey)
     if m.options = invalid then api("GET", "/v1/items/" + item.id + "/playback-options", invalid, "onOptions")
 end sub
 
@@ -295,6 +297,7 @@ sub onSession(event as object)
         return
     end if
     m.session = result.data
+    m.startKey = invalid
     load(m.session.presentation)
     if m.session.lease <> invalid and m.session.lease.reportEveryMs <> invalid then m.report.duration = m.session.lease.reportEveryMs / 1000
     m.report.control = "start"
@@ -329,13 +332,34 @@ end sub
 sub again()
     if m.session = invalid or m.ended then return
     if m.tries >= 6
-        api("PATCH", "/v1/playback/sessions/" + m.session.id, {failure: {code: "player_error", detail: m.video.errorMsg}}, "onStopped")
         fail("This title could not be played on this TV.")
         return
     end if
     m.tries = m.tries + 1
     m.video.control = "stop"
     busy("Getting ready…")
+    ' The server is told the player could not play this. It may answer with another way for the
+    ' title to reach this TV, which is then what is played.
+    detail = ""
+    if m.video.errorMsg <> invalid then detail = m.video.errorMsg
+    api("PATCH", "/v1/playback/sessions/" + m.session.id, {failure: {code: "player_error", detail: detail}, positionMs: int(m.last * 1000)}, "onFailureAnswer", {id: m.session.id})
+end sub
+
+sub onFailureAnswer(event as object)
+    result = event.getData()
+    if m.session = invalid or m.ended or event.getRoSGNode().ctx.id <> m.session.id then return
+    if result.ok and result.data <> invalid and result.data.presentation <> invalid
+        replaced = (result.data.presentation.url <> m.presentation.url)
+        m.session = result.data
+        m.presentation = result.data.presentation
+        if replaced
+            reload()          ' a replacement stream: play it now
+            return
+        end if
+    else if result.status = 404 or result.status = 410
+        fail("This title could not be played on this TV.")
+        return
+    end if
     m.retry.duration = 2 + m.tries
     m.retry.control = "start"
 end sub

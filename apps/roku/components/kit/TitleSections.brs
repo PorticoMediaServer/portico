@@ -43,9 +43,12 @@ sub onItem()
             setType(name, "factLabel", c.textTertiary)
             value = facts.createChild("Label")
             value.text = row[1]
-            value.width = 570
+            value.width = 520
+            value.wrap = true
+            value.maxLines = 2
             value.translation = [194, y]
             setType(value, "factLabel", c.text)
+            if value.boundingRect().height > 40 then y = y + 30
             y = y + 42
         end if
     end for
