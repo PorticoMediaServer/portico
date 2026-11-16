@@ -1,7 +1,7 @@
 import {PlayerChaptersService, type PlayerChaptersTarget} from '../../../../../packages/client-core/src/player-chapters';
 import type {LibraryContentApi, ContentScope} from '../../../../../packages/client-core/src/library-content';
 import type {NativeListeningReadPort, NativeListeningReadSnapshot, NativePlaybackReadLifetime} from './types';
-import {encodedRoutePath} from '../../../../../packages/contracts/src/routes';
+import {serverPath} from '../../../../../packages/client-core/src/query/server-api';
 import type {LocalPlaybackFence} from '../../../../../packages/player-core/src';
 import type {DownloadBundleChapter} from '../../../../../packages/client-core/src/downloads';
 
@@ -86,7 +86,7 @@ export function createNativeListeningReadPort(options: Readonly<{
 }>): NativeListeningReadPort {
   const target = Object.freeze({...options.target}), scope = Object.freeze({...options.scope});
   if (!target.sourceId) throw new Error('native_listening_source_required');
-  const chapterPath = encodedRoutePath('get_playback_sessions_id_chapters', {id: encodeURIComponent(target.sessionId)});
+  const chapterPath = serverPath('GET /v1/items/{id}', {id: target.itemId});
   const abort = new AbortController(), listeners = new Set<() => void>(), offs: (() => void)[] = [];
   let retired = false;
   let snapshot: NativeListeningReadSnapshot = Object.freeze({phase: 'retired'});
@@ -105,7 +105,7 @@ export function createNativeListeningReadPort(options: Readonly<{
   const assert = () => {if (!valid()) {retire(); throw new Error('native_listening_read_retired');}};
   const chapters = new PlayerChaptersService({scope, api: {request: async <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
     assert();
-    if (method !== 'GET' || body !== undefined || path !== chapterPath && !path.startsWith(chapterPath + '?')) throw new Error('native_listening_read_only');
+    if (method !== 'GET' || body !== undefined || path !== chapterPath) throw new Error('native_listening_read_only');
     const read = new AbortController(), cancel = () => read.abort();
     abort.signal.addEventListener('abort', cancel, {once: true});
     if (signal?.aborted) cancel(); else signal?.addEventListener('abort', cancel, {once: true});

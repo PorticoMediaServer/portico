@@ -6,7 +6,6 @@ import {unreadableServerResponse} from './server-messages.ts';
 /** One listening policy for a proved account/profile/server/device lane.
  * Foreground engines enforce it here; the native owner enforces the same policy
  * when JavaScript is suspended. The queue alone selects accepted occurrences. */
-import type {SavedScope} from './saved.ts';
 import type {PlaybackService} from './index.ts';
 import type {ListeningTimerOccurrence,ListeningBookBoundary} from './playback/native-listening.ts';
 import type {QueueScope,QueueItemInput} from './queues.ts';
@@ -14,15 +13,9 @@ import {parseQueueItem} from './queues.ts';
 /** The viewer facts a read-only catalogue read shares with a queue scope. Controller
  * identity belongs to queue commands and is never invented for a read. */
 export type ListeningViewerScope = Readonly<Pick<QueueScope, 'serverId' | 'authority' | 'accountId' | 'profileId'>>;
-import {PlayerChaptersService} from './player-chapters.ts';
+import {itemChapters,type ItemChapterSpan} from './book-chapters.ts';
 import {defaultAudiobookPreferences,type AudiobookPreferences} from './audiobook-preferences.ts';
-import {requireSessionChangeCurrent,sessionChangeCurrent,type SessionChangeContext} from './playback-v1/change-context.ts';
-
-async function listeningRead<T>(signals:readonly (AbortSignal|undefined)[],read:(signal:AbortSignal)=>Promise<T>):Promise<T>{
- const controller=new AbortController(),abort=()=>controller.abort();
- for(const signal of signals){if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true});}
- try{return await read(controller.signal);}finally{for(const signal of signals)signal?.removeEventListener('abort',abort);}
-}
+import {requireSessionChangeCurrent,type SessionChangeContext} from './playback-v1/change-context.ts';
 
 export const listeningRates=[.5,.75,1,1.25,1.5,1.75,2] as const;
 export const audiobookRates=[...listeningRates,2.5,3] as const;
@@ -61,11 +54,14 @@ export function parseListeningJourney(v:unknown,libraryId:string):ListeningJourn
  let resume:ListeningJourney['resume'];if(v.resume!==undefined){const r=wireDurations(v.resume,{positionSeconds:'positionMs'});if(!object(r)||!id(r.itemId)||!finite(r.positionSeconds))bad();resume=Object.freeze({itemId:r.itemId,positionSeconds:r.positionSeconds});}
  return Object.freeze({target:Object.freeze({libraryId,kind:v.target.kind as ListeningTarget['kind'],id:v.target.id}),actions:Object.freeze([...new Set(v.actions.filter(a=>['play','shuffle','mix','enqueue'].includes(String(a))))]) as ListeningJourney['actions'],...(resume?{resume}:{}),resumeUnavailable:v.resumeUnavailable});
 }
-function parseItem(v:unknown,itemId:string):ListeningItem {
- if(!object(v)||v.itemId!==itemId||!id(v.libraryId)||typeof v.kind!=='string')bad();
- if(v.bookEndAvailable!==undefined&&typeof v.bookEndAvailable!=='boolean')bad();
- for(const k of ['bookId','lastBookItemId','albumId','artistId'])if(v[k]!==undefined&&!id(v[k]))bad();
- return Object.freeze({itemId,libraryId:v.libraryId,kind:v.kind,...(typeof v.bookEndAvailable==='boolean'?{bookEndAvailable:v.bookEndAvailable}:{}),...(v.bookId?{bookId:v.bookId as string}:{}),...(v.lastBookItemId?{lastBookItemId:v.lastBookItemId as string}:{}),...(v.albumId?{albumId:v.albumId as string}:{}),...(v.artistId?{artistId:v.artistId as string}:{})});
+/** What listening needs to know of the playing item, from its item read (`GET /v1/items/{id}`): a
+ * song (in its album, by its artist) or an audiobook. A book is one item on the rebuilt server, so it
+ * is its own book and its own last part. */
+function listeningItemOf(v:unknown,itemId:string):ListeningItem {
+ if(!object(v)||v.id!==itemId||!id(v.libraryId)||typeof v.kind!=='string')bad();
+ if(v.kind==='audiobook')return Object.freeze({itemId,libraryId:v.libraryId,kind:'audiobook_file',bookId:itemId,lastBookItemId:itemId,bookEndAvailable:true});
+ if(v.kind==='track')return Object.freeze({itemId,libraryId:v.libraryId,kind:'song',...(id(v.parentId)?{albumId:v.parentId}:{}),...(id(v.rootId)?{artistId:v.rootId}:{})});
+ return Object.freeze({itemId,libraryId:v.libraryId,kind:v.kind});
 }
 /** Expands the server's complete selection through signed, revision-bound pages.
  * Refuses an over-capacity selection rather than silently using its first page. */
@@ -94,7 +90,9 @@ export class ListeningService {
  private listeners=new Set<()=>void>();private disposed=false;private connected=false;private abort=new AbortController();private unsubscribe?:()=>void;private interval?:ReturnType<typeof setInterval>;
  private contextGeneration=0;
  /** The item whose listening-details read last failed, and its one automatic retry (MU-4). */
- private contextFailed='';private contextRetry?:ReturnType<typeof setTimeout>;private timerGeneration=0;private prefGeneration=0;private itemId='';private lastRateKey='';private lastActivity:number;private chapters?:PlayerChaptersService;private sessionKey='';
+ private contextFailed='';private contextRetry?:ReturnType<typeof setTimeout>;private timerGeneration=0;private prefGeneration=0;private itemId='';private lastRateKey='';private lastActivity:number;
+ /** The playing item's chapters, from the same item read as its context. */
+ private spans:readonly ItemChapterSpan[]=[];private sessionKey='';
  private readonly audiobook:()=>AudiobookPreferences;
  private pausedBook?:{session:string;generation:number;item:string;intentId:number;run:number;seekRevision:number;at:number};
  /** A speed chosen in the player: for this playback only (`playbackRun`), never saved. */
@@ -189,10 +187,10 @@ export class ListeningService {
     this.acceptedBookNext=undefined;this.publish({timer:Object.freeze({...boundary,occurrence:actual})});
    }else if(!nativeBook)this.clearTimer();
   }
-  if(item!==this.itemId){const old=this.state.context;this.itemId=item;const generation=++this.contextGeneration;this.contextFailed='';clearTimeout(this.contextRetry);this.contextRetry=undefined;this.publish({context:null,rewind:undefined});
+  if(item!==this.itemId){const old=this.state.context;this.itemId=item;const generation=++this.contextGeneration;this.contextFailed='';clearTimeout(this.contextRetry);this.contextRetry=undefined;this.spans=[];this.publish({context:null,rewind:undefined});
    if(!item){this.clearTimer();this.publish({stopped:false,message:null});}
    else if(this.listens&&!this.listens(item,p.session?.id??'')){this.clearTimer();}
-   else void this.request(encodedRoutePath("get_items_id_listening", {"id": encodeURIComponent(item)}),undefined,'GET',this.abort.signal).then(raw=>{if(this.disposed||generation!==this.contextGeneration)return;const context=parseItem(listeningData(raw,this.scope),item);const t=this.state.timer;
+   else void this.request(serverPath('GET /v1/items/{id}',{id:item}),undefined,'GET',this.abort.signal).then(raw=>{if(this.disposed||generation!==this.contextGeneration)return;const context=listeningItemOf(raw,item);this.spans=itemChapters(raw)?.spans??[];const t=this.state.timer;
     if(!['song','audiobook_file'].includes(context.kind)||t?.choice==='book'&&t.bookId!==context.bookId||t?.choice==='item'&&t.itemId!==item||old&&old.libraryId!==context.libraryId)this.clearTimer();
     this.publish({context});this.applyRate();this.tick();
    }).catch(()=>{if(this.disposed||generation!==this.contextGeneration)return;
@@ -204,7 +202,7 @@ export class ListeningService {
   }
   this.applyRate();this.tick();
  }
- clearTimer(message:string|null=null){++this.timerGeneration;this.pendingTimer=undefined;this.acceptedBookNext=undefined;this.chapters?.dispose();this.chapters=undefined;this.publish({timer:null,timerLoading:false,message});}
+ clearTimer(message:string|null=null){++this.timerGeneration;this.pendingTimer=undefined;this.acceptedBookNext=undefined;this.publish({timer:null,timerLoading:false,message});}
  private async installTimer(timer:ListeningTimer,context?:SessionChangeContext){
   requireSessionChangeCurrent(context);
   if(timer.occurrence&&this.automaticFlights.size)throw new Error('Playback is already moving to another item. Choose the timer again.');
@@ -239,37 +237,14 @@ export class ListeningService {
   if(typeof choice==='number'){if(![15,30,45,60,90].includes(choice))throw new Error('Invalid timer choice.');check();await this.installTimer(Object.freeze({choice,label:`${choice} minutes`,deadline:this.now()+choice*60000,wallDeadline:Date.now()+choice*60000,libraryId:c.libraryId}),context);return;}
   if(choice==='item'){check();await this.installTimer(Object.freeze({choice,label:'End of this item',itemId:c.itemId,libraryId:c.libraryId,occurrence:original}),context);return;}
   if(choice==='book'){
-   if(!c.bookId||!c.lastBookItemId||c.bookEndAvailable!==true)throw new Error('The final book part is unavailable. Choose a minute, item or verified chapter timer instead.');
-   const bookId=c.bookId;
-   const occurrence=original,revision=this.timerGeneration;
-   if(!occurrence?.queue)throw new Error('Start the ordered book queue before choosing its end.');
-   const items:string[]=[],seen=new Set<string>(),cursors=new Set<string>();let cursor='',timeline:BookTimeline|undefined;
-   this.publish({timerLoading:true});
-   try{do{
-    check();const page=await listeningRead([this.abort.signal,context?.signal],signal=>readBookTimeline(this.request,this.scope,bookId,{cursor,limit:100,signal}));check();
-    if(this.disposed||revision!==this.timerGeneration)return;
-    if(!this.sameOccurrence(occurrence,this.occurrence())){this.clearTimer();throw new Error('The playback source changed. Choose the timer again.');}
-    if(page.libraryId!==c.libraryId||page.totalCount>1000||timeline&&(page.revision.catalog!==timeline.revision.catalog||page.revision.viewer!==timeline.revision.viewer||page.totalCount!==timeline.totalCount))throw new Error('Book order changed. Choose the timer again.');
-    timeline=page;
-    for(const part of page.parts){if(seen.has(part.itemId))throw new Error('Book order changed. Choose the timer again.');seen.add(part.itemId);items.push(part.itemId);if(items.length>page.totalCount)throw new Error('Book order changed. Choose the timer again.');}
-    cursor=page.nextCursor;if(cursor){if(!page.parts.length||cursors.has(cursor))throw new Error('Book order changed. Choose the timer again.');cursors.add(cursor);}
-   }while(cursor);
-   if(!timeline||items.length!==timeline.totalCount||!items.includes(c.itemId)||items.at(-1)!==c.lastBookItemId)throw new Error('The final book part is unavailable.');
-   check();await this.installTimer(Object.freeze({choice,label:'End of this book',bookId:c.bookId,itemId:c.lastBookItemId,libraryId:c.libraryId,occurrence,bookBoundary:Object.freeze({revision:timeline.revision,items:Object.freeze(items)})}),context);return;
-   }catch(error){if(!this.disposed&&revision===this.timerGeneration)this.clearTimer();throw error;}
+   // A book is one item on the rebuilt server: its end is the end of this item.
+   if(!c.bookId||c.lastBookItemId!==c.itemId||c.bookEndAvailable!==true)throw new Error('The final book part is unavailable. Choose a minute, item or verified chapter timer instead.');
+   check();await this.installTimer(Object.freeze({choice,label:'End of this book',bookId:c.bookId,itemId:c.itemId,libraryId:c.libraryId,occurrence:original}),context);return;
   }
   if(choice!=='chapter')throw new Error('Invalid timer choice.');
-  const generation=this.timerGeneration,position=p.positionSeconds,sessionId=p.session.id,sessionGeneration=p.session.generation;
-  const chapters=this.chapters=new PlayerChaptersService({scope:{serverId:this.scope.serverId,viewerId:JSON.stringify([this.scope.authority,this.scope.accountId,this.scope.profileId])},api:{request:<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal)=>{check();return listeningRead([this.abort.signal,context?.signal,signal],joined=>this.request(path,body,method as 'GET',joined)) as Promise<T>;}}});
-  this.publish({timerLoading:true});
-  try{check();await chapters.select({libraryId:c.libraryId,itemId:c.itemId,sessionId,sessionGeneration});for(let page=0;page<41;page++){
-    check();if(this.disposed||generation!==this.timerGeneration)return;const state=chapters.getSnapshot(),data=state.data;if(state.phase!=='ready'||!data||data.status!=='available')throw new Error(state.error?.message??'Verified chapter timing is unavailable for this source.');
-    const chapter=data.chapters.find(ch=>position>=ch.startSeconds&&position<ch.endSeconds);
-    if(chapter){const latest=this.playback.getSnapshot();if(latest.session?.id!==sessionId||latest.session.generation!==sessionGeneration||latest.pendingSeek||latest.failedSeek||latest.positionSeconds<chapter.startSeconds||latest.positionSeconds>=chapter.endSeconds)throw new Error('Playback moved to another chapter. Choose the timer again.');check();await this.installTimer(Object.freeze({choice,label:`End of chapter: ${chapter.title}`,itemId:c.itemId,sessionId,generation:sessionGeneration,endSeconds:chapter.endSeconds,libraryId:c.libraryId,occurrence:original}),context);return;}
-    if(!data.nextCursor)break;await chapters.next();
-   }throw new Error('No verified chapter contains the current position.');
-  }catch(e){if(!sessionChangeCurrent(context)){if(!this.disposed&&generation===this.timerGeneration)this.clearTimer();throw new DOMException('Playback change retired','AbortError');}if(!this.disposed&&generation===this.timerGeneration){this.publish({timerLoading:false,error:e instanceof Error?e.message:'Chapter timer unavailable.'});throw e;}}
-  finally{chapters.dispose();if(this.chapters===chapters)this.chapters=undefined;}
+  const position=p.positionSeconds*1000,chapter=this.spans.find(span=>position>=span.startMs&&position<span.endMs);
+  if(!chapter){const message=this.spans.length?'No verified chapter contains the current position.':'Verified chapter timing is unavailable for this source.';this.publish({timerLoading:false,error:message});throw new Error(message);}
+  check();await this.installTimer(Object.freeze({choice,label:`End of chapter: ${chapter.title}`,itemId:c.itemId,sessionId:p.session.id,generation:p.session.generation,endSeconds:chapter.endMs/1000,libraryId:c.libraryId,occurrence:original}),context);
  }
  /** Called before natural advancement, and on foreground ticks/observations. */
  tick(){if(this.disposed)return;const p=this.playback.getSnapshot(),c=this.state.context;
@@ -305,20 +280,12 @@ export class ListeningService {
   * Loading preferences does not decide whether an album or audiobook part continues. */
  mayAdvance(){this.tick();const timer=this.pendingTimer?.timer??this.state.timer,needsContext=!!timer&&typeof timer.choice!=='number'&&timer.choice!=='off';
   return !this.pendingTimer?.timer.occurrence&&!this.disposed&&!this.state.stopped&&(!this.itemId||!!this.state.context||this.contextFailed===this.itemId&&!needsContext);}
- dispose(){if(this.disposed)return;this.disposed=true;clearTimeout(this.contextRetry);this.pendingTimer=undefined;this.acceptedBookNext=undefined;this.automaticFlights.clear();this.abort.abort();this.unsubscribe?.();clearInterval(this.interval);this.chapters?.dispose();this.state=Object.freeze({...this.state,phase:'disposed',eqApplied:false,levelingApplied:false,preferences:null,context:null,timer:null,stopped:false});this.listeners.clear();}
+ dispose(){if(this.disposed)return;this.disposed=true;clearTimeout(this.contextRetry);this.pendingTimer=undefined;this.acceptedBookNext=undefined;this.automaticFlights.clear();this.abort.abort();this.unsubscribe?.();clearInterval(this.interval);this.state=Object.freeze({...this.state,phase:'disposed',eqApplied:false,levelingApplied:false,preferences:null,context:null,timer:null,stopped:false});this.listeners.clear();}
 }
 
-export async function readListeningItem(request:ListeningRequest,scope:QueueScope,itemId:string,signal?:AbortSignal){return parseItem(listeningData(await request(encodedRoutePath("get_items_id_listening", {"id": encodeURIComponent(itemId)}),undefined,'GET',signal),scope),itemId);}
 export function listeningItemInput(itemId:string,target?:ListeningTarget):QueueItemInput {
  const source=target&&['artist','album','book'].includes(target.kind)?{kind:target.kind as 'artist'|'album'|'book',id:target.id}:{kind:'item' as const,id:itemId};
  return parseQueueItem({itemId,editionId:null,partId:null,sourceContext:{...source,revision:null,entryId:null}});
-}
-
-/** Read-only entity navigation must remain available before a playback controller connects. */
-export async function readListeningContext(request:ListeningRequest,scope:SavedScope,itemId:string,signal?:AbortSignal):Promise<ListeningItem>{
- const raw=await request(encodedRoutePath("get_items_id_listening", {"id": encodeURIComponent(itemId)}),undefined,'GET',signal);
- if(!object(raw)||!object(raw.scope)||raw.scope.serverId!==scope.serverId||JSON.stringify([raw.scope.authority,raw.scope.accountId,raw.scope.profileId])!==scope.viewerId)bad();
- return parseItem(raw.data,itemId);
 }
 
 export function audiobookResumeRewind(pauseMs:number,rewindMs=0):number{if(![0,5000,15000,30000].includes(rewindMs))throw new Error('invalid_audiobook_preference');return pauseMs>=300000?rewindMs/1000:0;}

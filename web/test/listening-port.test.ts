@@ -15,12 +15,10 @@ const target = {libraryId: 'library', itemId: 'item', sessionId: 'session', sess
 const scope = {serverId: 'server', viewerId: 'local-owner-profile', libraryId: 'library'};
 const chaptersTarget = {libraryId: 'library', itemId: 'item', sessionId: 'session', sessionGeneration: 2, sourceId: 'source'};
 
+/** The title's item read, with its only version `sourceId` and two chapters. */
 function chaptersData(sourceId = 'source') {
-  return {scope: {serverId: 'server', libraryId: 'library', itemId: 'item', sessionId: 'session', generation: 2, sourceId, viewerFence: 'fence'},
-    revision: 'revision', status: 'available', reason: null, durationMs: 60000,
-    chapters: [{id: 'source:1', index: 1, title: 'One', startMs: 0, endMs: 30000, action: {id: 'seek', positionMs: 0}},
-      {id: 'source:2', index: 2, title: 'Two', startMs: 30000, endMs: 60000, action: {id: 'seek', positionMs: 30000}}],
-    totalCount: 2, nextCursor: ''};
+  return {id: 'item', kind: 'audiobook', libraryId: 'library', durationMs: 60000, versions: [{id: sourceId, durationMs: 60000, parts: [{}],
+    markers: [{kind: 'chapter', title: 'One', startMs: 0, endMs: 30000}, {kind: 'chapter', title: 'Two', startMs: 30000, endMs: 60000}]}]};
 }
 
 function deferred<T>() {let resolve!: (value: T) => void; const promise = new Promise<T>(r => {resolve = r;}); return {promise, resolve};}
