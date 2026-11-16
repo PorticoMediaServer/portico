@@ -22,6 +22,6 @@ test('the local artwork limit and picture size sit in Advanced › Artwork, not 
 
 test('each Advanced row, the TheTVDB key and the artwork limit are offered only when the server sends their field', () => {
   for (const guard of ["document.tvdbCredentialConfigured !== undefined && secret('tvdb'", 'hasLimit ? <>', 'draft.edge !== undefined ? <SettingsRow',
-    'extra?.castPhotos !== undefined ?', 'advanced?.refreshAll ? <SettingsRow', 'music ? <SettingsGroup']) at(guard);
+    'advanced?.refreshAll ? <SettingsRow', 'music ? <SettingsGroup']) at(guard);
   at("key === 'tmdb' && document.tmdbCredentialUnreadable ? 'server.metadata.keyUnreadable'");
 });

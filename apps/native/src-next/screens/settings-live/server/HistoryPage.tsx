@@ -1,12 +1,10 @@
 import React, {useEffect, useLayoutEffect, useState, useSyncExternalStore} from 'react';
 import {FlatList, Text, View} from 'react-native';
-import type {RuntimeSettings} from '../../../../../../packages/client-core/src/console';
 import {fetchPlayHistory, playHistoryFirstPageQuery, playHistoryPlatform, playHistoryTitle, type PlayHistoryEntry} from '../../../../../../packages/client-core/src/play-history';
 import {DashboardDataClient} from '../../../../../../packages/client-core/src/admin/dashboard';
 import {readDocument} from '../../../../../../packages/client-core/src/query/admin-documents';
 import {viewerQueriesFor} from '../../../shell/freshness';
 import {captureReportContext} from '../../../../../../packages/client-core/src/report-context';
-import {applySettingsBindingPatch, readSettingsBinding, settingsBinding, settingsBindingPatch} from '../../../../../../packages/client-core/src/presentation/settings-bindings';
 import {settingsRowIndex} from '../../../../../../packages/client-core/src/presentation/settings-spec';
 import {duration} from '../../../../../../packages/client-core/src/server-admin/console-words';
 import {defaultI18n} from '../../../../../../packages/i18n/src';
@@ -19,10 +17,9 @@ import type {NativeShellRuntime} from '../../../shell/runtime';
 import type {NativeShellBootstrapContext} from '../../../shell/bootstrap';
 import type {NativeSettingsLivePorts} from '../ports';
 import {NativeScreenLifetime, screenScopeEnded} from '../lifetime';
-import {NativeAdvancedSection} from './AdvancedSection';
 import {NativeHistorySource, historyLocation, type HistoryQuery} from './history-source';
 import {nativeStorageOwner} from './storage/space-source';
-import {useFormState, useStorageForms, useStorageSet, type StorageForms} from './storage/forms';
+import {useStorageForms, useStorageSet, type StorageForms} from './storage/forms';
 import {settingsPageHeading, settingsPageInset} from './page-layout';
 
 const IDS = ['runtime'] as const;
@@ -63,17 +60,12 @@ export function NativeServerHistory({ports, runtime, compactHeader = false}: {po
 }
 function History({group, forms, runtime, compactHeader}: {group: Group; forms: StorageForms; runtime: NativeShellRuntime; compactHeader: boolean}) {
   const {source} = group, theme = useTheme(), t = runtime.text.t as typeof defaultI18n.t;
-  const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot), formState = useStorageSet(forms), settings = useFormState<RuntimeSettings, unknown>(forms.forms.runtime);
+  const state = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot), formState = useStorageSet(forms);
   const [search, setSearch] = useState('');
   useEffect(() => {const timer = setInterval(() => {const current = source.getSnapshot();if (current.phase === 'ready' && current.pages === 1) source.refresh();}, 15000);return () => clearInterval(timer);}, [source]);
-  const table = settingsRowIndex.get('history.plays')!.row, keep = settingsRowIndex.get('history.keepHistory')!.row;
+  const table = settingsRowIndex.get('history.plays')!.row;
   const filter = (id: string) => table.control.filters?.find(filter => filter.id === id);
   const change = (patch: Partial<HistoryQuery>) => {if (group.current()) source.change({...state.query, ...patch});};
-  const days = settings.draft?.playHistoryDays, keepBinding = settingsBinding(keep.id)!;
-  const keepOptions = (keep.control.options ?? []).map(option => ({value: String(option.value), label: t(option.label), disabled: false}));
-  const stored = settings.draft ? readSettingsBinding(keepBinding, {forms: {runtime: settings.draft}})?.current : undefined;
-  const choice = stored === undefined ? undefined : keepOptions.some(option => option.value === stored) ? String(stored) : 'custom';
-  if (choice === 'custom') keepOptions.push({value: 'custom', label: `${defaultI18n.number(days!)} ${t('settings.unit.days')}`, disabled: true});
   const people = [{value: '', label: t(filter('person')!.options[0]!.label)}, ...state.people.map(person => ({value: person.accountId, label: person.username || '—'}))];
   if (state.query.accountId && !people.some(person => person.value === state.query.accountId)) {
     const found = state.entries.find(entry => entry.accountId === state.query.accountId);
@@ -114,14 +106,6 @@ function History({group, forms, runtime, compactHeader}: {group: Group; forms: S
     ListEmptyComponent={state.phase === 'ready' ? <Text style={[shellType(14, 400, 20), {color: theme.colors.textSecondary, marginTop: 20}]}>{t(table.control.empty!)}</Text> : state.phase === 'loading' || state.phase === 'idle' ? <StateView title={t('status.loading')}/> : null}
     ListFooterComponent={<View style={{gap: 14, marginTop: 16}}>
       {!!state.nextCursor && <Button variant="glass" loading={state.phase === 'loading'} disabled={state.phase !== 'ready'} onPress={() => source.more()}>{t('action.showMore')}</Button>}
-      <NativeAdvancedSection testID="server-history-advanced" summary={days === undefined ? t('status.loading') : days === 0 ? t('next.settings.allDefaults') : `${t(keep.label)}: ${keepOptions.find(option => option.value === choice)?.label ?? days}`}>
-        {choice !== undefined && <Select testID="history.keepHistory" rowLabel={t(keep.label)} description={keep.help ? t(keep.help) : undefined} value={choice} options={keepOptions} disabled={formState.saving} onValueChange={value => {
-          if (value === 'custom' || formState.saving || !group.current() || !settings.draft) return;
-          const patch = settingsBindingPatch(keepBinding, value, {forms: {runtime: settings.draft}});
-          forms.forms.runtime.set((draft: RuntimeSettings) => applySettingsBindingPatch(draft, patch));
-        }}/>} 
-        {settings.loadError !== undefined && <StateView variant="inline" {...runtime.error(settings.loadError, () => {void forms.forms.runtime.load();}, 'server-console')}/>}
-      </NativeAdvancedSection>
       {formState.dirty && <View style={{flexDirection: 'row', gap: 8}}><Button variant="glass" disabled={formState.saving} onPress={() => forms.set.discard()}>{t('action.discard')}</Button><Button loading={formState.saving} disabled={Boolean(formState.problem)} onPress={() => {void forms.set.save();}}>{t('action.save')}</Button></View>}
       {formState.saveError !== undefined && <StateView variant="inline" {...runtime.error(formState.saveError, () => {void forms.set.save();}, 'server-console')}/>}
     </View>}/>;
