@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {videoPictureName,videoAudioFormatName,videoTrackName,videoTrackWords,formatVideoBytes,type VideoTrackWords} from '../src/video-track-labels.ts';
 import {parseOptions} from '../src/playback-v1/types.ts';
-import {validateSubtitleCatalog} from '../src/subtitles.ts';
+import type {SubtitleResource} from '../src/subtitles.ts';
 import type {AudioStream,SubtitleStream,VideoStream} from '../src/playback-v1/types.ts';
 import {defaultI18n} from '../../i18n/src/index.ts';
 const words:VideoTrackWords={fourK:'4K',stereo:'Stereo',mono:'Mono',channels:n=>`${n} channels`,withAtmos:format=>`${format} with Atmos`,withDtsx:value=>`${value} (DTS:X)`,besideFile:format=>`${format}, beside the file`,language:tag=>(({en:'English',eng:'English',ja:'Japanese'} as Readonly<Record<string,string>>)[tag]??''),subtitleFlags:{sdh:'SDH',forced:'forced'}};
@@ -54,7 +54,7 @@ test('actual Options subtitle flags name the identity line without changing tech
  }
 });
 test('validated SubtitleResource hearing facts and actual catalogue words retain a title',()=>{
- const resource=validateSubtitleCatalog({version:1,itemId:'movie',revision:1,canShare:false,provider:{id:'provider',enabled:false},sources:[{id:'source',durationUs:'1000000',inventoryRevision:1,available:true,timingKnown:true}],resources:[{id:'sub',sourceId:'source',revision:1,scope:'personal',language:'en',title:'Commentary',format:'srt',origin:'sidecar',rights:'own transcript',offsetUs:'0',canManage:true,enabled:true,forced:true,hearingImpaired:true}],discovered:[]}).resources[0]!;
+ const resource:SubtitleResource=Object.freeze({id:'sub',sourceId:'source',revision:1,scope:'personal',language:'en',title:'Commentary',format:'srt',origin:'sidecar',rights:'own transcript',offsetUs:'0',canManage:true,enabled:true,forced:true,hearingImpaired:true,renderer:'external_text',default:false});
  const localized=videoTrackWords(id=>id==='next.kit.fileInfo.sdh'?'SME':id==='mediaInfo.forced'?'obligatoire':id,'en-US');
  const parts=videoTrackName(resource,localized);
  assert.equal(parts.first,'Commentary (SME, obligatoire)');assert.equal(parts.label,'Commentary (SME, obligatoire), SRT');

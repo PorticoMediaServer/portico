@@ -48,7 +48,7 @@ test('downloaded audio, saved subtitles and timing reuse the real panel without 
       capabilities: {audioTrack: true, subtitleTrack: true}, effectiveRate: 1, supportedRates: [1, 1.5],
       localTracks: {binding: {intentId: 4, sessionId: local.sessionId, generation: 1}, audioTrackId: 'audio-2', subtitleTrackId: 'saved', subtitleOffsetMs: 250, subtitleTimingSupported: true,
         audio: [{id: 'audio-1', codec: 'aac'}, {id: 'audio-2', codec: 'aac'}], subtitles: [{id: 'saved', format: 'vtt', source: 'sidecar'}]},
-      subtitles: {catalog: {provider: {enabled: true}}, candidates: []}};
+      subtitles: {provider: {enabled: true}, candidates: []}};
     let context: any = {source, fence: local, state: {fence: local, panel: 'audio', panelOffset: 0}, panelCurrent: () => true,
       runtime: {text: {locale: 'en-US'}, getSnapshot: () => ({serverName: 'Test server'})}, layout: {mode: 'watch'},
       renderer: {width: tv ? 1920 : 390, height: tv ? 1080 : 844, scale: 1}, closePanel() {}, backPanel() {}, rememberPanel() {},
@@ -180,13 +180,13 @@ for (const tv of [true, false]) test(`${tv ? 'TV' : 'phone'} unavailable choice 
     assert.ok(row.props.accessibilityLabel.includes(defaultI18n.t('player.opt.unavailable')));
     if (tv) {
       assert.ok(row.props.ref, 'current value remains the readable entry even when unavailable');
-      source.subtitles = {catalog: {provider: {enabled: false, reason: 'subtitle_provider_not_configured'}}};
+      source.subtitles = {provider: {enabled: false, reason: 'provider_not_configured'}};
       context.state = {...context.state, panel: 'subtitles'}; await host.rerender();
       const search = descendants(tree).find(node => node.props.testID === 'watch-action-subtitle-search');
       assert.ok(search, 'a real unconfigured provider keeps its explanatory row');
       assert.equal(search.props.disabled, false); assert.equal(search.props.onPress, undefined);
       assert.equal(search.props.accessibilityState.disabled, true);
-      assert.ok(search.props.accessibilityLabel.includes(subtitleReason('subtitle_provider_not_configured', defaultI18n.t)));
+      assert.ok(search.props.accessibilityLabel.includes(subtitleReason('provider_not_configured', defaultI18n.t)));
     }
   } finally {await host.unmount();}
 });
