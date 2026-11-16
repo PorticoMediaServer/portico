@@ -12,12 +12,13 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/decodertest"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediaexec"
 	"github.com/PorticoMediaServer/portico/server-next/internal/mediatools"
+	"github.com/PorticoMediaServer/portico/server-next/internal/reading"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
 )
 
 // The test executable answers the sandbox's helper request the way the server binary does.
 func TestMain(m *testing.M) {
-	for _, helper := range []func([]string) (bool, error){decoder.RunHelper, mediaexec.RunHelper} {
+	for _, helper := range []func([]string) (bool, error){decoder.RunHelper, mediaexec.RunHelper, reading.RunHelper} {
 		if handled, err := helper(os.Args[1:]); handled {
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)

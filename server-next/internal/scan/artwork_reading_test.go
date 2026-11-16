@@ -136,8 +136,38 @@ func TestReadingArchiveCoversRespectPathsAndSizeLimit(t *testing.T) {
 		t.Fatal("the cover left the archive")
 	}
 	raw = zipped(t, [2]string{"001.png", string(cover)})
-	if data, err := reading.Cover(bytes.NewReader(raw), int64(len(raw)), ".cbz", int64(len(cover)-1)); err == nil || len(data) != 0 {
+	if _, data, err := reading.Comic(ctx, bytes.NewReader(raw), int64(len(raw)), "cbz", int64(len(cover)-1)); err != nil || len(data) != 0 {
 		t.Fatalf("an oversized cover was read: %d bytes, %v", len(data), err)
+	}
+}
+
+// A comic made of a folder of pictures shows its first page as its cover. An audiobook kept in
+// disc folders shows the picture in the folder above them, and a new one put there later.
+func TestPictureFolderComicsAndDiscFolderAudiobooksHaveCovers(t *testing.T) {
+	comics := newFixture(t, db.LibraryComics)
+	comics.s.Pictures = pictures{}
+	comics.put("Nemo/Nemo 001/10.png", picture(t, 20))
+	comics.put("Nemo/Nemo 001/2.png", picture(t, 10))
+	comics.scan()
+	if image := shown(comics.titles(db.KindIssue)["Nemo 001"], db.ImageCover); image == nil || image.Width != 10 {
+		t.Fatalf("picture folder comic cover: %+v", image)
+	}
+
+	books := newFixture(t, db.LibraryAudiobooks)
+	books.s.Pictures = pictures{}
+	books.write("Ursula K. Le Guin/A Wizard of Earthsea/Disc 1/01.mp3")
+	books.write("Ursula K. Le Guin/A Wizard of Earthsea/Disc 2/01.mp3")
+	books.put("Ursula K. Le Guin/A Wizard of Earthsea/cover.jpg", picture(t, 30))
+	books.scan()
+	if image := shown(books.titles(db.KindAudiobook)["A Wizard of Earthsea"], db.ImagePoster); image == nil || image.Width != 30 {
+		t.Fatalf("disc folder audiobook cover: %+v", image)
+	}
+	books.put("Ursula K. Le Guin/A Wizard of Earthsea/cover.jpg", picture(t, 31))
+	if stats := books.scan(); stats.ItemsNew != 0 {
+		t.Fatalf("a changed cover made %d titles", stats.ItemsNew)
+	}
+	if image := shown(books.titles(db.KindAudiobook)["A Wizard of Earthsea"], db.ImagePoster); image == nil || image.Width != 31 {
+		t.Fatalf("changed disc folder audiobook cover: %+v", image)
 	}
 }
 

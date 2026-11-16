@@ -240,14 +240,19 @@ func (r *run) imageComic(f *folder, pages []*found) []unit {
 	}
 	name := cleanName(path.Base(f.rel) + ".")
 	u := unit{files: pages}
+	// Its first page (a picture named "cover" when there is one) is its cover.
+	var cover []db.ImportImage
+	if image, ok := r.picture(pages[0], db.ImageCover); ok {
+		cover = []db.ImportImage{image}
+	}
 	parent := path.Dir(f.rel)
 	if parent == "." {
-		u.items = []db.ImportItem{{Kind: db.KindComic, Title: name, Versions: []db.ImportVersion{version},
+		u.items = []db.ImportItem{{Kind: db.KindComic, Title: name, Versions: []db.ImportVersion{version}, Images: cover,
 			Keys: []db.ItemKey{db.FolderKey(r.path.ID, f.rel), {Kind: db.KeyName, Key: "comic|" + fold(name)}}}}
 		return []unit{u}
 	}
 	series := cleanName(path.Base(parent) + ".")
-	issue := db.ImportItem{Kind: db.KindIssue, Title: name, ParentRow: 1, Versions: []db.ImportVersion{version},
+	issue := db.ImportItem{Kind: db.KindIssue, Title: name, ParentRow: 1, Versions: []db.ImportVersion{version}, Images: cover,
 		Keys: []db.ItemKey{db.FolderKey(r.path.ID, f.rel)}, ChildKey: "issue|" + fold(name)}
 	if m := issueNumber.FindStringSubmatch(name); m != nil {
 		n, _ := strconv.Atoi(m[1])
@@ -283,7 +288,12 @@ func (r *run) readingPictures(f *folder, file *found, alone bool) []db.ImportIma
 func (r *run) embedded(file *found, wantCover bool) (d details, images []db.ImportImage, read bool) {
 	d = details{}
 	ext := strings.ToLower(path.Ext(file.rel))
-	if r.lib.Options.Depth == db.DepthFiles || ext != ".epub" && ext != ".cbz" {
+	if r.lib.Options.Depth == db.DepthFiles || ext != ".epub" && ext != ".cbz" && ext != ".cbr" && ext != ".cb7" {
+		return d, nil, true
+	}
+	// A CBR or CB7 is read whole to find anything in it, which on remote storage means
+	// fetching the whole file: there it is read only by a library scanned completely.
+	if (ext == ".cbr" || ext == ".cb7") && r.path.RemoteID != 0 && r.lib.Options.Depth != db.DepthComplete {
 		return d, nil, true
 	}
 	f, err := r.src.Open(r.ctx, file.rel)
@@ -308,25 +318,38 @@ func (r *run) embedded(file *found, wantCover bool) (d details, images []db.Impo
 			}
 		}
 	} else {
-		raw, err := reading.ComicInfo(f, f.Size())
+		limit := int64(0)
+		if wantCover && r.s.Pictures != nil {
+			limit = maxPicture
+		}
+		raw, cover, err := reading.Comic(r.ctx, f, f.Size(), strings.TrimPrefix(ext, "."), limit)
 		if err != nil {
 			return d, nil, false
 		}
 		if raw != nil {
 			more, _ = localmetadata.ComicInfo(raw)
 		}
+		d.overlay(more)
+		return d, r.embeddedCover(file, cover), true
 	}
 	d.overlay(more)
 	if wantCover && r.s.Pictures != nil {
 		if raw, err := reading.Cover(f, f.Size(), ext, maxPicture); err == nil {
-			if image, ok := r.pictureData(raw, db.ImageCover, db.ImageFromEmbedded); ok {
-				ref := file.ref()
-				image.File = &ref
-				images = []db.ImportImage{image}
-			}
+			images = r.embeddedCover(file, raw)
 		}
 	}
 	return d, images, true
+}
+
+// embeddedCover stores a cover read from inside a book's own file.
+func (r *run) embeddedCover(file *found, raw []byte) []db.ImportImage {
+	image, ok := r.pictureData(raw, db.ImageCover, db.ImageFromEmbedded)
+	if !ok {
+		return nil
+	}
+	ref := file.ref()
+	image.File = &ref
+	return []db.ImportImage{image}
 }
 
 // rereads reports whether a book or comic file changed where it is (it was edited, or its details
@@ -334,7 +357,7 @@ func (r *run) embedded(file *found, wantCover bool) (d details, images []db.Impo
 // edit has taken those details over.
 func (r *run) rereads(file *found) bool {
 	ext := strings.ToLower(path.Ext(file.rel))
-	return file.state == changed && r.lib.Options.Depth != db.DepthFiles && (ext == ".epub" || ext == ".cbz" || ext == ".pdf")
+	return file.state == changed && r.lib.Options.Depth != db.DepthFiles && (ext == ".epub" || ext == ".cbz" || ext == ".cbr" || ext == ".cb7" || ext == ".pdf")
 }
 
 // comicDetails puts what a comic's ComicInfo.xml said on its item, as the file's own.
