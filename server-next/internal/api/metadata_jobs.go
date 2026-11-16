@@ -54,6 +54,7 @@ const afterScanRefreshes = 10_000
 // keeps it.
 type BulkEdit struct {
 	Year          *int                `json:"year,omitempty"`
+	Language      *string             `json:"language,omitempty"`
 	Edition       *string             `json:"edition,omitempty"`
 	ContentRating *string             `json:"contentRating,omitempty"`
 	Add           map[string][]string `json:"add,omitempty"`
@@ -266,6 +267,9 @@ func (s *Server) editItems(ctx context.Context, work jobs.Work) error {
 // editOne applies a bulk edit to one title and answers its title for the report. A title
 // someone changed in the meantime is read again and edited on its new copy.
 func (s *Server) editOne(ctx context.Context, id string, b BulkEdit, lock bool) (string, error) {
+	if err := s.itemMetadataLanguage(ctx, id, b.Language); err != nil {
+		return "", err
+	}
 	for attempt := 0; ; attempt++ {
 		doc, err := s.db.MetadataDocument(ctx, id)
 		if err != nil {
@@ -276,10 +280,10 @@ func (s *Server) editOne(ctx context.Context, id string, b BulkEdit, lock bool) 
 		for _, f := range doc.Locked {
 			locked[f] = true
 		}
-		edit := db.MetadataEdit{Year: b.Year, Edition: b.Edition, ContentRating: b.ContentRating}
+		edit := db.MetadataEdit{Year: b.Year, Edition: b.Edition, ContentRating: b.ContentRating, Language: b.Language}
 		var edited []string
 		for field, given := range map[string]bool{db.FieldYear: b.Year != nil, db.FieldEdition: b.Edition != nil,
-			db.FieldContentRating: b.ContentRating != nil} {
+			db.FieldContentRating: b.ContentRating != nil, db.FieldLanguage: b.Language != nil} {
 			if given {
 				edited = append(edited, field)
 			}
