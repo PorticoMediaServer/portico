@@ -49,7 +49,7 @@ func (f *firstBytes) Write(p []byte) (int, error) {
 func TestAChannelsInputIsSharedAndCanBeRewound(t *testing.T) {
 	src := countingSource(t)
 	tuners := NewTuners(t.TempDir()+"/live", src.Client(), slog.New(slog.NewTextHandler(io.Discard, nil)), time.Now,
-		func() Tuning { return DefaultTuning })
+		func() Tuning { tuning := DefaultTuning; tuning.Buffer = 0; return tuning })
 	ctx, stop := context.WithCancel(context.Background())
 	go tuners.Run(ctx)
 	t.Cleanup(stop) // ends every input before the fake source closes
@@ -77,9 +77,8 @@ func TestAChannelsInputIsSharedAndCanBeRewound(t *testing.T) {
 		}
 		return out.Bytes()
 	}
-	time.Sleep(300 * time.Millisecond)
-	oldest, _ := in.Window()
-	fromStart := read(oldest)
+	// Wait for bytes through the reader itself, starting at the tune time.
+	fromStart := read(in.started)
 	if fromStart[1] != 0 {
 		t.Fatalf("reading from the oldest point began at packet %d", fromStart[1])
 	}
