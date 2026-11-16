@@ -65,10 +65,10 @@ export async function deleteCatalogueTitles(api: CatalogueActionsApi, targets: r
   if (!targets.length) throw new Error('Choose at least one title to delete.');
   let removed: ReadonlySet<string>, answer: DeletionResult | SelectionDeleted;
   if (targets.length === 1) {
-    const one = await api.request(serverPath('DELETE /v1/admin/items/{id}', {id: targets[0]!.itemId}), 'DELETE', undefined, signal) as DeletionResult;
+    const one = await api.request(serverPath('DELETE /v1/admin/items/{id}', {id: targets[0]!.itemId, query: {confirm: targets[0]!.title ?? ''}}), 'DELETE', undefined, signal) as DeletionResult;
     answer = one; removed = new Set(one.removed ? [targets[0]!.itemId] : []);
   } else {
-    const many = await api.request(serverPath('POST /v1/admin/items/delete'), 'POST', {ids: targets.map(target => target.itemId)}, signal) as SelectionDeleted;
+    const many = await api.request(serverPath('POST /v1/admin/items/delete', {query: {confirm: targets.length}}), 'POST', {ids: targets.map(target => target.itemId)}, signal) as SelectionDeleted;
     answer = many;
     // The server counts what it removed; when that is not everything, each title is looked for: one still there was kept.
     if (many.removed >= targets.length) removed = new Set(targets.map(target => target.itemId));

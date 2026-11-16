@@ -80,7 +80,7 @@ function deletion(options: {removed?: number} = {}) {
     api: {async request(path: string, method?: string, body?: any) {
       if (path === '/v1/admin/items/deletion') return {count: 2, titles: 2, files: 2, bytes: 4096, listEntries: 3, otherPeople: 0, alsoRemoves: []};
       if (method === 'GET') {reads.push(path); if (path.endsWith('/first')) throw Object.assign(new Error('gone'), {code: 'not_found'}); return {};}
-      assert.equal(path, '/v1/admin/items/delete'); writes.push(body);
+      assert.equal(path, '/v1/admin/items/delete?confirm=2'); writes.push(body);
       if (writes.length === 1) throw new Error('unknown deletion outcome');
       return {removed: options.removed ?? 2, filesDeleted: 2, bytes: 4096, kept: options.removed === 1 ? [{path: '/films/Second.mkv', reason: 'The file changed since Portico last read it.'}] : [], alsoRemoved: []};
     }}};
