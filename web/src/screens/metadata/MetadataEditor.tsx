@@ -146,6 +146,7 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
         onRemove={removeUpload} isDataCurrent={currentRepairData} onMakeFromVideo={data.canMakeEpisodeThumbnail ? makeThumbnail : undefined} localOnly={target.kind === 'book'}
         onUpload={api.requestMetadataUpload ? (role, file) => service.uploadArtwork(role, file) : undefined}
         onLock={(role, subject, locked) => void run({action: 'artwork_lock', role, subject, locked})}
+        onRefetch={role => void run({action: 'refetch_artwork', role})}
         onFindMore={localArtworkOnly || target.kind === 'book' || data.onlineLookups === false ? undefined : role => void run({action: 'discover_artwork', role})} /> : null}
       {shown === 'lyrics' ? <SongLyricsEditor api={api} songId={target.id}/> : null}
       {shown === 'history' ? <History data={data} busy={state.phase !== 'ready'} onUndo={historyId => void run({action: 'undo', historyId, confirm: true})}
@@ -322,6 +323,7 @@ function Artwork({data, busy, portraitCover, onUse, onLock, onFindMore, onRefetc
   const role = data.artworkRoles.includes(selected) ? selected : data.artworkRoles[0];
   const candidates = data.artwork.candidates.filter(candidate => candidate.role === role);
   const chosen = data.snapshot.artwork.find(choice => choice.role === role);
+  const fromProvider = chosen && candidates.some(candidate => candidate.id === chosen.candidateId && candidate.provider === 'provider');
   const uploadTile = onUpload ? <div className={styles.uploadTile} onDragOver={event => {if (!busy) event.preventDefault();}} onDrop={event => {event.preventDefault(); if (!busy) void upload(event.dataTransfer.files[0]);}}>
         <b>{t('web.metadata.uploadImage')}</b><p>{t('web.metadata.uploadImageHelp')}</p>
         <label>{t('web.metadata.chooseImageFile')}<input type="file" accept="image/jpeg,image/png" disabled={busy} onChange={event => {const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void upload(file);}}/></label>
@@ -345,7 +347,7 @@ function Artwork({data, busy, portraitCover, onUse, onLock, onFindMore, onRefetc
       <header><b>{t('web.metadata.candidateCount', {count: candidates.length})}</b>
         {chosen ? <Button size="small" disabled={busy} aria-pressed={chosen.locked} onClick={() => onLock(role, chosen.subject, !chosen.locked)}>{t(chosen.locked ? 'web.metadata.unlock' : 'web.metadata.lock')}</Button> : null}
         {onFindMore && <Button size="small" onClick={() => onFindMore(role)} disabled={busy}>{t('web.metadata.findMore')}</Button>}
-        {onRefetch && <Button size="small" onClick={() => onRefetch(role)} disabled={busy || !chosen}>{t('web.metadata.refetchChosen')}</Button>}
+        {onRefetch && fromProvider ? <Button size="small" onClick={() => onRefetch(role)} disabled={busy}>{t('web.metadata.refetchChosen')}</Button> : null}
       </header>
       {data.artworkFallbackUrl && (role === 'still' || role === 'thumbnail') ? <figure className={styles.backdropFallback}><Picture source={artwork?.foreground(data.artworkFallbackUrl, 800, 16 / 9)} alt=""/><figcaption>{t('web.metadata.showBackdropFallback')}</figcaption></figure> : null}
       {!candidates.length ? <p className={styles.working}>{t('web.metadata.noCandidates')}</p> : null}

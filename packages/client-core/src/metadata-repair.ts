@@ -30,7 +30,7 @@ export type RepairData = Readonly<{
 }>;
 export type RepairCommand = Readonly<{
  effectiveCredits?:true;
- action:'keep_as_is'|'make_episode_thumbnail'|'retry'|'preview_artwork'|'edit'|'identify'|'search'|'undo'|'lock_all'|'unlock_all'|'select_artwork'|'artwork_lock'|'repair_assets'|'discover_artwork'|'cascade'|'cancel_cascade'|'relationship_lock'|'edit_relationships';
+ action:'keep_as_is'|'make_episode_thumbnail'|'refetch_artwork'|'retry'|'preview_artwork'|'edit'|'identify'|'search'|'undo'|'lock_all'|'unlock_all'|'select_artwork'|'artwork_lock'|'repair_assets'|'discover_artwork'|'cascade'|'cancel_cascade'|'relationship_lock'|'edit_relationships';
  fields?:Record<string,{value?:string;values?:readonly string[];locked?:boolean;useAutomatic?:boolean}>;
  provider?:string;candidateId?:string;order?:string;episodeOffset?:number;historyId?:number|string;confirm?:boolean;
  role?:string;subject?:string;locked?:boolean;intent?:string;operationId?:string;query?:string;year?:number;
@@ -146,7 +146,7 @@ export function rebuiltRepair(doc:MetadataDocument,pictures:Pictures,history:rea
  for(const role of roles)for(const [rank,p] of (pictures[role]??[]).entries()){
   if(p.selected)chosen.push({role,subject:'',candidateId:p.id,digest:'',locked:p.locked,revision:0,attribution:'',url:p.url});
   artwork.push({id:p.id,role,subject:'',provider:p.source,imageId:p.id,locale:p.language??'',rank,attribution:'',observedAt:'',current:p.selected,previewUrl:p.url});}
- return Object.freeze({target:Object.freeze({kind:target.kind,id:target.id}),itemKind:doc.kind,libraryId:target.libraryId,serverId:scope.serverId,viewerFence:'',revision:doc.revision,
+ return Object.freeze({target:Object.freeze({kind:target.kind,id:target.id}),itemKind:doc.kind,canMakeEpisodeThumbnail:doc.kind==='episode',libraryId:target.libraryId,serverId:scope.serverId,viewerFence:'',revision:doc.revision,
   schema:Object.freeze(schema),artworkRoles:Object.freeze([...roles]),
   snapshot:Object.freeze({canEditProviderCredits:true as const,fields:Object.freeze(fields),
    relationshipLocks:Object.freeze({identity:doc.match?.locked===true,...(credits?{credit:credits.locked}:{})}),
@@ -174,6 +174,7 @@ export class MetadataRepairService {
  private state:RepairView=Object.freeze({phase:'idle',data:null,error:null,preview:null});
  private listeners=new Set<()=>void>();private epoch=0;private controller?:AbortController;private target?:RepairTarget;private disposed=false;
  private candidates:RepairData['candidates']=Object.freeze([]);
+ private noDecoder=false;
  private options:{api:Api;scope:RepairScope;timeoutMs?:number};
  constructor(options:{api:Api;scope:RepairScope;timeoutMs?:number}){if(!id(options.scope.serverId)||!options.scope.viewerId)throw Error('A concrete viewer scope is required.');if(options.timeoutMs!==undefined&&(!num(options.timeoutMs)||options.timeoutMs<1||options.timeoutMs>60000))throw Error('Invalid deadline.');this.options={...options,scope:Object.freeze({...options.scope})};}
  getSnapshot=()=>this.state;
@@ -199,7 +200,8 @@ export class MetadataRepairService {
   const roles=ROLES_BY_KIND[doc.kind]??[];
   const [pages,history]=await Promise.all([Promise.all(roles.map(async role=>[role,(await callServer(api,'GET /v1/admin/items/{id}/artwork',{id:item,query:{role:wireRole(role)},signal})).items??[]] as const)),
    callServer(api,'GET /v1/admin/items/{id}/metadata/history',{id:item,signal})]);
-  return rebuiltRepair(doc,Object.fromEntries(pages),history.items??[],this.candidates,this.options.scope,target);
+  const data=rebuiltRepair(doc,Object.fromEntries(pages),history.items??[],this.candidates,this.options.scope,target);
+  return this.noDecoder?Object.freeze({...data,canMakeEpisodeThumbnail:false}):data;
  }
  async load(target:RepairTarget){
   if(this.disposed)throw Error('Repair view is closed.');if(!id(target.id)||!['item','show','season','album','artist','book'].includes(target.kind))throw Error('Select a concrete entity.');
@@ -239,6 +241,8 @@ export class MetadataRepairService {
     const body=command.action==='select_artwork'?{imageId:command.candidateId}:command.locked&&current?{imageId:current.candidateId}:{unlock:true};
     await callServer(api,'PUT /v1/admin/items/{id}/artwork/{role}',{id:item,ids:{role:wireRole(role)},body,signal});return;}
    case 'discover_artwork':await callServer(api,'POST /v1/admin/items/{id}/artwork/find',{id:item,query:{role:wireRole(command.role??'')},signal});return;
+   case 'refetch_artwork':await callServer(api,'POST /v1/admin/items/{id}/artwork/refetch',{id:item,query:{role:wireRole(command.role??'')},signal});return;
+   case 'make_episode_thumbnail':await callServer(api,'POST /v1/admin/items/{id}/artwork/make',{id:item,signal});return;
    default:throw Object.assign(new Error('This server has no such metadata action.'),{code:'unsupported'});
   }
  }
@@ -276,8 +280,9 @@ export class MetadataRepairService {
  }
  private failure(error:unknown,write:boolean){const e=obj(error)?error:{};
   const status=typeof e.status==='number'?e.status:undefined,code=typeof e.code==='string'?e.code:'';
+  if(code==='no_decoder'&&this.state.data){this.noDecoder=true;this.publish({...this.state,phase:'ready',data:Object.freeze({...this.state.data,canMakeEpisodeThumbnail:false}),preview:null,error:Object.freeze({code,status})});return;}
   // Refused before anything was stored: the editor stays ready with the reason and its values (a field over its limit, a picture the server can't keep, a match that needs another kind).
-  const refused=write&&(status===400||status===415||status===422)||['unsupported','match_locked','no_provider','unknown_ref','wrong_kind','not_a_show','not_matched','provider_unavailable'].includes(code);
+  const refused=write&&(status===400||status===415||status===422)||['unsupported','match_locked','no_provider','unknown_ref','wrong_kind','not_a_show','not_matched','provider_unavailable','file_unavailable','not_from_provider','not_an_episode'].includes(code);
   if(refused&&this.state.data){this.publish({...this.state,phase:'ready',preview:null,error:Object.freeze({code,...(status!==undefined?{status}:{})})});return;}
   const denied=status===401||status===403;const conflict=status===409||status===412||code==='stale';
   const reason:RepairError=denied?{code:'permission_changed',status:403}:conflict?{code:'metadata_conflict',status:409}:write?{code:'unconfirmed_change'}:{code:code||'unreadable',...(status!==undefined?{status}:{})};
