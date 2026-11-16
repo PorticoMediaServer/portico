@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -283,5 +284,41 @@ func TestKeepAsIsTakesAWrongMatchOff(t *testing.T) {
 	sh.do("POST", "/v1/admin/items/"+film+"/metadata/refresh", nil, &refreshed, 200)
 	if after := sh.detail(film); !refreshed.Matched || after.ExternalIDs["tmdb"] != "603" {
 		t.Fatalf("Look it up again: matched %v, ids %v", refreshed.Matched, after.ExternalIDs)
+	}
+}
+
+// A title offered as a match shows its poster and why it was suggested (definition area 4,
+// section 1; owner-metadata frames 2 and 10). The poster is the server's copy, behind an
+// address of its own that an <img> can load: no provider address reaches an app.
+func TestMatchesCarryTheServersPosterAndWhy(t *testing.T) {
+	sh := newShelf(t, "Heat.mkv", "Zzyzx Home Video (2011).mkv")
+	list := sh.unmatched()
+	if len(list) != 2 || list[0].Title != "Heat" || len(list[0].Matches) != 3 {
+		t.Fatalf("unmatched: %+v", list)
+	}
+	first := list[0].Matches[0]
+	if !strings.HasPrefix(first.PosterURL, "/v1/match-posters/") || strings.Contains(first.PosterURL, sh.tmdb.URL) ||
+		first.Why.Title != "same" || first.Why.Year != "" {
+		t.Fatalf("Heat's first match: %+v; want the server's poster address, the same title and no year to compare", first)
+	}
+	var found MatchCandidates
+	sh.do("GET", "/v1/admin/items/"+list[1].ItemID+"/matches?q=Heat&year=1995", nil, &found, 200)
+	if len(found.Items) == 0 || found.Items[0].PosterURL == "" || found.Items[0].Why.Title != "different" || found.Items[0].Why.Year != "different" {
+		t.Fatalf("a search by hand from Zzyzx Home Video (2011): %+v", found.Items)
+	}
+	// The poster's address needs no token, as an image's does not, and leads to the server's copy.
+	w := call(t, sh.s, "GET", first.PosterURL+"?size=small", "", nil, nil)
+	if w.Code != 302 || !strings.HasPrefix(w.Header().Get("Location"), "/v1/images/") || !strings.HasSuffix(w.Header().Get("Location"), "?size=small") {
+		t.Fatalf("the poster address answered %d, Location %q", w.Code, w.Header().Get("Location"))
+	}
+	if w := call(t, sh.s, "GET", w.Header().Get("Location"), "", nil, nil); w.Code != 200 || !strings.HasPrefix(w.Header().Get("Content-Type"), "image/") {
+		t.Fatalf("the poster answered %d %s", w.Code, w.Header().Get("Content-Type"))
+	}
+	asked := sh.tmdb.PictureRequests.Load()
+	if w := call(t, sh.s, "GET", first.PosterURL, "", nil, nil); w.Code != 302 || sh.tmdb.PictureRequests.Load() != asked {
+		t.Errorf("a poster already fetched was fetched again (%d)", w.Code)
+	}
+	if w := call(t, sh.s, "GET", "/v1/match-posters/0123456789abcdef0123456789abcdef", "", nil, nil); w.Code != 404 {
+		t.Errorf("an unknown poster address answered %d", w.Code)
 	}
 }

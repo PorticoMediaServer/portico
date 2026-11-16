@@ -322,6 +322,22 @@ func (s *Service) storeTitlePictures(ctx context.Context, itemID int64, record R
 	return nil
 }
 
+// CandidatePoster fetches the poster of a title offered as a match from its provider into the
+// picture store, through the same fetching and limits as a title's own pictures, and answers
+// its hash: an app is sent the server's copy and never the provider's address.
+func (s *Service) CandidatePoster(ctx context.Context, address string) (string, error) {
+	if s.Pictures == nil {
+		return "", artwork.ErrNotAPicture
+	}
+	data, err := fetchPicture(ctx, address)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(data)
+	hash := hex.EncodeToString(sum[:])
+	return hash, s.Pictures.Put(hash, data)
+}
+
 // ErrNotMatched is the answer to Find more for a title with no match to ask the provider about.
 var ErrNotMatched = errors.New("this title has no match to ask about")
 

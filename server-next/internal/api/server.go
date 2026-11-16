@@ -62,6 +62,8 @@ type Server struct {
 	background sync.WaitGroup
 	// artwork is where pictures are kept. See images.go.
 	artwork *artwork.Store
+	// matchPosters are the addresses of match candidates' posters (match_posters.go).
+	matchPosters matchPosters
 	// playback runs the viewing sessions. See playback.go.
 	playback *playback.Service
 	// queues builds and runs play queues. See queues.go.
@@ -213,6 +215,7 @@ func New(ctx context.Context, d *db.DB, dataDir, version string, log *slog.Logge
 	s.itemFileRoutes()
 	s.artwork = artwork.New(dataDir)
 	s.imageRoutes()
+	s.matchPosterRoutes()
 	if s.remote, err = remote.NewRegistry(d, dataDir); err != nil {
 		return nil, err
 	}
