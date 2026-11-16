@@ -507,14 +507,18 @@ export class HttpLocalApi {
     this.certificateSessionEpoch++;
     for (const listener of this.certificateSessionListeners) listener();
   }
-  /** Captures this exact selected-server authority; reader callbacks never
-   * refresh, retry or substitute another viewer's token behind an open book. */
+  /** An open reader belongs to the sign-in family/viewer, not a rotating access token. */
   reading(scope: ReadingScope): ReadingClient {
-    const token = this.token, epoch = this.certificateSessionEpoch, fetcher = this.fetcher;
-    const isCurrent = () => this.token === token && this.certificateSessionEpoch === epoch;
+    const token = this.token, epoch = this.certificateSessionEpoch, session = this.getOutboxSession();
+    const isCurrent = () => {
+      if (!session) return this.token === token && this.certificateSessionEpoch === epoch;
+      const current = this.getOutboxSession();
+      return !!current && current.sessionFamilyId === session.sessionFamilyId
+        && Object.entries(session.viewer).every(([key, value]) => current.viewer[key as keyof Viewer] === value);
+    };
     return new ReadingClient({
       isCurrent,
-      subscribe: retire => this.subscribeCertificateSession(retire),
+      subscribe: retire => this.subscribeCertificateSession(() => {if (!isCurrent()) retire();}),
       address: path => this.mediaUrl(path),
       send: (path, init) => {
         if (!isCurrent() || !path.startsWith(apiRoot) || path.includes('#') || path.includes('\\')) return Promise.reject(new Error('cancelled'));
@@ -529,9 +533,9 @@ export class HttpLocalApi {
               return new Response(answer.body === undefined ? null : JSON.stringify(answer.body), {status: answer.status, headers});
             });
         }
-        const headers = new Headers(init.headers);
-        headers.delete('Authorization'); if (token) headers.set('Authorization', 'Bearer ' + token);
-        return fetcher(this.baseUrl + path, {...init, headers, redirect: 'error', credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store'});
+        const headers: Record<string, string> = {};
+        new Headers(init.headers).forEach((value, key) => {headers[key] = value;});
+        return this.exchange(path, method, typeof init.body === 'string' ? JSON.parse(init.body) : undefined, init.signal ?? undefined, headers, false, true);
       },
     }, scope);
   }
@@ -626,7 +630,7 @@ export class HttpLocalApi {
   private auth?: AuthRecovery;
   /** Keep this transport's access token alive: refresh before expiry and once on a 401. */
   setAuthRecovery(auth: AuthRecovery | undefined) { this.auth = auth; }
-  private async send(path: string, method: string, body: unknown, signal: AbortSignal | undefined, token: string, extra?: Readonly<Record<string, string>>, keepalive = false) {
+  private async send(path: string, method: string, body: unknown, signal: AbortSignal | undefined, token: string, extra?: Readonly<Record<string, string>>, keepalive = false, privateResource = false) {
     const ownerStart = method === 'POST' && (path === routePath('post_networking_claim_web_approval') || path === routePath('post_setup_approval'));
     const sentAt = Date.now();
     const response = await this.fetcher(this.baseUrl + path, {
@@ -634,7 +638,8 @@ export class HttpLocalApi {
       signal,
       ...(keepalive ? {keepalive: true} : {}),
       // Credential/profile proof exchanges must never follow an HTTP redirect.
-      ...(ownerStart || /^\/v1\/(?:auth\/|setup\/|hosted\/(?:attach|profiles\/offline-select))/.test(path)?{redirect:'error' as const,credentials:'omit' as const}:{}),
+      ...(privateResource || ownerStart || /^\/v1\/(?:auth\/|setup\/|hosted\/(?:attach|profiles\/offline-select))/.test(path)?{redirect:'error' as const,credentials:'omit' as const}:{}),
+      ...(privateResource ? {referrerPolicy: 'no-referrer' as const, cache: 'no-store' as const} : {}),
       headers: {
         Accept: "application/json",
         // A request that names its own content type (a merge patch, or a JSON one in any case) sends only that.
@@ -656,7 +661,7 @@ export class HttpLocalApi {
   /** This server's current time as best this device knows it: compare server-issued instants with this, never `Date.now()`. */
   serverNow(): number { return serverNow(clockOrigin(this.baseUrl)); }
   /** Send with a live token; on a 401 renew once and resend (the server did not act on it). */
-  private async exchange(path: string, method: string, body: unknown, signal: AbortSignal | undefined, extra?: Readonly<Record<string, string>>, singleAttempt = false): Promise<Response> {
+  private async exchange(path: string, method: string, body: unknown, signal: AbortSignal | undefined, extra?: Readonly<Record<string, string>>, singleAttempt = false, privateResource = false): Promise<Response> {
     if (!path.startsWith(apiRoot))
       throw new Error("API path must remain on the selected server.");
     // Sign-in and refresh never refresh or retry themselves.
@@ -665,19 +670,19 @@ export class HttpLocalApi {
     throwIfAborted(signal);
     if (this.auth && token && !exchange) { try { token = await waitForAuth(this.auth.token(token), signal); } catch { throwIfAborted(signal); /* send what we have; a 401 recovers below */ } }
     throwIfAborted(signal);
-    let response = await this.send(path, method, body, signal, token, extra);
+    let response = await this.send(path, method, body, signal, token, extra, false, privateResource);
     // A single attempt is never resent: its 401 starts the renewal, and the next one goes out with it.
     if (response.status === 401 && this.auth && token && !exchange && singleAttempt) { const auth = this.auth; try { void Promise.resolve(auth.recover(token)).catch(() => {}); } catch { /* the next request recovers */ } }
     if (response.status === 401 && this.auth && token && !exchange && !singleAttempt && !signal?.aborted) {
       let next: string | undefined;
       try { next = await waitForAuth(this.auth.recover(token), signal); } catch { throwIfAborted(signal); next = undefined; }
       throwIfAborted(signal);
-      if (next && next !== token) { void response.body?.cancel().catch(() => {}); response = await this.send(path, method, body, signal, next, extra); }
+      if (next && next !== token) { void response.body?.cancel().catch(() => {}); response = await this.send(path, method, body, signal, next, extra, false, privateResource); }
     }
     if(response.status===403&&this.auth?.permissionDenied&&!exchange&&!singleAttempt&&!path.startsWith(serverPath('GET /v1/me'))&&!signal?.aborted){
       let changed=false;try{changed=await waitForAuth(this.auth.permissionDenied(),signal);}catch{throwIfAborted(signal);}
       throwIfAborted(signal);
-      if(changed){void response.body?.cancel().catch(()=>{});response=await this.send(path,method,body,signal,this.token,extra);}
+      if(changed){void response.body?.cancel().catch(()=>{});response=await this.send(path,method,body,signal,this.token,extra,false,privateResource);}
     }
     return response;
   }
