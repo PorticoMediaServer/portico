@@ -68,14 +68,21 @@ func (d *DB) continueItems(ctx context.Context, v Viewer, kinds []ItemKind, libr
 	if err != nil {
 		return nil, err
 	}
+	within := ""
+	if library != "" {
+		libraries, err := librariesInScope(ctx, tx, acc, library)
+		if err != nil {
+			return nil, err
+		}
+		within = " AND i.library_id IN " + intList(libraries)
+	}
 	// Read from the viewer's own recent state, newest first, and stop at a row's worth.
 	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+` FROM user_item_state s CROSS JOIN items i ON i.id = s.item_id
 		WHERE s.profile_id = @viewer_profile AND (s.last_played_at > @since OR i.kind = `+fmt.Sprintf("%d", KindEpisode)+`) AND s.played = 0 AND s.last_played_at > ifnull(s.continue_dismissed_at, 0)
 		AND (s.position_ms > 0 OR s.position_text IS NOT NULL) AND `+kindIn(kinds)+
-		acc.visible("i")+`
-		AND (@library = '' OR i.library_id = (SELECT id FROM libraries WHERE public_id = @library))
+		acc.visible("i")+within+`
 		ORDER BY s.last_played_at DESC LIMIT `+fmt.Sprint(limit),
-		append(v.args(), sql.Named("since", time.Now().Add(-continueWindow).UnixMilli()), sql.Named("library", library))...)
+		append(v.args(), sql.Named("since", time.Now().Add(-continueWindow).UnixMilli()))...)
 	if err != nil {
 		return nil, err
 	}
@@ -112,6 +119,14 @@ func continueNext(ctx context.Context, tx *sql.Tx, v Viewer, acc access, library
 }
 
 func continueNextLimit(ctx context.Context, tx *sql.Tx, v Viewer, acc access, library string, items []Item, limit int) ([]Item, error) {
+	within := ""
+	if library != "" {
+		libraries, err := librariesInScope(ctx, tx, acc, library)
+		if err != nil {
+			return nil, err
+		}
+		within = " AND e.library_id IN " + intList(libraries)
+	}
 	type recentEpisode struct{ root, last, season, number, at int64 }
 	recent, err := queryAll(ctx, tx, `SELECT root, last, season, number, at FROM (
 		SELECT e.root_id AS root, e.id AS last, ifnull(e.parent_index, 0) AS season,
@@ -121,12 +136,11 @@ func continueNextLimit(ctx context.Context, tx *sql.Tx, v Viewer, acc access, li
 		FROM user_item_state p CROSS JOIN items e ON e.id = p.item_id
 		WHERE p.profile_id = @viewer_profile AND p.played = 1 AND p.last_played_at IS NOT NULL
 			AND p.last_played_at > ifnull(p.continue_dismissed_at, 0)
-			AND e.kind = @episode AND e.root_id IS NOT NULL AND `+acc.visible("e")+`
-			AND (@library = '' OR e.library_id = (SELECT id FROM libraries WHERE public_id = @library))
+			AND e.kind = @episode AND e.root_id IS NOT NULL AND `+acc.visible("e")+within+`
 			AND NOT EXISTS (SELECT 1 FROM user_item_state done
 				WHERE done.profile_id = @viewer_profile AND done.item_id = e.root_id AND done.played = 1)
 		) WHERE chosen = 1 ORDER BY at DESC`,
-		append(v.args(), sql.Named("episode", KindEpisode), sql.Named("library", library)),
+		append(v.args(), sql.Named("episode", KindEpisode)),
 		func(e *recentEpisode) []any { return []any{&e.root, &e.last, &e.season, &e.number, &e.at} })
 	if err != nil {
 		return nil, err
