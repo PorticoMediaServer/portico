@@ -1,9 +1,5 @@
-import {ConsoleClient, type Job} from '../../../../../../packages/client-core/src/console';
-import {AdminSessionsClient} from '../../../../../../packages/client-core/src/playback-v1/admin-sessions';
-import {localV1Http} from '../../../../../../packages/client-core/src/playback-v1/local-http';
+import {stopServerStream} from '../../../../../../packages/client-core/src/admin/server-now-playing';
 import {readPlaySummary, readStatistics} from '../../../../../../packages/client-core/src/admin/statistics';
-import {playbackControlsService} from '../../../../../../packages/client-core/src/playback-controls';
-import {sendSeekTo, sendTransport, type TransportCommand} from '../../../../../../packages/client-core/src/server-admin/now-playing';
 import {fixDataFolderPermissions} from '../../../../../../packages/client-core/src/admin/data-folder';
 import {readServerLoad, type TelemetryReading} from '../../../../../../packages/client-core/src/telemetry';
 import type {UpdatesApi} from '../../../../../../packages/client-core/src/server-admin/updates-source';
@@ -17,15 +13,11 @@ import type {OwnerHealthWindow, OwnerViewing, OwnerViewingPeriod} from './model'
  * chooses a role. Administrators never reach the owner-only reads because the caller gates them.
  */
 export type NativeOwnerDashboardReader = Readonly<{
-  /** Show all reads the same server-ordered list, a bounded page at a time. */
-  sessions(cursor?: string, limit?: number): ReturnType<AdminSessionsClient['list']>;
   telemetry(window: OwnerHealthWindow): Promise<TelemetryReading>;
   /** The statistics' totals per day and the Play history summary, over one range. */
   viewing(period: OwnerViewingPeriod): Promise<OwnerViewing>;
-  jobCommand(job: Job, action: 'pause' | 'resume' | 'retry' | 'cancel'): Promise<void>;
+  /** Stops a stream; the viewer is shown the message (`DELETE /v1/admin/sessions/{id}`). */
   stop(sessionId: string, message?: string): Promise<void>;
-  transport(sessionId: string, command: TransportCommand): Promise<void>;
-  move(sessionId: string, positionMs: number): Promise<void>;
   /** Lets only the data folder's owner open it (`POST /v1/admin/data-folder/permissions/fix`). */
   fixPermissions(): Promise<void>;
   /** The owner's release check (read and pressed check), on this lifetime. */
@@ -34,25 +26,17 @@ export type NativeOwnerDashboardReader = Readonly<{
 }>;
 
 export function createNativeOwnerDashboardReader(lifetime: NativeScreenLifetime, ports: NativeSettingsLivePorts): NativeOwnerDashboardReader {
-  const {context} = ports, authority = lifetime.authority;
+  const {context} = ports;
   const api = {request: <T,>(path: string, method?: string, body?: unknown, signal?: AbortSignal) => lifetime.request(next => context.api.request<T>(path, method, body, next), signal)};
-  const console_ = new ConsoleClient(api, {serverId: authority.serverId, viewerId: authority.profileId});
-  const raw = localV1Http(context.api);
-  const sessions = new AdminSessionsClient({send: request => lifetime.request(signal => raw.send({...request, signal}), request.signal)}, ports.requestId);
-  const controls = playbackControlsService(<T,>(path: string, method?: string, body?: unknown) => lifetime.request(signal => context.api.request<T>(path, method, body, signal)));
   return Object.freeze({
-    sessions: (cursor?: string, limit = 200) => sessions.list(cursor, Math.max(1, Math.min(limit, 200)), lifetime.signal),
     telemetry: (window: OwnerHealthWindow) => readServerLoad(api, window, lifetime.signal),
     viewing: async (period: OwnerViewingPeriod) => {
       const [statistics, summary] = await Promise.all([readStatistics(api, period, lifetime.signal), readPlaySummary(api, {range: period}, lifetime.signal)]);
       return {totals: statistics.totals, mostPlayed: summary.titles, mostActive: summary.people};
     },
-    jobCommand: (job: Job, action: 'pause' | 'resume' | 'retry' | 'cancel') => console_.jobCommand(job, action).then(() => undefined),
-    stop: (sessionId: string, message?: string) => sessions.terminate(sessionId, message, lifetime.signal),
-    transport: (sessionId: string, command: TransportCommand) => sendTransport(controls, sessionId, command).then(() => undefined),
-    move: (sessionId: string, positionMs: number) => sendSeekTo(controls, sessionId, positionMs).then(() => undefined),
+    stop: (sessionId: string, message?: string) => stopServerStream(api, sessionId, message, lifetime.signal),
     fixPermissions: () => fixDataFolderPermissions(api, lifetime.signal).then(() => undefined),
     updates: api,
-    dispose: () => console_.dispose(),
+    dispose: () => {},
   });
 }
