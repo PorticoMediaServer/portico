@@ -364,11 +364,15 @@ export class NativeTVMusicController {
     if (!libraryId) throw new Error('music_library_required');
     const [favorite]=await Promise.all([this.favoriteState(signal),this.artistAlbums(signal)]);
     if (!this.current() || signal.aborted) return;
-    // Popular: the server's most played songs; none played (or none by people who share their activity) is no row.
-    const page = await readArtistSongPage(this.api, libraryId, this.options.entry.id, 'popular', {limit: 10}, signal);
+    // Top songs: the server's most played songs. None played in the last seven days (or none by people who share their
+    // activity) falls back to the artist's own songs, as web does, so an artist with songs never shows an empty section (W3 F9).
+    const popular = await readArtistSongPage(this.api, libraryId, this.options.entry.id, 'popular', {limit: 10}, signal);
+    if (!this.current() || signal.aborted) return;
+    const fallback = popular.entries.length === 0;
+    const page = fallback ? await readArtistSongPage(this.api, libraryId, this.options.entry.id, 'title', {limit: 10}, signal) : popular;
     if (!this.current() || signal.aborted) return;
     if (page.entries.some(entry => entry.kind !== 'song')) throw new Error(unreadableServerResponse);
-    this.songQuery = JSON.stringify(['artist-popular', libraryId, this.options.entry.id]); this.topSongsRevision = `artist-${generation}`;
+    this.songQuery = JSON.stringify([fallback ? 'artist-songs' : 'artist-popular', libraryId, this.options.entry.id]); this.topSongsRevision = `artist-${generation}`;
     // The row's own count is of played songs only; the artist's song count comes with its details.
     this.publish({phase:'ready',songs:page.entries,songTotal:undefined,favorite});
     // The optional entity projection supplies real Details and the Similar
