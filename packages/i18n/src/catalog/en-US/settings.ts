@@ -779,4 +779,13 @@ export const settingsMessages = {
   'metadata.attention.rowMatching': 'Matching',
   'metadata.attention.rowSearching': 'Searching',
   'metadata.attention.episodeOrder': 'Episode order',
+  'metadata.attention.order.aired': 'As aired',
+  'metadata.attention.order.dvd': 'DVD order',
+  'metadata.attention.order.absolute': 'Absolute order',
+  'metadata.attention.no_results': 'The metadata source found nothing under this name.',
+  'metadata.attention.id_not_found': 'The ID in its file or folder name is not one the metadata source knows.',
+  'metadata.attention.noMatchesFound': 'Nothing found. Try another spelling, or enter the title’s ID.',
+  'metadata.attention.lookedUpMatched': 'Looked up again and matched.',
+  'metadata.attention.lookedUpUnmatched': 'Looked up again. Still no close match.',
+  'metadata.attention.find': 'Find',
 } as const;

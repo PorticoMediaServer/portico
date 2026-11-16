@@ -49,7 +49,7 @@ import {LibraryIdentity, LibraryScreen, type LibraryBindings} from './Library';
 import {LibraryMenu} from '../../kit/browse';
 import {Button} from '../../kit/controls';
 import {NeedsAttention} from '../metadata/NeedsAttention';
-import type {AttentionEntry} from '@core/metadata-attention.ts';
+import type {UnmatchedEntry} from '@core/fix-match.ts';
 import {LibraryDiscoveryScreen} from './Discovery';
 import {discoverySections} from './discovery-selection';
 import {useCommittedLibraryScreenContext, type ProtectedLibraryScreen} from './screen-context';
@@ -576,33 +576,21 @@ function CommittedLibrary({captured, library, search, readingMarkAll, frame, res
     onAppearanceChange: (change: Parameters<LibraryBindings['onAppearanceChange']>[0]) => {if (!resources.life.current()) return;if (change.view) setChoice({defaultView: appearance.libraryView, view: change.view});if (change.cardSize) setSize(change.cardSize);}};
   const contentRoute: ContentRoute = {libraryId: library.id, view, ...(search.entityId ? {entityId: search.entityId} : {}), ...(search.category ? {category: search.category} : {}), ...(search.q ? {q: search.q} : {})};
   const unmatched = requested?.shows === 'unmatched';
-  const editAttention = (entry: AttentionEntry, anchor: HTMLElement, matching = false) => {
-    if (!resources.life.current() || entry.libraryId !== library.id) return;
+  // A title on Unmatched items opens in the editor: a film, episode or track as an item, the rest as what they are.
+  const editAttention = (entry: UnmatchedEntry, anchor: HTMLElement) => {
     const edit = context.effects.editMetadata;
-    if (!edit) return;
-    if (matching && entry.kind === 'song' && entry.parentId) {
-      void edit({libraryId: library.id, entityId: entry.parentId, entityKind: 'album', title: entry.parentTitle ?? entry.title, initialTab: 'matching'}, anchor).catch(context.effects.reportError);
+    if (!resources.life.current() || !edit) return;
+    if (entry.kind === 'show' || entry.kind === 'season' || entry.kind === 'album' || entry.kind === 'artist' || entry.kind === 'book') {
+      void edit({libraryId: library.id, entityId: entry.itemId, entityKind: entry.kind, title: entry.title, initialTab: 'matching'}, anchor).catch(context.effects.reportError);
       return;
     }
-    if (entry.kind === 'show' || entry.kind === 'album' || entry.kind === 'book') {
-      void edit({libraryId: library.id, entityId: entry.entityId, entityKind: entry.kind, title: entry.title, initialTab: matching ? 'matching' : 'general'}, anchor).catch(context.effects.reportError);
-      return;
-    }
-    if (entry.kind !== 'item' && entry.kind !== 'song') return;
-    const kind = entry.kind === 'song' ? 'song' : entry.itemKind;
-    if (kind !== 'movie' && kind !== 'episode' && kind !== 'song' && kind !== 'audiobook_file') return;
-    void edit({libraryId: library.id, itemId: entry.entityId, kind, title: entry.title}, anchor).catch(context.effects.reportError);
-  };
-  const openAttention = (entry: {kind: string; itemKind: string; entityId: string; parentId: string}) => {
-    if (entry.kind === 'show' || entry.itemKind === 'episode') navigate({view: 'show', entityId: entry.kind === 'show' ? entry.entityId : entry.parentId});
-    else if (entry.kind === 'album') navigate({view: 'album', entityId: entry.entityId});
-    else if (entry.kind === 'song') navigate({view: 'album', entityId: entry.parentId});
-    else if (entry.kind === 'book') navigate({view: 'book', entityId: entry.entityId});
-    else if (entry.entityId) navigate({view: 'browse', entityId: entry.entityId});
+    const kind = entry.kind === 'track' ? 'song' : entry.kind;
+    if (kind !== 'movie' && kind !== 'episode' && kind !== 'song') return;
+    void edit({libraryId: library.id, itemId: entry.itemId, kind, title: entry.title}, anchor).catch(context.effects.reportError);
   };
   if (library.kind === 'audiobook' && (view === 'book' || view === 'author' || view === 'book_series') && search.entityId)
     return <AudiobookEntry context={context} target={{libraryId: library.id, view, entityId: search.entityId}}/>;
-  return <>{queryActions?.surface}{unmatched ? <><LibraryIdentity {...header}/><NeedsAttention artwork={context.artwork} libraryId={library.id} libraryName={library.name} api={resources.life.api} onOpen={openAttention} onEdit={context.effects.editMetadata ? editAttention : undefined}/></>
+  return <>{queryActions?.surface}{unmatched ? <><LibraryIdentity {...header}/><NeedsAttention libraryId={library.id} libraryName={library.name} api={resources.life.api} onEdit={context.effects.editMetadata ? editAttention : undefined}/></>
     : view === 'show' || view === 'season' ? <LibraryShow captured={captured} libraryId={library.id} search={search}/>
     : view === 'artist' && search.entityId ? <ArtistScreen context={context} libraryId={library.id} artistId={search.entityId}
       onBack={() => {const back = context.effects.back; if (back) {back(); return;} void router.navigate({to: '/library/$libraryId', params: {libraryId: library.id}, search: {}}).catch(context.effects.reportError);}} />
