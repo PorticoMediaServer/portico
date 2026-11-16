@@ -667,7 +667,7 @@ func planDelivery(in DeliveryInput) (p DeliveryPlan, err error) {
 		transport := ""
 		if audioOnly {
 			transport, _ = bestAudioConversionTransport(transports, client, nil, audio, in.Target, outputs)
-		} else if chosen, ok := chooseVideoOutput(video, client, transports, in.Target.AllowHDR, outputs, audio, in.Target); ok {
+		} else if chosen, ok := chooseVideoOutput(video, client, transports, in.Target.AllowHDR, hdr && cfg.ToneMapping, outputs, audio, in.Target); ok {
 			picture, transport = chosen, chosen.Transport
 		}
 		carrier := transportNamed(transports, transport)

@@ -81,7 +81,8 @@ func TestConversionTargetsDescribeEveryOutput(t *testing.T) {
 
 func TestConversionTargetRefusesWrongPicturesAndContainers(t *testing.T) {
 	for _, target := range []ConversionTarget{{VideoCodec: "hevc", BitDepth: 8, DynamicRange: "hdr10"}, {SourceRange: "hdr10", DynamicRange: "sdr"}, {VideoCodec: "hevc", DolbyVisionProfile: 5,
-		ToneMap: true}, {VideoCodec: "hevc", MasterDisplay: "evil:params=1"}} {
+		ToneMap: true}, {VideoCodec: "hevc", MasterDisplay: "evil:params=1"},
+		{VideoCodec: "av1", BitDepth: 10, SourceRange: "hdr10", ToneMap: true}} {
 		if _, err := BuildConversion(ConversionRequest{Target: &target, ConvertVideo: true, Toolchain: targetFacts()}); err == nil {
 			t.Fatal("accepted invalid target", target)
 		}
