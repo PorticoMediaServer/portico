@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A library: its name and views, one toolbar (sort and the quick filters), then the grid.
+     Three regions down the page: the views, the toolbar, the grid. Focus starts on the first card. -->
+<component name="LibraryScreen" extends="Group">
+  <interface>
+    <!-- {id, name, kind} from the rail. -->
+    <field id="library" type="assocarray" onChange="onLibrary"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="art" type="string"/>
+    <field id="open" type="assocarray" alwaysNotify="true"/>
+    <field id="menu" type="assocarray" alwaysNotify="true"/>
+    <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
+    <field id="toTop" type="boolean" alwaysNotify="true" onChange="onToTop"/>
+  </interface>
+  <script type="text/brightscript" uri="LibraryScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <children>
+    <Label id="name" translation="[198,58]"/>
+    <Group id="views" translation="[0,74]"/>
+    <Rectangle id="viewMark" height="3" color="0x409FD4FF"/>
+    <Group id="tools" translation="[200,144]"/>
+    <Poster id="toolRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
+    <Label id="count" translation="[200,232]"/>
+    <MarkupGrid id="grid" translation="[200,276]" itemComponentName="Card" numColumns="7" numRows="3"
+                itemSize="[200,428]" itemSpacing="[32,8]" drawFocusFeedback="false" vertFocusAnimationStyle="fixedFocus"/>
+    <Notice id="notice" visible="false"/>
+  </children>
+</component>

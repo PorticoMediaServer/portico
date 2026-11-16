@@ -244,6 +244,34 @@ function dateText(iso as dynamic) as string
     return months[month - 1] + " " + mid(iso, 9, 2).toInt().toStr() + ", " + left(iso, 4)
 end function
 
+' A title in a library's grid: its picture with its name and year under it.
+function gridCard(item as object) as object
+    card = cardFor(item, "poster")
+    card.under = true
+    card.artHeight = 300
+    if item.kind = "collection" and item.counts <> invalid then card.sub = countText(item.counts.children, "title", "titles")
+    return card
+end function
+
+' A library's views, sorts and counts, in words.
+function viewName(kind as string) as string
+    names = {movie: "Movies", show: "Shows", collection: "Collections", artist: "Artists", album: "Albums", track: "Songs", audiobook: "Audiobooks", season: "Seasons", episode: "Episodes", playlist: "Playlists"}
+    if names[kind] <> invalid then return names[kind]
+    return ucase(left(kind, 1)) + mid(kind, 2)
+end function
+
+function sortName(id as string) as string
+    names = {title: "Title A–Z", added: "Recently added", year: "Year", release: "Release date", duration: "Duration", communityRating: "Rating", criticRating: "Critics' rating", plays: "Most played", artist: "Artist", random: "Random"}
+    if names[id] <> invalid then return names[id]
+    return ucase(left(id, 1)) + mid(id, 2)
+end function
+
+function kindCount(n as integer, kind as string) as string
+    one = {movie: "movie", show: "show", collection: "collection", artist: "artist", album: "album", track: "song", audiobook: "audiobook"}
+    if one[kind] = invalid then return countText(n, "title", "titles")
+    return countText(n, one[kind], one[kind] + "s")
+end function
+
 ' An episode in its season's row: {.., under: true (words under the still), corner (its length), played}.
 function episodeCard(item as object, upNext as boolean) as object
     card = cardFor(item, "landscape")

@@ -94,6 +94,7 @@ sub onContent()
     ' An episode card: the picture is 16:9 at the top and the words go under it.
     under = (item.under = true)
     if under then m.h = m.w * 9 / 16 else m.h = m.fullH
+    if under and item.artHeight <> invalid and item.artHeight > 0 then m.h = item.artHeight
     ' An audiobook or album with no cover gets a square generated one, as its real covers are square.
     m.shiftY = 0
     if item.art = "" and not item.overlay and m.fullH > m.w and (item.kind = "audiobook" or item.kind = "album" or item.kind = "track")
@@ -204,7 +205,20 @@ end sub
 sub onFocus()
     p = m.top.focusPercent
     if not (m.top.rowListHasFocus or m.top.gridHasFocus) then p = 0
-    grow(1 + (metrics().focusScale - 1) * p)
+    k = metrics()
+    grow(1 + (k.focusScale - 1) * p)
+    ring = m.top.findNode("ownRing")
+    inGrid = (m.top.gridHasFocus and p > 0)
+    ring.visible = inGrid
+    if inGrid
+        out = k.focusSpread + 6
+        w = m.w * k.focusScale
+        h = m.h * k.focusScale
+        ring.opacity = p
+        ring.translation = [(m.w - w) / 2 - out, (m.h - h) / 2 - out]
+        ring.width = w + out * 2
+        ring.height = h + out * 2
+    end if
 end sub
 
 sub grow(s as float)

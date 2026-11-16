@@ -135,6 +135,7 @@ end sub
 sub onOpen(event as object)
     ask = event.getData()
     kind = ask.item.kind
+    if kind = "collection" then return     ' a collection's page is not built yet
     if ask.play = true and (kind = "movie" or kind = "episode")
         player = push("PlayerScreen")
         player.observeField("closed", "onPlayerClosed")
@@ -232,9 +233,12 @@ sub onCapabilitiesSent(event as object)
 end sub
 
 sub showHome()
-    api("PUT", "/v1/devices/current/capabilities", deviceProfile(), "onCapabilitiesSent")
-    api("GET", "/v1/libraries", invalid, "onLibraries")
-    api("GET", "/v1/live/channels?limit=1", invalid, "onLive")
+    if m.entered <> true
+        m.entered = true
+        api("PUT", "/v1/devices/current/capabilities", deviceProfile(), "onCapabilitiesSent")
+        api("GET", "/v1/libraries", invalid, "onLibraries")
+        api("GET", "/v1/live/channels?limit=1", invalid, "onLive")
+    end if
     show("HomeScreen")
     m.screen.observeField("menu", "onMenu")
     m.screen.observeField("art", "onArt")
@@ -342,8 +346,32 @@ end sub
 sub onRailChosen(event as object)
     if m.screen = invalid then return
     ' OK on the page you are on goes to its top, the same place as Back.
-    if event.getData() = m.rail.current and m.screen.hasField("toTop") then m.screen.toTop = true
-    m.screen.active = true
+    id = event.getData()
+    if id = m.rail.current
+        if m.screen.hasField("toTop") then m.screen.toTop = true
+        m.screen.active = true
+        return
+    end if
+    if id = "home"
+        showHome()
+        return
+    end if
+    if m.libraries <> invalid and m.libraries.ok
+        for each library in m.libraries.data.items
+            if library.id = id
+                show("LibraryScreen")
+                m.screen.observeField("art", "onArt")
+                m.screen.observeField("open", "onOpen")
+                m.screen.observeField("menu", "onMenu")
+                m.rail.visible = true
+                m.rail.current = id
+                m.screen.library = library
+                m.screen.active = true
+                return
+            end if
+        end for
+    end if
+    m.screen.active = true     ' a destination not built yet: stay where you were
 end sub
 
 sub onRailLeft()

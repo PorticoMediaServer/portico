@@ -9,6 +9,7 @@
     <field id="focusPercent" type="float" onChange="onFocus"/>
     <field id="rowListHasFocus" type="boolean" onChange="onFocus"/>
     <field id="gridHasFocus" type="boolean" onChange="onFocus"/>
+    <field id="itemHasFocus" type="boolean" onChange="onFocus"/>
   </interface>
   <script type="text/brightscript" uri="Card.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
@@ -18,6 +19,8 @@
          card in focus grows in two ways at once: the plate and the words by scale, the masked
          picture by being drawn larger. -->
     <Group id="frame">
+    <!-- In a grid, focus moves from card to card, so the card draws its own ring (a row draws one at its slot). -->
+    <Poster id="ownRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
     <Group id="under">
       <Poster id="plate" uri="pkg:/images/round-14.9.png" blendColor="0x10212DFF"/>
     </Group>
