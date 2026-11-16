@@ -173,11 +173,6 @@ var sortSpecs = map[string]sortSpec{
 	SortPlayCount:       {columns: []string{ownState("nullif(play_count, 0)")}, nullable: true},
 }
 
-// ownState reads one value of the viewer's own state for the item being listed.
-func ownState(value string) string {
-	return "(SELECT " + value + " FROM user_item_state own WHERE own.profile_id = @viewer_profile AND own.item_id = i.id)"
-}
-
 // seriesOrder is a series' own order, as volumeOrder has it: by volume number, then the
 // volumes with none by title.
 var seriesOrder = sortSpec{columns: []string{"ifnull(i.index_number, 1e18)", "i.sort_title"}}
@@ -654,11 +649,14 @@ func (q ItemQuery) filters(ctx context.Context, tx *sql.Tx, w *query, acc access
 	// A library, title or person the list is of is looked up first. One the viewer may not see
 	// is not found, exactly like one that does not exist, as it is when opened on its own.
 	if q.Library != "" {
-		err := tx.QueryRowContext(ctx, `SELECT l.id FROM libraries l WHERE l.public_id = ? AND `+acc.libraryVisible("l.id"), q.Library).Scan(&library)
+		libraries, err := librariesInScope(ctx, tx, acc, q.Library)
 		if err != nil {
-			return false, notFound(err)
+			return false, err
 		}
-		w.add(` AND i.library_id = `, fmt.Sprint(library))
+		w.add(` AND i.library_id IN `, intList(libraries))
+		if len(libraries) == 1 {
+			library = libraries[0]
+		}
 		w.library = library
 		scoped = true
 	}

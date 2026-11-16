@@ -480,3 +480,8 @@ func progressHolderIDs(acc access) string {
             WHERE hs.profile_id = @viewer_profile AND hs.item_id = h.id AND hs.played = 1)
         AND `, KindEpisode, KindShow, KindSeason) + acc.visible("e")
 }
+
+// ownState reads one value of the viewer's own state for the item being listed.
+func ownState(value string) string {
+	return "(SELECT " + value + " FROM user_item_state own WHERE own.profile_id = @viewer_profile AND own.item_id = i.id)"
+}
