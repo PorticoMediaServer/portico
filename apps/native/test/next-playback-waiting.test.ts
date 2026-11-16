@@ -11,7 +11,7 @@ async function waitingModule(reduce: boolean, repeats: unknown[]) {
   return screenModule(new URL('../src-next/kit/states/PlaybackWaiting.tsx', import.meta.url), {
     react: {...React, default: React}, 'react-native': {Text: 'Text', View: 'View'}, 'react-native-svg': {default: 'Svg', Circle: 'Circle'},
     'react-native-reanimated': {default: {View: 'AnimatedView'}, cancelAnimation() {}, useAnimatedStyle: (fn: () => unknown) => fn(),
-      useSharedValue: (value: number) => React.useRef({value}).current, withTiming: (value: unknown) => {repeats.push(value); return value;}},
+      useSharedValue: (value: number) => React.useRef({value}).current, withTiming: (value: unknown) => value, withRepeat: (value: unknown) => {repeats.push(value); return value;}},
     '../../../../../packages/i18n/src': {defaultI18n},
     '../theme': {useTheme: () => ({isTV: false, textScale: 1, colors: {text: '#edf5fa', textSecondary: '#a9b8c4', ink: '#08121b'}, type: {bodyStrong: {}}})},
     '../useMotion': {useMotion: () => ({reduce})}, '../controls/control-model': {colorAlpha: (color: string, alpha: number) => `${color}/${alpha}`},
@@ -19,7 +19,7 @@ async function waitingModule(reduce: boolean, repeats: unknown[]) {
 }
 
 test('the waiting line appears only after three seconds, says Getting ready while converting and the connection line otherwise, and takes no touch', async t => {
-  t.mock.timers.enable({apis: ['setTimeout', 'setInterval']});
+  t.mock.timers.enable({apis: ['setTimeout']});
   const repeats: unknown[] = [], {PlaybackWaiting} = await waitingModule(false, repeats);
   let props = {waiting: true, preparing: true}, tree: any;
   const host = createFabricHookHost(() => {tree = PlaybackWaiting(props);});
@@ -39,7 +39,7 @@ test('the waiting line appears only after three seconds, says Getting ready whil
 });
 
 test('with reduced motion the ring stands still', async t => {
-  t.mock.timers.enable({apis: ['setTimeout', 'setInterval']});
+  t.mock.timers.enable({apis: ['setTimeout']});
   const repeats: unknown[] = [], {PlaybackWaiting} = await waitingModule(true, repeats);
   let tree: any;
   const host = createFabricHookHost(() => {tree = PlaybackWaiting({waiting: true});});

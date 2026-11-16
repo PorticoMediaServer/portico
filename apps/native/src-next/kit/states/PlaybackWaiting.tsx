@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {Text, View} from 'react-native';
 import Svg, {Circle} from 'react-native-svg';
-import Animated, {cancelAnimation, useAnimatedStyle, useSharedValue, withTiming} from 'react-native-reanimated';
+import Animated, {cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming} from 'react-native-reanimated';
 import {playbackWaitingDelayMs} from '../../../../../packages/client-core/src/presentation/playback-waiting';
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {useTheme} from '../theme';
@@ -23,12 +23,12 @@ export function PlaybackWaiting({waiting, preparing = false}: {waiting: boolean;
     return () => clearTimeout(timer);
   }, [waiting]);
   const turning = shown && !motion.reduce;
-  // One turn every 0.9 s, at an even speed, restarted each turn (the same few animation pieces the kit's other states use).
+  // One turn every 0.9 s at an even speed, repeated on the native side, so a busy JavaScript thread (a slow TV) never
+  // stutters it.
   useEffect(() => {
     if (!turning) {cancelAnimation(turn); turn.value = 0; return;}
-    const spin = () => {turn.value = 0; turn.value = withTiming(1, {duration: ringTurnMs, easing: linear});};
-    spin(); const timer = setInterval(spin, ringTurnMs);
-    return () => {clearInterval(timer); cancelAnimation(turn);};
+    turn.value = withRepeat(withTiming(1, {duration: ringTurnMs, easing: linear}), -1, false);
+    return () => cancelAnimation(turn);
   }, [turning, turn]);
   const ring = useAnimatedStyle(() => ({transform: [{rotate: `${-90 + turn.value * 360}deg`}]}));
   if (!waiting || !shown) return null;
