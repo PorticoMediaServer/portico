@@ -1,8 +1,9 @@
+import {refreshAllMetadata} from '../../../../../../packages/client-core/src/server-admin/metadata-refresh';
 import type {LibraryContentApi} from '../../../../../../packages/client-core/src/library-content';
 import {metadataSettingsService, type MetadataSettings, type MetadataSettingsChange} from '../../../../../../packages/client-core/src/metadata-settings';
 import {metadataChange} from './metadata-setting-values';
 
-export type NativeMetadataSnapshot = Readonly<{data?: MetadataSettings; busy: boolean; error?: unknown; needsReload: boolean}>;
+export type NativeMetadataSnapshot = Readonly<{data?: MetadataSettings; busy: boolean; error?: unknown; needsReload: boolean; refreshStarted?: boolean}>;
 export type MetadataPatch = Partial<Omit<MetadataSettingsChange, 'expectedRevision'>>;
 
 /** One mounted owner page, one revisioned command, no retained credential drafts. */
@@ -12,14 +13,17 @@ export class NativeMetadataController {
   private abort = new AbortController();
   private service: ReturnType<typeof metadataSettingsService>;
   private isCurrent: () => boolean;
+  private refresh: () => Promise<void>;
   constructor(api: LibraryContentApi, isCurrent: () => boolean) {
     this.isCurrent = isCurrent;
-    this.service = metadataSettingsService(async <T,>(path: string, method?: string, body?: unknown): Promise<T> => {
+    const request = async <T,>(path: string, method?: string, body?: unknown): Promise<T> => {
       if (!this.current()) throw Object.assign(new Error('metadata_page_closed'), {name: 'AbortError'});
       const value = await api.request<T>(path, method, body, this.abort.signal);
       if (!this.current()) throw Object.assign(new Error('metadata_page_closed'), {name: 'AbortError'});
       return value;
-    });
+    };
+    this.service = metadataSettingsService(request);
+    this.refresh = () => refreshAllMetadata({request}, this.abort.signal);
   }
   private current = () => !this.abort.signal.aborted && this.isCurrent();
   getSnapshot = (): NativeMetadataSnapshot => this.state;
@@ -47,8 +51,8 @@ export class NativeMetadataController {
   /** Refresh all: the server marks every title for a paced refresh within its allowance. */
   async refreshAll(original: MetadataSettings): Promise<boolean> {
     if (!this.current() || this.state.busy || this.state.needsReload || this.state.data !== original) return false;
-    this.publish({busy: true, error: undefined});
-    try {const data = await this.service.refreshAll(); if (!this.current()) return false; this.publish({data}); return true;}
+    this.publish({busy: true, error: undefined, refreshStarted: false});
+    try {await this.refresh(); if (!this.current()) return false; this.publish({data: Object.freeze({...original}), refreshStarted: true}); return true;}
     catch (error) {this.publish({error}); return false;}
     finally {this.publish({busy: false});}
   }

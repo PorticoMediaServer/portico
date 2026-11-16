@@ -113,21 +113,19 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
         <SettingsRow label={t(row('metadata.osTest').label)} control={<Button variant="glass" size="xs" disabled={disabled} onPress={() => {if (current()) void controller.checkOpenSubtitles(settings);}}>{t(row('metadata.osTest').control.label!)}</Button>}/>
       </SettingsGroup>
       <NativeTitleDatasetGroup ports={ports} runtime={runtime}/>
-      {/* Each Advanced row is offered only when the server sends its field, and a group only when it has a row. */}
+      {/* Refresh all is an action; stored Advanced settings require a published field. */}
       {(() => {
-        const refreshing = advanced?.refreshPolicy !== undefined || advanced?.refreshAll !== undefined;
         const languages = advanced?.fallbackLanguage !== undefined || advanced?.animeTitles !== undefined;
         const artwork = settings.localArtworkLimitBytes !== undefined || settings.artworkMaxEdge !== undefined || advanced?.castPhotos !== undefined;
         const music = advanced?.acoustidKeyConfigured !== undefined;
-        if (!refreshing && !languages && !artwork && !music) return null;
         const summary = [settings.localArtworkLimitBytes !== undefined ? `${artworkLimitText(settings.localArtworkLimitBytes)} GB` : '',
           settings.artworkMaxEdge !== undefined ? `${settings.artworkMaxEdge} px` : ''].filter(Boolean).join(' · ');
         return <NativeAdvancedSection testID="server-metadata-advanced" summary={summary}>
-          {refreshing && <><SectionTitle>{advancedTitle(0)}</SectionTitle><SettingsGroup>
+          <SectionTitle>{advancedTitle(0)}</SectionTitle><SettingsGroup>
             {select('metadata.refresh', advanced?.refreshPolicy, value => ({refreshPolicy: value as MetadataRefreshPolicy}), true)}
-            {advanced?.refreshAll && <SettingsRow first={advanced.refreshPolicy === undefined} label={t(row('metadata.refreshAll').label)} description={advanced.refreshAll.running ? t('server.metadata.refreshAllRunning') : row('metadata.refreshAll').help ? t(row('metadata.refreshAll').help!) : undefined}
-              control={<Button testID="metadata.refreshAll" variant="glass" size="xs" disabled={disabled} onPress={() => {if (current()) setConfirmRefresh(true);}}>{t(row('metadata.refreshAll').control.label!)}</Button>}/>}
-          </SettingsGroup></>}
+            <SettingsRow first={advanced?.refreshPolicy === undefined} label={t(row('metadata.refreshAll').label)} description={state.refreshStarted ? t('server.metadata.refreshAllRunning') : row('metadata.refreshAll').help ? t(row('metadata.refreshAll').help!) : undefined}
+              control={<Button testID="metadata.refreshAll" variant="glass" size="xs" disabled={disabled} onPress={() => {if (current()) setConfirmRefresh(true);}}>{t(row('metadata.refreshAll').control.label!)}</Button>}/>
+          </SettingsGroup>
           {languages && <><SectionTitle>{advancedTitle(1)}</SectionTitle><SettingsGroup>
             {select('metadata.fallbackLanguage', advanced?.fallbackLanguage, value => ({fallbackLanguage: value as MetadataFallbackLanguage}), true)}
             {select('metadata.animeTitles', advanced?.animeTitles, value => ({animeTitles: value as MetadataAnimeTitles}), advanced?.fallbackLanguage === undefined)}
