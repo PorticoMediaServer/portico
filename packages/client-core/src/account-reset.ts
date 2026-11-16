@@ -1,6 +1,6 @@
 import {routeBody} from '../../contracts/src/routes.ts';
 import {routePath} from '../../contracts/src/route-paths.ts';
-import {parseTaggedSignIn,parseDirectSignIn,type DirectSignIn,type ProfileAPI} from './profile-management.ts';
+import {parseTaggedSignIn,parseDirectSignIn,signInDevice,type DirectSignIn,type ProfileAPI} from './profile-management.ts';
 import {serverPath} from './query/server-api.ts';
 import {parseTwoFactorState} from './identity-restrictions.ts';
 
@@ -42,6 +42,10 @@ export async function verifyOwnerResetFile(api:ProfileAPI,code:string,turnOffTwo
  const out=parseTaggedSignIn(await api.request(routePath('post_auth_owner_reset_verify'),'POST',routeBody('post_auth_owner_reset_verify',{code:code.trim(),turnOffTwoStep}),signal),['password-change','owner-session'],(tag,signedIn)=>signedIn.kind==='signed-in'&&(tag==='owner-session'?signedIn.resetFileOwnerSession===true:signedIn.passwordChangeRequired));
  if(out.kind!=='signed-in'||(!out.passwordChangeRequired&&!out.resetFileOwnerSession)||out.session.refreshToken)throw new Error('The reset file did not return the expected session.');
  return out;
+}
+/** Enters a Portico-sign-in server as its existing owner using the reset file, with an ordinary refreshable server session. */
+export async function enterOwnerResetSession(api:ProfileAPI,code:string,signal?:AbortSignal):Promise<DirectSignIn>{
+ return parseDirectSignIn(await api.request(serverPath('POST /v1/auth/owner-reset/session'),'POST',{code:code.trim(),device:signInDevice()},signal));
 }
 export type MemberResetCode=Readonly<{code:string;expiresAt:string;serverId?:string}>;
 /** The rebuilt server's reset code, as the member types it: three groups of four, such as K7QP-2MXD-9HRT. */

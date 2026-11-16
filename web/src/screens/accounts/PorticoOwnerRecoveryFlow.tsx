@@ -1,10 +1,11 @@
 import {useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
-import type {ResetFileLocation} from '@core/account-reset.ts';
+import {ownerResetFailure, type ResetFileLocation} from '@core/account-reset.ts';
 import type {BrowserAccountEntry} from '../../platform/account-entry';
 import {browserAccountOrigin} from '../../platform/account-origin';
 import {router} from '../../router';
 import {AuthError} from '../../kit/accounts';
 import {PorticoOwnerRecoveryDone, PorticoOwnerRecoveryRequest} from '../../kit/accounts/PorticoOwnerRecovery';
+import {OwnerResetNotice} from './OwnerResetNotice';
 import {OwnerFile} from './LocalPasswordRecoveryFlow';
 
 type Lease = {active: boolean; pending: boolean};
@@ -14,7 +15,7 @@ export function PorticoOwnerRecoveryFlow({entry, onBack}: {entry: BrowserAccount
   const state = useSyncExternalStore(entry.subscribe, entry.getSnapshot);
   const original = useRef({entry, origin: state.origin, serverId: state.server?.id, pin: state.pin}).current;
   const active = useRef<Lease | undefined>(undefined);
-  const [working, setWorking] = useState(false);
+  const [working, setWorking] = useState(false), [purpose, setPurpose] = useState<'request' | 'verify'>();
   const [lease, setLease] = useState<Lease>(), [file, setFile] = useState<ResetFileLocation>(), [error, setError] = useState<unknown>();
   const sameTarget = () => {
     const current = entry.getSnapshot();
@@ -37,7 +38,7 @@ export function PorticoOwnerRecoveryFlow({entry, onBack}: {entry: BrowserAccount
   const available = () => current() && entry.getSnapshot() === state && !lease!.pending && !state.busy;
   const requestFile = async () => {
     if (!available() || state.phase !== 'portico') return;
-    const opening = lease!; opening.pending = true; setWorking(true); setError(undefined);
+    const opening = lease!; opening.pending = true; setWorking(true); setError(undefined);setPurpose('request');
     try {const location = await entry.requestPorticoOwnerResetFile(); if (current() && location) setFile(location);}
     catch (failure) {if (current()) setError(failure);}
     finally {opening.pending = false; if (current()) setWorking(false);}
@@ -45,6 +46,7 @@ export function PorticoOwnerRecoveryFlow({entry, onBack}: {entry: BrowserAccount
   const verifyFile = async (code: string) => {
     if (!available() || state.phase !== 'portico') return;
     const opening = lease!; opening.pending = true; setWorking(true); setError(undefined);
+    setPurpose('verify');
     try {await entry.verifyPorticoOwnerResetFile(code);}
     catch (failure) {if (current()) setError(failure);}
     finally {opening.pending = false; if (current()) setWorking(false);}
@@ -66,11 +68,12 @@ export function PorticoOwnerRecoveryFlow({entry, onBack}: {entry: BrowserAccount
     finally {opening.pending = false; if (current()) setWorking(false);}
   };
   if (!sameTarget()) return null;
-  const failure = <AuthError error={state.error ?? error}/>;
+  const notice = ownerResetFailure(state.error ?? error, purpose);
+  const failure = notice ? <OwnerResetNotice kind={notice}/> : <AuthError error={state.error ?? error}/>;
   if (state.phase === 'ready' && state.ownerResetSessionReady) return <PorticoOwnerRecoveryDone serverName={state.server!.name} error={failure}
     busy={!!state.busy || working} onContinue={() => {void finish();}} onChangeOwner={() => {void finish('signin.changeOwner');}} onSwitchToLocal={() => {void finish('signin.switchToLocal');}}/>;
   if (file) return <OwnerFile key={`${file.fileName}:${file.retryAfterSeconds}`} serverName={state.server!.name} location={file}
-    busy={!!state.busy || working} error={state.error ?? error} onVerify={verifyFile} onRewrite={() => {void requestFile();}} onBack={back}/>;
+    busy={!!state.busy || working} error={state.error ?? error} notice={notice} onVerify={verifyFile} onRewrite={() => {void requestFile();}} onBack={back}/>;
   return <PorticoOwnerRecoveryRequest serverName={state.server!.name} busy={!!state.busy || working} error={failure} onWriteFile={() => {void requestFile();}} onBack={back}
     onAccountRecovery={() => {
       if (!available()) return;

@@ -51,11 +51,11 @@ function scope(raw: PorticoAccountScope): PorticoAccountScope {
   if (origin !== raw.origin || url.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) invalid();
   return {origin, accountId: raw.accountId};
 }
-/** The reset-file owner grant is server-local, access-only and tied to its
+/** The reset-file owner session is server-local and tied to its
  * proved issuer. It supplies no Hosted account or directory route authority. */
 function resetOwner(connection: RememberedServer): boolean {
   const session = connection.session;
-  return !connection.hosted && session.viewer.authority === 'local' && session.viewer.role === 'owner' && !session.refreshToken;
+  return !connection.hosted && session.viewer.authority === 'local' && session.viewer.role === 'owner';
 }
 export function parseAppSessionRecord(raw: unknown): AppSessionRecord {
   if (raw === undefined || raw === null) return empty();
