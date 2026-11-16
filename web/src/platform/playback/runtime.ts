@@ -33,7 +33,9 @@ import type {V1Http} from '@core/playback-v1/http.ts';
 import {CapabilityPublisher, PlaybackOptionsClient} from '@core/playback-v1/options.ts';
 import {audioStreamIndex, qualityChoiceOf, qualityRequest, offeredQualities, type QualityChoice} from '@core/playback-v1/choices.ts';
 import {PlayerOffersService, type PlayerOffersData} from '@core/player-offers.ts';
-import {SubtitleService, fetchSubtitleDocument, type SubtitleDocument, type SubtitlePlan, type SubtitleSnapshot} from '@core/subtitles.ts';
+import {serviceText} from '@core/presentation/service-text.ts';
+import {SubtitleService, searchItemSubtitles, downloadItemSubtitle, providerProblem, type SubtitleCandidate,
+  fetchSubtitleDocument, type SubtitleDocument, type SubtitlePlan, type SubtitleSnapshot} from '@core/subtitles.ts';
 import {DrawnSubtitleRetry, revalidateTextSubtitles, subtitleFetch} from './subtitle-retry.ts';
 import type {SubtitlePreferences} from '@core/preference-effects.ts';
 import type {PlaybackOptions, QueueHeader, Selector, Session} from '@core/playback-v1/types.ts';
@@ -98,6 +100,7 @@ type Stack = {
   web: WebPlayback; service: PlaybackService; queue: V1QueuePlayer; http: V1Http;
   life: AbortController; offers: PlayerOffersService; optionsClient: PlaybackOptionsClient;
   offs: (() => void)[]; unmount?: () => void; subtitles?: SubtitleService; offSubtitles?: () => void;
+  subtitleSearch?: WebSubtitleSearch; subtitleSearchFence?: PlaybackFence;
   subtitleKey?: string; documentKey?: string; documentAbort?: AbortController; documentTimer?: unknown;
   /** The overlay this stack draws a styled (ASS) or image (PGS/VobSub/DVB) track on. */
   drawnSurface?: DrawnSubtitleSurface;
@@ -141,6 +144,16 @@ function problem(code: string): never { throw new Error(code); }
 /** Stop on the starting dock is the viewer's own cancel: never reported as a failure. */
 const startStopped = () => new DOMException('Playback start stopped', 'AbortError');
 export type WebSleepEnd = 'item' | 'chapter' | 'book';
+export type WebSubtitleSearch = Readonly<{
+  itemId: string; busy: boolean; searched: boolean; candidates: readonly SubtitleCandidate[];
+  error?: string; canRetry?: boolean; off?: boolean;
+}>;
+function subtitleSearchFailure(itemId: string, error: unknown): WebSubtitleSearch {
+  const reason = providerProblem(error);
+  return Object.freeze({itemId, busy: false, searched: true, candidates: Object.freeze([]),
+    ...((error as {code?: unknown} | null)?.code === 'subtitle_search_not_set_up' ? {off: true}
+      : {error: reason?.text ?? serviceText('subtitles.error.failed'), canRetry: reason?.canRetry ?? true})});
+}
 const validSeconds = (value: number) => Number.isFinite(value) && value >= 0 && value <= 1e9;
 /** Prepared joins are web-only until native's own measured change lands. */
 const readServerCapabilities = (api: WebPlaybackSource['api'], signal: AbortSignal): Promise<unknown> => readWebPlaybackCapabilities(api, signal);
@@ -2544,13 +2557,52 @@ export class WebShellPlaybackRuntime {
     stack.sleepTimer = undefined;
     this.clearTimer(timer.timer);
   }
-  /** The server's own subtitle-provider facts for this fence's plan. Read-only: whether
-   * subtitles found online can be searched at all, and the server's reason when they cannot. */
+  /** Whether subtitles can be searched for this playback, and the server's reason when they cannot (rule 67). */
   subtitleProvider(fence: PlaybackFence): Readonly<{enabled: boolean; reason?: string}> | undefined {
-    if (fence.kind !== 'queue' || !this.matches(fence)) return undefined;
-    const state = this.stack.subtitles?.getSnapshot(), plan = state?.plan;
-    if (!state || !plan || plan.sessionId !== fence.sessionId || plan.generation !== fence.generation || plan.sourceId !== fence.sourceId) return undefined;
-    return Object.freeze({enabled: state.provider.enabled, ...(state.provider.reason ? {reason: state.provider.reason} : {})});
+    if (fence.kind !== 'queue' || !this.matches(fence) || !this.snapshot.offers?.subtitlePlan) return undefined;
+    return this.subtitleSearch(fence)?.off ? Object.freeze({enabled: false, reason: 'provider_not_configured'}) : Object.freeze({enabled: true});
+  }
+  /** Search state for this playback only. The panel decides how to present it. */
+  subtitleSearch(fence: PlaybackFence): WebSubtitleSearch | undefined {
+    if (fence.kind !== 'queue' || !this.matches(fence) || !this.snapshot.offers?.subtitlePlan) return undefined;
+    return sameFence(this.stack.subtitleSearchFence, fence) && this.stack.subtitleSearch ? this.stack.subtitleSearch
+      : Object.freeze({itemId: fence.itemId, busy: false, searched: false, candidates: Object.freeze([])});
+  }
+  async searchSubtitles(fence: PlaybackFence, language: string): Promise<void> {
+    if (fence.kind !== 'queue') problem('playback_subtitle_unavailable');
+    const stack = this.require(fence);
+    const pending = Object.freeze({itemId: fence.itemId, busy: true, searched: true, candidates: Object.freeze([])});
+    stack.subtitleSearchFence = fence; stack.subtitleSearch = pending; this.sync();
+    let result: WebSubtitleSearch;
+    try {
+      const candidates = await searchItemSubtitles(this.source.api, fence.itemId, [language], stack.life.signal);
+      result = Object.freeze({...pending, busy: false, candidates});
+    } catch (error) {result = subtitleSearchFailure(fence.itemId, error);}
+    if (!this.current(stack) || !this.matches(fence) || stack.subtitleSearch !== pending) return;
+    stack.subtitleSearch = result; this.sync();
+  }
+  /** Only a result offered for this playback can be downloaded and selected. */
+  async downloadSubtitle(fence: PlaybackFence, candidateId: string): Promise<void> {
+    if (fence.kind !== 'queue') problem('playback_subtitle_unavailable');
+    const stack = this.require(fence), search = this.subtitleSearch(fence);
+    const candidate = search?.candidates.find(value => value.id === candidateId);
+    if (!search || !candidate || search.busy) problem('playback_subtitle_unavailable');
+    const pending = Object.freeze({...search, busy: true, error: undefined});
+    stack.subtitleSearch = pending; this.sync();
+    const current = () => this.current(stack) && this.matches(fence) && stack.subtitleSearch === pending;
+    // Every exit on this stack ends the busy state: a playback that moved on (another version or quality) keeps the
+    // results to choose again, never a search stuck busy.
+    const settle = (next: WebSubtitleSearch) => {if (this.current(stack) && stack.subtitleSearch === pending) {stack.subtitleSearch = next; this.sync();}};
+    try {
+      const track = await downloadItemSubtitle(this.source.api, fence.itemId, fence.sourceId, candidate.id, stack.life.signal);
+      if (!current()) {settle(Object.freeze({...search, busy: false})); return;}
+      await stack.offers.refresh({quiet: true});
+      if (!current()) {settle(Object.freeze({...search, busy: false})); return;}
+      await this.selectSubtitle(fence, track.id);
+      if (this.current(stack) && stack.subtitleSearch === pending) {stack.subtitleSearch = undefined; this.sync();}
+    } catch (error) {
+      settle(Object.freeze({...subtitleSearchFailure(fence.itemId, error), candidates: search.candidates}));
+    }
   }
   /** Drawn temporary choices for this actual subject; music and live have no speed picker. */
   speedChoices(fence: PlaybackFence): readonly number[] {
