@@ -9,7 +9,6 @@ import {StorageBackupFolder, StorageBackupNow, StorageBackupPassphrase, StorageB
 import {EmptyCache} from './EmptyCache';
 import {StorageDataFolder, StorageUsage} from './StorageUsage';
 import {KeepingSelect} from './Keeping';
-import {DownloadsUsage} from '../server-storage/DownloadsUsage';
 import {SettingsStorageSource, type StorageTransport} from './storage-source';
 import {sectionLinkRows, sectionTarget, storageRowState, type SettingsTarget, type StorageRowFacts} from './rows';
 import styles from './server.module.css';
@@ -58,10 +57,9 @@ export function createServerSettingsSurfaces(options: SettingsServerOptions): Se
       const label = state.label ?? t(row.label);
       return row.id === 'storage.networkNotice' ? <span className={styles.storageWarning} role="status">{t('next.settings.storage.sharedDrive')}</span>
         : row.id === 'storage.emptyCache' ? <EmptyCache source={storage}/>
-        : row.id === 'storage.keepFiles' || row.id === 'storage.keepDownloads' ? <KeepingSelect source={storage} row={row} label={label} />
+        : row.id === 'storage.keepFiles' ? <KeepingSelect source={storage} row={row} label={label} />
         : row.id === 'storage.dataFolder' ? <StorageDataFolder source={storage} label={label} />
         : row.id === 'storage.usage' ? <StorageUsage source={storage} label={label} />
-        : row.id === 'storage.downloads' ? <DownloadsUsage api={options.transport} isCurrent={options.isCurrent} label={label} />
         : row.id === 'storage.backupKeysNote' ? <span className={styles.storageNote}>{t('next.settings.backup.keysNotice')}</span>
         : row.id === 'storage.backupFolder' ? <StorageBackupFolder {...backups} api={options.transport} />
         : row.id === 'storage.backupNow' ? <StorageBackupNow {...backups} />

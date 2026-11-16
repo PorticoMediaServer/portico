@@ -132,7 +132,6 @@ const bindings:Readonly<Record<string,SettingsBinding>>={
  'storage.backupKeep':{form:'backups',key:'keep'},
  'storage.keepConversions':{form:'maintenance',key:'retention.conversions',codec:'number-choice'},
  'storage.keepPrepared':{form:'maintenance',key:'retention.prepared',codec:'number-choice'},
- 'storage.keepDownloads':{form:'maintenance',key:'retention.downloads',codec:'number-choice'},
  'storage.keepSubtitles':{form:'maintenance',key:'retention.subtitles',codec:'number-choice'},
  'storage.keepTrickplay':{form:'maintenance',key:'retention.trickplay',codec:'number-choice'},
  'troubleshooting.detailLength':{form:'logs',key:'logDetailMinutes',codec:'number-choice'},

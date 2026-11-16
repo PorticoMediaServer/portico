@@ -16,7 +16,6 @@ import {LimitsTab} from './storage/LimitsTab';
 import {BackupsTab} from './storage/BackupsTab';
 import {NativeStorageSpaceUsage} from './storage/SpaceUsage';
 import {NativeEmptyCache} from './storage/EmptyCache';
-import {NativeDownloadsUsage} from './storage/DownloadsUsage';
 import {useFormState, useStorageForms, useStorageSet, type StorageForms} from './storage/forms';
 import {settingsSummary} from './settings-values';
 import {storageExtraSummary} from './storage/summary';
@@ -50,10 +49,7 @@ function Storage({ports, runtime, compactHeader, group, onOpenPage}: {ports: Nat
     <View style={{marginTop:14}}><NativeStorageSpaceUsage context={context} runtime={runtime}/></View>
     <NativeEmptyCache context={context} runtime={runtime}/>
     <BackupsTab ports={ports} runtime={runtime} t={t} advancedOpen={advanced} onAdvancedOpenChange={setAdvanced} advancedSummary={summary}
-      advancedContent={<>
-        <LimitsTab group={group} t={t} onOpenPage={onOpenPage}/>
-        <NativeDownloadsUsage ports={ports} runtime={runtime}/>
-      </>}>
+      advancedContent={<LimitsTab group={group} t={t} onOpenPage={onOpenPage}/>}>
     </BackupsTab>
     {Object.entries(group.forms).map(([id, form]) => form.getSnapshot().loadError !== undefined && <StateView key={id} variant="inline" {...runtime.error(form.getSnapshot().loadError, () => {void form.load();}, 'server-console')}/>)}
     {state.dirty && <View style={{flexDirection: 'row', gap: 8, marginTop: 16}}>

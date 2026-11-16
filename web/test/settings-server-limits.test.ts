@@ -31,7 +31,6 @@ test('the four Limits read the runtime document fields the server validates', ()
 });
 
 test('a row with no producer never becomes a value, so it stays absent', () => {
-  assert.equal(read('storage.downloadSpace'), undefined);
   assert.equal(read('storage.analysisSpace', {})?.current, undefined);
 });
 
@@ -50,7 +49,7 @@ test('Keep generated files resolves from the five real retention values and writ
   const options = row('storage.keepFiles').control.options!;
   const readRetention = (id: string) => read(id, {maintenance})?.current;
   assert.equal(exactPresetValue(options, readRetention), 'balanced');
-  assert.deepEqual(presetPatch(options, 'short'), {'storage.keepConversions': '1', 'storage.keepPrepared': '30', 'storage.keepDownloads': '14', 'storage.keepSubtitles': '90', 'storage.keepTrickplay': '90'});
+  assert.deepEqual(presetPatch(options, 'short'), {'storage.keepConversions': '1', 'storage.keepPrepared': '30', 'storage.keepSubtitles': '90', 'storage.keepTrickplay': '90'});
   // A value that is nobody's preset is shown as Custom, never as a preset it is not.
   assert.equal(exactPresetValue(options, id => id === 'storage.keepPrepared' ? '180' : readRetention(id)), 'custom');
 });
@@ -94,8 +93,8 @@ test('Storage answers for its own rows and leaves every other row to the shared 
   }
   for (const id of pendingServerRows) assert.deepEqual(storageRowState(row(id), live), {present: false}, `${id} has no drawn control yet`);
   for (const id of ['storage.analysisSpace', 'storage.keepNotifications']) assert.equal(storageRowState(row(id), live), undefined, id);
-  // Keep generated files and Prepared downloads draw once the keeping read answers (#3208); its other children wait for their caches.
-  for (const id of ['storage.keepFiles', 'storage.keepDownloads']) {assert.deepEqual(storageRowState(row(id), live), {present: false}, id); assert.deepEqual(storageRowState(row(id), {...live, keeping: true}), {present: true}, id);}
+  // Keep generated files draws once the keeping read answers (#3208); its children have no time of their own on the server.
+  for (const id of ['storage.keepFiles']) {assert.deepEqual(storageRowState(row(id), live), {present: false}, id); assert.deepEqual(storageRowState(row(id), {...live, keeping: true}), {present: true}, id);}
   for (const id of ['storage.keepConversions', 'storage.keepPrepared', 'storage.keepSubtitles', 'storage.keepTrickplay']) assert.deepEqual(storageRowState(row(id), {...live, keeping: true}), {present: false}, id);
   // A link whose drawn target is a mock page would be a dead control, so it stays absent.
   const keepHistory = row('storage.keepHistory');
