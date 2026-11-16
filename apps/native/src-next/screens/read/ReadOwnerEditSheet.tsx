@@ -10,11 +10,10 @@ import {browseType} from '../../kit/browse/presentation';
 import {useTheme} from '../../kit/theme';
 import {linkNativeAbortSignals} from '../../platform/abort-signals';
 import {stageCoverImage, type CoverImageMime, type CoverImageTemp} from '../../platform/cover-image';
-import {rereadNativeReadingSource} from './read-reread';
 import {loadNativeCoverPages, type NativeCoverPage} from './read-cover-pages';
 import type {ReadingManifest, ReadingPage} from '../../../../../packages/client-core/src';
 import type {NativeShellBootstrapContext} from '../../shell/bootstrap';
-import type {NativeReadOwnerEditLease, NativeReadVersion} from './read-book-model';
+import type {NativeReadOwnerEditLease} from './read-book-model';
 import {TVRow} from '../../kit/layout/TVRow';
 
 const {t} = defaultI18n;
@@ -39,9 +38,9 @@ type CoverOpening = Readonly<{
  * producer. It is bound to the committed book page it was opened from: every
  * request is scoped to that route/revision, session family and authority, and
  * the sheet retires with its page or its own close. */
-export function ReadOwnerEditSheet({context, lease, owner, itemId, libraryId, manifest, version, onClose}: Readonly<{
+export function ReadOwnerEditSheet({context, lease, owner, itemId, libraryId, manifest, onClose}: Readonly<{
   context: NativeShellBootstrapContext; lease: NativeReadOwnerEditLease; owner: object;
-  itemId: string; libraryId: string; manifest?: ReadingManifest; version?: NativeReadVersion; onClose: (owner: object) => void;
+  itemId: string; libraryId: string; manifest?: ReadingManifest; onClose: (owner: object) => void;
 }>) {
   const theme = useTheme();
   const sheetLife = useRef<AbortController>(new AbortController()).current;
@@ -109,7 +108,6 @@ export function ReadOwnerEditSheet({context, lease, owner, itemId, libraryId, ma
   const [coverPages, setCoverPages] = useState<Readonly<{opening: CoverOpening; phase: 'loading' | 'ready' | 'failed'; pages: readonly NativeCoverPage[]}>>();
   const [pageInput, setPageInput] = useState(pageCurrent.current);
   const [coverBusy, setCoverBusy] = useState(false), [coverFailed, setCoverFailed] = useState(false);
-  const [rereadBusy, setRereadBusy] = useState(false), [rereadFailed, setRereadFailed] = useState(false);
   const client = useMemo(() => context.api.reading({viewer: lease.viewer, isCurrent: () => owned(), signal: linked.signal}), [context, lease.viewer, linked, owned]);
   const loaded = useRef<RepairData | undefined>(undefined), retired = useRef<boolean>(false);
   // Each opening is its own keyed instance: its owner ticket and close callback
@@ -218,27 +216,6 @@ export function ReadOwnerEditSheet({context, lease, owner, itemId, libraryId, ma
     setPage(''); setCoverFailed(false); setCoverPages(undefined); setCoverOpening(next);
     void loadCoverPages(next);
   };
-  /** Ask the server to re-read the exact original source and refresh its file
-   * facts. The rendered repair document, manifest and selected version are
-   * captured together; the pre-I/O witness and every post-await lifetime check
-   * keep a retired sheet from refreshing or publishing a successor's state. */
-  const reread = async () => {
-    if (!exact(data) || !manifest || !version || operation.current) return;
-    const live = service.getSnapshot();
-    if (live.phase !== 'ready' || live.data !== data) return;
-    const capturedData = data, capturedManifest = manifest, capturedVersion = version, ticket = {};
-    operation.current = ticket;
-    setRereadBusy(true); setRereadFailed(false);
-    try {
-      await rereadNativeReadingSource({api: context.api, itemId, manifest: capturedManifest, version: capturedVersion,
-        data: capturedData, signal: linked.signal, isCurrent: owned});
-      if (!owned() || operation.current !== ticket) return;
-      // Accepted values come from the repair document, not the receipt's field names.
-      await service.refresh(capturedData);
-      if (!owned() || operation.current !== ticket) return;
-    } catch {if (owned() && operation.current === ticket) setRereadFailed(true);}
-    finally {if (operation.current === ticket) {operation.current = undefined; if (owned()) setRereadBusy(false);}}
-  };
   /** Closing the nested sheet retires only its own opening and flight; a
    * retained close from a superseded opening is refused. */
   const dismissCover = (target: CoverOpening) => {
@@ -311,7 +288,7 @@ export function ReadOwnerEditSheet({context, lease, owner, itemId, libraryId, ma
     description={t('next.reader.ownerOnly')} testID="native-read-owner-edit" keyboardAvoiding
     footer={<View style={{flexDirection: 'row', justifyContent: 'flex-end', gap: 10}}>
       <Button variant="glass" onPress={() => {if (owned()) close();}} disabled={busy}>{t('action.cancel')}</Button>
-      <Button onPress={() => {void save();}} loading={busy} disabled={!exact(data) || busy || coverBusy || rereadBusy}>{t('action.save')}</Button>
+      <Button onPress={() => {void save();}} loading={busy} disabled={!exact(data) || busy || coverBusy}>{t('action.save')}</Button>
     </View>}>
     {snapshot.phase === 'error' || failed ? <StateView variant="inline" title={t('error.unknown')}/> : null}
     <LoadingBoundary ready={exact(data) || snapshot.phase !== 'idle' && snapshot.phase !== 'loading'} immediate={exact(data)} skeleton={<SkeletonBlock width="100%" height={220}/>}>
@@ -329,18 +306,14 @@ export function ReadOwnerEditSheet({context, lease, owner, itemId, libraryId, ma
       })}
     </View> : null}
     </LoadingBoundary>
-    {exact(data) && manifest && version ? <View style={{marginTop: 16, gap: 8}}>
-      <Button variant="glass" onPress={() => {void reread();}} loading={rereadBusy} disabled={busy || coverBusy || rereadBusy}>{t('next.reader.readFileAgain')}</Button>
-      {rereadFailed ? <Text style={[browseType(theme, 12, 500), {color: theme.colors.record}]}>{t('error.unknown')}</Text> : null}
-    </View> : null}
     {exact(data) && data.artworkRoles.includes('cover') ? <View style={{marginTop: 16, gap: 8}}>
       <Text style={[browseType(theme, 14, 700), {color: theme.colors.text}]}>{t('web.metadata.tabArtwork')}</Text>
       {data.artwork.candidates.filter(candidate => candidate.role === 'cover').map(candidate => <View key={candidate.id} style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
         <Text numberOfLines={2} style={[browseType(theme, 12.5, 500), {color: theme.colors.textSecondary, flex: 1}]}>{candidate.attribution || candidate.provider}</Text>
         {candidate.current ? <Text style={[browseType(theme, 12, 600), {color: theme.colors.textTertiary}]}>{t('profile.current')}</Text>
-          : <Button variant="text" size="small" disabled={coverBusy || busy || rereadBusy || !!coverOpening} onPress={() => {void selectCover(candidate.id);}}>{t('web.metadata.useIt')}</Button>}
+          : <Button variant="text" size="small" disabled={coverBusy || busy || !!coverOpening} onPress={() => {void selectCover(candidate.id);}}>{t('web.metadata.useIt')}</Button>}
       </View>)}
-      {manifest?.format === 'cbz' && manifest.pageNames?.length ? <Button variant="glass" disabled={coverBusy || busy || rereadBusy || !!coverOpening} onPress={openCover}>{t('next.reader.chooseCoverPage')}</Button> : null}
+      {manifest?.format === 'cbz' && manifest.pageNames?.length ? <Button variant="glass" disabled={coverBusy || busy || !!coverOpening} onPress={openCover}>{t('next.reader.chooseCoverPage')}</Button> : null}
       {coverFailed ? <Text style={[browseType(theme, 12, 500), {color: theme.colors.record}]}>{t('error.unknown')}</Text> : null}
     </View> : null}
     {coverOpening ? <RetainedOverlay permit={paintPermit} allowedTypes={paintTypes}><BottomSheet open onOpenChange={open => {if (!open) dismissCover(coverOpening);}} title={t('next.reader.chooseCoverPage')}

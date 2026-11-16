@@ -1,4 +1,3 @@
-import {readMetadataResponse} from '@core/query/catalogue-actions.ts';
 import {useReadingFavorite} from './useReadingFavorite';
 import {ReadSavedAction} from './ReadSavedAction';
 import {ReadMarkAction} from './ReadMarkAction';
@@ -6,10 +5,7 @@ import {useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSPrope
 import {useLocation} from '@tanstack/react-router';
 import {defaultI18n} from '@i18n';
 import {generatedCoverTint} from '@design';
-import {ApiError} from '@core/index.ts';
-import {rereadReadingSource} from '@core/reading-reread.ts';
 import {readingDuration} from '@core/reading-manifest-facts.ts';
-import {validateRepair} from '@core/metadata-repair.ts';
 import {createReadingPublication, type ReaderContentsTarget} from '@portico/reader-core';
 import {stageContentsTarget, retireContentsTarget} from './contents-handoff';
 import {ReaderContents, type ReaderContentsEntry} from '../../kit/reader/ReaderPanel';
@@ -42,7 +38,7 @@ import {ReadOpenFailure, readFailureKind, readFailureReported, type ReadFailureK
 import styles from './read-item.module.css';
 
 type Captured = NonNullable<ReturnType<typeof useProtectedWebScreenContext>>;
-type ReadAttempt = {readonly context: Captured['context']; readonly entry: typeof router.state.location; readonly sourceId: string | undefined; readonly retry: number; readonly fileLife: AbortController; session?: ReadingSession; saving?: boolean; rereading?: boolean; live: boolean; ready: boolean; target?: (index: number) => ReaderContentsTarget};
+type ReadAttempt = {readonly context: Captured['context']; readonly entry: typeof router.state.location; readonly sourceId: string | undefined; readonly retry: number; readonly fileLife: AbortController; session?: ReadingSession; saving?: boolean; live: boolean; ready: boolean; target?: (index: number) => ReaderContentsTarget};
 const {t} = defaultI18n;
 /** The primary Item registration supplies a genuine Reading resource result. */
 export function ReadItemEntry({captured: provided, handoff, itemId, eligibility}: {captured?: Captured; handoff?: Captured['context']; itemId: string; eligibility: ReadItemEligibility}) {
@@ -63,7 +59,7 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
   const errorSink = useRef(captured.binding.home.effects.reportError); errorSink.current = captured.binding.home.effects.reportError;
   const [sourceId, setSourceId] = useState(() => eligibility.versions.find(version => version.inventoryAvailable && version.sourceId === eligibility.chosenSourceId)?.sourceId);
   const [menu, setMenu] = useState(false), [fileInfo, setFileInfo] = useState(false), [retry, setRetry] = useState(0);
-  const [saving, setSaving] = useState(false), [rereading, setRereading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [attempt, setAttempt] = useState<ReadAttempt>();
   const attemptRef = useRef<ReadAttempt | undefined>(undefined);
   const committed = useRef<ReadVersionSource | undefined>(undefined);
@@ -89,7 +85,7 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
   });
   useLayoutEffect(() => {
     const value: ReadAttempt = {context: captured.context, entry: routeLocation, sourceId, retry, fileLife: new AbortController(), live: true, ready: false};
-    attemptRef.current = value; setAttempt(value); setSaving(false); setRereading(false); setMore(false); setMenu(false); setFileInfo(false);
+    attemptRef.current = value; setAttempt(value); setSaving(false); setMore(false); setMenu(false); setFileInfo(false);
     return () => retire(value);
   }, [captured.context, eligibility.itemId, routeLocation, sourceId, retry]);
   const chooserAnchor = useRef<HTMLButtonElement>(null);
@@ -170,7 +166,7 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
     });
     if (!admitted) return;
     setDetail({});
-    setSaving(false); setRereading(false);
+    setSaving(false);
     setMenu(false); setChooserMenu(false);
     setSourceId(candidate.sourceId);
   };
@@ -245,41 +241,6 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
   /** Manual selection is a recovery action, offered only from More or a failed read. */
   const chooseVersion = eligibility.versions.length > 1;
   const viewer = context.identity?.viewer, canEdit = viewer?.authority === 'local' && viewer.role === 'owner';
-  /** Reopens this exact source and refreshes only its file-derived facts. The owner
-   * must still own the metadata revision they are looking at: the repair document
-   * supplies it, and a changed document is reloaded, never replayed. */
-  const reread = async () => {
-    // The claim belongs to this one opened attempt: a successor source starts its own read,
-    // and an old read can neither block it nor clear its state when it finishes.
-    if (!canEdit || !manifest || !original || !original.ready || original.rereading || !factsCurrent()) return;
-    original.rereading = true; setRereading(true);
-    // The error port belongs to the command that was dispatched, not to whatever page is
-    // current by the time a later failure arrives.
-    const reportError = errorSink.current, signal = original.fileLife.signal;
-    const owns = () => current(original) && attemptRef.current === original && original.ready
-      && original.session?.manifest === manifest && detail.manifest === manifest && !signal.aborted;
-    try {
-      if (!owns()) return;
-      const raw = await readMetadataResponse(context.api, 'item', eligibility.itemId, signal);
-      if (!owns()) return;
-      const libraryId = (raw as {libraryId?: unknown} | null)?.libraryId;
-      if (typeof libraryId !== 'string' || !libraryId || libraryId.length > 256) throw new Error('invalid_metadata_target');
-      const repair = validateRepair(raw, context.scope, Object.freeze({kind: 'item', id: eligibility.itemId, libraryId}));
-      if (!owns()) return;
-      await rereadReadingSource(context.api, {itemId: eligibility.itemId, sourceId: manifest.sourceId, sourceRevision: manifest.revision, metadataRevision: repair.revision}, {signal, isCurrent: owns});
-      if (owns()) refresh(original);
-    } catch (error) {
-      if (owns()) {
-        reportError(error);
-        // The reviewed metadata moved: reload the page instead of sending the same decision again.
-        if (error instanceof ApiError && error.status === 409) refresh(original);
-      }
-    } finally {
-      original.rereading = false;
-      // Only this attempt's own render may clear the busy state; a successor keeps its own.
-      if (attemptRef.current === original && current(original)) setRereading(false);
-    }
-  };
   const details = <ReadBookFacts heading={t('next.reader.details')} facts={[
     ...(author ? [{id: 'author', label: t('filter.field.author'), value: author}] : []),
     ...(manifest.metadata.language ? [{id: 'language', label: t('next.selection.language'), value: manifest.metadata.language}] : []),
@@ -304,7 +265,7 @@ function BoundReadItem({captured, handoff, eligibility}: {captured: Captured; ha
         {canSaveFile && <MenuItem disabled={saving} onSelect={() => {void saveFile();}}>{t('next.reader.saveFile')}</MenuItem>}
         {chooseVersion && <MenuItem icon="i-book" onSelect={() => {if (factsCurrent()) {setMore(false); setMenu(true);}}}>{t('next.reader.readDifferentVersion')}</MenuItem>}
         <MenuItem icon="i-info" onSelect={() => {if (factsCurrent()) {setMore(false); setFileInfo(true);}}}>{t('next.overlays.fileInfo')}</MenuItem>
-        {canEdit && <MenuGroup ownerOnly label={<span>{t('next.browse.server')}<ServerMark size={22}/></span>}><MenuItem onSelect={() => {if (context.isCurrent()) setEditing(true);}}>{t('entry.editMetadata')}</MenuItem><MenuItem disabled={rereading} onSelect={() => {if (context.isCurrent()) void reread();}}>{t('next.reader.readFileAgain')}</MenuItem></MenuGroup>}
+        {canEdit && <MenuGroup ownerOnly label={<span>{t('next.browse.server')}<ServerMark size={22}/></span>}><MenuItem onSelect={() => {if (context.isCurrent()) setEditing(true);}}>{t('entry.editMetadata')}</MenuItem></MenuGroup>}
       </Menu></>}/>
     <Dialog open={fileInfo} onOpenChange={setFileInfo} title={t('next.overlays.fileInfo')} returnFocusRef={editorAnchor}>
       {eligibility.versions.map(candidate => <ReadBookFacts key={candidate.sourceId} heading={candidate.format.toUpperCase()} facts={[
