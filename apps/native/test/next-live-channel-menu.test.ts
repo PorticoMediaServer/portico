@@ -27,37 +27,26 @@ import {NativeScreenLifetime} from '../src-next/screens/settings-live/lifetime';
 function visibilityOwner() {
   const scope = {serverId: 'server', accountId: 'owner', profileId: 'owner', epoch: 'session', viewerFence: 'fence'};
   const lifetime = new NativeScreenLifetime({authority: () => scope, current: () => true, subscribeAuthority: () => () => {}});
-  let revision = 2, hidden = false;
+  let hidden = false;
   const calls: {path: string; method?: string; body?: any}[] = [];
-  const row = () => ({sourceId: 'source', generation: 'g', revision, nextCursor: '', items: [{channelId: 'channel', name: 'One', sourceNumber: '1', number: '51', overrideNumber: '51', group: '', guideChannelId: 'epg', hidden, position: 0, overridden: true}]});
   const owner = new NativeLiveOwnerController(lifetime, {async request<T>(path: string, method?: string, body?: any): Promise<T> {
     calls.push({path, method, body});
-    if (method === 'PUT') {assert.equal(body.expectedRevision, revision);hidden = body.overrides[0].hidden;revision++;}
-    return {protocolVersion: '1.0', serverId: 'server', result: row()} as T;
+    if (method === 'PATCH') hidden = body.channels[0].hidden;
+    return {items: []} as T;
   }}, () => 'operation');
-  return {owner, lifetime, calls, changeRevision: () => revision++, hidden: () => hidden};
+  return {owner, lifetime, calls, hidden: () => hidden};
 }
 
-test('native owner Hide and Undo preserve the map and use the committed revision', async () => {
+test('native owner Hide and Undo set the channel\'s own hidden on the rebuilt source, and a retired opening sends nothing', async () => {
   const f = visibilityOwner(), proof = {signal: f.lifetime.signal, isCurrent: () => true};
   const receipt = await f.owner.channelHidden('source', 'channel', true, proof);
-  assert.match(f.calls[0]!.path, /channel-map\?channelId=channel&limit=1$/);
-  assert.deepEqual(f.calls[1]!.body.overrides, [{channelId: 'channel', number: '51', guideChannelId: 'epg', hidden: true}]);
-  assert.deepEqual(receipt, {revision: 3, hidden: true, previousHidden: false});
+  assert.deepEqual(f.calls[0], {path: '/v1/admin/live/sources/source/channels', method: 'PATCH', body: {channels: [{id: 'channel', hidden: true}]}});
+  assert.equal(receipt.previousHidden, false); assert.equal(f.hidden(), true);
   await f.owner.channelHidden('source', 'channel', false, proof, receipt);
   assert.equal(f.hidden(), false);
-  f.owner.dispose();f.lifetime.dispose();
-});
-
-test('native retained Undo refuses a subsequent owner edit and a retired opening', async () => {
-  const f = visibilityOwner(), proof = {signal: f.lifetime.signal, isCurrent: () => true};
-  const receipt = await f.owner.channelHidden('source', 'channel', true, proof);
-  f.changeRevision();
-  await assert.rejects(f.owner.channelHidden('source', 'channel', false, proof, receipt), {message: 'channel_map_changed'});
   const count = f.calls.length;
-  await assert.rejects(f.owner.channelHidden('source', 'channel', false, {...proof, isCurrent: () => false}, receipt), {name: 'AbortError'});
+  await assert.rejects(f.owner.channelHidden('source', 'channel', true, {...proof, isCurrent: () => false}));
   assert.equal(f.calls.length, count);
-  assert.equal(f.hidden(), true);
   f.owner.dispose();f.lifetime.dispose();
 });
 

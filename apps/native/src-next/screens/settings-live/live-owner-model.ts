@@ -146,3 +146,47 @@ export const secondsOf = (ms: number | null): string => ms === null ? '' : Strin
 export const millisOf = (value: string): number | null => value.trim() === '' ? null : Math.max(0, Math.round(Number(value) || 0)) * 1000;
 export const megabytes = 1048576;
 export const listOf = (value: string): string[] => value.split(',').map(part => part.trim()).filter(Boolean);
+
+/** A rebuilt source (`GET /v1/admin/live/sources`, client-core live-sources.ts) as the row these sheets draw. The
+ * rebuilt server keeps its health on the source itself, so there are no separate refresh rows; a paused source
+ * is drawn as paused. */
+export function liveSourceFromOwner(source: import('../../../../../packages/client-core/src/server-admin/live-sources').OwnerSource): LiveSource {
+  const report = source.report;
+  return Object.freeze({
+    id: source.id, name: source.name, revision: Number(source.revision), state: source.paused ? 'paused' : source.state, acquisition: source.acquisition,
+    tunerCount: source.tunerCount ?? 0, tunerCountMode: '', generation: '', publishedAt: source.refreshedAt ?? '',
+    channels: report?.channels ?? 0, programmes: report?.programmes ?? 0, deliveryValidation: '', capacityKnown: false, planningEstimate: 0,
+    diagnostics: {skippedChannels: report?.skippedChannels ?? 0, skippedProgrammes: report?.skippedProgrammes ?? 0, adjustedProgrammes: 0, examples: report?.examples ?? []},
+  });
+}
+
+/** The source settings sheet's editable copy of a rebuilt source (GET /v1/admin/live/sources/{id}). */
+export type SourceSettingsDraft = Readonly<{name: string; audience: string; paused: boolean; tunerCount: number; config: import('../../../../../packages/contracts/src/next/api').LiveSourceConfig;
+  username: string; password: string; playlist?: string; guide?: string}>;
+type SourceSettingsDocument = import('../../../../../packages/client-core/src/server-admin/live-source-settings').SourceSettingsDocument;
+export const sourceSettingsDraft = (document: SourceSettingsDocument): SourceSettingsDraft => ({name: document.source.name, audience: document.source.audience, paused: document.source.paused,
+  tunerCount: document.source.tunerCount, config: {...document.source.config}, username: '', password: ''});
+/** Only what the owner changed is sent; a new sign-in or a replaced file is sent whole. */
+export function sourceSettingsChange(document: SourceSettingsDocument, draft: SourceSettingsDraft): import('../../../../../packages/contracts/src/next/api').LiveSourceSave {
+  const body: import('../../../../../packages/contracts/src/next/api').LiveSourceSave = {}, base = sourceSettingsDraft(document);
+  for (const key of ['name', 'audience', 'paused', 'tunerCount', 'config'] as const) if (JSON.stringify(draft[key]) !== JSON.stringify(base[key])) Object.assign(body, {[key]: draft[key]});
+  if (draft.username || draft.password) body.signIn = {username: draft.username, password: draft.password};
+  if (draft.playlist) body.playlist = draft.playlist;
+  if (draft.guide) body.guide = draft.guide;
+  return body;
+}
+
+
+type RebuiltLiveDefaults = import('../../../../../packages/client-core/src/server-admin/live-defaults').LiveDefaultsDocument;
+const REWIND = [10, 30, 60, 120] as const;
+/** The rebuilt live document (settings `live`) in the units the phone's Live defaults sheet edits. The rebuilt
+ * server keeps no import size limits; those stay unset. */
+export function liveDefaultsView(document: RebuiltLiveDefaults): Readonly<{revision: number; settings: LiveDefaults}> {
+  const v = document.value, rewind = REWIND.find(value => value === v.rewindMinutes);
+  return Object.freeze({revision: Number(document.status.etag.slice(1, -1)), settings: Object.freeze({...(rewind ? {timeshiftMinutes: rewind} : {}), importLimits: {bytes: 0, channels: 0, programmes: 0},
+    streamBufferMs: v.bufferSeconds * 1000, retryWindowMs: v.retrySeconds * 1000, userAgent: v.userAgent, guideDays: v.guideDays, logoImport: v.importImages, discoveryEnabled: v.discoveryEnabled})});
+}
+export function rebuiltLiveDefaults(base: RebuiltLiveDefaults['value'], view: LiveDefaults): RebuiltLiveDefaults['value'] {
+  return {...base, bufferSeconds: Math.round(view.streamBufferMs / 1000), retrySeconds: Math.round(view.retryWindowMs / 1000), guideDays: view.guideDays,
+    rewindMinutes: view.timeshiftMinutes ?? base.rewindMinutes, importImages: view.logoImport, discoveryEnabled: view.discoveryEnabled, userAgent: view.userAgent};
+}
