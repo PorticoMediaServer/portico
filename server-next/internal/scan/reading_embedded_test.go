@@ -89,13 +89,17 @@ func TestABookIsReadFromItsOwnPackageDocument(t *testing.T) {
 		t.Fatalf("EPUB collection volume counts: %+v", series)
 	}
 	// Rewritten to say "Harbour Tales" is a reading list (a "set"), not a series: the book
-	// leaves it, as one scanned before collection types were read must.
+	// leaves it, as one scanned before collection types were read must, and loses its number
+	// in it; the series, now holding nothing, is gone.
 	f.put("scan0001.epub", epub(t, "3.0", `<dc:title>The Quiet Harbour</dc:title><dc:creator>Jane Doe</dc:creator>
 		<meta property="belongs-to-collection" id="c">Harbour Tales</meta><meta refines="#c" property="collection-type">set</meta>
 		<meta property="dcterms:modified">2026-11-13T00:00:00Z</meta>`))
 	f.scan()
-	if count := f.titles(db.KindSeries)["Harbour Tales"].ChildCount; count != 0 {
-		t.Fatalf("a reading list still holds the book: %d", count)
+	if series := f.titles(db.KindSeries); series["Harbour Tales"].PublicID != "" || series["Tides"].PublicID == "" {
+		t.Fatalf("series after the book left one: %v", keys(series))
+	}
+	if d := f.detail(harbour.PublicID); d.IndexNumber != nil {
+		t.Fatalf("the book kept its number in the series it left: %d", *d.IndexNumber)
 	}
 }
 
