@@ -56,7 +56,7 @@ func TestABookIsReadFromItsOwnPackageDocument(t *testing.T) {
 	f := newFixture(t, db.LibraryBooks)
 	f.put("scan0001.epub", epub(t, "3.0", `<dc:identifier id="id">urn:isbn:9780000000001</dc:identifier><dc:title>The Quiet Harbour</dc:title>
 		<dc:creator id="a1">Jane Doe</dc:creator><meta refines="#a1" property="role" scheme="marc:relators">aut</meta>
-		<dc:date>2020-05-01</dc:date><dc:description>Boats at dusk.</dc:description><dc:language>en</dc:language>
+		<dc:date>2020-05-01</dc:date><dc:description>&lt;p&gt;Boats at &lt;i&gt;dusk&lt;/i&gt;.&lt;/p&gt;</dc:description><dc:language>en</dc:language>
 		<meta property="belongs-to-collection" id="c">Harbour Tales</meta><meta refines="#c" property="group-position">2</meta>
 		<meta property="dcterms:modified">2026-11-12T00:00:00Z</meta>`))
 	f.put("old/book.epub", epub(t, "2.0", `<dc:title>A Second Tide</dc:title><dc:creator opf:role="aut">Sam Roe</dc:creator><dc:date>1999</dc:date>

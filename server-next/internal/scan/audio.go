@@ -47,7 +47,15 @@ func tagDetails(tags audiotags.Tags) details {
 			out[name] = value
 		}
 	}
+	out.plainDescription()
 	return out
+}
+
+// plainDescription keeps a description the file gave as plain text: many write HTML.
+func (d details) plainDescription() {
+	if v, ok := d["description"]; ok {
+		d["description"] = localmetadata.PlainText(v)
+	}
 }
 
 // overlay puts later, more deliberate details over these.
@@ -57,6 +65,7 @@ func (d details) overlay(more map[string]string) {
 			d[name] = value
 		}
 	}
+	d.plainDescription()
 }
 
 // number reads "3" or "3/12".

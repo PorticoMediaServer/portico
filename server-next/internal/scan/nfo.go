@@ -51,7 +51,7 @@ func describe(item *db.ImportItem, nfo *localmetadata.VideoNFO, kind string) {
 	text(db.FieldTitle, &item.Title, nfo.Title)
 	text(db.FieldSortTitle, &item.SortTitle, nfo.SortTitle)
 	text(db.FieldOriginalTitle, &item.OriginalTitle, nfo.OriginalTitle)
-	text(db.FieldSummary, &item.Summary, nfo.Overview)
+	text(db.FieldSummary, &item.Summary, localmetadata.PlainText(nfo.Overview))
 	text(db.FieldTagline, &item.Tagline, nfo.Tagline)
 	text(db.FieldReleaseDate, &item.ReleaseDate, nfo.Date)
 	text(db.FieldContentRating, &item.ContentRating, nfo.Certification)
