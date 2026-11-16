@@ -183,6 +183,32 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
     const next = `${Math.floor((x - leading) / stride)}:${Math.ceil((x + width - leading) / stride)}`;
     if (reported.value !== next) {reported.value = next; runOnJS(publishOffset)(x);}
   });
+  // A focus move or a scroll renders the row again; a card whose own values did not change keeps the
+  // element it had, so React leaves it as it was and the move draws only the cards it changes. Its
+  // focus and blur call into the row with the card's own values (the latest onItemFocus is used).
+  const latestItemFocus = useRef(onItemFocus);
+  latestItemFocus.current = onItemFocus;
+  const onCellFocus = useCallback((focusId: string, item: T, position: number, waiting: boolean) => {
+    setFocused(focusId); if (!waiting) latestItemFocus.current?.(item, position);
+  }, []);
+  const onCellBlur = useCallback((focusId: string) => setFocused(current => current === focusId ? undefined : current), []);
+  const cards = useRef(new Map<string, {inputs: readonly unknown[]; element: ReactNode}>());
+  const card = (slot: (typeof visible)[number], itemTestID: string | undefined): ReactNode => {
+    const {item, id, focusId, waiting, position} = slot;
+    const itemSelected = itemSelection(selection, id);
+    const inputs = [renderItem, item, id, itemTestID, waiting, position, selection, itemSelected?.active, itemSelected?.selected] as const;
+    const kept = cards.current.get(focusId);
+    if (kept && kept.inputs.every((value, index) => Object.is(value, inputs[index]))) return kept.element;
+    const element = renderItem(item, {id, focusId, testID: itemTestID, waiting, index: position, selection: itemSelected,
+      onFocus: () => onCellFocus(focusId, item, position, waiting), onBlur: () => onCellBlur(focusId)});
+    cards.current.set(focusId, {inputs, element});
+    return element;
+  };
+  // Cards that left the row are forgotten once the row has drawn without them.
+  useEffect(() => {
+    const shown = new Set(visible.map(slot => slot.focusId));
+    for (const focusId of [...cards.current.keys()]) if (!shown.has(focusId)) cards.current.delete(focusId);
+  });
   const controlStyle = (selected: boolean) => ({borderWidth: selected ? theme.spec.focus.ringWidth[theme.platform] : 0, borderColor: theme.colors.focus, borderRadius: theme.baseRadii.control});
   return <View testID={testID} onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)} style={style}>
     {showHeading && <View style={{flexDirection: 'row', alignItems: 'baseline', gap: theme.spec.shelf.headingGap[theme.platform], paddingLeft: leading, paddingRight: trailing, marginBottom: theme.spec.shelf.headingMargin[theme.platform]}}>
@@ -207,9 +233,7 @@ function RowContent<T>({title, showHeading = true, headingStyle, subtitle, items
           const {item, id, focusId, waiting, position} = slot;
           const itemTestID = focus ? focusTestID(focus.id, focusId) : testID ? `${testID}-item-${encodeURIComponent(focusId)}` : undefined;
           return <MotionItem key={focusId} enter={!!seen.current && !seen.current.has(focusId)} style={{position: 'absolute', left: leading + position * stride, top, width: itemWidth, height: itemHeight}}>
-            <FocusItem focusId={focusId} testID={itemTestID} waiting={waiting}>{renderItem(item, {id, focusId, testID: itemTestID, waiting, index: position, selection: itemSelection(selection, id), onFocus: () => {
-              setFocused(focusId); if (!waiting) onItemFocus?.(item, position);
-            }, onBlur: () => setFocused(current => current === focusId ? undefined : current)})}</FocusItem>
+            <FocusItem focusId={focusId} testID={itemTestID} waiting={waiting}>{card(slot, itemTestID)}</FocusItem>
           </MotionItem>;
         })}
       </View>
