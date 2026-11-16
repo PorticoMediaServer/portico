@@ -348,6 +348,10 @@ func (s *Service) childGroups(ctx context.Context, p Provider, locale Locale, it
 
 // unmatched puts a title on the Unmatched items list with the three closest answers.
 func (s *Service) unmatched(ctx context.Context, itemID int64, reason string, candidates []Candidate) error {
+	return s.unmatchedJob(ctx, itemID, reason, candidates, 0)
+}
+
+func (s *Service) unmatchedJob(ctx context.Context, itemID int64, reason string, candidates []Candidate, jobID int64) error {
 	type match struct {
 		Provider  string `json:"provider"`
 		ID        string `json:"id"`
@@ -362,6 +366,9 @@ func (s *Service) unmatched(ctx context.Context, itemID int64, reason string, ca
 	raw, err := json.Marshal(closest)
 	if err != nil {
 		return err
+	}
+	if jobID != 0 {
+		return s.DB.SetJobUnmatched(ctx, jobID, itemID, reason, string(raw))
 	}
 	return s.DB.SetUnmatched(ctx, db.Background, itemID, reason, string(raw))
 }
@@ -539,6 +546,10 @@ func (s *Service) IdentifyShow(ctx context.Context, itemID string, ref Ref, offs
 // Rematch looks a title up again as if it had just been scanned: "Look it up again" on the
 // Unmatched items list. It reports whether the title is now matched.
 func (s *Service) Rematch(ctx context.Context, itemID string) (bool, error) {
+	return s.rematchJob(ctx, itemID, 0)
+}
+
+func (s *Service) rematchJob(ctx context.Context, itemID string, jobID int64) (bool, error) {
 	t, p, locale, err := s.target(ctx, itemID)
 	if err != nil {
 		return false, err
@@ -572,23 +583,29 @@ func (s *Service) Rematch(ctx context.Context, itemID string) (bool, error) {
 	if ref.ID == "" {
 		candidates, err := p.Search(ctx, q)
 		if err != nil {
-			return false, err
+			return false, providerError{err}
 		}
 		best, reason := Choose(q, candidates)
 		if best < 0 {
 			// A title that was matched stays as it is; one that was not is listed with the new answers.
-			return false, s.unmatched(ctx, t.ID, reason, candidates)
+			return false, s.unmatchedJob(ctx, t.ID, reason, candidates, jobID)
 		}
 		ref = candidates[best].Ref
 	}
 	record, err := p.Details(ctx, ref, locale)
 	if errors.Is(err, ErrNotFound) {
-		return false, s.unmatched(ctx, t.ID, ReasonIDNotFound, nil)
+		return false, s.unmatchedJob(ctx, t.ID, ReasonIDNotFound, nil, jobID)
 	}
 	if err != nil {
-		return false, err
+		return false, providerError{err}
 	}
-	if _, err := s.DB.ChangeMatch(ctx, db.User, t.ID, details(record, db.MatchFound)); err != nil {
+	stored := details(record, db.MatchFound)
+	stored.JobID = jobID
+	priority := db.User
+	if jobID != 0 {
+		priority = db.Background
+	}
+	if _, err := s.DB.ChangeMatch(ctx, priority, t.ID, stored); err != nil {
 		return false, err
 	}
 	if err := s.storeTitlePictures(ctx, t.ID, record); err != nil {

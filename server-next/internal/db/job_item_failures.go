@@ -68,6 +68,14 @@ func jobItemOutcome(tx *sql.Tx, jobID int64, itemID, code string) error {
 		message = "This change is more than 35 days old. Make the change again."
 	case "too_many_titles":
 		message = "This title has too many playable titles to add at once. Add a smaller selection."
+	case "invalid_metadata":
+		message = "An edited metadata value is not allowed for this title. Check the fields and try again."
+	case "metadata_list_full":
+		message = "This edit would put too many entries in a metadata list. Remove entries and try again."
+	case "metadata_changed":
+		message = "This title changed while it was being saved. Try again."
+	case "provider_rejected":
+		message = "The metadata provider could not refresh this title. Try again later."
 	default:
 		return invalid("unknown job failure code")
 	}

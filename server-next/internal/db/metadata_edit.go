@@ -26,6 +26,8 @@ const (
 // list the edit sets is locked, so no scan or refresh changes it afterwards; Unlock lets the
 // provider's value return at the next refresh.
 type MetadataEdit struct {
+	// JobID clears this selection job's earlier failure with the saved edit; zero is a person's direct edit.
+	JobID           int64
 	Title           *string
 	SortTitle       *string
 	OriginalTitle   *string
@@ -247,7 +249,11 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 	}
 
 	var next int64
-	err := d.write(ctx, User, func(tx *sql.Tx) error {
+	priority := User
+	if edit.JobID != 0 {
+		priority = Background
+	}
+	err := d.write(ctx, priority, func(tx *sql.Tx) error {
 		b := newBatchTx(tx)
 		defer b.close()
 		now := time.Now().UnixMilli()
@@ -266,6 +272,9 @@ func (d *DB) EditMetadata(ctx context.Context, publicID string, revision int64, 
 		}
 		if current != revision {
 			return ErrStale
+		}
+		if err := metadataJobItem(tx, edit.JobID, id); err != nil {
+			return err
 		}
 		if err := remember(b, id, HistoryFields, now); err != nil {
 			return err
@@ -530,7 +539,19 @@ func (d *DB) RefreshTarget(ctx context.Context, publicID string) (RefreshItem, i
 // MarkRefreshed records that a provider was asked about a title and had nothing to say (it no
 // longer knows the title), so it is not asked again until the title is next due.
 func (d *DB) MarkRefreshed(ctx context.Context, p Priority, itemID int64) error {
+	return d.markRefreshed(ctx, p, itemID, 0)
+}
+
+// MarkJobRefreshed records a provider's empty answer and clears the job's earlier failure.
+func (d *DB) MarkJobRefreshed(ctx context.Context, jobID, itemID int64) error {
+	return d.markRefreshed(ctx, Background, itemID, jobID)
+}
+
+func (d *DB) markRefreshed(ctx context.Context, p Priority, itemID, jobID int64) error {
 	return d.write(ctx, p, func(tx *sql.Tx) error {
+		if err := metadataJobItem(tx, jobID, itemID); err != nil {
+			return err
+		}
 		now := time.Now().UnixMilli()
 		if _, err := tx.Exec(`UPDATE items SET refreshed_at = ? WHERE id = ?`, now, itemID); err != nil {
 			return err

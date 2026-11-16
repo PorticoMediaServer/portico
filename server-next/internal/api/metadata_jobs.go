@@ -1,7 +1,6 @@
 package api
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -193,6 +192,22 @@ func providerSentence(err error) error {
 	return errors.New("The metadata provider did not answer. Titles not reached are as they were; try again later.")
 }
 
+// Metadata job summaries are safe for every reader; provider payloads and storage errors
+// belong in the server log, never in a title's refusal or the job's public reason.
+func (s *Server) metadataJobError(ctx context.Context, jobID string, err error) error {
+	if err == nil || ctx.Err() != nil || errors.As(err, new(*jobs.Failure)) {
+		return err
+	}
+	if errors.Is(err, metadata.ErrProviderDown) {
+		return &jobs.Failure{Shown: "The metadata provider did not answer. Titles not reached are as they were; try again later."}
+	}
+	if errors.Is(err, db.ErrNotFound) {
+		return &jobs.Failure{Shown: "This selection is no longer available. What was saved stays saved."}
+	}
+	s.log.Error("metadata job stopped", "job", jobID, "error", err)
+	return &jobs.Failure{Shown: "This metadata job stopped because of a server problem. What was saved stays saved; try again."}
+}
+
 func bulkEdit(raw json.RawMessage) (BulkEdit, error) {
 	var b BulkEdit
 	if len(raw) > 0 && json.Unmarshal(raw, &b) != nil {
@@ -211,16 +226,14 @@ func bulkEdit(raw json.RawMessage) (BulkEdit, error) {
 	return b, nil
 }
 
-// editItems is bulk edit: each title is its own change and its own History entry. Every title
-// that can be saved is; the job ends by naming those that could not be, and why. Asking for the
-// same edit again saves them, and changes nothing on the rest.
-func (s *Server) editItems(ctx context.Context, work jobs.Work) error {
+// editItems saves every title it can and keeps each refusal for the failure page.
+func (s *Server) editItems(ctx context.Context, work jobs.Work) (result error) {
+	defer func() { result = s.metadataJobError(ctx, work.Job.PublicID, result) }()
 	b, err := bulkEdit(work.Params)
 	if err != nil {
 		return err
 	}
 	lock := b.Lock == nil || *b.Lock
-	var failed []string
 	var done, total int64
 	cursor := ""
 	for {
@@ -235,15 +248,27 @@ func (s *Server) editItems(ctx context.Context, work jobs.Work) error {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			title, err := s.editOne(ctx, id, b, lock)
+			err := s.editOne(ctx, id, b, lock, work.Job.ID)
 			if err != nil {
-				reason := "it is no longer there"
-				if errors.Is(err, db.ErrInvalid) {
-					reason = strings.TrimPrefix(err.Error(), db.ErrInvalid.Error()+": ")
-				} else if !errors.Is(err, db.ErrNotFound) {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				code := ""
+				switch {
+				case errors.Is(err, db.ErrNotFound): // gone or no longer visible: skip
+				case errors.Is(err, db.ErrInvalid):
+					code = "invalid_metadata"
+					if strings.HasSuffix(err.Error(), " entries") {
+						code = "metadata_list_full"
+					}
+				case errors.Is(err, db.ErrStale):
+					code = "metadata_changed"
+				default:
 					return err
 				}
-				failed = append(failed, cmp.Or(title, id)+" ("+reason+")")
+				if err := s.db.RecordMetadataJobOutcome(ctx, work.Job.ID, id, code); err != nil {
+					return err
+				}
 			}
 			done++
 			work.Progress(done, max(total, done))
@@ -253,34 +278,25 @@ func (s *Server) editItems(ctx context.Context, work jobs.Work) error {
 		}
 		cursor = next
 	}
-	if len(failed) > 0 {
-		shown := failed[:min(len(failed), 20)]
-		more := ""
-		if len(failed) > len(shown) {
-			more = fmt.Sprintf(" and %d more", len(failed)-len(shown))
-		}
-		return fmt.Errorf("Saved %d of %d. Not saved: %s%s.", done-int64(len(failed)), done, strings.Join(shown, "; "), more)
-	}
-	return nil
+	return s.selectionResult(ctx, work.Job.ID)
 }
 
-// editOne applies a bulk edit to one title and answers its title for the report. A title
-// someone changed in the meantime is read again and edited on its new copy.
-func (s *Server) editOne(ctx context.Context, id string, b BulkEdit, lock bool) (string, error) {
+// editOne applies a bulk edit to one title. A title changed in the meantime is read again
+// and edited on its new copy. The save clears an earlier failure in that same transaction.
+func (s *Server) editOne(ctx context.Context, id string, b BulkEdit, lock bool, jobID int64) error {
 	if err := s.itemMetadataLanguage(ctx, id, b.Language); err != nil {
-		return "", err
+		return err
 	}
 	for attempt := 0; ; attempt++ {
 		doc, err := s.db.MetadataDocument(ctx, id)
 		if err != nil {
-			return "", err
+			return err
 		}
-		title, _ := doc.Fields[db.FieldTitle].(string)
 		locked := map[string]bool{}
 		for _, f := range doc.Locked {
 			locked[f] = true
 		}
-		edit := db.MetadataEdit{Year: b.Year, Edition: b.Edition, ContentRating: b.ContentRating, Language: b.Language}
+		edit := db.MetadataEdit{JobID: jobID, Year: b.Year, Edition: b.Edition, ContentRating: b.ContentRating, Language: b.Language}
 		var edited []string
 		for field, given := range map[string]bool{db.FieldYear: b.Year != nil, db.FieldEdition: b.Edition != nil,
 			db.FieldContentRating: b.ContentRating != nil, db.FieldLanguage: b.Language != nil} {
@@ -325,6 +341,6 @@ func (s *Server) editOne(ctx context.Context, id string, b BulkEdit, lock bool) 
 		if errors.Is(err, db.ErrStale) && attempt < 3 {
 			continue
 		}
-		return title, err
+		return err
 	}
 }

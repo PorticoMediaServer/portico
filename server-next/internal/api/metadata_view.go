@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"slices"
@@ -51,8 +52,18 @@ func (s *Server) metadataPage(ctx context.Context, req jobs.Request, cursor stri
 		return nil, "", 0, err
 	}
 	if len(req.Target.Items) > 0 {
-		_, err = s.db.SeesItems(ctx, v, req.Target.Items)
-		return req.Target.Items, "", int64(len(req.Target.Items)), err
+		var ids []string
+		for _, id := range req.Target.Items {
+			err := s.db.SeesItem(ctx, v, id)
+			if errors.Is(err, db.ErrNotFound) {
+				continue
+			}
+			if err != nil {
+				return nil, "", 0, err
+			}
+			ids = append(ids, id)
+		}
+		return ids, "", int64(len(ids)), nil
 	}
 	q, err := metadataView(req)
 	if err != nil {
@@ -67,7 +78,12 @@ func (s *Server) metadataPage(ctx context.Context, req jobs.Request, cursor stri
 	return ids, page.NextCursor, int64(page.Total), err
 }
 
-func (s *Server) refreshItems(ctx context.Context, work jobs.Work) error {
+func (s *Server) refreshItems(ctx context.Context, work jobs.Work) (result error) {
+	defer func() { result = s.metadataJobError(ctx, work.Job.PublicID, result) }()
+	v, err := s.db.MainViewer(ctx, work.UserID)
+	if err != nil {
+		return err
+	}
 	var done, total int64
 	cursor := ""
 	libraries := map[int64]bool{}
@@ -88,16 +104,16 @@ func (s *Server) refreshItems(ctx context.Context, work jobs.Work) error {
 		if cursor == "" {
 			total = count
 		}
-		refreshed, err := s.metadata.RefreshTitles(ctx, ids, time.UnixMilli(work.Job.CreatedAt), func(n int64) { work.Progress(done+n, max(total, done+n)) })
+		refreshed, err := s.metadata.RefreshJobTitles(ctx, v, work.Job.ID, ids, time.UnixMilli(work.Job.CreatedAt), func(n int64) { work.Progress(done+n, max(total, done+n)) })
 		for id := range refreshed {
 			libraries[id] = true
 		}
 		if err != nil {
-			return providerSentence(err)
+			return err
 		}
 		done += int64(len(ids))
 		if next == "" {
-			return nil
+			return s.selectionResult(ctx, work.Job.ID)
 		}
 		cursor = next
 	}

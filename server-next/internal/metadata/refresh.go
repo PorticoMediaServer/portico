@@ -23,20 +23,31 @@ func ownID(p Provider, ids []db.ExternalID) string {
 // no longer gives keeps its value: the database write decides that, not this code. A provider
 // that cannot be asked changes nothing, and the title stays due.
 func (s *Service) refresh(ctx context.Context, p Provider, locale Locale, item db.RefreshItem, priority db.Priority) error {
+	return s.refreshJob(ctx, p, locale, item, priority, 0)
+}
+
+func (s *Service) refreshJob(ctx context.Context, p Provider, locale Locale, item db.RefreshItem, priority db.Priority, jobID int64) error {
 	locale = locale.For(item.Language)
 	ref := Ref{Provider: p.Name(), Kind: providerKinds[item.Kind], ID: ownID(p, item.ExternalIDs)}
 	if ref.ID == "" || ref.Kind == "" {
+		if jobID != 0 {
+			return s.DB.MarkJobRefreshed(ctx, jobID, item.ID)
+		}
 		return s.DB.MarkRefreshed(ctx, priority, item.ID)
 	}
 	record, err := p.Details(ctx, ref, locale)
 	if errors.Is(err, ErrNotFound) {
 		// The provider dropped the title: what it has stays, and it is not asked about daily.
+		if jobID != 0 {
+			return s.DB.MarkJobRefreshed(ctx, jobID, item.ID)
+		}
 		return s.DB.MarkRefreshed(ctx, priority, item.ID)
 	}
 	if err != nil {
 		return providerError{err}
 	}
 	stored := details(record, db.MatchNone)
+	stored.JobID = jobID
 	stored.Continuing = &record.Continuing
 	if err := s.DB.ApplyDetails(ctx, priority, item.ID, stored); err != nil {
 		return err
