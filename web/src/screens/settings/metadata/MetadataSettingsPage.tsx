@@ -15,11 +15,11 @@ import {SettingsRow} from '../../../kit/shell/SettingsSurfaces';
 const t = defaultI18n.t;
 type SecretDraft = Readonly<{value: string; remove: boolean}>;
 const emptySecret = (): SecretDraft => ({value: '', remove: false});
-type Draft = {artworkLanguage?: ArtworkLanguage;artworkPreference?: ArtworkPreference;onlineLookups?: boolean;defaultLanguage?: string; defaultRegion?: string; libraries: Record<string, MetadataLibraryChange>; limit: string; adult: boolean; edge?: ArtworkMaxEdge; tmdb: SecretDraft; tvdb: SecretDraft; subtitleKey: SecretDraft; subtitleUser: string; subtitlePassword: string; advanced?: Partial<Pick<MetadataAdvanced, 'refreshPolicy' | 'fallbackLanguage' | 'animeTitles' | 'castPhotos'>>; acoustid: SecretDraft};
+type Draft = {artworkLanguage?: ArtworkLanguage;artworkPreference?: ArtworkPreference;onlineLookups?: boolean;defaultLanguage?: string; defaultRegion?: string; libraries: Record<string, MetadataLibraryChange>; limit: string; adult: boolean; edge?: ArtworkMaxEdge; tmdb: SecretDraft; tvdb: SecretDraft; subtitleKey: SecretDraft; subtitleUser: string; subtitlePassword: string; advanced?: Partial<Pick<MetadataAdvanced, 'refreshPolicy' | 'fallbackLanguage' | 'animeTitles'>>; acoustid: SecretDraft};
 const draftFor = (document: MetadataSettings): Draft => ({artworkLanguage: document.artworkLanguage, artworkPreference: document.artworkPreference, onlineLookups: document.onlineLookups, defaultLanguage: document.defaultLanguage, defaultRegion: document.defaultRegion, libraries: {}, limit: document.localArtworkLimitBytes === undefined ? '' : artworkLimitText(document.localArtworkLimitBytes), adult: document.includeAdult, edge: document.artworkMaxEdge,
   tmdb: emptySecret(), tvdb: emptySecret(), subtitleKey: emptySecret(), subtitleUser: document.openSubtitlesUsername, subtitlePassword: '', acoustid: emptySecret(),
-  advanced: document.advanced && {refreshPolicy: document.advanced.refreshPolicy, fallbackLanguage: document.advanced.fallbackLanguage, animeTitles: document.advanced.animeTitles, castPhotos: document.advanced.castPhotos}});
-const advancedKeys = ['refreshPolicy', 'fallbackLanguage', 'animeTitles', 'castPhotos'] as const;
+  advanced: document.advanced && {refreshPolicy: document.advanced.refreshPolicy, fallbackLanguage: document.advanced.fallbackLanguage, animeTitles: document.advanced.animeTitles}});
+const advancedKeys = ['refreshPolicy', 'fallbackLanguage', 'animeTitles'] as const;
 const secretValue = (draft: SecretDraft): string | undefined => draft.remove ? '' : draft.value.trim() || undefined;
 const terminal = (error: unknown): boolean => {
   if (!error || typeof error !== 'object') return false;
@@ -37,7 +37,6 @@ function advancedSummary(advanced: MetadataAdvanced): string[] {
   named('metadata.refresh', advanced.refreshPolicy, 'regular');
   named('metadata.fallbackLanguage', advanced.fallbackLanguage, 'en');
   named('metadata.animeTitles', advanced.animeTitles, 'language');
-  if (advanced.castPhotos === false) parts.push(t('server.metadata.castPhotosOff'));
   if (advanced.acoustidKeyConfigured) parts.push(t('next.settingsSpec.server.metadata.advanced.groups.3.title'));
   return parts;
 }
@@ -203,7 +202,7 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
       const advanced = document.advanced, extra = draft.advanced;
       const refreshing = advanced?.refreshPolicy !== undefined || advanced?.refreshAll !== undefined;
       const languages = advanced?.fallbackLanguage !== undefined || advanced?.animeTitles !== undefined;
-      const artwork = hasLimit || document.artworkMaxEdge !== undefined || advanced?.castPhotos !== undefined;
+      const artwork = hasLimit || document.artworkMaxEdge !== undefined;
       const music = advanced?.acoustidKeyConfigured !== undefined;
       if (!refreshing && !languages && !artwork && !music) return null;
       const used = document.localArtworkUsedBytes ?? 0, limit = document.localArtworkLimitBytes ?? 0;
@@ -227,9 +226,6 @@ export function MetadataSettingsPage({api, isCurrent, onLibraries, recommendatio
           </> : null}
           {draft.edge !== undefined ? <SettingsRow label={t('next.settingsSpec.server.metadata.advanced.groups.2.rows.1.label')}><Select aria-label={t('next.settingsSpec.server.metadata.advanced.groups.2.rows.1.label')} value={String(draft.edge)} disabled={busy}
             options={[{value: '1280', label: t('next.settingsSpec.server.metadata.advanced.groups.2.rows.1.control.options.0.label')}, {value: '1920', label: t('next.settingsSpec.server.metadata.advanced.groups.2.rows.1.control.options.1.label')}, {value: '2560', label: t('next.settingsSpec.server.metadata.advanced.groups.2.rows.1.control.options.2.label')}]} onValueChange={value => {if (value === '1280' || value === '1920' || value === '2560') set('edge', Number(value) as ArtworkMaxEdge);}}/></SettingsRow> : null}
-          {extra?.castPhotos !== undefined ? <SettingsRow label={t('next.settingsSpec.server.metadata.advanced.groups.2.rows.2.label')} help={t('next.settingsSpec.server.metadata.advanced.groups.2.rows.2.help')}>
-            <Switch aria-label={t('next.settingsSpec.server.metadata.advanced.groups.2.rows.2.label')} checked={extra.castPhotos} disabled={busy} onCheckedChange={value => set('advanced', {...extra, castPhotos: value})}/>
-          </SettingsRow> : null}
         </SettingsGroup> : null}
         {music ? <SettingsGroup title={t('next.settingsSpec.server.metadata.advanced.groups.3.title')} advanced>
           {secret('acoustid', 'next.settingsSpec.server.metadata.advanced.groups.3.rows.0.label', advanced?.acoustidKeyConfigured === true)}

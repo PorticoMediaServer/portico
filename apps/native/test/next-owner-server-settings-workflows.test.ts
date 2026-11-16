@@ -61,8 +61,9 @@ test('Storage custom limits open an exact-value editor and a rejected edit never
   const save = () => nodes(find('server-storage-number').props.footer).find((node: any) => node.type === 'Button' && content(node) === 'action.save');
   assert.equal(save().props.disabled, true);save().props.onPress();assert.equal(fixture.group.forms.runtime.getSnapshot().draft.analysisStorageGiB, 40);
   field().props.onChangeText('48');assert.equal(save().props.disabled, false);save().props.onPress();assert.equal(fixture.group.forms.runtime.getSnapshot().draft.analysisStorageGiB, 48);
-  const links = nodes(render()).filter((node: any) => node.type === 'Button' && ['next.settingsSpec.server.storage.advanced.groups.0.rows.0.control.label', 'next.settingsSpec.server.storage.advanced.groups.0.rows.2.control.label'].includes(content(node)));
-  assert.equal(links.length, 2); links.forEach((node: any) => node.props.onPress()); assert.deepEqual(opened, ['history', 'troubleshooting']);
+  // Keep play history is gone (kept indefinitely, owner 16 Nov); the logs link remains.
+  const links = nodes(render()).filter((node: any) => node.type === 'Button' && content(node) === 'next.settingsSpec.server.storage.advanced.groups.0.rows.2.control.label');
+  assert.equal(links.length, 1); links.forEach((node: any) => node.props.onPress()); assert.deepEqual(opened, ['troubleshooting']);
   assert.ok(!nodes(render()).some((node: any) => node.props.row?.id === 'troubleshooting.keepLogs'));
   fixture.stop();
 });
@@ -260,7 +261,7 @@ test('Streaming edits its folder and server-wide tone-map method', async () => {
   assert.equal(hardwareTests, 0);const hardware = nodes(tree).find((node: any) => node.type === 'Hardware');hardware.props.onTest();hardware.props.onTest();assert.equal(hardwareTests, 1);finish!(capacity);await settle();host.dispose();fixture.stop();
 });
 
-test('History mounts real list/filter wiring and its named retention choices write numeric days', async () => {
+test('History mounts real list/filter wiring and offers no keep choice', async () => {
   const fixture = await formsFixture({runtime: {playHistoryDays: 46}}), host = lifecycleHooks();
   const history = await import('../src-next/screens/settings-live/server/history-source.ts'), reports = await import('../../../packages/client-core/src/report-context.ts');
   const calls: any[] = [], entry = {id: 'play', user: 'sam_k', profile: 'Kids', accountId: 'a1', title: 'Film', startedAt: '2026-10-28T11:00:00Z', watchedMs: 42000, completed: false, location: '192.0.2.5'};
@@ -281,7 +282,8 @@ test('History mounts real list/filter wiring and its named retention choices wri
   const tree = render();assert.equal(tree.type, 'FlatList');assert.equal(tree.props.data[0], entry);
   const row = tree.props.renderItem({item: entry});assert.match(content(row), /sam_k.*Kids/);assert.doesNotMatch(content(row), /192\.0\.2\.5/);
   nodes(tree).find((node: any) => node.props.testID === 'server-history-period').props.onValueChange('7d');await settle();assert.equal(calls.at(-1).period, '7d');
-  const keep = () => nodes(render()).find((node: any) => node.props.testID === 'history.keepHistory');assert.equal(keep().props.value, 'custom');keep().props.onValueChange('forever');assert.equal(fixture.group.forms.runtime.getSnapshot().draft.playHistoryDays, 0);keep().props.onValueChange('3y');assert.equal(fixture.group.forms.runtime.getSnapshot().draft.playHistoryDays, 1095);
+  // Play history is kept indefinitely (owner, 16 Nov): the page offers no keep choice.
+  assert.equal(nodes(render()).some((node: any) => node.props.testID === 'history.keepHistory'), false);
   host.dispose();fixture.stop();
 });
 

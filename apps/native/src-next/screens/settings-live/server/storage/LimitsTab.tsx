@@ -43,7 +43,7 @@ export function LimitsTab({group, t, onOpenPage}: {group: StorageForms; t: Trans
     setEditing({label, value: String(current), min, max, done}); setValue(String(current));
   };
   const renderRow = (row: SpecRow): React.ReactNode => {
-    if (row.id === 'storage.keepHistory' || row.id === 'storage.keepLogsLink') return <Button key={row.id} variant="text" onPress={() => {if (group.context.current()) onOpenPage(row.id === 'storage.keepHistory' ? 'history' : 'troubleshooting');}}>{t(row.control.label ?? row.label)}</Button>;
+    if (row.id === 'storage.keepLogsLink') return <Button key={row.id} variant="text" onPress={() => {if (group.context.current()) onOpenPage('troubleshooting');}}>{t(row.control.label ?? row.label)}</Button>;
     const binding = settingsBinding(row.id), current = read(row.id);
     if (!binding || current === undefined || !['runtime', 'maintenance'].includes(binding.form)) return null;
     if (row.id === 'storage.backupDays' || row.id === 'storage.backupWindowLength') return null;

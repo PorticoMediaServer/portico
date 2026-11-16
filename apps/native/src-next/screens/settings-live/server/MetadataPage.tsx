@@ -121,7 +121,7 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
         const music = advanced?.acoustidKeyConfigured !== undefined;
         if (!refreshing && !languages && !artwork && !music) return null;
         const summary = [settings.localArtworkLimitBytes !== undefined ? `${artworkLimitText(settings.localArtworkLimitBytes)} GB` : '',
-          settings.artworkMaxEdge !== undefined ? `${settings.artworkMaxEdge} px` : '', advanced?.castPhotos === false ? t('server.metadata.castPhotosOff') : ''].filter(Boolean).join(' · ');
+          settings.artworkMaxEdge !== undefined ? `${settings.artworkMaxEdge} px` : ''].filter(Boolean).join(' · ');
         return <NativeAdvancedSection testID="server-metadata-advanced" summary={summary}>
           {refreshing && <><SectionTitle>{advancedTitle(0)}</SectionTitle><SettingsGroup>
             {select('metadata.refresh', advanced?.refreshPolicy, value => ({refreshPolicy: value as MetadataRefreshPolicy}), true)}
@@ -136,7 +136,6 @@ function MetadataPage({ports, runtime, compactHeader, onLibraries, controller, c
             {settings.localArtworkLimitBytes !== undefined && select('metadata.artworkLimit', artworkLimitText(settings.localArtworkLimitBytes), value => ({localArtworkLimitBytes: Number(value) * 2 ** 30}), true,
               t('server.metadata.artworkUsedHelp', {used: artworkLimitText(settings.localArtworkUsedBytes ?? 0)}))}
             {settings.artworkMaxEdge !== undefined && select('metadata.artworkSize', settings.artworkMaxEdge === 1280 ? 'small' : settings.artworkMaxEdge === 2560 ? 'large' : 'standard', value => ({artworkMaxEdge: value === 'small' ? 1280 : value === 'large' ? 2560 : 1920}), settings.localArtworkLimitBytes === undefined)}
-            {toggle('metadata.castPhotos', advanced?.castPhotos, castPhotos => ({castPhotos}), settings.localArtworkLimitBytes === undefined && settings.artworkMaxEdge === undefined)}
           </SettingsGroup></>}
           {music && <><SectionTitle>{advancedTitle(3)}</SectionTitle><SettingsGroup>
             {credential('metadata.acoustid', advanced?.acoustidKeyConfigured === true, true)}
