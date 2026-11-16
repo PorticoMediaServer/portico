@@ -1233,6 +1233,7 @@ export interface Item {
   counts?: ItemCounts;
   state: ItemState;
   libraryId: string;
+  chapter?: ItemChapter;
   entryId?: string;
   originalTitle?: string;
   summary?: string;
@@ -1248,6 +1249,13 @@ export interface Item {
   creditTotal?: number;
   versions?: Media[];
   albumAudio?: AlbumAudioSummary;
+}
+
+export interface ItemChapter {
+  number: number;
+  title: string;
+  startMs: number;
+  endMs: number;
 }
 
 export interface ItemCounts {

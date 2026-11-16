@@ -65,7 +65,7 @@ function continueFixture(total = 3, options: {all?: boolean; wrongLibrary?: bool
     const items = Array.from({length: total}, (_, index) => wire(`item-${index}`, options.wrongLibrary || options.all && index % 2 ? 'another-library' : 'unit-library', {
       state: {watched: false, lastPlayedAt: new Date(10000 + index).toISOString(),
         position: JSON.stringify({format: 'pdf', pageIndex: index + 17, progression: .25, fingerprint: '0123456789abcdef'})}}));
-    const data = JSON.stringify({rows: [{id: url.pathname === '/v1/home' ? 'continue_reading' : 'continue', title: 'Continue', shape: 'poster', items}]});
+    const data = JSON.stringify({rows: [{id: url.pathname === '/v1/home' ? 'continue_books' : 'continue', title: 'Continue', shape: 'poster', items}]});
     if (options.delayed) return new Promise<Response>(resolve => {release = () => resolve(new Response(new ReadableStream({
       start(controller) {controller.enqueue(new TextEncoder().encode(data));}, cancel() {cancelled++;},
     }), {headers: {'Content-Type': 'application/json'}}));});

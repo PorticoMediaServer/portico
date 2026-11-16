@@ -14,7 +14,7 @@ import (
 // out of reach, the later of two devices' saves winning, and the profile's other devices told.
 
 // alwaysOnRows can be moved but never hidden: what a person is part-way through stays on Home.
-var alwaysOnRows = []string{"continue", "continue_listening", "continue_reading"}
+var alwaysOnRows = []string{"continue", "continue_listening", "continue_books"}
 
 // homeLayout puts the rows in the profile's saved order and leaves out the ones it hid, or
 // with withHidden keeps them in their place marked hidden and without items. A row the order

@@ -52,6 +52,8 @@ type Item struct {
 	// Credits, on a list of one person's titles, are that person's credits on the item, in
 	// billing order: every role they have on it (browse rule 26).
 	Credits []Credit
+	// Chapter is, for an audiobook in Continue your books, the chapter the viewer's place is in.
+	Chapter *Chapter
 
 	sortTitle string
 	// imageParentID is a track's album only when this viewer may see that album.
