@@ -39,6 +39,14 @@ func TestListJobPartialPagesAreSafeToReplay(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("changed pages: %v, want %v", got, want)
 	}
+	checkResult := func(added int64) {
+		t.Helper()
+		result, err := l.d.ListJobResult(ctx, l.all, job)
+		if err != nil || result != (db.ListJobResult{Added: added}) {
+			t.Fatalf("result: %+v, want added %d: %v", result, added, err)
+		}
+	}
+	checkResult(3)
 	// Force a failure after the write has added one title but before its second title can
 	// be processed. The whole write, including the first title's key, must roll back.
 	key := "list-view:" + job.PublicID + ":" + films[4].PublicID
@@ -51,6 +59,7 @@ func TestListJobPartialPagesAreSafeToReplay(t *testing.T) {
 	if got, _, _ := entries(t, l.d, l.all, list.PublicID); !slices.Equal(got, want) {
 		t.Fatalf("entries escaped rollback: %v", got)
 	}
+	checkResult(3)
 	add(films[3].PublicID)
 	want = append(want, films[3].PublicID)
 	// An unrelated creating request ages ordinary keys out, as after a long shutdown.
@@ -62,6 +71,11 @@ func TestListJobPartialPagesAreSafeToReplay(t *testing.T) {
 	if got, _, _ := entries(t, l.d, l.all, list.PublicID); !slices.Equal(got, want) {
 		t.Fatalf("old unfinished job added titles twice: %v", got)
 	}
+	checkResult(4)
+	if err := l.d.CancelJob(ctx, job.ID); err != nil {
+		t.Fatal(err)
+	}
+	checkResult(4)
 	// Another intentional addition is a new job and may add the same playlist title.
 	other, err := l.d.StartJob(ctx, db.NewJob{Kind: "add_view_to_list", Target: "intentional", OwnerID: l.all.UserID})
 	if err != nil {
@@ -103,6 +117,16 @@ func TestListJobsExpandHoldersOnceAndKeepCollectionsUnique(t *testing.T) {
 			}
 			if _, err := l.d.AddJobToList(ctx, l.all, list.PublicID, []string{album}, job, now); err != nil {
 				t.Fatal(err)
+			}
+			want := db.ListJobResult{Added: int64(len(tracks))}
+			if kind == db.ListCollection {
+				want = db.ListJobResult{Added: 1}
+				if target == "another" {
+					want = db.ListJobResult{AlreadyPresent: 1}
+				}
+			}
+			if got, err := l.d.ListJobResult(ctx, l.all, job); err != nil || got != want {
+				t.Fatalf("%s %s result: %+v, want %+v: %v", kind, target, got, want, err)
 			}
 		}
 		got, _, _ := entries(t, l.d, l.all, list.PublicID)

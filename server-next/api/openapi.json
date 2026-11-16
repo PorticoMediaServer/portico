@@ -261,6 +261,9 @@
           "progress": {
             "$ref": "#/components/schemas/JobProgress"
           },
+          "result": {
+            "$ref": "#/components/schemas/JobListResult"
+          },
           "startedAt": {
             "format": "date-time",
             "type": "string"
@@ -4496,6 +4499,9 @@
           "progress": {
             "$ref": "#/components/schemas/JobProgress"
           },
+          "result": {
+            "$ref": "#/components/schemas/JobListResult"
+          },
           "state": {
             "type": "string"
           }
@@ -4540,6 +4546,25 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "JobListResult": {
+        "properties": {
+          "added": {
+            "type": "integer"
+          },
+          "alreadyPresent": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "added",
+          "alreadyPresent",
+          "failed"
         ],
         "type": "object"
       },

@@ -76,6 +76,7 @@ export interface AdminJob {
   libraryId?: string;
   libraryName?: string;
   progress?: JobProgress;
+  result?: JobListResult;
   error?: string;
   createdAt: string;
   startedAt?: string;
@@ -1349,6 +1350,7 @@ export interface Job {
   state: string;
   progress?: JobProgress;
   error?: string;
+  result?: JobListResult;
 }
 
 export interface JobItemFailure {
@@ -1360,6 +1362,12 @@ export interface JobItemFailure {
 export interface JobItemFailurePage {
   items: JobItemFailure[];
   nextCursor?: string;
+}
+
+export interface JobListResult {
+  added: number;
+  alreadyPresent: number;
+  failed: number;
 }
 
 export interface JobProgress {

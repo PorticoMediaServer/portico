@@ -168,11 +168,12 @@ type ScanRequest struct {
 
 // Job is slow work to watch at /v1/jobs/{id}. State is waiting, running, done, failed or cancelled.
 type Job struct {
-	ID       string       `json:"id"`
-	Kind     string       `json:"kind"`
-	State    string       `json:"state"`
-	Progress *JobProgress `json:"progress,omitempty"`
-	Error    string       `json:"error,omitempty"`
+	ID       string         `json:"id"`
+	Kind     string         `json:"kind"`
+	State    string         `json:"state"`
+	Progress *JobProgress   `json:"progress,omitempty"`
+	Error    string         `json:"error,omitempty"`
+	Result   *JobListResult `json:"result,omitempty"`
 }
 
 // JobProgress is how far a job has got. Total is absent when the size of the work is not known.
@@ -343,6 +344,9 @@ func everyText(every time.Duration) string {
 // goes to the owner alone.
 func jobOut(r *http.Request, j db.Job) *Job {
 	out := &Job{ID: j.PublicID, Kind: j.Kind, State: j.State, Error: jobs.ErrorText(j, CallerFrom(r.Context()).Role == "owner")}
+	if result := j.ListResult; result != nil {
+		out.Result = &JobListResult{Added: result.Added, AlreadyPresent: result.AlreadyPresent, Failed: result.Failed}
+	}
 	if j.State == db.JobRunning || j.Done > 0 {
 		out.Progress = &JobProgress{Done: j.Done}
 		if j.Total > 0 {

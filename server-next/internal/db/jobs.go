@@ -39,6 +39,8 @@ type Job struct {
 	CreatedAt  int64
 	StartedAt  int64
 	FinishedAt int64
+	// ListResult is a reader's projection of existing results, never a stored counter.
+	ListResult *ListJobResult
 }
 
 const jobColumns = `id, public_id, kind, target, state, ifnull(payload, ''), ifnull(last_error, ''), progress_done, ifnull(progress_total, 0),

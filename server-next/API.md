@@ -148,7 +148,19 @@ Item cards carry `rootTitle` alongside `rootId`: the existing root's title (a sh
 | `GET /v1/jobs/{id}`, `POST /v1/jobs`, `DELETE /v1/jobs/{id}` | Run a bulk action over a selection, watch it, cancel it |
 | `GET /v1/jobs/{id}/failures` | Failed titles of a selection job, paged by `cursor` and `limit` (default 50, maximum 200): `Page<JobItemFailure>` with `items: [{itemId, title, error: {code, message}}]`, `nextCursor?`, no total. Same job access as `GET /v1/jobs/{id}`: owner/admin or the originating profile/account, otherwise the same `404`. Each page applies the reader's selected profile's current library, rating and Tag limits before paging; hidden/deleted titles are absent. Results survive restart and remain for the job's existing 30-day lifetime; deleting the title removes its result. Currently populated by `set_state` and `add_view_to_list`; metadata selection jobs follow separately |
 | `POST /v1/jobs` kind `set_state` | Any profile: set watched, favourite, My List, Not interested or rating on every title in a view it sees. `target.filter` is the view's `GET /v1/items` query; `params` are the state fields |
-| `POST /v1/jobs` kind `add_view_to_list` | Any profile: add every title of a view it sees to a playlist or collection it may change, in the view's own order (its `sort` and `order` kept). `target.filter` is the view's `GET /v1/items` query; `params` is `{"list": id}`. The finished job's `error` says how many were added and were in it already; taken up again after a restart it adds nothing twice |
+| `POST /v1/jobs` kind `add_view_to_list` | Any profile: add every title of a view it sees to a playlist or collection it may change, in the view's own order (its `sort` and `order` kept). `target.filter` is the view's `GET /v1/items` query; `params` is `{"list": id}`. Its structured `result` is described below; taken up again after a restart it adds nothing twice |
+
+An `add_view_to_list` job has `result: {added, alreadyPresent, failed}` on its start/read
+response and in the owner's task list, including while waiting/running and after cancellation.
+All three fields are integers, zero before any outcome commits. `added` counts committed list
+entries (including a playlist holder's expansion); `alreadyPresent` counts titles a collection
+already held; `failed` counts failed source titles, whose details remain on the failure page.
+Only source titles the reader's selected profile may currently see contribute to any count,
+using the same library, rating and Tag checks as the failures read. Hiding or deleting a source
+title removes its contribution. These are committed receipts, not a count of the list's current
+contents: a later list edit does not rewrite them. Restart/replay does not count an addition
+twice. Existing `progress`, `state` and cancel behavior are unchanged. Other job kinds omit
+`result`. Apps use these fields; they never parse the human `error` sentence for numbers.
 
 `set_state` and `add_view_to_list` continue past individual refusals. A partially failed job has state `failed` and
 the plain summary "Some titles could not be changed. The rest is done.", without title names
