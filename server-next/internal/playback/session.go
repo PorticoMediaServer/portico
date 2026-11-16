@@ -173,8 +173,8 @@ type session struct {
 }
 
 type startKey struct {
-	userID int64
-	key    string
+	userID, profileID, signInID int64
+	key                         string
 }
 
 type startRecord struct {

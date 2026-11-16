@@ -66,9 +66,10 @@ func (v *Viewings) Release(id string) {
 }
 
 type stoppedViewing struct {
-	userID  int64
-	message string
-	at      time.Time
+	userID              int64
+	profileID, signInID int64
+	message             string
+	at                  time.Time
 }
 
 // StopFor ends any account's viewing on the owner's or an administrator's word, and keeps
@@ -78,7 +79,7 @@ func (v *Viewings) StopFor(id, message string) bool {
 	v.mu.Lock()
 	w := v.byID[id]
 	if w != nil {
-		v.stopped[id] = stoppedViewing{userID: w.UserID, message: message, at: v.now()}
+		v.stopped[id] = stoppedViewing{userID: w.UserID, profileID: w.ProfileID, signInID: w.SignInID, message: message, at: v.now()}
 	}
 	v.mu.Unlock()
 	if w == nil {
@@ -95,6 +96,17 @@ func (v *Viewings) StoppedFor(id string, userID int64) (message string, ok bool)
 	defer v.mu.Unlock()
 	st, ok := v.stopped[id]
 	if !ok || st.userID != userID {
+		return "", false
+	}
+	return st.message, true
+}
+
+// StoppedForViewer tells only the profile and device whose stream was stopped.
+func (v *Viewings) StoppedForViewer(id string, userID, profileID, signInID int64) (string, bool) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	st, ok := v.stopped[id]
+	if !ok || st.userID != userID || st.profileID != profileID || st.signInID != signInID {
 		return "", false
 	}
 	return st.message, true
