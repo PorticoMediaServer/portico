@@ -63,8 +63,16 @@ export function secureCss(raw:string,transformed=false,maxLength=EPUB_LIMITS.mem
   }
   clean(sheet.cssRules);return [...localImports(raw,transformed),...Array.from(sheet.cssRules,r=>r.cssText)].join('\n');
 }
+const quoted = `(?:"[^"<>[\\]]*"|'[^'<>[\\]]*')`;
+/** One standard document type: `html` or `svg`, bare or naming its public or system DTD (as EPUB 2
+ * and Project Gutenberg's XHTML 1.1 do), never with an internal subset. The parser never fetches the DTD. */
+const standardDoctype = new RegExp(`<!DOCTYPE\\s+(?:html|svg)(?:\\s+(?:PUBLIC\\s+${quoted}(?:\\s+${quoted})?|SYSTEM\\s+${quoted}))?\\s*>`, 'i');
+/** A document declares no entity and no document type beyond one standard one. */
+export function markupDeclarationsSafe(raw: string): boolean {
+  return !/<!\s*(?:DOCTYPE|ENTITY)\b/i.test(raw.replace(standardDoctype, ''));
+}
 export function secureMarkup(raw: string, mime: 'application/xhtml+xml' | 'text/html' | 'image/svg+xml', transformed = false, maxLength = EPUB_LIMITS.memberBytes): string {
-  if (raw.length > maxLength || /<!\s*(?:DOCTYPE|ENTITY)\b/i.test(raw.replace(/<!DOCTYPE\s+html\s*>/i,''))) throw new ReaderError('invalid_book');
+  if (raw.length > maxLength || !markupDeclarationsSafe(raw)) throw new ReaderError('invalid_book');
   // Always parse XML first: unlike text/html, inert XML parsing cannot initiate
   // img/iframe loads. DOMPurify then handles namespaces and mutation-XSS.
   const doc = new DOMParser().parseFromString(raw, mime === 'text/html' ? 'application/xhtml+xml' : mime);
