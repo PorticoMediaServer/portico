@@ -157,6 +157,25 @@ func (s *Server) catalogueRoutes() {
 		return out, nil
 	})
 	Handle(s, "GET /v1/items/{id}/related", WithProfile, func(r *http.Request, _ None) (Related, error) {
+		relation := r.URL.Query().Get("relation")
+		if relation != "" && relation != "more_like_this" {
+			return Related{}, ErrField("relation", "Use more_like_this.")
+		}
+		if r.URL.Query().Get("cursor") != "" && relation == "" {
+			return Related{}, ErrField("relation", "Say which related row to continue.")
+		}
+		limit, err := pageLimit(r, 15, 200)
+		if err != nil {
+			return Related{}, err
+		}
+		like, err := s.db.MoreLikeThisPage(r.Context(), viewer(r), r.PathValue("id"), r.URL.Query().Get("cursor"), limit)
+		if err != nil {
+			return Related{}, refuse(err)
+		}
+		likeGroup := RelatedGroup{Relation: "more_like_this", Items: itemShapes(like.Items), NextCursor: like.NextCursor}
+		if relation != "" {
+			return Related{Groups: []RelatedGroup{likeGroup}}, nil
+		}
 		related, err := s.db.Related(r.Context(), viewer(r), r.PathValue("id"))
 		if err != nil {
 			return Related{}, refuse(err)
@@ -167,12 +186,8 @@ func (s *Server) catalogueRoutes() {
 				out.Groups = append(out.Groups, RelatedGroup{Relation: kind.String(), Items: itemShapes(items)})
 			}
 		}
-		like, err := s.db.MoreLikeThis(r.Context(), viewer(r), r.PathValue("id"))
-		if err != nil {
-			return Related{}, refuse(err)
-		}
-		if len(like) > 0 {
-			out.Groups = append(out.Groups, RelatedGroup{Relation: "more_like_this", Items: itemShapes(like)})
+		if len(like.Items) > 0 {
+			out.Groups = append(out.Groups, likeGroup)
 		}
 		rows, err := s.db.TitleRows(r.Context(), viewer(r), r.PathValue("id"))
 		if err != nil {

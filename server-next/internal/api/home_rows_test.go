@@ -118,7 +118,7 @@ func TestRecentlyAddedContinuesFromHome(t *testing.T) {
 	}
 }
 
-// A mood preview and its continuation are the same bounded kept choice. Already liked
+// A mood preview and its continuation are the same complete kept choice. Already liked
 // titles stay out, and sorting or filtering See all never widens that choice to the library.
 func TestMoodRowContinuesItsKeptChoiceFromHome(t *testing.T) {
 	s, token, other := seeded(t)
@@ -129,6 +129,11 @@ func TestMoodRowContinuesItsKeptChoiceFromHome(t *testing.T) {
 	for n, it := range films {
 		external := get[Item](t, s, token, "/v1/items/"+it.ID).ExternalIDs["tmdb"]
 		f.Works = append(f.Works, titledatatest.Work{QID: int64(100 + n), IDs: map[int]string{titledatatest.TMDBMovie: external}, Tags: map[int]int{1: 3}})
+		if n == 0 {
+			for similar := range 13 {
+				f.Works[0].Similar = append(f.Works[0].Similar, int64(101+similar))
+			}
+		}
 		if n < 3 {
 			liked[it.ID] = true
 			call(t, s, "PUT", "/v1/items/"+it.ID+"/state", token, map[string]any{"favorite": true}, nil)
@@ -153,6 +158,39 @@ func TestMoodRowContinuesItsKeptChoiceFromHome(t *testing.T) {
 		}
 		after = next
 	}
+	// The title page's related row continues by its own signal rank, not a library sort.
+	initial := get[Related](t, s, token, "/v1/items/"+films[0].ID+"/related?limit=2")
+	var like RelatedGroup
+	for _, group := range initial.Groups {
+		if group.Relation == "more_like_this" {
+			like = group
+		}
+	}
+	if len(like.Items) != 2 || like.NextCursor == "" {
+		t.Fatalf("related preview: %+v", like)
+	}
+	var relatedIDs []string
+	for {
+		for _, it := range like.Items {
+			relatedIDs = append(relatedIDs, it.ID)
+		}
+		if like.NextCursor == "" {
+			break
+		}
+		page := get[Related](t, s, token, "/v1/items/"+films[0].ID+"/related?relation=more_like_this&limit=2&cursor="+url.QueryEscape(like.NextCursor))
+		if len(page.Groups) != 1 {
+			t.Fatalf("continued unrelated groups: %+v", page)
+		}
+		like = page.Groups[0]
+	}
+	var ranked []string
+	for _, it := range films[1:14] {
+		ranked = append(ranked, it.ID)
+	}
+	if !slices.Equal(relatedIDs, ranked) {
+		t.Fatalf("related row: %v, want %v", relatedIDs, ranked)
+	}
+
 	get[Home](t, s, token, "/v1/home") // asks for the profile's kept choice
 	if err := s.db.RefreshMoodRows(ctx); err != nil {
 		t.Fatal(err)
@@ -185,9 +223,36 @@ func TestMoodRowContinuesItsKeptChoiceFromHome(t *testing.T) {
 			t.Fatal("liked title returned in mood row")
 		}
 	}
-	if len(want) <= 40 || !slices.Equal(got, want) || all.Total == nil || *all.Total != len(want) {
+	if len(want) != len(films)-len(liked) || !slices.Equal(got, want) || all.Total == nil || *all.Total != len(want) {
 		t.Fatalf("mood continuation: %d, want %d", len(got), len(want))
 	}
+	// Removing earlier cards from the visible set must not renumber the kept cursor or skip
+	// later cards. Nor may a newly liked title return on a later page.
+	call(t, s, "PUT", "/v1/items/"+preview.Items[0].ID+"/state", token, map[string]any{"favorite": true}, nil)
+	call(t, s, "PUT", "/v1/items/"+all.Items[50].ID+"/state", token, map[string]any{"favorite": true}, nil)
+	continued := get[HomeRow](t, s, token, "/v1/home/rows/mood:cozy?limit=200&cursor="+url.QueryEscape(preview.NextCursor))
+	tail := append(slices.Clone(want[40:50]), want[51:]...)
+	var remaining []string
+	for _, it := range continued.Items {
+		remaining = append(remaining, it.ID)
+	}
+	if !slices.Equal(remaining, tail) || continued.NextCursor != "" {
+		t.Fatalf("filtered continuation: %v, want %v", remaining, tail)
+	}
+	// A changed ranking expires the old cursor instead of silently moving cards between pages.
+	if err := s.db.RefreshMoodRows(ctx); err != nil {
+		t.Fatal(err)
+	}
+	get[Home](t, s, token, "/v1/home") // asks for the now-stale choice to be remade
+	if err := s.db.RefreshMoodRows(ctx); err != nil {
+		t.Fatal(err)
+	}
+	response := call(t, s, "GET", "/v1/home/rows/mood:cozy?cursor="+url.QueryEscape(preview.NextCursor), token, nil, nil)
+	var expired errorBody
+	if err := jsonInto(response, &expired); err != nil || response.Code != 400 || expired.Error.Code != "cursor_expired" {
+		t.Fatalf("changed choice accepted its old cursor: %d %s", response.Code, response.Body)
+	}
+
 	if w := call(t, s, "GET", "/v1/home/rows/mood:cozy", other, nil, nil); w.Code != 404 {
 		t.Fatalf("another profile's row: %d", w.Code)
 	}

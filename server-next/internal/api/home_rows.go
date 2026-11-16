@@ -56,19 +56,11 @@ func (s *Server) homeRow(r *http.Request, _ None) (HomeRow, error) {
 			page, err := s.db.Items(r.Context(), viewer(r), q)
 			return homePage(row, page, q.WithTotal), refuse(err)
 		}
-		moods, err := s.db.MoodRows(r.Context(), viewer(r))
+		mood, err := s.db.MoodRow(r.Context(), viewer(r), id)
 		if err != nil {
-			return row, err
+			return row, refuse(err)
 		}
-		for _, mood := range moods {
-			if mood.Key == id {
-				row.Title, row.Reason = moodRowTitle(mood.Label), because(mood.Because)
-				break
-			}
-		}
-		if row.Title == "" {
-			return row, ErrNotFound()
-		}
+		row.Title, row.Reason = moodRowTitle(mood.Label), because(mood.Because)
 	}
 	q, err := itemQuery(values)
 	if err != nil {

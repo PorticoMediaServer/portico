@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"slices"
 	"strings"
@@ -17,20 +18,19 @@ import (
 // you"), each saying which titles it comes from. Every read keeps to what the profile may see:
 // a title it may not see is never offered, named or counted towards a liking.
 //
-// Choosing the rows reads the profile's taste and up to 2,000 titles per tag, too slow for every
+// Choosing the rows reads the profile's taste and ranks each tag's titles, too slow for every
 // Home request in a large library. So the choice is kept in memory per profile, as title ids,
 // and made again in the background (KeepMoodRows) when the profile's plays, favourites,
 // ratings or restrictions change, when the title data's tags change, and when it is an hour
 // old. Home reads the kept ids through the same visibility and not-watched conditions as
 // everything else, so a new rating limit or blocked label applies on the very next read.
 const (
-	tasteRecent    = 500  // the profile's most recently played titles read for its taste
-	tasteFavorites = 100  // and its most recent favourites
-	moodLiked      = 3    // titles with a tag the profile must have watched or liked to get its row
-	moodRowsMax    = 3    // rows on Home
-	moodRowMin     = 6    // a row with fewer titles is left out
-	moodScan       = 2000 // newest titles with a tag read for its row
-	moodBecause    = 5    // titles kept per row to say why; two are named
+	tasteRecent    = 500 // the profile's most recently played titles read for its taste
+	tasteFavorites = 100 // and its most recent favourites
+	moodLiked      = 3   // titles with a tag the profile must have watched or liked to get its row
+	moodRowsMax    = 3   // rows on Home
+	moodRowMin     = 6   // a row with fewer titles is left out
+	moodBecause    = 5   // titles kept per row to say why; two are named
 
 	moodKeptFor = time.Hour       // a choice older than this is made again when Home is read
 	moodIdle    = 24 * time.Hour  // a choice Home has not read for this long is dropped, not remade
@@ -39,7 +39,8 @@ const (
 
 // MoodRow is one Home row of titles carrying a tag from the title data.
 type MoodRow struct {
-	Source     []int64 // the bounded kept choice, in its own order, for See all
+	Source     []int64 // the kept choice, in its own order, for See all
+	Version    int64   // changes only when that order changes
 	NextCursor string
 	Key        string       // the tag's key in the data set, "mood:cozy"
 	Label      string       // its row label, "cozy stories"
@@ -57,6 +58,7 @@ type MoodReason struct {
 // keptMoodRow is a mood row as chosen, by title id.
 type keptMoodRow struct {
 	key, label string
+	version    int64
 	because    []int64 // newest first
 	watched    map[int64]bool
 	items      []int64 // best first, more than a row shows, so titles hidden since leave enough
@@ -250,6 +252,22 @@ func (d *DB) RefreshMoodRows(ctx context.Context) error {
 // it asks for a new one and Home shows it on its next read. With no title data in use there
 // are none.
 func (d *DB) MoodRows(ctx context.Context, v Viewer) ([]MoodRow, error) {
+	return d.moodRows(ctx, v, "")
+}
+
+// MoodRow opens a kept source even when fewer than a Home preview remain.
+func (d *DB) MoodRow(ctx context.Context, v Viewer, key string) (MoodRow, error) {
+	rows, err := d.moodRows(ctx, v, key)
+	if err == nil && len(rows) == 0 {
+		err = ErrNotFound
+	}
+	if len(rows) == 0 {
+		return MoodRow{}, err
+	}
+	return rows[0], err
+}
+
+func (d *DB) moodRows(ctx context.Context, v Viewer, key string) ([]MoodRow, error) {
 	if d.titleData.Load() == nil {
 		return nil, nil
 	}
@@ -267,8 +285,10 @@ func (d *DB) MoodRows(ctx context.Context, v Viewer) ([]MoodRow, error) {
 		return nil, err
 	}
 	var out []MoodRow
-	offered := map[int64]bool{}
 	for _, k := range kept {
+		if key != "" && k.key != key {
+			continue
+		}
 		because, err := itemsByID(ctx, tx, v, acc, k.because, "")
 		if err != nil {
 			return nil, err
@@ -276,28 +296,22 @@ func (d *DB) MoodRows(ctx context.Context, v Viewer) ([]MoodRow, error) {
 		if len(because) == 0 {
 			continue // every title it came from is hidden now
 		}
-		items, err := itemsByID(ctx, tx, v, acc, k.items, ` AND ifnull(s.played, 0) = 0 AND ifnull(s.hidden, 0) = 0`)
+		items, err := itemsByID(ctx, tx, v, acc, k.items[:min(len(k.items), homeRowSize*2)],
+			` AND ifnull(s.played, 0) = 0 AND ifnull(s.favorite, 0) = 0 AND ifnull(s.hidden, 0) = 0`)
 		if err != nil {
 			return nil, err
 		}
-		row := MoodRow{Key: k.key, Label: k.label}
-		for _, it := range items {
-			if !offered[it.ID] {
-				row.Source = append(row.Source, it.ID)
-				if len(row.Items) < homeRowSize {
-					row.Items = append(row.Items, it)
-				}
-			}
-		}
-		if len(row.Items) < moodRowMin {
+		row := MoodRow{Key: k.key, Label: k.label, Source: k.items, Version: k.version}
+		row.Items = items[:min(len(items), homeRowSize)]
+		if key == "" && len(row.Items) < moodRowMin {
 			continue
 		}
-		for _, id := range row.Source {
-			offered[id] = true
-		}
-		if len(row.Source) > len(row.Items) {
+		if len(row.Items) > 0 {
 			last := row.Items[len(row.Items)-1]
-			row.NextCursor = (listCursor{Sort: SortOrder, Values: []any{int64(len(row.Items) - 1)}, ID: last.ID}).encode()
+			at := slices.Index(k.items, last.ID)
+			if at < len(k.items)-1 {
+				row.NextCursor = (listCursor{Sort: SortOrder, Values: []any{int64(at)}, ID: last.ID, Seed: k.version}).encode()
+			}
 		}
 		for _, it := range because[:min(2, len(because))] {
 			row.Because = append(row.Because, MoodReason{Item: it, Watched: k.watched[it.ID]})
@@ -416,12 +430,11 @@ func (d *DB) chooseMoodRows(ctx context.Context, v Viewer) ([]keptMoodRow, error
 		}
 		// With no rating known (no provider match yet, or local metadata only) the newest
 		// releases come first.
-		ids, err := queryAll(ctx, tx, `SELECT i.id FROM (SELECT item_id FROM item_tags WHERE tag_id = `+fmt.Sprint(tc.id)+`
-				ORDER BY item_id DESC LIMIT `+fmt.Sprint(moodScan)+`) m
+		ids, err := queryAll(ctx, tx, `SELECT i.id FROM item_tags m
 			CROSS JOIN items i ON i.id = m.item_id LEFT JOIN user_item_state s ON s.profile_id = @viewer_profile AND s.item_id = i.id
-			WHERE i.parent_id IS NULL AND ifnull(s.played, 0) = 0 AND ifnull(s.hidden, 0) = 0 AND `+acc.visible("i")+`
-			ORDER BY i.community_rating IS NULL, i.community_rating DESC, ifnull(i.year, 0) DESC, i.sort_title, i.id
-			LIMIT `+fmt.Sprint(homeRowSize*2), v.args(), func(id *int64) []any { return []any{id} })
+			WHERE m.tag_id = `+fmt.Sprint(tc.id)+` AND i.parent_id IS NULL AND ifnull(s.played, 0) = 0
+			AND ifnull(s.favorite, 0) = 0 AND ifnull(s.hidden, 0) = 0 AND `+acc.visible("i")+`
+			ORDER BY i.community_rating IS NULL, i.community_rating DESC, ifnull(i.year, 0) DESC, i.sort_title, i.id`, v.args(), func(id *int64) []any { return []any{id} })
 		if err != nil {
 			return nil, err
 		}
@@ -434,9 +447,14 @@ func (d *DB) chooseMoodRows(ctx context.Context, v Viewer) ([]keptMoodRow, error
 		if len(row.items) < moodRowMin {
 			continue
 		}
-		for _, id := range row.items[:min(homeRowSize, len(row.items))] {
+		for _, id := range row.items {
 			used[id] = true
 		}
+		hash := fnv.New64a()
+		for _, id := range row.items {
+			fmt.Fprintln(hash, id)
+		}
+		row.version = int64(hash.Sum64() >> 1)
 		row.because = tc.items[:min(moodBecause, len(tc.items))]
 		for _, id := range row.because {
 			row.watched[id] = watched[id]
@@ -497,7 +515,7 @@ var titleDataTarget = map[int]struct {
 }
 
 // MoreLikeThis lists the titles the title data names as like a film or show, best first, that
-// are in the viewer's libraries and that the viewer may see: up to fifteen. Similar titles are
+// are in the viewer's libraries and that the viewer may see. Similar titles are
 // read from the file and found here by their provider ids, so a title added or matched later
 // joins the row by itself. A title the viewer may not see is not found.
 func (d *DB) MoreLikeThis(ctx context.Context, v Viewer, itemID string) ([]Item, error) {
@@ -534,12 +552,13 @@ func (d *DB) MoreLikeThis(ctx context.Context, v Viewer, itemID string) ([]Item,
 	if err != nil || qid == 0 {
 		return nil, d.unlessSwapped(td, err)
 	}
-	similar, err := td.conn.QueryContext(ctx, `SELECT w.qid, w.provider, w.provider_id FROM work_similar s CROSS JOIN work_ids w ON w.qid = s.similar
+	similar, err := td.conn.QueryContext(ctx, `SELECT s.rank, w.qid, w.provider, w.provider_id FROM work_similar s CROSS JOIN work_ids w ON w.qid = s.similar
 		WHERE s.qid = ? ORDER BY s.rank, w.provider`, qid)
 	if err != nil {
 		return nil, d.unlessSwapped(td, err)
 	}
 	type target struct {
+		rank int64
 		qid  int64
 		code int
 		id   any
@@ -547,7 +566,7 @@ func (d *DB) MoreLikeThis(ctx context.Context, v Viewer, itemID string) ([]Item,
 	var targets []target
 	for similar.Next() {
 		var t target
-		if err := similar.Scan(&t.qid, &t.code, &t.id); err != nil {
+		if err := similar.Scan(&t.rank, &t.qid, &t.code, &t.id); err != nil {
 			similar.Close()
 			return nil, err
 		}
@@ -586,6 +605,7 @@ func (d *DB) MoreLikeThis(ctx context.Context, v Viewer, itemID string) ([]Item,
 			found[t.qid] = true
 			if !seen[it.ID] {
 				seen[it.ID] = true
+				it.sortValues = []any{t.rank}
 				out = append(out, it)
 			}
 		}
@@ -608,4 +628,49 @@ func (d *DB) unlessSwapped(td *titleData, err error) error {
 		return nil
 	}
 	return err
+}
+
+// MoreLikeThisPage uses the ranking's own position and a title id to continue through ties.
+// The initial read costs the same as MoreLikeThis; no library-wide candidate query is added.
+func (d *DB) MoreLikeThisPage(ctx context.Context, v Viewer, itemID, cursor string, limit int) (ItemPage, error) {
+	items, err := d.MoreLikeThis(ctx, v, itemID)
+	if err != nil {
+		return ItemPage{}, err
+	}
+	after, err := decodeCursor(cursor, SortOrder, false)
+	if err != nil {
+		return ItemPage{}, err
+	}
+	hash := fnv.New64a()
+	for _, it := range items {
+		fmt.Fprintf(hash, "%d:%d\n", it.sortValues[0], it.ID)
+	}
+	version := int64(hash.Sum64() >> 1)
+	if after != nil && (after.Nulls || !after.fits(sortSpec{columns: []string{"rank"}}) || after.Seed != version) {
+		return ItemPage{}, ErrCursorExpired
+	}
+	if limit <= 0 {
+		limit = 15
+	}
+	limit = min(limit, maxPageSize)
+	page := ItemPage{Items: []Item{}}
+	for _, it := range items {
+		if after != nil {
+			rank, ok := after.Values[0].(int64)
+			if !ok {
+				return ItemPage{}, ErrCursorExpired
+			}
+			at := it.sortValues[0].(int64)
+			if at < rank || at == rank && it.ID <= after.ID {
+				continue
+			}
+		}
+		if len(page.Items) == limit {
+			last := page.Items[len(page.Items)-1]
+			page.NextCursor = (listCursor{Sort: SortOrder, Values: last.sortValues, ID: last.ID, Seed: version}).encode()
+			break
+		}
+		page.Items = append(page.Items, it)
+	}
+	return page, nil
 }
