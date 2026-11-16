@@ -24,7 +24,10 @@
   .phoneCard > .mark { background: color-mix(in srgb, var(--color-accent) 16%, transparent); color: var(--color-accent-strong); }
   .phoneCard > div { flex: 1; min-width: 0; }
   .phoneCard small { display: block; font-size: var(--type-caption-size); font-weight: var(--type-body-strong-weight); color: var(--color-accent-strong); }
-  .phoneCard b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-subheading-size); font-weight: var(--type-title-weight); letter-spacing: var(--type-subheading-tracking); }
+  /* The server's name wraps to a second line before it is ever cut, and the audience badge gives way first by
+     wrapping itself (owner-libraries 24a draws the name whole beside it). */
+  .phoneCard b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; font-size: var(--type-subheading-size); font-weight: var(--type-title-weight); letter-spacing: var(--type-subheading-tracking); }
+  .phoneCard > .badge { flex: 0 1 auto; max-width: 9.5em; white-space: normal; text-align: center; }
 }
 .health { display: inline-flex; align-items: center; gap: 8px; color: var(--color-text); font-weight: 700; }
 .health::before { content: ''; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--color-healthy); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-healthy) 16%, transparent); }

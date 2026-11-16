@@ -28,13 +28,14 @@ test('the phone row height is what windowing uses, so long lists render the righ
   assert.match(table, /const top = index \* metrics\.row, bottom = top \+ metrics\.row \+ metrics\.header;/);
 });
 
-test('only People and Invitations draw cards; Play history and the settings grids keep the desktop table, scrolled', () => {
+test('People, Invitations and Play history draw cards; the settings grids keep the desktop table, scrolled', () => {
   const block = css.slice(css.indexOf('@media (max-width: 599px) {\n  .table { min-width: 720px; }'));
   assert.ok(block.length < css.length, 'the scrolled desktop table stays the phone default');
   for (const line of phone.split('\n').filter(line => line.includes('{') && line.startsWith('  '))) assert.match(line, /^\s+\[data-phone-(cards|actions)/, line);
   assert.match(read('../src/screens/settings/People.tsx'), /<SettingsTable phoneCards /);
   assert.match(read('../src/screens/settings/PeopleInvitations.tsx'), /<SettingsTable phoneCards=\{\{rowHeight: 156, actionsLine: true\}\} /);
-  assert.doesNotMatch(read('../src/screens/dashboard/History.tsx'), /phoneCards/);
+  // W2 F13 (16 Nov walk): scrolled sideways, Play history hid Played, Played for and Where at phone width.
+  assert.match(read('../src/screens/dashboard/History.tsx'), /phoneCards=\{\{rowHeight: 172\}\}/);
 });
 
 test('a second main cell or badge takes its own line; Invitations\' actions sit under the text', () => {

@@ -18,7 +18,7 @@ export type SettingsTableAction = Readonly<{id: string; label: string; destructi
 export type SettingsTableHandle = {focusRow: (id: string) => void};
 export type SettingsTableProps = Readonly<{
   label: string; rows: readonly SettingsTableRow[]; columns: readonly SettingsTableColumn[]; query: TableQuery; onQueryChange: (query: TableQuery) => void;
-  /** At phone width draw each row as a card (owner-people 24a, 33a). Other tables keep the desktop table, scrolled. */
+  /** At phone width draw each row as a card (owner-people 24a, 33a; Play history). Other tables keep the desktop table, scrolled. */
   phoneCards?: boolean | Readonly<{
     /** A taller card for more lines (Invitations: 33a draws its buttons on a line of their own under the text). */
     rowHeight: number; actionsLine?: boolean;
@@ -57,6 +57,8 @@ export function SettingsTable({label, rows, columns, query, onQueryChange, phone
   const allChecked = selectableIds.length > 0 && selectableIds.every(id => selected?.has(id)), anyChecked = selectableIds.some(id => selected?.has(id));
   const filtered = !!query.search || Object.values(query.filters).some(value => value !== 'all');
   const hasActions = Boolean(rowAction || rowActions);
+  // The action column widens for a row's own extra control only when some row draws one, so the other columns keep their room.
+  const extraActions = useMemo(() => !!rowActions && rows.some(row => rowActions(row) != null), [rows, rowActions]);
   const columnsCount = columns.length + Number(selectable) + Number(hasActions);
   const changeQuery = (value: TableQuery) => {
     onSelectionChange?.(new Set());
@@ -129,7 +131,7 @@ export function SettingsTable({label, rows, columns, query, onQueryChange, phone
         }
       }}>
       <table className={styles.table} aria-label={label} aria-rowcount={matchedCount === undefined ? undefined : matchedCount + 1} aria-colcount={columnsCount}>
-        <colgroup>{selectable && <col className={styles.checkboxColumn} />}{columns.map(column => <col key={column.id} style={{width: column.width}} />)}{hasActions && <col className={rowActions ? `${styles.actionColumn} ${styles.actionColumnWide}` : styles.actionColumn} />}</colgroup>
+        <colgroup>{selectable && <col className={styles.checkboxColumn} />}{columns.map(column => <col key={column.id} style={{width: column.width}} />)}{hasActions && <col className={extraActions ? `${styles.actionColumn} ${styles.actionColumnWide}` : styles.actionColumn} />}</colgroup>
         <thead><tr>{selectable && <th scope="col"><input ref={all} type="checkbox" checked={allChecked} disabled={!selectableIds.length} aria-label={t('next.settings.selectLoaded')} onChange={event => onSelectionChange?.(selectTableRows(selected ?? new Set(), selectableIds, event.currentTarget.checked))} /></th>}
           {columns.map(column => <th key={column.id} scope="col" aria-sort={query.sort.by === column.id ? query.sort.direction === 'asc' ? 'ascending' : 'descending' : undefined} data-kind={column.kind}>
             {column.sortable ? <button type="button" onClick={() => changeQuery({...query, sort: nextTableSort(query.sort, column.id)})}>{column.label}<Icon name={query.sort.by === column.id && query.sort.direction === 'desc' ? 'i-arrow-down' : 'i-arrow-up'} size={14} className={query.sort.by === column.id ? undefined : styles.sortIdle} /></button> : column.label}
