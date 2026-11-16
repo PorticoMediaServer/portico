@@ -1,4 +1,5 @@
-import type {SearchResults as ServerSearchResults, SearchHistory as ServerSearchHistory, Item as ServerItem, Person as ServerPerson} from "../../contracts/src/next/api.ts";
+import type {SearchResults as ServerSearchResults, SearchHistory as ServerSearchHistory, Item as ServerItem, Person as ServerPerson, LiveChannel as ServerChannel} from "../../contracts/src/next/api.ts";
+import {NEXT_CHANNEL_SOURCE} from './guide/next-source.ts';
 import {serverPath} from './query/server-api.ts';
 import {wireEntryFromItem} from './items.ts';
 import {unreadableServerResponse} from './server-messages.ts';
@@ -182,12 +183,12 @@ export function parseSearchHistory(raw:unknown,scope:ContentScope):SearchHistory
  }),e=>e.q);
  return Object.freeze({serverId:scope.serverId,...(viewerFence?{viewerFence}:{}),...(typeof raw.remembered==='boolean'?{remembered:raw.remembered}:{}),entries:Object.freeze(entries),maxEntries});
 }
-/** The rebuilt server's kind for each group this app shows. Collections, authors and Live TV are not searched there yet. */
-const serverKinds:Readonly<Partial<Record<SearchGroup,string>>>={movies:'movie',shows:'show',episodes:'episode',artists:'artist',albums:'album',songs:'track',books:'audiobook',reading:'book',people:'person'};
-const groupOfKind:Readonly<Record<string,SearchGroup>>={movie:'movies',show:'shows',episode:'episodes',person:'people',artist:'artists',album:'albums',track:'songs',audiobook:'books',book:'reading',comic:'reading'};
+/** The rebuilt server's kind for each group this app shows. Collections and authors are not searched there yet. */
+const serverKinds:Readonly<Partial<Record<SearchGroup,string>>>={movies:'movie',shows:'show',episodes:'episode',artists:'artist',albums:'album',songs:'track',books:'audiobook',reading:'book',people:'person','live-tv':'channel'};
+const groupOfKind:Readonly<Record<string,SearchGroup>>={movie:'movies',show:'shows',episode:'episodes',person:'people',artist:'artists',album:'albums',track:'songs',audiobook:'books',book:'reading',comic:'reading',channel:'live-tv'};
 const serverSorts:Readonly<Record<SearchSort,string>>={relevance:'',title:'title',releaseYear:'year',dateAdded:'added'};
-/** Groups that sort only by best match or title (people and artists); the others also by year and date added. */
-const nameGroups:readonly SearchGroup[]=['people','artists'];
+/** Groups that sort only by best match or title (people, artists and channels, rule 32); the others also by year and date added. */
+const nameGroups:readonly SearchGroup[]=['people','artists','live-tv'];
 /** The address of one search on the rebuilt server (`GET /v1/search`). With no group, every group comes with its first
  * results (at most 12 each); with a group, that group a page at a time. `record` puts it at the top of the recents. */
 export function searchPath(q:SearchQuery,limit:number,cursor?:string|null):string{
@@ -197,6 +198,10 @@ export function searchPath(q:SearchQuery,limit:number,cursor?:string|null):strin
 }
 /** One person, as the search answer's rows read. */
 const personRow=(p:ServerPerson)=>({id:p?.id,kind:'person',title:p?.name,...(p?.images&&(p.images.thumb??p.images.profile??p.images.poster)?{posterUrl:p.images.thumb??p.images.profile??p.images.poster}:{}),navigation:{view:'person',entityId:p?.id}});
+/** One channel, as the search answer's rows read. A live source's channel names the stand-in source the player
+ * gives every rebuilt-server channel, so the apps open it as they open a channel from Home or the guide. */
+const channelRow=(c:ServerChannel)=>({id:c?.id,kind:'channel',title:c?.name,...(c?.number?{subtitle:c.number}:{}),...(c?.logo?{posterUrl:c.logo}:{}),
+ navigation:{view:'channel',entityId:c?.id,...(c?.kind!=='library'?{sourceId:NEXT_CHANNEL_SOURCE,channelId:c?.id,provenance:'live-source'}:{})}});
 /** One title as a card, in the units the card check reads (milliseconds); a book or comic opens its page rather than playing. */
 function titleRow(item:ServerItem,group:SearchGroup):unknown{
  const row=wireEntryFromItem(item);
@@ -213,13 +218,15 @@ export async function readSearch(api:LibraryContentApi,q:SearchQuery,limit:numbe
  if(!object(raw)||!Array.isArray(raw.groups))invalid();
  const answered=raw.groups.filter(g=>object(g)&&groupOfKind[g.kind]&&(!q.group||groupOfKind[g.kind]===q.group)&&(!q.groups||q.groups.includes(groupOfKind[g.kind]!)));
  const names=[...new Set(answered.map(g=>groupOfKind[g.kind]!))];
+ const live=q.group==='live-tv'||raw.groups.some(g=>object(g)&&g.kind==='channel');
  return {
   scope:{serverId:SERVER_SCOPE,libraryId:'',libraryKind:'mixed',view:'search',entityId:'',viewerFence:'viewer'},revision:{catalog:0,viewer:0},
   query:{q:q.q,group:q.group??'',groups:names,limit,...(q.sort?{sort:q.sort}:{}),...(q.direction?{direction:q.direction}:{}),recorded:q.record===true},
   // Every group the server searches, whatever this answer holds, so the type chips stay the same while one type is open.
-  capabilities:{maxLimit:40,groupBudgetMs:15000,sorts,directions,groups:(Object.keys(serverKinds) as SearchGroup[]).map(id=>({id,title:'',available:true,reason:'',sorts:nameGroups.includes(id)?['relevance','title']:sorts}))},
+  // Live TV is one only for a profile allowed it: the server then answers its group on every first page (rule 33).
+  capabilities:{maxLimit:40,groupBudgetMs:15000,sorts,directions,groups:(Object.keys(serverKinds) as SearchGroup[]).filter(id=>id!=='live-tv'||live).map(id=>({id,title:'',available:true,reason:'',sorts:nameGroups.includes(id)?['relevance','title']:sorts}))},
   groups:answered.map(g=>{
-   const id=groupOfKind[g.kind]!,items=id==='people'?(g.people??[]).map(personRow):(g.items??[]).map(item=>titleRow(item,id)).filter(Boolean);
+   const id=groupOfKind[g.kind]!,items=id==='people'?(g.people??[]).map(personRow):id==='live-tv'?(g.channels??[]).map(channelRow):(g.items??[]).map(item=>titleRow(item,id)).filter(Boolean);
    return {id,title:'',entityKind:kinds[id],status:'success',items,...(typeof g.total==='number'?{totalCount:g.total,totalCountExact:!g.totalIsMinimum}:{}),nextCursor:g.nextCursor??''};
   }),
  };

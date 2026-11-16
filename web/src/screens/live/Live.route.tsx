@@ -147,7 +147,8 @@ function LiveArea({captured, context, search, pathname}: {captured: ProtectedLib
   };
   useEffect(() => {const timer = setInterval(() => setNow(serverNow()), 30_000);return () => clearInterval(timer);}, []);
   useLayoutEffect(() => {
-    if (!lease || !search.sourceId || !search.channelId || search.kind !== 'live-source' && search.kind !== 'library-channel') return;
+    // A link names the channel by its id (Search, a notice); the guide answers it whatever source it is on.
+    if (!lease || !search.channelId) return;
     const request = new AbortController(), link = linkKey(search.sourceId, search.channelId, search.kind);
     // The deep-link read owns a local admission for this exact link. Layout
     // retirement, a newer read, a row choice, or a cleared selection retires
