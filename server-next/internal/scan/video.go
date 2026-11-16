@@ -177,6 +177,11 @@ func (r *run) versions(f *folder, key func(*found) (string, bool)) []*version {
 		if file.role == db.FileSubtitle {
 			stream := subtitleStream(best, file.entry.Name)
 			file.stream = &stream
+			// A subtitle may have been listed while STRM was off, with no video to
+			// pair it with. On opt-in, write its track even though its bytes are unchanged.
+			if file.state == same && strings.EqualFold(path.Ext(byStem[best].parts[0].rel), ".strm") && byStem[best].touched() {
+				file.state = changed
+			}
 		}
 		byStem[best].side = append(byStem[best].side, file)
 	}

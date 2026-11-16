@@ -25,6 +25,7 @@ import (
 	"github.com/PorticoMediaServer/portico/server-next/internal/playback"
 	"github.com/PorticoMediaServer/portico/server-next/internal/remote"
 	"github.com/PorticoMediaServer/portico/server-next/internal/scan"
+	"github.com/PorticoMediaServer/portico/server-next/internal/strm"
 )
 
 // The test executable answers as the sandbox helpers, as the server does.
@@ -124,6 +125,11 @@ func newHouse(t *testing.T, ffmpeg, ffprobe string) (*house, *db.DB) {
 // engine plays remote files through.
 func newHouseWith(t *testing.T, ffmpeg, ffprobe string) (*house, *db.DB, *remote.Registry) {
 	t.Helper()
+	return newHouseWithSTRM(t, ffmpeg, ffprobe, nil)
+}
+
+func newHouseWithSTRM(t *testing.T, ffmpeg, ffprobe string, client *strm.Client) (*house, *db.DB, *remote.Registry) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	data := t.TempDir()
 	d, err := db.Open(ctx, filepath.Join(data, "main.db"))
@@ -136,7 +142,7 @@ func newHouseWith(t *testing.T, ffmpeg, ffprobe string) (*house, *db.DB, *remote
 	}
 	previous := decoder.CurrentToolchain()
 	engine, err := mediaengine.New(ctx, d, mediaengine.Options{Folder: filepath.Join(data, "transcodes"), FFmpeg: ffmpeg, FFprobe: ffprobe,
-		Remote: handler.RemoteSources().Open, Settings: handler.Settings()})
+		Remote: handler.RemoteSources().Open, STRM: client, Settings: handler.Settings()})
 	if err != nil {
 		t.Fatal(err)
 	}
