@@ -182,7 +182,10 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
   const miniOpen = liveCurrent && liveGuide.open;
   const actionsCurrent = fence?.kind === 'channel' && sameFence(liveActions.fence, fence);
   const actionsOpen = actionsCurrent && !!liveActions.sheet;
-  const liveOverlayOpen = miniOpen || actionsOpen;
+  // Live is the normal player with a channel in it (tv-player 11, tablet-play 8, desktop-live 7). Where the mini guide is
+  // drawn over the picture (TV, and the full-window player's side panel) it holds the controls. The upright watch page
+  // draws it below the picture, so the picture keeps its controls, minimise included (W4 F13: no way to minimise).
+  const liveOverlayOpen = (theme.isTV || !compact) && miniOpen || actionsOpen;
   const miniScope = fence ? JSON.stringify(fence) : undefined;
   const [miniPresenceScope, setMiniPresenceScope] = useState<string>();
   const miniPaintPresent = theme.isTV && (miniOpen || !!miniScope && miniPresenceScope === miniScope);
@@ -191,8 +194,8 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
   const controlsEnabled = visible && !liveOverlayOpen && !miniPaintPresent && !state.panelReturning;
   const controlsCurrent = useCallback(() => {
     const owner = playback.getSnapshot(), live = props.liveGuide?.getSnapshot(), actions = props.liveActions?.getSnapshot();
-    return current() && !owner.retired && owner.dock.local?.expanded === true && !controls.getSnapshot().panel && !controls.getSnapshot().panelReturning && !miniPaintPresent && !(fence && (live?.open && sameFence(live.fence, fence) || actions?.sheet && sameFence(actions.fence, fence)));
-  }, [current, playback, fence, props.liveGuide, props.liveActions, controls, miniPaintPresent]);
+    return current() && !owner.retired && owner.dock.local?.expanded === true && !controls.getSnapshot().panel && !controls.getSnapshot().panelReturning && !miniPaintPresent && !(fence && ((theme.isTV || !compact) && live?.open && sameFence(live.fence, fence) || actions?.sheet && sameFence(actions.fence, fence)));
+  }, [current, playback, fence, props.liveGuide, props.liveActions, controls, miniPaintPresent, theme.isTV, compact]);
   useLayoutEffect(() => {
     if (!liveOverlayOpen || !fence) return;
     miniReturn.current = {fence, current: miniOpen ? miniRestoreProof : actionsRestoreProof, target: miniOpen ? 'guide' : 'more'};

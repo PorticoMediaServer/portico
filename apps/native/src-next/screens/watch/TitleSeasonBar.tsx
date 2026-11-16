@@ -18,7 +18,9 @@ type Widths = Readonly<{row: number; chip: number; count: number; end: number}>;
 export function TitleSeasonBar({label, count, onSeasons, hideWatched, onHideWatched, settings}: {
   label: string; count?: string; onSeasons: () => void;
   hideWatched: boolean; onHideWatched: (value: boolean) => void;
-  settings?: Readonly<{label: string; onPress: () => void}>;
+  /** The owner's ⋯ menu. `onPress` opens the show's own settings; absent while the server has no route behind them (the
+   * per-show Episode display, DEFERRED row 258), so the menu offers only what works. */
+  settings?: Readonly<{label: string; onPress?: () => void}>;
 }) {
   const theme = useTheme(), t = defaultI18n.t, phone = theme.platform === 'phone', gap = phone ? 8 : 10;
   const more = useRef<View>(null), [open, setOpen] = useState(false);
@@ -43,7 +45,7 @@ export function TitleSeasonBar({label, count, onSeasons, hideWatched, onHideWatc
     </View>}
     {settings && <Menu testID="watch-season-menu" title={settings.label} open={open} onOpenChange={setOpen} anchorRef={more} returnFocusRef={more} items={[
       {id: 'hide-watched', icon: 'i-eyeoff', label: t('next.controls.hideWatched'), selected: hideWatched, onSelect: () => onHideWatched(!hideWatched)},
-      {id: 'show-settings', icon: 'i-filter', label: t('title.showSettings'), onSelect: settings.onPress},
+      ...(settings.onPress ? [{id: 'show-settings', icon: 'i-filter' as const, label: t('title.showSettings'), onSelect: settings.onPress}] : []),
     ]}/>}
   </View>;
 }

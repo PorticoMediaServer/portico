@@ -80,8 +80,15 @@ for (const input of [{name: 'compact phone', compact: true}, {name: 'landscape p
     actions.props.record.onPress();actions.props.more.onPress();assert.deepEqual(f.calls.slice(3), [['record', f.actionState()], ['more', f.actionState()]]);
     assert.equal(all.some(node => node.props.testID === 'watch-next' || node.props.testID === 'watch-previous'), false);
     const calls = f.calls.length;f.changeGuide({open: true});
-    down.props.onPress();up.props.onPress();guide.props.onPress();actions.props.record.onPress();actions.props.more.onPress();
-    assert.equal(f.calls.length, calls, 'retained controls cannot dispatch under the mini guide');
+    if (input.compact) {
+      // W4 F13: the upright watch page draws the mini guide below the picture, so the picture keeps its controls.
+      const open = nodes(f.render()), press = (id: string) => open.find(node => node.props.testID === id).props.onPress();
+      press('watch-channel-down'); press('watch-channel-up');
+      assert.equal(f.calls.length, calls + 2, 'the live picture keeps working controls with the guide below it');
+    } else {
+      down.props.onPress();up.props.onPress();guide.props.onPress();actions.props.record.onPress();actions.props.more.onPress();
+      assert.equal(f.calls.length, calls, 'retained controls cannot dispatch under a mini guide drawn over the picture');
+    }
   });
 }
 
