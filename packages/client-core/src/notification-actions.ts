@@ -1,6 +1,8 @@
-import {encodedRoutePath} from '../../contracts/src/route-paths.ts';
-import {notificationPreparationTarget, parseFeedbackReport, type FeedbackItem, type Notification, type NotificationAction} from './notifications.ts';
-import {feedbackTriageCategory} from './server-admin/feedback-source.ts';
+import type {ProblemReport, ProblemReportPage} from '../../contracts/src/next/api.ts';
+import {notificationPreparationTarget, type FeedbackItem, type Notification, type NotificationAction} from './notifications.ts';
+import {feedbackTriageCategory, parseOwnerReport} from './server-admin/feedback-source.ts';
+import {serverPath} from './query/server-api.ts';
+import {CodedError} from './server-messages.ts';
 import {defaultI18n, type I18n, type MessageId} from '../../i18n/src/index.ts';
 
 /**
@@ -83,15 +85,30 @@ export function notificationIntent(action: NotificationAction, note?: Notificati
   }
 }
 
-/** Scan again: starts a scan of the library named by the notice (`POST /v1/libraries/{id}/scans`). */
+/** Scan again: starts a scan of the library named by the notice (`POST /v1/admin/libraries/{id}/scan`). */
 export async function startNotificationScan(api: Readonly<{request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>}>, libraryId: string, signal?: AbortSignal): Promise<void> {
-  await api.request(encodedRoutePath('post_libraries_id_scans', {id: encodeURIComponent(libraryId)}), 'POST', undefined, signal);
+  await api.request(serverPath('POST /v1/admin/libraries/{id}/scan', {id: libraryId}), 'POST', {}, signal);
 }
 
-/** "Your report has an update" → Open report: the reporter's own report (`GET /v1/feedback/reports/{id}`). */
+/** "Your report has an update" → Open report: the reporter's own report, found among their reports (`GET /v1/reports`,
+ * newest first, a page at a time), with the owner's reply. The rebuilt server keeps one reply per report. */
 export async function readOwnFeedbackReport(api: Readonly<{request<T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T>}>, reportId: string, signal?: AbortSignal): Promise<FeedbackItem> {
-  const raw = await api.request<{data?: unknown}>(encodedRoutePath('get_feedback_reports_id', {id: encodeURIComponent(reportId)}), 'GET', undefined, signal);
-  return parseFeedbackReport(raw?.data);
+  let cursor: string | undefined;
+  for (let page = 0; page < 20; page++) {
+    const answer = await api.request<ProblemReportPage>(serverPath('GET /v1/reports', {query: {cursor}}), 'GET', undefined, signal);
+    const found = (Array.isArray(answer?.items) ? answer.items : []).find(report => report?.id === reportId);
+    if (found) return ownReport(found);
+    if (!answer?.nextCursor || answer.nextCursor === cursor) break;
+    cursor = answer.nextCursor;
+  }
+  throw new CodedError('not_found', 'This report is no longer there.');
+}
+function ownReport(raw: ProblemReport): FeedbackItem {
+  const report = parseOwnerReport(raw), updated = Date.parse(raw.updatedAt ?? ''), replied = Date.parse(raw.repliedAt ?? '');
+  return {id: report.id, cursor: '', revision: 1, status: report.status, kind: report.kind, category: report.category, message: report.message,
+    ...(report.itemId ? {itemId: report.itemId} : {}), createdAt: report.createdAt, updatedAt: Number.isFinite(updated) ? updated : report.createdAt, expiresAt: 0,
+    reporter: {name: report.reporter, authority: 'local', role: '', self: true}, diagnostics: {decision: report.hasLog ? 'attached' : 'not-requested'}, duplicates: 0,
+    thread: report.reply ? [{sequence: 1, at: Number.isFinite(replied) ? replied : report.createdAt, revision: 1, status: report.status, reply: report.reply, actorClass: 'owner'}] : []};
 }
 
 const REPORT_CATEGORY: Readonly<Record<ReturnType<typeof feedbackTriageCategory>, MessageId>> = Object.freeze({
