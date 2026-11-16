@@ -102,6 +102,9 @@ function elements(node: ReactNode): Element[] {
 const ofType = (node: ReactNode, type: unknown) => elements(node).filter(element => element.type === type);
 const text = (node: ReactNode): string => Array.isArray(node) ? node.map(text).join(' ') : React.isValidElement<Record<string, any>>(node) ? text(node.props.children) : typeof node === 'string' || typeof node === 'number' ? String(node) : '';
 async function mount(component: any, props: any) {
+  // TextField chooses a real phone or TV implementation. Mount that child as React does;
+  // the visible TV target and its hidden keyboard editor are inspected separately below.
+  if (component === TextField) component = component.render(props, props.ref ?? null).type;
   let tree: ReactNode;
   const host = createFabricHookHost(() => {tree = typeof component === 'function' ? component(props) : component.render(props, props.ref ?? null);});
   await host.mount();
@@ -138,13 +141,14 @@ test('TV BulkEditor binds real schema fields to native controls without writing 
       try {
         const nativeInput = elements(control.tree).find(element => element.type === NativeInput)!;
         assert.ok(nativeInput); assert.equal(nativeInput.props.keyboardType, 'numbers-and-punctuation');
-        nativeInput.props.ref(focus);
-        assert.equal(surface.props.initialFocusRef.current, focus, 'registry binding forwards the actual TextInput host');
+        nativeInput.props.ref.current = focus;
+        assert.equal(typeof surface.props.initialFocusRef.current.focus, 'function', 'the field forwards a working focus handle');
+        const visible = ofType(control.tree, Focusable)[0]!;
+        assert.equal(visible.props.focusId, field.props.focusId, 'the visible box owns directional focus');
         nativeInput.props.onChangeText('2020');
         assert.deepEqual(calls, [{year: {value: '2020'}}]);
-        nativeInput.props.ref(null);
-        assert.equal(surface.props.initialFocusRef.current, null, 'unmount clears the forwarded native host');
       } finally {await control.host.unmount();}
+      assert.equal(surface.props.initialFocusRef.current, null, 'unmount clears the forwarded field handle');
       assert.deepEqual(calls, [{year: {value: '2020'}}]);
     } finally {await input.host.unmount();}
     ofType(surface, Switch)[0]!.props.onCheckedChange(false);
@@ -423,7 +427,7 @@ test('selection actions and their internal menu carry the authority fence to act
   } finally {await bar.host.unmount();}
 });
 
-test('picker destination identity survives translation/reorder and find/name IDs reach TextInputs', async () => {
+test('picker destination identity survives translation/reorder and find/name IDs reach the visible TV fields', async () => {
   const calls: unknown[] = [], prefix = 'tv.authority.picker.playlist';
   const props = {testID: prefix, open: true, onOpenChange() {}, count: 2, selectionLabel: 'Selected', entries: [{id: 'one/two', title: 'Same', size: 1, canAdd: true}, {id: 'one.two', title: 'Same', size: 2, canAdd: false}], creating: false, onCreatingChange() {}, name: '', onNameChange() {}, onCreateAndAdd() {}, onAdd: (id: string) => calls.push(id), query: '', onQueryChange() {}, showFind: true, onRetry() {}, onViewDestination() {}, onResultDismiss() {}};
   const wrapper = await mount(PlaylistPicker, props), picker = await mount((wrapper.tree as Element).type, (wrapper.tree as Element).props);
@@ -438,12 +442,12 @@ test('picker destination identity survives translation/reorder and find/name IDs
     rows[0].row.props.onPress(); rows[1].row.props.onPress(); assert.deepEqual(calls, ['one/two']);
     const find = ofType(picker.tree, TextField)[0]!;
     const input = await mount(TextField, find.props);
-    try {assert.equal(elements(input.tree).find(element => element.type === NativeInput)!.props.testID, controlID(prefix, 'find'));} finally {await input.host.unmount();}
+    try {assert.equal(ofType(input.tree, Focusable)[0]!.props.testID, controlID(prefix, 'find')); assert.equal(ofType(input.tree, NativeInput)[0]!.props.value, find.props.value);} finally {await input.host.unmount();}
     await picker.update({...props, kind: 'playlist', entries: [...props.entries].reverse().map(entry => ({...entry, title: 'Translated'}))});
     assert.deepEqual((await rowIDs()).map((entry: {id: string}) => entry.id), rows.map((entry: {id: string}) => entry.id).reverse());
     await picker.update({...props, kind: 'playlist', creating: true});
     const name = await mount(TextField, ofType(picker.tree, TextField)[0]!.props);
-    try {assert.equal(elements(name.tree).find(element => element.type === NativeInput)!.props.testID, controlID(prefix, 'name'));} finally {await name.host.unmount();}
+    try {assert.equal(ofType(name.tree, Focusable)[0]!.props.testID, controlID(prefix, 'name')); assert.equal(ofType(name.tree, NativeInput)[0]!.props.value, '');} finally {await name.host.unmount();}
     await picker.update({...props, kind: 'playlist', entries: []});
     const surface = ofType(picker.tree, SelectionSurface)[0]!;
     const create = ofType(surface, Focusable).find(element => element.props.testID === controlID(prefix, 'new'))!;
@@ -459,7 +463,7 @@ test('bulk field/value/result IDs use schema and entity keys while native lock/s
     const scalar = await mount(scalarNode.type, scalarNode.props);
     try {
       const field = ofType(scalar.tree, TextField)[0]!, input = await mount(TextField, field.props);
-      try {assert.equal(elements(input.tree).find(element => element.type === NativeInput)!.props.testID, controlID(prefix, 'field', 'year', 'input'));} finally {await input.host.unmount();}
+      try {assert.equal(ofType(input.tree, Focusable)[0]!.props.testID, controlID(prefix, 'field', 'year', 'input')); assert.equal(ofType(input.tree, NativeInput)[0]!.props.value, '2020');} finally {await input.host.unmount();}
     } finally {await scalar.host.unmount();}
     const listNode = elements(editor.tree).find(element => element.props.field?.field === 'tags')!;
     const list = await mount(listNode.type, listNode.props);
@@ -606,7 +610,7 @@ test('a real deletion preview error stays unavailable and cannot invoke the dest
   } finally {await dialog.host.unmount();}
 });
 
-test('Selection input uses real native focus/blur/ref and keeps default and TV fields unchanged', async () => {
+test('Selection input uses real phone focus/blur/ref and default ring; TV draws its own focus target', async () => {
   const previous = state.theme; state.theme = createTheme({isTV: false, width: 390});
   const forwarded = {current: null as any}; const calls: string[] = [];
   const field = await mount(TextField, {appearance: 'selection', label: 'Confirmation', value: '', fieldStyle: {height: 46}, ref: forwarded, onFocus: () => calls.push('focus'), onBlur: () => calls.push('blur')});
@@ -623,9 +627,14 @@ test('Selection input uses real native focus/blur/ref and keeps default and TV f
     await field.update({appearance: 'selection', value: '', error: 'Actual error', editable: false, multiline: true, ref: forwarded});
     input = elements(field.tree).find(n => n.type === NativeInput)!; assert.equal(input.props.editable, false); assert.equal(input.props.multiline, true); assert.equal(input.props.accessibilityState.disabled, true); assert.match(text(field.tree), /Actual error/);
     await field.update({value: ''}); input = elements(field.tree).find(n => n.type === NativeInput)!; input.props.onFocus({}); await field.host.rerender(); assert.ok(elements(field.tree).some(n => flatten(n.props.style).inset === -4), 'default retains existing ring');
-    state.theme = createTheme({isTV: true, width: 1920}); await field.update({appearance: 'selection', value: ''}); assert.ok(elements(field.tree).some(n => flatten(n.props.style).inset === -4), 'TV retains existing ring');
   } finally {await field.host.unmount(); state.theme = previous;}
   assert.equal(forwarded.current, null);
+  state.theme = createTheme({isTV: true, width: 1920});
+  const tv = await mount(TextField, {appearance: 'selection', value: ''});
+  try {
+    assert.equal(ofType(tv.tree, Focusable)[0]!.props.focusKind, 'row', 'TV uses the kit focus treatment on its visible box');
+    assert.equal(ofType(tv.tree, NativeInput)[0]!.props.style.opacity, 0, 'the keyboard editor has no inline chrome');
+  } finally {await tv.host.unmount(); state.theme = previous;}
 });
 
 test('drawn Selection fields use native accent carets without changing selection or caller colours', async () => {
