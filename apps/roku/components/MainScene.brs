@@ -191,12 +191,22 @@ sub markLibrary(item as object)
     end for
 end sub
 
-sub showSignIn()
+' The front door. `why` says so when it is not a first run (the server ended the sign-in).
+sub showSignIn(why = "" as string)
+    if m.screen <> invalid and m.screen.subtype() = "SignInScreen" then return
     m.entered = false
     show("SignInScreen")
     m.screen.observeField("signedIn", "onSignedIn")
+    m.screen.address = addressShown(storeRead("origin"))
+    m.screen.notice = why
     m.screen.active = true
 end sub
+
+function signedOutText() as string
+    name = storeRead("serverName")
+    if name = "" then name = "the server"
+    return "You were signed out of " + name + ". Sign in again to carry on."
+end function
 
 sub onSignedIn(event as object)
     signIn = event.getData()
@@ -249,7 +259,8 @@ sub onMe(event as object)
     result = event.getData()
     if not result.ok
         if result.status = 401 or result.status = 403
-            showSignIn()
+            storeWrite({refreshToken: "", renewalId: ""})
+            showSignIn(signedOutText())
         else
             showHome()   ' out of reach: Home says so and offers to try again
         end if
@@ -377,7 +388,7 @@ end sub
 ' The server ended this sign-in (signed out elsewhere, or it ran out): start again at the front door.
 sub onSignInEnded()
     storeWrite({refreshToken: "", renewalId: ""})
-    showSignIn()
+    showSignIn(signedOutText())
 end sub
 
 ' The open rail pushes the page right, so none of it is covered (tv.html frame 2).
