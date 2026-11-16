@@ -4,8 +4,10 @@ import { unprefixEpubCss, lastLinearIndex } from './compat.js'
 import { createPageTurnAnimation, pageGesture } from '../page-motion.ts'
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-// Only renderer-owned styles receive the trusted app document's nonce. Never
-// take a nonce from publication markup or change a publication's style policy.
+// Renderer-owned styles receive the trusted app document's nonce. A book's own
+// stylesheets and style elements receive it too, but only after security.ts has
+// cleaned them (secureMarkup, bookStyles); a nonce written in publication markup
+// is always removed, and a publication's own style policy is never changed.
 const rendererStyle = (targetDocument, appDocument) => {
     const style = targetDocument.createElement('style')
     const nonce = appDocument.querySelector('meta[name="portico-style-nonce"]')?.content
