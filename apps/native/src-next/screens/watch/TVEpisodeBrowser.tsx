@@ -1,6 +1,7 @@
 import {TVShelf, tvItemKey} from '../../tv/layout/TVShelf';
 import React, {useEffect, useRef, useState} from 'react';
 import {ScrollView, Text, View} from 'react-native';
+import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {ShowWorkspaceData, WorkspaceSeason} from '../../../../../packages/client-core/src/show-workspace';
 import {cardText, episodeLabel, type TextEnvironment} from '../../../../../packages/client-core/src/presentation/kit-model';
@@ -65,6 +66,9 @@ export function TVEpisodeBrowser(props: TVEpisodeBrowserProps) {
   const listFallback = (): Focus => props.seasons[0] ? {kind: 'season', season: props.seasons[0]} : groups[0] ? {kind: 'group', group: groups[0]} : {kind: 'empty'};
   const [focus, setFocus] = useState<Focus>(() => fallback ? {kind: 'episode', entry: fallback} : listFallback());
   const [menu, setMenu] = useState<WorkspaceSeason>();
+  // A long season list scrolls inside its own window, and says so: the edge it continues past fades (owner, 16 Nov).
+  const [edges, setEdges] = useState<SeasonEdges>(noEdges), viewport = useRef(0), content = useRef(0), offset = useRef(0);
+  const showEdges = (next: SeasonEdges) => setEdges(now => now.top === next.top && now.bottom === next.bottom ? now : next);
   useEffect(() => {
     const current = focus.kind === 'episode' ? episodes.some(entry => entry.id === focus.entry.id) : focus.kind === 'season' ? props.seasons.some(season => season.id === focus.season.id)
       : focus.kind === 'group' && groups.some(group => group.id === focus.group.id);
@@ -106,8 +110,12 @@ export function TVEpisodeBrowser(props: TVEpisodeBrowserProps) {
   ] : [];
   return <FocusRegion {...regions.section} style={{flexDirection: 'row', gap: 70}}>
     <FocusRegion {...regions.seasons} order={[...props.seasons.map(season => season.id), ...groups.map(group => tvEpisodeGroupKey(group.id))]} style={{width: 330}}>
+      <View style={{maxHeight: seasonListHeight}}>
       <ScrollView showsVerticalScrollIndicator={false} onScroll={event => {const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
-        if (contentSize.height - contentOffset.y - layoutMeasurement.height < layoutMeasurement.height) props.onMoreSeasons();}} scrollEventThrottle={64}>
+        offset.current = contentOffset.y; showEdges(seasonListEdges(contentOffset.y, contentSize.height, layoutMeasurement.height));
+        if (contentSize.height - contentOffset.y - layoutMeasurement.height < layoutMeasurement.height) props.onMoreSeasons();}} scrollEventThrottle={64}
+        onLayout={event => {viewport.current = event.nativeEvent.layout.height; showEdges(seasonListEdges(offset.current, content.current, viewport.current));}}
+        onContentSizeChange={(_width, height) => {content.current = height; showEdges(seasonListEdges(offset.current, content.current, viewport.current));}}>
         {props.seasons.map(season => {
           const active = selected(season) || (focus.kind === 'season' && focus.season.id === season.id);
           const total = season.episodeCount, watched = season.watchedCount;
@@ -139,6 +147,9 @@ export function TVEpisodeBrowser(props: TVEpisodeBrowserProps) {
           </Focusable>;
         })}
       </ScrollView>
+      {edges.top && <SeasonEdgeFade edge="top" color={theme.colors.ink}/>}
+      {edges.bottom && <SeasonEdgeFade edge="bottom" color={theme.colors.ink}/>}
+      </View>
       {/* tv-detail frame 5 draws the season hint under the list, where the focus is. */}
       {focus.kind === 'season' && <View style={{flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 22, marginLeft: 22}}>
         <View style={{paddingHorizontal: 10, minWidth: 44, height: 36, borderRadius: 9, borderWidth: 1.5, borderColor: '#edf5fa4d', justifyContent: 'center'}}>
@@ -165,6 +176,26 @@ export function TVEpisodeBrowser(props: TVEpisodeBrowserProps) {
     </View>
     <Menu testID={`${section.id}.season-menu`} open={!!menu} onOpenChange={open => {if (!open) setMenu(undefined);}} title={menu ? menu.title || t('title.season', {number: menu.number}) : ''} items={seasonMenu}/>
   </FocusRegion>;
+}
+
+/** tv-detail frame 5: the season list shows six rows and half of the seventh (84 pt rows, 6 pt apart), so a show with more
+ * seasons than fit says so with the next row peeking in; the Hold OK hint stays under it on screen. Five seasons fit whole. */
+export const seasonListHeight = 6.5 * 90;
+type SeasonEdges = Readonly<{top: boolean; bottom: boolean}>;
+const noEdges: SeasonEdges = Object.freeze({top: false, bottom: false});
+/** Which edges of the season window have more seasons beyond them. Only a list that really continues fades. */
+export function seasonListEdges(offset: number, contentHeight: number, viewportHeight: number): SeasonEdges {
+  if (viewportHeight <= 0 || contentHeight <= viewportHeight + 1) return noEdges;
+  return {top: offset > 1, bottom: offset + viewportHeight < contentHeight - 1};
+}
+/** The half-faded peek: ink fading in over the last 70 pt of the window, at the edge the list continues past. */
+function SeasonEdgeFade({edge, color}: {edge: 'top' | 'bottom'; color: string}) {
+  const id = `season-fade-${edge}`;
+  return <View testID={`tv-seasons-fade-${edge}`} pointerEvents="none" style={{position: 'absolute', left: 0, right: 0, height: 70, [edge]: 0}}>
+    <Svg accessible={false} width="100%" height="100%"><Defs><LinearGradient id={id} x1="0" y1={edge === 'top' ? '1' : '0'} x2="0" y2={edge === 'top' ? '0' : '1'}>
+      <Stop offset="0" stopColor={color} stopOpacity={0}/><Stop offset="1" stopColor={color} stopOpacity={0.9}/>
+    </LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#${id})`}/></Svg>
+  </View>;
 }
 
 export function TVTile({entry, more, ...props}: React.ComponentProps<typeof EpisodeTile> & {entry: ContentEntry; more: TVEpisodeBrowserProps['more']}) {

@@ -107,6 +107,8 @@ const leaf = (source, react, native) => /client-core\/src\/query\/playback(\.ts)
   : /(^|\/)kit\/layout\/TopBar$/.test(source) ? {TopBar: 'TopBar', BarSurface: 'BarSurface', BarScrim: 'BarScrim', RoundBarButton: 'RoundBarButton'}
   // The kit's cover hero (book, audiobook, series and author pages) draws as a named element; its own tests render it.
   : /(^|\/)kit\/layout\/CoverHero$/.test(source) ? {CoverHero: 'CoverHero'}
+  // react-native-svg draws as named elements (a screen's own gradient, such as the TV season list's edge fades).
+  : source === 'react-native-svg' ? {default: 'Svg', Defs: 'Defs', LinearGradient: 'LinearGradient', Rect: 'Rect', Stop: 'Stop'}
   // The shell's one top-bar Play on button draws as a named element; next-play-on-top-bar tests it.
   : /(^|\/)PlayOnButton$/.test(source) ? {PlayOnButton: 'PlayOnButton'}
   // The one page title (kit/layout/Lockup) draws as a named element.
