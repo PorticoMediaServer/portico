@@ -43,7 +43,7 @@ test('authored percentage and match decorate only exact canonical text and keep 
   });
   assert.match(html, /aria-labelledby="([^"]+)"[^>]*>[\s\S]*?<span id="\1" class="accessible">Dune<\/span>/);
   assert.match(html, /aria-label="Select Dune"/);
-  assert.match(html, /<span class="title"><mark class="textMatch">Dune<\/mark><\/span>/);
+  assert.match(html, /<span class="title twoLines"><mark class="textMatch">Dune<\/mark><\/span>/);
   assert.match(html, /data-fact="progress" data-role="reason"><b class="textSecondary">46%<\/b> read<\/span>/);
   assert.doesNotMatch(html, /aria-label="[^"]*<(?:mark|b)/);
   assert.doesNotMatch(html, /<button\b[^>]*>(?:(?!<\/button>)[\s\S])*<button\b/);
@@ -55,7 +55,7 @@ test('partial matched title retains ordinary remainder and whole ordinary book r
   });
   assert.match(html, /<mark class="textMatch">Dune<\/mark> Messiah<\/span>/);
   assert.match(html, /data-fact="series" data-role="reason">Dune, book 2<\/span>/);
-  for (const title of ['Dune', 'Unmatched title']) assert.match(render({model: {title, caption: []}}), new RegExp(`<span class="title">${title}<\\/span>`));
+  for (const title of ['Dune', 'Unmatched title']) assert.match(render({model: {title, caption: []}}), new RegExp(`<span class="title twoLines">${title}<\\/span>`));
   assert.doesNotMatch(render({extraCaption: [[{id: 'series', role: 'reason', text: 'Dune, book 4'}]]}), /<mark|<b /);
 });
 
