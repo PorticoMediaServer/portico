@@ -17,7 +17,7 @@ function parse(value: unknown): OwnerStreamingHardware {
   if (value.lastTest !== undefined && (!text(value.lastTest) || !Number.isFinite(Date.parse(value.lastTest)))) return fail();
   if (value.lastError !== undefined && (!object(value.lastError) || !text(value.lastError.reason)
     || value.lastError.detail !== undefined && !text(value.lastError.detail) || value.lastError.remedy !== undefined && !text(value.lastError.remedy))) return fail();
-  return value as OwnerStreamingHardware;
+  return value as unknown as OwnerStreamingHardware;
 }
 export async function readOwnerStreamingHardware(api: ServerRequester, signal?: AbortSignal): Promise<OwnerStreamingHardware> {
   return parse(await callServer(api, 'GET /v1/admin/hardware', {signal}));

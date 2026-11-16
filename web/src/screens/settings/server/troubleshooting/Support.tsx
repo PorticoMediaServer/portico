@@ -1,9 +1,11 @@
-import {useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {useEffect, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {defaultI18n, type MessageId} from '@i18n';
-import {CAPABILITY_ROWS, capabilityReasonId, type ServerCapability} from '@core/server-admin/capabilities.ts';
+import type {Capability} from '../../../../../../packages/contracts/src/next/api.ts';
+import type {OwnerSupportOptions} from '@core/server-admin/support-next.ts';
 import {Button, Select, Switch} from '../../../../kit/controls';
 import {SettingsAction, SettingsAdvanced, SettingsGroup} from '../../../../kit/settings';
 import {SettingsRow} from '../../../../kit/shell/SettingsSurfaces';
+import {hardwareMethodName} from '../../hardware/hardware-rows';
 import {SettingsSupportSource, SUPPORT_COMPONENTS, type SupportComponent} from './support-source';
 import {DEFAULT_SUPPORT_COMPONENTS, SUPPORT_WINDOWS} from './support-options';
 import styles from './troubleshooting.module.css';
@@ -19,102 +21,77 @@ export type SupportPanelProps = Readonly<{
   advancedSummary?: readonly string[];
 }>;
 
-const KNOWN: ReadonlySet<string> = new Set(CAPABILITY_ROWS);
 const WINDOWS = SUPPORT_WINDOWS.map((entry, index) => ({...entry, label: `next.settingsSpec.server.troubleshooting.advanced.groups.1.rows.0.control.options.${index}.label` as MessageId}));
 const PART_LABEL: Readonly<Record<SupportComponent, MessageId>> = Object.freeze({
   snapshot: 'web.logs.includeSnapshot', runtime: 'web.logs.includeServer', client: 'web.logs.includeClient', audit: 'web.logs.includeAudit',
 });
-const capabilityLabel = (capability: string) => KNOWN.has(capability) ? t(`web.capabilities.${capability}` as MessageId) : t('web.capabilities.otherLabel', {id: capability});
+/** The server's names for what it checks (`server_capabilities.go`), in words. A name this app does not know is shown as sent. */
+const NAMES: Readonly<Record<string, MessageId>> = Object.freeze({
+  ffmpeg: 'web.capabilities.ffmpeg', graphics: 'web.capabilities.graphics', vulkan: 'web.capabilities.vulkan',
+  data: 'web.capabilities.folder.data', conversions: 'web.capabilities.folder.conversions', backups: 'web.capabilities.folder.backups', recordings: 'web.capabilities.folder.recordings',
+  decoder_sandbox: 'web.capabilities.decoder_sandbox', decoder_network_isolation: 'web.capabilities.decoder_network_isolation',
+});
+const STATES: Readonly<Record<string, Readonly<{label: MessageId; tone: string}>>> = Object.freeze({
+  works: {label: 'web.capabilities.works', tone: 'resolved'}, does_not_work: {label: 'web.capabilities.doesNotWork', tone: 'in-progress'},
+  checking: {label: 'web.capabilities.checking', tone: 'closed'}, not_used: {label: 'web.capabilities.notUsed', tone: 'closed'},
+});
+const capabilityLabel = (c: Capability) => NAMES[c.name] ? t(NAMES[c.name]!) : hardwareMethodName(c.name === 'qsv' ? 'quick_sync' : c.name) ?? c.name;
 
 /** The drawn Support tab: permissions, what this server can do, the export and what was left out. */
 export function SupportPanel(props: SupportPanelProps) {
   const {source, reportError} = props;
-  const [pathChoice,setPathChoice] = useState<Readonly<{source:SettingsSupportSource;value:boolean}>>();
-  const choice = useRef<typeof pathChoice>(undefined), scope = useRef<SettingsSupportSource|undefined>(source);
-  if (scope.current !== source) {scope.current=source;choice.current=undefined;}
-  useLayoutEffect(()=>{scope.current=source;choice.current=undefined;return()=>{scope.current=undefined;choice.current=undefined;};},[source]);
-  const state = useSyncExternalStore(props.subscribe, props.source.getSnapshot, props.source.getSnapshot);
-  const [busy, setBusy] = useState(false), [fixed, setFixed] = useState(false);
+  const state = useSyncExternalStore(props.subscribe, source.getSnapshot, source.getSnapshot);
   const [window, setWindow] = useState('24h'), [parts, setParts] = useState<readonly SupportComponent[]>(DEFAULT_SUPPORT_COMPONENTS);
-  const [advanced, setAdvanced] = useState(false);
+  const [includePaths, setIncludePaths] = useState(false), [advanced, setAdvanced] = useState(false);
   useEffect(() => {void source.load();}, [source]);
-  useEffect(() => {const error=state.error as {status?:number;code?:string}|undefined;if(state.phase==='error'&&error&&(error.status===401||error.status===403||['unauthorized','forbidden','not_permitted'].includes(error.code??'')))reportError(error);}, [state.phase,state.error,reportError]);
-  const supportNotice = state.phase === 'error' ? <p className={styles.failure} role="alert"><span>{t('next.states.pageFailedBody')}</span><button type="button" onClick={() => {void props.source.retry();}}>{t('next.shell.tryAgain')}</button></p>
+  const supportNotice = state.phase === 'error' ? <p className={styles.failure} role="alert"><span>{t('next.states.pageFailedBody')}</span><button type="button" onClick={() => {void source.retry();}}>{t('next.shell.tryAgain')}</button></p>
     : state.phase === 'idle' || state.phase === 'loading' ? <p role="status">{t('next.settings.loading')}</p> : undefined;
   if (supportNotice && !props.exportOnly) return supportNotice;
-  const exportReady = state.export, frozen = state.preparing || !!state.pendingExport;
-  const shownParts = state.pendingExport?.components ?? parts;
-  const shownWindow = state.pendingExport ? WINDOWS.find(entry=>entry.ms===state.pendingExport!.windowMs)?.id : window;
-  const includePaths = state.pendingExport?.includePaths ?? (pathChoice?.source===source && choice.current===pathChoice && pathChoice.value && parts.includes('snapshot'));
-  const choosePaths = (value:boolean) => {if(scope.current!==source)return;const next={source,value};choice.current=next;setPathChoice(next);};
+  const permissions = state.facts?.permissions;
   const prepare = () => {
-    if(scope.current!==source)return;
-    const captured=pathChoice, pending=source.getSnapshot().pendingExport;
-    const selected=!!pending?.includePaths || !pending && !!captured && captured.source===source && choice.current===captured && captured.value && parts.includes('snapshot');
-    // Consume the opt-in before any source notification can re-enter. A pending
-    // request displays its captured choice, but a later export starts unchecked.
-    if(choice.current===captured){choice.current=undefined;setPathChoice(current=>current===captured?undefined:current);}
-    void source.prepare(WINDOWS.find(entry=>entry.id===window)!.ms,parts,selected).catch(reportError);
+    const minutes = WINDOWS.find(entry => entry.id === window)!.ms / 60000 as OwnerSupportOptions['windowMinutes'];
+    void source.prepare({windowMinutes: minutes, components: parts, includePaths}).catch(reportError);
   };
   const exportOptions = <SettingsGroup title={t('next.settingsSpec.server.troubleshooting.advanced.groups.1.title')} advanced>
-    <SettingsRow label={t('web.logs.timeWindow')}><Select aria-label={t('web.logs.timeWindow')} value={shownWindow ?? window}
-      disabled={frozen} options={WINDOWS.map(entry => ({value: entry.id, label: t(entry.label)}))} onValueChange={setWindow}/></SettingsRow>
+    <SettingsRow label={t('web.logs.timeWindow')}><Select aria-label={t('web.logs.timeWindow')} value={window}
+      disabled={state.preparing} options={WINDOWS.map(entry => ({value: entry.id, label: t(entry.label)}))} onValueChange={setWindow}/></SettingsRow>
     {SUPPORT_COMPONENTS.map(component => <SettingsRow key={component} label={t(PART_LABEL[component])}>
-      <Switch aria-label={t(PART_LABEL[component])} checked={shownParts.includes(component)} disabled={frozen} onCheckedChange={checked => {
-        setParts(current => checked ? [...new Set([...current, component])] : current.filter(part => part !== component));
-        if (component === 'snapshot' && !checked) choosePaths(false);
-      }}/>
+      <Switch aria-label={t(PART_LABEL[component])} checked={parts.includes(component)} disabled={state.preparing} onCheckedChange={checked =>
+        setParts(current => checked ? [...new Set([...current, component])] : current.filter(part => part !== component))}/>
     </SettingsRow>)}
   </SettingsGroup>;
   return <div className={`${styles.reports} ${styles.support}`}>
     {supportNotice}
-    {!props.exportOnly && state.permissions && <section className={styles.permissions}>
+    {!props.exportOnly && permissions?.readableByOthers && <section className={styles.permissions}>
       <div className={styles.panelHead}><h3>{t('web.maintenance.permissionsTitle')}</h3></div>
-      <p className={styles.lede}>{t('web.maintenance.permissionsBody')}</p>
-      <div><Button variant="glass" size="small" disabled={busy} onClick={() => {
-        setBusy(true);
-        void props.source.fixPermissions().then(done => {if (done) setFixed(true);}).catch(props.reportError).finally(() => setBusy(false));
-      }}>{t('web.maintenance.fixPermissions')}</Button>
-        {fixed && <span className={styles.fixed} role="status">{t('web.maintenance.permissionsFixed')}</span>}</div>
+      <p className={styles.lede}>{permissions.fixable ? t('web.maintenance.permissionsBody') : permissions.message ?? t('web.maintenance.permissionsBody')}</p>
+      {permissions.fixable && <div><Button variant="glass" size="small" disabled={state.fixing} onClick={() => {void source.fixPermissions();}}>{t('web.maintenance.fixPermissions')}</Button></div>}
     </section>}
+    {!props.exportOnly && state.fixed && !permissions?.readableByOthers && <p className={styles.fixed} role="status">{t('web.maintenance.permissionsFixed')}</p>}
     {!props.exportOnly && <section className={styles.panel}>
       <div className={styles.panelHead}><h3>{t('settings.server.capabilities')}</h3></div>
       <p className={styles.lede}>{t('web.capabilities.help')}</p>
-      <ul className={styles.rows}>{state.capabilities.map(capability => <CapabilityRow key={capability.capability} capability={capability} />)}</ul>
+      <ul className={styles.rows}>{state.facts?.capabilities.map(capability => <CapabilityRow key={`${capability.area}/${capability.name}/${capability.path ?? ''}`} capability={capability} />)}</ul>
     </section>}
     {!props.hideExport && !supportNotice && <section className={styles.panel}>
       <div className={styles.panelHead}><h3>{t('web.logs.exportTitle')}</h3></div>
       <p className={styles.lede}>{t('web.logs.exportLede')}</p>
       {!props.exportOnly && exportOptions}
-      {(state.supportsPaths || state.pendingExport?.includePaths) && <div className={styles.exportRow}><label className={styles.check}>
-        <input type="checkbox" checked={!!includePaths} disabled={frozen || !parts.includes('snapshot') || !state.supportsPaths} onChange={event=>choosePaths(event.currentTarget.checked)}/>
-        {t('next.settingsSpec.server.troubleshooting.groups.1.rows.0.children.0.label')}</label><p className={styles.note}>{t('web.logs.pathsHelp')}</p></div>}
+      <div className={styles.exportRow}><label className={styles.check}>
+        <input type="checkbox" checked={includePaths} disabled={state.preparing} onChange={event => setIncludePaths(event.currentTarget.checked)}/>
+        {t('next.settingsSpec.server.troubleshooting.groups.1.rows.0.children.0.label')}</label><p className={styles.note}>{t('web.logs.pathsHelpNext')}</p></div>
       {state.prepareError && <p role="alert" className={styles.failure}>{t('error.unconfirmedChange')}</p>}
       <div className={styles.exportRow}><span className={styles.fieldLabel}>{t('web.logs.prepareExport')}</span>
         <SettingsAction size="small" appearance="primary" loading={state.preparing} disabled={state.preparing || !parts.length}
-          onClick={prepare}>{t(state.pendingExport?'action.tryAgain':'web.logs.prepare')}</SettingsAction></div>
-      {exportReady && <div className={styles.exportReady}>
-        <b>{t('web.logs.readyToDownload')}</b>
-        {exportReady.manifest.includePaths && <p className={styles.note}>{t('web.logs.pathsRequested')}</p>}
-        <p className={styles.note}>{t('web.logs.readyHelp', {included: exportReady.manifest.included.join(', ') || t('web.logs.exportNothing'),
-          excluded: exportReady.manifest.excluded.length ? exportReady.manifest.excluded.join(', ') : t('web.logs.exportNothing'),
-          redaction: exportReady.manifest.redaction, expires: defaultI18n.dateTime(exportReady.expiresAt)})}</p>
-        <Button variant="glass" size="small" onClick={() => {
-          void props.source.download().then(bundle => {
-            if (!props.source.canDownload(bundle.id)) return;
-            const blob = new Blob([JSON.stringify(bundle, null, 2)], {type: 'application/json'});
-            const url = URL.createObjectURL(blob), link = document.createElement('a');
-            try {if (props.source.canDownload(bundle.id)) {link.href = url;link.download = 'portico-support.json';link.click();}} finally {URL.revokeObjectURL(url);}
-          }).catch(props.reportError);
-        }}>{t('web.logs.downloadJson')}</Button>
-      </div>}
+          onClick={prepare}>{t(state.prepareError ? 'action.tryAgain' : 'web.logs.prepare')}</SettingsAction></div>
+      {state.downloaded && <p className={styles.note} role="status">{t('web.logs.exportDownloaded', {name: state.downloaded})}</p>}
     </section>}
-    {props.exportOnly && <><SettingsAdvanced open={advanced} onOpenChange={setAdvanced} summary={[
-      ...(props.advancedSummary ?? []), ...(!supportNotice && shownWindow && shownWindow !== '24h' ? [t('web.logs.timeWindow') + ': ' + t(WINDOWS.find(entry => entry.id === shownWindow)!.label)] : []),
-      ...(!supportNotice ? SUPPORT_COMPONENTS.filter(part => shownParts.includes(part) !== DEFAULT_SUPPORT_COMPONENTS.includes(part)).map(part => t(PART_LABEL[part])) : []),
+    {props.exportOnly && <SettingsAdvanced open={advanced} onOpenChange={setAdvanced} summary={[
+      ...(props.advancedSummary ?? []), ...(!supportNotice && window !== '24h' ? [t('web.logs.timeWindow') + ': ' + t(WINDOWS.find(entry => entry.id === window)!.label)] : []),
+      ...(!supportNotice ? SUPPORT_COMPONENTS.filter(part => parts.includes(part) !== DEFAULT_SUPPORT_COMPONENTS.includes(part)).map(part => t(PART_LABEL[part])) : []),
     ]}>
       {props.advancedRows}{!supportNotice && exportOptions}
-    </SettingsAdvanced></>}
+    </SettingsAdvanced>}
     {!props.exportOnly && <section className={styles.panel}>
       <div className={styles.panelHead}><h3>{t('settings.server.skippedParts')}</h3></div>
       <p className={styles.lede}>{t('settings.server.skippedPartsLede')}</p>
@@ -126,15 +103,14 @@ export function SupportPanel(props: SupportPanelProps) {
   </div>;
 }
 
-function CapabilityRow({capability}: Readonly<{capability: ServerCapability}>) {
-  const available = capability.available;
+/** One thing the server checked: what it is, whether it works, and the server's own sentence on why not. */
+function CapabilityRow({capability}: Readonly<{capability: Capability}>) {
+  const state = STATES[capability.state] ?? STATES.checking!;
   return <li className={styles.capabilityRow}>
-    <div className={styles.reportText}><b>{capabilityLabel(capability.capability)}</b>
-      {!available && capability.code && <small>{t(capabilityReasonId(capability.code) as MessageId)}</small>}
-      {!available && capability.code && <details className={styles.technical}><summary>{t('web.capabilities.technical')}</summary>
-        <p className={styles.note}><code>{capability.code}</code>{capability.detail && <span> {capability.detail}</span>}</p>
-      </details>}
+    <div className={styles.reportText}><b>{capabilityLabel(capability)}</b>
+      {capability.detail && <small>{capability.detail}</small>}
+      {capability.path && <small><code>{capability.path}</code></small>}
     </div>
-    <span className={styles.status} data-status={available ? 'resolved' : 'closed'}>{t(available ? 'web.capabilities.available' : 'web.capabilities.unavailable')}</span>
+    <span className={styles.status} data-status={state.tone}>{t(state.label)}</span>
   </li>;
 }
