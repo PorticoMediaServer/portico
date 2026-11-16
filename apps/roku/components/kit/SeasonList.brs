@@ -1,6 +1,6 @@
-' Rows are 90 px apart. The window is six rows tall and focus is kept inside five whole ones: at the
-' top of the list a sixth row peeks in below, half faded; once the list has moved, half a row shows
-' above and half below, so each end says whether there is more.
+' Rows are 90 px apart. Five whole seasons show and the next peeks in below, half faded. Each end
+' that has more says how many in words ("3 more above", "16 more below"), so the list is never
+' mistaken for its end.
 sub init()
     m.window = m.top.findNode("window")
     m.rows = m.top.findNode("rows")
@@ -8,6 +8,8 @@ sub init()
     m.ring = m.top.findNode("ring")
     m.window.clippingRect = [-60, 0, 460, 540]
     m.scroll = 0
+    setType(m.top.findNode("moreAbove"), "micro", colours().textTertiary)
+    setType(m.top.findNode("moreBelow"), "micro", colours().textTertiary)
     m.top.observeField("focusedChild", "paint")
 end sub
 
@@ -60,7 +62,7 @@ sub paint()
     if m.scroll < 0 then m.scroll = 0
     ' once the list has moved, half a row shows above as well, so both ends say there is more
     lift = 0
-    if m.scroll > 0 then lift = 45
+    if m.scroll > 0 then lift = 36      ' room for the "more above" line
     m.rows.translation = [0, lift - 90 * m.scroll]
     y = lift + 90 * (at - m.scroll)
     m.plate.translation = [-10, y]
@@ -69,8 +71,15 @@ sub paint()
     if has then m.plate.opacity = 1 else m.plate.opacity = 0.55
     m.ring.visible = has
     m.ring.translation = [-46, y - 36]
-    m.top.findNode("fadeTop").visible = (m.scroll > 0)
-    m.top.findNode("fadeBottom").visible = (m.scroll + 5 < count)
+    above = m.top.findNode("moreAbove")
+    below = m.top.findNode("moreBelow")
+    above.visible = (m.scroll > 0)
+    above.text = m.scroll.toStr() + " more above"
+    rest = count - m.scroll - 5
+    below.visible = (rest > 0)
+    below.text = rest.toStr() + " more below"
+    m.top.findNode("fadeBottom").visible = (rest > 0)
+    m.rows.clippingRect = [-60, 90 * m.scroll, 460, 540 - lift]
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean

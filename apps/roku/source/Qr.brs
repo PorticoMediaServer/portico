@@ -109,8 +109,11 @@ function qrMatrix(text as string) as dynamic
         end for
     end for
     centres = [invalid, [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50]][version]
-    for each cy in centres
-        for each cx in centres
+    ' (by index: on a Roku a list has one place-marker, so one list cannot be walked by two "for each" at once)
+    for a = 0 to centres.count() - 1
+        for b = 0 to centres.count() - 1
+            cy = centres[a]
+            cx = centres[b]
             if not fixed[cy][cx]
                 for dy = -2 to 2
                     for dx = -2 to 2

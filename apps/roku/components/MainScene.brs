@@ -18,6 +18,9 @@ sub init()
     m.top.palette = palette
     m.rail.observeField("chosen", "onRailChosen")
     m.rail.observeField("left", "onRailLeft")
+    m.sheet = m.top.findNode("sheet")
+    m.sheet.observeField("chosen", "onSheetChosen")
+    m.sheet.observeField("dismissed", "onSheetClosed")
     m.rail.observeField("isOpen", "onRailOpen")
     if createObject("roAppInfo").isDev()
         m.frames = 0
@@ -73,15 +76,18 @@ sub show(component as string)
     m.rail.visible = false
     m.backdrop.art = ""
     m.backdrop.poster = ""
+    m.backdrop.tint = ""
 end sub
 
 ' Open a page over the one showing; Back returns to it exactly as it was left.
 function push(component as string) as object
     m.screen.visible = false
+    if m.screen.hasField("covered") then m.screen.covered = true
     m.screen = m.screens.createChild(component)
     m.screen.observeField("art", "onArt")
     m.screen.observeField("open", "onOpen")
     if m.screen.hasField("quiet") then m.screen.observeField("quiet", "onQuiet")
+    if m.screen.hasField("menu") then m.screen.observeField("menu", "onMenu")
     m.backdrop.quiet = false
     return m.screen
 end function
@@ -92,9 +98,37 @@ sub pop()
     m.screens.removeChildIndex(count - 1)
     m.screen = m.screens.getChild(count - 2)
     m.screen.visible = true
+    if count = 2 and m.railHome <> invalid
+        m.rail.current = m.railHome
+        m.railHome = invalid
+    end if
     setArt(m.screen.art)
     m.backdrop.quiet = (m.screen.hasField("quiet") and m.screen.quiet = true)
     m.screen.active = true
+end sub
+
+' A page asks for the side sheet by setting its `menu` field; the choice comes back in `menuChosen`.
+sub onMenu(event as object)
+    page = event.getRoSGNode()
+    if not page.isSameNode(m.screen) then return
+    m.sheet.model = event.getData()
+    m.sheet.visible = true
+    m.sheet.active = true
+end sub
+
+sub onSheetChosen(event as object)
+    closeSheet()
+    if m.screen <> invalid and m.screen.hasField("menuChosen") then m.screen.menuChosen = event.getData()
+end sub
+
+sub onSheetClosed()
+    closeSheet()
+end sub
+
+' Focus returns to what opened the sheet.
+sub closeSheet()
+    m.sheet.visible = false
+    if m.screen <> invalid then m.screen.active = true
 end sub
 
 sub onPlayerClosed()
@@ -120,11 +154,25 @@ sub onOpen(event as object)
     if kind = "show" then page = push("ShowScreen")
     if page <> invalid
         page.item = ask.item
+        setArt(page.art)          ' a page with no art of its own clears the one before it
         page.active = true
+        markLibrary(ask.item)
     end if
 end sub
 
+' On a title's page the rail marks the title's library (and Home again once the page is left).
+sub markLibrary(item as object)
+    if item.libraryId = invalid then return
+    for each entry in m.rail.entries
+        if entry.id = item.libraryId
+            if m.railHome = invalid then m.railHome = m.rail.current
+            m.rail.current = item.libraryId
+        end if
+    end for
+end sub
+
 sub showSignIn()
+    m.entered = false
     show("SignInScreen")
     m.screen.observeField("signedIn", "onSignedIn")
     m.screen.active = true
@@ -203,10 +251,14 @@ sub onCapabilitiesSent(event as object)
 end sub
 
 sub showHome()
-    api("PUT", "/v1/devices/current/capabilities", deviceProfile(), "onCapabilitiesSent")
-    api("GET", "/v1/libraries", invalid, "onLibraries")
-    api("GET", "/v1/live/channels?limit=1", invalid, "onLive")
+    if m.entered <> true
+        m.entered = true
+        api("PUT", "/v1/devices/current/capabilities", deviceProfile(), "onCapabilitiesSent")
+        api("GET", "/v1/libraries", invalid, "onLibraries")
+        api("GET", "/v1/live/channels?limit=1", invalid, "onLive")
+    end if
     show("HomeScreen")
+    m.screen.observeField("menu", "onMenu")
     m.screen.observeField("art", "onArt")
     m.screen.observeField("open", "onOpen")
     m.rail.visible = true
@@ -245,12 +297,15 @@ end sub
 sub setArt(art as string)
     if left(art, 7) = "poster|"
         m.backdrop.poster = imageUrl(mid(art, 8), 400, 600)
+        m.backdrop.tint = ""
         m.backdrop.art = ""
     else if left(art, 6) = "cover|"
         m.backdrop.poster = ""
-        m.backdrop.art = "pkg:/images/cover-" + mid(art, 7) + ".jpg"
+        m.backdrop.tint = "pkg:/images/cover-" + mid(art, 7) + ".jpg"
+        m.backdrop.art = ""
     else
         m.backdrop.poster = ""
+        m.backdrop.tint = ""
         m.backdrop.art = imageUrl(art, 1344, 756)
     end if
 end sub
@@ -312,8 +367,17 @@ end sub
 sub onRailChosen(event as object)
     if m.screen = invalid then return
     ' OK on the page you are on goes to its top, the same place as Back.
-    if event.getData() = m.rail.current and m.screen.hasField("toTop") then m.screen.toTop = true
-    m.screen.active = true
+    id = event.getData()
+    if id = m.rail.current
+        if m.screen.hasField("toTop") then m.screen.toTop = true
+        m.screen.active = true
+        return
+    end if
+    if id = "home"
+        showHome()
+        return
+    end if
+    m.screen.active = true     ' a destination not built yet: stay where you were
 end sub
 
 sub onRailLeft()

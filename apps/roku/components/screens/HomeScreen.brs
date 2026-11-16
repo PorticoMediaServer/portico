@@ -33,6 +33,9 @@ sub onHome(event as object)
             if not isReading(spot.entry) then m.spots.push(spot)
         end for
     end if
+    for each entry in m.rows
+        if entry.shelf <> invalid then m.page.removeChild(entry.shelf)
+    end for
     m.rows = []
     for each row in home.rows
         row.items = withoutReading(row.items)
@@ -47,7 +50,21 @@ sub onHome(event as object)
         return
     end if
     m.hero.visible = true
-    if m.spots.count() > 0 then moveTo(-1) else moveTo(0)
+    if m.keep <> invalid and m.keep.row <> ""
+        keep = m.keep
+        m.keep = invalid
+        for i = 0 to m.rows.count() - 1
+            if m.rows[i].row.id = keep.row and m.rows[i].row.items.count() > 0
+                moveTo(i)
+                at = keep.at
+                if at > m.rows[i].row.items.count() - 1 then at = m.rows[i].row.items.count() - 1
+                if at > 0 then m.rows[i].shelf.jumpTo = at
+                return
+            end if
+        end for
+    end if
+    m.keep = invalid
+    if m.spots.count() > 0 then moveTo(-1) else moveTo(rowFrom(0, 1))
     if m.spots.count() > 1 then m.turn.control = "start"
 end sub
 
@@ -120,6 +137,12 @@ end sub
 
 sub onActive()
     if not m.top.active then return
+    ' back from a title's page or the player: what was played or changed there shows here
+    if m.covered = true and not m.notice.visible
+        m.covered = false
+        m.top.covered = false
+        refresh()
+    end if
     if m.notice.visible
         m.notice.active = true
     else if m.focus = -1
@@ -256,6 +279,10 @@ sub showSpot()
 end sub
 
 ' The spotlight turns by itself only while it is the opening state; focus stays where it is.
+sub onCovered()
+    if m.top.covered then m.covered = true
+end sub
+
 sub onToTop()
     if m.focus = -2 then return
     if m.spots.count() > 0 then moveTo(-1) else moveTo(rowFrom(0, 1))
@@ -310,8 +337,59 @@ end sub
 function onKeyEvent(key as string, press as boolean) as boolean
     holdKey(key, press and (key = "up" or key = "down"))
     if not press then return false
+    if key = "options" and m.focus <> -2
+        openMenu()
+        return true
+    end if
     return pressKey(key)
 end function
+
+' The title the * menu is about: the card in focus, or the spotlight's title.
+function menuItem() as dynamic
+    if m.focus = -1 then return m.spots[m.spot].entry
+    return focusedItem()
+end function
+
+sub openMenu()
+    item = menuItem()
+    if item = invalid then return
+    m.menuFor = item
+    inContinue = (m.focus >= 0 and m.rows[m.focus].row.id = "continue")
+    m.top.menu = titleMenu(item, inContinue)
+end sub
+
+sub onMenuChosen(event as object)
+    item = m.menuFor
+    which = event.getData()
+    if item = invalid then return
+    if which = "play"
+        target = item
+        if m.focus = -1 and m.spots[m.spot].resumeTarget <> invalid then target = m.spots[m.spot].resumeTarget
+        m.top.open = {item: target, play: true}
+    else if which = "details"
+        m.top.open = {item: item, play: false}
+    else
+        change = titleMenuChange(item, which)
+        if change <> invalid
+            change.madeAgoMs = 0
+            api("PUT", "/v1/items/" + item.id + "/state", change, "onMenuSaved")
+        end if
+    end if
+end sub
+
+' Home is read again after a change made from a menu, once focus has left the row it was made in.
+sub onMenuSaved(event as object)
+    if event.getData().ok then refresh()
+end sub
+
+' Read Home again and keep focus where it was: the same row, and the same place along it (the
+' next card, or the last one, when the card in focus has gone).
+sub refresh()
+    if m.focus = -2 then return
+    m.keep = {row: "", at: 0}
+    if m.focus >= 0 then m.keep = {row: m.rows[m.focus].row.id, at: m.rows[m.focus].shelf.focusedIndex}
+    api("GET", "/v1/home", invalid, "onHome")
+end sub
 
 function pressKey(key as string) as boolean
     if m.focus = -2 then return false

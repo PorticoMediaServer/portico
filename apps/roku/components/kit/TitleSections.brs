@@ -12,6 +12,8 @@ sub init()
     setType(m.top.findNode("about"), "about", c.textSecondary)
     setType(m.top.findNode("tagline"), "body", c.textTertiary)
     m.related.observeField("selectedIndex", "onRelatedSelected")
+    m.cast.observeField("selectedIndex", "onCastSelected")
+    m.people = []
     m.relatedItems = []
     m.readFor = ""
 end sub
@@ -43,18 +45,28 @@ sub onItem()
             setType(name, "factLabel", c.textTertiary)
             value = facts.createChild("Label")
             value.text = row[1]
-            value.width = 570
+            value.width = 520
+            value.wrap = true
+            value.maxLines = 2
             value.translation = [194, y]
             setType(value, "factLabel", c.text)
+            if value.boundingRect().height > 40 then y = y + 30
             y = y + 42
         end if
     end for
     people = createObject("roSGNode", "ContentNode")
+    m.people = []
     if item.credits <> invalid
-        for each credit in item.credits
-            card = personCard(credit)
-            card.art = imageUrl(card.art, 150, 150)
-            people.createChild("ContentNode").addFields(card)
+        ' cast, then crew, each in the server's order
+        for each wantCast in [true, false]
+            for each credit in item.credits
+                if (credit.role = "actor") = wantCast
+                    card = personCard(credit)
+                    m.people.push({kind: "person", id: credit.personId, title: credit.name})
+                    card.art = imageUrl(card.art, 150, 150)
+                    people.createChild("ContentNode").addFields(card)
+                end if
+            end for
         end for
     end if
     m.cast.cards = people
@@ -66,8 +78,15 @@ sub onRelated(event as object)
     result = event.getData()
     if not result.ok or event.getRoSGNode().ctx.id <> m.readFor then return
     items = []
+    seen = {}
+    seen[m.readFor] = true
     for each group in result.data.groups
-        items.append(withoutReading(group.items))
+        for each item in withoutReading(group.items)
+            if seen[item.id] <> true
+                seen[item.id] = true
+                items.push(item)
+            end if
+        end for
     end for
     m.relatedItems = items
     cards = createObject("roSGNode", "ContentNode")
@@ -118,6 +137,11 @@ sub onActive()
     else
         m.top.setFocus(true)
     end if
+end sub
+
+sub onCastSelected(event as object)
+    at = event.getData()
+    if at >= 0 and at < m.people.count() then m.top.chosen = m.people[at]
 end sub
 
 sub onRelatedSelected(event as object)

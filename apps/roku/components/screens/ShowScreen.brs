@@ -1,5 +1,5 @@
-' Stops down the page: 0 Episodes (the season list and the episode row, side by side), 1 More like
-' this, 2 Details. In Episodes, Left from the first episode reaches the season list and Right
+' Stops down the page: -1 the lockup and its buttons (the opening state, focus on Play), 0 Episodes
+' (the season list and the episode row, side by side), 1 More like this, 2 Details. In Episodes, Left from the first episode reaches the season list and Right
 ' returns to the row at the episode that season remembers.
 sub init()
     c = colours()
@@ -17,7 +17,9 @@ sub init()
     m.episodes.observeField("selectedIndex", "onEpisodeSelected")
     m.sections.observeField("chosen", "onRelatedChosen")
     m.rest.observeField("fire", "showSeason")
-    m.stop = 0
+    m.buttons = m.top.findNode("buttons")
+    m.buttons.observeField("pressed", "onPressed")
+    m.stop = -1
     m.inRow = true        ' focus is in the episode row (not the season list)
     m.list = []           ' the seasons as the server lists them
     m.loaded = {}         ' season id -> its episodes
@@ -29,8 +31,8 @@ end sub
 sub onItem()
     item = m.top.item
     m.top.findNode("title").text = item.title
-    m.top.art = pageArt(item)
-    m.top.quiet = true
+    m.full = item
+    drawTop()
     m.sections.item = item
     api("GET", "/v1/items/" + item.id, invalid, "onDetail", {id: item.id})
     api("GET", "/v1/items?parent=" + item.id + "&limit=100", invalid, "onSeasons", {id: item.id})
@@ -38,7 +40,11 @@ end sub
 
 sub onDetail(event as object)
     result = event.getData()
-    if result.ok and event.getRoSGNode().ctx.id = m.top.item.id then m.sections.item = result.data
+    if result.ok and event.getRoSGNode().ctx.id = m.top.item.id
+        m.sections.item = result.data
+        m.full = result.data
+        drawTop()
+    end if
 end sub
 
 sub onSeasons(event as object)
@@ -60,6 +66,7 @@ sub onSeasons(event as object)
         if start < 0 and season.counts <> invalid and season.counts.unwatchedLeaves > 0 and season.index <> 0 then start = i
     end for
     if start < 0 then start = 0
+    m.startSeason = start
     m.seasons.seasons = rows
     m.seasons.index = start
     showSeason()
@@ -102,6 +109,7 @@ sub showSeason()
         m.started = true
         focusStop()
     end if
+    drawTop()
     describe()
 end sub
 
@@ -153,8 +161,80 @@ sub describe()
     facts.translation = [600 + across + 28, 640]
 end sub
 
+' The episode Play starts: the first unplayed one of the season the page opens on.
+function playTarget() as dynamic
+    if m.list.count() = 0 or m.startSeason = invalid then return invalid
+    episodes = m.loaded[m.list[m.startSeason].id]
+    if episodes = invalid or episodes.count() = 0 then return invalid
+    for each episode in episodes
+        if episode.state.watched <> true then return episode
+    end for
+    return episodes[0]
+end function
+
+sub drawTop()
+    item = m.full
+    model = heroFor(item)
+    model.left = ""
+    model.progress = -1
+    m.top.findNode("hero").model = model
+    m.top.art = model.art
+    target = playTarget()
+    buttons = []
+    if target <> invalid
+        code = episodeCode(target)
+        if progressOf(target) >= 0
+            buttons.push({id: "play", text: ("Resume " + code).trim(), icon: "play", progress: progressOf(target), detail: timeLeftText(target)})
+        else
+            buttons.push({id: "play", text: ("Play " + code).trim(), icon: "play"})
+        end if
+    else
+        buttons.push({id: "play", text: "Play", icon: "play"})
+    end if
+    if item.state.inList then buttons.push({id: "list", text: "My List", icon: "check"}) else buttons.push({id: "list", text: "My List", icon: "plus"})
+    if item.state.watched then buttons.push({id: "watched", text: "Played", icon: "check"}) else buttons.push({id: "watched", text: "Mark as played", icon: ""})
+    m.buttons.buttons = buttons
+end sub
+
+sub onPressed(event as object)
+    which = event.getData()
+    item = m.full
+    if which = "play"
+        target = playTarget()
+        if target <> invalid then m.top.open = {item: target, play: true, startOver: false}
+        return
+    end if
+    change = {madeAgoMs: 0}
+    if which = "list"
+        item.state.inList = not item.state.inList
+        change.inList = item.state.inList
+    else if which = "watched"
+        item.state.watched = not item.state.watched
+        change.watched = item.state.watched
+    end if
+    m.full = item
+    drawTop()
+    api("PUT", "/v1/items/" + item.id + "/state", change, "onSaved")
+end sub
+
+' A whole show marked played changes every season's count: the page reads itself again.
+sub onSaved(event as object)
+    api("GET", "/v1/items/" + m.top.item.id, invalid, "onDetail", {id: m.top.item.id})
+    reread()
+end sub
+
 sub focusStop()
-    m.part.visible = (m.stop = 0)
+    atTop = (m.stop = -1)
+    m.top.findNode("top").visible = atTop
+    m.top.findNode("title").visible = not atTop
+    if atTop then m.top.findNode("lower").translation = [0, 536] else m.top.findNode("lower").translation = [0, 0]
+    m.top.quiet = not atTop
+    m.part.visible = (m.stop <= 0)
+    if atTop
+        m.sections.section = "lead"
+        m.buttons.active = true
+        return
+    end if
     if m.stop = 0
         m.sections.section = "lead"
         if m.inRow and m.shown <> "" then m.episodes.active = true else m.seasons.active = true
@@ -166,8 +246,13 @@ sub focusStop()
 end sub
 
 sub onActive()
-    if m.top.active and m.started then focusStop()
-    if m.top.active and not m.started then m.top.setFocus(true)
+    if not m.top.active then return
+    if m.started
+        ' back from the player: the season's ticks, progress and Up next are read again
+        if m.shownOnce = true then reread()
+        m.shownOnce = true
+    end if
+    focusStop()
 end sub
 
 sub onEpisodeSelected()
@@ -184,6 +269,15 @@ end sub
 function onKeyEvent(key as string, press as boolean) as boolean
     if not press then return false
     hasRelated = m.sections.hasRelated
+    if m.stop = -1
+        if key = "down" and m.started
+            m.stop = 0
+            m.inRow = true
+            focusStop()
+            return true
+        end if
+        return key = "up" or key = "down"
+    end if
     if m.stop = 0
         if key = "left" and m.inRow
             m.inRow = false
@@ -202,6 +296,8 @@ function onKeyEvent(key as string, press as boolean) as boolean
             focusStop()
             return true
         else if key = "up"
+            m.stop = -1
+            focusStop()
             return true
         end if
         return false     ' Left from the season list: the rail
@@ -219,3 +315,35 @@ function onKeyEvent(key as string, press as boolean) as boolean
     end if
     return false
 end function
+
+' Read the seasons and the shown season's episodes again, keeping focus where it is.
+sub reread()
+    api("GET", "/v1/items?parent=" + m.top.item.id + "&limit=100", invalid, "onSeasonsAgain", {id: m.top.item.id})
+    if m.shown <> "" then api("GET", "/v1/items?parent=" + m.shown + "&limit=100", invalid, "onEpisodesAgain", {id: m.shown})
+end sub
+
+sub onSeasonsAgain(event as object)
+    result = event.getData()
+    if not result.ok or result.data.items.count() <> m.list.count() then return
+    m.list = result.data.items
+    rows = []
+    for each season in m.list
+        line = seasonLine(season)
+        rows.push({title: season.title, text: line.text, progress: line.progress})
+    end for
+    at = m.seasons.index
+    m.seasons.seasons = rows
+    m.seasons.index = at
+end sub
+
+sub onEpisodesAgain(event as object)
+    result = event.getData()
+    id = event.getRoSGNode().ctx.id
+    if not result.ok or id <> m.shown then return
+    m.loaded = {}                  ' other seasons are read again when they are next shown
+    m.loaded[id] = result.data.items
+    at = m.episodes.focusedIndex
+    m.kept[id] = at
+    m.shown = ""
+    showSeason()
+end sub

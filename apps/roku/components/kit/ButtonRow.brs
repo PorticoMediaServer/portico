@@ -5,6 +5,16 @@ sub init()
 end sub
 
 sub onButtons()
+    ' the button in focus keeps it when the row is redrawn (a label that flips must not move focus)
+    kept = ""
+    if m.ids <> invalid and m.focused < m.ids.count() then kept = m.ids[m.focused]
+    m.ids = []
+    for each spec in m.top.buttons
+        m.ids.push(spec.id)
+    end for
+    for i = 0 to m.ids.count() - 1
+        if m.ids[i] = kept then m.focused = i
+    end for
     m.top.removeChildrenIndex(m.top.getChildCount(), 0)
     m.nodes = []
     x = 0
