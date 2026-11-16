@@ -43,7 +43,7 @@ function sourceOffer(version: MediaVersion, rungs: readonly QualityRung[]): Play
 
 /** The subtitle choices of the version playing, and the one on. A text track is drawn by the page
  * from the WebVTT the session names; a picture track (PGS, VobSub, DVB) is not offered yet. */
-function subtitlePlan(session: Session, version: MediaVersion): SubtitlePlan {
+export function sessionSubtitlePlan(session: Session, version: MediaVersion): SubtitlePlan {
   const presented = session.presentation, offsetMs = presented.subtitles.find(s => s.trackId === presented.subtitle?.trackId)?.offsetMs ?? 0;
   const resources = version.subtitles.map((s): SubtitleResource => Object.freeze({id: s.id, sourceId: version.id, revision: 1, scope: 'shared', language: s.language ?? '', title: s.title ?? '',
     format: subtitleFormat(s.format), origin: s.source === 'sidecar' ? 'sidecar' : 'embedded', rights: '', offsetUs: String(Math.round(offsetMs * 1000)), canManage: false,
@@ -85,7 +85,7 @@ export async function readPlayerOffers(api: Requester, q: PlayerOffersQuery, sco
   const sources = Object.freeze(options.versions.map(version => sourceOffer(version, rungs)));
   const version = options.versions.find(v => v.id === session?.versionId);
   const playing = session && session.state !== 'ended' && version ? session : undefined;
-  const plan = playing && version ? subtitlePlan(playing, version) : null;
+  const plan = playing && version ? sessionSubtitlePlan(playing, version) : null;
   const current: PlayerCurrentOffer | null = playing ? Object.freeze({sessionId: playing.id, generation: playing.presentation.generation, state: playing.state,
     sourceId: version!.id, delivery: playing.presentation.mode === 'stream' ? 'hls' : 'direct', qualityId: qualityIdOf(playing),
     audioSelection: playing.presentation.mode === 'stream' ? 'server_first_audio' : 'platform_default', subtitleSelection: plan ? plan.mode : 'off'}) : null;

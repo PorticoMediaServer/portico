@@ -290,24 +290,6 @@ export class PlaybackService {
     this.adapter?.apply(this.snapshot);
     for (const listener of this.listeners) listener();
   }
-  private presentationAudioPreference?:string;
-  /** Same session and occurrence; only committed transport generation changes.
-   * Current intent, speed (adapter-owned), pending seek and source position win
-   * over the older position used to prepare the replacement. */
-  installSubtitlePresentation(p:import('./subtitles.ts').SubtitlePresentation):boolean {
-    const before=this.snapshot,session=before.session;
-    if(!session||p.sessionId!==session.id||p.generation<session.generation||!['starting','ready'].includes(before.phase))return false;
-    if(p.generation===session.generation)return p.streamUrl===session.streamUrl&&p.mode===session.mode;
-    if(!Number.isSafeInteger(p.generation)||!/^\/v1\/media\/[A-Za-z0-9_-]+(?:\/master\.m3u8|\/subtitle-video\/[A-Za-z0-9_-]+\/master\.m3u8)?$/.test(p.streamUrl))return false;
-    const position=before.pendingSeek?.positionSeconds??before.positionSeconds;
-    const oldPlan=before.audio.plan;
-    this.presentationAudioPreference=before.audio.pending?.renditionId??before.audio.observedRenditionId??undefined;
-    this.clearStartup();this.bookmarkProtected=true;this.hasObserved=false;
-    const audio=this.audioSelection.reset();
-    this.requestSeek(position,{session:{...session,generation:p.generation,streamUrl:p.streamUrl,mode:p.mode,resumeSeconds:position},phase:'starting',audio,error:undefined});
-    if(oldPlan&&p.mode==='hls')this.audioSelection.install(before.intentId,{...oldPlan,generation:p.generation});
-    return true;
-  }
   /**
    * The same session re-planned on the server (a quality, version or audio change): its new
    * presentation replaces the old one in place. The queue, the intent and the position stay; the
@@ -392,7 +374,7 @@ export class PlaybackService {
   audioUnavailable(intentId:number,reason:string){this.audioSelection.unavailable(intentId,reason);}
   attachAudioEngine(binding:AudioBinding){return this.audioSelection.attach(binding);}
   detachAudioEngine(binding:AudioBinding,epoch:number){this.audioSelection.detach(binding,epoch);}
-  audioMapped(binding:AudioBinding,epoch:number,ids:readonly string[]){const mapped=this.audioSelection.mapped(binding,epoch,ids);const preferred=this.presentationAudioPreference;if(mapped&&preferred&&ids.includes(preferred)){this.presentationAudioPreference=undefined;this.audioSelection.select(preferred);}return mapped;}
+  audioMapped(binding:AudioBinding,epoch:number,ids:readonly string[]){return this.audioSelection.mapped(binding,epoch,ids);}
   selectAudio(id:string){return this.audioSelection.select(id);}
   /** The session's audio tracks, for a stream that carries one track at a time (an original, a
    * repackaged or converted stream without alternate renditions). Choosing one asks for the title

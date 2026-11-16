@@ -1,5 +1,9 @@
 import {serviceText} from '../../../../../packages/client-core/src/presentation/service-text';
-import type {NativePlaybackSubtitleFileUpload} from './subtitle-controls';
+/** A picked subtitle file and how it is labelled. Nothing sends it any more: the rebuilt server has no subtitle
+ * upload (definition 07 rule 69); this picker goes with its own follow-up removal. */
+export type NativePlaybackSubtitleFileUpload = Readonly<{file: Readonly<{uri: string; name: string; type: string}>; fileName: string;
+  companion?: Readonly<{uri: string; name: string; type: string}>; companionName?: string; default?: boolean; forced?: boolean;
+  format: string; language: string; title: string; rights: string; scope: 'personal' | 'shared'; offsetUs: string}>;
 
 export type NativeSubtitlePickedFile = Readonly<{
   fileUri: string; format: 'srt' | 'vtt' | 'ass' | 'ssa' | 'sup' | 'idx'; title: string; companionUri?: string;

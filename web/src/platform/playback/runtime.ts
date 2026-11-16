@@ -136,7 +136,7 @@ type Stack = {
   channelStarts?: WebStartRegistration;
   confirmedEnd?: Readonly<{sessionId: string; generation: number; intentId: number; view: ReturnType<V1QueuePlayer['getSnapshot']>['view']}>;
 };
-const emptySubtitle: SubtitleSnapshot = {catalog: null, plan: null, busy: false, loading: false, suppressed: true, error: null, canRetry: false, candidates: []};
+const emptySubtitle: SubtitleSnapshot = {plan: null, provider: {enabled: true}, busy: false, loading: false, suppressed: true, error: null, canRetry: false, candidates: []};
 function problem(code: string): never { throw new Error(code); }
 /** Stop on the starting dock is the viewer's own cancel: never reported as a failure. */
 const startStopped = () => new DOMException('Playback start stopped', 'AbortError');
@@ -1829,7 +1829,6 @@ export class WebShellPlaybackRuntime {
     this.clearTimer(stack.documentTimer); stack.documentTimer = undefined;
     stack.documentKey = undefined;
     this.surface?.guard(false); this.surface?.clear();
-    stack.subtitles?.setPolling(false);
     this.clearRecordedSidecar(stack, 'text');
   }
   private renderSubtitles(stack: Stack): void {
@@ -1861,7 +1860,6 @@ export class WebShellPlaybackRuntime {
     this.clearDrawnSubtitles(stack);
     // The dock is quiet: Portico's subtitle surface is never visible in a thumbnail.
     if (!surface || !stack.expanded || !plan || state.suppressed || plan.mode !== 'track' || plan.renderer !== 'external_text' || !plan.documentUrl) { this.clearTextSubtitles(stack); return; }
-    stack.subtitles?.setPolling(plan.mode === 'track');
     const documentUrl = plan.documentUrl;
     const key = JSON.stringify([stack.sessionKey, plan.sourceId, plan.revision, plan.documentUrl, plan.offsetUs]);
     if (stack.documentKey === key) return;
@@ -2550,11 +2548,9 @@ export class WebShellPlaybackRuntime {
    * subtitles found online can be searched at all, and the server's reason when they cannot. */
   subtitleProvider(fence: PlaybackFence): Readonly<{enabled: boolean; reason?: string}> | undefined {
     if (fence.kind !== 'queue' || !this.matches(fence)) return undefined;
-    const state = this.stack.subtitles?.getSnapshot(), plan = state?.plan, catalog = state?.catalog;
-    if (!plan || !catalog || plan.sessionId !== fence.sessionId || plan.generation !== fence.generation
-      || plan.sourceId !== fence.sourceId || catalog.itemId !== fence.itemId) return undefined;
-    const provider = catalog.provider;
-    return Object.freeze({enabled: provider.enabled, ...(provider.reason ? {reason: provider.reason} : {})});
+    const state = this.stack.subtitles?.getSnapshot(), plan = state?.plan;
+    if (!state || !plan || plan.sessionId !== fence.sessionId || plan.generation !== fence.generation || plan.sourceId !== fence.sourceId) return undefined;
+    return Object.freeze({enabled: state.provider.enabled, ...(state.provider.reason ? {reason: state.provider.reason} : {})});
   }
   /** Drawn temporary choices for this actual subject; music and live have no speed picker. */
   speedChoices(fence: PlaybackFence): readonly number[] {
