@@ -41,8 +41,6 @@ import (
 var (
 	// ErrNoConverter says this server cannot make copies: it has no working ffmpeg.
 	ErrNoConverter = errors.New("this server can't make smaller copies")
-	// ErrSpaceFull says the owner's download space has no room for another copy.
-	ErrSpaceFull = errors.New("the server's download space is full")
 	// ErrCannot says this version cannot be made at that quality.
 	ErrCannot = errors.New("this title can't be prepared at that quality")
 )
@@ -145,25 +143,9 @@ func (s *Service) Want(ctx context.Context, v db.Version, kind db.ItemKind, reci
 	if !s.Converts() {
 		return db.Prepared{}, ErrNoConverter
 	}
-	if room, limited, err := s.Room(ctx); err != nil {
-		return db.Prepared{}, err
-	} else if limited && EstimatedSize(v, recipe) > room {
-		return db.Prepared{}, ErrSpaceFull
-	}
 	p, err := s.DB.WantPrepared(ctx, mediaID, recipe, EstimatedSize(v, recipe), s.Now())
 	s.kick()
 	return p, err
-}
-
-// Room is how much of the owner's download space is left; limited is false when there is no
-// limit.
-func (s *Service) Room(ctx context.Context) (room int64, limited bool, err error) {
-	limit := Document.Get(s.Settings).SpaceGB * 1_000_000_000
-	if limit == 0 {
-		return 0, false, nil
-	}
-	used, err := s.DB.PreparedSpace(ctx)
-	return max(limit-used, 0), true, err
 }
 
 // Progress says how far a copy being made has got, in bytes written of about how many.
@@ -479,33 +461,48 @@ func (c *counting) Write(b []byte) (int, error) {
 	return n, err
 }
 
-// Tidy removes copies nobody has asked for or fetched within the owner's keeping time, and
-// any file in the prepared folder that no copy names. A download that waited for a removed
-// copy reads as expired, with Try again. Copies already on people's devices are not touched.
+// A copy the server makes for a download is temporary (area 9 rule 24, Justin 16 Nov). It goes
+// once no download's title waits for it, every device that asked having said it has the file,
+// or once it has been ready for copyLife and was not fetched in the last copyFetched. A
+// download that still waited for it then reads as expired, with Try again.
+const (
+	copyLife    = 48 * time.Hour
+	copyFetched = time.Hour
+)
+
+// Tidy removes the copies that can go, never one being fetched now, and any file in the
+// prepared folder that no copy names. Copies already on people's devices are not touched.
 func (s *Service) Tidy(ctx context.Context) error {
-	keep := time.Duration(Document.Get(s.Settings).KeepDays) * 24 * time.Hour
 	files, err := s.copyFiles()
 	if err != nil {
 		return err
 	}
-	for ctx.Err() == nil {
-		unused, err := s.DB.UnusedPrepared(ctx, s.Now().Add(-keep), 100)
-		if err != nil || len(unused) == 0 {
-			if err != nil {
-				return err
-			}
-			break
-		}
-		ids := make([]int64, len(unused))
-		for n, p := range unused {
-			ids[n] = p.ID
-		}
-		// The rows go first: a file left behind is swept below, a row left without its file
-		// would be handed out.
-		if err := s.DB.RemovePrepared(ctx, ids); err != nil {
+	now := s.Now()
+	for after := int64(0); ctx.Err() == nil; {
+		done, err := s.DB.FinishedPrepared(ctx, now.Add(-copyLife), now.Add(-copyFetched), after, 100)
+		if err != nil {
 			return err
 		}
-		for _, p := range unused {
+		if len(done) == 0 {
+			break
+		}
+		after = done[len(done)-1].ID
+		var ids []int64
+		var gone []db.Prepared
+		s.mu.Lock()
+		for _, p := range done {
+			if s.reading[p.ID] == 0 {
+				ids, gone = append(ids, p.ID), append(gone, p)
+			}
+		}
+		// The rows go first, while no read can start: a file left behind is swept below, a
+		// row left without its file would be handed out.
+		err = s.DB.RemovePrepared(ctx, ids)
+		s.mu.Unlock()
+		if err != nil {
+			return err
+		}
+		for _, p := range gone {
 			// The copy's files and the subtitles written beside it.
 			for _, file := range files[p.PublicID] {
 				os.Remove(file)

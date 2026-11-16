@@ -378,12 +378,13 @@ Not carried: `/v1/handoffs/*` (the request above is the move, and it is not stor
 
 | Route | Who | Purpose |
 |---|---|---|
-| `GET /v1/items/{id}/download-options` | A profile allowed to download, for a title it may play | The real choices with the size of each ("about" when estimated), which need the server to prepare a copy first, and why a choice is not offered; with `selection` and `keepNext`, for a show, season, album, artist or playlist as a whole; the room left in the owner's download space |
+| `GET /v1/items/{id}/download-options` | A profile allowed to download, for a title it may play | The real choices with the size of each ("about" when estimated), which need the server to prepare a copy first, and why a choice is not offered; with `selection` and `keepNext`, for a show, season, album, artist or playlist as a whole |
 | `GET /v1/downloads`, `POST /v1/downloads` | A profile allowed to download | This device's requests, or with `scope=profile` all of the profile's (the browser page), each with its titles as `GET /v1/downloads/{id}` gives them, in a fixed few reads; ask for one. `201`, or `200` for the same thing asked twice. A person limited to home can ask only at home |
-| `GET /v1/downloads/{id}` | The profile that asked | One request with its titles and the state of each: waiting, preparing with progress, ready, paused, expired, could not be prepared or included, with the reason. Each title the profile may see also says where it sits: an episode's show (`parentTitle`), `seasonNumber` and `episodeNumber`; a track's album (`parentTitle`) and `artist` |
+| `GET /v1/downloads/{id}` | The profile that asked | One request with its titles and the state of each: waiting, preparing with progress, ready, received (the device said it has the file), paused, expired, could not be prepared or included, with the reason. Each title the profile may see also says where it sits: an episode's show (`parentTitle`), `seasonNumber` and `episodeNumber`; a track's album (`parentTitle`) and `artist` |
 | `PATCH /v1/downloads/{id}` | The profile that asked | `paused`, `retry`, `keepNext` (0 removes the rule and keeps what is there). A copy nobody waits for any more stops being made |
 | `DELETE /v1/downloads/{id}` | The profile that asked | Remove the request. The server's prepared copy stays for anyone else who asked for it |
 | `DELETE /v1/downloads/{id}/items/{itemId}` | The profile that asked | Take one title out of a show, season, album, artist or playlist download: it leaves the list, the device is told to remove it (`removed`) at its next contact, and it does not come back, under "keep the next" either. Safe to repeat. Its copy stays for anyone else who asked for it |
+| `POST /v1/downloads/{id}/items/{itemId}/received` | The profile that asked, on the device it asked from | The device has the title's whole file. A copy the server made for it (a smaller video, or a book's EPUB or CBZ) is deleted once no other request waits for it; a copy nobody confirms goes 48 hours after it was ready, later while a fetch of it is under way, and its title then reads expired. `204`; safe to repeat; an original is never touched. A browser cannot say it: one that was sent the last file's last byte counts |
 | `GET /v1/downloads/{id}/items/{itemId}` | The profile that asked | What to fetch for one title: its details, and the addresses, sizes and hashes of its file or files, artwork, subtitles, chapters and markers, and lyrics |
 | `POST /v1/downloads/sync` | A signed-in device | The device says which titles it holds. The answer says which to remove (the profile may no longer see them, or may no longer download, or the person took them out), which to add or drop under "keep the next", and until when everything plays offline (30 days from now) |
 | `GET /v1/downloads/usage` | A profile allowed to download | Space the profile's prepared copies take |
@@ -647,15 +648,12 @@ Not carried: `/v1/admin/sign-in/move*` as seven routes (the four above);
 router switches, router address and renewal time are gone); `/v1/admin/connectivity/policy`
 and `/status` (the `remote-access` and `network` documents, and the status read).
 
-### Downloads, the owner's side (2)
+### Downloads, the owner's side
 
-| Route | Who | Purpose |
-|---|---|---|
-| `GET /v1/admin/downloads` | Owner | Downloads by person: how many titles were asked for and how much space the server's copies take, each copy counted once |
-| `DELETE /v1/admin/members/{id}/downloads` | Owner | Expire their prepared server copies, preserving requests and device-held files; copies another person's request needs stay. Refused with `409 download_in_use` during a transfer; an unknown person returns `404` |
-
-Not carried: `POST /v1/admin/downloads/revoke` and `/cache/release` as two removals (one
-removal here; cutting someone off is the Downloads switch on the account or the profile).
+None. Copies the server makes for downloads are temporary (area 9 rule 24, Justin 16 Nov), so
+there is no download space, no keep time and no downloads by person (`GET /v1/admin/downloads`
+and `DELETE /v1/admin/members/{id}/downloads` are gone). Cutting someone off is the Downloads
+switch on the account or the profile.
 
 ### Live TV and recordings setup, route by route (27)
 
@@ -804,13 +802,8 @@ them is nothing: the last deliberate edit wins, a `2xx` means it happened, and r
 
 A Services identity with `audience` is accepted only when it is an HTTPS origin this server serves (its approved addresses or its own Portico zone at a served port), the request arrives at that same host and port over HTTPS, and its browser `Origin` is that origin. Forwarded scheme/host count only from a configured trusted proxy. A foreign or missing Origin, another host/port, HTTP or an address belonging to another server refuses the note before exchange. The challenge remains one-use. Notes without audience continue to support the hosted-web and native sign-in paths. The page must still bind its return to its own tab/state before sending the note; the server never receives the fragment.
 
-`GET` and `PUT /v1/admin/storage/keeping` expose Keep generated files as a derived
-`preset` (`balanced`, `short`, `long`, or `custom`) and the one supported child today,
-`preparedDownloadsDays`. A preset saves 30, 14, or 90 days into `downloads.keepDays`;
-setting that child to 7 or 365 days reads back as Custom. Either route uses the same
-stored value, with choices 7, 14, 30 (default), 90, and 365. PUT sends either `preset`
-or `preparedDownloadsDays`; Custom is derived, not saved. ETag/If-Match is the downloads
-settings revision, so a change through either route is visible to the other.
+`/v1/admin/storage/keeping` (Keep generated files) is gone: it set only how long download
+copies were kept, and they are now temporary (area 9 rule 24; ruling, 16 Nov).
 
 Conversion files, unused converted copies, fetched-subtitle cache and seek-bar previews
 have no reusable cache with day-based keeping in this server yet; no inert child settings

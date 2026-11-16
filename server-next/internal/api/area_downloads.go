@@ -39,7 +39,14 @@ func (s *Server) startDownloads(ctx context.Context) error {
 				return reading.Copy{}, false, err
 			}
 			return s.reading.DownloadCopy(ctx, version)
+		},
+		DropBookCopy: func(ctx context.Context, v db.Viewer, item string, fileID int64) {
+			if version, ok, _ := s.bookVersion(ctx, v, item, fileID); ok {
+				s.reading.DropCopy(version)
+			}
 		}}
+	// A book's download copy lasts 48 hours at most (area 9 rule 24).
+	s.jobs.Tidy("download copies of books", time.Hour, func(ctx context.Context) error { return s.reading.PruneCopies(ctx) })
 	s.downloadRoutes()
 	return nil
 }
