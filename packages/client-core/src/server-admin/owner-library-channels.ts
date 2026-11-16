@@ -42,3 +42,8 @@ export async function channelConditionNames(api:LibraryContentApi,field:string,i
 
 /** Raw picture upload; authentication is captured by the owner admission. */
 export function uploadOwnerChannelLogo(api:Pick<import('../index.ts').HttpLocalApi,'routeFetch'|'baseUrl'>,id:string,token:string,file:File,signal:AbortSignal){return api.routeFetch(api.baseUrl+serverPath('PUT /v1/admin/library-channels/{id}/logo',{id}),{method:'PUT',body:file,signal,redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',headers:{Authorization:'Bearer '+token,Accept:'application/json','Content-Type':file.type}});}
+
+/** Native image pickers return normalized JPEG bytes, encoded only across the native bridge. */
+export async function uploadNativeOwnerChannelLogo(api:LibraryContentApi,id:string,base64:string,signal?:AbortSignal){
+ return channel(await change<LibraryChannel>(api,serverPath('PUT /v1/admin/library-channels/{id}/logo',{id}),'PUT',{nativeChannelLogoBase64:base64},signal,{'Content-Type':'image/jpeg'}));
+}
