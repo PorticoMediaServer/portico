@@ -58,12 +58,13 @@ for (const [name, args] of [['J-14 My List', {watchlist: true}], ['Watched', {wa
   test(`${name} on picked titles sends their own IDs, never a prepared selection`, async () => {
     const bodies: any[] = [];
     const actions = createSelectionActions({events: {on: () => () => {}}, isCurrent: () => true, reportError: () => {}, requestId: async () => 'op-1',
-      api: {request: async (_path: string, _method?: string, body?: unknown) => {bodies.push(body); return {jobId: 'job-1', command: 'personal-state', state: 'complete', total: 2, totalKnown: true, done: 2, failed: 0};}} as never});
+      api: {request: async (path: string, _method?: string, body?: unknown) => {bodies.push({path, body}); return {};}} as never});
     const item = (id: string) => ({key: id, item: {kind: 'episode', id, libraryId: 'library', capabilities: {myList: true, watched: true}}});
     const result = await actions.personal({target: {mode: 'explicit', context: {}, items: [item('e1'), item('e2')], displayItems: []}} as never, args);
     assert.equal(result.updated, 2);
-    assert.deepEqual(bodies[0].selector, {items: {ids: ['e1', 'e2']}});
-    assert.deepEqual(bodies[0].args, args);
+    // Each picked title on its own route (definition 06 rule 41: the answer is title by title).
+    const state = 'watchlist' in args ? {inList: true} : {watched: true};
+    assert.deepEqual(bodies, [{path: '/v1/items/e1/state', body: state}, {path: '/v1/items/e2/state', body: state}]);
   });
 }
 

@@ -101,6 +101,8 @@ export async function runSelectionJobs(api: HomeApi, tasks: HomeJobTask[], signa
         report();
         if (!isJobTerminal(task.job.state) && answering === resyncDebt) await pause(signal, task.job.jobId, events);
       }
+      // Chosen titles are done one at a time: the job carries what failed, title by title.
+      if (!task.observed && task.job.failures) {task.failures = task.job.failures; task.observed = true;}
       if (!task.observed) {
         const failures: JobFailure[] = [], cursors = new Set<string>();
         let cursor: string | undefined;

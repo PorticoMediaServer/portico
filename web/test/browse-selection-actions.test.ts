@@ -28,79 +28,44 @@ test('one job command carries exactly one personal fact', async () => {
   await assert.rejects(actions.personal({target: explicit(['movie'])} as never, {watched: true}, AbortSignal.abort()), (error: unknown) => error instanceof SelectionActionError && error.code === 'cancelled');
 });
 
-const completeJob = {jobId: 'job-1', command: 'personal-state', state: 'complete', total: 1, totalKnown: true, done: 1, failed: 0};
 const ports = {events: {on: () => () => {}}, isCurrent: () => true, reportError: () => {}};
 
-test('concurrent planning shares one submission and uncertain retry preserves its body', async () => {
-  const bodies: unknown[] = [];
-  let ids = 0;
-  const actions = createSelectionActions({...ports, requestId: async () => `op-${++ids}`, api: {request: async (_path, _method, body) => {
-    bodies.push(body);
-    if (bodies.length === 1) throw new Error('lost response');
-    return completeJob;
-  }}});
-  const operation = {target: explicit(['movie'])} as never;
-  const first = await Promise.allSettled([actions.personal(operation, {watched: true}), actions.personal(operation, {watched: true})]);
-  assert.deepEqual(first.map(result => result.status), ['rejected', 'rejected']);
-  assert.equal(bodies.length, 1);
-  assert.equal((await actions.personal(operation, {watched: true})).updated, 1);
-  assert.deepEqual(bodies[1], bodies[0]);
-  assert.equal(ids, 1);
+test('picked titles: two taps share one run, and a title the server did not take is counted as failed while the rest is done', async () => {
+  const paths: string[] = [];
+  const actions = createSelectionActions({...ports, requestId: async () => 'op-1', api: {request: async (path: string) => {
+    paths.push(path);
+    if (path === '/v1/items/id0/state') throw Object.assign(new Error('lost response'), {code: 'network'});
+    return {};
+  }} as never});
+  const operation = {target: explicit(['movie', 'movie'])} as never;
+  const [first, second] = await Promise.all([actions.personal(operation, {watched: true}), actions.personal(operation, {watched: true})]);
+  assert.deepEqual([first.updated, first.failed], [1, 1]);
+  assert.equal(second, first, 'the second tap is the same run');
+  assert.deepEqual(paths, ['/v1/items/id0/state', '/v1/items/id1/state']);
 });
 
-test('known job resumes with GET and a retired operation performs zero retry I/O', async () => {
-  const calls: string[] = [];
-  let current = true;
-  const actions = createSelectionActions({...ports, requestId: async () => 'op', api: {request: async (_path, method = 'GET') => {
-    calls.push(method);
-    if (calls.length === 1) return {...completeJob, state: 'running', done: 0};
-    if (calls.length === 2) throw new Error('poll lost');
-    return completeJob;
-  }}});
-  const operation = {target: explicit(['movie'])} as never;
-  await assert.rejects(actions.personal(operation, {favorite: true}, undefined, () => current), /poll lost/);
-  current = false;
-  await assert.rejects(actions.personal(operation, {favorite: true}, undefined, () => current), /cancelled/);
-  assert.deepEqual(calls, ['POST', 'GET']);
-  current = true;
-  await actions.personal(operation, {favorite: true}, undefined, () => current);
-  assert.deepEqual(calls, ['POST', 'GET', 'GET']);
-});
-
-
-test('a new caller guard cannot revive a retired retained attempt', async () => {
-  let originalCurrent = true, requests = 0;
-  const actions = createSelectionActions({...ports, requestId: async () => 'op', api: {request: async () => {requests++; throw new Error('lost');}}});
-  const operation = {target: explicit(['movie'])} as never;
-  await assert.rejects(actions.personal(operation, {watched: true}, undefined, () => originalCurrent), /lost/);
-  originalCurrent = false;
-  await assert.rejects(actions.personal(operation, {watched: true}, undefined, () => true), /cancelled/);
-  assert.equal(requests, 1);
-});
-
-test('a granted displayed parent plans its own container selector, never a child', async () => {
-  const requests: unknown[] = [];
-  const actions = createSelectionActions({...ports, requestId: async () => 'parent-operation', api: {request: async (_path, _method, body) => {requests.push(body); return completeJob;}}});
+test('a granted displayed parent is marked as itself, never a child', async () => {
+  const paths: string[] = [];
+  const actions = createSelectionActions({...ports, requestId: async () => 'parent-operation', api: {request: async (path: string) => {paths.push(path); return {};}} as never});
   await actions.personal({target: explicit(['show'])} as never, {watched: true});
-  assert.deepEqual((requests[0] as {selector: unknown}).selector, {container: {kind: 'show', id: 'id0'}});
+  assert.deepEqual(paths, ['/v1/items/id0/state']);
 });
 
-test('J-14: a sent My List job is followed when its own write ends the selection, and its outcome is said', async () => {
-  let selectionLive = true, polls = 0;
-  const notices: string[] = [];
-  const actions = createSelectionActions({...ports, requestId: async () => 'op-1', notify: message => notices.push(message), api: {request: async (path: string, method?: string) => {
-    if (method === 'POST') {selectionLive = false; return {jobId: 'job-1', command: 'personal-state', state: 'queued', total: 0, done: 0, failed: 0, totalKnown: false};}
-    polls++; return {...completeJob, total: 2, done: 2};
+test('J-14: My List already under way finishes when its own write ends the selection, and its outcome is said', async () => {
+  let selectionLive = true;
+  const notices: string[] = [], paths: string[] = [];
+  const actions = createSelectionActions({...ports, requestId: async () => 'op-1', notify: message => notices.push(message), api: {request: async (path: string) => {
+    paths.push(path); selectionLive = false; return {};
   }} as never});
   const result = await actions.personal({target: explicit(['episode', 'episode'])} as never, {watchlist: true}, undefined, () => selectionLive);
   assert.equal(result.updated, 2);
-  assert.ok(polls >= 1, 'the sent job is still read after the selection ended');
+  assert.equal(paths.length, 2, 'the run already sent carries on to its end');
   assert.deepEqual(notices.length, 1);
   assert.match(notices[0]!, /My List/);
 });
 test('J-14: nothing is sent once the selection has ended', async () => {
   const sent: unknown[] = [];
-  const actions = createSelectionActions({...ports, requestId: async () => 'op-1', api: {request: async (_path: string, _method?: string, body?: unknown) => {sent.push(body); return completeJob;}} as never});
+  const actions = createSelectionActions({...ports, requestId: async () => 'op-1', api: {request: async (_path: string, _method?: string, body?: unknown) => {sent.push(body); return {};}} as never});
   await assert.rejects(actions.personal({target: explicit(['episode'])} as never, {watchlist: true}, undefined, () => false), (error: unknown) => error instanceof SelectionActionError && error.code === 'cancelled' || /cancel/.test(String(error)));
   assert.equal(sent.length, 0);
 });
