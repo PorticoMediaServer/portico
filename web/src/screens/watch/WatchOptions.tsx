@@ -43,6 +43,25 @@ function TimingRow({timing,reportError,t}:{timing:NonNullable<WatchPanelModel['s
   </div></div>;
 }
 
+/** desktop-player f3 (07 rules 65 to 68): Search for subtitles. When it cannot run here it stays visible, off, with
+ * the server's reason. Otherwise it lists results with Download, under the provider's credit; choosing one downloads
+ * it and turns it on. */
+function SubtitleSearch({search,reportError,t}:{search:NonNullable<WatchPanelModel['subtitleSearch']>;reportError(error:unknown):void;t:I18n['t']}){
+ const run=(action:()=>Promise<void>)=>{if(search.busy)return;try{void action().catch(reportError);}catch(error){reportError(error);}};
+ if(search.reason)return <div className={styles.searchRow} aria-disabled="true"><span className={styles.searchLabel}><Icon name="i-dl" size={18}/>{t('player.opt.findSubtitles')}</span><p className={styles.searchWhy}>{search.reason}</p></div>;
+ const offerSearch=!search.searched||!!search.error&&search.canRetry;
+ return <div className={styles.searchResults}>
+  {offerSearch&&<button type="button" className={styles.row} aria-disabled={search.busy||undefined} onClick={()=>run(search.search)}>
+   <span className={styles.searchLabel}><Icon name="i-dl" size={18}/>{search.error?t('action.tryAgain'):t('player.opt.findSubtitles')}</span></button>}
+  {search.busy&&!search.results.length&&<p className={styles.searchWhy} role="status">{t('player.opt.lookingForSubtitles')}</p>}
+  {search.results.map(result=><button key={result.id} type="button" className={styles.row} aria-disabled={search.busy||undefined} onClick={()=>run(()=>search.choose(result.id))}>
+   <span className={styles.result}>{result.primary}<small>{result.secondary}</small></span><span className={styles.resultIcon}><Icon name="i-dl" size={18}/></span></button>)}
+  {search.searched&&!search.busy&&!search.error&&!search.results.length&&<p className={styles.searchWhy}>{t('player.opt.noSubtitlesFound')}</p>}
+  {search.error&&<p className={styles.searchWhy} role="alert">{search.error}</p>}
+  {search.searched&&<p className={styles.searchWhy}>{search.credit}</p>}
+ </div>;
+}
+
 /** The drawn single options panel. Every visible radio row has actual source membership and
  * every action calls that same runtime with its captured full fence. No optimistic selection.
  * On a phone the drawn sheet lists one row per control; each row opens its own panel. */
@@ -94,7 +113,7 @@ export function WatchOptions({model,context,i18n,reportError,openSettings,info}:
    <Segmented className={styles.speeds} aria-label={sectionTitle('speed')} value={model.speed.find(row=>row.selected)?.id??''}
     items={model.speed.map(row=>({value:row.id,label:row.label,disabled:!row.enabled}))}
     onValueChange={id=>{try{model.selectSpeed(id);}catch(error){reportError(error);}}}/>
-   </div>:<><RadioRows rows={sectionRows(section)} select={id=>sectionSelect(section,id)} reportError={reportError} label={sectionTitle(section)}/>{section==='quality'&&model.qualityNotes.length>0&&<div className={styles.optionFoot}>{model.qualityNotes.map(note=><span key={note}>{note}</span>)}</div>}{section==='audio'&&<>{audioFailure}{model.audioNotes.length>0&&<div className={styles.optionFoot}>{model.audioNotes.map(note=><span key={note}>{note}</span>)}</div>}</>}</>}</div>:null;
+   </div>:<><RadioRows rows={sectionRows(section)} select={id=>sectionSelect(section,id)} reportError={reportError} label={sectionTitle(section)}/>{section==='quality'&&model.qualityNotes.length>0&&<div className={styles.optionFoot}>{model.qualityNotes.map(note=><span key={note}>{note}</span>)}</div>}{section==='subtitles'&&model.subtitleSearch&&<SubtitleSearch search={model.subtitleSearch} reportError={reportError} t={t}/>}{section==='audio'&&<>{audioFailure}{model.audioNotes.length>0&&<div className={styles.optionFoot}>{model.audioNotes.map(note=><span key={note}>{note}</span>)}</div>}</>}</>}</div>:null;
  // desktop-player f7: the sheet's own "Up next" row carries the queue's real remaining count.
  const remaining=context.snapshot.queueView?.remainingCount,upNext=typeof remaining==='number'&&Number.isInteger(remaining)&&remaining>0?i18n.number(remaining):undefined;
  const titleActions:readonly Readonly<{id:string;label:string;icon:IconName;action:()=>void|Promise<void>;value?:string}>[]=[
@@ -135,7 +154,7 @@ export function WatchOptions({model,context,i18n,reportError,openSettings,info}:
   if(event.key==='Escape'){event.preventDefault();event.stopPropagation();context.close();}
   else if(event.defaultPrevented&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))event.stopPropagation();
  }}>
-  {model.subtitles.length>0&&<div data-section="subtitles"><TrackChoices title={t('player.opt.subtitles')} choices={model.subtitles} layout={context.layout} onSelect={model.selectSubtitle} reportError={reportError} t={t}/>{model.subtitleTiming&&<TimingRow timing={model.subtitleTiming} reportError={reportError} t={t}/>}{model.subtitleAdditions.length>0&&<div className={styles.additions}><TrackChoices title={t('player.opt.notAdded')} choices={model.subtitleAdditions} layout={context.layout} onSelect={model.selectSubtitle} onAdd={id=>model.selectSubtitle(id)} reportError={reportError} t={t}/></div>}{model.subtitleForced&&<label className={styles.forcedRow}><span><b>{t('player.subtitles.forcedOnly')}</b><small>{t('player.subtitles.forcedOnlyHelp')}</small></span><Switch checked={model.subtitleForced.only} onCheckedChange={value=>{try{model.subtitleForced?.set(value);}catch(error){reportError(error);}}}/></label>}{model.subtitleSearch&&<div className={styles.searchRow} aria-disabled="true"><span className={styles.searchLabel}><Icon name="i-dl" size={18}/>{t('player.opt.findSubtitles')}</span><p className={styles.searchWhy}>{model.subtitleSearch.reason}</p></div>}</div>}
+  {model.subtitles.length>0&&<div data-section="subtitles"><TrackChoices title={t('player.opt.subtitles')} choices={model.subtitles} layout={context.layout} onSelect={model.selectSubtitle} reportError={reportError} t={t}/>{model.subtitleTiming&&<TimingRow timing={model.subtitleTiming} reportError={reportError} t={t}/>}{model.subtitleAdditions.length>0&&<div className={styles.additions}><TrackChoices title={t('player.opt.notAdded')} choices={model.subtitleAdditions} layout={context.layout} onSelect={model.selectSubtitle} onAdd={id=>model.selectSubtitle(id)} reportError={reportError} t={t}/></div>}{model.subtitleForced&&<label className={styles.forcedRow}><span><b>{t('player.subtitles.forcedOnly')}</b><small>{t('player.subtitles.forcedOnlyHelp')}</small></span><Switch checked={model.subtitleForced.only} onCheckedChange={value=>{try{model.subtitleForced?.set(value);}catch(error){reportError(error);}}}/></label>}{model.subtitleSearch&&<SubtitleSearch search={model.subtitleSearch} reportError={reportError} t={t}/>}</div>}
   {(model.audio.length>0||model.quality.length>0)&&<div>
    {model.audio.length>0&&<div data-section="audio"><TrackChoices title={t('player.opt.audio')} choices={model.audio} layout={context.layout} onSelect={chooseAudio} reportError={reportError} t={t}/>{audioFailure}{model.audioNotes.length>0&&<div className={styles.optionFoot}>{model.audioNotes.map(note=><span key={note}>{note}</span>)}</div>}</div>}
    {model.quality.length>0&&<div data-section="quality"><RadioColumn title={t('player.opt.quality')} rows={model.quality} select={model.selectQuality} reportError={reportError}/>{model.qualityNotes.length>0&&<div className={styles.optionFoot}>{model.qualityNotes.map(note=><span key={note}>{note}</span>)}</div>}</div>}
