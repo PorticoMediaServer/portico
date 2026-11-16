@@ -22,6 +22,15 @@ class RatchetRuntimeTests(unittest.TestCase):
         self.assertEqual(native_sites('apps/native/Probe.kt',source_text(source.encode())),
                          native_sites('apps/native/Probe.kt',source.replace('\r\n','\n')))
 
+    def test_an_app_no_typed_program_reads_is_not_a_dependency_input(self):
+        from ratchet_runtime import dependency_environment
+        from client_api_census import SOURCE_ROOTS
+        manifest=json.dumps({'dependencies':{'react':'19.2.8'}}).encode()
+        records={'apps/tv-web/package.json':('100644','',manifest),'apps/tv-web/package-lock.json':('100644','',b'{}'),
+                 'apps/vega/package.json':('100644','',manifest)}
+        self.assertEqual(sorted(dependency_environment(records)),['apps/vega/package.json'])
+        self.assertFalse(any(root.startswith('apps/tv-web') for root in SOURCE_ROOTS),'the census reads apps/tv-web: its lockfile is an input again')
+
     def test_dependency_changes_match_uncached_scanners(self):
         result=subprocess.run(['node',str(TOOL_ROOT/'ci/ratchet_runtime_fixture.mjs')],cwd=TOOL_ROOT,capture_output=True,text=True,timeout=45)
         self.assertEqual(result.returncode,0,result.stdout+'\n'+result.stderr)

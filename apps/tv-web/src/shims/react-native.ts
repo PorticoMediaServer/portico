@@ -102,7 +102,7 @@ export const UIManager = new Proxy(Web.UIManager as unknown as Record<string | s
     if (name === 'hasViewManagerConfig') return (view: string) => porticoViewConfigs.has(view);
     return target[name];
   },
-}) as typeof Web.UIManager & {hasViewManagerConfig(name: string): boolean};
+}) as unknown as typeof Web.UIManager & {hasViewManagerConfig(name: string): boolean};
 
 export function registerCallableModule(_name: string, _module: unknown): void {}
 
