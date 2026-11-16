@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -17,33 +18,42 @@ const (
 	homeRowSize    = 40
 )
 
-// ContinueWatching lists what the viewer has started and not finished, most recent first. A
-// title the viewer removed from the row stays off it until it is played again. Not interested
-// does not take a title off it: that is for recommendation rows. Books are in Continue your
-// books instead. It covers every library: Home's row.
+// What each of Home's Continue rows holds (definition area 5, rules 37 and 38; decision Q24,
+// 21 Oct): films and episodes; music; books, comics and audiobooks.
+var (
+	watchingKinds  = []ItemKind{KindMovie, KindEpisode}
+	listeningKinds = []ItemKind{KindTrack}
+	bookKinds      = []ItemKind{KindBook, KindComic, KindIssue, KindAudiobook}
+)
+
+// ContinueWatching lists the films and episodes the viewer has started and not finished, and
+// the next episode of shows being watched, most recent first. A title the viewer removed from
+// the row stays off it until it is played again. Not interested does not take a title off it:
+// that is for recommendation rows. It covers every library: Home's row.
 func (d *DB) ContinueWatching(ctx context.Context, v Viewer) ([]Item, error) {
-	return d.continueRow(ctx, v, "NOT IN", "")
+	return d.continueRow(ctx, v, watchingKinds, "")
 }
 
-// ContinueWatchingIn is ContinueWatching for one library, by its public id: that library's
-// landing page. "" is every library.
-func (d *DB) ContinueWatchingIn(ctx context.Context, v Viewer, library string) ([]Item, error) {
-	return d.continueRow(ctx, v, "NOT IN", library)
+// ContinueListening is Home's Continue Listening: the songs the viewer has started and not
+// finished, most recent first.
+func (d *DB) ContinueListening(ctx context.Context, v Viewer) ([]Item, error) {
+	return d.continueRow(ctx, v, listeningKinds, "")
 }
 
-// ContinueReading lists the books, comics and issues the viewer has a place in and has not
-// finished, most recently read first: Home's Continue your books.
+// ContinueReading lists the books, comics, issues and audiobooks the viewer has a place in and
+// has not finished, most recent first: Home's Continue your books.
 func (d *DB) ContinueReading(ctx context.Context, v Viewer) ([]Item, error) {
-	return d.continueRow(ctx, v, "IN", "")
+	return d.continueRow(ctx, v, bookKinds, "")
 }
 
-// ContinueReadingIn is ContinueReading for one library, by its public id: a reading library's
-// Continue reading. "" is every library.
-func (d *DB) ContinueReadingIn(ctx context.Context, v Viewer, library string) ([]Item, error) {
-	return d.continueRow(ctx, v, "IN", library)
+// ContinueIn is everything in progress in one library, by its public id: that library's
+// landing page, whatever its kind.
+func (d *DB) ContinueIn(ctx context.Context, v Viewer, library string) ([]Item, error) {
+	return d.continueRow(ctx, v, nil, library)
 }
 
-func (d *DB) continueRow(ctx context.Context, v Viewer, reading, library string) ([]Item, error) {
+// continueRow lists what is in progress among kinds (nil: any kind) in library ("": every one).
+func (d *DB) continueRow(ctx context.Context, v Viewer, kinds []ItemKind, library string) ([]Item, error) {
 	tx, err := d.read.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, err
@@ -56,7 +66,7 @@ func (d *DB) continueRow(ctx context.Context, v Viewer, reading, library string)
 	// Read from the viewer's own recent state, newest first, and stop at a row's worth.
 	rows, err := tx.QueryContext(ctx, `SELECT `+itemColumns(acc)+` FROM user_item_state s CROSS JOIN items i ON i.id = s.item_id
 		WHERE s.profile_id = @viewer_profile AND (s.last_played_at > @since OR i.kind = `+fmt.Sprintf("%d", KindEpisode)+`) AND s.played = 0 AND s.last_played_at > ifnull(s.continue_dismissed_at, 0)
-		AND (s.position_ms > 0 OR s.position_text IS NOT NULL) AND i.kind `+reading+fmt.Sprintf(" (%d, %d, %d) AND ", KindBook, KindComic, KindIssue)+
+		AND (s.position_ms > 0 OR s.position_text IS NOT NULL) AND `+kindIn(kinds)+
 		acc.visible("i")+`
 		AND (@library = '' OR i.library_id = (SELECT id FROM libraries WHERE public_id = @library))
 		ORDER BY s.last_played_at DESC LIMIT `+fmt.Sprint(homeRowSize),
@@ -76,7 +86,7 @@ func (d *DB) continueRow(ctx context.Context, v Viewer, reading, library string)
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	if reading == "NOT IN" {
+	if kinds == nil || slices.Contains(kinds, KindEpisode) {
 		if items, err = continueNext(ctx, tx, v, acc, library, items); err != nil {
 			return nil, err
 		}
@@ -280,4 +290,16 @@ func (d *DB) HomeViews(ctx context.Context, v Viewer, publicIDs []string) ([]Hom
 	return queryAll(ctx, tx, `SELECT l.public_id, l.name, ifnull((SELECT public_id FROM libraries WHERE id = l.library_id), ''),
 		ifnull(l.rules, '') FROM lists l WHERE l.kind = '`+ListSavedView+`' AND l.public_id IN (`+strings.Join(marks, ", ")+`) AND `+acc.readable(),
 		args, func(h *HomeView) []any { return []any{&h.PublicID, &h.Name, &h.Library, &h.Query} })
+}
+
+// kindIn is the condition that a title is one of kinds, or always true for nil (any kind).
+func kindIn(kinds []ItemKind) string {
+	list := make([]string, len(kinds))
+	for n, kind := range kinds {
+		list[n] = strconv.Itoa(int(kind))
+	}
+	if kinds == nil {
+		return "1 AND "
+	}
+	return "i.kind IN (" + strings.Join(list, ", ") + ") AND "
 }
