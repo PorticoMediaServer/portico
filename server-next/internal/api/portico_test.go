@@ -269,6 +269,10 @@ func TestALocalServerNeverContactsPorticoServices(t *testing.T) {
 // keeps each person's email address and username as Portico Services gave them.
 func TestLinkingAndSigningInWithAPorticoAccount(t *testing.T) {
 	p := newPorticoRig(t)
+	// The two minute-long runs must not cross this random server id's daily slot: a daily
+	// check-in there is legitimate, but unrelated to the restart this assertion measures.
+	p.clock.Set(schedule.NextCheckIn(p.s.id, p.clock.Now()).Add(time.Second))
+	p.owner = onMain(t, p.s, signIn(t, p.s, 0)) // the clock moved past the original token's life
 	if code := status(t, p.s, "POST", "/v1/auth/portico/challenge", "", PorticoChallengeRequest{}); code != 409 {
 		t.Fatalf("a server not yet linked gave a challenge: %d", code)
 	}
