@@ -117,7 +117,7 @@ export function parseDirectSignIn(raw:unknown):DirectSignIn{
  const session=parseLocalSession(raw.session,{accountId:raw.account.id as string});
  const accountScoped=session.viewer.role==='account';
  const snapshot=accountSnapshot(session.viewer.serverId,raw.account,raw.profiles,session.viewer.role,!accountScoped&&session.viewer.profileId===parseManagedProfiles(raw.profiles).find(p=>p.primary)?.id);
- return Object.freeze({kind:'signed-in',snapshot,session,accountScoped,passwordChangeRequired:false});
+ return Object.freeze({kind:'signed-in',snapshot:session.twoStepSetupRequired?Object.freeze({...snapshot,twoStepSetupRequired:true as const}):snapshot,session,accountScoped,passwordChangeRequired:false});
 }
 /** A sign-in answered by a route whose response union is tagged: the server always sends `variant`, one of
  * `known`. A tag outside it is a newer server (`NeedsNewerAppError`); a known tag the sign-in does not match is unreadable. */
@@ -135,7 +135,7 @@ export function signInDevice():DeviceInfo{
 }
 /** An account's only profile, when it has no PIN, opens without asking Who's watching. */
 export async function openOnlyProfile(api:ProfileAPI,result:DirectSignIn,signal?:AbortSignal):Promise<DirectSignIn>{
- if(result.kind!=='signed-in'||!result.accountScoped||result.snapshot.profiles.length!==1||result.snapshot.profiles[0]!.pinRequired)return result;
+ if(result.kind!=='signed-in'||result.snapshot.twoStepSetupRequired||!result.accountScoped||result.snapshot.profiles.length!==1||result.snapshot.profiles[0]!.pinRequired)return result;
  const account=result.session,only=result.snapshot.profiles[0]!,scoped=api.withAccessToken?.(account.accessToken);
  if(!scoped)return result;
  const chosen=await selectDirectProfile(scoped,{authority:'local',accountId:result.snapshot.account.id,serverId:result.snapshot.serverId},only.id,{},signal);

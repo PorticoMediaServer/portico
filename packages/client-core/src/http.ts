@@ -41,6 +41,8 @@ export type Viewer = {
   role: string;
 };
 export type LocalSession = {
+  /** This restricted sign-in must finish two-step enrollment before selecting a profile. */
+  twoStepSetupRequired?: true;
   accessToken: string;
   expiresAt: string;
   viewer: Viewer;
