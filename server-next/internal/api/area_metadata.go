@@ -55,11 +55,15 @@ func (s *Server) startMetadata(ctx context.Context) error {
 	// What a scan found is looked up when it ends.
 	s.scans.AfterScan = func(ctx context.Context, library string, startedAt time.Time) {
 		s.lookUp(ctx, library, startedAt)
+		if err := s.queueScrubPreviews(ctx); err != nil {
+			s.log.Error("scrub previews could not be queued", "error", err)
+		}
 		if err := s.queueSegmentLibrary(ctx, library); err != nil {
 			s.log.Error("intro and credits detection could not be started", "error", err)
 		}
 	}
 	s.startSegments(ctx)
+	s.scrubPreviewJobs()
 	go s.lookupsAgain(ctx)
 	return nil
 }
