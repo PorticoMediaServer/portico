@@ -1,4 +1,4 @@
-import {readPlaybackCapabilities, readPlaybackSubtitleFonts, readPlaybackSubtitleLines} from '../../../../../packages/client-core/src/query/playback';
+import {readPlaybackCapabilities, readPlaybackSubtitleFonts, readPlaybackSubtitleLines, readScrubPreviewsEnabled} from '../../../../../packages/client-core/src/query/playback';
 import {entryFromItem, readItem} from '../../../../../packages/client-core/src/items';
 import {downloadTrickplaySet, preferredTrickplaySet, readItemTrickplay, type TrickplaySet} from '../../../../../packages/client-core/src/trickplay';
 import {AppState, NativeModules, type View} from 'react-native';
@@ -1848,6 +1848,9 @@ export class NativePlaybackRuntime {
     }
     // `matches` proves this is the playing occurrence; its loaded queue entry names the library.
     if (fence.kind !== 'queue' || !this.matches(fence)) return null;
+    // Asked only from a server that says it makes scrub previews (read once), so a server without
+    // them costs no failing read.
+    if (!await (this.scrubPreviews ??= readScrubPreviewsEnabled({request: this.request})) || signal.aborted || !this.matches(fence)) return null;
     const queue = this.queue.getSnapshot().view, entry = queue?.items.find(item => item.entryId === queue.queue.currentEntryId);
     if (!entry?.libraryId) return null;
     const view = await readItemTrickplay(this.request, this.bound.serverId, {libraryId: entry.libraryId, itemId: entry.itemId}, signal);
@@ -1855,6 +1858,7 @@ export class NativePlaybackRuntime {
     // Only this session's source; the server has already marked any set it no longer stands behind.
     return preferredTrickplaySet({...view, sets: view.sets.filter(set => !set.stale)}, fence.sourceId);
   };
+  private scrubPreviews?: Promise<boolean>;
   playBookChapter = async (fence: PlaybackFence, chapterId: string): Promise<void> => {
     if (fence.kind !== 'queue' || !this.matches(fence) || !this.snapshot.capabilities.seek) return;
     const chapter = this.queue.bookChaptersView()?.chapters.find(row => row.id === chapterId);

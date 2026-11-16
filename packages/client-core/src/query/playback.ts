@@ -16,7 +16,17 @@ export function readPlaybackCapabilities(_api: PlaybackApi, signal?: AbortSignal
 export function readWebPlaybackCapabilities(api: PlaybackApi, signal?: AbortSignal): Promise<unknown> {
   throwIfAborted(signal);
   return api.request<{capabilities?: string[]}>(routePath('get_system'), 'GET', undefined, signal).then(system =>
-    ({features: system.capabilities?.includes('queue-transitions') ? {queueTransitions: 'enabled'} : {}}));
+    ({features: {...(system.capabilities?.includes('queue-transitions') ? {queueTransitions: 'enabled'} : {}), ...(system.capabilities?.includes('scrub-previews') ? {scrubPreviews: 'enabled'} : {})}}));
+}
+/** Whether the server says it makes scrub previews (`scrub-previews` in `GET /v1/system`'s capabilities).
+ * Until it does, the players never ask for previews, so a server without them costs no failing read. */
+export function scrubPreviewsEnabled(capabilities: unknown): boolean {
+  const features = capabilities && typeof capabilities === 'object' ? (capabilities as {features?: unknown}).features : undefined;
+  return !!features && typeof features === 'object' && (features as Record<string, unknown>).scrubPreviews === 'enabled';
+}
+/** The same answer for a player that does not otherwise read the server's capabilities (phone and TV). A failed read is "no". */
+export function readScrubPreviewsEnabled(api: PlaybackApi, signal?: AbortSignal): Promise<boolean> {
+  return readWebPlaybackCapabilities(api, signal).then(scrubPreviewsEnabled, () => false);
 }
 /** The admitted subtitle plan supplies the exact font/line document capability. */
 export function readPlaybackSubtitleFonts(api: PlaybackApi, path: string, signal?: AbortSignal): Promise<unknown> {
