@@ -9,7 +9,7 @@ import {setInstallationIdentity} from '@core/installation.ts';
 const serverId = 'srv_' + 's'.repeat(43), origin = 'https://reset.example';
 function fixture(kind: 'local' | 'portico' = 'local') {
   let selected: unknown;
-  let revision = 4, resetRole = 'member', wrongServer = false, twoStep = false, refuseFactor = false, expiryMs: number | undefined;
+  let revision = 4, resetRole = 'member', wrongServer = false, twoStep = false, refuseFactor = false, refuseCode = false, expiryMs: number | undefined;
   let securityGate: Promise<void> | undefined, passwordGate: Promise<void> | undefined, releaseSecurity: (() => void) | undefined, releasePassword: (() => void) | undefined;
   const hints = new Set<() => void>();
   let verifyGate: Promise<void> | undefined, releaseVerify: (() => void) | undefined;
@@ -30,7 +30,8 @@ function fixture(kind: 'local' | 'portico' = 'local') {
   api.request = (async (path, _method, body) => {
     calls.push({path, body});
     if (path === '/v1/system') return systemAnswer(system);
-    if (path === '/v1/auth/owner-reset/request') return {fileName: 'reset-code.txt', retryAfterSeconds: 1};
+    if (path === '/v1/auth/owner-reset') return {fileName: 'reset-code.txt', retryAfterMs: 1000};
+    if (path === '/v1/auth/owner-reset/confirm') {if (refuseCode) throw new ApiError(401, 'unauthorized', 'That code is not correct, or it has expired.'); return undefined;}
     if (path === '/v1/auth/owner-reset/verify' || path === '/v1/direct/password/reset') {if (verifyGate) await verifyGate; return {variant: 'password-change', ...grant(true)};}
     if (path === '/v1/auth/password-reset/confirm') return undefined;
     if (path === '/v1/auth/sign-in') return signInAnswer(twoStep ? {challenge: {token: 'actual-factor-challenge', expiresAt: '2099-01-01T00:00:00Z'}} : grant(false));
@@ -53,7 +54,7 @@ function fixture(kind: 'local' | 'portico' = 'local') {
     observeSelection: changed => {hints.add(changed);return () => {hints.delete(changed);};},
     remember: async (_api, session) => {admitted.push(session.sessionFamilyId);selected = {signIn: kind, connection: {pin: connection.pin, session}};}, retire: async (_api, session) => {retired.push(session.sessionFamilyId); calls.push({path: 'retire:' + session.sessionFamilyId});},
   }, {inspect: async () => system, getSnapshot: () => ({origin}), cancel: () => {}, dispose: () => {}} as unknown as ServerSignInProbe);
-  return {entry, calls, retired, installed, admitted, owner: () => {resetRole = 'owner';}, wrongServer: () => {wrongServer = true;}, factor: () => {twoStep = true;}, refuseFactor: () => {refuseFactor = true;}, revise: () => {revision++;for (const changed of hints) changed();},
+  return {entry, calls, retired, installed, admitted, owner: () => {resetRole = 'owner';}, wrongServer: () => {wrongServer = true;}, factor: () => {twoStep = true;}, refuseFactor: () => {refuseFactor = true;}, refuseCode: () => {refuseCode = true;}, revise: () => {revision++;for (const changed of hints) changed();},
     expireIn: (ms: number) => {expiryMs = ms;}, replacePin: () => {connection.pin.publicKey = 'changed-key';},
     holdSecurity: () => {securityGate = new Promise(resolve => {releaseSecurity = resolve;});}, releaseSecurity: () => releaseSecurity?.(),
     holdPassword: () => {passwordGate = new Promise(resolve => {releasePassword = resolve;});}, releasePassword: () => releasePassword?.(),
@@ -118,4 +119,27 @@ test('a member moves to local sign-in on the rebuilt server: the owner\'s code i
   assert.deepEqual(moves[0].body, {code: 'K7QP-2MXD-9HRT'});
   assert.equal(moves[1].body.code, 'K7QP-2MXD-9HRT'); assert.equal(moves[1].body.username, 'chosen_user'); assert.equal(moves[1].body.password, 'ordinary-new-password');
   assert.equal(f.admitted.length, 1, 'the move\'s answer is kept as this browser\'s sign-in'); f.entry.dispose();
+});
+
+test('the owner\'s reset file: the code is sent only with the new password, and a refused code goes back to the file', async () => {
+  setInstallationIdentity({installationId: 'i'.repeat(43), name: 'Test browser', platform: 'web', app: 'portico', appVersion: '1'});
+  const f = fixture(); f.owner(); await f.entry.inspect(origin);
+  await f.entry.requestLocalResetFile('actual_user');
+  await f.entry.verifyLocalOwnerReset(' 7QH2-NXK4-ABCD ', 'actual_user');
+  assert.equal(f.entry.getSnapshot().phase, 'owner-reset-password');
+  assert.deepEqual(f.calls.map(call => call.path), ['/v1/system', '/v1/auth/owner-reset'], 'nothing is sent with the code until the password is chosen');
+  assert.doesNotMatch(JSON.stringify(f.entry.getSnapshot()), /7QH2/, 'the code is never in the page state');
+  assert.equal(await f.entry.finishLocalOwnerResetPassword('ordinary-new-password', true), true);
+  assert.deepEqual(f.calls.at(-1), {path: '/v1/auth/owner-reset/confirm', body: {code: '7QH2-NXK4-ABCD', newPassword: 'ordinary-new-password', turnOffTwoStep: true}});
+  assert.equal(f.entry.getSnapshot().phase, 'password'); assert.deepEqual(f.admitted, [], 'the reset itself signs nobody in');
+  f.entry.dispose();
+  // A refused code is spent: the person is back at the file's page with the refusal, and nothing more is sent.
+  const g = fixture(); g.owner(); g.refuseCode(); await g.entry.inspect(origin);
+  await g.entry.requestLocalResetFile('actual_user'); await g.entry.verifyLocalOwnerReset('WRONG-CODE', 'actual_user');
+  assert.equal(await g.entry.finishLocalOwnerResetPassword('ordinary-new-password', false), false);
+  assert.equal(g.entry.getSnapshot().phase, 'password'); assert.equal((g.entry.getSnapshot().error as {code?: string}).code, 'unauthorized');
+  assert.equal(await g.entry.finishLocalOwnerResetPassword('ordinary-new-password', false), false);
+  assert.equal(g.calls.filter(call => call.path === '/v1/auth/owner-reset/confirm').length, 1);
+  g.entry.dispose();
+  setInstallationIdentity(undefined);
 });

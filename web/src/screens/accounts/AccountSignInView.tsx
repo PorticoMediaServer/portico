@@ -128,6 +128,9 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
     && recovery.pin === state.pin && state.server?.signIn === 'local' && !state.invitation;
   const porticoRecoveryCurrent = porticoRecovery?.entry === entry && porticoRecovery.origin === state.origin && porticoRecovery.serverId === state.server?.id
     && porticoRecovery.pin === state.pin && state.server?.signIn === 'portico' && !state.invitation;
+  // "Can't use your Portico Account?" (auth 20d to 20f) needs the reset file to give the owner a session on a Portico
+  // Accounts server, which the rebuilt server does not do yet (it is asked for), so the sign-in page offers no link to
+  // this; the flow stays for when it does.
   const openPorticoRecovery = () => {
     if (!alive.current || busy || joining || initializing || entry.getSnapshot() !== state || form.getSnapshot() !== input
       || state.phase !== 'portico' || state.server?.signIn !== 'portico' || state.invitation || !state.origin || !state.pin) return;
@@ -218,8 +221,7 @@ export function AccountSignInView({entry, form, takeReturn, takeMove, initialize
     plainHttp={location.protocol === 'http:'}
     onSecure={location.protocol === 'http:' && state.server.secureAddress ? () => location.assign(state.server!.secureAddress!) : undefined}
     moving={state.server.move === 'to_portico' && !state.invitation && !moveReconnected(state.server.id)} moveDays={moveOfferDays(state.server.moveEndsAt)}
-    onOldPassword={() => openMember('old-password')} onMoveCode={() => openMember('code')}
-    onRecovery={state.invitation ? undefined : openPorticoRecovery}/>;
+    onOldPassword={() => openMember('old-password')} onMoveCode={() => openMember('code')}/>;
   if (!failure && (initializing || busy || state.phase === 'checking' || state.phase === 'profiles' || state.phase === 'ready')) return <AuthStage legal={false}>
     <p role="status">{defaultI18n.t(state.phase === 'profiles' || state.phase === 'ready' ? 'auth.loadingProfiles' : 'status.loading')}</p>
   </AuthStage>;

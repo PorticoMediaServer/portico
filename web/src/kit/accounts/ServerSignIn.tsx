@@ -57,7 +57,7 @@ export function PorticoServerSignIn({serverName, busy, error, moving = false, mo
     <AuthActions>{plainHttp && onSecure && <Button variant="primary" disabled={busy} onClick={onSecure}>{t('accounts.signIn.openSecure', {server: serverName})}</Button>}
     <Button variant={plainHttp && onSecure ? undefined : 'primary'} loading={busy} onClick={onContinue}>{t(plainHttp ? 'accounts.signIn.handoffHosted' : 'accounts.signIn.handoff')}</Button></AuthActions>
     {moving && <p className={styles.lede}>{t('accounts.move.toPortico', {server: serverName})}</p>}
-    <AuthLinks><button type="button" data-quiet disabled={!onRecovery || busy} onClick={onRecovery}>{t('accounts.signIn.cannotUsePortico')}</button>
+    <AuthLinks>{onRecovery && <button type="button" data-quiet disabled={busy} onClick={onRecovery}>{t('accounts.signIn.cannotUsePortico')}</button>}
       {moving && moveDays !== undefined && onOldPassword && <button type="button" data-quiet disabled={busy} onClick={onOldPassword}>{t('accounts.move.oldPasswordAction', {days: moveDays})}</button>}
       {moving && onMoveCode && <button type="button" data-quiet disabled={busy} onClick={onMoveCode}>{t('accounts.move.haveCode')}</button>}
     </AuthLinks>
