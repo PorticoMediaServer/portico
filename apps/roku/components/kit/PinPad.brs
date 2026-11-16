@@ -32,6 +32,16 @@ sub reset()
         text.translation = plate.translation
         text.text = labels[i]
         setType(text, "padKey", c.textSecondary)
+        if labels[i] = "⌫"
+            ' the delete key is a drawn glyph: the typeface has no such character
+            text.text = ""
+            glyph = m.keys.createChild("Poster")
+            glyph.uri = "pkg:/images/i-backspace-32.png"
+            glyph.width = 40
+            glyph.height = 40
+            glyph.blendColor = c.textSecondary
+            glyph.translation = [plate.translation[0] + 54, plate.translation[1] + 39]
+        end if
     end for
     if m.top.extra <> ""
         plate = m.keys.createChild("Poster")

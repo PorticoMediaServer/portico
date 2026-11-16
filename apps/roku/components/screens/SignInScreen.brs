@@ -92,7 +92,9 @@ sub onAnswered()
     end if
 end sub
 
-sub onAskClosed()
+sub onAskClosed(event as object)
+    ' the dialog that closed may be an earlier one (the username's, with the password's already open)
+    if m.dialog <> invalid and not event.getRoSGNode().isSameNode(m.dialog) then return
     m.dialog = invalid
     onActive()
 end sub
@@ -164,7 +166,6 @@ sub showCode()
     for each method in m.system.signInMethods
         if method = "password" then buttons.push({id: "password", text: "Use a password instead", icon: ""})
     end for
-    buttons.push({id: "address", text: "Change server", icon: ""})
     m.codeButtons.buttons = buttons
     go("code")
     newCode()

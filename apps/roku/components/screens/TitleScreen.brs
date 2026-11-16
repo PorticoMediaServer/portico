@@ -83,7 +83,11 @@ sub focusStop()
 end sub
 
 sub onActive()
-    if m.top.active then focusStop()
+    if not m.top.active then return
+    ' back from the player (or a page opened from here): progress and played show at once
+    if m.shownOnce = true and m.full <> invalid then api("GET", "/v1/items/" + m.full.id, invalid, "onDetail", {id: m.full.id})
+    m.shownOnce = true
+    focusStop()
 end sub
 
 sub moveTo(stopAt as integer)

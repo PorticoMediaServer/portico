@@ -8,18 +8,26 @@
     <field id="art" type="string" onChange="onArt"/>
     <!-- For a title with only a poster: its address, shown whole at the right. -->
     <field id="poster" type="string" onChange="onPoster"/>
+    <!-- For a title with no picture: its generated cover's tint (a picture in the package), or "". -->
+    <field id="tint" type="string" onChange="onTint"/>
     <!-- True where a page's own words and rows lie over the art (a title page below its top): the art goes dim. -->
     <field id="quiet" type="boolean" onChange="onQuiet"/>
   </interface>
   <script type="text/brightscript" uri="Backdrop.brs"/>
   <children>
     <Poster id="base" uri="pkg:/images/backdrop.jpg" width="1920" height="1080"/>
-    <Group id="artLayer">
-    <Poster id="artA" translation="[576,0]" width="1344" height="756" loadWidth="1344" loadHeight="756" loadDisplayMode="scaleToZoom" opacity="0"/>
-    <Poster id="artB" translation="[576,0]" width="1344" height="756" loadWidth="1344" loadHeight="756" loadDisplayMode="scaleToZoom" opacity="0"/>
-    <Poster id="scrim" uri="pkg:/images/art-scrim.png" translation="[576,0]" width="1344" height="756" visible="false"/>
-    <Poster id="poster" translation="[1330,96]" width="400" height="600" loadWidth="400" loadHeight="600" loadDisplayMode="scaleToFit" opacity="0.92"/>
+    <!-- The art window. Pictures are decoded no larger than the window (television texture memory
+         is small) and then drawn to cover it; what falls outside is clipped. Only the pictures dim:
+         the scrim over them stays whole, so the art never shows an edge. -->
+    <Group id="window" translation="[576,0]">
+      <Group id="pictures">
+        <Poster id="tint" width="1344" height="756" opacity="0"/>
+        <Poster id="artA" loadWidth="1344" loadHeight="756" loadDisplayMode="limitSize" opacity="0"/>
+        <Poster id="artB" loadWidth="1344" loadHeight="756" loadDisplayMode="limitSize" opacity="0"/>
+      </Group>
+      <Poster id="scrim" uri="pkg:/images/art-scrim.png" width="1344" height="756" visible="false"/>
     </Group>
+    <Poster id="poster" translation="[1330,96]" width="400" height="600" loadWidth="400" loadHeight="600" loadDisplayMode="scaleToFit" opacity="0.92"/>
     <Timer id="rest" duration="0.3"/>
     <Animation id="fade" duration="0.35" easeFunction="linear">
       <FloatFieldInterpolator id="fadeIn" key="[0.0, 1.0]" keyValue="[0.0, 1.0]"/>

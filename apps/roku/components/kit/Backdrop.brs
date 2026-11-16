@@ -2,23 +2,31 @@ sub init()
     m.front = m.top.findNode("artA")
     m.back = m.top.findNode("artB")
     m.scrim = m.top.findNode("scrim")
+    m.tint = m.top.findNode("tint")
     m.rest = m.top.findNode("rest")
     m.fade = m.top.findNode("fade")
     m.fadeIn = m.top.findNode("fadeIn")
     m.fadeOut = m.top.findNode("fadeOut")
+    m.top.findNode("window").clippingRect = [0, 0, 1344, 756]
     m.shown = ""
     m.rest.observeField("fire", "onRest")
     m.fade.observeField("state", "onFadeState")
-    m.top.findNode("artA").observeField("loadStatus", "onLoad")
-    m.top.findNode("artB").observeField("loadStatus", "onLoad")
+    m.front.observeField("loadStatus", "onLoad")
+    m.back.observeField("loadStatus", "onLoad")
 end sub
 
 sub onQuiet()
-    if m.top.quiet then m.top.findNode("artLayer").opacity = 0.28 else m.top.findNode("artLayer").opacity = 1
+    if m.top.quiet then m.top.findNode("pictures").opacity = 0.28 else m.top.findNode("pictures").opacity = 1
 end sub
 
 sub onPoster()
     m.top.findNode("poster").uri = m.top.poster
+end sub
+
+sub onTint()
+    m.tint.uri = m.top.tint
+    if m.top.tint <> "" then m.tint.opacity = 1 else m.tint.opacity = 0
+    m.scrim.visible = (m.top.tint <> "" or m.shown <> "")
 end sub
 
 sub onArt()
@@ -43,35 +51,48 @@ sub onLoad(event as object)
     if node.isSameNode(m.back) and event.getData() = "ready" and m.back.uri = m.top.art then swap(true)
 end sub
 
+' Draw a loaded picture so it covers the window, whatever its shape, centred.
+sub cover(picture as object)
+    w = picture.bitmapWidth
+    h = picture.bitmapHeight
+    if w <= 0 or h <= 0 then return
+    scale = 1344 / w
+    if 756 / h > scale then scale = 756 / h
+    picture.width = w * scale
+    picture.height = h * scale
+    picture.translation = [(1344 - w * scale) / 2, (756 - h * scale) / 2]
+end sub
+
 ' Bring the back picture in (or just take the front one out) and exchange their roles.
 sub swap(bringIn as boolean)
     m.fade.control = "finish"
-    freeBack()
+    release()
     m.fadeOut.fieldToInterp = m.front.id + ".opacity"
     m.fadeOut.keyValue = [m.front.opacity, 0.0]
     m.fadeIn.fieldToInterp = m.back.id + ".opacity"
     if bringIn
+        cover(m.back)
         m.fadeIn.keyValue = [0.0, 1.0]
-        m.scrim.visible = true
         m.shown = m.back.uri
         old = m.front
         m.front = m.back
         m.back = old
-        m.leaving = old
     else
         m.fadeIn.keyValue = [0.0, 0.0]     ' nothing comes in; the front picture only goes out
         m.shown = ""
-        m.leaving = m.front
+        old = m.front
+        m.front = m.back
+        m.back = old
     end if
+    m.scrim.visible = (m.top.tint <> "" or m.shown <> "")
     m.fade.control = "start"
 end sub
 
-' A picture that has faded out gives its memory back (television texture memory is small).
-sub freeBack()
-    if m.leaving <> invalid and m.leaving.opacity = 0 and not m.leaving.isSameNode(m.front) then m.leaving.uri = ""
-    m.leaving = invalid
+' The picture that is not showing gives its memory back.
+sub release()
+    if m.back.opacity < 0.01 and m.back.uri <> "" and m.back.uri <> m.top.art then m.back.uri = ""
 end sub
 
 sub onFadeState()
-    if m.fade.state = "stopped" then freeBack()
+    if m.fade.state = "stopped" then release()
 end sub

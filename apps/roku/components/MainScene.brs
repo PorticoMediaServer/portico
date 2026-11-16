@@ -76,6 +76,7 @@ sub show(component as string)
     m.rail.visible = false
     m.backdrop.art = ""
     m.backdrop.poster = ""
+    m.backdrop.tint = ""
 end sub
 
 ' Open a page over the one showing; Back returns to it exactly as it was left.
@@ -280,12 +281,15 @@ end sub
 sub setArt(art as string)
     if left(art, 7) = "poster|"
         m.backdrop.poster = imageUrl(mid(art, 8), 400, 600)
+        m.backdrop.tint = ""
         m.backdrop.art = ""
     else if left(art, 6) = "cover|"
         m.backdrop.poster = ""
-        m.backdrop.art = "pkg:/images/cover-" + mid(art, 7) + ".jpg"
+        m.backdrop.tint = "pkg:/images/cover-" + mid(art, 7) + ".jpg"
+        m.backdrop.art = ""
     else
         m.backdrop.poster = ""
+        m.backdrop.tint = ""
         m.backdrop.art = imageUrl(art, 1344, 756)
     end if
 end sub

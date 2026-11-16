@@ -268,7 +268,7 @@ def read_ts(expr, imports):
 # Icon name in the registry -> the sizes (px) the app draws it at.
 ICONS = {
     'search': [32], 'home': [32], 'film': [32], 'tv': [32], 'book': [32], 'music': [32], 'folder': [32],
-    'live': [32], 'bookmark': [32], 'settings': [32], 'warning': [32], 'refresh': [28], 'server': [28], 'play': [28, 40], 'pause': [40], 'back10': [36], 'forward10': [36], 'plus': [28], 'check': [28], 'info': [28], 'close': [28], 'forward': [28],
+    'live': [32], 'bookmark': [32], 'settings': [32], 'warning': [32], 'refresh': [28], 'server': [28], 'play': [28, 40], 'pause': [40], 'lock': [28], 'plus': [28], 'check': [28], 'info': [28], 'close': [28], 'forward': [28],
 }
 
 
@@ -300,6 +300,17 @@ def main():
     for name, sizes in ICONS.items():
         for size in sizes:
             save_png(svg_png(icon_svg(icons[name]), size, size), 'i-%s-%d.png' % (name, size))
+
+    # Glyphs the registry does not hold yet (tv.md: "a microphone and a backspace glyph"), in its style,
+    # and the two skip arrows without the registry's own seconds, since the app draws 10 and 30 itself.
+    extra = {
+        'backspace': {'elements': [{'type': 'path', 'd': 'M21 5H9l-7 7 7 7h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z'}, {'type': 'path', 'd': 'M17 9.5l-5 5M12 9.5l5 5'}]},
+        'skip-back': {'elements': icons['back10']['elements'][:2]},
+        'skip-forward': {'elements': icons['forward10']['elements'][:2]},
+        'spinner': {'elements': [{'type': 'path', 'd': 'M12 3a9 9 0 1 0 9 9'}], 'strokeWidth': 2.25},
+    }
+    for name, size in (('backspace', 32), ('skip-back', 44), ('skip-forward', 44), ('spinner', 64)):
+        save_png(svg_png(icon_svg(extra[name]), size, size), 'i-%s-%d.png' % (name, size))
 
     brand = read_ts('brandSymbol', "import {brandSymbol} from './apps/native/assets/brandSymbol.ts';")
     save_png(svg_png(brand, 33, 44), 'mark.png')  # already white

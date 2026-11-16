@@ -37,11 +37,21 @@
       <Poster id="ring" uri="pkg:/images/focus-disc.png"/>
       <Poster id="pillRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
     </Group>
+    <!-- While a stream is being made ready or is catching up: the screen is never plain black. -->
+    <Group id="wait" visible="false">
+      <Poster id="spinner" uri="pkg:/images/i-spinner-64.png" width="64" height="64" translation="[928,470]" blendColor="0xD5EFFFFF"/>
+      <Label id="waitTitle" translation="[260,566]" width="1400" horizAlign="center"/>
+      <Label id="waitText" translation="[260,612]" width="1400" horizAlign="center"/>
+      <Animation id="spin" duration="0.9" repeat="true" easeFunction="linear">
+        <FloatFieldInterpolator key="[0.0, 1.0]" keyValue="[0.0, -6.2832]" fieldToInterp="spinner.rotation"/>
+      </Animation>
+    </Group>
     <Notice id="notice" visible="false"/>
     <Timer id="hide" duration="5"/>
     <Timer id="report" duration="10" repeat="true"/>
     <Timer id="tick" duration="1" repeat="true"/>
     <Timer id="settle" duration="0.5"/>
     <Timer id="again" duration="1"/>
+    <Timer id="retry" duration="3"/>
   </children>
 </component>

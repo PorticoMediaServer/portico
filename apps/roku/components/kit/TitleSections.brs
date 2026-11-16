@@ -51,10 +51,15 @@ sub onItem()
     end for
     people = createObject("roSGNode", "ContentNode")
     if item.credits <> invalid
-        for each credit in item.credits
-            card = personCard(credit)
-            card.art = imageUrl(card.art, 150, 150)
-            people.createChild("ContentNode").addFields(card)
+        ' cast, then crew, each in the server's order
+        for each wantCast in [true, false]
+            for each credit in item.credits
+                if (credit.role = "actor") = wantCast
+                    card = personCard(credit)
+                    card.art = imageUrl(card.art, 150, 150)
+                    people.createChild("ContentNode").addFields(card)
+                end if
+            end for
         end for
     end if
     m.cast.cards = people
@@ -66,8 +71,15 @@ sub onRelated(event as object)
     result = event.getData()
     if not result.ok or event.getRoSGNode().ctx.id <> m.readFor then return
     items = []
+    seen = {}
+    seen[m.readFor] = true
     for each group in result.data.groups
-        items.append(withoutReading(group.items))
+        for each item in withoutReading(group.items)
+            if seen[item.id] <> true
+                seen[item.id] = true
+                items.push(item)
+            end if
+        end for
     end for
     m.relatedItems = items
     cards = createObject("roSGNode", "ContentNode")

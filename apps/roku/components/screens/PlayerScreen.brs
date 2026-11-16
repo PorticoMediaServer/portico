@@ -29,6 +29,14 @@ sub init()
     m.tick.observeField("fire", "paint")
     m.settle.observeField("fire", "applySeek")
     m.again.observeField("fire", "start")
+    m.retry = m.top.findNode("retry")
+    m.retry.observeField("fire", "reload")
+    m.wait = m.top.findNode("wait")
+    m.top.findNode("spinner").scaleRotateCenter = [32, 32]
+    setType(m.top.findNode("waitTitle"), "heading", c.text)
+    setType(m.top.findNode("waitText"), "body", c.textSecondary)
+    m.tries = 0          ' reloads since the picture last ran
+    m.last = 0           ' the last place the picture was seen at, in seconds
     m.notice.observeField("pressed", "onNotice")
     m.session = invalid
     m.focus = 1          ' 0 back ten, 1 play/pause, 2 forward thirty, 3 Subtitles, 4 Audio, 5 Quality; 6 is the seek bar
@@ -40,7 +48,7 @@ sub init()
 end sub
 
 sub makeButtons()
-    specs = [{icon: "back10-36", size: 72, x: 830}, {icon: "pause-40", size: 100, x: 910}, {icon: "forward10-36", size: 72, x: 1018}]
+    specs = [{icon: "skip-back-44", size: 72, x: 830, seconds: "10"}, {icon: "pause-40", size: 100, x: 910}, {icon: "skip-forward-44", size: 72, x: 1018, seconds: "30"}]
     m.spots = []
     for each spec in specs
         plate = m.buttons.createChild("Poster")
@@ -54,7 +62,19 @@ sub makeButtons()
         icon.width = iconSize
         icon.height = iconSize
         icon.translation = [spec.x + (spec.size - iconSize) / 2, (100 - iconSize) / 2]
-        m.spots.push({plate: plate, icon: icon, x: spec.x, size: spec.size})
+        number = invalid
+        if spec.seconds <> invalid
+            ' how far the arrow skips, drawn inside it
+            number = m.buttons.createChild("Label")
+            number.text = spec.seconds
+            number.width = spec.size
+            number.height = spec.size
+            number.horizAlign = "center"
+            number.vertAlign = "center"
+            number.translation = [spec.x, (100 - spec.size) / 2 + 2]
+            setType(number, "skipSeconds")
+        end if
+        m.spots.push({plate: plate, icon: icon, number: number, x: spec.x, size: spec.size})
     end for
     ' Subtitles, Audio and Quality: each says its current choice and opens the side sheet
     c = colours()
@@ -97,6 +117,8 @@ sub start()
     end if
     m.top.findNode("title").text = title
     m.top.findNode("sub").text = sub_
+    m.top.findNode("waitTitle").text = title
+    busy("Getting ready…")
     body = {itemId: item.id}
     if m.top.startOver then body.startPositionMs = 0
     if m.resumeAt <> invalid then body.startPositionMs = m.resumeAt
@@ -288,12 +310,52 @@ function streamFormat(p as object) as string
     return "mp4"
 end function
 
+' The waiting state: shown from the moment Play is pressed until the picture runs, and again
+' whenever the stream has to catch up.
+sub busy(text as dynamic)
+    showing = (text <> invalid)
+    m.wait.visible = showing
+    if showing
+        m.top.findNode("waitText").text = text
+        m.top.findNode("spin").control = "start"
+    else
+        m.top.findNode("spin").control = "stop"
+    end if
+end sub
+
+' A stream the server is still making can answer "not there yet" for a moment, and Roku's player
+' gives up at once. So a stop that is not the end of the title is tried again from where the
+' picture was, a few times, before it is called a failure.
+sub again()
+    if m.session = invalid or m.ended then return
+    if m.tries >= 6
+        api("PATCH", "/v1/playback/sessions/" + m.session.id, {failure: {code: "player_error", detail: m.video.errorMsg}}, "onStopped")
+        fail("This title could not be played on this TV.")
+        return
+    end if
+    m.tries = m.tries + 1
+    m.video.control = "stop"
+    busy("Getting ready…")
+    m.retry.duration = 2 + m.tries
+    m.retry.control = "start"
+end sub
+
+sub reload()
+    if m.session = invalid or m.ended then return
+    p = m.presentation
+    p.startPositionMs = int(m.last * 1000)
+    load(p)
+end sub
+
 sub load(p as object)
     content = createObject("roSGNode", "ContentNode")
     content.url = m.global.origin + p.url
     content.streamFormat = streamFormat(p)
     content.title = m.top.findNode("title").text
-    if p.startPositionMs <> invalid and p.startPositionMs > 0 then content.playStart = p.startPositionMs / 1000
+    if p.startPositionMs <> invalid and p.startPositionMs > 0
+        content.playStart = p.startPositionMs / 1000
+        m.last = p.startPositionMs / 1000
+    end if
     tracks = []
     if p.subtitles <> invalid
         for each file in p.subtitles
@@ -334,10 +396,12 @@ end sub
 sub leave(tell as boolean)
     if m.ended then return
     m.ended = true
-    for each timer in [m.report, m.tick, m.hide, m.settle, m.again]
+    for each timer in [m.report, m.tick, m.hide, m.settle, m.again, m.retry]
         timer.control = "stop"
     end for
+    busy(invalid)
     at = int(m.video.position * 1000)
+    if at = 0 and m.last > 0 then at = int(m.last * 1000)
     m.video.control = "stop"
     if tell and m.session <> invalid then api("DELETE", "/v1/playback/sessions/" + m.session.id, {positionMs: at}, "onStopped")
     m.session = invalid
@@ -350,12 +414,16 @@ end sub
 sub onVideoState()
     state = m.video.state
     if state = "finished"
-        leave(true)
+        ' the end of the title, or a stream that stopped short of it
+        if m.duration <= 0 or m.last >= m.duration - 5 then leave(true) else again()
     else if state = "error"
-        if m.session <> invalid then api("PATCH", "/v1/playback/sessions/" + m.session.id, {failure: {code: "player_error", detail: m.video.errorMsg}}, "onStopped")
-        fail("This title could not be played on this TV.")
+        again()
     else if state = "playing"
         if m.video.duration > 0 then m.duration = m.video.duration
+        busy(invalid)
+        paint()
+    else if state = "buffering"
+        busy("Catching up…")
         paint()
     else
         paint()
@@ -363,7 +431,8 @@ sub onVideoState()
 end sub
 
 sub fail(message as string)
-    for each timer in [m.report, m.tick, m.hide]
+    busy(invalid)
+    for each timer in [m.report, m.tick, m.hide, m.retry]
         timer.control = "stop"
     end for
     m.video.control = "stop"
@@ -434,6 +503,12 @@ function timeOfDay(offsetSeconds as integer) as string
 end function
 
 sub onPosition()
+    at = m.video.position
+    if at > 0
+        ' the picture has run on from where it was last started: it is healthy again
+        if at > m.last + 8 then m.tries = 0
+        if m.pending < 0 then m.last = at
+    end if
     if m.controls.visible then paint()
 end sub
 
@@ -459,6 +534,9 @@ sub paint()
     if paused then m.spots[1].icon.uri = "pkg:/images/i-play-40.png" else m.spots[1].icon.uri = "pkg:/images/i-pause-40.png"
     for i = 0 to 2
         spot = m.spots[i]
+        if spot.number <> invalid
+            if i = m.focus then spot.number.color = c.actionInk else spot.number.color = c.text
+        end if
         if i = m.focus
             spot.plate.blendColor = "0xD8E6EEFF"
             spot.icon.blendColor = c.actionInk
@@ -523,6 +601,7 @@ sub applySeek()
     if m.pending < 0 or m.session = invalid then return
     target = m.pending
     m.pending = -1
+    m.last = target
     if m.presentation.mode = "direct"
         m.video.seek = target
     else

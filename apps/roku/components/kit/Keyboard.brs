@@ -33,7 +33,17 @@ function makeKey(text as string, x as integer, y as integer, w as integer, role 
     label.translation = [x, y]
     setType(label, role)
     if role = "padKey" then label.font.size = 34
-    return {plate: plate, label: label, x: x, y: y, w: w}
+    icon = invalid
+    if text = "⌫"
+        ' the delete key is a drawn glyph: the typeface has no such character
+        label.text = ""
+        icon = m.keys.createChild("Poster")
+        icon.uri = "pkg:/images/i-backspace-32.png"
+        icon.width = 32
+        icon.height = 32
+        icon.translation = [x + (w - 32) / 2, y + 20]
+    end if
+    return {plate: plate, label: label, icon: icon, x: x, y: y, w: w}
 end function
 
 ' Which cell has focus: rows 0 to 5 are the letters and digits, row 6 the three wide keys.
@@ -58,9 +68,11 @@ sub paint()
         if has and i = at
             cell.plate.blendColor = "0xD8E6EEFF"
             cell.label.color = c.actionInk
+            if cell.icon <> invalid then cell.icon.blendColor = c.actionInk
         else
             cell.plate.blendColor = "0x10212DE6"
             cell.label.color = c.textSecondary
+            if cell.icon <> invalid then cell.icon.blendColor = c.textSecondary
         end if
     end for
     m.ring.visible = has

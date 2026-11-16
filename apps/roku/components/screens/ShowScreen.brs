@@ -166,6 +166,11 @@ sub focusStop()
 end sub
 
 sub onActive()
+    if m.top.active and m.started
+        ' back from the player: the season's ticks, progress and Up next are read again
+        if m.shownOnce = true then reread()
+        m.shownOnce = true
+    end if
     if m.top.active and m.started then focusStop()
     if m.top.active and not m.started then m.top.setFocus(true)
 end sub
@@ -219,3 +224,35 @@ function onKeyEvent(key as string, press as boolean) as boolean
     end if
     return false
 end function
+
+' Read the seasons and the shown season's episodes again, keeping focus where it is.
+sub reread()
+    api("GET", "/v1/items?parent=" + m.top.item.id + "&limit=100", invalid, "onSeasonsAgain", {id: m.top.item.id})
+    if m.shown <> "" then api("GET", "/v1/items?parent=" + m.shown + "&limit=100", invalid, "onEpisodesAgain", {id: m.shown})
+end sub
+
+sub onSeasonsAgain(event as object)
+    result = event.getData()
+    if not result.ok or result.data.items.count() <> m.list.count() then return
+    m.list = result.data.items
+    rows = []
+    for each season in m.list
+        line = seasonLine(season)
+        rows.push({title: season.title, text: line.text, progress: line.progress})
+    end for
+    at = m.seasons.index
+    m.seasons.seasons = rows
+    m.seasons.index = at
+end sub
+
+sub onEpisodesAgain(event as object)
+    result = event.getData()
+    id = event.getRoSGNode().ctx.id
+    if not result.ok or id <> m.shown then return
+    m.loaded = {}                  ' other seasons are read again when they are next shown
+    m.loaded[id] = result.data.items
+    at = m.episodes.focusedIndex
+    m.kept[id] = at
+    m.shown = ""
+    showSeason()
+end sub
