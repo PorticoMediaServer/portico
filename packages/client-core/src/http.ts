@@ -990,7 +990,7 @@ export class HttpHostedApi {
       return {...rest, ...ownership, ...(presence ? {presence} : {})};
     }) };
   }
-  /** The account's transport, for `porticoSignIn` and `acceptPorticoInvitation`. */
+  /** The account's transport, for `porticoSignIn`. */
   request<T>(path: string, method = "GET", body?: unknown, signal?: AbortSignal): Promise<T> {
     return this.http.request<T>(path, method, body, signal);
   }

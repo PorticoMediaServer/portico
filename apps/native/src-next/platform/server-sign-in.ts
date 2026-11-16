@@ -9,9 +9,9 @@ import {negotiateNativeServer} from './negotiation';
 import {boundedPick, type PickTrace} from './pick-deadline';
 import {logPickFailure, provenIdentityMismatch} from './pick-failure';
 import {directSignIn, directSignInContinuation, completeDirectSignInChallenge, keepSignInRenewal, selectDirectProfile, parseDirectSnapshot, type DirectSignIn, type DirectSnapshot} from '../../../../packages/client-core/src/profile-management';
-import {connectHostedServer, connectPairedServer, connectPairedPorticoServer, inspectDirectServer} from '../../../../packages/client-core/src/server-connections';
+import {connectHostedServer, connectPairedServer, inspectDirectServer} from '../../../../packages/client-core/src/server-connections';
 import {knownServerRoutes, type NewServerConnection, type AppServerSession} from '../../../../packages/client-core/src/app-sessions';
-import {acceptPorticoInvitation, acceptShortPorticoInvitation, challengeNotProven} from '../../../../packages/client-core/src/portico-servers';
+import {challengeNotProven} from '../../../../packages/client-core/src/portico-servers';
 import {porticoServerSignIn} from '../../../../packages/client-core/src/portico-server-sign-in';
 import {CodedError} from '../../../../packages/client-core/src/server-messages';
 import {routePath} from '../../../../packages/contracts/src/routes';
@@ -21,7 +21,7 @@ import type {ServerPin} from '../../../../packages/client-core/src/route-identit
 import {installationIdentity} from '../../../../packages/client-core/src/installation';
 import {nativeAccounts, type NativeAccounts} from './accounts';
 import {hostedUrl} from './account-authority';
-import {nativeNetworkFetch, nativeServerEnvironment, nativeHostedSource, nativeRouteCrypto} from './server-connections';
+import {nativeNetworkFetch, nativeServerEnvironment, nativeRouteCrypto} from './server-connections';
 import {rememberNativeServerDisplay} from './server-display';
 import {nativeAppSessions, subscribeNativeAppSessions} from './app-session-storage';
 import {NativeMemberAccountMove} from './member-account-move';
@@ -335,9 +335,10 @@ export class NativeServerSignIn {
       const accountCurrent = () => {const live = credentials.getSnapshot().session; return live?.account.id === account.account.id && live.familyId === account.familyId;};
       this.hostedLease = accountCurrent; this.assertCurrent();
       this.admission = await this.owner.admission('portico', {origin: hostedUrl, accountId: account.account.id}); this.assertCurrent();
-      const connected = await connectPairedPorticoServer(origin, pin, nativeHostedSource(hostedUrl, credentials, account.account.id, accountExpectation(account)), nativeServerEnvironment(server.id), this.controller.signal);
+      // As in connectPortico: the new Portico Services has no route-signing key, so the server is paired as any other.
+      const connected = await connectPairedServer(origin, pin, nativeServerEnvironment(server.id), this.controller.signal);
       try {
-        this.assertCurrent(); this.api = connected.api; this.hosted = connected.hosted;
+        this.assertCurrent(); this.api = connected.api; this.hosted = {origin: hostedUrl, accountId: account.account.id};
         this.hostedLease = () => {
           const live = connected.api.getRouteConnection()?.pin;
           return accountCurrent() && this.api === connected.api && !!live && live.serverId === pin.serverId && live.publicKey === pin.publicKey && live.fingerprint === pin.fingerprint;
@@ -349,10 +350,11 @@ export class NativeServerSignIn {
         this.porticoInvitation = new NativePorticoInvitation({api: anonymous, origin: routeOrigin(origin), serverId: pin.serverId,
           fingerprint: pin.fingerprint, username: account.account.username, scope: {accountId: account.account.id, familyId: account.familyId},
           expiresAt: this.expectedInvitation?.expiresAt, current: this.current,
-          accept: capability => this.run(() => this.consumeHostedCommand(connected, credentials, account, (hosted, api, signal) =>
-            'shortCode' in capability
-              ? acceptShortPorticoInvitation(hosted, hostedUrl, api, server.id, capability.shortCode, signal, nativeRouteCrypto)
-              : acceptPorticoInvitation(hosted, hostedUrl, api, server.id, capability.code, signal, nativeRouteCrypto)))});
+          // Joining is the Portico Account sign-in carrying the invitation's code (`POST /v1/auth/portico/exchange`), as on the web.
+          accept: capability => this.run(() => this.consumeHostedCommand(connected, credentials, account, (_hosted, api, signal) =>
+            porticoServerSignIn(api, server.id,
+              challenge => nativeAccountRead(credentials, issued => this.owner.porticoIdentity(issued, server.id, challenge, signal), {expected: accountExpectation(account), isCurrent: this.current, signal}),
+              signal, {invitation: 'shortCode' in capability ? capability.shortCode : capability.code})))});
         return this.porticoInvitation;
       } catch (error) {connected.connection.dispose(); throw error;}
     });
