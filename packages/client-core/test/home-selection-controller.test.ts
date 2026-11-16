@@ -143,30 +143,28 @@ test('a failed retry preview preserves receipts, draft and only the same failed 
 test('toolbar descendant grants never become an unsupported album title My List toggle', async () => {
   const bodies: unknown[] = [];
   const album = {...entry('album', 'album'), homeActions: offers({myList: false})};
-  const api: HomeSelectionOptions['api']['request'] = async (path, _method, raw) => {
-    assert.equal(path, routePath('create_job')); bodies.push(raw);
-    return {jobId: 'real-job', command: 'personal-state', state: 'complete', total: 2, totalKnown: true, done: 2, failed: 0} as never;
-  };
+  const api: HomeSelectionOptions['api']['request'] = async (path, _method, raw) => {bodies.push({path, raw}); return {} as never;};
   const h = harness([album], api); pickAll(h);
   h.controller.openMenu('window', h.controller.key({kind: 'album', id: 'album', libraryId: 'library'}));
   await assert.rejects(h.controller.executeMenu('watchlist'), /menu-action-not-offered/);
   await h.controller.execute('my-list');
-  assert.equal(bodies.length, 1); assert.deepEqual((bodies[0] as {selector: unknown}).selector, {container: {kind: 'album', id: 'album'}});
-  assert.deepEqual((bodies[0] as {args: unknown}).args, {watchlist: true}); h.controller.dispose();
+  // The album is marked as itself, on its own route: the server takes what it holds.
+  assert.deepEqual(bodies, [{path: '/v1/items/album/state', raw: {inList: true}}]); h.controller.dispose();
 });
 
 test('confirmed partial personal retry submits only real failed leaves and retains actual job ids', async () => {
-  const bodies: {selector: unknown}[] = [];
-  const api: HomeSelectionOptions['api']['request'] = async (path, _method, raw) => {
-    if (path.endsWith('/first-job/failures')) return {items: [{itemId: 'b', code: 'personal_needs_resolution'}]} as never;
-    assert.equal(path, routePath('create_job')); bodies.push(raw as {selector: unknown});
-    const first = bodies.length === 1;
-    return {jobId: first ? 'first-job' : 'retry-job', command: 'personal-state', state: first ? 'partial' : 'complete', total: first ? 2 : 1, totalKnown: true, done: 1, failed: first ? 1 : 0} as never;
+  const paths: string[] = [];
+  let refusals = 1;
+  const api: HomeSelectionOptions['api']['request'] = async path => {
+    paths.push(path);
+    if (path === '/v1/items/b/state' && refusals-- > 0) throw Object.assign(new Error('refused'), {code: 'personal_needs_resolution'});
+    return {} as never;
   };
   const h = harness(undefined, api); pickAll(h); await h.controller.execute('my-list');
   assert.equal(h.controller.getSnapshot().action.phase, 'partial'); await h.controller.retryAction();
-  assert.deepEqual(bodies[1].selector, {items: {ids: ['b']}}); assert.equal(h.controller.getSnapshot().action.phase, 'complete');
-  assert.deepEqual(h.controller.getSnapshot().action.jobIds, ['first-job', 'retry-job']); h.controller.dispose();
+  assert.deepEqual(paths, ['/v1/items/a/state', '/v1/items/b/state', '/v1/items/b/state'], 'Try again sends only the title that failed');
+  assert.equal(h.controller.getSnapshot().action.phase, 'complete');
+  assert.equal(h.controller.getSnapshot().action.jobIds.length, 2); h.controller.dispose();
 });
 
 function ratingDetail(itemId = 'a', rating: number | null = 8) {
@@ -470,28 +468,23 @@ test('J-1: a platform without a single-title editor for the entry falls back to 
   assert.ok(requests.some(path => path.includes('/metadata/bulk/preview')), 'the selection editor asked for its preview');
 });
 
-test('J-14: a My List job already sent is followed to its end when its own write refreshes Home, and its outcome is said', async () => {
+test('J-14: My List already under way finishes its titles when its own write refreshes Home, and its outcome is said', async () => {
   const calls: {method?: string; path: string}[] = [], notices: string[] = [];
-  let polls = 0, h!: ReturnType<typeof harness>;
+  let h!: ReturnType<typeof harness>;
   h = harness(undefined, async (path, method) => {
     calls.push({method, path});
-    if (method === 'POST' && path === '/v1/jobs') {
-      // The write lands and Home re-reads: a new document ends the selection before the job reports.
-      queueMicrotask(() => h.replace({...h.document, revision: {catalog: 1, viewer: 2}}));
-      return {jobId: 'job-1', command: 'personal-state', state: 'queued', total: 0, done: 0, failed: 0, totalKnown: false} as never;
-    }
-    if (path.startsWith('/v1/jobs/job-1')) {polls++; return {jobId: 'job-1', command: 'personal-state', state: 'complete', total: 2, done: 2, failed: 0, totalKnown: true} as never;}
-    throw new Error(`unexpected ${method} ${path}`);
+    // The first write lands and Home re-reads: a new document ends the selection before the second title is sent.
+    if (calls.length === 1) queueMicrotask(() => h.replace({...h.document, revision: {catalog: 1, viewer: 2}}));
+    return {} as never;
   });
   h.options.notify = message => notices.push(message);
   pickAll(h);
   await h.controller.execute('my-list');
   await new Promise(resolve => setTimeout(resolve, 50));
-  assert.ok(polls >= 1, 'the sent job is still read after the selection ended');
+  assert.deepEqual(calls.map(call => call.path), ['/v1/items/a/state', '/v1/items/b/state'], 'every title is sent once, the run carrying on to its end');
   assert.equal(notices.length, 1, 'its outcome is said once');
   assert.match(notices[0]!, /My List/);
   assert.equal(h.errors.length, 0, 'nothing is reported as failed');
-  assert.equal(calls.filter(call => call.method === 'POST').length, 1, 'nothing is sent twice');
   h.controller.dispose();
 });
 

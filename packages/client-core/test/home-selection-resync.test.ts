@@ -5,7 +5,9 @@ import {EventsClient} from '../src/playback-v1/events.ts';
 import type {HomeApi} from '../src/home.ts';
 
 const tick = async () => {for (let i = 0; i < 60; i++) await Promise.resolve();};
-const status = (state = 'running') => ({jobId: 'job-1', command: 'refresh', state, total: 1, totalKnown: true, done: state === 'complete' ? 1 : 0, failed: 0});
+// The rebuilt server's job, in its own words: waiting, running, done.
+const wire: Readonly<Record<string, string>> = {queued: 'waiting', running: 'running', complete: 'done'};
+const status = (state = 'running') => ({id: 'job-1', kind: 'refresh_items', state: wire[state], progress: {done: state === 'complete' ? 1 : 0, total: 1}});
 const task = (): HomeJobTask => ({request: {operationId: 'original-operation', command: 'refresh', selector: {items: {ids: ['title']}}, args: {}}, failures: [], observed: false});
 const events = () => new EventsClient({http: {send: async () => {throw new Error('No feed requests');}}});
 

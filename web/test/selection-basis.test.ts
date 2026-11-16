@@ -37,16 +37,15 @@ test('web held-selection identity changes with the witness while the ordinary pa
   } finally {first.model.dispose(); second.model.dispose();}
 });
 
-test('personal dispatch retains the exact query witness without resolving a single member', async () => {
+test('a whole view\'s Watched, Favourite and My List are one set_state job over the view, never its members', async () => {
   const held = selected(), bodies: any[] = [];
   const actions = createSelectionActions({api: {request: async <T>(path: string, method?: string, body?: unknown) => {
     assert.equal(path, '/v1/jobs'); assert.equal(method, 'POST'); bodies.push(body);
-    return {jobId: 'job', command: 'personal-state', state: 'complete', total: 2, totalKnown: true, done: 2, failed: 0} as T;
+    return {id: 'job', kind: 'set_state', state: 'done', progress: {done: 2, total: 2}} as T;
   }}, events: {on: () => () => {}}, requestId: async () => 'operation', isCurrent: () => true, reportError() {}});
   try {
     for (const action of [{watched: true}, {favorite: true}, {watchlist: true}]) await actions.personal(held.operation, action);
-    assert.equal(bodies.length, 3);
-    for (const body of bodies) {assert.equal(body.selector.query.selectionBasis, proof); assert.equal(body.expected.catalogRevision, revision); assert.equal('items' in body.selector, false);}
+    assert.deepEqual(bodies, [{watched: true}, {favorite: true}, {inList: true}].map(params => ({kind: 'set_state', target: {filter: 'library=lib&kind=movie'}, params})));
   } finally {held.model.dispose();}
 });
 
@@ -62,10 +61,10 @@ test('query metadata preview and save carry the same full witness into the final
   }}, serverId: 'server', viewerId: 'viewer', events: {on: () => () => {}}, requestId: async () => 'operation', isCurrent: () => true});
   try {
     const grant = await editor.preview(held.operation);
-    const result = await editor.save(held.operation, grant, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {});
-    assert.equal(result.updated, 2); assert.equal(bodies.length, 2);
-    for (const body of bodies) {assert.equal(body.selector.query.selectionBasis, proof); assert.equal(body.expected.catalogRevision, revision); assert.equal(body.targets, undefined);}
-    assert.equal(bodies[1].command, 'metadata-edit');
+    assert.equal(bodies[0].selector.query.selectionBasis, proof); assert.equal(bodies[0].expected.catalogRevision, revision); assert.equal(bodies[0].targets, undefined);
+    // The rebuilt server edits listed titles only (edit_items); a whole view is refused before anything is sent.
+    await assert.rejects(editor.save(held.operation, grant, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {}), {code: 'job_kind_unavailable'});
+    assert.equal(bodies.length, 1);
   } finally {held.model.dispose();}
 });
 
@@ -89,7 +88,7 @@ test('step 7: a query preview under a moved fence is the newer answer, and an ol
     assert.equal(newer.viewerFence, 'e'.repeat(64));
     await assert.rejects(editor.save(held.operation, older, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {}), /metadata-preview-not-current/);
     assert.equal(jobs.length, 0);
-    assert.equal((await editor.save(held.operation, newer, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {})).updated, 2);
+    await assert.rejects(editor.save(held.operation, newer, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {}), {code: 'job_kind_unavailable'}, 'the newer preview gets as far as the job');
   } finally {held.model.dispose();}
 });
 
@@ -118,7 +117,7 @@ test('step 7: an older query preview that answers late cannot start the job, and
     assert.equal(older.viewerFence, 'd'.repeat(64));assert.equal(newer.viewerFence, 'e'.repeat(64));
     await assert.rejects(editor.save(held.operation, older, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {}), /metadata-preview-not-current/);
     assert.equal(jobs.length, 0);
-    assert.equal((await editor.save(held.operation, newer, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {})).updated, 2);
+    await assert.rejects(editor.save(held.operation, newer, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {}), {code: 'job_kind_unavailable'}, 'the newer preview gets as far as the job');
   } finally {held.model.dispose();}
 });
 

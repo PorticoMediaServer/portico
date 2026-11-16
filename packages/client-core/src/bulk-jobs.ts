@@ -1,19 +1,14 @@
 import {validSelectionBasis} from './selection-basis.ts';
-import {routePath} from "../../contracts/src/route-paths.ts";
-import {randomId} from './random-id.ts';
 import {unreadableServerResponse} from './server-messages.ts';
-import {firstOfEach,keepReadable,noteSkipped,oneOf} from './tolerant.ts';
+import {noteSkipped,oneOf} from './tolerant.ts';
+import type {Job as ServerJob, JobStart} from '../../contracts/src/next/api.ts';
+import type {BrowseNode} from './browse.ts';
+import {libraryItemQuery} from './library-browse.ts';
+import {serverPath} from './query/server-api.ts';
 /**
- * Bulk jobs (`server/api/portico.openapi.json`):
- * one `POST /v1/jobs` for a whole personal-state, playlist-add, collection-add,
- * metadata-edit, refresh or trash action, then `GET /v1/jobs/{id}` (or a
- * `job.updated` event on `/v1/events`) for progress and
- * `GET /v1/jobs/{id}/failures?cursor=` for the currently visible failures.
- *
- * Parsers plus thin request helpers, in the style of `downloads.ts`. Nothing
- * here enumerates membership: selectors name a container, a query or at most
- * 200 explicit item ids, and the server captures membership asynchronously
- * (`totalKnown:false` until capture finishes).
+ * Bulk actions on a selection, in this app's terms (a command, a selector, its args) and done on the rebuilt server:
+ * see `createJob` below for which route each takes. Nothing here enumerates a view: a whole view is the server's
+ * job over the view's query.
  */
 
 export type JobContainerKind='show'|'season'|'album'|'artist'|'book'|'collection'|'playlist'|'library';
@@ -39,16 +34,14 @@ export type Job=Readonly<{
  jobId:string;command:JobCommand;state:JobState;
  total:number;totalKnown:boolean;done:number;failed:number;
  errorCode?:JobErrorCode;failuresCursor?:string;
+ /** A selection of titles is done here, one title at a time: its job ends as it starts, with what failed and why. */
+ failures?:readonly JobFailure[];
 }>;
 export type JobFailure=Readonly<{itemId:string;code:string}>;
 export type JobFailurePage=Readonly<{items:readonly JobFailure[];nextCursor:string}>;
-export type JobUpdatedEvent=Readonly<{
- jobId:string;command:JobCommand;state:JobState;
- total:number;totalKnown:boolean;done:number;failed:number;errorCode?:JobErrorCode;
-}>;
 export interface BulkJobsApi{request<T>(path:string,method?:string,body?:unknown,signal?:AbortSignal):Promise<T>}
 
-export const JOB_PATH=routePath("create_job");
+export const JOB_PATH=serverPath('POST /v1/jobs');
 /** Terminal states: the client stops polling and reads the failures page. */
 export const jobTerminalStates:readonly JobState[]=Object.freeze(['complete','partial','failed'] as const);
 export const isJobTerminal=(state:JobState):boolean=>state==='complete'||state==='partial'||state==='failed';
@@ -173,33 +166,6 @@ function progress(v:unknown):Job{
 /** A 202 receipt or a 200 poll read: same shape. */
 export function parseJob(raw:unknown):Job{return progress(raw);}
 
-export function parseJobFailures(raw:unknown):JobFailurePage{
- if(!object(raw)||!Array.isArray(raw.items)||raw.items.length>100)invalid();
- // A failure that cannot be read is left out alone, and an item named twice keeps its first row.
- const items=Object.freeze(firstOfEach('bulk-jobs','failures',keepReadable('bulk-jobs','failures',raw.items,entry=>{
-  if(!object(entry)||!id(entry.itemId)||!id(entry.code))invalid();
-  return Object.freeze({itemId:entry.itemId as string,code:entry.code as string});
- }),i=>i.itemId));
- if(raw.nextCursor!==undefined&&(typeof raw.nextCursor!=='string'||raw.nextCursor.length>4096))invalid();
- return Object.freeze({items,nextCursor:String(raw.nextCursor??'')});
-}
-
-/** A `job.updated` event payload from `/v1/events` carries profile-scoped progress, no item titles. */
-export function parseJobUpdatedEvent(raw:unknown):JobUpdatedEvent{
- const parsed=progress(raw);
- return parsed as JobUpdatedEvent;
-}
-
-/** Parse one SSE `data:` payload for a `job.updated` frame; null when it is another event. */
-export function parseJobUpdatedFrame(event:string,data:string):JobUpdatedEvent|null{
- if(event!=='job.updated')return null;
- let raw:unknown;
- try{raw=JSON.parse(data);}catch{throw new Error(unreadableServerResponse);}
- // An update in a state or for a command this app does not know is passed over like any other event; the next read of the job says where it stands.
- if(object(raw)&&id(raw.jobId)&&(typeof raw.state==='string'&&!states.includes(raw.state)||typeof raw.command==='string'&&!commands.includes(raw.command))){noteSkipped('bulk-jobs','event');return null;}
- return parseJobUpdatedEvent(raw);
-}
-
 function failureCode(e:unknown,fallback:string):string{
  const v=e as {status?:unknown;code?:unknown};
  if(typeof v?.code==='string'&&v.code)return v.code;
@@ -209,191 +175,89 @@ function failureCode(e:unknown,fallback:string):string{
  return fallback;
 }
 
+/**
+ * The rebuilt server (definition 06, rules 39 to 42). A whole view is one of its jobs (`POST /v1/jobs`): `set_state`
+ * or `add_view_to_list`, the view sent as the query of `GET /v1/items` that lists it. Chosen titles are done one at a
+ * time with the title's own route (`PUT /v1/items/{id}/state`, `POST /v1/lists/{id}/entries`), so the answer says
+ * what failed title by title and the rest is done; Refresh metadata on them is the owner's `refresh_items` job.
+ */
+const serverKinds:Readonly<Partial<Record<JobCommand,string>>>={'personal-state':'set_state','playlist-add':'add_view_to_list','collection-add':'add_view_to_list',refresh:'refresh_items'};
+const commandOfKind:Readonly<Record<string,JobCommand>>={set_state:'personal-state',add_view_to_list:'playlist-add',refresh_items:'refresh',edit_items:'metadata-edit'};
+const unavailable=()=>Object.assign(new Error('This action is not available on this server for this selection.'),{code:'job_kind_unavailable'});
+/** A job this app ran title by title: its id is local, and it never needs reading again. */
+const localJob=(id:string)=>id.startsWith('titles-');
+
+/** The view a query selector names, as the query of `GET /v1/items` (its sort is no part of the view). */
+export function jobViewFilter(query:Extract<JobSelector,{query:unknown}>['query']):string{
+ const list=libraryItemQuery({id:query.libraryId},query.pivot,query.filter===undefined||query.filter===null?[]:[query.filter as BrowseNode],[]);
+ const out=new URLSearchParams();
+ for(const [name,value] of Object.entries(list))if(value!==undefined&&value!=='')out.set(name,String(value));
+ return out.toString();
+}
+function stateParams(a:JobArgs){
+ return {...(a.watched===undefined?{}:{watched:a.watched}),...(a.favorite===undefined?{}:{favorite:a.favorite}),
+  ...(a.watchlist===undefined?{}:{inList:a.watchlist}),...(a.rating===undefined?{}:{rating:a.rating})};
+}
+const listOf=(a:JobArgs)=>a.playlistId??a.collectionId;
+function serverStart(body:ReturnType<typeof jobRequestBody>):JobStart{
+ const kind=serverKinds[body.command];
+ if(!kind)throw unavailable();
+ if(body.command==='refresh'){
+  if(!('items' in body.selector||'container' in body.selector))throw unavailable();
+  return {kind,target:{items:'items' in body.selector?[...body.selector.items.ids]:[body.selector.container.id]}};
+ }
+ if(!('query' in body.selector))throw unavailable();
+ return {kind,target:{filter:jobViewFilter(body.selector.query)},params:body.command==='personal-state'?stateParams(body.args):{list:listOf(body.args)}};
+}
+/** The rebuilt server's job in this app's terms. It counts what it has done; a job that failed says so as a whole. */
+function serverJob(raw:ServerJob,fallback:JobCommand):Job{
+ if(!object(raw)||!id(raw.id)||typeof raw.state!=='string')invalid();
+ const state:JobState=raw.state==='done'?'complete':raw.state==='failed'||raw.state==='cancelled'?'failed':raw.state==='running'?'running':'queued';
+ const total=count(raw.progress?.total)?raw.progress.total:undefined,done=count(raw.progress?.done)?raw.progress.done:0;
+ return Object.freeze({jobId:raw.id,command:commandOfKind[String(raw.kind)]??fallback,state,total:total??0,totalKnown:total!==undefined,
+  done:total===undefined?done:Math.min(done,total),failed:0,...(state==='failed'?{errorCode:'execution_failed' as const}:{})});
+}
+/** One title at a time: each title's own answer, its failure kept with the server's reason. */
+async function titleByTitle(api:BulkJobsApi,body:ReturnType<typeof jobRequestBody>,signal?:AbortSignal):Promise<Job>{
+ const ids='items' in body.selector?body.selector.items.ids:'container' in body.selector?[body.selector.container.id]:[];
+ const list=listOf(body.args),failures:JobFailure[]=[];
+ for(const itemId of ids){
+  if(signal?.aborted)throw Object.assign(new Error('The bulk action was cancelled.'),{code:'cancelled'});
+  try{
+   if(body.command==='personal-state')await api.request(serverPath('PUT /v1/items/{id}/state',{id:itemId}),'PUT',stateParams(body.args),signal);
+   else await api.request(serverPath('POST /v1/lists/{id}/entries',{id:list!}),'POST',{items:[itemId]},signal);
+  }catch(e){
+   if(signal?.aborted)throw e;
+   failures.push(Object.freeze({itemId,code:failureCode(e,'failed')}));
+  }
+ }
+ const failed=failures.length;
+ return Object.freeze({jobId:'titles-'+body.operationId,command:body.command,state:failed===ids.length?'failed':failed?'partial':'complete',
+  total:ids.length,totalKnown:true,done:ids.length-failed,failed,failures:Object.freeze(failures)});
+}
+
 /** Submits one bulk action. Repeat the same operationId and body on a transport retry. */
 export async function createJob(api:BulkJobsApi,request:JobRequest,signal?:AbortSignal):Promise<Job>{
  const body=jobRequestBody(request);
+ const perTitle=(body.command==='personal-state'||body.command==='playlist-add'||body.command==='collection-add')&&!('query' in body.selector);
+ if(perTitle)return titleByTitle(api,body,signal);
  try{
-  return parseJob(await api.request<unknown>(JOB_PATH,'POST',body,signal));
- }catch(e){throw Object.assign(new Error(e instanceof Error?e.message:'The bulk action could not start.'),{code:failureCode(e,'job_not_created')});}
+  return serverJob(await api.request<ServerJob>(serverPath('POST /v1/jobs'),'POST',serverStart(body),signal),body.command);
+ }catch(e){
+  if((e as {code?:unknown})?.code==='job_kind_unavailable')throw e;
+  throw Object.assign(new Error(e instanceof Error?e.message:'The bulk action could not start.'),{code:failureCode(e,'job_not_created')});
+ }
 }
 
-/** Reads this profile's durable progress for one job. */
+/** Reads this profile's progress for one job. */
 export async function getJob(api:BulkJobsApi,jobId:string,signal?:AbortSignal):Promise<Job>{
+ if(!id(jobId)||localJob(jobId))throw new Error('A job id is required.');
+ return serverJob(await api.request<ServerJob>(serverPath('GET /v1/jobs/{id}',{id:jobId}),'GET',undefined,signal),'personal-state');
+}
+
+/** The failures of a job this app ran title by title are on the job itself; the rebuilt server's jobs list none
+ * (a failed job fails as a whole), so there is no page to read. */
+export async function getJobFailures(_api:BulkJobsApi,jobId:string,_cursor?:string,_signal?:AbortSignal):Promise<JobFailurePage>{
  if(!id(jobId))throw new Error('A job id is required.');
- return parseJob(await api.request<unknown>(JOB_PATH+'/'+encodeURIComponent(jobId),'GET',undefined,signal));
-}
-
-/** Pages the failures still visible to this viewer (up to 100 per page). */
-export async function getJobFailures(api:BulkJobsApi,jobId:string,cursor?:string,signal?:AbortSignal):Promise<JobFailurePage>{
- if(!id(jobId))throw new Error('A job id is required.');
- const query=cursor?'?cursor='+encodeURIComponent(cursor):'';
- return parseJobFailures(await api.request<unknown>(JOB_PATH+'/'+encodeURIComponent(jobId)+'/failures'+query,'GET',undefined,signal));
-}
-
-/** Collects every visible failure page (bounded: at most 50 pages of 100). */
-export async function getAllJobFailures(api:BulkJobsApi,jobId:string,signal?:AbortSignal):Promise<readonly JobFailure[]>{
- const out:JobFailure[]=[];
- let cursor='';
- for(let page=0;page<50;page++){
-  const result=await getJobFailures(api,jobId,cursor||undefined,signal);
-  out.push(...result.items);
-  if(!result.nextCursor)break;
-  if(result.nextCursor===cursor)throw new Error(unreadableServerResponse);
-  cursor=result.nextCursor;
- }
- return Object.freeze(out);
-}
-
-/**
- * Polls until the job reaches a terminal state. Shows an indeterminate
- * "preparing" state while `totalKnown` is false: the worker is still capturing
- * membership in durable keyset pages. `selection_changed` fails before any
- * mutation: refresh and submit a new operationId.
- */
-export async function pollJob(api:BulkJobsApi,jobId:string,options:Readonly<{intervalMs?:number;timeoutMs?:number;signal?:AbortSignal}>={}):Promise<Job>{
- const intervalMs=options.intervalMs??1500,timeoutMs=options.timeoutMs??300000;
- if(!Number.isFinite(intervalMs)||intervalMs<250||intervalMs>15000)throw new Error('Invalid job poll interval.');
- if(!Number.isFinite(timeoutMs)||timeoutMs<1000||timeoutMs>1800000)throw new Error('Invalid job poll timeout.');
- const started=Date.now();
- for(;;){
-  if(options.signal?.aborted)throw Object.assign(new Error('The bulk action was cancelled.'),{code:'cancelled'});
-  const job=await getJob(api,jobId,options.signal);
-  if(isJobTerminal(job.state))return job;
-  if(Date.now()-started>timeoutMs)throw Object.assign(new Error('The bulk action is still running. Reopen it to check the result.'),{code:'job_poll_timeout',job});
-  await new Promise<void>((resolve,reject)=>{
-   let timer:ReturnType<typeof setTimeout>|undefined;const signal=options.signal;
-   const cancel=()=>{if(timer!==undefined)clearTimeout(timer);signal?.removeEventListener('abort',cancel);reject(Object.assign(new Error('The bulk action was cancelled.'),{code:'cancelled'}));};
-   timer=setTimeout(()=>{signal?.removeEventListener('abort',cancel);resolve();},intervalMs);
-   signal?.addEventListener('abort',cancel,{once:true});
-  });
- }
-}
-
-/** Builds an items selector of at most 200 distinct ids (the server's cap). */
-export function itemsSelector(ids:readonly string[]):JobSelector{
- const distinct=[...new Set(ids)];
- if(!distinct.length||distinct.length>200)throw new Error('A job carries 1 to 200 explicit items.');
- for(const entryId of distinct)if(!id(entryId))throw new Error('Invalid item id.');
- return Object.freeze({items:Object.freeze({ids:Object.freeze(distinct)})});
-}
-
-/** Splits a larger explicit selection into one 200-item job request each. */
-export function itemsJobRequests(operationIds:readonly string[],command:JobCommand,args:JobArgs,ids:readonly string[]):readonly JobRequest[]{
- const distinct=[...new Set(ids)];
- if(!distinct.length)throw new Error('A job needs at least one item.');
- const chunks:string[][]=[];
- for(let i=0;i<distinct.length;i+=200)chunks.push(distinct.slice(i,i+200));
- if(operationIds.length<chunks.length)throw new Error('Each bulk job needs its own operationId.');
- return Object.freeze(chunks.map((chunkIds,chunk)=>Object.freeze({
-  operationId:operationIds[chunk]!,
-  command,selector:itemsSelector(chunkIds),args,
- }) as JobRequest));
-}
-
-/** One job submission: the server selector plus the ids the caller counts as requested. */
-export type BulkRequest=Readonly<{selector:JobSelector;operationId:string;ids:readonly string[]}>;
-export type BulkProgress=Readonly<{
- /** preparing: membership still capturing (`totalKnown:false`); working: determinate. */
- phase:'preparing'|'working';
- /** Completed jobs' totals plus the running job's progress. */
- done:number;total:number;totalKnown:boolean;
-}>;
-export type BulkOutcome=Readonly<{ok:number;failed:readonly JobFailure[];jobs:number}>;
-
-const BULK_POLL_MS=1500;
-const BULK_TIMEOUT_MS=300000;
-
-const sleep=(ms:number,signal?:AbortSignal)=>new Promise<void>((resolve,reject)=>{
- let timer:ReturnType<typeof setTimeout>|undefined;
- const cancel=()=>{if(timer!==undefined)clearTimeout(timer);signal?.removeEventListener('abort',cancel);reject(Object.assign(new Error('The bulk action was cancelled.'),{code:'cancelled'}));};
- timer=setTimeout(()=>{signal?.removeEventListener('abort',cancel);resolve();},ms);
- signal?.addEventListener('abort',cancel,{once:true});
-});
-
-/**
- * Runs explicit job requests for one bulk action, reporting progress across
- * every job (M25-4: shared by web and Apple; web `screens/shared/bulk-job.ts`
- * re-exports this). While `totalKnown` is false the worker is still capturing
- * membership: the caller shows an indeterminate "Preparing selection" state. A
- * `selection_changed` failure happens before any mutation: the caller tells
- * the viewer to refresh and submit again with a new operationId.
- */
-export async function runBulkRequests(
- api:BulkJobsApi,
- command:JobCommand,
- args:JobArgs,
- requests:readonly BulkRequest[],
- onProgress?:(progress:BulkProgress)=>void,
- signal?:AbortSignal,
-):Promise<BulkOutcome>{
- if(!requests.length)throw new Error('A bulk action needs at least one request.');
- let ok=0,jobs=0;
- let failed:JobFailure[]=[];
- const totals={done:0,total:0,known:true};
- for(const request of requests){
-  const created=await createJob(api,{operationId:request.operationId,command,selector:request.selector,args},signal);
-  const started=Date.now();
-  let current=created;
-  for(;;){
-   if(signal?.aborted)throw Object.assign(new Error('The bulk action was cancelled.'),{code:'cancelled'});
-   current=await getJob(api,created.jobId,signal);
-   onProgress?.({phase:current.totalKnown&&totals.known?'working':'preparing',done:totals.done+current.done,total:totals.total+current.total,totalKnown:current.totalKnown&&totals.known});
-   if(isJobTerminal(current.state))break;
-   if(Date.now()-started>BULK_TIMEOUT_MS)throw Object.assign(new Error('The bulk action is still running. Reopen it to check the result.'),{code:'job_poll_timeout'});
-   await sleep(BULK_POLL_MS,signal);
-  }
-  jobs++;
-  totals.done+=current.totalKnown?current.done:0;
-  totals.total+=current.totalKnown?current.total:0;
-  totals.known=totals.known&&current.totalKnown;
-  if(current.state==='failed'){
-   throw Object.assign(new Error('The bulk action could not finish.'),{code:current.errorCode??'job_failed',job:current});
-  }
-  ok+=current.done;
-  if(current.failed>0)failed=[...failed,...(await getAllJobFailures(api,created.jobId,signal))];
- }
- return {ok,failed:Object.freeze(failed),jobs};
-}
-
-/** Runs the chunked items-selector jobs for one bulk action over explicit ids. */
-export function runBulkJobs(
- api:BulkJobsApi,
- command:JobCommand,
- args:JobArgs,
- ids:readonly string[],
- operationIds:readonly string[],
- onProgress?:(progress:BulkProgress)=>void,
- signal?:AbortSignal,
-):Promise<BulkOutcome>{
- const chunked=itemsJobRequests(operationIds,command,args,ids);
- return runBulkRequests(api,command,args,chunked.map(request=>({selector:request.selector,operationId:request.operationId,ids:request.selector&&'items' in request.selector?request.selector.items.ids:[]})),onProgress,signal);
-}
-
-/** Failure codes the bulk UI names honestly instead of counting silently. */
-export function bulkFailureCounts(failures:readonly JobFailure[]):Readonly<Record<string,number>>{
- const counts:Record<string,number>={};
- for(const failure of failures)counts[failure.code]=(counts[failure.code]??0)+1;
- return counts;
-}
-
-/**
- * Groups metadata targets into job selectors (M25-4: shared by web and Apple).
- * Item targets share one items selector per 200 ids; each container target
- * (show, season, album, artist, book) is its own container selector. The
- * caller supplies operation ids (web: `randomId()`; Apple: its own
- * id factory, since `crypto.randomUUID` is unavailable on Hermes).
- */
-export function groupMetadataTargets(
- targets:readonly {kind:string;id:string}[],
- makeOperationId:()=>string,
-):readonly BulkRequest[]{
- const items=targets.filter(t=>t.kind==='item');
- const containers=(targets.filter(t=>t.kind==='show'||t.kind==='season'||t.kind==='album'||t.kind==='artist'||t.kind==='book') as readonly {kind:'show'|'season'|'album'|'artist'|'book';id:string}[]);
- const out:BulkRequest[]=[];
- for(let i=0;i<items.length;i+=200){
-  const slice=items.slice(i,i+200);
-  out.push({selector:{items:{ids:slice.map(t=>t.id)}},operationId:makeOperationId(),ids:slice.map(t=>t.id)});
- }
- for(const t of containers)out.push({selector:{container:{kind:t.kind,id:t.id}},operationId:makeOperationId(),ids:[t.id]});
- return Object.freeze(out);
+ return Object.freeze({items:Object.freeze([]),nextCursor:''});
 }

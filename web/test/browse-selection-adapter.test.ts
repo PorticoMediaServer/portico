@@ -132,7 +132,7 @@ test('Watched and My List appear only with real job ports, and the job carries t
   const actions = {
     api: {request: async (path: string, _method?: string, body?: unknown) => {
       requests.push({path, body});
-      return {jobId: 'job-1', command: 'personal-state', state: 'complete', total: 1, totalKnown: true, done: 1, failed: 0};
+      return {};
     }},
     events: {on: () => () => {}}, requestId: async () => 'operation-1', isCurrent: () => true, reportError: () => {},
   };
@@ -142,9 +142,7 @@ test('Watched and My List appear only with real job ports, and the job carries t
   assert.match(html, />Watched</);
   assert.match(html, />My List</);
   await adapter.personal({watched: true});
-  assert.deepEqual(requests[0]?.body?.selector ?? {}, {items: {ids: ['m1']}});
-  assert.equal((requests[0]?.body as {command: string}).command, 'personal-state');
-  assert.deepEqual((requests[0]?.body as {args: unknown}).args, {watched: true});
+  assert.deepEqual(requests, [{path: '/v1/items/m1/state', body: {watched: true}}], 'the picked title, on its own route');
   // Without the ports the bar offers no personal action at all.
   const bare = createLibrarySelection({playSelection: fake().selection, reportError: () => {}});
   assert.doesNotMatch(rendered(bare), />Watched</);
@@ -327,12 +325,12 @@ const queryTarget = (over: Record<string, unknown> = {}) => ({mode: 'query' as c
 const wholeSnapshot = (target: unknown, over: Record<string, unknown> = {}) => ({selection: {active: true, summary: {count: 48000, types: [{kind: 'movie', count: 48000}],
   library: {kind: 'single', libraryId: 'a'}, every: capabilities}, selectedKeys: [], version: 2, registeredWindowCount: 1, registeredItemCount: 1, lastSectionId: 'library', target}, ...over});
 
-test('an unrefined whole view sends its exact selector and catalog revision as one personal job', async () => {
+test('an unrefined whole view is one set_state job over the view\'s list query', async () => {
   const requests: {path: string; body: {selector?: unknown; expected?: unknown; operationId?: string; args?: unknown}}[] = [];
   const actions = {
     api: {request: async (path: string, _method?: string, body?: unknown) => {
       requests.push({path, body: body as typeof requests[number]['body']});
-      return {jobId: 'job-q', command: 'personal-state', state: 'complete', total: 48000, totalKnown: true, done: 48000, failed: 0};
+      return {id: 'job-q', kind: 'set_state', state: 'done', progress: {done: 48000, total: 48000}};
     }},
     events: {on: () => () => {}}, requestId: async () => 'operation-1', isCurrent: () => true, reportError: () => {},
   };
@@ -342,11 +340,7 @@ test('an unrefined whole view sends its exact selector and catalog revision as o
   const html = rendered(adapter);
   assert.match(html, />Watched</);
   await adapter.personal({watched: true});
-  assert.equal(requests.length, 1);
-  assert.deepEqual(requests[0]?.body.selector, target.selector);
-  assert.deepEqual(requests[0]?.body.expected, {catalogRevision: 'r1'});
-  assert.equal(requests[0]?.body.operationId, 'operation1');
-  assert.deepEqual(requests[0]?.body.args, {watched: true});
+  assert.deepEqual(requests, [{path: '/v1/jobs', body: {kind: 'set_state', target: {filter: 'library=a&kind=movie'}, params: {watched: true}}}]);
 });
 
 test('a refined whole view withholds the action and submits nothing', async () => {
