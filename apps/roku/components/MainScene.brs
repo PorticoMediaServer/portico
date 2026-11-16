@@ -135,7 +135,7 @@ end sub
 sub onOpen(event as object)
     ask = event.getData()
     kind = ask.item.kind
-    if kind = "collection" then return     ' a collection's page is not built yet
+    if kind = "collection" or kind = "person" then return     ' their pages are not built yet
     if ask.play = true and (kind = "movie" or kind = "episode")
         player = push("PlayerScreen")
         player.observeField("closed", "onPlayerClosed")
@@ -355,6 +355,15 @@ sub onRailChosen(event as object)
     end if
     if id = "home"
         showHome()
+        return
+    end if
+    if id = "search"
+        show("SearchScreen")
+        m.screen.observeField("art", "onArt")
+        m.screen.observeField("open", "onOpen")
+        m.rail.visible = true
+        m.rail.current = id
+        m.screen.active = true
         return
     end if
     if m.libraries <> invalid and m.libraries.ok
