@@ -117,12 +117,31 @@ sub onMenu(event as object)
 end sub
 
 sub onSheetChosen(event as object)
+    if m.sheetIsOwn = true
+        m.sheetIsOwn = false
+        m.sheet.visible = false
+        which = event.getData()
+        if which = "switch"
+            api("GET", "/v1/profiles", invalid, "onProfiles")
+        else if which = "signout"
+            ' the server is told this sign-in is over; the TV forgets it either way
+            api("DELETE", "/v1/auth/session", invalid, "onSignedOut")
+        end if
+        return
+    end if
     closeSheet()
     if m.screen <> invalid and m.screen.hasField("menuChosen") then m.screen.menuChosen = event.getData()
 end sub
 
 sub onSheetClosed()
+    m.sheetIsOwn = false
     closeSheet()
+end sub
+
+sub onSignedOut()
+    storeWrite({refreshToken: "", renewalId: "", profileId: ""})
+    m.task.session = {origin: storeRead("origin"), installationId: installationId()}
+    showSignIn()
 end sub
 
 ' Focus returns to what opened the sheet.
@@ -377,6 +396,16 @@ sub onRailChosen(event as object)
     end if
     if id = "home"
         showHome()
+        return
+    end if
+    if id = "profile"
+        ' the profile and server menu (tv-more frame 10): its rows are this scene's own
+        m.sheetIsOwn = true
+        m.sheet.model = {eyebrow: storeRead("serverName"), title: m.rail.profileName, status: "", rows: [
+            {id: "switch", text: "Switch profile", icon: ""},
+            {id: "signout", text: "Sign out", icon: "", gapBefore: true}]}
+        m.sheet.visible = true
+        m.sheet.active = true
         return
     end if
     if id = "search"
