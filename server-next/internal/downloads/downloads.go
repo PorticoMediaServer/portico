@@ -307,6 +307,12 @@ func (s *Service) stopUnwanted(ctx context.Context, copies []int64) {
 // server made for it goes at once when no other download waits for it (area 9 rule 24): a
 // smaller video's prepared copy, or a book's EPUB or CBZ. An original is never touched.
 func (s *Service) Received(ctx context.Context, v db.Viewer, dl db.Download, title db.DownloadTitle) error {
+	if ok, err := s.DB.Visible(ctx, v, title.ItemID); err != nil {
+		return err
+	} else if !ok {
+		return db.ErrNotFound
+	}
+
 	prepared, err := s.DB.ReceiveTitle(ctx, dl.ID, title.ItemID)
 	if err != nil {
 		return err

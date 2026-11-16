@@ -72,7 +72,32 @@ func (s *Service) Sync(ctx context.Context, v db.Viewer, deviceID int64, platfor
 	case err != nil && !unavailable:
 		return out, err
 	}
-	watched, err := s.removeHidden(ctx, v, held, &out)
+	requests, err := s.DB.Downloads(ctx, v.ProfileID, deviceID)
+	if err != nil {
+		return out, err
+	}
+	byRequest, err := s.DB.DeviceDownloadTitles(ctx, v.ProfileID, deviceID)
+	if err != nil {
+		return out, err
+	}
+	requested, owned := map[string]bool{}, map[Held]bool{}
+	for _, request := range requests {
+		requested[request.PublicID] = true
+		for _, title := range byRequest[request.ID] {
+			owned[Held{Download: request.PublicID, Item: title.ItemPublicID}] = true
+		}
+	}
+	var known []Held
+	for _, h := range held {
+		if !requested[h.Download] {
+			out.Remove = append(out.Remove, Removal{Held: h, Reason: RemoveDropped})
+		} else if owned[h] {
+			known = append(known, h)
+		}
+		// An untracked title under an owned request may have left the server: its offline copy stays.
+		// Do not look up arbitrary ids here; hidden and absent untracked titles get the same answer.
+	}
+	watched, err := s.removeHidden(ctx, v, known, &out)
 	if err != nil {
 		return out, err
 	}
@@ -82,19 +107,6 @@ func (s *Service) Sync(ctx context.Context, v db.Viewer, deviceID int64, platfor
 	}
 	for _, r := range out.Remove {
 		have[r.Held] = false // removed, so not offered again
-	}
-	requests, err := s.DB.Downloads(ctx, v.ProfileID, deviceID)
-	if err != nil {
-		return out, err
-	}
-	requested := map[string]bool{}
-	for _, request := range requests {
-		requested[request.PublicID] = true
-	}
-	for _, h := range held {
-		if have[h] && !requested[h.Download] {
-			out.Remove, have[h] = append(out.Remove, Removal{Held: h, Reason: RemoveDropped}), false
-		}
 	}
 	if unavailable {
 		return out, nil // Kept requests stay; nothing new is offered.
@@ -110,10 +122,6 @@ func (s *Service) Sync(ctx context.Context, v db.Viewer, deviceID int64, platfor
 			}
 		}
 	}
-	byRequest, err := s.DB.DeviceDownloadTitles(ctx, v.ProfileID, deviceID)
-	if err != nil {
-		return out, err
-	}
 	for _, request := range requests {
 		titles := byRequest[request.ID]
 		removeDropped(request, titles, have, &out)
@@ -125,10 +133,21 @@ func (s *Service) Sync(ctx context.Context, v db.Viewer, deviceID int64, platfor
 		if request.Paused {
 			continue
 		}
+		var ids []int64
+		for _, title := range titles {
+			ids = append(ids, title.ItemID)
+		}
+		visible, err := s.DB.VisibleTitles(ctx, v, ids)
+		if err != nil {
+			return out, err
+		}
 		for _, t := range titles {
 			h := Held{Download: request.PublicID, Item: t.ItemPublicID}
 			ready := t.State == db.DownloadWanted && (request.Quality == Original || t.Prepared != nil && t.Prepared.State == db.PreparedReady)
 			if _, known := have[h]; ready && !known {
+				if _, allowed := visible[t.ItemID]; !allowed {
+					continue
+				}
 				out.Fetch = append(out.Fetch, h)
 			}
 		}
