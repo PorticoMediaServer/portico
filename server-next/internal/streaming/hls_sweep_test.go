@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync/atomic"
+	"sync"
 	"testing"
 	"time"
 )
@@ -13,69 +13,55 @@ import (
 // h.mu is taken by start, noteServed and produce's cleanup, which puts it on the
 // path of every segment request. The old sweep held it across a ReadDir and a
 // stat per file, per session, plus a pooled database query per session, every
-// second. This measures the thing that matters: how long a segment request would
-// have to wait for the lock while a sweep runs.
+// second. A segment request must be able to take the lock while disk work waits.
 func TestTheSweepDoesNotHoldTheLockAcrossTheFilesystem(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timing/pressure/scale or measured slow test in short mode")
-	}
-
 	root := t.TempDir()
-	const sessions, files = 60, 400
+	const sessions, files = 2, 2
 	h := &HLS{root: root, active: map[string]context.CancelFunc{}, windows: map[string]*hlsWindow{}, freed: map[string]int{}, usage: map[string]*hlsUsage{}}
-	payload := make([]byte, 4096)
-	for index := 0; index < sessions; index++ {
+	for index := range sessions {
 		id := "session-" + strconv.Itoa(index)
 		directory := filepath.Join(root, id)
 		if err := os.MkdirAll(directory, 0700); err != nil {
 			t.Fatal(err)
 		}
-		for file := 0; file < files; file++ {
-			if err := os.WriteFile(filepath.Join(directory, hlsSegmentFile(file)), payload, 0600); err != nil {
+		for file := range files {
+			if err := os.WriteFile(filepath.Join(directory, hlsSegmentFile(file)), []byte("segment"), 0600); err != nil {
 				t.Fatal(err)
 			}
 		}
 		h.active[id] = func() {}
 	}
-
-	// A stand-in for a segment request: take the lock, let go, and remember the
-	// worst wait.
-	var worst atomic.Int64
-	stop := make(chan struct{})
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for {
-			select {
-			case <-stop:
-				return
-			default:
-			}
-			start := time.Now()
-			h.mu.Lock()
-			elapsed := time.Since(start)
-			h.mu.Unlock()
-			for {
-				current := worst.Load()
-				if int64(elapsed) <= current || worst.CompareAndSwap(current, int64(elapsed)) {
-					break
-				}
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}()
-
-	// h.db is nil, so the batched state query declines and the sweep does the
-	// filesystem work, which is the part under test.
-	h.sweep(context.Background())
-	close(stop)
-	<-done
-
-	longest := time.Duration(worst.Load())
-	t.Logf("%d sessions x %d files: longest wait for the HLS lock during a sweep was %s", sessions, files, longest)
-	if longest > 50*time.Millisecond {
-		t.Fatalf("a segment request waited %s for the HLS lock during a sweep; the filesystem work is inside the lock", longest)
+	// Keep the filesystem blocked until a segment request takes the lock.
+	// This checks independence from disk speed, including an unresponsive disk.
+	entered, release := make(chan struct{}), make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(release) })
+	defer unblock()
+	var once sync.Once
+	h.measure = func(dir string) (int64, int, error) {
+		once.Do(func() { close(entered); <-release })
+		return measureDirectory(dir)
 	}
+	done := make(chan struct{})
+	go func() { defer close(done); h.sweep(context.Background()) }()
+	select {
+	case <-entered:
+	case <-time.After(30 * time.Second):
+		t.Fatal("the sweep did not reach the filesystem")
+	}
+	served := make(chan struct{})
+	go func() { h.noteSessionServed("session-0"); close(served) }()
+	select {
+	case <-served:
+	case <-time.After(30 * time.Second):
+		t.Fatal("a segment request waited for the held filesystem measurement")
+	}
+	unblock()
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("the sweep did not finish after the filesystem answered")
+	}
+
 	// The sweep measured what it walked, which is what makes the next tick cheap.
 	h.mu.Lock()
 	measured := len(h.usage)
