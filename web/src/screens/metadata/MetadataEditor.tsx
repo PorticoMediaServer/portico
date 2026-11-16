@@ -23,6 +23,9 @@ type Api = Readonly<{request: <T>(path: string, method?: string, body?: unknown,
   requestRaw?: (path: string, method: string, options: Readonly<{headers?: Readonly<Record<string, string>>; body?: unknown; signal?: AbortSignal}>) => Promise<{status: number; body?: unknown}>}>;
 type Draft = Readonly<Record<string, MetadataFieldDraft>>;
 
+const MATCHED_KINDS = new Set(['movie', 'show', 'album', 'artist']);
+/** The editor's words for the rebuilt server's kinds of title. */
+const LEDE_KINDS: Readonly<Record<string, string>> = {movie: 'film', episode: 'episode', show: 'show', season: 'season', album: 'album', artist: 'artist', track: 'song', audiobook: 'book'};
 /** Only the tabs this type really has: no list fields means no Tags tab, no roles means no Artwork. */
 function tabsFor(data: RepairData | null | undefined): readonly Tab[] {
   const tabs: Tab[] = ['general'];
@@ -32,8 +35,9 @@ function tabsFor(data: RepairData | null | undefined): readonly Tab[] {
   // book has none because there is nothing to match against (frame 13).
   // Frame 9: credits exist only where the type carries them; an empty list is not a tab.
   if (data && (data.snapshot.relationships.some(row => row.kind === 'credit') || Object.hasOwn(data.snapshot.relationshipLocks, 'credit'))) tabs.push('people');
-  if (data && (data.snapshot.identity || data.candidates.length)) tabs.push('matching');
-  if (data?.schema.some(field => field.field === 'trackNumber')) tabs.push('lyrics');
+  // Only a title the server matches by itself has a Matching tab: an episode follows its show, a track its album.
+  if (data && MATCHED_KINDS.has(data.itemKind ?? '')) tabs.push('matching');
+  if (data?.itemKind === 'track') tabs.push('lyrics');
   tabs.push('history');
   return tabs;
 }
@@ -96,7 +100,6 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
   const makeThumbnail = useCallback(async (expectedData: RepairData) => {
     try {await service.command({action: 'make_episode_thumbnail'}, expectedData);} catch (value) {setError(value);}
   }, [service]);
-  const currentRepairGrant = useCallback((expected: RepairData) => service.getSnapshot().phase === 'ready' && service.getSnapshot().data === expected, [service]);
   const currentRepairData = useCallback((expected: RepairData) => service.getSnapshot().data === expected, [service]);
   const removeUpload = useCallback(async (role: string, candidateId: string, expectedData: RepairData) => {
     try {return await service.removeUploadedArtwork(role, candidateId, expectedData);} catch (value) {setError(value); return false;}
@@ -114,7 +117,7 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
     void edit(fields);
   };
   const heading = data ? (data.snapshot.fields.title?.value || target.id) : '';
-  const kind = !data ? 'item' : localArtworkOnly ? 'reading' : target.kind === 'item' ? data.schema.some(field => field.field === 'episodeNumber') ? 'episode' : data.schema.some(field => field.field === 'trackNumber') ? 'song' : data.schema.some(field => field.field === 'partNumber') ? 'audiobook_file' : 'film' : target.kind;
+  const kind = !data ? 'item' : localArtworkOnly ? 'reading' : LEDE_KINDS[data.itemKind ?? ''] ?? 'other';
   return <TabsParts.Root asChild value={shown} onValueChange={value => {if (!openingCurrent() || !offered.includes(value as Tab)) return; if (value !== shown) retireOpening(); setTab(value as Tab);}}><aside className={styles.editor} aria-label={t('web.metadata.sections')}>
     <EditorHeader audience={{authority: 'owner'}} title={heading ? t('web.metadata.editTitle', {title: heading}) : t('web.metadata.editFallbackTitle')} description={t('web.metadata.editorLede', {kind})} onClose={close} className={styles.editorHead}/>
     <TabsParts.List asChild><nav ref={tabStrip} className={styles.editorTabs} aria-label={t('web.metadata.sections')}>
@@ -144,7 +147,7 @@ export function MetadataEditor({api, scope, target, onClose, initialTab = 'gener
         onUpload={api.requestMetadataUpload ? (role, file) => service.uploadArtwork(role, file) : undefined}
         onLock={(role, subject, locked) => void run({action: 'artwork_lock', role, subject, locked})}
         onFindMore={localArtworkOnly || target.kind === 'book' || data.onlineLookups === false ? undefined : role => void run({action: 'discover_artwork', role})} /> : null}
-      {shown === 'lyrics' ? <SongLyricsEditor api={api} scope={scope} target={target} repairData={data} isCurrent={currentRepairGrant}/> : null}
+      {shown === 'lyrics' ? <SongLyricsEditor api={api} songId={target.id}/> : null}
       {shown === 'history' ? <History data={data} busy={state.phase !== 'ready'} onUndo={historyId => void run({action: 'undo', historyId, confirm: true})}
         onAll={locked => void run({action: locked ? 'lock_all' : 'unlock_all', confirm: true})} /> : null}
     </> : null}
