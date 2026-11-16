@@ -12,6 +12,8 @@ sub init()
     setType(m.top.findNode("about"), "about", c.textSecondary)
     setType(m.top.findNode("tagline"), "body", c.textTertiary)
     m.related.observeField("selectedIndex", "onRelatedSelected")
+    m.cast.observeField("selectedIndex", "onCastSelected")
+    m.people = []
     m.relatedItems = []
     m.readFor = ""
 end sub
@@ -53,12 +55,14 @@ sub onItem()
         end if
     end for
     people = createObject("roSGNode", "ContentNode")
+    m.people = []
     if item.credits <> invalid
         ' cast, then crew, each in the server's order
         for each wantCast in [true, false]
             for each credit in item.credits
                 if (credit.role = "actor") = wantCast
                     card = personCard(credit)
+                    m.people.push({kind: "person", id: credit.personId, title: credit.name})
                     card.art = imageUrl(card.art, 150, 150)
                     people.createChild("ContentNode").addFields(card)
                 end if
@@ -133,6 +137,11 @@ sub onActive()
     else
         m.top.setFocus(true)
     end if
+end sub
+
+sub onCastSelected(event as object)
+    at = event.getData()
+    if at >= 0 and at < m.people.count() then m.top.chosen = m.people[at]
 end sub
 
 sub onRelatedSelected(event as object)

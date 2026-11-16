@@ -127,6 +127,7 @@ sub onSelected(event as object)
     at = event.getData()
     if at < 0 or at >= row.items.count() then return
     item = row.items[at]
+    if row.kind = "person" then item = {kind: "person", id: item.id, title: item.name}
     m.top.open = {item: item, play: (row.kind = "episode")}
 end sub
 

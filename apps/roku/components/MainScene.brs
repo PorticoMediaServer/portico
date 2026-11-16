@@ -140,7 +140,6 @@ end sub
 sub onOpen(event as object)
     ask = event.getData()
     kind = ask.item.kind
-    if kind = "collection" or kind = "person" then return     ' their pages are not built yet
     if ask.play = true and (kind = "movie" or kind = "episode")
         player = push("PlayerScreen")
         player.observeField("closed", "onPlayerClosed")
@@ -153,8 +152,10 @@ sub onOpen(event as object)
     page = invalid
     if kind = "movie" then page = push("TitleScreen")
     if kind = "show" then page = push("ShowScreen")
+    if kind = "collection" or kind = "person" then page = push("GroupScreen")
     if page <> invalid
         page.item = ask.item
+        setArt(page.art)          ' a page with no art of its own clears the one before it
         page.active = true
         markLibrary(ask.item)
     end if
@@ -277,6 +278,7 @@ sub onDevOpen(event as object)
     page = invalid
     if result.data.kind = "movie" then page = push("TitleScreen")
     if result.data.kind = "show" then page = push("ShowScreen")
+    if result.data.kind = "collection" then page = push("GroupScreen")
     if page <> invalid
         page.item = result.data
         page.active = true
