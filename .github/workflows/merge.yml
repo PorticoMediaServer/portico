@@ -172,7 +172,11 @@ jobs:
           ffmpeg -version | head -n 1
       - run: go build ./...
       - run: go vet ./...
+      # CONTRACTS_CHECK: a change to a route or a shape fails here unless its generated contracts
+      # (go run ./cmd/portico-contracts) are committed with it (TestContractsAreCurrent).
       - run: go test ./...
+        env:
+          CONTRACTS_CHECK: '1'
       - name: Read CBR and CB7 with the official capability tags
         run: go test -tags "$(python3 ../scripts/release-build-tags.py --capability)" ./internal/reading -run TestClassicComicsReadThroughTheBoundedWorker
   go_build:
