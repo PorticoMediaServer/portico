@@ -9,6 +9,7 @@ import {ListeningCoverProvider, useListeningTabBarPaint} from '../kit/dock/Liste
 import {SurfacePaintHost} from '../kit/overlays/SurfacePaintHost';
 import {AccountMenu} from '../kit/shell';
 import {StandardBackdrop} from '../kit/artwork';
+import {nativeShellBackTransition} from './playback';
 import {useTheme} from '../kit/theme';
 import {useMotion} from '../kit/useMotion';
 import {registerTVMenuFallback} from '../platform/menu-key';
@@ -285,6 +286,10 @@ function ShellSession({runtime, snapshot}: {runtime: NativeShellRuntime; snapsho
   };
   const selectTab = async (tab: ShellTab['id']) => {
     if (!current()) return;
+    // A tab or rail destination chosen while the watch page is open goes there: the player folds into its mini player, as
+    // Back does, instead of the watch page staying drawn over the new screen (W3 F7).
+    const playback = theme.isTV ? undefined : runtime.playback, fold = playback && nativeShellBackTransition(playback.dock, playback.getSnapshot(), snapshot.authority, false);
+    if (playback && fold) {void playback.onTransition(fold).catch(runtime.reportError); if (selectedTab(destination) === tab) return;}
     if (selectedTab(destination) === tab) {if (stacks) stacks.reselectTab(destination); else runtime.scrollToTop(destination); return;}
     if (tab !== 'libraries') {
       if (tab === 'search') navigate({kind: 'search'}, true); else navigate({kind: tab}, true);

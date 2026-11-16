@@ -15,6 +15,7 @@ const fence = playbackFence({kind: 'queue', playback: {scope: {serverId: 's', ac
 let window = {width: 890, height: 626}, safeTop = 0;
 let posture: any = {status: 'unavailable', window: null, folds: []};
 const {NativeWatchHost} = await screenModule(new URL('../src-next/screens/watch/WatchHost.tsx', import.meta.url), {
+  '../../kit/theme': {useTheme: () => ({colors: {ink: '#08121b'}})},
     '../../kit/dock/PlayerMorphBridge': {useInitialPlayerPaint: () => undefined},
   '../settings-live/group-port': {groupPort: () => undefined, subscribeGroupPort: () => () => {}},
   '../../kit/focus': {useOptionalFocusRegistry: () => undefined},
@@ -98,6 +99,17 @@ test('the upright player pushes its top controls below the status bar (P2-74 E-m
     await act(() => d.host.rerender());
     assert.equal(child(d.tree(), 'watch-controls-pane').props.children.props.edgeInsets, undefined);
   } finally {safeTop = 0; await d.dispose();}
+});
+test('the upright watch page is opaque under the player, so the page that started playback never shows through it (W3 F7, F8)', async () => {
+  const d = await fixture();
+  try {
+    await act(() => {});
+    window = {width: 390, height: 844};
+    await act(() => d.host.rerender());
+    const pane = child(d.tree(), 'watch-content-pane');
+    assert.ok(pane, 'the upright player draws its page pane');
+    assert.equal(pane.props.style.backgroundColor, '#08121b');
+  } finally {await d.dispose();}
 });
 test('TV uses one logical canvas while its actual native pane remains whole and unscaled beneath Options and Info', async () => {
   const d = await fixture(true);

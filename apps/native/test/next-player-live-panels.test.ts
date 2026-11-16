@@ -25,6 +25,7 @@ for (const [name, window, expectedPane, expectedPicture] of [
   let guideState: any = {fence, open: false, phase: 'ready', rows: [], busy: false};
   const playback = {subscribe, getSnapshot: () => source}, controls = {subscribe, getSnapshot: () => controlState}, guide = {subscribe, getSnapshot: () => guideState};
   const {NativeWatchHost} = await screenModule(new URL('../src-next/screens/watch/WatchHost.tsx', import.meta.url), {
+  '../../kit/theme': {useTheme: () => ({colors: {ink: '#08121b'}})},
     'react-native-safe-area-context': {useSafeAreaInsets: () => ({top: 0, bottom: 0, left: 0, right: 0})}, react: {...h.react, useLayoutEffect() {}}, 'react-native': {View: 'View', StatusBar: {}, Dimensions: {get: () => window}, useWindowDimensions: () => window},
     'react-native-reanimated': {default: {View: 'Animated'}, useSharedValue: (value: unknown) => h.react.useRef({value}).current, useAnimatedStyle: (run: () => unknown) => run(), withTiming: (value: unknown) => value, cancelAnimation() {}},
     '../../../../../packages/player-core/src': {sameFence}, '../../shell/model': {sameAuthority},
