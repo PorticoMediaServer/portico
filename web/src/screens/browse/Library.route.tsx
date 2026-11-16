@@ -330,8 +330,11 @@ function ContextLibrary(props: BoundLibraryProps & {context: ScreenContext; pres
   useEffect(() => {
     const {setAgentFact} = setupPorts1.current;
     if (!resources?.life.current()) return;
+    // The agent is the owner's library setting, read only to offer the owner's Unmatched tab: a
+    // member may not read it (403) and has no use for it.
+    if (context.identity?.capabilities?.manageServer !== true) return;
     let live = true;
-    const withhold = () => {if (live && resources.life.current()) setAgentFact({key: agentKey, context, online: false});};
+    const withhold =() => {if (live && resources.life.current()) setAgentFact({key: agentKey, context, online: false});};
     void readLibraryMetadataAgentResponse(resources.life.api, library.id).then(raw => {
       if (!live || !resources.life.current()) return;
       let agent;
