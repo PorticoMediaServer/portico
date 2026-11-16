@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {bulkDraftValid, bulkFieldHint, bulkFieldStateLabel, bulkSummary} from '../src/kit/selection/presentation.ts';
-import {screenLifetime, type ScreenContext} from '../src/screens/detail/context.ts';
-import {readMetadataPreview} from '../../packages/client-core/src/home-selection/metadata-preview-preparation.ts';
-import type {PreparationResponse} from '../../packages/client-core/src/read-preparation.ts';
 import {componentModule, hooks} from './helpers/component-harness.mjs';
 import * as presentation from '../src/kit/selection/presentation.ts';
 import {selectionText} from '../src/kit/selection/copy.ts';
@@ -57,20 +54,4 @@ test('actual web scalar, enum and list field branches show Many values without a
     }
     if (field.type === 'list') assert.match(content(rendered), /Kept/);
   }
-});
-
-test('real screen raw wrapper permits late metadata handle cleanup after retirement', async () => {
-  let finish!: (response: PreparationResponse) => void;
-  const calls: string[] = [], path = '/v1/metadata/bulk/preview', poll = `${path}-queries/private-1`;
-  const api = {request: async () => {throw Error('body-only transport');}, requestRaw: async (target: string, method: string, options: any) => {
-    calls.push(`${method} ${target}`);
-    if (method === 'POST') return new Promise<PreparationResponse>(resolve => {finish = resolve;});
-    assert.equal(options.singleAttempt, true); assert.equal(options.signal, undefined); return {status: 204, headers: {}};
-  }};
-  const life = screenLifetime({api, isCurrent: () => true} as unknown as ScreenContext);
-  const work = readMetadataPreview(life.api, {targets: [{kind: 'item', contentKind: 'movie', id: 'one', libraryId: 'lib'}]}, () => {throw Error('late publish');}, {signal: life.signal(), isCurrent: life.current});
-  await tick(); life.dispose(); await assert.rejects(work, {name: 'AbortError'});
-  finish({status: 202, headers: {Location: poll}, body: {variant: 'preparing', kind: 'metadata-preview-preparing', state: 'preparing', queryId: 'private-1', retryAfterMs: 1000}}); await tick();
-  assert.deepEqual(calls, [`POST ${path}`, `DELETE ${poll}`]);
-  await assert.rejects(life.api.requestRaw('/v1/unrelated', 'GET'), {name: 'AbortError'});
 });

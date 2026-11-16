@@ -298,7 +298,8 @@ export class NativeBulkMedia {
 }
 
 function bulkView(receipts: readonly BulkReceipt[]): BulkResultView {
-  const results = receipts.flatMap(receipt => receipt.results);
+  const latest = new Map(receipts.flatMap(receipt => receipt.results).map(row => [row.id, row]));
+  const results = [...latest.values()];
   return {results, updated: results.filter(row => row.ok).length, failed: results.filter(row => !row.ok).length};
 }
 

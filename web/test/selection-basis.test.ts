@@ -49,75 +49,13 @@ test('a whole view\'s Watched, Favourite and My List are one set_state job over 
   } finally {held.model.dispose();}
 });
 
-test('query metadata preview and save carry the same full witness into the final job', async () => {
-  const held = selected(), bodies: any[] = [], fence = 'd'.repeat(64);
-  const spec = {field: 'contentRating', label: 'Content rating', type: 'text', bulk: true, group: 'general', maxLength: 300};
-  const preview = {variant: 'ready', serverId: 'server', viewerFence: fence, contentKind: 'movie', kind: 'item', total: 2, selectionRevision: revision,
-    schema: [spec], singleItemFields: [spec], excludedFields: [], targets: [],
-    fields: {contentRating: {state: 'shared', distinctCount: 1, value: 'G', values: [{value: 'G', count: 2}], entries: [], locked: 0, truncated: false}}};
-  const editor = createQuerySelectionEditor({api: {request: async <T>(path: string, _method?: string, body?: unknown) => {
-    bodies.push(body); assert.ok(path === '/v1/metadata/bulk/preview' || path === '/v1/jobs');
-    return (path.includes('preview') ? preview : {jobId: 'job', command: 'metadata-edit', state: 'complete', total: 2, totalKnown: true, done: 2, failed: 0}) as T;
-  }}, serverId: 'server', viewerId: 'viewer', events: {on: () => () => {}}, requestId: async () => 'operation', isCurrent: () => true});
+test('whole-view metadata preview refuses before I/O until its server path is available', async () => {
+  const held = selected(); let calls = 0;
+  const editor = createQuerySelectionEditor({api: {request: async <T>(): Promise<T> => {calls++; throw Error('unexpected request');}},
+    serverId: 'server', viewerId: 'viewer', events: {on: () => () => {}}, requestId: async () => 'operation', isCurrent: () => true});
   try {
-    const grant = await editor.preview(held.operation);
-    assert.equal(bodies[0].selector.query.selectionBasis, proof); assert.equal(bodies[0].expected.catalogRevision, revision); assert.equal(bodies[0].targets, undefined);
-    // The rebuilt server edits listed titles only (edit_items); a whole view is refused before anything is sent.
-    await assert.rejects(editor.save(held.operation, grant, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {}), {code: 'job_kind_unavailable'});
-    assert.equal(bodies.length, 1);
-  } finally {held.model.dispose();}
-});
-
-// Step 7: the query editor's Try again could never succeed after an access change (the first preview's fence was kept
-// for its whole life). A preview under a moved fence is the newer answer; only the newest preview can start the job.
-test('step 7: a query preview under a moved fence is the newer answer, and an older preview cannot start the job', async () => {
-  const held = selected(), jobs: unknown[] = [];
-  let fence = 'd'.repeat(64);
-  const spec = {field: 'contentRating', label: 'Content rating', type: 'text', bulk: true, group: 'general', maxLength: 300};
-  const preview = () => ({variant: 'ready', serverId: 'server', viewerFence: fence, contentKind: 'movie', kind: 'item', total: 2, selectionRevision: revision,
-    schema: [spec], singleItemFields: [spec], excludedFields: [], targets: [],
-    fields: {contentRating: {state: 'shared', distinctCount: 1, value: 'G', values: [{value: 'G', count: 2}], entries: [], locked: 0, truncated: false}}});
-  const editor = createQuerySelectionEditor({api: {request: async <T>(path: string, _method?: string, body?: unknown) => {
-    if (path.includes('preview')) return preview() as T;
-    jobs.push(body); return {jobId: 'job', command: 'metadata-edit', state: 'complete', total: 2, totalKnown: true, done: 2, failed: 0} as T;
-  }}, serverId: 'server', viewerId: 'viewer', events: {on: () => () => {}}, requestId: async () => 'operation', isCurrent: () => true});
-  try {
-    const older = await editor.preview(held.operation);
-    fence = 'e'.repeat(64);
-    const newer = await editor.preview(held.operation);
-    assert.equal(newer.viewerFence, 'e'.repeat(64));
-    await assert.rejects(editor.save(held.operation, older, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {}), /metadata-preview-not-current/);
-    assert.equal(jobs.length, 0);
-    await assert.rejects(editor.save(held.operation, newer, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {}), {code: 'job_kind_unavailable'}, 'the newer preview gets as far as the job');
-  } finally {held.model.dispose();}
-});
-
-// Ordered by start, as the explicit editor and the preferences reader (#720): an older query preview that answers after
-// the newer one never takes the editing fence back, so only the newer preview can start the job.
-test('step 7: an older query preview that answers late cannot start the job, and the newer one still can', async () => {
-  const held = selected(), jobs: unknown[] = [], waiting: (() => void)[] = [];
-  let fence = 'd'.repeat(64);
-  const spec = {field: 'contentRating', label: 'Content rating', type: 'text', bulk: true, group: 'general', maxLength: 300};
-  const preview = () => ({variant: 'ready', serverId: 'server', viewerFence: fence, contentKind: 'movie', kind: 'item', total: 2, selectionRevision: revision,
-    schema: [spec], singleItemFields: [spec], excludedFields: [], targets: [],
-    fields: {contentRating: {state: 'shared', distinctCount: 1, value: 'G', values: [{value: 'G', count: 2}], entries: [], locked: 0, truncated: false}}});
-  const editor = createQuerySelectionEditor({api: {request: async <T>(path: string, _method?: string, body?: unknown) => {
-    if (path.includes('preview')) {const answer = preview();return new Promise<T>(resolve => {waiting.push(() => resolve(answer as T));});}
-    jobs.push(body); return {jobId: 'job', command: 'metadata-edit', state: 'complete', total: 2, totalKnown: true, done: 2, failed: 0} as T;
-  }}, serverId: 'server', viewerId: 'viewer', events: {on: () => () => {}}, requestId: async () => 'operation', isCurrent: () => true});
-  try {
-    const olderRead = editor.preview(held.operation);
-    await new Promise(resolve => setImmediate(resolve));
-    fence = 'e'.repeat(64);
-    const newerRead = editor.preview(held.operation);
-    await new Promise(resolve => setImmediate(resolve));
-    assert.equal(waiting.length, 2);
-    waiting[1]!();const newer = await newerRead;
-    waiting[0]!();const older = await olderRead;
-    assert.equal(older.viewerFence, 'd'.repeat(64));assert.equal(newer.viewerFence, 'e'.repeat(64));
-    await assert.rejects(editor.save(held.operation, older, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {}), /metadata-preview-not-current/);
-    assert.equal(jobs.length, 0);
-    await assert.rejects(editor.save(held.operation, newer, {fields: {contentRating: 'PG'}, lists: {}, lockEdited: true}, () => {}), {code: 'job_kind_unavailable'}, 'the newer preview gets as far as the job');
+    await assert.rejects(editor.preview(held.operation), {code: 'metadata-whole-view-unavailable'});
+    assert.equal(calls, 0);
   } finally {held.model.dispose();}
 });
 
