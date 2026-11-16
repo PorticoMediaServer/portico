@@ -1,6 +1,7 @@
 package live
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -96,7 +98,11 @@ type Input struct {
 	stopped  error // why the source stopped sending, once it has
 	left     time.Time
 	cancel   context.CancelFunc
-	done     chan struct{}
+	// The last HLS piece copied, by media sequence, so a connection made again carries on
+	// after it. Only pump uses them.
+	hlsLast    int64
+	hlsStarted bool
+	done       chan struct{}
 }
 
 type segment struct {
@@ -300,11 +306,32 @@ func (in *Input) stop(err error) {
 }
 
 // read copies one connection to the source into segments until it ends, and says whether it
-// brought any data.
+// brought any data. A source that answers with an HLS playlist is followed piece by piece.
 func (in *Input) read(ctx context.Context) (delivered bool, _ error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, in.locator, nil)
+	resp, err := in.get(ctx, in.locator)
 	if err != nil {
 		return false, err
+	}
+	defer resp.Body.Close()
+	w := &segmentWriter{in: in}
+	defer w.close()
+	body := bufio.NewReaderSize(resp.Body, packet*348) // about 64 KiB
+	if start, _ := body.Peek(10); strings.HasPrefix(strings.TrimPrefix(string(start), "\uFEFF"), "#EXTM3U") {
+		err = in.followHLS(ctx, resp.Request.URL, body, w)
+	} else {
+		_, err = io.Copy(w, body)
+	}
+	if err == nil || errors.Is(err, io.ErrUnexpectedEOF) {
+		err = io.EOF
+	}
+	return w.delivered, err
+}
+
+// get asks the source for one address and answers only a 200.
+func (in *Input) get(ctx context.Context, address string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
+	if err != nil {
+		return nil, err
 	}
 	agent := in.t.tuning().UserAgent
 	if agent == "" {
@@ -313,50 +340,53 @@ func (in *Input) read(ctx context.Context) (delivered bool, _ error) {
 	req.Header.Set("User-Agent", agent)
 	resp, err := in.t.client.Do(req)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("the source answered %d", resp.StatusCode)
+		resp.Body.Close()
+		return nil, fmt.Errorf("the source answered %d", resp.StatusCode)
 	}
-	buf := make([]byte, packet*348) // about 64 KiB
-	var file *os.File
-	var held int
-	defer func() {
-		if file != nil {
-			file.Close()
+	return resp, nil
+}
+
+// segmentWriter writes a source's MPEG-TS into the input's segment files, whole packets only.
+type segmentWriter struct {
+	in        *Input
+	file      *os.File
+	held      []byte
+	delivered bool
+}
+
+func (s *segmentWriter) Write(p []byte) (int, error) {
+	s.held = append(s.held, p...)
+	whole := len(s.held) / packet * packet
+	if whole == 0 {
+		return len(p), nil
+	}
+	now := s.in.t.now()
+	if s.file == nil || s.in.segmentDue(now) {
+		s.close()
+		var err error
+		if s.file, err = s.in.newSegment(now); err != nil {
+			return 0, err
 		}
-	}()
-	for {
-		n, err := resp.Body.Read(buf[held:])
-		held += n
-		whole := held / packet * packet
-		if whole > 0 {
-			now := in.t.now()
-			if file == nil || in.segmentDue(now) {
-				if file != nil {
-					file.Close()
-				}
-				if file, err = in.newSegment(now); err != nil {
-					return delivered, err
-				}
-			}
-			if _, werr := file.Write(buf[:whole]); werr != nil {
-				return delivered, werr
-			}
-			delivered = true
-			in.mu.Lock()
-			in.segments[len(in.segments)-1].size += int64(whole)
-			in.changed.Broadcast()
-			in.mu.Unlock()
-			held = copy(buf, buf[whole:held])
-		}
-		if err != nil {
-			if errors.Is(err, io.ErrUnexpectedEOF) {
-				err = io.EOF
-			}
-			return delivered, err
-		}
+	}
+	if _, err := s.file.Write(s.held[:whole]); err != nil {
+		return 0, err
+	}
+	s.delivered = true
+	s.in.mu.Lock()
+	s.in.segments[len(s.in.segments)-1].size += int64(whole)
+	s.in.changed.Broadcast()
+	s.in.mu.Unlock()
+	s.held = s.held[:copy(s.held, s.held[whole:])]
+	return len(p), nil
+}
+
+func (s *segmentWriter) close() {
+	if s.file != nil {
+		s.file.Close()
+		s.file = nil
 	}
 }
 
