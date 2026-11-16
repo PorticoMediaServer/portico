@@ -140,6 +140,7 @@ sub onActive()
     ' back from a title's page or the player: what was played or changed there shows here
     if m.covered = true and not m.notice.visible
         m.covered = false
+        m.top.covered = false
         refresh()
     end if
     if m.notice.visible

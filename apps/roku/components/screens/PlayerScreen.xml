@@ -9,6 +9,9 @@
     <field id="art" type="string"/>
     <!-- Set true when the player is done and the page under it should come back. -->
     <field id="closed" type="boolean" alwaysNotify="true"/>
+    <!-- The side sheet for Subtitles, Audio and Quality: asked of the scene, answered in menuChosen. -->
+    <field id="menu" type="assocarray" alwaysNotify="true"/>
+    <field id="menuChosen" type="string" alwaysNotify="true" onChange="onMenuChosen"/>
   </interface>
   <script type="text/brightscript" uri="PlayerScreen.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
@@ -32,6 +35,7 @@
       <Label id="left" translation="[1324,862]" width="500" horizAlign="right"/>
       <Group id="buttons" translation="[0,906]"/>
       <Poster id="ring" uri="pkg:/images/focus-disc.png"/>
+      <Poster id="pillRing" uri="pkg:/images/focus-14.9.png" visible="false"/>
     </Group>
     <Notice id="notice" visible="false"/>
     <Timer id="hide" duration="5"/>
