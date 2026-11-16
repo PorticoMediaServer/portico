@@ -2,6 +2,7 @@ import type {PreferencesReader} from '../../../../../packages/client-core/src/pr
 import {validatePreferencePatch, type DeviceClass, type PreferencePatch, type PreferenceScope, type PreferenceSnapshot} from '../../../../../packages/client-core/src/preferences';
 import {nativeServerPreferences, type NativeServerPreferencesOwner} from '../../platform/server-preferences';
 import {NativeScreenLifetime, NativeScreenStore} from './lifetime';
+import {isTablet} from '../../platform/device-platform';
 
 export type NativeSettingsSnapshot = Readonly<{preferences: PreferenceSnapshot; busy: boolean; error?: unknown; saved: number}>;
 export type NativeSettingsReader = Pick<PreferencesReader, 'preferences' | 'applyPreferences' | 'dispose'>;
@@ -45,7 +46,7 @@ export class NativeSettingsController extends NativeScreenStore<NativeSettingsSn
   dispose(): void {if (this.disposed) return; this.disposed = true; this.reader.dispose(); this.clearListeners();}
 }
 
-export const nativeSettingsDeviceClass = (isTV: boolean): DeviceClass => isTV ? 'television' : 'mobile';
+export const nativeSettingsDeviceClass = (isTV: boolean): DeviceClass => isTV ? 'television' : isTablet ? 'tablet' : 'mobile';
 
 /** A screen may retire its own scope, never the bootstrap's shared reader. */
 export function createBoundNativeSettingsController(lifetime: NativeScreenLifetime, owner: NativeServerPreferencesOwner): NativeSettingsController {

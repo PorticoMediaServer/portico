@@ -8,6 +8,7 @@ import {createRememberedReadingOwner} from './remembered-reading-owner';
 import type {OfflineEntry} from '../platform/offline-downloads';
 import {createNativeReceiptOnlyPlayback} from '../platform/playback/receipt-only';
 import {noAccountDownloads, type AccountDownloadsEntry, type AccountDownloadsSnapshot} from '../screens/accounts/downloads-entry-model';
+import {nativeDeviceClass} from '../platform/device-platform';
 
 export type RememberedDownloadsOpening = Readonly<{entry: AccountDownloadsEntry; device: ReturnType<typeof createRememberedDownloadsDevice>['device'];
   player?: ReturnType<typeof createNativeReceiptOnlyPlayback>; reading?: (entry: OfflineEntry) => ReturnType<typeof createRememberedReadingOwner>; canRead?: (entry: OfflineEntry) => boolean; noticeCopy?: Readonly<{title: string; body: string}>; current: () => boolean; dispose: () => void}>;
@@ -56,7 +57,7 @@ export async function createRememberedDownloadsOpening(installation: Installatio
     if (!identity) {dispose(); return undefined;} check();
     offIdentity = identity.subscribe(dispose); check();
     const settings = await readRememberedPlaybackSettings(identity, current).catch(() => undefined); check();
-    const readingSettings = await readRememberedReadingPreferences(identity, current, 'mobile').catch(() => undefined); check();
+    const readingSettings = await readRememberedReadingPreferences(identity, current, nativeDeviceClass).catch(() => undefined); check();
     if (!settings && !readingSettings) {dispose(); return undefined;}
     device = createRememberedDownloadsDevice(identity, ownerCurrent); check();
     // Settings are the exact protected snapshot for this opening, not guessed
