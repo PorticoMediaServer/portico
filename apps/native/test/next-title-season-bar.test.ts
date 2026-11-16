@@ -12,8 +12,8 @@ async function bar(platform: 'phone' | 'tablet' | 'tv') {
     '../../kit/controls': {Button: 'Button', Switch: 'Switch'}, '../../kit/overlays': {Menu: 'Menu'},
     '../../kit/theme': {useTheme: () => ({isTV: platform === 'tv', platform, type: {caption: {}, bodyStrong: {}}, colors: {textTertiary: '#888', textSecondary: '#aaa'}})}});
   const changes: boolean[] = [], opened: string[] = [];
-  const render = (owner: boolean) => nodes(h.render(() => TitleSeasonBar({label: 'Unassigned absolute episodes', count: '3 episodes', onSeasons() {}, hideWatched: false, onHideWatched: (value: boolean) => changes.push(value),
-    settings: owner ? {label: 'More', onPress: () => opened.push('settings')} : undefined})));
+  const render = (owner: boolean, settingsAction = true) => nodes(h.render(() => TitleSeasonBar({label: 'Unassigned absolute episodes', count: '3 episodes', onSeasons() {}, hideWatched: false, onHideWatched: (value: boolean) => changes.push(value),
+    settings: owner ? {label: 'More', ...(settingsAction ? {onPress: () => opened.push('settings')} : {})} : undefined})));
   return Object.assign(render, {changes, opened});
 }
 const byID = (tree: any[], id: string) => tree.find(node => node.props?.testID === id);
@@ -38,6 +38,9 @@ for (const platform of ['phone', 'tablet'] as const) test(`${platform}: the bar 
   assert.equal(items[0].selected, false);
   items[0].onSelect(); items[1].onSelect();
   assert.deepEqual(render.changes, [true]); assert.deepEqual(render.opened, ['settings']);
+  // DEFERRED row 258: with no show settings behind it, the owner's menu keeps only what works.
+  const withoutSettings = render(true, false).find((node: any) => node.props?.testID === 'watch-season-menu');
+  assert.deepEqual(withoutSettings.props.items.map((item: any) => item.id), ['hide-watched']);
 });
 
 for (const owner of [false, true]) test(`${owner ? 'owner' : 'viewer'}: when the row is short the count drops first, still measured and folded into the chip's spoken name`, async () => {
