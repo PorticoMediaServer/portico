@@ -35,10 +35,11 @@ async function gate(rememberProfiles: boolean, isTV = false, refuse = false) {
   } satisfies LifecyclePorts & Record<string, unknown>;
   const lifecycle = new SessionLifecycle(ports);
   lifecycle.start(); await settle();
-  let tree: any;
+  let tree: any, menuCaptured = false, nativeBack: (() => boolean) | undefined;
   const {LifecycleProfileGate} = await screenModule(new URL('../src-next/screens/accounts/LifecycleProfileGate.tsx', import.meta.url), {
     react: {...React, default: React},
-    'react-native': {BackHandler: {addEventListener: () => ({remove() {}})}, Text: 'Text', View: 'View'},
+    '../../platform/tv-menu': {useTVMenuCapture: (capture: boolean) => {menuCaptured = capture;}},
+    'react-native': {BackHandler: {addEventListener: (_: string, handler: () => boolean) => {nativeBack = handler; return {remove() {nativeBack = undefined;}};}}, Text: 'Text', View: 'View'},
     '../../kit/states': {StateLayout: 'Layout'}, '../../kit/controls': {Button: 'Button', Focusable: 'Focusable'}, '../../kit/artwork': {ProfilePicker: 'Picker'},
     '../../kit/Icon': {Icon: 'Icon'}, '../../kit/theme': {useTheme: () => createTheme({isTV, width: isTV ? 1920 : 390})},
     '../../../../../packages/i18n/src': {defaultI18n}, '../../../../../packages/client-core/src/presentation/errors': {presentError},
@@ -51,7 +52,7 @@ async function gate(rememberProfiles: boolean, isTV = false, refuse = false) {
   });
   const host = createFabricHookHost(() => {tree = LifecycleProfileGate();});
   await act(() => host.mount());
-  return {lifecycle, selects, host, tree: () => tree};
+  return {lifecycle, selects, host, tree: () => tree, menuCaptured: () => menuCaptured, back: () => nativeBack?.()};
 }
 
 test('the launch picker lists the server\'s profiles; a PIN profile opens the PIN screen with Remember when the server allows it', async () => {
@@ -256,5 +257,21 @@ test('a refused PIN\'s message stays on the PIN page: Back to Who\'s watching sh
     await g.host.rerender();
     assert.equal(g.tree().type, 'TVPIN');
     assert.equal(g.tree().props.error, undefined, 'the PIN page opened again starts with no message');
+  } finally {await g.host.unmount(); g.lifecycle.dispose();}
+});
+
+
+test('the restored TV PIN page captures native Menu until Back returns to the launch picker', async () => {
+  const g = await gate(false, true);
+  try {
+    assert.equal(g.menuCaptured(), false, 'the initial picker can yield Menu to tvOS');
+    const picker = nodes(g.tree().props.children).find(node => node.type === 'Picker');
+    await act(async () => {picker.props.onSelect('alex'); await settle();});
+    assert.equal(g.tree().type, 'TVPIN');
+    assert.equal(g.menuCaptured(), true, 'native Menu must reach the already-registered Back handler');
+    await act(() => assert.equal(g.back(), true));
+    assert.equal(g.tree().type, 'TVWho');
+    assert.equal(g.menuCaptured(), false);
+    assert.equal(g.selects.length, 0, 'Back submits no PIN and changes no saved sign-in');
   } finally {await g.host.unmount(); g.lifecycle.dispose();}
 });

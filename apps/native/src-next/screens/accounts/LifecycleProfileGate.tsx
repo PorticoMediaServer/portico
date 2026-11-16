@@ -20,6 +20,7 @@ import {afterEntry} from '../../shell/after-entry';
 import {profilePinFailureText} from './profile-pin-failure';
 import {PhoneProfileRecovery} from './PhoneProfileRecovery';
 import {RememberProfileRow} from './RememberProfileRow';
+import {useTVMenuCapture} from '../../platform/tv-menu';
 import {registerBack} from '../../kit/navigation/back';
 
 const t = defaultI18n.t;
@@ -66,8 +67,10 @@ export function LifecycleProfileGate() {
     if (state.kind === 'enteringPin') {lifecycle.actions.submitPin.reset(); lifecycle.otherProfiles();}
     else if (state.kind === 'choosingProfile' && state.switching) lifecycle.cancelSwitch();
   };
+  const handlesBack = state.kind === 'enteringPin' || !!recovery || forgot || state.kind === 'choosingProfile' && state.switching;
+  useTVMenuCapture(theme.isTV && handlesBack);
   useEffect(() => {
-    const subscription = registerBack(() => {back(); return state.kind === 'enteringPin' || !!recovery || forgot || state.kind === 'choosingProfile' && state.switching;}, {scope: 'surface'});
+    const subscription = registerBack(() => {back(); return handlesBack;}, {scope: 'surface'});
     return () => subscription();
   });
   if (state.kind !== 'choosingProfile' && state.kind !== 'enteringPin') return null;
