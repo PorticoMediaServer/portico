@@ -220,18 +220,17 @@ test('The passphrase is asked twice before it protects new backups, and turning 
 test('Streaming edits its folder and server-wide tone-map method', async () => {
   const memoryAvailable = false;
   const fixture = await formsFixture({runtime: {conversionMode: 'all', hardwareSelection: 'auto', hardwareDecode: true, hdrToneMapping: true, hdrToneMappingAlgorithm: 'hable', x264Preset: 'veryfast', planningPolicy: 'minimize_server_work', directStreamRemux: true, outputFormat: 'auto', maxConcurrentSessions: 0, maxHardwareSessions: 0, maxSoftwareSessions: 0, maxBackgroundSessions: 0, serverCap: 0, throttleBufferMs: 60000, playedRetentionMs: 180000, sessionStorageMiB: 4096, memoryCap: 'quarter', transcodeLocation: 'disk', ffmpegPath: '', temporaryDirectory: '/transcode'}, connectivity: {uploadCapacityKbps: 0, remoteBitrateLimitKbps: 8000, pausedSessionTimeoutMinutes: 0}}), host = lifecycleHooks();
-  const capacity = {hardware: {effective: 'vaapi', devices: [{id: 'drm-0a1b', name: 'Intel UHD 770', inUse: true}]}, temporaryDirectory: {path: '/tmp/transcode', ready: true, freeBytes: 12000, memoryPath: '/dev/shm', memoryAvailable}};
+  const hardwareReport = {checking: false, devices: [{id: 'drm-0a1b', name: 'Intel UHD 770', inUse: true}], formats: [], toneMappingWithMasteringData: true, toneMappingWithoutMasteringData: true};
   const section = specification.settingsSpec.find((value: any) => value.scope === 'server' && value.id === 'streaming');
   const allRows = [...section!.groups!, ...section!.advanced!.groups!].flatMap((group: any) => values.settingRows(group.rows));
   const configuration = {fields: allRows.map((row: any) => ({id: row.id, configOnly: false}))};
   let hardwareTests = 0, finish: ((value: unknown) => void) | undefined;
   class Lifetime {authority = fixture.group.context.authority(); current = fixture.group.context.current; assert() {assert.ok(this.current());} request = (run: any) => run(new AbortController().signal);dispose() {}}
-  class Console {transcodeCapacity = async () => capacity;dispose() {}}
   class Streaming {form = (id: string) => fixture.group.forms[id];readConfiguration = async () => configuration;}
   const {FormSet} = await import('../../../packages/client-core/src/server-admin/draft-form.ts');
   const module = await screenModule(new URL('../src-next/screens/settings-live/server/StreamingPage.tsx', import.meta.url), {
     ...chrome, react: host.react, '../../../../../../packages/contracts/src/routes': {routePath}, '../../../../../../packages/client-core/src/settings-configuration': {parseSettingsConfiguration: (value: unknown) => value}, '../../../platform/server-connections': {nativeRouteCrypto: {random: () => new Uint8Array(24)}},
-    '../../../../../../packages/client-core/src/hardware': {testHardware: () => {hardwareTests++;return new Promise(resolve => {finish = resolve;});}}, '../../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../../../../../packages/client-core/src/console': {ConsoleClient: Console}, '../../../../../../packages/client-core/src/server-admin/draft-form': {FormSet},
+    '../../../../../../packages/client-core/src/server-admin/streaming-hardware': {readOwnerStreamingHardware: async () => hardwareReport, runOwnerHardwareTest: () => {hardwareTests++;return new Promise(resolve => {finish = resolve;});}}, '../../../../../../packages/i18n/src': {defaultI18n: i18n}, '../../../../../../packages/client-core/src/server-admin/draft-form': {FormSet},
     '../../../../../../packages/client-core/src/server-admin/server-forms': {createServerForm: (id: string) => fixture.group.forms[id], withFormValue: (draft: object, key: string, value: unknown) => ({...draft, [key]: value})}, '../../../../../../packages/client-core/src/presentation/settings-bindings': bindings, '../../../../../../packages/client-core/src/presentation/settings-spec': specification,
     '../../../../../../packages/client-core/src/server-admin/streaming-settings': {OwnerStreamingSettings: Streaming},
     '../../../../../../packages/client-core/src/home-selection/list-destinations': {withRequestRaw: (api: unknown) => api},
@@ -257,7 +256,7 @@ test('Streaming edits its folder and server-wide tone-map method', async () => {
   folder.props.onChange('/mnt/disk');
   assert.equal(fixture.group.forms.runtime.getSnapshot().draft.temporaryDirectory, '/mnt/disk');
   controls.find((node: any) => node.props.row.id === 'streaming.repackage').props.onChange(false);assert.equal(fixture.group.forms.runtime.getSnapshot().draft.directStreamRemux, false);
-  assert.equal(hardwareTests, 0);const hardware = nodes(tree).find((node: any) => node.type === 'Hardware');hardware.props.onTest();hardware.props.onTest();assert.equal(hardwareTests, 1);finish!(capacity);await settle();host.dispose();fixture.stop();
+  assert.equal(hardwareTests, 0);const hardware = nodes(tree).find((node: any) => node.type === 'Hardware');hardware.props.onTest();hardware.props.onTest();assert.equal(hardwareTests, 1);finish!(hardwareReport);await settle();host.dispose();fixture.stop();
 });
 
 test('History mounts real list/filter wiring and its named retention choices write numeric days', async () => {
