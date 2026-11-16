@@ -3,15 +3,14 @@ import {t, locale, environment as env} from './text';
 import {useWatchBodyPlayback, watchEpisodeLine, watchHeaderFacts} from './watch-body-playback';
 import {Fragment, useId, useEffect, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import {preferenceValue} from '@core/preferences.ts';
-import type {ShowWorkspaceRoute, ShowWorkspaceData, ShowSettings, WorkspaceSeason, WorkspaceShowCredit} from '@core/show-workspace.ts';
+import type {ShowWorkspaceRoute, ShowWorkspaceData, WorkspaceSeason, WorkspaceShowCredit} from '@core/show-workspace.ts';
 import {cardText, episodeLabel, titleFactParts, type FactPart} from '@core/presentation/kit-model';
-import {Button, Chip, ResumeButton, Tabs, Segmented, Switch} from '../../kit/controls';
+import {Button, Chip, ResumeButton, Tabs, Switch} from '../../kit/controls';
 import {AmbientArt, Artwork} from '../../kit/artwork';
 import {Icon} from '../../kit/Icon';
 import {Lockup, layoutType, platformType} from '../../kit/layout';
 import {EpisodeTile} from '../../kit/cards';
-import {Menu, MenuItem, Popover} from '../../kit/overlays';
-import {OwnerTag, ServerMark} from '../../kit/shell';
+import {Menu, MenuItem} from '../../kit/overlays';
 import {StateView} from '../../kit/states';
 import {useShellWidth} from '../../shell/viewport';
 import {DetailLoading, ScreenFailure, TitleActions, TitleRecommendationRow} from './Detail';
@@ -51,7 +50,7 @@ function manageGuard(binding: ShowBindings, data: ShowWorkspaceData) {
 
 /** Root §14: complete-season actions; the display editor remains show-scoped. */
 export function SeasonOptions({binding, data, label}: {binding: ShowBindings; data: ShowWorkspaceData; label: string}) {
-  const [open, setOpen] = useState(false), [display, setDisplay] = useState(false), [state, setState] = useState<ContainerState>();
+  const [open, setOpen] = useState(false), [state, setState] = useState<ContainerState>();
   const anchor = useRef<HTMLButtonElement>(null), owner = binding.canManage();
   useEffect(() => {
     setState(undefined);
@@ -66,11 +65,8 @@ export function SeasonOptions({binding, data, label}: {binding: ShowBindings; da
       <MenuItem onSelect={() => runScreenCommand(binding.context, () => binding.playSeason(data))}>{t('next.detail.playSeason')}</MenuItem>
       <MenuItem disabled={!state} onSelect={() => runScreenCommand(binding.context, () => { if (!state) return; return binding.setSeasonWatched(data, state, !complete); })}>{t(complete ? 'next.detail.markSeasonUnwatched' : 'next.detail.markSeasonWatched')}</MenuItem>
       {owner && <OwnerMetadataGroup separated context={binding.context} anchor={() => anchor.current} guard={() => manageGuard(binding, data)}
-        target={data.selected.seasonId ? {entityKind: 'season', entityId: data.selected.seasonId, libraryId: data.scope.libraryId, title: label} : undefined}>
-        <MenuItem onSelect={() => runScreenCommand(binding.context, () => { manageGuard(binding, data); setDisplay(true); })}>{t('next.detail.episodeDisplay')}</MenuItem>
-      </OwnerMetadataGroup>}
+        target={data.selected.seasonId ? {entityKind: 'season', entityId: data.selected.seasonId, libraryId: data.scope.libraryId, title: label} : undefined} />}
     </Menu>
-    {owner && <Popover open={display} onOpenChange={setDisplay} anchorRef={anchor} returnFocusRef={anchor} width={540} className={styles.settingsMenu} title={t('title.showSettings')}><ShowSettingsMenu binding={binding} data={data} /></Popover>}
   </>;
 }
 
@@ -87,19 +83,16 @@ export function seasonMenuDescription(season: WorkspaceSeason): ReactNode {
 
 /** Show-level commands must not target the next episode's detail binding. */
 function ShowMore({binding, data, personal, busy, watchedInMenu = false}: {binding: ShowBindings; data: ShowWorkspaceData; personal?: ContainerState; busy: boolean; watchedInMenu?: boolean}) {
-  const [open, setOpen] = useState(false), [settings, setSettings] = useState(false), anchor = useRef<HTMLButtonElement>(null), owner = binding.canManage();
-  useEffect(() => { setOpen(false); setSettings(false); }, [data]);
+  const [open, setOpen] = useState(false), anchor = useRef<HTMLButtonElement>(null), owner = binding.canManage();
+  useEffect(() => { setOpen(false); }, [data]);
   if (!personal && !owner) return null;
   return <>
     <Menu open={open} onOpenChange={setOpen} title={data.show.title} trigger={<Button ref={anchor} icon="i-more" iconOnly aria-label={t('next.controls.more')} />}>
       {personal && watchedInMenu && <MenuItem icon="i-check" disabled={busy} selected={personal.watched} onSelect={() => runScreenCommand(binding.context, () => binding.setWatched(data, !personal.watched))}>{t(personal.watched ? 'title.markUnwatched' : 'title.markWatched')}</MenuItem>}
       {personal && <MenuItem icon="i-heart" disabled={busy} selected={personal.favorite} onSelect={() => runScreenCommand(binding.context, () => binding.setFavorite(data, !personal.favorite))}>{t(personal.favorite ? 'entry.removeFromFavorites' : 'entry.addToFavorites')}</MenuItem>}
       {owner && <OwnerMetadataGroup separated={!!personal} context={binding.context} anchor={() => anchor.current} guard={() => manageGuard(binding, data)}
-        target={{entityKind: 'show', entityId: data.show.id, libraryId: data.scope.libraryId, title: data.show.title}}>
-        <MenuItem onSelect={() => runScreenCommand(binding.context, () => { manageGuard(binding, data); setSettings(true); })}>{t('title.showSettings')}</MenuItem>
-      </OwnerMetadataGroup>}
+        target={{entityKind: 'show', entityId: data.show.id, libraryId: data.scope.libraryId, title: data.show.title}} />}
     </Menu>
-    {owner && <Popover open={settings} onOpenChange={setSettings} anchorRef={anchor} returnFocusRef={anchor} width={540} className={styles.settingsMenu} title={t('title.showSettings')}><ShowSettingsMenu binding={binding} data={data} /></Popover>}
   </>;
 }
 
@@ -161,7 +154,6 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
   const unplayableNote = !offer && nextUnplayable ? <p id={`${show.id}-unplayable`} className={detail.unplayable}>{t('title.fileUnavailable')}</p> : null;
   // The pinned bar carries the drawn Resume Sx Ey and My List controls once the hero is gone.
   const pin = offer && (offer.resume ? <ResumeButton size="small" progress={offer.progress} onClick={playPrimary}>{primaryLabel}</ResumeButton> : <Button variant="primary" size="small" icon="i-play" onClick={playPrimary}>{primaryLabel}</Button>);
-  const owner = binding.canManage();
   const facts = titlePageFacts({year: show.year, seasonCount: data.seasonTotalCount, genres: show.genres, contentRating: show.contentRating}, env);
   // phone-player 4: under the playing video, the episode stays on one line.
   const episodeLine = compact ? watchEpisodeLine(watch?.subject, env) : [];
@@ -236,7 +228,7 @@ export function ShowBody({binding, compact = false, selection}: {binding: ShowBi
       </div>
       <div className={styles.paging}>{snapshot.pagination.canPrevious && <Button size="compact" onClick={() => runScreenCommand(binding.context, () => { binding.current(data); return binding.service.previousEpisodes(); })}>{t('title.previousPage')}</Button>}{snapshot.pagination.nextCursor && <Button size="compact" onClick={() => runScreenCommand(binding.context, () => { binding.current(data); return binding.service.nextEpisodes(); })}>{t('title.nextPage')}</Button>}</div>
     </section>}
-    {tab === 'details' && <ShowDetails binding={binding} data={data} owner={owner} />}
+    {tab === 'details' && <ShowDetails binding={binding} data={data} />}
     {tab === 'related' && (recommendations.phase === 'error' ? <ScreenFailure retry={() => { void binding.recommendations.select(data, () => binding.service.getSnapshot().data === data); }} /> : recommendations.phase === 'loading' ? <DetailLoading /> : <div className={styles.relatedRows}>{titleRecommendationRows(recommendations.data).map(row => <TitleRecommendationRow key={row.id} binding={binding} row={row} owner={{kind: 'show', id: data.show.id}} guard={() => binding.current(data)} />)}</div>)}
     </div>
   </article>;
@@ -284,7 +276,7 @@ export function EpisodeBody({binding, data}: {binding: ShowBindings; data: ShowW
 }
 
 /** The drawn About column: the show's own stored facts, never a file fact. */
-export function ShowDetails({binding, data, owner}: {binding: ShowBindings; data: ShowWorkspaceData; owner: boolean}) {
+export function ShowDetails({binding, data}: {binding: ShowBindings; data: ShowWorkspaceData}) {
   const {show} = data, facts = showDetailFacts(show, data.seasonTotalCount, locale());
   const onServer = facts.onServer ? [t('title.season', {number: facts.onServer.seasons}), facts.onServer.episodes !== undefined ? t('count.episodes', {count: facts.onServer.episodes}) : undefined].filter(Boolean).join(', ') : undefined;
   const rows: (readonly [string, ReactNode])[] = [
@@ -308,7 +300,6 @@ export function ShowDetails({binding, data, owner}: {binding: ShowBindings; data
       </section>
       <div className={styles.castBlock}><ShowPeople binding={binding} data={data} /></div>
     </div>
-    {owner && <ShowSettingsPanel binding={binding} data={data} />}
   </div>;
 }
 
@@ -319,56 +310,4 @@ function ShowPersonLinks({credits, binding, data}: {credits: readonly WorkspaceS
       binding.context.effects.openEntry({id: credit.id!, kind: 'person', title: credit.name, navigation: {view: 'person', entityId: credit.id!}});
     })}>{credit.name}</button>
     : credit.name}</Fragment>)}</>;
-}
-
-/** The owner's drawn Server panel. It carries no file facts; the four stored settings stay the source. */
-export function ShowSettingsPanel({binding, data}: {binding: ShowBindings; data: ShowWorkspaceData}) {
-  const [open, setOpen] = useState(false), settings = data.settings;
-  const grouping = settings.ranges ? t('next.show.group.ranges') : settings.hideSeasons ? t('next.show.group.oneList') : t('next.show.group.bySeason');
-  return <section className={styles.owner} aria-label={t('next.shell.ownerOnly')}>
-    <div className={styles.ownerHeader}>
-      <ServerMark size={34} />
-      <div><b>{t('title.showSettings')}<OwnerTag /></b><small>{t('next.show.membersNeverSee')}</small></div>
-    </div>
-    <div className={styles.ownerRow}>
-      <div className={styles.ownerCell} data-show-settings>
-        <div className={styles.ownerLabel}>{t('next.show.episodeDisplay')}</div>
-        <div className={styles.ownerBig}><span>{grouping}</span><span>{settings.newestFirst ? t('next.overlays.newest') : t('next.overlays.oldest')}</span></div>
-        <p>{t('next.show.howListed')}</p>
-        <Popover open={open} onOpenChange={setOpen} placement="top-end" sideOffset={8} alignOffset={-18} width={540} className={styles.settingsMenu}
-          title={t('title.showSettings')} trigger={<Chip className={styles.changeChip} trailingIcon="i-down">{t('next.show.change')}</Chip>}>
-          <ShowSettingsMenu binding={binding} data={data} />
-        </Popover>
-      </div>
-    </div>
-  </section>;
-}
-
-/** The drawn Episode display menu: three authored controls over the four stored settings. */
-export function ShowSettingsMenu({binding, data}: {binding: ShowBindings; data: ShowWorkspaceData}) {
-  const settings = data.settings, preview = data.nextUp ?? data.episodes.sections[0]?.entries[0];
-  const group = settings.ranges ? 'ranges' : settings.hideSeasons ? 'oneList' : 'bySeason';
-  const numbering = settings.absoluteNumbering ? 'across' : 'bySeason';
-  const order = settings.newestFirst ? 'newest' : 'oldest';
-  const code = preview ? (settings.absoluteNumbering && preview.absoluteNumber ? t('next.kit.episode', {number: preview.absoluteNumber}) : episodeCode(preview, t)) : undefined;
-  const save = (patch: Partial<Pick<ShowSettings, 'hideSeasons' | 'ranges' | 'absoluteNumbering' | 'newestFirst'>>) => {
-    const next: ShowSettings = {...settings, ...patch};
-    return binding.setSettings(data, next);
-  };
-  return <>
-    <div className={styles.menuHead}><b>{t('next.show.episodeDisplay')}</b><span className={styles.menuTag}>{t('next.show.forEveryone')}</span></div>
-    <p className={styles.menuLede}>{t('title.showSettings.lede')}</p>
-    <div className={styles.menuGrid}>
-      <span className={styles.menuLabel}>{t('next.show.groupEpisodes')}</span>
-      <Segmented className={styles.settingsSeg} value={group} aria-label={t('next.show.groupEpisodes')} items={[{value: 'bySeason', label: t('next.show.group.bySeason')}, {value: 'oneList', label: t('next.show.group.oneList')}, {value: 'ranges', label: t('next.show.group.ranges')}]}
-        onValueChange={value => { if (value === 'bySeason') runScreenCommand(binding.context, () => save({hideSeasons: false, ranges: false})); else if (value === 'oneList') runScreenCommand(binding.context, () => save({hideSeasons: true, ranges: false})); else if (value === 'ranges') runScreenCommand(binding.context, () => save({hideSeasons: false, ranges: true})); }} />
-      <span className={styles.menuLabel}>{t('next.show.numberThem')}</span>
-      <Segmented className={styles.settingsSeg} value={numbering} aria-label={t('next.show.numberThem')} items={[{value: 'bySeason', label: t('next.show.group.bySeason')}, {value: 'across', label: t('next.show.number.acrossSeasons')}]}
-        onValueChange={value => { if (value === 'bySeason' || value === 'across') runScreenCommand(binding.context, () => save({absoluteNumbering: value === 'across'})); }} />
-      <span className={styles.menuLabel}>{t('next.show.order')}</span>
-      <Segmented className={styles.settingsSeg} value={order} aria-label={t('next.show.order')} items={[{value: 'oldest', label: t('next.overlays.oldest')}, {value: 'newest', label: t('next.overlays.newest')}]}
-        onValueChange={value => { if (value === 'oldest' || value === 'newest') runScreenCommand(binding.context, () => save({newestFirst: value === 'newest'})); }} />
-    </div>
-    {preview && <div className={styles.preview}><span>{t('next.show.readsAs')}</span>{code && <b>{code}</b>}<span>{preview.title}</span></div>}
-  </>;
 }

@@ -1,5 +1,5 @@
 import {readBrowseCapabilitiesResponse} from '@core/query/browse-reads.ts';
-import {ShowWorkspaceService, saveShowSettings, type ShowSettings, type ShowWorkspaceData, type ShowWorkspaceRoute, type ShowWorkspaceSnapshot, type WorkspaceShow} from '@core/show-workspace.ts';
+import {ShowWorkspaceService, type ShowWorkspaceData, type ShowWorkspaceRoute, type ShowWorkspaceSnapshot, type WorkspaceShow} from '@core/show-workspace.ts';
 import type {ContentEntry} from '@core/library-content.ts';
 import {createDetailBindings} from './bindings';
 import {screenLifetime, type ScreenContext} from './context';
@@ -177,14 +177,6 @@ export function createShowBindings(context: ScreenContext) {
       finally { busy = false; publish(); }
     },
     canManage() { return life.current() && context.identity?.primaryProfile === true && context.identity.capabilities?.manageServer === true; },
-    async setSettings(data: ShowWorkspaceData, settings: ShowSettings, signal?: AbortSignal) {
-      current(data);
-      if (context.identity?.primaryProfile !== true || context.identity.capabilities?.manageServer !== true || settings.revision !== data.settings.revision) throw new DOMException('Show management changed', 'AbortError');
-      const api = {request: <T,>(path: string, method?: string, body?: unknown) => life.api.request<T>(path, method, body, signal)};
-      // The canonical endpoint authorizes this command inside the revision-checked transaction.
-      await saveShowSettings(api, data.scope.libraryId, data.show.id, settings);
-      current(data); signal?.throwIfAborted(); await service.refresh();
-    },
     cancel() { if (disposed) return; intent++; selection?.abort(); playbackRequest?.abort(); listedPlayback.service.cancel(); service.cancel(); episode.service.cancel(); primary.service.cancel(); recommendations.clear(); personal = undefined; publish(); },
     dispose() { if (disposed) return; disposed = true; intent++; selection?.abort(); playbackRequest?.abort(); subject = undefined; offSubject(); offPreferences(); episodeLayoutPreference = undefined; viewIdentity = ''; life.dispose(); view.dispose(); recommendations.dispose(); personal = undefined; busy = false; publish(); listeners.clear(); listedPlayback.dispose(); episode.dispose(); primary.dispose(); service.cancel(); service.dispose(); },
   };
