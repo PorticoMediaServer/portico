@@ -173,41 +173,79 @@ func TestSchedule(t *testing.T) {
 
 // A backup drive that stops answering never holds the server's writes: the database is
 // copied and checked on the data folder's disk, nothing reaches the backup folder until then,
-// and the backup gives up after its limit.
+// and the backup can be cancelled while that folder remains blocked.
 func TestASlowBackupFolderNeverHoldsWrites(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 	s := newService(t)
 	folder := t.TempDir()
 	if _, err := s.Settings.Write(ctx, 0, "backups", json.RawMessage(`{"folder":`+strconvQuote(folder)+`}`), -1, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	saved := folderWriteLimit
-	folderWriteLimit = 500 * time.Millisecond
+	folderWriteLimit = time.Minute // cannot release a writer through the folder timeout below
+	release, entered := make(chan struct{}), make(chan struct{})
+	folderHook = func(string) { close(entered); <-release }
+	done := make(chan error, 1)
+	defer func() {
+		cancel()
+		close(release)
+		<-done
+		folderWork.Wait()
+		folderWriteLimit, folderHook = saved, nil
+	}()
+
+	go func() {
+		done <- s.make(ctx, "portico-20261101-030000", false)
+		close(done)
+	}()
+	select {
+	case <-entered:
+	case err := <-done:
+		t.Fatalf("backup ended before reaching its folder: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("backup did not reach its folder")
+	}
+	// The local SQLite copy is finished and the drive is blocked. A write must finish
+	// before either the drive is released or the backup is cancelled, not within a latency budget.
+	writing, stopWrite := context.WithTimeout(context.Background(), 5*time.Second)
+	defer stopWrite()
+	if _, err := s.Settings.Write(writing, 0, "general", json.RawMessage(`{"name":"Still here"}`), -1, time.Now()); err != nil {
+		t.Fatalf("write could not finish while the folder was blocked: %v", err)
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("backup stopped before the write finished: %v", err)
+	default:
+	}
+	if entries, _ := os.ReadDir(folder); len(entries) != 0 {
+		t.Errorf("the blocked backup folder was written: %v", entries)
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("stopping a blocked backup: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("backup did not stop after cancellation")
+	}
+}
+
+// The independent folder deadline still ends a backup whose drive never answers.
+func TestASlowBackupFolderTimesOut(t *testing.T) {
+	s := newService(t)
+	saved := folderWriteLimit
+	folderWriteLimit = 10 * time.Millisecond
 	release := make(chan struct{})
 	folderHook = func(string) { <-release }
-	// The backup that gave up is still waiting on its folder. It is let go and waited for, so
-	// that nothing is writing into the test's folders when they are removed.
 	defer func() {
 		close(release)
 		folderWork.Wait()
 		folderWriteLimit, folderHook = saved, nil
 	}()
-
-	done := make(chan error, 1)
-	go func() { done <- s.make(ctx, "portico-20261101-030000", false) }()
-	// While the backup is waiting on its folder, a person's write goes through at once.
-	time.Sleep(100 * time.Millisecond)
-	started := time.Now()
-	if _, err := s.Settings.Write(ctx, 0, "general", json.RawMessage(`{"name":"Still here"}`), -1, time.Now()); err != nil {
-		t.Fatal(err)
-	}
-	if waited := time.Since(started); waited > 300*time.Millisecond {
-		t.Errorf("a write waited %s for the backup", waited)
-	}
-	if entries, _ := os.ReadDir(folder); len(entries) != 0 {
-		t.Errorf("the backup folder was written before the copy was done: %v", entries)
-	}
-	if err := <-done; !errors.Is(err, ErrFolderSlow) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := s.make(ctx, "portico-20261101-030000", false); !errors.Is(err, ErrFolderSlow) {
 		t.Errorf("a backup whose folder did not answer: %v", err)
 	}
 }
