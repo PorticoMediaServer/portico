@@ -24,6 +24,8 @@ type LiveChannel struct {
 	Logo     string `json:"logo,omitempty"`
 	Favorite bool   `json:"favorite"`
 	Hidden   bool   `json:"hidden"`
+	// MatchedProgramme is the visible now/next listing whose title matched a search.
+	MatchedProgramme *LiveProgramme `json:"matchedProgramme,omitempty"`
 }
 
 // LiveProgramme is one programme of the guide. A Library Channel's programme names its title by
@@ -249,18 +251,13 @@ func timeParam(r *http.Request, name string, fallback time.Time) (time.Time, err
 // not see: a title above its rating limit, carrying a Tag blocked for it, or gone, shows
 // only that it is not available, never its name.
 func (s *Server) programmes(ctx context.Context, v db.Viewer, lv db.LiveViewer, channels []db.LiveChannel, from, to time.Time, most int) ([][]LiveProgramme, error) {
-	all := make([][]db.GuideProgramme, len(channels))
+	all, err := s.db.GuideForChannels(ctx, channels, from, to, most)
+	if err != nil {
+		return nil, err
+	}
 	var ids []int64
 	named := map[int64]bool{}
-	for n, c := range channels {
-		if c.Kind == db.ChannelFromSource && (c.GuideSource == 0 || c.GuideKey == "") {
-			continue // no listings: source 0 is the Library Channels' and is never read for a source's channel
-		}
-		rows, err := s.db.GuideProgrammes(ctx, c.GuideSource, c.GuideKey, from, to, most)
-		if err != nil {
-			return nil, err
-		}
-		all[n] = rows
+	for _, rows := range all {
 		for _, p := range rows {
 			if p.ItemID != 0 && !named[p.ItemID] {
 				named[p.ItemID] = true

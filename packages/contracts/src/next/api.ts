@@ -1774,6 +1774,7 @@ export interface LiveChannel {
   logo?: string;
   favorite: boolean;
   hidden: boolean;
+  matchedProgramme?: LiveProgramme;
 }
 
 export interface LiveChannelGroup {

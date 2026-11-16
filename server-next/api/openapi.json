@@ -5916,6 +5916,9 @@
           "logo": {
             "type": "string"
           },
+          "matchedProgramme": {
+            "$ref": "#/components/schemas/LiveProgramme"
+          },
           "name": {
             "type": "string"
           },
