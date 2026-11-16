@@ -21,8 +21,8 @@ import (
 //     asked about.
 //   - refresh_library (owner and admins, a library): ask the provider again about every
 //     matched title.
-//   - refresh_items (owner and admins, up to 1,000 titles): Refresh metadata on a selection.
-//   - edit_items (owner and admins, up to 1,000 titles of one kind): bulk edit, with BulkEdit
+//   - refresh_items (owner and admins, up to 1,000 titles or a view): Refresh metadata on a selection.
+//   - edit_items (owner and admins, up to 1,000 titles or a view of one kind): bulk edit, with BulkEdit
 //     as the parameters.
 //
 // After every scan the server itself starts metadata_after_scan for the library: new titles
@@ -138,49 +138,23 @@ func (s *Server) metadataJobs() {
 			_, err := s.metadata.FetchMissingLyrics(ctx, lib.ID, true)
 			return err
 		})})
-	// A selection: the asker's main profile must see every title, or the job is refused as
-	// if one were not there.
-	selection := func(ctx context.Context, req jobs.Request) ([]db.ItemKind, error) {
-		if len(req.Target.Items) == 0 {
-			return nil, fmt.Errorf("%w: this job works on a list of titles", db.ErrInvalid)
-		}
-		v, err := s.db.MainViewer(ctx, req.UserID)
-		if err != nil {
-			return nil, err
-		}
-		return s.db.SeesItems(ctx, v, req.Target.Items)
-	}
 	s.jobs.Register(jobs.Kind{Name: jobRefreshItems, Access: jobs.Admins,
 		Check: func(ctx context.Context, req jobs.Request) error {
-			_, err := selection(ctx, req)
+			_, err := s.metadataSelection(ctx, req)
 			return err
-		},
-		Run: func(ctx context.Context, work jobs.Work) error {
-			total := int64(len(work.Target.Items))
-			libraries, err := s.metadata.RefreshTitles(ctx, work.Target.Items, time.UnixMilli(work.Job.CreatedAt), func(done int64) { work.Progress(done, total) })
-			// The pictures the refresh recorded are in the libraries of the selection's titles.
-			if all, listErr := s.db.AllLibraries(ctx); listErr == nil {
-				for _, lib := range all {
-					if libraries[lib.ID] {
-						s.fetchPicturesLater(ctx, lib.PublicID)
-					}
-				}
-			}
-			return providerSentence(err)
-		}})
-	s.jobs.Register(jobs.Kind{Name: jobEditItems, Access: jobs.Admins,
+		}, Run: s.refreshItems})
+	s.jobs.Register(jobs.Kind{Name: jobEditItems, Access: jobs.Admins, Distinct: true,
 		Check: func(ctx context.Context, req jobs.Request) error {
-			kinds, err := selection(ctx, req)
+			kinds, err := s.metadataSelection(ctx, req)
 			if err != nil {
 				return err
 			}
-			if slices.ContainsFunc(kinds, func(k db.ItemKind) bool { return k != kinds[0] }) {
+			if len(kinds) != 1 {
 				return fmt.Errorf("%w: titles edited together must all be one kind", db.ErrInvalid)
 			}
 			_, err = bulkEdit(req.Params)
 			return err
-		},
-		Run: s.editItems})
+		}, Run: s.editItems})
 }
 
 // lookUpAndRefresh is the after-scan run for a library: its new titles are looked up, then the
@@ -246,22 +220,37 @@ func (s *Server) editItems(ctx context.Context, work jobs.Work) error {
 	}
 	lock := b.Lock == nil || *b.Lock
 	var failed []string
-	total := int64(len(work.Target.Items))
-	for n, id := range work.Target.Items {
-		if err := ctx.Err(); err != nil {
+	var done, total int64
+	cursor := ""
+	for {
+		ids, next, count, err := s.metadataPage(ctx, work.Request, cursor)
+		if err != nil {
 			return err
 		}
-		title, err := s.editOne(ctx, id, b, lock)
-		if err != nil {
-			reason := "it is no longer there"
-			if errors.Is(err, db.ErrInvalid) {
-				reason = strings.TrimPrefix(err.Error(), db.ErrInvalid.Error()+": ")
-			} else if !errors.Is(err, db.ErrNotFound) {
+		if cursor == "" {
+			total = count
+		}
+		for _, id := range ids {
+			if err := ctx.Err(); err != nil {
 				return err
 			}
-			failed = append(failed, cmp.Or(title, id)+" ("+reason+")")
+			title, err := s.editOne(ctx, id, b, lock)
+			if err != nil {
+				reason := "it is no longer there"
+				if errors.Is(err, db.ErrInvalid) {
+					reason = strings.TrimPrefix(err.Error(), db.ErrInvalid.Error()+": ")
+				} else if !errors.Is(err, db.ErrNotFound) {
+					return err
+				}
+				failed = append(failed, cmp.Or(title, id)+" ("+reason+")")
+			}
+			done++
+			work.Progress(done, max(total, done))
 		}
-		work.Progress(int64(n+1), total)
+		if next == "" {
+			break
+		}
+		cursor = next
 	}
 	if len(failed) > 0 {
 		shown := failed[:min(len(failed), 20)]
@@ -269,7 +258,7 @@ func (s *Server) editItems(ctx context.Context, work jobs.Work) error {
 		if len(failed) > len(shown) {
 			more = fmt.Sprintf(" and %d more", len(failed)-len(shown))
 		}
-		return fmt.Errorf("Saved %d of %d. Not saved: %s%s.", len(work.Target.Items)-len(failed), len(work.Target.Items), strings.Join(shown, "; "), more)
+		return fmt.Errorf("Saved %d of %d. Not saved: %s%s.", done-int64(len(failed)), done, strings.Join(shown, "; "), more)
 	}
 	return nil
 }
