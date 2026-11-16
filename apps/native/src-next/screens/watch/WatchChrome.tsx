@@ -49,6 +49,8 @@ export type NativeWatchChromeProps = Readonly<{
   width: number;
   height: number;
   compact: boolean;
+  /** The picture's waiting ring replaces its centre transport, including before the line's delay. */
+  waiting?: boolean;
   /** Live, committed eligibility: the watch page only, never the book or tabletop pages that
    * `compact` also covers. A function so a retained chip handler re-checks the host at dispatch
    * instead of trusting this render's snapshot. */
@@ -776,7 +778,7 @@ export function NativeWatchChrome(props: NativeWatchChromeProps) {
           {!theme.isTV && icon('options', 'i-sliders', t('player.opt.menu'), () => panel('options'))}
           {!theme.isTV && liveButtons(compact ? 46 : 48)}
         </View>
-        {!theme.isTV && <View style={{position: 'absolute', left: 0, right: 0, top: height / 2 - big / 2, alignItems: 'center'}}>{transport}</View>}
+        {!theme.isTV && !props.waiting && <View style={{position: 'absolute', left: 0, right: 0, top: height / 2 - big / 2, alignItems: 'center'}}>{transport}</View>}
         {theme.isTV && <View style={{position: 'absolute', left: 96 + (props.edgeInsets?.left ?? 0), right: 96 + (props.edgeInsets?.right ?? 0), bottom: 80}}>
           <FocusRegion id="watch-seek-region" entry="watch-seek" stops={{left: true, right: true, up: !groupPillPresent && !(linear && liveOffer && props.liveActions)}} edges={{up: groupPillPresent ? 'watch-group' : linear && liveOffer && props.liveActions ? 'watch-live-actions' : undefined, down: liveEdgeAction ? 'watch-live-edge' : 'watch-transport'}}>
             <NativeWatchTimeline source={source} controls={controls} playback={playback} artwork={props.artwork} compact={compact} enabled={controlsEnabled} tv focused={seekFocused} onPreview={setLanding} liveEdge={liveEdge} reportError={props.reportError} skipBackSeconds={props.skipBackSeconds} skipForwardSeconds={props.skipForwardSeconds}/>

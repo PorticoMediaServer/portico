@@ -19,6 +19,8 @@ import {sameAuthority, type ShellAuthority} from '../../shell/model';
 import type {NativeShellRuntime} from '../../shell/runtime';
 import type {NativeWatchOutletPort} from '../../shell/watch-outlet';
 import {NativeWatchChrome, type NativeWatchChromeProps} from './WatchChrome';
+import {PlaybackWaiting} from '../../kit/states/PlaybackWaiting';
+import {playbackWaiting} from '../../../../../packages/client-core/src/presentation/playback-waiting';
 import {NativeWatchPicture} from './picture-slot';
 import {NativeHandheldMiniGuide} from './HandheldMiniGuide';
 import {emptyLiveGuide, noLiveGuideSubscription, type NativeTVLiveGuide} from './live-guide';
@@ -43,7 +45,7 @@ export type NativeWatchHostContext = Readonly<{
 /** Genuine producer labels/settings and the owned content/panel renderers. No
  * default track, invented quality, engine, route or copied presentation store. */
 export type NativeWatchHostBindings = Readonly<{
-  chrome: (source: NativePlaybackRuntimeSnapshot, runtime: NativeShellRuntime) => Omit<NativeWatchChromeProps, 'source' | 'controls' | 'playback' | 'text' | 'width' | 'height' | 'compact' | 'fullWindowRequest' | 'onPanel' | 'edgeInsets' | 'tvPanelRight' | 'tablet' | 'tabletop' | 'bar'>;
+  chrome: (source: NativePlaybackRuntimeSnapshot, runtime: NativeShellRuntime) => Omit<NativeWatchChromeProps, 'source' | 'controls' | 'playback' | 'waiting' | 'text' | 'width' | 'height' | 'compact' | 'fullWindowRequest' | 'onPanel' | 'edgeInsets' | 'tvPanelRight' | 'tablet' | 'tabletop' | 'bar'>;
   /** Touch Guide uses the same measured panel geometry as player options. */
   liveGuide?: NativeTVLiveGuide;
   content?: (context: NativeWatchHostContext) => React.ReactNode;
@@ -229,6 +231,7 @@ export function NativeWatchHost({authority, current, playback, outlet, runtime, 
       ?? (source.capabilities.retry === true && !!playback.retry && !!fence && sameFence(source.fence, failureRef.current.failure.fence)));
   const failed = bindings.failed && !panelOpen && failureRef.current
     ? bindings.failed(context, failureRef.current.failure, state.visible) : undefined;
+  const waiting = playbackWaiting(true, {playback: source.playback, problem: failed});
   // The watch page sits over the route stack, which keeps its own pages (the title page that started playback, or
   // wherever the viewer went). Its panes are opaque ink, as the shell is under its routes, so no page shows through (W3 F7, F8).
   const pagePane = (rect: Parameters<typeof positioned>[0]) => isTV ? positioned(rect) : {...positioned(rect), backgroundColor: ink};
@@ -239,13 +242,18 @@ export function NativeWatchHost({authority, current, playback, outlet, runtime, 
     {layout.details && <View testID="watch-details-pane" style={pagePane(layout.details)} pointerEvents="box-none">{bindings.details?.(context)}</View>}
     {layout.episodes && <View testID="watch-episodes-pane" style={pagePane(layout.episodes)} pointerEvents="box-none">{bindings.episodes?.(context)}</View>}
     {chromePane && <View testID="watch-controls-pane" pointerEvents="box-none" style={positioned(television ? {x: 0, y: 0, width: television.canvas.width, height: television.canvas.height} : chromePane)}>
-      <NativeWatchChrome {...bindings.chrome(source, runtime)} notice={noticesEnabled && expanded && lossNotice && lossNotice.key === noticeKey && layout.mode !== 'watch' && layout.mode !== 'book' ? {key: lossNotice.key, value: lossNotice.value, shownAt: 0} : undefined} source={source} controls={controls} playback={playback} text={runtime.text}
+      <NativeWatchChrome {...bindings.chrome(source, runtime)} waiting={waiting.waiting} notice={noticesEnabled && expanded && lossNotice && lossNotice.key === noticeKey && layout.mode !== 'watch' && layout.mode !== 'book' ? {key: lossNotice.key, value: lossNotice.value, shownAt: 0} : undefined} source={source} controls={controls} playback={playback} text={runtime.text}
         width={television?.canvas.width ?? chromePane.width} height={television?.canvas.height ?? chromePane.height} compact={layout.mode === 'watch' || layout.mode === 'book'} fullWindowRequest={fullWindowRequest} tablet={!isTV && Math.min(window.width, window.height) >= 600}
         tabletop={!isTV && layout.mode === 'tabletop' && layout.episodes && layout.controls ? (layout.controls.width < window.width ? 'column' : 'stacked') : undefined}
         bar={!isTV && layout.mode === 'full-window' && window.width >= 1024}
         tvPanelRight={television?.backdropRight} failureAction={failureAction}
         edgeInsets={layout.mode === 'book' && layout.controls ? {right: layout.surface.width - layout.controls.width} : layout.mode === 'watch' && !isTV && safeTop > 0 ? {top: safeTop} : undefined}/>
     </View>}
+    {/* Over the picture and the controls’ gradient, below panels: "Getting ready" while the server converts the stream, or the connection
+        line while media stops arriving (definition 07, rule 3; the web player's same rule). */}
+    <View testID="watch-waiting-pane" pointerEvents="none" style={positioned(television ? {x: 0, y: 0, width: television.canvas.width, height: television.canvas.height} : layout.surface)}>
+      <PlaybackWaiting {...waiting}/>
+    </View>
     {isTV ? <TVWatchPanel context={context} render={bindings.panel}/> : panelOpen && <View testID="watch-panel-pane" pointerEvents="box-none" style={context.renderer.panel ? positioned(context.renderer.panel) : {position: 'absolute', inset: 0}}>
       {guideOpen && bindings.liveGuide ? <NativeHandheldMiniGuide key={JSON.stringify(fence)} context={context} guide={bindings.liveGuide} snapshot={liveGuide}/> : bindings.panel(context)}
     </View>}

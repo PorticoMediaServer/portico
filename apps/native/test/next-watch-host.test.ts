@@ -183,3 +183,24 @@ for (const scenario of [
     assert.equal(child(d.tree(), 'watch-failed-pane'), undefined);
   } finally {await d.dispose();}
 });
+test('the native player draws the waiting line over its picture: Getting ready while the server converts, the connection line on a stall (definition 07, rule 3)', async () => {
+  for (const isTV of [false, true]) {
+    const d = await fixture(isTV);
+    try {
+      await act(() => {});
+      const waiting = () => child(d.tree(), 'watch-waiting-pane').props.children.props;
+      assert.deepEqual(waiting(), {waiting: false, preparing: false}, 'playing normally: nothing');
+      await act(() => d.source({playback: {intent: 'playing', phase: 'starting', session: {converting: true}}}));
+      assert.deepEqual(waiting(), {waiting: true, preparing: true}, 'a converted start says Getting ready');
+      assert.equal(child(d.tree(), 'watch-controls-pane').props.children.props.waiting, true, 'chrome uses the same wait to replace its centre transport');
+      const layerIds = (node: any): string[] => (React.Children.toArray(node?.props?.children) as any[]).flatMap(value => value?.props ? [value.props.testID, ...layerIds(value)] : []);
+      const layers = layerIds(d.tree());
+      assert.ok(layers.indexOf('watch-waiting-pane') > layers.indexOf('watch-controls-pane'), 'the controls gradient cannot dim the waiting message');
+      await act(() => d.source({playback: {intent: 'playing', phase: 'ready', recovering: true, session: {converting: false}}}));
+      assert.deepEqual(waiting(), {waiting: true, preparing: false}, 'a stall of a stream played as it is says the connection line');
+      await act(() => d.source({playback: {intent: 'paused', phase: 'ready', recovering: true}}));
+      assert.deepEqual(waiting(), {waiting: false, preparing: false}, 'a paused player waits for nothing');
+      assert.equal(child(d.tree(), 'watch-controls-pane').props.children.props.waiting, false, 'the transport returns when the wait ends');
+    } finally {await d.dispose();}
+  }
+});
