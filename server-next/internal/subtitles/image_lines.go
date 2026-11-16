@@ -15,10 +15,10 @@ type Lines struct {
 // Mixed reports whether "Forced only" changes what is shown.
 func (l Lines) Mixed() bool { return l.Forced > 0 && l.Forced < l.Total }
 
-// imageLines reads only the headers of a PGS stream (data) or a VobSub
+// ImageLines reads only the headers of a PGS stream (data) or a VobSub
 // program stream (companion); bitmaps are skipped, nothing is decoded. Other
 // formats have no forced marks.
-func imageLines(format string, data, companion []byte) Lines {
+func ImageLines(format string, data, companion []byte) Lines {
 	switch format {
 	case "pgs", "sup":
 		return pgsLines(data)

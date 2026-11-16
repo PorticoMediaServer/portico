@@ -60,7 +60,8 @@ func originalURL(base, format string) string {
 	}
 	return base + "/original." + suffix
 }
-func deliveries(base, format string) []SubtitleDelivery {
+// Deliveries adds grant-confined addresses to the forms the server serves.
+func Deliveries(base, format string) []SubtitleDelivery {
 	out := deliveryFormats(format)
 	for i := range out {
 		if out[i].Format == "text" {
@@ -99,7 +100,7 @@ func originalArchive(raw []byte) bool {
 
 // DeliveryFormats lists what a track offers before a playback grant exists.
 func DeliveryFormats(format string) []SubtitleDelivery {
-	if !textFormat(format) {
+	if !textFormat(format) && RenderingFormat(format) == "text" {
 		return []SubtitleDelivery{}
 	}
 	return deliveryFormats(format)

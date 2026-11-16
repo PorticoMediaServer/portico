@@ -55,6 +55,7 @@ type stream struct {
 	text            []TextRenditionPlan
 	originals       []TextRenditionPlan
 	fonts           subtitleFonts
+	pictures        sync.Mutex
 	burn            *BurnSubtitle
 	// burnLoad reads burn when it is first needed; burnReading lets one window
 	// read at a time.

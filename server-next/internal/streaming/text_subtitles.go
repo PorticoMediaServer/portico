@@ -145,29 +145,28 @@ func (s *Streams) extractText(ctx context.Context, st *stream, track int, format
 // a picture: untouched, as a Matroska subtitle file (BurnSubtitle format "mks"),
 // or with asASS as an ASS script, which is how a text track is drawn. It reads
 // the whole file once.
-func (s *Streams) SubtitleTrack(ctx context.Context, path string, size int64, modified time.Time, track int, asASS bool) ([]byte, error) {
-	source := libraryFile{path: path, size: size, modified: modified, roots: s.libraries}
+func (s *Streams) SubtitleTrack(ctx context.Context, source Source, track int, asASS bool) ([]byte, error) {
+	format := "mks"
+	if asASS {
+		format = "ass"
+	}
+	if remote, ok := source.(remoteFile); ok {
+		return s.remoteSubtitleOriginal(ctx, remote, track, format)
+	}
 	if asASS {
 		return s.extractTrack(ctx, source, track, subtitles.BinaryLimitBytes(), "-f", "ass")
 	}
 	return s.extractTrack(ctx, source, track, subtitles.BinaryLimitBytes(), "-c:s", "copy", "-f", "matroska")
 }
 
-// SubtitleFile reads a subtitle file beside a video, inside a library folder,
-// whole. A zero size and time take the file as it is now (the second file of a
-// VobSub pair, which the scanner does not record).
-func (s *Streams) SubtitleFile(ctx context.Context, path string, size int64, modified time.Time) ([]byte, error) {
-	file, _, _, err := libraryFile{path: path, size: size, modified: modified, roots: s.libraries}.Open(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	limit := subtitles.BinaryLimitBytes()
-	raw, err := io.ReadAll(io.LimitReader(file, int64(limit)+1))
-	if err == nil && len(raw) > limit {
-		err = subtitles.ErrCapacity
-	}
-	return raw, err
+// SubtitleFile reads a bounded subtitle file from its inventoried source.
+func (s *Streams) SubtitleFile(ctx context.Context, source Source) ([]byte, error) {
+	return readPictureSource(ctx, source)
+}
+
+// LibrarySource confines an inventoried file to the server's library folders.
+func (s *Streams) LibrarySource(path string, size int64, modified time.Time) Source {
+	return libraryFile{path: path, size: size, modified: modified, roots: s.libraries}
 }
 
 // extractTrack runs ffmpeg in its sandbox, which is handed the open file and
