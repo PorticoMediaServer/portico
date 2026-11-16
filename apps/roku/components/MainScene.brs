@@ -117,12 +117,31 @@ sub onMenu(event as object)
 end sub
 
 sub onSheetChosen(event as object)
+    if m.sheetIsOwn = true
+        m.sheetIsOwn = false
+        m.sheet.visible = false
+        which = event.getData()
+        if which = "switch"
+            api("GET", "/v1/profiles", invalid, "onProfiles")
+        else if which = "signout"
+            ' the server is told this sign-in is over; the TV forgets it either way
+            api("DELETE", "/v1/auth/session", invalid, "onSignedOut")
+        end if
+        return
+    end if
     closeSheet()
     if m.screen <> invalid and m.screen.hasField("menuChosen") then m.screen.menuChosen = event.getData()
 end sub
 
 sub onSheetClosed()
+    m.sheetIsOwn = false
     closeSheet()
+end sub
+
+sub onSignedOut()
+    storeWrite({refreshToken: "", renewalId: "", profileId: ""})
+    m.task.session = {origin: storeRead("origin"), installationId: installationId()}
+    showSignIn()
 end sub
 
 ' Focus returns to what opened the sheet.
@@ -152,6 +171,7 @@ sub onOpen(event as object)
     page = invalid
     if kind = "movie" then page = push("TitleScreen")
     if kind = "show" then page = push("ShowScreen")
+    if kind = "collection" or kind = "person" then page = push("GroupScreen")
     if page <> invalid
         page.item = ask.item
         setArt(page.art)          ' a page with no art of its own clears the one before it
@@ -171,12 +191,22 @@ sub markLibrary(item as object)
     end for
 end sub
 
-sub showSignIn()
+' The front door. `why` says so when it is not a first run (the server ended the sign-in).
+sub showSignIn(why = "" as string)
+    if m.screen <> invalid and m.screen.subtype() = "SignInScreen" then return
     m.entered = false
     show("SignInScreen")
     m.screen.observeField("signedIn", "onSignedIn")
+    m.screen.address = addressShown(storeRead("origin"))
+    m.screen.notice = why
     m.screen.active = true
 end sub
+
+function signedOutText() as string
+    name = storeRead("serverName")
+    if name = "" then name = "the server"
+    return "You were signed out of " + name + ". Sign in again to carry on."
+end function
 
 sub onSignedIn(event as object)
     signIn = event.getData()
@@ -229,7 +259,8 @@ sub onMe(event as object)
     result = event.getData()
     if not result.ok
         if result.status = 401 or result.status = 403
-            showSignIn()
+            storeWrite({refreshToken: "", renewalId: ""})
+            showSignIn(signedOutText())
         else
             showHome()   ' out of reach: Home says so and offers to try again
         end if
@@ -277,6 +308,7 @@ sub onDevOpen(event as object)
     page = invalid
     if result.data.kind = "movie" then page = push("TitleScreen")
     if result.data.kind = "show" then page = push("ShowScreen")
+    if result.data.kind = "collection" then page = push("GroupScreen")
     if page <> invalid
         page.item = result.data
         page.active = true
@@ -356,7 +388,7 @@ end sub
 ' The server ended this sign-in (signed out elsewhere, or it ran out): start again at the front door.
 sub onSignInEnded()
     storeWrite({refreshToken: "", renewalId: ""})
-    showSignIn()
+    showSignIn(signedOutText())
 end sub
 
 ' The open rail pushes the page right, so none of it is covered (tv.html frame 2).
@@ -376,6 +408,40 @@ sub onRailChosen(event as object)
     if id = "home"
         showHome()
         return
+    end if
+    if id = "profile"
+        ' the profile and server menu (tv-more frame 10): its rows are this scene's own
+        m.sheetIsOwn = true
+        m.sheet.model = {eyebrow: storeRead("serverName"), title: m.rail.profileName, status: "", rows: [
+            {id: "switch", text: "Switch profile", icon: ""},
+            {id: "signout", text: "Sign out", icon: "", gapBefore: true}]}
+        m.sheet.visible = true
+        m.sheet.active = true
+        return
+    end if
+    if id = "search"
+        show("SearchScreen")
+        m.screen.observeField("art", "onArt")
+        m.screen.observeField("open", "onOpen")
+        m.rail.visible = true
+        m.rail.current = id
+        m.screen.active = true
+        return
+    end if
+    if m.libraries <> invalid and m.libraries.ok
+        for each library in m.libraries.data.items
+            if library.id = id
+                show("LibraryScreen")
+                m.screen.observeField("art", "onArt")
+                m.screen.observeField("open", "onOpen")
+                m.screen.observeField("menu", "onMenu")
+                m.rail.visible = true
+                m.rail.current = id
+                m.screen.library = library
+                m.screen.active = true
+                return
+            end if
+        end for
     end if
     m.screen.active = true     ' a destination not built yet: stay where you were
 end sub

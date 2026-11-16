@@ -37,6 +37,14 @@ sub init()
     m.typed = ""
 end sub
 
+sub onNotice()
+    if m.top.notice <> ""
+        m.doorNote.color = colours().textSecondary
+        m.doorNote.text = m.top.notice
+    end if
+    if m.top.address <> "" and m.typed = "" then m.typed = m.top.address
+end sub
+
 sub onActive()
     if not m.top.active then return
     if m.stage = "code"

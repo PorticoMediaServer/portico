@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Search: Portico's keyboard on the left, what it finds on the right (the best match, then one row
+     for each kind of thing). Right from the keyboard's last column reaches the results; Left from
+     their first card returns to the key it left. -->
+<component name="SearchScreen" extends="Group">
+  <interface>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="art" type="string"/>
+    <field id="open" type="assocarray" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="SearchScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
+  <children>
+    <Group id="results">
+      <Group id="page"/>
+    </Group>
+    <Poster uri="pkg:/images/round-14.9.png" blendColor="0x10212DFF" width="500" height="80" translation="[200,64]"/>
+    <Poster uri="pkg:/images/i-search-32.png" width="28" height="28" translation="[226,90]" blendColor="0x96A9B5FF"/>
+    <Label id="query" translation="[272,64]" width="410" height="80" vertAlign="center"/>
+    <Keyboard id="keyboard" translation="[200,176]"/>
+    <Label id="note" translation="[780,180]" width="900" wrap="true" maxLines="3"/>
+    <Timer id="rest" duration="0.3"/>
+  </children>
+</component>

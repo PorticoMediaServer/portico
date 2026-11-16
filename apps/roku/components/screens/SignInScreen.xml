@@ -6,6 +6,10 @@
     <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
     <!-- Set when a sign-in succeeds: {origin, serverName, session, profiles}. -->
     <field id="signedIn" type="assocarray"/>
+    <!-- Why the front door is showing, when it is not the first run ("You were signed out of ..."). -->
+    <field id="notice" type="string" onChange="onNotice"/>
+    <!-- The address of the server last used, offered again in the address box. -->
+    <field id="address" type="string" onChange="onNotice"/>
   </interface>
   <script type="text/brightscript" uri="SignInScreen.brs"/>
   <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>

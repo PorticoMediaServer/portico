@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A page that is a heading and rows of titles: a collection (its titles in collection order), or a
+     person (one row for each kind of work: acting, directing, ...). Focus starts on the first card. -->
+<component name="GroupScreen" extends="Group">
+  <interface>
+    <!-- A collection item, or {kind: "person", id, title} for a person. -->
+    <field id="item" type="assocarray" onChange="onItem"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+    <field id="art" type="string"/>
+    <field id="quiet" type="boolean"/>
+    <field id="open" type="assocarray" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="GroupScreen.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Api.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Present.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
+  <children>
+    <Group id="rows"/>
+    <Group id="head">
+      <Poster id="face" uri="pkg:/images/disc.png" blendColor="0x1D3848FF" width="150" height="150" translation="[200,88]" visible="false"/>
+      <Label id="initials" width="150" height="150" translation="[200,88]" horizAlign="center" vertAlign="center" visible="false"/>
+      <Label id="eyebrow"/>
+      <Label id="name" width="1300"/>
+      <Label id="facts" width="1300"/>
+      <Label id="about" width="1000" wrap="true" maxLines="3"/>
+    </Group>
+  </children>
+</component>

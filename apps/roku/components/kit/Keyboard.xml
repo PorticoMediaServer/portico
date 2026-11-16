@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Portico's own keyboard for Search: six columns that keep their column on Up and Down, then
+     Space, delete and Clear. Typing never moves focus; it remembers its key when focus comes back. -->
+<component name="Keyboard" extends="Group">
+  <interface>
+    <field id="text" type="string" alwaysNotify="true"/>
+    <field id="active" type="boolean" alwaysNotify="true" onChange="onActive"/>
+  </interface>
+  <script type="text/brightscript" uri="Keyboard.brs"/>
+  <script type="text/brightscript" uri="pkg:/source/Theme.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/kit/Hold.brs"/>
+  <children>
+    <Group id="keys"/>
+    <Poster id="ring" uri="pkg:/images/focus-14.9.png" visible="false"/>
+  </children>
+</component>
