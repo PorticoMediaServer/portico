@@ -141,7 +141,7 @@ func parseOPF(raw []byte) (map[string]string, error) {
 	}
 	roles := map[string]string{}
 	positions := map[string]string{}
-	collections := map[string]string{}
+	collections, kinds := map[string]string{}, map[string]string{}
 	for _, m := range meta.all("meta") {
 		text := strings.TrimSpace(m.text)
 		ref := strings.TrimPrefix(m.attrs["refines"], "#")
@@ -152,6 +152,8 @@ func parseOPF(raw []byte) (map[string]string, error) {
 			collections[m.attrs["id"]] = text
 		case "group-position":
 			positions[ref] = text
+		case "collection-type":
+			kinds[ref] = text
 		}
 		switch m.attrs["name"] {
 		case "calibre:series":
@@ -190,10 +192,12 @@ func parseOPF(raw []byte) (map[string]string, error) {
 		out["narrator"] = strings.Join(narrators, "; ")
 		out["narrators"] = audioList(narrators)
 	}
-	// Preserve all collection associations, not an arbitrary map iteration winner.
+	// Preserve all collection associations, not an arbitrary map iteration winner. A collection
+	// of another type is not a series: Standard Ebooks marks reading lists ("The BBC's 100
+	// Greatest British Novels") as a "set". One with no type is taken as a series.
 	series := []map[string]string{}
 	for _, m := range meta.all("meta") {
-		if m.attrs["property"] == "belongs-to-collection" {
+		if kind := kinds[m.attrs["id"]]; m.attrs["property"] == "belongs-to-collection" && (kind == "" || kind == "series") {
 			series = append(series, map[string]string{"name": collections[m.attrs["id"]], "position": positions[m.attrs["id"]]})
 		}
 	}

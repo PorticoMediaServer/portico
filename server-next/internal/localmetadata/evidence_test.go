@@ -6,10 +6,13 @@ import (
 	"testing"
 )
 
+// A reading list (an EPUB collection of type "set") listed first is not the book's series.
 func TestBookOPFNamesRolesSeriesAndIdentifiers(t *testing.T) {
 	raw := `<package xmlns="http://www.idpf.org/2007/opf"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf"><dc:title>Book</dc:t` +
 		`itle><dc:creator id="author" opf:role="aut">Author One</dc:creator><dc:creator opf:role="aut">Author Two</dc:creator><dc:contributor id="narrator">Narrator</dc:contribu` +
-		`tor><meta refines="#narrator" property="role">nrt</meta><meta property="belongs-to-collection" id="s">The Series</meta><meta refines="#s" property="group-position">2.5<` +
+		`tor><meta refines="#narrator" property="role">nrt</meta><meta property="belongs-to-collection" id="l">A Reading List</meta><meta refines="#l" property="coll` +
+		`ection-type">set</meta><meta refines="#l" property="group-position">11</meta><meta property="belongs-to-collection" id="s">The Series</meta>` +
+		`<meta refines="#s" property="collection-type">series</meta><meta refines="#s" property="group-position">2.5<` +
 		`/meta><dc:language>fr-CA</dc:language><dc:publisher>Publisher</dc:publisher><dc:identifier opf:scheme="ISBN">9780000000002</dc:identifier><dc:identifier>urn:local:editi` +
 		`on-2</dc:identifier><meta name="edition" content="Unabridged"/></metadata></package>`
 	values, e := parseOPF([]byte(raw))
