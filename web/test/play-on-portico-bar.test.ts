@@ -4,7 +4,7 @@ import {PlayOnController, type PlayOnPorticoRemote, type PlayOnReceiversPort} fr
 
 /** The dock's bar for a Portico device this browser moved playback to or controls (rules 27, 28):
  * it is drawn from the receivers port, and its buttons go to that port, never to the Cast sender. */
-function fixture() {
+function fixture(play = async () => {}) {
   const castCalls: string[] = [], portCalls: string[] = [], played: unknown[] = [];
   let remote: PlayOnPorticoRemote | undefined;
   let refuse: string | undefined;
@@ -14,7 +14,7 @@ function fixture() {
     start: async () => false, cancelConnecting: () => castCalls.push('cancel'), play: () => castCalls.push('play'), pause: () => castCalls.push('pause'),
     toggle: () => castCalls.push('toggle'), seek: () => castCalls.push('seek'), setAudioTrack: () => {}, setSubtitleTrack: () => {}, answerTakeover: () => {},
     stop: () => castCalls.push('stop'), dismiss: () => castCalls.push('dismiss'), dispose: () => {}} as never;
-  const runtime = {getSnapshot: () => ({disposed: false}), subscribe: () => () => {}, stop: async () => {}, play: async (...args: unknown[]) => {played.push(args);},
+  const runtime = {getSnapshot: () => ({disposed: false}), subscribe: () => () => {}, stop: async () => {}, play: async (...args: unknown[]) => {played.push(args);await play();},
     bindRemoteRetention: () => () => {}} as never;
   const receivers: PlayOnReceiversPort = {
     getSnapshot: () => ({phase: 'ready', items: [], ...(remote ? {remote} : {})}), subscribe: listener => {listeners.add(listener); return () => {listeners.delete(listener);};},
@@ -110,4 +110,15 @@ test('rule 27: Play here when the device will not stop keeps its bar, saying why
   assert.equal(bar?.problem, 'The TV couldn\u2019t be reached. Try again.');
   f.controller.stop(bar!);
   assert.deepEqual(f.portCalls, ['hand back', 'stop'], 'and its Stop still goes to the device');
+});
+
+test('a position poll during Play here still stops the original device, while replacement does not', async () => {
+ for (const change of [{positionSeconds: 95}, {sessionId: 'replacement'}, {itemId: 'replacement'}, {stopped: true}]) {
+  let release!: () => void;
+  const f = fixture(() => new Promise<void>(resolve => {release = resolve;}));
+  f.set(tv);const pending = f.controller.playHere(f.controller.getSnapshot().remote!);
+  f.set({...tv, ...change});release();await pending;
+  assert.deepEqual(f.portCalls, 'positionSeconds' in change ? ['hand back'] : []);
+  f.controller.dispose();
+ }
 });
