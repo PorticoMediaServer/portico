@@ -397,3 +397,28 @@ func TestKeysForTools(t *testing.T) {
 		t.Errorf("a revoked key answered %d, want 401", code)
 	}
 }
+
+// A member's reset code lasts 15 minutes, a fixed value (definition area 1 rule 37, owner's
+// ruling of 16 Nov 2026): it works 14 minutes after it was made and not 16.
+func TestAResetCodeLastsFifteenMinutes(t *testing.T) {
+	s := newTestServer(t)
+	owner := onMainProfile(t, s)
+	max := addMember(t, s, owner.AccessToken, "max", "member")
+	start := time.Now()
+	for _, after := range []time.Duration{16 * time.Minute, 14 * time.Minute} {
+		s.setClock(func() time.Time { return start })
+		var reset PasswordResetCode
+		if w := call(t, s, "POST", "/v1/admin/members/"+max.ID+"/password-reset", owner.AccessToken, PasswordResetCreate{}, &reset); w.Code != 200 {
+			t.Fatalf("issuing a reset code answered %d: %s", w.Code, w.Body)
+		}
+		if gap := reset.ExpiresAt.Sub(start); gap < 15*time.Minute-time.Second || gap > 15*time.Minute {
+			t.Errorf("the code expires at %s; want 15 minutes after it was made", reset.ExpiresAt)
+		}
+		s.setClock(func() time.Time { return start.Add(after) })
+		want := map[time.Duration]int{14 * time.Minute: 204, 16 * time.Minute: 401}[after]
+		body := PasswordResetRequest{Username: "max", Code: reset.Code, NewPassword: "a brand new one"}
+		if code := status(t, s, "POST", "/v1/auth/password-reset/confirm", "", body); code != want {
+			t.Errorf("the code used %s after it was made answered %d; want %d", after, code, want)
+		}
+	}
+}

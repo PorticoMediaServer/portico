@@ -20,7 +20,7 @@ type SessionInfo struct {
 	CreatedAt  time.Time `json:"createdAt"`
 	LastUsedAt time.Time `json:"lastUsedAt"`
 	ExpiresAt  time.Time `json:"expiresAt"`
-	// EndedAt and EndReason are present once the session is over. Ended sessions are listed for 90 days.
+	// EndedAt and EndReason are present once the session is over. Ended sessions are listed for 30 days.
 	EndedAt   *time.Time `json:"endedAt,omitempty"`
 	EndReason string     `json:"endReason,omitempty"`
 	// Network is "home" or "away": where the session was last used from. The address itself is never shown.
