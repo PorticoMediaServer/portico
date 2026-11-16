@@ -244,7 +244,7 @@ func TestOpeningBooks(t *testing.T) {
 	}
 
 	// A MOBI reads as the EPUB it is rebuilt into; saving it gives the MOBI itself.
-	mobi := get[BookAnswer](t, b.s, token, "/v1/items/"+b.find(db.KindBook, "Kindle Book")+"/book")
+	mobi := get[BookAnswer](t, b.s, token, "/v1/items/"+b.find(db.KindBook, "A Tiny Older Book")+"/book")
 	if mobi.Unreadable != nil || mobi.Format != "epub" || len(mobi.Spine) != 2 || len(mobi.Contents) != 2 || mobi.SaveURL == "" {
 		t.Fatalf("a MOBI book: %+v", mobi)
 	}

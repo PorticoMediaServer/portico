@@ -40,7 +40,15 @@ type mobiContents struct {
 
 // convertMobi rebuilds a MOBI or AZW3 as an EPUB. A book with both kinds of text is read from
 // its newer, KF8, half.
-func convertMobi(r io.ReaderAt, size int64) (*mobiBook, error) {
+//
+// Every count, size and offset from the file is checked; a mistake in reading one that slips
+// past them only makes the book damaged, never stops the scan or the server.
+func convertMobi(r io.ReaderAt, size int64) (book *mobiBook, err error) {
+	defer func() {
+		if recover() != nil {
+			book, err = nil, errDamaged
+		}
+	}()
 	p, err := openPalm(r, size)
 	if err != nil {
 		return nil, err

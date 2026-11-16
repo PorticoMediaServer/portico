@@ -45,17 +45,17 @@ func (a *archive) epubPackage() ([]byte, string, error) {
 	return nil, "", errDamaged
 }
 
-// Cover reads only an EPUB's declared cover, through the same path, directory and
-// unpacked-size checks as the reader, or a PDF's first page, drawn (pdf.go). A comic's cover
-// is read by Comic.
+// Cover reads only an EPUB's declared cover (a MOBI's or AZW3's as the EPUB it is rebuilt
+// into), through the same path, directory and unpacked-size checks as the reader, or a PDF's
+// first page, drawn (pdf.go). A comic's cover is read by Comic.
 func Cover(r io.ReaderAt, size int64, ext string, limit int64) ([]byte, error) {
 	if ext == ".pdf" {
 		return pdfCover(r, size, limit)
 	}
-	if ext != ".epub" {
+	if ext != ".epub" && ext != ".mobi" && ext != ".azw3" {
 		return nil, nil
 	}
-	a, err := openArchive(r, size)
+	a, err := ebookArchive(r, size)
 	if err != nil {
 		return nil, err
 	}
