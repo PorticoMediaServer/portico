@@ -86,6 +86,11 @@ func (t ConversionTarget) Normalized() (ConversionTarget, error) {
 	if !validVideoLevel(t.VideoCodec, t.VideoLevel) {
 		return t, ErrInvalidConfiguration
 	}
+	// A tone-mapped picture is 8-bit standard range, as Plex makes it (owner, 16 Nov 2026): a
+	// 10-bit output would carry an 8-bit picture.
+	if t.ToneMap && t.BitDepth != 8 {
+		return t, ErrInvalidConfiguration
+	}
 	if t.AudioBitDepth != 0 && t.AudioBitDepth != 16 && t.AudioBitDepth != 24 && t.AudioBitDepth != 32 {
 		return t, ErrInvalidConfiguration
 	}
