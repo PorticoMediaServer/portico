@@ -9,7 +9,7 @@ export const drawnSubtitleMessages = {
   'subtitles.error.providerNotConfigured': 'Subtitle search needs an OpenSubtitles key and account. Ask the owner to finish setting them up.',
   'subtitles.error.providerKeyRequired': 'Subtitle search needs an OpenSubtitles key. Ask the owner to add their key.',
   'subtitles.error.providerAccountRequired': 'Subtitle search needs an OpenSubtitles account. Ask the owner to add their account details.',
-  'subtitles.error.providerKeyRejected': 'OpenSubtitles didn’t accept this server’s key. Ask the owner to check it.',
+  'subtitles.error.providerKeyRejected': 'OpenSubtitles refused this server’s API access. Ask the owner to check its key and application access.',
   'subtitles.error.providerSignInFailed': 'OpenSubtitles didn’t accept this server’s account. Ask the owner to check it.',
   'subtitles.error.providerSignInRequired': 'OpenSubtitles only lets signed-in accounts download. Ask the owner to add an account.',
   'subtitles.error.providerQuota': 'This server has used today’s OpenSubtitles downloads. They start again at {time}.',
