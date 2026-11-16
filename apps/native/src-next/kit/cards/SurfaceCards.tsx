@@ -121,7 +121,7 @@ function Library({compact = false, ...props}: LibraryCardProps & {compact?: bool
       {props.ambient || props.covers.length ? <AmbientArt source={props.ambient} palette={props.palette} treatment="library" visible={props.visible} priority={props.priority} />
         : <GeneratedArt glyph={props.glyph} palette={props.palette} width={width} height={height}/>}
       <View style={{position: 'absolute', left: 18, right: fanWidth + 36, top: 0, bottom: 0, justifyContent: 'center', gap: 4}}>
-        <Text numberOfLines={1} style={[titleStyle(t, t.isTV ? 30 : 21, 800, -0.025), {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
+        <Text numberOfLines={2} style={[titleStyle(t, t.isTV ? 30 : 21, 800, -0.025), {color: props.selection?.selected ? t.colors.accentStrong : t.colors.text}]}>{props.title}</Text>
         <Parts parts={props.caption} style={{color: t.colors.textSecondary}} />
       </View>
       <CoverFan covers={props.covers} shape={props.shape} variant="library" width={fanWidth} height={fanHeight} visible={props.visible} renderFallback={props.renderCoverFallback} style={{position: 'absolute', right: 22, top: (height - fanHeight) / 2}} />

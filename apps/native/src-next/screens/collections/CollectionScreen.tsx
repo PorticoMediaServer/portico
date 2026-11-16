@@ -5,6 +5,7 @@ import type {ContentEntry} from '../../../../../packages/client-core/src/library
 import {defaultI18n} from '../../../../../packages/i18n/src';
 import {AmbientArt, Artwork, StandardBackdrop} from '../../kit/artwork';
 import {PosterCard, type CardSelection} from '../../kit/cards';
+import {cardTitleLine} from '../../kit/cards/caption-metrics';
 import {CardFrame} from '../../kit/cards/primitives';
 import {SelectionCircle} from '../../kit/selection';
 import {Button, Chip, Focusable} from '../../kit/controls';
@@ -148,7 +149,7 @@ export function NativeCollectionScreen(props: NativeCollectionScreenProps) {
       : <WindowedGrid testID={compact ? 'collection-list' : 'collection-grid'} collection={collection} getKey={nativeCollectionEntryKey}
         header={<>{hero}{compact && controls}{automatic}
           <View style={{paddingHorizontal: compact ? 0 : 20, paddingTop: compact ? 14 : 18}}>{toolbar}{status}</View></>}
-        itemWidth={compact ? pageWidth : cardWidth} itemHeight={compact ? 98 : cardWidth * 1.5} captionHeight={compact ? 0 : 46}
+        itemWidth={compact ? pageWidth : cardWidth} itemHeight={compact ? 98 : cardWidth * 1.5 + cardTitleLine(theme)} captionHeight={compact ? 0 : 46 + cardTitleLine(theme)}
         gap={compact ? 0 : 10} rowGap={compact ? 0 : 18} gutter={compact ? 0 : 20} rightGutter={compact ? 0 : 20} paddingBottom={80}
         renderPlaceholder={failed || empty ? () => null : placeholder}
         renderItem={(entry, context) => compact

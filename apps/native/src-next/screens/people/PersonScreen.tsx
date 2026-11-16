@@ -7,6 +7,7 @@ import {defaultI18n} from '../../../../../packages/i18n/src';
 import {AmbientArt, Artwork, PersonCircle, StandardBackdrop} from '../../kit/artwork';
 import type {NativeSelection} from '../selection/native-selection';
 import {PosterCard, type PosterCardProps} from '../../kit/cards';
+import {cardTitleLine} from '../../kit/cards/caption-metrics';
 import {Button, Chip, Focusable} from '../../kit/controls';
 import {shareLinkActions} from '../share/share-actions';
 import {Menu, type MenuEntry} from '../../kit/overlays';
@@ -126,7 +127,7 @@ export function PersonScreen({focusScope, page, role, collection, groups, runtim
           const credit = collection.itemAt(index), entry = credit?.media;
           return entry && credit ? <PersonEntryCard entry={entry} group="credits" actions={actions} selection={selection} key={index} testID={`person-credit-${index}`} density="grid" title={entry.displayTitle || entry.title} width={width} artwork={runtime.artwork(entry.posterUrl)}
             caption={credit.character ? [{id: 'character', text: t('web.person.as', {character: credit.character}), role: 'context'}] : credit.role ? [{id: 'role', text: credit.role, role: 'context'}] : []}
-            /> : <View key={index} testID={`person-credit-placeholder-${index}`} style={{width, height: width * 1.5 + 44, borderRadius: 10, backgroundColor: theme.colors.raised}}/>;
+            /> : <View key={index} testID={`person-credit-placeholder-${index}`} style={{width, height: width * 1.5 + 44 + (theme.isTV ? 0 : cardTitleLine(theme)), borderRadius: 10, backgroundColor: theme.colors.raised}}/>;
         })}
       </View>}
       ListEmptyComponent={<StateView title={t('web.person.noCredits')} body={t(role === 'cast' ? 'web.person.noCast' : role === 'crew' ? 'web.person.noCrew' : 'web.person.noCreditsBody')}/>}

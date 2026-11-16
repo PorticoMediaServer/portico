@@ -63,8 +63,10 @@ function fallbackFor(props: Media & {title: string}, shape: MissingArtShape, wid
   return props.artworkFallback !== undefined || props.artwork ? props.artworkFallback : missingArt({title: props.title, shape, width, height});
 }
 
-function Portrait({kind = 'poster', next, titleLines = 1, ...props}: PosterCardProps & {kind?: 'poster' | 'book' | 'periodical' | 'newspaper'; next?: boolean}) {
+function Portrait({kind = 'poster', next, titleLines: suppliedLines, ...props}: PosterCardProps & {kind?: 'poster' | 'book' | 'periodical' | 'newspaper'; next?: boolean}) {
   const t = useTheme(), width = props.width ?? t.spec.card.width.poster[t.platform], height = width / (kind === 'periodical' || kind === 'newspaper' ? 3 / 4 : 2 / 3);
+  // A phone poster's title wraps to a second line before it is cut; a TV poster keeps its one line unless asked.
+  const titleLines = suppliedLines ?? (t.isTV ? 1 : 2);
   const [clearance, setBadgeBottom] = useBadgeClearance(props.isNew);
   const Frame = props.frame ?? CardFrame;
   return <Frame {...props} width={width} overlay={state => <Overlays props={props} hovered={state.hovered} holding={state.holding} height={height} />}>

@@ -31,6 +31,7 @@ import {NativeHomePaging} from '../../shell/home-paging';
 import {tvHomeRows} from './tv-presentation';
 import {homeMixesFocusRow as mixesFocusRow, homeSpotlightFocusActions, homeStartModel, resolveTVHomeStart} from './home-start';
 import {CollectionBanner, LiveCard, PosterCard, RankedCard, ReadResumeCard, ResumeCard, SquareCard, WideCard, type CardProps} from '../../kit/cards';
+import {cardTitleLine} from '../../kit/cards/caption-metrics';
 import {continueBookFacts} from '../../../../../packages/client-core/src/presentation/continue-books';
 import {Hero, FocusPreviewHero, Row, type HeroCandidate} from '../../kit/layout';
 import {useFocusAnchor} from '../../kit/layout/FocusAnchor';
@@ -259,7 +260,7 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
       : square ? desktop ? 150 : theme.spec.card.width.square[theme.platform] : medium ? mediumCardWidth(false, tabletMedium) : desktop ? 150 : theme.spec.card.width.poster[theme.platform];
     const width = cardScale === 1 ? drawnWidth : Math.round(drawnWidth * cardScale);
     const posterWidth = ranked ? Math.round((theme.isTV ? 214 : desktop ? theme.spec.shelf.rank.posterWidth : 116) * cardScale) : width;
-    const height = books ? Math.round((theme.platform === 'tablet' ? 176 : 150) * cardScale) : wide ? width * 9 / 16 : square ? width + (theme.isTV ? 80 : 54) : posterWidth * 1.5 + (theme.isTV ? 80 : 48);
+    const height = books ? Math.round((theme.platform === 'tablet' ? 176 : 150) * cardScale) : wide ? width * 9 / 16 : square ? width + (theme.isTV ? 80 : 54) : posterWidth * 1.5 + (theme.isTV ? 80 : 48 + cardTitleLine(theme));
     const cardHeight = row.live ? theme.isTV ? 225 : desktop ? theme.spec.card.live.height.web : theme.spec.card.live.height.phone : height;
     const top = theme.isTV ? Math.ceil(cardHeight * (theme.spec.focus.scale.card.tv - 1) / 2 + (theme.spec.focus.offsetOuter.tv + theme.spec.focus.ringWidth.tv) * theme.spec.focus.scale.card.tv) : theme.spec.shelf.phonePaddingTop;
     const estimatedHeight = row.collection ? theme.isTV ? 360 : 236 : (theme.type.rowHeading.lineHeight ?? (theme.type.rowHeading.fontSize ?? 24) * 1.4)
@@ -512,7 +513,7 @@ export function HomeScreen({runtime, authority, active = true, heroObscured = fa
         {row.live ? <HomeLiveRow row={row} runtime={runtime} visible={shown} itemWidth={theme.isTV ? 400 : desktop ? theme.spec.card.live.width.web : theme.spec.card.live.width.phone} onRange={range} onVisibleKeys={visibleKeys} onItemFocus={item => onRowFocus(row, JSON.stringify([item.channel.sourceId, item.channel.id]))} current={current} focus={theme.isTV ? regionMap.rows.get(row.id) : undefined} viewportWidth={viewportWidth} tabletMedium={tabletMedium} scrollMemory={scrollMemory}/>
           : row.collection ? <HomeRegion focus={theme.isTV ? {...regionMap.rows.get(row.id)!, orientation: 'horizontal', order: [ids.collection(row.collection)]} : undefined}><FocusItem focusId={ids.collection(row.collection)}><View style={{paddingHorizontal: theme.gutter}}><HomeCollectionCard row={row} runtime={runtime}
             width={viewportWidth - theme.gutter - (theme.isTV ? 96 : theme.gutter)} visible={shown} current={current} onFocus={() => onRowFocus(row, row.collection!.collection.id)}/></View></FocusItem></HomeRegion>
-          : <Row title={title} subtitle={rowSubtitle} items={presentation.cards} getKey={homeCardKey} getFocusId={homeCardFocusId} focus={theme.isTV ? regionMap.rows.get(row.id) : undefined} initialViewportWidth={viewportWidth} scrollMemory={scrollMemory} testID={theme.isTV ? ids.row(row.id) : undefined} itemWidth={width} itemHeight={height} captionHeight={row.artworkShape === 'landscape' || row.id === 'continue_books' ? 0 : theme.isTV ? 80 : row.artworkShape === 'square' ? 54 : 48}
+          : <Row title={title} subtitle={rowSubtitle} items={presentation.cards} getKey={homeCardKey} getFocusId={homeCardFocusId} focus={theme.isTV ? regionMap.rows.get(row.id) : undefined} initialViewportWidth={viewportWidth} scrollMemory={scrollMemory} testID={theme.isTV ? ids.row(row.id) : undefined} itemWidth={width} itemHeight={height} captionHeight={row.artworkShape === 'landscape' || row.id === 'continue_books' ? 0 : theme.isTV ? 80 : row.artworkShape === 'square' ? 54 : 48 + cardTitleLine(theme)}
             gutter={medium ? mediumGutter : theme.gutter} rightGutter={medium ? mediumGutter : theme.isTV ? 96 : theme.gutter} gap={medium ? 14 : undefined} headingStyle={medium ? mediumHeadingStyle : undefined} selection={runtime.selection(row.id)} paging={paging} onVisibleRange={range} onVisibleKeys={visibleKeys}
             onSeeAll={row.seeAll ? () => guarded(() => runtime.actions.seeAll(row.seeAll!, title)) : undefined} onRepeatingChange={setRepeating}
             onItemFocus={item => onRowFocus(row, item.entry.id)} renderItem={(item, context) => <View style={theme.fontScale > 1 || theme.textScale > 1 ? {width, minHeight: height} : {width, height}}><LoadingPaint ready={!context.waiting} immediate={!context.waiting} skeleton={<View style={{backgroundColor: theme.colors.ink}}><SkeletonBlock width={width} height={height}/></View>}><HomeCard runtime={runtime} row={row} entry={item.entry} rank={item.rank} context={context}
@@ -539,7 +540,7 @@ function HomePendingRow({row, labels, viewportWidth}: {row: HomeRow; labels: Par
   const theme = useTheme(), presentation = homeRowPresentation(row), title = serverTextLabel(labels, presentation.title);
   const wide = row.artworkShape === 'landscape', square = row.artworkShape === 'square';
   const width = wide ? theme.spec.card.width.wide[theme.platform] : square ? theme.spec.card.width.square[theme.platform] : theme.spec.card.width.poster[theme.platform];
-  const height = wide ? width * 9 / 16 : square ? width + (theme.isTV ? 80 : 54) : width * 1.5 + (theme.isTV ? 80 : 48);
+  const height = wide ? width * 9 / 16 : square ? width + (theme.isTV ? 80 : 54) : width * 1.5 + (theme.isTV ? 80 : 48 + cardTitleLine(theme));
   const gap = theme.isTV ? 28 : 10, count = Math.max(1, Math.ceil(Math.max(0, viewportWidth - theme.gutter) / (width + gap)) + 1);
   return <View testID={`home-pending-${row.id}`} style={{marginBottom: theme.isTV ? 30 : 18}}>
     <View style={{paddingHorizontal: theme.gutter, marginBottom: theme.isTV ? 22 : 12}}><Text style={[theme.type.rowHeading, {color: theme.colors.text}]}>{title}</Text></View>

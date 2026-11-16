@@ -13,6 +13,7 @@ import {CardFrame, Parts} from '../../kit/cards/primitives';
 import {MediaArt, StandardBackdrop} from '../../kit/artwork';
 import {browseType} from '../../kit/browse/presentation';
 import {PosterCard} from '../../kit/cards';
+import {cardTitleLine} from '../../kit/cards/caption-metrics';
 import {AmbientArt} from '../../kit/artwork';
 import {generatedPoster} from './generated-poster';
 import {FocusItem, FocusRegion, useFocusRegistry} from '../../kit/focus';
@@ -165,7 +166,7 @@ function HomeSeeAllReady({controller, runtime, active, onBack, onPlay, onOpen, o
       {data.error ? <StateView {...runtime.error(data.error, () => controller.collection.ensureRange(0, 0), 'home')} variant="centered"/> :
         <WindowedGrid header={tv ? undefined : header} stickyHeader={tv ? undefined : toolbar}
           onScrollOffset={tv ? undefined : offset => setCollapsed(headerHeight > 0 && offset >= headerHeight)} collection={controller.collection} getKey={item => item.membershipId} selection={selection}
-          itemWidth={list ? surface - 32 : width} itemHeight={list ? 70 : width * 1.5 + (tv ? 74 : 48)} captionHeight={list ? 70 : tv ? 74 : 48}
+          itemWidth={list ? surface - 32 : width} itemHeight={list ? 70 : width * 1.5 + (tv ? 74 : 48 + cardTitleLine(theme))} captionHeight={list ? 70 : tv ? 74 : 48 + cardTitleLine(theme)}
           gap={list ? 0 : tv ? 32 : phone ? 10 : 12} rowGap={list ? 0 : tv ? 40 : 22} gutter={list ? 16 : gutter} rightGutter={list ? 16 : tv ? 96 : theme.gutter}
           paddingBottom={40} style={{flex: 1}} testID={list ? 'home-see-all-list' : 'home-see-all-grid'}
           renderPlaceholder={index => {

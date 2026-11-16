@@ -8,6 +8,7 @@ import type {PersonalResource} from '../../../../../packages/client-core/src/per
 import type {SavedEntry, SavedListFilter, SavedRoute, SavedSnapshot} from '../../../../../packages/client-core/src/saved';
 import {presentError} from '../../../../../packages/client-core/src/presentation/errors';
 import {PosterCard, SquareCard, type CardSelection} from '../../kit/cards';
+import {cardTitleLine} from '../../kit/cards/caption-metrics';
 import {CardFrame, Parts} from '../../kit/cards/primitives';
 import {Artwork, StandardBackdrop} from '../../kit/artwork';
 import {Chip, Focusable, Tabs} from '../../kit/controls';
@@ -162,7 +163,7 @@ export function SavedScreen({destination, runtime, device, actions, selection, o
   };
   const nextPosters = () => {
     const section = posterProjection?.sections.find(value => value.nextCursor);
-    const stride = listMode ? 88 : Math.max(118, gridWidth / myListColumns) * 1.5 + 58;
+    const stride = listMode ? 88 : Math.max(118, gridWidth / myListColumns) * 1.5 + 58 + (theme.isTV ? 0 : cardTitleLine(theme));
     if (tablet && savedTab === 'watchlist' && section && savedNearEnd(viewport.current.offset, viewport.current.height, viewport.current.extent, stride, listMode ? 1 : myListColumns)) {
       nextMyListPage('posters', posterProjection!, section.id);
     }
