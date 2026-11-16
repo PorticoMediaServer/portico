@@ -1,8 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {ApiError,ServerListWatcher,SERVER_LIST_INTERVAL_MS,SERVER_LIST_SPREAD_MS,hostedGate,porticoSignIn,acceptPorticoInvitation,transferPorticoOwnership,acceptPorticoCustody,leavePorticoServer,removePorticoServer,serverRemovalClaim,isAccessRefused,isSessionMigrated,isClockSkew,routeBase64,type ServerListRecord} from '../src/index.ts';
+import {ApiError,ServerListWatcher,SERVER_LIST_INTERVAL_MS,SERVER_LIST_SPREAD_MS,hostedGate,porticoSignIn,transferPorticoOwnership,acceptPorticoCustody,leavePorticoServer,removePorticoServer,serverRemovalClaim,isAccessRefused,isSessionMigrated,isClockSkew,routeBase64,type ServerListRecord} from '../src/index.ts';
 import {parseDirectSnapshot} from '../src/profile-management.ts';
 import {webRouteCrypto,type RouteCrypto} from '../src/route-identity.ts';
-import {acceptShortPorticoInvitation} from '../src/portico-servers.ts';
 
 const clock=(start=1_800_000_000_000)=>{let now=start,random=0.5;return{now:()=>now,random:()=>random,advance:(ms:number)=>{now+=ms;},roll:(v:number)=>{random=v;}};};
 const answer=(version:string,items:unknown[]=[])=>({items,version,watch:'d2F0Y2g.mac'});
