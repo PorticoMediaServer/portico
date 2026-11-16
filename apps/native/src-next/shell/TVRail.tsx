@@ -13,6 +13,7 @@ import {ProfileFace, type ProfileOption} from '../kit/artwork';
 import {Icon, type IconName} from '../kit/Icon';
 import {useTheme} from '../kit/theme';
 import {useMotion} from '../kit/useMotion';
+import {ListEdgeFade, useListEdges} from '../kit/layout/ListEdgeFade';
 import {libraryIcon, visibleLibraries, type ShellAuthority, type ShellDestination} from './model';
 
 type RailEntry = {key: string; label: string; icon: IconName; destination: ShellDestination};
@@ -74,13 +75,18 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
   const panel = useAnimatedStyle(() => ({transform: [{translateX: (expanded.value - 1) * (spec.openWidth - spec.width)}]}));
   const counter = useAnimatedStyle(() => ({transform: [{translateX: (1 - expanded.value) * (spec.openWidth - spec.width)}]}));
   const labels = useAnimatedStyle(() => ({opacity: labelOpacity.value, transform: motion.transforms ? [{translateX: -8 * (1 - labelOpacity.value)}] : []}));
-  const entries: RailEntry[] = [
+  // Search and Home are pinned at the top, Live TV and Saved above Settings: destinations never need a scroll to find.
+  // Only the libraries scroll, between them, fading at whichever end has more (lead ruling, 16 Nov).
+  const pinnedTop: RailEntry[] = [
     {key: 'search', icon: 'i-search', label: defaultI18n.t('web.shell.search'), destination: {kind: 'search'}},
     {key: 'home', icon: 'i-home', label: defaultI18n.t('web.shell.home'), destination: {kind: 'home'}},
-    ...visibleLibraries(libraries, true).map(library => ({key: 'library:' + library.id, label: library.name, icon: libraryIcon(library.kind), destination: {kind: 'library' as const, libraryId: library.id}})),
+  ];
+  const libraryEntries: RailEntry[] = visibleLibraries(libraries, true).map(library => ({key: 'library:' + library.id, label: library.name, icon: libraryIcon(library.kind), destination: {kind: 'library' as const, libraryId: library.id}}));
+  const pinnedBottom: RailEntry[] = [
     ...(hasLiveTV ? [{key: 'live', icon: 'i-live' as const, label: defaultI18n.t('search.chip.liveTV'), destination: {kind: 'live' as const}}] : []),
     {key: 'saved', icon: 'i-bookmark', label: defaultI18n.t('saved.title'), destination: {kind: 'saved'}},
   ];
+  const entries = [...pinnedTop, ...libraryEntries, ...pinnedBottom], {edges, scroll} = useListEdges();
   const item = (entry: RailEntry) => {
     const selected = sameDestination(entry.destination, destination);
     return <Focusable key={entry.key} {...returnProps} focusId={entry.key} testID={focusTestID(ids.rail, entry.key)} accessibilityRole="button" accessibilityLabel={entry.label} accessibilityState={{selected}} onPress={() => onNavigate(entry.destination)} focusRadius={spec.itemRadius} focusKind="button"
@@ -103,11 +109,17 @@ export function TVRail({libraries, hasLiveTV, destination, profile, unread = fal
         <View accessible={false} style={{height: 40, marginLeft: 16, marginBottom: 64}}>
           {open ? <Image source={require('../../assets/wordmark.png')} resizeMode="contain" style={{...headerWordmark.tvRail, flexShrink: 0, position: 'absolute', top: (40 - headerWordmark.tvRail.height) / 2}}/> : <RailBrandSymbol/>}
         </View>
-        {/* The list scrolls, so it clips: room on every side for the focused item's glow, so the glow fades out instead of ending
-            at the list's edge. */}
-        {/* No glow room below: the list would paint under Settings (a strip of the next entry showed through as dots). */}
-        <ScrollView style={{flex: 1, marginLeft: -24, marginRight: -tvRailGlow, marginTop: -tvRailGlow}}
-          contentContainerStyle={{gap: spec.itemGap, paddingLeft: 24, paddingRight: tvRailGlow, paddingVertical: tvRailGlow}} showsVerticalScrollIndicator={false}>{entries.map(item)}</ScrollView>
+        <View style={{gap: spec.itemGap}}>{pinnedTop.map(item)}</View>
+        {/* The libraries scroll, so they clip. The list owns the item gaps above and below it (room for the focus ring) and
+            glow room at the sides, and reaches no further: past the gaps it would paint under the pinned entries. Where it
+            continues, the kit's edge fade says so. */}
+        {libraryEntries.length > 0 && <View testID="tv-rail-libraries" style={{flexShrink: 1, marginLeft: -24, marginRight: -tvRailGlow}}>
+          <ScrollView {...scroll} style={{flexGrow: 0, flexShrink: 1}} contentContainerStyle={{gap: spec.itemGap, paddingLeft: 24, paddingRight: tvRailGlow, paddingVertical: spec.itemGap}} showsVerticalScrollIndicator={false}>{libraryEntries.map(item)}</ScrollView>
+          {edges.top && <ListEdgeFade testID="tv-rail-fade-top" edge="top" length={spec.itemSize} opacity={0.9}/>}
+          {edges.bottom && <ListEdgeFade testID="tv-rail-fade-bottom" edge="bottom" length={spec.itemSize} opacity={0.9}/>}
+        </View>}
+        <View style={{gap: spec.itemGap, marginTop: libraryEntries.length ? 0 : spec.itemGap}}>{pinnedBottom.map(item)}</View>
+        <View style={{flex: 1}}/>
         <View style={{gap: spec.itemGap, paddingTop: 8}}>
           {item({key: 'settings', label: defaultI18n.t('settings.title'), icon: 'i-settings', destination: {kind: 'settings'}})}
           <Focusable ref={profileRef} {...returnProps} focusId={ids.profile} testID={focusTestID(ids.rail, ids.profile)} accessibilityRole="button" accessibilityLabel={defaultI18n.t('next.home.native.profileAndServer')} onPress={onProfile} focusRadius={14}

@@ -2,6 +2,7 @@ import {TVShelf, tvItemKey} from '../../tv/layout/TVShelf';
 import React, {useEffect, useRef, useState} from 'react';
 import {ScrollView, Text, View} from 'react-native';
 import {ListEdgeFade} from '../../kit/layout/ListEdgeFade';
+import {listEdges, noListEdges, type ListEdges} from '../../kit/layout/list-edges';
 import type {ContentEntry} from '../../../../../packages/client-core/src/library-content';
 import type {ShowWorkspaceData, WorkspaceSeason} from '../../../../../packages/client-core/src/show-workspace';
 import {cardText, episodeLabel, type TextEnvironment} from '../../../../../packages/client-core/src/presentation/kit-model';
@@ -181,13 +182,10 @@ export function TVEpisodeBrowser(props: TVEpisodeBrowserProps) {
 /** tv-detail frame 5: the season list shows six rows and half of the seventh (84 pt rows, 6 pt apart), so a show with more
  * seasons than fit says so with the next row peeking in; the Hold OK hint stays under it on screen. Five seasons fit whole. */
 export const seasonListHeight = 6.5 * 90;
-type SeasonEdges = Readonly<{top: boolean; bottom: boolean}>;
-const noEdges: SeasonEdges = Object.freeze({top: false, bottom: false});
-/** Which edges of the season window have more seasons beyond them. Only a list that really continues fades. */
-export function seasonListEdges(offset: number, contentHeight: number, viewportHeight: number): SeasonEdges {
-  if (viewportHeight <= 0 || contentHeight <= viewportHeight + 1) return noEdges;
-  return {top: offset > 1, bottom: offset + viewportHeight < contentHeight - 1};
-}
+type SeasonEdges = ListEdges;
+const noEdges = noListEdges;
+/** Which edges of the season window have more seasons beyond them: the kit's `listEdges`. */
+export const seasonListEdges = listEdges;
 export function TVTile({entry, more, ...props}: React.ComponentProps<typeof EpisodeTile> & {entry: ContentEntry; more: TVEpisodeBrowserProps['more']}) {
   const anchor = useRef<View>(null);
   return <EpisodeTile {...props} menuAnchorRef={anchor} onMore={() => more(entry, anchor)}/>;
