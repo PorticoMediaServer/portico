@@ -15,6 +15,7 @@ import {fmtMbps, fmtPct} from './format';
 import {loadTileValue, orderedSessions, stopWords} from './model';
 import {useDashboardAccounts, useDashboardAuthority, useDashboardRead, type ReadState} from './use-read';
 import {Range, ReadFeedback, Section, t} from './shared';
+import {usePhone} from '../../kit/overlays/shared';
 import type {ChartSeries} from './Chart';
 import {Chart} from './Chart';
 import {SessionCard} from './SessionCard';
@@ -93,7 +94,10 @@ type SessionListProps = Readonly<{
 }>;
 /** Presentation only: the shared list presence keeps the drawn session rows and their
  * departure paint. It owns no session authority and calls no command. */
-function SessionList({sessions, bindings: b, phone, empty, onRefresh}: SessionListProps) {
+function SessionList({sessions, bindings: b, phone: destination, empty, onRefresh}: SessionListProps) {
+  // At phone width every Now playing card is the drawn phone card (owner-dashboard 2), also on the desktop page that
+  // Settings shows: the desktop card squeezes its title behind Stop there (W2, 16 Nov).
+  const narrow = usePhone(), phone = destination || narrow;
   const motion = useLayoutMotion();
   const sessionKey = useCallback((session: {id: string}) => session.id, []);
   const focus = useListRemovalFocus(b);
